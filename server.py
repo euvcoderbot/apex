@@ -95,7 +95,9 @@ def telemetry(
     except Exception as exc:
         raise HTTPException(404, f"Could not load telemetry: {exc}") from exc
 
-    columns = ["Distance", "Speed", "Throttle", "Brake", "RPM", "nGear", "DRS"]
+    telemetry_data = telemetry_data.copy()
+    telemetry_data["ElapsedSeconds"] = telemetry_data["Time"].dt.total_seconds()
+    columns = ["Distance", "ElapsedSeconds", "Speed", "Throttle", "Brake", "RPM", "nGear", "DRS"]
     samples = telemetry_data[columns].iloc[::4].replace({np.nan: None}).to_dict("records")
     return {"driver": driver, "lap": lap, "samples": samples}
 
