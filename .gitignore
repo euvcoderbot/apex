@@ -1,0 +1,4 @@
+.venv/
+.fastf1-cache/
+__pycache__/
+*.py[cod]
