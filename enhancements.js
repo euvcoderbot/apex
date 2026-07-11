@@ -106,7 +106,17 @@ document.querySelector('#cornerToggle').addEventListener('change', event => {
     ? 'Corner overlays need circuit-distance mapping; this will appear automatically when FastF1 provides it.'
     : 'Corner labels appear when mapped distance data is available.';
 });
+function clearBeforeSessionLoad() {
+  selected = []; loaded = []; openStint = {}; telemetryCache.clear();
+  document.querySelector('#driverPills').innerHTML = '<span class="section-empty">Load a session to see its drivers.</span>';
+  document.querySelector('#stintPanels').innerHTML = '<span class="section-empty">Select a driver to see stints and laps.</span>';
+  document.querySelector('#sectorRows').innerHTML = '';
+  document.querySelector('#referenceLap').textContent = '—';
+  document.querySelector('#loadedCount').textContent = '00';
+  document.querySelector('#finalDeltas').textContent = '—';
+}
 populate(yearSelect, Array.from({ length: new Date().getFullYear() - 2014 + 1 }, (_, i) => new Date().getFullYear() - i));
 yearSelect.value = '2025';
 loadCalendar().catch(error => { gpSelect.innerHTML = '<option>Calendar unavailable</option>'; console.warn(error); });
+clearBeforeSessionLoad();
 bindAllChartHover();

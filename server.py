@@ -50,9 +50,14 @@ def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
 
 
 def openf1_session(year: int, gp: str, session_name: str) -> dict[str, Any] | None:
-    sessions = openf1("sessions", year=year, session_name=session_name)
-    wanted = gp.lower().replace("grand prix", "").strip()
-    return next((item for item in sessions if wanted in item.get("meeting_name", "").lower()), None)
+    sessions = openf1("sessions", year=year)
+    wanted = gp.lower().replace("grand prix", "").replace("great britain", "british").strip()
+    session_name = session_name.lower().replace("practice ", "practice ")
+    for item in sessions:
+        meeting = item.get("meeting_name", "").lower().replace("grand prix", "").replace("great britain", "british")
+        if wanted in meeting and item.get("session_name", "").lower() == session_name:
+            return item
+    return None
 
 
 def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: str, lap_number: int) -> list[dict[str, Any]]:
