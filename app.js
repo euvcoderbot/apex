@@ -835,18 +835,31 @@ function drawRealChart(name) {
     const teamColor = getDriverColor(lap.code);
     const refSeries = telemetryCache.get(telemetryKey(loaded[0]));
     
-    // Compute points
+    // Speed uses its original telemetry samples. This keeps corner-speed dots
+    // exactly on the rendered line rather than on a separate 180-point grid.
     const points = [];
-    const steps = 180;
-    for (let step = 0; step <= steps; step++) {
-      const fraction = step / steps;
-      const targetDist = totalDist * fraction;
-      const value = name === 'Timing delta' ? (index === 0 ? 0 : deltaAt(series, refSeries, targetDist)) : interpolate(series, targetDist, field);
-      
-      if (Number.isFinite(value)) {
-        const x = bounds.left + fraction * (rect.width - bounds.left - bounds.right);
-        const y = bounds.top + (bounds.max - value) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
-        points.push({ x, y });
+    if (name === 'Speed trace') {
+      const ownTotal = series[series.length - 1]?.Distance || 1;
+      series.forEach(point => {
+        const fraction = Math.max(0, Math.min(1, (+point.Distance || 0) / ownTotal));
+        const value = +point.Speed;
+        if (Number.isFinite(value)) {
+          const x = bounds.left + fraction * (rect.width - bounds.left - bounds.right);
+          const y = bounds.top + (bounds.max - value) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
+          points.push({ x, y });
+        }
+      });
+    } else {
+      const steps = 180;
+      for (let step = 0; step <= steps; step++) {
+        const fraction = step / steps;
+        const targetDist = totalDist * fraction;
+        const value = name === 'Timing delta' ? (index === 0 ? 0 : deltaAt(series, refSeries, targetDist)) : interpolate(series, targetDist, field);
+        if (Number.isFinite(value)) {
+          const x = bounds.left + fraction * (rect.width - bounds.left - bounds.right);
+          const y = bounds.top + (bounds.max - value) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
+          points.push({ x, y });
+        }
       }
     }
     

@@ -91,7 +91,7 @@ function getCornerMinSpeed(samples, corner) {
   const fallbackFraction = Number(corner?.distance) / referenceDistance();
   const fraction = Math.max(0, Math.min(1, Number(corner?.fraction ?? fallbackFraction)));
   const ownCorner = ownTotal * fraction;
-  const windowSize = Math.max(35, Math.min(70, ownTotal * 0.012));
+  const windowSize = Math.max(18, Math.min(35, ownTotal * 0.006));
   const nearby = samples.filter(point => Math.abs(point.Distance - ownCorner) <= windowSize && Number.isFinite(+point.Speed));
   if (!nearby.length) return null;
 
