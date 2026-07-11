@@ -723,6 +723,14 @@ function drawRealChart(name) {
     ctx.fillText('Loading telemetry data…', 43, 25);
     return;
   }
+
+  if (name === 'DRS / straight-line mode' && Number($('#year').value) >= 2026
+    && !data.some(series => series.modeAvailable)) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+    ctx.font = '11px monospace';
+    ctx.fillText('Straight-line mode is not published for this lap.', 43, 25);
+    return;
+  }
   
   let values = [];
   if (name === 'Timing delta') {
@@ -794,7 +802,9 @@ function drawRealChart(name) {
   // Draw Corner dotted lines
   if ($('#cornerToggle').checked && corners.length) {
     corners.forEach(corner => {
-      const fraction = corner.distance / totalDist;
+      const fraction = corner.fraction != null && Number.isFinite(Number(corner.fraction))
+        ? Number(corner.fraction)
+        : corner.distance / totalDist;
       if (fraction >= 0 && fraction <= 1) {
         const x = bounds.left + fraction * (rect.width - bounds.left - bounds.right);
         
@@ -879,7 +889,10 @@ function drawRealChart(name) {
   // Draw Corner apex min speed dots on the Speed trace chart (with clean text labels stacked at the top)
   if (name === 'Speed trace' && $('#cornerToggle').checked && corners.length) {
     corners.forEach(corner => {
-      const x = bounds.left + (corner.distance / totalDist) * (rect.width - bounds.left - bounds.right);
+      const markerFraction = corner.fraction != null && Number.isFinite(Number(corner.fraction))
+        ? Number(corner.fraction)
+        : corner.distance / totalDist;
+      const x = bounds.left + markerFraction * (rect.width - bounds.left - bounds.right);
       if (x < bounds.left || x > rect.width - bounds.right) return;
       
       // Draw turn label pill
@@ -900,11 +913,11 @@ function drawRealChart(name) {
         if (!samples || !samples.length) return;
         
         const teamColor = getDriverColor(lap.code);
-        const apexPt = getCornerMinSpeed(samples, corner.distance);
+        const apexPt = getCornerMinSpeed(samples, corner);
         if (!apexPt || apexPt.Speed == null) return;
         
         // Draw small dot on the trace line itself (non-intersecting visual indicator)
-        const apexX = bounds.left + (apexPt.Distance / totalDist) * (rect.width - bounds.left - bounds.right);
+        const apexX = bounds.left + apexPt.fraction * (rect.width - bounds.left - bounds.right);
         const apexY = bounds.top + (bounds.max - apexPt.Speed) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
         
         if (apexX >= bounds.left && apexX <= rect.width - bounds.right) {
@@ -1011,6 +1024,8 @@ function bindAllChartHover() {
         if (Number.isFinite(val)) {
           if (hoveredChartName === 'Timing delta') {
             display = `${val >= 0 ? '+' : ''}${val.toFixed(3)}s`;
+          } else if (hoveredChartName === 'DRS / straight-line mode') {
+            display = val >= 0.5 ? 'OPEN' : 'CLOSED';
           } else {
             display = `${Math.round(val)} ${unit}`;
           }
@@ -1085,7 +1100,7 @@ function renderApexSpeeds() {
       const samples = telemetryCache.get(telemetryKey(lap));
       if (!samples || !samples.length) return null;
       
-      const apexPt = getCornerMinSpeed(samples, corner.distance);
+      const apexPt = getCornerMinSpeed(samples, corner);
       if (!apexPt || apexPt.Speed == null) return null;
       
       return {

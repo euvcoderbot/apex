@@ -253,6 +253,7 @@ def session_data(
             ],
         })
     corners = []
+    marker_reference_distance = None
     circuit_info = None
     try:
         circuit_info = data.get_circuit_info()
@@ -266,13 +267,20 @@ def session_data(
             has_valid_corners = True
             
     if has_valid_corners:
+        try:
+            fastest_telemetry = data.laps.pick_fastest().get_telemetry(frequency="original")
+            marker_reference_distance = float(fastest_telemetry["Distance"].max())
+        except Exception as exc:
+            logger.warning("Could not calculate the circuit-marker reference distance: %s", exc)
         for _, row in circuit_info.corners.iterrows():
             dist = row.get("Distance")
             if dist is not None and np.isfinite(dist):
                 corners.append({
                     "number": str(row["Number"]),
                     "letter": str(row.get("Letter") or ""),
-                    "distance": float(dist)
+                    "distance": float(dist),
+                    "fraction": float(dist / marker_reference_distance)
+                    if marker_reference_distance and marker_reference_distance > 0 else None,
                 })
     else:
         logger.warning("Could not load valid circuit corners directly (NaN distances). Trying fallback year...")

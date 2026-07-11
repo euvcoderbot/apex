@@ -35,11 +35,17 @@ async function fetchTelemetry(lap) {
   if (!response.ok) throw new Error(payload.detail || 'Telemetry unavailable for this lap');
   const samples = normalizeTelemetry(payload.samples || [], lap);
   const season = Number($('#year').value);
+  const rawModeValues = samples.map(point => Number(point.DRS)).filter(Number.isFinite);
+  // A 2026 zero-only field is not evidence that the car stayed closed for an
+  // entire lap. Treat it as unpublished rather than drawing a false trace.
+  samples.modeAvailable = season < 2026 || rawModeValues.some(value => value !== 0);
   samples.forEach(point => {
     // 2018–2025 FastF1 encodes DRS activation as 10/12/14. Do not infer it
     // from speed or throttle. The 2026 API has no verified equivalent channel.
     if (season < 2026) point.DRS = [10, 12, 14].includes(Number(point.DRS)) ? 1 : 0;
-    else point.DRS = Number.isFinite(Number(point.DRS)) ? (Number(point.DRS) > 0 ? 1 : 0) : null;
+    else point.DRS = samples.modeAvailable && Number.isFinite(Number(point.DRS))
+      ? (Number(point.DRS) > 0 ? 1 : 0)
+      : null;
     point.Brake = point.Brake === true ? 100 : (+point.Brake || 0);
   });
   telemetryCache.set(key, samples);
@@ -79,16 +85,20 @@ function deltaAt(samples, reference, targetDistance) {
   return timeHere - referenceHere;
 }
 
-function getCornerMinSpeed(samples, cornerDistance) {
-  const totalDistance = referenceDistance();
-  const fraction = cornerDistance / totalDistance;
+function getCornerMinSpeed(samples, corner) {
   const ownTotal = samples?.[samples.length - 1]?.Distance || 0;
+  if (!ownTotal) return null;
+  const fallbackFraction = Number(corner?.distance) / referenceDistance();
+  const fraction = Math.max(0, Math.min(1, Number(corner?.fraction ?? fallbackFraction)));
   const ownCorner = ownTotal * fraction;
-  const nearby = samples.filter(point => Math.abs(point.Distance - ownCorner) <= 55 && Number.isFinite(+point.Speed));
+  const windowSize = Math.max(35, Math.min(70, ownTotal * 0.012));
+  const nearby = samples.filter(point => Math.abs(point.Distance - ownCorner) <= windowSize && Number.isFinite(+point.Speed));
   if (!nearby.length) return null;
+
+  const markerSpeed = interpolate(samples, referenceDistance() * fraction, 'Speed');
   const minimum = nearby.reduce((a, b) => +a.Speed < +b.Speed ? a : b);
-  // Slow corners are represented by apex minimum; medium/high-speed corners
-  // use the peak speed through the corner window, avoiding false late-apex dips.
-  if (+minimum.Speed < 165) return minimum;
-  return nearby.reduce((a, b) => +a.Speed > +b.Speed ? a : b);
+  const edgeSpeed = ((+nearby[0].Speed) + (+nearby[nearby.length - 1].Speed)) / 2;
+  const hasMeaningfulTrough = Number.isFinite(markerSpeed) && edgeSpeed - (+minimum.Speed) >= 6;
+  const point = hasMeaningfulTrough ? minimum : { Distance: ownCorner, Speed: markerSpeed };
+  return { ...point, fraction: (+point.Distance || 0) / ownTotal, isApex: hasMeaningfulTrough };
 }
