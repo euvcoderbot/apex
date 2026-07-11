@@ -342,7 +342,7 @@ def telemetry(
 
     telemetry_data = telemetry_data.copy()
     telemetry_data["ElapsedSeconds"] = telemetry_data["Time"].dt.total_seconds()
-    columns = ["Distance", "ElapsedSeconds", "Speed", "Throttle", "Brake", "RPM", "nGear", "DRS"]
+    columns = ["Distance", "ElapsedSeconds", "Speed", "Throttle", "Brake", "RPM", "nGear", "DRS", "X", "Y"]
     samples = telemetry_data[columns].iloc[::4].replace({np.nan: None}).to_dict("records")
     if samples:
         return {"driver": driver, "lap": lap, "samples": samples, "source": "FastF1"}

@@ -96,9 +96,20 @@ function getCornerMinSpeed(samples, corner) {
   if (!nearby.length) return null;
 
   const markerSpeed = interpolate(samples, referenceDistance() * fraction, 'Speed');
-  const minimum = nearby.reduce((a, b) => +a.Speed < +b.Speed ? a : b);
+  const adaptiveMinimum = nearby.reduce((a, b) => +a.Speed < +b.Speed ? a : b);
+  const markerWindow = samples.filter(point => Math.abs(point.Distance - ownCorner) <= 7 && Number.isFinite(+point.Speed));
+  const markerMinimum = markerWindow.length
+    ? markerWindow.reduce((a, b) => +a.Speed < +b.Speed ? a : b)
+    : adaptiveMinimum;
   const edgeSpeed = ((+nearby[0].Speed) + (+nearby[nearby.length - 1].Speed)) / 2;
-  const hasMeaningfulTrough = Number.isFinite(markerSpeed) && edgeSpeed - (+minimum.Speed) >= 6;
-  const point = hasMeaningfulTrough ? minimum : { Distance: ownCorner, Speed: markerSpeed };
-  return { ...point, fraction: (+point.Distance || 0) / ownTotal, isApex: hasMeaningfulTrough };
+  const hasMeaningfulTrough = Number.isFinite(markerSpeed) && edgeSpeed - (+adaptiveMinimum.Speed) >= 6;
+  const point = hasMeaningfulTrough ? adaptiveMinimum : { Distance: ownCorner, Speed: markerSpeed };
+  const cornerSpeed = ((+adaptiveMinimum.Speed) + (+markerMinimum.Speed)) / 2;
+  return {
+    ...point,
+    traceSpeed: +point.Speed,
+    cornerSpeed,
+    fraction: (+point.Distance || 0) / ownTotal,
+    isApex: hasMeaningfulTrough,
+  };
 }

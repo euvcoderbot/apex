@@ -927,11 +927,11 @@ function drawRealChart(name) {
         
         const teamColor = getDriverColor(lap.code);
         const apexPt = getCornerMinSpeed(samples, corner);
-        if (!apexPt || apexPt.Speed == null) return;
+        if (!apexPt || !Number.isFinite(apexPt.traceSpeed)) return;
         
         // Draw small dot on the trace line itself (non-intersecting visual indicator)
         const apexX = bounds.left + apexPt.fraction * (rect.width - bounds.left - bounds.right);
-        const apexY = bounds.top + (bounds.max - apexPt.Speed) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
+        const apexY = bounds.top + (bounds.max - apexPt.traceSpeed) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
         
         if (apexX >= bounds.left && apexX <= rect.width - bounds.right) {
           ctx.beginPath();
@@ -944,7 +944,7 @@ function drawRealChart(name) {
         const textY = 24 + index * 10;
         ctx.fillStyle = teamColor;
         ctx.font = '8px monospace';
-        ctx.fillText(Math.round(apexPt.Speed), x, textY);
+        ctx.fillText(Math.round(apexPt.cornerSpeed), x, textY);
       });
       
       ctx.textAlign = 'left'; // restore default alignment
@@ -1081,6 +1081,8 @@ async function drawAll() {
   });
   await Promise.all(promises);
   defs.forEach(definition => drawRealChart(definition[0]));
+  renderApexSpeeds();
+  renderMiniSectorMap();
 }
 
 function renderAll() {
@@ -1114,12 +1116,12 @@ function renderApexSpeeds() {
       if (!samples || !samples.length) return null;
       
       const apexPt = getCornerMinSpeed(samples, corner);
-      if (!apexPt || apexPt.Speed == null) return null;
+      if (!apexPt || !Number.isFinite(apexPt.cornerSpeed)) return null;
       
       return {
         code: lap.code,
         color: getDriverColor(lap.code),
-        speed: Math.round(apexPt.Speed)
+        speed: Math.round(apexPt.cornerSpeed)
       };
     }).filter(Boolean);
     
@@ -1138,6 +1140,109 @@ function renderApexSpeeds() {
         ${valsHtml}
       </div>
     `;
+  }).join('');
+}
+
+function renderMiniSectorMap() {
+  const canvas = $('#dominanceCanvas');
+  const empty = $('#dominanceEmpty');
+  const legend = $('#dominanceLegend');
+  if (!canvas || !empty || !legend) return;
+
+  if (loaded.length < 2) {
+    canvas.style.display = 'none';
+    empty.style.display = 'block';
+    empty.textContent = 'Load at least two laps to compare mini-sector dominance.';
+    legend.innerHTML = '';
+    return;
+  }
+
+  const reference = telemetryCache.get(telemetryKey(loaded[0]));
+  const allSeries = loaded.map(lap => telemetryCache.get(telemetryKey(lap)));
+  const trackSamples = reference?.filter(point => Number.isFinite(+point.X) && Number.isFinite(+point.Y)) || [];
+  if (!reference?.length || !allSeries.every(series => series?.length) || trackSamples.length < 2) {
+    canvas.style.display = 'none';
+    empty.style.display = 'block';
+    empty.textContent = 'Track-position telemetry is unavailable for this comparison.';
+    legend.innerHTML = '';
+    return;
+  }
+
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, rect.width, rect.height);
+
+  const minX = Math.min(...trackSamples.map(point => +point.X));
+  const maxX = Math.max(...trackSamples.map(point => +point.X));
+  const minY = Math.min(...trackSamples.map(point => +point.Y));
+  const maxY = Math.max(...trackSamples.map(point => +point.Y));
+  const padding = 18;
+  const scale = Math.min((rect.width - padding * 2) / (maxX - minX || 1), (rect.height - padding * 2) / (maxY - minY || 1));
+  const offsetX = (rect.width - (maxX - minX) * scale) / 2;
+  const offsetY = (rect.height - (maxY - minY) * scale) / 2;
+  const toCanvas = (x, y) => ({ x: offsetX + (x - minX) * scale, y: rect.height - offsetY - (y - minY) * scale });
+  const totalDistance = reference[reference.length - 1].Distance || 1;
+  const segmentLength = 25;
+  const segments = Math.ceil(totalDistance / segmentLength);
+
+  const pointAt = fraction => {
+    const distance = totalDistance * fraction;
+    const x = interpolate(reference, distance, 'X');
+    const y = interpolate(reference, distance, 'Y');
+    return Number.isFinite(x) && Number.isFinite(y) ? toCanvas(x, y) : null;
+  };
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+  ctx.lineWidth = 7;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  trackSamples.forEach((point, index) => {
+    const pos = toCanvas(+point.X, +point.Y);
+    if (index === 0) ctx.moveTo(pos.x, pos.y);
+    else ctx.lineTo(pos.x, pos.y);
+  });
+  ctx.stroke();
+
+  const wins = new Set();
+  for (let index = 0; index < segments; index++) {
+    const start = index / segments;
+    const end = Math.min(1, (index + 1) / segments);
+    const from = pointAt(start);
+    const to = pointAt(end);
+    if (!from || !to) continue;
+    let winner = -1;
+    let bestTime = Infinity;
+    allSeries.forEach((series, lapIndex) => {
+      const startTime = calibratedElapsed(series, start);
+      const endTime = calibratedElapsed(series, end);
+      const duration = Number.isFinite(startTime) && Number.isFinite(endTime)
+        ? endTime - startTime
+        : null;
+      if (Number.isFinite(duration) && duration < bestTime) {
+        bestTime = duration;
+        winner = lapIndex;
+      }
+    });
+    if (winner < 0) continue;
+    wins.add(winner);
+    ctx.strokeStyle = getDriverColor(loaded[winner].code);
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.stroke();
+  }
+
+  canvas.style.display = 'block';
+  empty.style.display = 'none';
+  legend.innerHTML = [...wins].map(index => {
+    const lap = loaded[index];
+    return `<span class="legend-item"><i class="legend-color" style="--team:${getDriverColor(lap.code)}"></i>${lap.code} L${lap.lap}</span>`;
   }).join('');
 }
 
