@@ -94,7 +94,9 @@ def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: s
 
 @lru_cache(maxsize=8)
 def load_session(year: int, gp: str, session_name: str):
-    session = fastf1.get_session(year, gp, session_name)
+    # Prefer the official F1 timing backend. It is usually available shortly
+    # after a session ends and avoids waiting for an aggregated mirror update.
+    session = fastf1.get_session(year, gp, session_name, backend="f1timing")
     session.load(telemetry=True, weather=False, messages=False)
     return session
 
