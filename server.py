@@ -119,11 +119,14 @@ def telemetry(
 ):
     try:
         data = load_session(year, gp, session)
-        selected = data.laps.pick_drivers(driver)
-        selected = selected[selected["LapNumber"] == lap]
+        driver_info = data.get_driver(driver)
+        driver_number = str(driver_info.get("DriverNumber", driver))
+        selected = data.laps.pick_drivers(driver_number)
+        selected = selected[np.isclose(selected["LapNumber"].astype(float), float(lap))]
         if selected.empty:
             raise ValueError("lap was not found")
-        telemetry_data = selected.iloc[0].get_telemetry().add_distance()
+        telemetry_data = selected.iloc[0].get_telemetry().add_distance().copy()
+        telemetry_data["Distance"] = telemetry_data["Distance"] - telemetry_data["Distance"].iloc[0]
     except Exception as exc:
         raise HTTPException(404, f"Could not load telemetry: {exc}") from exc
 

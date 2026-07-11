@@ -78,14 +78,23 @@ function bindAllChartHover() {
       const name = canvas.dataset.chart, rect = canvas.getBoundingClientRect();
       const fraction = Math.max(0, Math.min(1, (event.clientX - rect.left - 43) / (rect.width - 50)));
       const field = chartField[name], tip = document.querySelector('#realTooltip');
+      defs.forEach(def => drawRealChart(def[0]));
+      document.querySelectorAll('canvas[data-chart]').forEach(chart => {
+        const context = chart.getContext('2d');
+        const x = 43 + fraction * (chart.clientWidth - 50);
+        context.strokeStyle = '#111216'; context.globalAlpha = .45; context.lineWidth = 1;
+        context.beginPath(); context.moveTo(x, 6); context.lineTo(x, chart.clientHeight - 10); context.stroke(); context.globalAlpha = 1;
+      });
       const lines = loaded.map((lap, index) => {
         const samples = telemetryCache.get(telemetryKey(lap));
         const value = name === 'Timing delta' ? (index ? deltaAt(samples, telemetryCache.get(telemetryKey(loaded[0])), fraction) : 0) : interpolate(samples, fraction, field);
         const unit = defs.find(def => def[0] === name)?.[1] || '';
-        return `${lap.code} L${lap.lap} · ${name === 'Timing delta' ? `${value >= 0 ? '+' : ''}${value?.toFixed(3)}s` : `${Math.round(value)} ${unit}`}`;
+        const display = Number.isFinite(value) ? (name === 'Timing delta' ? `${value >= 0 ? '+' : ''}${value.toFixed(3)}s` : `${Math.round(value)} ${unit}`) : '—';
+        return `${lap.code} L${lap.lap} · ${display}`;
       });
       tip.innerHTML = `<b>${(fraction * 5.891).toFixed(3)} KM</b><br>${lines.join('<br>')}`;
-      tip.style.display = 'block'; tip.style.left = `${Math.max(44, event.clientX - rect.left + 10)}px`; tip.style.top = `${event.clientY - rect.top - 22}px`;
+      const host = document.querySelector('.telemetry').getBoundingClientRect();
+      tip.style.display = 'block'; tip.style.left = `${Math.max(44, event.clientX - host.left + 4)}px`; tip.style.top = `${event.clientY - host.top + 4}px`;
     };
     canvas.onmouseleave = () => document.querySelector('#realTooltip').style.display = 'none';
   });
