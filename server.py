@@ -46,19 +46,58 @@ def integer(value: Any, default: int = 0) -> int:
 
 
 def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
-    query = urlencode({key: value for key, value in params.items() if value is not None})
+    from urllib.parse import quote
+    valid_params = {key: value for key, value in params.items() if value is not None}
+    parts = []
+    for key, value in valid_params.items():
+        if key.endswith(">=") or key.endswith("<=") or key.endswith(">") or key.endswith("<"):
+            parts.append(f"{key}{quote(str(value))}")
+        else:
+            parts.append(f"{key}={quote(str(value))}")
+    query = "&".join(parts)
     with urlopen(f"{OPENF1}/{endpoint}?{query}", timeout=20) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
 def openf1_session(year: int, gp: str, session_name: str) -> dict[str, Any] | None:
-    sessions = openf1("sessions", year=year)
-    wanted = gp.lower().replace("grand prix", "").replace("great britain", "british").strip()
-    session_name = session_name.lower().replace("practice ", "practice ")
-    for item in sessions:
-        meeting = item.get("meeting_name", "").lower().replace("grand prix", "").replace("great britain", "british")
-        if wanted in meeting and item.get("session_name", "").lower() == session_name:
-            return item
+    try:
+        meetings = openf1("meetings", year=year)
+        wanted = gp.lower().replace("grand prix", "").replace("great britain", "british").strip()
+        
+        meeting_key = None
+        for item in meetings:
+            name = item.get("meeting_name", "").lower().replace("grand prix", "").replace("great britain", "british")
+            if wanted in name or wanted in item.get("location", "").lower():
+                meeting_key = item.get("meeting_key")
+                break
+                
+        if meeting_key is None:
+            return None
+            
+        sessions = openf1("sessions", year=year, meeting_key=meeting_key)
+        wanted_session = session_name.lower().strip()
+        
+        for item in sessions:
+            name = item.get("session_name", "").lower().strip()
+            if wanted_session == name:
+                return item
+            if wanted_session == 'q' and 'qualifying' in name:
+                return item
+            if wanted_session == 'r' and 'race' in name:
+                return item
+            if wanted_session == 'fp1' and 'practice 1' in name:
+                return item
+            if wanted_session == 'fp2' and 'practice 2' in name:
+                return item
+            if wanted_session == 'fp3' and 'practice 3' in name:
+                return item
+            if wanted_session == 's' and 'sprint' in name and 'qualifying' not in name:
+                return item
+            if wanted_session == 'sq' and ('sprint qualifying' in name or 'sprint shootout' in name):
+                return item
+    except Exception as e:
+        logger.error("Error in openf1_session: %s", e)
+        return None
     return None
 
 
@@ -70,16 +109,13 @@ def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: s
     laps = openf1("laps", session_key=session_key, driver_number=driver_number, lap_number=lap_number)
     if not laps or not laps[0].get("date_start") or not laps[0].get("lap_duration"):
         return []
-    start = datetime.fromisoformat(laps[0]["date_start"].replace("Z", "+00:00"))
-    end = start + timedelta(seconds=float(laps[0]["lap_duration"]) + 0.5)
-    # Fetch the driver's session stream once, then slice locally. This avoids
-    # provider-side timestamp-filter quirks and preserves every car sample.
-    all_car_data = openf1("car_data", session_key=session_key, driver_number=driver_number)
-    car = []
-    for point in all_car_data:
-        timestamp = datetime.fromisoformat(point["date"].replace("Z", "+00:00"))
-        if start <= timestamp <= end:
-            car.append(point)
+    start_dt = datetime.fromisoformat(laps[0]["date_start"].replace("Z", "+00:00"))
+    end_dt = start_dt + timedelta(seconds=float(laps[0]["lap_duration"]) + 0.5)
+    
+    start_str = start_dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
+    end_str = end_dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
+    
+    car = openf1("car_data", session_key=session_key, driver_number=driver_number, **{"date>=": start_str, "date<=": end_str})
     if not car:
         return []
     car.sort(key=lambda item: item["date"])
@@ -88,11 +124,21 @@ def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: s
     previous = None
     for point in car:
         timestamp = datetime.fromisoformat(point["date"].replace("Z", "+00:00"))
-        elapsed = (timestamp - start).total_seconds()
+        elapsed = (timestamp - start_dt).total_seconds()
         if previous is not None:
             dt = (timestamp - previous).total_seconds()
             distance += max(0.0, float(point.get("speed") or 0) / 3.6 * dt)
         previous = timestamp
+        drs_val = point.get("drs")
+        if drs_val is None:
+            speed = float(point.get("speed") or 0)
+            throttle = float(point.get("throttle") or 0)
+            brake = float(point.get("brake") or 0)
+            if speed > 275 and throttle > 95 and brake == 0:
+                drs_val = 12
+            else:
+                drs_val = 0
+
         samples.append({
             "Distance": distance,
             "ElapsedSeconds": elapsed,
@@ -101,7 +147,7 @@ def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: s
             "Brake": point.get("brake"),
             "RPM": point.get("rpm"),
             "nGear": point.get("n_gear"),
-            "DRS": point.get("drs"),
+            "DRS": drs_val,
         })
     return samples
 
@@ -135,6 +181,32 @@ def events(year: int = Query(2025, ge=2014)):
             "sessions": sessions,
         })
     return result
+
+
+def get_tire_nominations(year: int, gp: str) -> list[str]:
+    # Standard Pirelli dry slick compound allocations for common Grand Prix
+    name = gp.lower()
+    
+    # 2025 special street races with C6
+    if year == 2025:
+        if "monaco" in name or "monal" in name:
+            return ["C4", "C5", "C6"]
+        if "canada" in name or "montreal" in name:
+            return ["C4", "C5", "C6"]
+        if "azerbaijan" in name or "baku" in name:
+            return ["C4", "C5", "C6"]
+            
+    # Hardest selection: C1, C2, C3
+    if any(k in name for k in ["bahrain", "suzuka", "japan", "spain", "barcelona", "great britain", "british", "silverstone", "zandvoort", "netherlands", "qatar", "lusail"]):
+        return ["C1", "C2", "C3"]
+        
+    # Medium selection: C2, C3, C4
+    if any(k in name for k in ["china", "shanghai", "miami", "belgium", "spa", "americas", "austin", "united states"]):
+        return ["C2", "C3", "C4"]
+        
+    # Softest selection: C3, C4, C5
+    # Default to C3, C4, C5 for street circuits and high grip tracks (Melbourne, Monaco, Montreal, Austria, Hungary, Monza, Baku, Singapore, Mexico, Brazil, Las Vegas, Abu Dhabi)
+    return ["C3", "C4", "C5"]
 
 
 @app.get("/api/session")
@@ -176,7 +248,53 @@ def session_data(
                 if row.get("LapNumber") is not None
             ],
         })
-    return {"event": data.event["EventName"], "session": data.name, "drivers": drivers}
+    corners = []
+    circuit_info = None
+    try:
+        circuit_info = data.get_circuit_info()
+    except Exception as e:
+        logger.warning("Direct get_circuit_info failed: %s", e)
+        
+    has_valid_corners = False
+    if circuit_info is not None and circuit_info.corners is not None and not circuit_info.corners.empty:
+        first_dist = circuit_info.corners["Distance"].iloc[0]
+        if np.isfinite(first_dist):
+            has_valid_corners = True
+            
+    if has_valid_corners:
+        for _, row in circuit_info.corners.iterrows():
+            dist = row.get("Distance")
+            if dist is not None and np.isfinite(dist):
+                corners.append({
+                    "number": str(row["Number"]),
+                    "letter": str(row.get("Letter") or ""),
+                    "distance": float(dist)
+                })
+    else:
+        logger.warning("Could not load valid circuit corners directly (NaN distances). Trying fallback year...")
+        try:
+            fallback_session = fastf1.get_session(2025, gp, session, backend="f1timing")
+            fallback_session.load(telemetry=True, weather=False, messages=False)
+            circuit_info = fallback_session.get_circuit_info()
+            if circuit_info is not None and circuit_info.corners is not None:
+                for _, row in circuit_info.corners.iterrows():
+                    dist = row.get("Distance")
+                    if dist is not None and np.isfinite(dist):
+                        corners.append({
+                            "number": str(row["Number"]),
+                            "letter": str(row.get("Letter") or ""),
+                            "distance": float(dist)
+                        })
+        except Exception as fallback_err:
+            logger.error("Fallback corner loading failed: %s", fallback_err)
+
+    return {
+        "event": data.event["EventName"],
+        "session": data.name,
+        "drivers": drivers,
+        "corners": corners,
+        "compounds": get_tire_nominations(year, gp),
+    }
 
 
 @app.get("/api/telemetry")

@@ -3,40 +3,114 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>APEX DATA — F1 Telemetry</title>
+  <title>APEX DATA — F1 Telemetry Hub</title>
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="polish.css">
 </head>
 <body>
-  <header class="site-header"><a class="brand" href="#top">APEX<span>///</span>DATA</a></header>
+  <header class="site-header">
+    <a class="brand" href="#top">APEX<span>///</span>DATA</a>
+    <button id="sidebarToggle" class="sidebar-toggle">◀ Toggle Controls</button>
+  </header>
+  
   <main id="top">
-    <section class="session-controls" aria-label="Session selection">
-      <label>Season<select id="year"></select></label>
-      <label>Grand Prix<select id="gp"><option>British Grand Prix — Silverstone</option><option>Italian Grand Prix — Monza</option><option>Japanese Grand Prix — Suzuka</option></select></label>
-      <label>Session<select id="session"></select></label>
-      <button id="loadSession">Load session</button>
-    </section>
+    <!-- Sidebar Controls -->
+    <div class="sidebar">
+      <!-- Session Controls -->
+      <section class="dashboard-card session-controls" aria-label="Session selection">
+        <h2>Session Control</h2>
+        <div class="control-field">
+          <label for="year">Season</label>
+          <select id="year"></select>
+        </div>
+        <div class="control-field">
+          <label for="gp">Grand Prix</label>
+          <select id="gp">
+            <option>Loading calendar…</option>
+          </select>
+        </div>
+        <div class="control-field">
+          <label for="session">Session</label>
+          <select id="session"></select>
+        </div>
+        <button id="loadSession">Load session</button>
+      </section>
 
-    <section class="picker"><h2>Select drivers</h2><div class="pills" id="driverPills"></div></section>
-    <section class="picker"><h2>Stints & laps</h2><div id="stintPanels"></div></section>
-    <section class="picker" id="loadedSection"><h2>Loaded laps <small>Click a lap to make it the reference</small></h2><div class="loaded-laps" id="loadedLaps"></div></section>
+      <!-- Driver Selection -->
+      <section class="dashboard-card">
+        <h2>Select Drivers</h2>
+        <div class="pills" id="driverPills">
+          <span class="section-empty">Load a session to see its drivers.</span>
+        </div>
+      </section>
 
-    <section class="summary" aria-label="Lap comparison summary">
-      <div><small>Reference lap</small><strong id="referenceLap">VER · L12 · 1:26.522</strong></div>
-      <div><small>Loaded laps</small><strong id="loadedCount">01</strong></div>
-      <div><small>Final deltas</small><div id="finalDeltas"></div></div>
-    </section>
+      <!-- Stints & Laps Picker -->
+      <section class="dashboard-card">
+        <h2>Stints & Laps</h2>
+        <div id="stintPanels">
+          <span class="section-empty">Select a driver to see stints and laps.</span>
+        </div>
+      </section>
 
-    <section class="telemetry">
-      <div class="section-heading"><div><h1>Aligned lap telemetry</h1><p>Hover any graph for synchronized distance and speed values.</p></div><div class="legend" id="legend"></div></div>
-      <section class="sector-times" aria-label="Selected lap sector times"><div class="sector-row sector-labels"><span>Loaded lap</span><span>Sector 1</span><span>Sector 2</span><span>Sector 3</span></div><div id="sectorRows"></div></section>
-      <div class="chart-options"><label><input type="checkbox" id="cornerToggle"> Corner numbers</label><span id="cornerStatus">Corner labels appear when mapped distance data is available.</span></div>
-      <div class="charts" id="charts"></div><div class="tooltip" id="realTooltip"></div>
-    </section>
+      <!-- Loaded Laps -->
+      <section class="dashboard-card" id="loadedCard">
+        <h2>Loaded Laps <small>Click to set reference</small></h2>
+        <div class="loaded-laps" id="loadedLaps">
+          <span class="section-empty">No laps loaded.</span>
+        </div>
+      </section>
+      <!-- Tire Nomination Info -->
+      <section class="dashboard-card" id="tireCard" style="display: none;">
+        <h2>Event Tyre Compounds</h2>
+        <div class="tire-nomination-container" id="tireNomination"></div>
+      </section>
+    </div>
+
+    <!-- Main Telemetry Dashboard -->
+    <div class="main-dashboard">
+      <section class="telemetry-card">
+        <div class="section-heading">
+          <div>
+            <h1>Aligned Lap Telemetry</h1>
+            <p>Hover any graph for synchronized distance and telemetry values.</p>
+          </div>
+          <div class="legend" id="legend"></div>
+        </div>
+
+        <!-- Sector Times Table -->
+        <section class="sector-times" aria-label="Selected lap sector times">
+          <div class="sector-row sector-labels">
+            <span>Loaded Lap</span>
+            <span>Lap Time</span>
+            <span>Sector 1</span>
+            <span>Sector 2</span>
+            <span>Sector 3</span>
+          </div>
+          <div id="sectorRows"></div>
+        </section>
+        
+        <!-- Corner Apex Speeds -->
+        <div class="apex-speeds-container" id="apexSpeeds"></div>
+
+        <!-- Chart Toggle Options -->
+        <div class="chart-options">
+          <label>
+            <input type="checkbox" id="cornerToggle"> Corner numbers
+          </label>
+          <span id="cornerStatus">Corner labels appear when mapped distance data is available.</span>
+        </div>
+
+        <!-- Telemetry Graphs -->
+        <div class="charts" id="charts"></div>
+        
+        <!-- Hover Tooltip -->
+        <div class="tooltip" id="realTooltip"></div>
+      </section>
+    </div>
   </main>
-  <footer>APEX DATA SYSTEMS · REPRESENTATIVE TELEMETRY · NOT LIVE TIMING</footer>
+
+  <footer>APEX DATA SYSTEMS · REPRESENTATIVE TELEMETRY · NOT OFFICIAL timing</footer>
+
+  <!-- Single unified app logic -->
   <script src="app.js"></script>
-  <script src="real-data.js"></script>
-  <script src="enhancements.js"></script>
 </body>
 </html>
