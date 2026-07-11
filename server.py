@@ -30,11 +30,41 @@ def seconds(value: Any) -> float | None:
         return None
 
 
+def integer(value: Any, default: int = 0) -> int:
+    try:
+        value = float(value)
+        return int(value) if np.isfinite(value) else default
+    except (TypeError, ValueError):
+        return default
+
+
 @lru_cache(maxsize=8)
 def load_session(year: int, gp: str, session_name: str):
     session = fastf1.get_session(year, gp, session_name)
     session.load(telemetry=True, weather=False, messages=False)
     return session
+
+
+@app.get("/api/events")
+def events(year: int = Query(2025, ge=2014)):
+    try:
+        schedule = fastf1.get_event_schedule(year, include_testing=False)
+    except Exception as exc:
+        raise HTTPException(422, f"Could not load the {year} calendar: {exc}") from exc
+    result = []
+    for _, event in schedule.iterrows():
+        sessions = []
+        for index in range(1, 6):
+            name = event.get(f"Session{index}")
+            if name and str(name) not in {"nan", "None"}:
+                sessions.append(str(name))
+        result.append({
+            "round": int(event["RoundNumber"]),
+            "name": str(event["EventName"]),
+            "date": str(event["EventDate"])[:10],
+            "sessions": sessions,
+        })
+    return result
 
 
 @app.get("/api/session")
@@ -68,10 +98,12 @@ def session_data(
                     "s2": seconds(row["Sector2Time"]),
                     "s3": seconds(row["Sector3Time"]),
                     "compound": str(row.get("Compound", "UNKNOWN")),
-                    "stint": int(row.get("Stint", 0) or 0),
+                    "stint": integer(row.get("Stint")),
+                    "in_lap": seconds(row.get("PitInTime")) is not None,
+                    "out_lap": seconds(row.get("PitOutTime")) is not None,
                 }
                 for _, row in laps.iterrows()
-                if seconds(row["LapTime"]) is not None
+                if row.get("LapNumber") is not None
             ],
         })
     return {"event": data.event["EventName"], "session": data.name, "drivers": drivers}

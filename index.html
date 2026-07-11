@@ -5,14 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>APEX DATA — F1 Telemetry</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="polish.css">
 </head>
 <body>
   <header class="site-header"><a class="brand" href="#top">APEX<span>///</span>DATA</a></header>
   <main id="top">
     <section class="session-controls" aria-label="Session selection">
-      <label>Season<select id="year"><option>2025</option><option>2024</option></select></label>
+      <label>Season<select id="year"></select></label>
       <label>Grand Prix<select id="gp"><option>British Grand Prix — Silverstone</option><option>Italian Grand Prix — Monza</option><option>Japanese Grand Prix — Suzuka</option></select></label>
-      <label>Session<select id="session"><option>Qualifying</option><option>Race</option><option>Practice 3</option></select></label>
+      <label>Session<select id="session"></select></label>
       <button id="loadSession">Load session</button>
     </section>
 
@@ -29,11 +30,13 @@
     <section class="telemetry">
       <div class="section-heading"><div><h1>Aligned lap telemetry</h1><p>Hover any graph for synchronized distance and speed values.</p></div><div class="legend" id="legend"></div></div>
       <section class="sector-times" aria-label="Selected lap sector times"><div class="sector-row sector-labels"><span>Loaded lap</span><span>Sector 1</span><span>Sector 2</span><span>Sector 3</span></div><div id="sectorRows"></div></section>
-      <div class="charts" id="charts"></div>
+      <div class="chart-options"><label><input type="checkbox" id="cornerToggle"> Corner numbers</label><span id="cornerStatus">Corner labels appear when mapped distance data is available.</span></div>
+      <div class="charts" id="charts"></div><div class="tooltip" id="realTooltip"></div>
     </section>
   </main>
   <footer>APEX DATA SYSTEMS · REPRESENTATIVE TELEMETRY · NOT LIVE TIMING</footer>
   <script src="app.js"></script>
   <script src="real-data.js"></script>
+  <script src="enhancements.js"></script>
 </body>
 </html>
