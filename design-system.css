@@ -11,8 +11,8 @@
   --text-muted: #9ca3af;
   --red: #ff1801;
   --green: #00e676;
-  --yellow: #ffd600;
-  --neon-accent: #d6fb43;
+  --yellow: #eaff18;
+  --neon-accent: #eaff18;
   --shadow-main: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
   --font-sans: 'Space Grotesk', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
@@ -81,7 +81,7 @@ body {
 }
 
 .brand span {
-  color: var(--red);
+  color: var(--neon-accent);
   font-style: italic;
   font-weight: 800;
 }
@@ -127,6 +127,20 @@ main {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+/* Keep page hierarchy in the same technical typeface as the Session Control heading. */
+.section-heading h1,
+.section-heading p,
+.chart h2,
+.driver-panel h3 {
+  font-family: var(--font-mono);
+}
+
+.chart h2,
+.driver-panel h3 {
+  letter-spacing: 0.02em;
+  font-size: 11px;
 }
 
 .sidebar h2 small {
@@ -377,9 +391,10 @@ button#loadSession:disabled {
 }
 
 .stint.selected {
-  border-color: var(--team) !important;
-  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--neon-accent) !important;
+  background: color-mix(in srgb, var(--neon-accent) 10%, transparent);
   color: var(--text-main);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--neon-accent) 18%, transparent);
 }
 
 .stint small {
@@ -409,9 +424,10 @@ button#loadSession:disabled {
 }
 
 .lap.selected {
-  border-color: var(--team) !important;
+  border-color: var(--neon-accent) !important;
   color: var(--text-main);
-  background: color-mix(in srgb, var(--team) 10%, transparent);
+  background: color-mix(in srgb, var(--neon-accent) 12%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--neon-accent) 22%, transparent);
 }
 
 .lap.in-out {
@@ -448,10 +464,10 @@ button#loadSession:disabled {
 }
 
 .loaded-line .pill.reference {
-  background: var(--bg-input) !important;
+  background: color-mix(in srgb, var(--neon-accent) 14%, var(--bg-input)) !important;
   border-color: var(--neon-accent) !important;
   color: var(--text-main);
-  box-shadow: 0 0 10px rgba(214, 251, 67, 0.15);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--neon-accent) 26%, transparent);
 }
 
 .loaded-line .pill.reference:before {

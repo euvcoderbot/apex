@@ -85,7 +85,7 @@ const teamMapping = {
 function getTeamInfo(teamName) {
   const mapped = teamMapping[teamName];
   if (mapped) return mapped;
-  
+
   const keys = Object.keys(teamMapping);
   const foundKey = keys.find(k => k.toLowerCase() === teamName.toLowerCase());
   if (foundKey) return teamMapping[foundKey];
@@ -204,6 +204,7 @@ async function loadRealSession() {
   button.disabled = true;
   button.textContent = 'Loading FastF1 data…';
   clearBeforeSessionLoad();
+  renderCharts();
   
   try {
     const response = await fetch(`/api/session?${currentQuery()}`);
@@ -346,17 +347,25 @@ function renderStints() {
     ? timedLaps.reduce((a, b) => a.time < b.time ? a : b) 
     : driver.laps[0];
     
-  const stintIds = [...new Set(driver.laps.map(lap => lap.stint))];
-  const active = openStint[code] ?? stintIds[0];
-  
-  const stintButtons = stintIds.map(id => {
-    const group = driver.laps.filter(lap => lap.stint === id);
+  const hasQualifyingPhases = driver.laps.some(lap => /^Q[1-3]$/.test(lap.phase || ''));
+  const groupIds = hasQualifyingPhases
+    ? ['Q1', 'Q2', 'Q3'].filter(phase => driver.laps.some(lap => lap.phase === phase))
+    : [...new Set(driver.laps.map(lap => String(lap.stint)))];
+  const active = String(openStint[code] ?? groupIds[0]);
+  const lapsForGroup = id => hasQualifyingPhases
+    ? driver.laps.filter(lap => lap.phase === id)
+    : driver.laps.filter(lap => String(lap.stint) === id);
+  const stintButtons = groupIds.map(id => {
+    const group = lapsForGroup(id);
     const compound = group[0]?.compound || 'UNKNOWN';
     const compLabel = getCompoundCode(compound, nominatedCompounds);
+    if (hasQualifyingPhases) {
+      return `<button class="stint ${id === active ? 'selected' : ''}" style="--team:${display[3]}" data-code="${code}" data-stint="${id}">${id}<small>${compLabel} - ${group.length} ${group.length === 1 ? 'LAP' : 'LAPS'}</small></button>`;
+    }
     return `<button class="stint ${id === active ? 'selected' : ''}" style="--team:${display[3]}" data-code="${code}" data-stint="${id}">Stint ${id}<small>${compLabel} · ${group.length} L</small></button>`;
   }).join('');
   
-  const lapButtons = driver.laps.filter(lap => lap.stint === active).map(lap => {
+  const lapButtons = lapsForGroup(active).map(lap => {
     const isLoaded = loaded.some(item => item.code === code && item.lap === lap.lap);
     const classes = ['lap', lap.in_lap || lap.out_lap ? 'in-out' : '', isLoaded ? 'selected' : ''].filter(Boolean).join(' ');
     return `<button class="${classes}" style="--team:${display[3]}" data-code="${code}" data-lap="${lap.lap}">${lapText(lap)}</button>`;
@@ -387,7 +396,7 @@ function renderStints() {
   
   root.querySelectorAll('.stint').forEach(btn => {
     btn.onclick = () => {
-      openStint[btn.dataset.code] = +btn.dataset.stint;
+      openStint[btn.dataset.code] = btn.dataset.stint;
       renderStints();
     };
   });
@@ -488,7 +497,7 @@ const defs = [
   ['Brake pressure', 'BAR', true],
   ['Engine speed', 'RPM', true],
   ['Gear', '1–8', true],
-  ['DRS / straight-line mode', 'ACTIVE', true]
+  ['DRS / straight-line mode', 'OPEN / CLOSED', true]
 ];
 
 const chartField = {
@@ -500,14 +509,21 @@ const chartField = {
   'DRS / straight-line mode': 'DRS'
 };
 
+function modeChartLabel() {
+  return Number($('#year').value) >= 2026 ? 'Straight-line mode' : 'DRS';
+}
+
 function renderCharts() {
   const root = $('#charts');
-  root.innerHTML = defs.map(([name, unit, compact]) => `
+  root.innerHTML = defs.map(([name, unit, compact]) => {
+    const displayName = name === 'DRS / straight-line mode' ? modeChartLabel() : name;
+    return `
     <section class="chart ${compact ? 'compact' : ''}">
-      <h2>${name}<small>${unit}</small></h2>
-      <canvas data-chart="${name}" aria-label="${name}"></canvas>
+      <h2>${displayName}<small>${unit}</small></h2>
+      <canvas data-chart="${name}" aria-label="${displayName}"></canvas>
     </section>
-  `).join('');
+  `;
+  }).join('');
   
   bindAllChartHover();
 }
@@ -661,7 +677,7 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
       displayVal = '0';
     }
     
-    if (unit === 'ACTIVE') {
+    if (unit === 'OPEN / CLOSED') {
       if (tick === 0) displayVal = 'OPEN';
       else if (tick === 4) displayVal = 'CLOSED';
       else continue;

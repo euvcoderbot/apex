@@ -210,6 +210,19 @@ def session_data(
     except Exception as exc:
         raise HTTPException(422, f"Could not load this session: {exc}") from exc
 
+    # FastF1 already knows the real Q1/Q2/Q3 boundaries (including delays and
+    # red flags). Keep that phase against each lap so the UI can show runs by
+    # qualifying segment instead of treating every run as a generic stint.
+    qualifying_phase: dict[Any, str] = {}
+    if data.name in getattr(data, "_QUALI_LIKE_SESSIONS", ()):
+        try:
+            for index, phase_laps in enumerate(data.laps.split_qualifying_sessions(), start=1):
+                if phase_laps is not None:
+                    for lap_index in phase_laps.index:
+                        qualifying_phase[lap_index] = f"Q{index}"
+        except Exception as exc:
+            logger.warning("Could not split qualifying laps into Q1/Q2/Q3: %s", exc)
+
     drivers = []
     for code in data.drivers:
         info = data.get_driver(code)
@@ -231,10 +244,11 @@ def session_data(
                     "s3": seconds(row["Sector3Time"]),
                     "compound": str(row.get("Compound", "UNKNOWN")),
                     "stint": integer(row.get("Stint")),
+                    "phase": qualifying_phase.get(lap_index),
                     "in_lap": seconds(row.get("PitInTime")) is not None,
                     "out_lap": seconds(row.get("PitOutTime")) is not None,
                 }
-                for _, row in laps.iterrows()
+                for lap_index, row in laps.iterrows()
                 if row.get("LapNumber") is not None
             ],
         })

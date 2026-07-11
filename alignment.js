@@ -39,7 +39,7 @@ async function fetchTelemetry(lap) {
     // 2018–2025 FastF1 encodes DRS activation as 10/12/14. Do not infer it
     // from speed or throttle. The 2026 API has no verified equivalent channel.
     if (season < 2026) point.DRS = [10, 12, 14].includes(Number(point.DRS)) ? 1 : 0;
-    else point.DRS = Number.isFinite(Number(point.DRS)) ? Number(point.DRS) : null;
+    else point.DRS = Number.isFinite(Number(point.DRS)) ? (Number(point.DRS) > 0 ? 1 : 0) : null;
     point.Brake = point.Brake === true ? 100 : (+point.Brake || 0);
   });
   telemetryCache.set(key, samples);
