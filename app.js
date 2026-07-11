@@ -192,7 +192,8 @@ function clearBeforeSessionLoad() {
   $('#driverPills').innerHTML = '<span class="section-empty">Load a session to see its drivers.</span>';
   $('#stintPanels').innerHTML = '<span class="section-empty">Select a driver to see stints and laps.</span>';
   $('#sectorRows').innerHTML = '';
-  $('#apexSpeeds').innerHTML = '<span class="section-empty">Apex speeds appear when session has corner mapping.</span>';
+  const apexSpeeds = $('#apexSpeeds');
+  if (apexSpeeds) apexSpeeds.innerHTML = '';
   
   const tireCard = $('#tireCard');
   if (tireCard) tireCard.style.display = 'none';
@@ -920,31 +921,21 @@ function drawRealChart(name) {
       ctx.textAlign = 'center';
       ctx.fillText(`T${corner.number}`, x, 11);
       
-      // Draw stacked min speeds of loaded drivers under the pill
-      loaded.forEach((lap, index) => {
+      // Corner dots are locked to the official marker. Their height comes
+      // from the same interpolated speed trace that is rendered on the canvas.
+      loaded.forEach(lap => {
         const samples = telemetryCache.get(telemetryKey(lap));
         if (!samples || !samples.length) return;
         
         const teamColor = getDriverColor(lap.code);
-        const apexPt = getCornerMinSpeed(samples, corner);
-        if (!apexPt || !Number.isFinite(apexPt.traceSpeed)) return;
-        
-        // Draw small dot on the trace line itself (non-intersecting visual indicator)
-        const apexX = bounds.left + apexPt.fraction * (rect.width - bounds.left - bounds.right);
-        const apexY = bounds.top + (bounds.max - apexPt.traceSpeed) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
-        
-        if (apexX >= bounds.left && apexX <= rect.width - bounds.right) {
+        const markerSpeed = interpolate(samples, totalDist * markerFraction, 'Speed');
+        const markerY = bounds.top + (bounds.max - markerSpeed) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
+        if (Number.isFinite(markerSpeed)) {
           ctx.beginPath();
-          ctx.arc(apexX, apexY, 2.5, 0, 2 * Math.PI);
+          ctx.arc(x, markerY, 2.5, 0, 2 * Math.PI);
           ctx.fillStyle = teamColor;
           ctx.fill();
         }
-        
-        // Stack the text speeds at the top of the chart along the vertical line
-        const textY = 24 + index * 10;
-        ctx.fillStyle = teamColor;
-        ctx.font = '8px monospace';
-        ctx.fillText(Math.round(apexPt.cornerSpeed), x, textY);
       });
       
       ctx.textAlign = 'left'; // restore default alignment
@@ -1075,20 +1066,17 @@ async function drawAll() {
       loaded = loaded.filter(x => !(x.code === lap.code && x.lap === lap.lap));
       renderLoaded();
       renderSectors();
-      renderApexSpeeds();
       renderStints();
     }
   });
   await Promise.all(promises);
   defs.forEach(definition => drawRealChart(definition[0]));
-  renderApexSpeeds();
   renderMiniSectorMap();
 }
 
 function renderAll() {
   renderLoaded();
   renderSectors();
-  renderApexSpeeds();
   drawAll();
 }
 
