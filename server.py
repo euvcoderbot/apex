@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from datetime import datetime, timedelta
+import logging
 import json
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,7 @@ fastf1.Cache.enable_cache(str(CACHE))
 
 app = FastAPI(title="APEX DATA API")
 OPENF1 = "https://api.openf1.org/v1"
+logger = logging.getLogger("apex.telemetry")
 
 
 def seconds(value: Any) -> float | None:
@@ -70,7 +72,14 @@ def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: s
         return []
     start = datetime.fromisoformat(laps[0]["date_start"].replace("Z", "+00:00"))
     end = start + timedelta(seconds=float(laps[0]["lap_duration"]) + 0.5)
-    car = openf1("car_data", session_key=session_key, driver_number=driver_number, **{"date>": start.isoformat(), "date<": end.isoformat()})
+    # Fetch the driver's session stream once, then slice locally. This avoids
+    # provider-side timestamp-filter quirks and preserves every car sample.
+    all_car_data = openf1("car_data", session_key=session_key, driver_number=driver_number)
+    car = []
+    for point in all_car_data:
+        timestamp = datetime.fromisoformat(point["date"].replace("Z", "+00:00"))
+        if start <= timestamp <= end:
+            car.append(point)
     if not car:
         return []
     car.sort(key=lambda item: item["date"])
@@ -188,16 +197,18 @@ def telemetry(
             raise ValueError("lap was not found")
         telemetry_data = selected.iloc[0].get_telemetry().add_distance().copy()
         telemetry_data["Distance"] = telemetry_data["Distance"] - telemetry_data["Distance"].iloc[0]
-    except Exception:
+    except Exception as fastf1_error:
+        logger.warning("FastF1 telemetry unavailable for %s L%s: %s", driver, lap, fastf1_error)
         try:
             data = load_session(year, gp, session)
             driver_number = str(data.get_driver(driver).get("DriverNumber", driver))
             samples = openf1_lap_telemetry(year, gp, session, driver_number, lap)
             if samples:
                 return {"driver": driver, "lap": lap, "samples": samples, "source": "OpenF1"}
-        except Exception:
-            pass
-        raise HTTPException(422, "No telemetry is published for this session/lap yet. Try a completed session or a 2023+ event with OpenF1 coverage.")
+        except Exception as openf1_error:
+            logger.warning("OpenF1 telemetry fallback unavailable for %s L%s: %s", driver, lap, openf1_error)
+            raise HTTPException(422, f"No telemetry source returned this lap. FastF1: {fastf1_error}; OpenF1: {openf1_error}") from openf1_error
+        raise HTTPException(422, "No telemetry is published for this session/lap yet.")
 
     telemetry_data = telemetry_data.copy()
     telemetry_data["ElapsedSeconds"] = telemetry_data["Time"].dt.total_seconds()

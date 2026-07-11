@@ -22,6 +22,14 @@ function populateSessions() {
   populate(sessionSelect, event?.sessions || []);
 }
 
+function selectLatestCompletedEvent() {
+  const today = new Date().toISOString().slice(0, 10);
+  const completed = calendar.filter(event => event.date <= today);
+  const latest = completed[completed.length - 1] || calendar[0];
+  if (latest) gpSelect.value = latest.name;
+  populateSessions();
+}
+
 function currentQuery() {
   return new URLSearchParams({ year: yearSelect.value, gp: gpSelect.value, session: sessionSelect.value });
 }
@@ -117,6 +125,6 @@ function clearBeforeSessionLoad() {
 }
 populate(yearSelect, Array.from({ length: new Date().getFullYear() - 2014 + 1 }, (_, i) => new Date().getFullYear() - i));
 yearSelect.value = '2025';
-loadCalendar().catch(error => { gpSelect.innerHTML = '<option>Calendar unavailable</option>'; console.warn(error); });
+loadCalendar().then(selectLatestCompletedEvent).catch(error => { gpSelect.innerHTML = '<option>Calendar unavailable</option>'; console.warn(error); });
 clearBeforeSessionLoad();
 bindAllChartHover();
