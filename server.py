@@ -2,8 +2,12 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from datetime import datetime, timedelta
+import json
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
+from urllib.request import urlopen
 
 import fastf1
 import numpy as np
@@ -16,6 +20,7 @@ CACHE.mkdir(exist_ok=True)
 fastf1.Cache.enable_cache(str(CACHE))
 
 app = FastAPI(title="APEX DATA API")
+OPENF1 = "https://api.openf1.org/v1"
 
 
 def seconds(value: Any) -> float | None:
@@ -36,6 +41,55 @@ def integer(value: Any, default: int = 0) -> int:
         return int(value) if np.isfinite(value) else default
     except (TypeError, ValueError):
         return default
+
+
+def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
+    query = urlencode({key: value for key, value in params.items() if value is not None})
+    with urlopen(f"{OPENF1}/{endpoint}?{query}", timeout=20) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def openf1_session(year: int, gp: str, session_name: str) -> dict[str, Any] | None:
+    sessions = openf1("sessions", year=year, session_name=session_name)
+    wanted = gp.lower().replace("grand prix", "").strip()
+    return next((item for item in sessions if wanted in item.get("meeting_name", "").lower()), None)
+
+
+def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: str, lap_number: int) -> list[dict[str, Any]]:
+    session = openf1_session(year, gp, session_name)
+    if not session:
+        return []
+    session_key = session["session_key"]
+    laps = openf1("laps", session_key=session_key, driver_number=driver_number, lap_number=lap_number)
+    if not laps or not laps[0].get("date_start") or not laps[0].get("lap_duration"):
+        return []
+    start = datetime.fromisoformat(laps[0]["date_start"].replace("Z", "+00:00"))
+    end = start + timedelta(seconds=float(laps[0]["lap_duration"]) + 0.5)
+    car = openf1("car_data", session_key=session_key, driver_number=driver_number, **{"date>": start.isoformat(), "date<": end.isoformat()})
+    if not car:
+        return []
+    car.sort(key=lambda item: item["date"])
+    samples: list[dict[str, Any]] = []
+    distance = 0.0
+    previous = None
+    for point in car:
+        timestamp = datetime.fromisoformat(point["date"].replace("Z", "+00:00"))
+        elapsed = (timestamp - start).total_seconds()
+        if previous is not None:
+            dt = (timestamp - previous).total_seconds()
+            distance += max(0.0, float(point.get("speed") or 0) / 3.6 * dt)
+        previous = timestamp
+        samples.append({
+            "Distance": distance,
+            "ElapsedSeconds": elapsed,
+            "Speed": point.get("speed"),
+            "Throttle": point.get("throttle"),
+            "Brake": point.get("brake"),
+            "RPM": point.get("rpm"),
+            "nGear": point.get("n_gear"),
+            "DRS": point.get("drs"),
+        })
+    return samples
 
 
 @lru_cache(maxsize=8)
@@ -127,14 +181,31 @@ def telemetry(
             raise ValueError("lap was not found")
         telemetry_data = selected.iloc[0].get_telemetry().add_distance().copy()
         telemetry_data["Distance"] = telemetry_data["Distance"] - telemetry_data["Distance"].iloc[0]
-    except Exception as exc:
-        raise HTTPException(404, f"Could not load telemetry: {exc}") from exc
+    except Exception:
+        try:
+            data = load_session(year, gp, session)
+            driver_number = str(data.get_driver(driver).get("DriverNumber", driver))
+            samples = openf1_lap_telemetry(year, gp, session, driver_number, lap)
+            if samples:
+                return {"driver": driver, "lap": lap, "samples": samples, "source": "OpenF1"}
+        except Exception:
+            pass
+        raise HTTPException(422, "No telemetry is published for this session/lap yet. Try a completed session or a 2023+ event with OpenF1 coverage.")
 
     telemetry_data = telemetry_data.copy()
     telemetry_data["ElapsedSeconds"] = telemetry_data["Time"].dt.total_seconds()
     columns = ["Distance", "ElapsedSeconds", "Speed", "Throttle", "Brake", "RPM", "nGear", "DRS"]
     samples = telemetry_data[columns].iloc[::4].replace({np.nan: None}).to_dict("records")
-    return {"driver": driver, "lap": lap, "samples": samples}
+    if samples:
+        return {"driver": driver, "lap": lap, "samples": samples, "source": "FastF1"}
+
+    try:
+        samples = openf1_lap_telemetry(year, gp, session, driver_number, lap)
+        if samples:
+            return {"driver": driver, "lap": lap, "samples": samples, "source": "OpenF1"}
+    except Exception:
+        pass
+    raise HTTPException(422, "No telemetry is published for this session/lap yet. Try a completed session or a 2023+ event with OpenF1 coverage.")
 
 
 app.mount("/", StaticFiles(directory=ROOT, html=True), name="site")

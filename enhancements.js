@@ -47,7 +47,7 @@ function renderStints() {
       return `<button class="stint ${id === active ? 'selected' : ''}" style="--team:${display[3]}" data-code="${code}" data-stint="${id}">Stint ${id}<small>${group[0]?.compound || 'Unknown'} · ${group.length} laps</small></button>`;
     }).join('');
     const lapButtons = driver.laps.filter(lap => lap.stint === active).map(lap => `<button class="lap ${lap.in_lap || lap.out_lap ? 'in-out' : ''}" style="--team:${display[3]}" data-code="${code}" data-lap="${lap.lap}" ${lap.time == null ? 'disabled' : ''}>${lapText(lap)}</button>`).join('');
-    return `<article class="driver-panel"><h3>${code} · ${driver.name}</h3><div class="lap-pills fastest-gap"><button class="lap selected" style="--team:${display[3]}" data-code="${code}" data-lap="${fastest.lap}">FASTEST · ${lapText(fastest)}</button></div><div class="stints">${stintButtons}</div><div class="lap-pills">${lapButtons}</div></article>`;
+    return `<article class="driver-panel"><h3>${code} · ${driver.name}</h3><div class="lap-pills fastest-gap"><button class="lap" style="--team:${display[3]}" data-code="${code}" data-lap="${fastest.lap}">FASTEST · ${lapText(fastest)}</button></div><div class="stints">${stintButtons}</div><div class="lap-pills">${lapButtons}</div></article>`;
   }).join('');
   root.querySelectorAll('.stint').forEach(button => button.onclick = () => { openStint[button.dataset.code] = +button.dataset.stint; renderStints(); });
   root.querySelectorAll('.lap:not(:disabled)').forEach(button => button.onclick = () => {
@@ -64,9 +64,7 @@ async function loadRealSession() {
     if (!response.ok) throw new Error(payload.detail || 'Session unavailable');
     realDrivers = new Map(payload.drivers.map(driver => [driver.code, driver]));
     drivers.splice(0, drivers.length, ...payload.drivers.map(driver => [driver.code, driver.number, driver.name, driver.team_color, driver.team.slice(0, 2).toUpperCase()]));
-    const first = payload.drivers.find(driver => driver.laps.some(lap => Number.isFinite(lap.time)));
-    const fastest = first.laps.filter(lap => Number.isFinite(lap.time)).reduce((a, b) => a.time < b.time ? a : b);
-    selected = [first.code]; loaded = [{ code: first.code, lap: fastest.lap, time: fastest.time, real: fastest }]; openStint = { [first.code]: fastest.stint }; telemetryCache.clear();
+    selected = []; loaded = []; openStint = {}; telemetryCache.clear();
     renderDrivers(); renderStints(); renderAll();
   } catch (error) { alert(`FastF1 could not load this session. ${error.message}`); }
   finally { button.disabled = false; button.textContent = 'Load session'; }
