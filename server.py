@@ -129,16 +129,6 @@ def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: s
             dt = (timestamp - previous).total_seconds()
             distance += max(0.0, float(point.get("speed") or 0) / 3.6 * dt)
         previous = timestamp
-        drs_val = point.get("drs")
-        if drs_val is None:
-            speed = float(point.get("speed") or 0)
-            throttle = float(point.get("throttle") or 0)
-            brake = float(point.get("brake") or 0)
-            if speed > 275 and throttle > 95 and brake == 0:
-                drs_val = 12
-            else:
-                drs_val = 0
-
         samples.append({
             "Distance": distance,
             "ElapsedSeconds": elapsed,
@@ -147,7 +137,7 @@ def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: s
             "Brake": point.get("brake"),
             "RPM": point.get("rpm"),
             "nGear": point.get("n_gear"),
-            "DRS": drs_val,
+            "DRS": point.get("drs"),
         })
     return samples
 
