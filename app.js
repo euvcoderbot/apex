@@ -730,7 +730,7 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
     if (unit === 'OPEN / CLOSED') {
       if (tick === 0) displayVal = 'OPEN';
       else if (tick === 4) displayVal = 'CLOSED';
-      else continue;
+      else return;
     }
     
     if (unit.includes('SECONDS') && Math.abs(value) < 1e-5) {
