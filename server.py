@@ -145,10 +145,18 @@ def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: s
 
 @lru_cache(maxsize=8)
 def load_session(year: int, gp: str, session_name: str, round_number: int | None = None):
-    # Prefer the official F1 timing backend. It is usually available shortly
-    # after a session ends and avoids waiting for an aggregated mirror update.
-    event_identifier: int | str = round_number if round_number and round_number > 0 else gp
-    session = fastf1.get_session(year, event_identifier, session_name, backend="f1timing")
+    # Do not pass the calendar round straight to the F1 Timing schedule. That
+    # schedule may only contain weekends with timing data available, so its
+    # round numbers are not always the championship round numbers. In the
+    # worst case it silently selected another event; in the best case it raised
+    # "Invalid round". Resolve the exact event name from the full calendar,
+    # then create the session from that event.
+    backend = "fastf1" if year >= 2018 else "ergast"
+    event = fastf1.get_event(year, gp, backend=backend, exact_match=True)
+    if event is None:
+        raise ValueError(f"'{gp}' is not an exact event name on the {year} calendar")
+
+    session = event.get_session(session_name)
     session.load(telemetry=True, weather=False, messages=False)
     return session
 
