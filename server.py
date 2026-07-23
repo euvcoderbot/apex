@@ -12,6 +12,7 @@ from urllib.request import urlopen
 
 import fastf1
 import numpy as np
+import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 
@@ -326,10 +327,26 @@ def telemetry(
         if selected.empty:
             raise ValueError("lap was not found")
         lap_row = selected.iloc[0]
-        telemetry_data = lap_row.get_telemetry().add_distance().copy()
-        # FastF1 merges position/car channels with a small padding margin.
-        # Keep only the official lap-time interval so a trace cannot contain
-        # samples from the previous or following lap.
+        # Use the raw car stream for the trace. FastF1's convenience
+        # get_telemetry() helper merges position and car channels, which can
+        # introduce interpolated/padded samples around some laps.
+        telemetry_data = lap_row.get_car_data().add_distance().copy()
+        try:
+            position_data = lap_row.get_pos_data().loc[:, ["Date", "X", "Y"]].copy()
+            telemetry_data = pd.merge_asof(
+                telemetry_data.sort_values("Date"),
+                position_data.sort_values("Date"),
+                on="Date",
+                direction="nearest",
+                tolerance=pd.Timedelta(milliseconds=300),
+            )
+        except Exception as position_error:
+            logger.warning("Position join unavailable for %s L%s: %s", driver, lap, position_error)
+        for coordinate in ("X", "Y"):
+            if coordinate not in telemetry_data.columns:
+                telemetry_data[coordinate] = np.nan
+
+        # Keep only the official lap-time interval as a final guard.
         official_lap_time = seconds(lap_row.get("LapTime"))
         if official_lap_time and "Time" in telemetry_data.columns:
             elapsed = telemetry_data["Time"].dt.total_seconds()
