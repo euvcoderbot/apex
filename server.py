@@ -325,7 +325,19 @@ def telemetry(
         selected = selected[np.isclose(selected["LapNumber"].astype(float), float(lap))]
         if selected.empty:
             raise ValueError("lap was not found")
-        telemetry_data = selected.iloc[0].get_telemetry().add_distance().copy()
+        lap_row = selected.iloc[0]
+        telemetry_data = lap_row.get_telemetry().add_distance().copy()
+        # FastF1 merges position/car channels with a small padding margin.
+        # Keep only the official lap-time interval so a trace cannot contain
+        # samples from the previous or following lap.
+        official_lap_time = seconds(lap_row.get("LapTime"))
+        if official_lap_time and "Time" in telemetry_data.columns:
+            elapsed = telemetry_data["Time"].dt.total_seconds()
+            telemetry_data = telemetry_data[
+                (elapsed >= -0.25) & (elapsed <= official_lap_time + 0.25)
+            ].copy()
+        if telemetry_data.empty:
+            raise ValueError("lap telemetry was empty after official-time trimming")
         telemetry_data["Distance"] = telemetry_data["Distance"] - telemetry_data["Distance"].iloc[0]
     except Exception as fastf1_error:
         logger.warning("FastF1 telemetry unavailable for %s L%s: %s", driver, lap, fastf1_error)
