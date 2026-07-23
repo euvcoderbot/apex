@@ -9,6 +9,18 @@ function referenceDistance() {
 
 function normalizeTelemetry(samples, lap) {
   if (!samples?.length) return samples;
+  samples.sort((a, b) => (+a.ElapsedSeconds || 0) - (+b.ElapsedSeconds || 0));
+  const firstRawTime = +samples[0].ElapsedSeconds || 0;
+  if (Number.isFinite(lap.time) && lap.time > 0) {
+    const trimmed = samples.filter(point => {
+      const elapsed = (+point.ElapsedSeconds || 0) - firstRawTime;
+      return elapsed >= -0.25 && elapsed <= lap.time + 0.25;
+    });
+    if (trimmed.length >= 2) {
+      samples.length = 0;
+      samples.push(...trimmed);
+    }
+  }
   samples.sort((a, b) => (+a.Distance || 0) - (+b.Distance || 0));
   const firstDistance = +samples[0].Distance || 0;
   const firstTime = +samples[0].ElapsedSeconds || 0;
