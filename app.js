@@ -1202,8 +1202,16 @@ function renderMiniSectorMap() {
     return;
   }
 
+  // The stylesheet hides the canvas until a comparison exists. Reveal it
+  // before measuring: a hidden canvas reports a 0 × 0 drawing area.
+  canvas.style.display = 'block';
   const rect = canvas.getBoundingClientRect();
-  if (!rect.width || !rect.height) return;
+  if (!rect.width || !rect.height) {
+    canvas.style.display = 'none';
+    empty.style.display = 'block';
+    empty.textContent = 'Track map could not be sized. Resize the page and try again.';
+    return;
+  }
   const dpr = window.devicePixelRatio || 1;
   canvas.width = rect.width * dpr;
   canvas.height = rect.height * dpr;
@@ -1296,7 +1304,6 @@ function renderMiniSectorMap() {
     ctx.stroke();
   }
 
-  canvas.style.display = 'block';
   empty.style.display = 'none';
   legend.innerHTML = [...wins].map(index => {
     const lap = loaded[index];
