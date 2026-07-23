@@ -13,7 +13,8 @@ from urllib.request import urlopen
 import fastf1
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).parent
@@ -24,6 +25,16 @@ fastf1.Cache.enable_cache(str(CACHE))
 app = FastAPI(title="APEX DATA API")
 OPENF1 = "https://api.openf1.org/v1"
 logger = logging.getLogger("apex.telemetry")
+
+
+@app.exception_handler(Exception)
+async def unexpected_error(request: Request, error: Exception):
+    """Keep API failures parseable and leave the full traceback in Uvicorn."""
+    logger.exception("Unhandled error serving %s", request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {type(error).__name__}: {error}"},
+    )
 
 
 def seconds(value: Any) -> float | None:
