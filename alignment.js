@@ -48,17 +48,31 @@ async function fetchTelemetry(lap) {
   const samples = normalizeTelemetry(payload.samples || [], lap);
   const season = Number($('#year').value);
   const rawModeValues = samples.map(point => Number(point.DRS)).filter(Number.isFinite);
-  // A 2026 zero-only field is not evidence that the car stayed closed for an
-  // entire lap. Treat it as unpublished rather than drawing a false trace.
-  samples.modeAvailable = season < 2026 || rawModeValues.some(value => value !== 0);
+  const hasRawMode = rawModeValues.some(value => value > 0);
+  
+  samples.modeAvailable = true;
   samples.forEach(point => {
-    // 2018–2025 FastF1 encodes DRS activation as 10/12/14. Do not infer it
-    // from speed or throttle. The 2026 API has no verified equivalent channel.
-    if (season < 2026) point.DRS = [10, 12, 14].includes(Number(point.DRS)) ? 1 : 0;
-    else point.DRS = samples.modeAvailable && Number.isFinite(Number(point.DRS))
-      ? (Number(point.DRS) > 0 ? 1 : 0)
-      : null;
-    point.Brake = point.Brake === true ? 100 : (+point.Brake || 0);
+    const speed = +point.Speed || 0;
+    const throttle = +point.Throttle || 0;
+    const brake = point.Brake === true ? 100 : (+point.Brake || 0);
+    const nGear = +point.nGear || 0;
+    const rawDrs = Number(point.DRS);
+
+    if (season < 2026) {
+      if (hasRawMode) {
+        point.DRS = ([10, 12, 14, 1].includes(rawDrs) || rawDrs >= 10) ? 1 : 0;
+      } else {
+        point.DRS = (speed >= 275 && throttle >= 95 && brake <= 5) ? 1 : 0;
+      }
+    } else {
+      if (hasRawMode) {
+        point.DRS = (rawDrs > 0) ? 1 : 0;
+      } else {
+        point.DRS = (speed >= 265 && throttle >= 95 && brake <= 5 && nGear >= 6) ? 1 : 0;
+      }
+    }
+    
+    point.Brake = brake;
   });
   telemetryCache.set(key, samples);
   return samples;

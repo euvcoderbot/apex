@@ -392,7 +392,7 @@ function renderStints() {
       <h3>${code} · ${driver.name}</h3>
       <div class="lap-pills fastest-gap">
         <button class="lap ${isFastestLoaded ? 'selected' : ''}" style="--team:${display[3]}" data-code="${code}" data-lap="${fastest.lap}">
-          ⚡ FASTEST · ${lapText(fastest)}
+          ⚡ COMPARE FASTEST LAP
         </button>
       </div>
       <div class="stints">${stintButtons}</div>
@@ -950,7 +950,7 @@ function drawRealChart(name) {
   // Draw Corner apex min speed dots on the Speed trace chart (with clean text labels stacked at the top)
   if (name === 'Speed trace' && $('#cornerToggle').checked && corners.length) {
     corners.forEach(corner => {
-      const markerFraction = cornerFraction(corner, refSamples, totalDist);
+      const markerFraction = cornerFraction(corner, refSamples, totalDist) ?? (Number(corner.distance) / totalDist);
       if (!Number.isFinite(markerFraction)) return;
       const x = bounds.left + markerFraction * (rect.width - bounds.left - bounds.right);
       if (x < bounds.left || x > rect.width - bounds.right) return;
@@ -967,20 +967,27 @@ function drawRealChart(name) {
       ctx.textAlign = 'center';
       ctx.fillText(`T${corner.number}`, x, 11);
       
-      // Corner dots are locked to the official marker. Their height comes
-      // from the same interpolated speed trace that is rendered on the canvas.
-      loaded.forEach(lap => {
+      // Corner dots & stacked speed values
+      loaded.forEach((lap, index) => {
         const samples = telemetryCache.get(telemetryKey(lap));
         if (!samples || !samples.length) return;
         
         const teamColor = getDriverColor(lap.code);
-        const markerSpeed = interpolate(samples, totalDist * markerFraction, 'Speed');
-        const markerY = bounds.top + (bounds.max - markerSpeed) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
+        const apexPt = getCornerMinSpeed(samples, corner);
+        const markerSpeed = apexPt?.cornerSpeed ?? interpolate(samples, totalDist * markerFraction, 'Speed');
+        
         if (Number.isFinite(markerSpeed)) {
+          const markerY = bounds.top + (bounds.max - markerSpeed) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
           ctx.beginPath();
           ctx.arc(x, markerY, 2.5, 0, 2 * Math.PI);
           ctx.fillStyle = teamColor;
           ctx.fill();
+          
+          // Stack text speed numbers under the turn pill
+          const textY = 24 + index * 10;
+          ctx.fillStyle = teamColor;
+          ctx.font = '8px monospace';
+          ctx.fillText(Math.round(markerSpeed), x, textY);
         }
       });
       
@@ -1048,8 +1055,9 @@ function bindAllChartHover() {
       hoverFraction = fraction;
       hoveredChartName = canvas.dataset.chart;
       
-      // Repaint all charts to show synchronized crosshair
+      // Repaint all charts and track map to show synchronized crosshair and ball tracker
       defs.forEach(def => drawRealChart(def[0]));
+      renderMiniSectorMap();
       
       // Update floating tooltip content
       const field = chartField[hoveredChartName];
@@ -1098,7 +1106,90 @@ function bindAllChartHover() {
       hoveredChartName = null;
       tooltip.style.display = 'none';
       defs.forEach(def => drawRealChart(def[0]));
+      renderMiniSectorMap();
     });
+  });
+}
+
+function bindTrackMapHover() {
+  const canvas = $('#dominanceCanvas');
+  const tooltip = $('#realTooltip');
+  const telemetryCard = $('.telemetry-card');
+  if (!canvas) return;
+
+  canvas.addEventListener('mousemove', e => {
+    if (loaded.length < 2) return;
+    const reference = telemetryCache.get(telemetryKey(loaded[0]));
+    if (!reference?.length) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    const trackSamples = reference.filter(point => Number.isFinite(+point.X) && Number.isFinite(+point.Y));
+    if (!trackSamples.length) return;
+
+    const minX = Math.min(...trackSamples.map(p => +p.X));
+    const maxX = Math.max(...trackSamples.map(p => +p.X));
+    const minY = Math.min(...trackSamples.map(p => +p.Y));
+    const maxY = Math.max(...trackSamples.map(p => +p.Y));
+
+    const padding = 18;
+    const scale = Math.min((rect.width - padding * 2) / (maxX - minX || 1), (rect.height - padding * 2) / (maxY - minY || 1));
+    const offsetX = (rect.width - (maxX - minX) * scale) / 2;
+    const offsetY = (rect.height - (maxY - minY) * scale) / 2;
+    const toCanvas = (x, y) => ({ x: offsetX + (x - minX) * scale, y: rect.height - offsetY - (y - minY) * scale });
+
+    let minDistanceSq = Infinity;
+    let bestFraction = null;
+    const totalDistance = reference[reference.length - 1].Distance || 1;
+
+    trackSamples.forEach(point => {
+      const cPos = toCanvas(+point.X, +point.Y);
+      const dSq = (cPos.x - mouseX) ** 2 + (cPos.y - mouseY) ** 2;
+      if (dSq < minDistanceSq) {
+        minDistanceSq = dSq;
+        bestFraction = (+point.Distance || 0) / totalDistance;
+      }
+    });
+
+    if (bestFraction !== null && minDistanceSq < 4000) {
+      hoverFraction = bestFraction;
+      hoveredChartName = 'Track map';
+
+      defs.forEach(def => drawRealChart(def[0]));
+      renderMiniSectorMap();
+
+      if (tooltip && telemetryCard) {
+        const distanceKM = (bestFraction * totalDistance) / 1000;
+        const lines = loaded.map(lap => {
+          const series = telemetryCache.get(telemetryKey(lap));
+          const targetDist = bestFraction * totalDistance;
+          const speed = interpolate(series, targetDist, 'Speed');
+          const speedDisplay = Number.isFinite(speed) ? `${Math.round(speed)} KM/H` : '—';
+          return `<span style="color: ${getDriverColor(lap.code)}">●</span> ${lap.code} L${lap.lap} · <b>${speedDisplay}</b>`;
+        });
+
+        tooltip.innerHTML = `<b>TRACK MAP · ${distanceKM.toFixed(3)} KM</b><br>${lines.join('<br>')}`;
+        tooltip.style.display = 'block';
+
+        const parentRect = telemetryCard.getBoundingClientRect();
+        const xPos = e.clientX - parentRect.left + 15;
+        const yPos = e.clientY - parentRect.top + 15;
+        tooltip.style.left = `${xPos}px`;
+        tooltip.style.top = `${yPos}px`;
+      }
+    }
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    if (hoveredChartName === 'Track map') {
+      hoverFraction = null;
+      hoveredChartName = null;
+      if (tooltip) tooltip.style.display = 'none';
+      defs.forEach(def => drawRealChart(def[0]));
+      renderMiniSectorMap();
+    }
   });
 }
 
@@ -1250,30 +1341,6 @@ function renderMiniSectorMap() {
   });
   ctx.stroke();
 
-  // FastF1 circuit markers use the same X/Y coordinate space as the position
-  // stream. They remain available even when marker *distance* cannot be
-  // calculated, so label the actual track map directly from those coordinates.
-  if ($('#cornerToggle').checked) {
-    ctx.font = '10px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    corners.forEach(corner => {
-      const x = Number(corner.x), y = Number(corner.y);
-      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-      const point = toCanvas(x, y);
-      const angle = Number(corner.angle);
-      const offsetX = Number.isFinite(angle) ? Math.cos(angle * Math.PI / 180) * 11 : 0;
-      const offsetY = Number.isFinite(angle) ? -Math.sin(angle * Math.PI / 180) * 11 : -11;
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = '#101114';
-      ctx.strokeText(`T${corner.number}`, point.x + offsetX, point.y + offsetY);
-      ctx.fillStyle = 'rgba(255,255,255,.92)';
-      ctx.fillText(`T${corner.number}`, point.x + offsetX, point.y + offsetY);
-    });
-    ctx.textAlign = 'start';
-    ctx.textBaseline = 'alphabetic';
-  }
-
   const wins = new Set();
   for (let index = 0; index < segments; index++) {
     const start = index / segments;
@@ -1302,6 +1369,88 @@ function renderMiniSectorMap() {
     ctx.moveTo(from.x, from.y);
     ctx.lineTo(to.x, to.y);
     ctx.stroke();
+  }
+
+  // Corner markers rendered ON TOP of mini-sector dominance lines
+  if ($('#cornerToggle').checked && corners.length) {
+    ctx.font = '9px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    corners.forEach(corner => {
+      let x = Number(corner.x), y = Number(corner.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        const markerFrac = cornerFraction(corner, reference, totalDistance) ?? (Number(corner.distance) / totalDistance);
+        if (Number.isFinite(markerFrac)) {
+          const interpX = interpolate(reference, totalDistance * markerFrac, 'X');
+          const interpY = interpolate(reference, totalDistance * markerFrac, 'Y');
+          if (Number.isFinite(interpX) && Number.isFinite(interpY)) {
+            x = interpX;
+            y = interpY;
+          }
+        }
+      }
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      
+      const pt = toCanvas(x, y);
+      const angle = Number(corner.angle);
+      const rad = Number.isFinite(angle) ? (angle + 90) * Math.PI / 180 : -Math.PI / 2;
+      const badgeDist = 16;
+      const bx = pt.x + Math.cos(rad) * badgeDist;
+      const by = pt.y - Math.sin(rad) * badgeDist;
+      
+      // Apex dot on track line
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 2.5, 0, 2 * Math.PI);
+      ctx.fill();
+      
+      // Subtle leader line
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(pt.x, pt.y);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+      
+      // Round dark badge
+      const badgeRadius = 9;
+      ctx.fillStyle = 'rgba(14, 16, 20, 0.92)';
+      ctx.beginPath();
+      ctx.arc(bx, by, badgeRadius, 0, 2 * Math.PI);
+      ctx.fill();
+      
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      
+      // White turn number
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(`${corner.number}`, bx, by + 0.5);
+    });
+    
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  // Ball Tracker indicator when hovering (telemetry charts or track map)
+  if (hoverFraction !== null) {
+    const hPoint = pointAt(hoverFraction);
+    if (hPoint) {
+      const refColor = getDriverColor(loaded[0].code);
+      ctx.fillStyle = hexToRgba(refColor, 0.35);
+      ctx.beginPath();
+      ctx.arc(hPoint.x, hPoint.y, 10, 0, 2 * Math.PI);
+      ctx.fill();
+      
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(hPoint.x, hPoint.y, 4.5, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.strokeStyle = refColor;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
   }
 
   empty.style.display = 'none';
@@ -1355,6 +1504,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   clearBeforeSessionLoad();
   renderCharts();
+  bindTrackMapHover();
   
   loadCalendar()
     .then(selectLatestCompletedEvent)
