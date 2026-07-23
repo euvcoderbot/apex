@@ -60,6 +60,7 @@ def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
         return json.loads(response.read().decode("utf-8"))
 
 
+@lru_cache(maxsize=64)
 def openf1_session(year: int, gp: str, session_name: str) -> dict[str, Any] | None:
     try:
         meetings = openf1("meetings", year=year)
@@ -102,6 +103,7 @@ def openf1_session(year: int, gp: str, session_name: str) -> dict[str, Any] | No
     return None
 
 
+@lru_cache(maxsize=256)
 def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: str, lap_number: int) -> list[dict[str, Any]]:
     session = openf1_session(year, gp, session_name)
     if not session:
@@ -119,12 +121,33 @@ def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: s
     car = openf1("car_data", session_key=session_key, driver_number=driver_number, **{"date>=": start_str, "date<=": end_str})
     if not car:
         return []
+    # OpenF1 publishes vehicle location separately from car channels. Joining
+    # it here gives the mini-sector map a real circuit shape even when FastF1's
+    # car-data archive is unavailable for a recent weekend.
+    try:
+        location = openf1("location", session_key=session_key, driver_number=driver_number, **{"date>=": start_str, "date<=": end_str})
+        if location:
+            car_frame = pd.DataFrame(car)
+            location_frame = pd.DataFrame(location)
+            car_frame["_date"] = pd.to_datetime(car_frame["date"], utc=True)
+            location_frame["_date"] = pd.to_datetime(location_frame["date"], utc=True)
+            position_columns = [column for column in ("_date", "x", "y") if column in location_frame]
+            car = pd.merge_asof(
+                car_frame.sort_values("_date"),
+                location_frame[position_columns].sort_values("_date"),
+                on="_date",
+                direction="nearest",
+                tolerance=pd.Timedelta(milliseconds=400),
+            ).to_dict("records")
+    except Exception as error:
+        logger.debug("OpenF1 position data unavailable: %s", error)
+
     car.sort(key=lambda item: item["date"])
     samples: list[dict[str, Any]] = []
     distance = 0.0
     previous = None
     for point in car:
-        timestamp = datetime.fromisoformat(point["date"].replace("Z", "+00:00"))
+        timestamp = pd.Timestamp(point["date"]).to_pydatetime()
         elapsed = (timestamp - start_dt).total_seconds()
         if previous is not None:
             dt = (timestamp - previous).total_seconds()
@@ -139,6 +162,8 @@ def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: s
             "RPM": point.get("rpm"),
             "nGear": point.get("n_gear"),
             "DRS": point.get("drs"),
+            "X": point.get("x"),
+            "Y": point.get("y"),
         })
     return samples
 
@@ -157,8 +182,23 @@ def load_session(year: int, gp: str, session_name: str, round_number: int | None
         raise ValueError(f"'{gp}' is not an exact event name on the {year} calendar")
 
     session = event.get_session(session_name)
-    session.load(telemetry=True, weather=False, messages=False)
+    # Session controls need timing/lap data, not the multi-megabyte car stream
+    # for every driver. Fetch the car stream only if OpenF1 cannot provide a
+    # selected lap (mainly older seasons).
+    session.load(telemetry=False, weather=False, messages=False)
     return session
+
+
+@lru_cache(maxsize=4)
+def load_telemetry_session(year: int, gp: str, session_name: str):
+    """Load FastF1 car data only as the historical fallback."""
+    backend = "fastf1" if year >= 2018 else "ergast"
+    event = fastf1.get_event(year, gp, backend=backend, exact_match=True)
+    if event is None:
+        raise ValueError(f"'{gp}' is not an exact event name on the {year} calendar")
+    data = event.get_session(session_name)
+    data.load(telemetry=True, weather=False, messages=False)
+    return data
 
 
 @app.get("/api/events")
@@ -216,8 +256,21 @@ def session_data(
     round: int | None = Query(None, ge=1),
     session: str = Query("Q"),
 ):
+    # For current-era weekends OpenF1 exposes individual lap streams (and
+    # location points) without making the browser wait for FastF1 to download
+    # every car in the session. Prefer it where it exists.
     try:
-        data = load_session(year, gp, session, round)
+        metadata = load_session(year, gp, session, round)
+        driver_number = str(metadata.get_driver(driver).get("DriverNumber", driver))
+        if year >= 2023:
+            samples = openf1_lap_telemetry(year, gp, session, driver_number, lap)
+            if samples:
+                return {"driver": driver, "lap": lap, "samples": samples, "source": "OpenF1"}
+    except Exception as openf1_lookup_error:
+        logger.debug("OpenF1 lookup unavailable for %s L%s: %s", driver, lap, openf1_lookup_error)
+
+    try:
+        data = load_telemetry_session(year, gp, session)
     except Exception as exc:
         raise HTTPException(422, f"Could not load this session: {exc}") from exc
 
@@ -353,7 +406,7 @@ def telemetry(
             raise ValueError("lap telemetry was empty after official-time trimming")
         telemetry_data["Distance"] = telemetry_data["Distance"] - telemetry_data["Distance"].iloc[0]
     except Exception as fastf1_error:
-        logger.warning("FastF1 telemetry unavailable for %s L%s: %s", driver, lap, fastf1_error)
+        logger.debug("FastF1 telemetry unavailable for %s L%s: %s", driver, lap, fastf1_error)
         try:
             data = load_session(year, gp, session, round)
             driver_number = str(data.get_driver(driver).get("DriverNumber", driver))

@@ -625,17 +625,15 @@ function getNiceBounds(name, rawMin, rawMax) {
     }
     max = tempMax;
   } else if (name === 'Timing delta') {
-    min = Math.floor(rawMin / 0.1) * 0.1 - 0.1;
-    let tempMax = Math.ceil(rawMax / 0.1) * 0.1 + 0.1;
-    if (min > -0.4) min = -0.4;
-    if (tempMax < 0.4) tempMax = 0.4;
-    const diff = tempMax - min;
-    const diffInt = Math.round(diff * 10);
-    const remainder = diffInt % 4;
-    if (remainder !== 0) {
-      tempMax += (4 - remainder) / 10;
-    }
-    max = tempMax;
+    // Five equal grid lines with zero exactly in the middle: this makes the
+    // reference line readable regardless of whether a lap is quicker or
+    // slower overall.
+    const amplitude = Math.max(Math.abs(rawMin), Math.abs(rawMax), 0.05);
+    const preferredSteps = [0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 5];
+    const step = preferredSteps.find(value => value * 2 >= amplitude)
+      || Math.ceil(amplitude / 2 / 5) * 5;
+    min = -step * 2;
+    max = step * 2;
   } else if (name === 'Brake pressure') {
     min = 0;
     max = 100;
@@ -676,7 +674,9 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
     }
     ctx.stroke();
     
-    let displayVal = unit.includes('SECONDS') ? value.toFixed(1) : Math.round(value);
+    let displayVal = unit.includes('SECONDS')
+      ? (Math.abs(max - min) <= 0.4 ? value.toFixed(2) : value.toFixed(1))
+      : Math.round(value);
     if (unit.includes('SECONDS') && Math.abs(value) < 1e-5) {
       displayVal = '0';
     }
