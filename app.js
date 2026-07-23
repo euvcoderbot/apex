@@ -331,7 +331,15 @@ function renderStints() {
     activeDriverTab = selected[0];
   }
   
-  const globalCompareHtml = `<button id="compareAllFastest" class="compare-all-btn">⚡ COMPARE FASTEST LAPS (${selected.length} DRIVERS)</button>`;
+  const isAllFastestLoaded = selected.length > 0 && selected.every(c => {
+    const d = realDrivers.get(c);
+    if (!d || !d.laps || !d.laps.length) return true;
+    const timedLaps = d.laps.filter(l => Number.isFinite(l.time));
+    const f = timedLaps.length ? timedLaps.reduce((a, b) => a.time < b.time ? a : b) : d.laps[0];
+    return f && loaded.some(item => item.code === c && item.lap === f.lap);
+  });
+
+  const globalCompareHtml = `<button id="compareAllFastest" class="compare-all-btn ${isAllFastestLoaded ? 'selected' : ''}">⚡ COMPARE FASTEST LAPS</button>`;
   
   // Render tabs at the top
   const tabsHtml = `
@@ -388,16 +396,9 @@ function renderStints() {
     return `<button class="${classes}" style="--team:${display[3]}" data-code="${code}" data-lap="${lap.lap}">${lapText(lap)}</button>`;
   }).join('');
   
-  const isFastestLoaded = loaded.some(item => item.code === code && item.lap === fastest.lap);
-  
   root.innerHTML = tabsHtml + `
     <article class="driver-panel">
       <h3>${code} · ${driver.name}</h3>
-      <div class="lap-pills fastest-gap">
-        <button class="lap ${isFastestLoaded ? 'selected' : ''}" style="--team:${display[3]}" data-code="${code}" data-lap="${fastest.lap}">
-          ⚡ COMPARE FASTEST LAP
-        </button>
-      </div>
       <div class="stints">${stintButtons}</div>
       <div class="lap-pills">${lapButtons}</div>
     </article>
@@ -406,17 +407,23 @@ function renderStints() {
   const compareAllBtn = $('#compareAllFastest');
   if (compareAllBtn) {
     compareAllBtn.onclick = () => {
-      loaded = [];
-      selected.forEach(c => {
-        const d = realDrivers.get(c);
-        if (d && d.laps && d.laps.length) {
-          const validLaps = d.laps.filter(l => Number.isFinite(l.time) && l.time > 0);
-          const f = validLaps.length ? validLaps.reduce((a, b) => a.time < b.time ? a : b) : d.laps[0];
-          if (f) {
-            loaded.push({ code: c, lap: f.lap, time: f.time, real: f });
+      if (isAllFastestLoaded) {
+        // Toggle OFF: unload all laps
+        loaded = [];
+      } else {
+        // Toggle ON: load fastest lap of all selected drivers
+        loaded = [];
+        selected.forEach(c => {
+          const d = realDrivers.get(c);
+          if (d && d.laps && d.laps.length) {
+            const validLaps = d.laps.filter(l => Number.isFinite(l.time) && l.time > 0);
+            const f = validLaps.length ? validLaps.reduce((a, b) => a.time < b.time ? a : b) : d.laps[0];
+            if (f) {
+              loaded.push({ code: c, lap: f.lap, time: f.time, real: f });
+            }
           }
-        }
-      });
+        });
+      }
       renderAll();
       renderStints();
     };
@@ -794,7 +801,7 @@ function drawRealChart(name) {
   const niceBounds = getNiceBounds(name, rawMin, rawMax);
   const min = niceBounds.min;
   const max = niceBounds.max;
-  const bounds = { left: 43, right: 7, top: 8, bottom: 15, min, max };
+  const bounds = { left: 43, right: 7, top: 8, bottom: 15, min, max, tickStep: niceBounds.tickStep };
   
   // Render grid axes
   drawGridAxes(ctx, rect.width, rect.height, bounds, unit);

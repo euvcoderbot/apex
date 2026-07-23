@@ -241,10 +241,11 @@ button#loadSession:disabled {
   gap: 6px;
 }
 
-.compare-all-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.35);
-  transform: translateY(-1px);
+.compare-all-btn.selected {
+  border-color: var(--neon-accent) !important;
+  color: var(--text-main);
+  background: color-mix(in srgb, var(--neon-accent) 16%, transparent) !important;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--neon-accent) 25%, transparent);
 }
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-muted);
