@@ -615,6 +615,7 @@ function getSectorDistances(lap) {
 function getNiceBounds(name, rawMin, rawMax) {
   let min = rawMin;
   let max = rawMax;
+  let tickStep = null;
   
   if (name === 'Speed trace') {
     min = Math.max(0, Math.floor(rawMin / 20) * 20 - 20);
@@ -635,15 +636,20 @@ function getNiceBounds(name, rawMin, rawMax) {
     }
     max = tempMax;
   } else if (name === 'Timing delta') {
-    // Five equal grid lines with zero exactly in the middle: this makes the
-    // reference line readable regardless of whether a lap is quicker or
-    // slower overall.
-    const amplitude = Math.max(Math.abs(rawMin), Math.abs(rawMax), 0.05);
-    const preferredSteps = [0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 5];
-    const step = preferredSteps.find(value => value * 2 >= amplitude)
-      || Math.ceil(amplitude / 2 / 5) * 5;
-    min = -step * 2;
-    max = step * 2;
+    // Keep zero as a labelled reference, but do not reserve half the chart
+    // for negative time when every comparison is slower than the reference.
+    const span = Math.max(rawMax - rawMin, 0.02);
+    const magnitude = 10 ** Math.floor(Math.log10(span / 4));
+    const normalized = (span / 4) / magnitude;
+    const multiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10;
+    const step = multiplier * magnitude;
+    min = rawMin >= 0 ? 0 : Math.floor(rawMin / step) * step;
+    max = rawMax <= 0 ? 0 : Math.ceil(rawMax / step) * step;
+    if (max - min < step * 2) {
+      if (rawMax > 0) max = min + step * 2;
+      else min = max - step * 2;
+    }
+    tickStep = step;
   } else if (name === 'Brake pressure') {
     min = 0;
     max = 100;
@@ -658,17 +664,47 @@ function getNiceBounds(name, rawMin, rawMax) {
     max = 1;
   }
   
-  return { min, max };
+  return { min, max, tickStep };
+}
+
+function cornerFraction(corner, samples, totalDistance) {
+  if (Number.isFinite(Number(corner.fraction))) return Number(corner.fraction);
+  if (Number.isFinite(Number(corner.distance)) && totalDistance > 0) {
+    return Number(corner.distance) / totalDistance;
+  }
+  const x = Number(corner.x), y = Number(corner.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !samples?.length || !totalDistance) return null;
+  let closest = null;
+  let closestDistance = Infinity;
+  samples.forEach(point => {
+    const px = Number(point.X), py = Number(point.Y);
+    if (!Number.isFinite(px) || !Number.isFinite(py)) return;
+    const distance = (px - x) ** 2 + (py - y) ** 2;
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closest = point;
+    }
+  });
+  return closest ? Number(closest.Distance) / totalDistance : null;
 }
 
 // Draw chart grid axes
 function drawGridAxes(ctx, width, height, bounds, unit) {
-  const { left, right, top, bottom, min, max } = bounds;
+  const { left, right, top, bottom, min, max, tickStep } = bounds;
   ctx.font = '9px monospace';
-  
-  for (let tick = 0; tick <= 4; tick++) {
-    const y = top + (height - top - bottom) * tick / 4;
-    const value = max - (max - min) * tick / 4;
+  const ticks = [];
+  if (Number.isFinite(tickStep) && tickStep > 0) {
+    for (let value = max; value >= min - tickStep * 0.001; value -= tickStep) {
+      ticks.push({ value: Math.abs(value) < tickStep * 0.001 ? 0 : value });
+    }
+  } else {
+    for (let tick = 0; tick <= 4; tick++) {
+      ticks.push({ value: max - (max - min) * tick / 4, tick });
+    }
+  }
+
+  ticks.forEach(({ value, tick }) => {
+    const y = top + (height - top - bottom) * ((max - value) / (max - min || 1));
     
     ctx.beginPath();
     ctx.moveTo(left, y);
@@ -703,7 +739,7 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
     }
     ctx.fillText(displayVal, 2, y + 3);
-  }
+  });
 }
 
 // Draw a single canvas chart
@@ -816,9 +852,7 @@ function drawRealChart(name) {
   // Draw Corner dotted lines
   if ($('#cornerToggle').checked && corners.length) {
     corners.forEach(corner => {
-      const fraction = corner.fraction != null && Number.isFinite(Number(corner.fraction))
-        ? Number(corner.fraction)
-        : corner.distance / totalDist;
+      const fraction = cornerFraction(corner, refSamples, totalDist);
       if (fraction >= 0 && fraction <= 1) {
         const x = bounds.left + fraction * (rect.width - bounds.left - bounds.right);
         
@@ -916,9 +950,8 @@ function drawRealChart(name) {
   // Draw Corner apex min speed dots on the Speed trace chart (with clean text labels stacked at the top)
   if (name === 'Speed trace' && $('#cornerToggle').checked && corners.length) {
     corners.forEach(corner => {
-      const markerFraction = corner.fraction != null && Number.isFinite(Number(corner.fraction))
-        ? Number(corner.fraction)
-        : corner.distance / totalDist;
+      const markerFraction = cornerFraction(corner, refSamples, totalDist);
+      if (!Number.isFinite(markerFraction)) return;
       const x = bounds.left + markerFraction * (rect.width - bounds.left - bounds.right);
       if (x < bounds.left || x > rect.width - bounds.right) return;
       
@@ -1208,6 +1241,30 @@ function renderMiniSectorMap() {
     else ctx.lineTo(pos.x, pos.y);
   });
   ctx.stroke();
+
+  // FastF1 circuit markers use the same X/Y coordinate space as the position
+  // stream. They remain available even when marker *distance* cannot be
+  // calculated, so label the actual track map directly from those coordinates.
+  if ($('#cornerToggle').checked) {
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    corners.forEach(corner => {
+      const x = Number(corner.x), y = Number(corner.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      const point = toCanvas(x, y);
+      const angle = Number(corner.angle);
+      const offsetX = Number.isFinite(angle) ? Math.cos(angle * Math.PI / 180) * 11 : 0;
+      const offsetY = Number.isFinite(angle) ? -Math.sin(angle * Math.PI / 180) * 11 : -11;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#101114';
+      ctx.strokeText(`T${corner.number}`, point.x + offsetX, point.y + offsetY);
+      ctx.fillStyle = 'rgba(255,255,255,.92)';
+      ctx.fillText(`T${corner.number}`, point.x + offsetX, point.y + offsetY);
+    });
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'alphabetic';
+  }
 
   const wins = new Set();
   for (let index = 0; index < segments; index++) {

@@ -340,12 +340,29 @@ def session_data(
                 corners.append({
                     "number": str(row["Number"]),
                     "letter": str(row.get("Letter") or ""),
+                    "x": seconds(row.get("X")),
+                    "y": seconds(row.get("Y")),
+                    "angle": seconds(row.get("Angle")),
                     "distance": float(dist),
                     "fraction": float(dist / marker_reference_distance)
                     if marker_reference_distance and marker_reference_distance > 0 else None,
                 })
-    else:
-        logger.warning("No valid circuit-marker distances for this session; corner overlays are disabled.")
+    elif circuit_info is not None and circuit_info.corners is not None:
+        # Current-session car telemetry can be unavailable while the circuit
+        # map itself still has valid corner coordinates. Send those to the
+        # client: it can project them onto OpenF1 position data.
+        for _, row in circuit_info.corners.iterrows():
+            x, y = seconds(row.get("X")), seconds(row.get("Y"))
+            if x is not None and y is not None:
+                corners.append({
+                    "number": str(row["Number"]),
+                    "letter": str(row.get("Letter") or ""),
+                    "x": x,
+                    "y": y,
+                    "angle": seconds(row.get("Angle")),
+                    "distance": None,
+                    "fraction": None,
+                })
 
     return {
         "event": data.event["EventName"],
