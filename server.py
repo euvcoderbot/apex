@@ -267,21 +267,8 @@ def session_data(
     round: int | None = Query(None, ge=1),
     session: str = Query("Q"),
 ):
-    # For current-era weekends OpenF1 exposes individual lap streams (and
-    # location points) without making the browser wait for FastF1 to download
-    # every car in the session. Prefer it where it exists.
     try:
-        metadata = load_session(year, gp, session, round)
-        driver_number = str(metadata.get_driver(driver).get("DriverNumber", driver))
-        if year >= 2023:
-            samples = openf1_lap_telemetry(year, gp, session, driver_number, lap)
-            if samples:
-                return {"driver": driver, "lap": lap, "samples": samples, "source": "OpenF1"}
-    except Exception as openf1_lookup_error:
-        logger.debug("OpenF1 lookup unavailable for %s L%s: %s", driver, lap, openf1_lookup_error)
-
-    try:
-        data = load_telemetry_session(year, gp, session)
+        data = load_session(year, gp, session, round)
     except Exception as exc:
         raise HTTPException(422, f"Could not load this session: {exc}") from exc
 
@@ -378,8 +365,20 @@ def telemetry(
     driver: str = Query(..., min_length=2),
     lap: int = Query(..., ge=1),
 ):
+    # OpenF1 can provide recent laps individually, including position data for
+    # the dominance map. It avoids loading every car in the FastF1 session.
     try:
-        data = load_session(year, gp, session, round)
+        metadata = load_session(year, gp, session, round)
+        driver_number = str(metadata.get_driver(driver).get("DriverNumber", driver))
+        if year >= 2023:
+            samples = openf1_lap_telemetry(year, gp, session, driver_number, lap)
+            if samples:
+                return {"driver": driver, "lap": lap, "samples": samples, "source": "OpenF1"}
+    except Exception as openf1_lookup_error:
+        logger.debug("OpenF1 lookup unavailable for %s L%s: %s", driver, lap, openf1_lookup_error)
+
+    try:
+        data = load_telemetry_session(year, gp, session)
         driver_info = data.get_driver(driver)
         driver_number = str(driver_info.get("DriverNumber", driver))
         selected = data.laps.pick_drivers(driver_number)
