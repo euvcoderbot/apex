@@ -803,9 +803,14 @@ canvas {
   height: 80px;
 }
 
-/* Chart 1: Speed trace gets a double height */
+/* Chart 1: Speed trace gets a taller canvas height */
 #charts .chart:first-child canvas {
   height: 350px;
+}
+
+/* Chart 6: Gear chart gets a dedicated 180px height for 1 step per gear ticks */
+#charts .chart:nth-child(6) canvas {
+  height: 180px !important;
 }
 
 /* Sector line overlays over canvases */

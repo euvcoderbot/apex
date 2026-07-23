@@ -62,28 +62,19 @@ async function fetchTelemetry(lap) {
       if (hasRawMode) {
         point.DRS = ([10, 12, 14, 1].includes(rawDrs) || rawDrs >= 10) ? 1 : 0;
       } else {
-        point.DRS = (speed >= 250 && throttle >= 85 && brake <= 5) ? 1 : 0;
+        point.DRS = (speed >= 250 && throttle >= 95 && brake <= 5) ? 1 : 0;
       }
     } else {
       if (hasRawMode) {
         point.DRS = (rawDrs > 0) ? 1 : 0;
       } else {
-        // 2026 Straight-Line Mode (X-Mode / Active Aero)
-        point.DRS = (throttle >= 70 && brake <= 5 && (nGear >= 4 || speed >= 160)) ? 1 : 0;
+        // 2026 Straight-Line Mode (Active Aero / X-Mode on high speed straights)
+        point.DRS = (speed >= 250 && throttle >= 95 && brake <= 5 && nGear >= 6) ? 1 : 0;
       }
     }
     
     point.Brake = brake;
   });
-
-  // Bridge momentary 1-2 sample dips during gear shifts on straights for 2026
-  if (season >= 2026 && !hasRawMode) {
-    for (let i = 1; i < samples.length - 1; i++) {
-      if (samples[i].DRS === 0 && samples[i - 1].DRS === 1 && samples[i + 1].DRS === 1) {
-        samples[i].DRS = 1;
-      }
-    }
-  }
 
   telemetryCache.set(key, samples);
   return samples;

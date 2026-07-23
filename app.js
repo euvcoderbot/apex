@@ -531,8 +531,7 @@ const defs = [
   ['Timing delta', 'SECONDS VS REFERENCE', false],
   ['Throttle application', '%', true],
   ['Brake pressure', 'BAR', true],
-  ['Engine speed', 'RPM', true],
-  ['Gear', '1–8', true],
+  ['Gear', '0–8', false],
   ['DRS / straight-line mode', 'OPEN / CLOSED', true]
 ];
 
@@ -555,85 +554,62 @@ function renderCharts() {
     const displayName = name === 'DRS / straight-line mode' ? modeChartLabel() : name;
     return `
     <section class="chart ${compact ? 'compact' : ''}">
-      <h2>${displayName}<small>${unit}</small></h2>
-      <canvas data-chart="${name}" aria-label="${displayName}"></canvas>
+      <h2>${displayName} <small>${unit}</small></h2>
+      <canvas data-chart="${name}"></canvas>
     </section>
   `;
   }).join('');
-  
   bindAllChartHover();
 }
 
-// Telemetry Interpolation Helpers
 function interpolate(samples, targetDistance, field) {
   if (!samples?.length) return null;
-  const target = targetDistance;
-  
-  if (target >= samples[samples.length - 1].Distance) {
-    return samples[samples.length - 1][field];
-  }
-  
+  const sourceTotal = +samples[samples.length - 1].Distance || 0;
+  const fraction = Math.max(0, Math.min(1, targetDistance / referenceDistance()));
+  const target = fraction * sourceTotal;
+  if (target <= 0) return samples[0][field];
+  if (target >= sourceTotal) return samples[samples.length - 1][field];
   const index = samples.findIndex(point => point.Distance >= target);
   if (index <= 0) return samples[0][field];
-  
-  const a = samples[index - 1];
-  const b = samples[index];
+  const a = samples[index - 1], b = samples[index];
   const ratio = (target - a.Distance) / (b.Distance - a.Distance || 1);
-  
-  if (field === 'nGear' || field === 'DRS') {
-    return ratio > 0.5 ? b[field] : a[field];
-  }
-  
-  return a[field] + (b[field] - a[field]) * ratio;
+  if (field === 'nGear' || field === 'DRS') return ratio < .5 ? a[field] : b[field];
+  return (+a[field]) + ((+b[field]) - (+a[field])) * ratio;
 }
 
 function deltaAt(samples, reference, targetDistance) {
-  const timeAtPoint = interpolate(samples, targetDistance, 'ElapsedSeconds');
-  const refTime = interpolate(reference, targetDistance, 'ElapsedSeconds');
-  return Number.isFinite(timeAtPoint) && Number.isFinite(refTime) ? timeAtPoint - refTime : null;
+  const fraction = Math.max(0, Math.min(1, targetDistance / referenceDistance()));
+  const timeHere = calibratedElapsed(samples, fraction);
+  const referenceHere = calibratedElapsed(reference, fraction);
+  if (!Number.isFinite(timeHere) || !Number.isFinite(referenceHere)) return null;
+  return timeHere - referenceHere;
 }
 
-// Dynamic Sector split distances from reference lap
 function getSectorDistances(lap) {
+  if (!lap) return { s1: null, s2: null };
   const samples = telemetryCache.get(telemetryKey(lap));
-  if (!samples || !samples.length || !lap.real) return null;
+  if (!samples || !samples.length) return { s1: null, s2: null };
   
-  const s1Time = lap.real.s1;
-  const s2Time = lap.real.s2;
-  if (s1Time == null || s2Time == null) return null;
+  const lapTime = lap.time;
+  const s1Time = lap.s1;
+  const s2Time = lap.s2;
   
-  const s1Target = s1Time;
-  const s2Target = s1Time + s2Time;
+  if (!s1Time || !s2Time || !lapTime) return { s1: null, s2: null };
   
-  // Find closest sample for Sector 1
-  let closestS1 = samples[0];
-  let minDiffS1 = Math.abs(closestS1.ElapsedSeconds - s1Target);
-  for (let i = 1; i < samples.length; i++) {
-    const diff = Math.abs(samples[i].ElapsedSeconds - s1Target);
-    if (diff < minDiffS1) {
-      minDiffS1 = diff;
-      closestS1 = samples[i];
-    }
-  }
+  const totalDist = samples[samples.length - 1].Distance || 5891;
   
-  // Find closest sample for Sector 2
-  let closestS2 = samples[0];
-  let minDiffS2 = Math.abs(closestS2.ElapsedSeconds - s2Target);
-  for (let i = 1; i < samples.length; i++) {
-    const diff = Math.abs(samples[i].ElapsedSeconds - s2Target);
-    if (diff < minDiffS2) {
-      minDiffS2 = diff;
-      closestS2 = samples[i];
-    }
-  }
+  const s1TargetTime = s1Time;
+  const s2TargetTime = s1Time + s2Time;
   
-  return {
-    s1Dist: closestS1.Distance,
-    s2Dist: closestS2.Distance
-  };
+  let s1Pt = samples.find(pt => pt.ElapsedSeconds >= s1TargetTime);
+  let s2Pt = samples.find(pt => pt.ElapsedSeconds >= s2TargetTime);
+  
+  const s1Dist = s1Pt ? s1Pt.Distance : totalDist * (s1Time / lapTime);
+  const s2Dist = s2Pt ? s2Pt.Distance : totalDist * ((s1Time + s2Time) / lapTime);
+  
+  return { s1: s1Dist, s2: s2Dist };
 }
 
-// Axis Boundary Rounding
 function getNiceBounds(name, rawMin, rawMax) {
   let min = rawMin;
   let max = rawMax;
@@ -658,8 +634,6 @@ function getNiceBounds(name, rawMin, rawMax) {
     }
     max = tempMax;
   } else if (name === 'Timing delta') {
-    // Keep zero as a labelled reference, but do not reserve half the chart
-    // for negative time when every comparison is slower than the reference.
     const span = Math.max(rawMax - rawMin, 0.02);
     const magnitude = 10 ** Math.floor(Math.log10(span / 4));
     const normalized = (span / 4) / magnitude;
@@ -679,7 +653,7 @@ function getNiceBounds(name, rawMin, rawMax) {
     min = 0;
     max = 100;
   } else if (name === 'Gear') {
-    min = 1;
+    min = 0;
     max = 8;
     tickStep = 1;
   } else if (name === 'DRS / straight-line mode') {
@@ -691,24 +665,11 @@ function getNiceBounds(name, rawMin, rawMax) {
 }
 
 function cornerFraction(corner, samples, totalDistance) {
-  if (Number.isFinite(Number(corner.fraction))) return Number(corner.fraction);
   if (Number.isFinite(Number(corner.distance)) && totalDistance > 0) {
     return Number(corner.distance) / totalDistance;
   }
-  const x = Number(corner.x), y = Number(corner.y);
-  if (!Number.isFinite(x) || !Number.isFinite(y) || !samples?.length || !totalDistance) return null;
-  let closest = null;
-  let closestDistance = Infinity;
-  samples.forEach(point => {
-    const px = Number(point.X), py = Number(point.Y);
-    if (!Number.isFinite(px) || !Number.isFinite(py)) return;
-    const distance = (px - x) ** 2 + (py - y) ** 2;
-    if (distance < closestDistance) {
-      closestDistance = distance;
-      closest = point;
-    }
-  });
-  return closest ? Number(closest.Distance) / totalDistance : null;
+  if (Number.isFinite(Number(corner.fraction))) return Number(corner.fraction);
+  return null;
 }
 
 // Draw chart grid axes
