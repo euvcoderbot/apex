@@ -218,6 +218,34 @@ button#loadSession:active:not(:disabled) {
 }
 
 button#loadSession:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.compare-all-btn {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.compare-all-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.35);
+  transform: translateY(-1px);
+}
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-muted);
   cursor: not-allowed;

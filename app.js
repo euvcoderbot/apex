@@ -331,8 +331,11 @@ function renderStints() {
     activeDriverTab = selected[0];
   }
   
+  const globalCompareHtml = `<button id="compareAllFastest" class="compare-all-btn">⚡ COMPARE FASTEST LAPS (${selected.length} DRIVERS)</button>`;
+  
   // Render tabs at the top
   const tabsHtml = `
+    ${globalCompareHtml}
     <div class="driver-tabs">
       ${selected.map(code => {
         const isActive = code === activeDriverTab;
@@ -399,6 +402,25 @@ function renderStints() {
       <div class="lap-pills">${lapButtons}</div>
     </article>
   `;
+  
+  const compareAllBtn = $('#compareAllFastest');
+  if (compareAllBtn) {
+    compareAllBtn.onclick = () => {
+      loaded = [];
+      selected.forEach(c => {
+        const d = realDrivers.get(c);
+        if (d && d.laps && d.laps.length) {
+          const validLaps = d.laps.filter(l => Number.isFinite(l.time) && l.time > 0);
+          const f = validLaps.length ? validLaps.reduce((a, b) => a.time < b.time ? a : b) : d.laps[0];
+          if (f) {
+            loaded.push({ code: c, lap: f.lap, time: f.time, real: f });
+          }
+        }
+      });
+      renderAll();
+      renderStints();
+    };
+  }
   
   // Bind tab click handlers
   root.querySelectorAll('.driver-tab').forEach(tab => {
@@ -657,8 +679,9 @@ function getNiceBounds(name, rawMin, rawMax) {
     min = 0;
     max = 100;
   } else if (name === 'Gear') {
-    min = 0;
+    min = 1;
     max = 8;
+    tickStep = 1;
   } else if (name === 'DRS / straight-line mode') {
     min = 0;
     max = 1;
@@ -852,8 +875,8 @@ function drawRealChart(name) {
   // Draw Corner dotted lines
   if ($('#cornerToggle').checked && corners.length) {
     corners.forEach(corner => {
-      const fraction = cornerFraction(corner, refSamples, totalDist);
-      if (fraction >= 0 && fraction <= 1) {
+      const fraction = cornerFraction(corner, refSamples, totalDist) ?? (Number(corner.distance) / totalDist);
+      if (Number.isFinite(fraction) && fraction >= 0 && fraction <= 1) {
         const x = bounds.left + fraction * (rect.width - bounds.left - bounds.right);
         
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
@@ -1373,10 +1396,9 @@ function renderMiniSectorMap() {
 
   // Corner markers rendered ON TOP of mini-sector dominance lines
   if ($('#cornerToggle').checked && corners.length) {
-    ctx.font = '9px "JetBrains Mono", monospace';
+    ctx.font = '10px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    
     corners.forEach(corner => {
       let x = Number(corner.x), y = Number(corner.y);
       if (!Number.isFinite(x) || !Number.isFinite(y)) {
@@ -1391,44 +1413,16 @@ function renderMiniSectorMap() {
         }
       }
       if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-      
-      const pt = toCanvas(x, y);
+      const point = toCanvas(x, y);
       const angle = Number(corner.angle);
-      const rad = Number.isFinite(angle) ? (angle + 90) * Math.PI / 180 : -Math.PI / 2;
-      const badgeDist = 16;
-      const bx = pt.x + Math.cos(rad) * badgeDist;
-      const by = pt.y - Math.sin(rad) * badgeDist;
-      
-      // Apex dot on track line
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, 2.5, 0, 2 * Math.PI);
-      ctx.fill();
-      
-      // Subtle leader line
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-      ctx.lineWidth = 0.8;
-      ctx.beginPath();
-      ctx.moveTo(pt.x, pt.y);
-      ctx.lineTo(bx, by);
-      ctx.stroke();
-      
-      // Round dark badge
-      const badgeRadius = 9;
-      ctx.fillStyle = 'rgba(14, 16, 20, 0.92)';
-      ctx.beginPath();
-      ctx.arc(bx, by, badgeRadius, 0, 2 * Math.PI);
-      ctx.fill();
-      
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      
-      // White turn number
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(`${corner.number}`, bx, by + 0.5);
+      const offsetX = Number.isFinite(angle) ? Math.cos(angle * Math.PI / 180) * 11 : 0;
+      const offsetY = Number.isFinite(angle) ? -Math.sin(angle * Math.PI / 180) * 11 : -11;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#101114';
+      ctx.strokeText(`T${corner.number}`, point.x + offsetX, point.y + offsetY);
+      ctx.fillStyle = 'rgba(255,255,255,.92)';
+      ctx.fillText(`T${corner.number}`, point.x + offsetX, point.y + offsetY);
     });
-    
     ctx.textAlign = 'start';
     ctx.textBaseline = 'alphabetic';
   }
