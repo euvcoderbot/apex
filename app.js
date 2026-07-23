@@ -127,9 +127,11 @@ function getDriverColor(code) {
 }
 
 function currentQuery() {
+  const event = calendar.find(item => String(item.round) === $('#gp').value);
   return new URLSearchParams({
     year: $('#year').value,
-    gp: $('#gp').value,
+    gp: event?.name || $('#gp').value,
+    round: event?.round || '',
     session: $('#session').value,
   });
 }
@@ -151,6 +153,7 @@ async function loadCalendar() {
     calendar = await response.json();
     if (!response.ok) throw new Error(calendar.detail || 'Calendar unavailable');
     populate($('#gp'), calendar, event => event.name, event => `R${event.round} · ${event.name}`);
+    $('#gp').innerHTML = calendar.map(event => `<option value="${event.round}">R${event.round} - ${event.name}</option>`).join('');
     populateSessions();
   } catch (error) {
     alert(`Could not load calendar. ${error.message}`);
@@ -158,7 +161,7 @@ async function loadCalendar() {
 }
 
 function populateSessions() {
-  const event = calendar.find(item => item.name === $('#gp').value) || calendar[0];
+  const event = calendar.find(item => String(item.round) === $('#gp').value) || calendar[0];
   const sessions = event?.sessions || [];
   populate($('#session'), sessions);
   if (sessions.length) {
@@ -170,7 +173,7 @@ function selectLatestCompletedEvent() {
   const today = new Date().toISOString().slice(0, 10);
   const completed = calendar.filter(event => event.date <= today);
   const latest = completed[completed.length - 1] || calendar[0];
-  if (latest) $('#gp').value = latest.name;
+  if (latest) $('#gp').value = String(latest.round);
   populateSessions();
 }
 

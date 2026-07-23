@@ -144,10 +144,11 @@ def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: s
 
 
 @lru_cache(maxsize=8)
-def load_session(year: int, gp: str, session_name: str):
+def load_session(year: int, gp: str, session_name: str, round_number: int | None = None):
     # Prefer the official F1 timing backend. It is usually available shortly
     # after a session ends and avoids waiting for an aggregated mirror update.
-    session = fastf1.get_session(year, gp, session_name, backend="f1timing")
+    event_identifier: int | str = round_number if round_number and round_number > 0 else gp
+    session = fastf1.get_session(year, event_identifier, session_name, backend="f1timing")
     session.load(telemetry=True, weather=False, messages=False)
     return session
 
@@ -204,10 +205,11 @@ def get_tire_nominations(year: int, gp: str) -> list[str]:
 def session_data(
     year: int = Query(2025, ge=2018),
     gp: str = Query("British Grand Prix"),
+    round: int | None = Query(None, ge=1),
     session: str = Query("Q"),
 ):
     try:
-        data = load_session(year, gp, session)
+        data = load_session(year, gp, session, round)
     except Exception as exc:
         raise HTTPException(422, f"Could not load this session: {exc}") from exc
 
@@ -284,22 +286,7 @@ def session_data(
                     if marker_reference_distance and marker_reference_distance > 0 else None,
                 })
     else:
-        logger.warning("Could not load valid circuit corners directly (NaN distances). Trying fallback year...")
-        try:
-            fallback_session = fastf1.get_session(2025, gp, session, backend="f1timing")
-            fallback_session.load(telemetry=True, weather=False, messages=False)
-            circuit_info = fallback_session.get_circuit_info()
-            if circuit_info is not None and circuit_info.corners is not None:
-                for _, row in circuit_info.corners.iterrows():
-                    dist = row.get("Distance")
-                    if dist is not None and np.isfinite(dist):
-                        corners.append({
-                            "number": str(row["Number"]),
-                            "letter": str(row.get("Letter") or ""),
-                            "distance": float(dist)
-                        })
-        except Exception as fallback_err:
-            logger.error("Fallback corner loading failed: %s", fallback_err)
+        logger.warning("No valid circuit-marker distances for this session; corner overlays are disabled.")
 
     return {
         "event": data.event["EventName"],
@@ -314,12 +301,13 @@ def session_data(
 def telemetry(
     year: int = Query(2025, ge=2018),
     gp: str = Query("British Grand Prix"),
+    round: int | None = Query(None, ge=1),
     session: str = Query("Q"),
     driver: str = Query(..., min_length=2),
     lap: int = Query(..., ge=1),
 ):
     try:
-        data = load_session(year, gp, session)
+        data = load_session(year, gp, session, round)
         driver_info = data.get_driver(driver)
         driver_number = str(driver_info.get("DriverNumber", driver))
         selected = data.laps.pick_drivers(driver_number)
@@ -359,7 +347,7 @@ def telemetry(
     except Exception as fastf1_error:
         logger.warning("FastF1 telemetry unavailable for %s L%s: %s", driver, lap, fastf1_error)
         try:
-            data = load_session(year, gp, session)
+            data = load_session(year, gp, session, round)
             driver_number = str(data.get_driver(driver).get("DriverNumber", driver))
             samples = openf1_lap_telemetry(year, gp, session, driver_number, lap)
             if samples:
