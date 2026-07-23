@@ -136,6 +136,16 @@ function currentQuery() {
   });
 }
 
+async function readApiResponse(response) {
+  const body = await response.text();
+  try {
+    return JSON.parse(body);
+  } catch {
+    const summary = body.replace(/\s+/g, ' ').trim().slice(0, 140) || 'empty response';
+    throw new Error(`Server returned ${response.status}: ${summary}`);
+  }
+}
+
 function telemetryKey(lap) {
   return `${lap.code}:${lap.lap}`;
 }
@@ -150,7 +160,7 @@ async function loadCalendar() {
   $('#gp').innerHTML = '<option>Loading calendar…</option>';
   try {
     const response = await fetch(`/api/events?year=${$('#year').value}`);
-    calendar = await response.json();
+    calendar = await readApiResponse(response);
     if (!response.ok) throw new Error(calendar.detail || 'Calendar unavailable');
     populate($('#gp'), calendar, event => event.name, event => `R${event.round} · ${event.name}`);
     $('#gp').innerHTML = calendar.map(event => `<option value="${event.round}">R${event.round} - ${event.name}</option>`).join('');
@@ -212,7 +222,7 @@ async function loadRealSession() {
   
   try {
     const response = await fetch(`/api/session?${currentQuery()}`);
-    const payload = await response.json();
+    const payload = await readApiResponse(response);
     if (!response.ok) throw new Error(payload.detail || 'Session unavailable');
     
     realDrivers = new Map(payload.drivers.map(driver => [driver.code, driver]));
@@ -245,7 +255,7 @@ async function fetchTelemetry(lap) {
   const response = await fetch(`/api/telemetry?${query}`);
   if (!response.ok) throw new Error('Telemetry unavailable for this lap');
   
-  const data = await response.json();
+  const data = await readApiResponse(response);
   const samples = data.samples || [];
   samples.forEach(pt => {
     const d = +pt.DRS;

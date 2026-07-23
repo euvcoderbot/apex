@@ -326,8 +326,8 @@ def session_data(
         
     has_valid_corners = False
     if circuit_info is not None and circuit_info.corners is not None and not circuit_info.corners.empty:
-        first_dist = circuit_info.corners["Distance"].iloc[0]
-        if np.isfinite(first_dist):
+        first_dist = seconds(circuit_info.corners["Distance"].iloc[0])
+        if first_dist is not None:
             has_valid_corners = True
             
     if has_valid_corners:
@@ -337,8 +337,8 @@ def session_data(
         except Exception as exc:
             logger.warning("Could not calculate the circuit-marker reference distance: %s", exc)
         for _, row in circuit_info.corners.iterrows():
-            dist = row.get("Distance")
-            if dist is not None and np.isfinite(dist):
+            dist = seconds(row.get("Distance"))
+            if dist is not None:
                 corners.append({
                     "number": str(row["Number"]),
                     "letter": str(row.get("Letter") or ""),

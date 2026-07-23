@@ -43,7 +43,7 @@ async function fetchTelemetry(lap) {
   query.set('driver', lap.code);
   query.set('lap', lap.lap);
   const response = await fetch(`/api/telemetry?${query}`);
-  const payload = await response.json();
+  const payload = await readApiResponse(response);
   if (!response.ok) throw new Error(payload.detail || 'Telemetry unavailable for this lap');
   const samples = normalizeTelemetry(payload.samples || [], lap);
   const season = Number($('#year').value);
