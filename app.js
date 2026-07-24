@@ -539,7 +539,7 @@ const defs = [
   ['Throttle application', '%', true],
   ['Brake pressure', 'BAR', true],
   ['Gear', '0–8', false],
-  ['DRS / straight-line mode', 'OPEN / CLOSED', true]
+  ['DRS', 'OPEN / CLOSED', true]
 ];
 
 const chartField = {
@@ -548,20 +548,19 @@ const chartField = {
   'Brake pressure': 'Brake',
   'Engine speed': 'RPM',
   'Gear': 'nGear',
-  'DRS / straight-line mode': 'DRS'
+  'DRS': 'DRS'
 };
-
-function modeChartLabel() {
-  return Number($('#year').value) >= 2026 ? 'Straight-line mode' : 'DRS';
-}
 
 function renderCharts() {
   const root = $('#charts');
-  root.innerHTML = defs.map(([name, unit, compact]) => {
-    const displayName = name === 'DRS / straight-line mode' ? modeChartLabel() : name;
+  const season = Number($('#year').value);
+  const activeDefs = season >= 2026
+    ? defs.filter(([name]) => name !== 'DRS')
+    : defs;
+  root.innerHTML = activeDefs.map(([name, unit, compact]) => {
     return `
     <section class="chart ${compact ? 'compact' : ''}">
-      <h2>${displayName} <small>${unit}</small></h2>
+      <h2>${name} <small>${unit}</small></h2>
       <canvas data-chart="${name}"></canvas>
     </section>
   `;
@@ -1198,7 +1197,11 @@ async function drawAll() {
     }
   });
   await Promise.all(promises);
-  defs.forEach(definition => drawRealChart(definition[0]));
+  const season = Number($('#year').value);
+  const activeDefs = season >= 2026
+    ? defs.filter(([name]) => name !== 'DRS')
+    : defs;
+  activeDefs.forEach(definition => drawRealChart(definition[0]));
   renderMiniSectorMap();
 }
 

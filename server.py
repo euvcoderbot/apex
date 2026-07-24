@@ -347,22 +347,32 @@ def session_data(
                     "fraction": float(dist / marker_reference_distance)
                     if marker_reference_distance and marker_reference_distance > 0 else None,
                 })
-    elif circuit_info is not None and circuit_info.corners is not None:
-        # Current-session car telemetry can be unavailable while the circuit
-        # map itself still has valid corner coordinates. Send those to the
-        # client: it can project them onto OpenF1 position data.
-        for _, row in circuit_info.corners.iterrows():
-            x, y = seconds(row.get("X")), seconds(row.get("Y"))
-            if x is not None and y is not None:
-                corners.append({
-                    "number": str(row["Number"]),
-                    "letter": str(row.get("Letter") or ""),
-                    "x": x,
-                    "y": y,
-                    "angle": seconds(row.get("Angle")),
-                    "distance": None,
-                    "fraction": None,
-                })
+    else:
+        logger.warning("Could not load valid circuit corners directly (NaN distances). Trying fallback year...")
+        for fallback_year in (2025, 2024):
+            try:
+                fallback_session = fastf1.get_session(fallback_year, gp, session)
+                fallback_session.load(telemetry=True, weather=False, messages=False)
+                fb_info = fallback_session.get_circuit_info()
+                if fb_info is not None and fb_info.corners is not None and not fb_info.corners.empty:
+                    fb_fastest = fallback_session.laps.pick_fastest().get_telemetry(frequency="original")
+                    fb_ref_dist = float(fb_fastest["Distance"].max())
+                    for _, row in fb_info.corners.iterrows():
+                        dist = seconds(row.get("Distance"))
+                        if dist is not None:
+                            corners.append({
+                                "number": str(row["Number"]),
+                                "letter": str(row.get("Letter") or ""),
+                                "x": seconds(row.get("X")),
+                                "y": seconds(row.get("Y")),
+                                "angle": seconds(row.get("Angle")),
+                                "distance": float(dist),
+                                "fraction": float(dist / fb_ref_dist) if fb_ref_dist > 0 else None,
+                            })
+                    if corners:
+                        break
+            except Exception as fallback_err:
+                logger.warning("Fallback corner loading for year %s failed: %s", fallback_year, fallback_err)
 
     return {
         "event": data.event["EventName"],

@@ -800,18 +800,24 @@ canvas {
   cursor: crosshair;
 }
 
-.compact canvas {
-  height: 80px;
+canvas[data-chart="Speed trace"] {
+  height: 350px !important;
 }
 
-/* Chart 1: Speed trace gets a taller canvas height */
-#charts .chart:first-child canvas {
-  height: 350px;
+canvas[data-chart="Throttle application"] {
+  height: 165px !important;
 }
 
-/* Chart 6: Gear chart gets a dedicated 180px height for 1 step per gear ticks */
-#charts .chart:nth-child(6) canvas {
-  height: 180px !important;
+canvas[data-chart="Brake pressure"] {
+  height: 165px !important;
+}
+
+canvas[data-chart="Gear"] {
+  height: 135px !important;
+}
+
+canvas[data-chart="DRS"] {
+  height: 80px !important;
 }
 
 /* Sector line overlays over canvases */
