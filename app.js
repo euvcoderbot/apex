@@ -232,6 +232,25 @@ async function loadRealSession() {
     corners = payload.corners || [];
     nominatedCompounds = payload.compounds || [];
     
+    // Automatically select the top 2 drivers and load their fastest laps for instant visual comparison
+    if (drivers.length > 0) {
+      const initialCodes = drivers.slice(0, Math.min(2, drivers.length)).map(d => d[0]);
+      selected = [...initialCodes];
+      activeDriverTab = selected[0];
+      
+      loaded = [];
+      selected.forEach(c => {
+        const d = realDrivers.get(c);
+        if (d && d.laps && d.laps.length) {
+          const validLaps = d.laps.filter(l => Number.isFinite(l.time) && l.time > 0);
+          const f = validLaps.length ? validLaps.reduce((a, b) => a.time < b.time ? a : b) : d.laps[0];
+          if (f) {
+            loaded.push({ code: c, lap: f.lap, time: f.time, real: f });
+          }
+        }
+      });
+    }
+
     renderDrivers();
     renderTireNomination();
     renderStints();
