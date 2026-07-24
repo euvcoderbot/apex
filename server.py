@@ -225,10 +225,19 @@ def events(year: int = Query(2025, ge=2014)):
             name = event.get(f"Session{index}")
             if name and str(name) not in {"nan", "None"}:
                 sessions.append(str(name))
+        
+        event_date_str = str(event["EventDate"])[:10]
+        try:
+            dt = datetime.strptime(event_date_str, "%Y-%m-%d")
+            start_date_str = (dt - timedelta(days=2)).strftime("%Y-%m-%d")
+        except Exception:
+            start_date_str = event_date_str
+            
         result.append({
             "round": int(event["RoundNumber"]),
             "name": str(event["EventName"]),
-            "date": str(event["EventDate"])[:10],
+            "date": event_date_str,
+            "start_date": start_date_str,
             "sessions": sessions,
         })
     return result

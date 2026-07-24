@@ -190,7 +190,7 @@ function populateSessions() {
 
 function selectLatestCompletedEvent() {
   const today = new Date().toISOString().slice(0, 10);
-  const completed = calendar.filter(event => event.date <= today);
+  const completed = calendar.filter(event => (event.start_date || event.date) <= today);
   const latest = completed.length ? completed[completed.length - 1] : calendar[0];
   if (latest) $('#gp').value = String(latest.round);
   populateSessions();
