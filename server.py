@@ -483,9 +483,17 @@ def session_data(
     if not corners:
         corners = get_fallback_circuit_corners(gp, session)
 
+    session_date_iso = None
+    try:
+        if getattr(data, "date", None) is not None:
+            session_date_iso = str(data.date)
+    except Exception:
+        pass
+
     return {
         "event": data.event["EventName"],
         "session": data.name,
+        "date": session_date_iso,
         "drivers": drivers,
         "corners": corners,
         "compounds": get_tire_nominations(year, gp),

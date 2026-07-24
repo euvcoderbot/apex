@@ -743,17 +743,27 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
     
     if (unit === 'OPEN / CLOSED') {
       if (tick === 0) displayVal = 'OPEN';
-      else if (tick === 4) displayVal = 'CLOSED';
-      else return;
-    }
+    ctx.stroke();
     
-    if (unit.includes('SECONDS') && Math.abs(value) < 1e-5) {
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
-    } else {
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-    }
-    ctx.fillText(displayVal, 2, y + 3);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${formatTick(val)} ${unit}`.trim(), left - 6, y + 3);
   });
+  
+  ctx.textAlign = 'left';
+}
+
+function bottomY(val, bounds, height) {
+  const { top, bottom, min, max } = bounds;
+  const h = height - top - bottom;
+  if (max === min) return top + h / 2;
+  return top + (1 - (val - min) / (max - min)) * h;
+}
+
+function formatTick(val) {
+  if (Math.abs(val) >= 100) return val.toFixed(0);
+  if (Math.abs(val) >= 10) return val.toFixed(1);
+  return val.toFixed(2);
 }
 
 // Draw a single canvas chart
@@ -866,8 +876,8 @@ function drawRealChart(name) {
   // Draw Corner dotted lines
   if ($('#cornerToggle').checked && corners.length) {
     corners.forEach(corner => {
-      const fraction = cornerFraction(corner, refSamples, totalDist) ?? (Number(corner.distance) / totalDist);
-      if (Number.isFinite(fraction) && fraction >= 0 && fraction <= 1) {
+      const fraction = cornerFraction(corner, refSamples, totalDist);
+      if (Number.isFinite(fraction) && fraction > 0 && fraction <= 1) {
         const x = bounds.left + fraction * (rect.width - bounds.left - bounds.right);
         
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
@@ -880,11 +890,10 @@ function drawRealChart(name) {
         ctx.stroke();
         ctx.setLineDash([]);
         
-        if (name !== 'Speed trace') {
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
-          ctx.font = '8px monospace';
-          ctx.fillText(`T${corner.number}`, x - 4, bounds.top - 2);
-        }
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.font = '8px monospace';
+        const labelY = name === 'Speed trace' ? bounds.top + 10 : bounds.top - 2;
+        ctx.fillText(`T${corner.number}`, x - 4, labelY);
       }
     });
   }
