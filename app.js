@@ -929,29 +929,31 @@ function drawRealChart(name) {
           ctx.textAlign = 'center';
           ctx.fillText(`T${corner.number}`, x, 11);
           
-          // Draw apex min speed dots for loaded drivers
-          loaded.forEach((lap, index) => {
-            const samples = telemetryCache.get(telemetryKey(lap));
-            if (!samples || !samples.length) return;
-            
-            const teamColor = getDriverColor(lap.code);
-            const apexInfo = getCornerSpeedAndPos(samples, corner, totalDist, bounds, rect.width, rect.height);
-            
-            if (apexInfo) {
-              ctx.beginPath();
-              ctx.arc(apexInfo.x, apexInfo.y, 3, 0, 2 * Math.PI);
-              ctx.fillStyle = teamColor;
-              ctx.fill();
-              ctx.strokeStyle = '#101114';
-              ctx.lineWidth = 1;
-              ctx.stroke();
+          // Draw apex min speed dots for loaded drivers only if cornerSpeedToggle is enabled
+          if ($('#cornerSpeedToggle')?.checked) {
+            loaded.forEach((lap, index) => {
+              const samples = telemetryCache.get(telemetryKey(lap));
+              if (!samples || !samples.length) return;
               
-              const textY = 24 + index * 10;
-              ctx.fillStyle = teamColor;
-              ctx.font = '8px monospace';
-              ctx.fillText(Math.round(apexInfo.speed), x, textY);
-            }
-          });
+              const teamColor = getDriverColor(lap.code);
+              const apexInfo = getCornerSpeedAndPos(samples, corner, totalDist, bounds, rect.width, rect.height);
+              
+              if (apexInfo) {
+                ctx.beginPath();
+                ctx.arc(apexInfo.x, apexInfo.y, 3, 0, 2 * Math.PI);
+                ctx.fillStyle = teamColor;
+                ctx.fill();
+                ctx.strokeStyle = '#101114';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                const textY = 24 + index * 10;
+                ctx.fillStyle = teamColor;
+                ctx.font = '8px monospace';
+                ctx.fillText(Math.round(apexInfo.speed), x, textY);
+              }
+            });
+          }
           
           ctx.textAlign = 'left';
         }
@@ -1061,8 +1063,8 @@ function getCornerSpeedAndPos(samples, corner, totalDist, bounds, rectWidth, rec
   
   if (targetIdx === -1) return null;
   
-  const start = Math.max(0, targetIdx - 15);
-  const end = Math.min(samples.length - 1, targetIdx + 15);
+  const start = Math.max(0, targetIdx - 60);
+  const end = Math.min(samples.length - 1, targetIdx + 60);
   let minSpeed = Infinity;
   let apexPt = samples[targetIdx];
   
@@ -1546,6 +1548,12 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#cornerStatus').textContent = event.target.checked
       ? 'Corner overlays active.'
       : 'Corner labels hidden.';
+    if (loaded.length) {
+      drawAll();
+    }
+  });
+
+  $('#cornerSpeedToggle')?.addEventListener('change', () => {
     if (loaded.length) {
       drawAll();
     }

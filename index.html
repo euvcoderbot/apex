@@ -98,11 +98,14 @@
         </section>
         
         <!-- Chart Toggle Options -->
-        <div class="chart-options">
-          <label>
-            <input type="checkbox" id="cornerToggle"> Corner numbers
+        <div class="chart-options" style="display: flex; align-items: center; gap: 16px;">
+          <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input type="checkbox" id="cornerToggle" checked> Corner numbers & lines
           </label>
-          <span id="cornerStatus">Corner labels appear when mapped distance data is available.</span>
+          <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input type="checkbox" id="cornerSpeedToggle" checked> Corner speeds
+          </label>
+          <span id="cornerStatus">Corner overlays active.</span>
         </div>
 
         <!-- Telemetry Graphs -->
