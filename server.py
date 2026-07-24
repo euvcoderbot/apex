@@ -260,6 +260,40 @@ def get_tire_nominations(year: int, gp: str) -> list[str]:
     return ["C3", "C4", "C5"]
 
 
+def get_fastest_lap_time(driver_obj: dict[str, Any]) -> float:
+    valid_times = [l["time"] for l in driver_obj.get("laps", []) if l.get("time") is not None and l["time"] > 0]
+    return min(valid_times) if valid_times else float("inf")
+
+
+def get_fallback_circuit_corners(gp: str, session_name: str) -> list[dict[str, Any]]:
+    for fallback_year in (2025, 2024):
+        try:
+            fb_event = fastf1.get_event(fallback_year, gp)
+            if fb_event is not None:
+                fb_sess = fb_event.get_session(session_name)
+                fb_sess.load(laps=True, telemetry=False, weather=False, messages=False)
+                c_info = fb_sess.get_circuit_info()
+                if c_info is not None and c_info.corners is not None and not c_info.corners.empty:
+                    corners = []
+                    for _, row in c_info.corners.iterrows():
+                        x, y = seconds(row.get("X")), seconds(row.get("Y"))
+                        dist = seconds(row.get("Distance"))
+                        corners.append({
+                            "number": str(row["Number"]),
+                            "letter": str(row.get("Letter") or ""),
+                            "x": x,
+                            "y": y,
+                            "angle": seconds(row.get("Angle")),
+                            "distance": float(dist) if dist is not None else None,
+                            "fraction": None,
+                        })
+                    if corners:
+                        return corners
+        except Exception as fb_err:
+            logger.debug("Fallback corner load for %s failed: %s", fallback_year, fb_err)
+    return []
+
+
 def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[dict[str, Any]]:
     try:
         url = f"https://api.openf1.org/v1/sessions?year={year}"
@@ -349,6 +383,7 @@ def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[
                     "team_color": team_color,
                     "laps": laps,
                 })
+        result.sort(key=get_fastest_lap_time)
         return result
     except Exception as exc:
         logger.warning("OpenF1 session fallback failed: %s", exc)
@@ -423,6 +458,9 @@ def session_data(
         of1_drivers = fetch_openf1_session_drivers(year, gp, session)
         if of1_drivers:
             drivers = of1_drivers
+
+    drivers.sort(key=get_fastest_lap_time)
+
     corners = []
     try:
         circuit_info = data.get_circuit_info()
@@ -441,6 +479,9 @@ def session_data(
                 })
     except Exception as exc:
         logger.warning("Could not load circuit corners: %s", exc)
+
+    if not corners:
+        corners = get_fallback_circuit_corners(gp, session)
 
     return {
         "event": data.event["EventName"],
