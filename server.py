@@ -130,6 +130,14 @@ def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: s
     end_str = end_dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
     
     car = openf1("car_data", session_key=session_key, driver_number=driver_number, **{"date>=": start_str, "date<=": end_str})
+    # Fresh sessions occasionally expose car data through the session/driver
+    # query before OpenF1's date-range index catches up. Retry that documented
+    # endpoint and slice the requested lap locally.
+    if not car:
+        all_car = openf1("car_data", session_key=session_key, driver_number=driver_number)
+        car = [point for point in all_car if start_dt - timedelta(seconds=0.5)
+               <= datetime.fromisoformat(point["date"].replace("Z", "+00:00"))
+               <= end_dt]
     if not car:
         return []
     # OpenF1 publishes vehicle location separately from car channels. Joining
@@ -137,6 +145,11 @@ def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: s
     # car-data archive is unavailable for a recent weekend.
     try:
         location = openf1("location", session_key=session_key, driver_number=driver_number, **{"date>=": start_str, "date<=": end_str})
+        if not location:
+            all_location = openf1("location", session_key=session_key, driver_number=driver_number)
+            location = [point for point in all_location if start_dt - timedelta(seconds=0.5)
+                        <= datetime.fromisoformat(point["date"].replace("Z", "+00:00"))
+                        <= end_dt]
         if location:
             car_frame = pd.DataFrame(car)
             location_frame = pd.DataFrame(location)
