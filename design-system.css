@@ -805,11 +805,11 @@ canvas[data-chart="Speed trace"] {
 }
 
 canvas[data-chart="Throttle application"] {
-  height: 165px !important;
+  height: 125px !important;
 }
 
 canvas[data-chart="Brake pressure"] {
-  height: 165px !important;
+  height: 125px !important;
 }
 
 canvas[data-chart="Gear"] {

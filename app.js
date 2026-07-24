@@ -180,7 +180,11 @@ function populateSessions() {
   const sessions = event?.sessions || [];
   populate($('#session'), sessions);
   if (sessions.length) {
-    $('#session').value = sessions[sessions.length - 1];
+    if (sessions.includes('Practice 1')) {
+      $('#session').value = 'Practice 1';
+    } else {
+      $('#session').value = sessions[0];
+    }
   }
 }
 
@@ -695,10 +699,33 @@ function getNiceBounds(name, rawMin, rawMax) {
 }
 
 function cornerFraction(corner, samples, totalDistance) {
-  if (Number.isFinite(Number(corner.distance)) && totalDistance > 0) {
+  if (Number.isFinite(Number(corner.distance)) && Number(corner.distance) > 0 && totalDistance > 0) {
     return Number(corner.distance) / totalDistance;
   }
-  if (Number.isFinite(Number(corner.fraction))) return Number(corner.fraction);
+  if (Number.isFinite(Number(corner.fraction)) && Number(corner.fraction) > 0) {
+    return Number(corner.fraction);
+  }
+  if (samples && samples.length && Number.isFinite(Number(corner.x)) && Number.isFinite(Number(corner.y)) && totalDistance > 0) {
+    let minSq = Infinity;
+    let bestDist = -1;
+    const cx = Number(corner.x);
+    const cy = Number(corner.y);
+    for (let i = 0; i < samples.length; i++) {
+      const pt = samples[i];
+      if (Number.isFinite(pt.X) && Number.isFinite(pt.Y)) {
+        const dx = pt.X - cx;
+        const dy = pt.Y - cy;
+        const distSq = dx * dx + dy * dy;
+        if (distSq < minSq) {
+          minSq = distSq;
+          bestDist = pt.Distance || 0;
+        }
+      }
+    }
+    if (minSq < Infinity && bestDist >= 0) {
+      return bestDist / totalDistance;
+    }
+  }
   return null;
 }
 
