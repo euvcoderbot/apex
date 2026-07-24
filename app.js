@@ -882,13 +882,22 @@ function drawRealChart(name) {
       ctx.fillText('SECTOR 1', bounds.left + (s1X - bounds.left)/2, bounds.top + 12);
       ctx.fillText('SECTOR 2', s1X + (s2X - s1X)/2, bounds.top + 12);
       ctx.fillText('SECTOR 3', s2X + (rect.width - bounds.right - s2X)/2, bounds.top + 12);
-      ctx.textAlign = 'left';
     }
   }
   
-  // Draw Corner dotted lines
-  if ($('#cornerToggle').checked && corners.length) {
-    corners.forEach(corner => {
+  // Draw Corner dotted lines, pill headers, and apex min speed dots
+  const uniqueCorners = [];
+  const seenCorners = new Set();
+  (corners || []).forEach(c => {
+    const num = String(c.number || '').trim();
+    if (num && !seenCorners.has(num)) {
+      seenCorners.add(num);
+      uniqueCorners.push(c);
+    }
+  });
+
+  if ($('#cornerToggle').checked && uniqueCorners.length) {
+    uniqueCorners.forEach(corner => {
       const fraction = cornerFraction(corner, refSamples, totalDist);
       if (Number.isFinite(fraction) && fraction > 0 && fraction <= 1) {
         const x = bounds.left + fraction * (rect.width - bounds.left - bounds.right);
@@ -903,10 +912,49 @@ function drawRealChart(name) {
         ctx.stroke();
         ctx.setLineDash([]);
         
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-        ctx.font = '8px monospace';
-        const labelY = name === 'Speed trace' ? bounds.top + 10 : bounds.top - 2;
-        ctx.fillText(`T${corner.number}`, x - 4, labelY);
+        if (name !== 'Speed trace') {
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+          ctx.font = '8px monospace';
+          ctx.fillText(`T${corner.number}`, x - 4, bounds.top - 2);
+        } else {
+          // Draw turn label pill header at top of Speed trace
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+          ctx.fillRect(x - 14, 2, 28, 12);
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x - 14, 2, 28, 12);
+          
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+          ctx.font = '8px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(`T${corner.number}`, x, 11);
+          
+          // Draw apex min speed dots for loaded drivers
+          loaded.forEach((lap, index) => {
+            const samples = telemetryCache.get(telemetryKey(lap));
+            if (!samples || !samples.length) return;
+            
+            const teamColor = getDriverColor(lap.code);
+            const apexInfo = getCornerSpeedAndPos(samples, corner, totalDist, bounds, rect.width, rect.height);
+            
+            if (apexInfo) {
+              ctx.beginPath();
+              ctx.arc(apexInfo.x, apexInfo.y, 3, 0, 2 * Math.PI);
+              ctx.fillStyle = teamColor;
+              ctx.fill();
+              ctx.strokeStyle = '#101114';
+              ctx.lineWidth = 1;
+              ctx.stroke();
+              
+              const textY = 24 + index * 10;
+              ctx.fillStyle = teamColor;
+              ctx.font = '8px monospace';
+              ctx.fillText(Math.round(apexInfo.speed), x, textY);
+            }
+          });
+          
+          ctx.textAlign = 'left';
+        }
       }
     });
   }
@@ -1035,55 +1083,6 @@ function getCornerSpeedAndPos(samples, corner, totalDist, bounds, rectWidth, rec
   const y = bounds.top + (bounds.max - minSpeed) / (bounds.max - bounds.min || 1) * (rectHeight - bounds.top - bounds.bottom);
   return { speed: minSpeed, distance: apexPt.Distance, x, y };
 }
-
-  // Draw Corner apex min speed dots on the Speed trace chart
-  if (name === 'Speed trace' && $('#cornerToggle').checked && corners.length) {
-    corners.forEach(corner => {
-      const markerFraction = cornerFraction(corner, refSamples, totalDist);
-      if (!Number.isFinite(markerFraction) || markerFraction <= 0) return;
-      const turnX = bounds.left + markerFraction * (rect.width - bounds.left - bounds.right);
-      if (turnX < bounds.left || turnX > rect.width - bounds.right) return;
-      
-      // Turn label pill at top
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.fillRect(turnX - 14, 2, 28, 12);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(turnX - 14, 2, 28, 12);
-      
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-      ctx.font = '8px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(`T${corner.number}`, turnX, 11);
-      
-      // Corner speed dots placed EXACTLY on each driver's speed trace
-      loaded.forEach((lap, index) => {
-        const samples = telemetryCache.get(telemetryKey(lap));
-        if (!samples || !samples.length) return;
-        
-        const teamColor = getDriverColor(lap.code);
-        const apexInfo = getCornerSpeedAndPos(samples, corner, totalDist, bounds, rect.width, rect.height);
-        
-        if (apexInfo) {
-          ctx.beginPath();
-          ctx.arc(apexInfo.x, apexInfo.y, 3, 0, 2 * Math.PI);
-          ctx.fillStyle = teamColor;
-          ctx.fill();
-          ctx.strokeStyle = '#101114';
-          ctx.lineWidth = 1;
-          ctx.stroke();
-          
-          // Stacked speed value numbers
-          const textY = 24 + index * 10;
-          ctx.fillStyle = teamColor;
-          ctx.font = '8px monospace';
-          ctx.fillText(Math.round(apexInfo.speed), turnX, textY);
-        }
-      });
-      
-      ctx.textAlign = 'left';
-    });
-  }
   
   // Render hover crosshair and marker circle
   if (hoverFraction !== null) {
