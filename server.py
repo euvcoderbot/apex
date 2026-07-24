@@ -196,7 +196,7 @@ def load_session(year: int, gp: str, session_name: str, round_number: int | None
     # Session controls need timing/lap data, not the multi-megabyte car stream
     # for every driver. Fetch the car stream only if OpenF1 cannot provide a
     # selected lap (mainly older seasons).
-    session.load(telemetry=False, weather=False, messages=False)
+    session.load(laps=True, telemetry=False, weather=False, messages=False)
     return session
 
 
@@ -208,7 +208,7 @@ def load_telemetry_session(year: int, gp: str, session_name: str):
     if event is None:
         raise ValueError(f"'{gp}' is not an exact event name on the {year} calendar")
     data = event.get_session(session_name)
-    data.load(telemetry=True, weather=False, messages=False)
+    data.load(laps=True, telemetry=True, weather=False, messages=False)
     return data
 
 
@@ -276,9 +276,15 @@ def session_data(
     # red flags). Keep that phase against each lap so the UI can show runs by
     # qualifying segment instead of treating every run as a generic stint.
     qualifying_phase: dict[Any, str] = {}
-    if data.name in getattr(data, "_QUALI_LIKE_SESSIONS", ()):
+    all_laps = None
+    try:
+        all_laps = data.laps
+    except Exception as exc:
+        logger.warning("Session laps not loaded: %s", exc)
+
+    if all_laps is not None and not all_laps.empty and data.name in getattr(data, "_QUALI_LIKE_SESSIONS", ()):
         try:
-            for index, phase_laps in enumerate(data.laps.split_qualifying_sessions(), start=1):
+            for index, phase_laps in enumerate(all_laps.split_qualifying_sessions(), start=1):
                 if phase_laps is not None:
                     for lap_index in phase_laps.index:
                         qualifying_phase[lap_index] = f"Q{index}"
@@ -286,34 +292,35 @@ def session_data(
             logger.warning("Could not split qualifying laps into Q1/Q2/Q3: %s", exc)
 
     drivers = []
-    for code in data.drivers:
-        info = data.get_driver(code)
-        laps = data.laps.pick_drivers(code)
-        if laps.empty:
-            continue
-        drivers.append({
-            "code": str(info.get("Abbreviation", code)),
-            "number": str(info.get("DriverNumber", "")),
-            "name": str(info.get("FullName", info.get("BroadcastName", code))),
-            "team": str(info.get("TeamName", "")),
-            "team_color": "#" + str(info.get("TeamColor", "777777")).lstrip("#"),
-            "laps": [
-                {
-                    "lap": int(row["LapNumber"]),
-                    "time": seconds(row["LapTime"]),
-                    "s1": seconds(row["Sector1Time"]),
-                    "s2": seconds(row["Sector2Time"]),
-                    "s3": seconds(row["Sector3Time"]),
-                    "compound": str(row.get("Compound", "UNKNOWN")),
-                    "stint": integer(row.get("Stint")),
-                    "phase": qualifying_phase.get(lap_index),
-                    "in_lap": seconds(row.get("PitInTime")) is not None,
-                    "out_lap": seconds(row.get("PitOutTime")) is not None,
-                }
-                for lap_index, row in laps.iterrows()
-                if row.get("LapNumber") is not None
-            ],
-        })
+    if all_laps is not None and not all_laps.empty:
+        for code in data.drivers:
+            info = data.get_driver(code)
+            laps = all_laps.pick_drivers(code)
+            if laps.empty:
+                continue
+            drivers.append({
+                "code": str(info.get("Abbreviation", code)),
+                "number": str(info.get("DriverNumber", "")),
+                "name": str(info.get("FullName", info.get("BroadcastName", code))),
+                "team": str(info.get("TeamName", "")),
+                "team_color": "#" + str(info.get("TeamColor", "777777")).lstrip("#"),
+                "laps": [
+                    {
+                        "lap": int(row["LapNumber"]),
+                        "time": seconds(row["LapTime"]),
+                        "s1": seconds(row["Sector1Time"]),
+                        "s2": seconds(row["Sector2Time"]),
+                        "s3": seconds(row["Sector3Time"]),
+                        "compound": str(row.get("Compound", "UNKNOWN")),
+                        "stint": integer(row.get("Stint")),
+                        "phase": qualifying_phase.get(lap_index),
+                        "in_lap": seconds(row.get("PitInTime")) is not None,
+                        "out_lap": seconds(row.get("PitOutTime")) is not None,
+                    }
+                    for lap_index, row in laps.iterrows()
+                    if row.get("LapNumber") is not None
+                ],
+            })
     corners = []
     try:
         circuit_info = data.get_circuit_info()
