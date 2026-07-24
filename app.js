@@ -719,37 +719,34 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
 
   ticks.forEach(({ value, tick }) => {
     const y = top + (height - top - bottom) * ((max - value) / (max - min || 1));
-    
     ctx.beginPath();
     ctx.moveTo(left, y);
     ctx.lineTo(width - right, y);
-    
-    // Highlight the 0 line on Timing delta chart
     if (unit.includes('SECONDS') && Math.abs(value) < 1e-5) {
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)'; // brighter line for 0 axis
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
       ctx.lineWidth = 1.2;
     } else {
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
       ctx.lineWidth = 1;
     }
     ctx.stroke();
-    
     let displayVal = unit.includes('SECONDS')
       ? (Math.abs(max - min) <= 0.4 ? value.toFixed(2) : value.toFixed(1))
       : Math.round(value);
     if (unit.includes('SECONDS') && Math.abs(value) < 1e-5) {
       displayVal = '0';
     }
-    
     if (unit === 'OPEN / CLOSED') {
       if (tick === 0) displayVal = 'OPEN';
-    ctx.stroke();
-    
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-    ctx.textAlign = 'right';
-    ctx.fillText(`${formatTick(val)} ${unit}`.trim(), left - 6, y + 3);
+      else if (tick === 4) displayVal = 'CLOSED';
+      else return;
+    }
+    ctx.fillStyle = unit.includes('SECONDS') && Math.abs(value) < 1e-5
+      ? 'rgba(255, 255, 255, 0.65)'
+      : 'rgba(255, 255, 255, 0.35)';
+    ctx.textAlign = 'left';
+    ctx.fillText(displayVal, 2, y + 3);
   });
-  
   ctx.textAlign = 'left';
 }
 
