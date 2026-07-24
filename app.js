@@ -241,24 +241,9 @@ async function loadRealSession() {
     corners = payload.corners || [];
     nominatedCompounds = payload.compounds || [];
     
-    // Automatically select the top 2 drivers and load their fastest laps for instant visual comparison
-    if (drivers.length > 0) {
-      const initialCodes = drivers.slice(0, Math.min(2, drivers.length)).map(d => d[0]);
-      selected = [...initialCodes];
-      activeDriverTab = selected[0];
-      
-      loaded = [];
-      selected.forEach(c => {
-        const d = realDrivers.get(c);
-        if (d && d.laps && d.laps.length) {
-          const validLaps = d.laps.filter(l => Number.isFinite(l.time) && l.time > 0);
-          const f = validLaps.length ? validLaps.reduce((a, b) => a.time < b.time ? a : b) : d.laps[0];
-          if (f) {
-            loaded.push({ code: c, lap: f.lap, time: f.time, real: f });
-          }
-        }
-      });
-    }
+    // Render driver selection pills without auto-selecting drivers
+    selected = [];
+    loaded = [];
 
     renderDrivers();
     renderTireNomination();
@@ -998,51 +983,105 @@ function drawRealChart(name) {
     ctx.stroke();
   });
   
-  // Draw Corner apex min speed dots on the Speed trace chart (with clean text labels stacked at the top)
+function getCornerSpeedAndPos(samples, corner, totalDist, bounds, rectWidth, rectHeight) {
+  if (!samples || !samples.length || !corner) return null;
+  
+  let targetIdx = -1;
+  const cx = Number(corner.x);
+  const cy = Number(corner.y);
+  
+  if (Number.isFinite(cx) && Number.isFinite(cy)) {
+    let minSq = Infinity;
+    for (let i = 0; i < samples.length; i++) {
+      const pt = samples[i];
+      if (Number.isFinite(pt.X) && Number.isFinite(pt.Y)) {
+        const dx = pt.X - cx;
+        const dy = pt.Y - cy;
+        const distSq = dx * dx + dy * dy;
+        if (distSq < minSq) {
+          minSq = distSq;
+          targetIdx = i;
+        }
+      }
+    }
+  }
+  
+  if (targetIdx === -1 && Number.isFinite(Number(corner.distance)) && totalDist > 0) {
+    const targetD = Number(corner.distance);
+    targetIdx = samples.findIndex(pt => pt.Distance >= targetD);
+  }
+  
+  if (targetIdx === -1) return null;
+  
+  const start = Math.max(0, targetIdx - 15);
+  const end = Math.min(samples.length - 1, targetIdx + 15);
+  let minSpeed = Infinity;
+  let apexPt = samples[targetIdx];
+  
+  for (let i = start; i <= end; i++) {
+    const pt = samples[i];
+    const s = Number(pt.Speed);
+    if (Number.isFinite(s) && s < minSpeed) {
+      minSpeed = s;
+      apexPt = pt;
+    }
+  }
+  
+  if (minSpeed === Infinity || !apexPt) return null;
+  
+  const ownTotal = samples[samples.length - 1]?.Distance || totalDist || 1;
+  const frac = Math.max(0, Math.min(1, (apexPt.Distance || 0) / ownTotal));
+  const x = bounds.left + frac * (rectWidth - bounds.left - bounds.right);
+  const y = bounds.top + (bounds.max - minSpeed) / (bounds.max - bounds.min || 1) * (rectHeight - bounds.top - bounds.bottom);
+  return { speed: minSpeed, distance: apexPt.Distance, x, y };
+}
+
+  // Draw Corner apex min speed dots on the Speed trace chart
   if (name === 'Speed trace' && $('#cornerToggle').checked && corners.length) {
     corners.forEach(corner => {
-      const markerFraction = cornerFraction(corner, refSamples, totalDist) ?? (Number(corner.distance) / totalDist);
-      if (!Number.isFinite(markerFraction)) return;
-      const x = bounds.left + markerFraction * (rect.width - bounds.left - bounds.right);
-      if (x < bounds.left || x > rect.width - bounds.right) return;
+      const markerFraction = cornerFraction(corner, refSamples, totalDist);
+      if (!Number.isFinite(markerFraction) || markerFraction <= 0) return;
+      const turnX = bounds.left + markerFraction * (rect.width - bounds.left - bounds.right);
+      if (turnX < bounds.left || turnX > rect.width - bounds.right) return;
       
-      // Draw turn label pill
+      // Turn label pill at top
       ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.fillRect(x - 14, 2, 28, 12);
+      ctx.fillRect(turnX - 14, 2, 28, 12);
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
       ctx.lineWidth = 1;
-      ctx.strokeRect(x - 14, 2, 28, 12);
+      ctx.strokeRect(turnX - 14, 2, 28, 12);
       
       ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
       ctx.font = '8px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(`T${corner.number}`, x, 11);
+      ctx.fillText(`T${corner.number}`, turnX, 11);
       
-      // Corner dots & stacked speed values
+      // Corner speed dots placed EXACTLY on each driver's speed trace
       loaded.forEach((lap, index) => {
         const samples = telemetryCache.get(telemetryKey(lap));
         if (!samples || !samples.length) return;
         
         const teamColor = getDriverColor(lap.code);
-        const apexPt = getCornerMinSpeed(samples, corner);
-        const markerSpeed = apexPt?.cornerSpeed ?? interpolate(samples, totalDist * markerFraction, 'Speed');
+        const apexInfo = getCornerSpeedAndPos(samples, corner, totalDist, bounds, rect.width, rect.height);
         
-        if (Number.isFinite(markerSpeed)) {
-          const markerY = bounds.top + (bounds.max - markerSpeed) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
+        if (apexInfo) {
           ctx.beginPath();
-          ctx.arc(x, markerY, 2.5, 0, 2 * Math.PI);
+          ctx.arc(apexInfo.x, apexInfo.y, 3, 0, 2 * Math.PI);
           ctx.fillStyle = teamColor;
           ctx.fill();
+          ctx.strokeStyle = '#101114';
+          ctx.lineWidth = 1;
+          ctx.stroke();
           
-          // Stack text speed numbers under the turn pill
+          // Stacked speed value numbers
           const textY = 24 + index * 10;
           ctx.fillStyle = teamColor;
           ctx.font = '8px monospace';
-          ctx.fillText(Math.round(markerSpeed), x, textY);
+          ctx.fillText(Math.round(apexInfo.speed), turnX, textY);
         }
       });
       
-      ctx.textAlign = 'left'; // restore default alignment
+      ctx.textAlign = 'left';
     });
   }
   
@@ -1501,8 +1540,8 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#gp').addEventListener('change', populateSessions);
   $('#loadSession').onclick = loadRealSession;
   
-  // Immediately load calendar and session on page load
-  loadCalendar().then(() => loadRealSession()).catch(error => alert(error.message));
+  // Load calendar on startup so selection boxes default to the latest completed session
+  loadCalendar().catch(error => alert(error.message));
   
   $('#cornerToggle').addEventListener('change', event => {
     $('#cornerStatus').textContent = event.target.checked
