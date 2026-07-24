@@ -288,6 +288,24 @@ def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[
         laps_req = urlopen(f"https://api.openf1.org/v1/laps?session_key={session_key}", timeout=8)
         laps_raw = json.loads(laps_req.read())
         
+        stints_raw = []
+        try:
+            stints_req = urlopen(f"https://api.openf1.org/v1/stints?session_key={session_key}", timeout=5)
+            stints_raw = json.loads(stints_req.read())
+        except Exception as stints_err:
+            logger.warning("OpenF1 stints fetch failed: %s", stints_err)
+
+        lap_stint_map: dict[tuple[int, int], tuple[int, str]] = {}
+        for stint in stints_raw:
+            d_num = stint.get("driver_number")
+            st_num = stint.get("stint_number", 1)
+            comp = str(stint.get("compound") or "UNKNOWN").upper()
+            l_start = stint.get("lap_start")
+            l_end = stint.get("lap_end")
+            if d_num is not None and l_start is not None and l_end is not None:
+                for l_num in range(int(l_start), int(l_end) + 1):
+                    lap_stint_map[(int(d_num), l_num)] = (int(st_num), comp)
+
         driver_laps: dict[int, list[dict[str, Any]]] = {}
         for lap in laps_raw:
             d_num = lap.get("driver_number")
@@ -299,14 +317,15 @@ def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[
             lap_num = lap.get("lap_number")
             lap_dur = lap.get("lap_duration")
             if lap_num is not None:
+                st_num, comp = lap_stint_map.get((int(d_num), int(lap_num)), (1, "UNKNOWN"))
                 driver_laps[d_num].append({
                     "lap": int(lap_num),
                     "time": float(lap_dur) if lap_dur is not None else None,
                     "s1": float(lap["duration_sector_1"]) if lap.get("duration_sector_1") is not None else None,
                     "s2": float(lap["duration_sector_2"]) if lap.get("duration_sector_2") is not None else None,
                     "s3": float(lap["duration_sector_3"]) if lap.get("duration_sector_3") is not None else None,
-                    "compound": "UNKNOWN",
-                    "stint": 1,
+                    "compound": comp,
+                    "stint": st_num,
                     "phase": None,
                     "in_lap": False,
                     "out_lap": lap.get("is_pit_out_lap") is True,
