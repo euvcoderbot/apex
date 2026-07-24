@@ -179,7 +179,19 @@ function populateSessions() {
   const event = calendar.find(item => String(item.round) === String(selectedVal) || item.name === selectedVal) || calendar[0];
   const sessions = event?.sessions || [];
   populate($('#session'), sessions);
-  if (sessions.length) {
+  if (!sessions.length) return;
+
+  const now = Date.now();
+  const completed = sessions.filter(name => {
+    const value = event?.session_dates?.[name];
+    const sessionDate = value ? new Date(value).getTime() : NaN;
+    return Number.isFinite(sessionDate) && sessionDate <= now;
+  });
+  if (completed.length) {
+    $('#session').value = completed[completed.length - 1];
+  } else {
+    // For historical calendars without per-session timestamps, select the
+    // final listed session. No session data is fetched until Load session.
     $('#session').value = sessions[sessions.length - 1];
   }
 }
@@ -903,20 +915,20 @@ function drawRealChart(name) {
     const teamColor = getDriverColor(lap.code);
     const refSeries = telemetryCache.get(telemetryKey(loaded[0]));
     
-    // Speed uses its original telemetry samples. This keeps corner-speed dots
-    // exactly on the rendered line rather than on a separate 180-point grid.
+    // Render every trace on the same normalized distance grid. Speed receives
+    // a tiny median filter in alignment.js to remove isolated source spikes.
     const points = [];
     if (name === 'Speed trace') {
-      const ownTotal = series[series.length - 1]?.Distance || 1;
-      series.forEach(point => {
-        const fraction = Math.max(0, Math.min(1, (+point.Distance || 0) / ownTotal));
-        const value = +point.Speed;
+      const steps = 420;
+      for (let step = 0; step <= steps; step++) {
+        const fraction = step / steps;
+        const value = smoothedTelemetryValue(series, fraction, 'Speed');
         if (Number.isFinite(value)) {
           const x = bounds.left + fraction * (rect.width - bounds.left - bounds.right);
           const y = bounds.top + (bounds.max - value) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
           points.push({ x, y });
         }
-      });
+      }
     } else {
       const steps = 180;
       for (let step = 0; step <= steps; step++) {
@@ -954,6 +966,8 @@ function drawRealChart(name) {
     // Draw trace path line
     ctx.strokeStyle = teamColor;
     ctx.lineWidth = index === 0 ? 1.8 : 1.4;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
     
     ctx.beginPath();
     ctx.moveTo(points[0].x, points[0].y);

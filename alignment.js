@@ -95,6 +95,24 @@ function interpolate(samples, targetDistance, field) {
   return (+a[field]) + ((+b[field]) - (+a[field])) * ratio;
 }
 
+// Render speed from a small median window on the distance-normalized trace.
+// This removes isolated 3.7 Hz source spikes while preserving braking and
+// acceleration changes; raw telemetry remains untouched for all calculations.
+function smoothedTelemetryValue(samples, fraction, field) {
+  if (field !== 'Speed') {
+    return interpolate(samples, referenceDistance() * fraction, field);
+  }
+  const values = [];
+  for (let offset = -2; offset <= 2; offset++) {
+    const sampleFraction = Math.max(0, Math.min(1, fraction + offset * 0.0009));
+    const value = interpolate(samples, referenceDistance() * sampleFraction, field);
+    if (Number.isFinite(value)) values.push(value);
+  }
+  if (!values.length) return null;
+  values.sort((a, b) => a - b);
+  return values[Math.floor(values.length / 2)];
+}
+
 function calibratedElapsed(samples, fraction) {
   if (!samples?.length) return null;
   const totalDistance = referenceDistance();

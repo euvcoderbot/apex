@@ -234,15 +234,32 @@ def events(year: int = Query(2025, ge=2014)):
     result = []
     for _, event in schedule.iterrows():
         sessions = []
+        session_dates = {}
         for index in range(1, 6):
             name = event.get(f"Session{index}")
             if name and str(name) not in {"nan", "None"}:
-                sessions.append(str(name))
+                session_name = str(name)
+                sessions.append(session_name)
+                # FastF1 schedules expose UTC dates on newer versions and
+                # local session dates on older versions. Either lets the UI
+                # choose the latest session that has actually finished.
+                date_value = event.get(f"Session{index}DateUtc")
+                if date_value is None or str(date_value) in {"NaT", "nan", "None"}:
+                    date_value = event.get(f"Session{index}Date")
+                if date_value is not None and str(date_value) not in {"NaT", "nan", "None"}:
+                    date_text = str(date_value)
+                    # FastF1's older schedule backend supplies UTC timestamps
+                    # without an explicit suffix. Make the timezone unambiguous
+                    # for the browser's completed-session calculation.
+                    if "+" not in date_text and not date_text.endswith("Z"):
+                        date_text += "Z"
+                    session_dates[session_name] = date_text
         result.append({
             "round": int(event["RoundNumber"]),
             "name": str(event["EventName"]),
             "date": str(event["EventDate"])[:10],
             "sessions": sessions,
+            "session_dates": session_dates,
         })
     return result
 
