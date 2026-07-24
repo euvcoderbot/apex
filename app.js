@@ -127,13 +127,18 @@ function getDriverColor(code) {
 }
 
 function currentQuery() {
-  const event = calendar.find(item => String(item.round) === $('#gp').value);
-  return new URLSearchParams({
-    year: $('#year').value,
-    gp: event?.name || $('#gp').value,
-    round: event?.round || '',
-    session: $('#session').value,
-  });
+  const selectedVal = $('#gp')?.value;
+  const event = calendar.find(item => String(item.round) === String(selectedVal) || item.name === selectedVal) || calendar[0];
+  const params = new URLSearchParams();
+  params.set('year', $('#year').value);
+  if (event) {
+    params.set('gp', event.name);
+    params.set('round', event.round);
+  } else if (selectedVal) {
+    params.set('gp', selectedVal);
+  }
+  params.set('session', $('#session').value);
+  return params;
 }
 
 async function readApiResponse(response) {
@@ -162,16 +167,16 @@ async function loadCalendar() {
     const response = await fetch(`/api/events?year=${$('#year').value}`);
     calendar = await readApiResponse(response);
     if (!response.ok) throw new Error(calendar.detail || 'Calendar unavailable');
-    populate($('#gp'), calendar, event => event.name, event => `R${event.round} · ${event.name}`);
     $('#gp').innerHTML = calendar.map(event => `<option value="${event.round}">R${event.round} - ${event.name}</option>`).join('');
-    populateSessions();
+    selectLatestCompletedEvent();
   } catch (error) {
     alert(`Could not load calendar. ${error.message}`);
   }
 }
 
 function populateSessions() {
-  const event = calendar.find(item => String(item.round) === $('#gp').value) || calendar[0];
+  const selectedVal = $('#gp')?.value;
+  const event = calendar.find(item => String(item.round) === String(selectedVal) || item.name === selectedVal) || calendar[0];
   const sessions = event?.sessions || [];
   populate($('#session'), sessions);
   if (sessions.length) {
@@ -182,7 +187,7 @@ function populateSessions() {
 function selectLatestCompletedEvent() {
   const today = new Date().toISOString().slice(0, 10);
   const completed = calendar.filter(event => event.date <= today);
-  const latest = completed[completed.length - 1] || calendar[0];
+  const latest = completed.length ? completed[completed.length - 1] : calendar[0];
   if (latest) $('#gp').value = String(latest.round);
   populateSessions();
 }
