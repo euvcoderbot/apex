@@ -315,64 +315,23 @@ def session_data(
             ],
         })
     corners = []
-    marker_reference_distance = None
-    circuit_info = None
     try:
         circuit_info = data.get_circuit_info()
-    except Exception as e:
-        logger.warning("Direct get_circuit_info failed: %s", e)
-        
-    has_valid_corners = False
-    if circuit_info is not None and circuit_info.corners is not None and not circuit_info.corners.empty:
-        first_dist = seconds(circuit_info.corners["Distance"].iloc[0])
-        if first_dist is not None:
-            has_valid_corners = True
-            
-    if has_valid_corners:
-        try:
-            fastest_telemetry = data.laps.pick_fastest().get_telemetry(frequency="original")
-            marker_reference_distance = float(fastest_telemetry["Distance"].max())
-        except Exception as exc:
-            logger.warning("Could not calculate the circuit-marker reference distance: %s", exc)
-        for _, row in circuit_info.corners.iterrows():
-            dist = seconds(row.get("Distance"))
-            if dist is not None:
+        if circuit_info is not None and circuit_info.corners is not None and not circuit_info.corners.empty:
+            for _, row in circuit_info.corners.iterrows():
+                x, y = seconds(row.get("X")), seconds(row.get("Y"))
+                dist = seconds(row.get("Distance"))
                 corners.append({
                     "number": str(row["Number"]),
                     "letter": str(row.get("Letter") or ""),
-                    "x": seconds(row.get("X")),
-                    "y": seconds(row.get("Y")),
+                    "x": x,
+                    "y": y,
                     "angle": seconds(row.get("Angle")),
-                    "distance": float(dist),
-                    "fraction": float(dist / marker_reference_distance)
-                    if marker_reference_distance and marker_reference_distance > 0 else None,
+                    "distance": float(dist) if dist is not None else None,
+                    "fraction": None,
                 })
-    else:
-        logger.warning("Could not load valid circuit corners directly (NaN distances). Trying fallback year...")
-        for fallback_year in (2025, 2024):
-            try:
-                fallback_session = fastf1.get_session(fallback_year, gp, session)
-                fallback_session.load(telemetry=True, weather=False, messages=False)
-                fb_info = fallback_session.get_circuit_info()
-                if fb_info is not None and fb_info.corners is not None and not fb_info.corners.empty:
-                    fb_fastest = fallback_session.laps.pick_fastest().get_telemetry(frequency="original")
-                    fb_ref_dist = float(fb_fastest["Distance"].max())
-                    for _, row in fb_info.corners.iterrows():
-                        dist = seconds(row.get("Distance"))
-                        if dist is not None:
-                            corners.append({
-                                "number": str(row["Number"]),
-                                "letter": str(row.get("Letter") or ""),
-                                "x": seconds(row.get("X")),
-                                "y": seconds(row.get("Y")),
-                                "angle": seconds(row.get("Angle")),
-                                "distance": float(dist),
-                                "fraction": float(dist / fb_ref_dist) if fb_ref_dist > 0 else None,
-                            })
-                    if corners:
-                        break
-            except Exception as fallback_err:
-                logger.warning("Fallback corner loading for year %s failed: %s", fallback_year, fallback_err)
+    except Exception as exc:
+        logger.warning("Could not load circuit corners: %s", exc)
 
     return {
         "event": data.event["EventName"],
