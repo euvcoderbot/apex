@@ -897,6 +897,9 @@ function drawRealChart(name) {
   });
 
   if ($('#cornerToggle').checked && uniqueCorners.length) {
+    let lastPillX = -999;
+    let lastPillY = 2;
+
     uniqueCorners.forEach(corner => {
       const fraction = cornerFraction(corner, refSamples, totalDist);
       if (Number.isFinite(fraction) && fraction > 0 && fraction <= 1) {
@@ -917,17 +920,25 @@ function drawRealChart(name) {
           ctx.font = '8px monospace';
           ctx.fillText(`T${corner.number}`, x - 4, bounds.top - 2);
         } else {
-          // Draw turn label pill header at top of Speed trace
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-          ctx.fillRect(x - 14, 2, 28, 12);
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(x - 14, 2, 28, 12);
+          // Stagger header Y position if adjacent corner headers are close
+          let pillY = 2;
+          if (Math.abs(x - lastPillX) < 22 && lastPillY === 2) {
+            pillY = 14;
+          }
+          lastPillX = x;
+          lastPillY = pillY;
+
+          // Compact turn label pill header at top of Speed trace
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+          ctx.fillRect(x - 10, pillY, 20, 10);
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+          ctx.lineWidth = 0.8;
+          ctx.strokeRect(x - 10, pillY, 20, 10);
           
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-          ctx.font = '8px monospace';
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+          ctx.font = '7.5px monospace';
           ctx.textAlign = 'center';
-          ctx.fillText(`T${corner.number}`, x, 11);
+          ctx.fillText(`T${corner.number}`, x, pillY + 8);
           
           // Draw apex min speed dots for loaded drivers only if cornerSpeedToggle is enabled
           if ($('#cornerSpeedToggle')?.checked) {
@@ -947,9 +958,9 @@ function drawRealChart(name) {
                 ctx.lineWidth = 1;
                 ctx.stroke();
                 
-                const textY = 24 + index * 10;
+                const textY = pillY + 18 + index * 9;
                 ctx.fillStyle = teamColor;
-                ctx.font = '8px monospace';
+                ctx.font = '7.5px monospace';
                 ctx.fillText(Math.round(apexInfo.speed), x, textY);
               }
             });
