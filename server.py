@@ -292,35 +292,37 @@ def session_data(
             logger.warning("Could not split qualifying laps into Q1/Q2/Q3: %s", exc)
 
     drivers = []
-    if all_laps is not None and not all_laps.empty:
-        for code in data.drivers:
+    for code in data.drivers:
+        try:
             info = data.get_driver(code)
-            laps = all_laps.pick_drivers(code)
-            if laps.empty:
-                continue
+            laps_list = []
+            if all_laps is not None and not all_laps.empty:
+                driver_laps = all_laps.pick_drivers(code)
+                if not driver_laps.empty:
+                    for lap_index, row in driver_laps.iterrows():
+                        if row.get("LapNumber") is not None:
+                            laps_list.append({
+                                "lap": int(row["LapNumber"]),
+                                "time": seconds(row["LapTime"]),
+                                "s1": seconds(row["Sector1Time"]),
+                                "s2": seconds(row["Sector2Time"]),
+                                "s3": seconds(row["Sector3Time"]),
+                                "compound": str(row.get("Compound", "UNKNOWN")),
+                                "stint": integer(row.get("Stint")),
+                                "phase": qualifying_phase.get(lap_index),
+                                "in_lap": seconds(row.get("PitInTime")) is not None,
+                                "out_lap": seconds(row.get("PitOutTime")) is not None,
+                            })
             drivers.append({
                 "code": str(info.get("Abbreviation", code)),
                 "number": str(info.get("DriverNumber", "")),
                 "name": str(info.get("FullName", info.get("BroadcastName", code))),
                 "team": str(info.get("TeamName", "")),
                 "team_color": "#" + str(info.get("TeamColor", "777777")).lstrip("#"),
-                "laps": [
-                    {
-                        "lap": int(row["LapNumber"]),
-                        "time": seconds(row["LapTime"]),
-                        "s1": seconds(row["Sector1Time"]),
-                        "s2": seconds(row["Sector2Time"]),
-                        "s3": seconds(row["Sector3Time"]),
-                        "compound": str(row.get("Compound", "UNKNOWN")),
-                        "stint": integer(row.get("Stint")),
-                        "phase": qualifying_phase.get(lap_index),
-                        "in_lap": seconds(row.get("PitInTime")) is not None,
-                        "out_lap": seconds(row.get("PitOutTime")) is not None,
-                    }
-                    for lap_index, row in laps.iterrows()
-                    if row.get("LapNumber") is not None
-                ],
+                "laps": laps_list,
             })
+        except Exception as driver_err:
+            logger.warning("Could not parse driver %s: %s", code, driver_err)
     corners = []
     try:
         circuit_info = data.get_circuit_info()
