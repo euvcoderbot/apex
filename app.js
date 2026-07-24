@@ -197,8 +197,11 @@ function populateSessions() {
 }
 
 function selectLatestCompletedEvent() {
-  const today = new Date().toISOString().slice(0, 10);
-  const completed = calendar.filter(event => event.date <= today);
+  const now = Date.now();
+  // A weekend may be in progress: choose the event containing the newest
+  // completed session (e.g. Hungary FP1), not the previous Sunday's race.
+  const completed = calendar.filter(event => Object.values(event.session_dates || {})
+    .some(value => Number.isFinite(new Date(value).getTime()) && new Date(value).getTime() <= now));
   const latest = completed.length ? completed[completed.length - 1] : calendar[0];
   if (latest) $('#gp').value = String(latest.round);
   populateSessions();
