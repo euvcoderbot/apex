@@ -1500,6 +1500,9 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#gp').addEventListener('change', populateSessions);
   $('#loadSession').onclick = loadRealSession;
   
+  // Immediately load calendar and session on page load
+  loadCalendar().then(() => loadRealSession()).catch(error => alert(error.message));
+  
   $('#cornerToggle').addEventListener('change', event => {
     $('#cornerStatus').textContent = event.target.checked
       ? 'Corner overlays active.'
