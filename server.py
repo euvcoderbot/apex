@@ -260,6 +260,82 @@ def get_tire_nominations(year: int, gp: str) -> list[str]:
     return ["C3", "C4", "C5"]
 
 
+def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[dict[str, Any]]:
+    try:
+        url = f"https://api.openf1.org/v1/sessions?year={year}"
+        req = urlopen(url, timeout=5)
+        sessions_data = json.loads(req.read())
+        
+        gp_clean = gp.lower()
+        gp_prefix = gp_clean[:4]
+        matching_session = None
+        for s in sessions_data:
+            c_name = str(s.get("country_name") or "").lower()
+            l_name = str(s.get("location") or "").lower()
+            s_name = str(s.get("session_name") or "").lower()
+            if (gp_prefix in c_name or c_name in gp_clean or l_name in gp_clean) and (s_name == session_name.lower() or session_name.lower() in s_name):
+                matching_session = s
+                break
+                
+        if not matching_session:
+            return []
+            
+        session_key = matching_session["session_key"]
+        
+        drivers_req = urlopen(f"https://api.openf1.org/v1/drivers?session_key={session_key}", timeout=5)
+        drivers_raw = json.loads(drivers_req.read())
+        
+        laps_req = urlopen(f"https://api.openf1.org/v1/laps?session_key={session_key}", timeout=8)
+        laps_raw = json.loads(laps_req.read())
+        
+        driver_laps: dict[int, list[dict[str, Any]]] = {}
+        for lap in laps_raw:
+            d_num = lap.get("driver_number")
+            if d_num is None:
+                continue
+            if d_num not in driver_laps:
+                driver_laps[d_num] = []
+            
+            lap_num = lap.get("lap_number")
+            lap_dur = lap.get("lap_duration")
+            if lap_num is not None:
+                driver_laps[d_num].append({
+                    "lap": int(lap_num),
+                    "time": float(lap_dur) if lap_dur is not None else None,
+                    "s1": float(lap["duration_sector_1"]) if lap.get("duration_sector_1") is not None else None,
+                    "s2": float(lap["duration_sector_2"]) if lap.get("duration_sector_2") is not None else None,
+                    "s3": float(lap["duration_sector_3"]) if lap.get("duration_sector_3") is not None else None,
+                    "compound": "UNKNOWN",
+                    "stint": 1,
+                    "phase": None,
+                    "in_lap": False,
+                    "out_lap": lap.get("is_pit_out_lap") is True,
+                })
+                
+        result = []
+        for d in drivers_raw:
+            d_num = d.get("driver_number")
+            acronym = d.get("name_acronym") or str(d_num)
+            full_name = d.get("full_name") or d.get("broadcast_name") or acronym
+            team_name = d.get("team_name") or ""
+            team_color = "#" + str(d.get("team_colour") or "777777").lstrip("#")
+            
+            laps = driver_laps.get(d_num, [])
+            if laps:
+                result.append({
+                    "code": acronym,
+                    "number": str(d_num),
+                    "name": full_name,
+                    "team": team_name,
+                    "team_color": team_color,
+                    "laps": laps,
+                })
+        return result
+    except Exception as exc:
+        logger.warning("OpenF1 session fallback failed: %s", exc)
+        return []
+
+
 @app.get("/api/session")
 def session_data(
     year: int = Query(2025, ge=2018),
@@ -272,9 +348,6 @@ def session_data(
     except Exception as exc:
         raise HTTPException(422, f"Could not load this session: {exc}") from exc
 
-    # FastF1 already knows the real Q1/Q2/Q3 boundaries (including delays and
-    # red flags). Keep that phase against each lap so the UI can show runs by
-    # qualifying segment instead of treating every run as a generic stint.
     qualifying_phase: dict[Any, str] = {}
     all_laps = None
     try:
@@ -323,6 +396,14 @@ def session_data(
             })
         except Exception as driver_err:
             logger.warning("Could not parse driver %s: %s", code, driver_err)
+
+    # Fallback to OpenF1 real-time timing API if FastF1 has no laps (e.g. same-day sessions)
+    has_any_laps = any(d["laps"] for d in drivers)
+    if not has_any_laps:
+        logger.info("FastF1 has no laps for %s %s. Attempting OpenF1 real-time fallback...", gp, session)
+        of1_drivers = fetch_openf1_session_drivers(year, gp, session)
+        if of1_drivers:
+            drivers = of1_drivers
     corners = []
     try:
         circuit_info = data.get_circuit_info()
