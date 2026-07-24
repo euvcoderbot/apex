@@ -751,9 +751,8 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
     ctx.moveTo(left, y);
     ctx.lineTo(width - right, y);
     
-    // Highlight the 0 line on Timing delta chart
     if (unit.includes('SECONDS') && Math.abs(value) < 1e-5) {
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)'; // brighter line for 0 axis
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
       ctx.lineWidth = 1.2;
     } else {
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
@@ -770,11 +769,13 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
     
     if (unit === 'OPEN / CLOSED') {
       if (tick === 0) displayVal = 'OPEN';
-    ctx.stroke();
+      else if (tick === 4) displayVal = 'CLOSED';
+      else return;
+    }
     
     ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
     ctx.textAlign = 'right';
-    ctx.fillText(`${formatTick(val)} ${unit}`.trim(), left - 6, y + 3);
+    ctx.fillText(`${displayVal} ${unit}`.trim(), left - 6, y + 3);
   });
   
   ctx.textAlign = 'left';
