@@ -714,6 +714,10 @@ function cornerFraction(corner, samples, totalDistance) {
     .find(marker => marker.key === `${corner.number}:${corner.letter || ''}`)?.fraction ?? null;
 }
 
+function cornerLabel(corner) {
+  return `T${corner.number}${corner.letter || ''}`;
+}
+
 function resolveCornerMarkers(samples, totalDistance) {
   if (!samples?.length || !Number.isFinite(totalDistance) || totalDistance <= 0) return [];
   const positionSamples = samples.filter(point => Number.isFinite(+point.X) && Number.isFinite(+point.Y));
@@ -724,10 +728,15 @@ function resolveCornerMarkers(samples, totalDistance) {
     : 0;
 
   const resolved = corners.map(corner => {
-    let fraction = Number(corner.fraction);
+    const suppliedFraction = corner.fraction;
+    let fraction = suppliedFraction == null || suppliedFraction === ''
+      ? NaN
+      : Number(suppliedFraction);
     let source = 'distance';
     if (!Number.isFinite(fraction)) {
-      const distance = Number(corner.distance);
+      const distance = corner.distance == null || corner.distance === ''
+        ? NaN
+        : Number(corner.distance);
       fraction = Number.isFinite(distance) ? distance / totalDistance : NaN;
     }
 
@@ -965,7 +974,7 @@ function drawRealChart(name) {
         if (name !== 'Speed trace') {
           ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
           ctx.font = '8px monospace';
-          ctx.fillText(`T${corner.number}`, x - 4, bounds.top - 2);
+          ctx.fillText(cornerLabel(corner), x - 4, bounds.top - 2);
         }
       }
     });
@@ -1070,7 +1079,7 @@ function drawRealChart(name) {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
       ctx.font = '8px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(`T${corner.number}`, x, labelY + 7);
+      ctx.fillText(cornerLabel(corner), x, labelY + 7);
       
       // Corner dots & stacked speed values
       loaded.forEach((lap, index) => {
@@ -1372,7 +1381,7 @@ function renderApexSpeeds() {
     
     return `
       <div class="apex-speed-card">
-        <strong>T${corner.number}</strong>
+        <strong>${cornerLabel(corner)}</strong>
         ${valsHtml}
       </div>
     `;
@@ -1508,9 +1517,9 @@ function renderMiniSectorMap() {
       const offsetY = Number.isFinite(angle) ? -Math.sin(angle * Math.PI / 180) * 11 : -11;
       ctx.lineWidth = 3;
       ctx.strokeStyle = '#101114';
-      ctx.strokeText(`T${corner.number}`, point.x + offsetX, point.y + offsetY);
+      ctx.strokeText(cornerLabel(corner), point.x + offsetX, point.y + offsetY);
       ctx.fillStyle = 'rgba(255,255,255,.92)';
-      ctx.fillText(`T${corner.number}`, point.x + offsetX, point.y + offsetY);
+      ctx.fillText(cornerLabel(corner), point.x + offsetX, point.y + offsetY);
     });
     ctx.textAlign = 'start';
     ctx.textBaseline = 'alphabetic';
