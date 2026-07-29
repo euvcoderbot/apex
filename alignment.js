@@ -46,6 +46,11 @@ async function fetchTelemetry(lap) {
   const payload = await readApiResponse(response);
   if (!response.ok) throw new Error(payload.detail || 'Telemetry unavailable for this lap');
   const samples = normalizeTelemetry(payload.samples || [], lap);
+  // The API projects official circuit corners onto this exact lap before the
+  // browser draws anything.  Keeping the markers with the lap removes the
+  // old client-side coordinate reconciliation that could collapse labels at
+  // the trace origin when a FastF1 distance field was missing.
+  lap.cornerMarkers = Array.isArray(payload.corners) ? payload.corners : [];
   const season = Number($('#year').value);
   const rawModeValues = samples.map(point => Number(point.DRS)).filter(Number.isFinite);
   const hasRawMode = rawModeValues.some(value => value > 0);

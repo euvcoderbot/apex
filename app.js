@@ -709,8 +709,8 @@ function getNiceBounds(name, rawMin, rawMax) {
   return { min, max, tickStep };
 }
 
-function cornerFraction(corner, samples, totalDistance) {
-  return resolveCornerMarkers(samples, totalDistance)
+function cornerFraction(corner, samples, totalDistance, suppliedMarkers = null) {
+  return resolveCornerMarkers(samples, totalDistance, suppliedMarkers)
     .find(marker => marker.key === `${corner.number}:${corner.letter || ''}`)?.fraction ?? null;
 }
 
@@ -718,8 +718,14 @@ function cornerLabel(corner) {
   return `T${corner.number}${corner.letter || ''}`;
 }
 
-function resolveCornerMarkers(samples, totalDistance) {
+function resolveCornerMarkers(samples, totalDistance, suppliedMarkers = null) {
   if (!samples?.length || !Number.isFinite(totalDistance) || totalDistance <= 0) return [];
+  // Telemetry responses carry corner fractions projected against this exact
+  // reference lap. Only use the session-level rows as a fallback for older
+  // responses, where a client-side X/Y projection remains useful.
+  const markerRows = Array.isArray(suppliedMarkers) && suppliedMarkers.length
+    ? suppliedMarkers
+    : corners;
   const positionSamples = samples.filter(point => Number.isFinite(+point.X) && Number.isFinite(+point.Y));
   const xs = positionSamples.map(point => +point.X);
   const ys = positionSamples.map(point => +point.Y);
@@ -727,12 +733,12 @@ function resolveCornerMarkers(samples, totalDistance) {
     ? Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys))
     : 0;
 
-  const resolved = corners.map(corner => {
+  const resolved = markerRows.map(corner => {
     const suppliedFraction = corner.fraction;
     let fraction = suppliedFraction == null || suppliedFraction === ''
       ? NaN
       : Number(suppliedFraction);
-    let source = 'distance';
+    let source = corner.source || 'distance';
     if (!Number.isFinite(fraction)) {
       const distance = corner.distance == null || corner.distance === ''
         ? NaN
@@ -917,9 +923,11 @@ function drawRealChart(name) {
   const refSamples = telemetryCache.get(telemetryKey(refLap));
   const totalDist = refSamples && refSamples.length ? refSamples[refSamples.length - 1].Distance : 5891;
   if (name === 'Speed trace' && $('#cornerToggle').checked) {
-    const count = resolveCornerMarkers(refSamples, totalDist).length;
+    const markerCorners = resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers);
+    const count = markerCorners.length;
+    const projection = refLap?.cornerMarkers?.[0]?.source === 'lap_projection';
     $('#cornerStatus').textContent = count
-      ? `${count} corner markers aligned to the reference lap.`
+      ? `${count} official corner markers aligned to this lap${projection ? ' (lap projection).' : '.'}`
       : 'Corner coordinates are unavailable for this telemetry source.';
   }
   
@@ -954,8 +962,8 @@ function drawRealChart(name) {
   }
   
   // Draw Corner dotted lines
-  if ($('#cornerToggle').checked && corners.length) {
-    const markerCorners = resolveCornerMarkers(refSamples, totalDist);
+  if ($('#cornerToggle').checked) {
+    const markerCorners = resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers);
     markerCorners.forEach(corner => {
       const fraction = corner.fraction;
       if (Number.isFinite(fraction) && fraction > 0 && fraction <= 1) {
@@ -1055,8 +1063,8 @@ function drawRealChart(name) {
   });
   
   // Draw Corner apex min speed dots on the Speed trace chart (with clean text labels stacked at the top)
-  if (name === 'Speed trace' && $('#cornerToggle').checked && corners.length) {
-    const markerCorners = resolveCornerMarkers(refSamples, totalDist);
+  if (name === 'Speed trace' && $('#cornerToggle').checked) {
+    const markerCorners = resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers);
     const labelRightEdge = [-Infinity, -Infinity, -Infinity, -Infinity];
     markerCorners.forEach(corner => {
       const markerFraction = corner.fraction;
@@ -1340,7 +1348,7 @@ function renderApexSpeeds() {
   const root = $('#apexSpeeds');
   if (!root) return;
   
-  if (!loaded.length || !corners.length || !$('#cornerToggle').checked) {
+  if (!loaded.length || !$('#cornerToggle').checked) {
     root.innerHTML = '<span class="section-empty">Apex speeds appear when corner overlays are active.</span>';
     return;
   }
@@ -1354,7 +1362,7 @@ function renderApexSpeeds() {
   
   const totalDist = refSamples[refSamples.length - 1].Distance || 5891;
   
-  const markerCorners = resolveCornerMarkers(refSamples, totalDist);
+  const markerCorners = resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers);
   root.innerHTML = markerCorners.map(corner => {
     const driverSpeeds = loaded.map(lap => {
       const samples = telemetryCache.get(telemetryKey(lap));
@@ -1492,8 +1500,8 @@ function renderMiniSectorMap() {
   }
 
   // Corner markers rendered ON TOP of mini-sector dominance lines
-  if ($('#cornerToggle').checked && corners.length) {
-    const markerCorners = resolveCornerMarkers(reference, totalDistance);
+  if ($('#cornerToggle').checked) {
+    const markerCorners = resolveCornerMarkers(reference, totalDistance, loaded[0]?.cornerMarkers);
     ctx.font = '10px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';

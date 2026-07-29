@@ -27,6 +27,15 @@ OPENF1 = "https://api.openf1.org/v1"
 logger = logging.getLogger("apex.telemetry")
 
 
+@app.middleware("http")
+async def prevent_stale_local_assets(request: Request, call_next):
+    """Keep local development browsers from serving an outdated chart build."""
+    response = await call_next(request)
+    if request.url.path in {"/", "/index.html", "/app.js", "/alignment.js"}:
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response
+
+
 @app.exception_handler(Exception)
 async def unexpected_error(request: Request, error: Exception):
     """Keep API failures parseable and leave the full traceback in Uvicorn."""
@@ -324,6 +333,53 @@ def get_fallback_circuit_corners(gp: str, session_name: str) -> list[dict[str, A
     return []
 
 
+def project_corners_onto_lap(data: Any, samples: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Attach official corner labels to a specific telemetry lap.
+
+    FastF1 does not populate CircuitInfo.Distance unless its car archive is
+    available. OpenF1 still supplies the same X/Y coordinate space, so resolve
+    each corner once on the server against the exact reference lap instead of
+    asking the browser to reconcile two partial data sources during drawing.
+    """
+    if len(samples) < 2:
+        return []
+    total_distance = seconds(samples[-1].get("Distance"))
+    points = [point for point in samples
+              if seconds(point.get("Distance")) is not None
+              and seconds(point.get("X")) is not None
+              and seconds(point.get("Y")) is not None]
+    if not total_distance or not points:
+        return []
+    try:
+        circuit_info = data.get_circuit_info()
+        marker_rows = circuit_info.corners if circuit_info is not None else None
+    except Exception:
+        marker_rows = None
+    if marker_rows is None or marker_rows.empty:
+        return []
+
+    result: list[dict[str, Any]] = []
+    for _, row in marker_rows.iterrows():
+        x, y = seconds(row.get("X")), seconds(row.get("Y"))
+        if x is None or y is None:
+            continue
+        nearest = min(points, key=lambda point: (seconds(point["X"]) - x) ** 2 + (seconds(point["Y"]) - y) ** 2)
+        fraction = seconds(nearest.get("Distance")) / total_distance
+        if not 0 < fraction <= 1:
+            continue
+        result.append({
+            "number": str(row["Number"]),
+            "letter": str(row.get("Letter") or ""),
+            "x": x,
+            "y": y,
+            "angle": seconds(row.get("Angle")),
+            "distance": None,
+            "fraction": fraction,
+            "source": "lap_projection",
+        })
+    return result
+
+
 def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[dict[str, Any]]:
     try:
         url = f"https://api.openf1.org/v1/sessions?year={year}"
@@ -547,7 +603,13 @@ def telemetry(
         if year >= 2023:
             samples = openf1_lap_telemetry(year, gp, session, driver_number, lap)
             if samples:
-                return {"driver": driver, "lap": lap, "samples": samples, "source": "OpenF1"}
+                return {
+                    "driver": driver,
+                    "lap": lap,
+                    "samples": samples,
+                    "corners": project_corners_onto_lap(metadata, samples),
+                    "source": "OpenF1",
+                }
     except Exception as openf1_lookup_error:
         logger.debug("OpenF1 lookup unavailable for %s L%s: %s", driver, lap, openf1_lookup_error)
 
@@ -596,7 +658,13 @@ def telemetry(
             driver_number = str(data.get_driver(driver).get("DriverNumber", driver))
             samples = openf1_lap_telemetry(year, gp, session, driver_number, lap)
             if samples:
-                return {"driver": driver, "lap": lap, "samples": samples, "source": "OpenF1"}
+                return {
+                    "driver": driver,
+                    "lap": lap,
+                    "samples": samples,
+                    "corners": project_corners_onto_lap(data, samples),
+                    "source": "OpenF1",
+                }
         except Exception as openf1_error:
             logger.warning("OpenF1 telemetry fallback unavailable for %s L%s: %s", driver, lap, openf1_error)
             raise HTTPException(422, f"No telemetry source returned this lap. FastF1: {fastf1_error}; OpenF1: {openf1_error}") from openf1_error
@@ -607,12 +675,24 @@ def telemetry(
     columns = ["Distance", "ElapsedSeconds", "Speed", "Throttle", "Brake", "RPM", "nGear", "DRS", "X", "Y"]
     samples = telemetry_data[columns].iloc[::4].replace({np.nan: None}).to_dict("records")
     if samples:
-        return {"driver": driver, "lap": lap, "samples": samples, "source": "FastF1"}
+        return {
+            "driver": driver,
+            "lap": lap,
+            "samples": samples,
+            "corners": project_corners_onto_lap(data, samples),
+            "source": "FastF1",
+        }
 
     try:
         samples = openf1_lap_telemetry(year, gp, session, driver_number, lap)
         if samples:
-            return {"driver": driver, "lap": lap, "samples": samples, "source": "OpenF1"}
+            return {
+                "driver": driver,
+                "lap": lap,
+                "samples": samples,
+                "corners": project_corners_onto_lap(data, samples),
+                "source": "OpenF1",
+            }
     except Exception:
         pass
     raise HTTPException(422, "No telemetry is published for this session/lap yet. Try a completed session or a 2023+ event with OpenF1 coverage.")
