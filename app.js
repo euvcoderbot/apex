@@ -710,11 +710,64 @@ function getNiceBounds(name, rawMin, rawMax) {
 }
 
 function cornerFraction(corner, samples, totalDistance) {
-  if (Number.isFinite(Number(corner.distance)) && totalDistance > 0) {
-    return Number(corner.distance) / totalDistance;
-  }
-  if (Number.isFinite(Number(corner.fraction))) return Number(corner.fraction);
-  return null;
+  return resolveCornerMarkers(samples, totalDistance)
+    .find(marker => marker.key === `${corner.number}:${corner.letter || ''}`)?.fraction ?? null;
+}
+
+function resolveCornerMarkers(samples, totalDistance) {
+  if (!samples?.length || !Number.isFinite(totalDistance) || totalDistance <= 0) return [];
+  const positionSamples = samples.filter(point => Number.isFinite(+point.X) && Number.isFinite(+point.Y));
+  const xs = positionSamples.map(point => +point.X);
+  const ys = positionSamples.map(point => +point.Y);
+  const diagonal = positionSamples.length > 1
+    ? Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys))
+    : 0;
+
+  const resolved = corners.map(corner => {
+    let fraction = Number(corner.fraction);
+    let source = 'distance';
+    if (!Number.isFinite(fraction)) {
+      const distance = Number(corner.distance);
+      fraction = Number.isFinite(distance) ? distance / totalDistance : NaN;
+    }
+
+    // CircuitInfo's Distance is only present when FastF1 could load a car
+    // stream. Otherwise project the official corner X/Y onto this actual lap.
+    if (!Number.isFinite(fraction) || fraction <= 0 || fraction > 1.02) {
+      const x = Number(corner.x), y = Number(corner.y);
+      let nearest = null;
+      let nearestDistance = Infinity;
+      if (Number.isFinite(x) && Number.isFinite(y)) {
+        positionSamples.forEach(point => {
+          const distance = Math.hypot(+point.X - x, +point.Y - y);
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearest = point;
+          }
+        });
+      }
+      // Reject mismatched coordinate systems rather than putting labels on
+      // arbitrary parts of the graph.
+      if (nearest && diagonal > 0 && nearestDistance / diagonal <= 0.12) {
+        fraction = (+nearest.Distance || 0) / totalDistance;
+        source = 'position';
+      } else {
+        fraction = NaN;
+      }
+    }
+
+    return {
+      ...corner,
+      key: `${corner.number}:${corner.letter || ''}`,
+      fraction,
+      source,
+    };
+  }).filter(marker => Number.isFinite(marker.fraction) && marker.fraction > 0 && marker.fraction <= 1);
+
+  // MultiViewer occasionally has duplicate labels. Keep only one marker per
+  // turn, sorted into lap order so every chart shares the same geometry.
+  return [...new Map(resolved.map(marker => [marker.key, marker])).values()]
+    .sort((a, b) => a.fraction - b.fraction);
 }
 
 // Draw chart grid axes
@@ -854,6 +907,12 @@ function drawRealChart(name) {
   const refLap = loaded[0];
   const refSamples = telemetryCache.get(telemetryKey(refLap));
   const totalDist = refSamples && refSamples.length ? refSamples[refSamples.length - 1].Distance : 5891;
+  if (name === 'Speed trace' && $('#cornerToggle').checked) {
+    const count = resolveCornerMarkers(refSamples, totalDist).length;
+    $('#cornerStatus').textContent = count
+      ? `${count} corner markers aligned to the reference lap.`
+      : 'Corner coordinates are unavailable for this telemetry source.';
+  }
   
   // Draw vertical sector lines in background
   const sectorDists = getSectorDistances(refLap);
@@ -887,8 +946,9 @@ function drawRealChart(name) {
   
   // Draw Corner dotted lines
   if ($('#cornerToggle').checked && corners.length) {
-    corners.forEach(corner => {
-      const fraction = cornerFraction(corner, refSamples, totalDist);
+    const markerCorners = resolveCornerMarkers(refSamples, totalDist);
+    markerCorners.forEach(corner => {
+      const fraction = corner.fraction;
       if (Number.isFinite(fraction) && fraction > 0 && fraction <= 1) {
         const x = bounds.left + fraction * (rect.width - bounds.left - bounds.right);
         
@@ -902,10 +962,11 @@ function drawRealChart(name) {
         ctx.stroke();
         ctx.setLineDash([]);
         
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-        ctx.font = '8px monospace';
-        const labelY = name === 'Speed trace' ? bounds.top + 10 : bounds.top - 2;
-        ctx.fillText(`T${corner.number}`, x - 4, labelY);
+        if (name !== 'Speed trace') {
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+          ctx.font = '8px monospace';
+          ctx.fillText(`T${corner.number}`, x - 4, bounds.top - 2);
+        }
       }
     });
   }
@@ -986,23 +1047,30 @@ function drawRealChart(name) {
   
   // Draw Corner apex min speed dots on the Speed trace chart (with clean text labels stacked at the top)
   if (name === 'Speed trace' && $('#cornerToggle').checked && corners.length) {
-    corners.forEach(corner => {
-      const markerFraction = cornerFraction(corner, refSamples, totalDist) ?? (Number(corner.distance) / totalDist);
+    const markerCorners = resolveCornerMarkers(refSamples, totalDist);
+    const labelRightEdge = [-Infinity, -Infinity, -Infinity, -Infinity];
+    markerCorners.forEach(corner => {
+      const markerFraction = corner.fraction;
       if (!Number.isFinite(markerFraction)) return;
       const x = bounds.left + markerFraction * (rect.width - bounds.left - bounds.right);
       if (x < bounds.left || x > rect.width - bounds.right) return;
+      let labelLevel = labelRightEdge.findIndex(edge => x - edge >= 26);
+      if (labelLevel < 0) labelLevel = 3;
+      labelRightEdge[labelLevel] = x + 13;
+      const labelY = 2 + labelLevel * 13;
       
-      // Draw turn label pill
+      // Place each turn label once and stagger nearby turns so their labels
+      // never hide one another.
       ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.fillRect(x - 14, 2, 28, 12);
+      ctx.fillRect(x - 12, labelY, 24, 10);
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
       ctx.lineWidth = 1;
-      ctx.strokeRect(x - 14, 2, 28, 12);
+      ctx.strokeRect(x - 12, labelY, 24, 10);
       
       ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
       ctx.font = '8px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(`T${corner.number}`, x, 11);
+      ctx.fillText(`T${corner.number}`, x, labelY + 7);
       
       // Corner dots & stacked speed values
       loaded.forEach((lap, index) => {
@@ -1010,8 +1078,9 @@ function drawRealChart(name) {
         if (!samples || !samples.length) return;
         
         const teamColor = getDriverColor(lap.code);
-        const apexPt = getCornerMinSpeed(samples, corner);
-        const markerSpeed = apexPt?.cornerSpeed ?? interpolate(samples, totalDist * markerFraction, 'Speed');
+        // The dot uses the exact display value, so it is always physically
+        // attached to the rendered speed trace rather than a nearby raw sample.
+        const markerSpeed = smoothedTelemetryValue(samples, markerFraction, 'Speed');
         
         if (Number.isFinite(markerSpeed)) {
           const markerY = bounds.top + (bounds.max - markerSpeed) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
@@ -1276,7 +1345,8 @@ function renderApexSpeeds() {
   
   const totalDist = refSamples[refSamples.length - 1].Distance || 5891;
   
-  root.innerHTML = corners.map(corner => {
+  const markerCorners = resolveCornerMarkers(refSamples, totalDist);
+  root.innerHTML = markerCorners.map(corner => {
     const driverSpeeds = loaded.map(lap => {
       const samples = telemetryCache.get(telemetryKey(lap));
       if (!samples || !samples.length) return null;
@@ -1414,13 +1484,14 @@ function renderMiniSectorMap() {
 
   // Corner markers rendered ON TOP of mini-sector dominance lines
   if ($('#cornerToggle').checked && corners.length) {
+    const markerCorners = resolveCornerMarkers(reference, totalDistance);
     ctx.font = '10px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    corners.forEach(corner => {
+    markerCorners.forEach(corner => {
       let x = Number(corner.x), y = Number(corner.y);
       if (!Number.isFinite(x) || !Number.isFinite(y)) {
-        const markerFrac = cornerFraction(corner, reference, totalDistance) ?? (Number(corner.distance) / totalDistance);
+        const markerFrac = corner.fraction;
         if (Number.isFinite(markerFrac)) {
           const interpX = interpolate(reference, totalDistance * markerFrac, 'X');
           const interpY = interpolate(reference, totalDistance * markerFrac, 'Y');
