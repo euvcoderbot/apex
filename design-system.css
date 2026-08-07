@@ -2302,3 +2302,229 @@ main.sidebar-collapsed {
     text-align: left;
   }
 }
+
+/* Unified telemetry UI ---------------------------------------------------- */
+:root {
+  --ui-text-xs: 7px;
+  --ui-text-sm: 9px;
+  --ui-text-md: 11px;
+  --ui-text-lg: 13px;
+}
+
+.dashboard-card,
+.telemetry-card,
+.chart,
+button,
+select,
+input {
+  font-family: var(--font-mono);
+}
+
+.panel-heading h2,
+.workspace-heading h2,
+.section-heading h1,
+.dominance-map h2,
+.corner-analysis h2,
+.chart h2 {
+  font-family: var(--font-mono);
+  font-size: var(--ui-text-md);
+  font-weight: 700;
+  letter-spacing: .035em;
+}
+
+.panel-heading p,
+.workspace-heading p,
+.section-heading p {
+  font-family: var(--font-mono);
+  font-size: var(--ui-text-sm);
+}
+
+.run-driver h3,
+.pill,
+.lap,
+.stint,
+.fastest-lap-pick,
+.compare-all-btn {
+  font-family: var(--font-mono);
+}
+
+/* Driver selection uses the same tinted, edged card language as each lap
+   workspace, compressed into a two-column sidebar grid. */
+.driver-control-card #driverPills {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+#driverPills .driver-pill {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 38px;
+  padding: 6px 8px 6px 11px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--team) 22%, rgba(255, 255, 255, .08));
+  border-radius: 6px;
+  background:
+    linear-gradient(115deg, color-mix(in srgb, var(--team) 9%, transparent), transparent 58%),
+    rgba(4, 6, 8, .48);
+  color: var(--text-main);
+  font-size: var(--ui-text-sm);
+}
+
+#driverPills .driver-pill::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--team);
+  box-shadow: 0 0 13px color-mix(in srgb, var(--team) 42%, transparent);
+}
+
+#driverPills .driver-pill:hover {
+  border-color: color-mix(in srgb, var(--team) 52%, rgba(255, 255, 255, .12));
+  background:
+    linear-gradient(115deg, color-mix(in srgb, var(--team) 14%, transparent), transparent 64%),
+    rgba(8, 10, 13, .68);
+}
+
+#driverPills .driver-pill.selected {
+  border-color: color-mix(in srgb, var(--team) 76%, white 8%) !important;
+  background:
+    linear-gradient(115deg, color-mix(in srgb, var(--team) 20%, transparent), transparent 70%),
+    rgba(8, 10, 13, .74);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--team) 14%, transparent),
+    0 0 13px color-mix(in srgb, var(--team) 17%, transparent);
+}
+
+.driver-pill-logo {
+  width: 28px;
+  max-height: 17px;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.driver-pill-mark {
+  width: 21px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--team);
+}
+
+.driver-pill-number {
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--ui-text-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.driver-pill strong {
+  color: var(--team);
+  font-size: var(--ui-text-sm);
+  letter-spacing: .035em;
+}
+
+/* Corner selectors wrap into the available width: no scrollbar and no scroll
+   position to lose when a new corner is selected. */
+.corner-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(46px, 1fr));
+  gap: 5px;
+  overflow: visible;
+  scrollbar-width: auto;
+}
+
+.corner-pick {
+  min-width: 0;
+  width: 100%;
+}
+
+/* Synchronized trace zoom controls -------------------------------------- */
+.chart-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 25px;
+  margin-bottom: 6px;
+}
+
+.chart-heading h2 {
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+.trace-tools {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.trace-tools > span {
+  margin-right: 3px;
+  color: var(--text-muted);
+  font-size: var(--ui-text-xs);
+  letter-spacing: .06em;
+}
+
+.trace-tools > span b {
+  color: var(--neon-accent);
+  font-weight: 700;
+}
+
+.trace-tools button {
+  display: inline-grid;
+  min-width: 25px;
+  height: 24px;
+  place-items: center;
+  padding: 0 7px;
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 5px;
+  background: rgba(0, 0, 0, .22);
+  color: var(--text-muted);
+  font-size: var(--ui-text-sm);
+  font-weight: 700;
+  cursor: pointer;
+  transition: color .15s ease, border-color .15s ease, background .15s ease, transform .15s ease;
+}
+
+.trace-tools button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--neon-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--neon-accent) 7%, transparent);
+  color: var(--neon-accent);
+  transform: translateY(-1px);
+}
+
+.trace-tools button:disabled {
+  opacity: .34;
+  cursor: default;
+}
+
+canvas[data-chart="Speed trace"] {
+  cursor: crosshair;
+  user-select: none;
+}
+
+@media (max-width: 620px) {
+  .driver-control-card #driverPills {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  #driverPills .driver-pill {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .driver-pill-logo,
+  .driver-pill-mark {
+    display: none;
+  }
+
+  .trace-tools > span {
+    display: none;
+  }
+}

@@ -13,6 +13,9 @@ let selectedCornerIndex = 0;
 
 let hoverFraction = null;
 let hoveredChartName = null;
+let traceZoom = { start: 0, end: 1 };
+let zoomDrag = null;
+const MIN_TRACE_ZOOM = .004;
 
 const teamMapping = {
   "McLaren": {
@@ -225,6 +228,8 @@ function clearBeforeSessionLoad() {
   nominatedCompounds = [];
   activeDriverTab = null;
   selectedCornerIndex = 0;
+  traceZoom = { start: 0, end: 1 };
+  zoomDrag = null;
   telemetryCache.clear();
   $('#driverPills').innerHTML = '<span class="section-empty">Load a session to see its drivers.</span>';
   $('#stintPanels').innerHTML = '<span class="section-empty">Select a driver to inspect their runs and laps.</span>';
@@ -318,9 +323,13 @@ function renderDrivers() {
     const code = d[0];
     const number = d[1];
     const color = d[3];
+    const team = getTeamInfo(d[4] || '');
     const isSelected = selected.includes(code);
-    
-    return `<button class="pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-code="${code}">#${number} · ${code}</button>`;
+    const logo = team.logo
+      ? `<img class="driver-pill-logo" src="${team.logo}" alt="" aria-hidden="true">`
+      : '<span class="driver-pill-mark" aria-hidden="true"></span>';
+
+    return `<button class="pill driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-code="${code}">${logo}<span class="driver-pill-number">${number}</span><strong>${code}</strong></button>`;
   }).join('');
   
   root.querySelectorAll('button').forEach(btn => {
@@ -695,6 +704,91 @@ const chartField = {
   'DRS': 'DRS'
 };
 
+function setTraceZoom(start, end) {
+  let nextStart = Math.max(0, Math.min(1, start));
+  let nextEnd = Math.max(0, Math.min(1, end));
+  if (nextEnd < nextStart) [nextStart, nextEnd] = [nextEnd, nextStart];
+  if (nextEnd - nextStart < MIN_TRACE_ZOOM) return false;
+  traceZoom = { start: nextStart, end: nextEnd };
+  hoverFraction = null;
+  updateZoomReadout();
+  drawAll();
+  return true;
+}
+
+function updateZoomReadout() {
+  const readout = $('#traceZoomReadout');
+  const reset = $('[data-zoom="reset"]');
+  const zoomOut = $('[data-zoom="out"]');
+  const panLeft = $('[data-pan="left"]');
+  const panRight = $('[data-pan="right"]');
+  const reference = loaded[0] && telemetryCache.get(telemetryKey(loaded[0]));
+  const distance = reference?.length ? reference[reference.length - 1].Distance : 0;
+  const fullLap = traceZoom.start <= 1e-6 && traceZoom.end >= 1 - 1e-6;
+  if (readout) {
+    readout.textContent = distance
+      ? `${(traceZoom.start * distance / 1000).toFixed(2)}–${(traceZoom.end * distance / 1000).toFixed(2)} KM`
+      : 'FULL LAP';
+  }
+  if (reset) reset.disabled = fullLap;
+  if (zoomOut) zoomOut.disabled = fullLap;
+  if (panLeft) panLeft.disabled = fullLap || traceZoom.start <= 1e-6;
+  if (panRight) panRight.disabled = fullLap || traceZoom.end >= 1 - 1e-6;
+}
+
+function zoomTraceBy(factor) {
+  const span = traceZoom.end - traceZoom.start;
+  const nextSpan = Math.max(MIN_TRACE_ZOOM, Math.min(1, span * factor));
+  const centre = (traceZoom.start + traceZoom.end) / 2;
+  let start = centre - nextSpan / 2;
+  let end = centre + nextSpan / 2;
+  if (start < 0) { end -= start; start = 0; }
+  if (end > 1) { start -= end - 1; end = 1; }
+  setTraceZoom(start, end);
+}
+
+function panTrace(direction) {
+  const span = traceZoom.end - traceZoom.start;
+  const shift = span * .35 * direction;
+  let start = traceZoom.start + shift;
+  let end = traceZoom.end + shift;
+  if (start < 0) { end -= start; start = 0; }
+  if (end > 1) { start -= end - 1; end = 1; }
+  setTraceZoom(start, end);
+}
+
+function bindChartZoom() {
+  $('[data-zoom="in"]')?.addEventListener('click', () => zoomTraceBy(.55));
+  $('[data-zoom="out"]')?.addEventListener('click', () => zoomTraceBy(1.8));
+  $('[data-zoom="reset"]')?.addEventListener('click', () => setTraceZoom(0, 1));
+  $('[data-pan="left"]')?.addEventListener('click', () => panTrace(-1));
+  $('[data-pan="right"]')?.addEventListener('click', () => panTrace(1));
+  const speedCanvas = document.querySelector('[data-chart="Speed trace"]');
+  if (speedCanvas) {
+    speedCanvas.addEventListener('mousedown', event => {
+      if (event.button !== 0 || !loaded.length) return;
+      const rect = speedCanvas.getBoundingClientRect();
+      const local = Math.max(0, Math.min(1, (event.clientX - rect.left - 43) / (rect.width - 50)));
+      const fraction = traceZoom.start + local * (traceZoom.end - traceZoom.start);
+      zoomDrag = { anchor: fraction, current: fraction };
+      hoverFraction = null;
+      event.preventDefault();
+      drawRealChart('Speed trace');
+    });
+    speedCanvas.addEventListener('dblclick', () => setTraceZoom(0, 1));
+  }
+  updateZoomReadout();
+}
+
+function finishZoomDrag() {
+  if (!zoomDrag) return;
+  const { anchor, current } = zoomDrag;
+  zoomDrag = null;
+  if (Math.abs(current - anchor) < MIN_TRACE_ZOOM || !setTraceZoom(anchor, current)) {
+    drawAll();
+  }
+}
+
 function renderCharts() {
   const root = $('#charts');
   const season = Number($('#year').value);
@@ -704,12 +798,21 @@ function renderCharts() {
   root.innerHTML = activeDefs.map(([name, unit, compact]) => {
     return `
     <section class="chart ${compact ? 'compact' : ''}">
-      <h2>${name} <small>${unit}</small></h2>
-      <canvas data-chart="${name}"></canvas>
+      <div class="chart-heading"><h2>${name} <small>${unit}</small></h2>${name === 'Speed trace' ? `
+        <div class="trace-tools" aria-label="Trace zoom controls">
+          <span>DRAG TO ZOOM · <b id="traceZoomReadout">FULL LAP</b></span>
+          <button data-zoom="out" title="Zoom out" aria-label="Zoom out">−</button>
+          <button data-zoom="in" title="Zoom in" aria-label="Zoom in">+</button>
+          <button data-pan="left" title="Move zoom window left" aria-label="Move zoom window left">‹</button>
+          <button data-pan="right" title="Move zoom window right" aria-label="Move zoom window right">›</button>
+          <button data-zoom="reset" title="Reset zoom">RESET</button>
+        </div>` : ''}</div>
+      <canvas data-chart="${name}" aria-label="${name}${name === 'Speed trace' ? '. Drag horizontally to zoom every telemetry chart.' : ''}"></canvas>
     </section>
   `;
   }).join('');
   bindAllChartHover();
+  bindChartZoom();
 }
 
 function interpolate(samples, targetDistance, field) {
@@ -952,7 +1055,7 @@ function formatTick(val) {
   return val.toFixed(2);
 }
 
-function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7) {
+function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7, viewStart = 0, viewEnd = 1) {
   const calloutWidth = 26;
   const gap = 3;
   const plotWidth = width - left - right;
@@ -960,10 +1063,10 @@ function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7) {
   // Source corner rows are normally delivered in lap order, but sorting here
   // guarantees lane allocation still works if a provider returns them shuffled.
   const items = [...markers]
-    .filter(corner => Number.isFinite(corner.fraction))
+    .filter(corner => Number.isFinite(corner.fraction) && corner.fraction >= viewStart && corner.fraction <= viewEnd)
     .sort((a, b) => a.fraction - b.fraction)
     .map(corner => {
-      const x = left + corner.fraction * plotWidth;
+      const x = left + ((corner.fraction - viewStart) / (viewEnd - viewStart || 1)) * plotWidth;
       let lane = laneEnds.findIndex(end => x - calloutWidth / 2 >= end + gap);
       if (lane < 0) {
         lane = laneEnds.length;
@@ -992,6 +1095,9 @@ function drawRealChart(name) {
   const unit = defs.find(def => def[0] === name)?.[1] || '';
   const field = chartField[name];
   const data = loaded.map(lap => telemetryCache.get(telemetryKey(lap))).filter(Boolean);
+  const viewStart = traceZoom.start;
+  const viewEnd = traceZoom.end;
+  const viewSpan = viewEnd - viewStart || 1;
   
   if (!loaded.length) {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
@@ -1022,7 +1128,7 @@ function drawRealChart(name) {
       const refDistance = refSamples[refSamples.length - 1].Distance || 5891;
       data.slice(1).forEach(samples => {
         for (let i = 0; i <= 100; i++) {
-          const fraction = i / 100;
+          const fraction = viewStart + viewSpan * i / 100;
           const v = typeof displayDeltaAt === 'function'
             ? displayDeltaAt(samples, refSamples, fraction)
             : deltaAt(samples, refSamples, refDistance * fraction);
@@ -1033,7 +1139,10 @@ function drawRealChart(name) {
     values.push(0);
   } else {
     data.forEach(series => series.forEach(pt => {
-      if (Number.isFinite(pt[field])) values.push(pt[field]);
+      const fraction = Number.isFinite(pt.AlignedFraction)
+        ? pt.AlignedFraction
+        : (+pt.Distance || 0) / (+series[series.length - 1].Distance || 1);
+      if (fraction >= viewStart && fraction <= viewEnd && Number.isFinite(pt[field])) values.push(pt[field]);
     }));
   }
   
@@ -1052,7 +1161,7 @@ function drawRealChart(name) {
   const speedCornerMarkers = name === 'Speed trace' && $('#cornerToggle').checked
     ? resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers)
     : [];
-  const cornerCalloutLayout = layoutSpeedCornerCallouts(speedCornerMarkers, rect.width);
+  const cornerCalloutLayout = layoutSpeedCornerCallouts(speedCornerMarkers, rect.width, 43, 7, viewStart, viewEnd);
   const cornerTopInset = speedCornerMarkers.length
     ? 10 + cornerCalloutLayout.lanes * 16
     : 8;
@@ -1065,9 +1174,29 @@ function drawRealChart(name) {
     max,
     tickStep: niceBounds.tickStep
   };
+  const plotWidth = rect.width - bounds.left - bounds.right;
+  const xForFraction = fraction => bounds.left + ((fraction - viewStart) / viewSpan) * plotWidth;
+  const fractionInView = fraction => fraction >= viewStart && fraction <= viewEnd;
   
   // Render grid axes
   drawGridAxes(ctx, rect.width, rect.height, bounds, unit);
+
+  // Shared distance axis. Every telemetry chart uses the same visible range.
+  for (let tick = 0; tick <= 6; tick++) {
+    const fraction = viewStart + viewSpan * tick / 6;
+    const x = xForFraction(fraction);
+    ctx.beginPath();
+    ctx.moveTo(x, bounds.top);
+    ctx.lineTo(x, rect.height - bounds.bottom);
+    ctx.strokeStyle = 'rgba(255, 255, 255, .045)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255, 255, 255, .34)';
+    ctx.font = '7px monospace';
+    ctx.textAlign = tick === 0 ? 'left' : tick === 6 ? 'right' : 'center';
+    ctx.fillText(`${Math.round(fraction * totalDist)} M`, x, rect.height - 3);
+  }
+  ctx.textAlign = 'left';
   
   if (name === 'Speed trace' && $('#cornerToggle').checked) {
     const count = speedCornerMarkers.length;
@@ -1078,33 +1207,34 @@ function drawRealChart(name) {
   }
   
   // Draw vertical sector lines in background
-  const sectorDists = getSectorDistances(refLap);
-  if (sectorDists) {
-    const s1X = bounds.left + (sectorDists.s1Dist / totalDist) * (rect.width - bounds.left - bounds.right);
-    const s2X = bounds.left + (sectorDists.s2Dist / totalDist) * (rect.width - bounds.left - bounds.right);
-    
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+  const fallbackSectorDistances = getSectorDistances(refLap);
+  const sectorBoundaries = typeof sectorFractions === 'function'
+    ? sectorFractions(refSamples, refLap)
+    : [fallbackSectorDistances.s1 / totalDist, fallbackSectorDistances.s2 / totalDist].filter(Number.isFinite);
+  sectorBoundaries.forEach(fraction => {
+    if (!fractionInView(fraction)) return;
+    const x = xForFraction(fraction);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(s1X, bounds.top);
-    ctx.lineTo(s1X, rect.height - bounds.bottom);
+    ctx.moveTo(x, bounds.top);
+    ctx.lineTo(x, rect.height - bounds.bottom);
     ctx.stroke();
-    
-    ctx.beginPath();
-    ctx.moveTo(s2X, bounds.top);
-    ctx.lineTo(s2X, rect.height - bounds.bottom);
-    ctx.stroke();
-    
-    // Sector Labels at top of Speed trace
-    if (name === 'Speed trace') {
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
-      ctx.font = '8px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('SECTOR 1', bounds.left + (s1X - bounds.left)/2, bounds.top + 12);
-      ctx.fillText('SECTOR 2', s1X + (s2X - s1X)/2, bounds.top + 12);
-      ctx.fillText('SECTOR 3', s2X + (rect.width - bounds.right - s2X)/2, bounds.top + 12);
-      ctx.textAlign = 'left';
-    }
+  });
+
+  if (name === 'Speed trace' && sectorBoundaries.length === 2) {
+    const ranges = [[0, sectorBoundaries[0], 'SECTOR 1'], [sectorBoundaries[0], sectorBoundaries[1], 'SECTOR 2'], [sectorBoundaries[1], 1, 'SECTOR 3']];
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+    ctx.font = '8px monospace';
+    ctx.textAlign = 'center';
+    ranges.forEach(([start, end, label]) => {
+      const visibleStart = Math.max(viewStart, start);
+      const visibleEnd = Math.min(viewEnd, end);
+      if (visibleEnd > visibleStart && (visibleEnd - visibleStart) / viewSpan > .08) {
+        ctx.fillText(label, xForFraction((visibleStart + visibleEnd) / 2), bounds.top + 12);
+      }
+    });
+    ctx.textAlign = 'left';
   }
   
   // Draw Corner dotted lines
@@ -1112,8 +1242,8 @@ function drawRealChart(name) {
     const markerCorners = resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers);
     markerCorners.forEach(corner => {
       const fraction = corner.fraction;
-      if (Number.isFinite(fraction) && fraction > 0 && fraction <= 1) {
-        const x = bounds.left + fraction * (rect.width - bounds.left - bounds.right);
+      if (Number.isFinite(fraction) && fractionInView(fraction)) {
+        const x = xForFraction(fraction);
         
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
         ctx.lineWidth = 0.8;
@@ -1143,10 +1273,10 @@ function drawRealChart(name) {
     if (name === 'Speed trace') {
       const steps = 420;
       for (let step = 0; step <= steps; step++) {
-        const fraction = step / steps;
+        const fraction = viewStart + viewSpan * step / steps;
         const value = smoothedTelemetryValue(series, fraction, 'Speed');
         if (Number.isFinite(value)) {
-          const x = bounds.left + fraction * (rect.width - bounds.left - bounds.right);
+          const x = xForFraction(fraction);
           const y = bounds.top + (bounds.max - value) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
           points.push({ x, y });
         }
@@ -1154,7 +1284,7 @@ function drawRealChart(name) {
     } else {
       const steps = 180;
       for (let step = 0; step <= steps; step++) {
-        const fraction = step / steps;
+        const fraction = viewStart + viewSpan * step / steps;
         const targetDist = totalDist * fraction;
         const value = name === 'Timing delta'
           ? (index === 0 ? 0 : (typeof displayDeltaAt === 'function'
@@ -1162,7 +1292,7 @@ function drawRealChart(name) {
               : deltaAt(series, refSeries, targetDist)))
           : interpolate(series, targetDist, field);
         if (Number.isFinite(value)) {
-          const x = bounds.left + fraction * (rect.width - bounds.left - bounds.right);
+          const x = xForFraction(fraction);
           const y = bounds.top + (bounds.max - value) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
           points.push({ x, y });
         }
@@ -1231,8 +1361,8 @@ function drawRealChart(name) {
   }
   
   // Render hover crosshair and marker circle
-  if (hoverFraction !== null) {
-    const crosshairX = bounds.left + hoverFraction * (rect.width - bounds.left - bounds.right);
+  if (hoverFraction !== null && fractionInView(hoverFraction)) {
+    const crosshairX = xForFraction(hoverFraction);
     
     // Draw vertical crosshair line
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
@@ -1249,7 +1379,13 @@ function drawRealChart(name) {
       
       const refSeries = telemetryCache.get(telemetryKey(loaded[0]));
       const targetDist = totalDist * hoverFraction;
-      const val = name === 'Timing delta' ? (index === 0 ? 0 : deltaAt(series, refSeries, targetDist)) : interpolate(series, targetDist, field);
+      const val = name === 'Timing delta'
+        ? (index === 0 ? 0 : (typeof displayDeltaAt === 'function'
+            ? displayDeltaAt(series, refSeries, hoverFraction)
+            : deltaAt(series, refSeries, targetDist)))
+        : name === 'Speed trace' && typeof smoothedTelemetryValue === 'function'
+          ? smoothedTelemetryValue(series, hoverFraction, 'Speed')
+          : interpolate(series, targetDist, field);
       
       if (Number.isFinite(val)) {
         const x = crosshairX;
@@ -1271,6 +1407,20 @@ function drawRealChart(name) {
       }
     });
   }
+
+  // Selection band while dragging on the speed trace. Releasing the mouse
+  // applies this same distance window to every telemetry chart.
+  if (name === 'Speed trace' && zoomDrag) {
+    const start = Math.max(viewStart, Math.min(zoomDrag.anchor, zoomDrag.current));
+    const end = Math.min(viewEnd, Math.max(zoomDrag.anchor, zoomDrag.current));
+    const x = xForFraction(start);
+    const width = Math.max(1, xForFraction(end) - x);
+    ctx.fillStyle = 'rgba(89, 158, 220, .24)';
+    ctx.fillRect(x, bounds.top, width, rect.height - bounds.top - bounds.bottom);
+    ctx.strokeStyle = 'rgba(126, 193, 255, .88)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + .5, bounds.top + .5, Math.max(0, width - 1), rect.height - bounds.top - bounds.bottom - 1);
+  }
 }
 
 // Binds hover interactions on all canvas charts
@@ -1285,7 +1435,15 @@ function bindAllChartHover() {
       
       const rect = canvas.getBoundingClientRect();
       const printableWidth = rect.width - 43 - 7;
-      const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left - 43) / printableWidth));
+      const localFraction = Math.max(0, Math.min(1, (e.clientX - rect.left - 43) / printableWidth));
+      const fraction = traceZoom.start + localFraction * (traceZoom.end - traceZoom.start);
+
+      if (zoomDrag && canvas.dataset.chart === 'Speed trace') {
+        zoomDrag.current = fraction;
+        tooltip.style.display = 'none';
+        drawRealChart('Speed trace');
+        return;
+      }
       
       hoverFraction = fraction;
       hoveredChartName = canvas.dataset.chart;
@@ -1308,7 +1466,11 @@ function bindAllChartHover() {
         let val = null;
         const targetDist = fraction * maxDistance;
         if (hoveredChartName === 'Timing delta') {
-          val = index === 0 ? 0 : deltaAt(series, refSamples, targetDist);
+          val = index === 0 ? 0 : (typeof displayDeltaAt === 'function'
+            ? displayDeltaAt(series, refSamples, fraction)
+            : deltaAt(series, refSamples, targetDist));
+        } else if (hoveredChartName === 'Speed trace' && typeof smoothedTelemetryValue === 'function') {
+          val = smoothedTelemetryValue(series, fraction, 'Speed');
         } else {
           val = interpolate(series, targetDist, field);
         }
@@ -1337,6 +1499,7 @@ function bindAllChartHover() {
     });
     
     canvas.addEventListener('mouseleave', () => {
+      if (zoomDrag && canvas.dataset.chart === 'Speed trace') return;
       hoverFraction = null;
       hoveredChartName = null;
       tooltip.style.display = 'none';
@@ -1695,22 +1858,28 @@ function renderMiniSectorMap() {
 
   // Highlight the timing sector selected in the compact corner panel. The
   // dominance colour remains visible on top of this wider neon underlay.
+  let highlightedCornerZone = null;
   if ($('#cornerToggle').checked && typeof adaptiveCornerZones === 'function') {
     const markerCorners = resolveCornerMarkers(reference, totalDistance, loaded[0]?.cornerMarkers);
     const zones = adaptiveCornerZones(markerCorners);
     const selectedZone = zones[Math.max(0, Math.min(selectedCornerIndex, zones.length - 1))];
     if (selectedZone) {
-      ctx.strokeStyle = 'rgba(224, 255, 0, .3)';
-      ctx.lineWidth = 11;
-      ctx.beginPath();
+      highlightedCornerZone = selectedZone;
       const steps = Math.max(4, Math.ceil((selectedZone.end - selectedZone.start) * totalDistance / 20));
-      for (let step = 0; step <= steps; step++) {
-        const point = pointAt(selectedZone.start + (selectedZone.end - selectedZone.start) * step / steps);
-        if (!point) continue;
-        if (step === 0) ctx.moveTo(point.x, point.y);
-        else ctx.lineTo(point.x, point.y);
-      }
-      ctx.stroke();
+      const drawHighlightPath = (color, width) => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        for (let step = 0; step <= steps; step++) {
+          const point = pointAt(selectedZone.start + (selectedZone.end - selectedZone.start) * step / steps);
+          if (!point) continue;
+          if (step === 0) ctx.moveTo(point.x, point.y);
+          else ctx.lineTo(point.x, point.y);
+        }
+        ctx.stroke();
+      };
+      drawHighlightPath('rgba(3, 5, 7, .92)', 17);
+      drawHighlightPath('rgba(234, 255, 24, .82)', 11);
     }
   }
 
@@ -1740,6 +1909,36 @@ function renderMiniSectorMap() {
     ctx.moveTo(from.x, from.y);
     ctx.lineTo(to.x, to.y);
     ctx.stroke();
+  }
+
+  if (highlightedCornerZone) {
+    const markerPoints = [
+      { fraction: highlightedCornerZone.start, label: 'IN', radius: 3 },
+      { fraction: highlightedCornerZone.apex, label: 'APEX', radius: 5 },
+      { fraction: highlightedCornerZone.end, label: 'OUT', radius: 3 },
+    ];
+    ctx.font = '7px monospace';
+    ctx.textAlign = 'center';
+    markerPoints.forEach(marker => {
+      const point = pointAt(marker.fraction);
+      if (!point) return;
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, marker.radius + 2, 0, Math.PI * 2);
+      ctx.fillStyle = '#07080a';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, marker.radius, 0, Math.PI * 2);
+      ctx.fillStyle = '#eaff18';
+      ctx.fill();
+      if (marker.label === 'APEX') {
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#07080a';
+        ctx.strokeText(marker.label, point.x, point.y - 11);
+        ctx.fillStyle = '#eaff18';
+        ctx.fillText(marker.label, point.x, point.y - 11);
+      }
+    });
+    ctx.textAlign = 'start';
   }
 
   // Corner markers rendered ON TOP of mini-sector dominance lines
@@ -1805,6 +2004,7 @@ function renderMiniSectorMap() {
 
 // Initial Setup on Document Load
 document.addEventListener('DOMContentLoaded', () => {
+  window.addEventListener('mouseup', finishZoomDrag);
   const yearSelect = $('#year');
   const currentYear = new Date().getFullYear();
   const years = [];
