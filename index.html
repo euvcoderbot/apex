@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>APEX DATA — F1 Telemetry Hub</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=lap-workspace-20260807">
 </head>
 <body>
   <header class="site-header">
@@ -43,19 +43,25 @@
         </div>
       </section>
 
-      <!-- Stints & Laps Picker -->
-      <section class="dashboard-card">
-        <h2>Stints & Laps</h2>
-        <div id="stintPanels">
-          <span class="section-empty">Select a driver to see stints and laps.</span>
+      <!-- Lap selection workspace -->
+      <section class="dashboard-card lap-workspace" id="lapWorkspace">
+        <div class="workspace-heading">
+          <div>
+            <h2>Lap Workspace</h2>
+            <p>Choose runs, then add the laps you want to compare.</p>
+          </div>
         </div>
-      </section>
-
-      <!-- Loaded Laps -->
-      <section class="dashboard-card" id="loadedCard">
-        <h2>Loaded Laps <small>Click to set reference</small></h2>
-        <div class="loaded-laps" id="loadedLaps">
-          <span class="section-empty">No laps loaded.</span>
+        <div id="stintPanels">
+          <span class="section-empty">Select a driver to inspect their runs and laps.</span>
+        </div>
+        <div class="comparison-tray" aria-label="Loaded comparison laps">
+          <div class="comparison-tray-heading">
+            <span>Comparison tray</span>
+            <small>Click a lap to make it reference</small>
+          </div>
+          <div class="loaded-laps" id="loadedLaps">
+            <span class="section-empty">No laps loaded.</span>
+          </div>
         </div>
       </section>
       <!-- Tire Nomination Info -->
@@ -117,7 +123,7 @@
   <footer>APEX DATA SYSTEMS · REPRESENTATIVE TELEMETRY · NOT OFFICIAL timing</footer>
 
   <!-- Single unified app logic -->
-  <script src="app.js?v=corner-projection-20260729"></script>
-  <script src="alignment.js?v=corner-projection-20260729"></script>
+  <script src="app.js?v=lap-workspace-20260807"></script>
+  <script src="alignment.js?v=lap-workspace-20260807"></script>
 </body>
 </html>

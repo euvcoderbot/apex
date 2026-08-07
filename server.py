@@ -31,7 +31,9 @@ logger = logging.getLogger("apex.telemetry")
 async def prevent_stale_local_assets(request: Request, call_next):
     """Keep local development browsers from serving an outdated chart build."""
     response = await call_next(request)
-    if request.url.path in {"/", "/index.html", "/app.js", "/alignment.js"}:
+    if request.url.path in {
+        "/", "/index.html", "/app.js", "/alignment.js", "/styles.css", "/design-system.css"
+    }:
         response.headers["Cache-Control"] = "no-store, max-age=0"
     return response
 

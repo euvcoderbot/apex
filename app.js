@@ -223,7 +223,7 @@ function clearBeforeSessionLoad() {
   activeDriverTab = null;
   telemetryCache.clear();
   $('#driverPills').innerHTML = '<span class="section-empty">Load a session to see its drivers.</span>';
-  $('#stintPanels').innerHTML = '<span class="section-empty">Select a driver to see stints and laps.</span>';
+  $('#stintPanels').innerHTML = '<span class="section-empty">Select a driver to inspect their runs and laps.</span>';
   $('#sectorRows').innerHTML = '';
   const apexSpeeds = $('#apexSpeeds');
   if (apexSpeeds) apexSpeeds.innerHTML = '';
@@ -252,25 +252,6 @@ async function loadRealSession() {
     corners = payload.corners || [];
     nominatedCompounds = payload.compounds || [];
     
-    // Automatically select the top 2 drivers and load their fastest laps for instant visual comparison
-    if (drivers.length > 0) {
-      const initialCodes = drivers.slice(0, Math.min(2, drivers.length)).map(d => d[0]);
-      selected = [...initialCodes];
-      activeDriverTab = selected[0];
-      
-      loaded = [];
-      selected.forEach(c => {
-        const d = realDrivers.get(c);
-        if (d && d.laps && d.laps.length) {
-          const validLaps = d.laps.filter(l => Number.isFinite(l.time) && l.time > 0);
-          const f = validLaps.length ? validLaps.reduce((a, b) => a.time < b.time ? a : b) : d.laps[0];
-          if (f) {
-            loaded.push({ code: c, lap: f.lap, time: f.time, real: f });
-          }
-        }
-      });
-    }
-
     renderDrivers();
     renderTireNomination();
     renderStints();
@@ -341,12 +322,10 @@ function renderDrivers() {
     btn.onclick = () => {
       const code = btn.dataset.code;
       if (selected.includes(code)) {
-        if (selected.length > 1) {
-          selected = selected.filter(x => x !== code);
-          loaded = loaded.filter(x => x.code !== code);
-          if (activeDriverTab === code) {
-            activeDriverTab = selected[0];
-          }
+        selected = selected.filter(x => x !== code);
+        loaded = loaded.filter(x => x.code !== code);
+        if (activeDriverTab === code) {
+          activeDriverTab = selected[0] || null;
         }
       } else {
         selected.push(code);
@@ -359,7 +338,7 @@ function renderDrivers() {
   });
 }
 
-function renderStints() {
+function renderStintsLegacy() {
   const root = $('#stintPanels');
   if (!selected.length) {
     root.innerHTML = '<span class="section-empty">Select a driver to see stints and laps.</span>';
@@ -502,6 +481,120 @@ function renderStints() {
   });
 }
 
+function fastestTimedLap(driver) {
+  const timed = driver?.laps?.filter(lap => Number.isFinite(lap.time) && lap.time > 0) || [];
+  return timed.length ? timed.reduce((fastest, lap) => lap.time < fastest.time ? lap : fastest) : null;
+}
+
+function toggleLoadedLap(code, lapNum) {
+  const lapObj = realDrivers.get(code)?.laps?.find(item => item.lap === lapNum);
+  if (!lapObj || !Number.isFinite(lapObj.time) || lapObj.time <= 0) return;
+  const index = loaded.findIndex(item => item.code === code && item.lap === lapNum);
+  if (index === -1) {
+    loaded.push({ code, lap: lapNum, time: lapObj.time, real: lapObj });
+  } else {
+    loaded.splice(index, 1);
+  }
+  renderAll();
+  renderStints();
+}
+
+function renderStints() {
+  const root = $('#stintPanels');
+  if (!selected.length) {
+    root.innerHTML = '<span class="section-empty">Select a driver to inspect their runs and laps.</span>';
+    return;
+  }
+
+  const isAllFastestLoaded = selected.every(code => {
+    const fastest = fastestTimedLap(realDrivers.get(code));
+    return fastest && loaded.some(item => item.code === code && item.lap === fastest.lap);
+  });
+
+  const toolbar = `
+    <div class="run-toolbar">
+      <span><b>${selected.length}</b> ${selected.length === 1 ? 'driver' : 'drivers'} selected</span>
+      <button id="compareAllFastest" class="compare-all-btn ${isAllFastestLoaded ? 'selected' : ''}" title="Add the fastest timed lap for every selected driver">&#9889; COMPARE FASTEST</button>
+    </div>
+  `;
+
+  const cards = selected.map(code => {
+    const driver = realDrivers.get(code);
+    const display = drivers.find(item => item[0] === code);
+    if (!driver || !display) return '';
+    const teamColor = display[3] || '#777777';
+    if (!driver.laps?.length) {
+      return `<article class="driver-run-card" style="--team:${teamColor}"><header class="run-card-header"><div class="run-driver"><b>${code}</b><h3>${driver.name}</h3></div></header><p class="section-empty">No laps in this session.</p></article>`;
+    }
+
+    const timedLaps = driver.laps.filter(lap => Number.isFinite(lap.time) && lap.time > 0);
+    const fastest = fastestTimedLap(driver);
+    const fastestLoaded = fastest && loaded.some(item => item.code === code && item.lap === fastest.lap);
+    const hasQualifyingPhases = driver.laps.some(lap => /^Q[1-3]$/.test(lap.phase || ''));
+    const groupIds = hasQualifyingPhases
+      ? ['Q1', 'Q2', 'Q3'].filter(phase => driver.laps.some(lap => lap.phase === phase))
+      : [...new Set(driver.laps.map(lap => String(lap.stint)))];
+    const active = String(openStint[code] ?? groupIds[0]);
+    const lapsForGroup = id => hasQualifyingPhases
+      ? driver.laps.filter(lap => lap.phase === id)
+      : driver.laps.filter(lap => String(lap.stint) === id);
+    const activeLaps = lapsForGroup(active);
+    const runButtons = groupIds.map(id => {
+      const laps = lapsForGroup(id);
+      const compound = getCompoundCode(laps[0]?.compound || 'UNKNOWN', nominatedCompounds);
+      const runLabel = hasQualifyingPhases ? id : `STINT ${id}`;
+      return `<button class="stint run-segment ${id === active ? 'selected' : ''}" style="--team:${teamColor}" data-code="${code}" data-stint="${id}"><strong>${runLabel}</strong><small>${compound} &middot; ${laps.length} ${laps.length === 1 ? 'LAP' : 'LAPS'}</small></button>`;
+    }).join('');
+    const lapButtons = activeLaps.map(lap => {
+      const isLoaded = loaded.some(item => item.code === code && item.lap === lap.lap);
+      const flag = lap.in_lap ? 'IN' : lap.out_lap ? 'OUT' : `L${lap.lap}`;
+      const classes = ['lap', 'lap-chip', lap.in_lap || lap.out_lap ? 'in-out' : '', isLoaded ? 'selected' : ''].filter(Boolean).join(' ');
+      const duration = Number.isFinite(lap.time) ? time(lap.time) : '&mdash;';
+      return `<button class="${classes}" style="--team:${teamColor}" data-code="${code}" data-lap="${lap.lap}" ${Number.isFinite(lap.time) ? '' : 'disabled'}><span class="lap-token">${flag}</span><span class="lap-clock">${duration}</span></button>`;
+    }).join('');
+    const groupLabel = hasQualifyingPhases ? active : `STINT ${active}`;
+
+    return `
+      <article class="driver-run-card" style="--team:${teamColor}">
+        <header class="run-card-header">
+          <div class="run-driver"><b>${code}</b><h3>${driver.name}</h3><small>${timedLaps.length} TIMED LAPS</small></div>
+          ${fastest ? `<button class="fastest-lap-pick ${fastestLoaded ? 'selected' : ''}" data-code="${code}" data-lap="${fastest.lap}" title="Add or remove this fastest lap"><span>FASTEST</span><strong>${time(fastest.time)}</strong></button>` : ''}
+        </header>
+        <div class="run-section-label"><span>RUNS</span><small>select a run to reveal its laps</small></div>
+        <div class="run-segments">${runButtons}</div>
+        <div class="lap-group-header"><span>${groupLabel} LAPS</span><small>${activeLaps.length} AVAILABLE</small></div>
+        <div class="lap-grid">${lapButtons}</div>
+      </article>
+    `;
+  }).join('');
+
+  root.innerHTML = toolbar + cards;
+
+  $('#compareAllFastest').onclick = () => {
+    const fastestLaps = selected.map(code => ({ code, lap: fastestTimedLap(realDrivers.get(code)) })).filter(item => item.lap);
+    if (isAllFastestLoaded) {
+      loaded = loaded.filter(item => !fastestLaps.some(target => target.code === item.code && target.lap.lap === item.lap));
+    } else {
+      fastestLaps.forEach(target => {
+        if (!loaded.some(item => item.code === target.code && item.lap === target.lap.lap)) {
+          loaded.push({ code: target.code, lap: target.lap.lap, time: target.lap.time, real: target.lap });
+        }
+      });
+    }
+    renderAll();
+    renderStints();
+  };
+
+  root.querySelectorAll('.stint').forEach(button => {
+    button.onclick = () => {
+      openStint[button.dataset.code] = button.dataset.stint;
+      renderStints();
+    };
+  });
+  root.querySelectorAll('.lap:not(:disabled), .fastest-lap-pick').forEach(button => {
+    button.onclick = () => toggleLoadedLap(button.dataset.code, +button.dataset.lap);
+  });
+}
 
 function renderLoaded() {
   const root = $('#loadedLaps');
@@ -846,6 +939,29 @@ function formatTick(val) {
   return val.toFixed(2);
 }
 
+function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7) {
+  const calloutWidth = 46;
+  const gap = 4;
+  const plotWidth = width - left - right;
+  const laneEnds = [];
+  // Source corner rows are normally delivered in lap order, but sorting here
+  // guarantees lane allocation still works if a provider returns them shuffled.
+  const items = [...markers]
+    .filter(corner => Number.isFinite(corner.fraction))
+    .sort((a, b) => a.fraction - b.fraction)
+    .map(corner => {
+      const x = left + corner.fraction * plotWidth;
+      let lane = laneEnds.findIndex(end => x - calloutWidth / 2 >= end + gap);
+      if (lane < 0) {
+        lane = laneEnds.length;
+        laneEnds.push(-Infinity);
+      }
+      laneEnds[lane] = x + calloutWidth / 2;
+      return { corner, x, lane, width: calloutWidth };
+    });
+  return { items, lanes: laneEnds.length };
+}
+
 // Draw a single canvas chart
 function drawRealChart(name) {
   const canvas = document.querySelector(`[data-chart="${name}"]`);
@@ -914,20 +1030,35 @@ function drawRealChart(name) {
   const niceBounds = getNiceBounds(name, rawMin, rawMax);
   const min = niceBounds.min;
   const max = niceBounds.max;
-  const bounds = { left: 43, right: 7, top: 8, bottom: 15, min, max, tickStep: niceBounds.tickStep };
+  const refLap = loaded[0];
+  const refSamples = telemetryCache.get(telemetryKey(refLap));
+  const totalDist = refSamples && refSamples.length ? refSamples[refSamples.length - 1].Distance : 5891;
+  const speedCornerMarkers = name === 'Speed trace' && $('#cornerToggle').checked
+    ? resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers)
+    : [];
+  const showCornerSpeeds = loaded.length <= 2;
+  const cornerCalloutLayout = layoutSpeedCornerCallouts(speedCornerMarkers, rect.width);
+  const cornerTopInset = speedCornerMarkers.length
+    ? 10 + cornerCalloutLayout.lanes * (showCornerSpeeds ? 25 : 16)
+    : 8;
+  const bounds = {
+    left: 43,
+    right: 7,
+    top: name === 'Speed trace' ? cornerTopInset : 8,
+    bottom: 15,
+    min,
+    max,
+    tickStep: niceBounds.tickStep
+  };
   
   // Render grid axes
   drawGridAxes(ctx, rect.width, rect.height, bounds, unit);
   
-  const refLap = loaded[0];
-  const refSamples = telemetryCache.get(telemetryKey(refLap));
-  const totalDist = refSamples && refSamples.length ? refSamples[refSamples.length - 1].Distance : 5891;
   if (name === 'Speed trace' && $('#cornerToggle').checked) {
-    const markerCorners = resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers);
-    const count = markerCorners.length;
+    const count = speedCornerMarkers.length;
     const projection = refLap?.cornerMarkers?.[0]?.source === 'lap_projection';
     $('#cornerStatus').textContent = count
-      ? `${count} official corner markers aligned to this lap${projection ? ' (lap projection).' : '.'}`
+      ? `${count} official corner markers aligned to this lap${projection ? ' (lap projection).' : '.'}${showCornerSpeeds ? '' : ' Hover a trace for speeds.'}`
       : 'Corner coordinates are unavailable for this telemetry source.';
   }
   
@@ -1062,59 +1193,48 @@ function drawRealChart(name) {
     ctx.stroke();
   });
   
-  // Draw Corner apex min speed dots on the Speed trace chart (with clean text labels stacked at the top)
+  // Draw collision-free corner callouts in a reserved header band. With one
+  // or two loaded laps, their exact speeds sit inside the matching callout;
+  // larger comparisons retain trace dots and expose all values on hover.
   if (name === 'Speed trace' && $('#cornerToggle').checked) {
-    const markerCorners = resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers);
-    const labelRightEdge = [-Infinity, -Infinity, -Infinity, -Infinity];
-    markerCorners.forEach(corner => {
+    const rowHeight = showCornerSpeeds ? 25 : 16;
+    const calloutHeight = showCornerSpeeds ? 21 : 11;
+    cornerCalloutLayout.items.forEach(({ corner, x, lane, width }) => {
       const markerFraction = corner.fraction;
       if (!Number.isFinite(markerFraction)) return;
-      const x = bounds.left + markerFraction * (rect.width - bounds.left - bounds.right);
-      if (x < bounds.left || x > rect.width - bounds.right) return;
-      let labelLevel = labelRightEdge.findIndex(edge => x - edge >= 26);
-      if (labelLevel < 0) labelLevel = 3;
-      labelRightEdge[labelLevel] = x + 13;
-      const labelY = 2 + labelLevel * 13;
-      
-      // Place each turn label once and stagger nearby turns so their labels
-      // never hide one another.
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.fillRect(x - 12, labelY, 24, 10);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      const labelY = 4 + lane * rowHeight;
+      const left = x - width / 2;
+
+      ctx.fillStyle = 'rgba(12, 14, 18, 0.94)';
+      ctx.fillRect(left, labelY, width, calloutHeight);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
       ctx.lineWidth = 1;
-      ctx.strokeRect(x - 12, labelY, 24, 10);
-      
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+      ctx.strokeRect(left + .5, labelY + .5, width - 1, calloutHeight - 1);
+      ctx.fillStyle = 'rgba(255, 255, 255, .78)';
       ctx.font = '8px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(cornerLabel(corner), x, labelY + 7);
-      
-      // Corner dots & stacked speed values
+      ctx.fillText(cornerLabel(corner), x, labelY + 8);
+
       loaded.forEach((lap, index) => {
         const samples = telemetryCache.get(telemetryKey(lap));
-        if (!samples || !samples.length) return;
-        
-        const teamColor = getDriverColor(lap.code);
-        // The dot uses the exact display value, so it is always physically
-        // attached to the rendered speed trace rather than a nearby raw sample.
+        if (!samples?.length) return;
         const markerSpeed = smoothedTelemetryValue(samples, markerFraction, 'Speed');
-        
-        if (Number.isFinite(markerSpeed)) {
-          const markerY = bounds.top + (bounds.max - markerSpeed) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
-          ctx.beginPath();
-          ctx.arc(x, markerY, 2.5, 0, 2 * Math.PI);
-          ctx.fillStyle = teamColor;
-          ctx.fill();
-          
-          // Stack text speed numbers under the turn pill
-          const textY = 24 + index * 10;
-          ctx.fillStyle = teamColor;
+        if (!Number.isFinite(markerSpeed)) return;
+
+        const markerY = bounds.top + (bounds.max - markerSpeed) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
+        ctx.beginPath();
+        ctx.arc(x, markerY, 2.7, 0, 2 * Math.PI);
+        ctx.fillStyle = getDriverColor(lap.code);
+        ctx.fill();
+
+        if (showCornerSpeeds) {
+          const speedX = loaded.length === 1 ? x : x + (index === 0 ? -10 : 10);
+          ctx.fillStyle = getDriverColor(lap.code);
           ctx.font = '8px monospace';
-          ctx.fillText(Math.round(markerSpeed), x, textY);
+          ctx.fillText(Math.round(markerSpeed), speedX, labelY + 18);
         }
       });
-      
-      ctx.textAlign = 'left'; // restore default alignment
+      ctx.textAlign = 'left';
     });
   }
   
