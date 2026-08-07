@@ -230,6 +230,7 @@ function clearBeforeSessionLoad() {
   
   const tireCard = $('#tireCard');
   if (tireCard) tireCard.style.display = 'none';
+  updateTelemetryVisibility();
 }
 
 // Main Session API Loader
@@ -727,10 +728,11 @@ function getSectorDistances(lap) {
   if (!lap) return { s1: null, s2: null };
   const samples = telemetryCache.get(telemetryKey(lap));
   if (!samples || !samples.length) return { s1: null, s2: null };
-  
-  const lapTime = lap.time;
-  const s1Time = lap.s1;
-  const s2Time = lap.s2;
+
+  const meta = lap.real || lap;
+  const lapTime = lap.time ?? meta.time;
+  const s1Time = meta.s1;
+  const s2Time = meta.s2;
   
   if (!s1Time || !s2Time || !lapTime) return { s1: null, s2: null };
   
@@ -819,7 +821,7 @@ function resolveCornerMarkers(samples, totalDistance, suppliedMarkers = null) {
   const markerRows = Array.isArray(suppliedMarkers) && suppliedMarkers.length
     ? suppliedMarkers
     : corners;
-  const positionSamples = samples.filter(point => Number.isFinite(+point.X) && Number.isFinite(+point.Y));
+  const positionSamples = samples.filter(point => point.X != null && point.Y != null && Number.isFinite(+point.X) && Number.isFinite(+point.Y));
   const xs = positionSamples.map(point => +point.X);
   const ys = positionSamples.map(point => +point.Y);
   const diagonal = positionSamples.length > 1
@@ -1369,7 +1371,7 @@ function bindTrackMapHover() {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    const trackSamples = reference.filter(point => Number.isFinite(+point.X) && Number.isFinite(+point.Y));
+    const trackSamples = reference.filter(point => point.X != null && point.Y != null && Number.isFinite(+point.X) && Number.isFinite(+point.Y));
     if (!trackSamples.length) return;
 
     const minX = Math.min(...trackSamples.map(p => +p.X));
@@ -1450,6 +1452,9 @@ async function drawAll() {
     }
   });
   await Promise.all(promises);
+  if (typeof prepareTelemetryAlignment === 'function') {
+    prepareTelemetryAlignment();
+  }
   const season = Number($('#year').value);
   const activeDefs = season >= 2026
     ? defs.filter(([name]) => name !== 'DRS')
@@ -1458,7 +1463,17 @@ async function drawAll() {
   renderMiniSectorMap();
 }
 
+function updateTelemetryVisibility() {
+  const card = $('#telemetryCard');
+  if (!card) return;
+  const empty = loaded.length === 0;
+  card.classList.toggle('is-empty', empty);
+  const emptyState = $('#telemetryEmpty');
+  if (emptyState) emptyState.hidden = !empty;
+}
+
 function renderAll() {
+  updateTelemetryVisibility();
   renderLoaded();
   renderSectors();
   drawAll();
@@ -1532,7 +1547,7 @@ function renderMiniSectorMap() {
 
   const reference = telemetryCache.get(telemetryKey(loaded[0]));
   const allSeries = loaded.map(lap => telemetryCache.get(telemetryKey(lap)));
-  const trackSamples = reference?.filter(point => Number.isFinite(+point.X) && Number.isFinite(+point.Y)) || [];
+  const trackSamples = reference?.filter(point => point.X != null && point.Y != null && Number.isFinite(+point.X) && Number.isFinite(+point.Y)) || [];
   if (!reference?.length || !allSeries.every(series => series?.length) || trackSamples.length < 2) {
     canvas.style.display = 'none';
     empty.style.display = 'block';

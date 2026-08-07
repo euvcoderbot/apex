@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>APEX DATA — F1 Telemetry Hub</title>
-  <link rel="stylesheet" href="styles.css?v=lap-workspace-20260807">
+  <link rel="stylesheet" href="styles.css?v=alignment-layout-20260807">
 </head>
 <body>
   <header class="site-header">
@@ -13,20 +13,19 @@
   </header>
   
   <main id="top">
-    <!-- Sidebar Controls -->
-    <div class="sidebar">
-      <!-- Session Controls -->
+    <aside class="sidebar" aria-label="Session and driver controls">
       <section class="dashboard-card session-controls" aria-label="Session selection">
-        <h2>Session Control</h2>
+        <div class="panel-heading">
+          <span class="panel-index">01</span>
+          <div><h2>Session Control</h2><p>Choose an event before loading its timing data.</p></div>
+        </div>
         <div class="control-field">
           <label for="year">Season</label>
           <select id="year"></select>
         </div>
         <div class="control-field">
           <label for="gp">Grand Prix</label>
-          <select id="gp">
-            <option>Loading calendar…</option>
-          </select>
+          <select id="gp"><option>Loading calendar…</option></select>
         </div>
         <div class="control-field">
           <label for="session">Session</label>
@@ -35,21 +34,30 @@
         <button id="loadSession">Load session</button>
       </section>
 
-      <!-- Driver Selection -->
-      <section class="dashboard-card">
-        <h2>Select Drivers</h2>
+      <section class="dashboard-card driver-control-card">
+        <div class="panel-heading">
+          <span class="panel-index">02</span>
+          <div><h2>Select Drivers</h2><p>Add one driver or build a full-field comparison.</p></div>
+        </div>
         <div class="pills" id="driverPills">
           <span class="section-empty">Load a session to see its drivers.</span>
         </div>
       </section>
 
-      <!-- Lap selection workspace -->
+      <section class="dashboard-card" id="tireCard" style="display: none;">
+        <div class="panel-heading panel-heading-compact">
+          <span class="panel-index">TY</span>
+          <div><h2>Event Tyres</h2><p>Dry compounds nominated for this weekend.</p></div>
+        </div>
+        <div class="tire-nomination-container" id="tireNomination"></div>
+      </section>
+    </aside>
+
+    <div class="analysis-column">
       <section class="dashboard-card lap-workspace" id="lapWorkspace">
-        <div class="workspace-heading">
-          <div>
-            <h2>Lap Workspace</h2>
-            <p>Choose runs, then add the laps you want to compare.</p>
-          </div>
+        <div class="panel-heading workspace-heading">
+          <span class="panel-index">03</span>
+          <div><h2>Lap Workspace</h2><p>Open each driver's runs, choose laps, then set the reference from the tray.</p></div>
         </div>
         <div id="stintPanels">
           <span class="section-empty">Select a driver to inspect their runs and laps.</span>
@@ -64,66 +72,59 @@
           </div>
         </div>
       </section>
-      <!-- Tire Nomination Info -->
-      <section class="dashboard-card" id="tireCard" style="display: none;">
-        <h2>Event Tyre Compounds</h2>
-        <div class="tire-nomination-container" id="tireNomination"></div>
-      </section>
-    </div>
 
-    <!-- Main Telemetry Dashboard -->
-    <div class="main-dashboard">
-      <section class="telemetry-card">
-        <div class="section-heading">
-          <div>
-            <h1>Aligned Lap Telemetry</h1>
-            <p>Hover any graph for synchronized distance and telemetry values.</p>
+      <div class="main-dashboard">
+        <section class="telemetry-card is-empty" id="telemetryCard">
+          <div class="section-heading">
+            <div>
+              <span class="section-kicker">04 / ANALYZE</span>
+              <h1>Aligned Lap Telemetry</h1>
+              <p>Position-aligned traces with synchronized distance, delta and driver inputs.</p>
+            </div>
+            <div class="legend" id="legend"></div>
           </div>
-          <div class="legend" id="legend"></div>
-        </div>
 
-        <!-- Sector Times Table -->
-        <section class="sector-times" aria-label="Selected lap sector times">
-          <div class="sector-row sector-labels">
-            <span>Loaded Lap</span>
-            <span>Lap Time</span>
-            <span>Sector 1</span>
-            <span>Sector 2</span>
-            <span>Sector 3</span>
+          <div class="telemetry-empty" id="telemetryEmpty">
+            <span>NO LAPS LOADED</span>
+            <strong>Your telemetry stack will appear here.</strong>
+            <p>Select laps in the workspace above to start the comparison.</p>
           </div>
-          <div id="sectorRows"></div>
+
+          <div class="telemetry-content" id="telemetryContent">
+            <section class="sector-times" aria-label="Selected lap sector times">
+              <div class="sector-row sector-labels">
+                <span>Loaded Lap</span><span>Lap Time</span><span>Sector 1</span><span>Sector 2</span><span>Sector 3</span>
+              </div>
+              <div id="sectorRows"></div>
+            </section>
+
+            <section class="dominance-map" aria-labelledby="dominanceTitle">
+              <div class="dominance-map-header">
+                <h2 id="dominanceTitle">Mini-sector dominance <small>25 M SEGMENTS</small></h2>
+                <div class="legend" id="dominanceLegend"></div>
+              </div>
+              <canvas id="dominanceCanvas" aria-label="Track map showing the fastest loaded lap in each mini-sector"></canvas>
+              <span class="section-empty" id="dominanceEmpty">Load comparison laps to generate the track map.</span>
+            </section>
+
+            <div class="chart-options">
+              <div class="alignment-readout"><i></i><span id="alignmentStatus" data-state="idle">Awaiting lap selection</span></div>
+              <label><input type="checkbox" id="cornerToggle"> Corner numbers</label>
+              <span id="cornerStatus">Corner labels appear when mapped distance data is available.</span>
+            </div>
+
+            <div class="charts" id="charts"></div>
+            <div class="tooltip" id="realTooltip"></div>
+          </div>
         </section>
-
-        <section class="dominance-map" aria-labelledby="dominanceTitle">
-          <div class="dominance-map-header">
-            <h2 id="dominanceTitle">Mini-sector dominance <small>25 M SEGMENTS</small></h2>
-            <div class="legend" id="dominanceLegend"></div>
-          </div>
-          <canvas id="dominanceCanvas" aria-label="Track map showing the fastest loaded lap in each mini-sector"></canvas>
-          <span class="section-empty" id="dominanceEmpty">Load comparison laps to generate the track map.</span>
-        </section>
-        
-        <!-- Chart Toggle Options -->
-        <div class="chart-options">
-          <label>
-            <input type="checkbox" id="cornerToggle"> Corner numbers
-          </label>
-          <span id="cornerStatus">Corner labels appear when mapped distance data is available.</span>
-        </div>
-
-        <!-- Telemetry Graphs -->
-        <div class="charts" id="charts"></div>
-        
-        <!-- Hover Tooltip -->
-        <div class="tooltip" id="realTooltip"></div>
-      </section>
+      </div>
     </div>
   </main>
 
-  <footer>APEX DATA SYSTEMS · REPRESENTATIVE TELEMETRY · NOT OFFICIAL timing</footer>
+  <footer>APEX DATA SYSTEMS · FASTF1 / OPENF1 TELEMETRY · UNOFFICIAL ANALYSIS</footer>
 
   <!-- Single unified app logic -->
-  <script src="app.js?v=lap-workspace-20260807"></script>
-  <script src="alignment.js?v=lap-workspace-20260807"></script>
+  <script src="app.js?v=alignment-layout-20260807"></script>
+  <script src="alignment.js?v=alignment-layout-20260807"></script>
 </body>
 </html>

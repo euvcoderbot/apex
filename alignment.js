@@ -1,39 +1,132 @@
-// Lap alignment and telemetry semantics overrides.
-// All traces are compared at equal *relative* track distance, not at a raw
-// reference distance. This removes endpoint drift between different lap traces.
+// Physical lap alignment and quality-aware telemetry rendering.
+//
+// Alignment follows the circuit, not the shape of a driver's speed trace:
+//   1. project position samples onto the reference lap when X/Y is trustworthy;
+//   2. lock the result to official sector boundaries when sector times exist;
+//   3. fall back to sector-normalized integrated distance when position is absent.
+//
+// Speed reconstruction is display-only. Raw samples remain the source for
+// hover values, timing delta, corner-speed calculations and mini-sector timing.
+
+const ALIGNMENT_SEARCH_WINDOW = 0.12;
+
+function clampTelemetry(value, min = 0, max = 1) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function telemetryNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function hasTelemetryNumber(value) {
+  return telemetryNumber(value) !== null;
+}
+
+function medianTelemetry(values) {
+  const finite = values.filter(Number.isFinite).sort((a, b) => a - b);
+  if (!finite.length) return null;
+  const middle = Math.floor(finite.length / 2);
+  return finite.length % 2 ? finite[middle] : (finite[middle - 1] + finite[middle]) / 2;
+}
+
+function setTelemetryMeta(samples, name, value) {
+  Object.defineProperty(samples, name, {
+    value,
+    writable: true,
+    configurable: true,
+  });
+}
+
+function lapMetadata(lap) {
+  return lap?.real || lap || {};
+}
 
 function referenceDistance() {
   const reference = loaded[0] && telemetryCache.get(telemetryKey(loaded[0]));
-  return reference?.length ? reference[reference.length - 1].Distance : 1;
+  return reference?.length ? (+reference[reference.length - 1].Distance || 1) : 1;
 }
 
-function normalizeTelemetry(samples, lap) {
-  if (!samples?.length) return samples;
-  samples.sort((a, b) => (+a.ElapsedSeconds || 0) - (+b.ElapsedSeconds || 0));
-  const firstRawTime = +samples[0].ElapsedSeconds || 0;
-  if (Number.isFinite(lap.time) && lap.time > 0) {
-    const trimmed = samples.filter(point => {
-      const elapsed = (+point.ElapsedSeconds || 0) - firstRawTime;
-      return elapsed >= -0.25 && elapsed <= lap.time + 0.25;
-    });
-    if (trimmed.length >= 2) {
-      samples.length = 0;
-      samples.push(...trimmed);
+function rawFractionAt(samples, point) {
+  const total = +samples?.[samples.length - 1]?.Distance || 1;
+  return clampTelemetry((+point?.Distance || 0) / total);
+}
+
+function telemetryQuality(samples, source = 'Unknown') {
+  const timeSteps = [];
+  let repeatedSpeed = 0;
+  let positionCount = 0;
+  for (let index = 0; index < samples.length; index++) {
+    const point = samples[index];
+    if (hasTelemetryNumber(point.X) && hasTelemetryNumber(point.Y)) positionCount++;
+    if (index > 0) {
+      const dt = (+point.ElapsedSeconds || 0) - (+samples[index - 1].ElapsedSeconds || 0);
+      if (dt > 0 && dt < 5) timeSteps.push(dt);
+      if (hasTelemetryNumber(point.Speed) && hasTelemetryNumber(samples[index - 1].Speed)
+        && +point.Speed === +samples[index - 1].Speed) repeatedSpeed++;
     }
   }
-  samples.sort((a, b) => (+a.Distance || 0) - (+b.Distance || 0));
-  const firstDistance = +samples[0].Distance || 0;
-  const firstTime = +samples[0].ElapsedSeconds || 0;
-  samples.forEach(point => {
-    point.Distance = Math.max(0, (+point.Distance || 0) - firstDistance);
-    point.ElapsedSeconds = Math.max(0, (+point.ElapsedSeconds || 0) - firstTime);
+  return {
+    source,
+    samples: samples.length,
+    medianInterval: medianTelemetry(timeSteps) || 0,
+    repeatSpeedRatio: repeatedSpeed / Math.max(1, samples.length - 1),
+    positionCoverage: positionCount / Math.max(1, samples.length),
+  };
+}
+
+function normalizeTelemetry(samples, lap, source = 'Unknown') {
+  if (!Array.isArray(samples) || !samples.length) return samples || [];
+
+  const ordered = samples
+    .filter(point => Number.isFinite(+point.ElapsedSeconds) && Number.isFinite(+point.Distance))
+    .sort((a, b) => (+a.ElapsedSeconds || 0) - (+b.ElapsedSeconds || 0));
+  if (ordered.length < 2) return ordered;
+
+  const firstRawTime = +ordered[0].ElapsedSeconds || 0;
+  const officialDuration = Number.isFinite(+lap?.time) && +lap.time > 0 ? +lap.time : null;
+  const trimmed = officialDuration
+    ? ordered.filter(point => {
+        const elapsed = (+point.ElapsedSeconds || 0) - firstRawTime;
+        return elapsed >= -0.35 && elapsed <= officialDuration + 0.45;
+      })
+    : ordered;
+  const usable = trimmed.length >= 2 ? trimmed : ordered;
+  const firstDistance = +usable[0].Distance || 0;
+  const firstTime = +usable[0].ElapsedSeconds || 0;
+  let previousDistance = 0;
+  let previousTime = 0;
+
+  const normalized = usable.map((point, index) => {
+    const distance = Math.max(previousDistance, (+point.Distance || 0) - firstDistance);
+    const elapsed = Math.max(previousTime, (+point.ElapsedSeconds || 0) - firstTime);
+    previousDistance = distance;
+    previousTime = elapsed;
+    return {
+      ...point,
+      Distance: distance,
+      ElapsedSeconds: elapsed,
+      Speed: telemetryNumber(point.Speed),
+      Throttle: telemetryNumber(point.Throttle),
+      RPM: telemetryNumber(point.RPM),
+      nGear: telemetryNumber(point.nGear),
+      DRS: point.DRS,
+      X: telemetryNumber(point.X),
+      Y: telemetryNumber(point.Y),
+      SampleIndex: index,
+    };
   });
-  const rawDuration = +samples[samples.length - 1].ElapsedSeconds || 0;
-  Object.defineProperties(samples, {
-    lapDuration: { value: Number.isFinite(lap.time) ? lap.time : rawDuration, configurable: true },
-    rawDuration: { value: rawDuration, configurable: true },
-  });
-  return samples;
+
+  const rawDuration = +normalized[normalized.length - 1].ElapsedSeconds || 0;
+  setTelemetryMeta(normalized, 'lapDuration', officialDuration || rawDuration);
+  setTelemetryMeta(normalized, 'rawDuration', rawDuration);
+  setTelemetryMeta(normalized, 'lapMeta', lapMetadata(lap));
+  setTelemetryMeta(normalized, 'source', source);
+  setTelemetryMeta(normalized, 'quality', telemetryQuality(normalized, source));
+  setTelemetryMeta(normalized, 'alignmentMethod', 'distance');
+  setTelemetryMeta(normalized, 'speedModel', null);
+  return normalized;
 }
 
 async function fetchTelemetry(lap) {
@@ -45,39 +138,29 @@ async function fetchTelemetry(lap) {
   const response = await fetch(`/api/telemetry?${query}`);
   const payload = await readApiResponse(response);
   if (!response.ok) throw new Error(payload.detail || 'Telemetry unavailable for this lap');
-  const samples = normalizeTelemetry(payload.samples || [], lap);
-  // The API projects official circuit corners onto this exact lap before the
-  // browser draws anything.  Keeping the markers with the lap removes the
-  // old client-side coordinate reconciliation that could collapse labels at
-  // the trace origin when a FastF1 distance field was missing.
+
+  const samples = normalizeTelemetry(payload.samples || [], lap, payload.source || 'Unknown');
   lap.cornerMarkers = Array.isArray(payload.corners) ? payload.corners : [];
   const season = Number($('#year').value);
   const rawModeValues = samples.map(point => Number(point.DRS)).filter(Number.isFinite);
   const hasRawMode = rawModeValues.some(value => value > 0);
-  
-  samples.modeAvailable = true;
+  setTelemetryMeta(samples, 'modeAvailable', hasRawMode || season < 2026);
+
   samples.forEach(point => {
     const speed = +point.Speed || 0;
     const throttle = +point.Throttle || 0;
     const brake = point.Brake === true ? 100 : (+point.Brake || 0);
     const nGear = +point.nGear || 0;
     const rawDrs = Number(point.DRS);
-
     if (season < 2026) {
-      if (hasRawMode) {
-        point.DRS = ([10, 12, 14, 1].includes(rawDrs) || rawDrs >= 10) ? 1 : 0;
-      } else {
-        point.DRS = (speed >= 250 && throttle >= 95 && brake <= 5) ? 1 : 0;
-      }
+      point.DRS = hasRawMode
+        ? (([10, 12, 14, 1].includes(rawDrs) || rawDrs >= 10) ? 1 : 0)
+        : ((speed >= 250 && throttle >= 95 && brake <= 5) ? 1 : 0);
     } else {
-      if (hasRawMode) {
-        point.DRS = (rawDrs > 0) ? 1 : 0;
-      } else {
-        // 2026 Straight-Line Mode (Active Aero / X-Mode on high speed straights)
-        point.DRS = (speed >= 250 && throttle >= 95 && brake <= 5 && nGear >= 6) ? 1 : 0;
-      }
+      point.DRS = hasRawMode
+        ? (rawDrs > 0 ? 1 : 0)
+        : ((speed >= 250 && throttle >= 95 && brake <= 5 && nGear >= 6) ? 1 : 0);
     }
-    
     point.Brake = brake;
   });
 
@@ -85,82 +168,480 @@ async function fetchTelemetry(lap) {
   return samples;
 }
 
-function interpolate(samples, targetDistance, field) {
-  if (!samples?.length) return null;
-  const sourceTotal = +samples[samples.length - 1].Distance || 0;
-  const fraction = Math.max(0, Math.min(1, targetDistance / referenceDistance()));
-  const target = fraction * sourceTotal;
-  if (target <= 0) return samples[0][field];
-  if (target >= sourceTotal) return samples[samples.length - 1][field];
-  const index = samples.findIndex(point => point.Distance >= target);
-  if (index <= 0) return samples[0][field];
-  const a = samples[index - 1], b = samples[index];
-  const ratio = (target - a.Distance) / (b.Distance - a.Distance || 1);
-  if (field === 'nGear' || field === 'DRS') return ratio < .5 ? a[field] : b[field];
-  return (+a[field]) + ((+b[field]) - (+a[field])) * ratio;
+function fractionAtElapsed(samples, elapsed) {
+  if (!samples?.length || !Number.isFinite(elapsed)) return null;
+  if (elapsed <= 0) return 0;
+  const total = +samples[samples.length - 1].Distance || 1;
+  if (elapsed >= (+samples[samples.length - 1].ElapsedSeconds || 0)) return 1;
+  let low = 1;
+  let high = samples.length - 1;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if ((+samples[middle].ElapsedSeconds || 0) < elapsed) low = middle + 1;
+    else high = middle;
+  }
+  const after = samples[low];
+  const before = samples[low - 1];
+  const ratio = (elapsed - before.ElapsedSeconds) / (after.ElapsedSeconds - before.ElapsedSeconds || 1);
+  return clampTelemetry((before.Distance + (after.Distance - before.Distance) * ratio) / total);
 }
 
-// Render speed from a small median window on the distance-normalized trace.
-// This removes isolated 3.7 Hz source spikes while preserving braking and
-// acceleration changes; raw telemetry remains untouched for all calculations.
+function sectorFractions(samples, lap) {
+  const meta = lapMetadata(lap);
+  const s1 = Number(meta.s1);
+  const s2 = Number(meta.s2);
+  const result = [];
+  if (Number.isFinite(s1) && s1 > 0) result.push(fractionAtElapsed(samples, s1));
+  if (Number.isFinite(s1) && Number.isFinite(s2) && s1 > 0 && s2 > 0) {
+    result.push(fractionAtElapsed(samples, s1 + s2));
+  }
+  return result.filter(value => Number.isFinite(value) && value > 0 && value < 1);
+}
+
+function isotonicFractions(values) {
+  const blocks = values.map((value, index) => ({ start: index, end: index, value, weight: 1 }));
+  for (let index = 0; index < blocks.length - 1;) {
+    if (blocks[index].value <= blocks[index + 1].value) {
+      index++;
+      continue;
+    }
+    const left = blocks[index];
+    const right = blocks[index + 1];
+    const weight = left.weight + right.weight;
+    blocks.splice(index, 2, {
+      start: left.start,
+      end: right.end,
+      value: (left.value * left.weight + right.value * right.weight) / weight,
+      weight,
+    });
+    if (index > 0) index--;
+  }
+  const result = new Array(values.length);
+  blocks.forEach(block => {
+    for (let index = block.start; index <= block.end; index++) result[index] = block.value;
+  });
+  return result;
+}
+
+function referencePositionPath(reference) {
+  const total = +reference?.[reference.length - 1]?.Distance || 0;
+  const positioned = reference?.filter(point => hasTelemetryNumber(point.X) && hasTelemetryNumber(point.Y)) || [];
+  if (!total || positioned.length < 12) return null;
+  const xs = positioned.map(point => +point.X);
+  const ys = positioned.map(point => +point.Y);
+  const diagonal = Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  if (!diagonal) return null;
+  const minimumStep = diagonal * 0.00035;
+  const points = [];
+  positioned.forEach(point => {
+    const candidate = { x: +point.X, y: +point.Y, fraction: rawFractionAt(reference, point) };
+    const previous = points[points.length - 1];
+    if (!previous || Math.hypot(candidate.x - previous.x, candidate.y - previous.y) >= minimumStep) {
+      points.push(candidate);
+    }
+  });
+  if (points.length < 12) return null;
+  const segments = points.slice(0, -1).map((point, index) => ({
+    a: point,
+    b: points[index + 1],
+    middle: (point.fraction + points[index + 1].fraction) / 2,
+  }));
+  return { points, segments, diagonal };
+}
+
+function projectPosition(path, x, y, expectedFraction) {
+  let best = null;
+  let bestDistanceSq = Infinity;
+  const search = path.segments.filter(segment => Math.abs(segment.middle - expectedFraction) <= ALIGNMENT_SEARCH_WINDOW);
+  const candidates = search.length ? search : path.segments;
+  candidates.forEach(segment => {
+    const dx = segment.b.x - segment.a.x;
+    const dy = segment.b.y - segment.a.y;
+    const lengthSq = dx * dx + dy * dy || 1;
+    const amount = clampTelemetry(((x - segment.a.x) * dx + (y - segment.a.y) * dy) / lengthSq);
+    const projectedX = segment.a.x + dx * amount;
+    const projectedY = segment.a.y + dy * amount;
+    const distanceSq = (x - projectedX) ** 2 + (y - projectedY) ** 2;
+    if (distanceSq < bestDistanceSq) {
+      bestDistanceSq = distanceSq;
+      best = {
+        fraction: segment.a.fraction + (segment.b.fraction - segment.a.fraction) * amount,
+        error: Math.sqrt(distanceSq) / path.diagonal,
+      };
+    }
+  });
+  return best;
+}
+
+function interpolateControls(controls, input, inputField = 'raw', outputField = 'mapped') {
+  if (input <= controls[0][inputField]) return controls[0][outputField];
+  if (input >= controls[controls.length - 1][inputField]) return controls[controls.length - 1][outputField];
+  let low = 1;
+  let high = controls.length - 1;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (controls[middle][inputField] < input) low = middle + 1;
+    else high = middle;
+  }
+  const after = controls[low];
+  const before = controls[low - 1];
+  const ratio = (input - before[inputField]) / (after[inputField] - before[inputField] || 1);
+  return before[outputField] + (after[outputField] - before[outputField]) * ratio;
+}
+
+function positionAlignment(reference, samples) {
+  const path = referencePositionPath(reference);
+  if (!path || samples.quality?.positionCoverage < 0.55) return null;
+  const total = +samples[samples.length - 1].Distance || 0;
+  if (!total) return null;
+  const controls = [];
+  let lastCoordinate = null;
+  const minimumStep = path.diagonal * 0.0005;
+  samples.forEach(point => {
+    if (!hasTelemetryNumber(point.X) || !hasTelemetryNumber(point.Y)) return;
+    if (lastCoordinate && Math.hypot(+point.X - lastCoordinate.x, +point.Y - lastCoordinate.y) < minimumStep) return;
+    const raw = clampTelemetry((+point.Distance || 0) / total);
+    const projected = projectPosition(path, +point.X, +point.Y, raw);
+    lastCoordinate = { x: +point.X, y: +point.Y };
+    if (projected && projected.error <= 0.075) {
+      controls.push({ raw, mapped: projected.fraction, error: projected.error });
+    }
+  });
+  if (controls.length < 12) return null;
+  controls.sort((a, b) => a.raw - b.raw);
+  const unique = controls.filter((control, index) => index === 0 || control.raw - controls[index - 1].raw > 0.0001);
+  const errors = unique.map(control => control.error);
+  if (unique.length < 12 || (medianTelemetry(errors) || 1) > 0.035) return null;
+  unique.unshift({ raw: 0, mapped: 0, error: 0 });
+  unique.push({ raw: 1, mapped: 1, error: 0 });
+  const monotonic = isotonicFractions(unique.map(control => control.mapped));
+  unique.forEach((control, index) => { control.mapped = clampTelemetry(monotonic[index]); });
+  unique[0].mapped = 0;
+  unique[unique.length - 1].mapped = 1;
+  return samples.map(point => interpolateControls(unique, rawFractionAt(samples, point)));
+}
+
+function remapWithSectorAnchors(samples, fractions, lap, targetSectors) {
+  const sourceSectors = sectorFractions(samples, lap);
+  if (sourceSectors.length !== targetSectors.length || !sourceSectors.length) {
+    return { fractions, used: false };
+  }
+  const controls = [{ current: 0, target: 0 }];
+  sourceSectors.forEach((sourceFraction, index) => {
+    const current = interpolateControls(
+      samples.map((point, pointIndex) => ({ raw: rawFractionAt(samples, point), mapped: fractions[pointIndex] })),
+      sourceFraction
+    );
+    const target = targetSectors[index];
+    if (Number.isFinite(current) && Number.isFinite(target)) controls.push({ current, target });
+  });
+  controls.push({ current: 1, target: 1 });
+  controls.sort((a, b) => a.current - b.current);
+  if (controls.some((control, index) => index > 0 && control.current <= controls[index - 1].current)) {
+    return { fractions, used: false };
+  }
+  return {
+    fractions: fractions.map(fraction => interpolateControls(controls, fraction, 'current', 'target')),
+    used: true,
+  };
+}
+
+function setAlignedFractions(samples, fractions, method) {
+  let previous = 0;
+  samples.forEach((point, index) => {
+    const aligned = index === samples.length - 1
+      ? 1
+      : Math.max(previous, clampTelemetry(fractions[index] ?? rawFractionAt(samples, point)));
+    point.AlignedFraction = aligned;
+    previous = aligned;
+  });
+  if (samples.length) samples[0].AlignedFraction = 0;
+  setTelemetryMeta(samples, 'alignmentMethod', method);
+  setTelemetryMeta(samples, 'speedModel', null);
+}
+
+function alignedValue(samples, fraction, field) {
+  if (!samples?.length) return null;
+  const target = clampTelemetry(fraction);
+  if (target <= 0) return samples[0][field];
+  if (target >= 1) return samples[samples.length - 1][field];
+  let low = 1;
+  let high = samples.length - 1;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    const current = Number.isFinite(samples[middle].AlignedFraction)
+      ? samples[middle].AlignedFraction
+      : rawFractionAt(samples, samples[middle]);
+    if (current < target) low = middle + 1;
+    else high = middle;
+  }
+  let beforeIndex = low - 1;
+  let afterIndex = low;
+  while (beforeIndex >= 0 && !hasTelemetryNumber(samples[beforeIndex][field])) beforeIndex--;
+  while (afterIndex < samples.length && !hasTelemetryNumber(samples[afterIndex][field])) afterIndex++;
+  if (beforeIndex < 0 && afterIndex >= samples.length) return null;
+  if (beforeIndex < 0) return samples[afterIndex][field];
+  if (afterIndex >= samples.length) return samples[beforeIndex][field];
+  const before = samples[beforeIndex];
+  const after = samples[afterIndex];
+  const beforeFraction = Number.isFinite(before.AlignedFraction) ? before.AlignedFraction : rawFractionAt(samples, before);
+  const afterFraction = Number.isFinite(after.AlignedFraction) ? after.AlignedFraction : rawFractionAt(samples, after);
+  const ratio = clampTelemetry((target - beforeFraction) / (afterFraction - beforeFraction || 1));
+  if (field === 'nGear' || field === 'DRS') return ratio < 0.5 ? before[field] : after[field];
+  return (+before[field]) + ((+after[field]) - (+before[field])) * ratio;
+}
+
+function interpolate(samples, targetDistance, field) {
+  const fraction = clampTelemetry(targetDistance / referenceDistance());
+  return alignedValue(samples, fraction, field);
+}
+
+function buildTimeCalibration(samples, lap, referenceSectors) {
+  const meta = lapMetadata(lap);
+  const officialDuration = Number(lap?.time ?? meta.time ?? samples.lapDuration);
+  const controls = [{ fraction: 0, raw: 0, official: 0 }];
+  const officialSectorEnds = [];
+  if (Number.isFinite(+meta.s1) && +meta.s1 > 0) officialSectorEnds.push(+meta.s1);
+  if (Number.isFinite(+meta.s1) && Number.isFinite(+meta.s2) && +meta.s1 > 0 && +meta.s2 > 0) {
+    officialSectorEnds.push(+meta.s1 + +meta.s2);
+  }
+  referenceSectors.forEach((fraction, index) => {
+    const official = officialSectorEnds[index];
+    const raw = alignedValue(samples, fraction, 'ElapsedSeconds');
+    if (Number.isFinite(raw) && Number.isFinite(official)) controls.push({ fraction, raw, official });
+  });
+  const finalRaw = alignedValue(samples, 1, 'ElapsedSeconds');
+  controls.push({
+    fraction: 1,
+    raw: Number.isFinite(finalRaw) ? finalRaw : samples.rawDuration,
+    official: Number.isFinite(officialDuration) && officialDuration > 0 ? officialDuration : samples.rawDuration,
+  });
+  setTelemetryMeta(samples, 'timeCalibration', controls.filter((control, index) => {
+    if (index === 0) return true;
+    const previous = controls[index - 1];
+    return control.fraction > previous.fraction && control.raw > previous.raw && control.official > previous.official;
+  }));
+}
+
+function repairDisplaySpeeds(points) {
+  const repaired = points.map(point => ({ ...point }));
+  for (let index = 1; index < repaired.length - 1; index++) {
+    const previous = repaired[index - 1].y;
+    const current = repaired[index].y;
+    const next = repaired[index + 1].y;
+    const neighbourMean = (previous + next) / 2;
+    if (Math.abs(current - neighbourMean) > 42 && Math.abs(previous - next) < 18) {
+      repaired[index].y = neighbourMean;
+    }
+  }
+  return repaired;
+}
+
+function buildSpeedModel(samples) {
+  let points = samples
+    .map(point => ({
+      x: Number.isFinite(point.AlignedFraction) ? point.AlignedFraction : rawFractionAt(samples, point),
+      y: telemetryNumber(point.Speed),
+    }))
+    .filter(point => Number.isFinite(point.x) && point.y !== null);
+  if (points.length < 3) return null;
+  points = repairDisplaySpeeds(points);
+
+  // OpenF1 often publishes speed as a sample-and-hold channel. Collapse each
+  // held run to its centre before fitting a shape-preserving curve.
+  if ((samples.quality?.repeatSpeedRatio || 0) >= 0.35) {
+    const runs = [];
+    let run = [points[0]];
+    for (let index = 1; index < points.length; index++) {
+      if (Math.abs(points[index].y - run[run.length - 1].y) <= 0.5) run.push(points[index]);
+      else {
+        runs.push(run);
+        run = [points[index]];
+      }
+    }
+    runs.push(run);
+    points = runs.map(group => ({
+      x: group.reduce((sum, point) => sum + point.x, 0) / group.length,
+      y: group.reduce((sum, point) => sum + point.y, 0) / group.length,
+    }));
+    points.unshift({ x: 0, y: +samples[0].Speed });
+    points.push({ x: 1, y: +samples[samples.length - 1].Speed });
+  }
+
+  points = points
+    .sort((a, b) => a.x - b.x)
+    .filter((point, index, array) => index === 0 || point.x - array[index - 1].x > 1e-5);
+  if (points.length < 3) return null;
+  const intervals = [];
+  const slopes = [];
+  for (let index = 0; index < points.length - 1; index++) {
+    const width = points[index + 1].x - points[index].x;
+    intervals.push(width);
+    slopes.push((points[index + 1].y - points[index].y) / width);
+  }
+  const tangents = new Array(points.length);
+  tangents[0] = slopes[0];
+  tangents[tangents.length - 1] = slopes[slopes.length - 1];
+  for (let index = 1; index < points.length - 1; index++) {
+    if (slopes[index - 1] === 0 || slopes[index] === 0 || Math.sign(slopes[index - 1]) !== Math.sign(slopes[index])) {
+      tangents[index] = 0;
+    } else {
+      const leftWeight = 2 * intervals[index] + intervals[index - 1];
+      const rightWeight = intervals[index] + 2 * intervals[index - 1];
+      tangents[index] = (leftWeight + rightWeight) /
+        (leftWeight / slopes[index - 1] + rightWeight / slopes[index]);
+    }
+  }
+  return { points, intervals, tangents };
+}
+
+function evaluateSpeedModel(model, fraction) {
+  const x = clampTelemetry(fraction);
+  const points = model.points;
+  if (x <= points[0].x) return points[0].y;
+  if (x >= points[points.length - 1].x) return points[points.length - 1].y;
+  let low = 1;
+  let high = points.length - 1;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (points[middle].x < x) low = middle + 1;
+    else high = middle;
+  }
+  const index = low - 1;
+  const width = model.intervals[index] || 1;
+  const t = clampTelemetry((x - points[index].x) / width);
+  const t2 = t * t;
+  const t3 = t2 * t;
+  const value = (2 * t3 - 3 * t2 + 1) * points[index].y
+    + (t3 - 2 * t2 + t) * width * model.tangents[index]
+    + (-2 * t3 + 3 * t2) * points[index + 1].y
+    + (t3 - t2) * width * model.tangents[index + 1];
+  return Math.max(
+    Math.min(points[index].y, points[index + 1].y),
+    Math.min(Math.max(points[index].y, points[index + 1].y), value)
+  );
+}
+
 function smoothedTelemetryValue(samples, fraction, field) {
-  if (field !== 'Speed') {
-    return interpolate(samples, referenceDistance() * fraction, field);
-  }
-  const values = [];
-  for (let offset = -2; offset <= 2; offset++) {
-    const sampleFraction = Math.max(0, Math.min(1, fraction + offset * 0.0009));
-    const value = interpolate(samples, referenceDistance() * sampleFraction, field);
-    if (Number.isFinite(value)) values.push(value);
-  }
-  if (!values.length) return null;
-  values.sort((a, b) => a - b);
-  return values[Math.floor(values.length / 2)];
+  if (field !== 'Speed') return alignedValue(samples, fraction, field);
+  if (!samples.speedModel) setTelemetryMeta(samples, 'speedModel', buildSpeedModel(samples));
+  return samples.speedModel
+    ? evaluateSpeedModel(samples.speedModel, fraction)
+    : alignedValue(samples, fraction, field);
 }
 
 function calibratedElapsed(samples, fraction) {
   if (!samples?.length) return null;
-  const totalDistance = referenceDistance();
-  const raw = interpolate(samples, totalDistance * fraction, 'ElapsedSeconds');
-  const rawDuration = samples.rawDuration || samples[samples.length - 1].ElapsedSeconds;
-  if (!Number.isFinite(raw) || !Number.isFinite(rawDuration) || rawDuration <= 0) return null;
-  return raw / rawDuration * (samples.lapDuration || rawDuration);
+  const raw = alignedValue(samples, fraction, 'ElapsedSeconds');
+  if (!Number.isFinite(raw)) return null;
+  const controls = samples.timeCalibration;
+  if (!Array.isArray(controls) || controls.length < 2) {
+    const rawDuration = samples.rawDuration || samples[samples.length - 1].ElapsedSeconds;
+    return rawDuration > 0 ? raw / rawDuration * (samples.lapDuration || rawDuration) : raw;
+  }
+  const target = clampTelemetry(fraction);
+  let afterIndex = controls.findIndex(control => control.fraction >= target);
+  if (afterIndex <= 0) afterIndex = 1;
+  const after = controls[Math.min(afterIndex, controls.length - 1)];
+  const before = controls[Math.max(0, afterIndex - 1)];
+  const ratio = clampTelemetry((raw - before.raw) / (after.raw - before.raw || 1));
+  return before.official + (after.official - before.official) * ratio;
 }
 
 function deltaAt(samples, reference, targetDistance) {
-  const fraction = Math.max(0, Math.min(1, targetDistance / referenceDistance()));
+  const fraction = clampTelemetry(targetDistance / referenceDistance());
   const timeHere = calibratedElapsed(samples, fraction);
   const referenceHere = calibratedElapsed(reference, fraction);
   if (!Number.isFinite(timeHere) || !Number.isFinite(referenceHere)) return null;
-  // Guaranteed: delta(0) = 0 and delta(1) = selected lap time − reference lap time.
   return timeHere - referenceHere;
 }
 
 function getCornerMinSpeed(samples, corner) {
-  const ownTotal = samples?.[samples.length - 1]?.Distance || 0;
-  if (!ownTotal) return null;
+  if (!samples?.length) return null;
   const fallbackFraction = Number(corner?.distance) / referenceDistance();
-  const fraction = Math.max(0, Math.min(1, Number(corner?.fraction ?? fallbackFraction)));
-  const ownCorner = ownTotal * fraction;
-  const windowSize = Math.max(18, Math.min(35, ownTotal * 0.006));
-  const nearby = samples.filter(point => Math.abs(point.Distance - ownCorner) <= windowSize && Number.isFinite(+point.Speed));
+  const fraction = clampTelemetry(Number(corner?.fraction ?? fallbackFraction));
+  const windowSize = Math.max(18, Math.min(35, referenceDistance() * 0.006));
+  const nearby = samples.filter(point => {
+    const pointFraction = Number.isFinite(point.AlignedFraction) ? point.AlignedFraction : rawFractionAt(samples, point);
+    return Math.abs(pointFraction - fraction) * referenceDistance() <= windowSize && hasTelemetryNumber(point.Speed);
+  });
   if (!nearby.length) return null;
-
-  const markerSpeed = interpolate(samples, referenceDistance() * fraction, 'Speed');
+  const markerSpeed = alignedValue(samples, fraction, 'Speed');
   const adaptiveMinimum = nearby.reduce((a, b) => +a.Speed < +b.Speed ? a : b);
-  const markerWindow = samples.filter(point => Math.abs(point.Distance - ownCorner) <= 7 && Number.isFinite(+point.Speed));
+  const markerWindow = nearby.filter(point => {
+    const pointFraction = Number.isFinite(point.AlignedFraction) ? point.AlignedFraction : rawFractionAt(samples, point);
+    return Math.abs(pointFraction - fraction) * referenceDistance() <= 7;
+  });
   const markerMinimum = markerWindow.length
     ? markerWindow.reduce((a, b) => +a.Speed < +b.Speed ? a : b)
     : adaptiveMinimum;
   const edgeSpeed = ((+nearby[0].Speed) + (+nearby[nearby.length - 1].Speed)) / 2;
   const hasMeaningfulTrough = Number.isFinite(markerSpeed) && edgeSpeed - (+adaptiveMinimum.Speed) >= 6;
-  const point = hasMeaningfulTrough ? adaptiveMinimum : { Distance: ownCorner, Speed: markerSpeed };
-  const cornerSpeed = ((+adaptiveMinimum.Speed) + (+markerMinimum.Speed)) / 2;
+  const point = hasMeaningfulTrough ? adaptiveMinimum : { ...nearby[Math.floor(nearby.length / 2)], Speed: markerSpeed };
+  const pointFraction = Number.isFinite(point.AlignedFraction) ? point.AlignedFraction : rawFractionAt(samples, point);
   return {
     ...point,
     traceSpeed: +point.Speed,
-    cornerSpeed,
-    fraction: (+point.Distance || 0) / ownTotal,
+    cornerSpeed: ((+adaptiveMinimum.Speed) + (+markerMinimum.Speed)) / 2,
+    fraction: pointFraction,
     isApex: hasMeaningfulTrough,
   };
+}
+
+function updateAlignmentStatus() {
+  const status = $('#alignmentStatus');
+  if (!status) return;
+  if (!loaded.length) {
+    status.textContent = 'Awaiting lap selection';
+    status.dataset.state = 'idle';
+    return;
+  }
+  const series = loaded.map(lap => telemetryCache.get(telemetryKey(lap))).filter(Boolean);
+  if (series.length !== loaded.length) {
+    status.textContent = 'Preparing telemetry';
+    status.dataset.state = 'loading';
+    return;
+  }
+  const methods = new Set(series.map(samples => samples.alignmentMethod));
+  const sources = [...new Set(series.map(samples => samples.source).filter(Boolean))];
+  const heldChannels = series.some(samples => (samples.quality?.repeatSpeedRatio || 0) >= 0.35);
+  const method = methods.size === 1 && methods.has('reference')
+    ? 'Reference distance'
+    : [...methods].some(value => value.startsWith('position'))
+      ? 'Position + sector aligned'
+      : 'Sector-distance aligned';
+  const sourceLabel = sources.length ? ` · ${sources.join(' / ')}` : '';
+  status.textContent = `${method}${sourceLabel}${heldChannels ? ' · shape-preserving trace' : ''}`;
+  status.dataset.state = 'ready';
+}
+
+function prepareTelemetryAlignment() {
+  if (!loaded.length) {
+    updateAlignmentStatus();
+    return;
+  }
+  const referenceLap = loaded[0];
+  const reference = telemetryCache.get(telemetryKey(referenceLap));
+  if (!reference?.length) {
+    updateAlignmentStatus();
+    return;
+  }
+  const referenceFractions = reference.map(point => rawFractionAt(reference, point));
+  setAlignedFractions(reference, referenceFractions, 'reference');
+  const referenceSectors = sectorFractions(reference, referenceLap);
+  buildTimeCalibration(reference, referenceLap, referenceSectors);
+
+  loaded.slice(1).forEach(lap => {
+    const samples = telemetryCache.get(telemetryKey(lap));
+    if (!samples?.length) return;
+    let fractions = positionAlignment(reference, samples);
+    let method = fractions ? 'position' : 'distance';
+    if (!fractions) fractions = samples.map(point => rawFractionAt(samples, point));
+    const sectorRemap = remapWithSectorAnchors(samples, fractions, lap, referenceSectors);
+    fractions = sectorRemap.fractions;
+    if (sectorRemap.used) method += '+sectors';
+    setAlignedFractions(samples, fractions, method);
+    buildTimeCalibration(samples, lap, referenceSectors);
+  });
+  updateAlignmentStatus();
 }

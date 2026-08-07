@@ -181,17 +181,25 @@ def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: s
     samples: list[dict[str, Any]] = []
     distance = 0.0
     previous = None
+    previous_speed = None
     for point in car:
         timestamp = pd.Timestamp(point["date"]).to_pydatetime()
         elapsed = (timestamp - start_dt).total_seconds()
+        current_speed = float(point.get("speed") or 0)
         if previous is not None:
             dt = (timestamp - previous).total_seconds()
-            distance += max(0.0, float(point.get("speed") or 0) / 3.6 * dt)
+            # Trapezoidal integration is a better estimate for OpenF1's
+            # sample-and-hold speed channel than applying the new value across
+            # the whole interval. It reduces lap-length drift before the
+            # browser projects traces onto the reference circuit path.
+            interval_speed = (float(previous_speed or 0) + current_speed) / 2
+            distance += max(0.0, interval_speed / 3.6 * max(0.0, dt))
         previous = timestamp
+        previous_speed = current_speed
         samples.append({
             "Distance": distance,
             "ElapsedSeconds": elapsed,
-            "Speed": point.get("speed"),
+            "Speed": current_speed,
             "Throttle": point.get("throttle"),
             "Brake": point.get("brake"),
             "RPM": point.get("rpm"),
@@ -675,7 +683,9 @@ def telemetry(
     telemetry_data = telemetry_data.copy()
     telemetry_data["ElapsedSeconds"] = telemetry_data["Time"].dt.total_seconds()
     columns = ["Distance", "ElapsedSeconds", "Speed", "Throttle", "Brake", "RPM", "nGear", "DRS", "X", "Y"]
-    samples = telemetry_data[columns].iloc[::4].replace({np.nan: None}).to_dict("records")
+    # FastF1 car data is already a low-rate official timing stream. Keep every
+    # published row; a second 4x downsample made braking traces visibly coarse.
+    samples = telemetry_data[columns].replace({np.nan: None}).to_dict("records")
     if samples:
         return {
             "driver": driver,
