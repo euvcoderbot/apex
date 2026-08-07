@@ -1328,7 +1328,7 @@ function drawRealChart(name) {
       }
     }
     
-    if (points.length) traceEntries.push({ points, teamColor });
+    if (points.length) traceEntries.push({ points, teamColor, index });
   });
 
   const tracePath = points => {
@@ -1342,8 +1342,8 @@ function drawRealChart(name) {
     });
   };
 
-  // Preserve the area tint as a reference-lap cue, then draw every outline
-  // before every saturated colour line so no later series dulls an earlier one.
+  // Preserve the area tint as a reference-lap cue. Continuous speed traces
+  // stay ultra-thin; stepped/discrete charts retain a separation outline.
   const referenceTrace = traceEntries[0];
   const shadedFields = ['Speed trace', 'Throttle application', 'Brake pressure', 'Engine speed'];
   if (referenceTrace && shadedFields.includes(name)) {
@@ -1362,17 +1362,19 @@ function drawRealChart(name) {
 
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  traceEntries.forEach(({ points }) => {
-    ctx.strokeStyle = 'rgba(3, 5, 8, .88)';
-    ctx.lineWidth = name === 'Speed trace' ? 4.2 : 3.5;
-    tracePath(points);
-    ctx.stroke();
-  });
-  traceEntries.forEach(({ points, teamColor }) => {
+  if (name !== 'Speed trace') {
+    traceEntries.forEach(({ points }) => {
+      ctx.strokeStyle = 'rgba(3, 5, 8, .88)';
+      ctx.lineWidth = 3.5;
+      tracePath(points);
+      ctx.stroke();
+    });
+  }
+  traceEntries.forEach(({ points, teamColor, index }) => {
     ctx.strokeStyle = teamColor;
-    ctx.lineWidth = name === 'Speed trace' ? 2.4 : 1.9;
+    ctx.lineWidth = name === 'Speed trace' ? (index === 0 ? 1.44 : 1.12) : 1.9;
     ctx.shadowColor = teamColor;
-    ctx.shadowBlur = name === 'Speed trace' ? 1.5 : 0;
+    ctx.shadowBlur = 0;
     tracePath(points);
     ctx.stroke();
   });
