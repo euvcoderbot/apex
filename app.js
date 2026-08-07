@@ -2036,7 +2036,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const yearSelect = $('#year');
   const currentYear = new Date().getFullYear();
   const years = [];
-  for (let y = currentYear; y >= 2018; y--) {
+  for (let y = currentYear; y >= 2014; y--) {
     years.push(y);
   }
   populate(yearSelect, years);

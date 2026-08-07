@@ -1,4 +1,5 @@
 .venv/
 .fastf1-cache/
+.apex-cache/
 __pycache__/
 *.py[cod]

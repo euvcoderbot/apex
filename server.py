@@ -1,19 +1,23 @@
 """Local FastF1 API and static site server for APEX DATA."""
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from datetime import datetime, timedelta
+import gzip
+import hashlib
 import logging
 import json
 from pathlib import Path
+import time
 from typing import Any
-from urllib.parse import urlencode
-from urllib.request import urlopen
+from urllib.request import Request as URLRequest, urlopen
 
 import fastf1
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -21,8 +25,12 @@ ROOT = Path(__file__).parent
 CACHE = ROOT / ".fastf1-cache"
 CACHE.mkdir(exist_ok=True)
 fastf1.Cache.enable_cache(str(CACHE))
+PREPARED_CACHE = ROOT / ".apex-cache"
+PREPARED_CACHE.mkdir(exist_ok=True)
+PREPARED_CACHE_VERSION = "v1"
 
 app = FastAPI(title="APEX DATA API")
+app.add_middleware(GZipMiddleware, minimum_size=900, compresslevel=5)
 OPENF1 = "https://api.openf1.org/v1"
 logger = logging.getLogger("apex.telemetry")
 
@@ -35,6 +43,8 @@ async def prevent_stale_local_assets(request: Request, call_next):
         "/", "/index.html", "/app.js", "/alignment.js", "/styles.css", "/design-system.css"
     }:
         response.headers["Cache-Control"] = "no-store, max-age=0"
+    elif request.url.path.startswith("/api/") and response.status_code == 200:
+        response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=86400"
     return response
 
 
@@ -68,6 +78,44 @@ def integer(value: Any, default: int = 0) -> int:
         return default
 
 
+def prepared_cache_path(namespace: str, *parts: Any) -> Path:
+    identity = json.dumps(
+        [PREPARED_CACHE_VERSION, namespace, *parts],
+        separators=(",", ":"),
+        default=str,
+    )
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()
+    return PREPARED_CACHE / f"{namespace}-{digest}.json.gz"
+
+
+def read_prepared_cache(namespace: str, year: int, *parts: Any) -> Any | None:
+    path = prepared_cache_path(namespace, year, *parts)
+    if not path.exists():
+        return None
+    # Completed seasons are immutable. Current-season data expires quickly so
+    # newly published laps replace an early post-session response.
+    if year >= datetime.now().year and time.time() - path.stat().st_mtime > 600:
+        return None
+    try:
+        with gzip.open(path, "rt", encoding="utf-8") as handle:
+            return json.load(handle)
+    except (OSError, ValueError):
+        path.unlink(missing_ok=True)
+        return None
+
+
+def write_prepared_cache(namespace: str, year: int, payload: Any, *parts: Any) -> None:
+    path = prepared_cache_path(namespace, year, *parts)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    try:
+        with gzip.open(temporary, "wt", encoding="utf-8", compresslevel=5) as handle:
+            json.dump(payload, handle, separators=(",", ":"), allow_nan=False)
+        temporary.replace(path)
+    except (OSError, TypeError, ValueError) as error:
+        logger.debug("Could not persist %s cache: %s", namespace, error)
+        temporary.unlink(missing_ok=True)
+
+
 def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
     from urllib.parse import quote
     valid_params = {key: value for key, value in params.items() if value is not None}
@@ -78,8 +126,15 @@ def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
         else:
             parts.append(f"{key}={quote(str(value))}")
     query = "&".join(parts)
-    with urlopen(f"{OPENF1}/{endpoint}?{query}", timeout=20) as response:
-        return json.loads(response.read().decode("utf-8"))
+    request = URLRequest(
+        f"{OPENF1}/{endpoint}?{query}",
+        headers={"Accept-Encoding": "gzip", "User-Agent": "APEX-DATA/1.0"},
+    )
+    with urlopen(request, timeout=20) as response:
+        body = response.read()
+        if response.headers.get("Content-Encoding", "").lower() == "gzip":
+            body = gzip.decompress(body)
+        return json.loads(body.decode("utf-8"))
 
 
 @lru_cache(maxsize=64)
@@ -148,31 +203,42 @@ def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: s
     start_str = start_dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
     end_str = end_dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
     
-    car = openf1("car_data", session_key=session_key, driver_number=driver_number, **{"date>=": start_str, "date<=": end_str})
-    # Fresh sessions occasionally expose car data through the session/driver
-    # query before OpenF1's date-range index catches up. Retry that documented
-    # endpoint and slice the requested lap locally.
-    if not car:
-        all_car = openf1("car_data", session_key=session_key, driver_number=driver_number)
-        car = all_car
-    # Always enforce the lap window locally. Some fresh OpenF1 indexes have
-    # accepted the date filter but returned the driver's whole session stream.
-    car = [point for point in car if start_dt - timedelta(seconds=0.5)
-           <= datetime.fromisoformat(point["date"].replace("Z", "+00:00"))
-           <= end_dt]
+    window_start = start_dt - timedelta(seconds=0.5)
+
+    def lap_stream(endpoint: str) -> list[dict[str, Any]]:
+        points = openf1(
+            endpoint,
+            session_key=session_key,
+            driver_number=driver_number,
+            **{"date>=": start_str, "date<=": end_str},
+        )
+        # Fresh sessions occasionally expose data through the session/driver
+        # query before the date-range index catches up.
+        if not points:
+            points = openf1(endpoint, session_key=session_key, driver_number=driver_number)
+        # Some fresh indexes accept the date filter but return the entire
+        # session stream, so enforce the official lap window locally.
+        return [point for point in points if window_start
+                <= datetime.fromisoformat(point["date"].replace("Z", "+00:00"))
+                <= end_dt]
+
+    # Car and position are independent streams. Fetching both concurrently
+    # removes one full OpenF1 round trip from each cold telemetry request.
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="openf1") as pool:
+        car_future = pool.submit(lap_stream, "car_data")
+        location_future = pool.submit(lap_stream, "location")
+        car = car_future.result()
+        try:
+            location = location_future.result()
+        except Exception as error:
+            logger.debug("OpenF1 position data unavailable: %s", error)
+            location = []
     if not car:
         return []
     # OpenF1 publishes vehicle location separately from car channels. Joining
     # it here gives the mini-sector map a real circuit shape even when FastF1's
     # car-data archive is unavailable for a recent weekend.
     try:
-        location = openf1("location", session_key=session_key, driver_number=driver_number, **{"date>=": start_str, "date<=": end_str})
-        if not location:
-            all_location = openf1("location", session_key=session_key, driver_number=driver_number)
-            location = all_location
-        location = [point for point in location if start_dt - timedelta(seconds=0.5)
-                    <= datetime.fromisoformat(point["date"].replace("Z", "+00:00"))
-                    <= end_dt]
         if location:
             car_frame = pd.DataFrame(car)
             location_frame = pd.DataFrame(location)
@@ -223,7 +289,7 @@ def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: s
     return samples
 
 
-@lru_cache(maxsize=8)
+@lru_cache(maxsize=16)
 def load_session(year: int, gp: str, session_name: str, round_number: int | None = None):
     # Do not pass the calendar round straight to the F1 Timing schedule. That
     # schedule may only contain weekends with timing data available, so its
@@ -244,7 +310,7 @@ def load_session(year: int, gp: str, session_name: str, round_number: int | None
     return session
 
 
-@lru_cache(maxsize=4)
+@lru_cache(maxsize=8)
 def load_telemetry_session(year: int, gp: str, session_name: str):
     """Load FastF1 car data only as the historical fallback."""
     backend = "fastf1" if year >= 2018 else "ergast"
@@ -256,12 +322,12 @@ def load_telemetry_session(year: int, gp: str, session_name: str):
     return data
 
 
-@app.get("/api/events")
-def events(year: int = Query(2025, ge=2014)):
+@lru_cache(maxsize=32)
+def event_calendar(year: int) -> list[dict[str, Any]]:
     try:
         schedule = fastf1.get_event_schedule(year, include_testing=False)
     except Exception as exc:
-        raise HTTPException(422, f"Could not load the {year} calendar: {exc}") from exc
+        raise ValueError(f"Could not load the {year} calendar: {exc}") from exc
     result = []
     for _, event in schedule.iterrows():
         sessions = []
@@ -330,6 +396,7 @@ def get_fastest_lap_time(driver_obj: dict[str, Any]) -> float:
     return min(valid_times) if valid_times else float("inf")
 
 
+@lru_cache(maxsize=32)
 def get_fallback_circuit_corners(gp: str, session_name: str) -> list[dict[str, Any]]:
     for fallback_year in (2025, 2024):
         try:
@@ -406,40 +473,38 @@ def project_corners_onto_lap(data: Any, samples: list[dict[str, Any]]) -> list[d
     return result
 
 
+@app.get("/api/events")
+def events(year: int = Query(2025, ge=2014)):
+    cached = read_prepared_cache("events", year)
+    if cached is not None:
+        return cached
+    try:
+        result = event_calendar(year)
+    except Exception as exc:
+        raise HTTPException(422, str(exc)) from exc
+    write_prepared_cache("events", year, result)
+    return result
+
+
+@lru_cache(maxsize=64)
 def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[dict[str, Any]]:
     try:
-        url = f"https://api.openf1.org/v1/sessions?year={year}"
-        req = urlopen(url, timeout=5)
-        sessions_data = json.loads(req.read())
-        
-        gp_clean = gp.lower()
-        gp_prefix = gp_clean[:4]
-        matching_session = None
-        for s in sessions_data:
-            c_name = str(s.get("country_name") or "").lower()
-            l_name = str(s.get("location") or "").lower()
-            s_name = str(s.get("session_name") or "").lower()
-            if (gp_prefix in c_name or c_name in gp_clean or l_name in gp_clean) and (s_name == session_name.lower() or session_name.lower() in s_name):
-                matching_session = s
-                break
-                
+        matching_session = openf1_session(year, gp, session_name)
         if not matching_session:
             return []
-            
         session_key = matching_session["session_key"]
-        
-        drivers_req = urlopen(f"https://api.openf1.org/v1/drivers?session_key={session_key}", timeout=5)
-        drivers_raw = json.loads(drivers_req.read())
-        
-        laps_req = urlopen(f"https://api.openf1.org/v1/laps?session_key={session_key}", timeout=8)
-        laps_raw = json.loads(laps_req.read())
-        
-        stints_raw = []
-        try:
-            stints_req = urlopen(f"https://api.openf1.org/v1/stints?session_key={session_key}", timeout=5)
-            stints_raw = json.loads(stints_req.read())
-        except Exception as stints_err:
-            logger.warning("OpenF1 stints fetch failed: %s", stints_err)
+
+        with ThreadPoolExecutor(max_workers=3, thread_name_prefix="openf1-session") as pool:
+            drivers_future = pool.submit(openf1, "drivers", session_key=session_key)
+            laps_future = pool.submit(openf1, "laps", session_key=session_key)
+            stints_future = pool.submit(openf1, "stints", session_key=session_key)
+            drivers_raw = drivers_future.result()
+            laps_raw = laps_future.result()
+            try:
+                stints_raw = stints_future.result()
+            except Exception as stints_err:
+                logger.warning("OpenF1 stints fetch failed: %s", stints_err)
+                stints_raw = []
 
         lap_stint_map: dict[tuple[int, int], tuple[int, str]] = {}
         for stint in stints_raw:
@@ -529,11 +594,19 @@ def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[
 
 @app.get("/api/session")
 def session_data(
-    year: int = Query(2025, ge=2018),
+    year: int = Query(2025, ge=2014),
     gp: str = Query("British Grand Prix"),
     round: int | None = Query(None, ge=1),
     session: str = Query("Q"),
 ):
+    if year < 2018:
+        raise HTTPException(
+            422,
+            "Race calendars are available from 2014, but public F1 car telemetry begins in 2018.",
+        )
+    cached = read_prepared_cache("session", year, gp, round, session)
+    if cached is not None:
+        return cached
     try:
         data = load_session(year, gp, session, round)
     except Exception as exc:
@@ -642,7 +715,7 @@ def session_data(
     except Exception:
         pass
 
-    return {
+    payload = {
         "event": data.event["EventName"],
         "session": data.name,
         "date": session_date_iso,
@@ -650,17 +723,38 @@ def session_data(
         "corners": corners,
         "compounds": get_tire_nominations(year, gp),
     }
+    if drivers:
+        write_prepared_cache("session", year, payload, gp, round, session)
+    return payload
 
 
 @app.get("/api/telemetry")
 def telemetry(
-    year: int = Query(2025, ge=2018),
+    year: int = Query(2025, ge=2014),
     gp: str = Query("British Grand Prix"),
     round: int | None = Query(None, ge=1),
     session: str = Query("Q"),
     driver: str = Query(..., min_length=2),
     lap: int = Query(..., ge=1),
 ):
+    if year < 2018:
+        raise HTTPException(422, "Detailed speed and input telemetry is not published before 2018.")
+    cache_parts = (gp, round, session, driver.upper(), lap)
+    cached = read_prepared_cache("telemetry", year, *cache_parts)
+    if cached is not None:
+        return cached
+
+    def finish(samples: list[dict[str, Any]], projected_corners: list[dict[str, Any]], source: str):
+        payload = {
+            "driver": driver,
+            "lap": lap,
+            "samples": samples,
+            "corners": projected_corners,
+            "source": source,
+        }
+        write_prepared_cache("telemetry", year, payload, *cache_parts)
+        return payload
+
     # OpenF1 can provide recent laps individually, including position data for
     # the dominance map. It avoids loading every car in the FastF1 session.
     try:
@@ -669,13 +763,7 @@ def telemetry(
         if year >= 2023:
             samples = openf1_lap_telemetry(year, gp, session, driver_number, lap)
             if samples:
-                return {
-                    "driver": driver,
-                    "lap": lap,
-                    "samples": samples,
-                    "corners": project_corners_onto_lap(metadata, samples),
-                    "source": "OpenF1",
-                }
+                return finish(samples, project_corners_onto_lap(metadata, samples), "OpenF1")
     except Exception as openf1_lookup_error:
         logger.debug("OpenF1 lookup unavailable for %s L%s: %s", driver, lap, openf1_lookup_error)
 
@@ -726,13 +814,7 @@ def telemetry(
             driver_number = str(data.get_driver(driver).get("DriverNumber", driver))
             samples = openf1_lap_telemetry(year, gp, session, driver_number, lap)
             if samples:
-                return {
-                    "driver": driver,
-                    "lap": lap,
-                    "samples": samples,
-                    "corners": project_corners_onto_lap(data, samples),
-                    "source": "OpenF1",
-                }
+                return finish(samples, project_corners_onto_lap(data, samples), "OpenF1")
         except Exception as openf1_error:
             logger.warning("OpenF1 telemetry fallback unavailable for %s L%s: %s", driver, lap, openf1_error)
             raise HTTPException(422, f"No telemetry source returned this lap. FastF1: {fastf1_error}; OpenF1: {openf1_error}") from openf1_error
@@ -745,24 +827,12 @@ def telemetry(
     # published row; a second 4x downsample made braking traces visibly coarse.
     samples = telemetry_data[columns].replace({np.nan: None}).to_dict("records")
     if samples:
-        return {
-            "driver": driver,
-            "lap": lap,
-            "samples": samples,
-            "corners": project_corners_onto_lap(data, samples),
-            "source": "FastF1",
-        }
+        return finish(samples, project_corners_onto_lap(data, samples), "FastF1")
 
     try:
         samples = openf1_lap_telemetry(year, gp, session, driver_number, lap)
         if samples:
-            return {
-                "driver": driver,
-                "lap": lap,
-                "samples": samples,
-                "corners": project_corners_onto_lap(data, samples),
-                "source": "OpenF1",
-            }
+            return finish(samples, project_corners_onto_lap(data, samples), "OpenF1")
     except Exception:
         pass
     raise HTTPException(422, "No telemetry is published for this session/lap yet. Try a completed session or a 2023+ event with OpenF1 coverage.")
