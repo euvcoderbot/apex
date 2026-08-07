@@ -3869,3 +3869,27 @@ main,
     font-size: 9px;
   }
 }
+
+/* Slightly raised driver surfaces keep dark team colours readable. */
+#driverPills .driver-pill {
+  background:
+    linear-gradient(115deg, color-mix(in srgb, var(--team) 10%, transparent), transparent 60%),
+    rgba(16, 18, 22, .82);
+}
+
+#driverPills .driver-pill:hover {
+  background:
+    linear-gradient(115deg, color-mix(in srgb, var(--team) 15%, transparent), transparent 64%),
+    rgba(20, 22, 27, .9);
+}
+
+#driverPills .driver-pill.selected {
+  background:
+    linear-gradient(115deg, color-mix(in srgb, var(--team) 20%, transparent), transparent 70%),
+    rgba(19, 21, 26, .92);
+}
+
+.driver-pill-position,
+#driverPills .driver-pill .driver-pill-number {
+  color: #aeb3bd;
+}

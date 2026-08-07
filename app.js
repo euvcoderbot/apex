@@ -1287,7 +1287,8 @@ function drawRealChart(name) {
     });
   }
   
-  // Draw paths for each driver
+  // Build every path first so fills and keylines never cover a coloured trace.
+  const traceEntries = [];
   loaded.forEach((lap, index) => {
     const series = telemetryCache.get(telemetryKey(lap));
     if (!series) return;
@@ -1327,43 +1328,55 @@ function drawRealChart(name) {
       }
     }
     
-    if (!points.length) return;
-    
-    // Draw translucent filled gradient area below line (only for non-discrete fields)
-    const shadedFields = ['Speed trace', 'Throttle application', 'Brake pressure', 'Engine speed'];
-    if (shadedFields.includes(name)) {
-      const bottomY = rect.height - bounds.bottom;
-      ctx.beginPath();
-      ctx.moveTo(points[0].x, points[0].y);
-      points.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
-      ctx.lineTo(points[points.length - 1].x, bottomY);
-      ctx.lineTo(points[0].x, bottomY);
-      ctx.closePath();
-      
-      const grad = ctx.createLinearGradient(0, bounds.top, 0, bottomY);
-      grad.addColorStop(0, hexToRgba(teamColor, 0.15));
-      grad.addColorStop(1, hexToRgba(teamColor, 0));
-      ctx.fillStyle = grad;
-      ctx.fill();
-    }
-    
-    // Draw trace path line
-    ctx.strokeStyle = teamColor;
-    ctx.lineWidth = index === 0 ? 1.8 : 1.4;
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
-    
+    if (points.length) traceEntries.push({ points, teamColor });
+  });
+
+  const tracePath = points => {
     ctx.beginPath();
     ctx.moveTo(points[0].x, points[0].y);
-    points.slice(1).forEach((p, idx) => {
+    points.slice(1).forEach((point, pointIndex) => {
       if (name === 'Gear' || name === 'DRS / straight-line mode') {
-        const prev = points[idx];
-        ctx.lineTo(p.x, prev.y);
+        ctx.lineTo(point.x, points[pointIndex].y);
       }
-      ctx.lineTo(p.x, p.y);
+      ctx.lineTo(point.x, point.y);
     });
+  };
+
+  // Preserve the area tint as a reference-lap cue, then draw every outline
+  // before every saturated colour line so no later series dulls an earlier one.
+  const referenceTrace = traceEntries[0];
+  const shadedFields = ['Speed trace', 'Throttle application', 'Brake pressure', 'Engine speed'];
+  if (referenceTrace && shadedFields.includes(name)) {
+    const { points, teamColor } = referenceTrace;
+    const bottomY = rect.height - bounds.bottom;
+    tracePath(points);
+    ctx.lineTo(points[points.length - 1].x, bottomY);
+    ctx.lineTo(points[0].x, bottomY);
+    ctx.closePath();
+    const gradient = ctx.createLinearGradient(0, bounds.top, 0, bottomY);
+    gradient.addColorStop(0, hexToRgba(teamColor, name === 'Speed trace' ? .18 : .13));
+    gradient.addColorStop(1, hexToRgba(teamColor, 0));
+    ctx.fillStyle = gradient;
+    ctx.fill();
+  }
+
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  traceEntries.forEach(({ points }) => {
+    ctx.strokeStyle = 'rgba(3, 5, 8, .88)';
+    ctx.lineWidth = name === 'Speed trace' ? 4.2 : 3.5;
+    tracePath(points);
     ctx.stroke();
   });
+  traceEntries.forEach(({ points, teamColor }) => {
+    ctx.strokeStyle = teamColor;
+    ctx.lineWidth = name === 'Speed trace' ? 2.4 : 1.9;
+    ctx.shadowColor = teamColor;
+    ctx.shadowBlur = name === 'Speed trace' ? 1.5 : 0;
+    tracePath(points);
+    ctx.stroke();
+  });
+  ctx.shadowBlur = 0;
   
   // Draw collision-free corner labels in a reserved header band. Corner
   // speeds live in the dedicated analysis panel below the track map.
