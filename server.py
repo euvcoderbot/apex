@@ -310,7 +310,11 @@ def get_tire_nominations(year: int, gp: str) -> list[str]:
 
 
 def get_fastest_lap_time(driver_obj: dict[str, Any]) -> float:
-    valid_times = [l["time"] for l in driver_obj.get("laps", []) if l.get("time") is not None and l["time"] > 0]
+    valid_times = [
+        lap["time"] for lap in driver_obj.get("laps", [])
+        if lap.get("time") is not None and lap["time"] > 0
+        and not lap.get("in_lap") and not lap.get("out_lap")
+    ]
     return min(valid_times) if valid_times else float("inf")
 
 
@@ -451,6 +455,8 @@ def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[
                 driver_laps[d_num].append({
                     "lap": int(lap_num),
                     "time": float(lap_dur) if lap_dur is not None else None,
+                    "display_time": float(lap_dur) if lap_dur is not None else None,
+                    "display_time_estimated": lap.get("is_pit_out_lap") is True,
                     "s1": float(lap["duration_sector_1"]) if lap.get("duration_sector_1") is not None else None,
                     "s2": float(lap["duration_sector_2"]) if lap.get("duration_sector_2") is not None else None,
                     "s3": float(lap["duration_sector_3"]) if lap.get("duration_sector_3") is not None else None,
@@ -459,7 +465,30 @@ def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[
                     "phase": None,
                     "in_lap": False,
                     "out_lap": lap.get("is_pit_out_lap") is True,
+                    "_date_start": lap.get("date_start"),
                 })
+
+        # OpenF1 marks pit-out laps but may omit their lap_duration. Its
+        # date_start is explicitly approximate, so expose the interval to the
+        # next lap as an estimated pit-to-line duration instead of pretending
+        # it is an official lap time.
+        for laps in driver_laps.values():
+            laps.sort(key=lambda item: item["lap"])
+            for index, lap_info in enumerate(laps):
+                if lap_info.get("out_lap") and lap_info.get("display_time") is None and index + 1 < len(laps):
+                    current_start = lap_info.get("_date_start")
+                    next_start = laps[index + 1].get("_date_start")
+                    if current_start and next_start:
+                        try:
+                            current_dt = datetime.fromisoformat(str(current_start).replace("Z", "+00:00"))
+                            next_dt = datetime.fromisoformat(str(next_start).replace("Z", "+00:00"))
+                            estimate = (next_dt - current_dt).total_seconds()
+                            if 0 < estimate < 300:
+                                lap_info["display_time"] = estimate
+                                lap_info["display_time_estimated"] = True
+                        except (TypeError, ValueError):
+                            pass
+                lap_info.pop("_date_start", None)
                 
         result = []
         for d in drivers_raw:
@@ -527,6 +556,8 @@ def session_data(
                             laps_list.append({
                                 "lap": int(row["LapNumber"]),
                                 "time": seconds(row["LapTime"]),
+                                "display_time": seconds(row["LapTime"]),
+                                "display_time_estimated": False,
                                 "s1": seconds(row["Sector1Time"]),
                                 "s2": seconds(row["Sector2Time"]),
                                 "s3": seconds(row["Sector3Time"]),
@@ -535,7 +566,20 @@ def session_data(
                                 "phase": qualifying_phase.get(lap_index),
                                 "in_lap": seconds(row.get("PitInTime")) is not None,
                                 "out_lap": seconds(row.get("PitOutTime")) is not None,
+                                "_pit_out_time": seconds(row.get("PitOutTime")),
+                                "_lap_end_time": seconds(row.get("Time")),
                             })
+                    for lap_info in laps_list:
+                        if lap_info.get("out_lap"):
+                            pit_out = lap_info.get("_pit_out_time")
+                            lap_end = lap_info.get("_lap_end_time")
+                            if pit_out is not None and lap_end is not None:
+                                estimate = lap_end - pit_out
+                                if 0 < estimate < 300:
+                                    lap_info["display_time"] = estimate
+                                    lap_info["display_time_estimated"] = True
+                        lap_info.pop("_pit_out_time", None)
+                        lap_info.pop("_lap_end_time", None)
             drivers.append({
                 "code": str(info.get("Abbreviation", code)),
                 "number": str(info.get("DriverNumber", "")),

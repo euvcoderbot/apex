@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>APEX DATA — F1 Telemetry Hub</title>
-  <link rel="stylesheet" href="styles.css?v=alignment-layout-20260807">
+  <link rel="stylesheet" href="styles.css?v=corner-analysis-20260807">
 </head>
 <body>
   <header class="site-header">
@@ -21,15 +21,15 @@
         </div>
         <div class="control-field">
           <label for="year">Season</label>
-          <select id="year"></select>
+          <div class="select-shell"><select id="year"></select></div>
         </div>
         <div class="control-field">
           <label for="gp">Grand Prix</label>
-          <select id="gp"><option>Loading calendar…</option></select>
+          <div class="select-shell"><select id="gp"><option>Loading calendar…</option></select></div>
         </div>
         <div class="control-field">
           <label for="session">Session</label>
-          <select id="session"></select>
+          <div class="select-shell"><select id="session"></select></div>
         </div>
         <button id="loadSession">Load session</button>
       </section>
@@ -107,6 +107,17 @@
               <span class="section-empty" id="dominanceEmpty">Load comparison laps to generate the track map.</span>
             </section>
 
+            <section class="corner-analysis" id="cornerAnalysis" aria-labelledby="cornerAnalysisTitle" hidden>
+              <div class="corner-analysis-header">
+                <div>
+                  <h2 id="cornerAnalysisTitle">Corner performance <small>ADAPTIVE PHYSICAL ZONES</small></h2>
+                  <p>Stable minimum speed plus time through the same section of track. Section time is the stronger performance measure.</p>
+                </div>
+                <span>Toggle corner numbers to inspect</span>
+              </div>
+              <div class="corner-metric-grid" id="cornerMetricGrid"></div>
+            </section>
+
             <div class="chart-options">
               <div class="alignment-readout"><i></i><span id="alignmentStatus" data-state="idle">Awaiting lap selection</span></div>
               <label><input type="checkbox" id="cornerToggle"> Corner numbers</label>
@@ -124,7 +135,7 @@
   <footer>APEX DATA SYSTEMS · FASTF1 / OPENF1 TELEMETRY · UNOFFICIAL ANALYSIS</footer>
 
   <!-- Single unified app logic -->
-  <script src="app.js?v=alignment-layout-20260807"></script>
-  <script src="alignment.js?v=alignment-layout-20260807"></script>
+  <script src="app.js?v=corner-analysis-20260807"></script>
+  <script src="alignment.js?v=corner-analysis-20260807"></script>
 </body>
 </html>

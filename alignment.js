@@ -5,8 +5,9 @@
 //   2. lock the result to official sector boundaries when sector times exist;
 //   3. fall back to sector-normalized integrated distance when position is absent.
 //
-// Speed reconstruction is display-only. Raw samples remain the source for
-// hover values, timing delta, corner-speed calculations and mini-sector timing.
+// Trace reconstruction is display-only. Raw samples remain the source for
+// hover values and corner calculations; official sector/finish timing anchors
+// are restored exactly after smoothing the displayed delta line.
 
 const ALIGNMENT_SEARCH_WINDOW = 0.12;
 
@@ -358,6 +359,7 @@ function setAlignedFractions(samples, fractions, method) {
   if (samples.length) samples[0].AlignedFraction = 0;
   setTelemetryMeta(samples, 'alignmentMethod', method);
   setTelemetryMeta(samples, 'speedModel', null);
+  setTelemetryMeta(samples, 'deltaModel', null);
 }
 
 function alignedValue(samples, fraction, field) {
@@ -446,6 +448,20 @@ function buildSpeedModel(samples) {
     .filter(point => Number.isFinite(point.x) && point.y !== null);
   if (points.length < 3) return null;
   points = repairDisplaySpeeds(points);
+
+  // A light Savitzky-Golay pass removes the last visible polygonal edge from
+  // normally sampled traces without shifting braking points or flattening a
+  // quadratic peak/trough. Held channels use the run reconstruction below.
+  if ((samples.quality?.repeatSpeedRatio || 0) < 0.35 && points.length >= 7) {
+    const original = points.map(point => point.y);
+    points = points.map((point, index) => {
+      if (index < 2 || index > points.length - 3) return point;
+      const estimate = (-3 * original[index - 2] + 12 * original[index - 1]
+        + 17 * original[index] + 12 * original[index + 1] - 3 * original[index + 2]) / 35;
+      const local = original.slice(index - 2, index + 3);
+      return { ...point, y: Math.max(Math.min(...local), Math.min(Math.max(...local), estimate)) };
+    });
+  }
 
   // OpenF1 often publishes speed as a sample-and-hold channel. Collapse each
   // held run to its centre before fitting a shape-preserving curve.
@@ -554,6 +570,132 @@ function deltaAt(samples, reference, targetDistance) {
   const referenceHere = calibratedElapsed(reference, fraction);
   if (!Number.isFinite(timeHere) || !Number.isFinite(referenceHere)) return null;
   return timeHere - referenceHere;
+}
+
+function buildDeltaModel(samples, reference) {
+  const resolution = 360;
+  const raw = Array.from({ length: resolution + 1 }, (_, index) => {
+    const fraction = index / resolution;
+    return deltaAt(samples, reference, referenceDistance() * fraction);
+  });
+  if (!raw.every(Number.isFinite)) return null;
+  let filtered = [...raw];
+  const passes = (samples.quality?.repeatSpeedRatio || 0) >= 0.35 ? 2 : 1;
+  for (let pass = 0; pass < passes; pass++) {
+    const previous = filtered;
+    filtered = previous.map((value, index) => {
+      if (index < 2 || index > previous.length - 3) return value;
+      return (previous[index - 2] + 4 * previous[index - 1] + 6 * value
+        + 4 * previous[index + 1] + previous[index + 2]) / 16;
+    });
+  }
+
+  // Put official start, sector and finish deltas back exactly after the
+  // zero-phase filter. This prevents visual smoothing from creating drift.
+  const referenceLap = loaded[0];
+  const anchors = [0, ...sectorFractions(reference, referenceLap), 1].map(fraction => {
+    const index = clampTelemetry(fraction) * resolution;
+    const lower = Math.floor(index);
+    const upper = Math.min(resolution, Math.ceil(index));
+    const ratio = index - lower;
+    const filteredValue = filtered[lower] + (filtered[upper] - filtered[lower]) * ratio;
+    const officialValue = deltaAt(samples, reference, referenceDistance() * fraction);
+    return { fraction, correction: officialValue - filteredValue };
+  });
+  const corrected = filtered.map((value, index) => {
+    const fraction = index / resolution;
+    return value + interpolateControls(anchors, fraction, 'fraction', 'correction');
+  });
+  return {
+    resolution,
+    values: corrected,
+    anchors: anchors.map(anchor => ({
+      fraction: anchor.fraction,
+      value: deltaAt(samples, reference, referenceDistance() * anchor.fraction),
+    })),
+  };
+}
+
+function displayDeltaAt(samples, reference, fraction) {
+  if (samples === reference) return 0;
+  if (!samples.deltaModel) setTelemetryMeta(samples, 'deltaModel', buildDeltaModel(samples, reference));
+  if (!samples.deltaModel) return deltaAt(samples, reference, referenceDistance() * fraction);
+  const target = clampTelemetry(fraction);
+  const exactAnchor = samples.deltaModel.anchors?.find(anchor => Math.abs(anchor.fraction - target) < 1e-8);
+  if (exactAnchor) return exactAnchor.value;
+  const index = target * samples.deltaModel.resolution;
+  const lower = Math.floor(index);
+  const upper = Math.min(samples.deltaModel.resolution, Math.ceil(index));
+  const ratio = index - lower;
+  return samples.deltaModel.values[lower]
+    + (samples.deltaModel.values[upper] - samples.deltaModel.values[lower]) * ratio;
+}
+
+function adaptiveCornerZones(markers) {
+  const totalDistance = referenceDistance();
+  if (!totalDistance || !markers?.length) return [];
+  const ordered = [...markers]
+    .filter(marker => Number.isFinite(marker.fraction))
+    .sort((a, b) => a.fraction - b.fraction);
+  const nominalHalfWindow = Math.max(42, Math.min(95, totalDistance * 0.012)) / totalDistance;
+  return ordered.map((marker, index) => {
+    const previous = ordered[index - 1];
+    const next = ordered[index + 1];
+    const leftLimit = previous ? Math.max(0.004, (marker.fraction - previous.fraction) * 0.46) : nominalHalfWindow;
+    const rightLimit = next ? Math.max(0.004, (next.fraction - marker.fraction) * 0.46) : nominalHalfWindow;
+    const start = Math.max(0, marker.fraction - Math.min(nominalHalfWindow, leftLimit));
+    const end = Math.min(1, marker.fraction + Math.min(nominalHalfWindow, rightLimit));
+    return {
+      ...marker,
+      start,
+      end,
+      metres: Math.round((end - start) * totalDistance),
+    };
+  });
+}
+
+function cornerPerformance(samples, zone) {
+  if (!samples?.length || !zone) return null;
+  const points = samples.filter(point => {
+    const fraction = Number.isFinite(point.AlignedFraction) ? point.AlignedFraction : rawFractionAt(samples, point);
+    return fraction >= zone.start && fraction <= zone.end && hasTelemetryNumber(point.Speed);
+  });
+  if (points.length < 2) return null;
+  const speedSorted = [...points].sort((a, b) => +a.Speed - +b.Speed);
+  const minimumPoint = speedSorted[0];
+  const minimumFraction = Number.isFinite(minimumPoint.AlignedFraction)
+    ? minimumPoint.AlignedFraction
+    : rawFractionAt(samples, minimumPoint);
+  const spacings = points.slice(1).map((point, index) => {
+    const current = Number.isFinite(point.AlignedFraction) ? point.AlignedFraction : rawFractionAt(samples, point);
+    const previous = Number.isFinite(points[index].AlignedFraction) ? points[index].AlignedFraction : rawFractionAt(samples, points[index]);
+    return Math.max(0, current - previous) * referenceDistance();
+  });
+  const apexRadius = Math.max(7, Math.min(24, (medianTelemetry(spacings) || 8) * 1.4));
+  const apexCluster = points.filter(point => {
+    const fraction = Number.isFinite(point.AlignedFraction) ? point.AlignedFraction : rawFractionAt(samples, point);
+    return Math.abs(fraction - minimumFraction) * referenceDistance() <= apexRadius;
+  });
+  const edgeCount = Math.max(1, Math.ceil(points.length * 0.18));
+  const edgeSpeed = medianTelemetry([
+    ...points.slice(0, edgeCount).map(point => +point.Speed),
+    ...points.slice(-edgeCount).map(point => +point.Speed),
+  ]);
+  const pronouncedTrough = Number.isFinite(edgeSpeed) && edgeSpeed - +minimumPoint.Speed >= 6;
+  const stablePool = pronouncedTrough ? apexCluster : points;
+  const lowCount = Math.max(1, Math.min(4, Math.ceil(stablePool.length * (pronouncedTrough ? 0.35 : 0.2))));
+  const stableMinimum = medianTelemetry([...stablePool].sort((a, b) => +a.Speed - +b.Speed)
+    .slice(0, lowCount).map(point => +point.Speed));
+  const startTime = calibratedElapsed(samples, zone.start);
+  const endTime = calibratedElapsed(samples, zone.end);
+  return {
+    minimumSpeed: stableMinimum,
+    rawMinimum: +minimumPoint.Speed,
+    apexFraction: minimumFraction,
+    sectionTime: Number.isFinite(startTime) && Number.isFinite(endTime) ? endTime - startTime : null,
+    method: pronouncedTrough ? 'apex trough' : 'carried-speed band',
+    samples: points.length,
+  };
 }
 
 function getCornerMinSpeed(samples, corner) {

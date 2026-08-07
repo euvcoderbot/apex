@@ -208,7 +208,9 @@ function selectLatestCompletedEvent() {
 }
 
 function lapText(lap) {
-  if (lap.out_lap) return `OUT L${lap.lap} · ${lap.time == null ? '—' : `${time(lap.time)}`}`;
+  const displayTime = Number.isFinite(lap.display_time) ? lap.display_time : lap.time;
+  const prefix = lap.display_time_estimated ? '~' : '';
+  if (lap.out_lap) return `OUT L${lap.lap} · ${Number.isFinite(displayTime) ? `${prefix}${time(displayTime)}` : '—'}`;
   if (lap.in_lap) return `IN L${lap.lap} · ${lap.time == null ? '—' : `${time(lap.time)}`}`;
   return `L${lap.lap} · ${lap.time == null ? '—' : `${time(lap.time)}`}`;
 }
@@ -483,7 +485,7 @@ function renderStintsLegacy() {
 }
 
 function fastestTimedLap(driver) {
-  const timed = driver?.laps?.filter(lap => Number.isFinite(lap.time) && lap.time > 0) || [];
+  const timed = driver?.laps?.filter(lap => Number.isFinite(lap.time) && lap.time > 0 && !lap.in_lap && !lap.out_lap) || [];
   return timed.length ? timed.reduce((fastest, lap) => lap.time < fastest.time ? lap : fastest) : null;
 }
 
@@ -528,7 +530,7 @@ function renderStints() {
       return `<article class="driver-run-card" style="--team:${teamColor}"><header class="run-card-header"><div class="run-driver"><b>${code}</b><h3>${driver.name}</h3></div></header><p class="section-empty">No laps in this session.</p></article>`;
     }
 
-    const timedLaps = driver.laps.filter(lap => Number.isFinite(lap.time) && lap.time > 0);
+    const timedLaps = driver.laps.filter(lap => Number.isFinite(lap.time) && lap.time > 0 && !lap.in_lap && !lap.out_lap);
     const fastest = fastestTimedLap(driver);
     const fastestLoaded = fastest && loaded.some(item => item.code === code && item.lap === fastest.lap);
     const hasQualifyingPhases = driver.laps.some(lap => /^Q[1-3]$/.test(lap.phase || ''));
@@ -550,8 +552,15 @@ function renderStints() {
       const isLoaded = loaded.some(item => item.code === code && item.lap === lap.lap);
       const flag = lap.in_lap ? 'IN' : lap.out_lap ? 'OUT' : `L${lap.lap}`;
       const classes = ['lap', 'lap-chip', lap.in_lap || lap.out_lap ? 'in-out' : '', isLoaded ? 'selected' : ''].filter(Boolean).join(' ');
-      const duration = Number.isFinite(lap.time) ? time(lap.time) : '&mdash;';
-      return `<button class="${classes}" style="--team:${teamColor}" data-code="${code}" data-lap="${lap.lap}" ${Number.isFinite(lap.time) ? '' : 'disabled'}><span class="lap-token">${flag}</span><span class="lap-clock">${duration}</span></button>`;
+      const displayTime = Number.isFinite(lap.display_time) ? lap.display_time : lap.time;
+      const estimated = lap.display_time_estimated === true;
+      const duration = Number.isFinite(displayTime) ? `${estimated ? '~' : ''}${time(displayTime)}` : '&mdash;';
+      const selectable = Number.isFinite(lap.time) && !lap.in_lap && !lap.out_lap;
+      const context = lap.out_lap && Number.isFinite(displayTime)
+        ? '<small>PIT → LINE</small>'
+        : lap.in_lap ? '<small>IN LAP</small>' : '';
+      const title = lap.out_lap && estimated ? 'Estimated from pit exit to the timing line' : '';
+      return `<button class="${classes}" style="--team:${teamColor}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${title}"><span class="lap-token">${flag}</span><span class="lap-clock">${duration}${context}</span></button>`;
     }).join('');
     const groupLabel = hasQualifyingPhases ? active : `STINT ${active}`;
 
@@ -942,8 +951,8 @@ function formatTick(val) {
 }
 
 function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7) {
-  const calloutWidth = 46;
-  const gap = 4;
+  const calloutWidth = 26;
+  const gap = 3;
   const plotWidth = width - left - right;
   const laneEnds = [];
   // Source corner rows are normally delivered in lap order, but sorting here
@@ -1011,7 +1020,10 @@ function drawRealChart(name) {
       const refDistance = refSamples[refSamples.length - 1].Distance || 5891;
       data.slice(1).forEach(samples => {
         for (let i = 0; i <= 100; i++) {
-          const v = deltaAt(samples, refSamples, refDistance * (i / 100));
+          const fraction = i / 100;
+          const v = typeof displayDeltaAt === 'function'
+            ? displayDeltaAt(samples, refSamples, fraction)
+            : deltaAt(samples, refSamples, refDistance * fraction);
           if (Number.isFinite(v)) values.push(v);
         }
       });
@@ -1038,10 +1050,9 @@ function drawRealChart(name) {
   const speedCornerMarkers = name === 'Speed trace' && $('#cornerToggle').checked
     ? resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers)
     : [];
-  const showCornerSpeeds = loaded.length <= 2;
   const cornerCalloutLayout = layoutSpeedCornerCallouts(speedCornerMarkers, rect.width);
   const cornerTopInset = speedCornerMarkers.length
-    ? 10 + cornerCalloutLayout.lanes * (showCornerSpeeds ? 25 : 16)
+    ? 10 + cornerCalloutLayout.lanes * 16
     : 8;
   const bounds = {
     left: 43,
@@ -1060,7 +1071,7 @@ function drawRealChart(name) {
     const count = speedCornerMarkers.length;
     const projection = refLap?.cornerMarkers?.[0]?.source === 'lap_projection';
     $('#cornerStatus').textContent = count
-      ? `${count} official corner markers aligned to this lap${projection ? ' (lap projection).' : '.'}${showCornerSpeeds ? '' : ' Hover a trace for speeds.'}`
+      ? `${count} official corner markers aligned to this lap${projection ? ' (lap projection).' : '.'}`
       : 'Corner coordinates are unavailable for this telemetry source.';
   }
   
@@ -1112,11 +1123,6 @@ function drawRealChart(name) {
         ctx.stroke();
         ctx.setLineDash([]);
         
-        if (name !== 'Speed trace') {
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-          ctx.font = '8px monospace';
-          ctx.fillText(cornerLabel(corner), x - 4, bounds.top - 2);
-        }
       }
     });
   }
@@ -1148,7 +1154,11 @@ function drawRealChart(name) {
       for (let step = 0; step <= steps; step++) {
         const fraction = step / steps;
         const targetDist = totalDist * fraction;
-        const value = name === 'Timing delta' ? (index === 0 ? 0 : deltaAt(series, refSeries, targetDist)) : interpolate(series, targetDist, field);
+        const value = name === 'Timing delta'
+          ? (index === 0 ? 0 : (typeof displayDeltaAt === 'function'
+              ? displayDeltaAt(series, refSeries, fraction)
+              : deltaAt(series, refSeries, targetDist)))
+          : interpolate(series, targetDist, field);
         if (Number.isFinite(value)) {
           const x = bounds.left + fraction * (rect.width - bounds.left - bounds.right);
           const y = bounds.top + (bounds.max - value) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
@@ -1195,15 +1205,13 @@ function drawRealChart(name) {
     ctx.stroke();
   });
   
-  // Draw collision-free corner callouts in a reserved header band. With one
-  // or two loaded laps, their exact speeds sit inside the matching callout;
-  // larger comparisons retain trace dots and expose all values on hover.
+  // Draw collision-free corner labels in a reserved header band. Corner
+  // speeds live in the dedicated analysis panel below the track map.
   if (name === 'Speed trace' && $('#cornerToggle').checked) {
-    const rowHeight = showCornerSpeeds ? 25 : 16;
-    const calloutHeight = showCornerSpeeds ? 21 : 11;
+    const rowHeight = 16;
+    const calloutHeight = 11;
     cornerCalloutLayout.items.forEach(({ corner, x, lane, width }) => {
-      const markerFraction = corner.fraction;
-      if (!Number.isFinite(markerFraction)) return;
+      if (!Number.isFinite(corner.fraction)) return;
       const labelY = 4 + lane * rowHeight;
       const left = x - width / 2;
 
@@ -1216,26 +1224,6 @@ function drawRealChart(name) {
       ctx.font = '8px monospace';
       ctx.textAlign = 'center';
       ctx.fillText(cornerLabel(corner), x, labelY + 8);
-
-      loaded.forEach((lap, index) => {
-        const samples = telemetryCache.get(telemetryKey(lap));
-        if (!samples?.length) return;
-        const markerSpeed = smoothedTelemetryValue(samples, markerFraction, 'Speed');
-        if (!Number.isFinite(markerSpeed)) return;
-
-        const markerY = bounds.top + (bounds.max - markerSpeed) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
-        ctx.beginPath();
-        ctx.arc(x, markerY, 2.7, 0, 2 * Math.PI);
-        ctx.fillStyle = getDriverColor(lap.code);
-        ctx.fill();
-
-        if (showCornerSpeeds) {
-          const speedX = loaded.length === 1 ? x : x + (index === 0 ? -10 : 10);
-          ctx.fillStyle = getDriverColor(lap.code);
-          ctx.font = '8px monospace';
-          ctx.fillText(Math.round(markerSpeed), speedX, labelY + 18);
-        }
-      });
       ctx.textAlign = 'left';
     });
   }
@@ -1461,6 +1449,7 @@ async function drawAll() {
     : defs;
   activeDefs.forEach(definition => drawRealChart(definition[0]));
   renderMiniSectorMap();
+  renderCornerAnalysis();
 }
 
 function updateTelemetryVisibility() {
@@ -1477,6 +1466,69 @@ function renderAll() {
   renderLoaded();
   renderSectors();
   drawAll();
+}
+
+function renderCornerAnalysis() {
+  const section = $('#cornerAnalysis');
+  const root = $('#cornerMetricGrid');
+  if (!section || !root) return;
+  const enabled = $('#cornerToggle')?.checked && loaded.length > 0;
+  section.hidden = !enabled;
+  if (!enabled) {
+    root.innerHTML = '';
+    return;
+  }
+
+  const referenceLap = loaded[0];
+  const reference = telemetryCache.get(telemetryKey(referenceLap));
+  if (!reference?.length || typeof adaptiveCornerZones !== 'function' || typeof cornerPerformance !== 'function') {
+    root.innerHTML = '<span class="section-empty">Corner analysis is waiting for aligned position data.</span>';
+    return;
+  }
+  const totalDistance = reference[reference.length - 1].Distance || 1;
+  const markers = resolveCornerMarkers(reference, totalDistance, referenceLap?.cornerMarkers);
+  const zones = adaptiveCornerZones(markers);
+  if (!zones.length) {
+    root.innerHTML = '<span class="section-empty">Official corner positions are unavailable for this lap.</span>';
+    return;
+  }
+
+  root.innerHTML = zones.map(zone => {
+    const metrics = loaded.map(lap => {
+      const samples = telemetryCache.get(telemetryKey(lap));
+      const metric = cornerPerformance(samples, zone);
+      return metric ? { lap, metric } : null;
+    }).filter(Boolean);
+    if (!metrics.length) return '';
+    const fastestSection = Math.min(...metrics.map(item => item.metric.sectionTime).filter(Number.isFinite));
+    const rows = metrics.map(item => {
+      const sectionDelta = Number.isFinite(item.metric.sectionTime) && Number.isFinite(fastestSection)
+        ? item.metric.sectionTime - fastestSection
+        : null;
+      const fastest = Number.isFinite(sectionDelta) && Math.abs(sectionDelta) < 0.0005;
+      const timeLabel = Number.isFinite(item.metric.sectionTime) ? `${item.metric.sectionTime.toFixed(3)}s` : '—';
+      const deltaLabel = !Number.isFinite(item.metric.sectionTime)
+        ? 'NO TIME'
+        : loaded.length === 1
+          ? 'REFERENCE'
+          : fastest ? 'FASTEST' : `+${sectionDelta.toFixed(3)}s`;
+      return `
+        <div class="corner-driver-row ${fastest && loaded.length > 1 ? 'is-fastest' : ''}" style="--driver-color:${getDriverColor(item.lap.code)}" title="${item.metric.method}; ${item.metric.samples} source samples">
+          <span class="corner-driver"><i></i>${item.lap.code}<small>L${item.lap.lap}</small></span>
+          <span class="corner-speed"><strong>${Math.round(item.metric.minimumSpeed)}</strong><small>KM/H MIN</small></span>
+          <span class="corner-time"><strong>${timeLabel}</strong><small>${deltaLabel}</small></span>
+        </div>
+      `;
+    }).join('');
+    const method = metrics.some(item => item.metric.method === 'apex trough') ? 'APEX TROUGH' : 'CARRIED-SPEED BAND';
+    return `
+      <article class="corner-metric-card">
+        <header class="corner-metric-title"><strong>${cornerLabel(zone)}</strong><span>${zone.metres} M ZONE</span></header>
+        <div class="corner-driver-metrics">${rows}</div>
+        <footer class="corner-method">${method}</footer>
+      </article>
+    `;
+  }).join('');
 }
 
 function renderApexSpeeds() {
@@ -1712,8 +1764,8 @@ document.addEventListener('DOMContentLoaded', () => {
   
   $('#cornerToggle').addEventListener('change', event => {
     $('#cornerStatus').textContent = event.target.checked
-      ? 'Corner overlays active.'
-      : 'Corner labels hidden.';
+      ? 'Corner labels and adaptive analysis active.'
+      : 'Corner labels and analysis hidden.';
     if (loaded.length) {
       drawAll();
     }
