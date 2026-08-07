@@ -1531,7 +1531,8 @@ function bindAllChartHover() {
             const reconstructed = typeof isReconstructedTelemetry === 'function'
               && isReconstructedTelemetry(series, fraction, field);
             if (reconstructed) hasReconstructedValue = true;
-            display = `${reconstructed ? '~' : ''}${Math.round(val)} ${unit}`;
+            const precision = hoveredChartName === 'Speed trace' ? val.toFixed(1) : Math.round(val);
+            display = `${reconstructed ? '~' : ''}${precision} ${unit}`;
           }
         }
         return `<span style="color: ${getDriverColor(lap.code)}">●</span> ${lap.code} L${lap.lap} · <b>${display}</b>`;
@@ -1634,7 +1635,7 @@ function bindTrackMapHover() {
         const finiteSegmentTimes = segmentRows.map(row => row.sectionTime).filter(Number.isFinite);
         const bestTime = finiteSegmentTimes.length ? Math.min(...finiteSegmentTimes) : null;
         const lines = segmentRows.map(({ lap, speed, sectionTime }) => {
-          const speedDisplay = Number.isFinite(speed) ? `${Math.round(speed)} KM/H` : '—';
+          const speedDisplay = Number.isFinite(speed) ? `${speed.toFixed(1)} KM/H` : '—';
           const timeDisplay = Number.isFinite(sectionTime) && Number.isFinite(bestTime)
             ? `${sectionTime.toFixed(3)}s${Math.abs(sectionTime - bestTime) < .0005 ? ' FASTEST' : ` +${(sectionTime - bestTime).toFixed(3)}s`}`
             : 'NO SECTION TIME';
@@ -1766,7 +1767,7 @@ function renderCornerAnalysis() {
         <span class="corner-driver"><i></i><b>${item.lap.code}</b><small>L${item.lap.lap}</small>${index === 0 ? '<em>REF</em>' : ''}</span>
         <span class="corner-time"><strong>${Number.isFinite(sectionTime) ? `${sectionTime.toFixed(3)}s` : '—'}</strong><small>SECTION</small></span>
         <span class="corner-delta ${deltaClass}"><strong>${Number.isFinite(toReference) ? signedDelta(toReference) : '—'}</strong><small>VS REF</small></span>
-        <span class="corner-speed"><strong>${Number.isFinite(item.metric.minimumSpeed) ? Math.round(item.metric.minimumSpeed) : '—'}</strong><small>KM/H MIN</small></span>
+        <span class="corner-speed"><strong>${Number.isFinite(item.metric.minimumSpeed) ? item.metric.minimumSpeed.toFixed(1) : '—'}</strong><small>KM/H MIN</small></span>
       </div>`;
   }).join('');
 
@@ -1819,7 +1820,7 @@ function renderApexSpeeds() {
       return {
         code: lap.code,
         color: getDriverColor(lap.code),
-        speed: Math.round(apexPt.cornerSpeed)
+        speed: apexPt.cornerSpeed.toFixed(1)
       };
     }).filter(Boolean);
     

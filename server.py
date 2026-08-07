@@ -27,7 +27,7 @@ CACHE.mkdir(exist_ok=True)
 fastf1.Cache.enable_cache(str(CACHE))
 PREPARED_CACHE = ROOT / ".apex-cache"
 PREPARED_CACHE.mkdir(exist_ok=True)
-PREPARED_CACHE_VERSION = "v2"
+PREPARED_CACHE_VERSION = "v3"
 
 app = FastAPI(title="APEX DATA API")
 app.add_middleware(GZipMiddleware, minimum_size=900, compresslevel=5)
@@ -194,10 +194,14 @@ def _openf1_lap_telemetry(
     if not session:
         return []
     session_key = session["session_key"]
-    laps = openf1("laps", session_key=session_key, driver_number=driver_number, lap_number=lap_number)
-    if not laps:
+    driver_laps = openf1("laps", session_key=session_key, driver_number=driver_number)
+    matching_laps = [
+        item for item in driver_laps
+        if integer(item.get("lap_number"), -1) == lap_number
+    ]
+    if not matching_laps:
         return []
-    lap_info = laps[0]
+    lap_info = matching_laps[0]
     lap_duration = seconds(lap_info.get("lap_duration"))
     # Pit-out records occasionally contain the time since an earlier timing
     # event rather than a lap duration (for example an 802 s "lap"). They are
@@ -205,13 +209,32 @@ def _openf1_lap_telemetry(
     if (lap_info.get("is_pit_out_lap") is True or not lap_info.get("date_start")
             or lap_duration is None or not 20 < lap_duration < 300):
         return []
-    start_dt = datetime.fromisoformat(lap_info["date_start"].replace("Z", "+00:00"))
-    end_dt = start_dt + timedelta(seconds=lap_duration + 0.5)
-    
-    start_str = start_dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
-    end_str = end_dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
-    
-    window_start = start_dt - timedelta(seconds=0.5)
+    stated_start_dt = datetime.fromisoformat(lap_info["date_start"].replace("Z", "+00:00"))
+    start_dt = stated_start_dt
+    finish_dt = start_dt + timedelta(seconds=lap_duration)
+
+    # The next lap's start is the selected lap's actual finish-line event.
+    # OpenF1 labels date_start as approximate, while lap_duration is official;
+    # anchoring to that shared boundary and subtracting the official duration
+    # produces a more internally consistent start and finish. Reject implausible
+    # corrections so incomplete/reordered live timing cannot shift the trace.
+    next_lap = next((
+        item for item in driver_laps
+        if integer(item.get("lap_number"), -1) == lap_number + 1 and item.get("date_start")
+    ), None)
+    if next_lap is not None:
+        next_start_dt = datetime.fromisoformat(next_lap["date_start"].replace("Z", "+00:00"))
+        corrected_start_dt = next_start_dt - timedelta(seconds=lap_duration)
+        if abs((corrected_start_dt - stated_start_dt).total_seconds()) <= 1.0:
+            start_dt = corrected_start_dt
+            finish_dt = next_start_dt
+    # Car data is only sampled at roughly 3.7 Hz. Request a sample on both
+    # sides of each timing-line crossing so the lap can be anchored at the
+    # crossing itself instead of at the first (late) sample inside the lap.
+    window_start = start_dt - timedelta(seconds=1.0)
+    window_end = finish_dt + timedelta(seconds=1.0)
+    start_str = window_start.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
+    end_str = window_end.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
 
     def lap_stream(endpoint: str) -> list[dict[str, Any]]:
         points = openf1(
@@ -228,7 +251,7 @@ def _openf1_lap_telemetry(
         # session stream, so enforce the official lap window locally.
         return [point for point in points if window_start
                 <= datetime.fromisoformat(point["date"].replace("Z", "+00:00"))
-                <= end_dt]
+                <= window_end]
 
     # Car and position are independent streams. Fetching both concurrently
     # removes one full OpenF1 round trip from each cold telemetry request.
@@ -264,6 +287,57 @@ def _openf1_lap_telemetry(
         logger.debug("OpenF1 position data unavailable: %s", error)
 
     car.sort(key=lambda item: item["date"])
+
+    def boundary_point(boundary: datetime) -> dict[str, Any] | None:
+        """Interpolate continuous channels at an official timing boundary."""
+        before = None
+        after = None
+        for item in car:
+            item_time = pd.Timestamp(item["date"]).to_pydatetime()
+            if item_time <= boundary:
+                before = item
+            if item_time >= boundary:
+                after = item
+                break
+        if before is None and after is None:
+            return None
+        if before is None or after is None:
+            source = dict(before or after)
+            source["date"] = boundary.isoformat().replace("+00:00", "Z")
+            return source
+
+        before_time = pd.Timestamp(before["date"]).to_pydatetime()
+        after_time = pd.Timestamp(after["date"]).to_pydatetime()
+        span = (after_time - before_time).total_seconds()
+        ratio = 0.0 if span <= 0 else (boundary - before_time).total_seconds() / span
+        ratio = max(0.0, min(1.0, ratio))
+        result = dict(before if ratio < 0.5 else after)
+        result["date"] = boundary.isoformat().replace("+00:00", "Z")
+
+        # These are instantaneous numeric channels, so time interpolation is
+        # the least-biased estimate at the line. State channels remain nearest
+        # neighbour because fractional gears, brake flags and DRS states are
+        # not physically meaningful.
+        for field in ("speed", "throttle", "rpm", "x", "y"):
+            left = seconds(before.get(field))
+            right = seconds(after.get(field))
+            if left is not None and right is not None:
+                result[field] = left + (right - left) * ratio
+            elif left is not None or right is not None:
+                result[field] = left if left is not None else right
+        return result
+
+    start_point = boundary_point(start_dt)
+    finish_point = boundary_point(finish_dt)
+    if start_point is None or finish_point is None:
+        return []
+    # Discard the bracketing samples after using them. The returned stream now
+    # starts at exactly t=0 and ends at the official lap duration.
+    car = [start_point] + [
+        item for item in car
+        if start_dt < pd.Timestamp(item["date"]).to_pydatetime() < finish_dt
+    ] + [finish_point]
+
     samples: list[dict[str, Any]] = []
     distance = 0.0
     previous = None
