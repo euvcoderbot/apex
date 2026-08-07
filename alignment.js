@@ -136,6 +136,7 @@ async function fetchTelemetry(lap) {
   const query = currentQuery();
   query.set('driver', lap.code);
   query.set('lap', lap.lap);
+  query.set('alignment', '2');
   const response = await fetch(`/api/telemetry?${query}`);
   const payload = await readApiResponse(response);
   if (!response.ok) throw new Error(payload.detail || 'Telemetry unavailable for this lap');
@@ -197,6 +198,21 @@ function sectorFractions(samples, lap) {
     result.push(fractionAtElapsed(samples, s1 + s2));
   }
   return result.filter(value => Number.isFinite(value) && value > 0 && value < 1);
+}
+
+function alignedSectorFractions(samples, lap) {
+  return Array.isArray(samples?.alignmentSectors) && samples.alignmentSectors.length
+    ? samples.alignmentSectors
+    : sectorFractions(samples, lap);
+}
+
+function spatialReferenceTelemetry() {
+  return loaded
+    .map(lap => ({ lap, samples: telemetryCache.get(telemetryKey(lap)) }))
+    .filter(item => item.samples?.length)
+    .sort((left, right) =>
+      (right.samples.quality?.positionCoverage || 0)
+        - (left.samples.quality?.positionCoverage || 0))[0] || null;
 }
 
 function isotonicFractions(values) {
@@ -662,7 +678,7 @@ function buildDeltaModel(samples, reference) {
   // speed already produces a smooth curve, so no additional low-pass filter
   // is needed and local map winners remain consistent with the delta trace.
   const referenceLap = loaded[0];
-  const anchors = [0, ...sectorFractions(reference, referenceLap), 1].map(fraction => {
+  const anchors = [0, ...alignedSectorFractions(reference, referenceLap), 1].map(fraction => {
     const index = clampTelemetry(fraction) * resolution;
     const lower = Math.floor(index);
     const upper = Math.min(resolution, Math.ceil(index));
@@ -707,7 +723,9 @@ function adaptiveCornerZones(markers) {
     .filter(marker => Number.isFinite(marker.fraction))
     .sort((a, b) => a.fraction - b.fraction);
   const series = loaded.map(lap => telemetryCache.get(telemetryKey(lap))).filter(samples => samples?.length);
-  const reference = series[0];
+  const reference = series.reduce((best, samples) =>
+    (samples.quality?.positionCoverage || 0) > (best?.quality?.positionCoverage || 0)
+      ? samples : best, series[0]);
   const ensembleSpeed = fraction => medianTelemetry(series
     .map(samples => smoothedTelemetryValue(samples, fraction, 'Speed'))
     .filter(Number.isFinite));
@@ -908,21 +926,46 @@ function prepareTelemetryAlignment() {
     updateAlignmentStatus();
     return;
   }
-  const referenceFractions = reference.map(point => rawFractionAt(reference, point));
-  setAlignedFractions(reference, referenceFractions, 'reference');
-  const referenceSectors = sectorFractions(reference, referenceLap);
-  buildTimeCalibration(reference, referenceLap, referenceSectors);
+  const candidates = loaded
+    .map(lap => ({ lap, samples: telemetryCache.get(telemetryKey(lap)) }))
+    .filter(item => item.samples?.length)
+    .sort((left, right) =>
+      (right.samples.quality?.positionCoverage || 0) - (left.samples.quality?.positionCoverage || 0));
+  const spatial = candidates.find(item =>
+    (item.samples.quality?.positionCoverage || 0) >= 0.55
+      && referencePositionPath(item.samples));
+  const spatialLap = spatial?.lap || referenceLap;
+  const spatialReference = spatial?.samples || reference;
+  const referenceSectors = sectorFractions(spatialReference, spatialLap);
 
-  loaded.slice(1).forEach(lap => {
+  // Corner markers are physical track locations. If the timing-reference lap
+  // lacks them, borrow the projected markers from the best-positioned lap.
+  if ((!Array.isArray(referenceLap.cornerMarkers) || !referenceLap.cornerMarkers.length)
+      && Array.isArray(spatialLap.cornerMarkers) && spatialLap.cornerMarkers.length) {
+    referenceLap.cornerMarkers = spatialLap.cornerMarkers.map(marker => ({ ...marker }));
+  }
+
+  loaded.forEach(lap => {
     const samples = telemetryCache.get(telemetryKey(lap));
     if (!samples?.length) return;
-    let fractions = positionAlignment(reference, samples);
-    let method = fractions ? 'position' : 'distance';
+    let fractions = samples === spatialReference
+      ? samples.map(point => rawFractionAt(samples, point))
+      : positionAlignment(spatialReference, samples);
+    let method = samples === spatialReference
+      ? (spatial ? 'position-reference' : 'reference')
+      : fractions ? 'position' : 'distance';
     if (!fractions) fractions = samples.map(point => rawFractionAt(samples, point));
-    const sectorRemap = remapWithSectorAnchors(samples, fractions, lap, referenceSectors);
-    fractions = sectorRemap.fractions;
-    if (sectorRemap.used) method += '+sectors';
+    // Position projection already identifies the same physical place on the
+    // circuit. Sector-warping that result can move real corners by tens of
+    // metres when the first source sample arrives just after the timing line.
+    // Use sector warping only for the coordinate-free distance fallback.
+    if (method === 'distance') {
+      const sectorRemap = remapWithSectorAnchors(samples, fractions, lap, referenceSectors);
+      fractions = sectorRemap.fractions;
+      if (sectorRemap.used) method += '+sectors';
+    }
     setAlignedFractions(samples, fractions, method);
+    setTelemetryMeta(samples, 'alignmentSectors', referenceSectors);
     buildTimeCalibration(samples, lap, referenceSectors);
   });
   updateAlignmentStatus();

@@ -16,7 +16,7 @@ from urllib.request import Request as URLRequest, urlopen
 import fastf1
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -27,7 +27,7 @@ CACHE.mkdir(exist_ok=True)
 fastf1.Cache.enable_cache(str(CACHE))
 PREPARED_CACHE = ROOT / ".apex-cache"
 PREPARED_CACHE.mkdir(exist_ok=True)
-PREPARED_CACHE_VERSION = "v1"
+PREPARED_CACHE_VERSION = "v2"
 
 app = FastAPI(title="APEX DATA API")
 app.add_middleware(GZipMiddleware, minimum_size=900, compresslevel=5)
@@ -43,7 +43,8 @@ async def prevent_stale_local_assets(request: Request, call_next):
         "/", "/index.html", "/app.js", "/alignment.js", "/styles.css", "/design-system.css"
     }:
         response.headers["Cache-Control"] = "no-store, max-age=0"
-    elif request.url.path.startswith("/api/") and response.status_code == 200:
+    elif (request.url.path.startswith("/api/") and response.status_code == 200
+          and "cache-control" not in response.headers):
         response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=86400"
     return response
 
@@ -181,7 +182,14 @@ def openf1_session(year: int, gp: str, session_name: str) -> dict[str, Any] | No
 
 
 @lru_cache(maxsize=256)
-def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: str, lap_number: int) -> list[dict[str, Any]]:
+def _openf1_lap_telemetry(
+    year: int,
+    gp: str,
+    session_name: str,
+    driver_number: str,
+    lap_number: int,
+    freshness_bucket: int,
+) -> list[dict[str, Any]]:
     session = openf1_session(year, gp, session_name)
     if not session:
         return []
@@ -287,6 +295,23 @@ def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: s
             "Y": point.get("y"),
         })
     return samples
+
+
+def openf1_lap_telemetry(
+    year: int,
+    gp: str,
+    session_name: str,
+    driver_number: str,
+    lap_number: int,
+) -> list[dict[str, Any]]:
+    # OpenF1 publishes the car and location channels independently. A newly
+    # completed lap can have speed available a few seconds before coordinates.
+    # Refresh current-season source data every 30 seconds until the prepared
+    # cache records a complete response; historical source data is immutable.
+    freshness_bucket = int(time.time() // 30) if year >= datetime.now().year else 0
+    return _openf1_lap_telemetry(
+        year, gp, session_name, driver_number, lap_number, freshness_bucket
+    )
 
 
 @lru_cache(maxsize=16)
@@ -730,6 +755,7 @@ def session_data(
 
 @app.get("/api/telemetry")
 def telemetry(
+    response: Response,
     year: int = Query(2025, ge=2014),
     gp: str = Query("British Grand Prix"),
     round: int | None = Query(None, ge=1),
@@ -742,17 +768,32 @@ def telemetry(
     cache_parts = (gp, round, session, driver.upper(), lap)
     cached = read_prepared_cache("telemetry", year, *cache_parts)
     if cached is not None:
+        if cached.get("position_complete") is False:
+            response.headers["Cache-Control"] = "no-store, max-age=0"
         return cached
 
     def finish(samples: list[dict[str, Any]], projected_corners: list[dict[str, Any]], source: str):
+        positioned = sum(
+            point.get("X") is not None and point.get("Y") is not None
+            for point in samples
+        )
+        position_coverage = positioned / max(1, len(samples))
+        position_complete = source != "OpenF1" or position_coverage >= 0.55
         payload = {
             "driver": driver,
             "lap": lap,
             "samples": samples,
             "corners": projected_corners,
             "source": source,
+            "position_coverage": position_coverage,
+            "position_complete": position_complete,
         }
-        write_prepared_cache("telemetry", year, payload, *cache_parts)
+        # Do not freeze an incomplete current OpenF1 location stream. Keep the
+        # useful speed response, but force the next request back to the source.
+        if position_complete or year < datetime.now().year:
+            write_prepared_cache("telemetry", year, payload, *cache_parts)
+        else:
+            response.headers["Cache-Control"] = "no-store, max-age=0"
         return payload
 
     # OpenF1 can provide recent laps individually, including position data for

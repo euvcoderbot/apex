@@ -285,6 +285,7 @@ async function fetchTelemetry(lap) {
   const query = currentQuery();
   query.set('driver', lap.code);
   query.set('lap', lap.lap);
+  query.set('alignment', '2');
   
   const response = await fetch(`/api/telemetry?${query}`);
   if (!response.ok) throw new Error('Telemetry unavailable for this lap');
@@ -1236,8 +1237,10 @@ function drawRealChart(name) {
   
   // Draw vertical sector lines in background
   const fallbackSectorDistances = getSectorDistances(refLap);
-  const sectorBoundaries = typeof sectorFractions === 'function'
-    ? sectorFractions(refSamples, refLap)
+  const sectorBoundaries = typeof alignedSectorFractions === 'function'
+    ? alignedSectorFractions(refSamples, refLap)
+    : typeof sectorFractions === 'function'
+      ? sectorFractions(refSamples, refLap)
     : [fallbackSectorDistances.s1 / totalDist, fallbackSectorDistances.s2 / totalDist].filter(Number.isFinite);
   sectorBoundaries.forEach(fraction => {
     if (!fractionInView(fraction)) return;
@@ -1557,7 +1560,10 @@ function bindTrackMapHover() {
 
   canvas.addEventListener('mousemove', e => {
     if (loaded.length < 2) return;
-    const reference = telemetryCache.get(telemetryKey(loaded[0]));
+    const spatial = typeof spatialReferenceTelemetry === 'function'
+      ? spatialReferenceTelemetry()
+      : null;
+    const reference = spatial?.samples || telemetryCache.get(telemetryKey(loaded[0]));
     if (!reference?.length) return;
 
     const rect = canvas.getBoundingClientRect();
@@ -1580,14 +1586,16 @@ function bindTrackMapHover() {
 
     let minDistanceSq = Infinity;
     let bestFraction = null;
-    const totalDistance = reference[reference.length - 1].Distance || 1;
+    const totalDistance = referenceDistance();
 
     trackSamples.forEach(point => {
       const cPos = toCanvas(+point.X, +point.Y);
       const dSq = (cPos.x - mouseX) ** 2 + (cPos.y - mouseY) ** 2;
       if (dSq < minDistanceSq) {
         minDistanceSq = dSq;
-        bestFraction = (+point.Distance || 0) / totalDistance;
+        bestFraction = Number.isFinite(point.AlignedFraction)
+          ? point.AlignedFraction
+          : (+point.Distance || 0) / (+reference[reference.length - 1].Distance || 1);
       }
     });
 
@@ -1838,7 +1846,10 @@ function renderMiniSectorMap() {
     return;
   }
 
-  const reference = telemetryCache.get(telemetryKey(loaded[0]));
+  const spatial = typeof spatialReferenceTelemetry === 'function'
+    ? spatialReferenceTelemetry()
+    : null;
+  const reference = spatial?.samples || telemetryCache.get(telemetryKey(loaded[0]));
   const allSeries = loaded.map(lap => telemetryCache.get(telemetryKey(lap)));
   const trackSamples = reference?.filter(point => point.X != null && point.Y != null && Number.isFinite(+point.X) && Number.isFinite(+point.Y)) || [];
   if (!reference?.length || !allSeries.every(series => series?.length) || trackSamples.length < 2) {
@@ -1875,7 +1886,7 @@ function renderMiniSectorMap() {
   const offsetX = (rect.width - (maxX - minX) * scale) / 2;
   const offsetY = (rect.height - (maxY - minY) * scale) / 2;
   const toCanvas = (x, y) => ({ x: offsetX + (x - minX) * scale, y: rect.height - offsetY - (y - minY) * scale });
-  const totalDistance = reference[reference.length - 1].Distance || 1;
+  const totalDistance = referenceDistance();
   const segmentLength = 25;
   const segments = Math.ceil(totalDistance / segmentLength);
 
