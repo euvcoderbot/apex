@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>APEX DATA — F1 Telemetry Hub</title>
-  <link rel="stylesheet" href="styles.css?v=trace-zoom-ui-20260807">
+  <link rel="stylesheet" href="styles.css?v=geometry-apex-ui-20260807">
 </head>
 <body>
   <header class="site-header">
@@ -75,11 +75,14 @@
 
       <div class="main-dashboard">
         <section class="telemetry-card is-empty" id="telemetryCard">
-          <div class="section-heading">
-            <div>
-              <span class="section-kicker">04 / ANALYZE</span>
-              <h1>Aligned Lap Telemetry</h1>
-              <p>Position-aligned traces with synchronized distance, delta and driver inputs.</p>
+          <div class="section-heading analysis-heading">
+            <div class="analysis-heading-main">
+              <span class="panel-index">04</span>
+              <div>
+                <span class="analysis-mode">ANALYZE</span>
+                <h1>Aligned Lap Telemetry</h1>
+                <p>Position-aligned traces · synchronized distance, delta and inputs</p>
+              </div>
             </div>
             <div class="legend" id="legend"></div>
           </div>
@@ -92,10 +95,19 @@
 
           <div class="telemetry-content" id="telemetryContent">
             <section class="sector-times" aria-label="Selected lap sector times">
-              <div class="sector-row sector-labels">
-                <span>Loaded Lap</span><span>Lap Time</span><span>Sector 1</span><span>Sector 2</span><span>Sector 3</span>
+              <div class="sector-summary-heading"><span>Loaded comparison</span><small>Official lap and sector timing</small></div>
+              <div class="sector-cards" id="sectorRows"></div>
+            </section>
+
+            <section class="corner-analysis" id="cornerAnalysis" aria-labelledby="cornerAnalysisTitle">
+              <div class="corner-analysis-header">
+                <div>
+                  <h2 id="cornerAnalysisTitle">Corner performance <small>SECTOR + GEOMETRY APEX</small></h2>
+                  <p>Compare integrated corner time and minimum speed around the circuit-geometry apex.</p>
+                </div>
+                <span>Select a corner to inspect</span>
               </div>
-              <div id="sectorRows"></div>
+              <div class="corner-metric-grid" id="cornerMetricGrid"></div>
             </section>
 
             <section class="dominance-map" aria-labelledby="dominanceTitle">
@@ -105,17 +117,6 @@
               </div>
               <canvas id="dominanceCanvas" aria-label="Track map showing the fastest loaded lap in each mini-sector"></canvas>
               <span class="section-empty" id="dominanceEmpty">Load comparison laps to generate the track map.</span>
-            </section>
-
-            <section class="corner-analysis" id="cornerAnalysis" aria-labelledby="cornerAnalysisTitle" hidden>
-              <div class="corner-analysis-header">
-                <div>
-                  <h2 id="cornerAnalysisTitle">Corner performance <small>SECTOR + APEX WINDOW</small></h2>
-                  <p>Compare time through the full corner sector and minimum speed inside its adaptive apex window.</p>
-                </div>
-                <span>Toggle corner numbers to inspect</span>
-              </div>
-              <div class="corner-metric-grid" id="cornerMetricGrid"></div>
             </section>
 
             <div class="chart-options">
@@ -135,7 +136,7 @@
   <footer>APEX DATA SYSTEMS · FASTF1 / OPENF1 TELEMETRY · UNOFFICIAL ANALYSIS</footer>
 
   <!-- Single unified app logic -->
-  <script src="app.js?v=trace-zoom-ui-20260807"></script>
-  <script src="alignment.js?v=trace-zoom-ui-20260807"></script>
+  <script src="app.js?v=geometry-apex-ui-20260807"></script>
+  <script src="alignment.js?v=geometry-apex-ui-20260807"></script>
 </body>
 </html>

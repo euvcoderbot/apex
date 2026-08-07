@@ -323,13 +323,9 @@ function renderDrivers() {
     const code = d[0];
     const number = d[1];
     const color = d[3];
-    const team = getTeamInfo(d[4] || '');
     const isSelected = selected.includes(code);
-    const logo = team.logo
-      ? `<img class="driver-pill-logo" src="${team.logo}" alt="" aria-hidden="true">`
-      : '<span class="driver-pill-mark" aria-hidden="true"></span>';
 
-    return `<button class="pill driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-code="${code}">${logo}<span class="driver-pill-number">${number}</span><strong>${code}</strong></button>`;
+    return `<button class="pill driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-code="${code}"><span class="driver-pill-number">#${number}</span><strong>${code}</strong></button>`;
   }).join('');
   
   root.querySelectorAll('button').forEach(btn => {
@@ -653,34 +649,32 @@ function renderSectors() {
   
   const ref = loaded[0];
   
-  function formatSector(val, refVal) {
-    if (val == null) return '—';
-    if (refVal == null || val === refVal) return `${val.toFixed(3)}s`;
-    const diff = val - refVal;
-    const color = diff >= 0 ? 'var(--red)' : 'var(--green)';
-    return `${val.toFixed(3)}s <span style="color:${color}; font-size:9px;">(${diff >= 0 ? '+' : ''}${diff.toFixed(3)}s)</span>`;
-  }
-  
-  function formatLapTime(val, refVal) {
-    if (val == null) return '—';
-    if (refVal == null || val === refVal) return `${time(val)}`;
-    const diff = val - refVal;
-    const color = diff >= 0 ? 'var(--red)' : 'var(--green)';
-    return `${time(val)} <span style="color:${color}; font-size:9px;">(${diff >= 0 ? '+' : ''}${diff.toFixed(3)}s)</span>`;
-  }
+  const deltaBadge = (value, reference) => {
+    if (!Number.isFinite(value) || !Number.isFinite(reference)) return '';
+    const delta = value - reference;
+    const className = delta >= 0 ? 'is-slower' : 'is-faster';
+    return `<em class="summary-delta ${className}">${delta >= 0 ? '+' : '−'}${Math.abs(delta).toFixed(3)}s</em>`;
+  };
   
   $('#sectorRows').innerHTML = loaded.map((item, i) => {
     const lap = item.real || {};
     const refLap = ref.real || {};
-    
+    const color = getDriverColor(item.code);
+    const sectors = [
+      ['S1', lap.s1, refLap.s1],
+      ['S2', lap.s2, refLap.s2],
+      ['S3', lap.s3, refLap.s3],
+    ];
     return `
-      <div class="sector-row sector-data">
-        <span style="border-left:3px solid ${getDriverColor(item.code)}; padding-left:8px; display:inline-flex; align-items:center;">${item.code} · L${item.lap}</span>
-        <span>${formatLapTime(item.time, i === 0 ? null : ref.time)}</span>
-        <span>${formatSector(lap.s1, i === 0 ? null : refLap.s1)}</span>
-        <span>${formatSector(lap.s2, i === 0 ? null : refLap.s2)}</span>
-        <span>${formatSector(lap.s3, i === 0 ? null : refLap.s3)}</span>
-      </div>
+      <article class="lap-summary-card" style="--team:${color}">
+        <header>
+          <span class="summary-driver"><b>${item.code}</b><small>L${item.lap}</small>${i === 0 ? '<em>REF</em>' : ''}</span>
+          <span class="summary-lap-time"><small>LAP</small><strong>${Number.isFinite(item.time) ? time(item.time) : '—'}</strong>${i === 0 ? '' : deltaBadge(item.time, ref.time)}</span>
+        </header>
+        <div class="summary-sectors">${sectors.map(([label, value, reference]) => `
+          <span><small>${label}</small><strong>${Number.isFinite(value) ? `${value.toFixed(3)}s` : '—'}</strong>${i === 0 ? '' : deltaBadge(value, reference)}</span>`).join('')}
+        </div>
+      </article>
     `;
   }).join('');
 }
@@ -1653,7 +1647,7 @@ function renderCornerAnalysis() {
   const section = $('#cornerAnalysis');
   const root = $('#cornerMetricGrid');
   if (!section || !root) return;
-  const enabled = $('#cornerToggle')?.checked && loaded.length > 0;
+  const enabled = loaded.length > 0;
   section.hidden = !enabled;
   if (!enabled) {
     root.innerHTML = '';
@@ -1720,7 +1714,7 @@ function renderCornerAnalysis() {
       </header>
       <div class="corner-table-head"><span>Driver</span><span>Time</span><span>Delta</span><span>Minimum</span></div>
       <div class="corner-driver-metrics">${rows}</div>
-      <footer class="corner-method">SECTION TIME: DISTANCE-INTEGRATED SPEED, OFFICIAL SECTOR NORMALIZED · MINIMUM: ROBUST LOCAL APEX CLUSTER</footer>
+      <footer class="corner-method">APEX: GPS CURVATURE · SECTION: DISTANCE-INTEGRATED SPEED · MINIMUM: ROBUST LOCAL SPEED CLUSTER</footer>
     </article>`;
   root.onclick = event => {
     const button = event.target.closest('[data-corner-index]');
@@ -1859,7 +1853,7 @@ function renderMiniSectorMap() {
   // Highlight the timing sector selected in the compact corner panel. The
   // dominance colour remains visible on top of this wider neon underlay.
   let highlightedCornerZone = null;
-  if ($('#cornerToggle').checked && typeof adaptiveCornerZones === 'function') {
+  if (typeof adaptiveCornerZones === 'function') {
     const markerCorners = resolveCornerMarkers(reference, totalDistance, loaded[0]?.cornerMarkers);
     const zones = adaptiveCornerZones(markerCorners);
     const selectedZone = zones[Math.max(0, Math.min(selectedCornerIndex, zones.length - 1))];
@@ -1878,8 +1872,8 @@ function renderMiniSectorMap() {
         }
         ctx.stroke();
       };
-      drawHighlightPath('rgba(3, 5, 7, .92)', 17);
-      drawHighlightPath('rgba(234, 255, 24, .82)', 11);
+      drawHighlightPath('rgba(2, 3, 5, .96)', 13);
+      drawHighlightPath('rgba(234, 255, 24, .86)', 11);
     }
   }
 
@@ -1912,33 +1906,20 @@ function renderMiniSectorMap() {
   }
 
   if (highlightedCornerZone) {
-    const markerPoints = [
-      { fraction: highlightedCornerZone.start, label: 'IN', radius: 3 },
-      { fraction: highlightedCornerZone.apex, label: 'APEX', radius: 5 },
-      { fraction: highlightedCornerZone.end, label: 'OUT', radius: 3 },
-    ];
-    ctx.font = '7px monospace';
-    ctx.textAlign = 'center';
-    markerPoints.forEach(marker => {
-      const point = pointAt(marker.fraction);
-      if (!point) return;
+    const apex = pointAt(highlightedCornerZone.apex);
+    if (apex) {
       ctx.beginPath();
-      ctx.arc(point.x, point.y, marker.radius + 2, 0, Math.PI * 2);
-      ctx.fillStyle = '#07080a';
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, marker.radius, 0, Math.PI * 2);
+      ctx.moveTo(apex.x, apex.y - 6);
+      ctx.lineTo(apex.x + 5, apex.y);
+      ctx.lineTo(apex.x, apex.y + 6);
+      ctx.lineTo(apex.x - 5, apex.y);
+      ctx.closePath();
       ctx.fillStyle = '#eaff18';
       ctx.fill();
-      if (marker.label === 'APEX') {
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = '#07080a';
-        ctx.strokeText(marker.label, point.x, point.y - 11);
-        ctx.fillStyle = '#eaff18';
-        ctx.fillText(marker.label, point.x, point.y - 11);
-      }
-    });
-    ctx.textAlign = 'start';
+      ctx.strokeStyle = '#050608';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
   }
 
   // Corner markers rendered ON TOP of mini-sector dominance lines
@@ -2102,9 +2083,9 @@ function renderTireNomination() {
     const color = colors[i] || '#888888';
     
     return `
-      <div class="tire-badge">
-        <div class="tire-circle" style="--tire-color:${color}">${displayVal}</div>
-        <span class="tire-label">${label}</span>
+      <div class="tire-option" style="--tire-color:${color}">
+        <span class="tire-code">${displayVal}</span>
+        <span class="tire-copy"><strong>${label}</strong><small>WEEKEND NOMINATION</small></span>
       </div>
     `;
   }).join('');

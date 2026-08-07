@@ -707,9 +707,33 @@ function adaptiveCornerZones(markers) {
     .filter(marker => Number.isFinite(marker.fraction))
     .sort((a, b) => a.fraction - b.fraction);
   const series = loaded.map(lap => telemetryCache.get(telemetryKey(lap))).filter(samples => samples?.length);
+  const reference = series[0];
   const ensembleSpeed = fraction => medianTelemetry(series
     .map(samples => smoothedTelemetryValue(samples, fraction, 'Speed'))
     .filter(Number.isFinite));
+  const geometryCurvature = fraction => {
+    if (!reference?.length) return null;
+    const arm = 18 / totalDistance;
+    const point = offset => ({
+      x: alignedValue(reference, clampTelemetry(fraction + offset), 'X'),
+      y: alignedValue(reference, clampTelemetry(fraction + offset), 'Y'),
+    });
+    const before = point(-arm);
+    const centre = point(0);
+    const after = point(arm);
+    if (![before.x, before.y, centre.x, centre.y, after.x, after.y].every(Number.isFinite)) return null;
+    const incoming = { x: centre.x - before.x, y: centre.y - before.y };
+    const outgoing = { x: after.x - centre.x, y: after.y - centre.y };
+    const incomingLength = Math.hypot(incoming.x, incoming.y);
+    const outgoingLength = Math.hypot(outgoing.x, outgoing.y);
+    if (!incomingLength || !outgoingLength) return null;
+    const cosine = clampTelemetry(
+      (incoming.x * outgoing.x + incoming.y * outgoing.y) / (incomingLength * outgoingLength),
+      -1,
+      1
+    );
+    return Math.acos(cosine) / 36;
+  };
 
   const descriptors = ordered.map((marker, index) => {
     const previousGap = index ? (marker.fraction - ordered[index - 1].fraction) * totalDistance : Infinity;
@@ -717,27 +741,44 @@ function adaptiveCornerZones(markers) {
     const complex = Math.min(previousGap, nextGap) < 185;
     const searchMetres = Math.min(complex ? 62 : 125, previousGap * .46, nextGap * .46);
     const searchHalf = Math.max(24, searchMetres) / totalDistance;
+    const searchStart = Math.max(0, marker.fraction - searchHalf,
+      index ? (ordered[index - 1].fraction + marker.fraction) / 2 : 0);
+    const searchEnd = Math.min(1, marker.fraction + searchHalf,
+      index < ordered.length - 1 ? (marker.fraction + ordered[index + 1].fraction) / 2 : 1);
     let apex = marker.fraction;
+    let bestGeometryScore = -Infinity;
     let minimumSpeed = Infinity;
-    const searchSteps = Math.max(12, Math.ceil(searchMetres * 2 / 5));
+    const searchSteps = Math.max(12, Math.ceil((searchEnd - searchStart) * totalDistance / 4));
     for (let step = 0; step <= searchSteps; step++) {
-      const fraction = clampTelemetry(marker.fraction - searchHalf + (searchHalf * 2 * step / searchSteps));
+      const fraction = searchStart + (searchEnd - searchStart) * step / searchSteps;
       const speed = ensembleSpeed(fraction);
-      if (Number.isFinite(speed) && speed < minimumSpeed) {
-        minimumSpeed = speed;
+      if (Number.isFinite(speed) && speed < minimumSpeed) minimumSpeed = speed;
+      const curvatureSamples = [-5, 0, 5]
+        .map(offset => geometryCurvature(fraction + offset / totalDistance))
+        .filter(Number.isFinite);
+      const curvature = medianTelemetry(curvatureSamples);
+      const range = Math.max(searchEnd - searchStart, 1 / totalDistance);
+      const proximityWeight = 1 - .22 * Math.abs(fraction - marker.fraction) / range;
+      const score = Number.isFinite(curvature) ? curvature * proximityWeight : -Infinity;
+      if (score > bestGeometryScore) {
+        bestGeometryScore = score;
         apex = fraction;
       }
     }
+
+    // If geometry is absent or essentially straight, the projected official
+    // corner marker is a safer centre than a telemetry speed trough.
+    if (!Number.isFinite(bestGeometryScore) || bestGeometryScore <= 1e-7) apex = marker.fraction;
 
     const threshold = minimumSpeed + (minimumSpeed < 145 ? 14 : minimumSpeed < 220 ? 11 : 8);
     const stepFraction = 5 / totalDistance;
     let basinStart = apex;
     let basinEnd = apex;
-    for (let fraction = apex; fraction >= marker.fraction - searchHalf; fraction -= stepFraction) {
+    for (let fraction = apex; fraction >= searchStart; fraction -= stepFraction) {
       if (ensembleSpeed(fraction) > threshold) break;
       basinStart = fraction;
     }
-    for (let fraction = apex; fraction <= marker.fraction + searchHalf; fraction += stepFraction) {
+    for (let fraction = apex; fraction <= searchEnd; fraction += stepFraction) {
       if (ensembleSpeed(fraction) > threshold) break;
       basinEnd = fraction;
     }
