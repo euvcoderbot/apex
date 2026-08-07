@@ -2685,17 +2685,55 @@ canvas[data-chart="Speed trace"] {
 
 .summary-sectors {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  padding-top: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin: 6px -9px -8px -11px;
+  border-top: 1px solid rgba(255, 255, 255, .06);
 }
 
-.summary-sectors > span {
+.summary-sectors > .sector-cell {
+  --sector-status: transparent;
+  position: relative;
   display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: baseline;
-  gap: 4px;
+  align-content: start;
+  gap: 3px;
   min-width: 0;
+  min-height: 43px;
+  padding: 7px 9px 9px;
+}
+
+.summary-sectors > .sector-cell + .sector-cell {
+  border-left: 1px solid rgba(255, 255, 255, .07);
+}
+
+.summary-sectors > .sector-cell::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 4px;
+  background: var(--sector-status);
+  box-shadow: 0 -2px 10px color-mix(in srgb, var(--sector-status) 24%, transparent);
+}
+
+.sector-cell.is-session-best {
+  --sector-status: #c868ff;
+}
+
+.sector-cell.is-personal-best {
+  --sector-status: #28d96f;
+}
+
+.sector-cell.is-complete {
+  --sector-status: #e3bd35;
+}
+
+.sector-cell-value {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 5px;
 }
 
 .summary-sectors strong {
@@ -2710,7 +2748,7 @@ canvas[data-chart="Speed trace"] {
 }
 
 .summary-sectors .summary-delta {
-  grid-column: 1 / -1;
+  justify-self: end;
 }
 
 .summary-delta.is-slower {

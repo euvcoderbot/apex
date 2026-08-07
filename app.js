@@ -648,6 +648,30 @@ function renderSectors() {
   }
   
   const ref = loaded[0];
+  const sectorFields = ['s1', 's2', 's3'];
+  const finiteMinimum = values => {
+    const finite = values.filter(value => Number.isFinite(value) && value > 0);
+    return finite.length ? Math.min(...finite) : null;
+  };
+  const personalBests = new Map([...realDrivers.entries()].map(([code, driver]) => [
+    code,
+    sectorFields.map(field => finiteMinimum((driver.laps || []).map(lap => lap[field]))),
+  ]));
+  const sessionBests = sectorFields.map((field, sectorIndex) => finiteMinimum(
+    [...personalBests.values()].map(best => best[sectorIndex])
+  ));
+  const sectorState = (code, sectorIndex, value) => {
+    if (!Number.isFinite(value)) return { className: 'is-unset', label: 'No sector time' };
+    const tolerance = .0005;
+    if (Number.isFinite(sessionBests[sectorIndex]) && Math.abs(value - sessionBests[sectorIndex]) <= tolerance) {
+      return { className: 'is-session-best', label: 'Session best' };
+    }
+    const personal = personalBests.get(code)?.[sectorIndex];
+    if (Number.isFinite(personal) && Math.abs(value - personal) <= tolerance) {
+      return { className: 'is-personal-best', label: 'Personal best' };
+    }
+    return { className: 'is-complete', label: 'Completed sector' };
+  };
   
   const deltaBadge = (value, reference) => {
     if (!Number.isFinite(value) || !Number.isFinite(reference)) return '';
@@ -660,19 +684,23 @@ function renderSectors() {
     const lap = item.real || {};
     const refLap = ref.real || {};
     const color = getDriverColor(item.code);
-    const sectors = [
-      ['S1', lap.s1, refLap.s1],
-      ['S2', lap.s2, refLap.s2],
-      ['S3', lap.s3, refLap.s3],
-    ];
+    const sectors = sectorFields.map((field, sectorIndex) => ({
+      label: `S${sectorIndex + 1}`,
+      value: lap[field],
+      reference: refLap[field],
+      state: sectorState(item.code, sectorIndex, lap[field]),
+    }));
     return `
       <article class="lap-summary-card" style="--team:${color}">
         <header>
           <span class="summary-driver"><b>${item.code}</b><small>L${item.lap}</small>${i === 0 ? '<em>REF</em>' : ''}</span>
           <span class="summary-lap-time"><small>LAP</small><strong>${Number.isFinite(item.time) ? time(item.time) : '—'}</strong>${i === 0 ? '' : deltaBadge(item.time, ref.time)}</span>
         </header>
-        <div class="summary-sectors">${sectors.map(([label, value, reference]) => `
-          <span><small>${label}</small><strong>${Number.isFinite(value) ? `${value.toFixed(3)}s` : '—'}</strong>${i === 0 ? '' : deltaBadge(value, reference)}</span>`).join('')}
+        <div class="summary-sectors">${sectors.map(({ label, value, reference, state }) => `
+          <span class="sector-cell ${state.className}" title="${label} · ${state.label}">
+            <span class="sector-cell-value"><small>${label}</small><strong>${Number.isFinite(value) ? `${value.toFixed(3)}s` : '—'}</strong></span>
+            ${i === 0 ? '' : deltaBadge(value, reference)}
+          </span>`).join('')}
         </div>
       </article>
     `;
