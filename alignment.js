@@ -360,6 +360,7 @@ function setAlignedFractions(samples, fractions, method) {
   setTelemetryMeta(samples, 'alignmentMethod', method);
   setTelemetryMeta(samples, 'speedModel', null);
   setTelemetryMeta(samples, 'deltaModel', null);
+  setTelemetryMeta(samples, 'performanceTimeModel', null);
 }
 
 function alignedValue(samples, fraction, field) {
@@ -564,6 +565,81 @@ function calibratedElapsed(samples, fraction) {
   return before.official + (after.official - before.official) * ratio;
 }
 
+// Build a smooth physical time curve by integrating ds / speed along the
+// aligned lap. Each sector is then scaled back to its official duration. This
+// is more stable than subtracting adjacent sparse timestamps over a 25 m slice
+// and keeps local dominance consistent with the displayed speed trace.
+function buildPerformanceTimeModel(samples) {
+  if (!samples?.length) return null;
+  const totalDistance = referenceDistance();
+  if (!Number.isFinite(totalDistance) || totalDistance <= 0) return null;
+  const resolution = Math.max(600, Math.min(1800, Math.ceil(totalDistance / 4)));
+  const raw = new Array(resolution + 1).fill(0);
+  for (let index = 1; index <= resolution; index++) {
+    const beforeFraction = (index - 1) / resolution;
+    const afterFraction = index / resolution;
+    const beforeSpeed = smoothedTelemetryValue(samples, beforeFraction, 'Speed');
+    const afterSpeed = smoothedTelemetryValue(samples, afterFraction, 'Speed');
+    if (!Number.isFinite(beforeSpeed) || !Number.isFinite(afterSpeed)) return null;
+    const meanSpeed = Math.max(10, (beforeSpeed + afterSpeed) / 2);
+    raw[index] = raw[index - 1] + (totalDistance / resolution) / (meanSpeed / 3.6);
+  }
+
+  const rawAt = fraction => {
+    const index = clampTelemetry(fraction) * resolution;
+    const lower = Math.floor(index);
+    const upper = Math.min(resolution, Math.ceil(index));
+    const ratio = index - lower;
+    return raw[lower] + (raw[upper] - raw[lower]) * ratio;
+  };
+  const controls = (samples.timeCalibration || [])
+    .map(control => ({ fraction: control.fraction, official: control.official }))
+    .filter(control => Number.isFinite(control.fraction) && Number.isFinite(control.official))
+    .sort((a, b) => a.fraction - b.fraction)
+    .filter((control, index, array) => index === 0 || control.fraction > array[index - 1].fraction);
+  if (controls.length < 2) {
+    controls.splice(0, controls.length,
+      { fraction: 0, official: 0 },
+      { fraction: 1, official: samples.lapDuration || raw[resolution] });
+  }
+  controls.forEach(control => { control.integrated = rawAt(control.fraction); });
+
+  const values = raw.map((integrated, index) => {
+    const fraction = index / resolution;
+    let afterIndex = controls.findIndex(control => control.fraction >= fraction);
+    if (afterIndex <= 0) afterIndex = 1;
+    const after = controls[Math.min(afterIndex, controls.length - 1)];
+    const before = controls[Math.max(0, afterIndex - 1)];
+    const ratio = clampTelemetry((integrated - before.integrated) /
+      (after.integrated - before.integrated || 1));
+    return before.official + (after.official - before.official) * ratio;
+  });
+  return { resolution, values, controls };
+}
+
+function performanceElapsed(samples, fraction) {
+  if (!samples?.length) return null;
+  if (!samples.performanceTimeModel) {
+    setTelemetryMeta(samples, 'performanceTimeModel', buildPerformanceTimeModel(samples));
+  }
+  const model = samples.performanceTimeModel;
+  if (!model) return calibratedElapsed(samples, fraction);
+  const target = clampTelemetry(fraction);
+  const exact = model.controls.find(control => Math.abs(control.fraction - target) < 1e-8);
+  if (exact) return exact.official;
+  const index = target * model.resolution;
+  const lower = Math.floor(index);
+  const upper = Math.min(model.resolution, Math.ceil(index));
+  const ratio = index - lower;
+  return model.values[lower] + (model.values[upper] - model.values[lower]) * ratio;
+}
+
+function performanceSectionDuration(samples, start, end) {
+  const startTime = performanceElapsed(samples, start);
+  const endTime = performanceElapsed(samples, end);
+  return Number.isFinite(startTime) && Number.isFinite(endTime) ? endTime - startTime : null;
+}
+
 function deltaAt(samples, reference, targetDistance) {
   const fraction = clampTelemetry(targetDistance / referenceDistance());
   const timeHere = calibratedElapsed(samples, fraction);
@@ -576,33 +652,26 @@ function buildDeltaModel(samples, reference) {
   const resolution = 360;
   const raw = Array.from({ length: resolution + 1 }, (_, index) => {
     const fraction = index / resolution;
-    return deltaAt(samples, reference, referenceDistance() * fraction);
+    const timeHere = performanceElapsed(samples, fraction);
+    const referenceHere = performanceElapsed(reference, fraction);
+    return Number.isFinite(timeHere) && Number.isFinite(referenceHere) ? timeHere - referenceHere : null;
   });
   if (!raw.every(Number.isFinite)) return null;
-  let filtered = [...raw];
-  const passes = (samples.quality?.repeatSpeedRatio || 0) >= 0.35 ? 2 : 1;
-  for (let pass = 0; pass < passes; pass++) {
-    const previous = filtered;
-    filtered = previous.map((value, index) => {
-      if (index < 2 || index > previous.length - 3) return value;
-      return (previous[index - 2] + 4 * previous[index - 1] + 6 * value
-        + 4 * previous[index + 1] + previous[index + 2]) / 16;
-    });
-  }
 
-  // Put official start, sector and finish deltas back exactly after the
-  // zero-phase filter. This prevents visual smoothing from creating drift.
+  // Put official start, sector and finish deltas back exactly. Integrated
+  // speed already produces a smooth curve, so no additional low-pass filter
+  // is needed and local map winners remain consistent with the delta trace.
   const referenceLap = loaded[0];
   const anchors = [0, ...sectorFractions(reference, referenceLap), 1].map(fraction => {
     const index = clampTelemetry(fraction) * resolution;
     const lower = Math.floor(index);
     const upper = Math.min(resolution, Math.ceil(index));
     const ratio = index - lower;
-    const filteredValue = filtered[lower] + (filtered[upper] - filtered[lower]) * ratio;
+    const filteredValue = raw[lower] + (raw[upper] - raw[lower]) * ratio;
     const officialValue = deltaAt(samples, reference, referenceDistance() * fraction);
     return { fraction, correction: officialValue - filteredValue };
   });
-  const corrected = filtered.map((value, index) => {
+  const corrected = raw.map((value, index) => {
     const fraction = index / resolution;
     return value + interpolateControls(anchors, fraction, 'fraction', 'correction');
   });
@@ -637,64 +706,94 @@ function adaptiveCornerZones(markers) {
   const ordered = [...markers]
     .filter(marker => Number.isFinite(marker.fraction))
     .sort((a, b) => a.fraction - b.fraction);
-  const nominalHalfWindow = Math.max(42, Math.min(95, totalDistance * 0.012)) / totalDistance;
-  return ordered.map((marker, index) => {
-    const previous = ordered[index - 1];
-    const next = ordered[index + 1];
-    const leftLimit = previous ? Math.max(0.004, (marker.fraction - previous.fraction) * 0.46) : nominalHalfWindow;
-    const rightLimit = next ? Math.max(0.004, (next.fraction - marker.fraction) * 0.46) : nominalHalfWindow;
-    const start = Math.max(0, marker.fraction - Math.min(nominalHalfWindow, leftLimit));
-    const end = Math.min(1, marker.fraction + Math.min(nominalHalfWindow, rightLimit));
+  const series = loaded.map(lap => telemetryCache.get(telemetryKey(lap))).filter(samples => samples?.length);
+  const ensembleSpeed = fraction => medianTelemetry(series
+    .map(samples => smoothedTelemetryValue(samples, fraction, 'Speed'))
+    .filter(Number.isFinite));
+
+  const descriptors = ordered.map((marker, index) => {
+    const previousGap = index ? (marker.fraction - ordered[index - 1].fraction) * totalDistance : Infinity;
+    const nextGap = index < ordered.length - 1 ? (ordered[index + 1].fraction - marker.fraction) * totalDistance : Infinity;
+    const complex = Math.min(previousGap, nextGap) < 185;
+    const searchMetres = Math.min(complex ? 62 : 125, previousGap * .46, nextGap * .46);
+    const searchHalf = Math.max(24, searchMetres) / totalDistance;
+    let apex = marker.fraction;
+    let minimumSpeed = Infinity;
+    const searchSteps = Math.max(12, Math.ceil(searchMetres * 2 / 5));
+    for (let step = 0; step <= searchSteps; step++) {
+      const fraction = clampTelemetry(marker.fraction - searchHalf + (searchHalf * 2 * step / searchSteps));
+      const speed = ensembleSpeed(fraction);
+      if (Number.isFinite(speed) && speed < minimumSpeed) {
+        minimumSpeed = speed;
+        apex = fraction;
+      }
+    }
+
+    const threshold = minimumSpeed + (minimumSpeed < 145 ? 14 : minimumSpeed < 220 ? 11 : 8);
+    const stepFraction = 5 / totalDistance;
+    let basinStart = apex;
+    let basinEnd = apex;
+    for (let fraction = apex; fraction >= marker.fraction - searchHalf; fraction -= stepFraction) {
+      if (ensembleSpeed(fraction) > threshold) break;
+      basinStart = fraction;
+    }
+    for (let fraction = apex; fraction <= marker.fraction + searchHalf; fraction += stepFraction) {
+      if (ensembleSpeed(fraction) > threshold) break;
+      basinEnd = fraction;
+    }
+    const basinMetres = Math.max(0, (basinEnd - basinStart) * totalDistance);
+    const longRadius = !complex && basinMetres >= 75;
+    const type = complex ? 'CHICANE / COMPLEX' : longRadius ? 'LONG RADIUS' : minimumSpeed < 145 ? 'SLOW CORNER' : minimumSpeed > 225 ? 'HIGH SPEED' : 'MEDIUM SPEED';
+    const apexHalfMetres = complex ? 26 : longRadius ? Math.min(105, Math.max(52, basinMetres * .62))
+      : minimumSpeed < 145 ? 42 : minimumSpeed > 225 ? 34 : 38;
+    const sectorReach = longRadius ? 220 : complex ? 175 : 190;
+    return { ...marker, apex, minimumSpeed, type, apexHalfMetres, sectorReach, previousGap, nextGap };
+  });
+
+  return descriptors.map((descriptor, index) => {
+    const previous = descriptors[index - 1];
+    const next = descriptors[index + 1];
+    const leftDistance = previous ? (descriptor.apex - previous.apex) * totalDistance : Infinity;
+    const rightDistance = next ? (next.apex - descriptor.apex) * totalDistance : Infinity;
+    const start = Math.max(0, descriptor.apex - (previous && leftDistance <= descriptor.sectorReach + previous.sectorReach
+      ? leftDistance / 2 : descriptor.sectorReach) / totalDistance);
+    const end = Math.min(1, descriptor.apex + (next && rightDistance <= descriptor.sectorReach + next.sectorReach
+      ? rightDistance / 2 : descriptor.sectorReach) / totalDistance);
+    const apexStart = Math.max(start, descriptor.apex - descriptor.apexHalfMetres / totalDistance);
+    const apexEnd = Math.min(end, descriptor.apex + descriptor.apexHalfMetres / totalDistance);
     return {
-      ...marker,
+      ...descriptor,
       start,
       end,
+      apexStart,
+      apexEnd,
       metres: Math.round((end - start) * totalDistance),
+      apexMetres: Math.round((apexEnd - apexStart) * totalDistance),
     };
   });
 }
 
 function cornerPerformance(samples, zone) {
   if (!samples?.length || !zone) return null;
-  const points = samples.filter(point => {
-    const fraction = Number.isFinite(point.AlignedFraction) ? point.AlignedFraction : rawFractionAt(samples, point);
-    return fraction >= zone.start && fraction <= zone.end && hasTelemetryNumber(point.Speed);
-  });
-  if (points.length < 2) return null;
-  const speedSorted = [...points].sort((a, b) => +a.Speed - +b.Speed);
-  const minimumPoint = speedSorted[0];
-  const minimumFraction = Number.isFinite(minimumPoint.AlignedFraction)
-    ? minimumPoint.AlignedFraction
-    : rawFractionAt(samples, minimumPoint);
-  const spacings = points.slice(1).map((point, index) => {
-    const current = Number.isFinite(point.AlignedFraction) ? point.AlignedFraction : rawFractionAt(samples, point);
-    const previous = Number.isFinite(points[index].AlignedFraction) ? points[index].AlignedFraction : rawFractionAt(samples, points[index]);
-    return Math.max(0, current - previous) * referenceDistance();
-  });
-  const apexRadius = Math.max(7, Math.min(24, (medianTelemetry(spacings) || 8) * 1.4));
-  const apexCluster = points.filter(point => {
-    const fraction = Number.isFinite(point.AlignedFraction) ? point.AlignedFraction : rawFractionAt(samples, point);
-    return Math.abs(fraction - minimumFraction) * referenceDistance() <= apexRadius;
-  });
-  const edgeCount = Math.max(1, Math.ceil(points.length * 0.18));
-  const edgeSpeed = medianTelemetry([
-    ...points.slice(0, edgeCount).map(point => +point.Speed),
-    ...points.slice(-edgeCount).map(point => +point.Speed),
-  ]);
-  const pronouncedTrough = Number.isFinite(edgeSpeed) && edgeSpeed - +minimumPoint.Speed >= 6;
-  const stablePool = pronouncedTrough ? apexCluster : points;
-  const lowCount = Math.max(1, Math.min(4, Math.ceil(stablePool.length * (pronouncedTrough ? 0.35 : 0.2))));
-  const stableMinimum = medianTelemetry([...stablePool].sort((a, b) => +a.Speed - +b.Speed)
-    .slice(0, lowCount).map(point => +point.Speed));
-  const startTime = calibratedElapsed(samples, zone.start);
-  const endTime = calibratedElapsed(samples, zone.end);
+  const totalDistance = referenceDistance();
+  const steps = Math.max(8, Math.ceil((zone.apexEnd - zone.apexStart) * totalDistance / 4));
+  const apexSamples = Array.from({ length: steps + 1 }, (_, index) => {
+    const fraction = zone.apexStart + (zone.apexEnd - zone.apexStart) * index / steps;
+    return { fraction, speed: smoothedTelemetryValue(samples, fraction, 'Speed') };
+  }).filter(point => Number.isFinite(point.speed));
+  if (apexSamples.length < 3) return null;
+  const ordered = [...apexSamples].sort((a, b) => a.speed - b.speed);
+  const lowCount = Math.max(2, Math.min(5, Math.ceil(ordered.length * .12)));
+  const stableMinimum = medianTelemetry(ordered.slice(0, lowCount).map(point => point.speed));
+  const minimumPoint = ordered[0];
+  const sectionTime = performanceSectionDuration(samples, zone.start, zone.end);
   return {
     minimumSpeed: stableMinimum,
-    rawMinimum: +minimumPoint.Speed,
-    apexFraction: minimumFraction,
-    sectionTime: Number.isFinite(startTime) && Number.isFinite(endTime) ? endTime - startTime : null,
-    method: pronouncedTrough ? 'apex trough' : 'carried-speed band',
-    samples: points.length,
+    rawMinimum: minimumPoint.speed,
+    apexFraction: minimumPoint.fraction,
+    sectionTime,
+    method: zone.type,
+    samples: apexSamples.length,
   };
 }
 

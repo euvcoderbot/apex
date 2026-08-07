@@ -132,10 +132,18 @@ def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: s
         return []
     session_key = session["session_key"]
     laps = openf1("laps", session_key=session_key, driver_number=driver_number, lap_number=lap_number)
-    if not laps or not laps[0].get("date_start") or not laps[0].get("lap_duration"):
+    if not laps:
         return []
-    start_dt = datetime.fromisoformat(laps[0]["date_start"].replace("Z", "+00:00"))
-    end_dt = start_dt + timedelta(seconds=float(laps[0]["lap_duration"]) + 0.5)
+    lap_info = laps[0]
+    lap_duration = seconds(lap_info.get("lap_duration"))
+    # Pit-out records occasionally contain the time since an earlier timing
+    # event rather than a lap duration (for example an 802 s "lap"). They are
+    # useful in the run list, but must never enter a lap comparison.
+    if (lap_info.get("is_pit_out_lap") is True or not lap_info.get("date_start")
+            or lap_duration is None or not 20 < lap_duration < 300):
+        return []
+    start_dt = datetime.fromisoformat(lap_info["date_start"].replace("Z", "+00:00"))
+    end_dt = start_dt + timedelta(seconds=lap_duration + 0.5)
     
     start_str = start_dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
     end_str = end_dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
@@ -146,9 +154,12 @@ def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: s
     # endpoint and slice the requested lap locally.
     if not car:
         all_car = openf1("car_data", session_key=session_key, driver_number=driver_number)
-        car = [point for point in all_car if start_dt - timedelta(seconds=0.5)
-               <= datetime.fromisoformat(point["date"].replace("Z", "+00:00"))
-               <= end_dt]
+        car = all_car
+    # Always enforce the lap window locally. Some fresh OpenF1 indexes have
+    # accepted the date filter but returned the driver's whole session stream.
+    car = [point for point in car if start_dt - timedelta(seconds=0.5)
+           <= datetime.fromisoformat(point["date"].replace("Z", "+00:00"))
+           <= end_dt]
     if not car:
         return []
     # OpenF1 publishes vehicle location separately from car channels. Joining
@@ -158,9 +169,10 @@ def openf1_lap_telemetry(year: int, gp: str, session_name: str, driver_number: s
         location = openf1("location", session_key=session_key, driver_number=driver_number, **{"date>=": start_str, "date<=": end_str})
         if not location:
             all_location = openf1("location", session_key=session_key, driver_number=driver_number)
-            location = [point for point in all_location if start_dt - timedelta(seconds=0.5)
-                        <= datetime.fromisoformat(point["date"].replace("Z", "+00:00"))
-                        <= end_dt]
+            location = all_location
+        location = [point for point in location if start_dt - timedelta(seconds=0.5)
+                    <= datetime.fromisoformat(point["date"].replace("Z", "+00:00"))
+                    <= end_dt]
         if location:
             car_frame = pd.DataFrame(car)
             location_frame = pd.DataFrame(location)
@@ -676,6 +688,8 @@ def telemetry(
         if selected.empty:
             raise ValueError("lap was not found")
         lap_row = selected.iloc[0]
+        if seconds(lap_row.get("PitOutTime")) is not None or seconds(lap_row.get("PitInTime")) is not None:
+            raise ValueError("pit-in and pit-out laps are not valid comparison laps")
         # Use the raw car stream for the trace. FastF1's convenience
         # get_telemetry() helper merges position and car channels, which can
         # introduce interpolated/padded samples around some laps.

@@ -9,6 +9,7 @@ let calendar = [];
 let corners = [];
 let nominatedCompounds = [];
 let activeDriverTab = null;
+let selectedCornerIndex = 0;
 
 let hoverFraction = null;
 let hoveredChartName = null;
@@ -223,6 +224,7 @@ function clearBeforeSessionLoad() {
   corners = [];
   nominatedCompounds = [];
   activeDriverTab = null;
+  selectedCornerIndex = 0;
   telemetryCache.clear();
   $('#driverPills').innerHTML = '<span class="section-empty">Load a session to see its drivers.</span>';
   $('#stintPanels').innerHTML = '<span class="section-empty">Select a driver to inspect their runs and laps.</span>';
@@ -437,7 +439,7 @@ function renderStintsLegacy() {
         selected.forEach(c => {
           const d = realDrivers.get(c);
           if (d && d.laps && d.laps.length) {
-            const validLaps = d.laps.filter(l => Number.isFinite(l.time) && l.time > 0);
+            const validLaps = d.laps.filter(l => Number.isFinite(l.time) && l.time > 0 && !l.in_lap && !l.out_lap);
             const f = validLaps.length ? validLaps.reduce((a, b) => a.time < b.time ? a : b) : d.laps[0];
             if (f) {
               loaded.push({ code: c, lap: f.lap, time: f.time, real: f });
@@ -1395,15 +1397,31 @@ function bindTrackMapHover() {
 
       if (tooltip && telemetryCard) {
         const distanceKM = (bestFraction * totalDistance) / 1000;
-        const lines = loaded.map(lap => {
+        const segments = Math.ceil(totalDistance / 25);
+        const segmentIndex = Math.min(segments - 1, Math.floor(bestFraction * segments));
+        const segmentStart = segmentIndex / segments;
+        const segmentEnd = (segmentIndex + 1) / segments;
+        const segmentRows = loaded.map(lap => {
           const series = telemetryCache.get(telemetryKey(lap));
-          const targetDist = bestFraction * totalDistance;
-          const speed = interpolate(series, targetDist, 'Speed');
+          const speed = typeof smoothedTelemetryValue === 'function'
+            ? smoothedTelemetryValue(series, bestFraction, 'Speed')
+            : interpolate(series, bestFraction * totalDistance, 'Speed');
+          const sectionTime = typeof performanceSectionDuration === 'function'
+            ? performanceSectionDuration(series, segmentStart, segmentEnd)
+            : null;
+          return { lap, speed, sectionTime };
+        });
+        const finiteSegmentTimes = segmentRows.map(row => row.sectionTime).filter(Number.isFinite);
+        const bestTime = finiteSegmentTimes.length ? Math.min(...finiteSegmentTimes) : null;
+        const lines = segmentRows.map(({ lap, speed, sectionTime }) => {
           const speedDisplay = Number.isFinite(speed) ? `${Math.round(speed)} KM/H` : '—';
-          return `<span style="color: ${getDriverColor(lap.code)}">●</span> ${lap.code} L${lap.lap} · <b>${speedDisplay}</b>`;
+          const timeDisplay = Number.isFinite(sectionTime) && Number.isFinite(bestTime)
+            ? `${sectionTime.toFixed(3)}s${Math.abs(sectionTime - bestTime) < .0005 ? ' FASTEST' : ` +${(sectionTime - bestTime).toFixed(3)}s`}`
+            : 'NO SECTION TIME';
+          return `<span style="color: ${getDriverColor(lap.code)}">●</span> ${lap.code} L${lap.lap} · <b>${speedDisplay}</b> · ${timeDisplay}`;
         });
 
-        tooltip.innerHTML = `<b>TRACK MAP · ${distanceKM.toFixed(3)} KM</b><br>${lines.join('<br>')}`;
+        tooltip.innerHTML = `<b>TRACK MAP · ${distanceKM.toFixed(3)} KM · 25 M SECTION</b><br>${lines.join('<br>')}`;
         tooltip.style.display = 'block';
 
         const parentRect = telemetryCard.getBoundingClientRect();
@@ -1493,42 +1511,61 @@ function renderCornerAnalysis() {
     return;
   }
 
-  root.innerHTML = zones.map(zone => {
-    const metrics = loaded.map(lap => {
-      const samples = telemetryCache.get(telemetryKey(lap));
-      const metric = cornerPerformance(samples, zone);
-      return metric ? { lap, metric } : null;
-    }).filter(Boolean);
-    if (!metrics.length) return '';
-    const fastestSection = Math.min(...metrics.map(item => item.metric.sectionTime).filter(Number.isFinite));
-    const rows = metrics.map(item => {
-      const sectionDelta = Number.isFinite(item.metric.sectionTime) && Number.isFinite(fastestSection)
-        ? item.metric.sectionTime - fastestSection
-        : null;
-      const fastest = Number.isFinite(sectionDelta) && Math.abs(sectionDelta) < 0.0005;
-      const timeLabel = Number.isFinite(item.metric.sectionTime) ? `${item.metric.sectionTime.toFixed(3)}s` : '—';
-      const deltaLabel = !Number.isFinite(item.metric.sectionTime)
-        ? 'NO TIME'
-        : loaded.length === 1
-          ? 'REFERENCE'
-          : fastest ? 'FASTEST' : `+${sectionDelta.toFixed(3)}s`;
-      return `
-        <div class="corner-driver-row ${fastest && loaded.length > 1 ? 'is-fastest' : ''}" style="--driver-color:${getDriverColor(item.lap.code)}" title="${item.metric.method}; ${item.metric.samples} source samples">
-          <span class="corner-driver"><i></i>${item.lap.code}<small>L${item.lap.lap}</small></span>
-          <span class="corner-speed"><strong>${Math.round(item.metric.minimumSpeed)}</strong><small>KM/H MIN</small></span>
-          <span class="corner-time"><strong>${timeLabel}</strong><small>${deltaLabel}</small></span>
-        </div>
-      `;
-    }).join('');
-    const method = metrics.some(item => item.metric.method === 'apex trough') ? 'APEX TROUGH' : 'CARRIED-SPEED BAND';
-    return `
-      <article class="corner-metric-card">
-        <header class="corner-metric-title"><strong>${cornerLabel(zone)}</strong><span>${zone.metres} M ZONE</span></header>
-        <div class="corner-driver-metrics">${rows}</div>
-        <footer class="corner-method">${method}</footer>
-      </article>
-    `;
+  selectedCornerIndex = Math.max(0, Math.min(selectedCornerIndex, zones.length - 1));
+  const allMetrics = zones.map(zone => loaded.map(lap => {
+    const samples = telemetryCache.get(telemetryKey(lap));
+    const metric = cornerPerformance(samples, zone);
+    return metric ? { lap, metric } : null;
+  }).filter(Boolean));
+  const zone = zones[selectedCornerIndex];
+  const metrics = allMetrics[selectedCornerIndex];
+  if (!metrics.length) {
+    root.innerHTML = '<span class="section-empty">This corner has insufficient speed data.</span>';
+    return;
+  }
+  const finiteTimes = metrics.map(item => item.metric.sectionTime).filter(Number.isFinite);
+  const fastestSection = finiteTimes.length ? Math.min(...finiteTimes) : null;
+  const referenceSection = metrics[0]?.metric.sectionTime;
+  const signedDelta = value => `${value >= 0 ? '+' : '−'}${Math.abs(value).toFixed(3)}s`;
+  const picker = zones.map((candidate, index) => {
+    const candidateMetrics = allMetrics[index];
+    const winner = candidateMetrics.reduce((best, item) => !Number.isFinite(item.metric.sectionTime)
+      ? best : !best || item.metric.sectionTime < best.metric.sectionTime ? item : best, null);
+    return `<button class="corner-pick ${index === selectedCornerIndex ? 'selected' : ''}" data-corner-index="${index}" title="Inspect ${cornerLabel(candidate)}"><strong>${cornerLabel(candidate)}</strong><small>${winner?.lap.code || '—'}</small></button>`;
   }).join('');
+  const rows = metrics.map((item, index) => {
+    const sectionTime = item.metric.sectionTime;
+    const toReference = Number.isFinite(sectionTime) && Number.isFinite(referenceSection)
+      ? sectionTime - referenceSection : null;
+    const fastest = Number.isFinite(sectionTime) && Number.isFinite(fastestSection)
+      && Math.abs(sectionTime - fastestSection) < .0005;
+    return `
+      <div class="corner-driver-row ${fastest && loaded.length > 1 ? 'is-fastest' : ''}" style="--driver-color:${getDriverColor(item.lap.code)}">
+        <span class="corner-driver"><i></i><b>${item.lap.code}</b><small>L${item.lap.lap}</small>${index === 0 ? '<em>REF</em>' : ''}</span>
+        <span class="corner-time"><strong>${Number.isFinite(sectionTime) ? `${sectionTime.toFixed(3)}s` : '—'}</strong><small>SECTION</small></span>
+        <span class="corner-delta"><strong>${Number.isFinite(toReference) ? signedDelta(toReference) : '—'}</strong><small>VS REF</small></span>
+        <span class="corner-speed"><strong>${Number.isFinite(item.metric.minimumSpeed) ? Math.round(item.metric.minimumSpeed) : '—'}</strong><small>KM/H MIN</small></span>
+      </div>`;
+  }).join('');
+
+  root.innerHTML = `
+    <nav class="corner-picker" aria-label="Select a corner">${picker}</nav>
+    <article class="corner-detail-card">
+      <header class="corner-detail-header">
+        <div><span>SELECTED CORNER</span><strong>${cornerLabel(zone)}</strong><small>${zone.type}</small></div>
+        <dl><div><dt>Timing sector</dt><dd>${zone.metres} m</dd></div><div><dt>Min-speed window</dt><dd>${zone.apexMetres} m</dd></div></dl>
+      </header>
+      <div class="corner-table-head"><span>Driver</span><span>Time</span><span>Delta</span><span>Minimum</span></div>
+      <div class="corner-driver-metrics">${rows}</div>
+      <footer class="corner-method">SECTION TIME: DISTANCE-INTEGRATED SPEED, OFFICIAL SECTOR NORMALIZED · MINIMUM: ROBUST LOCAL APEX CLUSTER</footer>
+    </article>`;
+  root.onclick = event => {
+    const button = event.target.closest('[data-corner-index]');
+    if (!button) return;
+    selectedCornerIndex = Number(button.dataset.cornerIndex) || 0;
+    renderCornerAnalysis();
+    renderMiniSectorMap();
+  };
 }
 
 function renderApexSpeeds() {
@@ -1656,6 +1693,27 @@ function renderMiniSectorMap() {
   });
   ctx.stroke();
 
+  // Highlight the timing sector selected in the compact corner panel. The
+  // dominance colour remains visible on top of this wider neon underlay.
+  if ($('#cornerToggle').checked && typeof adaptiveCornerZones === 'function') {
+    const markerCorners = resolveCornerMarkers(reference, totalDistance, loaded[0]?.cornerMarkers);
+    const zones = adaptiveCornerZones(markerCorners);
+    const selectedZone = zones[Math.max(0, Math.min(selectedCornerIndex, zones.length - 1))];
+    if (selectedZone) {
+      ctx.strokeStyle = 'rgba(224, 255, 0, .3)';
+      ctx.lineWidth = 11;
+      ctx.beginPath();
+      const steps = Math.max(4, Math.ceil((selectedZone.end - selectedZone.start) * totalDistance / 20));
+      for (let step = 0; step <= steps; step++) {
+        const point = pointAt(selectedZone.start + (selectedZone.end - selectedZone.start) * step / steps);
+        if (!point) continue;
+        if (step === 0) ctx.moveTo(point.x, point.y);
+        else ctx.lineTo(point.x, point.y);
+      }
+      ctx.stroke();
+    }
+  }
+
   const wins = new Set();
   for (let index = 0; index < segments; index++) {
     const start = index / segments;
@@ -1666,11 +1724,9 @@ function renderMiniSectorMap() {
     let winner = -1;
     let bestTime = Infinity;
     allSeries.forEach((series, lapIndex) => {
-      const startTime = calibratedElapsed(series, start);
-      const endTime = calibratedElapsed(series, end);
-      const duration = Number.isFinite(startTime) && Number.isFinite(endTime)
-        ? endTime - startTime
-        : null;
+      const duration = typeof performanceSectionDuration === 'function'
+        ? performanceSectionDuration(series, start, end)
+        : calibratedElapsed(series, end) - calibratedElapsed(series, start);
       if (Number.isFinite(duration) && duration < bestTime) {
         bestTime = duration;
         winner = lapIndex;
