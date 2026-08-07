@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>APEX DATA — F1 Telemetry Hub</title>
-  <link rel="stylesheet" href="styles.css?v=responsive-corner-ui-20260807">
+  <link rel="stylesheet" href="styles.css?v=fluid-layout-fix-20260807">
 </head>
 <body>
   <header class="site-header">
@@ -94,14 +94,13 @@
 
           <div class="telemetry-content" id="telemetryContent">
             <section class="sector-times" aria-label="Selected lap sector times">
-              <div class="sector-summary-heading"><span>Loaded comparison</span><small>Official lap and sector timing</small></div>
               <div class="sector-cards" id="sectorRows"></div>
             </section>
 
             <section class="corner-analysis" id="cornerAnalysis" aria-labelledby="cornerAnalysisTitle">
               <div class="corner-analysis-header">
                 <div>
-                  <h2 id="cornerAnalysisTitle">Corner performance <small>SECTOR + GEOMETRY APEX</small></h2>
+                  <h2 id="cornerAnalysisTitle">Corner performance</h2>
                   <p>Compare integrated corner time and minimum speed around the circuit-geometry apex.</p>
                 </div>
                 <span>Select a corner to inspect</span>
@@ -135,7 +134,7 @@
   <footer>APEX DATA SYSTEMS · FASTF1 / OPENF1 TELEMETRY · UNOFFICIAL ANALYSIS</footer>
 
   <!-- Single unified app logic -->
-  <script src="app.js?v=responsive-corner-ui-20260807"></script>
-  <script src="alignment.js?v=responsive-corner-ui-20260807"></script>
+  <script src="app.js?v=fluid-layout-fix-20260807"></script>
+  <script src="alignment.js?v=fluid-layout-fix-20260807"></script>
 </body>
 </html>

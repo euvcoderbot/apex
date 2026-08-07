@@ -1750,7 +1750,6 @@ function renderCornerAnalysis() {
       </header>
       <div class="corner-table-head"><span>Driver</span><span>Time</span><span>Delta</span><span>Minimum</span></div>
       <div class="corner-driver-metrics">${rows}</div>
-      <footer class="corner-method">APEX: GPS CURVATURE · SECTION: DISTANCE-INTEGRATED SPEED · MINIMUM: ROBUST LOCAL SPEED CLUSTER</footer>
     </article>`;
   root.onclick = event => {
     const button = event.target.closest('[data-corner-index]');

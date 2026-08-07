@@ -1792,7 +1792,7 @@ main.sidebar-collapsed .sidebar {
   margin: 0;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 9px;
   line-height: 1.55;
 }
 
@@ -3549,5 +3549,323 @@ button#loadSession.is-loading::before {
   .corner-detail-header dl {
     flex-wrap: wrap;
     gap: 6px 12px;
+  }
+}
+
+/* Authoritative fluid layout -------------------------------------------- */
+main,
+.sidebar,
+.analysis-column,
+.dashboard-card,
+.telemetry-card,
+.lap-workspace,
+.driver-run-card,
+.sector-times,
+.corner-analysis,
+.dominance-map,
+.chart {
+  min-width: 0;
+}
+
+.sector-times {
+  padding: clamp(7px, .8vw, 10px);
+}
+
+.summary-sectors {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 6px 0 0;
+}
+
+.summary-sectors > .sector-cell {
+  padding: 7px 8px 10px;
+}
+
+.summary-sectors > .sector-cell::after {
+  right: 8px;
+  bottom: 2px;
+  left: 8px;
+  height: 3px;
+  border-radius: 3px;
+}
+
+.corner-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 620px), 1fr));
+  gap: clamp(7px, .8vw, 10px);
+}
+
+.corner-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));
+  align-content: start;
+  gap: 5px;
+  padding: 0;
+  overflow: visible;
+}
+
+.corner-pick {
+  min-width: 0;
+  min-height: 52px;
+}
+
+.corner-table-head,
+.corner-detail-card .corner-driver-row {
+  grid-template-columns: minmax(78px, 1.3fr) repeat(3, minmax(0, 1fr));
+  gap: clamp(3px, .6vw, 8px);
+}
+
+.corner-table-head {
+  padding: 7px 9px;
+  color: #b8bdc7;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .055em;
+  text-align: center;
+}
+
+.corner-table-head span,
+.corner-detail-card .corner-driver-row > span {
+  min-width: 0;
+}
+
+.corner-table-head span:first-child,
+.corner-detail-card .corner-driver-row .corner-driver {
+  text-align: left;
+}
+
+.corner-detail-card .corner-driver-row > span:not(.corner-driver) {
+  text-align: center;
+}
+
+.corner-detail-card .corner-driver-row {
+  margin-inline: clamp(4px, .6vw, 7px);
+  padding-inline: clamp(5px, .7vw, 9px);
+}
+
+.corner-detail-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.corner-detail-header dl {
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  gap: 8px 16px;
+}
+
+.corner-detail-header dt,
+.corner-detail-header dd {
+  white-space: nowrap;
+}
+
+.corner-table-head span:nth-child(3),
+.corner-detail-card .corner-delta {
+  display: block;
+}
+
+@media (max-width: 1279px) {
+  :root {
+    --fluid-gap: clamp(8px, 1.2vw, 12px);
+    --fluid-pad: clamp(8px, 1.3vw, 14px);
+  }
+
+  .site-header {
+    height: clamp(48px, 7vw, 54px);
+    padding-inline: var(--fluid-pad);
+  }
+
+  main {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--fluid-gap);
+    padding: var(--fluid-pad) var(--fluid-pad) 24px;
+  }
+
+  .sidebar {
+    position: static;
+    display: flex;
+    flex-direction: column;
+    gap: var(--fluid-gap);
+    width: 100%;
+    max-height: none;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .sidebar > .dashboard-card,
+  .lap-workspace,
+  .telemetry-card {
+    width: 100%;
+    padding: var(--fluid-pad);
+  }
+
+  .sidebar .session-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+    align-items: end;
+    gap: 8px;
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .sidebar .session-controls .panel-heading {
+    grid-column: 1 / -1;
+    width: 100%;
+    margin-bottom: 0;
+  }
+
+  .sidebar .control-field {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  .sidebar .select-shell select,
+  .sidebar #loadSession {
+    width: 100%;
+    height: 36px;
+    min-height: 36px;
+    margin: 0;
+  }
+
+  .sidebar .driver-control-card,
+  .sidebar #tireCard {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .driver-control-card #driverPills {
+    grid-template-columns: repeat(auto-fit, minmax(102px, 1fr));
+    gap: 5px;
+  }
+
+  #driverPills .driver-pill {
+    min-height: 36px;
+    padding: 5px 7px 5px 9px;
+  }
+
+  .sidebar .tire-nomination-container {
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+    gap: 5px;
+  }
+
+  .sidebar .tire-option {
+    grid-template-columns: 36px minmax(0, 1fr);
+    justify-items: stretch;
+    gap: 7px;
+    min-height: 40px;
+    padding: 5px 7px 5px 9px;
+  }
+
+  .sidebar .tire-code {
+    width: 34px;
+    height: 27px;
+  }
+
+  .sidebar .tire-copy {
+    justify-items: start;
+  }
+
+  .sidebar .tire-copy small {
+    display: block;
+  }
+
+  .analysis-column,
+  .main-dashboard,
+  .lap-workspace #stintPanels,
+  .charts {
+    gap: var(--fluid-gap);
+  }
+
+  .lap-workspace #stintPanels {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  }
+
+  .lap-workspace .run-segments {
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  }
+
+  .lap-workspace .lap-grid {
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  }
+
+  .sector-cards {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  }
+
+  .comparison-tray {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+    margin-top: var(--fluid-gap);
+  }
+
+  .sector-times,
+  .corner-analysis,
+  .dominance-map,
+  .chart-options {
+    margin-bottom: var(--fluid-gap);
+  }
+
+  .corner-analysis,
+  .dominance-map,
+  .chart {
+    padding: var(--fluid-pad);
+  }
+}
+
+@media (max-width: 520px) {
+  .brand {
+    font-size: 15px;
+  }
+
+  .sidebar-toggle {
+    padding-inline: 8px;
+    font-size: 8px;
+  }
+
+  .comparison-tray {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .comparison-tray-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    min-width: 0;
+  }
+
+  .loaded-lap-pill {
+    flex: 1 1 145px;
+  }
+
+  .corner-analysis-header {
+    gap: 7px;
+  }
+
+  .corner-analysis-header > span {
+    align-self: stretch;
+    text-align: center;
+  }
+
+  .corner-detail-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .corner-detail-header dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .corner-detail-header dl div {
+    justify-content: space-between;
+  }
+
+  .corner-table-head,
+  .corner-detail-card .corner-driver-row {
+    grid-template-columns: minmax(68px, 1.2fr) repeat(3, minmax(0, 1fr));
+  }
+
+  .corner-detail-card .corner-driver-row strong {
+    font-size: 9px;
   }
 }
