@@ -246,7 +246,9 @@ function clearBeforeSessionLoad() {
 async function loadRealSession() {
   const button = $('#loadSession');
   button.disabled = true;
-  button.textContent = 'Loading FastF1 data…';
+  button.classList.add('is-loading');
+  button.setAttribute('aria-busy', 'true');
+  button.textContent = 'Loading session…';
   clearBeforeSessionLoad();
   renderCharts();
   
@@ -270,6 +272,8 @@ async function loadRealSession() {
     alert(`FastF1 could not load this session. ${error.message}`);
   } finally {
     button.disabled = false;
+    button.classList.remove('is-loading');
+    button.removeAttribute('aria-busy');
     button.textContent = 'Load session';
   }
 }
@@ -319,13 +323,13 @@ function renderDrivers() {
     return;
   }
   
-  root.innerHTML = drivers.map(d => {
+  root.innerHTML = drivers.map((d, index) => {
     const code = d[0];
     const number = d[1];
     const color = d[3];
     const isSelected = selected.includes(code);
 
-    return `<button class="pill driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-code="${code}"><span class="driver-pill-number">#${number}</span><strong>${code}</strong></button>`;
+    return `<button class="pill driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-code="${code}"><span class="driver-pill-position">P${index + 1}</span><span class="driver-pill-identity"><span class="driver-pill-number">#${number}</span><strong>${code}</strong></span></button>`;
   }).join('');
   
   root.querySelectorAll('button').forEach(btn => {
