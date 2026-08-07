@@ -215,31 +215,6 @@ function spatialReferenceTelemetry() {
         - (left.samples.quality?.positionCoverage || 0))[0] || null;
 }
 
-function isotonicFractions(values) {
-  const blocks = values.map((value, index) => ({ start: index, end: index, value, weight: 1 }));
-  for (let index = 0; index < blocks.length - 1;) {
-    if (blocks[index].value <= blocks[index + 1].value) {
-      index++;
-      continue;
-    }
-    const left = blocks[index];
-    const right = blocks[index + 1];
-    const weight = left.weight + right.weight;
-    blocks.splice(index, 2, {
-      start: left.start,
-      end: right.end,
-      value: (left.value * left.weight + right.value * right.weight) / weight,
-      weight,
-    });
-    if (index > 0) index--;
-  }
-  const result = new Array(values.length);
-  blocks.forEach(block => {
-    for (let index = block.start; index <= block.end; index++) result[index] = block.value;
-  });
-  return result;
-}
-
 function referencePositionPath(reference) {
   const total = +reference?.[reference.length - 1]?.Distance || 0;
   const positioned = reference?.filter(point => hasTelemetryNumber(point.X) && hasTelemetryNumber(point.Y)) || [];
@@ -306,6 +281,72 @@ function interpolateControls(controls, input, inputField = 'raw', outputField = 
   return before[outputField] + (after[outputField] - before[outputField]) * ratio;
 }
 
+function regularizedPositionControls(controls) {
+  if (!controls?.length) return null;
+  const gridSize = 100;
+  const window = 0.025;
+  const minimumSlope = 0.7;
+  const maximumSlope = 1.3;
+  const source = controls.map(control => ({
+    ...control,
+    correction: control.mapped - control.raw,
+  }));
+  source.unshift({ raw: 0, mapped: 0, correction: 0, error: 0 });
+  source.push({ raw: 1, mapped: 1, correction: 0, error: 0 });
+
+  const nodes = Array.from({ length: gridSize + 1 }, (_, index) => {
+    const raw = index / gridSize;
+    const local = source
+      .filter(control => Math.abs(control.raw - raw) <= window)
+      .map(control => control.correction);
+    const correction = local.length
+      ? medianTelemetry(local)
+      : interpolateControls(source, raw, 'raw', 'correction');
+    return { raw, mapped: clampTelemetry(raw + correction) };
+  });
+  nodes[0].mapped = 0;
+  nodes[gridSize].mapped = 1;
+
+  // Smooth the GPS correction, rather than the telemetry itself. A roughly
+  // 100 m support window removes repeated/jumping OpenF1 location samples but
+  // still follows the gradual distance difference caused by racing lines.
+  for (let pass = 0; pass < 3; pass++) {
+    const correction = nodes.map(node => node.mapped - node.raw);
+    for (let index = 1; index < gridSize; index++) {
+      const filtered = (correction[index - 1] + 2 * correction[index]
+        + correction[index + 1]) / 4;
+      nodes[index].mapped = clampTelemetry(nodes[index].raw + filtered);
+    }
+  }
+
+  // Limit local distance compression/expansion. GPS remains responsible for
+  // the broad physical alignment, while speed-integrated distance preserves
+  // the shape and spacing of acceleration and braking samples.
+  for (let pass = 0; pass < 6; pass++) {
+    nodes[0].mapped = 0;
+    for (let index = 1; index <= gridSize; index++) {
+      const rawStep = nodes[index].raw - nodes[index - 1].raw;
+      nodes[index].mapped = clampTelemetry(
+        nodes[index].mapped,
+        nodes[index - 1].mapped + minimumSlope * rawStep,
+        nodes[index - 1].mapped + maximumSlope * rawStep,
+      );
+    }
+    nodes[gridSize].mapped = 1;
+    for (let index = gridSize - 1; index >= 0; index--) {
+      const rawStep = nodes[index + 1].raw - nodes[index].raw;
+      nodes[index].mapped = clampTelemetry(
+        nodes[index].mapped,
+        nodes[index + 1].mapped - maximumSlope * rawStep,
+        nodes[index + 1].mapped - minimumSlope * rawStep,
+      );
+    }
+  }
+  nodes[0].mapped = 0;
+  nodes[gridSize].mapped = 1;
+  return nodes;
+}
+
 function positionAlignment(reference, samples) {
   const path = referencePositionPath(reference);
   if (!path || samples.quality?.positionCoverage < 0.55) return null;
@@ -329,13 +370,9 @@ function positionAlignment(reference, samples) {
   const unique = controls.filter((control, index) => index === 0 || control.raw - controls[index - 1].raw > 0.0001);
   const errors = unique.map(control => control.error);
   if (unique.length < 12 || (medianTelemetry(errors) || 1) > 0.035) return null;
-  unique.unshift({ raw: 0, mapped: 0, error: 0 });
-  unique.push({ raw: 1, mapped: 1, error: 0 });
-  const monotonic = isotonicFractions(unique.map(control => control.mapped));
-  unique.forEach((control, index) => { control.mapped = clampTelemetry(monotonic[index]); });
-  unique[0].mapped = 0;
-  unique[unique.length - 1].mapped = 1;
-  return samples.map(point => interpolateControls(unique, rawFractionAt(samples, point)));
+  const regularized = regularizedPositionControls(unique);
+  if (!regularized) return null;
+  return samples.map(point => interpolateControls(regularized, rawFractionAt(samples, point)));
 }
 
 function remapWithSectorAnchors(samples, fractions, lap, targetSectors) {
@@ -908,7 +945,7 @@ function updateAlignmentStatus() {
   const method = methods.size === 1 && methods.has('reference')
     ? 'Reference distance'
     : [...methods].some(value => value.startsWith('position'))
-      ? 'Position + sector aligned'
+      ? 'GPS + distance aligned'
       : 'Sector-distance aligned';
   const sourceLabel = sources.length ? ` · ${sources.join(' / ')}` : '';
   status.textContent = `${method}${sourceLabel}${heldChannels ? ' · shape-preserving trace' : ''}`;
