@@ -3072,3 +3072,90 @@ button#loadSession.is-loading::before {
     animation: none;
   }
 }
+
+/* Typography and compound clarity --------------------------------------- */
+#driverPills .driver-pill .driver-pill-number,
+#driverPills .driver-pill strong {
+  font-size: var(--ui-text-sm);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.compound-label {
+  font-weight: 800;
+  letter-spacing: .025em;
+}
+
+.compound-soft {
+  color: #ff4967;
+}
+
+.compound-medium {
+  color: #ffd33d;
+}
+
+.compound-hard {
+  color: #f2f4f7;
+}
+
+.compound-intermediate {
+  color: #38d37b;
+}
+
+.compound-wet {
+  color: #4ea4ff;
+}
+
+.compound-unknown {
+  color: var(--text-muted);
+}
+
+.analysis-heading-main > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.panel-heading h2,
+.sidebar .panel-heading h2,
+.workspace-heading h2,
+.analysis-heading h1,
+.sector-summary-heading > span,
+.dominance-map h2,
+.corner-analysis h2,
+.chart h2 {
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.summary-driver small,
+.summary-lap-time small,
+.summary-sectors small,
+.sector-summary-heading small,
+.dominance-map h2 small,
+.corner-analysis h2 small,
+.chart h2 small {
+  color: #aeb3bd;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .055em;
+  line-height: 1.2;
+}
+
+.summary-driver > em {
+  font-size: 7px;
+  font-weight: 800;
+}
+
+.summary-driver b,
+.summary-lap-time strong,
+.summary-sectors strong {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}

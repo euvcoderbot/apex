@@ -416,10 +416,11 @@ function renderStintsLegacy() {
     const group = lapsForGroup(id);
     const compound = group[0]?.compound || 'UNKNOWN';
     const compLabel = getCompoundCode(compound, nominatedCompounds);
+    const compoundClass = getCompoundToneClass(compound);
     if (hasQualifyingPhases) {
-      return `<button class="stint ${id === active ? 'selected' : ''}" style="--team:${display[3]}" data-code="${code}" data-stint="${id}">${id}<small>${compLabel} - ${group.length} ${group.length === 1 ? 'LAP' : 'LAPS'}</small></button>`;
+      return `<button class="stint ${id === active ? 'selected' : ''}" style="--team:${display[3]}" data-code="${code}" data-stint="${id}">${id}<small><span class="compound-label ${compoundClass}">${compLabel}</span> - ${group.length} ${group.length === 1 ? 'LAP' : 'LAPS'}</small></button>`;
     }
-    return `<button class="stint ${id === active ? 'selected' : ''}" style="--team:${display[3]}" data-code="${code}" data-stint="${id}">Stint ${id}<small>${compLabel} · ${group.length} L</small></button>`;
+    return `<button class="stint ${id === active ? 'selected' : ''}" style="--team:${display[3]}" data-code="${code}" data-stint="${id}">Stint ${id}<small><span class="compound-label ${compoundClass}">${compLabel}</span> · ${group.length} L</small></button>`;
   }).join('');
   
   const lapButtons = lapsForGroup(active).map(lap => {
@@ -555,9 +556,11 @@ function renderStints() {
     const activeLaps = lapsForGroup(active);
     const runButtons = groupIds.map(id => {
       const laps = lapsForGroup(id);
-      const compound = getCompoundCode(laps[0]?.compound || 'UNKNOWN', nominatedCompounds);
+      const rawCompound = laps[0]?.compound || 'UNKNOWN';
+      const compound = getCompoundCode(rawCompound, nominatedCompounds);
+      const compoundClass = getCompoundToneClass(rawCompound);
       const runLabel = hasQualifyingPhases ? id : `STINT ${id}`;
-      return `<button class="stint run-segment ${id === active ? 'selected' : ''}" style="--team:${teamColor}" data-code="${code}" data-stint="${id}"><strong>${runLabel}</strong><small>${compound} &middot; ${laps.length} ${laps.length === 1 ? 'LAP' : 'LAPS'}</small></button>`;
+      return `<button class="stint run-segment ${id === active ? 'selected' : ''}" style="--team:${teamColor}" data-code="${code}" data-stint="${id}"><strong>${runLabel}</strong><small><span class="compound-label ${compoundClass}">${compound}</span> &middot; ${laps.length} ${laps.length === 1 ? 'LAP' : 'LAPS'}</small></button>`;
     }).join('');
     const lapButtons = activeLaps.map(lap => {
       const isLoaded = loaded.some(item => item.code === code && item.lap === lap.lap);
@@ -2078,6 +2081,16 @@ function getCompoundCode(compound, nominated) {
   if (comp === 'MEDIUM') return `MEDIUM (${nominated[1]})`;
   if (comp === 'SOFT') return `SOFT (${nominated[2]})`;
   return compound;
+}
+
+function getCompoundToneClass(compound) {
+  const value = String(compound || '').toUpperCase().replace(/\s+/g, '');
+  if (value.includes('INTER')) return 'compound-intermediate';
+  if (value.includes('WET')) return 'compound-wet';
+  if (value.includes('MEDIUM')) return 'compound-medium';
+  if (value.includes('HARD')) return 'compound-hard';
+  if (value.includes('SOFT')) return 'compound-soft';
+  return 'compound-unknown';
 }
 
 function getCompoundAbbreviation(comp) {
