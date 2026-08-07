@@ -1342,12 +1342,17 @@ function drawRealChart(name) {
     });
   };
 
-  // Preserve the area tint as a reference-lap cue. Continuous speed traces
-  // stay ultra-thin; stepped/discrete charts retain a separation outline.
-  const referenceTrace = traceEntries[0];
+  // Shade the slowest official loaded lap. The fill is rendered before every
+  // trace so the lines themselves always retain their untouched team colour.
+  const tintTrace = traceEntries.reduce((slowest, entry) => {
+    const lapTime = Number(loaded[entry.index]?.time);
+    if (!Number.isFinite(lapTime)) return slowest;
+    const slowestTime = Number(loaded[slowest?.index]?.time);
+    return !slowest || !Number.isFinite(slowestTime) || lapTime > slowestTime ? entry : slowest;
+  }, null) || traceEntries[0];
   const shadedFields = ['Speed trace', 'Throttle application', 'Brake pressure', 'Engine speed'];
-  if (referenceTrace && shadedFields.includes(name)) {
-    const { points, teamColor } = referenceTrace;
+  if (tintTrace && shadedFields.includes(name)) {
+    const { points, teamColor } = tintTrace;
     const bottomY = rect.height - bounds.bottom;
     tracePath(points);
     ctx.lineTo(points[points.length - 1].x, bottomY);
@@ -1362,17 +1367,9 @@ function drawRealChart(name) {
 
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  if (name !== 'Speed trace') {
-    traceEntries.forEach(({ points }) => {
-      ctx.strokeStyle = 'rgba(3, 5, 8, .88)';
-      ctx.lineWidth = 3.5;
-      tracePath(points);
-      ctx.stroke();
-    });
-  }
   traceEntries.forEach(({ points, teamColor, index }) => {
     ctx.strokeStyle = teamColor;
-    ctx.lineWidth = name === 'Speed trace' ? (index === 0 ? 1.44 : 1.12) : 1.9;
+    ctx.lineWidth = index === 0 ? 1.44 : 1.12;
     ctx.shadowColor = teamColor;
     ctx.shadowBlur = 0;
     tracePath(points);
