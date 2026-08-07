@@ -127,6 +127,7 @@ function normalizeTelemetry(samples, lap, source = 'Unknown') {
   setTelemetryMeta(normalized, 'quality', telemetryQuality(normalized, source));
   setTelemetryMeta(normalized, 'alignmentMethod', 'distance');
   setTelemetryMeta(normalized, 'speedModel', null);
+  setTelemetryMeta(normalized, 'throttleModel', null);
   return normalized;
 }
 
@@ -412,6 +413,7 @@ function setAlignedFractions(samples, fractions, method) {
   if (samples.length) samples[0].AlignedFraction = 0;
   setTelemetryMeta(samples, 'alignmentMethod', method);
   setTelemetryMeta(samples, 'speedModel', null);
+  setTelemetryMeta(samples, 'throttleModel', null);
   setTelemetryMeta(samples, 'deltaModel', null);
   setTelemetryMeta(samples, 'performanceTimeModel', null);
 }
@@ -493,20 +495,94 @@ function repairDisplaySpeeds(points) {
   return repaired;
 }
 
+function reconstructLargeGaps(points, samples, field) {
+  if (points.length < 2) return { points, gaps: [] };
+  const typicalInterval = samples.quality?.medianInterval || 0.24;
+  const threshold = Math.max(0.55, typicalInterval * 2.4);
+  const reconstructed = [];
+  const gaps = [];
+  for (let index = 0; index < points.length - 1; index++) {
+    const before = points[index];
+    const after = points[index + 1];
+    reconstructed.push(before);
+    const interval = after.time - before.time;
+    if (!(interval > threshold) || !(after.x > before.x)) continue;
+    const pieces = Math.max(2, Math.ceil(interval / typicalInterval));
+    gaps.push({ start: before.x, end: after.x, interval });
+    for (let piece = 1; piece < pieces; piece++) {
+      const ratio = piece / pieces;
+      let value;
+      if (field === 'Speed') {
+        // Constant longitudinal acceleration makes v² linear with distance.
+        // It is a conservative physical reconstruction for a missing braking
+        // or acceleration interval and cannot introduce an artificial wave.
+        const energy = before.y ** 2 + (after.y ** 2 - before.y ** 2) * ratio;
+        value = Math.sqrt(Math.max(0, energy));
+      } else {
+        // Throttle is an analogue driver input. A linear transition is the
+        // least-assumptive estimate when intermediate samples are absent.
+        value = before.y + (after.y - before.y) * ratio;
+      }
+      reconstructed.push({
+        x: before.x + (after.x - before.x) * ratio,
+        y: value,
+        time: before.time + interval * ratio,
+        reconstructed: true,
+      });
+    }
+  }
+  reconstructed.push(points[points.length - 1]);
+  return { points: reconstructed, gaps };
+}
+
+function finishShapePreservingModel(points, gaps = []) {
+  points = points
+    .sort((a, b) => a.x - b.x)
+    .filter((point, index, array) => index === 0 || point.x - array[index - 1].x > 1e-5);
+  if (points.length < 3) return null;
+  const intervals = [];
+  const slopes = [];
+  for (let index = 0; index < points.length - 1; index++) {
+    const width = points[index + 1].x - points[index].x;
+    intervals.push(width);
+    slopes.push((points[index + 1].y - points[index].y) / width);
+  }
+  const tangents = new Array(points.length);
+  tangents[0] = slopes[0];
+  tangents[tangents.length - 1] = slopes[slopes.length - 1];
+  for (let index = 1; index < points.length - 1; index++) {
+    if (slopes[index - 1] === 0 || slopes[index] === 0
+        || Math.sign(slopes[index - 1]) !== Math.sign(slopes[index])) {
+      tangents[index] = 0;
+    } else {
+      const leftWeight = 2 * intervals[index] + intervals[index - 1];
+      const rightWeight = intervals[index] + 2 * intervals[index - 1];
+      tangents[index] = (leftWeight + rightWeight)
+        / (leftWeight / slopes[index - 1] + rightWeight / slopes[index]);
+    }
+  }
+  return { points, intervals, tangents, gaps };
+}
+
 function buildSpeedModel(samples) {
   let points = samples
     .map(point => ({
       x: Number.isFinite(point.AlignedFraction) ? point.AlignedFraction : rawFractionAt(samples, point),
       y: telemetryNumber(point.Speed),
+      time: telemetryNumber(point.ElapsedSeconds),
     }))
-    .filter(point => Number.isFinite(point.x) && point.y !== null);
+    .filter(point => Number.isFinite(point.x) && point.y !== null && point.time !== null);
   if (points.length < 3) return null;
   points = repairDisplaySpeeds(points);
+  let gaps = [];
 
-  // A light Savitzky-Golay pass removes the last visible polygonal edge from
-  // normally sampled traces without shifting braking points or flattening a
-  // quadratic peak/trough. Held channels use the run reconstruction below.
+  // Restore missing source intervals before filtering. Savitzky-Golay assumes
+  // roughly uniform samples; applying it across a one-second hole made the
+  // edge of that hole look like an extra acceleration/deceleration wave.
   if ((samples.quality?.repeatSpeedRatio || 0) < 0.35 && points.length >= 7) {
+    const reconstruction = reconstructLargeGaps(points, samples, 'Speed');
+    points = reconstruction.points;
+    gaps = reconstruction.gaps;
     const original = points.map(point => point.y);
     points = points.map((point, index) => {
       if (index < 2 || index > points.length - 3) return point;
@@ -538,31 +614,20 @@ function buildSpeedModel(samples) {
     points.push({ x: 1, y: +samples[samples.length - 1].Speed });
   }
 
-  points = points
-    .sort((a, b) => a.x - b.x)
-    .filter((point, index, array) => index === 0 || point.x - array[index - 1].x > 1e-5);
+  return finishShapePreservingModel(points, gaps);
+}
+
+function buildThrottleModel(samples) {
+  let points = samples
+    .map(point => ({
+      x: Number.isFinite(point.AlignedFraction) ? point.AlignedFraction : rawFractionAt(samples, point),
+      y: telemetryNumber(point.Throttle),
+      time: telemetryNumber(point.ElapsedSeconds),
+    }))
+    .filter(point => Number.isFinite(point.x) && point.y !== null && point.time !== null);
   if (points.length < 3) return null;
-  const intervals = [];
-  const slopes = [];
-  for (let index = 0; index < points.length - 1; index++) {
-    const width = points[index + 1].x - points[index].x;
-    intervals.push(width);
-    slopes.push((points[index + 1].y - points[index].y) / width);
-  }
-  const tangents = new Array(points.length);
-  tangents[0] = slopes[0];
-  tangents[tangents.length - 1] = slopes[slopes.length - 1];
-  for (let index = 1; index < points.length - 1; index++) {
-    if (slopes[index - 1] === 0 || slopes[index] === 0 || Math.sign(slopes[index - 1]) !== Math.sign(slopes[index])) {
-      tangents[index] = 0;
-    } else {
-      const leftWeight = 2 * intervals[index] + intervals[index - 1];
-      const rightWeight = intervals[index] + 2 * intervals[index - 1];
-      tangents[index] = (leftWeight + rightWeight) /
-        (leftWeight / slopes[index - 1] + rightWeight / slopes[index]);
-    }
-  }
-  return { points, intervals, tangents };
+  const reconstruction = reconstructLargeGaps(points, samples, 'Throttle');
+  return finishShapePreservingModel(reconstruction.points, reconstruction.gaps);
 }
 
 function evaluateSpeedModel(model, fraction) {
@@ -593,11 +658,25 @@ function evaluateSpeedModel(model, fraction) {
 }
 
 function smoothedTelemetryValue(samples, fraction, field) {
-  if (field !== 'Speed') return alignedValue(samples, fraction, field);
-  if (!samples.speedModel) setTelemetryMeta(samples, 'speedModel', buildSpeedModel(samples));
-  return samples.speedModel
-    ? evaluateSpeedModel(samples.speedModel, fraction)
-    : alignedValue(samples, fraction, field);
+  if (field === 'Speed') {
+    if (!samples.speedModel) setTelemetryMeta(samples, 'speedModel', buildSpeedModel(samples));
+    return samples.speedModel
+      ? evaluateSpeedModel(samples.speedModel, fraction)
+      : alignedValue(samples, fraction, field);
+  }
+  if (field === 'Throttle') {
+    if (!samples.throttleModel) setTelemetryMeta(samples, 'throttleModel', buildThrottleModel(samples));
+    return samples.throttleModel
+      ? clampTelemetry(evaluateSpeedModel(samples.throttleModel, fraction), 0, 100)
+      : alignedValue(samples, fraction, field);
+  }
+  return alignedValue(samples, fraction, field);
+}
+
+function isReconstructedTelemetry(samples, fraction, field) {
+  const model = field === 'Speed' ? samples?.speedModel
+    : field === 'Throttle' ? samples?.throttleModel : null;
+  return Boolean(model?.gaps?.some(gap => fraction > gap.start && fraction < gap.end));
 }
 
 function calibratedElapsed(samples, fraction) {
@@ -873,8 +952,12 @@ function cornerPerformance(samples, zone) {
   if (!samples?.length || !zone) return null;
   const totalDistance = referenceDistance();
   const steps = Math.max(8, Math.ceil((zone.apexEnd - zone.apexStart) * totalDistance / 4));
-  const apexSamples = Array.from({ length: steps + 1 }, (_, index) => {
-    const fraction = zone.apexStart + (zone.apexEnd - zone.apexStart) * index / steps;
+  // Sample bin centres rather than both inclusive boundaries. Adjacent
+  // corners meet at a midpoint; excluding that exact shared boundary ensures
+  // no speed sample can contribute to both corners' minimum calculation.
+  const apexSamples = Array.from({ length: steps }, (_, index) => {
+    const fraction = zone.apexStart
+      + (zone.apexEnd - zone.apexStart) * (index + 0.5) / steps;
     return { fraction, speed: smoothedTelemetryValue(samples, fraction, 'Speed') };
   }).filter(point => Number.isFinite(point.speed));
   if (apexSamples.length < 3) return null;

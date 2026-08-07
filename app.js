@@ -1299,14 +1299,14 @@ function drawRealChart(name) {
     const teamColor = getDriverColor(lap.code);
     const refSeries = telemetryCache.get(telemetryKey(loaded[0]));
     
-    // Render every trace on the same normalized distance grid. Speed receives
-    // a tiny median filter in alignment.js to remove isolated source spikes.
+    // Render every trace on the same normalized distance grid. Speed and
+    // throttle use gap-aware, shape-preserving models from alignment.js.
     const points = [];
-    if (name === 'Speed trace') {
-      const steps = 420;
+    if (name === 'Speed trace' || name === 'Throttle application') {
+      const steps = name === 'Speed trace' ? 420 : 220;
       for (let step = 0; step <= steps; step++) {
         const fraction = viewStart + viewSpan * step / steps;
-        const value = smoothedTelemetryValue(series, fraction, 'Speed');
+        const value = smoothedTelemetryValue(series, fraction, field);
         if (Number.isFinite(value)) {
           const x = xForFraction(fraction);
           const y = bounds.top + (bounds.max - value) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
@@ -1426,8 +1426,9 @@ function drawRealChart(name) {
         ? (index === 0 ? 0 : (typeof displayDeltaAt === 'function'
             ? displayDeltaAt(series, refSeries, hoverFraction)
             : deltaAt(series, refSeries, targetDist)))
-        : name === 'Speed trace' && typeof smoothedTelemetryValue === 'function'
-          ? smoothedTelemetryValue(series, hoverFraction, 'Speed')
+        : (name === 'Speed trace' || name === 'Throttle application')
+            && typeof smoothedTelemetryValue === 'function'
+          ? smoothedTelemetryValue(series, hoverFraction, field)
           : interpolate(series, targetDist, field);
       
       if (Number.isFinite(val)) {
@@ -1504,6 +1505,7 @@ function bindAllChartHover() {
       const maxDistance = refSamples && refSamples.length ? refSamples[refSamples.length - 1].Distance : 5891;
       const distanceKM = (fraction * maxDistance) / 1000;
       
+      let hasReconstructedValue = false;
       const lines = loaded.map((lap, index) => {
         const series = telemetryCache.get(telemetryKey(lap));
         let val = null;
@@ -1512,8 +1514,9 @@ function bindAllChartHover() {
           val = index === 0 ? 0 : (typeof displayDeltaAt === 'function'
             ? displayDeltaAt(series, refSamples, fraction)
             : deltaAt(series, refSamples, targetDist));
-        } else if (hoveredChartName === 'Speed trace' && typeof smoothedTelemetryValue === 'function') {
-          val = smoothedTelemetryValue(series, fraction, 'Speed');
+        } else if ((hoveredChartName === 'Speed trace' || hoveredChartName === 'Throttle application')
+            && typeof smoothedTelemetryValue === 'function') {
+          val = smoothedTelemetryValue(series, fraction, field);
         } else {
           val = interpolate(series, targetDist, field);
         }
@@ -1525,13 +1528,19 @@ function bindAllChartHover() {
           } else if (hoveredChartName === 'DRS / straight-line mode') {
             display = val >= 0.5 ? 'OPEN' : 'CLOSED';
           } else {
-            display = `${Math.round(val)} ${unit}`;
+            const reconstructed = typeof isReconstructedTelemetry === 'function'
+              && isReconstructedTelemetry(series, fraction, field);
+            if (reconstructed) hasReconstructedValue = true;
+            display = `${reconstructed ? '~' : ''}${Math.round(val)} ${unit}`;
           }
         }
         return `<span style="color: ${getDriverColor(lap.code)}">●</span> ${lap.code} L${lap.lap} · <b>${display}</b>`;
       });
       
-      tooltip.innerHTML = `<b>${distanceKM.toFixed(3)} KM</b><br>${lines.join('<br>')}`;
+      const reconstructionNote = hasReconstructedValue
+        ? '<br><small>~ RECONSTRUCTED ACROSS SOURCE GAP</small>'
+        : '';
+      tooltip.innerHTML = `<b>${distanceKM.toFixed(3)} KM</b><br>${lines.join('<br>')}${reconstructionNote}`;
       tooltip.style.display = 'block';
       
       const parentRect = telemetryCard.getBoundingClientRect();
