@@ -535,6 +535,31 @@ function reconstructLargeGaps(points, samples, field) {
   return { points: reconstructed, gaps };
 }
 
+function resampleSpeedUniformly(points) {
+  const source = points
+    .sort((a, b) => a.x - b.x)
+    .filter((point, index, array) => index === 0 || point.x - array[index - 1].x > 1e-5);
+  if (source.length < 3) return source;
+  const gridSize = Math.max(360, Math.min(1200, Math.ceil(referenceDistance() / 5)));
+  const result = [];
+  let cursor = 1;
+  for (let index = 0; index <= gridSize; index++) {
+    const x = index / gridSize;
+    while (cursor < source.length - 1 && source[cursor].x < x) cursor++;
+    const before = source[Math.max(0, cursor - 1)];
+    const after = source[Math.min(source.length - 1, cursor)];
+    const ratio = clampTelemetry((x - before.x) / (after.x - before.x || 1));
+    const energy = before.y ** 2 + (after.y ** 2 - before.y ** 2) * ratio;
+    result.push({
+      x,
+      y: Math.sqrt(Math.max(0, energy)),
+      time: before.time + (after.time - before.time) * ratio,
+      reconstructed: before.reconstructed || after.reconstructed,
+    });
+  }
+  return result;
+}
+
 function finishShapePreservingModel(points, gaps = []) {
   points = points
     .sort((a, b) => a.x - b.x)
@@ -581,7 +606,7 @@ function buildSpeedModel(samples) {
   // edge of that hole look like an extra acceleration/deceleration wave.
   if ((samples.quality?.repeatSpeedRatio || 0) < 0.35 && points.length >= 7) {
     const reconstruction = reconstructLargeGaps(points, samples, 'Speed');
-    points = reconstruction.points;
+    points = resampleSpeedUniformly(reconstruction.points);
     gaps = reconstruction.gaps;
     const original = points.map(point => point.y);
     points = points.map((point, index) => {
