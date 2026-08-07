@@ -627,11 +627,10 @@ function renderLoaded() {
     return;
   }
   
-  const ref = loaded[0];
-  root.innerHTML = selected.map(code => {
-    const list = loaded.map((x, index) => ({ ...x, index })).filter(x => x.code === code);
-    return list.length ? `<div class="loaded-line"><span>${code}</span><div class="pills">${list.map(x => `<button class="pill ${x.index === 0 ? 'reference' : ''}" data-index="${x.index}">L${x.lap} · ${time(x.time)}s<i class="remove" data-remove="${x.index}">×</i></button>`).join('')}</div></div>` : '';
-  }).join('');
+  root.innerHTML = loaded.map((item, index) => `
+    <button class="pill loaded-lap-pill ${index === 0 ? 'reference' : ''}" style="--team:${getDriverColor(item.code)}" data-index="${index}">
+      <b>${item.code}</b><span>L${item.lap}</span><strong>${time(item.time)}</strong><i class="remove" data-remove="${index}" aria-label="Remove ${item.code} lap ${item.lap}">×</i>
+    </button>`).join('');
   
   root.querySelectorAll('.pill').forEach(p => {
     p.onclick = e => {
@@ -1729,13 +1728,15 @@ function renderCornerAnalysis() {
     const sectionTime = item.metric.sectionTime;
     const toReference = Number.isFinite(sectionTime) && Number.isFinite(referenceSection)
       ? sectionTime - referenceSection : null;
+    const deltaClass = !Number.isFinite(toReference) || Math.abs(toReference) < .0005
+      ? 'is-reference' : toReference < 0 ? 'is-faster' : 'is-slower';
     const fastest = Number.isFinite(sectionTime) && Number.isFinite(fastestSection)
       && Math.abs(sectionTime - fastestSection) < .0005;
     return `
       <div class="corner-driver-row ${fastest && loaded.length > 1 ? 'is-fastest' : ''}" style="--driver-color:${getDriverColor(item.lap.code)}">
         <span class="corner-driver"><i></i><b>${item.lap.code}</b><small>L${item.lap.lap}</small>${index === 0 ? '<em>REF</em>' : ''}</span>
         <span class="corner-time"><strong>${Number.isFinite(sectionTime) ? `${sectionTime.toFixed(3)}s` : '—'}</strong><small>SECTION</small></span>
-        <span class="corner-delta"><strong>${Number.isFinite(toReference) ? signedDelta(toReference) : '—'}</strong><small>VS REF</small></span>
+        <span class="corner-delta ${deltaClass}"><strong>${Number.isFinite(toReference) ? signedDelta(toReference) : '—'}</strong><small>VS REF</small></span>
         <span class="corner-speed"><strong>${Number.isFinite(item.metric.minimumSpeed) ? Math.round(item.metric.minimumSpeed) : '—'}</strong><small>KM/H MIN</small></span>
       </div>`;
   }).join('');

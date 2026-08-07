@@ -247,6 +247,8 @@ button#loadSession:disabled {
   background: color-mix(in srgb, var(--neon-accent) 16%, transparent) !important;
   box-shadow: 0 0 14px color-mix(in srgb, var(--neon-accent) 25%, transparent);
 }
+
+.compare-all-btn:disabled {
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-muted);
   cursor: not-allowed;
@@ -3158,4 +3160,394 @@ button#loadSession.is-loading::before {
   font-weight: 800;
   font-variant-numeric: tabular-nums lining-nums;
   font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+/* Compact comparison strip ---------------------------------------------- */
+.comparison-tray {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+}
+
+.comparison-tray-heading {
+  display: grid;
+  gap: 2px;
+  min-width: 104px;
+  padding: 0;
+  border: 0;
+}
+
+.comparison-tray-heading > span {
+  font-size: 9px;
+}
+
+.comparison-tray-heading small {
+  font-size: 7px;
+  white-space: nowrap;
+}
+
+.comparison-tray .loaded-laps {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.loaded-lap-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 29px;
+  padding: 4px 6px 4px 9px;
+  border-left: 3px solid var(--team) !important;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+.loaded-lap-pill b {
+  color: var(--team);
+  font-size: 9px;
+}
+
+.loaded-lap-pill span {
+  color: var(--text-muted);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.loaded-lap-pill strong {
+  color: var(--text-main);
+  font-size: 9px;
+}
+
+.loaded-lap-pill.reference {
+  border-color: var(--neon-accent) !important;
+  background: color-mix(in srgb, var(--neon-accent) 10%, rgba(5, 7, 9, .82));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--neon-accent) 16%, transparent);
+}
+
+.loaded-lap-pill.reference::before {
+  content: 'REF';
+  padding: 1px 3px;
+  border-radius: 2px;
+  background: var(--neon-accent);
+  color: #050608;
+  font-size: 6px;
+  font-weight: 800;
+}
+
+.loaded-lap-pill .remove {
+  padding: 0 0 0 2px;
+}
+
+/* Selected-corner result colors ----------------------------------------- */
+.corner-detail-card .corner-time strong,
+.corner-detail-card .corner-delta strong {
+  color: var(--text-main);
+}
+
+.corner-detail-card .corner-driver b {
+  color: var(--text-main);
+}
+
+.corner-detail-card .corner-delta.is-faster strong,
+.corner-detail-card .corner-delta.is-faster small,
+.corner-detail-card .corner-driver-row.is-fastest .corner-driver b,
+.corner-detail-card .corner-driver-row.is-fastest .corner-time strong,
+.corner-detail-card .corner-driver-row.is-fastest .corner-time small {
+  color: #38e983;
+}
+
+.corner-detail-card .corner-delta.is-slower strong,
+.corner-detail-card .corner-delta.is-slower small {
+  color: #ff746c;
+}
+
+.corner-detail-card .corner-driver-row.is-fastest {
+  background: linear-gradient(90deg, rgba(56, 233, 131, .09), transparent 72%);
+}
+
+/* Split-screen/tablet layout: controls become a horizontal data band. */
+@media (min-width: 760px) and (max-width: 1180px) {
+  .site-header {
+    height: 52px;
+  }
+
+  main {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    padding: 10px 12px 22px;
+  }
+
+  .sidebar {
+    position: static;
+    display: grid;
+    grid-template-columns: minmax(260px, .8fr) minmax(430px, 1.6fr);
+    grid-template-rows: auto auto;
+    gap: 10px;
+    max-height: none;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .sidebar .session-controls {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .sidebar .driver-control-card {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .sidebar #tireCard {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .sidebar .dashboard-card,
+  .lap-workspace,
+  .telemetry-card {
+    padding: 10px;
+  }
+
+  .sidebar .panel-heading,
+  .lap-workspace .workspace-heading,
+  .analysis-heading {
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+  }
+
+  .sidebar .session-controls {
+    gap: 5px;
+  }
+
+  .sidebar .control-field {
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr);
+    align-items: center;
+    gap: 7px;
+  }
+
+  .sidebar .select-shell select {
+    height: 34px;
+    min-height: 34px;
+  }
+
+  .sidebar #loadSession {
+    height: 35px;
+    min-height: 35px;
+    margin-top: 0;
+  }
+
+  .driver-control-card #driverPills {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  #driverPills .driver-pill {
+    min-height: 31px;
+    padding: 4px 6px 4px 8px;
+  }
+
+  .sidebar .tire-nomination-container {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .sidebar .tire-option {
+    grid-template-columns: 35px minmax(0, 1fr);
+    min-height: 37px;
+    padding-block: 4px;
+  }
+
+  .sidebar .tire-code {
+    width: 33px;
+    height: 25px;
+  }
+
+  .analysis-column,
+  .main-dashboard,
+  .lap-workspace #stintPanels,
+  .charts {
+    gap: 10px;
+  }
+
+  .sector-times,
+  .corner-analysis,
+  .dominance-map,
+  .chart-options {
+    margin-bottom: 8px;
+  }
+
+  .corner-analysis,
+  .dominance-map,
+  .chart {
+    padding: 10px;
+  }
+}
+
+/* Mobile layout: one rhythm, full-width controls and touch-safe chips. */
+@media (max-width: 759px) {
+  .site-header {
+    height: 48px;
+    padding-inline: 10px;
+  }
+
+  .brand {
+    font-size: 16px;
+  }
+
+  main {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 8px 8px 18px;
+  }
+
+  .sidebar {
+    position: static;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    max-height: none;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .sidebar #tireCard {
+    grid-column: auto;
+  }
+
+  .dashboard-card,
+  .sidebar .dashboard-card,
+  .lap-workspace,
+  .telemetry-card {
+    padding: 10px;
+    border-radius: 8px;
+  }
+
+  .sidebar .panel-heading,
+  .lap-workspace .workspace-heading,
+  .analysis-heading {
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+  }
+
+  .sidebar .session-controls {
+    gap: 6px;
+  }
+
+  .sidebar .control-field {
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr);
+    align-items: center;
+    gap: 7px;
+  }
+
+  .sidebar .select-shell select,
+  .sidebar #loadSession {
+    height: 36px;
+    min-height: 36px;
+  }
+
+  .driver-control-card #driverPills {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  #driverPills .driver-pill {
+    min-height: 38px;
+    padding: 5px 6px 5px 8px;
+  }
+
+  .sidebar .tire-nomination-container {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .sidebar .tire-option {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 3px;
+    min-height: 48px;
+    padding: 4px 5px;
+  }
+
+  .sidebar .tire-code {
+    width: 100%;
+    height: 23px;
+  }
+
+  .sidebar .tire-copy {
+    justify-items: center;
+  }
+
+  .sidebar .tire-copy small {
+    display: none;
+  }
+
+  .analysis-column,
+  .main-dashboard,
+  .lap-workspace #stintPanels,
+  .charts {
+    gap: 8px;
+  }
+
+  .comparison-tray {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    margin-top: 8px;
+    padding: 7px;
+  }
+
+  .comparison-tray-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .loaded-lap-pill {
+    flex: 1 1 150px;
+    justify-content: center;
+    min-height: 36px;
+  }
+
+  .sector-times,
+  .corner-analysis,
+  .dominance-map,
+  .chart-options {
+    margin-bottom: 8px;
+  }
+
+  .corner-analysis,
+  .dominance-map,
+  .chart {
+    padding: 9px;
+  }
+
+  .corner-table-head,
+  .corner-detail-card .corner-driver-row {
+    grid-template-columns: minmax(68px, 1fr) repeat(3, minmax(46px, 1fr));
+    gap: 4px;
+  }
+
+  .corner-table-head span:nth-child(3),
+  .corner-detail-card .corner-delta {
+    display: block;
+  }
+
+  .corner-detail-card .corner-driver-row {
+    margin-inline: 4px;
+    padding-inline: 5px;
+  }
+
+  .corner-detail-header dl {
+    flex-wrap: wrap;
+    gap: 6px 12px;
+  }
 }
