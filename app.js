@@ -719,7 +719,7 @@ const defs = [
   ['Speed trace', 'KM/H', false],
   ['Timing delta', 'SECONDS VS REFERENCE', false],
   ['Throttle application', '%', true],
-  ['Brake pressure', 'BAR', true],
+  ['Brake application', 'ON / OFF', true],
   ['Gear', '0–8', false],
   ['DRS', 'OPEN / CLOSED', true]
 ];
@@ -727,7 +727,7 @@ const defs = [
 const chartField = {
   'Speed trace': 'Speed',
   'Throttle application': 'Throttle',
-  'Brake pressure': 'Brake',
+  'Brake application': 'Brake',
   'Engine speed': 'RPM',
   'Gear': 'nGear',
   'DRS': 'DRS'
@@ -855,7 +855,9 @@ function interpolate(samples, targetDistance, field) {
   if (index <= 0) return samples[0][field];
   const a = samples[index - 1], b = samples[index];
   const ratio = (target - a.Distance) / (b.Distance - a.Distance || 1);
-  if (field === 'nGear' || field === 'DRS') return ratio < .5 ? a[field] : b[field];
+  if (field === 'nGear' || field === 'DRS' || field === 'Brake') {
+    return ratio < .5 ? a[field] : b[field];
+  }
   return (+a[field]) + ((+b[field]) - (+a[field])) * ratio;
 }
 
@@ -929,7 +931,7 @@ function getNiceBounds(name, rawMin, rawMax) {
       else min = max - step * 2;
     }
     tickStep = step;
-  } else if (name === 'Brake pressure') {
+  } else if (name === 'Brake application') {
     min = 0;
     max = 100;
   } else if (name === 'Throttle application') {
@@ -1057,10 +1059,11 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
     if (unit.includes('SECONDS') && Math.abs(value) < 1e-5) {
       displayVal = '0';
     }
-    if (unit === 'OPEN / CLOSED') {
+    if (unit === 'OPEN / CLOSED' || unit === 'ON / OFF') {
       if (tick === 0) displayVal = 'OPEN';
       else if (tick === 4) displayVal = 'CLOSED';
       else return;
+      if (unit === 'ON / OFF') displayVal = tick === 0 ? 'ON' : 'OFF';
     }
     ctx.fillStyle = unit.includes('SECONDS') && Math.abs(value) < 1e-5
       ? 'rgba(255, 255, 255, 0.65)'
@@ -1338,7 +1341,7 @@ function drawRealChart(name) {
     ctx.beginPath();
     ctx.moveTo(points[0].x, points[0].y);
     points.slice(1).forEach((point, pointIndex) => {
-      if (name === 'Gear' || name === 'DRS / straight-line mode') {
+      if (name === 'Gear' || name === 'DRS / straight-line mode' || name === 'Brake application') {
         ctx.lineTo(point.x, points[pointIndex].y);
       }
       ctx.lineTo(point.x, point.y);
@@ -1353,7 +1356,7 @@ function drawRealChart(name) {
     const slowestTime = Number(loaded[slowest?.index]?.time);
     return !slowest || !Number.isFinite(slowestTime) || lapTime > slowestTime ? entry : slowest;
   }, null) || traceEntries[0];
-  const shadedFields = ['Speed trace', 'Throttle application', 'Brake pressure', 'Engine speed'];
+  const shadedFields = ['Speed trace', 'Throttle application', 'Brake application', 'Engine speed'];
   if (tintTrace && shadedFields.includes(name)) {
     const { points, teamColor } = tintTrace;
     const bottomY = rect.height - bounds.bottom;
@@ -1527,11 +1530,16 @@ function bindAllChartHover() {
             display = `${val >= 0 ? '+' : ''}${val.toFixed(3)}s`;
           } else if (hoveredChartName === 'DRS / straight-line mode') {
             display = val >= 0.5 ? 'OPEN' : 'CLOSED';
+          } else if (hoveredChartName === 'Brake application') {
+            display = val >= 50 ? 'ON' : 'OFF';
           } else {
             const reconstructed = typeof isReconstructedTelemetry === 'function'
               && isReconstructedTelemetry(series, fraction, field);
             if (reconstructed) hasReconstructedValue = true;
-            const precision = hoveredChartName === 'Speed trace' ? val.toFixed(1) : Math.round(val);
+            const precision = (hoveredChartName === 'Speed trace'
+              || hoveredChartName === 'Throttle application')
+              ? val.toFixed(1)
+              : Math.round(val);
             display = `${reconstructed ? '~' : ''}${precision} ${unit}`;
           }
         }

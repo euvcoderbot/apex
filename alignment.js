@@ -445,7 +445,9 @@ function alignedValue(samples, fraction, field) {
   const beforeFraction = Number.isFinite(before.AlignedFraction) ? before.AlignedFraction : rawFractionAt(samples, before);
   const afterFraction = Number.isFinite(after.AlignedFraction) ? after.AlignedFraction : rawFractionAt(samples, after);
   const ratio = clampTelemetry((target - beforeFraction) / (afterFraction - beforeFraction || 1));
-  if (field === 'nGear' || field === 'DRS') return ratio < 0.5 ? before[field] : after[field];
+  if (field === 'nGear' || field === 'DRS' || field === 'Brake') {
+    return ratio < 0.5 ? before[field] : after[field];
+  }
   return (+before[field]) + ((+after[field]) - (+before[field])) * ratio;
 }
 
@@ -589,6 +591,13 @@ function finishShapePreservingModel(points, gaps = []) {
   return { points, intervals, tangents, gaps };
 }
 
+function finishLinearTelemetryModel(points, gaps = []) {
+  points = points
+    .sort((a, b) => a.x - b.x)
+    .filter((point, index, array) => index === 0 || point.x - array[index - 1].x > 1e-5);
+  return points.length >= 2 ? { points, gaps, interpolation: 'linear' } : null;
+}
+
 function buildSpeedModel(samples) {
   let points = samples
     .map(point => ({
@@ -652,7 +661,11 @@ function buildThrottleModel(samples) {
     .filter(point => Number.isFinite(point.x) && point.y !== null && point.time !== null);
   if (points.length < 3) return null;
   const reconstruction = reconstructLargeGaps(points, samples, 'Throttle');
-  return finishShapePreservingModel(reconstruction.points, reconstruction.gaps);
+  // Throttle is a measured driver input. A spline subtly changes the input
+  // between published samples even when it passes through each sample. Draw
+  // the least-assumptive straight interpolation instead, retaining every raw
+  // value and only bridging explicitly detected source gaps.
+  return finishLinearTelemetryModel(reconstruction.points, reconstruction.gaps);
 }
 
 function evaluateSpeedModel(model, fraction) {
@@ -668,8 +681,13 @@ function evaluateSpeedModel(model, fraction) {
     else high = middle;
   }
   const index = low - 1;
-  const width = model.intervals[index] || 1;
+  const width = model.interpolation === 'linear'
+    ? (points[index + 1].x - points[index].x || 1)
+    : (model.intervals[index] || 1);
   const t = clampTelemetry((x - points[index].x) / width);
+  if (model.interpolation === 'linear') {
+    return points[index].y + (points[index + 1].y - points[index].y) * t;
+  }
   const t2 = t * t;
   const t3 = t2 * t;
   const value = (2 * t3 - 3 * t2 + 1) * points[index].y
