@@ -4471,6 +4471,20 @@ main,
   overflow: visible;
 }
 
+/* Backdrop-filter makes every dashboard card its own stacking context. Keep
+   the session card above the following sidebar cards so an open menu can
+   actually paint over Select Drivers instead of being trapped underneath it. */
+.session-controls {
+  position: relative;
+  z-index: 20;
+}
+
+.driver-control-card,
+#tireCard {
+  position: relative;
+  z-index: 1;
+}
+
 .select-shell[data-enhanced="true"]::after {
   display: none;
 }
@@ -4544,6 +4558,7 @@ main,
 
 .select-menu {
   position: absolute;
+  z-index: 1;
   top: calc(100% + 4px);
   right: 0;
   left: 0;
