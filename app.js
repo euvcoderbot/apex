@@ -17,6 +17,7 @@ let hoveredChartName = null;
 let traceZoom = { start: 0, end: 1 };
 let zoomDrag = null;
 const MIN_TRACE_ZOOM = .004;
+const CLIENT_DATA_SCHEMA = 'lap-context-v2';
 
 const teamMapping = {
   "McLaren": {
@@ -144,6 +145,9 @@ function currentQuery() {
     params.set('gp', selectedVal);
   }
   params.set('session', $('#session').value);
+  // Keep the URL identity in step with lap-boundary and lap-context changes.
+  // The API ignores this field, while browsers cannot reuse an older payload.
+  params.set('data_schema', CLIENT_DATA_SCHEMA);
   return params;
 }
 
@@ -256,7 +260,7 @@ async function loadRealSession() {
   renderCharts();
   
   try {
-    const response = await fetch(`/api/session?${currentQuery()}`);
+    const response = await fetch(`/api/session?${currentQuery()}`, { cache: 'no-store' });
     const payload = await readApiResponse(response);
     if (!response.ok) throw new Error(payload.detail || 'Session unavailable');
     
@@ -288,9 +292,9 @@ async function fetchTelemetry(lap) {
   const query = currentQuery();
   query.set('driver', lap.code);
   query.set('lap', lap.lap);
-  query.set('alignment', '2');
+  query.set('alignment', '3');
   
-  const response = await fetch(`/api/telemetry?${query}`);
+  const response = await fetch(`/api/telemetry?${query}`, { cache: 'no-store' });
   if (!response.ok) throw new Error('Telemetry unavailable for this lap');
   
   const data = await readApiResponse(response);
@@ -710,28 +714,19 @@ function renderSectors() {
       state: sectorState(item.code, sectorIndex, lap[field]),
     }));
     const conditions = lap.conditions || {};
-    const conditionValues = [];
-    if (Number.isFinite(conditions.air_temperature)) {
-      conditionValues.push(conditionCell('AIR', `${conditions.air_temperature.toFixed(1)}°C`));
-    }
-    if (Number.isFinite(conditions.track_temperature)) {
-      conditionValues.push(conditionCell('TRACK', `${conditions.track_temperature.toFixed(1)}°C`));
-    }
-    if (Number.isFinite(conditions.wind_speed)) {
-      const direction = windCardinal(conditions.wind_direction);
-      conditionValues.push(conditionCell('WIND', `${conditions.wind_speed.toFixed(1)} m/s${direction ? ` ${direction}` : ''}`));
-    }
-    if (conditions.rainfall !== null && conditions.rainfall !== undefined) {
-      conditionValues.push(conditionCell('RAIN', conditions.rainfall ? 'YES' : 'NO'));
-    }
-    const conditionsHtml = conditionValues.length
-      ? `<div class="summary-conditions">${conditionValues.join('')}</div>`
-      : '';
+    const direction = windCardinal(conditions.wind_direction);
+    const conditionValues = [
+      conditionCell('AIR', Number.isFinite(conditions.air_temperature) ? `${conditions.air_temperature.toFixed(1)}°C` : '—'),
+      conditionCell('TRACK', Number.isFinite(conditions.track_temperature) ? `${conditions.track_temperature.toFixed(1)}°C` : '—'),
+      conditionCell('WIND', Number.isFinite(conditions.wind_speed) ? `${conditions.wind_speed.toFixed(1)} m/s${direction ? ` ${direction}` : ''}` : '—'),
+      conditionCell('RAIN', conditions.rainfall === null || conditions.rainfall === undefined ? '—' : (conditions.rainfall ? 'YES' : 'NO')),
+    ];
+    const conditionsHtml = `<div class="summary-conditions">${conditionValues.join('')}</div>`;
     const compound = getCompoundCode(lap.compound || 'UNKNOWN', nominatedCompounds);
     const compoundClass = getCompoundToneClass(lap.compound || 'UNKNOWN');
     const tyreLife = Number.isFinite(lap.tyre_life) ? `${Math.max(1, Math.round(lap.tyre_life))}L` : '';
     return `
-      <article class="lap-summary-card ${conditionsHtml ? 'has-conditions' : ''}" style="--team:${color}">
+      <article class="lap-summary-card has-conditions" style="--team:${color}">
         <header>
           <span class="summary-driver"><b>${item.code}</b><small>L${item.lap}</small>${i === 0 ? '<em>REF</em>' : ''}</span>
           <span class="summary-header-actions">

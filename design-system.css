@@ -3989,6 +3989,51 @@ main,
   white-space: nowrap;
 }
 
+/* Restrained motion language -------------------------------------------- */
+@keyframes apex-ui-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.lap-summary-card,
+.driver-run-card,
+.chart,
+.corner-analysis,
+.dominance-map {
+  animation: apex-ui-reveal 240ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.lap-summary-card:nth-child(2),
+.driver-run-card:nth-child(2) {
+  animation-delay: 35ms;
+}
+
+.lap-summary-card:nth-child(n + 3),
+.driver-run-card:nth-child(n + 3) {
+  animation-delay: 70ms;
+}
+
+.dashboard-card:focus-within {
+  border-color: rgba(234, 255, 24, .22);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, .4), 0 0 0 1px rgba(234, 255, 24, .035);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lap-summary-card,
+  .driver-run-card,
+  .chart,
+  .corner-analysis,
+  .dominance-map {
+    animation: none;
+  }
+}
+
 @media (max-width: 440px) {
   .sector-cards {
     grid-template-columns: minmax(0, 1fr);

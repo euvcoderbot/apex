@@ -44,6 +44,11 @@ async def prevent_stale_local_assets(request: Request, call_next):
         "/", "/index.html", "/app.js", "/alignment.js", "/styles.css", "/design-system.css"
     }:
         response.headers["Cache-Control"] = "no-store, max-age=0"
+    elif request.url.path in {"/api/session", "/api/telemetry"}:
+        # The server-side prepared cache already makes these requests cheap.
+        # Do not let the browser reuse an older lap boundary or a session
+        # response created before weather/context fields were available.
+        response.headers["Cache-Control"] = "no-store, max-age=0"
     elif (request.url.path.startswith("/api/") and response.status_code == 200
           and "cache-control" not in response.headers):
         response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=86400"
