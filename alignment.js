@@ -824,10 +824,9 @@ function calibratedElapsed(samples, fraction) {
   return before.official + (after.official - before.official) * ratio;
 }
 
-// Build a smooth physical time curve by integrating ds / speed along the
-// aligned lap. Each sector is then scaled back to its official duration. This
-// is more stable than subtracting adjacent sparse timestamps over a 25 m slice
-// and keeps local dominance consistent with the displayed speed trace.
+// Build a physical time curve from the aligned measured speed samples. It is
+// deliberately independent of the Accurate/Enhanced display toggle. Each
+// sector is then scaled back to its official duration.
 function buildPerformanceTimeModel(samples) {
   if (!samples?.length) return null;
   const totalDistance = referenceDistance();
@@ -837,8 +836,8 @@ function buildPerformanceTimeModel(samples) {
   for (let index = 1; index <= resolution; index++) {
     const beforeFraction = (index - 1) / resolution;
     const afterFraction = index / resolution;
-    const beforeSpeed = traceTelemetryValue(samples, beforeFraction, 'Speed');
-    const afterSpeed = traceTelemetryValue(samples, afterFraction, 'Speed');
+    const beforeSpeed = alignedValue(samples, beforeFraction, 'Speed');
+    const afterSpeed = alignedValue(samples, afterFraction, 'Speed');
     if (!Number.isFinite(beforeSpeed) || !Number.isFinite(afterSpeed)) return null;
     const meanSpeed = Math.max(10, (beforeSpeed + afterSpeed) / 2);
     raw[index] = raw[index - 1] + (totalDistance / resolution) / (meanSpeed / 3.6);

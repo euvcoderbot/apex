@@ -1422,8 +1422,12 @@ function drawRealChart(name) {
     if (refSamples && refSamples.length) {
       const refDistance = refSamples[refSamples.length - 1].Distance || 5891;
       data.slice(1).forEach(samples => {
-        for (let i = 0; i <= 100; i++) {
-          const fraction = viewStart + viewSpan * i / 100;
+        // Sample every delta-model interval when setting the axis. The old
+        // 100-point scan could miss a narrow minimum that the 180-point path
+        // still drew, letting the trace escape below the chart boundary.
+        const resolution = Math.max(360, samples.deltaModel?.resolution || 0);
+        for (let i = 0; i <= resolution; i++) {
+          const fraction = viewStart + viewSpan * i / resolution;
           const v = typeof displayDeltaAt === 'function'
             ? displayDeltaAt(samples, refSamples, fraction)
             : deltaAt(samples, refSamples, refDistance * fraction);
@@ -1469,6 +1473,10 @@ function drawRealChart(name) {
     max,
     tickStep: niceBounds.tickStep
   };
+  canvas.setAttribute('data-axis-min', String(bounds.min));
+  canvas.setAttribute('data-axis-max', String(bounds.max));
+  canvas.setAttribute('data-value-min', String(rawMin));
+  canvas.setAttribute('data-value-max', String(rawMax));
   const plotWidth = rect.width - bounds.left - bounds.right;
   const xForFraction = fraction => bounds.left + ((fraction - viewStart) / viewSpan) * plotWidth;
   const fractionInView = fraction => fraction >= viewStart && fraction <= viewEnd;
@@ -1576,7 +1584,7 @@ function drawRealChart(name) {
     } else if (name === 'Brake application' || name === 'Gear' || name === 'DRS / straight-line mode') {
       domainPoints = measuredDiscreteTrace(series, field, viewStart, viewEnd);
     } else {
-      const steps = 180;
+      const steps = name === 'Timing delta' ? 360 : 180;
       for (let step = 0; step <= steps; step++) {
         const fraction = viewStart + viewSpan * step / steps;
         const targetDist = totalDist * fraction;
