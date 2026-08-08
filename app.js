@@ -1276,6 +1276,102 @@ function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7, viewSta
   return { items, lanes: laneEnds.length };
 }
 
+function traceSampleFraction(series, point) {
+  return Number.isFinite(point?.AlignedFraction)
+    ? point.AlignedFraction
+    : (+point?.Distance || 0) / (+series?.[series.length - 1]?.Distance || 1);
+}
+
+function appendTracePoint(points, x, y) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+  const last = points[points.length - 1];
+  if (last && Math.abs(last.x - x) < 1e-8) {
+    last.y = y;
+    return;
+  }
+  points.push({ x, y });
+}
+
+function measuredContinuousTrace(series, field, viewStart, viewEnd) {
+  const points = [];
+  appendTracePoint(points, viewStart, alignedValue(series, viewStart, field));
+  series.forEach(point => {
+    if (point[field] === null || point[field] === undefined || !Number.isFinite(+point[field])) return;
+    const fraction = traceSampleFraction(series, point);
+    if (fraction > viewStart && fraction < viewEnd) appendTracePoint(points, fraction, +point[field]);
+  });
+  appendTracePoint(points, viewEnd, alignedValue(series, viewEnd, field));
+  return points;
+}
+
+function discreteTraceState(field, value) {
+  if (!Number.isFinite(+value)) return null;
+  if (field === 'Brake') return +value >= 50 ? 100 : 0;
+  if (field === 'DRS') return +value >= .5 ? 1 : 0;
+  if (field === 'nGear') return Math.round(+value);
+  return +value;
+}
+
+// alignedValue switches discrete channels at the midpoint between published
+// packets. Build the visible step path at those exact same midpoints so the
+// line, hover ball and tooltip cannot disagree.
+function measuredDiscreteTrace(series, field, viewStart, viewEnd) {
+  const samples = series
+    .filter(point => point[field] !== null && point[field] !== undefined && Number.isFinite(+point[field]))
+    .map(point => ({ x: traceSampleFraction(series, point), y: discreteTraceState(field, point[field]) }))
+    .sort((a, b) => a.x - b.x);
+  if (!samples.length) return [];
+  const points = [];
+  appendTracePoint(points, viewStart, discreteTraceState(field, alignedValue(series, viewStart, field)));
+  for (let index = 1; index < samples.length; index++) {
+    const before = samples[index - 1];
+    const after = samples[index];
+    if (before.y === after.y || !(after.x > before.x)) continue;
+    const transition = (before.x + after.x) / 2;
+    if (transition > viewStart && transition < viewEnd) appendTracePoint(points, transition, after.y);
+  }
+  appendTracePoint(points, viewEnd, discreteTraceState(field, alignedValue(series, viewEnd, field)));
+  return points;
+}
+
+function sampledEnhancedTrace(series, field, viewStart, viewEnd, steps) {
+  // Build the model once, then include every model knot as well as the display
+  // grid. This guarantees measured extrema/gear landmarks are drawn even when
+  // they fall between two uniform canvas samples.
+  traceTelemetryValue(series, viewStart, field);
+  const model = field === 'Speed' ? series.speedModel : series.throttleModel;
+  const candidates = [];
+  for (let step = 0; step <= steps; step++) {
+    const fraction = viewStart + (viewEnd - viewStart) * step / steps;
+    candidates.push({ x: fraction, y: traceTelemetryValue(series, fraction, field) });
+  }
+  model?.points?.forEach(point => {
+    if (point.x > viewStart && point.x < viewEnd) candidates.push({ x: point.x, y: point.y });
+  });
+  candidates.sort((a, b) => a.x - b.x);
+  const points = [];
+  candidates.forEach(point => appendTracePoint(points, point.x, point.y));
+  return points;
+}
+
+function renderedTraceValue(points, fraction, stepped = false) {
+  if (!points?.length) return null;
+  if (fraction <= points[0].x) return points[0].y;
+  if (fraction >= points[points.length - 1].x) return points[points.length - 1].y;
+  let low = 1;
+  let high = points.length - 1;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (points[middle].x < fraction) low = middle + 1;
+    else high = middle;
+  }
+  const after = points[low];
+  const before = points[low - 1];
+  if (stepped) return Math.abs(after.x - fraction) < 1e-9 ? after.y : before.y;
+  const ratio = (fraction - before.x) / (after.x - before.x || 1);
+  return before.y + (after.y - before.y) * ratio;
+}
+
 // Draw a single canvas chart
 function drawRealChart(name) {
   const canvas = document.querySelector(`[data-chart="${name}"]`);
@@ -1469,22 +1565,16 @@ function drawRealChart(name) {
     const teamColor = getDriverColor(lap.code);
     const refSeries = telemetryCache.get(telemetryKey(loaded[0]));
     
-    // Render every trace on the same normalized distance grid. Speed and
-    // throttle use gap-aware, shape-preserving models from alignment.js.
-    const points = [];
+    // Accurate mode uses every supplied speed/throttle sample. Enhanced mode
+    // samples the bounded reconstruction. Discrete channels are built at the
+    // exact same midpoint transitions used by alignedValue.
+    let domainPoints = [];
     if (name === 'Speed trace' || name === 'Throttle application') {
-      const steps = name === 'Speed trace' ? 420 : 220;
-      for (let step = 0; step <= steps; step++) {
-        const fraction = viewStart + viewSpan * step / steps;
-        const value = typeof traceTelemetryValue === 'function'
-          ? traceTelemetryValue(series, fraction, field)
-          : smoothedTelemetryValue(series, fraction, field);
-        if (Number.isFinite(value)) {
-          const x = xForFraction(fraction);
-          const y = bounds.top + (bounds.max - value) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
-          points.push({ x, y });
-        }
-      }
+      domainPoints = enhancedInterpolationEnabled()
+        ? sampledEnhancedTrace(series, field, viewStart, viewEnd, name === 'Speed trace' ? 640 : 420)
+        : measuredContinuousTrace(series, field, viewStart, viewEnd);
+    } else if (name === 'Brake application' || name === 'Gear' || name === 'DRS / straight-line mode') {
+      domainPoints = measuredDiscreteTrace(series, field, viewStart, viewEnd);
     } else {
       const steps = 180;
       for (let step = 0; step <= steps; step++) {
@@ -1495,15 +1585,15 @@ function drawRealChart(name) {
               ? displayDeltaAt(series, refSeries, fraction)
               : deltaAt(series, refSeries, targetDist)))
           : interpolate(series, targetDist, field);
-        if (Number.isFinite(value)) {
-          const x = xForFraction(fraction);
-          const y = bounds.top + (bounds.max - value) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
-          points.push({ x, y });
-        }
+        appendTracePoint(domainPoints, fraction, value);
       }
     }
-    
-    if (points.length) traceEntries.push({ points, teamColor, index });
+    const points = domainPoints.map(point => ({
+      x: xForFraction(point.x),
+      y: bounds.top + (bounds.max - point.y) / (bounds.max - bounds.min || 1)
+        * (rect.height - bounds.top - bounds.bottom),
+    }));
+    if (points.length) traceEntries.push({ points, domainPoints, teamColor, index });
   });
 
   const tracePath = points => {
@@ -1594,19 +1684,9 @@ function drawRealChart(name) {
     loaded.forEach((lap, index) => {
       const series = telemetryCache.get(telemetryKey(lap));
       if (!series) return;
-      
-      const refSeries = telemetryCache.get(telemetryKey(loaded[0]));
-      const targetDist = totalDist * hoverFraction;
-      const val = name === 'Timing delta'
-        ? (index === 0 ? 0 : (typeof displayDeltaAt === 'function'
-            ? displayDeltaAt(series, refSeries, hoverFraction)
-            : deltaAt(series, refSeries, targetDist)))
-        : (name === 'Speed trace' || name === 'Throttle application')
-            && typeof smoothedTelemetryValue === 'function'
-          ? (typeof traceTelemetryValue === 'function'
-              ? traceTelemetryValue(series, hoverFraction, field)
-              : smoothedTelemetryValue(series, hoverFraction, field))
-          : interpolate(series, targetDist, field);
+      const entry = traceEntries.find(item => item.index === index);
+      const stepped = name === 'Brake application' || name === 'Gear' || name === 'DRS / straight-line mode';
+      const val = entry ? renderedTraceValue(entry.domainPoints, hoverFraction, stepped) : null;
       
       if (Number.isFinite(val)) {
         const x = crosshairX;

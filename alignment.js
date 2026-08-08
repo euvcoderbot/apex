@@ -5,9 +5,9 @@
 //   2. lock the result to official sector boundaries when sector times exist;
 //   3. fall back to sector-normalized integrated distance when position is absent.
 //
-// Trace reconstruction is display-only. Raw samples remain the source for
-// hover values and corner calculations; official sector/finish timing anchors
-// are restored exactly after smoothing the displayed delta line.
+// Accurate traces and corner calculations retain the supplied samples.
+// Enhanced display/hover values use the bounded reconstruction; official
+// sector/finish timing anchors remain exact.
 
 const ALIGNMENT_SEARCH_WINDOW = 0.12;
 
@@ -483,20 +483,6 @@ function buildTimeCalibration(samples, lap, referenceSectors) {
   }));
 }
 
-function repairDisplaySpeeds(points) {
-  const repaired = points.map(point => ({ ...point }));
-  for (let index = 1; index < repaired.length - 1; index++) {
-    const previous = repaired[index - 1].y;
-    const current = repaired[index].y;
-    const next = repaired[index + 1].y;
-    const neighbourMean = (previous + next) / 2;
-    if (Math.abs(current - neighbourMean) > 42 && Math.abs(previous - next) < 18) {
-      repaired[index].y = neighbourMean;
-    }
-  }
-  return repaired;
-}
-
 function reconstructLargeGaps(points, samples, field) {
   if (points.length < 2) return { points, gaps: [] };
   const typicalInterval = samples.quality?.medianInterval || 0.24;
@@ -515,10 +501,32 @@ function reconstructLargeGaps(points, samples, field) {
       const ratio = piece / pieces;
       let value;
       if (field === 'Speed') {
-        // Constant longitudinal acceleration makes v² linear with distance.
-        // It is a conservative physical reconstruction for a missing braking
-        // or acceleration interval and cannot introduce an artificial wave.
-        const energy = before.y ** 2 + (after.y ** 2 - before.y ** 2) * ratio;
+        // d(v²)/distance is proportional to longitudinal acceleration. Extend
+        // the measured acceleration trend through the gap with bounded slopes.
+        const width = after.x - before.x || 1;
+        const startEnergy = before.y ** 2;
+        const endEnergy = after.y ** 2;
+        const secant = (endEnergy - startEnergy) / width;
+        const previous = points[index - 1];
+        const following = points[index + 2];
+        const neighbourSlope = (left, right) => left && right && right.x > left.x
+          ? (right.y ** 2 - left.y ** 2) / (right.x - left.x) : secant;
+        const limitSlope = slope => {
+          if (!Number.isFinite(slope) || secant === 0 || Math.sign(slope) !== Math.sign(secant)) return secant;
+          return Math.sign(secant) * Math.min(Math.abs(slope), Math.abs(secant) * 3);
+        };
+        const startSlope = limitSlope(neighbourSlope(previous, before));
+        const endSlope = limitSlope(neighbourSlope(after, following));
+        const t2 = ratio * ratio;
+        const t3 = t2 * ratio;
+        const predicted = (2 * t3 - 3 * t2 + 1) * startEnergy
+          + (t3 - 2 * t2 + ratio) * width * startSlope
+          + (-2 * t3 + 3 * t2) * endEnergy
+          + (t3 - t2) * width * endSlope;
+        const energy = Math.max(
+          Math.min(startEnergy, endEnergy),
+          Math.min(Math.max(startEnergy, endEnergy), predicted)
+        );
         value = Math.sqrt(Math.max(0, energy));
       } else {
         // Throttle is an analogue driver input. A linear transition is the
@@ -537,92 +545,131 @@ function reconstructLargeGaps(points, samples, field) {
   return { points: reconstructed, gaps };
 }
 
-function resampleSpeedUniformly(points) {
-  const source = points
-    .sort((a, b) => a.x - b.x)
-    .filter((point, index, array) => index === 0 || point.x - array[index - 1].x > 1e-5);
-  if (source.length < 3) return source;
-  const gridSize = Math.max(360, Math.min(1200, Math.ceil(referenceDistance() / 5)));
-  const result = [];
-  let cursor = 1;
-  for (let index = 0; index <= gridSize; index++) {
-    const x = index / gridSize;
-    while (cursor < source.length - 1 && source[cursor].x < x) cursor++;
-    const before = source[Math.max(0, cursor - 1)];
-    const after = source[Math.min(source.length - 1, cursor)];
-    const ratio = clampTelemetry((x - before.x) / (after.x - before.x || 1));
-    const energy = before.y ** 2 + (after.y ** 2 - before.y ** 2) * ratio;
-    result.push({
-      x,
-      y: Math.sqrt(Math.max(0, energy)),
-      time: before.time + (after.time - before.time) * ratio,
-      reconstructed: before.reconstructed || after.reconstructed,
-    });
+function monotonicTelemetryFit(values, increasing) {
+  if (values.length < 3) return [...values];
+  const direction = increasing ? 1 : -1;
+  const blocks = values.map((value, index) => ({
+    start: index,
+    end: index,
+    weight: index === 0 || index === values.length - 1 ? 1e6 : 1,
+    total: value * direction * (index === 0 || index === values.length - 1 ? 1e6 : 1),
+  }));
+  for (let index = 0; index < blocks.length - 1;) {
+    const left = blocks[index];
+    const right = blocks[index + 1];
+    if (left.total / left.weight <= right.total / right.weight) {
+      index++;
+      continue;
+    }
+    left.end = right.end;
+    left.weight += right.weight;
+    left.total += right.total;
+    blocks.splice(index + 1, 1);
+    if (index > 0) index--;
+  }
+  const result = new Array(values.length);
+  blocks.forEach(block => {
+    const value = block.total / block.weight * direction;
+    for (let index = block.start; index <= block.end; index++) result[index] = value;
+  });
+  result[0] = values[0];
+  result[result.length - 1] = values[values.length - 1];
+  return result;
+}
+
+function significantTelemetryAnchors(points, threshold, radius = 4) {
+  const anchors = new Set([0, points.length - 1]);
+  const values = points.map(point => point.y);
+  anchors.add(values.indexOf(Math.min(...values)));
+  anchors.add(values.indexOf(Math.max(...values)));
+  for (let index = radius; index < points.length - radius; index++) {
+    const value = points[index].y;
+    const left = points.slice(index - radius, index).map(point => point.y);
+    const right = points.slice(index + 1, index + radius + 1).map(point => point.y);
+    const peakProminence = Math.min(value - Math.min(...left), value - Math.min(...right));
+    const troughProminence = Math.min(Math.max(...left) - value, Math.max(...right) - value);
+    if (value >= Math.max(...left, ...right) && peakProminence >= threshold) anchors.add(index);
+    if (value <= Math.min(...left, ...right) && troughProminence >= threshold) anchors.add(index);
+  }
+  return anchors;
+}
+
+function nearestTelemetryPoint(points, fraction) {
+  let best = 0;
+  let error = Infinity;
+  points.forEach((point, index) => {
+    const current = Math.abs(point.x - fraction);
+    if (current < error) {
+      error = current;
+      best = index;
+    }
+  });
+  return best;
+}
+
+// Enhanced speed is a monotonic reconstruction between real landmarks. Raw
+// peaks/troughs, gap edges and gear changes are pinned exactly; only the noisy
+// acceleration and deceleration samples between them are regularised.
+function smoothEnhancedSpeed(points, samples = []) {
+  if (points.length < 7) return points;
+  const anchors = significantTelemetryAnchors(points, 3.5, 5);
+  for (let index = 1; index < samples.length; index++) {
+    if (+samples[index].nGear !== +samples[index - 1].nGear) {
+      const fraction = Number.isFinite(samples[index].AlignedFraction)
+        ? samples[index].AlignedFraction : rawFractionAt(samples, samples[index]);
+      const pointIndex = nearestTelemetryPoint(points, fraction);
+      anchors.add(Math.max(0, pointIndex - 1));
+      anchors.add(pointIndex);
+    }
+  }
+  for (let index = 1; index < points.length; index++) {
+    if (Boolean(points[index].reconstructed) !== Boolean(points[index - 1].reconstructed)) {
+      anchors.add(index - 1);
+      anchors.add(index);
+    }
+  }
+  const ordered = [...anchors].sort((a, b) => a - b);
+  const result = points.map(point => ({ ...point }));
+  for (let anchorIndex = 0; anchorIndex < ordered.length - 1; anchorIndex++) {
+    const start = ordered[anchorIndex];
+    const end = ordered[anchorIndex + 1];
+    if (end - start < 3) continue;
+    const values = points.slice(start, end + 1).map(point => point.y);
+    const edge = Math.min(3, Math.floor(values.length / 3));
+    const startMean = values.slice(0, edge).reduce((sum, value) => sum + value, 0) / edge;
+    const endMean = values.slice(-edge).reduce((sum, value) => sum + value, 0) / edge;
+    const fitted = monotonicTelemetryFit(values, endMean >= startMean);
+    fitted.forEach((value, offset) => { result[start + offset].y = value; });
   }
   return result;
 }
 
-// Enhanced mode removes packet/sample-and-hold ripple without moving the real
-// braking and corner landmarks.  A single zero-phase pass is blended strongly
-// only through monotonic acceleration/deceleration.  Local extrema and their
-// neighbours are effectively pinned to the source samples, so a peak or trough
-// cannot drift along the distance axis or be noticeably flattened.
-function smoothEnhancedSpeed(points, quality = {}) {
-  if (points.length < 9) return points;
-  const heldChannel = (quality?.repeatSpeedRatio || 0) >= 0.35;
-  const radius = heldChannel ? 5 : 4;
-  const sigma = heldChannel ? 2.35 : 1.9;
-  const source = points.map(point => point.y);
-  const extremaDistance = new Array(source.length).fill(Infinity);
-
-  // Mark genuine changes of direction and protect two surrounding samples.
-  // This keeps both the location and magnitude of braking minima and speed
-  // maxima while still allowing straights and braking ramps to be cleaned up.
-  for (let index = 1; index < source.length - 1; index++) {
-    const left = source[index] - source[index - 1];
-    const right = source[index + 1] - source[index];
-    if (left === 0 || right === 0 || Math.sign(left) !== Math.sign(right)) {
-      for (let offset = -2; offset <= 2; offset++) {
-        const protectedIndex = index + offset;
-        if (protectedIndex >= 0 && protectedIndex < source.length) {
-          extremaDistance[protectedIndex] = Math.min(extremaDistance[protectedIndex], Math.abs(offset));
-        }
-      }
+function smoothEnhancedThrottle(points) {
+  if (points.length < 5) return points;
+  const snapped = points.map(point => ({
+    ...point,
+    y: point.y >= 97.5 ? 100 : point.y <= 2.5 ? 0 : point.y,
+  }));
+  const anchors = significantTelemetryAnchors(snapped, 7.5, 2);
+  for (let index = 1; index < snapped.length; index++) {
+    const previousPlateau = snapped[index - 1].y === 0 || snapped[index - 1].y === 100;
+    const currentPlateau = snapped[index].y === 0 || snapped[index].y === 100;
+    if (previousPlateau !== currentPlateau || (previousPlateau && snapped[index - 1].y !== snapped[index].y)) {
+      anchors.add(index - 1);
+      anchors.add(index);
     }
   }
-
-  const values = source.map((value, index) => {
-    if (index < radius || index >= source.length - radius) return value;
-    let weighted = 0;
-    let weightTotal = 0;
-    let localMin = Infinity;
-    let localMax = -Infinity;
-    for (let offset = -radius; offset <= radius; offset++) {
-      const sample = source[index + offset];
-      const weight = Math.exp(-(offset * offset) / (2 * sigma * sigma));
-      weighted += sample * weight;
-      weightTotal += weight;
-      localMin = Math.min(localMin, sample);
-      localMax = Math.max(localMax, sample);
-    }
-
-    const filtered = weighted / (weightTotal || 1);
-    const leftSlope = value - source[index - 1];
-    const rightSlope = source[index + 1] - value;
-    const monotonic = leftSlope !== 0 && rightSlope !== 0
-      && Math.sign(leftSlope) === Math.sign(rightSlope);
-    const curvature = Math.abs(rightSlope - leftSlope);
-    let blend = monotonic ? (heldChannel ? 0.7 : 0.56) : 0.22;
-    if (extremaDistance[index] === 0) blend = 0.02;
-    else if (extremaDistance[index] === 1) blend = 0.08;
-    else if (extremaDistance[index] === 2) blend = 0.16;
-    if (curvature > 4) blend *= 0.45;
-    else if (curvature > 2) blend *= 0.7;
-    const mixed = value + (filtered - value) * blend;
-    return Math.max(localMin, Math.min(localMax, mixed));
-  });
-
-  return points.map((point, index) => ({ ...point, y: values[index] }));
+  const ordered = [...anchors].sort((a, b) => a - b);
+  const result = snapped.map(point => ({ ...point }));
+  for (let anchorIndex = 0; anchorIndex < ordered.length - 1; anchorIndex++) {
+    const start = ordered[anchorIndex];
+    const end = ordered[anchorIndex + 1];
+    if (end - start < 2) continue;
+    const values = snapped.slice(start, end + 1).map(point => point.y);
+    const fitted = monotonicTelemetryFit(values, values[values.length - 1] >= values[0]);
+    fitted.forEach((value, offset) => { result[start + offset].y = clampTelemetry(value, 0, 100); });
+  }
+  return result;
 }
 
 function finishShapePreservingModel(points, gaps = []) {
@@ -663,45 +710,17 @@ function buildSpeedModel(samples) {
     }))
     .filter(point => Number.isFinite(point.x) && point.y !== null && point.time !== null);
   if (points.length < 3) return null;
-  points = repairDisplaySpeeds(points);
   let gaps = [];
 
   // Restore missing source intervals before filtering. The adaptive smoother
   // below operates on the common grid directly; a second polynomial pass here
   // used to shift and flatten genuine peaks and troughs.
-  if ((samples.quality?.repeatSpeedRatio || 0) < 0.35 && points.length >= 7) {
+  if (points.length >= 7) {
     const reconstruction = reconstructLargeGaps(points, samples, 'Speed');
-    points = resampleSpeedUniformly(reconstruction.points);
+    points = reconstruction.points;
     gaps = reconstruction.gaps;
   }
-
-  // OpenF1 often publishes speed as a sample-and-hold channel. Collapse each
-  // held run to its centre before fitting a shape-preserving curve.
-  if ((samples.quality?.repeatSpeedRatio || 0) >= 0.35) {
-    const runs = [];
-    let run = [points[0]];
-    for (let index = 1; index < points.length; index++) {
-      if (Math.abs(points[index].y - run[run.length - 1].y) <= 0.5) run.push(points[index]);
-      else {
-        runs.push(run);
-        run = [points[index]];
-      }
-    }
-    runs.push(run);
-    points = runs.map(group => ({
-      x: group.reduce((sum, point) => sum + point.x, 0) / group.length,
-      y: group.reduce((sum, point) => sum + point.y, 0) / group.length,
-      time: group.reduce((sum, point) => sum + point.time, 0) / group.length,
-    }));
-    points.unshift({ x: 0, y: +samples[0].Speed });
-    points.push({ x: 1, y: +samples[samples.length - 1].Speed });
-  }
-
-  // A common final grid gives every source the same enhanced-mode treatment.
-  // This also makes the visual difference from accurate mode deliberate and
-  // predictable instead of depending on which provider supplied the lap.
-  points = resampleSpeedUniformly(points);
-  points = smoothEnhancedSpeed(points, samples.quality);
+  points = smoothEnhancedSpeed(points, samples);
   return finishShapePreservingModel(points, gaps);
 }
 
@@ -718,7 +737,7 @@ function buildThrottleModel(samples) {
   // Accurate mode bypasses this model and connects measured samples linearly.
   // Enhanced mode uses a bounded, shape-preserving curve that cannot overshoot
   // the published throttle values and bridges explicitly detected gaps.
-  return finishShapePreservingModel(reconstruction.points, reconstruction.gaps);
+  return finishShapePreservingModel(smoothEnhancedThrottle(reconstruction.points), reconstruction.gaps);
 }
 
 function evaluateSpeedModel(model, fraction) {

@@ -4649,6 +4649,29 @@ main,
   width: 100%;
 }
 
+/* Sector and condition metrics share one explicit card-width grid. The old
+   full-bleed conditions margin made four equal tracks look uneven beneath the
+   inset three-sector row. */
+.lap-summary-card .summary-sectors {
+  grid-template-columns: repeat(3, 33.333333%);
+  width: 100%;
+  margin-right: 0;
+  margin-left: 0;
+}
+
+.lap-summary-card .summary-conditions {
+  grid-template-columns: repeat(4, 25%);
+  width: 100%;
+  margin-right: 0;
+  margin-left: 0;
+}
+
+.lap-summary-card .sector-cell,
+.lap-summary-card .summary-condition {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
 .corner-detail-card .corner-driver-row.is-fastest .corner-driver b {
   color: var(--text-main);
 }
