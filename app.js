@@ -106,6 +106,36 @@ function getTeamInfo(teamName) {
 
 const $ = s => document.querySelector(s);
 
+function lightThemeActive() {
+  return document.documentElement.dataset.theme === 'light';
+}
+
+function canvasTheme() {
+  return lightThemeActive() ? {
+    text: 'rgba(20, 25, 32, .56)',
+    textStrong: 'rgba(20, 25, 32, .82)',
+    grid: 'rgba(20, 25, 32, .09)',
+    gridStrong: 'rgba(20, 25, 32, .24)',
+    panel: 'rgba(250, 251, 252, .97)',
+    outline: 'rgba(20, 25, 32, .22)',
+    mapBase: 'rgba(20, 25, 32, .16)',
+    labelStroke: 'rgba(250, 251, 252, .96)',
+    labelFill: 'rgba(20, 25, 32, .92)',
+    crosshair: 'rgba(20, 25, 32, .3)',
+  } : {
+    text: 'rgba(255, 255, 255, .35)',
+    textStrong: 'rgba(255, 255, 255, .72)',
+    grid: 'rgba(255, 255, 255, .05)',
+    gridStrong: 'rgba(255, 255, 255, .25)',
+    panel: 'rgba(12, 14, 18, .94)',
+    outline: 'rgba(255, 255, 255, .22)',
+    mapBase: 'rgba(255, 255, 255, .12)',
+    labelStroke: '#101114',
+    labelFill: 'rgba(255,255,255,.92)',
+    crosshair: 'rgba(255, 255, 255, .25)',
+  };
+}
+
 // Timing formatter: seconds -> M:SS.SSS
 function time(t) {
   if (!Number.isFinite(t)) return '—';
@@ -730,7 +760,7 @@ function renderSectors() {
         <header>
           <span class="summary-driver"><b>${item.code}</b><small>L${item.lap}</small>${i === 0 ? '<em>REF</em>' : ''}</span>
           <span class="summary-header-actions">
-            <input class="trace-color-picker" type="color" value="${color}" data-driver-color="${item.code}" aria-label="Trace color for ${item.code}" title="Change ${item.code} trace color">
+            <input class="trace-color-picker" type="color" value="${color}" style="--trace-color:${color}" data-driver-color="${item.code}" aria-label="Trace color for ${item.code}" title="Change ${item.code} trace color">
             <span class="summary-tyre ${compoundClass}"><b>${compound}</b>${tyreLife ? `<small>${tyreLife}</small>` : ''}</span>
             <span class="summary-lap-time"><small>LAP</small><strong>${Number.isFinite(item.time) ? time(item.time) : '—'}</strong>${i === 0 ? '' : deltaBadge(item.time, ref.time)}</span>
           </span>
@@ -1070,6 +1100,7 @@ function resolveCornerMarkers(samples, totalDistance, suppliedMarkers = null) {
 // Draw chart grid axes
 function drawGridAxes(ctx, width, height, bounds, unit) {
   const { left, right, top, bottom, min, max, tickStep } = bounds;
+  const theme = canvasTheme();
   ctx.font = '9px monospace';
   const ticks = [];
   if (Number.isFinite(tickStep) && tickStep > 0) {
@@ -1088,10 +1119,10 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
     ctx.moveTo(left, y);
     ctx.lineTo(width - right, y);
     if (unit.includes('SECONDS') && Math.abs(value) < 1e-5) {
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.strokeStyle = theme.gridStrong;
       ctx.lineWidth = 1.2;
     } else {
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.strokeStyle = theme.grid;
       ctx.lineWidth = 1;
     }
     ctx.stroke();
@@ -1108,8 +1139,8 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
       if (unit === 'ON / OFF') displayVal = tick === 0 ? 'ON' : 'OFF';
     }
     ctx.fillStyle = unit.includes('SECONDS') && Math.abs(value) < 1e-5
-      ? 'rgba(255, 255, 255, 0.65)'
-      : 'rgba(255, 255, 255, 0.35)';
+      ? theme.textStrong
+      : theme.text;
     ctx.textAlign = 'left';
     ctx.fillText(displayVal, 2, y + 3);
   });
@@ -1165,6 +1196,7 @@ function drawRealChart(name) {
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, rect.width, rect.height);
+  const theme = canvasTheme();
   
   const unit = defs.find(def => def[0] === name)?.[1] || '';
   const field = chartField[name];
@@ -1174,14 +1206,14 @@ function drawRealChart(name) {
   const viewSpan = viewEnd - viewStart || 1;
   
   if (!loaded.length) {
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.fillStyle = theme.text;
     ctx.font = '11px monospace';
     ctx.fillText('Select a driver to begin comparison.', 43, 25);
     return;
   }
   
   if (!data.length) {
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.fillStyle = theme.text;
     ctx.font = '11px monospace';
     ctx.fillText('Loading telemetry data…', 43, 25);
     return;
@@ -1189,7 +1221,7 @@ function drawRealChart(name) {
 
   if (name === 'DRS / straight-line mode' && Number($('#year').value) >= 2026
     && !data.some(series => series.modeAvailable)) {
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+    ctx.fillStyle = theme.textStrong;
     ctx.font = '11px monospace';
     ctx.fillText('Straight-line mode is not published for this lap.', 43, 25);
     return;
@@ -1262,10 +1294,10 @@ function drawRealChart(name) {
     ctx.beginPath();
     ctx.moveTo(x, bounds.top);
     ctx.lineTo(x, rect.height - bounds.bottom);
-    ctx.strokeStyle = 'rgba(255, 255, 255, .045)';
+    ctx.strokeStyle = theme.grid;
     ctx.lineWidth = 1;
     ctx.stroke();
-    ctx.fillStyle = 'rgba(255, 255, 255, .34)';
+    ctx.fillStyle = theme.text;
     ctx.font = '7px monospace';
     ctx.textAlign = tick === 0 ? 'left' : tick === 6 ? 'right' : 'center';
     ctx.fillText(`${Math.round(fraction * totalDist)} M`, x, rect.height - 3);
@@ -1290,7 +1322,7 @@ function drawRealChart(name) {
   sectorBoundaries.forEach(fraction => {
     if (!fractionInView(fraction)) return;
     const x = xForFraction(fraction);
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.strokeStyle = theme.gridStrong;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(x, bounds.top);
@@ -1300,7 +1332,7 @@ function drawRealChart(name) {
 
   if (name === 'Speed trace' && sectorBoundaries.length === 2) {
     const ranges = [[0, sectorBoundaries[0], 'SECTOR 1'], [sectorBoundaries[0], sectorBoundaries[1], 'SECTOR 2'], [sectorBoundaries[1], 1, 'SECTOR 3']];
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+    ctx.fillStyle = theme.text;
     ctx.font = '8px monospace';
     ctx.textAlign = 'center';
     ranges.forEach(([start, end, label]) => {
@@ -1321,7 +1353,7 @@ function drawRealChart(name) {
       if (Number.isFinite(fraction) && fractionInView(fraction)) {
         const x = xForFraction(fraction);
         
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+        ctx.strokeStyle = theme.gridStrong;
         ctx.lineWidth = 0.8;
         ctx.setLineDash([2, 3]);
         
@@ -1392,34 +1424,97 @@ function drawRealChart(name) {
     });
   };
 
-  // Shade the slowest official loaded lap. The fill is rendered before every
-  // trace so the lines themselves always retain their untouched team colour.
-  const tintTrace = traceEntries.reduce((slowest, entry) => {
-    const lapTime = Number(loaded[entry.index]?.time);
-    if (!Number.isFinite(lapTime)) return slowest;
-    const slowestTime = Number(loaded[slowest?.index]?.time);
-    return !slowest || !Number.isFinite(slowestTime) || lapTime > slowestTime ? entry : slowest;
-  }, null) || traceEntries[0];
+  // Continuous analogue charts share a true lower envelope. At every crossing
+  // the fill changes owner and follows the visually lower trace, so no region
+  // between drivers is painted and every driver's colour can contribute.
   const shadedFields = ['Speed trace', 'Throttle application', 'Brake application', 'Engine speed'];
-  if (tintTrace && shadedFields.includes(name)) {
-    const { points, teamColor } = tintTrace;
+  if (shadedFields.includes(name) && traceEntries.length) {
     const bottomY = rect.height - bounds.bottom;
-    tracePath(points);
-    ctx.lineTo(points[points.length - 1].x, bottomY);
-    ctx.lineTo(points[0].x, bottomY);
-    ctx.closePath();
-    const gradient = ctx.createLinearGradient(0, bounds.top, 0, bottomY);
-    gradient.addColorStop(0, hexToRgba(teamColor, name === 'Speed trace' ? .18 : .13));
-    gradient.addColorStop(1, hexToRgba(teamColor, 0));
-    ctx.fillStyle = gradient;
-    ctx.fill();
+    const pointCount = Math.min(...traceEntries.map(entry => entry.points.length));
+    const envelope = [];
+    for (let pointIndex = 0; pointIndex < pointCount; pointIndex++) {
+      let winner = traceEntries[0];
+      traceEntries.slice(1).forEach(entry => {
+        // Canvas y increases downwards, so the largest y is the lower trace.
+        if (entry.points[pointIndex].y > winner.points[pointIndex].y) winner = entry;
+      });
+      envelope.push({ ...winner.points[pointIndex], winner });
+    }
+
+    let groupStart = 0;
+    while (groupStart < envelope.length - 1) {
+      const winner = envelope[groupStart].winner;
+      let groupEnd = groupStart + 1;
+      while (groupEnd < envelope.length - 1 && envelope[groupEnd].winner === winner) groupEnd++;
+      if (name === 'Speed trace') {
+        // Keep the trace itself visually untouched. The first 20 km/h below
+        // it holds a constant team-colour tint; only after that threshold does
+        // the fill begin fading away. Parallel bands make both zones follow
+        // every peak, trough and driver crossing.
+        const plotHeight = rect.height - bounds.top - bounds.bottom;
+        const pixelsPerKmh = plotHeight / (bounds.max - bounds.min || 1);
+        const solidHeight = Math.max(1, 20 * pixelsPerKmh);
+        const fadeHeight = Math.max(1, 60 * pixelsPerKmh);
+        const clearGap = 1.35;
+        const solidBandCount = 5;
+        const fadeBandCount = 18;
+        const peakAlpha = lightThemeActive() ? .62 : .48;
+
+        const fillEnvelopeBand = (innerOffset, outerOffset, alpha) => {
+          ctx.beginPath();
+          ctx.moveTo(envelope[groupStart].x, Math.min(bottomY, envelope[groupStart].y + innerOffset));
+          for (let index = groupStart + 1; index <= groupEnd; index++) {
+            ctx.lineTo(envelope[index].x, Math.min(bottomY, envelope[index].y + innerOffset));
+          }
+          for (let index = groupEnd; index >= groupStart; index--) {
+            ctx.lineTo(envelope[index].x, Math.min(bottomY, envelope[index].y + outerOffset));
+          }
+          ctx.closePath();
+          ctx.fillStyle = hexToRgba(winner.teamColor, alpha);
+          ctx.fill();
+        };
+
+        // Constant-strength 0-20 km/h zone.
+        for (let band = 0; band < solidBandCount; band++) {
+          const innerOffset = clearGap + solidHeight * band / solidBandCount;
+          const outerOffset = clearGap + solidHeight * (band + 1.04) / solidBandCount;
+          fillEnvelopeBand(innerOffset, outerOffset, peakAlpha);
+        }
+
+        // Gradual fade from 20 to 80 km/h below the trace.
+        for (let band = 0; band < fadeBandCount; band++) {
+          const progress = (band + .5) / fadeBandCount;
+          const innerOffset = clearGap + solidHeight + fadeHeight * band / fadeBandCount;
+          const outerOffset = clearGap + solidHeight + fadeHeight * (band + 1.04) / fadeBandCount;
+          fillEnvelopeBand(innerOffset, outerOffset, peakAlpha * Math.pow(1 - progress, 1.55));
+        }
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(envelope[groupStart].x, envelope[groupStart].y);
+        for (let index = groupStart + 1; index <= groupEnd; index++) {
+          ctx.lineTo(envelope[index].x, envelope[index].y);
+        }
+        ctx.lineTo(envelope[groupEnd].x, bottomY);
+        ctx.lineTo(envelope[groupStart].x, bottomY);
+        ctx.closePath();
+        const gradient = ctx.createLinearGradient(0, bounds.top, 0, bottomY);
+        const tintAlpha = lightThemeActive() ? .27 : .18;
+        gradient.addColorStop(0, hexToRgba(winner.teamColor, tintAlpha));
+        gradient.addColorStop(.72, hexToRgba(winner.teamColor, tintAlpha * .28));
+        gradient.addColorStop(1, hexToRgba(winner.teamColor, 0));
+        ctx.fillStyle = gradient;
+        ctx.fill();
+      }
+      groupStart = groupEnd;
+    }
   }
 
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   traceEntries.forEach(({ points, teamColor, index }) => {
     ctx.strokeStyle = teamColor;
-    ctx.lineWidth = index === 0 ? 1.44 : 1.12;
+    const speedWidthMultiplier = name === 'Speed trace' ? 1.15 : 1;
+    ctx.lineWidth = (index === 0 ? 1.44 : 1.12) * speedWidthMultiplier;
     ctx.shadowColor = teamColor;
     ctx.shadowBlur = 0;
     tracePath(points);
@@ -1437,12 +1532,12 @@ function drawRealChart(name) {
       const labelY = 4 + lane * rowHeight;
       const left = x - width / 2;
 
-      ctx.fillStyle = 'rgba(12, 14, 18, 0.94)';
+      ctx.fillStyle = theme.panel;
       ctx.fillRect(left, labelY, width, calloutHeight);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+      ctx.strokeStyle = theme.outline;
       ctx.lineWidth = 1;
       ctx.strokeRect(left + .5, labelY + .5, width - 1, calloutHeight - 1);
-      ctx.fillStyle = 'rgba(255, 255, 255, .78)';
+      ctx.fillStyle = theme.textStrong;
       ctx.font = '8px monospace';
       ctx.textAlign = 'center';
       ctx.fillText(cornerLabel(corner), x, labelY + 8);
@@ -1455,7 +1550,7 @@ function drawRealChart(name) {
     const crosshairX = xForFraction(hoverFraction);
     
     // Draw vertical crosshair line
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.strokeStyle = theme.crosshair;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(crosshairX, bounds.top);
@@ -1938,12 +2033,17 @@ function renderMiniSectorMap() {
     empty.textContent = 'Track map could not be sized. Resize the page and try again.';
     return;
   }
-  const dpr = window.devicePixelRatio || 1;
+  // Keep the vector map crisp at Windows fractional scaling and browser zoom.
+  const dpr = Math.min(3, Math.max(2, window.devicePixelRatio || 1));
   canvas.width = rect.width * dpr;
   canvas.height = rect.height * dpr;
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.lineJoin = 'round';
   ctx.clearRect(0, 0, rect.width, rect.height);
+  const theme = canvasTheme();
 
   const minX = Math.min(...trackSamples.map(point => +point.X));
   const maxX = Math.max(...trackSamples.map(point => +point.X));
@@ -1965,15 +2065,22 @@ function renderMiniSectorMap() {
     return Number.isFinite(x) && Number.isFinite(y) ? toCanvas(x, y) : null;
   };
 
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+  // Re-sample the circuit by distance instead of drawing the sparse raw X/Y
+  // packets.  This keeps long-radius corners smooth without raster scaling.
+  ctx.strokeStyle = theme.mapBase;
   ctx.lineWidth = 7;
   ctx.lineCap = 'round';
   ctx.beginPath();
-  trackSamples.forEach((point, index) => {
-    const pos = toCanvas(+point.X, +point.Y);
-    if (index === 0) ctx.moveTo(pos.x, pos.y);
-    else ctx.lineTo(pos.x, pos.y);
-  });
+  const geometrySteps = Math.max(1000, Math.min(2800, Math.ceil(totalDistance / 2.5)));
+  let geometryStarted = false;
+  for (let index = 0; index <= geometrySteps; index++) {
+    const pos = pointAt(index / geometrySteps);
+    if (!pos) continue;
+    if (!geometryStarted) {
+      ctx.moveTo(pos.x, pos.y);
+      geometryStarted = true;
+    } else ctx.lineTo(pos.x, pos.y);
+  }
   ctx.stroke();
 
   // Highlight the timing sector selected in the compact corner panel. The
@@ -2027,7 +2134,11 @@ function renderMiniSectorMap() {
     ctx.lineWidth = 5;
     ctx.beginPath();
     ctx.moveTo(from.x, from.y);
-    ctx.lineTo(to.x, to.y);
+    const segmentSteps = Math.max(2, Math.ceil((end - start) * totalDistance / 5));
+    for (let step = 1; step <= segmentSteps; step++) {
+      const point = pointAt(start + (end - start) * step / segmentSteps);
+      if (point) ctx.lineTo(point.x, point.y);
+    }
     ctx.stroke();
   }
 
@@ -2073,9 +2184,9 @@ function renderMiniSectorMap() {
       const offsetX = Number.isFinite(angle) ? Math.cos(angle * Math.PI / 180) * 11 : 0;
       const offsetY = Number.isFinite(angle) ? -Math.sin(angle * Math.PI / 180) * 11 : -11;
       ctx.lineWidth = 3;
-      ctx.strokeStyle = '#101114';
+      ctx.strokeStyle = theme.labelStroke;
       ctx.strokeText(cornerLabel(corner), point.x + offsetX, point.y + offsetY);
-      ctx.fillStyle = 'rgba(255,255,255,.92)';
+      ctx.fillStyle = theme.labelFill;
       ctx.fillText(cornerLabel(corner), point.x + offsetX, point.y + offsetY);
     });
     ctx.textAlign = 'start';
@@ -2092,7 +2203,7 @@ function renderMiniSectorMap() {
       ctx.arc(hPoint.x, hPoint.y, 10, 0, 2 * Math.PI);
       ctx.fill();
       
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = lightThemeActive() ? '#161b22' : '#ffffff';
       ctx.beginPath();
       ctx.arc(hPoint.x, hPoint.y, 4.5, 0, 2 * Math.PI);
       ctx.fill();
@@ -2109,9 +2220,27 @@ function renderMiniSectorMap() {
   }).join('');
 }
 
+function applyTheme(theme, persist = true) {
+  const nextTheme = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = nextTheme;
+  const button = $('#themeToggle');
+  if (button) {
+    const light = nextTheme === 'light';
+    button.setAttribute('aria-pressed', String(light));
+    button.setAttribute('aria-label', light ? 'Switch to dark mode' : 'Switch to light mode');
+    const label = button.querySelector('span');
+    if (label) label.textContent = light ? 'Dark mode' : 'Light mode';
+  }
+  if (persist) {
+    try { localStorage.setItem('apex-theme', nextTheme); } catch (_) { /* storage can be disabled */ }
+  }
+  if (loaded.length) drawAll();
+}
+
 // Initial Setup on Document Load
 document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('mouseup', finishZoomDrag);
+  applyTheme(document.documentElement.dataset.theme, false);
   const yearSelect = $('#year');
   const currentYear = new Date().getFullYear();
   const years = [];
@@ -2140,6 +2269,24 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#traceModeStatus').dataset.mode = enhanced ? 'enhanced' : 'accurate';
     if (loaded.length) drawAll();
   });
+
+  const themeToggle = $('#themeToggle');
+  if (themeToggle) {
+    themeToggle.addEventListener('click', () => {
+      applyTheme(lightThemeActive() ? 'dark' : 'light');
+    });
+  }
+
+  const cornerAnalysisToggle = $('#cornerAnalysisToggle');
+  const cornerAnalysis = $('#cornerAnalysis');
+  if (cornerAnalysisToggle && cornerAnalysis) {
+    cornerAnalysisToggle.addEventListener('click', () => {
+      const collapsed = cornerAnalysis.classList.toggle('is-collapsed');
+      cornerAnalysisToggle.setAttribute('aria-expanded', String(!collapsed));
+      const label = cornerAnalysisToggle.querySelector('span');
+      if (label) label.textContent = collapsed ? 'Expand' : 'Collapse';
+    });
+  }
   
   const toggleBtn = $('#sidebarToggle');
   const mainEl = $('main');
@@ -2228,7 +2375,7 @@ function renderTireNomination() {
     return `
       <div class="tire-option" style="--tire-color:${color}">
         <span class="tire-code">${displayVal}</span>
-        <span class="tire-copy"><strong>${label}</strong><small>WEEKEND NOMINATION</small></span>
+        <span class="tire-copy"><strong>${label}</strong></span>
       </div>
     `;
   }).join('');

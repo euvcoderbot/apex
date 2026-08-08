@@ -562,6 +562,69 @@ function resampleSpeedUniformly(points) {
   return result;
 }
 
+// Enhanced mode removes packet/sample-and-hold ripple without moving the real
+// braking and corner landmarks.  A single zero-phase pass is blended strongly
+// only through monotonic acceleration/deceleration.  Local extrema and their
+// neighbours are effectively pinned to the source samples, so a peak or trough
+// cannot drift along the distance axis or be noticeably flattened.
+function smoothEnhancedSpeed(points, quality = {}) {
+  if (points.length < 9) return points;
+  const heldChannel = (quality?.repeatSpeedRatio || 0) >= 0.35;
+  const radius = heldChannel ? 5 : 4;
+  const sigma = heldChannel ? 2.35 : 1.9;
+  const source = points.map(point => point.y);
+  const extremaDistance = new Array(source.length).fill(Infinity);
+
+  // Mark genuine changes of direction and protect two surrounding samples.
+  // This keeps both the location and magnitude of braking minima and speed
+  // maxima while still allowing straights and braking ramps to be cleaned up.
+  for (let index = 1; index < source.length - 1; index++) {
+    const left = source[index] - source[index - 1];
+    const right = source[index + 1] - source[index];
+    if (left === 0 || right === 0 || Math.sign(left) !== Math.sign(right)) {
+      for (let offset = -2; offset <= 2; offset++) {
+        const protectedIndex = index + offset;
+        if (protectedIndex >= 0 && protectedIndex < source.length) {
+          extremaDistance[protectedIndex] = Math.min(extremaDistance[protectedIndex], Math.abs(offset));
+        }
+      }
+    }
+  }
+
+  const values = source.map((value, index) => {
+    if (index < radius || index >= source.length - radius) return value;
+    let weighted = 0;
+    let weightTotal = 0;
+    let localMin = Infinity;
+    let localMax = -Infinity;
+    for (let offset = -radius; offset <= radius; offset++) {
+      const sample = source[index + offset];
+      const weight = Math.exp(-(offset * offset) / (2 * sigma * sigma));
+      weighted += sample * weight;
+      weightTotal += weight;
+      localMin = Math.min(localMin, sample);
+      localMax = Math.max(localMax, sample);
+    }
+
+    const filtered = weighted / (weightTotal || 1);
+    const leftSlope = value - source[index - 1];
+    const rightSlope = source[index + 1] - value;
+    const monotonic = leftSlope !== 0 && rightSlope !== 0
+      && Math.sign(leftSlope) === Math.sign(rightSlope);
+    const curvature = Math.abs(rightSlope - leftSlope);
+    let blend = monotonic ? (heldChannel ? 0.7 : 0.56) : 0.22;
+    if (extremaDistance[index] === 0) blend = 0.02;
+    else if (extremaDistance[index] === 1) blend = 0.08;
+    else if (extremaDistance[index] === 2) blend = 0.16;
+    if (curvature > 4) blend *= 0.45;
+    else if (curvature > 2) blend *= 0.7;
+    const mixed = value + (filtered - value) * blend;
+    return Math.max(localMin, Math.min(localMax, mixed));
+  });
+
+  return points.map((point, index) => ({ ...point, y: values[index] }));
+}
+
 function finishShapePreservingModel(points, gaps = []) {
   points = points
     .sort((a, b) => a.x - b.x)
@@ -603,21 +666,13 @@ function buildSpeedModel(samples) {
   points = repairDisplaySpeeds(points);
   let gaps = [];
 
-  // Restore missing source intervals before filtering. Savitzky-Golay assumes
-  // roughly uniform samples; applying it across a one-second hole made the
-  // edge of that hole look like an extra acceleration/deceleration wave.
+  // Restore missing source intervals before filtering. The adaptive smoother
+  // below operates on the common grid directly; a second polynomial pass here
+  // used to shift and flatten genuine peaks and troughs.
   if ((samples.quality?.repeatSpeedRatio || 0) < 0.35 && points.length >= 7) {
     const reconstruction = reconstructLargeGaps(points, samples, 'Speed');
     points = resampleSpeedUniformly(reconstruction.points);
     gaps = reconstruction.gaps;
-    const original = points.map(point => point.y);
-    points = points.map((point, index) => {
-      if (index < 2 || index > points.length - 3) return point;
-      const estimate = (-3 * original[index - 2] + 12 * original[index - 1]
-        + 17 * original[index] + 12 * original[index + 1] - 3 * original[index + 2]) / 35;
-      const local = original.slice(index - 2, index + 3);
-      return { ...point, y: Math.max(Math.min(...local), Math.min(Math.max(...local), estimate)) };
-    });
   }
 
   // OpenF1 often publishes speed as a sample-and-hold channel. Collapse each
@@ -636,11 +691,17 @@ function buildSpeedModel(samples) {
     points = runs.map(group => ({
       x: group.reduce((sum, point) => sum + point.x, 0) / group.length,
       y: group.reduce((sum, point) => sum + point.y, 0) / group.length,
+      time: group.reduce((sum, point) => sum + point.time, 0) / group.length,
     }));
     points.unshift({ x: 0, y: +samples[0].Speed });
     points.push({ x: 1, y: +samples[samples.length - 1].Speed });
   }
 
+  // A common final grid gives every source the same enhanced-mode treatment.
+  // This also makes the visual difference from accurate mode deliberate and
+  // predictable instead of depending on which provider supplied the lap.
+  points = resampleSpeedUniformly(points);
+  points = smoothEnhancedSpeed(points, samples.quality);
   return finishShapePreservingModel(points, gaps);
 }
 

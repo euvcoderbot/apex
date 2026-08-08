@@ -4,12 +4,22 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>APEX DATA — F1 Telemetry Hub</title>
-  <link rel="stylesheet" href="styles.css?v=alignment-context-motion-20260808">
+  <script>
+    try {
+      document.documentElement.dataset.theme = localStorage.getItem('apex-theme') || 'dark';
+    } catch (_) {
+      document.documentElement.dataset.theme = 'dark';
+    }
+  </script>
+  <link rel="stylesheet" href="styles.css?v=trace-band-20260808">
 </head>
 <body>
   <header class="site-header">
     <a class="brand" href="#top">APEX<span>///</span>DATA</a>
-    <button id="sidebarToggle" class="sidebar-toggle">◀ Toggle Controls</button>
+    <div class="header-actions">
+      <button id="themeToggle" class="theme-toggle" type="button" aria-pressed="false" aria-label="Switch to light mode"><i aria-hidden="true"></i><span>Light mode</span></button>
+      <button id="sidebarToggle" class="sidebar-toggle">◀ Toggle Controls</button>
+    </div>
   </header>
   
   <main id="top">
@@ -91,6 +101,7 @@
             <section class="corner-analysis" id="cornerAnalysis" aria-labelledby="cornerAnalysisTitle">
               <div class="corner-analysis-header">
                 <h2 id="cornerAnalysisTitle">Corner performance</h2>
+                <button id="cornerAnalysisToggle" class="corner-analysis-toggle" type="button" aria-expanded="true" aria-controls="cornerMetricGrid"><span>Collapse</span><i aria-hidden="true"></i></button>
               </div>
               <div class="corner-metric-grid" id="cornerMetricGrid"></div>
             </section>
@@ -128,7 +139,7 @@
   <footer>APEX DATA SYSTEMS · FASTF1 / OPENF1 TELEMETRY · UNOFFICIAL ANALYSIS</footer>
 
   <!-- Single unified app logic -->
-  <script src="app.js?v=alignment-context-motion-20260808"></script>
-  <script src="alignment.js?v=alignment-context-motion-20260808"></script>
+  <script src="app.js?v=trace-band-20260808"></script>
+  <script src="alignment.js?v=trace-band-20260808"></script>
 </body>
 </html>

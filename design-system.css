@@ -3923,6 +3923,7 @@ main,
 }
 
 .trace-color-picker {
+  -webkit-appearance: none;
   appearance: none;
   width: 17px;
   height: 17px;
@@ -3931,22 +3932,22 @@ main,
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, .28);
   border-radius: 4px;
-  background: transparent;
+  background: var(--trace-color, transparent);
   cursor: pointer;
 }
 
 .trace-color-picker::-webkit-color-swatch-wrapper {
-  padding: 1px;
+  padding: 0;
 }
 
 .trace-color-picker::-webkit-color-swatch {
   border: 0;
-  border-radius: 2px;
+  border-radius: 3px;
 }
 
 .trace-color-picker::-moz-color-swatch {
   border: 0;
-  border-radius: 2px;
+  border-radius: 3px;
 }
 
 .lap-summary-card.has-conditions .summary-sectors {
@@ -4126,4 +4127,340 @@ main,
 .driver-pill-position,
 #driverPills .driver-pill .driver-pill-number {
   color: #aeb3bd;
+}
+
+/* 2026 visual refinement: themes, dense comparison cards and disclosures -- */
+:root {
+  color-scheme: dark;
+  --text-primary: var(--text-main);
+  --text-secondary: #c7cbd2;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.theme-toggle,
+.corner-analysis-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .025);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color .16s ease, border-color .16s ease, background .16s ease, transform .16s ease;
+}
+
+.theme-toggle {
+  min-height: 31px;
+  padding: 0 10px;
+}
+
+.theme-toggle:hover,
+.corner-analysis-toggle:hover {
+  border-color: color-mix(in srgb, var(--neon-accent) 50%, var(--border-color));
+  background: color-mix(in srgb, var(--neon-accent) 6%, transparent);
+  color: var(--neon-accent);
+  transform: translateY(-1px);
+}
+
+.theme-toggle i {
+  position: relative;
+  width: 12px;
+  height: 12px;
+  overflow: hidden;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+
+.theme-toggle i::after {
+  content: '';
+  position: absolute;
+  inset: -1px -1px -1px 50%;
+  background: currentColor;
+}
+
+.corner-analysis-toggle {
+  min-height: 27px;
+  padding: 0 9px;
+}
+
+.corner-analysis-toggle i {
+  width: 7px;
+  height: 7px;
+  border-top: 1.5px solid currentColor;
+  border-left: 1.5px solid currentColor;
+  transform: translateY(2px) rotate(45deg);
+  transition: transform .2s cubic-bezier(.2, .8, .2, 1);
+}
+
+.corner-analysis.is-collapsed .corner-analysis-toggle i {
+  transform: translateY(-2px) rotate(225deg);
+}
+
+.corner-analysis.is-collapsed {
+  padding-block: 10px;
+}
+
+.corner-analysis.is-collapsed .corner-analysis-header {
+  margin-bottom: 0;
+}
+
+.corner-analysis.is-collapsed .corner-metric-grid {
+  display: none;
+}
+
+/* One data typeface and one alignment grid for the loaded comparison card. */
+.lap-summary-card {
+  font-family: var(--font-mono);
+}
+
+.lap-summary-card header {
+  min-height: 30px;
+  align-items: center;
+  gap: 8px;
+}
+
+.summary-driver,
+.summary-lap-time,
+.summary-tyre {
+  align-items: center;
+}
+
+.summary-driver b,
+.summary-lap-time strong,
+.summary-sectors strong,
+.summary-condition strong {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+.summary-header-actions {
+  display: grid;
+  grid-template-columns: 20px auto auto;
+  align-items: center;
+  justify-content: end;
+  gap: 7px;
+  min-height: 21px;
+}
+
+.trace-color-picker {
+  display: block;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  margin: 0;
+  align-self: center;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--team) 55%, var(--border-color-hover));
+  border-radius: 5px;
+  outline: 0;
+  box-shadow: none;
+  line-height: 0;
+  vertical-align: middle;
+}
+
+.trace-color-picker:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--team) 28%, transparent);
+}
+
+/* Selection uses each driver's trace colour instead of the previous olive
+   wash. The accent remains available for global actions, but lap/run state is
+   now visually tied to the driver it controls. */
+.run-segment.selected,
+.lap-chip.selected,
+.fastest-lap-pick.selected {
+  border-color: color-mix(in srgb, var(--team) 72%, var(--border-color-hover)) !important;
+  background: color-mix(in srgb, var(--team) 10%, rgba(5, 7, 9, .82));
+  box-shadow: inset 0 -2px 0 var(--team), 0 0 10px color-mix(in srgb, var(--team) 12%, transparent);
+}
+
+.loaded-lap-pill.reference {
+  border-color: color-mix(in srgb, var(--team) 70%, var(--border-color-hover)) !important;
+  border-left-color: var(--team) !important;
+  background: color-mix(in srgb, var(--team) 11%, rgba(5, 7, 9, .84));
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--team) 75%, transparent), 0 0 9px color-mix(in srgb, var(--team) 12%, transparent);
+}
+
+.loaded-lap-pill.reference::before {
+  background: color-mix(in srgb, var(--team) 78%, #e8edf2);
+  color: #080a0d;
+}
+
+:root[data-theme="light"] .run-segment.selected,
+:root[data-theme="light"] .lap-chip.selected,
+:root[data-theme="light"] .fastest-lap-pick.selected {
+  border-color: color-mix(in srgb, var(--team) 62%, #8d96a0) !important;
+  background: color-mix(in srgb, var(--team) 8%, white);
+  box-shadow: inset 0 -2px 0 var(--team), 0 3px 10px color-mix(in srgb, var(--team) 8%, transparent);
+}
+
+:root[data-theme="light"] .loaded-lap-pill.reference {
+  border-color: color-mix(in srgb, var(--team) 58%, #a4acb4) !important;
+  border-left-color: var(--team) !important;
+  background: color-mix(in srgb, var(--team) 8%, white);
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--team) 76%, transparent), 0 3px 10px color-mix(in srgb, var(--team) 8%, transparent);
+}
+
+.summary-tyre {
+  min-height: 19px;
+  padding-inline: 2px;
+}
+
+.summary-lap-time {
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.summary-sectors > .sector-cell {
+  min-height: 46px;
+}
+
+.summary-condition small,
+.summary-driver small,
+.summary-lap-time small,
+.summary-sectors small {
+  font-weight: 650;
+}
+
+.tire-option {
+  min-height: 35px;
+}
+
+.tire-copy {
+  align-content: center;
+}
+
+#dominanceCanvas {
+  height: 280px;
+  image-rendering: auto;
+}
+
+/* Light mode keeps the same hierarchy without merely inverting the page. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg-main: #eef1f4;
+  --bg-card: rgba(255, 255, 255, .9);
+  --bg-card-hover: #ffffff;
+  --bg-input: #ffffff;
+  --border-color: rgba(18, 24, 32, .12);
+  --border-color-hover: rgba(18, 24, 32, .25);
+  --text-main: #161b22;
+  --text-primary: #161b22;
+  --text-secondary: #38414c;
+  --text-muted: #68727f;
+  --neon-accent: #829800;
+  --yellow: #829800;
+  --green: #008b4c;
+  --shadow-main: 0 9px 28px rgba(34, 43, 54, .09);
+}
+
+:root[data-theme="light"] body {
+  background-image:
+    radial-gradient(at 8% 4%, rgba(255, 24, 1, .035) 0, transparent 42%),
+    radial-gradient(at 90% 90%, rgba(130, 152, 0, .055) 0, transparent 44%);
+}
+
+:root[data-theme="light"] .site-header {
+  background: rgba(250, 251, 252, .86);
+  box-shadow: 0 1px 18px rgba(32, 40, 50, .06);
+}
+
+:root[data-theme="light"] .dashboard-card,
+:root[data-theme="light"] .telemetry-card {
+  border-color: var(--border-color);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, .82), rgba(255, 255, 255, .3)),
+    #f8fafb;
+  box-shadow: var(--shadow-main);
+}
+
+:root[data-theme="light"] .sector-times,
+:root[data-theme="light"] .corner-analysis,
+:root[data-theme="light"] .dominance-map,
+:root[data-theme="light"] .chart-options,
+:root[data-theme="light"] .chart {
+  border-color: var(--border-color);
+  background: rgba(255, 255, 255, .68);
+}
+
+:root[data-theme="light"] .lap-summary-card,
+:root[data-theme="light"] .driver-run-card,
+:root[data-theme="light"] .corner-detail-card,
+:root[data-theme="light"] .corner-metric-card,
+:root[data-theme="light"] .comparison-tray,
+:root[data-theme="light"] .tire-option {
+  border-color: color-mix(in srgb, var(--team, var(--tire-color, #68727f)) 22%, var(--border-color));
+  background:
+    linear-gradient(118deg, color-mix(in srgb, var(--team, var(--tire-color, #68727f)) 7%, transparent), transparent 58%),
+    rgba(255, 255, 255, .78);
+}
+
+:root[data-theme="light"] #driverPills .driver-pill,
+:root[data-theme="light"] #driverPills .driver-pill:hover,
+:root[data-theme="light"] #driverPills .driver-pill.selected {
+  background:
+    linear-gradient(115deg, color-mix(in srgb, var(--team) 12%, transparent), transparent 68%),
+    rgba(255, 255, 255, .84);
+}
+
+:root[data-theme="light"] .summary-sectors,
+:root[data-theme="light"] .summary-conditions,
+:root[data-theme="light"] .lap-summary-card header,
+:root[data-theme="light"] .corner-detail-header,
+:root[data-theme="light"] .corner-driver-row + .corner-driver-row {
+  border-color: rgba(18, 24, 32, .09);
+}
+
+:root[data-theme="light"] .summary-conditions {
+  background: rgba(18, 24, 32, .018);
+}
+
+:root[data-theme="light"] select,
+:root[data-theme="light"] .select-shell select,
+:root[data-theme="light"] .select-shell select option {
+  background: #ffffff;
+  color: var(--text-main);
+}
+
+:root[data-theme="light"] .theme-toggle,
+:root[data-theme="light"] .corner-analysis-toggle,
+:root[data-theme="light"] .sidebar-toggle,
+:root[data-theme="light"] button#loadSession,
+:root[data-theme="light"] .trace-tools button {
+  background: rgba(255, 255, 255, .7);
+}
+
+:root[data-theme="light"] .dashboard-card:focus-within {
+  box-shadow: 0 10px 30px rgba(34, 43, 54, .11), 0 0 0 1px rgba(130, 152, 0, .08);
+}
+
+:root[data-theme="light"] .driver-pill-position,
+:root[data-theme="light"] #driverPills .driver-pill .driver-pill-number {
+  color: #66717e;
+}
+
+@media (max-width: 620px) {
+  .theme-toggle span {
+    display: none;
+  }
+
+  .theme-toggle {
+    width: 31px;
+    padding: 0;
+  }
+
+  #dominanceCanvas {
+    height: 240px;
+  }
 }
