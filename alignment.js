@@ -591,13 +591,6 @@ function finishShapePreservingModel(points, gaps = []) {
   return { points, intervals, tangents, gaps };
 }
 
-function finishLinearTelemetryModel(points, gaps = []) {
-  points = points
-    .sort((a, b) => a.x - b.x)
-    .filter((point, index, array) => index === 0 || point.x - array[index - 1].x > 1e-5);
-  return points.length >= 2 ? { points, gaps, interpolation: 'linear' } : null;
-}
-
 function buildSpeedModel(samples) {
   let points = samples
     .map(point => ({
@@ -661,11 +654,10 @@ function buildThrottleModel(samples) {
     .filter(point => Number.isFinite(point.x) && point.y !== null && point.time !== null);
   if (points.length < 3) return null;
   const reconstruction = reconstructLargeGaps(points, samples, 'Throttle');
-  // Throttle is a measured driver input. A spline subtly changes the input
-  // between published samples even when it passes through each sample. Draw
-  // the least-assumptive straight interpolation instead, retaining every raw
-  // value and only bridging explicitly detected source gaps.
-  return finishLinearTelemetryModel(reconstruction.points, reconstruction.gaps);
+  // Accurate mode bypasses this model and connects measured samples linearly.
+  // Enhanced mode uses a bounded, shape-preserving curve that cannot overshoot
+  // the published throttle values and bridges explicitly detected gaps.
+  return finishShapePreservingModel(reconstruction.points, reconstruction.gaps);
 }
 
 function evaluateSpeedModel(model, fraction) {
@@ -716,7 +708,19 @@ function smoothedTelemetryValue(samples, fraction, field) {
   return alignedValue(samples, fraction, field);
 }
 
+function enhancedInterpolationEnabled() {
+  return Boolean(document.getElementById('interpolationToggle')?.checked);
+}
+
+function traceTelemetryValue(samples, fraction, field) {
+  if (!enhancedInterpolationEnabled() || (field !== 'Speed' && field !== 'Throttle')) {
+    return alignedValue(samples, fraction, field);
+  }
+  return smoothedTelemetryValue(samples, fraction, field);
+}
+
 function isReconstructedTelemetry(samples, fraction, field) {
+  if (!enhancedInterpolationEnabled()) return false;
   const model = field === 'Speed' ? samples?.speedModel
     : field === 'Throttle' ? samples?.throttleModel : null;
   return Boolean(model?.gaps?.some(gap => fraction > gap.start && fraction < gap.end));
@@ -753,8 +757,8 @@ function buildPerformanceTimeModel(samples) {
   for (let index = 1; index <= resolution; index++) {
     const beforeFraction = (index - 1) / resolution;
     const afterFraction = index / resolution;
-    const beforeSpeed = smoothedTelemetryValue(samples, beforeFraction, 'Speed');
-    const afterSpeed = smoothedTelemetryValue(samples, afterFraction, 'Speed');
+    const beforeSpeed = traceTelemetryValue(samples, beforeFraction, 'Speed');
+    const afterSpeed = traceTelemetryValue(samples, afterFraction, 'Speed');
     if (!Number.isFinite(beforeSpeed) || !Number.isFinite(afterSpeed)) return null;
     const meanSpeed = Math.max(10, (beforeSpeed + afterSpeed) / 2);
     raw[index] = raw[index - 1] + (totalDistance / resolution) / (meanSpeed / 3.6);
@@ -886,7 +890,7 @@ function adaptiveCornerZones(markers) {
     (samples.quality?.positionCoverage || 0) > (best?.quality?.positionCoverage || 0)
       ? samples : best, series[0]);
   const ensembleSpeed = fraction => medianTelemetry(series
-    .map(samples => smoothedTelemetryValue(samples, fraction, 'Speed'))
+    .map(samples => traceTelemetryValue(samples, fraction, 'Speed'))
     .filter(Number.isFinite));
   const geometryCurvature = fraction => {
     if (!reference?.length) return null;
@@ -1001,7 +1005,7 @@ function cornerPerformance(samples, zone) {
   const apexSamples = Array.from({ length: steps }, (_, index) => {
     const fraction = zone.apexStart
       + (zone.apexEnd - zone.apexStart) * (index + 0.5) / steps;
-    return { fraction, speed: smoothedTelemetryValue(samples, fraction, 'Speed') };
+    return { fraction, speed: traceTelemetryValue(samples, fraction, 'Speed') };
   }).filter(point => Number.isFinite(point.speed));
   if (apexSamples.length < 3) return null;
   const ordered = [...apexSamples].sort((a, b) => a.speed - b.speed);

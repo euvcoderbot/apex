@@ -1309,7 +1309,9 @@ function drawRealChart(name) {
       const steps = name === 'Speed trace' ? 420 : 220;
       for (let step = 0; step <= steps; step++) {
         const fraction = viewStart + viewSpan * step / steps;
-        const value = smoothedTelemetryValue(series, fraction, field);
+        const value = typeof traceTelemetryValue === 'function'
+          ? traceTelemetryValue(series, fraction, field)
+          : smoothedTelemetryValue(series, fraction, field);
         if (Number.isFinite(value)) {
           const x = xForFraction(fraction);
           const y = bounds.top + (bounds.max - value) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
@@ -1431,7 +1433,9 @@ function drawRealChart(name) {
             : deltaAt(series, refSeries, targetDist)))
         : (name === 'Speed trace' || name === 'Throttle application')
             && typeof smoothedTelemetryValue === 'function'
-          ? smoothedTelemetryValue(series, hoverFraction, field)
+          ? (typeof traceTelemetryValue === 'function'
+              ? traceTelemetryValue(series, hoverFraction, field)
+              : smoothedTelemetryValue(series, hoverFraction, field))
           : interpolate(series, targetDist, field);
       
       if (Number.isFinite(val)) {
@@ -1519,7 +1523,9 @@ function bindAllChartHover() {
             : deltaAt(series, refSamples, targetDist));
         } else if ((hoveredChartName === 'Speed trace' || hoveredChartName === 'Throttle application')
             && typeof smoothedTelemetryValue === 'function') {
-          val = smoothedTelemetryValue(series, fraction, field);
+          val = typeof traceTelemetryValue === 'function'
+            ? traceTelemetryValue(series, fraction, field)
+            : smoothedTelemetryValue(series, fraction, field);
         } else {
           val = interpolate(series, targetDist, field);
         }
@@ -1633,7 +1639,9 @@ function bindTrackMapHover() {
         const segmentRows = loaded.map(lap => {
           const series = telemetryCache.get(telemetryKey(lap));
           const speed = typeof smoothedTelemetryValue === 'function'
-            ? smoothedTelemetryValue(series, bestFraction, 'Speed')
+            ? (typeof traceTelemetryValue === 'function'
+                ? traceTelemetryValue(series, bestFraction, 'Speed')
+                : smoothedTelemetryValue(series, bestFraction, 'Speed'))
             : interpolate(series, bestFraction * totalDistance, 'Speed');
           const sectionTime = typeof performanceSectionDuration === 'function'
             ? performanceSectionDuration(series, segmentStart, segmentEnd)
@@ -2082,6 +2090,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (loaded.length) {
       drawAll();
     }
+  });
+
+  $('#interpolationToggle').addEventListener('change', event => {
+    const enhanced = event.target.checked;
+    $('#traceModeStatus').textContent = enhanced ? 'SMOOTHED' : 'ACCURATE';
+    $('#traceModeStatus').dataset.mode = enhanced ? 'enhanced' : 'accurate';
+    if (loaded.length) drawAll();
   });
   
   const toggleBtn = $('#sidebarToggle');

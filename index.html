@@ -119,7 +119,14 @@
 
             <div class="chart-options">
               <div class="alignment-readout"><i></i><span id="alignmentStatus" data-state="idle">Awaiting lap selection</span></div>
-              <label><input type="checkbox" id="cornerToggle"> Corner numbers</label>
+              <div class="chart-toggles">
+                <label><input type="checkbox" id="cornerToggle"> Corner numbers</label>
+                <label class="trace-mode-toggle" title="Unchecked preserves the measured sample shape. Checked enables bounded, gap-aware interpolation.">
+                  <input type="checkbox" id="interpolationToggle">
+                  Enhanced interpolation
+                  <small id="traceModeStatus">ACCURATE</small>
+                </label>
+              </div>
               <span id="cornerStatus">Corner labels appear when mapped distance data is available.</span>
             </div>
 
@@ -134,7 +141,7 @@
   <footer>APEX DATA SYSTEMS · FASTF1 / OPENF1 TELEMETRY · UNOFFICIAL ANALYSIS</footer>
 
   <!-- Single unified app logic -->
-  <script src="app.js?v=raw-input-traces-20260808"></script>
-  <script src="alignment.js?v=raw-input-traces-20260808"></script>
+  <script src="app.js?v=trace-quality-modes-20260808"></script>
+  <script src="alignment.js?v=trace-quality-modes-20260808"></script>
 </body>
 </html>

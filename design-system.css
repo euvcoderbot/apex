@@ -1130,6 +1130,35 @@ canvas[data-chart="Speed trace"] {
   height: 430px !important;
 }
 
+.chart-toggles {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  min-width: 0;
+}
+
+.trace-mode-toggle small {
+  padding: 2px 5px;
+  border: 1px solid color-mix(in srgb, var(--neon-accent) 35%, transparent);
+  border-radius: 3px;
+  color: var(--neon-accent);
+  font-family: var(--font-mono);
+  font-size: 7px;
+  letter-spacing: .06em;
+}
+
+.trace-mode-toggle small[data-mode="enhanced"] {
+  color: #fff;
+  border-color: rgba(255, 255, 255, .2);
+  background: rgba(255, 255, 255, .07);
+}
+
+#interpolationToggle {
+  accent-color: var(--neon-accent);
+}
+
 canvas[data-chart="Throttle application"] {
   height: 165px !important;
 }
@@ -2250,6 +2279,20 @@ main.sidebar-collapsed {
 
   .lap-workspace #stintPanels {
     grid-template-columns: 1fr;
+  }
+
+  .chart-options {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .chart-toggles {
+    justify-content: flex-start;
+  }
+
+  #cornerStatus {
+    grid-column: 1 / -1;
+    justify-self: start;
+    text-align: left;
   }
 }
 
