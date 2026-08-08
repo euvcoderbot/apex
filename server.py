@@ -28,7 +28,7 @@ fastf1.Cache.enable_cache(str(CACHE))
 PREPARED_CACHE = ROOT / ".apex-cache"
 PREPARED_CACHE.mkdir(exist_ok=True)
 PREPARED_CACHE_VERSION = "v3"
-SESSION_CACHE_SCHEMA = "lap-context-v1"
+SESSION_CACHE_SCHEMA = "map-orientation-v1"
 
 app = FastAPI(title="APEX DATA API")
 app.add_middleware(GZipMiddleware, minimum_size=900, compresslevel=5)
@@ -863,8 +863,12 @@ def session_data(
     drivers.sort(key=get_fastest_lap_time)
 
     corners = []
+    circuit_rotation = 0.0
     try:
         circuit_info = data.get_circuit_info()
+        rotation_value = seconds(getattr(circuit_info, "rotation", 0.0)) if circuit_info is not None else None
+        if rotation_value is not None:
+            circuit_rotation = rotation_value
         if circuit_info is not None and circuit_info.corners is not None and not circuit_info.corners.empty:
             for _, row in circuit_info.corners.iterrows():
                 x, y = seconds(row.get("X")), seconds(row.get("Y"))
@@ -897,6 +901,7 @@ def session_data(
         "date": session_date_iso,
         "drivers": drivers,
         "corners": corners,
+        "circuit_rotation": circuit_rotation,
         "compounds": get_tire_nominations(year, gp),
     }
     if drivers:

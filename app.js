@@ -6,8 +6,10 @@ let openStint = {};
 let realDrivers = new Map();
 const telemetryCache = new Map();
 const driverColorOverrides = new Map();
+const customSelectValues = new WeakMap();
 let calendar = [];
 let corners = [];
+let circuitRotation = 0;
 let nominatedCompounds = [];
 let activeDriverTab = null;
 let selectedCornerIndex = 0;
@@ -164,17 +166,17 @@ function getDriverColor(code) {
 }
 
 function currentQuery() {
-  const selectedVal = $('#gp')?.value;
+  const selectedVal = selectValue($('#gp'));
   const event = calendar.find(item => String(item.round) === String(selectedVal) || item.name === selectedVal) || calendar[0];
   const params = new URLSearchParams();
-  params.set('year', $('#year').value);
+  params.set('year', selectValue($('#year')));
   if (event) {
     params.set('gp', event.name);
     params.set('round', event.round);
   } else if (selectedVal) {
     params.set('gp', selectedVal);
   }
-  params.set('session', $('#session').value);
+  params.set('session', selectValue($('#session')));
   // Keep the URL identity in step with lap-boundary and lap-context changes.
   // The API ignores this field, while browsers cannot reuse an older payload.
   params.set('data_schema', CLIENT_DATA_SCHEMA);
@@ -196,18 +198,101 @@ function telemetryKey(lap) {
 }
 
 // Populate select utilities
+function selectValue(select) {
+  return select && customSelectValues.has(select) ? customSelectValues.get(select) : (select?.value || '');
+}
+
+function selectCustomOption(optionButton) {
+  const shell = optionButton.closest('.select-shell');
+  const select = shell?.querySelector('select');
+  const trigger = shell?.querySelector('.select-trigger');
+  const optionIndex = Number(optionButton.getAttribute('data-select-index'));
+  if (!select || !Number.isInteger(optionIndex) || optionIndex < 0 || optionIndex >= select.options.length) return;
+  customSelectValues.set(select, select.options[optionIndex].value);
+  select.selectedIndex = optionIndex;
+  shell.classList.remove('is-open');
+  trigger?.setAttribute('aria-expanded', 'false');
+  syncSelectUI(select);
+  if (select.id !== 'session') select.dispatchEvent(new Event('change', { bubbles: true }));
+  trigger?.focus();
+}
+
 function populate(select, values, valueFor = x => x, labelFor = x => x) {
+  customSelectValues.delete(select);
   select.innerHTML = values.map(val => `<option value="${valueFor(val)}">${labelFor(val)}</option>`).join('');
+  syncSelectUI(select);
+}
+
+function syncSelectUI(select) {
+  const shell = select?.closest('.select-shell');
+  const trigger = shell?.querySelector('.select-trigger');
+  const menu = shell?.querySelector('.select-menu');
+  if (!trigger || !menu) return;
+  const options = [...select.options];
+  const selectedOption = options.find(option => option.value === selectValue(select)) || options[0];
+  trigger.querySelector('span').textContent = selectedOption?.textContent || 'Select';
+  trigger.disabled = select.disabled;
+  trigger.setAttribute('aria-expanded', String(shell.classList.contains('is-open')));
+  menu.innerHTML = options.map((option, optionIndex) => `
+    <button type="button" role="option" aria-selected="${option === selectedOption}" data-select-index="${optionIndex}" data-select-value="${encodeURIComponent(option.value)}" onclick="selectCustomOption(this)">
+      ${option.textContent}
+    </button>`).join('');
+}
+
+function enhanceSelect(select) {
+  const shell = select.closest('.select-shell');
+  if (!shell || shell.dataset.enhanced === 'true') return;
+  shell.dataset.enhanced = 'true';
+  select.classList.add('native-select-proxy');
+  select.tabIndex = -1;
+  select.setAttribute('aria-hidden', 'true');
+  shell.insertAdjacentHTML('beforeend', `
+    <button class="select-trigger" type="button" role="combobox" aria-haspopup="listbox" aria-expanded="false"><span>Select</span><i aria-hidden="true"></i></button>
+    <div class="select-menu" role="listbox"></div>`);
+  const trigger = shell.querySelector('.select-trigger');
+  const menu = shell.querySelector('.select-menu');
+  const close = () => {
+    shell.classList.remove('is-open');
+    trigger.setAttribute('aria-expanded', 'false');
+  };
+  trigger.addEventListener('click', event => {
+    event.stopPropagation();
+    document.querySelectorAll('.select-shell.is-open').forEach(openShell => {
+      if (openShell !== shell) {
+        openShell.classList.remove('is-open');
+        openShell.querySelector('.select-trigger')?.setAttribute('aria-expanded', 'false');
+      }
+    });
+    const open = shell.classList.toggle('is-open');
+    trigger.setAttribute('aria-expanded', String(open));
+    if (open) menu.querySelector('[aria-selected="true"]')?.focus({ preventScroll: true });
+  });
+  menu.addEventListener('keydown', event => {
+    const items = [...menu.querySelectorAll('[data-select-value]')];
+    const index = items.indexOf(document.activeElement);
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const direction = event.key === 'ArrowDown' ? 1 : -1;
+      items[(index + direction + items.length) % items.length]?.focus();
+    } else if (event.key === 'Escape') {
+      close();
+      trigger.focus();
+    }
+  });
+  syncSelectUI(select);
 }
 
 // Calendar API Loader
 async function loadCalendar() {
+  queueMicrotask(() => syncSelectUI($('#gp')));
+  customSelectValues.delete($('#gp'));
   $('#gp').innerHTML = '<option>Loading calendar…</option>';
   try {
-    const response = await fetch(`/api/events?year=${$('#year').value}`);
+    const response = await fetch(`/api/events?year=${selectValue($('#year'))}`);
     calendar = await readApiResponse(response);
     if (!response.ok) throw new Error(calendar.detail || 'Calendar unavailable');
     $('#gp').innerHTML = calendar.map(event => `<option value="${event.round}">R${event.round} - ${event.name}</option>`).join('');
+    syncSelectUI($('#gp'));
     selectLatestCompletedEvent();
   } catch (error) {
     alert(`Could not load calendar. ${error.message}`);
@@ -215,7 +300,7 @@ async function loadCalendar() {
 }
 
 function populateSessions() {
-  const selectedVal = $('#gp')?.value;
+  const selectedVal = selectValue($('#gp'));
   const event = calendar.find(item => String(item.round) === String(selectedVal) || item.name === selectedVal) || calendar[0];
   const sessions = event?.sessions || [];
   populate($('#session'), sessions);
@@ -234,6 +319,7 @@ function populateSessions() {
     // final listed session. No session data is fetched until Load session.
     $('#session').value = sessions[sessions.length - 1];
   }
+  syncSelectUI($('#session'));
 }
 
 function selectLatestCompletedEvent() {
@@ -243,7 +329,11 @@ function selectLatestCompletedEvent() {
   const completed = calendar.filter(event => Object.values(event.session_dates || {})
     .some(value => Number.isFinite(new Date(value).getTime()) && new Date(value).getTime() <= now));
   const latest = completed.length ? completed[completed.length - 1] : calendar[0];
-  if (latest) $('#gp').value = String(latest.round);
+  if (latest) {
+    customSelectValues.delete($('#gp'));
+    $('#gp').value = String(latest.round);
+  }
+  syncSelectUI($('#gp'));
   populateSessions();
 }
 
@@ -261,6 +351,7 @@ function clearBeforeSessionLoad() {
   loaded = [];
   openStint = {};
   corners = [];
+  circuitRotation = 0;
   nominatedCompounds = [];
   activeDriverTab = null;
   selectedCornerIndex = 0;
@@ -299,6 +390,8 @@ async function loadRealSession() {
       driver.code, driver.number, driver.name, driver.team_color, driver.team
     ]));
     corners = payload.corners || [];
+    circuitRotation = Number.isFinite(Number(payload.circuit_rotation))
+      ? Number(payload.circuit_rotation) : 0;
     nominatedCompounds = payload.compounds || [];
     
     renderDrivers();
@@ -409,7 +502,7 @@ function renderStintsLegacy() {
     return f && loaded.some(item => item.code === c && item.lap === f.lap);
   });
 
-  const globalCompareHtml = `<button id="compareAllFastest" class="compare-all-btn ${isAllFastestLoaded ? 'selected' : ''}">⚡ COMPARE FASTEST LAPS</button>`;
+  const globalCompareHtml = `<button id="compareAllFastest" class="compare-all-btn ${isAllFastestLoaded ? 'selected' : ''}"><i aria-hidden="true">⚡</i><span>COMPARE FASTEST LAPS</span></button>`;
   
   // Render tabs at the top
   const tabsHtml = `
@@ -567,7 +660,7 @@ function renderStints() {
   const toolbar = `
     <div class="run-toolbar">
       <span><b>${selected.length}</b> ${selected.length === 1 ? 'driver' : 'drivers'} selected</span>
-      <button id="compareAllFastest" class="compare-all-btn ${isAllFastestLoaded ? 'selected' : ''}" title="Add the fastest timed lap for every selected driver">&#9889; COMPARE FASTEST</button>
+      <button id="compareAllFastest" class="compare-all-btn ${isAllFastestLoaded ? 'selected' : ''}" title="Add the fastest timed lap for every selected driver"><i aria-hidden="true">&#9889;</i><span>COMPARE FASTEST</span></button>
     </div>
   `;
 
@@ -1424,133 +1517,29 @@ function drawRealChart(name) {
     });
   };
 
-  // Continuous analogue charts share a true lower envelope. At every crossing
-  // the fill changes owner and follows the visually lower trace, so no region
-  // between drivers is painted and every driver's colour can contribute.
-  const shadedFields = ['Speed trace', 'Throttle application', 'Engine speed'];
-  if (name === 'Brake application' && traceEntries.length) {
-    // Brake is a binary channel, so a numerical lower envelope is not useful:
-    // it only paints the overlap where every driver is braking. Instead, tint
-    // each driver's ON blocks independently and allow overlaps to blend.
+  // Restore the original restrained chart tint: only the slowest official lap
+  // receives one soft vertical gradient. This is predictable at intersections
+  // and works naturally for continuous traces and binary brake blocks alike.
+  const tintTrace = traceEntries.reduce((slowest, entry) => {
+    const lapTime = Number(loaded[entry.index]?.time);
+    if (!Number.isFinite(lapTime)) return slowest;
+    const slowestTime = Number(loaded[slowest?.index]?.time);
+    return !slowest || !Number.isFinite(slowestTime) || lapTime > slowestTime ? entry : slowest;
+  }, null) || traceEntries[0];
+  const shadedFields = ['Speed trace', 'Throttle application', 'Brake application', 'Engine speed'];
+  if (tintTrace && shadedFields.includes(name)) {
+    const { points, teamColor } = tintTrace;
     const bottomY = rect.height - bounds.bottom;
-    traceEntries.forEach(({ points, teamColor }) => {
-      tracePath(points);
-      ctx.lineTo(points[points.length - 1].x, bottomY);
-      ctx.lineTo(points[0].x, bottomY);
-      ctx.closePath();
-      ctx.fillStyle = hexToRgba(teamColor, lightThemeActive() ? .18 : .13);
-      ctx.fill();
-    });
-  } else if (shadedFields.includes(name) && traceEntries.length) {
-    const bottomY = rect.height - bounds.bottom;
-    const pointCount = Math.min(...traceEntries.map(entry => entry.points.length));
-    const envelope = [];
-    let previousWinner = null;
-    for (let pointIndex = 0; pointIndex < pointCount; pointIndex++) {
-      let candidate = traceEntries[0];
-      traceEntries.slice(1).forEach(entry => {
-        // Canvas y increases downwards, so the largest y is the lower trace.
-        if (entry.points[pointIndex].y > candidate.points[pointIndex].y) candidate = entry;
-      });
-      let winner = candidate;
-      if (previousWinner && candidate !== previousWinner) {
-        const previousY = previousWinner.points[pointIndex].y;
-        const candidateY = candidate.points[pointIndex].y;
-        // Avoid rapid one-pixel colour flicker while two traces are virtually
-        // coincident; switch only after a visually meaningful crossing.
-        winner = candidateY > previousY + 1.25 ? candidate : previousWinner;
-      }
-      envelope.push({ ...winner.points[pointIndex], winner });
-      previousWinner = winner;
-    }
-
-    let speedTintLayer = null;
-    let speedTintContext = null;
-    let speedTintImage = null;
-    let speedTintPixels = null;
-    let speedTintWidth = 0;
-    if (name === 'Speed trace') {
-      speedTintWidth = Math.max(1, Math.ceil(rect.width));
-      speedTintLayer = document.createElement('canvas');
-      speedTintLayer.width = speedTintWidth;
-      speedTintLayer.height = Math.max(1, Math.ceil(rect.height));
-      speedTintContext = speedTintLayer.getContext('2d');
-      speedTintImage = speedTintContext.createImageData(speedTintLayer.width, speedTintLayer.height);
-      speedTintPixels = speedTintImage.data;
-    }
-
-    let groupStart = 0;
-    while (groupStart < envelope.length - 1) {
-      const winner = envelope[groupStart].winner;
-      let groupEnd = groupStart + 1;
-      while (groupEnd < envelope.length - 1 && envelope[groupEnd].winner === winner) groupEnd++;
-      if (name === 'Speed trace') {
-        // Build one off-screen RGBA layer directly from the lower envelope.
-        // It has no band or polygon edges: solid through the first 20 km/h,
-        // then continuously fading to 25% at the chart baseline.
-        const plotHeight = rect.height - bounds.top - bounds.bottom;
-        const pixelsPerKmh = plotHeight / (bounds.max - bounds.min || 1);
-        const solidHeight = Math.max(1, 20 * pixelsPerKmh);
-        const clearGap = 1.35;
-        const peakAlpha = lightThemeActive() ? .62 : .48;
-        const colorHex = winner.teamColor.replace('#', '');
-        const expandedHex = colorHex.length === 3
-          ? colorHex.split('').map(character => character + character).join('')
-          : colorHex;
-        const red = parseInt(expandedHex.slice(0, 2), 16) || 0;
-        const green = parseInt(expandedHex.slice(2, 4), 16) || 0;
-        const blue = parseInt(expandedHex.slice(4, 6), 16) || 0;
-
-        for (let index = groupStart; index < groupEnd; index++) {
-          const from = envelope[index];
-          const to = envelope[index + 1];
-          const segmentWidth = to.x - from.x;
-          if (segmentWidth <= 0) continue;
-          const firstColumn = Math.max(Math.floor(from.x), Math.floor(bounds.left));
-          const lastColumn = Math.min(Math.ceil(to.x), Math.ceil(rect.width - bounds.right));
-          for (let column = firstColumn; column < lastColumn; column++) {
-            const centreX = column + .5;
-            const ratio = Math.max(0, Math.min(1, (centreX - from.x) / segmentWidth));
-            const traceY = from.y + (to.y - from.y) * ratio;
-            const tintStart = Math.min(bottomY, traceY + clearGap);
-            const fadeStart = Math.min(bottomY, tintStart + solidHeight);
-            const fadeSpan = Math.max(1, bottomY - fadeStart);
-            const firstRow = Math.max(0, Math.ceil(tintStart));
-            const lastRow = Math.min(speedTintLayer.height - 1, Math.floor(bottomY));
-            for (let row = firstRow; row <= lastRow; row++) {
-              const progress = row <= fadeStart ? 0 : Math.min(1, (row - fadeStart) / fadeSpan);
-              const alpha = peakAlpha * (1 - .75 * progress);
-              const pixelIndex = (row * speedTintWidth + column) * 4;
-              speedTintPixels[pixelIndex] = red;
-              speedTintPixels[pixelIndex + 1] = green;
-              speedTintPixels[pixelIndex + 2] = blue;
-              speedTintPixels[pixelIndex + 3] = Math.round(alpha * 255);
-            }
-          }
-        }
-      } else {
-        ctx.beginPath();
-        ctx.moveTo(envelope[groupStart].x, envelope[groupStart].y);
-        for (let index = groupStart + 1; index <= groupEnd; index++) {
-          ctx.lineTo(envelope[index].x, envelope[index].y);
-        }
-        ctx.lineTo(envelope[groupEnd].x, bottomY);
-        ctx.lineTo(envelope[groupStart].x, bottomY);
-        ctx.closePath();
-        const gradient = ctx.createLinearGradient(0, bounds.top, 0, bottomY);
-        const tintAlpha = lightThemeActive() ? .27 : .18;
-        gradient.addColorStop(0, hexToRgba(winner.teamColor, tintAlpha));
-        gradient.addColorStop(.72, hexToRgba(winner.teamColor, tintAlpha * .28));
-        gradient.addColorStop(1, hexToRgba(winner.teamColor, 0));
-        ctx.fillStyle = gradient;
-        ctx.fill();
-      }
-      groupStart = groupEnd;
-    }
-    if (speedTintImage) {
-      speedTintContext.putImageData(speedTintImage, 0, 0);
-      ctx.drawImage(speedTintLayer, 0, 0, rect.width, rect.height);
-    }
+    tracePath(points);
+    ctx.lineTo(points[points.length - 1].x, bottomY);
+    ctx.lineTo(points[0].x, bottomY);
+    ctx.closePath();
+    const gradient = ctx.createLinearGradient(0, bounds.top, 0, bottomY);
+    const tintAlpha = name === 'Speed trace' ? .18 : .13;
+    gradient.addColorStop(0, hexToRgba(teamColor, tintAlpha));
+    gradient.addColorStop(1, hexToRgba(teamColor, 0));
+    ctx.fillStyle = gradient;
+    ctx.fill();
   }
 
   ctx.lineJoin = 'round';
@@ -1943,6 +1932,8 @@ function renderCornerAnalysis() {
   }
   const finiteTimes = metrics.map(item => item.metric.sectionTime).filter(Number.isFinite);
   const fastestSection = finiteTimes.length ? Math.min(...finiteTimes) : null;
+  const finiteMinimumSpeeds = metrics.map(item => item.metric.minimumSpeed).filter(Number.isFinite);
+  const highestMinimumSpeed = finiteMinimumSpeeds.length ? Math.max(...finiteMinimumSpeeds) : null;
   const referenceSection = metrics[0]?.metric.sectionTime;
   const signedDelta = value => `${value >= 0 ? '+' : '−'}${Math.abs(value).toFixed(3)}s`;
   const picker = zones.map((candidate, index) => {
@@ -1959,8 +1950,10 @@ function renderCornerAnalysis() {
       ? 'is-reference' : toReference < 0 ? 'is-faster' : 'is-slower';
     const fastest = Number.isFinite(sectionTime) && Number.isFinite(fastestSection)
       && Math.abs(sectionTime - fastestSection) < .0005;
+    const highestMinimum = Number.isFinite(item.metric.minimumSpeed) && Number.isFinite(highestMinimumSpeed)
+      && Math.abs(item.metric.minimumSpeed - highestMinimumSpeed) < .05;
     return `
-      <div class="corner-driver-row ${fastest && loaded.length > 1 ? 'is-fastest' : ''}" style="--driver-color:${getDriverColor(item.lap.code)}">
+      <div class="corner-driver-row ${fastest && loaded.length > 1 ? 'is-fastest' : ''} ${highestMinimum && loaded.length > 1 ? 'is-highest-min' : ''}" style="--driver-color:${getDriverColor(item.lap.code)}">
         <span class="corner-driver"><i></i><b>${item.lap.code}</b><small>L${item.lap.lap}</small>${index === 0 ? '<em>REF</em>' : ''}</span>
         <span class="corner-time"><strong>${Number.isFinite(sectionTime) ? `${sectionTime.toFixed(3)}s` : '—'}</strong><small>SECTION</small></span>
         <span class="corner-delta ${deltaClass}"><strong>${Number.isFinite(toReference) ? signedDelta(toReference) : '—'}</strong><small>VS REF</small></span>
@@ -2089,15 +2082,26 @@ function renderMiniSectorMap() {
   ctx.clearRect(0, 0, rect.width, rect.height);
   const theme = canvasTheme();
 
-  const minX = Math.min(...trackSamples.map(point => +point.X));
-  const maxX = Math.max(...trackSamples.map(point => +point.X));
-  const minY = Math.min(...trackSamples.map(point => +point.Y));
-  const maxY = Math.max(...trackSamples.map(point => +point.Y));
-  const padding = 18;
+  // FastF1 supplies the rotation that matches the official circuit-map
+  // orientation. Apply that same transform to geometry, markers and compass.
+  const mapRotation = circuitRotation * Math.PI / 180;
+  const rotateMapPoint = (x, y) => ({
+    x: x * Math.cos(mapRotation) + y * Math.sin(mapRotation),
+    y: -x * Math.sin(mapRotation) + y * Math.cos(mapRotation),
+  });
+  const rotatedTrackSamples = trackSamples.map(point => rotateMapPoint(+point.X, +point.Y));
+  const minX = Math.min(...rotatedTrackSamples.map(point => point.x));
+  const maxX = Math.max(...rotatedTrackSamples.map(point => point.x));
+  const minY = Math.min(...rotatedTrackSamples.map(point => point.y));
+  const maxY = Math.max(...rotatedTrackSamples.map(point => point.y));
+  const padding = 28;
   const scale = Math.min((rect.width - padding * 2) / (maxX - minX || 1), (rect.height - padding * 2) / (maxY - minY || 1));
   const offsetX = (rect.width - (maxX - minX) * scale) / 2;
   const offsetY = (rect.height - (maxY - minY) * scale) / 2;
-  const toCanvas = (x, y) => ({ x: offsetX + (x - minX) * scale, y: rect.height - offsetY - (y - minY) * scale });
+  const toCanvas = (x, y) => {
+    const rotated = rotateMapPoint(x, y);
+    return { x: offsetX + (rotated.x - minX) * scale, y: rect.height - offsetY - (rotated.y - minY) * scale };
+  };
   const totalDistance = referenceDistance();
   const segmentLength = 25;
   const segments = Math.ceil(totalDistance / segmentLength);
@@ -2225,8 +2229,9 @@ function renderMiniSectorMap() {
       if (!Number.isFinite(x) || !Number.isFinite(y)) return;
       const point = toCanvas(x, y);
       const angle = Number(corner.angle);
-      const offsetX = Number.isFinite(angle) ? Math.cos(angle * Math.PI / 180) * 11 : 0;
-      const offsetY = Number.isFinite(angle) ? -Math.sin(angle * Math.PI / 180) * 11 : -11;
+      const displayAngle = Number.isFinite(angle) ? angle - circuitRotation : NaN;
+      const offsetX = Number.isFinite(displayAngle) ? Math.cos(displayAngle * Math.PI / 180) * 11 : 0;
+      const offsetY = Number.isFinite(displayAngle) ? -Math.sin(displayAngle * Math.PI / 180) * 11 : -11;
       ctx.lineWidth = 3;
       ctx.strokeStyle = theme.labelStroke;
       ctx.strokeText(cornerLabel(corner), point.x + offsetX, point.y + offsetY);
@@ -2257,6 +2262,49 @@ function renderMiniSectorMap() {
     }
   }
 
+  // Compass follows the same rotation as the official map. WindDirection is
+  // meteorological (the direction wind comes from), so state that explicitly.
+  const compassCentre = { x: 35, y: 36 };
+  const compassRadius = 15;
+  const cardinalVectors = {
+    N: { x: 0, y: 1 }, E: { x: 1, y: 0 }, S: { x: 0, y: -1 }, W: { x: -1, y: 0 },
+  };
+  ctx.save();
+  ctx.font = '7px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.strokeStyle = theme.outline;
+  ctx.fillStyle = theme.panel;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(compassCentre.x, compassCentre.y, 22, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  Object.entries(cardinalVectors).forEach(([label, vector]) => {
+    const rotated = rotateMapPoint(vector.x, vector.y);
+    const dx = rotated.x * compassRadius;
+    const dy = -rotated.y * compassRadius;
+    ctx.beginPath();
+    ctx.moveTo(compassCentre.x, compassCentre.y);
+    ctx.lineTo(compassCentre.x + dx, compassCentre.y + dy);
+    ctx.strokeStyle = label === 'N' ? '#eaff18' : theme.outline;
+    ctx.stroke();
+    ctx.fillStyle = label === 'N' ? '#91a500' : theme.textStrong;
+    ctx.fillText(label, compassCentre.x + dx * 1.28, compassCentre.y + dy * 1.28);
+  });
+  const referenceConditions = loaded[0]?.real?.conditions || {};
+  const windDegrees = Number(referenceConditions.wind_direction);
+  const windSpeed = Number(referenceConditions.wind_speed);
+  if (Number.isFinite(windDegrees)) {
+    const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    const windLabel = directions[Math.round((((windDegrees % 360) + 360) % 360) / 45) % directions.length];
+    ctx.textAlign = 'left';
+    ctx.fillStyle = theme.textStrong;
+    ctx.font = '7px monospace';
+    ctx.fillText(`WIND FROM ${windLabel}${Number.isFinite(windSpeed) ? ` Â· ${windSpeed.toFixed(1)} M/S` : ''}`, 9, rect.height - 9);
+  }
+  ctx.restore();
+
   empty.style.display = 'none';
   legend.innerHTML = [...wins].map(index => {
     const lap = loaded[index];
@@ -2285,6 +2333,14 @@ function applyTheme(theme, persist = true) {
 document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('mouseup', finishZoomDrag);
   applyTheme(document.documentElement.dataset.theme, false);
+  document.querySelectorAll('.select-shell select').forEach(enhanceSelect);
+  document.addEventListener('click', event => {
+    if (event.target.closest('.select-shell')) return;
+    document.querySelectorAll('.select-shell.is-open').forEach(shell => {
+      shell.classList.remove('is-open');
+      shell.querySelector('.select-trigger')?.setAttribute('aria-expanded', 'false');
+    });
+  });
   const yearSelect = $('#year');
   const currentYear = new Date().getFullYear();
   const years = [];
@@ -2293,6 +2349,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   populate(yearSelect, years);
   yearSelect.value = String(years[0]); // default to latest available season
+  syncSelectUI(yearSelect);
   
   yearSelect.addEventListener('change', () => loadCalendar().catch(error => alert(error.message)));
   $('#gp').addEventListener('change', populateSessions);
@@ -2358,6 +2415,7 @@ document.addEventListener('DOMContentLoaded', () => {
     .then(selectLatestCompletedEvent)
     .catch(error => {
       $('#gp').innerHTML = '<option>Calendar unavailable</option>';
+      syncSelectUI($('#gp'));
       console.warn(error);
     });
 });
@@ -2417,7 +2475,7 @@ function renderTireNomination() {
     const color = colors[i] || '#888888';
     
     return `
-      <div class="tire-option" style="--tire-color:${color}">
+      <div class="tire-option tire-${String(label).toLowerCase()}" style="--tire-color:${color}">
         <span class="tire-code">${displayVal}</span>
         <span class="tire-copy"><strong>${label}</strong></span>
       </div>
