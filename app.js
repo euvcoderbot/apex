@@ -5,6 +5,7 @@ let loaded = [];
 let openStint = {};
 let realDrivers = new Map();
 const telemetryCache = new Map();
+const driverColorOverrides = new Map();
 let calendar = [];
 let corners = [];
 let nominatedCompounds = [];
@@ -126,6 +127,7 @@ function hexToRgba(hex, alpha = 1) {
 
 // Get driver team color
 function getDriverColor(code) {
+  if (driverColorOverrides.has(code)) return driverColorOverrides.get(code);
   const display = drivers.find(item => item[0] === code);
   return display ? display[3] : '#777777';
 }
@@ -231,6 +233,7 @@ function clearBeforeSessionLoad() {
   traceZoom = { start: 0, end: 1 };
   zoomDrag = null;
   telemetryCache.clear();
+  driverColorOverrides.clear();
   $('#driverPills').innerHTML = '<span class="section-empty">Load a session to see its drivers.</span>';
   $('#stintPanels').innerHTML = '<span class="section-empty">Select a driver to inspect their runs and laps.</span>';
   $('#sectorRows').innerHTML = '';
@@ -585,7 +588,7 @@ function renderStints() {
           <div class="run-driver"><b>${code}</b><h3>${driver.name}</h3><small>${timedLaps.length} TIMED LAPS</small></div>
           ${fastest ? `<button class="fastest-lap-pick ${fastestLoaded ? 'selected' : ''}" data-code="${code}" data-lap="${fastest.lap}" title="Add or remove this fastest lap"><span>FASTEST</span><strong>${time(fastest.time)}</strong></button>` : ''}
         </header>
-        <div class="run-section-label"><span>RUNS</span><small>select a run to reveal its laps</small></div>
+        <div class="run-section-label"><span>RUNS</span></div>
         <div class="run-segments">${runButtons}</div>
         <div class="lap-group-header"><span>${groupLabel} LAPS</span><small>${activeLaps.length} AVAILABLE</small></div>
         <div class="lap-grid">${lapButtons}</div>
@@ -686,8 +689,17 @@ function renderSectors() {
     const className = delta >= 0 ? 'is-slower' : 'is-faster';
     return `<em class="summary-delta ${className}">${delta >= 0 ? '+' : '−'}${Math.abs(delta).toFixed(3)}s</em>`;
   };
+
+  const windCardinal = degrees => {
+    if (!Number.isFinite(degrees)) return '';
+    const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    return directions[Math.round(((degrees % 360) + 360) % 360 / 45) % directions.length];
+  };
+  const conditionCell = (label, value) => `
+    <span class="summary-condition"><small>${label}</small><strong>${value}</strong></span>`;
   
-  $('#sectorRows').innerHTML = loaded.map((item, i) => {
+  const root = $('#sectorRows');
+  root.innerHTML = loaded.map((item, i) => {
     const lap = item.real || {};
     const refLap = ref.real || {};
     const color = getDriverColor(item.code);
@@ -697,11 +709,36 @@ function renderSectors() {
       reference: refLap[field],
       state: sectorState(item.code, sectorIndex, lap[field]),
     }));
+    const conditions = lap.conditions || {};
+    const conditionValues = [];
+    if (Number.isFinite(conditions.air_temperature)) {
+      conditionValues.push(conditionCell('AIR', `${conditions.air_temperature.toFixed(1)}°C`));
+    }
+    if (Number.isFinite(conditions.track_temperature)) {
+      conditionValues.push(conditionCell('TRACK', `${conditions.track_temperature.toFixed(1)}°C`));
+    }
+    if (Number.isFinite(conditions.wind_speed)) {
+      const direction = windCardinal(conditions.wind_direction);
+      conditionValues.push(conditionCell('WIND', `${conditions.wind_speed.toFixed(1)} m/s${direction ? ` ${direction}` : ''}`));
+    }
+    if (conditions.rainfall !== null && conditions.rainfall !== undefined) {
+      conditionValues.push(conditionCell('RAIN', conditions.rainfall ? 'YES' : 'NO'));
+    }
+    const conditionsHtml = conditionValues.length
+      ? `<div class="summary-conditions">${conditionValues.join('')}</div>`
+      : '';
+    const compound = getCompoundCode(lap.compound || 'UNKNOWN', nominatedCompounds);
+    const compoundClass = getCompoundToneClass(lap.compound || 'UNKNOWN');
+    const tyreLife = Number.isFinite(lap.tyre_life) ? `${Math.max(1, Math.round(lap.tyre_life))}L` : '';
     return `
-      <article class="lap-summary-card" style="--team:${color}">
+      <article class="lap-summary-card ${conditionsHtml ? 'has-conditions' : ''}" style="--team:${color}">
         <header>
           <span class="summary-driver"><b>${item.code}</b><small>L${item.lap}</small>${i === 0 ? '<em>REF</em>' : ''}</span>
-          <span class="summary-lap-time"><small>LAP</small><strong>${Number.isFinite(item.time) ? time(item.time) : '—'}</strong>${i === 0 ? '' : deltaBadge(item.time, ref.time)}</span>
+          <span class="summary-header-actions">
+            <input class="trace-color-picker" type="color" value="${color}" data-driver-color="${item.code}" aria-label="Trace color for ${item.code}" title="Change ${item.code} trace color">
+            <span class="summary-tyre ${compoundClass}"><b>${compound}</b>${tyreLife ? `<small>${tyreLife}</small>` : ''}</span>
+            <span class="summary-lap-time"><small>LAP</small><strong>${Number.isFinite(item.time) ? time(item.time) : '—'}</strong>${i === 0 ? '' : deltaBadge(item.time, ref.time)}</span>
+          </span>
         </header>
         <div class="summary-sectors">${sectors.map(({ label, value, reference, state }) => `
           <span class="sector-cell ${state.className}" title="${label} · ${state.label}">
@@ -709,9 +746,19 @@ function renderSectors() {
             ${i === 0 ? '' : deltaBadge(value, reference)}
           </span>`).join('')}
         </div>
+        ${conditionsHtml}
       </article>
     `;
   }).join('');
+
+  root.querySelectorAll('.trace-color-picker').forEach(input => {
+    input.addEventListener('change', event => {
+      driverColorOverrides.set(event.target.dataset.driverColor, event.target.value);
+      renderLoaded();
+      renderSectors();
+      drawAll();
+    });
+  });
 }
 
 // Chart Constants and Configuration

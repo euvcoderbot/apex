@@ -28,6 +28,7 @@ fastf1.Cache.enable_cache(str(CACHE))
 PREPARED_CACHE = ROOT / ".apex-cache"
 PREPARED_CACHE.mkdir(exist_ok=True)
 PREPARED_CACHE_VERSION = "v3"
+SESSION_CACHE_SCHEMA = "lap-context-v1"
 
 app = FastAPI(title="APEX DATA API")
 app.add_middleware(GZipMiddleware, minimum_size=900, compresslevel=5)
@@ -77,6 +78,28 @@ def integer(value: Any, default: int = 0) -> int:
         return int(value) if np.isfinite(value) else default
     except (TypeError, ValueError):
         return default
+
+
+def nearest_weather_conditions(weather_data: Any, target_seconds: float | None) -> dict[str, Any] | None:
+    """Return the closest published weather sample to a lap midpoint."""
+    if target_seconds is None or weather_data is None or getattr(weather_data, "empty", True):
+        return None
+    candidates: list[tuple[float, Any]] = []
+    for index, row in weather_data.iterrows():
+        sample_time = seconds(row.get("Time"))
+        if sample_time is not None:
+            candidates.append((abs(sample_time - target_seconds), index))
+    if not candidates:
+        return None
+    row = weather_data.loc[min(candidates, key=lambda item: item[0])[1]]
+    result = {
+        "air_temperature": seconds(row.get("AirTemp")),
+        "track_temperature": seconds(row.get("TrackTemp")),
+        "wind_speed": seconds(row.get("WindSpeed")),
+        "wind_direction": seconds(row.get("WindDirection")),
+        "rainfall": None if pd.isna(row.get("Rainfall")) else bool(row.get("Rainfall")),
+    }
+    return result if any(value is not None for value in result.values()) else None
 
 
 def prepared_cache_path(namespace: str, *parts: Any) -> Path:
@@ -405,7 +428,7 @@ def load_session(year: int, gp: str, session_name: str, round_number: int | None
     # Session controls need timing/lap data, not the multi-megabyte car stream
     # for every driver. Fetch the car stream only if OpenF1 cannot provide a
     # selected lap (mainly older seasons).
-    session.load(laps=True, telemetry=False, weather=False, messages=False)
+    session.load(laps=True, telemetry=False, weather=True, messages=False)
     return session
 
 
@@ -604,17 +627,48 @@ def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[
             except Exception as stints_err:
                 logger.warning("OpenF1 stints fetch failed: %s", stints_err)
                 stints_raw = []
+        # Weather is optional context. Fetch it only after the required timing
+        # calls finish so a free-tier rate limit cannot starve drivers or laps.
+        try:
+            weather_raw = openf1("weather", session_key=session_key)
+        except Exception as weather_err:
+            logger.warning("OpenF1 weather fetch failed: %s", weather_err)
+            weather_raw = []
 
-        lap_stint_map: dict[tuple[int, int], tuple[int, str]] = {}
+        lap_stint_map: dict[tuple[int, int], tuple[int, str, float | None]] = {}
         for stint in stints_raw:
             d_num = stint.get("driver_number")
             st_num = stint.get("stint_number", 1)
             comp = str(stint.get("compound") or "UNKNOWN").upper()
             l_start = stint.get("lap_start")
             l_end = stint.get("lap_end")
+            age_at_start = seconds(stint.get("tyre_age_at_start"))
             if d_num is not None and l_start is not None and l_end is not None:
                 for l_num in range(int(l_start), int(l_end) + 1):
-                    lap_stint_map[(int(d_num), l_num)] = (int(st_num), comp)
+                    tyre_life = age_at_start + (l_num - int(l_start)) if age_at_start is not None else None
+                    lap_stint_map[(int(d_num), l_num)] = (int(st_num), comp, tyre_life)
+
+        def openf1_conditions(date_value: Any, duration: float | None) -> dict[str, Any] | None:
+            if not date_value or not weather_raw:
+                return None
+            try:
+                target = datetime.fromisoformat(str(date_value).replace("Z", "+00:00"))
+                if duration is not None:
+                    target += timedelta(seconds=duration / 2)
+                nearest = min(
+                    weather_raw,
+                    key=lambda item: abs((datetime.fromisoformat(str(item["date"]).replace("Z", "+00:00")) - target).total_seconds()),
+                )
+                result = {
+                    "air_temperature": seconds(nearest.get("air_temperature")),
+                    "track_temperature": seconds(nearest.get("track_temperature")),
+                    "wind_speed": seconds(nearest.get("wind_speed")),
+                    "wind_direction": seconds(nearest.get("wind_direction")),
+                    "rainfall": None if nearest.get("rainfall") is None else bool(nearest.get("rainfall")),
+                }
+                return result if any(value is not None for value in result.values()) else None
+            except (KeyError, TypeError, ValueError):
+                return None
 
         driver_laps: dict[int, list[dict[str, Any]]] = {}
         for lap in laps_raw:
@@ -627,7 +681,9 @@ def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[
             lap_num = lap.get("lap_number")
             lap_dur = lap.get("lap_duration")
             if lap_num is not None:
-                st_num, comp = lap_stint_map.get((int(d_num), int(lap_num)), (1, "UNKNOWN"))
+                st_num, comp, tyre_life = lap_stint_map.get(
+                    (int(d_num), int(lap_num)), (1, "UNKNOWN", None)
+                )
                 driver_laps[d_num].append({
                     "lap": int(lap_num),
                     "time": float(lap_dur) if lap_dur is not None else None,
@@ -637,6 +693,7 @@ def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[
                     "s2": float(lap["duration_sector_2"]) if lap.get("duration_sector_2") is not None else None,
                     "s3": float(lap["duration_sector_3"]) if lap.get("duration_sector_3") is not None else None,
                     "compound": comp,
+                    "tyre_life": tyre_life,
                     "stint": st_num,
                     "phase": None,
                     "in_lap": False,
@@ -664,6 +721,9 @@ def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[
                                 lap_info["display_time_estimated"] = True
                         except (TypeError, ValueError):
                             pass
+                lap_info["conditions"] = openf1_conditions(
+                    lap_info.get("_date_start"), seconds(lap_info.get("time"))
+                )
                 lap_info.pop("_date_start", None)
                 
         result = []
@@ -703,7 +763,7 @@ def session_data(
             422,
             "Race calendars are available from 2014, but public F1 car telemetry begins in 2018.",
         )
-    cached = read_prepared_cache("session", year, gp, round, session)
+    cached = read_prepared_cache("session", year, SESSION_CACHE_SCHEMA, gp, round, session)
     if cached is not None:
         return cached
     try:
@@ -713,8 +773,10 @@ def session_data(
 
     qualifying_phase: dict[Any, str] = {}
     all_laps = None
+    weather_data = None
     try:
         all_laps = data.laps
+        weather_data = data.weather_data
     except Exception as exc:
         logger.warning("Session laps not loaded: %s", exc)
 
@@ -746,14 +808,23 @@ def session_data(
                                 "s2": seconds(row["Sector2Time"]),
                                 "s3": seconds(row["Sector3Time"]),
                                 "compound": str(row.get("Compound", "UNKNOWN")),
+                                "tyre_life": seconds(row.get("TyreLife")),
                                 "stint": integer(row.get("Stint")),
                                 "phase": qualifying_phase.get(lap_index),
                                 "in_lap": seconds(row.get("PitInTime")) is not None,
                                 "out_lap": seconds(row.get("PitOutTime")) is not None,
                                 "_pit_out_time": seconds(row.get("PitOutTime")),
                                 "_lap_end_time": seconds(row.get("Time")),
+                                "_weather_time": (
+                                    seconds(row.get("Time")) - seconds(row.get("LapTime")) / 2
+                                    if seconds(row.get("Time")) is not None and seconds(row.get("LapTime")) is not None
+                                    else seconds(row.get("Time"))
+                                ),
                             })
                     for lap_info in laps_list:
+                        lap_info["conditions"] = nearest_weather_conditions(
+                            weather_data, lap_info.get("_weather_time")
+                        )
                         if lap_info.get("out_lap"):
                             pit_out = lap_info.get("_pit_out_time")
                             lap_end = lap_info.get("_lap_end_time")
@@ -764,6 +835,7 @@ def session_data(
                                     lap_info["display_time_estimated"] = True
                         lap_info.pop("_pit_out_time", None)
                         lap_info.pop("_lap_end_time", None)
+                        lap_info.pop("_weather_time", None)
             drivers.append({
                 "code": str(info.get("Abbreviation", code)),
                 "number": str(info.get("DriverNumber", "")),
@@ -823,7 +895,7 @@ def session_data(
         "compounds": get_tire_nominations(year, gp),
     }
     if drivers:
-        write_prepared_cache("session", year, payload, gp, round, session)
+        write_prepared_cache("session", year, payload, SESSION_CACHE_SCHEMA, gp, round, session)
     return payload
 
 

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>APEX DATA — F1 Telemetry Hub</title>
-  <link rel="stylesheet" href="styles.css?v=slowest-tint-thin-lines-20260807">
+  <link rel="stylesheet" href="styles.css?v=compact-lap-context-20260808">
 </head>
 <body>
   <header class="site-header">
@@ -16,8 +16,7 @@
     <aside class="sidebar" aria-label="Session and driver controls">
       <section class="dashboard-card session-controls" aria-label="Session selection">
         <div class="panel-heading">
-          <span class="panel-index">01</span>
-          <div><h2>Session Control</h2><p>Choose an event before loading its timing data.</p></div>
+          <h2>Session Control</h2>
         </div>
         <div class="control-field">
           <label for="year">Season</label>
@@ -36,8 +35,7 @@
 
       <section class="dashboard-card driver-control-card">
         <div class="panel-heading">
-          <span class="panel-index">02</span>
-          <div><h2>Select Drivers</h2><p>Add one driver or build a full-field comparison.</p></div>
+          <h2>Select Drivers</h2>
         </div>
         <div class="pills" id="driverPills">
           <span class="section-empty">Load a session to see its drivers.</span>
@@ -46,8 +44,7 @@
 
       <section class="dashboard-card" id="tireCard" style="display: none;">
         <div class="panel-heading panel-heading-compact">
-          <span class="panel-index">TY</span>
-          <div><h2>Event Tyres</h2><p>Dry compounds nominated for this weekend.</p></div>
+          <h2>Event Tyres</h2>
         </div>
         <div class="tire-nomination-container" id="tireNomination"></div>
       </section>
@@ -56,8 +53,7 @@
     <div class="analysis-column">
       <section class="dashboard-card lap-workspace" id="lapWorkspace">
         <div class="panel-heading workspace-heading">
-          <span class="panel-index">03</span>
-          <div><h2>Lap Workspace</h2><p>Open each driver's runs, choose laps, then set the reference from the tray.</p></div>
+          <h2>Lap Workspace</h2>
         </div>
         <div id="stintPanels">
           <span class="section-empty">Select a driver to inspect their runs and laps.</span>
@@ -65,7 +61,6 @@
         <div class="comparison-tray" aria-label="Loaded comparison laps">
           <div class="comparison-tray-heading">
             <span>Comparison</span>
-            <small>Click a lap to set reference</small>
           </div>
           <div class="loaded-laps" id="loadedLaps">
             <span class="section-empty">No laps loaded.</span>
@@ -77,11 +72,7 @@
         <section class="telemetry-card is-empty" id="telemetryCard">
           <div class="section-heading analysis-heading">
             <div class="analysis-heading-main">
-              <span class="panel-index">04</span>
-              <div>
-                <h1>Aligned Lap Telemetry</h1>
-                <p>Position-aligned traces · synchronized distance, delta and inputs</p>
-              </div>
+              <h1>Aligned Lap Telemetry</h1>
             </div>
             <div class="legend" id="legend"></div>
           </div>
@@ -99,11 +90,7 @@
 
             <section class="corner-analysis" id="cornerAnalysis" aria-labelledby="cornerAnalysisTitle">
               <div class="corner-analysis-header">
-                <div>
-                  <h2 id="cornerAnalysisTitle">Corner performance</h2>
-                  <p>Compare integrated corner time and minimum speed around the circuit-geometry apex.</p>
-                </div>
-                <span>Select a corner to inspect</span>
+                <h2 id="cornerAnalysisTitle">Corner performance</h2>
               </div>
               <div class="corner-metric-grid" id="cornerMetricGrid"></div>
             </section>
@@ -141,7 +128,7 @@
   <footer>APEX DATA SYSTEMS · FASTF1 / OPENF1 TELEMETRY · UNOFFICIAL ANALYSIS</footer>
 
   <!-- Single unified app logic -->
-  <script src="app.js?v=trace-quality-modes-20260808"></script>
-  <script src="alignment.js?v=trace-quality-modes-20260808"></script>
+  <script src="app.js?v=compact-lap-context-20260808"></script>
+  <script src="alignment.js?v=compact-lap-context-20260808"></script>
 </body>
 </html>
