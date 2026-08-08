@@ -1454,20 +1454,23 @@ function drawRealChart(name) {
         const plotHeight = rect.height - bounds.top - bounds.bottom;
         const pixelsPerKmh = plotHeight / (bounds.max - bounds.min || 1);
         const solidHeight = Math.max(1, 20 * pixelsPerKmh);
-        const fadeHeight = Math.max(1, 60 * pixelsPerKmh);
         const clearGap = 1.35;
         const solidBandCount = 5;
-        const fadeBandCount = 18;
+        const fadeBandCount = 28;
         const peakAlpha = lightThemeActive() ? .62 : .48;
 
-        const fillEnvelopeBand = (innerOffset, outerOffset, alpha) => {
+        const fillEnvelopeBand = (innerPosition, outerPosition, alpha, normalized = false) => {
           ctx.beginPath();
-          ctx.moveTo(envelope[groupStart].x, Math.min(bottomY, envelope[groupStart].y + innerOffset));
+          const bandY = (point, position) => normalized
+            ? Math.min(bottomY, point.y + clearGap + solidHeight
+              + Math.max(0, bottomY - point.y - clearGap - solidHeight) * position)
+            : Math.min(bottomY, point.y + position);
+          ctx.moveTo(envelope[groupStart].x, bandY(envelope[groupStart], innerPosition));
           for (let index = groupStart + 1; index <= groupEnd; index++) {
-            ctx.lineTo(envelope[index].x, Math.min(bottomY, envelope[index].y + innerOffset));
+            ctx.lineTo(envelope[index].x, bandY(envelope[index], innerPosition));
           }
           for (let index = groupEnd; index >= groupStart; index--) {
-            ctx.lineTo(envelope[index].x, Math.min(bottomY, envelope[index].y + outerOffset));
+            ctx.lineTo(envelope[index].x, bandY(envelope[index], outerPosition));
           }
           ctx.closePath();
           ctx.fillStyle = hexToRgba(winner.teamColor, alpha);
@@ -1481,12 +1484,14 @@ function drawRealChart(name) {
           fillEnvelopeBand(innerOffset, outerOffset, peakAlpha);
         }
 
-        // Gradual fade from 20 to 80 km/h below the trace.
+        // After 20 km/h, continue the fade all the way to the chart baseline.
+        // It deliberately retains 25% of the original tint at that baseline.
         for (let band = 0; band < fadeBandCount; band++) {
           const progress = (band + .5) / fadeBandCount;
-          const innerOffset = clearGap + solidHeight + fadeHeight * band / fadeBandCount;
-          const outerOffset = clearGap + solidHeight + fadeHeight * (band + 1.04) / fadeBandCount;
-          fillEnvelopeBand(innerOffset, outerOffset, peakAlpha * Math.pow(1 - progress, 1.55));
+          const innerPosition = band / fadeBandCount;
+          const outerPosition = Math.min(1, (band + 1.04) / fadeBandCount);
+          const retainedStrength = 1 - .75 * Math.pow(progress, 1.18);
+          fillEnvelopeBand(innerPosition, outerPosition, peakAlpha * retainedStrength, true);
         }
       } else {
         ctx.beginPath();
