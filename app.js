@@ -1427,18 +1427,56 @@ function drawRealChart(name) {
   // Continuous analogue charts share a true lower envelope. At every crossing
   // the fill changes owner and follows the visually lower trace, so no region
   // between drivers is painted and every driver's colour can contribute.
-  const shadedFields = ['Speed trace', 'Throttle application', 'Brake application', 'Engine speed'];
-  if (shadedFields.includes(name) && traceEntries.length) {
+  const shadedFields = ['Speed trace', 'Throttle application', 'Engine speed'];
+  if (name === 'Brake application' && traceEntries.length) {
+    // Brake is a binary channel, so a numerical lower envelope is not useful:
+    // it only paints the overlap where every driver is braking. Instead, tint
+    // each driver's ON blocks independently and allow overlaps to blend.
+    const bottomY = rect.height - bounds.bottom;
+    traceEntries.forEach(({ points, teamColor }) => {
+      tracePath(points);
+      ctx.lineTo(points[points.length - 1].x, bottomY);
+      ctx.lineTo(points[0].x, bottomY);
+      ctx.closePath();
+      ctx.fillStyle = hexToRgba(teamColor, lightThemeActive() ? .18 : .13);
+      ctx.fill();
+    });
+  } else if (shadedFields.includes(name) && traceEntries.length) {
     const bottomY = rect.height - bounds.bottom;
     const pointCount = Math.min(...traceEntries.map(entry => entry.points.length));
     const envelope = [];
+    let previousWinner = null;
     for (let pointIndex = 0; pointIndex < pointCount; pointIndex++) {
-      let winner = traceEntries[0];
+      let candidate = traceEntries[0];
       traceEntries.slice(1).forEach(entry => {
         // Canvas y increases downwards, so the largest y is the lower trace.
-        if (entry.points[pointIndex].y > winner.points[pointIndex].y) winner = entry;
+        if (entry.points[pointIndex].y > candidate.points[pointIndex].y) candidate = entry;
       });
+      let winner = candidate;
+      if (previousWinner && candidate !== previousWinner) {
+        const previousY = previousWinner.points[pointIndex].y;
+        const candidateY = candidate.points[pointIndex].y;
+        // Avoid rapid one-pixel colour flicker while two traces are virtually
+        // coincident; switch only after a visually meaningful crossing.
+        winner = candidateY > previousY + 1.25 ? candidate : previousWinner;
+      }
       envelope.push({ ...winner.points[pointIndex], winner });
+      previousWinner = winner;
+    }
+
+    let speedTintLayer = null;
+    let speedTintContext = null;
+    let speedTintImage = null;
+    let speedTintPixels = null;
+    let speedTintWidth = 0;
+    if (name === 'Speed trace') {
+      speedTintWidth = Math.max(1, Math.ceil(rect.width));
+      speedTintLayer = document.createElement('canvas');
+      speedTintLayer.width = speedTintWidth;
+      speedTintLayer.height = Math.max(1, Math.ceil(rect.height));
+      speedTintContext = speedTintLayer.getContext('2d');
+      speedTintImage = speedTintContext.createImageData(speedTintLayer.width, speedTintLayer.height);
+      speedTintPixels = speedTintImage.data;
     }
 
     let groupStart = 0;
@@ -1447,51 +1485,48 @@ function drawRealChart(name) {
       let groupEnd = groupStart + 1;
       while (groupEnd < envelope.length - 1 && envelope[groupEnd].winner === winner) groupEnd++;
       if (name === 'Speed trace') {
-        // Keep the trace itself visually untouched. The first 20 km/h below
-        // it holds a constant team-colour tint; only after that threshold does
-        // the fill begin fading away. Parallel bands make both zones follow
-        // every peak, trough and driver crossing.
+        // Build one off-screen RGBA layer directly from the lower envelope.
+        // It has no band or polygon edges: solid through the first 20 km/h,
+        // then continuously fading to 25% at the chart baseline.
         const plotHeight = rect.height - bounds.top - bounds.bottom;
         const pixelsPerKmh = plotHeight / (bounds.max - bounds.min || 1);
         const solidHeight = Math.max(1, 20 * pixelsPerKmh);
         const clearGap = 1.35;
-        const solidBandCount = 5;
-        const fadeBandCount = 28;
         const peakAlpha = lightThemeActive() ? .62 : .48;
+        const colorHex = winner.teamColor.replace('#', '');
+        const expandedHex = colorHex.length === 3
+          ? colorHex.split('').map(character => character + character).join('')
+          : colorHex;
+        const red = parseInt(expandedHex.slice(0, 2), 16) || 0;
+        const green = parseInt(expandedHex.slice(2, 4), 16) || 0;
+        const blue = parseInt(expandedHex.slice(4, 6), 16) || 0;
 
-        const fillEnvelopeBand = (innerPosition, outerPosition, alpha, normalized = false) => {
-          ctx.beginPath();
-          const bandY = (point, position) => normalized
-            ? Math.min(bottomY, point.y + clearGap + solidHeight
-              + Math.max(0, bottomY - point.y - clearGap - solidHeight) * position)
-            : Math.min(bottomY, point.y + position);
-          ctx.moveTo(envelope[groupStart].x, bandY(envelope[groupStart], innerPosition));
-          for (let index = groupStart + 1; index <= groupEnd; index++) {
-            ctx.lineTo(envelope[index].x, bandY(envelope[index], innerPosition));
+        for (let index = groupStart; index < groupEnd; index++) {
+          const from = envelope[index];
+          const to = envelope[index + 1];
+          const segmentWidth = to.x - from.x;
+          if (segmentWidth <= 0) continue;
+          const firstColumn = Math.max(Math.floor(from.x), Math.floor(bounds.left));
+          const lastColumn = Math.min(Math.ceil(to.x), Math.ceil(rect.width - bounds.right));
+          for (let column = firstColumn; column < lastColumn; column++) {
+            const centreX = column + .5;
+            const ratio = Math.max(0, Math.min(1, (centreX - from.x) / segmentWidth));
+            const traceY = from.y + (to.y - from.y) * ratio;
+            const tintStart = Math.min(bottomY, traceY + clearGap);
+            const fadeStart = Math.min(bottomY, tintStart + solidHeight);
+            const fadeSpan = Math.max(1, bottomY - fadeStart);
+            const firstRow = Math.max(0, Math.ceil(tintStart));
+            const lastRow = Math.min(speedTintLayer.height - 1, Math.floor(bottomY));
+            for (let row = firstRow; row <= lastRow; row++) {
+              const progress = row <= fadeStart ? 0 : Math.min(1, (row - fadeStart) / fadeSpan);
+              const alpha = peakAlpha * (1 - .75 * progress);
+              const pixelIndex = (row * speedTintWidth + column) * 4;
+              speedTintPixels[pixelIndex] = red;
+              speedTintPixels[pixelIndex + 1] = green;
+              speedTintPixels[pixelIndex + 2] = blue;
+              speedTintPixels[pixelIndex + 3] = Math.round(alpha * 255);
+            }
           }
-          for (let index = groupEnd; index >= groupStart; index--) {
-            ctx.lineTo(envelope[index].x, bandY(envelope[index], outerPosition));
-          }
-          ctx.closePath();
-          ctx.fillStyle = hexToRgba(winner.teamColor, alpha);
-          ctx.fill();
-        };
-
-        // Constant-strength 0-20 km/h zone.
-        for (let band = 0; band < solidBandCount; band++) {
-          const innerOffset = clearGap + solidHeight * band / solidBandCount;
-          const outerOffset = clearGap + solidHeight * (band + 1.04) / solidBandCount;
-          fillEnvelopeBand(innerOffset, outerOffset, peakAlpha);
-        }
-
-        // After 20 km/h, continue the fade all the way to the chart baseline.
-        // It deliberately retains 25% of the original tint at that baseline.
-        for (let band = 0; band < fadeBandCount; band++) {
-          const progress = (band + .5) / fadeBandCount;
-          const innerPosition = band / fadeBandCount;
-          const outerPosition = Math.min(1, (band + 1.04) / fadeBandCount);
-          const retainedStrength = 1 - .75 * Math.pow(progress, 1.18);
-          fillEnvelopeBand(innerPosition, outerPosition, peakAlpha * retainedStrength, true);
         }
       } else {
         ctx.beginPath();
@@ -1511,6 +1546,10 @@ function drawRealChart(name) {
         ctx.fill();
       }
       groupStart = groupEnd;
+    }
+    if (speedTintImage) {
+      speedTintContext.putImageData(speedTintImage, 0, 0);
+      ctx.drawImage(speedTintLayer, 0, 0, rect.width, rect.height);
     }
   }
 
