@@ -798,21 +798,65 @@ function finishShapePreservingModel(points, gaps = []) {
   return { points, intervals, tangents, gaps };
 }
 
+// A held integer speed is not an independent physical observation at every
+// car-channel timestamp. During uninterrupted full throttle, replace only the
+// interior of a repeated-speed run with constant-acceleration interpolation
+// (linear v² over distance). Distinct samples, local extrema, throttle changes
+// and gear changes remain exact anchors.
+function interpolateHeldFullThrottleSpeed(points) {
+  if (points.length < 4) return points;
+  const result = points.map(point => ({ ...point }));
+  let start = 0;
+  while (start < points.length) {
+    let end = start;
+    while (end + 1 < points.length && Math.abs(points[end + 1].y - points[start].y) <= 0.05) end++;
+    const leftIndex = start - 1;
+    const rightIndex = end + 1;
+    if (end > start && leftIndex >= 0 && rightIndex < points.length) {
+      const left = points[leftIndex];
+      const right = points[rightIndex];
+      const plateau = points[start].y;
+      const leftStep = plateau - left.y;
+      const rightStep = right.y - plateau;
+      const sameDirection = Math.abs(right.y - left.y) >= 0.5
+        && Math.sign(leftStep) === Math.sign(rightStep);
+      const fullThrottle = points.slice(leftIndex, rightIndex + 1)
+        .every(point => Number.isFinite(point.throttle) && point.throttle >= 97);
+      const sameGear = Number.isFinite(left.gear)
+        && points.slice(leftIndex, rightIndex + 1).every(point => point.gear === left.gear);
+      const span = right.x - left.x;
+      if (sameDirection && fullThrottle && sameGear && span > 1e-6) {
+        const startEnergy = left.y * left.y;
+        const energyDelta = right.y * right.y - startEnergy;
+        for (let index = start; index <= end; index++) {
+          const ratio = clampTelemetry((points[index].x - left.x) / span);
+          result[index].y = Math.sqrt(Math.max(0, startEnergy + energyDelta * ratio));
+          result[index].heldInterpolated = true;
+        }
+      }
+    }
+    start = end + 1;
+  }
+  return result;
+}
+
 function buildSpeedModel(samples) {
   let points = samples
     .map(point => ({
       x: Number.isFinite(point.AlignedFraction) ? point.AlignedFraction : rawFractionAt(samples, point),
       y: telemetryNumber(point.Speed),
       time: telemetryNumber(point.ElapsedSeconds),
+      throttle: telemetryNumber(point.Throttle),
+      gear: telemetryNumber(point.nGear),
     }))
     .filter(point => Number.isFinite(point.x) && point.y !== null && point.time !== null);
   if (points.length < 3) return null;
   let gaps = [];
 
-  // Restore only explicitly missing source intervals. Every published sample
-  // remains an interpolation knot, so Enhanced and Accurate have identical
-  // speed at every measured coordinate. Between knots Enhanced uses a bounded,
-  // shape-preserving cubic; it cannot overshoot or move a peak/trough sample.
+  // Remove quantisation stair-steps only when full throttle and a stable gear
+  // make a monotonic physics-based reconstruction unambiguous. Then restore
+  // explicitly missing source intervals. Accurate mode still uses raw samples.
+  points = interpolateHeldFullThrottleSpeed(points);
   if (points.length >= 7) {
     const reconstruction = reconstructLargeGaps(points, samples, 'Speed');
     points = reconstruction.points;
