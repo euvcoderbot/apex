@@ -11,7 +11,7 @@
       document.documentElement.dataset.theme = 'dark';
     }
   </script>
-  <link rel="stylesheet" href="styles.css?v=dropdown-layer-20260809">
+  <link rel="stylesheet" href="styles.css?v=telemetry-controls-20260809">
 </head>
 <body>
   <header class="site-header">
@@ -115,19 +115,6 @@
               <span class="section-empty" id="dominanceEmpty">Load comparison laps to generate the track map.</span>
             </section>
 
-            <div class="chart-options">
-              <div class="alignment-readout"><i></i><span id="alignmentStatus" data-state="idle">Awaiting lap selection</span></div>
-              <div class="chart-toggles">
-                <label><input type="checkbox" id="cornerToggle"> Corner numbers</label>
-                <label class="trace-mode-toggle" title="Unchecked preserves the measured sample shape. Checked enables bounded, gap-aware interpolation.">
-                  <input type="checkbox" id="interpolationToggle">
-                  Enhanced interpolation
-                  <small id="traceModeStatus">ACCURATE</small>
-                </label>
-              </div>
-              <span id="cornerStatus">Corner labels appear when mapped distance data is available.</span>
-            </div>
-
             <div class="charts" id="charts"></div>
             <div class="tooltip" id="realTooltip"></div>
           </div>
@@ -139,7 +126,7 @@
   <footer>APEX DATA SYSTEMS · FASTF1 / OPENF1 TELEMETRY · UNOFFICIAL ANALYSIS</footer>
 
   <!-- Single unified app logic -->
-  <script src="app.js?v=delta-stability-20260809b"></script>
-  <script src="alignment.js?v=delta-stability-20260809b"></script>
+  <script src="app.js?v=telemetry-controls-20260809"></script>
+  <script src="alignment.js?v=telemetry-controls-20260809"></script>
 </body>
 </html>

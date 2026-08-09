@@ -12,6 +12,7 @@ from pathlib import Path
 import time
 from typing import Any
 from urllib.request import Request as URLRequest, urlopen
+from uuid import uuid4
 
 import fastf1
 import numpy as np
@@ -135,14 +136,20 @@ def read_prepared_cache(namespace: str, year: int, *parts: Any) -> Any | None:
 
 def write_prepared_cache(namespace: str, year: int, payload: Any, *parts: Any) -> None:
     path = prepared_cache_path(namespace, year, *parts)
-    temporary = path.with_suffix(path.suffix + ".tmp")
+    # Multiple visible traces can request the same cold lap concurrently. Give
+    # every writer its own staging file so one response cannot replace or
+    # delete another response's open .tmp file on Windows.
+    temporary = path.with_name(f"{path.name}.{uuid4().hex}.tmp")
     try:
         with gzip.open(temporary, "wt", encoding="utf-8", compresslevel=5) as handle:
             json.dump(payload, handle, separators=(",", ":"), allow_nan=False)
         temporary.replace(path)
     except (OSError, TypeError, ValueError) as error:
         logger.debug("Could not persist %s cache: %s", namespace, error)
-        temporary.unlink(missing_ok=True)
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:

@@ -4754,3 +4754,348 @@ main,
   background: #b3bac3;
   box-shadow: none;
 }
+
+/* Integrated speed-trace control deck ----------------------------------- */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.speed-chart .chart-heading {
+  align-items: center;
+  margin-bottom: 7px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.trace-zoom-cluster {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, .2);
+}
+
+.trace-zoom-readout {
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 118px;
+  padding: 0 9px;
+  border-right: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  white-space: nowrap;
+}
+
+.trace-zoom-readout b {
+  color: var(--neon-accent);
+  font-weight: 800;
+}
+
+.trace-zoom-cluster .trace-tools {
+  gap: 2px;
+  padding: 2px;
+}
+
+.trace-zoom-cluster .trace-tools button {
+  min-width: 27px;
+  height: 24px;
+  border-color: transparent;
+  border-radius: 4px;
+  background: transparent;
+}
+
+.trace-zoom-cluster .trace-tools .trace-reset {
+  min-width: 47px;
+  font-size: 7px;
+  letter-spacing: .05em;
+}
+
+.trace-tool-separator {
+  width: 1px;
+  height: 16px;
+  margin-inline: 2px;
+  background: var(--border-color);
+}
+
+.speed-chart-controls {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 7px;
+}
+
+.trace-settings,
+.trace-display-bar {
+  min-width: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, .13);
+}
+
+.trace-settings {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 4px;
+}
+
+.trace-settings .alignment-readout {
+  min-height: 25px;
+  padding: 0 8px 0 5px;
+  margin-right: 2px;
+  border-right: 1px solid var(--border-color);
+}
+
+.trace-setting {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 25px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+
+.trace-setting:hover {
+  border-color: var(--border-color-hover);
+  background: rgba(255, 255, 255, .035);
+  color: var(--text-main);
+}
+
+.trace-setting input,
+.trace-driver-chip input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.trace-setting > i {
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--border-color-hover);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, .18);
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .28);
+}
+
+.trace-setting input:checked + i {
+  border-color: var(--neon-accent);
+  background: var(--neon-accent);
+  box-shadow: inset 0 0 0 2px #0b0d10, 0 0 8px color-mix(in srgb, var(--neon-accent) 30%, transparent);
+}
+
+.trace-setting:has(input:focus-visible) {
+  outline: 1px solid var(--neon-accent);
+  outline-offset: 1px;
+}
+
+.trace-setting.trace-mode-toggle small {
+  margin-left: 2px;
+}
+
+.trace-display-bar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 5px 7px;
+}
+
+.trace-display-bar > span {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  white-space: nowrap;
+}
+
+.trace-driver-toggles {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.trace-driver-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 25px;
+  padding: 3px 8px 3px 6px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--team) 24%, var(--border-color));
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--team) 4%, rgba(0, 0, 0, .18));
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  cursor: pointer;
+  opacity: .58;
+  transition: opacity .15s ease, color .15s ease, border-color .15s ease, background .15s ease, transform .15s ease;
+}
+
+.trace-driver-chip::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--team);
+}
+
+.trace-driver-chip > i {
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--team);
+  border-radius: 50%;
+}
+
+.trace-driver-chip b {
+  color: inherit;
+  font-size: 9px;
+  letter-spacing: .04em;
+}
+
+.trace-driver-chip small {
+  color: inherit;
+  font-size: 7px;
+  font-weight: 650;
+}
+
+.trace-driver-chip.is-visible {
+  border-color: color-mix(in srgb, var(--team) 64%, var(--border-color));
+  background: color-mix(in srgb, var(--team) 10%, rgba(0, 0, 0, .14));
+  color: var(--team);
+  opacity: 1;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--team) 7%, transparent);
+}
+
+.trace-driver-chip.is-visible > i {
+  background: var(--team);
+  box-shadow: 0 0 7px color-mix(in srgb, var(--team) 48%, transparent);
+}
+
+.trace-driver-chip:hover:not(:has(input:disabled)) {
+  transform: translateY(-1px);
+  opacity: 1;
+}
+
+.trace-driver-chip:has(input:focus-visible) {
+  outline: 1px solid var(--team);
+  outline-offset: 1px;
+}
+
+.trace-driver-chip:has(input:disabled) {
+  cursor: default;
+}
+
+.trace-filter-empty {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 8px;
+}
+
+#dominanceCanvas {
+  height: clamp(280px, 24vw, 420px);
+  image-rendering: auto;
+}
+
+:root[data-theme="light"] .trace-zoom-cluster,
+:root[data-theme="light"] .trace-settings,
+:root[data-theme="light"] .trace-display-bar {
+  background: rgba(255, 255, 255, .62);
+}
+
+:root[data-theme="light"] .trace-setting > i {
+  background: #fff;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .7);
+}
+
+:root[data-theme="light"] .trace-setting input:checked + i {
+  box-shadow: inset 0 0 0 2px #fff, 0 0 7px color-mix(in srgb, var(--neon-accent) 24%, transparent);
+}
+
+:root[data-theme="light"] .trace-driver-chip {
+  background: color-mix(in srgb, var(--team) 4%, white);
+}
+
+:root[data-theme="light"] .trace-driver-chip.is-visible {
+  background: color-mix(in srgb, var(--team) 9%, white);
+}
+
+@media (max-width: 900px) {
+  .speed-chart .chart-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .trace-zoom-cluster {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 620px) {
+  .speed-chart .chart-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .trace-zoom-cluster {
+    width: 100%;
+    margin: 0;
+  }
+
+  .trace-zoom-readout {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .trace-settings {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .trace-settings .alignment-readout {
+    grid-column: 1 / -1;
+    border-right: 0;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .trace-setting.trace-mode-toggle {
+    grid-column: 1 / -1;
+  }
+
+  .trace-display-bar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 5px;
+  }
+
+  #dominanceCanvas {
+    height: 270px;
+  }
+}

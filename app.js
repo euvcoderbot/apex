@@ -13,6 +13,12 @@ let circuitRotation = 0;
 let nominatedCompounds = [];
 let activeDriverTab = null;
 let selectedCornerIndex = 0;
+let showCornerNumbers = false;
+let enhancedTraceMode = false;
+let traceTintEnabled = true;
+const hiddenTraceKeys = new Set();
+let dominanceMapHitPoints = [];
+let dominanceMapGeometryCache = null;
 
 let hoverFraction = null;
 let hoveredChartName = null;
@@ -197,6 +203,14 @@ function telemetryKey(lap) {
   return `${lap.code}:${lap.lap}`;
 }
 
+function traceLapIsVisible(lap) {
+  return !hiddenTraceKeys.has(telemetryKey(lap));
+}
+
+function visibleTraceLaps() {
+  return loaded.map((lap, index) => ({ lap, index })).filter(({ lap }) => traceLapIsVisible(lap));
+}
+
 // Populate select utilities
 function selectValue(select) {
   return select && customSelectValues.has(select) ? customSelectValues.get(select) : (select?.value || '');
@@ -357,6 +371,9 @@ function clearBeforeSessionLoad() {
   selectedCornerIndex = 0;
   traceZoom = { start: 0, end: 1 };
   zoomDrag = null;
+  hiddenTraceKeys.clear();
+  dominanceMapHitPoints = [];
+  dominanceMapGeometryCache = null;
   telemetryCache.clear();
   driverColorOverrides.clear();
   $('#driverPills').innerHTML = '<span class="section-empty">Load a session to see its drivers.</span>';
@@ -874,6 +891,7 @@ function renderSectors() {
       driverColorOverrides.set(event.target.dataset.driverColor, event.target.value);
       renderLoaded();
       renderSectors();
+      renderTraceVisibilityControls();
       drawAll();
     });
   });
@@ -983,6 +1001,66 @@ function finishZoomDrag() {
   }
 }
 
+function renderTraceVisibilityControls() {
+  const root = $('#traceDriverToggles');
+  if (!root) return;
+  const activeKeys = new Set(loaded.map(telemetryKey));
+  [...hiddenTraceKeys].forEach(key => {
+    if (!activeKeys.has(key)) hiddenTraceKeys.delete(key);
+  });
+  if (!loaded.length) {
+    root.innerHTML = '<span class="trace-filter-empty">Load laps to choose traces</span>';
+    return;
+  }
+
+  const visibleCount = visibleTraceLaps().length;
+  root.innerHTML = loaded.map((lap, index) => {
+    const key = telemetryKey(lap);
+    const visible = !hiddenTraceKeys.has(key);
+    const disableLast = visible && visibleCount === 1;
+    return `<label class="trace-driver-chip ${visible ? 'is-visible' : ''}" style="--team:${getDriverColor(lap.code)}" title="${visible ? 'Hide' : 'Show'} ${lap.code} lap ${lap.lap}">
+      <input type="checkbox" data-trace-key="${key}" ${visible ? 'checked' : ''} ${disableLast ? 'disabled' : ''}>
+      <i aria-hidden="true"></i><b>${lap.code}</b><small>L${lap.lap}${index === 0 ? ' · REF' : ''}</small>
+    </label>`;
+  }).join('');
+
+  root.querySelectorAll('input[data-trace-key]').forEach(input => {
+    input.addEventListener('change', event => {
+      const key = event.target.dataset.traceKey;
+      if (event.target.checked) hiddenTraceKeys.delete(key);
+      else if (visibleTraceLaps().length > 1) hiddenTraceKeys.add(key);
+      renderTraceVisibilityControls();
+      drawAll();
+    });
+  });
+}
+
+function bindSpeedChartControls() {
+  $('#cornerToggle')?.addEventListener('change', event => {
+    showCornerNumbers = event.target.checked;
+    const status = $('#cornerStatus');
+    if (status) status.textContent = showCornerNumbers
+      ? 'Corner labels and adaptive analysis active.'
+      : 'Corner labels hidden.';
+    if (loaded.length) drawAll();
+  });
+
+  $('#interpolationToggle')?.addEventListener('change', event => {
+    enhancedTraceMode = event.target.checked;
+    const status = $('#traceModeStatus');
+    if (status) {
+      status.textContent = enhancedTraceMode ? 'SMOOTHED' : 'ACCURATE';
+      status.dataset.mode = enhancedTraceMode ? 'enhanced' : 'accurate';
+    }
+    if (loaded.length) drawAll();
+  });
+
+  $('#tintToggle')?.addEventListener('change', event => {
+    traceTintEnabled = event.target.checked;
+    if (loaded.length) drawAll();
+  });
+}
+
 function renderCharts() {
   const root = $('#charts');
   const season = Number($('#year').value);
@@ -991,22 +1069,41 @@ function renderCharts() {
     : defs;
   root.innerHTML = activeDefs.map(([name, unit, compact]) => {
     return `
-    <section class="chart ${compact ? 'compact' : ''}">
+    <section class="chart ${compact ? 'compact' : ''} ${name === 'Speed trace' ? 'speed-chart' : ''}">
       <div class="chart-heading"><h2>${name} <small>${unit}</small></h2>${name === 'Speed trace' ? `
-        <div class="trace-tools" aria-label="Trace zoom controls">
-          <span>DRAG TO ZOOM · <b id="traceZoomReadout">FULL LAP</b></span>
-          <button data-zoom="out" title="Zoom out" aria-label="Zoom out">−</button>
-          <button data-zoom="in" title="Zoom in" aria-label="Zoom in">+</button>
-          <button data-pan="left" title="Move zoom window left" aria-label="Move zoom window left">‹</button>
-          <button data-pan="right" title="Move zoom window right" aria-label="Move zoom window right">›</button>
-          <button data-zoom="reset" title="Reset zoom">RESET</button>
+        <div class="trace-zoom-cluster" aria-label="Trace zoom controls">
+          <span class="trace-zoom-readout">VIEW <b id="traceZoomReadout">FULL LAP</b></span>
+          <div class="trace-tools">
+            <button data-zoom="out" title="Zoom out" aria-label="Zoom out">−</button>
+            <button data-zoom="in" title="Zoom in" aria-label="Zoom in">+</button>
+            <span class="trace-tool-separator" aria-hidden="true"></span>
+            <button data-pan="left" title="Move zoom window left" aria-label="Move zoom window left">‹</button>
+            <button data-pan="right" title="Move zoom window right" aria-label="Move zoom window right">›</button>
+            <button class="trace-reset" data-zoom="reset" title="Reset zoom">RESET</button>
+          </div>
         </div>` : ''}</div>
+      ${name === 'Speed trace' ? `
+        <div class="speed-chart-controls">
+          <div class="trace-settings" aria-label="Telemetry display settings">
+            <div class="alignment-readout"><i></i><span id="alignmentStatus" data-state="idle">Awaiting lap selection</span></div>
+            <label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label>
+            <label class="trace-setting trace-mode-toggle" title="Unchecked preserves measured samples. Checked enables bounded, gap-aware interpolation."><input type="checkbox" id="interpolationToggle" ${enhancedTraceMode ? 'checked' : ''}><i aria-hidden="true"></i><span>Enhanced interpolation</span><small id="traceModeStatus" data-mode="${enhancedTraceMode ? 'enhanced' : 'accurate'}">${enhancedTraceMode ? 'SMOOTHED' : 'ACCURATE'}</small></label>
+            <label class="trace-setting"><input type="checkbox" id="tintToggle" ${traceTintEnabled ? 'checked' : ''}><i aria-hidden="true"></i><span>Trace tint</span></label>
+          </div>
+          <div class="trace-display-bar">
+            <span>VISIBLE TRACES</span>
+            <div class="trace-driver-toggles" id="traceDriverToggles"></div>
+          </div>
+          <span class="visually-hidden" id="cornerStatus" aria-live="polite">Corner labels hidden.</span>
+        </div>` : ''}
       <canvas data-chart="${name}" aria-label="${name}${name === 'Speed trace' ? '. Drag horizontally to zoom every telemetry chart.' : ''}"></canvas>
     </section>
   `;
   }).join('');
   bindAllChartHover();
   bindChartZoom();
+  bindSpeedChartControls();
+  renderTraceVisibilityControls();
 }
 
 function interpolate(samples, targetDistance, field) {
@@ -1389,7 +1486,8 @@ function drawRealChart(name) {
   
   const unit = defs.find(def => def[0] === name)?.[1] || '';
   const field = chartField[name];
-  const data = loaded.map(lap => telemetryCache.get(telemetryKey(lap))).filter(Boolean);
+  const visibleEntries = visibleTraceLaps();
+  const data = visibleEntries.map(({ lap }) => telemetryCache.get(telemetryKey(lap))).filter(Boolean);
   const viewStart = traceZoom.start;
   const viewEnd = traceZoom.end;
   const viewSpan = viewEnd - viewStart || 1;
@@ -1421,7 +1519,9 @@ function drawRealChart(name) {
     const refSamples = telemetryCache.get(telemetryKey(loaded[0]));
     if (refSamples && refSamples.length) {
       const refDistance = refSamples[refSamples.length - 1].Distance || 5891;
-      data.slice(1).forEach(samples => {
+      visibleEntries.filter(({ index }) => index !== 0).forEach(({ lap }) => {
+        const samples = telemetryCache.get(telemetryKey(lap));
+        if (!samples?.length) return;
         // Sample every delta-model interval when setting the axis. The old
         // 100-point scan could miss a narrow minimum that the 180-point path
         // still drew, letting the trace escape below the chart boundary.
@@ -1566,7 +1666,7 @@ function drawRealChart(name) {
   
   // Build every path first so fills and keylines never cover a coloured trace.
   const traceEntries = [];
-  loaded.forEach((lap, index) => {
+  visibleEntries.forEach(({ lap, index }) => {
     const series = telemetryCache.get(telemetryKey(lap));
     if (!series) return;
     
@@ -1625,7 +1725,7 @@ function drawRealChart(name) {
     return !slowest || !Number.isFinite(slowestTime) || lapTime > slowestTime ? entry : slowest;
   }, null) || traceEntries[0];
   const shadedFields = ['Speed trace', 'Throttle application', 'Brake application', 'Engine speed'];
-  if (tintTrace && shadedFields.includes(name)) {
+  if (traceTintEnabled && tintTrace && shadedFields.includes(name)) {
     const { points, teamColor } = tintTrace;
     const bottomY = rect.height - bounds.bottom;
     tracePath(points);
@@ -1689,7 +1789,7 @@ function drawRealChart(name) {
     ctx.stroke();
     
     // Draw intersection highlighted circle on each line
-    loaded.forEach((lap, index) => {
+    visibleEntries.forEach(({ lap, index }) => {
       const series = telemetryCache.get(telemetryKey(lap));
       if (!series) return;
       const entry = traceEntries.find(item => item.index === index);
@@ -1771,7 +1871,7 @@ function bindAllChartHover() {
       const distanceKM = (fraction * maxDistance) / 1000;
       
       let hasReconstructedValue = false;
-      const lines = loaded.map((lap, index) => {
+      const lines = visibleTraceLaps().map(({ lap, index }) => {
         const series = telemetryCache.get(telemetryKey(lap));
         let val = null;
         const targetDist = fraction * maxDistance;
@@ -1841,7 +1941,8 @@ function bindTrackMapHover() {
   if (!canvas) return;
 
   canvas.addEventListener('mousemove', e => {
-    if (loaded.length < 2) return;
+    const hoverEntries = visibleTraceLaps();
+    if (hoverEntries.length < 2 || !dominanceMapHitPoints.length) return;
     const spatial = typeof spatialReferenceTelemetry === 'function'
       ? spatialReferenceTelemetry()
       : null;
@@ -1852,32 +1953,15 @@ function bindTrackMapHover() {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    const trackSamples = reference.filter(point => point.X != null && point.Y != null && Number.isFinite(+point.X) && Number.isFinite(+point.Y));
-    if (!trackSamples.length) return;
-
-    const minX = Math.min(...trackSamples.map(p => +p.X));
-    const maxX = Math.max(...trackSamples.map(p => +p.X));
-    const minY = Math.min(...trackSamples.map(p => +p.Y));
-    const maxY = Math.max(...trackSamples.map(p => +p.Y));
-
-    const padding = 18;
-    const scale = Math.min((rect.width - padding * 2) / (maxX - minX || 1), (rect.height - padding * 2) / (maxY - minY || 1));
-    const offsetX = (rect.width - (maxX - minX) * scale) / 2;
-    const offsetY = (rect.height - (maxY - minY) * scale) / 2;
-    const toCanvas = (x, y) => ({ x: offsetX + (x - minX) * scale, y: rect.height - offsetY - (y - minY) * scale });
-
     let minDistanceSq = Infinity;
     let bestFraction = null;
     const totalDistance = referenceDistance();
 
-    trackSamples.forEach(point => {
-      const cPos = toCanvas(+point.X, +point.Y);
-      const dSq = (cPos.x - mouseX) ** 2 + (cPos.y - mouseY) ** 2;
+    dominanceMapHitPoints.forEach(point => {
+      const dSq = (point.x - mouseX) ** 2 + (point.y - mouseY) ** 2;
       if (dSq < minDistanceSq) {
         minDistanceSq = dSq;
-        bestFraction = Number.isFinite(point.AlignedFraction)
-          ? point.AlignedFraction
-          : (+point.Distance || 0) / (+reference[reference.length - 1].Distance || 1);
+        bestFraction = point.fraction;
       }
     });
 
@@ -1894,7 +1978,7 @@ function bindTrackMapHover() {
         const segmentIndex = Math.min(segments - 1, Math.floor(bestFraction * segments));
         const segmentStart = segmentIndex / segments;
         const segmentEnd = (segmentIndex + 1) / segments;
-        const segmentRows = loaded.map(lap => {
+        const segmentRows = hoverEntries.map(({ lap }) => {
           const series = telemetryCache.get(telemetryKey(lap));
           const speed = typeof smoothedTelemetryValue === 'function'
             ? (typeof traceTelemetryValue === 'function'
@@ -1949,6 +2033,7 @@ async function drawAll() {
       loaded = loaded.filter(x => !(x.code === lap.code && x.lap === lap.lap));
       renderLoaded();
       renderSectors();
+      renderTraceVisibilityControls();
       renderStints();
     }
   });
@@ -1978,6 +2063,7 @@ function renderAll() {
   updateTelemetryVisibility();
   renderLoaded();
   renderSectors();
+  renderTraceVisibilityControls();
   drawAll();
 }
 
@@ -2126,11 +2212,13 @@ function renderMiniSectorMap() {
   const legend = $('#dominanceLegend');
   if (!canvas || !empty || !legend) return;
 
-  if (loaded.length < 2) {
+  const mapEntries = visibleTraceLaps();
+  if (mapEntries.length < 2) {
     canvas.style.display = 'none';
     empty.style.display = 'block';
-    empty.textContent = 'Load at least two laps to compare mini-sector dominance.';
+    empty.textContent = 'Show at least two traces to compare mini-sector dominance.';
     legend.innerHTML = '';
+    dominanceMapHitPoints = [];
     return;
   }
 
@@ -2138,13 +2226,14 @@ function renderMiniSectorMap() {
     ? spatialReferenceTelemetry()
     : null;
   const reference = spatial?.samples || telemetryCache.get(telemetryKey(loaded[0]));
-  const allSeries = loaded.map(lap => telemetryCache.get(telemetryKey(lap)));
+  const allSeries = mapEntries.map(({ lap }) => telemetryCache.get(telemetryKey(lap)));
   const trackSamples = reference?.filter(point => point.X != null && point.Y != null && Number.isFinite(+point.X) && Number.isFinite(+point.Y)) || [];
   if (!reference?.length || !allSeries.every(series => series?.length) || trackSamples.length < 2) {
     canvas.style.display = 'none';
     empty.style.display = 'block';
     empty.textContent = 'Track-position telemetry is unavailable for this comparison.';
     legend.innerHTML = '';
+    dominanceMapHitPoints = [];
     return;
   }
 
@@ -2158,48 +2247,107 @@ function renderMiniSectorMap() {
     empty.textContent = 'Track map could not be sized. Resize the page and try again.';
     return;
   }
-  // Keep the vector map crisp at Windows fractional scaling and browser zoom.
-  const dpr = Math.min(3, Math.max(2, window.devicePixelRatio || 1));
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
+  // Render the vector map above display density so it stays sharp at Windows
+  // fractional scaling, browser zoom and high-density mobile screens.
+  const dpr = Math.min(4, Math.max(3, (window.devicePixelRatio || 1) * 1.5));
+  const backingWidth = Math.round(rect.width * dpr);
+  const backingHeight = Math.round(rect.height * dpr);
+  if (canvas.width !== backingWidth || canvas.height !== backingHeight) {
+    canvas.width = backingWidth;
+    canvas.height = backingHeight;
+  }
   const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
   ctx.lineJoin = 'round';
   ctx.clearRect(0, 0, rect.width, rect.height);
   const theme = canvasTheme();
 
-  // FastF1 supplies the rotation that matches the official circuit-map
-  // orientation. Apply that same transform to geometry, markers and compass.
-  const mapRotation = circuitRotation * Math.PI / 180;
-  const rotateMapPoint = (x, y) => ({
-    x: x * Math.cos(mapRotation) + y * Math.sin(mapRotation),
-    y: -x * Math.sin(mapRotation) + y * Math.cos(mapRotation),
-  });
-  const rotatedTrackSamples = trackSamples.map(point => rotateMapPoint(+point.X, +point.Y));
-  const minX = Math.min(...rotatedTrackSamples.map(point => point.x));
-  const maxX = Math.max(...rotatedTrackSamples.map(point => point.x));
-  const minY = Math.min(...rotatedTrackSamples.map(point => point.y));
-  const maxY = Math.max(...rotatedTrackSamples.map(point => point.y));
-  const padding = 28;
-  const scale = Math.min((rect.width - padding * 2) / (maxX - minX || 1), (rect.height - padding * 2) / (maxY - minY || 1));
-  const offsetX = (rect.width - (maxX - minX) * scale) / 2;
-  const offsetY = (rect.height - (maxY - minY) * scale) / 2;
-  const toCanvas = (x, y) => {
-    const rotated = rotateMapPoint(x, y);
-    return { x: offsetX + (rotated.x - minX) * scale, y: rect.height - offsetY - (rotated.y - minY) * scale };
-  };
+  // OpenF1/FastF1 position axes are used north-up here. CircuitInfo.rotation is
+  // a presentation rotation, not a compass bearing, so applying it made the
+  // old compass rotate with the artwork. Build one gently regularised geometry
+  // for the map, corner markers and hover hit-testing instead.
   const totalDistance = referenceDistance();
+  const geometryKey = `${telemetryKey(loaded[0])}:${reference.length}:${rect.width.toFixed(2)}:${rect.height.toFixed(2)}:${totalDistance.toFixed(1)}`;
+  let geometrySteps;
+  let canvasGeometry;
+  if (dominanceMapGeometryCache?.key === geometryKey) {
+    ({ geometrySteps, canvasGeometry } = dominanceMapGeometryCache);
+  } else {
+    geometrySteps = Math.max(1600, Math.min(4200, Math.ceil(totalDistance / 1.8)));
+    const sourceDistance = +reference[reference.length - 1]?.Distance || totalDistance;
+    const spatialControls = trackSamples.map(point => ({
+      fraction: Number.isFinite(point.AlignedFraction)
+        ? point.AlignedFraction
+        : (+point.Distance || 0) / sourceDistance,
+      x: +point.X,
+      y: +point.Y,
+    })).sort((a, b) => a.fraction - b.fraction);
+    let spatialCursor = 1;
+    let mapGeometry = Array.from({ length: geometrySteps }, (_, index) => {
+      const fraction = index / geometrySteps;
+      while (spatialCursor < spatialControls.length - 1 && spatialControls[spatialCursor].fraction < fraction) {
+        spatialCursor++;
+      }
+      const before = spatialControls[Math.max(0, spatialCursor - 1)];
+      const after = spatialControls[Math.min(spatialControls.length - 1, spatialCursor)];
+      const ratio = Math.max(0, Math.min(1,
+        (fraction - before.fraction) / (after.fraction - before.fraction || 1)
+      ));
+      return {
+        fraction,
+        x: before.x + (after.x - before.x) * ratio,
+        y: before.y + (after.y - before.y) * ratio,
+      };
+    });
+
+    const smoothClosedGeometry = points => points.map((point, index) => {
+      const weights = [1, 2, 3, 4, 3, 2, 1];
+      let x = 0, y = 0, total = 0;
+      weights.forEach((weight, offset) => {
+        const wrapped = (index + offset - 3 + points.length) % points.length;
+        x += points[wrapped].x * weight;
+        y += points[wrapped].y * weight;
+        total += weight;
+      });
+      return { ...point, x: x / total, y: y / total };
+    });
+    mapGeometry = smoothClosedGeometry(smoothClosedGeometry(mapGeometry));
+
+    const minX = Math.min(...mapGeometry.map(point => point.x));
+    const maxX = Math.max(...mapGeometry.map(point => point.x));
+    const minY = Math.min(...mapGeometry.map(point => point.y));
+    const maxY = Math.max(...mapGeometry.map(point => point.y));
+    const padding = 34;
+    const scale = Math.min((rect.width - padding * 2) / (maxX - minX || 1), (rect.height - padding * 2) / (maxY - minY || 1));
+    const offsetX = (rect.width - (maxX - minX) * scale) / 2;
+    const offsetY = (rect.height - (maxY - minY) * scale) / 2;
+    const toCanvas = (x, y) => ({
+      x: offsetX + (x - minX) * scale,
+      y: rect.height - offsetY - (y - minY) * scale,
+    });
+    canvasGeometry = mapGeometry.map(point => ({ ...point, ...toCanvas(point.x, point.y) }));
+    dominanceMapGeometryCache = { key: geometryKey, geometrySteps, canvasGeometry };
+  }
   const segmentLength = 25;
   const segments = Math.ceil(totalDistance / segmentLength);
 
   const pointAt = fraction => {
-    const distance = totalDistance * fraction;
-    const x = interpolate(reference, distance, 'X');
-    const y = interpolate(reference, distance, 'Y');
-    return Number.isFinite(x) && Number.isFinite(y) ? toCanvas(x, y) : null;
+    const wrapped = Math.max(0, Math.min(1, fraction)) * canvasGeometry.length;
+    const beforeIndex = Math.floor(wrapped) % canvasGeometry.length;
+    const afterIndex = (beforeIndex + 1) % canvasGeometry.length;
+    const ratio = wrapped - Math.floor(wrapped);
+    const before = canvasGeometry[beforeIndex];
+    const after = canvasGeometry[afterIndex];
+    return {
+      x: before.x + (after.x - before.x) * ratio,
+      y: before.y + (after.y - before.y) * ratio,
+    };
   };
+  dominanceMapHitPoints = canvasGeometry
+    .filter((_, index) => index % 2 === 0)
+    .map(point => ({ x: point.x, y: point.y, fraction: point.fraction }));
 
   // Re-sample the circuit by distance instead of drawing the sparse raw X/Y
   // packets.  This keeps long-radius corners smooth without raster scaling.
@@ -2207,7 +2355,6 @@ function renderMiniSectorMap() {
   ctx.lineWidth = 7;
   ctx.lineCap = 'round';
   ctx.beginPath();
-  const geometrySteps = Math.max(1000, Math.min(2800, Math.ceil(totalDistance / 2.5)));
   let geometryStarted = false;
   for (let index = 0; index <= geometrySteps; index++) {
     const pos = pointAt(index / geometrySteps);
@@ -2266,7 +2413,7 @@ function renderMiniSectorMap() {
     });
     if (winner < 0) continue;
     wins.add(winner);
-    ctx.strokeStyle = getDriverColor(loaded[winner].code);
+    ctx.strokeStyle = getDriverColor(mapEntries[winner].lap.code);
     ctx.lineWidth = 5;
     ctx.beginPath();
     ctx.moveTo(from.x, from.y);
@@ -2302,22 +2449,10 @@ function renderMiniSectorMap() {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     markerCorners.forEach(corner => {
-      let x = Number(corner.x), y = Number(corner.y);
-      if (!Number.isFinite(x) || !Number.isFinite(y)) {
-        const markerFrac = corner.fraction;
-        if (Number.isFinite(markerFrac)) {
-          const interpX = interpolate(reference, totalDistance * markerFrac, 'X');
-          const interpY = interpolate(reference, totalDistance * markerFrac, 'Y');
-          if (Number.isFinite(interpX) && Number.isFinite(interpY)) {
-            x = interpX;
-            y = interpY;
-          }
-        }
-      }
-      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-      const point = toCanvas(x, y);
+      const point = pointAt(corner.fraction);
+      if (!point) return;
       const angle = Number(corner.angle);
-      const displayAngle = Number.isFinite(angle) ? angle - circuitRotation : NaN;
+      const displayAngle = Number.isFinite(angle) ? angle : NaN;
       const offsetX = Number.isFinite(displayAngle) ? Math.cos(displayAngle * Math.PI / 180) * 11 : 0;
       const offsetY = Number.isFinite(displayAngle) ? -Math.sin(displayAngle * Math.PI / 180) * 11 : -11;
       ctx.lineWidth = 3;
@@ -2334,7 +2469,7 @@ function renderMiniSectorMap() {
   if (hoverFraction !== null) {
     const hPoint = pointAt(hoverFraction);
     if (hPoint) {
-      const refColor = getDriverColor(loaded[0].code);
+      const refColor = getDriverColor(mapEntries[0].lap.code);
       ctx.fillStyle = hexToRgba(refColor, 0.35);
       ctx.beginPath();
       ctx.arc(hPoint.x, hPoint.y, 10, 0, 2 * Math.PI);
@@ -2350,12 +2485,13 @@ function renderMiniSectorMap() {
     }
   }
 
-  // Compass follows the same rotation as the official map. WindDirection is
-  // meteorological (the direction wind comes from), so state that explicitly.
-  const compassCentre = { x: 35, y: 36 };
-  const compassRadius = 15;
+  // The compass is fixed in the conventional screen orientation and the map
+  // remains north-up: N top, E right, S bottom, W left. WindDirection is
+  // meteorological, so its arrow travels from the reported bearing.
+  const compassCentre = { x: 38, y: 38 };
+  const compassRadius = 16;
   const cardinalVectors = {
-    N: { x: 0, y: 1 }, E: { x: 1, y: 0 }, S: { x: 0, y: -1 }, W: { x: -1, y: 0 },
+    N: { x: 0, y: -1 }, E: { x: 1, y: 0 }, S: { x: 0, y: 1 }, W: { x: -1, y: 0 },
   };
   ctx.save();
   ctx.font = '7px monospace';
@@ -2365,13 +2501,12 @@ function renderMiniSectorMap() {
   ctx.fillStyle = theme.panel;
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.arc(compassCentre.x, compassCentre.y, 22, 0, Math.PI * 2);
+  ctx.arc(compassCentre.x, compassCentre.y, 24, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
   Object.entries(cardinalVectors).forEach(([label, vector]) => {
-    const rotated = rotateMapPoint(vector.x, vector.y);
-    const dx = rotated.x * compassRadius;
-    const dy = -rotated.y * compassRadius;
+    const dx = vector.x * compassRadius;
+    const dy = vector.y * compassRadius;
     ctx.beginPath();
     ctx.moveTo(compassCentre.x, compassCentre.y);
     ctx.lineTo(compassCentre.x + dx, compassCentre.y + dy);
@@ -2386,6 +2521,26 @@ function renderMiniSectorMap() {
   if (Number.isFinite(windDegrees)) {
     const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
     const windLabel = directions[Math.round((((windDegrees % 360) + 360) % 360) / 45) % directions.length];
+    const radians = (((windDegrees % 360) + 360) % 360) * Math.PI / 180;
+    const fromVector = { x: Math.sin(radians), y: -Math.cos(radians) };
+    const start = { x: compassCentre.x + fromVector.x * 12, y: compassCentre.y + fromVector.y * 12 };
+    const end = { x: compassCentre.x - fromVector.x * 8, y: compassCentre.y - fromVector.y * 8 };
+    const direction = { x: end.x - start.x, y: end.y - start.y };
+    const length = Math.hypot(direction.x, direction.y) || 1;
+    const ux = direction.x / length, uy = direction.y / length;
+    ctx.strokeStyle = '#eaff18';
+    ctx.fillStyle = '#eaff18';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(end.x, end.y);
+    ctx.lineTo(end.x - ux * 5 + uy * 3, end.y - uy * 5 - ux * 3);
+    ctx.lineTo(end.x - ux * 5 - uy * 3, end.y - uy * 5 + ux * 3);
+    ctx.closePath();
+    ctx.fill();
     ctx.textAlign = 'left';
     ctx.fillStyle = theme.textStrong;
     ctx.font = '7px monospace';
@@ -2395,7 +2550,7 @@ function renderMiniSectorMap() {
 
   empty.style.display = 'none';
   legend.innerHTML = [...wins].map(index => {
-    const lap = loaded[index];
+    const lap = mapEntries[index].lap;
     return `<span class="legend-item"><i class="legend-color" style="--team:${getDriverColor(lap.code)}"></i>${lap.code} L${lap.lap}</span>`;
   }).join('');
 }
@@ -2443,22 +2598,6 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#gp').addEventListener('change', populateSessions);
   $('#loadSession').onclick = loadRealSession;
   
-  $('#cornerToggle').addEventListener('change', event => {
-    $('#cornerStatus').textContent = event.target.checked
-      ? 'Corner labels and adaptive analysis active.'
-      : 'Corner labels and analysis hidden.';
-    if (loaded.length) {
-      drawAll();
-    }
-  });
-
-  $('#interpolationToggle').addEventListener('change', event => {
-    const enhanced = event.target.checked;
-    $('#traceModeStatus').textContent = enhanced ? 'SMOOTHED' : 'ACCURATE';
-    $('#traceModeStatus').dataset.mode = enhanced ? 'enhanced' : 'accurate';
-    if (loaded.length) drawAll();
-  });
-
   const themeToggle = $('#themeToggle');
   if (themeToggle) {
     themeToggle.addEventListener('click', () => {
