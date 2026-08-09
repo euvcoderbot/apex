@@ -404,7 +404,7 @@ async function loadRealSession() {
     
     realDrivers = new Map(payload.drivers.map(driver => [driver.code, driver]));
     drivers.splice(0, drivers.length, ...payload.drivers.map(driver => [
-      driver.code, driver.number, driver.name, driver.team_color, driver.team
+      driver.code, driver.number, driver.name, driver.team_color, driver.team, driver.position
     ]));
     corners = payload.corners || [];
     circuitRotation = Number.isFinite(Number(payload.circuit_rotation))
@@ -476,8 +476,9 @@ function renderDrivers() {
     const number = d[1];
     const color = d[3];
     const isSelected = selected.includes(code);
+    const position = Number.isFinite(+d[5]) && +d[5] > 0 ? +d[5] : index + 1;
 
-    return `<button class="pill driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-code="${code}"><span class="driver-pill-position">P${index + 1}</span><span class="driver-pill-identity"><span class="driver-pill-number">#${number}</span><strong>${code}</strong></span></button>`;
+    return `<button class="pill driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-code="${code}"><span class="driver-pill-position">P${position}</span><span class="driver-pill-identity"><span class="driver-pill-number">#${number}</span><strong>${code}</strong></span></button>`;
   }).join('');
   
   root.querySelectorAll('button').forEach(btn => {

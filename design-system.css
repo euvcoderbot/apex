@@ -3284,7 +3284,20 @@ button#loadSession.is-loading::before {
 }
 
 .loaded-lap-pill .remove {
-  padding: 0 0 0 2px;
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin: -2px -2px -2px 1px;
+  padding: 0;
+  border-radius: 4px;
+  font-size: 17px;
+  font-style: normal;
+  line-height: 1;
+}
+
+.loaded-lap-pill .remove:hover {
+  background: color-mix(in srgb, var(--red) 12%, transparent);
 }
 
 /* Selected-corner result colors ----------------------------------------- */

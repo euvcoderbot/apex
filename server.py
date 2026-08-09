@@ -29,7 +29,7 @@ fastf1.Cache.enable_cache(str(CACHE))
 PREPARED_CACHE = ROOT / ".apex-cache"
 PREPARED_CACHE.mkdir(exist_ok=True)
 PREPARED_CACHE_VERSION = "v3"
-SESSION_CACHE_SCHEMA = "map-orientation-v1"
+SESSION_CACHE_SCHEMA = "official-classification-v2"
 
 app = FastAPI(title="APEX DATA API")
 app.add_middleware(GZipMiddleware, minimum_size=900, compresslevel=5)
@@ -530,6 +530,17 @@ def get_fastest_lap_time(driver_obj: dict[str, Any]) -> float:
     return min(valid_times) if valid_times else float("inf")
 
 
+def sort_session_drivers(drivers: list[dict[str, Any]]) -> None:
+    """Prefer the provider's official classification over inferred pace."""
+    def classification_key(driver: dict[str, Any]) -> tuple[int, float, float]:
+        position = integer(driver.get("position"), 0)
+        if position > 0:
+            return (0, float(position), get_fastest_lap_time(driver))
+        return (1, get_fastest_lap_time(driver), float("inf"))
+
+    drivers.sort(key=classification_key)
+
+
 @lru_cache(maxsize=32)
 def get_fallback_circuit_corners(gp: str, session_name: str) -> list[dict[str, Any]]:
     for fallback_year in (2025, 2024):
@@ -628,10 +639,11 @@ def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[
             return []
         session_key = matching_session["session_key"]
 
-        with ThreadPoolExecutor(max_workers=3, thread_name_prefix="openf1-session") as pool:
+        with ThreadPoolExecutor(max_workers=4, thread_name_prefix="openf1-session") as pool:
             drivers_future = pool.submit(openf1, "drivers", session_key=session_key)
             laps_future = pool.submit(openf1, "laps", session_key=session_key)
             stints_future = pool.submit(openf1, "stints", session_key=session_key)
+            results_future = pool.submit(openf1, "session_result", session_key=session_key)
             drivers_raw = drivers_future.result()
             laps_raw = laps_future.result()
             try:
@@ -639,6 +651,11 @@ def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[
             except Exception as stints_err:
                 logger.warning("OpenF1 stints fetch failed: %s", stints_err)
                 stints_raw = []
+            try:
+                results_raw = results_future.result()
+            except Exception as results_err:
+                logger.warning("OpenF1 session-result fetch failed: %s", results_err)
+                results_raw = []
         # Weather is optional context. Fetch it only after the required timing
         # calls finish so a free-tier rate limit cannot starve drivers or laps.
         try:
@@ -738,6 +755,13 @@ def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[
                 )
                 lap_info.pop("_date_start", None)
                 
+        result_positions = {
+            integer(item.get("driver_number"), -1): integer(item.get("position"), 0)
+            for item in results_raw
+            if integer(item.get("driver_number"), -1) >= 0
+            and integer(item.get("position"), 0) > 0
+        }
+
         result = []
         for d in drivers_raw:
             d_num = d.get("driver_number")
@@ -754,9 +778,10 @@ def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[
                     "name": full_name,
                     "team": team_name,
                     "team_color": team_color,
+                    "position": result_positions.get(integer(d_num, -1)),
                     "laps": laps,
                 })
-        result.sort(key=get_fastest_lap_time)
+        sort_session_drivers(result)
         return result
     except Exception as exc:
         logger.warning("OpenF1 session fallback failed: %s", exc)
@@ -854,6 +879,7 @@ def session_data(
                 "name": str(info.get("FullName", info.get("BroadcastName", code))),
                 "team": str(info.get("TeamName", "")),
                 "team_color": "#" + str(info.get("TeamColor", "777777")).lstrip("#"),
+                "position": integer(info.get("Position"), 0) or None,
                 "laps": laps_list,
             })
         except Exception as driver_err:
@@ -867,7 +893,7 @@ def session_data(
         if of1_drivers:
             drivers = of1_drivers
 
-    drivers.sort(key=get_fastest_lap_time)
+    sort_session_drivers(drivers)
 
     corners = []
     circuit_rotation = 0.0
