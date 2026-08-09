@@ -3965,9 +3965,28 @@ main,
 
 .summary-condition {
   display: grid;
-  gap: 1px;
+  grid-template-columns: 17px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
   min-width: 0;
   padding: 5px 7px 6px;
+}
+
+.summary-condition > i {
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  font-family: "Segoe UI Emoji", sans-serif;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1;
+}
+
+.summary-condition > span {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
 }
 
 .summary-condition + .summary-condition {
@@ -4894,6 +4913,8 @@ main,
 }
 
 .trace-setting > i {
+  position: relative;
+  flex: 0 0 auto;
   width: 12px;
   height: 12px;
   border: 1px solid var(--border-color-hover);
@@ -4906,6 +4927,18 @@ main,
   border-color: var(--neon-accent);
   background: var(--neon-accent);
   box-shadow: inset 0 0 0 2px #0b0d10, 0 0 8px color-mix(in srgb, var(--neon-accent) 30%, transparent);
+}
+
+.trace-setting input:checked + i::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 1px;
+  width: 3px;
+  height: 6px;
+  border-right: 1.5px solid #090b0e;
+  border-bottom: 1.5px solid #090b0e;
+  transform: rotate(45deg);
 }
 
 .trace-setting:has(input:focus-visible) {
@@ -5025,6 +5058,25 @@ main,
   image-rendering: auto;
 }
 
+.dominance-map {
+  position: relative;
+}
+
+.dominance-map-header {
+  min-height: 18px;
+  align-items: center;
+}
+
+#dominanceEmpty {
+  position: absolute;
+  z-index: 2;
+  inset: 44px 14px 14px;
+  place-items: center;
+  padding: 20px;
+  text-align: center;
+  pointer-events: none;
+}
+
 :root[data-theme="light"] .trace-zoom-cluster,
 :root[data-theme="light"] .trace-settings,
 :root[data-theme="light"] .trace-display-bar {
@@ -5037,7 +5089,7 @@ main,
 }
 
 :root[data-theme="light"] .trace-setting input:checked + i {
-  box-shadow: inset 0 0 0 2px #fff, 0 0 7px color-mix(in srgb, var(--neon-accent) 24%, transparent);
+  box-shadow: 0 0 7px color-mix(in srgb, var(--neon-accent) 24%, transparent);
 }
 
 :root[data-theme="light"] .trace-driver-chip {

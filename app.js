@@ -839,8 +839,8 @@ function renderSectors() {
     const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
     return directions[Math.round(((degrees % 360) + 360) % 360 / 45) % directions.length];
   };
-  const conditionCell = (label, value) => `
-    <span class="summary-condition"><small>${label}</small><strong>${value}</strong></span>`;
+  const conditionCell = (icon, label, value) => `
+    <span class="summary-condition"><i aria-hidden="true">${icon}</i><span><small>${label}</small><strong>${value}</strong></span></span>`;
   
   const root = $('#sectorRows');
   root.innerHTML = loaded.map((item, i) => {
@@ -856,10 +856,10 @@ function renderSectors() {
     const conditions = lap.conditions || {};
     const direction = windCardinal(conditions.wind_direction);
     const conditionValues = [
-      conditionCell('AIR', Number.isFinite(conditions.air_temperature) ? `${conditions.air_temperature.toFixed(1)}°C` : '—'),
-      conditionCell('TRACK', Number.isFinite(conditions.track_temperature) ? `${conditions.track_temperature.toFixed(1)}°C` : '—'),
-      conditionCell('WIND', Number.isFinite(conditions.wind_speed) ? `${conditions.wind_speed.toFixed(1)} m/s${direction ? ` ${direction}` : ''}` : '—'),
-      conditionCell('RAIN', conditions.rainfall === null || conditions.rainfall === undefined ? '—' : (conditions.rainfall ? 'YES' : 'NO')),
+      conditionCell('🌤️', 'AIR', Number.isFinite(conditions.air_temperature) ? `${conditions.air_temperature.toFixed(1)}°C` : '—'),
+      conditionCell('🌡️', 'TRACK', Number.isFinite(conditions.track_temperature) ? `${conditions.track_temperature.toFixed(1)}°C` : '—'),
+      conditionCell('🚩', 'WIND', Number.isFinite(conditions.wind_speed) ? `${conditions.wind_speed.toFixed(1)} m/s${direction ? ` ${direction}` : ''}` : '—'),
+      conditionCell('🌧️', 'RAIN', conditions.rainfall === null || conditions.rainfall === undefined ? '—' : (conditions.rainfall ? 'YES' : 'NO')),
     ];
     const conditionsHtml = `<div class="summary-conditions">${conditionValues.join('')}</div>`;
     const compound = getCompoundCode(lap.compound || 'UNKNOWN', nominatedCompounds);
@@ -1029,9 +1029,23 @@ function renderTraceVisibilityControls() {
       const key = event.target.dataset.traceKey;
       if (event.target.checked) hiddenTraceKeys.delete(key);
       else if (visibleTraceLaps().length > 1) hiddenTraceKeys.add(key);
-      renderTraceVisibilityControls();
+      syncTraceVisibilityControls();
       drawAll();
     });
+  });
+}
+
+function syncTraceVisibilityControls() {
+  const root = $('#traceDriverToggles');
+  if (!root) return;
+  const visibleCount = visibleTraceLaps().length;
+  root.querySelectorAll('input[data-trace-key]').forEach(input => {
+    const visible = !hiddenTraceKeys.has(input.dataset.traceKey);
+    const chip = input.closest('.trace-driver-chip');
+    input.checked = visible;
+    input.disabled = visible && visibleCount === 1;
+    chip?.classList.toggle('is-visible', visible);
+    if (chip) chip.title = `${visible ? 'Hide' : 'Show'} ${chip.querySelector('b')?.textContent || ''} trace`;
   });
 }
 
@@ -1085,7 +1099,7 @@ function renderCharts() {
       ${name === 'Speed trace' ? `
         <div class="speed-chart-controls">
           <div class="trace-settings" aria-label="Telemetry display settings">
-            <div class="alignment-readout"><i></i><span id="alignmentStatus" data-state="idle">Awaiting lap selection</span></div>
+            <div class="alignment-readout"><i></i><span id="alignmentStatus" data-state="idle">Speed trace controls</span></div>
             <label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label>
             <label class="trace-setting trace-mode-toggle" title="Unchecked preserves measured samples. Checked enables bounded, gap-aware interpolation."><input type="checkbox" id="interpolationToggle" ${enhancedTraceMode ? 'checked' : ''}><i aria-hidden="true"></i><span>Enhanced interpolation</span><small id="traceModeStatus" data-mode="${enhancedTraceMode ? 'enhanced' : 'accurate'}">${enhancedTraceMode ? 'SMOOTHED' : 'ACCURATE'}</small></label>
             <label class="trace-setting"><input type="checkbox" id="tintToggle" ${traceTintEnabled ? 'checked' : ''}><i aria-hidden="true"></i><span>Trace tint</span></label>
@@ -2206,6 +2220,17 @@ function renderApexSpeeds() {
   }).join('');
 }
 
+function clearDominanceMapCanvas(canvas) {
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const dpr = Math.min(4, Math.max(2, window.devicePixelRatio || 1));
+  canvas.width = Math.round(rect.width * dpr);
+  canvas.height = Math.round(rect.height * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, rect.width, rect.height);
+}
+
 function renderMiniSectorMap() {
   const canvas = $('#dominanceCanvas');
   const empty = $('#dominanceEmpty');
@@ -2214,8 +2239,9 @@ function renderMiniSectorMap() {
 
   const mapEntries = visibleTraceLaps();
   if (mapEntries.length < 2) {
-    canvas.style.display = 'none';
-    empty.style.display = 'block';
+    clearDominanceMapCanvas(canvas);
+    canvas.style.display = 'block';
+    empty.style.display = 'grid';
     empty.textContent = 'Show at least two traces to compare mini-sector dominance.';
     legend.innerHTML = '';
     dominanceMapHitPoints = [];
@@ -2229,8 +2255,9 @@ function renderMiniSectorMap() {
   const allSeries = mapEntries.map(({ lap }) => telemetryCache.get(telemetryKey(lap)));
   const trackSamples = reference?.filter(point => point.X != null && point.Y != null && Number.isFinite(+point.X) && Number.isFinite(+point.Y)) || [];
   if (!reference?.length || !allSeries.every(series => series?.length) || trackSamples.length < 2) {
-    canvas.style.display = 'none';
-    empty.style.display = 'block';
+    clearDominanceMapCanvas(canvas);
+    canvas.style.display = 'block';
+    empty.style.display = 'grid';
     empty.textContent = 'Track-position telemetry is unavailable for this comparison.';
     legend.innerHTML = '';
     dominanceMapHitPoints = [];

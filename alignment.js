@@ -594,6 +594,32 @@ function significantTelemetryAnchors(points, threshold, radius = 4) {
   return anchors;
 }
 
+function regularizeMonotonicTelemetry(values, increasing) {
+  let fitted = monotonicTelemetryFit(values, increasing);
+  // A short symmetric filter removes the flat-edged steps produced by
+  // isotonic regression. Re-applying the monotonic constraint after each pass
+  // guarantees that acceleration cannot acquire a false speed dip (and a
+  // braking phase cannot acquire a false rise).
+  for (let pass = 0; pass < 2; pass++) {
+    const filtered = fitted.map((value, index) => {
+      if (index === 0 || index === fitted.length - 1) return value;
+      let weighted = 0;
+      let totalWeight = 0;
+      for (let offset = -2; offset <= 2; offset++) {
+        const sampleIndex = Math.max(0, Math.min(fitted.length - 1, index + offset));
+        const weight = 3 - Math.abs(offset);
+        weighted += fitted[sampleIndex] * weight;
+        totalWeight += weight;
+      }
+      return weighted / totalWeight;
+    });
+    filtered[0] = values[0];
+    filtered[filtered.length - 1] = values[values.length - 1];
+    fitted = monotonicTelemetryFit(filtered, increasing);
+  }
+  return fitted;
+}
+
 function nearestTelemetryPoint(points, fraction) {
   let best = 0;
   let error = Infinity;
@@ -607,21 +633,45 @@ function nearestTelemetryPoint(points, fraction) {
   return best;
 }
 
-// Enhanced speed is a monotonic reconstruction between real landmarks. Raw
-// peaks/troughs, gap edges and gear changes are pinned exactly; only the noisy
-// acceleration and deceleration samples between them are regularised.
+function addControlInformedSpeedAnchors(anchors, points, samples) {
+  if (!samples?.length || points.length < 7) return;
+  const candidates = significantTelemetryAnchors(points, 3.5, 4);
+  const controlSpan = 0.009; // roughly 35–50 m on a typical circuit
+  candidates.forEach(index => {
+    if (index <= 0 || index >= points.length - 1 || anchors.has(index)) return;
+    const point = points[index];
+    const beforeThrottle = telemetryNumber(alignedValue(samples, clampTelemetry(point.x - controlSpan), 'Throttle'));
+    const atThrottle = telemetryNumber(alignedValue(samples, point.x, 'Throttle'));
+    const afterThrottle = telemetryNumber(alignedValue(samples, clampTelemetry(point.x + controlSpan), 'Throttle'));
+    const beforeBrake = telemetryNumber(alignedValue(samples, clampTelemetry(point.x - controlSpan), 'Brake')) || 0;
+    const atBrake = telemetryNumber(alignedValue(samples, point.x, 'Brake')) || 0;
+    const afterBrake = telemetryNumber(alignedValue(samples, clampTelemetry(point.x + controlSpan), 'Brake')) || 0;
+    const left = points[Math.max(0, index - 2)].y;
+    const right = points[Math.min(points.length - 1, index + 2)].y;
+    const isPeak = point.y >= left && point.y >= right;
+    const isTrough = point.y <= left && point.y <= right;
+    const throttleLift = Number.isFinite(beforeThrottle) && Number.isFinite(atThrottle)
+      && beforeThrottle - Math.min(atThrottle, afterThrottle ?? atThrottle) >= 8;
+    const throttleRecovery = Number.isFinite(atThrottle) && Number.isFinite(afterThrottle)
+      && afterThrottle - Math.min(beforeThrottle ?? atThrottle, atThrottle) >= 8;
+    const brakeOnset = Math.max(atBrake, afterBrake) > 0 && beforeBrake <= 0;
+    const brakingIntoCorner = Math.max(beforeBrake, atBrake) > 0;
+    if ((isPeak && (brakeOnset || throttleLift))
+        || (isTrough && (brakingIntoCorner || throttleRecovery))) {
+      anchors.add(index);
+    }
+  });
+}
+
+// Enhanced speed is a monotonic reconstruction between real landmarks. Only
+// prominent corner extrema and gap edges are pinned. A gear change can alter
+// acceleration, but cannot physically reverse road speed, so gear samples are
+// deliberately not used as extrema anchors.
 function smoothEnhancedSpeed(points, samples = []) {
   if (points.length < 7) return points;
-  const anchors = significantTelemetryAnchors(points, 3.5, 5);
-  for (let index = 1; index < samples.length; index++) {
-    if (+samples[index].nGear !== +samples[index - 1].nGear) {
-      const fraction = Number.isFinite(samples[index].AlignedFraction)
-        ? samples[index].AlignedFraction : rawFractionAt(samples, samples[index]);
-      const pointIndex = nearestTelemetryPoint(points, fraction);
-      anchors.add(Math.max(0, pointIndex - 1));
-      anchors.add(pointIndex);
-    }
-  }
+  const landmarkRadius = Math.max(6, Math.min(12, Math.round(points.length / 48)));
+  const anchors = significantTelemetryAnchors(points, 8, landmarkRadius);
+  addControlInformedSpeedAnchors(anchors, points, samples);
   for (let index = 1; index < points.length; index++) {
     if (Boolean(points[index].reconstructed) !== Boolean(points[index - 1].reconstructed)) {
       anchors.add(index - 1);
@@ -638,7 +688,7 @@ function smoothEnhancedSpeed(points, samples = []) {
     const edge = Math.min(3, Math.floor(values.length / 3));
     const startMean = values.slice(0, edge).reduce((sum, value) => sum + value, 0) / edge;
     const endMean = values.slice(-edge).reduce((sum, value) => sum + value, 0) / edge;
-    const fitted = monotonicTelemetryFit(values, endMean >= startMean);
+    const fitted = regularizeMonotonicTelemetry(values, endMean >= startMean);
     fitted.forEach((value, offset) => { result[start + offset].y = value; });
   }
   return result;
@@ -1138,26 +1188,20 @@ function updateAlignmentStatus() {
   const status = $('#alignmentStatus');
   if (!status) return;
   if (!loaded.length) {
-    status.textContent = 'Awaiting lap selection';
+    status.textContent = 'Speed trace controls';
+    status.title = 'Speed trace controls';
     status.dataset.state = 'idle';
     return;
   }
   const series = loaded.map(lap => telemetryCache.get(telemetryKey(lap))).filter(Boolean);
   if (series.length !== loaded.length) {
-    status.textContent = 'Preparing telemetry';
+    status.textContent = 'Speed trace controls';
+    status.title = 'Speed trace controls';
     status.dataset.state = 'loading';
     return;
   }
-  const methods = new Set(series.map(samples => samples.alignmentMethod));
-  const sources = [...new Set(series.map(samples => samples.source).filter(Boolean))];
-  const heldChannels = series.some(samples => (samples.quality?.repeatSpeedRatio || 0) >= 0.35);
-  const method = methods.size === 1 && methods.has('reference')
-    ? 'Reference distance'
-    : [...methods].some(value => value.startsWith('position'))
-      ? 'GPS + distance aligned'
-      : 'Sector-distance aligned';
-  const sourceLabel = sources.length ? ` · ${sources.join(' / ')}` : '';
-  status.textContent = `${method}${sourceLabel}${heldChannels ? ' · shape-preserving trace' : ''}`;
+  status.textContent = 'Speed trace controls';
+  status.title = 'Speed trace controls';
   status.dataset.state = 'ready';
 }
 
