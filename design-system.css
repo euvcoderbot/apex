@@ -5164,3 +5164,82 @@ main,
     height: 270px;
   }
 }
+
+/* Final session-control proportions and condition-cell alignment ---------- */
+.select-shell:has(#gp) .select-menu {
+  width: max-content;
+  min-width: 100%;
+  max-width: min(430px, calc(100vw - 28px));
+}
+
+.select-shell:has(#gp) .select-menu button {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lap-summary-card .summary-conditions {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  background: rgba(255, 255, 255, .024);
+}
+
+.lap-summary-card .summary-condition {
+  grid-template-columns: 14px minmax(0, 1fr);
+  align-content: center;
+  align-items: center;
+  justify-content: start;
+  justify-items: start;
+  gap: 5px;
+  padding: 5px 7px 6px;
+  text-align: left;
+}
+
+.lap-summary-card .summary-condition > i {
+  justify-self: start;
+  width: 14px;
+  height: 16px;
+  font-size: 11px;
+}
+
+.lap-summary-card .summary-condition > span {
+  width: 100%;
+  justify-items: start;
+  text-align: left;
+}
+
+.lap-summary-card .summary-condition small,
+.lap-summary-card .summary-condition strong {
+  display: block;
+  width: 100%;
+  justify-self: start;
+  text-align: left;
+}
+
+:root[data-theme="light"] .lap-summary-card .summary-conditions {
+  background: rgba(18, 24, 32, .026);
+}
+
+:root[data-theme="light"] .lap-summary-card .summary-condition + .summary-condition {
+  border-left-color: rgba(18, 24, 32, .11);
+}
+
+@media (min-width: 1181px) {
+  .sidebar .control-field:has(#year) .select-shell {
+    width: 124px;
+    justify-self: start;
+  }
+
+  .sidebar .control-field:has(#gp) .select-shell {
+    width: 100%;
+  }
+}
+
+@media (min-width: 760px) and (max-width: 1180px) {
+  .sidebar .session-controls {
+    grid-template-columns:
+      minmax(110px, .55fr)
+      minmax(280px, 1.45fr)
+      minmax(165px, .8fr)
+      minmax(145px, .7fr);
+  }
+}

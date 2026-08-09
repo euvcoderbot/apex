@@ -594,30 +594,48 @@ function significantTelemetryAnchors(points, threshold, radius = 4) {
   return anchors;
 }
 
-function regularizeMonotonicTelemetry(values, increasing) {
-  let fitted = monotonicTelemetryFit(values, increasing);
-  // A short symmetric filter removes the flat-edged steps produced by
-  // isotonic regression. Re-applying the monotonic constraint after each pass
-  // guarantees that acceleration cannot acquire a false speed dip (and a
-  // braking phase cannot acquire a false rise).
-  for (let pass = 0; pass < 2; pass++) {
-    const filtered = fitted.map((value, index) => {
-      if (index === 0 || index === fitted.length - 1) return value;
+function regularizeSpeedEnergy(points, values, increasing, passes = 1, radius = 2) {
+  if (values.length < 4) return [...values];
+  const fitted = monotonicTelemetryFit(values, increasing);
+  const energy = fitted.map(value => value * value);
+  const widths = [];
+  let slopes = [];
+  for (let index = 0; index < points.length - 1; index++) {
+    const width = Math.max(1e-7, points[index + 1].x - points[index].x);
+    widths.push(width);
+    slopes.push((energy[index + 1] - energy[index]) / width);
+  }
+
+  for (let pass = 0; pass < passes; pass++) {
+    slopes = slopes.map((slope, index, source) => {
       let weighted = 0;
       let totalWeight = 0;
-      for (let offset = -2; offset <= 2; offset++) {
-        const sampleIndex = Math.max(0, Math.min(fitted.length - 1, index + offset));
-        const weight = 3 - Math.abs(offset);
-        weighted += fitted[sampleIndex] * weight;
+      for (let offset = -radius; offset <= radius; offset++) {
+        const sampleIndex = Math.max(0, Math.min(source.length - 1, index + offset));
+        const weight = radius + 1 - Math.abs(offset);
+        weighted += source[sampleIndex] * weight;
         totalWeight += weight;
       }
-      return weighted / totalWeight;
+      const value = weighted / totalWeight;
+      return increasing ? Math.max(0, value) : Math.min(0, value);
     });
-    filtered[0] = values[0];
-    filtered[filtered.length - 1] = values[values.length - 1];
-    fitted = monotonicTelemetryFit(filtered, increasing);
   }
-  return fitted;
+
+  const targetDelta = energy[energy.length - 1] - energy[0];
+  const smoothedDelta = slopes.reduce((sum, slope, index) => sum + slope * widths[index], 0);
+  if (!Number.isFinite(smoothedDelta) || Math.abs(smoothedDelta) < 1e-8
+      || Math.sign(smoothedDelta) !== Math.sign(targetDelta)) {
+    return fitted;
+  }
+  const scale = targetDelta / smoothedDelta;
+  const rebuilt = [energy[0]];
+  slopes.forEach((slope, index) => {
+    rebuilt.push(rebuilt[rebuilt.length - 1] + slope * scale * widths[index]);
+  });
+  const result = rebuilt.map(value => Math.sqrt(Math.max(0, value)));
+  result[0] = values[0];
+  result[result.length - 1] = values[values.length - 1];
+  return result;
 }
 
 function nearestTelemetryPoint(points, fraction) {
@@ -663,15 +681,32 @@ function addControlInformedSpeedAnchors(anchors, points, samples) {
   });
 }
 
-// Enhanced speed is a monotonic reconstruction between real landmarks. Only
-// prominent corner extrema and gap edges are pinned. A gear change can alter
-// acceleration, but cannot physically reverse road speed, so gear samples are
-// deliberately not used as extrema anchors.
+function speedControlState(samples, fraction) {
+  const throttle = telemetryNumber(alignedValue(samples, fraction, 'Throttle'));
+  const brake = telemetryNumber(alignedValue(samples, fraction, 'Brake')) || 0;
+  if (brake > 0) return 'brake';
+  if (Number.isFinite(throttle) && throttle >= 97) return 'full';
+  return 'partial';
+}
+
+// Enhanced speed is deliberately conservative: real local extrema, input
+// transitions and reconstructed-gap edges are pinned. Within each resulting
+// short monotonic phase, smooth d(v²)/distance (longitudinal acceleration)
+// instead of averaging speed itself. This removes sample steps without moving
+// a braking peak or a corner minimum.
 function smoothEnhancedSpeed(points, samples = []) {
   if (points.length < 7) return points;
-  const landmarkRadius = Math.max(6, Math.min(12, Math.round(points.length / 48)));
-  const anchors = significantTelemetryAnchors(points, 8, landmarkRadius);
+  const anchors = significantTelemetryAnchors(points, 0.9, 2);
   addControlInformedSpeedAnchors(anchors, points, samples);
+  let previousControl = speedControlState(samples, points[0].x);
+  for (let index = 1; index < points.length; index++) {
+    const control = speedControlState(samples, points[index].x);
+    if (control !== previousControl) {
+      anchors.add(index - 1);
+      anchors.add(index);
+      previousControl = control;
+    }
+  }
   for (let index = 1; index < points.length; index++) {
     if (Boolean(points[index].reconstructed) !== Boolean(points[index - 1].reconstructed)) {
       anchors.add(index - 1);
@@ -684,11 +719,23 @@ function smoothEnhancedSpeed(points, samples = []) {
     const start = ordered[anchorIndex];
     const end = ordered[anchorIndex + 1];
     if (end - start < 3) continue;
-    const values = points.slice(start, end + 1).map(point => point.y);
+    const segment = points.slice(start, end + 1);
+    const values = segment.map(point => point.y);
     const edge = Math.min(3, Math.floor(values.length / 3));
     const startMean = values.slice(0, edge).reduce((sum, value) => sum + value, 0) / edge;
     const endMean = values.slice(-edge).reduce((sum, value) => sum + value, 0) / edge;
-    const fitted = regularizeMonotonicTelemetry(values, endMean >= startMean);
+    const steadyControlSamples = segment.filter(point => {
+      const state = speedControlState(samples, point.x);
+      return state === 'full' || state === 'brake';
+    }).length;
+    const steadyControl = steadyControlSamples / segment.length >= 0.7;
+    const fitted = regularizeSpeedEnergy(
+      segment,
+      values,
+      endMean >= startMean,
+      steadyControl ? 3 : 1,
+      steadyControl ? 3 : 2
+    );
     fitted.forEach((value, offset) => { result[start + offset].y = value; });
   }
   return result;
