@@ -1064,7 +1064,7 @@ function bindSpeedChartControls() {
     enhancedTraceMode = event.target.checked;
     const status = $('#traceModeStatus');
     if (status) {
-      status.textContent = enhancedTraceMode ? 'SMOOTHED' : 'ACCURATE';
+      status.textContent = enhancedTraceMode ? 'INTERPOLATED' : 'ACCURATE';
       status.dataset.mode = enhancedTraceMode ? 'enhanced' : 'accurate';
     }
     if (loaded.length) drawAll();
@@ -1102,7 +1102,7 @@ function renderCharts() {
           <div class="trace-settings" aria-label="Telemetry display settings">
             <div class="alignment-readout"><i></i><span id="alignmentStatus" data-state="idle">Speed trace controls</span></div>
             <label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label>
-            <label class="trace-setting trace-mode-toggle" title="Unchecked preserves measured samples. Checked enables bounded, gap-aware interpolation."><input type="checkbox" id="interpolationToggle" ${enhancedTraceMode ? 'checked' : ''}><i aria-hidden="true"></i><span>Enhanced interpolation</span><small id="traceModeStatus" data-mode="${enhancedTraceMode ? 'enhanced' : 'accurate'}">${enhancedTraceMode ? 'SMOOTHED' : 'ACCURATE'}</small></label>
+            <label class="trace-setting trace-mode-toggle" title="Both modes preserve every measured sample. Enhanced adds bounded curves between samples and repairs explicit gaps."><input type="checkbox" id="interpolationToggle" ${enhancedTraceMode ? 'checked' : ''}><i aria-hidden="true"></i><span>Enhanced interpolation</span><small id="traceModeStatus" data-mode="${enhancedTraceMode ? 'enhanced' : 'accurate'}">${enhancedTraceMode ? 'INTERPOLATED' : 'ACCURATE'}</small></label>
             <label class="trace-setting"><input type="checkbox" id="tintToggle" ${traceTintEnabled ? 'checked' : ''}><i aria-hidden="true"></i><span>Trace tint</span></label>
           </div>
           <div class="trace-display-bar">
@@ -1957,7 +1957,7 @@ function bindTrackMapHover() {
 
   canvas.addEventListener('mousemove', e => {
     const hoverEntries = visibleTraceLaps();
-    if (hoverEntries.length < 2 || !dominanceMapHitPoints.length) return;
+    if (!hoverEntries.length || !dominanceMapHitPoints.length) return;
     const spatial = typeof spatialReferenceTelemetry === 'function'
       ? spatialReferenceTelemetry()
       : null;
@@ -2236,14 +2236,24 @@ function renderMiniSectorMap() {
   const canvas = $('#dominanceCanvas');
   const empty = $('#dominanceEmpty');
   const legend = $('#dominanceLegend');
-  if (!canvas || !empty || !legend) return;
+  const title = $('#dominanceTitle');
+  if (!canvas || !empty || !legend || !title) return;
 
   const mapEntries = visibleTraceLaps();
-  if (mapEntries.length < 2) {
+  const comparative = mapEntries.length >= 2;
+  canvas.setAttribute('aria-label', comparative
+    ? 'Track map showing the fastest loaded lap in each mini-sector'
+    : 'Circuit map for the visible telemetry trace');
+  title.innerHTML = !mapEntries.length
+    ? 'Track map'
+    : comparative
+      ? 'Mini-sector dominance <small>25 M SEGMENTS</small>'
+      : 'Track map <small>SINGLE TRACE</small>';
+  if (!mapEntries.length) {
     clearDominanceMapCanvas(canvas);
     canvas.style.display = 'block';
     empty.style.display = 'grid';
-    empty.textContent = 'Show at least two traces to compare mini-sector dominance.';
+    empty.textContent = 'Load a lap to generate the track map.';
     legend.innerHTML = '';
     dominanceMapHitPoints = [];
     return;
@@ -2306,42 +2316,57 @@ function renderMiniSectorMap() {
     geometrySteps = Math.max(1600, Math.min(4200, Math.ceil(totalDistance / 1.8)));
     const sourceDistance = +reference[reference.length - 1]?.Distance || totalDistance;
     const spatialControls = trackSamples.map(point => ({
-      fraction: Number.isFinite(point.AlignedFraction)
+      fraction: Math.max(0, Math.min(1, Number.isFinite(point.AlignedFraction)
         ? point.AlignedFraction
-        : (+point.Distance || 0) / sourceDistance,
+        : (+point.Distance || 0) / sourceDistance)),
       x: +point.X,
       y: +point.Y,
-    })).sort((a, b) => a.fraction - b.fraction);
-    let spatialCursor = 1;
-    let mapGeometry = Array.from({ length: geometrySteps }, (_, index) => {
+    }))
+      .sort((a, b) => a.fraction - b.fraction)
+      // OpenF1 may hold one location packet across many faster car-channel
+      // samples. Treat the repeated coordinates as one geometry control;
+      // otherwise the map becomes a staircase of long flats and sharp jumps.
+      .filter((point, index, array) => index === 0 || (
+        point.fraction - array[index - 1].fraction > 1e-6
+        && Math.hypot(point.x - array[index - 1].x, point.y - array[index - 1].y) > 1
+      ));
+    const controlCount = spatialControls.length;
+    const cyclicControl = index => {
+      const wrapped = ((index % controlCount) + controlCount) % controlCount;
+      const cycle = Math.floor(index / controlCount);
+      return { ...spatialControls[wrapped], fraction: spatialControls[wrapped].fraction + cycle };
+    };
+    const hermiteCoordinate = (p0, p1, p2, p3, ratio, key) => {
+      if (controlCount < 4) return p1[key] + (p2[key] - p1[key]) * ratio;
+      const width = Math.max(1e-7, p2.fraction - p1.fraction);
+      const tangent1 = (p2[key] - p0[key]) * width / Math.max(1e-7, p2.fraction - p0.fraction);
+      const tangent2 = (p3[key] - p1[key]) * width / Math.max(1e-7, p3.fraction - p1.fraction);
+      const t2 = ratio * ratio;
+      const t3 = t2 * ratio;
+      return (2 * t3 - 3 * t2 + 1) * p1[key]
+        + (t3 - 2 * t2 + ratio) * tangent1
+        + (-2 * t3 + 3 * t2) * p2[key]
+        + (t3 - t2) * tangent2;
+    };
+    let spatialCursor = 0;
+    const mapGeometry = Array.from({ length: geometrySteps }, (_, index) => {
       const fraction = index / geometrySteps;
-      while (spatialCursor < spatialControls.length - 1 && spatialControls[spatialCursor].fraction < fraction) {
+      while (spatialCursor < controlCount && spatialControls[spatialCursor].fraction < fraction) {
         spatialCursor++;
       }
-      const before = spatialControls[Math.max(0, spatialCursor - 1)];
-      const after = spatialControls[Math.min(spatialControls.length - 1, spatialCursor)];
+      const p0 = cyclicControl(spatialCursor - 2);
+      const before = cyclicControl(spatialCursor - 1);
+      const after = cyclicControl(spatialCursor);
+      const p3 = cyclicControl(spatialCursor + 1);
       const ratio = Math.max(0, Math.min(1,
         (fraction - before.fraction) / (after.fraction - before.fraction || 1)
       ));
       return {
         fraction,
-        x: before.x + (after.x - before.x) * ratio,
-        y: before.y + (after.y - before.y) * ratio,
+        x: hermiteCoordinate(p0, before, after, p3, ratio, 'x'),
+        y: hermiteCoordinate(p0, before, after, p3, ratio, 'y'),
       };
     });
-
-    const smoothClosedGeometry = points => points.map((point, index) => {
-      const weights = [1, 2, 3, 4, 3, 2, 1];
-      let x = 0, y = 0, total = 0;
-      weights.forEach((weight, offset) => {
-        const wrapped = (index + offset - 3 + points.length) % points.length;
-        x += points[wrapped].x * weight;
-        y += points[wrapped].y * weight;
-        total += weight;
-      });
-      return { ...point, x: x / total, y: y / total };
-    });
-    mapGeometry = smoothClosedGeometry(smoothClosedGeometry(mapGeometry));
 
     const minX = Math.min(...mapGeometry.map(point => point.x));
     const maxX = Math.max(...mapGeometry.map(point => point.x));
@@ -2422,35 +2447,37 @@ function renderMiniSectorMap() {
   }
 
   const wins = new Set();
-  for (let index = 0; index < segments; index++) {
-    const start = index / segments;
-    const end = Math.min(1, (index + 1) / segments);
-    const from = pointAt(start);
-    const to = pointAt(end);
-    if (!from || !to) continue;
-    let winner = -1;
-    let bestTime = Infinity;
-    allSeries.forEach((series, lapIndex) => {
-      const duration = typeof performanceSectionDuration === 'function'
-        ? performanceSectionDuration(series, start, end)
-        : calibratedElapsed(series, end) - calibratedElapsed(series, start);
-      if (Number.isFinite(duration) && duration < bestTime) {
-        bestTime = duration;
-        winner = lapIndex;
+  if (comparative) {
+    for (let index = 0; index < segments; index++) {
+      const start = index / segments;
+      const end = Math.min(1, (index + 1) / segments);
+      const from = pointAt(start);
+      const to = pointAt(end);
+      if (!from || !to) continue;
+      let winner = -1;
+      let bestTime = Infinity;
+      allSeries.forEach((series, lapIndex) => {
+        const duration = typeof performanceSectionDuration === 'function'
+          ? performanceSectionDuration(series, start, end)
+          : calibratedElapsed(series, end) - calibratedElapsed(series, start);
+        if (Number.isFinite(duration) && duration < bestTime) {
+          bestTime = duration;
+          winner = lapIndex;
+        }
+      });
+      if (winner < 0) continue;
+      wins.add(winner);
+      ctx.strokeStyle = getDriverColor(mapEntries[winner].lap.code);
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      const segmentSteps = Math.max(2, Math.ceil((end - start) * totalDistance / 5));
+      for (let step = 1; step <= segmentSteps; step++) {
+        const point = pointAt(start + (end - start) * step / segmentSteps);
+        if (point) ctx.lineTo(point.x, point.y);
       }
-    });
-    if (winner < 0) continue;
-    wins.add(winner);
-    ctx.strokeStyle = getDriverColor(mapEntries[winner].lap.code);
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.moveTo(from.x, from.y);
-    const segmentSteps = Math.max(2, Math.ceil((end - start) * totalDistance / 5));
-    for (let step = 1; step <= segmentSteps; step++) {
-      const point = pointAt(start + (end - start) * step / segmentSteps);
-      if (point) ctx.lineTo(point.x, point.y);
+      ctx.stroke();
     }
-    ctx.stroke();
   }
 
   if (highlightedCornerZone) {
@@ -2577,8 +2604,10 @@ function renderMiniSectorMap() {
   ctx.restore();
 
   empty.style.display = 'none';
-  legend.innerHTML = [...wins].map(index => {
-    const lap = mapEntries[index].lap;
+  const legendIndexes = comparative ? [...wins] : [0];
+  legend.innerHTML = legendIndexes.map(index => {
+    const lap = mapEntries[index]?.lap;
+    if (!lap) return '';
     return `<span class="legend-item"><i class="legend-color" style="--team:${getDriverColor(lap.code)}"></i>${lap.code} L${lap.lap}</span>`;
   }).join('');
 }

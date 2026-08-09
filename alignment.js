@@ -809,15 +809,15 @@ function buildSpeedModel(samples) {
   if (points.length < 3) return null;
   let gaps = [];
 
-  // Restore missing source intervals before filtering. The adaptive smoother
-  // below operates on the common grid directly; a second polynomial pass here
-  // used to shift and flatten genuine peaks and troughs.
+  // Restore only explicitly missing source intervals. Every published sample
+  // remains an interpolation knot, so Enhanced and Accurate have identical
+  // speed at every measured coordinate. Between knots Enhanced uses a bounded,
+  // shape-preserving cubic; it cannot overshoot or move a peak/trough sample.
   if (points.length >= 7) {
     const reconstruction = reconstructLargeGaps(points, samples, 'Speed');
     points = reconstruction.points;
     gaps = reconstruction.gaps;
   }
-  points = smoothEnhancedSpeed(points, samples);
   return finishShapePreservingModel(points, gaps);
 }
 

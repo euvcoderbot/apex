@@ -5184,35 +5184,46 @@ main,
 }
 
 .lap-summary-card .summary-condition {
-  grid-template-columns: 14px minmax(0, 1fr);
+  grid-template-columns: 14px max-content;
   align-content: center;
   align-items: center;
-  justify-content: start;
-  justify-items: start;
+  justify-content: center;
+  justify-items: center;
   gap: 5px;
   padding: 5px 7px 6px;
-  text-align: left;
+  text-align: center;
 }
 
 .lap-summary-card .summary-condition > i {
-  justify-self: start;
+  justify-self: center;
   width: 14px;
   height: 16px;
   font-size: 11px;
 }
 
 .lap-summary-card .summary-condition > span {
-  width: 100%;
-  justify-items: start;
-  text-align: left;
+  width: auto;
+  justify-items: center;
+  text-align: center;
 }
 
 .lap-summary-card .summary-condition small,
 .lap-summary-card .summary-condition strong {
   display: block;
-  width: 100%;
-  justify-self: start;
-  text-align: left;
+  width: auto;
+  justify-self: center;
+  text-align: center;
+}
+
+.lap-summary-card .summary-tyre {
+  align-items: baseline;
+  line-height: 1;
+}
+
+.lap-summary-card .summary-tyre b,
+.lap-summary-card .summary-tyre small {
+  display: block;
+  line-height: 1;
 }
 
 :root[data-theme="light"] .lap-summary-card .summary-conditions {
