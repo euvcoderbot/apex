@@ -3,15 +3,7 @@
   "functions": {
     "server.py": {
       "maxDuration": 300,
-      "includeFiles": [
-        "index.html",
-        "app.js",
-        "alignment.js",
-        "config.js",
-        "styles.css",
-        "design-system.css",
-        "assets/**"
-      ]
+      "includeFiles": "{index.html,app.js,alignment.js,config.js,styles.css,design-system.css,enhancements.js,polish.css,real-data.js,assets/**}"
     }
   }
 }

@@ -19,7 +19,9 @@ for (const file of staticFiles) {
 }
 await cp(resolve(root, "assets"), resolve(destination, "assets"), { recursive: true });
 
-const apiOrigin = String(process.env.APEX_API_ORIGIN || "").replace(/\/$/, "");
+const apiOrigin = String(
+  process.env.APEX_API_ORIGIN || "https://apex-telemetry-api.vercel.app",
+).replace(/\/$/, "");
 if (apiOrigin && !/^https:\/\//i.test(apiOrigin)) {
   throw new Error("APEX_API_ORIGIN must be an HTTPS origin");
 }
