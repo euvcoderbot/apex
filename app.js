@@ -26,6 +26,11 @@ let traceZoom = { start: 0, end: 1 };
 let zoomDrag = null;
 const MIN_TRACE_ZOOM = .004;
 const CLIENT_DATA_SCHEMA = 'lap-context-v2';
+const API_ORIGIN = String(window.APEX_API_ORIGIN || '').replace(/\/$/, '');
+
+function apiUrl(path) {
+  return `${API_ORIGIN}${path}`;
+}
 
 const COUNTRY_FLAG_CODES = Object.freeze({
   australia: 'AU',
@@ -402,7 +407,7 @@ async function loadCalendar() {
   customSelectValues.delete($('#gp'));
   $('#gp').innerHTML = '<option>Loading calendar…</option>';
   try {
-    const response = await fetch(`/api/events?year=${selectValue($('#year'))}`);
+    const response = await fetch(apiUrl(`/api/events?year=${selectValue($('#year'))}`));
     calendar = await readApiResponse(response);
     if (!response.ok) throw new Error(calendar.detail || 'Calendar unavailable');
     $('#gp').innerHTML = calendar.map(event => `<option value="${event.round}">R${event.round} - ${grandPrixFlag(event)} ${event.name}</option>`).join('');
@@ -498,7 +503,7 @@ async function loadRealSession() {
   renderCharts();
   
   try {
-    const response = await fetch(`/api/session?${currentQuery()}`, { cache: 'no-store' });
+    const response = await fetch(apiUrl(`/api/session?${currentQuery()}`), { cache: 'no-store' });
     const payload = await readApiResponse(response);
     if (!response.ok) throw new Error(payload.detail || 'Session unavailable');
     
@@ -534,7 +539,7 @@ async function fetchTelemetry(lap) {
   query.set('lap', lap.lap);
   query.set('alignment', '3');
   
-  const response = await fetch(`/api/telemetry?${query}`, { cache: 'no-store' });
+  const response = await fetch(apiUrl(`/api/telemetry?${query}`), { cache: 'no-store' });
   if (!response.ok) throw new Error('Telemetry unavailable for this lap');
   
   const data = await readApiResponse(response);

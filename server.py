@@ -8,6 +8,7 @@ import gzip
 import hashlib
 import logging
 import json
+import os
 from pathlib import Path
 import time
 from typing import Any
@@ -18,23 +19,39 @@ import fastf1
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).parent
-CACHE = ROOT / ".fastf1-cache"
+RUNTIME_CACHE_ROOT = Path(os.environ.get("APEX_CACHE_ROOT", ROOT))
+RUNTIME_CACHE_ROOT.mkdir(parents=True, exist_ok=True)
+CACHE = RUNTIME_CACHE_ROOT / ".fastf1-cache"
 CACHE.mkdir(exist_ok=True)
 fastf1.Cache.enable_cache(str(CACHE))
-PREPARED_CACHE = ROOT / ".apex-cache"
+PREPARED_CACHE = RUNTIME_CACHE_ROOT / ".apex-cache"
 PREPARED_CACHE.mkdir(exist_ok=True)
 PREPARED_CACHE_VERSION = "v3"
 SESSION_CACHE_SCHEMA = "official-classification-v2"
 
 app = FastAPI(title="APEX DATA API")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
 app.add_middleware(GZipMiddleware, minimum_size=900, compresslevel=5)
 OPENF1 = "https://api.openf1.org/v1"
 logger = logging.getLogger("apex.telemetry")
+
+
+@app.get("/api/health")
+def health() -> dict[str, str]:
+    """Lightweight hosting health check that never downloads F1 data."""
+    return {"status": "ok"}
 
 
 @app.middleware("http")
@@ -42,7 +59,7 @@ async def prevent_stale_local_assets(request: Request, call_next):
     """Keep local development browsers from serving an outdated chart build."""
     response = await call_next(request)
     if request.url.path in {
-        "/", "/index.html", "/app.js", "/alignment.js", "/styles.css", "/design-system.css"
+        "/", "/index.html", "/app.js", "/alignment.js", "/config.js", "/styles.css", "/design-system.css"
     }:
         response.headers["Cache-Control"] = "no-store, max-age=0"
     elif request.url.path in {"/api/session", "/api/telemetry"}:
@@ -1071,4 +1088,24 @@ def telemetry(
     raise HTTPException(422, "No telemetry is published for this session/lap yet. Try a completed session or a 2023+ event with OpenF1 coverage.")
 
 
-app.mount("/", StaticFiles(directory=ROOT, html=True), name="site")
+app.mount("/assets", StaticFiles(directory=ROOT / "assets"), name="assets")
+
+
+@app.get("/")
+def frontend_index() -> FileResponse:
+    return FileResponse(ROOT / "index.html")
+
+
+@app.get("/{asset_name}")
+def frontend_asset(asset_name: str) -> FileResponse:
+    """Serve only the browser bundle, never backend source or deployment files."""
+    allowed = {
+        "alignment.js",
+        "app.js",
+        "config.js",
+        "design-system.css",
+        "styles.css",
+    }
+    if asset_name not in allowed:
+        raise HTTPException(404, "Not found")
+    return FileResponse(ROOT / asset_name)

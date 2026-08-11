@@ -3,3 +3,9 @@
 .apex-cache/
 __pycache__/
 *.py[cod]
+node_modules/
+.next/
+.vinext/
+.wrangler/
+dist/
+public/apex/

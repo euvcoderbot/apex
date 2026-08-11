@@ -138,7 +138,7 @@ async function fetchTelemetry(lap) {
   query.set('driver', lap.code);
   query.set('lap', lap.lap);
   query.set('alignment', '3');
-  const response = await fetch(`/api/telemetry?${query}`, { cache: 'no-store' });
+  const response = await fetch(apiUrl(`/api/telemetry?${query}`), { cache: 'no-store' });
   const payload = await readApiResponse(response);
   if (!response.ok) throw new Error(payload.detail || 'Telemetry unavailable for this lap');
 
