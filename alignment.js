@@ -799,11 +799,11 @@ function finishShapePreservingModel(points, gaps = []) {
 }
 
 // A held integer speed is not an independent physical observation at every
-// car-channel timestamp. During uninterrupted full throttle, replace only the
-// interior of a repeated-speed run with constant-acceleration interpolation
-// (linear v² over distance). Distinct samples, local extrema, throttle changes
-// and gear changes remain exact anchors.
-function interpolateHeldFullThrottleSpeed(points) {
+// car-channel timestamp. During uninterrupted full throttle or braking,
+// replace only the interior of a repeated-speed run with constant-acceleration
+// interpolation (linear v² over distance). Distinct samples, local extrema
+// and control transitions remain exact anchors.
+function interpolateHeldControlledSpeed(points) {
   if (points.length < 4) return points;
   const result = points.map(point => ({ ...point }));
   let start = 0;
@@ -833,8 +833,12 @@ function interpolateHeldFullThrottleSpeed(points) {
         && end - start <= 2
         && right.x - left.x <= 0.02;
       const noBrake = surrounding.every(point => Number.isFinite(point.brake) && point.brake <= 0);
+      const fullBraking = surrounding.every(point => Number.isFinite(point.brake) && point.brake > 0
+        && (!Number.isFinite(point.throttle) || point.throttle <= 20));
       const span = right.x - left.x;
-      if (sameDirection && fullThrottle && noBrake && (sameGear || briefGearShift) && span > 1e-6) {
+      const acceleratingHold = fullThrottle && noBrake && (sameGear || briefGearShift);
+      const brakingHold = fullBraking && right.y < left.y && span <= 0.035;
+      if (sameDirection && (acceleratingHold || brakingHold) && span > 1e-6) {
         const startEnergy = left.y * left.y;
         const energyDelta = right.y * right.y - startEnergy;
         for (let index = start; index <= end; index++) {
@@ -937,10 +941,10 @@ function buildSpeedModel(samples) {
   if (points.length < 3) return null;
   let gaps = [];
 
-  // Remove quantisation stair-steps only when full throttle and a stable gear
-  // make a monotonic physics-based reconstruction unambiguous. Then restore
+  // Remove quantisation stair-steps only when an uninterrupted control phase
+  // makes a monotonic physics-based reconstruction unambiguous. Then restore
   // explicitly missing source intervals. Accurate mode still uses raw samples.
-  points = interpolateHeldFullThrottleSpeed(points);
+  points = interpolateHeldControlledSpeed(points);
   points = smoothPhysicsSpeedSegments(points);
   if (points.length >= 7) {
     const reconstruction = reconstructLargeGaps(points, samples, 'Speed');
