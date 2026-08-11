@@ -485,9 +485,12 @@ def event_calendar(year: int) -> list[dict[str, Any]]:
                     if "+" not in date_text and not date_text.endswith("Z"):
                         date_text += "Z"
                     session_dates[session_name] = date_text
+        country_value = event.get("Country")
+        country = "" if country_value is None or str(country_value) in {"nan", "None"} else str(country_value)
         result.append({
             "round": int(event["RoundNumber"]),
             "name": str(event["EventName"]),
+            "country": country,
             "date": str(event["EventDate"])[:10],
             "sessions": sessions,
             "session_dates": session_dates,

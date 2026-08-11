@@ -27,6 +27,106 @@ let zoomDrag = null;
 const MIN_TRACE_ZOOM = .004;
 const CLIENT_DATA_SCHEMA = 'lap-context-v2';
 
+const COUNTRY_FLAG_CODES = Object.freeze({
+  australia: 'AU',
+  austria: 'AT',
+  azerbaijan: 'AZ',
+  bahrain: 'BH',
+  belgium: 'BE',
+  brazil: 'BR',
+  canada: 'CA',
+  china: 'CN',
+  france: 'FR',
+  germany: 'DE',
+  'great britain': 'GB',
+  hungary: 'HU',
+  india: 'IN',
+  italy: 'IT',
+  japan: 'JP',
+  korea: 'KR',
+  malaysia: 'MY',
+  mexico: 'MX',
+  monaco: 'MC',
+  netherlands: 'NL',
+  portugal: 'PT',
+  qatar: 'QA',
+  russia: 'RU',
+  'saudi arabia': 'SA',
+  singapore: 'SG',
+  'south korea': 'KR',
+  spain: 'ES',
+  turkey: 'TR',
+  'united arab emirates': 'AE',
+  'united kingdom': 'GB',
+  'united states': 'US',
+  usa: 'US',
+});
+
+const GRAND_PRIX_FLAG_RULES = Object.freeze([
+  ['70th anniversary', 'GB'],
+  ['abu dhabi', 'AE'],
+  ['australian', 'AU'],
+  ['austrian', 'AT'],
+  ['azerbaijan', 'AZ'],
+  ['bahrain', 'BH'],
+  ['belgian', 'BE'],
+  ['brazilian', 'BR'],
+  ['british', 'GB'],
+  ['canadian', 'CA'],
+  ['chinese', 'CN'],
+  ['dutch', 'NL'],
+  ['eifel', 'DE'],
+  ['emilia romagna', 'IT'],
+  ['european', 'AZ'],
+  ['french', 'FR'],
+  ['german', 'DE'],
+  ['hungarian', 'HU'],
+  ['indian', 'IN'],
+  ['italian', 'IT'],
+  ['japanese', 'JP'],
+  ['korean', 'KR'],
+  ['las vegas', 'US'],
+  ['malaysian', 'MY'],
+  ['mexico', 'MX'],
+  ['miami', 'US'],
+  ['monaco', 'MC'],
+  ['pacific', 'JP'],
+  ['portuguese', 'PT'],
+  ['qatar', 'QA'],
+  ['russian', 'RU'],
+  ['sakhir', 'BH'],
+  ['san marino', 'IT'],
+  ['saudi arabian', 'SA'],
+  ['singapore', 'SG'],
+  ['sao paulo', 'BR'],
+  ['spanish', 'ES'],
+  ['styrian', 'AT'],
+  ['turkish', 'TR'],
+  ['tuscan', 'IT'],
+  ['united states', 'US'],
+]);
+
+function normalizedPlaceName(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function flagEmoji(code) {
+  if (!/^[A-Z]{2}$/.test(code || '')) return '🏁';
+  return [...code].map(letter => String.fromCodePoint(127397 + letter.charCodeAt(0))).join('');
+}
+
+function grandPrixFlag(event) {
+  const country = normalizedPlaceName(event?.country);
+  const eventName = normalizedPlaceName(event?.name);
+  const code = COUNTRY_FLAG_CODES[country]
+    || GRAND_PRIX_FLAG_RULES.find(([name]) => eventName.includes(name))?.[1];
+  return flagEmoji(code);
+}
+
 const teamMapping = {
   "McLaren": {
     "id": "mclaren",
@@ -305,7 +405,7 @@ async function loadCalendar() {
     const response = await fetch(`/api/events?year=${selectValue($('#year'))}`);
     calendar = await readApiResponse(response);
     if (!response.ok) throw new Error(calendar.detail || 'Calendar unavailable');
-    $('#gp').innerHTML = calendar.map(event => `<option value="${event.round}">R${event.round} - ${event.name}</option>`).join('');
+    $('#gp').innerHTML = calendar.map(event => `<option value="${event.round}">R${event.round} - ${grandPrixFlag(event)} ${event.name}</option>`).join('');
     syncSelectUI($('#gp'));
     selectLatestCompletedEvent();
   } catch (error) {
