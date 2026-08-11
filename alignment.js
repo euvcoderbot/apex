@@ -822,10 +822,19 @@ function interpolateHeldFullThrottleSpeed(points) {
         && Math.sign(leftStep) === Math.sign(rightStep);
       const fullThrottle = points.slice(leftIndex, rightIndex + 1)
         .every(point => Number.isFinite(point.throttle) && point.throttle >= 97);
-      const sameGear = Number.isFinite(left.gear)
-        && points.slice(leftIndex, rightIndex + 1).every(point => point.gear === left.gear);
+      const surrounding = points.slice(leftIndex, rightIndex + 1);
+      const gears = [...new Set(surrounding.map(point => point.gear).filter(Number.isFinite))];
+      const sameGear = Number.isFinite(left.gear) && gears.length === 1;
+      // A two-sample plateau can straddle a single upshift: speed telemetry is
+      // quantised at the shift and briefly repeats even though throttle stays
+      // open. Permit only this short, monotonic case; long gear-change runs
+      // remain untouched because they can represent real traction events.
+      const briefGearShift = gears.length === 2
+        && end - start <= 2
+        && right.x - left.x <= 0.02;
+      const noBrake = surrounding.every(point => Number.isFinite(point.brake) && point.brake <= 0);
       const span = right.x - left.x;
-      if (sameDirection && fullThrottle && sameGear && span > 1e-6) {
+      if (sameDirection && fullThrottle && noBrake && (sameGear || briefGearShift) && span > 1e-6) {
         const startEnergy = left.y * left.y;
         const energyDelta = right.y * right.y - startEnergy;
         for (let index = start; index <= end; index++) {
@@ -847,6 +856,7 @@ function buildSpeedModel(samples) {
       y: telemetryNumber(point.Speed),
       time: telemetryNumber(point.ElapsedSeconds),
       throttle: telemetryNumber(point.Throttle),
+      brake: telemetryNumber(point.Brake),
       gear: telemetryNumber(point.nGear),
     }))
     .filter(point => Number.isFinite(point.x) && point.y !== null && point.time !== null);
