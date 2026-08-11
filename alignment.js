@@ -849,6 +849,80 @@ function interpolateHeldFullThrottleSpeed(points) {
   return result;
 }
 
+function speedControlStateAtPoint(point) {
+  const throttle = point.throttle;
+  const brake = Number.isFinite(point.brake) ? point.brake : 0;
+  if (Number.isFinite(brake) && brake > 0
+      && (!Number.isFinite(throttle) || throttle <= 20)) return 'brake';
+  if (Number.isFinite(throttle) && throttle >= 97 && brake <= 0) return 'full';
+  if (!Number.isFinite(throttle) && !Number.isFinite(point.brake)) return 'unknown';
+  return 'partial';
+}
+
+// Short missing-control runs are common when the input channels are sampled
+// on different clocks. If both sides agree, inherit that phase for the speed
+// fit; otherwise leave the gap unknown so no physics assumption is made.
+function resolvedSpeedControlStates(points) {
+  const states = points.map(speedControlStateAtPoint);
+  let index = 0;
+  while (index < states.length) {
+    if (states[index] !== 'unknown') {
+      index++;
+      continue;
+    }
+    const start = index;
+    while (index < states.length && states[index] === 'unknown') index++;
+    const end = index - 1;
+    const before = states[start - 1];
+    const after = states[index];
+    if (end - start < 4 && before && before === after
+        && (before === 'full' || before === 'brake')) {
+      for (let cursor = start; cursor <= end; cursor++) states[cursor] = before;
+    }
+  }
+  return states;
+}
+
+// Smooth quantised acceleration/deceleration steps without moving a corner
+// minimum or braking/traction transition. The fit is only applied to a long,
+// monotonic run with stable controls; its first and last samples stay exact,
+// and v² remains bounded to the run's physical endpoints.
+function smoothPhysicsSpeedSegments(points) {
+  if (points.length < 7) return points;
+  const result = points.map(point => ({ ...point }));
+  const states = resolvedSpeedControlStates(points);
+  let start = 0;
+  while (start < points.length) {
+    const control = states[start];
+    let end = start + 1;
+    while (end < points.length
+        && states[end] === control) end++;
+    const last = end - 1;
+    const minimumSpan = control === 'brake' ? 2 : 5;
+    if (control !== 'partial' && last - start >= minimumSpan
+        && Math.abs(points[last].y - points[start].y) >= 8) {
+      const values = points.slice(start, end).map(point => point.y);
+      const trend = Math.sign(values.at(-1) - values[0]);
+      const reversals = values.slice(1).reduce((count, value, index) => {
+        const delta = value - values[index];
+        return count + (Math.abs(delta) > 1.25 && Math.sign(delta) !== trend ? 1 : 0);
+      }, 0);
+      if (trend !== 0 && reversals <= 1) {
+        const fitted = regularizeSpeedEnergy(
+          points.slice(start, end),
+          values,
+          trend > 0,
+          control === 'full' ? 1 : 0,
+          1
+        );
+        fitted.forEach((value, offset) => { result[start + offset].y = value; });
+      }
+    }
+    start = end;
+  }
+  return result;
+}
+
 function buildSpeedModel(samples) {
   let points = samples
     .map(point => ({
@@ -867,6 +941,7 @@ function buildSpeedModel(samples) {
   // make a monotonic physics-based reconstruction unambiguous. Then restore
   // explicitly missing source intervals. Accurate mode still uses raw samples.
   points = interpolateHeldFullThrottleSpeed(points);
+  points = smoothPhysicsSpeedSegments(points);
   if (points.length >= 7) {
     const reconstruction = reconstructLargeGaps(points, samples, 'Speed');
     points = reconstruction.points;
