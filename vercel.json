@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "server.py": {
+      "maxDuration": 300,
+      "includeFiles": [
+        "index.html",
+        "app.js",
+        "alignment.js",
+        "config.js",
+        "styles.css",
+        "design-system.css",
+        "assets/**"
+      ]
+    }
+  }
+}

@@ -9,3 +9,4 @@ node_modules/
 .wrangler/
 dist/
 public/apex/
+.vercel/

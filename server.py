@@ -25,7 +25,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).parent
-RUNTIME_CACHE_ROOT = Path(os.environ.get("APEX_CACHE_ROOT", ROOT))
+DEFAULT_CACHE_ROOT = Path("/tmp/apex-data") if os.environ.get("VERCEL") else ROOT
+RUNTIME_CACHE_ROOT = Path(os.environ.get("APEX_CACHE_ROOT", DEFAULT_CACHE_ROOT))
 RUNTIME_CACHE_ROOT.mkdir(parents=True, exist_ok=True)
 CACHE = RUNTIME_CACHE_ROOT / ".fastf1-cache"
 CACHE.mkdir(exist_ok=True)
