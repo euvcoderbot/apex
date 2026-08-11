@@ -833,11 +833,20 @@ function interpolateHeldControlledSpeed(points) {
         && end - start <= 2
         && right.x - left.x <= 0.02;
       const noBrake = surrounding.every(point => Number.isFinite(point.brake) && point.brake <= 0);
-      const fullBraking = surrounding.every(point => Number.isFinite(point.brake) && point.brake > 0
+      const heldSamples = points.slice(start, end + 1);
+      const heldUnderBraking = heldSamples.every(point => Number.isFinite(point.brake) && point.brake > 0
         && (!Number.isFinite(point.throttle) || point.throttle <= 20));
+      const brakingBefore = Number.isFinite(left.brake) && left.brake > 0
+        && (!Number.isFinite(left.throttle) || left.throttle <= 20);
+      // The final anchor may be the first sample after brake release. It is
+      // still a valid deceleration anchor while throttle remains at coast.
+      const deceleratingAfter = (Number.isFinite(right.brake) && right.brake > 0)
+        || ((Number.isFinite(right.brake) ? right.brake : 0) <= 0
+          && Number.isFinite(right.throttle) && right.throttle <= 20);
       const span = right.x - left.x;
       const acceleratingHold = fullThrottle && noBrake && (sameGear || briefGearShift);
-      const brakingHold = fullBraking && right.y < left.y && span <= 0.035;
+      const brakingHold = heldUnderBraking && brakingBefore && deceleratingAfter
+        && right.y < left.y && span <= 0.035;
       if (sameDirection && (acceleratingHold || brakingHold) && span > 1e-6) {
         const startEnergy = left.y * left.y;
         const energyDelta = right.y * right.y - startEnergy;
