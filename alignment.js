@@ -1063,9 +1063,10 @@ function calibratedElapsed(samples, fraction) {
   return before.official + (after.official - before.official) * ratio;
 }
 
-// Build a physical time curve from the aligned measured speed samples. It is
-// deliberately independent of the Accurate/Enhanced display toggle. Each
-// sector is then scaled back to its official duration.
+// Build a physical time curve from the speed trace currently being displayed.
+// Accurate mode integrates the supplied samples exactly as before; Enhanced
+// mode integrates its reconstructed speed curve. Each sector is then scaled
+// back to its official duration so sector and finish deltas remain exact.
 function buildPerformanceTimeModel(samples) {
   if (!samples?.length) return null;
   const totalDistance = referenceDistance();
@@ -1075,8 +1076,8 @@ function buildPerformanceTimeModel(samples) {
   for (let index = 1; index <= resolution; index++) {
     const beforeFraction = (index - 1) / resolution;
     const afterFraction = index / resolution;
-    const beforeSpeed = alignedValue(samples, beforeFraction, 'Speed');
-    const afterSpeed = alignedValue(samples, afterFraction, 'Speed');
+    const beforeSpeed = traceTelemetryValue(samples, beforeFraction, 'Speed');
+    const afterSpeed = traceTelemetryValue(samples, afterFraction, 'Speed');
     if (!Number.isFinite(beforeSpeed) || !Number.isFinite(afterSpeed)) return null;
     const meanSpeed = Math.max(10, (beforeSpeed + afterSpeed) / 2);
     raw[index] = raw[index - 1] + (totalDistance / resolution) / (meanSpeed / 3.6);
@@ -1155,9 +1156,9 @@ function buildDeltaModel(samples, reference) {
   });
   if (!raw.every(Number.isFinite)) return null;
 
-  // Put official start, sector and finish deltas back exactly. Integrated
-  // speed already produces a smooth curve, so no additional low-pass filter
-  // is needed and local map winners remain consistent with the delta trace.
+  // Put official start, sector and finish deltas back exactly. Integration
+  // makes the curve continuous without an arbitrary low-pass filter, and the
+  // enhanced curve now follows the same reconstructed speed trace on screen.
   const referenceLap = loaded[0];
   const anchors = [0, ...alignedSectorFractions(reference, referenceLap), 1].map(fraction => {
     const index = clampTelemetry(fraction) * resolution;
