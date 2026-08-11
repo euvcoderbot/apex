@@ -993,17 +993,22 @@ function calibratedElapsed(samples, fraction) {
 // Accurate mode integrates the supplied samples exactly as before; Enhanced
 // mode integrates its reconstructed speed curve. Each sector is then scaled
 // back to its official duration so sector and finish deltas remain exact.
-function buildPerformanceTimeModel(samples) {
+function buildPerformanceTimeModel(samples, mode = enhancedInterpolationEnabled() ? 'enhanced' : 'accurate') {
   if (!samples?.length) return null;
   const totalDistance = referenceDistance();
   if (!Number.isFinite(totalDistance) || totalDistance <= 0) return null;
+  const enhanced = mode === 'enhanced';
   const resolution = Math.max(600, Math.min(1800, Math.ceil(totalDistance / 4)));
   const raw = new Array(resolution + 1).fill(0);
   for (let index = 1; index <= resolution; index++) {
     const beforeFraction = (index - 1) / resolution;
     const afterFraction = index / resolution;
-    const beforeSpeed = traceTelemetryValue(samples, beforeFraction, 'Speed');
-    const afterSpeed = traceTelemetryValue(samples, afterFraction, 'Speed');
+    const beforeSpeed = enhanced
+      ? smoothedTelemetryValue(samples, beforeFraction, 'Speed')
+      : alignedValue(samples, beforeFraction, 'Speed');
+    const afterSpeed = enhanced
+      ? smoothedTelemetryValue(samples, afterFraction, 'Speed')
+      : alignedValue(samples, afterFraction, 'Speed');
     if (!Number.isFinite(beforeSpeed) || !Number.isFinite(afterSpeed)) return null;
     const meanSpeed = Math.max(10, (beforeSpeed + afterSpeed) / 2);
     raw[index] = raw[index - 1] + (totalDistance / resolution) / (meanSpeed / 3.6);
@@ -1038,13 +1043,13 @@ function buildPerformanceTimeModel(samples) {
       (after.integrated - before.integrated || 1));
     return before.official + (after.official - before.official) * ratio;
   });
-  return { resolution, values, controls };
+  return { mode, resolution, values, controls };
 }
 
-function performanceElapsed(samples, fraction) {
+function performanceElapsed(samples, fraction, mode = enhancedInterpolationEnabled() ? 'enhanced' : 'accurate') {
   if (!samples?.length) return null;
-  if (!samples.performanceTimeModel) {
-    setTelemetryMeta(samples, 'performanceTimeModel', buildPerformanceTimeModel(samples));
+  if (!samples.performanceTimeModel || samples.performanceTimeModel.mode !== mode) {
+    setTelemetryMeta(samples, 'performanceTimeModel', buildPerformanceTimeModel(samples, mode));
   }
   const model = samples.performanceTimeModel;
   if (!model) return calibratedElapsed(samples, fraction);
@@ -1072,12 +1077,12 @@ function deltaAt(samples, reference, targetDistance) {
   return timeHere - referenceHere;
 }
 
-function buildDeltaModel(samples, reference) {
+function buildDeltaModel(samples, reference, mode = enhancedInterpolationEnabled() ? 'enhanced' : 'accurate') {
   const resolution = 360;
   const raw = Array.from({ length: resolution + 1 }, (_, index) => {
     const fraction = index / resolution;
-    const timeHere = performanceElapsed(samples, fraction);
-    const referenceHere = performanceElapsed(reference, fraction);
+    const timeHere = performanceElapsed(samples, fraction, mode);
+    const referenceHere = performanceElapsed(reference, fraction, mode);
     return Number.isFinite(timeHere) && Number.isFinite(referenceHere) ? timeHere - referenceHere : null;
   });
   if (!raw.every(Number.isFinite)) return null;
@@ -1100,6 +1105,7 @@ function buildDeltaModel(samples, reference) {
     return value + interpolateControls(anchors, fraction, 'fraction', 'correction');
   });
   return {
+    mode,
     resolution,
     values: corrected,
     anchors: anchors.map(anchor => ({
@@ -1111,7 +1117,10 @@ function buildDeltaModel(samples, reference) {
 
 function displayDeltaAt(samples, reference, fraction) {
   if (samples === reference) return 0;
-  if (!samples.deltaModel) setTelemetryMeta(samples, 'deltaModel', buildDeltaModel(samples, reference));
+  const mode = enhancedInterpolationEnabled() ? 'enhanced' : 'accurate';
+  if (!samples.deltaModel || samples.deltaModel.mode !== mode) {
+    setTelemetryMeta(samples, 'deltaModel', buildDeltaModel(samples, reference, mode));
+  }
   if (!samples.deltaModel) return deltaAt(samples, reference, referenceDistance() * fraction);
   const target = clampTelemetry(fraction);
   const exactAnchor = samples.deltaModel.anchors?.find(anchor => Math.abs(anchor.fraction - target) < 1e-8);
