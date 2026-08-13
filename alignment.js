@@ -814,19 +814,32 @@ function finishShapePreservingModel(points, gaps = []) {
 // and control transitions remain exact anchors.
 function interpolateHeldControlledSpeed(points) {
   if (points.length < 4) return points;
-  const result = points.map(point => ({ ...point }));
+  const windows = [];
   let start = 0;
   while (start < points.length) {
     let end = start;
-    while (end + 1 < points.length && Math.abs(points[end + 1].y - points[start].y) <= 0.05) end++;
+    let shelfMin = points[start].y;
+    let shelfMax = points[start].y;
+    // Speed is published as whole km/h. A physical hold can therefore arrive
+    // as adjacent 283/284 packets instead of one perfectly repeated value.
+    // Treat a run spanning at most 1.5 km/h as one quantised shelf, while
+    // leaving every larger measured change as its own exact anchor.
+    while (end + 1 < points.length) {
+      const next = points[end + 1].y;
+      const nextMin = Math.min(shelfMin, next);
+      const nextMax = Math.max(shelfMax, next);
+      if (Math.abs(next - points[end].y) > 1.05 || nextMax - nextMin > 1.5) break;
+      end++;
+      shelfMin = nextMin;
+      shelfMax = nextMax;
+    }
     const leftIndex = start - 1;
     const rightIndex = end + 1;
     if (end > start && leftIndex >= 0 && rightIndex < points.length) {
       const left = points[leftIndex];
       const right = points[rightIndex];
-      const plateau = points[start].y;
-      const leftStep = plateau - left.y;
-      const rightStep = right.y - plateau;
+      const leftStep = points[start].y - left.y;
+      const rightStep = right.y - points[end].y;
       const sameDirection = Math.abs(right.y - left.y) >= 0.5
         && Math.sign(leftStep) === Math.sign(rightStep);
       const fullThrottle = points.slice(leftIndex, rightIndex + 1)
@@ -834,13 +847,6 @@ function interpolateHeldControlledSpeed(points) {
       const surrounding = points.slice(leftIndex, rightIndex + 1);
       const gears = [...new Set(surrounding.map(point => point.gear).filter(Number.isFinite))];
       const sameGear = Number.isFinite(left.gear) && gears.length === 1;
-      // A two-sample plateau can straddle a single upshift: speed telemetry is
-      // quantised at the shift and briefly repeats even though throttle stays
-      // open. Permit only this short, monotonic case; long gear-change runs
-      // remain untouched because they can represent real traction events.
-      const briefGearShift = gears.length === 2
-        && end - start <= 2
-        && right.x - left.x <= 0.02;
       const noBrake = surrounding.every(point => Number.isFinite(point.brake) && point.brake <= 0);
       const heldSamples = points.slice(start, end + 1);
       const heldUnderBraking = heldSamples.every(point => Number.isFinite(point.brake) && point.brake > 0
@@ -853,21 +859,52 @@ function interpolateHeldControlledSpeed(points) {
         || ((Number.isFinite(right.brake) ? right.brake : 0) <= 0
           && Number.isFinite(right.throttle) && right.throttle <= 20);
       const span = right.x - left.x;
+      // A quantised shelf can straddle one upshift. It is safe to reconstruct
+      // only when throttle stays fully open, braking stays off, the speed on
+      // both sides is monotonic and the shelf covers a short part of the lap.
+      const briefGearShift = gears.length === 2 && span <= 0.03;
       const acceleratingHold = fullThrottle && noBrake && (sameGear || briefGearShift);
       const brakingHold = heldUnderBraking && brakingBefore && deceleratingAfter
         && right.y < left.y && span <= 0.035;
       if (sameDirection && (acceleratingHold || brakingHold) && span > 1e-6) {
-        const startEnergy = left.y * left.y;
-        const energyDelta = right.y * right.y - startEnergy;
-        for (let index = start; index <= end; index++) {
-          const ratio = clampTelemetry((points[index].x - left.x) / span);
-          result[index].y = Math.sqrt(Math.max(0, startEnergy + energyDelta * ratio));
-          result[index].heldInterpolated = true;
-        }
+        windows.push({
+          leftIndex,
+          rightIndex,
+          kind: acceleratingHold ? 'accelerating' : 'braking',
+        });
       }
     }
     start = end + 1;
   }
+
+  // Two consecutive quantised shelves can share reconstruction anchors (for
+  // example 283/284 followed by 297/297). Applying them separately would move
+  // the shared anchor twice and create the very dip we are removing. Merge
+  // touching windows first, then perform one physical interpolation.
+  const merged = [];
+  windows.forEach(window => {
+    const previous = merged[merged.length - 1];
+    if (previous && previous.kind === window.kind && window.leftIndex <= previous.rightIndex) {
+      previous.rightIndex = Math.max(previous.rightIndex, window.rightIndex);
+    } else {
+      merged.push({ ...window });
+    }
+  });
+
+  const result = points.map(point => ({ ...point }));
+  merged.forEach(({ leftIndex, rightIndex }) => {
+    const left = points[leftIndex];
+    const right = points[rightIndex];
+    const span = right.x - left.x;
+    if (!(span > 1e-6)) return;
+    const startEnergy = left.y * left.y;
+    const energyDelta = right.y * right.y - startEnergy;
+    for (let index = leftIndex + 1; index < rightIndex; index++) {
+      const ratio = clampTelemetry((points[index].x - left.x) / span);
+      result[index].y = Math.sqrt(Math.max(0, startEnergy + energyDelta * ratio));
+      result[index].heldInterpolated = true;
+    }
+  });
   return result;
 }
 

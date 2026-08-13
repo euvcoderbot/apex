@@ -1357,7 +1357,7 @@ function getNiceBounds(name, rawMin, rawMax) {
     min = 0;
     max = 8;
     tickStep = 1;
-  } else if (name === 'DRS / straight-line mode') {
+  } else if (name === 'DRS') {
     min = 0;
     max = 1;
   }
@@ -1660,7 +1660,7 @@ function drawRealChart(name) {
     return;
   }
 
-  if (name === 'DRS / straight-line mode' && Number($('#year').value) >= 2026
+  if (name === 'DRS' && Number($('#year').value) >= 2026
     && !data.some(series => series.modeAvailable)) {
     ctx.fillStyle = theme.textStrong;
     ctx.font = '11px monospace';
@@ -1835,7 +1835,7 @@ function drawRealChart(name) {
       domainPoints = enhancedInterpolationEnabled()
         ? sampledEnhancedTrace(series, field, viewStart, viewEnd, name === 'Speed trace' ? 640 : 420)
         : measuredContinuousTrace(series, field, viewStart, viewEnd);
-    } else if (name === 'Brake application' || name === 'Gear' || name === 'DRS / straight-line mode') {
+    } else if (name === 'Brake application' || name === 'Gear' || name === 'DRS') {
       domainPoints = measuredDiscreteTrace(series, field, viewStart, viewEnd);
     } else {
       const steps = name === 'Timing delta' ? 360 : 180;
@@ -1862,7 +1862,7 @@ function drawRealChart(name) {
     ctx.beginPath();
     ctx.moveTo(points[0].x, points[0].y);
     points.slice(1).forEach((point, pointIndex) => {
-      if (name === 'Gear' || name === 'DRS / straight-line mode' || name === 'Brake application') {
+      if (name === 'Gear' || name === 'DRS' || name === 'Brake application') {
         ctx.lineTo(point.x, points[pointIndex].y);
       }
       ctx.lineTo(point.x, point.y);
@@ -1947,7 +1947,7 @@ function drawRealChart(name) {
       const series = telemetryCache.get(telemetryKey(lap));
       if (!series) return;
       const entry = traceEntries.find(item => item.index === index);
-      const stepped = name === 'Brake application' || name === 'Gear' || name === 'DRS / straight-line mode';
+      const stepped = name === 'Brake application' || name === 'Gear' || name === 'DRS';
       const val = entry ? renderedTraceValue(entry.domainPoints, hoverFraction, stepped) : null;
       
       if (Number.isFinite(val)) {
@@ -2046,7 +2046,7 @@ function bindAllChartHover() {
         if (Number.isFinite(val)) {
           if (hoveredChartName === 'Timing delta') {
             display = `${val >= 0 ? '+' : ''}${val.toFixed(3)}s`;
-          } else if (hoveredChartName === 'DRS / straight-line mode') {
+          } else if (field === 'DRS') {
             display = val >= 0.5 ? 'OPEN' : 'CLOSED';
           } else if (hoveredChartName === 'Brake application') {
             display = val >= 50 ? 'ON' : 'OFF';
