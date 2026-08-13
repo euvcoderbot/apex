@@ -1,0 +1,14 @@
+*
+!server.py
+!requirements.txt
+!.python-version
+!vercel.json
+!index.html
+!app.js
+!alignment.js
+!config.js
+!styles.css
+!design-system.css
+!polish.css
+!assets/
+!assets/**

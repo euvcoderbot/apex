@@ -134,41 +134,50 @@ function normalizeTelemetry(samples, lap, source = 'Unknown') {
 async function fetchTelemetry(lap) {
   const key = telemetryKey(lap);
   if (telemetryCache.has(key)) return telemetryCache.get(key);
-  const query = currentQuery();
-  query.set('driver', lap.code);
-  query.set('lap', lap.lap);
-  query.set('alignment', '3');
-  const response = await fetch(apiUrl(`/api/telemetry?${query}`), { cache: 'no-store' });
-  const payload = await readApiResponse(response);
-  if (!response.ok) throw new Error(payload.detail || 'Telemetry unavailable for this lap');
+  if (telemetryRequests.has(key)) return telemetryRequests.get(key);
+  const request = (async () => {
+    const query = currentQuery();
+    query.set('driver', lap.code);
+    query.set('lap', lap.lap);
+    query.set('alignment', '3');
+    const response = await fetch(apiUrl(`/api/telemetry?${query}`), { cache: 'no-store' });
+    const payload = await readApiResponse(response);
+    if (!response.ok) throw new Error(payload.detail || 'Telemetry unavailable for this lap');
 
-  const samples = normalizeTelemetry(payload.samples || [], lap, payload.source || 'Unknown');
-  lap.cornerMarkers = Array.isArray(payload.corners) ? payload.corners : [];
-  const season = Number($('#year').value);
-  const rawModeValues = samples.map(point => Number(point.DRS)).filter(Number.isFinite);
-  const hasRawMode = rawModeValues.some(value => value > 0);
-  setTelemetryMeta(samples, 'modeAvailable', hasRawMode || season < 2026);
+    const samples = normalizeTelemetry(payload.samples || [], lap, payload.source || 'Unknown');
+    lap.cornerMarkers = Array.isArray(payload.corners) ? payload.corners : [];
+    const season = Number($('#year').value);
+    const rawModeValues = samples.map(point => Number(point.DRS)).filter(Number.isFinite);
+    const hasRawMode = rawModeValues.some(value => value > 0);
+    setTelemetryMeta(samples, 'modeAvailable', hasRawMode || season < 2026);
 
-  samples.forEach(point => {
-    const speed = +point.Speed || 0;
-    const throttle = +point.Throttle || 0;
-    const brake = point.Brake === true ? 100 : (+point.Brake || 0);
-    const nGear = +point.nGear || 0;
-    const rawDrs = Number(point.DRS);
-    if (season < 2026) {
-      point.DRS = hasRawMode
-        ? (([10, 12, 14, 1].includes(rawDrs) || rawDrs >= 10) ? 1 : 0)
-        : ((speed >= 250 && throttle >= 95 && brake <= 5) ? 1 : 0);
-    } else {
-      point.DRS = hasRawMode
-        ? (rawDrs > 0 ? 1 : 0)
-        : ((speed >= 250 && throttle >= 95 && brake <= 5 && nGear >= 6) ? 1 : 0);
-    }
-    point.Brake = brake;
-  });
+    samples.forEach(point => {
+      const speed = +point.Speed || 0;
+      const throttle = +point.Throttle || 0;
+      const brake = point.Brake === true ? 100 : (+point.Brake || 0);
+      const nGear = +point.nGear || 0;
+      const rawDrs = Number(point.DRS);
+      if (season < 2026) {
+        point.DRS = hasRawMode
+          ? (([10, 12, 14, 1].includes(rawDrs) || rawDrs >= 10) ? 1 : 0)
+          : ((speed >= 250 && throttle >= 95 && brake <= 5) ? 1 : 0);
+      } else {
+        point.DRS = hasRawMode
+          ? (rawDrs > 0 ? 1 : 0)
+          : ((speed >= 250 && throttle >= 95 && brake <= 5 && nGear >= 6) ? 1 : 0);
+      }
+      point.Brake = brake;
+    });
 
-  telemetryCache.set(key, samples);
-  return samples;
+    telemetryCache.set(key, samples);
+    return samples;
+  })();
+  telemetryRequests.set(key, request);
+  try {
+    return await request;
+  } finally {
+    telemetryRequests.delete(key);
+  }
 }
 
 function fractionAtElapsed(samples, elapsed) {

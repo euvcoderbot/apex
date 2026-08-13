@@ -9,6 +9,7 @@ const staticFiles = [
   "alignment.js",
   "styles.css",
   "design-system.css",
+  "polish.css",
 ];
 
 await rm(destination, { recursive: true, force: true });

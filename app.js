@@ -5,6 +5,7 @@ let loaded = [];
 let openStint = {};
 let realDrivers = new Map();
 const telemetryCache = new Map();
+const telemetryRequests = new Map();
 const driverColorOverrides = new Map();
 const customSelectValues = new WeakMap();
 let calendar = [];
@@ -24,12 +25,36 @@ let hoverFraction = null;
 let hoveredChartName = null;
 let traceZoom = { start: 0, end: 1 };
 let zoomDrag = null;
+let drawGeneration = 0;
+let sessionRequest = null;
+let calendarRequest = null;
+let calendarGeneration = 0;
+let redrawFrame = 0;
+let toastTimer = 0;
 const MIN_TRACE_ZOOM = .004;
 const CLIENT_DATA_SCHEMA = 'lap-context-v2';
 const API_ORIGIN = String(window.APEX_API_ORIGIN || '').replace(/\/$/, '');
 
 function apiUrl(path) {
   return `${API_ORIGIN}${path}`;
+}
+
+function notify(message, tone = 'error') {
+  const toast = $('#appToast');
+  if (!toast) return;
+  window.clearTimeout(toastTimer);
+  toast.textContent = String(message || 'Something went wrong.');
+  toast.dataset.tone = tone;
+  toast.classList.add('is-visible');
+  toastTimer = window.setTimeout(() => toast.classList.remove('is-visible'), 5200);
+}
+
+function scheduleDrawAll() {
+  if (redrawFrame) return;
+  redrawFrame = window.requestAnimationFrame(() => {
+    redrawFrame = 0;
+    if (loaded.length) drawAll();
+  });
 }
 
 const COUNTRY_FLAG_CODES = Object.freeze({
@@ -403,18 +428,26 @@ function enhanceSelect(select) {
 
 // Calendar API Loader
 async function loadCalendar() {
+  const generation = ++calendarGeneration;
+  if (calendarRequest) calendarRequest.abort();
+  calendarRequest = new AbortController();
+  const year = selectValue($('#year'));
   queueMicrotask(() => syncSelectUI($('#gp')));
   customSelectValues.delete($('#gp'));
   $('#gp').innerHTML = '<option>Loading calendar…</option>';
   try {
-    const response = await fetch(apiUrl(`/api/events?year=${selectValue($('#year'))}`));
-    calendar = await readApiResponse(response);
-    if (!response.ok) throw new Error(calendar.detail || 'Calendar unavailable');
+    const response = await fetch(apiUrl(`/api/events?year=${year}`), { signal: calendarRequest.signal });
+    const payload = await readApiResponse(response);
+    if (!response.ok) throw new Error(payload.detail || 'Calendar unavailable');
+    if (generation !== calendarGeneration || year !== selectValue($('#year'))) return;
+    calendar = payload;
     $('#gp').innerHTML = calendar.map(event => `<option value="${event.round}">R${event.round} - ${grandPrixFlag(event)} ${event.name}</option>`).join('');
     syncSelectUI($('#gp'));
     selectLatestCompletedEvent();
   } catch (error) {
-    alert(`Could not load calendar. ${error.message}`);
+    if (error.name === 'AbortError') return;
+    notify(`Could not load calendar. ${error.message}`);
+    throw error;
   }
 }
 
@@ -480,6 +513,7 @@ function clearBeforeSessionLoad() {
   dominanceMapHitPoints = [];
   dominanceMapGeometryCache = null;
   telemetryCache.clear();
+  telemetryRequests.clear();
   driverColorOverrides.clear();
   $('#driverPills').innerHTML = '<span class="section-empty">Load a session to see its drivers.</span>';
   $('#stintPanels').innerHTML = '<span class="section-empty">Select a driver to inspect their runs and laps.</span>';
@@ -501,9 +535,14 @@ async function loadRealSession() {
   button.textContent = 'Loading session…';
   clearBeforeSessionLoad();
   renderCharts();
+  if (sessionRequest) sessionRequest.abort();
+  sessionRequest = new AbortController();
   
   try {
-    const response = await fetch(apiUrl(`/api/session?${currentQuery()}`), { cache: 'no-store' });
+    const response = await fetch(apiUrl(`/api/session?${currentQuery()}`), {
+      cache: 'no-store',
+      signal: sessionRequest.signal,
+    });
     const payload = await readApiResponse(response);
     if (!response.ok) throw new Error(payload.detail || 'Session unavailable');
     
@@ -521,7 +560,7 @@ async function loadRealSession() {
     renderStints();
     renderAll();
   } catch (error) {
-    alert(`FastF1 could not load this session. ${error.message}`);
+    if (error.name !== 'AbortError') notify(`Could not load this session. ${error.message}`);
   } finally {
     button.disabled = false;
     button.classList.remove('is-loading');
@@ -533,39 +572,34 @@ async function loadRealSession() {
 async function fetchTelemetry(lap) {
   const key = telemetryKey(lap);
   if (telemetryCache.has(key)) return telemetryCache.get(key);
-  
-  const query = currentQuery();
-  query.set('driver', lap.code);
-  query.set('lap', lap.lap);
-  query.set('alignment', '3');
-  
-  const response = await fetch(apiUrl(`/api/telemetry?${query}`), { cache: 'no-store' });
-  if (!response.ok) throw new Error('Telemetry unavailable for this lap');
-  
-  const data = await readApiResponse(response);
-  const samples = data.samples || [];
-  samples.forEach(pt => {
-    const d = +pt.DRS;
-    if (d >= 10 || pt.DRS === true || pt.DRS === 1 || pt.DRS === '1') {
-      pt.DRS = 1;
-    } else {
-      pt.DRS = 0;
+  if (telemetryRequests.has(key)) return telemetryRequests.get(key);
+  const request = (async () => {
+    const query = currentQuery();
+    query.set('driver', lap.code);
+    query.set('lap', lap.lap);
+    query.set('alignment', '3');
+    const response = await fetch(apiUrl(`/api/telemetry?${query}`), { cache: 'no-store' });
+    if (!response.ok) {
+      const payload = await readApiResponse(response);
+      throw new Error(payload.detail || 'Telemetry unavailable for this lap');
     }
-    
-    // Normalize Brake: check boolean, string, or number values
-    if (pt.Brake === true || pt.Brake === 1 || pt.Brake === '1' || pt.Brake === 'True' || pt.Brake > 0) {
-      if (pt.Brake === true || pt.Brake === 1 || pt.Brake === '1' || pt.Brake === 'True') {
-        pt.Brake = 100;
-      } else {
-        pt.Brake = +pt.Brake;
-      }
-    } else {
-      pt.Brake = 0;
-    }
-  });
-  
-  telemetryCache.set(key, samples);
-  return samples;
+    const data = await readApiResponse(response);
+    const samples = data.samples || [];
+    samples.forEach(pt => {
+      const d = +pt.DRS;
+      pt.DRS = d >= 10 || pt.DRS === true || pt.DRS === 1 || pt.DRS === '1' ? 1 : 0;
+      if (pt.Brake === true || pt.Brake === 1 || pt.Brake === '1' || pt.Brake === 'True') pt.Brake = 100;
+      else pt.Brake = Number.isFinite(+pt.Brake) && +pt.Brake > 0 ? +pt.Brake : 0;
+    });
+    telemetryCache.set(key, samples);
+    return samples;
+  })();
+  telemetryRequests.set(key, request);
+  try {
+    return await request;
+  } finally {
+    telemetryRequests.delete(key);
+  }
 }
 
 // UI Rendering Functions
@@ -2144,20 +2178,28 @@ function bindTrackMapHover() {
 }
 
 async function drawAll() {
-  const promises = loaded.map(async lap => {
+  const generation = ++drawGeneration;
+  const requestedLaps = [...loaded];
+  const failures = [];
+  const promises = requestedLaps.map(async lap => {
     try {
       await fetchTelemetry(lap);
     } catch (err) {
       console.warn(err);
-      alert(`Telemetry trace data is unavailable for ${lap.code} Lap ${lap.lap}.`);
-      loaded = loaded.filter(x => !(x.code === lap.code && x.lap === lap.lap));
-      renderLoaded();
-      renderSectors();
-      renderTraceVisibilityControls();
-      renderStints();
+      failures.push({ lap, error: err });
     }
   });
   await Promise.all(promises);
+  if (generation !== drawGeneration) return;
+  if (failures.length) {
+    loaded = loaded.filter(item => !failures.some(({ lap }) => item.code === lap.code && item.lap === lap.lap));
+    const failed = failures.map(({ lap }) => `${lap.code} L${lap.lap}`).join(', ');
+    notify(`Telemetry is unavailable for ${failed}.`);
+    renderLoaded();
+    renderSectors();
+    renderTraceVisibilityControls();
+    renderStints();
+  }
   if (typeof prepareTelemetryAlignment === 'function') {
     prepareTelemetryAlignment();
   }
@@ -2704,7 +2746,7 @@ function renderMiniSectorMap() {
     ctx.textAlign = 'left';
     ctx.fillStyle = theme.textStrong;
     ctx.font = '7px monospace';
-    ctx.fillText(`WIND FROM ${windLabel}${Number.isFinite(windSpeed) ? ` Â· ${windSpeed.toFixed(1)} M/S` : ''}`, 9, rect.height - 9);
+    ctx.fillText(`WIND FROM ${windLabel}${Number.isFinite(windSpeed) ? ` · ${windSpeed.toFixed(1)} M/S` : ''}`, 9, rect.height - 9);
   }
   ctx.restore();
 
@@ -2756,7 +2798,7 @@ document.addEventListener('DOMContentLoaded', () => {
   yearSelect.value = String(years[0]); // default to latest available season
   syncSelectUI(yearSelect);
   
-  yearSelect.addEventListener('change', () => loadCalendar().catch(error => alert(error.message)));
+  yearSelect.addEventListener('change', () => loadCalendar().catch(() => {}));
   $('#gp').addEventListener('change', populateSessions);
   $('#loadSession').onclick = loadRealSession;
   
@@ -2784,24 +2826,18 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleBtn.onclick = () => {
       const isCollapsed = mainEl.classList.toggle('sidebar-collapsed');
       toggleBtn.textContent = isCollapsed ? '▶ Expand Controls' : '◀ Toggle Controls';
-      if (loaded.length) {
-        drawAll();
-      }
+      toggleBtn.setAttribute('aria-expanded', String(!isCollapsed));
+      if (loaded.length) scheduleDrawAll();
     };
   }
   
-  window.addEventListener('resize', () => {
-    if (loaded.length) {
-      drawAll();
-    }
-  });
+  window.addEventListener('resize', scheduleDrawAll, { passive: true });
   
   clearBeforeSessionLoad();
   renderCharts();
   bindTrackMapHover();
   
   loadCalendar()
-    .then(selectLatestCompletedEvent)
     .catch(error => {
       $('#gp').innerHTML = '<option>Calendar unavailable</option>';
       syncSelectUI($('#gp'));

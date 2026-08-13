@@ -1,4 +1,4 @@
-# APEX DATA
+# euV2 data
 
 F1 telemetry comparison dashboard, using FastF1 for historical real session data.
 

@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "APEX DATA — F1 Telemetry Analytics",
-  description: "Compare Formula 1 lap telemetry, timing deltas and driver inputs.",
+  title: "euV2 data — F1 Telemetry Analytics",
+  description: "Compare Formula 1 lap telemetry, timing deltas, driver inputs and corner performance.",
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: "/apex/assets/euv2-mark.svg",
+    shortcut: "/apex/assets/euv2-mark.svg",
   },
 };
 

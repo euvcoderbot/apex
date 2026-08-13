@@ -1,4 +1,4 @@
-"""Local FastF1 API and static site server for APEX DATA."""
+"""FastF1 and OpenF1 API for euV2 data."""
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
@@ -33,10 +33,10 @@ CACHE.mkdir(exist_ok=True)
 fastf1.Cache.enable_cache(str(CACHE))
 PREPARED_CACHE = RUNTIME_CACHE_ROOT / ".apex-cache"
 PREPARED_CACHE.mkdir(exist_ok=True)
-PREPARED_CACHE_VERSION = "v3"
+PREPARED_CACHE_VERSION = "v4"
 SESSION_CACHE_SCHEMA = "official-classification-v2"
 
-app = FastAPI(title="APEX DATA API")
+app = FastAPI(title="euV2 data API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -57,20 +57,31 @@ def health() -> dict[str, str]:
 
 @app.middleware("http")
 async def prevent_stale_local_assets(request: Request, call_next):
-    """Keep local development browsers from serving an outdated chart build."""
+    """Apply development-safe asset headers and production API caching."""
     response = await call_next(request)
-    if request.url.path in {
+    hosted = bool(os.environ.get("VERCEL"))
+    if not hosted and request.url.path in {
         "/", "/index.html", "/app.js", "/alignment.js", "/config.js", "/styles.css", "/design-system.css"
     }:
         response.headers["Cache-Control"] = "no-store, max-age=0"
-    elif request.url.path in {"/api/session", "/api/telemetry"}:
-        # The server-side prepared cache already makes these requests cheap.
-        # Do not let the browser reuse an older lap boundary or a session
-        # response created before weather/context fields were available.
-        response.headers["Cache-Control"] = "no-store, max-age=0"
-    elif (request.url.path.startswith("/api/") and response.status_code == 200
-          and "cache-control" not in response.headers):
-        response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=86400"
+    elif hosted and request.url.path in {"/", "/index.html"}:
+        response.headers["Cache-Control"] = "public, max-age=60, s-maxage=300, stale-while-revalidate=86400"
+    elif hosted and request.url.path.endswith((".js", ".css", ".svg")):
+        response.headers["Cache-Control"] = "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800"
+    elif request.url.path.startswith("/api/") and response.status_code == 200:
+        # URLs contain season, session, driver and lap identity. Cache complete
+        # responses at the browser/CDN edge so reopening a comparison avoids a
+        # Vercel cold start. Incomplete current-season position streams set
+        # their own no-store header inside the endpoint and are left untouched.
+        if "cache-control" not in response.headers:
+            current_year = str(datetime.now().year)
+            is_current = request.query_params.get("year") == current_year
+            max_age = 120 if is_current else 86400
+            stale = 900 if is_current else 604800
+            response.headers["Cache-Control"] = (
+                f"public, max-age={max_age}, s-maxage={max_age}, stale-while-revalidate={stale}"
+            )
+        response.headers.setdefault("Vary", "Origin, Accept-Encoding")
     return response
 
 
@@ -182,7 +193,7 @@ def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
     query = "&".join(parts)
     request = URLRequest(
         f"{OPENF1}/{endpoint}?{query}",
-        headers={"Accept-Encoding": "gzip", "User-Agent": "APEX-DATA/1.0"},
+        headers={"Accept-Encoding": "gzip", "User-Agent": "euV2-data/1.0"},
     )
     with urlopen(request, timeout=20) as response:
         body = response.read()
@@ -1089,7 +1100,9 @@ def telemetry(
     raise HTTPException(422, "No telemetry is published for this session/lap yet. Try a completed session or a 2023+ event with OpenF1 coverage.")
 
 
-app.mount("/assets", StaticFiles(directory=ROOT / "assets"), name="assets")
+ASSETS_DIR = ROOT / "assets"
+if ASSETS_DIR.is_dir():
+    app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
 
 
 @app.get("/")

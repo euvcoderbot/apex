@@ -3,7 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>APEX DATA — F1 Telemetry Hub</title>
+  <meta name="theme-color" content="#07080a">
+  <meta name="description" content="Compare Formula 1 lap telemetry, timing deltas, driver inputs and corner performance.">
+  <link rel="icon" href="assets/euv2-mark.svg" type="image/svg+xml">
+  <title>euV2 data — F1 Telemetry Analytics</title>
   <script>
     try {
       document.documentElement.dataset.theme = localStorage.getItem('apex-theme') || 'dark';
@@ -11,14 +14,16 @@
       document.documentElement.dataset.theme = 'dark';
     }
   </script>
-  <link rel="stylesheet" href="styles.css?v=gp-flags-20260811">
+  <link rel="stylesheet" href="styles.css?v=euv2-release-20260813">
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="#top">APEX<span>///</span>DATA</a>
+    <a class="brand" href="#top" aria-label="euV2 data home">
+      <img src="assets/euv2-logo.svg" alt="euV2 data">
+    </a>
     <div class="header-actions">
       <button id="themeToggle" class="theme-toggle" type="button" aria-pressed="false" aria-label="Switch to light mode"><i aria-hidden="true"></i><span>Light mode</span></button>
-      <button id="sidebarToggle" class="sidebar-toggle">◀ Toggle Controls</button>
+      <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-expanded="true" aria-controls="top">◀ Toggle Controls</button>
     </div>
   </header>
   
@@ -123,11 +128,13 @@
     </div>
   </main>
 
-  <footer>APEX DATA SYSTEMS · FASTF1 / OPENF1 TELEMETRY · UNOFFICIAL ANALYSIS</footer>
+  <div class="app-toast" id="appToast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <footer>euV2 DATA · FASTF1 / OPENF1 TELEMETRY · UNOFFICIAL ANALYSIS</footer>
 
   <!-- Single unified app logic -->
-  <script src="config.js?v=hosted-api-20260811"></script>
-  <script src="app.js?v=gp-flags-20260811"></script>
-  <script src="alignment.js?v=gp-flags-20260811"></script>
+  <script src="config.js?v=euv2-release-20260813"></script>
+  <script src="app.js?v=euv2-release-20260813"></script>
+  <script src="alignment.js?v=euv2-release-20260813"></script>
 </body>
 </html>

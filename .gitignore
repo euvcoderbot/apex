@@ -1,4 +1,5 @@
 .venv/
+.venv-broken/
 .fastf1-cache/
 .apex-cache/
 __pycache__/
@@ -10,3 +11,8 @@ node_modules/
 dist/
 public/apex/
 .vercel/
+git
+start-apex.bat
+
+.vercel
+.env*

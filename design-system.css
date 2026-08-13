@@ -86,6 +86,53 @@ body {
   font-weight: 800;
 }
 
+.brand img {
+  display: block;
+  width: clamp(142px, 11vw, 176px);
+  height: 40px;
+  color: var(--text-main);
+  object-fit: contain;
+  object-position: left center;
+  transition: filter .18s ease, transform .18s ease;
+}
+
+.brand:hover img {
+  filter: drop-shadow(0 0 9px color-mix(in srgb, var(--neon-accent) 32%, transparent));
+  transform: translateX(2px);
+}
+
+:root[data-theme="light"] .brand img {
+  filter: brightness(.14);
+}
+
+.app-toast {
+  position: fixed;
+  z-index: 1000;
+  right: 18px;
+  bottom: 18px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 11px 14px;
+  border: 1px solid color-mix(in srgb, var(--red) 55%, var(--border-color));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bg-card-hover) 94%, black);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, .42);
+  color: var(--text-main);
+  font: 700 10px/1.45 var(--font-mono);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px);
+  transition: opacity .18s ease, transform .18s ease;
+}
+
+.app-toast[data-tone="success"] {
+  border-color: color-mix(in srgb, var(--green) 55%, var(--border-color));
+}
+
+.app-toast.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 /* Page Layout */
 main {
   max-width: 1740px;
@@ -3458,6 +3505,11 @@ button#loadSession.is-loading::before {
     font-size: 16px;
   }
 
+  .brand img {
+    width: 132px;
+    height: 34px;
+  }
+
   main {
     grid-template-columns: minmax(0, 1fr);
     gap: 8px;
@@ -4084,6 +4136,11 @@ main,
 @media (max-width: 520px) {
   .brand {
     font-size: 15px;
+  }
+
+  .brand img {
+    width: 116px;
+    height: 30px;
   }
 
   .sidebar-toggle {
