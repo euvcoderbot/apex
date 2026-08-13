@@ -814,25 +814,14 @@ function finishShapePreservingModel(points, gaps = []) {
 // and control transitions remain exact anchors.
 function interpolateHeldControlledSpeed(points) {
   if (points.length < 4) return points;
-  const windows = [];
+  const result = points.map(point => ({ ...point }));
   let start = 0;
   while (start < points.length) {
     let end = start;
-    let shelfMin = points[start].y;
-    let shelfMax = points[start].y;
-    // Speed is published as whole km/h. A physical hold can therefore arrive
-    // as adjacent 283/284 packets instead of one perfectly repeated value.
-    // Treat a run spanning at most 1.5 km/h as one quantised shelf, while
-    // leaving every larger measured change as its own exact anchor.
-    while (end + 1 < points.length) {
-      const next = points[end + 1].y;
-      const nextMin = Math.min(shelfMin, next);
-      const nextMax = Math.max(shelfMax, next);
-      if (Math.abs(next - points[end].y) > 1.05 || nextMax - nextMin > 1.5) break;
-      end++;
-      shelfMin = nextMin;
-      shelfMax = nextMax;
-    }
+    // Repair only a genuinely repeated published value. Grouping neighbouring
+    // integer values (283/284/...) can chain across an entire straight and
+    // replace its real acceleration curve with one artificial long ramp.
+    while (end + 1 < points.length && Math.abs(points[end + 1].y - points[start].y) <= 0.05) end++;
     const leftIndex = start - 1;
     const rightIndex = end + 1;
     if (end > start && leftIndex >= 0 && rightIndex < points.length) {
@@ -859,50 +848,143 @@ function interpolateHeldControlledSpeed(points) {
         || ((Number.isFinite(right.brake) ? right.brake : 0) <= 0
           && Number.isFinite(right.throttle) && right.throttle <= 20);
       const span = right.x - left.x;
-      // A quantised shelf can straddle one upshift. It is safe to reconstruct
-      // only when throttle stays fully open, braking stays off, the speed on
-      // both sides is monotonic and the shelf covers a short part of the lap.
-      const briefGearShift = gears.length === 2 && span <= 0.03;
+      // A short shelf may straddle one upshift. The reconstruction remains
+      // bounded by the nearest distinct measurements on either side.
+      const briefGearShift = gears.length === 2 && end - start <= 2 && span <= 0.02;
       const acceleratingHold = fullThrottle && noBrake && (sameGear || briefGearShift);
       const brakingHold = heldUnderBraking && brakingBefore && deceleratingAfter
         && right.y < left.y && span <= 0.035;
       if (sameDirection && (acceleratingHold || brakingHold) && span > 1e-6) {
-        windows.push({
-          leftIndex,
-          rightIndex,
-          kind: acceleratingHold ? 'accelerating' : 'braking',
-        });
+        const startEnergy = left.y * left.y;
+        const energyDelta = right.y * right.y - startEnergy;
+        for (let index = start; index <= end; index++) {
+          const ratio = clampTelemetry((points[index].x - left.x) / span);
+          result[index].y = Math.sqrt(Math.max(0, startEnergy + energyDelta * ratio));
+          result[index].heldInterpolated = true;
+        }
       }
     }
     start = end + 1;
   }
+  return result;
+}
 
-  // Two consecutive quantised shelves can share reconstruction anchors (for
-  // example 283/284 followed by 297/297). Applying them separately would move
-  // the shared anchor twice and create the very dip we are removing. Merge
-  // touching windows first, then perform one physical interpolation.
-  const merged = [];
-  windows.forEach(window => {
-    const previous = merged[merged.length - 1];
-    if (previous && previous.kind === window.kind && window.leftIndex <= previous.rightIndex) {
-      previous.rightIndex = Math.max(previous.rightIndex, window.rightIndex);
-    } else {
-      merged.push({ ...window });
+function reconstructControlledSpeedAnomalies(points) {
+  if (points.length < 7) return points;
+  const suspicious = new Array(points.length - 1).fill(false);
+  const reason = new Array(points.length - 1).fill('');
+  const controlAt = point => {
+    const throttle = Number.isFinite(point.throttle) ? point.throttle : 0;
+    const brake = Number.isFinite(point.brake) ? point.brake : 0;
+    if (brake > 0 && throttle <= 20) return 'brake';
+    if (brake <= 0 && throttle >= 97) return 'full';
+    return 'partial';
+  };
+  const surroundingTrend = index => {
+    const left = points[Math.max(0, index - 2)];
+    const right = points[Math.min(points.length - 1, index + 3)];
+    return right.y - left.y;
+  };
+
+  for (let index = 0; index < points.length - 1; index++) {
+    const before = points[index];
+    const after = points[index + 1];
+    const dt = after.time - before.time;
+    if (!(dt > 0) || controlAt(before) !== controlAt(after)) continue;
+    const control = controlAt(before);
+    if (control === 'partial') continue;
+    const deltaSpeed = after.y - before.y;
+    const acceleration = (deltaSpeed / 3.6) / dt;
+    const averageSpeed = (before.y + after.y) / 2;
+    const fullThrottleLimit = averageSpeed >= 280 ? 5.5
+      : averageSpeed >= 220 ? 7.5
+        : averageSpeed >= 150 ? 10 : 13;
+    const trend = surroundingTrend(index);
+    const heldAgainstTrend = Math.abs(deltaSpeed) <= 0.05 && dt >= 0.12
+      && Math.abs(trend) >= 2 && Math.sign(trend) === (control === 'full' ? 1 : -1);
+    const impossibleJump = control === 'full'
+      ? acceleration > fullThrottleLimit
+      : acceleration > 1.5 || acceleration < -70;
+    if (heldAgainstTrend || impossibleJump) {
+      suspicious[index] = true;
+      reason[index] = heldAgainstTrend ? 'held' : 'jump';
     }
-  });
+  }
+
+  const blocks = [];
+  for (let index = 0; index < suspicious.length;) {
+    if (!suspicious[index]) {
+      index++;
+      continue;
+    }
+    let end = index;
+    // One apparently valid packet between two corrupt intervals is normally
+    // just another quantised step. Join only that one-packet gap; never chain
+    // independent shelves across a straight.
+    while (end + 1 < suspicious.length) {
+      if (suspicious[end + 1]) {
+        end++;
+        continue;
+      }
+      if (end + 2 < suspicious.length && suspicious[end + 2]) {
+        end += 2;
+        continue;
+      }
+      break;
+    }
+    blocks.push({ start: index, end });
+    index = end + 1;
+  }
 
   const result = points.map(point => ({ ...point }));
-  merged.forEach(({ leftIndex, rightIndex }) => {
+  blocks.forEach(block => {
+    const leftIndex = block.start;
+    const rightIndex = block.end + 1;
     const left = points[leftIndex];
     const right = points[rightIndex];
     const span = right.x - left.x;
-    if (!(span > 1e-6)) return;
+    const duration = right.time - left.time;
+    const direction = Math.sign(right.y - left.y);
+    const reasons = reason.slice(block.start, block.end + 1).filter(Boolean);
+    if (!(span > 1e-6) || duration > 4.5 || span > 0.065 || !direction || reasons.length < 2) return;
+    const control = controlAt(left);
+    if (control !== controlAt(right)
+        || (control === 'full' && direction < 0)
+        || (control === 'brake' && direction > 0)) return;
+
     const startEnergy = left.y * left.y;
-    const energyDelta = right.y * right.y - startEnergy;
+    const endEnergy = right.y * right.y;
+    const secant = (endEnergy - startEnergy) / span;
+    const energySlope = (before, after) => before && after && after.x > before.x
+      ? (after.y * after.y - before.y * before.y) / (after.x - before.x)
+      : secant;
+    const boundSlope = slope => {
+      if (!Number.isFinite(slope) || Math.sign(slope) !== Math.sign(secant)) return secant;
+      return Math.sign(secant) * Math.min(Math.abs(slope), Math.abs(secant) * 2.5);
+    };
+    let startSlope = boundSlope(energySlope(points[leftIndex - 1], left));
+    let endSlope = boundSlope(energySlope(right, points[rightIndex + 1]));
+    // Monotone cubic Hermite condition: limiting the normalized endpoint
+    // slopes prevents overshoot while retaining the measured entry/exit trend.
+    const alpha = startSlope / secant;
+    const beta = endSlope / secant;
+    const magnitude = Math.hypot(alpha, beta);
+    if (magnitude > 3) {
+      const scale = 3 / magnitude;
+      startSlope *= scale;
+      endSlope *= scale;
+    }
     for (let index = leftIndex + 1; index < rightIndex; index++) {
       const ratio = clampTelemetry((points[index].x - left.x) / span);
-      result[index].y = Math.sqrt(Math.max(0, startEnergy + energyDelta * ratio));
-      result[index].heldInterpolated = true;
+      const t2 = ratio * ratio;
+      const t3 = t2 * ratio;
+      const predicted = (2 * t3 - 3 * t2 + 1) * startEnergy
+        + (t3 - 2 * t2 + ratio) * span * startSlope
+        + (-2 * t3 + 3 * t2) * endEnergy
+        + (t3 - t2) * span * endSlope;
+      const bounded = Math.max(Math.min(startEnergy, endEnergy), Math.min(Math.max(startEnergy, endEnergy), predicted));
+      result[index].y = Math.sqrt(Math.max(0, bounded));
+      result[index].physicsInterpolated = true;
     }
   });
   return result;
@@ -926,7 +1008,7 @@ function buildSpeedModel(samples) {
   // Only repeated values under uninterrupted full throttle or full braking may
   // use the nearest distinct samples on either side as reconstruction anchors.
   // Accurate mode still uses the untouched source samples.
-  points = interpolateHeldControlledSpeed(points);
+  points = reconstructControlledSpeedAnomalies(points);
   if (points.length >= 7) {
     const reconstruction = reconstructLargeGaps(points, samples, 'Speed');
     points = reconstruction.points;
