@@ -5,8 +5,9 @@ export const metadata: Metadata = {
   title: "euV2 data — F1 Telemetry Analytics",
   description: "Compare Formula 1 lap telemetry, timing deltas, driver inputs and corner performance.",
   icons: {
-    icon: "/apex/assets/euv2-mark.svg",
-    shortcut: "/apex/assets/euv2-mark.svg",
+    icon: "/apex/assets/euv2-mark.png",
+    shortcut: "/apex/assets/euv2-mark.png",
+    apple: "/apex/assets/euv2-mark.png",
   },
 };
 

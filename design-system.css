@@ -102,7 +102,7 @@ body {
 }
 
 :root[data-theme="light"] .brand img {
-  filter: brightness(.14);
+  filter: drop-shadow(0 0 7px rgba(196, 211, 0, .14));
 }
 
 .app-toast {
@@ -5289,6 +5289,81 @@ main,
 
 :root[data-theme="light"] .lap-summary-card .summary-condition + .summary-condition {
   border-left-color: rgba(18, 24, 32, .11);
+}
+
+/* Keep every lap identity and timing value on one shared visual axis. */
+.lap-summary-card header {
+  display: grid;
+  grid-template-columns: minmax(70px, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+}
+
+.lap-summary-card .summary-driver,
+.lap-summary-card .summary-header-actions,
+.lap-summary-card .summary-tyre,
+.lap-summary-card .summary-lap-time {
+  align-items: center;
+  line-height: 1;
+}
+
+.lap-summary-card .summary-driver {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  justify-content: start;
+  gap: 5px;
+}
+
+.lap-summary-card .summary-header-actions {
+  display: grid;
+  grid-template-columns: 20px max-content max-content;
+  justify-content: end;
+  gap: 8px;
+}
+
+.lap-summary-card .summary-tyre,
+.lap-summary-card .summary-lap-time {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  gap: 4px;
+  min-height: 20px;
+  padding: 0;
+}
+
+.lap-summary-card .summary-driver > b,
+.lap-summary-card .summary-driver > small,
+.lap-summary-card .summary-tyre > b,
+.lap-summary-card .summary-tyre > small,
+.lap-summary-card .summary-lap-time > small,
+.lap-summary-card .summary-lap-time > strong {
+  display: block;
+  line-height: 20px;
+}
+
+.lap-summary-card .trace-color-picker {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  align-self: center;
+}
+
+@media (max-width: 520px) {
+  .lap-summary-card header {
+    gap: 7px;
+  }
+
+  .lap-summary-card .summary-header-actions {
+    gap: 5px;
+  }
+}
+
+@media (max-width: 440px) {
+  .lap-summary-card .summary-tyre {
+    display: none;
+  }
 }
 
 @media (min-width: 1181px) {

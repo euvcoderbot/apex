@@ -1118,6 +1118,7 @@ def frontend_asset(asset_name: str) -> FileResponse:
         "app.js",
         "config.js",
         "design-system.css",
+        "polish.css",
         "styles.css",
     }
     if asset_name not in allowed:
