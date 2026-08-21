@@ -118,3 +118,54 @@ body {
 .telemetry-empty p {
   font-size: 11px;
 }
+
+/* Lap workspace labels shown in the run/lap cards. */
+.run-toolbar > span,
+.run-section-label,
+.lap-group-header,
+.comparison-tray-heading {
+  font-size: 10px;
+}
+
+.run-toolbar .compare-all-btn {
+  font-size: 11px;
+}
+
+.run-driver > b {
+  font-size: 15px;
+}
+
+.run-driver h3 {
+  font-size: 13px;
+}
+
+.run-driver small {
+  font-size: 10px;
+}
+
+.fastest-lap-pick span,
+.run-section-label small,
+.lap-group-header small,
+.comparison-tray-heading small {
+  font-size: 9px;
+}
+
+.fastest-lap-pick strong {
+  font-size: 11px;
+}
+
+.run-segment strong {
+  font-size: 11px;
+}
+
+.run-segment small {
+  font-size: 10px;
+}
+
+.lap-chip .lap-token {
+  font-size: 10px;
+}
+
+.lap-chip .lap-clock {
+  font-size: 11px;
+}
