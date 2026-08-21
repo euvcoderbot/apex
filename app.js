@@ -1869,29 +1869,26 @@ function drawRealChart(name) {
     });
   };
 
-  // Restore the original restrained chart tint: only the slowest official lap
-  // receives one soft vertical gradient. This is predictable at intersections
-  // and works naturally for continuous traces and binary brake blocks alike.
-  const tintTrace = traceEntries.reduce((slowest, entry) => {
-    const lapTime = Number(loaded[entry.index]?.time);
-    if (!Number.isFinite(lapTime)) return slowest;
-    const slowestTime = Number(loaded[slowest?.index]?.time);
-    return !slowest || !Number.isFinite(slowestTime) || lapTime > slowestTime ? entry : slowest;
-  }, null) || traceEntries[0];
+  // Give every visible loaded lap its own restrained tint. Tinting follows the
+  // rendered trace entries, so hidden trace toggles also hide their tint and
+  // each colour remains identifiable when several laps overlap.
   const shadedFields = ['Speed trace', 'Throttle application', 'Brake application', 'Engine speed'];
-  if (traceTintEnabled && tintTrace && shadedFields.includes(name)) {
-    const { points, teamColor } = tintTrace;
+  if (traceTintEnabled && traceEntries.length && shadedFields.includes(name)) {
     const bottomY = rect.height - bounds.bottom;
-    tracePath(points);
-    ctx.lineTo(points[points.length - 1].x, bottomY);
-    ctx.lineTo(points[0].x, bottomY);
-    ctx.closePath();
-    const gradient = ctx.createLinearGradient(0, bounds.top, 0, bottomY);
-    const tintAlpha = name === 'Speed trace' ? .18 : .13;
-    gradient.addColorStop(0, hexToRgba(teamColor, tintAlpha));
-    gradient.addColorStop(1, hexToRgba(teamColor, 0));
-    ctx.fillStyle = gradient;
-    ctx.fill();
+    const baseAlpha = name === 'Speed trace' ? .16 : .11;
+    const tintAlpha = Math.min(baseAlpha, baseAlpha / Math.sqrt(Math.max(1, traceEntries.length)) * 1.45);
+    traceEntries.forEach(({ points, teamColor }) => {
+      if (!points.length) return;
+      tracePath(points);
+      ctx.lineTo(points[points.length - 1].x, bottomY);
+      ctx.lineTo(points[0].x, bottomY);
+      ctx.closePath();
+      const gradient = ctx.createLinearGradient(0, bounds.top, 0, bottomY);
+      gradient.addColorStop(0, hexToRgba(teamColor, tintAlpha));
+      gradient.addColorStop(1, hexToRgba(teamColor, 0));
+      ctx.fillStyle = gradient;
+      ctx.fill();
+    });
   }
 
   ctx.lineJoin = 'round';

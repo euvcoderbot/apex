@@ -1,1 +1,54 @@
 .telemetry{position:relative}main{max-width:1740px;padding-left:3%;padding-right:3%}#loadedSection{display:none}.section-empty{color:var(--muted);font:11px monospace}.chart-options{display:flex;gap:14px;align-items:center;margin:-8px 0 10px;color:var(--muted);font:10px monospace}.chart-options label{color:var(--ink);cursor:pointer}.chart-options input{accent-color:var(--red)}.fastest-gap{margin-bottom:12px}.lap.in-out{border-style:dashed;color:var(--muted)}#charts .chart:first-child canvas{height:220px}#charts .chart:not(:first-child) canvas{height:105px}@media(max-width:700px){main{padding-left:4%;padding-right:4%}#charts .chart:first-child canvas{height:150px}#charts .chart:not(:first-child) canvas{height:75px}}
+
+/* 2026-08-21 responsive controls and system typography ------------------ */
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+html,
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Keep the four session controls inside the card at tablet/split widths. */
+@media (min-width: 760px) and (max-width: 1180px) {
+  .sidebar .session-controls {
+    grid-template-columns:
+      minmax(96px, .68fr)
+      minmax(0, 2.2fr)
+      minmax(128px, 1.1fr)
+      minmax(132px, 1fr);
+    width: 100%;
+    min-width: 0;
+  }
+
+  .sidebar .session-controls > .control-field,
+  .sidebar .session-controls > #loadSession {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+.session-controls .control-field,
+.session-controls .select-shell,
+.session-controls .select-trigger,
+.session-controls #loadSession {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.session-controls .select-trigger span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 759px) {
+  .sidebar .session-controls {
+    width: 100%;
+  }
+}
