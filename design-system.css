@@ -2395,10 +2395,10 @@ main.sidebar-collapsed {
 
 /* Unified telemetry UI ---------------------------------------------------- */
 :root {
-  --ui-text-xs: 7px;
-  --ui-text-sm: 9px;
-  --ui-text-md: 11px;
-  --ui-text-lg: 13px;
+  --ui-text-xs: 9px;
+  --ui-text-sm: 11px;
+  --ui-text-md: 13px;
+  --ui-text-lg: 15px;
 }
 
 .dashboard-card,

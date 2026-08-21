@@ -1,4 +1,4 @@
-.telemetry{position:relative}main{max-width:1740px;padding-left:3%;padding-right:3%}#loadedSection{display:none}.section-empty{color:var(--muted);font:11px monospace}.chart-options{display:flex;gap:14px;align-items:center;margin:-8px 0 10px;color:var(--muted);font:10px monospace}.chart-options label{color:var(--ink);cursor:pointer}.chart-options input{accent-color:var(--red)}.fastest-gap{margin-bottom:12px}.lap.in-out{border-style:dashed;color:var(--muted)}#charts .chart:first-child canvas{height:220px}#charts .chart:not(:first-child) canvas{height:105px}@media(max-width:700px){main{padding-left:4%;padding-right:4%}#charts .chart:first-child canvas{height:150px}#charts .chart:not(:first-child) canvas{height:75px}}
+.telemetry{position:relative}main{max-width:1740px;padding-left:3%;padding-right:3%}#loadedSection{display:none}.section-empty{color:var(--muted);font:13px monospace}.chart-options{display:flex;gap:14px;align-items:center;margin:-8px 0 10px;color:var(--muted);font:12px monospace}.chart-options label{color:var(--ink);cursor:pointer}.chart-options input{accent-color:var(--red)}.fastest-gap{margin-bottom:12px}.lap.in-out{border-style:dashed;color:var(--muted)}#charts .chart:first-child canvas{height:220px}#charts .chart:not(:first-child) canvas{height:105px}@media(max-width:700px){main{padding-left:4%;padding-right:4%}#charts .chart:first-child canvas{height:150px}#charts .chart:not(:first-child) canvas{height:75px}}
 
 /* 2026-08-21 responsive controls and system typography ------------------ */
 :root {
@@ -51,4 +51,70 @@ body {
   .sidebar .session-controls {
     width: 100%;
   }
+}
+
+/* Readability pass: lift the light metadata without changing chart sizing. */
+.panel-heading p,
+.workspace-heading p,
+.section-heading p,
+.corner-analysis-header p {
+  font-size: 10px;
+}
+
+.control-field label {
+  font-size: 11px;
+}
+
+.select-shell select,
+.select-trigger {
+  font-size: 13px;
+}
+
+.trace-zoom-readout,
+.trace-setting,
+.alignment-readout {
+  font-size: 11px;
+}
+
+.trace-display-bar > span,
+.trace-driver-chip b {
+  font-size: 10px;
+}
+
+.trace-driver-chip small,
+.trace-filter-empty {
+  font-size: 9px;
+}
+
+.corner-pick strong {
+  font-size: 11px;
+}
+
+.corner-pick small,
+.corner-detail-header > div > span,
+.corner-detail-header > div > small,
+.corner-detail-header dt,
+.corner-metric-title span,
+.corner-metric-title small,
+.corner-method {
+  font-size: 8px;
+}
+
+.corner-detail-header dd,
+.corner-driver-row strong {
+  font-size: 11px;
+}
+
+.corner-table-head {
+  font-size: 8px;
+}
+
+.corner-driver-row,
+.corner-detail-card .corner-driver-row {
+  font-size: 10px;
+}
+
+.telemetry-empty span,
+.telemetry-empty p {
+  font-size: 11px;
 }

@@ -1445,7 +1445,7 @@ function resolveCornerMarkers(samples, totalDistance, suppliedMarkers = null) {
 function drawGridAxes(ctx, width, height, bounds, unit) {
   const { left, right, top, bottom, min, max, tickStep } = bounds;
   const theme = canvasTheme();
-  ctx.font = '9px monospace';
+  ctx.font = '11px monospace';
   const ticks = [];
   if (Number.isFinite(tickStep) && tickStep > 0) {
     for (let value = max; value >= min - tickStep * 0.001; value -= tickStep) {
@@ -1749,7 +1749,7 @@ function drawRealChart(name) {
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.fillStyle = theme.text;
-    ctx.font = '7px monospace';
+    ctx.font = '9px monospace';
     ctx.textAlign = tick === 0 ? 'left' : tick === 6 ? 'right' : 'center';
     ctx.fillText(`${Math.round(fraction * totalDist)} M`, x, rect.height - 3);
   }
@@ -1784,7 +1784,7 @@ function drawRealChart(name) {
   if (name === 'Speed trace' && sectorBoundaries.length === 2) {
     const ranges = [[0, sectorBoundaries[0], 'SECTOR 1'], [sectorBoundaries[0], sectorBoundaries[1], 'SECTOR 2'], [sectorBoundaries[1], 1, 'SECTOR 3']];
     ctx.fillStyle = theme.text;
-    ctx.font = '8px monospace';
+    ctx.font = '10px monospace';
     ctx.textAlign = 'center';
     ranges.forEach(([start, end, label]) => {
       const visibleStart = Math.max(viewStart, start);
@@ -1920,7 +1920,7 @@ function drawRealChart(name) {
       ctx.lineWidth = 1;
       ctx.strokeRect(left + .5, labelY + .5, width - 1, calloutHeight - 1);
       ctx.fillStyle = theme.textStrong;
-      ctx.font = '8px monospace';
+      ctx.font = '10px monospace';
       ctx.textAlign = 'center';
       ctx.fillText(cornerLabel(corner), x, labelY + 8);
       ctx.textAlign = 'left';
@@ -2693,7 +2693,7 @@ function renderMiniSectorMap() {
     N: { x: 0, y: -1 }, E: { x: 1, y: 0 }, S: { x: 0, y: 1 }, W: { x: -1, y: 0 },
   };
   ctx.save();
-  ctx.font = '7px monospace';
+  ctx.font = '9px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.strokeStyle = theme.outline;
@@ -2742,7 +2742,7 @@ function renderMiniSectorMap() {
     ctx.fill();
     ctx.textAlign = 'left';
     ctx.fillStyle = theme.textStrong;
-    ctx.font = '7px monospace';
+    ctx.font = '9px monospace';
     ctx.fillText(`WIND FROM ${windLabel}${Number.isFinite(windSpeed) ? ` · ${windSpeed.toFixed(1)} M/S` : ''}`, 9, rect.height - 9);
   }
   ctx.restore();
