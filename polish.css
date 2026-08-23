@@ -173,11 +173,32 @@ body {
 /* Timing deltas need enough vertical resolution for multi-second gaps while
    retaining the common distance axis shared by the telemetry stack. */
 canvas[data-chart="Timing delta"] {
-  height: 210px !important;
+  height: 263px !important;
 }
 
 @media (max-width: 700px) {
   canvas[data-chart="Timing delta"] {
-    height: 175px !important;
+    height: 219px !important;
   }
+}
+
+/* Loading state remains one centred line at every responsive width. */
+.session-controls #loadSession.is-loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  padding-inline: 10px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.session-controls #loadSession.is-loading::before {
+  position: static;
+  flex: 0 0 12px;
+  width: 12px;
+  height: 12px;
+  margin: 0;
 }

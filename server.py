@@ -988,10 +988,20 @@ def telemetry(
         raise HTTPException(422, "Detailed speed and input telemetry is not published before 2018.")
     cache_parts = (gp, round, session, driver.upper(), lap)
     cached = read_prepared_cache("telemetry", year, *cache_parts)
-    if cached is not None:
-        if cached.get("position_complete") is False:
-            response.headers["Cache-Control"] = "no-store, max-age=0"
+    # Older/current OpenF1 responses may contain all car channels but no
+    # location packets. Returning that cache entry immediately permanently
+    # suppresses the FastF1 position fallback and leaves the track map blank.
+    # Complete payloads are safe to return; incomplete ones remain a last-resort
+    # speed fallback while we try to obtain the circuit geometry below.
+    incomplete_openf1: tuple[list[dict[str, Any]], list[dict[str, Any]]] | None = None
+    if cached is not None and cached.get("position_complete") is not False:
         return cached
+    if cached is not None:
+        incomplete_openf1 = (
+            cached.get("samples") or [],
+            cached.get("corners") or [],
+        )
+        response.headers["Cache-Control"] = "no-store, max-age=0"
 
     def finish(samples: list[dict[str, Any]], projected_corners: list[dict[str, Any]], source: str):
         positioned = sum(
@@ -1025,7 +1035,16 @@ def telemetry(
         if year >= 2023:
             samples = openf1_lap_telemetry(year, gp, session, driver_number, lap)
             if samples:
-                return finish(samples, project_corners_onto_lap(metadata, samples), "OpenF1")
+                projected = project_corners_onto_lap(metadata, samples)
+                positioned = sum(
+                    point.get("X") is not None and point.get("Y") is not None
+                    for point in samples
+                )
+                if positioned / max(1, len(samples)) >= 0.55:
+                    return finish(samples, projected, "OpenF1")
+                # Keep OpenF1's car channels available, but prefer FastF1 when
+                # it can supply the missing X/Y stream required by the map.
+                incomplete_openf1 = (samples, projected)
     except Exception as openf1_lookup_error:
         logger.debug("OpenF1 lookup unavailable for %s L%s: %s", driver, lap, openf1_lookup_error)
 
@@ -1071,6 +1090,8 @@ def telemetry(
         telemetry_data["Distance"] = telemetry_data["Distance"] - telemetry_data["Distance"].iloc[0]
     except Exception as fastf1_error:
         logger.debug("FastF1 telemetry unavailable for %s L%s: %s", driver, lap, fastf1_error)
+        if incomplete_openf1 and incomplete_openf1[0]:
+            return finish(incomplete_openf1[0], incomplete_openf1[1], "OpenF1")
         try:
             data = load_session(year, gp, session, round)
             driver_number = str(data.get_driver(driver).get("DriverNumber", driver))

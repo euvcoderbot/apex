@@ -532,7 +532,10 @@ async function loadRealSession() {
   button.disabled = true;
   button.classList.add('is-loading');
   button.setAttribute('aria-busy', 'true');
-  button.textContent = 'Loading session…';
+  // Keep the progress label compact enough for split-screen and mobile cards.
+  // The full action remains available to assistive technology.
+  button.textContent = 'Loading…';
+  button.setAttribute('aria-label', 'Loading session');
   clearBeforeSessionLoad();
   renderCharts();
   if (sessionRequest) sessionRequest.abort();
@@ -565,6 +568,7 @@ async function loadRealSession() {
     button.disabled = false;
     button.classList.remove('is-loading');
     button.removeAttribute('aria-busy');
+    button.removeAttribute('aria-label');
     button.textContent = 'Load session';
   }
 }
