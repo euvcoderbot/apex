@@ -1336,8 +1336,9 @@ function getNiceBounds(name, rawMin, rawMax) {
     max = tempMax;
   } else if (name === 'Timing delta') {
     const span = Math.max(rawMax - rawMin, 0.02);
-    const magnitude = 10 ** Math.floor(Math.log10(span / 4));
-    const normalized = (span / 4) / magnitude;
+    const targetTicks = span >= 2 ? 6 : 5;
+    const magnitude = 10 ** Math.floor(Math.log10(span / targetTicks));
+    const normalized = (span / targetTicks) / magnitude;
     const multiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10;
     const step = multiplier * magnitude;
     min = rawMin >= 0 ? 0 : Math.floor(rawMin / step) * step;
@@ -1470,11 +1471,14 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
       ctx.lineWidth = 1;
     }
     ctx.stroke();
-    let displayVal = unit.includes('SECONDS')
-      ? (Math.abs(max - min) <= 0.4 ? value.toFixed(2) : value.toFixed(1))
-      : Math.round(value);
-    if (unit.includes('SECONDS') && Math.abs(value) < 1e-5) {
-      displayVal = '0';
+    let displayVal = Math.round(value);
+    if (unit.includes('SECONDS')) {
+      const decimals = Number.isFinite(tickStep) && tickStep > 0
+        ? Math.max(1, Math.min(3, Math.ceil(-Math.log10(tickStep)) + 1))
+        : (Math.abs(max - min) <= 0.4 ? 2 : 1);
+      displayVal = Math.abs(value) < 1e-8
+        ? '0'
+        : `${value > 0 ? '+' : ''}${value.toFixed(decimals)}`;
     }
     if (unit === 'OPEN / CLOSED' || unit === 'ON / OFF') {
       if (tick === 0) displayVal = 'OPEN';
@@ -1485,8 +1489,8 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
     ctx.fillStyle = unit.includes('SECONDS') && Math.abs(value) < 1e-5
       ? theme.textStrong
       : theme.text;
-    ctx.textAlign = 'left';
-    ctx.fillText(displayVal, 2, y + 3);
+    ctx.textAlign = 'right';
+    ctx.fillText(displayVal, left - 8, y + 3);
   });
   ctx.textAlign = 'left';
 }
@@ -1711,15 +1715,16 @@ function drawRealChart(name) {
   const refLap = loaded[0];
   const refSamples = telemetryCache.get(telemetryKey(refLap));
   const totalDist = refSamples && refSamples.length ? refSamples[refSamples.length - 1].Distance : 5891;
+  const axisLeft = name === 'Timing delta' ? 58 : 50;
   const speedCornerMarkers = name === 'Speed trace' && $('#cornerToggle').checked
     ? resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers)
     : [];
-  const cornerCalloutLayout = layoutSpeedCornerCallouts(speedCornerMarkers, rect.width, 43, 7, viewStart, viewEnd);
+  const cornerCalloutLayout = layoutSpeedCornerCallouts(speedCornerMarkers, rect.width, axisLeft, 7, viewStart, viewEnd);
   const cornerTopInset = speedCornerMarkers.length
     ? 10 + cornerCalloutLayout.lanes * 16
     : 8;
   const bounds = {
-    left: 43,
+    left: axisLeft,
     right: 7,
     top: name === 'Speed trace' ? cornerTopInset : 8,
     bottom: 15,

@@ -492,10 +492,159 @@ function buildTimeCalibration(samples, lap, referenceSectors) {
   }));
 }
 
+function pointControlState(point) {
+  const throttle = telemetryNumber(point?.throttle ?? point?.Throttle);
+  const brake = telemetryNumber(point?.brake ?? point?.Brake) || 0;
+  if (brake > 0 && (!Number.isFinite(throttle) || throttle <= 20)) return 'brake';
+  if (brake <= 0 && Number.isFinite(throttle) && throttle >= 97) return 'full';
+  return 'partial';
+}
+
+function speedEnergySlope(left, right) {
+  if (!left || !right || !(right.x > left.x)) return null;
+  return (right.y * right.y - left.y * left.y) / (right.x - left.x);
+}
+
+function localEnergyTrend(points, anchorIndex, side, secant, gapSpan) {
+  const slopes = [];
+  const centres = [];
+  for (let offset = 0; offset < 4; offset++) {
+    const leftIndex = side < 0 ? anchorIndex - offset - 1 : anchorIndex + offset;
+    const rightIndex = leftIndex + 1;
+    if (leftIndex < 0 || rightIndex >= points.length) break;
+    const slope = speedEnergySlope(points[leftIndex], points[rightIndex]);
+    if (!Number.isFinite(slope) || Math.sign(slope) !== Math.sign(secant)) continue;
+    slopes.push(slope);
+    centres.push((points[leftIndex].x + points[rightIndex].x) / 2);
+  }
+  if (!slopes.length) return null;
+  const typical = medianTelemetry(slopes);
+  const nearest = slopes[0];
+  // Quantised feeds alternate between zero and very steep packet slopes. The
+  // local median carries more weight than a single adjacent packet while the
+  // nearest slope still preserves the entry/exit direction.
+  const slope = Number.isFinite(typical)
+    ? nearest * 0.35 + typical * 0.65
+    : nearest;
+  const curvatureSamples = [];
+  for (let index = 1; index < slopes.length; index++) {
+    const dx = centres[index] - centres[index - 1];
+    if (Math.abs(dx) > 1e-8) curvatureSamples.push((slopes[index] - slopes[index - 1]) / dx);
+  }
+  const rawCurvature = medianTelemetry(curvatureSamples) || 0;
+  const curvatureLimit = Math.abs(secant) / Math.max(gapSpan, 1e-6) * 4;
+  return {
+    slope,
+    curvature: clampTelemetry(rawCurvature, -curvatureLimit, curvatureLimit),
+  };
+}
+
+// Reconstruct speed in kinetic-energy space. d(v²)/distance is proportional
+// to longitudinal acceleration, so a bounded Hermite curve is a better model
+// for a missing packet run than a straight speed line. Endpoint slopes come
+// from the closest trustworthy samples; conservative throttle/brake profiles
+// are used only when those slopes are unavailable.
+function physicalSpeedBetween(points, leftIndex, rightIndex, ratio, forcedControl = null) {
+  const left = points[leftIndex];
+  const right = points[rightIndex];
+  const span = right.x - left.x;
+  if (!(span > 1e-8)) return left.y;
+  const startEnergy = left.y * left.y;
+  const endEnergy = right.y * right.y;
+  const secant = (endEnergy - startEnergy) / span;
+  if (!Number.isFinite(secant) || Math.abs(secant) < 1e-8) {
+    return left.y + (right.y - left.y) * clampTelemetry(ratio);
+  }
+
+  const control = forcedControl || (() => {
+    const states = new Set(points.slice(leftIndex, rightIndex + 1).map(pointControlState));
+    return states.size === 1 ? [...states][0] : 'partial';
+  })();
+  const physicallyConsistent = (control === 'full' && secant > 0)
+    || (control === 'brake' && secant < 0);
+  const defaultStartFactor = physicallyConsistent
+    ? (control === 'full' ? 1.18 : 1.08)
+    : 1;
+  const defaultEndFactor = physicallyConsistent
+    ? (control === 'full' ? 0.82 : 0.92)
+    : 1;
+  const boundedSlope = (candidate, fallbackFactor) => {
+    if (!Number.isFinite(candidate) || Math.sign(candidate) !== Math.sign(secant)) {
+      return secant * fallbackFactor;
+    }
+    const factor = clampTelemetry(candidate / secant, 0.2, 2.4);
+    return secant * factor;
+  };
+  const startTrend = localEnergyTrend(points, leftIndex, -1, secant, span);
+  const endTrend = localEnergyTrend(points, rightIndex, 1, secant, span);
+  let startSlope = boundedSlope(startTrend?.slope, defaultStartFactor);
+  let endSlope = boundedSlope(endTrend?.slope, defaultEndFactor);
+
+  // Fritsch-Carlson's monotonicity limit prevents the inferred curve from
+  // creating a faster peak or slower trough than either measured anchor.
+  const magnitude = Math.hypot(startSlope / secant, endSlope / secant);
+  if (magnitude > 3) {
+    const scale = 3 / magnitude;
+    startSlope *= scale;
+    endSlope *= scale;
+  }
+  const t = clampTelemetry(ratio);
+  const t2 = t * t;
+  const t3 = t2 * t;
+  const cubic = (2 * t3 - 3 * t2 + 1) * startEnergy
+    + (t3 - 2 * t2 + t) * span * startSlope
+    + (-2 * t3 + 3 * t2) * endEnergy
+    + (t3 - t2) * span * endSlope;
+  const defaultCurvature = (endSlope - startSlope) / span;
+  const startCurvature = Number.isFinite(startTrend?.curvature)
+    ? startTrend.curvature : defaultCurvature;
+  const endCurvature = Number.isFinite(endTrend?.curvature)
+    ? endTrend.curvature : defaultCurvature;
+  const a0 = startEnergy;
+  const a1 = startSlope * span;
+  const a2 = 0.5 * startCurvature * span * span;
+  const remainingPosition = endEnergy - a0 - a1 - a2;
+  const remainingSlope = endSlope * span - a1 - 2 * a2;
+  const remainingCurvature = endCurvature * span * span - 2 * a2;
+  const a3 = 10 * remainingPosition - 4 * remainingSlope + 0.5 * remainingCurvature;
+  const a4 = -15 * remainingPosition + 7 * remainingSlope - remainingCurvature;
+  const a5 = 6 * remainingPosition - 3 * remainingSlope + 0.5 * remainingCurvature;
+  const quinticAt = value => a0 + a1 * value + a2 * value ** 2
+    + a3 * value ** 3 + a4 * value ** 4 + a5 * value ** 5;
+  let quinticSafe = true;
+  let previousEnergy = startEnergy;
+  const direction = Math.sign(endEnergy - startEnergy);
+  for (let sample = 1; sample <= 16; sample++) {
+    const energy = quinticAt(sample / 16);
+    if (!Number.isFinite(energy)
+        || energy < Math.min(startEnergy, endEnergy) - 1e-5
+        || energy > Math.max(startEnergy, endEnergy) + 1e-5
+        || (energy - previousEnergy) * direction < -1e-5) {
+      quinticSafe = false;
+      break;
+    }
+    previousEnergy = energy;
+  }
+  // Curvature is useful near the anchors but becomes less trustworthy across
+  // a long outage. Blending two curves with identical endpoint slopes keeps
+  // C1 continuity while avoiding both an over-bent spline and a dead chord.
+  const curvatureBlend = clampTelemetry(0.72 - span * 5, 0.32, 0.68);
+  const predicted = quinticSafe
+    ? cubic * (1 - curvatureBlend) + quinticAt(t) * curvatureBlend
+    : cubic;
+  const bounded = Math.max(
+    Math.min(startEnergy, endEnergy),
+    Math.min(Math.max(startEnergy, endEnergy), predicted),
+  );
+  return Math.sqrt(Math.max(0, bounded));
+}
+
 function reconstructLargeGaps(points, samples, field) {
   if (points.length < 2) return { points, gaps: [] };
   const typicalInterval = samples.quality?.medianInterval || 0.24;
   const threshold = Math.max(0.55, typicalInterval * 2.4);
+  const typicalDistance = medianTelemetry(points.slice(1).map((point, index) => point.x - points[index].x)) || 0.004;
+  const distanceThreshold = Math.max(0.012, typicalDistance * 2.8);
   const reconstructed = [];
   const gaps = [];
   for (let index = 0; index < points.length - 1; index++) {
@@ -503,40 +652,22 @@ function reconstructLargeGaps(points, samples, field) {
     const after = points[index + 1];
     reconstructed.push(before);
     const interval = after.time - before.time;
-    if (!(interval > threshold) || !(after.x > before.x)) continue;
-    const pieces = Math.max(2, Math.ceil(interval / typicalInterval));
+    const distanceInterval = after.x - before.x;
+    if (!(after.x > before.x)
+        || (!(interval > threshold) && !(distanceInterval > distanceThreshold))) continue;
+    // Subdivide from both time and distance cadence. This prevents a badly
+    // timestamped packet pair from becoming one long visual chord.
+    const pieces = Math.max(
+      2,
+      Math.ceil(interval / Math.max(0.08, typicalInterval)),
+      Math.ceil(distanceInterval / Math.max(0.0015, typicalDistance)),
+    );
     gaps.push({ start: before.x, end: after.x, interval });
     for (let piece = 1; piece < pieces; piece++) {
       const ratio = piece / pieces;
       let value;
       if (field === 'Speed') {
-        // d(v²)/distance is proportional to longitudinal acceleration. Extend
-        // the measured acceleration trend through the gap with bounded slopes.
-        const width = after.x - before.x || 1;
-        const startEnergy = before.y ** 2;
-        const endEnergy = after.y ** 2;
-        const secant = (endEnergy - startEnergy) / width;
-        const previous = points[index - 1];
-        const following = points[index + 2];
-        const neighbourSlope = (left, right) => left && right && right.x > left.x
-          ? (right.y ** 2 - left.y ** 2) / (right.x - left.x) : secant;
-        const limitSlope = slope => {
-          if (!Number.isFinite(slope) || secant === 0 || Math.sign(slope) !== Math.sign(secant)) return secant;
-          return Math.sign(secant) * Math.min(Math.abs(slope), Math.abs(secant) * 3);
-        };
-        const startSlope = limitSlope(neighbourSlope(previous, before));
-        const endSlope = limitSlope(neighbourSlope(after, following));
-        const t2 = ratio * ratio;
-        const t3 = t2 * ratio;
-        const predicted = (2 * t3 - 3 * t2 + 1) * startEnergy
-          + (t3 - 2 * t2 + ratio) * width * startSlope
-          + (-2 * t3 + 3 * t2) * endEnergy
-          + (t3 - t2) * width * endSlope;
-        const energy = Math.max(
-          Math.min(startEnergy, endEnergy),
-          Math.min(Math.max(startEnergy, endEnergy), predicted)
-        );
-        value = Math.sqrt(Math.max(0, energy));
+        value = physicalSpeedBetween(points, index, index + 1, ratio);
       } else {
         // Throttle is an analogue driver input. A linear transition is the
         // least-assumptive estimate when intermediate samples are absent.
@@ -546,6 +677,10 @@ function reconstructLargeGaps(points, samples, field) {
         x: before.x + (after.x - before.x) * ratio,
         y: value,
         time: before.time + interval * ratio,
+        throttle: Number.isFinite(before.throttle) && Number.isFinite(after.throttle)
+          ? before.throttle + (after.throttle - before.throttle) * ratio : before.throttle,
+        brake: ratio < 0.5 ? before.brake : after.brake,
+        gear: ratio < 0.5 ? before.gear : after.gear,
         reconstructed: true,
       });
     }
@@ -705,7 +840,7 @@ function speedControlState(samples, fraction) {
 // a braking peak or a corner minimum.
 function smoothEnhancedSpeed(points, samples = []) {
   if (points.length < 7) return points;
-  const anchors = significantTelemetryAnchors(points, 0.9, 2);
+  const anchors = significantTelemetryAnchors(points, 3, 3);
   addControlInformedSpeedAnchors(anchors, points, samples);
   let previousControl = speedControlState(samples, points[0].x);
   for (let index = 1; index < points.length; index++) {
@@ -738,14 +873,20 @@ function smoothEnhancedSpeed(points, samples = []) {
       return state === 'full' || state === 'brake';
     }).length;
     const steadyControl = steadyControlSamples / segment.length >= 0.7;
+    if (!steadyControl) continue;
     const fitted = regularizeSpeedEnergy(
       segment,
       values,
       endMean >= startMean,
-      steadyControl ? 3 : 1,
-      steadyControl ? 3 : 2
+      2,
+      2
     );
-    fitted.forEach((value, offset) => { result[start + offset].y = value; });
+    fitted.forEach((value, offset) => {
+      const source = points[start + offset];
+      const inferred = source.reconstructed || source.heldInterpolated || source.physicsInterpolated;
+      const allowance = inferred ? 18 : 1.4;
+      result[start + offset].y = clampTelemetry(value, source.y - allowance, source.y + allowance);
+    });
   }
   return result;
 }
@@ -855,11 +996,15 @@ function interpolateHeldControlledSpeed(points) {
       const brakingHold = heldUnderBraking && brakingBefore && deceleratingAfter
         && right.y < left.y && span <= 0.035;
       if (sameDirection && (acceleratingHold || brakingHold) && span > 1e-6) {
-        const startEnergy = left.y * left.y;
-        const energyDelta = right.y * right.y - startEnergy;
         for (let index = start; index <= end; index++) {
           const ratio = clampTelemetry((points[index].x - left.x) / span);
-          result[index].y = Math.sqrt(Math.max(0, startEnergy + energyDelta * ratio));
+          result[index].y = physicalSpeedBetween(
+            points,
+            leftIndex,
+            rightIndex,
+            ratio,
+            acceleratingHold ? 'full' : 'brake',
+          );
           result[index].heldInterpolated = true;
         }
       }
@@ -902,8 +1047,9 @@ function reconstructControlledSpeedAnomalies(points) {
     const trend = surroundingTrend(index);
     const heldAgainstTrend = Math.abs(deltaSpeed) <= 0.05 && dt >= 0.12
       && Math.abs(trend) >= 2 && Math.sign(trend) === (control === 'full' ? 1 : -1);
+    const gearShift = before.gear !== after.gear;
     const impossibleJump = control === 'full'
-      ? acceleration > fullThrottleLimit
+      ? acceleration > fullThrottleLimit || acceleration < (gearShift ? -8 : -3.5)
       : acceleration > 1.5 || acceleration < -70;
     if (heldAgainstTrend || impossibleJump) {
       suspicious[index] = true;
@@ -918,72 +1064,36 @@ function reconstructControlledSpeedAnomalies(points) {
       continue;
     }
     let end = index;
-    // One apparently valid packet between two corrupt intervals is normally
-    // just another quantised step. Join only that one-packet gap; never chain
-    // independent shelves across a straight.
-    while (end + 1 < suspicious.length) {
-      if (suspicious[end + 1]) {
-        end++;
-        continue;
-      }
-      if (end + 2 < suspicious.length && suspicious[end + 2]) {
-        end += 2;
-        continue;
-      }
-      break;
-    }
+    // Stop at the first trustworthy interval. A previous implementation
+    // jumped across one valid packet and could turn several independent data
+    // faults into one very long correction chord.
+    while (end + 1 < suspicious.length && suspicious[end + 1]) end++;
     blocks.push({ start: index, end });
     index = end + 1;
   }
 
   const result = points.map(point => ({ ...point }));
   blocks.forEach(block => {
-    const leftIndex = block.start;
-    const rightIndex = block.end + 1;
+    // Suspicious entries describe intervals. The nearest trustworthy samples
+    // immediately outside the block are the reconstruction anchors.
+    const leftIndex = block.start - 1;
+    const rightIndex = block.end + 2;
+    if (leftIndex < 0 || rightIndex >= points.length) return;
     const left = points[leftIndex];
     const right = points[rightIndex];
     const span = right.x - left.x;
     const duration = right.time - left.time;
     const direction = Math.sign(right.y - left.y);
     const reasons = reason.slice(block.start, block.end + 1).filter(Boolean);
-    if (!(span > 1e-6) || duration > 4.5 || span > 0.065 || !direction || reasons.length < 2) return;
-    const control = controlAt(left);
-    if (control !== controlAt(right)
+    if (!(span > 1e-6) || duration > 5.5 || span > 0.085 || !direction || !reasons.length) return;
+    const control = controlAt(points[block.start]);
+    const controlWindow = points.slice(leftIndex, rightIndex + 1).map(controlAt);
+    if (controlWindow.some(state => state !== control)
         || (control === 'full' && direction < 0)
         || (control === 'brake' && direction > 0)) return;
-
-    const startEnergy = left.y * left.y;
-    const endEnergy = right.y * right.y;
-    const secant = (endEnergy - startEnergy) / span;
-    const energySlope = (before, after) => before && after && after.x > before.x
-      ? (after.y * after.y - before.y * before.y) / (after.x - before.x)
-      : secant;
-    const boundSlope = slope => {
-      if (!Number.isFinite(slope) || Math.sign(slope) !== Math.sign(secant)) return secant;
-      return Math.sign(secant) * Math.min(Math.abs(slope), Math.abs(secant) * 2.5);
-    };
-    let startSlope = boundSlope(energySlope(points[leftIndex - 1], left));
-    let endSlope = boundSlope(energySlope(right, points[rightIndex + 1]));
-    // Monotone cubic Hermite condition: limiting the normalized endpoint
-    // slopes prevents overshoot while retaining the measured entry/exit trend.
-    const alpha = startSlope / secant;
-    const beta = endSlope / secant;
-    const magnitude = Math.hypot(alpha, beta);
-    if (magnitude > 3) {
-      const scale = 3 / magnitude;
-      startSlope *= scale;
-      endSlope *= scale;
-    }
     for (let index = leftIndex + 1; index < rightIndex; index++) {
       const ratio = clampTelemetry((points[index].x - left.x) / span);
-      const t2 = ratio * ratio;
-      const t3 = t2 * ratio;
-      const predicted = (2 * t3 - 3 * t2 + 1) * startEnergy
-        + (t3 - 2 * t2 + ratio) * span * startSlope
-        + (-2 * t3 + 3 * t2) * endEnergy
-        + (t3 - t2) * span * endSlope;
-      const bounded = Math.max(Math.min(startEnergy, endEnergy), Math.min(Math.max(startEnergy, endEnergy), predicted));
-      result[index].y = Math.sqrt(Math.max(0, bounded));
+      result[index].y = physicalSpeedBetween(points, leftIndex, rightIndex, ratio, control);
       result[index].physicsInterpolated = true;
     }
   });
@@ -1008,12 +1118,14 @@ function buildSpeedModel(samples) {
   // Only repeated values under uninterrupted full throttle or full braking may
   // use the nearest distinct samples on either side as reconstruction anchors.
   // Accurate mode still uses the untouched source samples.
+  points = interpolateHeldControlledSpeed(points);
   points = reconstructControlledSpeedAnomalies(points);
   if (points.length >= 7) {
     const reconstruction = reconstructLargeGaps(points, samples, 'Speed');
     points = reconstruction.points;
     gaps = reconstruction.gaps;
   }
+  points = smoothEnhancedSpeed(points, samples);
   return finishShapePreservingModel(points, gaps);
 }
 

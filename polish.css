@@ -169,3 +169,15 @@ body {
 .lap-chip .lap-clock {
   font-size: 11px;
 }
+
+/* Timing deltas need enough vertical resolution for multi-second gaps while
+   retaining the common distance axis shared by the telemetry stack. */
+canvas[data-chart="Timing delta"] {
+  height: 210px !important;
+}
+
+@media (max-width: 700px) {
+  canvas[data-chart="Timing delta"] {
+    height: 175px !important;
+  }
+}
