@@ -61,7 +61,7 @@ async def prevent_stale_local_assets(request: Request, call_next):
     response = await call_next(request)
     hosted = bool(os.environ.get("VERCEL"))
     if not hosted and request.url.path in {
-        "/", "/index.html", "/app.js", "/alignment.js", "/config.js", "/styles.css", "/design-system.css"
+        "/", "/index.html", "/app.js", "/alignment.js", "/telemetry-model.js", "/config.js", "/styles.css", "/design-system.css"
     }:
         response.headers["Cache-Control"] = "no-store, max-age=0"
     elif hosted and request.url.path in {"/", "/index.html"}:
@@ -1136,6 +1136,7 @@ def frontend_asset(asset_name: str) -> FileResponse:
     """Serve only the browser bundle, never backend source or deployment files."""
     allowed = {
         "alignment.js",
+        "telemetry-model.js",
         "app.js",
         "config.js",
         "design-system.css",

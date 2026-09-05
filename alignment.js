@@ -81,7 +81,7 @@ function normalizeTelemetry(samples, lap, source = 'Unknown') {
   if (!Array.isArray(samples) || !samples.length) return samples || [];
 
   const ordered = samples
-    .filter(point => Number.isFinite(+point.ElapsedSeconds) && Number.isFinite(+point.Distance))
+    .filter(point => hasTelemetryNumber(point.ElapsedSeconds) && hasTelemetryNumber(point.Distance))
     .sort((a, b) => (+a.ElapsedSeconds || 0) - (+b.ElapsedSeconds || 0));
   if (ordered.length < 2) return ordered;
 
@@ -157,6 +157,9 @@ async function fetchTelemetry(lap) {
       const brake = point.Brake === true ? 100 : (+point.Brake || 0);
       const nGear = +point.nGear || 0;
       const rawDrs = Number(point.DRS);
+      // Keep a missing brake observation unknown to reconstruction even
+      // though the legacy accurate/display channel uses its existing zero.
+      point.ReconstructionBrake = telemetryNumber(point.Brake);
       if (season < 2026) {
         point.DRS = hasRawMode
           ? (([10, 12, 14, 1].includes(rawDrs) || rawDrs >= 10) ? 1 : 0)
@@ -425,6 +428,8 @@ function setAlignedFractions(samples, fractions, method) {
   setTelemetryMeta(samples, 'throttleModel', null);
   setTelemetryMeta(samples, 'deltaModel', null);
   setTelemetryMeta(samples, 'performanceTimeModel', null);
+  setTelemetryMeta(samples, 'performanceTimeModels', {});
+  setTelemetryMeta(samples, 'deltaModels', {});
 }
 
 function alignedValue(samples, fraction, field) {
@@ -492,705 +497,26 @@ function buildTimeCalibration(samples, lap, referenceSectors) {
   }));
 }
 
-function pointControlState(point) {
-  const throttle = telemetryNumber(point?.throttle ?? point?.Throttle);
-  const brake = telemetryNumber(point?.brake ?? point?.Brake) || 0;
-  if (brake > 0 && (!Number.isFinite(throttle) || throttle <= 20)) return 'brake';
-  if (brake <= 0 && Number.isFinite(throttle) && throttle >= 97) return 'full';
-  return 'partial';
-}
-
-function speedEnergySlope(left, right) {
-  if (!left || !right || !(right.x > left.x)) return null;
-  return (right.y * right.y - left.y * left.y) / (right.x - left.x);
-}
-
-function localEnergyTrend(points, anchorIndex, side, secant, gapSpan) {
-  const slopes = [];
-  const centres = [];
-  for (let offset = 0; offset < 4; offset++) {
-    const leftIndex = side < 0 ? anchorIndex - offset - 1 : anchorIndex + offset;
-    const rightIndex = leftIndex + 1;
-    if (leftIndex < 0 || rightIndex >= points.length) break;
-    const slope = speedEnergySlope(points[leftIndex], points[rightIndex]);
-    if (!Number.isFinite(slope) || Math.sign(slope) !== Math.sign(secant)) continue;
-    slopes.push(slope);
-    centres.push((points[leftIndex].x + points[rightIndex].x) / 2);
-  }
-  if (!slopes.length) return null;
-  const typical = medianTelemetry(slopes);
-  const nearest = slopes[0];
-  // Quantised feeds alternate between zero and very steep packet slopes. The
-  // local median carries more weight than a single adjacent packet while the
-  // nearest slope still preserves the entry/exit direction.
-  const slope = Number.isFinite(typical)
-    ? nearest * 0.35 + typical * 0.65
-    : nearest;
-  const curvatureSamples = [];
-  for (let index = 1; index < slopes.length; index++) {
-    const dx = centres[index] - centres[index - 1];
-    if (Math.abs(dx) > 1e-8) curvatureSamples.push((slopes[index] - slopes[index - 1]) / dx);
-  }
-  const rawCurvature = medianTelemetry(curvatureSamples) || 0;
-  const curvatureLimit = Math.abs(secant) / Math.max(gapSpan, 1e-6) * 4;
-  return {
-    slope,
-    curvature: clampTelemetry(rawCurvature, -curvatureLimit, curvatureLimit),
-  };
-}
-
-// Reconstruct speed in kinetic-energy space. d(v²)/distance is proportional
-// to longitudinal acceleration, so a bounded Hermite curve is a better model
-// for a missing packet run than a straight speed line. Endpoint slopes come
-// from the closest trustworthy samples; conservative throttle/brake profiles
-// are used only when those slopes are unavailable.
-function physicalSpeedBetween(points, leftIndex, rightIndex, ratio, forcedControl = null) {
-  const left = points[leftIndex];
-  const right = points[rightIndex];
-  const span = right.x - left.x;
-  if (!(span > 1e-8)) return left.y;
-  const startEnergy = left.y * left.y;
-  const endEnergy = right.y * right.y;
-  const secant = (endEnergy - startEnergy) / span;
-  if (!Number.isFinite(secant) || Math.abs(secant) < 1e-8) {
-    return left.y + (right.y - left.y) * clampTelemetry(ratio);
-  }
-
-  const control = forcedControl || (() => {
-    const states = new Set(points.slice(leftIndex, rightIndex + 1).map(pointControlState));
-    return states.size === 1 ? [...states][0] : 'partial';
-  })();
-  const physicallyConsistent = (control === 'full' && secant > 0)
-    || (control === 'brake' && secant < 0);
-  const defaultStartFactor = physicallyConsistent
-    ? (control === 'full' ? 1.18 : 1.08)
-    : 1;
-  const defaultEndFactor = physicallyConsistent
-    ? (control === 'full' ? 0.82 : 0.92)
-    : 1;
-  const boundedSlope = (candidate, fallbackFactor) => {
-    if (!Number.isFinite(candidate) || Math.sign(candidate) !== Math.sign(secant)) {
-      return secant * fallbackFactor;
-    }
-    const factor = clampTelemetry(candidate / secant, 0.2, 2.4);
-    return secant * factor;
-  };
-  const startTrend = localEnergyTrend(points, leftIndex, -1, secant, span);
-  const endTrend = localEnergyTrend(points, rightIndex, 1, secant, span);
-  let startSlope = boundedSlope(startTrend?.slope, defaultStartFactor);
-  let endSlope = boundedSlope(endTrend?.slope, defaultEndFactor);
-
-  // Fritsch-Carlson's monotonicity limit prevents the inferred curve from
-  // creating a faster peak or slower trough than either measured anchor.
-  const magnitude = Math.hypot(startSlope / secant, endSlope / secant);
-  if (magnitude > 3) {
-    const scale = 3 / magnitude;
-    startSlope *= scale;
-    endSlope *= scale;
-  }
-  const t = clampTelemetry(ratio);
-  const t2 = t * t;
-  const t3 = t2 * t;
-  const cubic = (2 * t3 - 3 * t2 + 1) * startEnergy
-    + (t3 - 2 * t2 + t) * span * startSlope
-    + (-2 * t3 + 3 * t2) * endEnergy
-    + (t3 - t2) * span * endSlope;
-  const defaultCurvature = (endSlope - startSlope) / span;
-  const startCurvature = Number.isFinite(startTrend?.curvature)
-    ? startTrend.curvature : defaultCurvature;
-  const endCurvature = Number.isFinite(endTrend?.curvature)
-    ? endTrend.curvature : defaultCurvature;
-  const a0 = startEnergy;
-  const a1 = startSlope * span;
-  const a2 = 0.5 * startCurvature * span * span;
-  const remainingPosition = endEnergy - a0 - a1 - a2;
-  const remainingSlope = endSlope * span - a1 - 2 * a2;
-  const remainingCurvature = endCurvature * span * span - 2 * a2;
-  const a3 = 10 * remainingPosition - 4 * remainingSlope + 0.5 * remainingCurvature;
-  const a4 = -15 * remainingPosition + 7 * remainingSlope - remainingCurvature;
-  const a5 = 6 * remainingPosition - 3 * remainingSlope + 0.5 * remainingCurvature;
-  const quinticAt = value => a0 + a1 * value + a2 * value ** 2
-    + a3 * value ** 3 + a4 * value ** 4 + a5 * value ** 5;
-  let quinticSafe = true;
-  let previousEnergy = startEnergy;
-  const direction = Math.sign(endEnergy - startEnergy);
-  for (let sample = 1; sample <= 16; sample++) {
-    const energy = quinticAt(sample / 16);
-    if (!Number.isFinite(energy)
-        || energy < Math.min(startEnergy, endEnergy) - 1e-5
-        || energy > Math.max(startEnergy, endEnergy) + 1e-5
-        || (energy - previousEnergy) * direction < -1e-5) {
-      quinticSafe = false;
-      break;
-    }
-    previousEnergy = energy;
-  }
-  // Curvature is useful near the anchors but becomes less trustworthy across
-  // a long outage. Blending two curves with identical endpoint slopes keeps
-  // C1 continuity while avoiding both an over-bent spline and a dead chord.
-  const curvatureBlend = clampTelemetry(0.72 - span * 5, 0.32, 0.68);
-  const predicted = quinticSafe
-    ? cubic * (1 - curvatureBlend) + quinticAt(t) * curvatureBlend
-    : cubic;
-  const bounded = Math.max(
-    Math.min(startEnergy, endEnergy),
-    Math.min(Math.max(startEnergy, endEnergy), predicted),
-  );
-  return Math.sqrt(Math.max(0, bounded));
-}
-
-function reconstructLargeGaps(points, samples, field) {
-  if (points.length < 2) return { points, gaps: [] };
-  const typicalInterval = samples.quality?.medianInterval || 0.24;
-  const threshold = Math.max(0.55, typicalInterval * 2.4);
-  const typicalDistance = medianTelemetry(points.slice(1).map((point, index) => point.x - points[index].x)) || 0.004;
-  const distanceThreshold = Math.max(0.012, typicalDistance * 2.8);
-  const reconstructed = [];
-  const gaps = [];
-  for (let index = 0; index < points.length - 1; index++) {
-    const before = points[index];
-    const after = points[index + 1];
-    reconstructed.push(before);
-    const interval = after.time - before.time;
-    const distanceInterval = after.x - before.x;
-    if (!(after.x > before.x)
-        || (!(interval > threshold) && !(distanceInterval > distanceThreshold))) continue;
-    // Subdivide from both time and distance cadence. This prevents a badly
-    // timestamped packet pair from becoming one long visual chord.
-    const pieces = Math.max(
-      2,
-      Math.ceil(interval / Math.max(0.08, typicalInterval)),
-      Math.ceil(distanceInterval / Math.max(0.0015, typicalDistance)),
-    );
-    gaps.push({ start: before.x, end: after.x, interval });
-    for (let piece = 1; piece < pieces; piece++) {
-      const ratio = piece / pieces;
-      let value;
-      if (field === 'Speed') {
-        value = physicalSpeedBetween(points, index, index + 1, ratio);
-      } else {
-        // Throttle is an analogue driver input. A linear transition is the
-        // least-assumptive estimate when intermediate samples are absent.
-        value = before.y + (after.y - before.y) * ratio;
-      }
-      reconstructed.push({
-        x: before.x + (after.x - before.x) * ratio,
-        y: value,
-        time: before.time + interval * ratio,
-        throttle: Number.isFinite(before.throttle) && Number.isFinite(after.throttle)
-          ? before.throttle + (after.throttle - before.throttle) * ratio : before.throttle,
-        brake: ratio < 0.5 ? before.brake : after.brake,
-        gear: ratio < 0.5 ? before.gear : after.gear,
-        reconstructed: true,
-      });
-    }
-  }
-  reconstructed.push(points[points.length - 1]);
-  return { points: reconstructed, gaps };
-}
-
-function monotonicTelemetryFit(values, increasing) {
-  if (values.length < 3) return [...values];
-  const direction = increasing ? 1 : -1;
-  const blocks = values.map((value, index) => ({
-    start: index,
-    end: index,
-    weight: index === 0 || index === values.length - 1 ? 1e6 : 1,
-    total: value * direction * (index === 0 || index === values.length - 1 ? 1e6 : 1),
-  }));
-  for (let index = 0; index < blocks.length - 1;) {
-    const left = blocks[index];
-    const right = blocks[index + 1];
-    if (left.total / left.weight <= right.total / right.weight) {
-      index++;
-      continue;
-    }
-    left.end = right.end;
-    left.weight += right.weight;
-    left.total += right.total;
-    blocks.splice(index + 1, 1);
-    if (index > 0) index--;
-  }
-  const result = new Array(values.length);
-  blocks.forEach(block => {
-    const value = block.total / block.weight * direction;
-    for (let index = block.start; index <= block.end; index++) result[index] = value;
-  });
-  result[0] = values[0];
-  result[result.length - 1] = values[values.length - 1];
-  return result;
-}
-
-function significantTelemetryAnchors(points, threshold, radius = 4) {
-  const anchors = new Set([0, points.length - 1]);
-  const values = points.map(point => point.y);
-  anchors.add(values.indexOf(Math.min(...values)));
-  anchors.add(values.indexOf(Math.max(...values)));
-  for (let index = radius; index < points.length - radius; index++) {
-    const value = points[index].y;
-    const left = points.slice(index - radius, index).map(point => point.y);
-    const right = points.slice(index + 1, index + radius + 1).map(point => point.y);
-    const peakProminence = Math.min(value - Math.min(...left), value - Math.min(...right));
-    const troughProminence = Math.min(Math.max(...left) - value, Math.max(...right) - value);
-    if (value >= Math.max(...left, ...right) && peakProminence >= threshold) anchors.add(index);
-    if (value <= Math.min(...left, ...right) && troughProminence >= threshold) anchors.add(index);
-  }
-  return anchors;
-}
-
-function regularizeSpeedEnergy(points, values, increasing, passes = 1, radius = 2) {
-  if (values.length < 4) return [...values];
-  const fitted = monotonicTelemetryFit(values, increasing);
-  const energy = fitted.map(value => value * value);
-  const widths = [];
-  let slopes = [];
-  for (let index = 0; index < points.length - 1; index++) {
-    const width = Math.max(1e-7, points[index + 1].x - points[index].x);
-    widths.push(width);
-    slopes.push((energy[index + 1] - energy[index]) / width);
-  }
-
-  for (let pass = 0; pass < passes; pass++) {
-    slopes = slopes.map((slope, index, source) => {
-      let weighted = 0;
-      let totalWeight = 0;
-      for (let offset = -radius; offset <= radius; offset++) {
-        const sampleIndex = Math.max(0, Math.min(source.length - 1, index + offset));
-        const weight = radius + 1 - Math.abs(offset);
-        weighted += source[sampleIndex] * weight;
-        totalWeight += weight;
-      }
-      const value = weighted / totalWeight;
-      return increasing ? Math.max(0, value) : Math.min(0, value);
-    });
-  }
-
-  const targetDelta = energy[energy.length - 1] - energy[0];
-  const smoothedDelta = slopes.reduce((sum, slope, index) => sum + slope * widths[index], 0);
-  if (!Number.isFinite(smoothedDelta) || Math.abs(smoothedDelta) < 1e-8
-      || Math.sign(smoothedDelta) !== Math.sign(targetDelta)) {
-    return fitted;
-  }
-  const scale = targetDelta / smoothedDelta;
-  const rebuilt = [energy[0]];
-  slopes.forEach((slope, index) => {
-    rebuilt.push(rebuilt[rebuilt.length - 1] + slope * scale * widths[index]);
-  });
-  const result = rebuilt.map(value => Math.sqrt(Math.max(0, value)));
-  result[0] = values[0];
-  result[result.length - 1] = values[values.length - 1];
-  return result;
-}
-
-function nearestTelemetryPoint(points, fraction) {
-  let best = 0;
-  let error = Infinity;
-  points.forEach((point, index) => {
-    const current = Math.abs(point.x - fraction);
-    if (current < error) {
-      error = current;
-      best = index;
-    }
-  });
-  return best;
-}
-
-function addControlInformedSpeedAnchors(anchors, points, samples) {
-  if (!samples?.length || points.length < 7) return;
-  const candidates = significantTelemetryAnchors(points, 3.5, 4);
-  const controlSpan = 0.009; // roughly 35–50 m on a typical circuit
-  candidates.forEach(index => {
-    if (index <= 0 || index >= points.length - 1 || anchors.has(index)) return;
-    const point = points[index];
-    const beforeThrottle = telemetryNumber(alignedValue(samples, clampTelemetry(point.x - controlSpan), 'Throttle'));
-    const atThrottle = telemetryNumber(alignedValue(samples, point.x, 'Throttle'));
-    const afterThrottle = telemetryNumber(alignedValue(samples, clampTelemetry(point.x + controlSpan), 'Throttle'));
-    const beforeBrake = telemetryNumber(alignedValue(samples, clampTelemetry(point.x - controlSpan), 'Brake')) || 0;
-    const atBrake = telemetryNumber(alignedValue(samples, point.x, 'Brake')) || 0;
-    const afterBrake = telemetryNumber(alignedValue(samples, clampTelemetry(point.x + controlSpan), 'Brake')) || 0;
-    const left = points[Math.max(0, index - 2)].y;
-    const right = points[Math.min(points.length - 1, index + 2)].y;
-    const isPeak = point.y >= left && point.y >= right;
-    const isTrough = point.y <= left && point.y <= right;
-    const throttleLift = Number.isFinite(beforeThrottle) && Number.isFinite(atThrottle)
-      && beforeThrottle - Math.min(atThrottle, afterThrottle ?? atThrottle) >= 8;
-    const throttleRecovery = Number.isFinite(atThrottle) && Number.isFinite(afterThrottle)
-      && afterThrottle - Math.min(beforeThrottle ?? atThrottle, atThrottle) >= 8;
-    const brakeOnset = Math.max(atBrake, afterBrake) > 0 && beforeBrake <= 0;
-    const brakingIntoCorner = Math.max(beforeBrake, atBrake) > 0;
-    if ((isPeak && (brakeOnset || throttleLift))
-        || (isTrough && (brakingIntoCorner || throttleRecovery))) {
-      anchors.add(index);
-    }
-  });
-}
-
-function speedControlState(samples, fraction) {
-  const throttle = telemetryNumber(alignedValue(samples, fraction, 'Throttle'));
-  const brake = telemetryNumber(alignedValue(samples, fraction, 'Brake')) || 0;
-  if (brake > 0) return 'brake';
-  if (Number.isFinite(throttle) && throttle >= 97) return 'full';
-  return 'partial';
-}
-
-// Enhanced speed is deliberately conservative: real local extrema, input
-// transitions and reconstructed-gap edges are pinned. Within each resulting
-// short monotonic phase, smooth d(v²)/distance (longitudinal acceleration)
-// instead of averaging speed itself. This removes sample steps without moving
-// a braking peak or a corner minimum.
-function smoothEnhancedSpeed(points, samples = []) {
-  if (points.length < 7) return points;
-  const anchors = significantTelemetryAnchors(points, 3, 3);
-  addControlInformedSpeedAnchors(anchors, points, samples);
-  let previousControl = speedControlState(samples, points[0].x);
-  for (let index = 1; index < points.length; index++) {
-    const control = speedControlState(samples, points[index].x);
-    if (control !== previousControl) {
-      anchors.add(index - 1);
-      anchors.add(index);
-      previousControl = control;
-    }
-  }
-  for (let index = 1; index < points.length; index++) {
-    if (Boolean(points[index].reconstructed) !== Boolean(points[index - 1].reconstructed)) {
-      anchors.add(index - 1);
-      anchors.add(index);
-    }
-  }
-  const ordered = [...anchors].sort((a, b) => a - b);
-  const result = points.map(point => ({ ...point }));
-  for (let anchorIndex = 0; anchorIndex < ordered.length - 1; anchorIndex++) {
-    const start = ordered[anchorIndex];
-    const end = ordered[anchorIndex + 1];
-    if (end - start < 3) continue;
-    const segment = points.slice(start, end + 1);
-    const values = segment.map(point => point.y);
-    const edge = Math.min(3, Math.floor(values.length / 3));
-    const startMean = values.slice(0, edge).reduce((sum, value) => sum + value, 0) / edge;
-    const endMean = values.slice(-edge).reduce((sum, value) => sum + value, 0) / edge;
-    const steadyControlSamples = segment.filter(point => {
-      const state = speedControlState(samples, point.x);
-      return state === 'full' || state === 'brake';
-    }).length;
-    const steadyControl = steadyControlSamples / segment.length >= 0.7;
-    if (!steadyControl) continue;
-    const fitted = regularizeSpeedEnergy(
-      segment,
-      values,
-      endMean >= startMean,
-      2,
-      2
-    );
-    fitted.forEach((value, offset) => {
-      const source = points[start + offset];
-      const inferred = source.reconstructed || source.heldInterpolated || source.physicsInterpolated;
-      const allowance = inferred ? 18 : 1.4;
-      result[start + offset].y = clampTelemetry(value, source.y - allowance, source.y + allowance);
-    });
-  }
-  return result;
-}
-
-function smoothEnhancedThrottle(points) {
-  if (points.length < 5) return points;
-  const snapped = points.map(point => ({
-    ...point,
-    y: point.y >= 97.5 ? 100 : point.y <= 2.5 ? 0 : point.y,
-  }));
-  const anchors = significantTelemetryAnchors(snapped, 7.5, 2);
-  for (let index = 1; index < snapped.length; index++) {
-    const previousPlateau = snapped[index - 1].y === 0 || snapped[index - 1].y === 100;
-    const currentPlateau = snapped[index].y === 0 || snapped[index].y === 100;
-    if (previousPlateau !== currentPlateau || (previousPlateau && snapped[index - 1].y !== snapped[index].y)) {
-      anchors.add(index - 1);
-      anchors.add(index);
-    }
-  }
-  const ordered = [...anchors].sort((a, b) => a - b);
-  const result = snapped.map(point => ({ ...point }));
-  for (let anchorIndex = 0; anchorIndex < ordered.length - 1; anchorIndex++) {
-    const start = ordered[anchorIndex];
-    const end = ordered[anchorIndex + 1];
-    if (end - start < 2) continue;
-    const values = snapped.slice(start, end + 1).map(point => point.y);
-    const fitted = monotonicTelemetryFit(values, values[values.length - 1] >= values[0]);
-    fitted.forEach((value, offset) => { result[start + offset].y = clampTelemetry(value, 0, 100); });
-  }
-  return result;
-}
-
-function finishShapePreservingModel(points, gaps = []) {
-  points = points
-    .sort((a, b) => a.x - b.x)
-    .filter((point, index, array) => index === 0 || point.x - array[index - 1].x > 1e-5);
-  if (points.length < 3) return null;
-  const intervals = [];
-  const slopes = [];
-  for (let index = 0; index < points.length - 1; index++) {
-    const width = points[index + 1].x - points[index].x;
-    intervals.push(width);
-    slopes.push((points[index + 1].y - points[index].y) / width);
-  }
-  const tangents = new Array(points.length);
-  tangents[0] = slopes[0];
-  tangents[tangents.length - 1] = slopes[slopes.length - 1];
-  for (let index = 1; index < points.length - 1; index++) {
-    if (slopes[index - 1] === 0 || slopes[index] === 0
-        || Math.sign(slopes[index - 1]) !== Math.sign(slopes[index])) {
-      tangents[index] = 0;
-    } else {
-      const leftWeight = 2 * intervals[index] + intervals[index - 1];
-      const rightWeight = intervals[index] + 2 * intervals[index - 1];
-      tangents[index] = (leftWeight + rightWeight)
-        / (leftWeight / slopes[index - 1] + rightWeight / slopes[index]);
-    }
-  }
-  return { points, intervals, tangents, gaps };
-}
-
-// A held integer speed is not an independent physical observation at every
-// car-channel timestamp. During uninterrupted full throttle or braking,
-// replace only the interior of a repeated-speed run with constant-acceleration
-// interpolation (linear v² over distance). Distinct samples, local extrema
-// and control transitions remain exact anchors.
-function interpolateHeldControlledSpeed(points) {
-  if (points.length < 4) return points;
-  const result = points.map(point => ({ ...point }));
-  let start = 0;
-  while (start < points.length) {
-    let end = start;
-    // Repair only a genuinely repeated published value. Grouping neighbouring
-    // integer values (283/284/...) can chain across an entire straight and
-    // replace its real acceleration curve with one artificial long ramp.
-    while (end + 1 < points.length && Math.abs(points[end + 1].y - points[start].y) <= 0.05) end++;
-    const leftIndex = start - 1;
-    const rightIndex = end + 1;
-    if (end > start && leftIndex >= 0 && rightIndex < points.length) {
-      const left = points[leftIndex];
-      const right = points[rightIndex];
-      const leftStep = points[start].y - left.y;
-      const rightStep = right.y - points[end].y;
-      const sameDirection = Math.abs(right.y - left.y) >= 0.5
-        && Math.sign(leftStep) === Math.sign(rightStep);
-      const fullThrottle = points.slice(leftIndex, rightIndex + 1)
-        .every(point => Number.isFinite(point.throttle) && point.throttle >= 97);
-      const surrounding = points.slice(leftIndex, rightIndex + 1);
-      const gears = [...new Set(surrounding.map(point => point.gear).filter(Number.isFinite))];
-      const sameGear = Number.isFinite(left.gear) && gears.length === 1;
-      const noBrake = surrounding.every(point => Number.isFinite(point.brake) && point.brake <= 0);
-      const heldSamples = points.slice(start, end + 1);
-      const heldUnderBraking = heldSamples.every(point => Number.isFinite(point.brake) && point.brake > 0
-        && (!Number.isFinite(point.throttle) || point.throttle <= 20));
-      const brakingBefore = Number.isFinite(left.brake) && left.brake > 0
-        && (!Number.isFinite(left.throttle) || left.throttle <= 20);
-      // The final anchor may be the first sample after brake release. It is
-      // still a valid deceleration anchor while throttle remains at coast.
-      const deceleratingAfter = (Number.isFinite(right.brake) && right.brake > 0)
-        || ((Number.isFinite(right.brake) ? right.brake : 0) <= 0
-          && Number.isFinite(right.throttle) && right.throttle <= 20);
-      const span = right.x - left.x;
-      // A short shelf may straddle one upshift. The reconstruction remains
-      // bounded by the nearest distinct measurements on either side.
-      const briefGearShift = gears.length === 2 && end - start <= 2 && span <= 0.02;
-      const acceleratingHold = fullThrottle && noBrake && (sameGear || briefGearShift);
-      const brakingHold = heldUnderBraking && brakingBefore && deceleratingAfter
-        && right.y < left.y && span <= 0.035;
-      if (sameDirection && (acceleratingHold || brakingHold) && span > 1e-6) {
-        for (let index = start; index <= end; index++) {
-          const ratio = clampTelemetry((points[index].x - left.x) / span);
-          result[index].y = physicalSpeedBetween(
-            points,
-            leftIndex,
-            rightIndex,
-            ratio,
-            acceleratingHold ? 'full' : 'brake',
-          );
-          result[index].heldInterpolated = true;
-        }
-      }
-    }
-    start = end + 1;
-  }
-  return result;
-}
-
-function reconstructControlledSpeedAnomalies(points) {
-  if (points.length < 7) return points;
-  const suspicious = new Array(points.length - 1).fill(false);
-  const reason = new Array(points.length - 1).fill('');
-  const controlAt = point => {
-    const throttle = Number.isFinite(point.throttle) ? point.throttle : 0;
-    const brake = Number.isFinite(point.brake) ? point.brake : 0;
-    if (brake > 0 && throttle <= 20) return 'brake';
-    if (brake <= 0 && throttle >= 97) return 'full';
-    return 'partial';
-  };
-  const surroundingTrend = index => {
-    const left = points[Math.max(0, index - 2)];
-    const right = points[Math.min(points.length - 1, index + 3)];
-    return right.y - left.y;
-  };
-
-  for (let index = 0; index < points.length - 1; index++) {
-    const before = points[index];
-    const after = points[index + 1];
-    const dt = after.time - before.time;
-    if (!(dt > 0) || controlAt(before) !== controlAt(after)) continue;
-    const control = controlAt(before);
-    if (control === 'partial') continue;
-    const deltaSpeed = after.y - before.y;
-    const acceleration = (deltaSpeed / 3.6) / dt;
-    const averageSpeed = (before.y + after.y) / 2;
-    const fullThrottleLimit = averageSpeed >= 280 ? 5.5
-      : averageSpeed >= 220 ? 7.5
-        : averageSpeed >= 150 ? 10 : 13;
-    const trend = surroundingTrend(index);
-    const heldAgainstTrend = Math.abs(deltaSpeed) <= 0.05 && dt >= 0.12
-      && Math.abs(trend) >= 2 && Math.sign(trend) === (control === 'full' ? 1 : -1);
-    const gearShift = before.gear !== after.gear;
-    const impossibleJump = control === 'full'
-      ? acceleration > fullThrottleLimit || acceleration < (gearShift ? -8 : -3.5)
-      : acceleration > 1.5 || acceleration < -70;
-    if (heldAgainstTrend || impossibleJump) {
-      suspicious[index] = true;
-      reason[index] = heldAgainstTrend ? 'held' : 'jump';
-    }
-  }
-
-  const blocks = [];
-  for (let index = 0; index < suspicious.length;) {
-    if (!suspicious[index]) {
-      index++;
-      continue;
-    }
-    let end = index;
-    // Stop at the first trustworthy interval. A previous implementation
-    // jumped across one valid packet and could turn several independent data
-    // faults into one very long correction chord.
-    while (end + 1 < suspicious.length && suspicious[end + 1]) end++;
-    blocks.push({ start: index, end });
-    index = end + 1;
-  }
-
-  const result = points.map(point => ({ ...point }));
-  blocks.forEach(block => {
-    // Suspicious entries describe intervals. The nearest trustworthy samples
-    // immediately outside the block are the reconstruction anchors.
-    const leftIndex = block.start - 1;
-    const rightIndex = block.end + 2;
-    if (leftIndex < 0 || rightIndex >= points.length) return;
-    const left = points[leftIndex];
-    const right = points[rightIndex];
-    const span = right.x - left.x;
-    const duration = right.time - left.time;
-    const direction = Math.sign(right.y - left.y);
-    const reasons = reason.slice(block.start, block.end + 1).filter(Boolean);
-    if (!(span > 1e-6) || duration > 5.5 || span > 0.085 || !direction || !reasons.length) return;
-    const control = controlAt(points[block.start]);
-    const controlWindow = points.slice(leftIndex, rightIndex + 1).map(controlAt);
-    if (controlWindow.some(state => state !== control)
-        || (control === 'full' && direction < 0)
-        || (control === 'brake' && direction > 0)) return;
-    for (let index = leftIndex + 1; index < rightIndex; index++) {
-      const ratio = clampTelemetry((points[index].x - left.x) / span);
-      result[index].y = physicalSpeedBetween(points, leftIndex, rightIndex, ratio, control);
-      result[index].physicsInterpolated = true;
-    }
-  });
-  return result;
-}
-
+// One reconstruction engine is shared by the displayed path, hover values
+// and enhanced timing integration. Accurate mode still reads source samples.
 function buildSpeedModel(samples) {
-  let points = samples
-    .map(point => ({
-      x: Number.isFinite(point.AlignedFraction) ? point.AlignedFraction : rawFractionAt(samples, point),
-      y: telemetryNumber(point.Speed),
-      time: telemetryNumber(point.ElapsedSeconds),
-      throttle: telemetryNumber(point.Throttle),
-      brake: telemetryNumber(point.Brake),
-      gear: telemetryNumber(point.nGear),
-    }))
-    .filter(point => Number.isFinite(point.x) && point.y !== null && point.time !== null);
-  if (points.length < 3) return null;
-  let gaps = [];
-
-  // Every ordinary interval remains bounded by its two adjacent measurements.
-  // Only repeated values under uninterrupted full throttle or full braking may
-  // use the nearest distinct samples on either side as reconstruction anchors.
-  // Accurate mode still uses the untouched source samples.
-  points = interpolateHeldControlledSpeed(points);
-  points = reconstructControlledSpeedAnomalies(points);
-  if (points.length >= 7) {
-    const reconstruction = reconstructLargeGaps(points, samples, 'Speed');
-    points = reconstruction.points;
-    gaps = reconstruction.gaps;
-  }
-  points = smoothEnhancedSpeed(points, samples);
-  return finishShapePreservingModel(points, gaps);
+  return globalThis.TelemetryReconstruction?.build(samples, 'Speed') || null;
 }
 
 function buildThrottleModel(samples) {
-  let points = samples
-    .map(point => ({
-      x: Number.isFinite(point.AlignedFraction) ? point.AlignedFraction : rawFractionAt(samples, point),
-      y: telemetryNumber(point.Throttle),
-      time: telemetryNumber(point.ElapsedSeconds),
-    }))
-    .filter(point => Number.isFinite(point.x) && point.y !== null && point.time !== null);
-  if (points.length < 3) return null;
-  const reconstruction = reconstructLargeGaps(points, samples, 'Throttle');
-  // Accurate mode bypasses this model and connects measured samples linearly.
-  // Enhanced mode uses a bounded, shape-preserving curve that cannot overshoot
-  // the published throttle values and bridges explicitly detected gaps.
-  return finishShapePreservingModel(smoothEnhancedThrottle(reconstruction.points), reconstruction.gaps);
+  return globalThis.TelemetryReconstruction?.build(samples, 'Throttle') || null;
 }
 
 function evaluateSpeedModel(model, fraction) {
-  const x = clampTelemetry(fraction);
-  const points = model.points;
-  if (x <= points[0].x) return points[0].y;
-  if (x >= points[points.length - 1].x) return points[points.length - 1].y;
-  let low = 1;
-  let high = points.length - 1;
-  while (low < high) {
-    const middle = (low + high) >> 1;
-    if (points[middle].x < x) low = middle + 1;
-    else high = middle;
-  }
-  const index = low - 1;
-  const width = model.interpolation === 'linear'
-    ? (points[index + 1].x - points[index].x || 1)
-    : (model.intervals[index] || 1);
-  const t = clampTelemetry((x - points[index].x) / width);
-  if (model.interpolation === 'linear') {
-    return points[index].y + (points[index + 1].y - points[index].y) * t;
-  }
-  const t2 = t * t;
-  const t3 = t2 * t;
-  const value = (2 * t3 - 3 * t2 + 1) * points[index].y
-    + (t3 - 2 * t2 + t) * width * model.tangents[index]
-    + (-2 * t3 + 3 * t2) * points[index + 1].y
-    + (t3 - t2) * width * model.tangents[index + 1];
-  return Math.max(
-    Math.min(points[index].y, points[index + 1].y),
-    Math.min(Math.max(points[index].y, points[index + 1].y), value)
-  );
+  return TelemetryReconstruction.evaluate(model, fraction);
 }
 
 function smoothedTelemetryValue(samples, fraction, field) {
-  if (field === 'Speed') {
-    if (!samples.speedModel) setTelemetryMeta(samples, 'speedModel', buildSpeedModel(samples));
-    return samples.speedModel
-      ? evaluateSpeedModel(samples.speedModel, fraction)
-      : alignedValue(samples, fraction, field);
-  }
-  if (field === 'Throttle') {
-    if (!samples.throttleModel) setTelemetryMeta(samples, 'throttleModel', buildThrottleModel(samples));
-    return samples.throttleModel
-      ? clampTelemetry(evaluateSpeedModel(samples.throttleModel, fraction), 0, 100)
-      : alignedValue(samples, fraction, field);
-  }
-  return alignedValue(samples, fraction, field);
+  if (!samples?.length) return null;
+  const key = field === 'Speed' ? 'speedModel' : field === 'Throttle' ? 'throttleModel' : null;
+  if (!key) return alignedValue(samples, fraction, field);
+  if (!samples[key]) setTelemetryMeta(samples, key, globalThis.TelemetryReconstruction?.build(samples, field) || null);
+  return samples[key] ? evaluateSpeedModel(samples[key], fraction) : alignedValue(samples, fraction, field);
 }
 
 function enhancedInterpolationEnabled() {
@@ -1209,6 +535,14 @@ function isReconstructedTelemetry(samples, fraction, field) {
   const model = field === 'Speed' ? samples?.speedModel
     : field === 'Throttle' ? samples?.throttleModel : null;
   return Boolean(model?.gaps?.some(gap => fraction > gap.start && fraction < gap.end));
+}
+
+function telemetryEstimateInfo(samples, fraction, field) {
+  if (!enhancedInterpolationEnabled()) return null;
+  const model = field === 'Speed' ? samples?.speedModel : field === 'Throttle' ? samples?.throttleModel : null;
+  const ranges = model?.gaps?.filter(range => fraction > range.start && fraction < range.end) || [];
+  if (!ranges.length) return null;
+  return ranges.find(range => range.confidence === 'low') || ranges[0];
 }
 
 function calibratedElapsed(samples, fraction) {
@@ -1238,7 +572,9 @@ function buildPerformanceTimeModel(samples, mode = enhancedInterpolationEnabled(
   const totalDistance = referenceDistance();
   if (!Number.isFinite(totalDistance) || totalDistance <= 0) return null;
   const enhanced = mode === 'enhanced';
-  const resolution = Math.max(600, Math.min(1800, Math.ceil(totalDistance / 4)));
+  const resolution = enhanced
+    ? Math.max(1200, Math.min(3600, Math.ceil(totalDistance / 2)))
+    : Math.max(600, Math.min(1800, Math.ceil(totalDistance / 4)));
   const raw = new Array(resolution + 1).fill(0);
   for (let index = 1; index <= resolution; index++) {
     const beforeFraction = (index - 1) / resolution;
@@ -1251,7 +587,16 @@ function buildPerformanceTimeModel(samples, mode = enhancedInterpolationEnabled(
       : alignedValue(samples, afterFraction, 'Speed');
     if (!Number.isFinite(beforeSpeed) || !Number.isFinite(afterSpeed)) return null;
     const meanSpeed = Math.max(10, (beforeSpeed + afterSpeed) / 2);
-    raw[index] = raw[index - 1] + (totalDistance / resolution) / (meanSpeed / 3.6);
+    if (enhanced) {
+      // Simpson integration of dt/ds = 1/v, evaluated from the same curve
+      // as the graph. Averaging v first biases time around braking troughs.
+      const midSpeed = smoothedTelemetryValue(samples, (beforeFraction + afterFraction) / 2, 'Speed');
+      if (!Number.isFinite(midSpeed)) return null;
+      raw[index] = raw[index - 1] + (totalDistance / resolution) * 3.6 / 6
+        * (1 / Math.max(10, beforeSpeed) + 4 / Math.max(10, midSpeed) + 1 / Math.max(10, afterSpeed));
+    } else {
+      raw[index] = raw[index - 1] + (totalDistance / resolution) / (meanSpeed / 3.6);
+    }
   }
 
   const rawAt = fraction => {
@@ -1288,10 +633,10 @@ function buildPerformanceTimeModel(samples, mode = enhancedInterpolationEnabled(
 
 function performanceElapsed(samples, fraction, mode = enhancedInterpolationEnabled() ? 'enhanced' : 'accurate') {
   if (!samples?.length) return null;
-  if (!samples.performanceTimeModel || samples.performanceTimeModel.mode !== mode) {
-    setTelemetryMeta(samples, 'performanceTimeModel', buildPerformanceTimeModel(samples, mode));
-  }
-  const model = samples.performanceTimeModel;
+  if (!samples.performanceTimeModels) setTelemetryMeta(samples, 'performanceTimeModels', {});
+  if (!Object.hasOwn(samples.performanceTimeModels, mode)) samples.performanceTimeModels[mode] = buildPerformanceTimeModel(samples, mode);
+  const model = samples.performanceTimeModels[mode];
+  setTelemetryMeta(samples, 'performanceTimeModel', model);
   if (!model) return calibratedElapsed(samples, fraction);
   const target = clampTelemetry(fraction);
   const exact = model.controls.find(control => Math.abs(control.fraction - target) < 1e-8);
@@ -1318,7 +663,7 @@ function deltaAt(samples, reference, targetDistance) {
 }
 
 function buildDeltaModel(samples, reference, mode = enhancedInterpolationEnabled() ? 'enhanced' : 'accurate') {
-  const resolution = 360;
+  const resolution = mode === 'enhanced' ? Math.max(1200, Math.min(3600, Math.ceil(referenceDistance() / 2))) : 360;
   const raw = Array.from({ length: resolution + 1 }, (_, index) => {
     const fraction = index / resolution;
     const timeHere = performanceElapsed(samples, fraction, mode);
@@ -1355,12 +700,21 @@ function buildDeltaModel(samples, reference, mode = enhancedInterpolationEnabled
   };
 }
 
-function displayDeltaAt(samples, reference, fraction) {
-  if (samples === reference) return 0;
-  const mode = enhancedInterpolationEnabled() ? 'enhanced' : 'accurate';
-  if (!samples.deltaModel || samples.deltaModel.mode !== mode) {
-    setTelemetryMeta(samples, 'deltaModel', buildDeltaModel(samples, reference, mode));
+function cachedDeltaModel(samples, reference, mode) {
+  if (!samples?.length || !reference?.length) return null;
+  if (!samples.deltaModels) setTelemetryMeta(samples, 'deltaModels', {});
+  if (!Object.hasOwn(samples.deltaModels, mode) || (samples.deltaModels[mode] && samples.deltaModels[mode].reference !== reference)) {
+    const model = buildDeltaModel(samples, reference, mode);
+    if (model) model.reference = reference;
+    samples.deltaModels[mode] = model;
   }
+  return samples.deltaModels[mode];
+}
+
+function displayDeltaAt(samples, reference, fraction, mode = enhancedInterpolationEnabled() ? 'enhanced' : 'accurate') {
+  if (samples === reference) return 0;
+  if (!samples?.length || !reference?.length) return null;
+  setTelemetryMeta(samples, 'deltaModel', cachedDeltaModel(samples, reference, mode));
   if (!samples.deltaModel) return deltaAt(samples, reference, referenceDistance() * fraction);
   const target = clampTelemetry(fraction);
   const exactAnchor = samples.deltaModel.anchors?.find(anchor => Math.abs(anchor.fraction - target) < 1e-8);

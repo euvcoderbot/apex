@@ -1124,7 +1124,7 @@ function bindChartZoom() {
     speedCanvas.addEventListener('mousedown', event => {
       if (event.button !== 0 || !loaded.length) return;
       const rect = speedCanvas.getBoundingClientRect();
-      const local = Math.max(0, Math.min(1, (event.clientX - rect.left - 43) / (rect.width - 50)));
+      const local = Math.max(0, Math.min(1, (event.clientX - rect.left - TRACE_PLOT_LEFT) / (rect.width - TRACE_PLOT_LEFT - TRACE_PLOT_RIGHT)));
       const fraction = traceZoom.start + local * (traceZoom.end - traceZoom.start);
       zoomDrag = { anchor: fraction, current: fraction };
       hoverFraction = null;
@@ -1245,7 +1245,7 @@ function renderCharts() {
           <div class="trace-settings" aria-label="Telemetry display settings">
             <div class="alignment-readout"><i></i><span id="alignmentStatus" data-state="idle">Speed trace controls</span></div>
             <label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label>
-            <label class="trace-setting trace-mode-toggle" title="Enhanced interpolates between adjacent samples. Only repeated values under uninterrupted full throttle or full braking use the nearest distinct anchors. Timing delta follows the same curve while official sector and finish deltas remain exact."><input type="checkbox" id="interpolationToggle" ${enhancedTraceMode ? 'checked' : ''}><i aria-hidden="true"></i><span>Enhanced interpolation</span><small id="traceModeStatus" data-mode="${enhancedTraceMode ? 'enhanced' : 'accurate'}">${enhancedTraceMode ? 'INTERPOLATED' : 'ACCURATE'}</small></label>
+            <label class="trace-setting trace-mode-toggle" title="Smooth interpolation through trusted samples. Repairs require evidence from neighbouring acceleration, throttle, brake and gear/RPM; full throttle alone does not prove a fault. Uncertain gaps are marked as estimates. Timing delta follows reconstructed speed while official sector and finish deltas stay exact."><input type="checkbox" id="interpolationToggle" ${enhancedTraceMode ? 'checked' : ''}><i aria-hidden="true"></i><span>Enhanced interpolation</span><small id="traceModeStatus" data-mode="${enhancedTraceMode ? 'enhanced' : 'accurate'}">${enhancedTraceMode ? 'INTERPOLATED' : 'ACCURATE'}</small></label>
             <label class="trace-setting"><input type="checkbox" id="tintToggle" ${traceTintEnabled ? 'checked' : ''}><i aria-hidden="true"></i><span>Trace tint</span></label>
           </div>
           <div class="trace-display-bar">
@@ -1607,6 +1607,9 @@ function sampledEnhancedTrace(series, field, viewStart, viewEnd, steps) {
   model?.points?.forEach(point => {
     if (point.x > viewStart && point.x < viewEnd) candidates.push({ x: point.x, y: point.y });
   });
+  if (hoverFraction !== null && hoverFraction >= viewStart && hoverFraction <= viewEnd) {
+    candidates.push({ x: hoverFraction, y: traceTelemetryValue(series, hoverFraction, field) });
+  }
   candidates.sort((a, b) => a.x - b.x);
   const points = [];
   candidates.forEach(point => appendTracePoint(points, point.x, point.y));
@@ -1631,6 +1634,8 @@ function renderedTraceValue(points, fraction, stepped = false) {
   return before.y + (after.y - before.y) * ratio;
 }
 
+const TRACE_PLOT_LEFT = 58;
+const TRACE_PLOT_RIGHT = 7;
 // Draw a single canvas chart
 function drawRealChart(name) {
   const canvas = document.querySelector(`[data-chart="${name}"]`);
@@ -1687,13 +1692,15 @@ function drawRealChart(name) {
         // Sample every delta-model interval when setting the axis. The old
         // 100-point scan could miss a narrow minimum that the 180-point path
         // still drew, letting the trace escape below the chart boundary.
-        const resolution = Math.max(360, samples.deltaModel?.resolution || 0);
-        for (let i = 0; i <= resolution; i++) {
-          const fraction = viewStart + viewSpan * i / resolution;
-          const v = typeof displayDeltaAt === 'function'
-            ? displayDeltaAt(samples, refSamples, fraction)
-            : deltaAt(samples, refSamples, refDistance * fraction);
-          if (Number.isFinite(v)) values.push(v);
+        // Union of both modes keeps the scale stable when toggling enhanced.
+        for (const mode of ['accurate', 'enhanced']) {
+          const model = cachedDeltaModel(samples, refSamples, mode);
+          const resolution = Math.max(360, model?.resolution || 0);
+          for (let i = 0; i <= resolution; i++) {
+            const fraction = viewStart + viewSpan * i / resolution;
+            const v = displayDeltaAt(samples, refSamples, fraction, mode);
+            if (Number.isFinite(v)) values.push(v);
+          }
         }
       });
     }
@@ -1719,7 +1726,7 @@ function drawRealChart(name) {
   const refLap = loaded[0];
   const refSamples = telemetryCache.get(telemetryKey(refLap));
   const totalDist = refSamples && refSamples.length ? refSamples[refSamples.length - 1].Distance : 5891;
-  const axisLeft = name === 'Timing delta' ? 58 : 50;
+  const axisLeft = TRACE_PLOT_LEFT;
   const speedCornerMarkers = name === 'Speed trace' && $('#cornerToggle').checked
     ? resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers)
     : [];
@@ -1729,7 +1736,7 @@ function drawRealChart(name) {
     : 8;
   const bounds = {
     left: axisLeft,
-    right: 7,
+    right: TRACE_PLOT_RIGHT,
     top: name === 'Speed trace' ? cornerTopInset : 8,
     bottom: 15,
     min,
@@ -1847,7 +1854,7 @@ function drawRealChart(name) {
     } else if (name === 'Brake application' || name === 'Gear' || name === 'DRS') {
       domainPoints = measuredDiscreteTrace(series, field, viewStart, viewEnd);
     } else {
-      const steps = name === 'Timing delta' ? 360 : 180;
+      const steps = name === 'Timing delta' ? (enhancedInterpolationEnabled() ? 1200 : 360) : 180;
       for (let step = 0; step <= steps; step++) {
         const fraction = viewStart + viewSpan * step / steps;
         const targetDist = totalDist * fraction;
@@ -1857,6 +1864,10 @@ function drawRealChart(name) {
               : deltaAt(series, refSeries, targetDist)))
           : interpolate(series, targetDist, field);
         appendTracePoint(domainPoints, fraction, value);
+      }
+      if (name === 'Timing delta' && hoverFraction !== null && fractionInView(hoverFraction)) {
+        domainPoints.push({ x: hoverFraction, y: displayDeltaAt(series, refSeries, hoverFraction) });
+        domainPoints.sort((a, b) => a.x - b.x);
       }
     }
     const points = domainPoints.map(point => ({
@@ -2003,8 +2014,8 @@ function bindAllChartHover() {
       if (!loaded.length) return;
       
       const rect = canvas.getBoundingClientRect();
-      const printableWidth = rect.width - 43 - 7;
-      const localFraction = Math.max(0, Math.min(1, (e.clientX - rect.left - 43) / printableWidth));
+      const printableWidth = rect.width - TRACE_PLOT_LEFT - TRACE_PLOT_RIGHT;
+      const localFraction = Math.max(0, Math.min(1, (e.clientX - rect.left - TRACE_PLOT_LEFT) / printableWidth));
       const fraction = traceZoom.start + localFraction * (traceZoom.end - traceZoom.start);
 
       if (zoomDrag && canvas.dataset.chart === 'Speed trace') {
@@ -2031,6 +2042,7 @@ function bindAllChartHover() {
       const distanceKM = (fraction * maxDistance) / 1000;
       
       let hasReconstructedValue = false;
+      let hasLowConfidenceValue = false;
       const lines = visibleTraceLaps().map(({ lap, index }) => {
         const series = telemetryCache.get(telemetryKey(lap));
         let val = null;
@@ -2060,6 +2072,7 @@ function bindAllChartHover() {
             const reconstructed = typeof isReconstructedTelemetry === 'function'
               && isReconstructedTelemetry(series, fraction, field);
             if (reconstructed) hasReconstructedValue = true;
+            if (telemetryEstimateInfo(series, fraction, field)?.confidence === 'low') hasLowConfidenceValue = true;
             const precision = (hoveredChartName === 'Speed trace'
               || hoveredChartName === 'Throttle application')
               ? val.toFixed(1)
@@ -2071,7 +2084,7 @@ function bindAllChartHover() {
       });
       
       const reconstructionNote = hasReconstructedValue
-        ? '<br><small>~ RECONSTRUCTED ACROSS SOURCE GAP</small>'
+        ? `<br><small>~ ${hasLowConfidenceValue ? 'LOW-CONFIDENCE GAP ESTIMATE' : 'ESTIMATED REPAIR'}</small>`
         : '';
       tooltip.innerHTML = `<b>${distanceKM.toFixed(3)} KM</b><br>${lines.join('<br>')}${reconstructionNote}`;
       tooltip.style.display = 'block';
