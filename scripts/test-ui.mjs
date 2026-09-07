@@ -90,7 +90,7 @@ test('corner navigation precedes detail/map siblings and retains map height', ()
   assert.ok(html.indexOf('id="cornerMetricGrid"') < html.indexOf('id="dominanceCanvas"'));
   assert.equal((html.match(/id="dominanceCanvas"/g) || []).length, 1);
   assert.match(css, /@container \(min-width: 940px\)/);
-  assert.doesNotMatch(css, /#dominanceCanvas\s*\{[^}]*height:/);
+  assert.match(css, /#dominanceCanvas\s*\{[^}]*height: clamp\(280px, 24vw, 420px\)/);
   assert.match(app, /positionCornerIndicator\(pickerRoot, pickerState\)/);
 });
 
@@ -152,4 +152,15 @@ test('compact sector rows, contrasting logos and section boundary bars', () => {
   assert.doesNotMatch(app, /drawHighlightPath/);
   assert.match(app, /compoundBadgeMarkup\(lap.compound\)/);
   assert.match(app, /class="compound-badge".*role="img"/);
+});
+
+test('dense lap identity, editable trace colours and automatic map recovery', () => {
+  assert.match(app, /const flag = `L\$\{lap.lap\}`/);
+  assert.doesNotMatch(app, /<small>Pit → line<\/small>/);
+  assert.match(app, /class="trace-swatch"/);
+  assert.match(app, /new ResizeObserver/);
+  assert.doesNotMatch(app, /Track map could not be sized/);
+  assert.match(app, /e.clientX - tipRect.width - 15/);
+  const h = context();
+  assert.match(h.run("compoundBadgeMarkup('SOFT')"), /aria-label="soft"/);
 });

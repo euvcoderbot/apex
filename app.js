@@ -792,6 +792,11 @@ function renderDrivers() {
       } else {
         selected.push(code);
         activeDriverTab = code;
+        const driver = realDrivers.get(code);
+        const fastest = driver && fastestTimedLap(driver);
+        if (fastest && !loaded.some(item => item.code === code)) {
+          loaded.push({ code, lap: fastest.lap, time: fastest.time, real: fastest });
+        }
       }
       renderDrivers();
       renderStints();
@@ -1012,15 +1017,13 @@ function renderStints() {
     }).join('');
     const lapButtons = activeLaps.map(lap => {
       const isLoaded = loaded.some(item => item.code === code && item.lap === lap.lap);
-      const flag = lap.in_lap ? 'IN' : lap.out_lap ? 'OUT' : `L${lap.lap}`;
+      const flag = `L${lap.lap}`;
       const classes = ['lap', 'lap-chip', lap.in_lap || lap.out_lap ? 'in-out' : '', isLoaded ? 'selected' : ''].filter(Boolean).join(' ');
       const displayTime = Number.isFinite(lap.display_time) ? lap.display_time : lap.time;
       const estimated = lap.display_time_estimated === true;
       const duration = Number.isFinite(displayTime) ? `${estimated ? '~' : ''}${time(displayTime)}` : '&mdash;';
       const selectable = Number.isFinite(lap.time) && !lap.in_lap && !lap.out_lap;
-      const context = lap.out_lap && Number.isFinite(displayTime)
-        ? '<small>Pit → line</small>'
-        : lap.in_lap ? '<small>In lap</small>' : '';
+      const context = lap.out_lap ? '<small>OUT</small>' : lap.in_lap ? '<small>IN</small>' : '';
       const title = lap.out_lap && estimated ? 'Estimated from pit exit to the timing line' : '';
       return `<button class="${classes}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${title}"><span class="lap-token">${flag}</span>${compoundBadgeMarkup(lap.compound)}<span class="lap-clock">${duration}${context}</span></button>`;
     }).join('');
@@ -1171,7 +1174,6 @@ function renderSectors() {
         <header>
           <span class="summary-driver"><b>${item.code}</b><small>L${item.lap}</small>${i === 0 ? '<em>REF</em>' : ''}</span>
           <span class="summary-header-actions">
-            <input class="trace-color-picker" type="color" value="${color}" style="--trace-color:${color}" data-driver-color="${item.code}" aria-label="Trace color for ${item.code}" title="Change ${item.code} trace color">
             <span class="summary-tyre ${compoundClass}">${tyreImageMarkup(lap.compound)}<span class="summary-tyre-copy"><b>${compound}</b>${tyreLife ? `<small>${tyreLife} used</small>` : ''}</span></span>
             <span class="summary-lap-time"><small>LAP</small><strong>${Number.isFinite(item.time) ? time(item.time) : '—'}</strong>${i === 0 ? '' : deltaBadge(item.time, ref.time)}</span>
           </span>
@@ -1319,12 +1321,18 @@ function renderTraceVisibilityControls() {
     const key = telemetryKey(lap);
     const visible = !hiddenTraceKeys.has(key);
     const disableLast = visible && visibleCount === 1;
-    return `<label class="trace-driver-chip ${visible ? 'is-visible' : ''}" style="--team:${getDriverColor(lap.code)}" title="${visible ? 'Hide' : 'Show'} ${lap.code} lap ${lap.lap}">
+    return `<div class="trace-pill-group" style="--team:${getDriverColor(lap.code)}"><label class="trace-swatch"><input type="color" value="${getDriverColor(lap.code)}" data-driver-color="${lap.code}" aria-label="Change ${lap.code} trace colour"><span aria-hidden="true">✎</span></label><label class="trace-driver-chip ${visible ? 'is-visible' : ''}" style="--team:${getDriverColor(lap.code)}" title="${visible ? 'Hide' : 'Show'} ${lap.code} lap ${lap.lap}">
       <input type="checkbox" data-trace-key="${key}" ${visible ? 'checked' : ''} ${disableLast ? 'disabled' : ''}>
-      <i aria-hidden="true"></i><b>${lap.code}</b><small>L${lap.lap}${index === 0 ? ' · REF' : ''}</small>
-    </label>`;
+      <b>${lap.code}</b><small>L${lap.lap}</small>
+    </label></div>`;
   }).join('');
 
+  root.querySelectorAll('input[data-driver-color]').forEach(input => {
+    input.addEventListener('change', event => {
+      driverColorOverrides.set(event.target.dataset.driverColor, event.target.value);
+      renderLoaded(); renderSectors(); renderTraceVisibilityControls(); drawAll();
+    });
+  });
   root.querySelectorAll('input[data-trace-key]').forEach(input => {
     input.addEventListener('change', event => {
       const key = event.target.dataset.traceKey;
@@ -1884,7 +1892,7 @@ function drawRealChart(name) {
   const refSamples = telemetryCache.get(telemetryKey(refLap));
   const totalDist = refSamples && refSamples.length ? refSamples[refSamples.length - 1].Distance : 5891;
   const axisLeft = TRACE_PLOT_LEFT;
-  const speedCornerMarkers = name === 'Speed trace' && $('#cornerToggle').checked
+  const speedCornerMarkers = name === 'Speed trace'
     ? resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers)
     : [];
   const cornerCalloutLayout = layoutSpeedCornerCallouts(speedCornerMarkers, rect.width, axisLeft, 7, viewStart, viewEnd);
@@ -2247,8 +2255,12 @@ function bindAllChartHover() {
       tooltip.style.display = 'block';
       
       const parentRect = telemetryCard.getBoundingClientRect();
-      const xPos = e.clientX - parentRect.left + 15;
-      const yPos = e.clientY - parentRect.top + 15;
+      const zoom = parentRect.width / telemetryCard.offsetWidth || 1;
+      const tipRect = tooltip.getBoundingClientRect();
+      const right = Math.min(parentRect.right, window.innerWidth) - 12;
+      const x = e.clientX + 15 + tipRect.width > right ? e.clientX - tipRect.width - 15 : e.clientX + 15;
+      const xPos = Math.max(8, (x - parentRect.left) / zoom);
+      const yPos = Math.max(8, (Math.min(e.clientY + 15, window.innerHeight - tipRect.height - 12) - parentRect.top) / zoom);
       tooltip.style.left = `${xPos}px`;
       tooltip.style.top = `${yPos}px`;
     });
@@ -2334,8 +2346,12 @@ function bindTrackMapHover() {
         tooltip.style.display = 'block';
 
         const parentRect = telemetryCard.getBoundingClientRect();
-        const xPos = e.clientX - parentRect.left + 15;
-        const yPos = e.clientY - parentRect.top + 15;
+        const zoom = parentRect.width / telemetryCard.offsetWidth || 1;
+        const tipRect = tooltip.getBoundingClientRect();
+        const right = Math.min(parentRect.right, window.innerWidth) - 12;
+        const x = e.clientX + 15 + tipRect.width > right ? e.clientX - tipRect.width - 15 : e.clientX + 15;
+        const xPos = Math.max(8, (x - parentRect.left) / zoom);
+        const yPos = Math.max(8, (Math.min(e.clientY + 15, window.innerHeight - tipRect.height - 12) - parentRect.top) / zoom);
         tooltip.style.left = `${xPos}px`;
         tooltip.style.top = `${yPos}px`;
       }
@@ -2384,8 +2400,8 @@ async function drawAll() {
     ? defs.filter(([name]) => name !== 'DRS')
     : defs;
   activeDefs.forEach(definition => drawRealChart(definition[0]));
-  renderMiniSectorMap();
   renderCornerAnalysis();
+  renderMiniSectorMap();
 }
 
 function updateTelemetryVisibility() {
@@ -2614,9 +2630,7 @@ function renderMiniSectorMap() {
   canvas.style.display = 'block';
   const rect = canvas.getBoundingClientRect();
   if (!rect.width || !rect.height) {
-    canvas.style.display = 'none';
-    empty.style.display = 'block';
-    empty.textContent = 'Track map could not be sized. Resize the page and try again.';
+    empty.style.display = 'none';
     return;
   }
   // Render the vector map above display density so it stays sharp at Windows
@@ -3016,6 +3030,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   window.addEventListener('resize', scheduleDrawAll, { passive: true });
+  if (typeof ResizeObserver !== 'undefined') {
+    let mapSize = '';
+    new ResizeObserver(entries => {
+      const rect = entries[0]?.contentRect;
+      const size = rect ? `${Math.round(rect.width)}:${Math.round(rect.height)}` : '';
+      if (rect?.width && rect?.height && size !== mapSize) {
+        mapSize = size;
+        requestAnimationFrame(() => { if (loaded.length) renderMiniSectorMap(); });
+      }
+    }).observe($('#dominanceCanvas'));
+  }
   
   clearBeforeSessionLoad();
   renderCharts();
