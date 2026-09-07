@@ -1,2 +1,4 @@
-@import "design-system.css?v=euv2-release-20260823-2";
-@import "polish.css?v=euv2-release-20260823-2";
+@layer legacy, interface;
+@import "design-system.css?v=euv2-release-20260823-2" layer(legacy);
+@import "polish.css?v=euv2-release-20260823-2" layer(legacy);
+@import "apple-ui.css?v=euv2-preview-20260906" layer(interface);

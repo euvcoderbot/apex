@@ -797,7 +797,7 @@ button#loadSession:disabled {
 }
 
 .run-segment.selected {
-  border-color: var(--neon-accent) !important;
+  border-color: var(--neon-accent);
   background: color-mix(in srgb, var(--neon-accent) 10%, rgba(0, 0, 0, .2));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--neon-accent) 30%, transparent), 0 0 12px color-mix(in srgb, var(--neon-accent) 15%, transparent);
 }
@@ -858,7 +858,7 @@ button#loadSession:disabled {
 }
 
 .lap-chip.selected {
-  border-color: var(--neon-accent) !important;
+  border-color: var(--neon-accent);
   background: color-mix(in srgb, var(--neon-accent) 12%, rgba(0, 0, 0, .18));
   box-shadow: 0 0 12px color-mix(in srgb, var(--neon-accent) 19%, transparent);
 }
@@ -2482,7 +2482,7 @@ input {
 }
 
 #driverPills .driver-pill.selected {
-  border-color: color-mix(in srgb, var(--team) 76%, white 8%) !important;
+  border-color: color-mix(in srgb, var(--team) 76%, white 8%);
   background:
     linear-gradient(115deg, color-mix(in srgb, var(--team) 20%, transparent), transparent 70%),
     rgba(8, 10, 13, .74);
@@ -3291,7 +3291,7 @@ button#loadSession.is-loading::before {
   gap: 5px;
   min-height: 29px;
   padding: 4px 6px 4px 9px;
-  border-left: 3px solid var(--team) !important;
+  border-left: 3px solid var(--team);
   font-variant-numeric: tabular-nums lining-nums;
   font-feature-settings: "tnum" 1, "lnum" 1;
 }
@@ -3313,7 +3313,7 @@ button#loadSession.is-loading::before {
 }
 
 .loaded-lap-pill.reference {
-  border-color: var(--neon-accent) !important;
+  border-color: var(--neon-accent);
   background: color-mix(in srgb, var(--neon-accent) 10%, rgba(5, 7, 9, .82));
   box-shadow: 0 0 10px color-mix(in srgb, var(--neon-accent) 16%, transparent);
 }
@@ -4367,14 +4367,14 @@ main,
 .run-segment.selected,
 .lap-chip.selected,
 .fastest-lap-pick.selected {
-  border-color: color-mix(in srgb, var(--team) 72%, var(--border-color-hover)) !important;
+  border-color: color-mix(in srgb, var(--team) 72%, var(--border-color-hover));
   background: color-mix(in srgb, var(--team) 10%, rgba(5, 7, 9, .82));
   box-shadow: inset 0 -2px 0 var(--team), 0 0 10px color-mix(in srgb, var(--team) 12%, transparent);
 }
 
 .loaded-lap-pill.reference {
-  border-color: color-mix(in srgb, var(--team) 70%, var(--border-color-hover)) !important;
-  border-left-color: var(--team) !important;
+  border-color: color-mix(in srgb, var(--team) 70%, var(--border-color-hover));
+  border-left-color: var(--team);
   background: color-mix(in srgb, var(--team) 11%, rgba(5, 7, 9, .84));
   box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--team) 75%, transparent), 0 0 9px color-mix(in srgb, var(--team) 12%, transparent);
 }
@@ -4387,14 +4387,14 @@ main,
 :root[data-theme="light"] .run-segment.selected,
 :root[data-theme="light"] .lap-chip.selected,
 :root[data-theme="light"] .fastest-lap-pick.selected {
-  border-color: color-mix(in srgb, var(--team) 62%, #8d96a0) !important;
+  border-color: color-mix(in srgb, var(--team) 62%, #8d96a0);
   background: color-mix(in srgb, var(--team) 8%, white);
   box-shadow: inset 0 -2px 0 var(--team), 0 3px 10px color-mix(in srgb, var(--team) 8%, transparent);
 }
 
 :root[data-theme="light"] .loaded-lap-pill.reference {
-  border-color: color-mix(in srgb, var(--team) 58%, #a4acb4) !important;
-  border-left-color: var(--team) !important;
+  border-color: color-mix(in srgb, var(--team) 58%, #a4acb4);
+  border-left-color: var(--team);
   background: color-mix(in srgb, var(--team) 8%, white);
   box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--team) 76%, transparent), 0 3px 10px color-mix(in srgb, var(--team) 8%, transparent);
 }

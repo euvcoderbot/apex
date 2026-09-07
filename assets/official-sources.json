@@ -1,0 +1,86 @@
+{
+  "retrieved": "2026-09-07",
+  "notice": "Third-party trademarks and copyrighted images. Sources are not a redistribution licence. Local preview use; review rights before public publication.",
+  "assets": [
+    {
+      "url": "https://media.formula1.com/image/upload/c_lfill,w_48/q_auto/v1740000001/common/f1/2026/mercedes/2026mercedeslogowhite.webp",
+      "source": "https://www.formula1.com/en/teams",
+      "path": "assets/teams/official/mercedes.webp"
+    },
+    {
+      "url": "https://media.formula1.com/image/upload/c_lfill,w_48/q_auto/v1740000001/common/f1/2026/ferrari/2026ferrarilogowhite.webp",
+      "source": "https://www.formula1.com/en/teams",
+      "path": "assets/teams/official/ferrari.webp"
+    },
+    {
+      "url": "https://media.formula1.com/image/upload/c_lfill,w_48/q_auto/v1740000001/common/f1/2026/mclaren/2026mclarenlogowhite.webp",
+      "source": "https://www.formula1.com/en/teams",
+      "path": "assets/teams/official/mclaren.webp"
+    },
+    {
+      "url": "https://media.formula1.com/image/upload/c_lfill,w_48/q_auto/v1740000001/common/f1/2026/redbullracing/2026redbullracinglogowhite.webp",
+      "source": "https://www.formula1.com/en/teams",
+      "path": "assets/teams/official/redbullracing.webp"
+    },
+    {
+      "url": "https://media.formula1.com/image/upload/c_lfill,w_48/q_auto/v1740000001/common/f1/2026/racingbulls/2026racingbullslogowhite.webp",
+      "source": "https://www.formula1.com/en/teams",
+      "path": "assets/teams/official/racingbulls.webp"
+    },
+    {
+      "url": "https://media.formula1.com/image/upload/c_lfill,w_48/q_auto/v1740000001/common/f1/2026/alpine/2026alpinelogowhite.webp",
+      "source": "https://www.formula1.com/en/teams",
+      "path": "assets/teams/official/alpine.webp"
+    },
+    {
+      "url": "https://media.formula1.com/image/upload/c_lfill,w_48/q_auto/v1740000001/common/f1/2026/haasf1team/2026haasf1teamlogowhite.webp",
+      "source": "https://www.formula1.com/en/teams",
+      "path": "assets/teams/official/haasf1team.webp"
+    },
+    {
+      "url": "https://media.formula1.com/image/upload/c_lfill,w_48/q_auto/v1740000001/common/f1/2026/audi/2026audilogowhite.webp",
+      "source": "https://www.formula1.com/en/teams",
+      "path": "assets/teams/official/audi.webp"
+    },
+    {
+      "url": "https://media.formula1.com/image/upload/c_lfill,w_48/q_auto/v1740000001/common/f1/2026/williams/2026williamslogowhite.webp",
+      "source": "https://www.formula1.com/en/teams",
+      "path": "assets/teams/official/williams.webp"
+    },
+    {
+      "url": "https://media.formula1.com/image/upload/c_lfill,w_48/q_auto/v1740000001/common/f1/2026/astonmartin/2026astonmartinlogowhite.webp",
+      "source": "https://www.formula1.com/en/teams",
+      "path": "assets/teams/official/astonmartin.webp"
+    },
+    {
+      "url": "https://media.formula1.com/image/upload/c_lfill,w_48/q_auto/v1740000001/common/f1/2026/cadillac/2026cadillaclogowhite.webp",
+      "source": "https://www.formula1.com/en/teams",
+      "path": "assets/teams/official/cadillac.webp"
+    },
+    {
+      "url": "https://tyre24.pirelli.com/motorsport/assets/motorsport/carousel/pirelli-motorsport-car-Formula1-SlickTyres-red-2026.png",
+      "source": "https://www.pirelli.com/tires/en-us/motorsport/car/formula-1",
+      "path": "assets/tyres/official/soft.png"
+    },
+    {
+      "url": "https://tyre24.pirelli.com/motorsport/assets/motorsport/carousel/pirelli-motorsport-car-Formula1-SlickTyres-white-2026.png",
+      "source": "https://www.pirelli.com/tires/en-us/motorsport/car/formula-1",
+      "path": "assets/tyres/official/hard.png"
+    },
+    {
+      "url": "https://tyre24.pirelli.com/motorsport/assets/motorsport/carousel/pirelli-motorsport-car-Formula1-SlickTyres-yellow-2026.png",
+      "source": "https://www.pirelli.com/tires/en-us/motorsport/car/formula-1",
+      "path": "assets/tyres/official/medium.png"
+    },
+    {
+      "url": "https://tyre24.pirelli.com/motorsport/assets/motorsport/banners/pirelli-motorsport-car-Formula1-WetTyres-green-senzaombra-2026.png",
+      "source": "https://www.pirelli.com/tires/en-us/motorsport/car/formula-1",
+      "path": "assets/tyres/official/intermediate.png"
+    },
+    {
+      "url": "https://tyre24.pirelli.com/motorsport/assets/motorsport/banners/pirelli-motorsport-car-Formula1-WetTyres-blu-senzaombra-2026.png",
+      "source": "https://www.pirelli.com/tires/en-us/motorsport/car/formula-1",
+      "path": "assets/tyres/official/wet.png"
+    }
+  ]
+}

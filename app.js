@@ -35,6 +35,83 @@ const MIN_TRACE_ZOOM = .004;
 const CLIENT_DATA_SCHEMA = 'lap-context-v2';
 const API_ORIGIN = String(window.APEX_API_ORIGIN || '').replace(/\/$/, '');
 
+// Animate user-driven updates, not telemetry redraws. Keep keyboard focus
+// on replacement controls without scrolling the page to their new position.
+function replaceUI(root, html) {
+  const motion = !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const oldNodes = [...(root.querySelectorAll?.('[data-motion-key]') || [])];
+  const previous = new Map(oldNodes.map(node => [node.dataset.motionKey, {
+    rect: node.getBoundingClientRect(), selected: node.classList.contains('selected'),
+  }]));
+  const focusedKey = document.activeElement?.dataset?.motionKey;
+  root.innerHTML = html;
+  for (const node of [...(root.querySelectorAll?.('[data-motion-key]') || [])]) {
+    if (node.matches('button:not(.remove)')) node.setAttribute('aria-pressed', String(node.classList.contains('selected') || node.classList.contains('reference')));
+    if (node.dataset.motionKey === focusedKey) node.focus({ preventScroll: true });
+    if (!motion || !node.animate) continue;
+    const ancestor = node.parentElement?.closest('[data-motion-key]');
+    const old = previous.get(node.dataset.motionKey);
+    if (ancestor && root.contains(ancestor)) {
+      if (old && old.selected !== node.classList.contains('selected') && node.matches('button')) {
+        node.animate([{ transform: 'scale(.98)' }, { transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.22,.68,0,1)' });
+      }
+      continue;
+    }
+    const next = node.getBoundingClientRect();
+    if (!next.width || !next.height) continue;
+    const dx = old ? old.rect.left - next.left : 0;
+    const dy = old ? old.rect.top - next.top : 6;
+    if (!old || Math.abs(dx) + Math.abs(dy) > 1) {
+      node.animate([{ opacity: old ? 1 : 0, transform: `translate(${dx}px, ${dy}px)` },
+        { opacity: 1, transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.22,.68,0,1)' });
+    }
+  }
+}
+
+function canvasFont(size = 12, weight = 400) {
+  return `${weight} ${size}px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable", "Segoe UI", Helvetica, Arial, sans-serif`;
+}
+
+function installGlassMotion() {
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  let frame = 0, target = null, pointer = null;
+  document.addEventListener('pointermove', event => {
+    if (event.pointerType !== 'mouse') return;
+    target = event.target.closest('.session-controls, .trace-zoom-cluster');
+    if (!target) return;
+    pointer = { x: event.clientX, y: event.clientY };
+    if (frame) return;
+    frame = window.requestAnimationFrame(() => {
+      frame = 0;
+      if (!target?.isConnected || !pointer) return;
+      const rect = target.getBoundingClientRect();
+      target.style.setProperty('--glass-x', `${Math.round((pointer.x - rect.left) / (rect.width || 1) * 100)}%`);
+      target.style.setProperty('--glass-y', `${Math.round((pointer.y - rect.top) / (rect.height || 1) * 100)}%`);
+    });
+  }, { passive: true });
+}
+
+function positionCornerIndicator(root, previous) {
+  const picker = root.querySelector?.('.corner-picker');
+  const active = picker?.querySelector('.corner-pick.selected');
+  if (!picker || !active) return;
+  picker.scrollLeft = previous?.scroll || 0;
+  const left = `${active.offsetLeft}px`, width = `${active.offsetWidth}px`;
+  const animate = previous && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  picker.style.setProperty('--selection-left', animate ? previous.left : left);
+  picker.style.setProperty('--selection-width', animate ? previous.width : width);
+  picker.classList.add('has-indicator');
+  if (animate) {
+    // Commit the old capsule position before transitioning the replacement.
+    picker.getBoundingClientRect();
+    window.requestAnimationFrame(() => {
+      if (!picker.isConnected) return;
+      picker.style.setProperty('--selection-left', left);
+      picker.style.setProperty('--selection-width', width);
+    });
+  }
+}
+
 function apiUrl(path) {
   return `${API_ORIGIN}${path}`;
 }
@@ -150,11 +227,25 @@ function flagEmoji(code) {
 }
 
 function grandPrixFlag(event) {
+  return flagEmoji(grandPrixCountryCode(event));
+}
+
+function grandPrixCountryCode(event) {
   const country = normalizedPlaceName(event?.country);
   const eventName = normalizedPlaceName(event?.name);
-  const code = COUNTRY_FLAG_CODES[country]
+  return COUNTRY_FLAG_CODES[country]
     || GRAND_PRIX_FLAG_RULES.find(([name]) => eventName.includes(name))?.[1];
-  return flagEmoji(code);
+}
+
+function escapeUI(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[char]);
+}
+
+function selectOptionContent(option) {
+  const country = option?.dataset?.country || '';
+  const flag = /^[A-Z]{2}$/.test(country)
+    ? `<img class="gp-flag" src="assets/flags/${country.toLowerCase()}.svg" alt="${country}" width="24" height="18">` : '';
+  return `${flag}<span class="select-option-text">${escapeUI(option?.textContent || 'Select')}</span>`;
 }
 
 const teamMapping = {
@@ -227,6 +318,7 @@ const teamMapping = {
 };
 
 function getTeamInfo(teamName) {
+  teamName = String(teamName || '');
   const mapped = teamMapping[teamName];
   if (mapped) return mapped;
 
@@ -250,22 +342,22 @@ function lightThemeActive() {
 
 function canvasTheme() {
   return lightThemeActive() ? {
-    text: 'rgba(20, 25, 32, .56)',
+    text: '#67676e',
     textStrong: 'rgba(20, 25, 32, .82)',
     grid: 'rgba(20, 25, 32, .09)',
     gridStrong: 'rgba(20, 25, 32, .24)',
-    panel: 'rgba(250, 251, 252, .97)',
+    panel: '#ffffff',
     outline: 'rgba(20, 25, 32, .22)',
     mapBase: 'rgba(20, 25, 32, .16)',
     labelStroke: 'rgba(250, 251, 252, .96)',
     labelFill: 'rgba(20, 25, 32, .92)',
     crosshair: 'rgba(20, 25, 32, .3)',
   } : {
-    text: 'rgba(255, 255, 255, .35)',
+    text: '#a1a1aa',
     textStrong: 'rgba(255, 255, 255, .72)',
     grid: 'rgba(255, 255, 255, .05)',
     gridStrong: 'rgba(255, 255, 255, .25)',
-    panel: 'rgba(12, 14, 18, .94)',
+    panel: '#1c1c1e',
     outline: 'rgba(255, 255, 255, .22)',
     mapBase: 'rgba(255, 255, 255, .12)',
     labelStroke: '#101114',
@@ -333,6 +425,37 @@ function telemetryKey(lap) {
   return `${lap.code}:${lap.lap}`;
 }
 
+// Official marks are resolved by the session's team, never by a driver's
+// current team: historical sessions must not acquire modern branding.
+const officialTeamMarks = {
+  'mercedes': 'mercedes.webp', 'ferrari': 'ferrari.webp', 'mclaren': 'mclaren.webp',
+  'red bull racing': 'redbullracing.webp', 'red bull': 'redbullracing.webp',
+  'racing bulls': 'racingbulls.webp', 'rb': 'racingbulls.webp',
+  'alpine': 'alpine.webp', 'alpine f1 team': 'alpine.webp',
+  'haas': 'haasf1team.webp', 'haas f1 team': 'haasf1team.webp',
+  'audi': 'audi.webp', 'williams': 'williams.webp',
+  'aston martin': 'astonmartin.webp', 'cadillac': 'cadillac.webp',
+};
+function teamLogoMarkup(teamName) {
+  const key = String(teamName || '').trim().toLowerCase();
+  const asset = officialTeamMarks[key];
+  if (!asset) return '<span class="team-logo" aria-hidden="true"><i class="team-logo-fallback"></i></span>';
+  return `<span class="team-logo" aria-hidden="true"><img src="assets/teams/official/${asset}" alt="" width="26" height="26"></span>`;
+}
+
+function compoundBadgeMarkup(compound) {
+  const name = String(compound || '').trim().toLowerCase();
+  const spec = ({soft:['S','#ff493e'], medium:['M','#ffd735'], hard:['H','#f5f5f7'], intermediate:['I','#43cf79'], inter:['I','#43cf79'], wet:['W','#3395ff']})[name];
+  if (!spec) return `<span class="compound-label">${escapeUI(compound || 'Unknown')}</span>`;
+  return `<svg class="compound-badge" viewBox="0 0 32 32" role="img" aria-label="${name}" width="26" height="26"><title>${name}</title><circle cx="16" cy="16" r="15" fill="#202124"/><circle cx="16" cy="16" r="12" fill="none" stroke="${spec[1]}" stroke-width="3" stroke-dasharray="31.7 6" transform="rotate(-76 16 16)"/><text x="16" y="21" text-anchor="middle" fill="#fff" font-size="15" font-weight="700">${spec[0]}</text></svg>`;
+}
+
+function tyreImageMarkup(compound) {
+  const name = String(compound || '').trim().toLowerCase();
+  const asset = ({hard:'hard', medium:'medium', soft:'soft', intermediate:'intermediate', inter:'intermediate', wet:'wet'})[name];
+  return asset ? `<img class="tyre-image" src="assets/tyres/official/${asset}.png" alt="" width="32" height="32" loading="lazy">` : '';
+}
+
 function traceLapIsVisible(lap) {
   return !hiddenTraceKeys.has(telemetryKey(lap));
 }
@@ -374,12 +497,12 @@ function syncSelectUI(select) {
   if (!trigger || !menu) return;
   const options = [...select.options];
   const selectedOption = options.find(option => option.value === selectValue(select)) || options[0];
-  trigger.querySelector('span').textContent = selectedOption?.textContent || 'Select';
+  trigger.querySelector('span').innerHTML = selectOptionContent(selectedOption);
   trigger.disabled = select.disabled;
   trigger.setAttribute('aria-expanded', String(shell.classList.contains('is-open')));
   menu.innerHTML = options.map((option, optionIndex) => `
     <button type="button" role="option" aria-selected="${option === selectedOption}" data-select-index="${optionIndex}" data-select-value="${encodeURIComponent(option.value)}" onclick="selectCustomOption(this)">
-      ${option.textContent}
+      ${selectOptionContent(option)}
     </button>`).join('');
 }
 
@@ -395,6 +518,14 @@ function enhanceSelect(select) {
     <div class="select-menu" role="listbox"></div>`);
   const trigger = shell.querySelector('.select-trigger');
   const menu = shell.querySelector('.select-menu');
+  const label = document.querySelector(`label[for="${select.id}"]`);
+  if (label) {
+    label.id = `${select.id}Label`;
+    trigger.setAttribute('aria-labelledby', label.id);
+    menu.setAttribute('aria-labelledby', label.id);
+  }
+  menu.id = `${select.id}Options`;
+  trigger.setAttribute('aria-controls', menu.id);
   const close = () => {
     shell.classList.remove('is-open');
     trigger.setAttribute('aria-expanded', 'false');
@@ -418,10 +549,24 @@ function enhanceSelect(select) {
       event.preventDefault();
       const direction = event.key === 'ArrowDown' ? 1 : -1;
       items[(index + direction + items.length) % items.length]?.focus();
+    } else if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      items[event.key === 'Home' ? 0 : items.length - 1]?.focus();
+    } else if (event.key === 'Tab') {
+      close();
+      trigger.focus({ preventScroll: true });
     } else if (event.key === 'Escape') {
+      event.preventDefault();
       close();
       trigger.focus();
     }
+  });
+  trigger.addEventListener('keydown', event => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (!shell.classList.contains('is-open')) trigger.click();
+      else menu.querySelector('[aria-selected="true"]')?.focus({ preventScroll: true });
+    } else if (event.key === 'Escape') close();
   });
   syncSelectUI(select);
 }
@@ -441,7 +586,7 @@ async function loadCalendar() {
     if (!response.ok) throw new Error(payload.detail || 'Calendar unavailable');
     if (generation !== calendarGeneration || year !== selectValue($('#year'))) return;
     calendar = payload;
-    $('#gp').innerHTML = calendar.map(event => `<option value="${event.round}">R${event.round} - ${grandPrixFlag(event)} ${event.name}</option>`).join('');
+    $('#gp').innerHTML = calendar.map(event => `<option value="${event.round}" data-country="${grandPrixCountryCode(event) || ''}">R${event.round} · ${escapeUI(event.name)}</option>`).join('');
     syncSelectUI($('#gp'));
     selectLatestCompletedEvent();
   } catch (error) {
@@ -614,17 +759,28 @@ function renderDrivers() {
     return;
   }
   
-  root.innerHTML = drivers.map((d, index) => {
+  replaceUI(root, drivers.map((d, index) => {
     const code = d[0];
     const number = d[1];
     const color = d[3];
     const isSelected = selected.includes(code);
     const position = Number.isFinite(+d[5]) && +d[5] > 0 ? +d[5] : index + 1;
 
-    return `<button class="pill driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-code="${code}"><span class="driver-pill-position">P${position}</span><span class="driver-pill-identity"><span class="driver-pill-number">#${number}</span><strong>${code}</strong></span></button>`;
-  }).join('');
+    const name = String(d[2] || code);
+    return `<button class="driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-motion-key="driver-${code}" data-code="${code}" aria-label="${escapeUI(`P${position}, ${name}, ${d[4] || ''}, number ${number}`)}" aria-pressed="${isSelected}"><span class="driver-pill-position">${position}</span>${teamLogoMarkup(d[4])}<span class="driver-pill-identity"><strong>${escapeUI(name)}</strong><small>${code} · ${number}</small></span><span class="driver-selection-mark" aria-hidden="true"></span></button>`;
+  }).join(''));
   
   root.querySelectorAll('button').forEach(btn => {
+    btn.onkeydown = event => {
+      const rows = [...root.querySelectorAll('button')];
+      const index = rows.indexOf(btn);
+      const target = event.key === 'ArrowDown' ? Math.min(rows.length - 1, index + 1)
+        : event.key === 'ArrowUp' ? Math.max(0, index - 1)
+        : event.key === 'Home' ? 0 : event.key === 'End' ? rows.length - 1 : null;
+      if (target == null) return;
+      event.preventDefault();
+      rows[target]?.focus();
+    };
     btn.onclick = () => {
       const code = btn.dataset.code;
       if (selected.includes(code)) {
@@ -663,7 +819,7 @@ function renderStintsLegacy() {
     return f && loaded.some(item => item.code === c && item.lap === f.lap);
   });
 
-  const globalCompareHtml = `<button id="compareAllFastest" class="compare-all-btn ${isAllFastestLoaded ? 'selected' : ''}"><i aria-hidden="true">⚡</i><span>COMPARE FASTEST LAPS</span></button>`;
+  const globalCompareHtml = `<button id="compareAllFastest" data-motion-key="compare-fastest" class="compare-all-btn ${isAllFastestLoaded ? 'selected' : ''}"><i aria-hidden="true">⚡</i><span>COMPARE FASTEST LAPS</span></button>`;
   
   // Render tabs at the top
   const tabsHtml = `
@@ -710,9 +866,9 @@ function renderStintsLegacy() {
     const compLabel = getCompoundCode(compound, nominatedCompounds);
     const compoundClass = getCompoundToneClass(compound);
     if (hasQualifyingPhases) {
-      return `<button class="stint ${id === active ? 'selected' : ''}" style="--team:${display[3]}" data-code="${code}" data-stint="${id}">${id}<small><span class="compound-label ${compoundClass}">${compLabel}</span> - ${group.length} ${group.length === 1 ? 'LAP' : 'LAPS'}</small></button>`;
+      return `<button class="stint ${id === active ? 'selected' : ''}" style="--team:${display[3]}" data-motion-key="run-${code}-${id}" data-code="${code}" data-stint="${id}">${id}<small><span class="compound-label ${compoundClass}">${compLabel}</span> - ${group.length} ${group.length === 1 ? 'lap' : 'laps'}</small></button>`;
     }
-    return `<button class="stint ${id === active ? 'selected' : ''}" style="--team:${display[3]}" data-code="${code}" data-stint="${id}">Stint ${id}<small><span class="compound-label ${compoundClass}">${compLabel}</span> · ${group.length} L</small></button>`;
+    return `<button class="stint ${id === active ? 'selected' : ''}" style="--team:${display[3]}" data-motion-key="run-${code}-${id}" data-code="${code}" data-stint="${id}">Stint ${id}<small><span class="compound-label ${compoundClass}">${compLabel}</span> · ${group.length} L</small></button>`;
   }).join('');
   
   const lapButtons = lapsForGroup(active).map(lap => {
@@ -821,7 +977,7 @@ function renderStints() {
   const toolbar = `
     <div class="run-toolbar">
       <span><b>${selected.length}</b> ${selected.length === 1 ? 'driver' : 'drivers'} selected</span>
-      <button id="compareAllFastest" class="compare-all-btn ${isAllFastestLoaded ? 'selected' : ''}" title="Add the fastest timed lap for every selected driver"><i aria-hidden="true">&#9889;</i><span>COMPARE FASTEST</span></button>
+      <button id="compareAllFastest" data-motion-key="compare-fastest" class="compare-all-btn ${isAllFastestLoaded ? 'selected' : ''}" title="Add the fastest timed lap for every selected driver"><i aria-hidden="true">&#9889;</i><span>Compare fastest</span></button>
     </div>
   `;
 
@@ -831,7 +987,7 @@ function renderStints() {
     if (!driver || !display) return '';
     const teamColor = display[3] || '#777777';
     if (!driver.laps?.length) {
-      return `<article class="driver-run-card" style="--team:${teamColor}"><header class="run-card-header"><div class="run-driver"><b>${code}</b><h3>${driver.name}</h3></div></header><p class="section-empty">No laps in this session.</p></article>`;
+      return `<article class="driver-run-card" data-motion-key="run-card-${code}" style="--team:${teamColor}"><header class="run-card-header"><div class="run-driver">${teamLogoMarkup(display[4])}<div class="run-driver-copy"><h3>${escapeUI(driver.name)}</h3><small>${code}</small></div></div></header><p class="section-empty">No laps in this session.</p></article>`;
     }
 
     const timedLaps = driver.laps.filter(lap => Number.isFinite(lap.time) && lap.time > 0 && !lap.in_lap && !lap.out_lap);
@@ -851,8 +1007,8 @@ function renderStints() {
       const rawCompound = laps[0]?.compound || 'UNKNOWN';
       const compound = getCompoundCode(rawCompound, nominatedCompounds);
       const compoundClass = getCompoundToneClass(rawCompound);
-      const runLabel = hasQualifyingPhases ? id : `STINT ${id}`;
-      return `<button class="stint run-segment ${id === active ? 'selected' : ''}" style="--team:${teamColor}" data-code="${code}" data-stint="${id}"><strong>${runLabel}</strong><small><span class="compound-label ${compoundClass}">${compound}</span> &middot; ${laps.length} ${laps.length === 1 ? 'LAP' : 'LAPS'}</small></button>`;
+      const runLabel = hasQualifyingPhases ? id : `Stint ${id}`;
+      return `<button class="stint run-segment ${id === active ? 'selected' : ''}" style="--team:${teamColor}" data-motion-key="run-${code}-${id}" data-code="${code}" data-stint="${id}"><strong>${runLabel}</strong><small>${compoundBadgeMarkup(laps[0]?.compound)} ${laps.length} ${laps.length === 1 ? 'lap' : 'laps'}</small></button>`;
     }).join('');
     const lapButtons = activeLaps.map(lap => {
       const isLoaded = loaded.some(item => item.code === code && item.lap === lap.lap);
@@ -863,28 +1019,28 @@ function renderStints() {
       const duration = Number.isFinite(displayTime) ? `${estimated ? '~' : ''}${time(displayTime)}` : '&mdash;';
       const selectable = Number.isFinite(lap.time) && !lap.in_lap && !lap.out_lap;
       const context = lap.out_lap && Number.isFinite(displayTime)
-        ? '<small>PIT → LINE</small>'
-        : lap.in_lap ? '<small>IN LAP</small>' : '';
+        ? '<small>Pit → line</small>'
+        : lap.in_lap ? '<small>In lap</small>' : '';
       const title = lap.out_lap && estimated ? 'Estimated from pit exit to the timing line' : '';
-      return `<button class="${classes}" style="--team:${teamColor}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${title}"><span class="lap-token">${flag}</span><span class="lap-clock">${duration}${context}</span></button>`;
+      return `<button class="${classes}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${title}"><span class="lap-token">${flag}</span>${compoundBadgeMarkup(lap.compound)}<span class="lap-clock">${duration}${context}</span></button>`;
     }).join('');
-    const groupLabel = hasQualifyingPhases ? active : `STINT ${active}`;
+    const groupLabel = hasQualifyingPhases ? active : `Stint ${active}`;
 
     return `
-      <article class="driver-run-card" style="--team:${teamColor}">
+      <article class="driver-run-card" data-motion-key="run-card-${code}" style="--team:${teamColor}">
         <header class="run-card-header">
-          <div class="run-driver"><b>${code}</b><h3>${driver.name}</h3><small>${timedLaps.length} TIMED LAPS</small></div>
-          ${fastest ? `<button class="fastest-lap-pick ${fastestLoaded ? 'selected' : ''}" data-code="${code}" data-lap="${fastest.lap}" title="Add or remove this fastest lap"><span>FASTEST</span><strong>${time(fastest.time)}</strong></button>` : ''}
+          <div class="run-driver">${teamLogoMarkup(display[4])}<div class="run-driver-copy"><h3>${escapeUI(driver.name)}</h3><small>${code} · ${timedLaps.length} timed laps</small></div></div>
+          ${fastest ? `<button class="fastest-lap-pick ${fastestLoaded ? 'selected' : ''}" data-motion-key="fastest-${code}" data-code="${code}" data-lap="${fastest.lap}" title="Add or remove this fastest lap"><span>Fastest</span><strong>${time(fastest.time)}</strong></button>` : ''}
         </header>
-        <div class="run-section-label"><span>RUNS</span></div>
+        <div class="run-section-label"><span>Runs</span></div>
         <div class="run-segments">${runButtons}</div>
-        <div class="lap-group-header"><span>${groupLabel} LAPS</span><small>${activeLaps.length} AVAILABLE</small></div>
+        <div class="lap-group-header"><span>${groupLabel} laps</span><small>${activeLaps.length} available</small></div>
         <div class="lap-grid">${lapButtons}</div>
       </article>
     `;
   }).join('');
 
-  root.innerHTML = toolbar + cards;
+  replaceUI(root, toolbar + cards);
 
   $('#compareAllFastest').onclick = () => {
     const fastestLaps = selected.map(code => ({ code, lap: fastestTimedLap(realDrivers.get(code)) })).filter(item => item.lap);
@@ -919,16 +1075,17 @@ function renderLoaded() {
     return;
   }
   
-  root.innerHTML = loaded.map((item, index) => `
-    <button class="pill loaded-lap-pill ${index === 0 ? 'reference' : ''}" style="--team:${getDriverColor(item.code)}" data-index="${index}">
-      <b>${item.code}</b><span>L${item.lap}</span><strong>${time(item.time)}</strong><i class="remove" data-remove="${index}" aria-label="Remove ${item.code} lap ${item.lap}">×</i>
-    </button>`).join('');
+  replaceUI(root, loaded.map((item, index) => `
+    <div class="loaded-lap-pill ${index === 0 ? 'reference' : ''}" style="--team:${getDriverColor(item.code)}" data-motion-key="comparison-${item.code}-${item.lap}" data-index="${index}">
+      <button class="loaded-lap-main ${index === 0 ? 'reference' : ''}" data-motion-key="reference-${item.code}-${item.lap}" aria-pressed="${index === 0}" aria-label="Use ${item.code} lap ${item.lap} as reference"><b>${item.code}</b><span>L${item.lap}</span><strong>${time(item.time)}</strong></button><button class="remove" data-motion-key="remove-${item.code}-${item.lap}" data-remove="${index}" aria-label="Remove ${item.code} lap ${item.lap}">×</button>
+    </div>`).join(''));
   
-  root.querySelectorAll('.pill').forEach(p => {
+  root.querySelectorAll('.loaded-lap-pill').forEach(p => {
     p.onclick = e => {
       const idx = +p.dataset.index;
-      if (e.target.dataset.remove !== undefined) {
-        const removeIdx = +e.target.dataset.remove;
+      const remove = e.target.closest('[data-remove]');
+      if (remove) {
+        const removeIdx = +remove.dataset.remove;
         loaded.splice(removeIdx, 1);
       } else {
         loaded.unshift(loaded.splice(idx, 1)[0]);
@@ -987,7 +1144,7 @@ function renderSectors() {
     <span class="summary-condition"><i aria-hidden="true">${icon}</i><span><small>${label}</small><strong>${value}</strong></span></span>`;
   
   const root = $('#sectorRows');
-  root.innerHTML = loaded.map((item, i) => {
+  replaceUI(root, loaded.map((item, i) => {
     const lap = item.real || {};
     const refLap = ref.real || {};
     const color = getDriverColor(item.code);
@@ -1000,35 +1157,35 @@ function renderSectors() {
     const conditions = lap.conditions || {};
     const direction = windCardinal(conditions.wind_direction);
     const conditionValues = [
-      conditionCell('🌤️', 'AIR', Number.isFinite(conditions.air_temperature) ? `${conditions.air_temperature.toFixed(1)}°C` : '—'),
-      conditionCell('🌡️', 'TRACK', Number.isFinite(conditions.track_temperature) ? `${conditions.track_temperature.toFixed(1)}°C` : '—'),
-      conditionCell('🚩', 'WIND', Number.isFinite(conditions.wind_speed) ? `${conditions.wind_speed.toFixed(1)} m/s${direction ? ` ${direction}` : ''}` : '—'),
-      conditionCell('🌧️', 'RAIN', conditions.rainfall === null || conditions.rainfall === undefined ? '—' : (conditions.rainfall ? 'YES' : 'NO')),
+      conditionCell('🌤️', 'Air', Number.isFinite(conditions.air_temperature) ? `${conditions.air_temperature.toFixed(1)}°C` : '—'),
+      conditionCell('🌡️', 'Track', Number.isFinite(conditions.track_temperature) ? `${conditions.track_temperature.toFixed(1)}°C` : '—'),
+      conditionCell('🚩', 'Wind', Number.isFinite(conditions.wind_speed) ? `${conditions.wind_speed.toFixed(1)} m/s${direction ? ` ${direction}` : ''}` : '—'),
+      conditionCell('🌧️', 'Rain', conditions.rainfall === null || conditions.rainfall === undefined ? '—' : (conditions.rainfall ? 'Yes' : 'No')),
     ];
     const conditionsHtml = `<div class="summary-conditions">${conditionValues.join('')}</div>`;
     const compound = getCompoundCode(lap.compound || 'UNKNOWN', nominatedCompounds);
     const compoundClass = getCompoundToneClass(lap.compound || 'UNKNOWN');
     const tyreLife = Number.isFinite(lap.tyre_life) ? `${Math.max(1, Math.round(lap.tyre_life))}L` : '';
     return `
-      <article class="lap-summary-card has-conditions" style="--team:${color}">
+      <article class="lap-summary-card has-conditions" data-motion-key="summary-${item.code}-${item.lap}" style="--team:${color}">
         <header>
           <span class="summary-driver"><b>${item.code}</b><small>L${item.lap}</small>${i === 0 ? '<em>REF</em>' : ''}</span>
           <span class="summary-header-actions">
             <input class="trace-color-picker" type="color" value="${color}" style="--trace-color:${color}" data-driver-color="${item.code}" aria-label="Trace color for ${item.code}" title="Change ${item.code} trace color">
-            <span class="summary-tyre ${compoundClass}"><b>${compound}</b>${tyreLife ? `<small>${tyreLife}</small>` : ''}</span>
+            <span class="summary-tyre ${compoundClass}">${tyreImageMarkup(lap.compound)}<span class="summary-tyre-copy"><b>${compound}</b>${tyreLife ? `<small>${tyreLife} used</small>` : ''}</span></span>
             <span class="summary-lap-time"><small>LAP</small><strong>${Number.isFinite(item.time) ? time(item.time) : '—'}</strong>${i === 0 ? '' : deltaBadge(item.time, ref.time)}</span>
           </span>
         </header>
         <div class="summary-sectors">${sectors.map(({ label, value, reference, state }) => `
           <span class="sector-cell ${state.className}" title="${label} · ${state.label}">
             <span class="sector-cell-value"><small>${label}</small><strong>${Number.isFinite(value) ? `${value.toFixed(3)}s` : '—'}</strong></span>
-            ${i === 0 ? '' : deltaBadge(value, reference)}
+            <span class="sector-delta-slot">${i === 0 ? '' : deltaBadge(value, reference)}</span>
           </span>`).join('')}
         </div>
         ${conditionsHtml}
       </article>
     `;
-  }).join('');
+  }).join(''));
 
   root.querySelectorAll('.trace-color-picker').forEach(input => {
     input.addEventListener('change', event => {
@@ -1084,7 +1241,7 @@ function updateZoomReadout() {
   if (readout) {
     readout.textContent = distance
       ? `${(traceZoom.start * distance / 1000).toFixed(2)}–${(traceZoom.end * distance / 1000).toFixed(2)} KM`
-      : 'FULL LAP';
+      : 'Full lap';
   }
   if (reset) reset.disabled = fullLap;
   if (zoomOut) zoomOut.disabled = fullLap;
@@ -1207,7 +1364,7 @@ function bindSpeedChartControls() {
     enhancedTraceMode = event.target.checked;
     const status = $('#traceModeStatus');
     if (status) {
-      status.textContent = enhancedTraceMode ? 'INTERPOLATED' : 'ACCURATE';
+      status.textContent = enhancedTraceMode ? 'Interpolated' : 'Accurate';
       status.dataset.mode = enhancedTraceMode ? 'enhanced' : 'accurate';
     }
     if (loaded.length) drawAll();
@@ -1230,14 +1387,14 @@ function renderCharts() {
     <section class="chart ${compact ? 'compact' : ''} ${name === 'Speed trace' ? 'speed-chart' : ''}">
       <div class="chart-heading"><h2>${name} <small>${unit}</small></h2>${name === 'Speed trace' ? `
         <div class="trace-zoom-cluster" aria-label="Trace zoom controls">
-          <span class="trace-zoom-readout">VIEW <b id="traceZoomReadout">FULL LAP</b></span>
+          <span class="trace-zoom-readout">View <b id="traceZoomReadout">Full lap</b></span>
           <div class="trace-tools">
             <button data-zoom="out" title="Zoom out" aria-label="Zoom out">−</button>
             <button data-zoom="in" title="Zoom in" aria-label="Zoom in">+</button>
             <span class="trace-tool-separator" aria-hidden="true"></span>
             <button data-pan="left" title="Move zoom window left" aria-label="Move zoom window left">‹</button>
             <button data-pan="right" title="Move zoom window right" aria-label="Move zoom window right">›</button>
-            <button class="trace-reset" data-zoom="reset" title="Reset zoom">RESET</button>
+            <button class="trace-reset" data-zoom="reset" title="Reset zoom">Reset</button>
           </div>
         </div>` : ''}</div>
       ${name === 'Speed trace' ? `
@@ -1245,11 +1402,11 @@ function renderCharts() {
           <div class="trace-settings" aria-label="Telemetry display settings">
             <div class="alignment-readout"><i></i><span id="alignmentStatus" data-state="idle">Speed trace controls</span></div>
             <label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label>
-            <label class="trace-setting trace-mode-toggle" title="Smooth interpolation through trusted samples. Repairs require evidence from neighbouring acceleration, throttle, brake and gear/RPM; full throttle alone does not prove a fault. Uncertain gaps are marked as estimates. Timing delta follows reconstructed speed while official sector and finish deltas stay exact."><input type="checkbox" id="interpolationToggle" ${enhancedTraceMode ? 'checked' : ''}><i aria-hidden="true"></i><span>Enhanced interpolation</span><small id="traceModeStatus" data-mode="${enhancedTraceMode ? 'enhanced' : 'accurate'}">${enhancedTraceMode ? 'INTERPOLATED' : 'ACCURATE'}</small></label>
+            <label class="trace-setting trace-mode-toggle" title="Smooth interpolation through trusted samples. Repairs require evidence from neighbouring acceleration, throttle, brake and gear/RPM; full throttle alone does not prove a fault. Uncertain gaps are marked as estimates. Timing delta follows reconstructed speed while official sector and finish deltas stay exact."><input type="checkbox" id="interpolationToggle" ${enhancedTraceMode ? 'checked' : ''}><i aria-hidden="true"></i><span>Enhanced interpolation</span><small id="traceModeStatus" data-mode="${enhancedTraceMode ? 'enhanced' : 'accurate'}">${enhancedTraceMode ? 'Interpolated' : 'Accurate'}</small></label>
             <label class="trace-setting"><input type="checkbox" id="tintToggle" ${traceTintEnabled ? 'checked' : ''}><i aria-hidden="true"></i><span>Trace tint</span></label>
           </div>
           <div class="trace-display-bar">
-            <span>VISIBLE TRACES</span>
+            <span>Visible traces</span>
             <div class="trace-driver-toggles" id="traceDriverToggles"></div>
           </div>
           <span class="visually-hidden" id="cornerStatus" aria-live="polite">Corner labels hidden.</span>
@@ -1450,7 +1607,7 @@ function resolveCornerMarkers(samples, totalDistance, suppliedMarkers = null) {
 function drawGridAxes(ctx, width, height, bounds, unit) {
   const { left, right, top, bottom, min, max, tickStep } = bounds;
   const theme = canvasTheme();
-  ctx.font = '11px monospace';
+  ctx.font = canvasFont(12);
   const ticks = [];
   if (Number.isFinite(tickStep) && tickStep > 0) {
     for (let value = max; value >= min - tickStep * 0.001; value -= tickStep) {
@@ -1513,7 +1670,7 @@ function formatTick(val) {
 }
 
 function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7, viewStart = 0, viewEnd = 1) {
-  const calloutWidth = 26;
+  const calloutWidth = 32;
   const gap = 3;
   const plotWidth = width - left - right;
   const laneEnds = [];
@@ -1661,14 +1818,14 @@ function drawRealChart(name) {
   
   if (!loaded.length) {
     ctx.fillStyle = theme.text;
-    ctx.font = '11px monospace';
+    ctx.font = canvasFont(12);
     ctx.fillText('Select a driver to begin comparison.', 43, 25);
     return;
   }
   
   if (!data.length) {
     ctx.fillStyle = theme.text;
-    ctx.font = '11px monospace';
+    ctx.font = canvasFont(12);
     ctx.fillText('Loading telemetry data…', 43, 25);
     return;
   }
@@ -1676,7 +1833,7 @@ function drawRealChart(name) {
   if (name === 'DRS' && Number($('#year').value) >= 2026
     && !data.some(series => series.modeAvailable)) {
     ctx.fillStyle = theme.textStrong;
-    ctx.font = '11px monospace';
+    ctx.font = canvasFont(12);
     ctx.fillText('Straight-line mode is not published for this lap.', 43, 25);
     return;
   }
@@ -1732,13 +1889,13 @@ function drawRealChart(name) {
     : [];
   const cornerCalloutLayout = layoutSpeedCornerCallouts(speedCornerMarkers, rect.width, axisLeft, 7, viewStart, viewEnd);
   const cornerTopInset = speedCornerMarkers.length
-    ? 10 + cornerCalloutLayout.lanes * 16
+    ? 12 + cornerCalloutLayout.lanes * 20
     : 8;
   const bounds = {
     left: axisLeft,
     right: TRACE_PLOT_RIGHT,
     top: name === 'Speed trace' ? cornerTopInset : 8,
-    bottom: 15,
+    bottom: 21,
     min,
     max,
     tickStep: niceBounds.tickStep
@@ -1765,7 +1922,7 @@ function drawRealChart(name) {
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.fillStyle = theme.text;
-    ctx.font = '9px monospace';
+    ctx.font = canvasFont(12);
     ctx.textAlign = tick === 0 ? 'left' : tick === 6 ? 'right' : 'center';
     ctx.fillText(`${Math.round(fraction * totalDist)} M`, x, rect.height - 3);
   }
@@ -1800,7 +1957,7 @@ function drawRealChart(name) {
   if (name === 'Speed trace' && sectorBoundaries.length === 2) {
     const ranges = [[0, sectorBoundaries[0], 'SECTOR 1'], [sectorBoundaries[0], sectorBoundaries[1], 'SECTOR 2'], [sectorBoundaries[1], 1, 'SECTOR 3']];
     ctx.fillStyle = theme.text;
-    ctx.font = '10px monospace';
+    ctx.font = canvasFont(12);
     ctx.textAlign = 'center';
     ranges.forEach(([start, end, label]) => {
       const visibleStart = Math.max(viewStart, start);
@@ -1927,8 +2084,8 @@ function drawRealChart(name) {
   // Draw collision-free corner labels in a reserved header band. Corner
   // speeds live in the dedicated analysis panel below the track map.
   if (name === 'Speed trace' && $('#cornerToggle').checked) {
-    const rowHeight = 16;
-    const calloutHeight = 11;
+    const rowHeight = 20;
+    const calloutHeight = 16;
     cornerCalloutLayout.items.forEach(({ corner, x, lane, width }) => {
       if (!Number.isFinite(corner.fraction)) return;
       const labelY = 4 + lane * rowHeight;
@@ -1940,9 +2097,9 @@ function drawRealChart(name) {
       ctx.lineWidth = 1;
       ctx.strokeRect(left + .5, labelY + .5, width - 1, calloutHeight - 1);
       ctx.fillStyle = theme.textStrong;
-      ctx.font = '10px monospace';
+      ctx.font = canvasFont(12);
       ctx.textAlign = 'center';
-      ctx.fillText(cornerLabel(corner), x, labelY + 8);
+      ctx.fillText(cornerLabel(corner), x, labelY + 12);
       ctx.textAlign = 'left';
     });
   }
@@ -2251,7 +2408,16 @@ function renderAll() {
 function renderCornerAnalysis() {
   const section = $('#cornerAnalysis');
   const root = $('#cornerMetricGrid');
-  if (!section || !root) return;
+  const pickerRoot = $('#cornerPickerRow');
+  if (!section || !root || !pickerRoot) return;
+  const oldPicker = pickerRoot.querySelector?.('.corner-picker');
+  const oldActive = oldPicker?.querySelector('.corner-pick.selected');
+  const pickerState = oldPicker && oldActive ? {
+    scroll: oldPicker.scrollLeft,
+    left: `${oldActive.offsetLeft}px`, width: `${oldActive.offsetWidth}px`,
+    focused: oldPicker.contains(document.activeElement),
+  } : null;
+  pickerRoot.innerHTML = '';
   const enabled = loaded.length > 0;
   section.hidden = !enabled;
   if (!enabled) {
@@ -2295,7 +2461,7 @@ function renderCornerAnalysis() {
     const candidateMetrics = allMetrics[index];
     const winner = candidateMetrics.reduce((best, item) => !Number.isFinite(item.metric.sectionTime)
       ? best : !best || item.metric.sectionTime < best.metric.sectionTime ? item : best, null);
-    return `<button class="corner-pick ${index === selectedCornerIndex ? 'selected' : ''}" data-corner-index="${index}" title="Inspect ${cornerLabel(candidate)}"><strong>${cornerLabel(candidate)}</strong><small>${winner?.lap.code || '—'}</small></button>`;
+    return `<button class="corner-pick ${index === selectedCornerIndex ? 'selected' : ''}" data-corner-index="${index}" aria-pressed="${index === selectedCornerIndex}" title="${cornerLabel(candidate)} · fastest ${winner?.lap.code || 'unavailable'}"><strong>${cornerLabel(candidate)}</strong><small>${winner?.lap.code || '—'}</small></button>`;
   }).join('');
   const rows = metrics.map((item, index) => {
     const sectionTime = item.metric.sectionTime;
@@ -2310,23 +2476,25 @@ function renderCornerAnalysis() {
     return `
       <div class="corner-driver-row ${fastest && loaded.length > 1 ? 'is-fastest' : ''} ${highestMinimum && loaded.length > 1 ? 'is-highest-min' : ''}" style="--driver-color:${getDriverColor(item.lap.code)}">
         <span class="corner-driver"><i></i><b>${item.lap.code}</b><small>L${item.lap.lap}</small>${index === 0 ? '<em>REF</em>' : ''}</span>
-        <span class="corner-time"><strong>${Number.isFinite(sectionTime) ? `${sectionTime.toFixed(3)}s` : '—'}</strong><small>SECTION</small></span>
-        <span class="corner-delta ${deltaClass}"><strong>${Number.isFinite(toReference) ? signedDelta(toReference) : '—'}</strong><small>VS REF</small></span>
-        <span class="corner-speed"><strong>${Number.isFinite(item.metric.minimumSpeed) ? item.metric.minimumSpeed.toFixed(1) : '—'}</strong><small>KM/H MIN</small></span>
+        <span class="corner-time"><strong>${Number.isFinite(sectionTime) ? `${sectionTime.toFixed(3)}s` : '—'}</strong></span>
+        <span class="corner-delta ${deltaClass}"><strong>${Number.isFinite(toReference) ? signedDelta(toReference) : '—'}</strong></span>
+        <span class="corner-speed"><strong>${Number.isFinite(item.metric.minimumSpeed) ? item.metric.minimumSpeed.toFixed(1) : '—'}</strong></span>
       </div>`;
   }).join('');
 
+  pickerRoot.innerHTML = `<nav class="corner-picker" aria-label="Select a corner">${picker}</nav>`;
   root.innerHTML = `
-    <nav class="corner-picker" aria-label="Select a corner">${picker}</nav>
     <article class="corner-detail-card">
       <header class="corner-detail-header">
-        <div><span>SELECTED CORNER</span><strong>${cornerLabel(zone)}</strong><small>${zone.type}</small></div>
+        <div><span>Selected corner</span><strong>${cornerLabel(zone)}</strong><small>${escapeUI(String(zone.type).toLowerCase())}</small></div>
         <dl><div><dt>Timing sector</dt><dd>${zone.metres} m</dd></div><div><dt>Min-speed window</dt><dd>${zone.apexMetres} m</dd></div></dl>
       </header>
-      <div class="corner-table-head"><span>Driver</span><span>Time</span><span>Delta</span><span>Minimum</span></div>
+      <div class="corner-table-head"><span>Driver</span><span>Time <small>s</small></span><span>Delta <small>s</small></span><span>Minimum <small>km/h</small></span></div>
       <div class="corner-driver-metrics">${rows}</div>
     </article>`;
-  root.onclick = event => {
+  positionCornerIndicator(pickerRoot, pickerState);
+  if (pickerState?.focused) pickerRoot.querySelector('.corner-pick.selected')?.focus({ preventScroll: true });
+  pickerRoot.onclick = event => {
     const button = event.target.closest('[data-corner-index]');
     if (!button) return;
     selectedCornerIndex = Number(button.dataset.cornerIndex) || 0;
@@ -2585,8 +2753,7 @@ function renderMiniSectorMap() {
   }
   ctx.stroke();
 
-  // Highlight the timing sector selected in the compact corner panel. The
-  // dominance colour remains visible on top of this wider neon underlay.
+  // Mark section boundaries without obscuring the track's dominance colours.
   let highlightedCornerZone = null;
   if (typeof adaptiveCornerZones === 'function') {
     const markerCorners = resolveCornerMarkers(reference, totalDistance, loaded[0]?.cornerMarkers);
@@ -2594,21 +2761,6 @@ function renderMiniSectorMap() {
     const selectedZone = zones[Math.max(0, Math.min(selectedCornerIndex, zones.length - 1))];
     if (selectedZone) {
       highlightedCornerZone = selectedZone;
-      const steps = Math.max(4, Math.ceil((selectedZone.end - selectedZone.start) * totalDistance / 20));
-      const drawHighlightPath = (color, width) => {
-        ctx.strokeStyle = color;
-        ctx.lineWidth = width;
-        ctx.beginPath();
-        for (let step = 0; step <= steps; step++) {
-          const point = pointAt(selectedZone.start + (selectedZone.end - selectedZone.start) * step / steps);
-          if (!point) continue;
-          if (step === 0) ctx.moveTo(point.x, point.y);
-          else ctx.lineTo(point.x, point.y);
-        }
-        ctx.stroke();
-      };
-      drawHighlightPath('rgba(2, 3, 5, .96)', 13);
-      drawHighlightPath('rgba(234, 255, 24, .86)', 11);
     }
   }
 
@@ -2647,26 +2799,30 @@ function renderMiniSectorMap() {
   }
 
   if (highlightedCornerZone) {
-    const apex = pointAt(highlightedCornerZone.apex);
-    if (apex) {
+    ctx.save();
+    for (const fraction of [highlightedCornerZone.start, highlightedCornerZone.end]) {
+      const center = pointAt(fraction);
+      const before = pointAt(Math.max(0, fraction - 5 / totalDistance));
+      const after = pointAt(Math.min(1, fraction + 5 / totalDistance));
+      if (!center || !before || !after) continue;
+      const dx = after.x - before.x, dy = after.y - before.y;
+      const length = Math.hypot(dx, dy);
+      if (length < .001) continue;
+      const nx = -dy / length * 8, ny = dx / length * 8;
       ctx.beginPath();
-      ctx.moveTo(apex.x, apex.y - 6);
-      ctx.lineTo(apex.x + 5, apex.y);
-      ctx.lineTo(apex.x, apex.y + 6);
-      ctx.lineTo(apex.x - 5, apex.y);
-      ctx.closePath();
-      ctx.fillStyle = '#eaff18';
-      ctx.fill();
-      ctx.strokeStyle = '#050608';
-      ctx.lineWidth = 1.5;
+      ctx.moveTo(center.x - nx, center.y - ny);
+      ctx.lineTo(center.x + nx, center.y + ny);
+      ctx.strokeStyle = document.documentElement.dataset.theme === 'light' ? '#1d1d1f' : '#f5f5f7';
+      ctx.lineWidth = 2;
       ctx.stroke();
     }
+    ctx.restore();
   }
 
   // Corner markers rendered ON TOP of mini-sector dominance lines
   if ($('#cornerToggle').checked) {
     const markerCorners = resolveCornerMarkers(reference, totalDistance, loaded[0]?.cornerMarkers);
-    ctx.font = '10px monospace';
+    ctx.font = canvasFont(12);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     markerCorners.forEach(corner => {
@@ -2715,7 +2871,7 @@ function renderMiniSectorMap() {
     N: { x: 0, y: -1 }, E: { x: 1, y: 0 }, S: { x: 0, y: 1 }, W: { x: -1, y: 0 },
   };
   ctx.save();
-  ctx.font = '9px monospace';
+  ctx.font = canvasFont(12);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.strokeStyle = theme.outline;
@@ -2764,7 +2920,7 @@ function renderMiniSectorMap() {
     ctx.fill();
     ctx.textAlign = 'left';
     ctx.fillStyle = theme.textStrong;
-    ctx.font = '9px monospace';
+    ctx.font = canvasFont(12);
     ctx.fillText(`WIND FROM ${windLabel}${Number.isFinite(windSpeed) ? ` · ${windSpeed.toFixed(1)} M/S` : ''}`, 9, rect.height - 9);
   }
   ctx.restore();
@@ -2797,6 +2953,7 @@ function applyTheme(theme, persist = true) {
 
 // Initial Setup on Document Load
 document.addEventListener('DOMContentLoaded', () => {
+  installGlassMotion();
   window.addEventListener('mouseup', finishZoomDrag);
   applyTheme(document.documentElement.dataset.theme, false);
   document.querySelectorAll('.select-shell select').forEach(enhanceSelect);
@@ -2833,9 +2990,13 @@ document.addEventListener('DOMContentLoaded', () => {
   if (cornerAnalysisToggle && cornerAnalysis) {
     cornerAnalysisToggle.addEventListener('click', () => {
       const collapsed = cornerAnalysis.classList.toggle('is-collapsed');
+      $('#cornerWorkspace').inert = collapsed;
       cornerAnalysisToggle.setAttribute('aria-expanded', String(!collapsed));
       const label = cornerAnalysisToggle.querySelector('span');
       if (label) label.textContent = collapsed ? 'Expand' : 'Collapse';
+    });
+    cornerAnalysis.addEventListener('transitionend', event => {
+      if (event.propertyName === 'grid-template-rows' && !cornerAnalysis.classList.contains('is-collapsed')) renderMiniSectorMap();
     });
   }
   
@@ -2844,10 +3005,14 @@ document.addEventListener('DOMContentLoaded', () => {
   if (toggleBtn && mainEl) {
     toggleBtn.onclick = () => {
       const isCollapsed = mainEl.classList.toggle('sidebar-collapsed');
-      toggleBtn.textContent = isCollapsed ? '▶ Expand Controls' : '◀ Toggle Controls';
+      toggleBtn.querySelector('span').textContent = isCollapsed ? 'Show drivers' : 'Hide drivers';
       toggleBtn.setAttribute('aria-expanded', String(!isCollapsed));
+      $('#driverSidebar').inert = isCollapsed;
       if (loaded.length) scheduleDrawAll();
     };
+    mainEl.addEventListener('transitionend', event => {
+      if (event.target === mainEl && event.propertyName === 'grid-template-columns') scheduleDrawAll();
+    });
   }
   
   window.addEventListener('resize', scheduleDrawAll, { passive: true });
@@ -2920,8 +3085,8 @@ function renderTireNomination() {
     
     return `
       <div class="tire-option tire-${String(label).toLowerCase()}" style="--tire-color:${color}">
-        <span class="tire-code">${displayVal}</span>
-        <span class="tire-copy"><strong>${label}</strong></span>
+        ${tyreImageMarkup(label)}
+        <span class="tire-copy"><strong>${label}</strong><small>${displayVal}</small></span>
       </div>
     `;
   }).join('');

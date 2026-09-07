@@ -11,6 +11,7 @@ const staticFiles = [
   "styles.css",
   "design-system.css",
   "polish.css",
+  "apple-ui.css",
 ];
 
 await rm(destination, { recursive: true, force: true });
