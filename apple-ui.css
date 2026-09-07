@@ -597,3 +597,13 @@ body { zoom: .87; }
 .trace-swatch:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
 .tooltip { width: max-content; max-width: min(480px, 90vw); white-space: nowrap; }
 #dominanceCanvas { display: block; width: 100%; min-height: 280px; height: clamp(280px, 24vw, 420px); }
+.telemetry-card.is-empty.has-generic-map .telemetry-content { display: block; }
+.telemetry-card.has-generic-map .telemetry-empty,
+.telemetry-card.has-generic-map .section-heading,
+.telemetry-card.has-generic-map .sector-times,
+.telemetry-card.has-generic-map .charts,
+.telemetry-card.has-generic-map .corner-analysis-header,
+.telemetry-card.has-generic-map #cornerMetricGrid { display: none; }
+.telemetry-card.has-generic-map .corner-workspace { display: block; }
+.telemetry-card.has-generic-map .corner-collapse-region { grid-template-rows: 1fr; opacity: 1; }
+.telemetry-card.has-generic-map .corner-workspace { visibility: visible; }

@@ -11,6 +11,9 @@ const customSelectValues = new WeakMap();
 let calendar = [];
 let corners = [];
 let circuitRotation = 0;
+let genericCircuitData = null;
+let genericCircuitRequest = null;
+let sessionEventName = '';
 let nominatedCompounds = [];
 let activeDriverTab = null;
 let selectedCornerIndex = 0;
@@ -649,6 +652,7 @@ function clearBeforeSessionLoad() {
   openStint = {};
   corners = [];
   circuitRotation = 0;
+  sessionEventName = '';
   nominatedCompounds = [];
   activeDriverTab = null;
   selectedCornerIndex = 0;
@@ -699,6 +703,7 @@ async function loadRealSession() {
       driver.code, driver.number, driver.name, driver.team_color, driver.team, driver.position
     ]));
     corners = payload.corners || [];
+    sessionEventName = payload.event || '';
     circuitRotation = Number.isFinite(Number(payload.circuit_rotation))
       ? Number(payload.circuit_rotation) : 0;
     nominatedCompounds = payload.compounds || [];
@@ -792,11 +797,6 @@ function renderDrivers() {
       } else {
         selected.push(code);
         activeDriverTab = code;
-        const driver = realDrivers.get(code);
-        const fastest = driver && fastestTimedLap(driver);
-        if (fastest && !loaded.some(item => item.code === code)) {
-          loaded.push({ code, lap: fastest.lap, time: fastest.time, real: fastest });
-        }
       }
       renderDrivers();
       renderStints();
@@ -2409,6 +2409,7 @@ function updateTelemetryVisibility() {
   if (!card) return;
   const empty = loaded.length === 0;
   card.classList.toggle('is-empty', empty);
+  card.classList.toggle('has-generic-map', empty && selected.length > 0);
   const emptyState = $('#telemetryEmpty');
   if (emptyState) emptyState.hidden = !empty;
 }
@@ -2434,7 +2435,7 @@ function renderCornerAnalysis() {
     focused: oldPicker.contains(document.activeElement),
   } : null;
   pickerRoot.innerHTML = '';
-  const enabled = loaded.length > 0;
+  const enabled = loaded.length > 0 || selected.length > 0;
   section.hidden = !enabled;
   if (!enabled) {
     root.innerHTML = '';
@@ -2582,6 +2583,43 @@ function clearDominanceMapCanvas(canvas) {
   ctx.clearRect(0, 0, rect.width, rect.height);
 }
 
+function renderGenericCircuit(canvas, empty) {
+  if (!selected.length) return;
+  if (!genericCircuitData) {
+    empty.style.display = 'grid';
+    empty.textContent = 'Loading circuit map…';
+    if (!genericCircuitRequest) genericCircuitRequest = fetch('assets/circuits/f1-circuits.geojson')
+      .then(response => { if (!response.ok) throw new Error('Map unavailable'); return response.json(); })
+      .then(data => { genericCircuitData = data; if (!loaded.length) renderMiniSectorMap(); })
+      .catch(() => { if (!loaded.length) empty.textContent = 'Circuit map unavailable.'; })
+      .finally(() => { genericCircuitRequest = null; });
+    return;
+  }
+  const name = normalizedPlaceName(sessionEventName);
+  const aliases = [['emilia','it-1953'],['tuscan','it-1914'],['70th','gb-1948'],['eifel','de-1927'],['sakhir','bh-2002'],['styrian','at-1969'],['european','az-2016'],['australian','au-1953'],['bahrain','bh-2002'],['chinese','cn-2004'],['barcelona','es-1991'],['spanish', Number($('#year').value) >= 2026 ? 'es-2026' : 'es-1991'],['monaco','mc-1929'],['canadian','ca-1978'],['french','fr-1969'],['austrian','at-1969'],['british','gb-1948'],['german','de-1932'],['hungarian','hu-1986'],['belgian','be-1925'],['italian','it-1922'],['singapore','sg-2008'],['russian','ru-2014'],['japanese','jp-1962'],['miami','us-2022'],['las vegas','us-2023'],['united states','us-2012'],['mexic','mx-1962'],['sao paulo','br-1940'],['brazil','br-1940'],['abu dhabi','ae-2009'],['portuguese','pt-2008'],['malaysian','my-1999'],['turkish','tr-2005'],['dutch','nl-1948'],['saudi','sa-2021'],['qatar','qa-2004'],['azerbaijan','az-2016']];
+  const id = aliases.find(([term]) => name.includes(term))?.[1];
+  const feature = genericCircuitData.features.find(item => item.properties.id === id);
+  const coords = feature?.geometry?.type === 'LineString' ? feature.geometry.coordinates : null;
+  if (!coords?.length) { empty.style.display = 'grid'; empty.textContent = 'Circuit outline unavailable for this event.'; return; }
+  canvas.style.display = 'block';
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const ratio = Math.max(2, window.devicePixelRatio || 1);
+  canvas.width = Math.round(rect.width * ratio); canvas.height = Math.round(rect.height * ratio);
+  const ctx = canvas.getContext('2d'); ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  const latitude = coords[0][1] * Math.PI / 180;
+  const points = coords.map(([x,y]) => [x * Math.cos(latitude), -y]);
+  const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
+  const minX = Math.min(...xs), minY = Math.min(...ys), width = Math.max(...xs)-minX, height = Math.max(...ys)-minY;
+  const scale = Math.min((rect.width-40)/width, (rect.height-40)/height);
+  ctx.beginPath();
+  points.forEach(([x,y], index) => { const px=(x-minX-width/2)*scale+rect.width/2, py=(y-minY-height/2)*scale+rect.height/2; if(index)ctx.lineTo(px,py);else ctx.moveTo(px,py); });
+  ctx.strokeStyle = lightThemeActive() ? '#65656e' : '#b3b3bd'; ctx.lineWidth=4; ctx.lineJoin='round'; ctx.lineCap='round'; ctx.stroke();
+  canvas.setAttribute('aria-label', `${feature.properties.Name}, generic circuit outline`);
+  empty.style.display='none';
+  $('#dominanceLegend').innerHTML = '<small>Outline · <a href="https://github.com/bacinger/f1-circuits" target="_blank" rel="noopener">Circuit data</a></small>';
+}
+
 function renderMiniSectorMap() {
   const canvas = $('#dominanceCanvas');
   const empty = $('#dominanceEmpty');
@@ -2606,6 +2644,11 @@ function renderMiniSectorMap() {
     empty.textContent = 'Load a lap to generate the track map.';
     legend.innerHTML = '';
     dominanceMapHitPoints = [];
+    if (selected.length) renderGenericCircuit(canvas, empty);
+    return;
+  }
+  if (!loaded.length) {
+    root.innerHTML = '';
     return;
   }
 
@@ -2963,6 +3006,7 @@ function applyTheme(theme, persist = true) {
     try { localStorage.setItem('apex-theme', nextTheme); } catch (_) { /* storage can be disabled */ }
   }
   if (loaded.length) drawAll();
+  else if (selected.length) renderMiniSectorMap();
 }
 
 // Initial Setup on Document Load
@@ -3037,7 +3081,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const size = rect ? `${Math.round(rect.width)}:${Math.round(rect.height)}` : '';
       if (rect?.width && rect?.height && size !== mapSize) {
         mapSize = size;
-        requestAnimationFrame(() => { if (loaded.length) renderMiniSectorMap(); });
+        requestAnimationFrame(() => { if (loaded.length || selected.length) renderMiniSectorMap(); });
       }
     }).observe($('#dominanceCanvas'));
   }

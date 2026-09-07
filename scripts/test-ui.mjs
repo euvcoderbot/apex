@@ -164,3 +164,13 @@ test('dense lap identity, editable trace colours and automatic map recovery', ()
   const h = context();
   assert.match(h.run("compoundBadgeMarkup('SOFT')"), /aria-label="soft"/);
 });
+
+test('driver selection never loads a lap; generic map uses independent geometry', () => {
+  const driverSection = app.slice(app.indexOf('function renderDrivers()'), app.indexOf('function renderStintsLegacy()'));
+  assert.doesNotMatch(driverSection, /loaded.push|fetchTelemetry|fastestTimedLap/);
+  const mapSection = app.slice(app.indexOf('function renderGenericCircuit('), app.indexOf('function renderMiniSectorMap()'));
+  assert.doesNotMatch(mapSection, /fetchTelemetry|fastestTimedLap/);
+  assert.match(mapSection, /assets\/circuits\/f1-circuits.geojson/);
+  const data = JSON.parse(readFileSync('assets/circuits/f1-circuits.geojson','utf8'));
+  assert.ok(data.features.length > 30);
+});
