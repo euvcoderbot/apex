@@ -2442,6 +2442,10 @@ function renderCornerAnalysis() {
     return;
   }
 
+  if (!loaded.length) {
+    root.innerHTML = '';
+    return;
+  }
   const referenceLap = loaded[0];
   const reference = telemetryCache.get(telemetryKey(referenceLap));
   if (!reference?.length || typeof adaptiveCornerZones !== 'function' || typeof cornerPerformance !== 'function') {
@@ -2647,11 +2651,6 @@ function renderMiniSectorMap() {
     if (selected.length) renderGenericCircuit(canvas, empty);
     return;
   }
-  if (!loaded.length) {
-    root.innerHTML = '';
-    return;
-  }
-
   const spatial = typeof spatialReferenceTelemetry === 'function'
     ? spatialReferenceTelemetry()
     : null;
