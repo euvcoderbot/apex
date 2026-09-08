@@ -463,7 +463,7 @@ const historicalTeamMarks = {
 };
 function teamLogoMarkup(teamName) {
   const key = String(teamName || '').trim().toLowerCase();
-  if (key === 'renault' || key === 'renault sport f1 team') return '<span class="team-logo team-logo-historical" aria-hidden="true"><img src="https://upload.wikimedia.org/wikipedia/commons/4/49/Renault_F1_Team_logo_2019.png" alt="" width="26" height="26" referrerpolicy="no-referrer"></span>';
+  if (key === 'renault' || key === 'renault sport f1 team') return '<span class="team-logo team-logo-historical" aria-hidden="true"><img src="assets/teams/historical/renault.png" alt="" width="26" height="26"></span>';
   const historical = historicalTeamMarks[key];
   if (historical) return `<span class="team-logo team-logo-historical" aria-hidden="true"><img src="assets/teams/historical/${historical}" alt="" width="26" height="26"></span>`;
   const asset = officialTeamMarks[key];
