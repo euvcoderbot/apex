@@ -174,3 +174,26 @@ test('driver selection never loads a lap; generic map uses independent geometry'
   const data = JSON.parse(readFileSync('assets/circuits/f1-circuits.geojson','utf8'));
   assert.ok(data.features.length > 30);
 });
+
+test('corner rankings are best-first, stable, null-safe and do not mutate reference order', () => {
+  const h = context();
+  h.run("var sampleMetrics = [{id:'a',metric:{sectionTime:6,minimumSpeed:140}},{id:'b',metric:{sectionTime:5,minimumSpeed:130}},{id:'c',metric:{sectionTime:null,minimumSpeed:null}}]");
+  assert.equal(h.run("rankCornerMetrics(sampleMetrics,'time').map(x=>x.id).join()"), 'b,a,c');
+  assert.equal(h.run("rankCornerMetrics(sampleMetrics,'delta').map(x=>x.id).join()"), 'b,a,c');
+  assert.equal(h.run("rankCornerMetrics(sampleMetrics,'minimum').map(x=>x.id).join()"), 'a,b,c');
+  assert.equal(h.run("sampleMetrics.map(x=>x.id).join()"), 'a,b,c');
+  assert.match(app, /item.lap === referenceLap/);
+  assert.doesNotMatch(app, /const compassCentre/);
+  assert.match(app, /class="map-north"/);
+});
+
+test('data requests retry transient errors but not valid missing-data responses', async () => {
+  const h = context(); let calls = 0;
+  Object.assign(h.sandbox, {AbortController, DOMException, setTimeout: (fn, ms) => ms < 2000 ? setTimeout(fn, 0) : setTimeout(fn, ms), clearTimeout});
+  h.sandbox.fetch = async () => ({status: ++calls < 3 ? 503 : 200, text: async()=>''});
+  assert.equal((await h.run("fetchSessionData('/test')")).status, 200);
+  assert.equal(calls, 3);
+  calls = 0; h.sandbox.fetch = async () => {calls++;return {status:404};};
+  assert.equal((await h.run("fetchSessionData('/missing')")).status, 404);
+  assert.equal(calls, 1);
+});

@@ -17,6 +17,7 @@ let sessionEventName = '';
 let nominatedCompounds = [];
 let activeDriverTab = null;
 let selectedCornerIndex = 0;
+let cornerSort = 'time';
 let showCornerNumbers = false;
 let enhancedTraceMode = false;
 let traceTintEnabled = false;
@@ -100,23 +101,35 @@ function positionCornerIndicator(root, previous) {
   if (!picker || !active) return;
   picker.scrollLeft = previous?.scroll || 0;
   const left = `${active.offsetLeft}px`, width = `${active.offsetWidth}px`;
-  const animate = previous && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  picker.style.setProperty('--selection-left', animate ? previous.left : left);
-  picker.style.setProperty('--selection-width', animate ? previous.width : width);
-  picker.classList.add('has-indicator');
-  if (animate) {
-    // Commit the old capsule position before transitioning the replacement.
-    picker.getBoundingClientRect();
-    window.requestAnimationFrame(() => {
-      if (!picker.isConnected) return;
-      picker.style.setProperty('--selection-left', left);
-      picker.style.setProperty('--selection-width', width);
-    });
-  }
+  picker.style.setProperty('--selection-left', left);
+  picker.style.setProperty('--selection-width', width);
+  picker.classList.remove('has-indicator');
 }
 
 function apiUrl(path) {
   return `${API_ORIGIN}${path}`;
+}
+
+async function fetchSessionData(url, options = {}) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    options.signal?.addEventListener('abort', abort, { once: true });
+    const timeout = setTimeout(abort, 45000);
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      if (![408, 429, 502, 503, 504].includes(response.status) || attempt === 2) return response;
+      await response.text();
+    } catch (error) {
+      if (options.signal?.aborted) throw error;
+      if (attempt === 2) throw new Error(error.name === 'AbortError' ? 'The server took too long. Please retry.' : error.message);
+    } finally {
+      clearTimeout(timeout);
+      options.signal?.removeEventListener('abort', abort);
+    }
+    await new Promise(resolve => setTimeout(resolve, 700 * (attempt + 1)));
+  }
 }
 
 function notify(message, tone = 'error') {
@@ -439,8 +452,20 @@ const officialTeamMarks = {
   'audi': 'audi.webp', 'williams': 'williams.webp',
   'aston martin': 'astonmartin.webp', 'cadillac': 'cadillac.webp',
 };
+const historicalTeamMarks = {
+  'sauber': 'sauber.svg', 'kick sauber': 'kick-sauber.png', 'stake f1 team kick sauber': 'kick-sauber.png',
+  'alfa romeo': 'alfa-romeo.svg', 'alfa romeo racing': 'alfa-romeo.svg', 'alfa romeo sauber': 'sauber.svg',
+  'alphatauri': 'alphatauri.svg', 'alpha tauri': 'alphatauri.svg', 'scuderia alphatauri': 'alphatauri.svg',
+  'toro rosso': 'toro-rosso.svg', 'scuderia toro rosso': 'toro-rosso.svg',
+  'racing point': 'racing-point.svg', 'force india': 'force-india.png',
+  'lotus': 'lotus.png', 'lotus f1 team': 'lotus.png', 'manor': 'manor.png', 'manor racing': 'manor.png',
+  'marussia': 'marussia.png', 'manor marussia': 'marussia.png', 'caterham': 'caterham.png',
+};
 function teamLogoMarkup(teamName) {
   const key = String(teamName || '').trim().toLowerCase();
+  if (key === 'renault' || key === 'renault sport f1 team') return '<span class="team-logo team-logo-historical" aria-hidden="true"><img src="https://upload.wikimedia.org/wikipedia/commons/4/49/Renault_F1_Team_logo_2019.png" alt="" width="26" height="26" referrerpolicy="no-referrer"></span>';
+  const historical = historicalTeamMarks[key];
+  if (historical) return `<span class="team-logo team-logo-historical" aria-hidden="true"><img src="assets/teams/historical/${historical}" alt="" width="26" height="26"></span>`;
   const asset = officialTeamMarks[key];
   if (!asset) return '<span class="team-logo" aria-hidden="true"><i class="team-logo-fallback"></i></span>';
   return `<span class="team-logo" aria-hidden="true"><img src="assets/teams/official/${asset}" alt="" width="26" height="26"></span>`;
@@ -584,7 +609,7 @@ async function loadCalendar() {
   customSelectValues.delete($('#gp'));
   $('#gp').innerHTML = '<option>Loading calendar…</option>';
   try {
-    const response = await fetch(apiUrl(`/api/events?year=${year}`), { signal: calendarRequest.signal });
+    const response = await fetchSessionData(apiUrl(`/api/events?year=${year}`), { signal: calendarRequest.signal });
     const payload = await readApiResponse(response);
     if (!response.ok) throw new Error(payload.detail || 'Calendar unavailable');
     if (generation !== calendarGeneration || year !== selectValue($('#year'))) return;
@@ -593,7 +618,9 @@ async function loadCalendar() {
     syncSelectUI($('#gp'));
     selectLatestCompletedEvent();
   } catch (error) {
-    if (error.name === 'AbortError') return;
+    if (generation !== calendarGeneration || error.name === 'AbortError') return;
+    $('#gp').innerHTML = '<option value="">Calendar unavailable — retry season</option>';
+    syncSelectUI($('#gp'));
     notify(`Could not load calendar. ${error.message}`);
     throw error;
   }
@@ -647,6 +674,8 @@ function lapText(lap) {
 
 // UI State Resets
 function clearBeforeSessionLoad() {
+  drivers.splice(0, drivers.length);
+  realDrivers.clear();
   selected = [];
   loaded = [];
   openStint = {};
@@ -689,14 +718,18 @@ async function loadRealSession() {
   renderCharts();
   if (sessionRequest) sessionRequest.abort();
   sessionRequest = new AbortController();
+  const request = sessionRequest;
+  const requestedQuery = String(currentQuery());
   
   try {
-    const response = await fetch(apiUrl(`/api/session?${currentQuery()}`), {
+    const response = await fetchSessionData(apiUrl(`/api/session?${requestedQuery}`), {
       cache: 'no-store',
       signal: sessionRequest.signal,
     });
     const payload = await readApiResponse(response);
     if (!response.ok) throw new Error(payload.detail || 'Session unavailable');
+    if (request !== sessionRequest || requestedQuery !== String(currentQuery())) return;
+    if (!Array.isArray(payload.drivers) || !payload.drivers.length) throw new Error('No driver data is available for this session yet.');
     
     realDrivers = new Map(payload.drivers.map(driver => [driver.code, driver]));
     drivers.splice(0, drivers.length, ...payload.drivers.map(driver => [
@@ -715,6 +748,7 @@ async function loadRealSession() {
   } catch (error) {
     if (error.name !== 'AbortError') notify(`Could not load this session. ${error.message}`);
   } finally {
+    if (request !== sessionRequest) return;
     button.disabled = false;
     button.classList.remove('is-loading');
     button.removeAttribute('aria-busy');
@@ -2099,12 +2133,7 @@ function drawRealChart(name) {
       const labelY = 4 + lane * rowHeight;
       const left = x - width / 2;
 
-      ctx.fillStyle = theme.panel;
-      ctx.fillRect(left, labelY, width, calloutHeight);
-      ctx.strokeStyle = theme.outline;
-      ctx.lineWidth = 1;
-      ctx.strokeRect(left + .5, labelY + .5, width - 1, calloutHeight - 1);
-      ctx.fillStyle = theme.textStrong;
+      ctx.fillStyle = theme.textMuted || theme.textStrong;
       ctx.font = canvasFont(12);
       ctx.textAlign = 'center';
       ctx.fillText(cornerLabel(corner), x, labelY + 12);
@@ -2422,6 +2451,16 @@ function renderAll() {
   drawAll();
 }
 
+function rankCornerMetrics(metrics, category) {
+  return [...metrics].sort((a, b) => {
+    const av = category === 'minimum' ? a.metric.minimumSpeed : a.metric.sectionTime;
+    const bv = category === 'minimum' ? b.metric.minimumSpeed : b.metric.sectionTime;
+    if (!Number.isFinite(av)) return Number.isFinite(bv) ? 1 : 0;
+    if (!Number.isFinite(bv)) return -1;
+    return category === 'minimum' ? bv - av : av - bv;
+  });
+}
+
 function renderCornerAnalysis() {
   const section = $('#cornerAnalysis');
   const root = $('#cornerMetricGrid');
@@ -2484,7 +2523,8 @@ function renderCornerAnalysis() {
       ? best : !best || item.metric.sectionTime < best.metric.sectionTime ? item : best, null);
     return `<button class="corner-pick ${index === selectedCornerIndex ? 'selected' : ''}" data-corner-index="${index}" aria-pressed="${index === selectedCornerIndex}" title="${cornerLabel(candidate)} · fastest ${winner?.lap.code || 'unavailable'}"><strong>${cornerLabel(candidate)}</strong><small>${winner?.lap.code || '—'}</small></button>`;
   }).join('');
-  const rows = metrics.map((item, index) => {
+  const rankedMetrics = rankCornerMetrics(metrics, cornerSort);
+  const rows = rankedMetrics.map((item) => {
     const sectionTime = item.metric.sectionTime;
     const toReference = Number.isFinite(sectionTime) && Number.isFinite(referenceSection)
       ? sectionTime - referenceSection : null;
@@ -2496,7 +2536,7 @@ function renderCornerAnalysis() {
       && Math.abs(item.metric.minimumSpeed - highestMinimumSpeed) < .05;
     return `
       <div class="corner-driver-row ${fastest && loaded.length > 1 ? 'is-fastest' : ''} ${highestMinimum && loaded.length > 1 ? 'is-highest-min' : ''}" style="--driver-color:${getDriverColor(item.lap.code)}">
-        <span class="corner-driver"><i></i><b>${item.lap.code}</b><small>L${item.lap.lap}</small>${index === 0 ? '<em>REF</em>' : ''}</span>
+        <span class="corner-driver"><i></i><b>${item.lap.code}</b><small>L${item.lap.lap}</small>${item.lap === referenceLap ? '<em>REF</em>' : ''}</span>
         <span class="corner-time"><strong>${Number.isFinite(sectionTime) ? `${sectionTime.toFixed(3)}s` : '—'}</strong></span>
         <span class="corner-delta ${deltaClass}"><strong>${Number.isFinite(toReference) ? signedDelta(toReference) : '—'}</strong></span>
         <span class="corner-speed"><strong>${Number.isFinite(item.metric.minimumSpeed) ? item.metric.minimumSpeed.toFixed(1) : '—'}</strong></span>
@@ -2507,13 +2547,16 @@ function renderCornerAnalysis() {
   root.innerHTML = `
     <article class="corner-detail-card">
       <header class="corner-detail-header">
-        <div><span>Selected corner</span><strong>${cornerLabel(zone)}</strong><small>${escapeUI(String(zone.type).toLowerCase())}</small></div>
+        <div><strong>${cornerLabel(zone)}</strong><small>${escapeUI(String(zone.type).toLowerCase())}</small></div>
         <dl><div><dt>Timing sector</dt><dd>${zone.metres} m</dd></div><div><dt>Min-speed window</dt><dd>${zone.apexMetres} m</dd></div></dl>
       </header>
-      <div class="corner-table-head"><span>Driver</span><span>Time <small>s</small></span><span>Delta <small>s</small></span><span>Minimum <small>km/h</small></span></div>
+      <div class="corner-table-head"><span>Driver</span>${[['time','Time','s'],['delta','Delta','s'],['minimum','Minimum','km/h']].map(([key,label,unit]) => `<button type="button" data-corner-sort="${key}" aria-pressed="${cornerSort === key}" title="Sort best to worst by ${label}">${label}${cornerSort === key ? ' ↓' : ''}<small>${unit}</small></button>`).join('')}</div>
       <div class="corner-driver-metrics">${rows}</div>
     </article>`;
   positionCornerIndicator(pickerRoot, pickerState);
+  root.querySelectorAll('[data-corner-sort]').forEach(button => {
+    button.onclick = () => { cornerSort = button.dataset.cornerSort; renderCornerAnalysis(); root.querySelector(`[data-corner-sort="${cornerSort}"]`)?.focus({ preventScroll: true }); };
+  });
   if (pickerState?.focused) pickerRoot.querySelector('.corner-pick.selected')?.focus({ preventScroll: true });
   pickerRoot.onclick = event => {
     const button = event.target.closest('[data-corner-index]');
@@ -2921,69 +2964,19 @@ function renderMiniSectorMap() {
   // The compass is fixed in the conventional screen orientation and the map
   // remains north-up: N top, E right, S bottom, W left. WindDirection is
   // meteorological, so its arrow travels from the reported bearing.
-  const compassCentre = { x: 38, y: 38 };
-  const compassRadius = 16;
-  const cardinalVectors = {
-    N: { x: 0, y: -1 }, E: { x: 1, y: 0 }, S: { x: 0, y: 1 }, W: { x: -1, y: 0 },
-  };
-  ctx.save();
-  ctx.font = canvasFont(12);
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.strokeStyle = theme.outline;
-  ctx.fillStyle = theme.panel;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.arc(compassCentre.x, compassCentre.y, 24, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-  Object.entries(cardinalVectors).forEach(([label, vector]) => {
-    const dx = vector.x * compassRadius;
-    const dy = vector.y * compassRadius;
-    ctx.beginPath();
-    ctx.moveTo(compassCentre.x, compassCentre.y);
-    ctx.lineTo(compassCentre.x + dx, compassCentre.y + dy);
-    ctx.strokeStyle = label === 'N' ? '#eaff18' : theme.outline;
-    ctx.stroke();
-    ctx.fillStyle = label === 'N' ? '#91a500' : theme.textStrong;
-    ctx.fillText(label, compassCentre.x + dx * 1.28, compassCentre.y + dy * 1.28);
-  });
   const referenceConditions = loaded[0]?.real?.conditions || {};
-  const windDegrees = Number(referenceConditions.wind_direction);
-  const windSpeed = Number(referenceConditions.wind_speed);
+  const windDegrees = referenceConditions.wind_direction == null ? NaN : Number(referenceConditions.wind_direction);
+  const windSpeed = referenceConditions.wind_speed == null ? NaN : Number(referenceConditions.wind_speed);
+  let windText = '';
   if (Number.isFinite(windDegrees)) {
     const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
     const windLabel = directions[Math.round((((windDegrees % 360) + 360) % 360) / 45) % directions.length];
-    const radians = (((windDegrees % 360) + 360) % 360) * Math.PI / 180;
-    const fromVector = { x: Math.sin(radians), y: -Math.cos(radians) };
-    const start = { x: compassCentre.x + fromVector.x * 12, y: compassCentre.y + fromVector.y * 12 };
-    const end = { x: compassCentre.x - fromVector.x * 8, y: compassCentre.y - fromVector.y * 8 };
-    const direction = { x: end.x - start.x, y: end.y - start.y };
-    const length = Math.hypot(direction.x, direction.y) || 1;
-    const ux = direction.x / length, uy = direction.y / length;
-    ctx.strokeStyle = '#eaff18';
-    ctx.fillStyle = '#eaff18';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(start.x, start.y);
-    ctx.lineTo(end.x, end.y);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(end.x, end.y);
-    ctx.lineTo(end.x - ux * 5 + uy * 3, end.y - uy * 5 - ux * 3);
-    ctx.lineTo(end.x - ux * 5 - uy * 3, end.y - uy * 5 + ux * 3);
-    ctx.closePath();
-    ctx.fill();
-    ctx.textAlign = 'left';
-    ctx.fillStyle = theme.textStrong;
-    ctx.font = canvasFont(12);
-    ctx.fillText(`WIND FROM ${windLabel}${Number.isFinite(windSpeed) ? ` · ${windSpeed.toFixed(1)} M/S` : ''}`, 9, rect.height - 9);
+    windText = `<span class="map-wind">Wind from ${windLabel}${Number.isFinite(windSpeed) ? ` · ${windSpeed.toFixed(1)} m/s` : ''}</span>`;
   }
-  ctx.restore();
 
   empty.style.display = 'none';
   const legendIndexes = comparative ? [...wins] : [0];
-  legend.innerHTML = legendIndexes.map(index => {
+  legend.innerHTML = `<span class="map-north" aria-label="North is up"><svg viewBox="0 0 16 20" width="12" height="16" aria-hidden="true"><path d="M8 1 14 18 8 14 2 18Z" fill="currentColor"/></svg>N</span>${windText}` + legendIndexes.map(index => {
     const lap = mapEntries[index]?.lap;
     if (!lap) return '';
     return `<span class="legend-item"><i class="legend-color" style="--team:${getDriverColor(lap.code)}"></i>${lap.code} L${lap.lap}</span>`;
@@ -3091,8 +3084,6 @@ document.addEventListener('DOMContentLoaded', () => {
   
   loadCalendar()
     .catch(error => {
-      $('#gp').innerHTML = '<option>Calendar unavailable</option>';
-      syncSelectUI($('#gp'));
       console.warn(error);
     });
 });
@@ -3146,7 +3137,7 @@ function renderTireNomination() {
   const colors = ['#ffffff', '#ffd700', '#ff0055']; // White, Yellow, Red
   
   root.innerHTML = nominatedCompounds.map((comp, i) => {
-    const isC = /^C[1-6]$/i.test(comp);
+    const isC = /^C[0-6]$/i.test(comp);
     const label = isC ? (labels[i] || 'Nominated') : comp;
     const displayVal = isC ? comp : getCompoundAbbreviation(comp);
     const color = colors[i] || '#888888';
@@ -3154,7 +3145,7 @@ function renderTireNomination() {
     return `
       <div class="tire-option tire-${String(label).toLowerCase()}" style="--tire-color:${color}">
         ${tyreImageMarkup(label)}
-        <span class="tire-copy"><strong>${label}</strong><small>${displayVal}</small></span>
+        <span class="tire-copy"><strong>${escapeUI(label)}${isC ? ` · ${escapeUI(displayVal)}` : ''}</strong>${isC ? '' : `<small>${escapeUI(displayVal)}</small>`}</span>
       </div>
     `;
   }).join('');

@@ -607,3 +607,24 @@ body { zoom: .87; }
 .telemetry-card.has-generic-map .corner-workspace { display: block; }
 .telemetry-card.has-generic-map .corner-collapse-region { grid-template-rows: 1fr; opacity: 1; }
 .telemetry-card.has-generic-map .corner-workspace { visibility: visible; }
+
+/* Stable selection and compact, aligned analysis tools. */
+.corner-picker.has-indicator::before { display: none; }
+.corner-picker.has-indicator .corner-pick.selected { background: var(--bg-card); color: var(--accent); border-color: var(--border-color); box-shadow: var(--shadow-raised); }
+.corner-pick, .corner-pick:active:not(:disabled) { transform: none; transition: color 140ms ease, background-color 140ms ease; }
+.corner-detail-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-bottom: 12px; }
+.corner-detail-header dl { margin: 0; gap: 16px; }
+.corner-detail-header dl > div { display: flex; align-items: baseline; gap: 6px; }
+.corner-table-head button { padding: 6px 2px; background: transparent; border: 0; color: var(--text-secondary); border-radius: 6px; box-shadow: none; }
+.corner-table-head button[aria-pressed="true"] { color: var(--accent); }
+.corner-table-head button:hover { background: var(--surface-selected); }
+.trace-settings { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; padding: 5px 8px; }
+.trace-settings .alignment-readout { flex: 0 0 auto; min-height: 0; padding: 0 8px 0 2px; }
+.trace-setting { min-height: 30px; padding: 4px; }
+.speed-chart-controls { margin-bottom: 10px; }
+.map-north { display: inline-flex; align-items: center; gap: 5px; color: var(--text-secondary); font-size: .75rem; font-weight: 600; }
+.map-wind { font-size: .75rem; color: var(--text-muted); }
+.dominance-map-header .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.tire-copy small { display: block; }
+.team-logo-historical { background: #fff; border-radius: 5px; padding: 2px; }
+:root .team-logo-historical img { filter: none; }
