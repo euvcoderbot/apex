@@ -1930,14 +1930,14 @@ function drawRealChart(name) {
     ? resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers)
     : [];
   const cornerCalloutLayout = layoutSpeedCornerCallouts(speedCornerMarkers, rect.width, axisLeft, 7, viewStart, viewEnd);
-  const cornerTopInset = speedCornerMarkers.length
-    ? 12 + cornerCalloutLayout.lanes * 20
-    : 8;
+  const cornerAxisInset = speedCornerMarkers.length
+    ? 8 + cornerCalloutLayout.lanes * 20
+    : 0;
   const bounds = {
     left: axisLeft,
     right: TRACE_PLOT_RIGHT,
-    top: name === 'Speed trace' ? cornerTopInset : 8,
-    bottom: 21,
+    top: 8,
+    bottom: 21 + (name === 'Speed trace' ? cornerAxisInset : 0),
     min,
     max,
     tickStep: niceBounds.tickStep
@@ -1966,7 +1966,7 @@ function drawRealChart(name) {
     ctx.fillStyle = theme.text;
     ctx.font = canvasFont(12);
     ctx.textAlign = tick === 0 ? 'left' : tick === 6 ? 'right' : 'center';
-    ctx.fillText(`${Math.round(fraction * totalDist)} M`, x, rect.height - 3);
+    ctx.fillText(`${Math.round(fraction * totalDist)} M`, x, rect.height - bounds.bottom + 18);
   }
   ctx.textAlign = 'left';
   
@@ -2130,7 +2130,7 @@ function drawRealChart(name) {
     const calloutHeight = 16;
     cornerCalloutLayout.items.forEach(({ corner, x, lane, width }) => {
       if (!Number.isFinite(corner.fraction)) return;
-      const labelY = 4 + lane * rowHeight;
+      const labelY = rect.height - cornerAxisInset + 4 + lane * rowHeight;
       const left = x - width / 2;
 
       ctx.fillStyle = theme.textMuted || theme.textStrong;
