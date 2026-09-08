@@ -111,25 +111,133 @@ function apiUrl(path) {
 }
 
 async function fetchSessionData(url, options = {}) {
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     const controller = new AbortController();
     const abort = () => controller.abort();
     options.signal?.addEventListener('abort', abort, { once: true });
-    const timeout = setTimeout(abort, 45000);
+    const timeout = setTimeout(abort, 25000);
     try {
       const response = await fetch(url, { ...options, signal: controller.signal });
-      if (![408, 429, 502, 503, 504].includes(response.status) || attempt === 2) return response;
+      if (![408, 429, 502, 503, 504].includes(response.status) || attempt === 1) return response;
       await response.text();
     } catch (error) {
       if (options.signal?.aborted) throw error;
-      if (attempt === 2) throw new Error(error.name === 'AbortError' ? 'The server took too long. Please retry.' : error.message);
+      if (attempt === 1) throw new Error(error.name === 'AbortError' ? 'The server took too long. Please retry.' : error.message);
     } finally {
       clearTimeout(timeout);
       options.signal?.removeEventListener('abort', abort);
     }
     await new Promise(resolve => setTimeout(resolve, 700 * (attempt + 1)));
   }
+}
+
+const recentData = new Map();
+const pendingApiData = new Map();
+let preparedSessionIndex;
+let prefetchSessionTimer;
+let dataStorePromise;
+function dataStore() {
+  if (!dataStorePromise) dataStorePromise = new Promise(resolve => {
+    if (typeof indexedDB === 'undefined') return resolve(null);
+    const request = indexedDB.open('euv2-data-v1', 2);
+    request.onupgradeneeded = () => {
+      const store = request.result.objectStoreNames.contains('responses')
+        ? request.transaction.objectStore('responses')
+        : request.result.createObjectStore('responses', { keyPath: 'url' });
+      if (!store.indexNames.contains('stored')) store.createIndex('stored', 'stored');
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = request.onblocked = () => resolve(null);
+  });
+  return dataStorePromise;
+}
+async function storedData(url) {
+  const memory = recentData.get(url);
+  if (memory && memory.expires > Date.now()) return memory.data;
+  const db = await dataStore();
+  if (!db) return null;
+  return new Promise(resolve => {
+    try {
+      const request = db.transaction('responses').objectStore('responses').get(url);
+      request.onsuccess = () => resolve(request.result?.expires > Date.now() ? request.result.data : null);
+      request.onerror = () => resolve(null);
+    } catch { resolve(null); }
+  });
+}
+async function cacheData(url, data, ttl) {
+  const record = { url, data, expires: Date.now() + ttl, stored: Date.now() };
+  recentData.delete(url); recentData.set(url, record);
+  if (recentData.size > 48) recentData.delete(recentData.keys().next().value);
+  const db = await dataStore();
+  if (!db) return;
+  try {
+    const transaction = db.transaction('responses', 'readwrite');
+    const store = transaction.objectStore('responses');
+    store.put(record);
+    let count = 0;
+    const cursor = store.index('stored').openKeyCursor(null, 'prev');
+    cursor.onsuccess = () => {
+      const item = cursor.result;
+      if (!item) return;
+      if (++count > 80) store.delete(item.primaryKey);
+      item.continue();
+    };
+    transaction.onerror = () => {};
+  } catch { /* Storage is optional, including private browsing and full disks. */ }
+}
+async function preparedData(url) {
+  const parsed = new URL(url, window.location?.href || 'http://localhost');
+  const year = Number(parsed.searchParams.get('year'));
+  if (parsed.pathname === '/api/events' && year >= 2014 && year <= 2026) {
+    const response = await fetch(`assets/data/events/${year}.json`);
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (year === new Date().getFullYear()) {
+      // Refresh in the background; keep the immediately usable calendar stable.
+      void fetchSessionData(url).then(async r => { if (r.ok) await cacheData(url, await r.json(), 120000); }).catch(() => {});
+    }
+    return data;
+  }
+  if (parsed.pathname !== '/api/session' || year >= new Date().getFullYear()) return null;
+  preparedSessionIndex ||= fetch('assets/data/sessions/index.json').then(r => r.ok ? r.json() : {}).catch(() => ({}));
+  const index = await preparedSessionIndex;
+  const key = `${year}:${parsed.searchParams.get('gp')}:${parsed.searchParams.get('session')}`;
+  if (!index[key]) return null;
+  const response = await fetch(`assets/data/sessions/${index[key]}`);
+  return response.ok ? response.json() : null;
+}
+async function requestApiData(url, options = {}) {
+  const cached = await storedData(url);
+  if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  if (cached) return structuredClone(cached);
+  const prepared = await preparedData(url).catch(() => null);
+  if (prepared) { void cacheData(url, structuredClone(prepared), 120000); return prepared; }
+  const response = await fetchSessionData(url, options);
+  const data = await readApiResponse(response);
+  if (!response.ok) throw new Error(data.detail || `Data unavailable (${response.status})`);
+  if (!/no-store/i.test(response.headers.get('cache-control') || '') && data.position_complete !== false) {
+    const year = Number(new URL(url, window.location?.href || 'http://localhost').searchParams.get('year'));
+    const historical = year > 0 && year < new Date().getFullYear();
+    void cacheData(url, structuredClone(data), historical ? 7 * 86400000 : 120000);
+  }
+  return data;
+}
+async function loadApiData(url, options = {}) {
+  if (!pendingApiData.has(url)) {
+    const pending = requestApiData(url).finally(() => pendingApiData.delete(url));
+    pendingApiData.set(url, pending);
+  }
+  const data = await pendingApiData.get(url);
+  if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  return structuredClone(data);
+}
+function prepareSelectedSession() {
+  clearTimeout(prefetchSessionTimer);
+  prefetchSessionTimer = setTimeout(() => {
+    if (!calendar.length || !selectValue($('#session'))) return;
+    void loadApiData(apiUrl(`/api/session?${currentQuery()}`)).catch(() => {});
+  }, 350);
 }
 
 function notify(message, tone = 'error') {
@@ -609,9 +717,7 @@ async function loadCalendar() {
   customSelectValues.delete($('#gp'));
   $('#gp').innerHTML = '<option>Loading calendar…</option>';
   try {
-    const response = await fetchSessionData(apiUrl(`/api/events?year=${year}`), { signal: calendarRequest.signal });
-    const payload = await readApiResponse(response);
-    if (!response.ok) throw new Error(payload.detail || 'Calendar unavailable');
+    const payload = await loadApiData(apiUrl(`/api/events?year=${year}`), { signal: calendarRequest.signal });
     if (generation !== calendarGeneration || year !== selectValue($('#year'))) return;
     calendar = payload;
     $('#gp').innerHTML = calendar.map(event => `<option value="${event.round}" data-country="${grandPrixCountryCode(event) || ''}">R${event.round} · ${escapeUI(event.name)}</option>`).join('');
@@ -647,6 +753,7 @@ function populateSessions() {
     $('#session').value = sessions[sessions.length - 1];
   }
   syncSelectUI($('#session'));
+  prepareSelectedSession();
 }
 
 function selectLatestCompletedEvent() {
@@ -722,12 +829,9 @@ async function loadRealSession() {
   const requestedQuery = String(currentQuery());
   
   try {
-    const response = await fetchSessionData(apiUrl(`/api/session?${requestedQuery}`), {
-      cache: 'no-store',
+    const payload = await loadApiData(apiUrl(`/api/session?${requestedQuery}`), {
       signal: sessionRequest.signal,
     });
-    const payload = await readApiResponse(response);
-    if (!response.ok) throw new Error(payload.detail || 'Session unavailable');
     if (request !== sessionRequest || requestedQuery !== String(currentQuery())) return;
     if (!Array.isArray(payload.drivers) || !payload.drivers.length) throw new Error('No driver data is available for this session yet.');
     
@@ -759,6 +863,7 @@ async function loadRealSession() {
 
 async function fetchTelemetry(lap) {
   const key = telemetryKey(lap);
+  const sessionAtStart = sessionRequest;
   if (telemetryCache.has(key)) return telemetryCache.get(key);
   if (telemetryRequests.has(key)) return telemetryRequests.get(key);
   const request = (async () => {
@@ -766,12 +871,8 @@ async function fetchTelemetry(lap) {
     query.set('driver', lap.code);
     query.set('lap', lap.lap);
     query.set('alignment', '3');
-    const response = await fetch(apiUrl(`/api/telemetry?${query}`), { cache: 'no-store' });
-    if (!response.ok) {
-      const payload = await readApiResponse(response);
-      throw new Error(payload.detail || 'Telemetry unavailable for this lap');
-    }
-    const data = await readApiResponse(response);
+    const data = await loadApiData(apiUrl(`/api/telemetry?${query}`));
+    if (sessionAtStart !== sessionRequest) throw new DOMException('Session changed', 'AbortError');
     const samples = data.samples || [];
     samples.forEach(pt => {
       const d = +pt.DRS;
@@ -786,7 +887,7 @@ async function fetchTelemetry(lap) {
   try {
     return await request;
   } finally {
-    telemetryRequests.delete(key);
+    if (telemetryRequests.get(key) === request) telemetryRequests.delete(key);
   }
 }
 
@@ -3026,6 +3127,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   yearSelect.addEventListener('change', () => loadCalendar().catch(() => {}));
   $('#gp').addEventListener('change', populateSessions);
+  $('#session').addEventListener('change', prepareSelectedSession);
   $('#loadSession').onclick = loadRealSession;
   
   const themeToggle = $('#themeToggle');

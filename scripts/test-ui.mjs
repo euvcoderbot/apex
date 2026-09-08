@@ -190,10 +190,21 @@ test('corner rankings are best-first, stable, null-safe and do not mutate refere
 test('data requests retry transient errors but not valid missing-data responses', async () => {
   const h = context(); let calls = 0;
   Object.assign(h.sandbox, {AbortController, DOMException, setTimeout: (fn, ms) => ms < 2000 ? setTimeout(fn, 0) : setTimeout(fn, ms), clearTimeout});
-  h.sandbox.fetch = async () => ({status: ++calls < 3 ? 503 : 200, text: async()=>''});
+  h.sandbox.fetch = async () => ({status: ++calls < 2 ? 503 : 200, text: async()=>''});
   assert.equal((await h.run("fetchSessionData('/test')")).status, 200);
-  assert.equal(calls, 3);
+  assert.equal(calls, 2);
   calls = 0; h.sandbox.fetch = async () => {calls++;return {status:404};};
   assert.equal((await h.run("fetchSessionData('/missing')")).status, 404);
+  assert.equal(calls, 1);
+});
+
+test('reopening telemetry avoids network requests and cached samples stay immutable', async () => {
+  const h = context(); let calls = 0;
+  Object.assign(h.sandbox, {AbortController, DOMException, structuredClone, URL, setTimeout, clearTimeout});
+  h.sandbox.fetch = async () => { calls++; return {status:200,ok:true,headers:{get:()=> 'public, max-age=86400'},text:async()=>JSON.stringify({samples:[{Speed:123}]})}; };
+  const result = await h.run("loadApiData('https://example.test/api/telemetry?year=2025&driver=VER&lap=1')");
+  result.samples[0].Speed = 999;
+  const repeat = await h.run("loadApiData('https://example.test/api/telemetry?year=2025&driver=VER&lap=1')");
+  assert.equal(repeat.samples[0].Speed, 123);
   assert.equal(calls, 1);
 });
