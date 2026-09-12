@@ -14,6 +14,7 @@ let circuitRotation = 0;
 let genericCircuitData = null;
 let genericCircuitRequest = null;
 let sessionEventName = '';
+let sessionYear = null;
 let nominatedCompounds = [];
 let activeDriverTab = null;
 let selectedCornerIndex = 0;
@@ -817,6 +818,7 @@ function clearBeforeSessionLoad() {
   corners = [];
   circuitRotation = 0;
   sessionEventName = '';
+  sessionYear = null;
   nominatedCompounds = [];
   activeDriverTab = null;
   selectedCornerIndex = 0;
@@ -869,6 +871,7 @@ async function loadRealSession() {
     ]));
     corners = payload.corners || [];
     sessionEventName = payload.event || '';
+    sessionYear = Number(new URLSearchParams(requestedQuery).get('year'));
     circuitRotation = Number.isFinite(Number(payload.circuit_rotation))
       ? Number(payload.circuit_rotation) : 0;
     nominatedCompounds = payload.compounds || [];
@@ -1176,7 +1179,7 @@ function renderStints() {
       const compound = getCompoundCode(rawCompound, nominatedCompounds);
       const compoundClass = getCompoundToneClass(rawCompound);
       const runLabel = hasQualifyingPhases ? id : `Stint ${id}`;
-      return `<button class="stint run-segment ${id === active ? 'selected' : ''}" style="--team:${teamColor}" data-motion-key="run-${code}-${id}" data-code="${code}" data-stint="${id}"><strong>${runLabel}</strong><small>${compoundBadgeMarkup(laps[0]?.compound)} ${laps.length} ${laps.length === 1 ? 'lap' : 'laps'}</small></button>`;
+      return `<button type="button" class="stint run-segment ${id === active ? 'selected' : ''}" aria-pressed="${id === active}" aria-label="Show ${escapeUI(runLabel)} laps for ${code}" style="--team:${teamColor}" data-motion-key="run-${code}-${id}" data-code="${code}" data-stint="${id}"><strong>${runLabel}</strong><small>${compoundBadgeMarkup(laps[0]?.compound)} ${laps.length} ${laps.length === 1 ? 'lap' : 'laps'}</small><span class="run-choice-indicator" aria-hidden="true">${id === active ? '✓' : '›'}</span></button>`;
     }).join('');
     const lapButtons = activeLaps.map(lap => {
       const isLoaded = loaded.some(item => item.code === code && item.lap === lap.lap);
@@ -1707,22 +1710,39 @@ function cornerLabel(corner) {
   return `T${corner.number}${corner.letter || ''}`;
 }
 
+// Approximate apex chainage digitized against the FIA Madrid circuit map,
+// version 3 (10 Sep 2026), and the bundled es-2026 centreline. Anchored at
+// T7 = S1 + 85m and T16 = S1 + S2 + 40m; circuit length = 5414m.
+// These are map-derived annotations, not surveyed telemetry coordinates.
+// Full methodology and primary source: assets/circuits/madrid-corners.md.
+const MADRID_MAP_CORNERS = Object.freeze([
+  ['1',454], ['2',505], ['3',643], ['4',1332], ['5',1545], ['5A',1569],
+  ['6',1605], ['7',1924], ['8',1983], ['9',2086], ['10',2271], ['11',2370],
+  ['12',2696], ['13',3301], ['14',3492], ['15',3732], ['16',3928],
+  ['17',3993], ['18',4237], ['19',4455], ['20',4789], ['20A',4833],
+  ['21',4943], ['22',5260],
+].map(([label, distance]) => Object.freeze({
+  number: label.replace(/[A-Z]/g, ''), letter: label.replace(/[0-9]/g, ''),
+  distance, fraction: distance / 5414, source: 'fia_map_estimate', approximate: true,
+})));
+
 function markerRowsForCurrentCircuit(rows) {
-  if (!Array.isArray(rows) || !rows.length) return [];
+  rows = Array.isArray(rows) ? rows : [];
   const selectedVal = selectValue($('#gp'));
   const event = calendar.find(item => String(item.round) === String(selectedVal) || item.name === selectedVal) || calendar[0];
-  const year = Number(selectValue($('#year')));
-  const name = normalizedPlaceName(event?.name || sessionEventName);
+  const year = sessionYear || Number(selectValue($('#year')));
+  const name = normalizedPlaceName(sessionEventName || event?.name);
 
   // The 2026 Spanish GP moved to the new 22-turn Madring. Until its circuit
   // metadata is published, the upstream provider returns Barcelona's old
   // 14-corner rows under the shared "Spanish Grand Prix" event name. Never
-  // project that visibly wrong circuit over Madrid telemetry. A genuine
-  // Madrid set (22 turns) passes through automatically when it becomes ready.
+  // project that visibly wrong circuit over Madrid telemetry. Use the
+  // documented map fallback until a complete native Madrid set is available.
   if (year >= 2026 && name.includes('spanish grand prix')) {
-    const numericTurns = rows.map(row => Number(row.number)).filter(Number.isFinite);
-    const highestTurn = numericTurns.length ? Math.max(...numericTurns) : 0;
-    if (highestTurn > 0 && highestTurn < 20) return [];
+    const numericTurns = new Set(rows.map(row => Number(row.number)).filter(Number.isFinite));
+    if (!Array.from({length:22}, (_, index) => index + 1).every(turn => numericTurns.has(turn))) {
+      return MADRID_MAP_CORNERS.map(marker => ({...marker}));
+    }
   }
   return rows;
 }
@@ -2122,7 +2142,10 @@ function drawRealChart(name) {
   if (name === 'Speed trace' && $('#cornerToggle').checked) {
     const count = speedCornerMarkers.length;
     const projection = refLap?.cornerMarkers?.[0]?.source === 'lap_projection';
-    $('#cornerStatus').textContent = count
+    const approximate = speedCornerMarkers.some(marker => marker.approximate);
+    $('#cornerStatus').textContent = approximate
+      ? 'Madrid: 22 turns + T5A/T20A · approximate positions from the FIA circuit map.'
+      : count
       ? `${count} official corner markers aligned to this lap${projection ? ' (lap projection).' : '.'}`
       : 'Corner coordinates are unavailable for this telemetry source.';
   }
@@ -2696,7 +2719,7 @@ function renderCornerAnalysis() {
   root.innerHTML = `
     <article class="corner-detail-card">
       <header class="corner-detail-header">
-        <div><strong>${cornerLabel(zone)}</strong><small>${escapeUI(String(zone.type).toLowerCase())}</small></div>
+        <div><strong>${cornerLabel(zone)}</strong><small>${escapeUI(String(zone.type).toLowerCase())}${markers.some(marker => marker.approximate) ? ' · Approx. map position' : ''}</small></div>
         <dl><div><dt>Timing sector</dt><dd>${zone.metres} m</dd></div><div><dt>Min-speed window</dt><dd>${zone.apexMetres} m</dd></div></dl>
       </header>
       <div class="corner-table-head"><span>Driver</span>${[['time','Time','s'],['delta','Delta','s'],['minimum','Minimum','km/h']].map(([key,label,unit]) => `<button type="button" data-corner-sort="${key}" aria-pressed="${cornerSort === key}" title="Sort best to worst by ${label}">${label}${cornerSort === key ? ' ↓' : ''}<small>${unit}</small></button>`).join('')}</div>

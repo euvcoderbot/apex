@@ -227,6 +227,16 @@ test('Madrid rejects inherited Barcelona corner rows but accepts a 22-turn set',
     : selector === '#gp' ? { value:'14' } : null;
   h.run("calendar = [{round:14,name:'Spanish Grand Prix'}]");
   h.run("var barcelonaRows = Array.from({length:14}, (_,i)=>({number:String(i+1)})); var madridRows = Array.from({length:22}, (_,i)=>({number:String(i+1)}));");
-  assert.equal(h.run('markerRowsForCurrentCircuit(barcelonaRows).length'), 0);
+  assert.equal(h.run('markerRowsForCurrentCircuit(barcelonaRows).length'), 24);
+  assert.equal(h.run('markerRowsForCurrentCircuit([]).length'), 24);
+  assert.equal(h.run("markerRowsForCurrentCircuit([]).filter(r => r.letter === 'A').length"), 2);
+  assert.equal(h.run("markerRowsForCurrentCircuit([]).find(r => r.number === '7').distance"), 1924);
+  assert.equal(h.run("markerRowsForCurrentCircuit([]).find(r => r.number === '16').distance"), 3928);
+  assert.equal(h.run('markerRowsForCurrentCircuit([]).every((r,i,a) => r.approximate && r.fraction > 0 && r.fraction < 1 && (!i || r.fraction > a[i-1].fraction))'), true);
   assert.equal(h.run('markerRowsForCurrentCircuit(madridRows).length'), 22);
+  assert.equal(h.run('resolveCornerMarkers([{Distance:0},{Distance:5414}],5414,[]).length'), 24);
+  h.run("sessionYear = 2025; sessionEventName = 'Spanish Grand Prix'");
+  assert.equal(h.run('markerRowsForCurrentCircuit(barcelonaRows).length'), 14);
+  h.run("sessionYear = 2026; sessionEventName = 'Barcelona Grand Prix'");
+  assert.equal(h.run('markerRowsForCurrentCircuit(barcelonaRows).length'), 14);
 });
