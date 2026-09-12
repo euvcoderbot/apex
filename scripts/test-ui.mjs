@@ -208,3 +208,25 @@ test('reopening telemetry avoids network requests and cached samples stay immuta
   assert.equal(repeat.samples[0].Speed, 123);
   assert.equal(calls, 1);
 });
+
+test('latest event selection follows the newest completed session timestamp', () => {
+  const h = context();
+  h.run(`var selectionCalendar = [
+    {round: 9, name:'Older', date:'2026-09-01', sessions:['Race'], session_dates:{Race:'2026-09-01 14:00:00Z'}},
+    {round: 11, name:'Future', date:'2026-09-20', sessions:['Practice 1','Race'], session_dates:{'Practice 1':'2026-09-20 10:00:00Z',Race:'2026-09-22 14:00:00Z'}},
+    {round: 10, name:'Current', date:'2026-09-12', sessions:['Practice 1','Practice 2','Qualifying'], session_dates:{'Practice 1':'2026-09-11 10:00:00Z','Practice 2':'2026-09-11T14:00:00Z',Qualifying:'2026-09-12 14:00:00Z'}}
+  ]`);
+  assert.equal(h.run("latestCompletedSelection(selectionCalendar, Date.parse('2026-09-12T12:00:00Z')).event.name"), 'Current');
+  assert.equal(h.run("latestCompletedSelection(selectionCalendar, Date.parse('2026-09-12T12:00:00Z')).session"), 'Practice 2');
+});
+
+test('Madrid rejects inherited Barcelona corner rows but accepts a 22-turn set', () => {
+  const h = context();
+  h.sandbox.document.querySelector = selector => selector === '#year'
+    ? { value:'2026' }
+    : selector === '#gp' ? { value:'14' } : null;
+  h.run("calendar = [{round:14,name:'Spanish Grand Prix'}]");
+  h.run("var barcelonaRows = Array.from({length:14}, (_,i)=>({number:String(i+1)})); var madridRows = Array.from({length:22}, (_,i)=>({number:String(i+1)}));");
+  assert.equal(h.run('markerRowsForCurrentCircuit(barcelonaRows).length'), 0);
+  assert.equal(h.run('markerRowsForCurrentCircuit(madridRows).length'), 22);
+});

@@ -36,7 +36,7 @@ let calendarGeneration = 0;
 let redrawFrame = 0;
 let toastTimer = 0;
 const MIN_TRACE_ZOOM = .004;
-const CLIENT_DATA_SCHEMA = 'lap-context-v2';
+const CLIENT_DATA_SCHEMA = 'lap-context-v3';
 const API_ORIGIN = String(window.APEX_API_ORIGIN || '').replace(/\/$/, '');
 
 // Animate user-driven updates, not telemetry redraws. Keep keyboard focus
@@ -732,43 +732,71 @@ async function loadCalendar() {
   }
 }
 
-function populateSessions() {
+function parsedSessionTimestamp(value) {
+  if (!value) return NaN;
+  const text = String(value).trim();
+  // FastF1 historically emitted UTC timestamps with a space separator. That
+  // shape is not parsed consistently by every browser, so normalize it to ISO.
+  const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:/.test(text)
+    ? text.replace(' ', 'T')
+    : text;
+  return new Date(normalized).getTime();
+}
+
+function latestCompletedSelection(events, now = Date.now()) {
+  let latest = null;
+  (events || []).forEach((event, eventIndex) => {
+    (event.sessions || []).forEach((session, sessionIndex) => {
+      const timestamp = parsedSessionTimestamp(event.session_dates?.[session]);
+      if (!Number.isFinite(timestamp) || timestamp > now) return;
+      if (!latest || timestamp > latest.timestamp) {
+        latest = { event, session, timestamp, eventIndex, sessionIndex };
+      }
+    });
+  });
+  if (latest) return latest;
+
+  // Older calendars can lack session timestamps. Use only weekends whose
+  // event date has passed, and keep future seasons on their opening session.
+  const completedEvents = (events || []).filter(event => {
+    const eventDate = parsedSessionTimestamp(`${event.date || ''}T23:59:59Z`);
+    return Number.isFinite(eventDate) && eventDate <= now;
+  });
+  const event = completedEvents.at(-1) || events?.[0] || null;
+  const sessions = event?.sessions || [];
+  return event ? {
+    event,
+    session: completedEvents.length ? sessions.at(-1) : sessions[0],
+    timestamp: NaN,
+  } : null;
+}
+
+function populateSessions(preferredSession = null) {
   const selectedVal = selectValue($('#gp'));
   const event = calendar.find(item => String(item.round) === String(selectedVal) || item.name === selectedVal) || calendar[0];
   const sessions = event?.sessions || [];
   populate($('#session'), sessions);
   if (!sessions.length) return;
 
-  const now = Date.now();
-  const completed = sessions.filter(name => {
-    const value = event?.session_dates?.[name];
-    const sessionDate = value ? new Date(value).getTime() : NaN;
-    return Number.isFinite(sessionDate) && sessionDate <= now;
-  });
-  if (completed.length) {
-    $('#session').value = completed[completed.length - 1];
-  } else {
-    // For historical calendars without per-session timestamps, select the
-    // final listed session. No session data is fetched until Load session.
-    $('#session').value = sessions[sessions.length - 1];
-  }
+  const latestForEvent = latestCompletedSelection([event]);
+  const target = sessions.includes(preferredSession)
+    ? preferredSession
+    : sessions.includes(latestForEvent?.session) ? latestForEvent.session : sessions[0];
+  $('#session').value = target;
   syncSelectUI($('#session'));
   prepareSelectedSession();
 }
 
 function selectLatestCompletedEvent() {
-  const now = Date.now();
-  // A weekend may be in progress: choose the event containing the newest
-  // completed session (e.g. Hungary FP1), not the previous Sunday's race.
-  const completed = calendar.filter(event => Object.values(event.session_dates || {})
-    .some(value => Number.isFinite(new Date(value).getTime()) && new Date(value).getTime() <= now));
-  const latest = completed.length ? completed[completed.length - 1] : calendar[0];
-  if (latest) {
+  // Compare timestamps directly instead of relying on calendar ordering. A
+  // weekend in progress therefore selects its latest completed session.
+  const latest = latestCompletedSelection(calendar);
+  if (latest?.event) {
     customSelectValues.delete($('#gp'));
-    $('#gp').value = String(latest.round);
+    $('#gp').value = String(latest.event.round);
   }
   syncSelectUI($('#gp'));
-  populateSessions();
+  populateSessions(latest?.session || null);
 }
 
 function lapText(lap) {
@@ -1679,14 +1707,34 @@ function cornerLabel(corner) {
   return `T${corner.number}${corner.letter || ''}`;
 }
 
+function markerRowsForCurrentCircuit(rows) {
+  if (!Array.isArray(rows) || !rows.length) return [];
+  const selectedVal = selectValue($('#gp'));
+  const event = calendar.find(item => String(item.round) === String(selectedVal) || item.name === selectedVal) || calendar[0];
+  const year = Number(selectValue($('#year')));
+  const name = normalizedPlaceName(event?.name || sessionEventName);
+
+  // The 2026 Spanish GP moved to the new 22-turn Madring. Until its circuit
+  // metadata is published, the upstream provider returns Barcelona's old
+  // 14-corner rows under the shared "Spanish Grand Prix" event name. Never
+  // project that visibly wrong circuit over Madrid telemetry. A genuine
+  // Madrid set (22 turns) passes through automatically when it becomes ready.
+  if (year >= 2026 && name.includes('spanish grand prix')) {
+    const numericTurns = rows.map(row => Number(row.number)).filter(Number.isFinite);
+    const highestTurn = numericTurns.length ? Math.max(...numericTurns) : 0;
+    if (highestTurn > 0 && highestTurn < 20) return [];
+  }
+  return rows;
+}
+
 function resolveCornerMarkers(samples, totalDistance, suppliedMarkers = null) {
   if (!samples?.length || !Number.isFinite(totalDistance) || totalDistance <= 0) return [];
   // Telemetry responses carry corner fractions projected against this exact
   // reference lap. Only use the session-level rows as a fallback for older
   // responses, where a client-side X/Y projection remains useful.
-  const markerRows = Array.isArray(suppliedMarkers) && suppliedMarkers.length
+  const markerRows = markerRowsForCurrentCircuit(Array.isArray(suppliedMarkers) && suppliedMarkers.length
     ? suppliedMarkers
-    : corners;
+    : corners);
   const positionSamples = samples.filter(point => point.X != null && point.Y != null && Number.isFinite(+point.X) && Number.isFinite(+point.Y));
   const xs = positionSamples.map(point => +point.X);
   const ys = positionSamples.map(point => +point.Y);

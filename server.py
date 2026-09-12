@@ -574,11 +574,22 @@ def sort_session_drivers(drivers: list[dict[str, Any]]) -> None:
 
 
 @lru_cache(maxsize=32)
-def get_fallback_circuit_corners(gp: str, session_name: str) -> list[dict[str, Any]]:
-    for fallback_year in (2025, 2024):
+def get_fallback_circuit_corners(
+    year: int, gp: str, session_name: str, current_location: str = ""
+) -> list[dict[str, Any]]:
+    # Only reuse circuit metadata from the same venue. Event names survive
+    # venue changes (notably Spanish GP: Barcelona -> Madrid), so matching the
+    # name alone can silently attach a different track's corner positions.
+    normalized_location = current_location.strip().casefold()
+    first_fallback_year = min(year - 1, 2025)
+    for fallback_year in range(first_fallback_year, max(2017, first_fallback_year - 3), -1):
         try:
             fb_event = fastf1.get_event(fallback_year, gp)
             if fb_event is not None:
+                fallback_location = str(fb_event.get("Location") or "").strip().casefold()
+                if (normalized_location and fallback_location
+                        and normalized_location != fallback_location):
+                    continue
                 fb_sess = fb_event.get_session(session_name)
                 fb_sess.load(laps=True, telemetry=False, weather=False, messages=False)
                 c_info = fb_sess.get_circuit_info()
@@ -951,7 +962,8 @@ def session_data(
         logger.warning("Could not load circuit corners: %s", exc)
 
     if not corners:
-        corners = get_fallback_circuit_corners(gp, session)
+        current_location = str(data.event.get("Location") or "")
+        corners = get_fallback_circuit_corners(year, gp, session, current_location)
 
     session_date_iso = None
     try:
