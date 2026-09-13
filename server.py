@@ -34,7 +34,7 @@ fastf1.Cache.enable_cache(str(CACHE))
 PREPARED_CACHE = RUNTIME_CACHE_ROOT / ".apex-cache"
 PREPARED_CACHE.mkdir(exist_ok=True)
 PREPARED_CACHE_VERSION = "v4"
-SESSION_CACHE_SCHEMA = "official-classification-v2"
+SESSION_CACHE_SCHEMA = "official-classification-tyre-age-v3"
 
 app = FastAPI(title="euV2 data API")
 app.add_middleware(
@@ -717,7 +717,7 @@ def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[
             age_at_start = seconds(stint.get("tyre_age_at_start"))
             if d_num is not None and l_start is not None and l_end is not None:
                 for l_num in range(int(l_start), int(l_end) + 1):
-                    tyre_life = age_at_start + (l_num - int(l_start)) if age_at_start is not None else None
+                    tyre_life = age_at_start + (l_num - int(l_start)) + 1 if age_at_start is not None else None
                     lap_stint_map[(int(d_num), l_num)] = (int(st_num), comp, tyre_life)
 
         def openf1_conditions(date_value: Any, duration: float | None) -> dict[str, Any] | None:

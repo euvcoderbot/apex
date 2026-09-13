@@ -630,6 +630,7 @@ body { zoom: .87; }
 :root .team-logo-historical img { filter: none; }
 
 /* Each run is an individual control, with a stable trailing selection cue. */
+.lap-workspace .lap-tyre-age { grid-column: 1 / -1; text-align: left; font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
 .lap-workspace .run-segments {
   display: flex; flex-wrap: wrap; gap: 8px; padding: 0;
   border: 0; background: transparent; box-shadow: none;

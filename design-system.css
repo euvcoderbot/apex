@@ -1172,7 +1172,7 @@ canvas {
 }
 
 canvas[data-chart="Speed trace"] {
-  height: 430px !important;
+  height: 473px !important;
 }
 
 .chart-toggles {
@@ -1514,7 +1514,7 @@ main.sidebar-collapsed .sidebar {
   }
 
   canvas[data-chart="Speed trace"] {
-    height: 320px !important;
+    height: 352px !important;
   }
 }
 

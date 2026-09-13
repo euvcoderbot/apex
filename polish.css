@@ -173,12 +173,12 @@ body {
 /* Timing deltas need enough vertical resolution for multi-second gaps while
    retaining the common distance axis shared by the telemetry stack. */
 canvas[data-chart="Timing delta"] {
-  height: 263px !important;
+  height: 210.4px !important;
 }
 
 @media (max-width: 700px) {
   canvas[data-chart="Timing delta"] {
-    height: 219px !important;
+    height: 175.2px !important;
   }
 }
 

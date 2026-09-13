@@ -1179,8 +1179,11 @@ function renderStints() {
       const compound = getCompoundCode(rawCompound, nominatedCompounds);
       const compoundClass = getCompoundToneClass(rawCompound);
       const runLabel = hasQualifyingPhases ? id : `Stint ${id}`;
-      return `<button type="button" class="stint run-segment ${id === active ? 'selected' : ''}" aria-pressed="${id === active}" aria-label="Show ${escapeUI(runLabel)} laps for ${code}" style="--team:${teamColor}" data-motion-key="run-${code}-${id}" data-code="${code}" data-stint="${id}"><strong>${runLabel}</strong><small>${compoundBadgeMarkup(laps[0]?.compound)} ${laps.length} ${laps.length === 1 ? 'lap' : 'laps'}</small><span class="run-choice-indicator" aria-hidden="true">${id === active ? '✓' : '›'}</span></button>`;
+      const count = hasQualifyingPhases ? new Set(laps.map(lap => lap.stint)).size : laps.length;
+      const countLabel = hasQualifyingPhases ? (count === 1 ? 'run' : 'runs') : (count === 1 ? 'lap' : 'laps');
+      return `<button type="button" class="stint run-segment ${id === active ? 'selected' : ''}" aria-pressed="${id === active}" aria-label="Show ${escapeUI(runLabel)} laps for ${code}" style="--team:${teamColor}" data-motion-key="run-${code}-${id}" data-code="${code}" data-stint="${id}"><strong>${runLabel}</strong><small>${compoundBadgeMarkup(laps[0]?.compound)} ${count} ${countLabel}</small><span class="run-choice-indicator" aria-hidden="true">${id === active ? '✓' : '›'}</span></button>`;
     }).join('');
+    const qualifyingRuns = [...new Set(activeLaps.map(lap => lap.stint))];
     const lapButtons = activeLaps.map(lap => {
       const isLoaded = loaded.some(item => item.code === code && item.lap === lap.lap);
       const flag = `L${lap.lap}`;
@@ -1191,7 +1194,9 @@ function renderStints() {
       const selectable = Number.isFinite(lap.time) && !lap.in_lap && !lap.out_lap;
       const context = lap.out_lap ? '<small>OUT</small>' : lap.in_lap ? '<small>IN</small>' : '';
       const title = lap.out_lap && estimated ? 'Estimated from pit exit to the timing line' : '';
-      return `<button class="${classes}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${title}"><span class="lap-token">${flag}</span>${compoundBadgeMarkup(lap.compound)}<span class="lap-clock">${duration}${context}</span></button>`;
+      const age = Number.isFinite(lap.tyre_life) && lap.tyre_life >= 1 ? Math.round(lap.tyre_life) : null;
+      const tyreDetail = hasQualifyingPhases ? `<small class="lap-tyre-age">Run ${qualifyingRuns.indexOf(lap.stint) + 1} · Tyre ${age === null ? 'age unknown' : `${age} ${age === 1 ? 'lap' : 'laps'}`}</small>` : '';
+      return `<button class="${classes}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${title}"><span class="lap-token">${flag}</span>${compoundBadgeMarkup(lap.compound)}<span class="lap-clock">${duration}${context}</span>${tyreDetail}</button>`;
     }).join('');
     const groupLabel = hasQualifyingPhases ? active : `Stint ${active}`;
 
@@ -1203,7 +1208,7 @@ function renderStints() {
         </header>
         <div class="run-section-label"><span>Runs</span></div>
         <div class="run-segments">${runButtons}</div>
-        <div class="lap-group-header"><span>${groupLabel} laps</span><small>${activeLaps.length} available</small></div>
+        <div class="lap-group-header"><span>${groupLabel} laps</span><small>${hasQualifyingPhases ? 'Tyre age at lap end' : `${activeLaps.length} available`}</small></div>
         <div class="lap-grid">${lapButtons}</div>
       </article>
     `;
@@ -3096,6 +3101,7 @@ function renderMiniSectorMap() {
     ctx.font = canvasFont(12);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    const occupiedLabels = [];
     markerCorners.forEach(corner => {
       const point = pointAt(corner.fraction);
       if (!point) return;
@@ -3103,11 +3109,38 @@ function renderMiniSectorMap() {
       const displayAngle = Number.isFinite(angle) ? angle : NaN;
       const offsetX = Number.isFinite(displayAngle) ? Math.cos(displayAngle * Math.PI / 180) * 11 : 0;
       const offsetY = Number.isFinite(displayAngle) ? -Math.sin(displayAngle * Math.PI / 180) * 11 : -11;
+      const label = cornerLabel(corner);
+      const labelWidth = ctx.measureText(label).width + 8;
+      let placement = null;
+      // Search nearby positions, reserving the complete text box. Leader
+      // lines preserve the turn location when a crowded label must move.
+      for (const radius of [16, 28, 42, 58, 76, 96]) {
+        for (let direction = 0; direction < 16; direction++) {
+          const theta = Math.atan2(offsetY, offsetX) + direction * Math.PI / 8;
+          const x = Math.max(labelWidth / 2 + 4, Math.min(rect.width - labelWidth / 2 - 4, point.x + Math.cos(theta) * radius));
+          const y = Math.max(12, Math.min(rect.height - 12, point.y + Math.sin(theta) * radius));
+          const box = {x: x - labelWidth / 2, y: y - 9, width: labelWidth, height: 18};
+          if (occupiedLabels.some(b => box.x < b.x + b.width + 3 && box.x + box.width + 3 > b.x && box.y < b.y + b.height + 3 && box.y + box.height + 3 > b.y)) continue;
+          placement = {x, y, box};
+          break;
+        }
+        if (placement) break;
+      }
+      if (!placement) return; // Never render overlapping text on tiny maps.
+      occupiedLabels.push(placement.box);
+      ctx.beginPath();
+      ctx.moveTo(point.x, point.y);
+      ctx.lineTo(placement.x, placement.y);
+      ctx.strokeStyle = theme.labelFill;
+      ctx.globalAlpha = .35;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
       ctx.lineWidth = 3;
       ctx.strokeStyle = theme.labelStroke;
-      ctx.strokeText(cornerLabel(corner), point.x + offsetX, point.y + offsetY);
+      ctx.strokeText(label, placement.x, placement.y);
       ctx.fillStyle = theme.labelFill;
-      ctx.fillText(cornerLabel(corner), point.x + offsetX, point.y + offsetY);
+      ctx.fillText(label, placement.x, placement.y);
     });
     ctx.textAlign = 'start';
     ctx.textBaseline = 'alphabetic';
