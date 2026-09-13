@@ -26,6 +26,8 @@ const hiddenTraceKeys = new Set();
 let dominanceMapHitPoints = [];
 let dominanceMapGeometryCache = null;
 let mapView = 'guide';
+const apiCircuitGuides = new Map();
+const apiCircuitGuideRequests = new Set();
 
 let hoverFraction = null;
 let hoveredChartName = null;
@@ -1130,6 +1132,7 @@ function toggleLoadedLap(code, lapNum) {
   const index = loaded.findIndex(item => item.code === code && item.lap === lapNum);
   if (index === -1) {
     loaded.push({ code, lap: lapNum, time: lapObj.time, real: lapObj });
+    mapView = 'comparison';
   } else {
     loaded.splice(index, 1);
   }
@@ -2923,6 +2926,44 @@ function drawMadridGuide(ctx, points, rect) {
   ctx.textAlign='start';ctx.textBaseline='alphabetic';
 }
 
+const CIRCUIT_API_KEYS = {'gb-1948':2,'hu-1986':4,'it-1953':6,'be-1925':7,'us-2012':9,'au-1953':10,'br-1940':14,'es-1991':15,'at-1969':19,'mc-1929':22,'ca-1978':23,'fr-1969':28,'de-1932':34,'it-1922':39,'jp-1962':46,'cn-2004':49,'nl-1948':55,'tr-2005':59,'sg-2008':61,'bh-2002':63,'mx-1962':65,'ae-2009':70,'de-1927':72,'ru-2014':79,'az-2016':144,'it-1914':146,'pt-2008':147,'sa-2021':149,'qa-2004':150,'us-2022':151,'us-2023':152};
+
+function drawApiCircuitGuide(ctx, data, rect) {
+  const raw = data.x.map((x,i)=>({x:Number(x),y:-Number(data.y[i])})).filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y));
+  if(raw.length<3)return false;
+  const minX=Math.min(...raw.map(p=>p.x)),maxX=Math.max(...raw.map(p=>p.x));
+  const minY=Math.min(...raw.map(p=>p.y)),maxY=Math.max(...raw.map(p=>p.y));
+  const scale=Math.min((rect.width-80)/(maxX-minX||1),(rect.height-60)/(maxY-minY||1));
+  const project=p=>({x:(p.x-(minX+maxX)/2)*scale+rect.width/2,y:(p.y-(minY+maxY)/2)*scale+rect.height/2});
+  const geometry=raw.map(project);
+  ctx.clearRect(0,0,rect.width,rect.height);ctx.beginPath();
+  geometry.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));
+  ctx.strokeStyle=lightThemeActive()?'#666670':'#b3b3bd';ctx.lineWidth=5;ctx.stroke();
+  const occupied=[],leaders=[];ctx.font=canvasFont(12);ctx.textAlign='center';ctx.textBaseline='middle';
+  for(const corner of data.corners || []){
+    const position=corner.trackPosition;
+    if(!position || !Number.isFinite(Number(position.x)) || !Number.isFinite(Number(position.y)))continue;
+    const p=project({x:Number(position.x),y:-Number(position.y)}),label=cornerLabel(corner),width=ctx.measureText(label).width+8;
+    let placement;
+    for(const radius of [24,36,48,64,84,110,140]){
+      for(let j=0;j<24;j++){
+        const angle=-Math.PI/2+j*Math.PI/12;
+        const x=Math.max(width/2+4,Math.min(rect.width-width/2-4,p.x+Math.cos(angle)*radius));
+        const y=Math.max(12,Math.min(rect.height-12,p.y+Math.sin(angle)*radius));
+        const box={x:x-width/2,y:y-9,width,height:18};
+        if(trackIntersectsLabel(box,geometry)||occupied.some(b=>box.x<b.x+b.width+3&&box.x+width+3>b.x&&box.y<b.y+b.height+3&&box.y+18+3>b.y))continue;
+        const connector=cornerLabelConnector(p,box,leaders,occupied);if(!connector)continue;
+        placement={x,y,box,...connector};break;
+      }
+      if(placement)break;
+    }
+    if(!placement)continue;occupied.push(placement.box);
+    if(placement.line){leaders.push(placement.line);ctx.beginPath();ctx.moveTo(placement.line.a.x,placement.line.a.y);ctx.lineTo(placement.line.b.x,placement.line.b.y);ctx.globalAlpha=.35;ctx.lineWidth=.7;ctx.stroke();ctx.globalAlpha=1;}
+    ctx.fillStyle=lightThemeActive()?'#242428':'#eeeef0';ctx.fillText(label,placement.x,placement.y);
+  }
+  ctx.textAlign='start';ctx.textBaseline='alphabetic';return true;
+}
+
 function renderGenericCircuit(canvas, empty) {
   if (!sessionEventName) { empty.style.display = 'grid'; empty.textContent = 'Load a session to see its circuit guide.'; return; }
   if (!genericCircuitData) {
@@ -2938,6 +2979,16 @@ function renderGenericCircuit(canvas, empty) {
   const name = normalizedPlaceName(sessionEventName);
   const aliases = [['emilia','it-1953'],['tuscan','it-1914'],['70th','gb-1948'],['eifel','de-1927'],['sakhir','bh-2002'],['styrian','at-1969'],['european','az-2016'],['australian','au-1953'],['bahrain','bh-2002'],['chinese','cn-2004'],['barcelona','es-1991'],['spanish', Number($('#year').value) >= 2026 ? 'es-2026' : 'es-1991'],['monaco','mc-1929'],['canadian','ca-1978'],['french','fr-1969'],['austrian','at-1969'],['british','gb-1948'],['german','de-1932'],['hungarian','hu-1986'],['belgian','be-1925'],['italian','it-1922'],['singapore','sg-2008'],['russian','ru-2014'],['japanese','jp-1962'],['miami','us-2022'],['las vegas','us-2023'],['united states','us-2012'],['mexic','mx-1962'],['sao paulo','br-1940'],['brazil','br-1940'],['abu dhabi','ae-2009'],['portuguese','pt-2008'],['malaysian','my-1999'],['turkish','tr-2005'],['dutch','nl-1948'],['saudi','sa-2021'],['qatar','qa-2004'],['azerbaijan','az-2016']];
   const id = aliases.find(([term]) => name.includes(term))?.[1];
+  const circuitKey = name.includes('sakhir') && sessionYear === 2020 ? 148 : CIRCUIT_API_KEYS[id];
+  const guideKey = `${circuitKey}:${sessionYear}`;
+  if(circuitKey && !apiCircuitGuides.has(guideKey) && !apiCircuitGuideRequests.has(guideKey)) {
+    apiCircuitGuideRequests.add(guideKey);
+    fetch(`/api/circuit-guide?key=${circuitKey}&year=${sessionYear}`)
+      .then(r=>{if(!r.ok)throw new Error('Circuit metadata unavailable');return r.json();})
+      .then(data=>apiCircuitGuides.set(guideKey,data))
+      .catch(()=>apiCircuitGuides.set(guideKey,null))
+      .finally(()=>{apiCircuitGuideRequests.delete(guideKey);if(mapView==='guide')renderMiniSectorMap();});
+  }
   const feature = genericCircuitData.features.find(item => item.properties.id === id);
   const coords = feature?.geometry?.type === 'LineString' ? feature.geometry.coordinates : null;
   if (!coords?.length) { empty.style.display = 'grid'; empty.textContent = 'Circuit outline unavailable for this event.'; return; }
@@ -2962,7 +3013,12 @@ function renderGenericCircuit(canvas, empty) {
     drawMadridGuide(ctx, points.map(([x,y]) => ({x:(x-minX-width/2)*scale+rect.width/2, y:(y-minY-height/2)*scale+rect.height/2})), rect);
     $('#dominanceLegend').innerHTML = '<small><span style="color:#ff4081">S1</span> · <span style="color:#e6bc24">S2</span> · <span style="color:#40a9ed">S3</span> · <a href="https://www.fia.com/system/files/decision-document/2026_spanish_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_and_emergency_exits_map.pdf" target="_blank" rel="noopener">FIA guide</a><br>Map-derived positions · SM = straight mode · OT = overtake<br>Normal-grip activation shown; zone ends are not inferred.</small>';
   } else {
-    $('#dominanceLegend').innerHTML += `<small>Detailed ${sessionYear >= 2026 ? 'straight-mode / overtake' : 'DRS'} circuit metadata is not available for this event yet.</small>`;
+    const guide=apiCircuitGuides.get(guideKey);
+    if(guide && Array.isArray(guide.x) && Array.isArray(guide.y) && drawApiCircuitGuide(ctx,guide,rect)) {
+      $('#dominanceLegend').innerHTML = `<small><a href="https://multiviewer.app" target="_blank" rel="noopener">MultiViewer circuit data</a> · ${escapeUI(guide.name)} · ${guide.sourceYear}${guide.sourceYear!==sessionYear?' layout (older than selected season)':''}<br>Corner positions available; timing-sector and activation-zone metadata not provided by this source.</small>`;
+    } else {
+      $('#dominanceLegend').innerHTML += `<small>${apiCircuitGuideRequests.has(guideKey)?'Loading circuit annotations…':'Circuit annotations unavailable from the provider.'}</small>`;
+    }
   }
 }
 
@@ -3193,6 +3249,7 @@ function renderMiniSectorMap() {
           winner = lapIndex;
         }
       });
+      mapView = 'comparison';
       if (winner < 0) continue;
       wins.add(winner);
       ctx.strokeStyle = getLapColor(mapEntries[winner].lap);

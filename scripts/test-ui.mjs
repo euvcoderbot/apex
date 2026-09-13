@@ -26,6 +26,14 @@ test('colour overrides isolate laps of the same driver', () => {
   assert.equal(h.run("getLapColor({code:'NOR',lap:18})"), '#ff8000');
 });
 
+test('selecting a lap opens comparison while manual guide choice survives redraws', () => {
+  const h=context();
+  h.run("renderAll=()=>{}; renderStints=()=>{}; realDrivers.set('VER',{laps:[{lap:17,time:90}]}); mapView='guide'; toggleLoadedLap('VER',17)");
+  assert.equal(h.run('mapView'),'comparison');
+  h.run("mapView='guide'; renderAll()");
+  assert.equal(h.run('mapView'),'guide');
+});
+
 test('map labels exclude whole track segments and stroke clearance', () => {
   const h = context();
   assert.equal(h.run('trackIntersectsLabel({x:40,y:40,width:20,height:18}, [{x:0,y:50},{x:100,y:50}])'), true);
