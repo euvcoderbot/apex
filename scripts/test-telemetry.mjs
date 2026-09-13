@@ -120,6 +120,7 @@ function appHarness() {
 
 test('whole chart stack and map render; toggling enhanced preserves official delta anchors', async () => {
   const h = appHarness();
+  h.run("mapView = 'comparison'");
   h.sandbox.fixture = series(Array.from({ length: 80 }, (_, i) => 210 + 50 * Math.sin(i / 15)));
   h.sandbox.fixture.forEach((p, i) => { p.X = Math.cos(i / 79 * Math.PI * 2) * 1000; p.Y = Math.sin(i / 79 * Math.PI * 2) * 1000; });
   h.run(`loaded = [{code:'NOR',lap:1,time:19,real:{time:19,s1:6,s2:6,s3:7}},
@@ -157,6 +158,7 @@ test('duplicate and missing timestamps are safe; missing channel endpoints are n
 
 test('mixed GPS coverage retains the map, single-trace hover and full chart rendering', async () => {
   const h = appHarness();
+  h.run("mapView = 'comparison'");
   const files = existsSync('.apex-cache') ? readdirSync('.apex-cache').filter(f => f.startsWith('telemetry-')) : [];
   const payload = files.map(f => JSON.parse(gunzipSync(readFileSync('.apex-cache/' + f))))
     .find(p => p.driver === 'VER' && p.lap === 13 && p.corners?.length === 14);

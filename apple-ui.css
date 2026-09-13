@@ -630,6 +630,10 @@ body { zoom: .87; }
 :root .team-logo-historical img { filter: none; }
 
 /* Each run is an individual control, with a stable trailing selection cue. */
+.map-view-switch { display: flex; gap: 3px; width: fit-content; padding: 3px; margin: 8px 0 12px; border: 1px solid var(--border-color); border-radius: 9px; background: var(--bg-input); }
+.map-view-switch button { padding: 6px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 13px; }
+.map-view-switch button[aria-pressed="true"] { background: var(--bg-card-hover); color: var(--text-primary); box-shadow: var(--shadow-raised); }
+.map-view-switch button:disabled { opacity: .45; cursor: default; }
 .lap-workspace .lap-tyre-age { grid-column: 1 / -1; text-align: left; font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
 .lap-workspace .run-segments {
   display: flex; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; gap: 8px; padding: 0;

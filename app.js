@@ -25,6 +25,7 @@ let traceTintEnabled = false;
 const hiddenTraceKeys = new Set();
 let dominanceMapHitPoints = [];
 let dominanceMapGeometryCache = null;
+let mapView = 'guide';
 
 let hoverFraction = null;
 let hoveredChartName = null;
@@ -2633,7 +2634,7 @@ function updateTelemetryVisibility() {
   if (!card) return;
   const empty = loaded.length === 0;
   card.classList.toggle('is-empty', empty);
-  card.classList.toggle('has-generic-map', empty && selected.length > 0);
+  card.classList.toggle('has-generic-map', empty && (selected.length > 0 || !!sessionEventName));
   const emptyState = $('#telemetryEmpty');
   if (emptyState) emptyState.hidden = !empty;
 }
@@ -2669,7 +2670,7 @@ function renderCornerAnalysis() {
     focused: oldPicker.contains(document.activeElement),
   } : null;
   pickerRoot.innerHTML = '';
-  const enabled = loaded.length > 0 || selected.length > 0;
+  const enabled = loaded.length > 0 || selected.length > 0 || !!sessionEventName;
   section.hidden = !enabled;
   if (!enabled) {
     root.innerHTML = '';
@@ -2825,14 +2826,85 @@ function clearDominanceMapCanvas(canvas) {
   ctx.clearRect(0, 0, rect.width, rect.height);
 }
 
+function drawMadridGuide(ctx, points, rect) {
+  // FIA sector anchors; the outline itself is approximate (see madrid-corners.md).
+  const cumulative = [0];
+  for (let i=1;i<points.length;i++) cumulative.push(cumulative[i-1]+Math.hypot(points[i].x-points[i-1].x,points[i].y-points[i-1].y));
+  const factor = 5414/cumulative[cumulative.length-1];
+  const offset = 1924-cumulative[37]*factor;
+  const old16 = cumulative[85]*factor+offset;
+  const geometry = points.map((point,i) => {
+    let m = (cumulative[i]*factor+offset+5414)%5414;
+    if(m>=1924 && m<=old16) m=1924+(m-1924)*(3928-1924)/(old16-1924);
+    else if(m>old16) m=3928+(m-old16)*(5414-3928)/(5414-old16);
+    return {...point,m};
+  }).sort((a,b)=>a.m-b.m);
+  const at = metres => {
+    const m=(metres+5414)%5414;
+    let i=geometry.findIndex(p=>p.m>=m);
+    if(i<0)i=0;
+    const b=geometry[i], a=geometry[(i+geometry.length-1)%geometry.length];
+    const am=i===0?a.m-5414:a.m, bm=b.m;
+    const target=i===0 && m>a.m?m-5414:m;
+    const t=(target-am)/(bm-am||1);
+    return {x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
+  };
+  const palette=['#ff4081','#e6bc24','#40a9ed'];
+  ctx.clearRect(0,0,rect.width,rect.height);
+  [[0,1839],[1839,3888],[3888,5414]].forEach(([start,end],i)=>{
+    ctx.beginPath();
+    for(let m=start;m<=end+3;m+=3){const p=at(Math.min(m,end));if(m===start)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);}
+    ctx.strokeStyle=palette[i];ctx.lineWidth=5;ctx.stroke();
+  });
+  const annotations=[
+    {m:0,label:'Timing line',color:'#aeb4c0'},
+    {m:1839,label:'S1 / S2',color:palette[1]},
+    {m:3888,label:'S2 / S3',color:palette[2]},
+    {m:1545-160,label:'Speed trap',color:'#d8e938'},
+    {m:5260,label:'OT detection ≈',color:'#45c991'},
+    {m:5260+20,label:'OT activation',color:'#45c991'},
+    {m:5260+100,label:'SM A1',color:'#ff6464'},
+    {m:643+40,label:'SM A2',color:'#ff6464'},
+    ...MADRID_MAP_CORNERS.map(c=>({m:c.distance,label:cornerLabel(c),color:lightThemeActive()?'#242428':'#eeeeef',corner:true}))
+  ];
+  const occupied=[];
+  ctx.font=canvasFont(12);ctx.textAlign='center';ctx.textBaseline='middle';
+  annotations.forEach(item=>{
+    const p=at(item.m), a=at(item.m-3), b=at(item.m+3);
+    const length=Math.hypot(b.x-a.x,b.y-a.y)||1;
+    if(!item.corner){
+      const nx=-(b.y-a.y)/length*8,ny=(b.x-a.x)/length*8;
+      ctx.beginPath();ctx.moveTo(p.x-nx,p.y-ny);ctx.lineTo(p.x+nx,p.y+ny);ctx.strokeStyle=item.color;ctx.lineWidth=2;ctx.stroke();
+    }
+    const width=ctx.measureText(item.label).width+6;
+    let placement;
+    for(const radius of [24,40,60,84,110,140,180]){
+      for(let j=0;j<24;j++){
+        const angle=-Math.PI/2+j*Math.PI/12;
+        const x=Math.max(width/2+3,Math.min(rect.width-width/2-3,p.x+Math.cos(angle)*radius));
+        const y=Math.max(11,Math.min(rect.height-11,p.y+Math.sin(angle)*radius));
+        const box={x:x-width/2,y:y-8,width,height:16};
+        if(trackIntersectsLabel(box,geometry,7)||occupied.some(b=>box.x<b.x+b.width+3&&box.x+width+3>b.x&&box.y<b.y+b.height+3&&box.y+16+3>b.y))continue;
+        placement={x,y,box};break;
+      }
+      if(placement)break;
+    }
+    if(!placement)return;
+    occupied.push(placement.box);
+    ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(placement.x,placement.y);ctx.strokeStyle=item.color;ctx.lineWidth=.7;ctx.globalAlpha=.4;ctx.stroke();ctx.globalAlpha=1;
+    ctx.fillStyle=item.color;ctx.fillText(item.label,placement.x,placement.y);
+  });
+  ctx.textAlign='start';ctx.textBaseline='alphabetic';
+}
+
 function renderGenericCircuit(canvas, empty) {
-  if (!selected.length) return;
+  if (!sessionEventName) { empty.style.display = 'grid'; empty.textContent = 'Load a session to see its circuit guide.'; return; }
   if (!genericCircuitData) {
     empty.style.display = 'grid';
     empty.textContent = 'Loading circuit map…';
     if (!genericCircuitRequest) genericCircuitRequest = fetch('assets/circuits/f1-circuits.geojson')
       .then(response => { if (!response.ok) throw new Error('Map unavailable'); return response.json(); })
-      .then(data => { genericCircuitData = data; if (!loaded.length) renderMiniSectorMap(); })
+      .then(data => { genericCircuitData = data; if (!loaded.length || mapView === 'guide') renderMiniSectorMap(); })
       .catch(() => { if (!loaded.length) empty.textContent = 'Circuit map unavailable.'; })
       .finally(() => { genericCircuitRequest = null; });
     return;
@@ -2860,6 +2932,12 @@ function renderGenericCircuit(canvas, empty) {
   canvas.setAttribute('aria-label', `${feature.properties.Name}, generic circuit outline`);
   empty.style.display='none';
   $('#dominanceLegend').innerHTML = '<small>Outline · <a href="https://github.com/bacinger/f1-circuits" target="_blank" rel="noopener">Circuit data</a></small>';
+  if (id === 'es-2026' && sessionYear === 2026) {
+    drawMadridGuide(ctx, points.map(([x,y]) => ({x:(x-minX-width/2)*scale+rect.width/2, y:(y-minY-height/2)*scale+rect.height/2})), rect);
+    $('#dominanceLegend').innerHTML = '<small><span style="color:#ff4081">S1</span> · <span style="color:#e6bc24">S2</span> · <span style="color:#40a9ed">S3</span> · <a href="https://www.fia.com/system/files/decision-document/2026_spanish_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_and_emergency_exits_map.pdf" target="_blank" rel="noopener">FIA guide</a><br>Map-derived positions · SM = straight mode · OT = overtake<br>Normal-grip activation shown; zone ends are not inferred.</small>';
+  } else {
+    $('#dominanceLegend').innerHTML += `<small>Detailed ${sessionYear >= 2026 ? 'straight-mode / overtake' : 'DRS'} circuit metadata is not available for this event yet.</small>`;
+  }
 }
 
 function renderMiniSectorMap() {
@@ -2868,6 +2946,18 @@ function renderMiniSectorMap() {
   const legend = $('#dominanceLegend');
   const title = $('#dominanceTitle');
   if (!canvas || !empty || !legend || !title) return;
+  if (!loaded.length) mapView = 'guide';
+  document.querySelectorAll('[data-map-view]').forEach(button => {
+    button.setAttribute('aria-pressed', String(button.dataset.mapView === mapView));
+    button.disabled = button.dataset.mapView === 'comparison' && !loaded.length;
+  });
+  if (mapView === 'guide' || !loaded.length) {
+    title.textContent = 'Circuit guide';
+    dominanceMapHitPoints = [];
+    clearDominanceMapCanvas(canvas);
+    renderGenericCircuit(canvas, empty);
+    return;
+  }
 
   const mapEntries = visibleTraceLaps();
   const comparative = mapEntries.length >= 2;
@@ -3306,6 +3396,11 @@ document.addEventListener('DOMContentLoaded', () => {
   clearBeforeSessionLoad();
   renderCharts();
   bindTrackMapHover();
+  document.querySelectorAll('[data-map-view]').forEach(button => button.addEventListener('click', () => {
+    mapView = button.dataset.mapView;
+    $('#realTooltip').style.display = 'none';
+    renderMiniSectorMap();
+  }));
   
   loadCalendar()
     .catch(error => {
