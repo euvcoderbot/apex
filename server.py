@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from bisect import bisect_left
 from functools import lru_cache
 from datetime import datetime, timedelta
 import gzip
@@ -13,6 +14,7 @@ from pathlib import Path
 import time
 from typing import Any
 from urllib.request import Request as URLRequest, urlopen
+from urllib.error import HTTPError
 from uuid import uuid4
 
 import fastf1
@@ -34,7 +36,7 @@ fastf1.Cache.enable_cache(str(CACHE))
 PREPARED_CACHE = RUNTIME_CACHE_ROOT / ".apex-cache"
 PREPARED_CACHE.mkdir(exist_ok=True)
 PREPARED_CACHE_VERSION = "v4"
-SESSION_CACHE_SCHEMA = "official-classification-tyre-age-v3"
+SESSION_CACHE_SCHEMA = "session-identity-weather-v4"
 
 app = FastAPI(title="euV2 data API")
 app.add_middleware(
@@ -115,18 +117,31 @@ def integer(value: Any, default: int = 0) -> int:
         return default
 
 
+def utc_timestamp(value: Any) -> str | None:
+    if value is None or pd.isna(value):
+        return None
+    timestamp = pd.Timestamp(value)
+    return (timestamp.tz_localize("UTC") if timestamp.tzinfo is None else timestamp.tz_convert("UTC")).isoformat()
+
+
+def prepare_weather_lookup(weather_data: Any):
+    if weather_data is None or getattr(weather_data, "empty", True):
+        return ([], [])
+    records = sorted(((seconds(row.get("Time")), row) for row in weather_data.to_dict("records")
+                     if seconds(row.get("Time")) is not None), key=lambda item: item[0])
+    return ([item[0] for item in records], [item[1] for item in records])
+
+
 def nearest_weather_conditions(weather_data: Any, target_seconds: float | None) -> dict[str, Any] | None:
     """Return the closest published weather sample to a lap midpoint."""
-    if target_seconds is None or weather_data is None or getattr(weather_data, "empty", True):
+    if target_seconds is None or weather_data is None:
         return None
-    candidates: list[tuple[float, Any]] = []
-    for index, row in weather_data.iterrows():
-        sample_time = seconds(row.get("Time"))
-        if sample_time is not None:
-            candidates.append((abs(sample_time - target_seconds), index))
-    if not candidates:
+    times, rows = weather_data if isinstance(weather_data, tuple) else prepare_weather_lookup(weather_data)
+    if not times:
         return None
-    row = weather_data.loc[min(candidates, key=lambda item: item[0])[1]]
+    index = bisect_left(times, target_seconds)
+    candidates = [i for i in (index-1, index) if 0 <= i < len(times)]
+    row = rows[min(candidates, key=lambda i: abs(times[i]-target_seconds))]
     result = {
         "air_temperature": seconds(row.get("AirTemp")),
         "track_temperature": seconds(row.get("TrackTemp")),
@@ -253,12 +268,23 @@ def _openf1_lap_telemetry(
     driver_number: str,
     lap_number: int,
     freshness_bucket: int,
+    session_key: int | None = None,
+    lap_start: str | None = None,
+    lap_time: float | None = None,
+    next_start: str | None = None,
 ) -> list[dict[str, Any]]:
-    session = openf1_session(year, gp, session_name)
-    if not session:
-        return []
-    session_key = session["session_key"]
-    driver_laps = openf1("laps", session_key=session_key, driver_number=driver_number)
+    if session_key is None:
+        session = openf1_session(year, gp, session_name)
+        if not session:
+            return []
+        session_key = session["session_key"]
+    if lap_start and lap_time is not None:
+        driver_laps = [{"lap_number":lap_number,"date_start":lap_start,"lap_duration":lap_time}]
+        if next_start:
+            driver_laps.append({"lap_number":lap_number+1,"date_start":next_start})
+    else:
+        driver_laps = openf1("laps", session_key=session_key, driver_number=driver_number,
+                             **{"lap_number>=": lap_number, "lap_number<=": lap_number+1})
     matching_laps = [
         item for item in driver_laps
         if integer(item.get("lap_number"), -1) == lap_number
@@ -796,7 +822,7 @@ def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[
                 lap_info["conditions"] = openf1_conditions(
                     lap_info.get("_date_start"), seconds(lap_info.get("time"))
                 )
-                lap_info.pop("_date_start", None)
+                lap_info["date_start"] = lap_info.pop("_date_start", None)
                 
         result_positions = {
             integer(item.get("driver_number"), -1): integer(item.get("position"), 0)
@@ -856,7 +882,7 @@ def session_data(
     weather_data = None
     try:
         all_laps = data.laps
-        weather_data = data.weather_data
+        weather_data = prepare_weather_lookup(data.weather_data)
     except Exception as exc:
         logger.warning("Session laps not loaded: %s", exc)
 
@@ -881,6 +907,7 @@ def session_data(
                         if row.get("LapNumber") is not None:
                             laps_list.append({
                                 "lap": int(row["LapNumber"]),
+                                "date_start": utc_timestamp(row.get("LapStartDate")),
                                 "time": seconds(row["LapTime"]),
                                 "display_time": seconds(row["LapTime"]),
                                 "display_time_estimated": False,
@@ -980,6 +1007,7 @@ def session_data(
         "corners": corners,
         "circuit_rotation": circuit_rotation,
         "compounds": get_tire_nominations(year, gp),
+        "openf1_session_key": integer(getattr(data, "session_info", {}).get("Key"), 0) or None,
     }
     if drivers:
         write_prepared_cache("session", year, payload, SESSION_CACHE_SCHEMA, gp, round, session)
@@ -995,11 +1023,22 @@ def telemetry(
     session: str = Query("Q"),
     driver: str = Query(..., min_length=2),
     lap: int = Query(..., ge=1),
+    driver_number: str | None = Query(None, pattern=r"^\d{1,3}$"),
+    session_key: int | None = Query(None, ge=1),
+    fresh: bool = Query(False),
+    geometry: bool = Query(False),
+    lap_start: datetime | None = Query(None),
+    lap_time: float | None = Query(None, gt=20, lt=300),
+    next_start: datetime | None = Query(None),
 ):
+    started = time.perf_counter()
     if year < 2018:
         raise HTTPException(422, "Detailed speed and input telemetry is not published before 2018.")
+    for timestamp in (lap_start, next_start):
+        if timestamp is not None and (timestamp.year != year or timestamp.tzinfo is None):
+            raise HTTPException(422, "Lap timestamps must be timezone-aware and match the selected year.")
     cache_parts = (gp, round, session, driver.upper(), lap)
-    cached = read_prepared_cache("telemetry", year, *cache_parts)
+    cached = None if fresh else read_prepared_cache("telemetry", year, *cache_parts)
     # Older/current OpenF1 responses may contain all car channels but no
     # location packets. Returning that cache entry immediately permanently
     # suppresses the FastF1 position fallback and leaves the track map blank.
@@ -1016,12 +1055,14 @@ def telemetry(
         response.headers["Cache-Control"] = "no-store, max-age=0"
 
     def finish(samples: list[dict[str, Any]], projected_corners: list[dict[str, Any]], source: str):
+        response.headers["Server-Timing"] = f'telemetry;dur={(time.perf_counter()-started)*1000:.1f}'
+        response.headers["Timing-Allow-Origin"] = "*"
         positioned = sum(
             point.get("X") is not None and point.get("Y") is not None
             for point in samples
         )
         position_coverage = positioned / max(1, len(samples))
-        position_complete = source != "OpenF1" or position_coverage >= 0.55
+        position_complete = position_coverage >= 0.55
         payload = {
             "driver": driver,
             "lap": lap,
@@ -1033,7 +1074,9 @@ def telemetry(
         }
         # Do not freeze an incomplete current OpenF1 location stream. Keep the
         # useful speed response, but force the next request back to the source.
-        if position_complete or year < datetime.now().year:
+        if fresh:
+            response.headers["Cache-Control"] = "no-store"
+        elif position_complete or year < datetime.now().year:
             write_prepared_cache("telemetry", year, payload, *cache_parts)
         else:
             response.headers["Cache-Control"] = "no-store, max-age=0"
@@ -1042,22 +1085,37 @@ def telemetry(
     # OpenF1 can provide recent laps individually, including position data for
     # the dominance map. It avoids loading every car in the FastF1 session.
     try:
-        metadata = load_session(year, gp, session, round)
-        driver_number = str(metadata.get_driver(driver).get("DriverNumber", driver))
-        if year >= 2023:
-            samples = openf1_lap_telemetry(year, gp, session, driver_number, lap)
+        if year >= 2023 and not geometry:
+            if session_key is None:
+                lookup = openf1_session(year, gp, session)
+                session_key = lookup.get("session_key") if lookup else None
+            if not driver_number and session_key:
+                rows = openf1("drivers", session_key=session_key)
+                driver_number = next((str(row["driver_number"]) for row in rows
+                                      if str(row.get("name_acronym", "")).upper() == driver.upper()), None)
+            if not driver_number or not session_key:
+                raise ValueError("No matching OpenF1 driver/session")
+            # No FastF1 session load or disk/LRU response lookup on this path.
+            retrieve = _openf1_lap_telemetry.__wrapped__ if fresh else _openf1_lap_telemetry
+            samples = retrieve(year, gp, session, driver_number, lap,
+                               int(time.time()//30) if year >= datetime.now().year else 0, session_key,
+                               lap_start.isoformat() if lap_start else None, lap_time,
+                               next_start.isoformat() if next_start else None)
             if samples:
-                projected = project_corners_onto_lap(metadata, samples)
+                # The client already has corner metadata from session loading.
+                projected = []
                 positioned = sum(
                     point.get("X") is not None and point.get("Y") is not None
                     for point in samples
                 )
-                if positioned / max(1, len(samples)) >= 0.55:
+                if fresh or positioned / max(1, len(samples)) >= 0.55:
                     return finish(samples, projected, "OpenF1")
                 # Keep OpenF1's car channels available, but prefer FastF1 when
                 # it can supply the missing X/Y stream required by the map.
                 incomplete_openf1 = (samples, projected)
     except Exception as openf1_lookup_error:
+        if isinstance(openf1_lookup_error, HTTPError) and openf1_lookup_error.code in (429, 502, 503, 504):
+            raise HTTPException(503, "Telemetry provider is busy. Please retry shortly.") from openf1_lookup_error
         logger.debug("OpenF1 lookup unavailable for %s L%s: %s", driver, lap, openf1_lookup_error)
 
     try:

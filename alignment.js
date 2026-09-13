@@ -133,6 +133,7 @@ function normalizeTelemetry(samples, lap, source = 'Unknown') {
 
 async function fetchTelemetry(lap) {
   const key = telemetryKey(lap);
+  const sessionAtStart = sessionRequest;
   if (telemetryCache.has(key)) return telemetryCache.get(key);
   if (telemetryRequests.has(key)) return telemetryRequests.get(key);
   const request = (async () => {
@@ -140,8 +141,20 @@ async function fetchTelemetry(lap) {
     query.set('driver', lap.code);
     query.set('lap', lap.lap);
     query.set('alignment', '3');
-    const response = await fetch(apiUrl(`/api/telemetry?${query}`), { cache: 'no-store' });
+    query.set('fresh', 'true');
+    const driverNumber = realDrivers.get(lap.code)?.number;
+    if (driverNumber) query.set('driver_number', driverNumber);
+    if (openf1SessionKey) query.set('session_key', openf1SessionKey);
+    const meta=lap.real || lap;
+    if(openf1SessionKey && meta.date_start && lap.time>20 && lap.time<300) {
+      query.set('lap_start',meta.date_start);
+      query.set('lap_time',lap.time);
+      const next=realDrivers.get(lap.code)?.laps?.find(item=>item.lap===lap.lap+1);
+      if(next?.date_start)query.set('next_start',next.date_start);
+    }
+    const response = await fetchSessionData(apiUrl(`/api/telemetry?${query}`), { cache: 'no-store', signal: sessionAtStart?.signal });
     const payload = await readApiResponse(response);
+    if (sessionAtStart !== sessionRequest) throw new DOMException('Session changed', 'AbortError');
     if (!response.ok) throw new Error(payload.detail || 'Telemetry unavailable for this lap');
 
     const samples = normalizeTelemetry(payload.samples || [], lap, payload.source || 'Unknown');
@@ -173,13 +186,45 @@ async function fetchTelemetry(lap) {
     });
 
     telemetryCache.set(key, samples);
+    if (!sessionSectorGuide) sessionSectorGuide = makeSectorGuide(lap, payload.samples || [], payload.corners);
+    // Display useful car channels now; a missing map must not hold them behind
+    // a full FastF1-session download. Enrich only the coordinates in the background.
+    if (payload.position_complete === false) {
+      query.set('geometry', 'true');
+      void fetchSessionData(apiUrl(`/api/telemetry?${query}`), {cache:'no-store', signal:sessionAtStart?.signal})
+        .then(async response => {
+          if (!response.ok || sessionAtStart !== sessionRequest) return;
+          const geometry = await readApiResponse(response);
+          if (sessionAtStart !== sessionRequest || !geometry.position_complete) return;
+          const positioned = normalizeTelemetry(geometry.samples || [], lap, geometry.source);
+          if (!positioned.length) return;
+          // Match by elapsed time with a monotone cursor, preserving every
+          // original car-channel sample and all its values.
+          let cursor=0;
+          for (const point of samples) {
+            while(cursor+1<positioned.length && positioned[cursor+1].ElapsedSeconds<=point.ElapsedSeconds)cursor++;
+            const a=positioned[cursor],b=positioned[Math.min(cursor+1,positioned.length-1)];
+            const nearest=Math.abs(a.ElapsedSeconds-point.ElapsedSeconds)<=Math.abs(b.ElapsedSeconds-point.ElapsedSeconds)?a:b;
+            if(Math.abs(nearest.ElapsedSeconds-point.ElapsedSeconds)<=.4 && hasTelemetryNumber(nearest.X) && hasTelemetryNumber(nearest.Y)) {
+              point.X=nearest.X;point.Y=nearest.Y;
+            }
+          }
+          setTelemetryMeta(samples,'quality',telemetryQuality(samples,payload.source));
+          lap.cornerMarkers=geometry.corners || [];
+          setTelemetryMeta(samples,'alignmentInputs',null);
+          setTelemetryMeta(samples,'positionRevision',(samples.positionRevision || 0)+1);
+          dominanceMapGeometryCache=null;
+          if (!sessionSectorGuide) sessionSectorGuide=makeSectorGuide(lap,samples,lap.cornerMarkers);
+          if (loaded.some(item=>telemetryKey(item)===key)) paintReadyTelemetry();
+        }).catch(()=>{});
+    }
     return samples;
   })();
   telemetryRequests.set(key, request);
   try {
     return await request;
   } finally {
-    telemetryRequests.delete(key);
+    if (telemetryRequests.get(key) === request) telemetryRequests.delete(key);
   }
 }
 
@@ -957,6 +1002,11 @@ function prepareTelemetryAlignment() {
   loaded.forEach(lap => {
     const samples = telemetryCache.get(telemetryKey(lap));
     if (!samples?.length) return;
+    const inputs=samples.alignmentInputs;
+    const sectorIdentity=referenceSectors.join(':');
+    if(inputs && inputs.reference===spatialReference && inputs.referenceLap===spatialLap
+        && inputs.referenceRevision===(spatialReference.positionRevision || 0)
+        && inputs.sectors===sectorIdentity && inputs.meta===lap.real) return;
     let fractions = samples === spatialReference
       ? samples.map(point => rawFractionAt(samples, point))
       : positionAlignment(spatialReference, samples);
@@ -976,6 +1026,7 @@ function prepareTelemetryAlignment() {
     setAlignedFractions(samples, fractions, method);
     setTelemetryMeta(samples, 'alignmentSectors', referenceSectors);
     buildTimeCalibration(samples, lap, referenceSectors);
+    setTelemetryMeta(samples,'alignmentInputs',{reference:spatialReference,referenceLap:spatialLap,referenceRevision:spatialReference.positionRevision || 0,sectors:sectorIdentity,meta:lap.real});
   });
   updateAlignmentStatus();
 }

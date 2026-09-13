@@ -146,6 +146,47 @@ test('whole chart stack and map render; toggling enhanced preserves official del
     h.run(`traceTelemetryValue(telemetryCache.get('VER:2'),hoverFraction,'Speed')`));
 });
 
+test('rendering starts before the slowest lap and unchanged alignment is not recomputed', async () => {
+  const h=appHarness();
+  h.sandbox.fixture=series(Array.from({length:80},(_,i)=>210+i/2));
+  h.sandbox.fixture.forEach((p,i)=>{p.X=Math.cos(i/79*Math.PI*2)*1000;p.Y=Math.sin(i/79*Math.PI*2)*1000;});
+  h.run(`loaded=[{code:'NOR',lap:1,time:19,real:{time:19,s1:6,s2:6,s3:7}},
+    {code:'VER',lap:2,time:19.5,real:{time:19.5,s1:6.1,s2:6.2,s3:7.2}}];
+    drivers=[['NOR',1,'Norris','#ff8000'],['VER',3,'Verstappen','#4781d7']];
+    mapView='comparison'; var finishSlow;
+    fetchTelemetry=async lap=>{if(lap.code==='VER')await new Promise(resolve=>finishSlow=resolve);
+      const samples=normalizeTelemetry(fixture.map(p=>({...p})),lap,'test');telemetryCache.set(telemetryKey(lap),samples);return samples;};`);
+  const pending=h.run('drawAll()');
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(h.run("telemetryCache.has('VER:2')"),false);
+  assert.equal(h.element('#dominanceEmpty').style.display,'none');
+  h.run('finishSlow()');
+  await pending;
+  assert.match(h.element('#dominanceTitle').innerHTML,/Mini-sector dominance/);
+  h.run("var existingInputs=telemetryCache.get('NOR:1').alignmentInputs; prepareTelemetryAlignment()");
+  assert.equal(h.run("existingInputs===telemetryCache.get('NOR:1').alignmentInputs"),true);
+});
+
+test('active telemetry loader sends existing lap context and creates the sector guide', async () => {
+  const h=appHarness();
+  let requested;
+  const samples=Array.from({length:361},(_,i)=>({ElapsedSeconds:i/4,Distance:i*15,Speed:200,
+    Throttle:100,Brake:0,nGear:6,DRS:null,X:Math.cos(i/360*Math.PI*2)*1000,Y:Math.sin(i/360*Math.PI*2)*1000}));
+  h.sandbox.fetchSessionData=async url=>{
+    requested=new URL(url,'https://test.example');
+    return {ok:true,text:async()=>JSON.stringify({samples,source:'OpenF1',position_complete:true,corners:[]})};
+  };
+  h.run(`currentQuery=()=>new URLSearchParams('year=2026'); openf1SessionKey=11365;
+    var lap={code:'VER',lap:17,time:90,real:{time:90,s1:30,s2:30,s3:30,date_start:'2026-09-12T14:10:00Z'}};
+    realDrivers.set('VER',{number:'3',laps:[lap.real]});`);
+  await h.run('fetchTelemetry(lap)');
+  assert.equal(requested.searchParams.get('fresh'),'true');
+  assert.equal(requested.searchParams.get('session_key'),'11365');
+  assert.equal(requested.searchParams.get('driver_number'),'3');
+  assert.equal(requested.searchParams.get('lap_start'),'2026-09-12T14:10:00Z');
+  assert.equal(h.run('sessionSectorGuide.segmentSectors.length'),360);
+});
+
 test('duplicate and missing timestamps are safe; missing channel endpoints are not extrapolated', () => {
   const data = series([null, 220, 226, 232, 238, null]);
   data.splice(3, 0, { ...data[2], Speed: 226 });

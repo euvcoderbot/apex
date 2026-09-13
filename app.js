@@ -15,6 +15,7 @@ let genericCircuitData = null;
 let genericCircuitRequest = null;
 let sessionEventName = '';
 let sessionYear = null;
+let openf1SessionKey = null;
 let nominatedCompounds = [];
 let activeDriverTab = null;
 let selectedCornerIndex = 0;
@@ -40,7 +41,7 @@ let calendarGeneration = 0;
 let redrawFrame = 0;
 let toastTimer = 0;
 const MIN_TRACE_ZOOM = .004;
-const CLIENT_DATA_SCHEMA = 'lap-context-v3';
+const CLIENT_DATA_SCHEMA = 'direct-telemetry-v4';
 const API_ORIGIN = String(window.APEX_API_ORIGIN || '').replace(/\/$/, '');
 
 // Animate user-driven updates, not telemetry redraws. Keep keyboard focus
@@ -825,6 +826,7 @@ function clearBeforeSessionLoad() {
   circuitRotation = 0;
   sessionEventName = '';
   sessionYear = null;
+  openf1SessionKey = null;
   nominatedCompounds = [];
   activeDriverTab = null;
   selectedCornerIndex = 0;
@@ -879,6 +881,7 @@ async function loadRealSession() {
     corners = payload.corners || [];
     sessionEventName = payload.event || '';
     sessionYear = Number(new URLSearchParams(requestedQuery).get('year'));
+    openf1SessionKey = Number.isInteger(payload.openf1_session_key) ? payload.openf1_session_key : null;
     circuitRotation = Number.isFinite(Number(payload.circuit_rotation))
       ? Number(payload.circuit_rotation) : 0;
     nominatedCompounds = payload.compounds || [];
@@ -2624,12 +2627,19 @@ async function drawAll() {
   const generation = ++drawGeneration;
   const requestedLaps = [...loaded];
   const failures = [];
+  let outstanding = requestedLaps.length;
   const promises = requestedLaps.map(async lap => {
+    const alreadyReady=telemetryCache.has(telemetryKey(lap));
     try {
       await fetchTelemetry(lap);
+      if (!alreadyReady && outstanding > 1 && generation === drawGeneration && loaded[0] && telemetryCache.has(telemetryKey(loaded[0]))) {
+        paintReadyTelemetry();
+      }
     } catch (err) {
       console.warn(err);
       failures.push({ lap, error: err });
+    } finally {
+      outstanding--;
     }
   });
   await Promise.all(promises);
@@ -2643,6 +2653,10 @@ async function drawAll() {
     renderTraceVisibilityControls();
     renderStints();
   }
+  paintReadyTelemetry();
+}
+
+function paintReadyTelemetry() {
   if (typeof prepareTelemetryAlignment === 'function') {
     prepareTelemetryAlignment();
   }
@@ -3101,7 +3115,7 @@ function renderMiniSectorMap() {
     return;
   }
 
-  const mapEntries = visibleTraceLaps();
+  const mapEntries = visibleTraceLaps().filter(({lap})=>telemetryCache.get(telemetryKey(lap))?.length);
   const comparative = mapEntries.length >= 2;
   canvas.setAttribute('aria-label', comparative
     ? 'Track map showing the fastest loaded lap in each mini-sector'
@@ -3170,7 +3184,7 @@ function renderMiniSectorMap() {
   const geometryKey = `${telemetryKey(loaded[0])}:${reference.length}:${rect.width.toFixed(2)}:${rect.height.toFixed(2)}:${totalDistance.toFixed(1)}`;
   let geometrySteps;
   let canvasGeometry;
-  if (dominanceMapGeometryCache?.key === geometryKey) {
+  if (dominanceMapGeometryCache?.key === geometryKey && dominanceMapGeometryCache.reference === reference) {
     ({ geometrySteps, canvasGeometry } = dominanceMapGeometryCache);
   } else {
     geometrySteps = Math.max(1600, Math.min(4200, Math.ceil(totalDistance / 1.8)));
@@ -3241,7 +3255,7 @@ function renderMiniSectorMap() {
       y: rect.height - offsetY - (y - minY) * scale,
     });
     canvasGeometry = mapGeometry.map(point => ({ ...point, ...toCanvas(point.x, point.y) }));
-    dominanceMapGeometryCache = { key: geometryKey, geometrySteps, canvasGeometry };
+    dominanceMapGeometryCache = { key: geometryKey, reference, geometrySteps, canvasGeometry };
   }
   const segmentLength = 25;
   const segments = Math.ceil(totalDistance / segmentLength);
