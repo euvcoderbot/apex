@@ -1195,7 +1195,7 @@ function renderStints() {
       const context = lap.out_lap ? '<small>OUT</small>' : lap.in_lap ? '<small>IN</small>' : '';
       const title = lap.out_lap && estimated ? 'Estimated from pit exit to the timing line' : '';
       const age = Number.isFinite(lap.tyre_life) && lap.tyre_life >= 1 ? Math.round(lap.tyre_life) : null;
-      const tyreDetail = hasQualifyingPhases ? `<small class="lap-tyre-age">Run ${qualifyingRuns.indexOf(lap.stint) + 1} · Tyre ${age === null ? 'age unknown' : `${age} ${age === 1 ? 'lap' : 'laps'}`}</small>` : '';
+      const tyreDetail = hasQualifyingPhases ? `<small class="lap-tyre-age">Run ${qualifyingRuns.indexOf(lap.stint) + 1} · Tyre age ${age === null ? 'unknown' : `${age} ${age === 1 ? 'lap' : 'laps'}`}</small>` : '';
       return `<button class="${classes}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${title}"><span class="lap-token">${flag}</span>${compoundBadgeMarkup(lap.compound)}<span class="lap-clock">${duration}${context}</span>${tyreDetail}</button>`;
     }).join('');
     const groupLabel = hasQualifyingPhases ? active : `Stint ${active}`;
@@ -1709,6 +1709,24 @@ function getNiceBounds(name, rawMin, rawMax) {
 function cornerFraction(corner, samples, totalDistance, suppliedMarkers = null) {
   return resolveCornerMarkers(samples, totalDistance, suppliedMarkers)
     .find(marker => marker.key === `${corner.number}:${corner.letter || ''}`)?.fraction ?? null;
+}
+
+function trackIntersectsLabel(box, points, clearance = 8) {
+  const left = box.x - clearance, right = box.x + box.width + clearance;
+  const top = box.y - clearance, bottom = box.y + box.height + clearance;
+  return points.some((a, index) => {
+    const b = points[(index + 1) % points.length];
+    if (Math.max(a.x,b.x) < left || Math.min(a.x,b.x) > right || Math.max(a.y,b.y) < top || Math.min(a.y,b.y) > bottom) return false;
+    let enter = 0, leave = 1;
+    for (const [start, delta, min, max] of [[a.x,b.x-a.x,left,right],[a.y,b.y-a.y,top,bottom]]) {
+      if (Math.abs(delta) < 1e-9) { if (start < min || start > max) return false; continue; }
+      const t1 = (min-start)/delta, t2 = (max-start)/delta;
+      enter = Math.max(enter, Math.min(t1,t2));
+      leave = Math.min(leave, Math.max(t1,t2));
+      if (enter > leave) return false;
+    }
+    return true;
+  });
 }
 
 function cornerLabel(corner) {
@@ -3114,12 +3132,13 @@ function renderMiniSectorMap() {
       let placement = null;
       // Search nearby positions, reserving the complete text box. Leader
       // lines preserve the turn location when a crowded label must move.
-      for (const radius of [16, 28, 42, 58, 76, 96]) {
+      for (const radius of [24, 36, 48, 64, 80, 100, 124, 152]) {
         for (let direction = 0; direction < 16; direction++) {
           const theta = Math.atan2(offsetY, offsetX) + direction * Math.PI / 8;
           const x = Math.max(labelWidth / 2 + 4, Math.min(rect.width - labelWidth / 2 - 4, point.x + Math.cos(theta) * radius));
           const y = Math.max(12, Math.min(rect.height - 12, point.y + Math.sin(theta) * radius));
           const box = {x: x - labelWidth / 2, y: y - 9, width: labelWidth, height: 18};
+          if (trackIntersectsLabel(box, canvasGeometry)) continue;
           if (occupiedLabels.some(b => box.x < b.x + b.width + 3 && box.x + box.width + 3 > b.x && box.y < b.y + b.height + 3 && box.y + box.height + 3 > b.y)) continue;
           placement = {x, y, box};
           break;

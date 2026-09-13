@@ -14,6 +14,13 @@ function context(reduced = false) {
   return { sandbox, run: code => vm.runInContext(code, sandbox) };
 }
 
+test('map labels exclude whole track segments and stroke clearance', () => {
+  const h = context();
+  assert.equal(h.run('trackIntersectsLabel({x:40,y:40,width:20,height:18}, [{x:0,y:50},{x:100,y:50}])'), true);
+  assert.equal(h.run('trackIntersectsLabel({x:40,y:40,width:20,height:18}, [{x:0,y:34},{x:100,y:34}])'), true);
+  assert.equal(h.run('trackIntersectsLabel({x:40,y:40,width:20,height:18}, [{x:0,y:20},{x:100,y:20}])'), false);
+});
+
 test('one interface font family for canvas and every HTML descendant', () => {
   const css = postcss.parse(readFileSync('apple-ui.css', 'utf8'));
   const fonts = [];
