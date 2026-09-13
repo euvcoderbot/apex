@@ -34,6 +34,20 @@ test('selecting a lap opens comparison while manual guide choice survives redraw
   assert.equal(h.run('mapView'),'guide');
 });
 
+test('sector guide uses timed boundaries and rejects insufficient data', () => {
+  const h=context();
+  h.run(`resolveCornerMarkers=()=>[];
+    testLap={time:30,s1:8.15,s2:10.2,s3:11.65};
+    testSamples=Array.from({length:121},(_,i)=>({X:Math.cos(i/120*2*Math.PI)*1000,Y:Math.sin(i/120*2*Math.PI)*1000,Distance:i*40,ElapsedSeconds:i/4}));`);
+  assert.equal(h.run('makeSectorGuide(testLap,testSamples,[]).segmentSectors.includes(2)'),true);
+  assert.equal(h.run('makeSectorGuide(testLap,testSamples,[]).x.length'),123);
+  assert.equal(h.run('makeSectorGuide({...testLap,s3:null},testSamples,[])'),null);
+  assert.equal(h.run('makeSectorGuide({...testLap,time:32},testSamples,[])'),null);
+  assert.equal(h.run('makeSectorGuide(testLap,testSamples.filter((_,i)=>i<30||i>40),[])'),null);
+  assert.equal(h.run('makeSectorGuide(testLap,testSamples.map(p=>({...p,Y:null})),[])'),null);
+  assert.equal(h.run('makeSectorGuide(testLap,testSamples.slice(8),[])'),null);
+});
+
 test('map labels exclude whole track segments and stroke clearance', () => {
   const h = context();
   assert.equal(h.run('trackIntersectsLabel({x:40,y:40,width:20,height:18}, [{x:0,y:50},{x:100,y:50}])'), true);

@@ -834,6 +834,7 @@ function clearBeforeSessionLoad() {
   dominanceMapHitPoints = [];
   dominanceMapGeometryCache = null;
   telemetryCache.clear();
+  sessionSectorGuide = null;
   telemetryRequests.clear();
   lapColorOverrides.clear();
   $('#driverPills').innerHTML = '<span class="section-empty">Load a session to see its drivers.</span>';
@@ -918,6 +919,7 @@ async function fetchTelemetry(lap) {
       else pt.Brake = Number.isFinite(+pt.Brake) && +pt.Brake > 0 ? +pt.Brake : 0;
     });
     telemetryCache.set(key, samples);
+    if (!sessionSectorGuide) sessionSectorGuide = makeSectorGuide(lap, samples, data.corners);
     return samples;
   })();
   telemetryRequests.set(key, request);
@@ -2850,6 +2852,48 @@ function clearDominanceMapCanvas(canvas) {
   ctx.clearRect(0, 0, rect.width, rect.height);
 }
 
+let sessionSectorGuide = null;
+const GUIDE_SECTOR_COLORS = ['#ff4081', '#e6bc24', '#40a9ed'];
+
+function makeSectorGuide(lap, samples, suppliedCorners) {
+  const meta = lap.real || lap;
+  const times = [meta.s1, meta.s2, meta.s3];
+  const duration = lap.time ?? meta.time;
+  if (!times.every(t => Number.isFinite(t) && t > 0) || !Number.isFinite(duration)
+      || Math.abs(times.reduce((a,b)=>a+b,0)-duration) > .05) return null;
+  const valid = samples.filter(p => [p.X,p.Y,p.ElapsedSeconds].every(v => v != null && Number.isFinite(v)));
+  if (valid.length < 50 || valid.length < samples.length * .98
+      || valid[0].ElapsedSeconds < 0 || valid[0].ElapsedSeconds > .5
+      || Math.abs(valid.at(-1).ElapsedSeconds-duration) > .5) return null;
+  // Never bridge missing packets or derive distances from fractions of lap time.
+  for (let i=1;i<valid.length;i++) {
+    const dt=valid[i].ElapsedSeconds-valid[i-1].ElapsedSeconds;
+    if(dt <= 0 || dt > .75) return null;
+  }
+  const boundaries=[times[0],times[0]+times[1]];
+  const points=valid.map(p=>({x:p.X,y:p.Y,t:p.ElapsedSeconds}));
+  for(const t of boundaries) {
+    const i=points.findIndex(p=>p.t>=t);
+    if(i<1)return null;
+    if(points[i].t===t)continue;
+    const a=points[i-1],b=points[i],f=(t-a.t)/(b.t-a.t);
+    points.splice(i,0,{x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f,t});
+  }
+  const distance=valid.at(-1).Distance;
+  const markers=Number.isFinite(distance) && distance>0
+    ? resolveCornerMarkers(valid,distance,suppliedCorners) : [];
+  const mappedCorners=markers.map(c=>{
+    const target=c.fraction*distance;
+    const p=valid.reduce((best,p)=>Math.abs(p.Distance-target)<Math.abs(best.Distance-target)?p:best,valid[0]);
+    return {...c,trackPosition:{x:p.X,y:p.Y}};
+  });
+  return {x:points.map(p=>p.x),y:points.map(p=>p.y),
+    segmentSectors:points.slice(1).map((p,i)=>{
+      const middle=(p.t+points[i].t)/2;
+      return middle<boundaries[0]?0:middle<boundaries[1]?1:2;
+    }),corners:mappedCorners};
+}
+
 function drawMadridGuide(ctx, points, rect) {
   // FIA sector anchors; the outline itself is approximate (see madrid-corners.md).
   const cumulative = [0];
@@ -2884,11 +2928,6 @@ function drawMadridGuide(ctx, points, rect) {
     {m:0,label:'Timing line',color:'#aeb4c0'},
     {m:1839,label:'S1 / S2',color:palette[1]},
     {m:3888,label:'S2 / S3',color:palette[2]},
-    {m:1545-160,label:'Speed trap',color:'#d8e938'},
-    {m:5260,label:'OT detection ≈',color:'#45c991'},
-    {m:5260+20,label:'OT activation',color:'#45c991'},
-    {m:5260+100,label:'SM A1',color:'#ff6464'},
-    {m:643+40,label:'SM A2',color:'#ff6464'},
     ...MADRID_MAP_CORNERS.map(c=>({m:c.distance,label:cornerLabel(c),color:lightThemeActive()?'#242428':'#eeeeef',corner:true}))
   ];
   const occupied=[], leaders=[];
@@ -2939,6 +2978,13 @@ function drawApiCircuitGuide(ctx, data, rect) {
   ctx.clearRect(0,0,rect.width,rect.height);ctx.beginPath();
   geometry.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));
   ctx.strokeStyle=lightThemeActive()?'#666670':'#b3b3bd';ctx.lineWidth=5;ctx.stroke();
+  if(data.segmentSectors?.length===geometry.length-1) {
+    for(let i=1;i<geometry.length;i++) {
+      ctx.beginPath();ctx.moveTo(geometry[i-1].x,geometry[i-1].y);ctx.lineTo(geometry[i].x,geometry[i].y);
+      ctx.strokeStyle=GUIDE_SECTOR_COLORS[data.segmentSectors[i-1]];ctx.stroke();
+    }
+    ctx.strokeStyle=lightThemeActive()?'#666670':'#b3b3bd';
+  }
   const occupied=[],leaders=[];ctx.font=canvasFont(12);ctx.textAlign='center';ctx.textBaseline='middle';
   for(const corner of data.corners || []){
     const position=corner.trackPosition;
@@ -2966,6 +3012,20 @@ function drawApiCircuitGuide(ctx, data, rect) {
 
 function renderGenericCircuit(canvas, empty) {
   if (!sessionEventName) { empty.style.display = 'grid'; empty.textContent = 'Load a session to see its circuit guide.'; return; }
+  if(sessionSectorGuide) {
+    canvas.style.display='block';
+    const rect=canvas.getBoundingClientRect();
+    if(!rect.width || !rect.height)return;
+    const ratio=Math.max(2,window.devicePixelRatio||1);
+    canvas.width=Math.round(rect.width*ratio);canvas.height=Math.round(rect.height*ratio);
+    const ctx=canvas.getContext('2d');ctx.setTransform(ratio,0,0,ratio,0,0);
+    if(drawApiCircuitGuide(ctx,sessionSectorGuide,rect)) {
+      empty.style.display='none';
+      canvas.setAttribute('aria-label',`${sessionEventName}, timing-derived sector map: sector 1 pink, sector 2 yellow, sector 3 blue`);
+      $('#dominanceLegend').innerHTML='<small><span style="color:#ff4081">S1</span> · <span style="color:#e6bc24">S2</span> · <span style="color:#40a9ed">S3</span> · Official sector times matched to position telemetry<br>Boundary placement is limited by position sampling accuracy.</small>';
+      return;
+    }
+  }
   if (!genericCircuitData) {
     empty.style.display = 'grid';
     empty.textContent = 'Loading circuit map…';
@@ -3011,11 +3071,11 @@ function renderGenericCircuit(canvas, empty) {
   $('#dominanceLegend').innerHTML = '<small>Outline · <a href="https://github.com/bacinger/f1-circuits" target="_blank" rel="noopener">Circuit data</a></small>';
   if (id === 'es-2026' && sessionYear === 2026) {
     drawMadridGuide(ctx, points.map(([x,y]) => ({x:(x-minX-width/2)*scale+rect.width/2, y:(y-minY-height/2)*scale+rect.height/2})), rect);
-    $('#dominanceLegend').innerHTML = '<small><span style="color:#ff4081">S1</span> · <span style="color:#e6bc24">S2</span> · <span style="color:#40a9ed">S3</span> · <a href="https://www.fia.com/system/files/decision-document/2026_spanish_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_and_emergency_exits_map.pdf" target="_blank" rel="noopener">FIA guide</a><br>Map-derived positions · SM = straight mode · OT = overtake<br>Normal-grip activation shown; zone ends are not inferred.</small>';
+    $('#dominanceLegend').innerHTML = '<small><span style="color:#ff4081">S1</span> · <span style="color:#e6bc24">S2</span> · <span style="color:#40a9ed">S3</span> · <a href="https://www.fia.com/system/files/decision-document/2026_spanish_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_and_emergency_exits_map.pdf" target="_blank" rel="noopener">FIA sector lengths</a><br>Approximate placement on the circuit outline.</small>';
   } else {
     const guide=apiCircuitGuides.get(guideKey);
     if(guide && Array.isArray(guide.x) && Array.isArray(guide.y) && drawApiCircuitGuide(ctx,guide,rect)) {
-      $('#dominanceLegend').innerHTML = `<small><a href="https://multiviewer.app" target="_blank" rel="noopener">MultiViewer circuit data</a> · ${escapeUI(guide.name)} · ${guide.sourceYear}${guide.sourceYear!==sessionYear?' layout (older than selected season)':''}<br>Corner positions available; timing-sector and activation-zone metadata not provided by this source.</small>`;
+      $('#dominanceLegend').innerHTML = `<small><a href="https://multiviewer.app" target="_blank" rel="noopener">MultiViewer circuit data</a> · ${escapeUI(guide.name)} · ${guide.sourceYear}${guide.sourceYear!==sessionYear?' layout (older than selected season)':''}<br>Sector colours require a loaded lap with complete timing and position data.</small>`;
     } else {
       $('#dominanceLegend').innerHTML += `<small>${apiCircuitGuideRequests.has(guideKey)?'Loading circuit annotations…':'Circuit annotations unavailable from the provider.'}</small>`;
     }
