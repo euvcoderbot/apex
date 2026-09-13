@@ -1712,6 +1712,24 @@ function cornerFraction(corner, samples, totalDistance, suppliedMarkers = null) 
     .find(marker => marker.key === `${corner.number}:${corner.letter || ''}`)?.fraction ?? null;
 }
 
+function connectorSegmentsIntersect(a, b, c, d) {
+  const cross = (p,q,r) => (q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x);
+  if(Math.max(a.x,b.x)<Math.min(c.x,d.x)-.1 || Math.max(c.x,d.x)<Math.min(a.x,b.x)-.1 || Math.max(a.y,b.y)<Math.min(c.y,d.y)-.1 || Math.max(c.y,d.y)<Math.min(a.y,b.y)-.1) return false;
+  return cross(a,b,c)*cross(a,b,d)<=.01 && cross(c,d,a)*cross(c,d,b)<=.01;
+}
+
+// Nearby labels need no leader. Displaced labels stop at their text boundary
+// and cannot cross an earlier leader or label (nor obscure a later label).
+function cornerLabelConnector(point, box, leaders, boxes) {
+  if(leaders.some(line=>trackIntersectsLabel(box,[line.a,line.b],2))) return null;
+  const end={x:Math.max(box.x,Math.min(box.x+box.width,point.x)),y:Math.max(box.y,Math.min(box.y+box.height,point.y))};
+  const distance=Math.hypot(end.x-point.x,end.y-point.y);
+  if(distance<=19) return {line:null};
+  const start={x:point.x+(end.x-point.x)*5/distance,y:point.y+(end.y-point.y)*5/distance};
+  if(leaders.some(line=>connectorSegmentsIntersect(start,end,line.a,line.b)) || boxes.some(b=>trackIntersectsLabel(b,[start,end],2))) return null;
+  return {line:{a:start,b:end}};
+}
+
 function trackIntersectsLabel(box, points, clearance = 8) {
   const left = box.x - clearance, right = box.x + box.width + clearance;
   const top = box.y - clearance, bottom = box.y + box.height + clearance;
@@ -2867,7 +2885,7 @@ function drawMadridGuide(ctx, points, rect) {
     {m:643+40,label:'SM A2',color:'#ff6464'},
     ...MADRID_MAP_CORNERS.map(c=>({m:c.distance,label:cornerLabel(c),color:lightThemeActive()?'#242428':'#eeeeef',corner:true}))
   ];
-  const occupied=[];
+  const occupied=[], leaders=[];
   ctx.font=canvasFont(12);ctx.textAlign='center';ctx.textBaseline='middle';
   annotations.forEach(item=>{
     const p=at(item.m), a=at(item.m-3), b=at(item.m+3);
@@ -2885,13 +2903,18 @@ function drawMadridGuide(ctx, points, rect) {
         const y=Math.max(11,Math.min(rect.height-11,p.y+Math.sin(angle)*radius));
         const box={x:x-width/2,y:y-8,width,height:16};
         if(trackIntersectsLabel(box,geometry,7)||occupied.some(b=>box.x<b.x+b.width+3&&box.x+width+3>b.x&&box.y<b.y+b.height+3&&box.y+16+3>b.y))continue;
-        placement={x,y,box};break;
+        const connector=cornerLabelConnector(p,box,leaders,occupied);
+        if(!connector)continue;
+        placement={x,y,box,...connector};break;
       }
       if(placement)break;
     }
     if(!placement)return;
     occupied.push(placement.box);
-    ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(placement.x,placement.y);ctx.strokeStyle=item.color;ctx.lineWidth=.7;ctx.globalAlpha=.4;ctx.stroke();ctx.globalAlpha=1;
+    if(placement.line){
+      leaders.push(placement.line);
+      ctx.beginPath();ctx.moveTo(placement.line.a.x,placement.line.a.y);ctx.lineTo(placement.line.b.x,placement.line.b.y);ctx.strokeStyle=item.color;ctx.lineWidth=.7;ctx.globalAlpha=.4;ctx.stroke();ctx.globalAlpha=1;
+    }
     ctx.fillStyle=item.color;ctx.fillText(item.label,placement.x,placement.y);
   });
   ctx.textAlign='start';ctx.textBaseline='alphabetic';
@@ -3210,6 +3233,7 @@ function renderMiniSectorMap() {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const occupiedLabels = [];
+    const leaders = [];
     markerCorners.forEach(corner => {
       const point = pointAt(corner.fraction);
       if (!point) return;
@@ -3230,21 +3254,26 @@ function renderMiniSectorMap() {
           const box = {x: x - labelWidth / 2, y: y - 9, width: labelWidth, height: 18};
           if (trackIntersectsLabel(box, canvasGeometry)) continue;
           if (occupiedLabels.some(b => box.x < b.x + b.width + 3 && box.x + box.width + 3 > b.x && box.y < b.y + b.height + 3 && box.y + box.height + 3 > b.y)) continue;
-          placement = {x, y, box};
+          const connector = cornerLabelConnector(point, box, leaders, occupiedLabels);
+          if (!connector) continue;
+          placement = {x, y, box, ...connector};
           break;
         }
         if (placement) break;
       }
       if (!placement) return; // Never render overlapping text on tiny maps.
       occupiedLabels.push(placement.box);
+      if (placement.line) {
+      leaders.push(placement.line);
       ctx.beginPath();
-      ctx.moveTo(point.x, point.y);
-      ctx.lineTo(placement.x, placement.y);
+      ctx.moveTo(placement.line.a.x, placement.line.a.y);
+      ctx.lineTo(placement.line.b.x, placement.line.b.y);
       ctx.strokeStyle = theme.labelFill;
       ctx.globalAlpha = .35;
       ctx.lineWidth = 1;
       ctx.stroke();
       ctx.globalAlpha = 1;
+      }
       ctx.lineWidth = 3;
       ctx.strokeStyle = theme.labelStroke;
       ctx.strokeText(label, placement.x, placement.y);

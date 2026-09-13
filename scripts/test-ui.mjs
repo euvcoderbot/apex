@@ -21,6 +21,14 @@ test('map labels exclude whole track segments and stroke clearance', () => {
   assert.equal(h.run('trackIntersectsLabel({x:40,y:40,width:20,height:18}, [{x:0,y:20},{x:100,y:20}])'), false);
 });
 
+test('corner leaders are omitted nearby and cannot cross or enter another label', () => {
+  const h = context();
+  assert.equal(h.run('cornerLabelConnector({x:0,y:0},{x:10,y:-8,width:20,height:16},[],[]).line'), null);
+  assert.equal(h.run('cornerLabelConnector({x:0,y:0},{x:50,y:-8,width:20,height:16},[{a:{x:25,y:-20},b:{x:25,y:20}}],[])'), null);
+  assert.equal(h.run('cornerLabelConnector({x:0,y:0},{x:50,y:-8,width:20,height:16},[],[{x:20,y:-8,width:10,height:16}])'), null);
+  assert.equal(h.run('cornerLabelConnector({x:0,y:0},{x:50,y:-8,width:20,height:16},[],[]).line.b.x'), 50);
+});
+
 test('one interface font family for canvas and every HTML descendant', () => {
   const css = postcss.parse(readFileSync('apple-ui.css', 'utf8'));
   const fonts = [];
