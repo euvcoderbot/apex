@@ -6,7 +6,7 @@ let openStint = {};
 let realDrivers = new Map();
 const telemetryCache = new Map();
 const telemetryRequests = new Map();
-const driverColorOverrides = new Map();
+const lapColorOverrides = new Map();
 const customSelectValues = new WeakMap();
 let calendar = [];
 let corners = [];
@@ -514,9 +514,12 @@ function hexToRgba(hex, alpha = 1) {
 
 // Get driver team color
 function getDriverColor(code) {
-  if (driverColorOverrides.has(code)) return driverColorOverrides.get(code);
   const display = drivers.find(item => item[0] === code);
   return display ? display[3] : '#777777';
+}
+
+function getLapColor(lap) {
+  return lapColorOverrides.get(telemetryKey(lap)) || getDriverColor(lap.code);
 }
 
 function currentQuery() {
@@ -830,7 +833,7 @@ function clearBeforeSessionLoad() {
   dominanceMapGeometryCache = null;
   telemetryCache.clear();
   telemetryRequests.clear();
-  driverColorOverrides.clear();
+  lapColorOverrides.clear();
   $('#driverPills').innerHTML = '<span class="section-empty">Load a session to see its drivers.</span>';
   $('#stintPanels').innerHTML = '<span class="section-empty">Select a driver to inspect their runs and laps.</span>';
   $('#sectorRows').innerHTML = '';
@@ -1197,7 +1200,7 @@ function renderStints() {
       const title = lap.out_lap && estimated ? 'Estimated from pit exit to the timing line' : '';
       const age = Number.isFinite(lap.tyre_life) && lap.tyre_life >= 1 ? Math.round(lap.tyre_life) : null;
       const tyreDetail = hasQualifyingPhases ? `<small class="lap-tyre-age">Run ${qualifyingRuns.indexOf(lap.stint) + 1} · Tyre age ${age === null ? 'unknown' : `${age} ${age === 1 ? 'lap' : 'laps'}`}</small>` : '';
-      return `<button class="${classes}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${title}"><span class="lap-token">${flag}</span>${compoundBadgeMarkup(lap.compound)}<span class="lap-clock">${duration}${context}</span>${tyreDetail}</button>`;
+      return `<button class="${classes}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${title}"><span class="lap-token">${flag}</span><span class="lap-clock">${duration}${context}</span>${compoundBadgeMarkup(lap.compound)}${tyreDetail}</button>`;
     }).join('');
     const groupLabel = hasQualifyingPhases ? active : `Stint ${active}`;
 
@@ -1251,7 +1254,7 @@ function renderLoaded() {
   }
   
   replaceUI(root, loaded.map((item, index) => `
-    <div class="loaded-lap-pill ${index === 0 ? 'reference' : ''}" style="--team:${getDriverColor(item.code)}" data-motion-key="comparison-${item.code}-${item.lap}" data-index="${index}">
+    <div class="loaded-lap-pill ${index === 0 ? 'reference' : ''}" style="--team:${getLapColor(item)}" data-motion-key="comparison-${item.code}-${item.lap}" data-index="${index}">
       <button class="loaded-lap-main ${index === 0 ? 'reference' : ''}" data-motion-key="reference-${item.code}-${item.lap}" aria-pressed="${index === 0}" aria-label="Use ${item.code} lap ${item.lap} as reference"><b>${item.code}</b><span>L${item.lap}</span><strong>${time(item.time)}</strong></button><button class="remove" data-motion-key="remove-${item.code}-${item.lap}" data-remove="${index}" aria-label="Remove ${item.code} lap ${item.lap}">×</button>
     </div>`).join(''));
   
@@ -1322,7 +1325,7 @@ function renderSectors() {
   replaceUI(root, loaded.map((item, i) => {
     const lap = item.real || {};
     const refLap = ref.real || {};
-    const color = getDriverColor(item.code);
+    const color = getLapColor(item);
     const sectors = sectorFields.map((field, sectorIndex) => ({
       label: `S${sectorIndex + 1}`,
       value: lap[field],
@@ -1363,7 +1366,7 @@ function renderSectors() {
 
   root.querySelectorAll('.trace-color-picker').forEach(input => {
     input.addEventListener('change', event => {
-      driverColorOverrides.set(event.target.dataset.driverColor, event.target.value);
+      lapColorOverrides.set(event.target.dataset.lapColor, event.target.value);
       renderLoaded();
       renderSectors();
       renderTraceVisibilityControls();
@@ -1493,15 +1496,15 @@ function renderTraceVisibilityControls() {
     const key = telemetryKey(lap);
     const visible = !hiddenTraceKeys.has(key);
     const disableLast = visible && visibleCount === 1;
-    return `<div class="trace-pill-group" style="--team:${getDriverColor(lap.code)}"><label class="trace-swatch"><input type="color" value="${getDriverColor(lap.code)}" data-driver-color="${lap.code}" aria-label="Change ${lap.code} trace colour"><span aria-hidden="true">✎</span></label><label class="trace-driver-chip ${visible ? 'is-visible' : ''}" style="--team:${getDriverColor(lap.code)}" title="${visible ? 'Hide' : 'Show'} ${lap.code} lap ${lap.lap}">
+    return `<div class="trace-pill-group" style="--team:${getLapColor(lap)}"><label class="trace-swatch"><input type="color" value="${getLapColor(lap)}" data-lap-color="${key}" aria-label="Change ${lap.code} lap ${lap.lap} trace colour"><span aria-hidden="true">✎</span></label><label class="trace-driver-chip ${visible ? 'is-visible' : ''}" style="--team:${getLapColor(lap)}" title="${visible ? 'Hide' : 'Show'} ${lap.code} lap ${lap.lap}">
       <input type="checkbox" data-trace-key="${key}" ${visible ? 'checked' : ''} ${disableLast ? 'disabled' : ''}>
       <b>${lap.code}</b><small>L${lap.lap}</small>
     </label></div>`;
   }).join('');
 
-  root.querySelectorAll('input[data-driver-color]').forEach(input => {
+  root.querySelectorAll('input[data-lap-color]').forEach(input => {
     input.addEventListener('change', event => {
-      driverColorOverrides.set(event.target.dataset.driverColor, event.target.value);
+      lapColorOverrides.set(event.target.dataset.lapColor, event.target.value);
       renderLoaded(); renderSectors(); renderTraceVisibilityControls(); drawAll();
     });
   });
@@ -2253,7 +2256,7 @@ function drawRealChart(name) {
     const series = telemetryCache.get(telemetryKey(lap));
     if (!series) return;
     
-    const teamColor = getDriverColor(lap.code);
+    const teamColor = getLapColor(lap);
     const refSeries = telemetryCache.get(telemetryKey(loaded[0]));
     
     // Accurate mode uses every supplied speed/throttle sample. Enhanced mode
@@ -2378,7 +2381,7 @@ function drawRealChart(name) {
       if (Number.isFinite(val)) {
         const x = crosshairX;
         const y = bounds.top + (bounds.max - val) / (bounds.max - bounds.min || 1) * (rect.height - bounds.top - bounds.bottom);
-        const teamColor = getDriverColor(lap.code);
+        const teamColor = getLapColor(lap);
         
         ctx.fillStyle = teamColor;
         ctx.strokeStyle = '#ffffff';
@@ -2488,7 +2491,7 @@ function bindAllChartHover() {
             display = `${reconstructed ? '~' : ''}${precision} ${unit}`;
           }
         }
-        return `<span style="color: ${getDriverColor(lap.code)}">●</span> ${lap.code} L${lap.lap} · <b>${display}</b>`;
+        return `<span style="color: ${getLapColor(lap)}">●</span> ${lap.code} L${lap.lap} · <b>${display}</b>`;
       });
       
       const reconstructionNote = hasReconstructedValue
@@ -2582,7 +2585,7 @@ function bindTrackMapHover() {
           const timeDisplay = Number.isFinite(sectionTime) && Number.isFinite(bestTime)
             ? `${sectionTime.toFixed(3)}s${Math.abs(sectionTime - bestTime) < .0005 ? ' FASTEST' : ` +${(sectionTime - bestTime).toFixed(3)}s`}`
             : 'NO SECTION TIME';
-          return `<span style="color: ${getDriverColor(lap.code)}">●</span> ${lap.code} L${lap.lap} · <b>${speedDisplay}</b> · ${timeDisplay}`;
+          return `<span style="color: ${getLapColor(lap)}">●</span> ${lap.code} L${lap.lap} · <b>${speedDisplay}</b> · ${timeDisplay}`;
         });
 
         tooltip.innerHTML = `<b>TRACK MAP · ${distanceKM.toFixed(3)} KM · 25 M SECTION</b><br>${lines.join('<br>')}`;
@@ -2749,7 +2752,7 @@ function renderCornerAnalysis() {
     const highestMinimum = Number.isFinite(item.metric.minimumSpeed) && Number.isFinite(highestMinimumSpeed)
       && Math.abs(item.metric.minimumSpeed - highestMinimumSpeed) < .05;
     return `
-      <div class="corner-driver-row ${fastest && loaded.length > 1 ? 'is-fastest' : ''} ${highestMinimum && loaded.length > 1 ? 'is-highest-min' : ''}" style="--driver-color:${getDriverColor(item.lap.code)}">
+      <div class="corner-driver-row ${fastest && loaded.length > 1 ? 'is-fastest' : ''} ${highestMinimum && loaded.length > 1 ? 'is-highest-min' : ''}" style="--driver-color:${getLapColor(item.lap)}">
         <span class="corner-driver"><i></i><b>${item.lap.code}</b><small>L${item.lap.lap}</small>${item.lap === referenceLap ? '<em>REF</em>' : ''}</span>
         <span class="corner-time"><strong>${Number.isFinite(sectionTime) ? `${sectionTime.toFixed(3)}s` : '—'}</strong></span>
         <span class="corner-delta ${deltaClass}"><strong>${Number.isFinite(toReference) ? signedDelta(toReference) : '—'}</strong></span>
@@ -2810,7 +2813,7 @@ function renderApexSpeeds() {
       
       return {
         code: lap.code,
-        color: getDriverColor(lap.code),
+        color: getLapColor(lap),
         speed: apexPt.cornerSpeed.toFixed(1)
       };
     }).filter(Boolean);
@@ -3192,7 +3195,7 @@ function renderMiniSectorMap() {
       });
       if (winner < 0) continue;
       wins.add(winner);
-      ctx.strokeStyle = getDriverColor(mapEntries[winner].lap.code);
+      ctx.strokeStyle = getLapColor(mapEntries[winner].lap);
       ctx.lineWidth = 5;
       ctx.beginPath();
       ctx.moveTo(from.x, from.y);
@@ -3288,7 +3291,7 @@ function renderMiniSectorMap() {
   if (hoverFraction !== null) {
     const hPoint = pointAt(hoverFraction);
     if (hPoint) {
-      const refColor = getDriverColor(mapEntries[0].lap.code);
+      const refColor = getLapColor(mapEntries[0].lap);
       ctx.fillStyle = hexToRgba(refColor, 0.35);
       ctx.beginPath();
       ctx.arc(hPoint.x, hPoint.y, 10, 0, 2 * Math.PI);
@@ -3322,7 +3325,7 @@ function renderMiniSectorMap() {
   legend.innerHTML = `<span class="map-north" aria-label="North is up"><svg viewBox="0 0 16 20" width="12" height="16" aria-hidden="true"><path d="M8 1 14 18 8 14 2 18Z" fill="currentColor"/></svg>N</span>${windText}` + legendIndexes.map(index => {
     const lap = mapEntries[index]?.lap;
     if (!lap) return '';
-    return `<span class="legend-item"><i class="legend-color" style="--team:${getDriverColor(lap.code)}"></i>${lap.code} L${lap.lap}</span>`;
+    return `<span class="legend-item"><i class="legend-color" style="--team:${getLapColor(lap)}"></i>${lap.code} L${lap.lap}</span>`;
   }).join('');
 }
 

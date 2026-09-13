@@ -582,7 +582,7 @@ body { zoom: .87; }
 .run-segment { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; }
 .run-segment small { margin: 0; white-space: nowrap; }
 .lap-workspace .lap-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
-.lap-workspace .lap-chip { min-height: 48px; padding: 8px 10px; grid-template-columns: 34px 26px minmax(0, 1fr); }
+.lap-workspace .lap-chip { min-height: 48px; padding: 8px 10px; grid-template-columns: 34px minmax(0, 1fr) 26px; }
 .lap-workspace .lap-clock { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 3px 7px; overflow: visible; white-space: nowrap; text-overflow: clip; }
 .lap-workspace .lap-clock small { margin: 0; flex-basis: auto; }
 .run-toolbar .compare-all-btn, .fastest-lap-pick { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 34px; min-width: 0; padding: 7px 11px; background: var(--bg-input); border-color: var(--border-color); box-shadow: var(--shadow-raised); }

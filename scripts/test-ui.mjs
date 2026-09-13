@@ -14,6 +14,18 @@ function context(reduced = false) {
   return { sandbox, run: code => vm.runInContext(code, sandbox) };
 }
 
+test('colour overrides isolate laps of the same driver', () => {
+  const h = context();
+  h.run("drivers = [['VER',3,'Max','#4781d7'],['NOR',1,'Lando','#ff8000']]; lapColorOverrides.set('VER:17','#ff00aa')");
+  assert.equal(h.run("getLapColor({code:'VER',lap:17})"), '#ff00aa');
+  assert.equal(h.run("getLapColor({code:'VER',lap:8})"), '#4781d7');
+  assert.equal(h.run("getDriverColor('VER')"), '#4781d7');
+  h.run("lapColorOverrides.set('VER:8','#00aaff')");
+  assert.equal(h.run("getLapColor({code:'VER',lap:17})"), '#ff00aa');
+  assert.equal(h.run("getLapColor({code:'VER',lap:8})"), '#00aaff');
+  assert.equal(h.run("getLapColor({code:'NOR',lap:18})"), '#ff8000');
+});
+
 test('map labels exclude whole track segments and stroke clearance', () => {
   const h = context();
   assert.equal(h.run('trackIntersectsLabel({x:40,y:40,width:20,height:18}, [{x:0,y:50},{x:100,y:50}])'), true);
