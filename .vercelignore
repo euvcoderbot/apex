@@ -1,5 +1,6 @@
 *
 !server.py
+!session_loader.py
 !requirements.txt
 !.python-version
 !vercel.json

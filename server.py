@@ -20,6 +20,7 @@ from uuid import uuid4
 import fastf1
 import numpy as np
 import pandas as pd
+from session_loader import load_fresh_session
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -859,21 +860,26 @@ def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[
 
 @app.get("/api/session")
 def session_data(
+    response: Response,
     year: int = Query(2025, ge=2014),
     gp: str = Query("British Grand Prix"),
     round: int | None = Query(None, ge=1),
     session: str = Query("Q"),
+    fresh: bool = Query(False),
 ):
+    started = time.perf_counter()
+    if fresh:
+        response.headers['Cache-Control'] = 'no-store'
     if year < 2018:
         raise HTTPException(
             422,
             "Race calendars are available from 2014, but public F1 car telemetry begins in 2018.",
         )
-    cached = read_prepared_cache("session", year, SESSION_CACHE_SCHEMA, gp, round, session)
+    cached = None if fresh else read_prepared_cache("session", year, SESSION_CACHE_SCHEMA, gp, round, session)
     if cached is not None:
         return cached
     try:
-        data = load_session(year, gp, session, round)
+        data = load_fresh_session(year, gp, session) if fresh else load_session(year, gp, session, round)
     except Exception as exc:
         raise HTTPException(422, f"Could not load this session: {exc}") from exc
 
@@ -988,7 +994,7 @@ def session_data(
     except Exception as exc:
         logger.warning("Could not load circuit corners: %s", exc)
 
-    if not corners:
+    if not corners and not fresh:
         current_location = str(data.event.get("Location") or "")
         corners = get_fallback_circuit_corners(year, gp, session, current_location)
 
@@ -1009,7 +1015,9 @@ def session_data(
         "compounds": get_tire_nominations(year, gp),
         "openf1_session_key": integer(getattr(data, "session_info", {}).get("Key"), 0) or None,
     }
-    if drivers:
+    response.headers['Server-Timing'] = f'session;dur={(time.perf_counter()-started)*1000:.1f}'
+    response.headers['Timing-Allow-Origin'] = '*'
+    if drivers and not fresh:
         write_prepared_cache("session", year, payload, SESSION_CACHE_SCHEMA, gp, round, session)
     return payload
 

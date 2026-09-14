@@ -239,10 +239,7 @@ async function loadApiData(url, options = {}) {
 }
 function prepareSelectedSession() {
   clearTimeout(prefetchSessionTimer);
-  prefetchSessionTimer = setTimeout(() => {
-    if (!calendar.length || !selectValue($('#session'))) return;
-    void loadApiData(apiUrl(`/api/session?${currentQuery()}`)).catch(() => {});
-  }, 350);
+  // Session retrieval starts only when requested, not via speculative preloads.
 }
 
 function notify(message, tone = 'error') {
@@ -868,9 +865,11 @@ async function loadRealSession() {
   const requestedQuery = String(currentQuery());
   
   try {
-    const payload = await loadApiData(apiUrl(`/api/session?${requestedQuery}`), {
-      signal: sessionRequest.signal,
+    const response = await fetchSessionData(apiUrl(`/api/session?${requestedQuery}&fresh=true`), {
+      signal: request.signal, cache: 'no-store',
     });
+    const payload = await readApiResponse(response);
+    if (!response.ok) throw new Error(payload.detail || 'Could not load this session.');
     if (request !== sessionRequest || requestedQuery !== String(currentQuery())) return;
     if (!Array.isArray(payload.drivers) || !payload.drivers.length) throw new Error('No driver data is available for this session yet.');
     
@@ -1119,6 +1118,7 @@ function renderStintsLegacy() {
         }
       } else {
         loaded.push({ code, lap: lapNum, time: lapObj.time, real: lapObj });
+        mapView = 'comparison';
       }
       renderAll();
       renderStints();
@@ -1233,6 +1233,7 @@ function renderStints() {
     if (isAllFastestLoaded) {
       loaded = loaded.filter(item => !fastestLaps.some(target => target.code === item.code && target.lap.lap === item.lap));
     } else {
+      mapView = 'comparison';
       fastestLaps.forEach(target => {
         if (!loaded.some(item => item.code === target.code && item.lap === target.lap.lap)) {
           loaded.push({ code: target.code, lap: target.lap.lap, time: target.lap.time, real: target.lap });
@@ -3323,7 +3324,6 @@ function renderMiniSectorMap() {
           winner = lapIndex;
         }
       });
-      mapView = 'comparison';
       if (winner < 0) continue;
       wins.add(winner);
       ctx.strokeStyle = getLapColor(mapEntries[winner].lap);

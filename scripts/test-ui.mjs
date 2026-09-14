@@ -48,6 +48,15 @@ test('sector guide uses timed boundaries and rejects insufficient data', () => {
   assert.equal(h.run('makeSectorGuide(testLap,testSamples.slice(8),[])'),null);
 });
 
+test('session selection uses fresh cancellable retrieval with no speculative load', () => {
+  const prepare = app.slice(app.indexOf('function prepareSelectedSession'), app.indexOf('function notify'));
+  assert.doesNotMatch(prepare, /loadApiData|fetchSessionData|setTimeout/);
+  assert.match(app, /api\/session\?\$\{requestedQuery\}&fresh=true/);
+  assert.match(app, /signal: request.signal, cache: 'no-store'/);
+  const fastest = app.slice(app.indexOf("$('#compareAllFastest').onclick"), app.indexOf("root.querySelectorAll('.stint').forEach(button"));
+  assert.match(fastest, /mapView = 'comparison'/);
+});
+
 test('map labels exclude whole track segments and stroke clearance', () => {
   const h = context();
   assert.equal(h.run('trackIntersectsLabel({x:40,y:40,width:20,height:18}, [{x:0,y:50},{x:100,y:50}])'), true);
