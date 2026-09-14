@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from functools import lru_cache
 from datetime import datetime, timedelta
 import gzip
@@ -12,15 +12,25 @@ import json
 import os
 from pathlib import Path
 import time
+import math
+import importlib
 from typing import Any
 from urllib.request import Request as URLRequest, urlopen
 from urllib.error import HTTPError
 from uuid import uuid4
 
-import fastf1
-import numpy as np
-import pandas as pd
-from session_loader import load_fresh_session
+# Direct OpenF1 retrieval only needs standard-library numerics. Load the
+# dataframe stack only when a FastF1/session operation actually uses it.
+class _AnalysisModule:
+    def __init__(self, name):
+        self.name = name
+
+    def __getattr__(self, name):
+        return getattr(importlib.import_module(self.name), name)
+
+
+np = _AnalysisModule('numpy')
+pd = _AnalysisModule('pandas')
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -33,7 +43,6 @@ RUNTIME_CACHE_ROOT = Path(os.environ.get("APEX_CACHE_ROOT", DEFAULT_CACHE_ROOT))
 RUNTIME_CACHE_ROOT.mkdir(parents=True, exist_ok=True)
 CACHE = RUNTIME_CACHE_ROOT / ".fastf1-cache"
 CACHE.mkdir(exist_ok=True)
-fastf1.Cache.enable_cache(str(CACHE))
 PREPARED_CACHE = RUNTIME_CACHE_ROOT / ".apex-cache"
 PREPARED_CACHE.mkdir(exist_ok=True)
 PREPARED_CACHE_VERSION = "v4"
@@ -50,6 +59,22 @@ app.add_middleware(
 app.add_middleware(GZipMiddleware, minimum_size=900, compresslevel=5)
 OPENF1 = "https://api.openf1.org/v1"
 logger = logging.getLogger("apex.telemetry")
+
+
+def fastf1_runtime():
+    # OpenF1's selected-lap path does not need FastF1. Avoid importing its
+    # additional parser dependencies during a telemetry-only cold start.
+    import fastf1
+    if not getattr(fastf1_runtime, "configured", False):
+        fastf1.Cache.enable_cache(str(CACHE))
+        fastf1_runtime.configured = True
+    return fastf1
+
+
+def load_fresh_session(year, gp, session):
+    fastf1_runtime()
+    from session_loader import load_fresh_session as load
+    return load(year, gp, session)
 
 
 @app.get("/api/health")
@@ -105,7 +130,7 @@ def seconds(value: Any) -> float | None:
         if hasattr(value, "total_seconds"):
             value = value.total_seconds()
         value = float(value)
-        return value if np.isfinite(value) else None
+        return value if math.isfinite(value) else None
     except (TypeError, ValueError):
         return None
 
@@ -113,7 +138,7 @@ def seconds(value: Any) -> float | None:
 def integer(value: Any, default: int = 0) -> int:
     try:
         value = float(value)
-        return int(value) if np.isfinite(value) else default
+        return int(value) if math.isfinite(value) else default
     except (TypeError, ValueError):
         return default
 
@@ -261,6 +286,26 @@ def openf1_session(year: int, gp: str, session_name: str) -> dict[str, Any] | No
     return None
 
 
+def join_openf1_positions(car, location):
+    """Nearest position within 400 ms; ties prefer the earlier packet."""
+    dated = sorted((datetime.fromisoformat(p['date'].replace('Z', '+00:00')), i, p)
+                   for i, p in enumerate(location))
+    if not dated:
+        return car
+    times = [row[0] for row in dated]
+    result = []
+    for point in car:
+        timestamp = datetime.fromisoformat(point['date'].replace('Z', '+00:00'))
+        # Right insertion keeps the last packet at an identical timestamp,
+        # matching merge_asof's backward/exact-match preference.
+        index = bisect_right(times, timestamp)
+        candidates = dated[max(0, index-1):min(len(dated), index+1)]
+        nearest = min(candidates, key=lambda row: (abs((row[0]-timestamp).total_seconds()), row[0]))
+        position = nearest[2] if abs((nearest[0]-timestamp).total_seconds()) <= .4 else {}
+        result.append({**point, 'x': position.get('x'), 'y': position.get('y')})
+    return result
+
+
 @lru_cache(maxsize=256)
 def _openf1_lap_telemetry(
     year: int,
@@ -362,18 +407,7 @@ def _openf1_lap_telemetry(
     # car-data archive is unavailable for a recent weekend.
     try:
         if location:
-            car_frame = pd.DataFrame(car)
-            location_frame = pd.DataFrame(location)
-            car_frame["_date"] = pd.to_datetime(car_frame["date"], utc=True)
-            location_frame["_date"] = pd.to_datetime(location_frame["date"], utc=True)
-            position_columns = [column for column in ("_date", "x", "y") if column in location_frame]
-            car = pd.merge_asof(
-                car_frame.sort_values("_date"),
-                location_frame[position_columns].sort_values("_date"),
-                on="_date",
-                direction="nearest",
-                tolerance=pd.Timedelta(milliseconds=400),
-            ).to_dict("records")
+            car = join_openf1_positions(car, location)
     except Exception as error:
         logger.debug("OpenF1 position data unavailable: %s", error)
 
@@ -384,7 +418,7 @@ def _openf1_lap_telemetry(
         before = None
         after = None
         for item in car:
-            item_time = pd.Timestamp(item["date"]).to_pydatetime()
+            item_time = datetime.fromisoformat(item["date"].replace('Z', '+00:00'))
             if item_time <= boundary:
                 before = item
             if item_time >= boundary:
@@ -397,8 +431,8 @@ def _openf1_lap_telemetry(
             source["date"] = boundary.isoformat().replace("+00:00", "Z")
             return source
 
-        before_time = pd.Timestamp(before["date"]).to_pydatetime()
-        after_time = pd.Timestamp(after["date"]).to_pydatetime()
+        before_time = datetime.fromisoformat(before["date"].replace('Z', '+00:00'))
+        after_time = datetime.fromisoformat(after["date"].replace('Z', '+00:00'))
         span = (after_time - before_time).total_seconds()
         ratio = 0.0 if span <= 0 else (boundary - before_time).total_seconds() / span
         ratio = max(0.0, min(1.0, ratio))
@@ -426,7 +460,7 @@ def _openf1_lap_telemetry(
     # starts at exactly t=0 and ends at the official lap duration.
     car = [start_point] + [
         item for item in car
-        if start_dt < pd.Timestamp(item["date"]).to_pydatetime() < finish_dt
+        if start_dt < datetime.fromisoformat(item["date"].replace('Z', '+00:00')) < finish_dt
     ] + [finish_point]
 
     samples: list[dict[str, Any]] = []
@@ -434,7 +468,7 @@ def _openf1_lap_telemetry(
     previous = None
     previous_speed = None
     for point in car:
-        timestamp = pd.Timestamp(point["date"]).to_pydatetime()
+        timestamp = datetime.fromisoformat(point["date"].replace('Z', '+00:00'))
         elapsed = (timestamp - start_dt).total_seconds()
         current_speed = float(point.get("speed") or 0)
         if previous is not None:
@@ -488,7 +522,7 @@ def load_session(year: int, gp: str, session_name: str, round_number: int | None
     # "Invalid round". Resolve the exact event name from the full calendar,
     # then create the session from that event.
     backend = "fastf1" if year >= 2018 else "ergast"
-    event = fastf1.get_event(year, gp, backend=backend, exact_match=True)
+    event = fastf1_runtime().get_event(year, gp, backend=backend, exact_match=True)
     if event is None:
         raise ValueError(f"'{gp}' is not an exact event name on the {year} calendar")
 
@@ -504,7 +538,7 @@ def load_session(year: int, gp: str, session_name: str, round_number: int | None
 def load_telemetry_session(year: int, gp: str, session_name: str):
     """Load FastF1 car data only as the historical fallback."""
     backend = "fastf1" if year >= 2018 else "ergast"
-    event = fastf1.get_event(year, gp, backend=backend, exact_match=True)
+    event = fastf1_runtime().get_event(year, gp, backend=backend, exact_match=True)
     if event is None:
         raise ValueError(f"'{gp}' is not an exact event name on the {year} calendar")
     data = event.get_session(session_name)
@@ -515,7 +549,7 @@ def load_telemetry_session(year: int, gp: str, session_name: str):
 @lru_cache(maxsize=32)
 def event_calendar(year: int) -> list[dict[str, Any]]:
     try:
-        schedule = fastf1.get_event_schedule(year, include_testing=False)
+        schedule = fastf1_runtime().get_event_schedule(year, include_testing=False)
     except Exception as exc:
         raise ValueError(f"Could not load the {year} calendar: {exc}") from exc
     result = []
@@ -611,7 +645,7 @@ def get_fallback_circuit_corners(
     first_fallback_year = min(year - 1, 2025)
     for fallback_year in range(first_fallback_year, max(2017, first_fallback_year - 3), -1):
         try:
-            fb_event = fastf1.get_event(fallback_year, gp)
+            fb_event = fastf1_runtime().get_event(fallback_year, gp)
             if fb_event is not None:
                 fallback_location = str(fb_event.get("Location") or "").strip().casefold()
                 if (normalized_location and fallback_location

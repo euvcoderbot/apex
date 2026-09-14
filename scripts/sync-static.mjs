@@ -1,4 +1,4 @@
-import { cp, mkdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, rm, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const root = process.cwd();
@@ -20,6 +20,12 @@ await mkdir(destination, { recursive: true });
 for (const file of staticFiles) {
   await cp(resolve(root, file), resolve(destination, file));
 }
+// Keep the exact cascade, but remove the render-blocking @import waterfall.
+// The browser receives all three layers in its first stylesheet response.
+const layers = await Promise.all([
+  ["design-system.css", "legacy"], ["polish.css", "legacy"], ["apple-ui.css", "interface"],
+].map(async ([file, layer]) => `@layer ${layer} {\n${await readFile(resolve(root, file), "utf8")}\n}`));
+await writeFile(resolve(destination, "styles.css"), `@layer legacy, interface;\n${layers.join("\n")}\n`);
 await cp(resolve(root, "assets"), resolve(destination, "assets"), { recursive: true });
 
 const apiOrigin = String(
