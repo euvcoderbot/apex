@@ -648,6 +648,10 @@ body { zoom: .87; }
   transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 .lap-workspace .run-segment small { margin: 0; margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.lap-workspace .run-compounds { display: inline-flex; align-items: center; gap: 2px; }
+.lap-workspace .run-compounds .compound-badge { margin: 0; }
+.lap-workspace .lap-token { display: inline-flex; align-items: baseline; gap: 4px; min-width: max-content; }
+.lap-workspace .lap-state { color: var(--accent); font-size: .6875rem; font-weight: 650; letter-spacing: .02em; }
 .lap-workspace .run-segment .run-choice-indicator {
   display: grid; place-items: center; width: 18px; height: 18px;
   flex: 0 0 18px; border-radius: 50%; color: var(--text-secondary); font-size: 18px;

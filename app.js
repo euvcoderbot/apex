@@ -1198,13 +1198,12 @@ function renderStints() {
     const activeLaps = lapsForGroup(active);
     const runButtons = groupIds.map(id => {
       const laps = lapsForGroup(id);
-      const rawCompound = laps[0]?.compound || 'UNKNOWN';
-      const compound = getCompoundCode(rawCompound, nominatedCompounds);
-      const compoundClass = getCompoundToneClass(rawCompound);
+      const compounds = [...new Set(laps.map(lap => String(lap.compound || '').toUpperCase()).filter(Boolean))];
+      const compoundBadges = compounds.map(compoundBadgeMarkup).join('');
       const runLabel = hasQualifyingPhases ? id : `Stint ${id}`;
       const count = hasQualifyingPhases ? new Set(laps.map(lap => lap.stint)).size : laps.length;
       const countLabel = hasQualifyingPhases ? (count === 1 ? 'run' : 'runs') : (count === 1 ? 'lap' : 'laps');
-      return `<button type="button" class="stint run-segment ${id === active ? 'selected' : ''}" aria-pressed="${id === active}" aria-label="Show ${escapeUI(runLabel)} laps for ${code}" style="--team:${teamColor}" data-motion-key="run-${code}-${id}" data-code="${code}" data-stint="${id}"><strong>${runLabel}</strong><small>${compoundBadgeMarkup(laps[0]?.compound)} ${count} ${countLabel}</small><span class="run-choice-indicator" aria-hidden="true">${id === active ? '✓' : '›'}</span></button>`;
+      return `<button type="button" class="stint run-segment ${id === active ? 'selected' : ''}" aria-pressed="${id === active}" aria-label="Show ${escapeUI(runLabel)} laps for ${code}" style="--team:${teamColor}" data-motion-key="run-${code}-${id}" data-code="${code}" data-stint="${id}"><strong>${runLabel}</strong><small><span class="run-compounds">${compoundBadges}</span>${count} ${countLabel}</small><span class="run-choice-indicator" aria-hidden="true">${id === active ? '✓' : '›'}</span></button>`;
     }).join('');
     const qualifyingRuns = [...new Set(activeLaps.map(lap => lap.stint))];
     const lapButtons = activeLaps.map(lap => {
@@ -1215,11 +1214,11 @@ function renderStints() {
       const estimated = lap.display_time_estimated === true;
       const duration = Number.isFinite(displayTime) ? `${estimated ? '~' : ''}${time(displayTime)}` : '&mdash;';
       const selectable = Number.isFinite(lap.time) && !lap.in_lap && !lap.out_lap;
-      const context = lap.out_lap ? '<small>OUT</small>' : lap.in_lap ? '<small>IN</small>' : '';
+      const context = lap.out_lap ? 'OUT' : lap.in_lap ? 'IN' : '';
       const title = lap.out_lap && estimated ? 'Estimated from pit exit to the timing line' : '';
       const age = Number.isFinite(lap.tyre_life) && lap.tyre_life >= 1 ? Math.round(lap.tyre_life) : null;
       const tyreDetail = hasQualifyingPhases ? `<small class="lap-tyre-age">Run ${qualifyingRuns.indexOf(lap.stint) + 1} · Tyre age ${age === null ? 'unknown' : `${age} ${age === 1 ? 'lap' : 'laps'}`}</small>` : '';
-      return `<button class="${classes}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${title}"><span class="lap-token">${flag}</span><span class="lap-clock">${duration}${context}</span>${compoundBadgeMarkup(lap.compound)}${tyreDetail}</button>`;
+      return `<button class="${classes}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${title}"><span class="lap-token">${flag}${context ? ` <b class="lap-state">${context}</b>` : ''}</span><span class="lap-clock">${duration}</span>${compoundBadgeMarkup(lap.compound)}${tyreDetail}</button>`;
     }).join('');
     const groupLabel = hasQualifyingPhases ? active : `Stint ${active}`;
 
