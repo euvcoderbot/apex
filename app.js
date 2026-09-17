@@ -41,7 +41,7 @@ let calendarGeneration = 0;
 let redrawFrame = 0;
 let toastTimer = 0;
 const MIN_TRACE_ZOOM = .004;
-const CLIENT_DATA_SCHEMA = 'direct-telemetry-v4';
+const CLIENT_DATA_SCHEMA = 'direct-telemetry-v5';
 const API_ORIGIN = String(window.APEX_API_ORIGIN || '').replace(/\/$/, '');
 
 // Animate user-driven updates, not telemetry redraws. Keep keyboard focus
@@ -911,6 +911,16 @@ async function fetchTelemetry(lap) {
     const query = currentQuery();
     query.set('driver', lap.code);
     query.set('lap', lap.lap);
+    const driver = realDrivers.get(lap.code);
+    const lapInfo = lap.real || driver?.laps?.find(item => item.lap === lap.lap);
+    if (driver?.number) query.set('driver_number', driver.number);
+    if (openf1SessionKey) query.set('session_key', openf1SessionKey);
+    if (Number.isFinite(lapInfo?.lap_start_seconds)) {
+      query.set('lap_start_seconds', lapInfo.lap_start_seconds);
+    }
+    if (Number.isFinite(lapInfo?.lap_end_seconds)) {
+      query.set('lap_end_seconds', lapInfo.lap_end_seconds);
+    }
     query.set('alignment', '3');
     const data = await loadApiData(apiUrl(`/api/telemetry?${query}`));
     if (sessionAtStart !== sessionRequest) throw new DOMException('Session changed', 'AbortError');

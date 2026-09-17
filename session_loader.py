@@ -9,6 +9,7 @@ the request, and no global cache settings are toggled.
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import ContextVar, copy_context
 from functools import wraps
+from bisect import bisect_left
 import json
 import time
 
@@ -77,6 +78,136 @@ def download_feed(path, page):
         except json.JSONDecodeError:
             continue  # same malformed-record handling as FastF1.fetch_page
     return records
+
+
+def _download_stream(path, page):
+    """Download one compressed jsonStream without FastF1's disk cache."""
+    suffix = path + _api.pages[page]
+    response = fresh_get(_api.base_url + suffix, headers=_api.headers)
+    if response.status_code >= 400:
+        response = fresh_get(_api.base_url_mirror + suffix, headers=_api.headers)
+    response.raise_for_status()
+    return response.content.decode('utf-8-sig').splitlines()
+
+
+def _window_records(records, start, end):
+    margin = .75
+    for record in records:
+        if len(record) < 13:
+            continue
+        try:
+            stamp = _api.to_timedelta(record[:12]).total_seconds()
+        except Exception:
+            continue
+        if start - margin <= stamp <= end + margin:
+            yield record
+
+
+def _selected_car_rows(records, driver_number, start, end):
+    rows = []
+    for record in _window_records(records, start, end):
+        try:
+            message = _api.parse(record[12:], zipped=True)
+        except Exception:
+            continue
+        for entry in message.get('Entries', ()):
+            channels = entry.get('Cars', {}).get(driver_number, {}).get('Channels')
+            if not channels:
+                continue
+            try:
+                date = _api.to_datetime(entry['Utc']).timestamp()
+                rows.append({
+                    'date': date,
+                    'Speed': int(channels.get('2', 0)),
+                    'RPM': int(channels.get('0', 0)),
+                    'nGear': int(channels.get('3', 0)),
+                    'Throttle': int(channels.get('4', 0)),
+                    'Brake': bool(int(channels.get('5', 0))),
+                    'DRS': int(channels.get('45', 0)),
+                })
+            except (TypeError, ValueError, KeyError):
+                continue
+    rows.sort(key=lambda row: row['date'])
+    return rows
+
+
+def _selected_position_rows(records, driver_number, start, end):
+    rows = []
+    for record in _window_records(records, start, end):
+        try:
+            message = _api.parse(record[12:], zipped=True)
+        except Exception:
+            continue
+        for sample in message.get('Position', ()):
+            entry = sample.get('Entries', {}).get(driver_number)
+            if not entry:
+                continue
+            try:
+                rows.append((_api.to_datetime(sample['Timestamp']).timestamp(),
+                             int(entry['X']), int(entry['Y'])))
+            except (TypeError, ValueError, KeyError):
+                continue
+    rows.sort(key=lambda row: row[0])
+    return rows
+
+
+def load_selected_lap_telemetry(year, gp, session_name, driver_number,
+                                lap_start, lap_end):
+    """Retrieve and decode only one driver's selected lap.
+
+    The official archives are session-wide, but decoding every driver into
+    pandas frames dominates historical trace latency. This path downloads the
+    two source streams concurrently and parses only the requested driver and
+    lap window. Nothing is retained between requests.
+    """
+    event = fastf1.get_event(year, gp, backend='fastf1', exact_match=True)
+    if event is None:
+        raise ValueError(f'Unknown event: {gp}')
+    data = event.get_session(session_name)
+    path = data.api_path
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix='selected-lap') as pool:
+        car_future = pool.submit(_download_stream, path, 'car_data')
+        position_future = pool.submit(_download_stream, path, 'position')
+        car_rows = _selected_car_rows(car_future.result(), str(driver_number), lap_start, lap_end)
+        position_rows = _selected_position_rows(position_future.result(), str(driver_number), lap_start, lap_end)
+    if not car_rows:
+        raise ValueError('selected lap car stream was empty')
+
+    # Trim against the requested official lap duration using source timestamps.
+    origin = car_rows[0]['date']
+    duration = max(0.0, lap_end - lap_start)
+    car_rows = [row for row in car_rows if -.25 <= row['date'] - origin <= duration + .35]
+    position_dates = [row[0] for row in position_rows]
+    distance = 0.0
+    previous = None
+    samples = []
+    for row in car_rows:
+        elapsed = row['date'] - origin
+        if previous is not None:
+            dt = max(0.0, row['date'] - previous['date'])
+            distance += ((previous['Speed'] + row['Speed']) / 2 / 3.6) * dt
+        previous = row
+        x = y = None
+        if position_dates:
+            index = bisect_left(position_dates, row['date'])
+            candidates = [i for i in (index - 1, index) if 0 <= i < len(position_dates)]
+            if candidates:
+                nearest = min(candidates, key=lambda i: abs(position_dates[i] - row['date']))
+                if abs(position_dates[nearest] - row['date']) <= .3:
+                    _, x, y = position_rows[nearest]
+        samples.append({
+            'Distance': distance,
+            'ElapsedSeconds': elapsed,
+            'Speed': row['Speed'],
+            'Throttle': row['Throttle'],
+            'Brake': row['Brake'],
+            'RPM': row['RPM'],
+            'nGear': row['nGear'],
+            'DRS': row['DRS'],
+            'X': x,
+            'Y': y,
+        })
+    return samples
 
 
 def load_fresh_session(year, gp, session_name, telemetry=False):

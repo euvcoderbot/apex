@@ -966,6 +966,8 @@ def session_data(
                             laps_list.append({
                                 "lap": int(row["LapNumber"]),
                                 "date_start": utc_timestamp(row.get("LapStartDate")),
+                                "lap_start_seconds": seconds(row.get("LapStartTime")),
+                                "lap_end_seconds": seconds(row.get("Time")),
                                 "time": seconds(row["LapTime"]),
                                 "display_time": seconds(row["LapTime"]),
                                 "display_time_estimated": False,
@@ -1090,6 +1092,8 @@ def telemetry(
     lap_start: datetime | None = Query(None),
     lap_time: float | None = Query(None, gt=20, lt=300),
     next_start: datetime | None = Query(None),
+    lap_start_seconds: float | None = Query(None, ge=0),
+    lap_end_seconds: float | None = Query(None, gt=0),
 ):
     started = time.perf_counter()
     if year < 2018:
@@ -1173,6 +1177,23 @@ def telemetry(
         if isinstance(openf1_lookup_error, HTTPError) and openf1_lookup_error.code in (429, 502, 503, 504):
             raise HTTPException(503, "Telemetry provider is busy. Please retry shortly.") from openf1_lookup_error
         logger.debug("OpenF1 lookup unavailable for %s L%s: %s", driver, lap, openf1_lookup_error)
+
+    # Historical timing archives are session-wide. When the session response
+    # supplied exact lap boundaries, decode only this driver/window instead of
+    # constructing telemetry frames for every driver and every lap.
+    if (driver_number and lap_start_seconds is not None and lap_end_seconds is not None
+            and lap_end_seconds > lap_start_seconds and not geometry):
+        try:
+            from session_loader import load_selected_lap_telemetry
+            samples = load_selected_lap_telemetry(
+                year, gp, session, driver_number,
+                lap_start_seconds, lap_end_seconds,
+            )
+            if samples:
+                return finish(samples, [], "FastF1 selected lap")
+        except Exception as selected_lap_error:
+            logger.debug("Selected-lap archive path unavailable for %s L%s: %s",
+                         driver, lap, selected_lap_error)
 
     try:
         data = (load_fresh_session(year, gp, session, telemetry=True) if fresh

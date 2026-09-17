@@ -53,6 +53,9 @@ test('session selection uses fresh cancellable retrieval with no speculative loa
   assert.doesNotMatch(prepare, /loadApiData|fetchSessionData|setTimeout/);
   assert.match(app, /api\/session\?\$\{requestedQuery\}&fresh=true/);
   assert.match(app, /signal: request.signal, cache: 'no-store'/);
+  assert.match(app, /query\.set\('driver_number', driver\.number\)/);
+  assert.match(app, /query\.set\('lap_start_seconds', lapInfo\.lap_start_seconds\)/);
+  assert.match(app, /query\.set\('lap_end_seconds', lapInfo\.lap_end_seconds\)/);
   const fastest = app.slice(app.indexOf("$('#compareAllFastest').onclick"), app.indexOf("root.querySelectorAll('.stint').forEach(button"));
   assert.match(fastest, /mapView = 'comparison'/);
 });
@@ -276,6 +279,12 @@ test('latest event selection follows the newest completed session timestamp', ()
   ]`);
   assert.equal(h.run("latestCompletedSelection(selectionCalendar, Date.parse('2026-09-12T12:00:00Z')).event.name"), 'Current');
   assert.equal(h.run("latestCompletedSelection(selectionCalendar, Date.parse('2026-09-12T12:00:00Z')).session"), 'Practice 2');
+  h.sandbox.currentCalendar = JSON.parse(readFileSync('assets/data/events/2026.json', 'utf8'));
+  assert.equal(h.run("latestCompletedSelection(currentCalendar, Date.parse('2026-09-17T00:00:00Z')).event.round"), 14);
+  assert.equal(h.run("latestCompletedSelection(currentCalendar, Date.parse('2026-09-17T00:00:00Z')).session"), 'Race');
+  h.sandbox.historicalCalendar = JSON.parse(readFileSync('assets/data/events/2021.json', 'utf8'));
+  assert.equal(h.run("latestCompletedSelection(historicalCalendar, Date.parse('2026-09-17T00:00:00Z')).event.round"), 22);
+  assert.equal(h.run("latestCompletedSelection(historicalCalendar, Date.parse('2026-09-17T00:00:00Z')).session"), 'Race');
 });
 
 test('Madrid rejects inherited Barcelona corner rows but accepts a 22-turn set', () => {

@@ -86,6 +86,31 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(samples[0]['ElapsedSeconds'], 0)
         self.assertEqual(samples[-1]['ElapsedSeconds'], 60)
 
+    def test_historical_selected_lap_avoids_whole_session_decode(self):
+        samples = [
+            {'Distance': 0, 'ElapsedSeconds': 0, 'Speed': 180, 'Throttle': 80,
+             'Brake': False, 'RPM': 9000, 'nGear': 6, 'DRS': 0, 'X': 1, 'Y': 2},
+            {'Distance': 5000, 'ElapsedSeconds': 90, 'Speed': 250, 'Throttle': 100,
+             'Brake': False, 'RPM': 11000, 'nGear': 8, 'DRS': 10, 'X': 3, 'Y': 4},
+        ]
+        with patch('session_loader.load_selected_lap_telemetry', return_value=samples) as selected, \
+             patch.object(server, 'load_telemetry_session', side_effect=AssertionError('whole session loaded')), \
+             patch.object(server, 'read_prepared_cache', return_value=None), \
+             patch.object(server, 'write_prepared_cache'):
+            response = Response()
+            payload = server.telemetry(
+                response, year=2021, gp='Belgian Grand Prix', round=12,
+                session='Qualifying', driver='VER', lap=12, driver_number='33',
+                session_key=None, fresh=False, geometry=False, lap_start=None,
+                lap_time=90, next_start=None, lap_start_seconds=3600,
+                lap_end_seconds=3690,
+            )
+        selected.assert_called_once_with(
+            2021, 'Belgian Grand Prix', 'Qualifying', '33', 3600, 3690,
+        )
+        self.assertEqual(payload['source'], 'FastF1 selected lap')
+        self.assertEqual(payload['samples'], samples)
+
     def test_weather_results_match_original_without_repeated_dataframe_scans(self):
         source = subprocess.check_output(['git','show','c7a201800752fffbe6e48d14335a53872eb7af50:server.py'], text=True)
         tree = ast.parse(source)
