@@ -23,6 +23,7 @@ _PAGES = {
     'session_status_data':'session_status', 'track_status_data':'track_status',
     '_extended_timing_data':'timing_data', 'timing_app_data':'timing_app_data',
     'weather_data':'weather_data', 'lap_count':'lap_count',
+    'car_data':'car_data', 'position_data':'position',
 }
 _PARSERS = {page: getattr(_api, name).__wrapped__ for name, page in _PAGES.items()}
 
@@ -78,7 +79,7 @@ def download_feed(path, page):
     return records
 
 
-def load_fresh_session(year, gp, session_name):
+def load_fresh_session(year, gp, session_name, telemetry=False):
     started = time.perf_counter()
     context = {'path':None, 'feeds':{}, 'network_seconds':[]}
     token = _active.set(context)
@@ -90,17 +91,23 @@ def load_fresh_session(year, gp, session_name):
         context['path'] = data.api_path
         schedule_end = time.perf_counter()
         pages = set(_PAGES.values())
+        if not telemetry:
+            pages -= {'car_data', 'position'}
         if data.name not in data._RACE_LIKE_SESSIONS:
             pages.remove('lap_count')
         with ThreadPoolExecutor(max_workers=8, thread_name_prefix='fresh-session') as pool:
             def submit(function, *args, **kwargs):
                 return pool.submit(copy_context().run, function, *args, **kwargs)
             def retrieve_and_parse(page):
-                records = download_feed(data.api_path, page)
+                # FastF1 decodes the compressed telemetry archives; keep its
+                # parser, but overlap both downloads with the timing feeds.
+                records = (_api.fetch_page(data.api_path, page) if page in {'car_data','position'}
+                           else download_feed(data.api_path, page))
                 return _PARSERS[page](data.api_path, response=records)
             # Parse each feed as soon as it arrives, while the remaining network
             # requests are still running. Session.load keeps its normal order.
-            context['feeds'] = {page:submit(retrieve_and_parse,page) for page in pages}
+            context['feeds'] = {page:submit(retrieve_and_parse,page)
+                                for page in sorted(pages,key=lambda p: p not in {'car_data','position'})}
             # Classification is independent of the timing feeds; overlap its
             # network request without changing FastF1's merge/penalty handling.
             original_results = data._drivers_results_from_ergast
@@ -111,7 +118,7 @@ def load_fresh_session(year, gp, session_name):
                 first_lap = submit(original_laps, event.year, event.RoundNumber, lap_number=1)
                 data._ergast.get_lap_times = lambda *args, **kwargs: first_lap.result()
             try:
-                data.load(laps=True, telemetry=False, weather=True, messages=False)
+                data.load(laps=True, telemetry=telemetry, weather=True, messages=False)
             finally:
                 data._drivers_results_from_ergast = original_results
                 data._ergast.get_lap_times = original_laps

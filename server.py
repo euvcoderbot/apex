@@ -71,10 +71,10 @@ def fastf1_runtime():
     return fastf1
 
 
-def load_fresh_session(year, gp, session):
+def load_fresh_session(year, gp, session, telemetry=False):
     fastf1_runtime()
     from session_loader import load_fresh_session as load
-    return load(year, gp, session)
+    return load(year, gp, session, telemetry=telemetry)
 
 
 @app.get("/api/health")
@@ -1175,7 +1175,8 @@ def telemetry(
         logger.debug("OpenF1 lookup unavailable for %s L%s: %s", driver, lap, openf1_lookup_error)
 
     try:
-        data = load_telemetry_session(year, gp, session)
+        data = (load_fresh_session(year, gp, session, telemetry=True) if fresh
+                else load_telemetry_session(year, gp, session))
         driver_info = data.get_driver(driver)
         driver_number = str(driver_info.get("DriverNumber", driver))
         selected = data.laps.pick_drivers(driver_number)

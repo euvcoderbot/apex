@@ -14,13 +14,21 @@ from fastf1 import _api
 
 class FreshSessionTests(unittest.TestCase):
     def test_parallel_feeds_keep_sessions_isolated_and_do_not_fetch_twice(self):
-        barriers = {name: threading.Barrier(7) for name in ('A', 'B')}
+        self.check_parallel(False)
+
+    def test_historical_telemetry_downloads_overlap_and_keep_context_isolated(self):
+        self.check_parallel(True)
+
+    def check_parallel(self, telemetry):
+        # Eight workers: the first eight feeds must overlap; later jobs queue.
+        barriers = {name: threading.Barrier(7 if not telemetry else 8) for name in ('A', 'B')}
         calls = []
 
         def download(path, page):
             self.assertEqual(loader._active.get()['path'], path)
             calls.append((path, page))
-            barriers[path].wait(timeout=5)
+            if not telemetry or page != 'weather_data':
+                barriers[path].wait(timeout=5)
             return (path, page)
 
         class Session:
@@ -33,7 +41,7 @@ class FreshSessionTests(unittest.TestCase):
                 return self.api_path
             def load(self, **kwargs):
                 for name, page in loader._PAGES.items():
-                    if page != 'lap_count':
+                    if page != 'lap_count' and (kwargs['telemetry'] or page not in {'car_data','position'}):
                         self.assertion = getattr(_api, name)(self.api_path)
                         assert self.assertion == (self.api_path, page)
                 assert self._drivers_results_from_ergast() == self.api_path
@@ -44,10 +52,11 @@ class FreshSessionTests(unittest.TestCase):
         parsers = {page: (lambda path, response: response) for page in loader._PAGES.values()}
         with patch.object(loader.fastf1, 'get_event', event), \
              patch.object(loader, 'download_feed', download), \
+             patch.object(loader._api, 'fetch_page', download), \
              patch.dict(loader._PARSERS, parsers), ThreadPoolExecutor(2) as pool:
-            results = list(pool.map(lambda gp: loader.load_fresh_session(2026, gp, 'Q'), ('A', 'B')))
-        self.assertEqual(len(calls), 14)
-        self.assertEqual(len(set(calls)), 14)
+            results = list(pool.map(lambda gp: loader.load_fresh_session(2026, gp, 'Q',telemetry=telemetry), ('A', 'B')))
+        self.assertEqual(len(calls), 18 if telemetry else 14)
+        self.assertEqual(len(set(calls)), len(calls))
         self.assertIsNone(loader._active.get())
         self.assertEqual([r._drivers_results_from_ergast() for r in results], ['A', 'B'])
 
