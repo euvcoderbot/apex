@@ -29,6 +29,20 @@ _PAGES = {
 _PARSERS = {page: getattr(_api, name).__wrapped__ for name, page in _PAGES.items()}
 
 
+def exact_event(year, gp):
+    """Resolve a calendar event without FastF1's unsafe fuzzy fallback."""
+    schedule = fastf1.get_event_schedule(
+        year, include_testing=False, backend='fastf1'
+    )
+    wanted = str(gp).strip().casefold()
+    matches = schedule[
+        schedule['EventName'].astype(str).str.strip().str.casefold() == wanted
+    ]
+    if len(matches) != 1:
+        raise ValueError(f"'{gp}' is not an exact event on the {year} calendar")
+    return matches.iloc[0]
+
+
 def fresh_get(url, **kwargs):
     # requests (not requests-cache), with a bounded upstream wait.
     kwargs.setdefault('timeout', (3.5, 10))
@@ -160,9 +174,7 @@ def load_selected_lap_telemetry(year, gp, session_name, driver_number,
     two source streams concurrently and parses only the requested driver and
     lap window. Nothing is retained between requests.
     """
-    event = fastf1.get_event(year, gp, backend='fastf1', exact_match=True)
-    if event is None:
-        raise ValueError(f'Unknown event: {gp}')
+    event = exact_event(year, gp)
     data = event.get_session(session_name)
     path = data.api_path
     with ThreadPoolExecutor(max_workers=2, thread_name_prefix='selected-lap') as pool:
@@ -215,9 +227,7 @@ def load_fresh_session(year, gp, session_name, telemetry=False):
     context = {'path':None, 'feeds':{}, 'network_seconds':[]}
     token = _active.set(context)
     try:
-        event = fastf1.get_event(year, gp, backend='fastf1', exact_match=True)
-        if event is None:
-            raise ValueError(f'Unknown event: {gp}')
+        event = exact_event(year, gp)
         data = event.get_session(session_name)
         context['path'] = data.api_path
         schedule_end = time.perf_counter()

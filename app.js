@@ -195,14 +195,12 @@ async function preparedData(url) {
   const parsed = new URL(url, window.location?.href || 'http://localhost');
   const year = Number(parsed.searchParams.get('year'));
   if (parsed.pathname === '/api/events' && year >= 2014 && year <= 2026) {
+    // The current calendar carries live OpenF1 completion/cancellation state.
+    // Do not let a build-time snapshot hide a red flag, restart or correction.
+    if (year === new Date().getFullYear()) return null;
     const response = await fetch(`assets/data/events/${year}.json`);
     if (!response.ok) return null;
-    const data = await response.json();
-    if (year === new Date().getFullYear()) {
-      // Refresh in the background; keep the immediately usable calendar stable.
-      void fetchSessionData(url).then(async r => { if (r.ok) await cacheData(url, await r.json(), 120000); }).catch(() => {});
-    }
-    return data;
+    return response.json();
   }
   if (parsed.pathname !== '/api/session' || year >= new Date().getFullYear()) return null;
   preparedSessionIndex ||= fetch('assets/data/sessions/index.json').then(r => r.ok ? r.json() : {}).catch(() => ({}));
@@ -752,8 +750,12 @@ function latestCompletedSelection(events, now = Date.now()) {
   let latest = null;
   (events || []).forEach((event, eventIndex) => {
     (event.sessions || []).forEach((session, sessionIndex) => {
-      const timestamp = parsedSessionTimestamp(event.session_dates?.[session]);
-      if (!Number.isFinite(timestamp) || timestamp > now) return;
+      const status = event.session_statuses?.[session];
+      if (['cancelled', 'live', 'unknown', 'upcoming'].includes(status)) return;
+      const timestamp = parsedSessionTimestamp(
+        event.session_end_dates?.[session] || event.session_dates?.[session]
+      );
+      if (!Number.isFinite(timestamp) || (status !== 'completed' && timestamp > now)) return;
       if (!latest || timestamp > latest.timestamp) {
         latest = { event, session, timestamp, eventIndex, sessionIndex };
       }

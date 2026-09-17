@@ -16,6 +16,51 @@ from fastapi import Response
 
 
 class RetrievalTests(unittest.TestCase):
+    def test_exact_event_resolution_never_fuzzy_matches_another_race(self):
+        schedule = pd.DataFrame([
+            {'EventName':'Italian Grand Prix','Location':'Monza'},
+            {'EventName':'Monaco Grand Prix','Location':'Monte Carlo'},
+        ])
+        runtime = type('Runtime', (), {'get_event_schedule': lambda self, *args, **kwargs: schedule})()
+        with patch.object(server, 'fastf1_runtime', return_value=runtime):
+            event = server.exact_fastf1_event(2020, 'Monaco Grand Prix', backend='fastf1')
+            self.assertEqual(event.EventName, 'Monaco Grand Prix')
+            with self.assertRaisesRegex(ValueError, 'not an exact event'):
+                server.exact_fastf1_event(2020, 'Miami Grand Prix', backend='fastf1')
+
+    def test_openf1_lap_integrity_detects_only_internal_gaps(self):
+        rows = [
+            {'driver_number':12, 'lap_number':lap} for lap in (1, 2, 4, 5)
+        ] + [
+            {'driver_number':16, 'lap_number':lap} for lap in (3, 4, 5)
+        ]
+        self.assertEqual(server.openf1_lap_gaps(rows), {12:[3]})
+
+    def test_recent_session_status_requires_explicit_finish_signal(self):
+        now = datetime.now(timezone.utc)
+        events = [{
+            'round':1, 'name':'Test Grand Prix', 'date':now.date().isoformat(),
+            'sessions':['Practice 3', 'Race'], 'session_dates':{},
+        }]
+        sessions = [
+            {'session_key':10, 'session_name':'Practice 3',
+             'date_start':(now-timedelta(hours=4)).isoformat(),
+             'date_end':(now-timedelta(hours=2)).isoformat(), 'is_cancelled':False},
+            {'session_key':11, 'session_name':'Race',
+             'date_start':(now-timedelta(hours=3)).isoformat(),
+             'date_end':(now-timedelta(hours=1)).isoformat(), 'is_cancelled':False},
+        ]
+        def upstream(endpoint, **params):
+            if endpoint == 'sessions':
+                return sessions
+            if params.get('session_key') == 10:
+                return [{'message':'SESSION ABORTED'}]
+            return [{'message':'SESSION FINISHED'}]
+        with patch.object(server, 'openf1', side_effect=upstream):
+            server.enrich_recent_openf1_statuses(now.year, events)
+        self.assertEqual(events[0]['session_statuses']['Practice 3'], 'unknown')
+        self.assertEqual(events[0]['session_statuses']['Race'], 'completed')
+
     def test_slow_positions_do_not_block_ready_car_data(self):
         start = datetime(2026,9,12,14,10,tzinfo=timezone.utc)
         release = threading.Event()

@@ -46,11 +46,11 @@ class FreshSessionTests(unittest.TestCase):
                         assert self.assertion == (self.api_path, page)
                 assert self._drivers_results_from_ergast() == self.api_path
 
-        def event(year, gp, **kwargs):
+        def event(year, gp):
             return SimpleNamespace(get_session=lambda _: Session(gp))
 
         parsers = {page: (lambda path, response: response) for page in loader._PAGES.values()}
-        with patch.object(loader.fastf1, 'get_event', event), \
+        with patch.object(loader, 'exact_event', event), \
              patch.object(loader, 'download_feed', download), \
              patch.object(loader._api, 'fetch_page', download), \
              patch.dict(loader._PARSERS, parsers), ThreadPoolExecutor(2) as pool:
@@ -61,7 +61,7 @@ class FreshSessionTests(unittest.TestCase):
         self.assertEqual([r._drivers_results_from_ergast() for r in results], ['A', 'B'])
 
     def test_failed_resolution_resets_fresh_context(self):
-        with patch.object(loader.fastf1, 'get_event', side_effect=ValueError('missing')):
+        with patch.object(loader, 'exact_event', side_effect=ValueError('missing')):
             with self.assertRaises(ValueError):
                 loader.load_fresh_session(2026, 'missing', 'Q')
         self.assertIsNone(loader._active.get())

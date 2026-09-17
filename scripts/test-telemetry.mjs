@@ -287,7 +287,9 @@ test('mixed GPS coverage retains the map, single-trace hover and full chart rend
   h.run('hoverFraction=.6; renderMiniSectorMap()');
 });
 
-test('held-out real acceleration/braking samples: reconstruction benchmark', { skip: !existsSync('.apex-cache') }, () => {
+test('held-out real acceleration/braking samples: reconstruction benchmark', {
+  skip: !existsSync('.apex-cache') || !readdirSync('.apex-cache').some(file => file.startsWith('telemetry-')),
+}, () => {
   const stats = {count:0, model:0, linear:0, max:0}, clean = {count:0,model:0,linear:0}, details=[], seen=new Set();
   for (const file of readdirSync('.apex-cache').filter(f => f.startsWith('telemetry-'))) {
     const data=JSON.parse(gunzipSync(readFileSync('.apex-cache/'+file))).samples;
@@ -330,7 +332,9 @@ test('held-out real acceleration/braking samples: reconstruction benchmark', { s
   assert.ok(clean.model < clean.linear, 'Reconstruction should improve held-out independent observations, not just appearance.');
 });
 
-test('cached problem laps: finite, bounded, immutable and all trusted values exact', { skip: !existsSync('.apex-cache') }, () => {
+test('cached problem laps: finite, bounded, immutable and all trusted values exact', {
+  skip: !existsSync('.apex-cache') || !readdirSync('.apex-cache').some(file => file.startsWith('telemetry-')),
+}, () => {
   let count = 0, repairs = 0;
   for (const file of readdirSync('.apex-cache').filter(f => f.startsWith('telemetry-') && f.endsWith('.gz'))) {
     const payload = JSON.parse(gunzipSync(readFileSync('.apex-cache/' + file)));

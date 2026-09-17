@@ -4,7 +4,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from bisect import bisect_left, bisect_right
 from functools import lru_cache
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import gzip
 import hashlib
 import logging
@@ -45,8 +45,8 @@ CACHE = RUNTIME_CACHE_ROOT / ".fastf1-cache"
 CACHE.mkdir(exist_ok=True)
 PREPARED_CACHE = RUNTIME_CACHE_ROOT / ".apex-cache"
 PREPARED_CACHE.mkdir(exist_ok=True)
-PREPARED_CACHE_VERSION = "v4"
-SESSION_CACHE_SCHEMA = "session-identity-weather-v4"
+PREPARED_CACHE_VERSION = "v5"
+SESSION_CACHE_SCHEMA = "session-identity-weather-v5"
 
 app = FastAPI(title="euV2 data API")
 app.add_middleware(
@@ -192,9 +192,14 @@ def read_prepared_cache(namespace: str, year: int, *parts: Any) -> Any | None:
     path = prepared_cache_path(namespace, year, *parts)
     if not path.exists():
         return None
-    # Completed seasons are immutable. Current-season data expires quickly so
-    # newly published laps replace an early post-session response.
-    if year >= datetime.now().year and time.time() - path.stat().st_mtime > 600:
+    # Upstream classifications and lap feeds can be reprocessed after a
+    # session (and, occasionally, after a season). Current data refreshes
+    # quickly; historical session/telemetry payloads get a weekly revalidation
+    # instead of being treated as immutable forever.
+    age = time.time() - path.stat().st_mtime
+    if year >= datetime.now().year and age > 600:
+        return None
+    if namespace in {"session", "telemetry"} and age > 7 * 86400:
         return None
     try:
         with gzip.open(path, "rt", encoding="utf-8") as handle:
@@ -243,23 +248,89 @@ def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
         return json.loads(body.decode("utf-8"))
 
 
+def _normalised_name(value: Any) -> str:
+    return " ".join(
+        str(value or "").casefold().replace("grand prix", "").replace("great britain", "british").split()
+    )
+
+
+def exact_fastf1_event(
+    year: int,
+    gp: str,
+    *,
+    backend: str | None = None,
+    location: str = "",
+):
+    """Resolve an event without FastF1's cross-event fuzzy fallback."""
+    schedule = fastf1_runtime().get_event_schedule(
+        year, include_testing=False, backend=backend
+    )
+    wanted = str(gp).strip().casefold()
+    matches = schedule[
+        schedule["EventName"].astype(str).str.strip().str.casefold() == wanted
+    ]
+    if len(matches) == 1:
+        return matches.iloc[0]
+
+    # Venue matching is only used for circuit metadata across renamed races.
+    wanted_location = str(location).strip().casefold()
+    if wanted_location and "Location" in schedule:
+        matches = schedule[
+            schedule["Location"].astype(str).str.strip().str.casefold()
+            == wanted_location
+        ]
+        if len(matches) == 1:
+            return matches.iloc[0]
+    raise ValueError(f"'{gp}' is not an exact event on the {year} calendar")
+
+
+def _openf1_meeting(year: int, gp: str, meetings: list[dict[str, Any]]) -> dict[str, Any] | None:
+    wanted = _normalised_name(gp)
+    direct = [item for item in meetings if _normalised_name(item.get("meeting_name")) == wanted]
+    if len(direct) == 1:
+        return direct[0]
+
+    # New/renamed events can use different names between providers. Match the
+    # exact venue/country and race-week date rather than using substrings.
+    try:
+        event = exact_fastf1_event(year, gp, backend="fastf1")
+        location = str(event.get("Location") or "").strip().casefold()
+        country = str(event.get("Country") or "").strip().casefold()
+        event_date = datetime.fromisoformat(str(event.get("EventDate"))[:10]).date()
+    except Exception:
+        return None
+
+    candidates = []
+    for item in meetings:
+        item_location = str(item.get("location") or "").strip().casefold()
+        item_country = str(item.get("country_name") or "").strip().casefold()
+        if location and item_location and location != item_location:
+            continue
+        if country and item_country and country != item_country:
+            continue
+        try:
+            meeting_date = datetime.fromisoformat(
+                str(item.get("date_start") or "").replace("Z", "+00:00")
+            ).date()
+            distance = abs((meeting_date - event_date).days)
+        except ValueError:
+            distance = 99
+        if distance <= 3:
+            candidates.append((distance, item))
+    candidates.sort(key=lambda row: row[0])
+    if not candidates or (len(candidates) > 1 and candidates[0][0] == candidates[1][0]):
+        return None
+    return candidates[0][1]
+
+
 @lru_cache(maxsize=64)
 def openf1_session(year: int, gp: str, session_name: str) -> dict[str, Any] | None:
     try:
         meetings = openf1("meetings", year=year)
-        wanted = gp.lower().replace("grand prix", "").replace("great britain", "british").strip()
-        
-        meeting_key = None
-        for item in meetings:
-            name = item.get("meeting_name", "").lower().replace("grand prix", "").replace("great britain", "british")
-            if wanted in name or wanted in item.get("location", "").lower():
-                meeting_key = item.get("meeting_key")
-                break
-                
-        if meeting_key is None:
+        meeting = _openf1_meeting(year, gp, meetings)
+        if meeting is None or meeting.get("meeting_key") is None:
             return None
-            
-        sessions = openf1("sessions", year=year, meeting_key=meeting_key)
+        sessions = openf1("sessions", year=year, meeting_key=meeting["meeting_key"])
         wanted_session = session_name.lower().strip()
         
         for item in sessions:
@@ -540,9 +611,7 @@ def load_session(year: int, gp: str, session_name: str, round_number: int | None
     # "Invalid round". Resolve the exact event name from the full calendar,
     # then create the session from that event.
     backend = "fastf1" if year >= 2018 else "ergast"
-    event = fastf1_runtime().get_event(year, gp, backend=backend, exact_match=True)
-    if event is None:
-        raise ValueError(f"'{gp}' is not an exact event name on the {year} calendar")
+    event = exact_fastf1_event(year, gp, backend=backend)
 
     session = event.get_session(session_name)
     # Session controls need timing/lap data, not the multi-megabyte car stream
@@ -556,15 +625,104 @@ def load_session(year: int, gp: str, session_name: str, round_number: int | None
 def load_telemetry_session(year: int, gp: str, session_name: str):
     """Load FastF1 car data only as the historical fallback."""
     backend = "fastf1" if year >= 2018 else "ergast"
-    event = fastf1_runtime().get_event(year, gp, backend=backend, exact_match=True)
-    if event is None:
-        raise ValueError(f"'{gp}' is not an exact event name on the {year} calendar")
+    event = exact_fastf1_event(year, gp, backend=backend)
     data = event.get_session(session_name)
     data.load(laps=True, telemetry=True, weather=False, messages=False)
     return data
 
 
-@lru_cache(maxsize=32)
+def _calendar_session_name(value: Any) -> str:
+    name = str(value or "").strip()
+    if name == "Sprint Shootout":
+        return "Sprint Qualifying"
+    return name
+
+
+def _parse_openf1_datetime(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
+    except (TypeError, ValueError):
+        return None
+
+
+def enrich_recent_openf1_statuses(year: int, events: list[dict[str, Any]]) -> None:
+    """Add authoritative status for the active/recent race weekend.
+
+    Scheduled end times are not proof that a session finished: a red-flagged or
+    aborted session may resume. For sessions from the last week, completion is
+    recorded only when OpenF1 race control contains CHEQUERED/SESSION FINISHED.
+    Older sessions keep the normal historical calendar fallback.
+    """
+    now = datetime.now(timezone.utc)
+    if year != now.year or not events:
+        return
+    try:
+        sessions = openf1("sessions", year=year)
+    except Exception as error:
+        logger.debug("OpenF1 calendar status unavailable: %s", error)
+        return
+
+    event_dates = []
+    for event in events:
+        try:
+            event_dates.append((datetime.fromisoformat(event["date"]).date(), event))
+        except (KeyError, TypeError, ValueError):
+            continue
+
+    recent: list[tuple[dict[str, Any], str, dict[str, Any], datetime | None]] = []
+    for source in sessions:
+        start = _parse_openf1_datetime(source.get("date_start"))
+        if start is None or not event_dates:
+            continue
+        nearest_date, event = min(event_dates, key=lambda row: abs((row[0] - start.date()).days))
+        if abs((nearest_date - start.date()).days) > 3:
+            continue
+        session_name = _calendar_session_name(source.get("session_name"))
+        if session_name not in event.get("sessions", []):
+            continue
+        event.setdefault("session_dates", {})[session_name] = start.isoformat()
+        end = _parse_openf1_datetime(source.get("date_end"))
+        if end is not None:
+            event.setdefault("session_end_dates", {})[session_name] = end.isoformat()
+
+        statuses = event.setdefault("session_statuses", {})
+        if source.get("is_cancelled") is True:
+            statuses[session_name] = "cancelled"
+        elif start > now:
+            statuses[session_name] = "upcoming"
+        elif start >= now - timedelta(days=7):
+            recent.append((event, session_name, source, end))
+
+    def race_control_status(item):
+        event, session_name, source, end = item
+        try:
+            messages = openf1("race_control", session_key=source["session_key"])
+        except Exception:
+            messages = []
+        finished = any(
+            str(message.get("flag") or "").upper() == "CHEQUERED"
+            or str(message.get("message") or "").upper() in {
+                "CHEQUERED FLAG", "SESSION FINISHED"
+            }
+            for message in messages
+        )
+        if finished:
+            status = "completed"
+        elif end is not None and end < now:
+            status = "unknown"
+        else:
+            status = "live"
+        return event, session_name, status
+
+    if recent:
+        with ThreadPoolExecutor(max_workers=min(5, len(recent)), thread_name_prefix="session-status") as pool:
+            for event, session_name, status in pool.map(race_control_status, recent):
+                event.setdefault("session_statuses", {})[session_name] = status
+
+
 def event_calendar(year: int) -> list[dict[str, Any]]:
     try:
         schedule = fastf1_runtime().get_event_schedule(year, include_testing=False)
@@ -603,6 +761,7 @@ def event_calendar(year: int) -> list[dict[str, Any]]:
             "sessions": sessions,
             "session_dates": session_dates,
         })
+    enrich_recent_openf1_statuses(year, result)
     return result
 
 
@@ -663,7 +822,9 @@ def get_fallback_circuit_corners(
     first_fallback_year = min(year - 1, 2025)
     for fallback_year in range(first_fallback_year, max(2017, first_fallback_year - 3), -1):
         try:
-            fb_event = fastf1_runtime().get_event(fallback_year, gp)
+            fb_event = exact_fastf1_event(
+                fallback_year, gp, location=current_location
+            )
             if fb_event is not None:
                 fallback_location = str(fb_event.get("Location") or "").strip().casefold()
                 if (normalized_location and fallback_location
@@ -753,8 +914,31 @@ def events(year: int = Query(2025, ge=2014)):
     return result
 
 
+def openf1_lap_gaps(rows: list[dict[str, Any]]) -> dict[int, list[int]]:
+    """Return missing internal lap numbers for each driver."""
+    lap_numbers: dict[int, set[int]] = {}
+    for row in rows:
+        driver = integer(row.get("driver_number"), -1)
+        lap = integer(row.get("lap_number"), -1)
+        if driver >= 0 and lap > 0:
+            lap_numbers.setdefault(driver, set()).add(lap)
+    gaps = {}
+    for driver, numbers in lap_numbers.items():
+        if len(numbers) < 2:
+            continue
+        missing = sorted(set(range(min(numbers), max(numbers) + 1)) - numbers)
+        if missing:
+            gaps[driver] = missing
+    return gaps
+
+
 @lru_cache(maxsize=64)
-def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[dict[str, Any]]:
+def fetch_openf1_session_drivers(
+    year: int,
+    gp: str,
+    session_name: str,
+    freshness_bucket: int = 0,
+) -> list[dict[str, Any]]:
     try:
         matching_session = openf1_session(year, gp, session_name)
         if not matching_session:
@@ -778,6 +962,20 @@ def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[
             except Exception as results_err:
                 logger.warning("OpenF1 session-result fetch failed: %s", results_err)
                 results_raw = []
+        gaps = openf1_lap_gaps(laps_raw)
+        if gaps:
+            # OpenF1 may re-ingest a session after repairing missing lap rows.
+            # Retry once before exposing an incomplete sequence, then mark the
+            # response non-cacheable if the source still has internal gaps.
+            try:
+                refreshed = openf1("laps", session_key=session_key)
+                if len(refreshed) >= len(laps_raw):
+                    laps_raw = refreshed
+                    gaps = openf1_lap_gaps(laps_raw)
+            except Exception as retry_error:
+                logger.debug("OpenF1 lap integrity retry failed: %s", retry_error)
+            if gaps:
+                logger.warning("OpenF1 session %s has internal lap gaps: %s", session_key, gaps)
         # Weather is optional context. Fetch it only after the required timing
         # calls finish so a free-tier rate limit cannot starve drivers or laps.
         try:
@@ -887,6 +1085,7 @@ def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[
         result = []
         for d in drivers_raw:
             d_num = d.get("driver_number")
+            driver_id = integer(d_num, -1)
             acronym = d.get("name_acronym") or str(d_num)
             full_name = d.get("full_name") or d.get("broadcast_name") or acronym
             team_name = d.get("team_name") or ""
@@ -901,6 +1100,8 @@ def fetch_openf1_session_drivers(year: int, gp: str, session_name: str) -> list[
                     "team": team_name,
                     "team_color": team_color,
                     "position": result_positions.get(integer(d_num, -1)),
+                    "lap_data_complete": driver_id not in gaps,
+                    "missing_laps": gaps.get(driver_id, []),
                     "laps": laps,
                 })
         sort_session_drivers(result)
@@ -1017,11 +1218,20 @@ def session_data(
 
     # Fallback to OpenF1 real-time timing API if FastF1 has no laps (e.g. same-day sessions)
     has_any_laps = any(d["laps"] for d in drivers)
+    lap_data_complete = True
     if not has_any_laps:
         logger.info("FastF1 has no laps for %s %s. Attempting OpenF1 real-time fallback...", gp, session)
-        of1_drivers = fetch_openf1_session_drivers(year, gp, session)
+        bucket_seconds = 600 if year >= datetime.now().year else 86400
+        bucket = int(time.time() // bucket_seconds)
+        retrieve = fetch_openf1_session_drivers.__wrapped__ if fresh else fetch_openf1_session_drivers
+        of1_drivers = retrieve(year, gp, session, bucket)
         if of1_drivers:
             drivers = of1_drivers
+            lap_data_complete = all(
+                driver.get("lap_data_complete", True) for driver in drivers
+            )
+            if not lap_data_complete:
+                response.headers["Cache-Control"] = "no-store, max-age=0"
 
     sort_session_drivers(drivers)
 
@@ -1068,10 +1278,11 @@ def session_data(
         "circuit_rotation": circuit_rotation,
         "compounds": get_tire_nominations(year, gp),
         "openf1_session_key": integer(getattr(data, "session_info", {}).get("Key"), 0) or None,
+        "lap_data_complete": lap_data_complete,
     }
     response.headers['Server-Timing'] = f'session;dur={(time.perf_counter()-started)*1000:.1f}'
     response.headers['Timing-Allow-Origin'] = '*'
-    if drivers and not fresh:
+    if drivers and lap_data_complete and not fresh:
         write_prepared_cache("session", year, payload, SESSION_CACHE_SCHEMA, gp, round, session)
     return payload
 
