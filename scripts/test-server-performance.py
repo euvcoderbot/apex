@@ -39,6 +39,8 @@ class RetrievalTests(unittest.TestCase):
     def test_geometry_completeness_checks_gaps_endpoints_and_finite_coordinates(self):
         full = [{'ElapsedSeconds':i/4,'X':i,'Y':i} for i in range(401)]
         self.assertEqual(server.position_geometry_quality(full), (1, True))
+        bounded_gap = [point for index, point in enumerate(full) if index not in range(100, 104)]
+        self.assertTrue(server.position_geometry_quality(bounded_gap)[1])
         for missing in [range(100,260), range(100,105), range(0,4), range(397,401)]:
             damaged = [{**p, **({'X':None} if i in missing else {})} for i,p in enumerate(full)]
             coverage, complete = server.position_geometry_quality(damaged)

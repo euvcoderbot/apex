@@ -294,7 +294,7 @@ def position_geometry_quality(samples):
     complete = bool(len(valid) >= 2 and coverage >= .98 and duration is not None
                     and 0 <= valid[0]['ElapsedSeconds'] <= .5
                     and duration - valid[-1]['ElapsedSeconds'] <= .5
-                    and all(0 < b['ElapsedSeconds'] - a['ElapsedSeconds'] <= .75
+                    and all(0 < b['ElapsedSeconds'] - a['ElapsedSeconds'] <= 1.25
                             for a, b in zip(valid, valid[1:])))
     return coverage, complete
 

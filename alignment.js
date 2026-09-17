@@ -85,7 +85,7 @@ function completePositionGeometry(samples) {
     && valid[0].ElapsedSeconds + origin >= 0 && valid[0].ElapsedSeconds + origin <= .5
     && Math.abs(valid.at(-1).ElapsedSeconds + origin - duration) <= .5
     && valid.every((p,i) => !i || (p.ElapsedSeconds > valid[i-1].ElapsedSeconds
-      && p.ElapsedSeconds - valid[i-1].ElapsedSeconds <= .75));
+      && p.ElapsedSeconds - valid[i-1].ElapsedSeconds <= 1.25));
 }
 
 function normalizeTelemetry(samples, lap, source = 'Unknown') {
