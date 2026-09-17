@@ -101,7 +101,7 @@ class RetrievalTests(unittest.TestCase):
             payload = server.telemetry(
                 response, year=2021, gp='Belgian Grand Prix', round=12,
                 session='Qualifying', driver='VER', lap=12, driver_number='33',
-                session_key=None, fresh=False, geometry=False, lap_start=None,
+                session_key=None, fresh=False, geometry=True, lap_start=None,
                 lap_time=90, next_start=None, lap_start_seconds=3600,
                 lap_end_seconds=3690,
             )

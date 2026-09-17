@@ -158,9 +158,17 @@ async function fetchTelemetry(lap) {
     if (driverNumber) query.set('driver_number', driverNumber);
     if (openf1SessionKey) query.set('session_key', openf1SessionKey);
     const meta=lap.real || lap;
+    if(Number.isFinite(meta.lap_start_seconds)) {
+      query.set('lap_start_seconds',meta.lap_start_seconds);
+    }
+    if(Number.isFinite(meta.lap_end_seconds)) {
+      query.set('lap_end_seconds',meta.lap_end_seconds);
+    }
+    if(Number.isFinite(lap.time) && lap.time>20 && lap.time<300) {
+      query.set('lap_time',lap.time);
+    }
     if(openf1SessionKey && meta.date_start && lap.time>20 && lap.time<300) {
       query.set('lap_start',meta.date_start);
-      query.set('lap_time',lap.time);
       const next=realDrivers.get(lap.code)?.laps?.find(item=>item.lap===lap.lap+1);
       if(next?.date_start)query.set('next_start',next.date_start);
     }

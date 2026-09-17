@@ -231,13 +231,16 @@ test('active telemetry loader sends existing lap context and creates the sector 
     return {ok:true,text:async()=>JSON.stringify({samples,source:'OpenF1',position_complete:true,corners:[]})};
   };
   h.run(`currentQuery=()=>new URLSearchParams('year=2026'); openf1SessionKey=11365;
-    var lap={code:'VER',lap:17,time:90,real:{time:90,s1:30,s2:30,s3:30,date_start:'2026-09-12T14:10:00Z'}};
+    var lap={code:'VER',lap:17,time:90,real:{time:90,s1:30,s2:30,s3:30,date_start:'2026-09-12T14:10:00Z',lap_start_seconds:3600,lap_end_seconds:3690}};
     realDrivers.set('VER',{number:'3',laps:[lap.real]});`);
   await h.run('fetchTelemetry(lap)');
   assert.equal(requested.searchParams.get('fresh'),'true');
   assert.equal(requested.searchParams.get('session_key'),'11365');
   assert.equal(requested.searchParams.get('driver_number'),'3');
   assert.equal(requested.searchParams.get('lap_start'),'2026-09-12T14:10:00Z');
+  assert.equal(requested.searchParams.get('lap_start_seconds'),'3600');
+  assert.equal(requested.searchParams.get('lap_end_seconds'),'3690');
+  assert.equal(requested.searchParams.get('lap_time'),'90');
   assert.equal(h.run('sessionSectorGuide.segmentSectors.length'),360);
 });
 

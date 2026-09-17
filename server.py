@@ -1182,7 +1182,7 @@ def telemetry(
     # supplied exact lap boundaries, decode only this driver/window instead of
     # constructing telemetry frames for every driver and every lap.
     if (driver_number and lap_start_seconds is not None and lap_end_seconds is not None
-            and lap_end_seconds > lap_start_seconds and not geometry):
+            and lap_end_seconds > lap_start_seconds):
         try:
             from session_loader import load_selected_lap_telemetry
             samples = load_selected_lap_telemetry(
