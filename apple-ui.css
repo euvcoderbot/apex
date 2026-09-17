@@ -591,7 +591,7 @@ body { zoom: .87; }
 .select-menu, .select-shell:has(#gp) .select-menu { background: color-mix(in srgb, var(--bg-card) 90%, transparent); backdrop-filter: blur(32px) saturate(135%); -webkit-backdrop-filter: blur(32px) saturate(135%); }
 .trace-pill-group { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-input); box-shadow: var(--shadow-raised); }
 .trace-pill-group .trace-driver-chip { margin: 0; border: 0; box-shadow: none; background: transparent; padding: 5px 7px; min-height: 30px; }
-.trace-swatch { position: relative; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; background: var(--team); box-shadow: inset 0 0 0 1px #ffffff60; cursor: pointer; }
+.trace-swatch { position: relative; display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid color-mix(in srgb, var(--team) 70%, var(--border-color-hover)); border-radius: 7px; background: var(--team); box-shadow: 0 1px 3px rgba(0, 0, 0, .24); cursor: pointer; }
 .trace-swatch input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .trace-swatch span { color: white; text-shadow: 0 1px 3px #000; pointer-events: none; font-size: 19px; }
 .trace-swatch:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }

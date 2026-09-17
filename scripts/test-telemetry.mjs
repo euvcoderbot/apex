@@ -148,6 +148,29 @@ test('whole chart stack and map render; toggling enhanced preserves official del
     h.run(`traceTelemetryValue(telemetryCache.get('VER:2'),hoverFraction,'Speed')`));
 });
 
+test('timing delta vertical scale is neutral at 100% and supports compression and magnification', () => {
+  const h = appHarness();
+  h.sandbox.fixture = series(Array.from({ length: 80 }, (_, i) => 210 + i / 2));
+  h.run(`loaded = [{code:'NOR',lap:1,time:19,real:{time:19,s1:6,s2:6,s3:7}},
+    {code:'VER',lap:2,time:19.5,real:{time:19.5,s1:6.1,s2:6.2,s3:7.2}}];
+    drivers = [['NOR',1,'Norris','#ff8000'],['VER',3,'Verstappen','#4781d7']];
+    for (const lap of loaded) telemetryCache.set(telemetryKey(lap), normalizeTelemetry(fixture.map(p=>({...p})),lap,'test'));
+    prepareTelemetryAlignment(); drawRealChart('Timing delta');`);
+  const canvas = h.element('[data-chart="Timing delta"]');
+  const normalMax = Number(canvas.attributes['data-axis-max']);
+  assert.equal(h.run('timingDeltaZoom'), 1);
+  h.run('setTimingDeltaZoom(.5)');
+  const compressedMax = Number(canvas.attributes['data-axis-max']);
+  assert.ok(compressedMax > normalMax, `${compressedMax} should exceed ${normalMax}`);
+  assert.equal(h.element('#timingDeltaZoomReadout').textContent, '50%');
+  h.run('setTimingDeltaZoom(2)');
+  const magnifiedMax = Number(canvas.attributes['data-axis-max']);
+  assert.ok(magnifiedMax < normalMax, `${magnifiedMax} should be below ${normalMax}`);
+  assert.equal(h.element('#timingDeltaZoomReadout').textContent, '200%');
+  h.run('setTimingDeltaZoom(1)');
+  assert.equal(Number(canvas.attributes['data-axis-max']), normalMax);
+});
+
 test('rendering starts before the slowest lap and unchanged alignment is not recomputed', async () => {
   const h=appHarness();
   h.sandbox.fixture=series(Array.from({length:80},(_,i)=>210+i/2));

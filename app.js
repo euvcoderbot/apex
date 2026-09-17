@@ -33,6 +33,7 @@ const apiCircuitGuideRequests = new Set();
 let hoverFraction = null;
 let hoveredChartName = null;
 let traceZoom = { start: 0, end: 1 };
+let timingDeltaZoom = 1;
 let zoomDrag = null;
 let drawGeneration = 0;
 let sessionRequest = null;
@@ -41,6 +42,9 @@ let calendarGeneration = 0;
 let redrawFrame = 0;
 let toastTimer = 0;
 const MIN_TRACE_ZOOM = .004;
+const MIN_TIMING_DELTA_ZOOM = .25;
+const MAX_TIMING_DELTA_ZOOM = 4;
+const TIMING_DELTA_ZOOM_STEP = .25;
 const CLIENT_DATA_SCHEMA = 'direct-telemetry-v5';
 const API_ORIGIN = String(window.APEX_API_ORIGIN || '').replace(/\/$/, '');
 
@@ -1232,7 +1236,7 @@ function renderStints() {
         </header>
         <div class="run-section-label"><span>Runs</span></div>
         <div class="run-segments">${runButtons}</div>
-        <div class="lap-group-header"><span>${groupLabel} laps</span><small>${hasQualifyingPhases ? 'Tyre age at lap end' : `${activeLaps.length} available`}</small></div>
+        <div class="lap-group-header"><span>${groupLabel} laps</span>${hasQualifyingPhases ? '' : `<small>${activeLaps.length} available</small>`}</div>
         <div class="lap-grid">${lapButtons}</div>
       </article>
     `;
@@ -1447,6 +1451,24 @@ function updateZoomReadout() {
   if (panRight) panRight.disabled = fullLap || traceZoom.end >= 1 - 1e-6;
 }
 
+function updateTimingDeltaZoomReadout() {
+  const readout = $('#timingDeltaZoomReadout');
+  const zoomOut = $('[data-delta-zoom="out"]');
+  const zoomIn = $('[data-delta-zoom="in"]');
+  const reset = $('[data-delta-zoom="reset"]');
+  if (readout) readout.textContent = `${Math.round(timingDeltaZoom * 100)}%`;
+  if (zoomOut) zoomOut.disabled = timingDeltaZoom <= MIN_TIMING_DELTA_ZOOM;
+  if (zoomIn) zoomIn.disabled = timingDeltaZoom >= MAX_TIMING_DELTA_ZOOM;
+  if (reset) reset.disabled = Math.abs(timingDeltaZoom - 1) < 1e-6;
+}
+
+function setTimingDeltaZoom(nextZoom) {
+  const clamped = Math.max(MIN_TIMING_DELTA_ZOOM, Math.min(MAX_TIMING_DELTA_ZOOM, nextZoom));
+  timingDeltaZoom = Math.round(clamped / TIMING_DELTA_ZOOM_STEP) * TIMING_DELTA_ZOOM_STEP;
+  updateTimingDeltaZoomReadout();
+  drawRealChart('Timing delta');
+}
+
 function zoomTraceBy(factor) {
   const span = traceZoom.end - traceZoom.start;
   const nextSpan = Math.max(MIN_TRACE_ZOOM, Math.min(1, span * factor));
@@ -1474,6 +1496,9 @@ function bindChartZoom() {
   $('[data-zoom="reset"]')?.addEventListener('click', () => setTraceZoom(0, 1));
   $('[data-pan="left"]')?.addEventListener('click', () => panTrace(-1));
   $('[data-pan="right"]')?.addEventListener('click', () => panTrace(1));
+  $('[data-delta-zoom="out"]')?.addEventListener('click', () => setTimingDeltaZoom(timingDeltaZoom - TIMING_DELTA_ZOOM_STEP));
+  $('[data-delta-zoom="in"]')?.addEventListener('click', () => setTimingDeltaZoom(timingDeltaZoom + TIMING_DELTA_ZOOM_STEP));
+  $('[data-delta-zoom="reset"]')?.addEventListener('click', () => setTimingDeltaZoom(1));
   const speedCanvas = document.querySelector('[data-chart="Speed trace"]');
   if (speedCanvas) {
     speedCanvas.addEventListener('mousedown', event => {
@@ -1489,6 +1514,7 @@ function bindChartZoom() {
     speedCanvas.addEventListener('dblclick', () => setTraceZoom(0, 1));
   }
   updateZoomReadout();
+  updateTimingDeltaZoomReadout();
 }
 
 function finishZoomDrag() {
@@ -1599,6 +1625,14 @@ function renderCharts() {
             <button data-pan="left" title="Move zoom window left" aria-label="Move zoom window left">‹</button>
             <button data-pan="right" title="Move zoom window right" aria-label="Move zoom window right">›</button>
             <button class="trace-reset" data-zoom="reset" title="Reset zoom">Reset</button>
+          </div>
+        </div>` : name === 'Timing delta' ? `
+        <div class="trace-zoom-cluster delta-zoom-cluster" aria-label="Timing delta vertical zoom controls">
+          <span class="trace-zoom-readout">Scale <b id="timingDeltaZoomReadout">${Math.round(timingDeltaZoom * 100)}%</b></span>
+          <div class="trace-tools">
+            <button data-delta-zoom="out" title="Compress timing delta" aria-label="Compress timing delta">−</button>
+            <button data-delta-zoom="in" title="Magnify timing delta" aria-label="Magnify timing delta">+</button>
+            <button class="trace-reset" data-delta-zoom="reset" title="Reset timing delta scale">Reset</button>
           </div>
         </div>` : ''}</div>
       ${name === 'Speed trace' ? `
@@ -2161,7 +2195,10 @@ function drawRealChart(name) {
   const rawMin = Math.min(...values);
   const rawMax = Math.max(...values);
   
-  const niceBounds = getNiceBounds(name, rawMin, rawMax);
+  let niceBounds = getNiceBounds(name, rawMin, rawMax);
+  if (name === 'Timing delta' && Math.abs(timingDeltaZoom - 1) > 1e-6) {
+    niceBounds = getNiceBounds(name, niceBounds.min / timingDeltaZoom, niceBounds.max / timingDeltaZoom);
+  }
   const min = niceBounds.min;
   const max = niceBounds.max;
   const refLap = loaded.find(lap => telemetryCache.get(telemetryKey(lap))?.length) || loaded[0];
