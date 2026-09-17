@@ -34,7 +34,7 @@ pd = _AnalysisModule('pandas')
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).parent
@@ -286,6 +286,19 @@ def openf1_session(year: int, gp: str, session_name: str) -> dict[str, Any] | No
     return None
 
 
+def position_geometry_quality(samples):
+    valid = [p for p in samples if all(seconds(p.get(k)) is not None
+                                     for k in ('X', 'Y', 'ElapsedSeconds'))]
+    coverage = len(valid) / max(1, len(samples))
+    duration = seconds(samples[-1].get('ElapsedSeconds')) if samples else None
+    complete = bool(len(valid) >= 2 and coverage >= .98 and duration is not None
+                    and 0 <= valid[0]['ElapsedSeconds'] <= .5
+                    and duration - valid[-1]['ElapsedSeconds'] <= .5
+                    and all(0 < b['ElapsedSeconds'] - a['ElapsedSeconds'] <= .75
+                            for a, b in zip(valid, valid[1:])))
+    return coverage, complete
+
+
 def join_openf1_positions(car, location):
     """Nearest position within 400 ms; ties prefer the earlier packet."""
     dated = sorted((datetime.fromisoformat(p['date'].replace('Z', '+00:00')), i, p)
@@ -391,15 +404,20 @@ def _openf1_lap_telemetry(
 
     # Car and position are independent streams. Fetching both concurrently
     # removes one full OpenF1 round trip from each cold telemetry request.
-    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="openf1") as pool:
+    pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="openf1")
+    try:
         car_future = pool.submit(lap_stream, "car_data")
         location_future = pool.submit(lap_stream, "location")
         car = car_future.result()
         try:
-            location = location_future.result()
+            # The map is optional for the speed trace. A late location feed
+            # must not consume its entire HTTP timeout before car data displays.
+            location = location_future.result(timeout=2)
         except Exception as error:
             logger.debug("OpenF1 position data unavailable: %s", error)
             location = []
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
     if not car:
         return []
     # OpenF1 publishes vehicle location separately from car channels. Joining
@@ -1099,12 +1117,7 @@ def telemetry(
     def finish(samples: list[dict[str, Any]], projected_corners: list[dict[str, Any]], source: str):
         response.headers["Server-Timing"] = f'telemetry;dur={(time.perf_counter()-started)*1000:.1f}'
         response.headers["Timing-Allow-Origin"] = "*"
-        positioned = sum(
-            point.get("X") is not None and point.get("Y") is not None
-            for point in samples
-        )
-        position_coverage = positioned / max(1, len(samples))
-        position_complete = position_coverage >= 0.55
+        position_coverage, position_complete = position_geometry_quality(samples)
         payload = {
             "driver": driver,
             "lap": lap,
@@ -1112,6 +1125,7 @@ def telemetry(
             "corners": projected_corners,
             "source": source,
             "position_coverage": position_coverage,
+            "position_usable": position_coverage >= .55,
             "position_complete": position_complete,
         }
         # Do not freeze an incomplete current OpenF1 location stream. Keep the
@@ -1240,12 +1254,16 @@ if ASSETS_DIR.is_dir():
 
 @app.get("/")
 def frontend_index() -> FileResponse:
+    if os.environ.get('VERCEL'):
+        return RedirectResponse('https://apex-f1-data.eufrandota14.chatgpt.site/apex/')
     return FileResponse(ROOT / "index.html")
 
 
 @app.get("/{asset_name}")
 def frontend_asset(asset_name: str) -> FileResponse:
     """Serve only the browser bundle, never backend source or deployment files."""
+    if os.environ.get('VERCEL'):
+        raise HTTPException(404, 'Frontend assets are served by the site host.')
     allowed = {
         "alignment.js",
         "telemetry-model.js",

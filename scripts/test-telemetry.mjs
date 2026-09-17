@@ -96,7 +96,9 @@ test('null/bad channels and long gaps stay explicit, throttle is never snapped',
 
 function appHarness() {
   const elements = new Map();
+  const textCalls = [];
   const ctx = new Proxy({}, { get: (_, key) => key === 'measureText' ? text => ({ width: text.length * 6 })
+    : key === 'fillText' ? text => textCalls.push(text)
     : key === 'createLinearGradient' ? () => ({ addColorStop() {} }) : (...args) => {
       if (['moveTo', 'lineTo', 'arc', 'fillRect', 'strokeRect', 'bezierCurveTo'].includes(key)) {
         assert.ok(args.every(v => typeof v !== 'number' || Number.isFinite(v)), `${key}: invalid canvas coordinates`);
@@ -109,13 +111,13 @@ function appHarness() {
       getContext: () => ctx, classList: { add() {}, remove() {}, toggle() {} } });
     return elements.get(selector);
   }
-  const sandbox = { console, URLSearchParams, setTimeout, clearTimeout, TelemetryReconstruction: globalThis.TelemetryReconstruction,
+  const sandbox = { console, DOMException, URLSearchParams, setTimeout, clearTimeout, TelemetryReconstruction: globalThis.TelemetryReconstruction,
     window: { devicePixelRatio: 1 }, document: { querySelector: element, getElementById: id => element('#' + id),
       addEventListener() {}, querySelectorAll: () => [], documentElement: { dataset: { theme: 'dark' } } } };
   vm.createContext(sandbox);
   vm.runInContext(readFileSync(new URL('../app.js', import.meta.url), 'utf8'), sandbox);
   vm.runInContext(readFileSync(new URL('../alignment.js', import.meta.url), 'utf8'), sandbox);
-  return { sandbox, elements, element, run: code => vm.runInContext(code, sandbox) };
+  return { sandbox, elements, element, textCalls, run: code => vm.runInContext(code, sandbox) };
 }
 
 test('whole chart stack and map render; toggling enhanced preserves official delta anchors', async () => {
@@ -165,6 +167,58 @@ test('rendering starts before the slowest lap and unchanged alignment is not rec
   assert.match(h.element('#dominanceTitle').innerHTML,/Mini-sector dominance/);
   h.run("var existingInputs=telemetryCache.get('NOR:1').alignmentInputs; prepareTelemetryAlignment()");
   assert.equal(h.run("existingInputs===telemetryCache.get('NOR:1').alignmentInputs"),true);
+});
+
+test('slow first lap, partial map, late geometry and a session switch remain independent', async () => {
+  for (const switchSession of [false,true]) {
+    const h=appHarness();
+    const full=Array.from({length:361},(_,i)=>({ElapsedSeconds:i/4,Distance:i*15,Speed:200+i/100,
+      Throttle:100,Brake:0,nGear:6,DRS:null,X:i*10,Y:Math.sin(i/20)*1000}));
+    const partial=full.map((p,i)=>({...p,...(i>=90&&i<230?{X:null,Y:null}:{})}));
+    const late=full.slice(1); // first geometry packet is t=.25, not t=0
+    let finishFirst, finishGeometry;
+    const requested=[];
+    const response=payload=>({ok:true,text:async()=>JSON.stringify(payload)});
+    h.sandbox.fetchSessionData=async url=>{
+      const query=new URL(url,'https://test.example').searchParams;
+      requested.push(query);
+      if(query.get('geometry')==='true')return new Promise(resolve=>finishGeometry=()=>resolve(response({samples:late,position_complete:true,source:'FastF1'})));
+      if(query.get('driver')==='NOR')return new Promise(resolve=>finishFirst=()=>resolve(response({samples:full,position_complete:true,source:'OpenF1'})));
+      // Even an older backend's permissive flag must not suppress recovery.
+      return response({samples:partial,position_complete:true,source:'OpenF1'});
+    };
+    h.run(`currentQuery=()=>new URLSearchParams('year=2026'); sessionRequest={signal:undefined};
+      loaded=[{code:'NOR',lap:1,time:90,real:{time:90,s1:30,s2:30,s3:30}},
+        {code:'VER',lap:2,time:90,real:{time:90,s1:30,s2:30,s3:30}}];
+      drivers=[['NOR',1,'Norris','#ff8000'],['VER',3,'Verstappen','#4781d7']];
+      mapView='comparison'; var paints=0, originalPaint=paintReadyTelemetry;
+      paintReadyTelemetry=()=>{paints++;originalPaint();};`);
+    const pending=h.run('drawAll()');
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(h.run("telemetryCache.has('NOR:1')"),false);
+    assert.ok(h.run('paints')>0,'ready second lap paints before first');
+    assert.ok(h.textCalls.includes('Waiting for reference lap…'));
+    assert.ok(h.element('[data-chart="Speed trace"]').attributes['data-axis-max']);
+    assert.ok(requested.some(q=>q.get('geometry')==='true'));
+    assert.equal(h.run('spatialReferenceTelemetry()'),null,'incomplete geometry not rendered as complete');
+    const before=h.run("JSON.stringify(telemetryCache.get('VER:2').map(({X,Y,...p})=>p))");
+    if(switchSession) {
+      h.run("clearBeforeSessionLoad();sessionRequest={signal:undefined};var paintsBefore=paints");
+      finishGeometry();finishFirst();await pending;
+      await new Promise(resolve=>setImmediate(resolve));
+      assert.equal(h.run('telemetryCache.size'),0);
+      assert.equal(h.run('sessionSectorGuide'),null);
+      assert.equal(h.run('paints'),h.run('paintsBefore'));
+    } else {
+      finishGeometry();await new Promise(resolve=>setImmediate(resolve));
+      assert.equal(h.run("telemetryCache.get('VER:2')[100].X"),1000,'geometry remains on its original clock');
+      assert.equal(h.run("JSON.stringify(telemetryCache.get('VER:2').map(({X,Y,...p})=>p))"),before);
+      assert.equal(h.element('#dominanceEmpty').style.display,'none');
+      assert.ok(h.run('sessionSectorGuide'));
+      finishFirst();await pending;
+      assert.match(h.element('#dominanceTitle').innerHTML,/Mini-sector dominance/);
+    }
+  }
 });
 
 test('active telemetry loader sends existing lap context and creates the sector guide', async () => {

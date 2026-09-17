@@ -3,7 +3,8 @@
   "functions": {
     "server.py": {
       "maxDuration": 300,
-      "includeFiles": "{index.html,app.js,alignment.js,telemetry-model.js,config.js,styles.css,design-system.css,polish.css,assets/**}"
+      "excludeFiles": "**/{tests,test,benchmarks}/**",
+      "includeFiles": "session_loader.py"
     }
   }
 }

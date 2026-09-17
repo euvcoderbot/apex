@@ -1,0 +1,16 @@
+[project]
+name = "apex-telemetry-api"
+version = "0.1.0"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
+  "fastf1>=3.8.1,<3.9",
+]
+
+[tool.uv]
+package = false
+# All charts are rendered in the browser. FastF1's plotting-only dependencies
+# are unused by this service; retain scipy for its telemetry interpolation.
+# This API reads published HTTP archives, not the live SignalR/WebSocket client.
+exclude-dependencies = ["matplotlib", "timple", "signalrcore", "websockets", "cryptography", "pyjwt"]

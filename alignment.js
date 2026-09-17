@@ -45,7 +45,7 @@ function lapMetadata(lap) {
 }
 
 function referenceDistance() {
-  const reference = loaded[0] && telemetryCache.get(telemetryKey(loaded[0]));
+  const reference = loaded.map(lap => telemetryCache.get(telemetryKey(lap))).find(samples => samples?.length);
   return reference?.length ? (+reference[reference.length - 1].Distance || 1) : 1;
 }
 
@@ -75,6 +75,17 @@ function telemetryQuality(samples, source = 'Unknown') {
     repeatSpeedRatio: repeatedSpeed / Math.max(1, samples.length - 1),
     positionCoverage: positionCount / Math.max(1, samples.length),
   };
+}
+
+function completePositionGeometry(samples) {
+  const valid = samples?.filter(p => ['X','Y','ElapsedSeconds'].every(k => hasTelemetryNumber(p[k]))) || [];
+  const origin = samples?.timeOrigin || 0;
+  const duration = samples?.lapDuration ?? samples?.at(-1)?.ElapsedSeconds;
+  return valid.length >= 2 && valid.length >= samples.length * .98
+    && valid[0].ElapsedSeconds + origin >= 0 && valid[0].ElapsedSeconds + origin <= .5
+    && Math.abs(valid.at(-1).ElapsedSeconds + origin - duration) <= .5
+    && valid.every((p,i) => !i || (p.ElapsedSeconds > valid[i-1].ElapsedSeconds
+      && p.ElapsedSeconds - valid[i-1].ElapsedSeconds <= .75));
 }
 
 function normalizeTelemetry(samples, lap, source = 'Unknown') {
@@ -121,6 +132,7 @@ function normalizeTelemetry(samples, lap, source = 'Unknown') {
 
   const rawDuration = +normalized[normalized.length - 1].ElapsedSeconds || 0;
   setTelemetryMeta(normalized, 'lapDuration', officialDuration || rawDuration);
+  setTelemetryMeta(normalized, 'timeOrigin', firstTime);
   setTelemetryMeta(normalized, 'rawDuration', rawDuration);
   setTelemetryMeta(normalized, 'lapMeta', lapMetadata(lap));
   setTelemetryMeta(normalized, 'source', source);
@@ -189,23 +201,27 @@ async function fetchTelemetry(lap) {
     if (!sessionSectorGuide) sessionSectorGuide = makeSectorGuide(lap, payload.samples || [], payload.corners);
     // Display useful car channels now; a missing map must not hold them behind
     // a full FastF1-session download. Enrich only the coordinates in the background.
-    if (payload.position_complete === false) {
+    if (payload.position_complete === false || !completePositionGeometry(samples)) {
       query.set('geometry', 'true');
       void fetchSessionData(apiUrl(`/api/telemetry?${query}`), {cache:'no-store', signal:sessionAtStart?.signal})
         .then(async response => {
           if (!response.ok || sessionAtStart !== sessionRequest) return;
           const geometry = await readApiResponse(response);
-          if (sessionAtStart !== sessionRequest || !geometry.position_complete) return;
-          const positioned = normalizeTelemetry(geometry.samples || [], lap, geometry.source);
+          if (sessionAtStart !== sessionRequest) return;
+          // Keep the common lap-time origin, including late first samples.
+          const positioned = (geometry.samples || []).filter(p => hasTelemetryNumber(p.ElapsedSeconds))
+            .slice().sort((a,b)=>a.ElapsedSeconds-b.ElapsedSeconds);
           if (!positioned.length) return;
           // Match by elapsed time with a monotone cursor, preserving every
           // original car-channel sample and all its values.
           let cursor=0;
           for (const point of samples) {
-            while(cursor+1<positioned.length && positioned[cursor+1].ElapsedSeconds<=point.ElapsedSeconds)cursor++;
+            const elapsed = point.ElapsedSeconds + (samples.timeOrigin || 0);
+            if (elapsed < positioned[0].ElapsedSeconds || elapsed > positioned.at(-1).ElapsedSeconds) continue;
+            while(cursor+1<positioned.length && positioned[cursor+1].ElapsedSeconds<=elapsed)cursor++;
             const a=positioned[cursor],b=positioned[Math.min(cursor+1,positioned.length-1)];
-            const nearest=Math.abs(a.ElapsedSeconds-point.ElapsedSeconds)<=Math.abs(b.ElapsedSeconds-point.ElapsedSeconds)?a:b;
-            if(Math.abs(nearest.ElapsedSeconds-point.ElapsedSeconds)<=.4 && hasTelemetryNumber(nearest.X) && hasTelemetryNumber(nearest.Y)) {
+            const nearest=Math.abs(a.ElapsedSeconds-elapsed)<=Math.abs(b.ElapsedSeconds-elapsed)?a:b;
+            if(Math.abs(nearest.ElapsedSeconds-elapsed)<=.4 && hasTelemetryNumber(nearest.X) && hasTelemetryNumber(nearest.Y)) {
               point.X=nearest.X;point.Y=nearest.Y;
             }
           }
@@ -214,7 +230,8 @@ async function fetchTelemetry(lap) {
           setTelemetryMeta(samples,'alignmentInputs',null);
           setTelemetryMeta(samples,'positionRevision',(samples.positionRevision || 0)+1);
           dominanceMapGeometryCache=null;
-          if (!sessionSectorGuide) sessionSectorGuide=makeSectorGuide(lap,samples,lap.cornerMarkers);
+          if (!sessionSectorGuide) sessionSectorGuide=makeSectorGuide(lap,
+            samples.map(p=>({...p,ElapsedSeconds:p.ElapsedSeconds+(samples.timeOrigin || 0)})),lap.cornerMarkers);
           if (loaded.some(item=>telemetryKey(item)===key)) paintReadyTelemetry();
         }).catch(()=>{});
     }
@@ -267,7 +284,7 @@ function alignedSectorFractions(samples, lap) {
 function spatialReferenceTelemetry() {
   return loaded
     .map(lap => ({ lap, samples: telemetryCache.get(telemetryKey(lap)) }))
-    .filter(item => item.samples?.length)
+    .filter(item => item.samples?.length && completePositionGeometry(item.samples))
     .sort((left, right) =>
       (right.samples.quality?.positionCoverage || 0)
         - (left.samples.quality?.positionCoverage || 0))[0] || null;
@@ -720,7 +737,8 @@ function buildDeltaModel(samples, reference, mode = enhancedInterpolationEnabled
   // Put official start, sector and finish deltas back exactly. Integration
   // makes the curve continuous without an arbitrary low-pass filter, and the
   // enhanced curve now follows the same reconstructed speed trace on screen.
-  const referenceLap = loaded[0];
+  const referenceLap = loaded.find(lap => telemetryCache.get(telemetryKey(lap))?.length);
+  if (!referenceLap) { updateAlignmentStatus(); return; }
   const anchors = [0, ...alignedSectorFractions(reference, referenceLap), 1].map(fraction => {
     const index = clampTelemetry(fraction) * resolution;
     const lower = Math.floor(index);
@@ -986,7 +1004,7 @@ function prepareTelemetryAlignment() {
     .sort((left, right) =>
       (right.samples.quality?.positionCoverage || 0) - (left.samples.quality?.positionCoverage || 0));
   const spatial = candidates.find(item =>
-    (item.samples.quality?.positionCoverage || 0) >= 0.55
+    completePositionGeometry(item.samples)
       && referencePositionPath(item.samples));
   const spatialLap = spatial?.lap || referenceLap;
   const spatialReference = spatial?.samples || reference;

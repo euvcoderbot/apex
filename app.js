@@ -814,6 +814,7 @@ function lapText(lap) {
 
 // UI State Resets
 function clearBeforeSessionLoad() {
+  drawGeneration++;
   drivers.splice(0, drivers.length);
   realDrivers.clear();
   selected = [];
@@ -2095,6 +2096,13 @@ function drawRealChart(name) {
     return;
   }
 
+  if (name === 'Timing delta' && !telemetryCache.get(telemetryKey(loaded[0]))?.length) {
+    ctx.fillStyle = theme.text;
+    ctx.font = canvasFont(12);
+    ctx.fillText('Waiting for reference lap…', 43, 25);
+    return;
+  }
+
   if (name === 'DRS' && Number($('#year').value) >= 2026
     && !data.some(series => series.modeAvailable)) {
     ctx.fillStyle = theme.textStrong;
@@ -2145,7 +2153,7 @@ function drawRealChart(name) {
   const niceBounds = getNiceBounds(name, rawMin, rawMax);
   const min = niceBounds.min;
   const max = niceBounds.max;
-  const refLap = loaded[0];
+  const refLap = loaded.find(lap => telemetryCache.get(telemetryKey(lap))?.length) || loaded[0];
   const refSamples = telemetryCache.get(telemetryKey(refLap));
   const totalDist = refSamples && refSamples.length ? refSamples[refSamples.length - 1].Distance : 5891;
   const axisLeft = TRACE_PLOT_LEFT;
@@ -2633,11 +2641,11 @@ async function drawAll() {
     const alreadyReady=telemetryCache.has(telemetryKey(lap));
     try {
       await fetchTelemetry(lap);
-      if (!alreadyReady && outstanding > 1 && generation === drawGeneration && loaded[0] && telemetryCache.has(telemetryKey(loaded[0]))) {
+      if (!alreadyReady && outstanding > 1 && generation === drawGeneration) {
         paintReadyTelemetry();
       }
     } catch (err) {
-      console.warn(err);
+      if (err.name !== 'AbortError') console.warn(err);
       failures.push({ lap, error: err });
     } finally {
       outstanding--;
@@ -3139,7 +3147,7 @@ function renderMiniSectorMap() {
   const spatial = typeof spatialReferenceTelemetry === 'function'
     ? spatialReferenceTelemetry()
     : null;
-  const reference = spatial?.samples || telemetryCache.get(telemetryKey(loaded[0]));
+  const reference = spatial?.samples;
   const allSeries = mapEntries.map(({ lap }) => telemetryCache.get(telemetryKey(lap)));
   const trackSamples = reference?.filter(point => point.X != null && point.Y != null && Number.isFinite(+point.X) && Number.isFinite(+point.Y)) || [];
   if (!reference?.length || !allSeries.every(series => series?.length) || trackSamples.length < 2) {

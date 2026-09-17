@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -15,6 +16,37 @@ from fastapi import Response
 
 
 class RetrievalTests(unittest.TestCase):
+    def test_slow_positions_do_not_block_ready_car_data(self):
+        start = datetime(2026,9,12,14,10,tzinfo=timezone.utc)
+        release = threading.Event()
+        def upstream(endpoint, **params):
+            if endpoint == 'location':
+                release.wait(8)
+                return []
+            return [{'date':(start+timedelta(seconds=i/4)).isoformat(), 'speed':200,
+                     'throttle':100,'brake':0,'n_gear':6,'rpm':10000,'drs':0} for i in range(241)]
+        try:
+            with patch.object(server, 'openf1', upstream):
+                began=time.perf_counter()
+                samples=server._openf1_lap_telemetry.__wrapped__(2026,'Spanish Grand Prix','Q','3',17,0,
+                    11365,start.isoformat(),60,None)
+                self.assertLess(time.perf_counter()-began,5)
+                self.assertEqual(len(samples),241)
+                self.assertFalse(server.position_geometry_quality(samples)[1])
+        finally:
+            release.set()
+
+    def test_geometry_completeness_checks_gaps_endpoints_and_finite_coordinates(self):
+        full = [{'ElapsedSeconds':i/4,'X':i,'Y':i} for i in range(401)]
+        self.assertEqual(server.position_geometry_quality(full), (1, True))
+        for missing in [range(100,260), range(100,105), range(0,4), range(397,401)]:
+            damaged = [{**p, **({'X':None} if i in missing else {})} for i,p in enumerate(full)]
+            coverage, complete = server.position_geometry_quality(damaged)
+            self.assertGreater(coverage,.55)
+            self.assertFalse(complete)
+        invalid = [{**p,'X':float('nan')} for p in full]
+        self.assertEqual(server.position_geometry_quality(invalid),(0,False))
+
     def test_position_join_matches_dataframe_nearest_with_gaps_and_ties(self):
         start = datetime(2026, 9, 12, 14, 10, tzinfo=timezone.utc)
         def point(t, **values):

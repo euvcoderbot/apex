@@ -2,15 +2,7 @@
 !server.py
 !session_loader.py
 !requirements.txt
+!pyproject.toml
+!uv.lock
 !.python-version
 !vercel.json
-!index.html
-!app.js
-!alignment.js
-!telemetry-model.js
-!config.js
-!styles.css
-!design-system.css
-!polish.css
-!assets/
-!assets/**
