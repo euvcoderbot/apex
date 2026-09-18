@@ -165,27 +165,9 @@ def _selected_position_rows(records, driver_number, start, end):
     return rows
 
 
-def load_selected_lap_telemetry(year, gp, session_name, driver_number,
-                                lap_start, lap_end):
-    """Retrieve and decode only one driver's selected lap.
-
-    The official archives are session-wide, but decoding every driver into
-    pandas frames dominates historical trace latency. This path downloads the
-    two source streams concurrently and parses only the requested driver and
-    lap window. Nothing is retained between requests.
-    """
-    event = exact_event(year, gp)
-    data = event.get_session(session_name)
-    path = data.api_path
-    with ThreadPoolExecutor(max_workers=2, thread_name_prefix='selected-lap') as pool:
-        car_future = pool.submit(_download_stream, path, 'car_data')
-        position_future = pool.submit(_download_stream, path, 'position')
-        car_rows = _selected_car_rows(car_future.result(), str(driver_number), lap_start, lap_end)
-        position_rows = _selected_position_rows(position_future.result(), str(driver_number), lap_start, lap_end)
+def _lap_samples(car_rows, position_rows, lap_start, lap_end):
     if not car_rows:
         raise ValueError('selected lap car stream was empty')
-
-    # Trim against the requested official lap duration using source timestamps.
     origin = car_rows[0]['date']
     duration = max(0.0, lap_end - lap_start)
     car_rows = [row for row in car_rows if -.25 <= row['date'] - origin <= duration + .35]
@@ -208,18 +190,56 @@ def load_selected_lap_telemetry(year, gp, session_name, driver_number,
                 if abs(position_dates[nearest] - row['date']) <= .3:
                     _, x, y = position_rows[nearest]
         samples.append({
-            'Distance': distance,
-            'ElapsedSeconds': elapsed,
-            'Speed': row['Speed'],
-            'Throttle': row['Throttle'],
-            'Brake': row['Brake'],
-            'RPM': row['RPM'],
-            'nGear': row['nGear'],
-            'DRS': row['DRS'],
-            'X': x,
-            'Y': y,
+            'Distance': distance, 'ElapsedSeconds': elapsed, 'Speed': row['Speed'],
+            'Throttle': row['Throttle'], 'Brake': row['Brake'], 'RPM': row['RPM'],
+            'nGear': row['nGear'], 'DRS': row['DRS'], 'X': x, 'Y': y,
         })
     return samples
+
+
+def load_selected_lap_telemetry(year, gp, session_name, driver_number,
+                                lap_start, lap_end):
+    """Retrieve and decode only one driver's selected lap.
+
+    The official archives are session-wide, but decoding every driver into
+    pandas frames dominates historical trace latency. This path downloads the
+    two source streams concurrently and parses only the requested driver and
+    lap window. Nothing is retained between requests.
+    """
+    event = exact_event(year, gp)
+    data = event.get_session(session_name)
+    path = data.api_path
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix='selected-lap') as pool:
+        car_future = pool.submit(_download_stream, path, 'car_data')
+        position_future = pool.submit(_download_stream, path, 'position')
+        car_rows = _selected_car_rows(car_future.result(), str(driver_number), lap_start, lap_end)
+        position_rows = _selected_position_rows(position_future.result(), str(driver_number), lap_start, lap_end)
+    return _lap_samples(car_rows, position_rows, lap_start, lap_end)
+
+
+def load_selected_laps_telemetry(year, gp, session_name, selections):
+    """Download a session archive once and extract one selected lap per team."""
+    event = exact_event(year, gp)
+    data = event.get_session(session_name)
+    path = data.api_path
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix='selected-laps') as pool:
+        car_future = pool.submit(_download_stream, path, 'car_data')
+        position_future = pool.submit(_download_stream, path, 'position')
+        car_records, position_records = car_future.result(), position_future.result()
+
+    def extract(selection):
+        number = str(selection['driver_number'])
+        start, end = float(selection['start']), float(selection['end'])
+        try:
+            car_rows = _selected_car_rows(car_records, number, start, end)
+            position_rows = _selected_position_rows(position_records, number, start, end)
+            return selection['team'], _lap_samples(car_rows, position_rows, start, end), None
+        except Exception as exc:
+            return selection['team'], None, str(exc)
+
+    # Parsing is independent and bounded to the ten team representatives.
+    with ThreadPoolExecutor(max_workers=4, thread_name_prefix='lap-extract') as pool:
+        return [future.result() for future in (pool.submit(extract, item) for item in selections)]
 
 
 def load_fresh_session(year, gp, session_name, telemetry=False):

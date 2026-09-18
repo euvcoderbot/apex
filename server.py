@@ -1305,15 +1305,13 @@ def session_data(
 @app.get("/api/performance")
 def car_performance(response: Response, year: int = Query(..., ge=2018, le=2100),
                     gp: str = Query(..., min_length=3, max_length=120),
-                    session: str = Query('Q', pattern='^(Q|R)$'),
-                    phase: str = Query('Q1', pattern='^Q[123]$'),
-                    traffic: float = Query(2, ge=0, le=10)):
+                    session: str = Query('Q', pattern='^(Q|R)$')):
     response.headers['Cache-Control'] = 'no-store'
     started = time.perf_counter()
     try:
         from performance import analyze
         data = load_fresh_session(year, gp, session)
-        result = analyze(data, phase, traffic)
+        result = analyze(data, 2)
     except Exception as exc:
         logger.warning('Car performance unavailable for %s %s: %s', year, gp, exc)
         raise HTTPException(422, 'Performance data is incomplete or unavailable for this session. Try another event.') from exc
@@ -1349,6 +1347,57 @@ def car_performance_trace(response: Response, year: int = Query(..., ge=2018, le
     except Exception as exc:
         logger.warning('Performance trace unavailable: %s', exc)
         raise HTTPException(422, 'This lap has insufficient telemetry or circuit geometry for performance analysis.') from exc
+
+
+@app.get('/api/performance/trace-batch')
+def car_performance_trace_batch(response: Response, year: int = Query(..., ge=2018, le=2100),
+                                gp: str = Query(..., min_length=3, max_length=120),
+                                windows: str = Query(..., min_length=20, max_length=6000)):
+    """Extract all team representatives from one shared qualifying archive."""
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        selections = json.loads(windows)
+        if not isinstance(selections, list) or not 1 <= len(selections) <= 12:
+            raise ValueError('one to twelve team windows are required')
+        normalized = []
+        for item in selections:
+            team = str(item.get('team') or '')[:80]
+            number = str(item.get('driver_number') or '')
+            start, end = float(item.get('start')), float(item.get('end'))
+            if not team or not number.isdigit() or not 20 < end-start < 300:
+                raise ValueError('invalid team telemetry window')
+            normalized.append({'team': team, 'driver_number': number,
+                               'start': start, 'end': end})
+        fastf1_runtime()
+        from session_loader import load_selected_laps_telemetry, exact_event, download_feed, _PARSERS
+        from fastf1.mvapi import get_circuit_info
+        from performance import telemetry_metrics
+        event = exact_event(year, gp)
+        lap_session = event.get_session('Q')
+        session_info = _PARSERS['session_info'](lap_session.api_path,
+            response=download_feed(lap_session.api_path, 'session_info'))
+        circuit = session_info['Meeting']['Circuit']
+        key = 146 if circuit.get('Key') == 149 and circuit.get('ShortName') == 'Mugello' else circuit['Key']
+        info = get_circuit_info(year=year, circuit_key=key)
+        corners = [{'number': str(r['Number']), 'letter': str(r.get('Letter') or ''),
+                    'x': seconds(r.get('X')), 'y': seconds(r.get('Y'))}
+                   for _, r in info.corners.iterrows()] if info is not None else []
+        extracted = load_selected_laps_telemetry(year, gp, 'Q', normalized)
+        results = {}
+        for team, samples, error in extracted:
+            if error:
+                results[team] = {'error': error}
+                continue
+            try:
+                results[team] = telemetry_metrics(samples, corners)
+            except Exception as exc:
+                results[team] = {'error': str(exc)}
+        return {'event': gp, 'teams': results}
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(422, f'Invalid telemetry selection: {exc}') from exc
+    except Exception as exc:
+        logger.warning('Batch performance trace unavailable for %s: %s', gp, exc)
+        raise HTTPException(422, 'This event has insufficient telemetry or circuit geometry for performance analysis.') from exc
 
 
 @app.get("/api/telemetry")

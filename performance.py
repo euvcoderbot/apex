@@ -7,6 +7,9 @@ from collections import defaultdict
 from statistics import median
 import math
 
+DRY_COMPOUNDS = {'SOFT', 'MEDIUM', 'HARD', 'HYPERSOFT', 'ULTRASOFT',
+                 'SUPERSOFT', 'SUPERHARD'}
+
 
 def number(value):
     try:
@@ -27,7 +30,7 @@ def slope(points):
 def clean(lap):
     return (lap['time'] is not None and lap['time'] > 0 and lap['accurate']
             and not lap['pit'] and not lap['deleted'] and lap['track'] == '1'
-            and lap['compound'] in ('SOFT', 'MEDIUM', 'HARD')
+            and lap['compound'] in DRY_COMPOUNDS
             and lap.get('rain') is False)
 
 
@@ -91,7 +94,7 @@ def traffic_gaps(rows):
     return gaps
 
 
-def analyze(data, phase='Q1', traffic=2):
+def analyze(data, traffic=2):
     rows = records(data)
     qualifying = data.name in getattr(data, '_QUALI_LIKE_SESSIONS', ())
     teams = defaultdict(lambda: {'drivers': [], 'points': 0, 'points_known': True,
@@ -123,27 +126,52 @@ def analyze(data, phase='Q1', traffic=2):
         pos = number(info.get('Position'))
         if pos:
             team['positions'].append(pos)
-    valid = [r for r in rows if clean(r)]
     if qualifying:
-        valid = [r for r in valid if r['phase'] == phase]
-        # Official classification times reject deleted/unrepresentative laps even
-        # when race-control messages are absent from the lightweight session load.
-        official = {}
-        for code in data.drivers:
-            info = data.get_driver(code)
-            official[str(info.get('Abbreviation'))] = number(info.get(phase))
-        valid = [r for r in valid if official.get(r['driver']) is not None
-                 and abs(r['time']-official[r['driver']]) < .005]
-        best = min((r['time'] for r in valid), default=None)
-        sector_best = [min((r['sectors'][i] for r in valid if r['sectors'][i]), default=None) for i in range(3)]
+        # The official phase classification is the authority here. Historical
+        # archives often omit IsAccurate/TrackStatus in Q1/Q2 even though the
+        # classification and all three sectors are complete.
+        valid = [r for r in rows if r['time'] and not r['pit'] and not r['deleted']
+                 and r['compound'] in DRY_COMPOUNDS and r['rain'] is False
+                 and r['track'] in ('', '1') and all(r['sectors'])]
+        selected = defaultdict(list)
+        for phase in ('Q1', 'Q2', 'Q3'):
+            official = {}
+            for code in data.drivers:
+                info = data.get_driver(code)
+                official[str(info.get('Abbreviation'))] = number(info.get(phase))
+            phase_laps = [r for r in valid if r['phase'] == phase
+                          and official.get(r['driver']) is not None
+                          and abs(r['time']-official[r['driver']]) < .005]
+            best = min((r['time'] for r in phase_laps), default=None)
+            sector_best = [min((r['sectors'][i] for r in phase_laps if r['sectors'][i]), default=None)
+                           for i in range(3)]
+            for name in teams:
+                laps = [r for r in phase_laps if r['team'] == name]
+                lap = min(laps, key=lambda r: r['time'], default=None)
+                if lap and best:
+                    selected[name].append({
+                        'phase': phase, 'lap': lap,
+                        'pace': (lap['time']/best-1)*100,
+                        'sectors': [(lap['sectors'][i]/sector_best[i]-1)*100
+                                    if lap['sectors'][i] and sector_best[i] else None for i in range(3)]
+                    })
         for name, team in teams.items():
-            laps = [r for r in valid if r['team'] == name]
-            lap = min(laps, key=lambda r: r['time'], default=None)
-            team.update({'pace': (lap['time']/best-1)*100 if lap and best else None,
-                         'lap': lap, 'samples': len(laps),
-                         'sector_deficits': [(lap['sectors'][i]/sector_best[i]-1)*100
-                           if lap and lap['sectors'][i] and sector_best[i] else None for i in range(3)]})
+            phases = selected[name]
+            laps = [entry['lap'] for entry in phases]
+            team.update({
+                'pace': sum(entry['pace'] for entry in phases)/len(phases) if phases else None,
+                'lap': min(laps, key=lambda r: r['time'], default=None),
+                'laps': laps,
+                'phase_count': len(phases),
+                'samples': len(phases),
+                'sector_deficits': [
+                    (sum(values)/len(values) if values else None)
+                    for values in ([entry['sectors'][i] for entry in phases
+                                    if entry['sectors'][i] is not None] for i in range(3))
+                ],
+            })
     else:
+        valid = [r for r in rows if clean(r)]
         gaps = traffic_gaps(rows)
         candidates = [r for r in valid if r['lap'] and r['lap'] > 2]
         valid = [r for r in candidates if gaps.get((r['driver'], r['lap'])) is not None
@@ -220,9 +248,9 @@ def analyze(data, phase='Q1', traffic=2):
             team['degradation'] = [{'driver': key[0], 'stint': key[1], 'compound': key[2],
                                     'slope': slope(points), 'samples': len(points)}
                                    for key, points in stints.items() if slope(points) is not None]
-    return {'event': str(data.event['EventName']), 'session': data.name, 'phase': phase if qualifying else None,
+    return {'event': str(data.event['EventName']), 'session': data.name,
             'teams': [{'team': name, **team} for name, team in teams.items()],
-            'method': 'car-performance-v1', 'traffic_threshold': traffic,
+            'method': 'car-performance-v2', 'traffic_threshold': traffic,
             'total_laps': len(rows), 'eligible_laps': len(valid)}
 
 
@@ -235,7 +263,7 @@ def telemetry_metrics(samples, corners):
     distance = np.array([r['Distance'] for r in rows], dtype=float)
     times = np.array([r['ElapsedSeconds'] for r in rows], dtype=float)
     speed = np.array([r['Speed'] for r in rows], dtype=float)
-    if np.any(np.diff(distance) <= 0) or np.any(np.diff(times) <= 0) or max(np.diff(times)) > 1.5:
+    if np.any(np.diff(distance) <= 0) or np.any(np.diff(times) <= 0) or max(np.diff(times)) > 3:
         raise ValueError('Telemetry has gaps or invalid distance/time samples')
     length = float(distance[-1])
     positions = [(i, r) for i, r in enumerate(rows) if number(r.get('X')) is not None and number(r.get('Y')) is not None]
@@ -253,13 +281,16 @@ def telemetry_metrics(samples, corners):
         start = max(0, center-100, (located[i-1][0]+center)/2 if i else 0)
         end = min(length, center+100, (located[i+1][0]+center)/2 if i+1 < len(located) else length)
         mask = (distance >= start) & (distance <= end)
-        if mask.sum() < 4 or end-start < 25:
+        if mask.sum() < 4 or end-start < 25 or max(np.diff(times[mask]), default=0) > 1.5:
             continue
         duration = float(np.interp(end, distance, times)-np.interp(start, distance, times))
         output.append({'corner': label, 'time': duration, 'length': end-start,
                        'minimum': float(speed[mask].min()), 'mean_speed': (end-start)/duration*3.6})
     zones, active = [], None
     for i, row in enumerate(rows):
+        if i and times[i]-times[i-1] > 1.5:
+            active = None
+            continue
         braking = bool(row.get('Brake'))
         if braking and active is None:
             active = i

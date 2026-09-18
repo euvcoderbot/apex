@@ -19,24 +19,34 @@ class Session:
     event={'EventName':'Test GP'}
     drivers=['A','B','C']
     def get_driver(self,code):
+        times={'A':90,'B':91,'C':92}
         return {'Abbreviation':code,'TeamName':'Alpha' if code in ('A','B') else 'Beta',
-                'TeamColor':'888888','Q1':{'A':90,'B':91,'C':92}[code]}
+                'TeamColor':'888888','Q1':times[code],
+                'Q2':89 if code=='A' else (90 if code=='C' else None), 'Q3':None}
 
 
 class PerformanceTests(unittest.TestCase):
     def test_fastest_teammate_and_phase(self):
-        rows=[lap(),lap('B',time=91),lap('C','Beta',92),lap('A',time=80,phase='Q2')]
+        rows=[lap(),lap('B',time=91),lap('C','Beta',92),
+              lap('A',time=89,phase='Q2'),lap('C','Beta',90,phase='Q2')]
         with patch('performance.records',return_value=rows):
             result=analyze(Session())
         a,b=result['teams']
         self.assertEqual(a['lap']['driver'],'A')
         self.assertAlmostEqual(a['pace'],0)
-        self.assertAlmostEqual(b['pace'],(92/90-1)*100)
+        self.assertAlmostEqual(b['pace'],((92/90-1)+(90/89-1))*50)
+        self.assertEqual(a['phase_count'],2)
 
     def test_unofficial_deleted_fast_lap_not_selected(self):
         with patch('performance.records',return_value=[lap(time=80),lap()]):
             result=analyze(Session())
         self.assertEqual(result['teams'][0]['lap']['time'],90)
+
+    def test_historical_dry_compound_and_official_time_are_valid(self):
+        old=lap(compound='ULTRASOFT',accurate=False,track='')
+        with patch('performance.records',return_value=[old]):
+            result=analyze(Session())
+        self.assertEqual(result['teams'][0]['phase_count'],1)
 
     def test_wet_unknown_weather_and_flags_excluded(self):
         self.assertTrue(clean(lap()))
