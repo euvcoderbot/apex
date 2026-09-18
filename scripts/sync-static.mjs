@@ -8,6 +8,8 @@ const staticFiles = [
   "app.js",
   "alignment.js",
   "telemetry-model.js",
+  "car-performance.js",
+  "car-performance.css",
   "styles.css",
   "design-system.css",
   "polish.css",

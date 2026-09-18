@@ -243,7 +243,7 @@ test('qualifying run pills show every compound and lap state precedes the time',
   assert.match(app, /class="lap-token">\$\{flag\}\$\{context/);
   assert.match(app, /class="lap-clock">\$\{duration\}<\/span>/);
   const html = readFileSync('index.html', 'utf8');
-  assert.match(html, /app\.js\?v=euv2-release-20260917-2/);
+  assert.match(html, /app\.js\?v=euv2-release-20260918/);
   assert.match(html, /alignment\.js\?v=euv2-release-20260917-2/);
 });
 

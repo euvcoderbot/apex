@@ -1,6 +1,7 @@
 *
 !server.py
 !session_loader.py
+!performance.py
 !requirements.txt
 !pyproject.toml
 !uv.lock

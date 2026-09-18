@@ -17,6 +17,7 @@
     }
   </script>
   <link rel="stylesheet" href="styles.css?v=euv2-release-20260918">
+  <link rel="stylesheet" href="car-performance.css?v=20260918-1">
 </head>
 <body>
   <header class="site-header">
@@ -24,6 +25,10 @@
       <img src="assets/euv2-logo.png" alt="euV2 data">
     </a>
     <div class="header-actions">
+      <nav class="performance-tabs" aria-label="Analysis view">
+        <button type="button" data-analysis-view="session" aria-pressed="true">Session analysis</button>
+        <button type="button" data-analysis-view="performance" aria-pressed="false">Car performance</button>
+      </nav>
       <button id="themeToggle" class="theme-toggle" type="button" aria-pressed="false" aria-label="Switch to light mode"><i aria-hidden="true"></i><span>Light mode</span></button>
       <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-expanded="true" aria-controls="driverSidebar"><i aria-hidden="true"></i><span>Hide drivers</span></button>
     </div>
@@ -139,6 +144,34 @@
       </div>
     </div>
   </main>
+  <section id="carPerformance" class="performance-page" aria-label="Car performance" hidden>
+    <div class="dashboard-card performance-toolbar">
+      <h1>Car performance</h1>
+      <label>Season<select id="performanceYear"></select></label>
+      <label>Scope<select id="performanceScope"><option value="track">Per track</option><option value="season">Season to date</option></select></label>
+      <label id="performanceEventField">Grand Prix<select id="performanceEvent"></select></label>
+      <label>Qualifying phase<select id="performancePhase"><option>Q1</option><option>Q2</option><option>Q3</option></select></label>
+      <label>Gap ahead<select id="performanceTraffic"><option value="2">Over 2 seconds</option><option value="3">Over 3 seconds</option><option value="5">Over 5 seconds</option></select></label>
+      <button type="button" id="performanceLoad">Analyse</button>
+      <button type="button" id="performanceCancel" hidden>Stop</button>
+    </div>
+    <p id="performanceStatus" role="status" aria-live="polite">Choose a track or analyse completed events across the season.</p>
+    <div id="performanceResults"></div>
+    <details class="dashboard-card performance-methods">
+      <summary>How to read these measurements</summary>
+      <dl>
+        <dt>Qualifying pace</dt><dd>Fastest driver per team, against the fastest lap in the same Q phase. Official classification time must match a clean, dry timing lap. Q1 gives the widest field coverage. Missing or wet-only teams are not assigned a deficit.</dd>
+        <dt>Race pace</dt><dd>Dry, accurate green-flag laps, excluding pit laps and the opening two laps. Both timing-line gaps must exceed your threshold. This is a traffic proxy, not proof of an entire clean-air lap. Match compound, tyre age ±1 lap and race lap ±1. Fit team pace from median pairwise log-time differences, requiring five distinct laps on both sides of each pair and a connected group of at least three teams. Disconnected teams are excluded. No fuel correction. Low-coverage races, including Monaco, remain low-confidence or unavailable.</dd>
+        <dt>Cornering</dt><dd>Observed time and mean speed within up to 100 m either side of each circuit reference marker, shortened at adjacent midpoints. FastF1’s marker positions are manually curated, not precision surveyed. Categories use the median minimum speed of the loaded teams: low &lt;150, medium 150–230, high ≥230 km/h. Compare identical corners; missing geometry is excluded. This is a lap-level observation, not a driver-independent car rating.</dd>
+        <dt>Straight line and braking</dt><dd>Top speed and full-throttle 95th-percentile speed are influenced by tow, deployment and DRS/straight mode. Brake-on zones show distance, entry/exit speed and mean deceleration, not brake pressure. Public sample rates cannot resolve tiny braking-point differences. There is no “best brakes” ranking from unmatched zones.</dd>
+        <dt>Tyre trend</dt><dd>Robust lap-time slope within each clean-air dry stint, with at least six laps and a five-lap age span. Fuel burn, track evolution and management remain confounders: this is observed s/lap, not isolated tyre degradation.</dd>
+        <dt>Season and development</dt><dd>Equal event weighting; never average seconds from different circuits. Coverage is shown per team. Changes in track mix, drivers and weather can shift the trend. A falling qualifying deficit is improvement relative to that event's leader, not proof of an upgrade benefit.</dd>
+        <dt>Downforce</dt><dd>Not estimated. Public telemetry lacks the tyre, ride-height, wind, mass and aero-load inputs needed for a defensible downforce index. High-speed corner performance is shown directly instead.</dd>
+        <dt>Reliability and results</dt><dd>Official finishing status separates known mechanical failures, incidents and other/unclassified retirements. Points and average finishing position describe results, not car speed. Unclassified causes are never assumed mechanical.</dd>
+      </dl>
+      <p>Sources: <a href="https://docs.fastf1.dev/" target="_blank" rel="noopener">FastF1 timing and telemetry</a> · <a href="https://www.fia.com/documents" target="_blank" rel="noopener">FIA event documents</a>. Data is fetched on demand; no performance results are saved between visits.</p>
+    </details>
+  </section>
 
   <div class="app-toast" id="appToast" role="status" aria-live="polite" aria-atomic="true"></div>
 
@@ -149,5 +182,6 @@
   <script src="telemetry-model.js?v=euv2-reconstruction-20260905"></script>
   <script src="app.js?v=euv2-release-20260918"></script>
   <script src="alignment.js?v=euv2-release-20260917-2"></script>
+  <script type="module" src="car-performance.js?v=20260918-1"></script>
 </body>
 </html>

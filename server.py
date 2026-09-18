@@ -1302,6 +1302,55 @@ def session_data(
     return payload
 
 
+@app.get("/api/performance")
+def car_performance(response: Response, year: int = Query(..., ge=2018, le=2100),
+                    gp: str = Query(..., min_length=3, max_length=120),
+                    session: str = Query('Q', pattern='^(Q|R)$'),
+                    phase: str = Query('Q1', pattern='^Q[123]$'),
+                    traffic: float = Query(2, ge=0, le=10)):
+    response.headers['Cache-Control'] = 'no-store'
+    started = time.perf_counter()
+    try:
+        from performance import analyze
+        data = load_fresh_session(year, gp, session)
+        result = analyze(data, phase, traffic)
+    except Exception as exc:
+        logger.warning('Car performance unavailable for %s %s: %s', year, gp, exc)
+        raise HTTPException(422, 'Performance data is incomplete or unavailable for this session. Try another event.') from exc
+    response.headers['Server-Timing'] = f'performance;dur={(time.perf_counter()-started)*1000:.1f}'
+    return result
+
+
+@app.get('/api/performance/trace')
+def car_performance_trace(response: Response, year: int = Query(..., ge=2018, le=2100),
+                          gp: str = Query(..., min_length=3, max_length=120),
+                          driver_number: str = Query(..., pattern=r'^\d{1,3}$'),
+                          start: float = Query(..., ge=0, le=20000),
+                          end: float = Query(..., gt=0, le=20300)):
+    response.headers['Cache-Control'] = 'no-store'
+    if not 20 < end-start < 300:
+        raise HTTPException(422, 'Invalid qualifying lap window')
+    try:
+        fastf1_runtime()
+        from session_loader import load_selected_lap_telemetry, exact_event, download_feed, _PARSERS
+        from fastf1.mvapi import get_circuit_info
+        from performance import telemetry_metrics
+        samples = load_selected_lap_telemetry(year, gp, 'Q', driver_number, start, end)
+        lap_session = exact_event(year, gp).get_session('Q')
+        session_info = _PARSERS['session_info'](lap_session.api_path,
+            response=download_feed(lap_session.api_path, 'session_info'))
+        circuit = session_info['Meeting']['Circuit']
+        key = 146 if circuit.get('Key') == 149 and circuit.get('ShortName') == 'Mugello' else circuit['Key']
+        info = get_circuit_info(year=year, circuit_key=key)
+        corners = [{'number': str(r['Number']), 'letter': str(r.get('Letter') or ''),
+                    'x': seconds(r.get('X')), 'y': seconds(r.get('Y'))}
+                   for _, r in info.corners.iterrows()] if info is not None else []
+        return telemetry_metrics(samples, corners)
+    except Exception as exc:
+        logger.warning('Performance trace unavailable: %s', exc)
+        raise HTTPException(422, 'This lap has insufficient telemetry or circuit geometry for performance analysis.') from exc
+
+
 @app.get("/api/telemetry")
 def telemetry(
     response: Response,
@@ -1515,6 +1564,8 @@ def frontend_asset(asset_name: str) -> FileResponse:
     allowed = {
         "alignment.js",
         "telemetry-model.js",
+        "car-performance.js",
+        "car-performance.css",
         "apple-ui.css",
         "app.js",
         "config.js",

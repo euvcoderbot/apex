@@ -1,0 +1,43 @@
+.performance-page { max-width:1600px; margin:20px auto; padding:0 24px; }
+.performance-page[hidden], body.performance-view #top, body.performance-view #sidebarToggle { display:none!important; }
+.performance-tabs { display:flex; gap:3px; padding:3px; border:1px solid var(--border, #5555); border-radius:10px; background:var(--surface, #8080800b); }
+.performance-tabs button { background:transparent; border:0; border-radius:7px; padding:7px 12px; color:inherit; box-shadow:none; white-space:nowrap; }
+.performance-tabs button[aria-pressed=true] { background:#448be326; color:var(--accent,#328dff); box-shadow:0 0 0 1px #448be34d; }
+.performance-toolbar { display:flex; align-items:end; gap:14px; flex-wrap:wrap; padding:18px; }
+.performance-toolbar h1 { font-size:20px; margin:0 auto 8px 0; }
+.performance-toolbar label { display:flex; flex-direction:column; gap:6px; font-size:13px; }
+.performance-toolbar select { width:auto; max-width:260px; min-height:34px; padding:6px 28px 6px 9px; color:inherit; }
+.performance-toolbar button { min-height:34px; }
+#performanceStatus { min-height:22px; color:var(--text-secondary,#9399a4); font-size:14px; }
+.performance-page .dashboard-card { margin-bottom:16px; }
+.performance-card { padding:18px; overflow:hidden; }
+.performance-card h2 { font-size:17px; margin:0 0 6px; }
+.performance-card h3 { font-size:15px; margin:18px 0 10px; }
+.performance-note { color:var(--text-secondary,#9399a4); font-size:13px; margin:6px 0 14px; line-height:1.5; }
+.performance-table-wrap { overflow:auto; }
+.performance-table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; white-space:nowrap; font-size:14px; }
+.performance-table th { font-weight:500; color:var(--text-secondary,#9399a4); font-size:13px; }
+.performance-table td,.performance-table th { padding:12px 10px; text-align:right; border-bottom:1px solid #8883; }
+.performance-table td:first-child,.performance-table th:first-child { text-align:left; }
+.performance-table td:first-child { min-width:160px; }
+.performance-table small { display:block; margin-top:3px; font-size:12px; color:var(--text-secondary,#9399a4); }
+.performance-table th button { border:0; padding:0; background:none; box-shadow:none; color:inherit; font:inherit; }
+.performance-team { border-left:3px solid var(--team-color,#888); padding-left:9px; }
+.performance-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.performance-grid .dashboard-card { margin:0; }
+.performance-methods { padding:16px 18px; line-height:1.6; margin-top:16px; font-size:14px; }
+.performance-methods summary { cursor:pointer; font-weight:600; }
+.performance-methods dt { margin-top:12px; font-weight:600; }
+.performance-methods dd { margin:4px 0 0; color:var(--text-secondary,#9399a4); }
+.performance-choices { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+.performance-choices label { display:flex; align-items:center; gap:6px; border:1px solid #8885; border-radius:8px; padding:7px 10px; font-size:13px; }
+.performance-choices input { accent-color:#328dff; }
+.performance-mode { display:flex; gap:6px; flex-wrap:wrap; margin:12px 0 16px; }
+.performance-mode button { padding:7px 12px; background:transparent; color:inherit; }
+.performance-mode button[aria-pressed=true] { background:#448be326; border-color:#448be3; }
+.performance-error { padding:10px; border-left:3px solid #e49b32; font-size:14px; }
+.performance-trend { display:flex; align-items:end; gap:4px; height:80px; min-width:200px; }
+.performance-trend span { flex:1; background:var(--team-color,#328dff); border-radius:2px 2px 0 0; min-height:2px; opacity:.8; }
+.performance-trend-label { display:flex; justify-content:space-between; font-size:12px; color:var(--text-secondary,#9399a4); margin-top:5px; }
+.performance-page button:focus-visible, .performance-page select:focus-visible { outline:2px solid #328dff; outline-offset:3px; }
+@media(max-width:800px) { .performance-page{padding:0 12px}.performance-grid{grid-template-columns:1fr}.performance-toolbar h1{width:100%}.header-actions{flex-wrap:wrap}.performance-tabs button{padding:6px;font-size:12px}.performance-toolbar label{flex:1;min-width:120px}.performance-toolbar select{max-width:100%;width:100%} }
