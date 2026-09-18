@@ -1352,13 +1352,13 @@ def car_performance_trace(response: Response, year: int = Query(..., ge=2018, le
 @app.get('/api/performance/trace-batch')
 def car_performance_trace_batch(response: Response, year: int = Query(..., ge=2018, le=2100),
                                 gp: str = Query(..., min_length=3, max_length=120),
-                                windows: str = Query(..., min_length=20, max_length=6000)):
+                                windows: str = Query(..., min_length=20, max_length=18000)):
     """Extract all team representatives from one shared qualifying archive."""
     response.headers['Cache-Control'] = 'no-store'
     try:
         selections = json.loads(windows)
-        if not isinstance(selections, list) or not 1 <= len(selections) <= 12:
-            raise ValueError('one to twelve team windows are required')
+        if not isinstance(selections, list) or not 1 <= len(selections) <= 36:
+            raise ValueError('one to thirty-six candidate windows are required')
         normalized = []
         for item in selections:
             team = str(item.get('team') or '')[:80]
@@ -1366,12 +1366,14 @@ def car_performance_trace_batch(response: Response, year: int = Query(..., ge=20
             start, end = float(item.get('start')), float(item.get('end'))
             if not team or not number.isdigit() or not 20 < end-start < 300:
                 raise ValueError('invalid team telemetry window')
-            normalized.append({'team': team, 'driver_number': number,
+            normalized.append({'team': team, 'team_name': str(item.get('team_name') or team)[:80],
+                               'driver_number': number, 'driver': str(item.get('driver') or number)[:4],
+                               'lap': item.get('lap'), 'time': end-start,
                                'start': start, 'end': end})
         fastf1_runtime()
         from session_loader import load_selected_laps_telemetry, exact_event, download_feed, _PARSERS
         from fastf1.mvapi import get_circuit_info
-        from performance import telemetry_metrics
+        from performance_tracks import measure_field
         event = exact_event(year, gp)
         lap_session = event.get_session('Q')
         session_info = _PARSERS['session_info'](lap_session.api_path,
@@ -1383,16 +1385,7 @@ def car_performance_trace_batch(response: Response, year: int = Query(..., ge=20
                     'x': seconds(r.get('X')), 'y': seconds(r.get('Y'))}
                    for _, r in info.corners.iterrows()] if info is not None else []
         extracted = load_selected_laps_telemetry(year, gp, 'Q', normalized)
-        results = {}
-        for team, samples, error in extracted:
-            if error:
-                results[team] = {'error': error}
-                continue
-            try:
-                results[team] = telemetry_metrics(samples, corners)
-            except Exception as exc:
-                results[team] = {'error': str(exc)}
-        return {'event': gp, 'teams': results}
+        return {'event': gp, **measure_field(extracted, normalized, corners)}
     except (TypeError, ValueError, json.JSONDecodeError) as exc:
         raise HTTPException(422, f'Invalid telemetry selection: {exc}') from exc
     except Exception as exc:

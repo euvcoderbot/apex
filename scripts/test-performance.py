@@ -72,14 +72,14 @@ class PerformanceTests(unittest.TestCase):
         rows=[lap(driver,{'A':'Alpha','B':'Alpha','C':'Beta','D':'Gamma'}[driver],
                   time=base[driver]+number*.03,lap=number,age=number,phase=None,
                   start=number*100,end=number*100+base[driver])
-              for driver in base for number in range(3,10)]
+              for driver in base for number in range(3,15)]
         clear={(row['driver'],row['lap']):10 for row in rows}
         with patch('performance.records',return_value=rows), patch('performance.traffic_gaps',return_value=clear):
             result=analyze(RaceSession())
         alpha=next(team for team in result['teams'] if team['team']=='Alpha')
         self.assertEqual(alpha['fastest_race_driver'],'A')
         self.assertAlmostEqual(alpha['pace'],0,places=6)
-        self.assertEqual(alpha['samples'],7)
+        self.assertEqual(alpha['samples'],12)
 
     def test_slope_and_insufficient_span(self):
         self.assertAlmostEqual(slope([(i,90+i*.2) for i in range(10)]),.2)

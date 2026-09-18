@@ -2,6 +2,7 @@
 !server.py
 !session_loader.py
 !performance.py
+!performance_tracks.py
 !requirements.txt
 !pyproject.toml
 !uv.lock

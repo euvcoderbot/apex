@@ -239,7 +239,8 @@ def load_selected_laps_telemetry(year, gp, session_name, selections):
 
     # Parsing is independent and bounded to the ten team representatives.
     with ThreadPoolExecutor(max_workers=4, thread_name_prefix='lap-extract') as pool:
-        return [future.result() for future in (pool.submit(extract, item) for item in selections)]
+        futures = [pool.submit(extract, item) for item in selections]
+        return [future.result() for future in futures]
 
 
 def load_fresh_session(year, gp, session_name, telemetry=False):

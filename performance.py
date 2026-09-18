@@ -87,11 +87,56 @@ def traffic_gaps(rows):
                 break
             gap = stamp-times[i]
             # No nearby crossing can also mean missing timing, not clean air.
-            if gap > 60:
+            if gap > max(60, (row.get('time') or 0)*1.25):
                 break
             values.append(gap)
         gaps[(row['driver'], row['lap'])] = min(values) if len(values) == 2 else None
     return gaps
+
+
+def race_estimates(valid):
+    """Robust driver effects with shared race-lap, compound and tyre-age terms.
+
+    Exact age matching can disconnect the leaders from the midfield. Shared
+    nuisance terms allow different pit strategies without equating raw lap
+    times. Reject unidentified driver contrasts instead of picking a component.
+    """
+    import numpy as np
+    from collections import Counter
+    counts = Counter(r['driver'] for r in valid if r['age'] is not None)
+    drivers = sorted(d for d, n in counts.items() if n >= 10)
+    selected = [r for r in valid if r['driver'] in drivers and r['age'] is not None]
+    if len(drivers) < 3:
+        return {}, {}
+    laps = sorted({r['lap'] for r in selected})
+    compounds = sorted({r['compound'] for r in selected})
+    matrix = np.array([
+        [float(r['driver'] == d) for d in drivers]
+        + [float(r['lap'] == lap) for lap in laps[1:]]
+        + [float(r['compound'] == c) for c in compounds[1:]]
+        + [r['age']/10 if r['compound'] == c else 0 for c in compounds]
+        for r in selected])
+    target = np.log([r['time'] for r in selected])*100
+    # A common unidentifiable intercept is harmless; driver contrasts must be
+    # identifiable. This also handles age == race lap on single-stint fixtures.
+    _, singular, vt = np.linalg.svd(matrix, full_matrices=matrix.shape[0] < matrix.shape[1])
+    rank = int(np.sum(singular > singular[0]*1e-10))
+    null = vt[rank:]
+    if len(null) and np.max(np.abs(null[:, :len(drivers)]-null[:, :1])) > 1e-6:
+        return {}, {}
+    weights = np.ones(len(selected))
+    for _ in range(12):
+        root = np.sqrt(weights)
+        solution = np.linalg.lstsq(matrix*root[:, None], target*root, rcond=None)[0]
+        residual = target-matrix@solution
+        scale = max(.05, 1.4826*float(np.median(np.abs(residual-np.median(residual)))))
+        weights = np.minimum(1, 1.5*scale/np.maximum(np.abs(residual), 1e-9))
+    base = min(solution[:len(drivers)])
+    estimates = {d: float(np.expm1((v-base)/100)*100)
+                 for d, v in zip(drivers, solution)}
+    support = {d: {'samples': counts[d], 'residual_spread': float(np.median(
+        np.abs(residual[[r['driver'] == d for r in selected]])))} for d in drivers}
+    return estimates, support
 
 
 def analyze(data, traffic=2):
@@ -115,7 +160,7 @@ def analyze(data, traffic=2):
         team['points'] += points or 0
         if status not in ('Did not start', 'Withdrew', 'Did not qualify'):
             team['starts'] += 1
-        if status == 'Finished' or status.startswith('+'):
+        if status in ('Finished', 'Lapped') or status.startswith('+'):
             team['finishes'] += 1
         elif status in mechanical:
             team['mechanical'] += 1
@@ -162,6 +207,10 @@ def analyze(data, traffic=2):
                 'pace': sum(entry['pace'] for entry in phases)/len(phases) if phases else None,
                 'lap': min(laps, key=lambda r: r['time'], default=None),
                 'laps': laps,
+                'telemetry_candidates': sorted(
+                    [r for r in valid if r['team'] == name and laps
+                     and r['time'] <= min(x['time'] for x in laps)*1.01],
+                    key=lambda r: r['time'])[:3],
                 'phase_count': len(phases),
                 'samples': len(phases),
                 'sector_deficits': [
@@ -176,73 +225,18 @@ def analyze(data, traffic=2):
         candidates = [r for r in valid if r['lap'] and r['lap'] > 2]
         valid = [r for r in candidates if gaps.get((r['driver'], r['lap'])) is not None
                  and gaps[(r['driver'], r['lap'])] > traffic]
-        bins = defaultdict(list)
-        for r in valid:
-            bins[r['compound']].append(r)
-        pair_differences = defaultdict(list)
-        matched_laps = defaultdict(set)
         driver_team = {r['driver']: r['team'] for r in valid}
-        for r in valid:
-            if r['age'] is None:
-                continue
-            matches = [p for p in bins[r['compound']] if abs(p['lap']-r['lap']) <= 1
-                       and p['age'] is not None and abs(p['age']-r['age']) <= 1]
-            for p in matches:
-                if r['driver'] >= p['driver']:
-                    continue
-                pair_differences[(r['driver'], p['driver'])].append((
-                    math.log(r['time']/p['time'])*100,
-                    (r['driver'],r['lap']), (p['driver'],p['lap'])))
-        edges = []
-        for (a,b), values in pair_differences.items():
-            left, right = {v[1] for v in values}, {v[2] for v in values}
-            if min(len(left),len(right)) < 5:
-                continue
-            edges.append((a,b,median(v[0] for v in values),min(len(left),len(right))))
-            matched_laps[a].update(left)
-            matched_laps[b].update(right)
-        # Solve a connected pairwise comparison graph. Averaging each driver's
-        # deficit to a different local reference falsely rewards weak comparison
-        # groups and can rank midfield pace above the leaders.
-        connected = []
-        remaining = set(t for edge in edges for t in edge[:2])
-        while remaining:
-            group, pending = set(), [next(iter(remaining))]
-            while pending:
-                name = pending.pop()
-                if name in group:
-                    continue
-                group.add(name)
-                pending.extend(b if a == name else a for a,b,_,_ in edges if name in (a,b))
-            remaining -= group
-            connected.append(group)
-        group = max(connected, key=len, default=set())
-        driver_estimates = {}
-        if len(group) >= 3:
-            import numpy as np
-            names = sorted(group)
-            matrix, target = [], []
-            for a,b,difference,count in edges:
-                if a not in group or b not in group:
-                    continue
-                weight = math.sqrt(min(count,20))
-                row = [0.0]*len(names)
-                row[names.index(a)], row[names.index(b)] = weight,-weight
-                matrix.append(row)
-                target.append(difference*weight)
-            matrix.append([1.0]*len(names))
-            target.append(0.0)
-            solution = np.linalg.lstsq(matrix,target,rcond=None)[0]
-            baseline = min(solution)
-            driver_estimates = {name:(math.exp((float(value)-baseline)/100)-1)*100
-                                for name,value in zip(names,solution)}
+        driver_estimates, support = race_estimates(valid)
         for name, team in teams.items():
             drivers = [(driver, pace) for driver, pace in driver_estimates.items()
                        if driver_team.get(driver) == name]
             fastest = min(drivers, key=lambda item: item[1], default=None)
             team['pace'] = fastest[1] if fastest else None
             team['fastest_race_driver'] = fastest[0] if fastest else None
-            team['samples'] = len(matched_laps[fastest[0]]) if fastest else 0
+            team['samples'] = support[fastest[0]]['samples'] if fastest else 0
+            team['race_residual_spread'] = support[fastest[0]]['residual_spread'] if fastest else None
+            team['race_drivers'] = [{'driver': driver, 'pace': pace, **support[driver]}
+                                    for driver, pace in drivers]
             eligible = [r for r in candidates if r['driver'] == fastest[0]] if fastest else []
             clean_laps = [r for r in valid if r['team'] == name]
             selected_clean = [r for r in clean_laps if fastest and r['driver'] == fastest[0]]
@@ -256,7 +250,7 @@ def analyze(data, traffic=2):
                                    for key, points in stints.items() if slope(points) is not None]
     return {'event': str(data.event['EventName']), 'session': data.name,
             'teams': [{'team': name, **team} for name, team in teams.items()],
-            'method': 'car-performance-v2', 'traffic_threshold': traffic,
+            'method': 'car-performance-v3', 'traffic_threshold': traffic,
             'total_laps': len(rows), 'eligible_laps': len(valid)}
 
 
