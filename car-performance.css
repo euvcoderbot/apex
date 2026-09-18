@@ -6,6 +6,7 @@
 .performance-toolbar { display:flex; align-items:end; gap:14px; flex-wrap:wrap; padding:18px; }
 .performance-toolbar h1 { font-size:20px; margin:0 auto 8px 0; }
 .performance-toolbar label { display:flex; flex-direction:column; gap:6px; font-size:13px; }
+.performance-toolbar [hidden] { display:none!important; }
 .performance-toolbar select { width:auto; max-width:260px; min-height:34px; padding:6px 28px 6px 9px; color:inherit; }
 .performance-toolbar button { min-height:34px; }
 #performanceStatus { min-height:22px; color:var(--text-secondary,#9399a4); font-size:14px; }

@@ -181,15 +181,16 @@ def analyze(data, traffic=2):
             bins[r['compound']].append(r)
         pair_differences = defaultdict(list)
         matched_laps = defaultdict(set)
+        driver_team = {r['driver']: r['team'] for r in valid}
         for r in valid:
             if r['age'] is None:
                 continue
             matches = [p for p in bins[r['compound']] if abs(p['lap']-r['lap']) <= 1
                        and p['age'] is not None and abs(p['age']-r['age']) <= 1]
             for p in matches:
-                if r['team'] >= p['team']:
+                if r['driver'] >= p['driver']:
                     continue
-                pair_differences[(r['team'], p['team'])].append((
+                pair_differences[(r['driver'], p['driver'])].append((
                     math.log(r['time']/p['time'])*100,
                     (r['driver'],r['lap']), (p['driver'],p['lap'])))
         edges = []
@@ -216,7 +217,7 @@ def analyze(data, traffic=2):
             remaining -= group
             connected.append(group)
         group = max(connected, key=len, default=set())
-        estimates = {}
+        driver_estimates = {}
         if len(group) >= 3:
             import numpy as np
             names = sorted(group)
@@ -233,14 +234,19 @@ def analyze(data, traffic=2):
             target.append(0.0)
             solution = np.linalg.lstsq(matrix,target,rcond=None)[0]
             baseline = min(solution)
-            estimates = {name:(math.exp((float(value)-baseline)/100)-1)*100
-                         for name,value in zip(names,solution)}
+            driver_estimates = {name:(math.exp((float(value)-baseline)/100)-1)*100
+                                for name,value in zip(names,solution)}
         for name, team in teams.items():
-            team['pace'] = estimates.get(name)
-            team['samples'] = len(matched_laps[name]) if name in estimates else 0
-            eligible = [r for r in candidates if r['team'] == name]
+            drivers = [(driver, pace) for driver, pace in driver_estimates.items()
+                       if driver_team.get(driver) == name]
+            fastest = min(drivers, key=lambda item: item[1], default=None)
+            team['pace'] = fastest[1] if fastest else None
+            team['fastest_race_driver'] = fastest[0] if fastest else None
+            team['samples'] = len(matched_laps[fastest[0]]) if fastest else 0
+            eligible = [r for r in candidates if r['driver'] == fastest[0]] if fastest else []
             clean_laps = [r for r in valid if r['team'] == name]
-            team['traffic_coverage'] = len(clean_laps)/len(eligible) if eligible else 0
+            selected_clean = [r for r in clean_laps if fastest and r['driver'] == fastest[0]]
+            team['traffic_coverage'] = len(selected_clean)/len(eligible) if eligible else 0
             stints = defaultdict(list)
             for r in clean_laps:
                 if r['age'] is not None:

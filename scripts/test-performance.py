@@ -25,6 +25,16 @@ class Session:
                 'Q2':89 if code=='A' else (90 if code=='C' else None), 'Q3':None}
 
 
+class RaceSession:
+    name='Race'
+    _QUALI_LIKE_SESSIONS=('Qualifying',)
+    event={'EventName':'Test GP'}
+    drivers=['A','B','C','D']
+    def get_driver(self,code):
+        return {'Abbreviation':code,'TeamName':{'A':'Alpha','B':'Alpha','C':'Beta','D':'Gamma'}[code],
+                'TeamColor':'888888','Status':'Finished','Points':0,'Position':ord(code)-64}
+
+
 class PerformanceTests(unittest.TestCase):
     def test_fastest_teammate_and_phase(self):
         rows=[lap(),lap('B',time=91),lap('C','Beta',92),
@@ -56,6 +66,20 @@ class PerformanceTests(unittest.TestCase):
     def test_traffic_gap_includes_lapped_car(self):
         rows=[lap('B',lap=2,end=399),lap('B',lap=3,end=489),lap()]
         self.assertEqual(traffic_gaps(rows)[('A',5)],1)
+
+    def test_race_pace_uses_fastest_teammate_not_team_average(self):
+        base={'A':90,'B':96,'C':91,'D':92}
+        rows=[lap(driver,{'A':'Alpha','B':'Alpha','C':'Beta','D':'Gamma'}[driver],
+                  time=base[driver]+number*.03,lap=number,age=number,phase=None,
+                  start=number*100,end=number*100+base[driver])
+              for driver in base for number in range(3,10)]
+        clear={(row['driver'],row['lap']):10 for row in rows}
+        with patch('performance.records',return_value=rows), patch('performance.traffic_gaps',return_value=clear):
+            result=analyze(RaceSession())
+        alpha=next(team for team in result['teams'] if team['team']=='Alpha')
+        self.assertEqual(alpha['fastest_race_driver'],'A')
+        self.assertAlmostEqual(alpha['pace'],0,places=6)
+        self.assertEqual(alpha['samples'],7)
 
     def test_slope_and_insufficient_span(self):
         self.assertAlmostEqual(slope([(i,90+i*.2) for i in range(10)]),.2)

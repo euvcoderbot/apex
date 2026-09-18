@@ -330,3 +330,15 @@ test('Madrid rejects inherited Barcelona corner rows but accepts a 22-turn set',
   h.run("sessionYear = 2026; sessionEventName = 'Barcelona Grand Prix'");
   assert.equal(h.run('markerRowsForCurrentCircuit(barcelonaRows).length'), 14);
 });
+
+test('car performance controls hide irrelevant GP and expose sortable methodology', () => {
+  const performance = readFileSync('car-performance.js', 'utf8');
+  const css = readFileSync('car-performance.css', 'utf8');
+  const html = readFileSync('index.html', 'utf8');
+  assert.match(css, /\.performance-toolbar \[hidden\]\s*\{\s*display:none!important/);
+  assert.match(performance, /performanceEventField.*hidden=.*performanceScope.*season/);
+  assert.match(performance, /data-performance-sort/);
+  assert.match(performance, /Sustained full-throttle speed \(P95\)/);
+  assert.match(performance, /Only corners present for every compared team/);
+  assert.match(html, /does not provide brake pressure/);
+});
