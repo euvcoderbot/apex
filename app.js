@@ -15,6 +15,8 @@ let genericCircuitData = null;
 let genericCircuitRequest = null;
 let sessionEventName = '';
 let sessionYear = null;
+let loadedSessionName = '';
+let raceResultView = 'points';
 let openf1SessionKey = null;
 let nominatedCompounds = [];
 let activeDriverTab = null;
@@ -886,6 +888,7 @@ async function loadRealSession() {
     ]));
     corners = payload.corners || [];
     sessionEventName = payload.event || '';
+    loadedSessionName = payload.session || '';
     sessionYear = Number(new URLSearchParams(requestedQuery).get('year'));
     openf1SessionKey = Number.isInteger(payload.openf1_session_key) ? payload.openf1_session_key : null;
     circuitRotation = Number.isFinite(Number(payload.circuit_rotation))
@@ -950,8 +953,34 @@ async function fetchTelemetry(lap) {
 }
 
 // UI Rendering Functions
+function raceResultMarkup(driver) {
+  const result = driver?.result || {};
+  const status = String(result.status || '').trim();
+  const retired = status && !/^(finished|\+\d+ laps?)$/i.test(status);
+  const badge = /^(dns|did not start|withdrawn|did not qualify|did not prequalify)$/i.test(status) ? 'DNS'
+    : /disqualified|dsq/i.test(status) ? 'DSQ' : retired ? 'DNF' : '';
+  let value = '—';
+  if (raceResultView === 'points') {
+    if (Number.isFinite(result.points)) value = `${result.points} pts`;
+  } else if (badge) value = badge;
+  else if (/^\+\d+ laps?$/i.test(status)) value = status.toLowerCase();
+  else if (typeof result.gap === 'string' && /^\+?\d+\s*laps?$/i.test(result.gap.trim())) value = result.gap.toLowerCase();
+  else if (Number.isFinite(result.gap)) value = result.gap === 0 ? 'Winner' : `+${result.gap.toFixed(3)}s`;
+  return `<span class="driver-result" title="${escapeUI(status || 'Result unavailable')}"><b>${escapeUI(value)}</b>${badge && raceResultView === 'points' ? `<small>${badge}</small>` : ''}</span>`;
+}
+
 function renderDrivers() {
   const root = $('#driverPills');
+  const isRace = drivers.length > 0 && /^(Race|Sprint)$/i.test(loadedSessionName);
+  const controls = $('#raceResultControls');
+  if (controls) {
+    controls.hidden = !isRace;
+    controls.querySelectorAll('button').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.resultView === raceResultView));
+      button.onclick = () => { raceResultView = button.dataset.resultView; renderDrivers(); };
+    });
+  }
+  root.classList.toggle('has-race-results', isRace);
   if (!drivers.length) {
     root.innerHTML = '<span class="section-empty">Load a session to see its drivers.</span>';
     return;
@@ -965,7 +994,7 @@ function renderDrivers() {
     const position = Number.isFinite(+d[5]) && +d[5] > 0 ? +d[5] : index + 1;
 
     const name = String(d[2] || code);
-    return `<button class="driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-motion-key="driver-${code}" data-code="${code}" aria-label="${escapeUI(`P${position}, ${name}, ${d[4] || ''}, number ${number}`)}" aria-pressed="${isSelected}"><span class="driver-pill-position">${position}</span>${teamLogoMarkup(d[4])}<span class="driver-pill-identity"><strong>${escapeUI(name)}</strong><small>${code} · ${number}</small></span><span class="driver-selection-mark" aria-hidden="true"></span></button>`;
+    return `<button class="driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-motion-key="driver-${code}" data-code="${code}" aria-label="${escapeUI(`P${position}, ${name}, ${d[4] || ''}, number ${number}`)}" aria-pressed="${isSelected}"><span class="driver-pill-position">${position}</span>${teamLogoMarkup(d[4])}<span class="driver-pill-identity"><strong>${escapeUI(name)}</strong><small>${code} · ${number}</small></span>${isRace ? raceResultMarkup(realDrivers.get(code)) : '<span class="driver-selection-mark" aria-hidden="true"></span>'}</button>`;
   }).join(''));
   
   root.querySelectorAll('button').forEach(btn => {

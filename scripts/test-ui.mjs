@@ -14,6 +14,17 @@ function context(reduced = false) {
   return { sandbox, run: code => vm.runInContext(code, sandbox) };
 }
 
+test('race result display distinguishes points, lapped finishes, retirements and missing data', () => {
+  const h = context();
+  assert.match(h.run("raceResultMarkup({result:{points:0,status:'Retired'}})"), /0 pts.*DNF/);
+  assert.match(h.run("raceResultMarkup({result:{points:null,status:'Finished'}})"), /—/);
+  h.run("raceResultView='gap'");
+  assert.match(h.run("raceResultMarkup({result:{status:'Finished',gap:1.271}})"), /\+1\.271s/);
+  assert.match(h.run("raceResultMarkup({result:{status:'+1 Lap',gap:null}})"), /\+1 lap/);
+  assert.match(h.run("raceResultMarkup({result:{status:'Did not start'}})"), /DNS/);
+  assert.match(h.run("raceResultMarkup({result:{status:'Disqualified'}})"), /DSQ/);
+});
+
 test('colour overrides isolate laps of the same driver', () => {
   const h = context();
   h.run("drivers = [['VER',3,'Max','#4781d7'],['NOR',1,'Lando','#ff8000']]; lapColorOverrides.set('VER:17','#ff00aa')");

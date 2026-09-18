@@ -664,3 +664,27 @@ body { zoom: .87; }
 .lap-workspace .run-segment.selected .run-choice-indicator { background: var(--accent); color: white; font-size: 12px; font-weight: 700; }
 .lap-workspace .run-segment:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 65%, transparent); outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) { .lap-workspace .run-segment { transition: none; } }
+
+/* Keep the full rounded edge inside the scrolling row; selection fill meets
+   the border without the light theme's white inset highlight. */
+.lap-workspace .run-segments { padding: 3px; margin-inline: -3px; }
+.lap-workspace :is(.run-segment, .lap-chip, .fastest-lap-pick) {
+  background-clip: border-box;
+  box-shadow: 0 1px 3px #00000012;
+}
+.lap-workspace :is(.run-segment, .lap-chip, .fastest-lap-pick).selected {
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-card));
+  border: 1px solid var(--accent);
+  box-shadow: 0 1px 3px #00000012;
+}
+.lap-workspace :is(.run-segment, .lap-chip, .fastest-lap-pick):focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
+.race-result-controls { display: flex; gap: 3px; padding: 3px; margin-bottom: 9px; border-radius: 8px; background: var(--surface-muted); }
+.race-result-controls[hidden] { display: none; }
+.race-result-controls button { flex: 1; padding: 5px 7px; border: 0; border-radius: 6px; background: transparent; color: var(--text-secondary); font-size: 12px; }
+.race-result-controls button[aria-pressed="true"] { background: var(--bg-card); color: var(--text-main); box-shadow: 0 1px 3px #00000018; }
+#driverPills.has-race-results .driver-pill { grid-template-columns: 20px 26px minmax(0, 1fr) auto; gap: 7px; }
+.driver-result { display: grid; justify-items: end; gap: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.driver-result b { font-size: 12px; font-weight: 500; }
+.driver-result small { font-size: 10px; color: var(--text-muted); }

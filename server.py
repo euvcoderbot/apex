@@ -1092,7 +1092,8 @@ def fetch_openf1_session_drivers(
             team_color = "#" + str(d.get("team_colour") or "777777").lstrip("#")
             
             laps = driver_laps.get(d_num, [])
-            if laps:
+            classification = next((item for item in results_raw if integer(item.get("driver_number"), -1) == driver_id), {})
+            if laps or classification:
                 result.append({
                     "code": acronym,
                     "number": str(d_num),
@@ -1100,6 +1101,11 @@ def fetch_openf1_session_drivers(
                     "team": team_name,
                     "team_color": team_color,
                     "position": result_positions.get(integer(d_num, -1)),
+                    "result": {
+                        "points": None,
+                        "status": "DSQ" if classification.get("dsq") else "DNS" if classification.get("dns") else "DNF" if classification.get("dnf") else "Finished" if classification else None,
+                        "gap": classification.get("gap_to_leader") if matching_session.get("session_name") in ("Race", "Sprint") else None,
+                    },
                     "lap_data_complete": driver_id not in gaps,
                     "missing_laps": gaps.get(driver_id, []),
                     "laps": laps,
@@ -1211,6 +1217,11 @@ def session_data(
                 "team": str(info.get("TeamName", "")),
                 "team_color": "#" + str(info.get("TeamColor", "777777")).lstrip("#"),
                 "position": integer(info.get("Position"), 0) or None,
+                "result": {
+                    "points": seconds(info.get("Points")),
+                    "status": str(info.get("Status") or "") if pd.notna(info.get("Status")) else None,
+                    "gap": (0 if integer(info.get("Position"), 0) == 1 else seconds(info.get("Time"))) if data.name in ("Race", "Sprint") else None,
+                },
                 "laps": laps_list,
             })
         except Exception as driver_err:
@@ -1226,6 +1237,10 @@ def session_data(
         retrieve = fetch_openf1_session_drivers.__wrapped__ if fresh else fetch_openf1_session_drivers
         of1_drivers = retrieve(year, gp, session, bucket)
         if of1_drivers:
+            original_results = {driver["number"]: driver.get("result", {}) for driver in drivers}
+            for driver in of1_drivers:
+                original = original_results.get(driver["number"], {})
+                driver["result"]["points"] = original.get("points")
             drivers = of1_drivers
             lap_data_complete = all(
                 driver.get("lap_data_complete", True) for driver in drivers
