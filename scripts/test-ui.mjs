@@ -338,7 +338,7 @@ test('car performance controls hide irrelevant GP and expose sortable methodolog
   assert.match(css, /\.performance-toolbar \[hidden\]\s*\{\s*display:none!important/);
   assert.match(performance, /performanceEventField.*hidden=.*performanceScope.*season/);
   assert.match(performance, /data-performance-sort/);
-  assert.match(performance, /Sustained full-throttle speed \(P95\)/);
-  assert.match(performance, /Shared GPS-aligned windows include braking and exit/);
+  assert.match(performance, /Full-throttle high-speed threshold \(P95\)/);
+  assert.match(performance, /Time lost across all corners in each band/);
   assert.match(html, /does not provide brake pressure/);
 });

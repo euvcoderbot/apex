@@ -190,14 +190,11 @@ def measure_field(extracted, selections, corners=()):
             indices = [i for i,z in enumerate(zones) if z['band'] == band]
             if not indices:
                 categories[band] = None; continue
-            scores = []
-            for i in indices:
-                z = zones[i]; a,b = z['start'],z['end']
-                times = [v['dt'][a:b].sum() for v in selected.values()]
-                # Identical distance means mean-speed ratios equal inverse time
-                # ratios. Score each corner before averaging the band.
-                scores.append(measurements[i]['time']/min(times))
-            categories[band] = {'score': float(np.mean(scores)), 'corners': len(indices),
+            band_time = sum(measurements[i]['time'] for i in indices)
+            reference_time = sum(float(ref['dt'][zones[i]['start']:zones[i]['end']].sum()) for i in indices)
+            lost = band_time-reference_time
+            categories[band] = {'time': band_time, 'time_lost': lost,
+                'deficit': lost/ref['official']*100, 'corners': len(indices),
                 'speed': float(np.mean([measurements[i]['mean_speed'] for i in indices]))}
         straight_time = float(item['dt'][~corner_mask].sum())
         corner_time = float(item['dt'][corner_mask].sum())
@@ -217,17 +214,12 @@ def measure_field(extracted, selections, corners=()):
             'straight_contribution': float((straight_time-ref['dt'][~corner_mask].sum())/ref['official']*100),
             'corner_contribution': float((corner_time-ref['dt'][corner_mask].sum())/ref['official']*100),
             'lap_gap': (item['official']/ref['official']-1)*100,
+            'reference_lap_time': ref['official'],
             'top_speed': float(max(item['speed'])),
             'full_throttle_p95': float(np.percentile(item['speed'][item['throttle'] >= 98],95)) if np.sum(item['throttle'] >= 98) >= 10 else None,
             'lap_distance': float(grid[-1]), 'braking': braking, 'selection': item['selection'],
             'quality': {'integration_scale': item['scale'], 'full_lap': True}}
-    best_straight = min(r['straight_time'] for r in results.values())
     for r in results.values():
-        r['straight_deficit'] = (r['straight_time']/best_straight-1)*100
-    for band in ('low','medium','high'):
-        best = min((r['categories'][band]['score'] for r in results.values() if r['categories'][band]),default=None)
-        for r in results.values():
-            if r['categories'][band]:
-                r['categories'][band]['deficit'] = (r['categories'][band]['score']/best-1)*100
+        r['straight_deficit'] = r['straight_contribution']
     return {'teams': results, 'reference_team': reference_team, 'excluded': {t:e for t,e in errors.items() if t not in results},
-            'method': 'shared-gps-grid-v1', 'corner_count': len(zones)}
+            'method': 'shared-gps-grid-v2-lap-share', 'corner_count': len(zones)}

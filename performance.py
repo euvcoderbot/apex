@@ -144,11 +144,13 @@ def analyze(data, traffic=2):
     qualifying = data.name in getattr(data, '_QUALI_LIKE_SESSIONS', ())
     teams = defaultdict(lambda: {'drivers': [], 'points': 0, 'points_known': True,
                                   'starts': 0, 'finishes': 0, 'mechanical': 0,
-                                  'incidents': 0, 'other_retirements': 0, 'positions': []})
+                                  'incidents': 0, 'other_retirements': 0, 'positions': [], 'retirements': []})
     mechanical = {'Engine', 'Gearbox', 'Transmission', 'Hydraulics', 'Electrical',
                   'Oil pressure', 'Water pressure', 'Water leak', 'Fuel pressure',
                   'Fuel pump', 'Power Unit', 'Turbo', 'Brakes', 'Suspension',
-                  'Overheating', 'Exhaust', 'Clutch', 'Driveshaft', 'Differential'}
+                  'Overheating', 'Exhaust', 'Clutch', 'Driveshaft', 'Differential',
+                  'Radiator', 'Oil leak', 'Fuel leak', 'Battery', 'Wheel bearing',
+                  'Steering', 'Pneumatics', 'Water pump', 'Oil pump', 'Spark plugs'}
     for code in data.drivers:
         info = data.get_driver(code)
         team = teams[str(info.get('TeamName'))]
@@ -164,10 +166,13 @@ def analyze(data, traffic=2):
             team['finishes'] += 1
         elif status in mechanical:
             team['mechanical'] += 1
+            team['retirements'].append({'driver': str(info.get('Abbreviation')), 'cause': status, 'category': 'Mechanical'})
         elif status in ('Accident', 'Collision', 'Collision damage', 'Spun off'):
             team['incidents'] += 1
+            team['retirements'].append({'driver': str(info.get('Abbreviation')), 'cause': status, 'category': 'Accident / collision'})
         elif status not in ('Did not start', 'Withdrew', 'Did not qualify'):
             team['other_retirements'] += 1
+            team['retirements'].append({'driver': str(info.get('Abbreviation')), 'cause': status, 'category': 'Other / cause unreported'})
         pos = number(info.get('Position'))
         if pos:
             team['positions'].append(pos)
@@ -212,6 +217,9 @@ def analyze(data, traffic=2):
                      and r['time'] <= min(x['time'] for x in laps)*1.01],
                     key=lambda r: r['time'])[:3],
                 'phase_count': len(phases),
+                'phase_details': [{'phase': entry['phase'], 'driver': entry['lap']['driver'],
+                                   'time': entry['lap']['time'], 'deficit': entry['pace']}
+                                  for entry in phases],
                 'samples': len(phases),
                 'sector_deficits': [
                     (sum(values)/len(values) if values else None)
@@ -219,6 +227,20 @@ def analyze(data, traffic=2):
                                     if entry['sectors'][i] is not None] for i in range(3))
                 ],
             })
+        # One fastest real, officially classified lap across the complete
+        # qualifying session; earlier phases no longer dilute the final pace.
+        representatives = [team['lap'] for team in teams.values() if team['lap']]
+        fastest_time = min((lap['time'] for lap in representatives), default=None)
+        fastest_sectors = [min((lap['sectors'][i] for lap in representatives
+                                if lap['sectors'][i]), default=None) for i in range(3)]
+        for team in teams.values():
+            lap = team['lap']
+            team['pace'] = (lap['time']/fastest_time-1)*100 if lap and fastest_time else None
+            team['samples'] = 1 if lap else 0
+            team['sector_deficits'] = [
+                (lap['sectors'][i]/fastest_sectors[i]-1)*100
+                if lap and lap['sectors'][i] and fastest_sectors[i] else None
+                for i in range(3)]
     else:
         valid = [r for r in rows if clean(r)]
         gaps = traffic_gaps(rows)

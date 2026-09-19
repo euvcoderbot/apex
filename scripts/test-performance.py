@@ -44,7 +44,7 @@ class PerformanceTests(unittest.TestCase):
         a,b=result['teams']
         self.assertEqual(a['lap']['driver'],'A')
         self.assertAlmostEqual(a['pace'],0)
-        self.assertAlmostEqual(b['pace'],((92/90-1)+(90/89-1))*50)
+        self.assertAlmostEqual(b['pace'],(90/89-1)*100)
         self.assertEqual(a['phase_count'],2)
 
     def test_unofficial_deleted_fast_lap_not_selected(self):

@@ -23,6 +23,16 @@
 .performance-table td:first-child { min-width:160px; }
 .performance-table small { display:block; margin-top:3px; font-size:12px; color:var(--text-secondary,#9399a4); }
 .performance-table th button { border:0; padding:0; background:none; box-shadow:none; color:inherit; font:inherit; }
+.performance-tyre-options { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+.performance-tyre-options button { display:flex; align-items:center; gap:7px; padding:6px 12px; color:inherit; background:transparent; }
+.performance-tyre-options button[aria-pressed=true] { border-color:var(--accent,#328dff); background:#448be326; }
+.performance-tyre-options img { object-fit:contain; }
+.performance-bars { margin:18px 0 24px; }
+.performance-bar-row { display:grid; grid-template-columns:minmax(125px,180px) minmax(80px,1fr) 85px; gap:12px; align-items:center; min-height:33px; font-size:13px; }
+.performance-bar-row>span:last-child { text-align:right; font-variant-numeric:tabular-nums; }
+.performance-bar-track { height:25px; position:relative; background:repeating-linear-gradient(90deg,transparent 0,transparent calc(25% - 1px),#8882 calc(25% - 1px),#8882 25%); }
+.performance-bar { position:absolute; top:3px; bottom:3px; border-radius:2px; }
+.performance-zero { position:absolute; top:-4px; bottom:-4px; width:1px; background:var(--text-secondary,#999); z-index:1; }
 .performance-team { border-left:3px solid var(--team-color,#888); padding-left:9px; }
 .performance-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
 .performance-grid .dashboard-card { margin:0; }
