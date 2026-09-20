@@ -774,21 +774,47 @@ body.performance-view #sidebarToggle {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18);
 }
 
-/* Horizontal Lap Share / Deficit Bars */
+/* Horizontal Lap Share / Deficit Bars & Apple UI Metric Charts */
 .performance-chart-card {
-  margin: 14px 0 20px;
+  margin: 14px 0 22px;
+  max-width: 860px;
+}
+
+.perf-chart-header {
+  margin-bottom: 12px;
+}
+
+.perf-chart-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.perf-chart-heading {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.perf-chart-sub {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
 .performance-bars {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 12px;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .performance-bar-row {
   display: grid;
-  grid-template-columns: minmax(180px, 220px) minmax(140px, 1fr) 90px;
+  grid-template-columns: minmax(180px, 230px) minmax(140px, 1fr) 90px;
   align-items: center;
   gap: 14px;
   font-size: 0.8125rem;
@@ -801,7 +827,7 @@ body.performance-view #sidebarToggle {
 }
 
 .performance-bar-track {
-  height: 22px;
+  height: 20px;
   position: relative;
   border-radius: 6px;
   background: var(--bg-input);
@@ -825,7 +851,11 @@ body.performance-view #sidebarToggle {
   bottom: 3px;
   border-radius: 4px;
   z-index: 1;
-  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.performance-bar:hover {
+  filter: brightness(1.15);
 }
 
 .performance-bar-val {
@@ -837,6 +867,14 @@ body.performance-view #sidebarToggle {
 
 .performance-bar-val.is-gain {
   color: var(--green);
+}
+
+.performance-bar-val.is-loss {
+  color: var(--text-secondary);
+}
+
+.performance-bar-val.is-ref {
+  color: var(--accent);
 }
 
 /* Tyre Filter Options */

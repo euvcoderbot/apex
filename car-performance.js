@@ -97,12 +97,17 @@ function eventLabel(eventName) {
   return `<span class="performance-event-cell">${flag}<span>${escape(eventName)}</span></span>`;
 }
 
-const teamLabel = team => `
-  <div class="performance-team" style="--team-color:${color(team.color)}">
-    ${teamLogoMarkup(team.team)}
-    <span class="team-dot" style="background-color:${color(team.color)}"></span>
-    <span class="team-name">${escape(team.team)}</span>
+const teamLabel = team => {
+  const t = typeof team === 'object' && team !== null ? team : { team: String(team || '') };
+  const teamName = t.team || t.name || '';
+  const teamColor = t.color ? color(t.color) : 'var(--text-main)';
+  return `
+  <div class="performance-team" style="--team-color:${teamColor}">
+    ${teamLogoMarkup(teamName)}
+    <span class="team-dot" style="background-color:${teamColor}"></span>
+    <span class="team-name">${escape(teamName)}</span>
   </div>`;
+};
 
 function rebase(rows, keys) {
   for(const key of keys) {
@@ -115,7 +120,7 @@ function rebase(rows, keys) {
 }
 
 // ---------------------------------------------------------------------------
-// Visual SVG Horizontal Bar Graph Component (Apple UI Design System)
+// Visual Apple UI Horizontal Bar Graph Component
 // ---------------------------------------------------------------------------
 function renderHorizontalBarChart(rows, {
   title = '',
@@ -127,14 +132,9 @@ function renderHorizontalBarChart(rows, {
   digits = 2,
   signedValue = true,
   zeroBaseline = true,
-  heightPerRow = 32,
-  width = 720,
-  labelWidth = 150,
-  valueWidth = 85,
-  minBarPx = 2,
-  invertBest = false // if true, higher value is placed first
+  invertBest = false // if true, higher value is ranked first
 } = {}) {
-  const validRows = rows.filter(r => finite(r[valueKey])).sort((a, b) => {
+  const validRows = (rows || []).filter(r => r && finite(r[valueKey])).sort((a, b) => {
     const va = a[valueKey], vb = b[valueKey];
     return invertBest ? vb - va : va - vb;
   });
@@ -144,64 +144,71 @@ function renderHorizontalBarChart(rows, {
   const minVal = Math.min(...values);
   const maxVal = Math.max(...values);
 
-  let lo = zeroBaseline ? Math.min(0, minVal) : minVal;
-  let hi = zeroBaseline ? Math.max(0.1, maxVal) : maxVal;
-  if (hi <= lo) hi = lo + 1;
-  const span = hi - lo;
+  let lo, hi;
+  if (zeroBaseline) {
+    lo = Math.min(0, minVal);
+    hi = Math.max(0.01, maxVal);
+  } else if (minVal >= 0 && minVal / (maxVal || 1) < 0.25) {
+    lo = 0;
+    hi = Math.max(1, maxVal);
+  } else {
+    const diff = maxVal - minVal;
+    const padding = diff > 0 ? diff * 0.25 : (minVal > 0 ? minVal * 0.1 : 1);
+    lo = Math.max(0, minVal - padding);
+    hi = maxVal + (diff > 0 ? diff * 0.05 : 1);
+  }
+  const span = Math.max(0.0001, hi - lo);
+  const zeroX = zeroBaseline ? Math.max(0, Math.min(100, ((0 - lo) / span) * 100)) : 0;
 
-  const chartWidth = width - labelWidth - valueWidth;
-  const zeroX = labelWidth + ((0 - lo) / span) * chartWidth;
-  const totalHeight = validRows.length * heightPerRow + 16;
-
-  const barsSvg = validRows.map((r, i) => {
+  const rowsHtml = validRows.map(r => {
     const val = r[valueKey];
-    const y = 8 + i * heightPerRow;
     const clr = color(r[colorKey]);
 
-    let barX, barW;
+    let barLeft, barWidth;
     if (zeroBaseline) {
       if (val >= 0) {
-        barX = zeroX;
-        barW = Math.max(minBarPx, (val / span) * chartWidth);
+        barLeft = zeroX;
+        barWidth = Math.max(1.5, (val / span) * 100);
       } else {
-        const w = Math.max(minBarPx, (Math.abs(val) / span) * chartWidth);
-        barX = zeroX - w;
-        barW = w;
+        const w = Math.max(1.5, (Math.abs(val) / span) * 100);
+        barLeft = Math.max(0, zeroX - w);
+        barWidth = w;
       }
     } else {
-      barX = labelWidth;
-      barW = Math.max(minBarPx, ((val - lo) / span) * chartWidth);
+      barLeft = 0;
+      barWidth = Math.min(100, Math.max(2, ((val - lo) / span) * 100));
     }
 
     const displayStr = signedValue ? signed(val, digits, unit) : fmt(val, digits, unit);
-    const labelText = escape(r[labelKey] || r.team || '');
+    const gainClass = signedValue
+      ? (val < -0.00001 ? 'is-gain' : (val > 0.00001 ? 'is-loss' : 'is-ref'))
+      : '';
+    const rowTitle = escape(r[labelKey] || r.team || r.name || '');
 
     return `
-      <g class="perf-chart-row" transform="translate(0, ${y})">
-        <circle cx="10" cy="11" r="4.5" fill="${clr}" />
-        <text x="22" y="15" font-size="11.5" font-weight="600" fill="var(--text-main)">${labelText}</text>
-        <rect x="${labelWidth}" y="1" width="${chartWidth}" height="20" rx="4" fill="var(--surface-muted)" opacity="0.35" />
-        <rect class="perf-chart-bar-fill" x="${barX}" y="1" width="${barW}" height="20" rx="4" fill="${clr}" />
-        <text x="${width - 10}" y="15" text-anchor="end" font-size="11.5" font-weight="600" fill="var(--text-main)" font-variant-numeric="tabular-nums">${displayStr}</text>
-      </g>
+      <div class="performance-bar-row" title="${rowTitle}: ${displayStr}">
+        <div class="performance-bar-label">${teamLabel(r)}</div>
+        <div class="performance-bar-track">
+          ${zeroBaseline && zeroX > 0 && zeroX < 100 ? `<i class="performance-zero" style="left:${zeroX.toFixed(2)}%" title="Baseline"></i>` : ''}
+          <i class="performance-bar" style="left:${barLeft.toFixed(2)}%;width:${barWidth.toFixed(2)}%;background:${clr}"></i>
+        </div>
+        <span class="performance-bar-val ${gainClass}">${displayStr}</span>
+      </div>
     `;
   }).join('');
 
-  const zeroLineSvg = zeroBaseline && zeroX >= labelWidth && zeroX <= labelWidth + chartWidth
-    ? `<line class="chart-zero-line" x1="${zeroX}" y1="4" x2="${zeroX}" y2="${totalHeight - 4}" />`
-    : '';
-
   return `
-    <div class="perf-chart-box">
+    <div class="performance-chart-card">
       ${title ? `
-      <div class="perf-chart-title">
-        <h4>${title}</h4>
-        ${subtitle ? `<span class="performance-note" style="margin:0;">${subtitle}</span>` : ''}
+      <div class="perf-chart-header">
+        <div class="perf-chart-title-group">
+          <h4 class="perf-chart-heading">${escape(title)}</h4>
+          ${subtitle ? `<span class="performance-note perf-chart-sub">${escape(subtitle)}</span>` : ''}
+        </div>
       </div>` : ''}
-      <svg class="perf-chart-svg" viewBox="0 0 ${width} ${totalHeight}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${escape(title)}">
-        ${zeroLineSvg}
-        ${barsSvg}
-      </svg>
+      <div class="performance-bars">
+        ${rowsHtml}
+      </div>
     </div>
   `;
 }
@@ -923,22 +930,13 @@ function renderTrace() {
       const values=season.map(team=>({...team,lowValue:avg(team.lowSeconds),mediumValue:avg(team.mediumSeconds),highValue:avg(team.highSeconds),lowGap:avg(team.lowDeficit),mediumGap:avg(team.mediumDeficit),highGap:avg(team.highDeficit)}));
       const ordered=sorted(values,{cornerTeam:t=>t.team,lowGap:t=>t.lowGap,mediumGap:t=>t.mediumGap,highGap:t=>t.highGap,cornerEvents:t=>t.events},'lowGap');
 
-      const cornerChart = renderHorizontalBarChart(ordered, {
-        title: 'Cornering Time Loss by Speed Band',
-        subtitle: `Average time lost in corners divided by full lap time · Reference: ${escape(season.reference || 'Pole')}`,
-        valueKey: 'lowGap',
-        unit: '%',
-        digits: 2
-      });
-
       return card(cornerTitle,`Average time lost per lap in each corner type, divided by the reference full lap time. All ranked teams use the same ${values[0]?.events||0} circuits. Reference: ${escape(season.reference||'—')}. Each band sums all its corners; seconds per lap appear below. A negative value is time gained.`,
         (isSeasonScope ? renderCircuitAuditCard() : '')+
-        cornerChart+
+        lapShareChart(season.map(t=>({...t,cornerGap:avg(t.cornerContribution)})),'cornerGap',season.reference)+
         table([sortHeader('cornerTeam','Team'),sortHeader('lowGap','Low-speed deficit'),sortHeader('mediumGap','Medium-speed deficit'),sortHeader('highGap','High-speed deficit'),sortHeader('cornerEvents','Circuits',-1)],ordered.map(team=>[teamLabel(team),
           `${signed(team.lowGap,3)}<small>${signed(team.lowValue,3,' s/lap')} · ${team.low.length} circuits</small>`,
           `${signed(team.mediumGap,3)}<small>${signed(team.mediumValue,3,' s/lap')} · ${team.medium.length} circuits</small>`,
           `${signed(team.highGap,3)}<small>${signed(team.highValue,3,' s/lap')} · ${team.high.length} circuits</small>`,team.events])))+
-        card('All corners · share of a lap','Low, medium and high corner time losses combined.',lapShareChart(season.map(t=>({...t,cornerGap:avg(t.cornerContribution)})),'cornerGap',season.reference))+
         card('Downforce index','Unavailable: public telemetry cannot isolate aerodynamic load.','<p class="performance-note">Per Astra GPT-6 Hybrid principles: Downforce (in Newtons), engine power (kW), and aerodynamic drag ($C_d A$) are unidentifiable from public 3.7 Hz telemetry. High-speed corner performance is shown directly without speculative synthetic regressions.</p>');
     }
     if(activeMetric==='straight') {
@@ -1010,17 +1008,8 @@ function renderTrace() {
       const values=season.map(team=>({...team,straightGap:avg(team.straightContribution),peak:avg(team.top),sustained:avg(team.full)}));
       const ordered=sorted(values,{straightTeam:t=>t.team,straightGap:t=>t.straightGap,peak:t=>t.peak,sustained:t=>t.sustained,straightEvents:t=>t.events},'straightGap');
 
-      const straightChart = renderHorizontalBarChart(ordered, {
-        title: 'Straight-Line Time Loss (% of Lap)',
-        subtitle: 'Integrated across all straight-line sections · Lower is faster',
-        valueKey: 'straightGap',
-        unit: '%',
-        digits: 2
-      });
-
       return card(straightTitle,'Time lost on all straights as a percentage of a full lap, averaged across evaluated circuits for every ranked team.',
         straightToggle+
-        straightChart+
         lapShareChart(values,'straightGap',season.reference)+
         table([sortHeader('straightTeam','Team'),sortHeader('straightGap','Time lost · % of lap'),sortHeader('peak','Average peak speed',-1),sortHeader('sustained','Full-throttle high-speed threshold (P95)',-1),sortHeader('straightEvents','Circuits',-1)],ordered.map(team=>[teamLabel(team),signed(team.straightGap,3),fmt(team.peak,1,' km/h'),fmt(team.sustained,1,' km/h'),team.events]))+
         '<p class="performance-note">P95 example: 320 km/h means 95% of full-throttle samples were at or below 320, and 5% were above. It is neither average straight speed nor the speed held throughout a straight. 2026 active aerodynamics (Straight Mode vs Corner Mode) replaces legacy DRS splits.</p>');
@@ -1080,16 +1069,8 @@ function renderTrace() {
     const common=[...new Set(Object.values(summary.groups).flat())];
     const ordered=sorted(loaded,{eventCornerTeam:r=>r.team,eventLow:r=>r.categories.low?.deficit,eventMedium:r=>r.categories.medium?.deficit,eventHigh:r=>r.categories.high?.deficit},'eventLow');
 
-    const singleCornerChart = renderHorizontalBarChart(ordered.map(r=>({...r,deficit:r.categories.low?.deficit})), {
-      title: 'Low-Speed Corner Deficit (≤120 km/h)',
-      subtitle: 'Time lost relative to fastest lap in slow turns',
-      valueKey: 'deficit',
-      unit: '%',
-      digits: 2
-    });
-
     return card('Low / medium / high-speed cornering',`Time lost across all corners in each band, divided by ${escape(event.traceReference||'the reference team')}’s full lap time. Example: 0.18 seconds lost on a 90-second lap is +0.20%. Negative means time gained.`,
-      singleCornerChart+
+      lapShareChart(loaded.map(r=>({...r,gap:r.trace?.corner_contribution})),'gap',event.traceReference)+
       table([sortHeader('eventCornerTeam','Team'),sortHeader('eventLow','Low ≤120'),sortHeader('eventMedium','Medium 120–200'),sortHeader('eventHigh','High >200')],ordered.map(row=>[teamLabel(row),...['low','medium','high'].map(name=>{
         const value=row.categories[name];return value?`${signed(value.deficit,3)}<small>${signed(value.time_lost,3,' s/lap')} · ${value.corners} corners</small>`:'—';
       })])))+card('Corner measurements','Windows follow the field’s braking, apex and acceleration. Zone labels are used when reliable map corner numbers are unavailable. Loss density (ms/100m) measures spatial penalty rate.',
@@ -1151,20 +1132,9 @@ function renderTrace() {
         '<p class="performance-note">Race speed traps combine low-drag aerodynamics with Straight Mode actuation and electrical energy recovery deployment.</p>');
     }
 
-    const ordered=sorted(loaded,{eventStraightTeam:r=>r.team,eventStraightGap:r=>r.trace.straight_deficit,eventPeak:r=>r.trace.top_speed,eventSustained:r=>r.trace.full_throttle_p95},'eventStraightGap');
-
-    const singleStraightChart = renderHorizontalBarChart(ordered, {
-      title: 'Straight-Line Time Loss (% of Lap)',
-      subtitle: 'Accumulated time lost on full throttle sectors',
-      valueKey: 'eventStraightGap',
-      unit: '%',
-      digits: 2
-    });
-
     return card('Straight-line performance','Time lost on the straights divided by the fastest measured full lap time. P95 is a speed threshold: 95% of full-throttle samples fall below it; it is not an average or a duration.',
       straightToggle+
-      singleStraightChart+
-      lapShareChart(loaded.map(r=>({...r,gap:r.trace.straight_contribution})),'gap',event.traceReference)+
+      lapShareChart(loaded.map(r=>({...r,gap:r.trace?.straight_contribution})),'gap',event.traceReference)+
       table([sortHeader('eventStraightTeam','Team'),sortHeader('eventStraightGap','Time lost · % of lap'),sortHeader('eventPeak','Peak speed',-1),sortHeader('eventSustained','Full-throttle high-speed threshold (P95)',-1),'Tow exposure / lap'],ordered.map(row=>{
         const tow = row.trace.tow_exposure;
         const towBadge = tow === 'clean'
@@ -1192,7 +1162,7 @@ function renderTrace() {
   const singleBrakeChart = renderHorizontalBarChart(ordered, {
     title: 'Initial Heavy Deceleration (g)',
     subtitle: 'Derived from speed rate-of-change across verified heavy braking zones (±11m sampling bounds)',
-    valueKey: 'eventBrakeG',
+    valueKey: 'brakeG',
     unit: ' g',
     digits: 2,
     signedValue: false,
