@@ -693,28 +693,26 @@ function sorted(items,getters,defaultKey,defaultDirection=1) {
 }
 
 function renderPace(teams) {
+  if (qualyPaceMode === 'q1') qualyPaceMode = 'adjusted';
+
   const qualyToggle = `
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
       <div class="performance-scope-toggle" role="radiogroup" aria-label="Qualifying pace comparison mode">
         <button type="button" data-qualy-mode="overall" aria-pressed="${qualyPaceMode === 'overall'}">Overall Best Lap</button>
-        <button type="button" data-qualy-mode="q1" aria-pressed="${qualyPaceMode === 'q1'}">Q1 Shared Field</button>
         <button type="button" data-qualy-mode="adjusted" aria-pressed="${qualyPaceMode === 'adjusted'}">Track-Evolution Adjusted</button>
       </div>
       <span class="perf-tercile-badge is-mid">${
         qualyPaceMode === 'overall'
           ? 'Peak Potential · Q1–Q3 Best Laps'
-          : qualyPaceMode === 'q1'
-          ? 'Equal Conditions · Q1 Shared Field'
           : 'Normalized Q3 Baseline · Evolution-Adjusted'
       }</span>
     </div>
   `;
 
-  const paceKey = qualyPaceMode === 'q1' ? 'qualyQ1' : qualyPaceMode === 'adjusted' ? 'qualyAdjusted' : 'qualy';
+  const paceKey = qualyPaceMode === 'adjusted' ? 'qualyAdjusted' : 'qualy';
   const ordered = sorted(teams, {
     team: t => t.team,
     qualy: t => t.qualy,
-    qualyQ1: t => t.qualyQ1,
     qualyAdjusted: t => t.qualyAdjusted,
     race: t => t.race,
     samples: t => t.samples
@@ -725,10 +723,6 @@ function renderPace(teams) {
     title: 'Qualifying Pace Deficit · Overall Best Lap (% to Pole)',
     subtitle: 'Fastest single lap across Q1–Q3 · Measures peak car potential · Baseline 0.00% is pole lap',
     note: 'Qualifying uses each constructor’s single fastest valid lap across Q1, Q2, and Q3 from either driver. The fastest team is 0.00% baseline.'
-  } : qualyPaceMode === 'q1' ? {
-    title: 'Qualifying Pace Deficit · Q1 Shared Field (% to Fastest Q1)',
-    subtitle: 'All 20 cars evaluated strictly within Q1 · Identical track temperature and rubber level',
-    note: 'Compares all constructors strictly within Q1 when all 20 cars ran under identical track conditions, eliminating track evolution bias. Note: top teams frequently preserve power units and tire sets in Q1.'
   } : {
     title: 'Qualifying Pace Deficit · Track-Evolution Adjusted (% to Q3 Baseline)',
     subtitle: 'Q1 & Q2 eliminated cars normalized by rubber evolution delta · Fair to both frontrunners and eliminated teams',
@@ -774,8 +768,6 @@ function renderPace(teams) {
 
   const qualyColLabel = qualyPaceMode === 'overall'
     ? 'Qualifying · Best lap'
-    : qualyPaceMode === 'q1'
-    ? 'Q1 pace deficit'
     : 'Evolution-adjusted deficit';
 
   return card('Qualifying pace deficit',
