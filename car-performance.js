@@ -362,6 +362,7 @@ let selectedTracks=new Set();
 let context=null;
 let tyreView='OVERALL';
 let straightLineSource='qualy'; // 'qualy' | 'race'
+let qualyPaceMode='overall'; // 'overall' | 'q1' | 'adjusted'
 const root=$('performanceResults');
 
 function updateTrackCount() {
@@ -529,11 +530,80 @@ async function analyse() {
 
 function aggregate() {
   const map=new Map();
+  const eventQ1Deficits = new Map();
+  const eventAdjDeficits = new Map();
+
+  for (const e of events) {
+    if (!e.Q?.teams) continue;
+    const qTeams = e.Q.teams;
+    
+    // Q1 deficit (all teams present on identical green track)
+    const q1Times = new Map();
+    for (const t of qTeams) {
+      const p1 = t.phase_details?.find(p => p.phase === 'Q1');
+      if (p1 && finite(p1.time)) q1Times.set(t.team, p1.time);
+    }
+    const minQ1 = Math.min(...q1Times.values());
+    const q1Map = new Map();
+    if (finite(minQ1) && minQ1 > 0) {
+      for (const [tm, tmTime] of q1Times.entries()) {
+        q1Map.set(tm, Math.max(0, (tmTime / minQ1 - 1) * 100));
+      }
+    }
+    eventQ1Deficits.set(e.name, q1Map);
+
+    // Track evolution adjusted deficit (Q3 baseline)
+    const q1_t = new Map();
+    const q2_t = new Map();
+    const q3_t = new Map();
+    for (const t of qTeams) {
+      for (const p of (t.phase_details || [])) {
+        if (p.phase === 'Q1' && finite(p.time)) q1_t.set(t.team, p.time);
+        if (p.phase === 'Q2' && finite(p.time)) q2_t.set(t.team, p.time);
+        if (p.phase === 'Q3' && finite(p.time)) q3_t.set(t.team, p.time);
+      }
+    }
+
+    const deltas12 = [];
+    const deltas23 = [];
+    for (const t of qTeams) {
+      const tm = t.team;
+      if (q1_t.has(tm) && q2_t.has(tm)) deltas12.push(q1_t.get(tm) - q2_t.get(tm));
+      if (q2_t.has(tm) && q3_t.has(tm)) deltas23.push(q2_t.get(tm) - q3_t.get(tm));
+    }
+    const ev12 = deltas12.length ? Math.max(0, median(deltas12)) : 0.35;
+    const ev23 = deltas23.length ? Math.max(0, median(deltas23)) : 0.25;
+
+    const adjTimes = new Map();
+    for (const t of qTeams) {
+      const tm = t.team;
+      if (q3_t.has(tm)) {
+        adjTimes.set(tm, q3_t.get(tm));
+      } else if (q2_t.has(tm)) {
+        adjTimes.set(tm, q2_t.get(tm) - ev23);
+      } else if (q1_t.has(tm)) {
+        adjTimes.set(tm, q1_t.get(tm) - ev12 - ev23);
+      } else if (t.lap && finite(t.lap.time)) {
+        adjTimes.set(tm, t.lap.time);
+      }
+    }
+
+    const minAdj = Math.min(...adjTimes.values());
+    const adjMap = new Map();
+    if (finite(minAdj) && minAdj > 0) {
+      for (const [tm, tmTime] of adjTimes.entries()) {
+        adjMap.set(tm, Math.max(0, (tmTime / minAdj - 1) * 100));
+      }
+    }
+    eventAdjDeficits.set(e.name, adjMap);
+  }
+
   for(const e of [...events].sort((a,b)=>a.round-b.round)) for(const session of ['Q','R']) {
     for(const t of e[session]?.teams || []) {
       if(!map.has(t.team)) {
         map.set(t.team,{
           team:t.team,color:t.color,q:[],r:[],sectors:[[],[],[]],
+          q1Deficits:[],adjDeficits:[],
           points:0,pointsKnown:true,starts:0,finishes:0,mechanical:0,incidents:0,other:0,
           positions:[],samples:0,coverage:[],stints:[],results:0,
           fastestRaceDrivers:[],retirements:[],phaseDetails:[],raceDrivers:[],
@@ -546,6 +616,10 @@ function aggregate() {
         item.q.push({round:e.round,event:e.name,pace:t.pace,lap:t.lap});
         item.phaseDetails.push(...(t.phase_details||[]).map(p=>({...p,event:e.name})));
         t.sector_deficits?.forEach((v,i)=>{if(finite(v))item.sectors[i].push(v);});
+        const q1Def = eventQ1Deficits.get(e.name)?.get(t.team);
+        if (finite(q1Def)) item.q1Deficits.push(q1Def);
+        const adjDef = eventAdjDeficits.get(e.name)?.get(t.team);
+        if (finite(adjDef)) item.adjDeficits.push(adjDef);
       } else {
         item.r.push(t.pace);
         item.samples+=t.samples;
@@ -572,6 +646,8 @@ function aggregate() {
   return rebase([...map.values()].map(t=>({
     ...t,
     qualy:avg(t.q.map(q=>q.pace)),
+    qualyQ1:avg(t.q1Deficits),
+    qualyAdjusted:avg(t.adjDeficits),
     race:avg(t.r),
     coverage:avg(t.coverage),
     teammateSpread:avg(t.teammateSpreads),
@@ -581,7 +657,7 @@ function aggregate() {
     s1:avg(t.sectors[0]),s2:avg(t.sectors[1]),s3:avg(t.sectors[2]),
     qCount:t.q.filter(q=>finite(q.pace)).length,
     rCount:t.r.filter(finite).length
-  })),['qualy','race','s1','s2','s3','sens15','sens20','sens25']);
+  })),['qualy','qualyQ1','qualyAdjusted','race','s1','s2','s3','sens15','sens20','sens25']);
 }
 
 function table(headers,rows) {
@@ -617,19 +693,57 @@ function sorted(items,getters,defaultKey,defaultDirection=1) {
 }
 
 function renderPace(teams) {
-  const ordered=sorted(teams,{team:t=>t.team,qualy:t=>t.qualy,race:t=>t.race,samples:t=>t.samples},'qualy');
-  const sectors=sorted(teams,{team:t=>t.team,s1:t=>t.s1,s2:t=>t.s2,s3:t=>t.s3},'s1');
+  const qualyToggle = `
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+      <div class="performance-scope-toggle" role="radiogroup" aria-label="Qualifying pace comparison mode">
+        <button type="button" data-qualy-mode="overall" aria-pressed="${qualyPaceMode === 'overall'}">Overall Best Lap</button>
+        <button type="button" data-qualy-mode="q1" aria-pressed="${qualyPaceMode === 'q1'}">Q1 Shared Field</button>
+        <button type="button" data-qualy-mode="adjusted" aria-pressed="${qualyPaceMode === 'adjusted'}">Track-Evolution Adjusted</button>
+      </div>
+      <span class="perf-tercile-badge is-mid">${
+        qualyPaceMode === 'overall'
+          ? 'Peak Potential · Q1–Q3 Best Laps'
+          : qualyPaceMode === 'q1'
+          ? 'Equal Conditions · Q1 Shared Field'
+          : 'Normalized Q3 Baseline · Evolution-Adjusted'
+      }</span>
+    </div>
+  `;
 
-  // SVG Horizontal Bar Graphs for visual clarity
+  const paceKey = qualyPaceMode === 'q1' ? 'qualyQ1' : qualyPaceMode === 'adjusted' ? 'qualyAdjusted' : 'qualy';
+  const ordered = sorted(teams, {
+    team: t => t.team,
+    qualy: t => t.qualy,
+    qualyQ1: t => t.qualyQ1,
+    qualyAdjusted: t => t.qualyAdjusted,
+    race: t => t.race,
+    samples: t => t.samples
+  }, paceKey);
+  const sectors = sorted(teams, { team: t => t.team, s1: t => t.s1, s2: t => t.s2, s3: t => t.s3 }, 's1');
+
+  const chartMeta = qualyPaceMode === 'overall' ? {
+    title: 'Qualifying Pace Deficit · Overall Best Lap (% to Pole)',
+    subtitle: 'Fastest single lap across Q1–Q3 · Measures peak car potential · Baseline 0.00% is pole lap',
+    note: 'Qualifying uses each constructor’s single fastest valid lap across Q1, Q2, and Q3 from either driver. The fastest team is 0.00% baseline.'
+  } : qualyPaceMode === 'q1' ? {
+    title: 'Qualifying Pace Deficit · Q1 Shared Field (% to Fastest Q1)',
+    subtitle: 'All 20 cars evaluated strictly within Q1 · Identical track temperature and rubber level',
+    note: 'Compares all constructors strictly within Q1 when all 20 cars ran under identical track conditions, eliminating track evolution bias. Note: top teams frequently preserve power units and tire sets in Q1.'
+  } : {
+    title: 'Qualifying Pace Deficit · Track-Evolution Adjusted (% to Q3 Baseline)',
+    subtitle: 'Q1 & Q2 eliminated cars normalized by rubber evolution delta · Fair to both frontrunners and eliminated teams',
+    note: 'Normalizes Q1- and Q2-eliminated constructors using the median track evolution delta of advancing cars, bringing all 20 cars onto an equivalent Q3 rubber baseline.'
+  };
+
   const qualyChart = renderHorizontalBarChart(ordered, {
-    title: 'Qualifying Pace Deficit (% to Pole)',
-    subtitle: 'Fastest single lap across Q1–Q3 · Lower deficit is faster',
-    valueKey: 'qualy',
+    title: chartMeta.title,
+    subtitle: chartMeta.subtitle,
+    valueKey: paceKey,
     unit: '%',
     digits: 2
   });
 
-  const raceChart = renderHorizontalBarChart(teams.filter(t=>finite(t.race)), {
+  const raceChart = renderHorizontalBarChart(teams.filter(t => finite(t.race)), {
     title: 'Estimated Race Pace Deficit (% to Benchmark)',
     subtitle: 'Adjusted for fuel burn-off, compound offset, and tyre age · Lower is faster',
     valueKey: 'race',
@@ -658,19 +772,34 @@ function renderPace(teams) {
     ]))
   );
 
+  const qualyColLabel = qualyPaceMode === 'overall'
+    ? 'Qualifying · Best lap'
+    : qualyPaceMode === 'q1'
+    ? 'Q1 pace deficit'
+    : 'Evolution-adjusted deficit';
+
   return card('Qualifying pace deficit',
-    'Qualifying uses one fastest valid lap per team across Q1, Q2 and Q3, from either driver. The fastest team is 0%. Events receive equal weight.',
+    chartMeta.note,
+    qualyToggle +
     qualyChart +
-    table([sortHeader('team','Team'),sortHeader('qualy','Qualifying · best lap'),sortHeader('race','Estimated race pace deficit'),sortHeader('samples','Eligible race laps',-1)],ordered.map(t=>[
-      teamLabel(t),`${fmt(t.qualy,3,'%')}<small>${t.qCount===1&&t.q[0]?.lap?`${escape(t.q[0].lap.driver)} · ${fmt(t.q[0].lap.time,3,' s')} · `:''}${t.qCount} event${t.qCount===1?'':'s'}</small>`,
-      `${fmt(t.race,3,'%')}<small>${t.fastestRaceDrivers?.length?`Fastest: ${escape([...new Set(t.fastestRaceDrivers)].join(', '))} · `:''}${t.rCount} event${t.rCount===1?'':'s'}</small>`,t.samples])))+
+    table([
+      sortHeader('team', 'Team'),
+      sortHeader(paceKey, qualyColLabel),
+      sortHeader('race', 'Estimated race pace deficit'),
+      sortHeader('samples', 'Eligible race laps', -1)
+    ], ordered.map(t => [
+      teamLabel(t),
+      `${fmt(t[paceKey], 3, '%')}<small>${t.qCount === 1 && t.q[0]?.lap ? `${escape(t.q[0].lap.driver)} · ${fmt(t.q[0].lap.time, 3, ' s')} · ` : ''}${t.qCount} event${t.qCount === 1 ? '' : 's'}</small>`,
+      `${fmt(t.race, 3, '%')}<small>${t.fastestRaceDrivers?.length ? `Fastest: ${escape([...new Set(t.fastestRaceDrivers)].join(', '))} · ` : ''}${t.rCount} event${t.rCount === 1 ? '' : 's'}</small>`,
+      t.samples
+    ]))) +
     card('Race pace deficit overview',
       'Race pace uses clean-air laps with shared race-lap, compound and tyre-age adjustments; the faster eligible teammate represents the team.',
-      raceChart)+
-    sensitivityTable+
-    card('Sector deficits','Sectors from each team’s single fastest qualifying lap, compared with the best corresponding sector among those selected laps. Events receive equal weight.',
-      table([sortHeader('team','Team'),sortHeader('s1','Sector 1'),sortHeader('s2','Sector 2'),sortHeader('s3','Sector 3')],sectors.map(t=>[teamLabel(t),...['s1','s2','s3'].map(s=>fmt(t[s],3,'%'))])))+
-    `<details class="dashboard-card performance-methods"><summary>Why this pace ranking? View selected laps and race drivers</summary><p class="performance-note">Only the fastest valid lap across the whole qualifying session counts for each team.</p>${table(['Team','Event','Phase','Driver','Selected lap (s)'],teams.flatMap(t=>t.q.filter(q=>q.lap).map(q=>[teamLabel(t),eventLabel(q.event),escape(q.lap.phase),escape(q.lap.driver),fmt(q.lap.time,3)])))}<p class="performance-note">Race pace adjusts for race lap, compound and tyre age. Typical model error is the median absolute residual on that driver’s eligible laps, not a confidence interval. Management and traffic can still affect the estimate.</p>${table(['Team','Event','Driver','Estimate','Eligible laps','Typical model error'],teams.flatMap(t=>t.raceDrivers.map(r=>[teamLabel(t),eventLabel(r.event),`${escape(r.driver)}${r.selected?' · selected':''}`,fmt(r.pace,3,'%'),r.samples,fmt(r.residual_spread,3,'%')])))}</details>`;
+      raceChart) +
+    sensitivityTable +
+    card('Sector deficits', 'Sectors from each team’s single fastest qualifying lap, compared with the best corresponding sector among those selected laps. Events receive equal weight.',
+      table([sortHeader('team', 'Team'), sortHeader('s1', 'Sector 1'), sortHeader('s2', 'Sector 2'), sortHeader('s3', 'Sector 3')], sectors.map(t => [teamLabel(t), ...['s1', 's2', 's3'].map(s => fmt(t[s], 3, '%'))]))) +
+    `<details class="dashboard-card performance-methods"><summary>Why this pace ranking? View selected laps and race drivers</summary><p class="performance-note">Only the fastest valid lap across the whole qualifying session counts for each team.</p>${table(['Team', 'Event', 'Phase', 'Driver', 'Selected lap (s)'], teams.flatMap(t => t.q.filter(q => q.lap).map(q => [teamLabel(t), eventLabel(q.event), escape(q.lap.phase), escape(q.lap.driver), fmt(q.lap.time, 3)]))) }<p class="performance-note">Race pace adjusts for race lap, compound and tyre age. Typical model error is the median absolute residual on that driver’s eligible laps, not a confidence interval. Management and traffic can still affect the estimate.</p>${table(['Team', 'Event', 'Driver', 'Estimate', 'Eligible laps', 'Typical model error'], teams.flatMap(t => t.raceDrivers.map(r => [teamLabel(t), eventLabel(r.event), `${escape(r.driver)}${r.selected ? ' · selected' : ''}`, fmt(r.pace, 3, '%'), r.samples, fmt(r.residual_spread, 3, '%')]))) }</details>`;
 }
 
 function renderRace(teams) {
@@ -1606,6 +1735,8 @@ root.addEventListener('click',event=>{
   if(tyre){tyreView=tyre.dataset.performanceTyre;render();}
   const straightSrc=event.target.closest('[data-straight-source]');
   if(straightSrc){straightLineSource=straightSrc.dataset.straightSource;render();}
+  const qualyModeBtn=event.target.closest('[data-qualy-mode]');
+  if(qualyModeBtn){qualyPaceMode=qualyModeBtn.dataset.qualyMode;render();}
   if(sort) {sortDirection=sortKey===sort.dataset.performanceSort?-sortDirection:Number(sort.dataset.sortDirection||1);sortKey=sort.dataset.performanceSort;render();}
 });
 
