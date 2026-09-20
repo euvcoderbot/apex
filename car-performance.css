@@ -23,6 +23,8 @@ body.performance-view #sidebarToggle {
   display: none !important;
 }
 
+.performance-toolbar [hidden] { display:none!important; }
+
 /* Header Navigation View Tabs */
 .performance-tabs {
   display: inline-flex;

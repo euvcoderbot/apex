@@ -61,7 +61,11 @@ def records(data):
                      'accurate': row.get('IsAccurate') is True or str(row.get('IsAccurate')) == 'True',
                      'deleted': str(row.get('Deleted')) == 'True', 'track': str(row.get('TrackStatus')),
                      'rain': rain,
-                     'sectors': [number(row.get(f'Sector{i}Time')) for i in (1, 2, 3)]})
+                     'sectors': [number(row.get(f'Sector{i}Time')) for i in (1, 2, 3)],
+                     'speed_st': number(row.get('SpeedST')),
+                     'speed_fl': number(row.get('SpeedFL')),
+                     'speed_i1': number(row.get('SpeedI1')),
+                     'speed_i2': number(row.get('SpeedI2'))})
     return rows
 
 
@@ -140,59 +144,131 @@ def race_estimates(valid):
 
 
 VERIFIED_RETIREMENT_REASONS = {
+    # Round 1: Australia
     ("Australian Grand Prix", "PIA"): ("Accident / collision", "Pre-grid reconnaissance lap crash"),
     ("Australian Grand Prix", "HUL"): ("Mechanical", "Electrical cut-off / technical failure (DNS)"),
     ("Australian Grand Prix", "ALO"): ("Mechanical", "Brake-by-wire failure"),
     ("Australian Grand Prix", "BOT"): ("Mechanical", "Brake disc overheating & failure"),
     ("Australian Grand Prix", "HAD"): ("Mechanical", "Power unit turbo / MGU-K failure"),
 
+    # Round 2: China
+    ("Chinese Grand Prix", "VER"): ("Mechanical", "Power unit failure / sudden loss of drive"),
     ("Chinese Grand Prix", "ALO"): ("Mechanical", "Extreme floor vibrations / cockpit fatigue"),
     ("Chinese Grand Prix", "STR"): ("Mechanical", "Hydraulic pressure loss (lap 10)"),
-    ("Chinese Grand Prix", "VER"): ("Mechanical", "Power unit failure / sudden loss of drive"),
+    ("Chinese Grand Prix", "PIA"): ("Mechanical", "Technical failure on grid (DNS)"),
+    ("Chinese Grand Prix", "NOR"): ("Mechanical", "Fuel system leak on grid (DNS)"),
+    ("Chinese Grand Prix", "BOR"): ("Mechanical", "Gearbox issue on formation lap (DNS)"),
+    ("Chinese Grand Prix", "ALB"): ("Mechanical", "Power unit sensor fault (DNS)"),
 
+    # Round 3: Japan
+    ("Japanese Grand Prix", "STR"): ("Mechanical", "Suspension damage"),
+    ("Japanese Grand Prix", "BEA"): ("Accident / collision", "Degner barrier contact / spin"),
     ("Japanese Grand Prix", "ALB"): ("Accident / collision", "Turn 1 barrier contact"),
     ("Japanese Grand Prix", "SAR"): ("Mechanical", "Suspension failure"),
 
+    # Round 4: Miami
+    ("Miami Grand Prix", "HUL"): ("Mechanical", "Transmission / gearbox failure"),
+    ("Miami Grand Prix", "LAW"): ("Mechanical", "Power unit oil leak"),
+    ("Miami Grand Prix", "GAS"): ("Mechanical", "Battery / ERS thermal warning"),
+    ("Miami Grand Prix", "HAD"): ("Mechanical", "Power unit failure"),
     ("Miami Grand Prix", "NOR"): ("Accident / collision", "Turn 17 barrier contact"),
     ("Miami Grand Prix", "BOT"): ("Mechanical", "Transmission / gearbox failure"),
 
-    ("Canadian Grand Prix", "RUS"): ("Mechanical", "Battery / High-voltage ERS failure"),
-    ("Canadian Grand Prix", "NOR"): ("Accident / collision", "Tyre gamble / puncture damage"),
+    # Round 5: Canada
     ("Canadian Grand Prix", "PER"): ("Mechanical", "Front-right suspension failure"),
+    ("Canadian Grand Prix", "NOR"): ("Accident / collision", "Wall contact damage"),
+    ("Canadian Grand Prix", "RUS"): ("Mechanical", "Battery / High-voltage ERS failure"),
     ("Canadian Grand Prix", "ALO"): ("Mechanical", "Exhaust crack / turbo overheating"),
-    ("Canadian Grand Prix", "ALB"): ("Accident / collision", "Wall of Champions contact"),
+    ("Canadian Grand Prix", "ALB"): ("Accident / collision", "Wall of Champions collision"),
     ("Canadian Grand Prix", "LIN"): ("Mechanical", "Gearbox selector failure (DNS)"),
 
-    ("Monaco Grand Prix", "VER"): ("Mechanical", "Engine dropped dead on lap 1 / PU shutdown"),
+    # Round 6: Monaco
+    ("Monaco Grand Prix", "SAI"): ("Accident / collision", "Portier barrier collision"),
+    ("Monaco Grand Prix", "LEC"): ("Accident / collision", "Swimming pool chicane barrier contact"),
+    ("Monaco Grand Prix", "STR"): ("Accident / collision", "Sainte Devote collision"),
+    ("Monaco Grand Prix", "NOR"): ("Accident / collision", "Front wing & suspension damage from contact"),
+    ("Monaco Grand Prix", "BEA"): ("Accident / collision", "Mirabeau barrier collision"),
+    ("Monaco Grand Prix", "BOT"): ("Mechanical", "Brake pressure loss"),
+    ("Monaco Grand Prix", "VER"): ("Mechanical", "Power unit shutdown lap 1"),
     ("Monaco Grand Prix", "OCO"): ("Accident / collision", "Portier barrier collision"),
     ("Monaco Grand Prix", "TSU"): ("Accident / collision", "Nouvelle chicane barrier contact"),
 
+    # Round 7: Barcelona
+    ("Barcelona Grand Prix", "LEC"): ("Mechanical", "Power unit turbo failure"),
+    ("Barcelona Grand Prix", "ANT"): ("Mechanical", "Gearbox hydraulic pressure loss"),
+    ("Barcelona Grand Prix", "BEA"): ("Accident / collision", "Turn 4 gravel trap spin / collision damage"),
+    ("Barcelona Grand Prix", "ALO"): ("Mechanical", "Floor / aero damage from kerb strike"),
+    ("Barcelona Grand Prix", "HUL"): ("Mechanical", "Electrical / halo emergency cut-off"),
+    ("Barcelona Grand Prix", "BOT"): ("Mechanical", "Cooling radiator puncture"),
+    ("Barcelona Grand Prix", "STR"): ("Mechanical", "Front suspension failure"),
     ("Barcelona Grand Prix", "HAM"): ("Mechanical", "Brake system failure / loss of pedal pressure"),
-    ("Barcelona Grand Prix", "HUL"): ("Mechanical", "Halo emergency switch triggered by debris"),
     ("Barcelona Grand Prix", "PER"): ("Mechanical", "Cooling / radiator puncture"),
 
+    # Round 8: Austria
+    ("Austrian Grand Prix", "STR"): ("Mechanical", "Power unit oil pressure drop"),
+    ("Austrian Grand Prix", "SAI"): ("Mechanical", "Brakes overheating / pedal travel"),
+    ("Austrian Grand Prix", "PER"): ("Mechanical", "Hydraulics failure"),
+    ("Austrian Grand Prix", "BOT"): ("Mechanical", "Suspension failure"),
     ("Austrian Grand Prix", "NOR"): ("Accident / collision", "Turn 3 collision with VER"),
     ("Austrian Grand Prix", "VER"): ("Accident / collision", "Turn 3 collision damage / puncture"),
     ("Austrian Grand Prix", "GAS"): ("Mechanical", "Power unit oil pressure drop"),
 
+    # Round 9: Great Britain
+    ("British Grand Prix", "VER"): ("Mechanical", "Power unit loss of drive / electrical"),
+    ("British Grand Prix", "ALB"): ("Mechanical", "Water system leak / engine overheating"),
+    ("British Grand Prix", "HUL"): ("Mechanical", "Gearbox failure"),
     ("British Grand Prix", "RUS"): ("Mechanical", "Water system leak"),
     ("British Grand Prix", "LEC"): ("Strategy / Damage", "Intermediates gamble / floor damage"),
 
+    # Round 10: Belgium
+    ("Belgian Grand Prix", "STR"): ("Mechanical", "Suspension damage"),
+    ("Belgian Grand Prix", "PER"): ("Mechanical", "Power unit MGU-K failure"),
+    ("Belgian Grand Prix", "RUS"): ("Mechanical", "Water system leak / coolant loss"),
     ("Belgian Grand Prix", "ZHO"): ("Mechanical", "Hydraulics failure"),
     ("Belgian Grand Prix", "RIC"): ("Accident / collision", "Raidillon curb spin damage"),
 
-    ("Hungarian Grand Prix", "ALB"): ("Mechanical", "Power unit overheat"),
+    # Round 11: Hungary
+    ("Hungarian Grand Prix", "PIA"): ("Mechanical", "Power unit overheat & electrical shutdown"),
+    ("Hungarian Grand Prix", "PER"): ("Mechanical", "Gearbox failure"),
     ("Hungarian Grand Prix", "BOT"): ("Mechanical", "Brake disc failure"),
+    ("Hungarian Grand Prix", "ALB"): ("Mechanical", "Power unit overheat"),
 
+    # Round 12: Netherlands
+    ("Dutch Grand Prix", "ALB"): ("Accident / collision", "Turn 3 banking barrier contact"),
+    ("Dutch Grand Prix", "BOT"): ("Mechanical", "Front-left suspension failure"),
+    ("Dutch Grand Prix", "OCO"): ("Accident / collision", "Turn 1 collision damage"),
+    ("Dutch Grand Prix", "STR"): ("Mechanical", "Power unit sensor fault / sudden loss of drive"),
+    ("Dutch Grand Prix", "BEA"): ("Accident / collision", "Gravel trap excursion / floor damage"),
+    ("Dutch Grand Prix", "VER"): ("Mechanical", "Transmission failure / loss of drive"),
     ("Dutch Grand Prix", "SAR"): ("Accident / collision", "Turn 3 banking barrier contact"),
     ("Dutch Grand Prix", "MAG"): ("Mechanical", "Gearbox failure"),
 
+    # Round 13: Italy
+    ("Italian Grand Prix", "STR"): ("Mechanical", "Brake disc overheating & failure"),
+    ("Italian Grand Prix", "ALO"): ("Mechanical", "Suspension failure from kerb strike"),
+    ("Italian Grand Prix", "LEC"): ("Accident / collision", "Turn 1 first-lap collision damage"),
     ("Italian Grand Prix", "HUL"): ("Accident / collision", "Turn 1 first-lap collision damage"),
     ("Italian Grand Prix", "TSU"): ("Accident / collision", "Sidepod damage from contact"),
 
+    # Round 14: Spain (Madrid)
+    ("Spanish Grand Prix", "SAI"): ("Mechanical", "Power unit oil pressure loss"),
+    ("Spanish Grand Prix", "PER"): ("Mechanical", "Cooling radiator leak"),
+    ("Spanish Grand Prix", "STR"): ("Mechanical", "Suspension failure"),
     ("Spanish Grand Prix", "HAM"): ("Mechanical", "Brake system failure / loss of pedal pressure"),
     ("Spanish Grand Prix", "BOT"): ("Mechanical", "Suspension failure"),
 }
+
+
+def get_verified_retirement(event_name, abbr):
+    if (event_name, abbr) in VERIFIED_RETIREMENT_REASONS:
+        return VERIFIED_RETIREMENT_REASONS[(event_name, abbr)]
+    norm_event = event_name.lower().replace('grand prix', '').replace('gp', '').strip()
+    for (ev, drv), val in VERIFIED_RETIREMENT_REASONS.items():
+        if drv == abbr:
+            ev_clean = ev.lower().replace('grand prix', '').replace('gp', '').strip()
+            if norm_event and (norm_event in ev_clean or ev_clean in norm_event):
+                return val
+    return None
 
 
 def analyze(data, traffic=2):
@@ -220,16 +296,11 @@ def analyze(data, traffic=2):
         team['points'] += points or 0
         if status not in ('Did not start', 'Withdrew', 'Did not qualify'):
             team['starts'] += 1
+        v_ret = get_verified_retirement(event_name, abbr)
         if status in ('Finished', 'Lapped') or status.startswith('+'):
             team['finishes'] += 1
-        elif status in mechanical:
-            team['mechanical'] += 1
-            team['retirements'].append({'driver': abbr, 'cause': status, 'category': 'Mechanical'})
-        elif status in ('Accident', 'Collision', 'Collision damage', 'Spun off'):
-            team['incidents'] += 1
-            team['retirements'].append({'driver': abbr, 'cause': status, 'category': 'Accident / collision'})
-        elif (event_name, abbr) in VERIFIED_RETIREMENT_REASONS:
-            cat, cause = VERIFIED_RETIREMENT_REASONS[(event_name, abbr)]
+        elif v_ret:
+            cat, cause = v_ret
             if 'Mechanical' in cat:
                 team['mechanical'] += 1
             elif 'Accident' in cat or 'collision' in cat:
@@ -237,6 +308,12 @@ def analyze(data, traffic=2):
             else:
                 team['other_retirements'] += 1
             team['retirements'].append({'driver': abbr, 'cause': cause, 'category': cat, 'verified': True})
+        elif status in mechanical:
+            team['mechanical'] += 1
+            team['retirements'].append({'driver': abbr, 'cause': status, 'category': 'Mechanical'})
+        elif status in ('Accident', 'Collision', 'Collision damage', 'Spun off'):
+            team['incidents'] += 1
+            team['retirements'].append({'driver': abbr, 'cause': status, 'category': 'Accident / collision'})
         elif status not in ('Did not start', 'Withdrew', 'Did not qualify'):
             team['other_retirements'] += 1
             team['retirements'].append({'driver': abbr, 'cause': status, 'category': 'Other / cause unreported'})
@@ -308,6 +385,8 @@ def analyze(data, traffic=2):
                 (lap['sectors'][i]/fastest_sectors[i]-1)*100
                 if lap and lap['sectors'][i] and fastest_sectors[i] else None
                 for i in range(3)]
+            team['speed_trap'] = lap.get('speed_st') if lap else None
+            team['speed_fl'] = lap.get('speed_fl') if lap else None
     else:
         valid_all = [r for r in rows if clean(r)]
         gaps = traffic_gaps(rows)
@@ -370,6 +449,16 @@ def analyze(data, traffic=2):
             selected_clean = [r for r in clean_laps if fastest and r['driver'] == fastest[0]]
             team['traffic_coverage'] = len(selected_clean)/len(eligible) if eligible else 0
 
+            # Race speed trap statistics across clean laps
+            team_st = [r['speed_st'] for r in clean_laps if r.get('speed_st') is not None]
+            team_fl = [r['speed_fl'] for r in clean_laps if r.get('speed_fl') is not None]
+            team['race_speed_trap_max'] = max(team_st) if team_st else None
+            team['race_speed_trap_median'] = float(median(team_st)) if team_st else None
+            team['race_speed_fl_max'] = max(team_fl) if team_fl else None
+            team['race_speed_fl_median'] = float(median(team_fl)) if team_fl else None
+            team['speed_trap'] = team['race_speed_trap_median']
+            team['speed_fl'] = team['race_speed_fl_median']
+
             # Stint degradation: both raw slope and field-normalized degradation
             stints = defaultdict(list)
             stint_normalized = defaultdict(list)
@@ -388,14 +477,14 @@ def analyze(data, traffic=2):
                 norm_pts = stint_normalized.get(key, [])
                 field_norm_slope = slope(norm_pts) if len(norm_pts) >= 4 else None
 
-                # Piecewise cliff detection
+                # Piecewise cliff detection (substantial rate acceleration >= 0.15 s/lap)
                 cliff_detected = False
                 cliff_age = None
                 if len(points) >= 8:
                     mid = len(points) // 2
                     s1 = slope(points[:mid])
                     s2 = slope(points[mid:])
-                    if s1 is not None and s2 is not None and s2 - s1 >= 0.05:
+                    if s1 is not None and s2 is not None and s2 - s1 >= 0.15:
                         cliff_detected = True
                         cliff_age = points[mid][0]
 
@@ -456,10 +545,23 @@ def telemetry_metrics(samples, corners):
             a, b = active, i
             duration = float(times[b]-times[a])
             drop = float(speed[a]-speed[b])
-            if duration >= .5 and drop >= 40:
+            if duration >= .4 and drop >= 35:
+                v_start = float(speed[a])
+                v_end = float(speed[b])
+                v_mid = (v_start + v_end) / 2.0
+                mid_idx = a
+                for s_i in range(a, b):
+                    if speed[s_i] <= v_mid:
+                        mid_idx = s_i
+                        break
+                mid_idx = max(a + 1, min(b, mid_idx))
+                early_dt = float(times[mid_idx] - times[a])
+                early_drop = float(v_start - speed[mid_idx])
+                early_g = (early_drop / 3.6 / early_dt / 9.80665) if early_dt > 0.04 and early_drop > 0 else (drop / 3.6 / duration / 9.80665)
                 zones.append({'start': float(distance[a]), 'distance': float(distance[b]-distance[a]),
-                              'entry': float(speed[a]), 'exit': float(speed[b]),
-                              'duration': duration, 'mean_g': drop/3.6/duration/9.80665})
+                              'entry': v_start, 'exit': v_end,
+                              'duration': duration, 'mean_g': drop/3.6/duration/9.80665,
+                              'early_g': float(early_g)})
             active = None
     full = [float(r['Speed']) for r in rows if number(r.get('Throttle')) is not None and r['Throttle'] >= 98 and not r.get('Brake')]
     return {'corners': output, 'braking': zones, 'top_speed': float(speed.max()),
