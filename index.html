@@ -153,23 +153,31 @@
         <label for="performanceYear">Season</label>
         <div class="select-shell"><select id="performanceYear"></select></div>
       </div>
-      <div class="control-field">
-        <label for="performanceScope">Scope</label>
-        <div class="select-shell">
-          <select id="performanceScope">
-            <option value="track">Per track</option>
-            <option value="season">Season to date</option>
-          </select>
+      <div class="control-field control-field-scope">
+        <label>Scope</label>
+        <div class="performance-scope-toggle" role="radiogroup" aria-label="Analysis scope">
+          <button type="button" data-performance-scope="season" aria-pressed="true">Season to date</button>
+          <button type="button" data-performance-scope="tracks" aria-pressed="false">Tracks</button>
         </div>
-      </div>
-      <div class="control-field" id="performanceEventField">
-        <label for="performanceEvent">Grand Prix</label>
-        <div class="select-shell"><select id="performanceEvent"></select></div>
       </div>
       <div class="performance-actions">
         <button type="button" id="performanceLoad">Analyse</button>
         <button type="button" id="performanceCancel" class="btn-cancel" hidden>Stop</button>
       </div>
+    </section>
+    <section id="performanceTrackTray" class="dashboard-card performance-track-tray" aria-label="Grand Prix selection" hidden>
+      <div class="track-tray-header">
+        <div class="track-tray-title">
+          <span class="track-tray-label">Select Grand Prix tracks to analyse</span>
+          <span id="performanceTrackCount" class="track-count-badge">0 tracks selected</span>
+        </div>
+        <div class="track-tray-actions">
+          <button type="button" id="performanceSelectAllTracks" class="btn-track-action">Select all</button>
+          <button type="button" id="performanceSelectLatestTracks" class="btn-track-action">Latest 3</button>
+          <button type="button" id="performanceClearTracks" class="btn-track-action">Clear</button>
+        </div>
+      </div>
+      <div id="performanceTrackPills" class="performance-track-pills" role="group" aria-label="Track selection"></div>
     </section>
     <div class="performance-status-card" id="performanceStatusCard">
       <div class="status-dot"></div>

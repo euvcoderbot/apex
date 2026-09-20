@@ -173,53 +173,175 @@ def measure_field(extracted, selections, corners=()):
     corner_mask = np.zeros(len(grid)-1, dtype=bool)
     for zone in zones:
         corner_mask[zone['start']:zone['end']] = True
+    # Calculate circuit-relative speed terciles across all apexes
+    apex_speeds = [float(speed[z['apex']]) for z in zones]
+    tercile_33 = float(np.percentile(apex_speeds, 33.3))
+    tercile_66 = float(np.percentile(apex_speeds, 66.7))
+    for z in zones:
+        v = float(speed[z['apex']])
+        z['tercile'] = 'slow' if v <= tercile_33 else 'mid' if v <= tercile_66 else 'fast'
+        z['tercile_label'] = 'Slowest third' if v <= tercile_33 else 'Middle third' if v <= tercile_66 else 'Fastest third'
+
     reference_team = min(selected, key=lambda team: selected[team]['official'])
     ref = selected[reference_team]
+
+    # Partition straight sections into early acceleration vs terminal velocity
+    straight_blocks = []
+    in_straight = False
+    s_start = 0
+    for idx in range(len(corner_mask)):
+        if not corner_mask[idx] and not in_straight:
+            in_straight = True
+            s_start = idx
+        elif corner_mask[idx] and in_straight:
+            in_straight = False
+            if grid[idx] - grid[s_start] >= 80:
+                straight_blocks.append((s_start, idx))
+    if in_straight and grid[-1] - grid[s_start] >= 80:
+        straight_blocks.append((s_start, len(corner_mask)))
+
     results = {}
+    grid_spacing = float(grid[1] - grid[0])
     for team, item in selected.items():
         measurements = []
         for z in zones:
             a, b, apex = z['start'], z['end'], z['apex']
             dt = float(item['dt'][a:b].sum())
-            measurements.append({'corner': z['corner'], 'band': z['band'], 'time': dt,
-                'length': float(grid[b]-grid[a]), 'minimum': float(min(item['speed'][a:b+1])),
-                'mean_speed': float((grid[b]-grid[a])/dt*3.6),
-                'apex_distance': float(grid[apex])})
+            ref_dt = float(ref['dt'][a:b].sum())
+            length = float(grid[b] - grid[a])
+            time_lost = dt - ref_dt
+
+            # Adaptive entry (-100 to -40m), apex (-40 to +40m), exit (+40 to +100m)
+            step_40 = max(1, int(40 / grid_spacing))
+            step_100 = max(2, int(100 / grid_spacing))
+            en_a = max(a, apex - step_100)
+            en_b = max(a, apex - step_40)
+            ex_a = min(b, apex + step_40)
+            ex_b = min(b, apex + step_100)
+            ap_a = max(a, apex - step_40)
+            ap_b = min(b, apex + step_40)
+
+            entry_speed = float(np.median(item['speed'][en_a:en_b+1])) if en_b > en_a else float(item['speed'][en_a])
+            apex_min_speed = float(min(item['speed'][ap_a:ap_b+1])) if ap_b > ap_a else float(item['speed'][apex])
+            exit_speed = float(np.median(item['speed'][ex_a:ex_b+1])) if ex_b > ex_a else float(item['speed'][ex_b])
+
+            ref_entry = float(np.median(ref['speed'][en_a:en_b+1])) if en_b > en_a else float(ref['speed'][en_a])
+            ref_apex = float(min(ref['speed'][ap_a:ap_b+1])) if ap_b > ap_a else float(ref['speed'][apex])
+            ref_exit = float(np.median(ref['speed'][ex_a:ex_b+1])) if ex_b > ex_a else float(ref['speed'][ex_b])
+
+            loss_density = float((time_lost / max(1.0, length)) * 100 * 1000)  # ms per 100m
+
+            measurements.append({
+                'corner': z['corner'], 'band': z['band'], 'tercile': z['tercile'], 'tercile_label': z['tercile_label'],
+                'time': dt, 'ref_time': ref_dt, 'time_lost': time_lost, 'loss_density': loss_density,
+                'length': length, 'minimum': apex_min_speed, 'mean_speed': float(length / max(0.001, dt) * 3.6),
+                'entry_speed': entry_speed, 'exit_speed': exit_speed,
+                'delta_entry': entry_speed - ref_entry, 'delta_apex': apex_min_speed - ref_apex, 'delta_exit': exit_speed - ref_exit,
+                'apex_distance': float(grid[apex])
+            })
+
         categories = {}
         for band in ('low', 'medium', 'high'):
-            indices = [i for i,z in enumerate(zones) if z['band'] == band]
+            indices = [i for i, z in enumerate(zones) if z['band'] == band]
             if not indices:
                 categories[band] = None; continue
             band_time = sum(measurements[i]['time'] for i in indices)
             reference_time = sum(float(ref['dt'][zones[i]['start']:zones[i]['end']].sum()) for i in indices)
-            lost = band_time-reference_time
-            categories[band] = {'time': band_time, 'time_lost': lost,
-                'deficit': lost/ref['official']*100, 'corners': len(indices),
-                'speed': float(np.mean([measurements[i]['mean_speed'] for i in indices]))}
+            lost = band_time - reference_time
+            categories[band] = {
+                'time': band_time, 'time_lost': lost,
+                'deficit': lost / ref['official'] * 100, 'corners': len(indices),
+                'speed': float(np.mean([measurements[i]['mean_speed'] for i in indices])),
+                'mean_loss_density': float(np.mean([measurements[i]['loss_density'] for i in indices]))
+            }
+
+        # Tercile summary categories
+        tercile_categories = {}
+        for tercile in ('slow', 'mid', 'fast'):
+            indices = [i for i, z in enumerate(zones) if z['tercile'] == tercile]
+            if not indices:
+                tercile_categories[tercile] = None; continue
+            terc_time = sum(measurements[i]['time'] for i in indices)
+            ref_terc_time = sum(float(ref['dt'][zones[i]['start']:zones[i]['end']].sum()) for i in indices)
+            lost = terc_time - ref_terc_time
+            tercile_categories[tercile] = {
+                'time': terc_time, 'time_lost': lost,
+                'deficit': lost / ref['official'] * 100, 'corners': len(indices),
+                'speed': float(np.mean([measurements[i]['mean_speed'] for i in indices]))
+            }
+
+        # Straight-line two-phase breakdown
+        early_accel_time = 0.0
+        ref_early_accel_time = 0.0
+        terminal_time = 0.0
+        ref_terminal_time = 0.0
+        terminal_speeds = []
+        for s_start, s_end in straight_blocks:
+            s_len = grid[s_end] - grid[s_start]
+            accel_split = min(s_end, s_start + max(1, int(min(200.0, s_len * 0.5) / grid_spacing)))
+            term_split = max(s_start, s_end - max(1, int(min(100.0, s_len * 0.35) / grid_spacing)))
+
+            early_accel_time += float(item['dt'][s_start:accel_split].sum())
+            ref_early_accel_time += float(ref['dt'][s_start:accel_split].sum())
+            terminal_time += float(item['dt'][term_split:s_end].sum())
+            ref_terminal_time += float(ref['dt'][term_split:s_end].sum())
+            terminal_speeds.extend(item['speed'][term_split:s_end])
+
         straight_time = float(item['dt'][~corner_mask].sum())
         corner_time = float(item['dt'][corner_mask].sum())
+
         braking = []
         for z in zones:
-            indices = np.where(item['brake'][z['start']:z['apex']+1])[0]+z['start']
+            indices = np.where(item['brake'][z['start']:z['apex']+1])[0] + z['start']
             if len(indices) < 2:
                 continue
-            a, b = int(indices[0]), int(indices[-1])+1
+            a, b = int(indices[0]), int(indices[-1]) + 1
             duration = float(item['dt'][a:b].sum())
-            drop = float(item['speed'][a]-item['speed'][b])
-            if duration >= .5 and drop >= 40:
-                braking.append({'start': float(grid[a]), 'distance': float(grid[b]-grid[a]),
-                    'duration': duration, 'mean_g': drop/3.6/duration/9.80665})
-        results[team] = {'corners': measurements, 'categories': categories,
+            v_start = float(item['speed'][a])
+            v_end = float(item['speed'][b-1])
+            drop = v_start - v_end
+            if duration >= .4 and drop >= 35:
+                # Speed-midpoint split: early deceleration vs late deceleration
+                v_mid = (v_start + v_end) / 2.0
+                mid_idx = a
+                for s_i in range(a, b):
+                    if item['speed'][s_i] <= v_mid:
+                        mid_idx = s_i
+                        break
+                mid_idx = max(a + 1, min(b - 1, mid_idx))
+                early_dt = float(item['dt'][a:mid_idx].sum())
+                late_dt = float(item['dt'][mid_idx:b].sum())
+                early_g = (v_start - float(item['speed'][mid_idx])) / 3.6 / max(0.05, early_dt) / 9.80665
+                late_g = (float(item['speed'][mid_idx]) - v_end) / 3.6 / max(0.05, late_dt) / 9.80665
+                release_to_apex = float(grid[z['apex']] - grid[b-1])
+
+                braking.append({
+                    'start': float(grid[a]),
+                    'distance': float(grid[b] - grid[a]),
+                    'duration': duration,
+                    'mean_g': drop / 3.6 / duration / 9.80665,
+                    'early_g': float(early_g),
+                    'late_g': float(late_g),
+                    'release_to_apex': max(0.0, release_to_apex),
+                    'sampling_resolution': 11.25  # ~±11m at 300km/h 3.7Hz
+                })
+
+        results[team] = {
+            'corners': measurements, 'categories': categories, 'tercile_categories': tercile_categories,
             'straight_time': straight_time, 'corner_time': corner_time,
-            'straight_contribution': float((straight_time-ref['dt'][~corner_mask].sum())/ref['official']*100),
-            'corner_contribution': float((corner_time-ref['dt'][corner_mask].sum())/ref['official']*100),
-            'lap_gap': (item['official']/ref['official']-1)*100,
+            'straight_contribution': float((straight_time - ref['dt'][~corner_mask].sum()) / ref['official'] * 100),
+            'corner_contribution': float((corner_time - ref['dt'][corner_mask].sum()) / ref['official'] * 100),
+            'early_accel_delta': float((early_accel_time - ref_early_accel_time) / ref['official'] * 100),
+            'terminal_delta': float((terminal_time - ref_terminal_time) / ref['official'] * 100),
+            'terminal_speed_mean': float(np.mean(terminal_speeds)) if terminal_speeds else None,
+            'lap_gap': (item['official'] / ref['official'] - 1) * 100,
             'reference_lap_time': ref['official'],
             'top_speed': float(max(item['speed'])),
-            'full_throttle_p95': float(np.percentile(item['speed'][item['throttle'] >= 98],95)) if np.sum(item['throttle'] >= 98) >= 10 else None,
+            'full_throttle_p95': float(np.percentile(item['speed'][item['throttle'] >= 98], 95)) if np.sum(item['throttle'] >= 98) >= 10 else None,
             'lap_distance': float(grid[-1]), 'braking': braking, 'selection': item['selection'],
-            'quality': {'integration_scale': item['scale'], 'full_lap': True}}
+            'quality': {'integration_scale': item['scale'], 'full_lap': True}
+        }
     for r in results.values():
         r['straight_deficit'] = r['straight_contribution']
-    return {'teams': results, 'reference_team': reference_team, 'excluded': {t:e for t,e in errors.items() if t not in results},
-            'method': 'shared-gps-grid-v2-lap-share', 'corner_count': len(zones)}
+    return {'teams': results, 'reference_team': reference_team, 'excluded': {t: e for t, e in errors.items() if t not in results},
+            'method': 'shared-gps-grid-v3-sampling-aware', 'corner_count': len(zones)}

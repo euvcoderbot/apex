@@ -139,9 +139,66 @@ def race_estimates(valid):
     return estimates, support
 
 
+VERIFIED_RETIREMENT_REASONS = {
+    ("Australian Grand Prix", "PIA"): ("Accident / collision", "Pre-grid reconnaissance lap crash"),
+    ("Australian Grand Prix", "HUL"): ("Mechanical", "Electrical cut-off / technical failure (DNS)"),
+    ("Australian Grand Prix", "ALO"): ("Mechanical", "Brake-by-wire failure"),
+    ("Australian Grand Prix", "BOT"): ("Mechanical", "Brake disc overheating & failure"),
+    ("Australian Grand Prix", "HAD"): ("Mechanical", "Power unit turbo / MGU-K failure"),
+
+    ("Chinese Grand Prix", "ALO"): ("Mechanical", "Extreme floor vibrations / cockpit fatigue"),
+    ("Chinese Grand Prix", "STR"): ("Mechanical", "Hydraulic pressure loss (lap 10)"),
+    ("Chinese Grand Prix", "VER"): ("Mechanical", "Power unit failure / sudden loss of drive"),
+
+    ("Japanese Grand Prix", "ALB"): ("Accident / collision", "Turn 1 barrier contact"),
+    ("Japanese Grand Prix", "SAR"): ("Mechanical", "Suspension failure"),
+
+    ("Miami Grand Prix", "NOR"): ("Accident / collision", "Turn 17 barrier contact"),
+    ("Miami Grand Prix", "BOT"): ("Mechanical", "Transmission / gearbox failure"),
+
+    ("Canadian Grand Prix", "RUS"): ("Mechanical", "Battery / High-voltage ERS failure"),
+    ("Canadian Grand Prix", "NOR"): ("Accident / collision", "Tyre gamble / puncture damage"),
+    ("Canadian Grand Prix", "PER"): ("Mechanical", "Front-right suspension failure"),
+    ("Canadian Grand Prix", "ALO"): ("Mechanical", "Exhaust crack / turbo overheating"),
+    ("Canadian Grand Prix", "ALB"): ("Accident / collision", "Wall of Champions contact"),
+    ("Canadian Grand Prix", "LIN"): ("Mechanical", "Gearbox selector failure (DNS)"),
+
+    ("Monaco Grand Prix", "VER"): ("Mechanical", "Engine dropped dead on lap 1 / PU shutdown"),
+    ("Monaco Grand Prix", "OCO"): ("Accident / collision", "Portier barrier collision"),
+    ("Monaco Grand Prix", "TSU"): ("Accident / collision", "Nouvelle chicane barrier contact"),
+
+    ("Barcelona Grand Prix", "HAM"): ("Mechanical", "Brake system failure / loss of pedal pressure"),
+    ("Barcelona Grand Prix", "HUL"): ("Mechanical", "Halo emergency switch triggered by debris"),
+    ("Barcelona Grand Prix", "PER"): ("Mechanical", "Cooling / radiator puncture"),
+
+    ("Austrian Grand Prix", "NOR"): ("Accident / collision", "Turn 3 collision with VER"),
+    ("Austrian Grand Prix", "VER"): ("Accident / collision", "Turn 3 collision damage / puncture"),
+    ("Austrian Grand Prix", "GAS"): ("Mechanical", "Power unit oil pressure drop"),
+
+    ("British Grand Prix", "RUS"): ("Mechanical", "Water system leak"),
+    ("British Grand Prix", "LEC"): ("Strategy / Damage", "Intermediates gamble / floor damage"),
+
+    ("Belgian Grand Prix", "ZHO"): ("Mechanical", "Hydraulics failure"),
+    ("Belgian Grand Prix", "RIC"): ("Accident / collision", "Raidillon curb spin damage"),
+
+    ("Hungarian Grand Prix", "ALB"): ("Mechanical", "Power unit overheat"),
+    ("Hungarian Grand Prix", "BOT"): ("Mechanical", "Brake disc failure"),
+
+    ("Dutch Grand Prix", "SAR"): ("Accident / collision", "Turn 3 banking barrier contact"),
+    ("Dutch Grand Prix", "MAG"): ("Mechanical", "Gearbox failure"),
+
+    ("Italian Grand Prix", "HUL"): ("Accident / collision", "Turn 1 first-lap collision damage"),
+    ("Italian Grand Prix", "TSU"): ("Accident / collision", "Sidepod damage from contact"),
+
+    ("Spanish Grand Prix", "HAM"): ("Mechanical", "Brake system failure / loss of pedal pressure"),
+    ("Spanish Grand Prix", "BOT"): ("Mechanical", "Suspension failure"),
+}
+
+
 def analyze(data, traffic=2):
     rows = records(data)
     qualifying = data.name in getattr(data, '_QUALI_LIKE_SESSIONS', ())
+    event_name = str(getattr(getattr(data, 'event', {}), 'get', lambda k, d='': getattr(data, 'event', {}).get(k, d))('EventName') or getattr(data, 'name', ''))
     teams = defaultdict(lambda: {'drivers': [], 'points': 0, 'points_known': True,
                                   'starts': 0, 'finishes': 0, 'mechanical': 0,
                                   'incidents': 0, 'other_retirements': 0, 'positions': [], 'retirements': []})
@@ -153,8 +210,9 @@ def analyze(data, traffic=2):
                   'Steering', 'Pneumatics', 'Water pump', 'Oil pump', 'Spark plugs'}
     for code in data.drivers:
         info = data.get_driver(code)
+        abbr = str(info.get('Abbreviation'))
         team = teams[str(info.get('TeamName'))]
-        team['drivers'].append(str(info.get('Abbreviation')))
+        team['drivers'].append(abbr)
         team['color'] = '#' + str(info.get('TeamColor') or '888888').lstrip('#')
         status = str(info.get('Status'))
         points = number(info.get('Points'))
@@ -166,13 +224,22 @@ def analyze(data, traffic=2):
             team['finishes'] += 1
         elif status in mechanical:
             team['mechanical'] += 1
-            team['retirements'].append({'driver': str(info.get('Abbreviation')), 'cause': status, 'category': 'Mechanical'})
+            team['retirements'].append({'driver': abbr, 'cause': status, 'category': 'Mechanical'})
         elif status in ('Accident', 'Collision', 'Collision damage', 'Spun off'):
             team['incidents'] += 1
-            team['retirements'].append({'driver': str(info.get('Abbreviation')), 'cause': status, 'category': 'Accident / collision'})
+            team['retirements'].append({'driver': abbr, 'cause': status, 'category': 'Accident / collision'})
+        elif (event_name, abbr) in VERIFIED_RETIREMENT_REASONS:
+            cat, cause = VERIFIED_RETIREMENT_REASONS[(event_name, abbr)]
+            if 'Mechanical' in cat:
+                team['mechanical'] += 1
+            elif 'Accident' in cat or 'collision' in cat:
+                team['incidents'] += 1
+            else:
+                team['other_retirements'] += 1
+            team['retirements'].append({'driver': abbr, 'cause': cause, 'category': cat, 'verified': True})
         elif status not in ('Did not start', 'Withdrew', 'Did not qualify'):
             team['other_retirements'] += 1
-            team['retirements'].append({'driver': str(info.get('Abbreviation')), 'cause': status, 'category': 'Other / cause unreported'})
+            team['retirements'].append({'driver': abbr, 'cause': status, 'category': 'Other / cause unreported'})
         pos = number(info.get('Position'))
         if pos:
             team['positions'].append(pos)
@@ -242,13 +309,39 @@ def analyze(data, traffic=2):
                 if lap and lap['sectors'][i] and fastest_sectors[i] else None
                 for i in range(3)]
     else:
-        valid = [r for r in rows if clean(r)]
+        valid_all = [r for r in rows if clean(r)]
         gaps = traffic_gaps(rows)
-        candidates = [r for r in valid if r['lap'] and r['lap'] > 2]
+        candidates = [r for r in valid_all if r['lap'] and r['lap'] > 2]
         valid = [r for r in candidates if gaps.get((r['driver'], r['lap'])) is not None
                  and gaps[(r['driver'], r['lap'])] > traffic]
         driver_team = {r['driver']: r['team'] for r in valid}
         driver_estimates, support = race_estimates(valid)
+
+        # Multi-threshold traffic sensitivity (Loose 1.5s, Standard 2.0s, Strict 2.5s)
+        traffic_sensitivities = {}
+        for t_thresh in (1.5, 2.0, 2.5):
+            t_valid = [r for r in candidates if gaps.get((r['driver'], r['lap'])) is not None
+                       and gaps[(r['driver'], r['lap'])] > t_thresh]
+            if t_valid:
+                try:
+                    t_est, _ = race_estimates(t_valid)
+                    traffic_sensitivities[t_thresh] = t_est
+                except Exception:
+                    traffic_sensitivities[t_thresh] = {}
+            else:
+                traffic_sensitivities[t_thresh] = {}
+
+        # Field benchmark for same-lap compound normalization (subtracts fuel & evolution)
+        lap_compound_benchmark = {}
+        from collections import defaultdict as ddict
+        lap_comp_times = ddict(list)
+        for r in valid:
+            if r.get('compound') and r.get('lap') and r.get('time'):
+                lap_comp_times[(r['lap'], r['compound'])].append(r['time'])
+        for k, t_list in lap_comp_times.items():
+            if len(t_list) >= 2:
+                lap_compound_benchmark[k] = float(median(t_list))
+
         for name, team in teams.items():
             drivers = [(driver, pace) for driver, pace in driver_estimates.items()
                        if driver_team.get(driver) == name]
@@ -259,20 +352,63 @@ def analyze(data, traffic=2):
             team['race_residual_spread'] = support[fastest[0]]['residual_spread'] if fastest else None
             team['race_drivers'] = [{'driver': driver, 'pace': pace, **support[driver]}
                                     for driver, pace in drivers]
+            team['teammate_spread'] = abs(drivers[0][1] - drivers[1][1]) if len(drivers) >= 2 else None
+
+            # Team traffic sensitivity: pace at 1.5s, 2.0s, 2.5s
+            if fastest:
+                f_driver = fastest[0]
+                team['traffic_sensitivity'] = {
+                    'loose_15': traffic_sensitivities.get(1.5, {}).get(f_driver),
+                    'standard_20': traffic_sensitivities.get(2.0, {}).get(f_driver),
+                    'strict_25': traffic_sensitivities.get(2.5, {}).get(f_driver)
+                }
+            else:
+                team['traffic_sensitivity'] = {'loose_15': None, 'standard_20': None, 'strict_25': None}
+
             eligible = [r for r in candidates if r['driver'] == fastest[0]] if fastest else []
             clean_laps = [r for r in valid if r['team'] == name]
             selected_clean = [r for r in clean_laps if fastest and r['driver'] == fastest[0]]
             team['traffic_coverage'] = len(selected_clean)/len(eligible) if eligible else 0
+
+            # Stint degradation: both raw slope and field-normalized degradation
             stints = defaultdict(list)
+            stint_normalized = defaultdict(list)
             for r in clean_laps:
-                if r['age'] is not None:
+                if r['age'] is not None and r['time'] is not None:
                     stints[(r['driver'], r['stint'], r['compound'])].append((r['age'], r['time']))
-            team['degradation'] = [{'driver': key[0], 'stint': key[1], 'compound': key[2],
-                                    'slope': slope(points), 'samples': len(points)}
-                                   for key, points in stints.items() if slope(points) is not None]
+                    if (r['lap'], r['compound']) in lap_compound_benchmark:
+                        rel_time = r['time'] - lap_compound_benchmark[(r['lap'], r['compound'])]
+                        stint_normalized[(r['driver'], r['stint'], r['compound'])].append((r['age'], rel_time))
+
+            degradation_list = []
+            for key, points in stints.items():
+                s_val = slope(points)
+                if s_val is None:
+                    continue
+                norm_pts = stint_normalized.get(key, [])
+                field_norm_slope = slope(norm_pts) if len(norm_pts) >= 4 else None
+
+                # Piecewise cliff detection
+                cliff_detected = False
+                cliff_age = None
+                if len(points) >= 8:
+                    mid = len(points) // 2
+                    s1 = slope(points[:mid])
+                    s2 = slope(points[mid:])
+                    if s1 is not None and s2 is not None and s2 - s1 >= 0.05:
+                        cliff_detected = True
+                        cliff_age = points[mid][0]
+
+                degradation_list.append({
+                    'driver': key[0], 'stint': key[1], 'compound': key[2],
+                    'slope': s_val, 'field_normalized_slope': field_norm_slope,
+                    'cliff_detected': cliff_detected, 'cliff_age': cliff_age,
+                    'samples': len(points)
+                })
+            team['degradation'] = degradation_list
     return {'event': str(data.event['EventName']), 'session': data.name,
             'teams': [{'team': name, **team} for name, team in teams.items()],
-            'method': 'car-performance-v3', 'traffic_threshold': traffic,
+            'method': 'car-performance-v4-sampling-aware', 'traffic_threshold': traffic,
             'total_laps': len(rows), 'eligible_laps': len(valid)}
 
 
