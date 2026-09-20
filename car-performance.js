@@ -1,5 +1,6 @@
 // APEX - Car Performance Section
-// Adopts the Session Analysis Apple-inspired design system with live multi-event telemetry and pace analytics.
+// Full parity with Session Analysis design language: Apple UI, official team logos, GP country flags, custom select menus.
+
 const $ = id => document.getElementById(id);
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const finite = value => typeof value === 'number' && Number.isFinite(value);
@@ -7,7 +8,99 @@ const avg = values => { const a = values.filter(finite); return a.length ? a.red
 const median = values => { const a=values.filter(finite).sort((a,b)=>a-b), i=Math.floor(a.length/2); return a.length ? a.length%2 ? a[i] : (a[i-1]+a[i])/2 : null; };
 const fmt = (n, digits=2, suffix='') => finite(n) ? `${n.toFixed(digits)}${suffix}` : '—';
 const color = value => /^#[a-f\d]{6}$/i.test(value || '') ? value : '#888888';
-const teamLabel = team => `<span class="performance-team" style="--team-color:${color(team.color)}"><span class="team-dot" style="background-color:${color(team.color)}"></span><span class="team-name">${escape(team.team)}</span></span>`;
+
+// Team marks - exact match with Session Analysis
+const officialTeamMarks = {
+  'mercedes': 'mercedes.webp', 'ferrari': 'ferrari.webp', 'mclaren': 'mclaren.webp',
+  'red bull racing': 'redbullracing.webp', 'red bull': 'redbullracing.webp',
+  'racing bulls': 'racingbulls.webp', 'rb': 'racingbulls.webp',
+  'alpine': 'alpine.webp', 'alpine f1 team': 'alpine.webp',
+  'haas': 'haasf1team.webp', 'haas f1 team': 'haasf1team.webp',
+  'audi': 'audi.webp', 'williams': 'williams.webp',
+  'aston martin': 'astonmartin.webp', 'cadillac': 'cadillac.webp',
+};
+
+const historicalTeamMarks = {
+  'sauber': 'sauber.svg', 'kick sauber': 'kick-sauber.png', 'stake f1 team kick sauber': 'kick-sauber.png',
+  'alfa romeo': 'alfa-romeo.svg', 'alfa romeo racing': 'alfa-romeo.svg', 'alfa romeo sauber': 'sauber.svg',
+  'alphatauri': 'alphatauri.svg', 'alpha tauri': 'alphatauri.svg', 'scuderia alphatauri': 'alphatauri.svg',
+  'toro rosso': 'toro-rosso.svg', 'scuderia toro rosso': 'toro-rosso.svg',
+  'racing point': 'racing-point.svg', 'force india': 'force-india.png',
+  'lotus': 'lotus.png', 'lotus f1 team': 'lotus.png', 'manor': 'manor.png', 'manor racing': 'manor.png',
+  'marussia': 'marussia.png', 'manor marussia': 'marussia.png', 'caterham': 'caterham.png',
+};
+
+function teamLogoMarkup(teamName) {
+  if (typeof window.teamLogoMarkup === 'function') {
+    return window.teamLogoMarkup(teamName);
+  }
+  const key = String(teamName || '').trim().toLowerCase();
+  if (key === 'renault' || key === 'renault sport f1 team') {
+    return '<span class="team-logo team-logo-historical" aria-hidden="true"><img src="assets/teams/historical/renault.png" alt="" width="24" height="24"></span>';
+  }
+  const historical = historicalTeamMarks[key];
+  if (historical) {
+    return `<span class="team-logo team-logo-historical" aria-hidden="true"><img src="assets/teams/historical/${historical}" alt="" width="24" height="24"></span>`;
+  }
+  const asset = officialTeamMarks[key];
+  if (!asset) {
+    return '<span class="team-logo" aria-hidden="true"><i class="team-logo-fallback"></i></span>';
+  }
+  return `<span class="team-logo" aria-hidden="true"><img src="assets/teams/official/${asset}" alt="" width="24" height="24"></span>`;
+}
+
+// Grand Prix Flag Resolution
+const COUNTRY_FLAG_CODES = Object.freeze({
+  australia: 'AU', austria: 'AT', azerbaijan: 'AZ', bahrain: 'BH', belgium: 'BE',
+  brazil: 'BR', canada: 'CA', china: 'CN', france: 'FR', germany: 'DE',
+  'great britain': 'GB', hungary: 'HU', india: 'IN', italy: 'IT', japan: 'JP',
+  korea: 'KR', malaysia: 'MY', mexico: 'MX', monaco: 'MC', netherlands: 'NL',
+  portugal: 'PT', qatar: 'QA', russia: 'RU', 'saudi arabia': 'SA', singapore: 'SG',
+  'south korea': 'KR', spain: 'ES', turkey: 'TR', 'united arab emirates': 'AE',
+  'united kingdom': 'GB', 'united states': 'US', usa: 'US',
+});
+
+const GRAND_PRIX_FLAG_RULES = Object.freeze([
+  ['70th anniversary', 'GB'], ['abu dhabi', 'AE'], ['australian', 'AU'], ['austrian', 'AT'],
+  ['azerbaijan', 'AZ'], ['bahrain', 'BH'], ['belgian', 'BE'], ['brazilian', 'BR'],
+  ['british', 'GB'], ['canadian', 'CA'], ['chinese', 'CN'], ['dutch', 'NL'],
+  ['eifel', 'DE'], ['emilia romagna', 'IT'], ['european', 'AZ'], ['french', 'FR'],
+  ['german', 'DE'], ['hungarian', 'HU'], ['indian', 'IN'], ['italian', 'IT'],
+  ['japanese', 'JP'], ['korean', 'KR'], ['las vegas', 'US'], ['malaysian', 'MY'],
+  ['mexico', 'MX'], ['miami', 'US'], ['monaco', 'MC'], ['pacific', 'JP'],
+  ['portuguese', 'PT'], ['qatar', 'QA'], ['russian', 'RU'], ['sakhir', 'BH'],
+  ['san marino', 'IT'], ['saudi arabian', 'SA'], ['singapore', 'SG'], ['sao paulo', 'BR'],
+  ['spanish', 'ES'], ['styrian', 'AT'], ['turkish', 'TR'], ['tuscan', 'IT'],
+  ['united states', 'US'],
+]);
+
+function grandPrixCountryCode(event) {
+  if (typeof window.grandPrixCountryCode === 'function') {
+    return window.grandPrixCountryCode(event);
+  }
+  const country = String(event?.country || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  const eventName = String(event?.name || event || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  return COUNTRY_FLAG_CODES[country]
+    || GRAND_PRIX_FLAG_RULES.find(([name]) => eventName.includes(name))?.[1];
+}
+
+function gpFlagMarkup(eventName) {
+  const code = grandPrixCountryCode(eventName);
+  if (!code) return '';
+  return `<img class="gp-flag" src="assets/flags/${code.toLowerCase()}.svg" alt="${code}" width="22" height="16">`;
+}
+
+function eventLabel(eventName) {
+  const flag = gpFlagMarkup(eventName);
+  return `<span class="performance-event-cell">${flag}<span>${escape(eventName)}</span></span>`;
+}
+
+const teamLabel = team => `
+  <div class="performance-team" style="--team-color:${color(team.color)}">
+    ${teamLogoMarkup(team.team)}
+    <span class="team-dot" style="background-color:${color(team.color)}"></span>
+    <span class="team-name">${escape(team.team)}</span>
+  </div>`;
 
 function rebase(rows, keys) {
   for(const key of keys) {
@@ -63,41 +156,55 @@ function completed(event, session) {
   return Number.isFinite(start) && start+4*3600000 < Date.now();
 }
 
+function syncSelect(select) {
+  if (typeof window.syncSelectUI === 'function') {
+    window.syncSelectUI(select);
+  }
+}
+
 async function loadCalendar() {
   calendarController?.abort(); calendarController=new AbortController();
   const signal=calendarController.signal;
   $('performanceLoad').disabled=true;
   $('performanceEvent').innerHTML='<option>Loading calendar…</option>';
+  syncSelect($('performanceEvent'));
   try {
     calendar=await get(`/api/events?year=${$('performanceYear').value}`,signal);
     calendar=calendar.filter(e=>completed(e,'Qualifying'));
-    $('performanceEvent').innerHTML=calendar.map(e=>`<option value="${escape(e.name)}">R${e.round} · ${escape(e.name)}</option>`).join('');
+    $('performanceEvent').innerHTML=calendar.map(e=>{
+      const country = grandPrixCountryCode(e) || '';
+      return `<option value="${escape(e.name)}" data-country="${country}">R${e.round} · ${escape(e.name)}</option>`;
+    }).join('');
     $('performanceEvent').value=calendar.at(-1)?.name || '';
+    syncSelect($('performanceEvent'));
     updateStatus(calendar.length ? 'Ready. Data loads only when you choose Analyse.' : 'No completed qualifying sessions available for this season.');
     $('performanceLoad').disabled=!calendar.length;
   } catch(e) {
     if(signal.aborted) return;
     updateStatus(`Calendar unavailable: ${e.message}. Change season to retry.`);
     $('performanceEvent').innerHTML='<option>Calendar unavailable</option>';
+    syncSelect($('performanceEvent'));
   }
 }
 
-function updateStatus(msg) {
+function updateStatus(msg, isRunning = false) {
   const el = $('performanceStatus');
+  const card = $('performanceStatusCard');
   if (el) el.textContent = msg;
+  if (card) card.classList.toggle('is-running', isRunning);
 }
 
 function stop() {
   controller?.abort(); generation++; running=false; traceRunning=false;
   $('performanceCancel').hidden=true;
   $('performanceLoad').disabled=!calendar.length;
-  updateStatus('Stopped. Completed results remain visible.');
+  updateStatus('Stopped. Completed results remain visible.', false);
   render();
 }
 
 function reset() {
   stop(); events=[]; errors=[]; context=null; root.replaceChildren();
-  updateStatus('Selection changed. Choose Analyse to load fresh results.');
+  updateStatus('Selection changed. Choose Analyse to load fresh results.', false);
   render();
 }
 
@@ -110,11 +217,13 @@ async function analyse() {
   const total=jobs.length;
   let done=0;
   $('performanceLoad').disabled=true; $('performanceCancel').hidden=false;
+  updateStatus(`Analysing ${context.year} · starting session retrieval…`, true);
   render();
+
   async function worker() {
     while(jobs.length && !signal.aborted) {
       const job=jobs.shift();
-      updateStatus(`Analysing ${context.year} · ${done}/${total} session results received · ${job.event.name}`);
+      updateStatus(`Analysing ${context.year} · ${done}/${total} session results received · ${job.event.name}`, true);
       try {
         const params=new URLSearchParams({year:context.year,gp:job.event.name,session:job.session});
         const data=await get(`/api/performance?${params}`,signal);
@@ -126,15 +235,18 @@ async function analyse() {
       done++; render();
     }
   }
+
   await Promise.all([worker(),worker()]);
   if(id!==generation) return;
+
   const traceJobs=events.filter(event=>event.Q?.teams?.some(team=>team.lap));
   let tracesDone=0;
   traceRunning=true;
+
   async function traceWorker() {
     while(traceJobs.length&&!signal.aborted) {
       const event=traceJobs.shift();
-      updateStatus(`Analysing telemetry · ${tracesDone}/${events.length} circuits complete · ${event.name}`);
+      updateStatus(`Analysing telemetry · ${tracesDone}/${events.length} circuits complete · ${event.name}`, true);
       const selections=event.Q.teams.filter(team=>team.lap).flatMap(team=>(team.telemetry_candidates?.length?team.telemetry_candidates:[team.lap]).map((lap,i)=>({
         team:`${team.team}:${i}`,team_name:team.team,driver_number:lap.number,
         driver:lap.driver,lap:lap.lap,start:lap.start,end:lap.end,
@@ -153,11 +265,12 @@ async function analyse() {
       tracesDone++; render();
     }
   }
+
   await Promise.all([traceWorker(),traceWorker()]);
   if(id!==generation) return;
   traceRunning=false;
   running=false; $('performanceLoad').disabled=false; $('performanceCancel').hidden=true;
-  updateStatus(`${context.year} · best qualifying lap · ${events.length}/${picked.length} events with data${errors.length ? ` · ${errors.length} data requests unavailable` : ''}. Fresh retrieval complete.`);
+  updateStatus(`${context.year} · best qualifying lap · ${events.length}/${picked.length} events with data${errors.length ? ` · ${errors.length} data requests unavailable` : ''}. Fresh retrieval complete.`, false);
   render();
 }
 
@@ -229,7 +342,7 @@ function renderPace(teams) {
       `${fmt(t.race,3,'%')}<small>${t.fastestRaceDrivers?.length?`Fastest: ${escape([...new Set(t.fastestRaceDrivers)].join(', '))} · `:''}${t.rCount} event${t.rCount===1?'':'s'}</small>`,t.samples])))+
     card('Sector deficits','Sectors from each team’s single fastest qualifying lap, compared with the best corresponding sector among those selected laps. Events receive equal weight.',
       table([sortHeader('team','Team'),sortHeader('s1','Sector 1'),sortHeader('s2','Sector 2'),sortHeader('s3','Sector 3')],sectors.map(t=>[teamLabel(t),...['s1','s2','s3'].map(s=>fmt(t[s],3,'%'))])))+
-    `<details class="dashboard-card performance-methods"><summary>Why this pace ranking? View selected laps and race drivers</summary><p class="performance-note">Only the fastest valid lap across the whole qualifying session counts for each team.</p>${table(['Team','Event','Phase','Driver','Selected lap (s)'],teams.flatMap(t=>t.q.filter(q=>q.lap).map(q=>[teamLabel(t),escape(q.event),escape(q.lap.phase),escape(q.lap.driver),fmt(q.lap.time,3)])))}<p class="performance-note">Race pace adjusts for race lap, compound and tyre age. Typical model error is the median absolute residual on that driver’s eligible laps, not a confidence interval. Management and traffic can still affect the estimate.</p>${table(['Team','Event','Driver','Estimate','Eligible laps','Typical model error'],teams.flatMap(t=>t.raceDrivers.map(r=>[teamLabel(t),escape(r.event),`${escape(r.driver)}${r.selected?' · selected':''}`,fmt(r.pace,3,'%'),r.samples,fmt(r.residual_spread,3,'%')])))}</details>`;
+    `<details class="dashboard-card performance-methods"><summary>Why this pace ranking? View selected laps and race drivers</summary><p class="performance-note">Only the fastest valid lap across the whole qualifying session counts for each team.</p>${table(['Team','Event','Phase','Driver','Selected lap (s)'],teams.flatMap(t=>t.q.filter(q=>q.lap).map(q=>[teamLabel(t),eventLabel(q.event),escape(q.lap.phase),escape(q.lap.driver),fmt(q.lap.time,3)])))}<p class="performance-note">Race pace adjusts for race lap, compound and tyre age. Typical model error is the median absolute residual on that driver’s eligible laps, not a confidence interval. Management and traffic can still affect the estimate.</p>${table(['Team','Event','Driver','Estimate','Eligible laps','Typical model error'],teams.flatMap(t=>t.raceDrivers.map(r=>[teamLabel(t),eventLabel(r.event),`${escape(r.driver)}${r.selected?' · selected':''}`,fmt(r.pace,3,'%'),r.samples,fmt(r.residual_spread,3,'%')])))}</details>`;
 }
 
 function renderRace(teams) {
@@ -266,10 +379,19 @@ function renderResults(teams) {
     table([sortHeader('resultTeam','Team'),sortHeader('points','Points',-1),sortHeader('finish','Avg. finish'),sortHeader('finishRate','Finished / starts',-1),sortHeader('mechanical','Mechanical'),sortHeader('incidents','Incidents'),sortHeader('other','Other / unknown')],ordered.map(t=>[
       teamLabel(t),t.results&&t.pointsKnown?t.points:'—',fmt(avg(t.positions),1),`${t.finishes} / ${t.starts}`,
       t.mechanical,t.incidents,t.other])))+card('Reported retirement causes','Source classification is shown for each driver. “Retired” alone does not identify a mechanical failure or an accident; recent Jolpica classifications often provide only that generic status.',
-      table(['Team','Event','Driver','Category','Reported status'],teams.flatMap(t=>t.retirements.map(r=>[teamLabel(t),escape(r.event),escape(r.driver),escape(r.category),escape(r.cause)]))));
+      table(['Team','Event','Driver','Category','Reported status'],teams.flatMap(t=>t.retirements.map(r=>[teamLabel(t),eventLabel(r.event),escape(r.driver),escape(r.category),escape(r.cause)]))));
 }
 
 function renderTrend(teams) {
+  if (!context?.season) {
+    return card('Development trend', 'Season progression requires multi-event data.',
+      `<div class="performance-empty" style="padding: 48px 24px;">
+        <div class="empty-icon-badge">📈</div>
+        <h3>Season development requires multiple events</h3>
+        <p>You are currently analysing a single track (<strong>${escape(events[0]?.name || 'Grand Prix')}</strong>). Car development curves and upgrade progression measure how teams evolve round-by-round across the championship.</p>
+        <p style="margin-top: 10px; color: var(--text-secondary);">To view season development trends, set <strong>Scope</strong> to <strong>Season to date</strong> at the top and click <strong>Analyse</strong>.</p>
+      </div>`);
+  }
   const trendRows=teams.map(t=>{
     const valid=t.q.filter(q=>finite(q.pace)),first=avg(valid.slice(0,3).map(q=>q.pace)),last=avg(valid.slice(-3).map(q=>q.pace));
     return {team:t,valid,first,last,change:valid.length>=6?last-first:null};
@@ -280,8 +402,12 @@ function renderTrend(teams) {
       const t=row.team,valid=row.valid,first=row.first,last=row.last;
       const enough=valid.length>=6;
       const ceiling=Math.max(1,...teams.flatMap(t=>t.q.map(q=>q.pace).filter(finite)));
-      return [teamLabel(t),`<div class="performance-trend" style="--team-color:${color(t.color)}">${t.q.map(q=>`<span style="height:${finite(q.pace)?Math.max(4,q.pace/ceiling*100):0}%;${finite(q.pace)?'':'background:transparent'}" title="R${q.round} ${escape(q.event)}: ${fmt(q.pace,3,'%')}" aria-label="R${q.round}: ${fmt(q.pace,3,'%')}"></span>`).join('')}</div><div class="performance-trend-label"><span>R${t.q[0]?.round??'—'}</span><span>R${t.q.at(-1)?.round??'—'}</span></div>`,
-        enough?`${fmt(first,3,'%')} → ${fmt(last,3,'%')}`:'Needs 6 eligible events',enough?fmt(last-first,3,' pp'):'—'];
+      return [
+        teamLabel(t),
+        `<div class="performance-trend" style="--team-color:${color(t.color)}">${t.q.map(q=>`<span style="height:${finite(q.pace)?Math.max(6,q.pace/ceiling*100):0}%;${finite(q.pace)?'':'background:transparent'}" title="R${q.round} ${escape(q.event)}: ${fmt(q.pace,3,'%')}" aria-label="R${q.round}: ${fmt(q.pace,3,'%')}"></span>`).join('')}</div><div class="performance-trend-label"><span>R${t.q[0]?.round??'—'}</span><span>R${t.q.at(-1)?.round??'—'}</span></div>`,
+        enough?`${fmt(first,3,'%')} → ${fmt(last,3,'%')}`:'Needs 6 eligible events',
+        enough?`${last-first>0?'+':''}${fmt(last-first,3,' pp')}`:'—'
+      ];
     })))+card('FIA updates','Use the official Car Presentation Submissions for the event. Upgrade counts are not weighted by importance, and a before/after pace change cannot establish causation.',
       '<p><a href="https://www.fia.com/documents" target="_blank" rel="noopener" class="perf-link">Open FIA event documents ↗</a></p><p class="performance-note">Automatic report ingestion and component-to-trend annotations are not available in this version. No upgrade counts or claimed gains are inferred.</p>');
 }
@@ -422,7 +548,7 @@ function renderTrace() {
       table([sortHeader('eventCornerTeam','Team'),sortHeader('eventLow','Low ≤120'),sortHeader('eventMedium','Medium 120–200'),sortHeader('eventHigh','High >200')],ordered.map(row=>[teamLabel(row),...['low','medium','high'].map(name=>{
         const value=row.categories[name];return value?`${signed(value.deficit,3)}<small>${signed(value.time_lost,3,' s/lap')} · ${value.corners} corners</small>`:'—';
       })])))+card('Corner measurements','Windows follow the field’s braking, apex and acceleration. Zone labels are used when reliable map corner numbers are unavailable.',
-      table(['Corner',...loaded.map(row=>escape(row.team))],common.map(label=>[escape(label),...loaded.map(row=>{
+      table(['Corner',...loaded.map(row=>teamLabel(row))],common.map(label=>[escape(label),...loaded.map(row=>{
         const corner=row.trace.corners.find(c=>c.corner===label);return corner?`${fmt(corner.time,3,' s')}<small>${fmt(corner.mean_speed,1,' km/h')} mean · ${fmt(corner.minimum,1)} min</small>`:'—';
       })])))+card('Downforce index','Unavailable: public telemetry cannot isolate aerodynamic load.','<p class="performance-note">High-speed corner performance is shown directly instead.</p>');
   }
@@ -477,14 +603,20 @@ document.querySelectorAll('[data-analysis-view]').forEach(button=>button.addEven
   if(performance&&!initialized) {
     initialized=true;
     const year=new Date().getFullYear();
-    $('performanceYear').innerHTML=Array.from({length:year-2017},(_,i)=>`<option>${year-i}</option>`).join('');
+    $('performanceYear').innerHTML=Array.from({length:year-2017},(_,i)=>`<option value="${year-i}">${year-i}</option>`).join('');
+    syncSelect($('performanceYear'));
+    syncSelect($('performanceScope'));
     loadCalendar();
   }
 }));
 
 $('performanceYear').addEventListener('change',()=>{reset();loadCalendar();});
 for(const id of ['performanceEvent','performanceScope']) $(id).addEventListener('change',()=>{
-  reset(); $('performanceEventField').hidden=$('performanceScope').value==='season';
+  reset();
+  const isSeason = $('performanceScope').value==='season';
+  $('performanceEventField').hidden=isSeason;
+  syncSelect($('performanceScope'));
+  syncSelect($('performanceEvent'));
 });
 $('performanceLoad').addEventListener('click',analyse);
 $('performanceCancel').addEventListener('click',stop);
@@ -496,3 +628,16 @@ root.addEventListener('click',event=>{
   if(tyre){tyreView=tyre.dataset.performanceTyre;render();}
   if(sort) {sortDirection=sortKey===sort.dataset.performanceSort?-sortDirection:Number(sort.dataset.sortDirection||1);sortKey=sort.dataset.performanceSort;render();}
 });
+
+// Auto-enhance selects on DOM load
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('#carPerformance .select-shell select').forEach(sel => {
+      if (typeof window.enhanceSelect === 'function') window.enhanceSelect(sel);
+    });
+  });
+} else {
+  document.querySelectorAll('#carPerformance .select-shell select').forEach(sel => {
+    if (typeof window.enhanceSelect === 'function') window.enhanceSelect(sel);
+  });
+}

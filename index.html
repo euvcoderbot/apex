@@ -17,7 +17,7 @@
     }
   </script>
   <link rel="stylesheet" href="styles.css?v=euv2-release-20260918">
-  <link rel="stylesheet" href="car-performance.css?v=20260920-gemini">
+  <link rel="stylesheet" href="car-performance.css?v=20260920-apple-v3">
 </head>
 <body>
   <header class="site-header">
@@ -145,7 +145,7 @@
     </div>
   </main>
   <section id="carPerformance" class="performance-page" aria-label="Car performance" hidden>
-    <div class="dashboard-card performance-toolbar">
+    <section class="dashboard-card session-controls performance-controls" aria-label="Car performance controls">
       <div class="panel-heading">
         <h2>Car performance</h2>
       </div>
@@ -170,7 +170,7 @@
         <button type="button" id="performanceLoad">Analyse</button>
         <button type="button" id="performanceCancel" class="btn-cancel" hidden>Stop</button>
       </div>
-    </div>
+    </section>
     <div class="performance-status-card" id="performanceStatusCard">
       <div class="status-dot"></div>
       <p id="performanceStatus" role="status" aria-live="polite">Choose a track or analyse completed events across the season.</p>
@@ -202,6 +202,6 @@
   <script src="telemetry-model.js?v=euv2-reconstruction-20260905"></script>
   <script src="app.js?v=euv2-release-20260918"></script>
   <script src="alignment.js?v=euv2-release-20260917-2"></script>
-  <script type="module" src="car-performance.js?v=20260920-gemini"></script>
+  <script type="module" src="car-performance.js?v=20260920-apple-v3"></script>
 </body>
 </html>
