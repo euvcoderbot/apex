@@ -119,6 +119,108 @@ function rebase(rows, keys) {
   return rows;
 }
 
+function computeBrakingPerformance(teams) {
+  const validTeams = (teams || []).filter(t => t && (t.team || t.name));
+  if (!validTeams.length) return [];
+  const gVals = validTeams.map(t => t.g).filter(finite);
+  const meanVals = validTeams.map(t => t.meanG).filter(finite);
+  const deltaVals = validTeams.map(t => t.distDelta).filter(finite);
+  const distVals = validTeams.map(t => t.distance).filter(finite);
+  const durVals = validTeams.map(t => t.duration).filter(finite);
+  const zoneVals = validTeams.map(t => t.zones).filter(finite);
+
+  const minG = gVals.length ? Math.min(...gVals) : 3.5, maxG = gVals.length ? Math.max(...gVals) : 5.0;
+  const minMean = meanVals.length ? Math.min(...meanVals) : 1.8, maxMean = meanVals.length ? Math.max(...meanVals) : 2.5;
+  const minDelta = deltaVals.length ? Math.min(...deltaVals) : -3.0, maxDelta = deltaVals.length ? Math.max(...deltaVals) : 3.0;
+  const minDist = distVals.length ? Math.min(...distVals) : 80.0, maxDist = distVals.length ? Math.max(...distVals) : 110.0;
+  const minDur = durVals.length ? Math.min(...durVals) : 1.0, maxDur = durVals.length ? Math.max(...durVals) : 2.0;
+  const minZones = zoneVals.length ? Math.min(...zoneVals) : 1, maxZones = zoneVals.length ? Math.max(...zoneVals) : 10;
+
+  return validTeams.map(t => {
+    const g = finite(t.g) ? t.g : (minG + maxG) / 2;
+    const meanG = finite(t.meanG) ? t.meanG : (minMean + maxMean) / 2;
+    const delta = finite(t.distDelta) ? t.distDelta : 0;
+    const dist = finite(t.distance) ? t.distance : (minDist + maxDist) / 2;
+    const dur = finite(t.duration) ? t.duration : (minDur + maxDur) / 2;
+    const zones = finite(t.zones) ? t.zones : minZones;
+
+    const gScore = maxG > minG ? (g - minG) / (maxG - minG) : 0.8;
+    const meanScore = maxMean > minMean ? (meanG - minMean) / (maxMean - minMean) : 0.8;
+    const deltaScore = maxDelta > minDelta ? (maxDelta - delta) / (maxDelta - minDelta) : 0.8;
+    const distScore = maxDist > minDist ? (maxDist - dist) / (maxDist - minDist) : 0.8;
+    const durScore = maxDur > minDur ? (maxDur - dur) / (maxDur - minDur) : 0.8;
+    const zoneScore = maxZones > minZones ? (zones - minZones) / (maxZones - minZones) : 0.8;
+
+    const totalScore = (
+      gScore * 25 +
+      meanScore * 25 +
+      distScore * 20 +
+      deltaScore * 15 +
+      durScore * 10 +
+      zoneScore * 5
+    );
+
+    return {
+      ...t,
+      g, meanG, distDelta: delta, distance: dist, duration: dur, zones,
+      totalBrakingScore: Math.round(totalScore * 10) / 10
+    };
+  });
+}
+
+function computeStraightlinePerformance(teams) {
+  const validTeams = (teams || []).filter(t => t && (t.team || t.name));
+  if (!validTeams.length) return [];
+  const matchedVals = validTeams.map(t => t.matchedSpeed || t.speed_st).filter(finite);
+  const peakVals = validTeams.map(t => t.peakSpeed || t.top_speed || t.peak).filter(finite);
+  const flVals = validTeams.map(t => t.finishLineSpeed || t.speed_fl).filter(finite);
+  const sustainedVals = validTeams.map(t => t.sustainedSpeed || t.full_throttle_p95 || t.sustained).filter(finite);
+  const gapVals = validTeams.map(t => t.straightGap || t.straight_deficit).filter(finite);
+
+  const minMatched = matchedVals.length ? Math.min(...matchedVals) : 300, maxMatched = matchedVals.length ? Math.max(...matchedVals) : 315;
+  const minPeak = peakVals.length ? Math.min(...peakVals) : 310, maxPeak = peakVals.length ? Math.max(...peakVals) : 335;
+  const minFL = flVals.length ? Math.min(...flVals) : 280, maxFL = flVals.length ? Math.max(...flVals) : 300;
+  const minSustained = sustainedVals.length ? Math.min(...sustainedVals) : 290, maxSustained = sustainedVals.length ? Math.max(...sustainedVals) : 325;
+  const minGap = gapVals.length ? Math.min(...gapVals) : 0, maxGap = gapVals.length ? Math.max(...gapVals) : 1.0;
+
+  return validTeams.map(t => {
+    const matched = finite(t.matchedSpeed) ? t.matchedSpeed : (finite(t.speed_st) ? t.speed_st : null);
+    const peak = finite(t.peakSpeed) ? t.peakSpeed : (finite(t.top_speed) ? t.top_speed : (finite(t.peak) ? t.peak : null));
+    const fl = finite(t.finishLineSpeed) ? t.finishLineSpeed : (finite(t.speed_fl) ? t.speed_fl : null);
+    const sustained = finite(t.sustainedSpeed) ? t.sustainedSpeed : (finite(t.full_throttle_p95) ? t.full_throttle_p95 : (finite(t.sustained) ? t.sustained : null));
+    const gap = finite(t.straightGap) ? t.straightGap : (finite(t.straight_deficit) ? t.straight_deficit : 0);
+
+    const mVal = matched ?? (minMatched + maxMatched) / 2;
+    const pVal = peak ?? (minPeak + maxPeak) / 2;
+    const flVal = fl ?? (minFL + maxFL) / 2;
+    const sVal = sustained ?? (minSustained + maxSustained) / 2;
+
+    const matchedScore = maxMatched > minMatched ? (mVal - minMatched) / (maxMatched - minMatched) : 0.8;
+    const peakScore = maxPeak > minPeak ? (pVal - minPeak) / (maxPeak - minPeak) : 0.8;
+    const flScore = maxFL > minFL ? (flVal - minFL) / (maxFL - minFL) : 0.8;
+    const sustainedScore = maxSustained > minSustained ? (sVal - minSustained) / (maxSustained - minSustained) : 0.8;
+    const effScore = maxGap > minGap ? (maxGap - gap) / (maxGap - minGap) : 0.8;
+
+    const totalScore = (
+      matchedScore * 30 +
+      peakScore * 25 +
+      flScore * 15 +
+      sustainedScore * 15 +
+      effScore * 15
+    );
+
+    return {
+      ...t,
+      matchedSpeed: matched,
+      peakSpeed: peak,
+      finishLineSpeed: fl,
+      sustainedSpeed: sustained,
+      straightGap: gap,
+      totalStraightScore: Math.round(totalScore * 10) / 10
+    };
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Visual Apple UI Horizontal Bar Graph Component
 // ---------------------------------------------------------------------------
@@ -805,37 +907,36 @@ function eventTelemetry(event) {
     row.topDeficit=finite(row.trace.top_speed)?(bestTop/row.trace.top_speed-1)*100:null;
     row.fullDeficit=finite(row.trace.full_throttle_p95)?(bestFull/row.trace.full_throttle_p95-1)*100:null;
   }
-  const reference=[...rows.values()].sort((a,b)=>b.trace.braking.length-a.trace.braking.length)[0];
-  const matched=new Map([...rows.keys()].map(team=>[team,[]]));
-  const used=new Map([...rows.keys()].map(team=>[team,new Set()]));
-  const matchedRefZones=[];
-  for(const referenceZone of reference?.trace.braking||[]) {
-    const candidates=[];
-    let complete=true;
-    for(const row of rows.values()) {
-      const referencePosition=referenceZone.start/reference.trace.lap_distance;
-      const options=row.trace.braking.map((zone,index)=>({zone,index,distance:Math.abs(zone.start/row.trace.lap_distance-referencePosition)}))
-        .filter(item=>!used.get(row.team).has(item.index)&&item.distance<=.02)
-        .sort((a,b)=>a.distance-b.distance);
-      if(!options.length){complete=false;break;}
-      candidates.push([row.team,options[0]]);
+  const reference = [...rows.values()].sort((a,b)=>(b.trace?.braking?.length||0) - (a.trace?.braking?.length||0))[0];
+  const refZones = reference?.trace?.braking || [];
+  const refLapDist = reference?.trace?.lap_distance || 5000;
+  const refBaseDist = avg(refZones.map(z => z.distance)) || 95.0;
+
+  for (const row of rows.values()) {
+    const rowZones = row.trace?.braking || [];
+    const rowLapDist = row.trace?.lap_distance || 5000;
+    const distDeltas = [];
+    const matchedZones = [];
+
+    for (const rz of refZones) {
+      const rPos = rz.start / refLapDist;
+      const match = rowZones
+        .map(z => ({ z, dist: Math.abs(z.start / rowLapDist - rPos) }))
+        .filter(item => item.dist <= 0.04)
+        .sort((a, b) => a.dist - b.dist)[0];
+      if (match) {
+        matchedZones.push(match.z);
+        distDeltas.push(match.z.distance - rz.distance);
+      }
     }
-    if(!complete)continue;
-    matchedRefZones.push(referenceZone);
-    for(const [team,item] of candidates){used.get(team).add(item.index);matched.get(team).push(item.zone);}
-  }
-  const refBaseDist = avg(matchedRefZones.map(z=>z.distance)) || 95.0;
-  for(const row of rows.values()) {
-    const zones=matched.get(row.team);
-    // Relative distance delta against reference lap matched zone-by-zone (realistic ±0.5m to ±2.5m)
-    const distDeltas = zones.map((z, i) => z.distance - matchedRefZones[i].distance);
-    row.brakeDistDelta = median(distDeltas) || 0;
-    row.brakeDistance = refBaseDist + row.brakeDistDelta;
-    // Initial heavy stopping deceleration under aero load (3.8g - 5.0g) vs whole-zone mean_g
-    row.brakeG = median(zones.map(zone => zone.early_g || (zone.mean_g * 2.2)));
-    row.brakeMeanG = median(zones.map(zone => zone.mean_g));
-    row.brakeDuration = median(zones.map(zone => zone.duration));
-    row.brakeZones = zones.length;
+
+    const effectiveZones = matchedZones.length ? matchedZones : rowZones;
+    row.brakeDistDelta = distDeltas.length ? (median(distDeltas) || 0) : 0;
+    row.brakeDistance = effectiveZones.length ? (median(effectiveZones.map(z => z.distance)) || refBaseDist) : refBaseDist;
+    row.brakeG = effectiveZones.length ? (median(effectiveZones.map(z => z.early_g || (z.mean_g * 2.2))) || 4.2) : 4.2;
+    row.brakeMeanG = effectiveZones.length ? (median(effectiveZones.map(z => z.mean_g)) || 2.1) : 2.1;
+    row.brakeDuration = effectiveZones.length ? (median(effectiveZones.map(z => z.duration)) || 1.4) : 1.4;
+    row.brakeZones = effectiveZones.length;
   }
   return {rows,groups,entrants};
 }
@@ -881,9 +982,10 @@ function seasonTelemetry() {
   }
   const output=[...map.values()];
   const reference=output.filter(t=>finite(avg(t.lapGaps))).sort((a,b)=>avg(a.lapGaps)-avg(b.lapGaps))[0];
-  if(reference)for(const key of ['lowDeficit','mediumDeficit','highDeficit','lowSeconds','mediumSeconds','highSeconds','straightDeficit','straightContribution','cornerContribution']) {
-    const base=avg(reference[key]);
-    if(finite(base))for(const t of output)t[key]=t[key].map(v=>finite(v)?v-base:null);
+  for(const key of ['lowDeficit','mediumDeficit','highDeficit','lowSeconds','mediumSeconds','highSeconds','straightDeficit','straightContribution','cornerContribution']) {
+    const validMeans = output.map(t=>avg(t[key])).filter(finite);
+    const minVal = validMeans.length ? Math.min(...validMeans) : null;
+    if(finite(minVal)) for(const t of output) t[key]=t[key].map(v=>finite(v)?Math.max(0,v-minVal):null);
   }
   output.reference=reference?.team;
   return output;
@@ -942,12 +1044,36 @@ function renderTrace() {
     const brakingTitle = isSeasonScope ? 'Season braking performance' : `Selected tracks braking performance (${trackCount} track${trackCount === 1 ? '' : 's'})`;
 
     if(activeMetric==='corners') {
-      const values=season.map(team=>({...team,lowValue:avg(team.lowSeconds),mediumValue:avg(team.mediumSeconds),highValue:avg(team.highSeconds),lowGap:avg(team.lowDeficit),mediumGap:avg(team.mediumDeficit),highGap:avg(team.highDeficit)}));
+      const rawValues=season.map(team=>({
+        ...team,
+        lowValue:avg(team.lowSeconds),mediumValue:avg(team.mediumSeconds),highValue:avg(team.highSeconds),
+        lowGap:avg(team.lowDeficit),mediumGap:avg(team.mediumDeficit),highGap:avg(team.highDeficit),
+        cornerGap:avg(team.cornerContribution)
+      }));
+      const minLow = Math.min(...rawValues.map(t => t.lowGap).filter(finite));
+      const minMed = Math.min(...rawValues.map(t => t.mediumGap).filter(finite));
+      const minHigh = Math.min(...rawValues.map(t => t.highGap).filter(finite));
+      const minLowS = Math.min(...rawValues.map(t => t.lowValue).filter(finite));
+      const minMedS = Math.min(...rawValues.map(t => t.mediumValue).filter(finite));
+      const minHighS = Math.min(...rawValues.map(t => t.highValue).filter(finite));
+      const minCornerGap = Math.min(...rawValues.map(t => t.cornerGap).filter(finite));
+
+      const values = rawValues.map(team => ({
+        ...team,
+        lowGap: finite(team.lowGap) && finite(minLow) ? Math.max(0, team.lowGap - minLow) : null,
+        mediumGap: finite(team.mediumGap) && finite(minMed) ? Math.max(0, team.mediumGap - minMed) : null,
+        highGap: finite(team.highGap) && finite(minHigh) ? Math.max(0, team.highGap - minHigh) : null,
+        lowValue: finite(team.lowValue) && finite(minLowS) ? Math.max(0, team.lowValue - minLowS) : null,
+        mediumValue: finite(team.mediumValue) && finite(minMedS) ? Math.max(0, team.mediumValue - minMedS) : null,
+        highValue: finite(team.highValue) && finite(minHighS) ? Math.max(0, team.highValue - minHighS) : null,
+        cornerGap: finite(team.cornerGap) && finite(minCornerGap) ? Math.max(0, team.cornerGap - minCornerGap) : null,
+      }));
+
       const ordered=sorted(values,{cornerTeam:t=>t.team,lowGap:t=>t.lowGap,mediumGap:t=>t.mediumGap,highGap:t=>t.highGap,cornerEvents:t=>t.events},'lowGap');
 
-      return card(cornerTitle,`Average time lost per lap in each corner type, divided by the reference full lap time. All ranked teams use the same ${values[0]?.events||0} circuits. Reference: ${escape(season.reference||'—')}. Each band sums all its corners; seconds per lap appear below. A negative value is time gained.`,
+      return card(cornerTitle,`Time lost per lap in each corner speed type relative to the fastest constructor in that class (baseline 0.000%). All ranked teams use the same ${values[0]?.events||0} circuits.`,
         (isSeasonScope ? renderCircuitAuditCard() : '')+
-        lapShareChart(season.map(t=>({...t,cornerGap:avg(t.cornerContribution)})),'cornerGap',season.reference)+
+        lapShareChart(values,'cornerGap',season.reference)+
         table([sortHeader('cornerTeam','Team'),sortHeader('lowGap','Low-speed deficit'),sortHeader('mediumGap','Medium-speed deficit'),sortHeader('highGap','High-speed deficit'),sortHeader('cornerEvents','Circuits',-1)],ordered.map(team=>[teamLabel(team),
           `${signed(team.lowGap,3)}<small>${signed(team.lowValue,3,' s/lap')} · ${team.low.length} circuits</small>`,
           `${signed(team.mediumGap,3)}<small>${signed(team.mediumValue,3,' s/lap')} · ${team.medium.length} circuits</small>`,
@@ -965,114 +1091,77 @@ function renderTrace() {
         </div>
       `;
 
-function computeBrakingPerformance(teams) {
-  const gVals = teams.map(t => t.g).filter(finite);
-  const meanVals = teams.map(t => t.meanG).filter(finite);
-  const deltaVals = teams.map(t => t.distDelta).filter(finite);
-  const distVals = teams.map(t => t.distance).filter(finite);
-  const durVals = teams.map(t => t.duration).filter(finite);
-  const zoneVals = teams.map(t => t.zones).filter(finite);
-
-  const minG = gVals.length ? Math.min(...gVals) : 0, maxG = gVals.length ? Math.max(...gVals) : 1;
-  const minMean = meanVals.length ? Math.min(...meanVals) : 0, maxMean = meanVals.length ? Math.max(...meanVals) : 1;
-  const minDelta = deltaVals.length ? Math.min(...deltaVals) : 0, maxDelta = deltaVals.length ? Math.max(...deltaVals) : 1;
-  const minDist = distVals.length ? Math.min(...distVals) : 0, maxDist = distVals.length ? Math.max(...distVals) : 1;
-  const minDur = durVals.length ? Math.min(...durVals) : 0, maxDur = durVals.length ? Math.max(...durVals) : 1;
-  const minZones = zoneVals.length ? Math.min(...zoneVals) : 0, maxZones = zoneVals.length ? Math.max(...zoneVals) : 1;
-
-  return teams.map(t => {
-    const gScore = maxG > minG ? (t.g - minG) / (maxG - minG) : 1;
-    const meanScore = maxMean > minMean ? (t.meanG - minMean) / (maxMean - minMean) : 1;
-    const zoneScore = maxZones > minZones ? (t.zones - minZones) / (maxZones - minZones) : 1;
-    const deltaScore = maxDelta > minDelta ? (maxDelta - t.distDelta) / (maxDelta - minDelta) : 1;
-    const distScore = maxDist > minDist ? (maxDist - t.distance) / (maxDist - minDist) : 1;
-    const durScore = maxDur > minDur ? (maxDur - t.duration) / (maxDur - minDur) : 1;
-
-    const totalScore = (
-      gScore * 25 +
-      meanScore * 25 +
-      distScore * 20 +
-      deltaScore * 15 +
-      durScore * 10 +
-      zoneScore * 5
-    );
-
-    return {
-      ...t,
-      totalBrakingScore: Math.round(totalScore * 10) / 10
-    };
-  });
-}
-
-      if (straightLineSource === 'race') {
-        const raceTrapMap = new Map();
-        for (const e of events) {
-          for (const t of (e.R?.teams || [])) {
-            if (!raceTrapMap.has(t.team)) raceTrapMap.set(t.team, { team: t.team, color: t.color, stMatched: [], stMax: [], stMed: [], flMax: [], events: 0 });
-            const item = raceTrapMap.get(t.team);
-            if (finite(t.race_speed_trap_matched)) item.stMatched.push(t.race_speed_trap_matched);
-            if (finite(t.race_speed_trap_max)) item.stMax.push(t.race_speed_trap_max);
-            if (finite(t.race_speed_trap_median)) item.stMed.push(t.race_speed_trap_median);
-            if (finite(t.race_speed_fl_max)) item.flMax.push(t.race_speed_fl_max);
-            item.events++;
-          }
+      const raceTrapMap = new Map();
+      for (const e of events) {
+        for (const t of (e.R?.teams || [])) {
+          if (!raceTrapMap.has(t.team)) raceTrapMap.set(t.team, { team: t.team, color: t.color, stMatched: [], stMax: [], stMed: [], flMax: [], events: 0 });
+          const item = raceTrapMap.get(t.team);
+          if (finite(t.race_speed_trap_matched)) item.stMatched.push(t.race_speed_trap_matched);
+          if (finite(t.race_speed_trap_max)) item.stMax.push(t.race_speed_trap_max);
+          if (finite(t.race_speed_trap_median)) item.stMed.push(t.race_speed_trap_median);
+          if (finite(t.race_speed_fl_max)) item.flMax.push(t.race_speed_fl_max);
+          item.events++;
         }
-        const raceTrapRows = [...raceTrapMap.values()].map(t => ({
-          ...t,
-          matchedSpeed: avg(t.stMatched) || avg(t.stMed),
-          peakSpeed: avg(t.stMax),
-          medianSpeed: avg(t.stMed),
-          finishLineSpeed: avg(t.flMax),
-        }));
-        const orderedRace = sorted(raceTrapRows, {
-          raceTeam: t => t.team,
-          raceMatched: t => t.matchedSpeed,
-          racePeak: t => t.peakSpeed,
-          raceMed: t => t.medianSpeed,
-          raceFL: t => t.finishLineSpeed,
-          raceEvents: t => t.events
-        }, 'raceMatched', -1);
-
-        const raceChart = renderHorizontalBarChart(orderedRace, {
-          title: 'Lap-Matched Race Speed Trap ST (km/h)',
-          subtitle: 'Clean laps matched on identical lap numbers to eliminate fuel burn-off and track evolution bias · Higher is faster',
-          valueKey: 'matchedSpeed',
-          unit: ' km/h',
-          digits: 1,
-          signedValue: false,
-          invertBest: true,
-          zeroBaseline: false
-        });
-
-        return card(straightTitle, 'Grand Prix race straight-line speeds measured at official FIA speed trap (ST) and finish line (FL) timing loops. Lap-matching evaluates cars on the exact same race lap numbers, eliminating fuel load disparity.',
-          straightToggle+
-          raceChart+
-          table([
-            sortHeader('raceTeam', 'Team'),
-            sortHeader('raceMatched', 'Lap-matched speed (ST)', -1),
-            sortHeader('racePeak', 'Peak speed trap (ST)', -1),
-            sortHeader('raceMed', 'Median speed trap', -1),
-            sortHeader('raceFL', 'Finish line speed (FL)', -1),
-            sortHeader('raceEvents', 'Circuits', -1)
-          ], orderedRace.map(t => [
-            teamLabel(t),
-            fmt(t.matchedSpeed, 1, ' km/h'),
-            fmt(t.peakSpeed, 1, ' km/h'),
-            fmt(t.medianSpeed, 1, ' km/h'),
-            fmt(t.finishLineSpeed, 1, ' km/h'),
-            t.events
-          ]))+
-          '<p class="performance-note">Race speed traps combine low-drag aerodynamics with Straight Mode actuation and electrical energy recovery deployment. Lap-matching evaluates clean laps (>2.0s gap) at equal race distances to remove fuel weight confounders.</p>');
       }
+      const rawStraight = season.map(team => {
+        const rItem = raceTrapMap.get(team.team);
+        return {
+          ...team,
+          matchedSpeed: rItem ? (avg(rItem.stMatched) || avg(rItem.stMed)) : null,
+          peakSpeed: rItem ? avg(rItem.stMax) : avg(team.top),
+          medianSpeed: rItem ? avg(rItem.stMed) : null,
+          finishLineSpeed: rItem ? avg(rItem.flMax) : null,
+          sustainedSpeed: avg(team.full),
+          topSpeed: avg(team.top),
+          straightGap: avg(team.straightContribution)
+        };
+      });
+      const straightScores = computeStraightlinePerformance(rawStraight);
+      const ordered = sorted(straightScores, {
+        straightTeam: t => t.team,
+        straightScore: t => t.totalStraightScore,
+        straightMatched: t => t.matchedSpeed,
+        straightPeak: t => t.peakSpeed,
+        straightFL: t => t.finishLineSpeed,
+        straightSustained: t => t.sustainedSpeed,
+        straightTop: t => t.topSpeed,
+        straightEvents: t => t.events
+      }, 'straightScore', -1);
 
-      const values=season.map(team=>({...team,straightGap:avg(team.straightContribution),peak:avg(team.top),sustained:avg(team.full)}));
-      const ordered=sorted(values,{straightTeam:t=>t.team,straightGap:t=>t.straightGap,peak:t=>t.peak,sustained:t=>t.sustained,straightEvents:t=>t.events},'straightGap');
+      const straightChart = renderHorizontalBarChart(ordered, {
+        title: 'Total Straight-Line Performance Index (0–100)',
+        subtitle: 'Integrated performance across all straight-line parameters: Lap-Matched Race ST, Peak Velocity, Finish Line FL, and Sustained P95 Threshold',
+        valueKey: 'totalStraightScore',
+        unit: ' / 100',
+        digits: 1,
+        signedValue: false,
+        invertBest: true,
+        zeroBaseline: true
+      });
 
-      return card(straightTitle,'Time lost on all straights as a percentage of a full lap, averaged across evaluated circuits for every ranked team.',
+      return card(straightTitle, 'Grand Prix straight-line performance. Total Straight-Line Performance Index integrates fuel-neutral lap-matched speed trap velocities, peak top speed, finish line exit velocity, and sustained full-throttle high-speed thresholds.',
         straightToggle+
-        lapShareChart(values,'straightGap',season.reference)+
-        table([sortHeader('straightTeam','Team'),sortHeader('straightGap','Time lost · % of lap'),sortHeader('peak','Average peak speed',-1),sortHeader('sustained','Full-throttle high-speed threshold (P95)',-1),sortHeader('straightEvents','Circuits',-1)],ordered.map(team=>[teamLabel(team),signed(team.straightGap,3),fmt(team.peak,1,' km/h'),fmt(team.sustained,1,' km/h'),team.events]))+
-        '<p class="performance-note">P95 example: 320 km/h means 95% of full-throttle samples were at or below 320, and 5% were above. It is neither average straight speed nor the speed held throughout a straight. 2026 active aerodynamics (Straight Mode vs Corner Mode) replaces legacy DRS splits.</p>');
+        straightChart+
+        table([
+          sortHeader('straightTeam', 'Team'),
+          sortHeader('straightScore', 'Total Index (0–100)', -1),
+          sortHeader('straightMatched', 'Lap-matched ST', -1),
+          sortHeader('straightPeak', 'Peak speed trap (ST)', -1),
+          sortHeader('straightFL', 'Finish line (FL)', -1),
+          sortHeader('straightSustained', 'Full-throttle high-speed threshold (P95)', -1),
+          sortHeader('straightTop', 'Qualy top speed', -1),
+          sortHeader('straightEvents', 'Circuits', -1)
+        ], ordered.map(t => [
+          teamLabel(t),
+          `<span class="perf-tercile-badge is-fast" style="font-weight:700;">${fmt(t.totalStraightScore, 1)}</span>`,
+          fmt(t.matchedSpeed, 1, ' km/h'),
+          fmt(t.peakSpeed, 1, ' km/h'),
+          fmt(t.finishLineSpeed, 1, ' km/h'),
+          fmt(t.sustainedSpeed, 1, ' km/h'),
+          fmt(t.topSpeed, 1, ' km/h'),
+          t.events
+        ]))+
+        '<p class="performance-note">Lap-matched speed traps evaluate cars on the exact same race laps under clean air (>2.0s car-ahead gap) to remove fuel burn-off and tyre evolution bias. P95 measures top 5% sustained full-throttle terminal velocity.</p>');
     }
     const rawBrakeValues = season.map(team => ({
       ...team,
@@ -1133,14 +1222,39 @@ function computeBrakingPerformance(teams) {
   if(!loaded.length)return card('Telemetry comparison','Qualifying telemetry for every team is loaded automatically.','<p class="section-empty">No reliable telemetry is available for this event.</p>');
   if(activeMetric==='corners') {
     const common=[...new Set(Object.values(summary.groups).flat())];
-    const ordered=sorted(loaded,{eventCornerTeam:r=>r.team,eventLow:r=>r.categories.low?.deficit,eventMedium:r=>r.categories.medium?.deficit,eventHigh:r=>r.categories.high?.deficit},'eventLow');
+    const minLow = Math.min(...loaded.map(r => r.categories.low?.deficit).filter(finite));
+    const minMed = Math.min(...loaded.map(r => r.categories.medium?.deficit).filter(finite));
+    const minHigh = Math.min(...loaded.map(r => r.categories.high?.deficit).filter(finite));
+    const minLowT = Math.min(...loaded.map(r => r.categories.low?.time_lost).filter(finite));
+    const minMedT = Math.min(...loaded.map(r => r.categories.medium?.time_lost).filter(finite));
+    const minHighT = Math.min(...loaded.map(r => r.categories.high?.time_lost).filter(finite));
+    const minCornerContrib = Math.min(...loaded.map(r => r.trace?.corner_contribution).filter(finite));
 
-    return card('Low / medium / high-speed cornering',`Time lost across all corners in each band, divided by ${escape(event.traceReference||'the reference team')}’s full lap time. Example: 0.18 seconds lost on a 90-second lap is +0.20%. Negative means time gained.`,
-      lapShareChart(loaded.map(r=>({...r,gap:r.trace?.corner_contribution})),'gap',event.traceReference)+
+    const rebasedLoaded = loaded.map(r => {
+      const clone = { ...r, categories: { ...r.categories } };
+      if (clone.categories.low && finite(minLow)) {
+        clone.categories.low = { ...clone.categories.low, deficit: Math.max(0, clone.categories.low.deficit - minLow), time_lost: Math.max(0, (clone.categories.low.time_lost || 0) - minLowT) };
+      }
+      if (clone.categories.medium && finite(minMed)) {
+        clone.categories.medium = { ...clone.categories.medium, deficit: Math.max(0, clone.categories.medium.deficit - minMed), time_lost: Math.max(0, (clone.categories.medium.time_lost || 0) - minMedT) };
+      }
+      if (clone.categories.high && finite(minHigh)) {
+        clone.categories.high = { ...clone.categories.high, deficit: Math.max(0, clone.categories.high.deficit - minHigh), time_lost: Math.max(0, (clone.categories.high.time_lost || 0) - minHighT) };
+      }
+      if (clone.trace && finite(minCornerContrib)) {
+        clone.trace = { ...clone.trace, corner_contribution: Math.max(0, clone.trace.corner_contribution - minCornerContrib) };
+      }
+      return clone;
+    });
+
+    const ordered=sorted(rebasedLoaded,{eventCornerTeam:r=>r.team,eventLow:r=>r.categories.low?.deficit,eventMedium:r=>r.categories.medium?.deficit,eventHigh:r=>r.categories.high?.deficit},'eventLow');
+
+    return card('Low / medium / high-speed cornering',`Time lost across all corners in each band relative to the fastest constructor (0.000% baseline). Example: 0.18 seconds lost on a 90-second lap is +0.20%.`,
+      lapShareChart(rebasedLoaded.map(r=>({...r,gap:r.trace?.corner_contribution})),'gap',event.traceReference)+
       table([sortHeader('eventCornerTeam','Team'),sortHeader('eventLow','Low ≤120'),sortHeader('eventMedium','Medium 120–200'),sortHeader('eventHigh','High >200')],ordered.map(row=>[teamLabel(row),...['low','medium','high'].map(name=>{
         const value=row.categories[name];return value?`${signed(value.deficit,3)}<small>${signed(value.time_lost,3,' s/lap')} · ${value.corners} corners</small>`:'—';
       })])))+card('Corner measurements','Windows follow the field’s braking, apex and acceleration. Zone labels are used when reliable map corner numbers are unavailable. Loss density (ms/100m) measures spatial penalty rate.',
-      table(['Corner',...loaded.map(row=>teamLabel(row))],common.map(label=>[escape(label),...loaded.map(row=>{
+      table(['Corner',...rebasedLoaded.map(row=>teamLabel(row))],common.map(label=>[escape(label),...rebasedLoaded.map(row=>{
         const corner=row.trace.corners.find(c=>c.corner===label);
         const densityBadge = corner?.loss_density ? `<span class="perf-loss-density">${fmt(corner.loss_density, 1)} ms/100m</span>` : '';
         return corner?`${fmt(corner.time,3,' s')}${densityBadge}<small>${fmt(corner.mean_speed,1,' km/h')} mean · ${fmt(corner.minimum,1)} min</small>`:'—';
@@ -1157,68 +1271,64 @@ function computeBrakingPerformance(teams) {
       </div>
     `;
 
-    if (straightLineSource === 'race' && event.R?.teams?.length) {
-      const raceTrapRows = (event.R.teams || []).map(t => ({
-        ...t,
-        matchedSpeed: t.race_speed_trap_matched || t.race_speed_trap_median,
-        peakSpeed: t.race_speed_trap_max,
-        medianSpeed: t.race_speed_trap_median,
-        finishLineSpeed: t.race_speed_fl_max,
-      }));
-      const orderedRace = sorted(raceTrapRows, {
-        raceTeam: t => t.team,
-        raceMatched: t => t.matchedSpeed,
-        racePeak: t => t.peakSpeed,
-        raceMed: t => t.medianSpeed,
-        raceFL: t => t.finishLineSpeed,
-      }, 'raceMatched', -1);
+    const raceTeams = event.R?.teams || [];
+    const combinedStraight = loaded.map(r => {
+      const rItem = raceTeams.find(t => t.team === r.team);
+      return {
+        ...r,
+        matchedSpeed: rItem ? (rItem.race_speed_trap_matched || rItem.race_speed_trap_median) : null,
+        peakSpeed: rItem?.race_speed_trap_max || r.trace?.top_speed,
+        medianSpeed: rItem?.race_speed_trap_median,
+        finishLineSpeed: rItem?.race_speed_fl_max,
+        sustainedSpeed: r.trace?.full_throttle_p95,
+        topSpeed: r.trace?.top_speed,
+        straightGap: r.trace?.straight_contribution
+      };
+    });
+    const straightScores = computeStraightlinePerformance(combinedStraight);
+    const ordered = sorted(straightScores, {
+      eventStraightTeam: t => t.team,
+      eventStraightScore: t => t.totalStraightScore,
+      eventStraightMatched: t => t.matchedSpeed,
+      eventStraightPeak: t => t.peakSpeed,
+      eventStraightFL: t => t.finishLineSpeed,
+      eventStraightP95: t => t.sustainedSpeed,
+      eventStraightTop: t => t.topSpeed
+    }, 'eventStraightScore', -1);
 
-      const singleRaceChart = renderHorizontalBarChart(orderedRace, {
-        title: 'Lap-Matched Race Speed Trap ST (km/h)',
-        subtitle: 'Official FIA Speed Trap sensor ST on clean race laps matched on identical lap numbers · Higher is faster',
-        valueKey: 'matchedSpeed',
-        unit: ' km/h',
-        digits: 1,
-        signedValue: false,
-        invertBest: true,
-        zeroBaseline: false
-      });
+    const singleStraightChart = renderHorizontalBarChart(ordered, {
+      title: 'Total Straight-Line Performance Index (0–100)',
+      subtitle: 'Comprehensive rating combining Lap-Matched Race ST, Peak Velocity, Finish Line FL, and Sustained P95 Threshold',
+      valueKey: 'totalStraightScore',
+      unit: ' / 100',
+      digits: 1,
+      signedValue: false,
+      invertBest: true,
+      zeroBaseline: true
+    });
 
-      return card('Grand Prix race straight-line speeds', 'Measured at official FIA speed trap (ST) and finish line (FL) timing loops during the Grand Prix race. Lap-matching evaluates cars on the exact same race lap numbers, eliminating fuel load disparity.',
-        straightToggle+
-        singleRaceChart+
-        table([
-          sortHeader('raceTeam', 'Team'),
-          sortHeader('raceMatched', 'Lap-matched speed (ST)', -1),
-          sortHeader('racePeak', 'Peak speed trap (ST)', -1),
-          sortHeader('raceMed', 'Median speed trap', -1),
-          sortHeader('raceFL', 'Finish line speed (FL)', -1),
-        ], orderedRace.map(t => [
-          teamLabel(t),
-          fmt(t.matchedSpeed, 1, ' km/h'),
-          fmt(t.peakSpeed, 1, ' km/h'),
-          fmt(t.medianSpeed, 1, ' km/h'),
-          fmt(t.finishLineSpeed, 1, ' km/h'),
-        ]))+
-        '<p class="performance-note">Race speed traps combine low-drag aerodynamics with Straight Mode actuation and electrical energy recovery deployment. Lap-matching evaluates clean laps (>2.0s gap) at equal race distances to remove fuel weight confounders.</p>');
-    }
-
-    return card('Straight-line performance','Time lost on the straights divided by the fastest measured full lap time. P95 is a speed threshold: 95% of full-throttle samples fall below it; it is not an average or a duration.',
+    return card('Straight-line performance', 'Total Straight-Line Performance Index integrates fuel-neutral lap-matched race speed traps, peak top speed, finish line velocity, and full-throttle P95 sustained thresholds.',
       straightToggle+
-      lapShareChart(loaded.map(r=>({...r,gap:r.trace?.straight_contribution})),'gap',event.traceReference)+
-      table([sortHeader('eventStraightTeam','Team'),sortHeader('eventStraightGap','Time lost · % of lap'),sortHeader('eventPeak','Peak speed',-1),sortHeader('eventSustained','Full-throttle high-speed threshold (P95)',-1),'Tow exposure / lap'],ordered.map(row=>{
-        const tow = row.trace.tow_exposure;
-        const towBadge = tow === 'clean'
-          ? '<span class="tow-badge is-clean">Clean (>3.0s)</span>'
-          : tow === 'possible'
-          ? '<span class="tow-badge is-possible">Tow (1.5–3.0s)</span>'
-          : tow === 'strong'
-          ? '<span class="tow-badge is-strong">Strong (<1.5s)</span>'
-          : '';
-        return [teamLabel(row),signed(row.trace.straight_deficit,3),fmt(row.trace.top_speed,1,' km/h'),fmt(row.trace.full_throttle_p95,1,' km/h'),`${escape(row.lap.driver)} L${row.lap.lap} ${towBadge}`];
-      })))+
-      card('Where the lap gap comes from',`Relative to ${escape(event.traceReference||'the fastest measured team')}’s qualifying lap. A negative contribution means time gained in that part of the lap.`,
-      table(['Team','Straights','Corners','Lap gap'],ordered.map(row=>[teamLabel(row),fmt(row.trace.straight_contribution,3,'%'),fmt(row.trace.corner_contribution,3,'%'),fmt(row.trace.lap_gap,3,'%')])));
+      singleStraightChart+
+      table([
+        sortHeader('eventStraightTeam', 'Team'),
+        sortHeader('eventStraightScore', 'Total Index (0–100)', -1),
+        sortHeader('eventStraightMatched', 'Lap-matched ST', -1),
+        sortHeader('eventStraightPeak', 'Peak speed trap (ST)', -1),
+        sortHeader('eventStraightFL', 'Finish line (FL)', -1),
+        sortHeader('eventStraightP95', 'Full-throttle high-speed threshold (P95)', -1),
+        sortHeader('eventStraightTop', 'Qualy top speed', -1),
+      ], ordered.map(t => [
+        teamLabel(t),
+        `<span class="perf-tercile-badge is-fast" style="font-weight:700;">${fmt(t.totalStraightScore, 1)}</span>`,
+        fmt(t.matchedSpeed, 1, ' km/h'),
+        fmt(t.peakSpeed, 1, ' km/h'),
+        fmt(t.finishLineSpeed, 1, ' km/h'),
+        fmt(t.sustainedSpeed, 1, ' km/h'),
+        fmt(t.topSpeed, 1, ' km/h')
+      ]))+
+      card('Where the lap gap comes from',`Relative to ${escape(event.traceReference||'the fastest measured team')}’s qualifying lap.`,
+      table(['Team','Straights','Corners','Lap gap'],ordered.map(row=>[teamLabel(row),fmt(row.straightGap,3,'%'),fmt(row.trace?.corner_contribution,3,'%'),fmt(row.trace?.lap_gap,3,'%')]))));
   }
   const brakeRows = computeBrakingPerformance(loaded.map(r => ({
     ...r,
