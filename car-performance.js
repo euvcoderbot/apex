@@ -462,9 +462,12 @@ function aggregate() {
         item.retirements.push(...(t.retirements||[]).map(r=>({...r,event:e.name})));
         item.raceDrivers.push(...(t.race_drivers||[]).map(r=>({...r,event:e.name,selected:r.driver===t.fastest_race_driver})));
         if (t.traffic_sensitivity) {
-          for(const gap of ['1.5s','2.0s','2.5s']) {
-            if(finite(t.traffic_sensitivity[gap])) item.trafficSensitivity[gap].push(t.traffic_sensitivity[gap]);
-          }
+          const s15 = t.traffic_sensitivity['1.5s'] ?? t.traffic_sensitivity.loose_15;
+          const s20 = t.traffic_sensitivity['2.0s'] ?? t.traffic_sensitivity.standard_20;
+          const s25 = t.traffic_sensitivity['2.5s'] ?? t.traffic_sensitivity.strict_25;
+          if(finite(s15)) item.trafficSensitivity['1.5s'].push(s15);
+          if(finite(s20)) item.trafficSensitivity['2.0s'].push(s20);
+          if(finite(s25)) item.trafficSensitivity['2.5s'].push(s25);
         }
         if (finite(t.teammate_spread)) item.teammateSpreads.push(t.teammate_spread);
       }
@@ -482,7 +485,7 @@ function aggregate() {
     s1:avg(t.sectors[0]),s2:avg(t.sectors[1]),s3:avg(t.sectors[2]),
     qCount:t.q.filter(q=>finite(q.pace)).length,
     rCount:t.r.filter(finite).length
-  })),['qualy','race','s1','s2','s3']);
+  })),['qualy','race','s1','s2','s3','sens15','sens20','sens25']);
 }
 
 function table(headers,rows) {

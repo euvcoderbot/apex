@@ -454,10 +454,16 @@ def analyze(data, traffic=2):
                 team['traffic_sensitivity'] = {
                     'loose_15': traffic_sensitivities.get(1.5, {}).get(fastest[0]),
                     'standard_20': traffic_sensitivities.get(2.0, {}).get(fastest[0]),
-                    'strict_25': traffic_sensitivities.get(2.5, {}).get(fastest[0])
+                    'strict_25': traffic_sensitivities.get(2.5, {}).get(fastest[0]),
+                    '1.5s': traffic_sensitivities.get(1.5, {}).get(fastest[0]),
+                    '2.0s': traffic_sensitivities.get(2.0, {}).get(fastest[0]),
+                    '2.5s': traffic_sensitivities.get(2.5, {}).get(fastest[0])
                 }
             else:
-                team['traffic_sensitivity'] = {'loose_15': None, 'standard_20': None, 'strict_25': None}
+                team['traffic_sensitivity'] = {
+                    'loose_15': None, 'standard_20': None, 'strict_25': None,
+                    '1.5s': None, '2.0s': None, '2.5s': None
+                }
 
             eligible = [r for r in candidates if r['driver'] == fastest[0]] if fastest else []
             clean_laps = [r for r in valid if r['team'] == name]
