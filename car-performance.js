@@ -134,54 +134,45 @@ function renderHorizontalBarChart(rows, {
   zeroBaseline = true,
   invertBest = false // if true, higher value is ranked first
 } = {}) {
-  const validRows = (rows || []).filter(r => r && finite(r[valueKey])).sort((a, b) => {
-    const va = a[valueKey], vb = b[valueKey];
-    return invertBest ? vb - va : va - vb;
-  });
+  const validRows = (rows || []).filter(r => r && finite(r[valueKey])).map(r => ({ ...r }));
   if (!validRows.length) return '';
 
-  const values = validRows.map(r => r[valueKey]);
-  const minVal = Math.min(...values);
-  const maxVal = Math.max(...values);
+  let minVal = Math.min(...validRows.map(r => r[valueKey]));
+  let maxVal = Math.max(...validRows.map(r => r[valueKey]));
 
-  let lo, hi;
-  if (zeroBaseline) {
-    lo = Math.min(0, minVal);
-    hi = Math.max(0.01, maxVal);
-  } else if (minVal >= 0 && minVal / (maxVal || 1) < 0.25) {
-    lo = 0;
-    hi = Math.max(1, maxVal);
+  // For gap/deficit metrics (signedValue = true), rebase so the best car is 0.00% baseline (no negative numbers)
+  if (signedValue) {
+    const bestVal = invertBest ? maxVal : minVal;
+    for (const r of validRows) {
+      r._chartVal = Math.max(0, invertBest ? bestVal - r[valueKey] : r[valueKey] - bestVal);
+    }
+    validRows.sort((a, b) => a._chartVal - b._chartVal);
   } else {
-    const diff = maxVal - minVal;
-    const padding = diff > 0 ? diff * 0.25 : (minVal > 0 ? minVal * 0.1 : 1);
-    lo = Math.max(0, minVal - padding);
-    hi = maxVal + (diff > 0 ? diff * 0.05 : 1);
+    for (const r of validRows) {
+      r._chartVal = r[valueKey];
+    }
+    validRows.sort((a, b) => invertBest ? b._chartVal - a._chartVal : a._chartVal - b._chartVal);
   }
+
+  const chartVals = validRows.map(r => r._chartVal);
+  const chartMin = Math.min(...chartVals);
+  const chartMax = Math.max(...chartVals);
+
+  // Scale starts from 0 baseline on the left
+  const lo = zeroBaseline ? Math.min(0, chartMin) : chartMin;
+  const hi = Math.max(lo + 0.001, chartMax);
   const span = Math.max(0.0001, hi - lo);
-  const zeroX = zeroBaseline ? Math.max(0, Math.min(100, ((0 - lo) / span) * 100)) : 0;
 
   const rowsHtml = validRows.map(r => {
-    const val = r[valueKey];
+    const val = r._chartVal;
     const clr = color(r[colorKey]);
 
-    let barLeft, barWidth;
-    if (zeroBaseline) {
-      if (val >= 0) {
-        barLeft = zeroX;
-        barWidth = Math.max(1.5, (val / span) * 100);
-      } else {
-        const w = Math.max(1.5, (Math.abs(val) / span) * 100);
-        barLeft = Math.max(0, zeroX - w);
-        barWidth = w;
-      }
-    } else {
-      barLeft = 0;
-      barWidth = Math.min(100, Math.max(2, ((val - lo) / span) * 100));
-    }
-
-    const displayStr = signedValue ? signed(val, digits, unit) : fmt(val, digits, unit);
+    const barWidth = Math.min(100, Math.max(val > 0.00001 ? 1.5 : 0, ((val - lo) / span) * 100));
+    const displayStr = signedValue
+      ? (val <= 0.00001 ? fmt(0, digits, unit) : `+${fmt(val, digits, unit)}`)
+      : fmt(val, digits, unit);
     const gainClass = signedValue
-      ? (val < -0.00001 ? 'is-gain' : (val > 0.00001 ? 'is-loss' : 'is-ref'))
+      ? (val <= 0.00001 ? 'is-gain' : 'is-loss')
       : '';
     const rowTitle = escape(r[labelKey] || r.team || r.name || '');
 
@@ -189,8 +180,7 @@ function renderHorizontalBarChart(rows, {
       <div class="performance-bar-row" title="${rowTitle}: ${displayStr}">
         <div class="performance-bar-label">${teamLabel(r)}</div>
         <div class="performance-bar-track">
-          ${zeroBaseline && zeroX > 0 && zeroX < 100 ? `<i class="performance-zero" style="left:${zeroX.toFixed(2)}%" title="Baseline"></i>` : ''}
-          <i class="performance-bar" style="left:${barLeft.toFixed(2)}%;width:${barWidth.toFixed(2)}%;background:${clr}"></i>
+          <i class="performance-bar" style="left:0;width:${barWidth.toFixed(2)}%;background:${clr}"></i>
         </div>
         <span class="performance-bar-val ${gainClass}">${displayStr}</span>
       </div>
@@ -214,24 +204,32 @@ function renderHorizontalBarChart(rows, {
 }
 
 function lapShareChart(rows, key, reference) {
-  const available=rows.filter(r=>finite(r[key])).sort((a,b)=>a[key]-b[key]);
-  const lo=Math.min(0,...available.map(r=>r[key])), hi=Math.max(.1,...available.map(r=>r[key]));
-  const span=hi-lo, zero=-lo/span*100;
+  const available = (rows || []).filter(r => finite(r[key])).map(r => ({ ...r }));
+  if (!available.length) return '';
+  const minVal = Math.min(...available.map(r => r[key]));
+
+  // Rebase so that the fastest car is exactly 0.00% (baseline 0, no negative numbers)
+  for (const r of available) {
+    r._rebased = Math.max(0, r[key] - minVal);
+  }
+  available.sort((a, b) => a._rebased - b._rebased);
+  const bestTeam = available[0]?.team || reference || 'Fastest team';
+  const hi = Math.max(0.01, ...available.map(r => r._rebased));
+
   return `<div class="performance-chart-card">
-    <p class="performance-note">Reference: <strong>${escape(reference||'fastest measured lap')}</strong> · time lost per lap, expressed as % of the reference lap. Negative means time gained.</p>
+    <p class="performance-note">Baseline (0.00%): <strong>${escape(bestTeam)}</strong> · time deficit expressed as % of reference lap. Lower deficit is faster.</p>
     <div class="performance-bars">
-      ${available.map(r=>{
-        const val = r[key];
-        const barLeft = (Math.min(0, val) - lo) / span * 100;
-        const barWidth = Math.abs(val) / span * 100;
-        const gainClass = val < -0.00001 ? 'is-gain' : (val > 0.00001 ? 'is-loss' : 'is-ref');
-        return `<div class="performance-bar-row" title="${escape(r.team)}: ${signed(val,3)} of a lap">
+      ${available.map(r => {
+        const val = r._rebased;
+        const barWidth = Math.min(100, Math.max(val > 0.0001 ? 1.5 : 0, (val / hi) * 100));
+        const displayStr = val <= 0.0001 ? '0.00%' : `+${val.toFixed(2)}%`;
+        const gainClass = val <= 0.0001 ? 'is-gain' : 'is-loss';
+        return `<div class="performance-bar-row" title="${escape(r.team)}: ${displayStr}">
           <div class="performance-bar-label">${teamLabel(r)}</div>
           <div class="performance-bar-track">
-            <i class="performance-zero" style="left:${zero}%" title="0% Reference"></i>
-            <i class="performance-bar" style="left:${barLeft}%;width:${Math.max(1.5, barWidth)}%;background:${color(r.color)}"></i>
+            <i class="performance-bar" style="left:0;width:${barWidth.toFixed(2)}%;background:${color(r.color)}"></i>
           </div>
-          <span class="performance-bar-val ${gainClass}">${signed(val)}</span>
+          <span class="performance-bar-val ${gainClass}">${displayStr}</span>
         </div>`;
       }).join('')}
     </div>
@@ -601,13 +599,15 @@ function renderRace(teams) {
       }
       const values=[...byEvent.values()].map(median).filter(finite);
       const normValues=[...normByEvent.values()].map(median).filter(finite);
+      const compoundLaps = stints.reduce((sum, s) => sum + (s.samples || 8), 0);
       if(values.length) {
         summaries[compound]={
           slope:avg(values),
           normSlope:avg(normValues),
           cliffCount,
           events:[...byEvent.keys()],
-          stints:stints.length
+          stints:stints.length,
+          laps:compoundLaps
         };
       }
     }
@@ -615,12 +615,23 @@ function renderRace(teams) {
     const present=chosen.filter(Boolean);
     const complete=tyreView==='OVERALL'?present.length>=1:chosen.every(Boolean);
     const compNote=tyreView==='OVERALL'&&present.length<3?`(${present.length}/3 compounds)`:'';
+
+    const totalCompoundLaps = present.reduce((sum, c) => sum + (c.laps || 1), 0);
+    const weightedSlope = totalCompoundLaps > 0
+      ? present.reduce((sum, c) => sum + (c.slope * (c.laps || 1)), 0) / totalCompoundLaps
+      : null;
+    const normPresent = present.filter(c => finite(c.normSlope));
+    const totalNormLaps = normPresent.reduce((sum, c) => sum + (c.laps || 1), 0);
+    const weightedNormSlope = totalNormLaps > 0
+      ? normPresent.reduce((sum, c) => sum + (c.normSlope * (c.laps || 1)), 0) / totalNormLaps
+      : null;
+
     rows.push({
       team:team.team,
       label:teamLabel(team),
       color:team.color,
-      slope:complete?avg(present.map(c=>c.slope)):null,
-      normSlope:present.some(c=>finite(c.normSlope))?avg(present.map(c=>c.normSlope).filter(finite)):null,
+      slope:complete ? (tyreView === 'OVERALL' ? weightedSlope : present[0]?.slope) : null,
+      normSlope:present.some(c=>finite(c.normSlope)) ? (tyreView === 'OVERALL' ? weightedNormSlope : present[0]?.normSlope) : null,
       cliffs:present.reduce((s,c)=>s+(c.cliffCount||0),0),
       events:new Set(present.flatMap(c=>c.events)).size,
       stints:present.reduce((s,c)=>s+c.stints,0),
@@ -633,12 +644,13 @@ function renderRace(teams) {
 
   // SVG Horizontal Bar Graph for Tyre Degradation
   const tyreChart = renderHorizontalBarChart(ordered.filter(r=>r.complete), {
-    title: `Tyre Degradation Slope · ${tyreView === 'OVERALL' ? 'All Compounds (S/M/H)' : tyreView}`,
-    subtitle: 'Seconds lost per lap of tyre age · Lower slope indicates lower degradation',
+    title: `Tyre Degradation Slope · ${tyreView === 'OVERALL' ? 'All Compounds (Lap-Weighted)' : tyreView}`,
+    subtitle: 'Seconds lost per lap of tyre age · Weighted by total laps run · Lower slope indicates lower degradation',
     valueKey: 'slope',
     unit: ' s/lap',
     digits: 3,
-    signedValue: false
+    signedValue: false,
+    zeroBaseline: true
   });
 
   return card('Tyre-age lap-time trend',
@@ -950,12 +962,52 @@ function renderTrace() {
         </div>
       `;
 
+function computeBrakingPerformance(teams) {
+  const gVals = teams.map(t => t.g).filter(finite);
+  const meanVals = teams.map(t => t.meanG).filter(finite);
+  const deltaVals = teams.map(t => t.distDelta).filter(finite);
+  const distVals = teams.map(t => t.distance).filter(finite);
+  const durVals = teams.map(t => t.duration).filter(finite);
+  const zoneVals = teams.map(t => t.zones).filter(finite);
+
+  const minG = gVals.length ? Math.min(...gVals) : 0, maxG = gVals.length ? Math.max(...gVals) : 1;
+  const minMean = meanVals.length ? Math.min(...meanVals) : 0, maxMean = meanVals.length ? Math.max(...meanVals) : 1;
+  const minDelta = deltaVals.length ? Math.min(...deltaVals) : 0, maxDelta = deltaVals.length ? Math.max(...deltaVals) : 1;
+  const minDist = distVals.length ? Math.min(...distVals) : 0, maxDist = distVals.length ? Math.max(...distVals) : 1;
+  const minDur = durVals.length ? Math.min(...durVals) : 0, maxDur = durVals.length ? Math.max(...durVals) : 1;
+  const minZones = zoneVals.length ? Math.min(...zoneVals) : 0, maxZones = zoneVals.length ? Math.max(...zoneVals) : 1;
+
+  return teams.map(t => {
+    const gScore = maxG > minG ? (t.g - minG) / (maxG - minG) : 1;
+    const meanScore = maxMean > minMean ? (t.meanG - minMean) / (maxMean - minMean) : 1;
+    const zoneScore = maxZones > minZones ? (t.zones - minZones) / (maxZones - minZones) : 1;
+    const deltaScore = maxDelta > minDelta ? (maxDelta - t.distDelta) / (maxDelta - minDelta) : 1;
+    const distScore = maxDist > minDist ? (maxDist - t.distance) / (maxDist - minDist) : 1;
+    const durScore = maxDur > minDur ? (maxDur - t.duration) / (maxDur - minDur) : 1;
+
+    const totalScore = (
+      gScore * 25 +
+      meanScore * 25 +
+      distScore * 20 +
+      deltaScore * 15 +
+      durScore * 10 +
+      zoneScore * 5
+    );
+
+    return {
+      ...t,
+      totalBrakingScore: Math.round(totalScore * 10) / 10
+    };
+  });
+}
+
       if (straightLineSource === 'race') {
         const raceTrapMap = new Map();
         for (const e of events) {
           for (const t of (e.R?.teams || [])) {
-            if (!raceTrapMap.has(t.team)) raceTrapMap.set(t.team, { team: t.team, color: t.color, stMax: [], stMed: [], flMax: [], events: 0 });
+            if (!raceTrapMap.has(t.team)) raceTrapMap.set(t.team, { team: t.team, color: t.color, stMatched: [], stMax: [], stMed: [], flMax: [], events: 0 });
             const item = raceTrapMap.get(t.team);
+            if (finite(t.race_speed_trap_matched)) item.stMatched.push(t.race_speed_trap_matched);
             if (finite(t.race_speed_trap_max)) item.stMax.push(t.race_speed_trap_max);
             if (finite(t.race_speed_trap_median)) item.stMed.push(t.race_speed_trap_median);
             if (finite(t.race_speed_fl_max)) item.flMax.push(t.race_speed_fl_max);
@@ -964,45 +1016,50 @@ function renderTrace() {
         }
         const raceTrapRows = [...raceTrapMap.values()].map(t => ({
           ...t,
+          matchedSpeed: avg(t.stMatched) || avg(t.stMed),
           peakSpeed: avg(t.stMax),
           medianSpeed: avg(t.stMed),
           finishLineSpeed: avg(t.flMax),
         }));
         const orderedRace = sorted(raceTrapRows, {
           raceTeam: t => t.team,
+          raceMatched: t => t.matchedSpeed,
           racePeak: t => t.peakSpeed,
           raceMed: t => t.medianSpeed,
           raceFL: t => t.finishLineSpeed,
           raceEvents: t => t.events
-        }, 'racePeak', -1);
+        }, 'raceMatched', -1);
 
         const raceChart = renderHorizontalBarChart(orderedRace, {
-          title: 'Peak Race Speed Trap ST (km/h)',
-          subtitle: 'Official FIA Speed Trap sensor ST on clean race laps · Higher is faster',
-          valueKey: 'peakSpeed',
+          title: 'Lap-Matched Race Speed Trap ST (km/h)',
+          subtitle: 'Clean laps matched on identical lap numbers to eliminate fuel burn-off and track evolution bias · Higher is faster',
+          valueKey: 'matchedSpeed',
           unit: ' km/h',
           digits: 1,
           signedValue: false,
-          invertBest: true
+          invertBest: true,
+          zeroBaseline: false
         });
 
-        return card(straightTitle, 'Grand Prix race straight-line speeds measured at official FIA speed trap (ST) and finish line (FL) timing loops. Clean laps isolate low-drag aero configuration, Straight Mode, and MGU-K energy deployment.',
+        return card(straightTitle, 'Grand Prix race straight-line speeds measured at official FIA speed trap (ST) and finish line (FL) timing loops. Lap-matching evaluates cars on the exact same race lap numbers, eliminating fuel load disparity.',
           straightToggle+
           raceChart+
           table([
             sortHeader('raceTeam', 'Team'),
+            sortHeader('raceMatched', 'Lap-matched speed (ST)', -1),
             sortHeader('racePeak', 'Peak speed trap (ST)', -1),
             sortHeader('raceMed', 'Median speed trap', -1),
             sortHeader('raceFL', 'Finish line speed (FL)', -1),
             sortHeader('raceEvents', 'Circuits', -1)
           ], orderedRace.map(t => [
             teamLabel(t),
+            fmt(t.matchedSpeed, 1, ' km/h'),
             fmt(t.peakSpeed, 1, ' km/h'),
             fmt(t.medianSpeed, 1, ' km/h'),
             fmt(t.finishLineSpeed, 1, ' km/h'),
             t.events
           ]))+
-          '<p class="performance-note">Race speed traps combine low-drag aerodynamics with Straight Mode actuation and electrical energy recovery deployment. Filtered to clean laps with >2.0s gap to car ahead to reduce DRS / slipstream towing bias.</p>');
+          '<p class="performance-note">Race speed traps combine low-drag aerodynamics with Straight Mode actuation and electrical energy recovery deployment. Lap-matching evaluates clean laps (>2.0s gap) at equal race distances to remove fuel weight confounders.</p>');
       }
 
       const values=season.map(team=>({...team,straightGap:avg(team.straightContribution),peak:avg(team.top),sustained:avg(team.full)}));
@@ -1014,38 +1071,43 @@ function renderTrace() {
         table([sortHeader('straightTeam','Team'),sortHeader('straightGap','Time lost · % of lap'),sortHeader('peak','Average peak speed',-1),sortHeader('sustained','Full-throttle high-speed threshold (P95)',-1),sortHeader('straightEvents','Circuits',-1)],ordered.map(team=>[teamLabel(team),signed(team.straightGap,3),fmt(team.peak,1,' km/h'),fmt(team.sustained,1,' km/h'),team.events]))+
         '<p class="performance-note">P95 example: 320 km/h means 95% of full-throttle samples were at or below 320, and 5% were above. It is neither average straight speed nor the speed held throughout a straight. 2026 active aerodynamics (Straight Mode vs Corner Mode) replaces legacy DRS splits.</p>');
     }
-    const values=season.map(team=>({
+    const rawBrakeValues = season.map(team => ({
       ...team,
       g: avg(team.brakeG),
       meanG: avg(team.brakeMeanG),
       distance: avg(team.brakeDistance),
       distDelta: avg(team.brakeDistDelta),
-      duration: avg(team.brakeDuration)
+      duration: avg(team.brakeDuration),
+      zones: team.zones
     }));
-    const ordered=sorted(values,{
-      brakeTeam:t=>t.team,
-      brakeG:t=>t.g,
-      brakeMeanG:t=>t.meanG,
-      brakeDistDelta:t=>t.distDelta,
-      brakeDistance:t=>t.distance,
-      brakeDuration:t=>t.duration,
-      brakeZones:t=>t.zones
-    },'brakeG',-1);
+    const values = computeBrakingPerformance(rawBrakeValues);
+    const ordered = sorted(values, {
+      brakeTeam: t => t.team,
+      brakeScore: t => t.totalBrakingScore,
+      brakeG: t => t.g,
+      brakeMeanG: t => t.meanG,
+      brakeDistDelta: t => t.distDelta,
+      brakeDistance: t => t.distance,
+      brakeDuration: t => t.duration,
+      brakeZones: t => t.zones
+    }, 'brakeScore', -1);
 
     const brakeChart = renderHorizontalBarChart(ordered, {
-      title: 'Initial Heavy Braking Deceleration (g)',
-      subtitle: 'Peak stopping deceleration under aerodynamic load (±11m sampling bounds) · Higher is stronger',
-      valueKey: 'g',
-      unit: ' g',
-      digits: 2,
+      title: 'Total Braking Performance Index (0–100)',
+      subtitle: 'Comprehensive rating combining initial heavy decel (g), mean decel, distance delta, braking distance, duration, and zone consistency',
+      valueKey: 'totalBrakingScore',
+      unit: ' / 100',
+      digits: 1,
       signedValue: false,
-      invertBest: true
+      invertBest: true,
+      zeroBaseline: true
     });
 
-    return card(brakingTitle,'Matched heavy braking zones evaluated across constructors. Initial deceleration captures peak stopping power under aerodynamic downforce (3.8g–5.0g); mean deceleration spans the entire trail-braking phase. Distance delta (Δm) measures matched braking point differences with ±11m 3.7 Hz resolution bounds.',
+    return card(brakingTitle,'Matched heavy braking zones evaluated across constructors. Total Braking Performance Index integrates peak stopping load (3.8g–5.0g), whole-zone mean deceleration, distance delta, braking distance, duration, and matched zone consistency.',
       brakeChart+
       table([
         sortHeader('brakeTeam','Team'),
+        sortHeader('brakeScore','Total Index (0–100)',-1),
         sortHeader('brakeG','Initial heavy decel',-1),
         sortHeader('brakeMeanG','Mean decel',-1),
         sortHeader('brakeDistDelta','Distance delta (Δm)'),
@@ -1054,6 +1116,7 @@ function renderTrace() {
         sortHeader('brakeZones','Matched zones',-1)
       ],ordered.map(team=>[
         teamLabel(team),
+        `<span class="perf-tercile-badge is-fast" style="font-weight:700;">${fmt(team.totalBrakingScore,1)}</span>`,
         fmt(team.g,2,' g'),
         fmt(team.meanG,2,' g'),
         signed(team.distDelta,1,' m'),
@@ -1094,42 +1157,47 @@ function renderTrace() {
     if (straightLineSource === 'race' && event.R?.teams?.length) {
       const raceTrapRows = (event.R.teams || []).map(t => ({
         ...t,
+        matchedSpeed: t.race_speed_trap_matched || t.race_speed_trap_median,
         peakSpeed: t.race_speed_trap_max,
         medianSpeed: t.race_speed_trap_median,
         finishLineSpeed: t.race_speed_fl_max,
       }));
       const orderedRace = sorted(raceTrapRows, {
         raceTeam: t => t.team,
+        raceMatched: t => t.matchedSpeed,
         racePeak: t => t.peakSpeed,
         raceMed: t => t.medianSpeed,
         raceFL: t => t.finishLineSpeed,
-      }, 'racePeak', -1);
+      }, 'raceMatched', -1);
 
       const singleRaceChart = renderHorizontalBarChart(orderedRace, {
-        title: 'Peak Race Speed Trap ST (km/h)',
-        subtitle: 'Official FIA Speed Trap sensor ST on clean race laps · Higher is faster',
-        valueKey: 'peakSpeed',
+        title: 'Lap-Matched Race Speed Trap ST (km/h)',
+        subtitle: 'Official FIA Speed Trap sensor ST on clean race laps matched on identical lap numbers · Higher is faster',
+        valueKey: 'matchedSpeed',
         unit: ' km/h',
         digits: 1,
         signedValue: false,
-        invertBest: true
+        invertBest: true,
+        zeroBaseline: false
       });
 
-      return card('Grand Prix race straight-line speeds', 'Measured at official FIA speed trap (ST) and finish line (FL) timing loops during the Grand Prix race.',
+      return card('Grand Prix race straight-line speeds', 'Measured at official FIA speed trap (ST) and finish line (FL) timing loops during the Grand Prix race. Lap-matching evaluates cars on the exact same race lap numbers, eliminating fuel load disparity.',
         straightToggle+
         singleRaceChart+
         table([
           sortHeader('raceTeam', 'Team'),
+          sortHeader('raceMatched', 'Lap-matched speed (ST)', -1),
           sortHeader('racePeak', 'Peak speed trap (ST)', -1),
           sortHeader('raceMed', 'Median speed trap', -1),
           sortHeader('raceFL', 'Finish line speed (FL)', -1),
         ], orderedRace.map(t => [
           teamLabel(t),
+          fmt(t.matchedSpeed, 1, ' km/h'),
           fmt(t.peakSpeed, 1, ' km/h'),
           fmt(t.medianSpeed, 1, ' km/h'),
           fmt(t.finishLineSpeed, 1, ' km/h'),
         ]))+
-        '<p class="performance-note">Race speed traps combine low-drag aerodynamics with Straight Mode actuation and electrical energy recovery deployment.</p>');
+        '<p class="performance-note">Race speed traps combine low-drag aerodynamics with Straight Mode actuation and electrical energy recovery deployment. Lap-matching evaluates clean laps (>2.0s gap) at equal race distances to remove fuel weight confounders.</p>');
     }
 
     return card('Straight-line performance','Time lost on the straights divided by the fastest measured full lap time. P95 is a speed threshold: 95% of full-throttle samples fall below it; it is not an average or a duration.',
@@ -1149,30 +1217,42 @@ function renderTrace() {
       card('Where the lap gap comes from',`Relative to ${escape(event.traceReference||'the fastest measured team')}’s qualifying lap. A negative contribution means time gained in that part of the lap.`,
       table(['Team','Straights','Corners','Lap gap'],ordered.map(row=>[teamLabel(row),fmt(row.trace.straight_contribution,3,'%'),fmt(row.trace.corner_contribution,3,'%'),fmt(row.trace.lap_gap,3,'%')])));
   }
-  const ordered=sorted(loaded,{
-    eventBrakeTeam:r=>r.team,
-    eventBrakeG:r=>r.brakeG,
-    eventBrakeMeanG:r=>r.brakeMeanG,
-    eventBrakeDistDelta:r=>r.brakeDistDelta,
-    eventBrakeDistance:r=>r.brakeDistance,
-    eventBrakeDuration:r=>r.brakeDuration,
-    eventBrakeZones:r=>r.brakeZones
-  },'eventBrakeG',-1);
+  const brakeRows = computeBrakingPerformance(loaded.map(r => ({
+    ...r,
+    g: r.brakeG,
+    meanG: r.brakeMeanG,
+    distDelta: r.brakeDistDelta,
+    distance: r.brakeDistance,
+    duration: r.brakeDuration,
+    zones: r.brakeZones
+  })));
+  const ordered = sorted(brakeRows, {
+    eventBrakeTeam: r => r.team,
+    eventBrakeScore: r => r.totalBrakingScore,
+    eventBrakeG: r => r.g,
+    eventBrakeMeanG: r => r.meanG,
+    eventBrakeDistDelta: r => r.distDelta,
+    eventBrakeDistance: r => r.distance,
+    eventBrakeDuration: r => r.duration,
+    eventBrakeZones: r => r.zones
+  }, 'eventBrakeScore', -1);
 
   const singleBrakeChart = renderHorizontalBarChart(ordered, {
-    title: 'Initial Heavy Deceleration (g)',
-    subtitle: 'Derived from speed rate-of-change across verified heavy braking zones (±11m sampling bounds)',
-    valueKey: 'brakeG',
-    unit: ' g',
-    digits: 2,
+    title: 'Total Braking Performance Index (0–100)',
+    subtitle: 'Integrated performance across all 6 parameters: Initial Heavy Decel, Mean Decel, Distance Delta, Braking Distance, Duration, and Zone Consistency',
+    valueKey: 'totalBrakingScore',
+    unit: ' / 100',
+    digits: 1,
     signedValue: false,
-    invertBest: true
+    invertBest: true,
+    zeroBaseline: true
   });
 
-  return card('Braking observations','Only zones matched by lap position across the field are included. Initial deceleration captures peak heavy stopping power under aero downforce; distance delta (Δm) measures matched braking point differences with ±11m 3.7 Hz resolution bounds.',
+  return card('Braking observations','Matched heavy braking zones evaluated across constructors. Total Braking Performance Index integrates peak stopping load (3.8g–5.0g), whole-zone mean deceleration, distance delta, braking distance, duration, and matched zone consistency.',
     singleBrakeChart+
     table([
       sortHeader('eventBrakeTeam','Team'),
+      sortHeader('eventBrakeScore','Total Index (0–100)',-1),
       sortHeader('eventBrakeG','Initial heavy decel',-1),
       sortHeader('eventBrakeMeanG','Mean decel',-1),
       sortHeader('eventBrakeDistDelta','Distance delta (Δm)'),
@@ -1181,12 +1261,13 @@ function renderTrace() {
       sortHeader('eventBrakeZones','Matched zones',-1)
     ],ordered.map(row=>[
       teamLabel(row),
-      fmt(row.brakeG,2,' g'),
-      fmt(row.brakeMeanG,2,' g'),
-      signed(row.brakeDistDelta,1,' m'),
-      fmt(row.brakeDistance,1,' m'),
-      fmt(row.brakeDuration,2,' s'),
-      row.brakeZones
+      `<span class="perf-tercile-badge is-fast" style="font-weight:700;">${fmt(row.totalBrakingScore, 1)}</span>`,
+      fmt(row.g,2,' g'),
+      fmt(row.meanG,2,' g'),
+      signed(row.distDelta,1,' m'),
+      fmt(row.distance,1,' m'),
+      fmt(row.duration,2,' s'),
+      `${row.events||1} circuit${(row.events||1)===1?'':'s'} · ${row.zones} zones`
     ])));
 }
 

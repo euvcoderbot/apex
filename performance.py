@@ -239,7 +239,7 @@ VERIFIED_RETIREMENT_REASONS = {
     ("Dutch Grand Prix", "OCO"): ("Accident / collision", "Turn 1 collision damage"),
     ("Dutch Grand Prix", "STR"): ("Mechanical", "Power unit sensor fault / sudden loss of drive"),
     ("Dutch Grand Prix", "BEA"): ("Accident / collision", "Gravel trap excursion / floor damage"),
-    ("Dutch Grand Prix", "VER"): ("Mechanical", "Transmission failure / loss of drive"),
+    ("Dutch Grand Prix", "VER"): ("Accident / collision", "Barrier impact / collision damage"),
     ("Dutch Grand Prix", "SAR"): ("Accident / collision", "Turn 3 banking barrier contact"),
     ("Dutch Grand Prix", "MAG"): ("Mechanical", "Gearbox failure"),
 
@@ -323,10 +323,11 @@ def analyze(data, traffic=2):
     if qualifying:
         # The official phase classification is the authority here. Historical
         # archives often omit IsAccurate/TrackStatus in Q1/Q2 even though the
-        # classification and all three sectors are complete.
+        # classification and all three sectors are complete. TrackStatus '1' (green),
+        # '2' (chequered flag), and combinations like '12'/'21' represent clean runs.
         valid = [r for r in rows if r['time'] and not r['pit'] and not r['deleted']
                  and r['compound'] in DRY_COMPOUNDS and r['rain'] is False
-                 and r['track'] in ('', '1') and all(r['sectors'])]
+                 and set(str(r.get('track') or '')).issubset({'1', '2', ''}) and all(r['sectors'])]
         selected = defaultdict(list)
         for phase in ('Q1', 'Q2', 'Q3'):
             official = {}
@@ -414,12 +415,23 @@ def analyze(data, traffic=2):
         lap_compound_benchmark = {}
         from collections import defaultdict as ddict
         lap_comp_times = ddict(list)
+        lap_st_times = ddict(list)
+        lap_fl_times = ddict(list)
         for r in valid:
             if r.get('compound') and r.get('lap') and r.get('time'):
                 lap_comp_times[(r['lap'], r['compound'])].append(r['time'])
+            if r.get('lap') and r.get('speed_st'):
+                lap_st_times[r['lap']].append(r['speed_st'])
+            if r.get('lap') and r.get('speed_fl'):
+                lap_fl_times[r['lap']].append(r['speed_fl'])
         for k, t_list in lap_comp_times.items():
             if len(t_list) >= 2:
                 lap_compound_benchmark[k] = float(median(t_list))
+
+        lap_st_benchmark = {lap: float(median(vals)) for lap, vals in lap_st_times.items() if len(vals) >= 2}
+        lap_fl_benchmark = {lap: float(median(vals)) for lap, vals in lap_fl_times.items() if len(vals) >= 2}
+        field_avg_st = sum(lap_st_benchmark.values()) / len(lap_st_benchmark) if lap_st_benchmark else None
+        field_avg_fl = sum(lap_fl_benchmark.values()) / len(lap_fl_benchmark) if lap_fl_benchmark else None
 
         for name, team in teams.items():
             drivers = [(driver, pace) for driver, pace in driver_estimates.items()
@@ -435,11 +447,10 @@ def analyze(data, traffic=2):
 
             # Team traffic sensitivity: pace at 1.5s, 2.0s, 2.5s
             if fastest:
-                f_driver = fastest[0]
                 team['traffic_sensitivity'] = {
-                    'loose_15': traffic_sensitivities.get(1.5, {}).get(f_driver),
-                    'standard_20': traffic_sensitivities.get(2.0, {}).get(f_driver),
-                    'strict_25': traffic_sensitivities.get(2.5, {}).get(f_driver)
+                    'loose_15': traffic_sensitivities.get(1.5, {}).get(fastest[0]),
+                    'standard_20': traffic_sensitivities.get(2.0, {}).get(fastest[0]),
+                    'strict_25': traffic_sensitivities.get(2.5, {}).get(fastest[0])
                 }
             else:
                 team['traffic_sensitivity'] = {'loose_15': None, 'standard_20': None, 'strict_25': None}
@@ -456,8 +467,16 @@ def analyze(data, traffic=2):
             team['race_speed_trap_median'] = float(median(team_st)) if team_st else None
             team['race_speed_fl_max'] = max(team_fl) if team_fl else None
             team['race_speed_fl_median'] = float(median(team_fl)) if team_fl else None
-            team['speed_trap'] = team['race_speed_trap_median']
-            team['speed_fl'] = team['race_speed_fl_median']
+
+            # Lap-matched speed traps (compares cars on the exact same laps, eliminating fuel weight differences)
+            st_deltas = [r['speed_st'] - lap_st_benchmark[r['lap']]
+                         for r in clean_laps if r.get('lap') in lap_st_benchmark and r.get('speed_st')]
+            fl_deltas = [r['speed_fl'] - lap_fl_benchmark[r['lap']]
+                         for r in clean_laps if r.get('lap') in lap_fl_benchmark and r.get('speed_fl')]
+            team['race_speed_trap_matched'] = round(field_avg_st + sum(st_deltas)/len(st_deltas), 1) if (st_deltas and field_avg_st) else team['race_speed_trap_median']
+            team['race_speed_fl_matched'] = round(field_avg_fl + sum(fl_deltas)/len(fl_deltas), 1) if (fl_deltas and field_avg_fl) else team['race_speed_fl_median']
+            team['speed_trap'] = team['race_speed_trap_matched']
+            team['speed_fl'] = team['race_speed_fl_matched']
 
             # Stint degradation: both raw slope and field-normalized degradation
             stints = defaultdict(list)
