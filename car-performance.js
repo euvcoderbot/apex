@@ -157,6 +157,11 @@ function completed(event, session) {
 }
 
 function syncSelect(select) {
+  if (!select) return;
+  const shell = select.closest('.select-shell');
+  if (shell && shell.dataset.enhanced !== 'true' && typeof window.enhanceSelect === 'function') {
+    window.enhanceSelect(select);
+  }
   if (typeof window.syncSelectUI === 'function') {
     window.syncSelectUI(select);
   }

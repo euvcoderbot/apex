@@ -716,6 +716,10 @@ function enhanceSelect(select) {
   syncSelectUI(select);
 }
 
+window.enhanceSelect = enhanceSelect;
+window.syncSelectUI = syncSelectUI;
+window.selectCustomOption = selectCustomOption;
+
 // Calendar API Loader
 async function loadCalendar() {
   const generation = ++calendarGeneration;
