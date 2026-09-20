@@ -17,7 +17,7 @@
     }
   </script>
   <link rel="stylesheet" href="styles.css?v=euv2-release-20260918">
-  <link rel="stylesheet" href="car-performance.css?v=20260919-1">
+  <link rel="stylesheet" href="car-performance.css?v=20260920-gemini">
 </head>
 <body>
   <header class="site-header">
@@ -146,14 +146,35 @@
   </main>
   <section id="carPerformance" class="performance-page" aria-label="Car performance" hidden>
     <div class="dashboard-card performance-toolbar">
-      <h1>Car performance</h1>
-      <label>Season<select id="performanceYear"></select></label>
-      <label>Scope<select id="performanceScope"><option value="track">Per track</option><option value="season">Season to date</option></select></label>
-      <label id="performanceEventField">Grand Prix<select id="performanceEvent"></select></label>
-      <button type="button" id="performanceLoad">Analyse</button>
-      <button type="button" id="performanceCancel" hidden>Stop</button>
+      <div class="panel-heading">
+        <h2>Car performance</h2>
+      </div>
+      <div class="control-field">
+        <label for="performanceYear">Season</label>
+        <div class="select-shell"><select id="performanceYear"></select></div>
+      </div>
+      <div class="control-field">
+        <label for="performanceScope">Scope</label>
+        <div class="select-shell">
+          <select id="performanceScope">
+            <option value="track">Per track</option>
+            <option value="season">Season to date</option>
+          </select>
+        </div>
+      </div>
+      <div class="control-field" id="performanceEventField">
+        <label for="performanceEvent">Grand Prix</label>
+        <div class="select-shell"><select id="performanceEvent"></select></div>
+      </div>
+      <div class="performance-actions">
+        <button type="button" id="performanceLoad">Analyse</button>
+        <button type="button" id="performanceCancel" class="btn-cancel" hidden>Stop</button>
+      </div>
     </div>
-    <p id="performanceStatus" role="status" aria-live="polite">Choose a track or analyse completed events across the season.</p>
+    <div class="performance-status-card" id="performanceStatusCard">
+      <div class="status-dot"></div>
+      <p id="performanceStatus" role="status" aria-live="polite">Choose a track or analyse completed events across the season.</p>
+    </div>
     <div id="performanceResults"></div>
     <details class="dashboard-card performance-methods">
       <summary>How to read these measurements</summary>
@@ -181,6 +202,6 @@
   <script src="telemetry-model.js?v=euv2-reconstruction-20260905"></script>
   <script src="app.js?v=euv2-release-20260918"></script>
   <script src="alignment.js?v=euv2-release-20260917-2"></script>
-  <script type="module" src="car-performance.js?v=20260919-1"></script>
+  <script type="module" src="car-performance.js?v=20260920-gemini"></script>
 </body>
 </html>
