@@ -92,15 +92,16 @@ def measure_field(extracted, selections, corners=()):
             choices[team].append(prepare(samples, s))
         except (ValueError, TypeError) as exc:
             errors[team] = str(exc)
-    for values in choices.values():
+    valid_choices = {team: values for team, values in choices.items() if values}
+    for values in valid_choices.values():
         values.sort(key=lambda r: r['official'])
     minimum = max(3, math.ceil(len(expected)*.7))
-    if len(choices) < minimum:
+    if len(valid_choices) < minimum:
         return {'teams': {}, 'error': 'Too few teams have complete qualifying telemetry', 'excluded': errors}
-    reference = min((v[0] for v in choices.values()), key=lambda r: r['official'])
+    reference = min((v[0] for v in valid_choices.values()), key=lambda r: r['official'])
     grid = np.linspace(0, reference['a'][-1, 0], int(reference['a'][-1, 0]/5)+1)
     aligned = defaultdict(list)
-    for team, values in choices.items():
+    for team, values in valid_choices.items():
         for item in values:
             try:
                 aligned[team].append(align(item, reference, grid))

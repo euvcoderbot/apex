@@ -45,7 +45,7 @@ def exact_event(year, gp):
 
 def fresh_get(url, **kwargs):
     # requests (not requests-cache), with a bounded upstream wait.
-    kwargs.setdefault('timeout', (3.5, 10))
+    kwargs.setdefault('timeout', (8.0, 25.0))
     started = time.perf_counter()
     response = requests.get(url, **kwargs)
     context = _active.get()
@@ -79,8 +79,11 @@ _install_adapters()
 
 def download_feed(path, page):
     suffix = path + _api.pages[page]
-    response = fresh_get(_api.base_url + suffix, headers=_api.headers)
-    if response.status_code >= 400:
+    try:
+        response = fresh_get(_api.base_url + suffix, headers=_api.headers)
+        if response.status_code >= 400:
+            response = fresh_get(_api.base_url_mirror + suffix, headers=_api.headers)
+    except Exception:
         response = fresh_get(_api.base_url_mirror + suffix, headers=_api.headers)
     response.raise_for_status()
     records = []
@@ -97,8 +100,11 @@ def download_feed(path, page):
 def _download_stream(path, page):
     """Download one compressed jsonStream without FastF1's disk cache."""
     suffix = path + _api.pages[page]
-    response = fresh_get(_api.base_url + suffix, headers=_api.headers)
-    if response.status_code >= 400:
+    try:
+        response = fresh_get(_api.base_url + suffix, headers=_api.headers)
+        if response.status_code >= 400:
+            response = fresh_get(_api.base_url_mirror + suffix, headers=_api.headers)
+    except Exception:
         response = fresh_get(_api.base_url_mirror + suffix, headers=_api.headers)
     response.raise_for_status()
     return response.content.decode('utf-8-sig').splitlines()
