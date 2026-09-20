@@ -321,13 +321,11 @@ def analyze(data, traffic=2):
         if pos:
             team['positions'].append(pos)
     if qualifying:
-        # The official phase classification is the authority here. Historical
-        # archives often omit IsAccurate/TrackStatus in Q1/Q2 even though the
-        # classification and all three sectors are complete. TrackStatus '1' (green),
-        # '2' (chequered flag), and combinations like '12'/'21' represent clean runs.
+        # In qualifying, any valid flying lap (not in/out lap, not deleted, dry compound,
+        # with complete sectors) is eligible. We do not restrict by track status flag.
         valid = [r for r in rows if r['time'] and not r['pit'] and not r['deleted']
                  and r['compound'] in DRY_COMPOUNDS and r['rain'] is False
-                 and set(str(r.get('track') or '')).issubset({'1', '2', ''}) and all(r['sectors'])]
+                 and all(r['sectors'])]
         selected = defaultdict(list)
         for phase in ('Q1', 'Q2', 'Q3'):
             official = {}
@@ -353,9 +351,15 @@ def analyze(data, traffic=2):
         for name, team in teams.items():
             phases = selected[name]
             laps = [entry['lap'] for entry in phases]
+            team_best_lap = min(laps, key=lambda r: r['time'], default=None)
+            if not team_best_lap:
+                team_valid = [r for r in valid if r['team'] == name]
+                team_best_lap = min(team_valid, key=lambda r: r['time'], default=None)
+                if team_best_lap:
+                    laps = [team_best_lap]
             team.update({
                 'pace': sum(entry['pace'] for entry in phases)/len(phases) if phases else None,
-                'lap': min(laps, key=lambda r: r['time'], default=None),
+                'lap': team_best_lap,
                 'laps': laps,
                 'telemetry_candidates': sorted(
                     [r for r in valid if r['team'] == name and laps
