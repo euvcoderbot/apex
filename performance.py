@@ -7,6 +7,7 @@ Strict adherence to observable physical telemetry and versioned FIA envelopes.
 from collections import defaultdict
 from statistics import median
 import math
+import numpy as np
 
 from fia_energy_params import get_fia_energy_envelope
 
@@ -648,6 +649,36 @@ def analyze(data, traffic=2):
             ideal_sectors = matched_ideal['sectors'] if matched_ideal else (team_best_lap['sectors'] if team_best_lap else None)
             ideal_compound = matched_ideal['compound'] if matched_ideal else (team_best_lap['compound'] if team_best_lap else None)
 
+            team_phase_details = []
+            seen_phases_drivers = set()
+            for entry in phases:
+                seen_phases_drivers.add((entry['phase'], entry['lap']['driver']))
+                team_phase_details.append({
+                    'phase': entry['phase'],
+                    'driver': entry['lap']['driver'],
+                    'time': entry['lap']['time'],
+                    'deficit': entry['pace'],
+                    'compound': entry['lap'].get('compound')
+                })
+            for phase in ('Q1', 'Q2', 'Q3'):
+                other_laps = [r for r in valid if r.get('phase') == phase and r.get('team') == name
+                              and (phase, r.get('driver')) not in seen_phases_drivers]
+                other_by_drv = {}
+                for r in other_laps:
+                    drv = r.get('driver')
+                    if drv and (drv not in other_by_drv or r['time'] < other_by_drv[drv]['time']):
+                        other_by_drv[drv] = r
+                for drv, r in other_by_drv.items():
+                    seen_phases_drivers.add((phase, drv))
+                    phase_best_time = min((x['time'] for x in valid if x.get('phase') == phase), default=None)
+                    team_phase_details.append({
+                        'phase': phase,
+                        'driver': drv,
+                        'time': r['time'],
+                        'deficit': ((r['time'] / phase_best_time - 1) * 100) if phase_best_time else 0.0,
+                        'compound': r.get('compound')
+                    })
+
             team.update({
                 'pace': sum(entry['pace'] for entry in phases)/len(phases) if phases else None,
                 'lap': team_best_lap,
@@ -663,9 +694,7 @@ def analyze(data, traffic=2):
                      and r['time'] <= min(x['time'] for x in laps)*1.01],
                     key=lambda r: r['time'])[:3],
                 'phase_count': len(phases),
-                'phase_details': [{'phase': entry['phase'], 'driver': entry['lap']['driver'],
-                                   'time': entry['lap']['time'], 'deficit': entry['pace']}
-                                  for entry in phases],
+                'phase_details': team_phase_details,
                 'samples': len(phases),
                 'sector_deficits': [
                     (sum(values)/len(values) if values else None)
@@ -743,19 +772,89 @@ def analyze(data, traffic=2):
         lap_comp_team_times = defaultdict(lambda: defaultdict(list))
         for r in valid_all:
             if r.get('compound') and r.get('lap') and r.get('time') and r.get('team'):
-                lap_comp_team_times[(r['lap'], r['compound'])][r['team']].append(r['time'])
+                lap_comp_team_times[(r['lap'], r['compound'])][r['team']].append((r['time'], r.get('age', 0) or 0))
             if r.get('lap') and r.get('speed_st'):
                 lap_st_times[r['lap']].append(r['speed_st'])
             if r.get('lap') and r.get('speed_fl'):
                 lap_fl_times[r['lap']].append(r['speed_fl'])
 
-        # Leave-one-team-out median benchmark function: requires >= 3 other comparison cars
-        def leave_one_out_median(lap, compound, exclude_team):
+        # Leave-one-team-out race-lap-controlled field age model:
+        # T = alpha_lap + gamma_team + beta_1 * Age + beta_2 * Age^2
+        def fit_field_age_model_for_compound(comp, exclude_team):
+            laps = [r for r in valid_all if r.get('compound') == comp and r.get('team') != exclude_team and r.get('age') is not None and r.get('time') is not None]
+            if len(laps) < 15:
+                return 0.0, 0.0, False
+            c_teams = sorted(list({r['team'] for r in laps}))
+            if len(c_teams) < 2:
+                return 0.0, 0.0, False
+            c_ages = [r['age'] for r in laps]
+            if max(c_ages) - min(c_ages) < 6:
+                return 0.0, 0.0, False
+            race_laps = sorted(list({r['lap'] for r in laps}))
+            N = len(laps)
+            P = len(race_laps) + len(c_teams) - 1 + 2
+            if N < P + 5:
+                return 0.0, 0.0, False
+            lap_idx = {lap: i for i, lap in enumerate(race_laps)}
+            team_idx = {tm: i for i, tm in enumerate(c_teams[1:])}
+            X = np.zeros((N, P))
+            y = np.zeros(N)
+            for i, r in enumerate(laps):
+                X[i, lap_idx[r['lap']]] = 1.0
+                if r['team'] in team_idx:
+                    X[i, len(race_laps) + team_idx[r['team']]] = 1.0
+                age = r['age']
+                X[i, -2] = age
+                X[i, -1] = (age ** 2) / 100.0
+                y[i] = r['time']
+            try:
+                sol, _, rank, _ = np.linalg.lstsq(X, y, rcond=1e-5)
+                if rank < P - 2:
+                    return 0.0, 0.0, False
+                b1 = sol[-2]
+                b2 = sol[-1] / 100.0
+                if b1 < -0.10 or b1 > 0.35:
+                    return 0.0, 0.0, False
+                return float(b1), float(b2), True
+            except Exception:
+                return 0.0, 0.0, False
+
+        team_comp_age_models = {}
+
+        # Leave-one-team-out benchmark function with age matching and model fallback
+        def leave_one_out_median(lap, compound, exclude_team, target_age=None):
             team_map = lap_comp_team_times.get((lap, compound), {})
-            other_times = [t for tm, t_list in team_map.items() if tm != exclude_team for t in t_list]
-            if len(other_times) >= 3:
-                return float(median(other_times)), len(other_times)
-            return None, len(other_times)
+            other_entries = [(t, a) for tm, t_list in team_map.items() if tm != exclude_team for (t, a) in t_list]
+            if not other_entries:
+                return None, 0
+
+            # 1. Primary: exact age-matched comparison (|age - target_age| <= 3 laps)
+            if target_age is not None:
+                matched = [t for (t, a) in other_entries if abs(a - target_age) <= 3]
+                if len(matched) >= 3:
+                    return float(median(matched)), len(matched)
+
+                # 2. Secondary: age-standardized comparison using race-lap-controlled field age model
+                cache_key = (exclude_team, compound)
+                if cache_key not in team_comp_age_models:
+                    team_comp_age_models[cache_key] = fit_field_age_model_for_compound(compound, exclude_team)
+                b1, b2, model_trusted = team_comp_age_models[cache_key]
+
+                if model_trusted:
+                    f_target = b1 * target_age + b2 * (target_age ** 2)
+                    adjusted = [t + f_target - (b1 * a + b2 * (a ** 2))
+                                for (t, a) in other_entries if abs(a - target_age) <= 12]
+                    if len(adjusted) >= 3:
+                        return float(median(adjusted)), len(adjusted)
+
+                # 3. No trustworthy benchmark: return None to omit incomparable tyre ages
+                return None, 0
+
+            # Fallback if no target age specified
+            all_times = [t for (t, a) in other_entries]
+            if len(all_times) >= 3:
+                return float(median(all_times)), len(all_times)
+            return None, 0
 
         lap_st_benchmark = {lap: float(median(vals)) for lap, vals in lap_st_times.items() if len(vals) >= 2}
         lap_fl_benchmark = {lap: float(median(vals)) for lap, vals in lap_fl_times.items() if len(vals) >= 2}
@@ -888,7 +987,7 @@ def analyze(data, traffic=2):
                 if r.get('age') is not None and r.get('time') is not None and r.get('compound'):
                     key = (r['driver'], r['stint'], r['compound'])
                     stints[key].append((r['age'], r['time']))
-                    bm, support_count = leave_one_out_median(r['lap'], r['compound'], name)
+                    bm, support_count = leave_one_out_median(r['lap'], r['compound'], name, target_age=r['age'])
                     if bm is not None:
                         stint_relative[key].append((r['age'], r['time'] - bm))
                         stint_supports[key].append(support_count)
@@ -908,6 +1007,7 @@ def analyze(data, traffic=2):
                 max_age = int(max(ages))
                 age_span = max_age - min_age
                 is_low_sample = len(points) < 8 or age_span < 6
+                is_used_start = min_age > 3
 
                 cliff_detected = False
                 cliff_age = None
@@ -928,6 +1028,7 @@ def analyze(data, traffic=2):
                     'samples': len(points),
                     'field_support': median_support,
                     'low_sample': is_low_sample,
+                    'used_start': is_used_start,
                     'cliff_detected': cliff_detected,
                     'cliff_age': cliff_age
                 })
@@ -942,6 +1043,100 @@ def analyze(data, traffic=2):
             'traffic_threshold': traffic,
             'total_laps': len(rows),
             'eligible_laps': len(valid)}
+
+
+def huber_fit(X, y, delta=1.345, max_iter=50):
+    """Iteratively reweighted least squares (IRLS) with Huber loss."""
+    import numpy as np
+    N, P = X.shape
+    if N <= P:
+        sol = np.linalg.lstsq(X, y, rcond=None)[0]
+        return sol, np.ones(N)
+    beta = np.linalg.lstsq(X, y, rcond=None)[0]
+    weights = np.ones(N)
+    for _ in range(max_iter):
+        residuals = y - X @ beta
+        med_res = float(np.median(residuals))
+        mad = float(np.median(np.abs(residuals - med_res)))
+        scale = max(1e-4, 1.4826 * mad)
+        r_std = residuals / scale
+        abs_r = np.abs(r_std)
+        weights = np.where(abs_r <= delta, 1.0, delta / np.maximum(abs_r, 1e-9))
+        W = np.sqrt(weights)
+        beta_next = np.linalg.lstsq(X * W[:, None], y * W, rcond=None)[0]
+        if np.max(np.abs(beta_next - beta)) < 1e-5:
+            break
+        beta = beta_next
+    return beta, weights
+
+
+def compute_development_progression(rounds_data):
+    """
+    Multivariate robust Huber development progression model:
+    PaceDeficit = beta_0 + beta_1 * Round + beta_apex * MedianApex + beta_straight * StraightShare + epsilon
+    """
+    import numpy as np
+    valid = [r for r in rounds_data if r.get('deficit') is not None and math.isfinite(r['deficit'])]
+    n = len(valid)
+    if n < 2:
+        return {
+            'progression_rate': None,
+            'modelled_shift': None,
+            'opening_median': round(valid[0]['deficit'], 3) if n == 1 else None,
+            'closing_median': round(valid[0]['deficit'], 3) if n == 1 else None,
+            'observed_shift': None,
+            'sample_tier': 'insufficient',
+            'sample_tier_label': 'Insufficient (<2 events)',
+            'count': n
+        }
+
+    rounds = np.array([float(r['round']) for r in valid], dtype=float)
+    deficits = np.array([float(r['deficit']) for r in valid], dtype=float)
+
+    cols = [np.ones(n), rounds - np.mean(rounds)]
+
+    apex_vals = [r.get('median_apex') for r in valid]
+    has_apex = all(v is not None and math.isfinite(v) for v in apex_vals) and (len(apex_vals) >= 8 and float(np.std(apex_vals)) > 1.0)
+    if has_apex:
+        apex_arr = np.array(apex_vals, dtype=float)
+        cols.append((apex_arr - np.mean(apex_arr)) / max(1.0, float(np.std(apex_arr))))
+
+    straight_vals = [r.get('straight_share') for r in valid]
+    has_straight = all(v is not None and math.isfinite(v) for v in straight_vals) and (len(straight_vals) >= 8 and float(np.std(straight_vals)) > 0.02)
+    if has_straight:
+        straight_arr = np.array(straight_vals, dtype=float)
+        cols.append((straight_arr - np.mean(straight_arr)) / max(0.01, float(np.std(straight_arr))))
+
+    X = np.column_stack(cols)
+    y = deficits
+
+    beta, weights = huber_fit(X, y)
+    b_round = float(beta[1])
+    round_span = float(rounds[-1] - rounds[0])
+    modelled_shift = b_round * round_span
+
+    # Descriptive opening and closing medians
+    k = max(2, min(6, n // 4)) if n >= 8 else (2 if n >= 4 else 1)
+    opening_med = float(np.median(deficits[:k]))
+    closing_med = float(np.median(deficits[-k:]))
+    observed_shift = closing_med - opening_med
+
+    sample_tier = 'robust' if n >= 15 else ('provisional' if n >= 10 else 'raw')
+    sample_tier_label = 'Robust (≥15 events)' if n >= 15 else ('Provisional (10–14 events)' if n >= 10 else 'Raw (<10 events)')
+
+    return {
+        'progression_rate': round(b_round, 4),
+        'modelled_shift': round(modelled_shift, 3),
+        'opening_median': round(opening_med, 3),
+        'closing_median': round(closing_med, 3),
+        'observed_shift': round(observed_shift, 3),
+        'sample_tier': sample_tier,
+        'sample_tier_label': sample_tier_label,
+        'opening_count': k,
+        'closing_count': k,
+        'count': n,
+        'weights': [round(float(w), 3) for w in weights]
+    }
 
 
 def telemetry_metrics(samples, corners):

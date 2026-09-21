@@ -558,49 +558,88 @@ function aggregate() {
     eventQ1Deficits.set(e.name, q1Map);
 
     // Track evolution adjusted deficit (Q3 baseline)
-    const q1_t = new Map();
-    const q2_t = new Map();
-    const q3_t = new Map();
+    // Only compute deltas when dry, >= 6 common drivers, deltas in [-0.2, 1.5] s, and MAD <= 0.35 s
+    const q1_d = new Map();
+    const q2_d = new Map();
+    const q3_d = new Map();
+    const q1_tm = new Map();
+    const q2_tm = new Map();
+    const q3_tm = new Map();
+    const isDryComp = c => !c || !['INTERMEDIATE', 'WET'].includes(String(c).toUpperCase());
+
     for (const t of qTeams) {
       for (const p of (t.phase_details || [])) {
-        if (p.phase === 'Q1' && finite(p.time)) q1_t.set(t.team, p.time);
-        if (p.phase === 'Q2' && finite(p.time)) q2_t.set(t.team, p.time);
-        if (p.phase === 'Q3' && finite(p.time)) q3_t.set(t.team, p.time);
+        if (!finite(p.time)) continue;
+        const dry = isDryComp(p.compound);
+        if (p.phase === 'Q1') {
+          if (dry && p.driver) q1_d.set(p.driver, p.time);
+          if (!q1_tm.has(t.team) || p.time < q1_tm.get(t.team)) q1_tm.set(t.team, p.time);
+        } else if (p.phase === 'Q2') {
+          if (dry && p.driver) q2_d.set(p.driver, p.time);
+          if (!q2_tm.has(t.team) || p.time < q2_tm.get(t.team)) q2_tm.set(t.team, p.time);
+        } else if (p.phase === 'Q3') {
+          if (dry && p.driver) q3_d.set(p.driver, p.time);
+          if (!q3_tm.has(t.team) || p.time < q3_tm.get(t.team)) q3_tm.set(t.team, p.time);
+        }
       }
     }
 
     const deltas12 = [];
+    for (const [drv, t1] of q1_d.entries()) {
+      if (q2_d.has(drv)) {
+        const d = t1 - q2_d.get(drv);
+        if (d >= -0.2 && d <= 1.5) deltas12.push(d);
+      }
+    }
     const deltas23 = [];
-    for (const t of qTeams) {
-      const tm = t.team;
-      if (q1_t.has(tm) && q2_t.has(tm)) deltas12.push(q1_t.get(tm) - q2_t.get(tm));
-      if (q2_t.has(tm) && q3_t.has(tm)) deltas23.push(q2_t.get(tm) - q3_t.get(tm));
-    }
-    const ev12 = deltas12.length ? Math.max(0, median(deltas12)) : 0.35;
-    const ev23 = deltas23.length ? Math.max(0, median(deltas23)) : 0.25;
-
-    const adjTimes = new Map();
-    for (const t of qTeams) {
-      const tm = t.team;
-      if (q3_t.has(tm)) {
-        adjTimes.set(tm, q3_t.get(tm));
-      } else if (q2_t.has(tm)) {
-        adjTimes.set(tm, q2_t.get(tm) - ev23);
-      } else if (q1_t.has(tm)) {
-        adjTimes.set(tm, q1_t.get(tm) - ev12 - ev23);
-      } else if (t.lap && finite(t.lap.time)) {
-        adjTimes.set(tm, t.lap.time);
+    for (const [drv, t2] of q2_d.entries()) {
+      if (q3_d.has(drv)) {
+        const d = t2 - q3_d.get(drv);
+        if (d >= -0.2 && d <= 1.5) deltas23.push(d);
       }
     }
 
-    const minAdj = Math.min(...adjTimes.values());
-    const adjMap = new Map();
-    if (finite(minAdj) && minAdj > 0) {
-      for (const [tm, tmTime] of adjTimes.entries()) {
-        adjMap.set(tm, Math.max(0, (tmTime / minAdj - 1) * 100));
+    const med12 = deltas12.length ? median(deltas12) : null;
+    const mad12 = (deltas12.length && finite(med12))
+      ? median(deltas12.map(d => Math.abs(d - med12)))
+      : null;
+    const gate12Valid = deltas12.length >= 6 && finite(mad12) && mad12 <= 0.35;
+
+    const med23 = deltas23.length ? median(deltas23) : null;
+    const mad23 = (deltas23.length && finite(med23))
+      ? median(deltas23.map(d => Math.abs(d - med23)))
+      : null;
+    const gate23Valid = deltas23.length >= 6 && finite(mad23) && mad23 <= 0.35;
+
+    const evolutionValid = gate12Valid && gate23Valid;
+
+    if (evolutionValid) {
+      const ev12 = Math.max(0, med12);
+      const ev23 = Math.max(0, med23);
+      const adjTimes = new Map();
+      for (const t of qTeams) {
+        const tm = t.team;
+        if (q3_tm.has(tm)) {
+          adjTimes.set(tm, q3_tm.get(tm));
+        } else if (q2_tm.has(tm)) {
+          adjTimes.set(tm, q2_tm.get(tm) - ev23);
+        } else if (q1_tm.has(tm)) {
+          adjTimes.set(tm, q1_tm.get(tm) - ev12 - ev23);
+        } else if (t.lap && finite(t.lap.time)) {
+          adjTimes.set(tm, t.lap.time);
+        }
       }
+      const minAdj = Math.min(...adjTimes.values());
+      const adjMap = new Map();
+      if (finite(minAdj) && minAdj > 0) {
+        for (const [tm, tmTime] of adjTimes.entries()) {
+          adjMap.set(tm, Math.max(0, (tmTime / minAdj - 1) * 100));
+        }
+      }
+      eventAdjDeficits.set(e.name, adjMap);
+    } else {
+      eventAdjDeficits.set(e.name, null);
     }
-    eventAdjDeficits.set(e.name, adjMap);
   }
 
   for(const e of [...events].sort((a,b)=>a.round-b.round)) for(const session of ['Q','R']) {
@@ -662,7 +701,8 @@ function aggregate() {
         item.stints.push(...(t.degradation || []).map(s=>({
           ...s,
           event:e.name,
-          relativeSlope:s.relative_slope ?? s.slope,
+          relativeSlope: s.relative_slope ?? s.field_normalized_slope ?? null,
+          usedStart: s.used_start ?? (finite(s.min_age) && s.min_age > 3),
           minAge:s.min_age,
           maxAge:s.max_age,
           ageSpan:s.age_span,
@@ -858,29 +898,37 @@ function renderRace(teams) {
   const rows=[];
   const compoundOrder=['HYPERSOFT','ULTRASOFT','SUPERSOFT','SOFT','MEDIUM','HARD','SUPERHARD'];
   const choices=['OVERALL','SOFT','MEDIUM','HARD',...compoundOrder.filter(c=>!['SOFT','MEDIUM','HARD'].includes(c)&&teams.some(t=>t.stints.some(s=>s.compound===c)))];
-  if(!choices.includes(tyreView))tyreView='OVERALL';
+  if(!choices.includes(tyreView)) tyreView='OVERALL';
   const controls=`<div class="performance-tyre-options" role="group" aria-label="Tyre compound">${choices.map(c=>`<button type="button" data-performance-tyre="${c}" aria-pressed="${tyreView===c}">${['SOFT','MEDIUM','HARD'].includes(c)?`<img src="assets/tyres/official/${c.toLowerCase()}.png" alt="" width="20" height="20">`:''}<span class="tyre-opt-label">${c==='OVERALL'?'Overall · S/M/H':c.charAt(0)+c.slice(1).toLowerCase()}</span></button>`).join('')}</div>`;
 
   for(const team of teams) {
-    const summaries={};
+    // Filter out low sample stints from longevity headline averages
+    const validStints = (team.stints || []).filter(s => finite(s.slope) && !s.lowSample && !s.low_sample);
+    const usedStartCount = validStints.filter(s => s.usedStart).length;
+
+    // Group valid stints by event and compound for hierarchical aggregation
+    // Hierarchy: Driver-level aggregation with capped weight min(samples, 20)
+    // -> team compound estimate within event
+    // -> robust median of supported compounds for event score
+    // -> equal event weighting (median of event scores) across season
+    const eventCompStints = new Map(); // event -> compound -> array of stints
+    const summaries = {};
+
     for(const compound of compoundOrder) {
-      const stints=team.stints.filter(s=>s.compound===compound&&finite(s.slope));
-      const byEvent=new Map();
-      const normByEvent=new Map();
-      let cliffCount=0;
+      const compStints = validStints.filter(s => s.compound === compound);
+      const byEventRaw = new Map();
+      const byEventNorm = new Map();
+      let cliffCount = 0;
       let minAgeObs = Infinity;
       let maxAgeObs = -Infinity;
       let fieldSupportCount = 0;
       const cliffAges = [];
 
-      for(const stint of stints) {
-        if(!byEvent.has(stint.event))byEvent.set(stint.event,[]);
-        byEvent.get(stint.event).push(stint.slope);
-        const relSlope = finite(stint.relativeSlope) ? stint.relativeSlope : stint.field_normalized_slope;
-        if(finite(relSlope)) {
-          if(!normByEvent.has(stint.event))normByEvent.set(stint.event,[]);
-          normByEvent.get(stint.event).push(relSlope);
-        }
+      for(const stint of compStints) {
+        if(!eventCompStints.has(stint.event)) eventCompStints.set(stint.event, new Map());
+        if(!eventCompStints.get(stint.event).has(compound)) eventCompStints.get(stint.event).set(compound, []);
+        eventCompStints.get(stint.event).get(compound).push(stint);
+
         if(finite(stint.minAge)) minAgeObs = Math.min(minAgeObs, stint.minAge);
         if(finite(stint.maxAge)) maxAgeObs = Math.max(maxAgeObs, stint.maxAge);
         if(stint.fieldSupport !== false) fieldSupportCount++;
@@ -889,39 +937,93 @@ function renderRace(teams) {
           if(finite(stint.cliffAge)) cliffAges.push(stint.cliffAge);
         }
       }
-      const values=[...byEvent.values()].map(median).filter(finite);
-      const normValues=[...normByEvent.values()].map(median).filter(finite);
-      const compoundLaps = stints.reduce((sum, s) => sum + (s.samples || 8), 0);
-      if(values.length) {
-        summaries[compound]={
-          slope:avg(values),
-          normSlope:normValues.length ? avg(normValues) : null,
+
+      // Compute driver-weighted estimate for each event for this compound
+      for(const [ev, stints] of (eventCompStints.entries())) {
+        const cStints = stints.get(compound);
+        if(!cStints || !cStints.length) continue;
+        let wRawSum = 0, wRawVal = 0;
+        let wNormSum = 0, wNormVal = 0;
+        for(const s of cStints) {
+          const w = Math.min(s.samples || 10, 20);
+          wRawSum += w;
+          wRawVal += w * s.slope;
+          const rel = finite(s.relativeSlope) ? s.relativeSlope : s.field_normalized_slope;
+          if(finite(rel)) {
+            wNormSum += w;
+            wNormVal += w * rel;
+          }
+        }
+        if(wRawSum > 0) byEventRaw.set(ev, wRawVal / wRawSum);
+        if(wNormSum > 0) byEventNorm.set(ev, wNormVal / wNormSum);
+      }
+
+      const rawEvValues = [...byEventRaw.values()].filter(finite);
+      const normEvValues = [...byEventNorm.values()].filter(finite);
+      const compoundLaps = compStints.reduce((sum, s) => sum + (s.samples || 8), 0);
+
+      if(rawEvValues.length || normEvValues.length) {
+        summaries[compound] = {
+          slope: rawEvValues.length ? median(rawEvValues) : null,
+          normSlope: normEvValues.length ? median(normEvValues) : null,
           cliffCount,
           cliffAges,
-          events:[...byEvent.keys()],
-          stints:stints.length,
-          laps:compoundLaps,
-          minAge:minAgeObs < Infinity ? minAgeObs : null,
-          maxAge:maxAgeObs > -Infinity ? maxAgeObs : null,
-          fieldSupported: stints.length > 0 && (fieldSupportCount / stints.length >= 0.5)
+          events: [...byEventRaw.keys()],
+          stints: compStints.length,
+          laps: compoundLaps,
+          minAge: minAgeObs < Infinity ? minAgeObs : null,
+          maxAge: maxAgeObs > -Infinity ? maxAgeObs : null,
+          fieldSupported: compStints.length > 0 && (fieldSupportCount / compStints.length >= 0.5)
         };
       }
     }
-    const chosen=tyreView==='OVERALL'?['SOFT','MEDIUM','HARD'].map(c=>summaries[c]):[summaries[tyreView]];
-    const present=chosen.filter(Boolean);
-    const complete=tyreView==='OVERALL'?present.length>=1:chosen.every(Boolean);
-    const compNote=tyreView==='OVERALL'&&present.length<3?`(${present.length}/3 compounds)`:'';
 
-    const totalCompoundLaps = present.reduce((sum, c) => sum + (c.laps || 1), 0);
-    const weightedSlope = totalCompoundLaps > 0
-      ? present.reduce((sum, c) => sum + (c.slope * (c.laps || 1)), 0) / totalCompoundLaps
-      : null;
-    const normPresent = present.filter(c => finite(c.normSlope));
-    const totalNormLaps = normPresent.reduce((sum, c) => sum + (c.laps || 1), 0);
-    const weightedNormSlope = totalNormLaps > 0
-      ? normPresent.reduce((sum, c) => sum + (c.normSlope * (c.laps || 1)), 0) / totalNormLaps
-      : null;
+    // Now compute OVERALL or single compound score
+    let seasonSlope = null;
+    let seasonNormSlope = null;
+    let complete = false;
+    const present = tyreView === 'OVERALL'
+      ? ['SOFT', 'MEDIUM', 'HARD'].map(c => summaries[c]).filter(Boolean)
+      : [summaries[tyreView]].filter(Boolean);
 
+    if(tyreView === 'OVERALL') {
+      // Event-level score = robust median of supported compounds in that event
+      // Season score = robust median of event scores across the season
+      const eventNormScores = [];
+      const eventRawScores = [];
+      for(const [ev, compMap] of eventCompStints.entries()) {
+        const evNorms = [];
+        const evRaws = [];
+        for(const [comp, cStints] of compMap.entries()) {
+          if(!['SOFT', 'MEDIUM', 'HARD'].includes(comp)) continue;
+          let wRawSum = 0, wRawVal = 0;
+          let wNormSum = 0, wNormVal = 0;
+          for(const s of cStints) {
+            const w = Math.min(s.samples || 10, 20);
+            wRawSum += w;
+            wRawVal += w * s.slope;
+            const rel = finite(s.relativeSlope) ? s.relativeSlope : s.field_normalized_slope;
+            if(finite(rel)) {
+              wNormSum += w;
+              wNormVal += w * rel;
+            }
+          }
+          if(wRawSum > 0) evRaws.push(wRawVal / wRawSum);
+          if(wNormSum > 0) evNorms.push(wNormVal / wNormSum);
+        }
+        if(evRaws.length) eventRawScores.push(median(evRaws));
+        if(evNorms.length) eventNormScores.push(median(evNorms));
+      }
+      seasonSlope = eventRawScores.length ? median(eventRawScores) : null;
+      seasonNormSlope = eventNormScores.length ? median(eventNormScores) : null;
+      complete = present.length >= 1;
+    } else {
+      seasonSlope = summaries[tyreView]?.slope ?? null;
+      seasonNormSlope = summaries[tyreView]?.normSlope ?? null;
+      complete = Boolean(summaries[tyreView]);
+    }
+
+    const compNote = tyreView === 'OVERALL' && present.length < 3 ? `(${present.length}/3 compounds)` : '';
     const softLaps = summaries['SOFT']?.laps || 0;
     const medLaps = summaries['MEDIUM']?.laps || 0;
     const hardLaps = summaries['HARD']?.laps || 0;
@@ -937,20 +1039,22 @@ function renderRace(teams) {
     const minAgeOverall = Math.min(...present.map(c => c.minAge).filter(finite));
     const maxAgeOverall = Math.max(...present.map(c => c.maxAge).filter(finite));
     const cliffAgesAll = present.flatMap(c => c.cliffAges || []);
+    const totalCompoundLaps = present.reduce((sum, c) => sum + (c.laps || 0), 0);
 
     rows.push({
-      team:team.team,
-      label:teamLabel(team),
-      color:team.color,
-      slope:complete ? (tyreView === 'OVERALL' ? weightedSlope : present[0]?.slope) : null,
-      normSlope:present.some(c=>finite(c.normSlope)) ? (tyreView === 'OVERALL' ? weightedNormSlope : present[0]?.normSlope) : null,
-      cliffs:present.reduce((s,c)=>s+(c.cliffCount||0),0),
-      cliffAges:cliffAgesAll,
-      events:new Set(present.flatMap(c=>c.events)).size,
-      stints:present.reduce((s,c)=>s+c.stints,0),
-      laps:totalCompoundLaps,
-      minAge:finite(minAgeOverall) ? minAgeOverall : null,
-      maxAge:finite(maxAgeOverall) ? maxAgeOverall : null,
+      team: team.team,
+      label: teamLabel(team),
+      color: team.color,
+      slope: seasonSlope,
+      normSlope: seasonNormSlope,
+      cliffs: present.reduce((s, c) => s + (c.cliffCount || 0), 0),
+      cliffAges: cliffAgesAll,
+      events: new Set(present.flatMap(c => c.events)).size,
+      stints: present.reduce((s, c) => s + c.stints, 0),
+      laps: totalCompoundLaps,
+      minAge: finite(minAgeOverall) ? minAgeOverall : null,
+      maxAge: finite(maxAgeOverall) ? maxAgeOverall : null,
+      usedStartCount,
       fieldSupported: present.every(c => c.fieldSupported !== false),
       complete,
       compNote,
@@ -959,48 +1063,52 @@ function renderRace(teams) {
     });
   }
 
-  const ordered=sorted(rows,{
-    tyreTeam:r=>r.team,
-    tyreSlope:r=>r.slope,
-    tyreNorm:r=>r.normSlope,
-    tyreEvents:r=>r.events,
-    tyreStints:r=>r.stints,
-    tyreLaps:r=>r.laps
-  },'tyreSlope');
+  const ordered = sorted(rows, {
+    tyreTeam: r => r.team,
+    tyreNorm: r => r.normSlope,
+    tyreSlope: r => r.slope,
+    tyreEvents: r => r.events,
+    tyreStints: r => r.stints,
+    tyreLaps: r => r.laps
+  }, 'tyreNorm');
 
-  // SVG Horizontal Bar Graph for Tyre Degradation
-  const tyreChart = renderHorizontalBarChart(ordered.filter(r=>r.complete), {
-    title: `Tyre Degradation Slope · ${tyreView === 'OVERALL' ? 'All Compounds (Lap-Weighted)' : tyreView}`,
-    subtitle: 'Seconds lost per lap of tyre age · Weighted by total laps run · Lower slope indicates lower degradation',
-    valueKey: 'slope',
+  // SVG Horizontal Bar Graph for Field-Relative Tyre Degradation
+  const tyreChart = renderHorizontalBarChart(ordered.filter(r => r.complete && finite(r.normSlope)), {
+    title: `Field-Relative Degradation · ${tyreView === 'OVERALL' ? 'All Compounds (Equal Event Weight)' : tyreView}`,
+    subtitle: 'Seconds lost per lap relative to leave-one-team-out benchmark · Negative values indicate superior tyre preservation than peers · Lower is better',
+    valueKey: 'normSlope',
     unit: ' s/lap',
     digits: 3,
-    signedValue: false,
+    signedValue: true,
     zeroBaseline: true
   });
 
   return card('Tyre-age lap-time trend',
-    'Each compound averages its eligible circuit trends. Overall weights Soft, Medium and Hard by the exact percentage of race laps run on each compound, preventing short Soft stints from distorting full race stint longevity. Field-relative degradation isolates tyre degradation from fuel burn-off and rubber-in by calculating lap-by-lap pace delta against a leave-one-team-out field median (≥3 comparison cars). Cliff indications note tentative inflections (>0.3s above trend); no arbitrary 20-lap scaling is applied.',
-    controls+tyreChart+
+    'Field-relative degradation is the primary metric, isolating tyre degradation from fuel burn-off and rubber-in by calculating lap-by-lap pace delta against an age-matched leave-one-team-out benchmark (≥3 comparison cars). Equal event weighting prevents strategy-skewed races from dominating season rankings. Observed raw slope provides context without arbitrary fuel corrections. Stints starting on used tyres (age > 3) are tagged.',
+    controls + tyreChart +
     table([
-      sortHeader('tyreTeam','Team'),
-      sortHeader('tyreSlope','Observed slope'),
-      sortHeader('tyreNorm','Field-relative degradation'),
+      sortHeader('tyreTeam', 'Team'),
+      sortHeader('tyreNorm', 'Field-relative degradation'),
+      sortHeader('tyreSlope', 'Observed slope'),
       'Observed age range',
-      sortHeader('tyreStints','Sample (stints / laps)',-1),
+      sortHeader('tyreStints', 'Sample (stints / laps)', -1),
       'Field support',
       'Cliff indication'
-    ],ordered.map(r=>{
+    ], ordered.map(r => {
       const ageRange = (finite(r.minAge) && finite(r.maxAge)) ? `L${r.minAge}–L${r.maxAge} (${r.maxAge - r.minAge + 1} laps)` : '—';
-      const sampleText = `${r.stints} stint${r.stints===1?'':'s'} (${r.laps} laps)`;
+      const sampleText = `${r.stints} stint${r.stints === 1 ? '' : 's'} (${r.laps} laps)`;
       const supportBadge = r.fieldSupported ? '<span class="perf-tercile-badge is-fast">≥3 cars</span>' : '<span class="perf-tercile-badge is-mid">&lt;3 cars (provisional)</span>';
       const cliffBadge = r.cliffs > 0
-        ? `<span class="retirement-badge is-incident">⚠ Tentative cliff (${r.cliffAges.length ? `~L${r.cliffAges[0]}` : `${r.cliffs} stint${r.cliffs===1?'':'s'}`})</span>`
+        ? `<span class="retirement-badge is-incident">⚠ Tentative cliff (${r.cliffAges.length ? `~L${r.cliffAges[0]}` : `${r.cliffs} stint${r.cliffs === 1 ? '' : 's'}`})</span>`
         : `<span class="perf-tercile-badge is-fast">Stable (${r.laps} laps)</span>`;
+      const normText = finite(r.normSlope)
+        ? `${r.normSlope > 0 ? '+' : ''}${fmt(r.normSlope, 3, ' s/lap')}`
+        : '<small>Field benchmark pending</small>';
+      const slopeText = `${fmt(r.slope, 3, ' s/lap')}${r.usedStartCount > 0 ? ` <span class="perf-tercile-badge is-mid" title="${r.usedStartCount} stint(s) started on tyres with age > 3">${r.usedStartCount} used start</span>` : ''}${tyreView === 'OVERALL' && r.compoundBreakdown ? `<small>${escape(r.compoundBreakdown)}</small>` : r.compNote ? `<small>${escape(r.compNote)}</small>` : ''}`;
       return [
         r.label,
-        `${fmt(r.slope,3,' s/lap')}${!r.complete?'<small>No eligible stints</small>':tyreView==='OVERALL'&&r.compoundBreakdown?`<small>${escape(r.compoundBreakdown)}</small>`:r.compNote?`<small>${escape(r.compNote)}</small>`:''}`,
-        finite(r.normSlope) ? `${fmt(r.normSlope,3,' s/lap')}` : '<small>Field benchmark pending</small>',
+        normText,
+        slopeText,
         ageRange,
         sampleText,
         supportBadge,
@@ -1080,6 +1188,59 @@ function renderResults(teams) {
       ]))));
 }
 
+function huberRegression(rounds, paces) {
+  const n = rounds.length;
+  if (n < 2) return { slope: null, intercept: null };
+  const meanR = avg(rounds);
+  const meanP = avg(paces);
+  let num = 0, den = 0;
+  for (let i = 0; i < n; i++) {
+    num += (rounds[i] - meanR) * (paces[i] - meanP);
+    den += (rounds[i] - meanR) * (rounds[i] - meanR);
+  }
+  let b = den > 0 ? num / den : 0;
+  let a = meanP - b * meanR;
+
+  let res = paces.map((p, i) => p - (a + b * rounds[i]));
+  let medRes = median(res);
+  let mad = median(res.map(r => Math.abs(r - medRes)));
+  let s = 1.4826 * mad;
+  if (!finite(s) || s < 1e-6) return { slope: b, intercept: a };
+
+  const c = 1.345;
+  for (let iter = 0; iter < 50; iter++) {
+    let wSum = 0, wXSum = 0, wYSum = 0;
+    const weights = [];
+    for (let i = 0; i < n; i++) {
+      const u = Math.abs(res[i]) / s;
+      const w = u <= c ? 1.0 : c / u;
+      weights.push(w);
+      wSum += w;
+      wXSum += w * rounds[i];
+      wYSum += w * paces[i];
+    }
+    if (wSum <= 0) break;
+    const wXMean = wXSum / wSum;
+    const wYMean = wYSum / wSum;
+    let wNum = 0, wDen = 0;
+    for (let i = 0; i < n; i++) {
+      wNum += weights[i] * (rounds[i] - wXMean) * (paces[i] - wYMean);
+      wDen += weights[i] * (rounds[i] - wXMean) * (rounds[i] - wXMean);
+    }
+    const bNew = wDen > 0 ? wNum / wDen : b;
+    const aNew = wYMean - bNew * wXMean;
+    if (Math.abs(bNew - b) < 1e-6) {
+      b = bNew; a = aNew;
+      break;
+    }
+    b = bNew; a = aNew;
+    res = paces.map((p, i) => p - (a + b * rounds[i]));
+    const newMad = median(res.map(r => Math.abs(r)));
+    s = Math.max(1e-6, 1.4826 * newMad);
+  }
+  return { slope: b, intercept: a };
+}
+
 function renderTrend(teams) {
   if (!context?.season) {
     return card('Performance trend', 'Season progression requires multi-event data.',
@@ -1090,70 +1251,71 @@ function renderTrend(teams) {
         <p style="margin-top: 10px; color: var(--text-secondary);">To view season performance trends, set <strong>Scope</strong> to <strong>Season to date</strong> or select multiple tracks in the tray above.</p>
       </div>`);
   }
-  const trendRows=teams.map(t=>{
-    const valid=t.q.filter(q=>finite(q.pace));
-    let first=null, last=null, label='';
+  const trendRows = teams.map(t => {
+    const valid = t.q.filter(q => finite(q.pace));
+    let first = null, last = null, label = '';
     let slopePerRound = null;
+    let modelledShift = null;
     const n = valid.length;
-    if(n >= 2) {
-      const meanR = avg(valid.map(q => q.round));
-      const meanP = avg(valid.map(q => q.pace));
-      let num = 0, den = 0;
-      for (const q of valid) {
-        num += (q.round - meanR) * (q.pace - meanP);
-        den += (q.round - meanR) * (q.round - meanR);
-      }
-      slopePerRound = den > 0 ? (num / den) : 0;
+
+    if (n >= 2) {
+      const k = n >= 4 ? Math.max(2, Math.min(6, Math.floor(n / 4))) : 1;
+      first = median(valid.slice(0, k).map(q => q.pace));
+      last = median(valid.slice(-k).map(q => q.pace));
+      label = n >= 4 ? `Median first ${k} → last ${k}` : `R${valid[0].round} → R${valid.at(-1).round}`;
+
+      const h = huberRegression(valid.map(q => q.round), valid.map(q => q.pace));
+      slopePerRound = h.slope;
+      const roundSpan = valid.at(-1).round - valid[0].round;
+      modelledShift = finite(slopePerRound) ? slopePerRound * roundSpan : null;
     }
 
-    if(valid.length>=6) {
-      first=avg(valid.slice(0,3).map(q=>q.pace));
-      last=avg(valid.slice(-3).map(q=>q.pace));
-      label='First 3 → last 3';
-    } else if(valid.length>=2) {
-      first=valid[0].pace;
-      last=valid.at(-1).pace;
-      label=`R${valid[0].round} → R${valid.at(-1).round}`;
-    }
-    const change=(finite(first)&&finite(last))?last-first:null;
+    const change = (finite(first) && finite(last)) ? last - first : null;
     const sampleTier = n >= 15 ? 'Robust (≥15 events)' : n >= 10 ? 'Provisional (10–14 events)' : 'Raw (<10 events)';
     const sampleTierClass = n >= 15 ? 'is-fast' : n >= 10 ? 'is-mid' : 'is-slow';
-    return {team:t,valid,first,last,change,slopePerRound,sampleTier,sampleTierClass,label,count:n};
+    return { team: t, valid, first, last, change, modelledShift, slopePerRound, sampleTier, sampleTierClass, label, count: n };
   });
-  const ordered=sorted(trendRows,{
-    trendTeam:r=>r.team.team,
-    trendFirst:r=>r.first,
-    trendLast:r=>r.last,
-    trendChange:r=>r.change,
-    trendSlope:r=>r.slopePerRound,
-    trendCount:r=>r.count
-  },'trendChange');
+
+  const ordered = sorted(trendRows, {
+    trendTeam: r => r.team.team,
+    trendFirst: r => r.first,
+    trendLast: r => r.last,
+    trendChange: r => r.change,
+    trendModelled: r => r.modelledShift,
+    trendSlope: r => r.slopePerRound,
+    trendCount: r => r.count
+  }, 'trendSlope');
 
   return card('Performance trend',
-    'Qualifying pace deficit across championship rounds. Evaluates relative competitive trajectory; does not infer specific upgrade package gains, driver evolution, or engine modes. Track mix and weather conditions remain natural confounders across rounds.',
+    'Qualifying pace deficit across championship rounds. Progression rate and modelled season shift are estimated using robust Huber regression, downweighting outliers without artificially forcing agreement with endpoint medians. Descriptive opening-to-closing medians provide observed context.',
     table([
-      sortHeader('trendTeam','Team'),
+      sortHeader('trendTeam', 'Team'),
       'Event-by-event deficit',
-      sortHeader('trendFirst','Initial → latest'),
-      sortHeader('trendChange','Overall shift'),
-      sortHeader('trendSlope','Progression rate'),
+      sortHeader('trendFirst', 'Opening → latest (median)'),
+      sortHeader('trendChange', 'Observed shift'),
+      sortHeader('trendModelled', 'Modelled shift'),
+      sortHeader('trendSlope', 'Progression rate'),
       'Sample tier'
-    ],ordered.map(row=>{
-      const t=row.team,valid=row.valid,first=row.first,last=row.last;
-      const enough=valid.length>=2;
-      const ceiling=Math.max(1,...teams.flatMap(t=>t.q.map(q=>q.pace).filter(finite)));
+    ], ordered.map(row => {
+      const t = row.team, valid = row.valid, first = row.first, last = row.last;
+      const enough = valid.length >= 2;
+      const ceiling = Math.max(1, ...teams.flatMap(t => t.q.map(q => q.pace).filter(finite)));
       const rateText = enough && finite(row.slopePerRound)
         ? `${row.slopePerRound > 0 ? '+' : ''}${fmt(row.slopePerRound, 3, '% / round')}`
         : '—';
+      const modelledText = enough && finite(row.modelledShift)
+        ? `${row.modelledShift > 0 ? '+' : ''}${fmt(row.modelledShift, 3, ' pp')}`
+        : '—';
       return [
         teamLabel(t),
-        `<div class="performance-trend" style="--team-color:${color(t.color)}">${t.q.map(q=>`<span style="height:${finite(q.pace)?Math.max(6,q.pace/ceiling*100):0}%;${finite(q.pace)?'':'background:transparent'}" title="R${q.round} ${escape(q.event)}: ${fmt(q.pace,3,'%')}" aria-label="R${q.round}: ${fmt(q.pace,3,'%')}"></span>`).join('')}</div><div class="performance-trend-label"><span>R${t.q[0]?.round??'—'}</span><span>R${t.q.at(-1)?.round??'—'}</span></div>`,
-        enough?`${fmt(first,3,'%')} → ${fmt(last,3,'%')}<small>${escape(row.label)}</small>`:'Needs ≥ 2 events',
-        enough&&finite(row.change)?`${row.change>0?'+':''}${fmt(row.change,3,' pp')}`:'—',
+        `<div class="performance-trend" style="--team-color:${color(t.color)}">${t.q.map(q => `<span style="height:${finite(q.pace) ? Math.max(6, q.pace / ceiling * 100) : 0}%;${finite(q.pace) ? '' : 'background:transparent'}" title="R${q.round} ${escape(q.event)}: ${fmt(q.pace, 3, '%')}" aria-label="R${q.round}: ${fmt(q.pace, 3, '%')}"></span>`).join('')}</div><div class="performance-trend-label"><span>R${t.q[0]?.round ?? '—'}</span><span>R${t.q.at(-1)?.round ?? '—'}</span></div>`,
+        enough ? `${fmt(first, 3, '%')} → ${fmt(last, 3, '%')}<small>${escape(row.label)}</small>` : 'Needs ≥ 2 events',
+        enough && finite(row.change) ? `${row.change > 0 ? '+' : ''}${fmt(row.change, 3, ' pp')}` : '—',
+        modelledText,
         rateText,
         `<span class="perf-tercile-badge ${row.sampleTierClass}">${escape(row.sampleTier)}</span>`
       ];
-    })))+card('FIA updates',
+    }))) + card('FIA updates',
       'Upgrade components submitted to the FIA before each event. Upgrade counts are not weighted by importance, and a before/after pace change cannot establish causation.',
       '<p><a href="https://www.fia.com/documents" target="_blank" rel="noopener" class="perf-link">Open FIA event documents ↗</a></p><p class="performance-note">Component counts from Car Presentation Submissions are not weighted by competitive impact, and public lap times cannot isolate aerodynamic package gains from setup or driver variation. No synthetic upgrade gains are inferred.</p>');
 }

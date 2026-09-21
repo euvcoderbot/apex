@@ -1319,6 +1319,24 @@ def car_performance(response: Response, year: int = Query(..., ge=2018, le=2100)
     return result
 
 
+@app.post("/api/performance/development")
+async def car_development_progression(request: Request, response: Response):
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        from performance import compute_development_progression
+        payload = await request.json()
+        teams = payload.get('teams', [])
+        results = {}
+        for team_data in teams:
+            team_name = team_data.get('team')
+            rounds = team_data.get('rounds', [])
+            results[team_name] = compute_development_progression(rounds)
+        return {'results': results}
+    except Exception as exc:
+        logger.warning('Development progression calculation failed: %s', exc)
+        raise HTTPException(422, f'Development progression calculation failed: {exc}') from exc
+
+
 @app.get('/api/performance/trace')
 def car_performance_trace(response: Response, year: int = Query(..., ge=2018, le=2100),
                           gp: str = Query(..., min_length=3, max_length=120),

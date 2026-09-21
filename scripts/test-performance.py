@@ -141,6 +141,31 @@ class PerformanceTests(unittest.TestCase):
         gaps_vetoed = traffic_gaps(lapped_crossings, leader_abbr='VER')
         self.assertAlmostEqual(gaps_vetoed[('VER', 11)], 1.2)
 
+    def test_used_start_and_low_sample_separation(self):
+        # 15 laps with starting tyre age 10: low_sample must be False, used_start must be True
+        rows = [lap('A', 'Alpha', time=90 + i * 0.05, lap=i + 3, age=i + 10, stint=1) for i in range(15)]
+        clear = {(r['driver'], r['lap']): 10.0 for r in rows}
+        with patch('performance.records', return_value=rows), patch('performance.traffic_gaps', return_value=clear):
+            res = analyze(RaceSession())
+        stint = res['teams'][0]['degradation'][0]
+        self.assertFalse(stint['low_sample'])
+        self.assertTrue(stint['used_start'])
+        self.assertEqual(stint['samples'], 15)
+        self.assertEqual(stint['age_span'], 14)
+
+    def test_development_progression_huber(self):
+        from performance import compute_development_progression
+        # Linear progression with one extreme outlier
+        rounds_data = [{'round': r, 'deficit': 0.50 - 0.01 * (r - 1)} for r in range(1, 21)]
+        # Add extreme outlier at round 15
+        rounds_data[14]['deficit'] = 1.80
+        res = compute_development_progression(rounds_data)
+        # Huber progression rate should be close to -0.010
+        self.assertAlmostEqual(res['progression_rate'], -0.010, places=2)
+        self.assertEqual(res['sample_tier'], 'robust')
+        # Modelled shift must equal progression_rate * (20 - 1) = -0.190
+        self.assertAlmostEqual(res['modelled_shift'], round(res['progression_rate'] * 19.0, 3))
+
 
 if __name__=='__main__':
     unittest.main()
