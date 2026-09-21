@@ -851,6 +851,18 @@ function renderRace(teams) {
       ? normPresent.reduce((sum, c) => sum + (c.normSlope * (c.laps || 1)), 0) / totalNormLaps
       : null;
 
+    const softLaps = summaries['SOFT']?.laps || 0;
+    const medLaps = summaries['MEDIUM']?.laps || 0;
+    const hardLaps = summaries['HARD']?.laps || 0;
+    const totalDryLaps = softLaps + medLaps + hardLaps;
+    const compoundBreakdown = totalDryLaps > 0
+      ? [
+          softLaps > 0 ? `S: ${Math.round((softLaps / totalDryLaps) * 100)}%` : null,
+          medLaps > 0 ? `M: ${Math.round((medLaps / totalDryLaps) * 100)}%` : null,
+          hardLaps > 0 ? `H: ${Math.round((hardLaps / totalDryLaps) * 100)}%` : null
+        ].filter(Boolean).join(' · ')
+      : '';
+
     rows.push({
       team:team.team,
       label:teamLabel(team),
@@ -861,7 +873,9 @@ function renderRace(teams) {
       events:new Set(present.flatMap(c=>c.events)).size,
       stints:present.reduce((s,c)=>s+c.stints,0),
       complete,
-      compNote
+      compNote,
+      compoundBreakdown,
+      totalDryLaps
     });
   }
 
@@ -879,7 +893,7 @@ function renderRace(teams) {
   });
 
   return card('Tyre-age lap-time trend',
-    'Each compound averages its eligible circuit trends. Overall gives soft, medium and hard equal weight across available dry stints. Observed slope includes fuel burn-off and track evolution; Field-Normalized Degradation isolates true degradation by subtracting the same-compound field pace on each lap.',
+    'Each compound averages its eligible circuit trends. Overall weights Soft, Medium and Hard by the exact percentage of race laps run on each compound, preventing short Soft stints from distorting full race stint longevity. Observed slope includes fuel burn-off and track evolution; Field-Normalized Degradation isolates true degradation by subtracting the same-compound field pace on each lap.',
     controls+tyreChart+
     table([
       sortHeader('tyreTeam','Team'),
@@ -890,7 +904,7 @@ function renderRace(teams) {
       sortHeader('tyreStints','Stints',-1)
     ],ordered.map(r=>[
       r.label,
-      `${fmt(r.slope,3,' s/lap')}${!r.complete?'<small>No eligible stints</small>':r.compNote?`<small>${escape(r.compNote)}</small>`:''}`,
+      `${fmt(r.slope,3,' s/lap')}${!r.complete?'<small>No eligible stints</small>':tyreView==='OVERALL'&&r.compoundBreakdown?`<small>${escape(r.compoundBreakdown)} laps</small>`:r.compNote?`<small>${escape(r.compNote)}</small>`:''}`,
       finite(r.normSlope) ? `${fmt(r.normSlope,3,' s/lap')}` : '<small>Field benchmark pending</small>',
       r.cliffs > 0 ? `<span class="retirement-badge is-incident">⚠ Cliff in ${r.cliffs} stint${r.cliffs===1?'':'s'}</span>` : '<span class="perf-tercile-badge is-fast">Stable</span>',
       r.events,
