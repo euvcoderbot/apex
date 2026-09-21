@@ -769,92 +769,11 @@ def analyze(data, traffic=2):
 
         lap_st_times = defaultdict(list)
         lap_fl_times = defaultdict(list)
-        lap_comp_team_times = defaultdict(lambda: defaultdict(list))
-        for r in valid_all:
-            if r.get('compound') and r.get('lap') and r.get('time') and r.get('team'):
-                lap_comp_team_times[(r['lap'], r['compound'])][r['team']].append((r['time'], r.get('age', 0) or 0))
-            if r.get('lap') and r.get('speed_st'):
-                lap_st_times[r['lap']].append(r['speed_st'])
-            if r.get('lap') and r.get('speed_fl'):
-                lap_fl_times[r['lap']].append(r['speed_fl'])
-
-        # Leave-one-team-out race-lap-controlled field age model:
-        # T = alpha_lap + gamma_team + beta_1 * Age + beta_2 * Age^2
-        def fit_field_age_model_for_compound(comp, exclude_team):
-            laps = [r for r in valid_all if r.get('compound') == comp and r.get('team') != exclude_team and r.get('age') is not None and r.get('time') is not None]
-            if len(laps) < 15:
-                return 0.0, 0.0, False
-            c_teams = sorted(list({r['team'] for r in laps}))
-            if len(c_teams) < 2:
-                return 0.0, 0.0, False
-            c_ages = [r['age'] for r in laps]
-            if max(c_ages) - min(c_ages) < 6:
-                return 0.0, 0.0, False
-            race_laps = sorted(list({r['lap'] for r in laps}))
-            N = len(laps)
-            P = len(race_laps) + len(c_teams) - 1 + 2
-            if N < P + 5:
-                return 0.0, 0.0, False
-            lap_idx = {lap: i for i, lap in enumerate(race_laps)}
-            team_idx = {tm: i for i, tm in enumerate(c_teams[1:])}
-            X = np.zeros((N, P))
-            y = np.zeros(N)
-            for i, r in enumerate(laps):
-                X[i, lap_idx[r['lap']]] = 1.0
-                if r['team'] in team_idx:
-                    X[i, len(race_laps) + team_idx[r['team']]] = 1.0
-                age = r['age']
-                X[i, -2] = age
-                X[i, -1] = (age ** 2) / 100.0
-                y[i] = r['time']
-            try:
-                sol, _, rank, _ = np.linalg.lstsq(X, y, rcond=1e-5)
-                if rank < P - 2:
-                    return 0.0, 0.0, False
-                b1 = sol[-2]
-                b2 = sol[-1] / 100.0
-                if b1 < -0.10 or b1 > 0.35:
-                    return 0.0, 0.0, False
-                return float(b1), float(b2), True
-            except Exception:
-                return 0.0, 0.0, False
-
-        team_comp_age_models = {}
-
-        # Leave-one-team-out benchmark function with age matching and model fallback
-        def leave_one_out_median(lap, compound, exclude_team, target_age=None):
-            team_map = lap_comp_team_times.get((lap, compound), {})
-            other_entries = [(t, a) for tm, t_list in team_map.items() if tm != exclude_team for (t, a) in t_list]
-            if not other_entries:
-                return None, 0
-
-            # 1. Primary: exact age-matched comparison (|age - target_age| <= 3 laps)
-            if target_age is not None:
-                matched = [t for (t, a) in other_entries if abs(a - target_age) <= 3]
-                if len(matched) >= 3:
-                    return float(median(matched)), len(matched)
-
-                # 2. Secondary: age-standardized comparison using race-lap-controlled field age model
-                cache_key = (exclude_team, compound)
-                if cache_key not in team_comp_age_models:
-                    team_comp_age_models[cache_key] = fit_field_age_model_for_compound(compound, exclude_team)
-                b1, b2, model_trusted = team_comp_age_models[cache_key]
-
-                if model_trusted:
-                    f_target = b1 * target_age + b2 * (target_age ** 2)
-                    adjusted = [t + f_target - (b1 * a + b2 * (a ** 2))
-                                for (t, a) in other_entries if abs(a - target_age) <= 12]
-                    if len(adjusted) >= 3:
-                        return float(median(adjusted)), len(adjusted)
-
-                # 3. No trustworthy benchmark: return None to omit incomparable tyre ages
-                return None, 0
-
-            # Fallback if no target age specified
-            all_times = [t for (t, a) in other_entries]
-            if len(all_times) >= 3:
-                return float(median(all_times)), len(all_times)
-            return None, 0
+        stint_physical_min_age = {}
+        for r in rows:
+            key = (r.get('driver'), r.get('stint'))
+            if r.get('age') is not None:
+                stint_physical_min_age[key] = min(stint_physical_min_age.get(key, 999), r['age'])
 
         lap_st_benchmark = {lap: float(median(vals)) for lap, vals in lap_st_times.items() if len(vals) >= 2}
         lap_fl_benchmark = {lap: float(median(vals)) for lap, vals in lap_fl_times.items() if len(vals) >= 2}
@@ -979,35 +898,29 @@ def analyze(data, traffic=2):
             team['speed_trap'] = team['race_speed_trap_matched']
             team['speed_fl'] = team['race_speed_fl_matched']
 
-            # Leave-one-team-out relative tyre degradation
-            stints = defaultdict(list)
-            stint_relative = defaultdict(list)
-            stint_supports = defaultdict(list)
+            # Stint tyre degradation: measure slope of lap time vs tyre age across clean stint laps
+            stint_laps_map = defaultdict(list)
             for r in clean_laps:
                 if r.get('age') is not None and r.get('time') is not None and r.get('compound'):
-                    key = (r['driver'], r['stint'], r['compound'])
-                    stints[key].append((r['age'], r['time']))
-                    bm, support_count = leave_one_out_median(r['lap'], r['compound'], name, target_age=r['age'])
-                    if bm is not None:
-                        stint_relative[key].append((r['age'], r['time'] - bm))
-                        stint_supports[key].append(support_count)
+                    stint_laps_map[(r['driver'], r['stint'], r['compound'])].append(r)
 
+            total_race_laps = max((r['lap'] for r in rows if r.get('lap')), default=0)
             degradation_list = []
-            for key, points in stints.items():
+            for key, laps in stint_laps_map.items():
+                s_times = [r['time'] for r in laps]
+                s_med = float(median(s_times)) if s_times else 0.0
+                filtered = [r for r in laps if r['time'] - s_med <= 1.8 and not (r.get('lap') and r['lap'] >= total_race_laps - 1 and r['time'] - s_med > 0.8)]
+                points = [(r['age'], r['time']) for r in filtered]
                 s_val = slope(points)
                 if s_val is None:
                     continue
-                rel_pts = stint_relative.get(key, [])
-                rel_slope = slope(rel_pts) if len(rel_pts) >= 4 else None
-                supports = stint_supports.get(key, [])
-                median_support = int(median(supports)) if supports else 0
-
                 ages = [p[0] for p in points]
                 min_age = int(min(ages))
                 max_age = int(max(ages))
                 age_span = max_age - min_age
                 is_low_sample = len(points) < 8 or age_span < 6
-                is_used_start = min_age > 3
+                phys_min = stint_physical_min_age.get((key[0], key[1]), min_age)
+                is_used_start = phys_min > 3 or min_age > 6
 
                 cliff_detected = False
                 cliff_age = None
@@ -1020,19 +933,42 @@ def analyze(data, traffic=2):
                         cliff_age = points[mid][0]
 
                 degradation_list.append({
+                    'team': name,
                     'driver': key[0], 'stint': key[1], 'compound': key[2],
                     'slope': s_val,
-                    'relative_slope': rel_slope,
-                    'field_normalized_slope': rel_slope,
+                    'relative_slope': None,
+                    'field_normalized_slope': None,
                     'min_age': min_age, 'max_age': max_age, 'age_span': age_span,
                     'samples': len(points),
-                    'field_support': median_support,
+                    'field_support': 1,
                     'low_sample': is_low_sample,
                     'used_start': is_used_start,
                     'cliff_detected': cliff_detected,
                     'cliff_age': cliff_age
                 })
             team['degradation'] = degradation_list
+
+        # Compute leave-one-team-out relative tyre degradation for each stint
+        all_event_stints = [s for team in teams.values() for s in team.get('degradation', [])]
+        for s in all_event_stints:
+            comp = s['compound']
+            tm = s.get('team')
+            other_valid = [x['slope'] for x in all_event_stints if x['compound'] == comp and x.get('team') != tm and not x['low_sample'] and not x['used_start']]
+            if other_valid:
+                ref = float(median(other_valid))
+                s['relative_slope'] = s['slope'] - ref
+                s['field_support'] = len(other_valid)
+            else:
+                other_any = [x['slope'] for x in all_event_stints if x['compound'] == comp and x.get('team') != tm and not x['low_sample']]
+                if other_any:
+                    s['relative_slope'] = s['slope'] - float(median(other_any))
+                    s['field_support'] = len(other_any)
+                else:
+                    s['relative_slope'] = 0.0
+                    s['field_support'] = 0
+            s['field_normalized_slope'] = s['relative_slope']
+        for s in all_event_stints:
+            s.pop('team', None)
 
     return {'event': str(getattr(getattr(data, 'event', {}), 'get', lambda k, d='': getattr(data, 'event', {}).get(k, d))('EventName') or getattr(data, 'name', '')),
             'session': data.name,

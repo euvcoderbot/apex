@@ -902,9 +902,10 @@ function renderRace(teams) {
   const controls=`<div class="performance-tyre-options" role="group" aria-label="Tyre compound">${choices.map(c=>`<button type="button" data-performance-tyre="${c}" aria-pressed="${tyreView===c}">${['SOFT','MEDIUM','HARD'].includes(c)?`<img src="assets/tyres/official/${c.toLowerCase()}.png" alt="" width="20" height="20">`:''}<span class="tyre-opt-label">${c==='OVERALL'?'Overall · S/M/H':c.charAt(0)+c.slice(1).toLowerCase()}</span></button>`).join('')}</div>`;
 
   for(const team of teams) {
-    // Filter out low sample stints from longevity headline averages
-    const validStints = (team.stints || []).filter(s => finite(s.slope) && !s.lowSample && !s.low_sample);
-    const usedStartCount = validStints.filter(s => s.usedStart).length;
+    // Filter out low sample and used-start stints from longevity headline averages
+    const freshStints = (team.stints || []).filter(s => finite(s.slope) && !s.lowSample && !s.low_sample && !s.usedStart && !s.used_start);
+    const validStints = freshStints.length > 0 ? freshStints : (team.stints || []).filter(s => finite(s.slope) && !s.lowSample && !s.low_sample);
+    const usedStartCount = (team.stints || []).filter(s => s.usedStart || s.used_start).length;
 
     // Group valid stints by event and compound for hierarchical aggregation
     // Hierarchy: Driver-level aggregation with capped weight min(samples, 20)
