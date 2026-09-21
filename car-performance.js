@@ -263,7 +263,7 @@ function renderHorizontalBarChart(rows, {
     const val = r._chartVal;
     const clr = color(r[colorKey]);
 
-    const barWidth = Math.min(100, Math.max(val > 0.00001 ? 1.5 : 0, ((val - lo) / span) * 100));
+    const barWidth = Math.min(100, Math.max(val > 0.00001 ? 2 : 0, ((val - lo) / span) * 100));
     const displayStr = signedValue
       ? (val <= 0.00001 ? fmt(0, digits, unit) : `+${fmt(val, digits, unit)}`)
       : fmt(val, digits, unit);
@@ -276,7 +276,7 @@ function renderHorizontalBarChart(rows, {
       <div class="performance-bar-row" title="${rowTitle}: ${displayStr}">
         <div class="performance-bar-label">${teamLabel(r)}</div>
         <div class="performance-bar-track">
-          <i class="performance-bar" style="left:0;width:${barWidth.toFixed(2)}%;background:${clr}"></i>
+          <i class="performance-bar" style="--bar-color:${clr};left:0;width:${barWidth.toFixed(2)}%;"></i>
         </div>
         <span class="performance-bar-val ${gainClass}">${displayStr}</span>
       </div>
@@ -289,7 +289,7 @@ function renderHorizontalBarChart(rows, {
       <div class="perf-chart-header">
         <div class="perf-chart-title-group">
           <h4 class="perf-chart-heading">${escape(title)}</h4>
-          ${subtitle ? `<span class="performance-note perf-chart-sub">${escape(subtitle)}</span>` : ''}
+          ${subtitle ? `<span class="perf-chart-sub">${escape(subtitle)}</span>` : ''}
         </div>
       </div>` : ''}
       <div class="performance-bars">
@@ -313,17 +313,22 @@ function lapShareChart(rows, key, reference) {
   const hi = Math.max(0.01, ...available.map(r => r._rebased));
 
   return `<div class="performance-chart-card">
-    <p class="performance-note">Baseline (0.00%): <strong>${escape(bestTeam)}</strong> · time deficit expressed as % of reference lap. Lower deficit is faster.</p>
+    <div class="perf-chart-header">
+      <div class="perf-chart-title-group">
+        <h4 class="perf-chart-heading">Cornering Time Deficit (% of Lap)</h4>
+        <span class="perf-chart-sub">Baseline (0.00%): <strong>${escape(bestTeam)}</strong> · Lower deficit is faster</span>
+      </div>
+    </div>
     <div class="performance-bars">
       ${available.map(r => {
         const val = r._rebased;
-        const barWidth = Math.min(100, Math.max(val > 0.0001 ? 1.5 : 0, (val / hi) * 100));
+        const barWidth = Math.min(100, Math.max(val > 0.0001 ? 2 : 0, (val / hi) * 100));
         const displayStr = val <= 0.0001 ? '0.00%' : `+${val.toFixed(2)}%`;
         const gainClass = val <= 0.0001 ? 'is-gain' : 'is-loss';
         return `<div class="performance-bar-row" title="${escape(r.team)}: ${displayStr}">
           <div class="performance-bar-label">${teamLabel(r)}</div>
           <div class="performance-bar-track">
-            <i class="performance-bar" style="left:0;width:${barWidth.toFixed(2)}%;background:${color(r.color)}"></i>
+            <i class="performance-bar" style="--bar-color:${color(r.color)};left:0;width:${barWidth.toFixed(2)}%;"></i>
           </div>
           <span class="performance-bar-val ${gainClass}">${displayStr}</span>
         </div>`;
