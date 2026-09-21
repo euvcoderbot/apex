@@ -73,14 +73,21 @@ def records(data):
 
 
 def traffic_gaps(rows, leader_abbr=None):
-    """Multi-checkpoint timing-line gap proxy with physical proximity veto & leader clean air logic.
+    """Multi-checkpoint timing-line physical gap measurement comparing all on-track cars.
 
-    Checks start line, sector 1, sector 2, and end line crossings across all on-track cars.
-    If an unlapped or lapped car is within < 2.0s physically ahead at ANY checkpoint,
-    physical proximity vetoes clean air.
+    Checks start line, sector 1, sector 2, and end line crossings across all on-track cars (both lead lap and lapped).
+    Identifies the closest physical car ahead on track at each checkpoint. If ANY physical car is within
+    < 2.0s ahead at ANY physical checkpoint, physical proximity vetoes clean air.
     """
     from bisect import bisect_left
-    crossings = sorted((r['end'], r['driver']) for r in rows if r.get('end') is not None)
+    line_crossings = set()
+    for r in rows:
+        d = r.get('driver')
+        if r.get('end') is not None:
+            line_crossings.add((r['end'], d))
+        if r.get('start') is not None:
+            line_crossings.add((r['start'], d))
+    crossings = sorted(line_crossings)
     times = [x[0] for x in crossings]
 
     # Sector checkpoints for physical proximity verification throughout the lap
@@ -104,7 +111,7 @@ def traffic_gaps(rows, leader_abbr=None):
         values = []
         is_leader = bool(leader_abbr and row.get('driver') == leader_abbr)
 
-        # 1. Start and finish line crossings
+        # 1. Start and finish line crossings (compares against every physical car crossing the line)
         for stamp in (row.get('start'), row.get('end')):
             if stamp is None:
                 break
@@ -125,7 +132,7 @@ def traffic_gaps(rows, leader_abbr=None):
                 break
             values.append(gap)
 
-        # 2. Sector 1 & 2 checkpoints for physical proximity veto
+        # 2. Sector 1 & 2 checkpoints for physical proximity veto across all on-track cars
         st = row.get('start')
         sec = row.get('sectors') or []
         if len(values) == 2 and st is not None and len(sec) >= 2:
@@ -138,6 +145,10 @@ def traffic_gaps(rows, leader_abbr=None):
                     s1_gap = s1_stamp - s1_times[i]
                     if 0 < s1_gap < 60:
                         values.append(s1_gap)
+                    elif is_leader and s1_gap >= 60:
+                        values.append(999.0)
+                elif is_leader:
+                    values.append(999.0)
             if len(sec) >= 2 and sec[0] is not None and sec[1] is not None and s2_times:
                 s2_stamp = st + sec[0] + sec[1]
                 i = bisect_left(s2_times, s2_stamp) - 1
@@ -147,13 +158,17 @@ def traffic_gaps(rows, leader_abbr=None):
                     s2_gap = s2_stamp - s2_times[i]
                     if 0 < s2_gap < 60:
                         values.append(s2_gap)
+                    elif is_leader and s2_gap >= 60:
+                        values.append(999.0)
+                elif is_leader:
+                    values.append(999.0)
 
         gaps[(row['driver'], row['lap'])] = min(values) if len(values) >= 2 else None
     return gaps
 
 
 def compute_lap_traffic(rows, intervals=None, leader_abbr=None):
-    """Whole-lap time-weighted traffic evaluation with leader/null handling & physical proximity veto."""
+    """Whole-lap time-weighted traffic evaluation with physical proximity veto & leader/null handling."""
     timing_gaps = traffic_gaps(rows, leader_abbr=leader_abbr)
     lap_traffic = {}
     for r in rows:
@@ -169,8 +184,14 @@ def compute_lap_traffic(rows, intervals=None, leader_abbr=None):
                 dt = float(item.get('duration', 1.0))
                 if gap_val is None:
                     if leader_abbr and r.get('driver') == leader_abbr:
-                        obs_gaps.append(999.0)
-                        weights.append(dt)
+                        # If leader is approaching a lapped car physically within < 2.0s at a checkpoint,
+                        # do not treat the interval as infinite clean air
+                        if t_gap is not None and t_gap < 2.0:
+                            obs_gaps.append(t_gap)
+                            weights.append(dt)
+                        else:
+                            obs_gaps.append(999.0)
+                            weights.append(dt)
                     continue
                 if isinstance(gap_val, str) and (gap_val.startswith('+') or 'LAP' in gap_val):
                     obs_gaps.append(0.5)
@@ -198,7 +219,8 @@ def compute_lap_traffic(rows, intervals=None, leader_abbr=None):
                         break
                 exposure_20 = sum(w for g, w in zip(obs_gaps, weights) if g < 2.0) / max(0.001, total_duration)
 
-                # Physical proximity veto
+                # Physical proximity veto: if any physical car (lead lap or lapped) crossed within < 2.0s
+                # at ANY physical checkpoint, clean air is vetoed
                 effective_gap = min(p10_gap, t_gap) if t_gap is not None and t_gap < 2.0 else p10_gap
 
                 lap_traffic[key] = {

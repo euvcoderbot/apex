@@ -165,6 +165,7 @@ function computeBrakingPerformance(teams) {
       zones,
       normalizedDecel: normDecel,
       samplingResolution: resM,
+      onsetBracket: t.onsetBracket || (t.onset_bracket || null),
       timeDelta: round(timeDelta, 3),
       distDelta: finite(t.distDelta) ? t.distDelta : (dist - bestDist)
     };
@@ -1218,6 +1219,7 @@ function eventTelemetry(event) {
     row.normalizedDecel = effectiveZones.length ? (median(effectiveZones.map(z => z.normalized_decel_g).filter(finite)) || row.brakeMeanG) : row.brakeMeanG;
     row.brakeTimeDelta = effectiveZones.length ? (median(effectiveZones.map(z => z.time_delta).filter(finite)) || 0) : 0;
     row.samplingResolution = effectiveZones.length ? (median(effectiveZones.map(z => z.sampling_resolution_m).filter(finite)) || 18.5) : 18.5;
+    row.onsetBracket = effectiveZones.find(z => z.onset_bracket)?.onset_bracket || null;
     row.brakeZones = effectiveZones.length;
   }
   return {rows,groups,entrants};
@@ -1451,7 +1453,7 @@ function renderTrace() {
             fmt(t.finishLineSpeed, 1, ' km/h'),
             t.events
           ]))+
-          '<p class="performance-note">Race speed traps combine low-drag aerodynamics with Straight Mode actuation and electrical energy recovery deployment. Lap-matching evaluates clean laps (>2.0s gap) at equal race distances to remove fuel weight confounders.</p>');
+          '<p class="performance-note">Race speed traps reflect terminal velocity under permitted PU/ERS deployment and aerodynamic configuration. Lap-matching evaluates clean laps (>2.0s gap) at equal race distances to remove fuel weight confounders.</p>');
       }
 
       const rawValues = season.map(team => ({
@@ -1486,7 +1488,7 @@ function renderTrace() {
         zeroBaseline: true
       });
 
-      return card(straightTitle, 'Time lost on all straights as a percentage of a full lap, averaged across evaluated circuits for every ranked team. Fastest constructor on straights is 0.00% baseline.',
+      return card(straightTitle, 'Time lost on all straights as a percentage of a full lap, averaged across evaluated circuits for every ranked team. Fastest constructor on straights is 0.00% baseline. Terminal-speed performance is sensitive to drag, PU/ERS behaviour and aero state.',
         straightToggle+
         qualyChart+
         table([
@@ -1504,7 +1506,7 @@ function renderTrace() {
           fmt(team.sustained, 1, ' km/h'),
           team.events
         ]))+
-        '<p class="performance-note">Straights partitioned into early acceleration and terminal phases (≥300m: first 200m / final 100m; 200–300m: 50% / 25%; <200m: whole straight). Terminal-zone mean speed isolates high-speed aerodynamic drag and electrical derate prior to braking onset. 2026 Straight Mode replaces legacy DRS splits without speculative telemetry state inversions.</p>');
+        '<p class="performance-note">Straights partitioned into early acceleration and terminal zones (≥300m: first 200m / final 100m; 200–300m: 50% / 25%; <200m: whole straight). Terminal-speed performance, sensitive to drag, PU/ERS behaviour and aero state. Active aero state is not inferred from telemetry.</p>');
     }
     const rawBrakeValues = season.map(team => ({
       ...team,
@@ -1542,7 +1544,7 @@ function renderTrace() {
       zeroBaseline: true
     });
 
-    return card(brakingTitle,'Matched heavy braking zones evaluated across constructors. Primary metric is elapsed time gained/lost across identical deceleration corridors (Δt). Distance-normalized deceleration (anorm in g) evaluates stopping load independent of line choice. Resolution bracket represents GPS sampling uncertainty (±v_entry / 3.7 Hz); discrete onset points reflect telemetry discretization rather than physical metre-level driver differences. No speculative 0–100 synthetic index is applied.',
+    return card(brakingTitle,'Matched heavy braking zones evaluated across constructors. Primary metric is elapsed time gained/lost across identical deceleration corridors (Δt). Distance-normalized deceleration (anorm in g) evaluates stopping load independent of line choice. Telemetry sampling interval reflects data discretization (v_entry / 3.7 Hz). Braking onset is preserved as an explicit discrete bracket [last non-brake, first brake] m rather than an artificial ± symmetric uncertainty or false metre-level driver precision. No speculative 0–100 synthetic index is applied.',
       brakeChart+
       table([
         sortHeader('brakeTeam','Team'),
@@ -1551,7 +1553,7 @@ function renderTrace() {
         sortHeader('brakeMeanG','Mean decel',-1),
         sortHeader('brakeDistDelta','Distance delta (Δm)'),
         sortHeader('brakeDistance','Braking distance'),
-        sortHeader('brakeResolution','Resolution bracket'),
+        sortHeader('brakeResolution','Sampling interval (v/f)'),
         sortHeader('brakeZones','Matched zones',-1)
       ],ordered.map(team=>[
         teamLabel(team),
@@ -1560,7 +1562,7 @@ function renderTrace() {
         fmt(team.meanG,2,' g'),
         signed(team.distDelta,1,' m'),
         fmt(team.distance,1,' m'),
-        `<span class="perf-onset-bracket">±${fmt(team.samplingResolution,1,' m')}</span>`,
+        `<span class="perf-onset-bracket">Δs ~${fmt(team.samplingResolution,1,' m')}</span>`,
         `${team.events} circuits · ${team.zones} zones`
       ])));
   }
@@ -1684,7 +1686,7 @@ function renderTrace() {
           fmt(t.medianSpeed, 1, ' km/h'),
           fmt(t.finishLineSpeed, 1, ' km/h')
         ])) +
-        '<p class="performance-note">Race speed traps combine low-drag aerodynamics with Straight Mode actuation and electrical energy recovery deployment. Lap-matching evaluates clean laps (>2.0s gap) at equal race distances to remove fuel weight confounders.</p>');
+        '<p class="performance-note">Race speed traps reflect terminal velocity under permitted PU/ERS deployment and aerodynamic configuration. Lap-matching evaluates clean laps (>2.0s gap) at equal race distances to remove fuel weight confounders. Active aero state is not inferred from telemetry.</p>');
     }
 
     const minStraight = Math.min(...loaded.map(r => r.trace?.straight_contribution).filter(finite));
@@ -1714,7 +1716,7 @@ function renderTrace() {
       zeroBaseline: true
     });
 
-    return card('Straight-line performance', 'Time lost on all straights as a percentage of a full lap, relative to the fastest constructor (0.00% baseline). Includes peak velocity, sustained high-speed threshold, and terminal-zone mean speed.',
+    return card('Straight-line performance', 'Time lost on all straights as a percentage of a full lap, relative to the fastest constructor (0.00% baseline). Includes peak velocity, sustained high-speed threshold, and terminal-zone mean speed. Terminal-speed performance is sensitive to drag, PU/ERS behaviour and aero state.',
       straightToggle+
       singleStraightChart+
       table([
@@ -1731,7 +1733,8 @@ function renderTrace() {
         fmt(t.sustainedSpeed, 1, ' km/h')
       ]))+
       card('Where the lap gap comes from',`Relative to ${escape(event.traceReference||'the fastest measured team')}’s qualifying lap.`,
-      table(['Team','Straights','Corners','Lap gap'],ordered.map(row=>[teamLabel(row),fmt(row.straightGap,3,'%'),fmt(row.trace?.corner_contribution,3,'%'),fmt(row.trace?.lap_gap,3,'%')]))));
+      table(['Team','Straights','Corners','Lap gap'],ordered.map(row=>[teamLabel(row),fmt(row.straightGap,3,'%'),fmt(row.trace?.corner_contribution,3,'%'),fmt(row.trace?.lap_gap,3,'%')])))+
+      '<p class="performance-note">Straights partitioned into early acceleration and terminal zones (≥300m: first 200m / final 100m; 200–300m: 50% / 25%; <200m: whole straight). Terminal-speed performance, sensitive to drag, PU/ERS behaviour and aero state. Active aero state is not inferred from telemetry.</p>');
   }
   const brakeRows = computeBrakingPerformance(loaded.map(r => ({
     ...r,
@@ -1743,6 +1746,7 @@ function renderTrace() {
     normalizedDecel: r.normalizedDecel,
     timeDelta: r.brakeTimeDelta,
     samplingResolution: r.samplingResolution,
+    onsetBracket: r.onsetBracket,
     zones: r.brakeZones
   })));
   const ordered = sorted(brakeRows, {
@@ -1768,7 +1772,7 @@ function renderTrace() {
     zeroBaseline: true
   });
 
-  return card('Braking observations','Matched heavy braking zones evaluated across constructors. Primary metric is elapsed time gained/lost across identical deceleration corridors (Δt). Distance-normalized deceleration (anorm in g) evaluates stopping load independent of line choice. Resolution bracket represents GPS sampling uncertainty (±v_entry / 3.7 Hz); discrete onset points reflect telemetry discretization rather than physical metre-level driver differences. No speculative 0–100 synthetic index is applied.',
+  return card('Braking observations','Matched heavy braking zones evaluated across constructors. Primary metric is elapsed time gained/lost across identical deceleration corridors (Δt). Distance-normalized deceleration (anorm in g) evaluates stopping load independent of line choice. Telemetry discretization distance is Δs ~ v_entry / 3.7 Hz; discrete onset points reflect telemetry discretization bracket [last non-brake, first brake] m rather than metre-level driver differences. No speculative 0–100 synthetic index is applied.',
     singleBrakeChart+
     table([
       sortHeader('eventBrakeTeam','Team'),
@@ -1777,7 +1781,7 @@ function renderTrace() {
       sortHeader('eventBrakeMeanG','Mean decel',-1),
       sortHeader('eventBrakeDistDelta','Distance delta (Δm)'),
       sortHeader('eventBrakeDistance','Braking distance'),
-      sortHeader('eventBrakeResolution','Resolution bracket'),
+      sortHeader('eventBrakeResolution','Onset bracket [d_off, d_on]'),
       sortHeader('eventBrakeZones','Matched zones',-1)
     ],ordered.map(row=>[
       teamLabel(row),
@@ -1786,7 +1790,7 @@ function renderTrace() {
       fmt(row.meanG,2,' g'),
       signed(row.distDelta,1,' m'),
       fmt(row.distance,1,' m'),
-      `<span class="perf-onset-bracket">±${fmt(row.samplingResolution, 1, ' m')}</span>`,
+      row.onsetBracket ? `<span class="perf-onset-bracket">[${fmt(row.onsetBracket[0], 0)}, ${fmt(row.onsetBracket[1], 0)}] m</span>` : `<span class="perf-onset-bracket">Δs ~${fmt(row.samplingResolution, 1, ' m')}</span>`,
       `${row.events||1} circuit${(row.events||1)===1?'':'s'} · ${row.zones} zones`
     ])));
 }
