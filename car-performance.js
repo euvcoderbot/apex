@@ -626,7 +626,12 @@ function aggregate() {
         const adjDef = eventAdjDeficits.get(e.name)?.get(t.team);
         if (finite(adjDef)) item.adjDeficits.push(adjDef);
       } else {
-        item.r.push(t.pace);
+        const s15 = t.traffic_sensitivity?.['1.5s'] ?? t.traffic_sensitivity?.loose_15;
+        const s20 = t.traffic_sensitivity?.['2.0s'] ?? t.traffic_sensitivity?.standard_20;
+        const s25 = t.traffic_sensitivity?.['2.5s'] ?? t.traffic_sensitivity?.strict_25;
+        const sensValues = [s15, s20, s25].filter(finite);
+        const effectiveRacePace = sensValues.length ? (sensValues.reduce((a, b) => a + b, 0) / sensValues.length) : t.pace;
+        item.r.push(finite(effectiveRacePace) ? effectiveRacePace : t.pace);
         item.samples+=t.samples;
         if(finite(t.traffic_coverage)) item.coverage.push(t.traffic_coverage);
         if(t.fastest_race_driver)item.fastestRaceDrivers.push(t.fastest_race_driver);
@@ -636,14 +641,9 @@ function aggregate() {
         item.stints.push(...(t.degradation || []).map(s=>({...s,event:e.name})));
         item.retirements.push(...(t.retirements||[]).map(r=>({...r,event:e.name})));
         item.raceDrivers.push(...(t.race_drivers||[]).map(r=>({...r,event:e.name,selected:r.driver===t.fastest_race_driver})));
-        if (t.traffic_sensitivity) {
-          const s15 = t.traffic_sensitivity['1.5s'] ?? t.traffic_sensitivity.loose_15;
-          const s20 = t.traffic_sensitivity['2.0s'] ?? t.traffic_sensitivity.standard_20;
-          const s25 = t.traffic_sensitivity['2.5s'] ?? t.traffic_sensitivity.strict_25;
-          if(finite(s15)) item.trafficSensitivity['1.5s'].push(s15);
-          if(finite(s20)) item.trafficSensitivity['2.0s'].push(s20);
-          if(finite(s25)) item.trafficSensitivity['2.5s'].push(s25);
-        }
+        if (finite(s15)) item.trafficSensitivity['1.5s'].push(s15);
+        if (finite(s20)) item.trafficSensitivity['2.0s'].push(s20);
+        if (finite(s25)) item.trafficSensitivity['2.5s'].push(s25);
         if (finite(t.teammate_spread)) item.teammateSpreads.push(t.teammate_spread);
       }
     }
@@ -765,7 +765,7 @@ function renderPace(teams) {
       t.samples
     ]))) +
     card('Race pace deficit overview',
-      'Race pace uses clean-air laps with shared race-lap, compound and tyre-age adjustments; the faster eligible teammate represents the team.',
+      'Race pace uses a sample-aware blended average across 1.5s, 2.0s, and 2.5s clean-air thresholds with shared race-lap, compound and tyre-age adjustments; the faster eligible teammate represents the team.',
       raceChart) +
     card('Sector deficits', 'Sectors from each team’s single fastest qualifying lap, compared with the best corresponding sector among those selected laps. Events receive equal weight.',
       table([sortHeader('team', 'Team'), sortHeader('s1', 'Sector 1'), sortHeader('s2', 'Sector 2'), sortHeader('s3', 'Sector 3')], sectors.map(t => [teamLabel(t), ...['s1', 's2', 's3'].map(s => fmt(t[s], 3, '%'))]))) +

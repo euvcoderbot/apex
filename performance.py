@@ -436,16 +436,40 @@ def analyze(data, traffic=2):
         lap_fl_benchmark = {lap: float(median(vals)) for lap, vals in lap_fl_times.items() if len(vals) >= 2}
         field_avg_st = sum(lap_st_benchmark.values()) / len(lap_st_benchmark) if lap_st_benchmark else None
         field_avg_fl = sum(lap_fl_benchmark.values()) / len(lap_fl_benchmark) if lap_fl_benchmark else None
+        driver_team = {r['driver']: r['team'] for r in candidates if r.get('driver') and r.get('team')}
+
+        # Multi-threshold blended race pace (Loose 1.5s, Standard 2.0s, Strict 2.5s)
+        # Combines estimates from available thresholds, naturally acting as a distance-weighted
+        # clean-air filter (pristine >2.5s laps receive highest representation).
+        blended_driver_estimates = {}
+        all_candidate_drivers = set(driver_estimates.keys())
+        for th_est in traffic_sensitivities.values():
+            all_candidate_drivers.update(th_est.keys())
+
+        for d in all_candidate_drivers:
+            d_paces = [traffic_sensitivities[th][d] for th in (1.5, 2.0, 2.5)
+                       if th in traffic_sensitivities and d in traffic_sensitivities[th]
+                       and traffic_sensitivities[th][d] is not None]
+            if d_paces:
+                blended_driver_estimates[d] = sum(d_paces) / len(d_paces)
+            elif d in driver_estimates:
+                blended_driver_estimates[d] = driver_estimates[d]
+
+        # Rebase so the fastest driver in race trim is exactly 0.00%
+        if blended_driver_estimates:
+            min_blended = min(blended_driver_estimates.values())
+            for d in blended_driver_estimates:
+                blended_driver_estimates[d] = round(max(0.0, ((100 + blended_driver_estimates[d]) / (100 + min_blended) - 1) * 100), 4)
 
         for name, team in teams.items():
-            drivers = [(driver, pace) for driver, pace in driver_estimates.items()
+            drivers = [(driver, pace) for driver, pace in blended_driver_estimates.items()
                        if driver_team.get(driver) == name]
             fastest = min(drivers, key=lambda item: item[1], default=None)
             team['pace'] = fastest[1] if fastest else None
             team['fastest_race_driver'] = fastest[0] if fastest else None
-            team['samples'] = support[fastest[0]]['samples'] if fastest else 0
-            team['race_residual_spread'] = support[fastest[0]]['residual_spread'] if fastest else None
-            team['race_drivers'] = [{'driver': driver, 'pace': pace, **support[driver]}
+            team['samples'] = support.get(fastest[0], {}).get('samples', 0) if fastest else 0
+            team['race_residual_spread'] = support.get(fastest[0], {}).get('residual_spread') if fastest else None
+            team['race_drivers'] = [{'driver': driver, 'pace': pace, **support.get(driver, {'samples': 0, 'residual_spread': None})}
                                     for driver, pace in drivers]
             team['teammate_spread'] = abs(drivers[0][1] - drivers[1][1]) if len(drivers) >= 2 else None
 
