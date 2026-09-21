@@ -1235,20 +1235,6 @@ body.performance-view #sidebarToggle {
   color: #3b82f6;
 }
 
-/* Traffic Sensitivity Matrix Table */
-.perf-sensitivity-card {
-  margin-top: 20px;
-}
-
-.perf-sensitivity-card table th,
-.perf-sensitivity-card table td {
-  text-align: center;
-}
-
-.perf-sensitivity-card table th:first-child,
-.perf-sensitivity-card table td:first-child {
-  text-align: left;
-}
 
 /* Circuit Accounting Audit Box */
 .perf-audit-box {

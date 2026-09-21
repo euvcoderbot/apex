@@ -654,15 +654,10 @@ function aggregate() {
     qualyQ1:avg(t.q1Deficits),
     qualyAdjusted:avg(t.adjDeficits),
     race:avg(t.r),
-    coverage:avg(t.coverage),
-    teammateSpread:avg(t.teammateSpreads),
-    sens15:avg(t.trafficSensitivity['1.5s']),
-    sens20:avg(t.trafficSensitivity['2.0s']),
-    sens25:avg(t.trafficSensitivity['2.5s']),
     s1:avg(t.sectors[0]),s2:avg(t.sectors[1]),s3:avg(t.sectors[2]),
     qCount:t.q.filter(q=>finite(q.pace)).length,
     rCount:t.r.filter(finite).length
-  })),['qualy','qualyQ1','qualyAdjusted','race','s1','s2','s3','sens15','sens20','sens25']);
+  })),['qualy','qualyQ1','qualyAdjusted','race','s1','s2','s3']);
 }
 
 function table(headers,rows) {
@@ -750,27 +745,6 @@ function renderPace(teams) {
     digits: 2
   });
 
-  // Traffic Sensitivity & Empirical Matrix Table
-  const sensitivityTable = card(
-    'Traffic sensitivity & empirical confidence',
-    'Astra GPT-6 Hybrid model: compares estimated race deficit across Loose (1.5s), Standard (2.0s), and Strict (2.5s) car-ahead gaps. High teammate spread or low clean air coverage identifies race pacing uncertainty rather than opaque synthetic scores.',
-    table([
-      'Team',
-      'Clean air coverage',
-      'Teammate spread',
-      'Loose (1.5s gap)',
-      'Standard (2.0s gap)',
-      'Strict (2.5s gap)'
-    ], teams.map(t => [
-      teamLabel(t),
-      finite(t.coverage) ? `${(t.coverage * 100).toFixed(0)}%` : '—',
-      fmt(t.teammateSpread, 2, '%'),
-      fmt(t.sens15, 2, '%'),
-      fmt(t.sens20, 2, '%'),
-      fmt(t.sens25, 2, '%')
-    ]))
-  );
-
   const qualyColLabel = qualyPaceMode === 'overall'
     ? 'Qualifying · Best lap'
     : 'Evolution-adjusted deficit';
@@ -793,7 +767,6 @@ function renderPace(teams) {
     card('Race pace deficit overview',
       'Race pace uses clean-air laps with shared race-lap, compound and tyre-age adjustments; the faster eligible teammate represents the team.',
       raceChart) +
-    sensitivityTable +
     card('Sector deficits', 'Sectors from each team’s single fastest qualifying lap, compared with the best corresponding sector among those selected laps. Events receive equal weight.',
       table([sortHeader('team', 'Team'), sortHeader('s1', 'Sector 1'), sortHeader('s2', 'Sector 2'), sortHeader('s3', 'Sector 3')], sectors.map(t => [teamLabel(t), ...['s1', 's2', 's3'].map(s => fmt(t[s], 3, '%'))]))) +
     `<details class="dashboard-card performance-methods"><summary>Why this pace ranking? View selected laps and race drivers</summary><p class="performance-note">Only the fastest valid lap across the whole qualifying session counts for each team.</p>${table(['Team', 'Event', 'Phase', 'Driver', 'Selected lap (s)'], teams.flatMap(t => t.q.filter(q => q.lap).map(q => [teamLabel(t), eventLabel(q.event), escape(q.lap.phase), escape(q.lap.driver), fmt(q.lap.time, 3)]))) }<p class="performance-note">Race pace adjusts for race lap, compound and tyre age. Typical model error is the median absolute residual on that driver’s eligible laps, not a confidence interval. Management and traffic can still affect the estimate.</p>${table(['Team', 'Event', 'Driver', 'Estimate', 'Eligible laps', 'Typical model error'], teams.flatMap(t => t.raceDrivers.map(r => [teamLabel(t), eventLabel(r.event), `${escape(r.driver)}${r.selected ? ' · selected' : ''}`, fmt(r.pace, 3, '%'), r.samples, fmt(r.residual_spread, 3, '%')]))) }</details>`;
