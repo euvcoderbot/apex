@@ -249,16 +249,27 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             start_corridor = end_corridor - corridor_len
             total_corridor_len += corridor_len
 
-            for team in teams:
-                item = selected[team]
-                c_mask = (item['aligned'] >= start_corridor) & (item['aligned'] <= end_corridor)
-                if np.any(c_mask):
-                    if not np.any(item['a'][c_mask, 4] >= 0.5):
+            i1 = int(round(start_corridor / 5.0))
+            i2 = int(round(end_corridor / 5.0))
+            i1 = max(0, min(len(grid) - 1, i1))
+            i2 = max(0, min(len(grid) - 1, i2))
+            if i2 > i1:
+                L_corridor = float(grid[i2] - grid[i1])
+                for team in teams:
+                    item = selected[team]
+                    if not np.any(item['brake'][i1:i2]):
                         if check_clean_air(team, start_corridor, end_corridor):
-                            team_terminal_speeds[team].append(float(np.mean(item['a'][c_mask, 2])))
+                            dt_corridor = float(item['dt'][i1:i2].sum())
+                            if dt_corridor > 0.05:
+                                v_corridor = (L_corridor / dt_corridor) * 3.6
+                                team_terminal_speeds[team].append(v_corridor)
 
     straight_results = {}
     tot_accel_straights = max(1, len(straight_band_times['250_300']))
+
+    # Representative 250->300 benchmark time across straights for percentage deficit normalization
+    med_straight_times = [float(np.median(list(tt.values()))) for tt in straight_band_times['250_300'].values() if len(tt) >= 2]
+    ref_250_time = float(np.median(med_straight_times)) if med_straight_times else 2.0
 
     # 250_300 headline rebase
     raw_250_300 = {t: float(np.median(team_straight_deltas['250_300'][t]))
@@ -294,6 +305,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
         is_provisional = bool(cov_count < 2 or cov_count < tot_accel_straights * 0.5)
 
         accel_250 = (raw_250_300[team] - min_250_300) if raw_250_300[team] is not None else None
+        accel_250_pct = float(accel_250 / max(0.1, ref_250_time) * 100) if accel_250 is not None else None
         accel_200 = (raw_200_250[team] - min_200_250) if raw_200_250[team] is not None else None
         accel_320 = (raw_300_320[team] - min_300_320) if raw_300_320[team] is not None else None
 
@@ -310,6 +322,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             'straight_contribution': traversal_delta,
             'straight_deficit': accel_250 if accel_250 is not None else traversal_delta,
             'accel_250_300': float(accel_250) if accel_250 is not None else None,
+            'accel_250_300_pct': float(accel_250_pct) if accel_250_pct is not None else None,
             'accel_200_250': float(accel_200) if accel_200 is not None else None,
             'accel_300_320': float(accel_320) if accel_320 is not None else None,
             'accel_cumul_loss_250_300': float(max(0.0, cumul_loss)),
@@ -603,6 +616,7 @@ def measure_field(extracted, selections, corners=()):
             'straight_contribution': straight_info.get('straight_contribution', 0.0),
             'straight_deficit': straight_info.get('straight_deficit', 0.0),
             'accel_250_300': straight_info.get('accel_250_300'),
+            'accel_250_300_pct': straight_info.get('accel_250_300_pct'),
             'accel_200_250': straight_info.get('accel_200_250'),
             'accel_300_320': straight_info.get('accel_300_320'),
             'accel_cumul_loss_250_300': straight_info.get('accel_cumul_loss_250_300', 0.0),

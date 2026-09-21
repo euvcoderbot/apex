@@ -166,7 +166,7 @@ function computeBrakingPerformance(teams) {
       normalizedDecel: normDecel,
       samplingResolution: resM,
       onsetBracket: t.onsetBracket || (t.onset_bracket || null),
-      timeDelta: round(timeDelta, 3),
+      timeDelta: finite(timeDelta) ? Number(timeDelta.toFixed(3)) : 0,
       distDelta: finite(t.distDelta) ? t.distDelta : (dist - bestDist)
     };
   });
@@ -1246,7 +1246,7 @@ function seasonTelemetry() {
         brakeDistance:[],brakeDistDelta:[],brakeDuration:[],
         normalizedDecel:[],brakeTimeDelta:[],samplingResolution:[],
         terminalZoneMeanSpeed:[],terminalZoneLength:[],
-        accel250:[],accel200:[],accel320:[],straightTraversalDelta:[],speedSt:[],speedFl:[],
+        accel250:[],accel250Pct:[],accel200:[],accel320:[],straightTraversalDelta:[],speedSt:[],speedFl:[],
         events:0,zones:0
       });
       const item=map.get(row.team); item.events++;
@@ -1264,6 +1264,7 @@ function seasonTelemetry() {
       if(finite(row.trace.straight_contribution))item.straightContribution.push(row.trace.straight_contribution);
       if(finite(row.trace.straight_traversal_delta))item.straightTraversalDelta.push(row.trace.straight_traversal_delta);
       if(finite(row.trace.accel_250_300))item.accel250.push(row.trace.accel_250_300);
+      if(finite(row.trace.accel_250_300_pct))item.accel250Pct.push(row.trace.accel_250_300_pct);
       if(finite(row.trace.accel_200_250))item.accel200.push(row.trace.accel_200_250);
       if(finite(row.trace.accel_300_320))item.accel320.push(row.trace.accel_300_320);
       if(finite(row.trace.speed_st))item.speedSt.push(row.trace.speed_st);
@@ -1284,7 +1285,13 @@ function seasonTelemetry() {
   }
   const output=[...map.values()];
   const reference=output.filter(t=>finite(avg(t.lapGaps))).sort((a,b)=>avg(a.lapGaps)-avg(b.lapGaps))[0];
-  for(const key of ['lowDeficit','mediumDeficit','highDeficit','lowSeconds','mediumSeconds','highSeconds','straightDeficit','straightContribution','cornerContribution']) {
+  for (const t of output) {
+    t.rawCornerContribution = [...t.cornerContribution];
+    t.rawStraightContribution = [...t.straightContribution];
+    t.rawStraightTraversalDelta = [...t.straightTraversalDelta];
+    t.rawLapGaps = [...t.lapGaps];
+  }
+  for(const key of ['lowDeficit','mediumDeficit','highDeficit','lowSeconds','mediumSeconds','highSeconds','straightDeficit','cornerContribution']) {
     const validMeans = output.map(t=>avg(t[key])).filter(finite);
     const minVal = validMeans.length ? Math.min(...validMeans) : null;
     if(finite(minVal)) for(const t of output) t[key]=t[key].map(v=>finite(v)?Math.max(0,v-minVal):null);
@@ -1335,6 +1342,37 @@ function renderCircuitAuditCard() {
   `;
 }
 
+function renderSeasonLapGapCard(season, values) {
+  const refTeam = season?.reference || 'the fastest constructor';
+  const trackCount = values[0]?.events || 0;
+  const rows = values.map(t => {
+    const sDelta = avg(t.rawStraightTraversalDelta || t.straightTraversalDelta);
+    const cDelta = avg(t.rawCornerContribution || t.cornerContribution);
+    const lapGap = avg(t.rawLapGaps || t.lapGaps);
+    return {
+      team: t,
+      sDelta,
+      cDelta,
+      lapGap
+    };
+  }).sort((a, b) => (finite(a.lapGap) ? a.lapGap : 999) - (finite(b.lapGap) ? b.lapGap : 999));
+
+  return card(
+    'Where the lap gap comes from (Season Attribution)',
+    `Decomposition of overall telemetry lap deficit relative to ${escape(refTeam)} across the evaluated ${trackCount} common circuits. Straight Traversal Delta (% of lap) and Corner Contribution (% of lap) sum to the total Telemetry Lap Gap.`,
+    table(
+      ['Team', 'Straights (Traversal Delta)', 'Corners', 'Telemetry Lap Gap'],
+      rows.map(r => [
+        teamLabel(r.team),
+        finite(r.sDelta) ? signed(r.sDelta, 3, '%') : '—',
+        finite(r.cDelta) ? signed(r.cDelta, 3, '%') : '—',
+        finite(r.lapGap) ? signed(r.lapGap, 3, '%') : '—'
+      ])
+    ) +
+    '<p class="performance-note">Methodology note: <strong>Straight Traversal Delta</strong> and <strong>Corner Contribution</strong> reflect total elapsed time share relative to the reference pole lap (summing to the Telemetry Lap Gap across common circuits). In contrast, <strong>250→300 km/h acceleration deficit</strong> is an independent vehicle dynamics metric that isolates straight-line acceleration without initial-speed inheritance from corner exit. Overall Season Qualifying Pace in the Pace &amp; Sectors tab evaluates all 24 rounds (including wet and sprint weekends with track-evolution adjustments).</p>'
+  );
+}
+
 function renderTrace() {
   if(context?.season) {
     const season=seasonTelemetry();
@@ -1380,6 +1418,7 @@ function renderTrace() {
           `${signed(team.lowGap,3)}<small>${signed(team.lowValue,3,' s/lap')} · ${team.low.length} circuits</small>`,
           `${signed(team.mediumGap,3)}<small>${signed(team.mediumValue,3,' s/lap')} · ${team.medium.length} circuits</small>`,
           `${signed(team.highGap,3)}<small>${signed(team.highValue,3,' s/lap')} · ${team.high.length} circuits</small>`,team.events])))+
+        renderSeasonLapGapCard(season, rawValues)+
         card('Downforce index','Unavailable: public telemetry cannot isolate aerodynamic load.','<p class="performance-note">Per Astra GPT-6 Hybrid principles: Downforce (in Newtons), engine power (kW), and aerodynamic drag ($C_d A$) are unidentifiable from public 3.7 Hz telemetry. High-speed corner performance is shown directly without speculative synthetic regressions.</p>');
     }
     if(activeMetric==='straight') {
@@ -1468,6 +1507,7 @@ function renderTrace() {
 
       const rawValues = season.map(team => ({
         ...team,
+        accel250Pct: avg(team.accel250Pct),
         accel250: avg(team.accel250),
         accel200: avg(team.accel200),
         accel320: avg(team.accel320),
@@ -1475,35 +1515,45 @@ function renderTrace() {
         terminal: avg(team.terminalZoneMeanSpeed),
         termLen: avg(team.terminalZoneLength),
         speedSt: avg(team.speedSt),
+        speedFl: avg(team.speedFl),
         peak: avg(team.top),
         sustained: avg(team.full)
       }));
-      const minAccel250 = Math.min(...rawValues.map(t => t.accel250).filter(finite));
-      const minAccel200 = Math.min(...rawValues.map(t => t.accel200).filter(finite));
-      const minAccel320 = Math.min(...rawValues.map(t => t.accel320).filter(finite));
+      const valid250Pct = rawValues.map(t => t.accel250Pct).filter(finite);
+      const minAccel250Pct = valid250Pct.length ? Math.min(...valid250Pct) : 0;
+      const valid250 = rawValues.map(t => t.accel250).filter(finite);
+      const minAccel250 = valid250.length ? Math.min(...valid250) : 0;
+      const valid200 = rawValues.map(t => t.accel200).filter(finite);
+      const minAccel200 = valid200.length ? Math.min(...valid200) : 0;
+      const valid320 = rawValues.map(t => t.accel320).filter(finite);
+      const minAccel320 = valid320.length ? Math.min(...valid320) : 0;
+
       const qualyValues = rawValues.map(t => ({
         ...t,
-        straightAccel250: finite(t.accel250) && finite(minAccel250) ? Math.max(0, t.accel250 - minAccel250) : null,
-        straightAccel200: finite(t.accel200) && finite(minAccel200) ? Math.max(0, t.accel200 - minAccel200) : null,
-        straightAccel320: finite(t.accel320) && finite(minAccel320) ? Math.max(0, t.accel320 - minAccel320) : null
+        straightAccel250Pct: finite(t.accel250Pct) ? Math.max(0, t.accel250Pct - minAccel250Pct) : null,
+        straightAccel250: finite(t.accel250) ? Math.max(0, t.accel250 - minAccel250) : null,
+        straightAccel200: finite(t.accel200) ? Math.max(0, t.accel200 - minAccel200) : null,
+        straightAccel320: finite(t.accel320) ? Math.max(0, t.accel320 - minAccel320) : null
       }));
       const orderedQualy = sorted(qualyValues, {
         straightTeam: t => t.team,
+        straightAccel250Pct: t => t.straightAccel250Pct,
         straightAccel250: t => t.straightAccel250,
         straightAccel200: t => t.straightAccel200,
         straightAccel320: t => t.straightAccel320,
         terminal: t => t.terminal,
         speedSt: t => t.speedSt,
+        speedFl: t => t.speedFl,
         traversalDelta: t => t.traversalDelta,
         straightEvents: t => t.events
-      }, 'straightAccel250', 1);
+      }, 'straightAccel250Pct', 1);
 
       const qualyChart = renderHorizontalBarChart(orderedQualy, {
-        title: 'Season Straight-Line Acceleration Deficit (250–300 km/h)',
-        subtitle: 'Speed-matched acceleration averaged across evaluated circuits · Fastest constructor is 0.000s baseline',
-        valueKey: 'straightAccel250',
-        unit: 's',
-        digits: 3,
+        title: 'Season Straight-Line Acceleration Deficit (% to Fastest)',
+        subtitle: 'Equal-event average of normalized 250–300 km/h acceleration deficit · Baseline 0.00% is fastest acceleration',
+        valueKey: 'straightAccel250Pct',
+        unit: '%',
+        digits: 2,
         signedValue: true,
         zeroBaseline: true
       });
@@ -1513,23 +1563,28 @@ function renderTrace() {
         qualyChart+
         table([
           sortHeader('straightTeam', 'Team'),
-          sortHeader('straightAccel250', 'High-Speed Accel (250–300)'),
+          sortHeader('straightAccel250Pct', 'Accel Deficit (250–300)'),
+          sortHeader('straightAccel250', 'Time Deficit (250–300)'),
           sortHeader('straightAccel200', 'Mid Accel (200–250)'),
           sortHeader('straightAccel320', 'Top-End Accel (300–320)'),
           sortHeader('terminal', 'Terminal speed (≥400m)', -1),
-          sortHeader('speedSt', 'Speed Trap (ST)', -1),
+          sortHeader('speedSt', 'Official ST', -1),
+          sortHeader('speedFl', 'Official FL', -1),
           sortHeader('traversalDelta', 'Straight Traversal Delta'),
           sortHeader('straightEvents', 'Circuits', -1)
         ], orderedQualy.map(team => [
           teamLabel(team),
+          finite(team.straightAccel250Pct) ? signed(team.straightAccel250Pct, 2, '%') : '—',
           finite(team.straightAccel250) ? signed(team.straightAccel250, 3, 's') : '—',
           finite(team.straightAccel200) ? signed(team.straightAccel200, 3, 's') : '—',
           finite(team.straightAccel320) ? signed(team.straightAccel320, 3, 's') : '—',
           finite(team.terminal) ? `${fmt(team.terminal, 1, ' km/h')}<small>${fmt(team.termLen || 80, 0, ' m')} zone</small>` : '—',
           finite(team.speedSt) ? fmt(team.speedSt, 1, ' km/h') : '—',
+          finite(team.speedFl) ? fmt(team.speedFl, 1, ' km/h') : '—',
           finite(team.traversalDelta) ? signed(team.traversalDelta, 3, '%') : '—',
           team.events
         ]))+
+        renderSeasonLapGapCard(season, rawValues)+
         '<p class="performance-note">Speed-domain acceleration evaluates elapsed time across fixed velocity bands (200→250, 250→300, 300→320 km/h) sampled from continuous full-throttle intervals in clean air. Terminal speed is measured within an 80m corridor ending 10m before the field braking onset on straights ≥400m. Full-throttle high-speed threshold (P95) reflects sustained top-end velocity. Straight Traversal Delta reflects total straight elapsed time relative to the reference lap.</p>');
     }
     const rawBrakeValues = season.map(team => ({
@@ -1725,6 +1780,7 @@ function renderTrace() {
       termDeficit: r.trace?.terminal_speed_deficit,
       termLen: r.trace?.terminal_zone_length_m,
       speedSt: r.trace?.speed_st,
+      speedFl: r.trace?.speed_fl,
       topSpeed: r.trace?.top_speed,
       sustainedSpeed: r.trace?.full_throttle_p95
     }));
@@ -1735,6 +1791,7 @@ function renderTrace() {
       eventStraightAccel320: t => t.accel320,
       eventStraightTerminal: t => t.terminalSpeed,
       eventStraightSpeedST: t => t.speedSt,
+      eventStraightSpeedFL: t => t.speedFl,
       eventStraightTraversal: t => t.traversalDelta
     }, 'eventStraightAccel250', 1);
 
@@ -1757,7 +1814,8 @@ function renderTrace() {
         sortHeader('eventStraightAccel200', 'Mid Accel (200–250)'),
         sortHeader('eventStraightAccel320', 'Top-End Accel (300–320)'),
         sortHeader('eventStraightTerminal', 'Terminal speed (≥400m)', -1),
-        sortHeader('eventStraightSpeedST', 'Speed Trap (ST)', -1),
+        sortHeader('eventStraightSpeedST', 'Official ST', -1),
+        sortHeader('eventStraightSpeedFL', 'Official FL', -1),
         sortHeader('eventStraightTraversal', 'Straight Traversal Delta')
       ], ordered.map(t => [
         teamLabel(t),
@@ -1766,10 +1824,11 @@ function renderTrace() {
         finite(t.accel320) ? signed(t.accel320, 3, 's') : '—',
         finite(t.terminalSpeed) ? `${fmt(t.terminalSpeed, 1, ' km/h')}${finite(t.termDeficit) ? `<small> -${fmt(t.termDeficit, 1, ' km/h')}</small>` : ''}` : '—',
         finite(t.speedSt) ? fmt(t.speedSt, 1, ' km/h') : '—',
+        finite(t.speedFl) ? fmt(t.speedFl, 1, ' km/h') : '—',
         finite(t.traversalDelta) ? signed(t.traversalDelta, 3, '%') : '—'
       ]))+
       card('Where the lap gap comes from',`Relative to ${escape(event.traceReference||'the fastest measured team')}’s qualifying lap.`,
-      table(['Team','Straights','Corners','Lap gap'],ordered.map(row=>[teamLabel(row),finite(row.traversalDelta)?signed(row.traversalDelta,3,'%'):'—',fmt(row.trace?.corner_contribution,3,'%'),fmt(row.trace?.lap_gap,3,'%')])))+
+      table(['Team','Straights (Traversal Delta)','Corners','Lap gap'],ordered.map(row=>[teamLabel(row),finite(row.traversalDelta)?signed(row.traversalDelta,3,'%'):'—',fmt(row.trace?.corner_contribution,3,'%'),fmt(row.trace?.lap_gap,3,'%')])))+
       '<p class="performance-note">Speed-domain acceleration evaluates elapsed time across fixed velocity bands (200→250, 250→300, 300→320 km/h) sampled from continuous full-throttle intervals in clean air. Terminal speed is measured within an 80m corridor ending 10m before the field braking onset on straights ≥400m. Full-throttle high-speed threshold (P95) reflects sustained top-end velocity. Straight Traversal Delta reflects total straight elapsed time relative to the reference lap.</p>');
   }
   const brakeRows = computeBrakingPerformance(loaded.map(r => ({
