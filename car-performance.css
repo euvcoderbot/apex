@@ -1307,6 +1307,18 @@ body.performance-view #sidebarToggle {
   font-weight: 600;
 }
 
+.retirement-badge.is-pu {
+  background: color-mix(in srgb, #dc2626 15%, transparent);
+  color: #dc2626;
+  border: 1px solid color-mix(in srgb, #dc2626 30%, transparent);
+}
+
+.retirement-badge.is-chassis {
+  background: color-mix(in srgb, #0284c7 15%, transparent);
+  color: #0284c7;
+  border: 1px solid color-mix(in srgb, #0284c7 30%, transparent);
+}
+
 .retirement-badge.is-mech {
   background: color-mix(in srgb, #ef4444 15%, transparent);
   color: #ef4444;
@@ -1323,6 +1335,73 @@ body.performance-view #sidebarToggle {
   background: var(--surface-muted);
   color: var(--text-secondary);
   border: 1px solid var(--border-color);
+}
+
+.retirement-badge.is-unknown {
+  background: color-mix(in srgb, #6b7280 15%, transparent);
+  color: #6b7280;
+  border: 1px solid color-mix(in srgb, #6b7280 30%, transparent);
+}
+
+/* FIA Regulatory Energy Envelope Badge */
+.perf-regulatory-badge {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: color-mix(in srgb, #3b82f6 8%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, #3b82f6 25%, var(--border-color));
+}
+
+.perf-regulatory-badge .reg-title {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #3b82f6;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.perf-regulatory-badge .reg-body {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-main);
+  line-height: 1.4;
+}
+
+.perf-regulatory-badge .reg-note {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* Sensitivity bracket, onset bracket, and loss density */
+.perf-sensitivity-bracket {
+  display: inline-block;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono, monospace);
+  margin-left: 6px;
+}
+
+.perf-loss-density {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  margin-left: 4px;
+}
+
+.perf-onset-bracket {
+  font-size: 0.75rem;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-secondary);
 }
 
 /* Responsive Media Queries */

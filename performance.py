@@ -2,10 +2,13 @@
 
 Keep measurements separate from interpretations: timing-line gaps are not
 continuous traffic measurements, and observed corner speed is not downforce.
+Strict adherence to observable physical telemetry and versioned FIA envelopes.
 """
 from collections import defaultdict
 from statistics import median
 import math
+
+from fia_energy_params import get_fia_energy_envelope
 
 DRY_COMPOUNDS = {'SOFT', 'MEDIUM', 'HARD', 'HYPERSOFT', 'ULTRASOFT',
                  'SUPERSOFT', 'SUPERHARD'}
@@ -69,33 +72,152 @@ def records(data):
     return rows
 
 
-def traffic_gaps(rows):
-    """Conservative start/end timing-line gap proxy, including lapped cars.
+def traffic_gaps(rows, leader_abbr=None):
+    """Multi-checkpoint timing-line gap proxy with physical proximity veto & leader clean air logic.
 
-    Find the preceding crossing irrespective of lap number; require both ends
-    above threshold. This still cannot certify traffic throughout the lap.
+    Checks start line, sector 1, sector 2, and end line crossings across all on-track cars.
+    If an unlapped or lapped car is within < 2.0s physically ahead at ANY checkpoint,
+    physical proximity vetoes clean air.
     """
     from bisect import bisect_left
-    crossings = sorted((r['end'], r['driver']) for r in rows if r['end'] is not None)
+    crossings = sorted((r['end'], r['driver']) for r in rows if r.get('end') is not None)
     times = [x[0] for x in crossings]
+
+    # Sector checkpoints for physical proximity verification throughout the lap
+    s1_crossings = []
+    s2_crossings = []
+    for r in rows:
+        st = r.get('start')
+        sec = r.get('sectors') or []
+        if st is not None and len(sec) >= 3:
+            if sec[0] is not None:
+                s1_crossings.append((st + sec[0], r['driver']))
+                if sec[1] is not None:
+                    s2_crossings.append((st + sec[0] + sec[1], r['driver']))
+    s1_crossings.sort()
+    s2_crossings.sort()
+    s1_times = [x[0] for x in s1_crossings]
+    s2_times = [x[0] for x in s2_crossings]
+
     gaps = {}
     for row in rows:
         values = []
-        for stamp in (row['start'], row['end']):
+        is_leader = bool(leader_abbr and row.get('driver') == leader_abbr)
+
+        # 1. Start and finish line crossings
+        for stamp in (row.get('start'), row.get('end')):
             if stamp is None:
                 break
-            i = bisect_left(times, stamp)-1
+            i = bisect_left(times, stamp) - 1
             while i >= 0 and crossings[i][1] == row['driver']:
                 i -= 1
             if i < 0:
+                if is_leader:
+                    values.append(999.0)
+                    continue
                 break
-            gap = stamp-times[i]
+            gap = stamp - times[i]
             # No nearby crossing can also mean missing timing, not clean air.
-            if gap > max(60, (row.get('time') or 0)*1.25):
+            if gap > max(60, (row.get('time') or 0) * 1.25):
+                if is_leader:
+                    values.append(999.0)
+                    continue
                 break
             values.append(gap)
-        gaps[(row['driver'], row['lap'])] = min(values) if len(values) == 2 else None
+
+        # 2. Sector 1 & 2 checkpoints for physical proximity veto
+        st = row.get('start')
+        sec = row.get('sectors') or []
+        if len(values) == 2 and st is not None and len(sec) >= 2:
+            if sec[0] is not None and s1_times:
+                s1_stamp = st + sec[0]
+                i = bisect_left(s1_times, s1_stamp) - 1
+                while i >= 0 and s1_crossings[i][1] == row['driver']:
+                    i -= 1
+                if i >= 0:
+                    s1_gap = s1_stamp - s1_times[i]
+                    if 0 < s1_gap < 60:
+                        values.append(s1_gap)
+            if len(sec) >= 2 and sec[0] is not None and sec[1] is not None and s2_times:
+                s2_stamp = st + sec[0] + sec[1]
+                i = bisect_left(s2_times, s2_stamp) - 1
+                while i >= 0 and s2_crossings[i][1] == row['driver']:
+                    i -= 1
+                if i >= 0:
+                    s2_gap = s2_stamp - s2_times[i]
+                    if 0 < s2_gap < 60:
+                        values.append(s2_gap)
+
+        gaps[(row['driver'], row['lap'])] = min(values) if len(values) >= 2 else None
     return gaps
+
+
+def compute_lap_traffic(rows, intervals=None, leader_abbr=None):
+    """Whole-lap time-weighted traffic evaluation with leader/null handling & physical proximity veto."""
+    timing_gaps = traffic_gaps(rows, leader_abbr=leader_abbr)
+    lap_traffic = {}
+    for r in rows:
+        key = (r.get('driver'), r.get('lap'))
+        t_gap = timing_gaps.get(key)
+
+        lap_intervals = intervals.get(key) if intervals else None
+        if lap_intervals and len(lap_intervals) >= 2:
+            weights = []
+            obs_gaps = []
+            for item in lap_intervals:
+                gap_val = item.get('gap')
+                dt = float(item.get('duration', 1.0))
+                if gap_val is None:
+                    if leader_abbr and r.get('driver') == leader_abbr:
+                        obs_gaps.append(999.0)
+                        weights.append(dt)
+                    continue
+                if isinstance(gap_val, str) and (gap_val.startswith('+') or 'LAP' in gap_val):
+                    obs_gaps.append(0.5)
+                    weights.append(dt)
+                    continue
+                try:
+                    num_gap = float(gap_val)
+                    obs_gaps.append(num_gap)
+                    weights.append(dt)
+                except (ValueError, TypeError):
+                    continue
+
+            total_duration = sum(weights)
+            lap_time = r.get('time') or 90.0
+            coverage = total_duration / max(1.0, lap_time)
+            if coverage >= 0.80 and obs_gaps:
+                sorted_pairs = sorted(zip(obs_gaps, weights), key=lambda x: x[0])
+                p10_target = 0.10 * total_duration
+                cum = 0.0
+                p10_gap = sorted_pairs[0][0]
+                for g, w in sorted_pairs:
+                    cum += w
+                    if cum >= p10_target:
+                        p10_gap = g
+                        break
+                exposure_20 = sum(w for g, w in zip(obs_gaps, weights) if g < 2.0) / max(0.001, total_duration)
+
+                # Physical proximity veto
+                effective_gap = min(p10_gap, t_gap) if t_gap is not None and t_gap < 2.0 else p10_gap
+
+                lap_traffic[key] = {
+                    'gap': effective_gap,
+                    'traffic_exposure_20': exposure_20,
+                    'traffic_coverage': coverage,
+                    'p10_gap': p10_gap,
+                    'quality': 'sufficient'
+                }
+                continue
+
+        lap_traffic[key] = {
+            'gap': t_gap,
+            'traffic_exposure_20': 1.0 if (t_gap is not None and t_gap < 2.0) else 0.0,
+            'traffic_coverage': 1.0 if t_gap is not None else 0.0,
+            'p10_gap': t_gap,
+            'quality': 'sufficient' if t_gap is not None else 'insufficient'
+        }
+    return lap_traffic
 
 
 def race_estimates(valid):
@@ -271,19 +393,110 @@ def get_verified_retirement(event_name, abbr):
     return None
 
 
+def classify_retirement(status, event_name, abbr, session_year=None):
+    """Audited year-aware reliability taxonomy.
+
+    Categories:
+    - PU-related (ICE, turbo, MGU-K, energy store, control electronics; strictly NO MGU-H in 2026+)
+    - Chassis / team-related (suspension, steering, brakes, gearbox, hydraulics, cooling plumbing, wheels)
+    - Incident / collision (crashes, spins, contact damage)
+    - Other confirmed (medical, DSQ, technical withdrawal)
+    - Unknown / unverified (unconfirmed/generic retirements)
+    """
+    v_ret = get_verified_retirement(event_name, abbr)
+    if v_ret:
+        raw_cat, cause = v_ret
+        source = 'FIA Stewards / Team Official'
+        verified = True
+    else:
+        raw_cat = None
+        cause = str(status)
+        source = 'Official Timing'
+        verified = False
+
+    # Check 2026+ regulatory compliance: strictly exclude MGU-H
+    if session_year and session_year >= 2026:
+        if 'mgu-h' in str(cause).lower():
+            return {
+                'category': 'Unknown / unverified',
+                'cause': f'{cause} (invalid MGU-H reference under 2026+ regulations)',
+                'source': source,
+                'verified': False,
+                'is_mechanical': False,
+                'year_compliant': False
+            }
+
+    cause_lower = str(cause).lower()
+    cat_lower = str(raw_cat or '').lower()
+
+    pu_keywords = ['power unit', 'engine', 'turbo', 'oil pressure', 'water leak', 'coolant',
+                   'cooling', 'radiator', 'oil leak', 'fuel leak', 'fuel system',
+                   'fuel pressure', 'battery', 'ers', 'mgu-k', 'loss of drive',
+                   'exhaust', 'electrical cut-off', 'electrical / halo']
+    if not (session_year and session_year >= 2026):
+        pu_keywords.append('mgu-h')
+
+    chassis_keywords = ['gearbox', 'transmission', 'hydraulics', 'hydraulic',
+                        'brakes', 'brake', 'suspension', 'steering', 'driveshaft',
+                        'differential', 'clutch', 'floor vibration', 'kerb strike',
+                        'wheel attachment', 'wheel bearing']
+
+    incident_keywords = ['accident', 'collision', 'contact', 'barrier', 'crash',
+                         'spun off', 'spin', 'damage from contact', 'wall']
+
+    other_keywords = ['medical', 'illness', 'disqualified', 'dsq', 'withdrew', 'withdrawn']
+
+    if any(k in cause_lower for k in incident_keywords) or 'accident' in cat_lower or 'collision' in cat_lower:
+        category = 'Incident / collision'
+        is_mechanical = False
+    elif any(k in cause_lower for k in pu_keywords) or 'power unit' in cat_lower:
+        category = 'PU-related'
+        is_mechanical = True
+    elif any(k in cause_lower for k in chassis_keywords) or 'mechanical' in cat_lower:
+        category = 'Chassis / team-related'
+        is_mechanical = True
+    elif any(k in cause_lower for k in other_keywords):
+        category = 'Other confirmed'
+        is_mechanical = False
+    else:
+        category = 'Unknown / unverified'
+        is_mechanical = False
+
+    return {
+        'category': category,
+        'cause': str(cause),
+        'source': source,
+        'verified': verified,
+        'is_mechanical': is_mechanical,
+        'year_compliant': True
+    }
+
+
 def analyze(data, traffic=2):
     rows = records(data)
     qualifying = data.name in getattr(data, '_QUALI_LIKE_SESSIONS', ())
     event_name = str(getattr(getattr(data, 'event', {}), 'get', lambda k, d='': getattr(data, 'event', {}).get(k, d))('EventName') or getattr(data, 'name', ''))
+
+    session_year = getattr(data, 'year', None)
+    if not session_year and hasattr(data, 'event') and isinstance(data.event, dict):
+        session_year = data.event.get('Year')
+    if not session_year and hasattr(data, 'date') and hasattr(data.date, 'year'):
+        session_year = data.date.year
+    try:
+        session_year = int(session_year) if session_year else None
+    except (TypeError, ValueError):
+        session_year = None
+
+    regulatory_energy_envelope = get_fia_energy_envelope(session_year, event_name, data.name)
+
     teams = defaultdict(lambda: {'drivers': [], 'points': 0, 'points_known': True,
                                   'starts': 0, 'finishes': 0, 'mechanical': 0,
-                                  'incidents': 0, 'other_retirements': 0, 'positions': [], 'retirements': []})
-    mechanical = {'Engine', 'Gearbox', 'Transmission', 'Hydraulics', 'Electrical',
-                  'Oil pressure', 'Water pressure', 'Water leak', 'Fuel pressure',
-                  'Fuel pump', 'Power Unit', 'Turbo', 'Brakes', 'Suspension',
-                  'Overheating', 'Exhaust', 'Clutch', 'Driveshaft', 'Differential',
-                  'Radiator', 'Oil leak', 'Fuel leak', 'Battery', 'Wheel bearing',
-                  'Steering', 'Pneumatics', 'Water pump', 'Oil pump', 'Spark plugs'}
+                                  'pu_retirements': 0, 'chassis_retirements': 0,
+                                  'incidents': 0, 'incident_retirements': 0,
+                                  'other_retirements': 0, 'unknown_retirements': 0,
+                                  'positions': [], 'retirements': []})
+
+    leader_abbr = None
     for code in data.drivers:
         info = data.get_driver(code)
         abbr = str(info.get('Abbreviation'))
@@ -294,39 +507,48 @@ def analyze(data, traffic=2):
         points = number(info.get('Points'))
         team['points_known'] &= points is not None
         team['points'] += points or 0
-        if status not in ('Did not start', 'Withdrew', 'Did not qualify'):
-            team['starts'] += 1
-        v_ret = get_verified_retirement(event_name, abbr)
-        if status in ('Finished', 'Lapped') or status.startswith('+'):
-            team['finishes'] += 1
-        elif v_ret:
-            cat, cause = v_ret
-            if 'Mechanical' in cat:
-                team['mechanical'] += 1
-            elif 'Accident' in cat or 'collision' in cat:
-                team['incidents'] += 1
-            else:
-                team['other_retirements'] += 1
-            team['retirements'].append({'driver': abbr, 'cause': cause, 'category': cat, 'verified': True})
-        elif status in mechanical:
-            team['mechanical'] += 1
-            team['retirements'].append({'driver': abbr, 'cause': status, 'category': 'Mechanical'})
-        elif status in ('Accident', 'Collision', 'Collision damage', 'Spun off'):
-            team['incidents'] += 1
-            team['retirements'].append({'driver': abbr, 'cause': status, 'category': 'Accident / collision'})
-        elif status not in ('Did not start', 'Withdrew', 'Did not qualify'):
-            team['other_retirements'] += 1
-            team['retirements'].append({'driver': abbr, 'cause': status, 'category': 'Other / cause unreported'})
         pos = number(info.get('Position'))
         if pos:
             team['positions'].append(pos)
+            if pos == 1 and leader_abbr is None:
+                leader_abbr = abbr
+
+        if status not in ('Did not start', 'Withdrew', 'Did not qualify'):
+            team['starts'] += 1
+        if status in ('Finished', 'Lapped') or status.startswith('+'):
+            team['finishes'] += 1
+        elif status not in ('Did not start', 'Withdrew', 'Did not qualify'):
+            ret_info = classify_retirement(status, event_name, abbr, session_year)
+            cat = ret_info['category']
+            if cat == 'PU-related':
+                team['pu_retirements'] += 1
+                team['mechanical'] += 1
+            elif cat == 'Chassis / team-related':
+                team['chassis_retirements'] += 1
+                team['mechanical'] += 1
+            elif cat == 'Incident / collision':
+                team['incident_retirements'] += 1
+                team['incidents'] += 1
+            elif cat == 'Other confirmed':
+                team['other_retirements'] += 1
+            else:
+                team['unknown_retirements'] += 1
+            team['retirements'].append({
+                'driver': abbr,
+                'category': cat,
+                'cause': ret_info['cause'],
+                'source': ret_info['source'],
+                'verified': ret_info['verified'],
+                'year_compliant': ret_info['year_compliant']
+            })
+
     if qualifying:
-        # In qualifying, any valid flying lap (not in/out lap, not deleted, dry compound,
-        # with complete sectors) is eligible. We do not restrict by track status flag.
         valid = [r for r in rows if r['time'] and not r['pit'] and not r['deleted']
                  and r['compound'] in DRY_COMPOUNDS and r['rain'] is False
                  and all(r['sectors'])]
         selected = defaultdict(list)
+        driver_ideals = {}
+
         for phase in ('Q1', 'Q2', 'Q3'):
             official = {}
             for code in data.drivers:
@@ -335,9 +557,33 @@ def analyze(data, traffic=2):
             phase_laps = [r for r in valid if r['phase'] == phase
                           and official.get(r['driver']) is not None
                           and abs(r['time']-official[r['driver']]) < .005]
+            if not phase_laps:
+                phase_laps = [r for r in valid if r['phase'] == phase]
             best = min((r['time'] for r in phase_laps), default=None)
             sector_best = [min((r['sectors'][i] for r in phase_laps if r['sectors'][i]), default=None)
                            for i in range(3)]
+
+            # Compound-matched ideal sector sums within this qualifying phase
+            for r in phase_laps:
+                drv = r['driver']
+                comp = r['compound']
+                key = (drv, phase, comp)
+                if key not in driver_ideals:
+                    comp_laps = [x for x in phase_laps if x['driver'] == drv and x['compound'] == comp]
+                    if comp_laps:
+                        best_comp_time = min(x['time'] for x in comp_laps)
+                        s1 = min(x['sectors'][0] for x in comp_laps if x['sectors'][0])
+                        s2 = min(x['sectors'][1] for x in comp_laps if x['sectors'][1])
+                        s3 = min(x['sectors'][2] for x in comp_laps if x['sectors'][2])
+                        ideal_sum = s1 + s2 + s3
+                        driver_ideals[key] = {
+                            'best_complete': best_comp_time,
+                            'ideal_sum': ideal_sum,
+                            'gap': best_comp_time - ideal_sum,
+                            'sectors': [s1, s2, s3],
+                            'compound': comp
+                        }
+
             for name in teams:
                 laps = [r for r in phase_laps if r['team'] == name]
                 lap = min(laps, key=lambda r: r['time'], default=None)
@@ -348,6 +594,7 @@ def analyze(data, traffic=2):
                         'sectors': [(lap['sectors'][i]/sector_best[i]-1)*100
                                     if lap['sectors'][i] and sector_best[i] else None for i in range(3)]
                     })
+
         for name, team in teams.items():
             phases = selected[name]
             laps = [entry['lap'] for entry in phases]
@@ -357,10 +604,38 @@ def analyze(data, traffic=2):
                 team_best_lap = min(team_valid, key=lambda r: r['time'], default=None)
                 if team_best_lap:
                     laps = [team_best_lap]
+
+            matched_ideal = None
+            if team_best_lap:
+                matched_ideal = driver_ideals.get((team_best_lap['driver'], team_best_lap['phase'], team_best_lap['compound']))
+                if not matched_ideal:
+                    cands = [v for (d, p, c), v in driver_ideals.items() if d == team_best_lap['driver'] and c == team_best_lap['compound']]
+                    if cands:
+                        matched_ideal = min(cands, key=lambda x: x['ideal_sum'])
+            if not matched_ideal and team_best_lap:
+                matched_ideal = {
+                    'best_complete': team_best_lap['time'],
+                    'ideal_sum': sum(team_best_lap['sectors']),
+                    'gap': 0.0,
+                    'sectors': team_best_lap['sectors'],
+                    'compound': team_best_lap['compound']
+                }
+
+            ideal_lap_time = matched_ideal['ideal_sum'] if matched_ideal else (team_best_lap['time'] if team_best_lap else None)
+            ideal_gap = matched_ideal['gap'] if matched_ideal else 0.0
+            ideal_sectors = matched_ideal['sectors'] if matched_ideal else (team_best_lap['sectors'] if team_best_lap else None)
+            ideal_compound = matched_ideal['compound'] if matched_ideal else (team_best_lap['compound'] if team_best_lap else None)
+
             team.update({
                 'pace': sum(entry['pace'] for entry in phases)/len(phases) if phases else None,
                 'lap': team_best_lap,
                 'laps': laps,
+                'ideal_lap_time': ideal_lap_time,
+                'ideal_vs_complete_gap': float(ideal_gap),
+                'ideal_vs_complete_gap_s': round(float(ideal_gap), 3),
+                'ideal_sectors': ideal_sectors,
+                'completed_sectors': team_best_lap['sectors'] if team_best_lap else None,
+                'ideal_compound': ideal_compound,
                 'telemetry_candidates': sorted(
                     [r for r in valid if r['team'] == name and laps
                      and r['time'] <= min(x['time'] for x in laps)*1.01],
@@ -376,25 +651,42 @@ def analyze(data, traffic=2):
                                     if entry['sectors'][i] is not None] for i in range(3))
                 ],
             })
-        # One fastest real, officially classified lap across the complete
-        # qualifying session; earlier phases no longer dilute the final pace.
+
+        # Headline Qualifying Deficit across complete qualifying session
         representatives = [team['lap'] for team in teams.values() if team['lap']]
         fastest_time = min((lap['time'] for lap in representatives), default=None)
         fastest_sectors = [min((lap['sectors'][i] for lap in representatives
                                 if lap['sectors'][i]), default=None) for i in range(3)]
+        fastest_ideal_time = min((team['ideal_lap_time'] for team in teams.values() if team.get('ideal_lap_time')), default=fastest_time)
+        fastest_ideal_sectors = [min((team['ideal_sectors'][i] for team in teams.values() if team.get('ideal_sectors')), default=None) for i in range(3)]
+
         for team in teams.values():
             lap = team['lap']
-            team['pace'] = (lap['time']/fastest_time-1)*100 if lap and fastest_time else None
+            pace_pct = (lap['time']/fastest_time-1)*100 if lap and fastest_time else None
+            pace_sec = (lap['time']-fastest_time) if lap and fastest_time else None
+            ideal_pct = (team['ideal_lap_time']/fastest_ideal_time-1)*100 if team.get('ideal_lap_time') and fastest_ideal_time else None
+            ideal_sec = (team['ideal_lap_time']-fastest_ideal_time) if team.get('ideal_lap_time') and fastest_ideal_time else None
+
+            team['pace'] = pace_pct
+            team['pace_delta_s'] = round(pace_sec, 3) if pace_sec is not None else None
+            team['ideal_pace'] = ideal_pct
+            team['ideal_pace_delta_s'] = round(ideal_sec, 3) if ideal_sec is not None else None
             team['samples'] = 1 if lap else 0
             team['sector_deficits'] = [
                 (lap['sectors'][i]/fastest_sectors[i]-1)*100
                 if lap and lap['sectors'][i] and fastest_sectors[i] else None
                 for i in range(3)]
+            team['ideal_sector_deficits'] = [
+                (team['ideal_sectors'][i]/fastest_ideal_sectors[i]-1)*100
+                if team.get('ideal_sectors') and team['ideal_sectors'][i] and fastest_ideal_sectors[i] else None
+                for i in range(3)]
             team['speed_trap'] = lap.get('speed_st') if lap else None
             team['speed_fl'] = lap.get('speed_fl') if lap else None
+
     else:
         valid_all = [r for r in rows if clean(r)]
-        gaps = traffic_gaps(rows)
+        traffic_info = compute_lap_traffic(rows, leader_abbr=leader_abbr)
+        gaps = {k: v['gap'] for k, v in traffic_info.items()}
         candidates = [r for r in valid_all if r['lap'] and r['lap'] > 2]
         valid = [r for r in candidates if gaps.get((r['driver'], r['lap'])) is not None
                  and gaps[(r['driver'], r['lap'])] > traffic]
@@ -415,22 +707,33 @@ def analyze(data, traffic=2):
             else:
                 traffic_sensitivities[t_thresh] = {}
 
-        # Field benchmark for same-lap compound normalization (subtracts fuel & evolution)
-        lap_compound_benchmark = {}
-        from collections import defaultdict as ddict
-        lap_comp_times = ddict(list)
-        lap_st_times = ddict(list)
-        lap_fl_times = ddict(list)
-        for r in valid:
-            if r.get('compound') and r.get('lap') and r.get('time'):
-                lap_comp_times[(r['lap'], r['compound'])].append(r['time'])
+        # Rebase each sensitivity threshold so the fastest driver is 0.00%
+        for th, t_est in traffic_sensitivities.items():
+            if t_est:
+                min_v = min(t_est.values())
+                traffic_sensitivities[th] = {
+                    d: round(max(0.0, ((100 + v) / (100 + min_v) - 1) * 100), 4)
+                    for d, v in t_est.items()
+                }
+
+        lap_st_times = defaultdict(list)
+        lap_fl_times = defaultdict(list)
+        lap_comp_team_times = defaultdict(lambda: defaultdict(list))
+        for r in valid_all:
+            if r.get('compound') and r.get('lap') and r.get('time') and r.get('team'):
+                lap_comp_team_times[(r['lap'], r['compound'])][r['team']].append(r['time'])
             if r.get('lap') and r.get('speed_st'):
                 lap_st_times[r['lap']].append(r['speed_st'])
             if r.get('lap') and r.get('speed_fl'):
                 lap_fl_times[r['lap']].append(r['speed_fl'])
-        for k, t_list in lap_comp_times.items():
-            if len(t_list) >= 2:
-                lap_compound_benchmark[k] = float(median(t_list))
+
+        # Leave-one-team-out median benchmark function: requires >= 3 other comparison cars
+        def leave_one_out_median(lap, compound, exclude_team):
+            team_map = lap_comp_team_times.get((lap, compound), {})
+            other_times = [t for tm, t_list in team_map.items() if tm != exclude_team for t in t_list]
+            if len(other_times) >= 3:
+                return float(median(other_times)), len(other_times)
+            return None, len(other_times)
 
         lap_st_benchmark = {lap: float(median(vals)) for lap, vals in lap_st_times.items() if len(vals) >= 2}
         lap_fl_benchmark = {lap: float(median(vals)) for lap, vals in lap_fl_times.items() if len(vals) >= 2}
@@ -438,61 +741,105 @@ def analyze(data, traffic=2):
         field_avg_fl = sum(lap_fl_benchmark.values()) / len(lap_fl_benchmark) if lap_fl_benchmark else None
         driver_team = {r['driver']: r['team'] for r in candidates if r.get('driver') and r.get('team')}
 
-        # Multi-threshold blended race pace (Loose 1.5s, Standard 2.0s, Strict 2.5s)
-        # Combines estimates from available thresholds, naturally acting as a distance-weighted
-        # clean-air filter (pristine >2.5s laps receive highest representation).
-        blended_driver_estimates = {}
-        all_candidate_drivers = set(driver_estimates.keys())
-        for th_est in traffic_sensitivities.values():
-            all_candidate_drivers.update(th_est.keys())
-
-        for d in all_candidate_drivers:
-            d_paces = [traffic_sensitivities[th][d] for th in (1.5, 2.0, 2.5)
-                       if th in traffic_sensitivities and d in traffic_sensitivities[th]
-                       and traffic_sensitivities[th][d] is not None]
-            if d_paces:
-                blended_driver_estimates[d] = sum(d_paces) / len(d_paces)
-            elif d in driver_estimates:
-                blended_driver_estimates[d] = driver_estimates[d]
-
-        # Rebase so the fastest driver in race trim is exactly 0.00%
-        if blended_driver_estimates:
-            min_blended = min(blended_driver_estimates.values())
-            for d in blended_driver_estimates:
-                blended_driver_estimates[d] = round(max(0.0, ((100 + blended_driver_estimates[d]) / (100 + min_blended) - 1) * 100), 4)
+        # Headline Race Pace: Standard 2.0s model with sample tiering and 1.5s fallback
+        std_estimates = traffic_sensitivities.get(2.0, {})
+        loose_estimates = traffic_sensitivities.get(1.5, {})
 
         for name, team in teams.items():
-            drivers = [(driver, pace) for driver, pace in blended_driver_estimates.items()
-                       if driver_team.get(driver) == name]
-            fastest = min(drivers, key=lambda item: item[1], default=None)
-            team['pace'] = fastest[1] if fastest else None
-            team['fastest_race_driver'] = fastest[0] if fastest else None
-            team['samples'] = support.get(fastest[0], {}).get('samples', 0) if fastest else 0
-            team['race_residual_spread'] = support.get(fastest[0], {}).get('residual_spread') if fastest else None
-            team['race_drivers'] = [{'driver': driver, 'pace': pace, **support.get(driver, {'samples': 0, 'residual_spread': None})}
-                                    for driver, pace in drivers]
-            team['teammate_spread'] = abs(drivers[0][1] - drivers[1][1]) if len(drivers) >= 2 else None
+            team_candidates = [r for r in candidates if r.get('team') == name]
+            clean_20 = [r for r in candidates if r.get('team') == name and gaps.get((r['driver'], r['lap'])) is not None and gaps[(r['driver'], r['lap'])] > 2.0]
+            clean_15 = [r for r in candidates if r.get('team') == name and gaps.get((r['driver'], r['lap'])) is not None and gaps[(r['driver'], r['lap'])] > 1.5]
 
-            # Team traffic sensitivity: pace at 1.5s, 2.0s, 2.5s
-            if fastest:
-                team['traffic_sensitivity'] = {
-                    'loose_15': traffic_sensitivities.get(1.5, {}).get(fastest[0]),
-                    'standard_20': traffic_sensitivities.get(2.0, {}).get(fastest[0]),
-                    'strict_25': traffic_sensitivities.get(2.5, {}).get(fastest[0]),
-                    '1.5s': traffic_sensitivities.get(1.5, {}).get(fastest[0]),
-                    '2.0s': traffic_sensitivities.get(2.0, {}).get(fastest[0]),
-                    '2.5s': traffic_sensitivities.get(2.5, {}).get(fastest[0])
-                }
+            # Select fastest driver based on 2.0s model, falling back to 1.5s or raw
+            team_drivers = list({r['driver'] for r in team_candidates if r.get('driver')})
+            fastest_driver = None
+            if team_drivers:
+                drivers_with_20 = [(d, std_estimates[d]) for d in team_drivers if d in std_estimates]
+                if drivers_with_20:
+                    fastest_driver = min(drivers_with_20, key=lambda x: x[1])[0]
+                else:
+                    drivers_with_15 = [(d, loose_estimates[d]) for d in team_drivers if d in loose_estimates]
+                    if drivers_with_15:
+                        fastest_driver = min(drivers_with_15, key=lambda x: x[1])[0]
+                    else:
+                        fastest_driver = team_drivers[0]
+
+            # Determine sample counts for headline driver
+            d_laps_20 = [r for r in clean_20 if r['driver'] == fastest_driver] if fastest_driver else []
+            d_laps_15 = [r for r in clean_15 if r['driver'] == fastest_driver] if fastest_driver else []
+            n_20 = len(d_laps_20)
+            n_15 = len(d_laps_15)
+
+            headline_pace = None
+            sample_tier = 'starved'
+            provisional = False
+            fallback_used = False
+            model_threshold = 2.0
+
+            if n_20 >= 5 and fastest_driver in std_estimates:
+                headline_pace = std_estimates[fastest_driver]
+                sample_tier = 'normal'
+                provisional = False
+                fallback_used = False
+                model_threshold = 2.0
+            elif n_20 >= 3 and fastest_driver in std_estimates:
+                headline_pace = std_estimates[fastest_driver]
+                sample_tier = 'provisional'
+                provisional = True
+                fallback_used = False
+                model_threshold = 2.0
+            elif n_15 >= 5 and fastest_driver in loose_estimates:
+                headline_pace = loose_estimates[fastest_driver]
+                sample_tier = 'normal'
+                provisional = False
+                fallback_used = True
+                model_threshold = 1.5
+            elif n_15 >= 3 and fastest_driver in loose_estimates:
+                headline_pace = loose_estimates[fastest_driver]
+                sample_tier = 'provisional'
+                provisional = True
+                fallback_used = True
+                model_threshold = 1.5
             else:
-                team['traffic_sensitivity'] = {
-                    'loose_15': None, 'standard_20': None, 'strict_25': None,
-                    '1.5s': None, '2.0s': None, '2.5s': None
-                }
+                headline_pace = std_estimates.get(fastest_driver) or loose_estimates.get(fastest_driver)
+                sample_tier = 'starved'
+                provisional = True
+                fallback_used = False
+                model_threshold = 2.0
 
-            eligible = [r for r in candidates if r['driver'] == fastest[0]] if fastest else []
-            clean_laps = [r for r in valid if r['team'] == name]
-            selected_clean = [r for r in clean_laps if fastest and r['driver'] == fastest[0]]
-            team['traffic_coverage'] = len(selected_clean)/len(eligible) if eligible else 0
+            # Non-monotonic traffic sensitivity bracket [min, max]
+            valid_th_paces = [
+                traffic_sensitivities[th][fastest_driver]
+                for th in (1.5, 2.0, 2.5)
+                if th in traffic_sensitivities and fastest_driver in traffic_sensitivities[th]
+                and traffic_sensitivities[th][fastest_driver] is not None
+            ] if fastest_driver else []
+
+            bracket = [round(min(valid_th_paces), 2), round(max(valid_th_paces), 2)] if valid_th_paces else None
+
+            team['pace'] = headline_pace
+            team['fastest_race_driver'] = fastest_driver
+            team['sample_tier'] = sample_tier
+            team['provisional'] = provisional
+            team['fallback_used'] = fallback_used
+            team['model_threshold'] = model_threshold
+            team['traffic_sensitivity_bracket'] = bracket
+            team['samples'] = n_20 if model_threshold == 2.0 else n_15
+            team['race_residual_spread'] = support.get(fastest_driver, {}).get('residual_spread') if fastest_driver else None
+            team['teammate_spread'] = None
+
+            team['traffic_sensitivity'] = {
+                'loose_15': traffic_sensitivities.get(1.5, {}).get(fastest_driver),
+                'standard_20': traffic_sensitivities.get(2.0, {}).get(fastest_driver),
+                'strict_25': traffic_sensitivities.get(2.5, {}).get(fastest_driver),
+                '1.5s': traffic_sensitivities.get(1.5, {}).get(fastest_driver),
+                '2.0s': traffic_sensitivities.get(2.0, {}).get(fastest_driver),
+                '2.5s': traffic_sensitivities.get(2.5, {}).get(fastest_driver)
+            }
+
+            clean_laps = clean_20 if model_threshold == 2.0 else clean_15
+            team['traffic_coverage'] = len(clean_laps) / max(1, len(team_candidates))
+            team['traffic_quality'] = 'sufficient' if team['traffic_coverage'] >= 0.80 else 'insufficient'
 
             # Race speed trap statistics across clean laps
             team_st = [r['speed_st'] for r in clean_laps if r.get('speed_st') is not None]
@@ -502,7 +849,6 @@ def analyze(data, traffic=2):
             team['race_speed_fl_max'] = max(team_fl) if team_fl else None
             team['race_speed_fl_median'] = float(median(team_fl)) if team_fl else None
 
-            # Lap-matched speed traps (compares cars on the exact same laps, eliminating fuel weight differences)
             st_deltas = [r['speed_st'] - lap_st_benchmark[r['lap']]
                          for r in clean_laps if r.get('lap') in lap_st_benchmark and r.get('speed_st')]
             fl_deltas = [r['speed_fl'] - lap_fl_benchmark[r['lap']]
@@ -512,46 +858,68 @@ def analyze(data, traffic=2):
             team['speed_trap'] = team['race_speed_trap_matched']
             team['speed_fl'] = team['race_speed_fl_matched']
 
-            # Stint degradation: both raw slope and field-normalized degradation
+            # Leave-one-team-out relative tyre degradation
             stints = defaultdict(list)
-            stint_normalized = defaultdict(list)
+            stint_relative = defaultdict(list)
+            stint_supports = defaultdict(list)
             for r in clean_laps:
-                if r['age'] is not None and r['time'] is not None:
-                    stints[(r['driver'], r['stint'], r['compound'])].append((r['age'], r['time']))
-                    if (r['lap'], r['compound']) in lap_compound_benchmark:
-                        rel_time = r['time'] - lap_compound_benchmark[(r['lap'], r['compound'])]
-                        stint_normalized[(r['driver'], r['stint'], r['compound'])].append((r['age'], rel_time))
+                if r.get('age') is not None and r.get('time') is not None and r.get('compound'):
+                    key = (r['driver'], r['stint'], r['compound'])
+                    stints[key].append((r['age'], r['time']))
+                    bm, support_count = leave_one_out_median(r['lap'], r['compound'], name)
+                    if bm is not None:
+                        stint_relative[key].append((r['age'], r['time'] - bm))
+                        stint_supports[key].append(support_count)
 
             degradation_list = []
             for key, points in stints.items():
                 s_val = slope(points)
                 if s_val is None:
                     continue
-                norm_pts = stint_normalized.get(key, [])
-                field_norm_slope = slope(norm_pts) if len(norm_pts) >= 4 else None
+                rel_pts = stint_relative.get(key, [])
+                rel_slope = slope(rel_pts) if len(rel_pts) >= 4 else None
+                supports = stint_supports.get(key, [])
+                median_support = int(median(supports)) if supports else 0
 
-                # Piecewise cliff detection (substantial rate acceleration >= 0.15 s/lap)
+                ages = [p[0] for p in points]
+                min_age = int(min(ages))
+                max_age = int(max(ages))
+                age_span = max_age - min_age
+                is_low_sample = len(points) < 8 or age_span < 6
+
                 cliff_detected = False
                 cliff_age = None
                 if len(points) >= 8:
                     mid = len(points) // 2
                     s1 = slope(points[:mid])
                     s2 = slope(points[mid:])
-                    if s1 is not None and s2 is not None and s2 - s1 >= 0.15:
+                    if s1 is not None and s2 is not None and (s2 - s1) >= 0.15:
                         cliff_detected = True
                         cliff_age = points[mid][0]
 
                 degradation_list.append({
                     'driver': key[0], 'stint': key[1], 'compound': key[2],
-                    'slope': s_val, 'field_normalized_slope': field_norm_slope,
-                    'cliff_detected': cliff_detected, 'cliff_age': cliff_age,
-                    'samples': len(points)
+                    'slope': s_val,
+                    'relative_slope': rel_slope,
+                    'field_normalized_slope': rel_slope,
+                    'min_age': min_age, 'max_age': max_age, 'age_span': age_span,
+                    'samples': len(points),
+                    'field_support': median_support,
+                    'low_sample': is_low_sample,
+                    'cliff_detected': cliff_detected,
+                    'cliff_age': cliff_age
                 })
             team['degradation'] = degradation_list
-    return {'event': str(data.event['EventName']), 'session': data.name,
+
+    return {'event': str(getattr(getattr(data, 'event', {}), 'get', lambda k, d='': getattr(data, 'event', {}).get(k, d))('EventName') or getattr(data, 'name', '')),
+            'session': data.name,
+            'year': session_year,
+            'regulatory_energy_envelope': regulatory_energy_envelope,
             'teams': [{'team': name, **team} for name, team in teams.items()],
-            'method': 'car-performance-v4-sampling-aware', 'traffic_threshold': traffic,
-            'total_laps': len(rows), 'eligible_laps': len(valid)}
+            'method': 'car-performance-v4-sampling-aware',
+            'traffic_threshold': traffic,
+            'total_laps': len(rows),
+            'eligible_laps': len(valid)}
 
 
 def telemetry_metrics(samples, corners):

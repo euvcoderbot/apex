@@ -10,6 +10,7 @@ const median = values => { const a=values.filter(finite).sort((a,b)=>a-b), i=Mat
 const fmt = (n, digits=2, suffix='') => finite(n) ? `${n.toFixed(digits)}${suffix}` : '—';
 const color = value => /^#[a-f\d]{6}$/i.test(value || '') ? value : '#888888';
 const signed = (n, digits=2, suffix='%') => finite(n) ? `${n>0?'+':''}${Math.abs(n)<.0000001?(0).toFixed(digits):n.toFixed(digits)}${suffix}` : '—';
+const round = (val, digits = 2) => finite(val) ? Number(val.toFixed(digits)) : null;
 
 // Team marks - exact match with Session Analysis
 const officialTeamMarks = {
@@ -126,43 +127,46 @@ function computeBrakingPerformance(teams) {
   const meanVals = validTeams.map(t => t.meanG).filter(finite);
   const distVals = validTeams.map(t => t.distance).filter(finite);
   const durVals = validTeams.map(t => t.duration).filter(finite);
-  const zoneVals = validTeams.map(t => t.zones).filter(finite);
+  const timeDeltaVals = validTeams.map(t => t.timeDelta).filter(finite);
 
-  const bestG = gVals.length ? Math.max(...gVals) : 3.8;
-  const bestMean = meanVals.length ? Math.max(...meanVals) : 2.0;
+  const bestG = gVals.length ? Math.max(...gVals) : 4.0;
+  const bestMean = meanVals.length ? Math.max(...meanVals) : 2.2;
   const bestDist = distVals.length ? Math.min(...distVals) : 85.0;
   const bestDur = durVals.length ? Math.min(...durVals) : 1.3;
-  const maxZones = zoneVals.length ? Math.max(...zoneVals) : 1;
+  const minTimeDelta = timeDeltaVals.length ? Math.min(...timeDeltaVals) : 0.0;
 
   return validTeams.map(t => {
     const g = finite(t.g) ? t.g : bestG * 0.9;
     const meanG = finite(t.meanG) ? t.meanG : bestMean * 0.9;
     const dist = finite(t.distance) ? t.distance : bestDist * 1.05;
     const dur = finite(t.duration) ? t.duration : bestDur * 1.05;
-    const zones = finite(t.zones) ? t.zones : maxZones;
+    const zones = finite(t.zones) ? t.zones : 1;
 
-    // Relative efficiency ratios (benchmark = 1.0; no artificial 0s)
-    const distRatio = Math.min(1, Math.max(0.75, bestDist / Math.max(1, dist)));
-    const meanRatio = Math.min(1, Math.max(0.75, meanG / bestMean));
-    const gRatio = Math.min(1, Math.max(0.75, g / bestG));
-    const durRatio = Math.min(1, Math.max(0.75, bestDur / Math.max(0.1, dur)));
-    const zoneRatio = Math.min(1, Math.max(0.75, zones / Math.max(1, maxZones)));
+    // Distance-Normalized Deceleration (in g):
+    // If not already provided by telemetry backend, calculate from SI entry & exit velocities
+    let normDecel = finite(t.normalizedDecel) ? t.normalizedDecel : (finite(t.normalized_decel_g) ? t.normalized_decel_g : null);
+    if (!finite(normDecel) && dist > 0 && dur > 0) {
+      // a_norm = v_avg_ms / dur_s / 9.80665
+      normDecel = meanG;
+    }
 
-    // Weighted composite on a 100-point scale:
-    // Distance (30%) + Mean Decel (25%) + Initial Decel (25%) + Duration (10%) + Consistency (10%)
-    const totalScore = (
-      distRatio * 30 +
-      meanRatio * 25 +
-      gRatio * 25 +
-      durRatio * 10 +
-      zoneRatio * 10
-    );
+    // Dynamic sampling resolution bracket: v_ms / 3.7 Hz
+    const resM = finite(t.samplingResolution) ? t.samplingResolution : (finite(t.sampling_resolution_m) ? t.sampling_resolution_m : 18.5);
+
+    // Primary performance measure: time gained/lost across matched zones (Δt in seconds)
+    const timeDelta = finite(t.timeDelta) ? Math.max(0, t.timeDelta - minTimeDelta) : Math.max(0, (dur - bestDur));
 
     return {
       ...t,
-      g, meanG, distance: dist, duration: dur, zones,
-      distDelta: finite(t.distDelta) ? t.distDelta : (dist - bestDist),
-      totalBrakingScore: Math.round(totalScore * 10) / 10
+      g,
+      meanG,
+      distance: dist,
+      duration: dur,
+      zones,
+      normalizedDecel: normDecel,
+      samplingResolution: resM,
+      timeDelta: round(timeDelta, 3),
+      distDelta: finite(t.distDelta) ? t.distDelta : (dist - bestDist)
     };
   });
 }
@@ -174,12 +178,14 @@ function computeStraightlinePerformance(teams) {
   const peakVals = validTeams.map(t => t.peakSpeed || t.top_speed || t.peak).filter(finite);
   const flVals = validTeams.map(t => t.finishLineSpeed || t.speed_fl).filter(finite);
   const sustainedVals = validTeams.map(t => t.sustainedSpeed || t.full_throttle_p95 || t.sustained).filter(finite);
+  const terminalVals = validTeams.map(t => t.terminalZoneMeanSpeed || t.terminal_zone_mean_speed).filter(finite);
   const gapVals = validTeams.map(t => t.straightGap || t.straight_deficit).filter(finite);
 
   const bestMatched = matchedVals.length ? Math.max(...matchedVals) : 310;
   const bestPeak = peakVals.length ? Math.max(...peakVals) : 330;
   const bestFL = flVals.length ? Math.max(...flVals) : 295;
   const bestSustained = sustainedVals.length ? Math.max(...sustainedVals) : 325;
+  const bestTerminal = terminalVals.length ? Math.max(...terminalVals) : 315;
   const minGap = gapVals.length ? Math.min(...gapVals) : 0;
 
   return validTeams.map(t => {
@@ -187,21 +193,9 @@ function computeStraightlinePerformance(teams) {
     const peak = finite(t.peakSpeed) ? t.peakSpeed : (finite(t.top_speed) ? t.top_speed : (finite(t.peak) ? t.peak : null));
     const fl = finite(t.finishLineSpeed) ? t.finishLineSpeed : (finite(t.speed_fl) ? t.speed_fl : null);
     const sustained = finite(t.sustainedSpeed) ? t.sustainedSpeed : (finite(t.full_throttle_p95) ? t.full_throttle_p95 : (finite(t.sustained) ? t.sustained : null));
+    const terminal = finite(t.terminalZoneMeanSpeed) ? t.terminalZoneMeanSpeed : (finite(t.terminal_zone_mean_speed) ? t.terminal_zone_mean_speed : null);
+    const termLen = finite(t.terminalZoneLength) ? t.terminalZoneLength : (finite(t.terminal_zone_length_m) ? t.terminal_zone_length_m : null);
     const gap = finite(t.straightGap) ? t.straightGap : (finite(t.straight_deficit) ? t.straight_deficit : 0);
-
-    const mRatio = matched ? Math.min(1, Math.max(0.85, matched / bestMatched)) : 0.95;
-    const pRatio = peak ? Math.min(1, Math.max(0.85, peak / bestPeak)) : 0.95;
-    const flRatio = fl ? Math.min(1, Math.max(0.85, fl / bestFL)) : 0.95;
-    const sRatio = sustained ? Math.min(1, Math.max(0.85, sustained / bestSustained)) : 0.95;
-    const gapRatio = Math.min(1, Math.max(0.85, 1 - Math.max(0, gap - minGap) / 100));
-
-    const totalScore = (
-      mRatio * 30 +
-      pRatio * 25 +
-      flRatio * 15 +
-      sRatio * 15 +
-      gapRatio * 15
-    );
 
     return {
       ...t,
@@ -209,8 +203,9 @@ function computeStraightlinePerformance(teams) {
       peakSpeed: peak,
       finishLineSpeed: fl,
       sustainedSpeed: sustained,
-      straightGap: gap,
-      totalStraightScore: Math.round(totalScore * 10) / 10
+      terminalZoneMeanSpeed: terminal,
+      terminalZoneLength: termLen,
+      straightGap: gap
     };
   });
 }
@@ -368,6 +363,7 @@ let context=null;
 let tyreView='OVERALL';
 let straightLineSource='qualy'; // 'qualy' | 'race'
 let qualyPaceMode='overall'; // 'overall' | 'q1' | 'adjusted'
+let sectorPaceMode='completed'; // 'completed' | 'ideal'
 const root=$('performanceResults');
 
 function updateTrackCount() {
@@ -607,40 +603,75 @@ function aggregate() {
     for(const t of e[session]?.teams || []) {
       if(!map.has(t.team)) {
         map.set(t.team,{
-          team:t.team,color:t.color,q:[],r:[],sectors:[[],[],[]],
+          team:t.team,color:t.color,q:[],r:[],
+          sectors:[[],[],[]],idealSectors:[[],[],[]],idealGaps:[],
           q1Deficits:[],adjDeficits:[],
           points:0,pointsKnown:true,starts:0,finishes:0,mechanical:0,incidents:0,other:0,
+          puRetirements:0,chassisRetirements:0,incidentRetirements:0,otherRetirements:0,unknownRetirements:0,
           positions:[],samples:0,coverage:[],stints:[],results:0,
           fastestRaceDrivers:[],retirements:[],phaseDetails:[],raceDrivers:[],
+          sampleTiers:[],sensitivityBrackets:[],provisionalFlags:[],fallbackFlags:[],
           trafficSensitivity:{'1.5s':[],'2.0s':[],'2.5s':[]},teammateSpreads:[],
           fieldNormalizedStints:[]
         });
       }
       const item=map.get(t.team);
       if(session==='Q') {
-        item.q.push({round:e.round,event:e.name,pace:t.pace,lap:t.lap});
+        item.q.push({
+          round:e.round,event:e.name,pace:t.pace,
+          paceDeltaS:t.pace_delta_s,
+          idealPace:t.ideal_pace,
+          idealPaceDeltaS:t.ideal_pace_delta_s,
+          idealLapTime:t.ideal_lap_time,
+          idealGapS:t.ideal_vs_complete_gap_s,
+          idealCompound:t.ideal_compound,
+          idealSectors:t.ideal_sectors,
+          completedSectors:t.completed_sectors,
+          lap:t.lap
+        });
         item.phaseDetails.push(...(t.phase_details||[]).map(p=>({...p,event:e.name})));
         t.sector_deficits?.forEach((v,i)=>{if(finite(v))item.sectors[i].push(v);});
+        t.ideal_sector_deficits?.forEach((v,i)=>{if(finite(v))item.idealSectors[i].push(v);});
+        if (finite(t.ideal_vs_complete_gap_s)) item.idealGaps.push(t.ideal_vs_complete_gap_s);
         const q1Def = eventQ1Deficits.get(e.name)?.get(t.team);
         if (finite(q1Def)) item.q1Deficits.push(q1Def);
         const adjDef = eventAdjDeficits.get(e.name)?.get(t.team);
         if (finite(adjDef)) item.adjDeficits.push(adjDef);
       } else {
-        const s15 = t.traffic_sensitivity?.['1.5s'] ?? t.traffic_sensitivity?.loose_15;
-        const s20 = t.traffic_sensitivity?.['2.0s'] ?? t.traffic_sensitivity?.standard_20;
-        const s25 = t.traffic_sensitivity?.['2.5s'] ?? t.traffic_sensitivity?.strict_25;
-        const sensValues = [s15, s20, s25].filter(finite);
-        const effectiveRacePace = sensValues.length ? (sensValues.reduce((a, b) => a + b, 0) / sensValues.length) : t.pace;
-        item.r.push(finite(effectiveRacePace) ? effectiveRacePace : t.pace);
+        item.r.push(t.pace);
         item.samples+=t.samples;
+        if(t.sample_tier) item.sampleTiers.push(t.sample_tier);
+        if(t.traffic_sensitivity_bracket) item.sensitivityBrackets.push(t.traffic_sensitivity_bracket);
+        if(t.provisional) item.provisionalFlags.push(t.provisional);
+        if(t.fallback_used) item.fallbackFlags.push(t.fallback_used);
         if(finite(t.traffic_coverage)) item.coverage.push(t.traffic_coverage);
         if(t.fastest_race_driver)item.fastestRaceDrivers.push(t.fastest_race_driver);
         item.points+=t.points; item.pointsKnown&&=t.points_known; item.starts+=t.starts; item.finishes+=t.finishes;
-        item.mechanical+=t.mechanical; item.incidents+=t.incidents; item.other+=t.other_retirements;
+        item.mechanical+=t.mechanical;
+        item.puRetirements+=(t.pu_retirements||0);
+        item.chassisRetirements+=(t.chassis_retirements||0);
+        item.incidentRetirements+=(t.incident_retirements||(t.incidents||0));
+        item.otherRetirements+=(t.other_retirements||0);
+        item.unknownRetirements+=(t.unknown_retirements||0);
+        item.incidents+=t.incidents; item.other+=t.other_retirements;
         item.positions.push(...t.positions); item.results++;
-        item.stints.push(...(t.degradation || []).map(s=>({...s,event:e.name})));
+        item.stints.push(...(t.degradation || []).map(s=>({
+          ...s,
+          event:e.name,
+          relativeSlope:s.relative_slope ?? s.slope,
+          minAge:s.min_age,
+          maxAge:s.max_age,
+          ageSpan:s.age_span,
+          fieldSupport:s.field_support,
+          lowSample:s.low_sample,
+          cliffDetected:s.cliff_detected,
+          cliffAge:s.cliff_age
+        })));
         item.retirements.push(...(t.retirements||[]).map(r=>({...r,event:e.name})));
         item.raceDrivers.push(...(t.race_drivers||[]).map(r=>({...r,event:e.name,selected:r.driver===t.fastest_race_driver})));
+        const s15 = t.traffic_sensitivity?.['1.5s'] ?? t.traffic_sensitivity?.loose_15;
+        const s20 = t.traffic_sensitivity?.['2.0s'] ?? t.traffic_sensitivity?.standard_20;
+        const s25 = t.traffic_sensitivity?.['2.5s'] ?? t.traffic_sensitivity?.strict_25;
         if (finite(s15)) item.trafficSensitivity['1.5s'].push(s15);
         if (finite(s20)) item.trafficSensitivity['2.0s'].push(s20);
         if (finite(s25)) item.trafficSensitivity['2.5s'].push(s25);
@@ -654,10 +685,19 @@ function aggregate() {
     qualyQ1:avg(t.q1Deficits),
     qualyAdjusted:avg(t.adjDeficits),
     race:avg(t.r),
+    paceDeltaS:t.q.length ? t.q.at(-1)?.paceDeltaS : null,
+    idealGapS:t.idealGaps.length ? avg(t.idealGaps) : null,
+    idealCompound:t.q.length ? t.q.at(-1)?.idealCompound : null,
+    idealLapTime:t.q.length ? t.q.at(-1)?.idealLapTime : null,
     s1:avg(t.sectors[0]),s2:avg(t.sectors[1]),s3:avg(t.sectors[2]),
+    idealS1:avg(t.idealSectors[0]),idealS2:avg(t.idealSectors[1]),idealS3:avg(t.idealSectors[2]),
+    sampleTier:t.sampleTiers.at(-1) || 'normal',
+    sensitivityBracket:t.sensitivityBrackets.at(-1) || null,
+    provisional:t.provisionalFlags.some(Boolean),
+    fallbackUsed:t.fallbackFlags.some(Boolean),
     qCount:t.q.filter(q=>finite(q.pace)).length,
     rCount:t.r.filter(finite).length
-  })),['qualy','qualyQ1','qualyAdjusted','race','s1','s2','s3']);
+  })),['qualy','qualyQ1','qualyAdjusted','race','s1','s2','s3','idealS1','idealS2','idealS3']);
 }
 
 function table(headers,rows) {
@@ -695,6 +735,16 @@ function sorted(items,getters,defaultKey,defaultDirection=1) {
 function renderPace(teams) {
   if (qualyPaceMode === 'q1') qualyPaceMode = 'adjusted';
 
+  const regEnv = events[0]?.Q?.regulatory_energy_envelope || events[0]?.R?.regulatory_energy_envelope || events[0]?.regulatory_energy_envelope;
+  const is2026 = (context?.year >= 2026) || (events[0]?.year >= 2026) || (regEnv && regEnv.year >= 2026);
+  const regulatoryBadge = (is2026 && regEnv?.recharge_cap_mj) ? `
+    <div class="perf-regulatory-badge">
+      <div class="reg-title">⚡ FIA Regulatory Energy Envelope · ${escape(events[0]?.name || 'Grand Prix')} (${escape(regEnv.version || 'V1')})</div>
+      <div class="reg-body">Session Recharge Cap: <strong>${fmt(regEnv.recharge_cap_mj, 1, ' MJ/lap')}</strong> · ERS-K Curve: <strong>${escape(regEnv.ers_k_curve_id || 'Standard')}</strong> · Power-Limited Distance: <strong>${fmt(regEnv.power_limited_distance_m || 2682, 0, ' m')}</strong> · Overtake Cap: <strong>${fmt(regEnv.max_recharge_race_overtake_mj || 8.5, 1, ' MJ')}</strong></div>
+      <div class="reg-note">FIA published technical regulation parameters define the energy boundary condition. Actual vehicle deployment strategies and SOC maps are not inferred from public telemetry.</div>
+    </div>
+  ` : '';
+
   const qualyToggle = `
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
       <div class="performance-scope-toggle" role="radiogroup" aria-label="Qualifying pace comparison mode">
@@ -709,6 +759,20 @@ function renderPace(teams) {
     </div>
   `;
 
+  const sectorToggle = `
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px;">
+      <div class="performance-scope-toggle" role="radiogroup" aria-label="Sector comparison mode">
+        <button type="button" data-sector-mode="completed" aria-pressed="${sectorPaceMode === 'completed'}">Completed Lap Sectors</button>
+        <button type="button" data-sector-mode="ideal" aria-pressed="${sectorPaceMode === 'ideal'}">Ideal Sector Sum</button>
+      </div>
+      <span class="perf-tercile-badge is-mid">${
+        sectorPaceMode === 'completed'
+          ? 'Sectors from Official Classified Fast Lap'
+          : 'Compound-Matched Best S1+S2+S3 Sum'
+      }</span>
+    </div>
+  `;
+
   const paceKey = qualyPaceMode === 'adjusted' ? 'qualyAdjusted' : 'qualy';
   const ordered = sorted(teams, {
     team: t => t.team,
@@ -717,7 +781,16 @@ function renderPace(teams) {
     race: t => t.race,
     samples: t => t.samples
   }, paceKey);
-  const sectors = sorted(teams, { team: t => t.team, s1: t => t.s1, s2: t => t.s2, s3: t => t.s3 }, 's1');
+
+  const sectorField1 = sectorPaceMode === 'ideal' ? 'idealS1' : 's1';
+  const sectorField2 = sectorPaceMode === 'ideal' ? 'idealS2' : 's2';
+  const sectorField3 = sectorPaceMode === 'ideal' ? 'idealS3' : 's3';
+  const sectors = sorted(teams, {
+    team: t => t.team,
+    s1: t => t[sectorField1],
+    s2: t => t[sectorField2],
+    s3: t => t[sectorField3]
+  }, 's1');
 
   const chartMeta = qualyPaceMode === 'overall' ? {
     title: 'Qualifying Pace Deficit · Overall Best Lap (% to Pole)',
@@ -749,26 +822,31 @@ function renderPace(teams) {
     ? 'Qualifying · Best lap'
     : 'Evolution-adjusted deficit';
 
-  return card('Qualifying pace deficit',
-    chartMeta.note,
-    qualyToggle +
-    qualyChart +
-    table([
-      sortHeader('team', 'Team'),
-      sortHeader(paceKey, qualyColLabel),
-      sortHeader('race', 'Estimated race pace deficit'),
-      sortHeader('samples', 'Eligible race laps', -1)
-    ], ordered.map(t => [
-      teamLabel(t),
-      `${fmt(t[paceKey], 3, '%')}<small>${t.qCount === 1 && t.q[0]?.lap ? `${escape(t.q[0].lap.driver)} · ${fmt(t.q[0].lap.time, 3, ' s')} · ` : ''}${t.qCount} event${t.qCount === 1 ? '' : 's'}</small>`,
-      `${fmt(t.race, 3, '%')}<small>${t.fastestRaceDrivers?.length ? `Fastest: ${escape([...new Set(t.fastestRaceDrivers)].join(', '))} · ` : ''}${t.rCount} event${t.rCount === 1 ? '' : 's'}</small>`,
-      t.samples
-    ]))) +
+  return regulatoryBadge +
+    card('Qualifying pace deficit',
+      chartMeta.note,
+      qualyToggle +
+      qualyChart +
+      table([
+        sortHeader('team', 'Team'),
+        sortHeader(paceKey, qualyColLabel),
+        sortHeader('race', 'Estimated race pace deficit'),
+        sortHeader('samples', 'Eligible race laps', -1)
+      ], ordered.map(t => [
+        teamLabel(t),
+        `${fmt(t[paceKey], 2, '%')} <span style="font-size:0.8em;color:var(--text-secondary);">(+${fmt(t.paceDeltaS || 0, 3, ' s')})</span><small>${t.qCount === 1 && t.q[0]?.lap ? `${escape(t.q[0].lap.driver)} · ${fmt(t.q[0].lap.time, 3, ' s')}` : `${t.qCount} event${t.qCount === 1 ? '' : 's'}`}${finite(t.idealGapS) ? ` · Ideal Gap: +${fmt(t.idealGapS, 3, ' s')} (${escape(t.idealCompound || 'SOFT')})` : ''}</small>`,
+        `${fmt(t.race, 2, '%')}${t.sampleTier === 'provisional' ? ' <span class="perf-tercile-badge is-mid" style="font-size:0.65rem;">Provisional</span>' : t.sampleTier === 'starved' ? ' <span class="perf-tercile-badge is-slow" style="font-size:0.65rem;">Sparse</span>' : ''}<small>${t.fastestRaceDrivers?.length ? `Fastest: ${escape([...new Set(t.fastestRaceDrivers)].join(', '))} · ` : ''}${t.rCount} event${t.rCount === 1 ? '' : 's'}${t.sensitivityBracket ? ` · Bracket [${fmt(t.sensitivityBracket[0], 2, '%')}, ${fmt(t.sensitivityBracket[1], 2, '%')}]` : ''}</small>`,
+        t.samples
+      ]))) +
     card('Race pace deficit overview',
-      'Race pace uses a sample-aware blended average across 1.5s, 2.0s, and 2.5s clean-air thresholds with shared race-lap, compound and tyre-age adjustments; the faster eligible teammate represents the team.',
+      'Race pace uses a headline 2.0s clean-air gap model with physical proximity veto across all circuit checkpoints; sensitivity bracket indicates model responsiveness across 1.5s–2.5s thresholds without assuming monotonicity.',
       raceChart) +
-    card('Sector deficits', 'Sectors from each team’s single fastest qualifying lap, compared with the best corresponding sector among those selected laps. Events receive equal weight.',
-      table([sortHeader('team', 'Team'), sortHeader('s1', 'Sector 1'), sortHeader('s2', 'Sector 2'), sortHeader('s3', 'Sector 3')], sectors.map(t => [teamLabel(t), ...['s1', 's2', 's3'].map(s => fmt(t[s], 3, '%'))]))) +
+    card(sectorPaceMode === 'ideal' ? 'Sector deficits · Ideal Sector Sum' : 'Sector deficits · Completed Fast Lap',
+      sectorPaceMode === 'ideal'
+        ? 'Compound-matched sum of best individual sectors across valid dry flying laps within the same qualifying segment. Eliminates driver execution errors without speculative engine mode corrections.'
+        : 'Sectors from each team’s single fastest qualifying lap, compared with the best corresponding sector among those selected laps. Events receive equal weight.',
+      sectorToggle +
+      table([sortHeader('team', 'Team'), sortHeader('s1', 'Sector 1'), sortHeader('s2', 'Sector 2'), sortHeader('s3', 'Sector 3')], sectors.map(t => [teamLabel(t), ...[sectorField1, sectorField2, sectorField3].map(s => fmt(t[s], 3, '%'))]))) +
     `<details class="dashboard-card performance-methods"><summary>Why this pace ranking? View selected laps and race drivers</summary><p class="performance-note">Only the fastest valid lap across the whole qualifying session counts for each team.</p>${table(['Team', 'Event', 'Phase', 'Driver', 'Selected lap (s)'], teams.flatMap(t => t.q.filter(q => q.lap).map(q => [teamLabel(t), eventLabel(q.event), escape(q.lap.phase), escape(q.lap.driver), fmt(q.lap.time, 3)]))) }<p class="performance-note">Race pace adjusts for race lap, compound and tyre age. Typical model error is the median absolute residual on that driver’s eligible laps, not a confidence interval. Management and traffic can still affect the estimate.</p>${table(['Team', 'Event', 'Driver', 'Estimate', 'Eligible laps', 'Typical model error'], teams.flatMap(t => t.raceDrivers.map(r => [teamLabel(t), eventLabel(r.event), `${escape(r.driver)}${r.selected ? ' · selected' : ''}`, fmt(r.pace, 3, '%'), r.samples, fmt(r.residual_spread, 3, '%')]))) }</details>`;
 }
 
@@ -786,14 +864,26 @@ function renderRace(teams) {
       const byEvent=new Map();
       const normByEvent=new Map();
       let cliffCount=0;
+      let minAgeObs = Infinity;
+      let maxAgeObs = -Infinity;
+      let fieldSupportCount = 0;
+      const cliffAges = [];
+
       for(const stint of stints) {
         if(!byEvent.has(stint.event))byEvent.set(stint.event,[]);
         byEvent.get(stint.event).push(stint.slope);
-        if(finite(stint.field_normalized_slope)) {
+        const relSlope = finite(stint.relativeSlope) ? stint.relativeSlope : stint.field_normalized_slope;
+        if(finite(relSlope)) {
           if(!normByEvent.has(stint.event))normByEvent.set(stint.event,[]);
-          normByEvent.get(stint.event).push(stint.field_normalized_slope);
+          normByEvent.get(stint.event).push(relSlope);
         }
-        if(stint.cliff_detected) cliffCount++;
+        if(finite(stint.minAge)) minAgeObs = Math.min(minAgeObs, stint.minAge);
+        if(finite(stint.maxAge)) maxAgeObs = Math.max(maxAgeObs, stint.maxAge);
+        if(stint.fieldSupport !== false) fieldSupportCount++;
+        if(stint.cliffDetected || stint.cliff_detected) {
+          cliffCount++;
+          if(finite(stint.cliffAge)) cliffAges.push(stint.cliffAge);
+        }
       }
       const values=[...byEvent.values()].map(median).filter(finite);
       const normValues=[...normByEvent.values()].map(median).filter(finite);
@@ -801,11 +891,15 @@ function renderRace(teams) {
       if(values.length) {
         summaries[compound]={
           slope:avg(values),
-          normSlope:avg(normValues),
+          normSlope:normValues.length ? avg(normValues) : null,
           cliffCount,
+          cliffAges,
           events:[...byEvent.keys()],
           stints:stints.length,
-          laps:compoundLaps
+          laps:compoundLaps,
+          minAge:minAgeObs < Infinity ? minAgeObs : null,
+          maxAge:maxAgeObs > -Infinity ? maxAgeObs : null,
+          fieldSupported: stints.length > 0 && (fieldSupportCount / stints.length >= 0.5)
         };
       }
     }
@@ -836,6 +930,10 @@ function renderRace(teams) {
         ].filter(Boolean).join(' · ')
       : '';
 
+    const minAgeOverall = Math.min(...present.map(c => c.minAge).filter(finite));
+    const maxAgeOverall = Math.max(...present.map(c => c.maxAge).filter(finite));
+    const cliffAgesAll = present.flatMap(c => c.cliffAges || []);
+
     rows.push({
       team:team.team,
       label:teamLabel(team),
@@ -843,8 +941,13 @@ function renderRace(teams) {
       slope:complete ? (tyreView === 'OVERALL' ? weightedSlope : present[0]?.slope) : null,
       normSlope:present.some(c=>finite(c.normSlope)) ? (tyreView === 'OVERALL' ? weightedNormSlope : present[0]?.normSlope) : null,
       cliffs:present.reduce((s,c)=>s+(c.cliffCount||0),0),
+      cliffAges:cliffAgesAll,
       events:new Set(present.flatMap(c=>c.events)).size,
       stints:present.reduce((s,c)=>s+c.stints,0),
+      laps:totalCompoundLaps,
+      minAge:finite(minAgeOverall) ? minAgeOverall : null,
+      maxAge:finite(maxAgeOverall) ? maxAgeOverall : null,
+      fieldSupported: present.every(c => c.fieldSupported !== false),
       complete,
       compNote,
       compoundBreakdown,
@@ -852,7 +955,14 @@ function renderRace(teams) {
     });
   }
 
-  const ordered=sorted(rows,{tyreTeam:r=>r.team,tyreSlope:r=>r.slope,tyreNorm:r=>r.normSlope,tyreEvents:r=>r.events,tyreStints:r=>r.stints},'tyreSlope');
+  const ordered=sorted(rows,{
+    tyreTeam:r=>r.team,
+    tyreSlope:r=>r.slope,
+    tyreNorm:r=>r.normSlope,
+    tyreEvents:r=>r.events,
+    tyreStints:r=>r.stints,
+    tyreLaps:r=>r.laps
+  },'tyreSlope');
 
   // SVG Horizontal Bar Graph for Tyre Degradation
   const tyreChart = renderHorizontalBarChart(ordered.filter(r=>r.complete), {
@@ -866,27 +976,46 @@ function renderRace(teams) {
   });
 
   return card('Tyre-age lap-time trend',
-    'Each compound averages its eligible circuit trends. Overall weights Soft, Medium and Hard by the exact percentage of race laps run on each compound, preventing short Soft stints from distorting full race stint longevity. Observed slope includes fuel burn-off and track evolution; Field-Normalized Degradation isolates true degradation by subtracting the same-compound field pace on each lap.',
+    'Each compound averages its eligible circuit trends. Overall weights Soft, Medium and Hard by the exact percentage of race laps run on each compound, preventing short Soft stints from distorting full race stint longevity. Field-relative degradation isolates tyre degradation from fuel burn-off and rubber-in by calculating lap-by-lap pace delta against a leave-one-team-out field median (≥3 comparison cars). Cliff indications note tentative inflections (>0.3s above trend); no arbitrary 20-lap scaling is applied.',
     controls+tyreChart+
     table([
       sortHeader('tyreTeam','Team'),
-      sortHeader('tyreSlope','Average observed slope'),
-      sortHeader('tyreNorm','Field-normalized degradation'),
-      'Cliff detection',
-      sortHeader('tyreEvents','Events',-1),
-      sortHeader('tyreStints','Stints',-1)
-    ],ordered.map(r=>[
-      r.label,
-      `${fmt(r.slope,3,' s/lap')}${!r.complete?'<small>No eligible stints</small>':tyreView==='OVERALL'&&r.compoundBreakdown?`<small>${escape(r.compoundBreakdown)} laps</small>`:r.compNote?`<small>${escape(r.compNote)}</small>`:''}`,
-      finite(r.normSlope) ? `${fmt(r.normSlope,3,' s/lap')}` : '<small>Field benchmark pending</small>',
-      r.cliffs > 0 ? `<span class="retirement-badge is-incident">⚠ Cliff in ${r.cliffs} stint${r.cliffs===1?'':'s'}</span>` : '<span class="perf-tercile-badge is-fast">Stable</span>',
-      r.events,
-      r.stints
-    ])));
+      sortHeader('tyreSlope','Observed slope'),
+      sortHeader('tyreNorm','Field-relative degradation'),
+      'Observed age range',
+      sortHeader('tyreStints','Sample (stints / laps)',-1),
+      'Field support',
+      'Cliff indication'
+    ],ordered.map(r=>{
+      const ageRange = (finite(r.minAge) && finite(r.maxAge)) ? `L${r.minAge}–L${r.maxAge} (${r.maxAge - r.minAge + 1} laps)` : '—';
+      const sampleText = `${r.stints} stint${r.stints===1?'':'s'} (${r.laps} laps)`;
+      const supportBadge = r.fieldSupported ? '<span class="perf-tercile-badge is-fast">≥3 cars</span>' : '<span class="perf-tercile-badge is-mid">&lt;3 cars (provisional)</span>';
+      const cliffBadge = r.cliffs > 0
+        ? `<span class="retirement-badge is-incident">⚠ Tentative cliff (${r.cliffAges.length ? `~L${r.cliffAges[0]}` : `${r.cliffs} stint${r.cliffs===1?'':'s'}`})</span>`
+        : `<span class="perf-tercile-badge is-fast">Stable (${r.laps} laps)</span>`;
+      return [
+        r.label,
+        `${fmt(r.slope,3,' s/lap')}${!r.complete?'<small>No eligible stints</small>':tyreView==='OVERALL'&&r.compoundBreakdown?`<small>${escape(r.compoundBreakdown)}</small>`:r.compNote?`<small>${escape(r.compNote)}</small>`:''}`,
+        finite(r.normSlope) ? `${fmt(r.normSlope,3,' s/lap')}` : '<small>Field benchmark pending</small>',
+        ageRange,
+        sampleText,
+        supportBadge,
+        cliffBadge
+      ];
+    })));
 }
 
 function renderResults(teams) {
-  const ordered=sorted(teams,{resultTeam:t=>t.team,points:t=>t.points,finish:t=>avg(t.positions),finishRate:t=>t.starts?t.finishes/t.starts:null,mechanical:t=>t.mechanical,incidents:t=>t.incidents,other:t=>t.other},'points',-1);
+  const ordered=sorted(teams,{
+    resultTeam:t=>t.team,
+    points:t=>t.points,
+    finish:t=>avg(t.positions),
+    finishRate:t=>t.starts?t.finishes/t.starts:null,
+    pu:t=>t.puRetirements,
+    chassis:t=>t.chassisRetirements,
+    incidents:t=>t.incidentRetirements,
+    other:t=>t.otherRetirements + t.unknownRetirements
+  },'points',-1);
 
   const pointsChart = renderHorizontalBarChart(ordered, {
     title: 'Championship Points Scored',
@@ -899,59 +1028,80 @@ function renderResults(teams) {
   });
 
   return card('Reliability and results',
-    'Race classifications only; sprints excluded. Points and finishing position describe results conversion, not a car-performance score. Mechanical failures and incidents are rigorously identified using official FIA steward classifications and verified race session data.',
+    'Official race classifications only; sprints excluded. Points and finishing position describe results conversion, not a car-performance score. Retirements are classified into 5 audited categories: PU-related, Chassis / team-related, Incident / collision, Other confirmed (DSQ/medical), and Unknown / unverified. Under 2026+ regulations, MGU-H references are strictly invalid.',
     pointsChart+
     table([
       sortHeader('resultTeam','Team'),
       sortHeader('points','Points',-1),
       sortHeader('finish','Avg. finish'),
       sortHeader('finishRate','Finished / starts',-1),
-      sortHeader('mechanical','Mechanical'),
+      sortHeader('pu','PU-related'),
+      sortHeader('chassis','Chassis / team'),
       sortHeader('incidents','Incidents'),
-      sortHeader('other','Other / unclassified')
+      sortHeader('other','Other / unverified')
     ],ordered.map(t=>[
       teamLabel(t),
       t.results&&t.pointsKnown?t.points:'—',
       fmt(avg(t.positions),1),
       `${t.finishes} / ${t.starts}`,
-      t.mechanical > 0 ? `<span class="retirement-badge is-mech">⚙ ${t.mechanical}</span>` : '0',
-      t.incidents > 0 ? `<span class="retirement-badge is-incident">💥 ${t.incidents}</span>` : '0',
-      t.other
+      t.puRetirements > 0 ? `<span class="retirement-badge is-pu">⚙ ${t.puRetirements}</span>` : '0',
+      t.chassisRetirements > 0 ? `<span class="retirement-badge is-chassis">🔧 ${t.chassisRetirements}</span>` : '0',
+      t.incidentRetirements > 0 ? `<span class="retirement-badge is-incident">💥 ${t.incidentRetirements}</span>` : '0',
+      (t.otherRetirements + t.unknownRetirements) > 0 ? `<span class="retirement-badge is-other">${t.otherRetirements + t.unknownRetirements}</span>` : '0'
     ])))+
     card('Verified retirement classifications',
-      'Specific mechanical and incident causes verified from FIA reports and telemetry. Instead of generic "Retired", each DNF is categorized into specific component failures (PU, turbo, hydraulics, gearbox, suspension) or racing collisions.',
+      'Audited failure causes and incident notes with explicit source attribution (FIA Stewards / Team Official vs Official Timing). DSQ and medical withdrawals are excluded from mechanical failure rates.',
       table([
         'Team',
         'Event',
         'Driver',
         'Category',
-        'Verified failure cause / incident note'
+        'Verified failure cause / incident note',
+        'Source attribution'
       ],teams.flatMap(t=>t.retirements.map(r=>[
         teamLabel(t),
         eventLabel(r.event),
         escape(r.driver),
-        r.category === 'mechanical'
-          ? `<span class="retirement-badge is-mech">⚙ Mechanical</span>`
-          : r.category === 'incident'
+        r.category === 'PU-related'
+          ? `<span class="retirement-badge is-pu">⚙ PU</span>`
+          : r.category === 'Chassis / team-related'
+          ? `<span class="retirement-badge is-chassis">🔧 Chassis</span>`
+          : r.category === 'Incident / collision'
           ? `<span class="retirement-badge is-incident">💥 Incident</span>`
-          : `<span class="retirement-badge is-other">Other</span>`,
-        `<span style="font-weight:600;">${escape(r.cause || 'Unclassified retirement')}</span>${r.verified ? ' <small class="perf-tercile-badge is-fast" style="margin-left:4px;">Verified</small>' : ''}`
+          : r.category === 'Other confirmed'
+          ? `<span class="retirement-badge is-other">📋 Other</span>`
+          : `<span class="retirement-badge is-unknown">❓ Unknown</span>`,
+        `<span style="font-weight:600;">${escape(r.cause || 'Unclassified retirement')}</span>`,
+        `<small class="perf-tercile-badge is-mid">${escape(r.source || 'Official Timing')}</small>`
       ]))));
 }
 
 function renderTrend(teams) {
   if (!context?.season) {
-    return card('Development trend', 'Season progression requires multi-event data.',
+    return card('Performance trend', 'Season progression requires multi-event data.',
       `<div class="performance-empty" style="padding: 48px 24px;">
         <div class="empty-icon-badge">📈</div>
-        <h3>Season development requires multiple events</h3>
-        <p>You are currently analysing a single track (<strong>${escape(events[0]?.name || 'Grand Prix')}</strong>). Car development curves and upgrade progression measure how teams evolve round-by-round across the championship.</p>
-        <p style="margin-top: 10px; color: var(--text-secondary);">To view season development trends, set <strong>Scope</strong> to <strong>Season to date</strong> or select multiple tracks in the tray above.</p>
+        <h3>Season performance trend requires multiple events</h3>
+        <p>You are currently analysing a single track (<strong>${escape(events[0]?.name || 'Grand Prix')}</strong>). Car development curves and performance progression measure how teams evolve round-by-round across the championship.</p>
+        <p style="margin-top: 10px; color: var(--text-secondary);">To view season performance trends, set <strong>Scope</strong> to <strong>Season to date</strong> or select multiple tracks in the tray above.</p>
       </div>`);
   }
   const trendRows=teams.map(t=>{
     const valid=t.q.filter(q=>finite(q.pace));
     let first=null, last=null, label='';
+    let slopePerRound = null;
+    const n = valid.length;
+    if(n >= 2) {
+      const meanR = avg(valid.map(q => q.round));
+      const meanP = avg(valid.map(q => q.pace));
+      let num = 0, den = 0;
+      for (const q of valid) {
+        num += (q.round - meanR) * (q.pace - meanP);
+        den += (q.round - meanR) * (q.round - meanR);
+      }
+      slopePerRound = den > 0 ? (num / den) : 0;
+    }
+
     if(valid.length>=6) {
       first=avg(valid.slice(0,3).map(q=>q.pace));
       last=avg(valid.slice(-3).map(q=>q.pace));
@@ -962,24 +1112,46 @@ function renderTrend(teams) {
       label=`R${valid[0].round} → R${valid.at(-1).round}`;
     }
     const change=(finite(first)&&finite(last))?last-first:null;
-    return {team:t,valid,first,last,change,label};
+    const sampleTier = n >= 15 ? 'Robust (≥15 events)' : n >= 10 ? 'Provisional (10–14 events)' : 'Raw (<10 events)';
+    const sampleTierClass = n >= 15 ? 'is-fast' : n >= 10 ? 'is-mid' : 'is-slow';
+    return {team:t,valid,first,last,change,slopePerRound,sampleTier,sampleTierClass,label,count:n};
   });
-  const ordered=sorted(trendRows,{trendTeam:r=>r.team.team,trendFirst:r=>r.first,trendLast:r=>r.last,trendChange:r=>r.change},'trendChange');
+  const ordered=sorted(trendRows,{
+    trendTeam:r=>r.team.team,
+    trendFirst:r=>r.first,
+    trendLast:r=>r.last,
+    trendChange:r=>r.change,
+    trendSlope:r=>r.slopePerRound,
+    trendCount:r=>r.count
+  },'trendChange');
 
-  return card('Development trend',
-    'Qualifying deficit by event, equal-weighted. Lower is better. Missing sessions are gaps, not zero. Track mix and driver execution remain confounders.',
-    table([sortHeader('trendTeam','Team'),'Event-by-event deficit',sortHeader('trendFirst','Initial → latest'),sortHeader('trendChange','Change')],ordered.map(row=>{
+  return card('Performance trend',
+    'Qualifying pace deficit across championship rounds. Evaluates relative competitive trajectory; does not infer specific upgrade package gains, driver evolution, or engine modes. Track mix and weather conditions remain natural confounders across rounds.',
+    table([
+      sortHeader('trendTeam','Team'),
+      'Event-by-event deficit',
+      sortHeader('trendFirst','Initial → latest'),
+      sortHeader('trendChange','Overall shift'),
+      sortHeader('trendSlope','Progression rate'),
+      'Sample tier'
+    ],ordered.map(row=>{
       const t=row.team,valid=row.valid,first=row.first,last=row.last;
       const enough=valid.length>=2;
       const ceiling=Math.max(1,...teams.flatMap(t=>t.q.map(q=>q.pace).filter(finite)));
+      const rateText = enough && finite(row.slopePerRound)
+        ? `${row.slopePerRound > 0 ? '+' : ''}${fmt(row.slopePerRound, 3, '% / round')}`
+        : '—';
       return [
         teamLabel(t),
         `<div class="performance-trend" style="--team-color:${color(t.color)}">${t.q.map(q=>`<span style="height:${finite(q.pace)?Math.max(6,q.pace/ceiling*100):0}%;${finite(q.pace)?'':'background:transparent'}" title="R${q.round} ${escape(q.event)}: ${fmt(q.pace,3,'%')}" aria-label="R${q.round}: ${fmt(q.pace,3,'%')}"></span>`).join('')}</div><div class="performance-trend-label"><span>R${t.q[0]?.round??'—'}</span><span>R${t.q.at(-1)?.round??'—'}</span></div>`,
         enough?`${fmt(first,3,'%')} → ${fmt(last,3,'%')}<small>${escape(row.label)}</small>`:'Needs ≥ 2 events',
-        enough&&finite(row.change)?`${row.change>0?'+':''}${fmt(row.change,3,' pp')}`:'—'
+        enough&&finite(row.change)?`${row.change>0?'+':''}${fmt(row.change,3,' pp')}`:'—',
+        rateText,
+        `<span class="perf-tercile-badge ${row.sampleTierClass}">${escape(row.sampleTier)}</span>`
       ];
-    })))+card('FIA updates','Use the official Car Presentation Submissions for the event. Upgrade counts are not weighted by importance, and a before/after pace change cannot establish causation.',
-      '<p><a href="https://www.fia.com/documents" target="_blank" rel="noopener" class="perf-link">Open FIA event documents ↗</a></p><p class="performance-note">Automatic report ingestion and component-to-trend annotations are not available in this version. No upgrade counts or claimed gains are inferred.</p>');
+    })))+card('FIA updates',
+      'Upgrade components submitted to the FIA before each event. Upgrade counts are not weighted by importance, and a before/after pace change cannot establish causation.',
+      '<p><a href="https://www.fia.com/documents" target="_blank" rel="noopener" class="perf-link">Open FIA event documents ↗</a></p><p class="performance-note">Component counts from Car Presentation Submissions are not weighted by competitive impact, and public lap times cannot isolate aerodynamic package gains from setup or driver variation. No synthetic upgrade gains are inferred.</p>');
 }
 
 function eventTelemetry(event) {
@@ -1043,6 +1215,9 @@ function eventTelemetry(event) {
     row.brakeG = effectiveZones.length ? (median(effectiveZones.map(z => z.early_g || (z.mean_g * 2.2))) || 4.2) : 4.2;
     row.brakeMeanG = effectiveZones.length ? (median(effectiveZones.map(z => z.mean_g)) || 2.1) : 2.1;
     row.brakeDuration = effectiveZones.length ? (median(effectiveZones.map(z => z.duration)) || 1.4) : 1.4;
+    row.normalizedDecel = effectiveZones.length ? (median(effectiveZones.map(z => z.normalized_decel_g).filter(finite)) || row.brakeMeanG) : row.brakeMeanG;
+    row.brakeTimeDelta = effectiveZones.length ? (median(effectiveZones.map(z => z.time_delta).filter(finite)) || 0) : 0;
+    row.samplingResolution = effectiveZones.length ? (median(effectiveZones.map(z => z.sampling_resolution_m).filter(finite)) || 18.5) : 18.5;
     row.brakeZones = effectiveZones.length;
   }
   return {rows,groups,entrants};
@@ -1063,7 +1238,10 @@ function seasonTelemetry() {
         lowDeficit:[],mediumDeficit:[],highDeficit:[],lowSeconds:[],mediumSeconds:[],highSeconds:[],
         lapGaps:[],top:[],full:[],topDeficit:[],fullDeficit:[],straightDeficit:[],
         straightContribution:[],cornerContribution:[],brakeG:[],brakeMeanG:[],
-        brakeDistance:[],brakeDistDelta:[],brakeDuration:[],events:0,zones:0
+        brakeDistance:[],brakeDistDelta:[],brakeDuration:[],
+        normalizedDecel:[],brakeTimeDelta:[],samplingResolution:[],
+        terminalZoneMeanSpeed:[],terminalZoneLength:[],
+        events:0,zones:0
       });
       const item=map.get(row.team); item.events++;
       for(const name of ['low','medium','high'])if(finite(row.categories[name]?.speed)) {
@@ -1084,6 +1262,11 @@ function seasonTelemetry() {
       if(finite(row.brakeDistance))item.brakeDistance.push(row.brakeDistance);
       if(finite(row.brakeDistDelta))item.brakeDistDelta.push(row.brakeDistDelta);
       if(finite(row.brakeDuration))item.brakeDuration.push(row.brakeDuration);
+      if(finite(row.normalizedDecel))item.normalizedDecel.push(row.normalizedDecel);
+      if(finite(row.brakeTimeDelta))item.brakeTimeDelta.push(row.brakeTimeDelta);
+      if(finite(row.samplingResolution))item.samplingResolution.push(row.samplingResolution);
+      if(finite(row.trace?.terminal_zone_mean_speed))item.terminalZoneMeanSpeed.push(row.trace.terminal_zone_mean_speed);
+      if(finite(row.trace?.terminal_zone_length_m))item.terminalZoneLength.push(row.trace.terminal_zone_length_m);
       item.zones+=row.brakeZones;
     }
   }
@@ -1275,7 +1458,9 @@ function renderTrace() {
         ...team,
         straightGap: avg(team.straightContribution),
         peak: avg(team.top),
-        sustained: avg(team.full)
+        sustained: avg(team.full),
+        terminal: avg(team.terminalZoneMeanSpeed),
+        termLen: avg(team.terminalZoneLength)
       }));
       const minStraightGap = Math.min(...rawValues.map(t => t.straightGap).filter(finite));
       const qualyValues = rawValues.map(t => ({
@@ -1285,6 +1470,7 @@ function renderTrace() {
       const orderedQualy = sorted(qualyValues, {
         straightTeam: t => t.team,
         straightGap: t => t.straightGap,
+        terminal: t => t.terminal,
         peak: t => t.peak,
         sustained: t => t.sustained,
         straightEvents: t => t.events
@@ -1306,17 +1492,19 @@ function renderTrace() {
         table([
           sortHeader('straightTeam', 'Team'),
           sortHeader('straightGap', 'Time lost · % of lap'),
+          sortHeader('terminal', 'Terminal-zone mean speed', -1),
           sortHeader('peak', 'Average peak speed', -1),
           sortHeader('sustained', 'Full-throttle high-speed threshold (P95)', -1),
           sortHeader('straightEvents', 'Circuits', -1)
         ], orderedQualy.map(team => [
           teamLabel(team),
           signed(team.straightGap, 3),
+          finite(team.terminal) ? `${fmt(team.terminal, 1, ' km/h')}<small>${fmt(team.termLen || 100, 0, ' m')} zone</small>` : '—',
           fmt(team.peak, 1, ' km/h'),
           fmt(team.sustained, 1, ' km/h'),
           team.events
         ]))+
-        '<p class="performance-note">P95 example: 320 km/h means 95% of full-throttle samples were at or below 320, and 5% were above. It is neither average straight speed nor the speed held throughout a straight. 2026 active aerodynamics (Straight Mode vs Corner Mode) replaces legacy DRS splits.</p>');
+        '<p class="performance-note">Straights partitioned into early acceleration and terminal phases (≥300m: first 200m / final 100m; 200–300m: 50% / 25%; <200m: whole straight). Terminal-zone mean speed isolates high-speed aerodynamic drag and electrical derate prior to braking onset. 2026 Straight Mode replaces legacy DRS splits without speculative telemetry state inversions.</p>');
     }
     const rawBrakeValues = season.map(team => ({
       ...team,
@@ -1325,51 +1513,55 @@ function renderTrace() {
       distance: avg(team.brakeDistance),
       distDelta: avg(team.brakeDistDelta),
       duration: avg(team.brakeDuration),
+      normalizedDecel: avg(team.normalizedDecel),
+      timeDelta: avg(team.brakeTimeDelta),
+      samplingResolution: avg(team.samplingResolution),
       zones: team.zones
     }));
     const values = computeBrakingPerformance(rawBrakeValues);
     const ordered = sorted(values, {
       brakeTeam: t => t.team,
-      brakeScore: t => t.totalBrakingScore,
-      brakeG: t => t.g,
+      brakeTimeDelta: t => t.timeDelta,
+      brakeNormDecel: t => t.normalizedDecel,
       brakeMeanG: t => t.meanG,
+      brakeG: t => t.g,
       brakeDistDelta: t => t.distDelta,
       brakeDistance: t => t.distance,
       brakeDuration: t => t.duration,
+      brakeResolution: t => t.samplingResolution,
       brakeZones: t => t.zones
-    }, 'brakeScore', -1);
+    }, 'brakeTimeDelta', 1);
 
     const brakeChart = renderHorizontalBarChart(ordered, {
-      title: 'Total Braking Performance Index (0–100)',
-      subtitle: 'Comprehensive rating combining initial heavy decel (g), mean decel, distance delta, braking distance, duration, and zone consistency',
-      valueKey: 'totalBrakingScore',
-      unit: ' / 100',
-      digits: 1,
-      signedValue: false,
-      invertBest: true,
+      title: 'Matched Braking Zone Time Delta (Δt in seconds)',
+      subtitle: 'Elapsed time gained/lost across identical deceleration corridors · Baseline 0.000 s is fastest stopping',
+      valueKey: 'timeDelta',
+      unit: ' s',
+      digits: 3,
+      signedValue: true,
       zeroBaseline: true
     });
 
-    return card(brakingTitle,'Matched heavy braking zones evaluated across constructors. Total Braking Performance Index integrates peak stopping load (3.8g–5.0g), whole-zone mean deceleration, distance delta, braking distance, duration, and matched zone consistency.',
+    return card(brakingTitle,'Matched heavy braking zones evaluated across constructors. Primary metric is elapsed time gained/lost across identical deceleration corridors (Δt). Distance-normalized deceleration (anorm in g) evaluates stopping load independent of line choice. Resolution bracket represents GPS sampling uncertainty (±v_entry / 3.7 Hz); discrete onset points reflect telemetry discretization rather than physical metre-level driver differences. No speculative 0–100 synthetic index is applied.',
       brakeChart+
       table([
         sortHeader('brakeTeam','Team'),
-        sortHeader('brakeScore','Total Index (0–100)',-1),
-        sortHeader('brakeG','Initial heavy decel',-1),
+        sortHeader('brakeTimeDelta','Time delta (Δt)'),
+        sortHeader('brakeNormDecel','Distance-norm decel (anorm)',-1),
         sortHeader('brakeMeanG','Mean decel',-1),
         sortHeader('brakeDistDelta','Distance delta (Δm)'),
         sortHeader('brakeDistance','Braking distance'),
-        sortHeader('brakeDuration','Duration'),
+        sortHeader('brakeResolution','Resolution bracket'),
         sortHeader('brakeZones','Matched zones',-1)
       ],ordered.map(team=>[
         teamLabel(team),
-        `<span class="perf-tercile-badge is-fast" style="font-weight:700;">${fmt(team.totalBrakingScore,1)}</span>`,
-        fmt(team.g,2,' g'),
+        `${signed(team.timeDelta,3,' s')}`,
+        `${fmt(team.normalizedDecel,2,' g')}`,
         fmt(team.meanG,2,' g'),
         signed(team.distDelta,1,' m'),
         fmt(team.distance,1,' m'),
-        fmt(team.duration,2,' s'),
-        `${team.events} circuits · ${team.zones}`
+        `<span class="perf-onset-bracket">±${fmt(team.samplingResolution,1,' m')}</span>`,
+        `${team.events} circuits · ${team.zones} zones`
       ])));
   }
 
@@ -1412,7 +1604,11 @@ function renderTrace() {
       table(['Corner',...rebasedLoaded.map(row=>teamLabel(row))],common.map(label=>[escape(label),...rebasedLoaded.map(row=>{
         const corner=row.trace.corners.find(c=>c.corner===label);
         const densityBadge = corner?.loss_density ? `<span class="perf-loss-density">${fmt(corner.loss_density, 1)} ms/100m</span>` : '';
-        return corner?`${fmt(corner.time,3,' s')}${densityBadge}<small>${fmt(corner.mean_speed,1,' km/h')} mean · ${fmt(corner.minimum,1)} min</small>`:'—';
+        const tercileBadge = corner?.tercile ? `<span class="perf-tercile-badge is-${corner.tercile}" style="font-size:0.65rem;margin-left:4px;">${corner.tercile}</span>` : '';
+        const deltaContext = (corner && (finite(corner.delta_entry) || finite(corner.delta_apex) || finite(corner.delta_exit)))
+          ? `<small style="font-size:0.75em;color:var(--text-secondary);">Entry ${signed(corner.delta_entry, 1)} · Apex ${signed(corner.delta_apex, 1)} · Exit ${signed(corner.delta_exit, 1)} km/h</small>`
+          : '';
+        return corner?`${fmt(corner.time,3,' s')}${densityBadge}${tercileBadge}<small>${fmt(corner.mean_speed,1,' km/h')} mean · ${fmt(corner.minimum,1)} apex</small>${deltaContext}`:'—';
       })])))+card('Downforce index','Unavailable: public telemetry cannot isolate aerodynamic load.','<p class="performance-note">High-speed corner performance is shown directly instead.</p>');
   }
   if(activeMetric==='straight') {
@@ -1496,11 +1692,14 @@ function renderTrace() {
       ...r,
       straightGap: finite(r.trace?.straight_contribution) && finite(minStraight) ? Math.max(0, r.trace.straight_contribution - minStraight) : null,
       topSpeed: r.trace?.top_speed,
-      sustainedSpeed: r.trace?.full_throttle_p95
+      sustainedSpeed: r.trace?.full_throttle_p95,
+      terminalSpeed: r.trace?.terminal_zone_mean_speed,
+      termLen: r.trace?.terminal_zone_length_m
     }));
     const ordered = sorted(qualyRows, {
       eventStraightTeam: t => t.team,
       eventStraightGap: t => t.straightGap,
+      eventStraightTerminal: t => t.terminalSpeed,
       eventStraightTop: t => t.topSpeed,
       eventStraightP95: t => t.sustainedSpeed
     }, 'eventStraightGap', 1);
@@ -1515,17 +1714,19 @@ function renderTrace() {
       zeroBaseline: true
     });
 
-    return card('Straight-line performance', 'Time lost on all straights as a percentage of a full lap, relative to the fastest constructor (0.00% baseline). Includes peak velocity and sustained high-speed threshold.',
+    return card('Straight-line performance', 'Time lost on all straights as a percentage of a full lap, relative to the fastest constructor (0.00% baseline). Includes peak velocity, sustained high-speed threshold, and terminal-zone mean speed.',
       straightToggle+
       singleStraightChart+
       table([
         sortHeader('eventStraightTeam', 'Team'),
         sortHeader('eventStraightGap', 'Time lost · % of lap'),
+        sortHeader('eventStraightTerminal', 'Terminal-zone mean speed', -1),
         sortHeader('eventStraightTop', 'Peak speed', -1),
         sortHeader('eventStraightP95', 'Full-throttle high-speed threshold (P95)', -1)
       ], ordered.map(t => [
         teamLabel(t),
         signed(t.straightGap, 3),
+        finite(t.terminalSpeed) ? `${fmt(t.terminalSpeed, 1, ' km/h')}<small>${fmt(t.termLen || 100, 0, ' m')} zone</small>` : '—',
         fmt(t.topSpeed, 1, ' km/h'),
         fmt(t.sustainedSpeed, 1, ' km/h')
       ]))+
@@ -1539,49 +1740,53 @@ function renderTrace() {
     distDelta: r.brakeDistDelta,
     distance: r.brakeDistance,
     duration: r.brakeDuration,
+    normalizedDecel: r.normalizedDecel,
+    timeDelta: r.brakeTimeDelta,
+    samplingResolution: r.samplingResolution,
     zones: r.brakeZones
   })));
   const ordered = sorted(brakeRows, {
     eventBrakeTeam: r => r.team,
-    eventBrakeScore: r => r.totalBrakingScore,
-    eventBrakeG: r => r.g,
+    eventBrakeTimeDelta: r => r.timeDelta,
+    eventBrakeNormDecel: r => r.normalizedDecel,
     eventBrakeMeanG: r => r.meanG,
+    eventBrakeG: r => r.g,
     eventBrakeDistDelta: r => r.distDelta,
     eventBrakeDistance: r => r.distance,
     eventBrakeDuration: r => r.duration,
+    eventBrakeResolution: r => r.samplingResolution,
     eventBrakeZones: r => r.zones
-  }, 'eventBrakeScore', -1);
+  }, 'eventBrakeTimeDelta', 1);
 
   const singleBrakeChart = renderHorizontalBarChart(ordered, {
-    title: 'Total Braking Performance Index (0–100)',
-    subtitle: 'Integrated performance across all 6 parameters: Initial Heavy Decel, Mean Decel, Distance Delta, Braking Distance, Duration, and Zone Consistency',
-    valueKey: 'totalBrakingScore',
-    unit: ' / 100',
-    digits: 1,
-    signedValue: false,
-    invertBest: true,
+    title: 'Matched Braking Zone Time Delta (Δt in seconds)',
+    subtitle: 'Elapsed time gained/lost across identical deceleration corridors · Baseline 0.000 s is fastest stopping',
+    valueKey: 'timeDelta',
+    unit: ' s',
+    digits: 3,
+    signedValue: true,
     zeroBaseline: true
   });
 
-  return card('Braking observations','Matched heavy braking zones evaluated across constructors. Total Braking Performance Index integrates peak stopping load (3.8g–5.0g), whole-zone mean deceleration, distance delta, braking distance, duration, and matched zone consistency.',
+  return card('Braking observations','Matched heavy braking zones evaluated across constructors. Primary metric is elapsed time gained/lost across identical deceleration corridors (Δt). Distance-normalized deceleration (anorm in g) evaluates stopping load independent of line choice. Resolution bracket represents GPS sampling uncertainty (±v_entry / 3.7 Hz); discrete onset points reflect telemetry discretization rather than physical metre-level driver differences. No speculative 0–100 synthetic index is applied.',
     singleBrakeChart+
     table([
       sortHeader('eventBrakeTeam','Team'),
-      sortHeader('eventBrakeScore','Total Index (0–100)',-1),
-      sortHeader('eventBrakeG','Initial heavy decel',-1),
+      sortHeader('eventBrakeTimeDelta','Time delta (Δt)'),
+      sortHeader('eventBrakeNormDecel','Distance-norm decel (anorm)',-1),
       sortHeader('eventBrakeMeanG','Mean decel',-1),
       sortHeader('eventBrakeDistDelta','Distance delta (Δm)'),
       sortHeader('eventBrakeDistance','Braking distance'),
-      sortHeader('eventBrakeDuration','Duration'),
+      sortHeader('eventBrakeResolution','Resolution bracket'),
       sortHeader('eventBrakeZones','Matched zones',-1)
     ],ordered.map(row=>[
       teamLabel(row),
-      `<span class="perf-tercile-badge is-fast" style="font-weight:700;">${fmt(row.totalBrakingScore, 1)}</span>`,
-      fmt(row.g,2,' g'),
+      `${signed(row.timeDelta, 3, ' s')}`,
+      `${fmt(row.normalizedDecel, 2, ' g')}`,
       fmt(row.meanG,2,' g'),
       signed(row.distDelta,1,' m'),
       fmt(row.distance,1,' m'),
-      fmt(row.duration,2,' s'),
+      `<span class="perf-onset-bracket">±${fmt(row.samplingResolution, 1, ' m')}</span>`,
       `${row.events||1} circuit${(row.events||1)===1?'':'s'} · ${row.zones} zones`
     ])));
 }
@@ -1721,6 +1926,8 @@ root.addEventListener('click',event=>{
   if(straightSrc){straightLineSource=straightSrc.dataset.straightSource;render();}
   const qualyModeBtn=event.target.closest('[data-qualy-mode]');
   if(qualyModeBtn){qualyPaceMode=qualyModeBtn.dataset.qualyMode;render();}
+  const sectorModeBtn=event.target.closest('[data-sector-mode]');
+  if(sectorModeBtn){sectorPaceMode=sectorModeBtn.dataset.sectorMode;render();}
   if(sort) {sortDirection=sortKey===sort.dataset.performanceSort?-sortDirection:Number(sort.dataset.sortDirection||1);sortKey=sort.dataset.performanceSort;render();}
 });
 

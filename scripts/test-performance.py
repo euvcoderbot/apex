@@ -98,6 +98,50 @@ class PerformanceTests(unittest.TestCase):
         zone=telemetry_metrics(rows,[])['braking'][0]
         self.assertAlmostEqual(zone['mean_g'],90/3.6/6/9.80665)
 
+    def test_year_aware_mgu_h_exclusion(self):
+        from performance import classify_retirement
+        # 2025: MGU-H is a legitimate PU failure component
+        res_2025 = classify_retirement('MGU-H failure', 'Australian Grand Prix', 'TEST', session_year=2025)
+        self.assertEqual(res_2025['category'], 'PU-related')
+        self.assertTrue(res_2025['year_compliant'])
+
+        # 2026+: MGU-H does not exist in the regulations; must be rejected from PU-related
+        res_2026 = classify_retirement('MGU-H failure', 'Australian Grand Prix', 'TEST', session_year=2026)
+        self.assertEqual(res_2026['category'], 'Unknown / unverified')
+        self.assertFalse(res_2026['year_compliant'])
+
+    def test_ideal_vs_complete_gap_calculation(self):
+        # Driver A does lap 1: S1=30, S2=31, S3=30 (total 91)
+        # Driver A does lap 2: S1=31, S2=30, S3=30 (total 91)
+        # Ideal: 30 + 30 + 30 = 90. Gap: 91 - 90 = 1.0s
+        l1 = lap('A', time=91, sectors=[30, 31, 30], lap=1, compound='SOFT')
+        l2 = lap('A', time=91, sectors=[31, 30, 30], lap=2, compound='SOFT')
+        with patch('performance.records', return_value=[l1, l2]):
+            result = analyze(Session())
+        team = result['teams'][0]
+        self.assertAlmostEqual(team['ideal_lap_time'], 90.0)
+        self.assertAlmostEqual(team['ideal_vs_complete_gap_s'], 1.0)
+
+    def test_leader_traffic_null_and_proximity_veto(self):
+        # Leader car L alone on track -> clean air
+        leader_laps = [
+            {'driver': 'VER', 'lap': 10, 'start': 1000, 'end': 1090, 'sectors': [30, 30, 30]},
+            {'driver': 'VER', 'lap': 11, 'start': 1090, 'end': 1180, 'sectors': [30, 30, 30]}
+        ]
+        gaps_leader = traffic_gaps(leader_laps, leader_abbr='VER')
+        self.assertGreater(gaps_leader[('VER', 11)], 10.0)
+
+        # But if lapped car 'BOT' crosses Sector 1 only 1.2s ahead of VER, proximity veto triggers
+        lapped_crossings = [
+            {'driver': 'VER', 'lap': 10, 'start': 1000, 'end': 1090, 'sectors': [30, 30, 30]},
+            {'driver': 'VER', 'lap': 11, 'start': 1090, 'end': 1180, 'sectors': [30, 30, 30]},
+            # VER Sector 1 stamp is 1090 + 30 = 1120. BOT Sector 1 crossing at 1118.8 (gap = 1.2s)
+            {'driver': 'BOT', 'lap': 10, 'start': 1088.8, 'end': 1188.8, 'sectors': [30, 30, 40]}
+        ]
+        gaps_vetoed = traffic_gaps(lapped_crossings, leader_abbr='VER')
+        self.assertAlmostEqual(gaps_vetoed[('VER', 11)], 1.2)
+
 
 if __name__=='__main__':
     unittest.main()
+

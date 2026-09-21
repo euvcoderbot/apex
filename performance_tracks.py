@@ -167,7 +167,12 @@ def measure_field(extracted, selections, corners=()):
                 label = str(marker['number'])+str(marker.get('letter') or '')
         if any(z['corner'] == label for z in zones):
             label = f'{label} · zone {len(zones)+1}'
+        d_prev = float(grid[apex] - grid[apexes[k-1]]) if k else 150.0
+        d_next = float(grid[apexes[k+1]] - grid[apex]) if k+1 < len(apexes) else 150.0
+        d_entry = min(75.0, d_prev / 2.0)
+        d_exit = min(75.0, d_next / 2.0)
         zones.append({'start': start, 'end': end, 'apex': apex, 'corner': label,
+                      'd_entry': d_entry, 'd_exit': d_exit,
                       'band': 'low' if speed[apex] <= 120 else 'medium' if speed[apex] <= 200 else 'high'})
     if len(zones) < 3:
         return {'teams': {}, 'error': 'Too few reliable braking/corner zones', 'excluded': errors}
@@ -186,7 +191,7 @@ def measure_field(extracted, selections, corners=()):
     reference_team = min(selected, key=lambda team: selected[team]['official'])
     ref = selected[reference_team]
 
-    # Partition straight sections into early acceleration vs terminal velocity
+    # Partition straight sections (non-overlapping adaptive split)
     straight_blocks = []
     in_straight = False
     s_start = 0
@@ -212,23 +217,24 @@ def measure_field(extracted, selections, corners=()):
             length = float(grid[b] - grid[a])
             time_lost = dt - ref_dt
 
-            # Adaptive entry (-100 to -40m), apex (-40 to +40m), exit (+40 to +100m)
-            step_40 = max(1, int(40 / grid_spacing))
-            step_100 = max(2, int(100 / grid_spacing))
-            en_a = max(a, apex - step_100)
-            en_b = max(a, apex - step_40)
-            ex_a = min(b, apex + step_40)
-            ex_b = min(b, apex + step_100)
-            ap_a = max(a, apex - step_40)
-            ap_b = min(b, apex + step_40)
+            # Geometry-aware entry/exit boundaries (no artificial 40m floor)
+            d_en = z.get('d_entry', 50.0)
+            d_ex = z.get('d_exit', 50.0)
+            step_15 = max(1, int(15.0 / grid_spacing))  # 15m local median window
+            en_idx = max(a, apex - max(1, int(d_en / grid_spacing)))
+            ex_idx = min(b, apex + max(1, int(d_ex / grid_spacing)))
 
-            entry_speed = float(np.median(item['speed'][en_a:en_b+1])) if en_b > en_a else float(item['speed'][en_a])
-            apex_min_speed = float(min(item['speed'][ap_a:ap_b+1])) if ap_b > ap_a else float(item['speed'][apex])
-            exit_speed = float(np.median(item['speed'][ex_a:ex_b+1])) if ex_b > ex_a else float(item['speed'][ex_b])
+            en_lo, en_hi = max(a, en_idx - step_15), min(b, en_idx + step_15 + 1)
+            ex_lo, ex_hi = max(a, ex_idx - step_15), min(b, ex_idx + step_15 + 1)
+            ap_lo, ap_hi = max(a, apex - step_15), min(b, apex + step_15 + 1)
 
-            ref_entry = float(np.median(ref['speed'][en_a:en_b+1])) if en_b > en_a else float(ref['speed'][en_a])
-            ref_apex = float(min(ref['speed'][ap_a:ap_b+1])) if ap_b > ap_a else float(ref['speed'][apex])
-            ref_exit = float(np.median(ref['speed'][ex_a:ex_b+1])) if ex_b > ex_a else float(ref['speed'][ex_b])
+            entry_speed = float(np.median(item['speed'][en_lo:en_hi]))
+            apex_min_speed = float(np.min(item['speed'][ap_lo:ap_hi]))
+            exit_speed = float(np.median(item['speed'][ex_lo:ex_hi]))
+
+            ref_entry = float(np.median(ref['speed'][en_lo:en_hi]))
+            ref_apex = float(np.min(ref['speed'][ap_lo:ap_hi]))
+            ref_exit = float(np.median(ref['speed'][ex_lo:ex_hi]))
 
             loss_density = float((time_lost / max(1.0, length)) * 100 * 1000)  # ms per 100m
 
@@ -271,22 +277,42 @@ def measure_field(extracted, selections, corners=()):
                 'speed': float(np.mean([measurements[i]['mean_speed'] for i in indices]))
             }
 
-        # Straight-line two-phase breakdown
+        # Straight-line two-phase breakdown (non-overlapping)
         early_accel_time = 0.0
         ref_early_accel_time = 0.0
+        early_accel_speed_gain = 0.0
+        ref_early_accel_speed_gain = 0.0
         terminal_time = 0.0
         ref_terminal_time = 0.0
-        terminal_speeds = []
+        terminal_zone_speeds = []
+        terminal_speeds_at_brake = []
+        terminal_zone_total_length = 0.0
+
         for s_start, s_end in straight_blocks:
-            s_len = grid[s_end] - grid[s_start]
-            accel_split = min(s_end, s_start + max(1, int(min(200.0, s_len * 0.5) / grid_spacing)))
-            term_split = max(s_start, s_end - max(1, int(min(100.0, s_len * 0.35) / grid_spacing)))
+            s_len = float(grid[s_end] - grid[s_start])
+            if s_len < 200.0:
+                continue  # No two-phase partition for straights under 200m
+
+            if s_len >= 300.0:
+                early_len = 200.0
+                term_len = 100.0
+            else:
+                early_len = s_len * 0.50
+                term_len = s_len * 0.25
+
+            terminal_zone_total_length += term_len
+            accel_split = min(s_end, s_start + max(1, int(early_len / grid_spacing)))
+            term_split = max(s_start, s_end - max(1, int(term_len / grid_spacing)))
 
             early_accel_time += float(item['dt'][s_start:accel_split].sum())
             ref_early_accel_time += float(ref['dt'][s_start:accel_split].sum())
+            early_accel_speed_gain += float(item['speed'][accel_split - 1] - item['speed'][s_start])
+            ref_early_accel_speed_gain += float(ref['speed'][accel_split - 1] - ref['speed'][s_start])
+
             terminal_time += float(item['dt'][term_split:s_end].sum())
             ref_terminal_time += float(ref['dt'][term_split:s_end].sum())
-            terminal_speeds.extend(item['speed'][term_split:s_end])
+            terminal_zone_speeds.extend(item['speed'][term_split:s_end])
+            terminal_speeds_at_brake.append(float(item['speed'][s_end - 1]))
 
         straight_time = float(item['dt'][~corner_mask].sum())
         corner_time = float(item['dt'][corner_mask].sum())
@@ -298,33 +324,58 @@ def measure_field(extracted, selections, corners=()):
                 continue
             a, b = int(indices[0]), int(indices[-1]) + 1
             duration = float(item['dt'][a:b].sum())
-            v_start = float(item['speed'][a])
-            v_end = float(item['speed'][b-1])
-            drop = v_start - v_end
-            if duration >= .4 and drop >= 35:
+            v_start_kmh = float(item['speed'][a])
+            v_end_kmh = float(item['speed'][b-1])
+            drop_kmh = v_start_kmh - v_end_kmh
+            if duration >= .4 and drop_kmh >= 35:
+                # Explicit SI unit conversion: km/h -> m/s before all deceleration & resolution formulas
+                v_start_ms = v_start_kmh / 3.6
+                v_end_ms = v_end_kmh / 3.6
+                dist_m = float(grid[b] - grid[a])
+
                 # Speed-midpoint split: early deceleration vs late deceleration
-                v_mid = (v_start + v_end) / 2.0
+                v_mid_kmh = (v_start_kmh + v_end_kmh) / 2.0
                 mid_idx = a
                 for s_i in range(a, b):
-                    if item['speed'][s_i] <= v_mid:
+                    if item['speed'][s_i] <= v_mid_kmh:
                         mid_idx = s_i
                         break
                 mid_idx = max(a + 1, min(b - 1, mid_idx))
                 early_dt = float(item['dt'][a:mid_idx].sum())
                 late_dt = float(item['dt'][mid_idx:b].sum())
-                early_g = (v_start - float(item['speed'][mid_idx])) / 3.6 / max(0.05, early_dt) / 9.80665
-                late_g = (float(item['speed'][mid_idx]) - v_end) / 3.6 / max(0.05, late_dt) / 9.80665
+                v_mid_ms = float(item['speed'][mid_idx]) / 3.6
+
+                early_g = (v_start_ms - v_mid_ms) / max(0.05, early_dt) / 9.80665
+                late_g = (v_mid_ms - v_end_ms) / max(0.05, late_dt) / 9.80665
+                mean_g = (v_start_ms - v_end_ms) / max(0.05, duration) / 9.80665
+
+                # Distance-normalized deceleration in g:
+                # a_norm = (v_entry_ms^2 - v_exit_ms^2) / (2 * g * distance_m)
+                a_norm = (v_start_ms**2 - v_end_ms**2) / (2.0 * 9.80665 * max(1.0, dist_m))
+
+                # Dynamic sampling resolution in meters: v_ms / 3.7 Hz
+                sampling_res_m = round(v_start_ms / 3.7, 1)
+                last_non_brake_dist = float(grid[max(0, a - 1)])
+                first_brake_dist = float(grid[a])
                 release_to_apex = float(grid[z['apex']] - grid[b-1])
+
+                ref_b_dt = float(ref['dt'][a:b].sum())
+                brake_time_delta = duration - ref_b_dt
 
                 braking.append({
                     'start': float(grid[a]),
-                    'distance': float(grid[b] - grid[a]),
+                    'distance': dist_m,
                     'duration': duration,
-                    'mean_g': drop / 3.6 / duration / 9.80665,
+                    'entry_speed': v_start_kmh,
+                    'exit_speed': v_end_kmh,
+                    'mean_g': float(mean_g),
                     'early_g': float(early_g),
                     'late_g': float(late_g),
+                    'normalized_decel_g': float(a_norm),
+                    'time_delta': float(brake_time_delta),
+                    'onset_bracket': [last_non_brake_dist, first_brake_dist],
                     'release_to_apex': max(0.0, release_to_apex),
-                    'sampling_resolution': 11.25  # ~±11m at 300km/h 3.7Hz
+                    'sampling_resolution_m': sampling_res_m
                 })
 
         results[team] = {
@@ -333,8 +384,12 @@ def measure_field(extracted, selections, corners=()):
             'straight_contribution': float((straight_time - ref['dt'][~corner_mask].sum()) / ref['official'] * 100),
             'corner_contribution': float((corner_time - ref['dt'][corner_mask].sum()) / ref['official'] * 100),
             'early_accel_delta': float((early_accel_time - ref_early_accel_time) / ref['official'] * 100),
+            'early_accel_speed_gain': float(early_accel_speed_gain),
             'terminal_delta': float((terminal_time - ref_terminal_time) / ref['official'] * 100),
-            'terminal_speed_mean': float(np.mean(terminal_speeds)) if terminal_speeds else None,
+            'terminal_zone_mean_speed': float(np.mean(terminal_zone_speeds)) if terminal_zone_speeds else None,
+            'terminal_speed_mean': float(np.mean(terminal_zone_speeds)) if terminal_zone_speeds else None,
+            'speed_at_braking_onset': float(np.mean(terminal_speeds_at_brake)) if terminal_speeds_at_brake else None,
+            'terminal_zone_length_m': float(terminal_zone_total_length),
             'lap_gap': (item['official'] / ref['official'] - 1) * 100,
             'reference_lap_time': ref['official'],
             'top_speed': float(max(item['speed'])),
@@ -344,5 +399,16 @@ def measure_field(extracted, selections, corners=()):
         }
     for r in results.values():
         r['straight_deficit'] = r['straight_contribution']
+
+    # Cross-circuit continuous features for development trend regression
+    circuit_features = {
+        'median_apex_speed': float(np.median(apex_speeds)),
+        'high_speed_share': float(np.mean([s > 200.0 for s in apex_speeds])),
+        'straight_distance_share': float(np.sum(~corner_mask) / max(1, len(corner_mask))),
+        'corner_count': len(zones)
+    }
+
     return {'teams': results, 'reference_team': reference_team, 'excluded': {t: e for t, e in errors.items() if t not in results},
-            'method': 'shared-gps-grid-v3-sampling-aware', 'corner_count': len(zones)}
+            'method': 'shared-gps-grid-v3-sampling-aware', 'corner_count': len(zones),
+            'circuit_features': circuit_features}
+
