@@ -1369,7 +1369,9 @@ def car_performance_trace_batch(response: Response, year: int = Query(..., ge=20
             normalized.append({'team': team, 'team_name': str(item.get('team_name') or team)[:80],
                                'driver_number': number, 'driver': str(item.get('driver') or number)[:4],
                                'lap': item.get('lap'), 'time': end-start,
-                               'start': start, 'end': end})
+                               'start': start, 'end': end,
+                               'speed_st': item.get('speed_st'),
+                               'speed_fl': item.get('speed_fl')})
         fastf1_runtime()
         from session_loader import load_selected_laps_telemetry, exact_event, download_feed, _PARSERS
         from fastf1.mvapi import get_circuit_info

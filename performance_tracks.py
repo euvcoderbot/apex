@@ -7,7 +7,7 @@ import numpy as np
 def prepare(samples, selection):
     a = np.array([[r.get('Distance'), r.get('ElapsedSeconds'), r.get('Speed'),
                    r.get('Throttle'), float(bool(r.get('Brake'))),
-                   r.get('X'), r.get('Y')] for r in samples], dtype=float)
+                   r.get('X'), r.get('Y'), float(r.get('DRS') or 0)] for r in samples], dtype=float)
     official = float(selection.get('time') or selection['end']-selection['start'])
     if len(a) < 100 or not np.isfinite(a[:, :5]).all():
         raise ValueError('Incomplete speed, throttle or time channels')
@@ -16,10 +16,10 @@ def prepare(samples, selection):
         raise ValueError('Gaps or invalid speed/distance in the qualifying lap')
     if abs(a[-1, 1]-a[0, 1]-official) > 1.5:
         raise ValueError('Telemetry does not cover the official lap')
-    gps = np.isfinite(a[:, 5:]).all(axis=1)
+    gps = np.isfinite(a[:, 5:7]).all(axis=1)
     if np.mean(gps) < .65:
         raise ValueError('Insufficient position coverage for shared track windows')
-    return {'a': a, 'gps': gps, 'official': official, 'selection': selection}
+    return {'a': a, 'gps': gps, 'official': official, 'selection': selection, 'samples': samples}
 
 
 def align(item, reference, grid):
@@ -52,11 +52,16 @@ def align(item, reference, grid):
     speed = np.interp(grid, aligned, a[:, 2])
     throttle = np.interp(grid, aligned, a[:, 3])
     brake = np.interp(grid, aligned, a[:, 4]) >= .5
+    # Discrete forward-fill / nearest step for DRS on grid (FastF1 discrete channel rule)
+    drs_indices = np.clip(np.searchsorted(aligned, grid, side='right') - 1, 0, len(a) - 1)
+    drs_grid = a[drs_indices, 7].astype(int)
+    drs_active = np.isin(drs_grid, [10, 12, 14])
     raw_time = np.diff(grid)*3.6*(1/speed[:-1]+1/speed[1:])/2
     factor = item['official']/raw_time.sum()
     if not .92 < factor < 1.08:
         raise ValueError('Speed integration disagrees with official lap time')
     return {**item, 'speed': speed, 'throttle': throttle, 'brake': brake,
+            'drs': drs_grid, 'drs_active': drs_active,
             'dt': raw_time*factor, 'scale': float(factor), 'aligned': aligned}
 
 
@@ -73,6 +78,252 @@ def frozen(item, field):
                 return True
         start = end
     return False
+
+
+def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_mask):
+    """Speed-domain straight-line performance analysis.
+
+    1. Evaluates fixed speed bands (200->250, 250->300, 300->320 km/h) from raw sample timestamps.
+    2. Enforces continuous clean air (>3.0s gap) throughout the entire measurement interval.
+    3. Requires constant discrete DRS state (drs in {10, 12, 14}) throughout the band.
+    4. Calculates within-straight relative deltas: delta_t = t - median(t_field) on each straight.
+    5. Aggregates event score as median(delta_t) across valid straights, rebased to 0.000s baseline.
+    6. Constructs a shared-coordinate terminal speed corridor on long straights (>=400m).
+    7. Computes straight traversal delta for lap time attribution.
+    """
+    teams = list(selected.keys())
+    session_times = {}
+    for team, item in selected.items():
+        t_start = float(item['selection'].get('start') or 0.0)
+        session_times[team] = {
+            't_start': t_start,
+            'aligned': item['aligned'],
+            'time': item['a'][:, 1]
+        }
+
+    def check_clean_air(team, d_start, d_end):
+        """Verify that no other car was within 0 < gap <= 3.0s ahead anywhere across [d_start, d_end]."""
+        this_start_t = session_times[team]['t_start']
+        if this_start_t <= 0.0:
+            return True
+        eval_d = np.linspace(d_start, d_end, 7)
+        this_aligned = session_times[team]['aligned']
+        this_time = session_times[team]['time']
+        T_this = this_start_t + np.interp(eval_d, this_aligned, this_time)
+
+        for other_team, other_data in session_times.items():
+            if other_team == team:
+                continue
+            if other_data['t_start'] <= 0.0:
+                continue
+            if abs(this_start_t - other_data['t_start']) > 180.0:
+                continue
+            T_other = other_data['t_start'] + np.interp(eval_d, other_data['aligned'], other_data['time'])
+            gap = T_this - T_other
+            if np.any((gap > 0.0) & (gap <= 3.0)):
+                return False
+        return True
+
+    def interp_raw(raw_t, raw_v, target_v):
+        idx = np.where(raw_v >= target_v)[0][0]
+        if idx == 0:
+            return float(raw_t[0])
+        v0, v1 = float(raw_v[idx-1]), float(raw_v[idx])
+        t0, t1 = float(raw_t[idx-1]), float(raw_t[idx])
+        if abs(v1 - v0) < 1e-4:
+            return float(t0)
+        return float(t0 + (target_v - v0) / (v1 - v0) * (t1 - t0))
+
+    bands = [
+        (200.0, 250.0, '200_250'),
+        (250.0, 300.0, '250_300'),
+        (300.0, 320.0, '300_320')
+    ]
+
+    straight_band_times = {b[2]: defaultdict(dict) for b in bands}
+    accel_eligible_straights = []
+
+    for s_idx, (s_start, s_end) in enumerate(straight_blocks):
+        d_start = float(grid[s_start])
+        d_end = float(grid[min(s_end, len(grid)-1)])
+        s_len = d_end - d_start
+        if s_len < 250.0:
+            continue
+        accel_eligible_straights.append(s_idx)
+
+        # Check dominant DRS deployment on this straight across field
+        drs_active_counts = [bool(np.mean(selected[t]['drs_active'][s_start:s_end]) >= 0.3) for t in teams]
+        dominant_drs_open = bool(np.mean(drs_active_counts) >= 0.5)
+
+        for team in teams:
+            item = selected[team]
+            aligned = item['aligned']
+            a = item['a']
+            mask = (aligned >= d_start - 30.0) & (aligned <= d_end + 30.0)
+            raw_indices = np.where(mask)[0]
+            if len(raw_indices) < 2:
+                continue
+            raw_t = a[raw_indices, 1]
+            raw_v = a[raw_indices, 2]
+            raw_th = a[raw_indices, 3]
+            raw_br = a[raw_indices, 4] >= 0.5
+            raw_drs = a[raw_indices, 7].astype(int)
+            raw_drs_active = np.isin(raw_drs, [10, 12, 14])
+
+            i_min = int(np.argmin(raw_v))
+            i_max = int(np.argmax(raw_v))
+            if i_max <= i_min:
+                continue
+            t_accel = raw_t[i_min:i_max+1]
+            v_accel = raw_v[i_min:i_max+1]
+            th_accel = raw_th[i_min:i_max+1]
+            br_accel = raw_br[i_min:i_max+1]
+            drs_accel = raw_drs_active[i_min:i_max+1]
+            aligned_accel = aligned[raw_indices[i_min:i_max+1]]
+
+            for v_lo, v_hi, b_name in bands:
+                if v_accel[0] <= v_lo and v_accel[-1] >= v_hi:
+                    idx_lo_candidates = np.where(v_accel >= v_lo)[0]
+                    idx_hi_candidates = np.where(v_accel >= v_hi)[0]
+                    if not len(idx_lo_candidates) or not len(idx_hi_candidates):
+                        continue
+                    i_lo = idx_lo_candidates[0]
+                    i_hi = idx_hi_candidates[0]
+                    if i_hi <= i_lo:
+                        continue
+                    if np.all(th_accel[i_lo:i_hi+1] >= 90) and not np.any(br_accel[i_lo:i_hi+1]):
+                        drs_slice = drs_accel[i_lo:i_hi+1]
+                        is_drs = bool(np.all(drs_slice))
+                        is_no_drs = bool(not np.any(drs_slice))
+                        if is_drs or is_no_drs:
+                            if is_drs == dominant_drs_open:
+                                t_lo = interp_raw(t_accel, v_accel, v_lo)
+                                t_hi = interp_raw(t_accel, v_accel, v_hi)
+                                dt_band = t_hi - t_lo
+                                if 0.1 < dt_band < 25.0:
+                                    d_lo = float(aligned_accel[i_lo])
+                                    d_hi = float(aligned_accel[i_hi])
+                                    if check_clean_air(team, d_lo, d_hi):
+                                        straight_band_times[b_name][s_idx][team] = dt_band
+
+    team_straight_deltas = {b[2]: defaultdict(list) for b in bands}
+    for b_name in ('200_250', '250_300', '300_320'):
+        for s_idx, team_times in straight_band_times[b_name].items():
+            if len(team_times) >= 2:
+                s_med = float(np.median(list(team_times.values())))
+                for t, tm in team_times.items():
+                    team_straight_deltas[b_name][t].append(tm - s_med)
+
+    # Long-straight shared terminal speed corridor (straights >= 400m)
+    team_terminal_speeds = defaultdict(list)
+    total_corridor_len = 0.0
+
+    for s_idx, (s_start, s_end) in enumerate(straight_blocks):
+        d_start = float(grid[s_start])
+        d_end = float(grid[min(s_end, len(grid)-1)])
+        s_len = d_end - d_start
+        if s_len < 400.0:
+            continue
+
+        brakes = []
+        for team in teams:
+            d = selected[team]
+            mask = (d['aligned'] >= d_start + 200.0) & (d['aligned'] <= d_end + 50.0)
+            idx = np.where(mask)[0]
+            if not len(idx):
+                brakes.append(d_end)
+                continue
+            br_idx = np.where((d['a'][idx, 4] >= 0.5) | (d['a'][idx, 3] < 90))[0]
+            if len(br_idx):
+                brakes.append(float(d['aligned'][idx[br_idx[0]]]))
+            else:
+                brakes.append(d_end)
+
+        if brakes:
+            med_b = float(np.median(brakes))
+            rep_b = [x for x in brakes if x >= med_b - 120.0]
+            if not rep_b:
+                rep_b = brakes
+            end_corridor = min(rep_b) - 10.0
+            corridor_len = 80.0
+            start_corridor = end_corridor - corridor_len
+            total_corridor_len += corridor_len
+
+            for team in teams:
+                item = selected[team]
+                c_mask = (item['aligned'] >= start_corridor) & (item['aligned'] <= end_corridor)
+                if np.any(c_mask):
+                    if not np.any(item['a'][c_mask, 4] >= 0.5):
+                        if check_clean_air(team, start_corridor, end_corridor):
+                            team_terminal_speeds[team].append(float(np.mean(item['a'][c_mask, 2])))
+
+    straight_results = {}
+    tot_accel_straights = max(1, len(straight_band_times['250_300']))
+
+    # 250_300 headline rebase
+    raw_250_300 = {t: float(np.median(team_straight_deltas['250_300'][t]))
+                   if team_straight_deltas['250_300'][t] else None for t in teams}
+    valid_scores = [v for v in raw_250_300.values() if v is not None]
+    min_250_300 = min(valid_scores) if valid_scores else 0.0
+
+    # 200_250 rebase
+    raw_200_250 = {t: float(np.median(team_straight_deltas['200_250'][t]))
+                   if team_straight_deltas['200_250'][t] else None for t in teams}
+    valid_200_250 = [v for v in raw_200_250.values() if v is not None]
+    min_200_250 = min(valid_200_250) if valid_200_250 else 0.0
+
+    # 300_320 cohort rebase
+    raw_300_320 = {t: float(np.median(team_straight_deltas['300_320'][t]))
+                   if team_straight_deltas['300_320'][t] else None for t in teams}
+    valid_300_320 = [v for v in raw_300_320.values() if v is not None]
+    min_300_320 = min(valid_300_320) if valid_300_320 else 0.0
+
+    avg_term_speeds = {t: float(np.mean(team_terminal_speeds[t])) if team_terminal_speeds[t] else None for t in teams}
+    max_term_speed = max([v for v in avg_term_speeds.values() if v is not None], default=None)
+
+    ref_straight_time = float(ref['dt'][~corner_mask].sum())
+
+    for team in teams:
+        item = selected[team]
+        straight_time = float(item['dt'][~corner_mask].sum())
+        traversal_delta = float((straight_time - ref_straight_time) / ref['official'] * 100)
+
+        deltas_250 = team_straight_deltas['250_300'][team]
+        cov_count = len(deltas_250)
+        cov_str = f"{cov_count}/{tot_accel_straights}"
+        is_provisional = bool(cov_count < 2 or cov_count < tot_accel_straights * 0.5)
+
+        accel_250 = (raw_250_300[team] - min_250_300) if raw_250_300[team] is not None else None
+        accel_200 = (raw_200_250[team] - min_200_250) if raw_200_250[team] is not None else None
+        accel_320 = (raw_300_320[team] - min_300_320) if raw_300_320[team] is not None else None
+
+        all_team_sums = [sum(team_straight_deltas['250_300'][t]) for t in teams if team_straight_deltas['250_300'][t]]
+        min_cumul = min(all_team_sums) if all_team_sums else 0.0
+        cumul_loss = float(sum(deltas_250) - min_cumul) if deltas_250 else 0.0
+
+        term_speed = avg_term_speeds[team]
+        term_deficit = float(max_term_speed - term_speed) if (term_speed is not None and max_term_speed is not None) else None
+
+        straight_results[team] = {
+            'straight_time': straight_time,
+            'straight_traversal_delta': traversal_delta,
+            'straight_contribution': traversal_delta,
+            'straight_deficit': accel_250 if accel_250 is not None else traversal_delta,
+            'accel_250_300': float(accel_250) if accel_250 is not None else None,
+            'accel_200_250': float(accel_200) if accel_200 is not None else None,
+            'accel_300_320': float(accel_320) if accel_320 is not None else None,
+            'accel_cumul_loss_250_300': float(max(0.0, cumul_loss)),
+            'straight_coverage': cov_str,
+            'straight_provisional': is_provisional,
+            'terminal_zone_mean_speed': term_speed if term_speed is not None else float(np.mean(item['speed'][:-1][~corner_mask])),
+            'terminal_speed_deficit': term_deficit,
+            'terminal_zone_length_m': float(total_corridor_len) if total_corridor_len > 0 else 80.0,
+            'top_speed': float(max(item['speed'])),
+            'speed_st': float(item['selection'].get('speed_st')) if item['selection'].get('speed_st') is not None else None,
+            'speed_fl': float(item['selection'].get('speed_fl')) if item['selection'].get('speed_fl') is not None else None
+        }
+
+    return straight_results
 
 
 def measure_field(extracted, selections, corners=()):
@@ -206,6 +457,9 @@ def measure_field(extracted, selections, corners=()):
     if in_straight and grid[-1] - grid[s_start] >= 80:
         straight_blocks.append((s_start, len(corner_mask)))
 
+    # Compute speed-domain straight-line performance across the field
+    straight_perf = analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_mask)
+
     results = {}
     grid_spacing = float(grid[1] - grid[0])
     for team, item in selected.items():
@@ -277,44 +531,8 @@ def measure_field(extracted, selections, corners=()):
                 'speed': float(np.mean([measurements[i]['mean_speed'] for i in indices]))
             }
 
-        # Straight-line two-phase breakdown (non-overlapping)
-        early_accel_time = 0.0
-        ref_early_accel_time = 0.0
-        early_accel_speed_gain = 0.0
-        ref_early_accel_speed_gain = 0.0
-        terminal_time = 0.0
-        ref_terminal_time = 0.0
-        terminal_zone_speeds = []
-        terminal_speeds_at_brake = []
-        terminal_zone_total_length = 0.0
-
-        for s_start, s_end in straight_blocks:
-            s_len = float(grid[s_end] - grid[s_start])
-            if s_len < 200.0:
-                continue  # No two-phase partition for straights under 200m
-
-            if s_len >= 300.0:
-                early_len = 200.0
-                term_len = 100.0
-            else:
-                early_len = s_len * 0.50
-                term_len = s_len * 0.25
-
-            terminal_zone_total_length += term_len
-            accel_split = min(s_end, s_start + max(1, int(early_len / grid_spacing)))
-            term_split = max(s_start, s_end - max(1, int(term_len / grid_spacing)))
-
-            early_accel_time += float(item['dt'][s_start:accel_split].sum())
-            ref_early_accel_time += float(ref['dt'][s_start:accel_split].sum())
-            early_accel_speed_gain += float(item['speed'][accel_split - 1] - item['speed'][s_start])
-            ref_early_accel_speed_gain += float(ref['speed'][accel_split - 1] - ref['speed'][s_start])
-
-            terminal_time += float(item['dt'][term_split:s_end].sum())
-            ref_terminal_time += float(ref['dt'][term_split:s_end].sum())
-            terminal_zone_speeds.extend(item['speed'][term_split:s_end])
-            terminal_speeds_at_brake.append(float(item['speed'][s_end - 1]))
-
-        straight_time = float(item['dt'][~corner_mask].sum())
+        straight_info = straight_perf.get(team, {})
+        straight_time = straight_info.get('straight_time', float(item['dt'][~corner_mask].sum()))
         corner_time = float(item['dt'][corner_mask].sum())
 
         braking = []
@@ -381,15 +599,22 @@ def measure_field(extracted, selections, corners=()):
         results[team] = {
             'corners': measurements, 'categories': categories, 'tercile_categories': tercile_categories,
             'straight_time': straight_time, 'corner_time': corner_time,
-            'straight_contribution': float((straight_time - ref['dt'][~corner_mask].sum()) / ref['official'] * 100),
+            'straight_traversal_delta': straight_info.get('straight_traversal_delta', 0.0),
+            'straight_contribution': straight_info.get('straight_contribution', 0.0),
+            'straight_deficit': straight_info.get('straight_deficit', 0.0),
+            'accel_250_300': straight_info.get('accel_250_300'),
+            'accel_200_250': straight_info.get('accel_200_250'),
+            'accel_300_320': straight_info.get('accel_300_320'),
+            'accel_cumul_loss_250_300': straight_info.get('accel_cumul_loss_250_300', 0.0),
+            'straight_coverage': straight_info.get('straight_coverage', '0/0'),
+            'straight_provisional': straight_info.get('straight_provisional', False),
             'corner_contribution': float((corner_time - ref['dt'][corner_mask].sum()) / ref['official'] * 100),
-            'early_accel_delta': float((early_accel_time - ref_early_accel_time) / ref['official'] * 100),
-            'early_accel_speed_gain': float(early_accel_speed_gain),
-            'terminal_delta': float((terminal_time - ref_terminal_time) / ref['official'] * 100),
-            'terminal_zone_mean_speed': float(np.mean(terminal_zone_speeds)) if terminal_zone_speeds else None,
-            'terminal_speed_mean': float(np.mean(terminal_zone_speeds)) if terminal_zone_speeds else None,
-            'speed_at_braking_onset': float(np.mean(terminal_speeds_at_brake)) if terminal_speeds_at_brake else None,
-            'terminal_zone_length_m': float(terminal_zone_total_length),
+            'terminal_zone_mean_speed': straight_info.get('terminal_zone_mean_speed'),
+            'terminal_speed_mean': straight_info.get('terminal_zone_mean_speed'),
+            'terminal_speed_deficit': straight_info.get('terminal_speed_deficit'),
+            'terminal_zone_length_m': straight_info.get('terminal_zone_length_m', 80.0),
+            'speed_st': straight_info.get('speed_st'),
+            'speed_fl': straight_info.get('speed_fl'),
             'lap_gap': (item['official'] / ref['official'] - 1) * 100,
             'reference_lap_time': ref['official'],
             'top_speed': float(max(item['speed'])),
@@ -397,8 +622,6 @@ def measure_field(extracted, selections, corners=()):
             'lap_distance': float(grid[-1]), 'braking': braking, 'selection': item['selection'],
             'quality': {'integration_scale': item['scale'], 'full_lap': True}
         }
-    for r in results.values():
-        r['straight_deficit'] = r['straight_contribution']
 
     # Cross-circuit continuous features for development trend regression
     circuit_features = {

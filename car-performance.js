@@ -180,7 +180,7 @@ function computeStraightlinePerformance(teams) {
   const flVals = validTeams.map(t => t.finishLineSpeed || t.speed_fl).filter(finite);
   const sustainedVals = validTeams.map(t => t.sustainedSpeed || t.full_throttle_p95 || t.sustained).filter(finite);
   const terminalVals = validTeams.map(t => t.terminalZoneMeanSpeed || t.terminal_zone_mean_speed).filter(finite);
-  const gapVals = validTeams.map(t => t.straightGap || t.straight_deficit).filter(finite);
+  const gapVals = validTeams.map(t => finite(t.accel250) ? t.accel250 : (finite(t.accel_250_300) ? t.accel_250_300 : (t.straightGap || t.straight_deficit))).filter(finite);
 
   const bestMatched = matchedVals.length ? Math.max(...matchedVals) : 310;
   const bestPeak = peakVals.length ? Math.max(...peakVals) : 330;
@@ -196,7 +196,8 @@ function computeStraightlinePerformance(teams) {
     const sustained = finite(t.sustainedSpeed) ? t.sustainedSpeed : (finite(t.full_throttle_p95) ? t.full_throttle_p95 : (finite(t.sustained) ? t.sustained : null));
     const terminal = finite(t.terminalZoneMeanSpeed) ? t.terminalZoneMeanSpeed : (finite(t.terminal_zone_mean_speed) ? t.terminal_zone_mean_speed : null);
     const termLen = finite(t.terminalZoneLength) ? t.terminalZoneLength : (finite(t.terminal_zone_length_m) ? t.terminal_zone_length_m : null);
-    const gap = finite(t.straightGap) ? t.straightGap : (finite(t.straight_deficit) ? t.straight_deficit : 0);
+    const accel250 = finite(t.accel250) ? t.accel250 : (finite(t.accel_250_300) ? t.accel_250_300 : null);
+    const gap = finite(accel250) ? accel250 : (finite(t.straightGap) ? t.straightGap : (finite(t.straight_deficit) ? t.straight_deficit : 0));
 
     return {
       ...t,
@@ -206,6 +207,7 @@ function computeStraightlinePerformance(teams) {
       sustainedSpeed: sustained,
       terminalZoneMeanSpeed: terminal,
       terminalZoneLength: termLen,
+      accel250: accel250,
       straightGap: gap
     };
   });
@@ -506,6 +508,7 @@ async function analyse() {
       const selections=event.Q.teams.filter(team=>team.lap).flatMap(team=>(team.telemetry_candidates?.length?team.telemetry_candidates:[team.lap]).map((lap,i)=>({
         team:`${team.team}:${i}`,team_name:team.team,driver_number:lap.number,
         driver:lap.driver,lap:lap.lap,start:lap.start,end:lap.end,
+        speed_st:lap.speed_st,speed_fl:lap.speed_fl
       })));
       try {
         const params=new URLSearchParams({year:context.year,gp:event.name,windows:JSON.stringify(selections)});
@@ -1243,6 +1246,7 @@ function seasonTelemetry() {
         brakeDistance:[],brakeDistDelta:[],brakeDuration:[],
         normalizedDecel:[],brakeTimeDelta:[],samplingResolution:[],
         terminalZoneMeanSpeed:[],terminalZoneLength:[],
+        accel250:[],accel200:[],accel320:[],straightTraversalDelta:[],speedSt:[],speedFl:[],
         events:0,zones:0
       });
       const item=map.get(row.team); item.events++;
@@ -1258,6 +1262,12 @@ function seasonTelemetry() {
       if(finite(row.fullDeficit))item.fullDeficit.push(row.fullDeficit);
       if(finite(row.trace.straight_deficit))item.straightDeficit.push(row.trace.straight_deficit);
       if(finite(row.trace.straight_contribution))item.straightContribution.push(row.trace.straight_contribution);
+      if(finite(row.trace.straight_traversal_delta))item.straightTraversalDelta.push(row.trace.straight_traversal_delta);
+      if(finite(row.trace.accel_250_300))item.accel250.push(row.trace.accel_250_300);
+      if(finite(row.trace.accel_200_250))item.accel200.push(row.trace.accel_200_250);
+      if(finite(row.trace.accel_300_320))item.accel320.push(row.trace.accel_300_320);
+      if(finite(row.trace.speed_st))item.speedSt.push(row.trace.speed_st);
+      if(finite(row.trace.speed_fl))item.speedFl.push(row.trace.speed_fl);
       if(finite(row.trace.corner_contribution))item.cornerContribution.push(row.trace.corner_contribution);
       if(finite(row.brakeG))item.brakeG.push(row.brakeG);
       if(finite(row.brakeMeanG))item.brakeMeanG.push(row.brakeMeanG);
@@ -1458,55 +1468,69 @@ function renderTrace() {
 
       const rawValues = season.map(team => ({
         ...team,
-        straightGap: avg(team.straightContribution),
-        peak: avg(team.top),
-        sustained: avg(team.full),
+        accel250: avg(team.accel250),
+        accel200: avg(team.accel200),
+        accel320: avg(team.accel320),
+        traversalDelta: avg(team.straightTraversalDelta),
         terminal: avg(team.terminalZoneMeanSpeed),
-        termLen: avg(team.terminalZoneLength)
+        termLen: avg(team.terminalZoneLength),
+        speedSt: avg(team.speedSt),
+        peak: avg(team.top),
+        sustained: avg(team.full)
       }));
-      const minStraightGap = Math.min(...rawValues.map(t => t.straightGap).filter(finite));
+      const minAccel250 = Math.min(...rawValues.map(t => t.accel250).filter(finite));
+      const minAccel200 = Math.min(...rawValues.map(t => t.accel200).filter(finite));
+      const minAccel320 = Math.min(...rawValues.map(t => t.accel320).filter(finite));
       const qualyValues = rawValues.map(t => ({
         ...t,
-        straightGap: finite(t.straightGap) && finite(minStraightGap) ? Math.max(0, t.straightGap - minStraightGap) : null
+        straightAccel250: finite(t.accel250) && finite(minAccel250) ? Math.max(0, t.accel250 - minAccel250) : null,
+        straightAccel200: finite(t.accel200) && finite(minAccel200) ? Math.max(0, t.accel200 - minAccel200) : null,
+        straightAccel320: finite(t.accel320) && finite(minAccel320) ? Math.max(0, t.accel320 - minAccel320) : null
       }));
       const orderedQualy = sorted(qualyValues, {
         straightTeam: t => t.team,
-        straightGap: t => t.straightGap,
+        straightAccel250: t => t.straightAccel250,
+        straightAccel200: t => t.straightAccel200,
+        straightAccel320: t => t.straightAccel320,
         terminal: t => t.terminal,
-        peak: t => t.peak,
-        sustained: t => t.sustained,
+        speedSt: t => t.speedSt,
+        traversalDelta: t => t.traversalDelta,
         straightEvents: t => t.events
-      }, 'straightGap', 1);
+      }, 'straightAccel250', 1);
 
       const qualyChart = renderHorizontalBarChart(orderedQualy, {
-        title: 'Qualifying Straight-Line Time Deficit (% to Benchmark)',
-        subtitle: 'GPS-integrated time gained/lost across all straight sectors · Fastest constructor on straights is 0.00% baseline',
-        valueKey: 'straightGap',
-        unit: '%',
-        digits: 2,
+        title: 'Season Straight-Line Acceleration Deficit (250–300 km/h)',
+        subtitle: 'Speed-matched acceleration averaged across evaluated circuits · Fastest constructor is 0.000s baseline',
+        valueKey: 'straightAccel250',
+        unit: 's',
+        digits: 3,
         signedValue: true,
         zeroBaseline: true
       });
 
-      return card(straightTitle, 'Time lost on all straights as a percentage of a full lap, averaged across evaluated circuits for every ranked team. Fastest constructor on straights is 0.00% baseline. Terminal-speed performance is sensitive to drag, PU/ERS behaviour and aero state.',
+      return card(straightTitle, 'Speed-matched straight-line acceleration and terminal velocity across evaluated circuits. 250–300 km/h acceleration eliminates initial-speed inheritance from the preceding corner exit. Straight Traversal Delta is retained strictly for lap-time attribution.',
         straightToggle+
         qualyChart+
         table([
           sortHeader('straightTeam', 'Team'),
-          sortHeader('straightGap', 'Time lost · % of lap'),
-          sortHeader('terminal', 'Terminal-zone mean speed', -1),
-          sortHeader('peak', 'Average peak speed', -1),
-          sortHeader('sustained', 'Full-throttle high-speed threshold (P95)', -1),
+          sortHeader('straightAccel250', 'High-Speed Accel (250–300)'),
+          sortHeader('straightAccel200', 'Mid Accel (200–250)'),
+          sortHeader('straightAccel320', 'Top-End Accel (300–320)'),
+          sortHeader('terminal', 'Terminal speed (≥400m)', -1),
+          sortHeader('speedSt', 'Speed Trap (ST)', -1),
+          sortHeader('traversalDelta', 'Straight Traversal Delta'),
           sortHeader('straightEvents', 'Circuits', -1)
         ], orderedQualy.map(team => [
           teamLabel(team),
-          signed(team.straightGap, 3),
-          finite(team.terminal) ? `${fmt(team.terminal, 1, ' km/h')}<small>${fmt(team.termLen || 100, 0, ' m')} zone</small>` : '—',
-          fmt(team.peak, 1, ' km/h'),
-          fmt(team.sustained, 1, ' km/h'),
+          finite(team.straightAccel250) ? signed(team.straightAccel250, 3, 's') : '—',
+          finite(team.straightAccel200) ? signed(team.straightAccel200, 3, 's') : '—',
+          finite(team.straightAccel320) ? signed(team.straightAccel320, 3, 's') : '—',
+          finite(team.terminal) ? `${fmt(team.terminal, 1, ' km/h')}<small>${fmt(team.termLen || 80, 0, ' m')} zone</small>` : '—',
+          finite(team.speedSt) ? fmt(team.speedSt, 1, ' km/h') : '—',
+          finite(team.traversalDelta) ? signed(team.traversalDelta, 3, '%') : '—',
           team.events
         ]))+
-        '<p class="performance-note">Straights partitioned into early acceleration and terminal zones (≥300m: first 200m / final 100m; 200–300m: 50% / 25%; <200m: whole straight). Terminal-speed performance, sensitive to drag, PU/ERS behaviour and aero state. Active aero state is not inferred from telemetry.</p>');
+        '<p class="performance-note">Speed-domain acceleration evaluates elapsed time across fixed velocity bands (200→250, 250→300, 300→320 km/h) sampled from continuous full-throttle intervals in clean air. Terminal speed is measured within an 80m corridor ending 10m before the field braking onset on straights ≥400m. Full-throttle high-speed threshold (P95) reflects sustained top-end velocity. Straight Traversal Delta reflects total straight elapsed time relative to the reference lap.</p>');
     }
     const rawBrakeValues = season.map(team => ({
       ...team,
@@ -1689,52 +1713,64 @@ function renderTrace() {
         '<p class="performance-note">Race speed traps reflect terminal velocity under permitted PU/ERS deployment and aerodynamic configuration. Lap-matching evaluates clean laps (>2.0s gap) at equal race distances to remove fuel weight confounders. Active aero state is not inferred from telemetry.</p>');
     }
 
-    const minStraight = Math.min(...loaded.map(r => r.trace?.straight_contribution).filter(finite));
     const qualyRows = loaded.map(r => ({
       ...r,
-      straightGap: finite(r.trace?.straight_contribution) && finite(minStraight) ? Math.max(0, r.trace.straight_contribution - minStraight) : null,
-      topSpeed: r.trace?.top_speed,
-      sustainedSpeed: r.trace?.full_throttle_p95,
+      accel250: r.trace?.accel_250_300,
+      accel200: r.trace?.accel_200_250,
+      accel320: r.trace?.accel_300_320,
+      straightCoverage: r.trace?.straight_coverage || '—',
+      straightProvisional: r.trace?.straight_provisional || false,
+      traversalDelta: r.trace?.straight_traversal_delta,
       terminalSpeed: r.trace?.terminal_zone_mean_speed,
-      termLen: r.trace?.terminal_zone_length_m
+      termDeficit: r.trace?.terminal_speed_deficit,
+      termLen: r.trace?.terminal_zone_length_m,
+      speedSt: r.trace?.speed_st,
+      topSpeed: r.trace?.top_speed,
+      sustainedSpeed: r.trace?.full_throttle_p95
     }));
     const ordered = sorted(qualyRows, {
       eventStraightTeam: t => t.team,
-      eventStraightGap: t => t.straightGap,
+      eventStraightAccel250: t => t.accel250,
+      eventStraightAccel200: t => t.accel200,
+      eventStraightAccel320: t => t.accel320,
       eventStraightTerminal: t => t.terminalSpeed,
-      eventStraightTop: t => t.topSpeed,
-      eventStraightP95: t => t.sustainedSpeed
-    }, 'eventStraightGap', 1);
+      eventStraightSpeedST: t => t.speedSt,
+      eventStraightTraversal: t => t.traversalDelta
+    }, 'eventStraightAccel250', 1);
 
     const singleStraightChart = renderHorizontalBarChart(ordered, {
-      title: 'Qualifying Straight-Line Time Deficit (% to Benchmark)',
-      subtitle: 'GPS-integrated time gained/lost across all straight sectors · Fastest constructor on straights is 0.00% baseline',
-      valueKey: 'straightGap',
-      unit: '%',
-      digits: 2,
+      title: 'Qualifying High-Speed Acceleration Deficit (250–300 km/h)',
+      subtitle: 'Speed-matched acceleration that removes the direct initial-speed advantage from corner exit · Fastest is 0.000s baseline',
+      valueKey: 'accel250',
+      unit: 's',
+      digits: 3,
       signedValue: true,
       zeroBaseline: true
     });
 
-    return card('Straight-line performance', 'Time lost on all straights as a percentage of a full lap, relative to the fastest constructor (0.00% baseline). Includes peak velocity, sustained high-speed threshold, and terminal-zone mean speed. Terminal-speed performance is sensitive to drag, PU/ERS behaviour and aero state.',
+    return card('Straight-line performance', 'Speed-matched straight-line acceleration and terminal velocity. 250–300 km/h acceleration eliminates initial-speed inheritance from the preceding corner exit. Straight Traversal Delta is retained strictly for lap-time attribution.',
       straightToggle+
       singleStraightChart+
       table([
         sortHeader('eventStraightTeam', 'Team'),
-        sortHeader('eventStraightGap', 'Time lost · % of lap'),
-        sortHeader('eventStraightTerminal', 'Terminal-zone mean speed', -1),
-        sortHeader('eventStraightTop', 'Peak speed', -1),
-        sortHeader('eventStraightP95', 'Full-throttle high-speed threshold (P95)', -1)
+        sortHeader('eventStraightAccel250', 'High-Speed Accel (250–300)'),
+        sortHeader('eventStraightAccel200', 'Mid Accel (200–250)'),
+        sortHeader('eventStraightAccel320', 'Top-End Accel (300–320)'),
+        sortHeader('eventStraightTerminal', 'Terminal speed (≥400m)', -1),
+        sortHeader('eventStraightSpeedST', 'Speed Trap (ST)', -1),
+        sortHeader('eventStraightTraversal', 'Straight Traversal Delta')
       ], ordered.map(t => [
         teamLabel(t),
-        signed(t.straightGap, 3),
-        finite(t.terminalSpeed) ? `${fmt(t.terminalSpeed, 1, ' km/h')}<small>${fmt(t.termLen || 100, 0, ' m')} zone</small>` : '—',
-        fmt(t.topSpeed, 1, ' km/h'),
-        fmt(t.sustainedSpeed, 1, ' km/h')
+        finite(t.accel250) ? `${signed(t.accel250, 3)}s <small class="perf-tercile-badge is-mid">${escape(t.straightCoverage)}${t.straightProvisional ? ' (prov)' : ''}</small>` : '—',
+        finite(t.accel200) ? signed(t.accel200, 3, 's') : '—',
+        finite(t.accel320) ? signed(t.accel320, 3, 's') : '—',
+        finite(t.terminalSpeed) ? `${fmt(t.terminalSpeed, 1, ' km/h')}${finite(t.termDeficit) ? `<small> -${fmt(t.termDeficit, 1, ' km/h')}</small>` : ''}` : '—',
+        finite(t.speedSt) ? fmt(t.speedSt, 1, ' km/h') : '—',
+        finite(t.traversalDelta) ? signed(t.traversalDelta, 3, '%') : '—'
       ]))+
       card('Where the lap gap comes from',`Relative to ${escape(event.traceReference||'the fastest measured team')}’s qualifying lap.`,
-      table(['Team','Straights','Corners','Lap gap'],ordered.map(row=>[teamLabel(row),fmt(row.straightGap,3,'%'),fmt(row.trace?.corner_contribution,3,'%'),fmt(row.trace?.lap_gap,3,'%')])))+
-      '<p class="performance-note">Straights partitioned into early acceleration and terminal zones (≥300m: first 200m / final 100m; 200–300m: 50% / 25%; <200m: whole straight). Terminal-speed performance, sensitive to drag, PU/ERS behaviour and aero state. Active aero state is not inferred from telemetry.</p>');
+      table(['Team','Straights','Corners','Lap gap'],ordered.map(row=>[teamLabel(row),finite(row.traversalDelta)?signed(row.traversalDelta,3,'%'):'—',fmt(row.trace?.corner_contribution,3,'%'),fmt(row.trace?.lap_gap,3,'%')])))+
+      '<p class="performance-note">Speed-domain acceleration evaluates elapsed time across fixed velocity bands (200→250, 250→300, 300→320 km/h) sampled from continuous full-throttle intervals in clean air. Terminal speed is measured within an 80m corridor ending 10m before the field braking onset on straights ≥400m. Full-throttle high-speed threshold (P95) reflects sustained top-end velocity. Straight Traversal Delta reflects total straight elapsed time relative to the reference lap.</p>');
   }
   const brakeRows = computeBrakingPerformance(loaded.map(r => ({
     ...r,
