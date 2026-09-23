@@ -56,13 +56,22 @@ def align(item, reference, grid):
     drs_indices = np.clip(np.searchsorted(aligned, grid, side='right') - 1, 0, len(a) - 1)
     drs_grid = a[drs_indices, 7].astype(int)
     drs_active = np.isin(drs_grid, [10, 12, 14])
-    raw_time = np.diff(grid)*3.6*(1/speed[:-1]+1/speed[1:])/2
-    factor = item['official']/raw_time.sum()
-    if not .92 < factor < 1.08:
+    # The GPS mapping changes spatial coordinates. Integrating 1/speed over
+    # the warped reference distance would omit ds_car/ds_reference and move
+    # time between zones. Interpolate observed elapsed time instead.
+    observed = np.interp(grid, aligned, a[:, 1])
+    observed_dt = np.diff(observed)
+    if np.any(observed_dt <= 0):
+        raise ValueError('Elapsed-time alignment is not strictly increasing')
+    timing_scale = item['official']/observed_dt.sum()
+    speed_time = np.sum(np.diff(grid)*3.6*(1/speed[:-1]+1/speed[1:])/2)
+    factor = item['official']/speed_time
+    if not .92 < factor < 1.08 or not .97 < timing_scale < 1.03:
         raise ValueError('Speed integration disagrees with official lap time')
     return {**item, 'speed': speed, 'throttle': throttle, 'brake': brake,
             'drs': drs_grid, 'drs_active': drs_active,
-            'dt': raw_time*factor, 'scale': float(factor), 'aligned': aligned}
+            'dt': observed_dt*timing_scale, 'scale': float(factor),
+            'timing_scale': float(timing_scale), 'aligned': aligned}
 
 
 def frozen(item, field):
@@ -320,7 +329,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             'straight_time': straight_time,
             'straight_traversal_delta': traversal_delta,
             'straight_contribution': traversal_delta,
-            'straight_deficit': accel_250 if accel_250 is not None else traversal_delta,
+            'straight_deficit': traversal_delta,
             'accel_250_300': float(accel_250) if accel_250 is not None else None,
             'accel_250_300_pct': float(accel_250_pct) if accel_250_pct is not None else None,
             'accel_200_250': float(accel_200) if accel_200 is not None else None,
@@ -328,9 +337,9 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             'accel_cumul_loss_250_300': float(max(0.0, cumul_loss)),
             'straight_coverage': cov_str,
             'straight_provisional': is_provisional,
-            'terminal_zone_mean_speed': term_speed if term_speed is not None else float(np.mean(item['speed'][:-1][~corner_mask])),
+            'terminal_zone_mean_speed': term_speed,
             'terminal_speed_deficit': term_deficit,
-            'terminal_zone_length_m': float(total_corridor_len) if total_corridor_len > 0 else 80.0,
+            'terminal_zone_length_m': float(total_corridor_len) if term_speed is not None else None,
             'top_speed': float(max(item['speed'])),
             'speed_st': float(item['selection'].get('speed_st')) if item['selection'].get('speed_st') is not None else None,
             'speed_fl': float(item['selection'].get('speed_fl')) if item['selection'].get('speed_fl') is not None else None
@@ -363,31 +372,39 @@ def measure_field(extracted, selections, corners=()):
     if len(valid_choices) < minimum:
         return {'teams': {}, 'error': 'Too few teams have complete qualifying telemetry', 'excluded': errors}
     reference = min((v[0] for v in valid_choices.values()), key=lambda r: r['official'])
-    grid = np.linspace(0, reference['a'][-1, 0], int(reference['a'][-1, 0]/5)+1)
-    aligned = defaultdict(list)
-    for team, values in valid_choices.items():
-        for item in values:
-            try:
-                aligned[team].append(align(item, reference, grid))
-            except ValueError as exc:
-                errors[team] = str(exc)
-    selected = {team: values[0] for team, values in aligned.items() if values}
-    if len(selected) < minimum:
-        return {'teams': {}, 'error': 'Too few teams pass complete-lap GPS alignment', 'excluded': errors}
-    field_speed = np.median([v['speed'] for v in selected.values()], axis=0)
-    scales = [v['scale'] for v in selected.values()]
-    scale_mid = float(np.median(scales))
-    scale_limit = max(.012, 4*float(np.median(np.abs(np.array(scales)-scale_mid))))
-    for team in list(selected):
-        good = [v for v in aligned[team] if abs(v['scale']-scale_mid) <= scale_limit
-                and not frozen(v, {'grid': grid, 'speed': field_speed})]
-        if good:
-            selected[team] = good[0]
-        else:
-            del selected[team]
-            errors[team] = 'Frozen speed or abnormal speed-to-lap-time agreement'
-    if len(selected) < minimum:
-        return {'teams': {}, 'error': 'Too few teams pass full-lap telemetry quality checks', 'excluded': errors}
+    for _ in range(len(valid_choices) + 1):
+        grid = np.linspace(0, reference['a'][-1, 0], int(reference['a'][-1, 0]/5)+1)
+        aligned = defaultdict(list)
+        for team, values in valid_choices.items():
+            for item in values:
+                try:
+                    aligned[team].append(align(item, reference, grid))
+                except ValueError as exc:
+                    errors[team] = str(exc)
+        selected = {team: values[0] for team, values in aligned.items() if values}
+        if len(selected) < minimum:
+            return {'teams': {}, 'error': 'Too few teams pass complete-lap GPS alignment', 'excluded': errors}
+        field_speed = np.median([v['speed'] for v in selected.values()], axis=0)
+        scales = [v['scale'] for v in selected.values()]
+        scale_mid = float(np.median(scales))
+        scale_limit = max(.012, 4*float(np.median(np.abs(np.array(scales)-scale_mid))))
+        for team in list(selected):
+            good = [v for v in aligned[team] if abs(v['scale']-scale_mid) <= scale_limit
+                    and not frozen(v, {'grid': grid, 'speed': field_speed})]
+            if good:
+                selected[team] = good[0]
+            else:
+                del selected[team]
+                errors[team] = 'Frozen speed or abnormal speed-to-lap-time agreement'
+        if len(selected) < minimum:
+            return {'teams': {}, 'error': 'Too few teams pass full-lap telemetry quality checks', 'excluded': errors}
+        reference_team = min(selected, key=lambda team: selected[team]['official'])
+        chosen = selected[reference_team]
+        if chosen['selection'] is reference['selection']:
+            break
+        reference = chosen
+    else:
+        return {'teams': {}, 'error': 'No stable reference lap passed telemetry checks', 'excluded': errors}
     speed = np.median([v['speed'] for v in selected.values()], axis=0)
     throttle = np.median([v['throttle'] for v in selected.values()], axis=0)
     brake = np.mean([v['brake'] for v in selected.values()], axis=0) >= .35
@@ -452,7 +469,6 @@ def measure_field(extracted, selections, corners=()):
         z['tercile'] = 'slow' if v <= tercile_33 else 'mid' if v <= tercile_66 else 'fast'
         z['tercile_label'] = 'Slowest third' if v <= tercile_33 else 'Middle third' if v <= tercile_66 else 'Fastest third'
 
-    reference_team = min(selected, key=lambda team: selected[team]['official'])
     ref = selected[reference_team]
 
     # Partition straight sections (non-overlapping adaptive split)
@@ -584,17 +600,27 @@ def measure_field(extracted, selections, corners=()):
                 # a_norm = (v_entry_ms^2 - v_exit_ms^2) / (2 * g * distance_m)
                 a_norm = (v_start_ms**2 - v_end_ms**2) / (2.0 * 9.80665 * max(1.0, dist_m))
 
-                # Dynamic sampling resolution in meters: v_ms / 3.7 Hz
-                sampling_res_m = round(v_start_ms / 3.7, 1)
-                last_non_brake_dist = float(grid[max(0, a - 1)])
-                first_brake_dist = float(grid[a])
+                # The true onset is bounded by consecutive source samples,
+                # not by adjacent points on the interpolated five-metre grid.
+                raw_onsets = np.where((item['a'][:, 4] >= .5)
+                                      & (item['aligned'] >= grid[z['start']] - 50)
+                                      & (item['aligned'] <= grid[z['apex']]))[0]
+                raw_first = int(raw_onsets[0]) if len(raw_onsets) else None
+                onset_bracket = ([float(item['aligned'][raw_first-1]),
+                                  float(item['aligned'][raw_first])]
+                                 if raw_first is not None and raw_first > 0 else None)
+                sampling_res_m = (onset_bracket[1] - onset_bracket[0]
+                                  if onset_bracket else None)
                 release_to_apex = float(grid[z['apex']] - grid[b-1])
 
                 ref_b_dt = float(ref['dt'][a:b].sum())
                 brake_time_delta = duration - ref_b_dt
 
                 braking.append({
+                    'corner': z['corner'],
                     'start': float(grid[a]),
+                    'corridor_time': float(item['dt'][z['start']:z['apex']+1].sum()),
+                    'corridor_ref_time': float(ref['dt'][z['start']:z['apex']+1].sum()),
                     'distance': dist_m,
                     'duration': duration,
                     'entry_speed': v_start_kmh,
@@ -604,7 +630,7 @@ def measure_field(extracted, selections, corners=()):
                     'late_g': float(late_g),
                     'normalized_decel_g': float(a_norm),
                     'time_delta': float(brake_time_delta),
-                    'onset_bracket': [last_non_brake_dist, first_brake_dist],
+                    'onset_bracket': onset_bracket,
                     'release_to_apex': max(0.0, release_to_apex),
                     'sampling_resolution_m': sampling_res_m
                 })

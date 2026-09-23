@@ -2,7 +2,7 @@
 Monaco (low-speed corner dominance, low straight share, traffic proximity veto)
 Monza (extreme straight share, heavy braking, discrete onset bracket, sampling distance)
 Suzuka (high-speed S-curves, technical corner flow, terciles, loss density)
-Montréal (stop-and-go braking, 2026 FIA energy regime: 6.0 MJ Q vs 8.0/8.5 MJ race, 2682m PLD)
+Montréal (stop-and-go braking; event-specific energy limits must be verified)
 """
 import sys
 from pathlib import Path
@@ -88,21 +88,19 @@ def test_suzuka_high_speed_curves():
 
 def test_montreal_fia_energy_regime_and_braking():
     print("--- 4. Testing Montréal (Stop-and-go & 2026 FIA Energy Regime) ---")
-    # Montréal 2026 FIA Energy parameters
+    # A regulatory maximum is not a measured deployment state. Event-specific
+    # limits stay unavailable until an exact event document is linked.
     fp_ctx = get_fia_energy_envelope(2026, "Canadian Grand Prix", "FP1")
     q_ctx_v2 = get_fia_energy_envelope(2026, "Canadian Grand Prix", "Q")   # V2 applies
     r_ctx = get_fia_energy_envelope(2026, "Canadian Grand Prix", "R")
 
-    # Verify official Montreal FIA limits
-    assert fp_ctx["recharge_limit_mj"] == 8.5, f"Expected 8.5 MJ for FP, got {fp_ctx['recharge_limit_mj']}"
-    assert q_ctx_v2["recharge_limit_mj"] == 6.2, f"Expected 6.2 MJ for Q (V2), got {q_ctx_v2['recharge_limit_mj']}"
-    assert r_ctx["recharge_limit_mj"] == 8.2, f"Expected 8.2 MJ for Race normal (V2), got {r_ctx['recharge_limit_mj']}"
-    assert r_ctx["race_overtake_recharge_mj"] == 8.7, f"Expected 8.7 MJ for Race overtake (V2), got {r_ctx['race_overtake_recharge_mj']}"
-    assert r_ctx["power_limited_distance_m"] == 2682.0, f"Expected 2682m, got {r_ctx['power_limited_distance_m']}"
-    assert r_ctx["power_reduction_rate_kw_per_s"] == 100.0, f"Expected 100 kW/s, got {r_ctx['power_reduction_rate_kw_per_s']}"
-    assert r_ctx["is_competition_specific"] is True
+    for ctx in (fp_ctx, q_ctx_v2, r_ctx):
+        assert ctx["recharge_limit_mj"] is None
+        assert ctx["power_limited_distance_m"] is None
+        assert ctx["is_competition_specific"] is False
+        assert ctx["data_status"] == "event_document_not_verified"
 
-    print("  [PASS] Montréal 2026 FIA energy layer verified: 8.5 MJ FP, 6.2 MJ Q (V2), 8.2/8.7 MJ Race, 2682m PLD, 100 kW/s.")
+    print("  [PASS] Unverified Montréal energy limits are not published as event facts.")
 
 
 def test_monza_speed_domain_acceleration_and_top_speed():
@@ -252,4 +250,4 @@ if __name__ == "__main__":
     test_monza_speed_domain_acceleration_and_top_speed()
     test_silverstone_straight_advantage()
     test_suzuka_straight_advantage()
-    print("\nALL CIRCUITS VALIDATED WITH ZERO DISTORTIONS UNDER SPEED-DOMAIN EMPIRICAL METRICS!")
+    print("\nDeterministic checks completed. Live checks above may have been skipped and are not proof of accuracy.")

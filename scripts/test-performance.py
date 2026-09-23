@@ -4,7 +4,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import unittest
 from unittest.mock import patch
+import numpy as np
 from performance import analyze, clean, slope, traffic_gaps, telemetry_metrics
+from performance_tracks import prepare, align
 
 
 def lap(driver='A', team='Alpha', time=90, **kwargs):
@@ -80,6 +82,45 @@ class PerformanceTests(unittest.TestCase):
         self.assertEqual(alpha['fastest_race_driver'],'A')
         self.assertAlmostEqual(alpha['pace'],0,places=6)
         self.assertEqual(alpha['samples'],12)
+        self.assertEqual([driver['driver'] for driver in alpha['race_drivers']], ['A', 'B'])
+        self.assertGreater(alpha['teammate_spread'], 0)
+
+    def test_missing_sectors_do_not_remove_official_qualifying_lap(self):
+        rows = [lap('A', time=90, sectors=[30, None, 30]),
+                lap('B', time=91), lap('C', 'Beta', 92)]
+        with patch('performance.records', return_value=rows):
+            result = analyze(Session())
+        alpha = result['teams'][0]
+        self.assertEqual(alpha['lap']['time'], 90)
+        self.assertIsNone(alpha['sector_deficits'][1])
+
+    def test_wet_qualifying_result_does_not_become_dry_trace(self):
+        rows = [lap('A', time=90, compound='INTERMEDIATE', rain=True),
+                lap('B', time=91, compound='SOFT', rain=False)]
+        with patch('performance.records', return_value=rows):
+            result = analyze(Session())
+        alpha = result['teams'][0]
+        self.assertEqual(alpha['lap']['compound'], 'INTERMEDIATE')
+        self.assertEqual(alpha['telemetry_candidates'], [])
+
+    def test_historical_retirement_note_not_applied_to_another_year(self):
+        from performance import get_verified_retirement
+        self.assertIsNone(get_verified_retirement('Chinese Grand Prix', 'STR', 2021))
+
+    def test_aligned_zone_time_follows_measured_elapsed_channel(self):
+        distance = np.linspace(0, 5000, 101)
+        speed = np.where(distance < 2500, 200.0, 180.0)
+        elapsed = np.r_[0.0, np.cumsum(np.diff(distance) * 3.6 / speed[1:])]
+        samples = [
+            {'Distance': float(d), 'ElapsedSeconds': float(t), 'Speed': float(v),
+             'Throttle': 100, 'Brake': False, 'X': float(d * 10), 'Y': 0, 'DRS': 0}
+            for d, t, v in zip(distance, elapsed, speed)
+        ]
+        selection = {'time': float(elapsed[-1]), 'start': 0, 'end': float(elapsed[-1])}
+        item = prepare(samples, selection)
+        result = align(item, item, np.linspace(0, 5000, 1001))
+        self.assertAlmostEqual(float(result['dt'].sum()), selection['time'], places=6)
+        self.assertAlmostEqual(float(result['dt'][:500].sum()), float(elapsed[50]), places=4)
 
     def test_slope_and_insufficient_span(self):
         self.assertAlmostEqual(slope([(i,90+i*.2) for i in range(10)]),.2)

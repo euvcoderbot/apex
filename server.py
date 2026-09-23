@@ -1384,9 +1384,13 @@ def car_performance_trace_batch(response: Response, year: int = Query(..., ge=20
             start, end = float(item.get('start')), float(item.get('end'))
             if not team or not number.isdigit() or not 20 < end-start < 300:
                 raise ValueError('invalid team telemetry window')
+            official_time = float(item.get('time'))
+            if not 20 < official_time < 300 or abs(official_time - (end-start)) > 1.5:
+                raise ValueError('official lap time does not match the telemetry window')
             normalized.append({'team': team, 'team_name': str(item.get('team_name') or team)[:80],
                                'driver_number': number, 'driver': str(item.get('driver') or number)[:4],
-                               'lap': item.get('lap'), 'time': end-start,
+                               'lap': item.get('lap'), 'time': official_time,
+                               'sectors': item.get('sectors'),
                                'start': start, 'end': end,
                                'speed_st': item.get('speed_st'),
                                'speed_fl': item.get('speed_fl')})

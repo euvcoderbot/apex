@@ -338,7 +338,38 @@ test('car performance controls hide irrelevant GP and expose sortable methodolog
   assert.match(css, /\.performance-toolbar \[hidden\]\s*\{\s*display:none!important/);
   assert.match(performance, /performanceEventField.*hidden=.*performanceScope.*season/);
   assert.match(performance, /data-performance-sort/);
-  assert.match(performance, /Full-throttle high-speed threshold \(P95\)/);
+  assert.match(performance, /Overall Straight Traversal Gap/);
+  assert.match(performance, /70% traversal time, 20% deceleration normalized for speed change, 10% braking distance/);
   assert.match(performance, /Time lost across all corners in each band/);
   assert.match(html, /does not provide brake pressure/);
+});
+
+test('weighted braking ranks shared measured zones and leaves unsupported teams unscored', () => {
+  const source = readFileSync('car-performance.js', 'utf8');
+  const body = source.slice(source.indexOf('function eventTelemetry(event)'), source.indexOf('function seasonTelemetry()'));
+  const sandbox = {
+    finite: value => typeof value === 'number' && Number.isFinite(value),
+    avg: values => values.length ? values.reduce((a, b) => a + b, 0) / values.length : null,
+    median: values => {
+      const a = values.filter(Number.isFinite).sort((x, y) => x - y);
+      return a.length ? a[Math.floor(a.length / 2)] : null;
+    }
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(body, sandbox);
+  const makeZones = (time, decel, distance, count = 3) => Array.from({ length: count }, (_, i) => ({
+    corner: `T${i + 1}`, start: i * 1000 + 50, corridor_time: time,
+    corridor_ref_time: 2, normalized_decel_g: decel, distance,
+    early_g: decel, mean_g: decel, duration: 1, sampling_resolution_m: 20
+  }));
+  const entrants = ['A', 'B', 'C', 'D'].map(team => ({ team, color: '#123456' }));
+  const traces = Object.fromEntries(entrants.map(({ team }, i) => [team, {
+    corners: [], braking: makeZones(2 + i * .2, 3 - i * .2, 80 + i * 5, i === 3 ? 1 : 3),
+    lap_distance: 5000
+  }]));
+  const result = sandbox.eventTelemetry({ Q: { teams: entrants }, traces });
+  assert.equal(result.rows.get('A').brakingScoreZones, 3);
+  assert.ok(result.rows.get('A').brakingScore < result.rows.get('B').brakingScore);
+  assert.ok(result.rows.get('B').brakingScore < result.rows.get('C').brakingScore);
+  assert.equal(result.rows.get('D').brakingScore, undefined);
 });
