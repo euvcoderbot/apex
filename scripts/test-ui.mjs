@@ -421,3 +421,10 @@ test('season telemetry retains partial qualifying cohorts instead of intersectin
   assert.equal(result.find(row=>row.team==='B').events,2);
   assert.equal(result.commonEvents.length,2);
 });
+
+test('overall tyre rank excludes compounds supported by only one or two events', () => {
+  const source=readFileSync('car-performance.js','utf8');
+  const body=source.slice(source.indexOf('function renderRace(teams)'),source.indexOf('function renderResults('));
+  assert.match(body,/minimumCompoundEvents=context\?\.season \? 3 : 1/);
+  assert.match(body,/\.filter\(c => c && c\.events\.length >= minimumCompoundEvents\)/);
+});

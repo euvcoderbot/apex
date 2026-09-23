@@ -883,6 +883,7 @@ function renderRace(teams) {
     cohortTeams.get(key).add(team.team);
   }
   const minimumSeasonEvents=context?.season ? Math.max(3,Math.ceil(events.filter(e=>e.R).length*.4)) : 1;
+  const minimumCompoundEvents=context?.season ? 3 : 1;
   const compoundOrder=['HYPERSOFT','ULTRASOFT','SUPERSOFT','SOFT','MEDIUM','HARD','SUPERHARD'];
   const choices=['OVERALL','SOFT','MEDIUM','HARD',...compoundOrder.filter(c=>!['SOFT','MEDIUM','HARD'].includes(c)&&teams.some(t=>t.stints.some(s=>s.compound===c)))];
   if(!choices.includes(tyreView)) tyreView='OVERALL';
@@ -970,7 +971,8 @@ function renderRace(teams) {
     let seasonNormSlope = null;
     let complete = false;
     const present = tyreView === 'OVERALL'
-      ? ['SOFT', 'MEDIUM', 'HARD'].map(c => summaries[c]).filter(Boolean)
+      ? ['SOFT', 'MEDIUM', 'HARD'].map(c => summaries[c])
+          .filter(c => c && c.events.length >= minimumCompoundEvents)
       : [summaries[tyreView]].filter(Boolean);
 
     if(tyreView === 'OVERALL') {
@@ -987,7 +989,8 @@ function renderRace(teams) {
        complete = Boolean(summaries[tyreView]) && summaries[tyreView].events.length >= minimumSeasonEvents;
     }
 
-    const compNote = tyreView === 'OVERALL' && present.length < 3 ? `(${present.length}/3 compounds)` : '';
+    const compNote = tyreView === 'OVERALL' && present.length < 3
+      ? `(${present.length}/3 compounds have ≥${minimumCompoundEvents} supported events)` : '';
     const softLaps = summaries['SOFT']?.laps || 0;
     const medLaps = summaries['MEDIUM']?.laps || 0;
     const hardLaps = summaries['HARD']?.laps || 0;
@@ -1048,7 +1051,7 @@ function renderRace(teams) {
   });
 
    return card('Tyre-age lap-time trend',
-     `This compares tyre-age slopes only in the same race and compound, with at least three teams contributing usable stints. Short soft stints can be shown but are not ranked without ${minimumSeasonEvents} supported events. Retirements do not count as good tyre wear; limited coverage stays unranked. Traffic, tyre history, driver management and track conditions remain limitations.`,
+     `This compares tyre-age slopes only in the same race and compound, with at least three teams contributing usable stints. Overall includes only compounds measured at ${minimumCompoundEvents} or more events, so one soft race cannot outweigh a season of medium or hard stints. A season bar needs ${minimumSeasonEvents} supported events. Short soft stints remain visible as provisional where evidence is limited. Retirements do not count as good tyre wear; traffic, driver management and track conditions remain limitations.`,
     controls + tyreChart +
     table([
       sortHeader('tyreTeam', 'Team'),
