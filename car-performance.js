@@ -420,6 +420,7 @@ function updateStatus(msg, isRunning = false) {
 function stop() {
   controller?.abort(); generation++; running=false; traceRunning=false;
   $('performanceCancel').hidden=true;
+  $('performanceLoad').hidden=false;
   $('performanceLoad').disabled=!calendar.length;
   updateStatus('Stopped. Completed results remain visible.', false);
   render();
@@ -450,7 +451,7 @@ async function analyse() {
   const jobs=picked.flatMap(event=>['Q','R'].filter(s=>s==='Q'||completed(event,'Race')).map(session=>({event,session})));
   const total=jobs.length;
   let done=0;
-  $('performanceLoad').disabled=true; $('performanceCancel').hidden=false;
+  $('performanceLoad').disabled=true; $('performanceLoad').hidden=true; $('performanceCancel').hidden=false;
   updateStatus(`Analysing ${context.year} · starting session retrieval…`, true);
   render();
 
@@ -504,7 +505,7 @@ async function analyse() {
   await Promise.all([traceWorker(),traceWorker()]);
   if(id!==generation) return;
   traceRunning=false;
-  running=false; $('performanceLoad').disabled=false; $('performanceCancel').hidden=true;
+  running=false; $('performanceLoad').disabled=false; $('performanceLoad').hidden=false; $('performanceCancel').hidden=true;
   updateStatus(`${context.year} · best qualifying lap · ${events.length}/${picked.length} events with data${errors.length ? ` · ${errors.length} data requests unavailable` : ''}. Fresh retrieval complete.`, false);
   render();
 }
