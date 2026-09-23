@@ -40,7 +40,7 @@ def matched_tyre_trend(stint_rows, field_rows, team_name):
     fuel burn and track evolution are largely differenced out; tyre allocation,
     traffic screens and driver management remain limitations.
     """
-    if len(stint_rows) < 8:
+    if len(stint_rows) < 6:
         return None, len(stint_rows), 0
     compound = stint_rows[0]['compound']
     subject = [r for r in stint_rows if r.get('lap') is not None
@@ -76,7 +76,7 @@ def matched_tyre_trend(stint_rows, field_rows, team_name):
     if len(estimates) < 2:
         return None, 0, len(estimates)
     matched_laps = set().union(*(candidate[2] for candidate in estimates.values()))
-    if len(matched_laps) < 8:
+    if len(matched_laps) < 6:
         return None, len(matched_laps), len(estimates)
     return float(median(candidate[1] for candidate in estimates.values())), len(matched_laps), len(estimates)
 
@@ -794,6 +794,11 @@ def analyze(data, traffic=2):
         candidates = [r for r in valid_all if r['lap'] and r['lap'] > 2]
         valid = [r for r in candidates if gaps.get((r['driver'], r['lap'])) is not None
                  and gaps[(r['driver'], r['lap'])] > traffic]
+        # A tyre slope can tolerate a wider clean-air screen than the headline
+        # race-pace estimate. Keep it separate so short soft stints are not
+        # erased merely by a 1.5–2.0 s checkpoint gap.
+        tyre_valid = [r for r in candidates if gaps.get((r['driver'], r['lap'])) is not None
+                      and gaps[(r['driver'], r['lap'])] > 1.5]
         driver_team = {r['driver']: r['team'] for r in valid}
         driver_estimates, support = race_estimates(valid)
 
@@ -932,7 +937,9 @@ def analyze(data, traffic=2):
 
             # Stint tyre degradation: measure slope of lap time vs tyre age across clean stint laps
             stint_laps_map = defaultdict(list)
-            for r in clean_laps:
+            for r in tyre_valid:
+                if r['team'] != name:
+                    continue
                 if r.get('age') is not None and r.get('time') is not None and r.get('compound'):
                     stint_laps_map[(r['driver'], r['stint'], r['compound'])].append(r)
 
@@ -984,7 +991,7 @@ def analyze(data, traffic=2):
         # compound and a similar tyre age. Stint-to-stint slopes from different
         # race phases confound fuel burn and track evolution with tyre wear.
         all_event_stints = [s for team in teams.values() for s in team.get('degradation', [])]
-        field_stint_rows = [r for r in valid if r.get('age') is not None
+        field_stint_rows = [r for r in tyre_valid if r.get('age') is not None
                             and r.get('time') is not None and r.get('compound') in DRY_COMPOUNDS]
         for s in all_event_stints:
             stint_rows = [r for r in field_stint_rows

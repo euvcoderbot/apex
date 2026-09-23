@@ -127,7 +127,19 @@ def straight_braking_windows(selected, reference, grid, zones):
         turn_in = next((i for i in range(start + 4, apex - 3)
                         if np.all(curvature[i:i+4] > .0025)), None)
         if turn_in is None:
-            continue
+            # A smooth or noisy GPS heading can hide the exact turn-in. The
+            # observed brake release is a safe endpoint only when the whole
+            # approach remains nearly straight; otherwise omit the window.
+            releases = []
+            for item in selected.values():
+                active = np.flatnonzero(item['brake'][start:apex]) + start
+                if len(active):
+                    releases.append(int(active[-1]) + 1)
+            if len(releases) < 3:
+                continue
+            turn_in = min(apex - 1, int(np.median(releases)))
+            if turn_in <= start + 8 or np.ptp(heading[start:turn_in]) > .18:
+                continue
         onsets = {}
         for team, item in selected.items():
             brake = item['brake']
@@ -148,23 +160,35 @@ def straight_braking_windows(selected, reference, grid, zones):
 
 
 def observed_braking_zones(selected, grid):
-    """Find braking events from the field brake trace, independently of corners."""
+    """Cluster nearby per-team brake onsets, independently of corner markers."""
     if not selected:
         return []
-    brake_share = np.mean([item['brake'] for item in selected.values()], axis=0)
     field_speed = np.median([item['speed'] for item in selected.values()], axis=0)
     step = float(grid[1] - grid[0])
-    active = brake_share >= .35
-    rising = np.flatnonzero(active & ~np.r_[False, active[:-1]])
+    onsets = []
+    for team, item in selected.items():
+        active = item['brake']
+        rising = np.flatnonzero(active & ~np.r_[False, active[:-1]])
+        for onset in rising:
+            end = onset
+            while end < len(active) and active[end]:
+                end += 1
+            if (end - onset) * step >= 15 and item['speed'][onset] - item['speed'][min(end, len(active)-1)] >= 20:
+                onsets.append((int(onset), team))
+    onsets.sort()
     zones = []
     last_end = -1
-    for onset in rising:
-        if onset <= last_end or onset >= len(grid) - 20:
+    index = 0
+    while index < len(onsets):
+        cluster = [onsets[index]]
+        index += 1
+        while index < len(onsets) and (onsets[index][0] - cluster[0][0]) * step <= 120:
+            cluster.append(onsets[index])
+            index += 1
+        if len({team for _, team in cluster}) < 3:
             continue
-        end = onset
-        while end < len(active) and active[end]:
-            end += 1
-        if (end - onset) * step < 20:
+        onset = int(np.median([i for i, _ in cluster]))
+        if onset <= last_end or onset >= len(grid) - 20:
             continue
         horizon = min(len(grid) - 1, onset + int(300 / step))
         apex = onset + int(np.argmin(field_speed[onset:horizon + 1]))
@@ -173,8 +197,8 @@ def observed_braking_zones(selected, grid):
         # One field-wide event per braking approach, including multi-pulse
         # brake traces; the zone label is not a circuit corner identifier.
         label = f'Brake zone {len(zones) + 1}'
-        zones.append({'start': max(0, onset - 2), 'apex': apex, 'corner': label})
-        last_end = max(end, apex)
+        zones.append({'start': max(0, min(i for i, _ in cluster) - 2), 'apex': apex, 'corner': label})
+        last_end = apex
     return zones
 
 
@@ -249,15 +273,14 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             continue
         accel_eligible_straights.append(s_idx)
 
-        # Check dominant DRS deployment on this straight across field
-        drs_active_counts = [bool(np.mean(selected[t]['drs_active'][s_start:s_end]) >= 0.3) for t in teams]
-        dominant_drs_open = bool(np.mean(drs_active_counts) >= 0.5)
-
         for team in teams:
             item = selected[team]
             aligned = item['aligned']
             a = item['a']
-            mask = (aligned >= d_start - 30.0) & (aligned <= d_end + 30.0)
+            # Do not include the next corner's braking in the acceleration
+            # search: its low speed used to become the global minimum and
+            # incorrectly erase the whole straight.
+            mask = (aligned >= d_start - 30.0) & (aligned <= d_end)
             raw_indices = np.where(mask)[0]
             if len(raw_indices) < 2:
                 continue
@@ -268,8 +291,18 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             raw_drs = a[raw_indices, 7].astype(int)
             raw_drs_active = np.isin(raw_drs, [10, 12, 14])
 
-            i_min = int(np.argmin(raw_v))
-            i_max = int(np.argmax(raw_v))
+            # Find the exit-to-peak acceleration phase, not a later speed dip.
+            first_brake = np.flatnonzero(raw_br & (aligned[raw_indices] >= d_start + 30.0))
+            stop = int(first_brake[0]) if len(first_brake) else len(raw_v)
+            if stop < 3:
+                continue
+            raw_t, raw_v = raw_t[:stop], raw_v[:stop]
+            raw_th, raw_br = raw_th[:stop], raw_br[:stop]
+            raw_drs_active = raw_drs_active[:stop]
+            aligned_segment = aligned[raw_indices[:stop]]
+            early = max(2, int(len(raw_v) * .35))
+            i_min = int(np.argmin(raw_v[:early]))
+            i_max = i_min + int(np.argmax(raw_v[i_min:]))
             if i_max <= i_min:
                 continue
             t_accel = raw_t[i_min:i_max+1]
@@ -277,7 +310,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             th_accel = raw_th[i_min:i_max+1]
             br_accel = raw_br[i_min:i_max+1]
             drs_accel = raw_drs_active[i_min:i_max+1]
-            aligned_accel = aligned[raw_indices[i_min:i_max+1]]
+            aligned_accel = aligned_segment[i_min:i_max+1]
 
             for v_lo, v_hi, b_name in bands:
                 if v_accel[0] <= v_lo and v_accel[-1] >= v_hi:
@@ -289,20 +322,25 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                     i_hi = idx_hi_candidates[0]
                     if i_hi <= i_lo:
                         continue
-                    if np.all(th_accel[i_lo:i_hi+1] >= 90) and not np.any(br_accel[i_lo:i_hi+1]):
+                    # Below 150 km/h this includes traction-limited corner
+                    # exits; above 150 require a near-flat throttle trace.
+                    min_throttle = 70 if v_hi <= 150 else 90
+                    if np.all(th_accel[i_lo:i_hi+1] >= min_throttle) and not np.any(br_accel[i_lo:i_hi+1]):
                         drs_slice = drs_accel[i_lo:i_hi+1]
                         is_drs = bool(np.all(drs_slice))
                         is_no_drs = bool(not np.any(drs_slice))
                         if is_drs or is_no_drs:
-                            if is_drs == dominant_drs_open:
-                                t_lo = interp_raw(t_accel, v_accel, v_lo)
-                                t_hi = interp_raw(t_accel, v_accel, v_hi)
-                                dt_band = t_hi - t_lo
-                                if 0.1 < dt_band < 25.0:
-                                    d_lo = float(aligned_accel[i_lo])
-                                    d_hi = float(aligned_accel[i_hi])
-                                    if check_clean_air(team, d_lo, d_hi):
-                                        straight_band_times[b_name][s_idx][team] = dt_band
+                            # A DRS/straight-mode state is compared only to
+                            # the same state, not to the field's majority.
+                            state = 'open' if is_drs else 'closed'
+                            t_lo = interp_raw(t_accel, v_accel, v_lo)
+                            t_hi = interp_raw(t_accel, v_accel, v_hi)
+                            dt_band = t_hi - t_lo
+                            if 0.1 < dt_band < 25.0:
+                                d_lo = float(aligned_accel[i_lo])
+                                d_hi = float(aligned_accel[i_hi])
+                                if check_clean_air(team, d_lo, d_hi):
+                                    straight_band_times[b_name][(s_idx, state)][team] = dt_band
 
     team_straight_deltas = {b[2]: defaultdict(list) for b in bands}
     for _, _, b_name in bands:
@@ -396,7 +434,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
         accel_320 = (raw_bands['300_320'][team] - best_bands['300_320']) if raw_bands['300_320'][team] is not None else None
         phase_bands = {name: {'gap_s': float(raw_bands[name][team] - best_bands[name]),
                               'straights': len(team_straight_deltas[name][team])}
-                       for _, _, name in bands if raw_bands[name][team] is not None and name != '300_320'}
+                       for _, _, name in bands if raw_bands[name][team] is not None}
 
         all_team_sums = [sum(team_straight_deltas['250_300'][t]) for t in teams if team_straight_deltas['250_300'][t]]
         min_cumul = min(all_team_sums) if all_team_sums else 0.0

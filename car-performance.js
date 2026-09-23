@@ -336,11 +336,11 @@ let context=null;
 let tyreView='OVERALL';
 let straightLineSource='qualy'; // 'qualy' | 'race'
 let showPerformanceDescriptions=false;
-const STRAIGHT_BANDS=['50_100','100_150','150_200','200_250','250_300','300_350','350_400'];
+const STRAIGHT_BANDS=['50_100','100_150','150_200','200_250','250_300','300_320','300_350','350_400'];
 let straightBand='250_300';
 function straightBandControls(available) {
   if(!available.includes(straightBand)) straightBand=available.includes('250_300')?'250_300':available[0]||'250_300';
-  return `<div class="performance-band-options" role="group" aria-label="Acceleration speed range">${STRAIGHT_BANDS.map(key=>`<button type="button" data-straight-band="${key}" aria-pressed="${key===straightBand}" ${available.includes(key)?'':'disabled title="Fewer than three teams reached this range in comparable full-throttle traces"'}>${key.replace('_','–')} <span>km/h</span></button>`).join('')}</div><p class="performance-band-hint">Dim ranges have fewer than three comparable teams.</p>`;
+  return `<div class="performance-band-options" role="group" aria-label="Acceleration speed range">${STRAIGHT_BANDS.map(key=>`<button type="button" data-straight-band="${key}" aria-pressed="${key===straightBand}" ${available.includes(key)?'':'disabled title="Fewer than three teams have comparable clean acceleration through this full range"'}>${key.replace('_','–')} <span>km/h</span></button>`).join('')}</div><p class="performance-band-hint">A range needs three comparable teams that actually crossed both speeds. Below 150 km/h includes traction-limited exits.</p>`;
 }
 let qualyPaceMode='overall'; // 'overall' | 'q1' | 'adjusted'
 let sectorPaceMode='completed'; // 'completed' | 'ideal'
@@ -875,6 +875,14 @@ function renderPace(teams) {
 
 function renderRace(teams) {
   const rows=[];
+  const usableStint = s => finite(s.relativeSlope) && s.matchedLaps >= 6 && s.fieldSupport >= 2;
+  const cohortTeams = new Map();
+  for(const team of teams) for(const stint of team.stints || []) if(usableStint(stint)) {
+    const key=`${stint.event}\u0000${stint.compound}`;
+    if(!cohortTeams.has(key))cohortTeams.set(key,new Set());
+    cohortTeams.get(key).add(team.team);
+  }
+  const minimumSeasonEvents=context?.season ? Math.max(3,Math.ceil(events.filter(e=>e.R).length*.4)) : 1;
   const compoundOrder=['HYPERSOFT','ULTRASOFT','SUPERSOFT','SOFT','MEDIUM','HARD','SUPERHARD'];
   const choices=['OVERALL','SOFT','MEDIUM','HARD',...compoundOrder.filter(c=>!['SOFT','MEDIUM','HARD'].includes(c)&&teams.some(t=>t.stints.some(s=>s.compound===c)))];
   if(!choices.includes(tyreView)) tyreView='OVERALL';
@@ -883,7 +891,8 @@ function renderRace(teams) {
   for(const team of teams) {
     // Used-start tyres are retained only when their race-phase/age-matched
     // comparison passes the same support checks, and are flagged in the table.
-    const validStints = (team.stints || []).filter(s => finite(s.relativeSlope) && !s.lowSample && !s.low_sample && s.matchedLaps >= 8 && s.fieldSupport >= 2);
+    const validStints = (team.stints || []).filter(s => usableStint(s)
+      && (cohortTeams.get(`${s.event}\u0000${s.compound}`)?.size||0)>=3);
     const usedStartCount = validStints.filter(s => s.usedStart || s.used_start).length;
 
     // Group valid stints by event and compound for hierarchical aggregation
@@ -971,11 +980,11 @@ function renderRace(teams) {
        const compoundNorm = present.map(c => c.normSlope).filter(finite);
        seasonSlope = compoundRaw.length >= 2 ? avg(compoundRaw) : null;
        seasonNormSlope = compoundNorm.length >= 2 ? avg(compoundNorm) : null;
-       complete = present.length >= 2 && (!context?.season || new Set(present.flatMap(c=>c.events)).size >= 3);
+       complete = present.length >= 2 && new Set(present.flatMap(c=>c.events)).size >= minimumSeasonEvents;
     } else {
       seasonSlope = summaries[tyreView]?.slope ?? null;
       seasonNormSlope = summaries[tyreView]?.normSlope ?? null;
-       complete = Boolean(summaries[tyreView]) && (!context?.season || summaries[tyreView].events.length >= 3);
+       complete = Boolean(summaries[tyreView]) && summaries[tyreView].events.length >= minimumSeasonEvents;
     }
 
     const compNote = tyreView === 'OVERALL' && present.length < 3 ? `(${present.length}/3 compounds)` : '';
@@ -1020,7 +1029,7 @@ function renderRace(teams) {
 
   const ordered = sorted(rows, {
     tyreTeam: r => r.team,
-    tyreNorm: r => r.normSlope,
+    tyreNorm: r => r.complete ? r.normSlope : null,
     tyreSlope: r => r.slope,
     tyreEvents: r => r.events,
     tyreStints: r => r.stints,
@@ -1030,7 +1039,7 @@ function renderRace(teams) {
   // SVG Horizontal Bar Graph for Field-Relative Tyre Degradation
   const tyreChart = renderHorizontalBarChart(ordered.filter(r => r.complete && finite(r.normSlope)), {
      title: `Relative tyre-age trend · ${tyreView === 'OVERALL' ? 'Available compounds' : tyreView}`,
-     subtitle: 'Bar is rebased to the best supported team (s/lap of tyre age); table shows the raw rival comparison · Season rank needs ≥3 events',
+     subtitle: `Same-event, same-compound cohorts of ≥3 teams · Season rank needs ≥${minimumSeasonEvents} supported events`,
     valueKey: 'normSlope',
     unit: ' s/lap',
     digits: 3,
@@ -1039,7 +1048,7 @@ function renderRace(teams) {
   });
 
    return card('Tyre-age lap-time trend',
-     'This compares how quickly each team’s lap times changed as tyres aged versus rival stints in the same race phase on the same compound. A larger number does not prove worse tyre wear: traffic, tyre history, driver management and track conditions remain. Teams need at least three supported race weekends for a season bar; unsupported cases stay unranked. Used-start tyres are included only when matched and flagged.',
+     `This compares tyre-age slopes only in the same race and compound, with at least three teams contributing usable stints. Short soft stints can be shown but are not ranked without ${minimumSeasonEvents} supported events. Retirements do not count as good tyre wear; limited coverage stays unranked. Traffic, tyre history, driver management and track conditions remain limitations.`,
     controls + tyreChart +
     table([
       sortHeader('tyreTeam', 'Team'),
@@ -1053,7 +1062,7 @@ function renderRace(teams) {
       const sampleText = `${r.stints} stint${r.stints === 1 ? '' : 's'} (${r.laps} laps)`;
        const supportBadge = r.fieldSupported ? '<span class="perf-tercile-badge is-fast">≥2 overlapping rivals</span>' : '<span class="perf-tercile-badge is-mid">No matched cohort</span>';
       const normText = finite(r.normSlope)
-        ? `${r.normSlope > 0 ? '+' : ''}${fmt(r.normSlope, 3, ' s/lap')}${!r.complete?'<small>Insufficient season coverage for ranking</small>':''}`
+        ? `${r.normSlope > 0 ? '+' : ''}${fmt(r.normSlope, 3, ' s/lap')}${!r.complete?`<small>Provisional · ${r.events}/${minimumSeasonEvents} supported events</small>`:''}`
         : '<small>Field benchmark pending</small>';
       const compoundText = `${tyreView === 'OVERALL' && r.compoundBreakdown ? escape(r.compoundBreakdown) : tyreView}${r.usedStartCount > 0 ? `<small>${r.usedStartCount} matched stint${r.usedStartCount===1?'':'s'} on used tyres</small>` : ''}${r.compNote ? `<small>${escape(r.compNote)}</small>` : ''}`;
       return [
@@ -1651,7 +1660,7 @@ function renderTrace() {
 
       const qualyChart = renderHorizontalBarChart(orderedQualy, {
         title: `Qualifying acceleration · ${straightBand.replace('_','–')} km/h`,
-        subtitle: 'Seconds slower to gain this 50 km/h on comparable straights · Season value averages supported events; not a lap-time contribution',
+        subtitle: 'Time to cross the selected speed range on comparable straights · Season value averages supported events; not a lap-time contribution',
         valueKey: 'bandGap',
         unit: ' s',
         digits: 3,
@@ -1940,7 +1949,7 @@ function renderTrace() {
     });
     const singleStraightChart = renderHorizontalBarChart(ordered, {
       title: `Qualifying acceleration · ${straightBand.replace('_','–')} km/h`,
-      subtitle: 'Seconds slower to gain this 50 km/h on comparable full-throttle straights · Not additive lap time',
+      subtitle: 'Time to cross the selected speed range on comparable straights · Not additive lap time',
       valueKey: 'bandGap',
       unit: ' s',
       digits: 3,

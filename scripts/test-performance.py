@@ -46,7 +46,12 @@ class PerformanceTests(unittest.TestCase):
             brake[(grid >= start) & (grid < start + 125)] = True
             speed[(grid >= start) & (grid < start + 180)] = np.linspace(
                 300, 110, np.count_nonzero((grid >= start) & (grid < start + 180)))
-        selected = {team: {'brake': brake, 'speed': speed} for team in ('A', 'B', 'C')}
+        selected = {}
+        for team, offset in (('A', -25), ('B', 0), ('C', 25)):
+            team_brake = np.zeros(len(grid), dtype=bool)
+            for start in (400, 1200):
+                team_brake[(grid >= start + offset) & (grid < start + offset + 125)] = True
+            selected[team] = {'brake': team_brake, 'speed': speed}
         zones = observed_braking_zones(selected, grid)
         self.assertEqual(len(zones), 2)
         self.assertEqual([zone['corner'] for zone in zones], ['Brake zone 1', 'Brake zone 2'])
@@ -69,6 +74,18 @@ class PerformanceTests(unittest.TestCase):
         self.assertGreaterEqual(grid[turn_in], 575)
         self.assertLessEqual(grid[turn_in], 625)
         self.assertEqual(len(onsets), 3)
+
+    def test_straight_braking_uses_release_when_heading_stays_straight(self):
+        grid = np.arange(0.0, 1005.0, 5.0)
+        a = np.zeros((len(grid), 8))
+        a[:, 5] = grid
+        item = {'a': a, 'gps': np.ones(len(grid), dtype=bool), 'aligned': grid,
+                'brake': (grid >= 500) & (grid < 650),
+                'speed': 300 - np.clip(grid - 500, 0, 180)}
+        zones = [{'start': 90, 'apex': 150, 'corner': 'Brake zone 1'}]
+        windows = straight_braking_windows({'A': item, 'B': item, 'C': item}, item, grid, zones)
+        self.assertIn('Brake zone 1', windows)
+        self.assertLessEqual(grid[windows['Brake zone 1'][1]], 660)
 
     def test_gps_endpoint_clamping_keeps_positive_elapsed_cells(self):
         samples = lambda shift: [
