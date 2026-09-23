@@ -1327,7 +1327,7 @@ function eventTelemetry(event) {
     }
     for(const row of eligible) {
       const values=scores.get(row.team);
-      if(values.length>=2) {
+      if(values.length>=1) {
         const matched=scoredZones.get(row.team);
         const zones=matched.map(x=>x.zone);
         // Teams may have different valid windows. Report the typical supported
@@ -1441,7 +1441,7 @@ function renderCircuitAuditCard(season) {
   const used = season.commonEvents || [];
   const omitted = events.map(event => event.name).filter(name => !used.includes(name));
   return `<div class="perf-audit-box"><div class="perf-audit-header"><div class="perf-audit-title">Circuit coverage · ${used.length} of ${events.length} selected events</div></div>
-    <p class="performance-note">A braking zone needs clean observations from three teams; each ranked team needs two zones. Curved approaches are included and flagged, so this is observed braking-phase time, not a pure brake-hardware measure. Missing teams are not imputed; check each row's circuit and zone support.</p>
+    <p class="performance-note">A braking zone needs clean observations from three teams. One-zone results are provisional; curved approaches are included and flagged. This is observed braking-phase time, not a pure brake-hardware measure. Missing teams are not imputed; check each row's circuit and zone support.</p>
     <p class="performance-note">Included: ${used.length ? used.map(escape).join(', ') : 'none'}. ${omitted.length ? `Excluded: ${omitted.map(escape).join(', ')}.` : ''}</p></div>`;
 }
 
@@ -1751,7 +1751,7 @@ function renderTrace() {
       zeroBaseline: true
     });
 
-    return card(brakingTitle,'The graph shows average time lost per supported braking window as a percentage of a qualifying lap, not total braking loss across the lap. Curved approaches end at observed brake release and are flagged; straight approaches end at detected turn-in. Entry speed, steering and driver technique still matter. Energy-loss rate is speed-derived, not measured brake power.',
+    return card(brakingTitle,'The graph shows average time lost per supported braking window as a percentage of a qualifying lap, not total braking loss across the lap. One-zone results are provisional. Curved approaches end at observed brake release and are flagged; straight approaches end at detected turn-in. Entry speed, steering and driver technique still matter. Energy-loss rate is speed-derived, not measured brake power.',
       brakeChart+
       table([
         sortHeader('brakeTeam','Team'),
@@ -1778,7 +1778,7 @@ function renderTrace() {
         fmt(team.entrySpeed,1,' km/h'),
         fmt(team.turnInSpeed,1,' km/h'),
         `<span class="perf-onset-bracket">Δs ~${fmt(team.samplingResolution,1,' m')}</span>`,
-        `${team.brakingScore.length} scored circuits · ${team.zones} zones${team.mixedBrakeZones?` · ${team.mixedBrakeZones} curved`:''}`
+        `${team.brakingScore.length} scored circuits · ${team.zones} zones${team.mixedBrakeZones?` · ${team.mixedBrakeZones} curved`:''}${team.zones<team.brakingScore.length*2?' · limited coverage':''}`
       ])));
   }
 
@@ -2031,7 +2031,7 @@ function renderTrace() {
     zeroBaseline: true
   });
 
-  return card('Braking performance','The percentage is average time lost per supported braking window, divided by the full qualifying lap time—not total loss across the lap or a brake-hardware rating. Curved approaches are included and flagged; they are not pure straight-line braking. Each window needs three measured teams, and each ranked team needs two windows. Energy-loss rate includes drag and energy recovery, not measured friction-brake power.',
+  return card('Braking performance','The percentage is average time lost per supported braking window, divided by the full qualifying lap time—not total loss across the lap or a brake-hardware rating. Curved approaches are included and flagged; they are not pure straight-line braking. Each window needs three measured teams. A one-zone result is provisional. Energy-loss rate includes drag and energy recovery, not measured friction-brake power.',
     singleBrakeChart+
     table([
       sortHeader('eventBrakeTeam','Team'),
@@ -2058,7 +2058,7 @@ function renderTrace() {
       fmt(row.entrySpeed,1,' km/h'),
       fmt(row.turnInSpeed,1,' km/h'),
       row.onsetBracket ? `<span class="perf-onset-bracket">[${fmt(row.onsetBracket[0], 0)}, ${fmt(row.onsetBracket[1], 0)}] m</span>` : `<span class="perf-onset-bracket">Δs ~${fmt(row.samplingResolution, 1, ' m')}</span>`,
-      `${row.events||1} circuit${(row.events||1)===1?'':'s'} · ${row.zones} zones${row.mixedBrakeZones?` · ${row.mixedBrakeZones} curved`:''}`
+      `${row.events||1} circuit${(row.events||1)===1?'':'s'} · ${row.zones} zones${row.mixedBrakeZones?` · ${row.mixedBrakeZones} curved`:''}${row.zones===1?' · provisional':''}`
     ])));
 }
 

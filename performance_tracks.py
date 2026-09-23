@@ -816,6 +816,6 @@ def measure_field(extracted, selections, corners=()):
     }
 
     return {'teams': results, 'reference_team': reference_team, 'excluded': {t: e for t, e in errors.items() if t not in results},
-            'method': 'shared-gps-grid-v4-straight-braking', 'corner_count': len(zones),
+            'method': 'shared-gps-grid-v5-observed-braking', 'corner_count': len(zones),
             'circuit_features': circuit_features}
 

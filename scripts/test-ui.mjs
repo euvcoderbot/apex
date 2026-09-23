@@ -374,10 +374,10 @@ test('qualifying braking time ranks shared zones and leaves unsupported teams un
   assert.ok(result.rows.get('A').brakingScore < result.rows.get('B').brakingScore);
   assert.ok(result.rows.get('B').brakingScore < result.rows.get('C').brakingScore);
   assert.ok(result.rows.get('C').brakingScore < 2, 'braking index should use the full lap denominator');
-  assert.equal(result.rows.get('D').brakingScore, undefined);
+  assert.equal(result.rows.get('D').brakingScoreZones, 1);
   assert.equal(result.rows.get('A').brakeZones, 3);
   assert.equal(result.rows.get('A').brakeDistDelta, 0);
-  assert.equal(result.rows.get('D').brakeDistance, undefined);
+  assert.equal(result.rows.get('D').brakeDistance, 95);
 });
 
 test('braking retains zones measured by three teams without requiring every entrant', () => {
@@ -402,7 +402,7 @@ test('braking retains zones measured by three teams without requiring every entr
   const rows=sandbox.eventTelemetry({Q:{teams},traces}).rows;
   assert.equal(rows.get('A').brakeZones,3);
   assert.equal(rows.get('B').brakeZones,3);
-  assert.equal(rows.get('D').brakingScore,undefined);
+  assert.equal(rows.get('D').brakingScoreZones,1);
   assert.equal(rows.get('A').brakeDistance,60);
 });
 
