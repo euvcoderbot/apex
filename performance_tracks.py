@@ -102,7 +102,7 @@ def frozen(item, field):
 
 
 def straight_braking_windows(selected, reference, grid, zones):
-    """Common brake-onset-to-turn-in windows; omit bends without a clear straight phase.
+    """Comparable heavy-braking windows, with a disclosed curved fallback.
 
     The position feed is smoothed before estimating heading. These are observed
     geometry windows, not steering-angle or brake-pressure measurements.
@@ -122,14 +122,17 @@ def straight_braking_windows(selected, reference, grid, zones):
     windows = {}
     for zone in zones:
         start, apex = zone['start'], zone['apex']
-        if apex - start < 12 or np.median(curvature[start:start+4]) > .0025:
+        if apex - start < 12:
             continue
-        turn_in = next((i for i in range(start + 4, apex - 3)
+        starts_straight = np.median(curvature[start:start+4]) <= .0025
+        turn_in = (next((i for i in range(start + 4, apex - 3)
                         if np.all(curvature[i:i+4] > .0025)), None)
+                   if starts_straight else None)
+        mode = 'straight' if turn_in is not None else 'mixed approach'
         if turn_in is None:
-            # A smooth or noisy GPS heading can hide the exact turn-in. The
-            # observed brake release is a safe endpoint only when the whole
-            # approach remains nearly straight; otherwise omit the window.
+            # A curved braking approach still has comparable observed time.
+            # End at the field's median brake release and identify it as mixed
+            # grip, never as a pure straight-line/brake-hardware measurement.
             releases = []
             for item in selected.values():
                 active = np.flatnonzero(item['brake'][start:apex]) + start
@@ -138,7 +141,7 @@ def straight_braking_windows(selected, reference, grid, zones):
             if len(releases) < 3:
                 continue
             turn_in = min(apex - 1, int(np.median(releases)))
-            if turn_in <= start + 8 or np.ptp(heading[start:turn_in]) > .18:
+            if turn_in <= start + 8:
                 continue
         onsets = {}
         for team, item in selected.items():
@@ -155,7 +158,7 @@ def straight_braking_windows(selected, reference, grid, zones):
         common_start = min(onsets.values())
         if grid[turn_in] - grid[common_start] < 45:
             continue
-        windows[zone['corner']] = (common_start, turn_in, onsets)
+        windows[zone['corner']] = (common_start, turn_in, onsets, mode)
     return windows
 
 
@@ -692,7 +695,7 @@ def measure_field(extracted, selections, corners=()):
             window = brake_windows.get(z['corner'])
             if not window or team not in window[2]:
                 continue
-            common_start, turn_in, onsets = window
+            common_start, turn_in, onsets, braking_mode = window
             indices = np.where(item['brake'][onsets[team]:turn_in])[0] + onsets[team]
             if len(indices) < 2:
                 continue
@@ -755,6 +758,7 @@ def measure_field(extracted, selections, corners=()):
 
                 braking.append({
                     'corner': z['corner'],
+                    'mode': braking_mode,
                     'start': float(grid[a]),
                     'corridor_time': float(item['dt'][common_start:turn_in].sum()),
                     'corridor_ref_time': float(ref['dt'][common_start:turn_in].sum()),

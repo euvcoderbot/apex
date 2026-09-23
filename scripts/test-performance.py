@@ -69,11 +69,12 @@ class PerformanceTests(unittest.TestCase):
         zones = [{'start': 90, 'apex': 150, 'corner': 'T1'}]
         windows = straight_braking_windows({'A': item, 'B': item, 'C': item}, item, grid, zones)
         self.assertIn('T1', windows)
-        start, turn_in, onsets = windows['T1']
+        start, turn_in, onsets, mode = windows['T1']
         self.assertLessEqual(grid[start], 505)
         self.assertGreaterEqual(grid[turn_in], 575)
         self.assertLessEqual(grid[turn_in], 625)
         self.assertEqual(len(onsets), 3)
+        self.assertEqual(mode, 'straight')
 
     def test_straight_braking_uses_release_when_heading_stays_straight(self):
         grid = np.arange(0.0, 1005.0, 5.0)
@@ -86,6 +87,7 @@ class PerformanceTests(unittest.TestCase):
         windows = straight_braking_windows({'A': item, 'B': item, 'C': item}, item, grid, zones)
         self.assertIn('Brake zone 1', windows)
         self.assertLessEqual(grid[windows['Brake zone 1'][1]], 660)
+        self.assertEqual(windows['Brake zone 1'][3], 'mixed approach')
 
     def test_gps_endpoint_clamping_keeps_positive_elapsed_cells(self):
         samples = lambda shift: [

@@ -1304,8 +1304,8 @@ function eventTelemetry(event) {
     row.topDeficit=finite(row.trace.top_speed)?(bestTop/row.trace.top_speed-1)*100:null;
     row.fullDeficit=finite(row.trace.full_throttle_p95)?(bestFull/row.trace.full_throttle_p95-1)*100:null;
   }
-  // Headline: observed time in comparable straight-line braking windows, ending
-  // at geometry-detected turn-in. Power is a separate kinetic-loss proxy.
+  // Headline: observed time in comparable braking windows. Curved approaches
+  // remain labelled separately from the straight-only subset.
   const eligible=[...rows.values()].filter(row=>(row.trace?.braking||[]).length>=1);
   const brakingLabels=[...new Set(eligible.flatMap(row=>(row.trace.braking||[]).map(z=>z.corner).filter(Boolean)))];
   if(eligible.length>=3) {
@@ -1350,6 +1350,7 @@ function eventTelemetry(event) {
         row.samplingResolution=median(zones.map(z=>z.sampling_resolution_m));
         row.onsetBracket=zones.find(z=>z.onset_bracket)?.onset_bracket||null;
         row.brakeZones=zones.length;
+        row.mixedBrakeZones=zones.filter(z=>z.mode==='mixed approach').length;
       }
     }
   }
@@ -1375,7 +1376,7 @@ function seasonTelemetry() {
         normalizedDecel:[],brakeTimeDelta:[],samplingResolution:[],
         terminalZoneMeanSpeed:[],terminalZoneLength:[],
         accel250:[],accel250Pct:[],accel200:[],accel320:[],accelBands:Object.fromEntries(STRAIGHT_BANDS.map(key=>[key,[]])),straightTraversalDelta:[],speedSt:[],speedFl:[],
-        events:0,zones:0
+        events:0,zones:0,mixedBrakeZones:0
       });
       const item=map.get(row.team); item.events++;
       for(const name of ['low','medium','high'])if(finite(row.categories[name]?.speed)) {
@@ -1416,6 +1417,7 @@ function seasonTelemetry() {
         if(finite(row.brakeTimeDelta))item.brakeTimeDelta.push(row.brakeTimeDelta);
         if(finite(row.samplingResolution))item.samplingResolution.push(row.samplingResolution);
         item.zones+=row.brakeZones;
+        item.mixedBrakeZones+=row.mixedBrakeZones||0;
       }
       if(finite(row.trace?.terminal_zone_mean_speed))item.terminalZoneMeanSpeed.push(row.trace.terminal_zone_mean_speed);
       if(finite(row.trace?.terminal_zone_length_m))item.terminalZoneLength.push(row.trace.terminal_zone_length_m);
@@ -1439,7 +1441,7 @@ function renderCircuitAuditCard(season) {
   const used = season.commonEvents || [];
   const omitted = events.map(event => event.name).filter(name => !used.includes(name));
   return `<div class="perf-audit-box"><div class="perf-audit-header"><div class="perf-audit-title">Circuit coverage · ${used.length} of ${events.length} selected events</div></div>
-    <p class="performance-note">Each event contributes when at least two constructors have validated qualifying traces. A braking rank needs three teams sharing at least two straight-line braking zones. Missing teams are not imputed; teams can have different circuit counts, so check each row's support before comparing season averages.</p>
+    <p class="performance-note">A braking zone needs clean observations from three teams; each ranked team needs two zones. Curved approaches are included and flagged, so this is observed braking-phase time, not a pure brake-hardware measure. Missing teams are not imputed; check each row's circuit and zone support.</p>
     <p class="performance-note">Included: ${used.length ? used.map(escape).join(', ') : 'none'}. ${omitted.length ? `Excluded: ${omitted.map(escape).join(', ')}.` : ''}</p></div>`;
 }
 
@@ -1740,8 +1742,8 @@ function renderTrace() {
     }, 'brakeScore', 1);
 
     const brakeChart = renderHorizontalBarChart(ordered, {
-      title: 'Straight-line braking time lost',
-      subtitle: 'Typical supported brake window · % of the full qualifying lap · Lower is better',
+      title: 'Braking-phase time lost',
+      subtitle: 'Typical supported brake window, including flagged curved approaches · % of qualifying lap · Lower is better',
       valueKey: 'score',
       unit: '%',
       digits: 3,
@@ -1749,7 +1751,7 @@ function renderTrace() {
       zeroBaseline: true
     });
 
-    return card(brakingTitle,'The graph shows the average time lost per supported straight-line braking window as a percentage of a qualifying lap, not total braking loss across the lap. A window needs clean telemetry from at least three teams; a team needs two such windows to rank. Coverage differs by team and circuit. Entry speed and driver technique still matter. Energy-loss rate is speed-derived, not measured brake power.',
+    return card(brakingTitle,'The graph shows average time lost per supported braking window as a percentage of a qualifying lap, not total braking loss across the lap. Curved approaches end at observed brake release and are flagged; straight approaches end at detected turn-in. Entry speed, steering and driver technique still matter. Energy-loss rate is speed-derived, not measured brake power.',
       brakeChart+
       table([
         sortHeader('brakeTeam','Team'),
@@ -1776,7 +1778,7 @@ function renderTrace() {
         fmt(team.entrySpeed,1,' km/h'),
         fmt(team.turnInSpeed,1,' km/h'),
         `<span class="perf-onset-bracket">Δs ~${fmt(team.samplingResolution,1,' m')}</span>`,
-        `${team.brakingScore.length} scored circuits · ${team.zones} scored zones`
+        `${team.brakingScore.length} scored circuits · ${team.zones} zones${team.mixedBrakeZones?` · ${team.mixedBrakeZones} curved`:''}`
       ])));
   }
 
@@ -1999,7 +2001,8 @@ function renderTrace() {
     timeDelta: r.brakeTimeDelta,
     samplingResolution: r.samplingResolution,
     onsetBracket: r.onsetBracket,
-    zones: r.brakeZones
+    zones: r.brakeZones,
+    mixedBrakeZones: r.mixedBrakeZones||0
   })));
   const ordered = sorted(brakeRows, {
     eventBrakeTeam: r => r.team,
@@ -2019,8 +2022,8 @@ function renderTrace() {
   }, 'eventBrakeScore', 1);
 
   const singleBrakeChart = renderHorizontalBarChart(ordered, {
-    title: 'Straight-line braking time lost',
-    subtitle: 'Typical supported brake window · % of the full qualifying lap · Lower is better',
+    title: 'Braking-phase time lost',
+    subtitle: 'Typical supported brake window, including flagged curved approaches · % of qualifying lap · Lower is better',
     valueKey: 'score',
     unit: '%',
     digits: 3,
@@ -2028,7 +2031,7 @@ function renderTrace() {
     zeroBaseline: true
   });
 
-  return card('Straight-line braking','The percentage is average time lost per supported straight-line braking window, divided by the full qualifying lap time—not the total loss across the lap or a brake-hardware rating. Each window needs at least three measured teams; each ranked team needs at least two windows. Energy-loss rate includes drag and energy recovery, so it is not measured friction-brake power.',
+  return card('Braking performance','The percentage is average time lost per supported braking window, divided by the full qualifying lap time—not total loss across the lap or a brake-hardware rating. Curved approaches are included and flagged; they are not pure straight-line braking. Each window needs three measured teams, and each ranked team needs two windows. Energy-loss rate includes drag and energy recovery, not measured friction-brake power.',
     singleBrakeChart+
     table([
       sortHeader('eventBrakeTeam','Team'),
@@ -2055,7 +2058,7 @@ function renderTrace() {
       fmt(row.entrySpeed,1,' km/h'),
       fmt(row.turnInSpeed,1,' km/h'),
       row.onsetBracket ? `<span class="perf-onset-bracket">[${fmt(row.onsetBracket[0], 0)}, ${fmt(row.onsetBracket[1], 0)}] m</span>` : `<span class="perf-onset-bracket">Δs ~${fmt(row.samplingResolution, 1, ' m')}</span>`,
-      `${row.events||1} circuit${(row.events||1)===1?'':'s'} · ${row.zones} zones`
+      `${row.events||1} circuit${(row.events||1)===1?'':'s'} · ${row.zones} zones${row.mixedBrakeZones?` · ${row.mixedBrakeZones} curved`:''}`
     ])));
 }
 
