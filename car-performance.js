@@ -192,7 +192,7 @@ function renderHorizontalBarChart(rows, {
   labelKey = 'team',
   colorKey = 'color',
   unit = '%',
-  digits = 2,
+  digits = 3,
   signedValue = true,
   zeroBaseline = true,
   invertBest = false // if true, higher value is ranked first
@@ -203,7 +203,7 @@ function renderHorizontalBarChart(rows, {
   let minVal = Math.min(...validRows.map(r => r[valueKey]));
   let maxVal = Math.max(...validRows.map(r => r[valueKey]));
 
-  // For gap/deficit metrics (signedValue = true), rebase so the best car is 0.00% baseline (no negative numbers)
+  // For gap/deficit metrics (signedValue = true), rebase so the best car is 0.000% baseline (no negative numbers)
   if (signedValue) {
     const bestVal = invertBest ? maxVal : minVal;
     for (const r of validRows) {
@@ -271,7 +271,7 @@ function lapShareChart(rows, key, reference) {
   if (!available.length) return '';
   const minVal = Math.min(...available.map(r => r[key]));
 
-  // Rebase so that the fastest car is exactly 0.00% (baseline 0, no negative numbers)
+  // Rebase so that the fastest car is exactly 0.000% (baseline 0, no negative numbers)
   for (const r of available) {
     r._rebased = Math.max(0, r[key] - minVal);
   }
@@ -283,14 +283,14 @@ function lapShareChart(rows, key, reference) {
     <div class="perf-chart-header">
       <div class="perf-chart-title-group">
         <h4 class="perf-chart-heading">Cornering Time Deficit (% of Lap)</h4>
-        <span class="perf-chart-sub">Baseline (0.00%): <strong>${escape(bestTeam)}</strong> · Lower deficit is faster</span>
+        <span class="perf-chart-sub">Baseline (0.000%): <strong>${escape(bestTeam)}</strong> · Lower deficit is faster</span>
       </div>
     </div>
     <div class="performance-bars">
       ${available.map(r => {
         const val = r._rebased;
         const barWidth = Math.min(100, Math.max(val > 0.0001 ? 2 : 0, (val / hi) * 100));
-        const displayStr = val <= 0.0001 ? '0.00%' : `+${val.toFixed(2)}%`;
+        const displayStr = val <= 0.0001 ? '0.000%' : `+${val.toFixed(3)}%`;
         const gainClass = val <= 0.0001 ? 'is-gain' : 'is-loss';
         return `<div class="performance-bar-row" title="${escape(r.team)}: ${displayStr}">
           <div class="performance-bar-label">${teamLabel(r)}</div>
@@ -815,8 +815,8 @@ function renderPace(teams) {
 
   const chartMeta = qualyPaceMode === 'overall' ? {
     title: 'Qualifying Pace Deficit · Overall Best Lap (% to Pole)',
-    subtitle: 'Fastest official lap across Q1–Q3 · Observed qualifying result · Baseline 0.00% is pole lap',
-    note: 'Qualifying uses each constructor’s single fastest valid lap across Q1, Q2, and Q3 from either driver. The fastest team is 0.00% baseline.'
+    subtitle: 'Fastest official lap across Q1–Q3 · Observed qualifying result · Baseline 0.000% is pole lap',
+    note: 'Qualifying uses each constructor’s single fastest valid lap across Q1, Q2, and Q3 from either driver. The fastest team is 0.000% baseline.'
   } : {
     title: 'Qualifying Pace Deficit · Track-Evolution Adjusted (% to Q3 Baseline)',
     subtitle: 'Estimated Q1/Q2 track evolution from advancing drivers · Modelled comparison',
@@ -828,7 +828,7 @@ function renderPace(teams) {
     subtitle: chartMeta.subtitle,
     valueKey: paceKey,
     unit: '%',
-    digits: 2
+    digits: 3
   });
 
   const raceChart = renderHorizontalBarChart(teams.filter(t => finite(t.race)), {
@@ -836,7 +836,7 @@ function renderPace(teams) {
     subtitle: 'Shared race-lap, compound and tyre-age model · Timing checkpoints screen for traffic · Lower is faster',
     valueKey: 'race',
     unit: '%',
-    digits: 2
+    digits: 3
   });
 
   const qualyColLabel = qualyPaceMode === 'overall'
@@ -855,8 +855,8 @@ function renderPace(teams) {
         sortHeader('samples', 'Eligible race laps', -1)
       ], ordered.map(t => [
         teamLabel(t),
-        `${fmt(t[paceKey], 2, '%')} <span style="font-size:0.8em;color:var(--text-secondary);">(+${fmt(t.paceDeltaS || 0, 3, ' s')})</span><small>${t.qCount === 1 && t.q[0]?.lap ? `${escape(t.q[0].lap.driver)} · ${fmt(t.q[0].lap.time, 3, ' s')}` : `${t.qCount} event${t.qCount === 1 ? '' : 's'}`}${finite(t.idealGapS) ? ` · Ideal Gap: +${fmt(t.idealGapS, 3, ' s')} (${escape(t.idealCompound || 'SOFT')})` : ''}</small>`,
-        `${fmt(t.race, 2, '%')}${t.sampleTier === 'insufficient' || t.provisional ? ' <span class="perf-tercile-badge is-mid" style="font-size:0.65rem;">Limited sample</span>' : ''}<small>${t.fastestRaceDrivers?.length ? `Fastest: ${escape([...new Set(t.fastestRaceDrivers)].join(', '))} · ` : ''}${t.rCount} event${t.rCount === 1 ? '' : 's'}${t.sensitivityBracket ? ` · Bracket [${fmt(t.sensitivityBracket[0], 2, '%')}, ${fmt(t.sensitivityBracket[1], 2, '%')}]` : ''}</small>`,
+        `${fmt(t[paceKey], 3, '%')} <span style="font-size:0.8em;color:var(--text-secondary);">(+${fmt(t.paceDeltaS || 0, 3, ' s')})</span><small>${t.qCount === 1 && t.q[0]?.lap ? `${escape(t.q[0].lap.driver)} · ${fmt(t.q[0].lap.time, 3, ' s')}` : `${t.qCount} event${t.qCount === 1 ? '' : 's'}`}${finite(t.idealGapS) ? ` · Ideal Gap: +${fmt(t.idealGapS, 3, ' s')} (${escape(t.idealCompound || 'SOFT')})` : ''}</small>`,
+        `${fmt(t.race, 3, '%')}${t.sampleTier === 'insufficient' || t.provisional ? ' <span class="perf-tercile-badge is-mid" style="font-size:0.65rem;">Limited sample</span>' : ''}<small>${t.fastestRaceDrivers?.length ? `Fastest: ${escape([...new Set(t.fastestRaceDrivers)].join(', '))} · ` : ''}${t.rCount} event${t.rCount === 1 ? '' : 's'}${t.sensitivityBracket ? ` · Bracket [${fmt(t.sensitivityBracket[0], 3, '%')}, ${fmt(t.sensitivityBracket[1], 3, '%')}]` : ''}</small>`,
         t.samples
       ]))) +
     card('Race pace deficit overview',
@@ -1579,7 +1579,7 @@ function renderTrace() {
           subtitle: 'Lap-number-adjusted speed where at least three teams are observed · Tyre and deployment effects remain',
           valueKey: 'raceDeficit',
           unit: '%',
-          digits: 2,
+          digits: 3,
           signedValue: true,
           zeroBaseline: true
         });
@@ -1862,10 +1862,10 @@ function renderTrace() {
 
       const singleRaceChart = renderHorizontalBarChart(orderedRace, {
         title: 'Lap-Matched Race Speed Trap Deficit (% to Fastest)',
-        subtitle: 'Lap-number-adjusted ST speed where at least three teams share timing data · Baseline 0.00% is fastest',
+        subtitle: 'Lap-number-adjusted ST speed where at least three teams share timing data · Baseline 0.000% is fastest',
         valueKey: 'raceDeficit',
         unit: '%',
-        digits: 2,
+        digits: 3,
         signedValue: true,
         zeroBaseline: true
       });

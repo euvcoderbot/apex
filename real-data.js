@@ -99,7 +99,7 @@ function axis(ctx, width, height, bounds, unit) {
   for (let tick = 0; tick <= 4; tick++) {
     const y = top + (height - top - bottom) * tick / 4, value = max - (max - min) * tick / 4;
     ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(width - right, y); ctx.stroke();
-    ctx.fillText(unit.includes('SECONDS') ? value.toFixed(2) : Math.round(value), 2, y + 3);
+    ctx.fillText(unit.includes('SECONDS') ? value.toFixed(3) : Math.round(value), 2, y + 3);
   }
 }
 function drawRealChart(name) {

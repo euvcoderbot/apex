@@ -15,9 +15,11 @@
 
 .performance-page * {
   font-family: var(--font-sans);
+  box-sizing: border-box;
 }
 
 .performance-page[hidden],
+.performance-page [hidden],
 body.performance-view #top,
 body.performance-view #sidebarToggle {
   display: none !important;
@@ -69,9 +71,9 @@ body.performance-view #sidebarToggle {
 .performance-controls {
   grid-column: 1 / -1;
   display: grid !important;
-  grid-template-columns: 140px minmax(90px, 0.4fr) minmax(220px, 1.2fr) 156px !important;
+  grid-template-columns: 160px minmax(120px, .45fr) minmax(260px, 1.55fr) 156px !important;
   align-items: end;
-  gap: 20px;
+  gap: 16px;
   position: relative;
   z-index: 30;
   overflow: visible;
@@ -331,7 +333,7 @@ body.performance-view #sidebarToggle {
 .performance-controls .performance-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  min-width: 0;
 }
 
 .performance-controls button#performanceLoad {
@@ -377,6 +379,7 @@ body.performance-view #sidebarToggle {
   justify-content: center;
   min-height: 44px;
   height: 44px;
+  width: 100%;
   padding: 0 16px;
   border: 1px solid var(--border-color) !important;
   border-radius: var(--radius-control);
@@ -440,11 +443,11 @@ body.performance-view #sidebarToggle {
   display: inline-flex !important;
   align-items: center;
   gap: 3px !important;
-  width: fit-content !important;
+  width: 100% !important;
   max-width: 100% !important;
   overflow-x: auto !important;
   padding: 3px !important;
-  margin: 8px 0 20px !important;
+  margin: 0 !important;
   border: 1px solid var(--border-color) !important;
   border-radius: 9px !important;
   background: var(--bg-input) !important;
@@ -1017,13 +1020,15 @@ body.performance-view #sidebarToggle {
 /* Keep the working controls compact; descriptions can be revealed on demand. */
 .performance-toolbar {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 10px;
   min-width: 0;
+  margin: 0 0 14px;
 }
 .performance-toolbar .performance-mode { min-width: 0; flex: 1 1 auto; }
 .performance-explain-toggle {
   flex: 0 0 auto;
+  min-height: 40px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-control);
   background: var(--bg-card);
@@ -1074,7 +1079,7 @@ body.performance-view #sidebarToggle {
 @media (max-width: 700px) {
   .performance-toolbar { flex-wrap: wrap; }
   .performance-toolbar .performance-mode { flex-basis: 100%; }
-  .performance-explain-toggle { margin-left: auto; }
+  .performance-explain-toggle { width: 100%; }
 }
 
 /* Error Banner */
@@ -1470,12 +1475,9 @@ body.performance-view #sidebarToggle {
 /* Responsive Media Queries */
 @media (max-width: 1024px) {
   .performance-controls {
-    grid-template-columns: 1fr 1fr !important;
+    grid-template-columns: minmax(120px, .4fr) minmax(220px, 1fr) 156px !important;
   }
   .performance-controls .panel-heading {
-    grid-column: 1 / -1;
-  }
-  .performance-controls .performance-actions {
     grid-column: 1 / -1;
   }
   .performance-grid {
@@ -1491,6 +1493,7 @@ body.performance-view #sidebarToggle {
     grid-template-columns: 1fr !important;
     gap: 14px;
   }
+  .performance-controls .performance-actions { grid-column: 1; }
   .performance-bar-row {
     grid-template-columns: 140px 1fr 60px;
     gap: 8px;

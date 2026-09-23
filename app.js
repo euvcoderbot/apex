@@ -2010,7 +2010,7 @@ function bottomY(val, bounds, height) {
 function formatTick(val) {
   if (Math.abs(val) >= 100) return val.toFixed(0);
   if (Math.abs(val) >= 10) return val.toFixed(1);
-  return val.toFixed(2);
+  return val.toFixed(3);
 }
 
 function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7, viewStart = 0, viewEnd = 1) {
