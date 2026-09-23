@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 import numpy as np
 from performance import analyze, clean, slope, traffic_gaps, telemetry_metrics, matched_tyre_trend
-from performance_tracks import prepare, align, straight_braking_windows
+from performance_tracks import prepare, align, straight_braking_windows, observed_braking_zones
 
 
 def lap(driver='A', team='Alpha', time=90, **kwargs):
@@ -38,6 +38,19 @@ class RaceSession:
 
 
 class PerformanceTests(unittest.TestCase):
+    def test_braking_zones_are_detected_without_corner_markers(self):
+        grid = np.arange(0.0, 2005.0, 5.0)
+        speed = np.full(len(grid), 300.0)
+        brake = np.zeros(len(grid), dtype=bool)
+        for start in (400, 1200):
+            brake[(grid >= start) & (grid < start + 125)] = True
+            speed[(grid >= start) & (grid < start + 180)] = np.linspace(
+                300, 110, np.count_nonzero((grid >= start) & (grid < start + 180)))
+        selected = {team: {'brake': brake, 'speed': speed} for team in ('A', 'B', 'C')}
+        zones = observed_braking_zones(selected, grid)
+        self.assertEqual(len(zones), 2)
+        self.assertEqual([zone['corner'] for zone in zones], ['Brake zone 1', 'Brake zone 2'])
+
     def test_straight_braking_window_stops_at_turn_in(self):
         grid = np.arange(0.0, 1005.0, 5.0)
         theta = np.maximum(0.0, grid - 600.0) / 100.0

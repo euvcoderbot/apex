@@ -1295,66 +1295,52 @@ function eventTelemetry(event) {
     row.topDeficit=finite(row.trace.top_speed)?(bestTop/row.trace.top_speed-1)*100:null;
     row.fullDeficit=finite(row.trace.full_throttle_p95)?(bestFull/row.trace.full_throttle_p95-1)*100:null;
   }
-  const reference = [...rows.values()].sort((a,b)=>(b.trace?.braking?.length||0) - (a.trace?.braking?.length||0))[0];
-  const refZones = reference?.trace?.braking || [];
-  const refLapDist = reference?.trace?.lap_distance || 5000;
-
-  for (const row of rows.values()) {
-    const rowZones = row.trace?.braking || [];
-    const rowLapDist = row.trace?.lap_distance || 5000;
-    const distDeltas = [];
-    const matchedZones = [];
-
-    for (const rz of refZones) {
-      const rPos = rz.start / refLapDist;
-      const match = rowZones.find(z=>z.corner&&z.corner===rz.corner) || rowZones
-        .map(z => ({ z, dist: Math.abs(z.start / rowLapDist - rPos) }))
-        .filter(item => item.dist <= 0.012)
-        .sort((a, b) => a.dist - b.dist)[0]?.z;
-      if (match) {
-        matchedZones.push(match);
-        distDeltas.push(match.distance - rz.distance);
-      }
-    }
-
-    const effectiveZones = matchedZones;
-    row.brakeDistDelta = median(distDeltas);
-    row.brakeDistance = median(effectiveZones.map(z => z.distance));
-    row.brakeG = median(effectiveZones.map(z => z.early_g));
-    row.brakeMeanG = median(effectiveZones.map(z => z.mean_g));
-    row.brakePowerProxy = median(effectiveZones.map(z => z.power_proxy_kw_per_tonne));
-    row.brakeDuration = median(effectiveZones.map(z => z.duration));
-    row.normalizedDecel = median(effectiveZones.map(z => z.normalized_decel_g));
-    row.brakeTimeDelta = median(effectiveZones.map(z => z.corridor_time-z.corridor_ref_time));
-    row.samplingResolution = median(effectiveZones.map(z => z.sampling_resolution_m));
-    row.onsetBracket = effectiveZones.find(z => z.onset_bracket)?.onset_bracket || null;
-    row.brakeZones = effectiveZones.length;
-  }
-  // Headline: observed time in common straight-line braking windows, ending
+  // Headline: observed time in comparable straight-line braking windows, ending
   // at geometry-detected turn-in. Power is a separate kinetic-loss proxy.
-  const eligible=[...rows.values()].filter(row=>(row.trace?.braking||[]).length>=2);
-  const common=refZones.filter(z=>z.corner&&eligible.every(row=>(row.trace.braking||[]).some(b=>b.corner===z.corner)));
-  if(eligible.length>=3&&common.length>=2) {
+  const eligible=[...rows.values()].filter(row=>(row.trace?.braking||[]).length>=1);
+  const brakingLabels=[...new Set(eligible.flatMap(row=>(row.trace.braking||[]).map(z=>z.corner).filter(Boolean)))];
+  if(eligible.length>=3) {
     const scores=new Map(eligible.map(row=>[row.team,[]]));
-    for(const zone of common) {
-      const measured=eligible.map(row=>({row,z:row.trace.braking.find(b=>b.corner===zone.corner)}));
-      const timeBest=Math.min(...measured.map(x=>x.z.corridor_time).filter(v=>finite(v)&&v>0));
+    const scoredZones=new Map(eligible.map(row=>[row.team,[]]));
+    for(const label of brakingLabels) {
+      const measured=eligible.map(row=>({row,z:row.trace.braking.find(b=>b.corner===label)}))
+        .filter(x=>finite(x.z?.corridor_time)&&x.z.corridor_time>0);
+      if(measured.length<3)continue;
+      const timeBest=Math.min(...measured.map(x=>x.z.corridor_time));
       if(!finite(timeBest)||timeBest<=0)continue;
       const lapTime=median(measured.map(x=>x.row.trace.reference_lap_time).filter(v=>finite(v)&&v>0));
       if(!finite(lapTime)||lapTime<=0)continue;
       for(const {row,z} of measured) {
-        if(!finite(z.corridor_time)||z.corridor_time<=0)continue;
         const timeLoss=Math.max(0,z.corridor_time-timeBest)/lapTime*100;
         scores.get(row.team).push(timeLoss);
+        scoredZones.get(row.team).push({zone:z, fastest:measured.find(x=>x.z.corridor_time===timeBest).z, timeBest});
       }
     }
     for(const row of eligible) {
       const values=scores.get(row.team);
-      if(values.length===common.length) {
-        row.brakingScore=values.reduce((sum,value)=>sum+value,0);
+      if(values.length>=2) {
+        const matched=scoredZones.get(row.team);
+        const zones=matched.map(x=>x.zone);
+        // Teams may have different valid windows. Report the typical supported
+        // zone rather than rewarding a team simply for having fewer zones.
+        row.brakingScore=avg(values);
         row.brakingReferenceLap=median(eligible.map(item=>item.trace.reference_lap_time).filter(v=>finite(v)&&v>0));
         row.brakingScoreZones=values.length;
         row.brakingScoreCohort=eligible.length;
+        row.brakeDistDelta=median(matched.map(x=>x.zone.distance-x.fastest.distance));
+        row.brakeDistance=median(zones.map(z=>z.distance));
+        row.brakeG=median(zones.map(z=>z.early_g));
+        row.brakeMeanG=median(zones.map(z=>z.mean_g));
+        row.brakePowerProxy=median(zones.map(z=>z.power_proxy_kw_per_tonne));
+        row.brakeDuration=median(zones.map(z=>z.duration));
+        row.brakeEntrySpeed=median(zones.map(z=>z.entry_speed));
+        row.brakeTurnInSpeed=median(zones.map(z=>z.exit_speed));
+        row.brakeOnset=median(zones.map(z=>z.start));
+        row.normalizedDecel=median(zones.map(z=>z.normalized_decel_g));
+        row.brakeTimeDelta=avg(matched.map(x=>x.zone.corridor_time-x.timeBest));
+        row.samplingResolution=median(zones.map(z=>z.sampling_resolution_m));
+        row.onsetBracket=zones.find(z=>z.onset_bracket)?.onset_bracket||null;
+        row.brakeZones=zones.length;
       }
     }
   }
@@ -1376,7 +1362,7 @@ function seasonTelemetry() {
         lowDeficit:[],mediumDeficit:[],highDeficit:[],lowSeconds:[],mediumSeconds:[],highSeconds:[],
         lapGaps:[],top:[],full:[],topDeficit:[],fullDeficit:[],straightDeficit:[],
         straightContribution:[],cornerContribution:[],brakeG:[],brakeMeanG:[],brakePowerProxy:[],brakingScore:[],brakingScoreZones:[],brakingReferenceLap:[],
-        brakeDistance:[],brakeDistDelta:[],brakeDuration:[],
+        brakeDistance:[],brakeDistDelta:[],brakeDuration:[],brakeEntrySpeed:[],brakeTurnInSpeed:[],
         normalizedDecel:[],brakeTimeDelta:[],samplingResolution:[],
         terminalZoneMeanSpeed:[],terminalZoneLength:[],
         accel250:[],accel250Pct:[],accel200:[],accel320:[],accelBands:Object.fromEntries(STRAIGHT_BANDS.map(key=>[key,[]])),straightTraversalDelta:[],speedSt:[],speedFl:[],
@@ -1409,19 +1395,21 @@ function seasonTelemetry() {
         item.brakingScore.push(row.brakingScore);
         item.brakingScoreZones.push(row.brakingScoreZones);
         item.brakingReferenceLap.push(row.brakingReferenceLap);
+        if(finite(row.brakeG))item.brakeG.push(row.brakeG);
+        if(finite(row.brakeMeanG))item.brakeMeanG.push(row.brakeMeanG);
+        if(finite(row.brakePowerProxy))item.brakePowerProxy.push(row.brakePowerProxy);
+        if(finite(row.brakeDistance))item.brakeDistance.push(row.brakeDistance);
+        if(finite(row.brakeDistDelta))item.brakeDistDelta.push(row.brakeDistDelta);
+        if(finite(row.brakeDuration))item.brakeDuration.push(row.brakeDuration);
+        if(finite(row.brakeEntrySpeed))item.brakeEntrySpeed.push(row.brakeEntrySpeed);
+        if(finite(row.brakeTurnInSpeed))item.brakeTurnInSpeed.push(row.brakeTurnInSpeed);
+        if(finite(row.normalizedDecel))item.normalizedDecel.push(row.normalizedDecel);
+        if(finite(row.brakeTimeDelta))item.brakeTimeDelta.push(row.brakeTimeDelta);
+        if(finite(row.samplingResolution))item.samplingResolution.push(row.samplingResolution);
+        item.zones+=row.brakeZones;
       }
-      if(finite(row.brakeG))item.brakeG.push(row.brakeG);
-      if(finite(row.brakeMeanG))item.brakeMeanG.push(row.brakeMeanG);
-      if(finite(row.brakePowerProxy))item.brakePowerProxy.push(row.brakePowerProxy);
-      if(finite(row.brakeDistance))item.brakeDistance.push(row.brakeDistance);
-      if(finite(row.brakeDistDelta))item.brakeDistDelta.push(row.brakeDistDelta);
-      if(finite(row.brakeDuration))item.brakeDuration.push(row.brakeDuration);
-      if(finite(row.normalizedDecel))item.normalizedDecel.push(row.normalizedDecel);
-      if(finite(row.brakeTimeDelta))item.brakeTimeDelta.push(row.brakeTimeDelta);
-      if(finite(row.samplingResolution))item.samplingResolution.push(row.samplingResolution);
       if(finite(row.trace?.terminal_zone_mean_speed))item.terminalZoneMeanSpeed.push(row.trace.terminal_zone_mean_speed);
       if(finite(row.trace?.terminal_zone_length_m))item.terminalZoneLength.push(row.trace.terminal_zone_length_m);
-      item.zones+=row.brakeZones;
     }
   }
   const output=[...map.values()];
@@ -1715,6 +1703,8 @@ function renderTrace() {
       meanG: avg(team.brakeMeanG),
       powerProxy: avg(team.brakePowerProxy),
       distance: avg(team.brakeDistance),
+      entrySpeed: avg(team.brakeEntrySpeed),
+      turnInSpeed: avg(team.brakeTurnInSpeed),
       distDelta: avg(team.brakeDistDelta),
       duration: avg(team.brakeDuration),
       normalizedDecel: avg(team.normalizedDecel),
@@ -1733,6 +1723,8 @@ function renderTrace() {
       brakeG: t => t.g,
       brakeDistDelta: t => t.distDelta,
       brakeDistance: t => t.distance,
+      brakeEntrySpeed: t => t.entrySpeed,
+      brakeTurnInSpeed: t => t.turnInSpeed,
       brakeDuration: t => t.duration,
       brakeResolution: t => t.samplingResolution,
       brakeZones: t => t.zones
@@ -1740,7 +1732,7 @@ function renderTrace() {
 
     const brakeChart = renderHorizontalBarChart(ordered, {
       title: 'Straight-line braking time lost',
-      subtitle: 'Common brake-onset-to-turn-in windows · % of the full qualifying lap · Lower is better',
+      subtitle: 'Typical supported brake window · % of the full qualifying lap · Lower is better',
       valueKey: 'score',
       unit: '%',
       digits: 3,
@@ -1748,17 +1740,19 @@ function renderTrace() {
       zeroBaseline: true
     });
 
-    return card(brakingTitle,'A +0.700% reading is about 0.525 s on a 75 s qualifying lap across the supported straight-line braking windows. Each window ends at detected turn-in; bends without a clear straight phase are omitted. Entry speed and driver technique still matter. Kinetic energy-loss rate is a separate speed-derived proxy, not measured brake power.',
+    return card(brakingTitle,'The graph shows the average time lost per supported straight-line braking window as a percentage of a qualifying lap, not total braking loss across the lap. A window needs clean telemetry from at least three teams; a team needs two such windows to rank. Coverage differs by team and circuit. Entry speed and driver technique still matter. Energy-loss rate is speed-derived, not measured brake power.',
       brakeChart+
       table([
         sortHeader('brakeTeam','Team'),
-        sortHeader('brakeScore','Qualifying lap share lost'),
-        sortHeader('brakeTimeDelta','Approx. time lost'),
+        sortHeader('brakeScore','Typical zone lap share lost'),
+        sortHeader('brakeTimeDelta','Typical zone time lost'),
         sortHeader('brakeNormDecel','Distance-norm decel (anorm)',-1),
         sortHeader('brakeMeanG','Mean decel',-1),
         sortHeader('brakePower','Energy-loss rate',-1),
         sortHeader('brakeDistDelta','Distance delta (Δm)'),
         sortHeader('brakeDistance','Braking distance'),
+        sortHeader('brakeEntrySpeed','Brake-onset speed'),
+        sortHeader('brakeTurnInSpeed','Brake-release speed'),
         sortHeader('brakeResolution','Sampling interval (v/f)'),
         sortHeader('brakeZones','Matched zones',-1)
       ],ordered.map(team=>[
@@ -1770,8 +1764,10 @@ function renderTrace() {
         `${fmt(team.powerProxy,0,' kW/t')}<small>speed-derived · not brake power</small>`,
         signed(team.distDelta,1,' m'),
         fmt(team.distance,1,' m'),
+        fmt(team.entrySpeed,1,' km/h'),
+        fmt(team.turnInSpeed,1,' km/h'),
         `<span class="perf-onset-bracket">Δs ~${fmt(team.samplingResolution,1,' m')}</span>`,
-        `${team.brakingScore.length} scored circuits · ${team.zones} observed zones`
+        `${team.brakingScore.length} scored circuits · ${team.zones} scored zones`
       ])));
   }
 
@@ -1987,6 +1983,8 @@ function renderTrace() {
     powerProxy: r.brakePowerProxy,
     distDelta: r.brakeDistDelta,
     distance: r.brakeDistance,
+    entrySpeed: r.brakeEntrySpeed,
+    turnInSpeed: r.brakeTurnInSpeed,
     duration: r.brakeDuration,
     normalizedDecel: r.normalizedDecel,
     timeDelta: r.brakeTimeDelta,
@@ -2004,6 +2002,8 @@ function renderTrace() {
     eventBrakeG: r => r.g,
     eventBrakeDistDelta: r => r.distDelta,
     eventBrakeDistance: r => r.distance,
+    eventBrakeEntrySpeed: r => r.entrySpeed,
+    eventBrakeTurnInSpeed: r => r.turnInSpeed,
     eventBrakeDuration: r => r.duration,
     eventBrakeResolution: r => r.samplingResolution,
     eventBrakeZones: r => r.zones
@@ -2011,7 +2011,7 @@ function renderTrace() {
 
   const singleBrakeChart = renderHorizontalBarChart(ordered, {
     title: 'Straight-line braking time lost',
-    subtitle: 'Common brake-onset-to-turn-in windows · % of the full qualifying lap · Lower is better',
+    subtitle: 'Typical supported brake window · % of the full qualifying lap · Lower is better',
     valueKey: 'score',
     unit: '%',
     digits: 3,
@@ -2019,17 +2019,19 @@ function renderTrace() {
     zeroBaseline: true
   });
 
-  return card('Straight-line braking','The percentage is time lost in matched straight-line braking windows, divided by the full qualifying lap time. It is not a brake-hardware rating. Energy-loss rate in kW/t estimates kinetic energy shed per tonne from speed over the first 50 m of braking; drag and 2026 energy recovery are included, so it is not the AWS friction-brake-power figure. A ranked comparison needs at least three teams and two common zones.',
+  return card('Straight-line braking','The percentage is average time lost per supported straight-line braking window, divided by the full qualifying lap time—not the total loss across the lap or a brake-hardware rating. Each window needs at least three measured teams; each ranked team needs at least two windows. Energy-loss rate includes drag and energy recovery, so it is not measured friction-brake power.',
     singleBrakeChart+
     table([
       sortHeader('eventBrakeTeam','Team'),
-      sortHeader('eventBrakeScore','Qualifying lap share lost'),
-      sortHeader('eventBrakeTimeDelta','Approx. time lost'),
+      sortHeader('eventBrakeScore','Typical zone lap share lost'),
+      sortHeader('eventBrakeTimeDelta','Typical zone time lost'),
       sortHeader('eventBrakeNormDecel','Distance-norm decel (anorm)',-1),
       sortHeader('eventBrakeMeanG','Mean decel',-1),
       sortHeader('eventBrakePower','Energy-loss rate',-1),
       sortHeader('eventBrakeDistDelta','Distance delta (Δm)'),
       sortHeader('eventBrakeDistance','Braking distance'),
+      sortHeader('eventBrakeEntrySpeed','Brake-onset speed'),
+      sortHeader('eventBrakeTurnInSpeed','Brake-release speed'),
       sortHeader('eventBrakeResolution','Onset bracket [d_off, d_on]'),
       sortHeader('eventBrakeZones','Matched zones',-1)
     ],ordered.map(row=>[
@@ -2041,6 +2043,8 @@ function renderTrace() {
       `${fmt(row.powerProxy,0,' kW/t')}<small>speed-derived · not brake power</small>`,
       signed(row.distDelta,1,' m'),
       fmt(row.distance,1,' m'),
+      fmt(row.entrySpeed,1,' km/h'),
+      fmt(row.turnInSpeed,1,' km/h'),
       row.onsetBracket ? `<span class="perf-onset-bracket">[${fmt(row.onsetBracket[0], 0)}, ${fmt(row.onsetBracket[1], 0)}] m</span>` : `<span class="perf-onset-bracket">Δs ~${fmt(row.samplingResolution, 1, ' m')}</span>`,
       `${row.events||1} circuit${(row.events||1)===1?'':'s'} · ${row.zones} zones`
     ])));

@@ -147,6 +147,37 @@ def straight_braking_windows(selected, reference, grid, zones):
     return windows
 
 
+def observed_braking_zones(selected, grid):
+    """Find braking events from the field brake trace, independently of corners."""
+    if not selected:
+        return []
+    brake_share = np.mean([item['brake'] for item in selected.values()], axis=0)
+    field_speed = np.median([item['speed'] for item in selected.values()], axis=0)
+    step = float(grid[1] - grid[0])
+    active = brake_share >= .35
+    rising = np.flatnonzero(active & ~np.r_[False, active[:-1]])
+    zones = []
+    last_end = -1
+    for onset in rising:
+        if onset <= last_end or onset >= len(grid) - 20:
+            continue
+        end = onset
+        while end < len(active) and active[end]:
+            end += 1
+        if (end - onset) * step < 20:
+            continue
+        horizon = min(len(grid) - 1, onset + int(300 / step))
+        apex = onset + int(np.argmin(field_speed[onset:horizon + 1]))
+        if (apex - onset) * step < 60 or field_speed[onset] - field_speed[apex] < 25:
+            continue
+        # One field-wide event per braking approach, including multi-pulse
+        # brake traces; the zone label is not a circuit corner identifier.
+        label = f'Brake zone {len(zones) + 1}'
+        zones.append({'start': max(0, onset - 2), 'apex': apex, 'corner': label})
+        last_end = max(end, apex)
+    return zones
+
+
 def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_mask):
     """Speed-domain straight-line performance analysis.
 
@@ -522,7 +553,8 @@ def measure_field(extracted, selections, corners=()):
         z['tercile_label'] = 'Slowest third' if v <= tercile_33 else 'Middle third' if v <= tercile_66 else 'Fastest third'
 
     ref = selected[reference_team]
-    brake_windows = straight_braking_windows(selected, ref, grid, zones)
+    braking_zones = observed_braking_zones(selected, grid)
+    brake_windows = straight_braking_windows(selected, ref, grid, braking_zones)
 
     # Partition straight sections (non-overlapping adaptive split)
     straight_blocks = []
@@ -618,7 +650,7 @@ def measure_field(extracted, selections, corners=()):
         corner_time = float(item['dt'][corner_mask].sum())
 
         braking = []
-        for z in zones:
+        for z in braking_zones:
             window = brake_windows.get(z['corner'])
             if not window or team not in window[2]:
                 continue

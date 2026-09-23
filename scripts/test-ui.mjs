@@ -339,7 +339,7 @@ test('car performance controls hide irrelevant GP and expose sortable methodolog
   assert.match(performance, /performanceEventField.*hidden=.*performanceScope.*season/);
   assert.match(performance, /data-performance-sort/);
   assert.match(performance, /Overall Straight Traversal Gap/);
-  assert.match(performance, /Qualifying time lost in braking zones/);
+  assert.match(performance, /Typical zone lap share lost/);
   assert.match(performance, /50_100.*100_150.*300_350/);
   assert.match(performance, /Show explanations/);
   assert.match(performance, /Time lost across all corners in each band/);
@@ -375,6 +375,35 @@ test('qualifying braking time ranks shared zones and leaves unsupported teams un
   assert.ok(result.rows.get('B').brakingScore < result.rows.get('C').brakingScore);
   assert.ok(result.rows.get('C').brakingScore < 2, 'braking index should use the full lap denominator');
   assert.equal(result.rows.get('D').brakingScore, undefined);
+  assert.equal(result.rows.get('A').brakeZones, 3);
+  assert.equal(result.rows.get('A').brakeDistDelta, 0);
+  assert.equal(result.rows.get('D').brakeDistance, undefined);
+});
+
+test('braking retains zones measured by three teams without requiring every entrant', () => {
+  const source = readFileSync('car-performance.js', 'utf8');
+  const body = source.slice(source.indexOf('function eventTelemetry(event)'), source.indexOf('function seasonTelemetry()'));
+  const sandbox = {
+    finite: value => typeof value === 'number' && Number.isFinite(value),
+    avg: values => values.length ? values.reduce((a, b) => a + b, 0) / values.length : null,
+    median: values => {
+      const a = values.filter(Number.isFinite).sort((x, y) => x - y);
+      return a.length ? a[Math.floor(a.length / 2)] : null;
+    }
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(body, sandbox);
+  const teams=['A','B','C','D'].map(team=>({team,color:'#123456'}));
+  const traces=Object.fromEntries(teams.map(({team},i)=>[team,{
+    corners:[],lap_distance:5000,reference_lap_time:90,
+    braking:Array.from({length:i===3?1:3},(_,j)=>({corner:`T${j+1}`,corridor_time:2+i*.1,
+      distance:60+i,mean_g:2+i*.1,normalized_decel_g:2+i*.1}))
+  }]));
+  const rows=sandbox.eventTelemetry({Q:{teams},traces}).rows;
+  assert.equal(rows.get('A').brakeZones,3);
+  assert.equal(rows.get('B').brakeZones,3);
+  assert.equal(rows.get('D').brakingScore,undefined);
+  assert.equal(rows.get('A').brakeDistance,60);
 });
 
 test('season telemetry retains partial qualifying cohorts instead of intersecting all teams', () => {
