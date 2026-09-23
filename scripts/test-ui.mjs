@@ -339,12 +339,14 @@ test('car performance controls hide irrelevant GP and expose sortable methodolog
   assert.match(performance, /performanceEventField.*hidden=.*performanceScope.*season/);
   assert.match(performance, /data-performance-sort/);
   assert.match(performance, /Overall Straight Traversal Gap/);
-  assert.match(performance, /70% traversal time, 20% deceleration normalized for speed change, 10% braking distance/);
+  assert.match(performance, /Qualifying time lost in braking zones/);
+  assert.match(performance, /50_100.*100_150.*300_350/);
+  assert.match(performance, /Show explanations/);
   assert.match(performance, /Time lost across all corners in each band/);
   assert.match(html, /does not provide brake pressure/);
 });
 
-test('weighted braking ranks shared measured zones and leaves unsupported teams unscored', () => {
+test('qualifying braking time ranks shared zones and leaves unsupported teams unscored', () => {
   const source = readFileSync('car-performance.js', 'utf8');
   const body = source.slice(source.indexOf('function eventTelemetry(event)'), source.indexOf('function seasonTelemetry()'));
   const sandbox = {
@@ -382,7 +384,7 @@ test('season telemetry retains partial qualifying cohorts instead of intersectin
     {rows:new Map([['A',{team:'A',color:'#111',categories:{},trace:{lap_gap:0}}],['B',{team:'B',color:'#222',categories:{},trace:{lap_gap:.2}}]])},
     {rows:new Map([['B',{team:'B',color:'#222',categories:{},trace:{lap_gap:.1}}],['C',{team:'C',color:'#333',categories:{},trace:{lap_gap:.3}}]])}
   ];
-  const sandbox={events:[{name:'One'},{name:'Two'}],context:{season:true},finite:v=>typeof v==='number'&&Number.isFinite(v),eventTelemetry:()=>summaries.shift()};
+  const sandbox={events:[{name:'One'},{name:'Two'}],context:{season:true},STRAIGHT_BANDS:[],finite:v=>typeof v==='number'&&Number.isFinite(v),eventTelemetry:()=>summaries.shift()};
   vm.createContext(sandbox);
   vm.runInContext(body,sandbox);
   const result=sandbox.seasonTelemetry();

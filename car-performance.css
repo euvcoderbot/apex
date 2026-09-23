@@ -983,7 +983,7 @@ body.performance-view #sidebarToggle {
   align-items: flex-end;
   gap: 3px;
   height: 60px;
-  min-width: 160px;
+  min-width: 120px;
   padding: 6px;
   background: var(--bg-input);
   border-radius: var(--radius-control);
@@ -1012,6 +1012,69 @@ body.performance-view #sidebarToggle {
   color: var(--text-muted);
   margin-top: 5px;
   padding: 0 4px;
+}
+
+/* Keep the working controls compact; descriptions can be revealed on demand. */
+.performance-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.performance-toolbar .performance-mode { min-width: 0; flex: 1 1 auto; }
+.performance-explain-toggle {
+  flex: 0 0 auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  background: var(--bg-card);
+  color: var(--text-main);
+  padding: 8px 12px;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.performance-explain-toggle:hover { border-color: var(--accent); }
+.performance-page.is-descriptions-hidden .performance-card > .performance-note,
+.performance-page.is-descriptions-hidden .performance-card .perf-chart-sub,
+.performance-page.is-descriptions-hidden .performance-card > p.performance-note,
+.performance-page.is-descriptions-hidden .perf-audit-box .performance-note,
+.performance-page.is-descriptions-hidden > .performance-methods { display: none; }
+.performance-band-options {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin: 10px 0;
+  padding-bottom: 4px;
+}
+.performance-band-options button {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  background: var(--bg-card);
+  color: var(--text-main);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.performance-band-options button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-card));
+}
+.performance-band-options button:disabled { opacity: .42; cursor: not-allowed; }
+.performance-band-options button span { color: var(--text-muted); font-size: .75rem; }
+.performance-band-hint { margin: -4px 0 8px; color: var(--text-muted); font-size: .75rem; }
+.performance-trend-table .performance-table { table-layout: fixed; min-width: 780px; }
+.performance-trend-table .performance-table th,
+.performance-trend-table .performance-table td { white-space: normal; vertical-align: middle; }
+.performance-trend-table .performance-table th:nth-child(1) { width: 20%; }
+.performance-trend-table .performance-table th:nth-child(2) { width: 18%; }
+.performance-trend-table .performance-table th:nth-child(3) { width: 22%; }
+.performance-trend-table .performance-table th:nth-child(4) { width: 22%; }
+.performance-trend-table .performance-table th:nth-child(5) { width: 18%; }
+.performance-trend-table .perf-tercile-badge { white-space: normal; max-width: 100%; overflow-wrap: anywhere; }
+@media (max-width: 700px) {
+  .performance-toolbar { flex-wrap: wrap; }
+  .performance-toolbar .performance-mode { flex-basis: 100%; }
+  .performance-explain-toggle { margin-left: auto; }
 }
 
 /* Error Banner */

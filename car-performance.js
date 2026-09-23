@@ -127,6 +127,8 @@ function computeBrakingPerformance(teams) {
   return validTeams.map(t=>({
     ...t,
     score:finite(t.score)&&finite(baseline)?Math.max(0,t.score-baseline):null,
+    timeLossSeconds:finite(t.score)&&finite(baseline)&&finite(t.referenceLap)
+      ? Math.max(0,t.score-baseline)*t.referenceLap/100:null,
     g:finite(t.g)?t.g:null,
     meanG:finite(t.meanG)?t.meanG:null,
     distance:finite(t.distance)?t.distance:null,
@@ -332,6 +334,13 @@ let selectedTracks=new Set();
 let context=null;
 let tyreView='OVERALL';
 let straightLineSource='qualy'; // 'qualy' | 'race'
+let showPerformanceDescriptions=false;
+const STRAIGHT_BANDS=['50_100','100_150','150_200','200_250','250_300','300_350','350_400'];
+let straightBand='250_300';
+function straightBandControls(available) {
+  if(!available.includes(straightBand)) straightBand=available.includes('250_300')?'250_300':available[0]||'250_300';
+  return `<div class="performance-band-options" role="group" aria-label="Acceleration speed range">${STRAIGHT_BANDS.map(key=>`<button type="button" data-straight-band="${key}" aria-pressed="${key===straightBand}" ${available.includes(key)?'':'disabled title="Fewer than three teams reached this range in comparable full-throttle traces"'}>${key.replace('_','–')} <span>km/h</span></button>`).join('')}</div><p class="performance-band-hint">Dim ranges have fewer than three comparable teams.</p>`;
+}
 let qualyPaceMode='overall'; // 'overall' | 'q1' | 'adjusted'
 let sectorPaceMode='completed'; // 'completed' | 'ideal'
 const root=$('performanceResults');
@@ -873,7 +882,7 @@ function renderRace(teams) {
     // Used-start tyres are retained only when their race-phase/age-matched
     // comparison passes the same support checks, and are flagged in the table.
     const validStints = (team.stints || []).filter(s => finite(s.relativeSlope) && !s.lowSample && !s.low_sample && s.matchedLaps >= 8 && s.fieldSupport >= 2);
-    const usedStartCount = (team.stints || []).filter(s => s.usedStart || s.used_start).length;
+    const usedStartCount = validStints.filter(s => s.usedStart || s.used_start).length;
 
     // Group valid stints by event and compound for hierarchical aggregation
     // Hierarchy: Driver-level aggregation with capped weight min(samples, 20)
@@ -960,11 +969,11 @@ function renderRace(teams) {
        const compoundNorm = present.map(c => c.normSlope).filter(finite);
        seasonSlope = compoundRaw.length >= 2 ? avg(compoundRaw) : null;
        seasonNormSlope = compoundNorm.length >= 2 ? avg(compoundNorm) : null;
-       complete = present.length >= 2;
+       complete = present.length >= 2 && (!context?.season || new Set(present.flatMap(c=>c.events)).size >= 3);
     } else {
       seasonSlope = summaries[tyreView]?.slope ?? null;
       seasonNormSlope = summaries[tyreView]?.normSlope ?? null;
-      complete = Boolean(summaries[tyreView]);
+       complete = Boolean(summaries[tyreView]) && (!context?.season || summaries[tyreView].events.length >= 3);
     }
 
     const compNote = tyreView === 'OVERALL' && present.length < 3 ? `(${present.length}/3 compounds)` : '';
@@ -1018,8 +1027,8 @@ function renderRace(teams) {
 
   // SVG Horizontal Bar Graph for Field-Relative Tyre Degradation
   const tyreChart = renderHorizontalBarChart(ordered.filter(r => r.complete && finite(r.normSlope)), {
-     title: `Relative Stint Slope · ${tyreView === 'OVERALL' ? 'Available Compounds (Equal Compound Weight)' : tyreView}`,
-     subtitle: 'Stint trend against rival teams on overlapping race laps and the same compound, with similar tyre age · Negative is better',
+     title: `Relative tyre-age trend · ${tyreView === 'OVERALL' ? 'Available compounds' : tyreView}`,
+     subtitle: 'Bar is rebased to the best supported team (s/lap of tyre age); table shows the raw rival comparison · Season rank needs ≥3 events',
     valueKey: 'normSlope',
     unit: ' s/lap',
     digits: 3,
@@ -1028,35 +1037,30 @@ function renderRace(teams) {
   });
 
    return card('Tyre-age lap-time trend',
-     'This is a relative lap-time trend, not isolated tyre wear. Each clean stint is compared with at least two rival teams on overlapping race-lap intervals, the same compound and similar tyre age; at least eight supported laps are required. Shared fuel burn and track evolution are reduced, but traffic, strategy, driver and compound allocation still matter. Unsupported stints are omitted, not replaced with a misleading fallback; used-start tyres are retained only when supported and flagged. Events and available compounds receive equal weight; overall requires at least two dry compounds.',
+     'This compares how quickly each team’s lap times changed as tyres aged versus rival stints in the same race phase on the same compound. A larger number does not prove worse tyre wear: traffic, tyre history, driver management and track conditions remain. Teams need at least three supported race weekends for a season bar; unsupported cases stay unranked. Used-start tyres are included only when matched and flagged.',
     controls + tyreChart +
     table([
       sortHeader('tyreTeam', 'Team'),
-      sortHeader('tyreNorm', 'Field-relative degradation'),
-      sortHeader('tyreSlope', 'Observed slope'),
+      sortHeader('tyreNorm', 'Extra ageing vs rivals'),
       'Observed age range',
       sortHeader('tyreStints', 'Matched sample (stints / laps)', -1),
       'Field support',
-      'Cliff indication'
+      'Compound mix'
     ], ordered.map(r => {
       const ageRange = (finite(r.minAge) && finite(r.maxAge)) ? `L${r.minAge}–L${r.maxAge} (${r.maxAge - r.minAge + 1} laps)` : '—';
       const sampleText = `${r.stints} stint${r.stints === 1 ? '' : 's'} (${r.laps} laps)`;
        const supportBadge = r.fieldSupported ? '<span class="perf-tercile-badge is-fast">≥2 overlapping rivals</span>' : '<span class="perf-tercile-badge is-mid">No matched cohort</span>';
-      const cliffBadge = r.cliffs > 0
-        ? `<span class="retirement-badge is-incident">⚠ Tentative cliff (${r.cliffAges.length ? `~L${r.cliffAges[0]}` : `${r.cliffs} stint${r.cliffs === 1 ? '' : 's'}`})</span>`
-        : `<span class="perf-tercile-badge is-fast">Stable (${r.laps} laps)</span>`;
       const normText = finite(r.normSlope)
-        ? `${r.normSlope > 0 ? '+' : ''}${fmt(r.normSlope, 3, ' s/lap')}`
+        ? `${r.normSlope > 0 ? '+' : ''}${fmt(r.normSlope, 3, ' s/lap')}${!r.complete?'<small>Insufficient season coverage for ranking</small>':''}`
         : '<small>Field benchmark pending</small>';
-      const slopeText = `${fmt(r.slope, 3, ' s/lap')}${r.usedStartCount > 0 ? ` <span class="perf-tercile-badge is-mid" title="${r.usedStartCount} stint(s) started on tyres with age > 3">${r.usedStartCount} used start</span>` : ''}${tyreView === 'OVERALL' && r.compoundBreakdown ? `<small>${escape(r.compoundBreakdown)}</small>` : r.compNote ? `<small>${escape(r.compNote)}</small>` : ''}`;
+      const compoundText = `${tyreView === 'OVERALL' && r.compoundBreakdown ? escape(r.compoundBreakdown) : tyreView}${r.usedStartCount > 0 ? `<small>${r.usedStartCount} matched stint${r.usedStartCount===1?'':'s'} on used tyres</small>` : ''}${r.compNote ? `<small>${escape(r.compNote)}</small>` : ''}`;
       return [
         r.label,
         normText,
-        slopeText,
         ageRange,
         sampleText,
         supportBadge,
-        cliffBadge
+        compoundText
       ];
     })));
 }
@@ -1228,18 +1232,16 @@ function renderTrend(teams) {
     trendModelled: r => r.modelledShift,
     trendSlope: r => r.slopePerRound,
     trendCount: r => r.count
-  }, 'trendSlope');
+  }, 'trendChange');
 
-   return card('Development trend · relative qualifying progression',
-     'The selected team’s best qualifying lap is compared with the event’s fastest lap at each round. A lower gap later in the season indicates relative qualifying progress, not a measured upgrade effect or absolute car gain. A robust regression downweights unusual weekends; opening-to-closing medians show the observed change.',
-    table([
+   return card('Relative qualifying progress',
+     'Ranked by the observed change in qualifying gap from the first three to the latest three events. More negative means the team closed the gap to the quickest car. This measures relative one-lap progress, not a proven upgrade effect; the fitted rate is a separate check.',
+    '<div class="performance-trend-table">'+table([
       sortHeader('trendTeam', 'Team'),
-      'Event-by-event deficit',
-      sortHeader('trendFirst', 'Opening → latest (median)'),
-      sortHeader('trendChange', 'Observed shift'),
-      sortHeader('trendModelled', 'Modelled shift'),
-      sortHeader('trendSlope', 'Progression rate'),
-      'Sample tier'
+      'Qualifying gap by round',
+      sortHeader('trendLast', 'Opening → latest gap'),
+      sortHeader('trendChange', 'Change in gap'),
+      'Coverage'
     ], ordered.map(row => {
       const t = row.team, valid = row.valid, first = row.first, last = row.last;
       const enough = valid.length >= 2;
@@ -1247,19 +1249,14 @@ function renderTrend(teams) {
       const rateText = enough && finite(row.slopePerRound)
         ? `${row.slopePerRound > 0 ? '+' : ''}${fmt(row.slopePerRound, 3, '% / round')}`
         : '—';
-      const modelledText = enough && finite(row.modelledShift)
-        ? `${row.modelledShift > 0 ? '+' : ''}${fmt(row.modelledShift, 3, ' pp')}`
-        : '—';
       return [
         teamLabel(t),
         `<div class="performance-trend" style="--team-color:${color(t.color)}">${t.q.map(q => `<span style="height:${finite(q.pace) ? Math.max(6, q.pace / ceiling * 100) : 0}%;${finite(q.pace) ? '' : 'background:transparent'}" title="R${q.round} ${escape(q.event)}: ${fmt(q.pace, 3, '%')}" aria-label="R${q.round}: ${fmt(q.pace, 3, '%')}"></span>`).join('')}</div><div class="performance-trend-label"><span>R${t.q[0]?.round ?? '—'}</span><span>R${t.q.at(-1)?.round ?? '—'}</span></div>`,
         enough ? `${fmt(first, 3, '%')} → ${fmt(last, 3, '%')}<small>${escape(row.label)}</small>` : 'Needs ≥ 2 events',
-        enough && finite(row.change) ? `${row.change > 0 ? '+' : ''}${fmt(row.change, 3, ' pp')}` : '—',
-        modelledText,
-        rateText,
-        `<span class="perf-tercile-badge ${row.sampleTierClass}">${escape(row.sampleTier)}</span>`
+        enough && finite(row.change) ? `${signed(row.change, 3, ' pp')}<small>Fitted: ${rateText}</small>` : '—',
+        `<span class="perf-tercile-badge ${row.sampleTierClass}">${row.count} event${row.count===1?'':'s'} · ${escape(row.sampleTier.split(' ')[0])}</span>`
       ];
-    }))) + card('FIA updates',
+    })))+'</div>' + card('FIA updates',
       'Upgrade components submitted to the FIA before each event. Upgrade counts are not weighted by importance, and a before/after pace change cannot establish causation.',
       '<p><a href="https://www.fia.com/documents" target="_blank" rel="noopener" class="perf-link">Open FIA event documents ↗</a></p><p class="performance-note">Component counts from Car Presentation Submissions are not weighted by competitive impact, and public lap times cannot isolate aerodynamic package gains from setup or driver variation. No synthetic upgrade gains are inferred.</p>');
 }
@@ -1330,9 +1327,10 @@ function eventTelemetry(event) {
     row.onsetBracket = effectiveZones.find(z => z.onset_bracket)?.onset_bracket || null;
     row.brakeZones = effectiveZones.length;
   }
-  // One disclosed, descriptive score on the same braking zones for every
-  // eligible constructor. Time dominates; deceleration and distance add
-  // smaller context. Resolution and zone count are quality checks, not speed.
+  // Headline: actual observed time through identical qualifying braking
+  // corridors, as a share of the full reference lap. Deceleration and braking
+  // distance remain diagnostics; blending them into time created a unitless
+  // index that users could not interpret as lap time.
   const eligible=[...rows.values()].filter(row=>(row.trace?.braking||[]).length>=3);
   const common=refZones.filter(z=>z.corner&&eligible.every(row=>(row.trace.braking||[]).some(b=>b.corner===z.corner)));
   if(eligible.length>=3&&common.length>=3) {
@@ -1340,25 +1338,20 @@ function eventTelemetry(event) {
     for(const zone of common) {
       const measured=eligible.map(row=>({row,z:row.trace.braking.find(b=>b.corner===zone.corner)}));
       const timeBest=Math.min(...measured.map(x=>x.z.corridor_time).filter(v=>finite(v)&&v>0));
-      const decelBest=Math.max(...measured.map(x=>x.z.normalized_decel_g).filter(v=>finite(v)&&v>0));
-      const distanceBest=Math.min(...measured.map(x=>x.z.distance).filter(v=>finite(v)&&v>0));
-      if(![timeBest,decelBest,distanceBest].every(v=>finite(v)&&v>0))continue;
+      if(!finite(timeBest)||timeBest<=0)continue;
       const lapTime=median(measured.map(x=>x.row.trace.reference_lap_time).filter(v=>finite(v)&&v>0));
       if(!finite(lapTime)||lapTime<=0)continue;
       for(const {row,z} of measured) {
-        if(![z.corridor_time,z.normalized_decel_g,z.distance].every(v=>finite(v)&&v>0))continue;
-        // Express all three diagnostics as lap-equivalent percentages. A
-        // percentage of a 2 s brake zone massively exaggerates the gap.
+        if(!finite(z.corridor_time)||z.corridor_time<=0)continue;
         const timeLoss=Math.max(0,z.corridor_time-timeBest)/lapTime*100;
-        const decelLoss=Math.max(0,decelBest/z.normalized_decel_g-1)*timeBest/lapTime*100;
-        const distanceLoss=Math.max(0,z.distance/distanceBest-1)*timeBest/lapTime*100;
-        scores.get(row.team).push(.70*timeLoss+.20*decelLoss+.10*distanceLoss);
+        scores.get(row.team).push(timeLoss);
       }
     }
     for(const row of eligible) {
       const values=scores.get(row.team);
       if(values.length===common.length) {
         row.brakingScore=values.reduce((sum,value)=>sum+value,0);
+        row.brakingReferenceLap=median(eligible.map(item=>item.trace.reference_lap_time).filter(v=>finite(v)&&v>0));
         row.brakingScoreZones=values.length;
         row.brakingScoreCohort=eligible.length;
       }
@@ -1381,11 +1374,11 @@ function seasonTelemetry() {
         team:row.team,color:row.color,low:[],medium:[],high:[],
         lowDeficit:[],mediumDeficit:[],highDeficit:[],lowSeconds:[],mediumSeconds:[],highSeconds:[],
         lapGaps:[],top:[],full:[],topDeficit:[],fullDeficit:[],straightDeficit:[],
-        straightContribution:[],cornerContribution:[],brakeG:[],brakeMeanG:[],brakingScore:[],brakingScoreZones:[],
+        straightContribution:[],cornerContribution:[],brakeG:[],brakeMeanG:[],brakingScore:[],brakingScoreZones:[],brakingReferenceLap:[],
         brakeDistance:[],brakeDistDelta:[],brakeDuration:[],
         normalizedDecel:[],brakeTimeDelta:[],samplingResolution:[],
         terminalZoneMeanSpeed:[],terminalZoneLength:[],
-        accel250:[],accel250Pct:[],accel200:[],accel320:[],straightTraversalDelta:[],speedSt:[],speedFl:[],
+        accel250:[],accel250Pct:[],accel200:[],accel320:[],accelBands:Object.fromEntries(STRAIGHT_BANDS.map(key=>[key,[]])),straightTraversalDelta:[],speedSt:[],speedFl:[],
         events:0,zones:0
       });
       const item=map.get(row.team); item.events++;
@@ -1406,12 +1399,15 @@ function seasonTelemetry() {
       if(finite(row.trace.accel_250_300_pct))item.accel250Pct.push(row.trace.accel_250_300_pct);
       if(finite(row.trace.accel_200_250))item.accel200.push(row.trace.accel_200_250);
       if(finite(row.trace.accel_300_320))item.accel320.push(row.trace.accel_300_320);
+      for(const [key,band] of Object.entries(row.trace.accel_bands||{}))
+        if(item.accelBands[key]&&finite(band.gap_s))item.accelBands[key].push(band.gap_s);
       if(finite(row.trace.speed_st))item.speedSt.push(row.trace.speed_st);
       if(finite(row.trace.speed_fl))item.speedFl.push(row.trace.speed_fl);
       if(finite(row.trace.corner_contribution))item.cornerContribution.push(row.trace.corner_contribution);
       if(brakingComparable&&finite(row.brakingScore)) {
         item.brakingScore.push(row.brakingScore);
         item.brakingScoreZones.push(row.brakingScoreZones);
+        item.brakingReferenceLap.push(row.brakingReferenceLap);
       }
       if(finite(row.brakeG))item.brakeG.push(row.brakeG);
       if(finite(row.brakeMeanG))item.brakeMeanG.push(row.brakeMeanG);
@@ -1613,6 +1609,8 @@ function renderTrace() {
 
       const rawValues = season.map(team => ({
         ...team,
+        bandGap:avg(team.accelBands[straightBand]||[]),
+        bandEvents:(team.accelBands[straightBand]||[]).length,
         accel250Pct: avg(team.accel250Pct),
         accel250: avg(team.accel250),
         accel200: avg(team.accel200),
@@ -1625,6 +1623,12 @@ function renderTrace() {
         peak: avg(team.top),
         sustained: avg(team.full)
       }));
+      const availableBands=STRAIGHT_BANDS.filter(key=>season.filter(team=>(team.accelBands[key]||[]).length).length>=3);
+      const bandControls=straightBandControls(availableBands);
+      for(const row of rawValues) {
+        row.bandGap=avg(row.accelBands[straightBand]||[]);
+        row.bandEvents=(row.accelBands[straightBand]||[]).length;
+      }
       const valid250Pct = rawValues.map(t => t.accel250Pct).filter(finite);
       const minAccel250Pct = valid250Pct.length ? Math.min(...valid250Pct) : 0;
       const valid250 = rawValues.map(t => t.accel250).filter(finite);
@@ -1643,6 +1647,7 @@ function renderTrace() {
       }));
       const orderedQualy = sorted(qualyValues, {
         straightTeam: t => t.team,
+        straightBandGap: t => t.bandGap,
         straightAccel250Pct: t => t.straightAccel250Pct,
         straightAccel250: t => t.straightAccel250,
         straightAccel200: t => t.straightAccel200,
@@ -1652,14 +1657,14 @@ function renderTrace() {
         speedFl: t => t.speedFl,
         traversalDelta: t => t.traversalDelta,
         straightEvents: t => t.events
-      }, 'straightAccel250Pct', 1);
+      }, 'straightBandGap', 1);
 
       const qualyChart = renderHorizontalBarChart(orderedQualy, {
-        title: 'Season Straight-Line Acceleration Deficit (% to Fastest)',
-        subtitle: 'Equal-event average of normalized 250–300 km/h acceleration deficit · Baseline 0.00% is fastest acceleration',
-        valueKey: 'straightAccel250Pct',
-        unit: '%',
-        digits: 2,
+        title: `Qualifying acceleration · ${straightBand.replace('_','–')} km/h`,
+        subtitle: 'Seconds slower to gain this 50 km/h on comparable straights · Season value averages supported events; not a lap-time contribution',
+        valueKey: 'bandGap',
+        unit: ' s',
+        digits: 3,
         signedValue: true,
         zeroBaseline: true
       });
@@ -1676,13 +1681,12 @@ function renderTrace() {
       return card(straightTitle, 'This is where lap time is gained or lost on the measured straights, including the speed carried out of the preceding corner. In 2026 it also includes battery deployment. Those effects belong in a lap-time decomposition, but this is not a pure engine, drag or aero ranking. Acceleration and terminal velocity are separate diagnostics.',
         straightToggle+
         traversalChart+
+        bandControls+
         qualyChart+
         table([
           sortHeader('straightTeam', 'Team'),
-          sortHeader('straightAccel250Pct', 'Accel Deficit (250–300)'),
-          sortHeader('straightAccel250', 'Time Deficit (250–300)'),
-          sortHeader('straightAccel200', 'Mid Accel (200–250)'),
-          sortHeader('straightAccel320', 'Top-End Accel (300–320)'),
+          sortHeader('straightBandGap', `${straightBand.replace('_','–')} km/h gap`),
+          'Band coverage',
           sortHeader('terminal', 'Terminal speed (≥400m)', -1),
           sortHeader('speedSt', 'Official ST', -1),
           sortHeader('speedFl', 'Official FL', -1),
@@ -1690,10 +1694,8 @@ function renderTrace() {
           sortHeader('straightEvents', 'Circuits', -1)
         ], orderedQualy.map(team => [
           teamLabel(team),
-          finite(team.straightAccel250Pct) ? signed(team.straightAccel250Pct, 2, '%') : '—',
-          finite(team.straightAccel250) ? signed(team.straightAccel250, 3, 's') : '—',
-          finite(team.straightAccel200) ? signed(team.straightAccel200, 3, 's') : '—',
-          finite(team.straightAccel320) ? signed(team.straightAccel320, 3, 's') : '—',
+          signed(team.bandGap, 3, ' s'),
+          `${team.bandEvents} circuit${team.bandEvents===1?'':'s'}`,
           finite(team.terminal) ? `${fmt(team.terminal, 1, ' km/h')}<small>${fmt(team.termLen, 0, ' m')} measured</small>` : '—',
           finite(team.speedSt) ? fmt(team.speedSt, 1, ' km/h') : '—',
           finite(team.speedFl) ? fmt(team.speedFl, 1, ' km/h') : '—',
@@ -1706,6 +1708,7 @@ function renderTrace() {
     const rawBrakeValues = season.map(team => ({
       ...team,
       score:avg(team.brakingScore),
+      referenceLap:avg(team.brakingReferenceLap),
       g: avg(team.brakeG),
       meanG: avg(team.brakeMeanG),
       distance: avg(team.brakeDistance),
@@ -1732,8 +1735,8 @@ function renderTrace() {
     }, 'brakeScore', 1);
 
     const brakeChart = renderHorizontalBarChart(ordered, {
-      title: 'Overall observed braking performance',
-      subtitle: 'Weighted lap-equivalent index: 70% matched zone time · 20% normalized deceleration · 10% braking distance · Lower is better',
+      title: 'Qualifying time lost in braking zones',
+      subtitle: 'Measured time difference through the same braking-to-apex corridors, as % of the full qualifying lap · Lower is better',
       valueKey: 'score',
       unit: '%',
       digits: 3,
@@ -1741,12 +1744,12 @@ function renderTrace() {
       zeroBaseline: true
     });
 
-    return card(brakingTitle,'Calculated solely from each team’s selected qualifying lap. The score expresses observed differences on the same heavy-braking zones as a weighted percentage of the full reference lap: 70% traversal time, 20% deceleration normalized for speed change, 10% braking distance. It is an index, not a literal brake-only lap-time gap or brake-pressure/hardware rating. Each circuit needs a supported cohort; sample interval and zone count describe confidence.',
+    return card(brakingTitle,'A +0.7% value means roughly 0.7% of a qualifying lap was lost through the measured braking-to-apex corridors versus the quickest measured team there. This includes entry speed and corner approach, so it is not a pure brake-hardware effect. Distance and deceleration are shown separately, not mixed into the percentage.',
       brakeChart+
       table([
         sortHeader('brakeTeam','Team'),
-        sortHeader('brakeScore','Overall score'),
-        sortHeader('brakeTimeDelta','Time delta (Δt)'),
+        sortHeader('brakeScore','Qualifying lap share lost'),
+        sortHeader('brakeTimeDelta','Approx. time lost'),
         sortHeader('brakeNormDecel','Distance-norm decel (anorm)',-1),
         sortHeader('brakeMeanG','Mean decel',-1),
         sortHeader('brakeDistDelta','Distance delta (Δm)'),
@@ -1756,7 +1759,7 @@ function renderTrace() {
       ],ordered.map(team=>[
         teamLabel(team),
         signed(team.score,3,'%'),
-        `${signed(team.timeDelta,3,' s')}`,
+        `${signed(team.timeLossSeconds,3,' s')}`,
         `${fmt(team.normalizedDecel,2,' g')}`,
         fmt(team.meanG,2,' g'),
         signed(team.distDelta,1,' m'),
@@ -1890,6 +1893,8 @@ function renderTrace() {
 
     const qualyRows = loaded.map(r => ({
       ...r,
+      bandGap:r.trace?.accel_bands?.[straightBand]?.gap_s ?? null,
+      bandStraights:r.trace?.accel_bands?.[straightBand]?.straights ?? 0,
       accel250: r.trace?.accel_250_300,
       accel200: r.trace?.accel_200_250,
       accel320: r.trace?.accel_300_320,
@@ -1904,8 +1909,15 @@ function renderTrace() {
       topSpeed: r.trace?.top_speed,
       sustainedSpeed: r.trace?.full_throttle_p95
     }));
+    const availableBands=STRAIGHT_BANDS.filter(key=>loaded.filter(row=>finite(row.trace?.accel_bands?.[key]?.gap_s)).length>=3);
+    const bandControls=straightBandControls(availableBands);
+    for(const row of qualyRows) {
+      row.bandGap=row.trace?.accel_bands?.[straightBand]?.gap_s ?? null;
+      row.bandStraights=row.trace?.accel_bands?.[straightBand]?.straights ?? 0;
+    }
     const ordered = sorted(qualyRows, {
       eventStraightTeam: t => t.team,
+      eventStraightBand: t => t.bandGap,
       eventStraightAccel250: t => t.accel250,
       eventStraightAccel200: t => t.accel200,
       eventStraightAccel320: t => t.accel320,
@@ -1913,7 +1925,7 @@ function renderTrace() {
       eventStraightSpeedST: t => t.speedSt,
       eventStraightSpeedFL: t => t.speedFl,
       eventStraightTraversal: t => t.traversalDelta
-    }, 'eventStraightAccel250', 1);
+    }, 'eventStraightBand', 1);
 
     const straightTraversalChart = renderHorizontalBarChart(ordered.filter(r => finite(r.traversalDelta)), {
       title: 'Overall Straight Traversal Gap · Share of Lap',
@@ -1925,10 +1937,10 @@ function renderTrace() {
       zeroBaseline: false
     });
     const singleStraightChart = renderHorizontalBarChart(ordered, {
-      title: 'Qualifying High-Speed Acceleration Deficit (250–300 km/h)',
-      subtitle: 'Speed-matched acceleration reduces initial-speed inheritance; does not isolate power, drag or energy deployment',
-      valueKey: 'accel250',
-      unit: 's',
+      title: `Qualifying acceleration · ${straightBand.replace('_','–')} km/h`,
+      subtitle: 'Seconds slower to gain this 50 km/h on comparable full-throttle straights · Not additive lap time',
+      valueKey: 'bandGap',
+      unit: ' s',
       digits: 3,
       signedValue: true,
       zeroBaseline: true
@@ -1937,21 +1949,20 @@ function renderTrace() {
     return card('Straight-line performance', 'Overall performance is the time spent on measured straights as a share of the reference lap; acceleration and terminal speed are diagnostics. This is not a pure power or aerodynamic ranking.',
       straightToggle+
       straightTraversalChart+
+      bandControls+
       singleStraightChart+
       table([
         sortHeader('eventStraightTeam', 'Team'),
-        sortHeader('eventStraightAccel250', 'High-Speed Accel (250–300)'),
-        sortHeader('eventStraightAccel200', 'Mid Accel (200–250)'),
-        sortHeader('eventStraightAccel320', 'Top-End Accel (300–320)'),
+        sortHeader('eventStraightBand', `${straightBand.replace('_','–')} km/h gap`),
+        'Measured straights',
         sortHeader('eventStraightTerminal', 'Terminal speed (≥400m)', -1),
         sortHeader('eventStraightSpeedST', 'Official ST', -1),
         sortHeader('eventStraightSpeedFL', 'Official FL', -1),
         sortHeader('eventStraightTraversal', 'Straight Traversal Delta')
       ], ordered.map(t => [
         teamLabel(t),
-        finite(t.accel250) ? `${signed(t.accel250, 3)}s <small class="perf-tercile-badge is-mid">${escape(t.straightCoverage)}${t.straightProvisional ? ' (prov)' : ''}</small>` : '—',
-        finite(t.accel200) ? signed(t.accel200, 3, 's') : '—',
-        finite(t.accel320) ? signed(t.accel320, 3, 's') : '—',
+        signed(t.bandGap, 3, ' s'),
+        t.bandStraights||'—',
         finite(t.terminalSpeed) ? `${fmt(t.terminalSpeed, 1, ' km/h')}${finite(t.termDeficit) ? `<small> -${fmt(t.termDeficit, 1, ' km/h')}</small>` : ''}` : '—',
         finite(t.speedSt) ? fmt(t.speedSt, 1, ' km/h') : '—',
         finite(t.speedFl) ? fmt(t.speedFl, 1, ' km/h') : '—',
@@ -1964,6 +1975,7 @@ function renderTrace() {
   const brakeRows = computeBrakingPerformance(loaded.map(r => ({
     ...r,
     score:r.brakingScore,
+    referenceLap:r.brakingReferenceLap,
     g: r.brakeG,
     meanG: r.brakeMeanG,
     distDelta: r.brakeDistDelta,
@@ -1990,8 +2002,8 @@ function renderTrace() {
   }, 'eventBrakeScore', 1);
 
   const singleBrakeChart = renderHorizontalBarChart(ordered, {
-    title: 'Overall observed braking performance',
-    subtitle: 'Weighted lap-equivalent index: 70% matched zone time · 20% normalized deceleration · 10% braking distance · Lower is better',
+    title: 'Qualifying time lost in braking zones',
+    subtitle: 'Measured time difference through the same braking-to-apex corridors, as % of the full qualifying lap · Lower is better',
     valueKey: 'score',
     unit: '%',
     digits: 3,
@@ -1999,12 +2011,12 @@ function renderTrace() {
     zeroBaseline: true
   });
 
-  return card('Braking observations','Calculated solely from each team’s selected qualifying lap. The score compares the same heavy-braking zones as a weighted percentage of the full reference lap: 70% traversal time, 20% deceleration normalized for speed change, 10% braking distance. It is an index, not a literal brake-only lap-time gap or brake-pressure/hardware measurement. The onset bracket uses adjacent original telemetry samples. Teams without three common supported zones have no score.',
+  return card('Braking observations','The percentage is observed time lost in matched qualifying braking-to-apex corridors, divided by the full qualifying lap time. It includes entry speed and approach, so it is not a pure brake-hardware effect. The onset bracket shows the sampling uncertainty; teams without three common supported zones have no score.',
     singleBrakeChart+
     table([
       sortHeader('eventBrakeTeam','Team'),
-      sortHeader('eventBrakeScore','Overall score'),
-      sortHeader('eventBrakeTimeDelta','Time delta (Δt)'),
+      sortHeader('eventBrakeScore','Qualifying lap share lost'),
+      sortHeader('eventBrakeTimeDelta','Approx. time lost'),
       sortHeader('eventBrakeNormDecel','Distance-norm decel (anorm)',-1),
       sortHeader('eventBrakeMeanG','Mean decel',-1),
       sortHeader('eventBrakeDistDelta','Distance delta (Δm)'),
@@ -2014,7 +2026,7 @@ function renderTrace() {
     ],ordered.map(row=>[
       teamLabel(row),
       signed(row.score,3,'%'),
-      `${signed(row.timeDelta, 3, ' s')}`,
+      `${signed(row.timeLossSeconds, 3, ' s')}`,
       `${fmt(row.normalizedDecel, 2, ' g')}`,
       fmt(row.meanG,2,' g'),
       signed(row.distDelta,1,' m'),
@@ -2034,7 +2046,8 @@ function render() {
     ['trend','Development & updates'],
     ['results','Reliability & results']
   ];
-  const modeBar = `<div class="performance-mode" role="tablist" aria-label="Performance metric">${modes.map(([key,label])=>`<button type="button" role="tab" data-performance-metric="${key}" aria-pressed="${activeMetric===key}" aria-selected="${activeMetric===key}">${label}</button>`).join('')}</div>`;
+  $('carPerformance').classList.toggle('is-descriptions-hidden',!showPerformanceDescriptions);
+  const modeBar = `<div class="performance-toolbar"><div class="performance-mode" role="tablist" aria-label="Performance metric">${modes.map(([key,label])=>`<button type="button" role="tab" data-performance-metric="${key}" aria-pressed="${activeMetric===key}" aria-selected="${activeMetric===key}">${label}</button>`).join('')}</div><button type="button" class="performance-explain-toggle" data-performance-explain aria-pressed="${showPerformanceDescriptions}">${showPerformanceDescriptions?'Hide explanations':'Show explanations'}</button></div>`;
 
   if(!context || (!events.length && !running)) {
     root.innerHTML = modeBar + `
@@ -2150,6 +2163,7 @@ $('performanceLoad').addEventListener('click',analyse);
 $('performanceCancel').addEventListener('click',stop);
 
 root.addEventListener('click',event=>{
+  if(event.target.closest('[data-performance-explain]')){showPerformanceDescriptions=!showPerformanceDescriptions;render();return;}
   const metric=event.target.closest('[data-performance-metric]');
   if(metric) {activeMetric=metric.dataset.performanceMetric;render();}
   const sort=event.target.closest('[data-performance-sort]');
@@ -2157,6 +2171,8 @@ root.addEventListener('click',event=>{
   if(tyre){tyreView=tyre.dataset.performanceTyre;render();}
   const straightSrc=event.target.closest('[data-straight-source]');
   if(straightSrc){straightLineSource=straightSrc.dataset.straightSource;render();}
+  const band=event.target.closest('[data-straight-band]');
+  if(band&&!band.disabled){straightBand=band.dataset.straightBand;render();}
   const qualyModeBtn=event.target.closest('[data-qualy-mode]');
   if(qualyModeBtn){qualyPaceMode=qualyModeBtn.dataset.qualyMode;render();}
   const sectorModeBtn=event.target.closest('[data-sector-mode]');

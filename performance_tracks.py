@@ -104,7 +104,8 @@ def frozen(item, field):
 def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_mask):
     """Speed-domain straight-line performance analysis.
 
-    1. Evaluates fixed speed bands (200->250, 250->300, 300->320 km/h) from raw sample timestamps.
+    1. Evaluates supported 50 km/h speed bands from 50–100 through 350–400
+       from raw sample timestamps; unavailable bands remain absent.
     2. Enforces continuous clean air (>3.0s gap) throughout the entire measurement interval.
     3. Requires constant discrete DRS state (drs in {10, 12, 14}) throughout the band.
     4. Calculates within-straight relative deltas: delta_t = t - median(t_field) on each straight.
@@ -155,11 +156,10 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             return float(t0)
         return float(t0 + (target_v - v0) / (v1 - v0) * (t1 - t0))
 
-    bands = [
-        (200.0, 250.0, '200_250'),
-        (250.0, 300.0, '250_300'),
-        (300.0, 320.0, '300_320')
-    ]
+    bands = [(float(lo), float(lo + 50), f'{lo}_{lo + 50}')
+             for lo in range(50, 400, 50)]
+    # Keep the prior diagnostic available to existing consumers.
+    bands.append((300.0, 320.0, '300_320'))
 
     straight_band_times = {b[2]: defaultdict(dict) for b in bands}
     accel_eligible_straights = []
@@ -228,7 +228,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                                         straight_band_times[b_name][s_idx][team] = dt_band
 
     team_straight_deltas = {b[2]: defaultdict(list) for b in bands}
-    for b_name in ('200_250', '250_300', '300_320'):
+    for _, _, b_name in bands:
         for s_idx, team_times in straight_band_times[b_name].items():
             if len(team_times) >= 2:
                 s_med = float(np.median(list(team_times.values())))
@@ -292,23 +292,11 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
     med_straight_times = [float(np.median(list(tt.values()))) for tt in straight_band_times['250_300'].values() if len(tt) >= 2]
     ref_250_time = float(np.median(med_straight_times)) if med_straight_times else 2.0
 
-    # 250_300 headline rebase
-    raw_250_300 = {t: float(np.median(team_straight_deltas['250_300'][t]))
-                   if team_straight_deltas['250_300'][t] else None for t in teams}
-    valid_scores = [v for v in raw_250_300.values() if v is not None]
-    min_250_300 = min(valid_scores) if valid_scores else 0.0
-
-    # 200_250 rebase
-    raw_200_250 = {t: float(np.median(team_straight_deltas['200_250'][t]))
-                   if team_straight_deltas['200_250'][t] else None for t in teams}
-    valid_200_250 = [v for v in raw_200_250.values() if v is not None]
-    min_200_250 = min(valid_200_250) if valid_200_250 else 0.0
-
-    # 300_320 cohort rebase
-    raw_300_320 = {t: float(np.median(team_straight_deltas['300_320'][t]))
-                   if team_straight_deltas['300_320'][t] else None for t in teams}
-    valid_300_320 = [v for v in raw_300_320.values() if v is not None]
-    min_300_320 = min(valid_300_320) if valid_300_320 else 0.0
+    raw_bands = {name: {t: float(np.median(team_straight_deltas[name][t]))
+                         if team_straight_deltas[name][t] else None for t in teams}
+                 for _, _, name in bands}
+    best_bands = {name: min((v for v in values.values() if v is not None), default=0.0)
+                  for name, values in raw_bands.items()}
 
     avg_term_speeds = {t: float(np.mean(team_terminal_speeds[t])) if team_terminal_speeds[t] else None for t in teams}
     max_term_speed = max([v for v in avg_term_speeds.values() if v is not None], default=None)
@@ -325,10 +313,13 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
         cov_str = f"{cov_count}/{tot_accel_straights}"
         is_provisional = bool(cov_count < 2 or cov_count < tot_accel_straights * 0.5)
 
-        accel_250 = (raw_250_300[team] - min_250_300) if raw_250_300[team] is not None else None
+        accel_250 = (raw_bands['250_300'][team] - best_bands['250_300']) if raw_bands['250_300'][team] is not None else None
         accel_250_pct = float(accel_250 / max(0.1, ref_250_time) * 100) if accel_250 is not None else None
-        accel_200 = (raw_200_250[team] - min_200_250) if raw_200_250[team] is not None else None
-        accel_320 = (raw_300_320[team] - min_300_320) if raw_300_320[team] is not None else None
+        accel_200 = (raw_bands['200_250'][team] - best_bands['200_250']) if raw_bands['200_250'][team] is not None else None
+        accel_320 = (raw_bands['300_320'][team] - best_bands['300_320']) if raw_bands['300_320'][team] is not None else None
+        phase_bands = {name: {'gap_s': float(raw_bands[name][team] - best_bands[name]),
+                              'straights': len(team_straight_deltas[name][team])}
+                       for _, _, name in bands if raw_bands[name][team] is not None and name != '300_320'}
 
         all_team_sums = [sum(team_straight_deltas['250_300'][t]) for t in teams if team_straight_deltas['250_300'][t]]
         min_cumul = min(all_team_sums) if all_team_sums else 0.0
@@ -346,6 +337,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             'accel_250_300_pct': float(accel_250_pct) if accel_250_pct is not None else None,
             'accel_200_250': float(accel_200) if accel_200 is not None else None,
             'accel_300_320': float(accel_320) if accel_320 is not None else None,
+            'accel_bands': phase_bands,
             'accel_cumul_loss_250_300': float(max(0.0, cumul_loss)),
             'straight_coverage': cov_str,
             'straight_provisional': is_provisional,
@@ -659,6 +651,7 @@ def measure_field(extracted, selections, corners=()):
             'accel_250_300_pct': straight_info.get('accel_250_300_pct'),
             'accel_200_250': straight_info.get('accel_200_250'),
             'accel_300_320': straight_info.get('accel_300_320'),
+            'accel_bands': straight_info.get('accel_bands', {}),
             'accel_cumul_loss_250_300': straight_info.get('accel_cumul_loss_250_300', 0.0),
             'straight_coverage': straight_info.get('straight_coverage', '0/0'),
             'straight_provisional': straight_info.get('straight_provisional', False),
