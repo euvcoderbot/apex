@@ -48,7 +48,17 @@ def align(item, reference, grid):
         source.append(row[0]); anchors.append(position)
     if len(anchors) < len(a)*.35 or anchors[0] > 100 or grid[-1]-anchors[-1] > 100:
         raise ValueError('Position alignment does not cover the complete lap')
-    aligned = np.interp(a[:, 0], [0, *source, a[-1, 0]], [0, *anchors, grid[-1]])
+    # Projection often clamps several GPS samples to the start/finish point.
+    # Including those as interior knots creates a flat distance mapping and
+    # therefore zero-duration grid cells, despite valid rising source times.
+    interior = [(s, p) for s, p in zip(source, anchors)
+                if a[0, 0] + 1e-6 < s < a[-1, 0] - 1e-6
+                and 1e-6 < p < grid[-1] - 1e-6]
+    aligned = np.interp(a[:, 0],
+                        [a[0, 0], *(s for s, _ in interior), a[-1, 0]],
+                        [0, *(p for _, p in interior), grid[-1]])
+    if np.any(np.diff(aligned) <= 0):
+        raise ValueError('GPS projection reverses progress along the lap')
     speed = np.interp(grid, aligned, a[:, 2])
     throttle = np.interp(grid, aligned, a[:, 3])
     brake = np.interp(grid, aligned, a[:, 4]) >= .5
@@ -64,7 +74,9 @@ def align(item, reference, grid):
     if np.any(observed_dt <= 0):
         raise ValueError('Elapsed-time alignment is not strictly increasing')
     timing_scale = item['official']/observed_dt.sum()
-    speed_time = np.sum(np.diff(grid)*3.6*(1/speed[:-1]+1/speed[1:])/2)
+    # Validate speed against the car's original distance, not the warped
+    # reference distance. Warping changes ds and can otherwise reject good GPS.
+    speed_time = np.sum(np.diff(a[:, 0])*3.6*(1/a[:-1, 2]+1/a[1:, 2])/2)
     factor = item['official']/speed_time
     if not .92 < factor < 1.08 or not .97 < timing_scale < 1.03:
         raise ValueError('Speed integration disagrees with official lap time')
@@ -368,7 +380,9 @@ def measure_field(extracted, selections, corners=()):
     valid_choices = {team: values for team, values in choices.items() if values}
     for values in valid_choices.values():
         values.sort(key=lambda r: r['official'])
-    minimum = max(3, math.ceil(len(expected)*.7))
+    # Retain independently validated laps even when other teams have missing
+    # GPS. The response reports coverage; season ranking sets its own support.
+    minimum = 2
     if len(valid_choices) < minimum:
         return {'teams': {}, 'error': 'Too few teams have complete qualifying telemetry', 'excluded': errors}
     reference = min((v[0] for v in valid_choices.values()), key=lambda r: r['official'])

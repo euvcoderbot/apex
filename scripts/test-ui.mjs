@@ -365,11 +365,28 @@ test('weighted braking ranks shared measured zones and leaves unsupported teams 
   const entrants = ['A', 'B', 'C', 'D'].map(team => ({ team, color: '#123456' }));
   const traces = Object.fromEntries(entrants.map(({ team }, i) => [team, {
     corners: [], braking: makeZones(2 + i * .2, 3 - i * .2, 80 + i * 5, i === 3 ? 1 : 3),
-    lap_distance: 5000
+    lap_distance: 5000, reference_lap_time: 90
   }]));
   const result = sandbox.eventTelemetry({ Q: { teams: entrants }, traces });
   assert.equal(result.rows.get('A').brakingScoreZones, 3);
   assert.ok(result.rows.get('A').brakingScore < result.rows.get('B').brakingScore);
   assert.ok(result.rows.get('B').brakingScore < result.rows.get('C').brakingScore);
+  assert.ok(result.rows.get('C').brakingScore < 2, 'braking index should use the full lap denominator');
   assert.equal(result.rows.get('D').brakingScore, undefined);
+});
+
+test('season telemetry retains partial qualifying cohorts instead of intersecting all teams', () => {
+  const source=readFileSync('car-performance.js','utf8');
+  const body=source.slice(source.indexOf('function seasonTelemetry()'),source.indexOf('// Circuit Discrepancy Reconciliation Box'));
+  const summaries=[
+    {rows:new Map([['A',{team:'A',color:'#111',categories:{},trace:{lap_gap:0}}],['B',{team:'B',color:'#222',categories:{},trace:{lap_gap:.2}}]])},
+    {rows:new Map([['B',{team:'B',color:'#222',categories:{},trace:{lap_gap:.1}}],['C',{team:'C',color:'#333',categories:{},trace:{lap_gap:.3}}]])}
+  ];
+  const sandbox={events:[{name:'One'},{name:'Two'}],context:{season:true},finite:v=>typeof v==='number'&&Number.isFinite(v),eventTelemetry:()=>summaries.shift()};
+  vm.createContext(sandbox);
+  vm.runInContext(body,sandbox);
+  const result=sandbox.seasonTelemetry();
+  assert.equal(result.length,3);
+  assert.equal(result.find(row=>row.team==='B').events,2);
+  assert.equal(result.commonEvents.length,2);
 });

@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import unittest
 from unittest.mock import patch
 import numpy as np
-from performance import analyze, clean, slope, traffic_gaps, telemetry_metrics
+from performance import analyze, clean, slope, traffic_gaps, telemetry_metrics, matched_tyre_trend
 from performance_tracks import prepare, align
 
 
@@ -38,6 +38,36 @@ class RaceSession:
 
 
 class PerformanceTests(unittest.TestCase):
+    def test_gps_endpoint_clamping_keeps_positive_elapsed_cells(self):
+        samples = lambda shift: [
+            {'Distance': i*10.0, 'ElapsedSeconds': i*90/119, 'Speed': 47.6,
+             'Throttle': 80, 'Brake': 0, 'X': i*10.0+shift, 'Y': 0, 'DRS': 0}
+            for i in range(120)]
+        selection = {'time': 90, 'start': 0, 'end': 90}
+        reference = prepare(samples(0), selection)
+        shifted = prepare(samples(-15), selection)
+        grid = np.linspace(0, 1190, 239)
+        result = align(shifted, reference, grid)
+        self.assertTrue(np.all(result['dt'] > 0))
+        self.assertAlmostEqual(float(np.sum(result['dt'])), 90)
+
+    def test_tyre_trend_removes_common_race_lap_evolution(self):
+        rows=[]
+        for i in range(20):
+            race_lap=i+5
+            common=90-.06*race_lap
+            rows.append({'team':'A','driver':'A','stint':1,'compound':'SOFT',
+                         'lap':race_lap,'age':i+1,'time':common+.05*(i+1)})
+            for peer in ('B','C','D'):
+                rows.append({'team':peer,'driver':peer,'stint':1,'compound':'SOFT',
+                             'lap':race_lap,'age':i+1,'time':common})
+        estimate,count,peers=matched_tyre_trend([r for r in rows if r['team']=='A'],rows,'A')
+        self.assertAlmostEqual(estimate,.05,places=4)
+        self.assertEqual(count,20)
+        self.assertEqual(peers,3)
+        self.assertIsNone(matched_tyre_trend([r for r in rows if r['team']=='A'],
+                                              [r for r in rows if r['team'] in ('A','B')],'A')[0])
+
     def test_fastest_teammate_and_phase(self):
         rows=[lap(),lap('B',time=91),lap('C','Beta',92),
               lap('A',time=89,phase='Q2'),lap('C','Beta',90,phase='Q2')]

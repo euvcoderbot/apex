@@ -31,6 +31,56 @@ def slope(points):
                   for b in points[i+1:] if b[0] != a[0])
 
 
+def matched_tyre_trend(stint_rows, field_rows, team_name):
+    """Relative tyre trend across overlapping same-compound race stints.
+
+    Compare slopes on the same *race-lap interval*, with similar tyre age,
+    against distinct rival teams. This avoids demanding simultaneous clean
+    laps from several teams, which erased otherwise usable GP data. Common
+    fuel burn and track evolution are largely differenced out; tyre allocation,
+    traffic screens and driver management remain limitations.
+    """
+    if len(stint_rows) < 8:
+        return None, len(stint_rows), 0
+    compound = stint_rows[0]['compound']
+    subject = [r for r in stint_rows if r.get('lap') is not None
+               and r.get('age') is not None and r.get('time') is not None]
+    peers = defaultdict(list)
+    for row in field_rows:
+        if (row.get('team') != team_name and row.get('compound') == compound
+                and row.get('lap') is not None and row.get('age') is not None
+                and row.get('time') is not None):
+            peers[(row['team'], row['driver'], row['stint'])].append(row)
+    estimates = {}
+    for (team, _, _), rival in peers.items():
+        lo = max(min(r['lap'] for r in subject), min(r['lap'] for r in rival))
+        hi = min(max(r['lap'] for r in subject), max(r['lap'] for r in rival))
+        if hi-lo < 5:
+            continue
+        mine = [r for r in subject if lo <= r['lap'] <= hi]
+        theirs = [r for r in rival if lo <= r['lap'] <= hi]
+        if len(mine) < 6 or len(theirs) < 6:
+            continue
+        if abs(median(r['age'] for r in mine)-median(r['age'] for r in theirs)) > 10:
+            continue
+        mine_slope = slope([(r['age'], r['time']) for r in mine])
+        peer_slope = slope([(r['age'], r['time']) for r in theirs])
+        if mine_slope is None or peer_slope is None:
+            continue
+        difference = mine_slope-peer_slope
+        if abs(difference) > .5:
+            continue
+        candidate = (len(mine)+len(theirs), difference, {r['lap'] for r in mine})
+        if team not in estimates or candidate[0] > estimates[team][0]:
+            estimates[team] = candidate
+    if len(estimates) < 2:
+        return None, 0, len(estimates)
+    matched_laps = set().union(*(candidate[2] for candidate in estimates.values()))
+    if len(matched_laps) < 8:
+        return None, len(matched_laps), len(estimates)
+    return float(median(candidate[1] for candidate in estimates.values())), len(matched_laps), len(estimates)
+
+
 def clean(lap):
     return (lap['time'] is not None and lap['time'] > 0 and lap['accurate']
             and not lap['pit'] and not lap['deleted'] and lap['track'] == '1'
@@ -930,23 +980,23 @@ def analyze(data, traffic=2):
                 })
             team['degradation'] = degradation_list
 
-        # Compute leave-one-team-out relative tyre degradation for each stint
+        # Compare each clean stint lap against other teams on the same race lap,
+        # compound and a similar tyre age. Stint-to-stint slopes from different
+        # race phases confound fuel burn and track evolution with tyre wear.
         all_event_stints = [s for team in teams.values() for s in team.get('degradation', [])]
+        field_stint_rows = [r for r in valid if r.get('age') is not None
+                            and r.get('time') is not None and r.get('compound') in DRY_COMPOUNDS]
         for s in all_event_stints:
-            comp = s['compound']
-            tm = s.get('team')
-            peers = defaultdict(list)
-            for other in all_event_stints:
-                if (other['compound'] == comp and other.get('team') != tm
-                        and not other['low_sample'] and not other['used_start']):
-                    peers[other['team']].append(other['slope'])
-            s['field_support'] = len(peers)
-            if len(peers) >= 3:
-                ref = float(median([median(values) for values in peers.values()]))
-                s['relative_slope'] = s['slope'] - ref
-            else:
-                s['relative_slope'] = None
+            stint_rows = [r for r in field_stint_rows
+                          if r['driver'] == s['driver'] and r['stint'] == s['stint']
+                          and r['compound'] == s['compound']]
+            estimate, matched_laps, peers = matched_tyre_trend(
+                stint_rows, field_stint_rows, s['team'])
+            s['relative_slope'] = estimate
             s['field_normalized_slope'] = s['relative_slope']
+            s['matched_laps'] = matched_laps
+            s['field_support'] = peers
+            s['benchmark'] = 'overlapping-race-laps-same-compound-similar-tyre-age'
         for s in all_event_stints:
             s.pop('team', None)
 
