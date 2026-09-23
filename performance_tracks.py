@@ -101,6 +101,52 @@ def frozen(item, field):
     return False
 
 
+def straight_braking_windows(selected, reference, grid, zones):
+    """Common brake-onset-to-turn-in windows; omit bends without a clear straight phase.
+
+    The position feed is smoothed before estimating heading. These are observed
+    geometry windows, not steering-angle or brake-pressure measurements.
+    """
+    raw = reference['a'][reference['gps']]
+    distance = reference['aligned'][reference['gps']]
+    if len(raw) < 20 or np.any(np.diff(distance) <= 0):
+        return {}
+    x = np.interp(grid, distance, raw[:, 5])
+    y = np.interp(grid, distance, raw[:, 6])
+    kernel = np.ones(9) / 9
+    x = np.convolve(np.pad(x, (4, 4), mode='edge'), kernel, mode='valid')
+    y = np.convolve(np.pad(y, (4, 4), mode='edge'), kernel, mode='valid')
+    heading = np.unwrap(np.arctan2(np.gradient(y, grid), np.gradient(x, grid)))
+    curvature = np.abs(np.gradient(heading, grid))
+    curvature = np.convolve(np.pad(curvature, (2, 2), mode='edge'), np.ones(5) / 5, mode='valid')
+    windows = {}
+    for zone in zones:
+        start, apex = zone['start'], zone['apex']
+        if apex - start < 12 or np.median(curvature[start:start+4]) > .0025:
+            continue
+        turn_in = next((i for i in range(start + 4, apex - 3)
+                        if np.all(curvature[i:i+4] > .0025)), None)
+        if turn_in is None:
+            continue
+        onsets = {}
+        for team, item in selected.items():
+            brake = item['brake']
+            onset = next((i for i in range(start, turn_in - 2)
+                          if np.sum(brake[i:i+3]) >= 2), None)
+            if onset is None or grid[turn_in] - grid[onset] < 45:
+                continue
+            if item['speed'][onset] - item['speed'][turn_in] < 25:
+                continue
+            onsets[team] = onset
+        if len(onsets) < 3:
+            continue
+        common_start = min(onsets.values())
+        if grid[turn_in] - grid[common_start] < 45:
+            continue
+        windows[zone['corner']] = (common_start, turn_in, onsets)
+    return windows
+
+
 def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_mask):
     """Speed-domain straight-line performance analysis.
 
@@ -476,6 +522,7 @@ def measure_field(extracted, selections, corners=()):
         z['tercile_label'] = 'Slowest third' if v <= tercile_33 else 'Middle third' if v <= tercile_66 else 'Fastest third'
 
     ref = selected[reference_team]
+    brake_windows = straight_braking_windows(selected, ref, grid, zones)
 
     # Partition straight sections (non-overlapping adaptive split)
     straight_blocks = []
@@ -572,7 +619,11 @@ def measure_field(extracted, selections, corners=()):
 
         braking = []
         for z in zones:
-            indices = np.where(item['brake'][z['start']:z['apex']+1])[0] + z['start']
+            window = brake_windows.get(z['corner'])
+            if not window or team not in window[2]:
+                continue
+            common_start, turn_in, onsets = window
+            indices = np.where(item['brake'][onsets[team]:turn_in])[0] + onsets[team]
             if len(indices) < 2:
                 continue
             a, b = int(indices[0]), int(indices[-1]) + 1
@@ -580,7 +631,7 @@ def measure_field(extracted, selections, corners=()):
             v_start_kmh = float(item['speed'][a])
             v_end_kmh = float(item['speed'][b-1])
             drop_kmh = v_start_kmh - v_end_kmh
-            if duration >= .4 and drop_kmh >= 35:
+            if duration >= .25 and drop_kmh >= 25:
                 # Explicit SI unit conversion: km/h -> m/s before all deceleration & resolution formulas
                 v_start_ms = v_start_kmh / 3.6
                 v_end_ms = v_end_kmh / 3.6
@@ -610,14 +661,24 @@ def measure_field(extracted, selections, corners=()):
                 # not by adjacent points on the interpolated five-metre grid.
                 raw_onsets = np.where((item['a'][:, 4] >= .5)
                                       & (item['aligned'] >= grid[z['start']] - 50)
-                                      & (item['aligned'] <= grid[z['apex']]))[0]
+                                      & (item['aligned'] <= grid[turn_in]))[0]
                 raw_first = int(raw_onsets[0]) if len(raw_onsets) else None
                 onset_bracket = ([float(item['aligned'][raw_first-1]),
                                   float(item['aligned'][raw_first])]
                                  if raw_first is not None and raw_first > 0 else None)
                 sampling_res_m = (onset_bracket[1] - onset_bracket[0]
                                   if onset_bracket else None)
-                release_to_apex = float(grid[z['apex']] - grid[b-1])
+                release_to_apex = float(grid[turn_in] - grid[b-1])
+
+                # Specific kinetic-energy-loss rate over the first 50 m of
+                # straight braking. kW/tonne is numerically W/kg. It includes
+                # drag, rolling loss and energy recovery, not friction brakes alone.
+                power_end = min(turn_in, int(np.searchsorted(grid, grid[a] + 50)))
+                power_dt = float(item['dt'][a:power_end].sum())
+                power_proxy = (0.5 * ((item['speed'][a] / 3.6) ** 2
+                                       - (item['speed'][power_end] / 3.6) ** 2) / power_dt
+                               if power_end > a and grid[power_end] - grid[a] >= 35
+                               and power_dt > .05 else None)
 
                 ref_b_dt = float(ref['dt'][a:b].sum())
                 brake_time_delta = duration - ref_b_dt
@@ -625,8 +686,10 @@ def measure_field(extracted, selections, corners=()):
                 braking.append({
                     'corner': z['corner'],
                     'start': float(grid[a]),
-                    'corridor_time': float(item['dt'][z['start']:z['apex']+1].sum()),
-                    'corridor_ref_time': float(ref['dt'][z['start']:z['apex']+1].sum()),
+                    'corridor_time': float(item['dt'][common_start:turn_in].sum()),
+                    'corridor_ref_time': float(ref['dt'][common_start:turn_in].sum()),
+                    'turn_in': float(grid[turn_in]),
+                    'power_proxy_kw_per_tonne': float(power_proxy) if power_proxy is not None and power_proxy > 0 else None,
                     'distance': dist_m,
                     'duration': duration,
                     'entry_speed': v_start_kmh,
@@ -679,6 +742,6 @@ def measure_field(extracted, selections, corners=()):
     }
 
     return {'teams': results, 'reference_team': reference_team, 'excluded': {t: e for t, e in errors.items() if t not in results},
-            'method': 'shared-gps-grid-v3-sampling-aware', 'corner_count': len(zones),
+            'method': 'shared-gps-grid-v4-straight-braking', 'corner_count': len(zones),
             'circuit_features': circuit_features}
 

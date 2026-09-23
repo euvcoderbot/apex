@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 import numpy as np
 from performance import analyze, clean, slope, traffic_gaps, telemetry_metrics, matched_tyre_trend
-from performance_tracks import prepare, align
+from performance_tracks import prepare, align, straight_braking_windows
 
 
 def lap(driver='A', team='Alpha', time=90, **kwargs):
@@ -38,6 +38,25 @@ class RaceSession:
 
 
 class PerformanceTests(unittest.TestCase):
+    def test_straight_braking_window_stops_at_turn_in(self):
+        grid = np.arange(0.0, 1005.0, 5.0)
+        theta = np.maximum(0.0, grid - 600.0) / 100.0
+        x = np.where(grid <= 600, grid, 600 + 100 * np.sin(theta))
+        y = np.where(grid <= 600, 0, 100 * (1 - np.cos(theta)))
+        a = np.zeros((len(grid), 8))
+        a[:, 5], a[:, 6] = x, y
+        item = {'a': a, 'gps': np.ones(len(grid), dtype=bool), 'aligned': grid,
+                'brake': (grid >= 500) & (grid < 680),
+                'speed': 300 - np.clip(grid - 500, 0, 180) * 1.0}
+        zones = [{'start': 90, 'apex': 150, 'corner': 'T1'}]
+        windows = straight_braking_windows({'A': item, 'B': item, 'C': item}, item, grid, zones)
+        self.assertIn('T1', windows)
+        start, turn_in, onsets = windows['T1']
+        self.assertLessEqual(grid[start], 505)
+        self.assertGreaterEqual(grid[turn_in], 575)
+        self.assertLessEqual(grid[turn_in], 625)
+        self.assertEqual(len(onsets), 3)
+
     def test_gps_endpoint_clamping_keeps_positive_elapsed_cells(self):
         samples = lambda shift: [
             {'Distance': i*10.0, 'ElapsedSeconds': i*90/119, 'Speed': 47.6,
