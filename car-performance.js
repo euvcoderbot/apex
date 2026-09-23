@@ -1332,9 +1332,9 @@ function eventTelemetry(event) {
   }
   // Headline: observed time in common straight-line braking windows, ending
   // at geometry-detected turn-in. Power is a separate kinetic-loss proxy.
-  const eligible=[...rows.values()].filter(row=>(row.trace?.braking||[]).length>=3);
+  const eligible=[...rows.values()].filter(row=>(row.trace?.braking||[]).length>=2);
   const common=refZones.filter(z=>z.corner&&eligible.every(row=>(row.trace.braking||[]).some(b=>b.corner===z.corner)));
-  if(eligible.length>=3&&common.length>=3) {
+  if(eligible.length>=3&&common.length>=2) {
     const scores=new Map(eligible.map(row=>[row.team,[]]));
     for(const zone of common) {
       const measured=eligible.map(row=>({row,z:row.trace.braking.find(b=>b.corner===zone.corner)}));
@@ -1442,7 +1442,7 @@ function renderCircuitAuditCard(season) {
   const used = season.commonEvents || [];
   const omitted = events.map(event => event.name).filter(name => !used.includes(name));
   return `<div class="perf-audit-box"><div class="perf-audit-header"><div class="perf-audit-title">Circuit coverage · ${used.length} of ${events.length} selected events</div></div>
-    <p class="performance-note">Each event contributes when at least two constructors have validated qualifying traces. Braking needs three teams with common zones. Missing teams are not imputed; teams can have different circuit counts, so check each row's support before comparing season averages.</p>
+    <p class="performance-note">Each event contributes when at least two constructors have validated qualifying traces. A braking rank needs three teams sharing at least two straight-line braking zones. Missing teams are not imputed; teams can have different circuit counts, so check each row's support before comparing season averages.</p>
     <p class="performance-note">Included: ${used.length ? used.map(escape).join(', ') : 'none'}. ${omitted.length ? `Excluded: ${omitted.map(escape).join(', ')}.` : ''}</p></div>`;
 }
 
@@ -2019,7 +2019,7 @@ function renderTrace() {
     zeroBaseline: true
   });
 
-  return card('Straight-line braking','The percentage is time lost in matched straight-line braking windows, divided by the full qualifying lap time. It is not a brake-hardware rating. Energy-loss rate in kW/t estimates kinetic energy shed per tonne from speed over the first 50 m of braking; drag and 2026 energy recovery are included, so it is not the AWS friction-brake-power figure. Teams need three common supported zones.',
+  return card('Straight-line braking','The percentage is time lost in matched straight-line braking windows, divided by the full qualifying lap time. It is not a brake-hardware rating. Energy-loss rate in kW/t estimates kinetic energy shed per tonne from speed over the first 50 m of braking; drag and 2026 energy recovery are included, so it is not the AWS friction-brake-power figure. A ranked comparison needs at least three teams and two common zones.',
     singleBrakeChart+
     table([
       sortHeader('eventBrakeTeam','Team'),
