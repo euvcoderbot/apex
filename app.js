@@ -1524,6 +1524,8 @@ function panTrace(direction) {
 }
 
 function bindChartZoom() {
+  $('[data-trace-focus="open"]')?.addEventListener('click', () => setTraceFocus(true));
+  $('[data-trace-focus="close"]')?.addEventListener('click', () => setTraceFocus(false));
   $('[data-zoom="in"]')?.addEventListener('click', () => zoomTraceBy(.55));
   $('[data-zoom="out"]')?.addEventListener('click', () => zoomTraceBy(1.8));
   $('[data-zoom="reset"]')?.addEventListener('click', () => setTraceZoom(0, 1));
@@ -1549,6 +1551,36 @@ function bindChartZoom() {
   updateZoomReadout();
   updateTimingDeltaZoomReadout();
 }
+
+let traceFocusReturn = null;
+function setTraceFocus(expanded) {
+  const charts = $('#charts');
+  if (!charts) return;
+  if (expanded) {
+    traceFocusReturn = document.activeElement;
+    // The expanded view is for reading the entire lap, not magnifying a section.
+    traceZoom = { start: 0, end: 1 };
+    hoverFraction = null;
+    updateZoomReadout();
+  }
+  document.body.classList.toggle('trace-focus', expanded);
+  $('#realTooltip').style.display = 'none';
+  charts.setAttribute('aria-label', expanded ? 'Expanded speed trace and timing delta' : 'Telemetry charts');
+  $('[data-trace-focus="open"]')?.setAttribute('aria-expanded', String(expanded));
+  if (expanded) $('[data-trace-focus="close"]')?.focus();
+  else if (traceFocusReturn?.isConnected) traceFocusReturn.focus();
+  requestAnimationFrame(() => {
+    drawRealChart('Speed trace');
+    drawRealChart('Timing delta');
+  });
+}
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && document.body.classList.contains('trace-focus')) {
+    event.preventDefault();
+    setTraceFocus(false);
+  }
+});
 
 function finishZoomDrag() {
   if (!zoomDrag) return;
@@ -1659,7 +1691,7 @@ function renderCharts() {
             <button data-pan="right" title="Move zoom window right" aria-label="Move zoom window right">›</button>
             <button class="trace-reset" data-zoom="reset" title="Reset zoom">Reset</button>
           </div>
-        </div>` : name === 'Timing delta' ? `
+        </div><button type="button" class="trace-focus-button" data-trace-focus="open" aria-expanded="false" aria-controls="charts" title="Show speed trace and timing delta across the full page">Expand charts</button><button type="button" class="trace-focus-button trace-focus-close" data-trace-focus="close" title="Return to session analysis">Close view</button>` : name === 'Timing delta' ? `
         <div class="trace-zoom-cluster delta-zoom-cluster" aria-label="Timing delta vertical zoom controls">
           <span class="trace-zoom-readout">Scale <b id="timingDeltaZoomReadout">${Math.round(timingDeltaZoom * 100)}%</b></span>
           <div class="trace-tools">
@@ -2598,6 +2630,12 @@ function bindAllChartHover() {
       tooltip.innerHTML = `<b>${distanceKM.toFixed(3)} KM</b><br>${lines.join('<br>')}${reconstructionNote}`;
       tooltip.style.display = 'block';
       
+      if (document.body.classList.contains('trace-focus')) {
+        const tipRect = tooltip.getBoundingClientRect();
+        tooltip.style.left = `${Math.max(8, Math.min(e.clientX + 15, innerWidth - tipRect.width - 12))}px`;
+        tooltip.style.top = `${Math.max(8, Math.min(e.clientY + 15, innerHeight - tipRect.height - 12))}px`;
+        return;
+      }
       const parentRect = telemetryCard.getBoundingClientRect();
       const zoom = parentRect.width / telemetryCard.offsetWidth || 1;
       const tipRect = tooltip.getBoundingClientRect();
