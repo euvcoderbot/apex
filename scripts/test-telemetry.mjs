@@ -272,8 +272,11 @@ test('complete map geometry accepts a bounded provider interval but rejects corr
   h.run(`var bounded=Array.from({length:361},(_,i)=>({ElapsedSeconds:i/4,X:i,Y:i}));
     bounded.splice(100,4); setTelemetryMeta(bounded,'lapDuration',90); setTelemetryMeta(bounded,'timeOrigin',0);
     var damaged=Array.from({length:361},(_,i)=>({ElapsedSeconds:i/4,X:i,Y:i}));
-    damaged.splice(100,5); setTelemetryMeta(damaged,'lapDuration',90); setTelemetryMeta(damaged,'timeOrigin',0);`);
+    damaged.splice(100,6); setTelemetryMeta(damaged,'lapDuration',90); setTelemetryMeta(damaged,'timeOrigin',0);
+    var baku=Array.from({length:361},(_,i)=>({ElapsedSeconds:i/4+(i>=101?1.03:0),X:i,Y:i}));
+    setTelemetryMeta(baku,'lapDuration',91.03); setTelemetryMeta(baku,'timeOrigin',0);`);
   assert.equal(h.run('completePositionGeometry(bounded)'),true);
+  assert.equal(h.run('completePositionGeometry(baku)'),true);
   assert.equal(h.run('completePositionGeometry(damaged)'),false);
 });
 

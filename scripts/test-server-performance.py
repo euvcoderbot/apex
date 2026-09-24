@@ -86,7 +86,10 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(server.position_geometry_quality(full), (1, True))
         bounded_gap = [point for index, point in enumerate(full) if index not in range(100, 104)]
         self.assertTrue(server.position_geometry_quality(bounded_gap)[1])
-        for missing in [range(100,260), range(100,105), range(0,4), range(397,401)]:
+        baku_gap = [{**point, 'ElapsedSeconds': point['ElapsedSeconds'] + (1.03 if index >= 101 else 0)}
+                    for index, point in enumerate(full)]
+        self.assertTrue(server.position_geometry_quality(baku_gap)[1])
+        for missing in [range(100,260), range(100,106), range(0,4), range(397,401)]:
             damaged = [{**p, **({'X':None} if i in missing else {})} for i,p in enumerate(full)]
             coverage, complete = server.position_geometry_quality(damaged)
             self.assertGreater(coverage,.55)
