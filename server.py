@@ -881,14 +881,25 @@ def project_corners_onto_lap(data: Any, samples: list[dict[str, Any]]) -> list[d
         return []
 
     result: list[dict[str, Any]] = []
-    for _, row in marker_rows.iterrows():
+    previous_distance = 0.0
+    ordered_rows = sorted(marker_rows.iterrows(), key=lambda item: (
+        int(item[1]["Number"]), str(item[1].get("Letter") or "")
+    ))
+    for _, row in ordered_rows:
         x, y = seconds(row.get("X")), seconds(row.get("Y"))
         if x is None or y is None:
             continue
-        nearest = min(points, key=lambda point: (seconds(point["X"]) - x) ** 2 + (seconds(point["Y"]) - y) ** 2)
+        # Street circuits can revisit the same area later in the lap. Baku's
+        # T20 is near T5/T6; unconstrained nearest-neighbour puts it at 2 km.
+        candidates = [point for point in points
+                      if seconds(point["Distance"]) > previous_distance + total_distance * .001]
+        if not candidates:
+            continue
+        nearest = min(candidates, key=lambda point: (seconds(point["X"]) - x) ** 2 + (seconds(point["Y"]) - y) ** 2)
         fraction = seconds(nearest.get("Distance")) / total_distance
         if not 0 < fraction <= 1:
             continue
+        previous_distance = seconds(nearest.get("Distance"))
         result.append({
             "number": str(row["Number"]),
             "letter": str(row.get("Letter") or ""),
@@ -1174,7 +1185,13 @@ def session_data(
                             laps_list.append({
                                 "lap": int(row["LapNumber"]),
                                 "date_start": utc_timestamp(row.get("LapStartDate")),
-                                "lap_start_seconds": seconds(row.get("LapStartTime")),
+                                # A pit-out trace starts at pit exit, not at
+                                # the preceding timing line in the pit lane.
+                                "lap_start_seconds": (
+                                    seconds(row.get("PitOutTime"))
+                                    if seconds(row.get("PitOutTime")) is not None
+                                    else seconds(row.get("LapStartTime"))
+                                ),
                                 "lap_end_seconds": seconds(row.get("Time")),
                                 "time": seconds(row["LapTime"]),
                                 "display_time": seconds(row["LapTime"]),
@@ -1436,6 +1453,7 @@ def telemetry(
     next_start: datetime | None = Query(None),
     lap_start_seconds: float | None = Query(None, ge=0),
     lap_end_seconds: float | None = Query(None, gt=0),
+    pit_out: bool = False,
 ):
     started = time.perf_counter()
     if year < 2018:
@@ -1443,7 +1461,7 @@ def telemetry(
     for timestamp in (lap_start, next_start):
         if timestamp is not None and (timestamp.year != year or timestamp.tzinfo is None):
             raise HTTPException(422, "Lap timestamps must be timezone-aware and match the selected year.")
-    cache_parts = (gp, round, session, driver.upper(), lap)
+    cache_parts = (gp, round, session, driver.upper(), lap) + (("pit_out_v3",) if pit_out else ())
     cached = None if fresh else read_prepared_cache("telemetry", year, *cache_parts)
     # Older/current OpenF1 responses may contain all car channels but no
     # location packets. Returning that cache entry immediately permanently
@@ -1484,10 +1502,50 @@ def telemetry(
             response.headers["Cache-Control"] = "no-store, max-age=0"
         return payload
 
+    # For a pit-out lap, the session's exact pit-exit timestamp is the start.
+    # OpenF1's lap start/duration may cover a different interval and cannot
+    # safely replace this segment even when its location stream is complete.
+    if pit_out and year >= 2023 and driver_number:
+        try:
+            lookup = openf1_session(year, gp, session)
+            key = session_key or (lookup.get("session_key") if lookup else None)
+            if key:
+                rows = openf1("laps", session_key=key, driver_number=driver_number,
+                              **{"lap_number>=": lap, "lap_number<=": lap + 1})
+                current = next((row for row in rows if integer(row.get("lap_number"), -1) == lap), None)
+                following = next((row for row in rows if integer(row.get("lap_number"), -1) == lap + 1), None)
+                start = _parse_openf1_datetime(current.get("date_start")) if current else None
+                end = _parse_openf1_datetime(following.get("date_start")) if following else None
+                duration = (end - start).total_seconds() if start and end else None
+                if duration is None or not 20 < duration < 300 or (lap_time is not None
+                        and abs(duration - lap_time) > 5):
+                    raise ValueError("Pit-out timing boundaries are not supported")
+                retrieve = _openf1_lap_telemetry.__wrapped__ if fresh else _openf1_lap_telemetry
+                samples = retrieve(year, gp, session, driver_number, lap,
+                                   int(time.time()//30) if year >= datetime.now().year else 0,
+                                   key, start.isoformat(), duration, end.isoformat())
+                if samples and max((seconds(point.get("Speed")) or 0) for point in samples) > 30:
+                    return finish(samples, [], "OpenF1 pit-out segment")
+        except Exception as pit_out_openf1_error:
+            logger.debug("Pit-out OpenF1 segment unavailable for %s L%s: %s",
+                         driver, lap, pit_out_openf1_error)
+
+    if (pit_out and driver_number and lap_start_seconds is not None
+            and lap_end_seconds is not None and lap_end_seconds > lap_start_seconds):
+        try:
+            from session_loader import load_selected_lap_telemetry
+            samples = load_selected_lap_telemetry(
+                year, gp, session, driver_number, lap_start_seconds, lap_end_seconds,
+            )
+            if samples:
+                return finish(samples, [], "FastF1 pit-out segment")
+        except Exception as pit_out_error:
+            logger.debug("Pit-out archive unavailable for %s L%s: %s", driver, lap, pit_out_error)
+
     # OpenF1 can provide recent laps individually, including position data for
     # the dominance map. It avoids loading every car in the FastF1 session.
     try:
-        if year >= 2023 and not geometry:
+        if year >= 2023 and not geometry and not pit_out:
             if session_key is None:
                 lookup = openf1_session(year, gp, session)
                 session_key = lookup.get("session_key") if lookup else None
@@ -1523,7 +1581,7 @@ def telemetry(
     # Historical timing archives are session-wide. When the session response
     # supplied exact lap boundaries, decode only this driver/window instead of
     # constructing telemetry frames for every driver and every lap.
-    if (driver_number and lap_start_seconds is not None and lap_end_seconds is not None
+    if (not pit_out and driver_number and lap_start_seconds is not None and lap_end_seconds is not None
             and lap_end_seconds > lap_start_seconds):
         try:
             from session_loader import load_selected_lap_telemetry
@@ -1547,12 +1605,18 @@ def telemetry(
         if selected.empty:
             raise ValueError("lap was not found")
         lap_row = selected.iloc[0]
-        if seconds(lap_row.get("PitOutTime")) is not None or seconds(lap_row.get("PitInTime")) is not None:
-            raise ValueError("pit-in and pit-out laps are not valid comparison laps")
+        # Pit laps are useful for comparing car inputs. Their available segment
+        # may be partial, so the client labels them IN/OUT and does not treat
+        # an estimated pit-exit duration as an official lap time.
         # Use the raw car stream for the trace. FastF1's convenience
         # get_telemetry() helper merges position and car channels, which can
         # introduce interpolated/padded samples around some laps.
         telemetry_data = lap_row.get_car_data().add_distance().copy()
+        pit_out_time = seconds(lap_row.get("PitOutTime"))
+        if pit_out_time is not None and "Time" in telemetry_data.columns:
+            telemetry_data = telemetry_data[
+                telemetry_data["Time"].dt.total_seconds() >= pit_out_time - .25
+            ].copy()
         try:
             position_data = lap_row.get_pos_data().loc[:, ["Date", "X", "Y"]].copy()
             telemetry_data = pd.merge_asof(
@@ -1585,7 +1649,7 @@ def telemetry(
         try:
             data = load_session(year, gp, session, round)
             driver_number = str(data.get_driver(driver).get("DriverNumber", driver))
-            samples = openf1_lap_telemetry(year, gp, session, driver_number, lap)
+            samples = [] if pit_out else openf1_lap_telemetry(year, gp, session, driver_number, lap)
             if samples:
                 return finish(samples, project_corners_onto_lap(data, samples), "OpenF1")
         except Exception as openf1_error:
@@ -1605,7 +1669,7 @@ def telemetry(
         return finish(samples, project_corners_onto_lap(data, samples), "FastF1")
 
     try:
-        samples = openf1_lap_telemetry(year, gp, session, driver_number, lap)
+        samples = [] if pit_out else openf1_lap_telemetry(year, gp, session, driver_number, lap)
         if samples:
             return finish(samples, project_corners_onto_lap(data, samples), "OpenF1")
     except Exception:

@@ -931,6 +931,9 @@ async function fetchTelemetry(lap) {
     if (Number.isFinite(lapInfo?.lap_start_seconds)) {
       query.set('lap_start_seconds', lapInfo.lap_start_seconds);
     }
+    if (lapInfo?.out_lap) query.set('pit_out', 'true');
+    if (lapInfo?.out_lap && Number.isFinite(lapInfo.display_time)
+        && lapInfo.display_time > 20 && lapInfo.display_time < 300) query.set('lap_time', lapInfo.display_time);
     if (Number.isFinite(lapInfo?.lap_end_seconds)) {
       query.set('lap_end_seconds', lapInfo.lap_end_seconds);
     }
@@ -1183,10 +1186,10 @@ function fastestTimedLap(driver) {
 
 function toggleLoadedLap(code, lapNum) {
   const lapObj = realDrivers.get(code)?.laps?.find(item => item.lap === lapNum);
-  if (!lapObj || !Number.isFinite(lapObj.time) || lapObj.time <= 0) return;
+  if (!lapObj || (!Number.isFinite(lapObj.time) && !lapObj.in_lap && !lapObj.out_lap)) return;
   const index = loaded.findIndex(item => item.code === code && item.lap === lapNum);
   if (index === -1) {
-    loaded.push({ code, lap: lapNum, time: lapObj.time, real: lapObj });
+    loaded.push({ code, lap: lapNum, time: lapObj.out_lap ? null : lapObj.time, real: lapObj });
     mapView = 'comparison';
   } else {
     loaded.splice(index, 1);
@@ -1252,9 +1255,10 @@ function renderStints() {
       const displayTime = Number.isFinite(lap.display_time) ? lap.display_time : lap.time;
       const estimated = lap.display_time_estimated === true;
       const duration = Number.isFinite(displayTime) ? `${estimated ? '~' : ''}${time(displayTime)}` : '&mdash;';
-      const selectable = Number.isFinite(lap.time) && !lap.in_lap && !lap.out_lap;
+      const selectable = Number.isFinite(lap.time) || lap.in_lap || lap.out_lap;
       const context = lap.out_lap ? 'OUT' : lap.in_lap ? 'IN' : '';
-      const title = lap.out_lap && estimated ? 'Estimated from pit exit to the timing line' : '';
+      const title = lap.out_lap ? 'Pit-out segment from pit exit to the timing line; comparison may be partial'
+        : lap.in_lap ? 'Pit-in lap includes the pit entry' : '';
       const age = Number.isFinite(lap.tyre_life) && lap.tyre_life >= 1 ? Math.round(lap.tyre_life) : null;
       const tyreDetail = hasQualifyingPhases ? `<small class="lap-tyre-age">Run ${qualifyingRuns.indexOf(lap.stint) + 1} · Tyre age ${age === null ? 'unknown' : `${age} ${age === 1 ? 'lap' : 'laps'}`}</small>` : '';
       return `<button class="${classes}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${title}"><span class="lap-token">${flag}${context ? ` <b class="lap-state">${context}</b>` : ''}</span><span class="lap-clock">${duration}</span>${compoundBadgeMarkup(lap.compound)}${tyreDetail}</button>`;
@@ -1306,6 +1310,8 @@ function renderStints() {
 
 function renderLoaded() {
   const root = $('#loadedLaps');
+  const pitNotice = $('#pitLapNotice');
+  if (pitNotice) pitNotice.hidden = !loaded.some(item => item.real?.in_lap || item.real?.out_lap);
   if (!loaded.length) {
     root.innerHTML = '<span class="section-empty">No laps loaded. Click laps in the panel to compare.</span>';
     return;
@@ -1313,7 +1319,7 @@ function renderLoaded() {
   
   replaceUI(root, loaded.map((item, index) => `
     <div class="loaded-lap-pill ${index === 0 ? 'reference' : ''}" style="--team:${getLapColor(item)}" data-motion-key="comparison-${item.code}-${item.lap}" data-index="${index}">
-      <button class="loaded-lap-main ${index === 0 ? 'reference' : ''}" data-motion-key="reference-${item.code}-${item.lap}" aria-pressed="${index === 0}" aria-label="Use ${item.code} lap ${item.lap} as reference"><b>${item.code}</b><span>L${item.lap}</span><strong>${time(item.time)}</strong></button><button class="remove" data-motion-key="remove-${item.code}-${item.lap}" data-remove="${index}" aria-label="Remove ${item.code} lap ${item.lap}">×</button>
+      <button class="loaded-lap-main ${index === 0 ? 'reference' : ''}" data-motion-key="reference-${item.code}-${item.lap}" aria-pressed="${index === 0}" aria-label="Use ${item.code} lap ${item.lap} as reference"><b>${item.code}</b><span>L${item.lap}${item.real?.out_lap ? ' OUT' : item.real?.in_lap ? ' IN' : ''}</span><strong>${item.real?.display_time_estimated ? '~' : ''}${time(Number.isFinite(item.real?.display_time) ? item.real.display_time : item.time)}</strong></button><button class="remove" data-motion-key="remove-${item.code}-${item.lap}" data-remove="${index}" aria-label="Remove ${item.code} lap ${item.lap}">×</button>
     </div>`).join(''));
   
   root.querySelectorAll('.loaded-lap-pill').forEach(p => {
@@ -1408,7 +1414,7 @@ function renderSectors() {
           <span class="summary-driver"><b>${item.code}</b><small>L${item.lap}</small>${i === 0 ? '<em>REF</em>' : ''}</span>
           <span class="summary-header-actions">
             <span class="summary-tyre ${compoundClass}">${tyreImageMarkup(lap.compound)}<span class="summary-tyre-copy"><b>${compound}</b>${tyreLife ? `<small>${tyreLife} used</small>` : ''}</span></span>
-            <span class="summary-lap-time"><small>LAP</small><strong>${Number.isFinite(item.time) ? time(item.time) : '—'}</strong>${i === 0 ? '' : deltaBadge(item.time, ref.time)}</span>
+            <span class="summary-lap-time"><small>${lap.out_lap ? 'PIT EXIT → LINE' : lap.in_lap ? 'PIT-IN LAP' : 'LAP'}</small><strong>${lap.display_time_estimated ? '~' : ''}${time(Number.isFinite(lap.display_time) ? lap.display_time : item.time)}</strong>${i === 0 || lap.out_lap || ref.real?.out_lap ? '' : deltaBadge(item.time, ref.time)}</span>
           </span>
         </header>
         <div class="summary-sectors">${sectors.map(({ label, value, reference, state }) => `
@@ -1712,6 +1718,7 @@ function renderCharts() {
             <span>Visible traces</span>
             <div class="trace-driver-toggles" id="traceDriverToggles"></div>
           </div>
+          <p class="pit-lap-notice" id="pitLapNotice" hidden>Pit-in laps include pit entry. Pit-out traces begin at pit exit and are partial; no full-lap timing delta is shown for them.</p>
           <span class="visually-hidden" id="cornerStatus" aria-live="polite">Corner labels hidden.</span>
         </div>` : ''}
       <canvas data-chart="${name}" aria-label="${name}${name === 'Speed trace' ? '. Drag horizontally to zoom every telemetry chart.' : ''}"></canvas>
@@ -1927,7 +1934,12 @@ function resolveCornerMarkers(samples, totalDistance, suppliedMarkers = null) {
     ? Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys))
     : 0;
 
-  const resolved = markerRows.map(corner => {
+  // A circuit can pass close to itself (Baku T20 is beside T5/T6).
+  // Project in turn order so a later corner cannot snap to an earlier pass.
+  let previousFraction = 0;
+  const orderedRows = [...markerRows].sort((a, b) =>
+    Number(a.number) - Number(b.number) || String(a.letter || '').localeCompare(String(b.letter || '')));
+  const resolved = orderedRows.map(corner => {
     const suppliedFraction = corner.fraction;
     let fraction = suppliedFraction == null || suppliedFraction === ''
       ? NaN
@@ -1942,12 +1954,13 @@ function resolveCornerMarkers(samples, totalDistance, suppliedMarkers = null) {
 
     // CircuitInfo's Distance is only present when FastF1 could load a car
     // stream. Otherwise project the official corner X/Y onto this actual lap.
-    if (!Number.isFinite(fraction) || fraction <= 0 || fraction > 1.02) {
+    if (!Number.isFinite(fraction) || fraction <= previousFraction + .001 || fraction > 1.02) {
       const x = Number(corner.x), y = Number(corner.y);
       let nearest = null;
       let nearestDistance = Infinity;
       if (Number.isFinite(x) && Number.isFinite(y)) {
         positionSamples.forEach(point => {
+          if ((+point.Distance || 0) / totalDistance <= previousFraction + .001) return;
           const distance = Math.hypot(+point.X - x, +point.Y - y);
           if (distance < nearestDistance) {
             nearestDistance = distance;
@@ -1965,6 +1978,7 @@ function resolveCornerMarkers(samples, totalDistance, suppliedMarkers = null) {
       }
     }
 
+    if (Number.isFinite(fraction) && fraction > previousFraction) previousFraction = fraction;
     return {
       ...corner,
       key: `${corner.number}:${corner.letter || ''}`,
@@ -2186,7 +2200,9 @@ function drawRealChart(name) {
   
   const unit = defs.find(def => def[0] === name)?.[1] || '';
   const field = chartField[name];
-  const visibleEntries = visibleTraceLaps();
+  const visibleEntries = name === 'Timing delta'
+    ? visibleTraceLaps().filter(({ lap }) => !lap.real?.out_lap)
+    : visibleTraceLaps();
   const data = visibleEntries.map(({ lap }) => telemetryCache.get(telemetryKey(lap))).filter(Boolean);
   const viewStart = traceZoom.start;
   const viewEnd = traceZoom.end;
@@ -2196,6 +2212,20 @@ function drawRealChart(name) {
     ctx.fillStyle = theme.text;
     ctx.font = canvasFont(12);
     ctx.fillText('Select a driver to begin comparison.', 43, 25);
+    return;
+  }
+
+  if (name === 'Timing delta' && loaded[0]?.real?.out_lap) {
+    ctx.fillStyle = theme.text;
+    ctx.font = canvasFont(12);
+    ctx.fillText('Select a complete lap as reference for timing delta.', 43, 25);
+    return;
+  }
+
+  if (name === 'Timing delta' && !visibleEntries.length) {
+    ctx.fillStyle = theme.text;
+    ctx.font = canvasFont(12);
+    ctx.fillText('Pit-out segments have no full-lap timing delta.', 43, 25);
     return;
   }
   
@@ -2588,7 +2618,7 @@ function bindAllChartHover() {
         const series = telemetryCache.get(telemetryKey(lap));
         let val = null;
         const targetDist = fraction * maxDistance;
-        if (hoveredChartName === 'Timing delta') {
+        if (hoveredChartName === 'Timing delta' && !lap.real?.out_lap && !loaded[0]?.real?.out_lap) {
           val = index === 0 ? 0 : (typeof displayDeltaAt === 'function'
             ? displayDeltaAt(series, refSamples, fraction)
             : deltaAt(series, refSamples, targetDist));

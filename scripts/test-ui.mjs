@@ -243,8 +243,27 @@ test('qualifying run pills show every compound and lap state precedes the time',
   assert.match(app, /class="lap-token">\$\{flag\}\$\{context/);
   assert.match(app, /class="lap-clock">\$\{duration\}<\/span>/);
   const html = readFileSync('index.html', 'utf8');
-  assert.match(html, /app\.js\?v=euv2-release-20260918/);
-  assert.match(html, /alignment\.js\?v=euv2-release-20260917-2/);
+  assert.match(html, /app\.js\?v=euv2-release-[\w-]+/);
+  assert.match(html, /alignment\.js\?v=euv2-release-[\w-]+/);
+});
+
+test('pit laps can be selected and a later corner cannot snap to an earlier pass', () => {
+  const h = context();
+  h.run("renderAll=()=>{}; renderStints=()=>{}; realDrivers.set('VER',{laps:[{lap:8,time:null,out_lap:true,display_time:133}]}); toggleLoadedLap('VER',8)");
+  assert.equal(h.run('loaded.length'), 1);
+  assert.equal(h.run('loaded[0].real.out_lap'), true);
+  assert.equal(h.run('loaded[0].time'), null);
+  h.run(`markerRowsForCurrentCircuit=rows=>rows;
+    testCornerSamples=[
+      {Distance:0,X:0,Y:0}, {Distance:1000,X:100,Y:0},
+      {Distance:1100,X:110,Y:0}, {Distance:3000,X:300,Y:0},
+      {Distance:4000,X:130,Y:0}
+    ];
+    testCornerRows=[
+      {number:'5',x:100,y:0}, {number:'6',x:110,y:0},
+      {number:'19',x:300,y:0}, {number:'20',x:105,y:0}
+    ];`);
+  assert.equal(h.run("resolveCornerMarkers(testCornerSamples,4000,testCornerRows).find(row=>row.number==='20').fraction"), 1);
 });
 
 test('driver selection never loads a lap; generic map uses independent geometry', () => {

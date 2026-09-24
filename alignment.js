@@ -209,6 +209,9 @@ async function fetchTelemetry(lap) {
     if(Number.isFinite(meta.lap_start_seconds)) {
       query.set('lap_start_seconds',meta.lap_start_seconds);
     }
+    if(meta.out_lap) query.set('pit_out','true');
+    if(meta.out_lap && Number.isFinite(meta.display_time)
+        && meta.display_time>20 && meta.display_time<300) query.set('lap_time',meta.display_time);
     if(Number.isFinite(meta.lap_end_seconds)) {
       query.set('lap_end_seconds',meta.lap_end_seconds);
     }
