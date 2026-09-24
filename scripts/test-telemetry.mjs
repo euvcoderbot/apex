@@ -195,7 +195,7 @@ test('rendering starts before the slowest lap and unchanged alignment is not rec
 test('slow first lap, partial map, late geometry and a session switch remain independent', async () => {
   for (const switchSession of [false,true]) {
     const h=appHarness();
-    const full=Array.from({length:361},(_,i)=>({ElapsedSeconds:i/4,Distance:i*15,Speed:200+i/100,
+    const full=Array.from({length:361},(_,i)=>({ElapsedSeconds:i/4,Timestamp:1800000000+i/4,Distance:i*15,Speed:200+i/100,
       Throttle:100,Brake:0,nGear:6,DRS:null,X:i*10,Y:Math.sin(i/20)*1000}));
     const partial=full.map((p,i)=>({...p,...(i>=90&&i<230?{X:null,Y:null}:{})}));
     const late=full.slice(1); // first geometry packet is t=.25, not t=0
@@ -242,6 +242,21 @@ test('slow first lap, partial map, late geometry and a session switch remain ind
       assert.match(h.element('#dominanceTitle').innerHTML,/Mini-sector dominance/);
     }
   }
+});
+
+test('late geometry uses UTC and leaves existing track coordinates untouched', () => {
+  const h=appHarness();
+  h.run(`var original=Array.from({length:80},(_,i)=>({ElapsedSeconds:i*.25,Timestamp:1800000000+i*.25,
+    X:i>=25&&i<45?null:i*100,Y:i>=25&&i<45?null:Math.sin(i/10)*200}));
+    var geometry=original.map((p,i)=>({...p,ElapsedSeconds:p.ElapsedSeconds+1.2,
+      X:i*100,Y:Math.sin(i/10)*200}));
+    var incompatible=geometry.map(p=>({...p,X:p.X+1200}));`);
+  assert.equal(h.run('enrichTelemetryPositions(original,incompatible)'),0);
+  assert.equal(h.run('original[30].X'),null);
+  assert.equal(h.run('enrichTelemetryPositions(original,geometry)'),20);
+  assert.equal(h.run('original[30].X'),3000);
+  assert.equal(h.run('original[24].X'),2400);
+  assert.equal(h.run('original[30].ElapsedSeconds'),7.5);
 });
 
 test('active telemetry loader sends existing lap context and creates the sector guide', async () => {

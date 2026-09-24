@@ -573,6 +573,7 @@ def _openf1_lap_telemetry(
         samples.append({
             "Distance": distance,
             "ElapsedSeconds": elapsed,
+            "Timestamp": timestamp.timestamp(),
             "Speed": current_speed,
             "Throttle": point.get("throttle"),
             "Brake": point.get("brake"),
@@ -1594,7 +1595,9 @@ def telemetry(
 
     telemetry_data = telemetry_data.copy()
     telemetry_data["ElapsedSeconds"] = telemetry_data["Time"].dt.total_seconds()
-    columns = ["Distance", "ElapsedSeconds", "Speed", "Throttle", "Brake", "RPM", "nGear", "DRS", "X", "Y"]
+    telemetry_data["Timestamp"] = telemetry_data["Date"].map(
+        lambda value: pd.Timestamp(value).timestamp() if pd.notna(value) else None)
+    columns = ["Distance", "ElapsedSeconds", "Timestamp", "Speed", "Throttle", "Brake", "RPM", "nGear", "DRS", "X", "Y"]
     # FastF1 car data is already a low-rate official timing stream. Keep every
     # published row; a second 4x downsample made braking traces visibly coarse.
     samples = telemetry_data[columns].replace({np.nan: None}).to_dict("records")

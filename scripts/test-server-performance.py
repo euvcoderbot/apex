@@ -135,6 +135,8 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(len(samples), 241)
         self.assertEqual(samples[0]['ElapsedSeconds'], 0)
         self.assertEqual(samples[-1]['ElapsedSeconds'], 60)
+        self.assertEqual(samples[0]['Timestamp'], start.timestamp())
+        self.assertEqual(samples[-1]['Timestamp'], (start + timedelta(seconds=60)).timestamp())
 
     def test_historical_selected_lap_avoids_whole_session_decode(self):
         samples = [

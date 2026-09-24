@@ -88,6 +88,54 @@ function completePositionGeometry(samples) {
       && p.ElapsedSeconds - valid[i-1].ElapsedSeconds <= 1.5));
 }
 
+function enrichTelemetryPositions(samples, geometry) {
+  // ElapsedSeconds has a provider-specific origin: the archive window may
+  // begin before the timing line. Only a shared absolute clock can safely
+  // attach fallback coordinates to the existing car channels.
+  const positioned = (geometry || []).filter(p =>
+    ['Timestamp', 'X', 'Y'].every(key => hasTelemetryNumber(p[key])))
+    .slice().sort((a, b) => a.Timestamp - b.Timestamp);
+  if (!positioned.length) return 0;
+  const geometryX = positioned.map(p => +p.X), geometryY = positioned.map(p => +p.Y);
+  const diagonal = Math.hypot(Math.max(...geometryX) - Math.min(...geometryX),
+    Math.max(...geometryY) - Math.min(...geometryY));
+  let cursor = 0;
+  let filled = 0;
+  const overlaps = [];
+  // A shared UTC clock is necessary but does not guarantee that two position
+  // feeds use the same spatial clock. Validate their overlap before filling.
+  for (const point of samples) {
+    if (!hasTelemetryNumber(point.X) || !hasTelemetryNumber(point.Y)) continue;
+    const timestamp = telemetryNumber(point.Timestamp);
+    if (timestamp === null || timestamp < positioned[0].Timestamp
+        || timestamp > positioned.at(-1).Timestamp) continue;
+    while (cursor + 1 < positioned.length && positioned[cursor + 1].Timestamp <= timestamp) cursor++;
+    const before = positioned[cursor], after = positioned[Math.min(cursor + 1, positioned.length - 1)];
+    const nearest = timestamp - before.Timestamp <= after.Timestamp - timestamp ? before : after;
+    if (Math.abs(nearest.Timestamp - timestamp) <= .4) {
+      overlaps.push(Math.hypot(+point.X - +nearest.X, +point.Y - +nearest.Y));
+    }
+  }
+  if (overlaps.length >= 12 && diagonal > 0
+      && medianTelemetry(overlaps) / diagonal > .015) return 0;
+  cursor = 0;
+  for (const point of samples) {
+    // A delayed enrichment must never replace valid original coordinates.
+    if (hasTelemetryNumber(point.X) && hasTelemetryNumber(point.Y)) continue;
+    const timestamp = telemetryNumber(point.Timestamp);
+    if (timestamp === null || timestamp < positioned[0].Timestamp
+        || timestamp > positioned.at(-1).Timestamp) continue;
+    while (cursor + 1 < positioned.length && positioned[cursor + 1].Timestamp <= timestamp) cursor++;
+    const before = positioned[cursor], after = positioned[Math.min(cursor + 1, positioned.length - 1)];
+    const nearest = timestamp - before.Timestamp <= after.Timestamp - timestamp ? before : after;
+    if (Math.abs(nearest.Timestamp - timestamp) > .4) continue;
+    point.X = +nearest.X;
+    point.Y = +nearest.Y;
+    filled++;
+  }
+  return filled;
+}
+
 function normalizeTelemetry(samples, lap, source = 'Unknown') {
   if (!Array.isArray(samples) || !samples.length) return samples || [];
 
@@ -209,30 +257,14 @@ async function fetchTelemetry(lap) {
     if (!sessionSectorGuide) sessionSectorGuide = makeSectorGuide(lap, payload.samples || [], payload.corners);
     // Display useful car channels now; a missing map must not hold them behind
     // a full FastF1-session download. Enrich only the coordinates in the background.
-    if (payload.position_complete === false || !completePositionGeometry(samples)) {
+    if (!completePositionGeometry(samples)) {
       query.set('geometry', 'true');
       void fetchSessionData(apiUrl(`/api/telemetry?${query}`), {cache:'no-store', signal:sessionAtStart?.signal})
         .then(async response => {
           if (!response.ok || sessionAtStart !== sessionRequest) return;
           const geometry = await readApiResponse(response);
           if (sessionAtStart !== sessionRequest) return;
-          // Keep the common lap-time origin, including late first samples.
-          const positioned = (geometry.samples || []).filter(p => hasTelemetryNumber(p.ElapsedSeconds))
-            .slice().sort((a,b)=>a.ElapsedSeconds-b.ElapsedSeconds);
-          if (!positioned.length) return;
-          // Match by elapsed time with a monotone cursor, preserving every
-          // original car-channel sample and all its values.
-          let cursor=0;
-          for (const point of samples) {
-            const elapsed = point.ElapsedSeconds + (samples.timeOrigin || 0);
-            if (elapsed < positioned[0].ElapsedSeconds || elapsed > positioned.at(-1).ElapsedSeconds) continue;
-            while(cursor+1<positioned.length && positioned[cursor+1].ElapsedSeconds<=elapsed)cursor++;
-            const a=positioned[cursor],b=positioned[Math.min(cursor+1,positioned.length-1)];
-            const nearest=Math.abs(a.ElapsedSeconds-elapsed)<=Math.abs(b.ElapsedSeconds-elapsed)?a:b;
-            if(Math.abs(nearest.ElapsedSeconds-elapsed)<=.4 && hasTelemetryNumber(nearest.X) && hasTelemetryNumber(nearest.Y)) {
-              point.X=nearest.X;point.Y=nearest.Y;
-            }
-          }
+          if (!enrichTelemetryPositions(samples, geometry.samples)) return;
           setTelemetryMeta(samples,'quality',telemetryQuality(samples,payload.source));
           lap.cornerMarkers=geometry.corners || [];
           setTelemetryMeta(samples,'alignmentInputs',null);
@@ -993,6 +1025,11 @@ function updateAlignmentStatus() {
   status.textContent = 'Speed trace controls';
   status.title = 'Speed trace controls';
   status.dataset.state = 'ready';
+  status.dataset.alignment = JSON.stringify(loaded.map(lap => {
+    const samples = telemetryCache.get(telemetryKey(lap));
+    return {driver:lap.code, lap:lap.lap, source:samples.source,
+      method:samples.alignmentMethod, positionRevision:samples.positionRevision || 0};
+  }));
 }
 
 function prepareTelemetryAlignment() {

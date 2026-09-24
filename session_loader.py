@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextvars import ContextVar, copy_context
 from functools import wraps
 from bisect import bisect_left
+from datetime import timezone
 import json
 import time
 
@@ -135,7 +136,7 @@ def _selected_car_rows(records, driver_number, start, end):
             if not channels:
                 continue
             try:
-                date = _api.to_datetime(entry['Utc']).timestamp()
+                date = _api.to_datetime(entry['Utc']).replace(tzinfo=timezone.utc).timestamp()
                 rows.append({
                     'date': date,
                     'Speed': int(channels.get('2', 0)),
@@ -163,7 +164,7 @@ def _selected_position_rows(records, driver_number, start, end):
             if not entry:
                 continue
             try:
-                rows.append((_api.to_datetime(sample['Timestamp']).timestamp(),
+                rows.append((_api.to_datetime(sample['Timestamp']).replace(tzinfo=timezone.utc).timestamp(),
                              int(entry['X']), int(entry['Y'])))
             except (TypeError, ValueError, KeyError):
                 continue
@@ -197,6 +198,7 @@ def _lap_samples(car_rows, position_rows, lap_start, lap_end):
                     _, x, y = position_rows[nearest]
         samples.append({
             'Distance': distance, 'ElapsedSeconds': elapsed, 'Speed': row['Speed'],
+            'Timestamp': row['date'],
             'Throttle': row['Throttle'], 'Brake': row['Brake'], 'RPM': row['RPM'],
             'nGear': row['nGear'], 'DRS': row['DRS'], 'X': x, 'Y': y,
         })
