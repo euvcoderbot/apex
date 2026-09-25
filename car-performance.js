@@ -343,7 +343,6 @@ function straightBandControls(available) {
   return `<div class="performance-band-options" role="group" aria-label="Acceleration speed range">${STRAIGHT_BANDS.map(key=>`<button type="button" data-straight-band="${key}" aria-pressed="${key===straightBand}" ${available.includes(key)?'':'disabled title="Fewer than three teams have comparable clean acceleration through this full range"'}>${key.replace('_','–')} <span>km/h</span></button>`).join('')}</div><p class="performance-band-hint">A range needs three comparable teams that actually crossed both speeds. Below 150 km/h includes traction-limited exits.</p>`;
 }
 let qualyPaceMode='overall'; // 'overall' | 'q1' | 'adjusted'
-let sectorPaceMode='completed'; // 'completed' | 'ideal'
 const root=$('performanceResults');
 
 function updateTrackCount() {
@@ -782,20 +781,6 @@ function renderPace(teams) {
     </div>
   `;
 
-  const sectorToggle = `
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px;">
-      <div class="performance-scope-toggle" role="radiogroup" aria-label="Sector comparison mode">
-        <button type="button" data-sector-mode="completed" aria-pressed="${sectorPaceMode === 'completed'}">Completed Lap Sectors</button>
-        <button type="button" data-sector-mode="ideal" aria-pressed="${sectorPaceMode === 'ideal'}">Ideal Sector Sum</button>
-      </div>
-      <span class="perf-tercile-badge is-mid">${
-        sectorPaceMode === 'completed'
-          ? 'Sectors from Official Classified Fast Lap'
-          : 'Compound-Matched Best S1+S2+S3 Sum'
-      }</span>
-    </div>
-  `;
-
   const paceKey = qualyPaceMode === 'adjusted' ? 'qualyAdjusted' : 'qualy';
   const ordered = sorted(teams, {
     team: t => t.team,
@@ -804,16 +789,6 @@ function renderPace(teams) {
     race: t => t.race,
     samples: t => t.samples
   }, paceKey);
-
-  const sectorField1 = sectorPaceMode === 'ideal' ? 'idealS1' : 's1';
-  const sectorField2 = sectorPaceMode === 'ideal' ? 'idealS2' : 's2';
-  const sectorField3 = sectorPaceMode === 'ideal' ? 'idealS3' : 's3';
-  const sectors = sorted(teams, {
-    team: t => t.team,
-    s1: t => t[sectorField1],
-    s2: t => t[sectorField2],
-    s3: t => t[sectorField3]
-  }, 's1');
 
   const chartMeta = qualyPaceMode === 'overall' ? {
     title: 'Qualifying Pace Deficit · Overall Best Lap (% to Pole)',
@@ -857,19 +832,13 @@ function renderPace(teams) {
         sortHeader('samples', 'Eligible race laps', -1)
       ], ordered.map(t => [
         teamLabel(t),
-        `${fmt(t[paceKey], 3, '%')} <span style="font-size:0.8em;color:var(--text-secondary);">(+${fmt(t.paceDeltaS || 0, 3, ' s')})</span><small>${t.qCount === 1 && t.q[0]?.lap ? `${escape(t.q[0].lap.driver)} · ${fmt(t.q[0].lap.time, 3, ' s')}` : `${t.qCount} event${t.qCount === 1 ? '' : 's'}`}${finite(t.idealGapS) ? ` · Ideal Gap: +${fmt(t.idealGapS, 3, ' s')} (${escape(t.idealCompound || 'SOFT')})` : ''}</small>`,
+        `${fmt(t[paceKey], 3, '%')} <span style="font-size:0.8em;color:var(--text-secondary);">(+${fmt(t.paceDeltaS || 0, 3, ' s')})</span><small>${t.qCount} of ${events.filter(e=>e.Q?.teams?.length).length} loaded qualifying events${t.qCount === 1 && t.q[0]?.lap ? ` · ${escape(t.q[0].lap.driver)} ${fmt(t.q[0].lap.time, 3, ' s')}` : ''}</small>`,
         `${fmt(t.race, 3, '%')}${t.sampleTier === 'insufficient' || t.provisional ? ' <span class="perf-tercile-badge is-mid" style="font-size:0.65rem;">Limited sample</span>' : ''}<small>${t.fastestRaceDrivers?.length ? `Fastest: ${escape([...new Set(t.fastestRaceDrivers)].join(', '))} · ` : ''}${t.rCount} event${t.rCount === 1 ? '' : 's'}${t.sensitivityBracket ? ` · Bracket [${fmt(t.sensitivityBracket[0], 3, '%')}, ${fmt(t.sensitivityBracket[1], 3, '%')}]` : ''}</small>`,
         t.samples
       ]))) +
     card('Race pace deficit overview',
       'Estimated race pace uses one 2.0s timing-checkpoint traffic screen and a shared race-lap, compound and tyre-age model. Checkpoints cannot prove continuous clean air; other thresholds are sensitivity checks, not alternate headline baselines.',
       raceChart) +
-    card(sectorPaceMode === 'ideal' ? 'Sector deficits · Ideal Sector Sum' : 'Sector deficits · Completed Fast Lap',
-      sectorPaceMode === 'ideal'
-        ? 'Compound-matched sum of best observed sectors for the selected driver within the same qualifying segment. This is a theoretical diagnostic, not a completed lap or a correction for driver execution.'
-        : 'Sectors from each team’s single fastest qualifying lap, compared with the best corresponding sector among those selected laps. Events receive equal weight.',
-      sectorToggle +
-      table([sortHeader('team', 'Team'), sortHeader('s1', 'Sector 1'), sortHeader('s2', 'Sector 2'), sortHeader('s3', 'Sector 3')], sectors.map(t => [teamLabel(t), ...[sectorField1, sectorField2, sectorField3].map(s => fmt(t[s], 3, '%'))]))) +
     `<details class="dashboard-card performance-methods"><summary>Why this pace ranking? View selected laps and race drivers</summary><p class="performance-note">Only the fastest valid lap across the whole qualifying session counts for each team.</p>${table(['Team', 'Event', 'Phase', 'Driver', 'Selected lap (s)'], teams.flatMap(t => t.q.filter(q => q.lap).map(q => [teamLabel(t), eventLabel(q.event), escape(q.lap.phase), escape(q.lap.driver), fmt(q.lap.time, 3)]))) }<p class="performance-note">Race pace models race lap, compound and tyre age, with timing checkpoints as a traffic proxy. Typical model error is the median absolute residual on eligible laps, not a confidence interval. Driver choices and race management remain in the estimate.</p>${table(['Team', 'Event', 'Driver', 'Estimate', 'Eligible laps', 'Typical model error'], teams.flatMap(t => t.raceDrivers.map(r => [teamLabel(t), eventLabel(r.event), `${escape(r.driver)}${r.selected ? ' · selected' : ''}`, fmt(r.pace, 3, '%'), r.samples, fmt(r.residual_spread, 3, '%')]))) }</details>`;
 }
 
@@ -883,13 +852,14 @@ function renderRace(teams) {
     cohortTeams.get(key).add(team.team);
   }
   const minimumSeasonEvents=context?.season ? Math.max(3,Math.ceil(events.filter(e=>e.R).length*.4)) : 1;
-  const minimumCompoundEvents=context?.season ? 3 : 1;
+  const minimumCompoundEvents=1;
   const compoundOrder=['HYPERSOFT','ULTRASOFT','SUPERSOFT','SOFT','MEDIUM','HARD','SUPERHARD'];
   const choices=['OVERALL','SOFT','MEDIUM','HARD',...compoundOrder.filter(c=>!['SOFT','MEDIUM','HARD'].includes(c)&&teams.some(t=>t.stints.some(s=>s.compound===c)))];
   if(!choices.includes(tyreView)) tyreView='OVERALL';
   const controls=`<div class="performance-tyre-options" role="group" aria-label="Tyre compound">${choices.map(c=>`<button type="button" data-performance-tyre="${c}" aria-pressed="${tyreView===c}">${['SOFT','MEDIUM','HARD'].includes(c)?`<img src="assets/tyres/official/${c.toLowerCase()}.png" alt="" width="20" height="20">`:''}<span class="tyre-opt-label">${c==='OVERALL'?'Overall · S/M/H':c.charAt(0)+c.slice(1).toLowerCase()}</span></button>`).join('')}</div>`;
 
   for(const team of teams) {
+    const observedStints=(team.stints||[]).filter(s=>finite(s.slope) && (tyreView==='OVERALL'?['SOFT','MEDIUM','HARD'].includes(s.compound):s.compound===tyreView));
     // Used-start tyres are retained only when their race-phase/age-matched
     // comparison passes the same support checks, and are flagged in the table.
     const validStints = (team.stints || []).filter(s => usableStint(s)
@@ -980,8 +950,8 @@ function renderRace(teams) {
        // already applied within each compound summary above.
        const compoundRaw = present.map(c => c.slope).filter(finite);
        const compoundNorm = present.map(c => c.normSlope).filter(finite);
-       seasonSlope = compoundRaw.length >= 2 ? avg(compoundRaw) : null;
-       seasonNormSlope = compoundNorm.length >= 2 ? avg(compoundNorm) : null;
+       seasonSlope = compoundRaw.length ? avg(compoundRaw) : null;
+       seasonNormSlope = compoundNorm.length ? avg(compoundNorm) : null;
        complete = present.length >= 2 && new Set(present.flatMap(c=>c.events)).size >= minimumSeasonEvents;
     } else {
       seasonSlope = summaries[tyreView]?.slope ?? null;
@@ -1022,6 +992,7 @@ function renderRace(teams) {
       minAge: finite(minAgeOverall) ? minAgeOverall : null,
       maxAge: finite(maxAgeOverall) ? maxAgeOverall : null,
       usedStartCount,
+      observedStints:observedStints.length,
       fieldSupported: present.length > 0 && present.every(c => c.fieldSupported),
       complete,
       compNote,
@@ -1040,9 +1011,9 @@ function renderRace(teams) {
   }, 'tyreNorm');
 
   // SVG Horizontal Bar Graph for Field-Relative Tyre Degradation
-  const tyreChart = renderHorizontalBarChart(ordered.filter(r => r.complete && finite(r.normSlope)), {
+  const tyreChart = renderHorizontalBarChart(ordered.filter(r => finite(r.normSlope)), {
      title: `Relative tyre-age trend · ${tyreView === 'OVERALL' ? 'Available compounds' : tyreView}`,
-     subtitle: `Same-event, same-compound cohorts of ≥3 teams · Season rank needs ≥${minimumSeasonEvents} supported events`,
+     subtitle: `Same-event, same-compound cohorts of ≥3 teams · Limited samples are provisional`,
     valueKey: 'normSlope',
     unit: ' s/lap',
     digits: 3,
@@ -1051,7 +1022,7 @@ function renderRace(teams) {
   });
 
    return card('Tyre-age lap-time trend',
-     `This compares tyre-age slopes only in the same race and compound, with at least three teams contributing usable stints. Overall includes only compounds measured at ${minimumCompoundEvents} or more events, so one soft race cannot outweigh a season of medium or hard stints. A season bar needs ${minimumSeasonEvents} supported events. Short soft stints remain visible as provisional where evidence is limited. Retirements do not count as good tyre wear; traffic, driver management and track conditions remain limitations.`,
+     `Extra lap-time change per tyre-age lap against overlapping rivals on the same compound. Overall averages supported compounds equally; one-compound or short-season results are provisional, not a complete S/M/H ranking. Missing values mean no matched three-team cohort, not zero tyre wear. Traffic, fuel, driver management and track conditions remain limitations.`,
     controls + tyreChart +
     table([
       sortHeader('tyreTeam', 'Team'),
@@ -1062,11 +1033,11 @@ function renderRace(teams) {
       'Compound mix'
     ], ordered.map(r => {
       const ageRange = (finite(r.minAge) && finite(r.maxAge)) ? `L${r.minAge}–L${r.maxAge} (${r.maxAge - r.minAge + 1} laps)` : '—';
-      const sampleText = `${r.stints} stint${r.stints === 1 ? '' : 's'} (${r.laps} laps)`;
+      const sampleText = `${r.stints} matched stint${r.stints === 1 ? '' : 's'} (${r.laps} laps)${r.observedStints > r.stints ? `<small>${r.observedStints} observed stints total</small>` : ''}`;
        const supportBadge = r.fieldSupported ? '<span class="perf-tercile-badge is-fast">≥2 overlapping rivals</span>' : '<span class="perf-tercile-badge is-mid">No matched cohort</span>';
       const normText = finite(r.normSlope)
         ? `${r.normSlope > 0 ? '+' : ''}${fmt(r.normSlope, 3, ' s/lap')}${!r.complete?`<small>Provisional · ${r.events}/${minimumSeasonEvents} supported events</small>`:''}`
-        : '<small>Field benchmark pending</small>';
+        : '<small>Not enough overlapping rival stints</small>';
       const compoundText = `${tyreView === 'OVERALL' && r.compoundBreakdown ? escape(r.compoundBreakdown) : tyreView}${r.usedStartCount > 0 ? `<small>${r.usedStartCount} matched stint${r.usedStartCount===1?'':'s'} on used tyres</small>` : ''}${r.compNote ? `<small>${escape(r.compNote)}</small>` : ''}`;
       return [
         r.label,
@@ -1276,12 +1247,15 @@ function renderTrend(teams) {
 }
 
 function eventTelemetry(event) {
-  const entrants=(event.Q?.teams||[]).filter(team=>event.traces?.[team.team]?.corners);
-  const labels=entrants[0] ? event.traces[entrants[0].team].corners.map(c=>c.corner)
-    .filter(label=>entrants.every(team=>event.traces[team.team].corners.some(c=>c.corner===label))) : [];
+  // Straight-line and braking telemetry do not depend on corner detection.
+  // A valid GPS trace without corner markers must still appear in those views.
+  const entrants=(event.Q?.teams||[]).filter(team=>event.traces?.[team.team] && !event.traces[team.team].error);
+  const cornerEntrants=entrants.filter(team=>event.traces[team.team].corners?.length);
+  const labels=cornerEntrants[0] ? event.traces[cornerEntrants[0].team].corners.map(c=>c.corner)
+    .filter(label=>cornerEntrants.every(team=>event.traces[team.team].corners.some(c=>c.corner===label))) : [];
   const groups={low:[],medium:[],high:[]};
   for(const label of labels) {
-    const observations=entrants.map(team=>event.traces[team.team].corners.find(c=>c.corner===label)).filter(Boolean);
+    const observations=cornerEntrants.map(team=>event.traces[team.team].corners.find(c=>c.corner===label)).filter(Boolean);
     const speed=median(observations.map(c=>c.minimum));
     groups[speed<=120?'low':speed<=200?'medium':'high'].push(label);
   }
@@ -1289,7 +1263,7 @@ function eventTelemetry(event) {
   for(const team of entrants) {
     const trace=event.traces[team.team], categories={};
     for(const [name,labels] of Object.entries(groups)) {
-      const corners=trace.corners.filter(c=>labels.includes(c.corner));
+      const corners=(trace.corners||[]).filter(c=>labels.includes(c.corner));
       categories[name]=corners.length ? {
         speed:corners.reduce((sum,c)=>sum+c.length,0)/corners.reduce((sum,c)=>sum+c.time,0)*3.6,
         corners:corners.length,
@@ -1682,7 +1656,7 @@ function renderTrace() {
         zeroBaseline: false
       });
 
-      return card(straightTitle, 'This is where lap time is gained or lost on the measured straights, including the speed carried out of the preceding corner. In 2026 it also includes battery deployment. Those effects belong in a lap-time decomposition, but this is not a pure engine, drag or aero ranking. Acceleration and terminal velocity are separate diagnostics.',
+      return card(straightTitle, 'This is where lap time is gained or lost on measured straights, including corner exit speed and 2026 battery deployment. Acceleration requires a valid dry qualifying GPS trace that crosses both selected speeds; a missing value means no comparable crossing, not zero performance. Corner-marker availability does not gate straight-line data.',
         straightToggle+
         traversalChart+
         bandControls+
@@ -1962,7 +1936,7 @@ function renderTrace() {
       zeroBaseline: true
     });
 
-    return card('Straight-line performance', 'Overall performance is the time spent on measured straights as a share of the reference lap; acceleration and terminal speed are diagnostics. This is not a pure power or aerodynamic ranking.',
+    return card('Straight-line performance', 'Overall performance is the time spent on measured straights as a share of the reference lap. Acceleration is shown only when a valid dry qualifying GPS trace crosses both selected speeds. Missing range values are not zero performance; corner-marker availability does not gate straight-line data.',
       straightToggle+
       straightTraversalChart+
       bandControls+
@@ -2067,7 +2041,7 @@ function renderTrace() {
 
 function render() {
   const modes=[
-    ['pace','Pace & sectors'],
+    ['pace','Pace'],
     ['corners','Cornering'],
     ['straight','Straight line'],
     ['braking','Braking'],
@@ -2204,9 +2178,18 @@ root.addEventListener('click',event=>{
   if(band&&!band.disabled){straightBand=band.dataset.straightBand;render();}
   const qualyModeBtn=event.target.closest('[data-qualy-mode]');
   if(qualyModeBtn){qualyPaceMode=qualyModeBtn.dataset.qualyMode;render();}
-  const sectorModeBtn=event.target.closest('[data-sector-mode]');
-  if(sectorModeBtn){sectorPaceMode=sectorModeBtn.dataset.sectorMode;render();}
-  if(sort) {sortDirection=sortKey===sort.dataset.performanceSort?-sortDirection:Number(sort.dataset.sortDirection||1);sortKey=sort.dataset.performanceSort;render();}
+  if(sort) {
+    const scrollY=window.scrollY;
+    const table=sort.closest('.performance-table-wrap');
+    const tableIndex=[...root.querySelectorAll('.performance-table-wrap')].indexOf(table);
+    const scrollLeft=table?.scrollLeft||0;
+    sortDirection=sortKey===sort.dataset.performanceSort?-sortDirection:Number(sort.dataset.sortDirection||1);
+    sortKey=sort.dataset.performanceSort;
+    render();
+    const replacement=root.querySelectorAll('.performance-table-wrap')[tableIndex];
+    if(replacement) replacement.scrollLeft=scrollLeft;
+    window.scrollTo({top:scrollY,behavior:'instant'});
+  }
 });
 
 // Auto-enhance selects on DOM load

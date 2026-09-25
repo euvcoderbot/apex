@@ -1160,6 +1160,11 @@ def session_data(
         )
     cached = None if fresh else read_prepared_cache("session", year, SESSION_CACHE_SCHEMA, gp, round, session)
     if cached is not None:
+        # Prepared sessions can outlive a newly verified tyre allocation.
+        # Correct the API payload itself, not just the dashboard label.
+        nominated = get_tire_nominations(year, gp)
+        if cached.get("compounds") != nominated:
+            cached = {**cached, "compounds": nominated}
         return cached
     try:
         data = load_fresh_session(year, gp, session) if fresh else load_session(year, gp, session, round)

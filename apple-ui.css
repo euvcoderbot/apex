@@ -304,7 +304,8 @@ main.sidebar-collapsed .sidebar { display: flex; opacity: 0; visibility: hidden;
 .comparison-tray-heading > span { font-size: .8125rem; }
 .comparison-tray .loaded-laps { display: flex; flex-wrap: wrap; gap: 8px; }
 .loaded-lap-pill { display: inline-flex; min-height: 42px; padding: 3px; gap: 3px; border: 1px solid var(--border-color); border-radius: var(--radius-control); background: var(--bg-input); box-shadow: var(--shadow-raised); }
-.loaded-lap-main { display: inline-flex; align-items: baseline; gap: 8px; padding: 8px; min-height: 34px; border: 0; border-radius: 5px; color: var(--text-main); background: transparent; }
+.loaded-lap-main { display: inline-flex; align-items: center; gap: 8px; padding: 8px; min-height: 34px; border: 0; border-radius: 5px; color: var(--text-main); background: transparent; white-space: nowrap; }
+.loaded-lap-main > span, .loaded-lap-main > strong { white-space: nowrap; flex: none; }
 .loaded-lap-main:hover { background: var(--surface-selected); }
 .loaded-lap-pill b, .loaded-lap-pill strong { font-size: .875rem; font-weight: 600; }
 .loaded-lap-pill span { font-size: .8125rem; }

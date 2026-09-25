@@ -432,6 +432,8 @@ test('braking retains zones measured by three teams without requiring every entr
   assert.equal(rows.get('B').brakeZones,3);
   assert.equal(rows.get('D').brakingScoreZones,1);
   assert.equal(rows.get('A').brakeDistance,60);
+  delete traces.D.corners;
+  assert.equal(sandbox.eventTelemetry({Q:{teams},traces}).rows.has('D'),true);
 });
 
 test('season telemetry retains partial qualifying cohorts instead of intersecting all teams', () => {
@@ -450,9 +452,11 @@ test('season telemetry retains partial qualifying cohorts instead of intersectin
   assert.equal(result.commonEvents.length,2);
 });
 
-test('overall tyre rank excludes compounds supported by only one or two events', () => {
+test('overall tyre chart shows sparse matched evidence as provisional', () => {
   const source=readFileSync('car-performance.js','utf8');
   const body=source.slice(source.indexOf('function renderRace(teams)'),source.indexOf('function renderResults('));
-  assert.match(body,/minimumCompoundEvents=context\?\.season \? 3 : 1/);
+  assert.match(body,/minimumCompoundEvents=1/);
   assert.match(body,/\.filter\(c => c && c\.events\.length >= minimumCompoundEvents\)/);
+  assert.match(body,/compoundNorm\.length \? avg\(compoundNorm\) : null/);
+  assert.match(body,/!r\.complete\?`<small>Provisional/);
 });
