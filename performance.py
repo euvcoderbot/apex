@@ -13,6 +13,7 @@ from fia_energy_params import get_fia_energy_envelope
 
 DRY_COMPOUNDS = {'SOFT', 'MEDIUM', 'HARD', 'HYPERSOFT', 'ULTRASOFT',
                  'SUPERSOFT', 'SUPERHARD'}
+TYRE_FUEL_GAIN_S_PER_LAP = 0.060  # Explicit approximation, not a measured fuel load.
 
 
 def number(value):
@@ -29,6 +30,14 @@ def slope(points):
     # Theil–Sen is resistant to individual slow laps. Limit pairs deterministically.
     return median((b[1]-a[1])/(b[0]-a[0]) for i, a in enumerate(points)
                   for b in points[i+1:] if b[0] != a[0])
+
+
+def tyre_age_slope(points):
+    """Robust within-stint seconds gained/lost per additional tyre-age lap."""
+    if len(points) < 4 or max(x for x, _ in points)-min(x for x, _ in points) < 3:
+        return None
+    return float(median((b[1]-a[1])/(b[0]-a[0]) for i, a in enumerate(points)
+                        for b in points[i+1:] if b[0] != a[0]))
 
 
 def matched_tyre_trend(stint_rows, field_rows, team_name):
@@ -1006,6 +1015,40 @@ def analyze(data, traffic=2):
             s['benchmark'] = 'overlapping-race-laps-same-compound-similar-tyre-age'
         for s in all_event_stints:
             s.pop('team', None)
+
+        # Separate within-driver tyre-age trend. Unlike the rival-matched
+        # diagnostic above, this uses every usable dry, green, non-pit lap;
+        # it never requires another team to run the same compound or stint.
+        individual_rows = [r for r in valid_all if r.get('lap') and r['lap'] > 1
+                           and r.get('age') is not None and r.get('stint') is not None]
+        for name, team in teams.items():
+            by_stint = defaultdict(list)
+            for r in individual_rows:
+                if r['team'] == name:
+                    by_stint[(r['driver'], r['stint'], r['compound'])].append(r)
+            observed = []
+            for (driver, stint, compound), laps in by_stint.items():
+                times = [r['time'] for r in laps]
+                typical = float(median(times))
+                # Theil–Sen tolerates isolated traffic laps. Remove only
+                # gross anomalies rather than censoring genuine late wear.
+                ceiling = max(5.0, typical * .07)
+                points = [(r['age'], r['time']) for r in laps
+                          if abs(r['time']-typical) <= ceiling]
+                raw = tyre_age_slope(points)
+                if raw is None:
+                    continue
+                ages = [age for age, _ in points]
+                observed.append({
+                    'driver': driver, 'stint': stint, 'compound': compound,
+                    'raw_slope': round(raw, 5),
+                    'fuel_adjusted_slope': round(raw + TYRE_FUEL_GAIN_S_PER_LAP, 5),
+                    'fuel_assumption_s_per_lap': TYRE_FUEL_GAIN_S_PER_LAP,
+                    'min_age': int(min(ages)), 'max_age': int(max(ages)),
+                    'samples': len(points), 'low_sample': len(points) < 6,
+                    'used_start': min(ages) > 3,
+                })
+            team['tyre_age_stints'] = observed
 
     return {'event': str(getattr(getattr(data, 'event', {}), 'get', lambda k, d='': getattr(data, 'event', {}).get(k, d))('EventName') or getattr(data, 'name', '')),
             'session': data.name,

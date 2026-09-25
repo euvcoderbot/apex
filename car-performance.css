@@ -1503,3 +1503,12 @@ body.performance-view #sidebarToggle {
     grid-template-columns: 1fr;
   }
 }
+.performance-tyre-toolbar { justify-content: flex-start; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.performance-tyre-age-chart { display: grid; gap: 4px; margin-top: 16px; }
+.performance-tyre-age-row { display: grid; grid-template-columns: minmax(130px, 190px) minmax(100px, 1fr) 105px; align-items: center; gap: 12px; min-height: 35px; font-variant-numeric: tabular-nums; }
+.performance-tyre-age-name { min-width: 0; overflow: hidden; }
+.performance-tyre-age-track { position: relative; height: 10px; border-radius: 4px; background: var(--surface-muted); }
+.performance-tyre-age-zero { position: absolute; left: 50%; top: -4px; bottom: -4px; width: 1px; background: var(--text-secondary); z-index: 1; }
+.performance-tyre-age-bar { position: absolute; top: 1px; bottom: 1px; min-width: 2px; border-radius: 2px; background: var(--bar-color); }
+.performance-tyre-age-value { text-align: right; font-size: .8125rem; white-space: nowrap; }
+@media (max-width: 640px) { .performance-tyre-age-row { grid-template-columns: minmax(88px, 120px) minmax(80px, 1fr) 88px; gap: 6px; } .performance-tyre-age-value { font-size: .75rem; } }

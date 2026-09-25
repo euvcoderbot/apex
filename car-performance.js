@@ -100,11 +100,11 @@ function eventLabel(eventName) {
 
 const teamLabel = team => {
   const t = typeof team === 'object' && team !== null ? team : { team: String(team || '') };
-  const teamName = t.team || t.name || '';
+  const teamName = t.displayName || t.team || t.name || '';
   const teamColor = t.color ? color(t.color) : 'var(--text-main)';
   return `
   <div class="performance-team" style="--team-color:${teamColor}">
-    ${teamLogoMarkup(teamName)}
+    ${teamLogoMarkup(t.logoTeam || t.team || teamName)}
     <span class="team-dot" style="background-color:${teamColor}"></span>
     <span class="team-name">${escape(teamName)}</span>
   </div>`;
@@ -334,6 +334,8 @@ let activeScope='season'; // 'season' | 'tracks'
 let selectedTracks=new Set();
 let context=null;
 let tyreView='OVERALL';
+let tyreMetric='age'; // 'age' | 'relative'
+let tyreSubject='team'; // 'team' | 'driver'
 let straightLineSource='qualy'; // 'qualy' | 'race'
 let showPerformanceDescriptions=false;
 const STRAIGHT_BANDS=['50_100','100_150','150_200','200_250','250_300','300_320','300_350','350_400'];
@@ -628,7 +630,7 @@ function aggregate() {
           q1Deficits:[],adjDeficits:[],
           points:0,pointsKnown:true,starts:0,finishes:0,mechanical:0,incidents:0,other:0,
           puRetirements:0,chassisRetirements:0,incidentRetirements:0,otherRetirements:0,unknownRetirements:0,
-          positions:[],samples:0,coverage:[],stints:[],results:0,
+          positions:[],samples:0,coverage:[],stints:[],tyreAgeStints:[],results:0,
           fastestRaceDrivers:[],retirements:[],phaseDetails:[],raceDrivers:[],
           sampleTiers:[],sensitivityBrackets:[],provisionalFlags:[],fallbackFlags:[],
           trafficSensitivity:{'1.5s':[],'2.0s':[],'2.5s':[]},teammateSpreads:[],
@@ -689,6 +691,7 @@ function aggregate() {
           cliffDetected:s.cliff_detected,
           cliffAge:s.cliff_age
         })));
+        item.tyreAgeStints.push(...(t.tyre_age_stints||[]).map(s=>({...s,event:e.name,round:e.round})));
         item.retirements.push(...(t.retirements||[]).map(r=>({...r,event:e.name})));
         item.raceDrivers.push(...(t.race_drivers||[]).map(r=>({...r,event:e.name,selected:r.driver===t.fastest_race_driver})));
         const s15 = t.traffic_sensitivity?.['1.5s'] ?? t.traffic_sensitivity?.loose_15;
@@ -842,7 +845,63 @@ function renderPace(teams) {
     `<details class="dashboard-card performance-methods"><summary>Why this pace ranking? View selected laps and race drivers</summary><p class="performance-note">Only the fastest valid lap across the whole qualifying session counts for each team.</p>${table(['Team', 'Event', 'Phase', 'Driver', 'Selected lap (s)'], teams.flatMap(t => t.q.filter(q => q.lap).map(q => [teamLabel(t), eventLabel(q.event), escape(q.lap.phase), escape(q.lap.driver), fmt(q.lap.time, 3)]))) }<p class="performance-note">Race pace models race lap, compound and tyre age, with timing checkpoints as a traffic proxy. Typical model error is the median absolute residual on eligible laps, not a confidence interval. Driver choices and race management remain in the estimate.</p>${table(['Team', 'Event', 'Driver', 'Estimate', 'Eligible laps', 'Typical model error'], teams.flatMap(t => t.raceDrivers.map(r => [teamLabel(t), eventLabel(r.event), `${escape(r.driver)}${r.selected ? ' · selected' : ''}`, fmt(r.pace, 3, '%'), r.samples, fmt(r.residual_spread, 3, '%')]))) }</details>`;
 }
 
+function tyreViewControls() {
+  return `<div class="performance-toolbar performance-tyre-toolbar"><div class="performance-scope-toggle" role="group" aria-label="Tyre trend measurement"><button type="button" data-tyre-metric="age" aria-pressed="${tyreMetric==='age'}">Tyre-age change</button><button type="button" data-tyre-metric="relative" aria-pressed="${tyreMetric==='relative'}">Matched rivals</button></div>${tyreMetric==='age'?`<div class="performance-scope-toggle" role="group" aria-label="Tyre trend subject"><button type="button" data-tyre-subject="team" aria-pressed="${tyreSubject==='team'}">Teams</button><button type="button" data-tyre-subject="driver" aria-pressed="${tyreSubject==='driver'}">Drivers</button></div>`:''}</div>`;
+}
+
+function renderTyreAge(teams) {
+  const compounds=['SOFT','MEDIUM','HARD'];
+  const choices=['OVERALL',...compounds];
+  if(!choices.includes(tyreView))tyreView='OVERALL';
+  const controls=`<div class="performance-tyre-options" role="group" aria-label="Tyre compound">${choices.map(c=>`<button type="button" data-performance-tyre="${c}" aria-pressed="${tyreView===c}">${c==='OVERALL'?'':`<img src="assets/tyres/official/${c.toLowerCase()}.png" alt="" width="20" height="20">`}<span class="tyre-opt-label">${c==='OVERALL'?'Overall · S/M/H':c.charAt(0)+c.slice(1).toLowerCase()}</span></button>`).join('')}</div>`;
+  const entities=[];
+  for(const team of teams) {
+    const stints=team.tyreAgeStints||[];
+    if(tyreSubject==='team')entities.push({team:team.team,color:team.color,displayName:team.team,stints});
+    else for(const driver of [...new Set(stints.map(s=>s.driver).filter(Boolean))])
+      entities.push({team:team.team,color:team.color,displayName:`${driver} · ${team.team}`,driver,stints:stints.filter(s=>s.driver===driver)});
+  }
+  const rows=entities.map(entity=>{
+    const summaries={};
+    for(const compound of compounds) {
+      const grouped=new Map();
+      for(const stint of entity.stints)if(stint.compound===compound && finite(stint.fuel_adjusted_slope)) {
+        if(!grouped.has(stint.event))grouped.set(stint.event,[]);
+        grouped.get(stint.event).push(stint);
+      }
+      const eventValues=[...grouped.values()].map(stints=>{
+        const weight=stints.reduce((sum,s)=>sum+s.samples,0);
+        return stints.reduce((sum,s)=>sum+s.fuel_adjusted_slope*s.samples,0)/weight;
+      }).filter(finite);
+      if(eventValues.length) {
+        const used=[...grouped.values()].flat();
+        summaries[compound]={value:avg(eventValues),events:eventValues.length,stints:used.length,laps:used.reduce((sum,s)=>sum+s.samples,0),minAge:Math.min(...used.map(s=>s.min_age)),maxAge:Math.max(...used.map(s=>s.max_age)),lowSample:used.some(s=>s.low_sample),usedStart:used.filter(s=>s.used_start).length};
+      }
+    }
+    const available=tyreView==='OVERALL'?compounds.map(c=>summaries[c]).filter(Boolean):[summaries[tyreView]].filter(Boolean);
+    return {...entity,value:avg(available.map(s=>s.value)),compounds:available.length,events:new Set(entity.stints.filter(s=>tyreView==='OVERALL'||s.compound===tyreView).map(s=>s.event)).size,stints:available.reduce((sum,s)=>sum+s.stints,0),laps:available.reduce((sum,s)=>sum+s.laps,0),minAge:available.length?Math.min(...available.map(s=>s.minAge)):null,maxAge:available.length?Math.max(...available.map(s=>s.maxAge)):null,usedStart:available.reduce((sum,s)=>sum+s.usedStart,0),lowSample:available.some(s=>s.lowSample)};
+  });
+  const ordered=sorted(rows,{tyreAgeName:r=>r.displayName,tyreAgeValue:r=>r.value,tyreAgeEvents:r=>r.events,tyreAgeStints:r=>r.stints,tyreAgeLaps:r=>r.laps},'tyreAgeValue');
+  const scored=ordered.filter(r=>finite(r.value));
+  const extent=Math.max(.01,...scored.map(r=>Math.abs(r.value)));
+  const chart=scored.length?`<div class="performance-chart-card"><div class="perf-chart-header"><div class="perf-chart-title-group"><h4 class="perf-chart-heading">Tyre-age lap-time change · ${tyreView==='OVERALL'?'available dry compounds':tyreView.toLowerCase()}</h4><span class="perf-chart-sub">Seconds per additional tyre-age lap · left of zero improves, right of zero worsens</span></div></div><div class="performance-tyre-age-chart">${scored.map(r=>{
+    const width=Math.min(50,Math.abs(r.value)/extent*50);
+    return `<div class="performance-tyre-age-row"><div class="performance-tyre-age-name">${teamLabel(r)}</div><div class="performance-tyre-age-track"><i class="performance-tyre-age-zero"></i><i class="performance-tyre-age-bar" style="--bar-color:${color(r.color)};left:${r.value<0?(50-width).toFixed(2):'50'}%;width:${width.toFixed(2)}%"></i></div><span class="performance-tyre-age-value">${signed(r.value,3,' s/lap')}</span></div>`;
+  }).join('')}</div></div>`:'<p class="section-empty">No stints with at least four usable laps and three tyre-age steps.</p>';
+  return card('Tyre-age performance change',
+    'Within each driver’s dry, green-flag stint, lap time is fitted against tyre age. An assumed 0.060 s/lap fuel-burn gain is added to the observed slope; this is an estimate, not measured tyre wear. A positive value means the car tended to slow as the tyres aged; negative means it tended to improve. Traffic, track evolution and tyre management can still affect it. Events and compounds are weighted equally so one long stint does not dominate.',
+    controls+chart+table([
+      sortHeader('tyreAgeName',tyreSubject==='team'?'Team':'Driver · team'),
+      sortHeader('tyreAgeValue','Change per tyre-age lap'),
+      sortHeader('tyreAgeEvents','Events',-1),
+      sortHeader('tyreAgeStints','Usable stints',-1),
+      sortHeader('tyreAgeLaps','Usable laps',-1),
+      'Tyre-age range','Coverage'
+    ],ordered.map(r=>[teamLabel(r),finite(r.value)?signed(r.value,3,' s/lap'):'—',r.events,r.stints,r.laps,finite(r.minAge)?`L${r.minAge}–L${r.maxAge}`:'—',`${r.compounds}${tyreView==='OVERALL'?'/3 compounds':''}${r.lowSample?' · short stint included':''}${r.usedStart?` · ${r.usedStart} used start${r.usedStart===1?'':'s'}`:''}`])));
+}
+
 function renderRace(teams) {
+  if(tyreMetric==='age')return tyreViewControls()+renderTyreAge(teams);
   const rows=[];
   const usableStint = s => finite(s.relativeSlope) && s.matchedLaps >= 6 && s.fieldSupport >= 2;
   const cohortTeams = new Map();
@@ -1021,7 +1080,7 @@ function renderRace(teams) {
     zeroBaseline: true
   });
 
-   return card('Tyre-age lap-time trend',
+   return tyreViewControls()+card('Tyre-age lap-time trend',
      `Extra lap-time change per tyre-age lap against overlapping rivals on the same compound. Overall averages supported compounds equally; one-compound or short-season results are provisional, not a complete S/M/H ranking. Missing values mean no matched three-team cohort, not zero tyre wear. Traffic, fuel, driver management and track conditions remain limitations.`,
     controls + tyreChart +
     table([
@@ -2170,6 +2229,10 @@ root.addEventListener('click',event=>{
   const metric=event.target.closest('[data-performance-metric]');
   if(metric) {activeMetric=metric.dataset.performanceMetric;render();}
   const sort=event.target.closest('[data-performance-sort]');
+  const tyreMetricButton=event.target.closest('[data-tyre-metric]');
+  if(tyreMetricButton){tyreMetric=tyreMetricButton.dataset.tyreMetric;sortKey=tyreMetric==='age'?'tyreAgeValue':'tyreNorm';sortDirection=1;render();return;}
+  const tyreSubjectButton=event.target.closest('[data-tyre-subject]');
+  if(tyreSubjectButton){tyreSubject=tyreSubjectButton.dataset.tyreSubject;render();return;}
   const tyre=event.target.closest('[data-performance-tyre]');
   if(tyre){tyreView=tyre.dataset.performanceTyre;render();}
   const straightSrc=event.target.closest('[data-straight-source]');

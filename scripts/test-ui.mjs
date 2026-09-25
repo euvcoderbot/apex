@@ -460,3 +460,27 @@ test('overall tyre chart shows sparse matched evidence as provisional', () => {
   assert.match(body,/compoundNorm\.length \? avg\(compoundNorm\) : null/);
   assert.match(body,/!r\.complete\?`<small>Provisional/);
 });
+
+test('tyre-age view aggregates own stints for teams and individual drivers', () => {
+  const source=readFileSync('car-performance.js','utf8');
+  const body=source.slice(source.indexOf('function tyreViewControls()'),source.indexOf('function renderRace(teams)'));
+  const sandbox={tyreMetric:'age',tyreSubject:'team',tyreView:'OVERALL',sortKey:'tyreAgeValue',sortDirection:1,
+    finite:n=>typeof n==='number'&&Number.isFinite(n),avg:a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,
+    sorted:(items,getters,key)=>[...items].sort((a,b)=>getters[key](a)-getters[key](b)),
+    teamLabel:r=>r.displayName,card:(_title,_note,content)=>content,table:(_headers,rows)=>JSON.stringify(rows),
+    sortHeader:(_key,label)=>label,color:v=>v,signed:(n)=>n.toFixed(3),escape:v=>String(v)};
+  vm.createContext(sandbox);
+  vm.runInContext(body,sandbox);
+  const teams=[{team:'Example',color:'#123456',tyreAgeStints:[
+    {driver:'AAA',event:'One',compound:'SOFT',fuel_adjusted_slope:.12,samples:8,min_age:1,max_age:8},
+    {driver:'BBB',event:'One',compound:'SOFT',fuel_adjusted_slope:.04,samples:8,min_age:1,max_age:8},
+    {driver:'AAA',event:'Two',compound:'MEDIUM',fuel_adjusted_slope:.02,samples:10,min_age:1,max_age:10}
+  ]}];
+  const team=sandbox.renderTyreAge(teams);
+  assert.match(team,/0\.050/); // equal soft (.08) and medium (.02) compound weighting
+  assert.match(team,/2\/3 compounds/);
+  sandbox.tyreSubject='driver';
+  const drivers=sandbox.renderTyreAge(teams);
+  assert.match(drivers,/AAA · Example/);
+  assert.match(drivers,/BBB · Example/);
+});
