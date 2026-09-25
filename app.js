@@ -788,6 +788,18 @@ function latestCompletedSelection(events, now = Date.now()) {
   } : null;
 }
 
+function verifiedTireNominations(year, eventName, reported) {
+  if (year !== 2026) return reported;
+  const name = String(eventName || '').toLowerCase();
+  // Pirelli's confirmed 2026 allocations override older venue heuristics in
+  // the separately deployed telemetry API.
+  if (['barcelona', 'catalunya', 'dutch', 'netherlands', 'zandvoort',
+    'spanish', 'madrid', 'bahrain', 'sepang'].some(venue => name.includes(venue))) {
+    return ['C2', 'C3', 'C4'];
+  }
+  return reported;
+}
+
 function populateSessions(preferredSession = null) {
   const selectedVal = selectValue($('#gp'));
   const event = calendar.find(item => String(item.round) === String(selectedVal) || item.name === selectedVal) || calendar[0];
@@ -819,6 +831,7 @@ function selectLatestCompletedEvent() {
 function lapText(lap) {
   const displayTime = Number.isFinite(lap.display_time) ? lap.display_time : lap.time;
   const prefix = lap.display_time_estimated ? '~' : '';
+  if (lap.in_lap && lap.out_lap) return `IN/OUT L${lap.lap} · ${Number.isFinite(displayTime) ? `${prefix}${time(displayTime)}` : '—'}`;
   if (lap.out_lap) return `OUT L${lap.lap} · ${Number.isFinite(displayTime) ? `${prefix}${time(displayTime)}` : '—'}`;
   if (lap.in_lap) return `IN L${lap.lap} · ${lap.time == null ? '—' : `${time(lap.time)}`}`;
   return `L${lap.lap} · ${lap.time == null ? '—' : `${time(lap.time)}`}`;
@@ -897,7 +910,7 @@ async function loadRealSession() {
     openf1SessionKey = Number.isInteger(payload.openf1_session_key) ? payload.openf1_session_key : null;
     circuitRotation = Number.isFinite(Number(payload.circuit_rotation))
       ? Number(payload.circuit_rotation) : 0;
-    nominatedCompounds = payload.compounds || [];
+    nominatedCompounds = verifiedTireNominations(sessionYear, sessionEventName, payload.compounds || []);
     
     renderDrivers();
     renderTireNomination();
@@ -1256,8 +1269,9 @@ function renderStints() {
       const estimated = lap.display_time_estimated === true;
       const duration = Number.isFinite(displayTime) ? `${estimated ? '~' : ''}${time(displayTime)}` : '&mdash;';
       const selectable = Number.isFinite(lap.time) || lap.in_lap || lap.out_lap;
-      const context = lap.out_lap ? 'OUT' : lap.in_lap ? 'IN' : '';
-      const title = lap.out_lap ? 'Pit-out segment from pit exit to the timing line; comparison may be partial'
+      const context = lap.in_lap && lap.out_lap ? 'IN/OUT' : lap.out_lap ? 'OUT' : lap.in_lap ? 'IN' : '';
+      const title = lap.in_lap && lap.out_lap ? 'Pit entry and exit occurred in this lap; trace may include a garage stop'
+        : lap.out_lap ? 'Pit-out segment from pit exit to the timing line; comparison may be partial'
         : lap.in_lap ? 'Pit-in lap includes the pit entry' : '';
       const age = Number.isFinite(lap.tyre_life) && lap.tyre_life >= 1 ? Math.round(lap.tyre_life) : null;
       const tyreDetail = hasQualifyingPhases ? `<small class="lap-tyre-age">Run ${qualifyingRuns.indexOf(lap.stint) + 1} · Tyre age ${age === null ? 'unknown' : `${age} ${age === 1 ? 'lap' : 'laps'}`}</small>` : '';
@@ -1319,7 +1333,7 @@ function renderLoaded() {
   
   replaceUI(root, loaded.map((item, index) => `
     <div class="loaded-lap-pill ${index === 0 ? 'reference' : ''}" style="--team:${getLapColor(item)}" data-motion-key="comparison-${item.code}-${item.lap}" data-index="${index}">
-      <button class="loaded-lap-main ${index === 0 ? 'reference' : ''}" data-motion-key="reference-${item.code}-${item.lap}" aria-pressed="${index === 0}" aria-label="Use ${item.code} lap ${item.lap} as reference"><b>${item.code}</b><span>L${item.lap}${item.real?.out_lap ? ' OUT' : item.real?.in_lap ? ' IN' : ''}</span><strong>${item.real?.display_time_estimated ? '~' : ''}${time(Number.isFinite(item.real?.display_time) ? item.real.display_time : item.time)}</strong></button><button class="remove" data-motion-key="remove-${item.code}-${item.lap}" data-remove="${index}" aria-label="Remove ${item.code} lap ${item.lap}">×</button>
+      <button class="loaded-lap-main ${index === 0 ? 'reference' : ''}" data-motion-key="reference-${item.code}-${item.lap}" aria-pressed="${index === 0}" aria-label="Use ${item.code} lap ${item.lap} as reference"><b>${item.code}</b><span>L${item.lap}${item.real?.in_lap && item.real?.out_lap ? ' IN/OUT' : item.real?.out_lap ? ' OUT' : item.real?.in_lap ? ' IN' : ''}</span><strong>${item.real?.display_time_estimated ? '~' : ''}${time(Number.isFinite(item.real?.display_time) ? item.real.display_time : item.time)}</strong></button><button class="remove" data-motion-key="remove-${item.code}-${item.lap}" data-remove="${index}" aria-label="Remove ${item.code} lap ${item.lap}">×</button>
     </div>`).join(''));
   
   root.querySelectorAll('.loaded-lap-pill').forEach(p => {
@@ -1414,7 +1428,7 @@ function renderSectors() {
           <span class="summary-driver"><b>${item.code}</b><small>L${item.lap}</small>${i === 0 ? '<em>REF</em>' : ''}</span>
           <span class="summary-header-actions">
             <span class="summary-tyre ${compoundClass}">${tyreImageMarkup(lap.compound)}<span class="summary-tyre-copy"><b>${compound}</b>${tyreLife ? `<small>${tyreLife} used</small>` : ''}</span></span>
-            <span class="summary-lap-time"><small>${lap.out_lap ? 'PIT EXIT → LINE' : lap.in_lap ? 'PIT-IN LAP' : 'LAP'}</small><strong>${lap.display_time_estimated ? '~' : ''}${time(Number.isFinite(lap.display_time) ? lap.display_time : item.time)}</strong>${i === 0 || lap.out_lap || ref.real?.out_lap ? '' : deltaBadge(item.time, ref.time)}</span>
+            <span class="summary-lap-time"><small>${lap.in_lap && lap.out_lap ? 'PIT IN/OUT' : lap.out_lap ? 'PIT EXIT → LINE' : lap.in_lap ? 'PIT-IN LAP' : 'LAP'}</small><strong>${lap.display_time_estimated ? '~' : ''}${time(Number.isFinite(lap.display_time) ? lap.display_time : item.time)}</strong>${i === 0 || lap.out_lap || ref.real?.out_lap ? '' : deltaBadge(item.time, ref.time)}</span>
           </span>
         </header>
         <div class="summary-sectors">${sectors.map(({ label, value, reference, state }) => `
@@ -1718,7 +1732,7 @@ function renderCharts() {
             <span>Visible traces</span>
             <div class="trace-driver-toggles" id="traceDriverToggles"></div>
           </div>
-          <p class="pit-lap-notice" id="pitLapNotice" hidden>Pit-in laps include pit entry. Pit-out traces begin at pit exit and are partial; no full-lap timing delta is shown for them.</p>
+          <p class="pit-lap-notice" id="pitLapNotice" hidden>Pit-in laps include pit entry. Pit-out traces begin at pit exit and are partial; a lap marked IN/OUT may include a garage stop. No full-lap timing delta is shown for pit-out traces.</p>
           <span class="visually-hidden" id="cornerStatus" aria-live="polite">Corner labels hidden.</span>
         </div>` : ''}
       <canvas data-chart="${name}" aria-label="${name}${name === 'Speed trace' ? '. Drag horizontally to zoom every telemetry chart.' : ''}"></canvas>

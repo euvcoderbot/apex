@@ -769,6 +769,18 @@ def event_calendar(year: int) -> list[dict[str, Any]]:
 def get_tire_nominations(year: int, gp: str) -> list[str]:
     # Standard Pirelli dry slick compound allocations for common Grand Prix
     name = gp.lower()
+
+    # 2026 allocations published by Pirelli. Venue-name heuristics below
+    # assign the wrong range to these races.
+    # https://press.pirelli.com/the-tyre-compound-selections-for-monte-carlo-and-barcelona/
+    # https://press.pirelli.com/tyre-compounds-selected-for-zandvoort-monza-and-madrid/
+    # https://press.pirelli.com/tyre-compound-selections-for-baku-sepang-and-singapore/
+    if year == 2026:
+        if any(k in name for k in [
+            "netherlands", "dutch", "zandvoort", "spain", "spanish",
+            "madrid", "barcelona", "catalunya", "bahrain", "sepang",
+        ]):
+            return ["C2", "C3", "C4"]
     
     # 2025 special street races with C6
     if year == 2025:

@@ -249,6 +249,7 @@ test('qualifying run pills show every compound and lap state precedes the time',
 
 test('pit laps can be selected and a later corner cannot snap to an earlier pass', () => {
   const h = context();
+  assert.match(h.run("lapText({lap:8,in_lap:true,out_lap:true,time:null})"), /^IN\/OUT L8/);
   h.run("renderAll=()=>{}; renderStints=()=>{}; realDrivers.set('VER',{laps:[{lap:8,time:null,out_lap:true,display_time:133}]}); toggleLoadedLap('VER',8)");
   assert.equal(h.run('loaded.length'), 1);
   assert.equal(h.run('loaded[0].real.out_lap'), true);
@@ -264,6 +265,14 @@ test('pit laps can be selected and a later corner cannot snap to an earlier pass
       {number:'19',x:300,y:0}, {number:'20',x:105,y:0}
     ];`);
   assert.equal(h.run("resolveCornerMarkers(testCornerSamples,4000,testCornerRows).find(row=>row.number==='20').fraction"), 1);
+});
+
+test('confirmed 2026 compounds correct stale API nominations', () => {
+  const h = context();
+  for (const event of ['Barcelona Grand Prix', 'Dutch Grand Prix', 'Spanish Grand Prix', 'Bahrain Grand Prix']) {
+    assert.equal(h.run(`verifiedTireNominations(2026, ${JSON.stringify(event)}, ['C1','C2','C3']).join(',')`), 'C2,C3,C4');
+  }
+  assert.equal(h.run("verifiedTireNominations(2026, 'Azerbaijan Grand Prix', ['C3','C4','C5']).join(',')"), 'C3,C4,C5');
 });
 
 test('driver selection never loads a lap; generic map uses independent geometry', () => {
