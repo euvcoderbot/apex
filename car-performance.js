@@ -875,11 +875,11 @@ function renderTyreAge(teams) {
       }).filter(finite);
       if(eventValues.length) {
         const used=[...grouped.values()].flat();
-        summaries[compound]={value:avg(eventValues),events:eventValues.length,stints:used.length,laps:used.reduce((sum,s)=>sum+s.samples,0),minAge:Math.min(...used.map(s=>s.min_age)),maxAge:Math.max(...used.map(s=>s.max_age)),lowSample:used.some(s=>s.low_sample),usedStart:used.filter(s=>s.used_start).length};
+        summaries[compound]={value:avg(eventValues),events:eventValues.length,stints:used.length,laps:used.reduce((sum,s)=>sum+s.samples,0),outliers:used.reduce((sum,s)=>sum+(s.outlier_laps||0),0),lowSample:used.some(s=>s.low_sample),usedStart:used.filter(s=>s.used_start).length};
       }
     }
     const available=tyreView==='OVERALL'?compounds.map(c=>summaries[c]).filter(Boolean):[summaries[tyreView]].filter(Boolean);
-    return {...entity,value:avg(available.map(s=>s.value)),compounds:available.length,events:new Set(entity.stints.filter(s=>tyreView==='OVERALL'||s.compound===tyreView).map(s=>s.event)).size,stints:available.reduce((sum,s)=>sum+s.stints,0),laps:available.reduce((sum,s)=>sum+s.laps,0),minAge:available.length?Math.min(...available.map(s=>s.minAge)):null,maxAge:available.length?Math.max(...available.map(s=>s.maxAge)):null,usedStart:available.reduce((sum,s)=>sum+s.usedStart,0),lowSample:available.some(s=>s.lowSample)};
+    return {...entity,value:avg(available.map(s=>s.value)),compounds:available.length,events:new Set(entity.stints.filter(s=>tyreView==='OVERALL'||s.compound===tyreView).map(s=>s.event)).size,stints:available.reduce((sum,s)=>sum+s.stints,0),laps:available.reduce((sum,s)=>sum+s.laps,0),outliers:available.reduce((sum,s)=>sum+s.outliers,0),usedStart:available.reduce((sum,s)=>sum+s.usedStart,0),lowSample:available.some(s=>s.lowSample)};
   });
   const ordered=sorted(rows,{tyreAgeName:r=>r.displayName,tyreAgeValue:r=>r.value,tyreAgeEvents:r=>r.events,tyreAgeStints:r=>r.stints,tyreAgeLaps:r=>r.laps},'tyreAgeValue');
   const scored=ordered.filter(r=>finite(r.value));
@@ -887,17 +887,17 @@ function renderTyreAge(teams) {
   const chart=scored.length?`<div class="performance-chart-card"><div class="perf-chart-header"><div class="perf-chart-title-group"><h4 class="perf-chart-heading">Tyre-age lap-time change · ${tyreView==='OVERALL'?'available dry compounds':tyreView.toLowerCase()}</h4><span class="perf-chart-sub">Seconds per additional tyre-age lap · left of zero improves, right of zero worsens</span></div></div><div class="performance-tyre-age-chart">${scored.map(r=>{
     const width=Math.min(50,Math.abs(r.value)/extent*50);
     return `<div class="performance-tyre-age-row"><div class="performance-tyre-age-name">${teamLabel(r)}</div><div class="performance-tyre-age-track"><i class="performance-tyre-age-zero"></i><i class="performance-tyre-age-bar" style="--bar-color:${color(r.color)};left:${r.value<0?(50-width).toFixed(2):'50'}%;width:${width.toFixed(2)}%"></i></div><span class="performance-tyre-age-value">${signed(r.value,3,' s/lap')}</span></div>`;
-  }).join('')}</div></div>`:'<p class="section-empty">No stints with at least four usable laps and three tyre-age steps.</p>';
+  }).join('')}</div></div>`:'<p class="section-empty">No stints with at least three usable laps and two tyre-age steps.</p>';
   return card('Tyre-age performance change',
-    'Within each driver’s dry, green-flag stint, lap time is fitted against tyre age. An assumed 0.060 s/lap fuel-burn gain is added to the observed slope; this is an estimate, not measured tyre wear. A positive value means the car tended to slow as the tyres aged; negative means it tended to improve. Traffic, track evolution and tyre management can still affect it. Events and compounds are weighted equally so one long stint does not dominate.',
+    'Every usable dry, green-flag lap contributes within its own stint, regardless of when that compound was used in the race. Pit and SC/VSC laps are excluded; laps more than 7% from their own stint median are outliers. Each stint’s lap-time change with tyre age is then averaged by compound and Grand Prix. An assumed 0.060 s/lap fuel-burn gain is added to the slope; this is an estimate, not measured tyre wear. Positive means slowing with age, negative means improving. Traffic, track evolution and management still affect it.',
     controls+chart+table([
       sortHeader('tyreAgeName',tyreSubject==='team'?'Team':'Driver · team'),
       sortHeader('tyreAgeValue','Change per tyre-age lap'),
       sortHeader('tyreAgeEvents','Events',-1),
       sortHeader('tyreAgeStints','Usable stints',-1),
       sortHeader('tyreAgeLaps','Usable laps',-1),
-      'Tyre-age range','Coverage'
-    ],ordered.map(r=>[teamLabel(r),finite(r.value)?signed(r.value,3,' s/lap'):'—',r.events,r.stints,r.laps,finite(r.minAge)?`L${r.minAge}–L${r.maxAge}`:'—',`${r.compounds}${tyreView==='OVERALL'?'/3 compounds':''}${r.lowSample?' · short stint included':''}${r.usedStart?` · ${r.usedStart} used start${r.usedStart===1?'':'s'}`:''}`])));
+      'Outlier laps removed','Coverage'
+    ],ordered.map(r=>[teamLabel(r),finite(r.value)?signed(r.value,3,' s/lap'):'—',r.events,r.stints,r.laps,r.outliers,`${r.compounds}${tyreView==='OVERALL'?'/3 compounds':''}${r.lowSample?' · short stint included':''}${r.usedStart?` · ${r.usedStart} used start${r.usedStart===1?'':'s'}`:''}`])));
 }
 
 function renderRace(teams) {

@@ -484,3 +484,13 @@ test('tyre-age view aggregates own stints for teams and individual drivers', () 
   assert.match(drivers,/AAA · Example/);
   assert.match(drivers,/BBB · Example/);
 });
+
+test('tyre-age trend uses stint-local outliers and reports exclusions, not an age window', () => {
+  const api=readFileSync('performance.py','utf8');
+  const view=readFileSync('car-performance.js','utf8');
+  assert.match(api,/individual_rows = \[r for r in valid_all/);
+  assert.match(api,/ceiling = typical \* \.07/);
+  assert.match(api,/'outlier_laps': len\(laps\)-len\(points\)/);
+  assert.match(view,/Outlier laps removed/);
+  assert.doesNotMatch(view.slice(view.indexOf('function renderTyreAge'),view.indexOf('function renderRace')),/Tyre-age range/);
+});

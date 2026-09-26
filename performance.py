@@ -34,7 +34,7 @@ def slope(points):
 
 def tyre_age_slope(points):
     """Robust within-stint seconds gained/lost per additional tyre-age lap."""
-    if len(points) < 4 or max(x for x, _ in points)-min(x for x, _ in points) < 3:
+    if len(points) < 3 or max(x for x, _ in points)-min(x for x, _ in points) < 2:
         return None
     return float(median((b[1]-a[1])/(b[0]-a[0]) for i, a in enumerate(points)
                         for b in points[i+1:] if b[0] != a[0]))
@@ -1030,9 +1030,10 @@ def analyze(data, traffic=2):
             for (driver, stint, compound), laps in by_stint.items():
                 times = [r['time'] for r in laps]
                 typical = float(median(times))
-                # Theil–Sen tolerates isolated traffic laps. Remove only
-                # gross anomalies rather than censoring genuine late wear.
-                ceiling = max(5.0, typical * .07)
+                # A stint-local 107% gate removes gross anomalies without
+                # comparing different compounds, drivers or race phases.
+                # Keep both slow and implausibly fast outliers out of the fit.
+                ceiling = typical * .07
                 points = [(r['age'], r['time']) for r in laps
                           if abs(r['time']-typical) <= ceiling]
                 raw = tyre_age_slope(points)
@@ -1045,7 +1046,9 @@ def analyze(data, traffic=2):
                     'fuel_adjusted_slope': round(raw + TYRE_FUEL_GAIN_S_PER_LAP, 5),
                     'fuel_assumption_s_per_lap': TYRE_FUEL_GAIN_S_PER_LAP,
                     'min_age': int(min(ages)), 'max_age': int(max(ages)),
-                    'samples': len(points), 'low_sample': len(points) < 6,
+                    'samples': len(points), 'candidate_laps': len(laps),
+                    'outlier_laps': len(laps)-len(points),
+                    'low_sample': len(points) < 6,
                     'used_start': min(ages) > 3,
                 })
             team['tyre_age_stints'] = observed
