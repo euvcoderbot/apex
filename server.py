@@ -46,7 +46,7 @@ CACHE.mkdir(exist_ok=True)
 PREPARED_CACHE = RUNTIME_CACHE_ROOT / ".apex-cache"
 PREPARED_CACHE.mkdir(exist_ok=True)
 PREPARED_CACHE_VERSION = "v5"
-SESSION_CACHE_SCHEMA = "session-identity-weather-v5"
+SESSION_CACHE_SCHEMA = "session-identity-weather-v6"
 
 app = FastAPI(title="euV2 data API")
 app.add_middleware(
@@ -1126,7 +1126,7 @@ def fetch_openf1_session_drivers(
                     "team_color": team_color,
                     "position": result_positions.get(integer(d_num, -1)),
                     "result": {
-                        "points": None,
+                        "points": seconds(classification.get("points")),
                         "status": "DSQ" if classification.get("dsq") else "DNS" if classification.get("dns") else "DNF" if classification.get("dnf") else "Finished" if classification else None,
                         "gap": classification.get("gap_to_leader") if matching_session.get("session_name") in ("Race", "Sprint") else None,
                     },
@@ -1211,6 +1211,7 @@ def session_data(
                                 ),
                                 "lap_end_seconds": seconds(row.get("Time")),
                                 "time": seconds(row["LapTime"]),
+                                "track_status": str(row.get("TrackStatus") or ""),
                                 "display_time": seconds(row["LapTime"]),
                                 "display_time_estimated": False,
                                 "s1": seconds(row["Sector1Time"]),
@@ -1262,6 +1263,40 @@ def session_data(
         except Exception as driver_err:
             logger.warning("Could not parse driver %s: %s", code, driver_err)
 
+    # FastF1 can have the classification and stint structure while individual
+    # same-day timing laps are still missing. Fill only those gaps from the
+    # official timing feed; never replace a pit-out partial-lap estimate.
+    if data.name in ("Race", "Sprint") and year >= datetime.now().year:
+        missing = any(
+            lap.get("time") is None and not lap.get("out_lap")
+            for driver in drivers for lap in driver["laps"]
+        )
+        if missing:
+            try:
+                sessions = openf1("sessions", year=year, session_name=data.name)
+                event_name = _normalised_name(str(data.event.get("EventName", gp)))
+                event_country = _normalised_name(str(data.event.get("Country", "")))
+                matching = next((item for item in reversed(sessions)
+                    if (_normalised_name(str(item.get("country_name", ""))) == event_country and event_country)
+                    or (_normalised_name(str(item.get("country_name", ""))) in event_name
+                        and _normalised_name(str(item.get("country_name", ""))))), None)
+                if matching:
+                    timing = openf1("laps", session_key=matching["session_key"])
+                    by_number_lap = {
+                        (integer(item.get("driver_number")), integer(item.get("lap_number"))): seconds(item.get("lap_duration"))
+                        for item in timing
+                    }
+                    for driver in drivers:
+                        number = integer(driver.get("number"))
+                        for lap in driver["laps"]:
+                            duration = by_number_lap.get((number, lap["lap"]))
+                            if lap.get("time") is None and not lap.get("out_lap") and duration is not None:
+                                lap["time"] = duration
+                                lap["display_time"] = duration
+                                lap["timing_source"] = "OpenF1"
+            except Exception as exc:
+                logger.warning("Could not fill missing race lap times from OpenF1: %s", exc)
+
     # Fallback to OpenF1 real-time timing API if FastF1 has no laps (e.g. same-day sessions)
     has_any_laps = any(d["laps"] for d in drivers)
     lap_data_complete = True
@@ -1275,7 +1310,8 @@ def session_data(
             original_results = {driver["number"]: driver.get("result", {}) for driver in drivers}
             for driver in of1_drivers:
                 original = original_results.get(driver["number"], {})
-                driver["result"]["points"] = original.get("points")
+                if driver["result"].get("points") is None:
+                    driver["result"]["points"] = original.get("points")
             drivers = of1_drivers
             lap_data_complete = all(
                 driver.get("lap_data_complete", True) for driver in drivers

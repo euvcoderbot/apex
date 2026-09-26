@@ -20,6 +20,7 @@ test('race result display distinguishes points, lapped finishes, retirements and
   assert.match(h.run("raceResultMarkup({result:{points:null,status:'Finished'}})"), /—/);
   h.run("raceResultView='gap'");
   assert.match(h.run("raceResultMarkup({result:{status:'Finished',gap:1.271}})"), /\+1\.271s/);
+  assert.match(h.run("raceResultMarkup({result:{status:'Finished',gap:'+1.271'}})"), /\+1\.271s/);
   assert.match(h.run("raceResultMarkup({result:{status:'+1 Lap',gap:null}})"), /\+1 lap/);
   assert.match(h.run("raceResultMarkup({result:{status:'Did not start'}})"), /DNS/);
   assert.match(h.run("raceResultMarkup({result:{status:'Disqualified'}})"), /DSQ/);

@@ -986,6 +986,10 @@ function raceResultMarkup(driver) {
   else if (/^\+\d+ laps?$/i.test(status)) value = status.toLowerCase();
   else if (typeof result.gap === 'string' && /^\+?\d+\s*laps?$/i.test(result.gap.trim())) value = result.gap.toLowerCase();
   else if (Number.isFinite(result.gap)) value = result.gap === 0 ? 'Winner' : `+${result.gap.toFixed(3)}s`;
+  else if (typeof result.gap === 'string' && /^\+?\d+(?:\.\d+)?s?$/i.test(result.gap.trim())) {
+    const gap = Number.parseFloat(result.gap);
+    value = gap === 0 ? 'Winner' : `+${gap.toFixed(3)}s`;
+  }
   return `<span class="driver-result" title="${escapeUI(status || 'Result unavailable')}"><b>${escapeUI(value)}</b>${badge && raceResultView === 'points' ? `<small>${badge}</small>` : ''}</span>`;
 }
 
@@ -1270,12 +1274,16 @@ function renderStints() {
       const duration = Number.isFinite(displayTime) ? `${estimated ? '~' : ''}${time(displayTime)}` : '&mdash;';
       const selectable = Number.isFinite(lap.time) || lap.in_lap || lap.out_lap;
       const context = lap.in_lap && lap.out_lap ? 'IN/OUT' : lap.out_lap ? 'OUT' : lap.in_lap ? 'IN' : '';
+      const neutralised = String(lap.track_status || '').includes('4') ? 'SC'
+        : String(lap.track_status || '').includes('6') ? 'VSC' : '';
       const title = lap.in_lap && lap.out_lap ? 'Pit entry and exit occurred in this lap; trace may include a garage stop'
         : lap.out_lap ? 'Pit-out segment from pit exit to the timing line; comparison may be partial'
-        : lap.in_lap ? 'Pit-in lap includes the pit entry' : '';
+        : lap.in_lap ? 'Pit-in lap includes the pit entry'
+        : neutralised ? `${neutralised} lap; time is not representative of racing pace`
+        : !Number.isFinite(displayTime) ? 'No lap time published by the timing feeds' : '';
       const age = Number.isFinite(lap.tyre_life) && lap.tyre_life >= 1 ? Math.round(lap.tyre_life) : null;
       const tyreDetail = hasQualifyingPhases ? `<small class="lap-tyre-age">Run ${qualifyingRuns.indexOf(lap.stint) + 1} · Tyre age ${age === null ? 'unknown' : `${age} ${age === 1 ? 'lap' : 'laps'}`}</small>` : '';
-      return `<button class="${classes}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${title}"><span class="lap-token">${flag}${context ? ` <b class="lap-state">${context}</b>` : ''}</span><span class="lap-clock">${duration}</span>${compoundBadgeMarkup(lap.compound)}${tyreDetail}</button>`;
+      return `<button class="${classes}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${escapeUI(title)}"><span class="lap-token">${flag}${context ? ` <b class="lap-state">${context}</b>` : ''}${neutralised ? ` <b class="lap-state">${neutralised}</b>` : ''}</span><span class="lap-clock">${duration}</span>${compoundBadgeMarkup(lap.compound)}${tyreDetail}</button>`;
     }).join('');
     const groupLabel = hasQualifyingPhases ? active : `Stint ${active}`;
 
