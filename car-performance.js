@@ -335,7 +335,14 @@ let tyreView='OVERALL';
 let tyreMetric='age'; // 'age' | 'relative'
 let tyreSubject='team'; // 'team' | 'driver'
 let straightLineSource='qualy'; // 'qualy' | 'race'
+let brakingView='approach'; // 'approach' | 'deceleration'
 let showPerformanceDescriptions=false;
+function brakingViewControls(approachAvailable) {
+  return `<div class="performance-scope-toggle" role="group" aria-label="Braking measurement">
+    <button type="button" data-braking-view="approach" aria-pressed="${brakingView==='approach'}" ${approachAvailable?'':'disabled'}>Time through approach</button>
+    <button type="button" data-braking-view="deceleration" aria-pressed="${brakingView==='deceleration'}">Same-speed slowing</button>
+  </div>`;
+}
 const STRAIGHT_BANDS=['50_100','100_150','150_200','200_250','250_300','300_320','300_350','350_400'];
 let straightBand='250_300';
 function straightBandControls(available) {
@@ -1370,10 +1377,12 @@ function eventTelemetry(event) {
   const group=components[0]||new Set();
   const comparable=reports.filter(r=>[...r.summary.rows.keys()].some(t=>group.has(t)));
   const scores=eventAdjustedScores(comparable,row=>100*Math.log(row.z.duration));
+  const approachScores=eventAdjustedScores(comparable,row=>row.z.approach_time*1000);
   for(const row of rows.values()) {
     const zones=comparable.map(r=>r.summary.rows.get(row.team)?.z).filter(Boolean);
     if(!zones.length||!scores.has(row.team))continue;
     row.brakingScore=scores.get(row.team);
+    row.brakingApproachMs=approachScores.get(row.team)??null;
     row.brakingScoreZones=zones.length;
     row.brakingScoreCohort=group.size;
     row.brakeZones=zones.length;
@@ -1476,7 +1485,7 @@ function seasonTelemetry() {
         team:row.team,color:row.color,low:[],medium:[],high:[],
         lowDeficit:[],mediumDeficit:[],highDeficit:[],lowSeconds:[],mediumSeconds:[],highSeconds:[],
         lapGaps:[],top:[],full:[],topDeficit:[],fullDeficit:[],straightDeficit:[],
-        straightContribution:[],cornerContribution:[],brakeG:[],brakeMeanG:[],brakePowerProxy:[],brakingScore:[],brakingScoreZones:[],brakingReferenceLap:[],
+        straightContribution:[],cornerContribution:[],brakeG:[],brakeMeanG:[],brakePowerProxy:[],brakingScore:[],brakingApproachMs:[],brakingScoreZones:[],brakingReferenceLap:[],
         brakeDistance:[],brakeDistDelta:[],brakeDuration:[],brakeEntrySpeed:[],brakeTurnInSpeed:[],
         normalizedDecel:[],brakeTimeDelta:[],samplingResolution:[],
         terminalZoneMeanSpeed:[],terminalZoneLength:[],
@@ -1508,6 +1517,7 @@ function seasonTelemetry() {
       if(finite(row.trace.corner_contribution))item.cornerContribution.push(row.trace.corner_contribution);
       if(brakingComparable&&finite(row.brakingScore)) {
         item.brakingScore.push(row.brakingScore);
+        if(finite(row.brakingApproachMs))item.brakingApproachMs.push(row.brakingApproachMs);
         item.brakingScoreZones.push(row.brakingScoreZones);
         item.brakingReferenceLap.push(row.brakingReferenceLap);
         if(finite(row.brakeG))item.brakeG.push(row.brakeG);
@@ -1548,7 +1558,8 @@ function seasonTelemetry() {
     highSeconds:eventAdjustedScores(targetReports,row=>row.categories.high?.time_lost),
     corners:eventAdjustedScores(targetReports,row=>row.trace.corner_contribution),
     straights:eventAdjustedScores(targetReports,row=>row.trace.straight_traversal_delta),
-    braking:eventAdjustedScores(targetReports,row=>row.brakingScore)
+    braking:eventAdjustedScores(targetReports,row=>row.brakingScore),
+    brakingApproachMs:eventAdjustedScores(targetReports,row=>row.brakingApproachMs)
   };
   const adjustedBands=Object.fromEntries(STRAIGHT_BANDS.map(key=>[
     key,eventAdjustedScores(targetReports,row=>row.trace.accel_bands?.[key]?.gap_s)
@@ -1795,6 +1806,7 @@ function renderTrace() {
     const rawBrakeValues = season.map(team => ({
       ...team,
       score:team.adjusted.braking,
+      approachMs:team.adjusted.brakingApproachMs,
       referenceLap:avg(team.brakingReferenceLap),
       g: avg(team.brakeG),
       meanG: avg(team.brakeMeanG),
@@ -1813,6 +1825,7 @@ function renderTrace() {
     const ordered = sorted(values, {
       brakeTeam: t => t.team,
       brakeScore: t => t.score,
+      brakeApproach: t => t.approachMs,
       brakeTimeDelta: t => t.timeDelta,
       brakeNormDecel: t => t.normalizedDecel,
       brakeMeanG: t => t.meanG,
@@ -1825,22 +1838,25 @@ function renderTrace() {
       brakeDuration: t => t.duration,
       brakeResolution: t => t.samplingResolution,
       brakeZones: t => t.zones
-    }, 'brakeScore', 1);
+    }, brakingView==='approach'?'brakeApproach':'brakeScore', 1);
 
+    const hasApproach=ordered.some(row=>finite(row.approachMs));
+    const selectedBrakeView=brakingView==='approach'&&hasApproach?'approach':'deceleration';
     const brakeChart = renderHorizontalBarChart(ordered, {
-      title: 'Qualifying braking · matched speed drop',
-      subtitle: 'Extra time to shed the same speed · Adjusted for zone and event coverage · Lower is better',
-      valueKey: 'score',
-      unit: '%',
-      digits: 3,
+      title: selectedBrakeView==='approach'?'Qualifying braking approach · time gained':'Qualifying braking · matched speed drop',
+      subtitle: selectedBrakeView==='approach'?'Extra milliseconds per measured approach · Same track distance · Lower is better':'Extra time to shed the same speed · Adjusted for zone and event coverage · Lower is better',
+      valueKey: selectedBrakeView==='approach'?'approachMs':'score',
+      unit: selectedBrakeView==='approach'?' ms':'%',
+      digits: selectedBrakeView==='approach'?0:3,
       signedValue: true,
       zeroBaseline: true
     });
 
-    return card(brakingTitle,'A value of +2% means the car takes about 2% longer to shed the same speed in comparable straight braking zones. Qualifying laps only; each zone uses identical entry and exit speeds. The ranking adjusts for zone and event coverage. Tyres, downforce, driver input, drag and energy recovery all contribute. This percentage is a deceleration comparison, not a share of lap time.',
-      brakeChart+
+    return card(brakingTitle,'Time through approach compares how long qualifying cars take to cross the same straight distance leading into a corner. It includes entry speed, braking point and deceleration; the value is extra milliseconds per measured approach, adjusted for uneven zone and circuit coverage. Same-speed slowing isolates the observed time to shed identical speed ranges. Sparse samples and driver technique affect both estimates.',
+      brakingViewControls(hasApproach)+brakeChart+
       table([
         sortHeader('brakeTeam','Team'),
+        sortHeader('brakeApproach','Approach time gap'),
         sortHeader('brakeScore','Extra slowing time'),
         sortHeader('brakeDuration','Measured duration'),
         sortHeader('brakeNormDecel','Distance-based deceleration',-1),
@@ -1853,6 +1869,7 @@ function renderTrace() {
         sortHeader('brakeZones','Matched zones',-1)
       ],ordered.map(team=>[
         teamLabel(team),
+        signed(team.approachMs,0,' ms'),
         signed(team.score,3,'%'),
         fmt(team.duration,3,' s'),
         `${fmt(team.normalizedDecel,3,' g')}`,
@@ -2081,6 +2098,7 @@ function renderTrace() {
   const brakeRows = computeBrakingPerformance(loaded.map(r => ({
     ...r,
     score:r.brakingScore,
+    approachMs:r.brakingApproachMs,
     referenceLap:r.brakingReferenceLap,
     g: r.brakeG,
     meanG: r.brakeMeanG,
@@ -2100,6 +2118,7 @@ function renderTrace() {
   const ordered = sorted(brakeRows, {
     eventBrakeTeam: r => r.team,
     eventBrakeScore: r => r.score,
+    eventBrakeApproach: r => r.approachMs,
     eventBrakeTimeDelta: r => r.timeDelta,
     eventBrakeNormDecel: r => r.normalizedDecel,
     eventBrakeMeanG: r => r.meanG,
@@ -2112,22 +2131,25 @@ function renderTrace() {
     eventBrakeDuration: r => r.duration,
     eventBrakeResolution: r => r.samplingResolution,
     eventBrakeZones: r => r.zones
-  }, 'eventBrakeScore', 1);
+  }, brakingView==='approach'?'eventBrakeApproach':'eventBrakeScore', 1);
 
+  const hasApproach=ordered.some(row=>finite(row.approachMs));
+  const selectedBrakeView=brakingView==='approach'&&hasApproach?'approach':'deceleration';
   const singleBrakeChart = renderHorizontalBarChart(ordered, {
-    title: 'Qualifying braking · matched speed drop',
-    subtitle: 'Extra time to shed the same speed in matched zones · Lower is better',
-    valueKey: 'score',
-    unit: '%',
-    digits: 3,
+    title: selectedBrakeView==='approach'?'Qualifying braking approach · time gained':'Qualifying braking · matched speed drop',
+    subtitle: selectedBrakeView==='approach'?'Extra milliseconds per measured approach · Same track distance · Lower is better':'Extra time to shed the same speed in matched zones · Lower is better',
+    valueKey: selectedBrakeView==='approach'?'approachMs':'score',
+    unit: selectedBrakeView==='approach'?' ms':'%',
+    digits: selectedBrakeView==='approach'?0:3,
     signedValue: true,
     zeroBaseline: true
   });
 
-  return card('Braking performance','A value of +2% means the car takes about 2% longer to shed the same speed in comparable straight braking zones. Qualifying laps only; each zone uses identical entry and exit speeds. The ranking adjusts for zone and event coverage. Tyres, downforce, driver input, drag and energy recovery all contribute. This percentage is a deceleration comparison, not a share of lap time.',
-    singleBrakeChart+
+  return card('Braking performance','Time through approach compares how long qualifying cars take to cross the same straight distance leading into a corner. It includes entry speed, braking point and deceleration; the value is extra milliseconds per measured approach, adjusted for uneven zone coverage. Same-speed slowing measures the time to shed identical speed ranges. Sparse samples and driver technique affect both estimates.',
+    brakingViewControls(hasApproach)+singleBrakeChart+
     table([
       sortHeader('eventBrakeTeam','Team'),
+      sortHeader('eventBrakeApproach','Approach time gap'),
       sortHeader('eventBrakeScore','Extra slowing time'),
       sortHeader('eventBrakeDuration','Measured duration'),
       sortHeader('eventBrakeNormDecel','Distance-based deceleration',-1),
@@ -2140,6 +2162,7 @@ function renderTrace() {
       sortHeader('eventBrakeZones','Matched zones',-1)
     ],ordered.map(row=>[
       teamLabel(row),
+      signed(row.approachMs,0,' ms'),
       signed(row.score,3,'%'),
       fmt(row.duration,3,' s'),
       `${fmt(row.normalizedDecel,3, ' g')}`,
@@ -2150,13 +2173,13 @@ function renderTrace() {
       fmt(row.turnInSpeed,1,' km/h'),
       row.onsetBracket ? `<span class="perf-onset-bracket">[${fmt(row.onsetBracket[0], 0)}, ${fmt(row.onsetBracket[1], 0)}] m</span>` : `<span class="perf-onset-bracket">Δs ~${fmt(row.samplingResolution, 1, ' m')}</span>`,
       `${row.zones||0} zones${row.limitedBrakeZones?` · ${row.limitedBrakeZones} sparsely sampled`:''}${row.zones===1?' · provisional':''}`
-    ]))) + card('Braking zone measurements','The qualifying lap and speed range behind each result. Sparse sampling limits precision; interpolated decimal places do not imply millisecond accuracy.',
-      table(['Team / lap','Zone','Speed drop','Time','Distance','Mean deceleration','Source samples'],
+    ]))) + card('Braking zone measurements','The qualifying laps and speed range behind each result. Approach time crosses one fixed track distance; speed-drop time crosses one shared speed range. Sparse sampling limits precision.',
+      table(['Team / representative lap','Zone','Speed drop','Approach time','Speed-drop time','Distance','Mean deceleration','Evidence'],
         loaded.flatMap(row=>(row.brakeMeasurements||[]).map(z=>[
           `${teamLabel(row)}<small>${escape(row.lap?.driver||'')} L${escape(row.lap?.lap||'—')}</small>`,
           escape(z.corner), `${fmt(z.entry_speed,0)} → ${fmt(z.exit_speed,0)} km/h`,
-          fmt(z.duration,3,' s'),fmt(z.distance,3,' m'),fmt(z.mean_g,3,' g'),
-          `${z.sample_count||'—'}${z.quality==='limited sampling'?' · limited':''}`
+          fmt(z.approach_time,3,' s'),fmt(z.duration,3,' s'),fmt(z.distance,1,' m'),fmt(z.mean_g,3,' g'),
+          `${z.source_laps||1} lap${z.source_laps===1?'':'s'} · ${z.sample_count||'—'} points${z.quality==='limited sampling'?' · limited':''}`
         ]))));
 }
 
@@ -2299,6 +2322,8 @@ root.addEventListener('click',event=>{
   if(tyre){tyreView=tyre.dataset.performanceTyre;render();}
   const straightSrc=event.target.closest('[data-straight-source]');
   if(straightSrc){straightLineSource=straightSrc.dataset.straightSource;render();}
+  const brakeViewButton=event.target.closest('[data-braking-view]');
+  if(brakeViewButton&&!brakeViewButton.disabled){brakingView=brakeViewButton.dataset.brakingView;render();return;}
   const band=event.target.closest('[data-straight-band]');
   if(band&&!band.disabled){straightBand=band.dataset.straightBand;render();}
   const qualyModeBtn=event.target.closest('[data-qualy-mode]');

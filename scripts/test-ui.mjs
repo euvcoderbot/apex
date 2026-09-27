@@ -369,10 +369,12 @@ test('car performance controls hide irrelevant GP and expose sortable methodolog
   assert.match(performance, /data-performance-sort/);
   assert.match(performance, /Overall Straight Traversal Gap/);
   assert.match(performance, /Extra slowing time/);
+  assert.match(performance, /data-braking-view="approach"/);
+  assert.match(performance, /Approach time gap/);
   assert.match(performance, /50_100.*100_150.*300_350/);
   assert.match(performance, /Show explanations/);
   assert.match(performance, /Time lost across all corners in each band/);
-  assert.match(html, /does not provide brake pressure/);
+  assert.match(html, /not brake pressure/);
 });
 
 test('qualifying braking time ranks shared zones and leaves unsupported teams unscored', () => {
@@ -392,7 +394,8 @@ test('qualifying braking time ranks shared zones and leaves unsupported teams un
     corner: `T${i + 1}`, start: i * 1000 + 50, corridor_time: time,
     corridor_ref_time: 2, normalized_decel_g: decel, distance,
     method:'matched-speed-v1', mode:'straight', entry_speed:280, exit_speed:180,
-    early_g: decel, mean_g: decel, duration: time, sampling_resolution_m: 20
+    early_g: decel, mean_g: decel, duration: time, approach_time:time*1.3,
+    sampling_resolution_m: 20
   }));
   const entrants = ['A', 'B', 'C', 'D'].map(team => ({ team, color: '#123456' }));
   const traces = Object.fromEntries(entrants.map(({ team }, i) => [team, {
@@ -403,6 +406,7 @@ test('qualifying braking time ranks shared zones and leaves unsupported teams un
   assert.equal(result.rows.get('A').brakingScoreZones, 3);
   assert.ok(result.rows.get('A').brakingScore < result.rows.get('B').brakingScore);
   assert.ok(result.rows.get('B').brakingScore < result.rows.get('C').brakingScore);
+  assert.ok(result.rows.get('A').brakingApproachMs < result.rows.get('B').brakingApproachMs);
   assert.ok(Math.abs(100*Math.expm1(result.rows.get('B').brakingScore/100)-10)<.001,
     '2.2 seconds versus 2.0 seconds should be 10% longer, independent of lap time');
   assert.equal(result.rows.get('D').brakingScoreZones, 1);

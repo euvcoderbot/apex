@@ -59,6 +59,26 @@ class PerformanceTests(unittest.TestCase):
         windows['Z1'] = (0, 80, dict.fromkeys(selected, 0), 'mixed approach')
         self.assertTrue(all(not v for v in matched_braking_measurements(selected, windows, grid).values()))
 
+    def test_repeated_fast_qualifying_laps_reduce_sparse_braking_evidence(self):
+        grid = np.arange(0., 405., 5.)
+        def item(rate):
+            t = np.arange(0., 2.51, .1)
+            a = np.zeros((len(t), 8))
+            a[:, 1], a[:, 2], a[:, 4] = t, 310-rate*t, 1
+            return {'a': a, 'aligned': np.linspace(0, 390, len(t)),
+                    'selection': {'driver': 'VER'}}
+        selected = {team: item(100.) for team in 'ABC'}
+        windows = {'Z1': (0, 80, dict.fromkeys(selected, 0), 'straight')}
+        one = matched_braking_measurements(selected, windows, grid)
+        candidates = {team: [selected[team], item(90. if team == 'A' else 100.)]
+                      for team in 'ABC'}
+        repeated = matched_braking_measurements(selected, windows, grid, candidates)
+        self.assertEqual(repeated['A'][0]['source_laps'], 2)
+        self.assertGreater(repeated['A'][0]['sample_count'], one['A'][0]['sample_count'])
+        self.assertGreater(repeated['A'][0]['duration'], repeated['B'][0]['duration'])
+        self.assertEqual(repeated['A'][0]['quality'], 'supported')
+        self.assertAlmostEqual(repeated['A'][0]['approach_time'], 2.5)
+
     def test_braking_rejects_missing_samples_and_legacy_short_intervals(self):
         grid = np.arange(0., 405., 5.)
         t = np.array([0., .1, .2, 1., 1.1, 1.2])

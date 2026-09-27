@@ -220,7 +220,7 @@ def observed_braking_zones(selected, grid):
     return zones
 
 
-def matched_braking_measurements(selected, windows, grid):
+def matched_braking_measurements(selected, windows, grid, candidates=None):
     """Time a shared speed drop in each straight braking approach.
 
     Use original timestamps and integrate the observed speed for distance;
@@ -233,49 +233,75 @@ def matched_braking_measurements(selected, windows, grid):
             continue
         segments = {}
         for team, onset in onsets.items():
-            item = selected[team]
-            a, d = item['a'], item['aligned']
-            ix = np.flatnonzero((d >= grid[onset]) & (d <= grid[end]) & (a[:, 4] >= .5))
-            if len(ix) < 3:
-                continue
-            # Do not bridge brake releases, missing samples or speed rebounds.
-            runs = np.split(ix, np.flatnonzero(np.diff(ix) != 1) + 1)
-            runs = [r for r in runs if len(r) >= 3]
-            if not runs:
-                continue
-            ix = max(runs, key=lambda r: a[r[0], 2] - a[r[-1], 2])
-            t, v = a[ix, 1], a[ix, 2]
-            if np.max(np.diff(t)) > .6 or np.any(np.diff(v) > 2) or v[0] - v[-1] < 50:
-                continue
-            segments[team] = (t, v)
+            main = selected[team]
+            driver = main.get('selection', {}).get('driver')
+            laps = [item for item in (candidates or {}).get(team, [main])
+                    if item.get('selection', {}).get('driver') == driver]
+            if not laps:
+                laps = [main]
+            observed = []
+            for item in laps[:3]:
+                a, d = item['a'], item['aligned']
+                ix = np.flatnonzero((d >= grid[onset] - 20) & (d <= grid[end]) & (a[:, 4] >= .5))
+                if len(ix) < 3:
+                    continue
+                # Do not bridge brake releases, missing samples or speed rebounds.
+                runs = np.split(ix, np.flatnonzero(np.diff(ix) != 1) + 1)
+                runs = [r for r in runs if len(r) >= 3]
+                if not runs:
+                    continue
+                ix = max(runs, key=lambda r: a[r[0], 2] - a[r[-1], 2])
+                t, v = a[ix, 1], a[ix, 2]
+                if np.max(np.diff(t)) > .6 or np.any(np.diff(v) > 2) or v[0] - v[-1] < 50:
+                    continue
+                observed.append((t, v, item))
+            if observed:
+                segments[team] = observed
         if len(segments) < 3:
             continue
         # Widest supported cohort first, then the largest shared speed drop.
         # All cars in a zone use exactly the same endpoints.
         options = []
-        for high in {math.floor(v[0] / 10) * 10 for _, v in segments.values()}:
-            for low in {math.ceil(v[-1] / 10) * 10 for _, v in segments.values()}:
-                cohort = [team for team, (_, v) in segments.items() if v[0] >= high and v[-1] <= low]
+        for high in {math.floor(v[0] / 10) * 10 for laps in segments.values() for _, v, _ in laps}:
+            for low in {math.ceil(v[-1] / 10) * 10 for laps in segments.values() for _, v, _ in laps}:
+                cohort = [team for team, laps in segments.items()
+                          if any(v[0] >= high and v[-1] <= low for _, v, _ in laps)]
                 if high - low >= 50 and len(cohort) >= 3:
-                    options.append((len(cohort), high - low, high, low, cohort))
+                    repeat_count = sum(sum(v[0] >= high and v[-1] <= low for _, v, _ in segments[team])
+                                       for team in cohort)
+                    options.append((len(cohort), repeat_count, high - low, high, low, cohort))
         if not options:
             continue
-        _, _, high, low, cohort = max(options, key=lambda o: o[:4])
+        _, _, _, high, low, cohort = max(options, key=lambda o: o[:5])
         for team in cohort:
-            t, v = segments[team]
-            def crossing(speed):
-                j = int(np.flatnonzero(v <= speed)[0])
-                if j == 0:
-                    return float(t[0])
-                return float(t[j-1] + (v[j-1] - speed) / (v[j-1] - v[j]) * (t[j] - t[j-1]))
-            t0, t1 = crossing(high), crossing(low)
-            duration = t1 - t0
-            inner = (t > t0) & (t < t1)
-            ts = np.r_[t0, t[inner], t1]
-            vs = np.r_[high, v[inner], low] / 3.6
-            if duration < .3 or len(ts) < 3:
+            per_lap = []
+            for t, v, item in segments[team]:
+                if v[0] < high or v[-1] > low:
+                    continue
+                def crossing(speed):
+                    j = int(np.flatnonzero(v <= speed)[0])
+                    if j == 0:
+                        return float(t[0])
+                    return float(t[j-1] + (v[j-1] - speed) / (v[j-1] - v[j]) * (t[j] - t[j-1]))
+                t0, t1 = crossing(high), crossing(low)
+                duration = t1 - t0
+                inner = (t > t0) & (t < t1)
+                ts = np.r_[t0, t[inner], t1]
+                vs = np.r_[high, v[inner], low] / 3.6
+                if duration < .3 or len(ts) < 3:
+                    continue
+                per_lap.append((duration,
+                    float(np.sum(np.diff(ts) * (vs[:-1] + vs[1:]) / 2)),
+                    int(inner.sum()) + 2,
+                    float(np.max(np.diff(t))),
+                    float(np.max(np.diff(t)*(v[:-1]+v[1:])/7.2)),
+                    float(item['dt'][start:end].sum()) if 'dt' in item else
+                    float(np.interp(grid[end], item['aligned'], item['a'][:, 1]) -
+                          np.interp(grid[start], item['aligned'], item['a'][:, 1]))))
+            if not per_lap:
                 continue
-            distance = float(np.sum(np.diff(ts) * (vs[:-1] + vs[1:]) / 2))
+            duration = float(np.median([x[0] for x in per_lap]))
+            distance = float(np.median([x[1] for x in per_lap]))
             mean_g = (high - low) / 3.6 / duration / 9.80665
             if not .5 <= mean_g <= 7:
                 continue
@@ -285,10 +311,13 @@ def matched_braking_measurements(selected, windows, grid):
                 'distance': distance, 'mean_g': mean_g, 'early_g': None,
                 'normalized_decel_g': ((high/3.6)**2 - (low/3.6)**2) / (2*9.80665*distance),
                 'power_proxy_kw_per_tonne': .5*((high/3.6)**2 - (low/3.6)**2)/duration,
-                'sampling_resolution_m': float(np.max(np.diff(t)*(v[:-1]+v[1:])/7.2)),
-                'sample_count': int(inner.sum())+2, 'speed_drop': high-low,
-                'sample_interval_s': float(np.max(np.diff(t))),
-                'quality': 'limited sampling' if inner.sum() < 3 else 'supported'
+                'sampling_resolution_m': float(max(x[4] for x in per_lap)),
+                'sample_count': sum(x[2] for x in per_lap), 'speed_drop': high-low,
+                'source_laps': len(per_lap),
+                'sample_interval_s': float(max(x[3] for x in per_lap)),
+                'approach_time': float(np.median([x[5] for x in per_lap])),
+                'approach_distance': float(grid[end] - grid[start]),
+                'quality': 'limited sampling' if len(per_lap) == 1 and per_lap[0][2] < 5 else 'supported'
             })
     return result
 
@@ -760,7 +789,16 @@ def measure_field(extracted, selections, corners=()):
     ref = selected[reference_team]
     braking_zones = observed_braking_zones(selected, grid)
     brake_windows = straight_braking_windows(selected, ref, grid, braking_zones)
-    matched_brakes = matched_braking_measurements(selected, brake_windows, grid)
+    scale_mid = float(np.median([item['scale'] for item in selected.values()]))
+    scale_limit = max(.012, 4*float(np.median(np.abs(
+        np.array([item['scale'] for item in selected.values()])-scale_mid))))
+    qualifying_candidates = {
+        team: [item for item in values
+               if abs(item['scale']-scale_mid) <= scale_limit
+               and not frozen(item, {'grid': grid, 'speed': speed})][:3]
+        for team, values in aligned.items() if team in selected
+    }
+    matched_brakes = matched_braking_measurements(selected, brake_windows, grid, qualifying_candidates)
 
     # Partition straight sections (non-overlapping adaptive split)
     straight_blocks = []
@@ -778,17 +816,8 @@ def measure_field(extracted, selections, corners=()):
         straight_blocks.append((s_start, len(corner_mask)))
 
     # Compute speed-domain straight-line performance across the field
-    scale_mid = float(np.median([item['scale'] for item in selected.values()]))
-    scale_limit = max(.012, 4*float(np.median(np.abs(
-        np.array([item['scale'] for item in selected.values()])-scale_mid))))
-    acceleration_candidates = {
-        team: [item for item in values
-               if abs(item['scale']-scale_mid) <= scale_limit
-               and not frozen(item, {'grid': grid, 'speed': speed})][:3]
-        for team, values in aligned.items() if team in selected
-    }
     straight_perf = analyze_straights_speed_domain(
-        selected, straight_blocks, grid, ref, corner_mask, acceleration_candidates)
+        selected, straight_blocks, grid, ref, corner_mask, qualifying_candidates)
 
     results = {}
     grid_spacing = float(grid[1] - grid[0])
