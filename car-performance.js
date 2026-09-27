@@ -12,6 +12,39 @@ const color = value => /^#[a-f\d]{6}$/i.test(value || '') ? value : '#888888';
 const signed = (n, digits=2, suffix='%') => finite(n) ? `${n>0?'+':''}${Math.abs(n)<.0000001?(0).toFixed(digits):n.toFixed(digits)}${suffix}` : '—';
 const round = (val, digits = 2) => finite(val) ? Number(val.toFixed(digits)) : null;
 
+// Pirelli's weekend labels are relative: the same MEDIUM can be C2, C3, C4 or C5.
+// Each entry is [Hard, Medium, Soft] in championship round order. Never infer
+// an exact grade from the relative label without a year + verified race allocation.
+// Sources: the race-by-race Pirelli nominations in the supplied 2021-2026
+// workbook, cross-checked against the Pirelli releases linked below.
+//          https://press.pirelli.com/2021-tyre-compound-choices/
+//          https://press.pirelli.com/?h=1&t=2022+Tyre+Compound+Choices
+//          https://press.pirelli.com/?h=1&t=2023+Tyre+Compound+Choices
+//          https://press.pirelli.com/?h=1&t=2024+Tyre+Compound+Choices
+//          https://press.pirelli.com/?h=1&t=2025+tyre+compound+choices
+//          https://press.pirelli.com/?h=1&t=2026+tyre+compound+choices
+const VERIFIED_DRY_ALLOCATIONS = Object.freeze({
+  2021: '234 234 123 123 345 345 234 234 345 123 234 234 123 234 345 234 234 234 234 123 234 345'.split(' '),
+  2022: '123 234 235 234 234 123 345 345 345 123 345 234 234 234 123 234 345 123 234 234 234 345'.split(' '),
+  2023: '123 234 234 345 234 345 123 345 345 123 345 234 123 345 345 123 123 234 345 234 345 345'.split(' '),
+  2024: '123 234 345 123 234 234 345 345 345 123 345 123 345 234 123 345 345 345 234 345 345 345 123 345'.split(' '),
+  2025: '345 234 123 123 345 345 456 456 123 456 345 234 134 345 234 345 456 345 134 245 234 345 123 345'.split(' '),
+  2026: '345 234 123 345 345 345 234 345 123 234 345 234 345 234 345 234 345'.split(' ')
+});
+const TYRE_ALLOCATION_SOURCES = Object.freeze({
+  2021: 'https://press.pirelli.com/2021-tyre-compound-choices/',
+  2022: 'https://press.pirelli.com/?h=1&t=2022+Tyre+Compound+Choices',
+  2023: 'https://press.pirelli.com/?h=1&t=2023+Tyre+Compound+Choices',
+  2024: 'https://press.pirelli.com/?h=1&t=2024+Tyre+Compound+Choices',
+  2025: 'https://press.pirelli.com/?h=1&t=2025+tyre+compound+choices',
+  2026: 'https://press.pirelli.com/?h=1&t=2026+tyre+compound+choices'
+});
+function verifiedDryGrade(year, raceRound, relativeCompound) {
+  const allocation = VERIFIED_DRY_ALLOCATIONS[year]?.[Number(raceRound)-1];
+  const position = {HARD:0, MEDIUM:1, SOFT:2}[String(relativeCompound || '').toUpperCase()];
+  return allocation && position !== undefined ? `C${allocation[position]}` : null;
+}
+
 // Team marks - exact match with Session Analysis
 const officialTeamMarks = {
   'mercedes': 'mercedes.webp', 'ferrari': 'ferrari.webp', 'mclaren': 'mclaren.webp',
@@ -696,7 +729,10 @@ function aggregate() {
           cliffDetected:s.cliff_detected,
           cliffAge:s.cliff_age
         })));
-        item.tyreAgeStints.push(...(t.tyre_age_stints||[]).map(s=>({...s,event:e.name,round:e.round})));
+        item.tyreAgeStints.push(...(t.tyre_age_stints||[]).map(s=>({
+          ...s,event:e.name,round:e.round,
+          compound_grade:verifiedDryGrade(context?.year,e.round,s.compound)
+        })));
         item.retirements.push(...(t.retirements||[]).map(r=>({...r,event:e.name})));
         item.raceDrivers.push(...(t.race_drivers||[]).map(r=>({...r,event:e.name,selected:r.driver===t.fastest_race_driver})));
         const s15 = t.traffic_sensitivity?.['1.5s'] ?? t.traffic_sensitivity?.loose_15;
@@ -855,10 +891,19 @@ function tyreViewControls() {
 }
 
 function renderTyreAge(teams) {
-  const compounds=['SOFT','MEDIUM','HARD'];
+  const allocations=VERIFIED_DRY_ALLOCATIONS[context?.year] || [];
+  const compounds=[...new Set(allocations.join('').split('').filter(Boolean).map(n=>`C${n}`))].sort((a,b)=>Number(a.slice(1))-Number(b.slice(1)));
+  if(!compounds.length) return card('Tyre-age performance change',
+    'Exact C-grade allocations have not been verified for this season. Soft, Medium and Hard change meaning by race, so showing them here as C grades would be misleading.',
+    '<p class="section-empty">No exact-compound tyre-age results for this season. Matched rivals remains available.</p>');
   const choices=['OVERALL',...compounds];
   if(!choices.includes(tyreView))tyreView='OVERALL';
-  const controls=`<div class="performance-tyre-options" role="group" aria-label="Tyre compound">${choices.map(c=>`<button type="button" data-performance-tyre="${c}" aria-pressed="${tyreView===c}">${c==='OVERALL'?'':`<img src="assets/tyres/official/${c.toLowerCase()}.png" alt="" width="20" height="20">`}<span class="tyre-opt-label">${c==='OVERALL'?'Overall · S/M/H':c.charAt(0)+c.slice(1).toLowerCase()}</span></button>`).join('')}</div>`;
+  const controls=`<div class="performance-tyre-options" role="group" aria-label="Exact tyre compound">${choices.map(c=>`<button type="button" data-performance-tyre="${c}" aria-pressed="${tyreView===c}"><span class="tyre-opt-label">${c==='OVERALL'?'Overall · C grades':c}</span></button>`).join('')}</div>`;
+  const loadedRaces=events.filter(e=>e.R);
+  const mappedRaces=loadedRaces.filter(e=>Boolean(allocations[Number(e.round)-1])).length;
+  const unmappedStints=teams.flatMap(t=>t.tyreAgeStints||[]).filter(s=>!s.compound_grade).length;
+  const source=TYRE_ALLOCATION_SOURCES[context?.year];
+  const coverage=`<p class="performance-note">Verified C grades for ${mappedRaces}/${loadedRaces.length} loaded races. ${unmappedStints?`${unmappedStints} stint${unmappedStints===1?'':'s'} without a verified grade excluded. `:''}Fewer samples per grade can make rankings less stable. <a href="${source}" target="_blank" rel="noopener noreferrer">Pirelli allocation sources</a></p>`;
   const entities=[];
   for(const team of teams) {
     const stints=team.tyreAgeStints||[];
@@ -870,39 +915,44 @@ function renderTyreAge(teams) {
     const summaries={};
     for(const compound of compounds) {
       const grouped=new Map();
-      for(const stint of entity.stints)if(stint.compound===compound && finite(stint.fuel_adjusted_slope)) {
+      for(const stint of entity.stints)if(stint.compound_grade===compound && finite(stint.fuel_adjusted_slope)) {
         if(!grouped.has(stint.event))grouped.set(stint.event,[]);
         grouped.get(stint.event).push(stint);
       }
-      const eventValues=[...grouped.values()].map(stints=>{
+      const eventValues=new Map([...grouped].map(([event,stints])=>[event,(()=>{
         const weight=stints.reduce((sum,s)=>sum+s.samples,0);
         return stints.reduce((sum,s)=>sum+s.fuel_adjusted_slope*s.samples,0)/weight;
-      }).filter(finite);
-      if(eventValues.length) {
+      })()]));
+      if(eventValues.size) {
         const used=[...grouped.values()].flat();
-        summaries[compound]={value:avg(eventValues),events:eventValues.length,stints:used.length,laps:used.reduce((sum,s)=>sum+s.samples,0),outliers:used.reduce((sum,s)=>sum+(s.outlier_laps||0),0),lowSample:used.some(s=>s.low_sample),usedStart:used.filter(s=>s.used_start).length};
+        summaries[compound]={value:avg([...eventValues.values()]),eventValues,events:eventValues.size,used,stints:used.length,laps:used.reduce((sum,s)=>sum+s.samples,0),outliers:used.reduce((sum,s)=>sum+(s.outlier_laps||0),0),lowSample:used.some(s=>s.low_sample),usedStart:used.filter(s=>s.used_start).length};
       }
     }
     const available=tyreView==='OVERALL'?compounds.map(c=>summaries[c]).filter(Boolean):[summaries[tyreView]].filter(Boolean);
-    return {...entity,value:avg(available.map(s=>s.value)),compounds:available.length,events:new Set(entity.stints.filter(s=>tyreView==='OVERALL'||s.compound===tyreView).map(s=>s.event)).size,stints:available.reduce((sum,s)=>sum+s.stints,0),laps:available.reduce((sum,s)=>sum+s.laps,0),outliers:available.reduce((sum,s)=>sum+s.outliers,0),usedStart:available.reduce((sum,s)=>sum+s.usedStart,0),lowSample:available.some(s=>s.lowSample)};
+    const eventGrades=new Map();
+    for(const summary of available) for(const [event,value] of summary.eventValues) {
+      if(!eventGrades.has(event))eventGrades.set(event,[]);
+      eventGrades.get(event).push(value);
+    }
+    return {...entity,value:avg([...eventGrades.values()].map(avg)),compounds:available.length,events:eventGrades.size,stints:available.reduce((sum,s)=>sum+s.stints,0),laps:available.reduce((sum,s)=>sum+s.laps,0),outliers:available.reduce((sum,s)=>sum+s.outliers,0),usedStart:available.reduce((sum,s)=>sum+s.usedStart,0),lowSample:available.some(s=>s.lowSample)};
   });
   const ordered=sorted(rows,{tyreAgeName:r=>r.displayName,tyreAgeValue:r=>r.value,tyreAgeEvents:r=>r.events,tyreAgeStints:r=>r.stints,tyreAgeLaps:r=>r.laps},'tyreAgeValue');
   const scored=ordered.filter(r=>finite(r.value));
   const extent=Math.max(.01,...scored.map(r=>Math.abs(r.value)));
-  const chart=scored.length?`<div class="performance-chart-card"><div class="perf-chart-header"><div class="perf-chart-title-group"><h4 class="perf-chart-heading">Tyre-age lap-time change · ${tyreView==='OVERALL'?'available dry compounds':tyreView.toLowerCase()}</h4><span class="perf-chart-sub">Seconds per additional tyre-age lap · left of zero improves, right of zero worsens</span></div></div><div class="performance-tyre-age-chart">${scored.map(r=>{
+  const chart=scored.length?`<div class="performance-chart-card"><div class="perf-chart-header"><div class="perf-chart-title-group"><h4 class="perf-chart-heading">Tyre-age lap-time change · ${tyreView==='OVERALL'?'verified C grades':tyreView}</h4><span class="perf-chart-sub">Seconds per additional tyre-age lap · left of zero improves, right of zero worsens</span></div></div><div class="performance-tyre-age-chart">${scored.map(r=>{
     const width=Math.min(50,Math.abs(r.value)/extent*50);
     return `<div class="performance-tyre-age-row"><div class="performance-tyre-age-name">${teamLabel(r)}</div><div class="performance-tyre-age-track"><i class="performance-tyre-age-zero"></i><i class="performance-tyre-age-bar" style="--bar-color:${color(r.color)};left:${r.value<0?(50-width).toFixed(2):'50'}%;width:${width.toFixed(2)}%"></i></div><span class="performance-tyre-age-value">${signed(r.value,3,' s/lap')}</span></div>`;
   }).join('')}</div></div>`:'<p class="section-empty">No stints with at least three usable laps and two tyre-age steps.</p>';
   return card('Tyre-age performance change',
-    'Every usable dry, green-flag lap contributes within its own stint, regardless of when that compound was used in the race. Pit and SC/VSC laps are excluded; laps more than 7% from their own stint median are outliers. Each stint’s lap-time change with tyre age is then averaged by compound and Grand Prix. An assumed 0.060 s/lap fuel-burn gain is added to the slope; this is an estimate, not measured tyre wear. Positive means slowing with age, negative means improving. Traffic, track evolution and management still affect it.',
-    controls+chart+table([
+    'Every usable dry, green-flag lap contributes within its own stint. Pit and SC/VSC laps are excluded; laps more than 7% from their own stint median are outliers. Weekend Hard/Medium/Soft labels are mapped to their verified Pirelli C grade before grouping. Stints are combined within each Grand Prix and grade; overall averages the grades observed at each Grand Prix, then averages Grands Prix equally. An assumed 0.060 s/lap fuel-burn gain is added to the slope. This is an estimate, not measured tyre wear; traffic, track evolution and management still affect it.',
+    controls+coverage+chart+table([
       sortHeader('tyreAgeName',tyreSubject==='team'?'Team':'Driver · team'),
       sortHeader('tyreAgeValue','Change per tyre-age lap'),
       sortHeader('tyreAgeEvents','Events',-1),
       sortHeader('tyreAgeStints','Usable stints',-1),
       sortHeader('tyreAgeLaps','Usable laps',-1),
       'Outlier laps removed','Coverage'
-    ],ordered.map(r=>[teamLabel(r),finite(r.value)?signed(r.value,3,' s/lap'):'—',r.events,r.stints,r.laps,r.outliers,`${r.compounds}${tyreView==='OVERALL'?'/3 compounds':''}${r.lowSample?' · short stint included':''}${r.usedStart?` · ${r.usedStart} used start${r.usedStart===1?'':'s'}`:''}`])));
+    ],ordered.map(r=>[teamLabel(r),finite(r.value)?signed(r.value,3,' s/lap'):'—',r.events,r.stints,r.laps,r.outliers,`${r.compounds} C grade${r.compounds===1?'':'s'}${r.lowSample?' · short stint included':''}${r.usedStart?` · ${r.usedStart} used start${r.usedStart===1?'':'s'}`:''}`])));
 }
 
 function renderRace(teams) {

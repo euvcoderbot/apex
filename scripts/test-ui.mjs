@@ -521,6 +521,8 @@ test('tyre-age view aggregates own stints for teams and individual drivers', () 
   const source=readFileSync('car-performance.js','utf8');
   const body=source.slice(source.indexOf('function tyreViewControls()'),source.indexOf('function renderRace(teams)'));
   const sandbox={tyreMetric:'age',tyreSubject:'team',tyreView:'OVERALL',sortKey:'tyreAgeValue',sortDirection:1,
+    context:{year:'2026'},events:[{round:1,R:{}},{round:2,R:{}}],
+    VERIFIED_DRY_ALLOCATIONS:{2026:['345','234']},TYRE_ALLOCATION_SOURCES:{2026:'https://press.pirelli.com/'},
     finite:n=>typeof n==='number'&&Number.isFinite(n),avg:a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,
     sorted:(items,getters,key)=>[...items].sort((a,b)=>getters[key](a)-getters[key](b)),
     teamLabel:r=>r.displayName,card:(_title,_note,content)=>content,table:(_headers,rows)=>JSON.stringify(rows),
@@ -528,17 +530,42 @@ test('tyre-age view aggregates own stints for teams and individual drivers', () 
   vm.createContext(sandbox);
   vm.runInContext(body,sandbox);
   const teams=[{team:'Example',color:'#123456',tyreAgeStints:[
-    {driver:'AAA',event:'One',compound:'SOFT',fuel_adjusted_slope:.12,samples:8,min_age:1,max_age:8},
-    {driver:'BBB',event:'One',compound:'SOFT',fuel_adjusted_slope:.04,samples:8,min_age:1,max_age:8},
-    {driver:'AAA',event:'Two',compound:'MEDIUM',fuel_adjusted_slope:.02,samples:10,min_age:1,max_age:10}
+    {driver:'AAA',event:'One',compound:'SOFT',compound_grade:'C5',fuel_adjusted_slope:.12,samples:8,min_age:1,max_age:8},
+    {driver:'BBB',event:'One',compound:'SOFT',compound_grade:'C5',fuel_adjusted_slope:.04,samples:8,min_age:1,max_age:8},
+    {driver:'AAA',event:'Two',compound:'MEDIUM',compound_grade:'C3',fuel_adjusted_slope:.02,samples:10,min_age:1,max_age:10}
   ]}];
   const team=sandbox.renderTyreAge(teams);
-  assert.match(team,/0\.050/); // equal soft (.08) and medium (.02) compound weighting
-  assert.match(team,/2\/3 compounds/);
+  assert.match(team,/0\.050/); // equal event weighting: C5 (.08), then C3 (.02)
+  assert.match(team,/2 C grades/);
+  assert.match(team,/C5/);
+  sandbox.tyreView='C3';
+  assert.match(sandbox.renderTyreAge(teams),/0\.020/);
+  assert.doesNotMatch(sandbox.renderTyreAge(teams),/0\.080/);
+  sandbox.tyreView='OVERALL';
   sandbox.tyreSubject='driver';
   const drivers=sandbox.renderTyreAge(teams);
   assert.match(drivers,/AAA · Example/);
   assert.match(drivers,/BBB · Example/);
+});
+
+test('tyre-age C grades use the race-year Pirelli allocation, including skipped 2025 grades', () => {
+  const source=readFileSync('car-performance.js','utf8');
+  const body=source.slice(source.indexOf('const VERIFIED_DRY_ALLOCATIONS'),source.indexOf('// Team marks'));
+  const sandbox={};
+  vm.createContext(sandbox);
+  vm.runInContext(body,sandbox);
+  assert.equal(sandbox.verifiedDryGrade(2026,7,'MEDIUM'),'C3'); // Barcelona C2/C3/C4
+  assert.equal(sandbox.verifiedDryGrade(2026,15,'HARD'),'C3'); // Baku C3/C4/C5
+  assert.equal(sandbox.verifiedDryGrade(2025,17,'SOFT'),'C6'); // Baku C4/C5/C6
+  assert.equal(sandbox.verifiedDryGrade(2025,19,'HARD'),'C1'); // Austin skips C2
+  assert.equal(sandbox.verifiedDryGrade(2025,20,'MEDIUM'),'C4'); // Mexico skips C3
+  assert.equal(sandbox.verifiedDryGrade(2024,1,'SOFT'),'C3');
+  assert.equal(sandbox.verifiedDryGrade(2023,1,'SOFT'),'C3');
+  assert.equal(sandbox.verifiedDryGrade(2022,3,'SOFT'),'C5'); // Australia skips C4
+  assert.equal(sandbox.verifiedDryGrade(2021,8,'HARD'),'C2'); // Styrian GP
+  assert.equal(sandbox.verifiedDryGrade(2021,9,'HARD'),'C3'); // Austrian GP
+  assert.equal(sandbox.verifiedDryGrade(2020,1,'SOFT'),null);
+  assert.equal(sandbox.verifiedDryGrade(2026,1,'INTERMEDIATE'),null);
 });
 
 test('tyre-age trend uses stint-local outliers and reports exclusions, not an age window', () => {
