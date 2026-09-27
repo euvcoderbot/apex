@@ -348,6 +348,59 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
           for (b_name, state), observations in band_observations.items():
               straight_band_times[b_name][(s_idx, state)][team] = float(np.median(observations))
 
+    # Below 150 km/h the complete crossing often happens before the corner
+    # window ends. Anchor those measurements on field-wide rising-speed
+    # crossings, independent of the approximate corner/straight partition.
+    field_speed = np.median([item['speed'] for item in selected.values()], axis=0)
+    for v_lo, v_hi, b_name in bands[:2]:
+        straight_band_times[b_name].clear()
+        anchors = []
+        for i in range(1, len(grid) - 1):
+            if not field_speed[i-1] < v_lo <= field_speed[i]:
+                continue
+            limit = min(len(grid), i + int(450 / (grid[1] - grid[0])))
+            high = next((j for j in range(i+1, limit)
+                         if field_speed[j] >= v_hi), None)
+            if high is None or np.min(field_speed[i:high+1]) < v_lo - 8:
+                continue
+            if anchors and grid[i] - anchors[-1][0] < 120:
+                continue
+            anchors.append((float(grid[i]), float(grid[high])))
+        for zone, (anchor_lo, anchor_hi) in enumerate(anchors):
+            for team in teams:
+                observed = defaultdict(list)
+                for item in (candidates or {}).get(team, [selected[team]]):
+                    a, aligned = item['a'], item['aligned']
+                    near = np.flatnonzero((aligned >= anchor_lo - 90)
+                                           & (aligned <= anchor_hi + 110))
+                    if len(near) < 2:
+                        continue
+                    for pos in near[1:]:
+                        prev = pos - 1
+                        if prev not in near or not a[prev, 2] < v_lo <= a[pos, 2]:
+                            continue
+                        if abs(aligned[pos] - anchor_lo) > 90:
+                            continue
+                        stop = next((j for j in near if j > pos and a[j, 2] >= v_hi), None)
+                        if stop is None or abs(aligned[stop] - anchor_hi) > 110:
+                            continue
+                        if np.min(a[pos:stop+1, 2]) < v_lo - 8:
+                            continue
+                        if np.any(a[pos:stop+1, 4] >= .5) or np.min(a[pos:stop+1, 3]) < 50:
+                            continue
+                        drs = np.isin(a[pos:stop+1, 7].astype(int), [10, 12, 14])
+                        if not (np.all(drs) or not np.any(drs)):
+                            continue
+                        dt_band = interp_raw(a[prev:stop+1, 1], a[prev:stop+1, 2], v_hi) - \
+                                  interp_raw(a[prev:stop+1, 1], a[prev:stop+1, 2], v_lo)
+                        if not .1 < dt_band < 25:
+                            continue
+                        if check_clean_air(team, float(aligned[pos]), float(aligned[stop]), item):
+                            observed['open' if np.all(drs) else 'closed'].append(dt_band)
+                        break
+                for state, durations in observed.items():
+                    straight_band_times[b_name][(zone, state)][team] = float(np.median(durations))
+
     team_straight_deltas = {b[2]: defaultdict(list) for b in bands}
     shared_band_keys = {}
     for _, _, b_name in bands:
