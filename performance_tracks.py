@@ -417,7 +417,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                 for team in teams:
                     item = selected[team]
                     if not np.any(item['brake'][i1:i2]):
-                        if check_clean_air(team, start_corridor, end_corridor):
+                        if check_clean_air(team, start_corridor, end_corridor, item):
                             dt_corridor = float(item['dt'][i1:i2].sum())
                             if dt_corridor > 0.05:
                                 v_corridor = (L_corridor / dt_corridor) * 3.6
