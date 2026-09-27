@@ -1427,6 +1427,48 @@ function eventAdjustedScores(reports, valueOf) {
   return new Map(teams.map(team=>[team,Math.max(0,teamEffect.get(team)-best)]));
 }
 
+function seasonRaceTrapRows(sourceEvents) {
+  const reports=[], coverage=new Map();
+  for(const event of sourceEvents) {
+    const race=(event.R?.teams||[]).filter(t=>finite(t.race_speed_trap_matched));
+    if(race.length<3)continue;
+    const fastestRace=Math.max(...race.map(t=>t.race_speed_trap_matched));
+    const qualifying=(event.Q?.teams||[]).filter(t=>finite(t.speed_trap));
+    const fastestQualifying=qualifying.length>=3?Math.max(...qualifying.map(t=>t.speed_trap)):null;
+    const qByTeam=new Map(qualifying.map(t=>[t.team,t]));
+    const rows=new Map();
+    for(const team of race) {
+      const q=qByTeam.get(team.team);
+      rows.set(team.team,{
+        team:team.team,
+        raceGap:(fastestRace-team.race_speed_trap_matched)/fastestRace*100,
+        qualyGap:q&&finite(fastestQualifying)?(fastestQualifying-q.speed_trap)/fastestQualifying*100:null
+      });
+      if(!coverage.has(team.team))coverage.set(team.team,{
+        team:team.team,color:team.color,matched:[],peak:[],median:[],finish:[],laps:0,events:0,paired:0
+      });
+      const item=coverage.get(team.team);
+      item.matched.push(team.race_speed_trap_matched);
+      if(finite(team.race_speed_trap_max))item.peak.push(team.race_speed_trap_max);
+      if(finite(team.race_speed_trap_median))item.median.push(team.race_speed_trap_median);
+      if(finite(team.race_speed_fl_max))item.finish.push(team.race_speed_fl_max);
+      item.laps+=team.race_speed_trap_matched_laps||0;
+      item.events++;
+      if(finite(rows.get(team.team).qualyGap))item.paired++;
+    }
+    reports.push({event,summary:{rows}});
+  }
+  const raceScores=eventAdjustedScores(reports,row=>row.raceGap);
+  const qualyScores=eventAdjustedScores(reports,row=>row.qualyGap);
+  return [...coverage.values()].map(row=>({
+    ...row,
+    raceDeficit:raceScores.get(row.team)??null,
+    qualyDeficit:qualyScores.get(row.team)??null,
+    matchedSpeed:avg(row.matched),peakSpeed:avg(row.peak),
+    medianSpeed:avg(row.median),finishLineSpeed:avg(row.finish)
+  }));
+}
+
 function seasonTelemetry() {
   const map=new Map();
   const reports=events.map(event=>({event,summary:eventTelemetry(event)})).filter(r=>r.summary.rows.size);
@@ -1611,49 +1653,23 @@ function renderTrace() {
         </div>
       `;
 
-      const raceTrapMap = new Map();
-      for (const e of events) {
-        for (const t of (e.R?.teams || [])) {
-          if (!raceTrapMap.has(t.team)) raceTrapMap.set(t.team, { team: t.team, color: t.color, stMatched: [], stMax: [], stMed: [], flMax: [], events: 0 });
-          const item = raceTrapMap.get(t.team);
-          if (finite(t.race_speed_trap_matched)) item.stMatched.push(t.race_speed_trap_matched);
-          if (finite(t.race_speed_trap_max)) item.stMax.push(t.race_speed_trap_max);
-          if (finite(t.race_speed_trap_median)) item.stMed.push(t.race_speed_trap_median);
-          if (finite(t.race_speed_fl_max)) item.flMax.push(t.race_speed_fl_max);
-          item.events++;
-        }
-      }
-
       if (straightLineSource === 'race') {
-        const raceTrapRows = [...raceTrapMap.values()].map(t => {
-          const matched = avg(t.stMatched);
-          return {
-            ...t,
-            matchedSpeed: matched,
-            peakSpeed: avg(t.stMax),
-            medianSpeed: avg(t.stMed),
-            finishLineSpeed: avg(t.flMax),
-          };
-        });
-        const maxMatched = Math.max(...raceTrapRows.map(r => r.matchedSpeed).filter(finite));
-        for (const r of raceTrapRows) {
-          r.raceDeficit = (finite(r.matchedSpeed) && finite(maxMatched) && maxMatched > 0)
-            ? Math.max(0, ((maxMatched - r.matchedSpeed) / maxMatched) * 100)
-            : null;
-        }
+        const raceTrapRows = seasonRaceTrapRows(events);
         const orderedRace = sorted(raceTrapRows, {
           raceTeam: t => t.team,
           raceDeficit: t => t.raceDeficit,
+          raceQualyDeficit: t => t.qualyDeficit,
           raceMatched: t => t.matchedSpeed,
           racePeak: t => t.peakSpeed,
           raceMed: t => t.medianSpeed,
           raceFL: t => t.finishLineSpeed,
-          raceEvents: t => t.events
+          raceEvents: t => t.events,
+          raceLaps: t => t.laps
         }, 'raceDeficit', 1);
 
         const raceChart = renderHorizontalBarChart(orderedRace, {
-          title: 'Race Speed Trap Deficit (% to Fastest)',
-          subtitle: 'Lap-number-adjusted speed where at least three teams are observed · Tyre and deployment effects remain',
+          title: 'Race ST speed deficit · event-matched',
+          subtitle: 'Each Grand Prix is compared with its own fastest ST speed; event coverage is adjusted · Lower is better',
           valueKey: 'raceDeficit',
           unit: '%',
           digits: 3,
@@ -1661,27 +1677,27 @@ function renderTrace() {
           zeroBaseline: true
         });
 
-        return card(straightTitle, 'Race speeds at the official ST and FL timing loops. The adjusted measure compares a team’s clean checkpoint-screened laps with the field median at the same race lap number. It does not equalize tyres, tow or energy deployment.',
+        return card(straightTitle, 'Race speed-trap ranking compares each Grand Prix with its own field before combining races. Qualifying ST uses the same timing line on those weekends; 250–300 km/h acceleration is a separate measure. Neither comparison isolates engine, drag or deployment.',
           straightToggle+
           raceChart+
           table([
             sortHeader('raceTeam', 'Team'),
-            sortHeader('raceDeficit', 'ST Deficit (% to Fastest)'),
-            sortHeader('raceMatched', 'Lap-number-adjusted speed (ST)', -1),
+            sortHeader('raceDeficit', 'Race ST deficit'),
+            sortHeader('raceQualyDeficit', 'Qualifying ST deficit'),
+            sortHeader('raceMatched', 'Race ST · raw average', -1),
             sortHeader('racePeak', 'Peak speed trap (ST)', -1),
-            sortHeader('raceMed', 'Median speed trap', -1),
             sortHeader('raceFL', 'Finish line speed (FL)', -1),
-            sortHeader('raceEvents', 'Circuits', -1)
+            sortHeader('raceEvents', 'Race coverage', -1)
           ], orderedRace.map(t => [
             teamLabel(t),
-            signed(t.raceDeficit, 2),
+            signed(t.raceDeficit, 3, '%'),
+            `${signed(t.qualyDeficit,3,'%')}<small>${t.paired} paired events</small>`,
             fmt(t.matchedSpeed, 1, ' km/h'),
             fmt(t.peakSpeed, 1, ' km/h'),
-            fmt(t.medianSpeed, 1, ' km/h'),
             fmt(t.finishLineSpeed, 1, ' km/h'),
-            t.events
+            `${t.events} events<small>${t.laps} eligible laps</small>`
           ]))+
-          '<p class="performance-note">Speed traps reflect observed terminal velocity under each car’s unknown setup, energy deployment and traffic. Missing matched support stays unavailable; raw medians remain separate.</p>');
+          '<p class="performance-note">Deficits are adjusted for which races have usable data; raw km/h is context, not the season ranking. Race ST is screened at timing checkpoints and adjusted for common race lap numbers, but tyre, tow, setup and energy deployment remain different from qualifying.</p>');
       }
 
       const rawValues = season.map(team => ({
@@ -1934,15 +1950,22 @@ function renderTrace() {
       }
 
       const maxMatched = Math.max(...raceTrapRows.map(r => r.matchedSpeed).filter(finite));
+      const qualifyingST=(event.Q?.teams||[]).filter(t=>finite(t.speed_trap));
+      const bestQualifyingST=qualifyingST.length>=3?Math.max(...qualifyingST.map(t=>t.speed_trap)):null;
+      const qualifyingByTeam=new Map(qualifyingST.map(t=>[t.team,t.speed_trap]));
       for (const r of raceTrapRows) {
         r.raceDeficit = (finite(r.matchedSpeed) && finite(maxMatched) && maxMatched > 0)
           ? Math.max(0, ((maxMatched - r.matchedSpeed) / maxMatched) * 100)
           : null;
+        const qSpeed=qualifyingByTeam.get(r.team);
+        r.qualyDeficit=finite(qSpeed)&&finite(bestQualifyingST)
+          ?(bestQualifyingST-qSpeed)/bestQualifyingST*100:null;
       }
 
       const orderedRace = sorted(raceTrapRows, {
         eventRaceTeam: t => t.team,
         eventRaceDeficit: t => t.raceDeficit,
+        eventRaceQualyDeficit: t => t.qualyDeficit,
         eventRaceMatched: t => t.matchedSpeed,
         eventRacePeak: t => t.peakSpeed,
         eventRaceMed: t => t.medianSpeed,
@@ -1959,12 +1982,13 @@ function renderTrace() {
         zeroBaseline: true
       });
 
-      return card('Straight-line performance', 'Grand Prix straight-line speeds at the speed trap (ST) and finish line (FL) timing loops. The matched estimate adjusts for common race lap numbers; tyre, traffic and deployment effects remain.',
+      return card('Straight-line performance', 'Race and qualifying ST use the same timing line, but different laps and conditions. The race estimate adjusts for common lap numbers; tyre, tow and energy deployment still differ.',
         straightToggle +
         singleRaceChart +
         table([
           sortHeader('eventRaceTeam', 'Team'),
           sortHeader('eventRaceDeficit', 'ST Deficit (% to Fastest)'),
+          sortHeader('eventRaceQualyDeficit', 'Qualifying ST deficit'),
           sortHeader('eventRaceMatched', 'Lap-matched speed (ST)', -1),
           sortHeader('eventRacePeak', 'Peak speed trap (ST)', -1),
           sortHeader('eventRaceMed', 'Median speed trap', -1),
@@ -1972,6 +1996,7 @@ function renderTrace() {
         ], orderedRace.map(t => [
           teamLabel(t),
           signed(t.raceDeficit, 2),
+          signed(t.qualyDeficit, 3, '%'),
           fmt(t.matchedSpeed, 1, ' km/h'),
           fmt(t.peakSpeed, 1, ' km/h'),
           fmt(t.medianSpeed, 1, ' km/h'),

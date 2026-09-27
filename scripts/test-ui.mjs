@@ -472,6 +472,28 @@ test('season effects bridge unequal circuit coverage through shared teams', () =
   assert.ok(Math.abs(scores.get('D')-3)<.001);
 });
 
+test('race trap season ranking uses event-relative speed and paired qualifying ST', () => {
+  const source=readFileSync('car-performance.js','utf8');
+  const body=source.slice(source.indexOf('function eventAdjustedScores('),source.indexOf('function seasonTelemetry()'));
+  const sandbox={finite:v=>typeof v==='number'&&Number.isFinite(v),avg:values=>values.length?values.reduce((a,b)=>a+b,0)/values.length:null};
+  vm.createContext(sandbox);
+  vm.runInContext(body,sandbox);
+  const entry=(team,speed)=>({team,color:'#123456',race_speed_trap_matched:speed,race_speed_trap_matched_laps:12});
+  const qEntry=(team,speed)=>({team,speed_trap:speed});
+  const events=[
+    {name:'Fast circuit',R:{teams:[entry('A',330),entry('B',320),entry('C',310)]},Q:{teams:[qEntry('A',335),qEntry('B',325),qEntry('C',315)]}},
+    {name:'Slow circuit',R:{teams:[entry('B',280),entry('C',270),entry('D',260)]},Q:{teams:[qEntry('B',285),qEntry('C',275),qEntry('D',265)]}}
+  ];
+  const rows=sandbox.seasonRaceTrapRows(events);
+  const byTeam=new Map(rows.map(row=>[row.team,row]));
+  assert.ok(byTeam.get('A').raceDeficit<byTeam.get('B').raceDeficit);
+  assert.ok(byTeam.get('B').raceDeficit<byTeam.get('C').raceDeficit);
+  assert.ok(byTeam.get('C').raceDeficit<byTeam.get('D').raceDeficit);
+  assert.equal(byTeam.get('B').events,2);
+  assert.equal(byTeam.get('B').paired,2);
+  assert.ok(Number.isFinite(byTeam.get('B').qualyDeficit));
+});
+
 test('overall tyre chart shows sparse matched evidence as provisional', () => {
   const source=readFileSync('car-performance.js','utf8');
   const body=source.slice(source.indexOf('function renderRace(teams)'),source.indexOf('function renderResults('));
