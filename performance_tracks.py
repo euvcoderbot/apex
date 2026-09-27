@@ -205,7 +205,7 @@ def observed_braking_zones(selected, grid):
     return zones
 
 
-def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_mask):
+def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_mask, candidates=None):
     """Speed-domain straight-line performance analysis.
 
     1. Evaluates supported 50 km/h speed bands from 50–100 through 350–400
@@ -227,14 +227,14 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             'time': item['a'][:, 1]
         }
 
-    def check_clean_air(team, d_start, d_end):
+    def check_clean_air(team, d_start, d_end, lap):
         """Verify that no other car was within 0 < gap <= 3.0s ahead anywhere across [d_start, d_end]."""
-        this_start_t = session_times[team]['t_start']
+        this_start_t = float(lap['selection'].get('start') or 0.0)
         if this_start_t <= 0.0:
             return True
         eval_d = np.linspace(d_start, d_end, 7)
-        this_aligned = session_times[team]['aligned']
-        this_time = session_times[team]['time']
+        this_aligned = lap['aligned']
+        this_time = lap['a'][:, 1]
         T_this = this_start_t + np.interp(eval_d, this_aligned, this_time)
 
         for other_team, other_data in session_times.items():
@@ -266,24 +266,25 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
     bands.append((300.0, 320.0, '300_320'))
 
     straight_band_times = {b[2]: defaultdict(dict) for b in bands}
-    accel_eligible_straights = []
-
     for s_idx, (s_start, s_end) in enumerate(straight_blocks):
         d_start = float(grid[s_start])
         d_end = float(grid[min(s_end, len(grid)-1)])
         s_len = d_end - d_start
-        if s_len < 250.0:
+        if s_len < 65.0:
             continue
-        accel_eligible_straights.append(s_idx)
 
         for team in teams:
-            item = selected[team]
+          band_observations = defaultdict(list)
+          for item in (candidates or {}).get(team, [selected[team]]):
             aligned = item['aligned']
             a = item['a']
             # Do not include the next corner's braking in the acceleration
             # search: its low speed used to become the global minimum and
             # incorrectly erase the whole straight.
-            mask = (aligned >= d_start - 30.0) & (aligned <= d_end)
+            # The low-speed crossing is commonly inside the corner-exit
+            # window, before the straight mask begins. Do not require a 250 m
+            # straight to observe a 50 km/h acceleration interval.
+            mask = (aligned >= max(0.0, d_start - 150.0)) & (aligned <= d_end)
             raw_indices = np.where(mask)[0]
             if len(raw_indices) < 2:
                 continue
@@ -342,15 +343,34 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                             if 0.1 < dt_band < 25.0:
                                 d_lo = float(aligned_accel[i_lo])
                                 d_hi = float(aligned_accel[i_hi])
-                                if check_clean_air(team, d_lo, d_hi):
-                                    straight_band_times[b_name][(s_idx, state)][team] = dt_band
+                                if check_clean_air(team, d_lo, d_hi, item):
+                                    band_observations[(b_name, state)].append(dt_band)
+          for (b_name, state), observations in band_observations.items():
+              straight_band_times[b_name][(s_idx, state)][team] = float(np.median(observations))
 
     team_straight_deltas = {b[2]: defaultdict(list) for b in bands}
+    shared_band_keys = {}
     for _, _, b_name in bands:
-        for s_idx, team_times in straight_band_times[b_name].items():
-            if len(team_times) >= 2:
+        # Rank every displayed team on the same physical zones and aero state.
+        # Prefer the widest three-team-or-better cohort, then add zones only
+        # when their intersection still supports that cohort.
+        eligible = [(key, times) for key, times in straight_band_times[b_name].items()
+                    if len(times) >= 3]
+        eligible.sort(key=lambda pair: (-len(pair[1]), pair[0]))
+        cohort = set(eligible[0][1]) if eligible else set()
+        keys = []
+        for key, times in eligible:
+            common = cohort & set(times)
+            if len(common) >= 3:
+                cohort = common
+                keys.append(key)
+        shared_band_keys[b_name] = keys
+        for key in keys:
+            team_times = straight_band_times[b_name][key]
+            if len(team_times) >= 3:
                 s_med = float(np.median(list(team_times.values())))
-                for t, tm in team_times.items():
+                for t in cohort:
+                    tm = team_times[t]
                     team_straight_deltas[b_name][t].append(tm - s_med)
 
     # Long-straight shared terminal speed corridor (straights >= 400m)
@@ -404,10 +424,11 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                                 team_terminal_speeds[team].append(v_corridor)
 
     straight_results = {}
-    tot_accel_straights = max(1, len(straight_band_times['250_300']))
+    tot_accel_straights = max(1, len(shared_band_keys['250_300']))
 
     # Representative 250->300 benchmark time across straights for percentage deficit normalization
-    med_straight_times = [float(np.median(list(tt.values()))) for tt in straight_band_times['250_300'].values() if len(tt) >= 2]
+    med_straight_times = [float(np.median(list(straight_band_times['250_300'][key].values())))
+                          for key in shared_band_keys['250_300']]
     ref_250_time = float(np.median(med_straight_times)) if med_straight_times else 2.0
 
     raw_bands = {name: {t: float(np.median(team_straight_deltas[name][t]))
@@ -613,7 +634,17 @@ def measure_field(extracted, selections, corners=()):
         straight_blocks.append((s_start, len(corner_mask)))
 
     # Compute speed-domain straight-line performance across the field
-    straight_perf = analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_mask)
+    scale_mid = float(np.median([item['scale'] for item in selected.values()]))
+    scale_limit = max(.012, 4*float(np.median(np.abs(
+        np.array([item['scale'] for item in selected.values()])-scale_mid))))
+    acceleration_candidates = {
+        team: [item for item in values
+               if abs(item['scale']-scale_mid) <= scale_limit
+               and not frozen(item, {'grid': grid, 'speed': speed})][:3]
+        for team, values in aligned.items() if team in selected
+    }
+    straight_perf = analyze_straights_speed_domain(
+        selected, straight_blocks, grid, ref, corner_mask, acceleration_candidates)
 
     results = {}
     grid_spacing = float(grid[1] - grid[0])

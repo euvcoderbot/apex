@@ -1347,10 +1347,17 @@ function eventTelemetry(event) {
   if(eligible.length>=3) {
     const scores=new Map(eligible.map(row=>[row.team,[]]));
     const scoredZones=new Map(eligible.map(row=>[row.team,[]]));
-    for(const label of brakingLabels) {
-      const measured=eligible.map(row=>({row,z:row.trace.braking.find(b=>b.corner===label)}))
-        .filter(x=>finite(x.z?.corridor_time)&&x.z.corridor_time>0);
-      if(measured.length<3)continue;
+    const supported=brakingLabels.map(label=>({label,measured:eligible.map(row=>({row,z:row.trace.braking.find(b=>b.corner===label)}))
+      .filter(x=>finite(x.z?.corridor_time)&&x.z.corridor_time>0)}))
+      .filter(x=>x.measured.length>=3).sort((a,b)=>b.measured.length-a.measured.length);
+    let cohort=new Set(supported[0]?.measured.map(x=>x.row.team)||[]);
+    const common=[];
+    for(const zone of supported) {
+      const next=new Set(zone.measured.map(x=>x.row.team).filter(team=>cohort.has(team)));
+      if(next.size>=3) { cohort=next; common.push(zone); }
+    }
+    for(const {measured:allMeasured} of common) {
+      const measured=allMeasured.filter(x=>cohort.has(x.row.team));
       const timeBest=Math.min(...measured.map(x=>x.z.corridor_time));
       if(!finite(timeBest)||timeBest<=0)continue;
       const lapTime=median(measured.map(x=>x.row.trace.reference_lap_time).filter(v=>finite(v)&&v>0));
@@ -1366,12 +1373,12 @@ function eventTelemetry(event) {
       if(values.length>=1) {
         const matched=scoredZones.get(row.team);
         const zones=matched.map(x=>x.zone);
-        // Teams may have different valid windows. Report the typical supported
-        // zone rather than rewarding a team simply for having fewer zones.
-        row.brakingScore=avg(values);
+        // A headline lap contribution must sum identical brake windows for
+        // every ranked team; an average window cannot represent lap impact.
+        row.brakingScore=values.reduce((sum,value)=>sum+value,0);
         row.brakingReferenceLap=median(eligible.map(item=>item.trace.reference_lap_time).filter(v=>finite(v)&&v>0));
         row.brakingScoreZones=values.length;
-        row.brakingScoreCohort=eligible.length;
+        row.brakingScoreCohort=cohort.size;
         row.brakeDistDelta=median(matched.map(x=>x.zone.distance-x.fastest.distance));
         row.brakeDistance=median(zones.map(z=>z.distance));
         row.brakeG=median(zones.map(z=>z.early_g));
@@ -1382,7 +1389,7 @@ function eventTelemetry(event) {
         row.brakeTurnInSpeed=median(zones.map(z=>z.exit_speed));
         row.brakeOnset=median(zones.map(z=>z.start));
         row.normalizedDecel=median(zones.map(z=>z.normalized_decel_g));
-        row.brakeTimeDelta=avg(matched.map(x=>x.zone.corridor_time-x.timeBest));
+        row.brakeTimeDelta=matched.reduce((sum,x)=>sum+x.zone.corridor_time-x.timeBest,0);
         row.samplingResolution=median(zones.map(z=>z.sampling_resolution_m));
         row.onsetBracket=zones.find(z=>z.onset_bracket)?.onset_bracket||null;
         row.brakeZones=zones.length;
@@ -1391,6 +1398,33 @@ function eventTelemetry(event) {
     }
   }
   return {rows,groups,entrants};
+}
+
+function eventAdjustedScores(reports, valueOf) {
+  const observations=[];
+  for(const {event,summary} of reports) {
+    const measured=[...summary.rows.values()].map(row=>({team:row.team,value:valueOf(row)}))
+      .filter(item=>finite(item.value));
+    if(measured.length<3)continue;
+    for(const item of measured)observations.push({...item,event:event.name});
+  }
+  if(!observations.length)return new Map();
+  const teams=[...new Set(observations.map(o=>o.team))];
+  const eventIds=[...new Set(observations.map(o=>o.event))];
+  const teamEffect=new Map(teams.map(team=>[team,0]));
+  const eventEffect=new Map(eventIds.map(event=>[event,0]));
+  // Two-way event/constructor effects use the overlapping teams as bridges.
+  // This avoids declaring two different sets of circuits directly comparable.
+  for(let iteration=0;iteration<40;iteration++) {
+    for(const event of eventIds)eventEffect.set(event,avg(observations.filter(o=>o.event===event)
+      .map(o=>o.value-teamEffect.get(o.team))));
+    for(const team of teams)teamEffect.set(team,avg(observations.filter(o=>o.team===team)
+      .map(o=>o.value-eventEffect.get(o.event))));
+    const centre=avg([...teamEffect.values()]);
+    for(const team of teams)teamEffect.set(team,teamEffect.get(team)-centre);
+  }
+  const best=Math.min(...teamEffect.values());
+  return new Map(teams.map(team=>[team,Math.max(0,teamEffect.get(team)-best)]));
 }
 
 function seasonTelemetry() {
@@ -1469,6 +1503,24 @@ function seasonTelemetry() {
   output.reference='each event’s fastest measured lap';
   output.commonEvents=targetReports.map(r=>r.event.name);
   output.excludedTeams=[];
+  const adjusted={
+    low:eventAdjustedScores(targetReports,row=>row.categories.low?.deficit),
+    medium:eventAdjustedScores(targetReports,row=>row.categories.medium?.deficit),
+    high:eventAdjustedScores(targetReports,row=>row.categories.high?.deficit),
+    lowSeconds:eventAdjustedScores(targetReports,row=>row.categories.low?.time_lost),
+    mediumSeconds:eventAdjustedScores(targetReports,row=>row.categories.medium?.time_lost),
+    highSeconds:eventAdjustedScores(targetReports,row=>row.categories.high?.time_lost),
+    corners:eventAdjustedScores(targetReports,row=>row.trace.corner_contribution),
+    straights:eventAdjustedScores(targetReports,row=>row.trace.straight_traversal_delta),
+    braking:eventAdjustedScores(targetReports,row=>row.brakingScore)
+  };
+  const adjustedBands=Object.fromEntries(STRAIGHT_BANDS.map(key=>[
+    key,eventAdjustedScores(targetReports,row=>row.trace.accel_bands?.[key]?.gap_s)
+  ]));
+  for(const team of output)team.adjusted=Object.fromEntries(Object.entries(adjusted)
+    .map(([metric,scores])=>[metric,scores.get(team.team)??null]));
+  for(const team of output)team.adjustedBands=Object.fromEntries(Object.entries(adjustedBands)
+    .map(([band,scores])=>[band,scores.get(team.team)??null]));
   return output;
 }
 
@@ -1529,28 +1581,16 @@ function renderTrace() {
         lowGap:avg(team.lowDeficit),mediumGap:avg(team.mediumDeficit),highGap:avg(team.highDeficit),
         cornerGap:avg(team.cornerContribution)
       }));
-      const minLow = Math.min(...rawValues.map(t => t.lowGap).filter(finite));
-      const minMed = Math.min(...rawValues.map(t => t.mediumGap).filter(finite));
-      const minHigh = Math.min(...rawValues.map(t => t.highGap).filter(finite));
-      const minLowS = Math.min(...rawValues.map(t => t.lowValue).filter(finite));
-      const minMedS = Math.min(...rawValues.map(t => t.mediumValue).filter(finite));
-      const minHighS = Math.min(...rawValues.map(t => t.highValue).filter(finite));
-      const minCornerGap = Math.min(...rawValues.map(t => t.cornerGap).filter(finite));
-
       const values = rawValues.map(team => ({
         ...team,
-        lowGap: finite(team.lowGap) && finite(minLow) ? Math.max(0, team.lowGap - minLow) : null,
-        mediumGap: finite(team.mediumGap) && finite(minMed) ? Math.max(0, team.mediumGap - minMed) : null,
-        highGap: finite(team.highGap) && finite(minHigh) ? Math.max(0, team.highGap - minHigh) : null,
-        lowValue: finite(team.lowValue) && finite(minLowS) ? Math.max(0, team.lowValue - minLowS) : null,
-        mediumValue: finite(team.mediumValue) && finite(minMedS) ? Math.max(0, team.mediumValue - minMedS) : null,
-        highValue: finite(team.highValue) && finite(minHighS) ? Math.max(0, team.highValue - minHighS) : null,
-        cornerGap: finite(team.cornerGap) && finite(minCornerGap) ? Math.max(0, team.cornerGap - minCornerGap) : null,
+        lowGap:team.adjusted.low,mediumGap:team.adjusted.medium,highGap:team.adjusted.high,
+        lowValue:team.adjusted.lowSeconds,mediumValue:team.adjusted.mediumSeconds,
+        highValue:team.adjusted.highSeconds,cornerGap:team.adjusted.corners,
       }));
 
       const ordered=sorted(values,{cornerTeam:t=>t.team,lowGap:t=>t.lowGap,mediumGap:t=>t.mediumGap,highGap:t=>t.highGap,cornerEvents:t=>t.events},'lowGap');
 
-      return card(cornerTitle,`Time lost per lap in each corner speed type relative to the fastest constructor in that class (baseline 0.000%). All ranked teams use the same ${values[0]?.events||0} circuits.`,
+      return card(cornerTitle,'Estimated time lost per lap in each corner speed type, adjusted for which circuits have usable telemetry. Zero is the best supported constructor; circuit counts remain visible because missing data adds uncertainty.',
         (isSeasonScope ? renderCircuitAuditCard(season) : '')+
         lapShareChart(values,'cornerGap',season.reference)+
         table([sortHeader('cornerTeam','Team'),sortHeader('lowGap','Low-speed deficit'),sortHeader('mediumGap','Medium-speed deficit'),sortHeader('highGap','High-speed deficit'),sortHeader('cornerEvents','Circuits',-1)],ordered.map(team=>[teamLabel(team),
@@ -1646,13 +1686,13 @@ function renderTrace() {
 
       const rawValues = season.map(team => ({
         ...team,
-        bandGap:avg(team.accelBands[straightBand]||[]),
+        bandGap:team.adjustedBands[straightBand],
         bandEvents:(team.accelBands[straightBand]||[]).length,
         accel250Pct: avg(team.accel250Pct),
         accel250: avg(team.accel250),
         accel200: avg(team.accel200),
         accel320: avg(team.accel320),
-        traversalDelta: avg(team.straightTraversalDelta),
+        traversalDelta: team.adjusted.straights,
         terminal: avg(team.terminalZoneMeanSpeed),
         termLen: avg(team.terminalZoneLength),
         speedSt: avg(team.speedSt),
@@ -1663,7 +1703,7 @@ function renderTrace() {
       const availableBands=STRAIGHT_BANDS.filter(key=>season.filter(team=>(team.accelBands[key]||[]).length).length>=3);
       const bandControls=straightBandControls(availableBands);
       for(const row of rawValues) {
-        row.bandGap=avg(row.accelBands[straightBand]||[]);
+        row.bandGap=row.adjustedBands[straightBand];
         row.bandEvents=(row.accelBands[straightBand]||[]).length;
       }
       const valid250Pct = rawValues.map(t => t.accel250Pct).filter(finite);
@@ -1740,11 +1780,11 @@ function renderTrace() {
           team.events
         ]))+
         renderSeasonLapGapCard(season, rawValues)+
-        '<p class="performance-note">Acceleration uses ≥90% throttle and no observed braking within fixed speed bands. Traffic is screened against selected qualifying laps only, so clean air is not guaranteed. Terminal speed is measured in a shared corridor on long straights; no corridor means no value.</p>');
+        '<p class="performance-note">Acceleration uses ≥70% throttle below 150 km/h and ≥90% above it, with no observed braking. Short corner exits count. Each event compares the same physical zones and aero state; season scores adjust for differing event coverage. Traffic is screened against selected qualifying laps only, so clean air is not guaranteed.</p>');
     }
     const rawBrakeValues = season.map(team => ({
       ...team,
-      score:avg(team.brakingScore),
+      score:team.adjusted.braking,
       referenceLap:avg(team.brakingReferenceLap),
       g: avg(team.brakeG),
       meanG: avg(team.brakeMeanG),
@@ -1779,7 +1819,7 @@ function renderTrace() {
 
     const brakeChart = renderHorizontalBarChart(ordered, {
       title: 'Braking-phase time lost',
-      subtitle: 'Typical supported brake window, including flagged curved approaches · % of qualifying lap · Lower is better',
+      subtitle: 'Same supported braking windows per event · model-adjusted % of qualifying lap · Lower is better',
       valueKey: 'score',
       unit: '%',
       digits: 3,
@@ -1787,12 +1827,12 @@ function renderTrace() {
       zeroBaseline: true
     });
 
-    return card(brakingTitle,'The graph shows average time lost per supported braking window as a percentage of a qualifying lap, not total braking loss across the lap. One-zone results are provisional. Curved approaches end at observed brake release and are flagged; straight approaches end at detected turn-in. Entry speed, steering and driver technique still matter. Energy-loss rate is speed-derived, not measured brake power.',
+    return card(brakingTitle,'The graph sums time lost in the same supported braking windows for every ranked team at each event, then adjusts for differing event coverage. It is a measured share of qualifying-lap time in those windows—not a brake-hardware rating or a full-lap braking estimate. Curved approaches are flagged; entry speed and driver technique still matter.',
       brakeChart+
       table([
         sortHeader('brakeTeam','Team'),
-        sortHeader('brakeScore','Typical zone lap share lost'),
-        sortHeader('brakeTimeDelta','Typical zone time lost'),
+        sortHeader('brakeScore','Supported braking lap share lost'),
+        sortHeader('brakeTimeDelta','Supported braking time lost'),
         sortHeader('brakeNormDecel','Distance-norm decel (anorm)',-1),
         sortHeader('brakeMeanG','Mean decel',-1),
         sortHeader('brakePower','Energy-loss rate',-1),
@@ -2019,7 +2059,7 @@ function renderTrace() {
       ]))+
       card('Where the lap gap comes from',`Relative to ${escape(event.traceReference||'the fastest measured team')}’s qualifying lap.`,
       table(['Team','Straights (Traversal Delta)','Corners','Lap gap'],ordered.map(row=>[teamLabel(row),finite(row.traversalDelta)?signed(row.traversalDelta,3,'%'):'—',fmt(row.trace?.corner_contribution,3,'%'),fmt(row.trace?.lap_gap,3,'%')])))+
-      '<p class="performance-note">Acceleration uses ≥90% throttle without observed braking through fixed speed bands. Traffic is screened against selected qualifying laps only; clean air is not guaranteed. Terminal speed is measured in a shared long-straight corridor when one is available. Straight traversal reflects total measured straight time relative to the reference lap.</p>');
+      '<p class="performance-note">Acceleration uses ≥70% throttle below 150 km/h and ≥90% above it, without observed braking. Short corner exits count. Teams are ranked on the same physical zones and aero state; missing crossings remain unavailable. Traffic is screened against selected qualifying laps only. Straight traversal is separate from acceleration.</p>');
   }
   const brakeRows = computeBrakingPerformance(loaded.map(r => ({
     ...r,
@@ -2059,7 +2099,7 @@ function renderTrace() {
 
   const singleBrakeChart = renderHorizontalBarChart(ordered, {
     title: 'Braking-phase time lost',
-    subtitle: 'Typical supported brake window, including flagged curved approaches · % of qualifying lap · Lower is better',
+    subtitle: 'Same supported braking windows · % of qualifying lap · Lower is better',
     valueKey: 'score',
     unit: '%',
     digits: 3,
@@ -2067,12 +2107,12 @@ function renderTrace() {
     zeroBaseline: true
   });
 
-  return card('Braking performance','The percentage is average time lost per supported braking window, divided by the full qualifying lap time—not total loss across the lap or a brake-hardware rating. Curved approaches are included and flagged; they are not pure straight-line braking. Each window needs three measured teams. A one-zone result is provisional. Energy-loss rate includes drag and energy recovery, not measured friction-brake power.',
+  return card('Braking performance','The percentage sums time lost across the same supported braking windows for every ranked team, divided by the qualifying lap time. It does not cover unsupported braking zones or isolate brake hardware. Curved approaches are flagged. Energy-loss rate includes drag and energy recovery, not measured friction-brake power.',
     singleBrakeChart+
     table([
       sortHeader('eventBrakeTeam','Team'),
-      sortHeader('eventBrakeScore','Typical zone lap share lost'),
-      sortHeader('eventBrakeTimeDelta','Typical zone time lost'),
+      sortHeader('eventBrakeScore','Supported braking lap share lost'),
+      sortHeader('eventBrakeTimeDelta','Supported braking time lost'),
       sortHeader('eventBrakeNormDecel','Distance-norm decel (anorm)',-1),
       sortHeader('eventBrakeMeanG','Mean decel',-1),
       sortHeader('eventBrakePower','Energy-loss rate',-1),
