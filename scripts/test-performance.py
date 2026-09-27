@@ -117,7 +117,7 @@ class PerformanceTests(unittest.TestCase):
         windows = straight_braking_windows({'A': item, 'B': item, 'C': item}, item, grid, zones)
         self.assertIn('Brake zone 1', windows)
         self.assertLessEqual(grid[windows['Brake zone 1'][1]], 660)
-        self.assertEqual(windows['Brake zone 1'][3], 'mixed approach')
+        self.assertEqual(windows['Brake zone 1'][3], 'straight')
 
     def test_gps_endpoint_clamping_keeps_positive_elapsed_cells(self):
         samples = lambda shift: [

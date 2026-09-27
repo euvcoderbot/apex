@@ -116,19 +116,34 @@ def straight_braking_windows(selected, reference, grid, zones):
     kernel = np.ones(9) / 9
     x = np.convolve(np.pad(x, (4, 4), mode='edge'), kernel, mode='valid')
     y = np.convolve(np.pad(y, (4, 4), mode='edge'), kernel, mode='valid')
-    heading = np.unwrap(np.arctan2(np.gradient(y, grid), np.gradient(x, grid)))
-    curvature = np.abs(np.gradient(heading, grid))
-    curvature = np.convolve(np.pad(curvature, (2, 2), mode='edge'), np.ones(5) / 5, mode='valid')
+    # A pointwise second derivative amplifies the low-rate GPS staircase.
+    # Estimate heading over a 40 m chord and compare it with the approach.
+    step = float(grid[1] - grid[0])
+    radius = max(2, int(20 / step))
+    left = np.maximum(0, np.arange(len(grid)) - radius)
+    right = np.minimum(len(grid)-1, np.arange(len(grid)) + radius)
+    heading = np.unwrap(np.arctan2(y[right]-y[left], x[right]-x[left]))
     windows = {}
     for zone in zones:
         start, apex = zone['start'], zone['apex']
         if apex - start < 12:
             continue
-        starts_straight = np.median(curvature[start:start+4]) <= .0025
-        turn_in = (next((i for i in range(start + 4, apex - 3)
-                        if np.all(curvature[i:i+4] > .0025)), None)
+        approach_start = max(0, start-int(80/step))
+        approach_end = max(approach_start+1, start-int(25/step))
+        approach_heading = float(np.median(heading[approach_start:approach_end]))
+        change = np.abs(np.arctan2(np.sin(heading-approach_heading), np.cos(heading-approach_heading)))
+        starts_straight = np.median(change[start:start+3]) < math.radians(10)
+        turn_in = (next((i for i in range(start+1, apex-3)
+                         if np.all(change[i:i+4] > math.radians(10))), apex-1)
                    if starts_straight else None)
-        mode = 'straight' if turn_in is not None else 'mixed approach'
+        mode = 'straight' if starts_straight else 'mixed approach'
+        releases = []
+        for item in selected.values():
+            active = np.flatnonzero(item['brake'][start:apex]) + start
+            if len(active):
+                releases.append(int(active[-1])+1)
+        if turn_in is not None and len(releases) >= 3:
+            turn_in = min(turn_in, int(np.median(releases)))
         if turn_in is None:
             # A curved braking approach still has comparable observed time.
             # End at the field's median brake release and identify it as mixed
@@ -221,11 +236,11 @@ def matched_braking_measurements(selected, windows, grid):
             item = selected[team]
             a, d = item['a'], item['aligned']
             ix = np.flatnonzero((d >= grid[onset]) & (d <= grid[end]) & (a[:, 4] >= .5))
-            if len(ix) < 4:
+            if len(ix) < 3:
                 continue
             # Do not bridge brake releases, missing samples or speed rebounds.
             runs = np.split(ix, np.flatnonzero(np.diff(ix) != 1) + 1)
-            runs = [r for r in runs if len(r) >= 4]
+            runs = [r for r in runs if len(r) >= 3]
             if not runs:
                 continue
             ix = max(runs, key=lambda r: a[r[0], 2] - a[r[-1], 2])
@@ -258,7 +273,7 @@ def matched_braking_measurements(selected, windows, grid):
             inner = (t > t0) & (t < t1)
             ts = np.r_[t0, t[inner], t1]
             vs = np.r_[high, v[inner], low] / 3.6
-            if duration < .5 or len(ts) < 4:
+            if duration < .3 or len(ts) < 3:
                 continue
             distance = float(np.sum(np.diff(ts) * (vs[:-1] + vs[1:]) / 2))
             mean_g = (high - low) / 3.6 / duration / 9.80665
@@ -270,8 +285,10 @@ def matched_braking_measurements(selected, windows, grid):
                 'distance': distance, 'mean_g': mean_g, 'early_g': None,
                 'normalized_decel_g': ((high/3.6)**2 - (low/3.6)**2) / (2*9.80665*distance),
                 'power_proxy_kw_per_tonne': .5*((high/3.6)**2 - (low/3.6)**2)/duration,
-                'sampling_resolution_m': float(np.max(np.diff(ts)*(vs[:-1]+vs[1:])/2)),
-                'sample_count': len(ts), 'speed_drop': high-low
+                'sampling_resolution_m': float(np.max(np.diff(t)*(v[:-1]+v[1:])/7.2)),
+                'sample_count': int(inner.sum())+2, 'speed_drop': high-low,
+                'sample_interval_s': float(np.max(np.diff(t))),
+                'quality': 'limited sampling' if inner.sum() < 3 else 'supported'
             })
     return result
 

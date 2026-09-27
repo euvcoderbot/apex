@@ -1388,6 +1388,7 @@ function eventTelemetry(event) {
     row.samplingResolution=median(zones.map(z=>z.sampling_resolution_m));
     row.mixedBrakeZones=0;
     row.brakeMeasurements=zones;
+    row.limitedBrakeZones=zones.filter(z=>z.quality==='limited sampling').length;
   }
   return {rows,groups,entrants};
 }
@@ -1480,7 +1481,7 @@ function seasonTelemetry() {
         normalizedDecel:[],brakeTimeDelta:[],samplingResolution:[],
         terminalZoneMeanSpeed:[],terminalZoneLength:[],
         accel250:[],accel250Pct:[],accel200:[],accel320:[],accelBands:Object.fromEntries(STRAIGHT_BANDS.map(key=>[key,[]])),straightTraversalDelta:[],speedSt:[],speedFl:[],
-        events:0,zones:0,mixedBrakeZones:0
+        events:0,zones:0,mixedBrakeZones:0,limitedBrakeZones:0
       });
       const item=map.get(row.team); item.events++;
       for(const name of ['low','medium','high'])if(finite(row.categories[name]?.speed)) {
@@ -1521,6 +1522,7 @@ function seasonTelemetry() {
         if(finite(row.brakeTimeDelta))item.brakeTimeDelta.push(row.brakeTimeDelta);
         if(finite(row.samplingResolution))item.samplingResolution.push(row.samplingResolution);
         item.zones+=row.brakeZones;
+        item.limitedBrakeZones+=row.limitedBrakeZones||0;
         item.mixedBrakeZones+=row.mixedBrakeZones||0;
       }
       if(finite(row.trace?.terminal_zone_mean_speed))item.terminalZoneMeanSpeed.push(row.trace.terminal_zone_mean_speed);
@@ -1860,7 +1862,7 @@ function renderTrace() {
         fmt(team.entrySpeed,1,' km/h'),
         fmt(team.turnInSpeed,1,' km/h'),
         `<span class="perf-onset-bracket">Δs ~${fmt(team.samplingResolution,1,' m')}</span>`,
-        `${team.brakingScore.length} scored circuits · ${team.zones} zones${team.mixedBrakeZones?` · ${team.mixedBrakeZones} curved`:''}${team.zones<team.brakingScore.length*2?' · limited coverage':''}`
+        `${team.brakingScore.length} scored circuits · ${team.zones} zones${team.limitedBrakeZones?` · ${team.limitedBrakeZones} sparsely sampled`:''}${team.zones<team.brakingScore.length*2?' · limited coverage':''}`
       ])));
   }
 
@@ -2147,8 +2149,15 @@ function renderTrace() {
       fmt(row.entrySpeed,1,' km/h'),
       fmt(row.turnInSpeed,1,' km/h'),
       row.onsetBracket ? `<span class="perf-onset-bracket">[${fmt(row.onsetBracket[0], 0)}, ${fmt(row.onsetBracket[1], 0)}] m</span>` : `<span class="perf-onset-bracket">Δs ~${fmt(row.samplingResolution, 1, ' m')}</span>`,
-      `${row.events||1} circuit${(row.events||1)===1?'':'s'} · ${row.zones} zones${row.mixedBrakeZones?` · ${row.mixedBrakeZones} curved`:''}${row.zones===1?' · provisional':''}`
-    ])));
+      `${row.zones||0} zones${row.limitedBrakeZones?` · ${row.limitedBrakeZones} sparsely sampled`:''}${row.zones===1?' · provisional':''}`
+    ]))) + card('Braking zone measurements','The qualifying lap and speed range behind each result. Sparse sampling limits precision; interpolated decimal places do not imply millisecond accuracy.',
+      table(['Team / lap','Zone','Speed drop','Time','Distance','Mean deceleration','Source samples'],
+        loaded.flatMap(row=>(row.brakeMeasurements||[]).map(z=>[
+          `${teamLabel(row)}<small>${escape(row.lap?.driver||'')} L${escape(row.lap?.lap||'—')}</small>`,
+          escape(z.corner), `${fmt(z.entry_speed,0)} → ${fmt(z.exit_speed,0)} km/h`,
+          fmt(z.duration,3,' s'),fmt(z.distance,3,' m'),fmt(z.mean_g,3,' g'),
+          `${z.sample_count||'—'}${z.quality==='limited sampling'?' · limited':''}`
+        ]))));
 }
 
 function render() {
