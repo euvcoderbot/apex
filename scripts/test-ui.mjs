@@ -371,6 +371,9 @@ test('car performance controls hide irrelevant GP and expose sortable methodolog
   assert.match(performance, /Extra slowing time/);
   assert.match(performance, /data-braking-view="approach"/);
   assert.match(performance, /Approach time gap/);
+  assert.match(performance, /valueKey: selectedBrakeView==='approach'\?'approachS':'slowingS'/);
+  assert.match(performance, /Extra seconds per measured zone to shed the same speed/);
+  assert.match(html, /\+0\.102 s means about a tenth of a second longer per measured braking zone/);
   assert.match(performance, /50_100.*100_150.*300_350/);
   assert.match(performance, /Show explanations/);
   assert.match(performance, /Time lost across all corners in each band/);
@@ -407,6 +410,10 @@ test('qualifying braking time ranks shared zones and leaves unsupported teams un
   assert.ok(result.rows.get('A').brakingScore < result.rows.get('B').brakingScore);
   assert.ok(result.rows.get('B').brakingScore < result.rows.get('C').brakingScore);
   assert.ok(result.rows.get('A').brakingApproachMs < result.rows.get('B').brakingApproachMs);
+  assert.ok(Math.abs(result.rows.get('B').brakingApproachMs/1000-.26)<.001,
+    'a 260 ms approach gap should display as +0.260 s');
+  assert.ok(Math.abs(result.rows.get('B').brakingSlowingS-.2)<.001,
+    '2.2 seconds versus 2.0 seconds should show +0.200 s per matched braking zone');
   assert.ok(Math.abs(100*Math.expm1(result.rows.get('B').brakingScore/100)-10)<.001,
     '2.2 seconds versus 2.0 seconds should be 10% longer, independent of lap time');
   assert.equal(result.rows.get('D').brakingScoreZones, 1);
