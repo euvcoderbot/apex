@@ -126,9 +126,7 @@ function computeBrakingPerformance(teams) {
   const baseline=scores.length?Math.min(...scores):null;
   return validTeams.map(t=>({
     ...t,
-    score:finite(t.score)&&finite(baseline)?Math.max(0,t.score-baseline):null,
-    timeLossSeconds:finite(t.score)&&finite(baseline)&&finite(t.referenceLap)
-      ? Math.max(0,t.score-baseline)*t.referenceLap/100:null,
+    score:finite(t.score)&&finite(baseline)?100*Math.expm1(Math.max(0,t.score-baseline)/100):null,
     g:finite(t.g)?t.g:null,
     meanG:finite(t.meanG)?t.meanG:null,
     powerProxy:finite(t.powerProxy)?t.powerProxy:null,
@@ -1340,62 +1338,56 @@ function eventTelemetry(event) {
     row.topDeficit=finite(row.trace.top_speed)?(bestTop/row.trace.top_speed-1)*100:null;
     row.fullDeficit=finite(row.trace.full_throttle_p95)?(bestFull/row.trace.full_throttle_p95-1)*100:null;
   }
-  // Headline: observed time in comparable braking windows. Curved approaches
-  // remain labelled separately from the straight-only subset.
-  const eligible=[...rows.values()].filter(row=>(row.trace?.braking||[]).length>=1);
-  const brakingLabels=[...new Set(eligible.flatMap(row=>(row.trace.braking||[]).map(z=>z.corner).filter(Boolean)))];
-  if(eligible.length>=3) {
-    const scores=new Map(eligible.map(row=>[row.team,[]]));
-    const scoredZones=new Map(eligible.map(row=>[row.team,[]]));
-    const supported=brakingLabels.map(label=>({label,measured:eligible.map(row=>({row,z:row.trace.braking.find(b=>b.corner===label)}))
-      .filter(x=>finite(x.z?.corridor_time)&&x.z.corridor_time>0)}))
-      .filter(x=>x.measured.length>=3).sort((a,b)=>b.measured.length-a.measured.length);
-    let cohort=new Set(supported[0]?.measured.map(x=>x.row.team)||[]);
-    const common=[];
-    for(const zone of supported) {
-      const next=new Set(zone.measured.map(x=>x.row.team).filter(team=>cohort.has(team)));
-      if(next.size>=3) { cohort=next; common.push(zone); }
+  // Compare identical speed drops within each physical straight-braking zone.
+  // A team missing one zone retains its other supported measurements.
+  const reports=[];
+  const labelsBrake=[...new Set([...rows.values()].flatMap(row=>(row.trace.braking||[])
+    .filter(z=>z.method==='matched-speed-v1'&&z.mode==='straight').map(z=>z.corner)))];
+  for(const label of labelsBrake) {
+    const measured=[...rows.values()].map(row=>({row,z:row.trace.braking?.find(z=>z.corner===label&&z.method==='matched-speed-v1'&&z.mode==='straight')}))
+      .filter(({z})=>finite(z?.duration)&&z.duration>0&&z.entry_speed-z.exit_speed>=50);
+    if(measured.length<3)continue;
+    const first=measured[0].z;
+    const same=measured.filter(({z})=>z.entry_speed===first.entry_speed&&z.exit_speed===first.exit_speed);
+    if(same.length<3)continue;
+    reports.push({event:{name:label},summary:{rows:new Map(same.map(({row,z})=>[row.team,{team:row.team,z}]))}});
+  }
+  // Only one connected comparison group can share a baseline.
+  const remaining=new Set(reports.flatMap(r=>[...r.summary.rows.keys()]));
+  const components=[];
+  while(remaining.size) {
+    const group=new Set([remaining.values().next().value]);
+    let changed=true;
+    while(changed) {
+      changed=false;
+      for(const report of reports)if([...report.summary.rows.keys()].some(t=>group.has(t)))
+        for(const team of report.summary.rows.keys())if(!group.has(team)){group.add(team);changed=true;}
     }
-    for(const {measured:allMeasured} of common) {
-      const measured=allMeasured.filter(x=>cohort.has(x.row.team));
-      const timeBest=Math.min(...measured.map(x=>x.z.corridor_time));
-      if(!finite(timeBest)||timeBest<=0)continue;
-      const lapTime=median(measured.map(x=>x.row.trace.reference_lap_time).filter(v=>finite(v)&&v>0));
-      if(!finite(lapTime)||lapTime<=0)continue;
-      for(const {row,z} of measured) {
-        const timeLoss=Math.max(0,z.corridor_time-timeBest)/lapTime*100;
-        scores.get(row.team).push(timeLoss);
-        scoredZones.get(row.team).push({zone:z, fastest:measured.find(x=>x.z.corridor_time===timeBest).z, timeBest});
-      }
-    }
-    for(const row of eligible) {
-      const values=scores.get(row.team);
-      if(values.length>=1) {
-        const matched=scoredZones.get(row.team);
-        const zones=matched.map(x=>x.zone);
-        // A headline lap contribution must sum identical brake windows for
-        // every ranked team; an average window cannot represent lap impact.
-        row.brakingScore=values.reduce((sum,value)=>sum+value,0);
-        row.brakingReferenceLap=median(eligible.map(item=>item.trace.reference_lap_time).filter(v=>finite(v)&&v>0));
-        row.brakingScoreZones=values.length;
-        row.brakingScoreCohort=cohort.size;
-        row.brakeDistDelta=median(matched.map(x=>x.zone.distance-x.fastest.distance));
-        row.brakeDistance=median(zones.map(z=>z.distance));
-        row.brakeG=median(zones.map(z=>z.early_g));
-        row.brakeMeanG=median(zones.map(z=>z.mean_g));
-        row.brakePowerProxy=median(zones.map(z=>z.power_proxy_kw_per_tonne));
-        row.brakeDuration=median(zones.map(z=>z.duration));
-        row.brakeEntrySpeed=median(zones.map(z=>z.entry_speed));
-        row.brakeTurnInSpeed=median(zones.map(z=>z.exit_speed));
-        row.brakeOnset=median(zones.map(z=>z.start));
-        row.normalizedDecel=median(zones.map(z=>z.normalized_decel_g));
-        row.brakeTimeDelta=matched.reduce((sum,x)=>sum+x.zone.corridor_time-x.timeBest,0);
-        row.samplingResolution=median(zones.map(z=>z.sampling_resolution_m));
-        row.onsetBracket=zones.find(z=>z.onset_bracket)?.onset_bracket||null;
-        row.brakeZones=zones.length;
-        row.mixedBrakeZones=zones.filter(z=>z.mode==='mixed approach').length;
-      }
-    }
+    for(const team of group)remaining.delete(team);
+    components.push(group);
+  }
+  components.sort((a,b)=>b.size-a.size);
+  const group=components[0]||new Set();
+  const comparable=reports.filter(r=>[...r.summary.rows.keys()].some(t=>group.has(t)));
+  const scores=eventAdjustedScores(comparable,row=>100*Math.log(row.z.duration));
+  for(const row of rows.values()) {
+    const zones=comparable.map(r=>r.summary.rows.get(row.team)?.z).filter(Boolean);
+    if(!zones.length||!scores.has(row.team))continue;
+    row.brakingScore=scores.get(row.team);
+    row.brakingScoreZones=zones.length;
+    row.brakingScoreCohort=group.size;
+    row.brakeZones=zones.length;
+    row.brakeDistance=median(zones.map(z=>z.distance));
+    row.brakeMeanG=median(zones.map(z=>z.mean_g));
+    row.brakeG=null;
+    row.brakePowerProxy=median(zones.map(z=>z.power_proxy_kw_per_tonne));
+    row.brakeDuration=median(zones.map(z=>z.duration));
+    row.brakeEntrySpeed=median(zones.map(z=>z.entry_speed));
+    row.brakeTurnInSpeed=median(zones.map(z=>z.exit_speed));
+    row.normalizedDecel=median(zones.map(z=>z.normalized_decel_g));
+    row.samplingResolution=median(zones.map(z=>z.sampling_resolution_m));
+    row.mixedBrakeZones=0;
+    row.brakeMeasurements=zones;
   }
   return {rows,groups,entrants};
 }
@@ -1571,7 +1563,7 @@ function renderCircuitAuditCard(season) {
   const used = season.commonEvents || [];
   const omitted = events.map(event => event.name).filter(name => !used.includes(name));
   return `<div class="perf-audit-box"><div class="perf-audit-header"><div class="perf-audit-title">Circuit coverage · ${used.length} of ${events.length} selected events</div></div>
-    <p class="performance-note">A braking zone needs clean observations from three teams. One-zone results are provisional; curved approaches are included and flagged. This is observed braking-phase time, not a pure brake-hardware measure. Missing teams are not imputed; check each row's circuit and zone support.</p>
+    <p class="performance-note">Braking requires the same speed drop on a straight approach, with at least three teams per zone. Curved approaches and sample gaps are excluded. One-zone results are provisional; check each team’s measured coverage.</p>
     <p class="performance-note">Included: ${used.length ? used.map(escape).join(', ') : 'none'}. ${omitted.length ? `Excluded: ${omitted.map(escape).join(', ')}.` : ''}</p></div>`;
 }
 
@@ -1834,8 +1826,8 @@ function renderTrace() {
     }, 'brakeScore', 1);
 
     const brakeChart = renderHorizontalBarChart(ordered, {
-      title: 'Braking-phase time lost',
-      subtitle: 'Same supported braking windows per event · model-adjusted % of qualifying lap · Lower is better',
+      title: 'Qualifying braking · matched speed drop',
+      subtitle: 'Extra time to shed the same speed · Adjusted for zone and event coverage · Lower is better',
       valueKey: 'score',
       unit: '%',
       digits: 3,
@@ -1843,29 +1835,27 @@ function renderTrace() {
       zeroBaseline: true
     });
 
-    return card(brakingTitle,'The graph sums time lost in the same supported braking windows for every ranked team at each event, then adjusts for differing event coverage. It is a measured share of qualifying-lap time in those windows—not a brake-hardware rating or a full-lap braking estimate. Curved approaches are flagged; entry speed and driver technique still matter.',
+    return card(brakingTitle,'A value of +2% means the car takes about 2% longer to shed the same speed in comparable straight braking zones. Qualifying laps only; each zone uses identical entry and exit speeds. The ranking adjusts for zone and event coverage. Tyres, downforce, driver input, drag and energy recovery all contribute. This percentage is a deceleration comparison, not a share of lap time.',
       brakeChart+
       table([
         sortHeader('brakeTeam','Team'),
-        sortHeader('brakeScore','Supported braking lap share lost'),
-        sortHeader('brakeTimeDelta','Supported braking time lost'),
-        sortHeader('brakeNormDecel','Distance-norm decel (anorm)',-1),
+        sortHeader('brakeScore','Extra slowing time'),
+        sortHeader('brakeDuration','Measured duration'),
+        sortHeader('brakeNormDecel','Distance-based deceleration',-1),
         sortHeader('brakeMeanG','Mean decel',-1),
         sortHeader('brakePower','Energy-loss rate',-1),
-        sortHeader('brakeDistDelta','Distance delta (Δm)'),
         sortHeader('brakeDistance','Braking distance'),
-        sortHeader('brakeEntrySpeed','Brake-onset speed'),
-        sortHeader('brakeTurnInSpeed','Brake-release speed'),
-        sortHeader('brakeResolution','Sampling interval (v/f)'),
+        sortHeader('brakeEntrySpeed','Measured entry speed'),
+        sortHeader('brakeTurnInSpeed','Measured exit speed'),
+        sortHeader('brakeResolution','Largest sample spacing'),
         sortHeader('brakeZones','Matched zones',-1)
       ],ordered.map(team=>[
         teamLabel(team),
         signed(team.score,3,'%'),
-        `${signed(team.timeLossSeconds,3,' s')}`,
-        `${fmt(team.normalizedDecel,2,' g')}`,
-        fmt(team.meanG,2,' g'),
+        fmt(team.duration,3,' s'),
+        `${fmt(team.normalizedDecel,3,' g')}`,
+        fmt(team.meanG,3,' g'),
         `${fmt(team.powerProxy,0,' kW/t')}<small>speed-derived · not brake power</small>`,
-        signed(team.distDelta,1,' m'),
         fmt(team.distance,1,' m'),
         fmt(team.entrySpeed,1,' km/h'),
         fmt(team.turnInSpeed,1,' km/h'),
@@ -2123,8 +2113,8 @@ function renderTrace() {
   }, 'eventBrakeScore', 1);
 
   const singleBrakeChart = renderHorizontalBarChart(ordered, {
-    title: 'Braking-phase time lost',
-    subtitle: 'Same supported braking windows · % of qualifying lap · Lower is better',
+    title: 'Qualifying braking · matched speed drop',
+    subtitle: 'Extra time to shed the same speed in matched zones · Lower is better',
     valueKey: 'score',
     unit: '%',
     digits: 3,
@@ -2132,29 +2122,27 @@ function renderTrace() {
     zeroBaseline: true
   });
 
-  return card('Braking performance','The percentage sums time lost across the same supported braking windows for every ranked team, divided by the qualifying lap time. It does not cover unsupported braking zones or isolate brake hardware. Curved approaches are flagged. Energy-loss rate includes drag and energy recovery, not measured friction-brake power.',
+  return card('Braking performance','A value of +2% means the car takes about 2% longer to shed the same speed in comparable straight braking zones. Qualifying laps only; each zone uses identical entry and exit speeds. The ranking adjusts for zone and event coverage. Tyres, downforce, driver input, drag and energy recovery all contribute. This percentage is a deceleration comparison, not a share of lap time.',
     singleBrakeChart+
     table([
       sortHeader('eventBrakeTeam','Team'),
-      sortHeader('eventBrakeScore','Supported braking lap share lost'),
-      sortHeader('eventBrakeTimeDelta','Supported braking time lost'),
-      sortHeader('eventBrakeNormDecel','Distance-norm decel (anorm)',-1),
+      sortHeader('eventBrakeScore','Extra slowing time'),
+      sortHeader('eventBrakeDuration','Measured duration'),
+      sortHeader('eventBrakeNormDecel','Distance-based deceleration',-1),
       sortHeader('eventBrakeMeanG','Mean decel',-1),
       sortHeader('eventBrakePower','Energy-loss rate',-1),
-      sortHeader('eventBrakeDistDelta','Distance delta (Δm)'),
       sortHeader('eventBrakeDistance','Braking distance'),
-      sortHeader('eventBrakeEntrySpeed','Brake-onset speed'),
-      sortHeader('eventBrakeTurnInSpeed','Brake-release speed'),
-      sortHeader('eventBrakeResolution','Onset bracket [d_off, d_on]'),
+      sortHeader('eventBrakeEntrySpeed','Measured entry speed'),
+      sortHeader('eventBrakeTurnInSpeed','Measured exit speed'),
+      sortHeader('eventBrakeResolution','Largest sample spacing'),
       sortHeader('eventBrakeZones','Matched zones',-1)
     ],ordered.map(row=>[
       teamLabel(row),
       signed(row.score,3,'%'),
-      `${signed(row.timeLossSeconds, 3, ' s')}`,
-      `${fmt(row.normalizedDecel, 2, ' g')}`,
-      fmt(row.meanG,2,' g'),
+      fmt(row.duration,3,' s'),
+      `${fmt(row.normalizedDecel,3, ' g')}`,
+      fmt(row.meanG,3,' g'),
       `${fmt(row.powerProxy,0,' kW/t')}<small>speed-derived · not brake power</small>`,
-      signed(row.distDelta,1,' m'),
       fmt(row.distance,1,' m'),
       fmt(row.entrySpeed,1,' km/h'),
       fmt(row.turnInSpeed,1,' km/h'),

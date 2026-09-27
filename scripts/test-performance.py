@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 import numpy as np
 from performance import analyze, clean, slope, traffic_gaps, telemetry_metrics, matched_tyre_trend
-from performance_tracks import prepare, align, straight_braking_windows, observed_braking_zones
+from performance_tracks import prepare, align, straight_braking_windows, observed_braking_zones, matched_braking_measurements
 
 
 def lap(driver='A', team='Alpha', time=90, **kwargs):
@@ -38,6 +38,36 @@ class RaceSession:
 
 
 class PerformanceTests(unittest.TestCase):
+    def test_braking_compares_same_speed_drop_from_original_time(self):
+        grid = np.arange(0., 405., 5.)
+        selected = {}
+        for team, rate in [('A', 100.), ('B', 80.), ('C', 100.)]:
+            t = np.arange(0., 2.01, .1)
+            v = 310 - rate*t
+            a = np.zeros((len(t), 8))
+            a[:, 1], a[:, 2], a[:, 4] = t, v, 1
+            selected[team] = {'a': a, 'aligned': np.linspace(0, 390, len(t))}
+        windows = {'Z1': (0, 80, dict.fromkeys(selected, 0), 'straight')}
+        result = matched_braking_measurements(selected, windows, grid)
+        a, b, c = [result[t][0] for t in 'ABC']
+        self.assertEqual(a['entry_speed'], b['entry_speed'])
+        self.assertEqual(a['exit_speed'], b['exit_speed'])
+        self.assertAlmostEqual(b['duration']/a['duration'], 1.25)
+        self.assertAlmostEqual(a['duration'], c['duration'])
+        self.assertAlmostEqual(a['mean_g']/b['mean_g'], 1.25)
+        self.assertAlmostEqual(a['distance'], (a['entry_speed']+a['exit_speed'])/7.2*a['duration'])
+        windows['Z1'] = (0, 80, dict.fromkeys(selected, 0), 'mixed approach')
+        self.assertTrue(all(not v for v in matched_braking_measurements(selected, windows, grid).values()))
+
+    def test_braking_rejects_missing_samples_and_legacy_short_intervals(self):
+        grid = np.arange(0., 405., 5.)
+        t = np.array([0., .1, .2, 1., 1.1, 1.2])
+        a = np.zeros((len(t), 8))
+        a[:, 1], a[:, 2], a[:, 4] = t, 310-100*t, 1
+        selected = {team: {'a': a.copy(), 'aligned': np.linspace(0, 390, len(t))} for team in 'ABC'}
+        windows = {'Z1': (0, 80, dict.fromkeys(selected, 0), 'straight')}
+        self.assertTrue(all(not v for v in matched_braking_measurements(selected, windows, grid).values()))
+
     def test_braking_zones_are_detected_without_corner_markers(self):
         grid = np.arange(0.0, 2005.0, 5.0)
         speed = np.full(len(grid), 300.0)

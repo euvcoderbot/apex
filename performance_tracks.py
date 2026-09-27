@@ -205,6 +205,77 @@ def observed_braking_zones(selected, grid):
     return zones
 
 
+def matched_braking_measurements(selected, windows, grid):
+    """Time a shared speed drop in each straight braking approach.
+
+    Use original timestamps and integrate the observed speed for distance;
+    GPS is only used to identify the approach and its straight portion.
+    Neither the GPS warp nor official-lap rescaling changes deceleration.
+    """
+    result = {team: [] for team in selected}
+    for label, (start, end, onsets, mode) in windows.items():
+        if mode != 'straight':
+            continue
+        segments = {}
+        for team, onset in onsets.items():
+            item = selected[team]
+            a, d = item['a'], item['aligned']
+            ix = np.flatnonzero((d >= grid[onset]) & (d <= grid[end]) & (a[:, 4] >= .5))
+            if len(ix) < 4:
+                continue
+            # Do not bridge brake releases, missing samples or speed rebounds.
+            runs = np.split(ix, np.flatnonzero(np.diff(ix) != 1) + 1)
+            runs = [r for r in runs if len(r) >= 4]
+            if not runs:
+                continue
+            ix = max(runs, key=lambda r: a[r[0], 2] - a[r[-1], 2])
+            t, v = a[ix, 1], a[ix, 2]
+            if np.max(np.diff(t)) > .6 or np.any(np.diff(v) > 2) or v[0] - v[-1] < 50:
+                continue
+            segments[team] = (t, v)
+        if len(segments) < 3:
+            continue
+        # Widest supported cohort first, then the largest shared speed drop.
+        # All cars in a zone use exactly the same endpoints.
+        options = []
+        for high in {math.floor(v[0] / 10) * 10 for _, v in segments.values()}:
+            for low in {math.ceil(v[-1] / 10) * 10 for _, v in segments.values()}:
+                cohort = [team for team, (_, v) in segments.items() if v[0] >= high and v[-1] <= low]
+                if high - low >= 50 and len(cohort) >= 3:
+                    options.append((len(cohort), high - low, high, low, cohort))
+        if not options:
+            continue
+        _, _, high, low, cohort = max(options, key=lambda o: o[:4])
+        for team in cohort:
+            t, v = segments[team]
+            def crossing(speed):
+                j = int(np.flatnonzero(v <= speed)[0])
+                if j == 0:
+                    return float(t[0])
+                return float(t[j-1] + (v[j-1] - speed) / (v[j-1] - v[j]) * (t[j] - t[j-1]))
+            t0, t1 = crossing(high), crossing(low)
+            duration = t1 - t0
+            inner = (t > t0) & (t < t1)
+            ts = np.r_[t0, t[inner], t1]
+            vs = np.r_[high, v[inner], low] / 3.6
+            if duration < .5 or len(ts) < 4:
+                continue
+            distance = float(np.sum(np.diff(ts) * (vs[:-1] + vs[1:]) / 2))
+            mean_g = (high - low) / 3.6 / duration / 9.80665
+            if not .5 <= mean_g <= 7:
+                continue
+            result[team].append({
+                'corner': label, 'method': 'matched-speed-v1', 'mode': 'straight',
+                'entry_speed': high, 'exit_speed': low, 'duration': duration,
+                'distance': distance, 'mean_g': mean_g, 'early_g': None,
+                'normalized_decel_g': ((high/3.6)**2 - (low/3.6)**2) / (2*9.80665*distance),
+                'power_proxy_kw_per_tonne': .5*((high/3.6)**2 - (low/3.6)**2)/duration,
+                'sampling_resolution_m': float(np.max(np.diff(ts)*(vs[:-1]+vs[1:])/2)),
+                'sample_count': len(ts), 'speed_drop': high-low
+            })
+    return result
+
+
 def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_mask, candidates=None):
     """Speed-domain straight-line performance analysis.
 
@@ -672,6 +743,7 @@ def measure_field(extracted, selections, corners=()):
     ref = selected[reference_team]
     braking_zones = observed_braking_zones(selected, grid)
     brake_windows = straight_braking_windows(selected, ref, grid, braking_zones)
+    matched_brakes = matched_braking_measurements(selected, brake_windows, grid)
 
     # Partition straight sections (non-overlapping adaptive split)
     straight_blocks = []
@@ -776,93 +848,7 @@ def measure_field(extracted, selections, corners=()):
         straight_time = straight_info.get('straight_time', float(item['dt'][~corner_mask].sum()))
         corner_time = float(item['dt'][corner_mask].sum())
 
-        braking = []
-        for z in braking_zones:
-            window = brake_windows.get(z['corner'])
-            if not window or team not in window[2]:
-                continue
-            common_start, turn_in, onsets, braking_mode = window
-            indices = np.where(item['brake'][onsets[team]:turn_in])[0] + onsets[team]
-            if len(indices) < 2:
-                continue
-            a, b = int(indices[0]), int(indices[-1]) + 1
-            duration = float(item['dt'][a:b].sum())
-            v_start_kmh = float(item['speed'][a])
-            v_end_kmh = float(item['speed'][b-1])
-            drop_kmh = v_start_kmh - v_end_kmh
-            if duration >= .25 and drop_kmh >= 25:
-                # Explicit SI unit conversion: km/h -> m/s before all deceleration & resolution formulas
-                v_start_ms = v_start_kmh / 3.6
-                v_end_ms = v_end_kmh / 3.6
-                dist_m = float(grid[b] - grid[a])
-
-                # Speed-midpoint split: early deceleration vs late deceleration
-                v_mid_kmh = (v_start_kmh + v_end_kmh) / 2.0
-                mid_idx = a
-                for s_i in range(a, b):
-                    if item['speed'][s_i] <= v_mid_kmh:
-                        mid_idx = s_i
-                        break
-                mid_idx = max(a + 1, min(b - 1, mid_idx))
-                early_dt = float(item['dt'][a:mid_idx].sum())
-                late_dt = float(item['dt'][mid_idx:b].sum())
-                v_mid_ms = float(item['speed'][mid_idx]) / 3.6
-
-                early_g = (v_start_ms - v_mid_ms) / max(0.05, early_dt) / 9.80665
-                late_g = (v_mid_ms - v_end_ms) / max(0.05, late_dt) / 9.80665
-                mean_g = (v_start_ms - v_end_ms) / max(0.05, duration) / 9.80665
-
-                # Distance-normalized deceleration in g:
-                # a_norm = (v_entry_ms^2 - v_exit_ms^2) / (2 * g * distance_m)
-                a_norm = (v_start_ms**2 - v_end_ms**2) / (2.0 * 9.80665 * max(1.0, dist_m))
-
-                # The true onset is bounded by consecutive source samples,
-                # not by adjacent points on the interpolated five-metre grid.
-                raw_onsets = np.where((item['a'][:, 4] >= .5)
-                                      & (item['aligned'] >= grid[z['start']] - 50)
-                                      & (item['aligned'] <= grid[turn_in]))[0]
-                raw_first = int(raw_onsets[0]) if len(raw_onsets) else None
-                onset_bracket = ([float(item['aligned'][raw_first-1]),
-                                  float(item['aligned'][raw_first])]
-                                 if raw_first is not None and raw_first > 0 else None)
-                sampling_res_m = (onset_bracket[1] - onset_bracket[0]
-                                  if onset_bracket else None)
-                release_to_apex = float(grid[turn_in] - grid[b-1])
-
-                # Specific kinetic-energy-loss rate over the first 50 m of
-                # straight braking. kW/tonne is numerically W/kg. It includes
-                # drag, rolling loss and energy recovery, not friction brakes alone.
-                power_end = min(turn_in, int(np.searchsorted(grid, grid[a] + 50)))
-                power_dt = float(item['dt'][a:power_end].sum())
-                power_proxy = (0.5 * ((item['speed'][a] / 3.6) ** 2
-                                       - (item['speed'][power_end] / 3.6) ** 2) / power_dt
-                               if power_end > a and grid[power_end] - grid[a] >= 35
-                               and power_dt > .05 else None)
-
-                ref_b_dt = float(ref['dt'][a:b].sum())
-                brake_time_delta = duration - ref_b_dt
-
-                braking.append({
-                    'corner': z['corner'],
-                    'mode': braking_mode,
-                    'start': float(grid[a]),
-                    'corridor_time': float(item['dt'][common_start:turn_in].sum()),
-                    'corridor_ref_time': float(ref['dt'][common_start:turn_in].sum()),
-                    'turn_in': float(grid[turn_in]),
-                    'power_proxy_kw_per_tonne': float(power_proxy) if power_proxy is not None and power_proxy > 0 else None,
-                    'distance': dist_m,
-                    'duration': duration,
-                    'entry_speed': v_start_kmh,
-                    'exit_speed': v_end_kmh,
-                    'mean_g': float(mean_g),
-                    'early_g': float(early_g),
-                    'late_g': float(late_g),
-                    'normalized_decel_g': float(a_norm),
-                    'time_delta': float(brake_time_delta),
-                    'onset_bracket': onset_bracket,
-                    'release_to_apex': max(0.0, release_to_apex),
-                    'sampling_resolution_m': sampling_res_m
-                })
+        braking = matched_brakes.get(team, [])
 
         results[team] = {
             'corners': measurements, 'categories': categories, 'tercile_categories': tercile_categories,
@@ -902,6 +888,6 @@ def measure_field(extracted, selections, corners=()):
     }
 
     return {'teams': results, 'reference_team': reference_team, 'excluded': {t: e for t, e in errors.items() if t not in results},
-            'method': 'shared-gps-grid-v5-observed-braking', 'corner_count': len(zones),
+            'method': 'shared-gps-grid-v6-matched-braking', 'corner_count': len(zones),
             'circuit_features': circuit_features}
 
