@@ -402,6 +402,8 @@ test('qualifying braking time ranks shared zones and leaves unsupported teams un
   assert.equal(result.rows.get('A').brakingScoreZones, 3);
   assert.ok(result.rows.get('A').brakingScore < result.rows.get('B').brakingScore);
   assert.ok(result.rows.get('B').brakingScore < result.rows.get('C').brakingScore);
+  assert.ok(Math.abs(result.rows.get('B').brakingScore - (3 * .2 / 90 * 100)) < .001,
+    'braking score should sum the three matched windows as a share of lap time');
   assert.ok(result.rows.get('C').brakingScore < 2, 'braking index should use the full lap denominator');
   assert.equal(result.rows.get('D').brakingScoreZones, undefined);
   assert.equal(result.rows.get('A').brakeZones, 3);
@@ -451,6 +453,23 @@ test('season telemetry retains partial qualifying cohorts instead of intersectin
   assert.equal(result.length,3);
   assert.equal(result.find(row=>row.team==='B').events,2);
   assert.equal(result.commonEvents.length,2);
+});
+
+test('season effects bridge unequal circuit coverage through shared teams', () => {
+  const source=readFileSync('car-performance.js','utf8');
+  const body=source.slice(source.indexOf('function eventAdjustedScores('),source.indexOf('function seasonTelemetry()'));
+  const sandbox={finite:v=>typeof v==='number'&&Number.isFinite(v),avg:values=>values.reduce((a,b)=>a+b,0)/values.length};
+  vm.createContext(sandbox);
+  vm.runInContext(body,sandbox);
+  const reports=[
+    {event:{name:'One'},summary:{rows:new Map([['A',{team:'A',value:0}],['B',{team:'B',value:1}],['C',{team:'C',value:2}]])}},
+    {event:{name:'Two'},summary:{rows:new Map([['B',{team:'B',value:0}],['C',{team:'C',value:1}],['D',{team:'D',value:2}]])}}
+  ];
+  const scores=sandbox.eventAdjustedScores(reports,row=>row.value);
+  assert.ok(Math.abs(scores.get('A'))<.001);
+  assert.ok(Math.abs(scores.get('B')-1)<.001);
+  assert.ok(Math.abs(scores.get('C')-2)<.001);
+  assert.ok(Math.abs(scores.get('D')-3)<.001);
 });
 
 test('overall tyre chart shows sparse matched evidence as provisional', () => {

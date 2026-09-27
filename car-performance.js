@@ -1738,7 +1738,7 @@ function renderTrace() {
 
       const qualyChart = renderHorizontalBarChart(orderedQualy, {
         title: `Qualifying acceleration · ${straightBand.replace('_','–')} km/h`,
-        subtitle: 'Time to cross the selected speed range on comparable straights · Season value averages supported events; not a lap-time contribution',
+        subtitle: 'Time to cross the selected speed range in matched zones · Adjusted for event coverage; not a lap-time contribution',
         valueKey: 'bandGap',
         unit: ' s',
         digits: 3,
@@ -2027,7 +2027,7 @@ function renderTrace() {
     });
     const singleStraightChart = renderHorizontalBarChart(ordered, {
       title: `Qualifying acceleration · ${straightBand.replace('_','–')} km/h`,
-      subtitle: 'Time to cross the selected speed range on comparable straights · Not additive lap time',
+      subtitle: 'Time to cross the selected speed range in matched zones · Not additive lap time',
       valueKey: 'bandGap',
       unit: ' s',
       digits: 3,
@@ -2043,7 +2043,7 @@ function renderTrace() {
       table([
         sortHeader('eventStraightTeam', 'Team'),
         sortHeader('eventStraightBand', `${straightBand.replace('_','–')} km/h gap`),
-        'Measured straights',
+        'Measured zones',
         sortHeader('eventStraightTerminal', 'Terminal speed (≥400m)', -1),
         sortHeader('eventStraightSpeedST', 'Official ST', -1),
         sortHeader('eventStraightSpeedFL', 'Official FL', -1),

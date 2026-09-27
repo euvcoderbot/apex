@@ -209,11 +209,12 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
     """Speed-domain straight-line performance analysis.
 
     1. Evaluates supported 50 km/h speed bands from 50–100 through 350–400
-       from raw sample timestamps; unavailable bands remain absent.
-    2. Enforces continuous clean air (>3.0s gap) throughout the entire measurement interval.
+       from raw sample timestamps; low-speed bands also include short exits.
+    2. Screens traffic against selected qualifying laps throughout the interval;
+       this is not proof of clean air against every on-track car.
     3. Requires constant discrete DRS state (drs in {10, 12, 14}) throughout the band.
-    4. Calculates within-straight relative deltas: delta_t = t - median(t_field) on each straight.
-    5. Aggregates event score as median(delta_t) across valid straights, rebased to 0.000s baseline.
+    4. Calculates within-zone relative deltas: delta_t = t - median(t_field).
+    5. Aggregates only zones shared by one supported team cohort, rebased to 0.000s.
     6. Constructs a shared-coordinate terminal speed corridor on long straights (>=400m).
     7. Computes straight traversal delta for lap time attribution.
     """
@@ -510,7 +511,8 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
         accel_200 = (raw_bands['200_250'][team] - best_bands['200_250']) if raw_bands['200_250'][team] is not None else None
         accel_320 = (raw_bands['300_320'][team] - best_bands['300_320']) if raw_bands['300_320'][team] is not None else None
         phase_bands = {name: {'gap_s': float(raw_bands[name][team] - best_bands[name]),
-                              'straights': len(team_straight_deltas[name][team])}
+                              'straights': len(team_straight_deltas[name][team]),
+                              'zones': len(team_straight_deltas[name][team])}
                        for _, _, name in bands if raw_bands[name][team] is not None}
 
         all_team_sums = [sum(team_straight_deltas['250_300'][t]) for t in teams if team_straight_deltas['250_300'][t]]
