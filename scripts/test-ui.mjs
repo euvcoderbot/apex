@@ -582,7 +582,7 @@ test('pit category keeps stationary and lane averages separate by team and drive
   const source=readFileSync('car-performance.js','utf8');
   const body=source.slice(source.indexOf('function pitSummary'),source.indexOf('function huberRegression'));
   const sandbox={avg:a=>{const found=a.filter(Number.isFinite);return found.length?found.reduce((x,y)=>x+y,0)/found.length:null;},
-    finite:Number.isFinite};
+    finite:Number.isFinite,completed:()=>true};
   vm.createContext(sandbox);
   vm.runInContext(body,sandbox);
   const events=[{name:'Example GP',R:{teams:[{team:'McLaren',drivers:['NOR','PIA']}]},
@@ -598,6 +598,14 @@ test('pit category keeps stationary and lane averages separate by team and drive
   assert.equal(result.teams[0].laneCount,3);
   assert.equal(result.drivers.find(d=>d.driver==='NOR').avgStop,2);
   assert.equal(result.drivers.find(d=>d.driver==='NOR').avgLane,25);
+  const withoutRaceLaps=sandbox.pitSummary([{name:'2026 GP',pits:{source:'OpenF1',visits:[
+    {driver:'NOR',team:'McLaren',lap:20,lane_duration:21.3,stop_duration:null}
+  ]}}],[]);
+  assert.equal(withoutRaceLaps.teams[0].avgLane,21.3);
+  assert.equal(withoutRaceLaps.teams[0].avgStop,null);
+  assert.equal(withoutRaceLaps.loaded,1);
+  assert.match(source,/if\(activeMetric==='pits'\) loadPitData\(\);/);
+  assert.doesNotMatch(source,/pitRunning \|\| !context \|\| running/);
   assert.match(source,/activeMetric==='pits'\?renderPits\(teams\)/);
   assert.match(source,/api\/performance\/pits/);
 });

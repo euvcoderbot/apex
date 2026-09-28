@@ -495,6 +495,9 @@ async function analyse() {
   $('performanceLoad').disabled=true; $('performanceLoad').hidden=true; $('performanceCancel').hidden=false;
   updateStatus(`Analysing ${context.year} · starting session retrieval…`, true);
   render();
+  // Pit timing is independent of qualifying/race laps and telemetry. Fetch it
+  // immediately when that view is open, rather than waiting for every trace.
+  if(activeMetric==='pits') loadPitData();
 
   async function worker() {
     while(jobs.length && !signal.aborted) {
@@ -547,15 +550,22 @@ async function analyse() {
   if(id!==generation) return;
   traceRunning=false;
   running=false; $('performanceLoad').disabled=false; $('performanceLoad').hidden=false; $('performanceCancel').hidden=true;
-  updateStatus(`${context.year} · best qualifying lap · ${events.length}/${picked.length} events with data${errors.length ? ` · ${errors.length} data requests unavailable` : ''}. Fresh retrieval complete.`, false);
+  const analysedEvents=events.filter(e=>e.Q||e.R).length;
+  updateStatus(`${context.year} · best qualifying lap · ${analysedEvents}/${picked.length} events with data${errors.length ? ` · ${errors.length} data requests unavailable` : ''}. Fresh retrieval complete.`, false);
   render();
   if(activeMetric==='pits') loadPitData();
 }
 
 async function loadPitData(retry=false) {
-  if(pitRunning || !context || running) return;
+  if(pitRunning || !context) return;
+  const picked=context.scope==='season'
+    ? calendar
+    : calendar.filter(e=>context.selectedTracks.includes(e.name));
+  for(const event of picked.filter(e=>completed(e,'Race'))) {
+    if(!events.some(e=>e.name===event.name)) events.push({...event,traces:{}});
+  }
   if(retry) for(const event of events) delete event.pitError;
-  const jobs=events.filter(e=>e.R && !e.pits && !e.pitError);
+  const jobs=events.filter(e=>completed(e,'Race') && !e.pits && !e.pitError);
   if(!jobs.length) return;
   pitController?.abort(); pitController=new AbortController();
   const signal=pitController.signal, id=generation;
@@ -1265,9 +1275,9 @@ function renderResults(teams) {
 function pitSummary(events, teams) {
   const teamColors=new Map(teams.map(t=>[t.team,t.color]));
   const visits=[];
-  const loadedRaces=events.filter(e=>e.R && e.pits);
+  const loadedRaces=events.filter(e=>e.pits);
   const groups=new Map(), drivers=new Map();
-  for(const event of loadedRaces) for(const team of event.R.teams||[]) {
+  for(const event of loadedRaces) for(const team of event.R?.teams||[]) {
     if(!groups.has(team.team)) groups.set(team.team,{team:team.team,color:teamColors.get(team.team)||team.color,visits:[],events:new Set()});
     for(const driver of team.drivers||[]) {
       const key=`${team.team}:${driver}`;
@@ -1276,7 +1286,7 @@ function pitSummary(events, teams) {
   }
   for(const event of loadedRaces) for(const visit of event.pits.visits||[]) {
     const driver=String(visit.driver||'').trim() || `#${visit.driver_number}`;
-    const team=event.R.teams?.find(t=>t.drivers?.includes(driver))?.team || visit.team || 'Unknown team';
+    const team=event.R?.teams?.find(t=>t.drivers?.includes(driver))?.team || visit.team || 'Unknown team';
     visits.push({...visit,driver,team,event:event.name,source:event.pits.source});
   }
   for(const visit of visits) {
@@ -1296,31 +1306,35 @@ function pitSummary(events, teams) {
     eventCount:group.events.size
   });
   return {teams:[...groups.values()].map(summarize),drivers:[...drivers.values()].map(summarize),visits,
-    loaded:loadedRaces.length,total:events.filter(e=>e.R).length};
+    loaded:loadedRaces.length,total:events.filter(e=>completed(e,'Race')).length};
 }
 
 function renderPits(teams) {
   const data=pitSummary(events,teams);
+  const noStationary=data.visits.length>0 && !data.visits.some(v=>finite(v.stop_duration));
   const orderedTeams=sorted(data.teams,{
     pitTeam:t=>t.team,pitStop:t=>t.avgStop,pitLane:t=>t.avgLane,
     pitStopCount:t=>t.stopCount,pitLaneCount:t=>t.laneCount,pitEvents:t=>t.eventCount
-  },'pitStop');
+  },noStationary?'pitLane':'pitStop');
   const orderedDrivers=sorted(data.drivers,{
     pitDriver:d=>d.driver,pitDriverTeam:d=>d.team,pitDriverStop:d=>d.avgStop,
     pitDriverLane:d=>d.avgLane,pitDriverStopCount:d=>d.stopCount,pitDriverLaneCount:d=>d.laneCount
-  },'pitDriverStop');
-  const failures=events.filter(e=>e.R&&e.pitError);
+  },noStationary?'pitDriverLane':'pitDriverStop');
+  const failures=events.filter(e=>completed(e,'Race')&&e.pitError);
   const pending=data.total-data.loaded-failures.length;
-  const note=`${data.loaded}/${data.total} race${data.total===1?'':'s'} loaded${pending>0?' · loading pit timing…':''}${failures.length?` · ${failures.length} race${failures.length===1?'':'s'} unavailable`:''}. Stationary time is measured at the box; pit-lane time runs from entry to exit and includes that stop. It is not the time lost versus staying on track. Stationary timing is available only from the 2024 US Grand Prix onward. Long stops and penalties remain in these raw averages; compare sample counts and races before ranking teams.`;
-  const charts=renderHorizontalBarChart(orderedTeams,{
+  const note=`${data.loaded}/${data.total} race${data.total===1?'':'s'} loaded${pending>0?' · loading pit timing…':''}${failures.length?` · ${failures.length} race${failures.length===1?'':'s'} unavailable`:''}. ${noStationary?'Stationary stop times were not published for these visits; the pit-lane times below are available. ':''}Stationary time is measured at the box; pit-lane time runs from entry to exit and includes that stop. It is not the time lost versus staying on track. Long stops and penalties remain in these raw averages; compare sample counts and races before ranking teams.`;
+  const stationaryChart=renderHorizontalBarChart(orderedTeams,{
     title:'Average stationary stop',subtitle:'Extra seconds versus the quickest measured team average · lower is faster',
     valueKey:'avgStop',unit:' s',digits:3,signedValue:true
-  })+renderHorizontalBarChart(orderedTeams,{
+  });
+  const laneChart=renderHorizontalBarChart(orderedTeams,{
     title:'Average pit-lane time',subtitle:'Entry to exit · track pit-lane lengths differ, so season averages reflect race mix',
     valueKey:'avgLane',unit:' s',digits:3,signedValue:false,zeroBaseline:true
   });
+  const charts=noStationary?laneChart:stationaryChart+laneChart;
   const summary=card('Pit stops & pit lane',note,
     (failures.length?`<p class="performance-note">${failures.map(e=>`${escape(e.name)}: ${escape(e.pitError)}`).join(' · ')} <button type="button" class="performance-explain-toggle" data-pit-retry>Retry unavailable</button></p>`:'')+
+    (noStationary?'<p class="performance-note">The source has no stationary-at-the-box values for this selection. “—” means unavailable, not a zero-second stop.</p>':'')+
     (charts||'<p class="section-empty">No timed pit visits for the selected races yet.</p>')+
     table([sortHeader('pitTeam','Team'),sortHeader('pitStop','Avg. stationary'),sortHeader('pitLane','Avg. pit lane'),
       sortHeader('pitStopCount','Timed stops',-1),sortHeader('pitLaneCount','Lane visits',-1),sortHeader('pitEvents','Races',-1)],
