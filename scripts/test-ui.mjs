@@ -61,6 +61,7 @@ test('sector guide uses timed boundaries and rejects insufficient data', () => {
 });
 
 test('session selection uses fresh cancellable retrieval with no speculative load', () => {
+  assert.match(app, /for \(let y = currentYear; y >= 2018; y--\)/);
   const prepare = app.slice(app.indexOf('function prepareSelectedSession'), app.indexOf('function notify'));
   assert.doesNotMatch(prepare, /loadApiData|fetchSessionData|setTimeout/);
   assert.match(app, /api\/session\?\$\{requestedQuery\}&fresh=true/);
