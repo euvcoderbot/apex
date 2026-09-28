@@ -371,6 +371,7 @@ let tyreMetric='age'; // 'age' | 'relative'
 let tyreSubject='team'; // 'team' | 'driver'
 let pitSubject='team'; // 'team' | 'driver'
 let pitMeasure='stop'; // 'stop' | 'lane'
+let pitChartMetric='median'; // 'mean' | 'median' | 'spread'
 let straightLineSource='qualy'; // 'qualy' | 'race'
 let brakingView='approach'; // 'approach' | 'deceleration'
 let showPerformanceDescriptions=false;
@@ -1355,20 +1356,28 @@ function renderPits(teams) {
       <button type="button" data-pit-subject="team" aria-pressed="${!isDriver}">Teams</button>
       <button type="button" data-pit-subject="driver" aria-pressed="${isDriver}">Drivers</button>
     </div>
+    <div class="performance-scope-toggle" role="group" aria-label="Pit timing chart statistic">
+      <button type="button" data-pit-chart="mean" aria-pressed="${pitChartMetric==='mean'}">Mean</button>
+      <button type="button" data-pit-chart="median" aria-pressed="${pitChartMetric==='median'}">Median</button>
+      <button type="button" data-pit-chart="spread" aria-pressed="${pitChartMetric==='spread'}">Middle 50%</button>
+    </div>
   </div>`;
   const chartRows=ordered.map(r=>({...r,displayName:isDriver?r.driver:r.team,
-    logoTeam:r.team,chartMedian:r[measure].median}));
+    logoTeam:r.team,chartValue:pitChartMetric==='spread'?pitMiddleSpread(r[measure]):r[measure][pitChartMetric]}));
+  const chartTitle=pitChartMetric==='spread'?'Middle-50% spread':pitChartMetric==='mean'?'Mean time':'Median time';
   const chart=renderHorizontalBarChart(chartRows,{
-    title:`Typical ${isLane?'pit-lane':'stationary stop'} time · ${isDriver?'drivers':'teams'}`,
-    subtitle:isLane?'Entry to exit · circuit lengths differ · exact seconds':'Time stopped at the box · exact seconds',
-    valueKey:'chartMedian',labelKey:isDriver?'driver':'team',unit:' s',digits:3,signedValue:false,zeroBaseline:true
+    title:`${chartTitle} · ${isLane?'pit lane':'stationary stop'} · ${isDriver?'drivers':'teams'}`,
+    subtitle:pitChartMetric==='spread'
+      ? '75th percentile minus 25th percentile · four or more visits · lower is more consistent'
+      : isLane?'Entry to exit · circuit lengths differ · exact seconds':'Time stopped at the box · exact seconds',
+    valueKey:'chartValue',labelKey:isDriver?'driver':'team',unit:' s',digits:3,signedValue:false,zeroBaseline:true
   });
   const metricLabel=isLane?'pit lane':'stationary stop';
   const summary=card('Pit stops & pit lane',note,
     (failures.length?`<p class="performance-note">${failures.map(e=>`${escape(e.name)}: ${escape(e.pitError)}`).join(' · ')} <button type="button" class="performance-explain-toggle" data-pit-retry>Retry unavailable</button></p>`:'')+
     (noStationary?'<p class="performance-note">The source has no stationary-at-the-box values for this selection. “—” means unavailable, not a zero-second stop.</p>':'')+
     controls+
-    (chart||'<p class="section-empty">No timed pit visits for the selected races yet.</p>')+
+    (chart||`<p class="section-empty">${pitChartMetric==='spread'?'At least four timed visits per team or driver are needed for the middle-50% chart.':'No timed pit visits for the selected races yet.'}</p>`)+
     table([sortHeader('pitName',isDriver?'Driver':'Team'),...(isDriver?[sortHeader('pitTeam','Team')]:[]),
       sortHeader('pitMean',`Mean ${metricLabel}`),sortHeader('pitMedian','Median'),sortHeader('pitFastest','Quickest'),
       sortHeader('pitSpread','Middle 50% spread'),sortHeader('pitCount','Timed visits',-1),sortHeader('pitEvents','Races',-1)],
@@ -2526,6 +2535,8 @@ root.addEventListener('click',event=>{
   if(pitMeasureButton&&!pitMeasureButton.disabled){pitMeasure=pitMeasureButton.dataset.pitMeasure;render();return;}
   const pitSubjectButton=event.target.closest('[data-pit-subject]');
   if(pitSubjectButton){pitSubject=pitSubjectButton.dataset.pitSubject;render();return;}
+  const pitChartButton=event.target.closest('[data-pit-chart]');
+  if(pitChartButton){pitChartMetric=pitChartButton.dataset.pitChart;render();return;}
   const sort=event.target.closest('[data-performance-sort]');
   const tyreMetricButton=event.target.closest('[data-tyre-metric]');
   if(tyreMetricButton){tyreMetric=tyreMetricButton.dataset.tyreMetric;sortKey=tyreMetric==='age'?'tyreAgeValue':'tyreNorm';sortDirection=1;render();return;}

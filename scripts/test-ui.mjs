@@ -621,6 +621,10 @@ test('pit category keeps stationary and lane averages separate by team and drive
   assert.match(source,/data-pit-measure="lane"/);
   assert.match(source,/data-pit-subject="team"/);
   assert.match(source,/data-pit-subject="driver"/);
+  assert.match(source,/data-pit-chart="mean"/);
+  assert.match(source,/data-pit-chart="median"/);
+  assert.match(source,/data-pit-chart="spread"/);
+  assert.match(source,/chartValue:pitChartMetric==='spread'\?pitMiddleSpread/);
   assert.match(source,/Exact times for individual pit visits/);
   assert.match(source,/if\(activeMetric==='pits'\) loadPitData\(\);/);
   assert.doesNotMatch(source,/pitRunning \|\| !context \|\| running/);
