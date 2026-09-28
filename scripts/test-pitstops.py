@@ -10,7 +10,7 @@ import pandas as pd
 from fastapi import Response
 
 import server
-from server import fastf1_pit_visits, openf1_pit_visits
+from server import fastf1_pit_visits, merge_dhl_pit_stops, openf1_pit_visits
 
 
 class PitStopTests(unittest.TestCase):
@@ -46,6 +46,25 @@ class PitStopTests(unittest.TestCase):
         self.assertEqual(visits[0]['lap'], 20)
         self.assertEqual(visits[0]['lane_duration'], 22.567)
         self.assertIsNone(visits[0]['stop_duration'])
+
+    def test_dhl_stationary_times_match_driver_and_lap_only(self):
+        drivers = [{'driver_number': 63, 'last_name': 'Russell'}]
+        visits = [{'driver_number': '63', 'lap': 31, 'lane_duration': 20.8,
+                   'stop_duration': None},
+                  {'driver_number': '63', 'lap': 32, 'lane_duration': 21.0,
+                   'stop_duration': None}]
+        stops = [{'last_name': 'Russell', 'lap': 31, 'stop_duration': 2.33},
+                 {'last_name': 'Russell', 'lap': 40, 'stop_duration': 3.0}]
+        self.assertEqual(merge_dhl_pit_stops(visits, drivers, stops), 1)
+        self.assertEqual(visits[0]['stop_duration'], 2.33)
+        self.assertIsNone(visits[1]['stop_duration'])
+
+    def test_dhl_table_parses_every_published_stop(self):
+        sample = '<table><tr><th>Driver</th></tr><tr><td>1</td><td>Mercedes</td>' \
+                 '<td><strong>Russell</strong></td><td>2.33</td><td>31</td><td>25</td></tr></table>'
+        parser = server._DhlPitTable()
+        parser.feed(sample)
+        self.assertEqual(parser.rows, [['1', 'Mercedes', 'Russell', '2.33', '31', '25']])
 
     def test_recent_endpoint_does_not_reload_fastf1(self):
         def feed(endpoint, **kwargs):

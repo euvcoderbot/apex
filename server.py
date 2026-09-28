@@ -14,6 +14,9 @@ from pathlib import Path
 import time
 import math
 import importlib
+from html import unescape
+from html.parser import HTMLParser
+import unicodedata
 from typing import Any
 from urllib.request import Request as URLRequest, urlopen
 from urllib.error import HTTPError
@@ -172,6 +175,92 @@ def openf1_pit_visits(pits: list[dict], drivers: list[dict]) -> list[dict]:
             'stop_duration': round(stop, 3) if stop is not None else None,
         })
     return sorted(visits, key=lambda v: (v['lap'], v['driver_number']))
+
+
+class _DhlPitTable(HTMLParser):
+    """Read the published DHL timing table without depending on page styling."""
+    def __init__(self):
+        super().__init__()
+        self.rows: list[list[str]] = []
+        self.row: list[str] | None = None
+        self.cell: list[str] | None = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag == 'tr':
+            self.row = []
+        elif tag == 'td' and self.row is not None:
+            self.cell = []
+
+    def handle_data(self, data):
+        if self.cell is not None:
+            self.cell.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == 'td' and self.cell is not None and self.row is not None:
+            self.row.append(unescape(''.join(self.cell)).strip())
+            self.cell = None
+        elif tag == 'tr' and self.row is not None:
+            if len(self.row) >= 5:
+                self.rows.append(self.row)
+            self.row = None
+
+
+def _pit_name(value: Any) -> str:
+    normalized = unicodedata.normalize('NFKD', str(value or ''))
+    return ''.join(c for c in normalized.casefold() if c.isalnum())
+
+
+def _dhl_json(url: str) -> dict:
+    request = URLRequest(url, headers={'Accept-Encoding': 'gzip', 'User-Agent': 'euV2-data/1.0'})
+    with urlopen(request, timeout=12) as result:
+        body = result.read()
+        if result.headers.get('Content-Encoding', '').lower() == 'gzip':
+            body = gzip.decompress(body)
+    return json.loads(body.decode('utf-8'))
+
+
+@lru_cache(maxsize=2)
+def _dhl_2026_events() -> list[dict]:
+    return _dhl_json('https://inmotion.dhl/api/f1-award-element-data/7375')['data']['chart']['events']
+
+
+def dhl_2026_pit_stops(session: dict) -> list[dict]:
+    """Get actual stationary timings from DHL's public 2026 event table."""
+    race_date = datetime.fromisoformat(str(session['date_start']).replace('Z', '+00:00')).date()
+    candidates = [event for event in _dhl_2026_events()
+                  if datetime.fromisoformat(event['date']['date'].split(' ')[0]).date() == race_date]
+    if len(candidates) != 1:
+        return []
+    event_id = int(candidates[0]['id'])
+    payload = _dhl_json(f'https://inmotion.dhl/api/f1-award-element-data/7373?event={event_id}')
+    parser = _DhlPitTable()
+    parser.feed(payload.get('htmlList', {}).get('table', ''))
+    stops = []
+    for cells in parser.rows:
+        try:
+            duration = float(cells[3])
+            lap = int(cells[4])
+        except (ValueError, IndexError):
+            continue
+        if 0 < duration <= 300 and lap >= 1:
+            stops.append({'team': cells[1], 'last_name': cells[2], 'lap': lap,
+                          'stop_duration': round(duration, 3)})
+    return stops
+
+
+def merge_dhl_pit_stops(visits: list[dict], drivers: list[dict], stops: list[dict]) -> int:
+    """Match a DHL box stop only to the same driver and in-lap."""
+    identities = {_pit_name(d.get('last_name')): str(d.get('driver_number')) for d in drivers}
+    indexed = {(v['driver_number'], v['lap']): v for v in visits}
+    matched = 0
+    for stop in stops:
+        number = identities.get(_pit_name(stop['last_name']))
+        visit = indexed.get((number, stop['lap'])) if number else None
+        if (visit is not None and visit['stop_duration'] is None
+                and 0 < stop['stop_duration'] <= visit['lane_duration'] + 1):
+            visit['stop_duration'] = stop['stop_duration']
+            matched += 1
+    return matched
 
 
 def fastf1_pit_visits(laps: Any) -> list[dict]:
@@ -1468,8 +1557,11 @@ def car_performance_pits(response: Response, year: int = Query(..., ge=2018, le=
                     ttl = 3600
             except ValueError:
                 ttl = min(ttl, 3600)
-        if not visits or (year >= 2023 and source != 'OpenF1'):
+        if not visits or (year >= 2023 and not source.startswith('OpenF1')):
             ttl = min(ttl, 300)
+        if year == datetime.now(timezone.utc).year and visits and not any(
+                visit.get('stop_duration') is not None for visit in visits):
+            ttl = min(ttl, 3600)
         response.headers['Cache-Control'] = (
             f'public, max-age={ttl}, s-maxage={ttl}, stale-while-revalidate={min(ttl, 86400)}'
         )
@@ -1487,9 +1579,17 @@ def car_performance_pits(response: Response, year: int = Query(..., ge=2018, le=
                 if not drivers:
                     raise ValueError('Driver identities are unavailable')
                 visits = openf1_pit_visits(pits, drivers)
-                set_cache('OpenF1', visits, session)
+                source = 'OpenF1'
+                if year == 2026 and any(v['stop_duration'] is None for v in visits):
+                    try:
+                        matched = merge_dhl_pit_stops(visits, drivers, dhl_2026_pit_stops(session))
+                        if matched:
+                            source = 'OpenF1 pit lane + DHL stationary'
+                    except Exception as exc:
+                        logger.warning('DHL stationary timing unavailable for %s: %s', gp, exc)
+                set_cache(source, visits, session)
                 response.headers['Server-Timing'] = f'pits;dur={(time.perf_counter()-started)*1000:.1f}'
-                return {'event': gp, 'year': year, 'source': 'OpenF1', 'visits': visits}
+                return {'event': gp, 'year': year, 'source': source, 'visits': visits}
             except Exception as exc:
                 logger.warning('OpenF1 pit timing unavailable for %s %s: %s', year, gp, exc)
 

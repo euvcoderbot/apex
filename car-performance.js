@@ -574,7 +574,7 @@ async function loadPitData(retry=false) {
     while(jobs.length && !signal.aborted && id===generation) {
       const event=jobs.shift();
       try {
-        const params=new URLSearchParams({year:context.year,gp:event.name});
+        const params=new URLSearchParams({year:context.year,gp:event.name,source:'dhl-2026-v1'});
         event.pits=await get(`/api/performance/pits?${params}`,signal,'default');
       } catch(error) {
         if(signal.aborted) return;
