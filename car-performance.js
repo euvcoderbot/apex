@@ -1321,6 +1321,12 @@ function pitSummary(events, teams) {
     loaded:loadedRaces.length,total:events.filter(e=>completed(e,'Race')).length};
 }
 
+function pitMiddleSpread(sample) {
+  // A single visit has zero numerical spread but provides no evidence of consistency.
+  return sample?.count>=4 && finite(sample.p25) && finite(sample.p75)
+    ? sample.p75-sample.p25 : null;
+}
+
 function renderPits(teams) {
   const data=pitSummary(events,teams);
   const noStationary=data.visits.length>0 && !data.visits.some(v=>finite(v.stop_duration));
@@ -1333,13 +1339,13 @@ function renderPits(teams) {
     pitMean:r=>r[measure].mean,
     pitMedian:r=>r[measure].median,
     pitFastest:r=>r[measure].fastest,
-    pitSpread:r=>finite(r[measure].p25)&&finite(r[measure].p75)?r[measure].p75-r[measure].p25:null,
+    pitSpread:r=>pitMiddleSpread(r[measure]),
     pitCount:r=>r[measure].count,
     pitEvents:r=>r.eventCount
   },'pitMedian');
   const failures=events.filter(e=>completed(e,'Race')&&e.pitError);
   const pending=data.total-data.loaded-failures.length;
-  const note=`${data.loaded}/${data.total} race${data.total===1?'':'s'} loaded${pending>0?' · loading pit timing…':''}${failures.length?` · ${failures.length} race${failures.length===1?'':'s'} unavailable`:''}. Stationary is the broadcast-style time stopped at the box; pit-lane time runs from entry to exit, including the stop. The median is the typical visit; the middle 50% range shows consistency. Averages include long stops and penalties. Pit-lane lengths vary by circuit, so season-wide lane rankings also reflect race mix. Individual values retain the source's available precision; missing stationary times are never inferred.`;
+  const note=`${data.loaded}/${data.total} race${data.total===1?'':'s'} loaded${pending>0?' · loading pit timing…':''}${failures.length?` · ${failures.length} race${failures.length===1?'':'s'} unavailable`:''}. Stationary is the broadcast-style time stopped at the box; pit-lane time runs from entry to exit, including the stop. The median is the typical visit. Middle-50% spread is the 75th-percentile time minus the 25th-percentile time; smaller means more consistent, and at least four timed visits are required. Averages include long stops and penalties. Pit-lane lengths vary by circuit, so season-wide lane rankings also reflect race mix. Individual values retain the source's available precision; missing stationary times are never inferred.`;
   const controls=`<div class="performance-pit-controls">
     <div class="performance-scope-toggle" role="group" aria-label="Pit timing measurement">
       <button type="button" data-pit-measure="stop" aria-pressed="${!isLane}" ${noStationary?'disabled title="No published stationary times for these visits"':''}>Stationary stop</button>
@@ -1365,10 +1371,12 @@ function renderPits(teams) {
     (chart||'<p class="section-empty">No timed pit visits for the selected races yet.</p>')+
     table([sortHeader('pitName',isDriver?'Driver':'Team'),...(isDriver?[sortHeader('pitTeam','Team')]:[]),
       sortHeader('pitMean',`Mean ${metricLabel}`),sortHeader('pitMedian','Median'),sortHeader('pitFastest','Quickest'),
-      sortHeader('pitSpread','Middle 50% range'),sortHeader('pitCount','Timed visits',-1),sortHeader('pitEvents','Races',-1)],
+      sortHeader('pitSpread','Middle 50% spread'),sortHeader('pitCount','Timed visits',-1),sortHeader('pitEvents','Races',-1)],
       ordered.map(r=>[isDriver?escape(r.driver):teamLabel(r),...(isDriver?[teamLabel(r)]:[]),
         fmt(r[measure].mean,3,' s'),fmt(r[measure].median,3,' s'),fmt(r[measure].fastest,3,' s'),
-        finite(r[measure].p25)?`${fmt(r[measure].p25,3)}–${fmt(r[measure].p75,3)} s`:'—',
+        finite(pitMiddleSpread(r[measure]))
+          ? `${fmt(pitMiddleSpread(r[measure]),3,' s')}<small>${fmt(r[measure].p25,3)}–${fmt(r[measure].p75,3)} s</small>`
+          : '—',
         r[measure].count,r.eventCount])));
   const individual=`<details class="dashboard-card performance-methods" ${context?.scope==='tracks'&&context.selectedTracks?.length===1?'open':''}><summary>Exact times for individual pit visits and timing sources</summary>${table(
     ['Grand Prix','Team','Driver','In-lap','Stationary','Pit lane','Source'],

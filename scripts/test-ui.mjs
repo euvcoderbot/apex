@@ -605,6 +605,10 @@ test('pit category keeps stationary and lane averages separate by team and drive
   assert.equal(result.teams[0].stop.p75,2.75);
   assert.equal(result.teams[0].lane.median,25);
   assert.equal(result.teams[0].lane.fastest,22);
+  assert.equal(sandbox.pitMiddleSpread(result.teams[0].stop),null); // two stops cannot establish consistency
+  assert.ok(Math.abs(sandbox.pitMiddleSpread({count:4,p25:2.1,p75:2.7})-.6)<1e-9);
+  assert.match(source,/sortHeader\('pitSpread','Middle 50% spread'\)/);
+  assert.match(source,/pitSpread:r=>pitMiddleSpread\(r\[measure\]\)/);
   assert.equal(result.drivers.find(d=>d.driver==='NOR').avgStop,2);
   assert.equal(result.drivers.find(d=>d.driver==='NOR').avgLane,25);
   const withoutRaceLaps=sandbox.pitSummary([{name:'2026 GP',pits:{source:'OpenF1',visits:[
