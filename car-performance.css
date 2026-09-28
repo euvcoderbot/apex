@@ -1045,8 +1045,14 @@ body.performance-view #sidebarToggle {
   gap: 10px;
   margin: 12px 0 16px;
 }
-.performance-pit-controls .performance-scope-toggle { flex: 0 1 auto; }
+.performance-pit-controls .performance-scope-toggle { flex: 0 1 auto; max-width: 100%; overflow-x: auto; }
 .performance-pit-controls .performance-scope-toggle button:disabled { opacity: .45; cursor: not-allowed; }
+.performance-stat-toggle { max-width: 100%; margin: 0 0 14px; }
+.performance-stat-toggle button:disabled { opacity: .45; cursor: not-allowed; }
+@media (max-width: 700px) {
+  .performance-stat-toggle { width: 100%; overflow-x: auto; }
+  .performance-stat-toggle button { padding-inline: 10px; }
+}
 .performance-page.is-descriptions-hidden .performance-card > .performance-note,
 .performance-page.is-descriptions-hidden .performance-card .perf-chart-sub,
 .performance-page.is-descriptions-hidden .performance-card > p.performance-note,

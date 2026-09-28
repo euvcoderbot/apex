@@ -384,7 +384,7 @@ test('car performance controls hide irrelevant GP and expose sortable methodolog
 
 test('qualifying braking time ranks shared zones and leaves unsupported teams unscored', () => {
   const source = readFileSync('car-performance.js', 'utf8');
-  const body = source.slice(source.indexOf('function eventTelemetry(event)'), source.indexOf('function seasonTelemetry()'));
+  const body = source.slice(source.indexOf('function eventTelemetry(event)'), source.indexOf('function seasonTelemetry('));
   const sandbox = {
     finite: value => typeof value === 'number' && Number.isFinite(value),
     avg: values => values.length ? values.reduce((a, b) => a + b, 0) / values.length : null,
@@ -428,7 +428,7 @@ test('qualifying braking time ranks shared zones and leaves unsupported teams un
 
 test('braking retains zones measured by three teams without requiring every entrant', () => {
   const source = readFileSync('car-performance.js', 'utf8');
-  const body = source.slice(source.indexOf('function eventTelemetry(event)'), source.indexOf('function seasonTelemetry()'));
+  const body = source.slice(source.indexOf('function eventTelemetry(event)'), source.indexOf('function seasonTelemetry('));
   const sandbox = {
     finite: value => typeof value === 'number' && Number.isFinite(value),
     avg: values => values.length ? values.reduce((a, b) => a + b, 0) / values.length : null,
@@ -473,7 +473,7 @@ test('season telemetry retains partial qualifying cohorts instead of intersectin
 
 test('season effects bridge unequal circuit coverage through shared teams', () => {
   const source=readFileSync('car-performance.js','utf8');
-  const body=source.slice(source.indexOf('function eventAdjustedScores('),source.indexOf('function seasonTelemetry()'));
+  const body=source.slice(source.indexOf('function eventAdjustedScores('),source.indexOf('function seasonTelemetry('));
   const sandbox={finite:v=>typeof v==='number'&&Number.isFinite(v),avg:values=>values.reduce((a,b)=>a+b,0)/values.length};
   vm.createContext(sandbox);
   vm.runInContext(body,sandbox);
@@ -486,11 +486,14 @@ test('season effects bridge unequal circuit coverage through shared teams', () =
   assert.ok(Math.abs(scores.get('B')-1)<.001);
   assert.ok(Math.abs(scores.get('C')-2)<.001);
   assert.ok(Math.abs(scores.get('D')-3)<.001);
+  sandbox.median=values=>{const x=[...values].sort((a,b)=>a-b);return x.length%2?x[(x.length-1)/2]:(x[x.length/2-1]+x[x.length/2])/2;};
+  const robust=sandbox.eventAdjustedScores(reports,row=>row.value,'median');
+  assert.ok(Math.abs(robust.get('B')-1)<.001);
 });
 
 test('race trap season ranking uses event-relative speed and paired qualifying ST', () => {
   const source=readFileSync('car-performance.js','utf8');
-  const body=source.slice(source.indexOf('function eventAdjustedScores('),source.indexOf('function seasonTelemetry()'));
+  const body=source.slice(source.indexOf('function eventAdjustedScores('),source.indexOf('function seasonTelemetry('));
   const sandbox={finite:v=>typeof v==='number'&&Number.isFinite(v),avg:values=>values.length?values.reduce((a,b)=>a+b,0)/values.length:null};
   vm.createContext(sandbox);
   vm.runInContext(body,sandbox);
@@ -522,10 +525,11 @@ test('overall tyre chart shows sparse matched evidence as provisional', () => {
 test('tyre-age view aggregates own stints for teams and individual drivers', () => {
   const source=readFileSync('car-performance.js','utf8');
   const body=source.slice(source.indexOf('function tyreViewControls()'),source.indexOf('function renderRace(teams)'));
-  const sandbox={tyreMetric:'age',tyreSubject:'team',tyreView:'OVERALL',sortKey:'tyreAgeValue',sortDirection:1,
+  const sandbox={tyreMetric:'age',tyreSubject:'team',tyreView:'OVERALL',tyreSeasonStat:'mean',sortKey:'tyreAgeValue',sortDirection:1,
     context:{year:'2026'},events:[{round:1,R:{}},{round:2,R:{}}],
     VERIFIED_DRY_ALLOCATIONS:{2026:['345','234']},TYRE_ALLOCATION_SOURCES:{2026:'https://press.pirelli.com/'},
     finite:n=>typeof n==='number'&&Number.isFinite(n),avg:a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,
+    summarize:(a)=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,
     sorted:(items,getters,key)=>[...items].sort((a,b)=>getters[key](a)-getters[key](b)),
     teamLabel:r=>r.displayName,card:(_title,_note,content)=>content,table:(_headers,rows)=>JSON.stringify(rows),
     sortHeader:(_key,label)=>label,color:v=>v,signed:(n)=>n.toFixed(3),escape:v=>String(v)};
@@ -605,6 +609,9 @@ test('pit category keeps stationary and lane averages separate by team and drive
   assert.equal(result.teams[0].stop.p75,2.75);
   assert.equal(result.teams[0].lane.median,25);
   assert.equal(result.teams[0].lane.fastest,22);
+  assert.equal(result.teams[0].lane.p90,null);
+  assert.equal(result.teams[0].lane.p10,null);
+  assert.equal(result.teams[0].laneRelative.mean,0);
   assert.equal(sandbox.pitMiddleSpread(result.teams[0].stop),null); // two stops cannot establish consistency
   assert.ok(Math.abs(sandbox.pitMiddleSpread({count:4,p25:2.1,p75:2.7})-.6)<1e-9);
   assert.match(source,/sortHeader\('pitSpread','Middle 50% spread'\)/);
@@ -617,6 +624,13 @@ test('pit category keeps stationary and lane averages separate by team and drive
   assert.equal(withoutRaceLaps.teams[0].avgLane,21.3);
   assert.equal(withoutRaceLaps.teams[0].avgStop,null);
   assert.equal(withoutRaceLaps.loaded,1);
+  const differentLanes=sandbox.pitSummary([
+    {name:'Short GP',pits:{source:'OpenF1',visits:[{driver:'AAA',team:'A',lap:10,lane_duration:20,stop_duration:2},{driver:'BBB',team:'B',lap:10,lane_duration:24,stop_duration:2.4}]}},
+    {name:'Long GP',pits:{source:'OpenF1',visits:[{driver:'AAA',team:'A',lap:10,lane_duration:40,stop_duration:2},{driver:'BBB',team:'B',lap:10,lane_duration:44,stop_duration:2.4}]}}
+  ],[]);
+  assert.equal(differentLanes.teams.find(t=>t.team==='A').lane.mean,30);
+  assert.equal(differentLanes.teams.find(t=>t.team==='A').laneRelative.mean,-2);
+  assert.equal(differentLanes.teams.find(t=>t.team==='B').laneRelative.mean,2);
   assert.match(source,/data-pit-measure="stop"/);
   assert.match(source,/data-pit-measure="lane"/);
   assert.match(source,/data-pit-subject="team"/);
@@ -624,10 +638,24 @@ test('pit category keeps stationary and lane averages separate by team and drive
   assert.match(source,/data-pit-chart="mean"/);
   assert.match(source,/data-pit-chart="median"/);
   assert.match(source,/data-pit-chart="spread"/);
+  assert.match(source,/data-pit-chart="p90"/);
+  assert.match(source,/data-pit-chart="p10"/);
+  assert.match(source,/data-pit-lane-basis="event"/);
   assert.match(source,/chartValue:pitChartMetric==='spread'\?pitMiddleSpread/);
   assert.match(source,/Exact times for individual pit visits/);
   assert.match(source,/if\(activeMetric==='pits'\) loadPitData\(\);/);
   assert.doesNotMatch(source,/pitRunning \|\| !context \|\| running/);
   assert.match(source,/activeMetric==='pits'\?renderPits\(teams\)/);
   assert.match(source,/api\/performance\/pits/);
+});
+
+test('performance categories expose only defensible alternative summaries', () => {
+  const source=readFileSync('car-performance.js','utf8');
+  for(const key of ['pace-stat','telemetry-stat','tyre-stat','results-chart','trend-view'])
+    assert.match(source,new RegExp(`data-${key}=`));
+  assert.match(source,/data-results-chart="mechanicalRate"/);
+  assert.match(source,/pitChartMetric==='p90'/);
+  assert.match(source,/timed\.length>=10\?percentile\(timed,\.9\):null/);
+  assert.match(source,/tyreSeasonStat==='p75'&&gpSlopes\.length<4\?null/);
+  assert.match(source,/seasonTelemetry\(telemetrySeasonStat\)/);
 });
