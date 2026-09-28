@@ -730,7 +730,7 @@ async function loadCalendar() {
   customSelectValues.delete($('#gp'));
   $('#gp').innerHTML = '<option>Loading calendar…</option>';
   try {
-    const payload = await loadApiData(apiUrl(`/api/events?year=${year}`), { signal: calendarRequest.signal });
+    const payload = await loadApiData(apiUrl(`/api/events?year=${year}&status=result-v2`), { signal: calendarRequest.signal });
     if (generation !== calendarGeneration || year !== selectValue($('#year'))) return;
     calendar = payload;
     $('#gp').innerHTML = calendar.map(event => `<option value="${event.round}" data-country="${grandPrixCountryCode(event) || ''}">R${event.round} · ${escapeUI(event.name)}</option>`).join('');
@@ -761,10 +761,14 @@ function latestCompletedSelection(events, now = Date.now()) {
   (events || []).forEach((event, eventIndex) => {
     (event.sessions || []).forEach((session, sessionIndex) => {
       const status = event.session_statuses?.[session];
-      if (['cancelled', 'live', 'unknown', 'upcoming'].includes(status)) return;
+      if (['cancelled', 'live', 'upcoming'].includes(status)) return;
       const timestamp = parsedSessionTimestamp(
         event.session_end_dates?.[session] || event.session_dates?.[session]
       );
+      // A missing finish flag can leave a published weekend marked unknown.
+      // After 36 hours, it is safe to offer the session as the default; this
+      // only changes the selection and never fetches its data automatically.
+      if (status === 'unknown' && timestamp > now - 36 * 3600000) return;
       if (!Number.isFinite(timestamp) || (status !== 'completed' && timestamp > now)) return;
       if (!latest || timestamp > latest.timestamp) {
         latest = { event, session, timestamp, eventIndex, sessionIndex };

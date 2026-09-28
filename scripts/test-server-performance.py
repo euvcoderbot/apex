@@ -61,6 +61,25 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(events[0]['session_statuses']['Practice 3'], 'unknown')
         self.assertEqual(events[0]['session_statuses']['Race'], 'completed')
 
+    def test_published_result_completes_session_without_race_control_flag(self):
+        now = datetime.now(timezone.utc)
+        events = [{'round': 15, 'name': 'Azerbaijan Grand Prix',
+                   'date': now.date().isoformat(), 'sessions': ['Race'],
+                   'session_dates': {}}]
+        session = {'session_key': 11377, 'session_name': 'Race',
+                   'date_start': (now - timedelta(days=1)).isoformat(),
+                   'date_end': (now - timedelta(hours=20)).isoformat(),
+                   'is_cancelled': False}
+        def upstream(endpoint, **params):
+            if endpoint == 'sessions':
+                return [session]
+            if endpoint == 'session_result':
+                return [{'position': i} for i in range(1, 4)]
+            return []
+        with patch.object(server, 'openf1', side_effect=upstream):
+            server.enrich_recent_openf1_statuses(now.year, events)
+        self.assertEqual(events[0]['session_statuses']['Race'], 'completed')
+
     def test_slow_positions_do_not_block_ready_car_data(self):
         start = datetime(2026,9,12,14,10,tzinfo=timezone.utc)
         release = threading.Event()

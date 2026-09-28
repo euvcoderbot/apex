@@ -860,6 +860,18 @@ def enrich_recent_openf1_statuses(year: int, events: list[dict[str, Any]]) -> No
             }
             for message in messages
         )
+        if not finished and end is not None and end < now:
+            # Race-control messages can be missing even after the official
+            # classification is published. OpenF1 only exposes these final
+            # standings after the session, so they are stronger evidence than
+            # the schedule's expected end timestamp alone.
+            try:
+                results = openf1("session_result", session_key=source["session_key"])
+                finished = len(results) >= 3 and any(
+                    row.get("position") is not None for row in results
+                )
+            except Exception:
+                pass
         if finished:
             status = "completed"
         elif end is not None and end < now:

@@ -331,6 +331,8 @@ test('latest event selection follows the newest completed session timestamp', ()
   assert.equal(h.run("latestCompletedSelection(selectionCalendar, Date.parse('2026-09-12T12:00:00Z')).session"), 'Practice 2');
   h.run("selectionCalendar[2].session_statuses={'Practice 1':'completed','Practice 2':'completed',Qualifying:'unknown'}");
   assert.equal(h.run("latestCompletedSelection(selectionCalendar, Date.parse('2026-09-13T12:00:00Z')).session"), 'Practice 2');
+  h.run("var bakuCalendar=[{round:15,name:'Azerbaijan Grand Prix',date:'2026-09-26',sessions:['Practice 2','Race'],session_end_dates:{'Practice 2':'2026-09-24T13:00:00Z',Race:'2026-09-26T13:00:00Z'},session_statuses:{'Practice 2':'unknown',Race:'unknown'}}]");
+  assert.equal(h.run("latestCompletedSelection(bakuCalendar, Date.parse('2026-09-28T02:00:00Z')).session"), 'Race');
   h.sandbox.currentCalendar = JSON.parse(readFileSync('assets/data/events/2026.json', 'utf8'));
   assert.equal(h.run("latestCompletedSelection(currentCalendar, Date.parse('2026-09-17T00:00:00Z')).event.round"), 14);
   assert.equal(h.run("latestCompletedSelection(currentCalendar, Date.parse('2026-09-17T00:00:00Z')).session"), 'Race');
