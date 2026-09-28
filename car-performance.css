@@ -1039,6 +1039,14 @@ body.performance-view #sidebarToggle {
   cursor: pointer;
 }
 .performance-explain-toggle:hover { border-color: var(--accent); }
+.performance-pit-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0 16px;
+}
+.performance-pit-controls .performance-scope-toggle { flex: 0 1 auto; }
+.performance-pit-controls .performance-scope-toggle button:disabled { opacity: .45; cursor: not-allowed; }
 .performance-page.is-descriptions-hidden .performance-card > .performance-note,
 .performance-page.is-descriptions-hidden .performance-card .perf-chart-sub,
 .performance-page.is-descriptions-hidden .performance-card > p.performance-note,

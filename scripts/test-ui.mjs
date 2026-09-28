@@ -584,6 +584,7 @@ test('pit category keeps stationary and lane averages separate by team and drive
   const source=readFileSync('car-performance.js','utf8');
   const body=source.slice(source.indexOf('function pitSummary'),source.indexOf('function huberRegression'));
   const sandbox={avg:a=>{const found=a.filter(Number.isFinite);return found.length?found.reduce((x,y)=>x+y,0)/found.length:null;},
+    median:a=>{const x=a.filter(Number.isFinite).sort((v,w)=>v-w);return x.length?(x.length%2?x[(x.length-1)/2]:(x[x.length/2-1]+x[x.length/2])/2):null;},
     finite:Number.isFinite,completed:()=>true};
   vm.createContext(sandbox);
   vm.runInContext(body,sandbox);
@@ -598,6 +599,12 @@ test('pit category keeps stationary and lane averages separate by team and drive
   assert.equal(result.teams[0].avgLane,25);
   assert.equal(result.teams[0].stopCount,2);
   assert.equal(result.teams[0].laneCount,3);
+  assert.equal(result.teams[0].stop.median,2.5);
+  assert.equal(result.teams[0].stop.fastest,2);
+  assert.equal(result.teams[0].stop.p25,2.25);
+  assert.equal(result.teams[0].stop.p75,2.75);
+  assert.equal(result.teams[0].lane.median,25);
+  assert.equal(result.teams[0].lane.fastest,22);
   assert.equal(result.drivers.find(d=>d.driver==='NOR').avgStop,2);
   assert.equal(result.drivers.find(d=>d.driver==='NOR').avgLane,25);
   const withoutRaceLaps=sandbox.pitSummary([{name:'2026 GP',pits:{source:'OpenF1',visits:[
@@ -606,6 +613,11 @@ test('pit category keeps stationary and lane averages separate by team and drive
   assert.equal(withoutRaceLaps.teams[0].avgLane,21.3);
   assert.equal(withoutRaceLaps.teams[0].avgStop,null);
   assert.equal(withoutRaceLaps.loaded,1);
+  assert.match(source,/data-pit-measure="stop"/);
+  assert.match(source,/data-pit-measure="lane"/);
+  assert.match(source,/data-pit-subject="team"/);
+  assert.match(source,/data-pit-subject="driver"/);
+  assert.match(source,/Exact times for individual pit visits/);
   assert.match(source,/if\(activeMetric==='pits'\) loadPitData\(\);/);
   assert.doesNotMatch(source,/pitRunning \|\| !context \|\| running/);
   assert.match(source,/activeMetric==='pits'\?renderPits\(teams\)/);

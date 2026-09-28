@@ -8,6 +8,7 @@ const finite = value => typeof value === 'number' && Number.isFinite(value);
 const avg = values => { const a = values.filter(finite); return a.length ? a.reduce((s,v)=>s+v,0)/a.length : null; };
 const median = values => { const a=values.filter(finite).sort((a,b)=>a-b), i=Math.floor(a.length/2); return a.length ? a.length%2 ? a[i] : (a[i-1]+a[i])/2 : null; };
 const fmt = (n, digits=2, suffix='') => finite(n) ? `${n.toFixed(digits)}${suffix}` : '—';
+const exactSeconds = n => finite(n) ? `${n} s` : '—';
 const color = value => /^#[a-f\d]{6}$/i.test(value || '') ? value : '#888888';
 const signed = (n, digits=2, suffix='%') => finite(n) ? `${n>0?'+':''}${Math.abs(n)<.0000001?(0).toFixed(digits):n.toFixed(digits)}${suffix}` : '—';
 const round = (val, digits = 2) => finite(val) ? Number(val.toFixed(digits)) : null;
@@ -368,6 +369,8 @@ let context=null;
 let tyreView='OVERALL';
 let tyreMetric='age'; // 'age' | 'relative'
 let tyreSubject='team'; // 'team' | 'driver'
+let pitSubject='team'; // 'team' | 'driver'
+let pitMeasure='stop'; // 'stop' | 'lane'
 let straightLineSource='qualy'; // 'qualy' | 'race'
 let brakingView='approach'; // 'approach' | 'deceleration'
 let showPerformanceDescriptions=false;
@@ -1297,14 +1300,23 @@ function pitSummary(events, teams) {
       group.visits.push(visit); group.events.add(visit.event);
     }
   }
-  const summarize=group=>({
-    ...group,
-    avgStop:avg(group.visits.map(v=>v.stop_duration)),
-    avgLane:avg(group.visits.map(v=>v.lane_duration)),
-    stopCount:group.visits.filter(v=>finite(v.stop_duration)).length,
-    laneCount:group.visits.filter(v=>finite(v.lane_duration)).length,
-    eventCount:group.events.size
-  });
+  const percentile=(values, fraction)=>{
+    const ordered=values.filter(finite).sort((a,b)=>a-b);
+    if(!ordered.length)return null;
+    const position=(ordered.length-1)*fraction, lower=Math.floor(position), upper=Math.ceil(position);
+    return ordered[lower]+(ordered[upper]-ordered[lower])*(position-lower);
+  };
+  const summarizeTimes=values=>{
+    const timed=values.filter(finite);
+    return {mean:avg(timed),median:median(timed),fastest:timed.length?Math.min(...timed):null,
+      p25:percentile(timed,.25),p75:percentile(timed,.75),count:timed.length};
+  };
+  const summarize=group=>{
+    const stop=summarizeTimes(group.visits.map(v=>v.stop_duration));
+    const lane=summarizeTimes(group.visits.map(v=>v.lane_duration));
+    return {...group,stop,lane,avgStop:stop.mean,avgLane:lane.mean,
+      stopCount:stop.count,laneCount:lane.count,eventCount:group.events.size};
+  };
   return {teams:[...groups.values()].map(summarize),drivers:[...drivers.values()].map(summarize),visits,
     loaded:loadedRaces.length,total:events.filter(e=>completed(e,'Race')).length};
 }
@@ -1312,44 +1324,58 @@ function pitSummary(events, teams) {
 function renderPits(teams) {
   const data=pitSummary(events,teams);
   const noStationary=data.visits.length>0 && !data.visits.some(v=>finite(v.stop_duration));
-  const orderedTeams=sorted(data.teams,{
-    pitTeam:t=>t.team,pitStop:t=>t.avgStop,pitLane:t=>t.avgLane,
-    pitStopCount:t=>t.stopCount,pitLaneCount:t=>t.laneCount,pitEvents:t=>t.eventCount
-  },noStationary?'pitLane':'pitStop');
-  const orderedDrivers=sorted(data.drivers,{
-    pitDriver:d=>d.driver,pitDriverTeam:d=>d.team,pitDriverStop:d=>d.avgStop,
-    pitDriverLane:d=>d.avgLane,pitDriverStopCount:d=>d.stopCount,pitDriverLaneCount:d=>d.laneCount
-  },noStationary?'pitDriverLane':'pitDriverStop');
+  if(noStationary && pitMeasure==='stop')pitMeasure='lane';
+  const isLane=pitMeasure==='lane', measure=isLane?'lane':'stop';
+  const isDriver=pitSubject==='driver', rows=isDriver?data.drivers:data.teams;
+  const ordered=sorted(rows,{
+    pitName:r=>isDriver?r.driver:r.team,
+    pitTeam:r=>r.team,
+    pitMean:r=>r[measure].mean,
+    pitMedian:r=>r[measure].median,
+    pitFastest:r=>r[measure].fastest,
+    pitSpread:r=>finite(r[measure].p25)&&finite(r[measure].p75)?r[measure].p75-r[measure].p25:null,
+    pitCount:r=>r[measure].count,
+    pitEvents:r=>r.eventCount
+  },'pitMedian');
   const failures=events.filter(e=>completed(e,'Race')&&e.pitError);
   const pending=data.total-data.loaded-failures.length;
-  const note=`${data.loaded}/${data.total} race${data.total===1?'':'s'} loaded${pending>0?' · loading pit timing…':''}${failures.length?` · ${failures.length} race${failures.length===1?'':'s'} unavailable`:''}. ${noStationary?'Stationary stop times were not published for these visits; the pit-lane times below are available. ':''}Stationary time is measured at the box; pit-lane time runs from entry to exit and includes that stop. It is not the time lost versus staying on track. Long stops and penalties remain in these raw averages; compare sample counts and races before ranking teams.`;
-  const stationaryChart=renderHorizontalBarChart(orderedTeams,{
-    title:'Average stationary stop',subtitle:'Extra seconds versus the quickest measured team average · lower is faster',
-    valueKey:'avgStop',unit:' s',digits:3,signedValue:true
+  const note=`${data.loaded}/${data.total} race${data.total===1?'':'s'} loaded${pending>0?' · loading pit timing…':''}${failures.length?` · ${failures.length} race${failures.length===1?'':'s'} unavailable`:''}. Stationary is the broadcast-style time stopped at the box; pit-lane time runs from entry to exit, including the stop. The median is the typical visit; the middle 50% range shows consistency. Averages include long stops and penalties. Pit-lane lengths vary by circuit, so season-wide lane rankings also reflect race mix. Individual values retain the source's available precision; missing stationary times are never inferred.`;
+  const controls=`<div class="performance-pit-controls">
+    <div class="performance-scope-toggle" role="group" aria-label="Pit timing measurement">
+      <button type="button" data-pit-measure="stop" aria-pressed="${!isLane}" ${noStationary?'disabled title="No published stationary times for these visits"':''}>Stationary stop</button>
+      <button type="button" data-pit-measure="lane" aria-pressed="${isLane}">Pit lane</button>
+    </div>
+    <div class="performance-scope-toggle" role="group" aria-label="Pit timing subject">
+      <button type="button" data-pit-subject="team" aria-pressed="${!isDriver}">Teams</button>
+      <button type="button" data-pit-subject="driver" aria-pressed="${isDriver}">Drivers</button>
+    </div>
+  </div>`;
+  const chartRows=ordered.map(r=>({...r,displayName:isDriver?r.driver:r.team,
+    logoTeam:r.team,chartMedian:r[measure].median}));
+  const chart=renderHorizontalBarChart(chartRows,{
+    title:`Typical ${isLane?'pit-lane':'stationary stop'} time · ${isDriver?'drivers':'teams'}`,
+    subtitle:isLane?'Entry to exit · circuit lengths differ · exact seconds':'Time stopped at the box · exact seconds',
+    valueKey:'chartMedian',labelKey:isDriver?'driver':'team',unit:' s',digits:3,signedValue:false,zeroBaseline:true
   });
-  const laneChart=renderHorizontalBarChart(orderedTeams,{
-    title:'Average pit-lane time',subtitle:'Entry to exit · track pit-lane lengths differ, so season averages reflect race mix',
-    valueKey:'avgLane',unit:' s',digits:3,signedValue:false,zeroBaseline:true
-  });
-  const charts=noStationary?laneChart:stationaryChart+laneChart;
+  const metricLabel=isLane?'pit lane':'stationary stop';
   const summary=card('Pit stops & pit lane',note,
     (failures.length?`<p class="performance-note">${failures.map(e=>`${escape(e.name)}: ${escape(e.pitError)}`).join(' · ')} <button type="button" class="performance-explain-toggle" data-pit-retry>Retry unavailable</button></p>`:'')+
     (noStationary?'<p class="performance-note">The source has no stationary-at-the-box values for this selection. “—” means unavailable, not a zero-second stop.</p>':'')+
-    (charts||'<p class="section-empty">No timed pit visits for the selected races yet.</p>')+
-    table([sortHeader('pitTeam','Team'),sortHeader('pitStop','Avg. stationary'),sortHeader('pitLane','Avg. pit lane'),
-      sortHeader('pitStopCount','Timed stops',-1),sortHeader('pitLaneCount','Lane visits',-1),sortHeader('pitEvents','Races',-1)],
-      orderedTeams.map(t=>[teamLabel(t),fmt(t.avgStop,3,' s'),fmt(t.avgLane,3,' s'),t.stopCount,t.laneCount,t.eventCount])));
-  const driverTable=card('Drivers','Averages use each driver’s measured pit visits in the selected races. A blank stationary time means that feed did not publish it.',
-    table([sortHeader('pitDriver','Driver'),sortHeader('pitDriverTeam','Team'),sortHeader('pitDriverStop','Avg. stationary'),
-      sortHeader('pitDriverLane','Avg. pit lane'),sortHeader('pitDriverStopCount','Timed stops',-1),
-      sortHeader('pitDriverLaneCount','Lane visits',-1)],
-      orderedDrivers.map(d=>[escape(d.driver),teamLabel(d),fmt(d.avgStop,3,' s'),fmt(d.avgLane,3,' s'),d.stopCount,d.laneCount])));
-  const individual=`<details class="dashboard-card performance-methods"><summary>View individual pit visits and timing sources</summary>${table(
+    controls+
+    (chart||'<p class="section-empty">No timed pit visits for the selected races yet.</p>')+
+    table([sortHeader('pitName',isDriver?'Driver':'Team'),...(isDriver?[sortHeader('pitTeam','Team')]:[]),
+      sortHeader('pitMean',`Mean ${metricLabel}`),sortHeader('pitMedian','Median'),sortHeader('pitFastest','Quickest'),
+      sortHeader('pitSpread','Middle 50% range'),sortHeader('pitCount','Timed visits',-1),sortHeader('pitEvents','Races',-1)],
+      ordered.map(r=>[isDriver?escape(r.driver):teamLabel(r),...(isDriver?[teamLabel(r)]:[]),
+        fmt(r[measure].mean,3,' s'),fmt(r[measure].median,3,' s'),fmt(r[measure].fastest,3,' s'),
+        finite(r[measure].p25)?`${fmt(r[measure].p25,3)}–${fmt(r[measure].p75,3)} s`:'—',
+        r[measure].count,r.eventCount])));
+  const individual=`<details class="dashboard-card performance-methods" ${context?.scope==='tracks'&&context.selectedTracks?.length===1?'open':''}><summary>Exact times for individual pit visits and timing sources</summary>${table(
     ['Grand Prix','Team','Driver','In-lap','Stationary','Pit lane','Source'],
     data.visits.sort((a,b)=>a.event.localeCompare(b.event)||a.lap-b.lap).map(v=>[
-      eventLabel(v.event),teamLabel(v),escape(v.driver),`L${v.lap}`,fmt(v.stop_duration,3,' s'),fmt(v.lane_duration,3,' s'),escape(v.source)
+      eventLabel(v.event),teamLabel(v),escape(v.driver),`L${v.lap}`,exactSeconds(v.stop_duration),exactSeconds(v.lane_duration),escape(v.source)
     ]))}</details>`;
-  return summary+driverTable+individual;
+  return summary+individual;
 }
 
 function huberRegression(rounds, paces) {
@@ -2488,6 +2514,10 @@ root.addEventListener('click',event=>{
   const metric=event.target.closest('[data-performance-metric]');
   if(metric) {activeMetric=metric.dataset.performanceMetric;render();if(activeMetric==='pits')loadPitData();return;}
   if(event.target.closest('[data-pit-retry]')){loadPitData(true);return;}
+  const pitMeasureButton=event.target.closest('[data-pit-measure]');
+  if(pitMeasureButton&&!pitMeasureButton.disabled){pitMeasure=pitMeasureButton.dataset.pitMeasure;render();return;}
+  const pitSubjectButton=event.target.closest('[data-pit-subject]');
+  if(pitSubjectButton){pitSubject=pitSubjectButton.dataset.pitSubject;render();return;}
   const sort=event.target.closest('[data-performance-sort]');
   const tyreMetricButton=event.target.closest('[data-tyre-metric]');
   if(tyreMetricButton){tyreMetric=tyreMetricButton.dataset.tyreMetric;sortKey=tyreMetric==='age'?'tyreAgeValue':'tyreNorm';sortDirection=1;render();return;}
