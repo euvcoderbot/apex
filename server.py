@@ -143,6 +143,67 @@ def integer(value: Any, default: int = 0) -> int:
         return default
 
 
+def pit_lap_number(value: Any) -> int | None:
+    value = seconds(value)
+    return int(value) if value is not None and value >= 1 else None
+
+
+def openf1_pit_visits(pits: list[dict], drivers: list[dict]) -> list[dict]:
+    """Keep entry-to-exit and stationary timing as distinct measurements."""
+    identities = {str(d.get('driver_number')): d for d in drivers}
+    visits = []
+    for pit in pits:
+        identity = identities.get(str(pit.get('driver_number')), {})
+        lane = seconds(pit.get('lane_duration'))
+        if lane is None:
+            lane = seconds(pit.get('pit_duration'))  # deprecated alias for lane, not stop
+        stop = seconds(pit.get('stop_duration'))
+        lap = pit_lap_number(pit.get('lap_number'))
+        if lap is None or lane is None or not 5 <= lane <= 300:
+            continue
+        if stop is None or not 0 < stop <= lane + 1:
+            stop = None
+        visits.append({
+            'driver': str(identity.get('name_acronym') or ''),
+            'driver_number': str(pit.get('driver_number')),
+            'team': str(identity.get('team_name') or ''),
+            'lap': lap,
+            'lane_duration': round(lane, 3),
+            'stop_duration': round(stop, 3) if stop is not None else None,
+        })
+    return sorted(visits, key=lambda v: (v['lap'], v['driver_number']))
+
+
+def fastf1_pit_visits(laps: Any) -> list[dict]:
+    """Pair a race in-lap with its following out-lap for pit-lane duration."""
+    by_driver = {}
+    for _, row in laps.iterrows():
+        lap = pit_lap_number(row.get('LapNumber'))
+        if lap is not None:
+            by_driver.setdefault(str(row.get('DriverNumber')), []).append((lap, row))
+    visits = []
+    for driver_number, sequence in by_driver.items():
+        sequence.sort(key=lambda pair: pair[0])
+        for i, (lap, row) in enumerate(sequence[:-1]):
+            pit_in = seconds(row.get('PitInTime'))
+            if pit_in is None:
+                continue
+            next_lap, next_row = sequence[i + 1]
+            pit_out = seconds(next_row.get('PitOutTime'))
+            lane = pit_out - pit_in if pit_out is not None else None
+            if next_lap - lap not in (1, 2) or lane is None or not 5 <= lane <= 300:
+                continue
+            visits.append({
+                'driver': str(row.get('Driver') or ''),
+                'driver_number': driver_number,
+                'team': str(row.get('Team') or ''),
+                'lap': lap,
+                'lane_duration': round(lane, 3),
+                'stop_duration': None,
+            })
+    return sorted(visits, key=lambda v: (v['lap'], v['driver_number']))
+
+
 def utc_timestamp(value: Any) -> str | None:
     if value is None or pd.isna(value):
         return None
@@ -1388,6 +1449,59 @@ def car_performance(response: Response, year: int = Query(..., ge=2018, le=2100)
         raise HTTPException(422, 'Performance data is incomplete or unavailable for this session. Try another event.') from exc
     response.headers['Server-Timing'] = f'performance;dur={(time.perf_counter()-started)*1000:.1f}'
     return result
+
+
+@app.get("/api/performance/pits")
+def car_performance_pits(response: Response, year: int = Query(..., ge=2018, le=2100),
+                         gp: str = Query(..., min_length=3, max_length=120)):
+    """Fetch pit timing only when the user opens the pit-stop category."""
+    def set_cache(source, visits, session=None):
+        # Each Grand Prix has its own URL. A new race adds one new cache entry;
+        # old races need not be recomputed to update season averages.
+        ttl = 30 * 86400 if year < datetime.now(timezone.utc).year else 7 * 86400
+        if session and session.get('date_end'):
+            try:
+                ended = datetime.fromisoformat(str(session['date_end']).replace('Z', '+00:00'))
+                if ended.tzinfo is None:
+                    ended = ended.replace(tzinfo=timezone.utc)
+                if datetime.now(timezone.utc) - ended < timedelta(days=3):
+                    ttl = 3600
+            except ValueError:
+                ttl = min(ttl, 3600)
+        if not visits or (year >= 2023 and source != 'OpenF1'):
+            ttl = min(ttl, 300)
+        response.headers['Cache-Control'] = (
+            f'public, max-age={ttl}, s-maxage={ttl}, stale-while-revalidate={min(ttl, 86400)}'
+        )
+
+    started = time.perf_counter()
+    if year >= 2023:
+        session = openf1_session(year, gp, 'R')
+        if session and session.get('session_key') is not None:
+            try:
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    pits_future = pool.submit(openf1, 'pit', session_key=session['session_key'])
+                    drivers_future = pool.submit(openf1, 'drivers', session_key=session['session_key'])
+                    pits = pits_future.result()
+                    drivers = drivers_future.result()
+                if not drivers:
+                    raise ValueError('Driver identities are unavailable')
+                visits = openf1_pit_visits(pits, drivers)
+                set_cache('OpenF1', visits, session)
+                response.headers['Server-Timing'] = f'pits;dur={(time.perf_counter()-started)*1000:.1f}'
+                return {'event': gp, 'year': year, 'source': 'OpenF1', 'visits': visits}
+            except Exception as exc:
+                logger.warning('OpenF1 pit timing unavailable for %s %s: %s', year, gp, exc)
+
+    try:
+        data = load_fresh_session(year, gp, 'R')
+        visits = fastf1_pit_visits(data.laps)
+    except Exception as exc:
+        logger.warning('Pit timing unavailable for %s %s: %s', year, gp, exc)
+        raise HTTPException(422, 'Pit timing is unavailable for this race.') from exc
+    set_cache('FastF1', visits)
+    response.headers['Server-Timing'] = f'pits;dur={(time.perf_counter()-started)*1000:.1f}'
+    return {'event': gp, 'year': year, 'source': 'FastF1', 'visits': visits}
 
 
 @app.post("/api/performance/development")

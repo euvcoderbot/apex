@@ -336,8 +336,8 @@ function lapShareChart(rows, key, reference) {
   </div>`;
 }
 
-async function get(path, signal) {
-  const response=await fetch(`${String(window.APEX_API_ORIGIN || '').replace(/\/$/,'')}${path}`, {signal,cache:'no-store'});
+async function get(path, signal, cache='no-store') {
+  const response=await fetch(`${String(window.APEX_API_ORIGIN || '').replace(/\/$/,'')}${path}`, {signal,cache});
   const payload=await response.json();
   if (!response.ok) throw new Error(typeof payload.detail === 'string' ? payload.detail : `Request failed (${response.status})`);
   return payload;
@@ -359,8 +359,9 @@ function syncSelect(select) {
   }
 }
 
-let initialized=false, calendar=[], calendarController, controller, generation=0;
+let initialized=false, calendar=[], calendarController, controller, pitController, generation=0;
 let events=[], errors=[], activeMetric='pace', running=false, traceRunning=false, sortKey='qualy', sortDirection=1;
+let pitRunning=false;
 let activeScope='season'; // 'season' | 'tracks'
 let selectedTracks=new Set();
 let context=null;
@@ -458,7 +459,7 @@ function updateStatus(msg, isRunning = false) {
 }
 
 function stop() {
-  controller?.abort(); generation++; running=false; traceRunning=false;
+  controller?.abort(); pitController?.abort(); generation++; running=false; traceRunning=false; pitRunning=false;
   $('performanceCancel').hidden=true;
   $('performanceLoad').hidden=false;
   $('performanceLoad').disabled=!calendar.length;
@@ -473,7 +474,7 @@ function reset() {
 }
 
 async function analyse() {
-  controller?.abort(); controller=new AbortController(); const signal=controller.signal, id=++generation;
+  controller?.abort(); pitController?.abort(); pitRunning=false; controller=new AbortController(); const signal=controller.signal, id=++generation;
   events=[]; errors=[]; running=true;
   const isSeason = activeScope === 'season';
   const picked = isSeason
@@ -548,6 +549,32 @@ async function analyse() {
   running=false; $('performanceLoad').disabled=false; $('performanceLoad').hidden=false; $('performanceCancel').hidden=true;
   updateStatus(`${context.year} · best qualifying lap · ${events.length}/${picked.length} events with data${errors.length ? ` · ${errors.length} data requests unavailable` : ''}. Fresh retrieval complete.`, false);
   render();
+  if(activeMetric==='pits') loadPitData();
+}
+
+async function loadPitData(retry=false) {
+  if(pitRunning || !context || running) return;
+  if(retry) for(const event of events) delete event.pitError;
+  const jobs=events.filter(e=>e.R && !e.pits && !e.pitError);
+  if(!jobs.length) return;
+  pitController?.abort(); pitController=new AbortController();
+  const signal=pitController.signal, id=generation;
+  pitRunning=true; render();
+  async function worker() {
+    while(jobs.length && !signal.aborted && id===generation) {
+      const event=jobs.shift();
+      try {
+        const params=new URLSearchParams({year:context.year,gp:event.name});
+        event.pits=await get(`/api/performance/pits?${params}`,signal,'default');
+      } catch(error) {
+        if(signal.aborted) return;
+        event.pitError=error.message;
+      }
+      if(id===generation) render();
+    }
+  }
+  await Promise.all([worker(),worker(),worker()]);
+  if(id===generation) {pitRunning=false;render();}
 }
 
 function aggregate() {
@@ -1233,6 +1260,82 @@ function renderResults(teams) {
         `<span style="font-weight:600;">${escape(r.cause || 'Unclassified retirement')}</span>`,
         `<small class="perf-tercile-badge is-mid">${escape(r.source || 'Official Timing')}</small>`
       ]))));
+}
+
+function pitSummary(events, teams) {
+  const teamColors=new Map(teams.map(t=>[t.team,t.color]));
+  const visits=[];
+  const loadedRaces=events.filter(e=>e.R && e.pits);
+  const groups=new Map(), drivers=new Map();
+  for(const event of loadedRaces) for(const team of event.R.teams||[]) {
+    if(!groups.has(team.team)) groups.set(team.team,{team:team.team,color:teamColors.get(team.team)||team.color,visits:[],events:new Set()});
+    for(const driver of team.drivers||[]) {
+      const key=`${team.team}:${driver}`;
+      if(!drivers.has(key)) drivers.set(key,{team:team.team,color:teamColors.get(team.team)||team.color,driver,visits:[],events:new Set()});
+    }
+  }
+  for(const event of loadedRaces) for(const visit of event.pits.visits||[]) {
+    const driver=String(visit.driver||'').trim() || `#${visit.driver_number}`;
+    const team=event.R.teams?.find(t=>t.drivers?.includes(driver))?.team || visit.team || 'Unknown team';
+    visits.push({...visit,driver,team,event:event.name,source:event.pits.source});
+  }
+  for(const visit of visits) {
+    const teamKey=visit.team, driverKey=`${teamKey}:${visit.driver}`;
+    if(!groups.has(teamKey)) groups.set(teamKey,{team:teamKey,color:teamColors.get(teamKey),visits:[],events:new Set()});
+    if(!drivers.has(driverKey)) drivers.set(driverKey,{team:teamKey,color:teamColors.get(teamKey),driver:visit.driver,visits:[],events:new Set()});
+    for(const group of [groups.get(teamKey),drivers.get(driverKey)]) {
+      group.visits.push(visit); group.events.add(visit.event);
+    }
+  }
+  const summarize=group=>({
+    ...group,
+    avgStop:avg(group.visits.map(v=>v.stop_duration)),
+    avgLane:avg(group.visits.map(v=>v.lane_duration)),
+    stopCount:group.visits.filter(v=>finite(v.stop_duration)).length,
+    laneCount:group.visits.filter(v=>finite(v.lane_duration)).length,
+    eventCount:group.events.size
+  });
+  return {teams:[...groups.values()].map(summarize),drivers:[...drivers.values()].map(summarize),visits,
+    loaded:loadedRaces.length,total:events.filter(e=>e.R).length};
+}
+
+function renderPits(teams) {
+  const data=pitSummary(events,teams);
+  const orderedTeams=sorted(data.teams,{
+    pitTeam:t=>t.team,pitStop:t=>t.avgStop,pitLane:t=>t.avgLane,
+    pitStopCount:t=>t.stopCount,pitLaneCount:t=>t.laneCount,pitEvents:t=>t.eventCount
+  },'pitStop');
+  const orderedDrivers=sorted(data.drivers,{
+    pitDriver:d=>d.driver,pitDriverTeam:d=>d.team,pitDriverStop:d=>d.avgStop,
+    pitDriverLane:d=>d.avgLane,pitDriverStopCount:d=>d.stopCount,pitDriverLaneCount:d=>d.laneCount
+  },'pitDriverStop');
+  const failures=events.filter(e=>e.R&&e.pitError);
+  const pending=data.total-data.loaded-failures.length;
+  const note=`${data.loaded}/${data.total} race${data.total===1?'':'s'} loaded${pending>0?' · loading pit timing…':''}${failures.length?` · ${failures.length} race${failures.length===1?'':'s'} unavailable`:''}. Stationary time is measured at the box; pit-lane time runs from entry to exit and includes that stop. It is not the time lost versus staying on track. Stationary timing is available only from the 2024 US Grand Prix onward. Long stops and penalties remain in these raw averages; compare sample counts and races before ranking teams.`;
+  const charts=renderHorizontalBarChart(orderedTeams,{
+    title:'Average stationary stop',subtitle:'Extra seconds versus the quickest measured team average · lower is faster',
+    valueKey:'avgStop',unit:' s',digits:3,signedValue:true
+  })+renderHorizontalBarChart(orderedTeams,{
+    title:'Average pit-lane time',subtitle:'Entry to exit · track pit-lane lengths differ, so season averages reflect race mix',
+    valueKey:'avgLane',unit:' s',digits:3,signedValue:false,zeroBaseline:true
+  });
+  const summary=card('Pit stops & pit lane',note,
+    (failures.length?`<p class="performance-note">${failures.map(e=>`${escape(e.name)}: ${escape(e.pitError)}`).join(' · ')} <button type="button" class="performance-explain-toggle" data-pit-retry>Retry unavailable</button></p>`:'')+
+    (charts||'<p class="section-empty">No timed pit visits for the selected races yet.</p>')+
+    table([sortHeader('pitTeam','Team'),sortHeader('pitStop','Avg. stationary'),sortHeader('pitLane','Avg. pit lane'),
+      sortHeader('pitStopCount','Timed stops',-1),sortHeader('pitLaneCount','Lane visits',-1),sortHeader('pitEvents','Races',-1)],
+      orderedTeams.map(t=>[teamLabel(t),fmt(t.avgStop,3,' s'),fmt(t.avgLane,3,' s'),t.stopCount,t.laneCount,t.eventCount])));
+  const driverTable=card('Drivers','Averages use each driver’s measured pit visits in the selected races. A blank stationary time means that feed did not publish it.',
+    table([sortHeader('pitDriver','Driver'),sortHeader('pitDriverTeam','Team'),sortHeader('pitDriverStop','Avg. stationary'),
+      sortHeader('pitDriverLane','Avg. pit lane'),sortHeader('pitDriverStopCount','Timed stops',-1),
+      sortHeader('pitDriverLaneCount','Lane visits',-1)],
+      orderedDrivers.map(d=>[escape(d.driver),teamLabel(d),fmt(d.avgStop,3,' s'),fmt(d.avgLane,3,' s'),d.stopCount,d.laneCount])));
+  const individual=`<details class="dashboard-card performance-methods"><summary>View individual pit visits and timing sources</summary>${table(
+    ['Grand Prix','Team','Driver','In-lap','Stationary','Pit lane','Source'],
+    data.visits.sort((a,b)=>a.event.localeCompare(b.event)||a.lap-b.lap).map(v=>[
+      eventLabel(v.event),teamLabel(v),escape(v.driver),`L${v.lap}`,fmt(v.stop_duration,3,' s'),fmt(v.lane_duration,3,' s'),escape(v.source)
+    ]))}</details>`;
+  return summary+driverTable+individual;
 }
 
 function huberRegression(rounds, paces) {
@@ -2245,6 +2348,7 @@ function render() {
     ['corners','Cornering'],
     ['straight','Straight line'],
     ['braking','Braking'],
+    ['pits','Pit stops'],
     ['tyres','Tyre trend'],
     ['trend','Development & updates'],
     ['results','Reliability & results']
@@ -2264,7 +2368,7 @@ function render() {
 
   const teams=aggregate();
   const errorMarkup = errors.map(e=>`<div class="performance-error"><span class="error-dot"></span><span>${escape(e.event.name)} · ${e.session==='Q'?'Qualifying':e.session==='R'?'Race':'Telemetry'}: ${escape(e.message)}</span></div>`).join('');
-  const content = (activeMetric==='pace'?renderPace(teams):activeMetric==='tyres'?renderRace(teams):activeMetric==='results'?renderResults(teams):activeMetric==='trend'?renderTrend(teams):renderTrace());
+  const content = (activeMetric==='pace'?renderPace(teams):activeMetric==='tyres'?renderRace(teams):activeMetric==='results'?renderResults(teams):activeMetric==='pits'?renderPits(teams):activeMetric==='trend'?renderTrend(teams):renderTrace());
 
   root.innerHTML = modeBar + errorMarkup + content;
 }
@@ -2368,7 +2472,8 @@ $('performanceCancel').addEventListener('click',stop);
 root.addEventListener('click',event=>{
   if(event.target.closest('[data-performance-explain]')){showPerformanceDescriptions=!showPerformanceDescriptions;render();return;}
   const metric=event.target.closest('[data-performance-metric]');
-  if(metric) {activeMetric=metric.dataset.performanceMetric;render();}
+  if(metric) {activeMetric=metric.dataset.performanceMetric;render();if(activeMetric==='pits')loadPitData();return;}
+  if(event.target.closest('[data-pit-retry]')){loadPitData(true);return;}
   const sort=event.target.closest('[data-performance-sort]');
   const tyreMetricButton=event.target.closest('[data-tyre-metric]');
   if(tyreMetricButton){tyreMetric=tyreMetricButton.dataset.tyreMetric;sortKey=tyreMetric==='age'?'tyreAgeValue':'tyreNorm';sortDirection=1;render();return;}

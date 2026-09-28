@@ -577,3 +577,27 @@ test('tyre-age trend uses stint-local outliers and reports exclusions, not an ag
   assert.match(view,/Outlier laps removed/);
   assert.doesNotMatch(view.slice(view.indexOf('function renderTyreAge'),view.indexOf('function renderRace')),/Tyre-age range/);
 });
+
+test('pit category keeps stationary and lane averages separate by team and driver', () => {
+  const source=readFileSync('car-performance.js','utf8');
+  const body=source.slice(source.indexOf('function pitSummary'),source.indexOf('function huberRegression'));
+  const sandbox={avg:a=>{const found=a.filter(Number.isFinite);return found.length?found.reduce((x,y)=>x+y,0)/found.length:null;},
+    finite:Number.isFinite};
+  vm.createContext(sandbox);
+  vm.runInContext(body,sandbox);
+  const events=[{name:'Example GP',R:{teams:[{team:'McLaren',drivers:['NOR','PIA']}]},
+    pits:{source:'OpenF1',visits:[
+      {driver:'NOR',lap:20,lane_duration:22,stop_duration:2},
+      {driver:'NOR',lap:40,lane_duration:28,stop_duration:null},
+      {driver:'PIA',lap:21,lane_duration:25,stop_duration:3}
+    ]}}];
+  const result=sandbox.pitSummary(events,[{team:'McLaren',color:'#ff8000'}]);
+  assert.equal(result.teams[0].avgStop,2.5);
+  assert.equal(result.teams[0].avgLane,25);
+  assert.equal(result.teams[0].stopCount,2);
+  assert.equal(result.teams[0].laneCount,3);
+  assert.equal(result.drivers.find(d=>d.driver==='NOR').avgStop,2);
+  assert.equal(result.drivers.find(d=>d.driver==='NOR').avgLane,25);
+  assert.match(source,/activeMetric==='pits'\?renderPits\(teams\)/);
+  assert.match(source,/api\/performance\/pits/);
+});
