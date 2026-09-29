@@ -760,8 +760,8 @@ function latestCompletedSelection(events, now = Date.now()) {
   let latest = null;
   (events || []).forEach((event, eventIndex) => {
     (event.sessions || []).forEach((session, sessionIndex) => {
-      const status = event.session_statuses?.[session];
-      if (['cancelled', 'live', 'upcoming'].includes(status)) return;
+      const status = String(event.session_statuses?.[session] || '').toLowerCase();
+      if (['cancelled', 'live', 'upcoming', 'interrupted', 'aborted', 'suspended'].includes(status)) return;
       const timestamp = parsedSessionTimestamp(
         event.session_end_dates?.[session] || event.session_dates?.[session]
       );
@@ -769,7 +769,7 @@ function latestCompletedSelection(events, now = Date.now()) {
       // After 36 hours, it is safe to offer the session as the default; this
       // only changes the selection and never fetches its data automatically.
       if (status === 'unknown' && timestamp > now - 36 * 3600000) return;
-      if (!Number.isFinite(timestamp) || (status !== 'completed' && timestamp > now)) return;
+      if (!Number.isFinite(timestamp) || timestamp > now) return;
       if (!latest || timestamp > latest.timestamp) {
         latest = { event, session, timestamp, eventIndex, sessionIndex };
       }
@@ -781,10 +781,18 @@ function latestCompletedSelection(events, now = Date.now()) {
   // event date has passed, and keep future seasons on their opening session.
   const completedEvents = (events || []).filter(event => {
     const eventDate = parsedSessionTimestamp(`${event.date || ''}T23:59:59Z`);
-    return Number.isFinite(eventDate) && eventDate <= now;
+    return Number.isFinite(eventDate) && eventDate <= now
+      && !Object.keys(event.session_dates || {}).length
+      && !Object.keys(event.session_end_dates || {}).length;
   });
-  const event = completedEvents.at(-1) || events?.[0] || null;
-  const sessions = event?.sessions || [];
+  const event = completedEvents.at(-1) || events?.find(candidate =>
+    candidate.sessions?.some(session => !['cancelled', 'interrupted', 'aborted', 'suspended'].includes(
+      String(candidate.session_statuses?.[session] || '').toLowerCase()
+    ))) || events?.[0] || null;
+  const sessions = (event?.sessions || []).filter(session =>
+    !['cancelled', 'interrupted', 'aborted', 'suspended'].includes(
+      String(event.session_statuses?.[session] || '').toLowerCase()
+    ));
   return event ? {
     event,
     session: completedEvents.length ? sessions.at(-1) : sessions[0],

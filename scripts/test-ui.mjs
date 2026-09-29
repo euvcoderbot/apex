@@ -334,6 +334,20 @@ test('latest event selection follows the newest completed session timestamp', ()
   assert.equal(h.run("latestCompletedSelection(selectionCalendar, Date.parse('2026-09-13T12:00:00Z')).session"), 'Practice 2');
   h.run("var bakuCalendar=[{round:15,name:'Azerbaijan Grand Prix',date:'2026-09-26',sessions:['Practice 2','Race'],session_end_dates:{'Practice 2':'2026-09-24T13:00:00Z',Race:'2026-09-26T13:00:00Z'},session_statuses:{'Practice 2':'unknown',Race:'unknown'}}]");
   assert.equal(h.run("latestCompletedSelection(bakuCalendar, Date.parse('2026-09-28T02:00:00Z')).session"), 'Race');
+  h.run(`var statuses=[
+    {round:1,name:'Finished GP',sessions:['Qualifying','Race'],session_end_dates:{Qualifying:'2026-09-20T15:00:00Z',Race:'2026-09-21T15:00:00Z'},session_statuses:{Qualifying:'completed',Race:'completed'}},
+    {round:2,name:'Interrupted GP',sessions:['Practice 1','Practice 2','Qualifying','Race'],session_end_dates:{'Practice 1':'2026-09-28T10:00:00Z','Practice 2':'2026-09-28T14:00:00Z',Qualifying:'2026-09-28T17:00:00Z',Race:'2026-09-29T14:00:00Z'},session_statuses:{'Practice 1':'completed','Practice 2':'interrupted',Qualifying:'live',Race:'upcoming'}},
+    {round:3,name:'Cancelled GP',sessions:['Race'],session_end_dates:{Race:'2026-09-27T12:00:00Z'},session_statuses:{Race:'cancelled'}}]`);
+  assert.equal(h.run("latestCompletedSelection(statuses, Date.parse('2026-09-29T07:00:00Z')).event.name"), 'Interrupted GP');
+  assert.equal(h.run("latestCompletedSelection(statuses, Date.parse('2026-09-29T07:00:00Z')).session"), 'Practice 1');
+  h.run("statuses[1].session_statuses['Practice 1']='unknown'");
+  assert.equal(h.run("latestCompletedSelection(statuses, Date.parse('2026-09-29T07:00:00Z')).event.name"), 'Finished GP');
+  h.run("statuses[1].session_end_dates['Practice 1']='2026-09-20T10:00:00Z'");
+  assert.equal(h.run("latestCompletedSelection(statuses, Date.parse('2026-09-29T07:00:00Z')).event.name"), 'Finished GP');
+  h.run("statuses[1].session_end_dates['Practice 1']='2026-09-22T10:00:00Z'");
+  assert.equal(h.run("latestCompletedSelection(statuses, Date.parse('2026-09-29T07:00:00Z')).session"), 'Practice 1');
+  h.run("statuses[1].session_statuses['Practice 1']='completed'; statuses[1].session_end_dates['Practice 1']='2026-09-30T10:00:00Z'");
+  assert.equal(h.run("latestCompletedSelection(statuses, Date.parse('2026-09-29T07:00:00Z')).event.name"), 'Finished GP');
   h.sandbox.currentCalendar = JSON.parse(readFileSync('assets/data/events/2026.json', 'utf8'));
   assert.equal(h.run("latestCompletedSelection(currentCalendar, Date.parse('2026-09-17T00:00:00Z')).event.round"), 14);
   assert.equal(h.run("latestCompletedSelection(currentCalendar, Date.parse('2026-09-17T00:00:00Z')).session"), 'Race');
@@ -555,6 +569,36 @@ test('tyre-age view aggregates own stints for teams and individual drivers', () 
   assert.match(drivers,/BBB · Example/);
 });
 
+test('tyre GP summaries handle skew and explain every sparse P75 blank', () => {
+  const source=readFileSync('car-performance.js','utf8');
+  const body=source.slice(source.indexOf('function tyreViewControls()'),source.indexOf('function renderRace(teams)'));
+  const sandbox={tyreMetric:'age',tyreSubject:'team',tyreView:'C3',tyreSeasonStat:'mean',sortKey:'tyreAgeValue',sortDirection:1,
+    context:{year:2026},events:[1,2,3,4].map(round=>({round,R:{}})),
+    VERIFIED_DRY_ALLOCATIONS:{2026:['123','123','123','123']},TYRE_ALLOCATION_SOURCES:{2026:'https://press.pirelli.com/'},
+    finite:Number.isFinite,avg:a=>{const x=a.filter(Number.isFinite);return x.length?x.reduce((s,v)=>s+v,0)/x.length:null;},
+    summarize:(a,mode)=>{const x=a.filter(Number.isFinite).sort((v,w)=>v-w);if(!x.length)return null;if(mode==='median')return(x[Math.floor((x.length-1)/2)]+x[Math.ceil((x.length-1)/2)])/2;if(mode==='p75'){const i=(x.length-1)*.75,l=Math.floor(i),h=Math.ceil(i);return x[l]+(x[h]-x[l])*(i-l);}return x.reduce((s,v)=>s+v,0)/x.length;},
+    sorted:(rows,getters,key)=>[...rows].sort((a,b)=>(getters[key](a)??Infinity)-(getters[key](b)??Infinity)),
+    teamLabel:r=>r.displayName,card:(_title,_note,body)=>body,table:(_headers,rows)=>JSON.stringify(rows),sortHeader:(_key,label)=>label,
+    color:v=>v,signed:n=>n.toFixed(3),escape:v=>String(v)};
+  vm.createContext(sandbox);vm.runInContext(body,sandbox);
+  const slopes=[.01,.02,.03,.5];
+  const teams=[{team:'Measured',color:'#123456',tyreAgeStints:slopes.map((s,i)=>({event:`GP ${i+1}`,compound_grade:'C3',fuel_adjusted_slope:s,samples:8}))},
+    {team:'Missing',color:'#888888',tyreAgeStints:[]}];
+  for(const [mode,expected] of [['mean','0.140'],['median','0.025'],['p75','0.147']]){
+    sandbox.tyreSeasonStat=mode;
+    assert.match(sandbox.renderTyreAge(teams),new RegExp(expected));
+  }
+  sandbox.tyreSeasonStat='p75';
+  teams[0].tyreAgeStints.pop();
+  const sparse=sandbox.renderTyreAge(teams);
+  assert.match(sparse,/C3: 3\/4 GPs/);
+  assert.match(sparse,/Missing/);
+  sandbox.tyreView='OVERALL';
+  teams[0].tyreAgeStints.push({event:'GP 4',compound_grade:'C3',fuel_adjusted_slope:.5,samples:8});
+  teams[0].tyreAgeStints.push({event:'GP 1',compound_grade:'C2',fuel_adjusted_slope:.04,samples:8});
+  assert.match(sandbox.renderTyreAge(teams),/C2: 1\/4 GPs/);
+});
+
 test('tyre-age C grades use the race-year Pirelli allocation, including skipped 2025 grades', () => {
   const source=readFileSync('car-performance.js','utf8');
   const body=source.slice(source.indexOf('const VERIFIED_DRY_ALLOCATIONS'),source.indexOf('// Team marks'));
@@ -590,6 +634,7 @@ test('pit category keeps stationary and lane averages separate by team and drive
   const body=source.slice(source.indexOf('function pitSummary'),source.indexOf('function huberRegression'));
   const sandbox={avg:a=>{const found=a.filter(Number.isFinite);return found.length?found.reduce((x,y)=>x+y,0)/found.length:null;},
     median:a=>{const x=a.filter(Number.isFinite).sort((v,w)=>v-w);return x.length?(x.length%2?x[(x.length-1)/2]:(x[x.length/2-1]+x[x.length/2])/2):null;},
+    percentile:(a,p)=>{const x=a.filter(Number.isFinite).sort((v,w)=>v-w);if(!x.length)return null;const i=(x.length-1)*p,l=Math.floor(i),h=Math.ceil(i);return x[l]+(x[h]-x[l])*(i-l);},
     finite:Number.isFinite,completed:()=>true};
   vm.createContext(sandbox);
   vm.runInContext(body,sandbox);
@@ -650,6 +695,81 @@ test('pit category keeps stationary and lane averages separate by team and drive
   assert.match(source,/api\/performance\/pits/);
 });
 
+test('pit summaries keep raw visits weighted, relative GPs equal, and percentile boundaries exact', () => {
+  const source=readFileSync('car-performance.js','utf8');
+  const body=source.slice(source.indexOf('function pitSummary'),source.indexOf('function huberRegression'));
+  const sandbox={finite:Number.isFinite,completed:()=>true,
+    avg:a=>{const x=a.filter(Number.isFinite);return x.length?x.reduce((s,v)=>s+v,0)/x.length:null;},
+    median:a=>{const x=a.filter(Number.isFinite).sort((a,b)=>a-b);return x.length?x.length%2?x[(x.length-1)/2]:(x[x.length/2-1]+x[x.length/2])/2:null;},
+    percentile:(a,p)=>{const x=a.filter(Number.isFinite).sort((a,b)=>a-b);if(!x.length)return null;const i=(x.length-1)*p,l=Math.floor(i),h=Math.ceil(i);return x[l]+(x[h]-x[l])*(i-l);}};
+  vm.createContext(sandbox);vm.runInContext(body,sandbox);
+  const visit=(driver,team,lap,lane,stop)=>({driver,team,lap,lane_duration:lane,stop_duration:stop});
+  const events=[
+    {name:'GP 1',pits:{source:'OpenF1',visits:[...Array.from({length:10},(_,i)=>visit('AAA','A',i+1,22,2)),visit('BBB','B',1,20,2.4)]}},
+    {name:'GP 2',pits:{source:'OpenF1',visits:[visit('AAA','A',1,40,3),visit('BBB','B',1,28,2.6)]}}
+  ];
+  const data=sandbox.pitSummary(events,[]), a=data.teams.find(r=>r.team==='A'), b=data.teams.find(r=>r.team==='B');
+  assert.equal(a.lane.count,11);assert.equal(a.laneRelative.count,2);
+  assert.ok(a.lane.mean<b.lane.mean); // 11 visits versus B's two
+  assert.ok(a.laneRelative.mean>b.laneRelative.mean); // GP medians, each GP once
+  assert.equal(a.laneRelative.mean,3.5);assert.equal(b.laneRelative.mean,-3.5);
+  assert.equal(data.drivers.find(r=>r.driver==='AAA').laneRelative.mean,3.5);
+  assert.equal(a.stop.mean,23/11);assert.equal(a.stop.fastest,2);
+  assert.equal(a.stop.p10,2);assert.equal(a.stop.p90,2);
+  const nine=sandbox.pitSummary([{name:'GP',pits:{visits:Array.from({length:9},(_,i)=>visit('AAA','A',i+1,i+1,i+1))}}],[]).teams[0];
+  const ten=sandbox.pitSummary([{name:'GP',pits:{visits:Array.from({length:10},(_,i)=>visit('AAA','A',i+1,i+1,i+1))}}],[]).teams[0];
+  assert.equal(nine.stop.p10,null);assert.equal(nine.stop.p90,null);
+  assert.equal(ten.stop.p10,1.9);assert.equal(ten.stop.p90,9.1);
+  assert.equal(ten.stop.p25,3.25);assert.equal(ten.stop.p75,7.75);
+  assert.equal(sandbox.pitMiddleSpread(ten.stop),4.5);
+  assert.equal(data.visits.length,13); // exact visit rows retain all source visits
+  assert.match(source,/data-pit-chart="fastest"/);
+  assert.match(source,/preserveSignedValues:relativeLane/);
+});
+
+test('pit chart, sortable table and exact rows show the same selected measurement', () => {
+  const source=readFileSync('car-performance.js','utf8');
+  const chart=source.slice(source.indexOf('function renderHorizontalBarChart'),source.indexOf('function lapShareChart'));
+  const body=source.slice(source.indexOf('function pitSummary'),source.indexOf('function huberRegression'));
+  const captured=[];
+  const sandbox={finite:Number.isFinite,completed:()=>true,events:[],context:{scope:'tracks',selectedTracks:[1]},
+    pitMeasure:'lane',pitLaneBasis:'event',pitSubject:'team',pitChartMetric:'mean',sortKey:'pitMean',sortDirection:1,
+    avg:a=>{const x=a.filter(Number.isFinite);return x.length?x.reduce((s,v)=>s+v,0)/x.length:null;},
+    median:a=>{const x=a.filter(Number.isFinite).sort((v,w)=>v-w);return x.length?x.length%2?x[(x.length-1)/2]:(x[x.length/2-1]+x[x.length/2])/2:null;},
+    percentile:(a,p)=>{const x=a.filter(Number.isFinite).sort((v,w)=>v-w);if(!x.length)return null;const i=(x.length-1)*p,l=Math.floor(i),h=Math.ceil(i);return x[l]+(x[h]-x[l])*(i-l);},
+    fmt:(n,d=3,u='')=>Number.isFinite(n)?n.toFixed(d)+u:'—',signed:(n,d=3,u='')=>Number.isFinite(n)?`${n>0?'+':''}${n.toFixed(d)}${u}`:'—',
+    color:v=>v||'#888888',escape:v=>String(v),teamLabel:r=>r.team||r.driver,eventLabel:v=>v,
+    exactSeconds:n=>Number.isFinite(n)?`${n} s`:'—',card:(_title,_note,content)=>content,
+    sortHeader:(_key,label)=>label,table:(headers,rows)=>{captured.push({headers,rows});return '';},
+    sorted:(rows,getters,key)=>[...rows].sort((a,b)=>{const av=getters[sandbox.sortKey in getters?sandbox.sortKey:key](a),bv=getters[sandbox.sortKey in getters?sandbox.sortKey:key](b);return av==null?1:bv==null?-1:(av-bv)*sandbox.sortDirection;})};
+  sandbox.events=[
+    {name:'GP 1',pits:{source:'OpenF1',visits:[{driver:'AAA',team:'A',lap:1,lane_duration:22,stop_duration:2},{driver:'BBB',team:'B',lap:1,lane_duration:20,stop_duration:2.5}]}},
+    {name:'GP 2',pits:{source:'OpenF1',visits:[{driver:'AAA',team:'A',lap:2,lane_duration:40,stop_duration:3},{driver:'BBB',team:'B',lap:2,lane_duration:28,stop_duration:2.4}]}}
+  ];
+  vm.createContext(sandbox);vm.runInContext(chart+body,sandbox);
+  let html=sandbox.renderPits([]);
+  assert.match(html,/\+3\.500 s/);assert.match(html,/-3\.500 s/);
+  assert.equal(captured[0].rows[0][0],'B');assert.equal(captured[0].rows[0][2],'-3.500 s');
+  assert.equal(captured[1].rows.length,4);
+  assert.equal(captured[1].rows[0][5],'22 s');
+  captured.length=0;sandbox.pitChartMetric='fastest';html=sandbox.renderPits([]);
+  assert.match(html,/Best GP gap/);assert.equal(captured[0].rows[0][3],'-6.000 s');
+  captured.length=0;sandbox.pitSubject='driver';sandbox.pitMeasure='stop';sandbox.pitLaneBasis='raw';sandbox.pitChartMetric='median';
+  html=sandbox.renderPits([]);
+  assert.match(html,/stationary stop/);assert.equal(captured[0].rows[0][0],'BBB');
+  assert.equal(captured[1].rows[0][4],'2 s');
+  sandbox.pitSubject='team';sandbox.events=[{name:'Ten-stop GP',pits:{source:'OpenF1',visits:[
+    ...Array.from({length:10},(_,i)=>({driver:'AAA',team:'A',lap:i+1,lane_duration:20+i,stop_duration:i+1})),
+    ...Array.from({length:10},(_,i)=>({driver:'BBB',team:'B',lap:i+1,lane_duration:21+i,stop_duration:i+2}))
+  ]}}];
+  for(const [metric,expected,column] of [['p10','1.900 s',5],['p90','9.100 s',6],['spread','4.500 s',4]]){
+    captured.length=0;sandbox.pitChartMetric=metric;html=sandbox.renderPits([]);
+    assert.match(html,new RegExp(expected.replace('.','\\.')));
+    assert.match(captured[0].rows.find(row=>row[0]==='A')[column],new RegExp(expected.replace('.','\\.')));
+    assert.equal(captured[1].rows.length,20);
+  }
+});
+
 test('performance categories expose only defensible alternative summaries', () => {
   const source=readFileSync('car-performance.js','utf8');
   for(const key of ['pace-stat','telemetry-stat','tyre-stat','results-chart','trend-view'])
@@ -657,6 +777,6 @@ test('performance categories expose only defensible alternative summaries', () =
   assert.match(source,/data-results-chart="mechanicalRate"/);
   assert.match(source,/pitChartMetric==='p90'/);
   assert.match(source,/timed\.length>=10\?percentile\(timed,\.9\):null/);
-  assert.match(source,/tyreSeasonStat==='p75'&&gpSlopes\.length<4\?null/);
+  assert.match(source,/gpSlopes\.length<4\|\|p75Shortfall\.length/);
   assert.match(source,/seasonTelemetry\(telemetrySeasonStat\)/);
 });

@@ -239,6 +239,7 @@ function renderHorizontalBarChart(rows, {
   digits = 3,
   signedValue = true,
   zeroBaseline = true,
+  preserveSignedValues = false,
   invertBest = false // if true, higher value is ranked first
 } = {}) {
   const validRows = (rows || []).filter(r => r && finite(r[valueKey])).map(r => ({ ...r }));
@@ -248,7 +249,7 @@ function renderHorizontalBarChart(rows, {
   let maxVal = Math.max(...validRows.map(r => r[valueKey]));
 
   // For gap/deficit metrics (signedValue = true), rebase so the best car is 0.000% baseline (no negative numbers)
-  if (signedValue) {
+  if (signedValue && !preserveSignedValues) {
     const bestVal = invertBest ? maxVal : minVal;
     for (const r of validRows) {
       r._chartVal = Math.max(0, invertBest ? bestVal - r[valueKey] : r[valueKey] - bestVal);
@@ -267,19 +268,24 @@ function renderHorizontalBarChart(rows, {
 
   // Scale starts from 0 baseline on the left
   const lo = zeroBaseline ? Math.min(0, chartMin) : chartMin;
-  const hi = Math.max(lo + 0.001, chartMax);
+  const hi = Math.max(lo + 0.001, chartMax, preserveSignedValues ? 0 : -Infinity);
   const span = Math.max(0.0001, hi - lo);
+  const zeroPosition = (-lo / span) * 100;
 
   const rowsHtml = validRows.map(r => {
     const val = r._chartVal;
     const clr = color(r[colorKey]);
 
-    const barWidth = Math.min(100, Math.max(val > 0.00001 ? 2 : 0, ((val - lo) / span) * 100));
-    const displayStr = signedValue
+    const valuePosition = ((val - lo) / span) * 100;
+    const barLeft = preserveSignedValues ? Math.min(zeroPosition, valuePosition) : 0;
+    const barWidth = preserveSignedValues
+      ? Math.abs(valuePosition - zeroPosition)
+      : Math.min(100, Math.max(val > 0.00001 ? 2 : 0, valuePosition));
+    const displayStr = preserveSignedValues ? signed(val, digits, unit) : signedValue
       ? (val <= 0.00001 ? fmt(0, digits, unit) : `+${fmt(val, digits, unit)}`)
       : fmt(val, digits, unit);
     const gainClass = signedValue
-      ? (val <= 0.00001 ? 'is-gain' : 'is-loss')
+      ? (preserveSignedValues ? val < 0 ? 'is-gain' : 'is-loss' : val <= 0.00001 ? 'is-gain' : 'is-loss')
       : '';
     const rowTitle = escape(r[labelKey] || r.team || r.name || '');
 
@@ -287,7 +293,8 @@ function renderHorizontalBarChart(rows, {
       <div class="performance-bar-row" title="${rowTitle}: ${displayStr}">
         <div class="performance-bar-label">${teamLabel(r)}</div>
         <div class="performance-bar-track">
-          <i class="performance-bar" style="--bar-color:${clr};left:0;width:${barWidth.toFixed(2)}%;"></i>
+          ${preserveSignedValues ? `<i class="performance-zero" style="left:${zeroPosition.toFixed(2)}%"></i>` : ''}
+          <i class="performance-bar" style="--bar-color:${clr};left:${barLeft.toFixed(2)}%;width:${barWidth.toFixed(2)}%;"></i>
         </div>
         <span class="performance-bar-val ${gainClass}">${displayStr}</span>
       </div>
@@ -994,14 +1001,19 @@ function renderTyreAge(teams) {
         summaries[compound]={value:summarize([...eventValues.values()],tyreSeasonStat),eventValues,events:eventValues.size,used,stints:used.length,laps:used.reduce((sum,s)=>sum+s.samples,0),outliers:used.reduce((sum,s)=>sum+(s.outlier_laps||0),0),lowSample:used.some(s=>s.low_sample),usedStart:used.filter(s=>s.used_start).length};
       }
     }
-    const available=tyreView==='OVERALL'?compounds.map(c=>summaries[c]).filter(Boolean):[summaries[tyreView]].filter(Boolean);
+    const selectedGrades=tyreView==='OVERALL'?compounds:[tyreView];
+    const available=selectedGrades.map(c=>summaries[c]).filter(Boolean);
+    const p75Shortfall=tyreSeasonStat==='p75'
+      ? selectedGrades.filter(c=>summaries[c] && summaries[c].events<4)
+          .map(c=>`${c}: ${summaries[c].events}/4 GPs`)
+      : [];
     const eventGrades=new Map();
     for(const summary of available) for(const [event,value] of summary.eventValues) {
       if(!eventGrades.has(event))eventGrades.set(event,[]);
       eventGrades.get(event).push(value);
     }
     const gpSlopes=[...eventGrades.values()].map(avg);
-    return {...entity,value:tyreSeasonStat==='p75'&&gpSlopes.length<4?null:summarize(gpSlopes,tyreSeasonStat),compounds:available.length,events:eventGrades.size,stints:available.reduce((sum,s)=>sum+s.stints,0),laps:available.reduce((sum,s)=>sum+s.laps,0),outliers:available.reduce((sum,s)=>sum+s.outliers,0),usedStart:available.reduce((sum,s)=>sum+s.usedStart,0),lowSample:available.some(s=>s.lowSample)};
+    return {...entity,value:tyreSeasonStat==='p75'&&(gpSlopes.length<4||p75Shortfall.length)?null:summarize(gpSlopes,tyreSeasonStat),p75Shortfall,compounds:available.length,events:eventGrades.size,stints:available.reduce((sum,s)=>sum+s.stints,0),laps:available.reduce((sum,s)=>sum+s.laps,0),outliers:available.reduce((sum,s)=>sum+s.outliers,0),usedStart:available.reduce((sum,s)=>sum+s.usedStart,0),lowSample:available.some(s=>s.lowSample)};
   });
   const ordered=sorted(rows,{tyreAgeName:r=>r.displayName,tyreAgeValue:r=>r.value,tyreAgeEvents:r=>r.events,tyreAgeStints:r=>r.stints,tyreAgeLaps:r=>r.laps},'tyreAgeValue');
   const scored=ordered.filter(r=>finite(r.value));
@@ -1009,9 +1021,9 @@ function renderTyreAge(teams) {
   const chart=scored.length?`<div class="performance-chart-card"><div class="perf-chart-header"><div class="perf-chart-title-group"><h4 class="perf-chart-heading">Tyre-age lap-time change · ${tyreView==='OVERALL'?'verified C grades':tyreView}</h4><span class="perf-chart-sub">Seconds per additional tyre-age lap · left of zero improves, right of zero worsens</span></div></div><div class="performance-tyre-age-chart">${scored.map(r=>{
     const width=Math.min(50,Math.abs(r.value)/extent*50);
     return `<div class="performance-tyre-age-row"><div class="performance-tyre-age-name">${teamLabel(r)}</div><div class="performance-tyre-age-track"><i class="performance-tyre-age-zero"></i><i class="performance-tyre-age-bar" style="--bar-color:${color(r.color)};left:${r.value<0?(50-width).toFixed(2):'50'}%;width:${width.toFixed(2)}%"></i></div><span class="performance-tyre-age-value">${signed(r.value,3,' s/lap')}</span></div>`;
-  }).join('')}</div></div>`:'<p class="section-empty">No stints with at least three usable laps and two tyre-age steps.</p>';
+  }).join('')}</div></div>`:`<p class="section-empty">${tyreSeasonStat==='p75'?'P75 needs at least four supported Grands Prix for every included C grade. The table shows each missing grade and its GP count.':'No stints with at least three usable laps and two tyre-age steps.'}</p>`;
   return card('Tyre-age performance change',
-    `Every usable dry, green-flag lap contributes within its own stint. Pit and SC/VSC laps are excluded; laps more than 7% from their own stint median are outliers. Weekend labels are mapped to verified C grades. Stints are combined within each GP and grade, then the selected ${tyreSeasonStat==='p75'?'75th percentile (worse-GP risk)':tyreSeasonStat} summarizes GP slopes. An assumed 0.060 s/lap fuel-burn gain is added to the slope. This estimates lap-time change, not measured tyre wear; traffic and management still affect it.`,
+    `Every usable dry, green-flag lap contributes within its own stint. Pit and SC/VSC laps are excluded; laps more than 7% from their own stint median are outliers. Weekend labels are mapped to verified C grades. Stints are combined within each GP and grade, then the selected ${tyreSeasonStat==='p75'?'75th percentile (worse-GP risk)':tyreSeasonStat} summarizes GP slopes${tyreSeasonStat==='p75'?' only when each included grade has at least four supported GPs':''}. An assumed 0.060 s/lap fuel-burn gain is added to the slope. This estimates lap-time change, not measured tyre wear; traffic and management still affect it.`,
     controls+coverage+chart+table([
       sortHeader('tyreAgeName',tyreSubject==='team'?'Team':'Driver · team'),
       sortHeader('tyreAgeValue','Change per tyre-age lap'),
@@ -1019,7 +1031,7 @@ function renderTyreAge(teams) {
       sortHeader('tyreAgeStints','Usable stints',-1),
       sortHeader('tyreAgeLaps','Usable laps',-1),
       'Outlier laps removed','Coverage'
-    ],ordered.map(r=>[teamLabel(r),finite(r.value)?signed(r.value,3,' s/lap'):'—',r.events,r.stints,r.laps,r.outliers,`${r.compounds} C grade${r.compounds===1?'':'s'}${r.lowSample?' · short stint included':''}${r.usedStart?` · ${r.usedStart} used start${r.usedStart===1?'':'s'}`:''}`])));
+    ],ordered.map(r=>[teamLabel(r),finite(r.value)?signed(r.value,3,' s/lap'):r.p75Shortfall.length?`—<small>P75 needs ${escape(r.p75Shortfall.join(', '))}</small>`:'—',r.events,r.stints,r.laps,r.outliers,`${r.compounds} C grade${r.compounds===1?'':'s'}${r.lowSample?' · short stint included':''}${r.usedStart?` · ${r.usedStart} used start${r.usedStart===1?'':'s'}`:''}`])));
 }
 
 function renderRace(teams) {
@@ -1336,12 +1348,6 @@ function pitSummary(events, teams) {
       group.visits.push(visit); group.events.add(visit.event);
     }
   }
-  const percentile=(values, fraction)=>{
-    const ordered=values.filter(finite).sort((a,b)=>a-b);
-    if(!ordered.length)return null;
-    const position=(ordered.length-1)*fraction, lower=Math.floor(position), upper=Math.ceil(position);
-    return ordered[lower]+(ordered[upper]-ordered[lower])*(position-lower);
-  };
   const summarizeTimes=values=>{
     const timed=values.filter(finite);
     return {mean:avg(timed),median:median(timed),fastest:timed.length?Math.min(...timed):null,
@@ -1349,10 +1355,14 @@ function pitSummary(events, teams) {
   };
   const laneByEvent=new Map();
   for(const visit of visits)if(finite(visit.lane_duration)){
-    if(!laneByEvent.has(visit.event))laneByEvent.set(visit.event,[]);
-    laneByEvent.get(visit.event).push(visit.lane_duration);
+    if(!laneByEvent.has(visit.event))laneByEvent.set(visit.event,new Map());
+    const teamVisits=laneByEvent.get(visit.event);
+    if(!teamVisits.has(visit.team))teamVisits.set(visit.team,[]);
+    teamVisits.get(visit.team).push(visit.lane_duration);
   }
-  const laneBaselines=new Map([...laneByEvent].map(([event,times])=>[event,median(times)]));
+  // A team making several stops must not move the whole GP's field baseline.
+  const laneBaselines=new Map([...laneByEvent].map(([event,teamVisits])=>
+    [event,median([...teamVisits.values()].map(median))]));
   const summarize=group=>{
     const stop=summarizeTimes(group.visits.map(v=>v.stop_duration));
     const lane=summarizeTimes(group.visits.map(v=>v.lane_duration));
@@ -1396,7 +1406,7 @@ function renderPits(teams) {
   },'pitMedian');
   const failures=events.filter(e=>completed(e,'Race')&&e.pitError);
   const pending=data.total-data.loaded-failures.length;
-  const note=`${data.loaded}/${data.total} race${data.total===1?'':'s'} loaded${pending>0?' · loading pit timing…':''}${failures.length?` · ${failures.length} race${failures.length===1?'':'s'} unavailable`:''}. Stationary is the broadcast-style time stopped at the box; pit-lane time includes the stop. Mean includes long stops; median shows a typical visit; the middle-50% spread shows consistency (≥4 samples); P10 and P90 show the quick and slow tails (≥10 samples). Track-relative lane timing compares each team or driver's GP median with that GP's field median, then gives each GP equal weight. It is not a pure crew score. Individual values retain source precision; missing stationary times are never inferred.`;
+  const note=`${data.loaded}/${data.total} race${data.total===1?'':'s'} loaded${pending>0?' · loading pit timing…':''}${failures.length?` · ${failures.length} race${failures.length===1?'':'s'} unavailable`:''}. Stationary is the broadcast-style time stopped at the box; pit-lane time includes the stop. Raw summaries weight every timed visit; GP-relative lane summaries compare each team or driver's GP median with the median of team GP medians, then give each GP equal weight. Mean includes long stops; median shows a typical visit; the middle-50% spread shows consistency (≥4 samples); P10 and P90 show the quick and slow tails (≥10 samples). Missing stationary times are never inferred.`;
   const controls=`<div class="performance-pit-controls">
     <div class="performance-scope-toggle" role="group" aria-label="Pit timing measurement">
       <button type="button" data-pit-measure="stop" aria-pressed="${!isLane}" ${noStationary?'disabled title="No published stationary times for these visits"':''}>Stationary stop</button>
@@ -1410,6 +1420,7 @@ function renderPits(teams) {
     <div class="performance-scope-toggle" role="group" aria-label="Pit timing chart statistic">
       <button type="button" data-pit-chart="mean" aria-pressed="${pitChartMetric==='mean'}">Mean</button>
       <button type="button" data-pit-chart="median" aria-pressed="${pitChartMetric==='median'}">Median</button>
+      <button type="button" data-pit-chart="fastest" aria-pressed="${pitChartMetric==='fastest'}">Quickest</button>
       <button type="button" data-pit-chart="spread" aria-pressed="${pitChartMetric==='spread'}">Middle 50%</button>
       <button type="button" data-pit-chart="p10" aria-pressed="${pitChartMetric==='p10'}">P10 quick end</button>
       <button type="button" data-pit-chart="p90" aria-pressed="${pitChartMetric==='p90'}">P90 slow tail</button>
@@ -1417,14 +1428,14 @@ function renderPits(teams) {
   </div>`;
   const chartRows=ordered.map(r=>({...r,displayName:isDriver?r.driver:r.team,
     logoTeam:r.team,chartValue:pitChartMetric==='spread'?pitMiddleSpread(r[measure]):r[measure][pitChartMetric]}));
-  const chartTitle=pitChartMetric==='spread'?'Middle-50% spread':pitChartMetric==='p10'?'P10 quick-end time':pitChartMetric==='p90'?'P90 slow-tail time':pitChartMetric==='mean'?'Mean time':'Median time';
+  const chartTitle=pitChartMetric==='spread'?'Middle-50% spread':pitChartMetric==='p10'?'P10 quick-end time':pitChartMetric==='p90'?'P90 slow-tail time':pitChartMetric==='mean'?'Mean time':pitChartMetric==='fastest'?(relativeLane?'Best GP gap':'Quickest visit'):'Median time';
   const chart=renderHorizontalBarChart(chartRows,{
     title:`${chartTitle} · ${relativeLane?'vs GP median':isLane?'pit lane':'stationary stop'} · ${isDriver?'drivers':'teams'}`,
     subtitle:pitChartMetric==='spread'
       ? `75th minus 25th percentile · at least four ${relativeLane?'GPs':'visits'} · lower is more consistent`
       : pitChartMetric==='p10'||pitChartMetric==='p90'?`${pitChartMetric==='p10'?'10th':'90th'} percentile · at least ten ${relativeLane?'GPs':'visits'} · lower is better`
-      : relativeLane?'Event-relative GP medians · chart rebased to best measured entry':'Time in exact seconds · lower is faster',
-    valueKey:'chartValue',labelKey:isDriver?'driver':'team',unit:' s',digits:3,signedValue:relativeLane&&pitChartMetric!=='spread',zeroBaseline:true
+      : relativeLane?'Equal-weighted GP median gaps; zero is the GP field median':'Visit-weighted seconds · lower is faster',
+    valueKey:'chartValue',labelKey:isDriver?'driver':'team',unit:' s',digits:3,signedValue:relativeLane&&pitChartMetric!=='spread',preserveSignedValues:relativeLane&&pitChartMetric!=='spread',zeroBaseline:true
   });
   const metricLabel=relativeLane?'vs GP median':isLane?'pit lane':'stationary stop';
   const summary=card('Pit stops & pit lane',note,
