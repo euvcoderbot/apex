@@ -67,6 +67,35 @@ def connected_zone_scores(zone_times):
             {team: sum(team in zones[key] for key in keys) for team in teams}, keys)
 
 
+def timing_line_alignment(item, reference, grid):
+    """Register integrated distance at the three official timing sectors.
+
+    GPS establishes circuit correspondence, but its noisy local derivative
+    must not redistribute elapsed time. Within a sector this uses one distance
+    scale, not an arbitrary per-sample warp. It remains an estimated racing-line
+    registration; official sector times do not identify every corner position.
+    """
+    anchors = []
+    for value in (item, reference):
+        sectors = value['selection'].get('sectors')
+        if not sectors or len(sectors) != 3:
+            return None
+        sectors = np.asarray(sectors, dtype=float)
+        if not np.isfinite(sectors).all() or np.min(sectors) <= 0:
+            return None
+        if abs(float(sectors.sum())-value['official']) > .03:
+            return None
+        a = value['a']
+        time = (a[:, 1]-a[0, 1])*value['official']/(a[-1, 1]-a[0, 1])
+        anchors.append(np.interp(np.r_[0., np.cumsum(sectors)[:2], value['official']], time, a[:, 0]))
+    source, target = anchors
+    target = target/reference['a'][-1, 0]*grid[-1]
+    scales = np.diff(target)/np.diff(source)
+    if not np.isfinite(scales).all() or np.min(scales) < .97 or np.max(scales) > 1.03:
+        raise ValueError('Timing-sector distance registration differs by more than 3%')
+    return np.interp(item['a'][:, 0], source, target), float(np.max(np.abs(scales-1)))
+
+
 def align(item, reference, grid):
     a, ref = item['a'], reference['a']
     rp = ref[reference['gps']]
@@ -102,6 +131,21 @@ def align(item, reference, grid):
     aligned = np.interp(a[:, 0],
                         [a[0, 0], *(s for s, _ in interior), a[-1, 0]],
                         [0, *(p for _, p in interior), grid[-1]])
+    timing = timing_line_alignment(item, reference, grid)
+    method = 'gps-local-validated'
+    registration_scale = None
+    if timing is not None:
+        aligned, registration_scale = timing
+        method = 'official-sector-distance-v1'
+    else:
+        # Whole-lap agreement can hide impossible local derivatives. Validate
+        # 200 m intervals before allowing GPS-only timing attribution.
+        probe = np.arange(0., grid[-1]-200., 50.)
+        source_distance = np.interp(np.r_[probe, probe+200.], aligned, a[:, 0])
+        n = len(probe)
+        ratios = 200./(source_distance[n:]-source_distance[:n])
+        if np.any((ratios < .9) | (ratios > 1.1)):
+            raise ValueError('GPS locally stretches distance; official sector anchors unavailable')
     if np.any(np.diff(aligned) <= 0):
         raise ValueError('GPS projection reverses progress along the lap')
     speed = np.interp(grid, aligned, a[:, 2])
@@ -128,7 +172,8 @@ def align(item, reference, grid):
     return {**item, 'speed': speed, 'throttle': throttle, 'brake': brake,
             'drs': drs_grid, 'drs_active': drs_active,
             'dt': observed_dt*timing_scale, 'scale': float(factor),
-            'timing_scale': float(timing_scale), 'aligned': aligned}
+            'timing_scale': float(timing_scale), 'aligned': aligned,
+            'alignment_method': method, 'registration_scale': registration_scale}
 
 
 def frozen(item, field):
@@ -584,8 +629,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                     team_straight_deltas[b_name][t].append(tm - s_med)
 
     # Long-straight shared terminal speed corridor (straights >= 400m)
-    team_terminal_speeds = defaultdict(list)
-    total_corridor_len = 0.0
+    terminal_windows = {}
 
     for s_idx, (s_start, s_end) in enumerate(straight_blocks):
         d_start = float(grid[s_start])
@@ -616,7 +660,6 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             end_corridor = min(rep_b) - 10.0
             corridor_len = 80.0
             start_corridor = end_corridor - corridor_len
-            total_corridor_len += corridor_len
 
             i1 = int(np.searchsorted(grid, start_corridor))
             i2 = int(np.searchsorted(grid, end_corridor))
@@ -624,14 +667,19 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             i2 = max(0, min(len(grid) - 1, i2))
             if i2 > i1:
                 L_corridor = float(grid[i2] - grid[i1])
+                observed = {}
                 for team in teams:
                     item = selected[team]
                     if not np.any(item['brake'][i1:i2]):
                         if check_clean_air(team, start_corridor, end_corridor, item):
-                            dt_corridor = float(item['dt'][i1:i2].sum())
-                            if dt_corridor > 0.05:
-                                v_corridor = (L_corridor / dt_corridor) * 3.6
-                                team_terminal_speeds[team].append(v_corridor)
+                            # Harmonic distance-weighted speed from the actual
+                            # channel, never reference distance / warped time.
+                            reciprocal = (1/item['speed'][i1:i2]+1/item['speed'][i1+1:i2+1])/2
+                            observed[team] = float(L_corridor/np.sum(np.diff(grid)[i1:i2]*reciprocal))
+                if len(observed) == len(teams):
+                    terminal_windows[s_idx] = {'length': L_corridor, 'speeds': observed}
+    total_corridor_len = sum(w['length'] for w in terminal_windows.values())
+    team_terminal_speeds = {team: [w['speeds'][team] for w in terminal_windows.values()] for team in teams}
 
     straight_results = {}
     tot_accel_straights = max(1, len(shared_band_keys['250_300']))
@@ -695,6 +743,8 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             'terminal_zone_mean_speed': term_speed,
             'terminal_speed_deficit': term_deficit,
             'terminal_zone_length_m': float(total_corridor_len) if term_speed is not None else None,
+            'terminal_zone_count': len(terminal_windows),
+            'terminal_comparison': 'shared-speed-channel-windows-v1',
             'top_speed': float(max(item['speed'])),
             'speed_st': float(item['selection'].get('speed_st')) if item['selection'].get('speed_st') is not None else None,
             'speed_fl': float(item['selection'].get('speed_fl')) if item['selection'].get('speed_fl') is not None else None
@@ -857,7 +907,7 @@ def measure_field(extracted, selections, corners=()):
 
     # Compute speed-domain straight-line performance across the field
     straight_perf = analyze_straights_speed_domain(
-        selected, straight_blocks, grid, ref, corner_mask, qualifying_candidates)
+        selected, straight_blocks, grid, ref, corner_mask, {team: [item] for team, item in selected.items()})
 
     results = {}
     grid_spacing = float(grid[1] - grid[0])
@@ -955,6 +1005,8 @@ def measure_field(extracted, selections, corners=()):
             'terminal_speed_mean': straight_info.get('terminal_zone_mean_speed'),
             'terminal_speed_deficit': straight_info.get('terminal_speed_deficit'),
             'terminal_zone_length_m': straight_info.get('terminal_zone_length_m', 80.0),
+            'terminal_zone_count': straight_info.get('terminal_zone_count', 0),
+            'terminal_comparison': straight_info.get('terminal_comparison'),
             'speed_st': straight_info.get('speed_st'),
             'speed_fl': straight_info.get('speed_fl'),
             'lap_gap': (item['official'] / ref['official'] - 1) * 100,
@@ -962,7 +1014,9 @@ def measure_field(extracted, selections, corners=()):
             'top_speed': float(max(item['speed'])),
             'full_throttle_p95': float(np.percentile(item['speed'][item['throttle'] >= 98], 95)) if np.sum(item['throttle'] >= 98) >= 10 else None,
             'lap_distance': float(grid[-1]), 'braking': braking, 'selection': item['selection'],
-            'quality': {'integration_scale': item['scale'], 'full_lap': True}
+            'quality': {'integration_scale': item['scale'], 'full_lap': True,
+                        'alignment_method': item.get('alignment_method'),
+                        'max_sector_distance_scale_change': item.get('registration_scale')}
         }
 
     # Cross-circuit continuous features for development trend regression
@@ -974,6 +1028,6 @@ def measure_field(extracted, selections, corners=()):
     }
 
     return {'teams': results, 'reference_team': reference_team, 'excluded': {t: e for t, e in errors.items() if t not in results},
-            'method': 'shared-gps-grid-v7-connected-zones', 'corner_count': len(zones),
+            'method': 'timing-sector-grid-v8-channel-terminal', 'corner_count': len(zones),
             'circuit_features': circuit_features}
 

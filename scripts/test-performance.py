@@ -38,6 +38,40 @@ class RaceSession:
 
 
 class PerformanceTests(unittest.TestCase):
+    def test_exact_telemetry_lap_edges_do_not_use_buffer_origin(self):
+        from session_loader import _lap_samples
+        rows=[{'date':100+i*.25,'Speed':180.,'Throttle':100.,'RPM':10000.,'Brake':False,'DRS':0,'nGear':6} for i in range(49)]
+        samples=_lap_samples(rows,[],2.,10.,t0=100.)
+        self.assertEqual(samples[0]['Timestamp'],102.)
+        self.assertEqual(samples[-1]['Timestamp'],110.)
+        self.assertEqual(samples[-1]['ElapsedSeconds'],8.)
+        self.assertAlmostEqual(samples[-1]['Distance'],400.)
+
+    def test_sector_registration_matches_official_timing_lines(self):
+        from performance_tracks import timing_line_alignment
+        ref=np.zeros((101,8));ref[:,0]=np.linspace(0,5000,101);ref[:,1]=np.linspace(0,90,101)
+        item={'a':ref.copy(),'official':90.,'selection':{'sectors':[30.,30.,30.]}}
+        other={'a':ref.copy(),'official':91.,'selection':{'sectors':[30.3,30.4,30.3]}}
+        other['a'][:,1]=np.linspace(0,91,101)
+        aligned,scale=timing_line_alignment(other,item,np.linspace(0,5000,1001))
+        self.assertAlmostEqual(float(np.interp(30.3,other['a'][:,1],aligned)),5000/3,delta=.1)
+        self.assertLess(scale,.03)
+        other['selection']['sectors']=[10.,50.,31.]
+        with self.assertRaises(ValueError):timing_line_alignment(other,item,np.linspace(0,5000,1001))
+
+    def test_terminal_speed_uses_channel_not_warped_time(self):
+        from performance_tracks import analyze_straights_speed_domain
+        grid=np.linspace(0,500,101);a=np.zeros((101,8));a[:,0]=grid;a[:,1]=np.linspace(0,6,101);a[:,2]=300;a[:,3]=100
+        selected={t:{'a':a.copy(),'aligned':grid,'speed':np.full(101,300.),'brake':np.zeros(101,dtype=bool),'dt':np.full(100,.001),'official':6.,'selection':{'start':0}} for t in 'ABC'}
+        result=analyze_straights_speed_domain(selected,[(0,100)],grid,selected['A'],np.zeros(100,dtype=bool))
+        for row in result.values():
+            self.assertAlmostEqual(row['terminal_zone_mean_speed'],300.)
+            self.assertEqual(row['terminal_zone_count'],1)
+            self.assertAlmostEqual(row['terminal_zone_length_m'],80.)
+        selected['C']['brake'][90]=True
+        result=analyze_straights_speed_domain(selected,[(0,100)],grid,selected['A'],np.zeros(100,dtype=bool))
+        self.assertTrue(all(row['terminal_zone_mean_speed'] is None for row in result.values()))
+
     def test_partial_acceleration_zone_coverage_retains_connected_teams(self):
         from performance_tracks import connected_zone_scores
         scores, counts, keys = connected_zone_scores({

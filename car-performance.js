@@ -2046,6 +2046,8 @@ function renderTrace() {
           `${signed(team.mediumGap,3)}<small>${signed(team.mediumValue,3,' s/lap')} · ${team.medium.length} circuits</small>`,
           `${signed(team.highGap,3)}<small>${signed(team.highValue,3,' s/lap')} · ${team.high.length} circuits</small>`,team.events])))+
         renderSeasonLapGapCard(season, rawValues)+
+        `<details class="dashboard-card performance-methods"><summary>Actual straight times and selected laps by GP</summary><p class="performance-note">Each GP uses one shared straight/corner partition. Straight seconds are not comparable across different circuits; the season ranking combines within-GP gaps. Distance registration uses official timing-sector anchors, or validated GPS when sectors are missing. The timing partition is still an estimate, not a measurement of engine power.</p>${table(['Team','Grand Prix','Driver / lap','Straight time','Straight gap · lap share','End-speed windows','Alignment'],events.flatMap(e=>Object.entries(e.traces||{}).map(([team,t])=>[escape(team),eventLabel(e.name),`${escape(t.selection?.driver||'—')} · L${t.selection?.lap??'—'}`,fmt(t.straight_time,3,' s'),signed(t.straight_traversal_delta,3,'%'),t.terminal_zone_count??'—',escape(t.quality?.alignment_method||'Previous calculation · reanalyse')])) )}</details>`+
+        '<p class="performance-note">End speed uses the speed channel in approximately 80 m windows near the ends of straights at least 400 m long. Every team uses the same supported windows in each GP; absent common windows stay blank. Its GP count can differ from traversal coverage. Acceleration and traversal use the same selected qualifying lap.</p>'+
         card('Downforce index','Unavailable: public telemetry cannot isolate aerodynamic load.','<p class="performance-note">Downforce, engine power and drag cannot be identified independently from these public channels. High-speed corner performance is shown directly without a synthetic index.</p>');
     }
     if(activeMetric==='straight') {
@@ -2116,6 +2118,7 @@ function renderTrace() {
         accel320: summarize(team.accel320,telemetrySeasonStat),
         traversalDelta: team.adjusted.straights,
         terminal: summarize(team.terminalZoneMeanSpeed,telemetrySeasonStat),
+        terminalEvents:team.terminalZoneMeanSpeed.length,
         termLen: summarize(team.terminalZoneLength,telemetrySeasonStat),
         speedSt: summarize(team.speedSt,telemetrySeasonStat),
         speedFl: summarize(team.speedFl,telemetrySeasonStat),
@@ -2169,7 +2172,7 @@ function renderTrace() {
       });
       const traversalChart = renderHorizontalBarChart(orderedQualy.filter(t => finite(t.traversalDelta)), {
         title: 'Overall Straight Traversal Gap · Share of Lap',
-        subtitle: 'Observed time on the measured straights, % of reference lap · Exit speed and 2026 energy deployment remain part of this time',
+        subtitle: 'Selected qualifying lap · sector-anchored distance registration · share of reference lap time',
         valueKey: 'traversalDelta',
         unit: '%',
         digits: 3,
@@ -2186,7 +2189,7 @@ function renderTrace() {
           sortHeader('straightTeam', 'Team'),
           sortHeader('straightBandGap', `${straightBand.replace('_','–')} km/h gap`),
           'Band coverage',
-          sortHeader('terminal', 'Terminal speed (≥400m)', -1),
+          sortHeader('terminal', 'End-of-straight speed', -1),
           sortHeader('speedSt', 'Official ST', -1),
           sortHeader('speedFl', 'Official FL', -1),
           sortHeader('traversalDelta', 'Straight Traversal Delta'),
@@ -2195,7 +2198,7 @@ function renderTrace() {
           teamLabel(team),
           signed(team.bandGap, 3, ' s'),
           `${team.bandEvents} circuit${team.bandEvents===1?'':'s'}`,
-          finite(team.terminal) ? `${fmt(team.terminal, 1, ' km/h')}<small>${fmt(team.termLen, 0, ' m')} measured</small>` : '—',
+          finite(team.terminal) ? `${fmt(team.terminal, 3, ' km/h')}<small>${team.terminalEvents} GPs · ${fmt(team.termLen, 0, ' m')} common windows / GP</small>` : '—',
           finite(team.speedSt) ? fmt(team.speedSt, 1, ' km/h') : '—',
           finite(team.speedFl) ? fmt(team.speedFl, 1, ' km/h') : '—',
           finite(team.traversalDelta) ? signed(team.traversalDelta, 3, '%') : '—',
@@ -2480,7 +2483,7 @@ function renderTrace() {
         sortHeader('eventStraightTeam', 'Team'),
         sortHeader('eventStraightBand', `${straightBand.replace('_','–')} km/h gap`),
         'Measured zones',
-        sortHeader('eventStraightTerminal', 'Terminal speed (≥400m)', -1),
+        sortHeader('eventStraightTerminal', 'End-of-straight speed', -1),
         sortHeader('eventStraightSpeedST', 'Official ST', -1),
         sortHeader('eventStraightSpeedFL', 'Official FL', -1),
         sortHeader('eventStraightTraversal', 'Straight Traversal Delta')
@@ -2488,7 +2491,7 @@ function renderTrace() {
         teamLabel(t),
         signed(t.bandGap, 3, ' s'),
         t.bandStraights||'—',
-        finite(t.terminalSpeed) ? `${fmt(t.terminalSpeed, 1, ' km/h')}${finite(t.termDeficit) ? `<small> -${fmt(t.termDeficit, 1, ' km/h')}</small>` : ''}` : '—',
+        finite(t.terminalSpeed) ? `${fmt(t.terminalSpeed, 3, ' km/h')}<small>${t.trace?.terminal_zone_count??'—'} common windows · ${fmt(t.termLen,0,' m')}</small>` : '—',
         finite(t.speedSt) ? fmt(t.speedSt, 1, ' km/h') : '—',
         finite(t.speedFl) ? fmt(t.speedFl, 1, ' km/h') : '—',
         finite(t.traversalDelta) ? signed(t.traversalDelta, 3, '%') : '—'

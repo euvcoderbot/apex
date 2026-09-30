@@ -112,7 +112,7 @@ def _download_stream(path, page):
 
 
 def _window_records(records, start, end):
-    margin = .75
+    margin = 4.0  # Feed packets can lag sample UTC; exact UTC clipping happens later.
     for record in records:
         if len(record) < 13:
             continue
@@ -172,11 +172,50 @@ def _selected_position_rows(records, driver_number, start, end):
     return rows
 
 
-def _lap_samples(car_rows, position_rows, lap_start, lap_end):
+def _stream_t0(car_records, position_records):
+    """FastF1's maximum UTC-minus-feed-time clock offset, once per request."""
+    offsets = []
+    for records, key, date_key in ((car_records, 'Entries', 'Utc'),
+                                    (position_records, 'Position', 'Timestamp')):
+        for record in records:
+            try:
+                elapsed = _api.to_timedelta(record[:12]).total_seconds()
+                message = _api.parse(record[12:], zipped=True)
+                for entry in message.get(key, ()):
+                    utc = _api.to_datetime(entry[date_key]).replace(tzinfo=timezone.utc).timestamp()
+                    offsets.append(utc-elapsed)
+            except (ValueError, TypeError, KeyError):
+                continue
+    if not offsets:
+        raise ValueError('Cannot establish the official telemetry session clock')
+    return round(max(offsets), 3)
+
+
+def _lap_samples(car_rows, position_rows, lap_start, lap_end, t0=None):
     if not car_rows:
         raise ValueError('selected lap car stream was empty')
-    origin = car_rows[0]['date']
+    origin = car_rows[0]['date'] if t0 is None else t0+lap_start
     duration = max(0.0, lap_end - lap_start)
+    if t0 is not None:
+        # Interpolate only the two exact lap edges; all interior car samples
+        # remain native. Never reset a buffered pre-lap sample to elapsed zero.
+        dates = [r['date'] for r in car_rows]
+        clipped = [r for r in car_rows if origin < r['date'] < origin+duration]
+        edges = []
+        for date in (origin, origin+duration):
+            i = bisect_left(dates, date)
+            if i < len(dates) and abs(dates[i]-date) < 1e-6:
+                edges.append({**car_rows[i], 'date': date})
+                continue
+            if i == 0 or i >= len(dates) or dates[i]-dates[i-1] > 1.0:
+                raise ValueError('Telemetry does not bracket the official lap boundary')
+            before, after = car_rows[i-1], car_rows[i]
+            fraction = (date-before['date'])/(after['date']-before['date'])
+            edge = {**before, 'date': date}
+            for channel in ('Speed', 'Throttle', 'RPM'):
+                edge[channel] = before[channel]+fraction*(after[channel]-before[channel])
+            edges.append(edge)
+        car_rows = [edges[0], *clipped, edges[1]]
     car_rows = [row for row in car_rows if -.25 <= row['date'] - origin <= duration + .35]
     position_dates = [row[0] for row in position_rows]
     distance = 0.0
@@ -196,6 +235,10 @@ def _lap_samples(car_rows, position_rows, lap_start, lap_end):
                 nearest = min(candidates, key=lambda i: abs(position_dates[i] - row['date']))
                 if abs(position_dates[nearest] - row['date']) <= .3:
                     _, x, y = position_rows[nearest]
+                    if 0 < index < len(position_dates) and position_dates[index]-position_dates[index-1] <= .6:
+                        fraction = (row['date']-position_dates[index-1])/(position_dates[index]-position_dates[index-1])
+                        x = position_rows[index-1][1]+fraction*(position_rows[index][1]-position_rows[index-1][1])
+                        y = position_rows[index-1][2]+fraction*(position_rows[index][2]-position_rows[index-1][2])
         samples.append({
             'Distance': distance, 'ElapsedSeconds': elapsed, 'Speed': row['Speed'],
             'Timestamp': row['date'],
@@ -220,9 +263,10 @@ def load_selected_lap_telemetry(year, gp, session_name, driver_number,
     with ThreadPoolExecutor(max_workers=2, thread_name_prefix='selected-lap') as pool:
         car_future = pool.submit(_download_stream, path, 'car_data')
         position_future = pool.submit(_download_stream, path, 'position')
-        car_rows = _selected_car_rows(car_future.result(), str(driver_number), lap_start, lap_end)
-        position_rows = _selected_position_rows(position_future.result(), str(driver_number), lap_start, lap_end)
-    return _lap_samples(car_rows, position_rows, lap_start, lap_end)
+        car_records, position_records = car_future.result(), position_future.result()
+        car_rows = _selected_car_rows(car_records, str(driver_number), lap_start, lap_end)
+        position_rows = _selected_position_rows(position_records, str(driver_number), lap_start, lap_end)
+    return _lap_samples(car_rows, position_rows, lap_start, lap_end, _stream_t0(car_records, position_records))
 
 
 def load_selected_laps_telemetry(year, gp, session_name, selections):
@@ -234,6 +278,7 @@ def load_selected_laps_telemetry(year, gp, session_name, selections):
         car_future = pool.submit(_download_stream, path, 'car_data')
         position_future = pool.submit(_download_stream, path, 'position')
         car_records, position_records = car_future.result(), position_future.result()
+    t0 = _stream_t0(car_records, position_records)
 
     def extract(selection):
         number = str(selection['driver_number'])
@@ -241,7 +286,7 @@ def load_selected_laps_telemetry(year, gp, session_name, selections):
         try:
             car_rows = _selected_car_rows(car_records, number, start, end)
             position_rows = _selected_position_rows(position_records, number, start, end)
-            return selection['team'], _lap_samples(car_rows, position_rows, start, end), None
+            return selection['team'], _lap_samples(car_rows, position_rows, start, end, t0), None
         except Exception as exc:
             return selection['team'], None, str(exc)
 
