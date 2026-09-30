@@ -4,7 +4,7 @@ import math
 import numpy as np
 
 
-def prepare(samples, selection):
+def prepare(samples, selection, require_gps=True):
     a = np.array([[r.get('Distance'), r.get('ElapsedSeconds'), r.get('Speed'),
                    r.get('Throttle'), float(bool(r.get('Brake'))),
                    r.get('X'), r.get('Y'), float(r.get('DRS') or 0)] for r in samples], dtype=float)
@@ -12,14 +12,48 @@ def prepare(samples, selection):
     if len(a) < 100 or not np.isfinite(a[:, :5]).all():
         raise ValueError('Incomplete speed, throttle or time channels')
     if (np.any(np.diff(a[:, 0]) <= 0) or np.any(np.diff(a[:, 1]) <= 0)
-            or np.max(np.diff(a[:, 1])) > 1.5 or np.min(a[:, 2]) < 30):
+            or np.max(np.diff(a[:, 1])) > 1.5 or np.min(a[:, 2]) < 30
+            or np.max(a[:, 2]) > 420):
         raise ValueError('Gaps or invalid speed/distance in the qualifying lap')
+    # A single uncorroborated peak is not a top-speed measurement. Do not
+    # repair it by interpolation: try another real qualifying lap instead.
+    for i in range(1, len(a)-1):
+        v = a[i, 2]
+        if (v-min(a[i-1, 2], a[i+1, 2]) > 25
+                and v > max(a[i-1, 2], a[i+1, 2])+15):
+            raise ValueError('Isolated native speed spike')
     if abs(a[-1, 1]-a[0, 1]-official) > 1.5:
         raise ValueError('Telemetry does not cover the official lap')
     gps = np.isfinite(a[:, 5:7]).all(axis=1)
-    if np.mean(gps) < .65:
+    if require_gps and np.mean(gps) < .65:
         raise ValueError('Insufficient position coverage for shared track windows')
     return {'a': a, 'gps': gps, 'official': official, 'selection': selection, 'samples': samples}
+
+
+def common_zone_scores(zone_times):
+    """Observed mean gaps on one complete car-by-zone rectangle.
+
+    Maximise supported observations, then cohort size. Never infer a missing
+    crossing using another zone's car effect. Other observations stay evidence.
+    """
+    import itertools
+    teams = sorted({t for times in zone_times.values() for t in times})
+    best = None
+    for size in range(3, len(teams)+1):
+        for cohort in itertools.combinations(teams, size):
+            keys = [k for k, times in zone_times.items() if all(t in times for t in cohort)]
+            if not keys:
+                continue
+            score = (size*len(keys), size, len(keys))
+            if best is None or score > best[0]:
+                best = (score, cohort, keys)
+    if best is None:
+        return {}, {}, []
+    _, cohort, keys = best
+    means = {t: float(np.mean([zone_times[k][t] for k in keys])) for t in cohort}
+    baseline = min(means.values())
+    return ({t: means[t]-baseline for t in cohort},
+            {t: len(keys) for t in cohort}, keys)
 
 
 def connected_zone_scores(zone_times):
@@ -186,7 +220,21 @@ def frozen(item, field):
             lo, hi = aligned[start], aligned[end-1]
             mask = (field['grid'] >= lo) & (field['grid'] <= hi)
             if mask.sum() > 3 and np.ptp(field['speed'][mask]) > 18:
-                return True
+                if np.mean(a[start:end, 4] >= .5) > .3:
+                    return True
+                # Other cars may deploy differently in 2026. Require an
+                # independent position-channel contradiction, not field speed
+                # variation alone, before rejecting a constant-speed shelf.
+                points = a[start:end][np.isfinite(a[start:end, 5:7]).all(axis=1)]
+                gps_speeds = []
+                for i in range(len(points)-1):
+                    later = np.where(points[:, 1] >= points[i, 1]+.8)[0]
+                    if len(later):
+                        j = later[0]
+                        gps_speeds.append(np.linalg.norm(points[j, 5:7]-points[i, 5:7])
+                                          /10/(points[j, 1]-points[i, 1])*3.6)
+                if len(gps_speeds) >= 3 and abs(float(np.median(gps_speeds))-a[start, 2]) > 25:
+                    return True
         start = end
     return False
 
@@ -349,7 +397,7 @@ def braking_approach_measurements(selected, start, end, grid):
     return measured if len(measured) >= 3 else {}
 
 
-def matched_braking_measurements(selected, windows, grid, candidates=None):
+def matched_braking_measurements(selected, windows, grid, candidates=None, fixed_ranges=None):
     """Time a shared speed drop in each straight braking approach.
 
     Use original timestamps and integrate the observed speed for distance;
@@ -363,6 +411,8 @@ def matched_braking_measurements(selected, windows, grid, candidates=None):
         approaches = braking_approach_measurements(selected, start, end, grid)
         segments = {}
         for team, onset in onsets.items():
+            if team not in selected:
+                continue
             main = selected[team]
             driver = main.get('selection', {}).get('driver')
             main_selection = main.get('selection', {})
@@ -406,6 +456,14 @@ def matched_braking_measurements(selected, windows, grid, candidates=None):
         if not options:
             continue
         _, _, _, high, low, cohort = max(options, key=lambda o: o[:5])
+        if fixed_ranges is not None:
+            if label not in fixed_ranges:
+                continue
+            high, low = fixed_ranges[label]
+            cohort = [team for team, laps in segments.items()
+                      if any(v[0] >= high and v[-1] <= low for _, v, _ in laps)]
+            if len(cohort) < 3:
+                continue
         for team in cohort:
             per_lap = []
             for t, v, item in segments[team]:
@@ -470,7 +528,7 @@ def matched_braking_measurements(selected, windows, grid, candidates=None):
     return result
 
 
-def straight_core_measurements(selected, blocks, grid, ref):
+def straight_core_measurements(selected, blocks, grid, ref, fixed_windows=None):
     """Shared settled, near-full-throttle, low-curvature qualifying windows.
 
     This is an observed straight-section comparison, not isolated drag/power.
@@ -530,6 +588,13 @@ def straight_core_measurements(selected, blocks, grid, ref):
                 continue
             mask[run] = True
             windows.append({'start_m': float(grid[run[0]]), 'end_m': float(grid[run[-1]+1])})
+    if fixed_windows is not None:
+        mask[:] = False
+        windows = [dict(w) for w in fixed_windows]
+        for w in windows:
+            mask |= (mids >= w['start_m']) & (mids < w['end_m'])
+        if np.any(mask & ~eligible):
+            return empty
     measured_distance = float(np.diff(grid)[mask].sum())
     if measured_distance < 200:
         return empty
@@ -543,7 +608,7 @@ def straight_core_measurements(selected, blocks, grid, ref):
                    'straight_core_method': 'shared-straight-core-v1'} for team, value in times.items()}
 
 
-def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_mask, candidates=None):
+def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_mask, candidates=None, measurement_frame=None):
     """Speed-domain straight-line performance analysis.
 
     1. Evaluates supported 50 km/h speed bands from 50–100 through 350–400
@@ -552,7 +617,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
        this is not proof of clean air against every on-track car.
     3. Requires constant discrete DRS state (drs in {10, 12, 14}) throughout the band.
     4. Calculates within-zone relative deltas: delta_t = t - median(t_field).
-    5. Fits car and zone effects through overlapping supported teams, rebased to 0.000s.
+    5. Compares one complete observed team/zone cohort, rebased to 0.000s.
     6. Constructs a shared-coordinate terminal speed corridor on long straights (>=400m).
     7. Computes straight traversal delta for lap time attribution.
     """
@@ -608,6 +673,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
     bands.append((300.0, 320.0, '300_320'))
 
     straight_band_times = {b[2]: defaultdict(dict) for b in bands}
+    band_evidence = defaultdict(list)
     for s_idx, (s_start, s_end) in enumerate(straight_blocks):
         d_start = float(grid[s_start])
         d_end = float(grid[min(s_end, len(grid)-1)])
@@ -691,6 +757,12 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                                 d_hi = float(aligned_accel[i_hi])
                                 if check_clean_air(team, d_lo, d_hi, item):
                                     band_observations[(b_name, state)].append(dt_band)
+                                    band_evidence[team].append({'band': b_name, 'zone': s_idx, 'state': state,
+                                        'duration_s': float(dt_band),
+                                        'start_m': float(np.interp(t_lo, a[:, 1], aligned)),
+                                        'end_m': float(np.interp(t_hi, a[:, 1], aligned)),
+                                        'sample_interval_s': float(np.max(np.diff(t_accel[begin:i_hi+1]))),
+                                        'lap': item['selection'].get('lap')})
           for (b_name, state), observations in band_observations.items():
               straight_band_times[b_name][(s_idx, state)][team] = float(np.median(observations))
 
@@ -700,6 +772,8 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
     field_speed = np.median([item['speed'] for item in selected.values()], axis=0)
     for v_lo, v_hi, b_name in bands[:2]:
         straight_band_times[b_name].clear()
+        for team in teams:
+            band_evidence[team] = [r for r in band_evidence[team] if r['band'] != b_name]
         anchors = []
         for i in range(1, len(grid) - 1):
             if not field_speed[i-1] < v_lo <= field_speed[i]:
@@ -712,6 +786,11 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             if anchors and grid[i] - anchors[-1][0] < 120:
                 continue
             anchors.append((float(grid[i]), float(grid[high])))
+        if measurement_frame is not None:
+            if b_name in measurement_frame.get('accel_anchors', {}):
+                anchors = measurement_frame['accel_anchors'][b_name]
+            else:
+                measurement_frame.setdefault('accel_anchors', {})[b_name] = anchors
         for zone, (anchor_lo, anchor_hi) in enumerate(anchors):
             for team in teams:
                 observed = defaultdict(list)
@@ -746,6 +825,14 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                             continue
                         if check_clean_air(team, float(aligned[pos]), float(aligned[stop]), item):
                             observed['open' if np.all(drs) else 'closed'].append(dt_band)
+                            low_time = interp_raw(a[prev:stop+1, 1], a[prev:stop+1, 2], v_lo)
+                            high_time = interp_raw(a[prev:stop+1, 1], a[prev:stop+1, 2], v_hi)
+                            band_evidence[team].append({'band': b_name, 'zone': zone,
+                                'state': 'open' if np.all(drs) else 'closed', 'duration_s': float(dt_band),
+                                'start_m': float(np.interp(low_time, a[:, 1], aligned)),
+                                'end_m': float(np.interp(high_time, a[:, 1], aligned)),
+                                'sample_interval_s': float(np.max(np.diff(a[prev:stop+1, 1]))),
+                                'lap': item['selection'].get('lap')})
                         break
                 for state, durations in observed.items():
                     straight_band_times[b_name][(zone, state)][team] = float(np.median(durations))
@@ -757,7 +844,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
     for _, _, b_name in bands:
         # Rank every displayed team on the same physical zones and aero state.
         # Missing a crossing must not discard a team's other shared zones.
-        scores, counts, keys = connected_zone_scores(straight_band_times[b_name])
+        scores, counts, keys = common_zone_scores(straight_band_times[b_name])
         cohort = set(scores)
         band_scores[b_name], band_counts[b_name] = scores, counts
         shared_band_keys[b_name] = keys
@@ -801,6 +888,10 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             end_corridor = min(rep_b) - 10.0
             corridor_len = 80.0
             start_corridor = end_corridor - corridor_len
+            if measurement_frame is not None and 'terminal_windows' in measurement_frame:
+                if s_idx not in measurement_frame['terminal_windows']:
+                    continue
+                start_corridor, end_corridor = measurement_frame['terminal_windows'][s_idx]
 
             i1 = int(np.searchsorted(grid, start_corridor))
             i2 = int(np.searchsorted(grid, end_corridor))
@@ -818,7 +909,10 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                             reciprocal = (1/item['speed'][i1:i2]+1/item['speed'][i1+1:i2+1])/2
                             observed[team] = float(L_corridor/np.sum(np.diff(grid)[i1:i2]*reciprocal))
                 if len(observed) == len(teams):
-                    terminal_windows[s_idx] = {'length': L_corridor, 'speeds': observed}
+                    terminal_windows[s_idx] = {'length': L_corridor, 'speeds': observed,
+                                               'start_m': start_corridor, 'end_m': end_corridor}
+    if measurement_frame is not None and 'terminal_windows' not in measurement_frame:
+        measurement_frame['terminal_windows'] = {key: (w['start_m'], w['end_m']) for key, w in terminal_windows.items()}
     total_corridor_len = sum(w['length'] for w in terminal_windows.values())
     team_terminal_speeds = {team: [w['speeds'][team] for w in terminal_windows.values()] for team in teams}
 
@@ -839,7 +933,10 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
     max_term_speed = max([v for v in avg_term_speeds.values() if v is not None], default=None)
 
     ref_straight_time = float(ref['dt'][~corner_mask].sum())
-    core = straight_core_measurements(selected, straight_blocks, grid, ref)
+    core = straight_core_measurements(selected, straight_blocks, grid, ref,
+             measurement_frame.get('core_windows') if measurement_frame is not None else None)
+    if measurement_frame is not None and 'core_windows' not in measurement_frame:
+        measurement_frame['core_windows'] = next(iter(core.values()))['straight_core_windows']
 
     for team in teams:
         item = selected[team]
@@ -858,7 +955,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
         phase_bands = {name: {'gap_s': float(raw_bands[name][team] - best_bands[name]),
                               'straights': band_counts[name].get(team, 0),
                               'zones': band_counts[name].get(team, 0),
-                              'comparison': 'connected-zone-effects-v1',
+                              'comparison': 'common-observed-zones-v2',
                               'cohort': len(band_scores[name])}
                        for _, _, name in bands if raw_bands[name][team] is not None}
 
@@ -870,6 +967,8 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
         term_deficit = float(max_term_speed - term_speed) if (term_speed is not None and max_term_speed is not None) else None
 
         straight_results[team] = {
+            'accel_observations': [{**r, 'in_common_ranking': team in band_scores[r['band']]
+                and (r['zone'], r['state']) in shared_band_keys[r['band']]} for r in band_evidence[team]],
             **core[team],
             'straight_time': straight_time,
             'straight_traversal_delta': traversal_delta,
@@ -888,7 +987,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             'terminal_zone_length_m': float(total_corridor_len) if term_speed is not None else None,
             'terminal_zone_count': len(terminal_windows),
             'terminal_comparison': 'shared-speed-channel-windows-v1',
-            'top_speed': float(max(item['speed'])),
+            'top_speed': float(max(item['a'][:, 2])),
             'speed_st': float(item['selection'].get('speed_st')) if item['selection'].get('speed_st') is not None else None,
             'speed_fl': float(item['selection'].get('speed_fl')) if item['selection'].get('speed_fl') is not None else None
         }
@@ -896,13 +995,17 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
     return straight_results
 
 
-def measure_field(extracted, selections, corners=()):
+def measure_field(extracted, selections, corners=(), measurement_frame=None):
     """One best validated lap per team; common geometry and complete partitions.
 
     candidates are attempted in lap-time order, all within 1% of team best.
     No interpolated repair is used to rescue a frozen telemetry lap.
     """
     choices, errors = defaultdict(list), {}
+    native = {}
+    def finish(result):
+        result['native_speed_observations'] = native
+        return result
     lookup = {s['team']: s for s in selections}
     expected = {s.get('team_name', s['team']) for s in selections}
     for key, samples, error in extracted:
@@ -910,6 +1013,10 @@ def measure_field(extracted, selections, corners=()):
         try:
             if error:
                 raise ValueError(error)
+            candidate = prepare(samples, s, require_gps=False)
+            if team not in native or candidate['official'] < native[team]['selection']['time']:
+                native[team] = {'selection': s, 'top_speed': float(max(candidate['a'][:, 2])),
+                                'samples': len(candidate['a']), 'comparison': 'native-only-not-GPS-attributed'}
             choices[team].append(prepare(samples, s))
         except (ValueError, TypeError) as exc:
             errors[team] = str(exc)
@@ -920,12 +1027,14 @@ def measure_field(extracted, selections, corners=()):
     # GPS. The response reports coverage; season ranking sets its own support.
     minimum = 2
     if len(valid_choices) < minimum:
-        return {'teams': {}, 'error': 'Too few teams have complete qualifying telemetry', 'excluded': errors}
+        return finish({'teams': {}, 'error': 'Too few teams have complete qualifying telemetry', 'excluded': errors})
     reference_options = sorted((item for values in valid_choices.values() for item in values),
                                key=lambda r: r['official'])
-    reference = reference_options[0]
+    fixed = bool(measurement_frame)
+    reference = measurement_frame['reference'] if fixed else reference_options[0]
     attempted_references = set()
     failed_references = set()
+    best_registration = None
     for _ in range(len(reference_options) + len(valid_choices) + 1):
         attempted_references.add(id(reference['selection']))
         grid = np.linspace(0, reference['a'][-1, 0], int(reference['a'][-1, 0]/5)+1)
@@ -938,13 +1047,15 @@ def measure_field(extracted, selections, corners=()):
                     errors[team] = str(exc)
         selected = {team: values[0] for team, values in aligned.items() if values}
         if len(selected) < minimum:
+            if fixed:
+                return finish({'teams': {}, 'error': 'Too few alternate laps align to the fixed event frame', 'excluded': errors})
             failed_references.add(id(reference['selection']))
             alternative = next((r for r in reference_options
                                 if id(r['selection']) not in attempted_references), None)
             if alternative is not None:
                 reference = alternative
                 continue
-            return {'teams': {}, 'error': 'Too few teams pass complete-lap GPS alignment', 'excluded': errors}
+            return finish({'teams': {}, 'error': 'Too few teams pass complete-lap GPS alignment', 'excluded': errors})
         field_speed = np.median([v['speed'] for v in selected.values()], axis=0)
         scales = [v['scale'] for v in selected.values()]
         scale_mid = float(np.median(scales))
@@ -958,24 +1069,50 @@ def measure_field(extracted, selections, corners=()):
                 del selected[team]
                 errors[team] = 'Frozen speed or abnormal speed-to-lap-time agreement'
         if len(selected) < minimum:
+            if fixed:
+                return finish({'teams': {}, 'error': 'Too few alternate laps pass fixed-frame quality checks', 'excluded': errors})
             failed_references.add(id(reference['selection']))
             alternative = next((r for r in reference_options
                                 if id(r['selection']) not in attempted_references), None)
             if alternative is not None:
                 reference = alternative
                 continue
-            return {'teams': {}, 'error': 'Too few teams pass full-lap telemetry quality checks', 'excluded': errors}
+            return finish({'teams': {}, 'error': 'Too few teams pass full-lap telemetry quality checks', 'excluded': errors})
+        if not fixed:
+            reference_owner = next((t for t, item in selected.items()
+                                    if item['selection'] is reference['selection']), None)
+            if reference_owner and (best_registration is None or len(selected) > best_registration[0]):
+                best_registration = (len(selected), reference, reference_owner, grid, aligned, selected.copy(), errors.copy())
+            # Passing two cars is not enough reason to stop searching when the
+            # reference rejects most of an otherwise valid field. Bound the
+            # search and prefer another constructor before another same-car lap.
+            if len(selected) < math.ceil(.8*len(valid_choices)) and len(attempted_references) < 6:
+                tried_teams = {r['selection'].get('team_name', r['selection']['team'])
+                               for r in reference_options if id(r['selection']) in attempted_references}
+                alternative = next((r for r in reference_options if id(r['selection']) not in attempted_references
+                                    and r['selection'].get('team_name', r['selection']['team']) not in tried_teams), None)
+                if alternative is None:
+                    alternative = next((r for r in reference_options if id(r['selection']) not in attempted_references), None)
+                if alternative is not None:
+                    reference = alternative
+                    continue
+            if best_registration and best_registration[0] > len(selected):
+                _, reference, reference_team, grid, aligned, selected, errors = best_registration
+                break
         eligible_references = [team for team in selected
                                if id(selected[team]['selection']) not in failed_references]
         if not eligible_references:
-            return {'teams': {}, 'error': 'No independently supported reference lap', 'excluded': errors}
+            return finish({'teams': {}, 'error': 'No independently supported reference lap', 'excluded': errors})
         reference_team = min(eligible_references, key=lambda team: selected[team]['official'])
         chosen = selected[reference_team]
+        if fixed:
+            reference_team = measurement_frame['reference_team']
+            break
         if chosen['selection'] is reference['selection']:
             break
         reference = chosen
     else:
-        return {'teams': {}, 'error': 'No stable reference lap passed telemetry checks', 'excluded': errors}
+        return finish({'teams': {}, 'error': 'No stable reference lap passed telemetry checks', 'excluded': errors})
     speed = np.median([v['speed'] for v in selected.values()], axis=0)
     throttle = np.median([v['throttle'] for v in selected.values()], axis=0)
     brake = np.mean([v['brake'] for v in selected.values()], axis=0) >= .35
@@ -1026,8 +1163,10 @@ def measure_field(extracted, selections, corners=()):
         zones.append({'start': start, 'end': end, 'apex': apex, 'corner': label,
                       'd_entry': d_entry, 'd_exit': d_exit,
                       'band': 'low' if speed[apex] <= 120 else 'medium' if speed[apex] <= 200 else 'high'})
+    if fixed:
+        zones = [dict(z) for z in measurement_frame['zones']]
     if len(zones) < 3:
-        return {'teams': {}, 'error': 'Too few reliable braking/corner zones', 'excluded': errors}
+        return finish({'teams': {}, 'error': 'Too few reliable braking/corner zones', 'excluded': errors})
     corner_mask = np.zeros(len(grid)-1, dtype=bool)
     for zone in zones:
         corner_mask[zone['start']:zone['end']] = True
@@ -1036,23 +1175,35 @@ def measure_field(extracted, selections, corners=()):
     tercile_33 = float(np.percentile(apex_speeds, 33.3))
     tercile_66 = float(np.percentile(apex_speeds, 66.7))
     for z in zones:
+        if fixed:
+            continue
         v = float(speed[z['apex']])
         z['tercile'] = 'slow' if v <= tercile_33 else 'mid' if v <= tercile_66 else 'fast'
         z['tercile_label'] = 'Slowest third' if v <= tercile_33 else 'Middle third' if v <= tercile_66 else 'Fastest third'
 
-    ref = selected[reference_team]
+    ref = measurement_frame['aligned_reference'] if fixed else selected[reference_team]
     braking_zones = observed_braking_zones(selected, grid)
     brake_windows = straight_braking_windows(selected, ref, grid, braking_zones)
+    if fixed:
+        brake_windows = measurement_frame['brake_windows']
+    elif measurement_frame is not None:
+        measurement_frame.update(reference=reference, aligned_reference=ref,
+                                 reference_team=reference_team, zones=[dict(z) for z in zones],
+                                 brake_windows=brake_windows)
     scale_mid = float(np.median([item['scale'] for item in selected.values()]))
     scale_limit = max(.012, 4*float(np.median(np.abs(
         np.array([item['scale'] for item in selected.values()])-scale_mid))))
     qualifying_candidates = {
         team: [item for item in values
                if abs(item['scale']-scale_mid) <= scale_limit
-               and not frozen(item, {'grid': grid, 'speed': speed})][:3]
+               and not frozen(item, {'grid': grid, 'speed': speed})][:6]
         for team, values in aligned.items() if team in selected
     }
-    matched_brakes = matched_braking_measurements(selected, brake_windows, grid, qualifying_candidates)
+    matched_brakes = matched_braking_measurements(selected, brake_windows, grid, qualifying_candidates,
+                        measurement_frame.get('braking_ranges') if fixed else None)
+    if measurement_frame is not None and not fixed:
+        measurement_frame['braking_ranges'] = {z['corner']: (z['entry_speed'], z['exit_speed'])
+                    for measurements in matched_brakes.values() for z in measurements}
 
     # Partition straight sections (non-overlapping adaptive split)
     straight_blocks = []
@@ -1071,7 +1222,7 @@ def measure_field(extracted, selections, corners=()):
 
     # Compute speed-domain straight-line performance across the field
     straight_perf = analyze_straights_speed_domain(
-        selected, straight_blocks, grid, ref, corner_mask, {team: [item] for team, item in selected.items()})
+        selected, straight_blocks, grid, ref, corner_mask, {team: [item] for team, item in selected.items()}, measurement_frame)
 
     results = {}
     grid_spacing = float(grid[1] - grid[0])
@@ -1162,6 +1313,7 @@ def measure_field(extracted, selections, corners=()):
             'accel_200_250': straight_info.get('accel_200_250'),
             'accel_300_320': straight_info.get('accel_300_320'),
             'accel_bands': straight_info.get('accel_bands', {}),
+            'accel_observations': straight_info.get('accel_observations', []),
             'accel_cumul_loss_250_300': straight_info.get('accel_cumul_loss_250_300', 0.0),
             'straight_coverage': straight_info.get('straight_coverage', '0/0'),
             'straight_provisional': straight_info.get('straight_provisional', False),
@@ -1176,7 +1328,7 @@ def measure_field(extracted, selections, corners=()):
             'speed_fl': straight_info.get('speed_fl'),
             'lap_gap': (item['official'] / ref['official'] - 1) * 100,
             'reference_lap_time': ref['official'],
-            'top_speed': float(max(item['speed'])),
+            'top_speed': float(max(item['a'][:, 2])),
             'full_throttle_p95': float(np.percentile(item['speed'][item['throttle'] >= 98], 95)) if np.sum(item['throttle'] >= 98) >= 10 else None,
             'lap_distance': float(grid[-1]), 'braking': braking, 'selection': item['selection'],
             'quality': {'integration_scale': item['scale'], 'full_lap': True,
@@ -1192,7 +1344,7 @@ def measure_field(extracted, selections, corners=()):
         'corner_count': len(zones)
     }
 
-    return {'teams': results, 'reference_team': reference_team, 'excluded': {t: e for t, e in errors.items() if t not in results},
-            'method': 'timing-sector-grid-v11-reference-retry', 'corner_count': len(zones),
-            'circuit_features': circuit_features}
+    return finish({'teams': results, 'reference_team': reference_team, 'excluded': {t: e for t, e in errors.items() if t not in results},
+            'method': 'timing-sector-grid-v12-native-common-zones', 'corner_count': len(zones),
+            'circuit_features': circuit_features})
 

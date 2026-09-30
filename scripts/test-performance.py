@@ -151,6 +151,16 @@ class PerformanceTests(unittest.TestCase):
         result=straight_core_measurements(selected,[(0,200)],grid,selected['A'])
         self.assertTrue(all(row['straight_core_delta'] is None for row in result.values()))
 
+    def test_repeat_core_windows_are_fixed_not_redetected(self):
+        grid,selected=self.core_fixture()
+        baseline=straight_core_measurements(selected,[(0,200)],grid,selected['A'])
+        windows=baseline['A']['straight_core_windows']
+        repeated=straight_core_measurements(selected,[(0,200)],grid,selected['A'],windows)
+        self.assertEqual(repeated['A']['straight_core_windows'],windows)
+        selected['B']['throttle'][60:65]=80
+        unsupported=straight_core_measurements(selected,[(0,200)],grid,selected['A'],windows)
+        self.assertIsNone(unsupported['A']['straight_core_time'], 'do not silently shorten a frozen comparison window')
+
     def test_partial_acceleration_zone_coverage_retains_connected_teams(self):
         from performance_tracks import connected_zone_scores
         scores, counts, keys = connected_zone_scores({

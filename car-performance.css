@@ -1048,6 +1048,9 @@ body.performance-view #sidebarToggle {
 .performance-pit-controls .performance-scope-toggle { flex: 0 1 auto; max-width: 100%; overflow-x: auto; }
 .performance-pit-controls .performance-scope-toggle button:disabled { opacity: .45; cursor: not-allowed; }
 .performance-stat-toggle { max-width: 100%; margin: 0 0 14px; }
+.performance-quality-status { color: var(--text-secondary); font-size: .875rem; line-height: 1.5; margin: 10px 0 14px; }
+.performance-card > .performance-scope-toggle { max-width: 100%; overflow-x: auto; margin-bottom: 10px; }
+.performance-tyre-toolbar .performance-scope-toggle { max-width: 100%; overflow-x: auto; }
 .performance-stat-toggle button:disabled { opacity: .45; cursor: not-allowed; }
 @media (max-width: 700px) {
   .performance-stat-toggle { width: 100%; overflow-x: auto; }
@@ -1056,8 +1059,7 @@ body.performance-view #sidebarToggle {
 .performance-page.is-descriptions-hidden .performance-card > .performance-note,
 .performance-page.is-descriptions-hidden .performance-card .perf-chart-sub,
 .performance-page.is-descriptions-hidden .performance-card > p.performance-note,
-.performance-page.is-descriptions-hidden .perf-audit-box .performance-note,
-.performance-page.is-descriptions-hidden > .performance-methods { display: none; }
+.performance-page.is-descriptions-hidden .perf-audit-box .performance-note { display: none; }
 .performance-band-options {
   display: flex;
   gap: 6px;

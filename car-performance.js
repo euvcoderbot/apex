@@ -393,8 +393,12 @@ let pitChartMetric='median'; // 'mean' | 'median' | 'spread'
 let pitLaneBasis='raw'; // 'raw' | 'event'
 let paceSeasonStat='mean'; // 'mean' | 'median'
 let telemetrySeasonStat='mean'; // 'mean' | 'median'
+let telemetryCoverageMode='common';
 let tyreSeasonStat='median'; // 'mean' | 'median' | 'p75'
 let tyreLapMode='all'; // 'all' | 'clear'
+let tyreConditionMode='screened';
+let pitVisitMode='service';
+let brakingQualityMode='supported';
 let tyreCorrection='fuel'; // 'fuel' | 'raw'
 let tyreFuelRate=.060; // User-selected sensitivity assumption, not measured fuel.
 let tyreWeighting='balanced'; // 'balanced' | 'laps'
@@ -409,7 +413,7 @@ function brakingViewControls(approachAvailable) {
   return `<div class="performance-scope-toggle" role="group" aria-label="Braking measurement">
     <button type="button" data-braking-view="approach" aria-pressed="${brakingView==='approach'}" ${approachAvailable?'':'disabled'}>Time through approach</button>
     <button type="button" data-braking-view="deceleration" aria-pressed="${brakingView==='deceleration'}">Same-speed slowing</button>
-  </div>`;
+  </div><div class="performance-scope-toggle" role="group" aria-label="Braking evidence quality"><button type="button" data-braking-quality="supported" aria-pressed="${brakingQualityMode==='supported'}">Supported samples</button><button type="button" data-braking-quality="all" aria-pressed="${brakingQualityMode==='all'}">Include provisional · diagnostic</button></div><p class="performance-quality-status">${brakingQualityMode==='supported'?'Only supported native observations enter the ranking.':'Diagnostic ranking includes weak-resolution observations.'} ${telemetryCoverageMode==='common'?'Same observed zone cohort; missing measurements are not fitted.':'Overlapping-zone effects are modelled; missingness can bias ranks.'}</p>`;
 }
 const STRAIGHT_BANDS=['50_100','100_150','150_200','200_250','250_300','300_320','300_350','350_400'];
 let straightBand='250_300';
@@ -574,6 +578,8 @@ async function analyse() {
         const result=await get(`/api/performance/trace-batch?${params}`,signal);
         if(id!==generation)return;
         event.traces=result.teams||{};
+        event.nativeSpeedObservations=result.native_speed_observations||{};
+        event.traceExcluded=result.excluded||{};
         event.traceReference=result.reference_team;
         if(result.error)errors.push({event,session:'T',message:result.error});
       } catch(e) {
@@ -613,7 +619,7 @@ async function loadPitData(retry=false) {
       const event=jobs.shift();
       try {
         const params=new URLSearchParams({year:context.year,gp:event.name,source:'dhl-2026-v1'});
-        event.pits=await get(`/api/performance/pits?${params}`,signal,'default');
+        event.pits=await get(`/api/performance/pits?${params}&schema=2`,signal,'default');
       } catch(error) {
         if(signal.aborted) return;
         event.pitError=error.message;
@@ -954,10 +960,12 @@ function renderPace(teams) {
   const qualyColLabel = qualyPaceMode === 'overall'
     ? 'Qualifying · Best lap'
     : 'Evolution-adjusted deficit';
-  const raceSupport=`<details class="dashboard-card performance-methods"><summary>Race-pace coverage and traffic sensitivity by GP</summary><p class="performance-note">The traffic range refits the selected driver using 1.5, 2.0 and 2.5-second checkpoint screens. Each GP has its own baseline: these are sensitivity tests, not confidence intervals or a season-wide range. A few early or late stints may not represent the entire race.</p>${table(['Team','Grand Prix','Driver','Race laps covered','Stints','Compounds','Traffic-screen range'],teams.flatMap(t=>t.raceDrivers.filter(r=>r.selected).map(r=>{
+  const raceSupport=`<details class="dashboard-card performance-methods"><summary>Race-pace coverage and traffic sensitivity by GP</summary><p class="performance-note">The traffic range refits the selected driver using 1.5, 2.0 and 2.5-second checkpoint screens. The common-cohort column keeps the same reference driver across those screens instead of changing the zero each time. These are sensitivity tests, not confidence intervals or a season-wide range. Leave-stint-out removes each of the three largest sampled stints and compares with one fixed reference driver; it can reveal strategy-dependent estimates but is not exhaustive. Noise gain measures sensitivity to perturbing observed lap times, not a confidence interval. Race-lap effects absorb shared fuel burn and track evolution; no measured fuel load is supplied.</p>${table(['Team','Grand Prix','Driver','Race laps covered','Stints','Compounds','Traffic-screen range','Common-cohort contrasts · 1.5 / 2.0 / 2.5 s','Leave-stint-out','Contrast noise gain'],teams.flatMap(t=>t.raceDrivers.filter(r=>r.selected).map(r=>{
     const result=events.find(e=>e.name===r.event)?.R?.teams?.find(row=>row.team===t.team);
     const range=result?.traffic_sensitivity_bracket;
-    return [teamLabel(t),eventLabel(r.event),escape(r.driver),r.race_lap_range?.join('–')||'—',r.stints??'—',escape(r.compounds?.join(', ')||'—'),range?`${fmt(range[0],3,'%')}–${fmt(range[1],3,'%')}`:'—'];
+    const model=r.model_diagnostics||result?.race_model_diagnostics||{};
+    const common=result?.traffic_common_cohort;
+    return [teamLabel(t),eventLabel(r.event),escape(r.driver),r.race_lap_range?.join('–')||'—',r.stints??'—',escape(r.compounds?.join(', ')||'—'),range?`${fmt(range[0],3,'%')}–${fmt(range[1],3,'%')}`:'—',common&&Object.keys(common.values||{}).length===3?`${[1.5,2,2.5].map(th=>signed(common.values[String(th)],3,'%')).join(' / ')}<small>vs ${escape(common.reference_driver)} · ${common.drivers.length} common drivers</small>`:'—',model.leave_stint_out_range?`${fmt(model.leave_stint_out_range[0],3,'%')}–${fmt(model.leave_stint_out_range[1],3,'%')}<small>${model.leave_stint_out_fits} deletion fits</small>`:'—',fmt(model.contrast_noise_gain,3)];
   })))}</details>`;
 
   return regulatoryBadge +
@@ -1023,6 +1031,7 @@ function renderTyreAge(teams) {
   if(!choices.includes(tyreView))tyreView='OVERALL';
   const controls=`<div class="performance-tyre-options" role="group" aria-label="Exact tyre compound">${choices.map(c=>`<button type="button" data-performance-tyre="${c}" aria-pressed="${tyreView===c}"><span class="tyre-opt-label">${c==='OVERALL'?'Overall · C grades':c}</span></button>`).join('')}</div>
     <div class="performance-toolbar performance-tyre-toolbar">
+      <div class="performance-scope-toggle" role="group" aria-label="Tyre condition suitability"><button type="button" data-tyre-condition="screened" aria-pressed="${tyreConditionMode==='screened'}">Condition-screened</button><button type="button" data-tyre-condition="all" aria-pressed="${tyreConditionMode==='all'}">All pace trends · diagnostic</button></div>
       <div class="performance-scope-toggle" role="group" aria-label="Tyre trend laps"><button type="button" data-tyre-laps="all" aria-pressed="${tyreLapMode==='all'}">All usable laps</button><button type="button" data-tyre-laps="clear" aria-pressed="${tyreLapMode==='clear'}">Clean air</button></div>
       <div class="performance-scope-toggle" role="group" aria-label="Tyre trend fuel correction"><button type="button" data-tyre-correction="fuel" aria-pressed="${tyreCorrection==='fuel'}">Assumed fuel correction</button><button type="button" data-tyre-correction="raw" aria-pressed="${tyreCorrection==='raw'}">Observed lap times</button></div>
       ${tyreCorrection==='fuel'?`<div class="performance-scope-toggle" role="group" aria-label="Assumed fuel gain per race lap">${[.040,.060,.080].map(rate=>`<button type="button" data-tyre-fuel="${rate}" aria-pressed="${tyreFuelRate===rate}">${rate.toFixed(3)} s/lap</button>`).join('')}</div>`:''}
@@ -1043,7 +1052,7 @@ function renderTyreAge(teams) {
       const value=finite(raw)?raw+fuel:null;
       const sensitivity=fit.block_sensitivity_raw?.map(rate=>rate+fuel);
       const supported=fit.supported??(fit.samples>=6&&(!finite(fit.min_age)||!finite(fit.max_age)||fit.max_age-fit.min_age>=5));
-      return {...s,...fit,trendValue:value,trendSensitivity:sensitivity,trendSupported:supported,trendSamples:fit.samples,original:s};
+      return {...s,...fit,trendValue:value,trendSensitivity:sensitivity,trendSupported:supported&&(tyreConditionMode==='all'||fit.stable_condition_screen===true),trendSamples:fit.samples,original:s};
     });
     if(tyreSubject==='team')entities.push({team:team.team,color:team.color,displayName:team.team,stints});
     else for(const driver of [...new Set(stints.map(s=>s.driver).filter(Boolean))])
@@ -1115,14 +1124,14 @@ function renderTyreAge(teams) {
     finite(s.early_slope)&&finite(s.late_slope)?`${signed(s.early_slope-(s.fuel_assumption_s_per_lap??.060)+(tyreCorrection==='fuel'?tyreFuelRate:0),3)} → ${signed(s.late_slope-(s.fuel_assumption_s_per_lap??.060)+(tyreCorrection==='fuel'?tyreFuelRate:0),3)} s/lap`:'—',
     finite(s.residual_spread_s)?fmt(s.residual_spread_s,3,' s'):'—',
     s.trendSensitivity?`${signed(s.trendSensitivity[0],3)} to ${signed(s.trendSensitivity[1],3)} s/lap`:'—',
-    `${s.trendSupported&&s.compound_grade?'Included':'Diagnostic only'}${!s.trendSupported?' · insufficient span or laps':''}${!s.compound_grade?' · unverified compound':''}${s.used_start?' · used tyres':''}`,
+    `${s.trendSupported&&s.compound_grade?'Included':'Diagnostic only'}${!s.supported?' · insufficient span or laps':''}${s.condition_flags?.length?` · ${escape(s.condition_flags.join(', '))}`:''}${s.stable_condition_screen==null?' · condition screening unavailable':''}${finite(s.field_trend_s_per_lap)?` · field trend ${signed(s.field_trend_s_per_lap,3)} s/lap (${s.field_trend_drivers} drivers)`:''}${!s.compound_grade?' · unverified compound':''}${s.used_start?' · used tyres':''}`,
     s.points?.length>=3?`<button type="button" class="performance-stint-inspect" data-tyre-run="${tyreStintKey(entity,s)}">View laps</button>`:'—'
   ]));
   const legacy=teams.some(t=>(t.tyreAgeStints||[]).some(s=>!s.fit_method));
   const audit=`<details class="dashboard-card performance-methods" ${tyreRunKey?'open':''}><summary>View stint evidence and early/late trends</summary><p class="performance-note">A run needs six usable laps across at least five tyre-age steps to enter the ranking. Early/late rates need at least six laps in each half. Block sensitivity refits the trend after removing successive groups of adjacent laps; a wide range means sections of the stint strongly influence the result. It needs at least twelve laps. Neither this range nor typical fit error is a confidence interval. Short runs and unmapped compounds are listed but do not enter the ranking. View laps draws the selected run above this table.</p>${table(['Team','Driver','Grand Prix','Compound','Stint / run','Observed tyre ages','Fit laps','Trend','Early → late','Typical fit error','Block sensitivity','Evidence','Lap plot'],evidence)}</details>`;
   return card('Tyre-age performance change',
     `The number is the change in lap time for each additional lap on the tyre: +0.050 s/lap means a 0.500-second loss over ten tyre-age steps if the trend continues. Each driver's stint is fitted separately over its observed ages; pit, wet and neutralised laps are excluded. Runs are split at SC/VSC/red flags and unusual laps are screened around the fitted trend. ${tyreLapMode==='clear'?'Clean air requires more than 2 seconds to the car ahead at timing checkpoints.':'All usable laps includes traffic and race management.'} ${tyreCorrection==='fuel'?`The rate adds your assumed ${tyreFuelRate.toFixed(3)} s per race lap for fuel burn. The choices test sensitivity; they are not measured fuel loads or a calibrated range for any season.`:'Observed rates include the benefit of burning fuel.'} ${tyreWeighting==='balanced'?'Median stints describe each driver, then both drivers receive equal weight within each GP and C grade.':'Stints receive weight proportional to their usable laps within each GP and C grade.'} Each GP receives equal weight in the season summary. Overall averages only the C grades observed in each GP, so differing compound and circuit coverage can affect comparisons. Track evolution, temperature, driving targets and energy management can still influence these estimates.`,
-    controls+coverage+(legacy?'<p class="performance-note">Some loaded results use the previous fit. Reanalyse after the telemetry API update to obtain robust fits, clean-air checks and early/late evidence.</p>':'')+chart+table([
+    controls+`<p class="performance-quality-status">${tyreConditionMode==='screened'?'Wet/transition context and rapid field-wide improvement are excluded from the ranking; all fitted runs remain inspectable.':'Diagnostic: all statistically supported pace trends are included, even in changing conditions.'} This measures observed pace change, not physical tyre wear.</p>`+coverage+(legacy?'<p class="performance-note">Some loaded results use the previous fit. Reanalyse after the telemetry API update to obtain robust fits, clean-air checks and early/late evidence.</p>':'')+chart+table([
       sortHeader('tyreAgeName',tyreSubject==='team'?'Team':'Driver · team'),
       sortHeader('tyreAgeValue','Change per tyre-age lap'),
       sortHeader('tyreAgeEvents','Events',-1),
@@ -1388,7 +1397,7 @@ function renderResults(teams) {
       fmt(t.pointsPerStart,3),
       fmt(avg(t.positions),1),
       `${t.finishes} / ${t.starts}`,
-      fmt(t.mechanicalRatePct,3,'%'),
+      `${fmt(t.mechanicalRatePct,3,'%')}<small>${t.unknownRetirements} unknown-cause retirements · not counted as mechanical</small>`,
       t.puRetirements > 0 ? `<span class="retirement-badge is-pu">⚙ ${t.puRetirements}</span>` : '0',
       t.chassisRetirements > 0 ? `<span class="retirement-badge is-chassis">🔧 ${t.chassisRetirements}</span>` : '0',
       t.incidentRetirements > 0 ? `<span class="retirement-badge is-incident">💥 ${t.incidentRetirements}</span>` : '0',
@@ -1439,6 +1448,7 @@ function pitSummary(events, teams) {
     visits.push({...visit,driver,team,event:event.name,source:event.pits.source});
   }
   for(const visit of visits) {
+    if(pitVisitMode==='service'&&visit.visit_type!=='service'&&!finite(visit.stop_duration))continue;
     const teamKey=visit.team, driverKey=`${teamKey}:${visit.driver}`;
     if(!groups.has(teamKey)) groups.set(teamKey,{team:teamKey,color:teamColors.get(teamKey),visits:[],events:new Set()});
     if(!drivers.has(driverKey)) drivers.set(driverKey,{team:teamKey,color:teamColors.get(teamKey),driver:visit.driver,visits:[],events:new Set()});
@@ -1452,7 +1462,7 @@ function pitSummary(events, teams) {
       p10:timed.length>=10?percentile(timed,.1):null,p25:percentile(timed,.25),p75:percentile(timed,.75),p90:timed.length>=10?percentile(timed,.9):null,count:timed.length};
   };
   const laneByEvent=new Map();
-  for(const visit of visits)if(finite(visit.lane_duration)){
+  for(const visit of visits)if(finite(visit.lane_duration)&&(pitVisitMode==='all'||visit.visit_type==='service'||finite(visit.stop_duration))){
     if(!laneByEvent.has(visit.event))laneByEvent.set(visit.event,new Map());
     const teamVisits=laneByEvent.get(visit.event);
     if(!teamVisits.has(visit.team))teamVisits.set(visit.team,[]);
@@ -1506,6 +1516,7 @@ function renderPits(teams) {
   const pending=data.total-data.loaded-failures.length;
   const note=`${data.loaded}/${data.total} race${data.total===1?'':'s'} loaded${pending>0?' · loading pit timing…':''}${failures.length?` · ${failures.length} race${failures.length===1?'':'s'} unavailable`:''}. Stationary is the broadcast-style time stopped at the box; pit-lane time includes the stop. Raw summaries weight every timed visit; GP-relative lane summaries compare each team or driver's GP median with the median of team GP medians, then give each GP equal weight. Mean includes long stops; median shows a typical visit; the middle-50% spread shows consistency (≥4 samples); P10 and P90 show the quick and slow tails (≥10 samples). Missing stationary times are never inferred.`;
   const controls=`<div class="performance-pit-controls">
+    <div class="performance-scope-toggle" role="group" aria-label="Pit visit eligibility"><button type="button" data-pit-visits="service" aria-pressed="${pitVisitMode==='service'}">Confirmed service</button><button type="button" data-pit-visits="all" aria-pressed="${pitVisitMode==='all'}">All lane visits · diagnostic</button></div>
     <div class="performance-scope-toggle" role="group" aria-label="Pit timing measurement">
       <button type="button" data-pit-measure="stop" aria-pressed="${!isLane}" ${noStationary?'disabled title="No published stationary times for these visits"':''}>Stationary stop</button>
       <button type="button" data-pit-measure="lane" aria-pressed="${isLane}">Pit lane</button>
@@ -1537,6 +1548,7 @@ function renderPits(teams) {
   });
   const metricLabel=relativeLane?'vs GP median':isLane?'pit lane':'stationary stop';
   const summary=card('Pit stops & pit lane',note,
+    `<p class="performance-note">${pitVisitMode==='service'?'Ranking confirmed service visits only.':'Diagnostic: includes all service, pass-through and unclassified visits.'} ${data.visits.filter(v=>v.visit_type!=='service'&&!finite(v.stop_duration)).length} visits lack confirmed service evidence. Missing stationary timing alone does not identify a pass-through; all visits remain in the evidence table.</p>`+
     (failures.length?`<p class="performance-note">${failures.map(e=>`${escape(e.name)}: ${escape(e.pitError)}`).join(' · ')} <button type="button" class="performance-explain-toggle" data-pit-retry>Retry unavailable</button></p>`:'')+
     (noStationary?'<p class="performance-note">The source has no stationary-at-the-box values for this selection. “—” means unavailable, not a zero-second stop.</p>':'')+
     controls+
@@ -1554,9 +1566,9 @@ function renderPits(teams) {
         relativeLane?signed(r[measure].p10,3,' s'):fmt(r[measure].p10,3,' s'),
         relativeLane?signed(r[measure].p90,3,' s'):fmt(r[measure].p90,3,' s'),r[measure].count,r.eventCount])));
   const individual=`<details class="dashboard-card performance-methods" ${context?.scope==='tracks'&&context.selectedTracks?.length===1?'open':''}><summary>Exact times for individual pit visits and timing sources</summary>${table(
-    ['Grand Prix','Team','Driver','In-lap','Stationary','Pit lane','Source'],
+    ['Grand Prix','Team','Driver','In-lap','Stationary','Pit lane','Source','Visit evidence'],
     data.visits.sort((a,b)=>a.event.localeCompare(b.event)||a.lap-b.lap).map(v=>[
-      eventLabel(v.event),teamLabel(v),escape(v.driver),`L${v.lap}`,exactSeconds(v.stop_duration),exactSeconds(v.lane_duration),escape(v.source)
+      eventLabel(v.event),teamLabel(v),escape(v.driver),`L${v.lap}`,exactSeconds(v.stop_duration),exactSeconds(v.lane_duration),escape(v.source),escape(`${v.visit_type||'unknown'} · ${v.visit_evidence||'classification unavailable'}`)
     ]))}</details>`;
   return summary+individual;
 }
@@ -1629,6 +1641,7 @@ function renderTrend(teams) {
     let first = null, last = null, label = '';
     let slopePerRound = null;
     let modelledShift = null;
+    let leaveEventRange = null;
     const n = valid.length;
 
     if (n >= 2) {
@@ -1641,12 +1654,16 @@ function renderTrend(teams) {
       slopePerRound = h.slope;
       const roundSpan = valid.at(-1).round - valid[0].round;
       modelledShift = finite(slopePerRound) ? slopePerRound * roundSpan : null;
+      if(n>=5){
+        const rates=valid.map((_,i)=>{const subset=valid.filter((_,j)=>j!==i);return huberRegression(subset.map(q=>q.round),subset.map(q=>q.pace)).slope;}).filter(finite);
+        if(rates.length)leaveEventRange=[Math.min(...rates),Math.max(...rates)];
+      }
     }
 
     const change = (finite(first) && finite(last)) ? last - first : null;
     const sampleTier = n >= 15 ? 'Robust (≥15 events)' : n >= 10 ? 'Provisional (10–14 events)' : 'Raw (<10 events)';
     const sampleTierClass = n >= 15 ? 'is-fast' : n >= 10 ? 'is-mid' : 'is-slow';
-    return { team: t, valid, first, last, change, modelledShift, slopePerRound, sampleTier, sampleTierClass, label, count: n };
+    return { team: t, valid, first, last, change, modelledShift, slopePerRound, leaveEventRange, sampleTier, sampleTierClass, label, count: n };
   });
 
   const ordered = sorted(trendRows, {
@@ -1666,6 +1683,7 @@ function renderTrend(teams) {
       'Qualifying gap by round',
       sortHeader('trendLast', 'Opening → latest gap'),
       sortHeader('trendChange', 'Change in gap'),
+      'Leave-one-GP-out fitted rate',
       'Coverage'
     ], ordered.map(row => {
       const t = row.team, valid = row.valid, first = row.first, last = row.last;
@@ -1679,6 +1697,7 @@ function renderTrend(teams) {
         `<div class="performance-trend" style="--team-color:${color(t.color)}">${t.q.map(q => `<span style="height:${finite(q.pace) ? Math.max(6, q.pace / ceiling * 100) : 0}%;${finite(q.pace) ? '' : 'background:transparent'}" title="R${q.round} ${escape(q.event)}: ${fmt(q.pace, 3, '%')}" aria-label="R${q.round}: ${fmt(q.pace, 3, '%')}"></span>`).join('')}</div><div class="performance-trend-label"><span>R${t.q[0]?.round ?? '—'}</span><span>R${t.q.at(-1)?.round ?? '—'}</span></div>`,
         enough ? `${fmt(first, 3, '%')} → ${fmt(last, 3, '%')}<small>${escape(row.label)}</small>` : 'Needs ≥ 2 events',
         enough && finite(row.change) ? `${signed(row.change, 3, ' pp')}<small>Fitted: ${rateText}</small>` : '—',
+        row.leaveEventRange?`${signed(row.leaveEventRange[0],3)} to ${signed(row.leaveEventRange[1],3)} pp/round<small>Sensitivity, not an uncertainty interval</small>`:'—',
         `<span class="perf-tercile-badge ${row.sampleTierClass}">${row.count} event${row.count===1?'':'s'} · ${escape(row.sampleTier.split(' ')[0])}</span>`
       ];
     })))+'</div>' + card('FIA updates',
@@ -1728,7 +1747,7 @@ function eventTelemetry(event) {
     .filter(z=>z.method==='matched-speed-v1'&&z.mode==='straight').map(z=>z.corner)))];
   for(const label of labelsBrake) {
     const measured=[...rows.values()].map(row=>({row,z:row.trace.braking?.find(z=>z.corner===label&&z.method==='matched-speed-v1'&&z.mode==='straight')}))
-      .filter(({z})=>finite(z?.duration)&&z.duration>0&&z.entry_speed-z.exit_speed>=50);
+      .filter(({z})=>finite(z?.duration)&&z.duration>0&&z.entry_speed-z.exit_speed>=50&&(brakingQualityMode==='all'||z.quality==='supported'));
     if(measured.length<3)continue;
     const first=measured[0].z;
     const same=measured.filter(({z})=>z.entry_speed===first.entry_speed&&z.exit_speed===first.exit_speed);
@@ -1759,14 +1778,14 @@ function eventTelemetry(event) {
     .filter(report=>report.summary.rows.size>=3);
   const approachScores=eventAdjustedScores(approachReports,row=>row.z.approach_time*1000);
   for(const row of rows.values()) {
-    const zones=comparable.map(r=>r.summary.rows.get(row.team)?.z).filter(Boolean);
+    const zones=comparable.filter(r=>!scores.coverage||scores.coverage.events.includes(r.event.name)).map(r=>r.summary.rows.get(row.team)?.z).filter(Boolean);
     if(!zones.length||!scores.has(row.team))continue;
     row.brakingScore=scores.get(row.team);
     row.brakingSlowingS=slowingSeconds.get(row.team)??null;
     row.brakingApproachMs=approachScores.get(row.team)??null;
     row.brakingScoreZones=zones.length;
     row.brakingScoreCohort=group.size;
-    row.brakingApproachZones=approachReports.filter(report=>report.summary.rows.has(row.team)).length;
+    row.brakingApproachZones=approachReports.filter(report=>(!approachScores.coverage||approachScores.coverage.events.includes(report.event.name))&&report.summary.rows.has(row.team)).length;
     row.brakingResolution=median(zones.map(z=>z.timing_resolution_s).filter(finite));
     row.brakingRepeatSpread=median(zones.map(z=>z.repeat_spread_s).filter(finite));
     row.brakeZones=zones.length;
@@ -1795,6 +1814,26 @@ function eventAdjustedScores(reports, valueOf, mode='mean') {
     for(const item of measured)observations.push({...item,event:event.name});
   }
   if(!observations.length)return new Map();
+  if(typeof telemetryCoverageMode!=='undefined'&&telemetryCoverageMode==='common') {
+    const teams=[...new Set(observations.map(o=>o.team))].sort();
+    const byEvent=new Map();
+    for(const o of observations){if(!byEvent.has(o.event))byEvent.set(o.event,new Map());byEvent.get(o.event).set(o.team,o.value);}
+    let best=null;
+    // Largest complete observed rectangle: no missing team/GP is imputed.
+    for(let mask=1;mask<2**teams.length;mask++) {
+      const cohort=teams.filter((_,i)=>mask&(2**i));if(cohort.length<3)continue;
+      const eventIds=[...byEvent].filter(([,r])=>cohort.every(t=>r.has(t))).map(([id])=>id);
+      const support=cohort.length*eventIds.length;
+      if(eventIds.length&&(!best||support>best.support||support===best.support&&cohort.length>best.cohort.length))best={cohort,eventIds,support};
+    }
+    if(!best)return new Map();
+    const centre=mode==='median'?median:avg;
+    const values=new Map(best.cohort.map(t=>[t,centre(best.eventIds.map(id=>byEvent.get(id).get(t)))]));
+    const baseline=Math.min(...values.values());
+    const result=new Map([...values].map(([t,v])=>[t,Math.max(0,v-baseline)]));
+    result.coverage={teams:best.cohort,events:best.eventIds};
+    return result;
+  }
   const graph=new Map();
   const byEvent=new Map();
   for(const observation of observations){
@@ -1988,6 +2027,8 @@ function seasonTelemetry(mode='mean') {
     .map(([metric,scores])=>[metric,scores.get(team.team)??null]));
   for(const team of output)team.adjustedBands=Object.fromEntries(Object.entries(adjustedBands)
     .map(([band,scores])=>[band,scores.get(team.team)??null]));
+  output.rankCoverage=Object.fromEntries([...Object.entries(adjusted),...Object.entries(adjustedBands)]
+    .filter(([,scores])=>scores.coverage).map(([metric,scores])=>[metric,scores.coverage]));
   return output;
 }
 
@@ -2040,7 +2081,7 @@ function renderTrace() {
     const cornerTitle = isSeasonScope ? 'Season cornering performance' : `Selected tracks cornering performance (${trackCount} track${trackCount === 1 ? '' : 's'})`;
     const straightTitle = isSeasonScope ? 'Season straight-line performance' : `Selected tracks straight-line performance (${trackCount} track${trackCount === 1 ? '' : 's'})`;
     const brakingTitle = isSeasonScope ? 'Season braking performance' : `Selected tracks braking performance (${trackCount} track${trackCount === 1 ? '' : 's'})`;
-    const statisticControls=`<div class="performance-scope-toggle performance-stat-toggle" role="group" aria-label="Telemetry summary across circuits"><button type="button" data-telemetry-stat="mean" aria-pressed="${telemetrySeasonStat==='mean'}">Mean across circuits</button><button type="button" data-telemetry-stat="median" aria-pressed="${telemetrySeasonStat==='median'}">Median across circuits</button></div>`;
+    const statisticControls=`<div class="performance-scope-toggle performance-stat-toggle" role="group" aria-label="Telemetry summary across circuits"><button type="button" data-telemetry-stat="mean" aria-pressed="${telemetrySeasonStat==='mean'}">Mean across circuits</button><button type="button" data-telemetry-stat="median" aria-pressed="${telemetrySeasonStat==='median'}">Median across circuits</button></div><div class="performance-scope-toggle" role="group" aria-label="Comparison coverage"><button type="button" data-telemetry-coverage="common" aria-pressed="${telemetryCoverageMode==='common'}">Common observed coverage</button><button type="button" data-telemetry-coverage="inferred" aria-pressed="${telemetryCoverageMode==='inferred'}">Coverage-adjusted model · diagnostic</button></div><p class="performance-note">${telemetryCoverageMode==='common'?'Each ranking uses one complete shared set of measured teams and events/zones, chosen to retain the most observations. No missing values are estimated.':'Diagnostic model bridges missing events/zones through overlapping teams; car-by-circuit differences can bias it.'} Table sample counts describe collected evidence; ranking support is listed below.</p><details class="performance-evidence"><summary>Exact ranking support</summary>${table(['Metric','Teams in ranking','Shared events'],Object.entries(season.rankCoverage||{}).map(([metric,c])=>[escape(metric),c.teams.map(escape).join(', '),c.events.map(escape).join(', ')]))}</details>`;
 
     if(activeMetric==='corners') {
       const rawValues=season.map(team=>({
@@ -2705,7 +2746,9 @@ function render() {
   const errorMarkup = errors.map(e=>`<div class="performance-error"><span class="error-dot"></span><span>${escape(e.event.name)} · ${e.session==='Q'?'Qualifying':e.session==='R'?'Race':'Telemetry'}: ${escape(e.message)}</span></div>`).join('');
   const content = (activeMetric==='pace'?renderPace(teams):activeMetric==='tyres'?renderRace(teams):activeMetric==='results'?renderResults(teams):activeMetric==='pits'?renderPits(teams):activeMetric==='trend'?renderTrend(teams):renderTrace());
 
-  root.innerHTML = modeBar + errorMarkup + content;
+  const nativeEvidence=activeMetric==='straight'?`<details class="dashboard-card performance-methods"><summary>Native top-speed evidence · independent of full-lap GPS eligibility</summary><p class="performance-note">Real native samples from the quickest channel-valid candidate per team. GPS alignment is not required here. These are diagnostic peaks, not isolated drag/power ratings or repaired traces; full-lap quality failures remain disclosed.</p>${table(['Grand Prix','Team','Driver / lap','Native peak','Full-lap eligibility'],events.flatMap(e=>Object.entries(e.nativeSpeedObservations||{}).map(([team,row])=>[escape(e.name),escape(team),`${escape(row.selection.driver)} · L${row.selection.lap}`,fmt(row.top_speed,3,' km/h'),escape(e.traceExcluded?.[team]||'Aligned qualifying measurement available')])) )}</details>`:'';
+  const accelerationEvidence=activeMetric==='straight'?`<details class="dashboard-card performance-methods"><summary>Measured ${escape(straightBand.replace('_','–'))} km/h acceleration crossings</summary><p class="performance-note">Each row is a real speed crossing, timed from native samples. Locations are approximate GPS registration. Unscored observations remain visible; they do not supply missing values in the common-zone ranking. Sample intervals disclose the original timing resolution.</p>${table(['Grand Prix','Team','Lap','Zone / aero state','Measured crossing time','Crossing locations','Native interval','Common-zone ranking'],events.flatMap(e=>Object.entries(e.traces||{}).flatMap(([team,trace])=>(trace.accel_observations||[]).filter(row=>row.band===straightBand).map(row=>[escape(e.name),escape(team),`L${row.lap}`,`${row.zone+1} · ${escape(row.state)}`,fmt(row.duration_s,3,' s'),`${fmt(row.start_m,1)}–${fmt(row.end_m,1)} m`,fmt(row.sample_interval_s,3,' s'),row.in_common_ranking?'Included':'Evidence only']))))}</details>`:'';
+  root.innerHTML = modeBar + errorMarkup + content + nativeEvidence + accelerationEvidence;
 }
 
 // ---------------------------------------------------------------------------
@@ -2864,6 +2907,14 @@ root.addEventListener('click',event=>{
   const straightSrc=event.target.closest('[data-straight-source]');
   if(straightSrc){straightLineSource=straightSrc.dataset.straightSource;render();}
   const brakeViewButton=event.target.closest('[data-braking-view]');
+  const coverageButton=event.target.closest('[data-telemetry-coverage]');
+  if(coverageButton){telemetryCoverageMode=coverageButton.dataset.telemetryCoverage;render();return;}
+  const brakeQualityButton=event.target.closest('[data-braking-quality]');
+  if(brakeQualityButton){brakingQualityMode=brakeQualityButton.dataset.brakingQuality;render();return;}
+  const tyreConditionButton=event.target.closest('[data-tyre-condition]');
+  if(tyreConditionButton){tyreConditionMode=tyreConditionButton.dataset.tyreCondition;render();return;}
+  const pitVisitButton=event.target.closest('[data-pit-visits]');
+  if(pitVisitButton){pitVisitMode=pitVisitButton.dataset.pitVisits;render();return;}
   if(brakeViewButton&&!brakeViewButton.disabled){brakingView=brakeViewButton.dataset.brakingView;render();return;}
   const band=event.target.closest('[data-straight-band]');
   const straightUnit=event.target.closest('[data-straight-unit]');

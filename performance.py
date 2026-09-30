@@ -110,6 +110,36 @@ def fit_tyre_stint(laps):
     }
 
 
+def tyre_condition_evidence(laps, field_rows):
+    """Screen common track evolution without subtracting a rival tyre slope.
+
+    This is an eligibility warning, not identification of physical tyre wear.
+    Smooth drying can pass every ordinary residual/outlier test.
+    """
+    lo, hi = min(r['lap'] for r in laps), max(r['lap'] for r in laps)
+    nearby = [r for r in field_rows if r.get('lap') is not None and lo-3 <= r['lap'] <= hi]
+    flags = []
+    if any(r.get('rain') is True or r.get('compound') in {'INTERMEDIATE', 'WET'} for r in nearby):
+        flags.append('wet-or-transition-context')
+    peers = defaultdict(list)
+    for r in nearby:
+        if lo <= r['lap'] <= hi and clean(r) and r.get('age') is not None:
+            peers[(r['driver'], r.get('stint'))].append(r)
+    rates = defaultdict(list)
+    for (driver, _), run in peers.items():
+        rate = tyre_age_slope([(r['lap'], r['time']) for r in run])
+        if rate is not None and len(run) >= 4 and max(r['lap'] for r in run)-min(r['lap'] for r in run) >= 3:
+            rates[driver].append(rate)
+    common = float(median(median(v) for v in rates.values())) if len(rates) >= 3 else None
+    if common is not None and common < -.15:
+        flags.append('field-wide-rapid-improvement')
+    if min(r['age'] for r in laps) <= 3:
+        flags.append('warm-up-overlap')
+    return {'condition_flags': flags, 'field_trend_s_per_lap': common,
+            'field_trend_drivers': len(rates),
+            'stable_condition_screen': not any(f != 'warm-up-overlap' for f in flags)}
+
+
 def matched_tyre_trend(stint_rows, field_rows, team_name):
     """Relative tyre trend across overlapping same-compound race stints.
 
@@ -373,7 +403,7 @@ def compute_lap_traffic(rows, intervals=None, leader_abbr=None):
     return lap_traffic
 
 
-def race_estimates(valid):
+def race_estimates(valid, diagnostics=True):
     """Robust driver effects with shared race-lap, compound and tyre-age terms.
 
     Exact age matching can disconnect the leaders from the midfield. Shared
@@ -413,11 +443,36 @@ def race_estimates(valid):
     base = min(solution[:len(drivers)])
     estimates = {d: float(np.expm1((v-base)/100)*100)
                  for d, v in zip(drivers, solution)}
+    # Practical contrast stability, beyond a binary matrix-rank test. This
+    # noise-amplification diagnostic is not a statistical confidence interval.
+    inverse = np.linalg.pinv(matrix*np.sqrt(weights)[:, None], rcond=1e-10)
+    anchor = int(np.argmin(solution[:len(drivers)]))
+    gains = {d: float(np.linalg.norm(inverse[i]-inverse[anchor])) for i, d in enumerate(drivers)}
+    deletion = defaultdict(list)
+    if diagnostics:
+        runs = Counter((r['driver'], r.get('stint')) for r in selected)
+        for run, _ in runs.most_common(3):
+            remaining = [r for r in selected if (r['driver'], r.get('stint')) != run]
+            alternative, _ = race_estimates(remaining, diagnostics=False)
+            anchor_driver = drivers[anchor]
+            if anchor_driver not in alternative:
+                continue
+            for d in drivers:
+                if d in alternative:
+                    contrast = ((100+alternative[d])/(100+alternative[anchor_driver])-1)*100
+                    deletion[d].append(contrast)
     support = {}
     for d in drivers:
         observed = [r for r in selected if r['driver'] == d]
         support[d] = {
             'samples': counts[d],
+            'contrast_noise_gain': gains[d],
+            'practical_stability': gains[d] <= 10,
+            'leave_stint_out_range': [min(deletion[d]), max(deletion[d])] if deletion[d] else None,
+            'leave_stint_out_fits': len(deletion[d]),
+            'residual_by_stint': {str(stint): float(np.median(np.abs(residual[
+                [r['driver'] == d and r.get('stint') == stint for r in selected]])))
+                for stint in {r.get('stint') for r in observed}},
             'residual_spread': float(np.median(np.abs(residual[[r['driver'] == d for r in selected]]))),
             'stints': len({r.get('stint') for r in observed}),
             'compounds': sorted({r['compound'] for r in observed}),
@@ -827,7 +882,7 @@ def analyze(data, traffic=2):
                     [r for r in valid if r['team'] == name and r['compound'] in DRY_COMPOUNDS
                      and r['rain'] is False and laps
                      and r['time'] <= min(x['time'] for x in laps)*1.01],
-                    key=lambda r: r['time'])[:3],
+                    key=lambda r: r['time'])[:6],
                 'phase_count': len(phases),
                 'phase_details': team_phase_details,
                 'samples': len(phases),
@@ -891,7 +946,7 @@ def analyze(data, traffic=2):
                        and gaps[(r['driver'], r['lap'])] > t_thresh]
             if t_valid:
                 try:
-                    t_est, t_support = race_estimates(t_valid)
+                    t_est, t_support = race_estimates(t_valid, diagnostics=t_thresh == 2.0)
                     if t_thresh == 2.0:
                         support = t_support
                     traffic_sensitivities[t_thresh] = t_est
@@ -935,6 +990,8 @@ def analyze(data, traffic=2):
         # Headline race pace uses one 2.0s model and one shared baseline.
         # The 1.5s and 2.5s models are diagnostics only.
         std_estimates = traffic_sensitivities.get(2.0, {})
+        common_drivers = set.intersection(*(set(traffic_sensitivities.get(th, {})) for th in (1.5, 2.0, 2.5)))
+        common_anchor = min(common_drivers, key=lambda d: std_estimates[d]) if len(common_drivers) >= 3 else None
 
         for name, team in teams.items():
             team_candidates = [r for r in candidates if r.get('team') == name]
@@ -976,6 +1033,9 @@ def analyze(data, traffic=2):
             team['traffic_sensitivity_bracket'] = bracket
             team['samples'] = n_20
             team['race_residual_spread'] = support.get(fastest_driver, {}).get('residual_spread') if fastest_driver else None
+            team['race_model_diagnostics'] = support.get(fastest_driver, {})
+            if fastest_driver and not support.get(fastest_driver, {}).get('practical_stability', True):
+                team['provisional'] = True
             eligible_drivers = [(d, std_estimates[d]) for d in team_drivers if d in std_estimates]
             team['race_drivers'] = [
                 {
@@ -986,6 +1046,7 @@ def analyze(data, traffic=2):
                     'stints': support.get(d, {}).get('stints'),
                     'compounds': support.get(d, {}).get('compounds'),
                     'race_lap_range': support.get(d, {}).get('race_lap_range'),
+                    'model_diagnostics': support.get(d, {}),
                 }
                 for d, pace in sorted(eligible_drivers, key=lambda item: item[1])
             ]
@@ -998,6 +1059,14 @@ def analyze(data, traffic=2):
                 '1.5s': traffic_sensitivities.get(1.5, {}).get(fastest_driver),
                 '2.0s': traffic_sensitivities.get(2.0, {}).get(fastest_driver),
                 '2.5s': traffic_sensitivities.get(2.5, {}).get(fastest_driver)
+            }
+            team['traffic_common_cohort'] = {
+                'drivers': sorted(common_drivers), 'reference_driver': common_anchor,
+                'values': {str(th): ((100+traffic_sensitivities[th][fastest_driver]) /
+                           (100+traffic_sensitivities[th][common_anchor])-1)*100
+                           for th in (1.5, 2.0, 2.5)}
+                if common_anchor and fastest_driver in common_drivers else {},
+                'interpretation': 'fixed-driver contrasts; threshold models still refit independently',
             }
 
             clean_laps = clean_20
@@ -1126,9 +1195,12 @@ def analyze(data, traffic=2):
                 fit = fit_tyre_stint(laps)
                 if fit is None:
                     continue
+                fit.update(tyre_condition_evidence(laps, rows))
                 clear_laps = [r for r in laps if gaps.get((driver, r['lap'])) is not None
                               and gaps[(driver, r['lap'])] > 2.0]
                 clear_fit = fit_tyre_stint(clear_laps)
+                if clear_fit is not None:
+                    clear_fit.update(tyre_condition_evidence(clear_laps, rows))
                 tyre_rows = [r for r in rows if r['driver'] == driver and r.get('stint') == stint]
                 fresh_values = [r['fresh'] for r in tyre_rows if r.get('fresh') is not None]
                 used_start = (not all(fresh_values)) if fresh_values else stint_physical_min_age.get((driver, stint), 1) > 1
@@ -1148,7 +1220,7 @@ def analyze(data, traffic=2):
             'year': session_year,
             'regulatory_energy_envelope': regulatory_energy_envelope,
             'teams': [{'team': name, **team} for name, team in teams.items()],
-            'method': 'car-performance-v7-sensitivity-evidence',
+            'method': 'car-performance-v8-condition-screen',
             'traffic_threshold': traffic,
             'total_laps': len(rows),
             'eligible_laps': len(valid)}
@@ -1185,7 +1257,9 @@ def compute_development_progression(rounds_data):
     PaceDeficit = beta_0 + beta_1 * Round + beta_apex * MedianApex + beta_straight * StraightShare + epsilon
     """
     import numpy as np
-    valid = [r for r in rounds_data if r.get('deficit') is not None and math.isfinite(r['deficit'])]
+    valid = sorted([r for r in rounds_data if r.get('deficit') is not None
+                    and math.isfinite(r['deficit']) and number(r.get('round')) is not None],
+                   key=lambda r: r['round'])
     n = len(valid)
     if n < 2:
         return {
@@ -1217,12 +1291,29 @@ def compute_development_progression(rounds_data):
         cols.append((straight_arr - np.mean(straight_arr)) / max(0.01, float(np.std(straight_arr))))
 
     X = np.column_stack(cols)
+    # Circuit covariates must not absorb chronological progress when they
+    # are effectively the same variable as round.
+    standardized = X.copy()
+    for i in range(1, X.shape[1]):
+        standardized[:, i] /= max(float(np.std(X[:, i])), 1e-9)
+    circuit_adjustment = X.shape[1] > 2
+    if np.linalg.matrix_rank(standardized) < X.shape[1] or np.linalg.cond(standardized) > 100:
+        X = X[:, :2]
+        circuit_adjustment = False
     y = deficits
 
     beta, weights = huber_fit(X, y)
     b_round = float(beta[1])
     round_span = float(rounds[-1] - rounds[0])
     modelled_shift = b_round * round_span
+    leave_event_rates = []
+    if n >= 5:
+        for omitted in range(n):
+            retained = np.arange(n) != omitted
+            reduced = X[retained]
+            if np.linalg.matrix_rank(reduced) == reduced.shape[1]:
+                alternate, _ = huber_fit(reduced, y[retained])
+                leave_event_rates.append(float(alternate[1]))
 
     # Descriptive opening and closing medians
     k = max(2, min(6, n // 4)) if n >= 8 else (2 if n >= 4 else 1)
@@ -1244,6 +1335,8 @@ def compute_development_progression(rounds_data):
         'opening_count': k,
         'closing_count': k,
         'count': n,
+        'circuit_adjustment_supported': circuit_adjustment,
+        'leave_event_out_rate_range': [min(leave_event_rates), max(leave_event_rates)] if leave_event_rates else None,
         'weights': [round(float(w), 3) for w in weights]
     }
 

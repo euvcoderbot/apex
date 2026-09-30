@@ -151,7 +151,7 @@ def pit_lap_number(value: Any) -> int | None:
     return int(value) if value is not None and value >= 1 else None
 
 
-def openf1_pit_visits(pits: list[dict], drivers: list[dict]) -> list[dict]:
+def openf1_pit_visits(pits: list[dict], drivers: list[dict], stints=None) -> list[dict]:
     """Keep entry-to-exit and stationary timing as distinct measurements."""
     identities = {str(d.get('driver_number')): d for d in drivers}
     visits = []
@@ -173,7 +173,15 @@ def openf1_pit_visits(pits: list[dict], drivers: list[dict]) -> list[dict]:
             'lap': lap,
             'lane_duration': round(lane, 3),
             'stop_duration': round(stop, 3) if stop is not None else None,
+            'visit_type': 'service' if stop is not None else 'unknown',
+            'visit_evidence': 'supplied stationary timing' if stop is not None else 'no service evidence supplied',
         })
+        if stop is None:
+            changed = [s for s in (stints or []) if str(s.get('driver_number')) == str(pit.get('driver_number'))
+                       and pit_lap_number(s.get('lap_start')) == lap+1
+                       and pit_lap_number(s.get('stint_number')) not in (None, 1)]
+            if changed:
+                visits[-1].update(visit_type='service', visit_evidence='supplied new tyre stint')
     return sorted(visits, key=lambda v: (v['lap'], v['driver_number']))
 
 
@@ -259,6 +267,7 @@ def merge_dhl_pit_stops(visits: list[dict], drivers: list[dict], stops: list[dic
         if (visit is not None and visit['stop_duration'] is None
                 and 0 < stop['stop_duration'] <= visit['lane_duration'] + 1):
             visit['stop_duration'] = stop['stop_duration']
+            visit.update(visit_type='service', visit_evidence='DHL stationary timing')
             matched += 1
     return matched
 
@@ -289,6 +298,15 @@ def fastf1_pit_visits(laps: Any) -> list[dict]:
                 'lap': lap,
                 'lane_duration': round(lane, 3),
                 'stop_duration': None,
+                'visit_type': 'service' if (seconds(next_row.get('Stint')) is not None
+                    and seconds(row.get('Stint')) is not None
+                    and seconds(next_row.get('Stint')) > seconds(row.get('Stint'))
+                    and seconds(next_row.get('TyreLife')) is not None
+                    and seconds(row.get('TyreLife')) is not None
+                    and seconds(next_row.get('TyreLife')) < seconds(row.get('TyreLife'))) else 'unknown',
+                'visit_evidence': 'tyre stint and age reset' if (seconds(next_row.get('TyreLife')) is not None
+                    and seconds(row.get('TyreLife')) is not None
+                    and seconds(next_row.get('TyreLife')) < seconds(row.get('TyreLife'))) else 'no confirmed service evidence',
             })
     return sorted(visits, key=lambda v: (v['lap'], v['driver_number']))
 
@@ -1583,14 +1601,19 @@ def car_performance_pits(response: Response, year: int = Query(..., ge=2018, le=
         session = openf1_session(year, gp, 'R')
         if session and session.get('session_key') is not None:
             try:
-                with ThreadPoolExecutor(max_workers=2) as pool:
+                with ThreadPoolExecutor(max_workers=3) as pool:
                     pits_future = pool.submit(openf1, 'pit', session_key=session['session_key'])
                     drivers_future = pool.submit(openf1, 'drivers', session_key=session['session_key'])
+                    stints_future = pool.submit(openf1, 'stints', session_key=session['session_key'])
                     pits = pits_future.result()
                     drivers = drivers_future.result()
+                    try:
+                        stints = stints_future.result()
+                    except Exception:
+                        stints = []
                 if not drivers:
                     raise ValueError('Driver identities are unavailable')
-                visits = openf1_pit_visits(pits, drivers)
+                visits = openf1_pit_visits(pits, drivers, stints)
                 source = 'OpenF1'
                 if year == 2026 and any(v['stop_duration'] is None for v in visits):
                     try:
@@ -1667,12 +1690,12 @@ def car_performance_trace(response: Response, year: int = Query(..., ge=2018, le
 @app.get('/api/performance/trace-batch')
 def car_performance_trace_batch(response: Response, year: int = Query(..., ge=2018, le=2100),
                                 gp: str = Query(..., min_length=3, max_length=120),
-                                windows: str = Query(..., min_length=20, max_length=18000)):
+                                windows: str = Query(..., min_length=20, max_length=36000)):
     """Extract all team representatives from one shared qualifying archive."""
     response.headers['Cache-Control'] = 'no-store'
     try:
         selections = json.loads(windows)
-        if not isinstance(selections, list) or not 1 <= len(selections) <= 36:
+        if not isinstance(selections, list) or not 1 <= len(selections) <= 72:
             raise ValueError('one to thirty-six candidate windows are required')
         normalized = []
         for item in selections:

@@ -418,6 +418,7 @@ test('qualifying braking time ranks shared zones and leaves unsupported teams un
   const source = readFileSync('car-performance.js', 'utf8');
   const body = source.slice(source.indexOf('function eventTelemetry(event)'), source.indexOf('function seasonTelemetry('));
   const sandbox = {
+    brakingQualityMode:'supported',
     finite: value => typeof value === 'number' && Number.isFinite(value),
     avg: values => values.length ? values.reduce((a, b) => a + b, 0) / values.length : null,
     median: values => {
@@ -430,7 +431,7 @@ test('qualifying braking time ranks shared zones and leaves unsupported teams un
   const makeZones = (time, decel, distance, count = 3) => Array.from({ length: count }, (_, i) => ({
     corner: `T${i + 1}`, start: i * 1000 + 50, corridor_time: time,
     corridor_ref_time: 2, normalized_decel_g: decel, distance,
-    method:'matched-speed-v1', mode:'straight', entry_speed:280, exit_speed:180,
+    method:'matched-speed-v1', mode:'straight', quality:'supported', entry_speed:280, exit_speed:180,
     early_g: decel, mean_g: decel, duration: time, approach_time:time*1.3,
     sampling_resolution_m: 20
   }));
@@ -458,6 +459,10 @@ test('qualifying braking time ranks shared zones and leaves unsupported teams un
   assert.equal(result.rows.get('D').brakingScoreZones, 1);
   assert.equal(result.rows.get('A').brakeZones, 3);
   assert.equal(result.rows.get('D').brakeDistance, 95);
+  traces.A.braking.forEach(z=>z.quality='provisional');
+  assert.equal(sandbox.eventTelemetry({Q:{teams:entrants},traces}).rows.get('A').brakingScore,undefined);
+  sandbox.brakingQualityMode='all';
+  assert.ok(Number.isFinite(sandbox.eventTelemetry({Q:{teams:entrants},traces}).rows.get('A').brakingScore));
   traces.A.braking.forEach(z=>delete z.method);
   assert.equal(sandbox.eventTelemetry({Q:{teams:entrants},traces}).rows.get('A').brakingScore,undefined,
     'legacy corridor-time payloads must not be silently ranked by the new method');
@@ -467,6 +472,7 @@ test('braking retains zones measured by three teams without requiring every entr
   const source = readFileSync('car-performance.js', 'utf8');
   const body = source.slice(source.indexOf('function eventTelemetry(event)'), source.indexOf('function seasonTelemetry('));
   const sandbox = {
+    brakingQualityMode:'supported',
     finite: value => typeof value === 'number' && Number.isFinite(value),
     avg: values => values.length ? values.reduce((a, b) => a + b, 0) / values.length : null,
     median: values => {
@@ -480,7 +486,7 @@ test('braking retains zones measured by three teams without requiring every entr
   const traces=Object.fromEntries(teams.map(({team},i)=>[team,{
     corners:[],lap_distance:5000,reference_lap_time:90,
     braking:Array.from({length:i===3?1:3},(_,j)=>({corner:`T${j+1}`,corridor_time:2+i*.1,
-      method:'matched-speed-v1',mode:'straight',entry_speed:280,exit_speed:180,duration:2+i*.1,
+      method:'matched-speed-v1',mode:'straight',quality:'supported',entry_speed:280,exit_speed:180,duration:2+i*.1,
       distance:60+i,mean_g:2+i*.1,normalized_decel_g:2+i*.1}))
   }]));
   const rows=sandbox.eventTelemetry({Q:{teams},traces}).rows;
@@ -530,6 +536,11 @@ test('season effects bridge unequal circuit coverage through shared teams', () =
   const separated=sandbox.eventAdjustedScores(reports,row=>row.value);
   assert.equal(separated.size,4);
   assert.equal(separated.has('E'),false);
+  sandbox.telemetryCoverageMode='common';
+  const common=sandbox.eventAdjustedScores(reports.slice(0,2),row=>row.value);
+  assert.equal(common.size,3,'common mode never infers the fourth constructor');
+  assert.deepEqual(Array.from(common.coverage.events),['One']);
+  assert.equal(common.has('D'),false);
 });
 
 test('qualifying evolution excludes compound changes, unknown tyres and rainy laps', () => {
@@ -581,7 +592,7 @@ test('tyre-age view aggregates own stints for teams and individual drivers', () 
   const source=readFileSync('car-performance.js','utf8');
   const body=source.slice(source.indexOf('function tyreViewControls()'),source.indexOf('function renderRace(teams)'));
   const sandbox={tyreMetric:'age',tyreSubject:'team',tyreView:'OVERALL',tyreSeasonStat:'mean',tyreLapMode:'all',tyreCorrection:'fuel',tyreFuelRate:.060,tyreWeighting:'balanced',tyreRunKey:'',tyrePlotTeam:'',tyrePlotDriver:'',tyrePlotEvent:'',sortKey:'tyreAgeValue',sortDirection:1,
-    context:{year:'2026'},events:[{round:1,R:{}},{round:2,R:{}}],
+    tyreConditionMode:'all',context:{year:'2026'},events:[{round:1,R:{}},{round:2,R:{}}],
     VERIFIED_DRY_ALLOCATIONS:{2026:['345','234']},TYRE_ALLOCATION_SOURCES:{2026:'https://press.pirelli.com/'},
     finite:n=>typeof n==='number'&&Number.isFinite(n),avg:a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,
     summarize:(a)=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,
@@ -637,7 +648,7 @@ test('tyre GP summaries handle skew and explain every sparse P75 blank', () => {
   const source=readFileSync('car-performance.js','utf8');
   const body=source.slice(source.indexOf('function tyreViewControls()'),source.indexOf('function renderRace(teams)'));
   const sandbox={tyreMetric:'age',tyreSubject:'team',tyreView:'C3',tyreSeasonStat:'mean',tyreLapMode:'all',tyreCorrection:'fuel',tyreFuelRate:.060,tyreWeighting:'balanced',tyreRunKey:'',tyrePlotTeam:'',tyrePlotDriver:'',tyrePlotEvent:'',sortKey:'tyreAgeValue',sortDirection:1,
-    context:{year:2026},events:[1,2,3,4].map(round=>({round,R:{}})),
+    tyreConditionMode:'all',context:{year:2026},events:[1,2,3,4].map(round=>({round,R:{}})),
     VERIFIED_DRY_ALLOCATIONS:{2026:['123','123','123','123']},TYRE_ALLOCATION_SOURCES:{2026:'https://press.pirelli.com/'},
     finite:Number.isFinite,avg:a=>{const x=a.filter(Number.isFinite);return x.length?x.reduce((s,v)=>s+v,0)/x.length:null;},
     summarize:(a,mode)=>{const x=a.filter(Number.isFinite).sort((v,w)=>v-w);if(!x.length)return null;if(mode==='median')return(x[Math.floor((x.length-1)/2)]+x[Math.ceil((x.length-1)/2)])/2;if(mode==='p75'){const i=(x.length-1)*.75,l=Math.floor(i),h=Math.ceil(i);return x[l]+(x[h]-x[l])*(i-l);}return x.reduce((s,v)=>s+v,0)/x.length;},
@@ -699,7 +710,7 @@ test('pit category keeps stationary and lane averages separate by team and drive
   const sandbox={avg:a=>{const found=a.filter(Number.isFinite);return found.length?found.reduce((x,y)=>x+y,0)/found.length:null;},
     median:a=>{const x=a.filter(Number.isFinite).sort((v,w)=>v-w);return x.length?(x.length%2?x[(x.length-1)/2]:(x[x.length/2-1]+x[x.length/2])/2):null;},
     percentile:(a,p)=>{const x=a.filter(Number.isFinite).sort((v,w)=>v-w);if(!x.length)return null;const i=(x.length-1)*p,l=Math.floor(i),h=Math.ceil(i);return x[l]+(x[h]-x[l])*(i-l);},
-    finite:Number.isFinite,completed:()=>true};
+    pitVisitMode:'all',finite:Number.isFinite,completed:()=>true};
   vm.createContext(sandbox);
   vm.runInContext(body,sandbox);
   const events=[{name:'Example GP',R:{teams:[{team:'McLaren',drivers:['NOR','PIA']}]},
@@ -722,6 +733,12 @@ test('pit category keeps stationary and lane averages separate by team and drive
   assert.equal(result.teams[0].lane.p90,null);
   assert.equal(result.teams[0].lane.p10,null);
   assert.equal(result.teams[0].laneRelative.mean,0);
+  sandbox.pitVisitMode='service';
+  const serviceOnly=sandbox.pitSummary(events,[{team:'McLaren'}]);
+  assert.equal(serviceOnly.teams[0].laneCount,2);
+  assert.equal(serviceOnly.teams[0].avgLane,23.5);
+  assert.equal(serviceOnly.visits.length,3,'unknown visits remain in evidence');
+  sandbox.pitVisitMode='all';
   assert.equal(sandbox.pitMiddleSpread(result.teams[0].stop),null); // two stops cannot establish consistency
   assert.ok(Math.abs(sandbox.pitMiddleSpread({count:4,p25:2.1,p75:2.7})-.6)<1e-9);
   assert.match(source,/sortHeader\('pitSpread','Middle 50% spread'\)/);
@@ -762,7 +779,7 @@ test('pit category keeps stationary and lane averages separate by team and drive
 test('pit summaries keep raw visits weighted, relative GPs equal, and percentile boundaries exact', () => {
   const source=readFileSync('car-performance.js','utf8');
   const body=source.slice(source.indexOf('function pitSummary'),source.indexOf('function huberRegression'));
-  const sandbox={finite:Number.isFinite,completed:()=>true,
+  const sandbox={pitVisitMode:'all',finite:Number.isFinite,completed:()=>true,
     avg:a=>{const x=a.filter(Number.isFinite);return x.length?x.reduce((s,v)=>s+v,0)/x.length:null;},
     median:a=>{const x=a.filter(Number.isFinite).sort((a,b)=>a-b);return x.length?x.length%2?x[(x.length-1)/2]:(x[x.length/2-1]+x[x.length/2])/2:null;},
     percentile:(a,p)=>{const x=a.filter(Number.isFinite).sort((a,b)=>a-b);if(!x.length)return null;const i=(x.length-1)*p,l=Math.floor(i),h=Math.ceil(i);return x[l]+(x[h]-x[l])*(i-l);}};
@@ -797,7 +814,7 @@ test('pit chart, sortable table and exact rows show the same selected measuremen
   const body=source.slice(source.indexOf('function pitSummary'),source.indexOf('function huberRegression'));
   const captured=[];
   const sandbox={finite:Number.isFinite,completed:()=>true,events:[],context:{scope:'tracks',selectedTracks:[1]},
-    pitMeasure:'lane',pitLaneBasis:'event',pitSubject:'team',pitChartMetric:'mean',sortKey:'pitMean',sortDirection:1,
+    pitVisitMode:'all',pitMeasure:'lane',pitLaneBasis:'event',pitSubject:'team',pitChartMetric:'mean',sortKey:'pitMean',sortDirection:1,
     avg:a=>{const x=a.filter(Number.isFinite);return x.length?x.reduce((s,v)=>s+v,0)/x.length:null;},
     median:a=>{const x=a.filter(Number.isFinite).sort((v,w)=>v-w);return x.length?x.length%2?x[(x.length-1)/2]:(x[x.length/2-1]+x[x.length/2])/2:null;},
     percentile:(a,p)=>{const x=a.filter(Number.isFinite).sort((v,w)=>v-w);if(!x.length)return null;const i=(x.length-1)*p,l=Math.floor(i),h=Math.ceil(i);return x[l]+(x[h]-x[l])*(i-l);},
