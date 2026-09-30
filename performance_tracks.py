@@ -470,6 +470,77 @@ def matched_braking_measurements(selected, windows, grid, candidates=None):
     return result
 
 
+def straight_core_measurements(selected, blocks, grid, ref):
+    """Shared settled, near-full-throttle, low-curvature qualifying windows.
+
+    This is an observed straight-section comparison, not isolated drag/power.
+    Boundary buffers and geometry thresholds are disclosed screening rules.
+    """
+    empty = {team: {'straight_core_time': None, 'straight_core_delta': None,
+                    'straight_core_distance_m': 0., 'straight_core_windows': [],
+                    'straight_core_method': 'shared-straight-core-v1'} for team in selected}
+    if len(selected) < 3 or len(grid) < 3 or ref.get('gps') is None:
+        return empty
+    raw = ref['a'][ref['gps']]
+    distance = ref['aligned'][ref['gps']]
+    if len(raw) < 20 or np.any(np.diff(distance) <= 0):
+        return empty
+    x = np.interp(grid, distance, raw[:, 5])
+    y = np.interp(grid, distance, raw[:, 6])
+    kernel = np.ones(9)/9
+    x = np.convolve(np.pad(x, (4, 4), mode='edge'), kernel, mode='valid')
+    y = np.convolve(np.pad(y, (4, 4), mode='edge'), kernel, mode='valid')
+    step = float(grid[1]-grid[0])
+    radius = max(1, int(25/step))
+    indices = np.arange(len(grid))
+    left, right = np.maximum(0, indices-radius), np.minimum(len(grid)-1, indices+radius)
+    heading = np.unwrap(np.arctan2(y[right]-y[left], x[right]-x[left]))
+    turn = np.abs(heading[right]-heading[left])
+    field_speed = np.median([item['speed'] for item in selected.values()], axis=0)/3.6
+    curvature = turn/np.maximum(step, grid[right]-grid[left])
+    lateral_proxy = field_speed**2*curvature/9.80665
+    geometric = ((turn[:-1] < math.radians(5)) & (turn[1:] < math.radians(5))
+                 & (lateral_proxy[:-1] <= .5) & (lateral_proxy[1:] <= .5))
+    eligible = geometric.copy()
+    aero_states = []
+    for item in selected.values():
+        eligible &= ((item['throttle'][:-1] >= 98) & (item['throttle'][1:] >= 98)
+                     & ~item['brake'][:-1] & ~item['brake'][1:])
+        # Large source gaps must not become hundreds of interpolated grid cells.
+        source_ix = np.clip(np.searchsorted(item['aligned'], grid[:-1], side='right')-1,
+                            0, len(item['a'])-2)
+        eligible &= np.diff(item['a'][:, 1])[source_ix] <= .6
+        if 'drs_active' in item:
+            aero_states.append(item['drs_active'])
+    if len(aero_states) == len(selected):
+        states = np.stack(aero_states)
+        common = np.all(states == states[0], axis=0)
+        eligible &= common[:-1] & common[1:]
+    mids = (grid[:-1]+grid[1:])/2
+    mask = np.zeros(len(grid)-1, dtype=bool)
+    windows = []
+    for start, end in blocks:
+        # Separate settled straight performance from exit traction and braking.
+        bounded = eligible & (mids >= grid[start]+200) & (mids < grid[end]-100)
+        active = np.flatnonzero(bounded)
+        runs = np.split(active, np.flatnonzero(np.diff(active) != 1)+1)
+        for run in runs:
+            if not len(run) or grid[run[-1]+1]-grid[run[0]] < 100:
+                continue
+            mask[run] = True
+            windows.append({'start_m': float(grid[run[0]]), 'end_m': float(grid[run[-1]+1])})
+    measured_distance = float(np.diff(grid)[mask].sum())
+    if measured_distance < 200:
+        return empty
+    times = {team: float(item['dt'][mask].sum()) for team, item in selected.items()}
+    best = min(times.values())
+    return {team: {'straight_core_time': value,
+                   'straight_core_delta': float((value-best)/ref['official']*100),
+                   'straight_core_distance_m': measured_distance,
+                   'straight_core_windows': windows,
+                   'straight_core_method': 'shared-straight-core-v1'} for team, value in times.items()}
+
+
 def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_mask, candidates=None):
     """Speed-domain straight-line performance analysis.
 
@@ -756,6 +827,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
     max_term_speed = max([v for v in avg_term_speeds.values() if v is not None], default=None)
 
     ref_straight_time = float(ref['dt'][~corner_mask].sum())
+    core = straight_core_measurements(selected, straight_blocks, grid, ref)
 
     for team in teams:
         item = selected[team]
@@ -786,6 +858,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
         term_deficit = float(max_term_speed - term_speed) if (term_speed is not None and max_term_speed is not None) else None
 
         straight_results[team] = {
+            **core[team],
             'straight_time': straight_time,
             'straight_traversal_delta': traversal_delta,
             'straight_contribution': traversal_delta,
@@ -1047,6 +1120,7 @@ def measure_field(extracted, selections, corners=()):
         results[team] = {
             'corners': measurements, 'categories': categories, 'tercile_categories': tercile_categories,
             'straight_time': straight_time, 'corner_time': corner_time,
+            **{key: value for key, value in straight_info.items() if key.startswith('straight_core_')},
             'straight_traversal_delta': straight_info.get('straight_traversal_delta', 0.0),
             'straight_contribution': straight_info.get('straight_contribution', 0.0),
             'straight_deficit': straight_info.get('straight_deficit', 0.0),
@@ -1086,6 +1160,6 @@ def measure_field(extracted, selections, corners=()):
     }
 
     return {'teams': results, 'reference_team': reference_team, 'excluded': {t: e for t, e in errors.items() if t not in results},
-            'method': 'timing-sector-grid-v9-qualifying-braking', 'corner_count': len(zones),
+            'method': 'timing-sector-grid-v10-straight-core', 'corner_count': len(zones),
             'circuit_features': circuit_features}
 

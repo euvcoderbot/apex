@@ -384,7 +384,8 @@ test('car performance controls hide irrelevant GP and expose sortable methodolog
   assert.match(css, /\.performance-toolbar \[hidden\]\s*\{\s*display:none!important/);
   assert.match(performance, /performanceEventField.*hidden=.*performanceScope.*season/);
   assert.match(performance, /data-performance-sort/);
-  assert.match(performance, /Overall Straight Traversal Gap/);
+  assert.match(performance, /Settled straight-section performance/);
+  assert.match(performance, /Exit-inclusive lap attribution \(previous chart\)/);
   assert.match(performance, /Extra slowing time/);
   assert.match(performance, /data-braking-view="approach"/);
   assert.match(performance, /Approach time gap/);

@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 import numpy as np
 from performance import analyze, clean, slope, traffic_gaps, telemetry_metrics, matched_tyre_trend, fit_tyre_stint
-from performance_tracks import prepare, align, straight_braking_windows, observed_braking_zones, matched_braking_measurements, braking_approach_measurements
+from performance_tracks import prepare, align, straight_braking_windows, observed_braking_zones, matched_braking_measurements, braking_approach_measurements, straight_core_measurements
 
 
 def lap(driver='A', team='Alpha', time=90, **kwargs):
@@ -71,6 +71,47 @@ class PerformanceTests(unittest.TestCase):
         selected['C']['brake'][90]=True
         result=analyze_straights_speed_domain(selected,[(0,100)],grid,selected['A'],np.zeros(100,dtype=bool))
         self.assertTrue(all(row['terminal_zone_mean_speed'] is None for row in result.values()))
+
+    def core_fixture(self):
+        grid=np.arange(0.,1005.,5.);selected={}
+        for team,speed in [('A',300.),('B',290.),('C',295.)]:
+            a=np.zeros((len(grid),8));a[:,0]=grid;a[:,1]=grid*3.6/speed
+            a[:,2]=speed;a[:,3]=100;a[:,5]=grid*10
+            selected[team]={'a':a,'aligned':grid,'gps':np.ones(len(grid),bool),
+                            'speed':a[:,2],'throttle':a[:,3], 'brake':np.zeros(len(grid),bool),
+                            'dt':np.diff(a[:,1]),'official':12.,'drs_active':np.zeros(len(grid),bool)}
+        return grid,selected
+
+    def test_straight_core_uses_shared_distances_and_excludes_exit_advantage(self):
+        grid,selected=self.core_fixture()
+        # Faster corner exit on B must not overturn its slower settled speed.
+        selected['B']['dt'][:40]*=.5
+        result=straight_core_measurements(selected,[(0,200)],grid,selected['A'])
+        self.assertAlmostEqual(result['A']['straight_core_time'],700*3.6/300)
+        self.assertEqual(result['A']['straight_core_delta'],0)
+        self.assertGreater(result['B']['straight_core_delta'],0)
+        self.assertEqual(result['A']['straight_core_windows'],result['B']['straight_core_windows'])
+        self.assertEqual(result['B']['straight_core_distance_m'],700)
+
+    def test_straight_core_rejects_full_throttle_bends(self):
+        grid,selected=self.core_fixture()
+        # A 200-m radius corner at 300 km/h is not a straight despite full throttle.
+        for item in selected.values():
+            item['a'][:,5]=2000*np.sin(grid/200)
+            item['a'][:,6]=2000*(1-np.cos(grid/200))
+        result=straight_core_measurements(selected,[(0,200)],grid,selected['A'])
+        self.assertTrue(all(row['straight_core_time'] is None for row in result.values()))
+
+    def test_straight_core_lift_brake_and_aero_mismatch_remove_shared_windows(self):
+        grid,selected=self.core_fixture()
+        selected['B']['throttle'][60:150]=80
+        selected['C']['brake'][150:180]=True
+        result=straight_core_measurements(selected,[(0,200)],grid,selected['A'])
+        self.assertTrue(all(row['straight_core_time'] is None for row in result.values()))
+        grid,selected=self.core_fixture()
+        selected['B']['drs_active'][:]=True
+        result=straight_core_measurements(selected,[(0,200)],grid,selected['A'])
+        self.assertTrue(all(row['straight_core_delta'] is None for row in result.values()))
 
     def test_partial_acceleration_zone_coverage_retains_connected_teams(self):
         from performance_tracks import connected_zone_scores
