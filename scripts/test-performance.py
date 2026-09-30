@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import unittest
 from unittest.mock import patch
 import numpy as np
-from performance import analyze, clean, slope, traffic_gaps, telemetry_metrics, matched_tyre_trend
+from performance import analyze, clean, slope, traffic_gaps, telemetry_metrics, matched_tyre_trend, fit_tyre_stint
 from performance_tracks import prepare, align, straight_braking_windows, observed_braking_zones, matched_braking_measurements
 
 
@@ -38,6 +38,41 @@ class RaceSession:
 
 
 class PerformanceTests(unittest.TestCase):
+    def test_tyre_fit_removes_slow_mistake_without_erasing_real_degradation(self):
+        rows = [lap(time=90+i*.15, lap=i+5, age=i+1) for i in range(20)]
+        rows[9]['time'] += 4
+        fit = fit_tyre_stint(rows)
+        self.assertAlmostEqual(fit['raw_slope'], .15)
+        self.assertAlmostEqual(fit['fuel_adjusted_slope'], .21)
+        self.assertEqual(fit['outlier_laps'], 1)
+        self.assertTrue(fit['supported'])
+        self.assertEqual(fit['samples'], 19)
+
+    def test_tyre_fit_keeps_short_run_diagnostic_and_rejects_corrupt_age(self):
+        rows = [lap(time=90+i*.1, lap=i+5, age=i+1) for i in range(3)]
+        self.assertFalse(fit_tyre_stint(rows)['supported'])
+        rows[2]['age'] = 10
+        self.assertIsNone(fit_tyre_stint(rows))
+
+    def test_tyre_fit_retains_late_stint_falloff(self):
+        rows = [lap(time=90+.02*i+.12*max(0,i-12), lap=i+5, age=i+1)
+                for i in range(26)]
+        fit = fit_tyre_stint(rows)
+        self.assertEqual(fit['outlier_laps'], 0)
+        self.assertGreater(fit['late_slope'], fit['early_slope']+.1)
+
+    def test_tyre_fit_splits_neutralisation_and_exposes_clean_air(self):
+        rows = [lap('A', 'Alpha', time=90+i*.1, lap=i+3, age=i+1,
+                    track='4' if i==10 else '1') for i in range(23)]
+        clear = {(r['driver'], r['lap']): .5 if r['lap']==7 else 10.0 for r in rows}
+        with patch('performance.records', return_value=rows), patch('performance.traffic_gaps', return_value=clear):
+            result = analyze(RaceSession())
+        runs = result['teams'][0]['tyre_age_stints']
+        self.assertEqual(len(runs), 2)
+        self.assertLess(runs[0]['max_age'], runs[1]['min_age'])
+        self.assertEqual(runs[0]['samples']-runs[0]['clean_air']['samples'], 1)
+        self.assertAlmostEqual(runs[0]['clean_air']['raw_slope'], .1)
+
     def test_braking_compares_same_speed_drop_from_original_time(self):
         grid = np.arange(0., 405., 5.)
         selected = {}

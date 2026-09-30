@@ -40,6 +40,64 @@ def tyre_age_slope(points):
                         for b in points[i+1:] if b[0] != a[0]))
 
 
+def fit_tyre_stint(laps):
+    """Fit one driver's uninterrupted green stint, retaining short-run diagnostics.
+
+    Residuals are screened around the trend, rather than around a constant lap
+    time, so genuine degradation is retained. Fuel is an explicit assumption;
+    race-lap and tyre-age effects cannot be independently identified within a
+    single stint. No physical wear or remaining tyre-life claim is made.
+    """
+    laps = sorted(laps, key=lambda r: r['lap'])
+    if len(laps) < 3:
+        return None
+    # A tyre's age must advance with race laps, including excluded laps.
+    if any(b['lap'] <= a['lap'] or abs((b['age']-a['age'])-(b['lap']-a['lap'])) > .1
+           for a, b in zip(laps, laps[1:])):
+        return None
+    typical = float(median(r['time'] for r in laps))
+    candidates = [r for r in laps if abs(r['time']-typical) <= typical*.07]
+    initial = tyre_age_slope([(r['age'], r['time']) for r in candidates])
+    if initial is None:
+        return None
+    intercept = float(median(r['time']-initial*r['age'] for r in candidates))
+    residuals = [r['time']-intercept-initial*r['age'] for r in candidates]
+    residual_mid = float(median(residuals))
+    mad = float(median(abs(r-residual_mid) for r in residuals))
+    limit = min(typical*.02, max(.75, 4*1.4826*mad))
+    used = [r for r, residual in zip(candidates, residuals)
+            if abs(residual-residual_mid) <= limit]
+    raw = tyre_age_slope([(r['age'], r['time']) for r in used])
+    if raw is None:
+        return None
+    origin = used[0]['lap']
+    corrected = [(r['age'], r['time']+TYRE_FUEL_GAIN_S_PER_LAP*(r['lap']-origin)) for r in used]
+    adjusted = tyre_age_slope(corrected)
+    fit_intercept = float(median(r['time']-raw*r['age'] for r in used))
+    spread = float(median(abs(r['time']-fit_intercept-raw*r['age']) for r in used))
+    ages = [r['age'] for r in used]
+    early = late = None
+    if len(used) >= 12:
+        middle = len(used)//2
+        early = slope(corrected[:middle])
+        late = slope(corrected[middle:])
+    return {
+        'raw_slope': round(raw, 5), 'fuel_adjusted_slope': round(adjusted, 5),
+        'fuel_assumption_s_per_lap': TYRE_FUEL_GAIN_S_PER_LAP,
+        'min_age': int(min(ages)), 'max_age': int(max(ages)),
+        'samples': len(used), 'candidate_laps': len(laps),
+        'outlier_laps': len(laps)-len(used),
+        'residual_spread_s': round(spread, 3),
+        'supported': len(used) >= 6 and max(ages)-min(ages) >= 5,
+        'low_sample': len(used) < 8 or max(ages)-min(ages) < 7,
+        'used_start': min(ages) > 3,
+        'early_slope': round(early, 5) if early is not None else None,
+        'late_slope': round(late, 5) if late is not None else None,
+        'points': [{'lap': int(r['lap']), 'age': int(r['age']),
+                    'time': round(r['time'], 3)} for r in used],
+    }
+
+
 def matched_tyre_trend(stint_rows, field_rows, team_name):
     """Relative tyre trend across overlapping same-compound race stints.
 
@@ -119,6 +177,7 @@ def records(data):
                      'team': str(row.get('Team')), 'lap': number(row.get('LapNumber')),
                      'time': number(row.get('LapTime')), 'start': start, 'end': end,
                      'compound': str(row.get('Compound')), 'age': number(row.get('TyreLife')),
+                     'fresh': bool(row.get('FreshTyre')) if pd.notna(row.get('FreshTyre')) else None,
                      'stint': number(row.get('Stint')), 'phase': phases.get(index),
                      'pit': pd.notna(row.get('PitInTime')) or pd.notna(row.get('PitOutTime')),
                      'accurate': row.get('IsAccurate') is True or str(row.get('IsAccurate')) == 'True',
@@ -1021,35 +1080,47 @@ def analyze(data, traffic=2):
         # it never requires another team to run the same compound or stint.
         individual_rows = [r for r in valid_all if r.get('lap') and r['lap'] > 1
                            and r.get('age') is not None and r.get('stint') is not None]
+        segments = {}
+        by_driver = defaultdict(list)
+        for r in rows:
+            if r.get('lap') is not None:
+                by_driver[r['driver']].append(r)
+        for driver, driver_rows in by_driver.items():
+            segment = 0
+            interrupted = False
+            for r in sorted(driver_rows, key=lambda r: r['lap']):
+                neutralised = any(code in str(r.get('track', '')) for code in '4567')
+                if neutralised:
+                    interrupted = True
+                elif interrupted:
+                    segment += 1
+                    interrupted = False
+                segments[(driver, r['lap'])] = segment
         for name, team in teams.items():
             by_stint = defaultdict(list)
             for r in individual_rows:
                 if r['team'] == name:
-                    by_stint[(r['driver'], r['stint'], r['compound'])].append(r)
+                    by_stint[(r['driver'], r['stint'], r['compound'],
+                              segments.get((r['driver'], r['lap']), 0))].append(r)
             observed = []
-            for (driver, stint, compound), laps in by_stint.items():
-                times = [r['time'] for r in laps]
-                typical = float(median(times))
-                # A stint-local 107% gate removes gross anomalies without
-                # comparing different compounds, drivers or race phases.
-                # Keep both slow and implausibly fast outliers out of the fit.
-                ceiling = typical * .07
-                points = [(r['age'], r['time']) for r in laps
-                          if abs(r['time']-typical) <= ceiling]
-                raw = tyre_age_slope(points)
-                if raw is None:
+            for (driver, stint, compound, segment), laps in by_stint.items():
+                fit = fit_tyre_stint(laps)
+                if fit is None:
                     continue
-                ages = [age for age, _ in points]
+                clear_laps = [r for r in laps if gaps.get((driver, r['lap'])) is not None
+                              and gaps[(driver, r['lap'])] > 2.0]
+                clear_fit = fit_tyre_stint(clear_laps)
+                tyre_rows = [r for r in rows if r['driver'] == driver and r.get('stint') == stint]
+                fresh_values = [r['fresh'] for r in tyre_rows if r.get('fresh') is not None]
+                used_start = (not all(fresh_values)) if fresh_values else stint_physical_min_age.get((driver, stint), 1) > 1
+                fit['used_start'] = used_start
+                if clear_fit is not None:
+                    clear_fit['used_start'] = used_start
                 observed.append({
                     'driver': driver, 'stint': stint, 'compound': compound,
-                    'raw_slope': round(raw, 5),
-                    'fuel_adjusted_slope': round(raw + TYRE_FUEL_GAIN_S_PER_LAP, 5),
-                    'fuel_assumption_s_per_lap': TYRE_FUEL_GAIN_S_PER_LAP,
-                    'min_age': int(min(ages)), 'max_age': int(max(ages)),
-                    'samples': len(points), 'candidate_laps': len(laps),
-                    'outlier_laps': len(laps)-len(points),
-                    'low_sample': len(points) < 6,
-                    'used_start': min(ages) > 3,
+                    'segment': segment, **fit, 'clean_air': clear_fit,
+                    'traffic_laps': len(laps)-len(clear_laps),
+                    'fit_method': 'theil-sen-residual-screen-v2',
                 })
             team['tyre_age_stints'] = observed
 
@@ -1058,7 +1129,7 @@ def analyze(data, traffic=2):
             'year': session_year,
             'regulatory_energy_envelope': regulatory_energy_envelope,
             'teams': [{'team': name, **team} for name, team in teams.items()],
-            'method': 'car-performance-v4-sampling-aware',
+            'method': 'car-performance-v5-robust-tyre-trends',
             'traffic_threshold': traffic,
             'total_laps': len(rows),
             'eligible_laps': len(valid)}
