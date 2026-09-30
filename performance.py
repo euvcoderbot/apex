@@ -77,6 +77,16 @@ def fit_tyre_stint(laps):
     spread = float(median(abs(r['time']-fit_intercept-raw*r['age']) for r in used))
     ages = [r['age'] for r in used]
     early = late = None
+    # Delete consecutive blocks, not independent laps: adjacent lap errors are
+    # correlated. This is a sensitivity diagnostic, never a confidence interval.
+    sensitivity = []
+    if len(used) >= 12:
+        block = max(2, math.ceil(len(used)/6))
+        for start in range(0, len(used), block):
+            retained = used[:start]+used[start+block:]
+            rate = slope([(r['age'], r['time']) for r in retained])
+            if rate is not None:
+                sensitivity.append(rate)
     if len(used) >= 12:
         middle = len(used)//2
         early = slope(corrected[:middle])
@@ -88,6 +98,8 @@ def fit_tyre_stint(laps):
         'samples': len(used), 'candidate_laps': len(laps),
         'outlier_laps': len(laps)-len(used),
         'residual_spread_s': round(spread, 3),
+        'block_sensitivity_raw': [round(min(sensitivity), 5), round(max(sensitivity), 5)] if len(sensitivity) >= 4 else None,
+        'block_sensitivity_fits': len(sensitivity),
         'supported': len(used) >= 6 and max(ages)-min(ages) >= 5,
         'low_sample': len(used) < 8 or max(ages)-min(ages) < 7,
         'used_start': min(ages) > 3,
@@ -401,8 +413,16 @@ def race_estimates(valid):
     base = min(solution[:len(drivers)])
     estimates = {d: float(np.expm1((v-base)/100)*100)
                  for d, v in zip(drivers, solution)}
-    support = {d: {'samples': counts[d], 'residual_spread': float(np.median(
-        np.abs(residual[[r['driver'] == d for r in selected]])))} for d in drivers}
+    support = {}
+    for d in drivers:
+        observed = [r for r in selected if r['driver'] == d]
+        support[d] = {
+            'samples': counts[d],
+            'residual_spread': float(np.median(np.abs(residual[[r['driver'] == d for r in selected]]))),
+            'stints': len({r.get('stint') for r in observed}),
+            'compounds': sorted({r['compound'] for r in observed}),
+            'race_lap_range': [int(min(r['lap'] for r in observed)), int(max(r['lap'] for r in observed))],
+        }
     return estimates, support
 
 
@@ -770,7 +790,8 @@ def analyze(data, traffic=2):
                     'driver': entry['lap']['driver'],
                     'time': entry['lap']['time'],
                     'deficit': entry['pace'],
-                    'compound': entry['lap'].get('compound')
+                    'compound': entry['lap'].get('compound'),
+                    'rain': entry['lap'].get('rain')
                 })
             for phase in ('Q1', 'Q2', 'Q3'):
                 other_laps = [r for r in valid if r.get('phase') == phase and r.get('team') == name
@@ -788,7 +809,8 @@ def analyze(data, traffic=2):
                         'driver': drv,
                         'time': r['time'],
                         'deficit': ((r['time'] / phase_best_time - 1) * 100) if phase_best_time else 0.0,
-                        'compound': r.get('compound')
+                        'compound': r.get('compound'),
+                        'rain': r.get('rain')
                     })
 
             team.update({
@@ -943,7 +965,7 @@ def analyze(data, traffic=2):
                 and traffic_sensitivities[th][fastest_driver] is not None
             ] if fastest_driver else []
 
-            bracket = [round(min(valid_th_paces), 2), round(max(valid_th_paces), 2)] if valid_th_paces else None
+            bracket = [round(min(valid_th_paces), 4), round(max(valid_th_paces), 4)] if valid_th_paces else None
 
             team['pace'] = headline_pace
             team['fastest_race_driver'] = fastest_driver
@@ -961,6 +983,9 @@ def analyze(data, traffic=2):
                     'pace': pace,
                     'samples': len([r for r in clean_20 if r['driver'] == d]),
                     'residual_spread': support.get(d, {}).get('residual_spread'),
+                    'stints': support.get(d, {}).get('stints'),
+                    'compounds': support.get(d, {}).get('compounds'),
+                    'race_lap_range': support.get(d, {}).get('race_lap_range'),
                 }
                 for d, pace in sorted(eligible_drivers, key=lambda item: item[1])
             ]
@@ -1114,7 +1139,7 @@ def analyze(data, traffic=2):
                     'driver': driver, 'stint': stint, 'compound': compound,
                     'segment': segment, **fit, 'clean_air': clear_fit,
                     'traffic_laps': len(laps)-len(clear_laps),
-                    'fit_method': 'theil-sen-residual-screen-v2',
+                    'fit_method': 'theil-sen-residual-screen-v3-block-sensitivity',
                 })
             team['tyre_age_stints'] = observed
 
@@ -1123,7 +1148,7 @@ def analyze(data, traffic=2):
             'year': session_year,
             'regulatory_energy_envelope': regulatory_energy_envelope,
             'teams': [{'team': name, **team} for name, team in teams.items()],
-            'method': 'car-performance-v6-source-audit',
+            'method': 'car-performance-v7-sensitivity-evidence',
             'traffic_threshold': traffic,
             'total_laps': len(rows),
             'eligible_laps': len(valid)}

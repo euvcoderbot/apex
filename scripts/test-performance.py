@@ -72,6 +72,17 @@ class PerformanceTests(unittest.TestCase):
         rows[2]['age'] = 10
         self.assertIsNone(fit_tyre_stint(rows))
 
+    def test_tyre_block_sensitivity_preserves_linear_trend_and_exposes_curve(self):
+        linear = [lap(time=90+i*.1, lap=i+5, age=i+1) for i in range(24)]
+        fit = fit_tyre_stint(linear)
+        self.assertEqual(fit['block_sensitivity_raw'], [.1, .1])
+        self.assertEqual(fit['block_sensitivity_fits'], 6)
+        curved = [lap(time=90+.02*i+.12*max(0,i-12), lap=i+5, age=i+1) for i in range(26)]
+        bounds = fit_tyre_stint(curved)['block_sensitivity_raw']
+        self.assertGreater(bounds[1]-bounds[0], .02)
+        short = fit_tyre_stint(linear[:8])
+        self.assertIsNone(short['block_sensitivity_raw'])
+
     def test_tyre_fit_retains_late_stint_falloff(self):
         rows = [lap(time=90+.02*i+.12*max(0,i-12), lap=i+5, age=i+1)
                 for i in range(26)]

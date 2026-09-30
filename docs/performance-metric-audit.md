@@ -25,6 +25,15 @@
 | Development | Relative qualifying progression, not a causal estimate of upgrade gains. Driver changes, circuits and weather can explain apparent improvement. |
 | Reliability/results | Official classifications and points. Unknown causes stay unknown; cause-labelled mechanical counts may undercount failures. Finishing results do not isolate car pace. |
 
+## Follow-up improvements
+
+- Tyre-age results offer explicit 0.040/0.060/0.080 s-per-race-lap fuel assumptions. These are sensitivity scenarios, not measured or calibrated fuel effects; raw pace remains available. Chart dots, fits, early/late slopes and summaries use the same selected assumption.
+- Runs with at least twelve usable laps have a consecutive-block deletion sensitivity range. Successive chunks are omitted and the robust slope is refitted. This respects adjacent-lap grouping better than independent-lap perturbations, but is deliberately not called a confidence interval. It does not capture traffic or fuel-model bias.
+- Qualifying evolution uses only a known dry compound represented in all three phases, with matching advancing drivers. Rainy and unknown-compound laps do not contribute; ineligible team laps do not fall back into the adjustment. Official fastest-lap rankings remain unchanged.
+- Race-pace evidence now reports each selected driver's actual race-lap range, compounds, stint count and GP-specific traffic sensitivity. A final-GP bracket no longer appears as a season-wide uncertainty range. API brackets retain more precision before display rounding.
+
+Remaining physical-identification limitations cannot be removed by interpolation or additional weighting: isolated fuel load, aero state, brake pressure, tyre wear and driver targets are not supplied by these feeds. No ranking is forced to agree with team reputation.
+
 ## Sources and verification
 
 - [OpenF1 channel definitions](https://openf1.org/docs/) distinguish stationary stop duration from lane duration and document their coverage.
