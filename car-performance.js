@@ -1714,7 +1714,7 @@ function eventTelemetry(event) {
   const bestTop=Math.max(...[...rows.values()].map(row=>row.trace.top_speed).filter(finite));
   const bestFull=Math.max(...[...rows.values()].map(row=>row.trace.full_throttle_p95).filter(finite));
   for(const row of rows.values()) {
-    row.topDeficit=finite(row.trace.top_speed)?(bestTop/row.trace.top_speed-1)*100:null;
+    row.topDeficit=finite(row.trace.top_speed)&&bestTop>0?(1-row.trace.top_speed/bestTop)*100:null;
     row.fullDeficit=finite(row.trace.full_throttle_p95)?(bestFull/row.trace.full_throttle_p95-1)*100:null;
   }
   // Compare identical speed drops within each physical straight-braking zone.
@@ -1949,6 +1949,7 @@ function seasonTelemetry(mode='mean') {
   output.commonEvents=targetReports.map(r=>r.event.name);
   output.excludedTeams=[];
   const adjusted={
+    topSpeed:eventAdjustedScores(targetReports,row=>row.topDeficit,mode),
     low:eventAdjustedScores(targetReports,row=>row.categories.low?.deficit,mode),
     medium:eventAdjustedScores(targetReports,row=>row.categories.medium?.deficit,mode),
     high:eventAdjustedScores(targetReports,row=>row.categories.high?.deficit,mode),
@@ -2123,6 +2124,8 @@ function renderTrace() {
         speedSt: summarize(team.speedSt,telemetrySeasonStat),
         speedFl: summarize(team.speedFl,telemetrySeasonStat),
         peak: summarize(team.top,telemetrySeasonStat),
+        peakGap:team.adjusted.topSpeed,
+        peakEvents:team.top.length,
         sustained: summarize(team.full,telemetrySeasonStat)
       }));
       const availableBands=STRAIGHT_BANDS.filter(key=>season.filter(team=>(team.accelBands[key]||[]).length).length>=3);
@@ -2155,6 +2158,8 @@ function renderTrace() {
         straightAccel200: t => t.straightAccel200,
         straightAccel320: t => t.straightAccel320,
         terminal: t => t.terminal,
+        peak:t=>t.peak,
+        peakGap:t=>t.peakGap,
         speedSt: t => t.speedSt,
         speedFl: t => t.speedFl,
         traversalDelta: t => t.traversalDelta,
@@ -2179,10 +2184,16 @@ function renderTrace() {
         signedValue: true,
         zeroBaseline: false
       });
+      const peakChart=renderHorizontalBarChart(orderedQualy,{
+        title:'Qualifying top speed · season speed shortfall',
+        subtitle:'Selected clean lap peak · GP-relative speed deficit, adjusted for event coverage · Not lap time or isolated engine/drag',
+        valueKey:'peakGap',unit:'%',digits:3,signedValue:true,zeroBaseline:true
+      });
 
       return statisticControls+card(straightTitle, 'This is where lap time is gained or lost on measured straights, including corner exit speed and 2026 battery deployment. Acceleration requires a valid dry qualifying GPS trace that crosses both selected speeds; a missing value means no comparable crossing, not zero performance. Corner-marker availability does not gate straight-line data. Mean lap attribution below remains additive; median rankings need not add up.',
         straightToggle+
         traversalChart+
+        peakChart+
         bandControls+
         qualyChart+
         table([
@@ -2190,6 +2201,8 @@ function renderTrace() {
           sortHeader('straightBandGap', `${straightBand.replace('_','–')} km/h gap`),
           'Band coverage',
           sortHeader('terminal', 'End-of-straight speed', -1),
+          sortHeader('peak','Qualifying top speed',-1),
+          sortHeader('peakGap','Top-speed shortfall'),
           sortHeader('speedSt', 'Official ST', -1),
           sortHeader('speedFl', 'Official FL', -1),
           sortHeader('traversalDelta', 'Straight Traversal Delta'),
@@ -2199,12 +2212,16 @@ function renderTrace() {
           signed(team.bandGap, 3, ' s'),
           `${team.bandEvents} circuit${team.bandEvents===1?'':'s'}`,
           finite(team.terminal) ? `${fmt(team.terminal, 3, ' km/h')}<small>${team.terminalEvents} GPs · ${fmt(team.termLen, 0, ' m')} common windows / GP</small>` : '—',
+          `${fmt(team.peak,3,' km/h')}<small>${team.peakEvents} GPs · selected lap peak</small>`,
+          signed(team.peakGap,3,'%'),
           finite(team.speedSt) ? fmt(team.speedSt, 1, ' km/h') : '—',
           finite(team.speedFl) ? fmt(team.speedFl, 1, ' km/h') : '—',
           finite(team.traversalDelta) ? signed(team.traversalDelta, 3, '%') : '—',
           team.events
         ]))+
         renderSeasonLapGapCard(season, rawValues)+
+        `<details class="performance-evidence"><summary>Qualifying top speeds by Grand Prix</summary>${table(['Grand Prix','Team','Driver / lap','Measured peak','GP speed shortfall'],events.flatMap(event=>{const summary=eventTelemetry(event);return summary?[...summary.rows.values()].filter(row=>finite(row.trace?.top_speed)).map(row=>[escape(event.name),teamLabel(row),`${escape(row.trace.driver||'—')} · L${row.trace.lap??'—'}`,fmt(row.trace.top_speed,3,' km/h'),signed(row.topDeficit,3,'%')]):[];}))}</details>`+
+        '<p class="performance-note">Top speed is the highest native speed sample on the selected clean qualifying lap, not the maximum over every qualifying attempt. GP shortfall = (fastest measured peak − team peak) / fastest measured peak × 100. Season ranking combines GP-relative values with equal event weight and coverage adjustment; raw km/h is context. Tow, wing setup, corner exit and energy deployment affect it, so engine power and aerodynamic drag cannot be separated.</p>'+
         '<p class="performance-note">Acceleration uses ≥70% throttle below 150 km/h and ≥90% above it, with no observed braking. Short corner exits count. Each event compares the same physical zones and aero state; season scores adjust for differing event coverage. Traffic is screened against selected qualifying laps only, so clean air is not guaranteed.</p>');
     }
     const rawBrakeValues = season.map(team => ({
@@ -2450,6 +2467,8 @@ function renderTrace() {
       eventStraightAccel200: t => t.accel200,
       eventStraightAccel320: t => t.accel320,
       eventStraightTerminal: t => t.terminalSpeed,
+      eventStraightPeak:t=>t.topSpeed,
+      eventStraightPeakGap:t=>t.topDeficit,
       eventStraightSpeedST: t => t.speedSt,
       eventStraightSpeedFL: t => t.speedFl,
       eventStraightTraversal: t => t.traversalDelta
@@ -2473,10 +2492,16 @@ function renderTrace() {
       signedValue: true,
       zeroBaseline: true
     });
+    const peakChart=renderHorizontalBarChart(ordered,{
+      title:'Qualifying top speed · speed shortfall',
+      subtitle:'Selected clean qualifying lap · Percentage below the fastest measured peak; not lap-time loss',
+      valueKey:'topDeficit',unit:'%',digits:3,signedValue:true,zeroBaseline:true
+    });
 
     return card('Straight-line performance', 'Overall performance is the time spent on measured straights as a share of the reference lap. Acceleration is shown only when a valid dry qualifying GPS trace crosses both selected speeds. Missing range values are not zero performance; corner-marker availability does not gate straight-line data.',
       straightToggle+
       straightTraversalChart+
+      peakChart+
       bandControls+
       singleStraightChart+
       table([
@@ -2484,6 +2509,8 @@ function renderTrace() {
         sortHeader('eventStraightBand', `${straightBand.replace('_','–')} km/h gap`),
         'Measured zones',
         sortHeader('eventStraightTerminal', 'End-of-straight speed', -1),
+        sortHeader('eventStraightPeak','Qualifying top speed',-1),
+        sortHeader('eventStraightPeakGap','Top-speed shortfall'),
         sortHeader('eventStraightSpeedST', 'Official ST', -1),
         sortHeader('eventStraightSpeedFL', 'Official FL', -1),
         sortHeader('eventStraightTraversal', 'Straight Traversal Delta')
@@ -2492,10 +2519,13 @@ function renderTrace() {
         signed(t.bandGap, 3, ' s'),
         t.bandStraights||'—',
         finite(t.terminalSpeed) ? `${fmt(t.terminalSpeed, 3, ' km/h')}<small>${t.trace?.terminal_zone_count??'—'} common windows · ${fmt(t.termLen,0,' m')}</small>` : '—',
+        fmt(t.topSpeed,3,' km/h'),
+        signed(t.topDeficit,3,'%'),
         finite(t.speedSt) ? fmt(t.speedSt, 1, ' km/h') : '—',
         finite(t.speedFl) ? fmt(t.speedFl, 1, ' km/h') : '—',
         finite(t.traversalDelta) ? signed(t.traversalDelta, 3, '%') : '—'
       ]))+
+      '<p class="performance-note">Top speed uses the highest native speed sample on each selected clean qualifying lap, not all qualifying attempts. It reflects engine, drag, tow, setup and deployment together; it is not a measured aero-drag or engine-power rating.</p>'+
       card('Where the lap gap comes from',`Relative to ${escape(event.traceReference||'the fastest measured team')}’s qualifying lap.`,
       table(['Team','Straights (Traversal Delta)','Corners','Lap gap'],ordered.map(row=>[teamLabel(row),finite(row.traversalDelta)?signed(row.traversalDelta,3,'%'):'—',fmt(row.trace?.corner_contribution,3,'%'),fmt(row.trace?.lap_gap,3,'%')])))+
       '<p class="performance-note">Acceleration uses ≥70% throttle below 150 km/h and ≥90% above it, without observed braking. Short corner exits count. Teams are ranked on the same physical zones and aero state; missing crossings remain unavailable. Traffic is screened against selected qualifying laps only. Straight traversal is separate from acceleration.</p>');

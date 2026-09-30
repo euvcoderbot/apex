@@ -397,6 +397,22 @@ test('car performance controls hide irrelevant GP and expose sortable methodolog
   assert.match(html, /not brake pressure/);
 });
 
+test('qualifying top speed is a GP-relative speed deficit, independent of traversal', () => {
+  const source=readFileSync('car-performance.js','utf8');
+  const body=source.slice(source.indexOf('function eventTelemetry(event)'),source.indexOf('function seasonTelemetry('));
+  const sandbox={finite:Number.isFinite,avg:a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,median:a=>a.length?a[0]:null};
+  vm.createContext(sandbox);vm.runInContext(body,sandbox);
+  const teams=['A','B','C'].map(team=>({team}));
+  const traces={A:{corners:[],braking:[],top_speed:350,straight_traversal_delta:1},B:{corners:[],braking:[],top_speed:343,straight_traversal_delta:0},C:{corners:[],braking:[],top_speed:null}};
+  const result=sandbox.eventTelemetry({Q:{teams},traces});
+  assert.equal(result.rows.get('A').topDeficit,0);
+  assert.ok(Math.abs(result.rows.get('B').topDeficit-2)<1e-9);
+  assert.equal(result.rows.get('C').topDeficit,null);
+  assert.equal(result.rows.get('B').trace.straight_traversal_delta,0);
+  assert.match(source,/topSpeed:eventAdjustedScores\(targetReports,row=>row.topDeficit,mode\)/);
+  assert.match(source,/Qualifying top speeds by Grand Prix/);
+});
+
 test('qualifying braking time ranks shared zones and leaves unsupported teams unscored', () => {
   const source = readFileSync('car-performance.js', 'utf8');
   const body = source.slice(source.indexOf('function eventTelemetry(event)'), source.indexOf('function seasonTelemetry('));
