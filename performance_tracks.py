@@ -477,6 +477,7 @@ def straight_core_measurements(selected, blocks, grid, ref):
     Boundary buffers and geometry thresholds are disclosed screening rules.
     """
     empty = {team: {'straight_core_time': None, 'straight_core_delta': None,
+                    'straight_core_gap_s': None,
                     'straight_core_distance_m': 0., 'straight_core_windows': [],
                     'straight_core_method': 'shared-straight-core-v1'} for team in selected}
     if len(selected) < 3 or len(grid) < 3 or ref.get('gps') is None:
@@ -535,6 +536,7 @@ def straight_core_measurements(selected, blocks, grid, ref):
     times = {team: float(item['dt'][mask].sum()) for team, item in selected.items()}
     best = min(times.values())
     return {team: {'straight_core_time': value,
+                   'straight_core_gap_s': float(value-best),
                    'straight_core_delta': float((value-best)/ref['official']*100),
                    'straight_core_distance_m': measured_distance,
                    'straight_core_windows': windows,
@@ -555,6 +557,9 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
     7. Computes straight traversal delta for lap time attribution.
     """
     teams = list(selected.keys())
+    # Use the same validated real lap as top speed and straight traversal.
+    # Mixing teammates/phases in a band median is a different measurement.
+    candidates = {team: [selected[team]] for team in teams}
     session_times = {}
     for team, item in selected.items():
         t_start = float(item['selection'].get('start') or 0.0)
@@ -663,11 +668,15 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                     i_hi = idx_hi_candidates[0]
                     if i_hi <= i_lo:
                         continue
+                    begin = max(0, i_lo-1)
+                    if (np.max(np.diff(t_accel[begin:i_hi+1])) > .6
+                            or np.any(np.diff(v_accel[begin:i_hi+1]) < -3)):
+                        continue
                     # Below 150 km/h this includes traction-limited corner
                     # exits; above 150 require a near-flat throttle trace.
-                    min_throttle = 70 if v_hi <= 150 else 90
-                    if np.all(th_accel[i_lo:i_hi+1] >= min_throttle) and not np.any(br_accel[i_lo:i_hi+1]):
-                        drs_slice = drs_accel[i_lo:i_hi+1]
+                    min_throttle = 70 if v_hi <= 150 else 98
+                    if np.all(th_accel[begin:i_hi+1] >= min_throttle) and not np.any(br_accel[begin:i_hi+1]):
+                        drs_slice = drs_accel[begin:i_hi+1]
                         is_drs = bool(np.all(drs_slice))
                         is_no_drs = bool(not np.any(drs_slice))
                         if is_drs or is_no_drs:
@@ -723,9 +732,12 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                             continue
                         if np.min(a[pos:stop+1, 2]) < v_lo - 8:
                             continue
-                        if np.any(a[pos:stop+1, 4] >= .5) or np.min(a[pos:stop+1, 3]) < 70:
+                        if (np.max(np.diff(a[prev:stop+1, 1])) > .6
+                                or np.any(np.diff(a[prev:stop+1, 2]) < -3)
+                                or np.any(a[prev:stop+1, 4] >= .5)
+                                or np.min(a[prev:stop+1, 3]) < 70):
                             continue
-                        drs = np.isin(a[pos:stop+1, 7].astype(int), [10, 12, 14])
+                        drs = np.isin(a[prev:stop+1, 7].astype(int), [10, 12, 14])
                         if not (np.all(drs) or not np.any(drs)):
                             continue
                         dt_band = interp_raw(a[prev:stop+1, 1], a[prev:stop+1, 2], v_hi) - \
@@ -909,8 +921,13 @@ def measure_field(extracted, selections, corners=()):
     minimum = 2
     if len(valid_choices) < minimum:
         return {'teams': {}, 'error': 'Too few teams have complete qualifying telemetry', 'excluded': errors}
-    reference = min((v[0] for v in valid_choices.values()), key=lambda r: r['official'])
-    for _ in range(len(valid_choices) + 1):
+    reference_options = sorted((item for values in valid_choices.values() for item in values),
+                               key=lambda r: r['official'])
+    reference = reference_options[0]
+    attempted_references = set()
+    failed_references = set()
+    for _ in range(len(reference_options) + len(valid_choices) + 1):
+        attempted_references.add(id(reference['selection']))
         grid = np.linspace(0, reference['a'][-1, 0], int(reference['a'][-1, 0]/5)+1)
         aligned = defaultdict(list)
         for team, values in valid_choices.items():
@@ -921,6 +938,12 @@ def measure_field(extracted, selections, corners=()):
                     errors[team] = str(exc)
         selected = {team: values[0] for team, values in aligned.items() if values}
         if len(selected) < minimum:
+            failed_references.add(id(reference['selection']))
+            alternative = next((r for r in reference_options
+                                if id(r['selection']) not in attempted_references), None)
+            if alternative is not None:
+                reference = alternative
+                continue
             return {'teams': {}, 'error': 'Too few teams pass complete-lap GPS alignment', 'excluded': errors}
         field_speed = np.median([v['speed'] for v in selected.values()], axis=0)
         scales = [v['scale'] for v in selected.values()]
@@ -935,8 +958,18 @@ def measure_field(extracted, selections, corners=()):
                 del selected[team]
                 errors[team] = 'Frozen speed or abnormal speed-to-lap-time agreement'
         if len(selected) < minimum:
+            failed_references.add(id(reference['selection']))
+            alternative = next((r for r in reference_options
+                                if id(r['selection']) not in attempted_references), None)
+            if alternative is not None:
+                reference = alternative
+                continue
             return {'teams': {}, 'error': 'Too few teams pass full-lap telemetry quality checks', 'excluded': errors}
-        reference_team = min(selected, key=lambda team: selected[team]['official'])
+        eligible_references = [team for team in selected
+                               if id(selected[team]['selection']) not in failed_references]
+        if not eligible_references:
+            return {'teams': {}, 'error': 'No independently supported reference lap', 'excluded': errors}
+        reference_team = min(eligible_references, key=lambda team: selected[team]['official'])
         chosen = selected[reference_team]
         if chosen['selection'] is reference['selection']:
             break
@@ -1160,6 +1193,6 @@ def measure_field(extracted, selections, corners=()):
     }
 
     return {'teams': results, 'reference_team': reference_team, 'excluded': {t: e for t, e in errors.items() if t not in results},
-            'method': 'timing-sector-grid-v10-straight-core', 'corner_count': len(zones),
+            'method': 'timing-sector-grid-v11-reference-retry', 'corner_count': len(zones),
             'circuit_features': circuit_features}
 

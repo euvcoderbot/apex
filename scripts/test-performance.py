@@ -92,6 +92,44 @@ class PerformanceTests(unittest.TestCase):
         self.assertGreater(result['B']['straight_core_delta'],0)
         self.assertEqual(result['A']['straight_core_windows'],result['B']['straight_core_windows'])
         self.assertEqual(result['B']['straight_core_distance_m'],700)
+        self.assertAlmostEqual(result['B']['straight_core_gap_s'],
+                               result['B']['straight_core_delta']*12/100)
+
+    def test_bad_fastest_reference_does_not_discard_other_laps(self):
+        from performance_tracks import measure_field
+        samples=[{'Distance':i*10.,'ElapsedSeconds':i*.9,'Speed':100.,
+                  'Throttle':100,'Brake':0,'X':i*100.,'Y':0} for i in range(101)]
+        selections=[{'team':t,'time':90.,'start':0.,'end':90.} for t in 'AB']
+        attempts=[]
+        def fake_align(item,reference,grid):
+            attempts.append(reference['selection']['team'])
+            if reference['selection']['team']=='A':
+                raise ValueError('Unsuitable reference geometry')
+            return {**item,'aligned':item['a'][:,0],'speed':np.full(len(grid),100.),
+                    'throttle':np.full(len(grid),100.),'brake':np.zeros(len(grid),bool),
+                    'scale':1.,'dt':np.full(len(grid)-1,90/(len(grid)-1))}
+        with patch('performance_tracks.align',side_effect=fake_align):
+            result=measure_field([(t,samples,None) for t in 'AB'],selections,[])
+        self.assertIn('B',attempts)
+        self.assertEqual(result['error'],'Too few reliable braking/corner zones')
+
+    def test_acceleration_uses_selected_lap_and_rejects_native_gaps(self):
+        from performance_tracks import analyze_straights_speed_domain
+        grid=np.arange(0.,1005.,5.);selected={}
+        for team,scale in [('A',1.),('B',1.1),('C',1.2)]:
+            a=np.zeros((len(grid),8));a[:,0]=grid;a[:,2]=150+grid*.18
+            a[:,1]=(a[:,2]-150)/50*scale;a[:,3]=100
+            selected[team]={'a':a,'aligned':grid,'speed':a[:,2],
+                            'throttle':a[:,3],'brake':np.zeros(len(grid),bool),
+                            'dt':np.diff(a[:,1]),'official':10.,'selection':{'start':0}}
+        candidates={'B':[selected['A']]}
+        result=analyze_straights_speed_domain(selected,[(0,200)],grid,selected['A'],
+                    np.zeros(200,bool),candidates)
+        self.assertAlmostEqual(result['B']['accel_bands']['200_250']['gap_s'],.1)
+        selected['B']['a'][90:,1]+=.8
+        result=analyze_straights_speed_domain(selected,[(0,200)],grid,selected['A'],
+                    np.zeros(200,bool),candidates)
+        self.assertNotIn('200_250',result['B']['accel_bands'])
 
     def test_straight_core_rejects_full_throttle_bends(self):
         grid,selected=self.core_fixture()

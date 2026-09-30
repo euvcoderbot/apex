@@ -25,6 +25,16 @@ One validated clean qualifying lap per team, with identical registered windows f
 - Measure registered elapsed time from the same selected qualifying laps. Per-event gap is excess measured seconds over the fastest team on these windows divided by the reference official qualifying lap time, times 100.
 - Average event-relative measurements with equal GP weighting and the existing connected event-coverage adjustment. Report GP coverage and measured window distances; raw seconds across different circuits are not comparable.
 
+The unit selector also reports each event's measured seconds gap, aggregated with the same equal-GP coverage adjustment. It does not multiply a season percentage by an arbitrary lap time. Seconds and lap-normalized percentages weight circuit duration differently and may have different season orderings.
+
+## Reference recovery and acceleration audit
+
+An unsuitable fastest reference previously caused a whole event to fail before other reference candidates were tried. Reference recovery now tries alternative validated laps, keeps the same alignment/frozen-speed limits, and prevents returning to a reference already found unsuitable. Replaying 2026 Japan and Italy restored five and ten supported teams respectively; unsupported teams remain excluded.
+
+Acceleration bands use the exact selected lap, not a median mixing teammates and qualifying phases. Crossing brackets must have the required throttle (70% below 150 km/h, 98% above), no brake or aero-state transition, source gaps no greater than 0.6 seconds, and no adjacent speed drop larger than 3 km/h. These are screening rules, not higher-frequency measurements.
+
+Speed-band time and peak speed are not interchangeable. Crossing positions vary between cars even in the same named zone, and low-speed traction, flat-out bends, gradients, tow and deployment affect the result. The connected-zone model estimates missing comparisons; it cannot remove car-by-zone interactions. This diagnostic must not be presented as an isolated drag or engine ranking, nor adjusted to reproduce a preconceived team order.
+
 ## Separate diagnostics
 
 Peak speed, official speed traps, end-of-straight speed and selected speed-range acceleration remain separate measurements. The former primary traversal chart is retained inside explicitly labelled exit-inclusive lap attribution; it remains additive with the old corner partition. The new partial-window measurement does not add to the corner metric to reconstruct a lap.

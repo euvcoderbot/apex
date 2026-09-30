@@ -413,6 +413,10 @@ function brakingViewControls(approachAvailable) {
 }
 const STRAIGHT_BANDS=['50_100','100_150','150_200','200_250','250_300','300_320','300_350','350_400'];
 let straightBand='250_300';
+let straightGapUnit='percent';
+function straightGapControls() {
+  return `<div class="performance-band-options" role="group" aria-label="Straight-section gap units"><button type="button" data-straight-unit="percent" aria-pressed="${straightGapUnit==='percent'}">Percent of lap</button><button type="button" data-straight-unit="seconds" aria-pressed="${straightGapUnit==='seconds'}">Seconds</button></div>`;
+}
 function straightBandControls(available) {
   if(!available.includes(straightBand)) straightBand=available.includes('250_300')?'250_300':available[0]||'250_300';
   return `<div class="performance-band-options" role="group" aria-label="Acceleration speed range">${STRAIGHT_BANDS.map(key=>`<button type="button" data-straight-band="${key}" aria-pressed="${key===straightBand}" ${available.includes(key)?'':'disabled title="Fewer than three teams have comparable clean acceleration through this full range"'}>${key.replace('_','–')} <span>km/h</span></button>`).join('')}</div><p class="performance-band-hint">A range needs three comparable teams that actually crossed both speeds. Below 150 km/h includes traction-limited exits.</p>`;
@@ -1972,6 +1976,7 @@ function seasonTelemetry(mode='mean') {
     corners:eventAdjustedScores(targetReports,row=>row.trace.corner_contribution,mode),
     straights:eventAdjustedScores(targetReports,row=>row.trace.straight_traversal_delta,mode),
     straightCore:eventAdjustedScores(targetReports,row=>row.trace.straight_core_delta,mode),
+    straightCoreSeconds:eventAdjustedScores(targetReports,row=>row.trace.straight_core_gap_s,mode),
     braking:eventAdjustedScores(targetReports,row=>row.brakingScore,mode),
     brakingSlowingS:eventAdjustedScores(targetReports,row=>row.brakingSlowingS,mode),
     brakingApproachMs:eventAdjustedScores(targetReports,row=>row.brakingApproachMs,mode)
@@ -2132,7 +2137,7 @@ function renderTrace() {
         accel200: summarize(team.accel200,telemetrySeasonStat),
         accel320: summarize(team.accel320,telemetrySeasonStat),
         traversalDelta: team.adjusted.straights,
-        coreDelta:team.adjusted.straightCore,
+        coreDelta:straightGapUnit==='seconds'?team.adjusted.straightCoreSeconds:team.adjusted.straightCore,
         coreEvents:team.coreGaps.length,
         coreDistance:summarize(team.coreDistance,telemetrySeasonStat),
         terminal: summarize(team.terminalZoneMeanSpeed,telemetrySeasonStat),
@@ -2208,14 +2213,14 @@ function renderTrace() {
         valueKey:'peakGap',unit:'%',digits:3,signedValue:true,zeroBaseline:true
       });
       const coreChart=renderHorizontalBarChart(orderedQualy,{
-        title:'Settled straight-section performance · share of lap',
+        title:straightGapUnit==='seconds'?'Settled straight-section performance · time gap':'Settled straight-section performance · share of lap',
         subtitle:'Shared qualifying windows · Exit, cornering and braking regions excluded · Coverage-adjusted; not isolated engine/drag',
-        valueKey:'coreDelta',unit:'%',digits:3,signedValue:true,zeroBaseline:true
+        valueKey:'coreDelta',unit:straightGapUnit==='seconds'?' s':'%',digits:3,signedValue:true,zeroBaseline:true
       });
 
       return statisticControls+card(straightTitle, 'The main comparison times shared, settled straight sections on clean qualifying laps. Full throttle alone is not enough: turning, early exit acceleration, lift and braking regions are excluded. These observations still combine car, driver, setup, tow and deployment—not measured aerodynamic drag or engine power. Top speed and speed-range acceleration are separate diagnostics.',
         straightToggle+
-        coreChart+
+        straightGapControls()+coreChart+
         (!rawValues.some(row=>finite(row.coreDelta))?'<p class="section-empty">No supported settled-straight measurements. Rerun Analyse if these results were loaded before the update.</p>':'')+
         peakChart+
         bandControls+
@@ -2235,7 +2240,7 @@ function renderTrace() {
           sortHeader('straightEvents', 'Circuits', -1)
         ], orderedQualy.map(team => [
           teamLabel(team),
-          signed(team.coreDelta,3,'%'),
+          signed(team.coreDelta,3,straightGapUnit==='seconds'?' s':'%'),
           `${team.coreEvents} GPs<small>${fmt(team.coreDistance,0,' m')} shared / GP</small>`,
           signed(team.bandGap, 3, ' s'),
           `${team.bandEvents} circuit${team.bandEvents===1?'':'s'}`,
@@ -2252,7 +2257,7 @@ function renderTrace() {
         `<details class="performance-evidence"><summary>Shared straight-section windows by GP</summary>${table(['Grand Prix','Team','Measured time','Gap · lap share','Shared windows'],events.flatMap(event=>Object.entries(event.traces||{}).filter(([,trace])=>finite(trace.straight_core_time)).map(([team,trace])=>[escape(event.name),escape(team),fmt(trace.straight_core_time,3,' s'),signed(trace.straight_core_delta,3,'%'),(trace.straight_core_windows||[]).map(w=>`${fmt(w.start_m,0)}–${fmt(w.end_m,0)} m`).join(' · ')])))}</details>`+
         `<details class="performance-evidence"><summary>Qualifying top speeds by Grand Prix</summary>${table(['Grand Prix','Team','Driver / lap','Measured peak','GP speed shortfall'],events.flatMap(event=>{const summary=eventTelemetry(event);return summary?[...summary.rows.values()].filter(row=>finite(row.trace?.top_speed)).map(row=>[escape(event.name),teamLabel(row),`${escape(row.trace.selection?.driver||'—')} · L${row.trace.selection?.lap??'—'}`,fmt(row.trace.top_speed,3,' km/h'),signed(row.topDeficit,3,'%')]):[];}))}</details>`+
         '<p class="performance-note">Top speed is the highest speed-channel value on the distance-aligned selected clean qualifying lap, not the maximum over every qualifying attempt. GP shortfall = (fastest measured peak − team peak) / fastest measured peak × 100. Season ranking combines GP-relative values with equal event weight and coverage adjustment; raw km/h is context. Tow, wing setup, corner exit and energy deployment affect it, so engine power and aerodynamic drag cannot be separated.</p>'+
-        '<p class="performance-note">Acceleration uses ≥70% throttle below 150 km/h and ≥90% above it, with no observed braking. Short corner exits count. Each event compares the same physical zones and aero state; season scores adjust for differing event coverage. Traffic is screened against selected qualifying laps only, so clean air is not guaranteed.</p>');
+        '<p class="performance-note">Acceleration uses the selected qualifying lap, ≥70% throttle below 150 km/h and ≥98% above it, no braking through the crossing brackets, source gaps ≤0.6 s and no sample-to-sample speed fall exceeding 3 km/h. Low bands include traction and turning; high bands can include flat-out bends, gradients and deployment. Scores fit overlapping zone/DRS comparisons and GP coverage; they are not measured engine or drag performance. Seconds averages event time gaps; percent averages each event’s lap-time-normalized gaps, so their season ordering can differ. Selected-lap traffic screening cannot guarantee clean air.</p>');
     }
     const rawBrakeValues = season.map(team => ({
       ...team,
@@ -2480,7 +2485,7 @@ function renderTrace() {
       straightCoverage: r.trace?.straight_coverage || '—',
       straightProvisional: r.trace?.straight_provisional || false,
       traversalDelta: r.trace?.straight_traversal_delta,
-      coreDelta:r.trace?.straight_core_delta,
+      coreDelta:straightGapUnit==='seconds'?r.trace?.straight_core_gap_s:r.trace?.straight_core_delta,
       coreDistance:r.trace?.straight_core_distance_m,
       terminalSpeed: r.trace?.terminal_zone_mean_speed,
       termDeficit: r.trace?.terminal_speed_deficit,
@@ -2535,14 +2540,14 @@ function renderTrace() {
       valueKey:'topDeficit',unit:'%',digits:3,signedValue:true,zeroBaseline:true
     });
     const coreChart=renderHorizontalBarChart(ordered,{
-      title:'Settled straight-section performance · share of lap',
+      title:straightGapUnit==='seconds'?'Settled straight-section performance · time gap':'Settled straight-section performance · share of lap',
       subtitle:'Same full-throttle straight windows · Exit and braking buffers excluded · Not isolated engine/drag',
-      valueKey:'coreDelta',unit:'%',digits:3,signedValue:true,zeroBaseline:true
+      valueKey:'coreDelta',unit:straightGapUnit==='seconds'?' s':'%',digits:3,signedValue:true,zeroBaseline:true
     });
 
     return card('Straight-line performance', 'The main comparison times shared, settled straight sections on clean qualifying laps, with near-full throttle and little turning. Early exit acceleration, lift and braking regions are excluded. It still combines car, setup, driver, tow and deployment; it is not isolated engine power or aerodynamic drag.',
       straightToggle+
-      coreChart+
+      straightGapControls()+coreChart+
       (!ordered.some(row=>finite(row.coreDelta))?'<p class="section-empty">No supported settled-straight measurements. Rerun Analyse if these results predate the update.</p>':'')+
       peakChart+
       bandControls+
@@ -2561,7 +2566,7 @@ function renderTrace() {
         sortHeader('eventStraightTraversal', 'Exit-inclusive attribution')
       ], ordered.map(t => [
         teamLabel(t),
-        signed(t.coreDelta,3,'%'),
+        signed(t.coreDelta,3,straightGapUnit==='seconds'?' s':'%'),
         `${t.trace?.straight_core_windows?.length||0} windows<small>${fmt(t.coreDistance,0,' m')} shared</small>`,
         signed(t.bandGap, 3, ' s'),
         t.bandStraights||'—',
@@ -2576,7 +2581,7 @@ function renderTrace() {
       '<p class="performance-note">Same windows for every team: ≥98% throttle, no braking, low reference heading change (&lt;5° over about 50 m) and GPS-derived lateral proxy ≤0.5 g, matching observed DRS states and source gaps ≤0.6 s. Remove the first 200 m after detected exit and last 100 m before the next corner region; retain continuous windows ≥100 m and at least 200 m total. Gap = extra seconds on those windows / reference qualifying lap time × 100. This is a partial-lap observation, not full-lap attribution; 2026 full-throttle deployment losses remain included.</p>'+
       `<details class="performance-evidence"><summary>Exit-inclusive lap attribution (previous chart)</summary>${straightTraversalChart}${card('Where the lap gap comes from',`Relative to ${escape(event.traceReference||'the fastest measured team')}’s qualifying lap.`,
       table(['Team','Exit-inclusive straights','Corners','Lap gap'],ordered.map(row=>[teamLabel(row),finite(row.traversalDelta)?signed(row.traversalDelta,3,'%'):'—',fmt(row.trace?.corner_contribution,3,'%'),fmt(row.trace?.lap_gap,3,'%')])))}</details>`+
-      '<p class="performance-note">Acceleration uses ≥70% throttle below 150 km/h and ≥90% above it, without observed braking. Short corner exits count. Teams are ranked on the same physical zones and aero state; missing crossings remain unavailable. Traffic is screened against selected qualifying laps only. Straight traversal is separate from acceleration.</p>');
+      '<p class="performance-note">Acceleration uses the same selected qualifying lap as top speed: ≥70% throttle below 150 km/h and ≥98% above it, no braking including the crossing brackets, source gaps ≤0.6 s and no speed drop exceeding 3 km/h between samples. Short exits count, so low-speed bands reflect traction and turning as well as acceleration. High bands can include flat-out bends, gradients and deployment differences. Rankings are fitted from overlapping physical zones and observed DRS states, not identical distance windows or a measured engine/drag rating. Missing crossings stay unavailable. Traffic is screened against selected laps only.</p>');
   }
   const brakeRows = computeBrakingPerformance(loaded.map(r => ({
     ...r,
@@ -2861,6 +2866,8 @@ root.addEventListener('click',event=>{
   const brakeViewButton=event.target.closest('[data-braking-view]');
   if(brakeViewButton&&!brakeViewButton.disabled){brakingView=brakeViewButton.dataset.brakingView;render();return;}
   const band=event.target.closest('[data-straight-band]');
+  const straightUnit=event.target.closest('[data-straight-unit]');
+  if(straightUnit){straightGapUnit=straightUnit.dataset.straightUnit;render();}
   if(band&&!band.disabled){straightBand=band.dataset.straightBand;render();}
   const qualyModeBtn=event.target.closest('[data-qualy-mode]');
   if(qualyModeBtn){qualyPaceMode=qualyModeBtn.dataset.qualyMode;render();}
