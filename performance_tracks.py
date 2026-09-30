@@ -310,6 +310,45 @@ def observed_braking_zones(selected, grid):
     return zones
 
 
+def braking_approach_measurements(selected, start, end, grid):
+    """One real qualifying lap per car, with compatible corridor boundary speeds.
+
+    Native elapsed time is used, without official-lap rescaling. Registration
+    identifies the shared corridor; public GPS cannot survey it precisely.
+    """
+    measured = {}
+    for team, item in selected.items():
+        a, d = item['a'], item['aligned']
+        left, right = float(grid[start]), float(grid[end])
+        if left < d[0] or right > d[-1]:
+            continue
+        lo = max(0, int(np.searchsorted(d, left))-1)
+        hi = min(len(d)-1, int(np.searchsorted(d, right)))
+        if hi-lo < 2 or np.max(np.diff(a[lo:hi+1, 1])) > .6:
+            continue
+        times = np.interp([left, right], d, a[:, 1])
+        speeds = np.interp([left, right], d, a[:, 2])
+        brackets = [min(len(d)-1, max(1, int(np.searchsorted(d, point)))) for point in (left, right)]
+        resolution = sum(float(a[j, 1]-a[j-1, 1]) for j in brackets)
+        duration = float(times[1]-times[0])
+        if duration <= 0 or speeds[0]-speeds[1] < 25:
+            continue
+        measured[team] = {'approach_time': duration, 'approach_entry_speed': float(speeds[0]),
+                          'approach_exit_speed': float(speeds[1]),
+                          'approach_resolution_s': resolution,
+                          'approach_source_lap': item.get('selection', {}).get('lap')}
+    if len(measured) < 3:
+        return {}
+    entry = float(np.median([v['approach_entry_speed'] for v in measured.values()]))
+    exit_speed = float(np.median([v['approach_exit_speed'] for v in measured.values()]))
+    # A faster incoming car or an unusually slow corridor exit is not scored
+    # as superior braking. These disclosed tolerances are screening rules.
+    measured = {team: value for team, value in measured.items()
+                if abs(value['approach_entry_speed']-entry) <= max(5., entry*.02)
+                and abs(value['approach_exit_speed']-exit_speed) <= max(5., exit_speed*.03)}
+    return measured if len(measured) >= 3 else {}
+
+
 def matched_braking_measurements(selected, windows, grid, candidates=None):
     """Time a shared speed drop in each straight braking approach.
 
@@ -321,13 +360,17 @@ def matched_braking_measurements(selected, windows, grid, candidates=None):
     for label, (start, end, onsets, mode) in windows.items():
         if mode != 'straight':
             continue
+        approaches = braking_approach_measurements(selected, start, end, grid)
         segments = {}
         for team, onset in onsets.items():
             main = selected[team]
             driver = main.get('selection', {}).get('driver')
+            main_selection = main.get('selection', {})
             laps = [item for item in (candidates or {}).get(team, [main])
-                    if item.get('selection', {}).get('driver') == driver]
-            if not laps:
+                    if item.get('selection', {}).get('driver') == driver
+                    and all(item.get('selection', {}).get(key) == main_selection.get(key)
+                            for key in ('compound', 'phase'))]
+            if not laps or not all(main_selection.get(key) for key in ('compound', 'phase')):
                 laps = [main]
             observed = []
             for item in laps[:3]:
@@ -359,7 +402,7 @@ def matched_braking_measurements(selected, windows, grid, candidates=None):
                 if high - low >= 50 and len(cohort) >= 3:
                     repeat_count = sum(sum(v[0] >= high and v[-1] <= low for _, v, _ in segments[team])
                                        for team in cohort)
-                    options.append((len(cohort), repeat_count, high - low, high, low, cohort))
+                    options.append((len(cohort), high - low, repeat_count, high, low, cohort))
         if not options:
             continue
         _, _, _, high, low, cohort = max(options, key=lambda o: o[:5])
@@ -378,16 +421,19 @@ def matched_braking_measurements(selected, windows, grid, candidates=None):
                 inner = (t > t0) & (t < t1)
                 ts = np.r_[t0, t[inner], t1]
                 vs = np.r_[high, v[inner], low] / 3.6
-                if duration < .3 or len(ts) < 3:
+                # Evidence/physics gates, not a duration floor that rejects
+                # stronger braking. Interpolated endpoints are not raw samples.
+                if duration <= 0 or len(ts) < 3 or not .5 <= (high-low)/3.6/duration/9.80665 <= 7:
                     continue
+                js = [int(np.flatnonzero(v <= speed)[0]) for speed in (high, low)]
+                bracket_sum = sum(float(t[j]-t[j-1]) if j else 0. for j in js)
                 per_lap.append((duration,
                     float(np.sum(np.diff(ts) * (vs[:-1] + vs[1:]) / 2)),
                     int(inner.sum()) + 2,
                     float(np.max(np.diff(t))),
                     float(np.max(np.diff(t)*(v[:-1]+v[1:])/7.2)),
-                    float(item['dt'][start:end].sum()) if 'dt' in item else
-                    float(np.interp(grid[end], item['aligned'], item['a'][:, 1]) -
-                          np.interp(grid[start], item['aligned'], item['a'][:, 1]))))
+                    bracket_sum,
+                    int(inner.sum())))
             if not per_lap:
                 continue
             duration = float(np.median([x[0] for x in per_lap]))
@@ -395,6 +441,11 @@ def matched_braking_measurements(selected, windows, grid, candidates=None):
             mean_g = (high - low) / 3.6 / duration / 9.80665
             if not .5 <= mean_g <= 7:
                 continue
+            repeat_spread = float(np.ptp([x[0] for x in per_lap])) if len(per_lap) > 1 else None
+            resolution = float(max(x[5] for x in per_lap))
+            supported = (min(x[6] for x in per_lap) >= 2 and resolution <= duration
+                         and (repeat_spread is None or repeat_spread <= max(.05, duration*.1)))
+            approach = approaches.get(team, {})
             result[team].append({
                 'corner': label, 'method': 'matched-speed-v1', 'mode': 'straight',
                 'entry_speed': high, 'exit_speed': low, 'duration': duration,
@@ -404,10 +455,17 @@ def matched_braking_measurements(selected, windows, grid, candidates=None):
                 'sampling_resolution_m': float(max(x[4] for x in per_lap)),
                 'sample_count': sum(x[2] for x in per_lap), 'speed_drop': high-low,
                 'source_laps': len(per_lap),
+                'native_interior_samples': sum(x[6] for x in per_lap),
+                'min_native_interior_samples': min(x[6] for x in per_lap),
+                'timing_resolution_s': resolution,
+                'repeat_spread_s': repeat_spread,
                 'sample_interval_s': float(max(x[3] for x in per_lap)),
-                'approach_time': float(np.median([x[5] for x in per_lap])),
+                'approach_time': None,
+                'approach_comparable': bool(approach),
+                **approach,
                 'approach_distance': float(grid[end] - grid[start]),
-                'quality': 'limited sampling' if len(per_lap) == 1 and per_lap[0][2] < 5 else 'supported'
+                'quality': 'supported' if supported else 'provisional',
+                'braking_version': 'qualifying-braking-v2'
             })
     return result
 
@@ -1028,6 +1086,6 @@ def measure_field(extracted, selections, corners=()):
     }
 
     return {'teams': results, 'reference_team': reference_team, 'excluded': {t: e for t, e in errors.items() if t not in results},
-            'method': 'timing-sector-grid-v8-channel-terminal', 'corner_count': len(zones),
+            'method': 'timing-sector-grid-v9-qualifying-braking', 'corner_count': len(zones),
             'circuit_features': circuit_features}
 

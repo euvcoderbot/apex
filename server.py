@@ -1688,6 +1688,7 @@ def car_performance_trace_batch(response: Response, year: int = Query(..., ge=20
                                'driver_number': number, 'driver': str(item.get('driver') or number)[:4],
                                'lap': item.get('lap'), 'time': official_time,
                                'sectors': item.get('sectors'),
+                               'compound': item.get('compound'), 'phase': item.get('phase'),
                                'start': start, 'end': end,
                                'speed_st': item.get('speed_st'),
                                'speed_fl': item.get('speed_fl')})

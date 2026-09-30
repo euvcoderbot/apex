@@ -563,7 +563,7 @@ async function analyse() {
       const selections=event.Q.teams.flatMap(team=>(team.telemetry_candidates||[]).map((lap,i)=>({
         team:`${team.team}:${i}`,team_name:team.team,driver_number:lap.number,
         driver:lap.driver,lap:lap.lap,start:lap.start,end:lap.end,time:lap.time,sectors:lap.sectors,
-        speed_st:lap.speed_st,speed_fl:lap.speed_fl
+        speed_st:lap.speed_st,speed_fl:lap.speed_fl,compound:lap.compound,phase:lap.phase
       })));
       try {
         const params=new URLSearchParams({year:context.year,gp:event.name,windows:JSON.stringify(selections)});
@@ -1750,7 +1750,10 @@ function eventTelemetry(event) {
   const comparable=reports.filter(r=>[...r.summary.rows.keys()].some(t=>group.has(t)));
   const scores=eventAdjustedScores(comparable,row=>100*Math.log(row.z.duration));
   const slowingSeconds=eventAdjustedScores(comparable,row=>row.z.duration);
-  const approachScores=eventAdjustedScores(comparable,row=>row.z.approach_time*1000);
+  const approachReports=comparable.map(report=>({...report,summary:{rows:new Map([...report.summary.rows]
+    .filter(([,row])=>row.z.approach_comparable!==false&&finite(row.z.approach_time)))}}))
+    .filter(report=>report.summary.rows.size>=3);
+  const approachScores=eventAdjustedScores(approachReports,row=>row.z.approach_time*1000);
   for(const row of rows.values()) {
     const zones=comparable.map(r=>r.summary.rows.get(row.team)?.z).filter(Boolean);
     if(!zones.length||!scores.has(row.team))continue;
@@ -1759,6 +1762,9 @@ function eventTelemetry(event) {
     row.brakingApproachMs=approachScores.get(row.team)??null;
     row.brakingScoreZones=zones.length;
     row.brakingScoreCohort=group.size;
+    row.brakingApproachZones=approachReports.filter(report=>report.summary.rows.has(row.team)).length;
+    row.brakingResolution=median(zones.map(z=>z.timing_resolution_s).filter(finite));
+    row.brakingRepeatSpread=median(zones.map(z=>z.repeat_spread_s).filter(finite));
     row.brakeZones=zones.length;
     row.brakeDistance=median(zones.map(z=>z.distance));
     row.brakeMeanG=median(zones.map(z=>z.mean_g));
@@ -1771,7 +1777,7 @@ function eventTelemetry(event) {
     row.samplingResolution=median(zones.map(z=>z.sampling_resolution_m));
     row.mixedBrakeZones=0;
     row.brakeMeasurements=zones;
-    row.limitedBrakeZones=zones.filter(z=>z.quality==='limited sampling').length;
+    row.limitedBrakeZones=zones.filter(z=>z.quality!=='supported').length;
   }
   return {rows,groups,entrants};
 }
@@ -1885,7 +1891,7 @@ function seasonTelemetry(mode='mean') {
         lapGaps:[],top:[],full:[],topDeficit:[],fullDeficit:[],straightDeficit:[],
         straightContribution:[],cornerContribution:[],brakeG:[],brakeMeanG:[],brakePowerProxy:[],brakingScore:[],brakingSlowingS:[],brakingApproachMs:[],brakingScoreZones:[],brakingReferenceLap:[],
         brakeDistance:[],brakeDistDelta:[],brakeDuration:[],brakeEntrySpeed:[],brakeTurnInSpeed:[],
-        normalizedDecel:[],brakeTimeDelta:[],samplingResolution:[],
+        normalizedDecel:[],brakeTimeDelta:[],samplingResolution:[],brakingResolution:[],brakingRepeatSpread:[],
         terminalZoneMeanSpeed:[],terminalZoneLength:[],
         accel250:[],accel250Pct:[],accel200:[],accel320:[],accelBands:Object.fromEntries(STRAIGHT_BANDS.map(key=>[key,[]])),straightTraversalDelta:[],speedSt:[],speedFl:[],
         events:0,zones:0,mixedBrakeZones:0,limitedBrakeZones:0
@@ -1930,6 +1936,8 @@ function seasonTelemetry(mode='mean') {
         if(finite(row.normalizedDecel))item.normalizedDecel.push(row.normalizedDecel);
         if(finite(row.brakeTimeDelta))item.brakeTimeDelta.push(row.brakeTimeDelta);
         if(finite(row.samplingResolution))item.samplingResolution.push(row.samplingResolution);
+        if(finite(row.brakingResolution))item.brakingResolution.push(row.brakingResolution);
+        if(finite(row.brakingRepeatSpread))item.brakingRepeatSpread.push(row.brakingRepeatSpread);
         item.zones+=row.brakeZones;
         item.limitedBrakeZones+=row.limitedBrakeZones||0;
         item.mixedBrakeZones+=row.mixedBrakeZones||0;
@@ -2242,6 +2250,8 @@ function renderTrace() {
       normalizedDecel: summarize(team.normalizedDecel,telemetrySeasonStat),
       timeDelta: summarize(team.brakeTimeDelta,telemetrySeasonStat),
       samplingResolution: summarize(team.samplingResolution,telemetrySeasonStat),
+      timingResolution:summarize(team.brakingResolution,telemetrySeasonStat),
+      repeatSpread:summarize(team.brakingRepeatSpread,telemetrySeasonStat),
       zones: team.zones
     }));
     const values = computeBrakingPerformance(rawBrakeValues);
@@ -2274,7 +2284,7 @@ function renderTrace() {
       zeroBaseline: true
     });
 
-    return statisticControls+card(brakingTitle,`Time through approach compares the same straight distance leading into a corner. Same-speed slowing compares time to shed identical speed ranges. ${telemetrySeasonStat==='median'?'Median':'Mean'} event-adjusted results show extra seconds per measured zone, not time lost over the whole lap. Entry speed, driver technique and sparse samples affect the estimates.`,
+    return statisticControls+card(brakingTitle,`Qualifying only. The main metric times a shared straight approach on one selected lap, with entry speeds within 2% (at least 5 km/h tolerance) and exits within 3% (at least 5 km/h). Same-speed slowing is a separate diagnostic, using repeat laps from the same driver, compound and qualifying phase. ${telemetrySeasonStat==='median'?'Median':'Mean'} event-adjusted gaps are seconds per measured zone, not whole-lap loss. GPS registration is approximate; close ranks are provisional.`,
       brakingViewControls(hasApproach)+brakeChart+
       table([
         sortHeader('brakeTeam','Team'),
@@ -2288,6 +2298,7 @@ function renderTrace() {
         sortHeader('brakeEntrySpeed','Measured entry speed'),
         sortHeader('brakeTurnInSpeed','Measured exit speed'),
         sortHeader('brakeResolution','Largest sample spacing'),
+        'Timing evidence',
         sortHeader('brakeZones','Matched zones',-1)
       ],ordered.map(team=>[
         teamLabel(team),
@@ -2301,7 +2312,8 @@ function renderTrace() {
         fmt(team.entrySpeed,1,' km/h'),
         fmt(team.turnInSpeed,1,' km/h'),
         `<span class="perf-onset-bracket">Δs ~${fmt(team.samplingResolution,1,' m')}</span>`,
-        `${team.brakingScore.length} scored circuits · ${team.zones} zones${team.limitedBrakeZones?` · ${team.limitedBrakeZones} sparsely sampled`:''}${team.zones<team.brakingScore.length*2?' · limited coverage':''}`
+        `${fmt(team.timingResolution,3,' s')} slowing endpoint brackets<small>${fmt(team.repeatSpread,3,' s')} repeat range · not a confidence interval</small>`,
+        `${team.brakingScore.length} slowing GPs · ${team.brakingApproachMs.length} approach GPs · ${team.zones} slowing zones${team.limitedBrakeZones?` · ${team.limitedBrakeZones} provisional`:''}${team.zones<team.brakingScore.length*2?' · limited coverage':''}`
       ])));
   }
 
@@ -2548,6 +2560,9 @@ function renderTrace() {
     normalizedDecel: r.normalizedDecel,
     timeDelta: r.brakeTimeDelta,
     samplingResolution: r.samplingResolution,
+    timingResolution:r.brakingResolution,
+    repeatSpread:r.brakingRepeatSpread,
+    approachZones:r.brakingApproachZones,
     onsetBracket: r.onsetBracket,
     zones: r.brakeZones,
     mixedBrakeZones: r.mixedBrakeZones||0
@@ -2581,7 +2596,7 @@ function renderTrace() {
     zeroBaseline: true
   });
 
-  return card('Braking performance','Time through approach compares the same straight distance leading into a corner. Same-speed slowing compares time to shed identical speed ranges. Both show extra seconds per measured braking zone, adjusted for uneven zone coverage—not time lost over the whole lap. Entry speed, braking point, driver technique and sparse samples affect the estimates.',
+  return card('Braking performance','Qualifying only. The main metric times a shared straight approach on one selected lap, screening arrival speed within 2% (at least 5 km/h tolerance) and exit speed within 3% (at least 5 km/h). Same-speed slowing is a separate diagnostic with repeats restricted to the same driver, compound and qualifying phase. Gaps are seconds per measured zone, not whole-lap loss. Sparse samples and approximate GPS registration make close ranks provisional.',
     brakingViewControls(hasApproach)+singleBrakeChart+
     table([
       sortHeader('eventBrakeTeam','Team'),
@@ -2595,6 +2610,7 @@ function renderTrace() {
       sortHeader('eventBrakeEntrySpeed','Measured entry speed'),
       sortHeader('eventBrakeTurnInSpeed','Measured exit speed'),
       sortHeader('eventBrakeResolution','Largest sample spacing'),
+      'Timing evidence',
       sortHeader('eventBrakeZones','Matched zones',-1)
     ],ordered.map(row=>[
       teamLabel(row),
@@ -2608,14 +2624,15 @@ function renderTrace() {
       fmt(row.entrySpeed,1,' km/h'),
       fmt(row.turnInSpeed,1,' km/h'),
       row.onsetBracket ? `<span class="perf-onset-bracket">[${fmt(row.onsetBracket[0], 0)}, ${fmt(row.onsetBracket[1], 0)}] m</span>` : `<span class="perf-onset-bracket">Δs ~${fmt(row.samplingResolution, 1, ' m')}</span>`,
-      `${row.zones||0} zones${row.limitedBrakeZones?` · ${row.limitedBrakeZones} sparsely sampled`:''}${row.zones===1?' · provisional':''}`
+      `${fmt(row.timingResolution,3,' s')} slowing endpoint brackets<small>${fmt(row.repeatSpread,3,' s')} repeat range · not a confidence interval</small>`,
+      `${row.approachZones||0} approach · ${row.zones||0} slowing zones${row.limitedBrakeZones?` · ${row.limitedBrakeZones} provisional`:''}${row.zones===1?' · limited coverage':''}`
     ]))) + card('Braking zone measurements','The qualifying laps and speed range behind each result. Approach time crosses one fixed track distance; speed-drop time crosses one shared speed range. Sparse sampling limits precision.',
       table(['Team / representative lap','Zone','Speed drop','Approach time','Speed-drop time','Distance','Mean deceleration','Evidence'],
         loaded.flatMap(row=>(row.brakeMeasurements||[]).map(z=>[
           `${teamLabel(row)}<small>${escape(row.lap?.driver||'')} L${escape(row.lap?.lap||'—')}</small>`,
           escape(z.corner), `${fmt(z.entry_speed,0)} → ${fmt(z.exit_speed,0)} km/h`,
-          fmt(z.approach_time,3,' s'),fmt(z.duration,3,' s'),fmt(z.distance,1,' m'),fmt(z.mean_g,3,' g'),
-          `${z.source_laps||1} lap${z.source_laps===1?'':'s'} · ${z.sample_count||'—'} points${z.quality==='limited sampling'?' · limited':''}`
+          `${fmt(z.approach_time,3,' s')}<small>${fmt(z.approach_entry_speed,1)} → ${fmt(z.approach_exit_speed,1)} km/h · L${z.approach_source_lap??'—'} · ${fmt(z.approach_resolution_s,3,' s')} endpoint brackets</small>`,fmt(z.duration,3,' s'),fmt(z.distance,1,' m'),fmt(z.mean_g,3,' g'),
+          `${z.source_laps||1} lap${z.source_laps===1?'':'s'} · ${z.native_interior_samples??'—'} native interior points · ${escape(z.quality||'reanalyse')}<small>${fmt(z.timing_resolution_s,3,' s')} endpoint brackets · ${fmt(z.repeat_spread_s,3,' s')} repeat range</small>`
         ]))));
 }
 

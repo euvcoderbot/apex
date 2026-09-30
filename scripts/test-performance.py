@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 import numpy as np
 from performance import analyze, clean, slope, traffic_gaps, telemetry_metrics, matched_tyre_trend, fit_tyre_stint
-from performance_tracks import prepare, align, straight_braking_windows, observed_braking_zones, matched_braking_measurements
+from performance_tracks import prepare, align, straight_braking_windows, observed_braking_zones, matched_braking_measurements, braking_approach_measurements
 
 
 def lap(driver='A', team='Alpha', time=90, **kwargs):
@@ -160,13 +160,13 @@ class PerformanceTests(unittest.TestCase):
     def test_repeated_fast_qualifying_laps_reduce_sparse_braking_evidence(self):
         grid = np.arange(0., 405., 5.)
         def item(rate):
-            t = np.arange(0., 2.51, .1)
+            t = np.linspace(0., 250/rate, 26)
             a = np.zeros((len(t), 8))
             a[:, 1], a[:, 2], a[:, 4] = t, 310-rate*t, 1
             return {'a': a, 'aligned': np.linspace(0, 390, len(t)),
-                    'selection': {'driver': 'VER'}}
+                    'selection': {'driver': 'VER','compound':'SOFT','phase':'Q3'}}
         selected = {team: item(100.) for team in 'ABC'}
-        windows = {'Z1': (0, 80, dict.fromkeys(selected, 0), 'straight')}
+        windows = {'Z1': (0, 78, dict.fromkeys(selected, 0), 'straight')}
         one = matched_braking_measurements(selected, windows, grid)
         candidates = {team: [selected[team], item(90. if team == 'A' else 100.)]
                       for team in 'ABC'}
@@ -174,8 +174,57 @@ class PerformanceTests(unittest.TestCase):
         self.assertEqual(repeated['A'][0]['source_laps'], 2)
         self.assertGreater(repeated['A'][0]['sample_count'], one['A'][0]['sample_count'])
         self.assertGreater(repeated['A'][0]['duration'], repeated['B'][0]['duration'])
-        self.assertEqual(repeated['A'][0]['quality'], 'supported')
+        self.assertEqual(repeated['A'][0]['quality'], 'provisional')
+        self.assertGreater(repeated['A'][0]['repeat_spread_s'], .1)
         self.assertAlmostEqual(repeated['A'][0]['approach_time'], 2.5)
+
+    def test_stronger_well_sampled_braking_is_not_censored(self):
+        grid=np.arange(0.,405.,5.)
+        durations=[]
+        for g in (4.,5.):
+            t=np.linspace(0,55/(g*9.80665*3.6),6)
+            a=np.zeros((len(t),8));a[:,1]=t;a[:,2]=250-g*9.80665*3.6*t;a[:,4]=1
+            selected={team:{'a':a.copy(),'aligned':np.linspace(0,35,len(t))} for team in 'ABC'}
+            result=matched_braking_measurements(selected,{'Z':(0,7,dict.fromkeys(selected,0),'straight')},grid)
+            z=result['A'][0]
+            self.assertAlmostEqual(z['mean_g'],g)
+            self.assertEqual(z['quality'],'supported')
+            durations.append(z['duration'])
+        self.assertLess(durations[1],.3)
+        self.assertLess(durations[1],durations[0])
+
+    def test_sparse_repeats_remain_provisional(self):
+        grid=np.arange(0.,405.,5.)
+        t=np.array([0.,.24,.48]);a=np.zeros((3,8));a[:,1]=t;a[:,2]=[260,230,190];a[:,4]=1
+        item={'a':a,'aligned':np.array([0.,20.,40.]),'selection':{'driver':'VER','compound':'SOFT','phase':'Q3'}}
+        selected={team:item for team in 'ABC'}
+        result=matched_braking_measurements(selected,{'Z':(0,8,dict.fromkeys(selected,0),'straight')},grid,
+                                            {team:[item,item,item] for team in selected})
+        self.assertEqual(result['A'][0]['source_laps'],3)
+        self.assertEqual(result['A'][0]['quality'],'provisional')
+        self.assertEqual(result['A'][0]['min_native_interior_samples'],1)
+
+    def test_braking_repeats_match_compound_and_qualifying_phase(self):
+        grid=np.arange(0.,405.,5.);t=np.linspace(0,2,21)
+        a=np.zeros((len(t),8));a[:,1]=t;a[:,2]=310-100*t;a[:,4]=1
+        main={'a':a,'aligned':np.linspace(0,390,len(t)),
+              'selection':{'driver':'VER','compound':'SOFT','phase':'Q3'}}
+        other={**main,'selection':{'driver':'VER','compound':'MEDIUM','phase':'Q2'}}
+        selected={team:main for team in 'ABC'}
+        result=matched_braking_measurements(selected,{'Z':(0,78,dict.fromkeys(selected,0),'straight')},grid,
+                                            {team:[main,other] for team in selected})
+        self.assertEqual(result['A'][0]['source_laps'],1)
+
+    def test_approach_rejects_unfair_boundary_speeds_and_ignores_lap_scale(self):
+        grid=np.arange(0.,105.,5.);selected={}
+        for team,offset in [('A',0),('B',0),('C',0),('D',30),('E',-30)]:
+            a=np.zeros((11,8));a[:,1]=np.linspace(0,1,11);a[:,2]=np.linspace(280,160,11)
+            if team=='D':a[:,2]+=offset
+            if team=='E':a[:,2]+=np.linspace(0,offset,11)
+            selected[team]={'a':a,'aligned':np.linspace(0,100,11),'dt':np.ones(20)*100}
+        result=braking_approach_measurements(selected,0,20,grid)
+        self.assertEqual(set(result),set('ABC'))
+        self.assertAlmostEqual(result['A']['approach_time'],1)
 
     def test_braking_rejects_missing_samples_and_legacy_short_intervals(self):
         grid = np.arange(0., 405., 5.)

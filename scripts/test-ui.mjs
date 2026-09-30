@@ -439,6 +439,11 @@ test('qualifying braking time ranks shared zones and leaves unsupported teams un
     lap_distance: 5000, reference_lap_time: 90
   }]));
   const result = sandbox.eventTelemetry({ Q: { teams: entrants }, traces });
+  traces.D.braking[0].approach_comparable=false;
+  const screened=sandbox.eventTelemetry({Q:{teams:entrants},traces});
+  assert.equal(screened.rows.get('D').brakingApproachMs,null,
+    'a rejected boundary-speed comparison must not enter the approach ranking');
+  assert.ok(Number.isFinite(screened.rows.get('B').brakingApproachMs));
   assert.equal(result.rows.get('A').brakingScoreZones, 3);
   assert.ok(result.rows.get('A').brakingScore < result.rows.get('B').brakingScore);
   assert.ok(result.rows.get('B').brakingScore < result.rows.get('C').brakingScore);
