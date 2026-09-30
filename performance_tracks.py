@@ -22,6 +22,51 @@ def prepare(samples, selection):
     return {'a': a, 'gps': gps, 'official': official, 'selection': selection, 'samples': samples}
 
 
+def connected_zone_scores(zone_times):
+    """Separate car and physical-zone effects using overlapping observations.
+
+    Missing one zone does not erase all other observations for that car. Only
+    a connected comparison group can share a zero; isolated groups stay blank.
+    Each observation is a representative duration for one car in one zone.
+    """
+    zones = {key: times for key, times in zone_times.items() if len(times) >= 3}
+    remaining = set(t for times in zones.values() for t in times)
+    components = []
+    while remaining:
+        component = {min(remaining)}
+        while True:
+            expanded = component | set(t for times in zones.values()
+                                       if component.intersection(times) for t in times)
+            if expanded == component:
+                break
+            component = expanded
+        remaining -= component
+        components.append(component)
+    if not components:
+        return {}, {}, []
+    components.sort(key=lambda c: (-len(c), -sum(len(v) for v in zones.values()
+                                               if c.intersection(v)), sorted(c)))
+    cohort = components[0]
+    keys = [key for key, times in zones.items() if cohort.intersection(times)]
+    teams = sorted(cohort)
+    observations = [(team, i, time) for i, key in enumerate(keys)
+                    for team, time in zones[key].items() if team in cohort]
+    matrix = np.array([[float(team == t) for t in teams]
+                       + [float(zone == z) for z in range(1, len(keys))]
+                       for team, zone, _ in observations])
+    values = np.array([value for _, _, value in observations])
+    weights = np.ones(len(values))
+    for _ in range(10):
+        root = np.sqrt(weights)
+        beta = np.linalg.lstsq(matrix*root[:, None], values*root, rcond=None)[0]
+        residual = values-matrix@beta
+        scale = max(.005, 1.4826*float(np.median(np.abs(residual-np.median(residual)))))
+        weights = np.minimum(1., 1.5*scale/np.maximum(np.abs(residual), 1e-9))
+    base = min(beta[:len(teams)])
+    return ({team: float(max(0., beta[i]-base)) for i, team in enumerate(teams)},
+            {team: sum(team in zones[key] for key in keys) for team in teams}, keys)
+
+
 def align(item, reference, grid):
     a, ref = item['a'], reference['a']
     rp = ref[reference['gps']]
@@ -331,7 +376,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
        this is not proof of clean air against every on-track car.
     3. Requires constant discrete DRS state (drs in {10, 12, 14}) throughout the band.
     4. Calculates within-zone relative deltas: delta_t = t - median(t_field).
-    5. Aggregates only zones shared by one supported team cohort, rebased to 0.000s.
+    5. Fits car and zone effects through overlapping supported teams, rebased to 0.000s.
     6. Constructs a shared-coordinate terminal speed corridor on long straights (>=400m).
     7. Computes straight traversal delta for lap time attribution.
     """
@@ -504,7 +549,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                             continue
                         if np.min(a[pos:stop+1, 2]) < v_lo - 8:
                             continue
-                        if np.any(a[pos:stop+1, 4] >= .5) or np.min(a[pos:stop+1, 3]) < 50:
+                        if np.any(a[pos:stop+1, 4] >= .5) or np.min(a[pos:stop+1, 3]) < 70:
                             continue
                         drs = np.isin(a[pos:stop+1, 7].astype(int), [10, 12, 14])
                         if not (np.all(drs) or not np.any(drs)):
@@ -521,26 +566,20 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
 
     team_straight_deltas = {b[2]: defaultdict(list) for b in bands}
     shared_band_keys = {}
+    band_scores = {}
+    band_counts = {}
     for _, _, b_name in bands:
         # Rank every displayed team on the same physical zones and aero state.
-        # Prefer the widest three-team-or-better cohort, then add zones only
-        # when their intersection still supports that cohort.
-        eligible = [(key, times) for key, times in straight_band_times[b_name].items()
-                    if len(times) >= 3]
-        eligible.sort(key=lambda pair: (-len(pair[1]), pair[0]))
-        cohort = set(eligible[0][1]) if eligible else set()
-        keys = []
-        for key, times in eligible:
-            common = cohort & set(times)
-            if len(common) >= 3:
-                cohort = common
-                keys.append(key)
+        # Missing a crossing must not discard a team's other shared zones.
+        scores, counts, keys = connected_zone_scores(straight_band_times[b_name])
+        cohort = set(scores)
+        band_scores[b_name], band_counts[b_name] = scores, counts
         shared_band_keys[b_name] = keys
         for key in keys:
             team_times = straight_band_times[b_name][key]
             if len(team_times) >= 3:
                 s_med = float(np.median(list(team_times.values())))
-                for t in cohort:
+                for t in cohort.intersection(team_times):
                     tm = team_times[t]
                     team_straight_deltas[b_name][t].append(tm - s_med)
 
@@ -579,8 +618,8 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             start_corridor = end_corridor - corridor_len
             total_corridor_len += corridor_len
 
-            i1 = int(round(start_corridor / 5.0))
-            i2 = int(round(end_corridor / 5.0))
+            i1 = int(np.searchsorted(grid, start_corridor))
+            i2 = int(np.searchsorted(grid, end_corridor))
             i1 = max(0, min(len(grid) - 1, i1))
             i2 = max(0, min(len(grid) - 1, i2))
             if i2 > i1:
@@ -602,8 +641,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                           for key in shared_band_keys['250_300']]
     ref_250_time = float(np.median(med_straight_times)) if med_straight_times else 2.0
 
-    raw_bands = {name: {t: float(np.median(team_straight_deltas[name][t]))
-                         if team_straight_deltas[name][t] else None for t in teams}
+    raw_bands = {name: {t: band_scores[name].get(t) for t in teams}
                  for _, _, name in bands}
     best_bands = {name: min((v for v in values.values() if v is not None), default=0.0)
                   for name, values in raw_bands.items()}
@@ -628,8 +666,10 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
         accel_200 = (raw_bands['200_250'][team] - best_bands['200_250']) if raw_bands['200_250'][team] is not None else None
         accel_320 = (raw_bands['300_320'][team] - best_bands['300_320']) if raw_bands['300_320'][team] is not None else None
         phase_bands = {name: {'gap_s': float(raw_bands[name][team] - best_bands[name]),
-                              'straights': len(team_straight_deltas[name][team]),
-                              'zones': len(team_straight_deltas[name][team])}
+                              'straights': band_counts[name].get(team, 0),
+                              'zones': band_counts[name].get(team, 0),
+                              'comparison': 'connected-zone-effects-v1',
+                              'cohort': len(band_scores[name])}
                        for _, _, name in bands if raw_bands[name][team] is not None}
 
         all_team_sums = [sum(team_straight_deltas['250_300'][t]) for t in teams if team_straight_deltas['250_300'][t]]
@@ -649,7 +689,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             'accel_200_250': float(accel_200) if accel_200 is not None else None,
             'accel_300_320': float(accel_320) if accel_320 is not None else None,
             'accel_bands': phase_bands,
-            'accel_cumul_loss_250_300': float(max(0.0, cumul_loss)),
+            'accel_cumul_loss_250_300': None,  # unequal zone coverage cannot support a cumulative loss
             'straight_coverage': cov_str,
             'straight_provisional': is_provisional,
             'terminal_zone_mean_speed': term_speed,
@@ -871,7 +911,7 @@ def measure_field(extracted, selections, corners=()):
             categories[band] = {
                 'time': band_time, 'time_lost': lost,
                 'deficit': lost / ref['official'] * 100, 'corners': len(indices),
-                'speed': float(np.mean([measurements[i]['mean_speed'] for i in indices])),
+                'speed': float(sum(measurements[i]['length'] for i in indices)/band_time*3.6),
                 'mean_loss_density': float(np.mean([measurements[i]['loss_density'] for i in indices]))
             }
 
@@ -887,7 +927,7 @@ def measure_field(extracted, selections, corners=()):
             tercile_categories[tercile] = {
                 'time': terc_time, 'time_lost': lost,
                 'deficit': lost / ref['official'] * 100, 'corners': len(indices),
-                'speed': float(np.mean([measurements[i]['mean_speed'] for i in indices]))
+                'speed': float(sum(measurements[i]['length'] for i in indices)/terc_time*3.6)
             }
 
         straight_info = straight_perf.get(team, {})
@@ -934,6 +974,6 @@ def measure_field(extracted, selections, corners=()):
     }
 
     return {'teams': results, 'reference_team': reference_team, 'excluded': {t: e for t, e in errors.items() if t not in results},
-            'method': 'shared-gps-grid-v6-matched-braking', 'corner_count': len(zones),
+            'method': 'shared-gps-grid-v7-connected-zones', 'corner_count': len(zones),
             'circuit_features': circuit_features}
 

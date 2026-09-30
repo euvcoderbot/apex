@@ -398,6 +398,7 @@ let tyreLapMode='all'; // 'all' | 'clear'
 let tyreCorrection='fuel'; // 'fuel' | 'raw'
 let tyreWeighting='balanced'; // 'balanced' | 'laps'
 let tyreRunKey='';
+let tyrePlotTeam='',tyrePlotDriver='',tyrePlotEvent='';
 let resultsChartMetric='points'; // 'points' | 'perStart' | 'finishRate' | 'mechanicalRate'
 let trendView='observed'; // 'observed' | 'fitted'
 let straightLineSource='qualy'; // 'qualy' | 'race'
@@ -1073,8 +1074,15 @@ function renderTyreAge(teams) {
     return `<div class="performance-tyre-age-row"><div class="performance-tyre-age-name">${teamLabel(r)}</div><div class="performance-tyre-age-track"><i class="performance-tyre-age-zero"></i><i class="performance-tyre-age-bar" style="--bar-color:${color(r.color)};left:${r.value<0?(50-width).toFixed(2):'50'}%;width:${width.toFixed(2)}%"></i></div><span class="performance-tyre-age-value">${signed(r.value,3,' s/lap')}</span></div>`;
   }).join('')}</div></div>`:`<p class="section-empty">${tyreSeasonStat==='p75'?'P75 needs at least four supported Grands Prix for every included C grade. The table shows each missing grade and its GP count.':tyreLapMode==='clear'?'No supported clean-air fits. Try All usable laps to inspect traffic-affected trends.':'No runs with at least six usable laps spanning five tyre-age steps. Short runs remain in the evidence table.'}</p>`;
   const plotRuns=entities.flatMap(entity=>entity.stints.filter(s=>(tyreView==='OVERALL'||s.compound_grade===tyreView)&&finite(s.trendValue)&&s.points?.length>=3).map(s=>({entity,stint:s,key:tyreStintKey(entity,s)})));
-  const selectedRun=plotRuns.find(r=>r.key===tyreRunKey)||plotRuns.sort((a,b)=>b.stint.samples-a.stint.samples)[0];
-  const stintPlot=selectedRun?renderTyreStintPlot(selectedRun.entity,selectedRun.stint):'';
+  let selectedRun=plotRuns.find(r=>r.key===tyreRunKey);
+  const choose=(list,value,key)=>list.some(r=>key(r)===value)?list.filter(r=>key(r)===value):list;
+  let filteredRuns=choose(plotRuns,tyrePlotTeam,r=>r.entity.team);
+  filteredRuns=choose(filteredRuns,tyrePlotDriver,r=>r.stint.driver);
+  filteredRuns=choose(filteredRuns,tyrePlotEvent,r=>r.stint.event);
+  selectedRun=selectedRun||filteredRuns.sort((a,b)=>String(a.entity.team).localeCompare(String(b.entity.team))||String(a.stint.driver).localeCompare(String(b.stint.driver))||Number(a.stint.round)-Number(b.stint.round)||a.stint.stint-b.stint.stint)[0];
+  const options=(values,selected)=>[...new Set(values)].map(value=>`<option value="${escape(value)}" ${value===selected?'selected':''}>${escape(value)}</option>`).join('');
+  const picker=selectedRun?`<div class="performance-tyre-plot-controls"><label>Team<select data-tyre-plot-filter="team">${options(plotRuns.map(r=>r.entity.team).sort(),selectedRun.entity.team)}</select></label><label>Driver<select data-tyre-plot-filter="driver">${options(plotRuns.filter(r=>r.entity.team===selectedRun.entity.team).map(r=>r.stint.driver),selectedRun.stint.driver)}</select></label><label>Grand Prix<select data-tyre-plot-filter="event">${options(plotRuns.filter(r=>r.entity.team===selectedRun.entity.team&&r.stint.driver===selectedRun.stint.driver).map(r=>r.stint.event),selectedRun.stint.event)}</select></label><label>Stint / run<select data-tyre-plot-filter="run">${plotRuns.filter(r=>r.entity.team===selectedRun.entity.team&&r.stint.driver===selectedRun.stint.driver&&r.stint.event===selectedRun.stint.event).map(r=>`<option value="${r.key}" ${r.key===selectedRun.key?'selected':''}>Stint ${r.stint.stint} · ${escape(r.stint.compound_grade)} · age ${r.stint.min_age}–${r.stint.max_age}${r.stint.segment?` · run ${r.stint.segment+1}`:''}</option>`).join('')}</select></label></div><p class="performance-note">Inspecting one individual run · ${plotRuns.length} runs from ${new Set(plotRuns.map(r=>r.entity.team)).size} teams available. The ranking above summarizes the selected compound across all supported runs.</p>`:'';
+  const stintPlot=selectedRun?picker+renderTyreStintPlot(selectedRun.entity,selectedRun.stint):'';
   const evidence=entities.flatMap(entity=>entity.stints.filter(s=>tyreView==='OVERALL'||s.compound_grade===tyreView).map(s=>[
     teamLabel(entity),escape(s.driver||'—'),eventLabel(s.event),escape(s.compound_grade||'Unmapped'),`${s.stint}${s.segment?` · green run ${s.segment+1}`:''}`,
     finite(s.min_age)&&finite(s.max_age)?`${s.min_age}–${s.max_age}`:'—',s.trendSamples||0,
@@ -1307,7 +1315,7 @@ function renderRace(teams) {
 }
 
 function renderResults(teams) {
-  const resultRows=teams.map(t=>({...t,pointsPerStart:t.starts&&t.pointsKnown?t.points/t.starts:null,
+  const resultRows=teams.map(t=>({...t,points:t.pointsKnown?t.points:null,pointsPerStart:t.starts&&t.pointsKnown?t.points/t.starts:null,
     finishRatePct:t.starts?100*t.finishes/t.starts:null,
     mechanicalRatePct:t.starts?100*(t.puRetirements+t.chassisRetirements)/t.starts:null}));
   const ordered=sorted(resultRows,{
@@ -1335,7 +1343,7 @@ function renderResults(teams) {
   });
 
   return card('Reliability and results',
-     'Official race classifications only; sprints excluded. Points and finishing position describe results conversion, not a car-performance score. Retirement categories are provisional when timing status is generic; unlinked event notes are not independently verified.',
+     'Official race classifications only; sprints excluded. Points and finishing position describe results, not isolated car performance. Generic retirement statuses remain unknown rather than guessing a cause.',
     `<div class="performance-scope-toggle performance-stat-toggle" role="group" aria-label="Results chart measure"><button type="button" data-results-chart="points" aria-pressed="${resultsChartMetric==='points'}">Total points</button><button type="button" data-results-chart="perStart" aria-pressed="${resultsChartMetric==='perStart'}">Points / start</button><button type="button" data-results-chart="finishRate" aria-pressed="${resultsChartMetric==='finishRate'}">Finish rate</button><button type="button" data-results-chart="mechanicalRate" aria-pressed="${resultsChartMetric==='mechanicalRate'}">PU/chassis rate</button></div>`+pointsChart+
     table([
       sortHeader('resultTeam','Team'),
@@ -1361,13 +1369,13 @@ function renderResults(teams) {
       (t.otherRetirements + t.unknownRetirements) > 0 ? `<span class="retirement-badge is-other">${t.otherRetirements + t.unknownRetirements}</span>` : '0'
     ])))+
      card('Retirement classifications',
-       'Timing status is the primary source. Additional 2026 event notes are marked unlinked and should not be treated as verified official causes. DSQ and medical withdrawals are excluded from mechanical failure rates.',
+       'Causes come from the supplied classification status. A generic Retired status does not identify a mechanical failure or accident. DSQ and medical withdrawals do not count as mechanical failures.',
       table([
         'Team',
         'Event',
         'Driver',
         'Category',
-         'Reported status / provisional incident note',
+         'Supplied classification status',
         'Source attribution'
       ],teams.flatMap(t=>t.retirements.map(r=>[
         teamLabel(t),
@@ -1591,7 +1599,7 @@ function renderTrend(teams) {
       </div>`);
   }
   const trendRows = teams.map(t => {
-    const valid = t.q.filter(q => finite(q.pace));
+    const valid = t.q.filter(q => finite(q.pace)).sort((a,b)=>a.round-b.round);
     let first = null, last = null, label = '';
     let slopePerRound = null;
     let modelledShift = null;
@@ -1747,7 +1755,7 @@ function eventTelemetry(event) {
 }
 
 function eventAdjustedScores(reports, valueOf, mode='mean') {
-  const observations=[];
+  let observations=[];
   for(const {event,summary} of reports) {
     const measured=[...summary.rows.values()].map(row=>({team:row.team,value:valueOf(row)}))
       .filter(item=>finite(item.value));
@@ -1755,20 +1763,43 @@ function eventAdjustedScores(reports, valueOf, mode='mean') {
     for(const item of measured)observations.push({...item,event:event.name});
   }
   if(!observations.length)return new Map();
+  const graph=new Map();
+  const byEvent=new Map();
+  for(const observation of observations){
+    if(!byEvent.has(observation.event))byEvent.set(observation.event,[]);
+    byEvent.get(observation.event).push(observation.team);
+  }
+  for(const cohort of byEvent.values())for(const team of cohort){
+    if(!graph.has(team))graph.set(team,new Set());
+    for(const peer of cohort)graph.get(team).add(peer);
+  }
+  const unseen=new Set(graph.keys()),components=[];
+  while(unseen.size){
+    const group=new Set(),pending=[unseen.values().next().value];
+    while(pending.length){const team=pending.pop();if(group.has(team))continue;group.add(team);unseen.delete(team);for(const peer of graph.get(team))if(!group.has(peer))pending.push(peer);}
+    components.push(group);
+  }
+  components.sort((a,b)=>b.size-a.size||observations.filter(o=>b.has(o.team)).length-observations.filter(o=>a.has(o.team)).length||[...a].sort().join().localeCompare([...b].sort().join()));
+  const supported=components[0];
+  observations=observations.filter(o=>supported.has(o.team));
   const teams=[...new Set(observations.map(o=>o.team))];
   const eventIds=[...new Set(observations.map(o=>o.event))];
+  const eventRows=new Map(eventIds.map(event=>[event,observations.filter(o=>o.event===event)]));
+  const teamRows=new Map(teams.map(team=>[team,observations.filter(o=>o.team===team)]));
   const teamEffect=new Map(teams.map(team=>[team,0]));
   const eventEffect=new Map(eventIds.map(event=>[event,0]));
   // Two-way event/constructor effects use the overlapping teams as bridges.
   // This avoids declaring two different sets of circuits directly comparable.
   const centreOf=mode==='median'?median:avg;
   for(let iteration=0;iteration<40;iteration++) {
-    for(const event of eventIds)eventEffect.set(event,centreOf(observations.filter(o=>o.event===event)
+    const previous=new Map(teamEffect);
+    for(const event of eventIds)eventEffect.set(event,centreOf(eventRows.get(event)
       .map(o=>o.value-teamEffect.get(o.team))));
-    for(const team of teams)teamEffect.set(team,centreOf(observations.filter(o=>o.team===team)
+    for(const team of teams)teamEffect.set(team,centreOf(teamRows.get(team)
       .map(o=>o.value-eventEffect.get(o.event))));
     const centre=centreOf([...teamEffect.values()]);
     for(const team of teams)teamEffect.set(team,teamEffect.get(team)-centre);
+    if(Math.max(...teams.map(team=>Math.abs(teamEffect.get(team)-previous.get(team))))<1e-9)break;
   }
   const best=Math.min(...teamEffect.values());
   return new Map(teams.map(team=>[team,Math.max(0,teamEffect.get(team)-best)]));
@@ -2659,6 +2690,23 @@ if ($('performanceScope')) {
 
 $('performanceLoad').addEventListener('click',analyse);
 $('performanceCancel').addEventListener('click',stop);
+
+root.addEventListener('change',event=>{
+  const select=event.target.closest('[data-tyre-plot-filter]');
+  if(!select)return;
+  const kind=select.dataset.tyrePlotFilter;
+  const controls=select.closest('.performance-tyre-plot-controls');
+  tyrePlotTeam=controls.querySelector('[data-tyre-plot-filter="team"]').value;
+  tyrePlotDriver=controls.querySelector('[data-tyre-plot-filter="driver"]').value;
+  tyrePlotEvent=controls.querySelector('[data-tyre-plot-filter="event"]').value;
+  tyreRunKey=kind==='run'?select.value:'';
+  if(kind==='team'){tyrePlotDriver='';tyrePlotEvent='';}
+  if(kind==='driver')tyrePlotEvent='';
+  const scrollY=window.scrollY;
+  render();
+  root.querySelector(`[data-tyre-plot-filter="${kind}"]`)?.focus({preventScroll:true});
+  window.scrollTo({top:scrollY,behavior:'instant'});
+});
 
 root.addEventListener('click',event=>{
   if(event.target.closest('[data-performance-explain]')){showPerformanceDescriptions=!showPerformanceDescriptions;render();return;}

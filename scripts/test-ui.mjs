@@ -504,6 +504,10 @@ test('season effects bridge unequal circuit coverage through shared teams', () =
   sandbox.median=values=>{const x=[...values].sort((a,b)=>a-b);return x.length%2?x[(x.length-1)/2]:(x[x.length/2-1]+x[x.length/2])/2;};
   const robust=sandbox.eventAdjustedScores(reports,row=>row.value,'median');
   assert.ok(Math.abs(robust.get('B')-1)<.001);
+  reports.push({event:{name:'Isolated'},summary:{rows:new Map(['E','F','G'].map((team,i)=>[team,{team,value:i}]))}});
+  const separated=sandbox.eventAdjustedScores(reports,row=>row.value);
+  assert.equal(separated.size,4);
+  assert.equal(separated.has('E'),false);
 });
 
 test('race trap season ranking uses event-relative speed and paired qualifying ST', () => {
@@ -540,7 +544,7 @@ test('overall tyre chart shows sparse matched evidence as provisional', () => {
 test('tyre-age view aggregates own stints for teams and individual drivers', () => {
   const source=readFileSync('car-performance.js','utf8');
   const body=source.slice(source.indexOf('function tyreViewControls()'),source.indexOf('function renderRace(teams)'));
-  const sandbox={tyreMetric:'age',tyreSubject:'team',tyreView:'OVERALL',tyreSeasonStat:'mean',tyreLapMode:'all',tyreCorrection:'fuel',tyreWeighting:'balanced',tyreRunKey:'',sortKey:'tyreAgeValue',sortDirection:1,
+  const sandbox={tyreMetric:'age',tyreSubject:'team',tyreView:'OVERALL',tyreSeasonStat:'mean',tyreLapMode:'all',tyreCorrection:'fuel',tyreWeighting:'balanced',tyreRunKey:'',tyrePlotTeam:'',tyrePlotDriver:'',tyrePlotEvent:'',sortKey:'tyreAgeValue',sortDirection:1,
     context:{year:'2026'},events:[{round:1,R:{}},{round:2,R:{}}],
     VERIFIED_DRY_ALLOCATIONS:{2026:['345','234']},TYRE_ALLOCATION_SOURCES:{2026:'https://press.pirelli.com/'},
     finite:n=>typeof n==='number'&&Number.isFinite(n),avg:a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,
@@ -562,6 +566,13 @@ test('tyre-age view aggregates own stints for teams and individual drivers', () 
   assert.match(team,/90\.123 s observed/);
   assert.match(team,/data-tyre-run=/);
   assert.doesNotMatch(team,/NaN|Infinity/);
+  assert.match(team,/data-tyre-plot-filter="team"/);
+  const other={team:'Other',color:'#654321',tyreAgeStints:[{driver:'CCC',event:'Three',compound_grade:'C5',fuel_adjusted_slope:.04,samples:8,min_age:1,max_age:8,points:[{lap:3,age:1,time:92},{lap:4,age:2,time:92.04},{lap:5,age:3,time:92.08}]}]};
+  sandbox.tyrePlotTeam='Other';
+  const selected=sandbox.renderTyreAge([...teams,other]);
+  assert.match(selected,/CCC · Three/);
+  assert.match(selected,/2 teams available/);
+  sandbox.tyrePlotTeam='';
   sandbox.tyreView='C3';
   assert.match(sandbox.renderTyreAge(teams),/0\.020/);
   assert.doesNotMatch(sandbox.renderTyreAge(teams),/0\.080/);
@@ -586,7 +597,7 @@ test('tyre-age view aggregates own stints for teams and individual drivers', () 
 test('tyre GP summaries handle skew and explain every sparse P75 blank', () => {
   const source=readFileSync('car-performance.js','utf8');
   const body=source.slice(source.indexOf('function tyreViewControls()'),source.indexOf('function renderRace(teams)'));
-  const sandbox={tyreMetric:'age',tyreSubject:'team',tyreView:'C3',tyreSeasonStat:'mean',tyreLapMode:'all',tyreCorrection:'fuel',tyreWeighting:'balanced',tyreRunKey:'',sortKey:'tyreAgeValue',sortDirection:1,
+  const sandbox={tyreMetric:'age',tyreSubject:'team',tyreView:'C3',tyreSeasonStat:'mean',tyreLapMode:'all',tyreCorrection:'fuel',tyreWeighting:'balanced',tyreRunKey:'',tyrePlotTeam:'',tyrePlotDriver:'',tyrePlotEvent:'',sortKey:'tyreAgeValue',sortDirection:1,
     context:{year:2026},events:[1,2,3,4].map(round=>({round,R:{}})),
     VERIFIED_DRY_ALLOCATIONS:{2026:['123','123','123','123']},TYRE_ALLOCATION_SOURCES:{2026:'https://press.pirelli.com/'},
     finite:Number.isFinite,avg:a=>{const x=a.filter(Number.isFinite);return x.length?x.reduce((s,v)=>s+v,0)/x.length:null;},

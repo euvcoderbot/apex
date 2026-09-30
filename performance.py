@@ -525,16 +525,8 @@ VERIFIED_RETIREMENT_REASONS = {
 def get_verified_retirement(event_name, abbr, year=None):
     # These notes were assembled for 2026 only. Without a linked primary
     # document they are context, not verified evidence of a failure cause.
-    if year != 2026:
-        return None
-    if (event_name, abbr) in VERIFIED_RETIREMENT_REASONS:
-        return VERIFIED_RETIREMENT_REASONS[(event_name, abbr)]
-    norm_event = event_name.lower().replace('grand prix', '').replace('gp', '').strip()
-    for (ev, drv), val in VERIFIED_RETIREMENT_REASONS.items():
-        if drv == abbr:
-            ev_clean = ev.lower().replace('grand prix', '').replace('gp', '').strip()
-            if norm_event and (norm_event in ev_clean or ev_clean in norm_event):
-                return val
+    # No note currently has an independently linked primary source. Do not
+    # let these historical notes replace an actual classification status.
     return None
 
 
@@ -868,7 +860,7 @@ def analyze(data, traffic=2):
         tyre_valid = [r for r in candidates if gaps.get((r['driver'], r['lap'])) is not None
                       and gaps[(r['driver'], r['lap'])] > 1.5]
         driver_team = {r['driver']: r['team'] for r in valid}
-        driver_estimates, support = race_estimates(valid)
+        support = {}
 
         # Multi-threshold traffic sensitivity (Loose 1.5s, Standard 2.0s, Strict 2.5s)
         traffic_sensitivities = {}
@@ -877,7 +869,9 @@ def analyze(data, traffic=2):
                        and gaps[(r['driver'], r['lap'])] > t_thresh]
             if t_valid:
                 try:
-                    t_est, _ = race_estimates(t_valid)
+                    t_est, t_support = race_estimates(t_valid)
+                    if t_thresh == 2.0:
+                        support = t_support
                     traffic_sensitivities[t_thresh] = t_est
                 except Exception:
                     traffic_sensitivities[t_thresh] = {}
@@ -1129,7 +1123,7 @@ def analyze(data, traffic=2):
             'year': session_year,
             'regulatory_energy_envelope': regulatory_energy_envelope,
             'teams': [{'team': name, **team} for name, team in teams.items()],
-            'method': 'car-performance-v5-robust-tyre-trends',
+            'method': 'car-performance-v6-source-audit',
             'traffic_threshold': traffic,
             'total_laps': len(rows),
             'eligible_laps': len(valid)}

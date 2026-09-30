@@ -1527,6 +1527,11 @@ body.performance-view #sidebarToggle {
 .performance-tyre-age-bar { position: absolute; top: 1px; bottom: 1px; min-width: 2px; border-radius: 2px; background: var(--bar-color); }
 .performance-tyre-age-value { text-align: right; font-size: .8125rem; white-space: nowrap; }
 .performance-tyre-stint-plot { margin-top: 20px; }
+.performance-tyre-plot-controls { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin-top: 24px; }
+.performance-tyre-plot-controls label { display: grid; gap: 6px; color: var(--text-secondary); font-size: .875rem; }
+.performance-tyre-plot-controls select { width: 100%; min-width: 0; padding: 10px 12px; min-height: 42px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--surface-muted); color: var(--text-main); font: inherit; }
+@media (max-width: 800px) { .performance-tyre-plot-controls { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 480px) { .performance-tyre-plot-controls { grid-template-columns: minmax(0,1fr); } }
 .performance-tyre-stint-plot h4 { margin: 0 0 6px; }
 .performance-tyre-stint-plot svg { width: 100%; max-height: 320px; margin-top: 12px; overflow: visible; }
 .performance-tyre-stint-plot text { fill: var(--text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }

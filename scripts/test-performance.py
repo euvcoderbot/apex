@@ -38,6 +38,24 @@ class RaceSession:
 
 
 class PerformanceTests(unittest.TestCase):
+    def test_partial_acceleration_zone_coverage_retains_connected_teams(self):
+        from performance_tracks import connected_zone_scores
+        scores, counts, keys = connected_zone_scores({
+            'one': {'A': 10., 'B': 11., 'C': 12.},
+            'two': {'B': 21., 'C': 22., 'D': 23.},
+            'isolated': {'E': 5., 'F': 6., 'G': 7.}})
+        self.assertEqual(set(scores), set('ABCD'))
+        for i, team in enumerate('ABCD'):
+            self.assertAlmostEqual(scores[team], i, places=6)
+        self.assertEqual(counts, {'A': 1, 'B': 2, 'C': 2, 'D': 1})
+        self.assertEqual(set(keys), {'one', 'two'})
+
+    def test_generic_retirement_does_not_inherit_unlinked_event_note(self):
+        from performance import get_verified_retirement, classify_retirement
+        self.assertIsNone(get_verified_retirement('Monaco Grand Prix', 'STR', 2026))
+        result = classify_retirement('Retired', 'Monaco Grand Prix', 'STR', session_year=2026)
+        self.assertEqual(result['category'], 'Unknown / unverified')
+
     def test_tyre_fit_removes_slow_mistake_without_erasing_real_degradation(self):
         rows = [lap(time=90+i*.15, lap=i+5, age=i+1) for i in range(20)]
         rows[9]['time'] += 4
