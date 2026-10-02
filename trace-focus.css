@@ -32,7 +32,7 @@ body.trace-focus #charts {
   height: 100dvh;
   padding: 16px;
   display: grid;
-  grid-template-rows: minmax(480px, 1.7fr) minmax(250px, 1fr);
+  grid-template-rows: minmax(400px, 1.7fr) minmax(220px, 1fr);
   gap: 12px;
   overflow: auto;
   background: var(--bg-page, var(--bg-card));
@@ -67,7 +67,7 @@ body.trace-focus .trace-focus-close { display: inline-flex; align-items: center;
 body.trace-focus #realTooltip { position: fixed; z-index: 1001; }
 
 @media (max-height: 650px) {
-  body.trace-focus #charts { grid-template-rows: minmax(480px, 1.5fr) minmax(250px, 1fr); }
+  body.trace-focus #charts { grid-template-rows: minmax(400px, 1.5fr) minmax(220px, 1fr); }
 }
 @media (max-width: 700px) {
   body.trace-focus #charts { padding: 8px; gap: 8px; grid-template-rows: minmax(580px, 1.4fr) minmax(280px, 1fr); }
