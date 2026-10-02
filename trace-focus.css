@@ -23,6 +23,7 @@
 .pit-lap-notice[hidden] { display: none; }
 
 body.trace-focus { zoom: 1; overflow: hidden; }
+body.trace-focus .site-header, body.trace-focus footer { display: none; }
 body.trace-focus #charts {
   position: fixed;
   inset: 0;
@@ -31,7 +32,7 @@ body.trace-focus #charts {
   height: 100dvh;
   padding: 16px;
   display: grid;
-  grid-template-rows: minmax(0, 1.7fr) minmax(0, 1fr);
+  grid-template-rows: minmax(480px, 1.7fr) minmax(250px, 1fr);
   gap: 12px;
   overflow: auto;
   background: var(--bg-page, var(--bg-card));
@@ -46,25 +47,30 @@ body.trace-focus #charts > .chart:nth-child(2) {
   margin: 0;
   overflow: hidden;
 }
-body.trace-focus #charts > .speed-chart {
+body.trace-focus #charts > .chart.speed-chart:nth-child(1) {
   grid-template-rows: auto auto minmax(0, 1fr);
 }
+body.trace-focus #charts .speed-chart-controls { min-height: min-content; }
 body.trace-focus #charts .chart-heading { margin-bottom: 10px; }
 body.trace-focus #charts .speed-chart-controls { margin-bottom: 10px; }
-body.trace-focus #charts .chart canvas {
-  width: 100%;
-  height: 100% !important;
-  min-height: 0;
+/* Important declarations reverse cascade-layer order. Reserve the first
+   layer so the legacy fixed canvas heights cannot override focused sizing. */
+@layer focus {
+  body.trace-focus #charts .chart canvas {
+    width: 100%;
+    height: 100% !important;
+    min-height: 0 !important;
+  }
 }
 body.trace-focus .trace-focus-button[data-trace-focus="open"] { display: none; }
 body.trace-focus .trace-focus-close { display: inline-flex; align-items: center; }
 body.trace-focus #realTooltip { position: fixed; z-index: 1001; }
 
 @media (max-height: 650px) {
-  body.trace-focus #charts { grid-template-rows: minmax(380px, 1.5fr) minmax(220px, 1fr); }
+  body.trace-focus #charts { grid-template-rows: minmax(480px, 1.5fr) minmax(250px, 1fr); }
 }
 @media (max-width: 700px) {
-  body.trace-focus #charts { padding: 8px; gap: 8px; grid-template-rows: minmax(380px, 1.4fr) minmax(220px, 1fr); }
+  body.trace-focus #charts { padding: 8px; gap: 8px; grid-template-rows: minmax(580px, 1.4fr) minmax(280px, 1fr); }
   body.trace-focus #charts .chart { padding: 10px; }
   body.trace-focus #charts .trace-zoom-cluster { width: auto; }
 }

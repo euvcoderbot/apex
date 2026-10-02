@@ -28,7 +28,7 @@ for (const file of staticFiles) {
 const layers = await Promise.all([
   ["design-system.css", "legacy"], ["polish.css", "legacy"], ["apple-ui.css", "interface"],
 ].map(async ([file, layer]) => `@layer ${layer} {\n${await readFile(resolve(root, file), "utf8")}\n}`));
-await writeFile(resolve(destination, "styles.css"), `@layer legacy, interface;\n${layers.join("\n")}\n`);
+await writeFile(resolve(destination, "styles.css"), `@layer focus, legacy, interface;\n${layers.join("\n")}\n`);
 await cp(resolve(root, "assets"), resolve(destination, "assets"), { recursive: true });
 
 const apiOrigin = String(

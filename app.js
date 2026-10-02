@@ -1949,6 +1949,44 @@ const SEPANG_MAP_CORNERS = Object.freeze([
 ].map(([outlineIndex,distance], i) => Object.freeze({number:String(i+1),letter:'',
   outlineIndex,distance,fraction:distance/5543,source:'official_map_estimate',approximate:true})));
 
+// Geographic anchors, normalized against the complete north-up Sepang outline.
+// Do not transfer its chainage to a car stream: integrated telemetry distance
+// and the map's start line are not interchangeable.
+const SEPANG_CORNER_POSITIONS = Object.freeze([
+  [0,.477778],[.094181,.517310],[.070923,.785614],[.479518,.992982],
+  [.604422,.655322],[.774407,.745614],[1,.466316],[.957504,.364211],
+  [.547569,.291813],[.638783,.175322],[.572071,0],[.338821,.200585],
+  [.162902,.151111],[.095616,.249942],[.858059,.488187],
+]);
+
+function projectSepangCorners(samples) {
+  const points = samples.filter(p => p.X != null && p.Y != null && Number.isFinite(+p.X) && Number.isFinite(+p.Y));
+  if (points.length < 30) return [];
+  const minX = Math.min(...points.map(p => +p.X)), maxX = Math.max(...points.map(p => +p.X));
+  const minY = Math.min(...points.map(p => +p.Y)), maxY = Math.max(...points.map(p => +p.Y));
+  if (maxX <= minX || maxY <= minY) return [];
+  const normalized = points.map(p => ({x:(+p.X-minX)/(maxX-minX), y:(+p.Y-minY)/(maxY-minY), fraction:traceSampleFraction(samples,p)}));
+  let previous = -Infinity;
+  return SEPANG_MAP_CORNERS.flatMap((corner,index) => {
+    const [x,y] = SEPANG_CORNER_POSITIONS[index];
+    let best = null;
+    for (let i=1;i<normalized.length;i++) {
+      const a=normalized[i-1], b=normalized[i];
+      if (b.fraction <= previous || b.fraction-a.fraction > .025) continue;
+      const dx=b.x-a.x, dy=b.y-a.y;
+      const t=Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/(dx*dx+dy*dy||1)));
+      const fraction=a.fraction+(b.fraction-a.fraction)*t;
+      if (fraction <= previous) continue;
+      const error=Math.hypot(a.x+t*dx-x,a.y+t*dy-y);
+      if (!best || error<best.error) best={fraction,error};
+    }
+    // Missing or mismatched GPS must not produce convincing but wrong labels.
+    if (!best || best.error>.045) return [];
+    previous=best.fraction;
+    return [{...corner,key:`${corner.number}:`,fraction:best.fraction,source:'map_position',approximate:true}];
+  });
+}
+
 function isSepangCircuit(event = null) {
   const key = sessionCircuitKey ?? event?.circuit_key;
   const location = normalizedPlaceName(sessionLocation || event?.location || '');
@@ -1989,6 +2027,9 @@ function resolveCornerMarkers(samples, totalDistance, suppliedMarkers = null) {
   const markerRows = markerRowsForCurrentCircuit(Array.isArray(suppliedMarkers) && suppliedMarkers.length
     ? suppliedMarkers
     : corners);
+  if (markerRows.length && isSepangCircuit() && markerRows.every(row => row.source === 'official_map_estimate')) {
+    return projectSepangCorners(samples);
+  }
   const positionSamples = samples.filter(point => point.X != null && point.Y != null && Number.isFinite(+point.X) && Number.isFinite(+point.Y));
   const xs = positionSamples.map(point => +point.X);
   const ys = positionSamples.map(point => +point.Y);
@@ -2041,10 +2082,25 @@ function resolveCornerMarkers(samples, totalDistance, suppliedMarkers = null) {
     }
 
     if (Number.isFinite(fraction) && fraction > previousFraction) previousFraction = fraction;
+    const rawFraction = fraction;
+    // Corner fractions arrive in the source lap's distance coordinates; the
+    // charts and map use the registered comparison grid after alignment.
+    if (Number.isFinite(samples[0]?.AlignedFraction) && Number.isFinite(fraction)) {
+      const target = fraction * (+samples[samples.length - 1]?.Distance || totalDistance);
+      const afterIndex = samples.findIndex(p => +p.Distance >= target);
+      if (afterIndex >= 0) {
+        const before = samples[Math.max(0,afterIndex-1)], after = samples[afterIndex];
+        if (Number.isFinite(before.AlignedFraction) && Number.isFinite(after.AlignedFraction)) {
+          const ratio = Math.max(0,Math.min(1,(target-before.Distance)/(after.Distance-before.Distance||1)));
+          fraction = before.AlignedFraction + (after.AlignedFraction-before.AlignedFraction)*ratio;
+        }
+      }
+    }
     return {
       ...corner,
       key: `${corner.number}:${corner.letter || ''}`,
       fraction,
+      rawFraction,
       source,
     };
   }).filter(marker => Number.isFinite(marker.fraction) && marker.fraction > 0 && marker.fraction <= 1);
@@ -2390,8 +2446,9 @@ function drawRealChart(name) {
   drawGridAxes(ctx, rect.width, rect.height, bounds, unit);
 
   // Shared distance axis. Every telemetry chart uses the same visible range.
-  for (let tick = 0; tick <= 6; tick++) {
-    const fraction = viewStart + viewSpan * tick / 6;
+  const distanceTickCount = Math.max(2, Math.min(6, Math.floor(plotWidth / 100)));
+  for (let tick = 0; tick <= distanceTickCount; tick++) {
+    const fraction = viewStart + viewSpan * tick / distanceTickCount;
     const x = xForFraction(fraction);
     ctx.beginPath();
     ctx.moveTo(x, bounds.top);
@@ -2401,7 +2458,7 @@ function drawRealChart(name) {
     ctx.stroke();
     ctx.fillStyle = theme.text;
     ctx.font = canvasFont(12);
-    ctx.textAlign = tick === 0 ? 'left' : tick === 6 ? 'right' : 'center';
+    ctx.textAlign = tick === 0 ? 'left' : tick === distanceTickCount ? 'right' : 'center';
     ctx.fillText(`${Math.round(fraction * totalDist)} M`, x, rect.height - bounds.bottom + 18);
   }
   ctx.textAlign = 'left';
@@ -2411,7 +2468,9 @@ function drawRealChart(name) {
     const projection = refLap?.cornerMarkers?.[0]?.source === 'lap_projection';
     const approximate = speedCornerMarkers.some(marker => marker.approximate);
     $('#cornerStatus').textContent = approximate
-      ? 'Madrid: 22 turns + T5A/T20A · approximate positions from the FIA circuit map.'
+      ? isSepangCircuit()
+        ? `Sepang: ${count} map-derived turn positions matched to this lap's GPS (approximate).`
+        : 'Madrid: 22 turns + T5A/T20A · approximate positions from the FIA circuit map.'
       : count
       ? `${count} official corner markers aligned to this lap${projection ? ' (lap projection).' : '.'}`
       : 'Corner coordinates are unavailable for this telemetry source.';
@@ -3525,7 +3584,7 @@ function renderMiniSectorMap() {
   // Mark section boundaries without obscuring the track's dominance colours.
   let highlightedCornerZone = null;
   if (typeof adaptiveCornerZones === 'function') {
-    const markerCorners = resolveCornerMarkers(reference, totalDistance, loaded[0]?.cornerMarkers);
+    const markerCorners = resolveCornerMarkers(reference, totalDistance, spatial?.lap?.cornerMarkers);
     const zones = adaptiveCornerZones(markerCorners);
     const selectedZone = zones[Math.max(0, Math.min(selectedCornerIndex, zones.length - 1))];
     if (selectedZone) {
@@ -3590,7 +3649,7 @@ function renderMiniSectorMap() {
 
   // Corner markers rendered ON TOP of mini-sector dominance lines
   if ($('#cornerToggle').checked) {
-    const markerCorners = resolveCornerMarkers(reference, totalDistance, loaded[0]?.cornerMarkers);
+    const markerCorners = resolveCornerMarkers(reference, totalDistance, spatial?.lap?.cornerMarkers);
     ctx.font = canvasFont(12);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';

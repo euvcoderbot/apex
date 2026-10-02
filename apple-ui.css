@@ -689,3 +689,30 @@ body { zoom: .87; }
 .driver-result { display: grid; justify-items: end; gap: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .driver-result b { font-size: 12px; font-weight: 500; }
 .driver-result small { font-size: 10px; color: var(--text-muted); }
+
+/* Control decks stay in normal flow at every chart width. Keep essential
+   checkbox and focus styling in this layer, not dependent on the legacy UI. */
+.speed-chart-controls { min-width: 0; height: auto; }
+.trace-settings, .trace-display-bar, .trace-driver-toggles { min-width: 0; flex-wrap: wrap; }
+.trace-setting, .trace-driver-chip { position: relative; user-select: none; }
+.trace-setting input, .trace-driver-chip input {
+  position: absolute; width: 1px; height: 1px; opacity: 0; margin: 0;
+}
+.trace-setting:has(input:focus-visible), .trace-driver-chip:has(input:focus-visible),
+.trace-swatch:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.trace-setting > i { flex: 0 0 18px; }
+.trace-setting > span { white-space: normal; }
+.trace-setting { max-width: 100%; }
+.chart-heading > *, .dominance-map-header > * { min-width: 0; }
+.map-view-switch button[aria-pressed="true"] { color: var(--text-main); }
+@media (max-width: 700px) {
+  .trace-settings .alignment-readout { flex-basis: 100%; }
+  .trace-zoom-cluster { max-width: 100%; flex-wrap: wrap; }
+  .chart-heading h2 { flex: 1 0 100%; }
+}
+@media (max-width: 600px) {
+  .header-actions { min-width: 0; }
+  .sidebar-toggle span { display: none; }
+  .sidebar-toggle { width: 34px; padding-inline: 6px; }
+  .brand img { width: 90px; }
+}

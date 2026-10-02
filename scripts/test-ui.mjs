@@ -130,7 +130,7 @@ test('one interface font family for canvas and every HTML descendant', () => {
   assert.ok(!/ctx\.font\s*=\s*['"]/.test(app));
   assert.match(context().run('canvasFont(12)'), /12px -apple-system/);
   const imports = readFileSync('styles.css', 'utf8');
-  assert.match(imports, /@layer legacy, interface/);
+  assert.match(imports, /@layer focus, legacy, interface/);
   assert.match(imports, /apple-ui\.css[^;]+layer\(interface\)/);
 });
 
@@ -883,6 +883,40 @@ test('pit chart, sortable table and exact rows show the same selected measuremen
     assert.match(captured[0].rows.find(row=>row[0]==='A')[column],new RegExp(expected.replace('.','\\.')));
     assert.equal(captured[1].rows.length,20);
   }
+});
+
+test('Sepang corners use GPS geometry and aligned fractions, not outline chainage', () => {
+  const h=context();
+  const coords=JSON.parse(readFileSync('assets/circuits/f1-circuits.geojson','utf8')).features.find(f=>f.properties.id==='my-1999').geometry.coordinates;
+  h.sandbox.samples=coords.slice(0,-1).flatMap((a,i)=>Array.from({length:10},(_,j)=>{
+    const t=j/10,b=coords[i+1],f=(i+t)/(coords.length-1);
+    return {X:(a[0]+(b[0]-a[0])*t)*1e6-1e8,Y:(a[1]+(b[1]-a[1])*t)*1e6,
+      Distance:5543*f*f,AlignedFraction:f};
+  }));
+  const markers=h.run('projectSepangCorners(samples)');
+  assert.equal(markers.length,15);
+  const indices=[6,14,24,35,44,52,57,60,66,71,78,83,89,94,100];
+  markers.forEach((m,i)=>assert.ok(Math.abs(m.fraction-indices[i]/(coords.length-1))<.003,`Turn ${i+1} must sit on its spatial anchor`));
+  assert.equal(h.run('projectSepangCorners(samples.slice(0,20)).length'),0);
+  assert.match(app,/resolveCornerMarkers\(reference, totalDistance, spatial\?\.lap\?\.cornerMarkers\)/);
+});
+
+test('focused speed chart reserves an independent control row with sufficient specificity', () => {
+  const css=readFileSync('trace-focus.css','utf8');
+  const root=postcss.parse(css);
+  const rule=root.nodes.find(n=>n.selector==='body.trace-focus #charts > .chart.speed-chart:nth-child(1)');
+  assert.ok(rule);
+  assert.ok(rule.nodes.some(n=>n.prop==='grid-template-rows'&&n.value==='auto auto minmax(0, 1fr)'));
+  assert.match(css,/\.speed-chart-controls \{ min-height: min-content; \}/);
+  assert.match(css,/@layer focus/);
+  assert.match(readFileSync('scripts/sync-static.mjs','utf8'),/@layer focus, legacy, interface/);
+});
+
+test('native corner projection follows the aligned comparison grid', () => {
+  const h=context();
+  h.sandbox.document.querySelector=()=>({value:'1'});
+  h.run("calendar=[];sessionCircuitKey=63;samples=[{Distance:0,AlignedFraction:0},{Distance:500,AlignedFraction:.6},{Distance:1000,AlignedFraction:1}]");
+  assert.equal(h.run("resolveCornerMarkers(samples,1000,[{number:'1',fraction:.5,source:'lap_projection'}])[0].fraction"),.6);
 });
 
 test('performance categories expose only defensible alternative summaries', () => {
