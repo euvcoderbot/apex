@@ -60,6 +60,40 @@ test('sector guide uses timed boundaries and rejects insufficient data', () => {
   assert.equal(h.run('makeSectorGuide(testLap,testSamples.slice(8),[])'),null);
 });
 
+test('actual circuit identity resolves Sepang despite the Bahrain event name', () => {
+  const h=context();
+  h.sandbox.document.querySelector = selector => ({value:selector==='#gp'?'16':'2026'});
+  h.run("calendar=[{round:16,name:'Bahrain Grand Prix',location:'Kuala Lumpur',circuit_key:12}]; sessionEventName='Bahrain Grand Prix'; sessionYear=2026; sessionCircuitKey=12; sessionLocation='Kuala Lumpur'");
+  assert.equal(h.run('isSepangCircuit(calendar[0])'),true);
+  assert.equal(h.run('markerRowsForCurrentCircuit([]).length'),15);
+  assert.equal(h.run('markerRowsForCurrentCircuit([]).at(-1).number'),'15');
+  assert.equal(h.run("markerRowsForCurrentCircuit([{number:'1',fraction:.1}]).length"),1);
+  h.run("sessionCircuitKey=63;sessionLocation='Sakhir'");
+  assert.equal(h.run('isSepangCircuit({circuit_key:63,location:"Sakhir"})'),false);
+  assert.equal(h.run('isSepangCircuit({circuit_key:63,location:"Kuala Lumpur"})'),false);
+  assert.equal(h.run('markerRowsForCurrentCircuit([]).length'),0);
+  h.sandbox.coords=JSON.parse(readFileSync('assets/circuits/f1-circuits.geojson','utf8')).features.find(f=>f.properties.id==='my-1999').geometry.coordinates;
+  for (const width of [400,640,1000]) {
+    const labels=[];
+    h.sandbox.ctx=new Proxy({measureText:t=>({width:t.length*7}),fillText:t=>labels.push(t)}, {get:(o,k)=>o[k]||(()=>{})});
+    h.sandbox.rect={width,height:400};
+    h.run(`lightThemeActive=()=>false;canvasFont=()=>'';
+      drawApiCircuitGuide(ctx,{x:coords.map(p=>p[0]),y:coords.map(p=>p[1]),
+        corners:SEPANG_MAP_CORNERS.map(c=>({...c,trackPosition:{x:coords[c.outlineIndex][0],y:coords[c.outlineIndex][1]}}))},rect)`);
+    assert.equal(labels.length,15,`all Sepang labels at ${width}px`);
+  }
+});
+
+test('current calendar bypasses browser response cache', async () => {
+  const h=context(); let calls=0;
+  Object.assign(h.sandbox,{URL,AbortController,DOMException,structuredClone,setTimeout,clearTimeout});
+  h.sandbox.fetch=async()=>{calls++;return {status:200,ok:true,headers:{get:()=>null},text:async()=>JSON.stringify([{round:16}])};};
+  const url=`https://example.test/api/events?year=${new Date().getFullYear()}&status=result-v3`;
+  await h.run(`requestApiData(${JSON.stringify(url)})`);
+  await h.run(`requestApiData(${JSON.stringify(url)})`);
+  assert.equal(calls,2);
+});
+
 test('session selection uses fresh cancellable retrieval with no speculative load', () => {
   assert.match(app, /for \(let y = currentYear; y >= 2018; y--\)/);
   const prepare = app.slice(app.indexOf('function prepareSelectedSession'), app.indexOf('function notify'));

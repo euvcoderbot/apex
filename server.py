@@ -853,6 +853,9 @@ def enrich_recent_openf1_statuses(year: int, events: list[dict[str, Any]]) -> No
         if session_name not in event.get("sessions", []):
             continue
         event.setdefault("session_dates", {})[session_name] = start.isoformat()
+        # Event names are not circuit identities (Bahrain 2026 runs at Sepang).
+        event["location"] = source.get("location") or source.get("circuit_short_name")
+        event["circuit_key"] = integer(source.get("circuit_key"), 0) or None
         end = _parse_openf1_datetime(source.get("date_end"))
         if end is not None:
             event.setdefault("session_end_dates", {})[session_name] = end.isoformat()
@@ -938,6 +941,7 @@ def event_calendar(year: int) -> list[dict[str, Any]]:
             "round": int(event["RoundNumber"]),
             "name": str(event["EventName"]),
             "country": country,
+            "location": str(event.get("Location") or ""),
             "date": str(event["EventDate"])[:10],
             "sessions": sessions,
             "session_dates": session_dates,
@@ -1106,15 +1110,18 @@ def project_corners_onto_lap(data: Any, samples: list[dict[str, Any]]) -> list[d
 
 
 @app.get("/api/events")
-def events(year: int = Query(2025, ge=2014)):
-    cached = read_prepared_cache("events", year)
+def events(response: Response, year: int = Query(2025, ge=2014)):
+    current = year >= datetime.now(timezone.utc).year
+    response.headers["Cache-Control"] = "no-store" if current else "public, max-age=86400"
+    cached = None if current else read_prepared_cache("events", year)
     if cached is not None:
         return cached
     try:
         result = event_calendar(year)
     except Exception as exc:
         raise HTTPException(422, str(exc)) from exc
-    write_prepared_cache("events", year, result)
+    if not current:
+        write_prepared_cache("events", year, result)
     return result
 
 
@@ -1542,6 +1549,8 @@ def session_data(
         "drivers": drivers,
         "corners": corners,
         "circuit_rotation": circuit_rotation,
+        "location": str(data.session_info.get("Meeting", {}).get("Location") or data.event.get("Location") or ""),
+        "circuit_key": integer(data.session_info.get("Meeting", {}).get("Circuit", {}).get("Key"), 0) or None,
         "compounds": get_tire_nominations(year, gp),
         "openf1_session_key": integer(getattr(data, "session_info", {}).get("Key"), 0) or None,
         "lap_data_complete": lap_data_complete,

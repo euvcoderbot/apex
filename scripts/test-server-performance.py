@@ -16,6 +16,26 @@ from fastapi import Response
 
 
 class RetrievalTests(unittest.TestCase):
+    def test_current_calendar_bypasses_prepared_cache_and_preserves_venue(self):
+        now = datetime.now(timezone.utc)
+        response = Response()
+        data = [{'round':16, 'location':'Kuala Lumpur', 'circuit_key':12}]
+        with patch.object(server, 'read_prepared_cache') as read, patch.object(server, 'event_calendar', return_value=data), patch.object(server, 'write_prepared_cache') as write:
+            self.assertEqual(server.events(response, now.year), data)
+        read.assert_not_called()
+        write.assert_not_called()
+        self.assertEqual(response.headers['Cache-Control'], 'no-store')
+
+    def test_status_enrichment_retains_actual_renamed_race_circuit(self):
+        now = datetime.now(timezone.utc)
+        events = [{'round':16,'name':'Bahrain Grand Prix','date':now.date().isoformat(), 'sessions':['Practice 1']}]
+        source = {'session_key':11727,'session_name':'Practice 1', 'date_start':(now-timedelta(hours=3)).isoformat(), 'date_end':(now-timedelta(hours=2)).isoformat(), 'circuit_key':12,'location':'Kuala Lumpur'}
+        with patch.object(server, 'openf1', side_effect=lambda endpoint, **params: [source] if endpoint=='sessions' else [{'flag':'CHEQUERED'}]):
+            server.enrich_recent_openf1_statuses(now.year, events)
+        self.assertEqual(events[0]['circuit_key'],12)
+        self.assertEqual(events[0]['location'],'Kuala Lumpur')
+        self.assertEqual(events[0]['session_statuses']['Practice 1'],'completed')
+
     def test_exact_event_resolution_never_fuzzy_matches_another_race(self):
         schedule = pd.DataFrame([
             {'EventName':'Italian Grand Prix','Location':'Monza'},

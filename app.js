@@ -15,6 +15,8 @@ let genericCircuitData = null;
 let genericCircuitRequest = null;
 let sessionEventName = '';
 let sessionYear = null;
+let sessionCircuitKey = null;
+let sessionLocation = '';
 let loadedSessionName = '';
 let raceResultView = 'points';
 let openf1SessionKey = null;
@@ -217,7 +219,10 @@ async function preparedData(url) {
   return response.ok ? response.json() : null;
 }
 async function requestApiData(url, options = {}) {
-  const cached = await storedData(url);
+  const parsed = new URL(url, window.location?.href || 'http://localhost');
+  const liveCalendar = parsed.pathname === '/api/events'
+    && Number(parsed.searchParams.get('year')) >= new Date().getFullYear();
+  const cached = liveCalendar ? null : await storedData(url);
   if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
   if (cached) return structuredClone(cached);
   const prepared = await preparedData(url).catch(() => null);
@@ -225,7 +230,7 @@ async function requestApiData(url, options = {}) {
   const response = await fetchSessionData(url, options);
   const data = await readApiResponse(response);
   if (!response.ok) throw new Error(data.detail || `Data unavailable (${response.status})`);
-  if (!/no-store/i.test(response.headers.get('cache-control') || '') && data.position_complete !== false) {
+  if (!liveCalendar && !/no-store/i.test(response.headers.get('cache-control') || '') && data.position_complete !== false) {
     const year = Number(new URL(url, window.location?.href || 'http://localhost').searchParams.get('year'));
     const historical = year > 0 && year < new Date().getFullYear();
     void cacheData(url, structuredClone(data), historical ? 7 * 86400000 : 120000);
@@ -730,7 +735,7 @@ async function loadCalendar() {
   customSelectValues.delete($('#gp'));
   $('#gp').innerHTML = '<option>Loading calendar…</option>';
   try {
-    const payload = await loadApiData(apiUrl(`/api/events?year=${year}&status=result-v2`), { signal: calendarRequest.signal });
+    const payload = await loadApiData(apiUrl(`/api/events?year=${year}&status=result-v3`), { signal: calendarRequest.signal });
     if (generation !== calendarGeneration || year !== selectValue($('#year'))) return;
     calendar = payload;
     $('#gp').innerHTML = calendar.map(event => `<option value="${event.round}" data-country="${grandPrixCountryCode(event) || ''}">R${event.round} · ${escapeUI(event.name)}</option>`).join('');
@@ -861,6 +866,8 @@ function clearBeforeSessionLoad() {
   circuitRotation = 0;
   sessionEventName = '';
   sessionYear = null;
+  sessionCircuitKey = null;
+  sessionLocation = '';
   openf1SessionKey = null;
   nominatedCompounds = [];
   activeDriverTab = null;
@@ -919,6 +926,8 @@ async function loadRealSession() {
     sessionEventName = payload.event || '';
     loadedSessionName = payload.session || '';
     sessionYear = Number(new URLSearchParams(requestedQuery).get('year'));
+    sessionCircuitKey = Number.isInteger(payload.circuit_key) ? payload.circuit_key : null;
+    sessionLocation = payload.location || '';
     openf1SessionKey = Number.isInteger(payload.openf1_session_key) ? payload.openf1_session_key : null;
     circuitRotation = Number.isFinite(Number(payload.circuit_rotation))
       ? Number(payload.circuit_rotation) : 0;
@@ -1932,12 +1941,31 @@ const MADRID_MAP_CORNERS = Object.freeze([
   distance, fraction: distance / 5414, source: 'fia_map_estimate', approximate: true,
 })));
 
+// Numbering verified against Sepang's official safety-briefing circuit map.
+// Chainage is approximate, digitized on the bundled my-1999 centreline.
+const SEPANG_MAP_CORNERS = Object.freeze([
+  [6,367],[14,507],[24,783],[35,1307],[44,1683],[52,1908],[57,2290],
+  [60,2401],[66,2891],[71,3053],[78,3249],[83,3585],[89,3801],[94,3931],[100,4879],
+].map(([outlineIndex,distance], i) => Object.freeze({number:String(i+1),letter:'',
+  outlineIndex,distance,fraction:distance/5543,source:'official_map_estimate',approximate:true})));
+
+function isSepangCircuit(event = null) {
+  const key = sessionCircuitKey ?? event?.circuit_key;
+  const location = normalizedPlaceName(sessionLocation || event?.location || '');
+  // A supplied identity always wins over a familiar Grand Prix name.
+  return key != null && Number(key) > 0 ? Number(key) === 12 : /sepang|kuala lumpur/.test(location);
+}
+
 function markerRowsForCurrentCircuit(rows) {
   rows = Array.isArray(rows) ? rows : [];
   const selectedVal = selectValue($('#gp'));
   const event = calendar.find(item => String(item.round) === String(selectedVal) || item.name === selectedVal) || calendar[0];
   const year = sessionYear || Number(selectValue($('#year')));
   const name = normalizedPlaceName(sessionEventName || event?.name);
+
+  if (isSepangCircuit(event) && !rows.length) {
+    return SEPANG_MAP_CORNERS.map(marker => ({...marker}));
+  }
 
   // The 2026 Spanish GP moved to the new 22-turn Madring. Until its circuit
   // metadata is published, the upstream provider returns Barcelona's old
@@ -3228,7 +3256,7 @@ function renderGenericCircuit(canvas, empty) {
     if(drawApiCircuitGuide(ctx,sessionSectorGuide,rect)) {
       empty.style.display='none';
       canvas.setAttribute('aria-label',`${sessionEventName}, timing-derived sector map: sector 1 pink, sector 2 yellow, sector 3 blue`);
-      $('#dominanceLegend').innerHTML='<small><span style="color:#ff4081">S1</span> · <span style="color:#e6bc24">S2</span> · <span style="color:#40a9ed">S3</span> · Official sector times matched to position telemetry<br>Boundary placement is limited by position sampling accuracy.</small>';
+      $('#dominanceLegend').innerHTML='<small><span style="color:#ff4081">S1</span> · <span style="color:#e6bc24">S2</span> · <span style="color:#40a9ed">S3</span> · Official sector times matched to position telemetry<br>Boundary placement is limited by position sampling accuracy.'+(sessionSectorGuide.corners?.some(c=>c.approximate)?'<br>Corner labels use approximate official-map positions.':'')+'</small>';
       return;
     }
   }
@@ -3244,8 +3272,11 @@ function renderGenericCircuit(canvas, empty) {
   }
   const name = normalizedPlaceName(sessionEventName);
   const aliases = [['emilia','it-1953'],['tuscan','it-1914'],['70th','gb-1948'],['eifel','de-1927'],['sakhir','bh-2002'],['styrian','at-1969'],['european','az-2016'],['australian','au-1953'],['bahrain','bh-2002'],['chinese','cn-2004'],['barcelona','es-1991'],['spanish', Number($('#year').value) >= 2026 ? 'es-2026' : 'es-1991'],['monaco','mc-1929'],['canadian','ca-1978'],['french','fr-1969'],['austrian','at-1969'],['british','gb-1948'],['german','de-1932'],['hungarian','hu-1986'],['belgian','be-1925'],['italian','it-1922'],['singapore','sg-2008'],['russian','ru-2014'],['japanese','jp-1962'],['miami','us-2022'],['las vegas','us-2023'],['united states','us-2012'],['mexic','mx-1962'],['sao paulo','br-1940'],['brazil','br-1940'],['abu dhabi','ae-2009'],['portuguese','pt-2008'],['malaysian','my-1999'],['turkish','tr-2005'],['dutch','nl-1948'],['saudi','sa-2021'],['qatar','qa-2004'],['azerbaijan','az-2016']];
-  const id = aliases.find(([term]) => name.includes(term))?.[1];
-  const circuitKey = name.includes('sakhir') && sessionYear === 2020 ? 148 : CIRCUIT_API_KEYS[id];
+  const event = calendar.find(item => item.name === sessionEventName);
+  const sepang = isSepangCircuit(event);
+  const id = sepang ? 'my-1999' : aliases.find(([term]) => name.includes(term))?.[1];
+  const circuitKey = sepang ? null : sessionCircuitKey || event?.circuit_key
+    || (name.includes('sakhir') && sessionYear === 2020 ? 148 : CIRCUIT_API_KEYS[id]);
   const guideKey = `${circuitKey}:${sessionYear}`;
   if(circuitKey && !apiCircuitGuides.has(guideKey) && !apiCircuitGuideRequests.has(guideKey)) {
     apiCircuitGuideRequests.add(guideKey);
@@ -3275,7 +3306,13 @@ function renderGenericCircuit(canvas, empty) {
   canvas.setAttribute('aria-label', `${feature.properties.Name}, generic circuit outline`);
   empty.style.display='none';
   $('#dominanceLegend').innerHTML = '<small>Outline · <a href="https://github.com/bacinger/f1-circuits" target="_blank" rel="noopener">Circuit data</a></small>';
-  if (id === 'es-2026' && sessionYear === 2026) {
+  if (sepang) {
+    const guide = {x:coords.map(p=>p[0]*Math.cos(latitude)),y:coords.map(p=>p[1]),
+      corners:SEPANG_MAP_CORNERS.map(c=>({...c,trackPosition:{x:coords[c.outlineIndex][0]*Math.cos(latitude),y:coords[c.outlineIndex][1]}}))};
+    drawApiCircuitGuide(ctx,guide,rect);
+    canvas.setAttribute('aria-label','Sepang International Circuit, turns 1 to 15');
+    $('#dominanceLegend').innerHTML = '<small>Sepang · <a href="https://www.sepangcircuit.com/media/wysiwyg/pdf/Daily_Safety_Briefing.pdf" target="_blank" rel="noopener">Official circuit turn numbering</a><br>Approximate corner positions on the circuit outline.</small>';
+  } else if (id === 'es-2026' && sessionYear === 2026) {
     drawMadridGuide(ctx, points.map(([x,y]) => ({x:(x-minX-width/2)*scale+rect.width/2, y:(y-minY-height/2)*scale+rect.height/2})), rect);
     $('#dominanceLegend').innerHTML = '<small><span style="color:#ff4081">S1</span> · <span style="color:#e6bc24">S2</span> · <span style="color:#40a9ed">S3</span> · <a href="https://www.fia.com/system/files/decision-document/2026_spanish_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_and_emergency_exits_map.pdf" target="_blank" rel="noopener">FIA sector lengths</a><br>Approximate placement on the circuit outline.</small>';
   } else {
