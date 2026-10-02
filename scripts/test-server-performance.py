@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 import threading
+import json
 import unittest
 from unittest.mock import patch
 
@@ -76,10 +77,19 @@ class RetrievalTests(unittest.TestCase):
             if params.get('session_key') == 10:
                 return [{'message':'SESSION ABORTED'}]
             return [{'message':'SESSION FINISHED'}]
-        with patch.object(server, 'openf1', side_effect=upstream):
+        with patch.object(server, 'openf1', side_effect=upstream), patch.object(server, 'urlopen', side_effect=OSError('offline')):
             server.enrich_recent_openf1_statuses(now.year, events)
         self.assertEqual(events[0]['session_statuses']['Practice 3'], 'unknown')
         self.assertEqual(events[0]['session_statuses']['Race'], 'completed')
+
+    def test_official_finalised_archive_handles_missing_openf1_finish(self):
+        from io import BytesIO
+        now = datetime.now(timezone.utc)
+        events = [{'round':16,'name':'Bahrain Grand Prix','date':now.date().isoformat(), 'sessions':['Practice 1']}]
+        source = {'session_key':11727,'session_name':'Practice 1', 'date_start':(now-timedelta(hours=3)).isoformat(), 'date_end':(now-timedelta(hours=2)).isoformat()}
+        with patch.object(server, 'openf1', side_effect=lambda endpoint, **params: [source] if endpoint=='sessions' else []), patch.object(server, 'urlopen', return_value=BytesIO(json.dumps({'Key':11727,'SessionStatus':'Finalised'}).encode())):
+            server.enrich_recent_openf1_statuses(now.year, events)
+        self.assertEqual(events[0]['session_statuses']['Practice 1'],'completed')
 
     def test_published_result_completes_session_without_race_control_flag(self):
         now = datetime.now(timezone.utc)

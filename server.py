@@ -893,6 +893,23 @@ def enrich_recent_openf1_statuses(year: int, events: list[dict[str, Any]]) -> No
                 )
             except Exception:
                 pass
+        if not finished and end is not None and end < now:
+            # OpenF1 may omit/rate-limit its finish messages even while the
+            # official timing archive is already finalised. Read the tiny
+            # session-info feed, not the full driver/lap/telemetry data.
+            try:
+                from urllib.parse import quote
+                slug = str(event["name"]).replace(" ", "_")
+                session_slug = session_name.replace(" ", "_")
+                path = f"{year}/{event['date']}_{slug}/{source['date_start'][:10]}_{session_slug}/SessionInfo.json"
+                request = URLRequest("https://livetiming.formula1.com/static/" + quote(path, safe="/"))
+                with urlopen(request, timeout=5) as result:
+                    info = json.loads(result.read().decode("utf-8-sig"))
+                # Require the exact session key; never trust a same-named GP
+                # or a schedule end time as evidence of completion.
+                finished = integer(info.get("Key"), 0) == integer(source.get("session_key"), -1) and str(info.get("SessionStatus", "")).lower() in {"finalised", "finalized", "finished"}
+            except Exception:
+                pass
         if finished:
             status = "completed"
         elif end is not None and end < now:
