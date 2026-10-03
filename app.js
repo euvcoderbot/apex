@@ -25,6 +25,8 @@ let activeDriverTab = null;
 let selectedCornerIndex = 0;
 let cornerSort = 'time';
 let showCornerNumbers = false;
+let showSpeedAnnotations = false;
+let speedAnnotationCache = null;
 let enhancedTraceMode = false;
 let traceTintEnabled = false;
 const hiddenTraceKeys = new Set();
@@ -1695,6 +1697,10 @@ function syncTraceVisibilityControls() {
 }
 
 function bindSpeedChartControls() {
+  $('#speedAnnotationToggle')?.addEventListener('change', event => {
+    showSpeedAnnotations = event.target.checked;
+    if (loaded.length) drawRealChart('Speed trace');
+  });
   $('#cornerToggle')?.addEventListener('change', event => {
     showCornerNumbers = event.target.checked;
     const status = $('#cornerStatus');
@@ -1754,6 +1760,7 @@ function renderCharts() {
           <div class="trace-settings" aria-label="Telemetry display settings">
             <div class="alignment-readout"><i></i><span id="alignmentStatus" data-state="idle">Speed trace controls</span></div>
             <label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label>
+            <label class="trace-setting" title="Show corner minimums, central fast-corner maximums and straight peaks together. Colours identify laps; differences are against the fastest speed at that location. Missing or uncertain samples are skipped."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label>
             <label class="trace-setting trace-mode-toggle" title="Smooth interpolation through trusted samples. Repairs require evidence from neighbouring acceleration, throttle, brake and gear/RPM; full throttle alone does not prove a fault. Uncertain gaps are marked as estimates. Timing delta follows reconstructed speed while official sector and finish deltas stay exact."><input type="checkbox" id="interpolationToggle" ${enhancedTraceMode ? 'checked' : ''}><i aria-hidden="true"></i><span>Enhanced interpolation</span><small id="traceModeStatus" data-mode="${enhancedTraceMode ? 'enhanced' : 'accurate'}">${enhancedTraceMode ? 'Interpolated' : 'Accurate'}</small></label>
             <label class="trace-setting"><input type="checkbox" id="tintToggle" ${traceTintEnabled ? 'checked' : ''}><i aria-hidden="true"></i><span>Trace tint</span></label>
           </div>
@@ -2200,6 +2207,73 @@ function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7, viewSta
   return { items, lanes: laneEnds.length };
 }
 
+function buildSpeedAnnotations(entries, zones, totalDistance) {
+  if (!zones?.length || !Number.isFinite(totalDistance) || totalDistance<=0) return [];
+  const measured = (entry,start,end,kind) => {
+    const points=entry.samples.filter(p=>{
+      const f=traceSampleFraction(entry.samples,p);
+      return f>=start && f<=end && p.Speed!=null && Number.isFinite(+p.Speed) && +p.Speed>0;
+    });
+    if (points.length<3) return null;
+    // Never manufacture extrema across missing telemetry. Use native samples,
+    // not the interpolated display curve or a synthetic higher sampling rate.
+    const limit=Math.max(40/totalDistance,.008);
+    if (points.some((p,i)=>i && traceSampleFraction(entry.samples,p)-traceSampleFraction(entry.samples,points[i-1])>limit)) return null;
+    const eligible=kind==='peak' ? points.filter(p=>Number(p.Throttle)>=95 && !(Number(p.Brake)>0)) : points;
+    if (!eligible.length) return null;
+    const point=eligible.reduce((best,p)=>(kind==='min' ? +p.Speed<+best.Speed : +p.Speed>+best.Speed)?p:best);
+    const fraction=traceSampleFraction(entry.samples,point);
+    if (typeof telemetryEstimateInfo==='function' && telemetryEstimateInfo(entry.samples,fraction,'Speed')) return null;
+    return {lap:entry.lap,speed:+point.Speed,fraction};
+  };
+  const result=[];
+  const add=(title,start,end,kind,anchor)=>{
+    if (end-start<20/totalDistance) return;
+    const values=entries.map(e=>measured(e,start,end,kind)).filter(Boolean).sort((a,b)=>b.speed-a.speed);
+    if (!values.length) return;
+    result.push({title,kind,fraction:anchor??values[0].fraction,speed:values[0].speed,values});
+  };
+  zones.forEach((zone,index)=>{
+    // The same physical window is used for every lap. Fast-corner maxima stay
+    // in the central corner window, excluding straight entry/exit speed.
+    const kind=zone.minimumSpeed<=120?'min':'carry';
+    add(`${cornerLabel(zone)} ${kind==='min'?'min':'carry'}`,zone.apexStart,zone.apexEnd,kind,zone.apex);
+    const previous=zones[index-1];
+    const start=previous ? previous.apexEnd : 0;
+    // Include the approach right up to the central corner window. The native
+    // throttle/brake gate finds the pre-braking peak, not an arbitrary fixed
+    // distance before the apex (which can miss the true terminal speed).
+    add('Peak',start,zone.apexStart,'peak');
+  });
+  add('Peak',zones[zones.length-1].apexEnd,1,'peak');
+  return result.sort((a,b)=>a.fraction-b.fraction);
+}
+
+function drawSpeedAnnotations(ctx, annotations, rect, bounds, xForFraction, viewStart, viewEnd) {
+  const theme=canvasTheme(), occupied=[];
+  const bottom=rect.height-bounds.bottom;
+  ctx.save();
+  ctx.font=canvasFont(11);
+  annotations.filter(a=>a.fraction>=viewStart && a.fraction<=viewEnd).forEach(a=>{
+    const lines=a.values.map((v,i)=>({text:`${v.lap.code} L${v.lap.lap} ${i===0?v.speed.toFixed(1):'−'+(a.speed-v.speed).toFixed(1)}`,color:getLapColor(v.lap)}));
+    const width=Math.max(ctx.measureText(a.title).width,...lines.map(l=>ctx.measureText(l.text).width))+12;
+    const height=15+lines.length*13+6;
+    const px=xForFraction(a.fraction), py=bounds.top+(bounds.max-a.speed)/(bounds.max-bounds.min||1)*(bottom-bounds.top);
+    const x=Math.max(bounds.left,Math.min(rect.width-bounds.right-width,px-width/2));
+    const candidates=a.kind==='min' ? [py+10,py-height-10,py-height-40] : [py-height-10,py+10,py+40];
+    const y=candidates.find(y=>y>=bounds.top+18 && y+height<=bottom-3 && !occupied.some(b=>x<b.x+b.width+5 && x+width+5>b.x && y<b.y+b.height+4 && y+height+4>b.y));
+    if (y==null || width>rect.width-bounds.left-bounds.right) return;
+    occupied.push({x,y,width,height});
+    ctx.fillStyle=theme.tooltipBackground || theme.background || (lightThemeActive()?'#ffffffee':'#202023ee');
+    ctx.fillRect(x,y,width,height);
+    ctx.fillStyle=theme.textMuted || theme.text;
+    ctx.textAlign='left';ctx.fillText(a.title,x+6,y+12);
+    lines.forEach((line,i)=>{ctx.fillStyle=line.color;ctx.fillText(line.text,x+6,y+27+i*13);});
+    ctx.strokeStyle=theme.gridStrong;ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(Math.max(x,Math.min(x+width,px)),y>py?y:y+height);ctx.stroke();
+  });
+  ctx.restore();
+}
+
 function traceSampleFraction(series, point) {
   return Number.isFinite(point?.AlignedFraction)
     ? point.AlignedFraction
@@ -2620,6 +2694,15 @@ function drawRealChart(name) {
     ctx.stroke();
   });
   ctx.shadowBlur = 0;
+  if (name==='Speed trace' && showSpeedAnnotations) {
+    const entries=visibleEntries.map(({lap})=>({lap,samples:telemetryCache.get(telemetryKey(lap))})).filter(e=>e.samples?.length && !e.lap.real?.out_lap);
+    const key=totalDist.toFixed(1)+'|'+speedCornerMarkers.map(m=>`${m.key}:${m.fraction.toFixed(5)}`).join('|');
+    if (!speedAnnotationCache || speedAnnotationCache.key!==key || speedAnnotationCache.entries.length!==entries.length || entries.some((e,i)=>speedAnnotationCache.entries[i].samples!==e.samples || speedAnnotationCache.entries[i].lap!==e.lap)) {
+      const zones=typeof adaptiveCornerZones==='function'?adaptiveCornerZones(speedCornerMarkers):[];
+      speedAnnotationCache={key,entries,annotations:buildSpeedAnnotations(entries,zones,totalDist)};
+    }
+    drawSpeedAnnotations(ctx,speedAnnotationCache.annotations,rect,bounds,xForFraction,viewStart,viewEnd);
+  }
   
   // Draw collision-free corner labels in a reserved header band. Corner
   // speeds live in the dedicated analysis panel below the track map.

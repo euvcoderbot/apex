@@ -919,6 +919,25 @@ test('native corner projection follows the aligned comparison grid', () => {
   assert.equal(h.run("resolveCornerMarkers(samples,1000,[{number:'1',fraction:.5,source:'lap_projection'}])[0].fraction"),.6);
 });
 
+test('one optional speed-annotation control combines native minima, corner carry and straight peaks', () => {
+  const h=context();
+  assert.equal(h.run('showSpeedAnnotations'),false);
+  assert.equal((app.match(/id="speedAnnotationToggle"/g)||[]).length,1);
+  assert.match(app,/Corner numbers<\/span><\/label>\s*<label[^\n]+id="speedAnnotationToggle"/);
+  h.sandbox.entries=['A','B'].map((code,index)=>({lap:{code,lap:1},samples:Array.from({length:1001},(_,i)=>({Distance:i*5,AlignedFraction:i/1000,
+    Speed:(i>=190&&i<=210?80+Math.abs(i-200):i>=590&&i<=610?240+(i-590)/2:300)-index*5,
+    Throttle:100,Brake:0}))}));
+  h.sandbox.zones=[{number:'1',apex:.2,minimumSpeed:80,apexStart:.19,apexEnd:.21,start:.15,end:.25},
+    {number:'2',apex:.6,minimumSpeed:240,apexStart:.59,apexEnd:.61,start:.55,end:.65}];
+  const results=h.run('buildSpeedAnnotations(entries,zones,5000)');
+  assert.ok(results.some(r=>r.kind==='peak'));
+  assert.equal(results.find(r=>r.title==='T1 min').values[0].speed,80);
+  assert.equal(results.find(r=>r.title==='T2 carry').values[0].speed,250);
+  assert.equal(results.find(r=>r.title==='T1 min').values[1].speed,75);
+  h.run('entries[0].samples=entries[0].samples.filter(p=>p.AlignedFraction<.194||p.AlignedFraction>.206)');
+  assert.equal(h.run("buildSpeedAnnotations(entries,zones,5000).find(r=>r.title==='T1 min').values.length"),1);
+});
+
 test('performance categories expose only defensible alternative summaries', () => {
   const source=readFileSync('car-performance.js','utf8');
   for(const key of ['pace-stat','telemetry-stat','tyre-stat','results-chart','trend-view'])
