@@ -1910,10 +1910,11 @@ function cornerLabelConnector(point, box, leaders, boxes) {
   return {line:{a:start,b:end}};
 }
 
-function trackIntersectsLabel(box, points, clearance = 8) {
+function trackIntersectsLabel(box, points, clearance = 8, closed = true) {
   const left = box.x - clearance, right = box.x + box.width + clearance;
   const top = box.y - clearance, bottom = box.y + box.height + clearance;
   return points.some((a, index) => {
+    if (!closed && index===points.length-1) return false;
     const b = points[(index + 1) % points.length];
     if (Math.max(a.x,b.x) < left || Math.min(a.x,b.x) > right || Math.max(a.y,b.y) < top || Math.min(a.y,b.y) > bottom) return false;
     let enter = 0, leave = 1;
@@ -2218,8 +2219,13 @@ function buildSpeedAnnotations(entries, zones, totalDistance) {
     // Never manufacture extrema across missing telemetry. Use native samples,
     // not the interpolated display curve or a synthetic higher sampling rate.
     const limit=Math.max(40/totalDistance,.008);
-    if (points.some((p,i)=>i && traceSampleFraction(entry.samples,p)-traceSampleFraction(entry.samples,points[i-1])>limit)) return null;
-    const eligible=kind==='peak' ? points.filter(p=>Number(p.Throttle)>=95 && !(Number(p.Brake)>0)) : points;
+    if (kind!=='peak' && points.some((p,i)=>i && traceSampleFraction(entry.samples,p)-traceSampleFraction(entry.samples,points[i-1])>limit)) return null;
+    const supported=points.filter((p,i)=>{
+      const f=traceSampleFraction(entry.samples,p);
+      return (i>0 && f-traceSampleFraction(entry.samples,points[i-1])<=limit)
+        || (i<points.length-1 && traceSampleFraction(entry.samples,points[i+1])-f<=limit);
+    });
+    const eligible=kind==='peak' ? supported.filter(p=>Number(p.Throttle)>=95 && !(Number(p.Brake)>0)) : supported;
     if (!eligible.length) return null;
     const point=eligible.reduce((best,p)=>(kind==='min' ? +p.Speed<+best.Speed : +p.Speed>+best.Speed)?p:best);
     const fraction=traceSampleFraction(entry.samples,point);
@@ -2227,17 +2233,18 @@ function buildSpeedAnnotations(entries, zones, totalDistance) {
     return {lap:entry.lap,speed:+point.Speed,fraction};
   };
   const result=[];
-  const add=(title,start,end,kind,anchor)=>{
+  const add=(title,start,end,kind)=>{
     if (end-start<20/totalDistance) return;
     const values=entries.map(e=>measured(e,start,end,kind)).filter(Boolean).sort((a,b)=>b.speed-a.speed);
     if (!values.length) return;
-    result.push({title,kind,fraction:anchor??values[0].fraction,speed:values[0].speed,values});
+    result.push({title,kind,fraction:values[0].fraction,speed:values[0].speed,values,
+      missing:entries.filter(e=>!values.some(v=>v.lap===e.lap)).map(e=>e.lap)});
   };
   zones.forEach((zone,index)=>{
     // The same physical window is used for every lap. Fast-corner maxima stay
     // in the central corner window, excluding straight entry/exit speed.
     const kind=zone.minimumSpeed<=120?'min':'carry';
-    add(`${cornerLabel(zone)} ${kind==='min'?'min':'carry'}`,zone.apexStart,zone.apexEnd,kind,zone.apex);
+    add(`${cornerLabel(zone)} ${kind==='min'?'min':'carry'}`,zone.apexStart,zone.apexEnd,kind);
     const previous=zones[index-1];
     const start=previous ? previous.apexEnd : 0;
     // Include the approach right up to the central corner window. The native
@@ -2249,26 +2256,42 @@ function buildSpeedAnnotations(entries, zones, totalDistance) {
   return result.sort((a,b)=>a.fraction-b.fraction);
 }
 
-function drawSpeedAnnotations(ctx, annotations, rect, bounds, xForFraction, viewStart, viewEnd) {
+function drawSpeedAnnotations(ctx, annotations, rect, bounds, xForFraction, viewStart, viewEnd, traces = []) {
   const theme=canvasTheme(), occupied=[];
   const bottom=rect.height-bounds.bottom;
   ctx.save();
   ctx.font=canvasFont(11);
   annotations.filter(a=>a.fraction>=viewStart && a.fraction<=viewEnd).forEach(a=>{
-    const lines=a.values.map((v,i)=>({text:`${v.lap.code} L${v.lap.lap} ${i===0?v.speed.toFixed(1):'−'+(a.speed-v.speed).toFixed(1)}`,color:getLapColor(v.lap)}));
-    const width=Math.max(ctx.measureText(a.title).width,...lines.map(l=>ctx.measureText(l.text).width))+12;
-    const height=15+lines.length*13+6;
+    const allLaps=[...a.values.map(v=>v.lap),...(a.missing||[])];
+    const identity=lap=>lap.code+(allLaps.filter(l=>l.code===lap.code).length>1?` L${lap.lap}`:'');
+    const lines=a.values.map((v,i)=>({text:`${identity(v.lap)} ${i===0?v.speed.toFixed(1):(a.speed-v.speed>0?'−':'')+(a.speed-v.speed).toFixed(1)}`,color:getLapColor(v.lap)}));
+    lines.push(...(a.missing||[]).map(lap=>({text:`${identity(lap)} —`,color:getLapColor(lap)})));
+    const width=Math.max(ctx.measureText(a.title).width,...lines.map(l=>ctx.measureText(l.text).width))+6;
+    const height=12+lines.length*12+4;
     const px=xForFraction(a.fraction), py=bounds.top+(bounds.max-a.speed)/(bounds.max-bounds.min||1)*(bottom-bounds.top);
-    const x=Math.max(bounds.left,Math.min(rect.width-bounds.right-width,px-width/2));
-    const candidates=a.kind==='min' ? [py+10,py-height-10,py-height-40] : [py-height-10,py+10,py+40];
-    const y=candidates.find(y=>y>=bounds.top+18 && y+height<=bottom-3 && !occupied.some(b=>x<b.x+b.width+5 && x+width+5>b.x && y<b.y+b.height+4 && y+height+4>b.y));
-    if (y==null || width>rect.width-bounds.left-bounds.right) return;
+    let placement=null;
+    for (const offset of [8,24,44,68,96,132]) {
+      for (const horizontal of [0,-width-8,width+8]) {
+        const x=Math.max(bounds.left,Math.min(rect.width-bounds.right-width,px-width/2+horizontal));
+        const candidates=a.kind==='min'?[py+offset,py-height-offset]:[py-height-offset,py+offset];
+        const y=candidates.find(y=>{
+          const box={x,y,width,height};
+          return y>=bounds.top+18 && y+height<=bottom-3
+            && !occupied.some(b=>x<b.x+b.width+5 && x+width+5>b.x && y<b.y+b.height+4 && y+height+4>b.y)
+            && !traces.some(trace=>trackIntersectsLabel(box,trace.points,4,false));
+        });
+        if (y!=null) {placement={x,y};break;}
+      }
+      if (placement) break;
+    }
+    if (!placement || width>rect.width-bounds.left-bounds.right) return;
+    const {x,y}=placement;
     occupied.push({x,y,width,height});
     ctx.fillStyle=theme.tooltipBackground || theme.background || (lightThemeActive()?'#ffffffee':'#202023ee');
     ctx.fillRect(x,y,width,height);
     ctx.fillStyle=theme.textMuted || theme.text;
-    ctx.textAlign='left';ctx.fillText(a.title,x+6,y+12);
-    lines.forEach((line,i)=>{ctx.fillStyle=line.color;ctx.fillText(line.text,x+6,y+27+i*13);});
+    ctx.textAlign='left';ctx.fillText(a.title,x+3,y+10);
+    lines.forEach((line,i)=>{ctx.fillStyle=line.color;ctx.fillText(line.text,x+3,y+23+i*12);});
     ctx.strokeStyle=theme.gridStrong;ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(Math.max(x,Math.min(x+width,px)),y>py?y:y+height);ctx.stroke();
   });
   ctx.restore();
@@ -2701,7 +2724,7 @@ function drawRealChart(name) {
       const zones=typeof adaptiveCornerZones==='function'?adaptiveCornerZones(speedCornerMarkers):[];
       speedAnnotationCache={key,entries,annotations:buildSpeedAnnotations(entries,zones,totalDist)};
     }
-    drawSpeedAnnotations(ctx,speedAnnotationCache.annotations,rect,bounds,xForFraction,viewStart,viewEnd);
+    drawSpeedAnnotations(ctx,speedAnnotationCache.annotations,rect,bounds,xForFraction,viewStart,viewEnd,traceEntries);
   }
   
   // Draw collision-free corner labels in a reserved header band. Corner

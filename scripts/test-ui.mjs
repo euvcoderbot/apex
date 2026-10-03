@@ -933,9 +933,23 @@ test('one optional speed-annotation control combines native minima, corner carry
   assert.ok(results.some(r=>r.kind==='peak'));
   assert.equal(results.find(r=>r.title==='T1 min').values[0].speed,80);
   assert.equal(results.find(r=>r.title==='T2 carry').values[0].speed,250);
+  assert.equal(results.find(r=>r.title==='T2 carry').fraction,.61);
   assert.equal(results.find(r=>r.title==='T1 min').values[1].speed,75);
   h.run('entries[0].samples=entries[0].samples.filter(p=>p.AlignedFraction<.194||p.AlignedFraction>.206)');
   assert.equal(h.run("buildSpeedAnnotations(entries,zones,5000).find(r=>r.title==='T1 min').values.length"),1);
+  assert.equal(h.run("buildSpeedAnnotations(entries,zones,5000).find(r=>r.title==='T1 min').missing[0].code"),'A');
+  // A gap in the middle of a straight must not discard a measured peak elsewhere.
+  assert.equal(h.run("buildSpeedAnnotations(entries,zones,5000).filter(r=>r.kind==='peak').every(r=>r.values.length===2)"),true);
+});
+
+test('speed annotation labels avoid open trace segments without closing the lap', () => {
+  const h=context();
+  h.sandbox.box={x:45,y:45,width:10,height:10};
+  h.sandbox.points=[{x:0,y:0},{x:0,y:100},{x:100,y:100}];
+  assert.equal(h.run('trackIntersectsLabel(box,points,0,false)'),false);
+  assert.equal(h.run('trackIntersectsLabel(box,points,0,true)'),true);
+  assert.match(app,/trackIntersectsLabel\(box,trace\.points,4,false\)/);
+  assert.match(app,/const identity=lap=>lap\.code/);
 });
 
 test('performance categories expose only defensible alternative summaries', () => {
