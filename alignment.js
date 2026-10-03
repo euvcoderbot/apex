@@ -333,7 +333,42 @@ function spatialReferenceTelemetry() {
         - (left.samples.quality?.positionCoverage || 0))[0] || null;
 }
 
+function positionMotionConsistent(samples) {
+  if (!samples?.length) return false;
+  const revision=samples.positionRevision || 0;
+  if (samples.positionMotionCheck?.revision===revision) return samples.positionMotionCheck.accepted;
+  const points=samples.filter(p=>['ElapsedSeconds','X','Y','Speed'].every(k=>hasTelemetryNumber(p[k])));
+  // This checks the position channel against this lap's own speed, never
+  // against another driver's extrema. Coordinate units are calibrated out.
+  if (points.length<30) return true;
+  const at=(time,key)=>{
+    let lo=1,hi=points.length-1;
+    if(time<points[0].ElapsedSeconds || time>points.at(-1).ElapsedSeconds)return null;
+    while(lo<hi){const mid=(lo+hi)>>1;if(points[mid].ElapsedSeconds<time)lo=mid+1;else hi=mid;}
+    const a=points[lo-1],b=points[lo],dt=b.ElapsedSeconds-a.ElapsedSeconds;
+    if(dt<=0 || dt>1.5)return null;
+    return +a[key]+(+b[key]-+a[key])*(time-a.ElapsedSeconds)/dt;
+  };
+  const rows=[];
+  for(let t=+points[0].ElapsedSeconds+.5;t<=+points.at(-1).ElapsedSeconds-.5;t+=.5){
+    const x0=at(t-.5,'X'),x1=at(t+.5,'X'),y0=at(t-.5,'Y'),y1=at(t+.5,'Y');
+    const speed=[-.5,-.25,0,.25,.5].map(offset=>at(t+offset,'Speed'));
+    if([x0,x1,y0,y1,...speed].some(v=>v===null))continue;
+    const travel=(speed[0]+2*speed[1]+2*speed[2]+2*speed[3]+speed[4])/8/3.6;
+    if(travel<15)continue;
+    rows.push({travel,chord:Math.hypot(x1-x0,y1-y0)});
+  }
+  if(rows.length<20)return true;
+  const scale=medianTelemetry(rows.map(r=>r.chord/r.travel));
+  const errors=rows.map(r=>Math.abs(r.chord/scale-r.travel)/r.travel).sort((a,b)=>a-b);
+  const p90=errors[Math.floor((errors.length-1)*.9)];
+  const accepted=Number.isFinite(scale) && scale>0 && p90<=.30;
+  setTelemetryMeta(samples,'positionMotionCheck',{revision,accepted,p90,samples:rows.length});
+  return accepted;
+}
+
 function referencePositionPath(reference) {
+  if (!positionMotionConsistent(reference)) return null;
   const total = +reference?.[reference.length - 1]?.Distance || 0;
   const positioned = reference?.filter(point => hasTelemetryNumber(point.X) && hasTelemetryNumber(point.Y)) || [];
   if (!total || positioned.length < 12) return null;
@@ -467,7 +502,7 @@ function regularizedPositionControls(controls) {
 
 function positionAlignment(reference, samples) {
   const path = referencePositionPath(reference);
-  if (!path || samples.quality?.positionCoverage < 0.55) return null;
+  if (!path || samples.quality?.positionCoverage < 0.55 || !positionMotionConsistent(samples)) return null;
   const total = +samples[samples.length - 1].Distance || 0;
   if (!total) return null;
   const controls = [];

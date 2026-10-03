@@ -328,6 +328,30 @@ test('mixed GPS coverage retains the map, single-trace hover and full chart rend
   h.run('hoverFraction=.6; renderMiniSectorMap()');
 });
 
+test('Sepang FP3 rejects inconsistent GPS without snapping driver braking points', () => {
+  const h=appHarness();
+  h.sandbox.fixture=JSON.parse(gunzipSync(readFileSync('scripts/sepang-fp3-alignment.json.gz')));
+  h.run(`loaded=fixture.map(e=>e.lap);
+    fixture.forEach(e=>telemetryCache.set(telemetryKey(e.lap),normalizeTelemetry(e.payload.samples,e.lap,e.payload.source)));
+    prepareTelemetryAlignment();`);
+  assert.equal(h.run("telemetryCache.get('ANT:8').positionMotionCheck.accepted"),true);
+  assert.equal(h.run("telemetryCache.get('RUS:7').positionMotionCheck.accepted"),false);
+  assert.equal(h.run("telemetryCache.get('RUS:7').alignmentMethod"),'distance+sectors');
+  const gap=h.run(`(()=>{const extrema=loaded.map(l=>{
+    const s=telemetryCache.get(telemetryKey(l));
+    return s.filter(p=>p.AlignedFraction>.26 && p.AlignedFraction<.3).reduce((a,b)=>b.Speed<a.Speed?b:a);
+  });return Math.abs(extrema[0].AlignedFraction-extrema[1].AlignedFraction)*referenceDistance();})()`);
+  assert.ok(gap<15,`T4 positional error ${gap} metres`);
+  h.run('loaded.reverse(); prepareTelemetryAlignment()');
+  assert.equal(h.run("telemetryCache.get('ANT:8').alignmentMethod"),'position-reference');
+  assert.equal(h.run("telemetryCache.get('RUS:7').alignmentMethod"),'distance+sectors');
+  // Speeds remain native; only the distance axis is corrected.
+  for(const entry of h.sandbox.fixture) {
+    h.sandbox.entry=entry;
+    assert.equal(h.run('telemetryCache.get(telemetryKey(entry.lap)).every((p,i)=>p.Speed===entry.payload.samples[i].Speed)'),true);
+  }
+});
+
 test('held-out real acceleration/braking samples: reconstruction benchmark', {
   skip: !existsSync('.apex-cache') || !readdirSync('.apex-cache').some(file => file.startsWith('telemetry-')),
 }, () => {
