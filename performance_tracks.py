@@ -1468,6 +1468,8 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
             'accel_200_250': straight_info.get('accel_200_250'),
             'accel_300_320': straight_info.get('accel_300_320'),
             'accel_bands': straight_info.get('accel_bands', {}),
+            'telemetry_methodology': straight_info.get('telemetry_methodology'),
+            'accel_band_coverage': straight_info.get('accel_band_coverage', {}),
             'accel_observations': straight_info.get('accel_observations', []),
             'accel_cumul_loss_250_300': straight_info.get('accel_cumul_loss_250_300', 0.0),
             'straight_coverage': straight_info.get('straight_coverage', '0/0'),
