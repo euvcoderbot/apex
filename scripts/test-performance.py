@@ -133,6 +133,11 @@ class PerformanceTests(unittest.TestCase):
         self.assertGreater(result['B']['straight_core_delta'],0)
         self.assertEqual(result['A']['straight_core_windows'],result['B']['straight_core_windows'])
         self.assertEqual(result['B']['straight_core_distance_m'],700)
+        selected['D']={**selected['C'],'throttle':np.zeros(len(grid))}
+        partial=straight_core_measurements(selected,[(0,200)],grid,selected['A'])
+        self.assertEqual(partial['A']['straight_core_cohort'],['A','B','C'])
+        self.assertEqual(partial['A']['straight_core_requested'],4)
+        self.assertIsNone(partial['D']['straight_core_time'])
         self.assertAlmostEqual(result['B']['straight_core_gap_s'],
                                result['B']['straight_core_delta']*12/100)
 
@@ -167,6 +172,12 @@ class PerformanceTests(unittest.TestCase):
         result=analyze_straights_speed_domain(selected,[(0,200)],grid,selected['A'],
                     np.zeros(200,bool),candidates)
         self.assertAlmostEqual(result['B']['accel_bands']['200_250']['gap_s'],.1)
+        fragmented=analyze_straights_speed_domain(selected,[(0,15),(20,35)],grid,selected['A'],np.zeros(200,bool))
+        self.assertAlmostEqual(fragmented['B']['accel_bands']['200_250']['gap_s'],.1)
+        self.assertEqual(fragmented['A']['accel_band_coverage']['350_400']['status'],'upper-endpoint-not-reached')
+        observations=fragmented['A']['accel_observations']
+        keys=[(r['band'],r['zone'],r['state']) for r in observations]
+        self.assertEqual(len(keys),len(set(keys)),'candidate union must not duplicate accepted crossings')
         selected['B']['a'][90:,1]+=.8
         result=analyze_straights_speed_domain(selected,[(0,200)],grid,selected['A'],
                     np.zeros(200,bool),candidates)

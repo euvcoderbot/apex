@@ -52,5 +52,6 @@ def replay(case):
         return result
     except Exception as exc:
         result={'year':year,'gp':gp,'error':str(exc)};print(json.dumps(result),flush=True);return result
-with ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(replay,CASES))
-(ROOT/'outputs/corner-coverage-audit-20261006.json').write_text(json.dumps(results,indent=2))
+if __name__ == '__main__':
+    with ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(replay,CASES))
+    (ROOT/'outputs/corner-coverage-audit-20261006.json').write_text(json.dumps(results,indent=2))

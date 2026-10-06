@@ -109,7 +109,7 @@ def mapped_corner_zones(reference, grid, speed, corners):
                       'd_entry': min(75., grid[apex]-grid[start]),
                       'd_exit': min(75., grid[end]-grid[apex]),
                       'band': 'low' if v <= 120 else 'medium' if v <= 200 else 'high',
-                      'source': 'circuit-marker-window'})
+                      'classification_speed': v, 'source': 'circuit-marker-window'})
     return zones, rejected
 
 
@@ -609,7 +609,7 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
     return result
 
 
-def straight_core_measurements(selected, blocks, grid, ref, fixed_windows=None):
+def straight_core_measurements(selected, blocks, grid, ref, fixed_windows=None, _cohort=False):
     """Shared settled, near-full-throttle, low-curvature qualifying windows.
 
     This is an observed straight-section comparison, not isolated drag/power.
@@ -643,19 +643,50 @@ def straight_core_measurements(selected, blocks, grid, ref, fixed_windows=None):
                  & (lateral_proxy[:-1] <= .5) & (lateral_proxy[1:] <= .5))
     eligible = geometric.copy()
     aero_states = []
-    for item in selected.values():
-        eligible &= ((item['throttle'][:-1] >= 98) & (item['throttle'][1:] >= 98)
+    supported_cells = {}
+    for team, item in selected.items():
+        native_ok = ((item['throttle'][:-1] >= 98) & (item['throttle'][1:] >= 98)
                      & ~item['brake'][:-1] & ~item['brake'][1:])
         # Large source gaps must not become hundreds of interpolated grid cells.
         source_ix = np.clip(np.searchsorted(item['aligned'], grid[:-1], side='right')-1,
                             0, len(item['a'])-2)
-        eligible &= np.diff(item['a'][:, 1])[source_ix] <= .6
+        native_ok &= np.diff(item['a'][:, 1])[source_ix] <= .6
+        supported_cells[team] = native_ok
+        eligible &= native_ok
         if 'drs_active' in item:
             aero_states.append(item['drs_active'])
     if len(aero_states) == len(selected):
         states = np.stack(aero_states)
         common = np.all(states == states[0], axis=0)
         eligible &= common[:-1] & common[1:]
+    if not _cohort and fixed_windows is None:
+        # Supported complete cohorts, never a different car set per cell.
+        # A single missing channel must not erase good evidence for everyone.
+        cohorts = {frozenset(selected)}
+        for i in np.flatnonzero(geometric):
+            for state in (False, True):
+                cohort = frozenset(t for t, ok in supported_cells.items() if ok[i]
+                    and ('drs_active' not in selected[t] or
+                         bool(selected[t]['drs_active'][i]) == state == bool(selected[t]['drs_active'][i+1])))
+                if len(cohort) >= 3:
+                    cohorts.add(cohort)
+        best, best_score = None, (-1, -1, -1)
+        for cohort in sorted(cohorts, key=lambda c: tuple(sorted(c))):
+            result = straight_core_measurements({t: selected[t] for t in cohort}, blocks, grid, ref, _cohort=True)
+            distance = max((r.get('straight_core_distance_m', 0) for r in result.values()), default=0)
+            if distance < 200:
+                continue
+            score = (distance*len(cohort), len(cohort), distance)
+            if score > best_score:
+                best, best_score = result, score
+        if best is None:
+            return empty
+        names = sorted(best)
+        for row in best.values():
+            row['straight_core_method'] = 'supported-straight-core-v2'
+            row['straight_core_cohort'] = names
+            row['straight_core_requested'] = len(selected)
+        return {**empty, **best}
     mids = (grid[:-1]+grid[1:])/2
     mask = np.zeros(len(grid)-1, dtype=bool)
     windows = []
@@ -851,10 +882,9 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
     # window ends. Anchor those measurements on field-wide rising-speed
     # crossings, independent of the approximate corner/straight partition.
     field_speed = np.median([item['speed'] for item in selected.values()], axis=0)
-    for v_lo, v_hi, b_name in bands[:2]:
-        straight_band_times[b_name].clear()
-        for team in teams:
-            band_evidence[team] = [r for r in band_evidence[team] if r['band'] != b_name]
+    for v_lo, v_hi, b_name in bands:
+        # Supplement rather than replace geometry candidates: a flat-out bend
+        # must not split an otherwise valid native speed crossing.
         anchors = []
         for i in range(1, len(grid) - 1):
             if not field_speed[i-1] < v_lo <= field_speed[i]:
@@ -873,6 +903,9 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             else:
                 measurement_frame.setdefault('accel_anchors', {})[b_name] = anchors
         for zone, (anchor_lo, anchor_hi) in enumerate(anchors):
+            existing = [r for rows in band_evidence.values() for r in rows
+                        if r['band'] == b_name and abs(r['start_m']-anchor_lo) <= 90]
+            zone_key = min(existing, key=lambda r: abs(r['start_m']-anchor_lo))['zone'] if existing else len(straight_blocks)+zone
             for team in teams:
                 observed = defaultdict(list)
                 for item in (candidates or {}).get(team, [selected[team]]):
@@ -893,9 +926,16 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                         if np.min(a[pos:stop+1, 2]) < v_lo - 8:
                             continue
                         if (np.max(np.diff(a[prev:stop+1, 1])) > .6
-                                or np.any(np.diff(a[prev:stop+1, 2]) < -3)
-                                or np.any(a[prev:stop+1, 4] >= .5)
-                                or np.min(a[prev:stop+1, 3]) < 70):
+                                or np.any(np.diff(a[prev:stop+1, 2]) < -3)):
+                            continue
+                        low_time = interp_raw(a[prev:stop+1, 1], a[prev:stop+1, 2], v_lo)
+                        high_time = interp_raw(a[prev:stop+1, 1], a[prev:stop+1, 2], v_hi)
+                        interior = (a[:, 1] > low_time) & (a[:, 1] < high_time)
+                        throttle = np.r_[np.interp([low_time, high_time], a[:, 1], a[:, 3]), a[interior, 3]]
+                        # Brake is discrete: use its preceding sample at each
+                        # boundary, not a linearly invented fractional brake.
+                        boundary_ix = np.clip(np.searchsorted(a[:, 1], [low_time, high_time], side='right')-1, 0, len(a)-1)
+                        if np.any(a[interior, 4] >= .5) or np.any(a[boundary_ix, 4] >= .5) or np.min(throttle) < (70 if v_hi <= 150 else 98):
                             continue
                         drs = np.isin(a[prev:stop+1, 7].astype(int), [10, 12, 14])
                         if not (np.all(drs) or not np.any(drs)):
@@ -904,11 +944,14 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                                   interp_raw(a[prev:stop+1, 1], a[prev:stop+1, 2], v_lo)
                         if not .1 < dt_band < 25:
                             continue
+                        state = 'open' if np.all(drs) else 'closed'
+                        if team in straight_band_times[b_name].get((zone_key, state), {}):
+                            break
                         if check_clean_air(team, float(aligned[pos]), float(aligned[stop]), item):
                             observed['open' if np.all(drs) else 'closed'].append(dt_band)
                             low_time = interp_raw(a[prev:stop+1, 1], a[prev:stop+1, 2], v_lo)
                             high_time = interp_raw(a[prev:stop+1, 1], a[prev:stop+1, 2], v_hi)
-                            band_evidence[team].append({'band': b_name, 'zone': zone,
+                            band_evidence[team].append({'band': b_name, 'zone': zone_key,
                                 'state': 'open' if np.all(drs) else 'closed', 'duration_s': float(dt_band),
                                 'start_m': float(np.interp(low_time, a[:, 1], aligned)),
                                 'end_m': float(np.interp(high_time, a[:, 1], aligned)),
@@ -916,7 +959,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                                 'lap': item['selection'].get('lap')})
                         break
                 for state, durations in observed.items():
-                    straight_band_times[b_name][(zone, state)][team] = float(np.median(durations))
+                    straight_band_times[b_name][(zone_key, state)].setdefault(team, float(np.median(durations)))
 
     team_straight_deltas = {b[2]: defaultdict(list) for b in bands}
     shared_band_keys = {}
@@ -1048,6 +1091,17 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
         term_deficit = float(max_term_speed - term_speed) if (term_speed is not None and max_term_speed is not None) else None
 
         straight_results[team] = {
+            'telemetry_methodology': 'coverage-v2-native-crossing-union',
+            'accel_band_coverage': {name: {
+                'accepted_crossings': sum(r['band'] == name for r in band_evidence[team]),
+                'ranked_zones': band_counts[name].get(team, 0),
+                'cohort': sorted(band_scores[name]),
+                'upper_speed_reached': bool(np.max(selected[team]['a'][:, 2]) >= hi),
+                'status': 'ranked' if team in band_scores[name] else
+                    'evidence-only' if any(r['band'] == name for r in band_evidence[team]) else
+                    'upper-endpoint-not-reached' if np.max(selected[team]['a'][:, 2]) < hi else
+                    'no-eligible-complete-crossing',
+            } for _, hi, name in bands},
             'accel_observations': [{**r, 'in_common_ranking': team in band_scores[r['band']]
                 and (r['zone'], r['state']) in shared_band_keys[r['band']]} for r in band_evidence[team]],
             **core[team],

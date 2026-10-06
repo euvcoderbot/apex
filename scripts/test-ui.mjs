@@ -599,6 +599,13 @@ test('both braking metrics share coverage and reject repeat or slower-lap payloa
   assert.deepEqual([...rescued.brakingCoverage.teams],['B','C','D']);
   assert.equal(rescued.rows.get('D').brakingApproachMs,0);
   assert.equal(rescued.rows.get('D').brakingSlowingS,0);
+  box.brakingComparisonMode='independent';
+  const independent=box.eventTelemetry(e);
+  assert.deepEqual([...independent.brakingCoverage.teams],['A','B','C']);
+  assert.equal(independent.rows.get('A').brakingSlowingS,0);
+  assert.equal(independent.rows.get('A').brakingApproachMs,null,'independent slowing never invents an approach score');
+  traces.A.braking.forEach(z=>z.source_laps=2);
+  assert.equal(box.eventTelemetry(e).rows.get('A').brakingSlowingS,null,'repeat-lap payload remains excluded');
 });
 
 test('paired season metrics select the same GPs and report fixed-cohort rank stability',()=>{

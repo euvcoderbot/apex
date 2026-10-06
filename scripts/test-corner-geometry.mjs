@@ -25,6 +25,11 @@ test('real Sepang replay retains T5 and T6 despite full throttle',t=>{
   });
   const result=measureQualifyingCornerGroup(entries,{circuit_key:12});
   assert.equal(result.markers.length,15);
+  const extra=structuredClone(entries[0]);extra.row.driver.code='ZZZ';
+  extra.payload.samples.forEach(p=>p.Speed*=.8);
+  const stable=measureQualifyingCornerGroup([...entries,extra],{circuit_key:12,cornerClassificationDrivers:entries.map(e=>e.row.driver.code)});
+  assert.deepEqual(stable.markers.map(z=>[z.corner,z.band,z.speed]),result.markers.map(z=>[z.corner,z.band,z.speed]),'driver toggle must retain the team-reference classifier');
+  assert.ok(Object.values(stable.traces).every(t=>Object.values(t.corner_band_coverage).every(c=>c.measured<=c.expected)));
   for(const number of ['5','6']) {
     const corner=result.markers.find(c=>c.corner===number);assert.equal(corner.band,'high',`T${number} ${corner.speed}`);
     assert.ok(corner.speed>200);
