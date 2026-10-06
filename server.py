@@ -1738,6 +1738,9 @@ def car_performance_trace_batch(response: Response, year: int = Query(..., ge=20
                                'lap': item.get('lap'), 'time': official_time,
                                'sectors': item.get('sectors'),
                                'compound': item.get('compound'), 'phase': item.get('phase'),
+                               'qualifying_best_time': float(item.get('qualifying_best_time') or official_time),
+                               'qualifying_best_driver': str(item.get('qualifying_best_driver') or item.get('driver') or number)[:4],
+                               'qualifying_best_lap': item.get('qualifying_best_lap', item.get('lap')),
                                'start': start, 'end': end,
                                'speed_st': item.get('speed_st'),
                                'speed_fl': item.get('speed_fl')})

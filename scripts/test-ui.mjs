@@ -475,11 +475,13 @@ test('qualifying braking time ranks shared zones and leaves unsupported teams un
     method:'matched-speed-v1', mode:'straight', quality:'supported', entry_speed:280, exit_speed:180,
     early_g: decel, mean_g: decel, duration: time, approach_time:time*1.3,
     sampling_resolution_m: 20
+    ,source_laps:1,approach_source_lap:1
   }));
   const entrants = ['A', 'B', 'C', 'D'].map(team => ({ team, color: '#123456' }));
   const traces = Object.fromEntries(entrants.map(({ team }, i) => [team, {
     corners: [], braking: makeZones(2 + i * .2, 3 - i * .2, 80 + i * 5, i === 3 ? 1 : 3),
     lap_distance: 5000, reference_lap_time: 90
+    ,braking_selection_policy:'fastest-qualifying-lap-only',braking_selection:{driver:team,lap:1,time:90}
   }]));
   const result = sandbox.eventTelemetry({ Q: { teams: entrants }, traces });
   traces.D.braking[0].approach_comparable=false;
@@ -497,9 +499,9 @@ test('qualifying braking time ranks shared zones and leaves unsupported teams un
     '2.2 seconds versus 2.0 seconds should show +0.200 s per matched braking zone');
   assert.ok(Math.abs(100*Math.expm1(result.rows.get('B').brakingScore/100)-10)<.001,
     '2.2 seconds versus 2.0 seconds should be 10% longer, independent of lap time');
-  assert.equal(result.rows.get('D').brakingScoreZones, 1);
+  assert.equal(result.rows.get('D').brakingScoreZones, undefined);
   assert.equal(result.rows.get('A').brakeZones, 3);
-  assert.equal(result.rows.get('D').brakeDistance, 95);
+  assert.equal(result.rows.get('D').brakeDistance, undefined);
   traces.A.braking.forEach(z=>z.quality='provisional');
   assert.equal(sandbox.eventTelemetry({Q:{teams:entrants},traces}).rows.get('A').brakingScore,undefined);
   sandbox.brakingQualityMode='all';
@@ -526,14 +528,15 @@ test('braking retains zones measured by three teams without requiring every entr
   const teams=['A','B','C','D'].map(team=>({team,color:'#123456'}));
   const traces=Object.fromEntries(teams.map(({team},i)=>[team,{
     corners:[],lap_distance:5000,reference_lap_time:90,
+    braking_selection_policy:'fastest-qualifying-lap-only',braking_selection:{driver:team,lap:1,time:90},
     braking:Array.from({length:i===3?1:3},(_,j)=>({corner:`T${j+1}`,corridor_time:2+i*.1,
       method:'matched-speed-v1',mode:'straight',quality:'supported',entry_speed:280,exit_speed:180,duration:2+i*.1,
-      distance:60+i,mean_g:2+i*.1,normalized_decel_g:2+i*.1}))
+      distance:60+i,mean_g:2+i*.1,normalized_decel_g:2+i*.1,approach_time:3+i*.1,approach_source_lap:1,source_laps:1}))
   }]));
   const rows=sandbox.eventTelemetry({Q:{teams},traces}).rows;
   assert.equal(rows.get('A').brakeZones,3);
   assert.equal(rows.get('B').brakeZones,3);
-  assert.equal(rows.get('D').brakingScoreZones,1);
+  assert.equal(rows.get('D').brakingScoreZones,undefined);
   assert.equal(rows.get('A').brakeDistance,60);
   delete traces.D.corners;
   assert.equal(sandbox.eventTelemetry({Q:{teams},traces}).rows.has('D'),true);
@@ -541,7 +544,7 @@ test('braking retains zones measured by three teams without requiring every entr
 
 test('season telemetry retains partial qualifying cohorts instead of intersecting all teams', () => {
   const source=readFileSync('car-performance.js','utf8');
-  const body=source.slice(source.indexOf('function eventAdjustedScores('),source.indexOf('// Circuit Discrepancy Reconciliation Box'));
+  const body=source.slice(source.indexOf('function pairedBrakingScores('),source.indexOf('// Circuit Discrepancy Reconciliation Box'));
   const summaries=[
     {rows:new Map([['A',{team:'A',color:'#111',categories:{},trace:{lap_gap:0}}],['B',{team:'B',color:'#222',categories:{},trace:{lap_gap:.2}}]])},
     {rows:new Map([['B',{team:'B',color:'#222',categories:{},trace:{lap_gap:.1}}],['C',{team:'C',color:'#333',categories:{},trace:{lap_gap:.3}}]])}
@@ -553,6 +556,58 @@ test('season telemetry retains partial qualifying cohorts instead of intersectin
   assert.equal(result.length,3);
   assert.equal(result.find(row=>row.team==='B').events,2);
   assert.equal(result.commonEvents.length,2);
+});
+
+test('both braking metrics share coverage and reject repeat or slower-lap payloads',()=>{
+  const source=readFileSync('car-performance.js','utf8');
+  const box={finite:Number.isFinite,avg:a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,
+    median:a=>a.length?[...a].sort((a,b)=>a-b)[Math.floor(a.length/2)]:null,brakingQualityMode:'supported',telemetryCoverageMode:'inferred'};
+  vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function eventTelemetry(event)'),source.indexOf('function seasonTelemetry(')),box);
+  const lap=team=>({driver:team,lap:10,time:90});
+  const z=(corner,duration,approach)=>({corner,duration,approach_time:approach,approach_comparable:true,source_laps:1,
+    method:'matched-speed-v1',mode:'straight',quality:'supported',entry_speed:260,exit_speed:160,approach_source_lap:10});
+  const teams=['A','B','C','D'].map(team=>({team,lap:lap(team)}));
+  const traces=Object.fromEntries(teams.map(({team},i)=>[team,{braking_selection_policy:'fastest-qualifying-lap-only',braking_selection:lap(team),
+    braking:[z('one',1+i*.1,2+i*.1),z('two',1+i*.1,2+i*.1)]}]));
+  traces.A.braking[1].approach_comparable=false;
+  const e={Q:{teams},traces},result=box.eventTelemetry(e);
+  assert.deepEqual([...result.brakingCoverage.teams],['B','C','D']);
+  assert.deepEqual([...result.brakingCoverage.events],['one','two']);
+  for(const t of ['B','C','D']) {
+    assert.equal(result.rows.get(t).brakingScoreZones,result.rows.get(t).brakingApproachZones);
+    assert.equal(result.rows.get(t).brakingStability.samples,2);
+  }
+  assert.equal(result.rows.get('A').brakingApproachMs,null);
+  assert.equal(result.rows.get('A').brakingSlowingS,null);
+  box.telemetryCoverageMode='common';
+  assert.equal(box.eventTelemetry(e).rows.get('C').brakingSlowingS,result.rows.get('C').brakingSlowingS);
+  traces.B.braking.forEach(z=>z.source_laps=2);
+  assert.equal(box.eventTelemetry(e).rows.get('B').brakingApproachMs,null);
+  traces.B.braking.forEach(z=>z.source_laps=1);traces.B.braking_selection.lap=9;
+  assert.equal(box.eventTelemetry(e).rows.get('B').brakingApproachMs,null);
+  // The old implementation lost D's valid approach result because the
+  // independent slowing rectangle chose A/B/C on two unrelated zones.
+  for(const t of teams)traces[t.team].braking_selection=lap(t.team);
+  traces.A.braking=[z('unpaired1',1,null),z('unpaired2',1,null)];
+  for(const t of ['B','C'])traces[t].braking=[z('unpaired1',1,null),z('unpaired2',1,null),z('paired',1,2)];
+  traces.D.braking=[z('paired',1,2)];
+  const rescued=box.eventTelemetry(e);
+  assert.deepEqual([...rescued.brakingCoverage.teams],['B','C','D']);
+  assert.equal(rescued.rows.get('D').brakingApproachMs,0);
+  assert.equal(rescued.rows.get('D').brakingSlowingS,0);
+});
+
+test('paired season metrics select the same GPs and report fixed-cohort rank stability',()=>{
+  const source=readFileSync('car-performance.js','utf8'),box={finite:Number.isFinite,
+    avg:a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,median:a=>a[0]};
+  vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function pairedBrakingScores('),source.indexOf('function seasonTelemetry(')),box);
+  const report=(name,rows)=>({event:{name},summary:{rows:new Map(rows.map(([team,slow,approach])=>[team,{team,slow,approach}]))}});
+  const r=box.pairedBrakingScores([report('GP1',[['A',1,2],['B',2,3],['C',3,4]]),
+    report('GP2',[['A',3,4],['B',2,3],['C',1,2]]),report('GP3',[['A',1,null],['B',2,3],['C',3,4]])],r=>r.slow,r=>r.approach);
+  assert.deepEqual([...r.coverage.events],['GP1','GP2']);
+  assert.deepEqual([...r.slowing.coverage.events],[...r.approach.coverage.events]);
+  assert.deepEqual([...r.stability.get('A').slowing],[1,3]);
+  assert.match(source,/fastest qualifying lap across Q1\/Q2\/Q3/);
 });
 
 test('season effects bridge unequal circuit coverage through shared teams', () => {

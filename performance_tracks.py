@@ -397,6 +397,26 @@ def braking_approach_measurements(selected, start, end, grid):
     return measured if len(measured) >= 3 else {}
 
 
+def fastest_qualifying_braking_items(selections, candidates):
+    """Only the exact fastest requested qualifying lap; never a fallback."""
+    fastest = {}
+    for selection in selections:
+        team = selection.get('team_name', selection['team'])
+        if team not in fastest or selection['time'] < fastest[team]['time']:
+            fastest[team] = selection
+    result = {}
+    for team, best in fastest.items():
+        target = best.get('qualifying_best_time', best['time'])
+        for item in candidates.get(team, []):
+            source = item['selection']
+            if (abs(source['time']-target) < .0005
+                    and source.get('driver') == best.get('qualifying_best_driver', best.get('driver'))
+                    and source.get('lap') == best.get('qualifying_best_lap', best.get('lap'))):
+                result[team] = item
+                break
+    return result
+
+
 def matched_braking_measurements(selected, windows, grid, candidates=None, fixed_ranges=None):
     """Time a shared speed drop in each straight braking approach.
 
@@ -416,12 +436,9 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
             main = selected[team]
             driver = main.get('selection', {}).get('driver')
             main_selection = main.get('selection', {})
-            laps = [item for item in (candidates or {}).get(team, [main])
-                    if item.get('selection', {}).get('driver') == driver
-                    and all(item.get('selection', {}).get(key) == main_selection.get(key)
-                            for key in ('compound', 'phase'))]
-            if not laps or not all(main_selection.get(key) for key in ('compound', 'phase')):
-                laps = [main]
+            # Both timings describe this one real fastest qualifying lap.
+            # A missing crossing must never be rescued by another attempt.
+            laps = [main]
             observed = []
             for item in laps[:3]:
                 a, d = item['a'], item['aligned']
@@ -491,7 +508,9 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
                     float(np.max(np.diff(t))),
                     float(np.max(np.diff(t)*(v[:-1]+v[1:])/7.2)),
                     bracket_sum,
-                    int(inner.sum())))
+                    int(inner.sum()),
+                    float(np.interp(t0, item['a'][:,1], item['aligned'])),
+                    float(np.interp(t1, item['a'][:,1], item['aligned']))))
             if not per_lap:
                 continue
             duration = float(np.median([x[0] for x in per_lap]))
@@ -504,6 +523,7 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
             supported = (min(x[6] for x in per_lap) >= 2 and resolution <= duration
                          and (repeat_spread is None or repeat_spread <= max(.05, duration*.1)))
             approach = approaches.get(team, {})
+            main_selection = selected[team].get('selection', {})
             result[team].append({
                 'corner': label, 'method': 'matched-speed-v1', 'mode': 'straight',
                 'entry_speed': high, 'exit_speed': low, 'duration': duration,
@@ -522,8 +542,12 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
                 'approach_comparable': bool(approach),
                 **approach,
                 'approach_distance': float(grid[end] - grid[start]),
+                'zone_start_m': float(grid[start]), 'zone_end_m': float(grid[end]),
+                'speed_high_m': per_lap[0][7], 'speed_low_m': per_lap[0][8],
+                'source_selection': dict(main_selection),
+                'selection_policy': 'fastest-qualifying-lap-only',
                 'quality': 'supported' if supported else 'provisional',
-                'braking_version': 'qualifying-braking-v2'
+                'braking_version': 'qualifying-braking-v3-fastest-paired'
             })
     return result
 
@@ -1005,6 +1029,7 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
     native = {}
     def finish(result):
         result['native_speed_observations'] = native
+        result['braking_selection_policy'] = 'fastest-qualifying-lap-only'
         return result
     lookup = {s['team']: s for s in selections}
     expected = {s.get('team_name', s['team']) for s in selections}
@@ -1199,8 +1224,19 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
                and not frozen(item, {'grid': grid, 'speed': speed})][:6]
         for team, values in aligned.items() if team in selected
     }
-    matched_brakes = matched_braking_measurements(selected, brake_windows, grid, qualifying_candidates,
+    # Other telemetry may use a validated fallback. Braking never does: locate
+    # the official fastest requested lap and require that exact lap to pass.
+    brake_selected = fastest_qualifying_braking_items(selections, qualifying_candidates)
+    # Redetect the shared braking geometry using only those fastest laps.
+    brake_windows = (measurement_frame['brake_windows'] if fixed else
+                    straight_braking_windows(brake_selected, ref, grid,
+                           observed_braking_zones(brake_selected, grid)) if len(brake_selected)>=3 else {})
+    if measurement_frame is not None and not fixed:
+        measurement_frame['brake_windows'] = brake_windows
+    matched_brakes = matched_braking_measurements(brake_selected, brake_windows, grid, None,
                         measurement_frame.get('braking_ranges') if fixed else None)
+    for team in selected:
+        matched_brakes.setdefault(team, [])
     if measurement_frame is not None and not fixed:
         measurement_frame['braking_ranges'] = {z['corner']: (z['entry_speed'], z['exit_speed'])
                     for measurements in matched_brakes.values() for z in measurements}
@@ -1302,6 +1338,11 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
         braking = matched_brakes.get(team, [])
 
         results[team] = {
+            'braking_selection_policy': 'fastest-qualifying-lap-only',
+            'braking_selection': dict(brake_selected[team]['selection']) if team in brake_selected else None,
+            'braking_exclusion': ('Fastest qualifying lap failed telemetry/alignment quality checks; no slower replacement.'
+                                  if team not in brake_selected else
+                                  'No supported paired straight-braking crossing on the fastest lap.' if not braking else None),
             'corners': measurements, 'categories': categories, 'tercile_categories': tercile_categories,
             'straight_time': straight_time, 'corner_time': corner_time,
             **{key: value for key, value in straight_info.items() if key.startswith('straight_core_')},

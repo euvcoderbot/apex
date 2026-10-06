@@ -38,6 +38,18 @@ class RaceSession:
 
 
 class PerformanceTests(unittest.TestCase):
+    def test_braking_fastest_lap_identity_does_not_fall_back(self):
+        from performance_tracks import fastest_qualifying_braking_items
+        fast={'team':'A:0','team_name':'A','time':90.,'driver':'VER','lap':10}
+        slow={'team':'A:1','team_name':'A','time':90.3,'driver':'PER','lap':12}
+        self.assertEqual(fastest_qualifying_braking_items([slow,fast],{'A':[{'selection':slow}]}),{})
+        result=fastest_qualifying_braking_items([slow,fast],{'A':[{'selection':slow},{'selection':fast}]})
+        self.assertEqual(result['A']['selection'],fast)
+        # Fastest official lap absent from dry telemetry candidates is not
+        # silently replaced with the fastest available dry lap.
+        tagged={**slow,'qualifying_best_time':89.,'qualifying_best_driver':'VER','qualifying_best_lap':9}
+        self.assertEqual(fastest_qualifying_braking_items([tagged],{'A':[{'selection':tagged}]}),{})
+
     def test_exact_telemetry_lap_edges_do_not_use_buffer_origin(self):
         from session_loader import _lap_samples
         rows=[{'date':100+i*.25,'Speed':180.,'Throttle':100.,'RPM':10000.,'Brake':False,'DRS':0,'nGear':6} for i in range(49)]
@@ -246,7 +258,7 @@ class PerformanceTests(unittest.TestCase):
         windows['Z1'] = (0, 80, dict.fromkeys(selected, 0), 'mixed approach')
         self.assertTrue(all(not v for v in matched_braking_measurements(selected, windows, grid).values()))
 
-    def test_repeated_fast_qualifying_laps_reduce_sparse_braking_evidence(self):
+    def test_braking_uses_only_selected_fastest_lap_not_repeat_average(self):
         grid = np.arange(0., 405., 5.)
         def item(rate):
             t = np.linspace(0., 250/rate, 26)
@@ -260,11 +272,12 @@ class PerformanceTests(unittest.TestCase):
         candidates = {team: [selected[team], item(90. if team == 'A' else 100.)]
                       for team in 'ABC'}
         repeated = matched_braking_measurements(selected, windows, grid, candidates)
-        self.assertEqual(repeated['A'][0]['source_laps'], 2)
-        self.assertGreater(repeated['A'][0]['sample_count'], one['A'][0]['sample_count'])
-        self.assertGreater(repeated['A'][0]['duration'], repeated['B'][0]['duration'])
-        self.assertEqual(repeated['A'][0]['quality'], 'provisional')
-        self.assertGreater(repeated['A'][0]['repeat_spread_s'], .1)
+        self.assertEqual(repeated['A'][0]['source_laps'], 1)
+        self.assertEqual(repeated['A'][0]['sample_count'], one['A'][0]['sample_count'])
+        self.assertEqual(repeated['A'][0]['duration'], repeated['B'][0]['duration'])
+        self.assertEqual(repeated['A'][0]['quality'], 'supported')
+        self.assertIsNone(repeated['A'][0]['repeat_spread_s'])
+        self.assertEqual(repeated['A'][0]['source_selection'], selected['A']['selection'])
         self.assertAlmostEqual(repeated['A'][0]['approach_time'], 2.5)
 
     def test_stronger_well_sampled_braking_is_not_censored(self):
@@ -289,7 +302,7 @@ class PerformanceTests(unittest.TestCase):
         selected={team:item for team in 'ABC'}
         result=matched_braking_measurements(selected,{'Z':(0,8,dict.fromkeys(selected,0),'straight')},grid,
                                             {team:[item,item,item] for team in selected})
-        self.assertEqual(result['A'][0]['source_laps'],3)
+        self.assertEqual(result['A'][0]['source_laps'],1)
         self.assertEqual(result['A'][0]['quality'],'provisional')
         self.assertEqual(result['A'][0]['min_native_interior_samples'],1)
 
