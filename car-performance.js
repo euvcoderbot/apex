@@ -1,4 +1,5 @@
-import {raceCornerGroups,measureRaceCornerGroup} from './race-cornering.js?v=20261006';
+import {raceCornerGroups,measureRaceCornerGroup,measureQualifyingCornerGroup} from './race-cornering.js?v=20261006-corners';
+import {circuitCornerMarkers,qualifyingRepresentatives,withCornerMeasurements} from './corner-geometry.js?v=20261006-corners';
 // APEX - Car Performance Section
 // Full parity with Session Analysis design language: Apple UI, official team logos, GP country flags, custom select menus.
 // Scientific rigor aligned with Astra GPT-6 Hybrid principles: no speculative physical regressions, sampling-aware bounds.
@@ -395,6 +396,96 @@ let pitLaneBasis='raw'; // 'raw' | 'event'
 let paceSeasonStat='mean'; // 'mean' | 'median'
 let telemetrySeasonStat='mean'; // 'mean' | 'median'
 let cornerGraphBand='all';
+let cornerSession='qualy',telemetrySubject='team',qualifyingMetricsRunning=false,qualifyingMetricsController=null;
+function telemetryEvent(event) {
+  const view=telemetrySubject!=='driver'?event:{...event,Q:{...event.Q,teams:event.qualifyingDrivers||[]},traces:event.driverTraces||{},
+    R:{...event.R,teams:(event.R?.teams||[]).flatMap(t=>(t.race_speed_drivers||[]).map(d=>({...d,team:d.driver,displayName:d.driver,logoTeam:t.team,color:t.color})))},
+    nativeSpeedObservations:event.driverNativeSpeedObservations||{},traceExcluded:event.driverTraceExcluded||{}};
+  return activeMetric==='corners'&&cornerSession==='qualy'?{...view,traces:withCornerMeasurements(view.traces||{},event.cornerMeasurements?.[telemetrySubject])}:view;
+}
+function telemetrySubjectControls() {
+  return `<div class="performance-scope-toggle" role="group" aria-label="Telemetry subject">${[['team','Teams'],['driver','Drivers']].map(([key,label])=>`<button type="button" data-telemetry-subject="${key}" aria-pressed="${telemetrySubject===key}">${label}</button>`).join('')}</div>`;
+}
+function cornerSessionControls() {
+  return `<div class="performance-scope-toggle" role="group" aria-label="Cornering session">${[['qualy','Qualifying cornering'],['race','Race cornering']].map(([key,label])=>`<button type="button" data-corner-session="${key}" aria-pressed="${cornerSession===key}">${label}</button>`).join('')}</div>`;
+}
+async function loadQualifyingMetrics(retry=false) {
+  if(qualifyingMetricsRunning||!context||running||traceRunning||activeMetric==='corners'&&cornerSession==='race')return;
+  const subject=telemetrySubject,wantCorners=activeMetric==='corners',id=generation;
+  qualifyingMetricsController=new AbortController();const signal=qualifyingMetricsController.signal;
+  qualifyingMetricsRunning=true;render();
+  try {
+    for(const event of events.filter(e=>e.Q)) {
+      if(signal.aborted||id!==generation)break;
+      const complete=wantCorners?event.cornerSubjects?.[subject]:event.driverTelemetryReady;
+      if(complete&&!retry)continue;
+      updateStatus(`Qualifying ${wantCorners?'corners':'driver telemetry'} · ${event.name} · ${subject}…`,true);
+      try {
+        const base=new URLSearchParams({year:context.year,gp:event.name,round:event.round,session:'Q'});
+        event.qualifyingSession ||= await get('/api/session?'+base,signal);
+        const session={...event.qualifyingSession,year:context.year,event:event.name},rows=qualifyingRepresentatives(session,subject,event.Q.teams);
+        const identities=rows.map(row=>({team:subject==='driver'?row.driver.code:row.driver.team,
+          color:row.driver.team_color,displayName:subject==='driver'?row.driver.name:row.driver.team,
+          logoTeam:row.driver.team,driver:row.driver.code,lap:{driver:row.driver.code,number:row.driver.number,lap:row.lap,time:row.time,
+            start:row.lap_start_seconds,end:row.lap_end_seconds,sectors:[row.s1,row.s2,row.s3],phase:row.phase,compound:row.compound}}));
+        if(subject==='driver') {
+          event.qualifyingDrivers=identities;
+          event.driverTraces ||= {};
+          if(!wantCorners&&(!event.driverTelemetryReady||retry)) {
+            const windows=identities.map(t=>({...t.lap,team:t.team,team_name:t.team,driver_number:t.lap.number,
+              qualifying_best_time:t.lap.time,qualifying_best_driver:t.lap.driver,qualifying_best_lap:t.lap.lap}));
+            const batch=windows.length>=3?await get('/api/performance/trace-batch?'+new URLSearchParams({year:context.year,gp:event.name,windows:JSON.stringify(windows)}),signal):{teams:{}};
+            if(id!==generation)return;
+            event.driverTraces=batch.teams||{};event.driverTraceExcluded=batch.excluded||{};
+            event.driverTelemetryReady=true;
+            event.driverNativeSpeedObservations=batch.native_speed_observations||{};
+            for(const trace of Object.values(event.driverTraces)) {
+              trace.braking_selection_policy='fastest-qualifying-lap-only';
+              trace.braking_selection ||= trace.selection;
+            }
+          }
+        }
+        if(wantCorners) {
+          event.cornerEntries ||= new Map();
+          const entries=[],jobs=[...rows],entryErrors=[];
+          async function worker(){while(jobs.length&&!signal.aborted){const row=jobs.shift(),key=row.driver.code+':'+row.lap;
+            try {
+              let payload=event.cornerEntries.get(key);
+              if(!payload) {
+                const p=new URLSearchParams(base);p.set('driver',row.driver.code);p.set('driver_number',row.driver.number);p.set('lap',row.lap);
+                p.set('lap_time',row.time);p.set('lap_start_seconds',row.lap_start_seconds);p.set('lap_end_seconds',row.lap_end_seconds);
+                if(session.openf1_session_key)p.set('session_key',session.openf1_session_key);
+                payload=await get('/api/telemetry?'+p,signal);event.cornerEntries.set(key,payload);
+              }
+              entries.push({row,payload});
+            } catch(error){if(signal.aborted)throw error;entryErrors.push(row.driver.code+': '+error.message);}
+          }}
+          await Promise.all([worker(),worker(),worker()]);
+          if(id!==generation)return;
+          const measured=measureQualifyingCornerGroup(entries,session);
+          event.cornerMeasurements ||= {};event.cornerMeasurements[subject]={};
+          for(const entity of identities) {
+            const corner=measured.traces[entity.driver];
+            // Never present stale speed-dip-only corners if new geometry fails.
+            let values;
+            if(corner){const {selection,...metrics}=corner;values={...metrics,selection,corner_selection:selection};}
+            else values={selection:entity.lap,corners:[],categories:{},corner_contribution:null,corner_missing:['Complete lap or circuit geometry unavailable']};
+            event.cornerMeasurements[subject][entity.team]=values;
+          }
+          event.cornerSubjects ||= {};event.cornerSubjects[subject]=true;
+          event.cornerAudit ||= {};event.cornerAudit[subject]={expected:measured.markers.map(z=>z.corner),bands:measured.markers.map(z=>({corner:z.corner,band:z.band,speed:z.speed})),error:measured.error,
+            entries:entries.length,requested:rows.length,requestErrors:entryErrors};
+        }
+        delete event.qualifyingMetricsError;
+      } catch(error) {if(signal.aborted)break;event.qualifyingMetricsError=error.message;}
+      render();
+    }
+  } finally {
+    qualifyingMetricsRunning=false;
+    if(id===generation){updateStatus(signal.aborted?'Qualifying measurements stopped; completed data retained.':'Qualifying measurements updated. Circuit windows are approximate; source laps and missing corners remain visible.');render();
+      if(!signal.aborted&&subject!==telemetrySubject&&['corners','straight','braking'].includes(activeMetric))void loadQualifyingMetrics();}
+  }
+}
 let raceCornerRunning=false,raceCornerController=null;
 const raceCornerCache=new Map();
 function cornerBandControls() {
@@ -403,19 +494,19 @@ function cornerBandControls() {
 
 async function loadRaceCorners() {
   if(raceCornerRunning||!context)return;
-  const id=generation,year=context.year;
+  const id=generation,year=context.year,subject=telemetrySubject;
   raceCornerController=new AbortController();const signal=raceCornerController.signal;
   raceCornerRunning=true;render();
   try {
     for(const event of events.filter(e=>e.R)){
-      const key=year+':'+event.name;if(raceCornerCache.get(key)?.observations?.length)continue;
+      const key=year+':'+event.name+':'+subject;if(raceCornerCache.get(key)?.observations?.length)continue;
       updateStatus(`Race cornering · matching laps at ${event.name}…`,true);
       const observations=[];
       try {
         const q=new URLSearchParams({year,gp:event.name,round:event.round,session:'R',fresh:'true'});
-        const session=await get('/api/session?'+q,signal);
+        const session={...await get('/api/session?'+q,signal),year,event:event.name};
         const preferred=Object.fromEntries((event.R.teams||[]).map(t=>[t.team,t.fastest_race_driver]));
-        const groups=raceCornerGroups(session,preferred);
+        const groups=raceCornerGroups(session,preferred,4,subject);
         for(const group of groups){
           const entries=[],jobs=[...group.rows];
           async function worker(){while(jobs.length&&!signal.aborted){const row=jobs.shift(),params=new URLSearchParams(q);
@@ -427,10 +518,9 @@ async function loadRaceCorners() {
           }}
           await Promise.all([worker(),worker()]);
           const qualifyingTrace=Object.values(event.traces||{}).find(t=>t.corners?.length&&finite(t.lap_distance));
-          let fallbackMarkers=qualifyingTrace?.corners?.map(c=>({fraction:c.apex_distance/qualifyingTrace.lap_distance}))||[];
-          if(!fallbackMarkers.length && /sepang|kuala lumpur/i.test(session.location||'') && entries.length && typeof window.projectSepangCorners==='function')
-            fallbackMarkers=window.projectSepangCorners(entries[0].payload.samples);
-          observations.push(...measureRaceCornerGroup(entries,fallbackMarkers));
+          let fallbackMarkers=entries.length?circuitCornerMarkers(entries[0].payload,session):[];
+          if(!fallbackMarkers.length)fallbackMarkers=qualifyingTrace?.corner_method==='circuit-marker-windows'?qualifyingTrace.corners.map(c=>({fraction:c.apex_distance/qualifyingTrace.lap_distance})):[];
+          observations.push(...measureRaceCornerGroup(entries,fallbackMarkers,session));
         }
         if(id!==generation||signal.aborted)return;
         raceCornerCache.set(key,{observations,groups:groups.length});
@@ -446,15 +536,16 @@ async function loadRaceCorners() {
 }
 
 function renderRaceCorners() {
-  const pending=events.filter(e=>e.R&&!raceCornerCache.get(context.year+':'+e.name)?.observations?.length);
+  const cacheKey=e=>context.year+':'+e.name+':'+telemetrySubject;
+  const pending=events.filter(e=>e.R&&!raceCornerCache.get(cacheKey(e))?.observations?.length);
   const reports=events.filter(e=>e.R).map(event=>{
-    const observations=raceCornerCache.get(context.year+':'+event.name)?.observations||[],rows=new Map();
+    const observations=(raceCornerCache.get(cacheKey(event))?.observations||[]).map(o=>({...o,logoTeam:o.team,displayName:telemetrySubject==='driver'?o.driver:o.team,team:telemetrySubject==='driver'?o.driver:o.team})),rows=new Map();
     const snapshots=[...new Set(observations.map(o=>o.lap+':'+o.compound))].map(key=>({event:{name:key},summary:{rows:new Map(observations.filter(o=>o.lap+':'+o.compound===key).map(o=>[o.team,o]))}}));
     const matched=Object.fromEntries(['all','low','medium','high'].map(band=>[band,eventAdjustedScores(snapshots,row=>row.values[band],telemetrySeasonStat,'common')]));
     for(const team of [...new Set(observations.map(o=>o.team))]){
       const own=observations.filter(o=>o.team===team),values={};
       for(const band of ['all','low','medium','high'])values[band]=matched[band].get(team);
-      rows.set(team,{team,color:own[0].color,values,samples:own.length,drivers:[...new Set(own.map(o=>o.driver))].join(', ')});
+      rows.set(team,{team,color:own[0].color,displayName:own[0].displayName,logoTeam:own[0].logoTeam,values,samples:own.length,drivers:[...new Set(own.map(o=>o.driver))].join(', ')});
     }
     return {event,summary:{rows}};
   });
@@ -472,8 +563,8 @@ function renderRaceCorners() {
     cornerBandControls()+controls+`<div class="performance-actions">${actions}</div>`+
     '<p class="performance-note">The graph is extra seconds per corner, averaged within each GP and then across supported GPs. All corners is the default; low/medium/high use the same field-median corner classification. Windows include entry, apex and exit. Distance is registered with official sectors, so results are approximate. Only observed matched cohorts enter; missing teams are not assigned zero.</p>'+
     renderHorizontalBarChart(rows.filter(r=>finite(r.gap)),{title:`${cornerGraphBand==='all'?'All corners':cornerGraphBand+'-speed corners'} · average time gap per corner`,valueKey:'gap',unit:' s',digits:3,signedValue:true,zeroBaseline:true})+
-    table([sortHeader('raceCornerTeam','Team'),sortHeader('raceCornerGap','Average gap / corner'),sortHeader('raceCornerGPs','GPs',-1),sortHeader('raceCornerSamples','Matched laps',-1)],sorted(rows,{raceCornerTeam:r=>r.team,raceCornerGap:r=>r.gap,raceCornerGPs:r=>r.events,raceCornerSamples:r=>r.samples},'raceCornerGap').map(r=>[teamLabel(r),signed(r.gap,3,' s'),r.events,r.samples]))+
-    `<details class="performance-evidence"><summary>Measured race snapshots and missing data</summary>${table(['GP','Team','Driver / lap','Compound','Corners'],reports.flatMap(({event})=>(raceCornerCache.get(context.year+':'+event.name)?.observations||[]).map(o=>[escape(event.name),escape(o.team),`${escape(o.driver)} L${o.lap}`,escape(o.compound),o.corners])))}<p>${reports.filter(r=>raceCornerCache.has(context.year+':'+r.event.name)&&!r.summary.rows.size).map(r=>escape(r.event.name)+' · insufficient matched clean telemetry').join('<br>')||''}</p></details>`);
+    table([sortHeader('raceCornerTeam',telemetrySubject==='driver'?'Driver':'Team'),sortHeader('raceCornerGap','Average gap / corner'),sortHeader('raceCornerGPs','GPs',-1),sortHeader('raceCornerSamples','Matched laps',-1)],sorted(rows,{raceCornerTeam:r=>r.team,raceCornerGap:r=>r.gap,raceCornerGPs:r=>r.events,raceCornerSamples:r=>r.samples},'raceCornerGap').map(r=>[teamLabel(r),signed(r.gap,3,' s'),r.events,r.samples]))+
+    `<details class="performance-evidence"><summary>Measured race snapshots and missing data</summary>${table(['GP','Team','Driver / lap','Compound','Corners'],reports.flatMap(({event})=>(raceCornerCache.get(cacheKey(event))?.observations||[]).map(o=>[escape(event.name),escape(o.team),`${escape(o.driver)} L${o.lap}`,escape(o.compound),o.corners])))}<p>${reports.filter(r=>raceCornerCache.has(cacheKey(r.event))&&!r.summary.rows.size).map(r=>escape(r.event.name)+' · insufficient matched clean telemetry').join('<br>')||''}</p></details>`);
 }
 let telemetryCoverageMode='common';
 let tyreSeasonStat='median'; // 'mean' | 'median' | 'p75'
@@ -583,6 +674,7 @@ function updateStatus(msg, isRunning = false) {
 }
 
 function stop() {
+  qualifyingMetricsController?.abort();
   raceCornerController?.abort();
   controller?.abort(); pitController?.abort(); generation++; running=false; traceRunning=false; pitRunning=false;
   $('performanceCancel').hidden=true;
@@ -599,6 +691,7 @@ function reset() {
 }
 
 async function analyse() {
+  qualifyingMetricsController?.abort();
   raceCornerController?.abort();
   controller?.abort(); pitController?.abort(); pitRunning=false; controller=new AbortController(); const signal=controller.signal, id=++generation;
   events=[]; errors=[]; running=true;
@@ -624,6 +717,7 @@ async function analyse() {
   // Pit timing is independent of qualifying/race laps and telemetry. Fetch it
   // immediately when that view is open, rather than waiting for every trace.
   if(activeMetric==='pits') loadPitData();
+  if((activeMetric==='corners'&&cornerSession==='qualy')||telemetrySubject==='driver'&&['straight','braking'].includes(activeMetric))void loadQualifyingMetrics();
 
   async function worker() {
     while(jobs.length && !signal.aborted) {
@@ -1816,17 +1910,20 @@ function renderTrend(teams) {
 }
 
 function eventTelemetry(event) {
+  if(typeof telemetryEvent==='function')event=telemetryEvent(event);
+  if(typeof activeMetric!=='undefined'&&activeMetric==='corners'&&cornerSession==='qualy'&&!event.cornerSubjects?.[telemetrySubject])
+    return {rows:new Map(),groups:{low:[],medium:[],high:[]},entrants:[]};
   // Straight-line and braking telemetry do not depend on corner detection.
   // A valid GPS trace without corner markers must still appear in those views.
   const entrants=(event.Q?.teams||[]).filter(team=>event.traces?.[team.team] && !event.traces[team.team].error);
   const cornerEntrants=entrants.filter(team=>event.traces[team.team].corners?.length);
-  const labels=cornerEntrants[0] ? event.traces[cornerEntrants[0].team].corners.map(c=>c.corner)
-    .filter(label=>cornerEntrants.every(team=>event.traces[team.team].corners.some(c=>c.corner===label))) : [];
+  const labels=[...new Set(cornerEntrants.flatMap(team=>event.traces[team.team].corners.map(c=>c.corner)))];
   const groups={low:[],medium:[],high:[]};
   for(const label of labels) {
     const observations=cornerEntrants.map(team=>event.traces[team.team].corners.find(c=>c.corner===label)).filter(Boolean);
     const speed=median(observations.map(c=>c.minimum));
-    groups[speed<=120?'low':speed<=200?'medium':'high'].push(label);
+    const band=observations[0]?.band|| (speed<=120?'low':speed<=200?'medium':'high');
+    groups[band].push(label);
   }
   const rows=new Map();
   for(const team of entrants) {
@@ -1838,7 +1935,7 @@ function eventTelemetry(event) {
         corners:corners.length,
       }:null;
     }
-    rows.set(team.team,{team:team.team,color:team.color,lap:trace.selection||team.lap,trace,categories:trace.categories||categories});
+    rows.set(team.team,{team:team.team,color:team.color,displayName:team.displayName,logoTeam:team.logoTeam,lap:trace.corner_selection||trace.selection||team.lap,trace,categories:trace.categories||categories});
   }
   for(const name of ['low','medium','high']) {
     const best=Math.max(...[...rows.values()].map(row=>row.categories[name]?.speed).filter(finite));
@@ -1939,15 +2036,17 @@ function pairedBrakingScores(reports, slowingOf, approachOf, mode='mean') {
 }
 
 function brakingSupportMarkup(coverage, values, season=false) {
+  const entity=typeof telemetrySubject!=='undefined'&&telemetrySubject==='driver'?'drivers':'teams';
   const c=coverage||{teams:[],events:[]},unit=season?'GP':'zone';
   const stability=values.filter(t=>t.brakingStability).map(t=>{
     const s=t.brakingStability,format=a=>a[0]===a[1]?`P${a[0]}`:`P${a[0]}–P${a[1]}`;
     return `${escape(t.team)}: approach ${format(s.approach)}, slowing ${format(s.slowing)}`;
   }).join(' · ');
-  return `<details class="performance-evidence" open><summary>Shared ranking support · ${c.events.length} ${unit}${c.events.length===1?'':'s'} · ${c.teams.length} teams</summary><p class="performance-note">${c.events.length?`Both charts use: ${c.events.map(escape).join(' · ')}. Teams: ${c.teams.map(escape).join(', ')}.`:'No common paired measurements on the fastest qualifying laps. Missing telemetry is not replaced by a slower lap.'}</p><p class="performance-note">${c.events.length>1?`Leave-one-${unit}-out rank range (same teams; sensitivity, not a confidence interval): ${stability||'unavailable'}.`:`Only ${c.events.length} shared ${unit}: insufficient coverage for a leave-one-out stability check.`}</p></details>`;
+  return `<details class="performance-evidence" open><summary>Shared ranking support · ${c.events.length} ${unit}${c.events.length===1?'':'s'} · ${c.teams.length} ${entity}</summary><p class="performance-note">${c.events.length?`Both charts use: ${c.events.map(escape).join(' · ')}. ${entity}: ${c.teams.map(escape).join(', ')}.`:'No common paired measurements on the fastest qualifying laps. Missing telemetry is not replaced by a slower lap.'}</p><p class="performance-note">${c.events.length>1?`Leave-one-${unit}-out rank range (same ${entity}; sensitivity, not a confidence interval): ${stability||'unavailable'}.`:`Only ${c.events.length} shared ${unit}: insufficient coverage for a leave-one-out stability check.`}</p></details>`;
 }
 
 function brakingEvidenceMarkup(sourceEvents) {
+  sourceEvents=sourceEvents.map(telemetryEvent);
   return `<details class="performance-evidence"><summary>Fastest qualifying laps · boundary speeds and zone evidence</summary>${table(
     ['Grand Prix / team','Source lap · both timings','Zone / track window','Approach boundary speeds','Approach time','Same-speed slowing','Evidence'],
     sourceEvents.flatMap(event=>{
@@ -1986,8 +2085,13 @@ function eventAdjustedScores(reports, valueOf, mode='mean',coverageMode=typeof t
     for(const o of observations){if(!byEvent.has(o.event))byEvent.set(o.event,new Map());byEvent.get(o.event).set(o.team,o.value);}
     let best=null;
     // Largest complete observed rectangle: no missing team/GP is imputed.
-    for(let mask=1;mask<2**teams.length;mask++) {
-      const cohort=teams.filter((_,i)=>mask&(2**i));if(cohort.length<3)continue;
+    const cohorts=new Map();
+    for(const observed of byEvent.values()) {
+      const own=new Set(observed.keys()),sets=[own,...[...cohorts.values()].map(c=>new Set([...c].filter(t=>own.has(t))))];
+      for(const set of sets)if(set.size>=3)cohorts.set([...set].sort().join('\u0000'),set);
+    }
+    for(const set of [...cohorts.values()].sort((a,b)=>[...a].sort().join().localeCompare([...b].sort().join()))) {
+      const cohort=[...set].sort();
       const eventIds=[...byEvent].filter(([,r])=>cohort.every(t=>r.has(t))).map(([id])=>id);
       const support=cohort.length*eventIds.length;
       if(eventIds.length&&(!best||support>best.support||support===best.support&&cohort.length>best.cohort.length))best={cohort,eventIds,support};
@@ -2043,6 +2147,7 @@ function eventAdjustedScores(reports, valueOf, mode='mean',coverageMode=typeof t
 }
 
 function seasonRaceTrapRows(sourceEvents, mode='mean') {
+  if(typeof telemetryEvent==='function')sourceEvents=sourceEvents.map(telemetryEvent);
   const reports=[], coverage=new Map();
   for(const event of sourceEvents) {
     const race=(event.R?.teams||[]).filter(t=>finite(t.race_speed_trap_matched));
@@ -2060,7 +2165,7 @@ function seasonRaceTrapRows(sourceEvents, mode='mean') {
         qualyGap:q&&finite(fastestQualifying)?(fastestQualifying-q.speed_trap)/fastestQualifying*100:null
       });
       if(!coverage.has(team.team))coverage.set(team.team,{
-        team:team.team,color:team.color,matched:[],peak:[],median:[],finish:[],laps:0,events:0,paired:0
+        team:team.team,color:team.color,displayName:team.displayName,logoTeam:team.logoTeam,matched:[],peak:[],median:[],finish:[],laps:0,events:0,paired:0
       });
       const item=coverage.get(team.team);
       item.matched.push(team.race_speed_trap_matched);
@@ -2095,7 +2200,7 @@ function seasonTelemetry(mode='mean') {
     const brakingComparable=[...summary.rows.values()].filter(row=>finite(row.brakingScore)).length>=3;
     for(const row of summary.rows.values()) {
       if(!map.has(row.team))map.set(row.team,{
-        team:row.team,color:row.color,low:[],medium:[],high:[],
+        team:row.team,color:row.color,displayName:row.displayName,logoTeam:row.logoTeam,low:[],medium:[],high:[],
         lowDeficit:[],mediumDeficit:[],highDeficit:[],lowSeconds:[],mediumSeconds:[],highSeconds:[],
         lapGaps:[],top:[],full:[],topDeficit:[],fullDeficit:[],straightDeficit:[],
         straightContribution:[],cornerContribution:[],brakeG:[],brakeMeanG:[],brakePowerProxy:[],brakingScore:[],brakingSlowingS:[],brakingApproachMs:[],brakingScoreZones:[],brakingReferenceLap:[],
@@ -2535,7 +2640,7 @@ function renderTrace() {
       zeroBaseline: true
     });
 
-    return statisticControls+card(brakingTitle,`Fastest qualifying lap only: the quicker driver’s fastest eligible lap across Q1/Q2/Q3. Both charts use the same paired teams, zones within each GP, and shared GPs. ${telemetrySeasonStat==='median'?'Median':'Mean'} gaps are seconds per measured zone, not whole-lap loss. Arrival and end speeds still affect approach timing; GPS registration and sparse samples make close ranks provisional.`,
+    return statisticControls+card(brakingTitle,`Fastest qualifying lap only: ${telemetrySubject==='driver'?"each driver's own":"the quicker driver's"} fastest eligible lap across Q1/Q2/Q3. Both charts use the same paired ${telemetrySubject==='driver'?'drivers':'teams'}, zones within each GP, and shared GPs. ${telemetrySeasonStat==='median'?'Median':'Mean'} gaps are seconds per measured zone, not whole-lap loss. Arrival and end speeds still affect approach timing; GPS registration and sparse samples make close ranks provisional.`,
       brakingViewControls(hasApproach)+brakeChart+brakingSupportMarkup(season.brakingCoverage,values,true)+
       table([
         sortHeader('brakeTeam','Team'),
@@ -2568,10 +2673,10 @@ function renderTrace() {
       ]))+brakingEvidenceMarkup(events));
   }
 
-  const event=events[0], summary=eventTelemetry(event||{}), loaded=[...summary.rows.values()];
+  const event=telemetryEvent(events[0]||{}), summary=eventTelemetry(events[0]||{}), loaded=[...summary.rows.values()];
   if(!loaded.length)return card('Telemetry comparison','Qualifying telemetry for every team is loaded automatically.','<p class="section-empty">No reliable telemetry is available for this event.</p>');
   if(activeMetric==='corners') {
-    const common=[...new Set(Object.values(summary.groups).flat())];
+    const common=[...new Set(Object.values(summary.groups).flat())].sort((a,b)=>parseInt(a)-parseInt(b)||a.localeCompare(b));
     const minLow = Math.min(...loaded.map(r => r.categories.low?.deficit).filter(finite));
     const minMed = Math.min(...loaded.map(r => r.categories.medium?.deficit).filter(finite));
     const minHigh = Math.min(...loaded.map(r => r.categories.high?.deficit).filter(finite));
@@ -2591,7 +2696,7 @@ function renderTrace() {
       if (clone.categories.high && finite(minHigh)) {
         clone.categories.high = { ...clone.categories.high, deficit: Math.max(0, clone.categories.high.deficit - minHigh), time_lost: Math.max(0, (clone.categories.high.time_lost || 0) - minHighT) };
       }
-      if (clone.trace && finite(minCornerContrib)) {
+      if (clone.trace && finite(clone.trace.corner_contribution) && finite(minCornerContrib)) {
         clone.trace = { ...clone.trace, corner_contribution: Math.max(0, clone.trace.corner_contribution - minCornerContrib) };
       }
       return clone;
@@ -2599,19 +2704,19 @@ function renderTrace() {
 
     const ordered=sorted(rebasedLoaded,{eventCornerTeam:r=>r.team,eventLow:r=>r.categories.low?.deficit,eventMedium:r=>r.categories.medium?.deficit,eventHigh:r=>r.categories.high?.deficit},'eventLow');
 
-    return card('Low / medium / high-speed cornering',`Time lost across all corners in each band relative to the fastest constructor (0.000% baseline). Example: 0.18 seconds lost on a 90-second lap is +0.20%.`,
+    return card('Low / medium / high-speed cornering',`Extra time across the same mapped corners, relative to the fastest supported ${telemetrySubject==='driver'?'driver':'team'} (0.000% baseline). Example: 0.180 seconds on a 90-second lap is +0.200%. Incomplete bands stay blank.`,
       cornerBandControls()+lapShareChart(rebasedLoaded.map(r=>({...r,gap:cornerGraphBand==='all'?r.trace?.corner_contribution:r.categories[cornerGraphBand]?.deficit})),'gap',event.traceReference)+
       table([sortHeader('eventCornerTeam','Team'),sortHeader('eventLow','Low ≤120'),sortHeader('eventMedium','Medium 120–200'),sortHeader('eventHigh','High >200')],ordered.map(row=>[teamLabel(row),...['low','medium','high'].map(name=>{
         const value=row.categories[name];return value?`${signed(value.deficit,3)}<small>${signed(value.time_lost,3,' s/lap')} · ${value.corners} corners</small>`:'—';
-      })])))+card('Corner measurements','Windows follow the field’s braking, apex and acceleration. Zone labels are used when reliable map corner numbers are unavailable. Loss density (ms/100m) measures spatial penalty rate.',
+      })])))+card('Corner measurements','The same map-anchored entry–apex–exit windows are timed for every measured lap, including flat-out bends. Missing timing brackets are shown as blanks. Loss density (ms/100m) is time lost per distance, not braking strength.',
       table(['Corner',...rebasedLoaded.map(row=>teamLabel(row))],common.map(label=>[escape(label),...rebasedLoaded.map(row=>{
         const corner=row.trace.corners.find(c=>c.corner===label);
         const densityBadge = corner?.loss_density ? `<span class="perf-loss-density">${fmt(corner.loss_density, 1)} ms/100m</span>` : '';
         const tercileBadge = corner?.tercile ? `<span class="perf-tercile-badge is-${corner.tercile}" style="font-size:0.65rem;margin-left:4px;">${corner.tercile}</span>` : '';
         const deltaContext = (corner && (finite(corner.delta_entry) || finite(corner.delta_apex) || finite(corner.delta_exit)))
-          ? `<small style="font-size:0.75em;color:var(--text-secondary);">Entry ${signed(corner.delta_entry, 1)} · Apex ${signed(corner.delta_apex, 1)} · Exit ${signed(corner.delta_exit, 1)} km/h</small>`
+          ? `<small style="font-size:0.75em;color:var(--text-secondary);">Entry ${signed(corner.delta_entry, 3,'')} · Minimum ${signed(corner.delta_apex, 3,'')} · Exit ${signed(corner.delta_exit, 3,'')} km/h</small>`
           : '';
-        return corner?`${fmt(corner.time,3,' s')}${densityBadge}${tercileBadge}<small>${fmt(corner.mean_speed,1,' km/h')} mean · ${fmt(corner.minimum,1)} apex</small>${deltaContext}`:'—';
+        return corner?`${fmt(corner.time,3,' s')}${densityBadge}${tercileBadge}<small>${fmt(corner.mean_speed,1,' km/h')} mean · ${fmt(corner.minimum,1)} window minimum</small>${deltaContext}${finite(corner.boundary_interval_s)?`<small>Boundary bracket ≤${fmt(corner.boundary_interval_s,3,' s')}${corner.boundary_interval_s>.6?' · Provisional':''}</small>`:''}`:'—';
       })])))+card('Downforce index','Unavailable: public telemetry cannot isolate aerodynamic load.','<p class="performance-note">High-speed corner performance is shown directly instead.</p>');
   }
   if(activeMetric==='straight') {
@@ -2899,7 +3004,6 @@ function render() {
   const modes=[
     ['pace','Pace'],
     ['corners','Cornering'],
-    ['raceCorners','Race cornering'],
     ['straight','Straight line'],
     ['braking','Braking'],
     ['pits','Pit stops'],
@@ -2922,11 +3026,21 @@ function render() {
 
   const teams=aggregate();
   const errorMarkup = errors.map(e=>`<div class="performance-error"><span class="error-dot"></span><span>${escape(e.event.name)} · ${e.session==='Q'?'Qualifying':e.session==='R'?'Race':'Telemetry'}: ${escape(e.message)}</span></div>`).join('');
-  const content = (activeMetric==='pace'?renderPace(teams):activeMetric==='raceCorners'?renderRaceCorners():activeMetric==='tyres'?renderRace(teams):activeMetric==='results'?renderResults(teams):activeMetric==='pits'?renderPits(teams):activeMetric==='trend'?renderTrend(teams):renderTrace());
+  const telemetryMode=['corners','straight','braking'].includes(activeMetric);
+  const telemetryControls=telemetryMode?`<div class="performance-actions">${telemetrySubjectControls()}${activeMetric==='corners'?cornerSessionControls():''}${qualifyingMetricsRunning?'<button type="button" data-qualifying-stop>Stop telemetry</button>':''}</div>`:'';
+  const needsQualifying=telemetryMode&&!(activeMetric==='corners'&&cornerSession==='race')&&(activeMetric==='corners'||telemetrySubject==='driver');
+  const pendingQualifying=needsQualifying?events.filter(e=>e.Q&&(activeMetric==='corners'?!e.cornerSubjects?.[telemetrySubject]:!e.driverTelemetryReady)).length:0;
+  const failedCornerRequests=activeMetric==='corners'&&cornerSession==='qualy'?events.reduce((n,e)=>n+(e.cornerAudit?.[telemetrySubject]?.requestErrors?.length||0),0):0;
+  const loadControl=pendingQualifying?`<div class="performance-actions"><button type="button" data-qualifying-load ${qualifyingMetricsRunning?'disabled':''}>${qualifyingMetricsRunning?'Measuring qualifying telemetry…':'Load '+(telemetrySubject==='driver'?'driver telemetry':'circuit-based corners')}</button><span class="performance-note">${pendingQualifying} GP${pendingQualifying===1?'':'s'} pending. Each driver uses their own fastest eligible Q1/Q2/Q3 lap; team view uses the quicker driver.</span></div>`:failedCornerRequests?`<div class="performance-actions"><button type="button" data-qualifying-retry ${qualifyingMetricsRunning?'disabled':''}>Retry missing lap requests</button><span class="performance-note">${failedCornerRequests} lap requests failed. Valid cached laps are retained.</span></div>`:'';
+  const cornerAudit=activeMetric==='corners'&&cornerSession==='qualy'?`<details class="dashboard-card performance-methods"><summary>Corner coverage · including flat-out bends</summary><p class="performance-note">Corners are identified from circuit positions, not from lifting or braking. Each shared window extends up to 130 m before and 100 m after its map marker, clipped halfway to neighbouring turns. These approximate entry–apex–exit windows include flat-out turns. Low ≤120, medium ≤200 and high >200 km/h use field-median minimum speed within 25 m of the marker. Traversal boundary brackets must be ≤1.0 s; intervals over 0.6 s are provisional. This does not relax braking's stricter speed-sample checks. Missing bands stay blank; they are not counted as zero.</p>${table(['Grand Prix','Mapped turns','High-speed turns','Source laps','Missing measurements / request failures'],events.map(e=>{const a=e.cornerAudit?.[telemetrySubject],view=telemetryEvent(e);return [escape(e.name),escape(a?.expected?.join(', ')||'Pending'),escape(a?.bands?.filter(c=>c.band==='high').map(c=>`T${c.corner} (${c.speed.toFixed(1)} km/h)`).join(', ')||'—'),a?`${a.entries}/${a.requested}`:'—',escape([a?.error,...(a?.requestErrors||[]),...Object.entries(view.traces||{}).filter(([,t])=>t.corner_missing?.length).map(([name,t])=>name+': '+t.corner_missing.join(', '))].filter(Boolean).join(' · ')||'None')];}))}</details>`:'';
+  let content = (activeMetric==='pace'?renderPace(teams):activeMetric==='corners'&&cornerSession==='race'?renderRaceCorners():activeMetric==='tyres'?renderRace(teams):activeMetric==='results'?renderResults(teams):activeMetric==='pits'?renderPits(teams):activeMetric==='trend'?renderTrend(teams):renderTrace());
+  if(telemetrySubject==='driver'&&telemetryMode)content=content.replace(/<span>Team<\/span>/g,'<span>Driver</span>');
 
-  const nativeEvidence=activeMetric==='straight'?`<details class="dashboard-card performance-methods"><summary>Native top-speed evidence · independent of full-lap GPS eligibility</summary><p class="performance-note">Real native samples from the quickest channel-valid candidate per team. GPS alignment is not required here. These are diagnostic peaks, not isolated drag/power ratings or repaired traces; full-lap quality failures remain disclosed.</p>${table(['Grand Prix','Team','Driver / lap','Native peak','Full-lap eligibility'],events.flatMap(e=>Object.entries(e.nativeSpeedObservations||{}).map(([team,row])=>[escape(e.name),escape(team),`${escape(row.selection.driver)} · L${row.selection.lap}`,fmt(row.top_speed,3,' km/h'),escape(e.traceExcluded?.[team]||'Aligned qualifying measurement available')])) )}</details>`:'';
-  const accelerationEvidence=activeMetric==='straight'?`<details class="dashboard-card performance-methods"><summary>Measured ${escape(straightBand.replace('_','–'))} km/h acceleration crossings</summary><p class="performance-note">Each row is a real speed crossing, timed from native samples. Locations are approximate GPS registration. Unscored observations remain visible; they do not supply missing values in the common-zone ranking. Sample intervals disclose the original timing resolution.</p>${table(['Grand Prix','Team','Lap','Zone / aero state','Measured crossing time','Crossing locations','Native interval','Common-zone ranking'],events.flatMap(e=>Object.entries(e.traces||{}).flatMap(([team,trace])=>(trace.accel_observations||[]).filter(row=>row.band===straightBand).map(row=>[escape(e.name),escape(team),`L${row.lap}`,`${row.zone+1} · ${escape(row.state)}`,fmt(row.duration_s,3,' s'),`${fmt(row.start_m,1)}–${fmt(row.end_m,1)} m`,fmt(row.sample_interval_s,3,' s'),row.in_common_ranking?'Included':'Evidence only']))))}</details>`:'';
-  root.innerHTML = modeBar + errorMarkup + content + nativeEvidence + accelerationEvidence;
+  const evidenceEvents=events.map(telemetryEvent),entityLabel=telemetrySubject==='driver'?'Driver':'Team';
+  const nativeEvidence=activeMetric==='straight'?`<details class="dashboard-card performance-methods"><summary>Native top-speed evidence · independent of full-lap GPS eligibility</summary><p class="performance-note">Real native speed samples; driver view uses each driver's own fastest qualifying lap. GPS alignment is not required for the diagnostic peak. It is not an isolated drag or power rating; full-lap quality failures remain disclosed.</p>${table(['Grand Prix',entityLabel,'Driver / lap','Native peak','Full-lap eligibility'],evidenceEvents.flatMap(e=>Object.entries(e.nativeSpeedObservations||{}).map(([team,row])=>[escape(e.name),escape(team),`${escape(row.selection.driver)} · L${row.selection.lap}`,fmt(row.top_speed,3,' km/h'),escape(e.traceExcluded?.[team]||'Aligned qualifying measurement available')])) )}</details>`:'';
+  const accelerationEvidence=activeMetric==='straight'?`<details class="dashboard-card performance-methods"><summary>Measured ${escape(straightBand.replace('_','–'))} km/h acceleration crossings</summary><p class="performance-note">Each row is a real speed crossing, timed from native samples. Locations are approximate GPS registration. Unscored observations remain visible; they do not supply missing values in the common-zone ranking. Sample intervals disclose the original timing resolution.</p>${table(['Grand Prix',entityLabel,'Lap','Zone / aero state','Measured crossing time','Crossing locations','Native interval','Common-zone ranking'],evidenceEvents.flatMap(e=>Object.entries(e.traces||{}).flatMap(([team,trace])=>(trace.accel_observations||[]).filter(row=>row.band===straightBand).map(row=>[escape(e.name),escape(team),`L${row.lap}`,`${row.zone+1} · ${escape(row.state)}`,fmt(row.duration_s,3,' s'),`${fmt(row.start_m,1)}–${fmt(row.end_m,1)} m`,fmt(row.sample_interval_s,3,' s'),row.in_common_ranking?'Included':'Evidence only']))))}</details>`:'';
+  const qualifyingErrors=needsQualifying?events.filter(e=>e.qualifyingMetricsError).map(e=>`<div class="performance-error">${escape(e.name)} · Qualifying telemetry: ${escape(e.qualifyingMetricsError)}</div>`).join(''):'';
+  root.innerHTML = modeBar + telemetryControls + errorMarkup + qualifyingErrors + loadControl + content + cornerAudit + nativeEvidence + accelerationEvidence;
 }
 
 // ---------------------------------------------------------------------------
@@ -3043,6 +3157,13 @@ root.addEventListener('change',event=>{
 });
 
 root.addEventListener('click',event=>{
+  if(event.target.closest('[data-qualifying-load]')){void loadQualifyingMetrics();return;}
+  if(event.target.closest('[data-qualifying-retry]')){void loadQualifyingMetrics(true);return;}
+  if(event.target.closest('[data-qualifying-stop]')){qualifyingMetricsController?.abort();return;}
+  const subjectButton=event.target.closest('[data-telemetry-subject]');
+  if(subjectButton){telemetrySubject=subjectButton.dataset.telemetrySubject;sortKey='';render();void loadQualifyingMetrics();return;}
+  const cornerSessionButton=event.target.closest('[data-corner-session]');
+  if(cornerSessionButton){cornerSession=cornerSessionButton.dataset.cornerSession;render();if(cornerSession==='qualy')void loadQualifyingMetrics();return;}
   if(event.target.closest('[data-race-corners-load]')){void loadRaceCorners();return;}
   if(event.target.closest('[data-race-corners-stop]')){raceCornerController?.abort();return;}
   const cornerBandButton=event.target.closest('[data-corner-band]');
@@ -3069,7 +3190,7 @@ root.addEventListener('click',event=>{
   const trendViewButton=event.target.closest('[data-trend-view]');
   if(trendViewButton){trendView=trendViewButton.dataset.trendView;sortKey=trendView==='fitted'?'trendModelled':'trendChange';sortDirection=1;render();return;}
   const metric=event.target.closest('[data-performance-metric]');
-  if(metric) {activeMetric=metric.dataset.performanceMetric;render();if(activeMetric==='pits')loadPitData();return;}
+  if(metric) {activeMetric=metric.dataset.performanceMetric;render();if(activeMetric==='pits')loadPitData();if(['corners','straight','braking'].includes(activeMetric)&&(activeMetric!=='corners'||cornerSession==='qualy')&&(telemetrySubject==='driver'||activeMetric==='corners'))void loadQualifyingMetrics();return;}
   if(event.target.closest('[data-pit-retry]')){loadPitData(true);return;}
   const pitMeasureButton=event.target.closest('[data-pit-measure]');
   if(pitMeasureButton&&!pitMeasureButton.disabled){pitMeasure=pitMeasureButton.dataset.pitMeasure;render();return;}

@@ -36,17 +36,22 @@ def common_zone_scores(zone_times):
     Maximise supported observations, then cohort size. Never infer a missing
     crossing using another zone's car effect. Other observations stay evidence.
     """
-    import itertools
     teams = sorted({t for times in zone_times.values() for t in times})
     best = None
-    for size in range(3, len(teams)+1):
-        for cohort in itertools.combinations(teams, size):
-            keys = [k for k, times in zone_times.items() if all(t in times for t in cohort)]
-            if not keys:
-                continue
-            score = (size*len(keys), size, len(keys))
-            if best is None or score > best[0]:
-                best = (score, cohort, keys)
+    # Every optimal complete rectangle is an intersection of observed cohorts.
+    # Enumerate those closures, not all 2**22 driver subsets.
+    cohorts = set()
+    for times in zone_times.values():
+        observed = frozenset(times)
+        cohorts |= {observed} | {c & observed for c in list(cohorts)}
+    for cohort in sorted((tuple(sorted(c)) for c in cohorts if len(c) >= 3)):
+        size = len(cohort)
+        keys = [k for k, times in zone_times.items() if all(t in times for t in cohort)]
+        if not keys:
+            continue
+        score = (size*len(keys), size, len(keys))
+        if best is None or score > best[0]:
+            best = (score, cohort, keys)
     if best is None:
         return {}, {}, []
     _, cohort, keys = best
@@ -54,6 +59,58 @@ def common_zone_scores(zone_times):
     baseline = min(means.values())
     return ({t: means[t]-baseline for t in cohort},
             {t: len(keys) for t in cohort}, keys)
+
+
+def mapped_corner_zones(reference, grid, speed, corners):
+    """Ordered circuit geometry, including flat-out bends; no throttle veto.
+
+    Fixed local windows are approximate, not surveyed corner boundaries.
+    Unmatched markers are disclosed rather than replaced with speed peaks.
+    """
+    a = reference['a'][reference['gps']]
+    if len(a) < 30 or not corners:
+        return [], []
+    xy = np.column_stack([np.interp(grid, a[:, 0], a[:, j]) for j in (5, 6)])
+    span = np.ptp(xy, axis=0)
+    if np.min(span) <= 0:
+        return [], []
+    diagonal = float(np.linalg.norm(span))
+    previous = -1
+    markers, rejected = [], []
+    def order(c):
+        return (int(c.get('number', 0)), str(c.get('letter') or ''))
+    for c in sorted(corners, key=order):
+        label = str(c['number'])+str(c.get('letter') or '')
+        if c.get('normalized'):
+            target = np.min(xy, axis=0)+np.array([c['x'], c['y']])*span
+        elif c.get('x') is not None and c.get('y') is not None:
+            target = np.array([c['x'], c['y']])
+        else:
+            rejected.append(label); continue
+        distances = np.linalg.norm(xy-target, axis=1)
+        distances[:previous+1] = np.inf
+        apex = int(np.argmin(distances))
+        if distances[apex] > min(1000., diagonal*.045) or apex >= len(grid)-2:
+            rejected.append(label); continue
+        previous = apex
+        markers.append((apex, label))
+    zones = []
+    for k, (apex, label) in enumerate(markers):
+        left = (markers[k-1][0]+apex)//2 if k else 0
+        right = (apex+markers[k+1][0])//2 if k+1 < len(markers) else len(grid)-1
+        start = max(left, int(np.searchsorted(grid, grid[apex]-130)))
+        end = min(right, int(np.searchsorted(grid, grid[apex]+100)))
+        if end-start < 3:
+            rejected.append(label); continue
+        # Classify near the marker, not at a neighbouring hairpin.
+        near = (grid >= grid[apex]-25) & (grid <= grid[apex]+25)
+        v = float(np.min(speed[near]))
+        zones.append({'start': start, 'end': end, 'apex': apex, 'corner': label,
+                      'd_entry': min(75., grid[apex]-grid[start]),
+                      'd_exit': min(75., grid[end]-grid[apex]),
+                      'band': 'low' if v <= 120 else 'medium' if v <= 200 else 'high',
+                      'source': 'circuit-marker-window'})
+    return zones, rejected
 
 
 def connected_zone_scores(zone_times):
@@ -1141,8 +1198,8 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
     speed = np.median([v['speed'] for v in selected.values()], axis=0)
     throttle = np.median([v['throttle'] for v in selected.values()], axis=0)
     brake = np.mean([v['brake'] for v in selected.values()], axis=0) >= .35
-    # Detect field-wide slowdowns, so an approximate map marker cannot turn a
-    # straight into a high-speed corner. Flat-out bends remain straight mileage.
+    # Speed-only fallback cannot identify every flat-out bend. Prefer verified
+    # ordered circuit markers whenever circuit geometry is available.
     smooth = np.convolve(np.pad(speed, (2, 2), mode='edge'), np.ones(5)/5, mode='valid')
     candidates = [i for i in range(5, len(grid)-5)
                   if smooth[i] <= min(smooth[i-4:i]) and smooth[i] < min(smooth[i+1:i+5])]
@@ -1188,6 +1245,9 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
         zones.append({'start': start, 'end': end, 'apex': apex, 'corner': label,
                       'd_entry': d_entry, 'd_exit': d_exit,
                       'band': 'low' if speed[apex] <= 120 else 'medium' if speed[apex] <= 200 else 'high'})
+    mapped_zones, rejected_markers = mapped_corner_zones(reference, grid, speed, corners)
+    if mapped_zones:
+        zones = mapped_zones
     if fixed:
         zones = [dict(z) for z in measurement_frame['zones']]
     if len(zones) < 3:
@@ -1386,6 +1446,8 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
     }
 
     return finish({'teams': results, 'reference_team': reference_team, 'excluded': {t: e for t, e in errors.items() if t not in results},
-            'method': 'timing-sector-grid-v12-native-common-zones', 'corner_count': len(zones),
+            'method': 'timing-sector-grid-v13-mapped-flat-out-corners', 'corner_count': len(zones),
+            'corner_method': 'circuit-marker-windows' if mapped_zones else 'speed-dip-fallback-incomplete',
+            'unmapped_corners': rejected_markers,
             'circuit_features': circuit_features})
 

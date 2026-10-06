@@ -1088,6 +1088,19 @@ def analyze(data, traffic=2):
             team['race_speed_trap_matched'] = round(field_avg_st + sum(st_deltas)/len(st_deltas), 1) if (st_deltas and field_avg_st is not None) else None
             team['race_speed_fl_matched'] = round(field_avg_fl + sum(fl_deltas)/len(fl_deltas), 1) if (fl_deltas and field_avg_fl is not None) else None
             team['race_speed_trap_matched_laps'] = len(st_deltas)
+            team['race_speed_drivers'] = []
+            for d in team_drivers:
+                own = [r for r in clean_laps if r['driver'] == d]
+                st = [r['speed_st'] for r in own if r.get('speed_st') is not None]
+                fl = [r['speed_fl'] for r in own if r.get('speed_fl') is not None]
+                deltas = [r['speed_st']-lap_st_benchmark[r['lap']] for r in own
+                          if r.get('lap') in lap_st_benchmark and r.get('speed_st')]
+                team['race_speed_drivers'].append({'driver': d,
+                    'race_speed_trap_max': max(st) if st else None,
+                    'race_speed_trap_median': float(median(st)) if st else None,
+                    'race_speed_fl_max': max(fl) if fl else None,
+                    'race_speed_trap_matched': field_avg_st+sum(deltas)/len(deltas) if deltas and field_avg_st is not None else None,
+                    'race_speed_trap_matched_laps': len(deltas)})
             team['speed_trap'] = team['race_speed_trap_matched']
             team['speed_fl'] = team['race_speed_fl_matched']
 

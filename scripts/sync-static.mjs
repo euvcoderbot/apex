@@ -10,6 +10,7 @@ const staticFiles = [
   "telemetry-model.js",
   "car-performance.js",
   "race-cornering.js",
+  "corner-geometry.js",
   "car-performance.css",
   "styles.css",
   "design-system.css",

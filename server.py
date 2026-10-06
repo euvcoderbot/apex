@@ -1416,6 +1416,8 @@ def session_data(
                                 "lap_end_seconds": seconds(row.get("Time")),
                                 "time": seconds(row["LapTime"]),
                                 "track_status": str(row.get("TrackStatus") or ""),
+                                "deleted": bool(row.get("Deleted")) if pd.notna(row.get("Deleted")) else False,
+                                "accurate": bool(row.get("IsAccurate")) if pd.notna(row.get("IsAccurate")) else None,
                                 "display_time": seconds(row["LapTime"]),
                                 "display_time_estimated": False,
                                 "s1": seconds(row["Sector1Time"]),
@@ -1759,6 +1761,15 @@ def car_performance_trace_batch(response: Response, year: int = Query(..., ge=20
                     'x': seconds(r.get('X')), 'y': seconds(r.get('Y'))}
                    for _, r in info.corners.iterrows()] if info is not None else []
         extracted = load_selected_laps_telemetry(year, gp, 'Q', normalized)
+        if circuit.get('Key') == 12 and not corners:
+            # Official Sepang map positions, projected onto this lap's GPS.
+            # Event name may still be Bahrain in the upstream test calendar.
+            positions = [(0,.477778),(.094181,.517310),(.070923,.785614),(.479518,.992982),
+                         (.604422,.655322),(.774407,.745614),(1,.466316),(.957504,.364211),
+                         (.547569,.291813),(.638783,.175322),(.572071,0),(.338821,.200585),
+                         (.162902,.151111),(.095616,.249942),(.858059,.488187)]
+            corners = [{'number': str(i+1), 'x': x, 'y': y, 'normalized': True}
+                       for i, (x, y) in enumerate(positions)]
         return {'event': gp, **measure_field(extracted, normalized, corners)}
     except (TypeError, ValueError, json.JSONDecodeError) as exc:
         raise HTTPException(422, f'Invalid telemetry selection: {exc}') from exc
@@ -2030,6 +2041,8 @@ def frontend_asset(asset_name: str) -> FileResponse:
         "alignment.js",
         "telemetry-model.js",
         "car-performance.js",
+        "race-cornering.js",
+        "corner-geometry.js",
         "car-performance.css",
         "apple-ui.css",
         "app.js",

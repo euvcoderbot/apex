@@ -38,6 +38,35 @@ class RaceSession:
 
 
 class PerformanceTests(unittest.TestCase):
+    def test_mapped_flat_out_corners_do_not_need_a_speed_dip(self):
+        from performance_tracks import mapped_corner_zones
+        d=np.linspace(0,5000,1001);angle=d/5000*2*np.pi
+        a=np.zeros((len(d),8));a[:,0]=d;a[:,5]=1000*np.cos(angle);a[:,6]=1000*np.sin(angle)
+        reference={'a':a,'gps':np.ones(len(d),dtype=bool)}
+        markers=[{'number':str(i+1),'x':a[k,5],'y':a[k,6]} for i,k in enumerate([100,300,500,700,900])]
+        zones,rejected=mapped_corner_zones(reference,d,np.full(len(d),250.),markers)
+        self.assertEqual(len(zones),5);self.assertEqual(rejected,[])
+        self.assertTrue(all(z['band']=='high' for z in zones))
+        self.assertTrue(all(zones[i]['end']<=zones[i+1]['start'] for i in range(4)))
+
+    def test_driver_common_rectangle_matches_exhaustive_and_scales(self):
+        from performance_tracks import common_zone_scores
+        import itertools
+        rng=np.random.default_rng(28)
+        for _ in range(30):
+            times={str(z):{str(t):float(t+z) for t in range(7) if rng.random()>.25} for z in range(8)}
+            teams=sorted({t for v in times.values() for t in v});best=None
+            for size in range(3,len(teams)+1):
+                for cohort in itertools.combinations(teams,size):
+                    keys=[k for k,v in times.items() if all(t in v for t in cohort)]
+                    score=(size*len(keys),size,len(keys))
+                    if keys and (best is None or score>best[0]):best=(score,cohort,keys)
+            scores,counts,keys=common_zone_scores(times)
+            if best:
+                self.assertEqual(set(scores),set(best[1]));self.assertEqual(keys,best[2])
+        full={str(z):{str(t):float(t+z) for t in range(22)} for z in range(20)}
+        self.assertEqual(len(common_zone_scores(full)[0]),22)
+
     def test_braking_fastest_lap_identity_does_not_fall_back(self):
         from performance_tracks import fastest_qualifying_braking_items
         fast={'team':'A:0','team_name':'A','time':90.,'driver':'VER','lap':10}

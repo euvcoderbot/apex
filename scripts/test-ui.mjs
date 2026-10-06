@@ -435,7 +435,11 @@ test('car performance controls hide irrelevant GP and expose sortable methodolog
   assert.match(html, /\+0\.102 s means about a tenth of a second longer per measured braking zone/);
   assert.match(performance, /50_100.*100_150.*300_350/);
   assert.match(performance, /Show explanations/);
-  assert.match(performance, /Time lost across all corners in each band/);
+  assert.match(performance, /Extra time across the same mapped corners/);
+  assert.match(performance, /finite\(clone.trace.corner_contribution\)/, 'missing corner sums must never be rebased to zero');
+  assert.match(performance, /data-telemetry-subject/);
+  assert.match(performance, /data-corner-session/);
+  assert.doesNotMatch(performance, /\['raceCorners','Race cornering'\]/, 'race cornering belongs inside Cornering');
   assert.match(html, /not brake pressure/);
 });
 
