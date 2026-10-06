@@ -650,6 +650,33 @@ test('season effects bridge unequal circuit coverage through shared teams', () =
   assert.equal(common.has('D'),false);
 });
 
+test('straight common coverage retains the widest field before extra GPs',()=>{
+  const source=readFileSync('car-performance.js','utf8');
+  const box={finite:Number.isFinite,avg:a=>a.reduce((s,v)=>s+v,0)/a.length};
+  vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function eventAdjustedScores('),source.indexOf('function seasonTelemetry(')),box);
+  const reports=[['One','ABCD'],['Two','ABC'],['Three','ABC']].map(([name,cars])=>({event:{name},summary:{rows:new Map([...cars].map((team,i)=>[team,{team,value:i}]))}}));
+  const previous=box.eventAdjustedScores(reports,r=>r.value,'mean','common');
+  const corrected=box.eventAdjustedScores(reports,r=>r.value,'mean','common','teams');
+  assert.equal(previous.size,3);assert.equal(corrected.size,4);
+  assert.deepEqual([...corrected.coverage.events],['One']);
+});
+
+test('temporary telemetry errors retry, permanent failures and cancellation do not',async()=>{
+  const source=readFileSync('car-performance.js','utf8');let requests=0;
+  const box={window:{},DOMException,setTimeout:fn=>{queueMicrotask(fn);return 1;},clearTimeout(){},
+    fetch:async()=>({ok:++requests===3,status:503,json:async()=>({detail:'busy'})})};
+  vm.createContext(box);vm.runInContext(source.slice(source.indexOf('async function get('),source.indexOf('function completed(')),box);
+  await box.get('/api/telemetry');assert.equal(requests,3);
+  requests=0;box.fetch=async()=>{requests++;return {ok:false,status:422,json:async()=>({detail:'unsupported'})};};
+  await assert.rejects(()=>box.get('/api/telemetry'),/unsupported/);assert.equal(requests,1);
+  const controller=new AbortController();controller.abort();
+  box.fetch=async()=>{requests++;throw controller.signal.reason;};
+  await assert.rejects(()=>box.get('/api/telemetry',controller.signal),{name:'AbortError'});assert.equal(requests,2);
+  assert.match(source,/cornerSubjects\[subject\]=entryErrors.length===0/);
+  assert.match(source,/if\(activeMetric==='pits'\) loadPitData\(\);\s*if\([^\n]+loadQualifyingMetrics\(\)/);
+  assert.match(source,/!event.cornerMeasurements\?\.\[telemetrySubject\]/,'partial successful corner data stays visible');
+});
+
 test('qualifying evolution excludes compound changes, unknown tyres and rainy laps', () => {
   const source=readFileSync('car-performance.js','utf8');
   const body=source.slice(source.indexOf('function qualifyingEvolutionSample('),source.indexOf('function aggregate('));

@@ -212,6 +212,22 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(payload['source'], 'FastF1 selected lap')
         self.assertEqual(payload['samples'], samples)
 
+    def test_rate_limited_openf1_uses_independent_selected_lap_archive(self):
+        from urllib.error import HTTPError
+        samples=[{'Distance':0,'ElapsedSeconds':0,'Speed':300,'X':0,'Y':0},
+                 {'Distance':5000,'ElapsedSeconds':90,'Speed':310,'X':1,'Y':1}]
+        with patch.object(server,'_openf1_lap_telemetry',side_effect=HTTPError('https://example.com',429,'busy',{},None)), \
+             patch('session_loader.load_selected_lap_telemetry',return_value=samples) as selected, \
+             patch.object(server,'read_prepared_cache',return_value=None), \
+             patch.object(server,'write_prepared_cache'), \
+             patch.object(server,'load_telemetry_session',side_effect=AssertionError('whole session loaded')):
+            payload=server.telemetry(Response(),year=2026,gp='Bahrain Grand Prix',round=16,
+                session='Q',driver='NOR',lap=12,driver_number='4',session_key=11365,
+                fresh=False,geometry=False,lap_start=None,lap_time=90,next_start=None,
+                lap_start_seconds=3600,lap_end_seconds=3690)
+        selected.assert_called_once()
+        self.assertEqual(payload['source'],'FastF1 selected lap')
+
     def test_weather_results_match_original_without_repeated_dataframe_scans(self):
         source = subprocess.check_output(['git','show','c7a201800752fffbe6e48d14335a53872eb7af50:server.py'], text=True)
         tree = ast.parse(source)

@@ -1,4 +1,4 @@
-import {raceCornerGroups,measureRaceCornerGroup,measureQualifyingCornerGroup} from './race-cornering.js?v=20261006-coverage-v2';
+import {raceCornerGroups,measureRaceCornerGroup,measureQualifyingCornerGroup} from './race-cornering.js?v=20261006-recovery-v3';
 import {circuitCornerMarkers,qualifyingRepresentatives,withCornerMeasurements} from './corner-geometry.js?v=20261006-corners';
 // APEX - Car Performance Section
 // Full parity with Session Analysis design language: Apple UI, official team logos, GP country flags, custom select menus.
@@ -358,10 +358,23 @@ function lapShareChart(rows, key, reference) {
 }
 
 async function get(path, signal, cache='no-store') {
-  const response=await fetch(`${String(window.APEX_API_ORIGIN || '').replace(/\/$/,'')}${path}`, {signal,cache});
-  const payload=await response.json();
-  if (!response.ok) throw new Error(typeof payload.detail === 'string' ? payload.detail : `Request failed (${response.status})`);
-  return payload;
+  for(let attempt=0;attempt<4;attempt++) {
+    try {
+      const response=await fetch(`${String(window.APEX_API_ORIGIN || '').replace(/\/$/,'')}${path}`, {signal,cache});
+      const payload=await response.json().catch(()=>{if(!response.ok)return {};const error=new Error('API returned an invalid response');error.status=502;throw error;});
+      if(response.ok)return payload;
+      const error=new Error(typeof payload.detail==='string'?payload.detail:`Request failed (${response.status})`);
+      error.status=response.status;throw error;
+    } catch(error) {
+      if(signal?.aborted||error.name==='AbortError'||attempt===3||error.status&&!([408,429,502,503,504].includes(error.status)))throw error;
+      await new Promise((resolve,reject)=>{
+        const abort=()=>{clearTimeout(timer);reject(signal.reason||new DOMException('Stopped','AbortError'));};
+        const timer=setTimeout(()=>{signal?.removeEventListener('abort',abort);resolve();},1000*2**attempt);
+        signal?.addEventListener('abort',abort,{once:true});
+        if(signal?.aborted)abort();
+      });
+    }
+  }
 }
 
 function completed(event, session) {
@@ -460,7 +473,7 @@ async function loadQualifyingMetrics(retry=false) {
               entries.push({row,payload});
             } catch(error){if(signal.aborted)throw error;entryErrors.push(row.driver.code+': '+error.message);}
           }}
-          await Promise.all([worker(),worker(),worker()]);
+          await Promise.all([worker(),worker()]);
           if(id!==generation)return;
           const cornerClassificationDrivers=qualifyingRepresentatives(session,'team',event.Q.teams).map(r=>r.driver.code);
           const measured=measureQualifyingCornerGroup(entries,{...session,cornerClassificationDrivers});
@@ -473,7 +486,7 @@ async function loadQualifyingMetrics(retry=false) {
             else values={selection:entity.lap,corners:[],categories:{},corner_contribution:null,corner_missing:['Complete lap or circuit geometry unavailable']};
             event.cornerMeasurements[subject][entity.team]=values;
           }
-          event.cornerSubjects ||= {};event.cornerSubjects[subject]=true;
+          event.cornerSubjects ||= {};event.cornerSubjects[subject]=entryErrors.length===0&&Object.keys(measured.traces).length>0;
           event.cornerAudit ||= {};event.cornerAudit[subject]={expected:measured.markers.map(z=>z.corner),bands:measured.markers.map(z=>({corner:z.corner,band:z.band,speed:z.speed})),error:measured.error,
             entries:entries.length,requested:rows.length,requestErrors:entryErrors};
         }
@@ -483,7 +496,8 @@ async function loadQualifyingMetrics(retry=false) {
     }
   } finally {
     qualifyingMetricsRunning=false;
-    if(id===generation){updateStatus(signal.aborted?'Qualifying measurements stopped; completed data retained.':'Qualifying measurements updated. Circuit windows are approximate; source laps and missing corners remain visible.');render();
+    const missingRequests=events.reduce((n,e)=>n+(e.cornerAudit?.[subject]?.requestErrors?.length||0),0);
+    if(id===generation){updateStatus(signal.aborted?'Qualifying measurements stopped; completed data retained.':`Qualifying measurements updated.${missingRequests?` ${missingRequests} lap requests remain unavailable; retry missing data.`:''} Circuit windows are approximate; source laps and missing corners remain visible.`);render();
       if(!signal.aborted&&subject!==telemetrySubject&&['corners','straight','braking'].includes(activeMetric))void loadQualifyingMetrics();}
   }
 }
@@ -500,9 +514,9 @@ async function loadRaceCorners() {
   raceCornerRunning=true;render();
   try {
     for(const event of events.filter(e=>e.R)){
-      const key=year+':'+event.name+':'+subject;if(raceCornerCache.get(key)?.observations?.length)continue;
+      const key=year+':'+event.name+':'+subject;if(raceCornerCache.get(key)?.complete)continue;
       updateStatus(`Race cornering · matching laps at ${event.name}…`,true);
-      const observations=[];
+      const observations=[],requestErrors=[],lapCache=raceCornerCache.get(key)?.lapCache||new Map();
       try {
         const q=new URLSearchParams({year,gp:event.name,round:event.round,session:'R',fresh:'true'});
         const session={...await get('/api/session?'+q,signal),year,event:event.name};
@@ -515,7 +529,9 @@ async function loadRaceCorners() {
             params.set('lap_time',row.time);params.set('lap_start_seconds',row.lap_start_seconds);params.set('lap_end_seconds',row.lap_end_seconds);
             if(session.openf1_session_key)params.set('session_key',session.openf1_session_key);
             updateStatus(`Race cornering · ${event.name} · lap ${group.lap} · ${row.driver.code}`,true);
-            try{entries.push({row,payload:await get('/api/telemetry?'+params,signal)});}catch(error){if(signal.aborted)throw error;}
+            const lapKey=row.driver.code+':'+row.lap;
+            try{let payload=lapCache.get(lapKey);if(!payload){payload=await get('/api/telemetry?'+params,signal);lapCache.set(lapKey,payload);}entries.push({row,payload});}
+            catch(error){if(signal.aborted)throw error;requestErrors.push(row.driver.code+' L'+row.lap+': '+error.message);}
           }}
           await Promise.all([worker(),worker()]);
           const qualifyingTrace=Object.values(event.traces||{}).find(t=>t.corners?.length&&finite(t.lap_distance));
@@ -524,8 +540,8 @@ async function loadRaceCorners() {
           observations.push(...measureRaceCornerGroup(entries,fallbackMarkers,session));
         }
         if(id!==generation||signal.aborted)return;
-        raceCornerCache.set(key,{observations,groups:groups.length});
-      } catch(error){if(signal.aborted)break;raceCornerCache.set(key,{observations:[],error:error.message});}
+        raceCornerCache.set(key,{observations,groups:groups.length,complete:requestErrors.length===0,requestErrors,lapCache});
+      } catch(error){if(signal.aborted)break;raceCornerCache.set(key,{observations,complete:false,error:error.message,requestErrors,lapCache});}
       render();
     }
   } finally {
@@ -538,7 +554,7 @@ async function loadRaceCorners() {
 
 function renderRaceCorners() {
   const cacheKey=e=>context.year+':'+e.name+':'+telemetrySubject;
-  const pending=events.filter(e=>e.R&&!raceCornerCache.get(cacheKey(e))?.observations?.length);
+  const pending=events.filter(e=>e.R&&!raceCornerCache.get(cacheKey(e))?.complete);
   const reports=events.filter(e=>e.R).map(event=>{
     const observations=(raceCornerCache.get(cacheKey(event))?.observations||[]).map(o=>({...o,logoTeam:o.team,displayName:telemetrySubject==='driver'?o.driver:o.team,team:telemetrySubject==='driver'?o.driver:o.team})),rows=new Map();
     const snapshots=[...new Set(observations.map(o=>o.lap+':'+o.compound))].map(key=>({event:{name:key},summary:{rows:new Map(observations.filter(o=>o.lap+':'+o.compound===key).map(o=>[o.team,o]))}}));
@@ -804,6 +820,7 @@ async function analyse() {
   updateStatus(`${context.year} · best qualifying lap · ${analysedEvents}/${picked.length} events with data${errors.length ? ` · ${errors.length} data requests unavailable` : ''}. Fresh retrieval complete.`, false);
   render();
   if(activeMetric==='pits') loadPitData();
+  if((activeMetric==='corners'&&cornerSession==='qualy')||telemetrySubject==='driver'&&['straight','braking'].includes(activeMetric))void loadQualifyingMetrics();
 }
 
 async function loadPitData(retry=false) {
@@ -1914,7 +1931,7 @@ function renderTrend(teams) {
 function eventTelemetry(event) {
   const independentSlowing=typeof brakingComparisonMode!=='undefined'&&brakingComparisonMode==='independent';
   if(typeof telemetryEvent==='function')event=telemetryEvent(event);
-  if(typeof activeMetric!=='undefined'&&activeMetric==='corners'&&cornerSession==='qualy'&&!event.cornerSubjects?.[telemetrySubject])
+  if(typeof activeMetric!=='undefined'&&activeMetric==='corners'&&cornerSession==='qualy'&&!event.cornerMeasurements?.[telemetrySubject])
     return {rows:new Map(),groups:{low:[],medium:[],high:[]},entrants:[]};
   // Straight-line and braking telemetry do not depend on corner detection.
   // A valid GPS trace without corner markers must still appear in those views.
@@ -1925,8 +1942,8 @@ function eventTelemetry(event) {
   for(const label of labels) {
     const observations=cornerEntrants.map(team=>event.traces[team.team].corners.find(c=>c.corner===label)).filter(Boolean);
     const speed=median(observations.map(c=>c.minimum));
-    const band=observations[0]?.band|| (speed<=120?'low':speed<=200?'medium':'high');
-    groups[band].push(label);
+    const band=Object.hasOwn(observations[0]||{},'band')?observations[0].band:(speed<=120?'low':speed<=200?'medium':'high');
+    if(groups[band])groups[band].push(label);
   }
   const rows=new Map();
   for(const team of entrants) {
@@ -2074,7 +2091,7 @@ function brakingEvidenceMarkup(sourceEvents) {
     }))}</details>`;
 }
 
-function eventAdjustedScores(reports, valueOf, mode='mean',coverageMode=typeof telemetryCoverageMode==='undefined'?'inferred':telemetryCoverageMode) {
+function eventAdjustedScores(reports, valueOf, mode='mean',coverageMode=typeof telemetryCoverageMode==='undefined'?'inferred':telemetryCoverageMode,supportPriority='observations') {
   let observations=[];
   for(const {event,summary} of reports) {
     const measured=[...summary.rows.values()].map(row=>({team:row.team,value:valueOf(row)}))
@@ -2097,8 +2114,8 @@ function eventAdjustedScores(reports, valueOf, mode='mean',coverageMode=typeof t
     for(const set of [...cohorts.values()].sort((a,b)=>[...a].sort().join().localeCompare([...b].sort().join()))) {
       const cohort=[...set].sort();
       const eventIds=[...byEvent].filter(([,r])=>cohort.every(t=>r.has(t))).map(([id])=>id);
-      const support=cohort.length*eventIds.length;
-      if(eventIds.length&&(!best||support>best.support||support===best.support&&cohort.length>best.cohort.length))best={cohort,eventIds,support};
+      const support=supportPriority==='teams'?cohort.length:cohort.length*eventIds.length;
+      if(eventIds.length&&(!best||support>best.support||support===best.support&&(supportPriority==='teams'?eventIds.length>best.eventIds.length:cohort.length>best.cohort.length)))best={cohort,eventIds,support};
     }
     if(!best)return new Map();
     const centre=mode==='median'?median:avg;
@@ -2306,8 +2323,8 @@ function seasonTelemetry(mode='mean') {
     highSeconds:eventAdjustedScores(targetReports,row=>row.categories.high?.time_lost,mode),
     corners:eventAdjustedScores(targetReports,row=>row.trace.corner_contribution,mode),
     straights:eventAdjustedScores(targetReports,row=>row.trace.straight_traversal_delta,mode),
-    straightCore:eventAdjustedScores(targetReports,row=>row.trace.straight_core_delta,mode),
-    straightCoreSeconds:eventAdjustedScores(targetReports,row=>row.trace.straight_core_gap_s,mode),
+    straightCore:eventAdjustedScores(targetReports,row=>row.trace.straight_core_delta,mode,typeof telemetryCoverageMode==='undefined'?'inferred':telemetryCoverageMode,'teams'),
+    straightCoreSeconds:eventAdjustedScores(targetReports,row=>row.trace.straight_core_gap_s,mode,typeof telemetryCoverageMode==='undefined'?'inferred':telemetryCoverageMode,'teams'),
     braking:pairedSeasonLog.slowing,
     brakingSlowingS:pairedSeason.slowing,
     brakingApproachMs:pairedSeason.approach
@@ -2373,7 +2390,7 @@ function renderTrace() {
     const cornerTitle = isSeasonScope ? 'Season cornering performance' : `Selected tracks cornering performance (${trackCount} track${trackCount === 1 ? '' : 's'})`;
     const straightTitle = isSeasonScope ? 'Season straight-line performance' : `Selected tracks straight-line performance (${trackCount} track${trackCount === 1 ? '' : 's'})`;
     const brakingTitle = isSeasonScope ? 'Season braking performance' : `Selected tracks braking performance (${trackCount} track${trackCount === 1 ? '' : 's'})`;
-    const statisticControls=`<div class="performance-scope-toggle performance-stat-toggle" role="group" aria-label="Telemetry summary across circuits"><button type="button" data-telemetry-stat="mean" aria-pressed="${telemetrySeasonStat==='mean'}">Mean across circuits</button><button type="button" data-telemetry-stat="median" aria-pressed="${telemetrySeasonStat==='median'}">Median across circuits</button></div><div class="performance-scope-toggle" role="group" aria-label="Comparison coverage"><button type="button" data-telemetry-coverage="common" aria-pressed="${telemetryCoverageMode==='common'}">Common observed coverage</button><button type="button" data-telemetry-coverage="inferred" aria-pressed="${telemetryCoverageMode==='inferred'}">Coverage-adjusted model · diagnostic</button></div><p class="performance-note">${telemetryCoverageMode==='common'?'Each ranking uses one complete shared set of measured teams and events/zones, chosen to retain the most observations. No missing values are estimated.':'Diagnostic model bridges missing events/zones through overlapping teams; car-by-circuit differences can bias it.'} Table sample counts describe collected evidence; ranking support is listed below.</p><details class="performance-evidence"><summary>Exact ranking support</summary>${table(['Metric','Teams in ranking','Shared events'],Object.entries(season.rankCoverage||{}).map(([metric,c])=>[escape(metric),c.teams.map(escape).join(', '),c.events.map(escape).join(', ')]))}</details>`;
+    const statisticControls=`<div class="performance-scope-toggle performance-stat-toggle" role="group" aria-label="Telemetry summary across circuits"><button type="button" data-telemetry-stat="mean" aria-pressed="${telemetrySeasonStat==='mean'}">Mean across circuits</button><button type="button" data-telemetry-stat="median" aria-pressed="${telemetrySeasonStat==='median'}">Median across circuits</button></div><div class="performance-scope-toggle" role="group" aria-label="Comparison coverage"><button type="button" data-telemetry-coverage="common" aria-pressed="${telemetryCoverageMode==='common'}">Common observed coverage</button><button type="button" data-telemetry-coverage="inferred" aria-pressed="${telemetryCoverageMode==='inferred'}">Coverage-adjusted model · diagnostic</button></div><p class="performance-note">${telemetryCoverageMode==='common'?'Each ranking uses one complete shared set of measured teams and events/zones. Settled straights prioritise the largest supported field; other rankings maximise supported observations. No missing values are estimated.':'Diagnostic model bridges missing events/zones through overlapping teams; car-by-circuit differences can bias it.'} Table sample counts describe collected evidence; ranking support is listed below.</p><details class="performance-evidence"><summary>Exact ranking support</summary>${table(['Metric','Teams in ranking','Shared events'],Object.entries(season.rankCoverage||{}).map(([metric,c])=>[escape(metric),c.teams.map(escape).join(', '),c.events.map(escape).join(', ')]))}</details>`;
 
     if(activeMetric==='corners') {
       const rawValues=season.map(team=>({
@@ -2547,13 +2564,17 @@ function renderTrace() {
       });
       const coreChart=renderHorizontalBarChart(orderedQualy,{
         title:straightGapUnit==='seconds'?'Settled straight-section performance · time gap':'Settled straight-section performance · share of lap',
-        subtitle:'Shared qualifying windows · Exit, cornering and braking regions excluded · Coverage-adjusted; not isolated engine/drag',
+        subtitle:`Shared qualifying windows · Exit, cornering and braking regions excluded · ${telemetryCoverageMode==='common'?'Observed common cohort':'Coverage-adjusted diagnostic'}; not isolated engine/drag`,
         valueKey:'coreDelta',unit:straightGapUnit==='seconds'?' s':'%',digits:3,signedValue:true,zeroBaseline:true
       });
 
+      const coreSupport=season.rankCoverage?.straightCore;
+      const coreMissing=rawValues.filter(row=>!finite(row.coreDelta));
+      const coreCoverageNote=`<p class="performance-note">${rawValues.length-coreMissing.length}/${rawValues.length} ${telemetrySubject==='driver'?'drivers':'teams'} ranked${coreSupport?` · ${coreSupport.events.length}/${events.filter(e=>e.Q).length} selected qualifying GPs shared (${coreSupport.events.map(escape).join(', ')})`:''}. Settled-straight comparisons retain the largest supported field first, then its shared GP coverage; missing observations are never filled with zero.</p>${coreMissing.length?`<div class="performance-error">Unranked: ${coreMissing.map(row=>escape(row.displayName||row.team)+` (${row.coreEvents?`${row.coreEvents} GP measurements, outside the shared cohort`:'no supported settled-straight measurement'})`).join(' · ')}. See exact ranking support and telemetry exclusions below.</div>`:''}`;
+
       return statisticControls+card(straightTitle, 'The main comparison times shared, settled straight sections on clean qualifying laps. Full throttle alone is not enough: turning, early exit acceleration, lift and braking regions are excluded. These observations still combine car, driver, setup, tow and deployment—not measured aerodynamic drag or engine power. Top speed and speed-range acceleration are separate diagnostics.',
         straightToggle+
-        straightGapControls()+coreChart+
+        straightGapControls()+coreChart+coreCoverageNote+
         (!rawValues.some(row=>finite(row.coreDelta))?'<p class="section-empty">No supported settled-straight measurements. Rerun Analyse if these results were loaded before the update.</p>':'')+
         peakChart+
         bandControls+
@@ -3045,7 +3066,7 @@ function render() {
   const nativeEvidence=activeMetric==='straight'?`<details class="dashboard-card performance-methods"><summary>Native top-speed evidence · independent of full-lap GPS eligibility</summary><p class="performance-note">Real native speed samples; driver view uses each driver's own fastest qualifying lap. GPS alignment is not required for the diagnostic peak. It is not an isolated drag or power rating; full-lap quality failures remain disclosed.</p>${table(['Grand Prix',entityLabel,'Driver / lap','Native peak','Full-lap eligibility'],evidenceEvents.flatMap(e=>Object.entries(e.nativeSpeedObservations||{}).map(([team,row])=>[escape(e.name),escape(team),`${escape(row.selection.driver)} · L${row.selection.lap}`,fmt(row.top_speed,3,' km/h'),escape(e.traceExcluded?.[team]||'Aligned qualifying measurement available')])) )}</details>`:'';
   const accelerationEvidence=activeMetric==='straight'?`<details class="dashboard-card performance-methods"><summary>Measured ${escape(straightBand.replace('_','–'))} km/h acceleration crossings</summary><p class="performance-note">Each row is a real speed crossing, timed from native samples. Locations are approximate GPS registration. Unscored observations remain visible; they do not supply missing values in the common-zone ranking. Sample intervals disclose the original timing resolution.</p>${table(['Grand Prix',entityLabel,'Lap','Zone / aero state','Measured crossing time','Crossing locations','Native interval','Common-zone ranking'],evidenceEvents.flatMap(e=>Object.entries(e.traces||{}).flatMap(([team,trace])=>(trace.accel_observations||[]).filter(row=>row.band===straightBand).map(row=>[escape(e.name),escape(team),`L${row.lap}`,`${row.zone+1} · ${escape(row.state)}`,fmt(row.duration_s,3,' s'),`${fmt(row.start_m,1)}–${fmt(row.end_m,1)} m`,fmt(row.sample_interval_s,3,' s'),row.in_common_ranking?'Included':'Evidence only']))))}</details>`:'';
   const qualifyingErrors=needsQualifying?events.filter(e=>e.qualifyingMetricsError).map(e=>`<div class="performance-error">${escape(e.name)} · Qualifying telemetry: ${escape(e.qualifyingMetricsError)}</div>`).join(''):'';
-  const coverageEvidence=activeMetric==='straight'?`<details class="dashboard-card performance-methods"><summary>Measurement coverage and exclusions</summary><p class="performance-note">A speed range must cross both endpoints on one eligible native interval. Reaching the upper speed elsewhere is not sufficient. Low-speed ranges include corner-exit traction. Settled windows compare one supported cohort on the same distance and aero state; missing cars are not assigned zero.</p>${table(['Grand Prix',entityLabel,'Range support','Settled-straight cohort'],evidenceEvents.flatMap(e=>Object.entries(e.traces||{}).map(([name,t])=>{const c=t.accel_band_coverage?.[straightBand];return [escape(e.name),escape(name),c?`${c.accepted_crossings} crossings · ${c.ranked_zones} ranked zones<small>${escape(c.status.replaceAll('-',' '))}</small>`:'Previous calculation · reanalyse after telemetry service update',t.straight_core_cohort?escape(t.straight_core_cohort.join(', ')):'Previous all-entrant comparison'];})))}</details>`:'';
+  const coverageEvidence=activeMetric==='straight'?`<details class="dashboard-card performance-methods"><summary>Measurement coverage and exclusions</summary><p class="performance-note">A speed range must cross both endpoints on one eligible native interval. Reaching the upper speed elsewhere is not sufficient. Low-speed ranges include corner-exit traction. Settled windows compare one supported cohort on the same distance and aero state; missing cars are not assigned zero.</p>${table(['Grand Prix',entityLabel,'Range support','Settled-straight cohort'],evidenceEvents.flatMap(e=>Object.entries(e.traces||{}).map(([name,t])=>{const c=t.accel_band_coverage?.[straightBand];return [escape(e.name),escape(name),c?`${c.accepted_crossings} crossings · ${c.ranked_zones} ranked zones<small>${escape(c.status.replaceAll('-',' '))}</small>`:'No speed-range coverage metadata',t.straight_core_cohort?escape(t.straight_core_cohort.join(', ')):finite(t.straight_core_delta)?'Shared all-entrant windows':'No supported shared settled windows'];})).concat(evidenceEvents.flatMap(e=>Object.entries(e.traceExcluded||{}).map(([name,reason])=>[escape(e.name),escape(name),'Full-lap measurement unavailable',escape(reason)]))))}</details>`:'';
   const cornerBandEvidence=activeMetric==='corners'&&cornerSession==='qualy'?`<details class="dashboard-card performance-methods"><summary>Low / medium / high measured-turn coverage</summary><p class="performance-note">Bands use the minimum of the field-median speed trace within 25 m of each marker. The quicker qualifying driver from each team supplies the classification reference in both Team and Driver views. Incomplete bands remain unranked; their measured turns are retained as evidence.</p>${table(['Grand Prix',entityLabel,'Low · measured / expected','Medium · measured / expected','High · measured / expected'],evidenceEvents.flatMap(e=>Object.entries(e.traces||{}).map(([name,t])=>[escape(e.name),escape(name),...['low','medium','high'].map(b=>{const c=t.corner_band_coverage?.[b];return c?`${c.measured} / ${c.expected}${c.missing.length?'<small>Missing '+escape(c.missing.map(n=>'T'+n).join(', '))+'</small>':''}`:'—';})])))}</details>`:'';
   root.innerHTML = modeBar + telemetryControls + errorMarkup + qualifyingErrors + loadControl + content + cornerAudit + cornerBandEvidence + nativeEvidence + accelerationEvidence + coverageEvidence;
 }

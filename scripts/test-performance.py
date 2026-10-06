@@ -141,6 +141,15 @@ class PerformanceTests(unittest.TestCase):
         self.assertAlmostEqual(result['B']['straight_core_gap_s'],
                                result['B']['straight_core_delta']*12/100)
 
+    def test_straight_core_retains_supported_cars_before_extra_distance(self):
+        grid,selected=self.core_fixture()
+        throttle=np.zeros(len(grid));throttle[40:101]=100
+        selected['D']={**selected['C'],'throttle':throttle}
+        result=straight_core_measurements(selected,[(0,200)],grid,selected['A'])
+        self.assertEqual(result['A']['straight_core_cohort'],['A','B','C','D'])
+        self.assertEqual(result['D']['straight_core_distance_m'],300)
+        self.assertTrue(all(row['straight_core_time'] is not None for row in result.values()))
+
     def test_bad_fastest_reference_does_not_discard_other_laps(self):
         from performance_tracks import measure_field
         samples=[{'Distance':i*10.,'ElapsedSeconds':i*.9,'Speed':100.,

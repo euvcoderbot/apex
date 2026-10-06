@@ -57,6 +57,22 @@ test('loading driver braking preserves native corners without replacing source l
   assert.equal(merged.AAA.braking_observations[0].duration_s,1.2);
   assert.equal(batch.AAA.corners,undefined);
 });
+
+test('one unclassified turn retains valid timing windows without inventing a speed band',()=>{
+  const samples=Array.from({length:401},(_,i)=>({Distance:i*12.5,ElapsedSeconds:i*.25,Speed:180,
+    X:Math.cos(i/400*2*Math.PI)*1000,Y:Math.sin(i/400*2*Math.PI)*1000}));
+  const entries=['A','B'].map(code=>({row:{time:100,s1:30,s2:40,s3:30,lap:1,driver:{code,team:code}},
+    payload:{samples:samples.filter((p,i)=>i<=197||i>=203),corners:[.2,.5,.8].map((fraction,i)=>({number:String(i+1),fraction}))}}));
+  const result=measureQualifyingCornerGroup(entries);
+  assert.equal(Object.keys(result.traces).length,2);
+  assert.match(result.error,/classification unavailable/);
+  assert.equal(result.markers[1].band,null);
+  for(const trace of Object.values(result.traces)) {
+    assert.equal(trace.corners.length,3);
+    assert.ok(Number.isFinite(trace.corner_contribution));
+    assert.ok(Object.values(trace.categories).every(value=>value===null));
+  }
+});
 test('Madrid map fallback is distinct from stale Barcelona corners',()=>{
   const samples=Array.from({length:100},(_,i)=>({Distance:i*55,X:i*10,Y:Math.sin(i/10)*100}));
   const result=circuitCornerMarkers({samples,corners:[{number:1,fraction:.1}]},{year:2026,event:'Spanish Grand Prix'});

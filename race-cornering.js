@@ -9,7 +9,10 @@ function fieldMinimumSpeed(measured,fraction,total) {
     const values=measured.map(e=>{const points=e.data.points,hi=points.findIndex(p=>p.f>=f);
       if(hi<1)return null;const a=points[hi-1],b=points[hi];
       return b.t-a.t<=1?a.v+(b.v-a.v)*(f-a.f)/(b.f-a.f):null;}).filter(finite);
-    if(values.length&&values.length===measured.length)speeds.push(median(values));}
+    // One dropped channel must not veto a supported field classification.
+    // Require a majority and at least three cars (two in a two-car view).
+    const required=Math.max(Math.min(3,measured.length),Math.ceil(measured.length/2));
+    if(values.length>=required&&values.length>=2)speeds.push(median(values));}
   return speeds.length?Math.min(...speeds):null;
 }
 export function raceCornerGroups(session,preferred={},limit=4,subject='team') {
@@ -94,7 +97,6 @@ export function measureRaceCornerGroup(entries,fallbackMarkers=[],session={}) {
     const start=Math.max(left,m.fraction-130/ref.native.total),end=Math.min(right,m.fraction+100/ref.native.total);
     const apex=fieldMinimumSpeed(measured,m.fraction,ref.native.total);return {start,end,band:finite(apex)?apex<=120?'low':apex<=200?'medium':'high':null};
   });
-  if(zones.some(z=>!z.band))return [];
   // Every entrant in this observation must support the same corner windows.
   const rows=measured.map(e=>{const times=zones.map(z=>{const points=e.data.points.filter(p=>p.f>=z.start&&p.f<=z.end);
     if(points.length<3)return null;
@@ -104,7 +106,7 @@ export function measureRaceCornerGroup(entries,fallbackMarkers=[],session={}) {
   return rows.map(row=>{const values={};for(const band of ['all','low','medium','high']){
     const indices=zones.map((z,i)=>band==='all'||z.band===band?i:-1).filter(i=>i>=0);
     const own=mean(indices.map(i=>row.times[i]));const fastest=Math.min(...rows.map(r=>mean(indices.map(i=>r.times[i]))).filter(finite));
-    values[band]=indices.length?Math.max(0,own-fastest):null;}
+    values[band]=indices.length&&(band==='all'||zones.every(z=>z.band))?Math.max(0,own-fastest):null;}
     return {...row,values,corners:zones.length,compound:entries[0].row.compound};});
 }
 
@@ -123,7 +125,7 @@ export function measureQualifyingCornerGroup(entries,session={}) {
     const speed=fieldMinimumSpeed(classification,m.fraction,ref.native.total);
     return {start,end,apex:m.fraction,corner:m.label,speed,band:finite(speed)?speed<=120?'low':speed<=200?'medium':'high':null};
   });
-  if(zones.some(z=>!z.band))return {traces:{},markers:zones,error:'Native speeds do not support every circuit marker; no band is inferred for missing data.'};
+  const unclassified=zones.filter(z=>!z.band).map(z=>z.corner);
   const time=(data,z)=>{const points=data.points.filter(p=>p.f>=z.start&&p.f<=z.end);
     if(points.length<3)return null;
     const a=elapsedAt(data.points,z.start),b=elapsedAt(data.points,z.end);return finite(a)&&finite(b)&&b>a?b-a:null;};
@@ -133,7 +135,7 @@ export function measureQualifyingCornerGroup(entries,session={}) {
       const t=time(e.data,z);if(!finite(t)||!finite(refTimes[i]))return [];
       const local=e.data.points.filter(p=>p.f>=z.start&&p.f<=z.end),reference=ref.native.points.filter(p=>p.f>=z.start&&p.f<=z.end);
       const minimum=Math.min(...local.map(p=>p.v)),refMinimum=Math.min(...reference.map(p=>p.v)),length=(z.end-z.start)*ref.native.total;
-      return [{corner:z.corner,band:z.band,tercile_label:z.band+'-speed',time:t,ref_time:refTimes[i],time_lost:t-refTimes[i],length,
+      return [{corner:z.corner,band:z.band,tercile_label:z.band?z.band+'-speed':'Unclassified',time:t,ref_time:refTimes[i],time_lost:t-refTimes[i],length,
         mean_speed:length/t*3.6,loss_density:(t-refTimes[i])/length*100000,minimum,
         entry_speed:local[0].v,exit_speed:local.at(-1).v,delta_entry:local[0].v-reference[0].v,
         delta_apex:minimum-refMinimum,delta_exit:local.at(-1).v-reference.at(-1).v,
@@ -146,7 +148,7 @@ export function measureQualifyingCornerGroup(entries,session={}) {
       const expected=zones.filter(z=>z.band===band),own=corners.filter(c=>c.band===band);
       corner_band_coverage[band]={measured:own.length,expected:expected.length,missing:expected.filter(z=>!own.some(c=>c.corner===z.corner)).map(z=>z.corner)};
       const seconds=own.reduce((s,c)=>s+c.time,0),lost=own.reduce((s,c)=>s+c.time_lost,0);
-      categories[band]=expected.length&&own.length===expected.length?{time:seconds,time_lost:lost,deficit:lost/ref.row.time*100,corners:own.length,
+      categories[band]=!unclassified.length&&expected.length&&own.length===expected.length?{time:seconds,time_lost:lost,deficit:lost/ref.row.time*100,corners:own.length,
         speed:own.reduce((s,c)=>s+c.length,0)/seconds*3.6}:null;
     }
     const selection={driver:e.row.driver.code,lap:e.row.lap,time:e.row.time,phase:e.row.phase,compound:e.row.compound};
@@ -160,5 +162,5 @@ export function measureQualifyingCornerGroup(entries,session={}) {
       lap_gap:(e.row.time/ref.row.time-1)*100,corner_method:'circuit-marker-windows',corner_expected:zones.length,
       corner_missing:zones.filter(z=>!corners.some(c=>c.corner===z.corner)).map(z=>z.corner)};
   }
-  return {traces,markers:zones,reference:ref.row.driver.code};
+  return {traces,markers:zones,reference:ref.row.driver.code,error:unclassified.length?`Corner speed classification unavailable at ${unclassified.join(', ')}; valid timing windows retained, speed-band rankings unavailable.`:null};
 }

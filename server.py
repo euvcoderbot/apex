@@ -1771,6 +1771,10 @@ def car_performance_trace_batch(response: Response, year: int = Query(..., ge=20
             corners = [{'number': str(i+1), 'x': x, 'y': y, 'normalized': True}
                        for i, (x, y) in enumerate(positions)]
         return {'event': gp, **measure_field(extracted, normalized, corners)}
+    except HTTPError as exc:
+        if exc.code in (408, 429, 502, 503, 504):
+            raise HTTPException(503, 'Telemetry archive is temporarily busy. Please retry shortly.') from exc
+        raise HTTPException(422, 'Telemetry archive is unavailable for this selection.') from exc
     except (TypeError, ValueError, json.JSONDecodeError) as exc:
         raise HTTPException(422, f'Invalid telemetry selection: {exc}') from exc
     except Exception as exc:
@@ -1917,8 +1921,8 @@ def telemetry(
                 # it can supply the missing X/Y stream required by the map.
                 incomplete_openf1 = (samples, projected)
     except Exception as openf1_lookup_error:
-        if isinstance(openf1_lookup_error, HTTPError) and openf1_lookup_error.code in (429, 502, 503, 504):
-            raise HTTPException(503, "Telemetry provider is busy. Please retry shortly.") from openf1_lookup_error
+        # An OpenF1 rate limit is not evidence that the lap is unavailable.
+        # Try the independent FastF1 selected-lap archive below before failing.
         logger.debug("OpenF1 lookup unavailable for %s L%s: %s", driver, lap, openf1_lookup_error)
 
     # Historical timing archives are session-wide. When the session response

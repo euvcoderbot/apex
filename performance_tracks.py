@@ -676,14 +676,16 @@ def straight_core_measurements(selected, blocks, grid, ref, fixed_windows=None, 
             distance = max((r.get('straight_core_distance_m', 0) for r in result.values()), default=0)
             if distance < 200:
                 continue
-            score = (distance*len(cohort), len(cohort), distance)
+            # Do not silently discard eligible cars just to measure a longer
+            # stretch. First retain the widest complete supported field.
+            score = (len(cohort), distance, distance*len(cohort))
             if score > best_score:
                 best, best_score = result, score
         if best is None:
             return empty
         names = sorted(best)
         for row in best.values():
-            row['straight_core_method'] = 'supported-straight-core-v2'
+            row['straight_core_method'] = 'supported-straight-core-v3-field-first'
             row['straight_core_cohort'] = names
             row['straight_core_requested'] = len(selected)
         return {**empty, **best}
