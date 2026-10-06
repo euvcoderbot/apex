@@ -13,6 +13,24 @@ from fastf1 import _api
 
 
 class FreshSessionTests(unittest.TestCase):
+    def test_short_bracketed_packet_gap_at_start_does_not_discard_lap(self):
+        rows=[{'date':100+t,'Speed':speed,'Throttle':100,'RPM':10000,'Brake':False,'DRS':0,'nGear':8}
+              for t,speed in [(-.136,286),(1.064,308),(1.304,311),(1.544,313),(1.784,315),(2.024,317)]]
+        samples=loader._lap_samples(rows,[],0,2,t0=100)
+        self.assertEqual(samples[0]['ElapsedSeconds'],0)
+        self.assertEqual(samples[-1]['ElapsedSeconds'],2)
+        self.assertTrue(samples[0]['IsInterpolatedBoundary'])
+        self.assertAlmostEqual(samples[0]['SourceIntervalSeconds'],1.2)
+        interior=[s for s in samples if not s['IsInterpolatedBoundary']]
+        self.assertEqual([(s['Timestamp'],s['Speed']) for s in interior],
+                         [(r['date'],r['Speed']) for r in rows if 100<r['date']<102])
+
+    def test_long_or_unbracketed_boundary_gaps_are_not_extrapolated(self):
+        def row(t):return {'date':100+t,'Speed':300,'Throttle':100,'RPM':10000,'Brake':False,'DRS':0,'nGear':8}
+        for times in [[-.1,1.5,1.8,2.1],[.1,.4,.8,1.2,1.6,2.1]]:
+            with self.subTest(times=times),self.assertRaisesRegex(ValueError,'bracket'):
+                loader._lap_samples([row(t) for t in times],[],0,2,t0=100)
+
     def test_parallel_feeds_keep_sessions_isolated_and_do_not_fetch_twice(self):
         self.check_parallel(False)
 

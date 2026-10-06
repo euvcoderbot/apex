@@ -207,11 +207,15 @@ def _lap_samples(car_rows, position_rows, lap_start, lap_end, t0=None):
             if i < len(dates) and abs(dates[i]-date) < 1e-6:
                 edges.append({**car_rows[i], 'date': date})
                 continue
-            if i == 0 or i >= len(dates) or dates[i]-dates[i-1] > 1.0:
+            # Match the full-lap completeness ceiling (1.5 s). A bounded
+            # dropped packet at the timing line must not erase an otherwise
+            # usable lap. Local speed/braking measurements remain stricter.
+            if i == 0 or i >= len(dates) or dates[i]-dates[i-1] > 1.5:
                 raise ValueError('Telemetry does not bracket the official lap boundary')
             before, after = car_rows[i-1], car_rows[i]
             fraction = (date-before['date'])/(after['date']-before['date'])
-            edge = {**before, 'date': date}
+            edge = {**before, 'date': date, 'boundary_interpolated': True,
+                    'source_interval_s': dates[i]-dates[i-1]}
             for channel in ('Speed', 'Throttle', 'RPM'):
                 edge[channel] = before[channel]+fraction*(after[channel]-before[channel])
             edges.append(edge)
@@ -244,6 +248,8 @@ def _lap_samples(car_rows, position_rows, lap_start, lap_end, t0=None):
             'Timestamp': row['date'],
             'Throttle': row['Throttle'], 'Brake': row['Brake'], 'RPM': row['RPM'],
             'nGear': row['nGear'], 'DRS': row['DRS'], 'X': x, 'Y': y,
+            'IsInterpolatedBoundary': bool(row.get('boundary_interpolated')),
+            'SourceIntervalSeconds': row.get('source_interval_s', 0.0),
         })
     return samples
 

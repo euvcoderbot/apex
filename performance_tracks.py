@@ -4,6 +4,16 @@ import math
 import numpy as np
 
 
+def source_intervals(item):
+    """Original resolution, even after an exact timing-line edge is inserted."""
+    intervals = np.diff(item['a'][:, 1])
+    samples = item.get('samples', ())
+    if len(samples) == len(item['a']):
+        brackets = np.array([float(s.get('SourceIntervalSeconds') or 0) for s in samples])
+        intervals = np.maximum(intervals, np.maximum(brackets[:-1], brackets[1:]))
+    return intervals
+
+
 def prepare(samples, selection, require_gps=True):
     a = np.array([[r.get('Distance'), r.get('ElapsedSeconds'), r.get('Speed'),
                    r.get('Throttle'), float(bool(r.get('Brake'))),
@@ -429,12 +439,12 @@ def braking_approach_measurements(selected, start, end, grid):
             continue
         lo = max(0, int(np.searchsorted(d, left))-1)
         hi = min(len(d)-1, int(np.searchsorted(d, right)))
-        if hi-lo < 2 or np.max(np.diff(a[lo:hi+1, 1])) > .6:
+        if hi-lo < 2 or np.max(source_intervals(item)[lo:hi]) > .6:
             continue
         times = np.interp([left, right], d, a[:, 1])
         speeds = np.interp([left, right], d, a[:, 2])
         brackets = [min(len(d)-1, max(1, int(np.searchsorted(d, point)))) for point in (left, right)]
-        resolution = sum(float(a[j, 1]-a[j-1, 1]) for j in brackets)
+        resolution = sum(float(source_intervals(item)[j-1]) for j in brackets)
         duration = float(times[1]-times[0])
         if duration <= 0 or speeds[0]-speeds[1] < 25:
             continue
@@ -509,7 +519,7 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
                     continue
                 ix = max(runs, key=lambda r: a[r[0], 2] - a[r[-1], 2])
                 t, v = a[ix, 1], a[ix, 2]
-                if np.max(np.diff(t)) > .6 or np.any(np.diff(v) > 2) or v[0] - v[-1] < 50:
+                if np.max(source_intervals(item)[ix[:-1]]) > .6 or np.any(np.diff(v) > 2) or v[0] - v[-1] < 50:
                     continue
                 observed.append((t, v, item))
             if observed:
@@ -558,12 +568,13 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
                 if duration <= 0 or len(ts) < 3 or not .5 <= (high-low)/3.6/duration/9.80665 <= 7:
                     continue
                 js = [int(np.flatnonzero(v <= speed)[0]) for speed in (high, low)]
-                bracket_sum = sum(float(t[j]-t[j-1]) if j else 0. for j in js)
+                original_intervals = source_intervals(item)[np.searchsorted(item['a'][:, 1], t[:-1])]
+                bracket_sum = sum(float(original_intervals[j-1]) if j else 0. for j in js)
                 per_lap.append((duration,
                     float(np.sum(np.diff(ts) * (vs[:-1] + vs[1:]) / 2)),
                     int(inner.sum()) + 2,
-                    float(np.max(np.diff(t))),
-                    float(np.max(np.diff(t)*(v[:-1]+v[1:])/7.2)),
+                    float(np.max(original_intervals)),
+                    float(np.max(original_intervals*(v[:-1]+v[1:])/7.2)),
                     bracket_sum,
                     int(inner.sum()),
                     float(np.interp(t0, item['a'][:,1], item['aligned'])),
@@ -650,7 +661,7 @@ def straight_core_measurements(selected, blocks, grid, ref, fixed_windows=None, 
         # Large source gaps must not become hundreds of interpolated grid cells.
         source_ix = np.clip(np.searchsorted(item['aligned'], grid[:-1], side='right')-1,
                             0, len(item['a'])-2)
-        native_ok &= np.diff(item['a'][:, 1])[source_ix] <= .6
+        native_ok &= source_intervals(item)[source_ix] <= .6
         supported_cells[team] = native_ok
         eligible &= native_ok
         if 'drs_active' in item:
@@ -849,7 +860,8 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                     if i_hi <= i_lo:
                         continue
                     begin = max(0, i_lo-1)
-                    if (np.max(np.diff(t_accel[begin:i_hi+1])) > .6
+                    native_interval = source_intervals(item)[raw_indices[i_min+begin:i_min+i_hi]]
+                    if (np.max(native_interval) > .6
                             or np.any(np.diff(v_accel[begin:i_hi+1]) < -3)):
                         continue
                     # Below 150 km/h this includes traction-limited corner
@@ -875,7 +887,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                                         'duration_s': float(dt_band),
                                         'start_m': float(np.interp(t_lo, a[:, 1], aligned)),
                                         'end_m': float(np.interp(t_hi, a[:, 1], aligned)),
-                                        'sample_interval_s': float(np.max(np.diff(t_accel[begin:i_hi+1]))),
+                                        'sample_interval_s': float(np.max(native_interval)),
                                         'lap': item['selection'].get('lap')})
           for (b_name, state), observations in band_observations.items():
               straight_band_times[b_name][(s_idx, state)][team] = float(np.median(observations))
@@ -927,7 +939,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                             continue
                         if np.min(a[pos:stop+1, 2]) < v_lo - 8:
                             continue
-                        if (np.max(np.diff(a[prev:stop+1, 1])) > .6
+                        if (np.max(source_intervals(item)[prev:stop]) > .6
                                 or np.any(np.diff(a[prev:stop+1, 2]) < -3)):
                             continue
                         low_time = interp_raw(a[prev:stop+1, 1], a[prev:stop+1, 2], v_lo)
@@ -957,7 +969,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                                 'state': 'open' if np.all(drs) else 'closed', 'duration_s': float(dt_band),
                                 'start_m': float(np.interp(low_time, a[:, 1], aligned)),
                                 'end_m': float(np.interp(high_time, a[:, 1], aligned)),
-                                'sample_interval_s': float(np.max(np.diff(a[prev:stop+1, 1]))),
+                            'sample_interval_s': float(np.max(source_intervals(item)[prev:stop])),
                                 'lap': item['selection'].get('lap')})
                         break
                 for state, durations in observed.items():
@@ -1492,7 +1504,9 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
             'lap_distance': float(grid[-1]), 'braking': braking, 'selection': item['selection'],
             'quality': {'integration_scale': item['scale'], 'full_lap': True,
                         'alignment_method': item.get('alignment_method'),
-                        'max_sector_distance_scale_change': item.get('registration_scale')}
+                        'max_sector_distance_scale_change': item.get('registration_scale'),
+                        'max_lap_boundary_interval_s': max((s.get('SourceIntervalSeconds') or 0 for s in item.get('samples', ())), default=0),
+                        'lap_boundary_provisional': any((s.get('SourceIntervalSeconds') or 0) > .6 for s in item.get('samples', ()))}
         }
 
     # Cross-circuit continuous features for development trend regression

@@ -88,6 +88,18 @@ class PerformanceTests(unittest.TestCase):
         self.assertEqual(samples[-1]['ElapsedSeconds'],8.)
         self.assertAlmostEqual(samples[-1]['Distance'],400.)
 
+    def test_interpolated_boundary_retains_original_resolution_for_braking(self):
+        from performance_tracks import source_intervals,braking_approach_measurements
+        grid=np.arange(21)*10.
+        a=np.zeros((21,8));a[:,0]=grid;a[:,1]=np.arange(21)*.1;a[:,2]=320-np.arange(21)*5
+        samples=[{'SourceIntervalSeconds':1.2 if i==0 else 0} for i in range(21)]
+        item={'a':a,'aligned':grid,'samples':samples}
+        self.assertEqual(source_intervals(item)[0],1.2,'inserting an edge must not turn a wide source gap into precise data')
+        self.assertAlmostEqual(source_intervals(item)[1],.1)
+        self.assertEqual(braking_approach_measurements({t:item for t in 'ABC'},0,10,grid),{})
+        native={**item,'samples':[{'SourceIntervalSeconds':0} for _ in samples]}
+        self.assertEqual(len(braking_approach_measurements({t:native for t in 'ABC'},0,10,grid)),3)
+
     def test_sector_registration_matches_official_timing_lines(self):
         from performance_tracks import timing_line_alignment
         ref=np.zeros((101,8));ref[:,0]=np.linspace(0,5000,101);ref[:,1]=np.linspace(0,90,101)
