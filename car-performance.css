@@ -1087,11 +1087,15 @@ body.performance-view #sidebarToggle {
 .performance-trend-table .performance-table { table-layout: fixed; min-width: 780px; }
 .performance-trend-table .performance-table th,
 .performance-trend-table .performance-table td { white-space: normal; vertical-align: middle; }
-.performance-trend-table .performance-table th:nth-child(1) { width: 20%; }
+.performance-trend-table .performance-table tbody td { padding: 8px 12px; height: auto; }
+.performance-trend-table .performance-trend { height: 36px; padding: 4px; min-height: 0; }
+.performance-trend-table .performance-table tbody tr { height: auto; }
+.performance-trend-table .performance-table th:nth-child(1) { width: 18%; }
 .performance-trend-table .performance-table th:nth-child(2) { width: 18%; }
-.performance-trend-table .performance-table th:nth-child(3) { width: 22%; }
-.performance-trend-table .performance-table th:nth-child(4) { width: 22%; }
-.performance-trend-table .performance-table th:nth-child(5) { width: 18%; }
+.performance-trend-table .performance-table th:nth-child(3) { width: 20%; }
+.performance-trend-table .performance-table th:nth-child(4) { width: 20%; }
+.performance-trend-table .performance-table th:nth-child(5) { width: 14%; }
+.performance-trend-table .performance-table th:nth-child(6) { width: 10%; }
 .performance-trend-table .perf-tercile-badge { white-space: normal; max-width: 100%; overflow-wrap: anywhere; }
 @media (max-width: 700px) {
   .performance-toolbar { flex-wrap: wrap; }

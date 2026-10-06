@@ -5,6 +5,13 @@ import vm from 'node:vm';
 import postcss from 'postcss';
 
 const app = readFileSync('app.js', 'utf8');
+test('development table allocates all six columns without inflating rows',()=>{
+  const css=readFileSync('car-performance.css','utf8');
+  const widths=[...css.matchAll(/\.performance-trend-table \.performance-table th:nth-child\((\d)\) \{ width: (\d+)%; \}/g)];
+  assert.deepEqual(widths.map(m=>Number(m[1])),[1,2,3,4,5,6]);
+  assert.equal(widths.reduce((sum,m)=>sum+Number(m[2]),0),100);
+  assert.match(css,/\.performance-trend-table \.performance-table tbody td \{ padding: 8px 12px; height: auto; \}/);
+});
 function context(reduced = false) {
   const sandbox = { console, URLSearchParams,
     document: { addEventListener() {}, querySelector() {}, activeElement: null },
@@ -919,7 +926,7 @@ test('native corner projection follows the aligned comparison grid', () => {
   assert.equal(h.run("resolveCornerMarkers(samples,1000,[{number:'1',fraction:.5,source:'lap_projection'}])[0].fraction"),.6);
 });
 
-test('one optional speed-annotation control combines native minima, corner carry and straight peaks', () => {
+test('one optional speed-annotation control combines native apex minima and straight peaks', () => {
   const h=context();
   assert.equal(h.run('showSpeedAnnotations'),false);
   assert.equal((app.match(/id="speedAnnotationToggle"/g)||[]).length,1);
@@ -932,14 +939,37 @@ test('one optional speed-annotation control combines native minima, corner carry
   const results=h.run('buildSpeedAnnotations(entries,zones,5000)');
   assert.ok(results.some(r=>r.kind==='peak'));
   assert.equal(results.find(r=>r.title==='T1 min').values[0].speed,80);
-  assert.equal(results.find(r=>r.title==='T2 carry').values[0].speed,250);
-  assert.equal(results.find(r=>r.title==='T2 carry').fraction,.61);
+  assert.equal(results.find(r=>r.title==='T2 apex').values[0].speed,240);
+  assert.equal(results.find(r=>r.title==='T2 apex').fraction,.59);
   assert.equal(results.find(r=>r.title==='T1 min').values[1].speed,75);
   h.run('entries[0].samples=entries[0].samples.filter(p=>p.AlignedFraction<.194||p.AlignedFraction>.206)');
   assert.equal(h.run("buildSpeedAnnotations(entries,zones,5000).find(r=>r.title==='T1 min').values.length"),1);
   assert.equal(h.run("buildSpeedAnnotations(entries,zones,5000).find(r=>r.title==='T1 min').missing[0].code"),'A');
   // A gap in the middle of a straight must not discard a measured peak elsewhere.
   assert.equal(h.run("buildSpeedAnnotations(entries,zones,5000).filter(r=>r.kind==='peak').every(r=>r.values.length===2)"),true);
+});
+
+test('combined corners sum union windows once and use average rather than minimum speed', () => {
+  const h=context();
+  h.sandbox.zones=[{start:.1,end:.2},{start:.15,end:.25},{start:.4,end:.5}];
+  h.run('performanceSectionDuration=(s,a,b)=>(b-a)*100');
+  const result=h.run('combinedCornerPerformance([],zones,5000)');
+  assert.ok(Math.abs(result.sectionTime-25)<1e-8);
+  assert.ok(Math.abs(result.minimumSpeed-180)<1e-8);
+  assert.equal(result.combined,true);
+  assert.equal(h.run('mergeCornerWindows(zones).length'),2);
+});
+
+test('race classification refresh fills missing data without clearing authoritative fields', () => {
+  const h=context();
+  h.run(`realDrivers=new Map([['ANT',{code:'ANT',number:'12',result:{points:null,gap:null}}],['RUS',{code:'RUS',number:'63',result:{points:18,gap:3}}]]);
+    mergeRaceClassification([{driver_number:12,position:1,points:25,gap_to_leader:0},{driver_number:63,position:2,points:null,gap_to_leader:2.345}]);`);
+  assert.equal(h.run("realDrivers.get('ANT').result.points"),25);
+  assert.equal(h.run("realDrivers.get('RUS').result.points"),18);
+  assert.equal(h.run("realDrivers.get('RUS').result.gap"),2.345);
+  assert.match(app,/session_result\?session_key=/);
+  assert.match(app,/clearTimeout\(raceResultRefreshTimer\)/);
+  assert.match(app,/ctx\.lineTo\(px,y>py\?y:y\+height\)/);
 });
 
 test('speed annotation labels avoid open trace segments without closing the lap', () => {

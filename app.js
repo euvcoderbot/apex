@@ -23,6 +23,7 @@ let openf1SessionKey = null;
 let nominatedCompounds = [];
 let activeDriverTab = null;
 let selectedCornerIndex = 0;
+let selectedCornerIndices = new Set([0]);
 let cornerSort = 'time';
 let showCornerNumbers = false;
 let showSpeedAnnotations = false;
@@ -43,6 +44,8 @@ let timingDeltaZoom = 1;
 let zoomDrag = null;
 let drawGeneration = 0;
 let sessionRequest = null;
+let raceResultRefreshTimer = null;
+let raceResultRefreshAttempts = 0;
 let calendarRequest = null;
 let calendarGeneration = 0;
 let redrawFrame = 0;
@@ -858,6 +861,8 @@ function lapText(lap) {
 
 // UI State Resets
 function clearBeforeSessionLoad() {
+  clearTimeout(raceResultRefreshTimer);
+  raceResultRefreshAttempts=0;
   drawGeneration++;
   drivers.splice(0, drivers.length);
   realDrivers.clear();
@@ -874,6 +879,7 @@ function clearBeforeSessionLoad() {
   nominatedCompounds = [];
   activeDriverTab = null;
   selectedCornerIndex = 0;
+  selectedCornerIndices = new Set([0]);
   traceZoom = { start: 0, end: 1 };
   zoomDrag = null;
   hiddenTraceKeys.clear();
@@ -939,6 +945,7 @@ async function loadRealSession() {
     renderTireNomination();
     renderStints();
     renderAll();
+    void refreshRaceResults(request,requestedQuery);
   } catch (error) {
     if (error.name !== 'AbortError') notify(`Could not load this session. ${error.message}`);
   } finally {
@@ -996,6 +1003,36 @@ async function fetchTelemetry(lap) {
 }
 
 // UI Rendering Functions
+function mergeRaceClassification(classification) {
+  for(const item of classification) {
+    const driver=[...realDrivers.values()].find(d=>String(d.number)===String(item.driver_number));
+    if(!driver)continue;
+    const result={...driver.result};
+    if(typeof item.points==='number' && Number.isFinite(item.points))result.points=item.points;
+    if(item.gap_to_leader!=null && !Array.isArray(item.gap_to_leader))result.gap=item.gap_to_leader;
+    if(item.dsq)result.status='DSQ';else if(item.dns)result.status='DNS';else if(item.dnf)result.status='DNF';
+    else if(item.position>0 && !/^\+\d+ laps?$/i.test(result.status||''))result.status='Finished';
+    driver.result=result;
+    if(item.position>0){driver.position=item.position;const row=drivers.find(d=>d[0]===driver.code);if(row)row[5]=item.position;}
+  }
+}
+
+async function refreshRaceResults(request,query) {
+  if(request!==sessionRequest || !/^(Race|Sprint)$/i.test(loadedSessionName) || !openf1SessionKey)return;
+  const key=openf1SessionKey;
+  let classificationSeen=false;
+  try {
+    const response=await fetchSessionData(`https://api.openf1.org/v1/session_result?session_key=${key}`,{cache:'no-store',signal:request.signal});
+    if(!response.ok)throw new Error('Classification not available yet');
+    const rows=await response.json();
+    if(request!==sessionRequest || query!==String(currentQuery()))return;
+    if(Array.isArray(rows)){classificationSeen=rows.some(r=>r.position>0);mergeRaceClassification(rows);renderDrivers();}
+  } catch(error) { if(error.name==='AbortError')return; }
+  const pending=[...realDrivers.values()].some(d=>!Number.isFinite(d.result?.points)||d.result?.gap==null && !/DNF|DNS|DSQ/i.test(d.result?.status||''));
+  if((pending||!classificationSeen&&sessionYear===new Date().getFullYear()) && raceResultRefreshAttempts++<10 && request===sessionRequest)
+    raceResultRefreshTimer=setTimeout(()=>refreshRaceResults(request,query),60000);
+}
+
 function raceResultMarkup(driver) {
   const result = driver?.result || {};
   const status = String(result.status || '').trim();
@@ -1760,7 +1797,7 @@ function renderCharts() {
           <div class="trace-settings" aria-label="Telemetry display settings">
             <div class="alignment-readout"><i></i><span id="alignmentStatus" data-state="idle">Speed trace controls</span></div>
             <label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label>
-            <label class="trace-setting" title="Show corner minimums, central fast-corner maximums and straight peaks together. Colours identify laps; differences are against the fastest speed at that location. Missing or uncertain samples are skipped."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label>
+            <label class="trace-setting" title="Show corner minimum/apex speeds and straight peaks together. Apex means the lowest measured speed in the central corner window, not an approach or exit maximum. Colours identify laps; differences are against the fastest speed in the same window. A dash means that lap has no trustworthy measurement there."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label>
             <label class="trace-setting trace-mode-toggle" title="Smooth interpolation through trusted samples. Repairs require evidence from neighbouring acceleration, throttle, brake and gear/RPM; full throttle alone does not prove a fault. Uncertain gaps are marked as estimates. Timing delta follows reconstructed speed while official sector and finish deltas stay exact."><input type="checkbox" id="interpolationToggle" ${enhancedTraceMode ? 'checked' : ''}><i aria-hidden="true"></i><span>Enhanced interpolation</span><small id="traceModeStatus" data-mode="${enhancedTraceMode ? 'enhanced' : 'accurate'}">${enhancedTraceMode ? 'Interpolated' : 'Accurate'}</small></label>
             <label class="trace-setting"><input type="checkbox" id="tintToggle" ${traceTintEnabled ? 'checked' : ''}><i aria-hidden="true"></i><span>Trace tint</span></label>
           </div>
@@ -2219,7 +2256,9 @@ function buildSpeedAnnotations(entries, zones, totalDistance) {
     // Never manufacture extrema across missing telemetry. Use native samples,
     // not the interpolated display curve or a synthetic higher sampling rate.
     const limit=Math.max(40/totalDistance,.008);
-    if (kind!=='peak' && points.some((p,i)=>i && traceSampleFraction(entry.samples,p)-traceSampleFraction(entry.samples,points[i-1])>limit)) return null;
+    const centre=(start+end)/2;
+    if (kind!=='peak' && points.some((p,i)=>i && traceSampleFraction(entry.samples,p)-traceSampleFraction(entry.samples,points[i-1])>limit
+      && traceSampleFraction(entry.samples,points[i-1])<centre && traceSampleFraction(entry.samples,p)>centre)) return null;
     const supported=points.filter((p,i)=>{
       const f=traceSampleFraction(entry.samples,p);
       return (i>0 && f-traceSampleFraction(entry.samples,points[i-1])<=limit)
@@ -2227,7 +2266,7 @@ function buildSpeedAnnotations(entries, zones, totalDistance) {
     });
     const eligible=kind==='peak' ? supported.filter(p=>Number(p.Throttle)>=95 && !(Number(p.Brake)>0)) : supported;
     if (!eligible.length) return null;
-    const point=eligible.reduce((best,p)=>(kind==='min' ? +p.Speed<+best.Speed : +p.Speed>+best.Speed)?p:best);
+    const point=eligible.reduce((best,p)=>(kind==='peak' ? +p.Speed>+best.Speed : +p.Speed<+best.Speed)?p:best);
     const fraction=traceSampleFraction(entry.samples,point);
     if (typeof telemetryEstimateInfo==='function' && telemetryEstimateInfo(entry.samples,fraction,'Speed')) return null;
     return {lap:entry.lap,speed:+point.Speed,fraction};
@@ -2241,10 +2280,10 @@ function buildSpeedAnnotations(entries, zones, totalDistance) {
       missing:entries.filter(e=>!values.some(v=>v.lap===e.lap)).map(e=>e.lap)});
   };
   zones.forEach((zone,index)=>{
-    // The same physical window is used for every lap. Fast-corner maxima stay
-    // in the central corner window, excluding straight entry/exit speed.
-    const kind=zone.minimumSpeed<=120?'min':'carry';
-    add(`${cornerLabel(zone)} ${kind==='min'?'min':'carry'}`,zone.apexStart,zone.apexEnd,kind);
+    // The same physical window is used for every lap. Apex/minimum speeds
+    // exclude straight approach/exit maxima, including in fast corners.
+    const kind=zone.minimumSpeed<=120?'min':'apex';
+    add(`${cornerLabel(zone)} ${kind==='min'?'min':'apex'}`,zone.apexStart,zone.apexEnd,kind);
     const previous=zones[index-1];
     const start=previous ? previous.apexEnd : 0;
     // Include the approach right up to the central corner window. The native
@@ -2260,20 +2299,20 @@ function drawSpeedAnnotations(ctx, annotations, rect, bounds, xForFraction, view
   const theme=canvasTheme(), occupied=[];
   const bottom=rect.height-bounds.bottom;
   ctx.save();
-  ctx.font=canvasFont(11);
+  ctx.font=canvasFont(10);
   annotations.filter(a=>a.fraction>=viewStart && a.fraction<=viewEnd).forEach(a=>{
     const allLaps=[...a.values.map(v=>v.lap),...(a.missing||[])];
     const identity=lap=>lap.code+(allLaps.filter(l=>l.code===lap.code).length>1?` L${lap.lap}`:'');
     const lines=a.values.map((v,i)=>({text:`${identity(v.lap)} ${i===0?v.speed.toFixed(1):(a.speed-v.speed>0?'−':'')+(a.speed-v.speed).toFixed(1)}`,color:getLapColor(v.lap)}));
     lines.push(...(a.missing||[]).map(lap=>({text:`${identity(lap)} —`,color:getLapColor(lap)})));
-    const width=Math.max(ctx.measureText(a.title).width,...lines.map(l=>ctx.measureText(l.text).width))+6;
-    const height=12+lines.length*12+4;
+    const width=Math.max(ctx.measureText(a.title).width,...lines.map(l=>ctx.measureText(l.text).width))+4;
+    const height=10+lines.length*10+3;
     const px=xForFraction(a.fraction), py=bounds.top+(bounds.max-a.speed)/(bounds.max-bounds.min||1)*(bottom-bounds.top);
     let placement=null;
     for (const offset of [8,24,44,68,96,132]) {
-      for (const horizontal of [0,-width-8,width+8]) {
-        const x=Math.max(bounds.left,Math.min(rect.width-bounds.right-width,px-width/2+horizontal));
-        const candidates=a.kind==='min'?[py+offset,py-height-offset]:[py-height-offset,py+offset];
+      for (const horizontal of [0]) {
+        const x=Math.max(bounds.left,Math.min(rect.width-bounds.right-width,px-width/2));
+        const candidates=a.kind!=='peak'?[py+offset,py-height-offset]:[py-height-offset,py+offset];
         const y=candidates.find(y=>{
           const box={x,y,width,height};
           return y>=bounds.top+18 && y+height<=bottom-3
@@ -2290,9 +2329,9 @@ function drawSpeedAnnotations(ctx, annotations, rect, bounds, xForFraction, view
     ctx.fillStyle=theme.tooltipBackground || theme.background || (lightThemeActive()?'#ffffffee':'#202023ee');
     ctx.fillRect(x,y,width,height);
     ctx.fillStyle=theme.textMuted || theme.text;
-    ctx.textAlign='left';ctx.fillText(a.title,x+3,y+10);
-    lines.forEach((line,i)=>{ctx.fillStyle=line.color;ctx.fillText(line.text,x+3,y+23+i*12);});
-    ctx.strokeStyle=theme.gridStrong;ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(Math.max(x,Math.min(x+width,px)),y>py?y:y+height);ctx.stroke();
+    ctx.textAlign='left';ctx.fillText(a.title,x+2,y+9);
+    lines.forEach((line,i)=>{ctx.fillStyle=line.color;ctx.fillText(line.text,x+2,y+19+i*10);});
+    ctx.strokeStyle=theme.gridStrong;ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px,y>py?y:y+height);ctx.stroke();
   });
   ctx.restore();
 }
@@ -3082,6 +3121,25 @@ function rankCornerMetrics(metrics, category) {
   });
 }
 
+function mergeCornerWindows(zones) {
+  const merged=[];
+  zones.map(z=>({start:z.start,end:z.end})).sort((a,b)=>a.start-b.start).forEach(z=>{
+    const last=merged.at(-1);
+    if(last && z.start<=last.end)last.end=Math.max(last.end,z.end);
+    else merged.push({...z});
+  });
+  return merged;
+}
+
+function combinedCornerPerformance(samples,zones,totalDistance) {
+  const windows=mergeCornerWindows(zones);
+  const times=windows.map(w=>performanceSectionDuration(samples,w.start,w.end));
+  if(times.some(t=>!Number.isFinite(t)||t<=0))return null;
+  const sectionTime=times.reduce((s,t)=>s+t,0);
+  const metres=windows.reduce((s,w)=>s+(w.end-w.start)*totalDistance,0);
+  return {sectionTime,minimumSpeed:metres/sectionTime*3.6,combined:true};
+}
+
 function renderCornerAnalysis() {
   const section = $('#cornerAnalysis');
   const root = $('#cornerMetricGrid');
@@ -3121,17 +3179,21 @@ function renderCornerAnalysis() {
   }
 
   selectedCornerIndex = Math.max(0, Math.min(selectedCornerIndex, zones.length - 1));
+  selectedCornerIndices=new Set([...selectedCornerIndices].filter(i=>i>=0&&i<zones.length));
+  if(!selectedCornerIndices.size)selectedCornerIndices.add(selectedCornerIndex);
   const allMetrics = zones.map(zone => loaded.map(lap => {
     const samples = telemetryCache.get(telemetryKey(lap));
     const metric = cornerPerformance(samples, zone);
     return metric ? { lap, metric } : null;
   }).filter(Boolean));
-  const zone = zones[selectedCornerIndex];
-  const metrics = allMetrics[selectedCornerIndex];
-  if (!metrics.length) {
-    root.innerHTML = '<span class="section-empty">This corner has insufficient speed data.</span>';
-    return;
-  }
+  const pickedZones=[...selectedCornerIndices].sort((a,b)=>a-b).map(i=>zones[i]);
+  const combined=pickedZones.length>1;
+  const zone = combined?{...zones[selectedCornerIndex],type:'Combined selected windows',metres:Math.round(mergeCornerWindows(pickedZones).reduce((s,w)=>s+(w.end-w.start)*totalDistance,0)),apexMetres:0}:zones[selectedCornerIndex];
+  const metrics = combined?loaded.map(lap=>{
+    if([...selectedCornerIndices].some(i=>!allMetrics[i].some(m=>m.lap===lap)))return null;
+    const metric=combinedCornerPerformance(telemetryCache.get(telemetryKey(lap)),pickedZones,totalDistance);
+    return metric?{lap,metric}:null;
+  }).filter(Boolean):allMetrics[selectedCornerIndex];
   const finiteTimes = metrics.map(item => item.metric.sectionTime).filter(Number.isFinite);
   const fastestSection = finiteTimes.length ? Math.min(...finiteTimes) : null;
   const finiteMinimumSpeeds = metrics.map(item => item.metric.minimumSpeed).filter(Number.isFinite);
@@ -3142,7 +3204,7 @@ function renderCornerAnalysis() {
     const candidateMetrics = allMetrics[index];
     const winner = candidateMetrics.reduce((best, item) => !Number.isFinite(item.metric.sectionTime)
       ? best : !best || item.metric.sectionTime < best.metric.sectionTime ? item : best, null);
-    return `<button class="corner-pick ${index === selectedCornerIndex ? 'selected' : ''}" data-corner-index="${index}" aria-pressed="${index === selectedCornerIndex}" title="${cornerLabel(candidate)} · fastest ${winner?.lap.code || 'unavailable'}"><strong>${cornerLabel(candidate)}</strong><small>${winner?.lap.code || '—'}</small></button>`;
+    return `<button class="corner-pick ${selectedCornerIndices.has(index) ? 'selected' : ''}" data-corner-index="${index}" aria-pressed="${selectedCornerIndices.has(index)}" title="${cornerLabel(candidate)} · fastest ${winner?.lap.code || 'unavailable'}"><strong>${cornerLabel(candidate)}</strong><small>${winner?.lap.code || '—'}</small></button>`;
   }).join('');
   const rankedMetrics = rankCornerMetrics(metrics, cornerSort);
   const rows = rankedMetrics.map((item) => {
@@ -3164,17 +3226,18 @@ function renderCornerAnalysis() {
       </div>`;
   }).join('');
 
-  pickerRoot.innerHTML = `<nav class="corner-picker" aria-label="Select a corner">${picker}</nav>`;
+  pickerRoot.innerHTML = `<nav class="corner-picker" aria-label="Select one or more corners">${picker}</nav><small class="corner-selection-note">Select corners to combine them. Click a selected corner to remove it. ${combined?'Overlapping windows count once; gaps between separate windows are excluded.':''}</small>`;
   root.innerHTML = `
     <article class="corner-detail-card">
       <header class="corner-detail-header">
-        <div><strong>${cornerLabel(zone)}</strong><small>${escapeUI(String(zone.type).toLowerCase())}${markers.some(marker => marker.approximate) ? ' · Approx. map position' : ''}</small></div>
-        <dl><div><dt>Timing sector</dt><dd>${zone.metres} m</dd></div><div><dt>Min-speed window</dt><dd>${zone.apexMetres} m</dd></div></dl>
+        <div><strong>${pickedZones.map(cornerLabel).join(' + ')}</strong><small>${escapeUI(String(zone.type).toLowerCase())}${markers.some(marker => marker.approximate) ? ' · Approx. map position' : ''}</small></div>
+        <dl><div><dt>Measured distance</dt><dd>${zone.metres} m</dd></div>${combined?'':`<div><dt>Min-speed window</dt><dd>${zone.apexMetres} m</dd></div>`}</dl>
       </header>
-      <div class="corner-table-head"><span>Driver</span>${[['time','Time','s'],['delta','Delta','s'],['minimum','Minimum','km/h']].map(([key,label,unit]) => `<button type="button" data-corner-sort="${key}" aria-pressed="${cornerSort === key}" title="Sort best to worst by ${label}">${label}${cornerSort === key ? ' ↓' : ''}<small>${unit}</small></button>`).join('')}</div>
-      <div class="corner-driver-metrics">${rows}</div>
+      <div class="corner-table-head"><span>Driver</span>${[['time','Time','s'],['delta','Delta','s'],['minimum',combined?'Average speed':'Minimum','km/h']].map(([key,label,unit]) => `<button type="button" data-corner-sort="${key}" aria-pressed="${cornerSort === key}" title="Sort best to worst by ${label}">${label}${cornerSort === key ? ' ↓' : ''}<small>${unit}</small></button>`).join('')}</div>
+      <div class="corner-driver-metrics">${rows||'<span class="section-empty">The selected corner windows have insufficient measured data. Remove a corner or choose another lap.</span>'}</div>
     </article>`;
-  positionCornerIndicator(pickerRoot, pickerState);
+  if(combined){pickerRoot.querySelector('.corner-picker')?.classList.add('is-multiple');}
+  else positionCornerIndicator(pickerRoot, pickerState);
   root.querySelectorAll('[data-corner-sort]').forEach(button => {
     button.onclick = () => { cornerSort = button.dataset.cornerSort; renderCornerAnalysis(); root.querySelector(`[data-corner-sort="${cornerSort}"]`)?.focus({ preventScroll: true }); };
   });
@@ -3182,7 +3245,10 @@ function renderCornerAnalysis() {
   pickerRoot.onclick = event => {
     const button = event.target.closest('[data-corner-index]');
     if (!button) return;
-    selectedCornerIndex = Number(button.dataset.cornerIndex) || 0;
+    const index=Number(button.dataset.cornerIndex)||0;
+    if(selectedCornerIndices.has(index)){if(selectedCornerIndices.size>1)selectedCornerIndices.delete(index);}
+    else selectedCornerIndices.add(index);
+    selectedCornerIndex=selectedCornerIndices.has(index)?index:[...selectedCornerIndices][0];
     renderCornerAnalysis();
     renderMiniSectorMap();
   };
