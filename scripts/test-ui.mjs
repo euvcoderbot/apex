@@ -1181,7 +1181,7 @@ test('mini-sector colours cover every dense track vertex and exact 25 m boundari
   assert.ok(h.run('miniSectorDominanceSegments([{time:1}],100).every(s=>s.winner===-1)'));
 });
 
-test('combined corners sum union windows once and use average rather than minimum speed', () => {
+test('combined selected sections count overlap once and use whole-section average speed', () => {
   const h=context();
   h.sandbox.zones=[{start:.1,end:.2},{start:.15,end:.25},{start:.4,end:.5}];
   h.run('performanceSectionDuration=(s,a,b)=>(b-a)*100');
@@ -1190,6 +1190,59 @@ test('combined corners sum union windows once and use average rather than minimu
   assert.ok(Math.abs(result.minimumSpeed-180)<1e-8);
   assert.equal(result.combined,true);
   assert.equal(h.run('mergeCornerWindows(zones).length'),2);
+  assert.equal(JSON.stringify(h.run('cornerSelectionWindows(zones,[0,1,2])')),JSON.stringify([{start:.1,end:.25},{start:.4,end:.5}]));
+  const separate=h.run('combinedCornerPerformance([],zones,5000,[0,2])');
+  assert.ok(Math.abs(separate.sectionTime-20)<1e-8);
+  assert.equal(h.run('combinedCornerPerformance([],zones,5000,[])'),null);
+  h.run('performanceSectionDuration=(s,a,b)=>a===.1&&b===.25?null:(b-a)*100');
+  assert.equal(h.run('combinedCornerPerformance([],zones,5000)'),null,'missing whole-section timing is not replaced by a sum of individual corners');
+});
+
+test('separate straight zones fill the whole lap without changing corner-only source windows', () => {
+  const h=context();
+  h.sandbox.rawZones=[{start:.1,end:.2,apex:.15,apexStart:.13,apexEnd:.17},
+    {start:.25,end:.35,apex:.3,apexStart:.28,apexEnd:.32},
+    {start:.6,end:.7,apex:.65,apexStart:.63,apexEnd:.67},
+    {start:.8,end:.9,apex:.85,apexStart:.83,apexEnd:.87}];
+  const original=JSON.stringify(h.sandbox.rawZones);
+  const zones=h.run('sessionPerformanceZones(rawZones,5000)');
+  zones.slice(0,4).forEach((zone,i)=>{
+    assert.equal(zone.start,h.sandbox.rawZones[i].start);
+    assert.equal(zone.end,h.sandbox.rawZones[i].end);
+    assert.equal(zone.apexStart,h.sandbox.rawZones[i].apexStart);
+    assert.equal(zone.apexEnd,h.sandbox.rawZones[i].apexEnd);
+  });
+  assert.equal(JSON.stringify(h.sandbox.rawZones),original);
+  assert.ok(Math.abs(zones.reduce((sum,z)=>sum+z.end-z.start,0)-1)<1e-12);
+  h.sandbox.zones=zones;
+  h.run('selectedCornerIndices=new Set(zones.map((_,i)=>i));performanceSectionDuration=(s,a,b)=>(b-a)*100');
+  assert.equal(JSON.stringify(h.run('selectedCornerWindows(zones)')),JSON.stringify([{start:0,end:1}]));
+  const combined=h.run('combinedCornerPerformance([],zones,5000,selectedCornerIndices)');
+  assert.equal(combined.sectionTime,100);
+  assert.equal(combined.minimumSpeed,180);
+  assert.equal(zones.filter(z=>z.kind==='straight').length,5);
+  const single=h.run('combinedCornerPerformance([],zones,5000,[6])');
+  assert.ok(Math.abs(single.sectionTime-25)<1e-8);
+  assert.equal(single.minimumSpeed,180);
+  assert.match(app,/aria-label="Select straight zones"/);
+});
+
+test('linking straights are explicitly selected for consecutive corners and can be removed',()=>{
+  const h=context();
+  h.sandbox.rawZones=[{number:'1',start:.1,end:.2},{number:'2',start:.2,end:.3},
+    {number:'3',start:.4,end:.5},{number:'4',start:.7,end:.8}];
+  h.run('zones=sessionPerformanceZones(rawZones,5000);selectedCornerIndices=new Set([0,1,2,3]);linked=selectLinkingStraights(zones,selectedCornerIndices,new Set());selectedCornerIndices=linked.selection');
+  assert.equal(JSON.stringify(h.run('selectedCornerWindows(zones)')),JSON.stringify([{start:.1,end:.8}]));
+  assert.equal(h.run('linked.automatic.size'),2);
+  assert.equal(h.run('linked.automatic.has(5)'),false,'an empty straight between touching windows is not selected');
+  h.run('selectedCornerIndices.delete(7);linked.automatic.delete(7)');
+  assert.equal(JSON.stringify(h.run('selectedCornerWindows(zones)')),JSON.stringify([{start:.1,end:.5},{start:.7,end:.8}]));
+  h.run('selectedCornerIndices.delete(2);next=selectLinkingStraights(zones,selectedCornerIndices,linked.automatic)');
+  assert.equal(h.run('next.selection.has(6)'),false,'automatic link is removed when its neighbouring corner is removed');
+  assert.equal(h.run('next.selection.has(0)'),true);
+  h.run('rawZones[1].start=.2+1e-16;dust=sessionPerformanceZones(rawZones,5000)');
+  assert.equal(h.run('dust[5].end-dust[5].start'),0,'floating-point dust cannot become an unsupported straight');
+  assert.equal(h.run('dust[1].start'),.2);
 });
 
 test('map selection shares all merged measured windows and marks every outer boundary',()=>{
@@ -1198,9 +1251,13 @@ test('map selection shares all merged measured windows and marks every outer bou
   h.run('selectedCornerIndices=new Set([0,1,3])');
   assert.equal(JSON.stringify(h.run('selectedCornerWindows(zones)')),JSON.stringify([{start:.1,end:.25},{start:.7,end:.8}]));
   h.run('selectedCornerIndices=new Set([0,2,3,99])');
+  assert.equal(JSON.stringify(h.run('selectedCornerWindows(zones)')),JSON.stringify([{start:.1,end:.2},{start:.4,end:.5},{start:.7,end:.8}]));
+  h.run('selectedCornerIndices=new Set([0,1,2,3])');
+  assert.equal(h.run('selectedCornerWindows(zones).length'),3);
+  h.run('selectedCornerIndices=new Set([3,2,1,0])');
   assert.equal(h.run('selectedCornerWindows(zones).length'),3);
   const map=app.slice(app.indexOf('function renderMiniSectorMap()'),app.indexOf('function init',app.indexOf('function renderMiniSectorMap()')));
-  assert.match(map,/selectedCornerWindows\(adaptiveCornerZones\(markerCorners\)\)/);
+  assert.match(map,/selectedCornerWindows\(sessionPerformanceZones\(adaptiveCornerZones\(markerCorners\), totalDistance\)\)/);
   assert.match(map,/for \(const window of highlightedCornerWindows\)/);
   assert.match(map,/highlightedCornerWindows.flatMap\(window => \[window.start, window.end\]\)/);
   assert.ok(map.indexOf('for (const window of highlightedCornerWindows)')<map.indexOf('let unavailableSegments = 0'),'selected outlines are behind dominance colours');

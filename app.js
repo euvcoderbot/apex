@@ -21,6 +21,7 @@ let raceResultView = 'points';
 let openf1SessionKey = null;
 let nominatedCompounds = [];
 let selectedCornerIndices = new Set([0]);
+let automaticStraightIndices = new Set();
 let cornerSort = 'time';
 let showCornerNumbers = window.ApexAnalysis?.preference('corner-numbers',false)===true;
 let showSpeedAnnotations = window.ApexAnalysis?.preference('speed-annotations',false)===true;
@@ -792,6 +793,7 @@ function clearBeforeSessionLoad() {
   openf1SessionKey = null;
   nominatedCompounds = [];
   selectedCornerIndices = new Set([0]);
+  automaticStraightIndices = new Set();
   traceZoom = { start: 0, end: 1 };
   zoomDrag = null;
   hiddenTraceKeys.clear();
@@ -2905,12 +2907,50 @@ function mergeCornerWindows(zones) {
   return merged;
 }
 
-function selectedCornerWindows(zones) {
-  return mergeCornerWindows([...selectedCornerIndices].map(index => zones[index]).filter(Boolean));
+function sessionPerformanceZones(zones, totalDistance) {
+  if (!zones.length) return [];
+  const corners = zones.map(zone => ({...zone,kind:'corner'}));
+  for(let index=1;index<corners.length;index++){
+    // Canonicalise numerical dust at an already shared boundary. Otherwise
+    // a 10^-16-lap "straight" has zero elapsed time and blocks comparisons.
+    if(Math.abs(corners[index].start-corners[index-1].end)<1e-9)corners[index].start=corners[index-1].end;
+  }
+  // Keep stable indices even where two corner windows already meet. Empty
+  // links are not offered as selectable zones or counted as measurements.
+  const straights = Array.from({length:zones.length+1},(_,index)=>{
+    const before=corners[index-1],after=corners[index];
+    const start=before?.end??0,end=Math.max(start,after?.start??1);
+    const label=before&&after?`Straight ${cornerLabel(before)}–${cornerLabel(after)}`
+      :before?`Straight after ${cornerLabel(before)}`:`Straight before ${cornerLabel(after)}`;
+    return {kind:'straight',type:'STRAIGHT / LINK',label,start,end,
+      between:[index-1,index],metres:Math.round((end-start)*totalDistance)};
+  });
+  return [...corners,...straights];
 }
 
-function combinedCornerPerformance(samples,zones,totalDistance) {
-  const windows=mergeCornerWindows(zones);
+function cornerSelectionWindows(zones, indices) {
+  return mergeCornerWindows([...new Set(indices)].filter(index=>Number.isInteger(index)&&zones[index]?.end>zones[index]?.start).map(index=>zones[index]));
+}
+
+function selectLinkingStraights(zones, selected, previousAutomatic) {
+  const selection=new Set([...selected].filter(index=>!previousAutomatic.has(index)));
+  const automatic=new Set();
+  zones.forEach((zone,index)=>{
+    if(zone.kind!=='straight'||zone.end<=zone.start)return;
+    const [before,after]=zone.between;
+    if(zones[before]?.kind==='corner'&&zones[after]?.kind==='corner'&&selection.has(before)&&selection.has(after)&&!selection.has(index))automatic.add(index);
+  });
+  automatic.forEach(index=>selection.add(index));
+  return {selection,automatic};
+}
+
+function selectedCornerWindows(zones) {
+  return cornerSelectionWindows(zones, selectedCornerIndices);
+}
+
+function combinedCornerPerformance(samples,zones,totalDistance,indices=zones.map((_,index)=>index)) {
+  const windows=cornerSelectionWindows(zones,indices);
+  if(!windows.length||!Number.isFinite(totalDistance)||totalDistance<=0)return null;
   const times=windows.map(w=>performanceSectionDuration(samples,w.start,w.end));
   if(times.some(t=>!Number.isFinite(t)||t<=0))return null;
   const sectionTime=times.reduce((s,t)=>s+t,0);
@@ -2950,26 +2990,27 @@ function renderCornerAnalysis() {
   }
   const totalDistance = reference[reference.length - 1].Distance || 1;
   const markers = resolveCornerMarkers(reference, totalDistance, referenceLap?.cornerMarkers);
-  const zones = adaptiveCornerZones(markers);
+  const zones = sessionPerformanceZones(adaptiveCornerZones(markers), totalDistance);
   if (!zones.length) {
     root.innerHTML = '<span class="section-empty">Official corner positions are unavailable for this lap.</span>';
     return;
   }
 
-  selectedCornerIndices=new Set([...selectedCornerIndices].filter(i=>i>=0&&i<zones.length));
+  selectedCornerIndices=new Set([...selectedCornerIndices].filter(i=>i>=0&&i<zones.length&&zones[i].end>zones[i].start));
   if(!selectedCornerIndices.size)selectedCornerIndices.add(0);
   const allMetrics = zones.map(zone => loaded.map(lap => {
     const samples = telemetryCache.get(telemetryKey(lap));
-    const metric = cornerPerformance(samples, zone);
+    const metric = zone.kind==='straight'?combinedCornerPerformance(samples,[zone],totalDistance):cornerPerformance(samples, zone);
     return metric ? { lap, metric } : null;
   }).filter(Boolean));
   const pickedZones=[...selectedCornerIndices].sort((a,b)=>a-b).map(i=>zones[i]);
   const combined=pickedZones.length>1;
   const selectedIndex = [...selectedCornerIndices][0];
-  const zone = combined?{type:'Combined selected windows',metres:Math.round(selectedCornerWindows(zones).reduce((s,w)=>s+(w.end-w.start)*totalDistance,0)),apexMetres:0}:zones[selectedIndex];
+  const zone = combined?{type:'Combined selected sections',metres:Math.round(selectedCornerWindows(zones).reduce((s,w)=>s+(w.end-w.start)*totalDistance,0)),apexMetres:0}:zones[selectedIndex];
+  const averageSpeed=combined||zone.kind==='straight';
   const metrics = combined?loaded.map(lap=>{
     if([...selectedCornerIndices].some(i=>!allMetrics[i].some(m=>m.lap===lap)))return null;
-    const metric=combinedCornerPerformance(telemetryCache.get(telemetryKey(lap)),pickedZones,totalDistance);
+    const metric=combinedCornerPerformance(telemetryCache.get(telemetryKey(lap)),zones,totalDistance,selectedCornerIndices);
     return metric?{lap,metric}:null;
   }).filter(Boolean):allMetrics[selectedIndex];
   const finiteTimes = metrics.map(item => item.metric.sectionTime).filter(Number.isFinite);
@@ -2978,11 +3019,13 @@ function renderCornerAnalysis() {
   const highestMinimumSpeed = finiteMinimumSpeeds.length ? Math.max(...finiteMinimumSpeeds) : null;
   const referenceSection = metrics[0]?.metric.sectionTime;
   const signedDelta = value => `${value >= 0 ? '+' : '−'}${Math.abs(value).toFixed(3)}s`;
-  const picker = zones.map((candidate, index) => {
+  const picker = kind=>zones.map((candidate, index) => {
+    if(candidate.kind!==kind||candidate.end<=candidate.start)return '';
     const candidateMetrics = allMetrics[index];
     const winner = candidateMetrics.reduce((best, item) => !Number.isFinite(item.metric.sectionTime)
       ? best : !best || item.metric.sectionTime < best.metric.sectionTime ? item : best, null);
-    return `<button class="corner-pick ${selectedCornerIndices.has(index) ? 'selected' : ''}" data-corner-index="${index}" aria-pressed="${selectedCornerIndices.has(index)}" title="${cornerLabel(candidate)} · fastest ${winner?.lap.code || 'unavailable'}"><strong>${cornerLabel(candidate)}</strong><small>${winner?.lap.code || '—'}</small></button>`;
+    const label=candidate.label||cornerLabel(candidate);
+    return `<button class="corner-pick ${selectedCornerIndices.has(index) ? 'selected' : ''}" data-corner-index="${index}" aria-label="${escapeUI(label)}" aria-pressed="${selectedCornerIndices.has(index)}" title="${escapeUI(label)} · fastest ${winner?.lap.code || 'unavailable'}${automaticStraightIndices.has(index)?' · automatically included link':''}"><strong>${escapeUI(kind==='straight'?label.replace('Straight ',''):label)}</strong><small>${winner?.lap.code || '—'}</small></button>`;
   }).join('');
   const rankedMetrics = rankCornerMetrics(metrics, cornerSort);
   const rows = rankedMetrics.map((item) => {
@@ -3004,18 +3047,21 @@ function renderCornerAnalysis() {
       </div>`;
   }).join('');
 
-  pickerRoot.innerHTML = `<nav class="corner-picker" aria-label="Select one or more corners">${picker}</nav><small class="corner-selection-note">Select corners to combine them. Click a selected corner to remove it. ${combined?'Overlapping windows count once; gaps between separate windows are excluded.':''}</small>`;
+  pickerRoot.innerHTML = `<nav class="corner-picker" aria-label="Select one or more corners">${picker('corner')}</nav><div class="straight-zone-heading">Straights</div><nav class="corner-picker straight-zone-picker" aria-label="Select straight zones">${picker('straight')}</nav><small class="corner-selection-note">Consecutive corners automatically include their linking straights. Deselect any straight to exclude it, or select it alone. Straight/link zones fill the gaps; they may include gentle bends.</small>`;
+  const pickedCorners=pickedZones.filter(z=>z.kind==='corner').map(cornerLabel);
+  const pickedStraights=pickedZones.filter(z=>z.kind==='straight');
+  const selectionLabel=combined?[...pickedCorners,...(pickedStraights.length?[`${pickedStraights.length} straight${pickedStraights.length===1?'':'s'}`]:[])].join(' + '):zone.label||cornerLabel(zone);
   root.innerHTML = `
     <article class="corner-detail-card">
       <header class="corner-detail-header">
-        <div><strong>${pickedZones.map(cornerLabel).join(' + ')}</strong><small>${escapeUI(String(zone.type).toLowerCase())}${markers.some(marker => marker.approximate) ? ' · Approx. map position' : ''}</small></div>
-        <dl><div><dt>Measured distance</dt><dd>${zone.metres} m</dd></div>${combined?'':`<div><dt>Min-speed window</dt><dd>${zone.apexMetres} m</dd></div>`}</dl>
+        <div><strong>${escapeUI(selectionLabel)}</strong><small>${escapeUI(String(zone.type).toLowerCase())}${markers.some(marker => marker.approximate) ? ' · Approx. map position' : ''}</small></div>
+        <dl><div><dt>Measured distance</dt><dd>${zone.metres} m</dd></div>${averageSpeed?'':`<div><dt>Min-speed window</dt><dd>${zone.apexMetres} m</dd></div>`}</dl>
       </header>
-      <div class="corner-table-head"><span>Driver</span>${[['time','Time','s'],['delta','Delta','s'],['minimum',combined?'Average speed':'Minimum','km/h']].map(([key,label,unit]) => `<button type="button" data-corner-sort="${key}" aria-pressed="${cornerSort === key}" title="Sort best to worst by ${label}">${label}${cornerSort === key ? ' ↓' : ''}<small>${unit}</small></button>`).join('')}</div>
-      <div class="corner-driver-metrics">${rows||'<span class="section-empty">The selected corner windows have insufficient measured data. Remove a corner or choose another lap.</span>'}</div>
+      <div class="corner-table-head"><span>Driver</span>${[['time','Time','s'],['delta','Delta','s'],['minimum',averageSpeed?'Average speed':'Minimum','km/h']].map(([key,label,unit]) => `<button type="button" data-corner-sort="${key}" aria-pressed="${cornerSort === key}" title="Sort best to worst by ${label}">${label}${cornerSort === key ? ' ↓' : ''}<small>${unit}</small></button>`).join('')}</div>
+      <div class="corner-driver-metrics">${rows||'<span class="section-empty">The selected sections have insufficient measured data. Remove a corner or choose another lap.</span>'}</div>
     </article>`;
   if(combined){pickerRoot.querySelector('.corner-picker')?.classList.add('is-multiple');}
-  else positionCornerIndicator(pickerRoot, pickerState);
+  else if(zone.kind==='corner')positionCornerIndicator(pickerRoot, pickerState);
   root.querySelectorAll('[data-corner-sort]').forEach(button => {
     button.onclick = () => { cornerSort = button.dataset.cornerSort; renderCornerAnalysis(); root.querySelector(`[data-corner-sort="${cornerSort}"]`)?.focus({ preventScroll: true }); };
   });
@@ -3026,6 +3072,10 @@ function renderCornerAnalysis() {
     const index=Number(button.dataset.cornerIndex)||0;
     if(selectedCornerIndices.has(index)){if(selectedCornerIndices.size>1)selectedCornerIndices.delete(index);}
     else selectedCornerIndices.add(index);
+    if(zones[index].kind==='corner'){
+      const linked=selectLinkingStraights(zones,selectedCornerIndices,automaticStraightIndices);
+      selectedCornerIndices=linked.selection;automaticStraightIndices=linked.automatic;
+    }else automaticStraightIndices.delete(index);
     renderCornerAnalysis();
     renderMiniSectorMap();
   };
@@ -3512,7 +3562,7 @@ function renderMiniSectorMap() {
   const markerCorners = resolveCornerMarkers(reference, totalDistance, spatial?.lap?.cornerMarkers);
   let highlightedCornerWindows = [];
   if (typeof adaptiveCornerZones === 'function') {
-    highlightedCornerWindows = selectedCornerWindows(adaptiveCornerZones(markerCorners));
+    highlightedCornerWindows = selectedCornerWindows(sessionPerformanceZones(adaptiveCornerZones(markerCorners), totalDistance));
   }
 
   // Paint the selected union behind the track, not over dominance colours.
@@ -3522,14 +3572,10 @@ function renderMiniSectorMap() {
   ctx.lineWidth = 11;
   for (const window of highlightedCornerWindows) {
     ctx.beginPath();
-    const steps = Math.max(2, Math.ceil((window.end - window.start) * totalDistance / 5));
-    let started = false;
-    for (let step = 0; step <= steps; step++) {
-      const point = pointAt(window.start + (window.end - window.start) * step / steps);
-      if (!point) continue;
-      if (!started) { ctx.moveTo(point.x, point.y); started = true; }
+    miniSectorGeometryPoints(canvasGeometry, window.start, window.end, pointAt).forEach((point, index) => {
+      if (index === 0) ctx.moveTo(point.x, point.y);
       else ctx.lineTo(point.x, point.y);
-    }
+    });
     ctx.stroke();
   }
   ctx.restore();

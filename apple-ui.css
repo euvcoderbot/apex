@@ -384,6 +384,8 @@ main.sidebar-collapsed .sidebar { display: flex; opacity: 0; visibility: hidden;
 .corner-pick strong { font-size: .8125rem; font-weight: 500; line-height: 1; }
 .corner-picker.is-multiple .corner-pick.selected { background: var(--bg-card); border-color: var(--glass-edge); box-shadow: var(--shadow-raised); }
 .corner-selection-note { display: block; margin-top: 6px; color: var(--text-muted); font-size: .75rem; }
+.straight-zone-heading { margin: 8px 0 4px; color: var(--text-muted); font-size: .875rem; }
+.straight-zone-picker .corner-pick { white-space: nowrap; }
 .corner-pick small { display: none; }
 .corner-pick:hover { background: var(--surface-selected); }
 .corner-pick.selected { background: var(--bg-card); border-color: var(--glass-edge); color: var(--accent); box-shadow: 0 1px 5px #00000015, inset 0 1px 0 var(--glass-edge); }
