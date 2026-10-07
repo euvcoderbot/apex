@@ -583,6 +583,21 @@ html::-webkit-scrollbar-thumb:hover { all: revert; }
 /* Dense working surface: keep full lap identity and timing readable. */
 /* Density comes from component spacing, not scaling the entire page. */
 body { zoom: 1; }
+.site-header .header-actions { flex-wrap: wrap; gap: 8px; }
+.header-actions > button { min-height: 40px; }
+.chart canvas { touch-action: pan-y; }
+.trace-settings, .trace-display-bar { min-width: 0; flex-wrap: wrap; }
+.trace-setting { min-height: 36px; font-size: .875rem; }
+.loaded-laps { align-items: stretch; }
+.comparison-tray .loaded-lap { min-width: 0; }
+#explanationsToggle { white-space: nowrap; }
+.speed-annotation-evidence { padding: 8px 16px 12px; font-size: .8125rem; }
+.speed-annotation-evidence summary { min-height: 36px; display: list-item; cursor: pointer; }
+.speed-annotation-evidence p { color: var(--text-secondary); line-height: 1.5; max-width: 100ch; }
+.speed-annotation-table-wrap { overflow-x: auto; }
+.speed-annotation-evidence table { width: 100%; border-collapse: collapse; text-align: left; font-variant-numeric: tabular-nums; }
+.speed-annotation-evidence th, .speed-annotation-evidence td { padding: 8px 10px; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+@media (max-width: 700px) { .site-header .header-actions { justify-content: flex-start; } .site-header { align-items: flex-start; } }
 .run-segment { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; }
 .run-segment small { margin: 0; white-space: nowrap; }
 .lap-workspace .lap-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }

@@ -56,7 +56,10 @@ def fit_tyre_stint(laps):
            for a, b in zip(laps, laps[1:])):
         return None
     typical = float(median(r['time'] for r in laps))
-    candidates = [r for r in laps if abs(r['time']-typical) <= typical*.07]
+    # Fit across every already-screened green lap. A constant-time percentage
+    # cut would discard the end of a genuinely degrading run before its trend
+    # is estimated. Only deviation from that trend is an outlier here.
+    candidates = laps
     initial = tyre_age_slope([(r['age'], r['time']) for r in candidates])
     if initial is None:
         return None
@@ -97,6 +100,13 @@ def fit_tyre_stint(laps):
         'min_age': int(min(ages)), 'max_age': int(max(ages)),
         'samples': len(used), 'candidate_laps': len(laps),
         'outlier_laps': len(laps)-len(used),
+        'outlier_threshold_s': round(limit, 3),
+        'excluded_points': [{'lap': int(r['lap']), 'age': int(r['age']),
+                             'time': round(r['time'], 3),
+                             'reason': 'deviation-from-stint-trend',
+                             'residual_s': round(residual-residual_mid, 3)}
+                            for r, residual in zip(candidates, residuals)
+                            if abs(residual-residual_mid) > limit],
         'residual_spread_s': round(spread, 3),
         'block_sensitivity_raw': [round(min(sensitivity), 5), round(max(sensitivity), 5)] if len(sensitivity) >= 4 else None,
         'block_sensitivity_fits': len(sensitivity),
@@ -1224,7 +1234,7 @@ def analyze(data, traffic=2):
                     'driver': driver, 'stint': stint, 'compound': compound,
                     'segment': segment, **fit, 'clean_air': clear_fit,
                     'traffic_laps': len(laps)-len(clear_laps),
-                    'fit_method': 'theil-sen-residual-screen-v3-block-sensitivity',
+                    'fit_method': 'theil-sen-residual-screen-v4-full-age-span',
                 })
             team['tyre_age_stints'] = observed
 

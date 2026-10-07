@@ -1547,6 +1547,16 @@ body.performance-view #sidebarToggle {
 
 /* Component parity with Session Analysis, without page-wide scaling. */
 .performance-page { --ui-panel-padding: 16px; }
+.performance-definition { margin: 0 0 12px; color: var(--text-secondary); font-size: .875rem; line-height: 1.5; max-width: 100ch; }
+.is-descriptions-hidden .performance-definition { display: none; }
+.evidence-search { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0; font-size: .875rem; }
+.evidence-search input { flex: 1 1 220px; min-width: 0; min-height: 40px; padding: 8px 12px; font: inherit; color: var(--text-main); background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-control); }
+.performance-table tr[hidden] { display: none; }
+.performance-trend .is-missing { border: 1px dashed var(--border-color); }
+.performance-pit-controls > *, .performance-metric-toolbar > * { min-width: 0; }
+.performance-controls #performanceLoad, .performance-controls #performanceCancel { min-height: var(--ui-control-height,44px); height: var(--ui-control-height,44px); align-self: end; box-shadow: none; }
+.performance-controls #performanceLoad::before, .performance-controls #performanceLoad::after { display: none; }
+.performance-tyre-stint-plot text { font-size: 12px; }
 .performance-card, .performance-methods { padding: var(--ui-panel-padding); margin-bottom: 16px; }
 .performance-card > :last-child { margin-bottom: 0; }
 .performance-controls, .performance-track-tray, .performance-status-card { margin-bottom: 16px; }

@@ -268,6 +268,16 @@ class PerformanceTests(unittest.TestCase):
         rows[2]['age'] = 10
         self.assertIsNone(fit_tyre_stint(rows))
 
+    def test_tyre_fit_preserves_full_age_span_despite_large_total_degradation(self):
+        rows = [lap(time=90+i*.8, lap=i+5, age=i+1) for i in range(40)]
+        rows[18]['time'] += 5
+        fit = fit_tyre_stint(rows)
+        self.assertEqual((fit['min_age'], fit['max_age']), (1, 40))
+        self.assertAlmostEqual(fit['raw_slope'], .8)
+        self.assertEqual(fit['samples'], 39)
+        self.assertEqual(fit['excluded_points'][0]['lap'], 23)
+        self.assertEqual(fit['excluded_points'][0]['reason'], 'deviation-from-stint-trend')
+
     def test_tyre_block_sensitivity_preserves_linear_trend_and_exposes_curve(self):
         linear = [lap(time=90+i*.1, lap=i+5, age=i+1) for i in range(24)]
         fit = fit_tyre_stint(linear)

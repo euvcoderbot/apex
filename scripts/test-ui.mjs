@@ -5,9 +5,9 @@ import vm from 'node:vm';
 import postcss from 'postcss';
 
 const app = readFileSync('app.js', 'utf8');
-test('one render reuses telemetry views and summaries but the next render recomputes',()=>{
+test('telemetry summaries survive unchanged renders and invalidate when source observations change',()=>{
   const source=readFileSync('car-performance.js','utf8');
-  const box={performanceRenderCache:{views:new Map(),summaries:new Map()},telemetrySubject:'team',activeMetric:'braking',cornerSession:'qualy'};
+  const box={performanceRenderCache:{views:new Map(),summaries:new Map()},eventSummaryMemo:new WeakMap(),eventViewSources:new WeakMap(),telemetrySubject:'team',activeMetric:'braking',cornerSession:'qualy'};
   vm.createContext(box);
   vm.runInContext(source.slice(source.indexOf('function telemetryEvent(event)'),source.indexOf('function telemetrySubjectControls()')),box);
   vm.runInContext(source.slice(source.indexOf('function eventTelemetry(event)'),source.indexOf('function computeEventTelemetry(event)')),box);
@@ -17,6 +17,8 @@ test('one render reuses telemetry views and summaries but the next render recomp
   assert.equal(box.telemetryEvent(event),view);assert.equal(box.telemetryEvent(view),view);
   const summary=box.eventTelemetry(event);
   assert.equal(box.eventTelemetry(view),summary);assert.equal(calls,1);
+  box.performanceRenderCache={views:new Map(),summaries:new Map()};
+  assert.equal(box.eventTelemetry(event),summary);assert.equal(calls,1);
   event.brakingTraces={A:{duration:1.3}};
   box.performanceRenderCache={views:new Map(),summaries:new Map()};
   assert.equal(box.eventTelemetry(event).rows.A.duration,1.3);assert.equal(calls,2);
@@ -528,7 +530,8 @@ test('car performance controls hide irrelevant GP and expose sortable methodolog
   assert.match(performance, /Extra seconds per measured zone to shed the same speed/);
   assert.match(html, /\+0\.102 s means about a tenth of a second longer per measured braking zone/);
   assert.match(performance, /50_100.*100_150.*300_350/);
-  assert.match(performance, /Show explanations/);
+  assert.match(readFileSync('index.html','utf8'), /id="explanationsToggle"[^>]+>[\s\S]*?Show explanations/);
+  assert.doesNotMatch(performance,/data-performance-explain\s/);
   assert.match(performance, /Extra time across the same mapped corners/);
   assert.match(performance, /finite\(clone.trace.corner_contribution\)/, 'missing corner sums must never be rebased to zero');
   assert.match(performance, /data-telemetry-subject/);

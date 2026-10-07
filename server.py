@@ -48,7 +48,7 @@ CACHE = RUNTIME_CACHE_ROOT / ".fastf1-cache"
 CACHE.mkdir(exist_ok=True)
 PREPARED_CACHE = RUNTIME_CACHE_ROOT / ".apex-cache"
 PREPARED_CACHE.mkdir(exist_ok=True)
-PREPARED_CACHE_VERSION = "v5"
+PREPARED_CACHE_VERSION = "v6"
 SESSION_CACHE_SCHEMA = "session-identity-weather-v6"
 
 app = FastAPI(title="euV2 data API")
@@ -83,7 +83,8 @@ def load_fresh_session(year, gp, session, telemetry=False):
 @app.get("/api/health")
 def health() -> dict[str, str]:
     """Lightweight hosting health check that never downloads F1 data."""
-    return {"status": "ok"}
+    return {"status": "ok", "prepared_cache_version": PREPARED_CACHE_VERSION,
+            "tyre_fit_method": "theil-sen-residual-screen-v4-full-age-span"}
 
 
 @app.middleware("http")
@@ -2032,7 +2033,7 @@ if ASSETS_DIR.is_dir():
 @app.get("/")
 def frontend_index() -> FileResponse:
     if os.environ.get('VERCEL'):
-        return RedirectResponse('https://apex-f1-data.eufrandota14.chatgpt.site/apex/')
+        return RedirectResponse('https://f1apexdata.eufrandota14.chatgpt.site/apex/')
     return FileResponse(ROOT / "index.html")
 
 
@@ -2042,11 +2043,14 @@ def frontend_asset(asset_name: str) -> FileResponse:
     if os.environ.get('VERCEL'):
         raise HTTPException(404, 'Frontend assets are served by the site host.')
     allowed = {
+        "analysis-core.js",
         "alignment.js",
         "telemetry-model.js",
         "car-performance.js",
         "race-cornering.js",
         "corner-geometry.js",
+        "qualifying-telemetry.js",
+        "trace-focus.css",
         "car-performance.css",
         "apple-ui.css",
         "app.js",

@@ -31,6 +31,7 @@
         <button type="button" data-analysis-view="performance" aria-pressed="false">Car performance</button>
       </nav>
       <button id="themeToggle" class="theme-toggle" type="button" aria-pressed="false" aria-label="Switch to light mode"><i aria-hidden="true"></i><span>Light mode</span></button>
+      <button id="explanationsToggle" class="sidebar-toggle" type="button" aria-pressed="false"><span>Show explanations</span></button>
       <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-expanded="true" aria-controls="driverSidebar"><i aria-hidden="true"></i><span>Hide drivers</span></button>
     </div>
   </header>
@@ -187,7 +188,7 @@
     <div id="performanceResults"></div>
     <details class="dashboard-card performance-methods">
       <summary>How to read these measurements</summary>
-      <dl>
+      <dl id="performanceDefinitions">
         <dt>Qualifying pace</dt><dd>One fastest valid lap per team across Q1, Q2 and Q3, from either teammate. The deficit is (team lap time ÷ fastest team lap time − 1) × 100. No phase averaging. Official classification time must match an eligible dry timing lap. The season view averages event-relative deficits and sets its best average to zero.</dd>
         <dt>Race pace</dt><dd>Dry, accurate green-flag laps, excluding pit laps and the opening two laps. A two-second timing-line gap filter runs in the background; it cannot establish clean air throughout a lap. A robust model estimates each driver while adjusting for shared race-lap conditions, compound and tyre age. Drivers need at least ten eligible laps, and comparisons must be identifiable from the available data. The faster eligible teammate represents the team. Fuel load, management and strategy cannot be fully separated; low-coverage races remain uncertain.</dd>
         <dt>Cornering</dt><dd>One validated qualifying lap per team is lined up by GPS. The same turns are measured for every team in that event. The bands are based on typical apex speed: slow up to 120 km/h, medium up to 200, fast above 200. A +0.20% corner gap means about 0.18 seconds across those corners on a 90-second lap. Events with only some valid teams still contribute, but team circuit counts can differ.</dd>
@@ -209,6 +210,7 @@
 
   <!-- Single unified app logic -->
   <script src="config.js?v=euv2-release-20260813-2"></script>
+  <script src="analysis-core.js?v=20261008-feature-pass"></script>
   <script src="telemetry-model.js?v=euv2-reconstruction-20260905"></script>
   <script src="app.js?v=euv2-release-20261007-loading-v1"></script>
   <script src="alignment.js?v=euv2-release-20261003-position-motion-check"></script>

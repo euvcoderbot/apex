@@ -22,11 +22,11 @@ let openf1SessionKey = null;
 let nominatedCompounds = [];
 let selectedCornerIndices = new Set([0]);
 let cornerSort = 'time';
-let showCornerNumbers = false;
-let showSpeedAnnotations = false;
+let showCornerNumbers = window.ApexAnalysis?.preference('corner-numbers',false)===true;
+let showSpeedAnnotations = window.ApexAnalysis?.preference('speed-annotations',false)===true;
 let speedAnnotationCache = null;
 let enhancedTraceMode = false;
-let traceTintEnabled = false;
+let traceTintEnabled = window.ApexAnalysis?.preference('trace-tint',false)===true;
 const hiddenTraceKeys = new Set();
 let dominanceMapHitPoints = [];
 let dominanceMapGeometryCache = null;
@@ -46,6 +46,9 @@ let raceResultRefreshAttempts = 0;
 let calendarRequest = null;
 let calendarGeneration = 0;
 let redrawFrame = 0;
+let hoverFrame = 0;
+const chartStaticLayers = new WeakMap();
+let mapStaticLayer = null;
 let toastTimer = 0;
 const MIN_TRACE_ZOOM = .004;
 const MIN_TIMING_DELTA_ZOOM = .25;
@@ -810,15 +813,17 @@ function clearBeforeSessionLoad() {
 // Main Session API Loader
 async function loadRealSession() {
   const button = $('#loadSession');
-  button.disabled = true;
+  if(button.classList.contains('is-loading')) {
+    sessionRequest?.abort();button.disabled=true;button.textContent='Stopping…';return;
+  }
+  button.disabled = false;
   button.classList.add('is-loading');
   button.setAttribute('aria-busy', 'true');
   // Keep the progress label compact enough for split-screen and mobile cards.
   // The full action remains available to assistive technology.
-  button.textContent = 'Loading…';
-  button.setAttribute('aria-label', 'Loading session');
-  clearBeforeSessionLoad();
-  renderCharts();
+  button.textContent = 'Stop loading';
+  button.setAttribute('aria-label', 'Stop loading session');
+  setSessionLoading(true);
   if (sessionRequest) sessionRequest.abort();
   sessionRequest = new AbortController();
   const request = sessionRequest;
@@ -828,6 +833,8 @@ async function loadRealSession() {
     const payload = await loadApiData(apiUrl(`/api/session?${requestedQuery}`), {signal:request.signal});
     if (request !== sessionRequest || requestedQuery !== String(currentQuery())) return;
     if (!Array.isArray(payload.drivers) || !payload.drivers.length) throw new Error('No driver data is available for this session yet.');
+    clearBeforeSessionLoad();
+    renderCharts();
     
     realDrivers = new Map(payload.drivers.map(driver => [driver.code, driver]));
     drivers.splice(0, drivers.length, ...payload.drivers.map(driver => [
@@ -851,12 +858,19 @@ async function loadRealSession() {
     if (error.name !== 'AbortError') notify(`Could not load this session. ${error.message}`);
   } finally {
     if (request !== sessionRequest) return;
+    setSessionLoading(false);
     button.disabled = false;
     button.classList.remove('is-loading');
     button.removeAttribute('aria-busy');
     button.removeAttribute('aria-label');
     button.textContent = 'Load session';
   }
+}
+
+function setSessionLoading(value) {
+  const analysis=$('.analysis-column'),sidebar=$('#driverSidebar');
+  if(analysis){analysis.inert=value;analysis.setAttribute('aria-busy',String(value));}
+  if(sidebar)sidebar.inert=value||$('main')?.classList.contains('sidebar-collapsed');
 }
 
 
@@ -1334,32 +1348,41 @@ function bindChartZoom() {
   $('[data-delta-zoom="reset"]')?.addEventListener('click', () => setTimingDeltaZoom(1));
   const speedCanvas = document.querySelector('[data-chart="Speed trace"]');
   if (speedCanvas) {
-    speedCanvas.addEventListener('mousedown', event => {
+    speedCanvas.addEventListener('pointerdown', event => {
       if (event.button !== 0 || !loaded.length) return;
       const rect = speedCanvas.getBoundingClientRect();
       const local = Math.max(0, Math.min(1, (event.clientX - rect.left - TRACE_PLOT_LEFT) / (rect.width - TRACE_PLOT_LEFT - TRACE_PLOT_RIGHT)));
       const fraction = traceZoom.start + local * (traceZoom.end - traceZoom.start);
       zoomDrag = { anchor: fraction, current: fraction };
+      speedCanvas.setPointerCapture?.(event.pointerId);
       hoverFraction = null;
       event.preventDefault();
       drawRealChart('Speed trace');
     });
     speedCanvas.addEventListener('dblclick', () => setTraceZoom(0, 1));
+    speedCanvas.addEventListener('pointercancel', () => { zoomDrag=null; drawRealChart('Speed trace'); });
   }
   updateZoomReadout();
   updateTimingDeltaZoomReadout();
 }
 
 let traceFocusReturn = null;
+let traceFocusPreviousView = null;
 function setTraceFocus(expanded) {
   const charts = $('#charts');
   if (!charts) return;
   if (expanded) {
+    if(document.body.classList.contains('trace-focus'))return;
     traceFocusReturn = document.activeElement;
+    traceFocusPreviousView = {zoom:{...traceZoom},delta:timingDeltaZoom};
     // The expanded view is for reading the entire lap, not magnifying a section.
     traceZoom = { start: 0, end: 1 };
     hoverFraction = null;
     updateZoomReadout();
+  }
+  else if(traceFocusPreviousView) {
+    traceZoom={...traceFocusPreviousView.zoom};timingDeltaZoom=traceFocusPreviousView.delta;
+    traceFocusPreviousView=null;updateZoomReadout();updateTimingDeltaZoomReadout();
   }
   document.body.classList.toggle('trace-focus', expanded);
   $('#realTooltip').style.display = 'none';
@@ -1446,10 +1469,12 @@ function syncTraceVisibilityControls() {
 function bindSpeedChartControls() {
   $('#speedAnnotationToggle')?.addEventListener('change', event => {
     showSpeedAnnotations = event.target.checked;
+    window.ApexAnalysis?.savePreference('speed-annotations',showSpeedAnnotations);
     if (loaded.length) drawRealChart('Speed trace');
   });
   $('#cornerToggle')?.addEventListener('change', event => {
     showCornerNumbers = event.target.checked;
+    window.ApexAnalysis?.savePreference('corner-numbers',showCornerNumbers);
     const status = $('#cornerStatus');
     if (status) status.textContent = showCornerNumbers
       ? 'Corner labels and adaptive analysis active.'
@@ -1469,6 +1494,7 @@ function bindSpeedChartControls() {
 
   $('#tintToggle')?.addEventListener('change', event => {
     traceTintEnabled = event.target.checked;
+    window.ApexAnalysis?.savePreference('trace-tint',traceTintEnabled);
     if (loaded.length) drawAll();
   });
 }
@@ -1519,6 +1545,7 @@ function renderCharts() {
           <span class="visually-hidden" id="cornerStatus" aria-live="polite">Corner labels hidden.</span>
         </div>` : ''}
       <canvas data-chart="${name}" aria-label="${name}${name === 'Speed trace' ? '. Drag horizontally to zoom every telemetry chart.' : ''}"></canvas>
+      ${name==='Speed trace'?'<div id="speedAnnotationEvidence" class="speed-annotation-evidence" hidden></div>':''}
     </section>
   `;
   }).join('');
@@ -1982,7 +2009,7 @@ function drawSpeedAnnotations(ctx, annotations, rect, bounds, xForFraction, view
   annotations.filter(a=>a.fraction>=viewStart && a.fraction<=viewEnd).forEach(a=>{
     const allLaps=[...a.values.map(v=>v.lap),...(a.missing||[])];
     const identity=lap=>lap.code+(allLaps.filter(l=>l.code===lap.code).length>1?` L${lap.lap}`:'');
-    const lines=a.values.map((v,i)=>({text:`${identity(v.lap)} ${i===0?v.speed.toFixed(1):(a.speed-v.speed>0?'−':'')+(a.speed-v.speed).toFixed(1)}`,color:getLapColor(v.lap)}));
+    const lines=a.values.map((v,i)=>({text:`${identity(v.lap)} ${i===0?v.speed.toFixed(3):(a.speed-v.speed>0?'−':'')+(a.speed-v.speed).toFixed(3)}`,color:getLapColor(v.lap)}));
     lines.push(...(a.missing||[]).map(lap=>({text:`${identity(lap)} —`,color:getLapColor(lap)})));
     const width=Math.max(ctx.measureText(a.title).width,...lines.map(l=>ctx.measureText(l.text).width))+4;
     const height=10+lines.length*10+3;
@@ -2015,6 +2042,16 @@ function drawSpeedAnnotations(ctx, annotations, rect, bounds, xForFraction, view
   ctx.restore();
 }
 
+function renderSpeedAnnotationEvidence(annotations,entries,totalDistance) {
+  const host=$('#speedAnnotationEvidence');if(!host)return;
+  host.hidden=!showSpeedAnnotations;
+  if(!showSpeedAnnotations||host._annotations===annotations)return;
+  const open=host.querySelector?.('details')?.open;
+  host._annotations=annotations;
+  const label=lap=>`${lap.code} L${lap.lap}`;
+  host.innerHTML=`<details ${open?'open':''}><summary>All speed annotations · ${annotations.length} measured windows</summary><p>Chart labels that cannot fit without covering a trace are omitted from the canvas, not from this table. Apex is the minimum observed speed in the central corner window; Peak is a full-throttle pre-braking maximum. Missing observations stay blank. Three decimals describe the displayed value, not sensor precision.</p><div class="speed-annotation-table-wrap"><table><thead><tr><th>Window</th><th>Position</th>${entries.map(e=>`<th style="color:${getLapColor(e.lap)}">${escapeUI(label(e.lap))}</th>`).join('')}</tr></thead><tbody>${annotations.map(a=>`<tr><th>${escapeUI(a.title)}</th><td>${(a.fraction*totalDistance).toFixed(3)} m</td>${entries.map(e=>{const value=a.values.find(v=>v.lap===e.lap);return `<td>${value?value.speed.toFixed(3)+' km/h':'—'}</td>`;}).join('')}</tr>`).join('')}</tbody></table></div></details>`;
+}
+
 function traceSampleFraction(series, point) {
   return Number.isFinite(point?.AlignedFraction)
     ? point.AlignedFraction
@@ -2044,34 +2081,37 @@ function measuredContinuousTrace(series, field, viewStart, viewEnd) {
 }
 
 function discreteTraceState(field, value) {
-  if (!Number.isFinite(+value)) return null;
+  if (value === null || value === undefined || !Number.isFinite(+value)) return null;
   if (field === 'Brake') return +value >= 50 ? 100 : 0;
   if (field === 'DRS') return +value >= .5 ? 1 : 0;
   if (field === 'nGear') return Math.round(+value);
   return +value;
 }
 
-// alignedValue switches discrete channels at the midpoint between published
-// packets. Build the visible step path at those exact same midpoints so the
-// line, hover ball and tooltip cannot disagree.
+// Discrete states change at the observed packet, never at an invented midpoint.
+// Keep missing packets and long gaps in the path so the tooltip cannot turn
+// an unknown brake/DRS observation into an apparently measured state.
 function measuredDiscreteTrace(series, field, viewStart, viewEnd) {
   const samples = series
-    .filter(point => point[field] !== null && point[field] !== undefined && Number.isFinite(+point[field]))
-    .map(point => ({ x: traceSampleFraction(series, point), y: discreteTraceState(field, point[field]) }))
+    .map(point => ({ x: traceSampleFraction(series, point), y: discreteTraceState(field, point[field]), time: point.ElapsedSeconds }))
     .sort((a, b) => a.x - b.x);
   if (!samples.length) return [];
-  const points = [];
-  appendTracePoint(points, viewStart, discreteTraceState(field, alignedValue(series, viewStart, field)));
+  const points = [{x:viewStart,y:discreteTraceState(field, alignedValue(series, viewStart, field))}];
   for (let index = 1; index < samples.length; index++) {
     const before = samples[index - 1];
     const after = samples[index];
-    if (before.y === after.y || !(after.x > before.x)) continue;
-    const transition = (before.x + after.x) / 2;
-    if (transition > viewStart && transition < viewEnd) appendTracePoint(points, transition, after.y);
+    if (!(after.x > before.x)) continue;
+    if (finiteTelemetryTime(after.time) && finiteTelemetryTime(before.time) && after.time-before.time>1) {
+      const x=Math.max(viewStart,before.x+1e-9);
+      if(x<viewEnd)points.push({x,y:null});
+    }
+    if (after.x > viewStart && after.x < viewEnd) points.push({x:after.x,y:after.y});
   }
-  appendTracePoint(points, viewEnd, discreteTraceState(field, alignedValue(series, viewEnd, field)));
+  points.push({x:viewEnd,y:discreteTraceState(field, alignedValue(series, viewEnd, field))});
   return points;
 }
+
+function finiteTelemetryTime(value) { return value!==null && value!==undefined && Number.isFinite(+value); }
 
 function sampledEnhancedTrace(series, field, viewStart, viewEnd, steps) {
   // Build the model once, then include every model knot as well as the display
@@ -2109,6 +2149,9 @@ function renderedTraceValue(points, fraction, stepped = false) {
   }
   const after = points[low];
   const before = points[low - 1];
+  if (Math.abs(after.x-fraction)<1e-9) return after.y;
+  if (Math.abs(before.x-fraction)<1e-9) return before.y;
+  if (before.y===null || after.y===null) return null;
   if (stepped) return Math.abs(after.x - fraction) < 1e-9 ? after.y : before.y;
   const ratio = (fraction - before.x) / (after.x - before.x || 1);
   return before.y + (after.y - before.y) * ratio;
@@ -2357,7 +2400,7 @@ function drawRealChart(name) {
     
     // Accurate mode uses every supplied speed/throttle sample. Enhanced mode
     // samples the bounded reconstruction. Discrete channels are built at the
-    // exact same midpoint transitions used by alignedValue.
+    // observed packet transitions used by alignedValue, including missing data.
     let domainPoints = [];
     if (name === 'Speed trace' || name === 'Throttle application') {
       domainPoints = enhancedInterpolationEnabled()
@@ -2384,7 +2427,7 @@ function drawRealChart(name) {
     }
     const points = domainPoints.map(point => ({
       x: xForFraction(point.x),
-      y: bounds.top + (bounds.max - point.y) / (bounds.max - bounds.min || 1)
+      y: point.y===null?null:bounds.top + (bounds.max - point.y) / (bounds.max - bounds.min || 1)
         * (rect.height - bounds.top - bounds.bottom),
     }));
     if (points.length) traceEntries.push({ points, domainPoints, teamColor, index });
@@ -2392,12 +2435,15 @@ function drawRealChart(name) {
 
   const tracePath = points => {
     ctx.beginPath();
-    ctx.moveTo(points[0].x, points[0].y);
-    points.slice(1).forEach((point, pointIndex) => {
-      if (name === 'Gear' || name === 'DRS' || name === 'Brake application') {
-        ctx.lineTo(point.x, points[pointIndex].y);
+    let previous=null;
+    points.forEach(point => {
+      if(point.y===null){previous=null;return;}
+      if(!previous)ctx.moveTo(point.x,point.y);
+      else {
+        if (name === 'Gear' || name === 'DRS' || name === 'Brake application') ctx.lineTo(point.x,previous.y);
+        ctx.lineTo(point.x,point.y);
       }
-      ctx.lineTo(point.x, point.y);
+      previous=point;
     });
   };
 
@@ -2410,7 +2456,7 @@ function drawRealChart(name) {
     const baseAlpha = name === 'Speed trace' ? .16 : .11;
     const tintAlpha = Math.min(baseAlpha, baseAlpha / Math.sqrt(Math.max(1, traceEntries.length)) * 1.45);
     traceEntries.forEach(({ points, teamColor }) => {
-      if (!points.length) return;
+      if (!points.length || points.some(point=>point.y===null)) return;
       tracePath(points);
       ctx.lineTo(points[points.length - 1].x, bottomY);
       ctx.lineTo(points[0].x, bottomY);
@@ -2443,6 +2489,9 @@ function drawRealChart(name) {
       speedAnnotationCache={key,entries,annotations:buildSpeedAnnotations(entries,zones,totalDist)};
     }
     drawSpeedAnnotations(ctx,speedAnnotationCache.annotations,rect,bounds,xForFraction,viewStart,viewEnd,traceEntries);
+    renderSpeedAnnotationEvidence(speedAnnotationCache.annotations,entries,totalDist);
+  } else if(name==='Speed trace') {
+    const evidence=$('#speedAnnotationEvidence');if(evidence)evidence.hidden=true;
   }
   
   // Draw collision-free corner labels in a reserved header band. Corner
@@ -2463,6 +2512,11 @@ function drawRealChart(name) {
     });
   }
   
+  // Retain expensive axes/paths/annotations; pointer motion paints overlays only.
+  const staticCanvas=document.createElement('canvas');
+  staticCanvas.width=canvas.width;staticCanvas.height=canvas.height;
+  staticCanvas.getContext('2d').drawImage(canvas,0,0);
+  chartStaticLayers.set(canvas,{image:staticCanvas,rect,bounds,viewStart,viewEnd,traceEntries,visibleEntries,dpr,theme});
   // Render hover crosshair and marker circle
   if (hoverFraction !== null && fractionInView(hoverFraction)) {
     const crosshairX = xForFraction(hoverFraction);
@@ -2520,13 +2574,35 @@ function drawRealChart(name) {
 }
 
 // Binds hover interactions on all canvas charts
+function drawChartHover(name) {
+  const canvas=document.querySelector(`[data-chart="${name}"]`),layer=canvas&&chartStaticLayers.get(canvas);
+  if(!layer){drawRealChart(name);return;}
+  if(!canvas.getBoundingClientRect().width)return;
+  const {rect,bounds,viewStart,viewEnd,traceEntries,visibleEntries,dpr,theme}=layer;
+  const ctx=canvas.getContext('2d');ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(layer.image,0,0);ctx.setTransform(dpr,0,0,dpr,0,0);
+  if(hoverFraction===null||hoverFraction<viewStart||hoverFraction>viewEnd)return;
+  const x=bounds.left+(hoverFraction-viewStart)/(viewEnd-viewStart)*(rect.width-bounds.left-bounds.right);
+  ctx.strokeStyle=theme.crosshair;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,bounds.top);ctx.lineTo(x,rect.height-bounds.bottom);ctx.stroke();
+  for(const {lap,index}of visibleEntries){
+    const entry=traceEntries.find(item=>item.index===index),stepped=['Brake application','Gear','DRS'].includes(name);
+    const value=entry?renderedTraceValue(entry.domainPoints,hoverFraction,stepped):null;
+    if(!Number.isFinite(value))continue;
+    const y=bounds.top+(bounds.max-value)/(bounds.max-bounds.min||1)*(rect.height-bounds.top-bounds.bottom);
+    ctx.fillStyle=getLapColor(lap);ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,4,0,2*Math.PI);ctx.fill();ctx.stroke();
+  }
+}
+function scheduleHover(callback) {
+  if(hoverFrame)cancelAnimationFrame(hoverFrame);
+  hoverFrame=requestAnimationFrame(()=>{hoverFrame=0;callback();});
+}
 function bindAllChartHover() {
   const canvases = document.querySelectorAll('canvas[data-chart]');
   const tooltip = $('#realTooltip');
   const telemetryCard = $('.telemetry-card');
   
   canvases.forEach(canvas => {
-    canvas.addEventListener('mousemove', e => {
+    canvas.addEventListener('pointermove', event => scheduleHover(() => {
+      const e=event;
       if (!loaded.length) return;
       
       const rect = canvas.getBoundingClientRect();
@@ -2545,8 +2621,8 @@ function bindAllChartHover() {
       hoveredChartName = canvas.dataset.chart;
       
       // Repaint all charts and track map to show synchronized crosshair and ball tracker
-      defs.forEach(def => drawRealChart(def[0]));
-      renderMiniSectorMap();
+      defs.forEach(def => drawChartHover(def[0]));
+      drawMapHover();
       
       // Update floating tooltip content
       const field = chartField[hoveredChartName];
@@ -2591,7 +2667,7 @@ function bindAllChartHover() {
             if (telemetryEstimateInfo(series, fraction, field)?.confidence === 'low') hasLowConfidenceValue = true;
             const precision = (hoveredChartName === 'Speed trace'
               || hoveredChartName === 'Throttle application')
-              ? val.toFixed(1)
+              ? val.toFixed(3)
               : Math.round(val);
             display = `${reconstructed ? '~' : ''}${precision} ${unit}`;
           }
@@ -2620,15 +2696,16 @@ function bindAllChartHover() {
       const yPos = Math.max(8, (Math.min(e.clientY + 15, window.innerHeight - tipRect.height - 12) - parentRect.top) / zoom);
       tooltip.style.left = `${xPos}px`;
       tooltip.style.top = `${yPos}px`;
-    });
+    }));
     
     canvas.addEventListener('mouseleave', () => {
+      if(hoverFrame){cancelAnimationFrame(hoverFrame);hoverFrame=0;}
       if (zoomDrag && canvas.dataset.chart === 'Speed trace') return;
       hoverFraction = null;
       hoveredChartName = null;
       tooltip.style.display = 'none';
-      defs.forEach(def => drawRealChart(def[0]));
-      renderMiniSectorMap();
+      defs.forEach(def => drawChartHover(def[0]));
+      drawMapHover();
     });
   });
 }
@@ -2639,7 +2716,8 @@ function bindTrackMapHover() {
   const telemetryCard = $('.telemetry-card');
   if (!canvas) return;
 
-  canvas.addEventListener('mousemove', e => {
+  canvas.addEventListener('pointermove', event => scheduleHover(() => {
+    const e=event;
     const hoverEntries = visibleTraceLaps();
     if (!hoverEntries.length || !dominanceMapHitPoints.length) return;
     const spatial = typeof spatialReferenceTelemetry === 'function'
@@ -2668,8 +2746,8 @@ function bindTrackMapHover() {
       hoverFraction = bestFraction;
       hoveredChartName = 'Track map';
 
-      defs.forEach(def => drawRealChart(def[0]));
-      renderMiniSectorMap();
+      defs.forEach(def => drawChartHover(def[0]));
+      drawMapHover();
 
       if (tooltip && telemetryCard) {
         const distanceKM = (bestFraction * totalDistance) / 1000;
@@ -2713,15 +2791,16 @@ function bindTrackMapHover() {
         tooltip.style.top = `${yPos}px`;
       }
     }
-  });
+  }));
 
   canvas.addEventListener('mouseleave', () => {
+    if(hoverFrame){cancelAnimationFrame(hoverFrame);hoverFrame=0;}
     if (hoveredChartName === 'Track map') {
       hoverFraction = null;
       hoveredChartName = null;
       if (tooltip) tooltip.style.display = 'none';
-      defs.forEach(def => drawRealChart(def[0]));
-      renderMiniSectorMap();
+      defs.forEach(def => drawChartHover(def[0]));
+      drawMapHover();
     }
   });
 }
@@ -3188,6 +3267,7 @@ function renderGenericCircuit(canvas, empty) {
 }
 
 function renderMiniSectorMap() {
+  mapStaticLayer=null;
   const canvas = $('#dominanceCanvas');
   const empty = $('#dominanceEmpty');
   const legend = $('#dominanceLegend');
@@ -3523,6 +3603,9 @@ function renderMiniSectorMap() {
   }
 
   // Ball Tracker indicator when hovering (telemetry charts or track map)
+  const staticMap=document.createElement('canvas');staticMap.width=canvas.width;staticMap.height=canvas.height;
+  staticMap.getContext('2d').drawImage(canvas,0,0);
+  mapStaticLayer={image:staticMap,canvas,rect,dpr,pointAt,color:getLapColor(mapEntries[0].lap)};
   if (hoverFraction !== null) {
     const hPoint = pointAt(hoverFraction);
     if (hPoint) {
@@ -3564,6 +3647,16 @@ function renderMiniSectorMap() {
   }).join('');
 }
 
+function drawMapHover() {
+  if(!mapStaticLayer)return;
+  const {canvas,image,dpr,pointAt,color}=mapStaticLayer,ctx=canvas.getContext('2d');
+  ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0);ctx.setTransform(dpr,0,0,dpr,0,0);
+  if(hoverFraction===null)return;
+  const point=pointAt(hoverFraction);if(!point)return;
+  ctx.fillStyle=hexToRgba(color,.35);ctx.beginPath();ctx.arc(point.x,point.y,10,0,2*Math.PI);ctx.fill();
+  ctx.fillStyle=lightThemeActive()?'#161b22':'#fff';ctx.strokeStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.arc(point.x,point.y,4.5,0,2*Math.PI);ctx.fill();ctx.stroke();
+}
+
 function applyTheme(theme, persist = true) {
   const nextTheme = theme === 'light' ? 'light' : 'dark';
   document.documentElement.dataset.theme = nextTheme;
@@ -3584,8 +3677,22 @@ function applyTheme(theme, persist = true) {
 
 // Initial Setup on Document Load
 document.addEventListener('DOMContentLoaded', () => {
+  function descriptions(value) {
+    document.body.classList.toggle('is-descriptions-hidden',!value);
+    const toggle=$('#explanationsToggle');toggle?.setAttribute('aria-pressed',String(value));
+    if(toggle)toggle.querySelector('span').textContent=value?'Hide explanations':'Show explanations';
+  }
+  descriptions(window.ApexAnalysis?.preference('descriptions',false)===true);
+  $('#explanationsToggle')?.addEventListener('click',()=>{
+    const value=document.body.classList.contains('is-descriptions-hidden');
+    window.ApexAnalysis?.savePreference('descriptions',value);descriptions(value);
+    window.dispatchEvent(new CustomEvent('apex-descriptions',{detail:value}));
+  });
+  window.addEventListener('apex-descriptions',event=>descriptions(event.detail===true));
+  const definitions=$('#performanceDefinitions');
+  if(definitions&&window.ApexAnalysis)definitions.innerHTML=Object.values(window.ApexAnalysis.definitions).map(d=>`<dt>${d.title}</dt><dd>${d.description}</dd>`).join('');
   installGlassMotion();
-  window.addEventListener('mouseup', finishZoomDrag);
+  window.addEventListener('pointerup', finishZoomDrag);
   applyTheme(document.documentElement.dataset.theme, false);
   document.querySelectorAll('.select-shell select').forEach(enhanceSelect);
   document.addEventListener('click', event => {
@@ -3634,8 +3741,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const toggleBtn = $('#sidebarToggle');
   const mainEl = $('main');
   if (toggleBtn && mainEl) {
+    const saved=window.ApexAnalysis?.preference('hideDrivers',false)===true;
+    mainEl.classList.toggle('sidebar-collapsed',saved);
+    toggleBtn.querySelector('span').textContent=saved?'Show drivers':'Hide drivers';
+    toggleBtn.setAttribute('aria-expanded',String(!saved));
+    $('#driverSidebar').inert=saved;
     toggleBtn.onclick = () => {
       const isCollapsed = mainEl.classList.toggle('sidebar-collapsed');
+      window.ApexAnalysis?.savePreference('hideDrivers',isCollapsed);
       toggleBtn.querySelector('span').textContent = isCollapsed ? 'Show drivers' : 'Hide drivers';
       toggleBtn.setAttribute('aria-expanded', String(!isCollapsed));
       $('#driverSidebar').inert = isCollapsed;

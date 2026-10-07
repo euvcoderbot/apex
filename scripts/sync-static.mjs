@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import {createHash} from 'node:crypto';
 
 const root = process.cwd();
-const calculationFiles=['performance.py','performance_tracks.py','server.py','session_loader.py','race-cornering.js','corner-geometry.js','car-performance.js','app.js','lib/data-cache.mjs','lib/race-corner-loader.mjs'];
+const calculationFiles=['performance.py','performance_tracks.py','server.py','session_loader.py','race-cornering.js','corner-geometry.js','qualifying-telemetry.js','alignment.js','telemetry-model.js','car-performance.js','app.js','analysis-core.js','lib/data-cache.mjs','lib/race-corner-loader.mjs'];
 const revision=createHash('sha256');
 for(const file of calculationFiles)revision.update(file).update(await readFile(resolve(root,file)));
 const cacheRevision=revision.digest('hex').slice(0,20);
@@ -18,6 +18,7 @@ const destination = resolve(root, "public", "apex");
 const staticFiles = [
   "index.html",
   "app.js",
+  "analysis-core.js",
   "alignment.js",
   "telemetry-model.js",
   "car-performance.js",

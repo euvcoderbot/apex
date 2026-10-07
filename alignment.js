@@ -201,7 +201,6 @@ async function fetchTelemetry(lap) {
     query.set('driver', lap.code);
     query.set('lap', lap.lap);
     query.set('alignment', '3');
-    query.set('fresh', 'true');
     const driverNumber = realDrivers.get(lap.code)?.number;
     if (driverNumber) query.set('driver_number', driverNumber);
     if (openf1SessionKey) query.set('session_key', openf1SessionKey);
@@ -231,28 +230,16 @@ async function fetchTelemetry(lap) {
     const samples = normalizeTelemetry(payload.samples || [], lap, payload.source || 'Unknown');
     lap.cornerMarkers = Array.isArray(payload.corners) ? payload.corners : [];
     const season = Number($('#year').value);
-    const rawModeValues = samples.map(point => Number(point.DRS)).filter(Number.isFinite);
-    const hasRawMode = rawModeValues.some(value => value > 0);
-    setTelemetryMeta(samples, 'modeAvailable', hasRawMode || season < 2026);
+    const rawModeValues = samples.map(point => point.DRS).filter(value=>value!==null&&value!==undefined&&value!=='').map(Number).filter(Number.isFinite);
+    const hasRawMode = rawModeValues.length > 0;
+    setTelemetryMeta(samples, 'modeAvailable', hasRawMode && season < 2026);
 
     samples.forEach(point => {
-      const speed = +point.Speed || 0;
-      const throttle = +point.Throttle || 0;
-      const brake = point.Brake === true ? 100 : (+point.Brake || 0);
-      const nGear = +point.nGear || 0;
-      const rawDrs = Number(point.DRS);
-      // Keep a missing brake observation unknown to reconstruction even
-      // though the legacy accurate/display channel uses its existing zero.
+      const brake = window.ApexAnalysis?.observedBrake(point.Brake) ?? (point.Brake==null?null:point.Brake===true?100:point.Brake===false?0:Number.isFinite(Number(point.Brake))?Number(point.Brake)>0?100:0:null);
       point.ReconstructionBrake = telemetryNumber(point.Brake);
-      if (season < 2026) {
-        point.DRS = hasRawMode
-          ? (([10, 12, 14, 1].includes(rawDrs) || rawDrs >= 10) ? 1 : 0)
-          : ((speed >= 250 && throttle >= 95 && brake <= 5) ? 1 : 0);
-      } else {
-        point.DRS = hasRawMode
-          ? (rawDrs > 0 ? 1 : 0)
-          : ((speed >= 250 && throttle >= 95 && brake <= 5 && nGear >= 6) ? 1 : 0);
-      }
+      point.DRS = season < 2026 && hasRawMode
+        ? window.ApexAnalysis?.observedDRS(point.DRS) ?? (point.DRS==null?null:[1,10,12,14].includes(Number(point.DRS))||Number(point.DRS)>=10?1:0)
+        : null;
       point.Brake = brake;
     });
 
@@ -589,6 +576,13 @@ function alignedValue(samples, fraction, field) {
   }
   let beforeIndex = low - 1;
   let afterIndex = low;
+  if (field === 'nGear' || field === 'DRS' || field === 'Brake') {
+    const before=samples[beforeIndex],after=samples[afterIndex];
+    const afterFraction=Number.isFinite(after.AlignedFraction)?after.AlignedFraction:rawFractionAt(samples,after);
+    if(Math.abs(target-afterFraction)<1e-9)return hasTelemetryNumber(after[field])?after[field]:null;
+    if(!hasTelemetryNumber(before[field])||!hasTelemetryNumber(after[field])||after.ElapsedSeconds-before.ElapsedSeconds>1)return null;
+    return before[field];
+  }
   while (beforeIndex >= 0 && !hasTelemetryNumber(samples[beforeIndex][field])) beforeIndex--;
   while (afterIndex < samples.length && !hasTelemetryNumber(samples[afterIndex][field])) afterIndex++;
   if (beforeIndex < 0 && afterIndex >= samples.length) return null;
@@ -599,9 +593,6 @@ function alignedValue(samples, fraction, field) {
   const beforeFraction = Number.isFinite(before.AlignedFraction) ? before.AlignedFraction : rawFractionAt(samples, before);
   const afterFraction = Number.isFinite(after.AlignedFraction) ? after.AlignedFraction : rawFractionAt(samples, after);
   const ratio = clampTelemetry((target - beforeFraction) / (afterFraction - beforeFraction || 1));
-  if (field === 'nGear' || field === 'DRS' || field === 'Brake') {
-    return ratio < 0.5 ? before[field] : after[field];
-  }
   return (+before[field]) + ((+after[field]) - (+before[field])) * ratio;
 }
 

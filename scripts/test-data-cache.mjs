@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
 import vm from 'node:vm';
-import {createDataCache,normalizeDataPath,dataTTL,usableData,RACE_VERSION} from '../lib/data-cache.mjs';
+import {createDataCache,normalizeDataPath,dataTTL,usableData,RACE_VERSION,SOURCE_VERSION,DATA_VERSION} from '../lib/data-cache.mjs';
 import {loadRaceSnapshot,loadCachedRaceSnapshots} from '../lib/race-corner-loader.mjs';
 import {connectedRaceCornerScores} from '../race-cornering.js';
 import verifiedSeed from '../lib/verified-cache-seed.json' with {type:'json'};
@@ -33,7 +33,10 @@ test('durable-hit memory stays bounded and recently accessed entries remain cach
 
 test('trusted bootstrap serves eleven measured teams without upstream requests and persists original expiry',async()=>{
   const store=new Map(),clock=Math.min(...Object.values(verifiedSeed.entries).map(e=>e.expires))-1000;
-  let calls=0;const options={seeded:true,read:async k=>store.get(k),write:async(k,v)=>store.set(k,v),now:()=>clock,
+  // A matching-version fixture tests the bootstrap contract independently of
+  // whether this checkout has intentionally invalidated its production seed.
+  const bootstrap={...verifiedSeed,sourceRevision:SOURCE_VERSION.slice(7),backendRevision:DATA_VERSION.slice(5),raceRevision:RACE_VERSION.slice(5)};
+  let calls=0;const options={seeded:true,bootstrap,read:async k=>store.get(k),write:async(k,v)=>store.set(k,v),now:()=>clock,
     fetcher:async()=>{calls++;throw new Error('Upstream unavailable');}};
   const cache=createDataCache(options);
   assert.equal((await cache.get('/api/session?year=2026&gp=Bahrain Grand Prix&round=16&session=R')).cache,'HIT');
@@ -113,12 +116,13 @@ test('Sepang race snapshots compute once from validated source laps and persist 
 
 test('race selection starts its loader and pace does not eagerly fetch qualifying telemetry',()=>{
   const source=readFileSync('car-performance.js','utf8'),calls=[];
-  const box={running:false,context:{},activeMetric:'corners',cornerSession:'race',telemetrySubject:'team',
+  const box={running:false,context:{},activeMetric:'corners',cornerSession:'race',telemetrySubject:'team',straightLineSource:'qualy',
     loadRaceCorners:()=>calls.push('race'),loadQualifyingMetrics:()=>calls.push('qualy'),loadTeamTelemetry:()=>calls.push('team')};
   vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function loadActiveTelemetry()'),source.indexOf('async function loadTeamTelemetry()')),box);
   box.loadActiveTelemetry();assert.deepEqual(calls,['race']);
   box.activeMetric='pace';box.loadActiveTelemetry();assert.equal(calls.length,1);
   box.activeMetric='straight';box.loadActiveTelemetry();assert.deepEqual(calls,['race','team']);
+  box.straightLineSource='race';box.loadActiveTelemetry();assert.deepEqual(calls,['race','team'],'race speed traps need no qualifying trace load');
   assert.match(source,/cornerSession=cornerSessionButton.dataset.cornerSession;render\(\);loadActiveTelemetry\(\)/);
   const loader=source.slice(source.indexOf('async function loadRaceCorners()'),source.indexOf('function renderRaceCorners()'));
   assert.doesNotMatch(loader,/fresh:'true'/);assert.match(loader,/snapshot \$\{index\+1\}/);

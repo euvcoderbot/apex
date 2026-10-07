@@ -113,6 +113,7 @@ function appHarness() {
   }
   const sandbox = { console, DOMException, URLSearchParams, setTimeout, clearTimeout, TelemetryReconstruction: globalThis.TelemetryReconstruction,
     window: { devicePixelRatio: 1 }, document: { querySelector: element, getElementById: id => element('#' + id),
+      createElement: () => ({width:0,height:0,getContext:()=>ctx}),
       addEventListener() {}, querySelectorAll: () => [], documentElement: { dataset: { theme: 'dark' } } } };
   vm.createContext(sandbox);
   vm.runInContext(readFileSync(new URL('../app.js', import.meta.url), 'utf8'), sandbox);
@@ -272,7 +273,7 @@ test('active telemetry loader sends existing lap context and creates the sector 
     var lap={code:'VER',lap:17,time:90,real:{time:90,s1:30,s2:30,s3:30,date_start:'2026-09-12T14:10:00Z',lap_start_seconds:3600,lap_end_seconds:3690}};
     realDrivers.set('VER',{number:'3',laps:[lap.real]});`);
   await h.run('fetchTelemetry(lap)');
-  assert.equal(requested.searchParams.get('fresh'),'true');
+  assert.equal(requested.searchParams.get('fresh'),null,'normal lap loads reuse the versioned cache');
   assert.equal(requested.searchParams.get('session_key'),'11365');
   assert.equal(requested.searchParams.get('driver_number'),'3');
   assert.equal(requested.searchParams.get('lap_start'),'2026-09-12T14:10:00Z');
