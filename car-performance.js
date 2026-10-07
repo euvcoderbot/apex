@@ -1844,7 +1844,7 @@ function renderPits(teams) {
     (failures.length?`<p class="performance-note">${failures.map(e=>`${escape(e.name)}: ${escape(e.pitError)}`).join(' · ')} <button type="button" class="performance-explain-toggle" data-pit-retry>Retry unavailable</button></p>`:'')+
     (noStationary?'<p class="performance-note">The source has no stationary-at-the-box values for this selection. “—” means unavailable, not a zero-second stop.</p>':'')+
     controls+
-    (chart||`<p class="section-empty">${pitChartMetric==='spread'?'At least four samples per team or driver are needed for the middle-50% chart.':['p10','p90'].includes(pitChartMetric)?'At least ten samples per team or driver are needed for this percentile chart.':'No timed pit visits for the selected races yet.'}</p>`)+
+    (chart||`<p class="section-empty">${pitChartMetric==='spread'?'At least four samples per team or driver are needed for the middle-50% chart.':['p10','p90'].includes(pitChartMetric)?'At least ten samples per team or driver are needed for this percentile chart.':pitMeasure==='stop'?'No published stationary-stop times for the selected races. Pit-lane timing is a separate measurement; select Pit lane to view it.':'No timed pit-lane visits for the selected races yet.'}</p>`)+
     table([sortHeader('pitName',isDriver?'Driver':'Team'),...(isDriver?[sortHeader('pitTeam','Team')]:[]),
       sortHeader('pitMean',`Mean ${metricLabel}`),sortHeader('pitMedian','Median'),sortHeader('pitFastest',relativeLane?'Best GP gap':'Quickest'),
       sortHeader('pitSpread','Middle 50% spread'),sortHeader('pitP10','P10 quick end'),sortHeader('pitP90','P90 slow tail'),sortHeader('pitCount',relativeLane?'GP samples':'Timed visits',-1),sortHeader('pitEvents','Races',-1)],
