@@ -7,6 +7,7 @@ async function storageKey(key:string) {
 }
 function bucket(){return (env as unknown as {DATA_CACHE?:Bucket}).DATA_CACHE;}
 export const dataCache=createDataCache({
+  seeded:true,
   read:async(key:string)=>{const object=await bucket()?.get(await storageKey(key));return object?object.json():null;},
   write:async(key:string,value:unknown)=>{const bytes=JSON.stringify(value);if(bytes.length<8_000_000)await bucket()?.put(await storageKey(key),bytes,{httpMetadata:{contentType:'application/json'}});}
 });

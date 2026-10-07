@@ -10,7 +10,10 @@ const cacheRevision=revision.digest('hex').slice(0,20);
 const sourceRevision=createHash('sha256');
 for(const file of ['server.py','session_loader.py'])sourceRevision.update(file).update(await readFile(resolve(root,file)));
 const rawRevision=sourceRevision.digest('hex').slice(0,20);
-await writeFile(resolve(root,'lib/cache-revision.mjs'),`// Generated: raw source and calculation caches have independent revisions.\nexport const CACHE_REVISION = ${JSON.stringify(cacheRevision)};\nexport const SOURCE_REVISION = ${JSON.stringify(rawRevision)};\n`);
+const backend=createHash('sha256'),race=createHash('sha256');
+for(const file of ['server.py','session_loader.py','performance.py','performance_tracks.py'])backend.update(file).update(await readFile(resolve(root,file)));
+for(const file of ['race-cornering.js','corner-geometry.js','lib/race-corner-loader.mjs'])race.update(file).update(await readFile(resolve(root,file)));
+await writeFile(resolve(root,'lib/cache-revision.mjs'),`// Generated: source, upstream calculations and race snapshots invalidate independently.\nexport const CACHE_REVISION = ${JSON.stringify(cacheRevision)};\nexport const SOURCE_REVISION = ${JSON.stringify(rawRevision)};\nexport const BACKEND_REVISION = ${JSON.stringify(backend.digest('hex').slice(0,20))};\nexport const RACE_REVISION = ${JSON.stringify(race.digest('hex').slice(0,20))};\n`);
 const destination = resolve(root, "public", "apex");
 const staticFiles = [
   "index.html",

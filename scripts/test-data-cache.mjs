@@ -3,8 +3,41 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
 import vm from 'node:vm';
-import {createDataCache,normalizeDataPath,dataTTL,usableData} from '../lib/data-cache.mjs';
+import {createDataCache,normalizeDataPath,dataTTL,usableData,RACE_VERSION} from '../lib/data-cache.mjs';
 import {loadRaceSnapshot} from '../lib/race-corner-loader.mjs';
+import {connectedRaceCornerScores} from '../race-cornering.js';
+import verifiedSeed from '../lib/verified-cache-seed.json' with {type:'json'};
+
+test('trusted bootstrap serves eleven measured teams without upstream requests and persists original expiry',async()=>{
+  const store=new Map(),clock=Math.min(...Object.values(verifiedSeed.entries).map(e=>e.expires))-1000;
+  let calls=0;const options={seeded:true,read:async k=>store.get(k),write:async(k,v)=>store.set(k,v),now:()=>clock,
+    fetcher:async()=>{calls++;throw new Error('Upstream unavailable');}};
+  const cache=createDataCache(options);
+  assert.equal((await cache.get('/api/session?year=2026&gp=Bahrain Grand Prix&round=16&session=R')).cache,'HIT');
+  assert.equal((await cache.get('/api/performance?year=2026&gp=Bahrain Grand Prix&session=R')).data.teams.length,11);
+  const observations=[];
+  for(const [key,entry] of Object.entries(verifiedSeed.entries).filter(([k])=>k.startsWith('race:'))){
+    const q=Object.fromEntries(new URLSearchParams(key.slice(5)));q.year=+q.year;q.round=+q.round;q.lap=+q.lap;
+    const result=await loadRaceSnapshot(cache,q);assert.equal(result.cache,'HIT');observations.push(...result.data.observations);
+    assert.equal(store.get(RACE_VERSION+':'+key.slice(5)).expires,entry.expires);
+  }
+  const fit=connectedRaceCornerScores(observations);
+  assert.equal(fit.scores.size,11);assert.equal(calls,0);
+  assert.equal((await createDataCache(options).get('/api/performance?year=2026&gp=Bahrain Grand Prix&session=R')).cache,'HIT');
+  await assert.rejects(cache.get('/api/performance?year=2026&gp=Bahrain Grand Prix&session=R',{fresh:true}),/Upstream unavailable/);
+});
+
+test('bootstrap is opt-in, revision-specific and cannot outlive captured data',async()=>{
+  const options={read:async()=>null,write:async()=>{},now:()=>Math.max(...Object.values(verifiedSeed.entries).map(e=>e.expires))+1};
+  for(const seeded of [false,true]){
+    const cache=createDataCache({...options,seeded});let calculations=0;
+    const result=await cache.result(RACE_VERSION+':'+Object.keys(verifiedSeed.entries).find(k=>k.startsWith('race:')).slice(5),async()=>{calculations++;return {expired:true};});
+    assert.equal(result.cache,'MISS');assert.equal(calculations,1);
+  }
+  const cache=createDataCache({...options,seeded:true,now:()=>0});
+  const result=await cache.result('race:wrong:'+Object.keys(verifiedSeed.entries).find(k=>k.startsWith('race:')).slice(5),async()=>({recomputed:true}));
+  assert.equal(result.cache,'MISS');assert.ok(result.data.recomputed);
+});
 
 test('shared data cache survives new instances, coalesces cold work and isolates refresh/version keys',async()=>{
   const store=new Map();let calls=0,clock=Date.parse('2026-10-07');
