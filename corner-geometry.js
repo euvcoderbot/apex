@@ -3,7 +3,12 @@ const finite=n=>typeof n==='number'&&Number.isFinite(n);
 // Keep native corner measurements separate from batch straight/braking results.
 export function withCornerMeasurements(traces,measurements={}) {
   const result={...traces};
-  for(const [key,values] of Object.entries(measurements))result[key]={...result[key],...values};
+  for(const [key,values] of Object.entries(measurements)){
+    result[key]={...result[key],...values};
+    // Straight/braking extraction can fail while independent corner timing succeeds.
+    // Do not let the older batch error suppress a measured corner result.
+    if(Object.hasOwn(values,'corners'))delete result[key].error;
+  }
   return result;
 }
 const SEPANG=[[0,.477778],[.094181,.517310],[.070923,.785614],[.479518,.992982],
@@ -66,6 +71,10 @@ export function qualifyingRepresentatives(session,subject='driver',officialTeams
   });
   if(subject==='driver')return rows;
   const teams=new Map();
-  for(const row of rows){const old=teams.get(row.driver.team);if(!old||row.time<old.time)teams.set(row.driver.team,row);}
+  for(const row of rows){
+    const official=officialTeams.find(t=>t.team===row.driver.team)?.lap;
+    if(official&&(official.driver!==row.driver.code||official.lap!==row.lap))continue;
+    const old=teams.get(row.driver.team);if(!old||row.time<old.time)teams.set(row.driver.team,row);
+  }
   return [...teams.values()];
 }

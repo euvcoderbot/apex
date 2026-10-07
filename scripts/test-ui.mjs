@@ -5,6 +5,41 @@ import vm from 'node:vm';
 import postcss from 'postcss';
 
 const app = readFileSync('app.js', 'utf8');
+test('corner chart retains incomplete entrants without assigning a zero score',()=>{
+  const source=readFileSync('car-performance.js','utf8');
+  const box={finite:Number.isFinite,escape:s=>String(s),teamLabel:r=>r.team,color:s=>s||'#fff'};
+  vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function lapShareChart('),source.indexOf('async function get(')),box);
+  const rows=[{team:'Ferrari',gap:0},{team:'Mercedes',gap:null,missingReason:'Missing timing at T12'}];
+  const html=box.lapShareChart(rows,'gap','Ferrari');
+  assert.match(html,/Mercedes/);assert.match(html,/Unranked/);assert.match(html,/Missing timing at T12/);
+  assert.equal((html.match(/0\.000%/g)||[]).length,3,'only the supported baseline receives zero');
+  assert.match(box.lapShareChart([rows[1]],'gap'),/Mercedes/);
+  assert.match(box.lapShareChart([{team:'Mercedes',gap:.1,trace:{corner_provisional:true}}],'gap'),/Provisional timing/);
+});
+
+test('retry refreshes an incomplete successful corner payload and retains supported laps',async()=>{
+  const source=readFileSync('car-performance.js','utf8'),calls=[];
+  const rows=['AAA','BBB'].map((code,i)=>({driver:{code,team:code,number:String(i+1)},lap:5,time:90+i,
+    lap_start_seconds:100,lap_end_seconds:190+i,s1:30,s2:30,s3:30+i}));
+  const event={name:'Test GP',round:1,Q:{teams:rows.map(r=>({team:r.driver.team,lap:{driver:r.driver.code,lap:r.lap,time:r.time}}))},
+    qualifyingSession:{drivers:[]},cornerEntries:new Map(rows.map(r=>[r.driver.code+':5',{driver:r.driver.code}]))};
+  let recovered=false;
+  const box={URLSearchParams,AbortController,Map,Number,finite:Number.isFinite,context:{year:2026},events:[event],generation:1,
+    activeMetric:'corners',cornerSession:'qualy',telemetrySubject:'team',qualifyingMetricsRunning:false,running:false,traceRunning:false,
+    render(){},updateStatus(){},qualifyingRepresentatives:()=>rows,
+    get:async path=>{calls.push(path);recovered=true;return {driver:'BBB'};},
+    measureQualifyingCornerGroup:()=>({markers:[{corner:'1',band:'low',speed:80}],error:null,
+      traces:Object.fromEntries(rows.map(r=>[r.driver.code,{selection:{driver:r.driver.code,lap:5,time:r.time},corners:[{corner:'1'}],
+        corner_contribution:r.driver.code==='BBB'&&!recovered?null:0,corner_missing:r.driver.code==='BBB'&&!recovered?['1']:[]}]))})};
+  vm.createContext(box);vm.runInContext(source.slice(source.indexOf('async function loadQualifyingMetrics('),source.indexOf('let raceCornerRunning=')),box);
+  await box.loadQualifyingMetrics();
+  assert.equal(event.cornerAudit.team.incomplete.join(','),'BBB');assert.equal(calls.length,0);
+  await box.loadQualifyingMetrics(true);
+  assert.equal(calls.length,1);assert.match(calls[0],/driver=BBB/);assert.match(calls[0],/fresh=true/);
+  assert.equal(event.cornerAudit.team.incomplete.length,0);
+  assert.equal(event.cornerMeasurements.team.BBB.selection.lap,5);
+});
+
 test('development table allocates all six columns without inflating rows',()=>{
   const css=readFileSync('car-performance.css','utf8');
   const widths=[...css.matchAll(/\.performance-trend-table \.performance-table th:nth-child\((\d)\) \{ width: (\d+)%; \}/g)];

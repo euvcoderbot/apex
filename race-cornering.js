@@ -1,5 +1,5 @@
 // Matched race observations, not a synthetic downforce or fuel correction.
-import {circuitCornerMarkers} from './corner-geometry.js?v=20261006-corners';
+import {circuitCornerMarkers} from './corner-geometry.js?v=20261007-coverage';
 const finite=n=>typeof n==='number'&&Number.isFinite(n);
 const mean=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:null;
 const median=a=>{const s=[...a].sort((a,b)=>a-b),i=s.length>>1;return s.length?s.length%2?s[i]:(s[i-1]+s[i])/2:null;};
@@ -53,12 +53,12 @@ function elapsedAt(points,fraction) {
   let hi=points.findIndex(p=>p.f>=fraction);if(hi<0)return null;if(!hi)return points[0].t;
   // Traversal uses cumulative timestamps, not differentiation of sparse speed.
   // Permit a short dropped packet, disclose its bracket, and keep braking stricter.
-  const a=points[hi-1],b=points[hi];if(b.t-a.t>1||b.f<=a.f)return null;
+  const a=points[hi-1],b=points[hi];if(Math.max(b.t-a.t,a.sourceInterval||0,b.sourceInterval||0)>1.5||b.f<=a.f)return null;
   return a.t+(b.t-a.t)*(fraction-a.f)/(b.f-a.f);
 }
 function boundaryInterval(points,fraction) {
   const hi=points.findIndex(p=>p.f>=fraction);
-  return hi>0?points[hi].t-points[hi-1].t:null;
+  return hi>0?Math.max(points[hi].t-points[hi-1].t,points[hi].sourceInterval||0,points[hi-1].sourceInterval||0):null;
 }
 function fractionAtTime(points,t) {
   const hi=points.findIndex(p=>p.t>=t);if(hi<1)return hi===0?points[0].f:null;
@@ -69,7 +69,7 @@ function registered(entry,ref) {
   const origin=raw[0].ElapsedSeconds,d0=raw[0].Distance,total=raw.at(-1).Distance-d0;
   if(!(total>1000))return null;
   const points=raw.filter(p=>finite(p.Speed)&&finite(p.Distance)&&finite(p.ElapsedSeconds))
-    .map(p=>({f:(p.Distance-d0)/total,t:p.ElapsedSeconds-origin,v:p.Speed}));
+    .map(p=>({f:(p.Distance-d0)/total,t:p.ElapsedSeconds-origin,v:p.Speed,sourceInterval:p.SourceIntervalSeconds||0}));
   if(points.some((p,i)=>p.v<30||p.v>420||i>0&&i<points.length-1&&p.v>Math.max(points[i-1].v,points[i+1].v)+15&&p.v-Math.min(points[i-1].v,points[i+1].v)>25))return null;
   if(points.length<30||points.some((p,i)=>i&&(p.f<=points[i-1].f||p.t<=points[i-1].t||p.t-points[i-1].t>1.5)))return null;
   const official=entry.row.time,duration=points.at(-1).t;
@@ -158,7 +158,7 @@ export function measureQualifyingCornerGroup(entries,session={}) {
       reference_lap_time:ref.row.time,corner_time:cornerTime,straight_time:finite(cornerTime)?e.row.time-cornerTime:null,
       straight_contribution:finite(contribution)?(e.row.time/ref.row.time-1)*100-contribution:null,
       straight_traversal_delta:finite(contribution)?(e.row.time/ref.row.time-1)*100-contribution:null,
-      corner_contribution:contribution,
+      corner_contribution:contribution,corner_provisional:corners.some(c=>c.boundary_interval_s>.6),
       lap_gap:(e.row.time/ref.row.time-1)*100,corner_method:'circuit-marker-windows',corner_expected:zones.length,
       corner_missing:zones.filter(z=>!corners.some(c=>c.corner===z.corner)).map(z=>z.corner)};
   }

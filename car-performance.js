@@ -1,5 +1,5 @@
-import {raceCornerGroups,measureRaceCornerGroup,measureQualifyingCornerGroup} from './race-cornering.js?v=20261006-recovery-v3';
-import {circuitCornerMarkers,qualifyingRepresentatives,withCornerMeasurements} from './corner-geometry.js?v=20261006-corners';
+import {raceCornerGroups,measureRaceCornerGroup,measureQualifyingCornerGroup} from './race-cornering.js?v=20261007-coverage';
+import {circuitCornerMarkers,qualifyingRepresentatives,withCornerMeasurements} from './corner-geometry.js?v=20261007-coverage';
 // APEX - Car Performance Section
 // Full parity with Session Analysis design language: Apple UI, official team logos, GP country flags, custom select menus.
 // Scientific rigor aligned with Astra GPT-6 Hybrid principles: no speculative physical regressions, sampling-aware bounds.
@@ -321,7 +321,9 @@ function renderHorizontalBarChart(rows, {
 
 function lapShareChart(rows, key, reference) {
   const available = (rows || []).filter(r => finite(r[key])).map(r => ({ ...r }));
-  if (!available.length) return '';
+  const missing=(rows||[]).filter(r=>!finite(r[key]));
+  const missingMarkup=missing.map(r=>`<div class="performance-bar-row is-unranked" title="${escape(r.missingReason||'Incomplete shared corner coverage; no score estimated')}"><div class="performance-bar-label">${teamLabel(r)}</div><div class="performance-bar-track"></div><span class="performance-bar-val">Unranked</span></div>`).join('');
+  if (!available.length) return missing.length?`<div class="performance-bars">${missingMarkup}</div><p class="performance-note">No complete shared corner measurement. Missing values are not zero.</p>`:'';
   const minVal = Math.min(...available.map(r => r[key]));
 
   // Rebase so that the fastest car is exactly 0.000% (baseline 0, no negative numbers)
@@ -352,8 +354,10 @@ function lapShareChart(rows, key, reference) {
           </div>
           <span class="performance-bar-val ${gainClass}">${displayStr}</span>
         </div>`;
-      }).join('')}
+      }).join('')}${missingMarkup}
     </div>
+    ${missing.length?`<p class="performance-note">${missing.map(r=>escape(r.team)+': '+escape(r.missingReason||'incomplete shared corner coverage')).join(' · ')}. Unranked, not zero.</p>`:''}
+    ${available.some(r=>r.trace?.corner_provisional)?'<p class="performance-note">Provisional timing: at least one corner boundary spans a source interval over 0.600 s. Interpolation does not add measured samples.</p>':''}
   </div>`;
 }
 
@@ -441,6 +445,8 @@ async function loadQualifyingMetrics(retry=false) {
           color:row.driver.team_color,displayName:subject==='driver'?row.driver.name:row.driver.team,
           logoTeam:row.driver.team,driver:row.driver.code,lap:{driver:row.driver.code,number:row.driver.number,lap:row.lap,time:row.time,
             start:row.lap_start_seconds,end:row.lap_end_seconds,sectors:[row.s1,row.s2,row.s3],phase:row.phase,compound:row.compound}}));
+        if(subject==='team')for(const team of event.Q.teams||[])if(!identities.some(e=>e.team===team.team))
+          identities.push({...team,driver:team.lap?.driver,displayName:team.team,logoTeam:team.team});
         if(subject==='driver') {
           event.qualifyingDrivers=identities;
           event.driverTraces ||= {};
@@ -464,10 +470,14 @@ async function loadQualifyingMetrics(retry=false) {
           async function worker(){while(jobs.length&&!signal.aborted){const row=jobs.shift(),key=row.driver.code+':'+row.lap;
             try {
               let payload=event.cornerEntries.get(key);
+              const previous=event.cornerMeasurements?.[subject]?.[subject==='driver'?row.driver.code:row.driver.team];
+              const refresh=retry&&(!previous||previous.corner_missing?.length||!finite(previous.corner_contribution));
+              if(refresh)payload=null;
               if(!payload) {
                 const p=new URLSearchParams(base);p.set('driver',row.driver.code);p.set('driver_number',row.driver.number);p.set('lap',row.lap);
                 p.set('lap_time',row.time);p.set('lap_start_seconds',row.lap_start_seconds);p.set('lap_end_seconds',row.lap_end_seconds);
                 if(session.openf1_session_key)p.set('session_key',session.openf1_session_key);
+                if(refresh)p.set('fresh','true');
                 payload=await get('/api/telemetry?'+p,signal);event.cornerEntries.set(key,payload);
               }
               entries.push({row,payload});
@@ -488,7 +498,8 @@ async function loadQualifyingMetrics(retry=false) {
           }
           event.cornerSubjects ||= {};event.cornerSubjects[subject]=entryErrors.length===0&&Object.keys(measured.traces).length>0;
           event.cornerAudit ||= {};event.cornerAudit[subject]={expected:measured.markers.map(z=>z.corner),bands:measured.markers.map(z=>({corner:z.corner,band:z.band,speed:z.speed})),error:measured.error,
-            entries:entries.length,requested:rows.length,requestErrors:entryErrors};
+            entries:entries.length,requested:identities.length,requestErrors:entryErrors,
+            incomplete:identities.filter(e=>!finite(measured.traces[e.driver]?.corner_contribution)).map(e=>e.team)};
         }
         delete event.qualifyingMetricsError;
       } catch(error) {if(signal.aborted)break;event.qualifyingMetricsError=error.message;}
@@ -496,8 +507,8 @@ async function loadQualifyingMetrics(retry=false) {
     }
   } finally {
     qualifyingMetricsRunning=false;
-    const missingRequests=events.reduce((n,e)=>n+(e.cornerAudit?.[subject]?.requestErrors?.length||0),0);
-    if(id===generation){updateStatus(signal.aborted?'Qualifying measurements stopped; completed data retained.':`Qualifying measurements updated.${missingRequests?` ${missingRequests} lap requests remain unavailable; retry missing data.`:''} Circuit windows are approximate; source laps and missing corners remain visible.`);render();
+    const missingRequests=events.reduce((n,e)=>n+Math.max(e.cornerAudit?.[subject]?.requestErrors?.length||0,e.cornerAudit?.[subject]?.incomplete?.length||0),0);
+    if(id===generation){updateStatus(signal.aborted?'Qualifying measurements stopped; completed data retained.':`Qualifying measurements updated.${missingRequests?` ${missingRequests} laps remain missing or incomplete; retry missing data.`:''} Circuit windows are approximate; source laps and missing corners remain visible.`);render();
       if(!signal.aborted&&subject!==telemetrySubject&&['corners','straight','braking'].includes(activeMetric))void loadQualifyingMetrics();}
   }
 }
@@ -2702,7 +2713,7 @@ function renderTrace() {
   const event=telemetryEvent(events[0]||{}), summary=eventTelemetry(events[0]||{}), loaded=[...summary.rows.values()];
   if(!loaded.length)return card('Telemetry comparison','Qualifying telemetry for every team is loaded automatically.','<p class="section-empty">No reliable telemetry is available for this event.</p>');
   if(activeMetric==='corners') {
-    const common=[...new Set(Object.values(summary.groups).flat())].sort((a,b)=>parseInt(a)-parseInt(b)||a.localeCompare(b));
+    const common=[...new Set(loaded.flatMap(r=>(r.trace.corners||[]).map(c=>c.corner)))].sort((a,b)=>parseInt(a)-parseInt(b)||a.localeCompare(b));
     const minLow = Math.min(...loaded.map(r => r.categories.low?.deficit).filter(finite));
     const minMed = Math.min(...loaded.map(r => r.categories.medium?.deficit).filter(finite));
     const minHigh = Math.min(...loaded.map(r => r.categories.high?.deficit).filter(finite));
@@ -2730,8 +2741,9 @@ function renderTrace() {
 
     const ordered=sorted(rebasedLoaded,{eventCornerTeam:r=>r.team,eventLow:r=>r.categories.low?.deficit,eventMedium:r=>r.categories.medium?.deficit,eventHigh:r=>r.categories.high?.deficit},'eventLow');
 
-    return card('Low / medium / high-speed cornering',`Extra time across the same mapped corners, relative to the fastest supported ${telemetrySubject==='driver'?'driver':'team'} (0.000% baseline). Example: 0.180 seconds on a 90-second lap is +0.200%. Incomplete bands stay blank.`,
-      cornerBandControls()+lapShareChart(rebasedLoaded.map(r=>({...r,gap:cornerGraphBand==='all'?r.trace?.corner_contribution:r.categories[cornerGraphBand]?.deficit})),'gap',event.traceReference)+
+    return card('Low / medium / high-speed cornering',`Extra time across the same mapped corners on each entrant’s fastest qualifying lap, relative to the fastest supported ${telemetrySubject==='driver'?'driver':'team'} (0.000% baseline). Example: 0.180 seconds on a 90-second lap is +0.200%. Incomplete bands remain visible as unranked, not zero.`,
+      cornerBandControls()+lapShareChart(rebasedLoaded.map(r=>({...r,gap:cornerGraphBand==='all'?r.trace?.corner_contribution:r.categories[cornerGraphBand]?.deficit,
+        missingReason:(r.trace.corner_missing||[]).length?'Missing timing at '+r.trace.corner_missing.map(c=>/^\d/.test(c)?'T'+c:c).join(', '):'No complete '+cornerGraphBand+'-speed coverage'})),'gap',event.traceReference)+
       table([sortHeader('eventCornerTeam','Team'),sortHeader('eventLow','Low ≤120'),sortHeader('eventMedium','Medium 120–200'),sortHeader('eventHigh','High >200')],ordered.map(row=>[teamLabel(row),...['low','medium','high'].map(name=>{
         const value=row.categories[name];return value?`${signed(value.deficit,3)}<small>${signed(value.time_lost,3,' s/lap')} · ${value.corners} corners</small>`:'—';
       })])))+card('Corner measurements','The same map-anchored entry–apex–exit windows are timed for every measured lap, including flat-out bends. Missing timing brackets are shown as blanks. Loss density (ms/100m) is time lost per distance, not braking strength.',
@@ -3056,9 +3068,9 @@ function render() {
   const telemetryControls=telemetryMode?`<div class="performance-actions">${telemetrySubjectControls()}${activeMetric==='corners'?cornerSessionControls():''}${qualifyingMetricsRunning?'<button type="button" data-qualifying-stop>Stop telemetry</button>':''}</div>`:'';
   const needsQualifying=telemetryMode&&!(activeMetric==='corners'&&cornerSession==='race')&&(activeMetric==='corners'||telemetrySubject==='driver');
   const pendingQualifying=needsQualifying?events.filter(e=>e.Q&&(activeMetric==='corners'?!e.cornerSubjects?.[telemetrySubject]:!e.driverTelemetryReady)).length:0;
-  const failedCornerRequests=activeMetric==='corners'&&cornerSession==='qualy'?events.reduce((n,e)=>n+(e.cornerAudit?.[telemetrySubject]?.requestErrors?.length||0),0):0;
-  const loadControl=pendingQualifying?`<div class="performance-actions"><button type="button" data-qualifying-load ${qualifyingMetricsRunning?'disabled':''}>${qualifyingMetricsRunning?'Measuring qualifying telemetry…':'Load '+(telemetrySubject==='driver'?'driver telemetry':'circuit-based corners')}</button><span class="performance-note">${pendingQualifying} GP${pendingQualifying===1?'':'s'} pending. Each driver uses their own fastest eligible Q1/Q2/Q3 lap; team view uses the quicker driver.</span></div>`:failedCornerRequests?`<div class="performance-actions"><button type="button" data-qualifying-retry ${qualifyingMetricsRunning?'disabled':''}>Retry missing lap requests</button><span class="performance-note">${failedCornerRequests} lap requests failed. Valid cached laps are retained.</span></div>`:'';
-  const cornerAudit=activeMetric==='corners'&&cornerSession==='qualy'?`<details class="dashboard-card performance-methods"><summary>Corner coverage · including flat-out bends</summary><p class="performance-note">Corners are identified from circuit positions, not from lifting or braking. Each shared window extends up to 130 m before and 100 m after its map marker, clipped halfway to neighbouring turns. These approximate entry–apex–exit windows include flat-out turns. Low ≤120, medium ≤200 and high >200 km/h use field-median minimum speed within 25 m of the marker. Traversal boundary brackets must be ≤1.0 s; intervals over 0.6 s are provisional. This does not relax braking's stricter speed-sample checks. Missing bands stay blank; they are not counted as zero.</p>${table(['Grand Prix','Mapped turns','High-speed turns','Source laps','Missing measurements / request failures'],events.map(e=>{const a=e.cornerAudit?.[telemetrySubject],view=telemetryEvent(e);return [escape(e.name),escape(a?.expected?.join(', ')||'Pending'),escape(a?.bands?.filter(c=>c.band==='high').map(c=>`T${c.corner} (${c.speed.toFixed(1)} km/h)`).join(', ')||'—'),a?`${a.entries}/${a.requested}`:'—',escape([a?.error,...(a?.requestErrors||[]),...Object.entries(view.traces||{}).filter(([,t])=>t.corner_missing?.length).map(([name,t])=>name+': '+t.corner_missing.join(', '))].filter(Boolean).join(' · ')||'None')];}))}</details>`:'';
+  const failedCornerRequests=activeMetric==='corners'&&cornerSession==='qualy'?events.reduce((n,e)=>n+Math.max(e.cornerAudit?.[telemetrySubject]?.requestErrors?.length||0,e.cornerAudit?.[telemetrySubject]?.incomplete?.length||0),0):0;
+  const loadControl=failedCornerRequests?`<div class="performance-actions"><button type="button" data-qualifying-retry ${qualifyingMetricsRunning?'disabled':''}>Retry missing or incomplete laps</button><span class="performance-note">${failedCornerRequests} laps remain missing or incomplete. Only incomplete sources are refreshed; supported cached laps are retained.</span></div>`:pendingQualifying?`<div class="performance-actions"><button type="button" data-qualifying-load ${qualifyingMetricsRunning?'disabled':''}>${qualifyingMetricsRunning?'Measuring qualifying telemetry…':'Load '+(telemetrySubject==='driver'?'driver telemetry':'circuit-based corners')}</button><span class="performance-note">${pendingQualifying} GP${pendingQualifying===1?'':'s'} pending. Each driver uses their own fastest eligible Q1/Q2/Q3 lap; team view uses the quicker driver.</span></div>`:'';
+  const cornerAudit=activeMetric==='corners'&&cornerSession==='qualy'?`<details class="dashboard-card performance-methods"><summary>Corner coverage · including flat-out bends</summary><p class="performance-note">Corners are identified from circuit positions, not from lifting or braking. Each shared window extends up to 130 m before and 100 m after its map marker, clipped halfway to neighbouring turns. These approximate entry–apex–exit windows include flat-out turns. Low ≤120, medium ≤200 and high >200 km/h use field-median minimum speed within 25 m of the marker. Corner traversal interpolates cumulative timestamps only between real samples up to 1.500 s apart; brackets over 0.600 s are provisional, not precise measurements. Speed classification still requires brackets ≤1.000 s. This does not relax acceleration or braking's stricter speed-sample checks. Missing bands remain unranked; they are not counted as zero.</p>${table(['Grand Prix','Mapped turns','High-speed turns','Source laps','Missing measurements / request failures'],events.map(e=>{const a=e.cornerAudit?.[telemetrySubject],view=telemetryEvent(e);return [escape(e.name),escape(a?.expected?.join(', ')||'Pending'),escape(a?.bands?.filter(c=>c.band==='high').map(c=>`T${c.corner} (${c.speed.toFixed(3)} km/h)`).join(', ')||'—'),a?`${a.entries}/${a.requested}`:'—',escape([a?.error,...(a?.requestErrors||[]),...Object.entries(view.traces||{}).filter(([,t])=>t.corner_missing?.length).map(([name,t])=>name+': '+t.corner_missing.join(', '))].filter(Boolean).join(' · ')||'None')];}))}</details>`:'';
   let content = (activeMetric==='pace'?renderPace(teams):activeMetric==='corners'&&cornerSession==='race'?renderRaceCorners():activeMetric==='tyres'?renderRace(teams):activeMetric==='results'?renderResults(teams):activeMetric==='pits'?renderPits(teams):activeMetric==='trend'?renderTrend(teams):renderTrace());
   if(telemetrySubject==='driver'&&telemetryMode)content=content.replace(/<span>Team<\/span>/g,'<span>Driver</span>');
 

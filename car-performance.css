@@ -1542,4 +1542,6 @@ body.performance-view #sidebarToggle {
 .performance-tyre-stint-plot svg { width: 100%; max-height: 320px; margin-top: 12px; overflow: visible; }
 .performance-tyre-stint-plot text { fill: var(--text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
 .performance-stint-inspect { padding: 5px 10px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--surface-muted); color: var(--text-main); white-space: nowrap; cursor: pointer; }
+.performance-bar-row.is-unranked .performance-bar-val { color: var(--text-secondary); font-size: .7rem; }
+.performance-bar-row.is-unranked .performance-bar-track { opacity: .35; }
 @media (max-width: 640px) { .performance-tyre-age-row { grid-template-columns: minmax(88px, 120px) minmax(80px, 1fr) 88px; gap: 6px; } .performance-tyre-age-value { font-size: .75rem; } }

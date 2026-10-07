@@ -58,6 +58,42 @@ test('loading driver braking preserves native corners without replacing source l
   assert.equal(batch.AAA.corners,undefined);
 });
 
+test('independent corner measurements cannot inherit a straight/braking extraction error',()=>{
+  const batch={AAA:{error:'No common acceleration windows'},BBB:{error:'GPS unavailable'}};
+  const merged=withCornerMeasurements(batch,{AAA:{corners:[{corner:'1'}],corner_contribution:.1},
+    BBB:{corners:[],corner_contribution:null,corner_missing:['No complete lap']}});
+  assert.equal(merged.AAA.error,undefined);
+  assert.equal(merged.BBB.error,undefined,'an unsupported corner row must stay visible as unranked');
+  assert.equal(batch.AAA.error,'No common acceleration windows');
+});
+
+test('team view never replaces a missing official fastest lap with a slower teammate',()=>{
+  const lap={lap:5,time:91,phase:'Q3',compound:'SOFT',lap_start_seconds:100,lap_end_seconds:191};
+  const session={drivers:[{code:'AAA',team:'A',laps:[]},{code:'BBB',team:'A',laps:[lap]}]};
+  assert.deepEqual(qualifyingRepresentatives(session,'team',[{team:'A',lap:{driver:'AAA',lap:6,time:90}}]),[]);
+  assert.equal(qualifyingRepresentatives(session,'driver').length,1);
+});
+
+test('corner traversal recovers a bounded dropped packet without pretending it is precise',()=>{
+  const samples=Array.from({length:401},(_,i)=>({Distance:i*12.5,ElapsedSeconds:i*.25,Speed:180,
+    X:Math.cos(i/400*2*Math.PI)*1000,Y:Math.sin(i/400*2*Math.PI)*1000}));
+  const entries=['A','B','C'].map(code=>({row:{time:100,s1:30,s2:40,s3:30,lap:1,driver:{code,team:code}},
+    payload:{samples,corners:[.2,.5,.8].map((fraction,i)=>({number:String(i+1),fraction}))}}));
+  // First window starts at fraction .174, inside a 1.250 s original bracket.
+  entries[1].payload={...entries[1].payload,samples:samples.filter((p,i)=>i<=68||i>=73)};
+  const result=measureQualifyingCornerGroup(entries);
+  assert.equal(result.traces.B.corners.length,3);
+  assert.equal(result.traces.B.corner_contribution,0);
+  assert.equal(result.traces.B.corner_provisional,true);
+  assert.equal(result.traces.B.corners[0].boundary_interval_s,1.25);
+  assert.equal(result.traces.A.corner_provisional,false);
+  assert.deepEqual(entries[0].payload.samples,samples,'do not densify or mutate native data');
+  const broken=structuredClone(entries);broken[1].payload.samples=samples.filter((p,i)=>i<=68||i>=75);
+  assert.equal(measureQualifyingCornerGroup(broken).traces.B,undefined,'a 1.750 s gap is still rejected');
+  const synthetic=structuredClone(entries);synthetic[1].payload.samples=samples.map((p,i)=>({...p,SourceIntervalSeconds:i===70?2:0}));
+  assert.equal(measureQualifyingCornerGroup(synthetic).traces.B.corner_contribution,null,'interpolated rows cannot hide a larger source gap');
+});
+
 test('one unclassified turn retains valid timing windows without inventing a speed band',()=>{
   const samples=Array.from({length:401},(_,i)=>({Distance:i*12.5,ElapsedSeconds:i*.25,Speed:180,
     X:Math.cos(i/400*2*Math.PI)*1000,Y:Math.sin(i/400*2*Math.PI)*1000}));
