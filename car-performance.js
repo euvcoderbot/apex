@@ -400,7 +400,7 @@ function syncSelect(select) {
   }
 }
 
-let initialized=false, calendar=[], calendarController, controller, pitController, generation=0;
+let initialized=false, calendar=[], calendarLoading=false,calendarController, controller, pitController, generation=0;
 let events=[], errors=[], activeMetric='pace', running=false, traceRunning=false, sortKey='qualy', sortDirection=1;
 let pitRunning=false,teamBrakingRunning=false,teamBrakingController=null;
 let activeScope='season'; // 'season' | 'tracks'
@@ -665,7 +665,7 @@ function renderTrackPills() {
   const container = $('performanceTrackPills');
   if (!container) return;
   if (!calendar.length) {
-    container.innerHTML = '<span class="performance-note" style="margin:0;">No completed qualifying sessions available.</span>';
+    container.innerHTML = `<span class="performance-note" style="margin:0;">${calendarLoading?'Loading race calendar…':'No completed qualifying sessions available.'}</span>`;
     updateTrackCount();
     return;
   }
@@ -685,6 +685,7 @@ function renderTrackPills() {
 async function loadCalendar() {
   calendarController?.abort(); calendarController=new AbortController();
   const signal=calendarController.signal;
+  calendarLoading=true;updateStatus('Loading race calendar…',true);renderTrackPills();
   $('performanceLoad').disabled=true;
   if ($('performanceEvent')) {
     $('performanceEvent').innerHTML='<option>Loading calendar…</option>';
@@ -701,11 +702,12 @@ async function loadCalendar() {
       $('performanceEvent').value=calendar.at(-1)?.name || '';
       syncSelect($('performanceEvent'));
     }
-    renderTrackPills();
+    calendarLoading=false;renderTrackPills();
     updateStatus(calendar.length ? 'Ready. Data loads only when you choose Analyse.' : 'No completed qualifying sessions available for this season.');
     updateTrackCount();
   } catch(e) {
     if(signal.aborted) return;
+    calendarLoading=false;renderTrackPills();
     updateStatus(`Calendar unavailable: ${e.message}. Change season to retry.`);
     if ($('performanceEvent')) {
       $('performanceEvent').innerHTML='<option>Calendar unavailable</option>';

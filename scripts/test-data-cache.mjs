@@ -59,6 +59,7 @@ test('shared data cache survives new instances, coalesces cold work and isolates
 
 test('late corrections expire quickly, old completed events cache longer and partial failures never become durable',async()=>{
   const now=Date.parse('2026-10-07T12:00:00Z');
+  assert.equal(dataTTL('/api/events?year=2026',[],null,now),300);
   assert.equal(dataTTL('/api/session?year=2026&gp=Test&session=R',{date:'2026-10-07T10:00:00Z'},null,now),120);
   assert.equal(dataTTL('/api/performance?year=2026&gp=Test&session=R',{},[{name:'Test',session_dates:{Race:'2026-09-27T10:00:00Z'}}],now),604800);
   assert.equal(usableData('/api/session?year=2026',{drivers:[{}],lap_data_complete:false}),false);
