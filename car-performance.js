@@ -1093,7 +1093,7 @@ function aggregate() {
 }
 
 function table(headers,rows) {
-  return `<div class="performance-table-wrap"><table class="performance-table"><thead><tr>${headers.map(h=>`<th scope="col">${h}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.map(row=>`<tr>${row.map(v=>`<td>${v}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${headers.length}" class="section-empty">No eligible data yet.</td></tr>`}</tbody></table></div>`;
+  return `<div class="performance-table-wrap" tabindex="0" role="region" aria-label="Measurement table · scroll horizontally for all columns"><table class="performance-table"><thead><tr>${headers.map(h=>`<th scope="col">${h}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.map(row=>`<tr>${row.map(v=>`<td>${v}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${headers.length}" class="section-empty">No eligible data yet.</td></tr>`}</tbody></table></div>`;
 }
 
 function card(title,note,body) {
@@ -1138,7 +1138,7 @@ function renderPace(teams) {
   ` : '';
 
   const qualyToggle = `
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+    <div class="performance-metric-toolbar">
       <div class="performance-scope-toggle" role="radiogroup" aria-label="Qualifying pace comparison mode">
         <button type="button" data-qualy-mode="overall" aria-pressed="${qualyPaceMode === 'overall'}">Overall Best Lap</button>
         <button type="button" data-qualy-mode="adjusted" aria-pressed="${qualyPaceMode === 'adjusted'}">Track-Evolution Adjusted</button>
@@ -2433,7 +2433,7 @@ function renderTrace() {
     }
     if(activeMetric==='straight') {
       const straightToggle = `
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+        <div class="performance-metric-toolbar">
           <div class="performance-scope-toggle" role="radiogroup" aria-label="Straight line data source">
             <button type="button" data-straight-source="qualy" aria-pressed="${straightLineSource === 'qualy'}">Qualifying telemetry</button>
             <button type="button" data-straight-source="race" aria-pressed="${straightLineSource === 'race'}">Race speed traps</button>
@@ -2759,7 +2759,7 @@ function renderTrace() {
   }
   if(activeMetric==='straight') {
     const straightToggle = `
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+      <div class="performance-metric-toolbar">
         <div class="performance-scope-toggle" role="radiogroup" aria-label="Straight line data source">
           <button type="button" data-straight-source="qualy" aria-pressed="${straightLineSource === 'qualy'}">Qualifying telemetry</button>
           <button type="button" data-straight-source="race" aria-pressed="${straightLineSource === 'race'}">Race speed traps</button>
@@ -3038,7 +3038,36 @@ function renderTrace() {
     ])))+brakingEvidenceMarkup([event]);
 }
 
+function performanceUIKey(element) {
+  if(element.matches('.performance-table-wrap'))return 'table:'+String(element.querySelector('thead')?.textContent||'').replace(/[⇅▲▼]/g,'').replace(/\s+/g,' ').trim();
+  return element.className+'|'+(element.getAttribute('aria-label')||'');
+}
+function capturePerformanceUI(container) {
+  const focused=document.activeElement;
+  return {
+    scroll:[...container.querySelectorAll('.performance-table-wrap,.performance-mode,.performance-scope-toggle,.performance-band-options')]
+      .map(el=>({key:performanceUIKey(el),left:el.scrollLeft,top:el.scrollTop,focused:el===focused})),
+    details:[...container.querySelectorAll('details[open]')].map(el=>el.querySelector('summary')?.textContent.trim()),
+    focus:container.contains(focused)?[...focused.attributes].filter(a=>a.name.startsWith('data-')).map(a=>[a.name,a.value]):[],
+  };
+}
+function restorePerformanceUI(container,state) {
+  for(const el of container.querySelectorAll('details'))if(state.details.includes(el.querySelector('summary')?.textContent.trim()))el.open=true;
+  for(const el of container.querySelectorAll('.performance-table-wrap,.performance-mode,.performance-scope-toggle,.performance-band-options')) {
+    const old=state.scroll.find(row=>row.key===performanceUIKey(el));
+    if(old){el.scrollLeft=old.left;el.scrollTop=old.top;if(old.focused)el.focus({preventScroll:true});}
+  }
+  if(state.focus.length) {
+    const selector=state.focus.map(([name,value])=>`[${name}="${CSS.escape(value)}"]`).join('');
+    const replacement=container.querySelector(selector);
+    if(replacement&&!replacement.disabled)replacement.focus({preventScroll:true});
+  }
+}
 function render() {
+  const state=capturePerformanceUI(root);
+  try {renderContent();} finally {restorePerformanceUI(root,state);}
+}
+function renderContent() {
   const modes=[
     ['pace','Pace'],
     ['corners','Cornering'],
@@ -3050,11 +3079,11 @@ function render() {
     ['results','Reliability & results']
   ];
   $('carPerformance').classList.toggle('is-descriptions-hidden',!showPerformanceDescriptions);
-  const modeBar = `<div class="performance-toolbar"><div class="performance-mode" role="tablist" aria-label="Performance metric">${modes.map(([key,label])=>`<button type="button" role="tab" data-performance-metric="${key}" aria-pressed="${activeMetric===key}" aria-selected="${activeMetric===key}">${label}</button>`).join('')}</div><button type="button" class="performance-explain-toggle" data-performance-explain aria-pressed="${showPerformanceDescriptions}">${showPerformanceDescriptions?'Hide explanations':'Show explanations'}</button></div>`;
+  const modeBar = `<div class="performance-toolbar"><div class="performance-mode" role="tablist" aria-label="Performance metric">${modes.map(([key,label])=>`<button type="button" role="tab" data-performance-metric="${key}" aria-controls="performanceMetricPanel" tabindex="${activeMetric===key?0:-1}" aria-pressed="${activeMetric===key}" aria-selected="${activeMetric===key}">${label}</button>`).join('')}</div><button type="button" class="performance-explain-toggle" data-performance-explain aria-pressed="${showPerformanceDescriptions}">${showPerformanceDescriptions?'Hide explanations':'Show explanations'}</button></div>`;
 
   if(!context || (!events.length && !running)) {
     root.innerHTML = modeBar + `
-      <div class="dashboard-card performance-empty">
+      <div class="dashboard-card performance-empty" id="performanceMetricPanel" role="tabpanel" aria-label="Performance measurements">
         <div class="empty-icon-badge">🏎️</div>
         <h3>Ready for analysis</h3>
         <p>Select a season and scope above, then click <strong>Analyse</strong> to calculate car pace, cornering performance, straight-line speeds, and tyre trends.</p>
@@ -3080,7 +3109,7 @@ function render() {
   const qualifyingErrors=needsQualifying?events.filter(e=>e.qualifyingMetricsError).map(e=>`<div class="performance-error">${escape(e.name)} · Qualifying telemetry: ${escape(e.qualifyingMetricsError)}</div>`).join(''):'';
   const coverageEvidence=activeMetric==='straight'?`<details class="dashboard-card performance-methods"><summary>Measurement coverage and exclusions</summary><p class="performance-note">A speed range must cross both endpoints on one eligible native interval. Reaching the upper speed elsewhere is not sufficient. Low-speed ranges include corner-exit traction. Settled windows compare one supported cohort on the same distance and aero state; missing cars are not assigned zero. Exact lap boundaries may be interpolated between real samples up to 1.500 s apart. Gaps over 0.600 s stay excluded from local acceleration/braking measurements; native interior samples are unchanged.</p>${table(['Grand Prix',entityLabel,'Range support','Settled-straight cohort'],evidenceEvents.flatMap(e=>Object.entries(e.traces||{}).map(([name,t])=>{const c=t.accel_band_coverage?.[straightBand];const support=t.straight_core_cohort?escape(t.straight_core_cohort.join(', ')):finite(t.straight_core_delta)?'Shared all-entrant windows':'No supported shared settled windows';return [escape(e.name),escape(name),c?`${c.accepted_crossings} crossings · ${c.ranked_zones} ranked zones<small>${escape(c.status.replaceAll('-',' '))}</small>`:'No speed-range coverage metadata',support+(t.quality?.lap_boundary_provisional?`<small>Lap boundary interpolated · ${fmt(t.quality.max_lap_boundary_interval_s,3,' s')} original source gap; boundary timing provisional</small>`:'')];})).concat(evidenceEvents.flatMap(e=>Object.entries(e.traceExcluded||{}).map(([name,reason])=>[escape(e.name),escape(name),'Full-lap measurement unavailable',escape(reason)]))))}</details>`:'';
   const cornerBandEvidence=activeMetric==='corners'&&cornerSession==='qualy'?`<details class="dashboard-card performance-methods"><summary>Low / medium / high measured-turn coverage</summary><p class="performance-note">Bands use the minimum of the field-median speed trace within 25 m of each marker. The quicker qualifying driver from each team supplies the classification reference in both Team and Driver views. Incomplete bands remain unranked; their measured turns are retained as evidence.</p>${table(['Grand Prix',entityLabel,'Low · measured / expected','Medium · measured / expected','High · measured / expected'],evidenceEvents.flatMap(e=>Object.entries(e.traces||{}).map(([name,t])=>[escape(e.name),escape(name),...['low','medium','high'].map(b=>{const c=t.corner_band_coverage?.[b];return c?`${c.measured} / ${c.expected}${c.missing.length?'<small>Missing '+escape(c.missing.map(n=>'T'+n).join(', '))+'</small>':''}`:'—';})])))}</details>`:'';
-  root.innerHTML = modeBar + telemetryControls + errorMarkup + qualifyingErrors + loadControl + content + cornerAudit + cornerBandEvidence + nativeEvidence + accelerationEvidence + coverageEvidence;
+  root.innerHTML = modeBar + `<div id="performanceMetricPanel" role="tabpanel" aria-label="${escape(modes.find(([key])=>key===activeMetric)?.[1]||'Performance')} measurements">`+telemetryControls + errorMarkup + qualifyingErrors + loadControl + content + cornerAudit + cornerBandEvidence + nativeEvidence + accelerationEvidence + coverageEvidence+'</div>';
 }
 
 // ---------------------------------------------------------------------------
@@ -3179,6 +3208,15 @@ if ($('performanceScope')) {
 $('performanceLoad').addEventListener('click',analyse);
 $('performanceCancel').addEventListener('click',stop);
 
+root.addEventListener('keydown',event=>{
+  const current=event.target.closest('[data-performance-metric]');
+  if(!current||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+  const buttons=[...root.querySelectorAll('[data-performance-metric]')],index=buttons.indexOf(current);
+  const next=event.key==='Home'?buttons[0]:event.key==='End'?buttons.at(-1):buttons[(index+(event.key==='ArrowRight'?1:-1)+buttons.length)%buttons.length];
+  event.preventDefault();const key=next.dataset.performanceMetric;next.click();
+  const replacement=root.querySelector(`[data-performance-metric="${key}"]`);
+  replacement?.focus({preventScroll:true});replacement?.scrollIntoView({block:'nearest',inline:'nearest'});
+});
 root.addEventListener('change',event=>{
   const select=event.target.closest('[data-tyre-plot-filter]');
   if(!select)return;

@@ -5,6 +5,36 @@ import vm from 'node:vm';
 import postcss from 'postcss';
 
 const app = readFileSync('app.js', 'utf8');
+test('performance redraw retains scroll, evidence disclosure and keyboard focus',()=>{
+  const source=readFileSync('car-performance.js','utf8');
+  const focused={attributes:[{name:'data-pace-stat',value:'median'}]};
+  const makeTable=heading=>({matches:()=>true,querySelector:()=>({textContent:heading}),scrollLeft:184,scrollTop:62,focus(options){this.focused=options;}});
+  const before=makeTable('Team Qualifying ▲');
+  const open={querySelector:()=>({textContent:'Show lap evidence'})};
+  const root={contains:()=>true,querySelectorAll:s=>s==='details[open]'?[open]:[before]};
+  const box={document:{activeElement:focused},CSS:{escape:s=>s}};
+  vm.createContext(box);
+  vm.runInContext(source.slice(source.indexOf('function performanceUIKey('),source.indexOf('function render() {')),box);
+  const saved=box.capturePerformanceUI(root);
+  const after=makeTable('Team Qualifying ▼');after.scrollLeft=0;after.scrollTop=0;
+  const detail={open:false,querySelector:()=>({textContent:'Show lap evidence'})};
+  const replacement={disabled:false,focus(options){this.focused=options;}};
+  box.restorePerformanceUI({querySelectorAll:s=>s==='details'?[detail]:[after],querySelector:()=>replacement},saved);
+  assert.equal(after.scrollLeft,184);assert.equal(after.scrollTop,62);
+  assert.equal(detail.open,true);assert.equal(replacement.focused.preventScroll,true);
+});
+test('UI density uses component sizing and responsive chart rows rather than page scaling',()=>{
+  const shared=readFileSync('apple-ui.css','utf8'),performance=readFileSync('car-performance.css','utf8');
+  postcss.parse(shared);postcss.parse(performance);
+  assert.match(shared,/body \{ zoom: 1; \}/);
+  assert.match(shared,/--ui-control-height: 44px/);
+  assert.match(performance,/\.performance-bar-track, \.performance-tyre-age-track \{ grid-column: 1 \/ -1; grid-row: 2;/);
+  assert.match(performance,/focus-visible \{ outline: 3px solid var\(--accent\)/);
+  const source=readFileSync('car-performance.js','utf8');
+  assert.match(source,/role="region" aria-label="Measurement table/);
+  assert.match(source,/aria-controls="performanceMetricPanel" tabindex=/);
+  assert.match(source,/\['ArrowLeft','ArrowRight','Home','End'\]/);
+});
 test('corner chart retains incomplete entrants without assigning a zero score',()=>{
   const source=readFileSync('car-performance.js','utf8');
   const box={finite:Number.isFinite,escape:s=>String(s),teamLabel:r=>r.team,color:s=>s||'#fff'};

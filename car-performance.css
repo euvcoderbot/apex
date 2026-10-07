@@ -7,7 +7,7 @@
 .performance-page {
   max-width: 1808px;
   margin: 0 auto;
-  padding: 28px 24px 48px;
+  padding: 20px 24px 40px;
   font-family: var(--font-sans) !important;
   color: var(--text-main);
   animation: none;
@@ -40,7 +40,7 @@ body.performance-view #sidebarToggle {
   border-radius: 999px;
   padding: 6px 14px;
   color: var(--text-secondary);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
@@ -71,16 +71,16 @@ body.performance-view #sidebarToggle {
 .performance-controls {
   grid-column: 1 / -1;
   display: grid !important;
-  grid-template-columns: 160px minmax(120px, .45fr) minmax(260px, 1.55fr) 156px !important;
+  grid-template-columns: 160px 140px minmax(260px, 1fr) 156px !important;
   align-items: end;
-  gap: 16px;
+  gap: 12px;
   position: relative;
   z-index: 30;
   overflow: visible;
   width: 100%;
   min-width: 0;
   margin-bottom: 20px;
-  padding: 20px;
+  padding: 16px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-card);
   background: var(--bg-card);
@@ -157,8 +157,8 @@ body.performance-view #sidebarToggle {
 .performance-scope-toggle {
   display: inline-flex;
   align-items: center;
-  height: 44px;
-  min-height: 44px;
+  height: var(--ui-segment-height, 40px);
+  min-height: var(--ui-segment-height, 40px);
   padding: 3px;
   gap: 3px;
   border: 1px solid var(--border-color);
@@ -169,7 +169,7 @@ body.performance-view #sidebarToggle {
 }
 
 .performance-scope-toggle button {
-  flex: 1;
+  flex: 1 0 auto;
   height: 100%;
   display: inline-flex;
   align-items: center;
@@ -179,7 +179,7 @@ body.performance-view #sidebarToggle {
   border-radius: 6px;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 500;
   font-family: var(--font-sans);
   cursor: pointer;
@@ -354,7 +354,7 @@ body.performance-view #sidebarToggle {
   color: #ffffff !important;
   font-size: 0.9375rem;
   font-weight: 600;
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--accent-solid) 18%, transparent);
+  box-shadow: inset 0 1px 0 #ffffff30, 0 2px 5px #00000025;
   cursor: pointer;
   white-space: nowrap;
   outline: none;
@@ -781,7 +781,7 @@ body.performance-view #sidebarToggle {
 /* Horizontal Performance Bar Charts - Sleek Apple UI Design */
 .performance-chart-card {
   margin: 14px 0 20px;
-  max-width: 860px;
+  max-width: 100%;
 }
 
 .perf-chart-header {
@@ -1084,7 +1084,7 @@ body.performance-view #sidebarToggle {
 .performance-band-options button:disabled { opacity: .42; cursor: not-allowed; }
 .performance-band-options button span { color: var(--text-muted); font-size: .75rem; }
 .performance-band-hint { margin: -4px 0 8px; color: var(--text-muted); font-size: .75rem; }
-.performance-trend-table .performance-table { table-layout: fixed; min-width: 780px; }
+.performance-trend-table .performance-table { table-layout: fixed; min-width: 1080px; }
 .performance-trend-table .performance-table th,
 .performance-trend-table .performance-table td { white-space: normal; vertical-align: middle; }
 .performance-trend-table .performance-table tbody td { padding: 8px 12px; height: auto; }
@@ -1544,4 +1544,80 @@ body.performance-view #sidebarToggle {
 .performance-stint-inspect { padding: 5px 10px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--surface-muted); color: var(--text-main); white-space: nowrap; cursor: pointer; }
 .performance-bar-row.is-unranked .performance-bar-val { color: var(--text-secondary); font-size: .7rem; }
 .performance-bar-row.is-unranked .performance-bar-track { opacity: .35; }
-@media (max-width: 640px) { .performance-tyre-age-row { grid-template-columns: minmax(88px, 120px) minmax(80px, 1fr) 88px; gap: 6px; } .performance-tyre-age-value { font-size: .75rem; } }
+
+/* Component parity with Session Analysis, without page-wide scaling. */
+.performance-page { --ui-panel-padding: 16px; }
+.performance-card, .performance-methods { padding: var(--ui-panel-padding); margin-bottom: 16px; }
+.performance-card > :last-child { margin-bottom: 0; }
+.performance-controls, .performance-track-tray, .performance-status-card { margin-bottom: 16px; }
+.performance-controls .control-field label { font-size: .875rem; }
+.performance-controls .performance-scope-toggle { height: var(--ui-control-height, 44px); min-height: var(--ui-control-height, 44px); }
+.performance-scope-toggle { max-width: 100%; overflow-x: auto; overflow-y: hidden; flex: 0 1 auto; vertical-align: middle; }
+.performance-scope-toggle button { padding-inline: 12px; }
+.performance-toolbar, .performance-metric-toolbar, .performance-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; min-width: 0; margin-bottom: 12px; }
+.performance-actions > .performance-note { flex: 1 1 260px; margin: 0; }
+.performance-actions > button { min-height: 36px; padding: 7px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-control); background: var(--bg-input); color: var(--text-main); font-size: .875rem; }
+.performance-controls .performance-actions { margin: 0; flex-wrap: nowrap; }
+.performance-toolbar:has(.performance-mode) { align-items: stretch; flex-wrap: nowrap; }
+.performance-toolbar .performance-mode { width: auto !important; min-height: var(--ui-segment-height, 40px); flex: 1 1 0; }
+.performance-mode button { min-height: 32px; font-size: .875rem !important; flex: 0 0 auto; justify-content: center; }
+.performance-mode { scrollbar-width: thin; }
+.performance-mode::-webkit-scrollbar { display: block; height: 5px; }
+.performance-explain-toggle { min-height: var(--ui-segment-height, 40px); font-size: .875rem; }
+.performance-stat-toggle { margin-bottom: 12px; }
+.performance-metric-toolbar .performance-scope-toggle { margin: 0; }
+.performance-chart-card { width: 100%; margin: 12px 0 16px; }
+.perf-chart-header { border-bottom-color: var(--border-color); }
+.perf-chart-heading { font-size: .8125rem; line-height: 1.4; letter-spacing: .025em; }
+.performance-bar-row { grid-template-columns: minmax(150px, 200px) minmax(0, 1fr) minmax(90px, max-content); min-height: 32px; }
+.performance-bar-label .performance-team { display: flex; min-width: 0; }
+.performance-team .team-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.performance-bar-row .performance-team .team-name, .performance-bar-val { font-size: .875rem; }
+.performance-table-wrap { min-width: 0; max-width: 100%; overscroll-behavior-x: contain; margin: 12px 0 16px; }
+.performance-table thead th { white-space: normal; line-height: 1.4; font-size: .8125rem; padding: 10px 12px; }
+.performance-table tbody td { padding: 10px 12px; vertical-align: middle; line-height: 1.4; }
+.performance-table td small { white-space: normal; max-width: 38ch; line-height: 1.4; }
+.performance-table th:first-child, .performance-table td:first-child { min-width: 160px; max-width: 220px; }
+.performance-table td:first-child .performance-team { display: flex; min-width: 0; }
+.performance-table .section-empty { position: static; white-space: normal; }
+.perf-sort-btn { text-align: inherit; line-height: inherit; min-height: 28px; }
+.perf-sort-btn .sort-icon { flex: 0 0 auto; }
+.performance-evidence, .performance-methods { min-width: 0; margin-top: 16px; }
+.performance-evidence summary, .performance-methods summary { min-height: 36px; line-height: 1.4; }
+.performance-evidence summary { cursor: pointer; font-size: .875rem; font-weight: 600; }
+.performance-evidence[open] > summary, .performance-methods[open] > summary { margin-bottom: 12px; }
+.performance-evidence .performance-table-wrap, .performance-methods .performance-table-wrap { max-height: min(65vh, 640px); overflow: auto; }
+.performance-methods dl { grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); }
+.performance-error, .performance-status-card p, .performance-note { overflow-wrap: anywhere; }
+.perf-audit-grid { grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); }
+.performance-tyre-plot-controls { margin-top: 16px; }
+.performance-tyre-plot-controls select { font-size: .875rem; }
+.performance-tyre-options button, .track-pill, .btn-track-action { min-height: 36px; font-size: .875rem; }
+.perf-tercile-badge, .tow-badge { font-size: .75rem !important; line-height: 1.4; white-space: nowrap; }
+.performance-page :where(button, select, summary, [tabindex]):focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 1024px) {
+  .performance-controls { grid-template-columns: 140px minmax(220px, 1fr) 148px !important; }
+}
+@media (max-width: 760px) {
+  .performance-page { padding: 16px 12px 32px; --ui-panel-padding: 12px; }
+  .performance-controls { grid-template-columns: 120px minmax(0, 1fr) !important; padding: 12px; }
+  .performance-controls .control-field-scope { grid-column: 2; }
+  .performance-controls .performance-actions { grid-column: 1 / -1; }
+  .performance-track-tray { padding: 12px; }
+  .track-tray-actions { flex-wrap: wrap; }
+  .performance-bar-row { grid-template-columns: minmax(120px, 150px) minmax(0, 1fr) max-content; gap: 8px; }
+  .performance-toolbar:has(.performance-mode) { flex-wrap: wrap; }
+  .performance-toolbar .performance-mode { flex-basis: 100%; }
+  .performance-explain-toggle { width: auto; margin-left: auto; min-height: 36px; }
+  .performance-pit-controls, .performance-tyre-toolbar { gap: 8px; }
+}
+@media (max-width: 480px) {
+  .performance-controls { grid-template-columns: minmax(0, 1fr) !important; }
+  .performance-controls .control-field-scope { grid-column: 1; }
+  .performance-bar-row, .performance-tyre-age-row { grid-template-columns: minmax(0, 1fr) max-content; gap: 5px 8px; padding-block: 6px; }
+  .performance-bar-label, .performance-tyre-age-name { grid-column: 1; grid-row: 1; }
+  .performance-bar-val, .performance-tyre-age-value { grid-column: 2; grid-row: 1; font-size: .875rem; }
+  .performance-bar-track, .performance-tyre-age-track { grid-column: 1 / -1; grid-row: 2; }
+  .performance-table th:first-child, .performance-table td:first-child { min-width: 140px; max-width: 170px; }
+  .performance-card .performance-grid { grid-template-columns: minmax(0, 1fr); }
+}

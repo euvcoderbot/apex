@@ -581,7 +581,8 @@ html::-webkit-scrollbar-thumb:hover { all: revert; }
 }
 
 /* Dense working surface: keep full lap identity and timing readable. */
-body { zoom: .87; }
+/* Density comes from component spacing, not scaling the entire page. */
+body { zoom: 1; }
 .run-segment { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; }
 .run-segment small { margin: 0; white-space: nowrap; }
 .lap-workspace .lap-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
@@ -690,7 +691,7 @@ body { zoom: .87; }
 #driverPills.has-race-results .driver-pill { grid-template-columns: 20px 26px minmax(0, 1fr) auto; gap: 7px; }
 .driver-result { display: grid; justify-items: end; gap: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .driver-result b { font-size: 12px; font-weight: 500; }
-.driver-result small { font-size: 10px; color: var(--text-muted); }
+.driver-result small { font-size: 12px; color: var(--text-muted); }
 
 /* Control decks stay in normal flow at every chart width. Keep essential
    checkbox and focus styling in this layer, not dependent on the legacy UI. */
@@ -717,4 +718,59 @@ body { zoom: .87; }
   .sidebar-toggle span { display: none; }
   .sidebar-toggle { width: 34px; padding-inline: 6px; }
   .brand img { width: 90px; }
+}
+
+/* Shared working-surface rhythm. Keep sizing predictable in both views. */
+:root { --ui-control-height: 44px; --ui-segment-height: 40px; --ui-panel-padding: 16px; --ui-section-gap: 16px; }
+.site-header, .header-actions, .performance-tabs { min-width: 0; }
+.site-header { gap: 16px; }
+.header-actions { flex-wrap: nowrap; }
+.performance-tabs button { min-height: 36px; font-size: .875rem; }
+.control-field label { font-size: .875rem; }
+.session-controls { gap: 12px; }
+@media (min-width: 1181px) { .session-controls { grid-template-columns: 160px 140px minmax(240px, 1fr) minmax(160px, .65fr) 156px; } }
+.select-trigger { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.select-trigger > span { flex: 1; overflow: hidden; }
+.select-trigger > i { flex: 0 0 7px; }
+.select-shell select, .select-trigger, .session-controls #loadSession { height: var(--ui-control-height); min-height: var(--ui-control-height); }
+.dashboard-card, .telemetry-card, .chart, .corner-analysis { min-width: 0; }
+.panel-heading h2, .workspace-heading h2, .chart-heading h2 { margin: 0; }
+.panel-heading { flex-wrap: wrap; }
+.loaded-lap-pill { align-items: center; max-width: 100%; }
+.loaded-lap-main { min-width: 0; gap: 6px; }
+.trace-display-bar { align-items: center; gap: 8px 12px; padding: 8px; }
+.trace-display-bar > span { font-size: .8125rem; }
+.trace-driver-toggles { gap: 8px; }
+.trace-setting { font-size: .875rem; }
+.trace-setting small { font-size: .75rem; }
+.chart-heading .trace-zoom-cluster { margin: 0; }
+.corner-picker { align-items: center; min-height: var(--ui-segment-height); }
+.map-view-switch { max-width: 100%; overflow-x: auto; }
+.map-view-switch button { flex: 0 0 auto; min-height: 32px; font-size: .875rem; }
+.race-result-controls button { min-height: 32px; font-size: .8125rem; }
+@media (max-width: 760px) {
+  .site-header { height: auto; min-height: 64px; flex-wrap: wrap; padding: 10px 12px; gap: 8px; }
+  .header-actions { margin-left: auto; }
+  .theme-toggle span, .sidebar-toggle span { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .theme-toggle, .sidebar-toggle { width: 36px; min-height: 36px; padding: 6px; }
+  .performance-tabs button { padding-inline: 10px; font-size: .8125rem; }
+  .session-controls .control-field:has(#year) { grid-column: 1; }
+  .session-controls .control-field:has(#gp) { grid-column: 2; }
+  .loaded-lap-main { flex-wrap: wrap; }
+}
+@media (max-width: 480px) {
+  .session-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .session-controls .control-field:has(#year) { grid-column: 1; grid-row: 2; }
+  .session-controls .control-field:has(#session) { grid-column: 2; grid-row: 2; }
+  .session-controls .control-field:has(#gp) { grid-column: 1 / -1; grid-row: 3; }
+  .session-controls #loadSession { grid-column: 1 / -1; grid-row: 4; }
+  .site-header .brand { flex: 1 0 100%; }
+  .site-header .brand img { width: 100px; height: 28px; }
+  .site-header .header-actions { width: 100%; margin-left: 0; justify-content: space-between; border-radius: 12px; }
+  .header-actions .performance-tabs { flex: 1; }
+  .header-actions .performance-tabs button { flex: 1; }
+  .loaded-lap-pill { width: 100%; flex: 1 0 100%; }
+  .loaded-lap-main { flex: 1; }
+  .lap-workspace .lap-grid { grid-template-columns: minmax(0, 1fr); }
+  .corner-detail-header dl { flex-wrap: wrap; gap: 8px 14px; }
 }
