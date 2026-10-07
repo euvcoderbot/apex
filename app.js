@@ -10,7 +10,6 @@ const lapColorOverrides = new Map();
 const customSelectValues = new WeakMap();
 let calendar = [];
 let corners = [];
-let circuitRotation = 0;
 let genericCircuitData = null;
 let genericCircuitRequest = null;
 let sessionEventName = '';
@@ -21,8 +20,6 @@ let loadedSessionName = '';
 let raceResultView = 'points';
 let openf1SessionKey = null;
 let nominatedCompounds = [];
-let activeDriverTab = null;
-let selectedCornerIndex = 0;
 let selectedCornerIndices = new Set([0]);
 let cornerSort = 'time';
 let showCornerNumbers = false;
@@ -164,7 +161,6 @@ async function fetchSessionData(url, options = {}) {
 const recentData = new Map();
 const pendingApiData = new Map();
 let preparedSessionIndex;
-let prefetchSessionTimer;
 let dataStorePromise;
 function dataStore() {
   if (!dataStorePromise) dataStorePromise = new Promise(resolve => {
@@ -272,10 +268,6 @@ async function loadApiData(url, options = {}) {
   return structuredClone(data);
 }
 window.apexDataRequest=(path,signal)=>loadApiData(apiUrl(path),{signal});
-function prepareSelectedSession() {
-  clearTimeout(prefetchSessionTimer);
-  // Session retrieval starts only when requested, not via speculative preloads.
-}
 
 function notify(message, tone = 'error') {
   const toast = $('#appToast');
@@ -382,14 +374,7 @@ function normalizedPlaceName(value) {
     .toLowerCase();
 }
 
-function flagEmoji(code) {
-  if (!/^[A-Z]{2}$/.test(code || '')) return '🏁';
-  return [...code].map(letter => String.fromCodePoint(127397 + letter.charCodeAt(0))).join('');
-}
 
-function grandPrixFlag(event) {
-  return flagEmoji(grandPrixCountryCode(event));
-}
 
 function grandPrixCountryCode(event) {
   const country = normalizedPlaceName(event?.country);
@@ -409,91 +394,7 @@ function selectOptionContent(option) {
   return `${flag}<span class="select-option-text">${escapeUI(option?.textContent || 'Select')}</span>`;
 }
 
-const teamMapping = {
-  "McLaren": {
-    "id": "mclaren",
-    "shortName": "McLaren",
-    "fullName": "McLaren Formula 1 Team",
-    "logo": "assets/teams/mclaren.svg"
-  },
-  "Ferrari": {
-    "id": "ferrari",
-    "shortName": "Ferrari",
-    "fullName": "Scuderia Ferrari HP",
-    "logo": "assets/teams/ferrari.svg"
-  },
-  "Mercedes": {
-    "id": "mercedes",
-    "shortName": "Mercedes",
-    "fullName": "Mercedes-AMG PETRONAS Formula One Team",
-    "logo": "assets/teams/mercedes.svg"
-  },
-  "Red Bull Racing": {
-    "id": "red_bull",
-    "shortName": "Red Bull",
-    "fullName": "Oracle Red Bull Racing",
-    "logo": "assets/teams/red_bull.svg"
-  },
-  "Racing Bulls": {
-    "id": "racing_bulls",
-    "shortName": "Racing Bulls",
-    "fullName": "Visa Cash App Racing Bulls Formula One Team",
-    "logo": "assets/teams/racing_bulls.svg"
-  },
-  "Williams": {
-    "id": "williams",
-    "shortName": "Williams",
-    "fullName": "Atlassian Williams Racing",
-    "logo": "assets/teams/williams.svg"
-  },
-  "Aston Martin": {
-    "id": "aston_martin",
-    "shortName": "Aston Martin",
-    "fullName": "Aston Martin Aramco Formula One Team",
-    "logo": "assets/teams/aston_martin.svg"
-  },
-  "Alpine": {
-    "id": "alpine",
-    "shortName": "Alpine",
-    "fullName": "BWT Alpine Formula One Team",
-    "logo": "assets/teams/alpine.svg"
-  },
-  "Audi": {
-    "id": "audi",
-    "shortName": "Audi",
-    "fullName": "Audi Formula 1 Team",
-    "logo": "assets/teams/audi.svg"
-  },
-  "Cadillac": {
-    "id": "cadillac",
-    "shortName": "Cadillac",
-    "fullName": "Cadillac Formula 1 Team",
-    "logo": "assets/teams/cadillac.svg"
-  },
-  "Haas": {
-    "id": "haas",
-    "shortName": "Haas",
-    "fullName": "TGR Haas Formula One Team",
-    "logo": "assets/teams/haas.svg"
-  }
-};
 
-function getTeamInfo(teamName) {
-  teamName = String(teamName || '');
-  const mapped = teamMapping[teamName];
-  if (mapped) return mapped;
-
-  const keys = Object.keys(teamMapping);
-  const foundKey = keys.find(k => k.toLowerCase() === teamName.toLowerCase());
-  if (foundKey) return teamMapping[foundKey];
-  
-  return {
-    id: teamName.toLowerCase().replace(/[^a-z0-9]/g, '_'),
-    shortName: teamName,
-    fullName: teamName,
-    logo: ''
-  };
-}
 
 const $ = s => document.querySelector(s);
 
@@ -856,7 +757,6 @@ function populateSessions(preferredSession = null) {
     : sessions.includes(latestForEvent?.session) ? latestForEvent.session : sessions[0];
   $('#session').value = target;
   syncSelectUI($('#session'));
-  prepareSelectedSession();
 }
 
 function selectLatestCompletedEvent() {
@@ -871,15 +771,6 @@ function selectLatestCompletedEvent() {
   populateSessions(latest?.session || null);
 }
 
-function lapText(lap) {
-  const displayTime = Number.isFinite(lap.display_time) ? lap.display_time : lap.time;
-  const prefix = lap.display_time_estimated ? '~' : '';
-  if (lap.in_lap && lap.out_lap) return `IN/OUT L${lap.lap} · ${Number.isFinite(displayTime) ? `${prefix}${time(displayTime)}` : '—'}`;
-  if (lap.out_lap) return `OUT L${lap.lap} · ${Number.isFinite(displayTime) ? `${prefix}${time(displayTime)}` : '—'}`;
-  if (lap.in_lap) return `IN L${lap.lap} · ${lap.time == null ? '—' : `${time(lap.time)}`}`;
-  return `L${lap.lap} · ${lap.time == null ? '—' : `${time(lap.time)}`}`;
-}
-
 // UI State Resets
 function clearBeforeSessionLoad() {
   clearTimeout(raceResultRefreshTimer);
@@ -891,15 +782,12 @@ function clearBeforeSessionLoad() {
   loaded = [];
   openStint = {};
   corners = [];
-  circuitRotation = 0;
   sessionEventName = '';
   sessionYear = null;
   sessionCircuitKey = null;
   sessionLocation = '';
   openf1SessionKey = null;
   nominatedCompounds = [];
-  activeDriverTab = null;
-  selectedCornerIndex = 0;
   selectedCornerIndices = new Set([0]);
   traceZoom = { start: 0, end: 1 };
   zoomDrag = null;
@@ -913,8 +801,6 @@ function clearBeforeSessionLoad() {
   $('#driverPills').innerHTML = '<span class="section-empty">Load a session to see its drivers.</span>';
   $('#stintPanels').innerHTML = '<span class="section-empty">Select a driver to inspect their runs and laps.</span>';
   $('#sectorRows').innerHTML = '';
-  const apexSpeeds = $('#apexSpeeds');
-  if (apexSpeeds) apexSpeeds.innerHTML = '';
   
   const tireCard = $('#tireCard');
   if (tireCard) tireCard.style.display = 'none';
@@ -954,8 +840,6 @@ async function loadRealSession() {
     sessionCircuitKey = Number.isInteger(payload.circuit_key) ? payload.circuit_key : null;
     sessionLocation = payload.location || '';
     openf1SessionKey = Number.isInteger(payload.openf1_session_key) ? payload.openf1_session_key : null;
-    circuitRotation = Number.isFinite(Number(payload.circuit_rotation))
-      ? Number(payload.circuit_rotation) : 0;
     nominatedCompounds = verifiedTireNominations(sessionYear, sessionEventName, payload.compounds || []);
     
     renderDrivers();
@@ -975,49 +859,6 @@ async function loadRealSession() {
   }
 }
 
-async function fetchTelemetry(lap) {
-  const key = telemetryKey(lap);
-  const sessionAtStart = sessionRequest;
-  if (telemetryCache.has(key)) return telemetryCache.get(key);
-  if (telemetryRequests.has(key)) return telemetryRequests.get(key);
-  const request = (async () => {
-    const query = currentQuery();
-    query.set('driver', lap.code);
-    query.set('lap', lap.lap);
-    const driver = realDrivers.get(lap.code);
-    const lapInfo = lap.real || driver?.laps?.find(item => item.lap === lap.lap);
-    if (driver?.number) query.set('driver_number', driver.number);
-    if (openf1SessionKey) query.set('session_key', openf1SessionKey);
-    if (Number.isFinite(lapInfo?.lap_start_seconds)) {
-      query.set('lap_start_seconds', lapInfo.lap_start_seconds);
-    }
-    if (lapInfo?.out_lap) query.set('pit_out', 'true');
-    if (lapInfo?.out_lap && Number.isFinite(lapInfo.display_time)
-        && lapInfo.display_time > 20 && lapInfo.display_time < 300) query.set('lap_time', lapInfo.display_time);
-    if (Number.isFinite(lapInfo?.lap_end_seconds)) {
-      query.set('lap_end_seconds', lapInfo.lap_end_seconds);
-    }
-    query.set('alignment', '3');
-    const data = await loadApiData(apiUrl(`/api/telemetry?${query}`));
-    if (sessionAtStart !== sessionRequest) throw new DOMException('Session changed', 'AbortError');
-    const samples = data.samples || [];
-    samples.forEach(pt => {
-      const d = +pt.DRS;
-      pt.DRS = d >= 10 || pt.DRS === true || pt.DRS === 1 || pt.DRS === '1' ? 1 : 0;
-      if (pt.Brake === true || pt.Brake === 1 || pt.Brake === '1' || pt.Brake === 'True') pt.Brake = 100;
-      else pt.Brake = Number.isFinite(+pt.Brake) && +pt.Brake > 0 ? +pt.Brake : 0;
-    });
-    telemetryCache.set(key, samples);
-    if (!sessionSectorGuide) sessionSectorGuide = makeSectorGuide(lap, samples, data.corners);
-    return samples;
-  })();
-  telemetryRequests.set(key, request);
-  try {
-    return await request;
-  } finally {
-    if (telemetryRequests.get(key) === request) telemetryRequests.delete(key);
-  }
-}
 
 // UI Rendering Functions
 function mergeRaceClassification(classification) {
@@ -1114,12 +955,8 @@ function renderDrivers() {
       if (selected.includes(code)) {
         selected = selected.filter(x => x !== code);
         loaded = loaded.filter(x => x.code !== code);
-        if (activeDriverTab === code) {
-          activeDriverTab = selected[0] || null;
-        }
       } else {
         selected.push(code);
-        activeDriverTab = code;
       }
       renderDrivers();
       renderStints();
@@ -1128,150 +965,6 @@ function renderDrivers() {
   });
 }
 
-function renderStintsLegacy() {
-  const root = $('#stintPanels');
-  if (!selected.length) {
-    root.innerHTML = '<span class="section-empty">Select a driver to see stints and laps.</span>';
-    return;
-  }
-  
-  if (!activeDriverTab || !selected.includes(activeDriverTab)) {
-    activeDriverTab = selected[0];
-  }
-  
-  const isAllFastestLoaded = selected.length > 0 && selected.every(c => {
-    const d = realDrivers.get(c);
-    if (!d || !d.laps || !d.laps.length) return true;
-    const timedLaps = d.laps.filter(l => Number.isFinite(l.time));
-    const f = timedLaps.length ? timedLaps.reduce((a, b) => a.time < b.time ? a : b) : d.laps[0];
-    return f && loaded.some(item => item.code === c && item.lap === f.lap);
-  });
-
-  const globalCompareHtml = `<button id="compareAllFastest" data-motion-key="compare-fastest" class="compare-all-btn ${isAllFastestLoaded ? 'selected' : ''}"><i aria-hidden="true">⚡</i><span>COMPARE FASTEST LAPS</span></button>`;
-  
-  // Render tabs at the top
-  const tabsHtml = `
-    ${globalCompareHtml}
-    <div class="driver-tabs">
-      ${selected.map(code => {
-        const isActive = code === activeDriverTab;
-        const color = getDriverColor(code);
-        return `<button class="driver-tab ${isActive ? 'active' : ''}" style="--team:${color}" data-code="${code}">${code}</button>`;
-      }).join('')}
-    </div>
-  `;
-  
-  const code = activeDriverTab;
-  const driver = realDrivers.get(code);
-  if (!driver) {
-    root.innerHTML = tabsHtml + '<span class="section-empty">Loading driver data…</span>';
-    return;
-  }
-  
-  const display = drivers.find(item => item[0] === code);
-  
-  if (!driver.laps || !driver.laps.length) {
-    root.innerHTML = tabsHtml + `<article class="driver-panel"><h3>${code} · ${driver.name}</h3><p class="section-empty">No laps in this session.</p></article>`;
-    return;
-  }
-  
-  const timedLaps = driver.laps.filter(lap => Number.isFinite(lap.time));
-  const fastest = timedLaps.length 
-    ? timedLaps.reduce((a, b) => a.time < b.time ? a : b) 
-    : driver.laps[0];
-    
-  const hasQualifyingPhases = driver.laps.some(lap => /^Q[1-3]$/.test(lap.phase || ''));
-  const groupIds = hasQualifyingPhases
-    ? ['Q1', 'Q2', 'Q3'].filter(phase => driver.laps.some(lap => lap.phase === phase))
-    : [...new Set(driver.laps.map(lap => String(lap.stint)))];
-  const active = String(openStint[code] ?? groupIds[0]);
-  const lapsForGroup = id => hasQualifyingPhases
-    ? driver.laps.filter(lap => lap.phase === id)
-    : driver.laps.filter(lap => String(lap.stint) === id);
-  const stintButtons = groupIds.map(id => {
-    const group = lapsForGroup(id);
-    const compound = group[0]?.compound || 'UNKNOWN';
-    const compLabel = getCompoundCode(compound, nominatedCompounds);
-    const compoundClass = getCompoundToneClass(compound);
-    if (hasQualifyingPhases) {
-      return `<button class="stint ${id === active ? 'selected' : ''}" style="--team:${display[3]}" data-motion-key="run-${code}-${id}" data-code="${code}" data-stint="${id}">${id}<small><span class="compound-label ${compoundClass}">${compLabel}</span> - ${group.length} ${group.length === 1 ? 'lap' : 'laps'}</small></button>`;
-    }
-    return `<button class="stint ${id === active ? 'selected' : ''}" style="--team:${display[3]}" data-motion-key="run-${code}-${id}" data-code="${code}" data-stint="${id}">Stint ${id}<small><span class="compound-label ${compoundClass}">${compLabel}</span> · ${group.length} L</small></button>`;
-  }).join('');
-  
-  const lapButtons = lapsForGroup(active).map(lap => {
-    const isLoaded = loaded.some(item => item.code === code && item.lap === lap.lap);
-    const classes = ['lap', lap.in_lap || lap.out_lap ? 'in-out' : '', isLoaded ? 'selected' : ''].filter(Boolean).join(' ');
-    return `<button class="${classes}" style="--team:${display[3]}" data-code="${code}" data-lap="${lap.lap}">${lapText(lap)}</button>`;
-  }).join('');
-  
-  root.innerHTML = tabsHtml + `
-    <article class="driver-panel">
-      <h3>${code} · ${driver.name}</h3>
-      <div class="stints">${stintButtons}</div>
-      <div class="lap-pills">${lapButtons}</div>
-    </article>
-  `;
-  
-  const compareAllBtn = $('#compareAllFastest');
-  if (compareAllBtn) {
-    compareAllBtn.onclick = () => {
-      if (isAllFastestLoaded) {
-        // Toggle OFF: unload all laps
-        loaded = [];
-      } else {
-        // Toggle ON: load fastest lap of all selected drivers
-        loaded = [];
-        selected.forEach(c => {
-          const d = realDrivers.get(c);
-          if (d && d.laps && d.laps.length) {
-            const validLaps = d.laps.filter(l => Number.isFinite(l.time) && l.time > 0 && !l.in_lap && !l.out_lap);
-            const f = validLaps.length ? validLaps.reduce((a, b) => a.time < b.time ? a : b) : d.laps[0];
-            if (f) {
-              loaded.push({ code: c, lap: f.lap, time: f.time, real: f });
-            }
-          }
-        });
-      }
-      renderAll();
-      renderStints();
-    };
-  }
-  
-  // Bind tab click handlers
-  root.querySelectorAll('.driver-tab').forEach(tab => {
-    tab.onclick = () => {
-      activeDriverTab = tab.dataset.code;
-      renderStints();
-    };
-  });
-  
-  root.querySelectorAll('.stint').forEach(btn => {
-    btn.onclick = () => {
-      openStint[btn.dataset.code] = btn.dataset.stint;
-      renderStints();
-    };
-  });
-  
-  root.querySelectorAll('.lap').forEach(btn => {
-    btn.onclick = () => {
-      const code = btn.dataset.code;
-      const lapNum = +btn.dataset.lap;
-      const lapObj = realDrivers.get(code).laps.find(item => item.lap === lapNum);
-      const index = loaded.findIndex(item => item.code === code && item.lap === lapNum);
-      if (index !== -1) {
-        if (loaded.length > 1) {
-          loaded.splice(index, 1);
-        }
-      } else {
-        loaded.push({ code, lap: lapNum, time: lapObj.time, real: lapObj });
-        mapView = 'comparison';
-      }
-      renderAll();
-      renderStints();
-    };
-  });
-}
 
 function fastestTimedLap(driver) {
   const timed = driver?.laps?.filter(lap => Number.isFinite(lap.time) && lap.time > 0 && !lap.in_lap && !lap.out_lap) || [];
@@ -1835,22 +1528,6 @@ function renderCharts() {
   renderTraceVisibilityControls();
 }
 
-function interpolate(samples, targetDistance, field) {
-  if (!samples?.length) return null;
-  const sourceTotal = +samples[samples.length - 1].Distance || 0;
-  const fraction = Math.max(0, Math.min(1, targetDistance / referenceDistance()));
-  const target = fraction * sourceTotal;
-  if (target <= 0) return samples[0][field];
-  if (target >= sourceTotal) return samples[samples.length - 1][field];
-  const index = samples.findIndex(point => point.Distance >= target);
-  if (index <= 0) return samples[0][field];
-  const a = samples[index - 1], b = samples[index];
-  const ratio = (target - a.Distance) / (b.Distance - a.Distance || 1);
-  if (field === 'nGear' || field === 'DRS' || field === 'Brake') {
-    return ratio < .5 ? a[field] : b[field];
-  }
-  return (+a[field]) + ((+b[field]) - (+a[field])) * ratio;
-}
 
 function deltaAt(samples, reference, targetDistance) {
   const fraction = Math.max(0, Math.min(1, targetDistance / referenceDistance()));
@@ -1941,10 +1618,6 @@ function getNiceBounds(name, rawMin, rawMax) {
   return { min, max, tickStep };
 }
 
-function cornerFraction(corner, samples, totalDistance, suppliedMarkers = null) {
-  return resolveCornerMarkers(samples, totalDistance, suppliedMarkers)
-    .find(marker => marker.key === `${corner.number}:${corner.letter || ''}`)?.fraction ?? null;
-}
 
 function connectorSegmentsIntersect(a, b, c, d) {
   const cross = (p,q,r) => (q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x);
@@ -2226,18 +1899,7 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
   ctx.textAlign = 'left';
 }
 
-function bottomY(val, bounds, height) {
-  const { top, bottom, min, max } = bounds;
-  const h = height - top - bottom;
-  if (max === min) return top + h / 2;
-  return top + (1 - (val - min) / (max - min)) * h;
-}
 
-function formatTick(val) {
-  if (Math.abs(val) >= 100) return val.toFixed(0);
-  if (Math.abs(val) >= 10) return val.toFixed(1);
-  return val.toFixed(3);
-}
 
 function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7, viewStart = 0, viewEnd = 1) {
   const calloutWidth = 32;
@@ -3148,6 +2810,10 @@ function mergeCornerWindows(zones) {
   return merged;
 }
 
+function selectedCornerWindows(zones) {
+  return mergeCornerWindows([...selectedCornerIndices].map(index => zones[index]).filter(Boolean));
+}
+
 function combinedCornerPerformance(samples,zones,totalDistance) {
   const windows=mergeCornerWindows(zones);
   const times=windows.map(w=>performanceSectionDuration(samples,w.start,w.end));
@@ -3195,9 +2861,8 @@ function renderCornerAnalysis() {
     return;
   }
 
-  selectedCornerIndex = Math.max(0, Math.min(selectedCornerIndex, zones.length - 1));
   selectedCornerIndices=new Set([...selectedCornerIndices].filter(i=>i>=0&&i<zones.length));
-  if(!selectedCornerIndices.size)selectedCornerIndices.add(selectedCornerIndex);
+  if(!selectedCornerIndices.size)selectedCornerIndices.add(0);
   const allMetrics = zones.map(zone => loaded.map(lap => {
     const samples = telemetryCache.get(telemetryKey(lap));
     const metric = cornerPerformance(samples, zone);
@@ -3205,12 +2870,13 @@ function renderCornerAnalysis() {
   }).filter(Boolean));
   const pickedZones=[...selectedCornerIndices].sort((a,b)=>a-b).map(i=>zones[i]);
   const combined=pickedZones.length>1;
-  const zone = combined?{...zones[selectedCornerIndex],type:'Combined selected windows',metres:Math.round(mergeCornerWindows(pickedZones).reduce((s,w)=>s+(w.end-w.start)*totalDistance,0)),apexMetres:0}:zones[selectedCornerIndex];
+  const selectedIndex = [...selectedCornerIndices][0];
+  const zone = combined?{type:'Combined selected windows',metres:Math.round(selectedCornerWindows(zones).reduce((s,w)=>s+(w.end-w.start)*totalDistance,0)),apexMetres:0}:zones[selectedIndex];
   const metrics = combined?loaded.map(lap=>{
     if([...selectedCornerIndices].some(i=>!allMetrics[i].some(m=>m.lap===lap)))return null;
     const metric=combinedCornerPerformance(telemetryCache.get(telemetryKey(lap)),pickedZones,totalDistance);
     return metric?{lap,metric}:null;
-  }).filter(Boolean):allMetrics[selectedCornerIndex];
+  }).filter(Boolean):allMetrics[selectedIndex];
   const finiteTimes = metrics.map(item => item.metric.sectionTime).filter(Number.isFinite);
   const fastestSection = finiteTimes.length ? Math.min(...finiteTimes) : null;
   const finiteMinimumSpeeds = metrics.map(item => item.metric.minimumSpeed).filter(Number.isFinite);
@@ -3265,63 +2931,11 @@ function renderCornerAnalysis() {
     const index=Number(button.dataset.cornerIndex)||0;
     if(selectedCornerIndices.has(index)){if(selectedCornerIndices.size>1)selectedCornerIndices.delete(index);}
     else selectedCornerIndices.add(index);
-    selectedCornerIndex=selectedCornerIndices.has(index)?index:[...selectedCornerIndices][0];
     renderCornerAnalysis();
     renderMiniSectorMap();
   };
 }
 
-function renderApexSpeeds() {
-  const root = $('#apexSpeeds');
-  if (!root) return;
-  
-  if (!loaded.length || !$('#cornerToggle').checked) {
-    root.innerHTML = '<span class="section-empty">Apex speeds appear when corner overlays are active.</span>';
-    return;
-  }
-  
-  const refLap = loaded[0];
-  const refSamples = telemetryCache.get(telemetryKey(refLap));
-  if (!refSamples || !refSamples.length) {
-    root.innerHTML = '<span class="section-empty">Loading telemetry data…</span>';
-    return;
-  }
-  
-  const totalDist = refSamples[refSamples.length - 1].Distance || 5891;
-  
-  const markerCorners = resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers);
-  root.innerHTML = markerCorners.map(corner => {
-    const driverSpeeds = loaded.map(lap => {
-      const samples = telemetryCache.get(telemetryKey(lap));
-      if (!samples || !samples.length) return null;
-      
-      const apexPt = getCornerMinSpeed(samples, corner);
-      if (!apexPt || !Number.isFinite(apexPt.cornerSpeed)) return null;
-      
-      return {
-        code: lap.code,
-        color: getLapColor(lap),
-        speed: apexPt.cornerSpeed.toFixed(1)
-      };
-    }).filter(Boolean);
-    
-    if (!driverSpeeds.length) return '';
-    
-    const valsHtml = driverSpeeds.map(ds => `
-      <div class="apex-speed-val" style="color:${ds.color}">
-        <span>${ds.code}</span>
-        <strong>${ds.speed}</strong>
-      </div>
-    `).join('');
-    
-    return `
-      <div class="apex-speed-card">
-        <strong>${cornerLabel(corner)}</strong>
-        ${valsHtml}
-      </div>
-    `;
-  }).join('');
-}
 
 function clearDominanceMapCanvas(canvas) {
   const rect = canvas.getBoundingClientRect();
@@ -3771,15 +3385,30 @@ function renderMiniSectorMap() {
   ctx.stroke();
 
   // Mark section boundaries without obscuring the track's dominance colours.
-  let highlightedCornerZone = null;
+  const markerCorners = resolveCornerMarkers(reference, totalDistance, spatial?.lap?.cornerMarkers);
+  let highlightedCornerWindows = [];
   if (typeof adaptiveCornerZones === 'function') {
-    const markerCorners = resolveCornerMarkers(reference, totalDistance, spatial?.lap?.cornerMarkers);
-    const zones = adaptiveCornerZones(markerCorners);
-    const selectedZone = zones[Math.max(0, Math.min(selectedCornerIndex, zones.length - 1))];
-    if (selectedZone) {
-      highlightedCornerZone = selectedZone;
-    }
+    highlightedCornerWindows = selectedCornerWindows(adaptiveCornerZones(markerCorners));
   }
+
+  // Paint the selected union behind the track, not over dominance colours.
+  ctx.save();
+  ctx.strokeStyle = theme.labelFill;
+  ctx.globalAlpha = .65;
+  ctx.lineWidth = 11;
+  for (const window of highlightedCornerWindows) {
+    ctx.beginPath();
+    const steps = Math.max(2, Math.ceil((window.end - window.start) * totalDistance / 5));
+    let started = false;
+    for (let step = 0; step <= steps; step++) {
+      const point = pointAt(window.start + (window.end - window.start) * step / steps);
+      if (!point) continue;
+      if (!started) { ctx.moveTo(point.x, point.y); started = true; }
+      else ctx.lineTo(point.x, point.y);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
 
   const wins = new Set();
   if (comparative) {
@@ -3815,9 +3444,9 @@ function renderMiniSectorMap() {
     }
   }
 
-  if (highlightedCornerZone) {
+  if (highlightedCornerWindows.length) {
     ctx.save();
-    for (const fraction of [highlightedCornerZone.start, highlightedCornerZone.end]) {
+    for (const fraction of highlightedCornerWindows.flatMap(window => [window.start, window.end])) {
       const center = pointAt(fraction);
       const before = pointAt(Math.max(0, fraction - 5 / totalDistance));
       const after = pointAt(Math.min(1, fraction + 5 / totalDistance));
@@ -3838,7 +3467,6 @@ function renderMiniSectorMap() {
 
   // Corner markers rendered ON TOP of mini-sector dominance lines
   if ($('#cornerToggle').checked) {
-    const markerCorners = resolveCornerMarkers(reference, totalDistance, spatial?.lap?.cornerMarkers);
     ctx.font = canvasFont(12);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -3979,7 +3607,6 @@ document.addEventListener('DOMContentLoaded', () => {
   
   yearSelect.addEventListener('change', () => loadCalendar().catch(() => {}));
   $('#gp').addEventListener('change', populateSessions);
-  $('#session').addEventListener('change', prepareSelectedSession);
   $('#loadSession').onclick = loadRealSession;
   
   const themeToggle = $('#themeToggle');
@@ -4108,24 +3735,4 @@ function renderTireNomination() {
       </div>
     `;
   }).join('');
-}
-
-function getCornerMinSpeed(samples, cornerDistance) {
-  const windowSize = 100;
-  const nearby = samples.filter(pt => Math.abs(pt.Distance - cornerDistance) <= windowSize);
-  if (!nearby.length) return null;
-  
-  const valleys = [];
-  for (let i = 1; i < nearby.length - 1; i++) {
-    if (nearby[i].Speed < nearby[i-1].Speed && nearby[i].Speed <= nearby[i+1].Speed) {
-      valleys.push(nearby[i]);
-    }
-  }
-  
-  if (valleys.length) {
-    return valleys.reduce((a, b) => Math.abs(a.Distance - cornerDistance) < Math.abs(b.Distance - cornerDistance) ? a : b);
-  }
-  
-  const speedAtApex = interpolate(samples, cornerDistance, 'Speed');
-  return { Distance: cornerDistance, Speed: speedAtApex };
 }

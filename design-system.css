@@ -375,42 +375,9 @@ button#loadSession:disabled {
   font-size: 8px;
 }
 
-/* Tabbed Layout for Stints & Laps */
-.driver-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 10px;
-  margin-bottom: 14px;
-}
 
-.driver-tab {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  color: var(--text-muted);
-  padding: 6px 12px;
-  font-family: var(--font-sans);
-  font-weight: 700;
-  font-size: 11px;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  text-transform: uppercase;
-}
 
-.driver-tab:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-main);
-  border-color: var(--border-color-hover);
-}
 
-.driver-tab.active {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-main);
-  border-color: var(--team) !important;
-  box-shadow: 0 0 10px color-mix(in srgb, var(--team) 20%, transparent);
-}
 
 /* Driver stints list */
 .driver-panel {
@@ -1399,63 +1366,12 @@ main.sidebar-collapsed .sidebar {
   height: 260px;
 }
 
-/* Corner Apex Speeds card row */
-.apex-speeds-container {
-  display: flex;
-  gap: 10px;
-  overflow-x: auto;
-  padding: 4px 0 12px 0;
-  margin-bottom: 20px;
-  border-bottom: 1px solid var(--border-color);
-}
 
-.apex-speeds-container::-webkit-scrollbar {
-  height: 6px;
-}
 
-.apex-speeds-container::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.01);
-  border-radius: 3px;
-}
 
-.apex-speeds-container::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
-}
 
-.apex-speed-card {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 8px 12px;
-  min-width: 90px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  align-items: center;
-  flex-shrink: 0;
-}
 
-.apex-speed-card strong {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  color: var(--neon-accent);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  width: 100%;
-  text-align: center;
-  padding-bottom: 4px;
-  margin-bottom: 2px;
-  text-transform: uppercase;
-}
 
-.apex-speed-val {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-  gap: 12px;
-}
 
 /* Event Tyre Compounds Sidebar graphic styles */
 .tire-nomination-container {

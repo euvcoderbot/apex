@@ -1,13 +1,19 @@
 const ORIGIN = 'https://api.multiviewer.app/api/v1/circuits';
 const cache = new Map<string, { expires: number; data: unknown }>();
+const pending = new Map<string, Promise<any>>();
 async function upstream(path: string) {
   const existing = cache.get(path);
   if (existing && existing.expires > Date.now()) return existing.data as any;
+  if (!pending.has(path)) pending.set(path, loadCircuit(path).finally(() => pending.delete(path)));
+  return pending.get(path);
+}
+async function loadCircuit(path: string) {
   const response = await fetch(ORIGIN + path, { signal: AbortSignal.timeout(12000) });
   if (!response.ok) throw new Error('Circuit metadata unavailable');
   const data = await response.json();
-  if (cache.size > 150) cache.clear();
+  cache.delete(path);
   cache.set(path, { expires: Date.now() + 3600000, data });
+  if (cache.size > 150) cache.delete(cache.keys().next().value!);
   return data;
 }
 export async function GET(request: Request) {

@@ -639,13 +639,7 @@ function buildTimeCalibration(samples, lap, referenceSectors) {
 
 // One reconstruction engine is shared by the displayed path, hover values
 // and enhanced timing integration. Accurate mode still reads source samples.
-function buildSpeedModel(samples) {
-  return globalThis.TelemetryReconstruction?.build(samples, 'Speed') || null;
-}
 
-function buildThrottleModel(samples) {
-  return globalThis.TelemetryReconstruction?.build(samples, 'Throttle') || null;
-}
 
 function evaluateSpeedModel(model, fraction) {
   return TelemetryReconstruction.evaluate(model, fraction);
@@ -1012,37 +1006,6 @@ function cornerPerformance(samples, zone) {
   };
 }
 
-function getCornerMinSpeed(samples, corner) {
-  if (!samples?.length) return null;
-  const fallbackFraction = Number(corner?.distance) / referenceDistance();
-  const fraction = clampTelemetry(Number(corner?.fraction ?? fallbackFraction));
-  const windowSize = Math.max(18, Math.min(35, referenceDistance() * 0.006));
-  const nearby = samples.filter(point => {
-    const pointFraction = Number.isFinite(point.AlignedFraction) ? point.AlignedFraction : rawFractionAt(samples, point);
-    return Math.abs(pointFraction - fraction) * referenceDistance() <= windowSize && hasTelemetryNumber(point.Speed);
-  });
-  if (!nearby.length) return null;
-  const markerSpeed = alignedValue(samples, fraction, 'Speed');
-  const adaptiveMinimum = nearby.reduce((a, b) => +a.Speed < +b.Speed ? a : b);
-  const markerWindow = nearby.filter(point => {
-    const pointFraction = Number.isFinite(point.AlignedFraction) ? point.AlignedFraction : rawFractionAt(samples, point);
-    return Math.abs(pointFraction - fraction) * referenceDistance() <= 7;
-  });
-  const markerMinimum = markerWindow.length
-    ? markerWindow.reduce((a, b) => +a.Speed < +b.Speed ? a : b)
-    : adaptiveMinimum;
-  const edgeSpeed = ((+nearby[0].Speed) + (+nearby[nearby.length - 1].Speed)) / 2;
-  const hasMeaningfulTrough = Number.isFinite(markerSpeed) && edgeSpeed - (+adaptiveMinimum.Speed) >= 6;
-  const point = hasMeaningfulTrough ? adaptiveMinimum : { ...nearby[Math.floor(nearby.length / 2)], Speed: markerSpeed };
-  const pointFraction = Number.isFinite(point.AlignedFraction) ? point.AlignedFraction : rawFractionAt(samples, point);
-  return {
-    ...point,
-    traceSpeed: +point.Speed,
-    cornerSpeed: ((+adaptiveMinimum.Speed) + (+markerMinimum.Speed)) / 2,
-    fraction: pointFraction,
-    isApex: hasMeaningfulTrough,
-  };
-}
 
 function updateAlignmentStatus() {
   const status = $('#alignmentStatus');

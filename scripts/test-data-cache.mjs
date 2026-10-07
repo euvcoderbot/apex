@@ -8,6 +8,29 @@ import {loadRaceSnapshot,loadCachedRaceSnapshots} from '../lib/race-corner-loade
 import {connectedRaceCornerScores} from '../race-cornering.js';
 import verifiedSeed from '../lib/verified-cache-seed.json' with {type:'json'};
 
+test('durable reads coalesce, expired memory rechecks shared storage, and validation runs once',async()=>{
+  let reads=0,writes=0,validations=0,clock=1000;
+  const store=new Map([['key',{data:{value:1},expires:2000}]]);
+  const cache=createDataCache({read:async key=>{reads++;await new Promise(resolve=>setImmediate(resolve));return store.get(key);},
+    write:async(key,entry)=>{writes++;store.set(key,entry);},now:()=>clock});
+  const results=await Promise.all(Array.from({length:20},()=>cache.result('key',async()=>{throw new Error('Unexpected calculation');})));
+  assert.equal(reads,1);assert.ok(results.every(r=>r.cache==='HIT'&&r.data.value===1));
+  clock=2500;store.set('key',{data:{value:2},expires:4000});
+  assert.equal((await cache.peek('key')).data.value,2);assert.equal(reads,2);
+  await cache.result('other',async()=>({value:3}),{valid:()=>{validations++;return true;}});
+  assert.equal(validations,1);assert.equal(writes,1);
+});
+
+test('durable-hit memory stays bounded and recently accessed entries remain cached',async()=>{
+  let reads=0;
+  const cache=createDataCache({read:async key=>{reads++;return {data:key,expires:1000000};},write:async()=>{},now:()=>0});
+  for(let i=0;i<128;i++)await cache.peek(String(i));
+  await cache.peek('0');await cache.peek('128');
+  assert.equal(reads,129);
+  await cache.peek('0');assert.equal(reads,129,'recently accessed hit is retained');
+  await cache.peek('1');assert.equal(reads,130,'oldest hit was evicted');
+});
+
 test('trusted bootstrap serves eleven measured teams without upstream requests and persists original expiry',async()=>{
   const store=new Map(),clock=Math.min(...Object.values(verifiedSeed.entries).map(e=>e.expires))-1000;
   let calls=0;const options={seeded:true,read:async k=>store.get(k),write:async(k,v)=>store.set(k,v),now:()=>clock,

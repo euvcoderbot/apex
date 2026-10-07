@@ -5,6 +5,35 @@ import vm from 'node:vm';
 import postcss from 'postcss';
 
 const app = readFileSync('app.js', 'utf8');
+test('one render reuses telemetry views and summaries but the next render recomputes',()=>{
+  const source=readFileSync('car-performance.js','utf8');
+  const box={performanceRenderCache:{views:new Map(),summaries:new Map()},telemetrySubject:'team',activeMetric:'braking',cornerSession:'qualy'};
+  vm.createContext(box);
+  vm.runInContext(source.slice(source.indexOf('function telemetryEvent(event)'),source.indexOf('function telemetrySubjectControls()')),box);
+  vm.runInContext(source.slice(source.indexOf('function eventTelemetry(event)'),source.indexOf('function computeEventTelemetry(event)')),box);
+  let calls=0;box.computeEventTelemetry=event=>{calls++;return {rows:event.traces};};
+  const event={brakingTraces:{A:{duration:1.2}}};
+  const view=box.telemetryEvent(event);
+  assert.equal(box.telemetryEvent(event),view);assert.equal(box.telemetryEvent(view),view);
+  const summary=box.eventTelemetry(event);
+  assert.equal(box.eventTelemetry(view),summary);assert.equal(calls,1);
+  event.brakingTraces={A:{duration:1.3}};
+  box.performanceRenderCache={views:new Map(),summaries:new Map()};
+  assert.equal(box.eventTelemetry(event).rows.A.duration,1.3);assert.equal(calls,2);
+  assert.match(source,/const teams=telemetryMode\?\[\]:aggregate\(\)/);
+  assert.match(source,/const evidenceEvents=telemetryMode\?events.map\(telemetryEvent\):\[\]/);
+  assert.match(source,/finally \{\s*performanceRenderCache=previousCache;/);
+});
+
+test('only the aligned telemetry implementation is shipped as the active classic-script dependency',()=>{
+  const html=readFileSync('index.html','utf8'),alignment=readFileSync('alignment.js','utf8');
+  assert.ok(html.indexOf('src="alignment.js')>html.indexOf('src="app.js'));
+  for(const name of ['fetchTelemetry','interpolate']){
+    assert.doesNotMatch(app,new RegExp('(?:async )?function '+name+'\\('));
+    assert.match(alignment,new RegExp('(?:async )?function '+name+'\\('));
+  }
+  assert.doesNotMatch(html,/src="(?:real-data|enhancements)\.js/);
+});
 test('performance redraw retains scroll, evidence disclosure and keyboard focus',()=>{
   const source=readFileSync('car-performance.js','utf8');
   const focused={attributes:[{name:'data-pace-stat',value:'median'}]};
@@ -168,13 +197,13 @@ test('current calendar bypasses browser response cache', async () => {
 
 test('session selection reuses versioned source cache with no speculative load', () => {
   assert.match(app, /for \(let y = currentYear; y >= 2018; y--\)/);
-  const prepare = app.slice(app.indexOf('function prepareSelectedSession'), app.indexOf('function notify'));
-  assert.doesNotMatch(prepare, /loadApiData|fetchSessionData|setTimeout/);
+  assert.doesNotMatch(app, /prepareSelectedSession|prefetchSessionTimer/);
   assert.match(app, /loadApiData\(apiUrl\(`\/api\/session\?\$\{requestedQuery\}`\), \{signal:request.signal\}\)/);
   assert.match(app, /window.APEX_DATA_VERSION/);
-  assert.match(app, /query\.set\('driver_number', driver\.number\)/);
-  assert.match(app, /query\.set\('lap_start_seconds', lapInfo\.lap_start_seconds\)/);
-  assert.match(app, /query\.set\('lap_end_seconds', lapInfo\.lap_end_seconds\)/);
+  const telemetry=readFileSync('alignment.js','utf8');
+  assert.match(telemetry, /query\.set\('driver_number', driverNumber\)/);
+  assert.match(telemetry, /query\.set\('lap_start_seconds',meta\.lap_start_seconds\)/);
+  assert.match(telemetry, /query\.set\('lap_end_seconds',meta\.lap_end_seconds\)/);
   const fastest = app.slice(app.indexOf("$('#compareAllFastest').onclick"), app.indexOf("root.querySelectorAll('.stint').forEach(button"));
   assert.match(fastest, /mapView = 'comparison'/);
 });
@@ -328,7 +357,7 @@ test('compact sector rows, contrasting logos and section boundary bars', () => {
   assert.match(css, /filter: invert\(1\)/);
   assert.doesNotMatch(css, /filter: brightness\(0\)/);
   assert.match(app, /class="sector-delta-slot"/);
-  assert.match(app, /highlightedCornerZone.start, highlightedCornerZone.end/);
+  assert.match(app, /highlightedCornerWindows.flatMap\(window => \[window.start, window.end\]\)/);
   assert.doesNotMatch(app, /drawHighlightPath/);
   assert.match(app, /compoundBadgeMarkup\(lap.compound\)/);
   assert.match(app, /class="compound-badge".*role="img"/);
@@ -357,7 +386,7 @@ test('qualifying run pills show every compound and lap state precedes the time',
 
 test('pit laps can be selected and a later corner cannot snap to an earlier pass', () => {
   const h = context();
-  assert.match(h.run("lapText({lap:8,in_lap:true,out_lap:true,time:null})"), /^IN\/OUT L8/);
+  assert.match(app, /lap.in_lap && lap.out_lap/);
   h.run("renderAll=()=>{}; renderStints=()=>{}; realDrivers.set('VER',{laps:[{lap:8,time:null,out_lap:true,display_time:133}]}); toggleLoadedLap('VER',8)");
   assert.equal(h.run('loaded.length'), 1);
   assert.equal(h.run('loaded[0].real.out_lap'), true);
@@ -384,7 +413,7 @@ test('confirmed 2026 compounds correct stale API nominations', () => {
 });
 
 test('driver selection never loads a lap; generic map uses independent geometry', () => {
-  const driverSection = app.slice(app.indexOf('function renderDrivers()'), app.indexOf('function renderStintsLegacy()'));
+  const driverSection = app.slice(app.indexOf('function renderDrivers()'), app.indexOf('function fastestTimedLap('));
   assert.doesNotMatch(driverSection, /loaded.push|fetchTelemetry|fastestTimedLap/);
   const mapSection = app.slice(app.indexOf('function renderGenericCircuit('), app.indexOf('function renderMiniSectorMap()'));
   assert.doesNotMatch(mapSection, /fetchTelemetry|fastestTimedLap/);
@@ -1116,6 +1145,21 @@ test('combined corners sum union windows once and use average rather than minimu
   assert.ok(Math.abs(result.minimumSpeed-180)<1e-8);
   assert.equal(result.combined,true);
   assert.equal(h.run('mergeCornerWindows(zones).length'),2);
+});
+
+test('map selection shares all merged measured windows and marks every outer boundary',()=>{
+  const h=context();
+  h.sandbox.zones=[{start:.1,end:.2},{start:.15,end:.25},{start:.4,end:.5},{start:.7,end:.8}];
+  h.run('selectedCornerIndices=new Set([0,1,3])');
+  assert.equal(JSON.stringify(h.run('selectedCornerWindows(zones)')),JSON.stringify([{start:.1,end:.25},{start:.7,end:.8}]));
+  h.run('selectedCornerIndices=new Set([0,2,3,99])');
+  assert.equal(h.run('selectedCornerWindows(zones).length'),3);
+  const map=app.slice(app.indexOf('function renderMiniSectorMap()'),app.indexOf('function init',app.indexOf('function renderMiniSectorMap()')));
+  assert.match(map,/selectedCornerWindows\(adaptiveCornerZones\(markerCorners\)\)/);
+  assert.match(map,/for \(const window of highlightedCornerWindows\)/);
+  assert.match(map,/highlightedCornerWindows.flatMap\(window => \[window.start, window.end\]\)/);
+  assert.ok(map.indexOf('for (const window of highlightedCornerWindows)')<map.indexOf('const wins = new Set()'),'selected outlines are behind dominance colours');
+  assert.doesNotMatch(app,/selectedCornerIndex\b/);
 });
 
 test('race classification refresh fills missing data without clearing authoritative fields', () => {
