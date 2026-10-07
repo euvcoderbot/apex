@@ -539,7 +539,19 @@ async function loadRaceCorners() {
         const preferred=Object.fromEntries((event.R.teams||[]).map(t=>[t.team,t.fastest_race_driver]));
         const groups=raceCornerGroups(session,preferred,RACE_SNAPSHOT_LIMIT,subject);
         if(!groups.length)requestErrors.push('No matched clean race laps: check green-flag, traffic, compound and tyre-age support.');
-        const jobs=[...groups.entries()];let finished=0;
+        // Show every cached snapshot first: a cold source request must not hold
+        // already-verified comparisons behind the worker queue.
+        const cachedGroups=new Set();let finished=0;
+        try{
+          const cached=await get('/api/race-corners?'+new URLSearchParams({year,gp:event.name,round:event.round,subject,cached:'1'}),signal);
+          for(const hit of cached.snapshots||[]){
+            if(!groups.some(g=>g.lap===hit.lap&&g.compound===hit.compound&&g.cohort===hit.cohort)||!hit.snapshot?.complete)continue;
+            cachedGroups.add(hit.lap+':'+hit.compound+':'+hit.cohort);observations.push(...hit.snapshot.observations||[]);finished++;
+          }
+          if(id!==generation||signal.aborted)return;
+          raceCornerCache.set(key,{observations:[...observations],entrants,groups:groups.length,finished,complete:finished===groups.length,requestErrors:[],lapCache});render();
+        }catch(error){if(signal.aborted)throw error;}
+        const jobs=[...groups.entries()].filter(([,g])=>!cachedGroups.has(g.lap+':'+g.compound+':'+g.cohort));
         async function snapshotWorker(){while(jobs.length){const [index,group]=jobs.shift();
           if(signal.aborted||id!==generation)return;
           updateStatus(`Race cornering · ${event.name} · snapshot ${index+1}/${groups.length} · L${group.lap} ${group.compound.toLowerCase()}…`,true);

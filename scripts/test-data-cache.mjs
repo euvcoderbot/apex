@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
 import vm from 'node:vm';
 import {createDataCache,normalizeDataPath,dataTTL,usableData,RACE_VERSION} from '../lib/data-cache.mjs';
-import {loadRaceSnapshot} from '../lib/race-corner-loader.mjs';
+import {loadRaceSnapshot,loadCachedRaceSnapshots} from '../lib/race-corner-loader.mjs';
 import {connectedRaceCornerScores} from '../race-cornering.js';
 import verifiedSeed from '../lib/verified-cache-seed.json' with {type:'json'};
 
@@ -23,6 +23,9 @@ test('trusted bootstrap serves eleven measured teams without upstream requests a
   }
   const fit=connectedRaceCornerScores(observations);
   assert.equal(fit.scores.size,11);assert.equal(calls,0);
+  const batch=await loadCachedRaceSnapshots(cache,{year:2026,gp:'Bahrain Grand Prix',round:16});
+  assert.equal(batch.data.snapshots.length,Object.keys(verifiedSeed.entries).filter(k=>k.startsWith('race:')&&k.endsWith('subject=team')).length);
+  assert.equal(connectedRaceCornerScores(batch.data.snapshots.flatMap(h=>h.snapshot.observations)).scores.size,11);assert.equal(calls,0);
   assert.equal((await createDataCache(options).get('/api/performance?year=2026&gp=Bahrain Grand Prix&session=R')).cache,'HIT');
   await assert.rejects(cache.get('/api/performance?year=2026&gp=Bahrain Grand Prix&session=R',{fresh:true}),/Upstream unavailable/);
 });
