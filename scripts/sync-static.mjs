@@ -7,7 +7,10 @@ const calculationFiles=['performance.py','performance_tracks.py','server.py','se
 const revision=createHash('sha256');
 for(const file of calculationFiles)revision.update(file).update(await readFile(resolve(root,file)));
 const cacheRevision=revision.digest('hex').slice(0,20);
-await writeFile(resolve(root,'lib/cache-revision.mjs'),`// Generated from calculation/source files; UI assets alone do not invalidate data.\nexport const CACHE_REVISION = ${JSON.stringify(cacheRevision)};\n`);
+const sourceRevision=createHash('sha256');
+for(const file of ['server.py','session_loader.py'])sourceRevision.update(file).update(await readFile(resolve(root,file)));
+const rawRevision=sourceRevision.digest('hex').slice(0,20);
+await writeFile(resolve(root,'lib/cache-revision.mjs'),`// Generated: raw source and calculation caches have independent revisions.\nexport const CACHE_REVISION = ${JSON.stringify(cacheRevision)};\nexport const SOURCE_REVISION = ${JSON.stringify(rawRevision)};\n`);
 const destination = resolve(root, "public", "apex");
 const staticFiles = [
   "index.html",

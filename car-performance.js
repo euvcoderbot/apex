@@ -1,4 +1,4 @@
-import {raceCornerGroups,measureRaceCornerGroup,measureQualifyingCornerGroup} from './race-cornering.js?v=20261007-coverage';
+import {raceCornerGroups,measureRaceCornerGroup,measureQualifyingCornerGroup,connectedRaceCornerScores,RACE_SNAPSHOT_LIMIT} from './race-cornering.js?v=20261007-race-v2';
 import {circuitCornerMarkers,qualifyingRepresentatives,withCornerMeasurements} from './corner-geometry.js?v=20261007-coverage';
 // APEX - Car Performance Section
 // Full parity with Session Analysis design language: Apple UI, official team logos, GP country flags, custom select menus.
@@ -531,28 +531,31 @@ async function loadRaceCorners() {
     for(const event of events.filter(e=>e.R)){
       const key=year+':'+event.name+':'+subject;if(raceCornerCache.get(key)?.complete)continue;
       updateStatus(`Race cornering · matching laps at ${event.name}…`,true);
-      const observations=[],requestErrors=[],lapCache=raceCornerCache.get(key)?.lapCache||new Map();
+      const observations=[],requestErrors=[],lapCache=raceCornerCache.get(key)?.lapCache||new Map();let entrants=[];
       try {
         const q=new URLSearchParams({year,gp:event.name,round:event.round,session:'R'});
         const session={...await get('/api/session?'+q,signal),year,event:event.name};
+        entrants=(session.drivers||[]).map(d=>({team:subject==='driver'?d.code:d.team,displayName:subject==='driver'?d.code:d.team,logoTeam:d.team,color:d.team_color}));
         const preferred=Object.fromEntries((event.R.teams||[]).map(t=>[t.team,t.fastest_race_driver]));
-        const groups=raceCornerGroups(session,preferred,4,subject);
+        const groups=raceCornerGroups(session,preferred,RACE_SNAPSHOT_LIMIT,subject);
         if(!groups.length)requestErrors.push('No matched clean race laps: check green-flag, traffic, compound and tyre-age support.');
-        for(const [index,group] of groups.entries()){
+        const jobs=[...groups.entries()];let finished=0;
+        async function snapshotWorker(){while(jobs.length){const [index,group]=jobs.shift();
           if(signal.aborted||id!==generation)return;
           updateStatus(`Race cornering · ${event.name} · snapshot ${index+1}/${groups.length} · L${group.lap} ${group.compound.toLowerCase()}…`,true);
           try{
-            const snapshot=await get('/api/race-corners?'+new URLSearchParams({year,gp:event.name,round:event.round,lap:group.lap,compound:group.compound,subject}),signal);
+            const snapshot=await get('/api/race-corners?'+new URLSearchParams({year,gp:event.name,round:event.round,lap:group.lap,compound:group.compound,cohort:group.cohort,subject}),signal);
             observations.push(...snapshot.observations||[]);requestErrors.push(...snapshot.requestErrors||[]);
             if(!snapshot.complete)requestErrors.push(`L${group.lap}: ${snapshot.reason||'Incomplete matched telemetry'}`);
           }catch(error){if(signal.aborted)throw error;requestErrors.push('L'+group.lap+': '+error.message);}
           if(id!==generation)return;
           // Publish each supported snapshot immediately, not after the last GP.
-          raceCornerCache.set(key,{observations:[...observations],groups:groups.length,complete:false,requestErrors:[...requestErrors],lapCache});render();
-        }
+          finished++;raceCornerCache.set(key,{observations:[...observations],entrants,groups:groups.length,finished,complete:false,requestErrors:[...requestErrors],lapCache});render();
+        }}
+        await Promise.all([snapshotWorker(),snapshotWorker()]);
         if(id!==generation||signal.aborted)return;
-        raceCornerCache.set(key,{observations,groups:groups.length,complete:requestErrors.length===0,requestErrors,lapCache});
-      } catch(error){if(signal.aborted)break;raceCornerCache.set(key,{observations,complete:false,error:error.message,requestErrors,lapCache});}
+        raceCornerCache.set(key,{observations,entrants,groups:groups.length,finished,complete:requestErrors.length===0,requestErrors,lapCache});
+      } catch(error){if(signal.aborted)break;raceCornerCache.set(key,{observations,entrants,complete:false,error:error.message,requestErrors,lapCache});}
       render();
     }
   } finally {
@@ -568,32 +571,33 @@ function renderRaceCorners() {
   const pending=events.filter(e=>e.R&&!raceCornerCache.get(cacheKey(e))?.complete);
   const reports=events.filter(e=>e.R).map(event=>{
     const observations=(raceCornerCache.get(cacheKey(event))?.observations||[]).map(o=>({...o,logoTeam:o.team,displayName:telemetrySubject==='driver'?o.driver:o.team,team:telemetrySubject==='driver'?o.driver:o.team})),rows=new Map();
-    const snapshots=[...new Set(observations.map(o=>o.lap+':'+o.compound))].map(key=>({event:{name:key},summary:{rows:new Map(observations.filter(o=>o.lap+':'+o.compound===key).map(o=>[o.team,o]))}}));
-    const matched=Object.fromEntries(['all','low','medium','high'].map(band=>[band,eventAdjustedScores(snapshots,row=>row.values[band],telemetrySeasonStat,'common')]));
+    const matched=Object.fromEntries(['all','low','medium','high'].map(band=>[band,connectedRaceCornerScores(observations,band,telemetrySubject,telemetrySeasonStat)]));
     for(const team of [...new Set(observations.map(o=>o.team))]){
       const own=observations.filter(o=>o.team===team),values={};
-      for(const band of ['all','low','medium','high'])values[band]=matched[band].get(team);
-      rows.set(team,{team,color:own[0].color,displayName:own[0].displayName,logoTeam:own[0].logoTeam,values,samples:own.length,drivers:[...new Set(own.map(o=>o.driver))].join(', ')});
+      for(const band of ['all','low','medium','high'])values[band]=matched[band].scores.get(team);
+      rows.set(team,{team,color:own[0].color,displayName:own[0].displayName,logoTeam:own[0].logoTeam,values,samples:new Set(own.map(o=>o.driver+':'+o.lap)).size,
+        comparisons:matched[cornerGraphBand].support.get(team)||0,drivers:[...new Set(own.map(o=>o.driver))].join(', ')});
     }
     return {event,summary:{rows}};
   });
-  const adjusted=eventAdjustedScores(reports,row=>row.values[cornerGraphBand],telemetrySeasonStat,'common');
+  const season=connectedRaceCornerScores(reports.flatMap(({event,summary})=>[...summary.rows.values()].map(row=>({...row,snapshot:event.name}))),cornerGraphBand,'team',telemetrySeasonStat),adjusted=season.scores;
   const teams=new Map();
   for(const {event,summary} of reports)for(const row of summary.rows.values()){
-    if(!teams.has(row.team))teams.set(row.team,{...row,events:0,samples:0});
-    const t=teams.get(row.team);t.events++;t.samples+=row.samples;
+    if(!teams.has(row.team))teams.set(row.team,{...row,events:0,samples:0,comparisons:0});
+    const t=teams.get(row.team);t.events++;t.samples+=row.samples;t.comparisons+=row.comparisons;
   }
+  for(const event of events)for(const entry of raceCornerCache.get(cacheKey(event))?.entrants||[])if(!teams.has(entry.team))
+    teams.set(entry.team,{...entry,values:{},events:0,samples:0,comparisons:0});
   const rows=[...teams.values()].map(t=>({...t,gap:adjusted.get(t.team)}));
   const actions=raceCornerRunning?'<button type="button" data-race-corners-stop>Stop race cornering</button>':`<button type="button" data-race-corners-load ${pending.length?'':'disabled'}>${rows.length?'Load remaining race observations':'Calculate matched race corners'}</button>`;
-  const support=adjusted.coverage;
-  const visibleSupport=rows.length?`${rows.filter(r=>finite(r.gap)).length} of ${rows.length} measured ${telemetrySubject==='driver'?'drivers':'teams'} share a comparable ranking cohort. Other entries remain in the table; different race laps or compounds are not compared as equal conditions.`:raceCornerRunning?'Matched race telemetry is loading. Valid snapshots appear as soon as they are ready.':running?'Waiting for the race session before matching corners.':'No supported matched race snapshots yet. Use Calculate matched race corners or inspect the missing-data details below.';
-  const controls=`<div class="performance-scope-toggle" role="group" aria-label="Race cornering GP summary"><button type="button" data-telemetry-stat="mean" aria-pressed="${telemetrySeasonStat==='mean'}">Mean across GPs</button><button type="button" data-telemetry-stat="median" aria-pressed="${telemetrySeasonStat==='median'}">Median across GPs</button></div><p class="performance-note">${support?`Ranking: ${support.teams.map(escape).join(', ')} · ${support.events.length} shared GP${support.events.length===1?'':'s'} (${support.events.map(escape).join(', ')}).`:'No complete shared ranking cohort is available yet.'} Table counts show collected laps and GPs, not necessarily ranking support. Teams outside the shared cohort remain unranked.</p>`;
-  return card('Race cornering · matched observations','Provisional. Up to four green-flag snapshots per GP; same race lap and compound, tyre ages within four laps. Pit laps, wet laps, laps over 107% of stint median and close traffic at the timing line are excluded. Traffic between timing lines, setup and tyre-condition differences remain unknown. No fuel or tyre-wear correction is invented.',
+  const visibleSupport=rows.length?`${rows.filter(r=>finite(r.gap)).length} of ${rows.length} measured ${telemetrySubject==='driver'?'drivers':'teams'} connected by matched comparisons. Scores are estimated through overlapping rivals, not a direct all-field test. ${raceCornerRunning?'Still collecting snapshots; rankings can change.':'Sparse results remain provisional.'}`:raceCornerRunning?'Matched race telemetry is loading. Valid snapshots appear as soon as they are ready.':running?'Waiting for the race session before matching corners.':'No supported matched race snapshots yet. Use Calculate matched race corners or inspect the missing-data details below.';
+  const controls=`<div class="performance-scope-toggle" role="group" aria-label="Race cornering GP summary"><button type="button" data-telemetry-stat="mean" aria-pressed="${telemetrySeasonStat==='mean'}">Mean comparisons</button><button type="button" data-telemetry-stat="median" aria-pressed="${telemetrySeasonStat==='median'}">Median comparisons</button></div>`;
+  return card('Race cornering · matched comparisons','Up to 24 green-flag snapshots per GP, selected for field coverage and repeat evidence rather than four arbitrary race slices. Each comparison uses the same race lap and compound, with tyre ages within four laps. Pit laps, wet laps, laps over 107% of stint median and close traffic at the timing line are excluded. Overlapping rivals connect the snapshots; disconnected groups cannot be ranked together. Race management and unmeasured traffic remain limitations.',
     cornerBandControls()+controls+`<div class="performance-actions">${actions}</div><p class="performance-quality-status">${visibleSupport}</p>`+
-    '<p class="performance-note">The graph is extra seconds per corner, averaged within each GP and then across supported GPs. All corners is the default; low/medium/high use the same field-median corner classification. Windows include entry, apex and exit. Distance is registered with official sectors, so results are approximate. Only observed matched cohorts enter; missing teams are not assigned zero.</p>'+
+    '<p class="performance-note">Estimated extra seconds per measured corner against the best connected entrant. Mean or median selects how repeated head-to-head time differences are combined, then a connected comparison fit ranks the entrants. Season fitting gives each supported GP one observation per entrant. GPS corner positions align the timing windows; displaced source laps are retried or excluded. Low/medium/high use field-median apex speeds. This is observed race performance, not isolated car downforce or a whole-lap deficit.</p>'+
     renderHorizontalBarChart(rows.filter(r=>finite(r.gap)),{title:`${cornerGraphBand==='all'?'All corners':cornerGraphBand+'-speed corners'} · average time gap per corner`,valueKey:'gap',unit:' s',digits:3,signedValue:true,zeroBaseline:true})+
-    table([sortHeader('raceCornerTeam',telemetrySubject==='driver'?'Driver':'Team'),sortHeader('raceCornerGap','Average gap / corner'),sortHeader('raceCornerGPs','GPs',-1),sortHeader('raceCornerSamples','Matched laps',-1)],sorted(rows,{raceCornerTeam:r=>r.team,raceCornerGap:r=>r.gap,raceCornerGPs:r=>r.events,raceCornerSamples:r=>r.samples},'raceCornerGap').map(r=>[teamLabel(r),signed(r.gap,3,' s'),r.events,r.samples]))+
-    `<details class="performance-evidence"><summary>Measured race snapshots and missing data</summary>${table(['GP','Team','Driver / lap','Compound','Corners'],reports.flatMap(({event})=>(raceCornerCache.get(cacheKey(event))?.observations||[]).map(o=>[escape(event.name),escape(o.team),`${escape(o.driver)} L${o.lap}`,escape(o.compound),o.corners])))}<p>${reports.flatMap(r=>{const cached=raceCornerCache.get(cacheKey(r.event));return cached?[cached.error,...cached.requestErrors||[]].filter(Boolean).map(reason=>escape(r.event.name)+' · '+escape(reason)):[];}).join('<br>')}</p></details>`);
+    table([sortHeader('raceCornerTeam',telemetrySubject==='driver'?'Driver':'Team'),sortHeader('raceCornerGap','Estimated gap / corner'),sortHeader('raceCornerGPs','GPs',-1),sortHeader('raceCornerSamples','Unique measured laps',-1),'Matched comparisons'],sorted(rows,{raceCornerTeam:r=>r.team,raceCornerGap:r=>r.gap,raceCornerGPs:r=>r.events,raceCornerSamples:r=>r.samples},'raceCornerGap').map(r=>[teamLabel(r),signed(r.gap,3,' s'),r.events,r.samples,`${r.comparisons} snapshots${r.samples<3?' · sparse':''}`]))+
+    `<details class="performance-evidence"><summary>Measured race snapshots and missing data</summary>${table(['GP','Team','Driver / lap','Compound / age','Corners','Alignment'],reports.flatMap(({event})=>(raceCornerCache.get(cacheKey(event))?.observations||[]).map(o=>[escape(event.name),escape(o.team),`${escape(o.driver)} L${o.lap}`,`${escape(o.compound)} · ${o.tyreAge} laps`,o.corners,escape(o.alignment||o.geometrySource||'Approximate')])))}<p>${reports.flatMap(r=>{const cached=raceCornerCache.get(cacheKey(r.event));return cached?[cached.error,...cached.requestErrors||[]].filter(Boolean).map(reason=>escape(r.event.name)+' · '+escape(reason)):[];}).join('<br>')}</p></details>`);
 }
 let telemetryCoverageMode='common';
 let tyreSeasonStat='median'; // 'mean' | 'median' | 'p75'

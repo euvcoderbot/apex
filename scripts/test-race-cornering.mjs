@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
-import {raceCornerGroups,measureRaceCornerGroup} from '../race-cornering.js';
+import {raceCornerGroups,measureRaceCornerGroup,raceCornerAlignmentIssue,connectedRaceCornerScores} from '../race-cornering.js';
+import {circuitCornerMarkers} from '../corner-geometry.js';
 
 const fixture=JSON.parse(gunzipSync(readFileSync(new URL('./race-cornering-sepang-2026.json.gz',import.meta.url))));
 
@@ -50,4 +51,41 @@ test('tyre compounds and disparate ages cannot be pooled to manufacture a cohort
   assert.deepEqual(raceCornerGroups({drivers}),[]);
   drivers.forEach((d,i)=>{d.laps[0].compound='MEDIUM';d.laps[0].tyre_life=i*10;});
   assert.deepEqual(raceCornerGroups({drivers}),[]);
+});
+
+test('live Bahrain displaced archive cannot turn slower Alpine into the fastest cornering car',()=>{
+  const live=JSON.parse(gunzipSync(readFileSync(new URL('./race-cornering-bahrain-2026-live.json.gz',import.meta.url))));
+  const markers=circuitCornerMarkers(live.entries.find(e=>e.row.driver.code==='RUS').payload,live.session);
+  assert.match(raceCornerAlignmentIssue(live.entries.find(e=>e.row.driver.code==='PER'),markers,live.session),/displaced/);
+  const rows=measureRaceCornerGroup(live.entries,markers,live.session);
+  assert.equal(rows.length,3);
+  assert.equal(rows.find(r=>r.driver==='RUS').values.all,0);
+  assert.ok(rows.find(r=>r.driver==='COL').values.all>.04&&rows.find(r=>r.driver==='COL').values.all<.15);
+  assert.ok(rows.find(r=>r.driver==='BEA').values.all<.2);
+  assert.ok(rows.every(r=>r.alignment==='Named circuit-position registration'));
+});
+
+test('overlapping race cohorts retain connected entrants, without assigning disjoint teams a shared zero',()=>{
+  const obs=(team,snapshot,value)=>({team,driver:team,snapshot,values:{all:value}});
+  const data=[obs('A','one',0),obs('B','one',.1),obs('C','one',.2),obs('C','two',0),obs('D','two',.1),obs('E','two',.2)];
+  for(const stat of ['mean','median']){
+    const result=connectedRaceCornerScores(data,'all','team',stat);
+    assert.equal(result.scores.size,5);
+    for(const [index,name] of ['A','B','C','D','E'].entries())assert.ok(Math.abs(result.scores.get(name)-index*.1)<1e-7);
+    assert.equal(result.support.get('C'),2);
+  }
+  const result=connectedRaceCornerScores([...data,obs('X','disjoint',0),obs('Y','disjoint',.1),obs('Z','disjoint',.2)]);
+  assert.equal(result.components.length,2);assert.equal(result.scores.has('X'),false);
+  assert.deepEqual(connectedRaceCornerScores([...data].reverse()).scores,result.scores);
+});
+
+test('coverage selection keeps bridge cohorts and gives more than four snapshots when observed',()=>{
+  const drivers=['A','B','C','D','E'].map((code,i)=>({code,team:code,laps:Array.from({length:20},(_,j)=>({
+    lap:j+2,time:90+i,track_status:'1',compound:'MEDIUM',tyre_life:i<3?j+2:j+5,stint:1,
+    lap_start_seconds:(j+2)*100+i*6,lap_end_seconds:(j+2)*100+i*6+90+i
+  }))}));
+  const groups=raceCornerGroups({drivers});
+  assert.ok(groups.length>4);assert.ok(groups.length<=24);
+  assert.deepEqual([...new Set(groups.flatMap(g=>g.rows.map(r=>r.driver.code)))].sort(),['A','B','C','D','E']);
+  assert.ok(groups.every(g=>Math.max(...g.rows.map(r=>r.tyre_life))-Math.min(...g.rows.map(r=>r.tyre_life))<=4));
 });

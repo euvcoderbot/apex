@@ -63,3 +63,25 @@ test('race selection starts its loader and pace does not eagerly fetch qualifyin
   const loader=source.slice(source.indexOf('async function loadRaceCorners()'),source.indexOf('function renderRaceCorners()'));
   assert.doesNotMatch(loader,/fresh:'true'/);assert.match(loader,/snapshot \$\{index\+1\}/);
 });
+
+test('a displaced selected archive is recovered without relative timing boundaries and its corrected snapshot persists',async()=>{
+  const fixture=JSON.parse(gunzipSync(readFileSync(new URL('./race-cornering-bahrain-2026-live.json.gz',import.meta.url))));
+  const entries=fixture.entries.map((e,i)=>({...e,row:{...e.row,stint:1,track_status:'1',tyre_life:8,lap_start_seconds:1000+i*12,lap_end_seconds:1000+i*12+e.row.time}}));
+  const session={...fixture.session,drivers:entries.map(e=>({...e.row.driver,laps:[e.row]}))};
+  const fixed=structuredClone(entries.find(e=>e.row.driver.code==='BEA').payload),per=entries.find(e=>e.row.driver.code==='PER');
+  const ratio=per.row.time/fixed.samples.at(-1).ElapsedSeconds;
+  fixed.samples.forEach(point=>point.ElapsedSeconds*=ratio);fixed.source='OpenF1';
+  let recovery=0;const store=new Map();
+  const options={read:async k=>store.get(k),write:async(k,v)=>store.set(k,v),fetcher:async url=>{
+    const q=new URL(url),code=q.searchParams.get('driver');let data;
+    if(q.pathname==='/api/session')data=session;
+    else if(q.pathname==='/api/performance')data={teams:entries.map(e=>({team:e.row.driver.team,fastest_race_driver:e.row.driver.code}))};
+    else if(code==='PER'&&!q.searchParams.has('lap_start_seconds')){recovery++;data=fixed;}
+    else data=entries.find(e=>e.row.driver.code===code).payload;
+    return {ok:true,json:async()=>data};
+  }};
+  const query={year:2026,gp:'Bahrain Grand Prix',round:16,lap:17,compound:'MEDIUM'};
+  const result=await loadRaceSnapshot(createDataCache(options),query);
+  assert.ok(result.data.complete,result.data.reason);assert.equal(result.data.observations.length,4);assert.equal(recovery,1);
+  assert.equal((await loadRaceSnapshot(createDataCache(options),query)).cache,'HIT');assert.equal(recovery,1);
+});

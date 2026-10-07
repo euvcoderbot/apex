@@ -15,7 +15,8 @@ function fieldMinimumSpeed(measured,fraction,total) {
     if(values.length>=required&&values.length>=2)speeds.push(median(values));}
   return speeds.length?Math.min(...speeds):null;
 }
-export function raceCornerGroups(session,preferred={},limit=4,subject='team') {
+export const RACE_SNAPSHOT_LIMIT=24;
+export function raceCornerGroups(session,preferred={},limit=RACE_SNAPSHOT_LIMIT,subject='team') {
   const drivers=session.drivers||[], all=drivers.flatMap(d=>(d.laps||[]).map(l=>({...l,driver:d})));
   const completions=all.filter(l=>finite(l.lap_end_seconds)&&!l.in_lap&&!l.out_lap);
   const eligible=all.filter(l=>finite(l.time)&&l.lap>1&&!l.in_lap&&!l.out_lap&&!l.deleted&&l.accurate!==false&&l.track_status==='1'
@@ -31,22 +32,42 @@ export function raceCornerGroups(session,preferred={},limit=4,subject='team') {
   const groups=[];
   for(const lap of [...new Set(clean.map(l=>l.lap))])for(const compound of ['SOFT','MEDIUM','HARD']) {
     const rows=clean.filter(l=>l.lap===lap&&l.compound===compound);
-    let best=[];
-    for(const pivot of rows){const matched=rows.filter(l=>Math.abs(l.tyre_life-pivot.tyre_life)<=2);
+    const candidates=new Map();
+    for(const pivot of rows){const matched=rows.filter(l=>l.tyre_life>=pivot.tyre_life&&l.tyre_life<=pivot.tyre_life+4);
       const byTeam=new Map();for(const l of matched){const identity=subject==='driver'?l.driver.code:l.driver.team,old=byTeam.get(identity);
         if(!old || l.driver.code===preferred[l.driver.team]&&old.driver.code!==preferred[l.driver.team]
           || (l.driver.code===preferred[l.driver.team])===(old.driver.code===preferred[l.driver.team])&&l.time<old.time)byTeam.set(identity,l);}
-      if(byTeam.size>best.length)best=[...byTeam.values()];}
-    if(best.length>=3)groups.push({lap,compound,rows:best});
+      const matchedRows=[...byTeam.values()].sort((a,b)=>a.driver.code.localeCompare(b.driver.code));
+      if(matchedRows.length>=3)candidates.set(matchedRows.map(r=>r.driver.code).join(','),matchedRows);}
+    // Keep distinct overlapping cohorts, rather than throwing away the bridge
+    // between two tyre-age groups on the same race lap.
+    for(const [cohort,rows] of candidates)if(![...candidates.values()].some(other=>other.length>rows.length&&rows.every(r=>other.includes(r))))
+      groups.push({lap,compound,cohort,rows});
   }
-  const selected=[];
+  const selected=[],counts=new Map(),pairs=new Set(),buckets=new Set();
   const maxLap=Math.max(1,...all.map(l=>l.lap||0));
-  for(let bucket=0;bucket<limit;bucket++){
-    const pool=groups.filter(g=>Math.min(limit-1,Math.floor(g.lap/maxLap*limit))===bucket);
-    pool.sort((a,b)=>b.rows.length-a.rows.length||a.lap-b.lap);
-    if(pool.length)selected.push(pool[0]);
+  const identity=r=>subject==='driver'?r.driver.code:r.driver.team;
+  const pairKeys=g=>g.rows.flatMap((r,i)=>g.rows.slice(i+1).map(other=>[identity(r),identity(other)].sort().join(':')));
+  const score=g=>g.rows.reduce((sum,r)=>sum+(!counts.has(identity(r))?100:10/(counts.get(identity(r))+1)),0)
+    +pairKeys(g).filter(pair=>!pairs.has(pair)).length*15+(!buckets.has(Math.floor(g.lap/maxLap*4))?5:0);
+  const pool=[...groups];
+  while(pool.length&&selected.length<limit){
+    pool.sort((a,b)=>score(b)-score(a)||a.lap-b.lap||a.compound.localeCompare(b.compound)||a.cohort.localeCompare(b.cohort));
+    const g=pool.shift();selected.push(g);for(const r of g.rows)counts.set(identity(r),(counts.get(identity(r))||0)+1);
+    pairKeys(g).forEach(pair=>pairs.add(pair));buckets.add(Math.floor(g.lap/maxLap*4));
   }
   return selected;
+}
+
+export function raceCornerAlignmentIssue(entry,markers,session={}) {
+  const native=registered(entry);if(!native)return 'Native telemetry does not match the official lap timing or has invalid samples.';
+  const own=circuitCornerMarkers(entry.payload,session);
+  if(!own.length)return /selected lap/i.test(entry.payload.source||'')?'Unverified selected-archive origin without circuit positions.':null;
+  const matching=markers.map(m=>[m,own.find(c=>c.label===m.label)]).filter(([,m])=>m);
+  // A few missing GPS packets must not discard an otherwise verified lap.
+  if(matching.length<3)return 'Too few named circuit positions verify the source-lap origin.';
+  if(matching.some(([a,b])=>Math.abs(a.fraction-b.fraction)>.04))return 'Source lap is displaced on the circuit; official duration alone is not sufficient alignment.';
+  return null;
 }
 
 function elapsedAt(points,fraction) {
@@ -89,25 +110,88 @@ export function measureRaceCornerGroup(entries,fallbackMarkers=[],session={}) {
   const ready=entries.map(e=>({...e,native:registered(e)})).filter(e=>e.native).sort((a,b)=>a.row.driver.code.localeCompare(b.row.driver.code));
   if(ready.length<3)return [];
   const ref=ready[0],ownMarkers=circuitCornerMarkers(ref.payload,session);
-  const markers=(ownMarkers.length?ownMarkers:fallbackMarkers).filter(c=>finite(c.fraction)&&c.fraction>0&&c.fraction<1).sort((a,b)=>a.fraction-b.fraction);
+  const markers=(fallbackMarkers.length?fallbackMarkers:ownMarkers).filter(c=>finite(c.fraction)&&c.fraction>0&&c.fraction<1).sort((a,b)=>a.fraction-b.fraction);
   if(markers.length<3)return [];
-  const measured=ready.map(e=>({...e,data:registered(e,ref.native.anchors)})).filter(e=>e.data);
+  const measured=ready.filter(e=>!raceCornerAlignmentIssue(e,markers,session)).map(e=>{
+    const local=circuitCornerMarkers(e.payload,session);
+    if(!local.length)return {...e,data:registered(e,ref.native.anchors),alignment:'Official-sector registration · map-only approximation'};
+    // Match the actual named circuit positions, not the time at sector lines.
+    // Sector-only stretching cannot correct a trace cut at a different corner.
+    const supported=markers.filter(m=>local.some(c=>c.label===m.label));
+    const from=[0,...supported.map(m=>local.find(c=>c.label===m.label).fraction),1],to=[0,...supported.map(m=>m.fraction),1];
+    const points=e.native.points.map(p=>{let i=0;while(i<from.length-2&&p.f>from[i+1])i++;
+      return {...p,f:to[i]+(to[i+1]-to[i])*(p.f-from[i])/(from[i+1]-from[i])};});
+    return {...e,data:{...e.native,points},alignment:supported.length===markers.length?'Named circuit-position registration':`Named circuit-position registration · ${supported.length}/${markers.length} GPS landmarks`};
+  }).filter(e=>e.data);
+  if(measured.length<3)return [];
   const zones=markers.map((m,i)=>{
     const left=i?(markers[i-1].fraction+m.fraction)/2:0,right=i<markers.length-1?(m.fraction+markers[i+1].fraction)/2:1;
     const start=Math.max(left,m.fraction-130/ref.native.total),end=Math.min(right,m.fraction+100/ref.native.total);
-    const apex=fieldMinimumSpeed(measured,m.fraction,ref.native.total);return {start,end,band:finite(apex)?apex<=120?'low':apex<=200?'medium':'high':null};
+    const apex=fieldMinimumSpeed(measured,m.fraction,ref.native.total);return {start,end,corner:m.label,band:finite(apex)?apex<=120?'low':apex<=200?'medium':'high':null};
   });
   // Every entrant in this observation must support the same corner windows.
   const rows=measured.map(e=>{const times=zones.map(z=>{const points=e.data.points.filter(p=>p.f>=z.start&&p.f<=z.end);
     if(points.length<3)return null;
     const a=elapsedAt(e.data.points,z.start),b=elapsedAt(e.data.points,z.end);return finite(a)&&finite(b)?b-a:null;});
-    return times.every(t=>finite(t)&&t>0)?{team:e.row.driver.team,color:e.row.driver.team_color,driver:e.row.driver.code,lap:e.row.lap,times}:null;}).filter(Boolean);
+    return times.every(t=>finite(t)&&t>0)?{team:e.row.driver.team,color:e.row.driver.team_color,driver:e.row.driver.code,lap:e.row.lap,tyreAge:e.row.tyre_life,lapTime:e.row.time,times,alignment:e.alignment}:null;}).filter(Boolean);
   if(rows.length<3)return [];
   return rows.map(row=>{const values={};for(const band of ['all','low','medium','high']){
     const indices=zones.map((z,i)=>band==='all'||z.band===band?i:-1).filter(i=>i>=0);
     const own=mean(indices.map(i=>row.times[i]));const fastest=Math.min(...rows.map(r=>mean(indices.map(i=>r.times[i]))).filter(finite));
-    values[band]=indices.length&&(band==='all'||zones.every(z=>z.band))?Math.max(0,own-fastest):null;}
-    return {...row,values,corners:zones.length,compound:entries[0].row.compound};});
+    values[band]=indices.length?Math.max(0,own-fastest):null;}
+    return {...row,values,corners:zones.length,cornerBands:zones.map(z=>({corner:z.corner,band:z.band})),compound:entries[0].row.compound};});
+}
+
+// Snapshot fixed effects: each comparison is within one race lap, compound and
+// narrow tyre-age cohort. Overlapping entrants connect snapshots; disjoint
+// components are never given a shared zero. This is an estimate, not a direct
+// all-field comparison, and support is exposed beside the score.
+export function connectedRaceCornerScores(observations,band='all',subject='team',stat='mean') {
+  const id=o=>subject==='driver'?o.driver:o.team,groups=new Map(),metadata=new Map();
+  for(const o of observations)if(finite(o.values?.[band])){
+    const key=o.snapshot||o.lap+':'+o.compound;if(!groups.has(key)){groups.set(key,new Map());metadata.set(key,new Map());}
+    groups.get(key).set(id(o),o.values[band]);metadata.get(key).set(id(o),o);}
+  const graph=new Map();for(const group of groups.values())if(group.size>=3)for(const name of group.keys()){
+    if(!graph.has(name))graph.set(name,new Set());for(const peer of group.keys())graph.get(name).add(peer);}
+  const unseen=new Set(graph.keys()),components=[];
+  while(unseen.size){const found=new Set(),todo=[unseen.values().next().value];while(todo.length){const name=todo.pop();if(found.has(name))continue;
+    found.add(name);unseen.delete(name);for(const peer of graph.get(name)||[])if(!found.has(peer))todo.push(peer);}components.push([...found].sort());}
+  components.sort((a,b)=>b.length-a.length||a.join().localeCompare(b.join()));
+  const scores=new Map(),support=new Map(),component=components[0]||[],names=new Set(component);
+  const blocks=[...groups].filter(([,g])=>g.size>=3&&[...g.keys()].every(name=>names.has(name)));
+  const pairs=new Map();
+  for(const [snapshot,g] of blocks){const entrants=[...g.keys()].sort();
+    for(const name of entrants)support.set(name,(support.get(name)||0)+1);
+    for(let i=0;i<entrants.length;i++)for(let j=i+1;j<entrants.length;j++){
+      const a=entrants[i],b=entrants[j],key=a+'\0'+b;if(!pairs.has(key))pairs.set(key,{a,b,values:[],weights:[],seen:new Set()});
+      const p=pairs.get(key),oa=metadata.get(snapshot).get(a),ob=metadata.get(snapshot).get(b);
+      const physical=finite(oa.lap)&&finite(ob.lap)?oa.lap+':'+oa.compound+':'+oa.driver+':'+ob.driver:snapshot;
+      // The same two physical laps may occur in overlapping age cohorts. They
+      // are one contrast, not extra evidence just because a third rival differs.
+      if(p.seen.has(physical))continue;p.seen.add(physical);
+      p.values.push(g.get(a)-g.get(b));p.weights.push(1/entrants.length);
+    }
+  }
+  const n=component.length,index=new Map(component.map((name,i)=>[name,i])),matrix=Array.from({length:n},()=>Array(n).fill(0)),rhs=Array(n).fill(0),contrasts=[];
+  for(const p of pairs.values()){
+    const weight=p.weights.reduce((a,b)=>a+b,0),delta=stat==='median'?median(p.values):p.values.reduce((sum,v,i)=>sum+v*p.weights[i],0)/weight;
+    const a=index.get(p.a),b=index.get(p.b);matrix[a][a]+=weight;matrix[b][b]+=weight;matrix[a][b]-=weight;matrix[b][a]-=weight;
+    rhs[a]+=weight*delta;rhs[b]-=weight*delta;contrasts.push({a,b,weight,delta});
+  }
+  // One anchor fixes the arbitrary shared baseline. Solve the graph Laplacian
+  // directly; alternating medians can get stuck at a non-optimal fixed point.
+  const system=matrix.slice(1).map((row,i)=>[...row.slice(1),rhs[i+1]]);
+  for(let column=0;column<n-1;column++){
+    let pivot=column;for(let row=column+1;row<n-1;row++)if(Math.abs(system[row][column])>Math.abs(system[pivot][column]))pivot=row;
+    [system[pivot],system[column]]=[system[column],system[pivot]];
+    const scale=system[column][column];if(Math.abs(scale)<1e-12)return {scores,support,components,snapshots:blocks.length};
+    for(let k=column;k<n;k++)system[column][k]/=scale;
+    for(let row=0;row<n-1;row++)if(row!==column){const factor=system[row][column];for(let k=column;k<n;k++)system[row][k]-=factor*system[column][k];}
+  }
+  const effects=[0,...system.map(row=>row[n-1])],fastest=Math.min(...effects);
+  component.forEach((name,i)=>scores.set(name,effects[i]-fastest));
+  const residual=contrasts.length?Math.sqrt(contrasts.reduce((sum,c)=>sum+c.weight*(effects[c.a]-effects[c.b]-c.delta)**2,0)/contrasts.reduce((sum,c)=>sum+c.weight,0)):null;
+  return {scores,support,components,snapshots:blocks.length,residual};
 }
 
 export function measureQualifyingCornerGroup(entries,session={}) {
