@@ -1116,7 +1116,7 @@ test('native corner projection follows the aligned comparison grid', () => {
   assert.equal(h.run("resolveCornerMarkers(samples,1000,[{number:'1',fraction:.5,source:'lap_projection'}])[0].fraction"),.6);
 });
 
-test('one optional speed-annotation control combines native apex minima and straight peaks', () => {
+test('one optional speed-annotation control combines slow minima, shared fast-corner speeds and straight peaks', () => {
   const h=context();
   assert.equal(h.run('showSpeedAnnotations'),false);
   assert.equal((app.match(/id="speedAnnotationToggle"/g)||[]).length,1);
@@ -1129,14 +1129,56 @@ test('one optional speed-annotation control combines native apex minima and stra
   const results=h.run('buildSpeedAnnotations(entries,zones,5000)');
   assert.ok(results.some(r=>r.kind==='peak'));
   assert.equal(results.find(r=>r.title==='T1 min').values[0].speed,80);
-  assert.equal(results.find(r=>r.title==='T2 apex').values[0].speed,240);
-  assert.equal(results.find(r=>r.title==='T2 apex').fraction,.59);
+  assert.equal(results.find(r=>r.title==='T2 speed').values[0].speed,245);
+  assert.equal(results.find(r=>r.title==='T2 speed').fraction,.6);
+  assert.ok(results.find(r=>r.title==='T2 speed').values.every(v=>v.fraction===.6));
   assert.equal(results.find(r=>r.title==='T1 min').values[1].speed,75);
   h.run('entries[0].samples=entries[0].samples.filter(p=>p.AlignedFraction<.194||p.AlignedFraction>.206)');
   assert.equal(h.run("buildSpeedAnnotations(entries,zones,5000).find(r=>r.title==='T1 min').values.length"),1);
   assert.equal(h.run("buildSpeedAnnotations(entries,zones,5000).find(r=>r.title==='T1 min').missing[0].code"),'A');
   // A gap in the middle of a straight must not discard a measured peak elsewhere.
   assert.equal(h.run("buildSpeedAnnotations(entries,zones,5000).filter(r=>r.kind==='peak').every(r=>r.values.length===2)"),true);
+});
+
+test('shared corner positions interpolate bounded native brackets without fabricating missing speeds', () => {
+  const h=context();
+  h.sandbox.entry={lap:{code:'A',lap:1},samples:[
+    {AlignedFraction:.598,Speed:250,ElapsedSeconds:10},
+    {AlignedFraction:.602,Speed:270,ElapsedSeconds:10.3}]};
+  assert.equal(h.run('sharedCornerSpeed(entry,.6,5000).speed'),260);
+  assert.equal(h.run('sharedCornerSpeed(entry,.6,5000).estimated'),true);
+  assert.equal(h.run('sharedCornerSpeed(entry,.59,5000)'),null);
+  assert.equal(h.run('sharedCornerSpeed(entry,.61,5000)'),null);
+  h.run('entry.samples[1].ElapsedSeconds=11');
+  assert.equal(h.run('sharedCornerSpeed(entry,.6,5000)'),null);
+  h.run('entry.samples[1].ElapsedSeconds=10.3;entry.samples[1].Speed=null');
+  assert.equal(h.run('sharedCornerSpeed(entry,.6,5000)'),null);
+});
+
+test('mini-sector colours cover every dense track vertex and exact 25 m boundaries including the final tail', () => {
+  const h=context();
+  h.run('performanceSectionDuration=(s,a,b)=>(b-a)*s.time');
+  const segments=h.run('miniSectorDominanceSegments([{time:95},{time:96}],5476.622)');
+  assert.equal(segments.length,220);
+  assert.equal(segments[0].start,0);
+  assert.equal(segments.at(-1).end,1);
+  segments.forEach((segment,index)=>{
+    assert.equal(segment.winner,0);
+    if(index)assert.equal(segment.start,segments[index-1].end);
+    assert.ok(Math.abs((segment.end-segment.start)*5476.622-25)<1e-8||index===219);
+    h.sandbox.fraction=(segment.start+segment.end)/2;
+    const hover=h.run('miniSectorBounds(5476.622,fraction)');
+    assert.equal(hover.start,segment.start);
+    assert.equal(hover.end,segment.end);
+  });
+  h.sandbox.geometry=Array.from({length:3000},(_,i)=>({x:i,y:Math.sin(i/20)}));
+  h.sandbox.segments=segments;
+  const retained=h.run('segments.flatMap(s=>miniSectorGeometryPoints(geometry,s.start,s.end,f=>({x:f*3000,y:0}))).map(p=>p.x)');
+  for(let i=0;i<3000;i++)assert.ok(retained.includes(i),`dense vertex ${i} is covered`);
+  h.run('performanceSectionDuration=(s,a,b)=>s.time');
+  assert.ok(h.run('miniSectorDominanceSegments([{time:1},{time:null}],100).every(s=>s.winner===-1)'));
+  assert.ok(h.run('miniSectorDominanceSegments([{time:1},{time:0}],100).every(s=>s.winner===-1)'));
+  assert.ok(h.run('miniSectorDominanceSegments([{time:1}],100).every(s=>s.winner===-1)'));
 });
 
 test('combined corners sum union windows once and use average rather than minimum speed', () => {
@@ -1161,7 +1203,7 @@ test('map selection shares all merged measured windows and marks every outer bou
   assert.match(map,/selectedCornerWindows\(adaptiveCornerZones\(markerCorners\)\)/);
   assert.match(map,/for \(const window of highlightedCornerWindows\)/);
   assert.match(map,/highlightedCornerWindows.flatMap\(window => \[window.start, window.end\]\)/);
-  assert.ok(map.indexOf('for (const window of highlightedCornerWindows)')<map.indexOf('const wins = new Set()'),'selected outlines are behind dominance colours');
+  assert.ok(map.indexOf('for (const window of highlightedCornerWindows)')<map.indexOf('let unavailableSegments = 0'),'selected outlines are behind dominance colours');
   assert.doesNotMatch(app,/selectedCornerIndex\b/);
 });
 

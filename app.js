@@ -1533,7 +1533,7 @@ function renderCharts() {
           <div class="trace-settings" aria-label="Telemetry display settings">
             <div class="alignment-readout"><i></i><span id="alignmentStatus" data-state="idle">Speed trace controls</span></div>
             <label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label>
-            <label class="trace-setting" title="Show corner minimum/apex speeds and straight peaks together. Apex means the lowest measured speed in the central corner window, not an approach or exit maximum. Colours identify laps; differences are against the fastest speed in the same window. A dash means that lap has no trustworthy measurement there."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label>
+            <label class="trace-setting" title="Show slow-corner minima, fast-corner speeds and straight peaks together. Fast-corner speeds use one shared estimated geometric corner position for every lap; they are not measured apex locations. Colours identify laps. A dash means the position has no supported measurement."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label>
             <label class="trace-setting trace-mode-toggle" title="Smooth interpolation through trusted samples. Repairs require evidence from neighbouring acceleration, throttle, brake and gear/RPM; full throttle alone does not prove a fault. Uncertain gaps are marked as estimates. Timing delta follows reconstructed speed while official sector and finish deltas stay exact."><input type="checkbox" id="interpolationToggle" ${enhancedTraceMode ? 'checked' : ''}><i aria-hidden="true"></i><span>Enhanced interpolation</span><small id="traceModeStatus" data-mode="${enhancedTraceMode ? 'enhanced' : 'accurate'}">${enhancedTraceMode ? 'Interpolated' : 'Accurate'}</small></label>
             <label class="trace-setting"><input type="checkbox" id="tintToggle" ${traceTintEnabled ? 'checked' : ''}><i aria-hidden="true"></i><span>Trace tint</span></label>
           </div>
@@ -1951,6 +1951,25 @@ function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7, viewSta
   return { items, lanes: laneEnds.length };
 }
 
+function sharedCornerSpeed(entry, fraction, totalDistance) {
+  const samples=entry.samples;
+  const index=samples.findIndex(p=>traceSampleFraction(samples,p)>=fraction);
+  if(index<0)return null;
+  const after=samples[index],af=traceSampleFraction(samples,after);
+  const valid=p=>p?.Speed!=null&&Number.isFinite(+p.Speed)&&+p.Speed>0;
+  if(Math.abs(af-fraction)<1e-9)return valid(after)?{lap:entry.lap,speed:+after.Speed,fraction,estimated:false}:null;
+  if(index===0)return null;
+  const before=samples[index-1],bf=traceSampleFraction(samples,before);
+  if(!valid(before)||!valid(after)||!(af>bf)||af-bf>Math.max(40/totalDistance,.008))return null;
+  if(finiteTelemetryTime(before.ElapsedSeconds)&&finiteTelemetryTime(after.ElapsedSeconds)
+    && after.ElapsedSeconds-before.ElapsedSeconds>.6)return null;
+  // Bounded interpolation of native speed at one shared spatial position,
+  // not each driver's independently selected minimum or reconstructed curve.
+  if(typeof telemetryEstimateInfo==='function'&&telemetryEstimateInfo(samples,fraction,'Speed'))return null;
+  const ratio=(fraction-bf)/(af-bf);
+  return {lap:entry.lap,speed:+before.Speed+(+after.Speed-before.Speed)*ratio,fraction,estimated:true};
+}
+
 function buildSpeedAnnotations(entries, zones, totalDistance) {
   if (!zones?.length || !Number.isFinite(totalDistance) || totalDistance<=0) return [];
   const measured = (entry,start,end,kind) => {
@@ -1978,18 +1997,18 @@ function buildSpeedAnnotations(entries, zones, totalDistance) {
     return {lap:entry.lap,speed:+point.Speed,fraction};
   };
   const result=[];
-  const add=(title,start,end,kind)=>{
+  const add=(title,start,end,kind,position=null)=>{
     if (end-start<20/totalDistance) return;
-    const values=entries.map(e=>measured(e,start,end,kind)).filter(Boolean).sort((a,b)=>b.speed-a.speed);
+    const values=entries.map(e=>kind==='corner'?sharedCornerSpeed(e,position,totalDistance):measured(e,start,end,kind)).filter(Boolean).sort((a,b)=>b.speed-a.speed);
     if (!values.length) return;
-    result.push({title,kind,fraction:values[0].fraction,speed:values[0].speed,values,
+    result.push({title,kind,fraction:kind==='corner'?position:values[0].fraction,speed:values[0].speed,values,
       missing:entries.filter(e=>!values.some(v=>v.lap===e.lap)).map(e=>e.lap)});
   };
   zones.forEach((zone,index)=>{
-    // The same physical window is used for every lap. Apex/minimum speeds
-    // exclude straight approach/exit maxima, including in fast corners.
-    const kind=zone.minimumSpeed<=120?'min':'apex';
-    add(`${cornerLabel(zone)} ${kind==='min'?'min':'apex'}`,zone.apexStart,zone.apexEnd,kind);
+    // Slow corners show their observed window minimum. Faster corners use
+    // the shared geometric centre; a window-edge minimum is not an apex.
+    const kind=zone.minimumSpeed<=120?'min':'corner';
+    add(`${cornerLabel(zone)} ${kind==='min'?'min':'speed'}`,zone.apexStart,zone.apexEnd,kind,zone.apex);
     const previous=zones[index-1];
     const start=previous ? previous.apexEnd : 0;
     // Include the approach right up to the central corner window. The native
@@ -2049,7 +2068,7 @@ function renderSpeedAnnotationEvidence(annotations,entries,totalDistance) {
   const open=host.querySelector?.('details')?.open;
   host._annotations=annotations;
   const label=lap=>`${lap.code} L${lap.lap}`;
-  host.innerHTML=`<details ${open?'open':''}><summary>All speed annotations · ${annotations.length} measured windows</summary><p>Chart labels that cannot fit without covering a trace are omitted from the canvas, not from this table. Apex is the minimum observed speed in the central corner window; Peak is a full-throttle pre-braking maximum. Missing observations stay blank. Three decimals describe the displayed value, not sensor precision.</p><div class="speed-annotation-table-wrap"><table><thead><tr><th>Window</th><th>Position</th>${entries.map(e=>`<th style="color:${getLapColor(e.lap)}">${escapeUI(label(e.lap))}</th>`).join('')}</tr></thead><tbody>${annotations.map(a=>`<tr><th>${escapeUI(a.title)}</th><td>${(a.fraction*totalDistance).toFixed(3)} m</td>${entries.map(e=>{const value=a.values.find(v=>v.lap===e.lap);return `<td>${value?value.speed.toFixed(3)+' km/h':'—'}</td>`;}).join('')}</tr>`).join('')}</tbody></table></div></details>`;
+  host.innerHTML=`<details ${open?'open':''}><summary>All speed annotations · ${annotations.length} locations</summary><p>Chart labels omitted for space remain in this table. Min is each lap's observed slow-corner window minimum. Speed compares every lap at one shared estimated geometric corner centre, not a measured apex; ≈ marks bounded interpolation between native speed samples. Peak is a full-throttle pre-braking maximum. Missing observations stay blank. Three decimals are display precision, not sensor accuracy.</p><div class="speed-annotation-table-wrap"><table><thead><tr><th>Location</th><th>Position</th>${entries.map(e=>`<th style="color:${getLapColor(e.lap)}">${escapeUI(label(e.lap))}</th>`).join('')}</tr></thead><tbody>${annotations.map(a=>`<tr><th>${escapeUI(a.title)}</th><td>${(a.fraction*totalDistance).toFixed(3)} m</td>${entries.map(e=>{const value=a.values.find(v=>v.lap===e.lap);return `<td>${value?(value.estimated?'≈ ':'')+value.speed.toFixed(3)+' km/h':'—'}</td>`;}).join('')}</tr>`).join('')}</tbody></table></div></details>`;
 }
 
 function traceSampleFraction(series, point) {
@@ -2751,10 +2770,7 @@ function bindTrackMapHover() {
 
       if (tooltip && telemetryCard) {
         const distanceKM = (bestFraction * totalDistance) / 1000;
-        const segments = Math.ceil(totalDistance / 25);
-        const segmentIndex = Math.min(segments - 1, Math.floor(bestFraction * segments));
-        const segmentStart = segmentIndex / segments;
-        const segmentEnd = (segmentIndex + 1) / segments;
+        const {start: segmentStart, end: segmentEnd} = miniSectorBounds(totalDistance, bestFraction);
         const segmentRows = hoverEntries.map(({ lap }) => {
           const series = telemetryCache.get(telemetryKey(lap));
           const speed = typeof smoothedTelemetryValue === 'function'
@@ -2767,17 +2783,17 @@ function bindTrackMapHover() {
             : null;
           return { lap, speed, sectionTime };
         });
-        const finiteSegmentTimes = segmentRows.map(row => row.sectionTime).filter(Number.isFinite);
-        const bestTime = finiteSegmentTimes.length ? Math.min(...finiteSegmentTimes) : null;
+        const comparable = segmentRows.length >= 2 && segmentRows.every(row => Number.isFinite(row.sectionTime) && row.sectionTime > 0);
+        const bestTime = comparable ? Math.min(...segmentRows.map(row => row.sectionTime)) : null;
         const lines = segmentRows.map(({ lap, speed, sectionTime }) => {
           const speedDisplay = Number.isFinite(speed) ? `${speed.toFixed(1)} KM/H` : '—';
-          const timeDisplay = Number.isFinite(sectionTime) && Number.isFinite(bestTime)
-            ? `${sectionTime.toFixed(3)}s${Math.abs(sectionTime - bestTime) < .0005 ? ' FASTEST' : ` +${(sectionTime - bestTime).toFixed(3)}s`}`
+          const timeDisplay = Number.isFinite(sectionTime) && sectionTime > 0
+            ? `${sectionTime.toFixed(3)}s${bestTime == null ? ' · NOT COMPARED' : Math.abs(sectionTime - bestTime) < .0005 ? ' FASTEST' : ` +${(sectionTime - bestTime).toFixed(3)}s`}`
             : 'NO SECTION TIME';
           return `<span style="color: ${getLapColor(lap)}">●</span> ${lap.code} L${lap.lap} · <b>${speedDisplay}</b> · ${timeDisplay}`;
         });
 
-        tooltip.innerHTML = `<b>TRACK MAP · ${distanceKM.toFixed(3)} KM · 25 M SECTION</b><br>${lines.join('<br>')}`;
+        tooltip.innerHTML = `<b>TRACK MAP · ${distanceKM.toFixed(3)} KM · ${((segmentEnd-segmentStart)*totalDistance).toFixed(1)} M SECTION</b><br>${lines.join('<br>')}`;
         tooltip.style.display = 'block';
 
         const parentRect = telemetryCard.getBoundingClientRect();
@@ -3266,6 +3282,37 @@ function renderGenericCircuit(canvas, empty) {
   }
 }
 
+function miniSectorBounds(totalDistance, fraction, segmentLength = 25) {
+  const index = Math.max(0, Math.min(Math.ceil(totalDistance / segmentLength) - 1, Math.floor(fraction * totalDistance / segmentLength)));
+  return {start: index * segmentLength / totalDistance, end: Math.min(1, (index + 1) * segmentLength / totalDistance)};
+}
+
+function miniSectorGeometryPoints(geometry, start, end, pointAt) {
+  const points = [pointAt(start)];
+  // Use the very same dense vertices as the outline, not coarser chords
+  // which cut across bends and expose a false gap in the comparison layer.
+  for (let index = Math.floor(start * geometry.length) + 1; index < end * geometry.length; index++) {
+    points.push(geometry[index]);
+  }
+  points.push(pointAt(end));
+  return points;
+}
+
+function miniSectorDominanceSegments(series, totalDistance, segmentLength = 25) {
+  if (!(totalDistance > 0) || !(segmentLength > 0)) return [];
+  return Array.from({length: Math.ceil(totalDistance / segmentLength)}, (_, index) => {
+    const start = index * segmentLength / totalDistance;
+    const end = Math.min(1, (index + 1) * segmentLength / totalDistance);
+    const durations = series.map(samples => {
+      if (typeof performanceSectionDuration === 'function') return performanceSectionDuration(samples, start, end);
+      const before = calibratedElapsed(samples, start), after = calibratedElapsed(samples, end);
+      return before == null || after == null ? null : after - before;
+    });
+    const comparable = durations.length >= 2 && durations.every(time => Number.isFinite(time) && time > 0);
+    return {start, end, durations, winner: comparable ? durations.indexOf(Math.min(...durations)) : -1};
+  });
+}
+
 function renderMiniSectorMap() {
   mapStaticLayer=null;
   const canvas = $('#dominanceCanvas');
@@ -3428,9 +3475,6 @@ function renderMiniSectorMap() {
     canvasGeometry = mapGeometry.map(point => ({ ...point, ...toCanvas(point.x, point.y) }));
     dominanceMapGeometryCache = { key: geometryKey, reference, geometrySteps, canvasGeometry };
   }
-  const segmentLength = 25;
-  const segments = Math.ceil(totalDistance / segmentLength);
-
   const pointAt = fraction => {
     const wrapped = Math.max(0, Math.min(1, fraction)) * canvasGeometry.length;
     const beforeIndex = Math.floor(wrapped) % canvasGeometry.length;
@@ -3490,36 +3534,17 @@ function renderMiniSectorMap() {
   }
   ctx.restore();
 
-  const wins = new Set();
+  let unavailableSegments = 0;
   if (comparative) {
-    for (let index = 0; index < segments; index++) {
-      const start = index / segments;
-      const end = Math.min(1, (index + 1) / segments);
-      const from = pointAt(start);
-      const to = pointAt(end);
-      if (!from || !to) continue;
-      let winner = -1;
-      let bestTime = Infinity;
-      allSeries.forEach((series, lapIndex) => {
-        const duration = typeof performanceSectionDuration === 'function'
-          ? performanceSectionDuration(series, start, end)
-          : calibratedElapsed(series, end) - calibratedElapsed(series, start);
-        if (Number.isFinite(duration) && duration < bestTime) {
-          bestTime = duration;
-          winner = lapIndex;
-        }
-      });
-      if (winner < 0) continue;
-      wins.add(winner);
+    for (const {start, end, winner} of miniSectorDominanceSegments(allSeries, totalDistance)) {
+      if (winner < 0) { unavailableSegments++; continue; }
       ctx.strokeStyle = getLapColor(mapEntries[winner].lap);
-      ctx.lineWidth = 5;
+      ctx.lineWidth = 7;
       ctx.beginPath();
-      ctx.moveTo(from.x, from.y);
-      const segmentSteps = Math.max(2, Math.ceil((end - start) * totalDistance / 5));
-      for (let step = 1; step <= segmentSteps; step++) {
-        const point = pointAt(start + (end - start) * step / segmentSteps);
-        if (point) ctx.lineTo(point.x, point.y);
-      }
+      miniSectorGeometryPoints(canvasGeometry, start, end, pointAt).forEach((point, index) => {
+        if (index === 0) ctx.moveTo(point.x, point.y);
+        else ctx.lineTo(point.x, point.y);
+      });
       ctx.stroke();
     }
   }
@@ -3639,12 +3664,12 @@ function renderMiniSectorMap() {
   }
 
   empty.style.display = 'none';
-  const legendIndexes = comparative ? [...wins] : [0];
+  const legendIndexes = comparative ? mapEntries.map((_, index) => index) : [0];
   legend.innerHTML = `<span class="map-north" aria-label="North is up"><svg viewBox="0 0 16 20" width="12" height="16" aria-hidden="true"><path d="M8 1 14 18 8 14 2 18Z" fill="currentColor"/></svg>N</span>${windText}` + legendIndexes.map(index => {
     const lap = mapEntries[index]?.lap;
     if (!lap) return '';
     return `<span class="legend-item"><i class="legend-color" style="--team:${getLapColor(lap)}"></i>${lap.code} L${lap.lap}</span>`;
-  }).join('');
+  }).join('') + (unavailableSegments ? `<span class="legend-item" title="Every selected lap needs a supported positive timing for a segment to be compared.">${unavailableSegments} segments unavailable · grey</span>` : '');
 }
 
 function drawMapHover() {
