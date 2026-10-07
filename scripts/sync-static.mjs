@@ -23,6 +23,7 @@ const staticFiles = [
   "car-performance.js",
   "race-cornering.js",
   "corner-geometry.js",
+  "qualifying-telemetry.js",
   "car-performance.css",
   "styles.css",
   "design-system.css",
