@@ -78,7 +78,7 @@ test('development table allocates all six columns without inflating rows',()=>{
   assert.match(css,/\.performance-trend-table \.performance-table tbody td \{ padding: 8px 12px; height: auto; \}/);
 });
 function context(reduced = false) {
-  const sandbox = { console, URLSearchParams,
+  const sandbox = { console, URL, URLSearchParams,
     document: { addEventListener() {}, querySelector() {}, activeElement: null },
     window: { matchMedia: () => ({ matches: reduced }) } };
   vm.createContext(sandbox);
@@ -166,12 +166,12 @@ test('current calendar bypasses browser response cache', async () => {
   assert.equal(calls,2);
 });
 
-test('session selection uses fresh cancellable retrieval with no speculative load', () => {
+test('session selection reuses versioned source cache with no speculative load', () => {
   assert.match(app, /for \(let y = currentYear; y >= 2018; y--\)/);
   const prepare = app.slice(app.indexOf('function prepareSelectedSession'), app.indexOf('function notify'));
   assert.doesNotMatch(prepare, /loadApiData|fetchSessionData|setTimeout/);
-  assert.match(app, /api\/session\?\$\{requestedQuery\}&fresh=true/);
-  assert.match(app, /signal: request.signal, cache: 'no-store'/);
+  assert.match(app, /loadApiData\(apiUrl\(`\/api\/session\?\$\{requestedQuery\}`\), \{signal:request.signal\}\)/);
+  assert.match(app, /window.APEX_DATA_VERSION/);
   assert.match(app, /query\.set\('driver_number', driver\.number\)/);
   assert.match(app, /query\.set\('lap_start_seconds', lapInfo\.lap_start_seconds\)/);
   assert.match(app, /query\.set\('lap_end_seconds', lapInfo\.lap_end_seconds\)/);
@@ -728,7 +728,7 @@ test('straight common coverage retains the widest field before extra GPs',()=>{
 
 test('temporary telemetry errors retry, permanent failures and cancellation do not',async()=>{
   const source=readFileSync('car-performance.js','utf8');let requests=0;
-  const box={window:{},DOMException,setTimeout:fn=>{queueMicrotask(fn);return 1;},clearTimeout(){},
+  const box={window:{},URLSearchParams,refreshPerformance:false,DOMException,setTimeout:fn=>{queueMicrotask(fn);return 1;},clearTimeout(){},
     fetch:async()=>({ok:++requests===3,status:503,json:async()=>({detail:'busy'})})};
   vm.createContext(box);vm.runInContext(source.slice(source.indexOf('async function get('),source.indexOf('function completed(')),box);
   await box.get('/api/telemetry');assert.equal(requests,3);

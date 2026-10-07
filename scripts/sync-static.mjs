@@ -1,7 +1,13 @@
 import { cp, mkdir, rm, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import {createHash} from 'node:crypto';
 
 const root = process.cwd();
+const calculationFiles=['performance.py','performance_tracks.py','server.py','session_loader.py','race-cornering.js','corner-geometry.js','car-performance.js','app.js','lib/data-cache.mjs','lib/race-corner-loader.mjs'];
+const revision=createHash('sha256');
+for(const file of calculationFiles)revision.update(file).update(await readFile(resolve(root,file)));
+const cacheRevision=revision.digest('hex').slice(0,20);
+await writeFile(resolve(root,'lib/cache-revision.mjs'),`// Generated from calculation/source files; UI assets alone do not invalidate data.\nexport const CACHE_REVISION = ${JSON.stringify(cacheRevision)};\n`);
 const destination = resolve(root, "public", "apex");
 const staticFiles = [
   "index.html",
@@ -41,6 +47,6 @@ if (apiOrigin && !/^https:\/\//i.test(apiOrigin)) {
 }
 await writeFile(
   resolve(destination, "config.js"),
-  `window.APEX_API_ORIGIN = ${JSON.stringify(apiOrigin)};\n`,
+  `window.APEX_API_ORIGIN = ${JSON.stringify(apiOrigin)};\nwindow.APEX_DATA_VERSION = ${JSON.stringify(cacheRevision)};\n`,
   "utf8",
 );

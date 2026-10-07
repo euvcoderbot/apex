@@ -1,0 +1,65 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {gunzipSync} from 'node:zlib';
+import vm from 'node:vm';
+import {createDataCache,normalizeDataPath,dataTTL,usableData} from '../lib/data-cache.mjs';
+import {loadRaceSnapshot} from '../lib/race-corner-loader.mjs';
+
+test('shared data cache survives new instances, coalesces cold work and isolates refresh/version keys',async()=>{
+  const store=new Map();let calls=0,clock=Date.parse('2026-10-07');
+  const options={read:async k=>store.get(k),write:async(k,v)=>store.set(k,v),now:()=>clock,
+    fetcher:async()=>{calls++;return {ok:true,json:async()=>({teams:[{team:'A',pace:calls}]})};}};
+  const cache=createDataCache(options),path='/api/performance?session=Q&gp=Test&year=2025';
+  const results=await Promise.all([cache.get(path),cache.get(path)]);
+  assert.equal(calls,1);assert.equal(results[0].data.teams[0].pace,1);
+  assert.equal((await createDataCache(options).get(path)).cache,'HIT');assert.equal(calls,1);
+  assert.equal((await cache.get(path,{fresh:true})).data.teams[0].pace,2);
+  clock+=8*86400000;await createDataCache(options).get(path);assert.equal(calls,3);
+  assert.equal(normalizeDataPath('/api/session?year=2025&gp=Test&fresh=true&session=Q'),'/api/session?gp=Test&session=Q&year=2025');
+  assert.throws(()=>normalizeDataPath('//evil.example/api/session?year=2025&gp=Test'));
+  assert.throws(()=>normalizeDataPath('/api/admin?year=2025'));
+});
+
+test('late corrections expire quickly, old completed events cache longer and partial failures never become durable',async()=>{
+  const now=Date.parse('2026-10-07T12:00:00Z');
+  assert.equal(dataTTL('/api/session?year=2026&gp=Test&session=R',{date:'2026-10-07T10:00:00Z'},null,now),120);
+  assert.equal(dataTTL('/api/performance?year=2026&gp=Test&session=R',{},[{name:'Test',session_dates:{Race:'2026-09-27T10:00:00Z'}}],now),604800);
+  assert.equal(usableData('/api/session?year=2026',{drivers:[{}],lap_data_complete:false}),false);
+  assert.equal(usableData('/api/telemetry?year=2026',{samples:Array(40).fill({}),position_complete:false}),false);
+  const store=new Map();let attempts=0;
+  const cache=createDataCache({read:async k=>store.get(k),write:async(k,v)=>store.set(k,v),fetcher:async()=>({ok:true,json:async()=>{attempts++;return {error:'incomplete',teams:{}};}})});
+  await cache.get('/api/performance/trace-batch?year=2026&gp=Test');await cache.get('/api/performance/trace-batch?year=2026&gp=Test');
+  assert.equal(attempts,2);assert.equal(store.size,0);
+});
+
+test('Sepang race snapshots compute once from validated source laps and persist across instances',async()=>{
+  const fixture=JSON.parse(gunzipSync(readFileSync(new URL('./race-cornering-sepang-2026.json.gz',import.meta.url))));
+  const entries=fixture.entries.map((entry,i)=>({...entry,row:{...entry.row,stint:1,track_status:'1',tyre_life:17,lap_start_seconds:1000+i*12,lap_end_seconds:1000+i*12+entry.row.time},
+    payload:{...entry.payload,corners:fixture.markers.map((m,i)=>({...m,number:String(i+1)}))}}));
+  const session={date:'2026-09-27',circuit_key:12,corners:fixture.markers,drivers:entries.map(e=>({...e.row.driver,laps:[e.row]}))};
+  let requests=0;const store=new Map();
+  const options={read:async k=>store.get(k),write:async(k,v)=>store.set(k,v),fetcher:async url=>{
+    requests++;const u=new URL(url),data=u.pathname==='/api/session'?session:u.pathname==='/api/performance'?{teams:entries.map(e=>({team:e.row.driver.team,fastest_race_driver:e.row.driver.code}))}:entries.find(e=>e.row.driver.code===u.searchParams.get('driver')).payload;
+    return {ok:true,json:async()=>data};
+  }};
+  const query={year:2026,gp:'Bahrain Grand Prix',round:16,lap:17,compound:'MEDIUM'};
+  const first=await loadRaceSnapshot(createDataCache(options),query);
+  assert.ok(first.data.complete,first.data.reason);assert.equal(first.data.observations.length,4);
+  assert.equal(first.data.observations[0].corners,15);
+  const count=requests,again=await loadRaceSnapshot(createDataCache(options),query);
+  assert.equal(again.cache,'HIT');assert.equal(requests,count);assert.deepEqual(again.data.observations,first.data.observations);
+});
+
+test('race selection starts its loader and pace does not eagerly fetch qualifying telemetry',()=>{
+  const source=readFileSync('car-performance.js','utf8'),calls=[];
+  const box={running:false,context:{},activeMetric:'corners',cornerSession:'race',telemetrySubject:'team',
+    loadRaceCorners:()=>calls.push('race'),loadQualifyingMetrics:()=>calls.push('qualy'),loadTeamTelemetry:()=>calls.push('team')};
+  vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function loadActiveTelemetry()'),source.indexOf('async function loadTeamTelemetry()')),box);
+  box.loadActiveTelemetry();assert.deepEqual(calls,['race']);
+  box.activeMetric='pace';box.loadActiveTelemetry();assert.equal(calls.length,1);
+  box.activeMetric='straight';box.loadActiveTelemetry();assert.deepEqual(calls,['race','team']);
+  assert.match(source,/cornerSession=cornerSessionButton.dataset.cornerSession;render\(\);loadActiveTelemetry\(\)/);
+  const loader=source.slice(source.indexOf('async function loadRaceCorners()'),source.indexOf('function renderRaceCorners()'));
+  assert.doesNotMatch(loader,/fresh:'true'/);assert.match(loader,/snapshot \$\{index\+1\}/);
+});

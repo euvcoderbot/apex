@@ -128,15 +128,26 @@ function apiUrl(path) {
   return `${API_ORIGIN}${path}`;
 }
 
+function sharedDataURL(url) {
+  const parsed=new URL(url,window.location?.href||'http://localhost');
+  if(parsed.origin!==new URL(API_ORIGIN||window.location?.href||'http://localhost').origin)return url;
+  if(!['/api/events','/api/session','/api/telemetry','/api/performance','/api/performance/trace-batch','/api/performance/pits'].includes(parsed.pathname))return url;
+  const fresh=parsed.searchParams.get('fresh')==='true';parsed.searchParams.delete('fresh');
+  return '/api/data?'+new URLSearchParams({path:parsed.pathname+'?'+parsed.searchParams,...(fresh?{refresh:'1'}:{})});
+}
+
 async function fetchSessionData(url, options = {}) {
   for (let attempt = 0; attempt < 2; attempt++) {
     if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     const controller = new AbortController();
     const abort = () => controller.abort();
     options.signal?.addEventListener('abort', abort, { once: true });
-    const timeout = setTimeout(abort, 25000);
+    const timeout = setTimeout(abort, /\/api\/performance/.test(url)?60000:30000);
     try {
-      const response = await fetch(url, { ...options, signal: controller.signal });
+      const shared=sharedDataURL(url),longQuery=shared.startsWith('/api/data?')&&shared.length>12000;
+      const query=longQuery?new URLSearchParams(shared.slice(shared.indexOf('?')+1)):null;
+      const response = await fetch(longQuery?'/api/data':shared, { ...options, signal: controller.signal,
+        ...(longQuery?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:query.get('path'),refresh:query.get('refresh')==='1'})}:{}) });
       if (![408, 429, 502, 503, 504].includes(response.status) || attempt === 1) return response;
       await response.text();
     } catch (error) {
@@ -225,20 +236,23 @@ async function preparedData(url) {
 }
 async function requestApiData(url, options = {}) {
   const parsed = new URL(url, window.location?.href || 'http://localhost');
+  const refreshing=parsed.searchParams.get('fresh')==='true';
+  const identity=new URL(parsed);identity.searchParams.delete('fresh');identity.searchParams.sort();
+  const cacheKey='source-'+(window.APEX_DATA_VERSION||'20261007-load-v1')+':'+identity.href;
   const liveCalendar = parsed.pathname === '/api/events'
     && Number(parsed.searchParams.get('year')) >= new Date().getFullYear();
-  const cached = liveCalendar ? null : await storedData(url);
+  const cached = liveCalendar||refreshing ? null : await storedData(cacheKey);
   if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
   if (cached) return structuredClone(cached);
-  const prepared = await preparedData(url).catch(() => null);
-  if (prepared) { void cacheData(url, structuredClone(prepared), 120000); return prepared; }
+  const prepared = refreshing?null:await preparedData(url).catch(() => null);
+  if (prepared) { void cacheData(cacheKey, structuredClone(prepared), 120000); return prepared; }
   const response = await fetchSessionData(url, options);
   const data = await readApiResponse(response);
   if (!response.ok) throw new Error(data.detail || `Data unavailable (${response.status})`);
   if (!liveCalendar && !/no-store/i.test(response.headers.get('cache-control') || '') && data.position_complete !== false) {
     const year = Number(new URL(url, window.location?.href || 'http://localhost').searchParams.get('year'));
     const historical = year > 0 && year < new Date().getFullYear();
-    void cacheData(url, structuredClone(data), historical ? 7 * 86400000 : 120000);
+    void cacheData(cacheKey, structuredClone(data), historical ? 7 * 86400000 : 120000);
   }
   return data;
 }
@@ -247,10 +261,17 @@ async function loadApiData(url, options = {}) {
     const pending = requestApiData(url).finally(() => pendingApiData.delete(url));
     pendingApiData.set(url, pending);
   }
-  const data = await pendingApiData.get(url);
+  const pending=pendingApiData.get(url);
+  const data = options.signal?await new Promise((resolve,reject)=>{
+    const abort=()=>reject(new DOMException('Aborted','AbortError'));
+    options.signal.addEventListener('abort',abort,{once:true});
+    if(options.signal.aborted)abort();
+    pending.then(resolve,reject).finally(()=>options.signal.removeEventListener('abort',abort));
+  }):await pending;
   if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
   return structuredClone(data);
 }
+window.apexDataRequest=(path,signal)=>loadApiData(apiUrl(path),{signal});
 function prepareSelectedSession() {
   clearTimeout(prefetchSessionTimer);
   // Session retrieval starts only when requested, not via speculative preloads.
@@ -918,11 +939,7 @@ async function loadRealSession() {
   const requestedQuery = String(currentQuery());
   
   try {
-    const response = await fetchSessionData(apiUrl(`/api/session?${requestedQuery}&fresh=true`), {
-      signal: request.signal, cache: 'no-store',
-    });
-    const payload = await readApiResponse(response);
-    if (!response.ok) throw new Error(payload.detail || 'Could not load this session.');
+    const payload = await loadApiData(apiUrl(`/api/session?${requestedQuery}`), {signal:request.signal});
     if (request !== sessionRequest || requestedQuery !== String(currentQuery())) return;
     if (!Array.isArray(payload.drivers) || !payload.drivers.length) throw new Error('No driver data is available for this session yet.');
     
