@@ -853,6 +853,30 @@ function displayDeltaAt(samples, reference, fraction, mode = enhancedInterpolati
     + (samples.deltaModel.values[upper] - samples.deltaModel.values[lower]) * ratio;
 }
 
+// Direction change over a 36 m chord. Use the shared GPS reference, never
+// throttle alone: a flat-out bend is still a corner. Units are radians/metre.
+function sessionTrackCurvature(fraction, totalDistance, reference=spatialReferenceTelemetry()?.samples) {
+  if(!reference?.length||!(totalDistance>0))return null;
+  const arm=18/totalDistance;
+  const point=offset=>({x:alignedValue(reference,clampTelemetry(fraction+offset),'X'),y:alignedValue(reference,clampTelemetry(fraction+offset),'Y')});
+  const a=point(-arm),b=point(0),c=point(arm);
+  if(![a.x,a.y,b.x,b.y,c.x,c.y].every(Number.isFinite))return null;
+  const u={x:b.x-a.x,y:b.y-a.y},v={x:c.x-b.x,y:c.y-b.y};
+  const length=Math.hypot(u.x,u.y)*Math.hypot(v.x,v.y);
+  return length>0?Math.acos(clampTelemetry((u.x*v.x+u.y*v.y)/length,-1,1))/36:null;
+}
+
+function sessionStraightEvidence(start,end,totalDistance) {
+  const reference=spatialReferenceTelemetry()?.samples;
+  const count=Math.max(8,Math.ceil((end-start)*totalDistance/10));
+  const curvature=Array.from({length:count},(_,i)=>sessionTrackCurvature(start+(end-start)*(i+.5)/count,totalDistance,reference)).filter(Number.isFinite);
+  if(curvature.length<count*.8)return false;
+  // Allow small GPS noise, not sustained lateral loading. At 250 km/h,
+  // 0.001 rad/m already corresponds to roughly 0.5 g lateral acceleration.
+  return curvature.filter(value=>value<.001).length/curvature.length>=.85;
+}
+
+let adaptiveZoneMemo=null;
 function adaptiveCornerZones(markers) {
   const totalDistance = referenceDistance();
   if (!totalDistance || !markers?.length) return [];
@@ -860,35 +884,14 @@ function adaptiveCornerZones(markers) {
     .filter(marker => Number.isFinite(marker.fraction))
     .sort((a, b) => a.fraction - b.fraction);
   const series = loaded.map(lap => telemetryCache.get(telemetryKey(lap))).filter(samples => samples?.length);
-  const reference = series.reduce((best, samples) =>
-    (samples.quality?.positionCoverage || 0) > (best?.quality?.positionCoverage || 0)
-      ? samples : best, series[0]);
+  const memoKey=totalDistance+'|'+JSON.stringify(ordered);
+  if(adaptiveZoneMemo?.key===memoKey&&adaptiveZoneMemo.series.length===series.length
+    &&series.every((samples,i)=>{const old=adaptiveZoneMemo.series[i];return old.samples===samples&&old.revision===(samples.positionRevision||0)&&old.alignment===samples.alignmentInputs;}))return adaptiveZoneMemo.zones;
+  const reference = spatialReferenceTelemetry()?.samples;
   const ensembleSpeed = fraction => medianTelemetry(series
     .map(samples => traceTelemetryValue(samples, fraction, 'Speed'))
     .filter(Number.isFinite));
-  const geometryCurvature = fraction => {
-    if (!reference?.length) return null;
-    const arm = 18 / totalDistance;
-    const point = offset => ({
-      x: alignedValue(reference, clampTelemetry(fraction + offset), 'X'),
-      y: alignedValue(reference, clampTelemetry(fraction + offset), 'Y'),
-    });
-    const before = point(-arm);
-    const centre = point(0);
-    const after = point(arm);
-    if (![before.x, before.y, centre.x, centre.y, after.x, after.y].every(Number.isFinite)) return null;
-    const incoming = { x: centre.x - before.x, y: centre.y - before.y };
-    const outgoing = { x: after.x - centre.x, y: after.y - centre.y };
-    const incomingLength = Math.hypot(incoming.x, incoming.y);
-    const outgoingLength = Math.hypot(outgoing.x, outgoing.y);
-    if (!incomingLength || !outgoingLength) return null;
-    const cosine = clampTelemetry(
-      (incoming.x * outgoing.x + incoming.y * outgoing.y) / (incomingLength * outgoingLength),
-      -1,
-      1
-    );
-    return Math.acos(cosine) / 36;
-  };
+  const geometryCurvature = fraction => sessionTrackCurvature(fraction,totalDistance,reference);
 
   const descriptors = ordered.map((marker, index) => {
     const previousGap = index ? (marker.fraction - ordered[index - 1].fraction) * totalDistance : Infinity;
@@ -946,19 +949,54 @@ function adaptiveCornerZones(markers) {
     return { ...marker, apex, minimumSpeed, type, apexHalfMetres, sectorReach, previousGap, nextGap };
   });
 
-  return descriptors.map((descriptor, index) => {
+  const zones=descriptors.map((descriptor, index) => {
     const previous = descriptors[index - 1];
     const next = descriptors[index + 1];
     const leftDistance = previous ? (descriptor.apex - previous.apex) * totalDistance : Infinity;
     const rightDistance = next ? (next.apex - descriptor.apex) * totalDistance : Infinity;
-    const start = Math.max(0, descriptor.apex - (previous && leftDistance <= descriptor.sectorReach + previous.sectorReach
+    let start = Math.max(0, descriptor.apex - (previous && leftDistance <= descriptor.sectorReach + previous.sectorReach
       ? leftDistance / 2 : descriptor.sectorReach) / totalDistance);
-    const end = Math.min(1, descriptor.apex + (next && rightDistance <= descriptor.sectorReach + next.sectorReach
+    let end = Math.min(1, descriptor.apex + (next && rightDistance <= descriptor.sectorReach + next.sectorReach
       ? rightDistance / 2 : descriptor.sectorReach) / totalDistance);
+    const midpointStart=previous?(previous.apex+descriptor.apex)/2:0;
+    const midpointEnd=next?(next.apex+descriptor.apex)/2:1;
+    // Locate the actual turning envelope near this official marker. A settled
+    // 30 m low-curvature stretch ends the turn; brief gaps inside an S-bend do
+    // not. Add only the local braking/traction transition (maximum 100 m),
+    // rather than timing an arbitrary fixed 380 m around every corner.
+    const curvature=geometryCurvature(descriptor.apex);
+    let boundaryMethod='Marker-centred fallback';
+    if(Number.isFinite(curvature)&&curvature>.001){
+      const edge=direction=>{
+        let last=descriptor.apex,settled=0;
+        const limit=direction<0?Math.max(midpointStart,descriptor.apex-300/totalDistance):Math.min(midpointEnd,descriptor.apex+300/totalDistance);
+        for(let f=descriptor.apex;direction<0?f>=limit:f<=limit;f+=direction*5/totalDistance){
+          const k=geometryCurvature(f);
+          if(!Number.isFinite(k))break;
+          settled=k<.001?settled+5:0;
+          if(k>=.001)last=f;
+          if(settled>=30)break;
+        }
+        let result=last;
+        for(let offset=5;offset<=100;offset+=5){
+          const f=last+direction*offset/totalDistance;
+          if(f<midpointStart||f>midpointEnd)break;
+          const throttle=medianTelemetry(series.map(s=>traceTelemetryValue(s,f,'Throttle')).filter(Number.isFinite));
+          const brake=medianTelemetry(series.map(s=>traceTelemetryValue(s,f,'Brake')).filter(Number.isFinite));
+          if(!Number.isFinite(throttle)||(throttle>=95&&!(brake>0)))break;
+          result=f;
+        }
+        return result;
+      };
+      start=Math.max(midpointStart,Math.min(edge(-1),descriptor.apex-20/totalDistance));
+      end=Math.min(midpointEnd,Math.max(edge(1),descriptor.apex+20/totalDistance));
+      boundaryMethod='GPS turn envelope + local braking/traction transition';
+    }
     const apexStart = Math.max(start, descriptor.apex - descriptor.apexHalfMetres / totalDistance);
     const apexEnd = Math.min(end, descriptor.apex + descriptor.apexHalfMetres / totalDistance);
     return {
       ...descriptor,
+      boundaryMethod,
       start,
       end,
       apexStart,
@@ -967,6 +1005,8 @@ function adaptiveCornerZones(markers) {
       apexMetres: Math.round((apexEnd - apexStart) * totalDistance),
     };
   });
+  adaptiveZoneMemo={key:memoKey,series:series.map(samples=>({samples,revision:samples.positionRevision||0,alignment:samples.alignmentInputs})),zones};
+  return zones;
 }
 
 function cornerPerformance(samples, zone) {

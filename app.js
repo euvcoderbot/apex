@@ -20,7 +20,7 @@ let loadedSessionName = '';
 let raceResultView = 'points';
 let openf1SessionKey = null;
 let nominatedCompounds = [];
-let selectedCornerIndices = new Set([0]);
+let selectedCornerIndices = new Set();
 let automaticStraightIndices = new Set();
 let cornerSort = 'time';
 let showCornerNumbers = window.ApexAnalysis?.preference('corner-numbers',false)===true;
@@ -792,7 +792,7 @@ function clearBeforeSessionLoad() {
   sessionLocation = '';
   openf1SessionKey = null;
   nominatedCompounds = [];
-  selectedCornerIndices = new Set([0]);
+  selectedCornerIndices = new Set();
   automaticStraightIndices = new Set();
   traceZoom = { start: 0, end: 1 };
   zoomDrag = null;
@@ -2006,19 +2006,20 @@ function buildSpeedAnnotations(entries, zones, totalDistance) {
     result.push({title,kind,fraction:kind==='corner'?position:values[0].fraction,speed:values[0].speed,values,
       missing:entries.filter(e=>!values.some(v=>v.lap===e.lap)).map(e=>e.lap)});
   };
-  zones.forEach((zone,index)=>{
+  zones.forEach(zone=>{
     // Slow corners show their observed window minimum. Faster corners use
     // the shared geometric centre; a window-edge minimum is not an apex.
     const kind=zone.minimumSpeed<=120?'min':'corner';
     add(`${cornerLabel(zone)} ${kind==='min'?'min':'speed'}`,zone.apexStart,zone.apexEnd,kind,zone.apex);
-    const previous=zones[index-1];
-    const start=previous ? previous.apexEnd : 0;
-    // Include the approach right up to the central corner window. The native
-    // throttle/brake gate finds the pre-braking peak, not an arbitrary fixed
-    // distance before the apex (which can miss the true terminal speed).
-    add('Peak',start,zone.apexStart,'peak');
   });
-  add('Peak',zones[zones.length-1].apexEnd,1,'peak');
+  // Only real straight ends get a terminal-speed label. No "peak" between
+  // every pair of corners, nor at an unrelated mid-straight speed spike.
+  sessionPerformanceZones(zones,totalDistance).filter(z=>z.kind==='straight'&&z.end>z.start).forEach(zone=>{
+    // The timing line is not the end of the start/finish straight. Its
+    // pre-T1 portion supplies the terminal label, not a second arbitrary one.
+    if(zone.end===1)return;
+    add('Straight max',Math.max(zone.start,zone.end-100/totalDistance),zone.end,'peak');
+  });
   return result.sort((a,b)=>a.fraction-b.fraction);
 }
 
@@ -2070,7 +2071,7 @@ function renderSpeedAnnotationEvidence(annotations,entries,totalDistance) {
   const open=host.querySelector?.('details')?.open;
   host._annotations=annotations;
   const label=lap=>`${lap.code} L${lap.lap}`;
-  host.innerHTML=`<details ${open?'open':''}><summary>All speed annotations · ${annotations.length} locations</summary><p>Chart labels omitted for space remain in this table. Min is each lap's observed slow-corner window minimum. Speed compares every lap at one shared estimated geometric corner centre, not a measured apex; ≈ marks bounded interpolation between native speed samples. Peak is a full-throttle pre-braking maximum. Missing observations stay blank. Three decimals are display precision, not sensor accuracy.</p><div class="speed-annotation-table-wrap"><table><thead><tr><th>Location</th><th>Position</th>${entries.map(e=>`<th style="color:${getLapColor(e.lap)}">${escapeUI(label(e.lap))}</th>`).join('')}</tr></thead><tbody>${annotations.map(a=>`<tr><th>${escapeUI(a.title)}</th><td>${(a.fraction*totalDistance).toFixed(3)} m</td>${entries.map(e=>{const value=a.values.find(v=>v.lap===e.lap);return `<td>${value?(value.estimated?'≈ ':'')+value.speed.toFixed(3)+' km/h':'—'}</td>`;}).join('')}</tr>`).join('')}</tbody></table></div></details>`;
+  host.innerHTML=`<details ${open?'open':''}><summary>All speed annotations · ${annotations.length} locations</summary><p>Chart labels omitted for space remain in this table. Min is each lap's observed slow-corner window minimum. Speed compares every lap at one shared estimated geometric corner centre, not a measured apex; ≈ marks bounded interpolation between native speed samples. Straight max is the measured full-throttle maximum in the final 100 m of a supported straight zone, not a peak between every corner. Missing observations stay blank. Three decimals are display precision, not sensor accuracy.</p><div class="speed-annotation-table-wrap"><table><thead><tr><th>Location</th><th>Position</th>${entries.map(e=>`<th style="color:${getLapColor(e.lap)}">${escapeUI(label(e.lap))}</th>`).join('')}</tr></thead><tbody>${annotations.map(a=>`<tr><th>${escapeUI(a.title)}</th><td>${(a.fraction*totalDistance).toFixed(3)} m</td>${entries.map(e=>{const value=a.values.find(v=>v.lap===e.lap);return `<td>${value?(value.estimated?'≈ ':'')+value.speed.toFixed(3)+' km/h':'—'}</td>`;}).join('')}</tr>`).join('')}</tbody></table></div></details>`;
 }
 
 function traceSampleFraction(series, point) {
@@ -2504,7 +2505,7 @@ function drawRealChart(name) {
   ctx.shadowBlur = 0;
   if (name==='Speed trace' && showSpeedAnnotations) {
     const entries=visibleEntries.map(({lap})=>({lap,samples:telemetryCache.get(telemetryKey(lap))})).filter(e=>e.samples?.length && !e.lap.real?.out_lap);
-    const key=totalDist.toFixed(1)+'|'+speedCornerMarkers.map(m=>`${m.key}:${m.fraction.toFixed(5)}`).join('|');
+    const key=totalDist.toFixed(1)+'|'+speedCornerMarkers.map(m=>`${m.key}:${m.fraction.toFixed(5)}`).join('|')+'|'+entries.map(e=>e.samples.positionRevision||0).join(':');
     if (!speedAnnotationCache || speedAnnotationCache.key!==key || speedAnnotationCache.entries.length!==entries.length || entries.some((e,i)=>speedAnnotationCache.entries[i].samples!==e.samples || speedAnnotationCache.entries[i].lap!==e.lap)) {
       const zones=typeof adaptiveCornerZones==='function'?adaptiveCornerZones(speedCornerMarkers):[];
       speedAnnotationCache={key,entries,annotations:buildSpeedAnnotations(entries,zones,totalDist)};
@@ -2910,6 +2911,18 @@ function mergeCornerWindows(zones) {
 function sessionPerformanceZones(zones, totalDistance) {
   if (!zones.length) return [];
   const corners = zones.map(zone => ({...zone,kind:'corner'}));
+  // Short links are transitions belonging to the adjacent corner complex,
+  // not selectable 5 m "straights". Split at a common boundary, count once.
+  for(let index=1;index<corners.length;index++){
+    const gap=(corners[index].start-corners[index-1].end)*totalDistance;
+    if(gap>=0&&gap<100){
+      const boundary=gap<1e-6?corners[index-1].end:(corners[index].start+corners[index-1].end)/2;
+      corners[index-1].end=boundary;corners[index].start=boundary;
+    }
+  }
+  if(corners[0].start*totalDistance<100)corners[0].start=0;
+  if((1-corners.at(-1).end)*totalDistance<100)corners.at(-1).end=1;
+  corners.forEach(zone=>zone.metres=Math.round((zone.end-zone.start)*totalDistance));
   for(let index=1;index<corners.length;index++){
     // Canonicalise numerical dust at an already shared boundary. Otherwise
     // a 10^-16-lap "straight" has zero elapsed time and blocks comparisons.
@@ -2920,9 +2933,11 @@ function sessionPerformanceZones(zones, totalDistance) {
   const straights = Array.from({length:zones.length+1},(_,index)=>{
     const before=corners[index-1],after=corners[index];
     const start=before?.end??0,end=Math.max(start,after?.start??1);
-    const label=before&&after?`Straight ${cornerLabel(before)}–${cornerLabel(after)}`
-      :before?`Straight after ${cornerLabel(before)}`:`Straight before ${cornerLabel(after)}`;
-    return {kind:'straight',type:'STRAIGHT / LINK',label,start,end,
+    const straight=(end-start)*totalDistance>=100&&typeof sessionStraightEvidence==='function'&&sessionStraightEvidence(start,end,totalDistance);
+    const prefix=straight?'Straight':'Link';
+    const label=before&&after?`${prefix} ${cornerLabel(before)}–${cornerLabel(after)}`
+      :before?`${prefix} after ${cornerLabel(before)}`:`${prefix} before ${cornerLabel(after)}`;
+    return {kind:straight?'straight':'transition',type:straight?'LOW-CURVATURE STRAIGHT':'TRANSITION / UNVERIFIED GEOMETRY',label,start,end,
       between:[index-1,index],metres:Math.round((end-start)*totalDistance)};
   });
   return [...corners,...straights];
@@ -2936,7 +2951,7 @@ function selectLinkingStraights(zones, selected, previousAutomatic) {
   const selection=new Set([...selected].filter(index=>!previousAutomatic.has(index)));
   const automatic=new Set();
   zones.forEach((zone,index)=>{
-    if(zone.kind!=='straight'||zone.end<=zone.start)return;
+    if(zone.kind==='corner'||zone.end<=zone.start)return;
     const [before,after]=zone.between;
     if(zones[before]?.kind==='corner'&&zones[after]?.kind==='corner'&&selection.has(before)&&selection.has(after)&&!selection.has(index))automatic.add(index);
   });
@@ -2997,22 +3012,21 @@ function renderCornerAnalysis() {
   }
 
   selectedCornerIndices=new Set([...selectedCornerIndices].filter(i=>i>=0&&i<zones.length&&zones[i].end>zones[i].start));
-  if(!selectedCornerIndices.size)selectedCornerIndices.add(0);
   const allMetrics = zones.map(zone => loaded.map(lap => {
     const samples = telemetryCache.get(telemetryKey(lap));
-    const metric = zone.kind==='straight'?combinedCornerPerformance(samples,[zone],totalDistance):cornerPerformance(samples, zone);
+    const metric = zone.end<=zone.start?null:zone.kind!=='corner'?combinedCornerPerformance(samples,[zone],totalDistance):cornerPerformance(samples, zone);
     return metric ? { lap, metric } : null;
   }).filter(Boolean));
   const pickedZones=[...selectedCornerIndices].sort((a,b)=>a-b).map(i=>zones[i]);
   const combined=pickedZones.length>1;
   const selectedIndex = [...selectedCornerIndices][0];
-  const zone = combined?{type:'Combined selected sections',metres:Math.round(selectedCornerWindows(zones).reduce((s,w)=>s+(w.end-w.start)*totalDistance,0)),apexMetres:0}:zones[selectedIndex];
-  const averageSpeed=combined||zone.kind==='straight';
+  const zone = combined?{type:'Combined selected sections',metres:Math.round(selectedCornerWindows(zones).reduce((s,w)=>s+(w.end-w.start)*totalDistance,0)),apexMetres:0}:zones[selectedIndex]||{type:'No section selected',metres:0};
+  const averageSpeed=combined||zone.kind!=='corner';
   const metrics = combined?loaded.map(lap=>{
     if([...selectedCornerIndices].some(i=>!allMetrics[i].some(m=>m.lap===lap)))return null;
     const metric=combinedCornerPerformance(telemetryCache.get(telemetryKey(lap)),zones,totalDistance,selectedCornerIndices);
     return metric?{lap,metric}:null;
-  }).filter(Boolean):allMetrics[selectedIndex];
+  }).filter(Boolean):allMetrics[selectedIndex]||[];
   const finiteTimes = metrics.map(item => item.metric.sectionTime).filter(Number.isFinite);
   const fastestSection = finiteTimes.length ? Math.min(...finiteTimes) : null;
   const finiteMinimumSpeeds = metrics.map(item => item.metric.minimumSpeed).filter(Number.isFinite);
@@ -3047,14 +3061,14 @@ function renderCornerAnalysis() {
       </div>`;
   }).join('');
 
-  pickerRoot.innerHTML = `<nav class="corner-picker" aria-label="Select one or more corners">${picker('corner')}</nav><div class="straight-zone-heading">Straights</div><nav class="corner-picker straight-zone-picker" aria-label="Select straight zones">${picker('straight')}</nav><small class="corner-selection-note">Consecutive corners automatically include their linking straights. Deselect any straight to exclude it, or select it alone. Straight/link zones fill the gaps; they may include gentle bends.</small>`;
+  pickerRoot.innerHTML = `<nav class="corner-picker" aria-label="Select one or more corners">${picker('corner')}</nav><div class="straight-zone-heading">Straights · at least 100 m, low GPS curvature</div><nav class="corner-picker straight-zone-picker" aria-label="Select straight zones">${picker('straight')||'<small>No supported straight zones.</small>'}</nav>${zones.some(z=>z.kind==='transition'&&z.end>z.start)?`<div class="straight-zone-heading">Other links · bends or geometry unverified</div><nav class="corner-picker" aria-label="Select transition zones">${picker('transition')}</nav>`:''}<small class="corner-selection-note">Turn envelopes include local braking/traction transitions. Links shorter than 100 m join the adjacent corner windows. Consecutive selected corners include their link; click any selected section to remove it. Boundaries are estimated, not official turn-in/apex measurements.</small>`;
   const pickedCorners=pickedZones.filter(z=>z.kind==='corner').map(cornerLabel);
-  const pickedStraights=pickedZones.filter(z=>z.kind==='straight');
-  const selectionLabel=combined?[...pickedCorners,...(pickedStraights.length?[`${pickedStraights.length} straight${pickedStraights.length===1?'':'s'}`]:[])].join(' + '):zone.label||cornerLabel(zone);
-  root.innerHTML = `
+  const pickedStraights=pickedZones.filter(z=>z.kind!=='corner');
+  const selectionLabel=combined?[...pickedCorners,...(pickedStraights.length?[`${pickedStraights.length} link${pickedStraights.length===1?'':'s'}`]:[])].join(' + '):zone.label||cornerLabel(zone);
+  root.innerHTML = !pickedZones.length?'<span class="section-empty">No section selected. Choose a corner, straight or link to compare; the map remains unhighlighted.</span>':`
     <article class="corner-detail-card">
       <header class="corner-detail-header">
-        <div><strong>${escapeUI(selectionLabel)}</strong><small>${escapeUI(String(zone.type).toLowerCase())}${markers.some(marker => marker.approximate) ? ' · Approx. map position' : ''}</small></div>
+        <div><strong>${escapeUI(selectionLabel)}</strong><small>${escapeUI(String(zone.type).toLowerCase())}${markers.some(marker => marker.approximate) ? ' · Approx. map position' : ''}${zone.boundaryMethod?' · '+escapeUI(zone.boundaryMethod):''}</small></div>
         <dl><div><dt>Measured distance</dt><dd>${zone.metres} m</dd></div>${averageSpeed?'':`<div><dt>Min-speed window</dt><dd>${zone.apexMetres} m</dd></div>`}</dl>
       </header>
       <div class="corner-table-head"><span>Driver</span>${[['time','Time','s'],['delta','Delta','s'],['minimum',averageSpeed?'Average speed':'Minimum','km/h']].map(([key,label,unit]) => `<button type="button" data-corner-sort="${key}" aria-pressed="${cornerSort === key}" title="Sort best to worst by ${label}">${label}${cornerSort === key ? ' ↓' : ''}<small>${unit}</small></button>`).join('')}</div>
@@ -3070,7 +3084,7 @@ function renderCornerAnalysis() {
     const button = event.target.closest('[data-corner-index]');
     if (!button) return;
     const index=Number(button.dataset.cornerIndex)||0;
-    if(selectedCornerIndices.has(index)){if(selectedCornerIndices.size>1)selectedCornerIndices.delete(index);}
+    if(selectedCornerIndices.has(index))selectedCornerIndices.delete(index);
     else selectedCornerIndices.add(index);
     if(zones[index].kind==='corner'){
       const linked=selectLinkingStraights(zones,selectedCornerIndices,automaticStraightIndices);
@@ -3251,6 +3265,24 @@ function drawApiCircuitGuide(ctx, data, rect) {
   ctx.textAlign='start';ctx.textBaseline='alphabetic';return true;
 }
 
+function circuitGuideContent() {
+  const event=calendar.find(item=>item.name===sessionEventName);
+  const sepang=isSepangCircuit(event);
+  const samples=loaded.length?telemetryCache.get(telemetryKey(loaded[0])):null;
+  const distance=samples?.at(-1)?.Distance;
+  const markers=distance?resolveCornerMarkers(samples,distance,loaded[0]?.cornerMarkers):[];
+  const zones=markers.length?sessionPerformanceZones(adaptiveCornerZones(markers),distance):[];
+  const straights=zones.filter(z=>z.kind==='straight'&&z.end>z.start);
+  const lap=loaded[0]?.real;
+  const sectors=[lap?.s1,lap?.s2,lap?.s3].map(Number);
+  let official='';
+  if(sepang){
+    official=`<div class="circuit-guide-source"><strong>Sepang · Pirelli track characteristics</strong><p>Lateral load: T5–T7 and T12–T13. Traction: the T2 exit. Braking: the approach to T15. These are qualitative circuit characteristics from Pirelli’s 2012 guide, not current-car g-force ratings.</p><a href="https://press.pirelli.com/the-malaysian-grand-prix-from-a-tyre-point-of-view/" target="_blank" rel="noopener">Pirelli corner guide · 22 Mar 2012</a></div>`;
+    if(sessionYear===2026)official+=`<div class="circuit-guide-source"><strong>2026 tyre briefing</strong><p>Medium circuit-wide tyre stress; abrasive asphalt. Nominated compounds: C2 / C3 / C4.</p><a href="https://press.pirelli.com/tyre-compound-selections-for-baku-sepang-and-singapore/" target="_blank" rel="noopener">Pirelli preview · 27 Aug 2026</a></div>`;
+  }
+  return `<div class="circuit-guide-facts"><span><small>Measured lap</small><b>${distance?(distance/1000).toFixed(3)+' km':'Load a lap'}</b></span><span><small>Numbered corners</small><b>${markers.length|| (sepang?15:'Map annotations')}</b></span><span><small>Supported straight zones</small><b>${distance?straights.length:'Load telemetry'}</b></span></div>${sectors.every(t=>Number.isFinite(t)&&t>0)?`<p class="circuit-guide-sector-times">Reference lap sectors · S1 ${sectors[0].toFixed(3)} s · S2 ${sectors[1].toFixed(3)} s · S3 ${sectors[2].toFixed(3)} s</p>`:''}${official||'<p class="circuit-guide-sector-times">Map turn numbering and timing-derived sectors are shown where available. No verified Pirelli characteristic ratings are currently stored for this circuit; ratings are not inferred from lap speed.</p>'}<details><summary>What the guide describes</summary><p>Traction concerns acceleration out of corners; braking concerns deceleration demands; lateral load concerns turning. These describe a circuit, not a team ranking. GPS boundaries and corner centres are approximate.</p><a href="https://www.pirelli.com/global/en-ww/race/racingspot/formula-1/formula-1-for-dummies-the-choice-of-tyres-in-formula-1-53864/" target="_blank" rel="noopener">Pirelli’s circuit-characteristic definitions</a></details>`;
+}
+
 function renderGenericCircuit(canvas, empty) {
   if (!sessionEventName) { empty.style.display = 'grid'; empty.textContent = 'Load a session to see its circuit guide.'; return; }
   if(sessionSectorGuide) {
@@ -3371,6 +3403,11 @@ function renderMiniSectorMap() {
   const title = $('#dominanceTitle');
   if (!canvas || !empty || !legend || !title) return;
   if (!loaded.length) mapView = 'guide';
+  const guideDetails=$('#circuitGuideDetails');
+  if(guideDetails){
+    guideDetails.hidden=mapView!=='guide'||!sessionEventName;
+    guideDetails.innerHTML=guideDetails.hidden?'':circuitGuideContent();
+  }
   document.querySelectorAll('[data-map-view]').forEach(button => {
     button.setAttribute('aria-pressed', String(button.dataset.mapView === mapView));
     button.disabled = button.dataset.mapView === 'comparison' && !loaded.length;

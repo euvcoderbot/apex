@@ -121,6 +121,38 @@ function appHarness() {
   return { sandbox, elements, element, textCalls, run: code => vm.runInContext(code, sandbox) };
 }
 
+test('session straight classification needs GPS evidence and rejects flat-out bends',()=>{
+  const h=appHarness();
+  h.run(`spatialReferenceTelemetry=()=>({samples:[{},{}]});
+    alignedValue=(s,f,key)=>key==='X'?f*5000:0;`);
+  assert.equal(h.run('sessionStraightEvidence(.2,.4,5000)'),true);
+  h.run(`alignedValue=(s,f,key)=>key==='X'?200*Math.cos(f*5000/200):200*Math.sin(f*5000/200)`);
+  assert.equal(h.run('sessionStraightEvidence(.2,.4,5000)'),false);
+  h.run('alignedValue=()=>null');
+  assert.equal(h.run('sessionStraightEvidence(.2,.4,5000)'),false);
+});
+
+test('flat-out turning envelope uses the bend rather than a fixed-distance window',()=>{
+  const h=appHarness();
+  h.run(`loaded=[{code:'A',lap:1}];referenceDistance=()=>5000;
+    telemetryCache.set('A:1',Array.from({length:1001},(_,i)=>({Distance:i*5,Speed:250,Throttle:100,Brake:0,X:i*5,Y:0})));
+    spatialReferenceTelemetry=()=>({samples:telemetryCache.get('A:1')});
+    traceTelemetryValue=(s,f,key)=>key==='Speed'?250:key==='Throttle'?100:0;
+    alignedValue=(s,f,key)=>{const d=f*5000,a=1000,r=100,e=a+r*Math.PI/2;
+      if(d<a)return key==='X'?d:0;
+      if(d<=e)return key==='X'?a+r*Math.sin((d-a)/r):r*(1-Math.cos((d-a)/r));
+      return key==='X'?a+r:r+d-e;};`);
+  const zone=h.run("adaptiveCornerZones([{number:'1',fraction:.215}])[0]");
+  assert.match(zone.boundaryMethod,/GPS turn envelope/);
+  assert.ok(zone.metres>=120&&zone.metres<=200,`turn envelope is ${zone.metres} m`);
+  assert.ok(zone.start*5000>=990&&zone.start*5000<=1020);
+  assert.ok(zone.end*5000>=1140&&zone.end*5000<=1180);
+  h.sandbox.firstZone=zone;
+  assert.equal(h.run("adaptiveCornerZones([{number:'1',fraction:.215}])[0]===firstZone"),true,'unchanged selection uses cached geometry');
+  h.run("telemetryCache.get('A:1').positionRevision=1");
+  assert.equal(h.run("adaptiveCornerZones([{number:'1',fraction:.215}])[0]===firstZone"),false,'late GPS invalidates corner boundaries');
+});
+
 test('whole chart stack and map render; toggling enhanced preserves official delta anchors', async () => {
   const h = appHarness();
   h.run("mapView = 'comparison'");

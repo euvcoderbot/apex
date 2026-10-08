@@ -1118,6 +1118,7 @@ test('native corner projection follows the aligned comparison grid', () => {
 
 test('one optional speed-annotation control combines slow minima, shared fast-corner speeds and straight peaks', () => {
   const h=context();
+  h.run('sessionStraightEvidence=()=>true');
   assert.equal(h.run('showSpeedAnnotations'),false);
   assert.equal((app.match(/id="speedAnnotationToggle"/g)||[]).length,1);
   assert.match(app,/Corner numbers<\/span><\/label>\s*<label[^\n]+id="speedAnnotationToggle"/);
@@ -1200,6 +1201,7 @@ test('combined selected sections count overlap once and use whole-section averag
 
 test('separate straight zones fill the whole lap without changing corner-only source windows', () => {
   const h=context();
+  h.run('sessionStraightEvidence=()=>true');
   h.sandbox.rawZones=[{start:.1,end:.2,apex:.15,apexStart:.13,apexEnd:.17},
     {start:.25,end:.35,apex:.3,apexStart:.28,apexEnd:.32},
     {start:.6,end:.7,apex:.65,apexStart:.63,apexEnd:.67},
@@ -1243,6 +1245,52 @@ test('linking straights are explicitly selected for consecutive corners and can 
   h.run('rawZones[1].start=.2+1e-16;dust=sessionPerformanceZones(rawZones,5000)');
   assert.equal(h.run('dust[5].end-dust[5].start'),0,'floating-point dust cannot become an unsupported straight');
   assert.equal(h.run('dust[1].start'),.2);
+});
+
+test('short transitions are absorbed, unknown geometry is not advertised as a straight, and empty selection stays empty',()=>{
+  const h=context();
+  h.run('sessionStraightEvidence=()=>true');
+  h.sandbox.rawZones=[{number:'1',start:.01,end:.2,apexStart:.1,apexEnd:.15},
+    {number:'2',start:.201,end:.4,apexStart:.25,apexEnd:.3},
+    {number:'3',start:.6,end:.99,apexStart:.7,apexEnd:.8}];
+  h.run('zones=sessionPerformanceZones(rawZones,5000)');
+  assert.equal(h.run('zones[0].start'),0);
+  assert.equal(h.run('zones[0].end'),.2005);
+  assert.equal(h.run('zones[1].start'),.2005);
+  assert.equal(h.run('zones[2].end'),1);
+  assert.ok(h.run("zones.filter(z=>z.kind==='straight'&&z.end>z.start).every(z=>z.metres>=100)"));
+  assert.equal(h.run("zones.filter(z=>z.kind==='straight').length"),1);
+  h.run('sessionStraightEvidence=()=>false;zones=sessionPerformanceZones(rawZones,5000)');
+  assert.equal(h.run("zones.filter(z=>z.kind==='straight').length"),0);
+  assert.equal(h.run("zones.filter(z=>z.kind==='transition'&&z.end>z.start).length"),1);
+  assert.equal(JSON.stringify(h.run('mergeCornerWindows(zones)')),JSON.stringify([{start:0,end:1}]));
+  assert.equal(h.run('selectedCornerIndices.size'),0);
+  assert.equal(h.run('selectedCornerWindows(zones).length'),0);
+  assert.doesNotMatch(app,/if\(!selectedCornerIndices.size\)selectedCornerIndices.add/);
+  assert.doesNotMatch(app,/if\(selectedCornerIndices.size>1\)/);
+});
+
+test('terminal speed annotations exclude mid-straight spikes, unverified links and the timing-line cut',()=>{
+  const h=context();
+  h.run('sessionStraightEvidence=()=>true');
+  h.sandbox.zones=[{number:'1',start:.3,end:.4,apex:.35,apexStart:.34,apexEnd:.36,minimumSpeed:80},
+    {number:'2',start:.8,end:.9,apex:.85,apexStart:.84,apexEnd:.86,minimumSpeed:100}];
+  h.sandbox.entries=[{lap:{code:'A',lap:1},samples:Array.from({length:1001},(_,i)=>({AlignedFraction:i/1000,Speed:i===500?360:300,Throttle:100,Brake:0}))}];
+  const peaks=h.run("buildSpeedAnnotations(entries,zones,5000).filter(a=>a.kind==='peak')");
+  assert.equal(peaks.length,2);
+  assert.ok(peaks.every(p=>p.speed===300));
+  assert.ok(peaks.every(p=>p.fraction<.9));
+  assert.ok(peaks.every(p=>p.fraction>=.28&&p.fraction<=.3||p.fraction>=.78&&p.fraction<=.8));
+  h.run('sessionStraightEvidence=()=>false');
+  assert.equal(h.run("buildSpeedAnnotations(entries,zones,5000).filter(a=>a.kind==='peak').length"),0);
+});
+
+test('circuit guide separates sourced historical characteristics from current tyre nominations',()=>{
+  assert.match(app,/Pirelli corner guide · 22 Mar 2012/);
+  assert.match(app,/if\(sessionYear===2026\)official/);
+  assert.match(app,/ratings are not inferred from lap speed/);
+  assert.match(app,/guideDetails.hidden=mapView!=='guide'/);
+  assert.match(readFileSync('index.html','utf8'),/id="circuitGuideDetails"/);
 });
 
 test('map selection shares all merged measured windows and marks every outer boundary',()=>{

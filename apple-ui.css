@@ -791,3 +791,11 @@ body { zoom: 1; }
   .lap-workspace .lap-grid { grid-template-columns: minmax(0, 1fr); }
   .corner-detail-header dl { flex-wrap: wrap; gap: 8px 14px; }
 }
+.circuit-guide-details { display: grid; gap: 10px; margin: 10px 0; font-size: 12px; line-height: 1.45; }
+.circuit-guide-details[hidden] { display: none; }
+.circuit-guide-facts { display: flex; flex-wrap: wrap; gap: 10px 24px; }
+.circuit-guide-facts span { display: grid; gap: 2px; }
+.circuit-guide-facts small, .circuit-guide-sector-times { color: var(--muted); }
+.circuit-guide-details p { margin: 4px 0; }
+.circuit-guide-source { min-width: 0; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 8px; overflow-wrap: anywhere; }
+.circuit-guide-details a { color: var(--accent); }
