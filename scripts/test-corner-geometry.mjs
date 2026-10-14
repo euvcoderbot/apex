@@ -89,7 +89,10 @@ test('corner traversal recovers a bounded dropped packet without pretending it i
   assert.equal(result.traces.A.corner_provisional,false);
   assert.deepEqual(entries[0].payload.samples,samples,'do not densify or mutate native data');
   const broken=structuredClone(entries);broken[1].payload.samples=samples.filter((p,i)=>i<=68||i>=75);
-  assert.equal(measureQualifyingCornerGroup(broken).traces.B,undefined,'a 1.750 s gap is still rejected');
+  const partial=measureQualifyingCornerGroup(broken).traces.B;
+  assert.equal(partial.corners.length,2,'the affected corner is excluded, not the entire lap');
+  assert.deepEqual(partial.corner_missing,['1']);
+  assert.equal(partial.corner_contribution,null,'partial turns do not become a full-lap total');
   const synthetic=structuredClone(entries);synthetic[1].payload.samples=samples.map((p,i)=>({...p,SourceIntervalSeconds:i===70?2:0}));
   assert.equal(measureQualifyingCornerGroup(synthetic).traces.B.corner_contribution,null,'interpolated rows cannot hide a larger source gap');
 });
@@ -106,7 +109,9 @@ test('one unclassified turn retains valid timing windows without inventing a spe
   for(const trace of Object.values(result.traces)) {
     assert.equal(trace.corners.length,3);
     assert.ok(Number.isFinite(trace.corner_contribution));
-    assert.ok(Object.values(trace.categories).every(value=>value===null));
+    assert.ok(trace.categories.medium,'classified medium turns retain their supported measurement');
+    assert.equal(trace.categories.medium.corners,2);
+    assert.equal(trace.categories.high,null,'an unknown band is not invented');
   }
 });
 test('Madrid map fallback is distinct from stale Barcelona corners',()=>{

@@ -143,7 +143,7 @@ async function fetchSessionData(url, options = {}) {
     const controller = new AbortController();
     const abort = () => controller.abort();
     options.signal?.addEventListener('abort', abort, { once: true });
-    const timeout = setTimeout(abort, /\/api\/performance/.test(url)?60000:30000);
+    const timeout = setTimeout(abort, /\/api\/(performance|race-corners|qualifying-corners)/.test(url)?60000:30000);
     try {
       const shared=sharedDataURL(url),longQuery=shared.startsWith('/api/data?')&&shared.length>12000;
       const query=longQuery?new URLSearchParams(shared.slice(shared.indexOf('?')+1)):null;
@@ -236,14 +236,15 @@ async function preparedData(url) {
 }
 async function requestApiData(url, options = {}) {
   const parsed = new URL(url, window.location?.href || 'http://localhost');
-  const refreshing=parsed.searchParams.get('fresh')==='true';
-  const identity=new URL(parsed);identity.searchParams.delete('fresh');identity.searchParams.sort();
-  const cacheKey='source-'+(window.APEX_DATA_VERSION||'20261007-load-v1')+':'+identity.href;
+  const refreshing=parsed.searchParams.get('fresh')==='true'||parsed.searchParams.get('refresh')==='1';
+  const identity=new URL(parsed);identity.searchParams.delete('fresh');identity.searchParams.delete('refresh');identity.searchParams.sort();
+  const family=/^\/api\/(events|session|telemetry)$/.test(parsed.pathname)?window.APEX_SOURCE_VERSION:/^\/api\/(race|qualifying)-corners$/.test(parsed.pathname)?window.APEX_MEASUREMENT_VERSION:window.APEX_BACKEND_VERSION;
+  const cacheKey='source-'+(family||window.APEX_DATA_VERSION||'20261007-load-v1')+':'+identity.href;
   const liveCalendar = parsed.pathname === '/api/events'
     && Number(parsed.searchParams.get('year')) >= new Date().getFullYear();
   const cached = liveCalendar||refreshing ? null : await storedData(cacheKey);
   if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-  if (cached) return structuredClone(cached);
+  if (cached) return cached; // loadApiData clones once per consumer.
   const prepared = refreshing?null:await preparedData(url).catch(() => null);
   if (prepared) { void cacheData(cacheKey, structuredClone(prepared), 120000); return prepared; }
   const response = await fetchSessionData(url, options);
@@ -252,7 +253,9 @@ async function requestApiData(url, options = {}) {
   if (!liveCalendar && !/no-store/i.test(response.headers.get('cache-control') || '') && data.position_complete !== false) {
     const year = Number(new URL(url, window.location?.href || 'http://localhost').searchParams.get('year'));
     const historical = year > 0 && year < new Date().getFullYear();
-    void cacheData(cacheKey, structuredClone(data), historical ? 7 * 86400000 : 120000);
+    const suppliedTTL=Number(response.headers.get('x-data-ttl'));
+    const ttl=Number.isFinite(suppliedTTL)&&suppliedTTL>0?Math.min(suppliedTTL,30*86400)*1000:historical?30*86400000:120000;
+    void cacheData(cacheKey, structuredClone(data), ttl);
   }
   return data;
 }
@@ -272,6 +275,7 @@ async function loadApiData(url, options = {}) {
   return structuredClone(data);
 }
 window.apexDataRequest=(path,signal)=>loadApiData(apiUrl(path),{signal});
+window.apexMeasurementRequest=(path,signal)=>loadApiData(new URL(path,window.location.href).href,{signal});
 
 function notify(message, tone = 'error') {
   const toast = $('#appToast');

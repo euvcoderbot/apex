@@ -21,7 +21,7 @@ test('braking requests exactly the fastest lap for eleven teams and reuses captu
 test('independent braking loading is not blocked by a straight-line batch and does not replace its traces',async()=>{
   const event={name:'Bahrain Grand Prix',Q:summary.data,traces:{original:{marker:'preserve'}}},calls=[];
   const box={teamBrakingRunning:false,running:false,context:{year:2026},generation:1,events:[event],AbortController,URLSearchParams,
-    traceRunning:true,fastestTeamTelemetrySelections,render:()=>{},updateStatus:()=>{},get:async path=>{calls.push(path);return structuredClone(batchEntry.data);}};
+    traceRunning:true,firstTelemetryAttempt:()=>true,loadActiveTelemetry:()=>{},fastestTeamTelemetrySelections,render:()=>{},updateStatus:()=>{},get:async path=>{calls.push(path);return structuredClone(batchEntry.data);}};
   vm.createContext(box);vm.runInContext(source.slice(source.indexOf('async function loadTeamBraking('),source.indexOf('async function loadTeamTelemetry(')),box);
   await box.loadTeamBraking();assert.equal(calls.length,1);assert.equal(event.teamBrakingReady,true);assert.equal(Object.keys(event.brakingTraces).length,11);
   assert.equal(event.traces.original.marker,'preserve');await box.loadTeamBraking();assert.equal(calls.length,1);

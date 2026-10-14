@@ -12,7 +12,7 @@ export const dataCache=createDataCache({
   write:async(key:string,value:unknown)=>{const bytes=JSON.stringify(value);if(bytes.length<8_000_000)await bucket()?.put(await storageKey(key),bytes,{httpMetadata:{contentType:'application/json'}});}
 });
 export function dataResponse(result:{data:unknown;cache:string;ttl:number}) {
-  return Response.json(result.data,{headers:{'X-Data-Cache':result.cache,
+  return Response.json(result.data,{headers:{'X-Data-Cache':result.cache,'X-Data-TTL':String(result.ttl),
     'Cache-Control':result.ttl?`public, max-age=${Math.min(result.ttl,300)}, s-maxage=${Math.min(result.ttl,3600)}`:'no-store'}});
 }
 export function dataError(error:any) {

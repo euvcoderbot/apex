@@ -77,7 +77,7 @@ test('shared data cache survives new instances, coalesces cold work and isolates
   assert.equal(calls,1);assert.equal(results[0].data.teams[0].pace,1);
   assert.equal((await createDataCache(options).get(path)).cache,'HIT');assert.equal(calls,1);
   assert.equal((await cache.get(path,{fresh:true})).data.teams[0].pace,2);
-  clock+=8*86400000;await createDataCache(options).get(path);assert.equal(calls,3);
+  clock+=366*86400000;await createDataCache(options).get(path);assert.equal(calls,3);
   assert.equal(normalizeDataPath('/api/session?year=2025&gp=Test&fresh=true&session=Q'),'/api/session?gp=Test&session=Q&year=2025');
   assert.throws(()=>normalizeDataPath('//evil.example/api/session?year=2025&gp=Test'));
   assert.throws(()=>normalizeDataPath('/api/admin?year=2025'));
@@ -87,7 +87,7 @@ test('late corrections expire quickly, old completed events cache longer and par
   const now=Date.parse('2026-10-07T12:00:00Z');
   assert.equal(dataTTL('/api/events?year=2026',[],null,now),300);
   assert.equal(dataTTL('/api/session?year=2026&gp=Test&session=R',{date:'2026-10-07T10:00:00Z'},null,now),120);
-  assert.equal(dataTTL('/api/performance?year=2026&gp=Test&session=R',{},[{name:'Test',session_dates:{Race:'2026-09-27T10:00:00Z'}}],now),604800);
+  assert.equal(dataTTL('/api/performance?year=2026&gp=Test&session=R',{},[{name:'Test',session_dates:{Race:'2026-09-27T10:00:00Z'}}],now),30*86400);
   assert.equal(usableData('/api/session?year=2026',{drivers:[{}],lap_data_complete:false}),false);
   assert.equal(usableData('/api/telemetry?year=2026',{samples:Array(40).fill({}),position_complete:false}),false);
   const store=new Map();let attempts=0;
@@ -118,13 +118,13 @@ test('race selection starts its loader and pace does not eagerly fetch qualifyin
   const source=readFileSync('car-performance.js','utf8'),calls=[];
   const box={running:false,context:{},activeMetric:'corners',cornerSession:'race',telemetrySubject:'team',straightLineSource:'qualy',
     loadRaceCorners:()=>calls.push('race'),loadQualifyingMetrics:()=>calls.push('qualy'),loadTeamTelemetry:()=>calls.push('team')};
-  vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function loadActiveTelemetry()'),source.indexOf('async function loadTeamTelemetry()')),box);
+  vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function loadActiveTelemetry()'),source.indexOf('async function loadTeamBraking(')),box);
   box.loadActiveTelemetry();assert.deepEqual(calls,['race']);
   box.activeMetric='pace';box.loadActiveTelemetry();assert.equal(calls.length,1);
   box.activeMetric='straight';box.loadActiveTelemetry();assert.deepEqual(calls,['race','team']);
   box.straightLineSource='race';box.loadActiveTelemetry();assert.deepEqual(calls,['race','team'],'race speed traps need no qualifying trace load');
   assert.match(source,/cornerSession=cornerSessionButton.dataset.cornerSession;render\(\);loadActiveTelemetry\(\)/);
-  const loader=source.slice(source.indexOf('async function loadRaceCorners()'),source.indexOf('function renderRaceCorners()'));
+  const loader=source.slice(source.indexOf('async function loadRaceCorners('),source.indexOf('function renderRaceCorners()'));
   assert.doesNotMatch(loader,/fresh:'true'/);assert.match(loader,/snapshot \$\{index\+1\}/);
 });
 

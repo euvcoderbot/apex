@@ -78,27 +78,21 @@ test('corner chart retains incomplete entrants without assigning a zero score',(
   assert.match(box.lapShareChart([{team:'Mercedes',gap:.1,trace:{corner_provisional:true}}],'gap'),/Provisional timing/);
 });
 
-test('retry refreshes an incomplete successful corner payload and retains supported laps',async()=>{
-  const source=readFileSync('car-performance.js','utf8'),calls=[];
-  const rows=['AAA','BBB'].map((code,i)=>({driver:{code,team:code,number:String(i+1)},lap:5,time:90+i,
-    lap_start_seconds:100,lap_end_seconds:190+i,s1:30,s2:30,s3:30+i}));
-  const event={name:'Test GP',round:1,Q:{teams:rows.map(r=>({team:r.driver.team,lap:{driver:r.driver.code,lap:r.lap,time:r.time}}))},
-    qualifyingSession:{drivers:[]},cornerEntries:new Map(rows.map(r=>[r.driver.code+':5',{driver:r.driver.code}]))};
-  let recovered=false;
+test('corner client consumes cached measurements and explicit retry retains fastest lap identity',async()=>{
+  const source=readFileSync('car-performance.js','utf8'),calls=[],event={name:'Test GP',round:1,Q:{teams:[]}};
   const box={URLSearchParams,AbortController,Map,Number,finite:Number.isFinite,context:{year:2026},events:[event],generation:1,
-    activeMetric:'corners',cornerSession:'qualy',telemetrySubject:'team',qualifyingMetricsRunning:false,running:false,traceRunning:false,
-    render(){},updateStatus(){},qualifyingRepresentatives:()=>rows,
-    get:async path=>{calls.push(path);recovered=true;return {driver:'BBB'};},
-    measureQualifyingCornerGroup:()=>({markers:[{corner:'1',band:'low',speed:80}],error:null,
-      traces:Object.fromEntries(rows.map(r=>[r.driver.code,{selection:{driver:r.driver.code,lap:5,time:r.time},corners:[{corner:'1'}],
-        corner_contribution:r.driver.code==='BBB'&&!recovered?null:0,corner_missing:r.driver.code==='BBB'&&!recovered?['1']:[]}]))})};
+    activeMetric:'corners',cornerSession:'qualy',telemetrySubject:'team',qualifyingMetricsRunning:false,
+    render(){},updateStatus(){},loadActiveTelemetry(){},firstTelemetryAttempt:()=>true,
+    get:async path=>{calls.push(path);const retry=path.includes('refresh=1');return {
+      entrants:[{team:'A',driver:'AAA',lap:{lap:5}},{team:'B',driver:'BBB',lap:{lap:5}}],markers:[{corner:'1',band:'low',speed:80}],
+      requested:2,received:2,complete:retry,requestErrors:[],
+      traces:{AAA:{selection:{driver:'AAA',lap:5},corners:[{corner:'1'}],corner_missing:[]},
+        BBB:{selection:{driver:'BBB',lap:5},corners:retry?[{corner:'1'}]:[],corner_missing:retry?[]:['1']}}};}};
   vm.createContext(box);vm.runInContext(source.slice(source.indexOf('async function loadQualifyingMetrics('),source.indexOf('let raceCornerRunning=')),box);
-  await box.loadQualifyingMetrics();
-  assert.equal(event.cornerAudit.team.incomplete.join(','),'BBB');assert.equal(calls.length,0);
-  await box.loadQualifyingMetrics(true);
-  assert.equal(calls.length,1);assert.match(calls[0],/driver=BBB/);assert.match(calls[0],/fresh=true/);
-  assert.equal(event.cornerAudit.team.incomplete.length,0);
-  assert.equal(event.cornerMeasurements.team.BBB.selection.lap,5);
+  await box.loadQualifyingMetrics();assert.equal(calls.length,1);assert.match(calls[0],/qualifying-corners/);
+  assert.equal(event.cornerAudit.team.incomplete.join(','),'B');
+  await box.loadQualifyingMetrics(true);assert.equal(calls.length,2);assert.match(calls[1],/refresh=1/);
+  assert.equal(event.cornerAudit.team.incomplete.length,0);assert.equal(event.cornerMeasurements.team.B.selection.lap,5);
 });
 
 test('development table allocates all six columns without inflating rows',()=>{
@@ -769,7 +763,7 @@ test('temporary telemetry errors retry, permanent failures and cancellation do n
   const controller=new AbortController();controller.abort();
   box.fetch=async()=>{requests++;throw controller.signal.reason;};
   await assert.rejects(()=>box.get('/api/telemetry',controller.signal),{name:'AbortError'});assert.equal(requests,2);
-  assert.match(source,/cornerSubjects\[subject\]=entryErrors.length===0/);
+  assert.match(source,/cornerSubjects\[subject\]=measured.complete/);
   assert.match(source,/if\(activeMetric==='pits'\) loadPitData\(\);\s*if\([^\n]+loadQualifyingMetrics\(\)/);
   assert.match(source,/!event.cornerMeasurements\?\.\[telemetrySubject\]/,'partial successful corner data stays visible');
 });

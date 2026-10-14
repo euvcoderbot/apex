@@ -6,7 +6,7 @@ const median=a=>{const s=[...a].sort((a,b)=>a-b),i=s.length>>1;return s.length?s
 function fieldMinimumSpeed(measured,fraction,total) {
   const speeds=[];
   for(let metres=-25;metres<=25;metres+=5){const f=fraction+metres/total;
-    const values=measured.map(e=>{const points=e.data.points,hi=points.findIndex(p=>p.f>=f);
+    const values=measured.map(e=>{const points=e.data.points,hi=boundaryIndex(points,f);
       if(hi<1)return null;const a=points[hi-1],b=points[hi];
       return b.t-a.t<=1?a.v+(b.v-a.v)*(f-a.f)/(b.f-a.f):null;}).filter(finite);
     // One dropped channel must not veto a supported field classification.
@@ -71,15 +71,28 @@ export function raceCornerAlignmentIssue(entry,markers,session={}) {
 }
 
 function elapsedAt(points,fraction) {
-  let hi=points.findIndex(p=>p.f>=fraction);if(hi<0)return null;if(!hi)return points[0].t;
+  let hi=boundaryIndex(points,fraction);if(hi<0)return null;if(!hi)return points[0].t;
   // Traversal uses cumulative timestamps, not differentiation of sparse speed.
   // Permit a short dropped packet, disclose its bracket, and keep braking stricter.
   const a=points[hi-1],b=points[hi];if(Math.max(b.t-a.t,a.sourceInterval||0,b.sourceInterval||0)>1.5||b.f<=a.f)return null;
   return a.t+(b.t-a.t)*(fraction-a.f)/(b.f-a.f);
 }
 function boundaryInterval(points,fraction) {
-  const hi=points.findIndex(p=>p.f>=fraction);
+  const hi=boundaryIndex(points,fraction);
   return hi>0?Math.max(points[hi].t-points[hi-1].t,points[hi].sourceInterval||0,points[hi-1].sourceInterval||0):null;
+}
+function boundaryIndex(points,fraction){
+  if(!points.length||fraction>points.at(-1).f)return -1;
+  let lo=0,hi=points.length-1;while(lo<hi){const mid=(lo+hi)>>1;if(points[mid].f<fraction)lo=mid+1;else hi=mid;}return lo;
+}
+function cornerTraversalTime(data,z){
+  const left=boundaryIndex(data.points,z.start),right=boundaryIndex(data.points,z.end);
+  if(left<1||right<1)return null;
+  // An unsupported packet affects this window, not every other corner on the
+  // lap. Preserve monotonic native clocks; do not bridge long local gaps.
+  for(let i=left;i<=right;i++)if(Math.max(data.points[i].t-data.points[i-1].t,data.points[i].sourceInterval||0,data.points[i-1].sourceInterval||0)>1.5)return null;
+  const a=elapsedAt(data.points,z.start),b=elapsedAt(data.points,z.end);
+  return finite(a)&&finite(b)&&b>a?b-a:null;
 }
 function fractionAtTime(points,t) {
   const hi=points.findIndex(p=>p.t>=t);if(hi<1)return hi===0?points[0].f:null;
@@ -89,10 +102,14 @@ function registered(entry,ref) {
   const raw=entry.payload.samples||[];if(raw.length<30)return null;
   const origin=raw[0].ElapsedSeconds,d0=raw[0].Distance,total=raw.at(-1).Distance-d0;
   if(!(total>1000))return null;
-  const points=raw.filter(p=>finite(p.Speed)&&finite(p.Distance)&&finite(p.ElapsedSeconds))
+  let points=raw.filter(p=>finite(p.Speed)&&p.Speed>=30&&p.Speed<=420&&finite(p.Distance)&&finite(p.ElapsedSeconds))
     .map(p=>({f:(p.Distance-d0)/total,t:p.ElapsedSeconds-origin,v:p.Speed,sourceInterval:p.SourceIntervalSeconds||0}));
-  if(points.some((p,i)=>p.v<30||p.v>420||i>0&&i<points.length-1&&p.v>Math.max(points[i-1].v,points[i+1].v)+15&&p.v-Math.min(points[i-1].v,points[i+1].v)>25))return null;
-  if(points.length<30||points.some((p,i)=>i&&(p.f<=points[i-1].f||p.t<=points[i-1].t||p.t-points[i-1].t>1.5)))return null;
+  // Detect isolated native spikes only across adjacent, well-sampled packets.
+  // A real acceleration across a missing multi-second interval is not a spike.
+  const usable=points.filter((p,i)=>!(i>0&&i<points.length-1&&Math.max(p.t-points[i-1].t,points[i+1].t-p.t)<=.6
+    &&p.v>Math.max(points[i-1].v,points[i+1].v)+15&&p.v-Math.min(points[i-1].v,points[i+1].v)>25));
+  const droppedSpeedSamples=raw.length-usable.length;points=usable;
+  if(points.length<30||points.some((p,i)=>i&&(p.f<=points[i-1].f||p.t<=points[i-1].t)))return null;
   const official=entry.row.time,duration=points.at(-1).t;
   if(!finite(official)||official<=0)return null;
   if(Math.abs(duration-official)>1.5)return null;
@@ -100,7 +117,7 @@ function registered(entry,ref) {
   if(!sectors.every(s=>finite(s)&&s>0)||Math.abs(sectors.reduce((a,b)=>a+b,0)-official)>.1)return null;
   const source=[0,fractionAtTime(points,sectors[0]),fractionAtTime(points,sectors[0]+sectors[1]),1];
   const target=ref||source;if(source.some((f,i)=>!finite(f)||i&&f<=source[i-1]))return null;
-  return {points:points.map(p=>{let i=0;while(i<2&&p.f>source[i+1])i++;
+  return {droppedSpeedSamples,points:points.map(p=>{let i=0;while(i<2&&p.f>source[i+1])i++;
     const observed=[0,sectors[0],sectors[0]+sectors[1],duration],timed=[0,sectors[0],sectors[0]+sectors[1],official];
     let k=0;while(k<2&&p.t>observed[k+1])k++;
     return {...p,f:target[i]+(target[i+1]-target[i])*(p.f-source[i])/(source[i+1]-source[i]),t:timed[k]+(timed[k+1]-timed[k])*(p.t-observed[k])/(observed[k+1]-observed[k])};}),anchors:source,total};
@@ -129,17 +146,21 @@ export function measureRaceCornerGroup(entries,fallbackMarkers=[],session={}) {
     const start=Math.max(left,m.fraction-130/ref.native.total),end=Math.min(right,m.fraction+100/ref.native.total);
     const apex=fieldMinimumSpeed(measured,m.fraction,ref.native.total);return {start,end,corner:m.label,band:finite(apex)?apex<=120?'low':apex<=200?'medium':'high':null};
   });
-  // Every entrant in this observation must support the same corner windows.
-  const rows=measured.map(e=>{const times=zones.map(z=>{const points=e.data.points.filter(p=>p.f>=z.start&&p.f<=z.end);
-    if(points.length<3)return null;
-    const a=elapsedAt(e.data.points,z.start),b=elapsedAt(e.data.points,z.end);return finite(a)&&finite(b)?b-a:null;});
-    return times.every(t=>finite(t)&&t>0)?{team:e.row.driver.team,color:e.row.driver.team_color,driver:e.row.driver.code,lap:e.row.lap,tyreAge:e.row.tyre_life,lapTime:e.row.time,times,alignment:e.alignment}:null;}).filter(Boolean);
+  const rows=measured.map(e=>({team:e.row.driver.team,color:e.row.driver.team_color,driver:e.row.driver.code,lap:e.row.lap,
+    tyreAge:e.row.tyre_life,lapTime:e.row.time,times:zones.map(z=>cornerTraversalTime(e.data,z)),alignment:e.alignment}));
   if(rows.length<3)return [];
-  return rows.map(row=>{const values={};for(const band of ['all','low','medium','high']){
-    const indices=zones.map((z,i)=>band==='all'||z.band===band?i:-1).filter(i=>i>=0);
-    const own=mean(indices.map(i=>row.times[i]));const fastest=Math.min(...rows.map(r=>mean(indices.map(i=>r.times[i]))).filter(finite));
+  // Partition by actual support. Every block times identical corners for all
+  // its entrants; missing values are neither zero nor an unequal raw average.
+  const blocks=new Map();
+  zones.forEach((z,i)=>{const supported=rows.filter(r=>finite(r.times[i]));if(supported.length<3)return;
+    const key=supported.map(r=>r.driver).join(',');if(!blocks.has(key))blocks.set(key,{rows:supported,indices:[]});blocks.get(key).indices.push(i);});
+  return [...blocks.values()].flatMap(block=>block.rows.map(row=>{const values={};for(const band of ['all','low','medium','high']){
+    const indices=block.indices.filter(i=>band==='all'||zones[i].band===band);
+    const own=mean(indices.map(i=>row.times[i])),fastest=Math.min(...block.rows.map(r=>mean(indices.map(i=>r.times[i]))).filter(finite));
     values[band]=indices.length?Math.max(0,own-fastest):null;}
-    return {...row,values,corners:zones.length,cornerBands:zones.map(z=>({corner:z.corner,band:z.band})),compound:entries[0].row.compound};});
+    const cornerIds=block.indices.map(i=>zones[i].corner);
+    return {...row,times:block.indices.map(i=>row.times[i]),values,corners:cornerIds.length,cornerIds,
+      cornerBands:block.indices.map(i=>({corner:zones[i].corner,band:zones[i].band})),compound:entries[0].row.compound};}));
 }
 
 // Snapshot fixed effects: each comparison is within one race lap, compound and
@@ -147,6 +168,12 @@ export function measureRaceCornerGroup(entries,fallbackMarkers=[],session={}) {
 // components are never given a shared zero. This is an estimate, not a direct
 // all-field comparison, and support is exposed beside the score.
 export function connectedRaceCornerScores(observations,band='all',subject='team',stat='mean') {
+  // Expand native timing blocks into physical corner contrasts. Two partial
+  // cohorts containing the same actual laps must not count their overlapping
+  // turns twice merely because their supported corner lists differ.
+  observations=observations.flatMap(o=>o.times?.length&&o.times.length===o.cornerIds?.length
+    ?o.cornerIds.flatMap((corner,i)=>band==='all'||o.cornerBands?.find(c=>c.corner===corner)?.band===band
+      ?[{...o,values:{[band]:o.times[i]},snapshot:(o.snapshot||o.lap+':'+o.compound)+'|T'+corner,cornerIds:[corner],corners:1}]:[]):[o]);
   const id=o=>subject==='driver'?o.driver:o.team,groups=new Map(),metadata=new Map();
   for(const o of observations)if(finite(o.values?.[band])){
     const key=o.snapshot||o.lap+':'+o.compound;if(!groups.has(key)){groups.set(key,new Map());metadata.set(key,new Map());}
@@ -165,11 +192,11 @@ export function connectedRaceCornerScores(observations,band='all',subject='team'
     for(let i=0;i<entrants.length;i++)for(let j=i+1;j<entrants.length;j++){
       const a=entrants[i],b=entrants[j],key=a+'\0'+b;if(!pairs.has(key))pairs.set(key,{a,b,values:[],weights:[],seen:new Set()});
       const p=pairs.get(key),oa=metadata.get(snapshot).get(a),ob=metadata.get(snapshot).get(b);
-      const physical=finite(oa.lap)&&finite(ob.lap)?oa.lap+':'+oa.compound+':'+oa.driver+':'+ob.driver:snapshot;
+      const physical=finite(oa.lap)&&finite(ob.lap)?oa.lap+':'+oa.compound+':'+oa.driver+':'+ob.driver+':'+(oa.cornerIds||[]).join(','):snapshot;
       // The same two physical laps may occur in overlapping age cohorts. They
       // are one contrast, not extra evidence just because a third rival differs.
       if(p.seen.has(physical))continue;p.seen.add(physical);
-      p.values.push(g.get(a)-g.get(b));p.weights.push(1/entrants.length);
+      p.values.push(g.get(a)-g.get(b));p.weights.push(oa.cornerIds?.length===1?1:1/entrants.length);
     }
   }
   const n=component.length,index=new Map(component.map((name,i)=>[name,i])),matrix=Array.from({length:n},()=>Array(n).fill(0)),rhs=Array(n).fill(0),contrasts=[];
@@ -210,14 +237,13 @@ export function measureQualifyingCornerGroup(entries,session={}) {
     return {start,end,apex:m.fraction,corner:m.label,speed,band:finite(speed)?speed<=120?'low':speed<=200?'medium':'high':null};
   });
   const unclassified=zones.filter(z=>!z.band).map(z=>z.corner);
-  const time=(data,z)=>{const points=data.points.filter(p=>p.f>=z.start&&p.f<=z.end);
-    if(points.length<3)return null;
-    const a=elapsedAt(data.points,z.start),b=elapsedAt(data.points,z.end);return finite(a)&&finite(b)&&b>a?b-a:null;};
-  const refTimes=zones.map(z=>time(ref.native,z)),traces={};
+  const referenceRows=zones.map(z=>measured.find(e=>finite(cornerTraversalTime(e.data,z)))),traces={};
+  const refTimes=zones.map((z,i)=>referenceRows[i]?cornerTraversalTime(referenceRows[i].data,z):null);
   for(const e of measured) {
     const corners=zones.flatMap((z,i)=>{
-      const t=time(e.data,z);if(!finite(t)||!finite(refTimes[i]))return [];
-      const local=e.data.points.filter(p=>p.f>=z.start&&p.f<=z.end),reference=ref.native.points.filter(p=>p.f>=z.start&&p.f<=z.end);
+      const t=cornerTraversalTime(e.data,z);if(!finite(t)||!finite(refTimes[i]))return [];
+      const local=e.data.points.filter(p=>p.f>=z.start&&p.f<=z.end),reference=referenceRows[i].data.points.filter(p=>p.f>=z.start&&p.f<=z.end);
+      if(!local.length||!reference.length)return [];
       const minimum=Math.min(...local.map(p=>p.v)),refMinimum=Math.min(...reference.map(p=>p.v)),length=(z.end-z.start)*ref.native.total;
       return [{corner:z.corner,band:z.band,tercile_label:z.band?z.band+'-speed':'Unclassified',time:t,ref_time:refTimes[i],time_lost:t-refTimes[i],length,
         mean_speed:length/t*3.6,loss_density:(t-refTimes[i])/length*100000,minimum,
@@ -232,7 +258,7 @@ export function measureQualifyingCornerGroup(entries,session={}) {
       const expected=zones.filter(z=>z.band===band),own=corners.filter(c=>c.band===band);
       corner_band_coverage[band]={measured:own.length,expected:expected.length,missing:expected.filter(z=>!own.some(c=>c.corner===z.corner)).map(z=>z.corner)};
       const seconds=own.reduce((s,c)=>s+c.time,0),lost=own.reduce((s,c)=>s+c.time_lost,0);
-      categories[band]=!unclassified.length&&expected.length&&own.length===expected.length?{time:seconds,time_lost:lost,deficit:lost/ref.row.time*100,corners:own.length,
+      categories[band]=expected.length&&own.length===expected.length?{time:seconds,time_lost:lost,deficit:lost/ref.row.time*100,corners:own.length,
         speed:own.reduce((s,c)=>s+c.length,0)/seconds*3.6}:null;
     }
     const selection={driver:e.row.driver.code,lap:e.row.lap,time:e.row.time,phase:e.row.phase,compound:e.row.compound};
@@ -244,6 +270,7 @@ export function measureQualifyingCornerGroup(entries,session={}) {
       straight_traversal_delta:finite(contribution)?(e.row.time/ref.row.time-1)*100-contribution:null,
       corner_contribution:contribution,corner_provisional:corners.some(c=>c.boundary_interval_s>.6),
       lap_gap:(e.row.time/ref.row.time-1)*100,corner_method:'circuit-marker-windows',corner_expected:zones.length,
+      corner_sample_exclusions:e.native.droppedSpeedSamples,
       corner_missing:zones.filter(z=>!corners.some(c=>c.corner===z.corner)).map(z=>z.corner)};
   }
   return {traces,markers:zones,reference:ref.row.driver.code,error:unclassified.length?`Corner speed classification unavailable at ${unclassified.join(', ')}; valid timing windows retained, speed-band rankings unavailable.`:null};
