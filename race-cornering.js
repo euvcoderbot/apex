@@ -136,16 +136,20 @@ export function measureRaceCornerGroup(entries,fallbackMarkers=[],session={}) {
     // Sector-only stretching cannot correct a trace cut at a different corner.
     const supported=markers.filter(m=>local.some(c=>c.label===m.label));
     const from=[0,...supported.map(m=>local.find(c=>c.label===m.label).fraction),1],to=[0,...supported.map(m=>m.fraction),1];
-    const points=e.native.points.map(p=>{let i=0;while(i<from.length-2&&p.f>from[i+1])i++;
-      return {...p,f:to[i]+(to[i+1]-to[i])*(p.f-from[i])/(from[i+1]-from[i])};});
-    return {...e,data:{...e.native,points},alignment:supported.length===markers.length?'Named circuit-position registration':`Named circuit-position registration · ${supported.length}/${markers.length} GPS landmarks`};
+    const positionFraction=f=>{let i=0;while(i<from.length-2&&f>from[i+1])i++;
+      return to[i]+(to[i+1]-to[i])*(f-from[i])/(from[i+1]-from[i]);};
+    const points=e.native.points.map(p=>({...p,f:positionFraction(p.f)}));
+    return {...e,data:{...e.native,points,positionFraction},alignment:supported.length===markers.length?'Named circuit-position registration':`Named circuit-position registration · ${supported.length}/${markers.length} GPS landmarks`};
   }).filter(e=>e.data);
   if(measured.length<3)return [];
-  const positioned=refineCornerPositions(ref.payload.samples,markers,ref.native.total);
+  const geometryRef=measured[0],total=geometryRef.native.total,origin=geometryRef.payload.samples[0].Distance;
+  const positioned=refineCornerPositions(geometryRef.payload.samples,markers,total,p=>{
+    const f=(p.Distance-origin)/total;return geometryRef.data.positionFraction?.(f)??f;
+  });
   const zones=positioned.map((m,i)=>{
     const f=m.apexFraction,left=i?(positioned[i-1].apexFraction+f)/2:0,right=i<positioned.length-1?(f+positioned[i+1].apexFraction)/2:1;
-    const start=Math.max(left,f-130/ref.native.total),end=Math.min(right,f+100/ref.native.total);
-    const apex=fieldMinimumSpeed(measured,f,ref.native.total,m.apexConfidence==='estimated'?0:25);
+    const start=Math.max(left,f-130/total),end=Math.min(right,f+100/total);
+    const apex=fieldMinimumSpeed(measured,f,total,m.apexConfidence==='estimated'?0:25);
     return {start,end,corner:m.label,apex:f,apexMethod:m.apexMethod,band:finite(apex)?apex<=120?'low':apex<=200?'medium':'high':null};
   });
   const rows=measured.map(e=>({team:e.row.driver.team,color:e.row.driver.team_color,driver:e.row.driver.code,lap:e.row.lap,

@@ -18,7 +18,7 @@ Session speed annotations use `bend` for supported geometry and `marker ≈` for
 - Suzuka 2025 fastest-lap geometry: all 18 named turns refined; largest shift approximately 94 m. This is a geometry replay, not independent proof of true racing-apex location.
 - Baku 2026 fastest-lap geometry: 20 named turns preserved; 15 refinements and five explicit fallbacks (T8–T11 and T20). Close track crossings never substitute a different named turn.
 - Sepang native qualifying and race fixtures still pass; T5/T6 remain supported high-speed bends. Existing missing-packet and displaced-archive checks pass.
-- 148 automated regression tests passed, none skipped. New checks cover deliberate marker displacement, speed-invariant positions, neighbouring turns, unsupported GPS, registered session coordinates and shared frontend/server wiring.
+- 149 automated regression tests passed, none skipped. New checks cover deliberate marker displacement, speed-invariant positions, neighbouring turns, unsupported GPS, registered session and race coordinates and shared frontend/server wiring. Race geometry uses the same named-corner registration as its timing comparisons, including when the reference map comes from qualifying.
 
 ## Limits
 

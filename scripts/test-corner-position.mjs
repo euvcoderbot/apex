@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {refineCornerPositions} from '../corner-geometry.js';
+import {measureRaceCornerGroup} from '../race-cornering.js';
 const total=4000;
 function path(centres=[2000]){
   let x=0,y=0,heading=0;
@@ -47,8 +48,18 @@ test('session, race and qualifying share the geometry module and disclose fallba
   assert.ok(html.indexOf('src="corner-position.js')<html.indexOf('src="app.js'));
   assert.match(readFileSync('corner-geometry.js','utf8'),/import '\.\/corner-position\.js'/);
   assert.match(readFileSync('alignment.js','utf8'),/APEXCornerPosition\?\.refineCornerPositions/);
-  assert.equal((race.match(/refineCornerPositions\(ref\.payload\.samples/g)||[]).length,2);
+  assert.match(race,/refineCornerPositions\(ref\.payload\.samples/);
+  assert.match(race,/refineCornerPositions\(geometryRef\.payload\.samples/);
   assert.match(app,/marker ≈/);
   assert.match(readFileSync('car-performance.js','utf8'),/Corner position evidence · GPS refinements and uncertain markers/);
   assert.match(readFileSync('scripts/sync-static.mjs','utf8'),/corner-position\.js/);
+});
+test('race bend speeds use the registered named-corner frame, not raw GPS fractions',()=>{
+  const corners=[.25,.5,.75].map((fraction,i)=>({number:String(i+1),fraction}));
+  const samples=path([1000,2000,3000]).map(p=>({...p,Speed:Math.abs(p.Distance-2000)<25?150:250}));
+  const entries=['A','B','C'].map(code=>({row:{time:100,s1:33,s2:33,s3:34,lap:10,compound:'HARD',tyre_life:8,driver:{code,team:code}},payload:{samples,corners}}));
+  const fallback=corners.map(c=>({...c,label:c.number,fraction:c.fraction+.01}));
+  const result=measureRaceCornerGroup(entries,fallback);
+  assert.equal(result.length,3);
+  assert.ok(result.every(row=>row.cornerBands.find(c=>c.corner==='2').band==='medium'));
 });
