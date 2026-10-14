@@ -528,6 +528,16 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
             continue
         # Widest supported cohort first, then the largest shared speed drop.
         # All cars in a zone use exactly the same endpoints.
+        def crossing_support(t, v, item, high, low):
+            indices = [int(np.flatnonzero(v <= speed)[0]) for speed in (high, low)]
+            times = [float(t[j]) if j == 0 else float(t[j-1]+(v[j-1]-speed)/(v[j-1]-v[j])*(t[j]-t[j-1]))
+                     for speed, j in zip((high, low), indices)]
+            duration = times[1]-times[0]
+            intervals = source_intervals(item)[np.searchsorted(item['a'][:,1],t[:-1])]
+            resolution = sum(float(intervals[j-1]) if j else 0. for j in indices)
+            interior = int(((t > times[0]) & (t < times[1])).sum())
+            return (duration > 0 and interior >= 2 and resolution <= duration
+                    and .5 <= (high-low)/3.6/duration/9.80665 <= 7)
         options = []
         for high in {math.floor(v[0] / 10) * 10 for laps in segments.values() for _, v, _ in laps}:
             for low in {math.ceil(v[-1] / 10) * 10 for laps in segments.values() for _, v, _ in laps}:
@@ -536,10 +546,18 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
                 if high - low >= 50 and len(cohort) >= 3:
                     repeat_count = sum(sum(v[0] >= high and v[-1] <= low for _, v, _ in segments[team])
                                        for team in cohort)
-                    options.append((len(cohort), high - low, repeat_count, high, low, cohort))
+                    supported = [team for team in cohort if any(v[0]>=high and v[-1]<=low
+                        and crossing_support(t,v,item,high,low) for t,v,item in segments[team])]
+                    paired = sum(team in approaches for team in supported)
+                    # Choose endpoints using native timing support BEFORE
+                    # optimising coverage. A wide field with a tiny speed drop
+                    # can otherwise make every interval provisional, despite a
+                    # broader supported drop on these same fastest laps.
+                    score = (paired>=3, len(supported)>=3, len(supported), len(cohort), high-low, paired, repeat_count)
+                    options.append((score, high, low, cohort))
         if not options:
             continue
-        _, _, _, high, low, cohort = max(options, key=lambda o: o[:5])
+        _, high, low, cohort = max(options, key=lambda o: (o[0],o[1],o[2]))
         if fixed_ranges is not None:
             if label not in fixed_ranges:
                 continue
@@ -615,7 +633,8 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
                 'source_selection': dict(main_selection),
                 'selection_policy': 'fastest-qualifying-lap-only',
                 'quality': 'supported' if supported else 'provisional',
-                'braking_version': 'qualifying-braking-v3-fastest-paired'
+                'endpoint_policy': 'native-support-first-shared-speed-drop',
+                'braking_version': 'qualifying-braking-v4-supported-endpoints'
             })
     return result
 
@@ -629,7 +648,8 @@ def straight_core_measurements(selected, blocks, grid, ref, fixed_windows=None, 
     empty = {team: {'straight_core_time': None, 'straight_core_delta': None,
                     'straight_core_gap_s': None,
                     'straight_core_distance_m': 0., 'straight_core_windows': [],
-                    'straight_core_method': 'shared-straight-core-v1'} for team in selected}
+                    'straight_core_method': 'shared-straight-core-v4-length-aware',
+                    'straight_core_exclusion': 'No cohort of at least three cars shares 200 m of supported settled straight windows.'} for team in selected}
     if len(selected) < 3 or len(grid) < 3 or ref.get('gps') is None:
         return empty
     raw = ref['a'][ref['gps']]
@@ -696,7 +716,7 @@ def straight_core_measurements(selected, blocks, grid, ref, fixed_windows=None, 
             return empty
         names = sorted(best)
         for row in best.values():
-            row['straight_core_method'] = 'supported-straight-core-v3-field-first'
+            row['straight_core_method'] = 'supported-straight-core-v4-length-aware'
             row['straight_core_cohort'] = names
             row['straight_core_requested'] = len(selected)
         return {**empty, **best}
@@ -705,7 +725,13 @@ def straight_core_measurements(selected, blocks, grid, ref, fixed_windows=None, 
     windows = []
     for start, end in blocks:
         # Separate settled straight performance from exit traction and braking.
-        bounded = eligible & (mids >= grid[start]+200) & (mids < grid[end]-100)
+        # These blocks are already outside named corner envelopes. Another
+        # fixed 300 m erased Singapore's 150–340 m links entirely. Retain the
+        # old buffers on long straights, proportionate buffers on shorter ones;
+        # native full throttle, no braking and low curvature still apply.
+        length = float(grid[end]-grid[start])
+        entry_buffer, exit_buffer = min(200., length*.2), min(100., length*.1)
+        bounded = eligible & (mids >= grid[start]+entry_buffer) & (mids < grid[end]-exit_buffer)
         active = np.flatnonzero(bounded)
         runs = np.split(active, np.flatnonzero(np.diff(active) != 1)+1)
         for run in runs:
@@ -730,7 +756,8 @@ def straight_core_measurements(selected, blocks, grid, ref, fixed_windows=None, 
                    'straight_core_delta': float((value-best)/ref['official']*100),
                    'straight_core_distance_m': measured_distance,
                    'straight_core_windows': windows,
-                   'straight_core_method': 'shared-straight-core-v1'} for team, value in times.items()}
+                   'straight_core_method': 'shared-straight-core-v4-length-aware',
+                   'straight_core_exclusion': None} for team, value in times.items()}
 
 
 def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_mask, candidates=None, measurement_frame=None):

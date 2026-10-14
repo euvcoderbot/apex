@@ -162,6 +162,30 @@ class PerformanceTests(unittest.TestCase):
         self.assertEqual(result['D']['straight_core_distance_m'],300)
         self.assertTrue(all(row['straight_core_time'] is not None for row in result.values()))
 
+    def test_short_named_links_retain_settled_native_windows(self):
+        grid, selected = self.core_fixture()
+        result = straight_core_measurements(selected, [(0,55),(70,110)], grid, selected['A'])
+        self.assertTrue(all(row['straight_core_time'] is not None for row in result.values()))
+        self.assertGreaterEqual(result['A']['straight_core_distance_m'], 200)
+        self.assertTrue(all(w['end_m']-w['start_m']>=100 for w in result['A']['straight_core_windows']))
+        self.assertEqual(result['A']['straight_core_windows'],result['B']['straight_core_windows'])
+        self.assertTrue(all(w['start_m']>0 and w['end_m']<550 for w in result['A']['straight_core_windows']))
+
+    def test_braking_endpoint_choice_prioritises_supported_timing(self):
+        grid=np.arange(0.,405.,5.)
+        def item(t,v):
+            a=np.zeros((len(t),8));a[:,1]=t;a[:,2]=v;a[:,4]=1
+            return {'a':a,'aligned':np.linspace(0,390,len(t))}
+        t=np.arange(0.,2.01,.24)
+        selected={team:item(t,310-125*t) for team in 'ABC'}
+        selected['D']=item(np.array([0.,.24,.48]),np.array([260.,235.,210.]))
+        result=matched_braking_measurements(selected,{'Z':(0,78,dict.fromkeys(selected,0),'straight')},grid)
+        for team in 'ABC':
+            self.assertEqual(result[team][0]['quality'],'supported')
+            self.assertGreater(result[team][0]['speed_drop'],50)
+            self.assertEqual(result[team][0]['source_laps'],1)
+        self.assertEqual(result['D'],[], 'the unsupported car is not assigned the other cars timing')
+
     def test_bad_fastest_reference_does_not_discard_other_laps(self):
         from performance_tracks import measure_field
         samples=[{'Distance':i*10.,'ElapsedSeconds':i*.9,'Speed':100.,

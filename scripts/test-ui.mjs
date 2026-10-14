@@ -692,7 +692,9 @@ test('both braking metrics share coverage and reject repeat or slower-lap payloa
   assert.equal(rescued.rows.get('D').brakingSlowingS,0);
   box.brakingComparisonMode='independent';
   const independent=box.eventTelemetry(e);
-  assert.deepEqual([...independent.brakingCoverage.teams],['A','B','C']);
+  assert.deepEqual([...independent.brakingCoverage.teams].sort(),['A','B','C','D']);
+  assert.equal(independent.brakingCoverage.type,'connected-slowing');
+  assert.equal(independent.rows.get('D').brakingApproachMs,null);
   assert.equal(independent.rows.get('A').brakingSlowingS,0);
   assert.equal(independent.rows.get('A').brakingApproachMs,null,'independent slowing never invents an approach score');
   traces.A.braking.forEach(z=>z.source_laps=2);

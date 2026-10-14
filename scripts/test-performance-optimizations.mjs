@@ -96,7 +96,10 @@ test('connected paired braking uses actual rows for both metrics and widens real
   assert.equal(connected.rows.size,11);
   for(const row of connected.rows.values())assert.equal(Number.isFinite(row.brakingSlowingS),Number.isFinite(row.brakingApproachMs));
   assert.equal(connected.rows.get('Red Bull Racing').brakingSlowingS,null,'unsupported arrival boundaries are not invented');
-  assert.equal(measure('independent').brakingCoverage.teams.length,10);
+  const independent=measure('independent');
+  assert.equal(independent.brakingCoverage.teams.length,11);
+  assert.equal(independent.brakingCoverage.type,'connected-slowing');
+  assert.ok([...independent.rows.values()].every(r=>r.brakingApproachMs===null),'slowing support never invents paired approach measurements');
 });
 
 test('source cache versions do not change on presentation edits and loader categories do not cancel session retrieval',()=>{
