@@ -2014,7 +2014,7 @@ function buildSpeedAnnotations(entries, zones, totalDistance) {
     // Slow corners show their observed window minimum. Faster corners use
     // the shared geometric centre; a window-edge minimum is not an apex.
     const kind=zone.minimumSpeed<=120?'min':'corner';
-    add(`${cornerLabel(zone)} ${kind==='min'?'min':'speed'}`,zone.apexStart,zone.apexEnd,kind,zone.apex);
+    add(`${cornerLabel(zone)} ${kind==='min'?'min':zone.apexConfidence==='estimated'?'bend':'marker ≈'}`,zone.apexStart,zone.apexEnd,kind,zone.apex);
   });
   // Only real straight ends get a terminal-speed label. No "peak" between
   // every pair of corners, nor at an unrelated mid-straight speed spike.

@@ -1,14 +1,14 @@
 // Matched race observations, not a synthetic downforce or fuel correction.
-import {circuitCornerMarkers} from './corner-geometry.js?v=20261007-coverage';
+import {circuitCornerMarkers,refineCornerPositions} from './corner-geometry.js?v=20261007-coverage';
 const finite=n=>typeof n==='number'&&Number.isFinite(n);
 const mean=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:null;
 const median=a=>{const s=[...a].sort((a,b)=>a-b),i=s.length>>1;return s.length?s.length%2?s[i]:(s[i-1]+s[i])/2:null;};
-function fieldMinimumSpeed(measured,fraction,total) {
+function fieldMinimumSpeed(measured,fraction,total,halfMetres=25) {
   const speeds=[];
-  for(let metres=-25;metres<=25;metres+=5){const f=fraction+metres/total;
+  for(let metres=-halfMetres;metres<=halfMetres;metres+=5){const f=fraction+metres/total;
     const values=measured.map(e=>{const points=e.data.points,hi=boundaryIndex(points,f);
       if(hi<1)return null;const a=points[hi-1],b=points[hi];
-      return b.t-a.t<=1?a.v+(b.v-a.v)*(f-a.f)/(b.f-a.f):null;}).filter(finite);
+      return Math.max(b.t-a.t,a.sourceInterval||0,b.sourceInterval||0)<=1?a.v+(b.v-a.v)*(f-a.f)/(b.f-a.f):null;}).filter(finite);
     // One dropped channel must not veto a supported field classification.
     // Require a majority and at least three cars (two in a two-car view).
     const required=Math.max(Math.min(3,measured.length),Math.ceil(measured.length/2));
@@ -141,10 +141,12 @@ export function measureRaceCornerGroup(entries,fallbackMarkers=[],session={}) {
     return {...e,data:{...e.native,points},alignment:supported.length===markers.length?'Named circuit-position registration':`Named circuit-position registration · ${supported.length}/${markers.length} GPS landmarks`};
   }).filter(e=>e.data);
   if(measured.length<3)return [];
-  const zones=markers.map((m,i)=>{
-    const left=i?(markers[i-1].fraction+m.fraction)/2:0,right=i<markers.length-1?(m.fraction+markers[i+1].fraction)/2:1;
-    const start=Math.max(left,m.fraction-130/ref.native.total),end=Math.min(right,m.fraction+100/ref.native.total);
-    const apex=fieldMinimumSpeed(measured,m.fraction,ref.native.total);return {start,end,corner:m.label,band:finite(apex)?apex<=120?'low':apex<=200?'medium':'high':null};
+  const positioned=refineCornerPositions(ref.payload.samples,markers,ref.native.total);
+  const zones=positioned.map((m,i)=>{
+    const f=m.apexFraction,left=i?(positioned[i-1].apexFraction+f)/2:0,right=i<positioned.length-1?(f+positioned[i+1].apexFraction)/2:1;
+    const start=Math.max(left,f-130/ref.native.total),end=Math.min(right,f+100/ref.native.total);
+    const apex=fieldMinimumSpeed(measured,f,ref.native.total,m.apexConfidence==='estimated'?0:25);
+    return {start,end,corner:m.label,apex:f,apexMethod:m.apexMethod,band:finite(apex)?apex<=120?'low':apex<=200?'medium':'high':null};
   });
   const rows=measured.map(e=>({team:e.row.driver.team,color:e.row.driver.team_color,driver:e.row.driver.code,lap:e.row.lap,
     tyreAge:e.row.tyre_life,lapTime:e.row.time,times:zones.map(z=>cornerTraversalTime(e.data,z)),alignment:e.alignment}));
@@ -224,17 +226,18 @@ export function connectedRaceCornerScores(observations,band='all',subject='team'
 export function measureQualifyingCornerGroup(entries,session={}) {
   const ready=entries.map(e=>({...e,native:registered(e)})).filter(e=>e.native).sort((a,b)=>a.row.time-b.row.time);
   if(ready.length<2)return {traces:{},markers:[],error:'At least two complete qualifying laps are required.'};
-  const ref=ready[0],markers=circuitCornerMarkers(ref.payload,session);
+  const ref=ready[0],markers=refineCornerPositions(ref.payload.samples,circuitCornerMarkers(ref.payload,session),ref.native.total);
   if(markers.length<3)return {traces:{},markers,error:'Circuit markers could not be matched to this lap. No speed-dip substitute is used.'};
   const measured=ready.map(e=>({...e,data:registered(e,ref.native.anchors)})).filter(e=>e.data);
   const classification=measured.filter(e=>!session.cornerClassificationDrivers||session.cornerClassificationDrivers.includes(e.row.driver.code));
   const zones=markers.map((m,i)=>{
-    const left=i?(markers[i-1].fraction+m.fraction)/2:0,right=i<markers.length-1?(m.fraction+markers[i+1].fraction)/2:1;
-    const start=Math.max(left,m.fraction-130/ref.native.total),end=Math.min(right,m.fraction+100/ref.native.total);
-    // Match Python: minimum of the field-median trace on a fixed 5 m grid,
-    // not median of independently located minima (a different statistic).
-    const speed=fieldMinimumSpeed(classification,m.fraction,ref.native.total);
-    return {start,end,apex:m.fraction,corner:m.label,speed,band:finite(speed)?speed<=120?'low':speed<=200?'medium':'high':null};
+    const f=m.apexFraction,left=i?(markers[i-1].apexFraction+f)/2:0,right=i<markers.length-1?(f+markers[i+1].apexFraction)/2:1;
+    const start=Math.max(left,f-130/ref.native.total),end=Math.min(right,f+100/ref.native.total);
+    // One shared supported bend centre; do not select each driver's own
+    // trough. Uncertain geometry keeps the disclosed legacy map-area estimate.
+    const speed=fieldMinimumSpeed(classification,f,ref.native.total,m.apexConfidence==='estimated'?0:25);
+    return {start,end,apex:f,markerFraction:m.fraction,apexMethod:m.apexMethod,apexConfidence:m.apexConfidence,
+      apexShiftMetres:m.apexShiftMetres,apexReason:m.apexReason,corner:m.label,speed,band:finite(speed)?speed<=120?'low':speed<=200?'medium':'high':null};
   });
   const unclassified=zones.filter(z=>!z.band).map(z=>z.corner);
   const referenceRows=zones.map(z=>measured.find(e=>finite(cornerTraversalTime(e.data,z)))),traces={};
@@ -251,7 +254,8 @@ export function measureQualifyingCornerGroup(entries,session={}) {
         delta_apex:minimum-refMinimum,delta_exit:local.at(-1).v-reference.at(-1).v,
         boundary_interval_s:Math.max(...[boundaryInterval(e.data.points,z.start),boundaryInterval(e.data.points,z.end),
           boundaryInterval(ref.native.points,z.start),boundaryInterval(ref.native.points,z.end)].filter(finite)),
-        apex_distance:z.apex*ref.native.total,source:'circuit-marker-window'}];
+        apex_distance:z.apex*ref.native.total,apex_method:z.apexMethod,apex_confidence:z.apexConfidence,
+        apex_shift_metres:z.apexShiftMetres,source:'circuit-marker-window'}];
     });
     const categories={},corner_band_coverage={};
     for(const band of ['low','medium','high']) {

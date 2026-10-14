@@ -1120,13 +1120,13 @@ test('one optional speed-annotation control combines slow minima, shared fast-co
     Speed:(i>=190&&i<=210?80+Math.abs(i-200):i>=590&&i<=610?240+(i-590)/2:300)-index*5,
     Throttle:100,Brake:0}))}));
   h.sandbox.zones=[{number:'1',apex:.2,minimumSpeed:80,apexStart:.19,apexEnd:.21,start:.15,end:.25},
-    {number:'2',apex:.6,minimumSpeed:240,apexStart:.59,apexEnd:.61,start:.55,end:.65}];
+    {number:'2',apex:.6,apexConfidence:'estimated',minimumSpeed:240,apexStart:.59,apexEnd:.61,start:.55,end:.65}];
   const results=h.run('buildSpeedAnnotations(entries,zones,5000)');
   assert.ok(results.some(r=>r.kind==='peak'));
   assert.equal(results.find(r=>r.title==='T1 min').values[0].speed,80);
-  assert.equal(results.find(r=>r.title==='T2 speed').values[0].speed,245);
-  assert.equal(results.find(r=>r.title==='T2 speed').fraction,.6);
-  assert.ok(results.find(r=>r.title==='T2 speed').values.every(v=>v.fraction===.6));
+  assert.equal(results.find(r=>r.title==='T2 bend').values[0].speed,245);
+  assert.equal(results.find(r=>r.title==='T2 bend').fraction,.6);
+  assert.ok(results.find(r=>r.title==='T2 bend').values.every(v=>v.fraction===.6));
   assert.equal(results.find(r=>r.title==='T1 min').values[1].speed,75);
   h.run('entries[0].samples=entries[0].samples.filter(p=>p.AlignedFraction<.194||p.AlignedFraction>.206)');
   assert.equal(h.run("buildSpeedAnnotations(entries,zones,5000).find(r=>r.title==='T1 min').values.length"),1);

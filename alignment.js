@@ -892,6 +892,8 @@ function adaptiveCornerZones(markers) {
     .map(samples => traceTelemetryValue(samples, fraction, 'Speed'))
     .filter(Number.isFinite));
   const geometryCurvature = fraction => sessionTrackCurvature(fraction,totalDistance,reference);
+  const positioned=globalThis.APEXCornerPosition?.refineCornerPositions(reference||[],ordered,totalDistance,
+    point=>traceSampleFraction(reference,point))||ordered.map(m=>({...m,apexFraction:m.fraction,apexMethod:'map-marker fallback',apexConfidence:'uncertain'}));
 
   const descriptors = ordered.map((marker, index) => {
     const previousGap = index ? (marker.fraction - ordered[index - 1].fraction) * totalDistance : Infinity;
@@ -903,30 +905,15 @@ function adaptiveCornerZones(markers) {
       index ? (ordered[index - 1].fraction + marker.fraction) / 2 : 0);
     const searchEnd = Math.min(1, marker.fraction + searchHalf,
       index < ordered.length - 1 ? (marker.fraction + ordered[index + 1].fraction) / 2 : 1);
-    let apex = marker.fraction;
-    let bestGeometryScore = -Infinity;
+    const position=positioned[index];
+    const apex = position.apexFraction;
     let minimumSpeed = Infinity;
     const searchSteps = Math.max(12, Math.ceil((searchEnd - searchStart) * totalDistance / 4));
     for (let step = 0; step <= searchSteps; step++) {
       const fraction = searchStart + (searchEnd - searchStart) * step / searchSteps;
       const speed = ensembleSpeed(fraction);
       if (Number.isFinite(speed) && speed < minimumSpeed) minimumSpeed = speed;
-      const curvatureSamples = [-5, 0, 5]
-        .map(offset => geometryCurvature(fraction + offset / totalDistance))
-        .filter(Number.isFinite);
-      const curvature = medianTelemetry(curvatureSamples);
-      const range = Math.max(searchEnd - searchStart, 1 / totalDistance);
-      const proximityWeight = 1 - .22 * Math.abs(fraction - marker.fraction) / range;
-      const score = Number.isFinite(curvature) ? curvature * proximityWeight : -Infinity;
-      if (score > bestGeometryScore) {
-        bestGeometryScore = score;
-        apex = fraction;
-      }
     }
-
-    // If geometry is absent or essentially straight, the projected official
-    // corner marker is a safer centre than a telemetry speed trough.
-    if (!Number.isFinite(bestGeometryScore) || bestGeometryScore <= 1e-7) apex = marker.fraction;
 
     const threshold = minimumSpeed + (minimumSpeed < 145 ? 14 : minimumSpeed < 220 ? 11 : 8);
     const stepFraction = 5 / totalDistance;
@@ -946,7 +933,7 @@ function adaptiveCornerZones(markers) {
     const apexHalfMetres = complex ? 26 : longRadius ? Math.min(105, Math.max(52, basinMetres * .62))
       : minimumSpeed < 145 ? 42 : minimumSpeed > 225 ? 34 : 38;
     const sectorReach = longRadius ? 220 : complex ? 175 : 190;
-    return { ...marker, apex, minimumSpeed, type, apexHalfMetres, sectorReach, previousGap, nextGap };
+    return { ...marker, ...position, apex, minimumSpeed, type, apexHalfMetres, sectorReach, previousGap, nextGap };
   });
 
   const zones=descriptors.map((descriptor, index) => {
