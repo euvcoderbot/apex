@@ -163,16 +163,20 @@ def openf1_pit_visits(pits: list[dict], drivers: list[dict], stints=None) -> lis
             lane = seconds(pit.get('pit_duration'))  # deprecated alias for lane, not stop
         stop = seconds(pit.get('stop_duration'))
         lap = pit_lap_number(pit.get('lap_number'))
-        if lap is None or lane is None or not 5 <= lane <= 300:
+        if lap is None:
             continue
-        if stop is None or not 0 < stop <= lane + 1:
+        if lane is not None and not 5 <= lane <= 300:
+            lane=None
+        if stop is None or not 0 < stop <= (lane+1 if lane is not None else 300):
             stop = None
+        if lane is None and stop is None:
+            continue
         visits.append({
             'driver': str(identity.get('name_acronym') or ''),
             'driver_number': str(pit.get('driver_number')),
             'team': str(identity.get('team_name') or ''),
             'lap': lap,
-            'lane_duration': round(lane, 3),
+            'lane_duration': round(lane, 3) if lane is not None else None,
             'stop_duration': round(stop, 3) if stop is not None else None,
             'visit_type': 'service' if stop is not None else 'unknown',
             'visit_evidence': 'supplied stationary timing' if stop is not None else 'no service evidence supplied',
@@ -257,20 +261,40 @@ def dhl_2026_pit_stops(session: dict) -> list[dict]:
     return stops
 
 
-def merge_dhl_pit_stops(visits: list[dict], drivers: list[dict], stops: list[dict]) -> int:
+def merge_dhl_pit_stops(visits: list[dict], drivers: list[dict], stops: list[dict], include_unmatched=False) -> int:
     """Match a DHL box stop only to the same driver and in-lap."""
-    identities = {_pit_name(d.get('last_name')): str(d.get('driver_number')) for d in drivers}
+    identities = {_pit_name(d.get('last_name')): d for d in drivers if d.get('last_name')}
     indexed = {(v['driver_number'], v['lap']): v for v in visits}
     matched = 0
     for stop in stops:
-        number = identities.get(_pit_name(stop['last_name']))
+        identity = identities.get(_pit_name(stop['last_name']))
+        number = str(identity['driver_number']) if identity else None
         visit = indexed.get((number, stop['lap'])) if number else None
+        if visit is None and include_unmatched and identity and identity.get('name_acronym'):
+            # Published box timing is useful even when entry/exit packets are
+            # missing. Never infer a pit-lane duration from stationary timing.
+            visit = {'driver_number':number,'driver':identity['name_acronym'],
+                     'team':identity.get('team_name') or stop['team'],'lap':stop['lap'],
+                     'lane_duration':None,'stop_duration':None}
+            visits.append(visit);indexed[(number,stop['lap'])]=visit
         if (visit is not None and visit['stop_duration'] is None
-                and 0 < stop['stop_duration'] <= visit['lane_duration'] + 1):
+                and 0 < stop['stop_duration'] <= (visit['lane_duration'] + 1 if visit['lane_duration'] is not None else 300)):
             visit['stop_duration'] = stop['stop_duration']
             visit.update(visit_type='service', visit_evidence='DHL stationary timing')
             matched += 1
     return matched
+
+
+def pit_timing_payload(gp, year, source, visits, drivers, date=None, supplement_status=None):
+    stationary = sum(v.get('stop_duration') is not None for v in visits)
+    return {'event':gp,'year':year,'source':source,'date':date,'visits':visits,
+            'entrants':[{'driver':d.get('name_acronym') or '',
+                         'driver_number':str(d.get('driver_number')),
+                         'team':d.get('team_name') or ''} for d in drivers],
+            'timing_coverage':{'visits':len(visits),'stationary_timed':stationary,
+                              'lane_timed':sum(v.get('lane_duration') is not None for v in visits)},
+            'stationary_status':'complete' if visits and stationary==len(visits) else 'partial' if stationary else 'unavailable',
+            'stationary_supplement_status':supplement_status}
 
 
 def fastf1_pit_visits(laps: Any) -> list[dict]:
@@ -1616,11 +1640,10 @@ def car_performance_pits(response: Response, year: int = Query(..., ge=2018, le=
                     ttl = 3600
             except ValueError:
                 ttl = min(ttl, 3600)
-        if not visits or (year >= 2023 and not source.startswith('OpenF1')):
+        if not visits or (year >= 2023 and not source.startswith('OpenF1') and 'DHL stationary' not in source):
             ttl = min(ttl, 300)
-        if year == datetime.now(timezone.utc).year and visits and not any(
-                visit.get('stop_duration') is not None for visit in visits):
-            ttl = min(ttl, 3600)
+        if visits and any(visit.get('stop_duration') is None for visit in visits):
+            ttl = min(ttl, 300)
         response.headers['Cache-Control'] = (
             f'public, max-age={ttl}, s-maxage={ttl}, stale-while-revalidate={min(ttl, 86400)}'
         )
@@ -1644,28 +1667,51 @@ def car_performance_pits(response: Response, year: int = Query(..., ge=2018, le=
                     raise ValueError('Driver identities are unavailable')
                 visits = openf1_pit_visits(pits, drivers, stints)
                 source = 'OpenF1'
-                if year == 2026 and any(v['stop_duration'] is None for v in visits):
+                supplement_status = None
+                if year == 2026 and (not visits or any(v['stop_duration'] is None for v in visits)):
                     try:
-                        matched = merge_dhl_pit_stops(visits, drivers, dhl_2026_pit_stops(session))
+                        stops = dhl_2026_pit_stops(session)
+                        matched = merge_dhl_pit_stops(visits, drivers, stops, include_unmatched=True)
+                        supplement_status = 'published' if stops else 'not-published'
                         if matched:
                             source = 'OpenF1 pit lane + DHL stationary'
                     except Exception as exc:
+                        supplement_status = 'unavailable'
                         logger.warning('DHL stationary timing unavailable for %s: %s', gp, exc)
                 set_cache(source, visits, session)
                 response.headers['Server-Timing'] = f'pits;dur={(time.perf_counter()-started)*1000:.1f}'
-                return {'event': gp, 'year': year, 'source': source, 'visits': visits}
+                return pit_timing_payload(gp,year,source,visits,drivers,session.get('date_start'),supplement_status)
             except Exception as exc:
                 logger.warning('OpenF1 pit timing unavailable for %s %s: %s', year, gp, exc)
 
     try:
         data = load_fresh_session(year, gp, 'R')
         visits = fastf1_pit_visits(data.laps)
+        drivers=[]
+        for code in data.drivers:
+            info=data.get_driver(code)
+            drivers.append({'driver_number':str(info.get('DriverNumber',code)),
+                            'name_acronym':str(info.get('Abbreviation') or ''),
+                            'last_name':str(info.get('LastName') or ''),
+                            'team_name':str(info.get('TeamName') or '')})
+        race_date=utc_timestamp(data.date)
     except Exception as exc:
         logger.warning('Pit timing unavailable for %s %s: %s', year, gp, exc)
         raise HTTPException(422, 'Pit timing is unavailable for this race.') from exc
-    set_cache('FastF1', visits)
+    source='FastF1'
+    supplement_status=None
+    if year==2026 and race_date and (not visits or any(v['stop_duration'] is None for v in visits)):
+        try:
+            stops=dhl_2026_pit_stops({'date_start':race_date})
+            matched=merge_dhl_pit_stops(visits,drivers,stops,include_unmatched=True)
+            supplement_status='published' if stops else 'not-published'
+            if matched:source='FastF1 pit lane + DHL stationary'
+        except Exception as exc:
+            supplement_status='unavailable'
+            logger.warning('DHL stationary supplement unavailable for FastF1 %s: %s',gp,exc)
+    set_cache(source, visits)
     response.headers['Server-Timing'] = f'pits;dur={(time.perf_counter()-started)*1000:.1f}'
-    return {'event': gp, 'year': year, 'source': 'FastF1', 'visits': visits}
+    return pit_timing_payload(gp,year,source,visits,drivers,race_date,supplement_status)
 
 
 @app.post("/api/performance/development")

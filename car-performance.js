@@ -877,7 +877,10 @@ async function loadPitData(retry=false) {
   for(const event of picked.filter(e=>completed(e,'Race'))) {
     if(!events.some(e=>e.name===event.name)) events.push({...event,traces:{}});
   }
-  if(retry) for(const event of events) delete event.pitError;
+  if(retry) for(const event of events) {
+    delete event.pitError;
+    if(event.pits?.stationary_status!=='complete')delete event.pits;
+  }
   const jobs=events.filter(e=>completed(e,'Race') && !e.pits && !e.pitError);
   if(!jobs.length) return;
   pitController?.abort(); pitController=new AbortController();
@@ -887,8 +890,9 @@ async function loadPitData(retry=false) {
     while(jobs.length && !signal.aborted && id===generation) {
       const event=jobs.shift();
       try {
-        const params=new URLSearchParams({year:context.year,gp:event.name,source:'dhl-2026-v1'});
-        event.pits=await get(`/api/performance/pits?${params}&schema=2`,signal,'default');
+        const params=new URLSearchParams({year:context.year,gp:event.name,source:'dhl-fallback-v2'});
+        if(retry)params.set('fresh','true');
+        event.pits=await get(`/api/performance/pits?${params}&schema=3`,signal,retry?'no-store':'default');
       } catch(error) {
         if(signal.aborted) return;
         event.pitError=error.message;
@@ -1711,6 +1715,13 @@ function pitSummary(events, teams) {
   const visits=[];
   const loadedRaces=events.filter(e=>e.pits);
   const groups=new Map(), drivers=new Map();
+  // Pit timing should not depend on first loading the unrelated race-pace API.
+  for(const event of loadedRaces)for(const entrant of event.pits.entrants||[]) {
+    const team=entrant.team||'Unknown team',driver=entrant.driver||`#${entrant.driver_number}`;
+    if(!groups.has(team))groups.set(team,{team,color:teamColors.get(team),visits:[],events:new Set()});
+    const key=`${team}:${driver}`;
+    if(!drivers.has(key))drivers.set(key,{team,driver,color:teamColors.get(team),visits:[],events:new Set()});
+  }
   for(const event of loadedRaces) for(const team of event.R?.teams||[]) {
     if(!groups.has(team.team)) groups.set(team.team,{team:team.team,color:teamColors.get(team.team)||team.color,visits:[],events:new Set()});
     for(const driver of team.drivers||[]) {
@@ -1822,10 +1833,13 @@ function renderPits(teams) {
     valueKey:'chartValue',labelKey:isDriver?'driver':'team',unit:' s',digits:3,signedValue:relativeLane&&pitChartMetric!=='spread',preserveSignedValues:relativeLane&&pitChartMetric!=='spread',zeroBaseline:true
   });
   const metricLabel=relativeLane?'vs GP median':isLane?'pit lane':'stationary stop';
+  const insufficient=(value,sample,minimum)=>finite(value)?(relativeLane?signed(value,3,' s'):fmt(value,3,' s'))
+    :`—<small>${sample.count?`Needs ${minimum} ${relativeLane?'GPs':'visits'} · ${sample.count} measured`:'No timed samples'}</small>`;
   const summary=card('Pit stops & pit lane',note,
     `<p class="performance-note">${pitVisitMode==='service'?'Ranking confirmed service visits only.':'Diagnostic: includes all service, pass-through and unclassified visits.'} ${data.visits.filter(v=>v.visit_type!=='service'&&!finite(v.stop_duration)).length} visits lack confirmed service evidence. Missing stationary timing alone does not identify a pass-through; all visits remain in the evidence table.</p>`+
     (failures.length?`<p class="performance-note">${failures.map(e=>`${escape(e.name)}: ${escape(e.pitError)}`).join(' · ')} <button type="button" class="performance-explain-toggle" data-pit-retry>Retry unavailable</button></p>`:'')+
     (noStationary?'<p class="performance-note">The source has no stationary-at-the-box values for this selection. “—” means unavailable, not a zero-second stop.</p>':'')+
+    `<p class="performance-quality-status">${data.visits.filter(v=>finite(v.stop_duration)).length} / ${data.visits.length} stationary timings · ${data.visits.filter(v=>finite(v.lane_duration)).length} / ${data.visits.length} lane timings. ${events.some(e=>e.pits&&e.pits.stationary_status!=='complete')?'<button type="button" data-pit-retry>Refresh missing timing</button>':''} Middle-50% spread needs 4 samples; P10/P90 need 10. No recorded visit is not a zero-second stop.</p>`+
     controls+
     (chart||`<p class="section-empty">${pitChartMetric==='spread'?'At least four samples per team or driver are needed for the middle-50% chart.':['p10','p90'].includes(pitChartMetric)?'At least ten samples per team or driver are needed for this percentile chart.':pitMeasure==='stop'?'No published stationary-stop times for the selected races. Pit-lane timing is a separate measurement; select Pit lane to view it.':'No timed pit-lane visits for the selected races yet.'}</p>`)+
     table([sortHeader('pitName',isDriver?'Driver':'Team'),...(isDriver?[sortHeader('pitTeam','Team')]:[]),
@@ -1837,9 +1851,9 @@ function renderPits(teams) {
         relativeLane?signed(r[measure].fastest,3,' s'):fmt(r[measure].fastest,3,' s'),
         finite(pitMiddleSpread(r[measure]))
           ? `${fmt(pitMiddleSpread(r[measure]),3,' s')}<small>${fmt(r[measure].p25,3)}–${fmt(r[measure].p75,3)} s</small>`
-          : '—',
-        relativeLane?signed(r[measure].p10,3,' s'):fmt(r[measure].p10,3,' s'),
-        relativeLane?signed(r[measure].p90,3,' s'):fmt(r[measure].p90,3,' s'),r[measure].count,r.eventCount])));
+          : insufficient(null,r[measure],4),
+        insufficient(r[measure].p10,r[measure],10),
+        insufficient(r[measure].p90,r[measure],10),r[measure].count,r.eventCount])));
   const individual=`<details class="dashboard-card performance-methods" ${context?.scope==='tracks'&&context.selectedTracks?.length===1?'open':''}><summary>Exact times for individual pit visits and timing sources</summary>${table(
     ['Grand Prix','Team','Driver','In-lap','Stationary','Pit lane','Source','Visit evidence'],
     data.visits.sort((a,b)=>a.event.localeCompare(b.event)||a.lap-b.lap).map(v=>[

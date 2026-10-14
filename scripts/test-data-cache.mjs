@@ -8,6 +8,17 @@ import {loadRaceSnapshot,loadCachedRaceSnapshots} from '../lib/race-corner-loade
 import {connectedRaceCornerScores} from '../race-cornering.js';
 import verifiedSeed from '../lib/verified-cache-seed.json' with {type:'json'};
 
+test('partial stationary timing revalidates quickly even for an old completed race',()=>{
+  const path='/api/performance/pits?year=2026&gp=Singapore Grand Prix';
+  const now=Date.parse('2026-10-14T00:00:00Z');
+  const complete={date:'2026-10-11T12:00:00Z',stationary_status:'complete',visits:[{stop_duration:2.2}]};
+  assert.equal(dataTTL(path,complete,[],now),30*86400);
+  assert.equal(dataTTL(path,{...complete,stationary_status:'partial'},[],now),300);
+  assert.equal(dataTTL(path,{...complete,stationary_status:'unavailable'},[],now),300);
+  assert.equal(usableData(path,{visits:[]}),false);
+  assert.equal(usableData(path,{visits:[{stop_duration:2.2}]}),true);
+});
+
 test('durable reads coalesce, expired memory rechecks shared storage, and validation runs once',async()=>{
   let reads=0,writes=0,validations=0,clock=1000;
   const store=new Map([['key',{data:{value:1},expires:2000}]]);

@@ -5,6 +5,24 @@ import vm from 'node:vm';
 import postcss from 'postcss';
 
 const app = readFileSync('app.js', 'utf8');
+test('pit entrants stay visible without loading race pace or inventing a missing stop',()=>{
+  const source=readFileSync('car-performance.js','utf8');
+  const box={pitVisitMode:'service',finite:Number.isFinite,completed:()=>true,
+    avg:a=>a.length?a.reduce((s,n)=>s+n,0)/a.length:null,
+    median:a=>a.length?[...a].sort((x,y)=>x-y)[Math.floor(a.length/2)]:null,
+    percentile:(a,p)=>a.length?[...a].sort((x,y)=>x-y)[Math.floor((a.length-1)*p)]:null};
+  vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function pitSummary('),source.indexOf('function pitMiddleSpread(')),box);
+  const data=box.pitSummary([{name:'Singapore',pits:{entrants:[{driver:'VER',team:'Red Bull Racing'},
+    {driver:'COL',team:'Alpine'}],visits:[{driver:'VER',team:'Red Bull Racing',lap:32,
+      lane_duration:23.727,stop_duration:2.2,visit_type:'service'}]}}],[]);
+  assert.equal(data.drivers.length,2);assert.equal(data.teams.length,2);
+  assert.equal(data.drivers.find(r=>r.driver==='COL').stop.count,0);
+  assert.equal(data.drivers.find(r=>r.driver==='COL').stop.mean,null);
+  assert.equal(data.drivers.find(r=>r.driver==='VER').stop.mean,2.2);
+  assert.match(source,/if\(retry\)params.set\('fresh','true'\)/);
+  assert.match(source,/Refresh missing timing/);
+  assert.match(source,/Needs \$\{minimum\}/);
+});
 test('acceleration comparison switches both chart and season inputs without refetching',()=>{
   const source=readFileSync('car-performance.js','utf8');
   const box={accelerationComparisonMode:'connected'};vm.createContext(box);

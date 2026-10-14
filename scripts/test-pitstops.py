@@ -24,11 +24,48 @@ class PitStopTests(unittest.TestCase):
         ]
         drivers = [{'driver_number': 4, 'name_acronym': 'NOR', 'team_name': 'McLaren'}]
         visits = openf1_pit_visits(pits, drivers)
-        self.assertEqual(len(visits), 2)
+        self.assertEqual(len(visits), 3)
         self.assertEqual(visits[0]['stop_duration'], 2.123)
         self.assertEqual(visits[0]['lane_duration'], 21.345)
         self.assertIsNone(visits[1]['stop_duration'])
         self.assertEqual(visits[1]['lane_duration'], 22.111)
+        self.assertIsNone(visits[2]['lane_duration'])
+        self.assertEqual(visits[2]['stop_duration'],2.0)
+
+    def test_stationary_only_source_is_not_dropped_for_missing_lane(self):
+        visits=openf1_pit_visits([{'driver_number':4,'lap_number':10,'stop_duration':2.5}],
+                                [{'driver_number':4,'name_acronym':'NOR','team_name':'McLaren'}])
+        self.assertEqual(len(visits),1)
+        self.assertEqual(visits[0]['stop_duration'],2.5)
+        self.assertIsNone(visits[0]['lane_duration'])
+
+    def test_dhl_stationary_only_visit_has_no_fabricated_lane(self):
+        visits=[]
+        drivers=[{'driver_number':4,'last_name':'Norris','name_acronym':'NOR','team_name':'McLaren'}]
+        stops=[{'last_name':'Norris','team':'McLaren','lap':10,'stop_duration':2.56}]
+        self.assertEqual(merge_dhl_pit_stops(visits,drivers,stops,include_unmatched=True),1)
+        self.assertEqual(visits[0]['stop_duration'],2.56)
+        self.assertIsNone(visits[0]['lane_duration'])
+        self.assertEqual(merge_dhl_pit_stops(visits,drivers,stops,include_unmatched=True),0)
+        self.assertEqual(len(visits),1)
+
+    def test_fastf1_fallback_also_enriches_published_stationary_times(self):
+        from types import SimpleNamespace
+        session=SimpleNamespace(laps=None,date=pd.Timestamp('2026-10-11T12:00:00Z'),drivers=['4'],
+          get_driver=lambda _: {'DriverNumber':'4','Abbreviation':'NOR','LastName':'Norris','TeamName':'McLaren'})
+        visits=[{'driver':'NOR','driver_number':'4','team':'McLaren','lap':32,
+                 'lane_duration':23.975,'stop_duration':None,'visit_type':'unknown'}]
+        stops=[{'last_name':'Norris','team':'McLaren','lap':32,'stop_duration':2.56}]
+        with patch.object(server,'openf1_session',return_value=None), \
+             patch.object(server,'load_fresh_session',return_value=session), \
+             patch.object(server,'fastf1_pit_visits',return_value=visits), \
+             patch.object(server,'dhl_2026_pit_stops',return_value=stops):
+            result=server.car_performance_pits(Response(),year=2026,gp='Singapore Grand Prix')
+        self.assertEqual(result['source'],'FastF1 pit lane + DHL stationary')
+        self.assertEqual(result['visits'][0]['stop_duration'],2.56)
+        self.assertEqual(result['stationary_status'],'complete')
+        self.assertEqual(result['entrants'][0]['driver'],'NOR')
+        self.assertEqual(result['timing_coverage']['stationary_timed'],1)
 
     def test_fastf1_pairs_the_next_out_lap_only(self):
         laps = pd.DataFrame([
