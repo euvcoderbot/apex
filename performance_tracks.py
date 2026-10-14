@@ -123,6 +123,18 @@ def mapped_corner_zones(reference, grid, speed, corners):
     return zones, rejected
 
 
+def acceleration_interval_supported(times, speeds, intervals):
+    """Reject corrupt local packets without discarding the driver's other zones.
+
+    3 g is a deliberately permissive propulsive bound, not an F1 benchmark.
+    It catches short frozen shelves followed by impossible catch-up jumps.
+    """
+    dt = np.diff(times)
+    dv = np.diff(speeds)
+    return (len(dt)>0 and np.all(dt>0) and np.max(intervals)<=.6
+            and np.all(dv>=-3) and np.all(dv/dt/3.6<=3*9.80665))
+
+
 def connected_zone_scores(zone_times):
     """Separate car and physical-zone effects using overlapping observations.
 
@@ -510,6 +522,12 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
             for item in laps[:3]:
                 a, d = item['a'], item['aligned']
                 ix = np.flatnonzero((d >= grid[onset] - 20) & (d <= grid[end]) & (a[:, 4] >= .5))
+                # Keep the native right-hand interpolation bracket. Its packet
+                # may lie beyond turn-in, but the measured crossing may not.
+                if (len(ix) and ix[-1]+1 < len(a) and a[ix[-1]+1,4] >= .5
+                        and a[ix[-1]+1,2] <= a[ix[-1],2]+2
+                        and source_intervals(item)[ix[-1]] <= .6):
+                    ix = np.r_[ix, ix[-1]+1]
                 if len(ix) < 3:
                     continue
                 # Do not bridge brake releases, missing samples or speed rebounds.
@@ -528,10 +546,19 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
             continue
         # Widest supported cohort first, then the largest shared speed drop.
         # All cars in a zone use exactly the same endpoints.
-        def crossing_support(t, v, item, high, low):
+        def crossing_times(t, v, high, low):
             indices = [int(np.flatnonzero(v <= speed)[0]) for speed in (high, low)]
             times = [float(t[j]) if j == 0 else float(t[j-1]+(v[j-1]-speed)/(v[j-1]-v[j])*(t[j]-t[j-1]))
                      for speed, j in zip((high, low), indices)]
+            return indices, times
+        def covers(t, v, item, high, low):
+            if v[0] < high or v[-1] > low:
+                return False
+            _, times = crossing_times(t,v,high,low)
+            positions = np.interp(times,item['a'][:,1],item['aligned'])
+            return positions[0] >= grid[start]-1e-6 and positions[1] <= grid[end]+1e-6
+        def crossing_support(t, v, item, high, low):
+            indices, times = crossing_times(t,v,high,low)
             duration = times[1]-times[0]
             intervals = source_intervals(item)[np.searchsorted(item['a'][:,1],t[:-1])]
             resolution = sum(float(intervals[j-1]) if j else 0. for j in indices)
@@ -539,21 +566,35 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
             return (duration > 0 and interior >= 2 and resolution <= duration
                     and .5 <= (high-low)/3.6/duration/9.80665 <= 7)
         options = []
-        for high in {math.floor(v[0] / 10) * 10 for laps in segments.values() for _, v, _ in laps}:
-            for low in {math.ceil(v[-1] / 10) * 10 for laps in segments.values() for _, v, _ in laps}:
+        # Every observed 10 km/h endpoint is eligible, not just the first/last
+        # packet speeds. Packet phase must not decide which shared drops exist.
+        endpoint_min = math.ceil(min(v[-1] for laps in segments.values() for _, v, _ in laps)/10)*10
+        endpoint_max = math.floor(max(v[0] for laps in segments.values() for _, v, _ in laps)/10)*10
+        endpoints = range(endpoint_min, endpoint_max+1, 10)
+        for high in endpoints:
+            for low in endpoints:
+                if high-low < 50:
+                    continue
                 cohort = [team for team, laps in segments.items()
-                          if any(v[0] >= high and v[-1] <= low for _, v, _ in laps)]
+                          if any(covers(t,v,item,high,low) for t,v,item in laps)]
                 if high - low >= 50 and len(cohort) >= 3:
-                    repeat_count = sum(sum(v[0] >= high and v[-1] <= low for _, v, _ in segments[team])
+                    repeat_count = sum(sum(covers(t,v,item,high,low) for t,v,item in segments[team])
                                        for team in cohort)
-                    supported = [team for team in cohort if any(v[0]>=high and v[-1]<=low
+                    supported = [team for team in cohort if any(covers(t,v,item,high,low)
                         and crossing_support(t,v,item,high,low) for t,v,item in segments[team])]
                     paired = sum(team in approaches for team in supported)
                     # Choose endpoints using native timing support BEFORE
                     # optimising coverage. A wide field with a tiny speed drop
                     # can otherwise make every interval provisional, despite a
                     # broader supported drop on these same fastest laps.
-                    score = (paired>=3, len(supported)>=3, len(supported), len(cohort), high-low, paired, repeat_count)
+                    newly_supported = sum(not any(z['quality']=='supported' for z in result[team])
+                                          for team in supported)
+                    # After establishing native support, cover entrants with
+                    # no supported zone yet. Maximising rows alone repeatedly
+                    # selects the same packet-rich drivers and can erase an
+                    # otherwise valid driver's entire lap.
+                    score = (len(supported)>=3, newly_supported, paired>=3,
+                             len(supported), len(cohort), high-low, paired, repeat_count)
                     options.append((score, high, low, cohort))
         if not options:
             continue
@@ -563,13 +604,13 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
                 continue
             high, low = fixed_ranges[label]
             cohort = [team for team, laps in segments.items()
-                      if any(v[0] >= high and v[-1] <= low for _, v, _ in laps)]
+                      if any(covers(t,v,item,high,low) for t,v,item in laps)]
             if len(cohort) < 3:
                 continue
         for team in cohort:
             per_lap = []
             for t, v, item in segments[team]:
-                if v[0] < high or v[-1] > low:
+                if not covers(t,v,item,high,low):
                     continue
                 def crossing(speed):
                     j = int(np.flatnonzero(v <= speed)[0])
@@ -633,8 +674,8 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
                 'source_selection': dict(main_selection),
                 'selection_policy': 'fastest-qualifying-lap-only',
                 'quality': 'supported' if supported else 'provisional',
-                'endpoint_policy': 'native-support-first-shared-speed-drop',
-                'braking_version': 'qualifying-braking-v4-supported-endpoints'
+                'endpoint_policy': 'native-support-and-entrant-coverage-shared-speed-drop',
+                'braking_version': 'qualifying-braking-v5-bounded-native-brackets'
             })
     return result
 
@@ -888,8 +929,8 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                         continue
                     begin = max(0, i_lo-1)
                     native_interval = source_intervals(item)[raw_indices[i_min+begin:i_min+i_hi]]
-                    if (np.max(native_interval) > .6
-                            or np.any(np.diff(v_accel[begin:i_hi+1]) < -3)):
+                    if not acceleration_interval_supported(t_accel[begin:i_hi+1],
+                                                           v_accel[begin:i_hi+1],native_interval):
                         continue
                     # Below 150 km/h this includes traction-limited corner
                     # exits; above 150 require a near-flat throttle trace.
@@ -966,8 +1007,8 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                             continue
                         if np.min(a[pos:stop+1, 2]) < v_lo - 8:
                             continue
-                        if (np.max(source_intervals(item)[prev:stop]) > .6
-                                or np.any(np.diff(a[prev:stop+1, 2]) < -3)):
+                        if not acceleration_interval_supported(a[prev:stop+1,1],a[prev:stop+1,2],
+                                                               source_intervals(item)[prev:stop]):
                             continue
                         low_time = interp_raw(a[prev:stop+1, 1], a[prev:stop+1, 2], v_lo)
                         high_time = interp_raw(a[prev:stop+1, 1], a[prev:stop+1, 2], v_hi)
@@ -1006,10 +1047,13 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
     shared_band_keys = {}
     band_scores = {}
     band_counts = {}
+    common_bands = {}
     for _, _, b_name in bands:
-        # Rank every displayed team on the same physical zones and aero state.
-        # Missing a crossing must not discard a team's other shared zones.
-        scores, counts, keys = common_zone_scores(straight_band_times[b_name])
+        strict_scores, strict_counts, strict_keys = common_zone_scores(straight_band_times[b_name])
+        common_bands[b_name] = (strict_scores, strict_counts, strict_keys)
+        # A complete rectangle is an optional strict comparison, not a reason
+        # to erase valid overlapping fastest-lap crossings from the default fit.
+        scores, counts, keys = connected_zone_scores(straight_band_times[b_name])
         cohort = set(scores)
         band_scores[b_name], band_counts[b_name] = scores, counts
         shared_band_keys[b_name] = keys
@@ -1120,7 +1164,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
         phase_bands = {name: {'gap_s': float(raw_bands[name][team] - best_bands[name]),
                               'straights': band_counts[name].get(team, 0),
                               'zones': band_counts[name].get(team, 0),
-                              'comparison': 'common-observed-zones-v2',
+                              'comparison': 'connected-native-zones-v3',
                               'cohort': len(band_scores[name])}
                        for _, _, name in bands if raw_bands[name][team] is not None}
 
@@ -1132,19 +1176,29 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
         term_deficit = float(max_term_speed - term_speed) if (term_speed is not None and max_term_speed is not None) else None
 
         straight_results[team] = {
-            'telemetry_methodology': 'coverage-v2-native-crossing-union',
+            'telemetry_methodology': 'coverage-v3-connected-native-crossings',
             'accel_band_coverage': {name: {
                 'accepted_crossings': sum(r['band'] == name for r in band_evidence[team]),
                 'ranked_zones': band_counts[name].get(team, 0),
                 'cohort': sorted(band_scores[name]),
+                'common_ranked_zones': common_bands[name][1].get(team, 0),
+                'common_cohort': sorted(common_bands[name][0]),
                 'upper_speed_reached': bool(np.max(selected[team]['a'][:, 2]) >= hi),
                 'status': 'ranked' if team in band_scores[name] else
                     'evidence-only' if any(r['band'] == name for r in band_evidence[team]) else
                     'upper-endpoint-not-reached' if np.max(selected[team]['a'][:, 2]) < hi else
                     'no-eligible-complete-crossing',
             } for _, hi, name in bands},
-            'accel_observations': [{**r, 'in_common_ranking': team in band_scores[r['band']]
-                and (r['zone'], r['state']) in shared_band_keys[r['band']]} for r in band_evidence[team]],
+            'accel_observations': [{**r,
+                'in_common_ranking': team in common_bands[r['band']][0]
+                    and (r['zone'],r['state']) in common_bands[r['band']][2],
+                'in_connected_ranking': team in band_scores[r['band']]
+                    and (r['zone'],r['state']) in shared_band_keys[r['band']]}
+                for r in band_evidence[team]],
+            'accel_common_bands': {name: {'gap_s': common_bands[name][0][team],
+                'straights': common_bands[name][1][team], 'zones': common_bands[name][1][team],
+                'comparison': 'common-observed-zones-v2', 'cohort': len(common_bands[name][0])}
+                for _,_,name in bands if team in common_bands[name][0]},
             **core[team],
             'straight_time': straight_time,
             'straight_traversal_delta': traversal_delta,
@@ -1509,6 +1563,7 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
             'accel_200_250': straight_info.get('accel_200_250'),
             'accel_300_320': straight_info.get('accel_300_320'),
             'accel_bands': straight_info.get('accel_bands', {}),
+            'accel_common_bands': straight_info.get('accel_common_bands', {}),
             'telemetry_methodology': straight_info.get('telemetry_methodology'),
             'accel_band_coverage': straight_info.get('accel_band_coverage', {}),
             'accel_observations': straight_info.get('accel_observations', []),

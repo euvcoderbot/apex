@@ -38,6 +38,32 @@ class RaceSession:
 
 
 class PerformanceTests(unittest.TestCase):
+    def test_short_frozen_speed_jump_is_not_ranked_as_acceleration(self):
+        from performance_tracks import acceleration_interval_supported
+        self.assertFalse(acceleration_interval_supported(
+            np.array([0.,.16,.32,.60]),np.array([188.,188.,188.,244.]),np.array([.16,.16,.28])))
+        self.assertTrue(acceleration_interval_supported(
+            np.array([0.,.24,.48,.72]),np.array([200.,213.,227.,240.]),np.array([.24,.24,.24])))
+        self.assertFalse(acceleration_interval_supported(np.array([0.,.8]),np.array([200.,230.]),np.array([.8])))
+
+    def test_braking_keeps_native_end_bracket_without_measuring_past_turn_in(self):
+        grid=np.arange(0.,105.,5.)
+        t=np.arange(7)*.16
+        a=np.zeros((7,8));a[:,1]=t;a[:,2]=[310,285,260,235,210,185,160];a[:,4]=1
+        item={'a':a,'aligned':np.arange(7)*15.}
+        selected={team:item for team in 'ABC'}
+        # Last in-window packet is 210; 200 is still reached before 68 m.
+        windows={'Z':(0,14,dict.fromkeys(selected,0),'straight')}
+        result=matched_braking_measurements(selected,windows,grid,fixed_ranges={'Z':(300,200)})
+        for rows in result.values():
+            self.assertEqual(len(rows),1)
+            self.assertEqual(rows[0]['quality'],'supported')
+            self.assertLessEqual(rows[0]['speed_low_m'],70.)
+            self.assertAlmostEqual(rows[0]['duration'],.64)
+        # A 170 endpoint actually lies beyond turn-in: never extend the score.
+        outside=matched_braking_measurements(selected,windows,grid,fixed_ranges={'Z':(300,170)})
+        self.assertTrue(all(not rows for rows in outside.values()))
+
     def test_mapped_flat_out_corners_do_not_need_a_speed_dip(self):
         from performance_tracks import mapped_corner_zones
         d=np.linspace(0,5000,1001);angle=d/5000*2*np.pi

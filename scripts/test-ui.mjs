@@ -5,6 +5,20 @@ import vm from 'node:vm';
 import postcss from 'postcss';
 
 const app = readFileSync('app.js', 'utf8');
+test('acceleration comparison switches both chart and season inputs without refetching',()=>{
+  const source=readFileSync('car-performance.js','utf8');
+  const box={accelerationComparisonMode:'connected'};vm.createContext(box);
+  vm.runInContext(source.slice(source.indexOf('function accelerationBands('),source.indexOf('function eventAdjustedScores(')),box);
+  const trace={accel_bands:{'200_250':{gap_s:.12}},accel_common_bands:{'200_250':{gap_s:.08}}};
+  assert.equal(box.accelerationBands(trace)['200_250'].gap_s,.12);
+  box.accelerationComparisonMode='common';assert.equal(box.accelerationBands(trace)['200_250'].gap_s,.08);
+  assert.deepEqual(Object.keys(box.accelerationBands({accel_bands:trace.accel_bands})),[]);
+  assert.match(source,/data-acceleration-comparison="common"/);
+  assert.match(source,/key,eventAdjustedScores\(targetReports,row=>accelerationBands\(row.trace\)/);
+  assert.match(source,/row.bandGap=accelerationBands\(row.trace\)/);
+  assert.match(source,/let brakingComparisonMode='independent'/);
+  assert.match(source,/let brakingView='deceleration'/);
+});
 test('telemetry summaries survive unchanged renders and invalidate when source observations change',()=>{
   const source=readFileSync('car-performance.js','utf8');
   const box={performanceRenderCache:{views:new Map(),summaries:new Map()},eventSummaryMemo:new WeakMap(),eventViewSources:new WeakMap(),telemetrySubject:'team',activeMetric:'braking',cornerSession:'qualy'};

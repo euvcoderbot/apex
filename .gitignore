@@ -2,6 +2,7 @@
 .venv-broken/
 .fastf1-cache/
 .apex-cache/
+ui-cache/
 __pycache__/
 *.py[cod]
 node_modules/
