@@ -1551,6 +1551,11 @@ body.performance-view #sidebarToggle {
 .performance-source-note { margin: 0 0 12px; color: var(--text-secondary); font-size: .8125rem; }
 .performance-source-note summary { cursor: pointer; width: fit-content; }
 .performance-source-note p { margin: 8px 0; max-width: 100ch; line-height: 1.5; }
+.performance-quality-status button, .performance-note button[data-pit-retry] {
+  display: inline-flex; align-items: center; min-height: 30px; margin: 0 4px;
+  padding: 4px 9px; border: 1px solid var(--border-color); border-radius: 7px;
+  background: var(--surface-muted); color: var(--text-main); font: inherit; cursor: pointer;
+}
 .is-descriptions-hidden .performance-definition { display: none; }
 .evidence-search { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0; font-size: .875rem; }
 .evidence-search input { flex: 1 1 220px; min-width: 0; min-height: 40px; padding: 8px 12px; font: inherit; color: var(--text-main); background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-control); }
