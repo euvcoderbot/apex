@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#07080a">
   <meta name="description" content="Compare Formula 1 lap telemetry, timing deltas, driver inputs and corner performance.">
-  <link rel="icon" href="assets/euv2-mark.png" type="image/png">
-  <link rel="apple-touch-icon" href="assets/euv2-mark.png">
+  <link rel="icon" href="assets/euv2-icon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="assets/euv2-icon-180.png">
   <title>euV2 data — F1 Telemetry Analytics</title>
   <link rel="preconnect" href="https://apex-telemetry-api.vercel.app" crossorigin>
   <script>
@@ -25,23 +25,24 @@
   <a class="skip-link" href="#top">Skip to analysis</a>
   <header class="site-header">
     <a class="brand" href="#top" aria-label="euV2 data home">
-      <img src="assets/euv2-logo.png" alt="euV2 data">
+      <picture><source media="(max-width:760px)" srcset="assets/euv2-icon-256.png"><img src="assets/euv2-wordmark.webp" alt="euV2 data" width="414" height="90"></picture>
     </a>
     <div class="header-actions">
       <nav class="performance-tabs" aria-label="Analysis view">
         <button type="button" data-analysis-view="session" aria-pressed="true">Session analysis</button>
         <button type="button" data-analysis-view="performance" aria-pressed="false">Car performance</button>
       </nav>
-      <button id="themeToggle" class="theme-toggle" type="button" aria-pressed="false" aria-label="Switch to light mode"><i aria-hidden="true"></i><span>Light mode</span></button>
-      <button id="explanationsToggle" class="sidebar-toggle" type="button" aria-pressed="false"><span>Show explanations</span></button>
-      <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-expanded="true" aria-controls="driverSidebar"><i aria-hidden="true"></i><span>Hide drivers</span></button>
     </div>
   </header>
+  <div class="workspace-tools" role="group" aria-label="Display options">
+    <button id="explanationsToggle" class="sidebar-toggle" type="button" aria-pressed="false"><span>Show explanations</span></button>
+    <button id="themeToggle" class="theme-toggle" type="button" aria-pressed="false" aria-label="Switch to light mode"><i aria-hidden="true"></i><span>Light mode</span></button>
+  </div>
   
   <main id="top" tabindex="-1">
       <div class="workspace-intro session-intro">
-        <div><span class="workspace-eyebrow">SESSION ANALYSIS</span><h1>Every lap. In perspective.</h1></div>
-        <p>Choose a session, build your comparison, explore the detail.</p>
+        <div><span class="workspace-eyebrow">SESSION ANALYSIS</span><h1>Compare laps</h1></div>
+        <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-expanded="true" aria-controls="driverSidebar"><i aria-hidden="true"></i><span>Hide drivers</span></button>
       </div>
       <section class="dashboard-card session-controls" aria-label="Session selection">
         <div class="panel-heading">
@@ -87,7 +88,7 @@
       <section class="dashboard-card lap-workspace" id="lapWorkspace">
         <div class="panel-heading workspace-heading">
           <h2>Lap workspace</h2>
-          <span class="panel-hint">Pick laps or compare each driver's fastest</span>
+          <span class="panel-hint explanation-only">Choose laps or compare fastest</span>
         </div>
         <div id="stintPanels">
           <span class="section-empty">Select a driver to inspect their runs and laps.</span>
@@ -95,7 +96,7 @@
         <div class="comparison-tray" aria-label="Loaded comparison laps">
           <div class="comparison-tray-heading">
             <span>Comparison</span>
-            <small>First lap is the reference · click a lap to change it</small>
+            <small class="explanation-only">Click a lap to use as reference</small>
           </div>
           <div class="loaded-laps" id="loadedLaps">
             <span class="section-empty">No laps loaded.</span>
@@ -157,8 +158,7 @@
   </main>
   <section id="carPerformance" class="performance-page" aria-label="Car performance" tabindex="-1" hidden>
     <div class="workspace-intro performance-intro">
-      <div><span class="workspace-eyebrow">CAR PERFORMANCE</span><h1>The field, in focus.</h1></div>
-      <p>Compare delivered performance. Keep the evidence in view.</p>
+      <div><span class="workspace-eyebrow">CAR PERFORMANCE</span><h1>Compare performance</h1></div>
     </div>
     <section class="dashboard-card session-controls performance-controls" aria-label="Car performance controls">
       <div class="panel-heading">
@@ -183,7 +183,7 @@
     <section id="performanceTrackTray" class="dashboard-card performance-track-tray" aria-label="Grand Prix selection" hidden>
       <div class="track-tray-header">
         <button type="button" id="performanceToggleTracks" class="track-tray-title" aria-expanded="true" aria-controls="performanceTrackPills">
-          <span class="track-tray-label">Grand Prix selection</span>
+          <span class="track-tray-label">Choose races</span>
           <span id="performanceTrackCount" class="track-count-badge">0 tracks selected</span>
           <span class="track-tray-disclosure" aria-hidden="true">⌃</span>
         </button>

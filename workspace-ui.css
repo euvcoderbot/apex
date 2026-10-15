@@ -324,3 +324,114 @@ footer { max-width: 1720px; margin: auto; padding: 0 24px 24px; font-size: .6875
 @media(prefers-reduced-motion:reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
+
+/* Fluent refinement: stable navigation, Mica-like base, acrylic flyouts.
+   Actual telemetry/data surfaces stay opaque and high contrast. */
+:root {
+  --material-fill: #1a2432d9;
+  --material-edge: #c5dcff26;
+  --material-glint: #e4eeff12;
+  --shadow-main: inset 0 1px 0 #e6efff0a, 0 3px 8px #00000018, 0 16px 38px #0000001f;
+  --shadow-raised: inset 0 1px 0 #ffffff10, 0 2px 5px #00000024;
+}
+:root[data-theme="light"] {
+  --material-fill: #f7faffda;
+  --material-edge: #ffffffeb;
+  --material-glint: #ffffffb0;
+  --shadow-main: inset 0 1px 0 #ffffff, 0 3px 8px #29426008, 0 16px 38px #2942600c;
+  --shadow-raised: inset 0 1px 0 #ffffff, 0 2px 5px #29426012;
+}
+body { background: radial-gradient(ellipse at 5% 0%,#297cc323,transparent 42%),radial-gradient(ellipse at 90% 25%,#7271b516,transparent 48%),var(--bg-main); background-attachment: fixed; }
+.site-header {
+  display: grid; grid-template-columns: minmax(160px,1fr) auto minmax(160px,1fr);
+  height: 76px; min-height: 76px; align-items: center; gap: 0;
+  padding: 0 max(24px,calc((100vw - 1672px)/2));
+  background: var(--material-fill); border-bottom: 1px solid var(--material-edge);
+  backdrop-filter: blur(24px) saturate(140%); -webkit-backdrop-filter: blur(24px) saturate(140%);
+  box-shadow: inset 0 -1px 0 #00000010,0 8px 28px #00000012;
+}
+.brand { display: block; position: relative; overflow: hidden; width: 160px; height: 42px; border-radius: 8px; background: #080a0a; }
+.brand picture { display: block; width: 100%; height: 100%; }
+.brand img { display: block; position: static; width: 100%; height: 100%; max-width: 100%; padding: 2px; object-fit: contain; }
+.header-actions { grid-column: 2; display: block; width: 340px; margin: 0; padding: 0; }
+.header-actions .performance-tabs { display: grid; grid-template-columns: 1fr 1fr; width: 100%; padding: 4px; gap: 3px; border-radius: 10px; background: #00000012; box-shadow: inset 0 1px 4px #00000010; }
+.header-actions .performance-tabs button { width: 100%; min-height: 38px; font-size: .875rem; font-weight: 600; padding: 9px; border-radius: 7px; }
+.header-actions .performance-tabs button[aria-pressed="true"] { box-shadow: var(--shadow-raised); background: var(--surface-selected); }
+.site-header .performance-tabs button:active, .site-header .performance-tabs button:hover { transform: none; }
+.workspace-tools { display: flex; align-items: center; justify-content: flex-end; gap: 7px; max-width: 1720px; padding: 12px 24px 0; margin: auto; min-height: 44px; }
+.workspace-tools button { border: 1px solid var(--border-color); background: color-mix(in srgb,var(--bg-card) 80%,transparent); box-shadow: var(--shadow-raised); font-size: .75rem; min-height: 32px; }
+.workspace-tools #explanationsToggle { min-width: 142px; }
+.workspace-tools #themeToggle { min-width: 105px; }
+.workspace-tools #explanationsToggle span, .workspace-intro #sidebarToggle span { display: inline; position: static; width: auto; height: auto; padding: 0; overflow: visible; clip-path: none; white-space: nowrap; }
+.workspace-intro { align-items: center; margin-bottom: 0; }
+.workspace-intro h1 { font-size: 1.5rem; }
+.workspace-intro #sidebarToggle { border: 1px solid var(--border-color); background: var(--bg-card); box-shadow: var(--shadow-raised); min-width: 118px; }
+main, .performance-page { padding-top: 10px; }
+.session-controls { background: linear-gradient(125deg,var(--material-glint),transparent 60%),var(--bg-card); border-color: var(--border-color); box-shadow: var(--shadow-main); }
+.dashboard-card, .telemetry-card { background: linear-gradient(150deg,var(--material-glint),transparent 45%),var(--bg-card); box-shadow: var(--shadow-main); }
+.performance-chart-card, .chart, .corner-detail-card, .driver-run-card { box-shadow: inset 0 1px 0 #ffffff05,0 2px 7px #00000010; }
+.select-menu { background: var(--material-fill); border-color: var(--material-edge); box-shadow: var(--shadow-menu); backdrop-filter: blur(26px) saturate(140%); -webkit-backdrop-filter: blur(26px) saturate(140%); }
+.select-trigger, .select-shell select { line-height: 1.4; height: 44px; min-height: 44px; padding-top: 2px; padding-bottom: 2px; }
+.select-trigger > span { min-height: 24px; line-height: 24px; overflow: visible; align-items: center; }
+.select-option-text { line-height: 24px; padding: 1px 0; }
+.gp-flag { display: block; height: 18px; flex-shrink: 0; }
+.session-controls #loadSession, .performance-controls button#performanceLoad { height: 44px; min-height: 44px; }
+.lap-workspace .run-segments { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,104px),1fr)); overflow: visible; padding: 0; margin-inline: 0; gap: 6px; }
+.lap-workspace .run-segment { display: grid; grid-template-columns: auto minmax(0,1fr) 16px; min-width: 0; width: 100%; gap: 5px; padding: 8px; white-space: normal; flex: initial; }
+.lap-workspace .run-segment small { min-width: 0; margin: 0; justify-content: center; flex-wrap: wrap; gap: 3px; font-size: .6875rem; line-height: 1.4; }
+.lap-workspace .run-segment strong { font-size: .75rem; }
+.lap-workspace .run-compounds .compound-badge { width: 22px; height: 22px; }
+.lap-workspace .run-choice-indicator { width: 16px; }
+body.is-descriptions-hidden .explanation-only,
+body.is-descriptions-hidden .performance-note,
+body.is-descriptions-hidden .perf-chart-sub,
+body.is-descriptions-hidden .performance-source-note,
+body.is-descriptions-hidden .perf-regulatory-badge,
+body.is-descriptions-hidden .performance-band-hint,
+body.is-descriptions-hidden .corner-selection-note,
+body.is-descriptions-hidden .performance-page > .performance-methods { display: none !important; }
+.chart-coverage > span:last-child { display: none; }
+.metric-heading { padding-top: 0; padding-bottom: 12px; margin-bottom: 10px; }
+.performance-track-tray { padding: 10px 14px; }
+.track-tray-header { padding: 0; border: 0; margin: 0 0 10px; gap: 12px; }
+.track-tray-title { min-height: 34px; border-radius: 6px; gap: 8px; }
+.track-tray-title:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.performance-track-tray:has(.track-tray-title[aria-expanded="false"]) .track-tray-actions { display: none; }
+.performance-track-tray:has(.track-tray-title[aria-expanded="false"]) .track-tray-title { width: 100%; }
+.performance-track-tray:has(.track-tray-title[aria-expanded="false"]) .track-tray-disclosure { margin-left: auto; }
+.track-count-badge { border: 0; background: var(--surface-selected); font-size: .6875rem; padding: 3px 7px; }
+.performance-tyre-plot-controls { grid-template-columns: minmax(0,1fr) minmax(0,.7fr) minmax(0,1.3fr); padding: 14px; gap: 12px; margin: 16px 0 12px; }
+.performance-tyre-plot-controls > label:last-child { grid-column: 1 / -1; }
+.performance-tyre-plot-controls select { min-height: 42px; height: auto; line-height: 1.5; padding: 9px 12px; font-size: .8125rem; text-overflow: ellipsis; }
+.performance-tyre-stint-plot { max-width: none; margin-top: 0; }
+.tyre-run-laps { border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 8px; }
+.tyre-run-laps > summary { cursor: pointer; font-size: .8125rem; color: var(--text-secondary); }
+.performance-trend-table .performance-table { table-layout: auto; min-width: 0; }
+.performance-trend-table .performance-table th:nth-child(n) { width: auto; min-width: 0; }
+.performance-trend-table .performance-table th:first-child { min-width: 160px; }
+.performance-trend-table .performance-table td:nth-child(2) { min-width: 150px; }
+.performance-trend-table .performance-table td { padding: 10px 14px; }
+.trend-sparkline { width: 170px; max-width: 100%; }
+.trend-sparkline svg { width: 100%; height: 46px; display: block; }
+.trend-sparkline .performance-trend-label { font-size: .625rem; margin-top: 0; }
+.trend-coverage { font-size: .8125rem; color: var(--text-secondary); }
+.trend-change { font-weight: 650; }
+.trend-change.is-improvement { color: var(--green); }
+.trend-change.is-decline { color: var(--text-main); }
+@media(max-width:760px) {
+  .site-header { grid-template-columns: 50px minmax(0,1fr); gap: 12px; padding: 10px 12px; height: 70px; min-height: 70px; }
+  .brand { width: 48px; height: 48px; border-radius: 10px; }
+  .brand img { width: 48px; height: 48px; padding: 0; }
+  .site-header .header-actions { width: 100%; grid-column: 2; margin: 0; }
+  .header-actions .performance-tabs button { min-height: 38px; font-size: .75rem; padding: 8px 5px; }
+  .workspace-tools { padding: 10px 12px 0; }
+  .workspace-tools #themeToggle { min-width: 34px; }
+  .workspace-intro h1 { font-size: 1.25rem; }
+  .workspace-intro #sidebarToggle { min-width: 105px; }
+  .performance-tyre-plot-controls { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+  .performance-tyre-plot-controls > label:nth-child(3), .performance-tyre-plot-controls > label:last-child { grid-column: 1 / -1; }
+}
+@media(prefers-reduced-transparency:reduce),(prefers-contrast:more),(forced-colors:active) {
+  .site-header,.select-menu { background: var(--bg-card); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .dashboard-card,.telemetry-card,.session-controls { background: var(--bg-card); box-shadow: none; }
+}

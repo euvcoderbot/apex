@@ -1310,7 +1310,9 @@ function tyreStintKey(entity,stint){
 
 function renderTyreStintPlot(entity,stint){
   const points=(stint.points||[]).filter(p=>finite(p.age)&&finite(p.time)&&finite(p.lap));
-  if(points.length<3)return '';
+  const lapRows=[...points.map(p=>({...p,status:'Used'})),...(stint.excluded_points||[]).filter(p=>finite(p.lap)&&finite(p.time)).map(p=>({...p,status:p.reason||'Excluded'}))].sort((a,b)=>a.lap-b.lap);
+  const lapTable=`<details class="tyre-run-laps"><summary>${lapRows.length} recorded laps · view times</summary>${table(['Lap','Tyre age','Lap time','Status'],lapRows.map(p=>[`L${p.lap}`,finite(p.age)?p.age:'—',fmt(p.time,3,' s'),escape(p.status)]))}</details>`;
+  if(!points.length)return `<div class="performance-chart-card performance-tyre-stint-plot"><h4>${escape(stint.driver)} · ${escape(stint.event)} · stint ${stint.stint}</h4><p class="section-empty">No usable timed laps in this run.</p>${lapTable}</div>`;
   const fuel=tyreCorrection==='fuel'?tyreFuelRate:0;
   const origin=points[0].lap;
   const values=points.map(p=>p.time+fuel*(p.lap-origin));
@@ -1321,17 +1323,17 @@ function renderTyreStintPlot(entity,stint){
   const rate=stint.trendValue;
   const intercept=summarize(points.map((p,i)=>values[i]-rate*p.age),'median');
   const curved=typeof tyreFitMode!=='undefined'&&tyreFitMode==='curve'&&stint.nonlinear?.curve?.length;
-  const curve=curved?stint.nonlinear.curve.map(p=>({age:p.age,time:p.time+fuel*(p.age-points[0].age)})):[{age:lo,time:intercept+rate*lo},{age:hi,time:intercept+rate*hi}];
+  const curve=finite(rate)?curved?stint.nonlinear.curve.map(p=>({age:p.age,time:p.time+fuel*(p.age-points[0].age)})):[{age:lo,time:intercept+rate*lo},{age:hi,time:intercept+rate*hi}]:[];
   const fit=curve.map(p=>p.time);
   const min=Math.min(baseline,...fit,...excludedValues),max=Math.max(...values,...fit,...excludedValues),span=Math.max(.1,max-min);
   const x=a=>55+(a-lo)/Math.max(1,hi-lo)*590,y=v=>180-(v-min)/span*145;
-  return `<div class="performance-chart-card performance-tyre-stint-plot"><h4>${escape(stint.driver)} · ${escape(stint.event)} · ${escape(stint.compound_grade)} · stint ${stint.stint}</h4><span class="perf-chart-sub">${tyreCorrection==='fuel'?'Assumed fuel-corrected':'Observed'} pace · dots are usable laps, dashed line is the fitted trend${excluded.length?' · hollow dots are excluded laps':''}</span>${stint.excluded_points?.length?`<button type="button" data-tyre-exclusions aria-pressed="${excluded.length>0}">${excluded.length?'Hide':'Show'} ${stint.excluded_points.length} excluded lap${stint.excluded_points.length===1?'':'s'}</button>`:''}<svg viewBox="0 0 680 230" role="img" aria-label="${escape(stint.driver)} stint lap times against tyre age">
+  return `<div class="performance-chart-card performance-tyre-stint-plot"><h4>${escape(stint.driver)} · ${escape(stint.event)} · ${escape(stint.compound_grade||'Unknown grade')} · stint ${stint.stint}</h4>${!finite(rate)?'<p class="section-empty">Laps shown for reference; not enough data for a trend.</p>':''}<span class="perf-chart-sub explanation-only">${tyreCorrection==='fuel'?'Fuel estimate applied':'Recorded times'} · dots are laps${curve.length?', dashed line is the trend':''}${excluded.length?' · hollow dots are excluded':''}</span>${stint.excluded_points?.length?`<button type="button" data-tyre-exclusions aria-pressed="${excluded.length>0}">${excluded.length?'Hide':'Show'} ${stint.excluded_points.length} excluded lap${stint.excluded_points.length===1?'':'s'}</button>`:''}<svg viewBox="0 0 680 230" role="img" aria-label="${escape(stint.driver)} stint lap times against tyre age">
     ${[0,.5,1].map(f=>{const v=min+span*f;return `<line x1="55" x2="645" y1="${y(v)}" y2="${y(v)}" stroke="var(--border-color)"/><text x="48" y="${y(v)+4}" text-anchor="end">${(v-baseline).toFixed(3)}</text>`;}).join('')}
-    <path d="${curve.map((p,i)=>`${i?'L':'M'} ${x(p.age)} ${y(p.time)}`).join(' ')}" stroke="${color(entity.color)}" stroke-width="2" stroke-dasharray="6 4" fill="none"/>
+    ${curve.length?`<path d="${curve.map((p,i)=>`${i?'L':'M'} ${x(p.age)} ${y(p.time)}`).join(' ')}" stroke="${color(entity.color)}" stroke-width="2" stroke-dasharray="6 4" fill="none"/>`:''}
     ${points.map((p,i)=>`<circle cx="${x(p.age)}" cy="${y(values[i])}" r="3.5" fill="${color(entity.color)}"><title>Lap ${p.lap} · age ${p.age} · ${p.time.toFixed(3)} s observed · ${(values[i]-baseline).toFixed(3)} s above best ${tyreCorrection==='fuel'?'corrected ':''}lap in this run</title></circle>`).join('')}
     ${excluded.map((p,i)=>`<circle cx="${x(p.age)}" cy="${y(excludedValues[i])}" r="4" fill="none" stroke="${color(entity.color)}" stroke-dasharray="2 1"><title>Excluded lap ${p.lap} · age ${p.age} · ${p.time.toFixed(3)} s · ${escape(p.reason)} · residual ${fmt(p.residual_s,3,' s')}</title></circle>`).join('')}
     <text x="55" y="201" text-anchor="middle">${lo}</text><text x="645" y="201" text-anchor="middle">${hi}</text><text x="350" y="223" text-anchor="middle">Tyre age (laps) · vertical scale: seconds above this run's best lap</text>
-    </svg></div>`;
+    </svg>${lapTable}</div>`;
 }
 
 function renderTyreAge(teams) {
@@ -1439,7 +1441,7 @@ function renderTyreAge(teams) {
     const width=Math.min(50,Math.abs(r.value)/extent*50);
     return `<div class="performance-tyre-age-row"><div class="performance-tyre-age-name">${teamLabel(r)}</div><div class="performance-tyre-age-track"><i class="performance-tyre-age-zero"></i><i class="performance-tyre-age-bar" style="--bar-color:${color(r.color)};left:${r.value<0?(50-width).toFixed(2):'50'}%;width:${width.toFixed(2)}%"></i></div><span class="performance-tyre-age-value">${signed(r.value,3,' s/lap')}</span></div>`;
   }).join('')}</div></div>`:`<p class="section-empty">${tyreSeasonStat==='p75'?'P75 needs at least four supported Grands Prix for every included C grade. The table shows each missing grade and its GP count.':tyreLapMode==='clear'?'No supported clean-air fits. Try All usable laps to inspect traffic-affected trends.':'No runs with at least six usable laps spanning five tyre-age steps. Short runs remain in the evidence table.'}</p>`;
-  const plotRuns=entities.flatMap(entity=>entity.stints.filter(s=>(tyreView==='OVERALL'||s.compound_grade===tyreView)&&finite(s.trendValue)&&s.points?.length>=3).map(s=>({entity,stint:s,key:tyreStintKey(entity,s)})));
+  const plotRuns=entities.flatMap(entity=>entity.stints.filter(s=>(tyreView==='OVERALL'||s.compound_grade===tyreView)&&(s.points?.length||s.excluded_points?.length)).map(s=>({entity,stint:s,key:tyreStintKey(entity,s)})));
   let selectedRun=plotRuns.find(r=>r.key===tyreRunKey);
   const choose=(list,value,key)=>list.some(r=>key(r)===value)?list.filter(r=>key(r)===value):list;
   let filteredRuns=choose(plotRuns,tyrePlotTeam,r=>r.entity.team);
@@ -1982,13 +1984,10 @@ function trendSparkline(team,teams) {
   const rounds=events.map(e=>Number(e.round)).filter(finite),lo=Math.min(...rounds),hi=Math.max(...rounds);
   if(!finite(lo)||!finite(hi))return '—';
   const ceiling=Math.max(1,...teams.flatMap(t=>t.q.map(q=>q.pace).filter(finite)));
-  const rolling=typeof trendChartMode!=='undefined'&&trendChartMode==='rolling';
   const observed=team.q.filter(q=>finite(q.pace)).sort((a,b)=>a.round-b.round);
-  const byRound=new Map(team.q.map(q=>[Number(q.round),rolling?{...q,pace:(()=>{const i=observed.findIndex(r=>r===q);return i>=2?median(observed.slice(i-2,i+1).map(r=>r.pace)):null;})()}:q]));
-  return `<div class="performance-trend" style="--team-color:${color(team.color)}">${Array.from({length:hi-lo+1},(_,i)=>{
-    const round=lo+i,q=byRound.get(round),valid=q&&finite(q.pace);
-    return `<span class="${valid?'':'is-missing'}" style="height:${valid?Math.max(6,q.pace/ceiling*100):6}%;${valid?'':'background:transparent'}" title="R${round}: ${valid?escape(q.event)+' · '+fmt(q.pace,3,'%'):'No measured qualifying lap'}" aria-label="R${round}: ${valid?fmt(q.pace,3,'%'):'unavailable'}"></span>`;
-  }).join('')}</div><div class="performance-trend-label"><span>R${lo}</span><span>R${hi}</span></div>`;
+  const x=round=>8+(round-lo)/Math.max(1,hi-lo)*164,y=pace=>38-pace/ceiling*30;
+  const path=observed.map((q,i)=>`${i&&q.round-observed[i-1].round===1?'L':'M'}${x(q.round).toFixed(2)},${y(q.pace).toFixed(2)}`).join(' ');
+  return `<div class="trend-sparkline"><svg viewBox="0 0 180 46" role="img" aria-label="${escape(team.team)} qualifying gap by round; common scale across teams"><line x1="8" y1="39" x2="172" y2="39" stroke="var(--border-color)"/><path d="${path}" fill="none" stroke="${color(team.color)}" stroke-width="2"/>${observed.map(q=>`<circle cx="${x(q.round)}" cy="${y(q.pace)}" r="3" fill="${color(team.color)}"><title>R${q.round} · ${escape(q.event)} · ${fmt(q.pace,3,'%')}</title></circle>`).join('')}</svg><div class="performance-trend-label"><span>R${lo}</span><span>R${hi}</span></div></div>`;
 }
 
 function renderTrend(teams) {
@@ -2040,16 +2039,17 @@ function renderTrend(teams) {
     trendSlope: r => r.slopePerRound,
     trendCount: r => r.count
   }, trendView==='fitted'?'trendModelled':'trendChange');
+  const showSensitivity=trendView==='fitted'&&ordered.some(row=>row.leaveEventRange);
 
    return card('Relative qualifying progress',
      `Ranked by ${trendView==='fitted'?'a robust fitted rate across measured rounds':'the observed change between median opening and latest event groups'}. More negative means the team closed the gap to the quickest car. This measures relative one-lap progress, not a proven upgrade effect.`,
     `<div class="performance-scope-toggle" role="group" aria-label="Development trend ranking"><button type="button" data-trend-view="observed" aria-pressed="${trendView==='observed'}">Opening → latest</button><button type="button" data-trend-view="fitted" aria-pressed="${trendView==='fitted'}">Fitted trend</button></div><p class="performance-note">Each observed GP is shown without filling missing rounds. Circuit suitability, setup and driver changes affect the trend.</p>`+'<div class="performance-trend-table">'+table([
       sortHeader('trendTeam', 'Team'),
-      'Qualifying gap by round',
-      sortHeader('trendLast', 'Opening → latest gap'),
-      sortHeader(trendView==='fitted'?'trendModelled':'trendChange', trendView==='fitted'?'Fitted change over observed rounds':'Opening → latest change'),
-      'Leave-one-GP-out fitted rate',
-      'Coverage'
+      'Gap by round',
+      sortHeader('trendLast', 'Start → latest'),
+      sortHeader(trendView==='fitted'?'trendModelled':'trendChange', trendView==='fitted'?'Fitted change':'Gap change'),
+      ...(showSensitivity?['Fit sensitivity']:[]),
+      'GPs'
     ], ordered.map(row => {
       const t = row.team, valid = row.valid, first = row.first, last = row.last;
       const enough = valid.length >= 2;
@@ -2061,9 +2061,9 @@ function renderTrend(teams) {
         teamLabel(t),
         trendSparkline(t,teams),
         enough ? `${fmt(first, 3, '%')} → ${fmt(last, 3, '%')}<small>${escape(row.label)}</small>` : 'Needs ≥ 2 events',
-        enough && finite(trendView==='fitted'?row.modelledShift:row.change) ? `${signed(trendView==='fitted'?row.modelledShift:row.change, 3, ' pp')}<small>Fitted rate: ${rateText}</small>` : '—',
-        row.leaveEventRange?`${signed(row.leaveEventRange[0],3)} to ${signed(row.leaveEventRange[1],3)} pp/round<small>Sensitivity, not an uncertainty interval</small>`:'—',
-        `<span class="perf-tercile-badge ${row.sampleTierClass}">${row.count} event${row.count===1?'':'s'} · ${escape(row.sampleTier.split(' ')[0])}</span>`
+        enough && finite(trendView==='fitted'?row.modelledShift:row.change) ? `<span class="trend-change ${(trendView==='fitted'?row.modelledShift:row.change)<0?'is-improvement':'is-decline'}" title="Percentage-point change; negative means improvement">${signed(trendView==='fitted'?row.modelledShift:row.change, 3, ' pp')}</span>${trendView==='fitted'?`<small>${rateText}</small>`:''}` : '—',
+        ...(showSensitivity?[row.leaveEventRange?`${signed(row.leaveEventRange[0],3)} to ${signed(row.leaveEventRange[1],3)} pp/round`:'—']:[]),
+        `<span class="trend-coverage" title="${escape(row.sampleTier)}">${row.count}</span>`
       ];
     })))+'</div>' + card('FIA event documents',
       'Reference documents, not an ingested upgrade database. Relative pace changes do not establish an upgrade effect.',

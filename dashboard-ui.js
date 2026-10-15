@@ -14,7 +14,7 @@
   function metricHeading(metric, context = {}) {
     const [number, title, description] = metrics[metric] || ['', 'Performance', ''];
     const subject = ['corners','straight','braking'].includes(metric) ? `${context.subject === 'driver' ? 'Drivers' : 'Teams'}${metric === 'corners' ? ` · ${context.session === 'race' ? 'Race' : 'Qualifying'}` : ''}` : 'Selected events';
-    return `<header class="metric-heading"><div class="metric-heading-copy"><span class="workspace-eyebrow">PERFORMANCE / ${number}</span><h2>${title}</h2><p>${description}</p></div><dl class="metric-context"><div><dt>Season</dt><dd>${escape(context.year || '—')}</dd></div><div><dt>Loaded GPs</dt><dd>${Number(context.events) || 0}</dd></div><div><dt>View</dt><dd>${subject}</dd></div></dl></header>`;
+    return `<header class="metric-heading"><div class="metric-heading-copy"><h2>${title}</h2><p class="explanation-only">${description}</p></div><dl class="metric-context"><div><dt>Season</dt><dd>${escape(context.year || '—')}</dd></div><div><dt>Loaded GPs</dt><dd>${Number(context.events) || 0}</dd></div><div><dt>View</dt><dd>${subject}</dd></div></dl></header>`;
   }
   function arrangePerformance(root, metric) {
     if (!root) return;
@@ -66,7 +66,8 @@
       const labelText = document.createElement('span');
       labelText.textContent = `${count} ${count === 1 ? 'entry' : 'entries'}`;
       const hint = document.createElement('small');
-      hint.textContent = sortable ? 'Click a heading to sort · scroll for columns' : 'Scroll for all columns';
+      hint.className = 'explanation-only';
+      hint.textContent = sortable ? 'Click headings to sort' : '';
       label.append(labelText, hint);
       wrap.prepend(label);
     }
