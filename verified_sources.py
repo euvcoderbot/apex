@@ -22,10 +22,10 @@ def _recordings():
         return json.load(stream).get('sessions', {})
 
 
-def recorded_session(year, gp, session, now=None):
+def recorded_session(year, gp, session, now=None, allow_stale=False):
     code = {'Qualifying':'Q', 'Race':'R'}.get(session, session)
     record = _recordings().get(f'{year}:{gp}:{code}')
-    if not record or record['expires'] <= (time.time() if now is None else now):
+    if not record or not allow_stale and record['expires'] <= (time.time() if now is None else now):
         return None
     data = record['data']
     if (record['year'] != year or data.get('event') != gp
@@ -40,15 +40,21 @@ def source_notice(record):
             'recorded_session_date':record['data']['date'],
             'source_sha256':record['source_sha256'],
             'expires_at':datetime.fromtimestamp(record['expires'], timezone.utc).isoformat(),
+            'stale':record['expires'] <= time.time(),
             'message':'Using retained completed-session source observations; live archive availability is not guaranteed. Calculated with the current methodology.'}
 
 
 def recorded_payload(record):
-    return {**copy.deepcopy(record['data']), 'source_cache':source_notice(record)}
+    available=[{'driver':t['selection']['driver'],'lap':t['selection']['lap']}
+               for t in record.get('telemetry',[]) if t.get('expires',record['expires'])>time.time()]
+    return {**copy.deepcopy(record['data']), 'source_cache':source_notice(record),
+            'available_telemetry':available}
 
 
-def recorded_lap(record, driver=None, number=None, lap=None, start=None, end=None, duration=None):
+def recorded_lap(record, driver=None, number=None, lap=None, start=None, end=None, duration=None, now=None, allow_stale=False):
     for item in record.get('telemetry', []):
+        if not allow_stale and item.get('expires',record['expires']) <= (time.time() if now is None else now):
+            continue
         s = item['selection']
         if driver and s['driver'] != driver.upper():
             continue
@@ -64,6 +70,22 @@ def recorded_lap(record, driver=None, number=None, lap=None, start=None, end=Non
             continue
         return item
     return None
+
+
+def recorded_pits(year, gp, now=None, allow_stale=False):
+    record=recorded_session(year,gp,'R',now=now,allow_stale=allow_stale)
+    item=record.get('pits') if record else None
+    clock=time.time() if now is None else now
+    if not item or not allow_stale and item['expires']<=clock:
+        return None
+    data=item['data']
+    if data.get('year')!=year or data.get('event')!=gp or not isinstance(data.get('visits'),list):
+        return None
+    result=copy.deepcopy(data)
+    result['source_cache']={**source_notice(record),'kind':'verified-pit-visits',
+                            'source_sha256':item['source_sha256'],'stale':item['expires']<=clock,
+                            'expires_at':datetime.fromtimestamp(item['expires'],timezone.utc).isoformat()}
+    return result
 
 
 def performance_input(record):

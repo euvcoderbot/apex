@@ -1662,7 +1662,7 @@ def car_performance(response: Response, year: int = Query(..., ge=2018, le=2100)
 
 @app.get("/api/performance/pits")
 def car_performance_pits(response: Response, year: int = Query(..., ge=2018, le=2100),
-                         gp: str = Query(..., min_length=3, max_length=120)):
+                         gp: str = Query(..., min_length=3, max_length=120), fresh: bool = False):
     """Fetch pit timing only when the user opens the pit-stop category."""
     def set_cache(source, visits, session=None):
         # Each Grand Prix has its own URL. A new race adds one new cache entry;
@@ -1686,8 +1686,17 @@ def car_performance_pits(response: Response, year: int = Query(..., ge=2018, le=
         )
 
     started = time.perf_counter()
+    from verified_sources import recorded_pits
+    retained=recorded_pits(year,gp)
+    if retained and not fresh:
+        set_cache(retained.get('source','Recorded pit visits'),retained['visits'])
+        return retained
     if year >= 2023:
-        session = openf1_session(year, gp, 'R')
+        try:
+            session = openf1_session(year, gp, 'R')
+        except Exception as exc:
+            logger.warning('OpenF1 pit session lookup unavailable for %s: %s',gp,exc)
+            session = None
         if session and session.get('session_key') is not None:
             try:
                 with ThreadPoolExecutor(max_workers=3) as pool:
@@ -1734,6 +1743,29 @@ def car_performance_pits(response: Response, year: int = Query(..., ge=2018, le=
         race_date=utc_timestamp(data.date)
     except Exception as exc:
         logger.warning('Pit timing unavailable for %s %s: %s', year, gp, exc)
+        recovered=recorded_pits(year,gp,allow_stale=True)
+        if recovered:
+            # Stationary publication is independent of the timing archive.
+            # Keep retained lane visits, but still try to fill published box
+            # stops by exact driver identity, race date and in-lap.
+            if year==2026 and any(v['stop_duration'] is None for v in recovered['visits']):
+                from verified_sources import recorded_session
+                record=recorded_session(year,gp,'R',allow_stale=True)
+                drivers=[{'driver_number':str(d['number']),'name_acronym':d['code'],
+                          'last_name':d.get('name','').split()[-1] if d.get('name') else '',
+                          'team_name':d['team']} for d in record['data']['drivers']]
+                try:
+                    stops=dhl_2026_pit_stops({'date_start':record['data']['date']})
+                    matched=merge_dhl_pit_stops(recovered['visits'],drivers,stops,include_unmatched=True)
+                    notice=recovered['source_cache']
+                    recovered=pit_timing_payload(gp,year,'Recorded pit lane + DHL stationary' if matched else recovered.get('source','Recorded pit visits'),
+                                                 recovered['visits'],drivers,record['data']['date'],'published' if stops else 'not-published')
+                    recovered['source_cache']=notice
+                except Exception as supplement_error:
+                    logger.warning('DHL retained-visit supplement unavailable for %s: %s',gp,supplement_error)
+            recovered['source_cache']['refresh_failed']=True
+            response.headers['Cache-Control']='no-store'
+            return recovered
         raise HTTPException(422, 'Pit timing is unavailable for this race.') from exc
     source='FastF1'
     supplement_status=None
@@ -1989,7 +2021,7 @@ def telemetry(
     retained = recorded_lap(recording, driver=driver, number=driver_number, lap=lap,
                             start=lap_start_seconds, end=lap_end_seconds, duration=lap_time) if recording else None
     if retained and not fresh:
-        return finish(retained['samples'], [], 'Recorded native qualifying lap', recording)
+        return finish(retained['samples'], retained.get('corners',[]), 'Recorded native '+('race' if session=='R' else 'qualifying')+' lap', recording)
 
     # For a pit-out lap, the session's exact pit-exit timestamp is the start.
     # OpenF1's lap start/duration may cover a different interval and cannot
@@ -2134,7 +2166,7 @@ def telemetry(
     except Exception as fastf1_error:
         logger.debug("FastF1 telemetry unavailable for %s L%s: %s", driver, lap, fastf1_error)
         if retained:
-            return finish(retained['samples'], [], 'Recorded native qualifying lap', recording)
+            return finish(retained['samples'], retained.get('corners',[]), 'Recorded native '+('race' if session=='R' else 'qualifying')+' lap', recording)
         if incomplete_openf1 and incomplete_openf1[0]:
             return finish(incomplete_openf1[0], incomplete_openf1[1], "OpenF1")
         try:

@@ -60,7 +60,7 @@ class PitStopTests(unittest.TestCase):
              patch.object(server,'load_fresh_session',return_value=session), \
              patch.object(server,'fastf1_pit_visits',return_value=visits), \
              patch.object(server,'dhl_2026_pit_stops',return_value=stops):
-            result=server.car_performance_pits(Response(),year=2026,gp='Singapore Grand Prix')
+            result=server.car_performance_pits(Response(),year=2026,gp='Singapore Grand Prix',fresh=True)
         self.assertEqual(result['source'],'FastF1 pit lane + DHL stationary')
         self.assertEqual(result['visits'][0]['stop_duration'],2.56)
         self.assertEqual(result['stationary_status'],'complete')

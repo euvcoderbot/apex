@@ -16,7 +16,7 @@ function fieldMinimumSpeed(measured,fraction,total,halfMetres=25) {
   return speeds.length?Math.min(...speeds):null;
 }
 export const RACE_SNAPSHOT_LIMIT=96; // maximum work budget, not a forced sample count
-export function raceCornerGroups(session,preferred={},limit=RACE_SNAPSHOT_LIMIT,subject='team',model='matched') {
+export function raceCornerGroups(session,preferred={},limit=RACE_SNAPSHOT_LIMIT,subject='team',model='matched',nativeAvailable=null) {
   const drivers=session.drivers||[], all=drivers.flatMap(d=>(d.laps||[]).map(l=>({...l,driver:d})));
   const completions=all.filter(l=>finite(l.lap_end_seconds)&&!l.in_lap&&!l.out_lap);
   const eligible=all.filter(l=>finite(l.time)&&l.lap>1&&!l.in_lap&&!l.out_lap&&!l.deleted&&l.accurate!==false&&l.track_status==='1'
@@ -28,7 +28,7 @@ export function raceCornerGroups(session,preferred={},limit=RACE_SNAPSHOT_LIMIT,
     // An approximate traffic screen at the finish line, not full-lap clean air.
     const before=completions.filter(r=>r.driver!==l.driver&&r.lap_end_seconds<l.lap_end_seconds&&r.lap_end_seconds>l.lap_start_seconds);
     return !before.length || l.lap_end_seconds-Math.max(...before.map(r=>r.lap_end_seconds))>2;
-  });
+  }).filter(l=>!nativeAvailable||nativeAvailable.has(l.driver.code+':'+l.lap));
   const groups=[];
   for(const lap of [...new Set(clean.map(l=>l.lap))])for(const compound of ['SOFT','MEDIUM','HARD']) {
     const rows=clean.filter(l=>l.lap===lap&&l.compound===compound);

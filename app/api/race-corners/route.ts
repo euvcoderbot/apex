@@ -6,7 +6,7 @@ export async function GET(request:Request) {
   if(!['matched','age-adjusted'].includes(model))return Response.json({detail:'Invalid race comparison model'},{status:400});
   if(q.get('cached')==='1'){
     if(!Number.isInteger(year)||year<2018||year>2100||gp.length<3||gp.length>120||!['team','driver'].includes(subject))return Response.json({detail:'Invalid race cache query'},{status:400});
-    try{return dataResponse(await loadCachedRaceSnapshots(dataCache,{year,gp,round:q.get('round')||'',subject,model}));}catch(error){return dataError(error);}
+    try{return dataResponse(await loadCachedRaceSnapshots(dataCache,{year,gp,round:q.get('round')||'',subject,model,fresh:q.get('refresh')==='1'}));}catch(error){return dataError(error);}
   }
   if(!Number.isInteger(year)||year<2018||year>2100||!Number.isInteger(lap)||lap<2||lap>100||gp.length<3||gp.length>120||!['SOFT','MEDIUM','HARD'].includes(compound)||!['team','driver'].includes(subject))
     return Response.json({detail:'Invalid race snapshot'},{status:400});

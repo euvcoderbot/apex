@@ -9,17 +9,37 @@ import {connectedRaceCornerScores} from '../race-cornering.js';
 import verifiedSeed from '../lib/verified-cache-seed.json' with {type:'json'};
 
 test('source-only compatible migration keeps expiry and never reuses old model scores',async()=>{
-  const store=new Map(),identity=normalizeDataPath('/api/session?year=2026&gp=Test&session=Q');
-  const old={data:{drivers:[{code:'A'}]},expires:2000};
+  const path='/api/telemetry?year=2026&gp=Test&session=Q&driver=A&lap=2';
+  const store=new Map(),identity=normalizeDataPath(path);
+  const old={data:{samples:Array(40).fill({Speed:200})},expires:2000};
   store.set('source:cd189bb22d7369619f33:'+identity,old);
   store.set('data:cd189bb22d7369619f33:'+normalizeDataPath('/api/performance?year=2026&gp=Test&session=Q'),{data:{teams:[{pace:99}]},expires:2000});
   let requests=0;
   const cache=createDataCache({read:async k=>store.get(k),write:async(k,v)=>store.set(k,v),now:()=>1000,
     fetcher:async()=>{requests++;return {ok:true,json:async()=>({teams:[{pace:1}]})};}});
-  assert.equal((await cache.get('/api/session?year=2026&gp=Test&session=Q')).cache,'HIT');
+  assert.equal((await cache.get(path)).cache,'HIT');
   assert.equal(store.get(SOURCE_VERSION+':'+identity).expires,2000);
   assert.equal((await cache.get('/api/performance?year=2026&gp=Test&session=Q')).data.teams[0].pace,1);
   assert.equal(requests,1);
+});
+
+test('session inventory refreshes while identical v12 results retain their original expiry',async()=>{
+  const store=new Map(),session=normalizeDataPath('/api/session?year=2026&gp=Test&session=R'),perf=normalizeDataPath('/api/performance?year=2026&gp=Test&session=R');
+  store.set('source:29f8563d4b78ab40fa9f:'+session,{data:{drivers:[{code:'OLD'}]},expires:2000});
+  store.set('data:41044143c0b685844c70:'+perf,{data:{teams:[{team:'A'}],method:'car-performance-v12-supported-nonlinear'},expires:2000});
+  let calls=0;const cache=createDataCache({read:async k=>store.get(k),write:async(k,v)=>store.set(k,v),now:()=>1000,
+    fetcher:async()=>{calls++;return {ok:true,json:async()=>({drivers:[{code:'NEW'}],available_telemetry:[]})};}});
+  assert.equal((await cache.get(session)).data.drivers[0].code,'NEW');
+  assert.equal((await cache.get(perf)).cache,'HIT');
+  assert.equal(store.get(DATA_VERSION+':'+perf).expires,2000);assert.equal(calls,1);
+});
+
+test('recorded-source caching cannot renew its original freshness',()=>{
+  const now=Date.parse('2026-10-15T00:00:00Z'),data={date:'2026-10-01',source_cache:{expires_at:'2026-10-16T00:00:00Z'}};
+  const path='/api/session?year=2026&gp=Test&session=R';
+  assert.equal(dataTTL(path,data,[],now),86400);
+  assert.equal(dataTTL(path,{...data,source_cache:{expires_at:'2026-10-14T00:00:00Z'}},[],now),0);
+  assert.equal(dataTTL(path,{...data,source_cache:{...data.source_cache,stale:true}},[],now),120);
 });
 
 test('partial stationary timing revalidates quickly even for an old completed race',()=>{
