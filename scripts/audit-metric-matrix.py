@@ -42,13 +42,20 @@ def numeric(value,prefix=''):
 def trace_checks(result):
     errors=[]
     for team,row in result.get('teams',{}).items():
+        if row.get('quality',{}).get('native_only'):
+            if not finite(row.get('top_speed')):errors.append([team,'native_peak_missing'])
+            continue
         official=row['selection']['time']; ref=row['reference_lap_time']
         def close(label,actual,expected,tolerance=1e-6):
             if not finite(actual) or abs(actual-expected)>tolerance:
                 errors.append([team,label,actual,expected])
-        close('partition_seconds',row['straight_time']+row['corner_time'],official)
-        close('corner_no_overlap',sum(c['time'] for c in row['corners']),row['corner_time'])
-        close('partition_percent',row['straight_contribution']+row['corner_contribution'],row['lap_gap'])
+        if row.get('attribution_complete') is False:
+            for key in ('straight_time','corner_time','straight_contribution','corner_contribution'):
+                if row[key] is not None:errors.append([team,'invalid_partial_attribution',key])
+        else:
+            close('partition_seconds',row['straight_time']+row['corner_time'],official)
+            close('corner_no_overlap',sum(c['time'] for c in row['corners']),row['corner_time'])
+            close('partition_percent',row['straight_contribution']+row['corner_contribution'],row['lap_gap'])
         for band,value in row['categories'].items():
             if value:close('corner_'+band+'_percent',value['deficit'],value['time_lost']/ref*100)
         if finite(row.get('straight_core_gap_s')):

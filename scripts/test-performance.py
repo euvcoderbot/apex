@@ -136,7 +136,8 @@ class PerformanceTests(unittest.TestCase):
         self.assertAlmostEqual(float(np.interp(30.3,other['a'][:,1],aligned)),5000/3,delta=.1)
         self.assertLess(scale,.03)
         other['selection']['sectors']=[10.,50.,31.]
-        with self.assertRaises(ValueError):timing_line_alignment(other,item,np.linspace(0,5000,1001))
+        self.assertIsNone(timing_line_alignment(other,item,np.linspace(0,5000,1001)),
+                          'Reject the sector registration; a separately validated GPS registration may still be tested')
 
     def test_terminal_speed_uses_channel_not_warped_time(self):
         from performance_tracks import analyze_straights_speed_domain

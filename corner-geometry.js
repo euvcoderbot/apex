@@ -1,6 +1,7 @@
 // Circuit positions, never inferred from throttle lift or speed minima alone.
 import './corner-position.js';
 export const refineCornerPositions=globalThis.APEXCornerPosition.refineCornerPositions;
+export const cornerWindow=globalThis.APEXCornerPosition.cornerWindow;
 const finite=n=>typeof n==='number'&&Number.isFinite(n);
 // Keep native corner measurements separate from batch straight/braking results.
 export function withCornerMeasurements(traces,measurements={}) {

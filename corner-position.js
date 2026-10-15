@@ -5,7 +5,7 @@
   function refineCornerPositions(samples,markers,total, fractionForSample=null){
     const origin=samples?.[0]?.Distance||0;
     const points=(samples||[]).filter(p=>finite(p.X)&&finite(p.Y)&&finite(p.Distance))
-      .map(p=>({d:(fractionForSample?fractionForSample(p):(p.Distance-origin)/total)*total,x:p.X,y:p.Y,t:p.ElapsedSeconds,gap:p.SourceIntervalSeconds||0}))
+      .map(p=>({d:(fractionForSample?fractionForSample(p):(p.Distance-origin)/total)*total,x:p.X,y:p.Y,t:p.ElapsedSeconds,gap:Math.max(p.SourceIntervalSeconds||0,p.PositionIntervalSeconds||0)}))
       .filter((p,i,a)=>finite(p.d)&&(!i||p.d>a[i-1].d));
     const at=d=>{
       let lo=0,hi=points.length-1;
@@ -47,8 +47,26 @@
       // An edge-clipped peak is not evidence that the apex sits at our search limit.
       if(index===0||index===grid.length-1)return fallback('Bend maximum outside bounded search');
       const d=lobe.reduce((s,p)=>s+p.d*Math.abs(p.a),0)/weight;
-      return {...m,apexFraction:d/total,apexMethod:'GPS bend-centre estimate',apexConfidence:'estimated',apexShiftMetres:d-seed,apexReason:null};
+      // A corner envelope follows sustained same-direction curvature, not a
+      // fixed distance and not a driver's brake/throttle/speed trough. Three
+      // consecutive weak samples end the envelope; neighbours cap both ends.
+      const edge=direction=>{let last=d,weak=0;
+        for(let p=d+direction*5;p>left+10&&p<right-10&&Math.abs(p-d)<=500;p+=direction*5){
+          const a=angle(p),strong=finite(a)&&Math.sign(a)===Math.sign(peak.a)&&Math.abs(a)>=Math.max(.02,Math.abs(peak.a)*.15);
+          if(strong){last=p;weak=0;}else if(++weak>=3)break;
+        }return Math.max(left,Math.min(right,last+direction*20));};
+      const turnStart=edge(-1),turnEnd=edge(1);
+      return {...m,apexFraction:d/total,apexMethod:'GPS bend-centre estimate',apexConfidence:'estimated',apexShiftMetres:d-seed,apexReason:null,
+        turnStartFraction:turnStart/total,turnEndFraction:turnEnd/total,
+        windowMethod:turnEnd-turnStart>=30?'adaptive-geometry-turning':'uncertain-fixed-window'};
     });
   }
-  root.APEXCornerPosition=Object.freeze({refineCornerPositions});
+  function cornerWindow(marker,index,markers,total,mode='geometry'){
+    const f=marker.apexFraction,left=index?(markers[index-1].apexFraction+f)/2:0,right=index<markers.length-1?(f+markers[index+1].apexFraction)/2:1;
+    const adaptive=mode!=='legacy'&&marker.windowMethod==='adaptive-geometry-turning'&&finite(marker.turnStartFraction)&&finite(marker.turnEndFraction);
+    return {start:adaptive?Math.max(left,marker.turnStartFraction):Math.max(left,f-130/total),
+      end:adaptive?Math.min(right,marker.turnEndFraction):Math.min(right,f+100/total),
+      windowMethod:adaptive?'adaptive-geometry-turning':'fixed-window'+(mode==='legacy'?'':'-uncertain-fallback')};
+  }
+  root.APEXCornerPosition=Object.freeze({refineCornerPositions,cornerWindow});
 })(globalThis);

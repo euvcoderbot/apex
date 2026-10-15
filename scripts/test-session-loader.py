@@ -13,6 +13,16 @@ from fastf1 import _api
 
 
 class FreshSessionTests(unittest.TestCase):
+    def test_batch_time_index_matches_plain_scan_and_parses_prefixes_only_once(self):
+        rows=[f'00:00:{i/10:06.3f}'+'{}' for i in range(500)]
+        expected=[list(loader._window_records(rows,start,start+1)) for start in (5,10,20,30)]
+        real=loader._api.to_timedelta
+        with patch.object(loader._api,'to_timedelta',wraps=real) as parse:
+            indexed=loader._IndexedRecords(rows)
+            self.assertEqual(parse.call_count,len(rows))
+            self.assertEqual([list(loader._window_records(indexed,start,start+1)) for start in (5,10,20,30)],expected)
+            self.assertEqual(parse.call_count,len(rows),'later laps must not scan/parse the whole stream again')
+
     def test_short_bracketed_packet_gap_at_start_does_not_discard_lap(self):
         rows=[{'date':100+t,'Speed':speed,'Throttle':100,'RPM':10000,'Brake':False,'DRS':0,'nGear':8}
               for t,speed in [(-.136,286),(1.064,308),(1.304,311),(1.544,313),(1.784,315),(2.024,317)]]

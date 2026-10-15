@@ -9,7 +9,7 @@ the request, and no global cache settings are toggled.
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import ContextVar, copy_context
 from functools import wraps
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from datetime import timezone
 import json
 import time
@@ -111,8 +111,31 @@ def _download_stream(path, page):
     return response.content.decode('utf-8-sig').splitlines()
 
 
+class _IndexedRecords:
+    """Request-local feed-time index; never cache decoded telemetry globally."""
+    def __init__(self, records):
+        indexed=[]
+        for record in records:
+            if len(record)<13:continue
+            try:stamp=_api.to_timedelta(record[:12]).total_seconds()
+            except Exception:continue
+            indexed.append((stamp,record))
+        indexed.sort(key=lambda item:item[0])
+        self.times=[stamp for stamp,_ in indexed]
+        self.records=[record for _,record in indexed]
+
+    def __iter__(self):
+        return iter(self.records)
+
+    def window(self,start,end):
+        return self.records[bisect_left(self.times,start):bisect_right(self.times,end)]
+
+
 def _window_records(records, start, end):
     margin = 4.0  # Feed packets can lag sample UTC; exact UTC clipping happens later.
+    if isinstance(records,_IndexedRecords):
+        yield from records.window(start-margin,end+margin)
+        return
     for record in records:
         if len(record) < 13:
             continue
@@ -232,6 +255,8 @@ def _lap_samples(car_rows, position_rows, lap_start, lap_end, t0=None):
             distance += ((previous['Speed'] + row['Speed']) / 2 / 3.6) * dt
         previous = row
         x = y = None
+        position_interval = None
+        position_native = False
         if position_dates:
             index = bisect_left(position_dates, row['date'])
             candidates = [i for i in (index - 1, index) if 0 <= i < len(position_dates)]
@@ -239,10 +264,14 @@ def _lap_samples(car_rows, position_rows, lap_start, lap_end, t0=None):
                 nearest = min(candidates, key=lambda i: abs(position_dates[i] - row['date']))
                 if abs(position_dates[nearest] - row['date']) <= .3:
                     _, x, y = position_rows[nearest]
+                    position_interval = abs(position_dates[nearest]-row['date'])*2
+                    position_native = abs(position_dates[nearest]-row['date'])<=.001
                     if 0 < index < len(position_dates) and position_dates[index]-position_dates[index-1] <= .6:
                         fraction = (row['date']-position_dates[index-1])/(position_dates[index]-position_dates[index-1])
                         x = position_rows[index-1][1]+fraction*(position_rows[index][1]-position_rows[index-1][1])
                         y = position_rows[index-1][2]+fraction*(position_rows[index][2]-position_rows[index-1][2])
+                        position_interval = position_dates[index]-position_dates[index-1]
+                        position_native = fraction<=.001 or fraction>=.999
         samples.append({
             'Distance': distance, 'ElapsedSeconds': elapsed, 'Speed': row['Speed'],
             'Timestamp': row['date'],
@@ -250,6 +279,10 @@ def _lap_samples(car_rows, position_rows, lap_start, lap_end, t0=None):
             'nGear': row['nGear'], 'DRS': row['DRS'], 'X': x, 'Y': y,
             'IsInterpolatedBoundary': bool(row.get('boundary_interpolated')),
             'SourceIntervalSeconds': row.get('source_interval_s', 0.0),
+            'PositionIntervalSeconds': position_interval,
+            'PositionNative': position_native,
+            'ChannelSources': {**{c:'FastF1:boundary-derived' if row.get('boundary_interpolated') else 'FastF1:native' for c in ('Speed','Throttle','Brake','RPM','nGear','DRS')},
+                               **({c:'FastF1:position-native' if position_native else 'FastF1:position-interpolated' for c in ('X','Y')} if x is not None else {})},
         })
     return samples
 
@@ -284,6 +317,7 @@ def load_selected_laps_telemetry(year, gp, session_name, selections):
         car_future = pool.submit(_download_stream, path, 'car_data')
         position_future = pool.submit(_download_stream, path, 'position')
         car_records, position_records = car_future.result(), position_future.result()
+    car_records,position_records=_IndexedRecords(car_records),_IndexedRecords(position_records)
     t0 = _stream_t0(car_records, position_records)
 
     def extract(selection):

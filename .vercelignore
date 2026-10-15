@@ -3,6 +3,8 @@
 !session_loader.py
 !performance.py
 !performance_tracks.py
+!pace_models.py
+!telemetry_sources.py
 !fia_energy_params.py
 !requirements.txt
 !pyproject.toml

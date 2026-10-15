@@ -11,10 +11,29 @@ def source_intervals(item):
     if len(samples) == len(item['a']):
         brackets = np.array([float(s.get('SourceIntervalSeconds') or 0) for s in samples])
         intervals = np.maximum(intervals, np.maximum(brackets[:-1], brackets[1:]))
+    for key in ('alignment_bad_intervals','frozen_bad_intervals'):
+        if key in item:intervals=np.where(item[key],max(1.501,float(np.max(intervals))),intervals)
     return intervals
 
 
 def prepare(samples, selection, require_gps=True):
+    # Screening is local: remove isolated corrupt speed packets and retain
+    # their clock/distance gap as unsupported, never manufacture a replacement.
+    samples = [dict(r) for r in samples]
+    bad = set()
+    for i, r in enumerate(samples):
+        v = r.get('Speed')
+        if v is None or not math.isfinite(float(v)) or not 30 <= float(v) <= 420:
+            bad.add(i)
+        elif 0 < i < len(samples)-1:
+            before, after = samples[i-1].get('Speed'), samples[i+1].get('Speed')
+            if before is not None and after is not None and v > max(before, after)+15 and v-min(before, after)>25:
+                bad.add(i)
+    for i in bad:
+        for j in (i-1, i+1):
+            if 0 <= j < len(samples):
+                samples[j]['SourceIntervalSeconds'] = max(1.501, samples[j].get('SourceIntervalSeconds') or 0)
+    samples = [r for i,r in enumerate(samples) if i not in bad]
     a = np.array([[r.get('Distance'), r.get('ElapsedSeconds'), r.get('Speed'),
                    r.get('Throttle'), float(bool(r.get('Brake'))),
                    r.get('X'), r.get('Y'), float(r.get('DRS') or 0)] for r in samples], dtype=float)
@@ -22,7 +41,7 @@ def prepare(samples, selection, require_gps=True):
     if len(a) < 100 or not np.isfinite(a[:, :5]).all():
         raise ValueError('Incomplete speed, throttle or time channels')
     if (np.any(np.diff(a[:, 0]) <= 0) or np.any(np.diff(a[:, 1]) <= 0)
-            or np.max(np.diff(a[:, 1])) > 1.5 or np.min(a[:, 2]) < 30
+            or np.min(a[:, 2]) < 30
             or np.max(a[:, 2]) > 420):
         raise ValueError('Gaps or invalid speed/distance in the qualifying lap')
     # A single uncorroborated peak is not a top-speed measurement. Do not
@@ -37,7 +56,8 @@ def prepare(samples, selection, require_gps=True):
     gps = np.isfinite(a[:, 5:7]).all(axis=1)
     if require_gps and np.mean(gps) < .65:
         raise ValueError('Insufficient position coverage for shared track windows')
-    return {'a': a, 'gps': gps, 'official': official, 'selection': selection, 'samples': samples}
+    return {'a': a, 'gps': gps, 'official': official, 'selection': selection, 'samples': samples,
+            'removed_speed_samples': len(bad), 'local_gap_count': int(np.sum(np.diff(a[:,1])>1.5))}
 
 
 def common_zone_scores(zone_times):
@@ -108,18 +128,55 @@ def mapped_corner_zones(reference, grid, speed, corners):
     for k, (apex, label) in enumerate(markers):
         left = (markers[k-1][0]+apex)//2 if k else 0
         right = (apex+markers[k+1][0])//2 if k+1 < len(markers) else len(grid)-1
-        start = max(left, int(np.searchsorted(grid, grid[apex]-130)))
-        end = min(right, int(np.searchsorted(grid, grid[apex]+100)))
+        seed=float(grid[apex]);centre=seed;method='fixed-window-uncertain-fallback'
+        def angle(distance):
+            if distance-20<grid[0] or distance+20>grid[-1]:return None
+            for d in (distance-20,distance,distance+20):
+                j=int(np.searchsorted(a[:,0],d))
+                if j<1 or j>=len(a) or a[j,0]-a[j-1,0]>80 or a[j,1]-a[j-1,1]>1:return None
+            points=np.array([[np.interp(distance+offset,grid,xy[:,j]) for j in (0,1)] for offset in (-20,0,20)])
+            u,v=np.diff(points,axis=0)
+            return math.atan2(u[0]*v[1]-u[1]*v[0],float(u@v))
+        search=np.arange(max(grid[left]+10,seed-125,20),min(grid[right]-10,seed+125,grid[-1]-20)+.1,5)
+        def median_angle(d):
+            values=[angle(d+o) for o in (-5,0,5)]
+            return float(np.median(values)) if all(v is not None for v in values) else np.nan
+        values=np.array([median_angle(d) for d in search])
+        start_d,end_d=max(grid[left],seed-130),min(grid[right],seed+100)
+        if np.isfinite(values).sum()>=5:
+            peak=int(np.argmax(np.where(np.isfinite(values),np.abs(values)*(1-.15*np.abs(search-seed)/125),-np.inf)))
+            if 0<peak<len(values)-1 and abs(values[peak])>=.03:
+                lo=hi=peak;threshold=abs(values[peak])*.55;sign=np.sign(values[peak])
+                while lo>0 and np.sign(values[lo-1])==sign and abs(values[lo-1])>=threshold:lo-=1
+                while hi<len(values)-1 and np.sign(values[hi+1])==sign and abs(values[hi+1])>=threshold:hi+=1
+                lobe=values[lo:hi+1]
+                if len(lobe)>=3 and sum(abs(lobe))*5/40>=.08:
+                    centre=float(np.average(search[lo:hi+1],weights=np.abs(lobe)))
+                    def edge(direction):
+                        last=centre;weak=0
+                        for d in np.arange(centre+direction*5,centre+direction*505,direction*5):
+                            if d<=grid[left]+10 or d>=grid[right]-10:break
+                            value=angle(d)
+                            if value is not None and np.sign(value)==sign and abs(value)>=max(.02,abs(values[peak])*.15):last=d;weak=0
+                            else:
+                                weak+=1
+                                if weak>=3:break
+                        return max(grid[left],min(grid[right],last+direction*20))
+                    start_d,end_d=edge(-1),edge(1);method='adaptive-geometry-turning'
+        start = max(left,int(np.searchsorted(grid,start_d)))
+        end = min(right,int(np.searchsorted(grid,end_d)))
+        apex=int(np.searchsorted(grid,centre))
         if end-start < 3:
             rejected.append(label); continue
         # Classify near the marker, not at a neighbouring hairpin.
         near = (grid >= grid[apex]-25) & (grid <= grid[apex]+25)
-        v = float(np.min(speed[near]))
+        v = float(np.interp(centre,grid,speed)) if method=='adaptive-geometry-turning' else float(np.min(speed[near]))
         zones.append({'start': start, 'end': end, 'apex': apex, 'corner': label,
                       'd_entry': min(75., grid[apex]-grid[start]),
                       'd_exit': min(75., grid[end]-grid[apex]),
                       'band': 'low' if v <= 120 else 'medium' if v <= 200 else 'high',
-                      'classification_speed': v, 'source': 'circuit-marker-window'})
+                      'classification_speed': v, 'classification_borderline':min(abs(v-120),abs(v-200))<=10,
+                      'source': method})
     return zones, rejected
 
 
@@ -205,7 +262,10 @@ def timing_line_alignment(item, reference, grid):
     target = target/reference['a'][-1, 0]*grid[-1]
     scales = np.diff(target)/np.diff(source)
     if not np.isfinite(scales).all() or np.min(scales) < .97 or np.max(scales) > 1.03:
-        raise ValueError('Timing-sector distance registration differs by more than 3%')
+        # Do not relax the sector tolerance to rescue a car. Test the independent
+        # GPS registration and its local derivatives instead; if that fails the
+        # spatial metrics remain unavailable, while native speed survives.
+        return None
     return np.interp(item['a'][:, 0], source, target), float(np.max(np.abs(scales-1)))
 
 
@@ -247,6 +307,7 @@ def align(item, reference, grid):
     timing = timing_line_alignment(item, reference, grid)
     method = 'gps-local-validated'
     registration_scale = None
+    invalid_alignment=None
     if timing is not None:
         aligned, registration_scale = timing
         method = 'official-sector-distance-v1'
@@ -257,17 +318,23 @@ def align(item, reference, grid):
         source_distance = np.interp(np.r_[probe, probe+200.], aligned, a[:, 0])
         n = len(probe)
         ratios = 200./(source_distance[n:]-source_distance[:n])
-        if np.any((ratios < .9) | (ratios > 1.1)):
-            raise ValueError('GPS locally stretches distance; official sector anchors unavailable')
+        bad=(ratios < .9) | (ratios > 1.1)
+        if np.any(bad):
+            invalid_alignment=np.zeros(len(a)-1,dtype=bool)
+            for start in probe[bad]:invalid_alignment |= (aligned[:-1]<start+200)&(aligned[1:]>start)
+            if np.mean(invalid_alignment)>.4:
+                raise ValueError('GPS locally stretches over 40% of the lap; no trustworthy shared spatial frame')
+            method='GPS-local-window-recovery-v2'
     if np.any(np.diff(aligned) <= 0):
         raise ValueError('GPS projection reverses progress along the lap')
     speed = np.interp(grid, aligned, a[:, 2])
     throttle = np.interp(grid, aligned, a[:, 3])
-    brake = np.interp(grid, aligned, a[:, 4]) >= .5
     # Discrete forward-fill / nearest step for DRS on grid (FastF1 discrete channel rule)
     drs_indices = np.clip(np.searchsorted(aligned, grid, side='right') - 1, 0, len(a) - 1)
+    brake = a[drs_indices, 4] >= .5
     drs_grid = a[drs_indices, 7].astype(int)
     drs_active = np.isin(drs_grid, [10, 12, 14])
+    drs_known = np.isin(drs_grid, [0,1,8,10,12,14])
     # The GPS mapping changes spatial coordinates. Integrating 1/speed over
     # the warped reference distance would omit ds_car/ds_reference and move
     # time between zones. Interpolate observed elapsed time instead.
@@ -282,16 +349,17 @@ def align(item, reference, grid):
     factor = item['official']/speed_time
     if not .92 < factor < 1.08 or not .97 < timing_scale < 1.03:
         raise ValueError('Speed integration disagrees with official lap time')
-    return {**item, 'speed': speed, 'throttle': throttle, 'brake': brake,
-            'drs': drs_grid, 'drs_active': drs_active,
+    return {**item, **({'alignment_bad_intervals':invalid_alignment} if invalid_alignment is not None else {}), 'speed': speed, 'throttle': throttle, 'brake': brake,
+            'drs': drs_grid, 'drs_active': drs_active, 'drs_known':drs_known,
             'dt': observed_dt*timing_scale, 'scale': float(factor),
             'timing_scale': float(timing_scale), 'aligned': aligned,
             'alignment_method': method, 'registration_scale': registration_scale}
 
 
-def frozen(item, field):
+def frozen(item, field, allow_local=False):
     a, aligned = item['a'], item['aligned']
     start = 0
+    bad=np.zeros(len(a)-1,dtype=bool)
     for end in range(1, len(a)+1):
         if end < len(a) and a[end, 2] == a[start, 2]:
             continue
@@ -300,7 +368,8 @@ def frozen(item, field):
             mask = (field['grid'] >= lo) & (field['grid'] <= hi)
             if mask.sum() > 3 and np.ptp(field['speed'][mask]) > 18:
                 if np.mean(a[start:end, 4] >= .5) > .3:
-                    return True
+                    if not allow_local:return True
+                    bad[max(0,start-1):min(len(bad),end)]=True
                 # Other cars may deploy differently in 2026. Require an
                 # independent position-channel contradiction, not field speed
                 # variation alone, before rejecting a constant-speed shelf.
@@ -313,8 +382,12 @@ def frozen(item, field):
                         gps_speeds.append(np.linalg.norm(points[j, 5:7]-points[i, 5:7])
                                           /10/(points[j, 1]-points[i, 1])*3.6)
                 if len(gps_speeds) >= 3 and abs(float(np.median(gps_speeds))-a[start, 2]) > 25:
-                    return True
+                    if not allow_local:return True
+                    bad[max(0,start-1):min(len(bad),end)]=True
         start = end
+    if allow_local and bad.any():
+        item['frozen_bad_intervals']=bad
+        return float(np.mean(bad))>.2
     return False
 
 
@@ -496,6 +569,20 @@ def fastest_qualifying_braking_items(selections, candidates):
     return result
 
 
+def speed_crossing_bounds(t, v, target):
+    """Assumed monotone <=7g envelope, or None if native brackets contradict it."""
+    hits = np.flatnonzero(v <= target)
+    if not len(hits):
+        return None
+    j = int(hits[0])
+    if j == 0:
+        return float(t[0]), float(t[0])
+    amax = 7 * 9.80665 * 3.6
+    lo = float(t[j-1] + max(0, v[j-1] - target - .5) / amax)
+    hi = float(t[j] - max(0, target - v[j] - .5) / amax)
+    return (lo, hi) if lo <= hi else None
+
+
 def matched_braking_measurements(selected, windows, grid, candidates=None, fixed_ranges=None):
     """Time a shared speed drop in each straight braking approach.
 
@@ -593,7 +680,7 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
                     # no supported zone yet. Maximising rows alone repeatedly
                     # selects the same packet-rich drivers and can erase an
                     # otherwise valid driver's entire lap.
-                    score = (len(supported)>=3, newly_supported, paired>=3,
+                    score = (len(supported)>=3, paired>=3,
                              len(supported), len(cohort), high-low, paired, repeat_count)
                     options.append((score, high, low, cohort))
         if not options:
@@ -651,6 +738,16 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
                          and (repeat_spread is None or repeat_spread <= max(.05, duration*.1)))
             approach = approaches.get(team, {})
             main_selection = selected[team].get('selection', {})
+            # A bounded monotone <=7g trajectory is an assumption envelope,
+            # NOT a probabilistic interval or new high-frequency telemetry.
+            t,v,observed_item=segments[team][0]
+            hb=speed_crossing_bounds(t,v,high);lb=speed_crossing_bounds(t,v,low)
+            duration_envelope=[max(0.,lb[0]-hb[1]),max(0.,lb[1]-hb[0])] if hb and lb else None
+            endpoint_sensitivity=[]
+            for dh,dl in ((-10,0),(10,0),(0,-10),(0,10)):
+                h,l=high+dh,low+dl
+                if h-l>=50 and covers(t,v,observed_item,h,l):
+                    _,crossings=crossing_times(t,v,h,l);endpoint_sensitivity.append(crossings[1]-crossings[0])
             result[team].append({
                 'corner': label, 'method': 'matched-speed-v1', 'mode': 'straight',
                 'entry_speed': high, 'exit_speed': low, 'duration': duration,
@@ -663,6 +760,9 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
                 'native_interior_samples': sum(x[6] for x in per_lap),
                 'min_native_interior_samples': min(x[6] for x in per_lap),
                 'timing_resolution_s': resolution,
+                'duration_envelope_s':duration_envelope,
+                'timing_envelope_assumptions':'monotone deceleration, <=7g, +/-0.5 km/h speed quantisation; not a confidence interval',
+                'endpoint_sensitivity_s':[min(endpoint_sensitivity),max(endpoint_sensitivity)] if endpoint_sensitivity else None,
                 'repeat_spread_s': repeat_spread,
                 'sample_interval_s': float(max(x[3] for x in per_lap)),
                 'approach_time': None,
@@ -674,8 +774,8 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
                 'source_selection': dict(main_selection),
                 'selection_policy': 'fastest-qualifying-lap-only',
                 'quality': 'supported' if supported else 'provisional',
-                'endpoint_policy': 'native-support-and-entrant-coverage-shared-speed-drop',
-                'braking_version': 'qualifying-braking-v5-bounded-native-brackets'
+                'endpoint_policy': 'fixed-field-support-first-shared-speed-drop; +/-10kmh sensitivity separate',
+                'braking_version': 'qualifying-braking-v6-boundary-envelopes'
             })
     return result
 
@@ -723,6 +823,7 @@ def straight_core_measurements(selected, blocks, grid, ref, fixed_windows=None, 
         source_ix = np.clip(np.searchsorted(item['aligned'], grid[:-1], side='right')-1,
                             0, len(item['a'])-2)
         native_ok &= source_intervals(item)[source_ix] <= .6
+        if 'drs_known' in item:native_ok &= item['drs_known'][:-1]&item['drs_known'][1:]
         supported_cells[team] = native_ok
         eligible &= native_ok
         if 'drs_active' in item:
@@ -915,6 +1016,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             th_accel = raw_th[i_min:i_max+1]
             br_accel = raw_br[i_min:i_max+1]
             drs_accel = raw_drs_active[i_min:i_max+1]
+            drs_known_accel = np.isin(raw_drs[:stop][i_min:i_max+1],[0,1,8,10,12,14])
             aligned_accel = aligned_segment[i_min:i_max+1]
 
             for v_lo, v_hi, b_name in bands:
@@ -939,7 +1041,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                         drs_slice = drs_accel[begin:i_hi+1]
                         is_drs = bool(np.all(drs_slice))
                         is_no_drs = bool(not np.any(drs_slice))
-                        if is_drs or is_no_drs:
+                        if (is_drs or is_no_drs) and np.all(drs_known_accel[begin:i_hi+1]):
                             # A DRS/straight-mode state is compared only to
                             # the same state, not to the field's majority.
                             state = 'open' if is_drs else 'closed'
@@ -1019,7 +1121,10 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                         boundary_ix = np.clip(np.searchsorted(a[:, 1], [low_time, high_time], side='right')-1, 0, len(a)-1)
                         if np.any(a[interior, 4] >= .5) or np.any(a[boundary_ix, 4] >= .5) or np.min(throttle) < (70 if v_hi <= 150 else 98):
                             continue
-                        drs = np.isin(a[prev:stop+1, 7].astype(int), [10, 12, 14])
+                        raw_drs = a[prev:stop+1, 7].astype(int)
+                        if not np.isin(raw_drs,[0,1,8,10,12,14]).all():
+                            continue
+                        drs = np.isin(raw_drs, [10, 12, 14])
                         if not (np.all(drs) or not np.any(drs)):
                             continue
                         dt_band = interp_raw(a[prev:stop+1, 1], a[prev:stop+1, 2], v_hi) - \
@@ -1108,22 +1213,32 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             i2 = max(0, min(len(grid) - 1, i2))
             if i2 > i1:
                 L_corridor = float(grid[i2] - grid[i1])
-                observed = {}
+                states=defaultdict(dict)
                 for team in teams:
                     item = selected[team]
-                    if not np.any(item['brake'][i1:i2]):
+                    source_ix=np.clip(np.searchsorted(item['aligned'],grid[i1:i2],side='right')-1,0,len(item['a'])-2)
+                    native_indices=np.clip(np.searchsorted(item['aligned'],grid,side='right')-1,0,len(item['a'])-1)
+                    raw_state=item['a'][native_indices,7].astype(int)
+                    state=item.get('drs_active',np.isin(raw_state,[10,12,14]))[i1:i2+1]
+                    state_known=item.get('drs_known',np.isin(raw_state,[0,1,8,10,12,14]))[i1:i2+1]
+                    th=item.get('throttle',np.interp(grid,item['aligned'],item['a'][:,3]))
+                    if (not np.any(item['brake'][i1:i2+1]) and np.min(th[i1:i2+1])>=98
+                            and np.max(source_intervals(item)[source_ix])<=.6 and state_known.all()
+                            and (state.all() or not state.any())):
                         if check_clean_air(team, start_corridor, end_corridor, item):
                             # Harmonic distance-weighted speed from the actual
                             # channel, never reference distance / warped time.
                             reciprocal = (1/item['speed'][i1:i2]+1/item['speed'][i1+1:i2+1])/2
-                            observed[team] = float(L_corridor/np.sum(np.diff(grid)[i1:i2]*reciprocal))
-                if len(observed) == len(teams):
+                            states[bool(state.all())][team] = float(L_corridor/np.sum(np.diff(grid)[i1:i2]*reciprocal))
+                observed=max(states.values(),key=len,default={})
+                if len(observed) >= 3:
                     terminal_windows[s_idx] = {'length': L_corridor, 'speeds': observed,
                                                'start_m': start_corridor, 'end_m': end_corridor}
     if measurement_frame is not None and 'terminal_windows' not in measurement_frame:
         measurement_frame['terminal_windows'] = {key: (w['start_m'], w['end_m']) for key, w in terminal_windows.items()}
     total_corridor_len = sum(w['length'] for w in terminal_windows.values())
-    team_terminal_speeds = {team: [w['speeds'][team] for w in terminal_windows.values()] for team in teams}
+    team_terminal_speeds = {team: [w['speeds'][team] for w in terminal_windows.values() if team in w['speeds']] for team in teams}
+    terminal_scores, terminal_counts, terminal_keys = connected_zone_scores({k:{t:-v for t,v in w['speeds'].items()} for k,w in terminal_windows.items()})
 
     straight_results = {}
     tot_accel_straights = max(1, len(shared_band_keys['250_300']))
@@ -1144,6 +1259,55 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
     ref_straight_time = float(ref['dt'][~corner_mask].sum())
     core = straight_core_measurements(selected, straight_blocks, grid, ref,
              measurement_frame.get('core_windows') if measurement_frame is not None else None)
+    # Boundary choices are not measurement error. Re-evaluate identical cars
+    # with tighter windows and expose the resulting gap range separately.
+    core_names=next((r.get('straight_core_cohort') for r in core.values() if r.get('straight_core_cohort')),list(selected))
+    core_selected={t:selected[t] for t in core_names if t in selected}
+    windows=next((r['straight_core_windows'] for r in core.values() if r.get('straight_core_windows')),[])
+    variations={}
+    for trim in (25.,50.):
+        trimmed=[{'start_m':w['start_m']+trim,'end_m':w['end_m']-trim} for w in windows if w['end_m']-w['start_m']>=100+2*trim]
+        if sum(w['end_m']-w['start_m'] for w in trimmed)>=200:
+            variations[trim]=straight_core_measurements(core_selected,straight_blocks,grid,ref,trimmed,_cohort=True)
+    for team,row in core.items():
+        row['straight_core_trim_sensitivity_s']={str(int(trim)):result.get(team,{}).get('straight_core_gap_s') for trim,result in variations.items()}
+        row['straight_core_window_evidence']=[]
+        if team not in core_selected:continue
+        for w in windows:
+            start,end=w['start_m'],w['end_m'];item=selected[team]
+            entry=float(np.interp(start,grid,item['speed']));entry_field=[float(np.interp(start,grid,other['speed'])) for other in core_selected.values()]
+            middle=float(np.median(entry_field));same_entry=abs(entry-middle)<=max(5.,middle*.02)
+            elapsed=np.r_[0,np.cumsum(item['dt'])]
+            row['straight_core_window_evidence'].append({**w,'duration_s':float(np.interp(end,grid,elapsed)-np.interp(start,grid,elapsed)),
+                'entry_kmh':entry,'exit_kmh':float(np.interp(end,grid,item['speed'])),'entry_field_median_kmh':middle,
+                'compatible_entry_speed':same_entry,'entry_speed_limit_kmh':max(5.,middle*.02)})
+    # Optional stricter comparison: same settled windows AND narrowly matched
+    # entry speeds. No mathematical subtraction of corner-exit speed is made.
+    entry_zones={}
+    for i,w in enumerate(windows):
+        entrants={t:row['straight_core_window_evidence'][i] for t,row in core.items() if len(row.get('straight_core_window_evidence',[]))==len(windows)}
+        tolerance=max(3.,float(np.median([e['entry_kmh'] for e in entrants.values()]))*.01) if entrants else 3.
+        groups=[{t:e for t,e in entrants.items() if pivot['entry_kmh']<=e['entry_kmh']<=pivot['entry_kmh']+tolerance} for pivot in entrants.values()]
+        cohort=max(groups,key=lambda g:(len(g),tuple(sorted(g))),default={})
+        if len(cohort)>=3:entry_zones[i]={t:e['duration_s'] for t,e in cohort.items()}
+    matched_scores,matched_counts,matched_keys=common_zone_scores(entry_zones)
+    matched_distance=sum(windows[i]['end_m']-windows[i]['start_m'] for i in matched_keys)
+    for team,row in core.items():
+        supported=team in matched_scores and matched_distance>=200
+        row['straight_core_entry_matched']={
+            'straight_core_time':sum(entry_zones[i][team] for i in matched_keys) if supported else None,
+            'straight_core_gap_s':matched_scores[team]*len(matched_keys) if supported else None,
+            'straight_core_delta':matched_scores[team]*len(matched_keys)/ref['official']*100 if supported else None,
+            'straight_core_distance_m':matched_distance if supported else 0,
+            'straight_core_windows':[windows[i] for i in matched_keys] if supported else [],
+            'straight_core_cohort':sorted(matched_scores) if supported else [],
+            'straight_core_method':'entry-matched-observed-settled-windows-v1',
+            'straight_core_trim_sensitivity_s':{},
+            'straight_core_exclusion':None if supported else 'No complete cohort of three shares at least 200m with entry speeds within 3km/h or 1%.',
+            'straight_core_window_evidence':[{**row['straight_core_window_evidence'][i],
+                'entry_field_median_kmh':float(np.median([core[t]['straight_core_window_evidence'][i]['entry_kmh'] for t in matched_scores])),
+                'entry_speed_limit_kmh':max(3.,row['straight_core_window_evidence'][i]['entry_kmh']*.01),
+                'compatible_entry_speed':True} for i in matched_keys] if supported else []}
     if measurement_frame is not None and 'core_windows' not in measurement_frame:
         measurement_frame['core_windows'] = next(iter(core.values()))['straight_core_windows']
 
@@ -1173,7 +1337,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
         cumul_loss = float(sum(deltas_250) - min_cumul) if deltas_250 else 0.0
 
         term_speed = avg_term_speeds[team]
-        term_deficit = float(max_term_speed - term_speed) if (term_speed is not None and max_term_speed is not None) else None
+        term_deficit = terminal_scores.get(team)
 
         straight_results[team] = {
             'telemetry_methodology': 'coverage-v3-connected-native-crossings',
@@ -1214,9 +1378,10 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             'straight_provisional': is_provisional,
             'terminal_zone_mean_speed': term_speed,
             'terminal_speed_deficit': term_deficit,
-            'terminal_zone_length_m': float(total_corridor_len) if term_speed is not None else None,
-            'terminal_zone_count': len(terminal_windows),
-            'terminal_comparison': 'shared-speed-channel-windows-v1',
+            'terminal_zone_length_m': float(sum(w['length'] for w in terminal_windows.values() if team in w['speeds'])) if term_speed is not None else None,
+            'terminal_zone_count': terminal_counts.get(team,0),
+            'terminal_comparison': 'connected-shared-terminal-windows-v2',
+            'terminal_observations': [{**w,'speeds':w['speeds'],'zone':k} for k,w in terminal_windows.items() if team in w['speeds']],
             'top_speed': float(max(item['a'][:, 2])),
             'speed_st': float(item['selection'].get('speed_st')) if item['selection'].get('speed_st') is not None else None,
             'speed_fl': float(item['selection'].get('speed_fl')) if item['selection'].get('speed_fl') is not None else None
@@ -1236,6 +1401,17 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
     def finish(result):
         result['native_speed_observations'] = native
         result['braking_selection_policy'] = 'fastest-qualifying-lap-only'
+        # Native peak is independent of the spatial model. Do not hide it from
+        # the main top-speed comparison because another channel failed.
+        for team, observation in native.items():
+            if team not in result['teams']:
+                result['teams'][team] = {**observation, 'corners': [], 'braking': [], 'categories': {},
+                    'quality': {'native_only': True, 'spatial_exclusion': errors.get(team)},
+                    'measurement_status': 'native-speed-only'}
+        result['methodology_version'] = 'car-measurements-v12-local-evidence'
+        result['source_complete'] = all(not error and samples and len(samples)>=100 for _,samples,error in extracted)
+        result['source_coverage'] = {'requested':len(selections),'received':sum(bool(samples) and not error for _,samples,error in extracted),
+            'native_speed':len(native),'spatially_measured':sum(not r.get('quality',{}).get('native_only') for r in result['teams'].values())}
         return result
     lookup = {s['team']: s for s in selections}
     expected = {s.get('team_name', s['team']) for s in selections}
@@ -1247,7 +1423,9 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
             candidate = prepare(samples, s, require_gps=False)
             if team not in native or candidate['official'] < native[team]['selection']['time']:
                 native[team] = {'selection': s, 'top_speed': float(max(candidate['a'][:, 2])),
-                                'samples': len(candidate['a']), 'comparison': 'native-only-not-GPS-attributed'}
+                                'samples': len(candidate['a']), 'comparison': 'native-only-not-GPS-attributed',
+                                'speed_source': 'native', 'removed_speed_samples': candidate['removed_speed_samples'],
+                                'full_throttle_p95': float(np.percentile(candidate['a'][candidate['a'][:,3]>=98,2],95)) if np.any(candidate['a'][:,3]>=98) else None}
             choices[team].append(prepare(samples, s))
         except (ValueError, TypeError) as exc:
             errors[team] = str(exc)
@@ -1293,7 +1471,7 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
         scale_limit = max(.012, 4*float(np.median(np.abs(np.array(scales)-scale_mid))))
         for team in list(selected):
             good = [v for v in aligned[team] if abs(v['scale']-scale_mid) <= scale_limit
-                    and not frozen(v, {'grid': grid, 'speed': field_speed})]
+                    and not frozen(v, {'grid': grid, 'speed': field_speed},allow_local=True)]
             if good:
                 selected[team] = good[0]
             else:
@@ -1430,7 +1608,7 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
     qualifying_candidates = {
         team: [item for item in values
                if abs(item['scale']-scale_mid) <= scale_limit
-               and not frozen(item, {'grid': grid, 'speed': speed})][:6]
+               and not frozen(item, {'grid': grid, 'speed': speed},allow_local=True)][:6]
         for team, values in aligned.items() if team in selected
     }
     # Other telemetry may use a validated fallback. Braking never does: locate
@@ -1475,6 +1653,10 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
         measurements = []
         for z in zones:
             a, b, apex = z['start'], z['end'], z['apex']
+            native_lo=max(0,int(np.searchsorted(item['aligned'],grid[a],side='right'))-1)
+            native_hi=min(len(item['a'])-1,int(np.searchsorted(item['aligned'],grid[b])))
+            if native_hi<=native_lo or np.max(source_intervals(item)[native_lo:native_hi])>1.5:
+                continue
             dt = float(item['dt'][a:b].sum())
             ref_dt = float(ref['dt'][a:b].sum())
             length = float(grid[b] - grid[a])
@@ -1512,37 +1694,40 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
 
         categories = {}
         for band in ('low', 'medium', 'high'):
-            indices = [i for i, z in enumerate(zones) if z['band'] == band]
-            if not indices:
+            measured_band = [m for m in measurements if m['band']==band]
+            expected_band = [z for z in zones if z['band']==band]
+            if not expected_band or len(measured_band)!=len(expected_band):
                 categories[band] = None; continue
-            band_time = sum(measurements[i]['time'] for i in indices)
-            reference_time = sum(float(ref['dt'][zones[i]['start']:zones[i]['end']].sum()) for i in indices)
+            band_time = sum(m['time'] for m in measured_band)
+            reference_time = sum(m['ref_time'] for m in measured_band)
             lost = band_time - reference_time
             categories[band] = {
                 'time': band_time, 'time_lost': lost,
-                'deficit': lost / ref['official'] * 100, 'corners': len(indices),
-                'speed': float(sum(measurements[i]['length'] for i in indices)/band_time*3.6),
-                'mean_loss_density': float(np.mean([measurements[i]['loss_density'] for i in indices]))
+                'deficit': lost / ref['official'] * 100, 'corners': len(measured_band),
+                'speed': float(sum(m['length'] for m in measured_band)/band_time*3.6),
+                'mean_loss_density': float(np.mean([m['loss_density'] for m in measured_band]))
             }
 
         # Tercile summary categories
         tercile_categories = {}
         for tercile in ('slow', 'mid', 'fast'):
-            indices = [i for i, z in enumerate(zones) if z['tercile'] == tercile]
-            if not indices:
+            measured_band = [m for m in measurements if m['tercile']==tercile]
+            expected_band = [z for z in zones if z['tercile']==tercile]
+            if not expected_band or len(measured_band)!=len(expected_band):
                 tercile_categories[tercile] = None; continue
-            terc_time = sum(measurements[i]['time'] for i in indices)
-            ref_terc_time = sum(float(ref['dt'][zones[i]['start']:zones[i]['end']].sum()) for i in indices)
+            terc_time = sum(m['time'] for m in measured_band)
+            ref_terc_time = sum(m['ref_time'] for m in measured_band)
             lost = terc_time - ref_terc_time
             tercile_categories[tercile] = {
                 'time': terc_time, 'time_lost': lost,
-                'deficit': lost / ref['official'] * 100, 'corners': len(indices),
-                'speed': float(sum(measurements[i]['length'] for i in indices)/terc_time*3.6)
+                'deficit': lost / ref['official'] * 100, 'corners': len(measured_band),
+                'speed': float(sum(m['length'] for m in measured_band)/terc_time*3.6)
             }
 
         straight_info = straight_perf.get(team, {})
         straight_time = straight_info.get('straight_time', float(item['dt'][~corner_mask].sum()))
         corner_time = float(item['dt'][corner_mask].sum())
+        attribution_complete=len(measurements)==len(zones) and float(np.max(source_intervals(item)))<=1.5
 
         braking = matched_brakes.get(team, [])
 
@@ -1553,11 +1738,12 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
                                   if team not in brake_selected else
                                   'No supported paired straight-braking crossing on the fastest lap.' if not braking else None),
             'corners': measurements, 'categories': categories, 'tercile_categories': tercile_categories,
-            'straight_time': straight_time, 'corner_time': corner_time,
+            'straight_time': straight_time if attribution_complete else None, 'corner_time': corner_time if attribution_complete else None,
+            'attribution_complete':attribution_complete,
             **{key: value for key, value in straight_info.items() if key.startswith('straight_core_')},
-            'straight_traversal_delta': straight_info.get('straight_traversal_delta', 0.0),
-            'straight_contribution': straight_info.get('straight_contribution', 0.0),
-            'straight_deficit': straight_info.get('straight_deficit', 0.0),
+            'straight_traversal_delta': straight_info.get('straight_traversal_delta') if attribution_complete else None,
+            'straight_contribution': straight_info.get('straight_contribution') if attribution_complete else None,
+            'straight_deficit': straight_info.get('straight_deficit') if attribution_complete else None,
             'accel_250_300': straight_info.get('accel_250_300'),
             'accel_250_300_pct': straight_info.get('accel_250_300_pct'),
             'accel_200_250': straight_info.get('accel_200_250'),
@@ -1570,13 +1756,14 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
             'accel_cumul_loss_250_300': straight_info.get('accel_cumul_loss_250_300', 0.0),
             'straight_coverage': straight_info.get('straight_coverage', '0/0'),
             'straight_provisional': straight_info.get('straight_provisional', False),
-            'corner_contribution': float((corner_time - ref['dt'][corner_mask].sum()) / ref['official'] * 100),
+            'corner_contribution': float((corner_time - ref['dt'][corner_mask].sum()) / ref['official'] * 100) if attribution_complete else None,
             'terminal_zone_mean_speed': straight_info.get('terminal_zone_mean_speed'),
             'terminal_speed_mean': straight_info.get('terminal_zone_mean_speed'),
             'terminal_speed_deficit': straight_info.get('terminal_speed_deficit'),
             'terminal_zone_length_m': straight_info.get('terminal_zone_length_m', 80.0),
             'terminal_zone_count': straight_info.get('terminal_zone_count', 0),
             'terminal_comparison': straight_info.get('terminal_comparison'),
+            'terminal_observations': straight_info.get('terminal_observations',[]),
             'speed_st': straight_info.get('speed_st'),
             'speed_fl': straight_info.get('speed_fl'),
             'lap_gap': (item['official'] / ref['official'] - 1) * 100,
@@ -1584,11 +1771,17 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
             'top_speed': float(max(item['a'][:, 2])),
             'full_throttle_p95': float(np.percentile(item['speed'][item['throttle'] >= 98], 95)) if np.sum(item['throttle'] >= 98) >= 10 else None,
             'lap_distance': float(grid[-1]), 'braking': braking, 'selection': item['selection'],
-            'quality': {'integration_scale': item['scale'], 'full_lap': True,
+            'quality': {'integration_scale': item['scale'], 'full_lap': attribution_complete,'full_lap_clock':True,
+                        'removed_speed_samples':item.get('removed_speed_samples',0),
+                        'local_gaps_over_1_5_s':item.get('local_gap_count',0),
+                        'frozen_excluded_intervals':int(np.sum(item.get('frozen_bad_intervals',[]))),
+                        'alignment_excluded_intervals':int(np.sum(item.get('alignment_bad_intervals',[]))),
+                        'native_interval_median_s':float(np.median(np.diff(item['a'][:,1]))),
+                        'native_interval_p95_s':float(np.percentile(np.diff(item['a'][:,1]),95)),
                         'alignment_method': item.get('alignment_method'),
                         'max_sector_distance_scale_change': item.get('registration_scale'),
-                        'max_lap_boundary_interval_s': max((s.get('SourceIntervalSeconds') or 0 for s in item.get('samples', ())), default=0),
-                        'lap_boundary_provisional': any((s.get('SourceIntervalSeconds') or 0) > .6 for s in item.get('samples', ()))}
+                        'max_lap_boundary_interval_s': max((s.get('SourceIntervalSeconds') or 0 for s in item.get('samples', ()) if s.get('IsInterpolatedBoundary')), default=0),
+                        'lap_boundary_provisional': any((s.get('SourceIntervalSeconds') or 0) > .6 for s in item.get('samples', ()) if s.get('IsInterpolatedBoundary'))}
         }
 
     # Cross-circuit continuous features for development trend regression
@@ -1600,8 +1793,8 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
     }
 
     return finish({'teams': results, 'reference_team': reference_team, 'excluded': {t: e for t, e in errors.items() if t not in results},
-            'method': 'timing-sector-grid-v13-mapped-flat-out-corners', 'corner_count': len(zones),
-            'corner_method': 'circuit-marker-windows' if mapped_zones else 'speed-dip-fallback-incomplete',
+            'method': 'timing-sector-grid-v14-local-quality-geometry', 'corner_count': len(zones),
+            'corner_method': 'adaptive-geometry-turning' if mapped_zones else 'speed-dip-fallback-incomplete',
             'unmapped_corners': rejected_markers,
             'circuit_features': circuit_features})
 

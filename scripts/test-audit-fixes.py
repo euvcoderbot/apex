@@ -16,16 +16,22 @@ class AuditFixTests(unittest.TestCase):
     def test_native_spike_is_not_repaired_or_scored(self):
         samples = self.samples()
         samples[50]['Speed'] = 999
-        with self.assertRaises(ValueError):
-            prepare(samples, {'time':80}, require_gps=False)
+        recovered=prepare(samples, {'time':80}, require_gps=False)
+        self.assertEqual(recovered['removed_speed_samples'],1)
+        self.assertEqual(max(recovered['a'][:,2]),250)
+        self.assertEqual(len(recovered['a']),100)
         samples[50]['Speed'] = 280
-        with self.assertRaisesRegex(ValueError, 'spike'):
-            prepare(samples, {'time':80}, require_gps=False)
+        recovered=prepare(samples, {'time':80}, require_gps=False)
+        self.assertEqual(recovered['removed_speed_samples'],1)
+        self.assertEqual(max(recovered['a'][:,2]),250)
+        self.assertTrue(any(s['SourceIntervalSeconds']>1.5 for s in recovered['samples'] if 'SourceIntervalSeconds' in s))
 
     def test_native_speed_evidence_survives_missing_gps(self):
         selection = {'team':'A:0', 'team_name':'A', 'driver':'AAA', 'lap':3, 'time':80}
         result = measure_field([('A:0', self.samples(), None)], [selection])
-        self.assertEqual(result['teams'], {})
+        self.assertEqual(result['teams']['A']['measurement_status'],'native-speed-only')
+        self.assertEqual(result['teams']['A']['braking'],[])
+        self.assertEqual(result['teams']['A']['corners'],[])
         self.assertEqual(result['native_speed_observations']['A']['top_speed'], 250)
 
     def test_missing_crossing_is_not_inferred(self):

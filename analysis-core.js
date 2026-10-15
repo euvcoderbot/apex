@@ -1,13 +1,13 @@
 // Shared presentation definitions. Display precision is not measurement accuracy.
 (function (root) {
-  const version = '2026-10-08-feature-pass';
+  const version = '2026-10-15-methodology-redesign';
   const definitions = Object.freeze({
     pace: {title:'Pace', description:'Qualifying uses one fastest valid lap across Q1, Q2 and Q3. Race pace compares screened race laps with adjustments for shared race-lap conditions, compound and tyre age; fuel, traffic and race management remain limitations.'},
-    corners: {title:'Cornering', description:'Time through shared corner windows centred on bounded GPS bend-centre estimates. Low-speed is up to 120 km/h, medium up to 200, high above 200, using the field-reference speed at that position. Unsupported geometry uses an explicitly uncertain map-marker fallback. These are not measured racing apexes. Qualifying uses the fastest eligible lap; race observations are matched separately.'},
+    corners: {title:'Cornering', description:'Time through shared GPS turning envelopes; previous fixed windows are selectable. Our display classes are low ≤120, medium ≤200 and high >200 km/h, not universal F1 standards. Actual reference speed and borderline classes remain evidence. These are bend-centre estimates, not measured racing apexes. Qualifying uses exact fastest laps; matched-age and age-adjusted race evidence are separate.'},
     straight: {title:'Straight-line performance', description:'The headline measures settled, near-full-throttle straight sections, trimmed away from corner exits and braking. Acceleration bands, end speed, native peak speed and official speed traps are separate measurements, not an engine-power or drag rating.'},
     braking: {title:'Braking', description:'Both comparisons use the same actual fastest qualifying laps and matched zones. Approach time measures a fixed track section; same-speed slowing measures the time to shed a shared speed range. Public brake data is on/off, not brake pressure or measured brake power.'},
     pits: {title:'Pit stops', description:'Stationary time is published time stopped at the box. Pit-lane time includes entry, the stop and exit, not the loss against staying on track. Raw summaries weight visits; GP-relative lane summaries give each supported GP equal weight. Missing stationary values are never estimated.'},
-    tyres: {title:'Tyre trend', description:'Within-driver pace change as tyre age increases, using usable uninterrupted runs and verified exact C grades. Positive means slowing, negative means improving. Raw and assumed fuel-corrected results are selectable; neither isolates physical tyre wear. Matched-rival trends remain a separate comparison.'},
+    tyres: {title:'Tyre trend', description:'Own-run pace change with exact C grades. The nonlinear fit distinguishes warm-up, steady slope and supported late falloff; whole-run linear slope is selectable. Positive slows, negative improves. Fuel correction is an assumption, not measured wear. Own observed coverage and identical GP/grade cohorts are separate views; neither predicts remaining tyre life.'},
     trend: {title:'Relative qualifying progress', description:'Change in the qualifying gap across observed rounds. Opening/latest medians and a fitted trend are separate summaries. Missing rounds are not zero; a relative improvement does not establish that an upgrade caused it.'},
     results: {title:'Reliability and results', description:'Race results and official retirement statuses, not a speed rating. Points shown here exclude sprints unless explicitly included. Starts count driver entries; unknown retirement causes are not assumed mechanical.'}
   });
@@ -29,7 +29,9 @@
     if(value===null||value===undefined||value==='')return null;
     if(typeof value==='boolean')return value?1:0;
     const number=Number(value);if(!Number.isFinite(number))return null;
-    return [1,10,12,14].includes(number)||number>=10?1:0;
+    // Numeric input is the raw F1/OpenF1 code, not an already decoded flag.
+    // Unknown/intermediate codes must not silently become either aero state.
+    return [10,12,14].includes(number)?1:[0,1,8].includes(number)?0:null;
   }
   function sortRows(items,getters,key,direction=1) {
     const getter=getters[key];if(!getter)return [...items];

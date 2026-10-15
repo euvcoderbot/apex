@@ -579,7 +579,8 @@ def join_openf1_positions(car, location):
         candidates = dated[max(0, index-1):min(len(dated), index+1)]
         nearest = min(candidates, key=lambda row: (abs((row[0]-timestamp).total_seconds()), row[0]))
         position = nearest[2] if abs((nearest[0]-timestamp).total_seconds()) <= .4 else {}
-        result.append({**point, 'x': position.get('x'), 'y': position.get('y')})
+        result.append({**point, 'x': position.get('x'), 'y': position.get('y'),
+                       'position_interval_s':abs((nearest[0]-timestamp).total_seconds())*2 if position else None})
     return result
 
 
@@ -709,17 +710,19 @@ def _openf1_lap_telemetry(
         if before is None and after is None:
             return None
         if before is None or after is None:
-            source = dict(before or after)
-            source["date"] = boundary.isoformat().replace("+00:00", "Z")
-            return source
+            return None
 
         before_time = datetime.fromisoformat(before["date"].replace('Z', '+00:00'))
         after_time = datetime.fromisoformat(after["date"].replace('Z', '+00:00'))
         span = (after_time - before_time).total_seconds()
+        if span>1.5:
+            return None
         ratio = 0.0 if span <= 0 else (boundary - before_time).total_seconds() / span
         ratio = max(0.0, min(1.0, ratio))
-        result = dict(before if ratio < 0.5 else after)
+        result = dict(before)
         result["date"] = boundary.isoformat().replace("+00:00", "Z")
+        result['boundary_interpolated'] = span>0 and 0<ratio<1
+        result['source_interval_s'] = span
 
         # These are instantaneous numeric channels, so time interpolation is
         # the least-biased estimate at the line. State channels remain nearest
@@ -775,6 +778,10 @@ def _openf1_lap_telemetry(
             "DRS": point.get("drs"),
             "X": point.get("x"),
             "Y": point.get("y"),
+            "IsInterpolatedBoundary":bool(point.get('boundary_interpolated')),
+            "SourceIntervalSeconds":point.get('source_interval_s',0),
+            "PositionIntervalSeconds":point.get('position_interval_s'),
+            "ChannelSources":{c:'OpenF1:boundary-derived' if point.get('boundary_interpolated') else 'OpenF1:native' for c in ('Speed','Throttle','Brake','RPM','nGear','DRS')},
         })
     return samples
 
@@ -1808,6 +1815,33 @@ def car_performance_trace_batch(response: Response, year: int = Query(..., ge=20
                     'x': seconds(r.get('X')), 'y': seconds(r.get('Y'))}
                    for _, r in info.corners.iterrows()] if info is not None else []
         extracted = load_selected_laps_telemetry(year, gp, 'Q', normalized)
+        # The feeds usually contain the same upstream packets. Fetch a
+        # complement only for incomplete traces; never interlace duplicates
+        # into a fictitious higher sample frequency.
+        from telemetry_sources import needs_complement, fuse_native_samples
+        fusion={}
+        if year>=2023 and any(needs_complement(samples or []) for _,samples,_ in extracted):
+            try:
+                lookup=openf1_session(year,gp,'Q');session_key=lookup.get('session_key') if lookup else None
+                selections_by_key={s['team']:s for s in normalized}
+                recovery_keys={key for key,samples,_ in extracted if samples and needs_complement(samples)}
+                attempted=set(sorted(recovery_keys)[:3])
+                fusion.update({key:{'status':'not-attempted-recovery-budget','reason':'Maximum three source recoveries per batch; native evidence retained'} for key in recovery_keys-attempted})
+                def complement(entry):
+                    key,samples,error=entry
+                    if key not in attempted:return entry
+                    s=selections_by_key[key]
+                    try:
+                        other=_openf1_lap_telemetry(year,gp,'Q',s['driver_number'],int(s['lap']),int(time.time()//30) if year>=datetime.now().year else 0,session_key)
+                        combined,report=fuse_native_samples(samples,other);fusion[key]=report
+                        return key,combined,error
+                    except Exception as exc:
+                        fusion[key]={'status':'secondary-unavailable','reason':str(exc)[:160]};return entry
+                if session_key:
+                    from concurrent.futures import ThreadPoolExecutor
+                    with ThreadPoolExecutor(max_workers=3) as pool:extracted=list(pool.map(complement,extracted))
+            except Exception as exc:
+                fusion['status']='secondary-unavailable'
         if circuit.get('Key') == 12 and not corners:
             # Official Sepang map positions, projected onto this lap's GPS.
             # Event name may still be Bahrain in the upstream test calendar.
@@ -1817,7 +1851,7 @@ def car_performance_trace_batch(response: Response, year: int = Query(..., ge=20
                          (.162902,.151111),(.095616,.249942),(.858059,.488187)]
             corners = [{'number': str(i+1), 'x': x, 'y': y, 'normalized': True}
                        for i, (x, y) in enumerate(positions)]
-        return {'event': gp, **measure_field(extracted, normalized, corners)}
+        return {'event': gp, 'fusion':fusion, **measure_field(extracted, normalized, corners)}
     except HTTPError as exc:
         if exc.code in (408, 429, 502, 503, 504):
             raise HTTPException(503, 'Telemetry archive is temporarily busy. Please retry shortly.') from exc
@@ -1873,6 +1907,12 @@ def telemetry(
         response.headers["Cache-Control"] = "no-store, max-age=0"
 
     def finish(samples: list[dict[str, Any]], projected_corners: list[dict[str, Any]], source: str):
+        from telemetry_sources import annotate_samples, fuse_native_samples
+        fusion=None
+        if incomplete_openf1 and source.startswith('FastF1'):
+            samples,fusion=fuse_native_samples(samples,incomplete_openf1[0])
+        else:
+            samples=annotate_samples(samples,source)
         response.headers["Server-Timing"] = f'telemetry;dur={(time.perf_counter()-started)*1000:.1f}'
         response.headers["Timing-Allow-Origin"] = "*"
         position_coverage, position_complete = position_geometry_quality(samples)
@@ -1885,6 +1925,9 @@ def telemetry(
             "position_coverage": position_coverage,
             "position_usable": position_coverage >= .55,
             "position_complete": position_complete,
+            "fusion":fusion,
+            "sampling_evidence":{'native_packets':sum(not p.get('IsInterpolatedBoundary',False) for p in samples),
+                                 'derived_boundary_points':sum(bool(p.get('IsInterpolatedBoundary')) for p in samples)},
         }
         # Do not freeze an incomplete current OpenF1 location stream. Keep the
         # useful speed response, but force the next request back to the source.

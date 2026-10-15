@@ -1,5 +1,5 @@
 // Matched race observations, not a synthetic downforce or fuel correction.
-import {circuitCornerMarkers,refineCornerPositions} from './corner-geometry.js?v=20261007-coverage';
+import {circuitCornerMarkers,refineCornerPositions,cornerWindow} from './corner-geometry.js?v=20261007-coverage';
 const finite=n=>typeof n==='number'&&Number.isFinite(n);
 const mean=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:null;
 const median=a=>{const s=[...a].sort((a,b)=>a-b),i=s.length>>1;return s.length?s.length%2?s[i]:(s[i-1]+s[i])/2:null;};
@@ -12,11 +12,11 @@ function fieldMinimumSpeed(measured,fraction,total,halfMetres=25) {
     // One dropped channel must not veto a supported field classification.
     // Require a majority and at least three cars (two in a two-car view).
     const required=Math.max(Math.min(3,measured.length),Math.ceil(measured.length/2));
-    if(values.length>=required&&values.length>=2)speeds.push(median(values));}
+    if(values.length>=required&&values.length>=Math.min(2,measured.length))speeds.push(median(values));}
   return speeds.length?Math.min(...speeds):null;
 }
-export const RACE_SNAPSHOT_LIMIT=24;
-export function raceCornerGroups(session,preferred={},limit=RACE_SNAPSHOT_LIMIT,subject='team') {
+export const RACE_SNAPSHOT_LIMIT=96; // maximum work budget, not a forced sample count
+export function raceCornerGroups(session,preferred={},limit=RACE_SNAPSHOT_LIMIT,subject='team',model='matched') {
   const drivers=session.drivers||[], all=drivers.flatMap(d=>(d.laps||[]).map(l=>({...l,driver:d})));
   const completions=all.filter(l=>finite(l.lap_end_seconds)&&!l.in_lap&&!l.out_lap);
   const eligible=all.filter(l=>finite(l.time)&&l.lap>1&&!l.in_lap&&!l.out_lap&&!l.deleted&&l.accurate!==false&&l.track_status==='1'
@@ -33,7 +33,7 @@ export function raceCornerGroups(session,preferred={},limit=RACE_SNAPSHOT_LIMIT,
   for(const lap of [...new Set(clean.map(l=>l.lap))])for(const compound of ['SOFT','MEDIUM','HARD']) {
     const rows=clean.filter(l=>l.lap===lap&&l.compound===compound);
     const candidates=new Map();
-    for(const pivot of rows){const matched=rows.filter(l=>l.tyre_life>=pivot.tyre_life&&l.tyre_life<=pivot.tyre_life+4);
+    for(const pivot of rows){const matched=model==='age-adjusted'?rows:rows.filter(l=>l.tyre_life>=pivot.tyre_life&&l.tyre_life<=pivot.tyre_life+4);
       const byTeam=new Map();for(const l of matched){const identity=subject==='driver'?l.driver.code:l.driver.team,old=byTeam.get(identity);
         if(!old || l.driver.code===preferred[l.driver.team]&&old.driver.code!==preferred[l.driver.team]
           || (l.driver.code===preferred[l.driver.team])===(old.driver.code===preferred[l.driver.team])&&l.time<old.time)byTeam.set(identity,l);}
@@ -51,12 +51,60 @@ export function raceCornerGroups(session,preferred={},limit=RACE_SNAPSHOT_LIMIT,
   const score=g=>g.rows.reduce((sum,r)=>sum+(!counts.has(identity(r))?100:10/(counts.get(identity(r))+1)),0)
     +pairKeys(g).filter(pair=>!pairs.has(pair)).length*15+(!buckets.has(Math.floor(g.lap/maxLap*4))?5:0);
   const pool=[...groups];
+  const available=new Set(pool.flatMap(g=>g.rows.map(identity)));
   while(pool.length&&selected.length<limit){
     pool.sort((a,b)=>score(b)-score(a)||a.lap-b.lap||a.compound.localeCompare(b.compound)||a.cohort.localeCompare(b.cohort));
     const g=pool.shift();selected.push(g);for(const r of g.rows)counts.set(identity(r),(counts.get(identity(r))||0)+1);
     pairKeys(g).forEach(pair=>pairs.add(pair));buckets.add(Math.floor(g.lap/maxLap*4));
+    if(selected.length>=12&&[...available].every(t=>(counts.get(t)||0)>=6)&&buckets.size>=4)break;
   }
+  Object.defineProperty(selected,'plan',{value:{method:'coverage-target-v1',budget:limit,targetLapsPerEntrant:6,availableGroups:groups.length,
+    counts:Object.fromEntries(counts),targetMet:available.size>0&&[...available].every(t=>(counts.get(t)||0)>=6),budgetReached:selected.length>=limit}});
   return selected;
+}
+
+export function ageAdjustedRaceCornerScores(observations,band='all',subject='team'){
+  // A separate estimated view: same race lap / compound / physical corner,
+  // but model measured age differences rather than claiming equal conditions.
+  const groups=new Map(),id=o=>subject==='driver'?o.driver:o.team,pairs=[],seen=new Set();
+  for(const o of observations)for(let i=0;i<(o.cornerIds||[]).length;i++){
+    const corner=o.cornerIds[i];if(band!=='all'&&o.cornerBands?.find(c=>c.corner===corner)?.band!==band)continue;
+    if(!finite(o.times?.[i])||!finite(o.tyreAge))continue;
+    const key=o.lap+':'+o.compound+':'+corner;if(!groups.has(key))groups.set(key,new Map());groups.get(key).set(id(o),{...o,value:o.times[i]});
+  }
+  const names=[...new Set([...groups.values()].flatMap(g=>[...g.keys()]))].sort();
+  const components=connectedRaceCornerScores(observations,band,subject).components;
+  const component=components[0]||[],supported=new Set(component),compounds=new Set();
+  for(const [key,g]of groups)if(g.size>=3){const rows=[...g].filter(([name])=>supported.has(name));
+    for(let i=0;i<rows.length;i++)for(let j=i+1;j<rows.length;j++){
+      const [a,oa]=rows[i],[b,ob]=rows[j],physical=key+':'+[oa.driver,ob.driver].sort().join(':');if(seen.has(physical))continue;seen.add(physical);
+      const age=oa.tyreAge-ob.tyreAge;if(age)compounds.add(oa.compound);
+      pairs.push({a,b,age,compound:oa.compound,value:oa.value-ob.value,weight:1/rows.length**2,lap:oa.lap});
+    }}
+  const ageCompounds=[...compounds].sort(),n=Math.max(0,component.length-1)+ageCompounds.length,index=new Map(component.map((name,i)=>[name,i-1]));
+  const empty=reason=>({scores:new Map(),support:new Map(),components,snapshots:groups.size,reason,status:'unsupported'});
+  if(component.length<3||new Set(pairs.map(p=>p.lap)).size<3)return empty('Need at least three distinct matched race laps for an age-adjusted fit');
+  const designs=pairs.map(p=>{const x=Array(n).fill(0);if(index.get(p.a)>=0)x[index.get(p.a)]=1;if(index.get(p.b)>=0)x[index.get(p.b)]=-1;
+    const c=ageCompounds.indexOf(p.compound);if(c>=0)x[component.length-1+c]=p.age;return x;});
+  let weights=pairs.map(p=>p.weight),beta=Array(n).fill(0),residual=[],converged=false,iterations=0;
+  for(let iteration=0;iteration<40;iteration++){
+    const matrix=Array.from({length:n},()=>Array(n).fill(0)),rhs=Array(n).fill(0);
+    designs.forEach((x,k)=>{x.forEach((v,i)=>{rhs[i]+=weights[k]*v*pairs[k].value;x.forEach((u,j)=>matrix[i][j]+=weights[k]*v*u);});});
+    const system=matrix.map((row,i)=>[...row,rhs[i]]);
+    for(let c=0;c<n;c++){let p=c;for(let r=c+1;r<n;r++)if(Math.abs(system[r][c])>Math.abs(system[p][c]))p=r;
+      [system[c],system[p]]=[system[p],system[c]];const pivot=system[c][c];if(Math.abs(pivot)<1e-10)return empty('Driver and tyre-age effects are not independently identifiable; use the matched-age view');
+      for(let j=c;j<=n;j++)system[c][j]/=pivot;for(let r=0;r<n;r++)if(r!==c){const f=system[r][c];for(let j=c;j<=n;j++)system[r][j]-=f*system[c][j];}}
+    const next=system.map(row=>row[n]),change=Math.max(...next.map((v,i)=>Math.abs(v-beta[i])));beta=next;iterations=iteration+1;
+    residual=designs.map((x,k)=>pairs[k].value-x.reduce((sum,v,i)=>sum+v*beta[i],0));
+    const scale=Math.max(.005,1.4826*median(residual.map(v=>Math.abs(v-median(residual)))));
+    weights=pairs.map((p,k)=>p.weight*Math.min(1,1.5*scale/Math.max(1e-9,Math.abs(residual[k]))));
+    if(change<1e-8&&iteration>0){converged=true;break;}
+  }
+  if(!converged)return empty('Age-adjusted fit did not converge');
+  const effects=[0,...beta.slice(0,component.length-1)],best=Math.min(...effects),support=new Map(component.map(t=>[t,new Set(pairs.filter(p=>p.a===t||p.b===t).map(p=>p.lap)).size]));
+  return {scores:new Map(component.map((t,i)=>[t,effects[i]-best])),support,components,snapshots:groups.size,status:'estimated',
+    ageEffects:Object.fromEntries(ageCompounds.map((c,i)=>[c,beta[component.length-1+i]])),residual:Math.sqrt(mean(residual.map(v=>v*v))),converged,iterations,
+    limitation:'Shared linear compound-age adjustment; traffic, management and nonlinear wear remain possible confounders'};
 }
 
 export function raceCornerAlignmentIssue(entry,markers,session={}) {
@@ -123,6 +171,18 @@ function registered(entry,ref) {
     return {...p,f:target[i]+(target[i+1]-target[i])*(p.f-source[i])/(source[i+1]-source[i]),t:timed[k]+(timed[k+1]-timed[k])*(p.t-observed[k])/(observed[k+1]-observed[k])};}),anchors:source,total};
 }
 
+function circuitRegistered(entry,ref,markers,session) {
+  const native=registered(entry);if(!native)return null;
+  const local=circuitCornerMarkers(entry.payload,session);
+  const supported=markers.filter(m=>local.some(c=>c.label===m.label));
+  if(supported.length<3)return registered(entry,ref.anchors);
+  const from=[0,...supported.map(m=>local.find(c=>c.label===m.label).fraction),1],to=[0,...supported.map(m=>m.fraction),1];
+  if(from.some((f,i)=>i&&f<=from[i-1]))return null;
+  const positionFraction=f=>{let i=0;while(i<from.length-2&&f>from[i+1])i++;
+    return to[i]+(to[i+1]-to[i])*(f-from[i])/(from[i+1]-from[i]);};
+  return {...native,points:native.points.map(p=>({...p,f:positionFraction(p.f)})),positionFraction};
+}
+
 export function measureRaceCornerGroup(entries,fallbackMarkers=[],session={}) {
   const ready=entries.map(e=>({...e,native:registered(e)})).filter(e=>e.native).sort((a,b)=>a.row.driver.code.localeCompare(b.row.driver.code));
   if(ready.length<3)return [];
@@ -147,10 +207,12 @@ export function measureRaceCornerGroup(entries,fallbackMarkers=[],session={}) {
     const f=(p.Distance-origin)/total;return geometryRef.data.positionFraction?.(f)??f;
   });
   const zones=positioned.map((m,i)=>{
-    const f=m.apexFraction,left=i?(positioned[i-1].apexFraction+f)/2:0,right=i<positioned.length-1?(f+positioned[i+1].apexFraction)/2:1;
-    const start=Math.max(left,f-130/total),end=Math.min(right,f+100/total);
-    const apex=fieldMinimumSpeed(measured,f,total,m.apexConfidence==='estimated'?0:25);
-    return {start,end,corner:m.label,apex:f,apexMethod:m.apexMethod,band:finite(apex)?apex<=120?'low':apex<=200?'medium':'high':null};
+    const f=m.apexFraction,window=cornerWindow(m,i,positioned,total,session.cornerWindowMode||'geometry');
+    const stable=markers.find(c=>c.label===m.label)?.classification_speed;
+    const apex=finite(stable)?stable:fieldMinimumSpeed(measured,f,total,m.apexConfidence==='estimated'?0:25);
+    return {...window,corner:m.label,apex:f,apexMethod:m.apexMethod,classificationSpeed:apex,
+      classificationSource:finite(stable)?'same-circuit qualifying reference':'race-cohort provisional',
+      band:finite(apex)?apex<=120?'low':apex<=200?'medium':'high':null};
   });
   const rows=measured.map(e=>({team:e.row.driver.team,color:e.row.driver.team_color,driver:e.row.driver.code,lap:e.row.lap,
     tyreAge:e.row.tyre_life,lapTime:e.row.time,times:zones.map(z=>cornerTraversalTime(e.data,z)),alignment:e.alignment}));
@@ -192,19 +254,22 @@ export function connectedRaceCornerScores(observations,band='all',subject='team'
   components.sort((a,b)=>b.length-a.length||a.join().localeCompare(b.join()));
   const scores=new Map(),support=new Map(),component=components[0]||[],names=new Set(component);
   const blocks=[...groups].filter(([,g])=>g.size>=3&&[...g.keys()].every(name=>names.has(name)));
-  const pairs=new Map();
+  const pairs=new Map(),supportEvidence=new Map(component.map(name=>[name,new Set()]));
   for(const [snapshot,g] of blocks){const entrants=[...g.keys()].sort();
-    for(const name of entrants)support.set(name,(support.get(name)||0)+1);
+    for(const name of entrants){const o=metadata.get(snapshot).get(name);supportEvidence.get(name).add(finite(o.lap)?o.driver+':'+o.lap+':'+o.compound+':'+(o.cornerIds||[]).join(','):snapshot);}
     for(let i=0;i<entrants.length;i++)for(let j=i+1;j<entrants.length;j++){
-      const a=entrants[i],b=entrants[j],key=a+'\0'+b;if(!pairs.has(key))pairs.set(key,{a,b,values:[],weights:[],seen:new Set()});
+      const a=entrants[i],b=entrants[j],key=a+'\0'+b;if(!pairs.has(key))pairs.set(key,{a,b,values:[],weights:[],seen:new Map()});
       const p=pairs.get(key),oa=metadata.get(snapshot).get(a),ob=metadata.get(snapshot).get(b);
       const physical=finite(oa.lap)&&finite(ob.lap)?oa.lap+':'+oa.compound+':'+oa.driver+':'+ob.driver+':'+(oa.cornerIds||[]).join(','):snapshot;
       // The same two physical laps may occur in overlapping age cohorts. They
       // are one contrast, not extra evidence just because a third rival differs.
-      if(p.seen.has(physical))continue;p.seen.add(physical);
-      p.values.push(g.get(a)-g.get(b));p.weights.push(oa.cornerIds?.length===1?1:1/entrants.length);
+      const weight=1/entrants.length**2;
+      if(p.seen.has(physical)){const index=p.seen.get(physical);p.weights[index]=Math.min(p.weights[index],weight);continue;}
+      p.seen.set(physical,p.values.length);
+      p.values.push(g.get(a)-g.get(b));p.weights.push(weight);
     }
   }
+  for(const [name,blocks]of supportEvidence)support.set(name,blocks.size);
   const n=component.length,index=new Map(component.map((name,i)=>[name,i])),matrix=Array.from({length:n},()=>Array(n).fill(0)),rhs=Array(n).fill(0),contrasts=[];
   for(const p of pairs.values()){
     const weight=p.weights.reduce((a,b)=>a+b,0),delta=stat==='median'?median(p.values):p.values.reduce((sum,v,i)=>sum+v*p.weights[i],0)/weight;
@@ -232,15 +297,14 @@ export function measureQualifyingCornerGroup(entries,session={}) {
   if(ready.length<2)return {traces:{},markers:[],error:'At least two complete qualifying laps are required.'};
   const ref=ready[0],markers=refineCornerPositions(ref.payload.samples,circuitCornerMarkers(ref.payload,session),ref.native.total);
   if(markers.length<3)return {traces:{},markers,error:'Circuit markers could not be matched to this lap. No speed-dip substitute is used.'};
-  const measured=ready.map(e=>({...e,data:registered(e,ref.native.anchors)})).filter(e=>e.data);
+  const measured=ready.map(e=>({...e,data:circuitRegistered(e,ref.native,markers,session)})).filter(e=>e.data);
   const classification=measured.filter(e=>!session.cornerClassificationDrivers||session.cornerClassificationDrivers.includes(e.row.driver.code));
   const zones=markers.map((m,i)=>{
-    const f=m.apexFraction,left=i?(markers[i-1].apexFraction+f)/2:0,right=i<markers.length-1?(f+markers[i+1].apexFraction)/2:1;
-    const start=Math.max(left,f-130/ref.native.total),end=Math.min(right,f+100/ref.native.total);
+    const f=m.apexFraction,window=cornerWindow(m,i,markers,ref.native.total,session.cornerWindowMode||'geometry');
     // One shared supported bend centre; do not select each driver's own
     // trough. Uncertain geometry keeps the disclosed legacy map-area estimate.
     const speed=fieldMinimumSpeed(classification,f,ref.native.total,m.apexConfidence==='estimated'?0:25);
-    return {start,end,apex:f,markerFraction:m.fraction,apexMethod:m.apexMethod,apexConfidence:m.apexConfidence,
+    return {...window,apex:f,markerFraction:m.fraction,apexMethod:m.apexMethod,apexConfidence:m.apexConfidence,
       apexShiftMetres:m.apexShiftMetres,apexReason:m.apexReason,corner:m.label,speed,band:finite(speed)?speed<=120?'low':speed<=200?'medium':'high':null};
   });
   const unclassified=zones.filter(z=>!z.band).map(z=>z.corner);
@@ -252,14 +316,27 @@ export function measureQualifyingCornerGroup(entries,session={}) {
       const local=e.data.points.filter(p=>p.f>=z.start&&p.f<=z.end),reference=referenceRows[i].data.points.filter(p=>p.f>=z.start&&p.f<=z.end);
       if(!local.length||!reference.length)return [];
       const minimum=Math.min(...local.map(p=>p.v)),refMinimum=Math.min(...reference.map(p=>p.v)),length=(z.end-z.start)*ref.native.total;
+      const before=i?zones[i-1].end:0,after=i<zones.length-1?zones[i+1].start:1;
+      const brakeWindow={start:Math.max(before,z.start-150/ref.native.total),end:z.start};
+      const traction50={start:z.end,end:z.end+50/ref.native.total},traction100={start:z.end,end:z.end+100/ref.native.total};
+      const exitTime=window=>window.end<=after?cornerTraversalTime(e.data,window):null;
+      const phase_times={turning:t,approach_150m:brakeWindow.end>brakeWindow.start?cornerTraversalTime(e.data,brakeWindow):null,
+        exit_50m:exitTime(traction50),exit_100m:exitTime(traction100)};
+      const ref_phase_times={turning:refTimes[i],approach_150m:brakeWindow.end>brakeWindow.start?cornerTraversalTime(referenceRows[i].data,brakeWindow):null,
+        exit_50m:traction50.end<=after?cornerTraversalTime(referenceRows[i].data,traction50):null,
+        exit_100m:traction100.end<=after?cornerTraversalTime(referenceRows[i].data,traction100):null};
       return [{corner:z.corner,band:z.band,tercile_label:z.band?z.band+'-speed':'Unclassified',time:t,ref_time:refTimes[i],time_lost:t-refTimes[i],length,
+        phase_times,ref_phase_times,phase_definition:'shared turning envelope; preceding approach up to 150m; following 50m/100m exits stop at the next turn (not isolated traction or brake hardware)',
         mean_speed:length/t*3.6,loss_density:(t-refTimes[i])/length*100000,minimum,
         entry_speed:local[0].v,exit_speed:local.at(-1).v,delta_entry:local[0].v-reference[0].v,
         delta_apex:minimum-refMinimum,delta_exit:local.at(-1).v-reference.at(-1).v,
-        boundary_interval_s:Math.max(...[boundaryInterval(e.data.points,z.start),boundaryInterval(e.data.points,z.end),
+        boundary_interval_s:Math.max(...[...local.map(p=>p.sourceInterval||0),...local.slice(1).map((p,j)=>p.t-local[j].t),boundaryInterval(e.data.points,z.start),boundaryInterval(e.data.points,z.end),
           boundaryInterval(ref.native.points,z.start),boundaryInterval(ref.native.points,z.end)].filter(finite)),
         apex_distance:z.apex*ref.native.total,apex_method:z.apexMethod,apex_confidence:z.apexConfidence,
-        apex_shift_metres:z.apexShiftMetres,source:'circuit-marker-window'}];
+        apex_shift_metres:z.apexShiftMetres,source:z.windowMethod,
+        classification_speed:z.speed,classification_borderline:finite(z.speed)&&Math.min(Math.abs(z.speed-120),Math.abs(z.speed-200))<=10,
+        shared_centre_speed:fieldMinimumSpeed([e],z.apex,ref.native.total,0),
+        start_m:z.start*ref.native.total,end_m:z.end*ref.native.total}];
     });
     const categories={},corner_band_coverage={};
     for(const band of ['low','medium','high']) {
@@ -271,13 +348,14 @@ export function measureQualifyingCornerGroup(entries,session={}) {
     }
     const selection={driver:e.row.driver.code,lap:e.row.lap,time:e.row.time,phase:e.row.phase,compound:e.row.compound};
     const cornerTime=corners.length===zones.length?corners.reduce((s,c)=>s+c.time,0):null;
-    const contribution=corners.length===zones.length?corners.reduce((s,c)=>s+c.time_lost,0)/ref.row.time*100:null;
+    const rawContribution=corners.length===zones.length?corners.reduce((s,c)=>s+c.time_lost,0)/ref.row.time*100:null;
+    const contribution=finite(rawContribution)&&Math.abs(rawContribution)<1e-9?0:rawContribution;
     traces[e.row.driver.code]={corners,categories,corner_band_coverage,selection,lap_distance:ref.native.total,
       reference_lap_time:ref.row.time,corner_time:cornerTime,straight_time:finite(cornerTime)?e.row.time-cornerTime:null,
       straight_contribution:finite(contribution)?(e.row.time/ref.row.time-1)*100-contribution:null,
       straight_traversal_delta:finite(contribution)?(e.row.time/ref.row.time-1)*100-contribution:null,
       corner_contribution:contribution,corner_provisional:corners.some(c=>c.boundary_interval_s>.6),
-      lap_gap:(e.row.time/ref.row.time-1)*100,corner_method:'circuit-marker-windows',corner_expected:zones.length,
+      lap_gap:(e.row.time/ref.row.time-1)*100,corner_method:session.cornerWindowMode==='legacy'?'fixed-marker-windows-v1':'adaptive-geometry-windows-v2',corner_expected:zones.length,
       corner_sample_exclusions:e.native.droppedSpeedSamples,
       corner_missing:zones.filter(z=>!corners.some(c=>c.corner===z.corner)).map(z=>z.corner)};
   }

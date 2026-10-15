@@ -210,7 +210,8 @@ class RetrievalTests(unittest.TestCase):
             2021, 'Belgian Grand Prix', 'Qualifying', '33', 3600, 3690,
         )
         self.assertEqual(payload['source'], 'FastF1 selected lap')
-        self.assertEqual(payload['samples'], samples)
+        self.assertEqual([{k:p[k] for k in original} for p,original in zip(payload['samples'],samples)],samples)
+        self.assertTrue(all(p['ChannelSources']['Speed'].startswith('FastF1') for p in payload['samples']))
 
     def test_rate_limited_openf1_uses_independent_selected_lap_archive(self):
         from urllib.error import HTTPError
