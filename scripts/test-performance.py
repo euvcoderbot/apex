@@ -231,6 +231,22 @@ class PerformanceTests(unittest.TestCase):
         self.assertIn('B',attempts)
         self.assertEqual(result['error'],'Too few reliable braking/corner zones')
 
+    def test_low_speed_exit_keeps_throttle_ramp_but_not_braking_or_high_speed_lift(self):
+        from performance_tracks import analyze_straights_speed_domain
+        grid=np.arange(0.,1005.,5.);selected={}
+        for team,scale in [('A',1.),('B',1.1),('C',1.2)]:
+            a=np.zeros((len(grid),8));a[:,0]=grid;a[:,2]=80+grid*.25
+            a[:,1]=(a[:,2]-80)/40*scale;a[:,3]=40
+            selected[team]={'a':a,'aligned':grid,'speed':a[:,2],
+                'throttle':a[:,3],'brake':np.zeros(len(grid),bool),
+                'dt':np.diff(a[:,1]),'official':10.,'selection':{'start':0}}
+        result=analyze_straights_speed_domain(selected,[(0,200)],grid,selected['A'],np.zeros(200,bool))
+        self.assertTrue(all('100_150' in row['accel_bands'] for row in result.values()))
+        self.assertTrue(all('200_250' not in row['accel_bands'] for row in result.values()))
+        for item in selected.values():item['a'][:,4]=1;item['brake'][:]=True
+        blocked=analyze_straights_speed_domain(selected,[(0,200)],grid,selected['A'],np.zeros(200,bool))
+        self.assertTrue(all('100_150' not in row['accel_bands'] for row in blocked.values()))
+
     def test_acceleration_uses_selected_lap_and_rejects_native_gaps(self):
         from performance_tracks import analyze_straights_speed_domain
         grid=np.arange(0.,1005.,5.);selected={}

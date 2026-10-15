@@ -15,15 +15,16 @@ function fieldMinimumSpeed(measured,fraction,total,halfMetres=25) {
     if(values.length>=required&&values.length>=Math.min(2,measured.length))speeds.push(median(values));}
   return speeds.length?Math.min(...speeds):null;
 }
-export const RACE_SNAPSHOT_LIMIT=96; // maximum work budget, not a forced sample count
+export const RACE_SNAPSHOT_LIMIT=Infinity; // all eligible available laps; explicit caller limits remain supported
 export function raceCornerGroups(session,preferred={},limit=RACE_SNAPSHOT_LIMIT,subject='team',model='matched',nativeAvailable=null) {
   const drivers=session.drivers||[], all=drivers.flatMap(d=>(d.laps||[]).map(l=>({...l,driver:d})));
   const completions=all.filter(l=>finite(l.lap_end_seconds)&&!l.in_lap&&!l.out_lap);
   const eligible=all.filter(l=>finite(l.time)&&l.lap>1&&!l.in_lap&&!l.out_lap&&!l.deleted&&l.accurate!==false&&l.track_status==='1'
     &&['SOFT','MEDIUM','HARD'].includes(l.compound)&&finite(l.tyre_life)&&!l.conditions?.rainfall
     &&finite(l.lap_start_seconds)&&finite(l.lap_end_seconds));
-  const medians=new Map();
-  for(const l of eligible){const key=l.driver.code+':'+l.stint;if(!medians.has(key))medians.set(key,median(eligible.filter(r=>r.driver===l.driver&&r.stint===l.stint).map(r=>r.time)));}
+  const stintTimes=new Map(),medians=new Map();
+  for(const l of eligible){const key=l.driver.code+':'+l.stint;if(!stintTimes.has(key))stintTimes.set(key,[]);stintTimes.get(key).push(l.time);}
+  for(const [key,times] of stintTimes)medians.set(key,median(times));
   const clean=eligible.filter(l=>l.time<=medians.get(l.driver.code+':'+l.stint)*1.07).filter(l=>{
     // An approximate traffic screen at the finish line, not full-lap clean air.
     const before=completions.filter(r=>r.driver!==l.driver&&r.lap_end_seconds<l.lap_end_seconds&&r.lap_end_seconds>l.lap_start_seconds);
@@ -53,13 +54,16 @@ export function raceCornerGroups(session,preferred={},limit=RACE_SNAPSHOT_LIMIT,
   const pool=[...groups];
   const available=new Set(pool.flatMap(g=>g.rows.map(identity)));
   while(pool.length&&selected.length<limit){
-    pool.sort((a,b)=>score(b)-score(a)||a.lap-b.lap||a.compound.localeCompare(b.compound)||a.cohort.localeCompare(b.cohort));
+    // Prioritise early coverage for a useful progressive preview, then consume
+    // the entire race chronologically instead of repeatedly sorting all work.
+    if(selected.length<=12)pool.sort((a,b)=>(selected.length<12?score(b)-score(a):0)||a.lap-b.lap||a.compound.localeCompare(b.compound)||a.cohort.localeCompare(b.cohort));
     const g=pool.shift();selected.push(g);for(const r of g.rows)counts.set(identity(r),(counts.get(identity(r))||0)+1);
     pairKeys(g).forEach(pair=>pairs.add(pair));buckets.add(Math.floor(g.lap/maxLap*4));
-    if(selected.length>=12&&[...available].every(t=>(counts.get(t)||0)>=6)&&buckets.size>=4)break;
   }
-  Object.defineProperty(selected,'plan',{value:{method:'coverage-target-v1',budget:limit,targetLapsPerEntrant:6,availableGroups:groups.length,
-    counts:Object.fromEntries(counts),targetMet:available.size>0&&[...available].every(t=>(counts.get(t)||0)>=6),budgetReached:selected.length>=limit}});
+  Object.defineProperty(selected,'plan',{value:{method:'full-eligible-race-v2',budget:Number.isFinite(limit)?limit:null,availableGroups:groups.length,
+    timingLaps:all.length,conditionEligibleLaps:eligible.length,cleanAvailableLaps:clean.length,
+    selectedUniqueLaps:new Set(selected.flatMap(g=>g.rows.map(r=>r.driver.code+':'+r.lap))).size,
+    counts:Object.fromEntries(counts),allGroupsSelected:selected.length===groups.length,budgetReached:Number.isFinite(limit)&&selected.length>=limit}});
   return selected;
 }
 

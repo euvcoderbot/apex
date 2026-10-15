@@ -439,63 +439,7 @@ body.performance-view #sidebarToggle {
   line-height: 1.4;
 }
 
-/* Segmented Control Tabs - Exact Match to .map-view-switch in apple-ui.css */
-.performance-mode {
-  display: inline-flex !important;
-  align-items: center;
-  gap: 3px !important;
-  width: 100% !important;
-  max-width: 100% !important;
-  overflow-x: auto !important;
-  padding: 3px !important;
-  margin: 0 !important;
-  border: 1px solid var(--border-color) !important;
-  border-radius: 9px !important;
-  background: var(--bg-input) !important;
-  box-shadow: var(--shadow-raised) !important;
-  scrollbar-width: none;
-}
-
-.performance-mode::-webkit-scrollbar {
-  display: none;
-}
-
-.performance-mode button {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 6px !important;
-  padding: 6px 12px !important;
-  border: 0 !important;
-  border-radius: 6px !important;
-  background: transparent !important;
-  color: var(--text-secondary) !important;
-  cursor: pointer !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  font-family: var(--font-sans) !important;
-  white-space: nowrap !important;
-  box-shadow: none !important;
-  outline: none;
-  transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease !important;
-}
-
-.performance-mode button:hover {
-  color: var(--text-main) !important;
-  background: var(--surface-selected) !important;
-}
-
-.performance-mode button[aria-pressed="true"] {
-  background: var(--bg-card-hover) !important;
-  color: var(--text-primary) !important;
-  font-weight: 600 !important;
-  box-shadow: var(--shadow-raised) !important;
-}
-
-:root[data-theme="light"] .performance-mode button[aria-pressed="true"] {
-  background: #ffffff !important;
-  color: var(--text-main) !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12) !important;
-}
+/* Category navigation is owned by fluent-ui.css; no competing forced tabs. */
 
 /* Empty State / Notice Card */
 .performance-empty {

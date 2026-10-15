@@ -38,9 +38,10 @@ test('age-adjusted race corners recover a known contrast only when age is identi
   const confounded=rows.map(r=>({...r,tyreAge:Number(r.team.slice(1))+r.lap}));
   assert.equal(ageAdjustedRaceCornerScores(confounded).scores.size,0);
 });
-test('adaptive race plan has an explicit coverage target and can exceed the former fixed cap',()=>{
+test('full-race plan includes every eligible cohort without a coverage-target stop',()=>{
   const drivers=Array.from({length:15},(_,d)=>({code:'D'+d,team:'D'+d,laps:Array.from({length:60},(_,i)=>({lap:i+2,time:90+d/10,compound:'MEDIUM',track_status:'1',stint:1,tyre_life:i+2+Math.floor(d/3)*10+d%3,
     lap_start_seconds:(i+2)*100+d*6,lap_end_seconds:(i+2)*100+d*6+90+d/10}))}));
-  const result=raceCornerGroups({drivers});assert.ok(result.length>24);assert.ok(result.length<=96);assert.equal(result.plan.targetLapsPerEntrant,6);
+  const result=raceCornerGroups({drivers});assert.ok(result.length>96);assert.equal(result.length,result.plan.availableGroups);assert.equal(result.plan.allGroupsSelected,true);
+  const capped=raceCornerGroups({drivers},{},12);assert.equal(capped.length,12);assert.equal(capped.plan.budgetReached,true);
   assert.ok(result.every(g=>Math.max(...g.rows.map(r=>r.tyre_life))-Math.min(...g.rows.map(r=>r.tyre_life))<=4));
 });

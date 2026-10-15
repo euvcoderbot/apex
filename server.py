@@ -1626,6 +1626,51 @@ def session_data(
     return payload
 
 
+@app.get('/api/performance/sprint')
+def sprint_classification(response: Response, year: int = Query(..., ge=2021, le=2100),
+                          gp: str = Query(..., min_length=3, max_length=120),
+                          round: int = Query(..., ge=1, le=40), fresh: bool = False):
+    """Points need a classification, not a download/parse of all sprint laps."""
+    cached = None if fresh else read_prepared_cache('sprint-points-v1', year, gp, round)
+    if cached is not None:
+        return cached
+    drivers, source = [], None
+    try:
+        request = URLRequest(f'https://api.jolpi.ca/ergast/f1/{year}/{round}/sprint/?limit=100',
+                             headers={'User-Agent': 'euV2-data/1.0'})
+        with urlopen(request, timeout=15) as upstream:
+            races = json.load(upstream).get('MRData', {}).get('RaceTable', {}).get('Races', [])
+        race = next((r for r in races if str(r.get('season')) == str(year)
+                     and str(r.get('round')) == str(round)
+                     and _normalised_name(r.get('raceName')) == _normalised_name(gp)), None)
+        if race:
+            drivers = [{'code': r.get('Driver', {}).get('code'), 'number': r.get('number'),
+                        'team': r.get('Constructor', {}).get('name'),
+                        'result': {'points': seconds(r.get('points'))}}
+                       for r in race.get('SprintResults', [])]
+            source = 'Jolpica sprint classification'
+    except Exception as exc:
+        logger.info('Sprint classification primary unavailable: %s', exc)
+    if not drivers and year >= 2023:
+        session = openf1_session(year, gp, 'S')
+        if session:
+            key = session['session_key']
+            results = openf1('session_result', session_key=key)
+            identities = {str(d['driver_number']): d for d in openf1('drivers', session_key=key)}
+            drivers = [{'code': identities.get(str(r['driver_number']), {}).get('name_acronym'),
+                        'number': str(r['driver_number']),
+                        'team': identities.get(str(r['driver_number']), {}).get('team_name'),
+                        'result': {'points': seconds(r.get('points'))}} for r in results]
+            source = 'OpenF1 sprint classification'
+    if not drivers or any(not d.get('code') or d['result']['points'] is None for d in drivers):
+        raise HTTPException(422, 'Official sprint points are not available yet. Race points remain separate.')
+    payload = {'event': gp, 'year': year, 'round': round, 'session': 'Sprint',
+               'drivers': drivers, 'classification_complete': True, 'source': source}
+    response.headers['Cache-Control'] = 'public, max-age=120'
+    write_prepared_cache('sprint-points-v1', year, payload, gp, round)
+    return payload
+
+
 @app.get("/api/performance")
 def car_performance(response: Response, year: int = Query(..., ge=2018, le=2100),
                     gp: str = Query(..., min_length=3, max_length=120),

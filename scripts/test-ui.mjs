@@ -97,7 +97,8 @@ test('UI density uses component sizing and responsive chart rows rather than pag
   const source=readFileSync('car-performance.js','utf8');
   assert.match(source,/role="region" aria-label="Measurement table/);
   assert.match(source,/aria-controls="performanceMetricPanel" tabindex=/);
-  assert.match(source,/\['ArrowLeft','ArrowRight','Home','End'\]/);
+  assert.match(source,/\['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'\]/);
+  assert.match(source,/event.ctrlKey\|\|event.metaKey\|\|event.altKey/);
 });
 test('corner chart retains incomplete entrants without assigning a zero score',()=>{
   const source=readFileSync('car-performance.js','utf8');

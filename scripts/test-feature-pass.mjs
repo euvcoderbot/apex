@@ -66,7 +66,8 @@ test('selected measurements are not silently replaced when coverage is unavailab
   assert.doesNotMatch(car,/selectedBrakeView=brakingView==='approach'&&hasApproach/);
   assert.doesNotMatch(car,/if\s*\(noStationary\)\s*pitMeasure\s*=/);
   assert.match(car,/tableSortGroups\.get\(sort\.dataset\.performanceSort\)\|\|sort\.dataset\.sortTable/);
-  assert.match(car,/Race points scored · sprints excluded/);
+  assert.match(car,/Points · races \+ sprints/);
+  assert.match(car,/pointsPerStart:t.starts&&t.pointsKnown\?t.points\/t.starts:null/);
 });
 
 test('failed and cancelled session loads retain the previous workspace and restore controls',async()=>{

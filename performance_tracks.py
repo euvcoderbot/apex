@@ -1044,7 +1044,11 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                         continue
                     # Below 150 km/h this includes traction-limited corner
                     # exits; above 150 require a near-flat throttle trace.
-                    min_throttle = 70 if v_hi <= 150 else 98
+                    # Low bands measure delivered corner-exit acceleration,
+                    # including the throttle ramp/traction. A throttle floor
+                    # censors precisely those real exits. High bands remain
+                    # near-full-throttle comparisons, not mixed together.
+                    min_throttle = 0 if v_hi <= 150 else 98
                     if np.all(th_accel[begin:i_hi+1] >= min_throttle) and not np.any(br_accel[begin:i_hi+1]):
                         drs_slice = drs_accel[begin:i_hi+1]
                         is_drs = bool(np.all(drs_slice))
@@ -1127,7 +1131,7 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
                         # Brake is discrete: use its preceding sample at each
                         # boundary, not a linearly invented fractional brake.
                         boundary_ix = np.clip(np.searchsorted(a[:, 1], [low_time, high_time], side='right')-1, 0, len(a)-1)
-                        if np.any(a[interior, 4] >= .5) or np.any(a[boundary_ix, 4] >= .5) or np.min(throttle) < (70 if v_hi <= 150 else 98):
+                        if np.any(a[interior, 4] >= .5) or np.any(a[boundary_ix, 4] >= .5) or np.min(throttle) < (0 if v_hi <= 150 else 98):
                             continue
                         raw_drs = a[prev:stop+1, 7].astype(int)
                         if not np.isin(raw_drs,[0,1,8,10,12,14]).all():
@@ -1416,7 +1420,7 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
                 result['teams'][team] = {**observation, 'corners': [], 'braking': [], 'categories': {},
                     'quality': {'native_only': True, 'spatial_exclusion': errors.get(team)},
                     'measurement_status': 'native-speed-only'}
-        result['methodology_version'] = 'car-measurements-v13-delivered-approach'
+        result['methodology_version'] = 'car-measurements-v14-corner-exit'
         result['source_complete'] = all(not error and samples and len(samples)>=100 for _,samples,error in extracted)
         result['source_coverage'] = {'requested':len(selections),'received':sum(bool(samples) and not error for _,samples,error in extracted),
             'native_speed':len(native),'spatially_measured':sum(not r.get('quality',{}).get('native_only') for r in result['teams'].values())}
@@ -1738,8 +1742,38 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
         attribution_complete=len(measurements)==len(zones) and float(np.max(source_intervals(item)))<=1.5
 
         braking = matched_brakes.get(team, [])
+        brake_coverage = []
+        for label, (start, end, onsets, mode) in brake_windows.items():
+            measured = next((z for z in braking if z['corner'] == label), None)
+            if measured:
+                status = 'accepted-' + measured['quality']
+            elif mode != 'straight':
+                status = 'curved-approach-not-isolated-straight-braking'
+            elif team not in onsets:
+                status = 'no-supported-onset-in-shared-straight-window'
+            else:
+                status = 'shared-speed-endpoints-or-native-timing-not-supported'
+                native_item = brake_selected.get(team)
+                if native_item:
+                    a, d = native_item['a'], native_item['aligned']
+                    ix = np.flatnonzero((d >= grid[onsets[team]]-20) & (d <= grid[end]) & (a[:,4] >= .5))
+                    shared = next((z for rows in matched_brakes.values() for z in rows if z['corner'] == label), None)
+                    if len(ix) < 3:
+                        status = 'too-few-native-braking-packets'
+                    elif np.max(source_intervals(native_item)[ix[:-1]]) > .6:
+                        status = 'native-gap-over-0.6-seconds'
+                    elif np.any(np.diff(ix) != 1):
+                        status = 'brake-release-splits-native-interval'
+                    elif np.any(np.diff(a[ix,2]) > 2):
+                        status = 'speed-rebound-in-native-interval'
+                    elif shared and (a[ix[0],2] < shared['entry_speed'] or
+                                     a[min(ix[-1]+1,len(a)-1),2] > shared['exit_speed']):
+                        status = 'does-not-cover-selected-shared-speed-drop'
+            brake_coverage.append({'zone': label, 'status': status,
+                                   'start_m': float(grid[start]), 'end_m': float(grid[end])})
 
         results[team] = {
+            'braking_coverage': brake_coverage,
             'braking_selection_policy': 'fastest-qualifying-lap-only',
             'braking_selection': dict(brake_selected[team]['selection']) if team in brake_selected else None,
             'braking_exclusion': ('Fastest qualifying lap failed telemetry/alignment quality checks; no slower replacement.'
