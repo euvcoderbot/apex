@@ -23,7 +23,7 @@ test('pit entrants stay visible without loading race pace or inventing a missing
   assert.match(source,/Refresh missing timing/);
   assert.match(source,/Needs \$\{minimum\}/);
 });
-test('acceleration comparison switches both chart and season inputs without refetching',()=>{
+test('acceleration retains one connected headline method and its comparison helpers',()=>{
   const source=readFileSync('car-performance.js','utf8');
   const box={accelerationComparisonMode:'connected'};vm.createContext(box);
   vm.runInContext(source.slice(source.indexOf('function accelerationBands('),source.indexOf('function eventAdjustedScores(')),box);
@@ -31,7 +31,8 @@ test('acceleration comparison switches both chart and season inputs without refe
   assert.equal(box.accelerationBands(trace)['200_250'].gap_s,.12);
   box.accelerationComparisonMode='common';assert.equal(box.accelerationBands(trace)['200_250'].gap_s,.08);
   assert.deepEqual(Object.keys(box.accelerationBands({accel_bands:trace.accel_bands})),[]);
-  assert.match(source,/data-acceleration-comparison="common"/);
+  assert.match(source,/const accelerationComparisonMode='connected'/);
+  assert.doesNotMatch(source,/data-acceleration-comparison=/);
   assert.match(source,/key,eventAdjustedScores\(targetReports,row=>accelerationBands\(row.trace\)/);
   assert.match(source,/row.bandGap=accelerationBands\(row.trace\)/);
   assert.match(source,/const brakingComparisonMode='connected'/);
@@ -548,7 +549,7 @@ test('car performance controls hide irrelevant GP and expose sortable methodolog
   assert.match(performance, /performanceEventField.*hidden=.*performanceScope.*season/);
   assert.match(performance, /data-performance-sort/);
   assert.match(performance, /Settled straight-section performance/);
-  assert.match(performance, /Exit-inclusive lap attribution \(previous chart\)/);
+  assert.doesNotMatch(performance, /Exit-inclusive lap attribution \(previous chart\)/);
   assert.match(performance, /Extra slowing time/);
   assert.match(performance, /data-braking-view="approach"/);
   assert.match(performance, /Approach time gap/);
@@ -1000,7 +1001,7 @@ test('pit category keeps stationary and lane averages separate by team and drive
   sandbox.pitVisitMode='all';
   assert.equal(sandbox.pitMiddleSpread(result.teams[0].stop),null); // two stops cannot establish consistency
   assert.ok(Math.abs(sandbox.pitMiddleSpread({count:4,p25:2.1,p75:2.7})-.6)<1e-9);
-  assert.match(source,/sortHeader\('pitSpread','Middle 50% spread'\)/);
+  assert.match(source,/sortHeader\('pitSpread','Consistency · IQR'\)/);
   assert.match(source,/pitSpread:r=>pitMiddleSpread\(r\[measure\]\)/);
   assert.equal(result.drivers.find(d=>d.driver==='NOR').avgStop,2);
   assert.equal(result.drivers.find(d=>d.driver==='NOR').avgLane,25);
@@ -1024,8 +1025,8 @@ test('pit category keeps stationary and lane averages separate by team and drive
   assert.match(source,/data-pit-chart="mean"/);
   assert.match(source,/data-pit-chart="median"/);
   assert.match(source,/data-pit-chart="spread"/);
-  assert.match(source,/data-pit-chart="p90"/);
-  assert.match(source,/data-pit-chart="p10"/);
+  assert.doesNotMatch(source,/data-pit-chart="p90"/);
+  assert.doesNotMatch(source,/data-pit-chart="p10"/);
   assert.match(source,/data-pit-lane-basis="event"/);
   assert.match(source,/chartValue:pitChartMetric==='spread'\?pitMiddleSpread/);
   assert.match(source,/Exact times for individual pit visits/);
@@ -1102,7 +1103,7 @@ test('pit chart, sortable table and exact rows show the same selected measuremen
     ...Array.from({length:10},(_,i)=>({driver:'AAA',team:'A',lap:i+1,lane_duration:20+i,stop_duration:i+1})),
     ...Array.from({length:10},(_,i)=>({driver:'BBB',team:'B',lap:i+1,lane_duration:21+i,stop_duration:i+2}))
   ]}}];
-  for(const [metric,expected,column] of [['p10','1.900 s',5],['p90','9.100 s',6],['spread','4.500 s',4]]){
+  for(const [metric,expected,column] of [['mean','5.500 s',1],['median','5.500 s',2],['fastest','1.000 s',3],['spread','4.500 s',4]]){
     captured.length=0;sandbox.pitChartMetric=metric;html=sandbox.renderPits([]);
     assert.match(html,new RegExp(expected.replace('.','\\.')));
     assert.match(captured[0].rows.find(row=>row[0]==='A')[column],new RegExp(expected.replace('.','\\.')));
@@ -1364,8 +1365,10 @@ test('speed annotation labels avoid open trace segments without closing the lap'
 
 test('performance categories expose only defensible alternative summaries', () => {
   const source=readFileSync('car-performance.js','utf8');
-  for(const key of ['pace-stat','telemetry-stat','tyre-stat','results-chart','trend-view'])
+  for(const key of ['pace-stat','results-chart','trend-view'])
     assert.match(source,new RegExp(`data-${key}=`));
+  for(const key of ['telemetry-stat','tyre-stat','tyre-fit','race-pace-model','corner-window','straight-entry','acceleration-comparison'])
+    assert.doesNotMatch(source,new RegExp(`data-${key}=`));
   assert.match(source,/data-results-chart="mechanicalRate"/);
   assert.match(source,/pitChartMetric==='p90'/);
   assert.match(source,/timed\.length>=10\?percentile\(timed,\.9\):null/);

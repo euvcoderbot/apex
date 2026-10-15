@@ -26,8 +26,8 @@ let cornerSort = 'time';
 let showCornerNumbers = window.ApexAnalysis?.preference('corner-numbers',false)===true;
 let showSpeedAnnotations = window.ApexAnalysis?.preference('speed-annotations',false)===true;
 let speedAnnotationCache = null;
-let enhancedTraceMode = false;
-let traceTintEnabled = window.ApexAnalysis?.preference('trace-tint',false)===true;
+const enhancedTraceMode = false;
+const traceTintEnabled = false;
 const hiddenTraceKeys = new Set();
 let dominanceMapHitPoints = [];
 let dominanceMapGeometryCache = null;
@@ -1488,21 +1488,6 @@ function bindSpeedChartControls() {
     if (loaded.length) drawAll();
   });
 
-  $('#interpolationToggle')?.addEventListener('change', event => {
-    enhancedTraceMode = event.target.checked;
-    const status = $('#traceModeStatus');
-    if (status) {
-      status.textContent = enhancedTraceMode ? 'Interpolated' : 'Accurate';
-      status.dataset.mode = enhancedTraceMode ? 'enhanced' : 'accurate';
-    }
-    if (loaded.length) drawAll();
-  });
-
-  $('#tintToggle')?.addEventListener('change', event => {
-    traceTintEnabled = event.target.checked;
-    window.ApexAnalysis?.savePreference('trace-tint',traceTintEnabled);
-    if (loaded.length) drawAll();
-  });
 }
 
 function renderCharts() {
@@ -1540,8 +1525,6 @@ function renderCharts() {
             <div class="alignment-readout"><i></i><span id="alignmentStatus" data-state="idle">Speed trace controls</span></div>
             <label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label>
             <label class="trace-setting" title="Show slow-corner minima, fast-corner speeds and straight peaks together. Fast-corner speeds use one shared estimated geometric corner position for every lap; they are not measured apex locations. Colours identify laps. A dash means the position has no supported measurement."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label>
-            <label class="trace-setting trace-mode-toggle" title="Smooth interpolation through trusted samples. Repairs require evidence from neighbouring acceleration, throttle, brake and gear/RPM; full throttle alone does not prove a fault. Uncertain gaps are marked as estimates. Timing delta follows reconstructed speed while official sector and finish deltas stay exact."><input type="checkbox" id="interpolationToggle" ${enhancedTraceMode ? 'checked' : ''}><i aria-hidden="true"></i><span>Enhanced interpolation</span><small id="traceModeStatus" data-mode="${enhancedTraceMode ? 'enhanced' : 'accurate'}">${enhancedTraceMode ? 'Interpolated' : 'Accurate'}</small></label>
-            <label class="trace-setting"><input type="checkbox" id="tintToggle" ${traceTintEnabled ? 'checked' : ''}><i aria-hidden="true"></i><span>Trace tint</span></label>
           </div>
           <div class="trace-display-bar">
             <span>Visible traces</span>

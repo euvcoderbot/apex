@@ -1548,6 +1548,9 @@ body.performance-view #sidebarToggle {
 /* Component parity with Session Analysis, without page-wide scaling. */
 .performance-page { --ui-panel-padding: 16px; }
 .performance-definition { margin: 0 0 12px; color: var(--text-secondary); font-size: .875rem; line-height: 1.5; max-width: 100ch; }
+.performance-source-note { margin: 0 0 12px; color: var(--text-secondary); font-size: .8125rem; }
+.performance-source-note summary { cursor: pointer; width: fit-content; }
+.performance-source-note p { margin: 8px 0; max-width: 100ch; line-height: 1.5; }
 .is-descriptions-hidden .performance-definition { display: none; }
 .evidence-search { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0; font-size: .875rem; }
 .evidence-search input { flex: 1 1 220px; min-width: 0; min-height: 40px; padding: 8px 12px; font: inherit; color: var(--text-main); background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-control); }
