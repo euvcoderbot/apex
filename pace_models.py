@@ -106,7 +106,7 @@ def qualifying_conditions(rows, selections):
         result['reason']='Timestamp fit is unstable or outside the diagnostic plausibility limit';return result
     times={}
     for team,lap in selections.items():
-        if lap and lap['driver'] in drivers and lap.get('end') is not None and lap.get('compound')==compounds[0] and lap.get('fresh') is True and lap.get('age',99)<=3:
+        if lap and lap['driver'] in drivers and lap.get('end') is not None and lap.get('compound')==compounds[0] and lap.get('fresh') is True and lap.get('age') is not None and lap['age']<=3:
             times[team]=float(lap['time']-rate*(lap['end']-reference))
     base=min(times.values(),default=None)
     result.update(status='estimated' if len(times)>=3 else 'unsupported',reason=None if len(times)>=3 else 'Fewer than three selected fastest laps match the condition cohort',

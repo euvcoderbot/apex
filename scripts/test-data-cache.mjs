@@ -8,6 +8,20 @@ import {loadRaceSnapshot,loadCachedRaceSnapshots} from '../lib/race-corner-loade
 import {connectedRaceCornerScores} from '../race-cornering.js';
 import verifiedSeed from '../lib/verified-cache-seed.json' with {type:'json'};
 
+test('source-only compatible migration keeps expiry and never reuses old model scores',async()=>{
+  const store=new Map(),identity=normalizeDataPath('/api/session?year=2026&gp=Test&session=Q');
+  const old={data:{drivers:[{code:'A'}]},expires:2000};
+  store.set('source:cd189bb22d7369619f33:'+identity,old);
+  store.set('data:cd189bb22d7369619f33:'+normalizeDataPath('/api/performance?year=2026&gp=Test&session=Q'),{data:{teams:[{pace:99}]},expires:2000});
+  let requests=0;
+  const cache=createDataCache({read:async k=>store.get(k),write:async(k,v)=>store.set(k,v),now:()=>1000,
+    fetcher:async()=>{requests++;return {ok:true,json:async()=>({teams:[{pace:1}]})};}});
+  assert.equal((await cache.get('/api/session?year=2026&gp=Test&session=Q')).cache,'HIT');
+  assert.equal(store.get(SOURCE_VERSION+':'+identity).expires,2000);
+  assert.equal((await cache.get('/api/performance?year=2026&gp=Test&session=Q')).data.teams[0].pace,1);
+  assert.equal(requests,1);
+});
+
 test('partial stationary timing revalidates quickly even for an old completed race',()=>{
   const path='/api/performance/pits?year=2026&gp=Singapore Grand Prix';
   const now=Date.parse('2026-10-14T00:00:00Z');

@@ -215,6 +215,8 @@ def clean(lap):
 
 
 def records(data):
+    if hasattr(data, 'apex_recorded_rows'):
+        return [dict(row) for row in data.apex_recorded_rows]
     import pandas as pd
     phases = {}
     if data.name in getattr(data, '_QUALI_LIKE_SESSIONS', ()):

@@ -1402,9 +1402,22 @@ def session_data(
         if cached.get("compounds") != nominated:
             cached = {**cached, "compounds": nominated}
         return cached
+    from verified_sources import recorded_session, recorded_payload
+    recording = recorded_session(year, gp, session)
+    if recording and not fresh:
+        payload = recorded_payload(recording)
+        payload['compounds'] = get_tire_nominations(year, gp)
+        return payload
     try:
         data = load_fresh_session(year, gp, session) if fresh else load_session(year, gp, session, round)
+        if recording and data.laps.empty:
+            raise ValueError('Timing archive returned no laps')
     except Exception as exc:
+        if recording:
+            payload = recorded_payload(recording)
+            payload['source_cache']['refresh_failed'] = fresh
+            payload['compounds'] = get_tire_nominations(year, gp)
+            return payload
         raise HTTPException(422, f"Could not load this session: {exc}") from exc
 
     qualifying_phase: dict[Any, str] = {}
@@ -1616,13 +1629,30 @@ def session_data(
 @app.get("/api/performance")
 def car_performance(response: Response, year: int = Query(..., ge=2018, le=2100),
                     gp: str = Query(..., min_length=3, max_length=120),
-                    session: str = Query('Q', pattern='^(Q|R)$')):
+                    session: str = Query('Q', pattern='^(Q|R)$'), fresh: bool = False):
     response.headers['Cache-Control'] = 'no-store'
     started = time.perf_counter()
     try:
         from performance import analyze
-        data = load_fresh_session(year, gp, session)
+        from verified_sources import recorded_session, performance_input, source_notice
+        recording = recorded_session(year, gp, session)
+        recovered = recording if not fresh else None
+        if recovered:
+            data = performance_input(recovered)
+        else:
+            try:
+                data = load_fresh_session(year, gp, session)
+                if data.laps.empty:
+                    raise ValueError('Timing archive returned no laps')
+            except Exception:
+                if not recording:
+                    raise
+                recovered = recording
+                data = performance_input(recovered)
         result = analyze(data, 2)
+        if recovered:
+            result['source_cache'] = source_notice(recovered)
+            result['source_cache']['refresh_failed'] = fresh
     except Exception as exc:
         logger.warning('Car performance unavailable for %s %s: %s', year, gp, exc)
         raise HTTPException(422, 'Performance data is incomplete or unavailable for this session. Try another event.') from exc
@@ -1800,6 +1830,17 @@ def car_performance_trace_batch(response: Response, year: int = Query(..., ge=20
                                'start': start, 'end': end,
                                'speed_st': item.get('speed_st'),
                                'speed_fl': item.get('speed_fl')})
+        from verified_sources import recorded_session, recorded_lap, source_notice
+        recording = recorded_session(year, gp, 'Q')
+        if recording:
+            retained = [recorded_lap(recording, driver=s['driver'], number=s['driver_number'],
+                                     lap=s['lap'], start=s['start'], end=s['end'], duration=s['time'])
+                        for s in normalized]
+            if all(retained):
+                from performance_tracks import measure_field
+                extracted = [(s['team'], r['samples'], None) for s, r in zip(normalized, retained)]
+                return {'event':gp, 'source_cache':source_notice(recording), 'fusion':{},
+                        **measure_field(extracted, normalized, recording.get('corners', []))}
         fastf1_runtime()
         from session_loader import load_selected_laps_telemetry, exact_event, download_feed, _PARSERS
         from fastf1.mvapi import get_circuit_info
@@ -1906,7 +1947,7 @@ def telemetry(
         )
         response.headers["Cache-Control"] = "no-store, max-age=0"
 
-    def finish(samples: list[dict[str, Any]], projected_corners: list[dict[str, Any]], source: str):
+    def finish(samples: list[dict[str, Any]], projected_corners: list[dict[str, Any]], source: str, recording=None):
         from telemetry_sources import annotate_samples, fuse_native_samples
         fusion=None
         if incomplete_openf1 and source.startswith('FastF1'):
@@ -1929,6 +1970,10 @@ def telemetry(
             "sampling_evidence":{'native_packets':sum(not p.get('IsInterpolatedBoundary',False) for p in samples),
                                  'derived_boundary_points':sum(bool(p.get('IsInterpolatedBoundary')) for p in samples)},
         }
+        if recording:
+            from verified_sources import source_notice
+            payload['source_cache'] = source_notice(recording)
+            payload['source_cache']['refresh_failed'] = fresh
         # Do not freeze an incomplete current OpenF1 location stream. Keep the
         # useful speed response, but force the next request back to the source.
         if fresh:
@@ -1938,6 +1983,13 @@ def telemetry(
         else:
             response.headers["Cache-Control"] = "no-store, max-age=0"
         return payload
+
+    from verified_sources import recorded_session, recorded_lap
+    recording = recorded_session(year, gp, session) if not pit_out else None
+    retained = recorded_lap(recording, driver=driver, number=driver_number, lap=lap,
+                            start=lap_start_seconds, end=lap_end_seconds, duration=lap_time) if recording else None
+    if retained and not fresh:
+        return finish(retained['samples'], [], 'Recorded native qualifying lap', recording)
 
     # For a pit-out lap, the session's exact pit-exit timestamp is the start.
     # OpenF1's lap start/duration may cover a different interval and cannot
@@ -2081,6 +2133,8 @@ def telemetry(
         telemetry_data["Distance"] = telemetry_data["Distance"] - telemetry_data["Distance"].iloc[0]
     except Exception as fastf1_error:
         logger.debug("FastF1 telemetry unavailable for %s L%s: %s", driver, lap, fastf1_error)
+        if retained:
+            return finish(retained['samples'], [], 'Recorded native qualifying lap', recording)
         if incomplete_openf1 and incomplete_openf1[0]:
             return finish(incomplete_openf1[0], incomplete_openf1[1], "OpenF1")
         try:
