@@ -28,12 +28,19 @@ const staticFiles = [
   "corner-position.js",
   "qualifying-telemetry.js",
   "car-performance.css",
+  "workspace-ui.css",
+  "dashboard-ui.js",
   "styles.css",
   "design-system.css",
   "polish.css",
   "apple-ui.css",
   "trace-focus.css",
 ];
+// Visual-only releases must refresh browser assets without invalidating raw
+// timing/telemetry caches. Include every stylesheet and presentation module.
+const browserHash=createHash('sha256').update(cacheRevision);
+for(const file of staticFiles)browserHash.update(file).update(await readFile(resolve(root,file)));
+const browserRevision=browserHash.digest('hex').slice(0,20);
 
 await rm(destination, { recursive: true, force: true });
 await mkdir(destination, { recursive: true });
@@ -45,10 +52,10 @@ for (const file of staticFiles) {
 // A release must not reuse an old module solely because its URL stayed fixed.
 for(const file of staticFiles.filter(file=>file.endsWith('.js'))){
   const source=await readFile(resolve(destination,file),'utf8');
-  await writeFile(resolve(destination,file),source.replace(/((?:from\s+|import\s+)['"]\.\/[^'"?]+\.js)(?:\?[^'"]*)?(['"])/g,`$1?v=${cacheRevision}$2`));
+  await writeFile(resolve(destination,file),source.replace(/((?:from\s+|import\s+)['"]\.\/[^'"?]+\.js)(?:\?[^'"]*)?(['"])/g,`$1?v=${browserRevision}$2`));
 }
 const page=await readFile(resolve(destination,'index.html'),'utf8');
-await writeFile(resolve(destination,'index.html'),page.replace(/((?:src|href)="[^"/:?]+\.(?:js|css))(?:\?[^" ]*)?("[^>]*>)/g,`$1?v=${cacheRevision}$2`));
+await writeFile(resolve(destination,'index.html'),page.replace(/((?:src|href)="[^"/:?]+\.(?:js|css))(?:\?[^" ]*)?("[^>]*>)/g,`$1?v=${browserRevision}$2`));
 // Keep the exact cascade, but remove the render-blocking @import waterfall.
 // The browser receives all three layers in its first stylesheet response.
 const layers = await Promise.all([

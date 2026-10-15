@@ -277,6 +277,7 @@ function renderHorizontalBarChart(rows, {
       <div class="performance-bars">
         ${rowsHtml}${missingMarkup}
       </div>
+      <div class="chart-coverage"><span>${validRows.length} of ${validRows.length+missingRows.length} entries ranked</span><span>${missingRows.length ? `${missingRows.length} unranked · see coverage` : 'All displayed entries supported'}</span></div>
     </div>
   `;
 }
@@ -1173,7 +1174,7 @@ function card(title,note,body) {
       <h2>${title}</h2>
     </div>
     <p class="performance-note">${note}</p>
-    ${body}
+    <div class="performance-card-body">${body}</div>
   </section>`;
 }
 
@@ -1278,11 +1279,11 @@ function renderPace(teams) {
   })))}</details>`;
 
   return regulatoryBadge +
-    card('Qualifying pace deficit',
+    card('Qualifying & race pace',
       chartMeta.note,
       `<div class="performance-scope-toggle performance-stat-toggle" role="group" aria-label="Season pace summary"><button type="button" data-pace-stat="mean" aria-pressed="${paceSeasonStat==='mean'}">Mean GP gap</button><button type="button" data-pace-stat="median" aria-pressed="${paceSeasonStat==='median'}">Median GP gap</button></div>`+
       qualyToggle +
-      qualyChart +
+      `<div class="performance-visual-grid pace-visual-grid">${qualyChart}${raceChart}</div>` +
       table([
         sortHeader('team', 'Team'),
         sortHeader(paceKey, qualyColLabel),
@@ -1294,9 +1295,7 @@ function renderPace(teams) {
         `${fmt(t.race, 3, '%')}${t.sampleTier === 'insufficient' || t.provisional ? ' <span class="perf-tercile-badge is-mid" style="font-size:0.65rem;">Limited sample</span>' : ''}<small>${t.fastestRaceDrivers?.length ? `Fastest: ${escape([...new Set(t.fastestRaceDrivers)].join(', '))} · ` : ''}${t.rCount} event${t.rCount === 1 ? '' : 's'}${middle50Label(t.r,'%')?` · GP P25–P75 ${middle50Label(t.r,'%')}`:''}${t.sensitivityBracket ? ` · Bracket [${fmt(t.sensitivityBracket[0], 3, '%')}, ${fmt(t.sensitivityBracket[1], 3, '%')}]` : ''}</small>`,
         t.samples
       ]))) +
-    card('Race pace deficit overview',
-      'Estimated race pace uses one 2.0s timing-checkpoint traffic screen and a shared race-lap, compound and tyre-age model. Checkpoints cannot prove continuous clean air; other thresholds are sensitivity checks, not alternate headline baselines.',
-      raceChart) + raceSupport +
+    raceSupport +
     `<details class="dashboard-card performance-methods"><summary>Why this pace ranking? View selected laps and race drivers</summary><p class="performance-note">Only the fastest valid lap across the whole qualifying session counts for each team. P25–P75 describes variation in the GP deficits, not uncertainty in the season rank.</p>${table(['Team', 'Event', 'Phase', 'Driver', 'Selected lap (s)'], teams.flatMap(t => t.q.filter(q => q.lap).map(q => [teamLabel(t), eventLabel(q.event), escape(q.lap.phase), escape(q.lap.driver), fmt(q.lap.time, 3)]))) }<p class="performance-note">Race pace models race lap, compound and tyre age, with timing checkpoints as a traffic proxy. Typical model error is the median absolute residual on eligible laps, not a confidence interval. Driver choices and race management remain in the estimate.</p>${table(['Team', 'Event', 'Driver', 'Estimate', 'Eligible laps', 'Typical model error'], teams.flatMap(t => t.raceDrivers.map(r => [teamLabel(t), eventLabel(r.event), `${escape(r.driver)}${r.selected ? ' · selected' : ''}`, fmt(r.pace, 3, '%'), r.samples, fmt(r.residual_spread, 3, '%')]))) }</details>`;
 }
 
@@ -3235,6 +3234,7 @@ function hydratePerformanceEvidence(detail) {
   const content=lazyEvidence.get(host.dataset.lazyEvidence);
   host.innerHTML=(typeof content==='function'?content():content)||'';host.dataset.loaded='true';
   if(host.querySelectorAll('tbody tr').length>=10)host.insertAdjacentHTML('afterbegin','<label class="evidence-search">Filter evidence <input type="search" data-evidence-search placeholder="Team, driver, GP or source"></label>');
+  window.ApexPresentation?.arrangePerformance(host,activeMetric);
 }
 root.addEventListener('toggle',event=>{if(event.target.matches('details')&&event.target.open)hydratePerformanceEvidence(event.target);},true);
 root.addEventListener('input',event=>{
@@ -3274,6 +3274,7 @@ function render() {
   performanceRenderCache={views:new Map(),summaries:new Map()};
   try {renderContent();} finally {
     performanceRenderCache=previousCache;
+    window.ApexPresentation?.arrangePerformance(root,activeMetric);
     restorePerformanceUI(root,state);
     root.querySelectorAll('details[open]').forEach(hydratePerformanceEvidence);
   }
@@ -3336,7 +3337,8 @@ const accelerationEvidence=activeMetric==='straight'&&straightLineSource==='qual
   const fitted=telemetryMode&&context.season?seasonTelemetry(activeMetric==='braking'?'mean':telemetrySeasonStat).fitDiagnostics:null;
   const fitEvidence=fitted&&Object.keys(fitted).length?`<details class="dashboard-card performance-methods"><summary>Comparison fit diagnostics · convergence and GP sensitivity</summary><p class="performance-note">Each GP has equal total weight. Mean solves least squares directly; median minimizes an absolute-residual objective, not alternating medians. Only one identifiable connected group is ranked. Leave-GP-out ranges are sensitivity, not measurement confidence intervals. Decimal formatting does not establish millisecond accuracy.</p>${table(['Metric','Method','Converged','Iterations','Fit residual','Groups / observations','Disconnected groups'],Object.entries(fitted).map(([metric,d])=>[escape(metric),escape(d.method),d.converged?'Yes':'No · inspect before interpreting',d.iterations,fmt(d.residualRMS,6),`${d.groups} / ${d.observations}`,escape((d.excludedComponents||[]).map(g=>g.join(', ')).join(' | ')||'None')]))}</details>`:'';
   const metricEvidence=(activeMetric==='straight'&&straightLineSource==='qualy'||activeMetric==='corners'&&cornerSession==='qualy'||activeMetric==='tyres')?`<details class="dashboard-card performance-methods"><summary>${activeMetric==='corners'?'Turning, approach and exit evidence':activeMetric==='straight'?'Straight entry speeds and boundary sensitivity':'Warm-up, steady trend and late falloff'}</summary><div data-metric-evidence="${activeMetric}"></div></details>`:'';
-  root.innerHTML = deferPerformanceEvidence(modeBar + `<div id="performanceMetricPanel" role="tabpanel" aria-label="${escape(modes.find(([key])=>key===activeMetric)?.[1]||'Performance')} measurements">`+'<p class="performance-definition">'+escape(window.ApexAnalysis.definitions[activeMetric].description)+'</p>'+telemetryControls + teamBrakingControls + sourceNotice + errorMarkup + qualifyingErrors + loadControl + content + metricEvidence+fitEvidence+brakingEvidence + cornerAudit + cornerBandEvidence + cornerPositions + nativeEvidence + accelerationEvidence + coverageEvidence+'</div>');
+  const metricHeading=window.ApexPresentation?.metricHeading(activeMetric,{year:context.year,events:events.length,subject:telemetrySubject,session:cornerSession})||'';
+  root.innerHTML = deferPerformanceEvidence(modeBar + `<div id="performanceMetricPanel" role="tabpanel" data-metric="${activeMetric}" aria-label="${escape(modes.find(([key])=>key===activeMetric)?.[1]||'Performance')} measurements">`+metricHeading+'<p class="performance-definition">'+escape(window.ApexAnalysis.definitions[activeMetric].description)+'</p>'+telemetryControls + teamBrakingControls + sourceNotice + errorMarkup + qualifyingErrors + loadControl + content + metricEvidence+fitEvidence+brakingEvidence + cornerAudit + cornerBandEvidence + cornerPositions + nativeEvidence + accelerationEvidence + coverageEvidence+'</div>');
 }
 
 // ---------------------------------------------------------------------------

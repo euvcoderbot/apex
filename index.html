@@ -19,8 +19,10 @@
   <link rel="stylesheet" href="styles.css?v=20261007-ui-system">
   <link rel="stylesheet" href="car-performance.css?v=20261007-ui-system">
   <link rel="stylesheet" href="trace-focus.css?v=20261002-ui2">
+  <link rel="stylesheet" href="workspace-ui.css">
 </head>
 <body>
+  <a class="skip-link" href="#top">Skip to analysis</a>
   <header class="site-header">
     <a class="brand" href="#top" aria-label="euV2 data home">
       <img src="assets/euv2-logo.png" alt="euV2 data">
@@ -36,7 +38,11 @@
     </div>
   </header>
   
-  <main id="top">
+  <main id="top" tabindex="-1">
+      <div class="workspace-intro session-intro">
+        <div><span class="workspace-eyebrow">SESSION ANALYSIS</span><h1>Every lap. In perspective.</h1></div>
+        <p>Choose a session, build your comparison, explore the detail.</p>
+      </div>
       <section class="dashboard-card session-controls" aria-label="Session selection">
         <div class="panel-heading">
           <h2>Session</h2>
@@ -81,6 +87,7 @@
       <section class="dashboard-card lap-workspace" id="lapWorkspace">
         <div class="panel-heading workspace-heading">
           <h2>Lap workspace</h2>
+          <span class="panel-hint">Pick laps or compare each driver's fastest</span>
         </div>
         <div id="stintPanels">
           <span class="section-empty">Select a driver to inspect their runs and laps.</span>
@@ -88,6 +95,7 @@
         <div class="comparison-tray" aria-label="Loaded comparison laps">
           <div class="comparison-tray-heading">
             <span>Comparison</span>
+            <small>First lap is the reference · click a lap to change it</small>
           </div>
           <div class="loaded-laps" id="loadedLaps">
             <span class="section-empty">No laps loaded.</span>
@@ -147,7 +155,11 @@
       </div>
     </div>
   </main>
-  <section id="carPerformance" class="performance-page" aria-label="Car performance" hidden>
+  <section id="carPerformance" class="performance-page" aria-label="Car performance" tabindex="-1" hidden>
+    <div class="workspace-intro performance-intro">
+      <div><span class="workspace-eyebrow">CAR PERFORMANCE</span><h1>The field, in focus.</h1></div>
+      <p>Compare delivered performance. Keep the evidence in view.</p>
+    </div>
     <section class="dashboard-card session-controls performance-controls" aria-label="Car performance controls">
       <div class="panel-heading">
         <h2>Car performance</h2>
@@ -170,10 +182,11 @@
     </section>
     <section id="performanceTrackTray" class="dashboard-card performance-track-tray" aria-label="Grand Prix selection" hidden>
       <div class="track-tray-header">
-        <div class="track-tray-title">
-          <span class="track-tray-label">Select Grand Prix tracks to analyse</span>
+        <button type="button" id="performanceToggleTracks" class="track-tray-title" aria-expanded="true" aria-controls="performanceTrackPills">
+          <span class="track-tray-label">Grand Prix selection</span>
           <span id="performanceTrackCount" class="track-count-badge">0 tracks selected</span>
-        </div>
+          <span class="track-tray-disclosure" aria-hidden="true">⌃</span>
+        </button>
         <div class="track-tray-actions">
           <button type="button" id="performanceSelectAllTracks" class="btn-track-action">Select all</button>
           <button type="button" id="performanceSelectLatestTracks" class="btn-track-action">Latest 3</button>
@@ -212,6 +225,7 @@
   <!-- Single unified app logic -->
   <script src="config.js?v=euv2-release-20260813-2"></script>
   <script src="analysis-core.js?v=20261008-feature-pass"></script>
+  <script src="dashboard-ui.js"></script>
   <script src="telemetry-model.js?v=euv2-reconstruction-20260905"></script>
   <script src="corner-position.js"></script>
   <script src="app.js?v=euv2-release-20261007-loading-v1"></script>

@@ -2174,6 +2174,12 @@ function drawRealChart(name) {
   if (!canvas) return;
   
   const rect = canvas.getBoundingClientRect();
+  // Category switches and focused mode hide some channels. A zero-sized
+  // backing canvas cannot be copied into the static drawing cache.
+  if (rect.width < 1 || rect.height < 1) {
+    chartStaticLayers.delete(canvas);
+    return;
+  }
   const dpr = window.devicePixelRatio || 1;
   canvas.width = rect.width * dpr;
   canvas.height = rect.height * dpr;
