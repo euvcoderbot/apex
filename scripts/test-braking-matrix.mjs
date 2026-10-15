@@ -24,8 +24,21 @@ test('delivered and strict paired modes retain identical source laps but differe
   assert.equal(strict.brakingCoverage.teams.length,3);assert.equal(strict.rows.get('D').brakingApproachMs,null);
   assert.equal(strict.rows.get('D').brakingSlowingS,null,'paired slowing must use the same strict cohort');
   assert.equal(delivered.rows.get('D').lap.lap,10);
-  assert.match(source,/if\(brakingView==='approach'&&brakingComparisonMode==='independent'\)brakingComparisonMode='connected'/);
+  assert.match(source,/const brakingComparisonMode='connected'/);
   assert.doesNotMatch(source,/data-braking-view="approach"[^>]*disabled/);
+});
+
+test('braking exposes just two metrics with a fixed supported paired methodology',()=>{
+  const controls=source.slice(source.indexOf('function brakingViewControls('),source.indexOf('\n}',source.indexOf('function brakingViewControls('))+2);
+  const box={brakingView:'deceleration'};vm.createContext(box);vm.runInContext(controls,box);
+  const slowing=box.brakingViewControls();assert.equal((slowing.match(/<button/g)||[]).length,2);
+  assert.match(slowing,/Same-speed slowing/);assert.match(slowing,/Time through braking zone/);
+  assert.match(slowing,/Time to shed the same speed/);
+  box.brakingView='approach';assert.match(box.brakingViewControls(),/includes arrival and exit speed/);
+  assert.doesNotMatch(source,/data-braking-(?:comparison|quality|basis)/);
+  assert.match(source,/const brakingQualityMode='supported'/);assert.match(source,/const brakingApproachBasis='delivered'/);
+  assert.match(source,/const summaryStat=activeMetric==='braking'\?'mean':telemetrySeasonStat/);
+  assert.doesNotMatch(source,/return statisticControls\+card\(brakingTitle/);
 });
 
 // Optional audit runner: generated real-native results are local test inputs,

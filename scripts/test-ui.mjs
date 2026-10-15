@@ -34,7 +34,7 @@ test('acceleration comparison switches both chart and season inputs without refe
   assert.match(source,/data-acceleration-comparison="common"/);
   assert.match(source,/key,eventAdjustedScores\(targetReports,row=>accelerationBands\(row.trace\)/);
   assert.match(source,/row.bandGap=accelerationBands\(row.trace\)/);
-  assert.match(source,/let brakingComparisonMode='connected'/);
+  assert.match(source,/const brakingComparisonMode='connected'/);
   assert.match(source,/let brakingView='deceleration'/);
 });
 test('telemetry summaries survive unchanged renders and invalidate when source observations change',()=>{
@@ -1370,5 +1370,6 @@ test('performance categories expose only defensible alternative summaries', () =
   assert.match(source,/pitChartMetric==='p90'/);
   assert.match(source,/timed\.length>=10\?percentile\(timed,\.9\):null/);
   assert.match(source,/gpSlopes\.length<4\|\|p75Shortfall\.length/);
-  assert.match(source,/seasonTelemetry\(telemetrySeasonStat\)/);
+  assert.match(source,/const summaryStat=activeMetric==='braking'\?'mean':telemetrySeasonStat/);
+  assert.match(source,/seasonTelemetry\(summaryStat\)/);
 });

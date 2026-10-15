@@ -591,9 +591,10 @@ let tyreFitMode='curve',tyreCoverageMode='available';
 let tyreLapMode='all'; // 'all' | 'clear'
 let tyreConditionMode='screened';
 let pitVisitMode='service';
-let brakingQualityMode='supported';
-let brakingComparisonMode='connected';
-let brakingApproachBasis='delivered';
+// One supported paired methodology; only the displayed metric is selectable.
+const brakingQualityMode='supported';
+const brakingComparisonMode='connected';
+const brakingApproachBasis='delivered';
 let tyreCorrection='fuel'; // 'fuel' | 'raw'
 let tyreFuelRate=.060; // User-selected sensitivity assumption, not measured fuel.
 let tyreWeighting='balanced'; // 'balanced' | 'laps'
@@ -608,11 +609,11 @@ let showPerformanceDescriptions=window.ApexAnalysis?.preference('descriptions',f
 const tableSortStates=new Map();
 const tableSortGroups=new Map();
 const lazyEvidence=new Map();
-function brakingViewControls(approachAvailable) {
-  return `<div class="performance-scope-toggle" role="group" aria-label="Braking comparison support"><button type="button" data-braking-comparison="connected" aria-pressed="${brakingComparisonMode==='connected'}">Connected matched observations · estimated</button><button type="button" data-braking-comparison="paired" aria-pressed="${brakingComparisonMode==='paired'}">Common observed rectangle</button><button type="button" data-braking-comparison="independent" aria-pressed="${brakingComparisonMode==='independent'}">All supported slowing</button></div><p class="performance-note">All views use each team’s fastest qualifying lap across Q1/Q2/Q3. Connected matched observations fits supported pairwise evidence through shared rivals. Common observed rectangle uses one complete set of zones and teams for both timings. All supported slowing fits overlapping valid deceleration measurements even when approach boundary speeds are not comparable; its cohort is independent of the approach ranking. No slower-lap replacement. Time through approach includes arrival and end speed; same-speed slowing times only the shared speed drop.</p><div class="performance-scope-toggle" role="group" aria-label="Braking measurement">
-    <button type="button" data-braking-view="approach" aria-pressed="${brakingView==='approach'}">Time through approach</button>
+function brakingViewControls() {
+  return `<div class="performance-scope-toggle" role="group" aria-label="Braking measurement">
     <button type="button" data-braking-view="deceleration" aria-pressed="${brakingView==='deceleration'}">Same-speed slowing</button>
-  </div><div class="performance-scope-toggle" role="group" aria-label="Approach boundary comparison"><button type="button" data-braking-basis="delivered" aria-pressed="${brakingApproachBasis==='delivered'}">Delivered time through</button><button type="button" data-braking-basis="matched" aria-pressed="${brakingApproachBasis==='matched'}">Match boundary speeds · strict</button></div><p class="performance-quality-status">${brakingApproachBasis==='delivered'?'Delivered approach uses measured elapsed time through the same track window, including differences in arrival and exit speed. It is combined approach performance, not isolated brake strength.':'Strict comparison additionally requires similar entry and exit speeds (within 5 km/h or 2% / 3%). Valid observations outside those limits remain in the evidence.'}</p><div class="performance-scope-toggle" role="group" aria-label="Braking evidence quality"><button type="button" data-braking-quality="supported" aria-pressed="${brakingQualityMode==='supported'}">Supported samples</button><button type="button" data-braking-quality="all" aria-pressed="${brakingQualityMode==='all'}">Include provisional · diagnostic</button></div><p class="performance-quality-status">${brakingQualityMode==='supported'?'Only supported native observations enter the ranking.':'Diagnostic ranking includes weak-resolution observations.'} ${brakingComparisonMode!=='independent'?'Both timings use the same measured paired observations; connected mode is an estimated fit.':'Slowing uses a connected fit of its supported observations. Choosing Time through approach switches to paired connected comparisons.'} Three decimals are estimated timings, not guaranteed millisecond accuracy.</p>`;
+    <button type="button" data-braking-view="approach" aria-pressed="${brakingView==='approach'}">Time through braking zone</button>
+  </div><p class="performance-quality-status">${brakingView==='approach'?'Elapsed time through the same track section; includes arrival and exit speed.':'Time to shed the same speed in the same braking zone.'} Lower is better. Fastest qualifying laps · supported samples only.</p>`;
 }
 const STRAIGHT_BANDS=['50_100','100_150','150_200','200_250','250_300','300_320','300_350','350_400'];
 let straightBand='250_300';
@@ -2237,9 +2238,9 @@ function pairedBrakingScores(reports, slowingOf, approachOf, mode='mean') {
 function brakingSupportMarkup(coverage, values, season=false) {
   const entity=typeof telemetrySubject!=='undefined'&&telemetrySubject==='driver'?'drivers':'teams';
   const c=coverage||{teams:[],events:[]},unit=season?'GP':'zone';
-  if(!c.events.length)return `<details class="performance-evidence" open><summary>No ranked ${unit} cohort · see measured evidence below</summary><p class="performance-quality-status">This is not a statement that no braking data exists. The selected quality and comparison rules have no connected cohort of at least three entrants. All observed fastest-lap intervals, provisional measurements and source exclusions remain below. All supported slowing does not require comparable approach timing; Include provisional is a separately labelled diagnostic.</p></details>`;
+  if(!c.events.length)return `<details class="performance-evidence"><summary>No supported comparison · see measured evidence</summary><p>At least three entrants need supported paired measurements in a shared braking zone. Observed intervals and source exclusions remain below; missing measurements are never counted as zero.</p></details>`;
   if(c.type==='connected-slowing')return `<details class="performance-evidence" open><summary>Connected slowing support · ${c.events.length} ${unit}s · ${c.teams.length} ${entity}</summary><p class="performance-quality-status">Independent slowing estimate through overlapping supported rivals. Approach timing is not required or ranked. Every physical zone uses identical speed endpoints; missing observations are not filled. This is not the same cohort as the paired approach comparison.</p><p>${c.teams.map(escape).join(', ')} · ${c.events.map(escape).join(' · ')}</p></details>`;
-  if(c.type==='connected')return `<details class="performance-evidence" open><summary>Connected matched support · ${c.events.length} ${unit}s · ${c.teams.length} ${entity}</summary><p class="performance-quality-status">Estimated fit through overlapping rivals. Each ${unit} uses the same paired entrants for both timings, but not every entrant measured every ${unit}. Missing observations are not zero. Use Common observed rectangle for the stricter complete-cohort comparison.</p><p>${c.teams.map(escape).join(', ')} · ${c.events.map(escape).join(' · ')}</p></details>`;
+  if(c.type==='connected')return `<details class="performance-evidence"><summary>Calculation & sample support · ${c.events.length} ${unit}s · ${c.teams.length} ${entity}</summary><p>Both metrics use the same supported paired observations on fastest qualifying laps. A zone-adjusted fit compares overlapping rivals; not every entrant measured every zone. Season results give each supported GP equal weight. Missing observations are not zero; provisional samples remain evidence only. Time through includes arrival and exit speeds, so neither metric isolates brake hardware. Three decimals are estimated timings, not guaranteed millisecond accuracy.</p><p>${c.teams.map(escape).join(', ')} · ${c.events.map(escape).join(' · ')}</p></details>`;
   const stability=values.filter(t=>t.brakingStability).map(t=>{
     const s=t.brakingStability,format=a=>a[0]===a[1]?`P${a[0]}`:`P${a[0]}–P${a[1]}`;
     return `${escape(t.team)}: approach ${format(s.approach)}, slowing ${format(s.slowing)}`;
@@ -2254,7 +2255,7 @@ function brakingObservedMarkup(evidenceEvents) {
       const trace=view.traces?.[team.team],zones=(trace?.braking||[]).filter(z=>z.method==='matched-speed-v1'&&z.mode==='straight'&&finite(z.duration)&&z.duration>0);
       const supported=zones.filter(z=>z.quality==='supported'),source=trace?.braking_selection||team.lap;
       const status=finite(ranked.get(team.team)?.brakingSlowingS)?'Included in the selected comparison':zones.length?
-        supported.length?(brakingApproachBasis==='matched'?'Measured; outside strict boundary-speed limits or shared cohort':'Measured; outside the selected complete cohort or no supported paired approach'):'Measured; timing resolution is provisional':view.traceExcluded?.[team.team]||trace?.braking_exclusion||event.brakingError||'Telemetry not received yet';
+        supported.length?'Measured; no supported paired comparison with enough shared rivals':'Measured; timing resolution is provisional':view.traceExcluded?.[team.team]||trace?.braking_exclusion||event.brakingError||'Telemetry not received yet';
       const range=(field,unit)=>{const values=zones.map(z=>z[field]).filter(finite);return values.length?`${fmt(Math.min(...values),3,unit)}–${fmt(Math.max(...values),3,unit)}`:'—';};
       return {event:event.name,team:team.team,source,zones,supported: supported.length,status,
         duration:range('duration',' s'),distance:range('distance',' m'),decel:range('mean_g',' g')};
@@ -2722,7 +2723,8 @@ function renderTrace() {
   if(activeMetric==='straight'&&straightLineSource==='race')return renderRaceSpeedTraps();
   if(activeMetric==='corners'&&cornerComparisonMode==='matched')return renderMatchedQualifyingCorners();
   if(context?.season) {
-    const season=seasonTelemetry(telemetrySeasonStat);
+    const summaryStat=activeMetric==='braking'?'mean':telemetrySeasonStat;
+    const season=seasonTelemetry(summaryStat);
     if(!season.length)return card('Telemetry season average','At least two constructors must have validated traces in an event.','<p class="section-empty">Not enough comparable telemetry is available for this selection. Other metrics remain available.</p>');
     retainQualifyingEntrants(season,events,true);
     const trackCount = season.commonEvents?.length || 0;
@@ -2912,21 +2914,21 @@ function renderTrace() {
       slowingS:team.adjusted.brakingSlowingS,
       approachMs:team.adjusted.brakingApproachMs,
       approachS:finite(team.adjusted.brakingApproachMs)?team.adjusted.brakingApproachMs/1000:null,
-      referenceLap:summarize(team.brakingReferenceLap,telemetrySeasonStat),
-      g: summarize(team.brakeG,telemetrySeasonStat),
-      meanG: summarize(team.brakeMeanG,telemetrySeasonStat),
-      powerProxy: summarize(team.brakePowerProxy,telemetrySeasonStat),
-      distance: summarize(team.brakeDistance,telemetrySeasonStat),
-      entrySpeed: summarize(team.brakeEntrySpeed,telemetrySeasonStat),
-      turnInSpeed: summarize(team.brakeTurnInSpeed,telemetrySeasonStat),
-      distDelta: summarize(team.brakeDistDelta,telemetrySeasonStat),
-      duration: summarize(team.brakeDuration,telemetrySeasonStat),
-      normalizedDecel: summarize(team.normalizedDecel,telemetrySeasonStat),
-      timeDelta: summarize(team.brakeTimeDelta,telemetrySeasonStat),
-      samplingResolution: summarize(team.samplingResolution,telemetrySeasonStat),
-      timingResolution:summarize(team.brakingResolution,telemetrySeasonStat),
-      approachResolution:summarize(team.brakingApproachResolution,telemetrySeasonStat),
-      repeatSpread:summarize(team.brakingRepeatSpread,telemetrySeasonStat),
+      referenceLap:summarize(team.brakingReferenceLap,summaryStat),
+      g: summarize(team.brakeG,summaryStat),
+      meanG: summarize(team.brakeMeanG,summaryStat),
+      powerProxy: summarize(team.brakePowerProxy,summaryStat),
+      distance: summarize(team.brakeDistance,summaryStat),
+      entrySpeed: summarize(team.brakeEntrySpeed,summaryStat),
+      turnInSpeed: summarize(team.brakeTurnInSpeed,summaryStat),
+      distDelta: summarize(team.brakeDistDelta,summaryStat),
+      duration: summarize(team.brakeDuration,summaryStat),
+      normalizedDecel: summarize(team.normalizedDecel,summaryStat),
+      timeDelta: summarize(team.brakeTimeDelta,summaryStat),
+      samplingResolution: summarize(team.samplingResolution,summaryStat),
+      timingResolution:summarize(team.brakingResolution,summaryStat),
+      approachResolution:summarize(team.brakingApproachResolution,summaryStat),
+      repeatSpread:summarize(team.brakingRepeatSpread,summaryStat),
       zones: team.zones
     }));
     const values = computeBrakingPerformance(rawBrakeValues);
@@ -2959,7 +2961,7 @@ function renderTrace() {
       zeroBaseline: true
     });
 
-    return statisticControls+card(brakingTitle,`Fastest qualifying lap only: ${telemetrySubject==='driver'?"each driver's own":"the quicker driver's"} fastest eligible lap across Q1/Q2/Q3. ${brakingComparisonMode!=='independent'?'Both charts use the same paired entrants, zones within each GP, and shared GPs.':'Slowing uses its own supported entrants and shared GPs; no approach ranking is shown.'} ${telemetrySeasonStat==='median'?'Median':'Mean'} gaps are seconds per measured zone, not whole-lap loss. GPS registration and sparse samples make close ranks provisional.`,
+    return card(brakingTitle,`Fastest qualifying lap only: ${telemetrySubject==='driver'?"each driver's own":"the quicker driver's"} fastest eligible lap across Q1/Q2/Q3. Both metrics use the same paired evidence. Mean gaps are seconds per measured zone with equal GP weight, not whole-lap loss. Close ranks remain uncertain.`,
       brakingViewControls(hasApproach)+brakeChart+(!hasApproach&&brakingView==='approach'?'<p class="section-empty">No supported approach comparison for this selection. Your selected view is retained; same-speed slowing and all measured evidence remain available.</p>':'')+brakingSupportMarkup(season.brakingCoverage,values,true)+
       table([
         sortHeader('brakeTeam','Team'),
@@ -3343,7 +3345,7 @@ const accelerationEvidence=activeMetric==='straight'&&straightLineSource==='qual
   const cornerBandEvidence=activeMetric==='corners'&&cornerSession==='qualy'?`<details class="dashboard-card performance-methods"><summary>Low / medium / high measured-turn coverage</summary><p class="performance-note">Bands use field-median speed at the shared GPS bend centre. Where GPS geometry is unsupported, the original ±25 m map-marker speed estimate remains explicitly uncertain. The quicker qualifying driver from each team supplies the classification reference in both Team and Driver views. Incomplete bands remain unranked; their measured turns are retained as evidence.</p>${table(['Grand Prix',entityLabel,'Low · measured / expected','Medium · measured / expected','High · measured / expected'],evidenceEvents.flatMap(e=>Object.entries(e.traces||{}).map(([name,t])=>[escape(e.name),escape(name),...['low','medium','high'].map(b=>{const c=t.corner_band_coverage?.[b];return c?`${c.measured} / ${c.expected}${c.missing.length?'<small>Missing '+escape(c.missing.map(n=>'T'+n).join(', '))+'</small>':''}`:'—';})])))}</details>`:'';
   const cornerPositions=activeMetric==='corners'&&cornerSession==='qualy'?`<details class="dashboard-card performance-methods"><summary>Corner position evidence · GPS refinements and uncertain markers</summary><p class="performance-note">Signed shifts are relative to the original map marker. Bend centres use GPS direction change only, not the fastest driver's speed trough. Estimates remain approximate; unsupported geometry is not silently relabelled as an apex.</p>${table(['Grand Prix','Turn','Position method','Shift from map','Field-reference speed','Position limitation'],events.flatMap(e=>(e.cornerAudit?.[telemetrySubject]?.bands||[]).map(c=>[escape(e.name),'T'+escape(c.corner),escape(c.apexMethod||'Not reported'),signed(c.apexShiftMetres,3,' m'),fmt(c.speed,3,' km/h'),escape(c.apexReason||'Estimated from supported GPS')])))}</details>`:'';
   const modelControls=activeMetric==='corners'?cornerWindowControls():activeMetric==='straight'&&straightLineSource==='qualy'?`<div class="performance-scope-toggle" role="group" aria-label="Settled-straight entry comparison">${[['settled','Delivered settled windows'],['matched','Match entry speeds · stricter']].map(([key,label])=>`<button type="button" data-straight-entry="${key}" aria-pressed="${straightEntryBasis===key}">${label}</button>`).join('')}</div><p class="performance-note">The stricter view uses identical windows and an entry-speed spread no wider than 3 km/h or 1%, with at least three entrants and 200 m total. It can exclude entrants with genuinely different entry speeds. Native peak speed and acceleration bands are unchanged. Neither view isolates drag, engine power or 2026 active aero.</p>`:'';
-  const fitted=telemetryMode&&context.season?seasonTelemetry(telemetrySeasonStat).fitDiagnostics:null;
+  const fitted=telemetryMode&&context.season?seasonTelemetry(activeMetric==='braking'?'mean':telemetrySeasonStat).fitDiagnostics:null;
   const fitEvidence=fitted&&Object.keys(fitted).length?`<details class="dashboard-card performance-methods"><summary>Comparison fit diagnostics · convergence and GP sensitivity</summary><p class="performance-note">Each GP has equal total weight. Mean solves least squares directly; median minimizes an absolute-residual objective, not alternating medians. Only one identifiable connected group is ranked. Leave-GP-out ranges are sensitivity, not measurement confidence intervals. Decimal formatting does not establish millisecond accuracy.</p>${table(['Metric','Method','Converged','Iterations','Fit residual','Groups / observations','Disconnected groups'],Object.entries(fitted).map(([metric,d])=>[escape(metric),escape(d.method),d.converged?'Yes':'No · inspect before interpreting',d.iterations,fmt(d.residualRMS,6),`${d.groups} / ${d.observations}`,escape((d.excludedComponents||[]).map(g=>g.join(', ')).join(' | ')||'None')]))}</details>`:'';
   const conditionEvidence=activeMetric==='pace'&&qualyPaceMode==='condition'?`<details class="dashboard-card performance-methods" open><summary>Timestamp diagnostic support</summary>${table(['GP','Status','Observed time overlap','Shared trend','Fit error','Limitation'],events.map(e=>{const d=e.Q?.teams?.find(t=>t.qualifying_condition_diagnostic)?.qualifying_condition_diagnostic;return [escape(e.name),escape(d?.status||'Not available'),d?.observed_common_seconds?.map(v=>fmt(v,1)).join('–')||'—',fmt(d?.seconds_per_minute,3,' s/min'),fmt(d?.residual_spread_s,3,' s'),escape(d?.reason||d?.limitation||'Refresh for updated source metadata')];}))}</details>`:'';
   const metricEvidence=(activeMetric==='straight'&&straightLineSource==='qualy'||activeMetric==='corners'&&cornerSession==='qualy'||activeMetric==='tyres')?`<details class="dashboard-card performance-methods"><summary>${activeMetric==='corners'?'Turning, approach and exit evidence':activeMetric==='straight'?'Straight entry speeds and boundary sensitivity':'Warm-up, steady trend and late falloff'}</summary><div data-metric-evidence="${activeMetric}"></div></details>`:'';
@@ -3545,19 +3547,13 @@ root.addEventListener('click',event=>{
   const straightSrc=event.target.closest('[data-straight-source]');
   if(straightSrc){straightLineSource=straightSrc.dataset.straightSource;render();loadActiveTelemetry();return;}
   const brakeViewButton=event.target.closest('[data-braking-view]');
-  const brakeComparisonButton=event.target.closest('[data-braking-comparison]');
-  if(brakeComparisonButton){brakingComparisonMode=brakeComparisonButton.dataset.brakingComparison;if(brakingComparisonMode==='independent')brakingView='deceleration';render();return;}
   const coverageButton=event.target.closest('[data-telemetry-coverage]');
   if(coverageButton){telemetryCoverageMode=coverageButton.dataset.telemetryCoverage;render();return;}
-  const brakeQualityButton=event.target.closest('[data-braking-quality]');
-  if(brakeQualityButton){brakingQualityMode=brakeQualityButton.dataset.brakingQuality;render();return;}
   const tyreConditionButton=event.target.closest('[data-tyre-condition]');
   if(tyreConditionButton){tyreConditionMode=tyreConditionButton.dataset.tyreCondition;render();return;}
   const pitVisitButton=event.target.closest('[data-pit-visits]');
   if(pitVisitButton){pitVisitMode=pitVisitButton.dataset.pitVisits;render();return;}
-  if(brakeViewButton&&!brakeViewButton.disabled){brakingView=brakeViewButton.dataset.brakingView;if(brakingView==='approach'&&brakingComparisonMode==='independent')brakingComparisonMode='connected';render();return;}
-  const brakeBasisButton=event.target.closest('[data-braking-basis]');
-  if(brakeBasisButton){brakingApproachBasis=brakeBasisButton.dataset.brakingBasis;render();return;}
+  if(brakeViewButton&&!brakeViewButton.disabled){brakingView=brakeViewButton.dataset.brakingView;render();return;}
   const band=event.target.closest('[data-straight-band]');
   const accelerationComparison=event.target.closest('[data-acceleration-comparison]');
   if(accelerationComparison){accelerationComparisonMode=accelerationComparison.dataset.accelerationComparison;render();return;}
