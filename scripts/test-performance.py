@@ -449,6 +449,12 @@ class PerformanceTests(unittest.TestCase):
         result=braking_approach_measurements(selected,0,20,grid)
         self.assertEqual(set(result),set('ABC'))
         self.assertAlmostEqual(result['A']['approach_time'],1)
+        delivered=braking_approach_measurements(selected,0,20,grid,boundary_matched=False)
+        self.assertEqual(set(delivered),set('ABCDE'))
+        self.assertFalse(delivered['D']['approach_boundary_compatible'])
+        self.assertFalse(delivered['E']['approach_boundary_compatible'])
+        self.assertTrue(delivered['D']['approach_timing_supported'])
+        self.assertAlmostEqual(delivered['D']['approach_time'],1)
 
     def test_braking_rejects_missing_samples_and_legacy_short_intervals(self):
         grid = np.arange(0., 405., 5.)

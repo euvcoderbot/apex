@@ -510,8 +510,8 @@ def observed_braking_zones(selected, grid):
     return zones
 
 
-def braking_approach_measurements(selected, start, end, grid):
-    """One real qualifying lap per car, with compatible corridor boundary speeds.
+def braking_approach_measurements(selected, start, end, grid, boundary_matched=True):
+    """Native corridor timing, with optional compatible-boundary screening.
 
     Native elapsed time is used, without official-lap rescaling. Registration
     identifies the shared corridor; public GPS cannot survey it precisely.
@@ -537,16 +537,23 @@ def braking_approach_measurements(selected, start, end, grid):
                           'approach_exit_speed': float(speeds[1]),
                           'approach_resolution_s': resolution,
                           'approach_source_lap': item.get('selection', {}).get('lap')}
-    if len(measured) < 3:
+    if not measured:
         return {}
     entry = float(np.median([v['approach_entry_speed'] for v in measured.values()]))
     exit_speed = float(np.median([v['approach_exit_speed'] for v in measured.values()]))
-    # A faster incoming car or an unusually slow corridor exit is not scored
-    # as superior braking. These disclosed tolerances are screening rules.
-    measured = {team: value for team, value in measured.items()
-                if abs(value['approach_entry_speed']-entry) <= max(5., entry*.02)
-                and abs(value['approach_exit_speed']-exit_speed) <= max(5., exit_speed*.03)}
-    return measured if len(measured) >= 3 else {}
+    # Fixed-distance elapsed time is valid even when a car arrives or exits
+    # faster. Preserve that delivered performance; only the explicitly strict
+    # boundary-matched comparison should discard it. Neither isolates hardware.
+    for value in measured.values():
+        value['approach_timing_supported'] = True
+        value['approach_boundary_compatible'] = bool(len(measured)>=3
+            and abs(value['approach_entry_speed']-entry) <= max(5., entry*.02)
+            and abs(value['approach_exit_speed']-exit_speed) <= max(5., exit_speed*.03))
+        value['approach_boundary_reference'] = {'entry_kmh':entry,'exit_kmh':exit_speed}
+    if not boundary_matched:
+        return measured
+    strict={team:value for team,value in measured.items() if value['approach_boundary_compatible']}
+    return strict if len(strict)>=3 else {}
 
 
 def fastest_qualifying_braking_items(selections, candidates):
@@ -594,7 +601,7 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
     for label, (start, end, onsets, mode) in windows.items():
         if mode != 'straight':
             continue
-        approaches = braking_approach_measurements(selected, start, end, grid)
+        approaches = braking_approach_measurements(selected, start, end, grid, boundary_matched=False)
         segments = {}
         for team, onset in onsets.items():
             if team not in selected:
@@ -766,7 +773,8 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
                 'repeat_spread_s': repeat_spread,
                 'sample_interval_s': float(max(x[3] for x in per_lap)),
                 'approach_time': None,
-                'approach_comparable': bool(approach),
+                'approach_comparable': bool(approach.get('approach_boundary_compatible')),
+                'approach_exclusion': None if approach else 'Native timing through the shared approach is incomplete, sparse or invalid.',
                 **approach,
                 'approach_distance': float(grid[end] - grid[start]),
                 'zone_start_m': float(grid[start]), 'zone_end_m': float(grid[end]),
@@ -775,7 +783,7 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
                 'selection_policy': 'fastest-qualifying-lap-only',
                 'quality': 'supported' if supported else 'provisional',
                 'endpoint_policy': 'fixed-field-support-first-shared-speed-drop; +/-10kmh sensitivity separate',
-                'braking_version': 'qualifying-braking-v6-boundary-envelopes'
+                'braking_version': 'qualifying-braking-v7-delivered-approach'
             })
     return result
 
@@ -1408,7 +1416,7 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
                 result['teams'][team] = {**observation, 'corners': [], 'braking': [], 'categories': {},
                     'quality': {'native_only': True, 'spatial_exclusion': errors.get(team)},
                     'measurement_status': 'native-speed-only'}
-        result['methodology_version'] = 'car-measurements-v12-local-evidence'
+        result['methodology_version'] = 'car-measurements-v13-delivered-approach'
         result['source_complete'] = all(not error and samples and len(samples)>=100 for _,samples,error in extracted)
         result['source_coverage'] = {'requested':len(selections),'received':sum(bool(samples) and not error for _,samples,error in extracted),
             'native_speed':len(native),'spatially_measured':sum(not r.get('quality',{}).get('native_only') for r in result['teams'].values())}

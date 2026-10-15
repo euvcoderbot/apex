@@ -42,6 +42,14 @@ test('recorded-source caching cannot renew its original freshness',()=>{
   assert.equal(dataTTL(path,{...data,source_cache:{...data.source_cache,stale:true}},[],now),120);
 });
 
+test('delivered approach revision never migrates strict-only v12 batch scores',async()=>{
+  const path='/api/performance/trace-batch?year=2026&gp=Test',identity=normalizeDataPath(path),store=new Map();
+  store.set('data:41044143c0b685844c70:'+identity,{data:{teams:{A:{braking:[]}},methodology_version:'car-measurements-v12-local-evidence'},expires:2000});
+  let calls=0;const cache=createDataCache({read:async k=>store.get(k),write:async(k,v)=>store.set(k,v),now:()=>1000,
+    fetcher:async()=>{calls++;return {ok:true,json:async()=>({teams:{A:{braking:[{approach_timing_supported:true}]}},methodology_version:'car-measurements-v13-delivered-approach'})};}});
+  const result=await cache.get(path);assert.equal(calls,1);assert.equal(result.data.teams.A.braking[0].approach_timing_supported,true);
+});
+
 test('partial stationary timing revalidates quickly even for an old completed race',()=>{
   const path='/api/performance/pits?year=2026&gp=Singapore Grand Prix';
   const now=Date.parse('2026-10-14T00:00:00Z');

@@ -34,7 +34,7 @@ test('acceleration comparison switches both chart and season inputs without refe
   assert.match(source,/data-acceleration-comparison="common"/);
   assert.match(source,/key,eventAdjustedScores\(targetReports,row=>accelerationBands\(row.trace\)/);
   assert.match(source,/row.bandGap=accelerationBands\(row.trace\)/);
-  assert.match(source,/let brakingComparisonMode='independent'/);
+  assert.match(source,/let brakingComparisonMode='connected'/);
   assert.match(source,/let brakingView='deceleration'/);
 });
 test('telemetry summaries survive unchanged renders and invalidate when source observations change',()=>{
