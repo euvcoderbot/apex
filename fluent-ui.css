@@ -133,9 +133,12 @@ body {
 .select-trigger { border-bottom-color: var(--border-color-hover); }
 .select-menu { background: color-mix(in srgb,var(--bg-card) 88%,transparent); backdrop-filter: blur(30px); box-shadow: 0 8px 32px #00000040; border-radius: 8px; }
 .performance-table-wrap.is-compact-table .performance-table { width: 100%; min-width: 0; table-layout: fixed; }
-.is-compact-table .performance-table :is(th,td) { min-width: 0; max-width: none; white-space: normal; overflow-wrap: anywhere; }
+.is-compact-table .performance-table :is(th,td) { min-width: 0; max-width: none; white-space: normal; overflow-wrap: normal; word-break: normal; }
 .is-compact-table .performance-table :is(th,td):first-child { width: 25%; min-width: 0; max-width: none; }
-.is-compact-table .performance-team { flex-wrap: wrap; }
+.is-compact-table .performance-team { flex-wrap: nowrap; align-items: center; }
+.is-compact-table .performance-team .team-name { white-space: normal; line-height: 1.35; }
+.is-compact-table:has([data-performance-sort="raceCornerSamples"]) .performance-table :is(th,td):nth-child(3) { width: 8%; }
+.performance-bar-label .team-name { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.35; }
 .is-compact-table .perf-sort-btn { white-space: normal; }
 .performance-table thead th { font-weight: 600; text-transform: none; letter-spacing: 0; }
 .performance-table tbody tr:hover td { background-color: var(--bg-card-hover); }
