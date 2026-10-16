@@ -495,7 +495,7 @@ async function loadRaceCorners(automatic=false) {
     &&(!automatic||raceCornerAttempts.get(year+':'+e.name+':'+subject+suffix)!==id));
   if(!jobs.length)return;
   raceCornerController=new AbortController();const signal=raceCornerController.signal;
-  raceCornerRunning=true;render();
+  raceCornerRunning=true;let sourcePaused=false;render();
   try {
     for(const event of jobs){
       const key=year+':'+event.name+':'+subject+suffix;if(raceCornerCache.get(key)?.complete)continue;
@@ -527,6 +527,7 @@ async function loadRaceCorners(automatic=false) {
           try{
             const snapshot=await get('/api/race-corners?'+new URLSearchParams({year,gp:event.name,round:event.round,lap:group.lap,compound:group.compound,cohort:group.cohort,subject,...extra}),signal);
             observations.push(...snapshot.observations||[]);requestErrors.push(...snapshot.requestErrors||[]);
+            if(snapshot.sourcePaused){sourcePaused=true;jobs.length=0;requestErrors.push('Native source rate limited; retry after one minute. Completed cached observations are retained.');}
             legacyObservations.push(...snapshot.legacyObservations||[]);
             if(!snapshot.complete)requestErrors.push(`L${group.lap}: ${snapshot.reason||'Incomplete matched telemetry'}`);
           }catch(error){if(signal.aborted)throw error;requestErrors.push('L'+group.lap+': '+error.message);}
@@ -544,27 +545,34 @@ async function loadRaceCorners(automatic=false) {
   } finally {
     if(id!==generation)return;
     raceCornerRunning=false;
-    updateStatus(signal.aborted?'Race cornering stopped; completed observations retained.':'Race cornering finished. These are matched observations, not a pure car/downforce rating.');
+    updateStatus(signal.aborted?'Race cornering stopped; completed observations retained.':sourcePaused?'Race source busy. Cached results retained; retry after one minute.':'Race cornering · available groups processed and cached.');
     render();
     if(!signal.aborted)loadActiveTelemetry();
   }
 }
 
+const raceCornerFitCache=new WeakMap();
 function renderRaceCorners() {
   const adjustedAge=typeof raceCornerModel!=='undefined'&&raceCornerModel==='age-adjusted';
   const cacheKey=e=>context.year+':'+e.name+':'+telemetrySubject+(adjustedAge?':age-adjusted':'');
   const pending=events.filter(e=>e.R&&!raceCornerCache.get(cacheKey(e))?.complete);
   const reports=events.filter(e=>e.R).map(event=>{
     const cached=raceCornerCache.get(cacheKey(event));
-    const observations=((typeof cornerWindowMode!=='undefined'&&cornerWindowMode==='legacy'?cached?.legacyObservations:cached?.observations)||[]).map(o=>({...o,logoTeam:o.team,displayName:telemetrySubject==='driver'?o.driver:o.team,team:telemetrySubject==='driver'?o.driver:o.team})),rows=new Map();
-    const matched=Object.fromEntries(['all','low','medium','high'].map(band=>[band,adjustedAge?ageAdjustedRaceCornerScores(observations,band,telemetrySubject):connectedRaceCornerScores(observations,band,telemetrySubject,telemetrySeasonStat)]));
+    const source=cached?.observations||[];
+    const observations=source.map(o=>({...o,logoTeam:o.team,displayName:telemetrySubject==='driver'?o.driver:o.team,team:telemetrySubject==='driver'?o.driver:o.team})),rows=new Map();
+    // Fit only the visible band and reuse it until observations or controls
+    // change. Display/sort interactions must not refit four whole races.
+    let fits=raceCornerFitCache.get(source);if(!fits){fits=new Map();raceCornerFitCache.set(source,fits);}
+    const fitKey=[cornerGraphBand,telemetrySubject,telemetrySeasonStat,adjustedAge].join(':');
+    if(!fits.has(fitKey))fits.set(fitKey,adjustedAge?ageAdjustedRaceCornerScores(observations,cornerGraphBand,telemetrySubject):connectedRaceCornerScores(observations,cornerGraphBand,telemetrySubject,telemetrySeasonStat));
+    const model=fits.get(fitKey);
     for(const team of [...new Set(observations.map(o=>o.team))]){
       const own=observations.filter(o=>o.team===team),values={};
-      for(const band of ['all','low','medium','high'])values[band]=matched[band].scores.get(team);
+      values[cornerGraphBand]=model.scores.get(team);
       rows.set(team,{team,color:own[0].color,displayName:own[0].displayName,logoTeam:own[0].logoTeam,values,samples:new Set(own.map(o=>o.driver+':'+o.lap)).size,
-        comparisons:matched[cornerGraphBand].support.get(team)||0,drivers:[...new Set(own.map(o=>o.driver))].join(', ')});
+        comparisons:model.support.get(team)||0,drivers:[...new Set(own.map(o=>o.driver))].join(', ')});
     }
-    return {event,summary:{rows},model:matched[cornerGraphBand]};
+    return {event,summary:{rows},model};
   });
   const season=connectedRaceCornerScores(reports.flatMap(({event,summary})=>[...summary.rows.values()].map(row=>({...row,snapshot:event.name}))),cornerGraphBand,'team',telemetrySeasonStat),adjusted=season.scores;
   const teams=new Map();
@@ -575,11 +583,11 @@ function renderRaceCorners() {
   for(const event of events)for(const entry of raceCornerCache.get(cacheKey(event))?.entrants||[])if(!teams.has(entry.team))
     teams.set(entry.team,{...entry,values:{},events:0,samples:0,comparisons:0});
   const rows=[...teams.values()].map(t=>({...t,gap:adjusted.get(t.team)}));
-  const actions=raceCornerRunning?'<button type="button" data-race-corners-stop>Stop race cornering</button>':`<button type="button" data-race-corners-load ${pending.length?'':'disabled'}>${rows.length?'Load remaining race observations':'Calculate matched race corners'}</button>`;
-  const visibleSupport=rows.length?`${rows.filter(r=>finite(r.gap)).length} of ${rows.length} ${telemetrySubject==='driver'?'drivers':'teams'} connected by matched comparisons. Scores are estimated through overlapping rivals, not a direct all-field test. ${raceCornerRunning?'Still collecting snapshots; rankings can change.':'Sparse results remain provisional.'}`:raceCornerRunning?'Matched race telemetry is loading. Valid snapshots appear as soon as they are ready.':running?'Waiting for the race session before matching corners.':'No supported matched race snapshots yet. Use Calculate matched race corners or inspect the missing-data details below.';
-  const sourceCoverageNote=reports.map(({event})=>{const c=raceCornerCache.get(cacheKey(event))?.sourceCoverage;return c?`<p class="performance-quality-status">${escape(event.name)} · ${c.laps} native driver-laps available${finite(c.timingLaps)?' from '+c.timingLaps+' timing records':''}. ${finite(c.eligibleLaps)?c.eligibleLaps+' timing laps pass the condition checks. ':''}Lap times alone cannot measure cornering. ${escape(c.message)}</p>`:'';}).join('');
+  const actions=raceCornerRunning?'<button type="button" data-race-corners-stop>Stop race cornering</button>':pending.length?`<button type="button" data-race-corners-load>${rows.length?'Load remaining race observations':'Calculate matched race corners'}</button>`:'';
+  const visibleSupport=rows.length?`${rows.filter(r=>finite(r.gap)).length} of ${rows.length} ${telemetrySubject==='driver'?'drivers':'teams'} connected by matched comparisons. Scores are estimated through overlapping rivals, not a direct all-field test. ${raceCornerRunning?'Still collecting snapshots; rankings can change.':rows.some(r=>r.samples<3)?'Sparse results remain provisional.':'Driver, tyre and traffic effects remain.'}`:raceCornerRunning?'Matched race telemetry is loading. Valid snapshots appear as soon as they are ready.':running?'Waiting for the race session before matching corners.':'No supported matched race snapshots yet. Use Calculate matched race corners or inspect the missing-data details below.';
+  const sourceCoverageNote=reports.map(({event})=>{const c=raceCornerCache.get(cacheKey(event))?.sourceCoverage;return c?`<p class="performance-quality-status">${escape(event.name)} · ${c.kind==='live-native-with-retained-fallback'?`${c.plannedDriverLaps} selected native driver-laps across the race · ${c.laps} retained fallback laps`:`${c.laps} native driver-laps available`}${finite(c.timingLaps)?' · '+c.timingLaps+' timing records':''}. ${escape(c.message)}</p>`:'';}).join('');
   return card('Race cornering · matched comparisons','Every eligible group across the available race is processed; there is no six-lap target or snapshot cap. Cached groups appear first. Each comparison uses the same race lap and compound, with tyre ages within four laps. Pit laps, wet laps, laps over 107% of stint median and close traffic at the timing line are excluded. Retained sources may contain only part of the race. Overlapping rivals connect snapshots; disconnected groups cannot share a baseline.',
-    cornerBandControls()+`<div class="performance-actions">${actions}</div><p class="performance-quality-status">${visibleSupport}</p>`+
+    cornerBandControls()+(actions?`<div class="performance-actions">${actions}</div>`:'')+`<p class="performance-quality-status">${visibleSupport}</p>`+
     sourceCoverageNote+(adjustedAge?`<p class="performance-note">Separate model: same race lap, compound and physical corner, with a fitted shared compound-age slope. Driver and age effects must be independently identifiable across at least three race laps. This is not matched-condition evidence. ${reports.filter(r=>r.model.reason).map(r=>escape(r.event.name)+': '+escape(r.model.reason)).join(' · ')}</p>`:'')+
     '<p class="performance-note">Supported head-to-head time differences are averaged with equal GP weight. A connected comparison fits overlapping rivals; missing observations are not filled. These are estimated gaps per corner, not whole-lap loss or isolated downforce.</p>'+
     renderHorizontalBarChart(rows,{title:`${cornerGraphBand==='all'?'All corners':cornerGraphBand+'-speed corners'} · average time gap per corner`,valueKey:'gap',unit:' s',digits:3,signedValue:true,zeroBaseline:true})+
@@ -3523,7 +3531,7 @@ root.addEventListener('click',event=>{
   const trendViewButton=event.target.closest('[data-trend-view]');
   if(trendViewButton){trendView=trendViewButton.dataset.trendView;sortKey=trendView==='fitted'?'trendModelled':'trendChange';sortDirection=1;render();return;}
   const metric=event.target.closest('[data-performance-metric]');
-  if(metric) {activeMetric=metric.dataset.performanceMetric;render();if(activeMetric==='pits')loadPitData();loadActiveTelemetry();return;}
+  if(metric) {activeMetric=metric.dataset.performanceMetric;if(events.length&&!running)updateStatus(`Ready · ${events.length} selected event${events.length===1?'':'s'}. Cached results are reused.`);render();if(activeMetric==='pits')loadPitData();loadActiveTelemetry();return;}
   if(event.target.closest('[data-pit-retry]')){loadPitData(true);return;}
   const pitMeasureButton=event.target.closest('[data-pit-measure]');
   if(pitMeasureButton&&!pitMeasureButton.disabled){pitMeasure=pitMeasureButton.dataset.pitMeasure;render();return;}

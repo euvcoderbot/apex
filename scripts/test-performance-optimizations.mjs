@@ -84,7 +84,7 @@ test('overlapping partial corner blocks cannot multiply the same physical lap-pa
 });
 
 test('connected paired braking uses actual rows for both metrics and widens real Sepang support without filling missing teams',()=>{
-  const source=readFileSync('car-performance.js','utf8'),seed=JSON.parse(readFileSync('lib/verified-cache-seed.json','utf8'));
+  const source=readFileSync('car-performance.js','utf8'),seed=JSON.parse(readFileSync('scripts/fixtures/v120/lib/verified-cache-seed.json','utf8'));
   const Q=Object.entries(seed.entries).find(([k])=>k.startsWith('data:')&&k.includes('session=Q'))[1].data;
   const traces=Object.entries(seed.entries).find(([k])=>k.includes('trace-batch?'))[1].data.teams;
   const measure=mode=>{const box={finite:Number.isFinite,avg:a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:null,

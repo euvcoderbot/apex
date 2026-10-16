@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {fastestTeamTelemetrySelections} from '../qualifying-telemetry.js';
 import {createDataCache,SOURCE_VERSION,DATA_VERSION,RACE_VERSION} from '../lib/data-cache.mjs';
-import seed from '../lib/verified-cache-seed.json' with {type:'json'};
+import seed from './fixtures/v120/lib/verified-cache-seed.json' with {type:'json'};
 const source=readFileSync('car-performance.js','utf8');
 const [performanceKey,summary]=Object.entries(seed.entries).find(([k])=>k.startsWith('data:')&&k.includes('session=Q'));
 const [batchKey,batchEntry]=Object.entries(seed.entries).find(([k])=>k.includes('trace-batch?'));

@@ -596,6 +596,7 @@ def _openf1_lap_telemetry(
     lap_start: str | None = None,
     lap_time: float | None = None,
     next_start: str | None = None,
+    streams: dict[str, list[dict[str, Any]]] | None = None,
 ) -> list[dict[str, Any]]:
     if session_key is None:
         session = openf1_session(year, gp, session_name)
@@ -651,6 +652,11 @@ def _openf1_lap_telemetry(
     end_str = window_end.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
 
     def lap_stream(endpoint: str) -> list[dict[str, Any]]:
+        if streams is not None:
+            # Full-race callers retrieve each driver/channel once. Reuse the
+            # unchanged lap-boundary and native-position joining logic below.
+            return [point for point in streams.get(endpoint, []) if window_start
+                    <= datetime.fromisoformat(point['date'].replace('Z', '+00:00')) <= window_end]
         points = openf1(
             endpoint,
             session_key=session_key,
@@ -1623,6 +1629,57 @@ def session_data(
     response.headers['Timing-Allow-Origin'] = '*'
     if drivers and lap_data_complete and not fresh:
         write_prepared_cache("session", year, payload, SESSION_CACHE_SCHEMA, gp, round, session)
+    return payload
+
+
+@app.get('/api/performance/race-laps')
+def race_native_laps(response: Response, year: int = Query(..., ge=2023, le=2100),
+                     gp: str = Query(..., min_length=3, max_length=120),
+                     driver_number: str = Query(..., pattern=r'^\d{1,3}$'),
+                     session_key: int = Query(..., ge=1), fresh: bool = False):
+    """Three upstream requests per driver, not three per lap/cohort."""
+    from verified_sources import recorded_session
+    recording = recorded_session(year, gp, 'R')
+    recorded_key = (recording or {}).get('data', {}).get('openf1_session_key')
+    if recorded_key != session_key:
+        actual = openf1_session(year, gp, 'R')
+        if not actual or actual['session_key'] != session_key:
+            raise HTTPException(422, 'Race session identity does not match this Grand Prix.')
+    cached = None if fresh else read_prepared_cache('race-native-v1', year, gp, session_key, driver_number)
+    if cached is not None:
+        return cached
+    try:
+        with ThreadPoolExecutor(max_workers=3, thread_name_prefix='race-native') as pool:
+            jobs = {endpoint: pool.submit(openf1, endpoint, session_key=session_key, driver_number=driver_number)
+                    for endpoint in ('car_data','location','laps')}
+            streams = {endpoint: future.result() for endpoint, future in jobs.items()}
+    except HTTPError as exc:
+        if exc.code == 429:
+            raise HTTPException(429, 'Native source rate limited. Keep cached race results and retry later.', headers={'Retry-After':'60'}) from exc
+        raise HTTPException(502, 'Native race source is temporarily unavailable.') from exc
+    laps = sorted(streams.pop('laps'), key=lambda r: integer(r.get('lap_number'), 0))
+    columns = ['Distance','ElapsedSeconds','Speed','X','Y','SourceIntervalSeconds','PositionIntervalSeconds']
+    output, errors = [], []
+    for index, row in enumerate(laps):
+        duration = seconds(row.get('lap_duration'))
+        lap = integer(row.get('lap_number'), 0)
+        if not lap or row.get('is_pit_out_lap') or duration is None or not 20 < duration < 300 or not row.get('date_start'):
+            continue
+        following = next((r for r in laps[index+1:index+2] if integer(r.get('lap_number')) == lap+1), {})
+        try:
+            samples = _openf1_lap_telemetry.__wrapped__(year,gp,'R',driver_number,lap,0,session_key,
+                row['date_start'],duration,following.get('date_start'),streams=streams)
+            if len(samples) < 30:
+                errors.append({'lap':lap,'reason':'Too few native samples'}); continue
+            output.append({'lap':lap,'time':duration,'points':[[p.get(c) for c in columns] for p in samples]})
+        except Exception as exc:
+            errors.append({'lap':lap,'reason':str(exc)})
+    if not output:
+        raise HTTPException(422, 'No native race laps returned for this driver.')
+    payload = {'driver_number':driver_number,'session_key':session_key,'source':'OpenF1',
+               'date':next((r.get('date_start') for r in laps if r.get('date_start')),None),
+               'columns':columns,'laps':output,'errors':errors,'method':'native-race-streams-v1'}
+    write_prepared_cache('race-native-v1', year, payload, gp, session_key, driver_number)
     return payload
 
 
