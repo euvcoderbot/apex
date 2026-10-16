@@ -277,7 +277,6 @@ function renderHorizontalBarChart(rows, {
       <div class="performance-bars">
         ${rowsHtml}${missingMarkup}
       </div>
-      ${missingRows.length?`<div class="chart-coverage">${missingRows.length} unranked · see measurement coverage</div>`:''}
     </div>
   `;
 }
@@ -420,7 +419,7 @@ function telemetrySubjectControls() {
   return `<div class="performance-scope-toggle" role="group" aria-label="Telemetry subject">${[['team','Teams'],['driver','Drivers']].map(([key,label])=>`<button type="button" data-telemetry-subject="${key}" aria-pressed="${telemetrySubject===key}">${label}</button>`).join('')}</div>`;
 }
 function cornerSessionControls() {
-  return `<div class="performance-scope-toggle" role="group" aria-label="Cornering session">${[['qualy','Qualifying cornering'],['race','Race cornering']].map(([key,label])=>`<button type="button" data-corner-session="${key}" aria-pressed="${cornerSession===key}">${label}</button>`).join('')}</div>`;
+  return `<div class="performance-scope-toggle" role="group" aria-label="Cornering session">${[['qualy','Qualifying'],['race','Race']].map(([key,label])=>`<button type="button" data-corner-session="${key}" aria-pressed="${cornerSession===key}">${label}</button>`).join('')}</div>`;
 }
 async function loadQualifyingMetrics(retry=false,automatic=false) {
   if(qualifyingMetricsRunning||!context||activeMetric==='corners'&&cornerSession==='race')return;
@@ -484,7 +483,7 @@ async function loadQualifyingMetrics(retry=false,automatic=false) {
 let raceCornerRunning=false,raceCornerController=null;
 const raceCornerCache=new Map();
 function cornerBandControls() {
-  return `<div class="performance-scope-toggle" role="group" aria-label="Corner speed type">${[['all','All corners'],['low','Low-speed'],['medium','Medium-speed'],['high','High-speed']].map(([key,label])=>`<button type="button" data-corner-band="${key}" aria-pressed="${cornerGraphBand===key}">${label}</button>`).join('')}</div>`;
+  return `<div class="performance-scope-toggle" role="group" aria-label="Corner speed type">${[['all','All corners'],['low','Low'],['medium','Medium'],['high','High']].map(([key,label])=>`<button type="button" data-corner-band="${key}" aria-pressed="${cornerGraphBand===key}" title="${key==='all'?'All measured corners':label+'-speed corners'}">${label}</button>`).join('')}</div>`;
 }
 
 async function loadRaceCorners(automatic=false) {
@@ -636,7 +635,7 @@ function straightGapControls() {
   return `<div class="straight-summary-controls"><div class="performance-band-options" role="group" aria-label="Straight-section gap units"><button type="button" data-straight-unit="percent" aria-pressed="${straightGapUnit==='percent'}">% of lap</button><button type="button" data-straight-unit="seconds" aria-pressed="${straightGapUnit==='seconds'}">Seconds</button></div><span class="measurement-context">Speed-based estimate${evidence}</span></div><p class="performance-note">Same supported straight windows, estimated from native speed over equal distance. This is not measured traversal time or isolated engine power. GPS timing distortion cannot make a slower car artificially faster. Across GPs, percent and seconds weight lap lengths differently.</p>`;
 }
 function straightBandControls(available) {
-  return `<div class="performance-range-control" aria-label="Acceleration speed range"><label for="performanceAccelerationRange">Speed range</label><span class="select-shell"><select id="performanceAccelerationRange" aria-label="Acceleration speed range" data-straight-band-select>${STRAIGHT_BANDS.map(key=>`<option value="${key}" ${key===straightBand?'selected':''} ${available.includes(key)?'':'disabled'}>${key.replace('_','–')} km/h</option>`).join('')}</select></span></div>`;
+  return `<div class="performance-range-control"><span class="control-caption" id="performanceAccelerationRangeLabel">Acceleration · km/h</span><div class="performance-range-options" role="group" aria-labelledby="performanceAccelerationRangeLabel">${STRAIGHT_BANDS.map(key=>`<button type="button" data-straight-band="${key}" aria-pressed="${key===straightBand}" ${available.includes(key)?'':'disabled'}>${key.replace('_','–')}</button>`).join('')}</div></div>`;
 }
 let qualyPaceMode='overall'; // 'overall' | 'q1' | 'adjusted'
 const root=$('performanceResults');
@@ -1759,7 +1758,7 @@ function renderResults(teams) {
 
   return card('Reliability and results',
      'Total points include official race and sprint classifications. Points per start, finishes and reliability use races only. Missing sprint classifications leave totals unknown, not zero. Results are not isolated car performance.',
-    `<div class="performance-results-measure"><label for="performanceResultsMeasure">Measure</label><span class="select-shell"><select id="performanceResultsMeasure" data-results-chart-select>${[['points','Total points'],['perStart','Points / start'],['finishRate','Finish rate'],['mechanicalRate','Mechanical retirements']].map(([key,label])=>`<option value="${key}" ${resultsChartMetric===key?'selected':''}>${label}</option>`).join('')}</select></span></div>`+pointsChart+
+    `<div class="performance-results-measure"><div class="performance-scope-toggle" role="group" aria-label="Results measure">${[['points','Points'],['perStart','Points / start'],['finishRate','Finish rate'],['mechanicalRate','Mechanical retirements']].map(([key,label])=>`<button type="button" data-results-chart="${key}" aria-pressed="${resultsChartMetric===key}">${label}</button>`).join('')}</div></div>`+pointsChart+
     table(['Team','Total points','Race','Sprint','Race points / start','Finished / starts'],ordered.map(t=>[
       teamLabel(t),finite(t.points)?t.points:'—',finite(t.racePoints)?t.racePoints:'—',finite(t.sprintPoints)?t.sprintPoints:'—',
       fmt(t.pointsPerStart,2),`${t.finishes} / ${t.starts}`]))+
@@ -2762,7 +2761,7 @@ function renderMatchedQualifyingCorners() {
     'Each entrant’s fastest qualifying lap only. A missing packet removes its affected corner, not the whole lap. Identical corner windows are compared within each GP; overlapping rivals connect the fit. The score is estimated average extra seconds per corner, not whole-lap loss.',
     cornerBandControls()+`<p class="performance-quality-status">${ranked} / ${rows.length} ${telemetrySubject==='driver'?'drivers':'teams'} ranked · equal GP weight. Missing turns remain unmeasured.</p>`+
     renderHorizontalBarChart(rows,{title:'Estimated average gap per '+(cornerGraphBand==='all'?'corner':cornerGraphBand+'-speed corner'),valueKey:'gap',unit:' s'})+
-    table([sortHeader('matchedCornerTeam',telemetrySubject==='driver'?'Driver':'Team'),sortHeader('matchedCornerGap','Gap / corner'),'Low-speed','Medium-speed','High-speed','Measured turns','Supported GPs'],
+    table([sortHeader('matchedCornerTeam',telemetrySubject==='driver'?'Driver':'Team'),sortHeader('matchedCornerGap','Gap / corner'),'Low','Medium','High','Turns','GPs'],
       sorted(rows,{matchedCornerTeam:r=>r.team,matchedCornerGap:r=>r.gap},'matchedCornerGap').map(r=>[teamLabel(r),signed(r.gap,3,' s'),...['low','medium','high'].map(b=>signed(r.values[b],3,' s')),r.turns,r.gps]))+
     `<details class="performance-evidence"><summary>Matched-corner fit support</summary>${table(['GP','Band','Connected entrants','Compared corners','Fit residual'],reports.flatMap(r=>bands.map(b=>[escape(r.event.name),escape(b),r.bandFits[b].scores.size,r.bandFits[b].snapshots,fmt(r.bandFits[b].residual,3,' s')])))}</details>`);
 }
@@ -3500,10 +3499,6 @@ root.addEventListener('keydown',event=>{
   replacement?.focus({preventScroll:true});replacement?.scrollIntoView({block:'nearest',inline:'nearest'});
 });
 root.addEventListener('change',event=>{
-  const resultsMeasure=event.target.closest('[data-results-chart-select]');
-  if(resultsMeasure){resultsChartMetric=resultsMeasure.value;render();root.querySelector('#performanceResultsMeasure')?.closest('.select-shell')?.querySelector('.select-trigger')?.focus({preventScroll:true});return;}
-  const speedRange=event.target.closest('[data-straight-band-select]');
-  if(speedRange){straightBand=speedRange.value;render();root.querySelector('#performanceAccelerationRange')?.closest('.select-shell')?.querySelector('.select-trigger')?.focus({preventScroll:true});return;}
   const select=event.target.closest('[data-tyre-plot-filter]');
   if(!select)return;
   const kind=select.dataset.tyrePlotFilter;
@@ -3522,6 +3517,8 @@ root.addEventListener('change',event=>{
 });
 
 root.addEventListener('click',event=>{
+  const resultsMeasure=event.target.closest('[data-results-chart]');
+  if(resultsMeasure){resultsChartMetric=resultsMeasure.dataset.resultsChart;render();return;}
   const compound=event.target.closest('[data-tyre-compound]');
   if(compound){tyreView=compound.dataset.tyreCompound;render();root.querySelector(`[data-tyre-compound="${tyreView}"]`)?.focus({preventScroll:true});return;}
 

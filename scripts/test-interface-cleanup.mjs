@@ -19,7 +19,7 @@ test('useful task and interpretation controls remain available',()=>{
   for(const key of ['telemetry-subject','corner-session','corner-band','straight-source','straight-unit',
     'pit-measure','pit-subject','pit-chart','pit-lane-basis','tyre-metric','tyre-subject','tyre-correction','trend-view'])
     assert.match(car,new RegExp('data-'+key+'='));
-  assert.match(car,/<select[^>]+data-results-chart-select/);
+  assert.match(car,/<button[^>]+data-results-chart=/);
   for(const id of ['cornerToggle','speedAnnotationToggle'])assert.match(app,new RegExp('id="'+id+'"'));
   assert.match(car,/Assumes 0\.060 s\/lap fuel gain; not measured fuel/);
   assert.match(car,/Retained session sources/);
@@ -31,10 +31,10 @@ test('acceleration keeps speed-band selection without methodology choices',()=>{
   const box={telemetrySubject:'team',straightBand:'200_250',STRAIGHT_BANDS:['100_150','200_250','250_300']};
   vm.createContext(box);vm.runInContext(car.slice(start,end),box);
   const html=box.straightBandControls(['200_250']);
-  assert.equal((html.match(/<option/g)||[]).length,3);
-  assert.match(html,/<select[^>]+data-straight-band-select/);
-  assert.match(html,/<option value="200_250" selected/);
-  assert.match(html,/<option value="100_150"[^>]+disabled/);
+  assert.equal((html.match(/<button/g)||[]).length,3);
+  assert.match(html,/role="group" aria-labelledby="performanceAccelerationRangeLabel"/);
+  assert.match(html,/data-straight-band="200_250" aria-pressed="true"/);
+  assert.match(html,/data-straight-band="100_150"[^>]+disabled/);
   assert.doesNotMatch(html,/diagnostic|strict|Common observed/);
 });
 

@@ -87,12 +87,6 @@
         for(const control of chart.querySelectorAll(':scope > .performance-metric-toolbar,:scope > .performance-stat-toggle,:scope > .straight-summary-controls,:scope > .performance-range-control'))slot.append(control);
         if(!slot.childElementCount)slot.setAttribute('aria-hidden','true');
       }
-      if(metric==='straight'&&!grid.closest('details')){
-        const evidence=document.createElement('details'),summary=document.createElement('summary');
-        evidence.className='performance-evidence performance-chart-evidence';
-        summary.textContent='Straight-line rankings and acceleration';
-        grid.before(evidence);evidence.append(summary,grid);
-      }
     }
     for(const note of root.querySelectorAll('p.performance-quality-status:not(.explanation-only)')){
       if(note.closest('details,.performance-tyre-toolbar')||note.querySelector('button')||note.getAttribute('role')==='status')continue;

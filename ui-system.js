@@ -1,6 +1,6 @@
 /* Component ownership only. No telemetry, data loading or ranking code. */
 (() => {
-  const groups='.performance-tabs,.session-analysis-tabs,.performance-scope-toggle,.performance-band-options,.performance-tyre-options,.race-result-controls,.map-view-switch,.run-segments';
+  const groups='.performance-tabs,.session-analysis-tabs,.performance-scope-toggle,.performance-band-options,.performance-tyre-options,.performance-range-options,.race-result-controls,.map-view-switch,.run-segments';
   const symbols={plus:'M12 5v14M5 12h14',minus:'M5 12h14',left:'m14 6-6 6 6 6',right:'m10 6 6 6-6 6',close:'m6 6 12 12M18 6 6 18',chart:'M4 4v16h16M7 15l4-5 4 2 5-7',expand:'M4 9V4h5m6 0h5v5M4 15v5h5m6 0h5v-5',reset:'M5 7a8 8 0 1 1-1 8M5 3v5h5'};
   const symbol=name=>`<svg class="ui-symbol" data-ui-symbol="${name}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${symbols[name]||symbols.chart}"/></svg>`;
   const columnWidths=new Map(); let tableId=0, columnDrag=null;

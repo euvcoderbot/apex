@@ -29,8 +29,7 @@ test('supporting straight and braking tables are closed and deferred before DOM 
   }
   assert.doesNotMatch(ui,/measurement-table-heading|entries`/);
   assert.match(car,/function deferPerformanceEvidence/);
-  assert.match(ui,/metric==='straight'&&!grid.closest\('details'\)/);
-  assert.match(ui,/Straight-line rankings and acceleration/);
+  assert.doesNotMatch(ui,/performance-chart-evidence|Straight-line rankings and acceleration/);
 });
 
 test('retired view switches, annotation table and lap selection marks have no remaining app code',()=>{
