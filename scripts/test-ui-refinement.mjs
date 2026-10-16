@@ -18,10 +18,10 @@ test('rendered lap and sector differences precede their measured times, with wea
   assert.doesNotMatch(html,/<small>L21<\/small>/);
 });
 
-test('lap chooser has explicit two-column placement and compact stacked fallback',()=>{
+test('lap chooser uses an unscrolled driver grid above its lap cards',()=>{
   postcss.parse(css);
   assert.match(css,/#lapSelectionBody > #driverSidebar \{ grid-area: 1 \/ 1/);
-  assert.match(css,/#lapSelectionBody > #stintPanels \{ grid-area: 1 \/ 2/);
+  assert.match(css,/#lapSelectionBody > #stintPanels \{ grid-area: 2 \/ 1/);
   assert.match(css,/@media\(max-width:760px\)[\s\S]*#lapSelectionBody > #stintPanels \{ grid-area: 2 \/ 1/);
   assert.match(css,/sector-cell::after \{ height: 5px/);
   assert.match(css,/sector-cell-value > small \{ font-size: 13px/);
@@ -35,13 +35,13 @@ test('trace selectors show exact lap times while retaining stable lap identities
   assert.match(source,/disableLast/);
 });
 
-test('compound pop-up keeps all options and the selected compound',()=>{
+test('compound pills keep all options and the selected compound',()=>{
   const source=car.slice(car.indexOf('function tyreCompoundControl('),car.indexOf('function tyreStintKey('));
   const box={tyreView:'C4'};vm.createContext(box);vm.runInContext(source,box);
   const html=box.tyreCompoundControl(['OVERALL','C3','C4','C5'],'All C grades');
-  assert.equal((html.match(/<option/g)||[]).length,4);
-  assert.match(html,/<option value="C4" selected>C4/);
-  assert.match(html,/label for="performanceTyreCompound"/);
+  assert.equal((html.match(/data-tyre-compound=/g)||[]).length,4);
+  assert.match(html,/data-tyre-compound="C4" aria-pressed="true"/);
+  assert.match(html,/aria-labelledby="performanceTyreCompoundLabel"/);
   assert.match(car,/const navEmoji=\{pace:'⏱️'/);
   assert.match(css,/performance-tyre-toolbar \.performance-quality-status \{ flex: 1 0 100%/);
 });

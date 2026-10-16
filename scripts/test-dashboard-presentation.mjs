@@ -28,7 +28,7 @@ test('presentation changes reparent original observations without recalculating 
   assert.match(ui,/cell\.append\(chart\)/);
   assert.doesNotMatch(ui,/fetch\(|\.sort\(|\.innerHTML\s*=/);
   assert.match(ui,/table\.createCaption\(\)/);
-  assert.match(ui,/td\.section-empty/);
+  assert.doesNotMatch(ui,/measurement-table-heading|labelText\.textContent/);
   assert.match(car,/arrangePerformance\(root,activeMetric\)/);
   assert.match(car,/pace-visual-grid/);
 });

@@ -17,6 +17,8 @@ test('component appearance has one explicit final owner and focused canvas sizin
 
 test('the actual shipped CSS is one parsed bundle without an import waterfall',async()=>{
   const built=await buildUiStyles(read),root=postcss.parse(built.css);
+  assert.ok(built.retired>0);
+  assert.doesNotMatch(built.css,/lap-selection-mark|speed-annotation-evidence|measurement-table-heading|trace-color-picker|track-tray-title/);
   assert.ok(built.demoted>20,'Legacy important appearance declarations must not silently win');
   assert.ok(built.css.lastIndexOf('@layer components')>built.css.lastIndexOf('@layer appearance'));
   let imports=0;root.walkAtRules('import',()=>imports++);assert.equal(imports,0);

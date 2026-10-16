@@ -25,6 +25,7 @@
   }
   function decorateTables(root){
     for(const table of root.querySelectorAll('table.performance-table')){
+      if(table.closest('details:not([open])'))continue;
       if(!table.id)table.id='ui-table-'+(++tableId);
       [...table.querySelectorAll('thead th')].forEach((th,index)=>{
         if(th.querySelector('.ui-column-resizer'))return;

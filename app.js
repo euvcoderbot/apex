@@ -2,7 +2,6 @@
 let drivers = [];
 let selected = [];
 let loaded = [];
-let sessionAnalysisView = 'traces';
 let openStint = {};
 let realDrivers = new Map();
 const telemetryCache = new Map();
@@ -888,18 +887,6 @@ function setLapSelectionExpanded(expanded, focus = false) {
   if (focus) toggle.focus({preventScroll: true});
 }
 
-function setSessionAnalysisView(view) {
-  sessionAnalysisView = view === 'corners' ? 'corners' : 'traces';
-  document.querySelectorAll('[data-session-view]').forEach(button => {
-    const active = button.dataset.sessionView === sessionAnalysisView;
-    button.setAttribute('aria-selected', String(active));
-    button.tabIndex = active ? 0 : -1;
-  });
-  $('#charts').hidden = sessionAnalysisView !== 'traces';
-  updateTelemetryVisibility();
-  scheduleDrawAll();
-}
-
 
 // UI Rendering Functions
 function mergeRaceClassification(classification) {
@@ -1097,7 +1084,7 @@ function renderStints() {
         : !Number.isFinite(displayTime) ? 'No lap time published by the timing feeds' : '';
       const age = Number.isFinite(lap.tyre_life) && lap.tyre_life >= 1 ? Math.round(lap.tyre_life) : null;
       const tyreDetail = hasQualifyingPhases ? `<small class="lap-tyre-age">Run ${qualifyingRuns.indexOf(lap.stint) + 1} · Tyre age ${age === null ? 'unknown' : `${age} ${age === 1 ? 'lap' : 'laps'}`}</small>` : '';
-      return `<button class="${classes}" aria-pressed="${isLoaded}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${escapeUI(title)}"><span class="lap-token"><i class="lap-selection-mark" aria-hidden="true">${isLoaded ? '✓' : '+'}</i>${flag}${context ? ` <b class="lap-state">${context}</b>` : ''}${neutralised ? ` <b class="lap-state">${neutralised}</b>` : ''}</span><span class="lap-clock">${duration}</span>${compoundBadgeMarkup(lap.compound)}${tyreDetail}</button>`;
+      return `<button class="${classes}" aria-pressed="${isLoaded}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${escapeUI(title)}"><span class="lap-token">${flag}${context ? ` <b class="lap-state">${context}</b>` : ''}${neutralised ? ` <b class="lap-state">${neutralised}</b>` : ''}</span><span class="lap-clock">${duration}</span>${compoundBadgeMarkup(lap.compound)}${tyreDetail}</button>`;
     }).join('');
     const groupLabel = hasQualifyingPhases ? active : `Stint ${active}`;
 
@@ -1265,15 +1252,6 @@ function renderSectors() {
     `;
   }).join(''));
 
-  root.querySelectorAll('.trace-color-picker').forEach(input => {
-    input.addEventListener('change', event => {
-      lapColorOverrides.set(event.target.dataset.lapColor, event.target.value);
-      renderLoaded();
-      renderSectors();
-      renderTraceVisibilityControls();
-      drawAll();
-    });
-  });
 }
 
 // Chart Constants and Configuration
@@ -1561,7 +1539,6 @@ function renderCharts() {
           <span class="visually-hidden" id="cornerStatus" aria-live="polite">Corner labels hidden.</span>
         </div>` : ''}
       <canvas data-chart="${name}" aria-label="${name}${name === 'Speed trace' ? '. Drag horizontally to zoom every telemetry chart.' : ''}"></canvas>
-      ${name==='Speed trace'?'<div id="speedAnnotationEvidence" class="speed-annotation-evidence" hidden></div>':''}
     </section>
   `;
   }).join('');
@@ -2078,15 +2055,6 @@ function drawSpeedAnnotations(ctx, annotations, rect, bounds, xForFraction, view
   ctx.restore();
 }
 
-function renderSpeedAnnotationEvidence(annotations,entries,totalDistance) {
-  const host=$('#speedAnnotationEvidence');if(!host)return;
-  host.hidden=!showSpeedAnnotations;
-  if(!showSpeedAnnotations||host._annotations===annotations)return;
-  const open=host.querySelector?.('details')?.open;
-  host._annotations=annotations;
-  const label=lap=>`${lap.code} L${lap.lap}`;
-  host.innerHTML=`<details ${open?'open':''}><summary>All speed annotations · ${annotations.length} locations</summary><p>Chart labels omitted for space remain in this table. Min is each lap's observed slow-corner window minimum. Speed compares every lap at one shared estimated geometric corner centre, not a measured apex; ≈ marks bounded interpolation between native speed samples. Straight max is the measured full-throttle maximum in the final 100 m of a supported straight zone, not a peak between every corner. Missing observations stay blank. Three decimals are display precision, not sensor accuracy.</p><div class="speed-annotation-table-wrap"><table><thead><tr><th>Location</th><th>Position</th>${entries.map(e=>`<th style="color:${getLapColor(e.lap)}">${escapeUI(label(e.lap))}</th>`).join('')}</tr></thead><tbody>${annotations.map(a=>`<tr><th>${escapeUI(a.title)}</th><td>${(a.fraction*totalDistance).toFixed(3)} m</td>${entries.map(e=>{const value=a.values.find(v=>v.lap===e.lap);return `<td>${value?(value.estimated?'≈ ':'')+value.speed.toFixed(3)+' km/h':'—'}</td>`;}).join('')}</tr>`).join('')}</tbody></table></div></details>`;
-}
 
 function traceSampleFraction(series, point) {
   return Number.isFinite(point?.AlignedFraction)
@@ -2531,9 +2499,6 @@ function drawRealChart(name) {
       speedAnnotationCache={key,entries,annotations:buildSpeedAnnotations(entries,zones,totalDist)};
     }
     drawSpeedAnnotations(ctx,speedAnnotationCache.annotations,rect,bounds,xForFraction,viewStart,viewEnd,traceEntries);
-    renderSpeedAnnotationEvidence(speedAnnotationCache.annotations,entries,totalDist);
-  } else if(name==='Speed trace') {
-    const evidence=$('#speedAnnotationEvidence');if(evidence)evidence.hidden=true;
   }
   
   // Draw collision-free corner labels in a reserved header band. Corner
@@ -2894,7 +2859,7 @@ function updateTelemetryVisibility() {
   const card = $('#telemetryCard');
   if (!card) return;
   const empty = loaded.length === 0;
-  const genericMap = empty && sessionAnalysisView === 'corners' && (selected.length > 0 || !!sessionEventName);
+  const genericMap = empty && (selected.length > 0 || !!sessionEventName);
   card.classList.toggle('is-empty', empty);
   card.classList.toggle('has-generic-map', genericMap);
   const emptyState = $('#telemetryEmpty');
@@ -2999,7 +2964,6 @@ function renderCornerAnalysis() {
   const root = $('#cornerMetricGrid');
   const pickerRoot = $('#cornerPickerRow');
   if (!section || !root || !pickerRoot) return;
-  if (sessionAnalysisView !== 'corners') { section.hidden = true; return; }
   const oldPicker = pickerRoot.querySelector?.('.corner-picker');
   const oldActive = oldPicker?.querySelector('.corner-pick.selected');
   const pickerState = oldPicker && oldActive ? {
@@ -3857,15 +3821,6 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#lapWorkspaceToggle')?.addEventListener('click', event => {
     setLapSelectionExpanded(event.currentTarget.getAttribute('aria-expanded') !== 'true');
   });
-  document.querySelectorAll('[data-session-view]').forEach(button => {
-    button.addEventListener('click', () => setSessionAnalysisView(button.dataset.sessionView));
-    button.addEventListener('keydown', event => {
-      if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
-      event.preventDefault();
-      const next = document.querySelector(`[data-session-view="${event.key === 'Home' ? 'traces' : event.key === 'End' ? 'corners' : sessionAnalysisView === 'traces' ? 'corners' : 'traces'}"]`);
-      next.focus(); setSessionAnalysisView(next.dataset.sessionView);
-    });
-  });
   const cornerAnalysis = $('#cornerAnalysis');
   if (cornerAnalysisToggle && cornerAnalysis) {
     cornerAnalysisToggle.addEventListener('click', () => {
@@ -3972,7 +3927,7 @@ function renderTireNomination() {
     return;
   }
   
-  card.style.display = 'block';
+  card.style.display = '';
   
   const labels = ['Hard', 'Medium', 'Soft'];
   const colors = ['#ffffff', '#ffd700', '#ff0055']; // White, Yellow, Red

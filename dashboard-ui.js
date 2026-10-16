@@ -39,13 +39,6 @@
         for (const chart of charts) {
           const cell = document.createElement('section');
           cell.className = 'performance-visual-cell';
-          // Keep the acceleration selector attached to its own chart, not its neighbours.
-          const range = chart.previousElementSibling;
-          if (range?.getAttribute('aria-label') === 'Acceleration speed range') {
-            const hint = range.previousElementSibling;
-            if (hint?.matches('.performance-band-hint')) cell.append(hint);
-            cell.append(range);
-          }
           cell.append(chart);
           grid.append(cell);
         }
@@ -61,6 +54,7 @@
         if (control && chart) chart.querySelector('.perf-chart-header')?.after(control);
       };
       if (metric === 'pace') placeControls(body.querySelector('.performance-metric-toolbar'), body.querySelector('.performance-chart-card'));
+      if (metric === 'pace') placeControls(body.querySelector('.performance-stat-toggle'), [...body.querySelectorAll('.pace-visual-grid .performance-chart-card')].at(-1));
       if (metric === 'straight') placeControls(body.querySelector('.straight-summary-controls'), body.querySelector('.performance-chart-card'));
       if (metric === 'straight') placeControls(body.querySelector('.performance-range-control'), [...body.querySelectorAll('.performance-chart-card')].at(-1));
       const runControls = body.querySelector('.performance-tyre-plot-controls');
@@ -84,18 +78,28 @@
         caption.className = 'visually-hidden';
         caption.textContent = title;
       }
-      if (wrap.querySelector('.measurement-table-heading')) continue;
-      const label = document.createElement('div');
-      label.className = 'measurement-table-heading';
-      const count = table.querySelector('td.section-empty') ? 0 : table.tBodies[0]?.rows.length || 0;
-      const sortable = !!table.querySelector('[data-performance-sort]');
-      const labelText = document.createElement('span');
-      labelText.textContent = `${count} ${count === 1 ? 'entry' : 'entries'}`;
-      const hint = document.createElement('small');
-      hint.className = 'explanation-only';
-      hint.textContent = sortable ? 'Click headings to sort' : '';
-      label.append(labelText, hint);
-      wrap.prepend(label);
+    }
+    for(const grid of root.querySelectorAll('.performance-visual-grid')){
+      for(const chart of grid.querySelectorAll('.performance-chart-card')){
+        if(chart.querySelector('.performance-chart-controls'))continue;
+        const slot=document.createElement('div');slot.className='performance-chart-controls';
+        chart.querySelector('.perf-chart-header')?.after(slot);
+        for(const control of chart.querySelectorAll(':scope > .performance-metric-toolbar,:scope > .performance-stat-toggle,:scope > .straight-summary-controls,:scope > .performance-range-control'))slot.append(control);
+        if(!slot.childElementCount)slot.setAttribute('aria-hidden','true');
+      }
+      if(metric==='straight'&&!grid.closest('details')){
+        const evidence=document.createElement('details'),summary=document.createElement('summary');
+        evidence.className='performance-evidence performance-chart-evidence';
+        summary.textContent='Straight-line rankings and acceleration';
+        grid.before(evidence);evidence.append(summary,grid);
+      }
+    }
+    for(const note of root.querySelectorAll('p.performance-quality-status:not(.explanation-only)')){
+      if(note.closest('details,.performance-tyre-toolbar')||note.querySelector('button')||note.getAttribute('role')==='status')continue;
+      const parent=note.parentElement;
+      let evidence=parent.querySelector(':scope > .performance-status-evidence');
+      if(!evidence){evidence=document.createElement('details');evidence.className='performance-evidence performance-status-evidence';const title=document.createElement('summary');title.textContent='Coverage and assumptions';evidence.append(title);parent.append(evidence);}
+      evidence.append(note);
     }
   }
   document.querySelectorAll('[data-analysis-view]').forEach(button => button.addEventListener('click', () => {

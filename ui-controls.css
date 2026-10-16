@@ -66,7 +66,7 @@ button[data-ui-kind="picker"] .track-tray-disclosure { flex: 0 0 auto; margin-le
 .workspace-tools button[data-ui-kind="toolbar"] { flex: 0 0 auto; width: auto; }
 /* Segments are one control, not a row of unrelated pill buttons. */
 [data-ui-group="segments"] { display: inline-flex; align-items: stretch; gap: 0; padding: 2px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-well); box-shadow: inset 0 1px 2px #0002; }
-[data-ui-group="segments"] > button[data-ui-kind="segment"] { flex: 1 1 0; min-width: 0; min-height: 26px; padding: 4px 10px; border: 0; border-radius: 5px; color: var(--ui-secondary); background: transparent; box-shadow: none; white-space: normal; font-size: 12px; font-weight: 400; }
+[data-ui-group="segments"] > button[data-ui-kind="segment"] { flex: 1 1 0; min-width: 0; min-height: 29px; padding: 4px 8px; border: 0; border-radius: 5px; color: var(--ui-secondary); background: transparent; box-shadow: none; white-space: normal; font-size: 12px; font-weight: 400; }
 [data-ui-group="segments"] > button[data-ui-kind="segment"][aria-pressed="true"] { color: var(--ui-label); background: var(--ui-selected); box-shadow: 0 1px 2px #0003,inset 0 1px #ffffff09; }
 [data-ui-group="segments"] > button[data-ui-kind="segment"]::after { display: none; }
 .performance-tabs[data-ui-group] { width: 304px; }
@@ -199,9 +199,26 @@ progress::-moz-progress-bar { background: var(--ui-action); border-radius: 3px; 
 /* Accessibility is part of the same system, not an optional skin. */
 /* Analysis layout: explicit placement prevents legacy sidebar rows from
    auto-placing the lap cards into the narrow driver column. */
+#lapSelectionBody { grid-template-columns: minmax(0,1fr); }
 #lapSelectionBody > #driverSidebar { grid-area: 1 / 1; }
-#lapSelectionBody > #stintPanels { grid-area: 1 / 2; min-width: 0; width: 100%; grid-template-columns: repeat(auto-fit,minmax(min(100%,340px),1fr)); }
+#lapSelectionBody > #stintPanels { grid-area: 2 / 1; min-width: 0; width: 100%; grid-template-columns: repeat(auto-fit,minmax(min(100%,340px),1fr)); }
 main.sidebar-collapsed #lapSelectionBody > #stintPanels { grid-area: 1 / 1; }
+main #driverSidebar { width: 100%; }
+#driverSidebar #driverPills { grid-template-columns: repeat(auto-fit,minmax(210px,1fr)); max-height: none; overflow: visible; padding: 0; scrollbar-gutter: auto; }
+#driverSidebar #driverPills .driver-pill-identity strong { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.2; }
+#driverSidebar #tireCard { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 6px 10px; }
+#driverSidebar #tireCard > .panel-heading { margin: 0; padding: 0; border: 0; }
+#driverSidebar #tireCard h2 { font-size: 12px; font-weight: 400; color: var(--ui-secondary); }
+#driverSidebar #tireNomination { display: flex; flex-wrap: wrap; gap: 14px; }
+#driverSidebar .tire-option { display: inline-flex; flex-direction: row; align-items: center; min-height: 24px; width: auto; gap: 5px; padding: 0; border: 0; border-radius: 0; background: transparent; }
+#driverSidebar .tire-option .tyre-image { width: 18px; height: 18px; }
+#driverSidebar .tire-copy strong { font-size: 12px; font-weight: 400; white-space: nowrap; }
+.lap-workspace .lap-chip { display: grid; grid-template-columns: minmax(0,1fr) auto 20px; grid-template-rows: auto auto; align-items: center; overflow: hidden; }
+.lap-workspace .lap-chip .lap-token { grid-area: 1 / 1; display: flex; flex-wrap: wrap; align-items: center; gap: 3px; min-width: 0; }
+.lap-workspace .lap-chip .lap-clock { grid-area: 1 / 2; white-space: nowrap; }
+.lap-workspace .lap-chip > .compound-badge { grid-area: 1 / 3; justify-self: end; margin: 0; }
+.lap-workspace .lap-chip .lap-tyre-age { grid-area: 2 / 1 / auto / -1; white-space: normal; }
+.lap-workspace .lap-chip .lap-state { position: static; margin: 0; white-space: nowrap; }
 .lap-workspace .run-card-header { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; }
 .lap-workspace .run-driver { min-width: 0; gap: 7px; }
 .lap-workspace .run-driver-copy { min-width: 0; }
@@ -212,7 +229,7 @@ main.sidebar-collapsed #lapSelectionBody > #stintPanels { grid-area: 1 / 1; }
 .lap-workspace .run-segment small { display: flex; flex-direction: column; align-items: center; flex: 0 0 auto; white-space: nowrap; gap: 2px; }
 .lap-workspace .run-choice-indicator { display: none; }
 /* One lap = identity/time + three aligned sector readings + weather strip. */
-.sector-cards .lap-summary-card { grid-template-columns: minmax(300px,1.05fr) minmax(0,1.8fr); gap: 6px 12px; padding: 8px 10px; }
+.sector-cards .lap-summary-card { grid-template-columns: minmax(0,1fr) min(48%,540px); gap: 6px 12px; padding: 8px 10px; }
 .sector-cards .lap-summary-card > header { grid-area: 1 / 1; grid-template-columns: minmax(0,1fr) auto; }
 .sector-cards .lap-summary-card .summary-driver { display: inline-flex; align-items: center; gap: 7px; }
 .sector-cards .lap-summary-card .summary-driver > b { font-size: 14px; }
@@ -256,8 +273,10 @@ main.sidebar-collapsed #lapSelectionBody > #stintPanels { grid-area: 1 / 1; }
 #performanceResults .performance-mode button[data-ui-kind="tab"]:hover:not([aria-selected="true"]) { background: #ffffff08; box-shadow: none; border-color: transparent; }
 .metric-nav-emoji { width: 17px; flex: 0 0 17px; text-align: center; font-size: 14px; line-height: 1; }
 .performance-compound-control { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin: 0 0 10px; }
-.performance-compound-control > label { color: var(--ui-secondary); font-size: 12px; }
-.performance-compound-control .select-shell { flex: 0 1 210px; width: 210px; min-width: 0; }
+.performance-compound-control .compound-control-label { color: var(--ui-secondary); font-size: 12px; }
+.performance-compound-control .performance-tyre-options { display: flex; flex-wrap: wrap; width: auto; gap: 4px; padding: 0; border: 0; background: none; box-shadow: none; }
+.performance-compound-control .performance-tyre-options > button { flex: 0 0 auto; min-width: 40px; min-height: 29px; padding: 4px 8px; border: 1px solid var(--ui-border); background: var(--ui-well); }
+.performance-compound-control .performance-tyre-options > button[aria-pressed="true"] { background: var(--ui-selected); }
 .performance-tyre-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .performance-tyre-toolbar [data-ui-group="segments"] { flex: 0 1 auto; width: auto; }
 .performance-tyre-toolbar [data-ui-group="segments"] > button { flex: 0 0 auto; white-space: nowrap; }
@@ -273,9 +292,79 @@ main.sidebar-collapsed #lapSelectionBody > #stintPanels { grid-area: 1 / 1; }
 @media(max-width:760px) {
   #lapSelectionBody > #driverSidebar { grid-area: 1 / 1; }
   #lapSelectionBody > #stintPanels { grid-area: 2 / 1; }
+  #lapSelectionBody #driverSidebar { display: flex; }
   .performance-controls > .control-field { flex: 0 0 100px; }
   .performance-controls > .control-field-scope { flex: 1 1 180px; }
   .performance-controls > .performance-actions { flex: 1 0 100%; }
+}
+/* Traces and corner map share the existing hover position and stay visible. */
+.telemetry-analysis-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(340px,36%); align-items: start; gap: 12px; }
+.telemetry-analysis-grid > #charts { grid-area: 1 / 1; min-width: 0; }
+.telemetry-analysis-grid > #cornerAnalysis { grid-area: 1 / 2; min-width: 0; position: sticky; top: 66px; margin: 0; }
+.telemetry-analysis-grid .corner-workspace { display: flex; flex-direction: column; gap: 10px; }
+.telemetry-analysis-grid .dominance-map { order: 0; width: 100%; min-width: 0; padding: 8px; }
+.telemetry-analysis-grid .corner-picker-row { order: 1; }
+.telemetry-analysis-grid .corner-metric-grid { order: 2; width: 100%; }
+.telemetry-analysis-grid .corner-detail-card { padding: 7px; }
+.telemetry-analysis-grid #dominanceCanvas { height: 240px; min-height: 220px; }
+.telemetry-analysis-grid .dominance-map-header { margin: 0 0 6px; gap: 4px; }
+.telemetry-analysis-grid .dominance-map-header h2 { font-size: 13px; }
+.telemetry-analysis-grid .dominance-map-header h2 small { display: inline; margin-left: 5px; font-size: 10px; }
+.telemetry-analysis-grid .map-view-switch { width: 100%; margin: 5px 0; }
+.telemetry-analysis-grid .map-wind { display: none; }
+.telemetry-analysis-grid .corner-detail-table { font-size: 11px; }
+body.trace-focus .telemetry-analysis-grid { display: block; }
+body.trace-focus #cornerAnalysis { display: none; }
+/* Shared chart rows align actual data, not just the outer card edges. */
+.performance-visual-grid { align-items: stretch; grid-template-rows: auto auto 1fr auto; column-gap: 12px; row-gap: 8px; }
+.performance-visual-grid:has(> .performance-visual-cell:nth-child(3)) { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.performance-visual-grid > .performance-visual-cell { display: contents; }
+.performance-visual-grid .performance-chart-card { display: grid; grid-template-rows: subgrid; grid-row: 1 / 5; margin: 0; min-width: 0; padding: 10px; }
+.performance-visual-grid .perf-chart-header { grid-row: 1; min-height: 32px; margin: 0; padding: 0 0 7px; }
+.performance-visual-grid .performance-chart-controls { grid-row: 2; min-height: 29px; display: flex; align-items: center; }
+.performance-visual-grid .performance-chart-controls > :is(.performance-metric-toolbar,.performance-stat-toggle,.straight-summary-controls,.performance-range-control) { margin: 0; padding: 0; gap: 7px; }
+.performance-chart-controls > .performance-range-control { width: 100%; flex-wrap: nowrap; }
+.performance-chart-controls .performance-range-control > label { flex: 0 0 auto; white-space: nowrap; }
+.performance-chart-controls .performance-range-control .select-shell { flex: 1 1 155px; min-width: 0; max-width: 180px; }
+.select-menu { transition: none; }
+.performance-visual-grid .performance-bars { grid-row: 3; align-self: start; width: 100%; margin: 0; }
+.performance-visual-grid .performance-bar-row { min-height: 32px; padding-block: 5px; }
+.performance-visual-grid .chart-coverage { grid-row: 4; margin: 0; align-self: end; }
+.performance-chart-card .performance-bar-label { min-width: 0; }
+.performance-chart-card .performance-team .team-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.performance-chart-controls .measurement-context { display: none; }
+.performance-chart-controls .performance-band-options { margin: 0; }
+.performance-chart-controls [data-ui-group="segments"] { min-width: max-content; }
+.performance-chart-controls [data-ui-group="segments"] > button[data-ui-kind="segment"] { white-space: nowrap; }
+.performance-split-view { align-items: stretch; gap: 12px; }
+.performance-split-view > :is(.performance-chart-card,.performance-table-wrap) { margin: 0; padding: 10px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-well); }
+.performance-split-view .perf-chart-header { min-height: 42px; margin: 0; padding: 0 0 6px; }
+.performance-split-view .performance-table thead tr { height: 42px; }
+.performance-split-view .performance-table :is(th,td) { padding: 5px 7px; }
+.performance-split-view .performance-table td { height: 34px; }
+.performance-split-view .performance-bar-row { height: 34px; min-height: 34px; padding-block: 4px; }
+.performance-split-view .performance-table td small { display: none; }
+.performance-split-view .performance-bars { margin: 0; }
+.primary-measurements { margin-top: 12px; }
+.performance-status-evidence { margin: 10px 0 0; }
+.performance-status-evidence .performance-quality-status { margin: 0; padding: 10px; border: 0; background: none; }
+@media(max-width:1000px) {
+  .telemetry-analysis-grid { grid-template-columns: minmax(0,1fr); }
+  .telemetry-analysis-grid > #cornerAnalysis { grid-area: 1 / 1; position: static; }
+  .telemetry-analysis-grid > #charts { grid-area: 2 / 1; }
+  .telemetry-analysis-grid .corner-workspace { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  .telemetry-analysis-grid .dominance-map { grid-column: 2; grid-row: 1 / 3; }
+  .telemetry-analysis-grid .corner-picker-row,.telemetry-analysis-grid .corner-metric-grid { grid-column: 1; }
+}
+@media(max-width:1000px) {
+  .performance-visual-grid,.performance-visual-grid:has(> .performance-visual-cell:nth-child(3)) { grid-template-columns: minmax(0,1fr); grid-template-rows: none; }
+  .performance-visual-grid .performance-chart-card { display: flex; flex-direction: column; grid-row: auto; }
+  .performance-visual-grid .performance-chart-controls[aria-hidden="true"] { display: none; }
+}
+@media(max-width:560px) {
+  #driverSidebar #driverPills { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .telemetry-analysis-grid .corner-workspace { display: flex; }
+  .sector-cards .lap-summary-card .summary-sectors { width: 100%; }
 }
 @media(max-width:480px) {
   .sector-cards .lap-summary-card .sector-cell-value { flex-wrap: wrap; gap: 3px; }

@@ -9,7 +9,7 @@ test('lap selection collapses without losing its contents and has a reliable edi
   const elements=new Map();
   const $=id=>{if(!elements.has(id))elements.set(id,{hidden:false,inert:false,attributes:{},label:{},setAttribute(k,v){this.attributes[k]=v;},querySelector(){return this.label;},focus(){this.focused=true;}});return elements.get(id);};
   const box={$};vm.createContext(box);
-  vm.runInContext(app.slice(app.indexOf('function setLapSelectionExpanded('),app.indexOf('function setSessionAnalysisView(')),box);
+  vm.runInContext(app.slice(app.indexOf('function setLapSelectionExpanded('),app.indexOf('// UI Rendering Functions')),box);
   box.setLapSelectionExpanded(false,true);
   assert.equal($('#lapSelectionBody').hidden,true);assert.equal($('#lapSelectionBody').inert,true);
   assert.equal($('#lapWorkspaceToggle').attributes['aria-expanded'],'false');assert.equal($('#lapWorkspaceToggle').label.textContent,'Edit laps');assert.equal($('#lapWorkspaceToggle').focused,true);
@@ -19,18 +19,12 @@ test('lap selection collapses without losing its contents and has a reliable edi
   assert.match(app,/if \(loaded.length\) setLapSelectionExpanded\(false, true\)/);
 });
 
-test('analysis tabs switch presentation, retain data and redraw without fetching',()=>{
-  const buttons=['traces','corners'].map(view=>({dataset:{sessionView:view},attributes:{},setAttribute(k,v){this.attributes[k]=v;}}));
-  let redraws=0;
-  const chart={},box={sessionAnalysisView:'traces',document:{querySelectorAll:()=>buttons},$:()=>chart,updateTelemetryVisibility(){},scheduleDrawAll(){redraws++;}};
-  vm.createContext(box);
-  const code=app.slice(app.indexOf('function setSessionAnalysisView('),app.indexOf('// UI Rendering Functions'));
-  vm.runInContext(code,box);box.setSessionAnalysisView('corners');
-  assert.equal(chart.hidden,true);assert.equal(buttons[1].attributes['aria-selected'],'true');assert.equal(buttons[1].tabIndex,0);
-  box.setSessionAnalysisView('traces');assert.equal(chart.hidden,false);assert.equal(buttons[0].tabIndex,0);
-  assert.equal(redraws,2);
-  assert.doesNotMatch(code,/fetch|telemetryCache\.clear|loaded\s*=/);
-  assert.match(page,/id="charts" role="tabpanel" aria-labelledby="sessionTracesTab"/);
+test('traces and corners are simultaneous regions and share the existing hover path',()=>{
+  assert.doesNotMatch(app,/sessionAnalysisView|setSessionAnalysisView/);
+  assert.doesNotMatch(page,/data-session-view|role="tabpanel"/);
+  assert.match(page,/class="telemetry-analysis-grid"/);
+  assert.match(page,/id="charts" role="region" aria-label="Telemetry traces"/);
+  assert.match(app,/hoverFraction = fraction;[\s\S]*?drawMapHover\(\)/);
 });
 
 test('the analysis canvas reclaims setup width and controls remain local to their charts',()=>{

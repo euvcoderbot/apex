@@ -407,7 +407,8 @@ test('dense lap identity, editable trace colours and automatic map recovery', ()
 test('qualifying run pills show every compound and lap state precedes the time', () => {
   assert.match(app, /new Set\(laps\.map\(lap => String\(lap\.compound/);
   assert.match(app, /class="run-compounds">\$\{compoundBadges\}/);
-  assert.match(app, /class="lap-token"><i class="lap-selection-mark"[^>]*>[^<]*<\/i>\$\{flag\}\$\{context/);
+  assert.match(app, /class="lap-token">\$\{flag\}\$\{context/);
+  assert.doesNotMatch(app,/lap-selection-mark/);
   assert.match(app, /class="lap-clock">\$\{duration\}<\/span>/);
   const html = readFileSync('index.html', 'utf8');
   assert.match(html, /app\.js\?v=euv2-release-[\w-]+/);
@@ -1002,7 +1003,7 @@ test('pit category keeps stationary and lane averages separate by team and drive
   sandbox.pitVisitMode='all';
   assert.equal(sandbox.pitMiddleSpread(result.teams[0].stop),null); // two stops cannot establish consistency
   assert.ok(Math.abs(sandbox.pitMiddleSpread({count:4,p25:2.1,p75:2.7})-.6)<1e-9);
-  assert.match(source,/sortHeader\('pitSpread','Consistency · IQR'\)/);
+  assert.match(source,/sortHeader\('pitSpread','Spread \(IQR\)'\)/);
   assert.match(source,/pitSpread:r=>pitMiddleSpread\(r\[measure\]\)/);
   assert.equal(result.drivers.find(d=>d.driver==='NOR').avgStop,2);
   assert.equal(result.drivers.find(d=>d.driver==='NOR').avgLane,25);
