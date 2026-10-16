@@ -33,6 +33,7 @@ test('compact lap summary keeps all sectors and all weather fields without hidin
   assert.match(css,/summary-lap-time \{ grid-area: 1 \/ 2 \/ 3 \/ 3/);
   assert.match(css,/summary-conditions \{ display: flex; flex-wrap: wrap/);
   assert.match(css,/summary-condition \{[^}]*width: auto/);
+  assert.match(css,/sector-delta-slot \{[^}]*height: 20px; min-height: 20px/);
 });
 test('popup keyboard typeahead cycles displayed enabled choices and Escape returns focus',()=>{
   const start=app.indexOf("  let searchPrefix = '', lastSearchAt = 0;");

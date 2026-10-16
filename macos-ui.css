@@ -160,7 +160,8 @@ body :where(*) { font-family: var(--font-sans); }
 .summary-sectors > .sector-cell + .sector-cell { border-left: 1px solid var(--border-color); }
 .sector-cell-value { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
 .sector-cell-value small,.sector-cell-value strong { font-size: .6875rem; }
-.sector-delta-slot { min-height: 0; line-height: 1; }
+.sector-delta-slot { display: flex; align-items: center; justify-content: center; height: 20px; min-height: 20px; line-height: 1; }
+.summary-sectors .summary-delta { line-height: 1.2; }
 .summary-delta { padding: 2px 4px; font-size: .6875rem; border-radius: 4px; font-style: normal; font-variant-numeric: tabular-nums; }
 .summary-sectors > .sector-cell::after { height: 2px; left: 8px; right: 8px; }
 .lap-summary-card .summary-conditions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 3px 10px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border-color); }
