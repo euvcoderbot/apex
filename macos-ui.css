@@ -104,8 +104,8 @@ body :where(*) { font-family: var(--font-sans); }
 .select-menu button { min-height: 32px; padding: 6px 30px 6px 10px; border-radius: 7px; font-weight: 400; color: var(--text-main); }
 .select-menu button[aria-selected="true"] { color: var(--text-main); background: #ffffff0e; font-weight: 500; }
 .select-menu button:hover,.select-menu button:focus-visible { background: var(--accent-solid); color: #fff; }
-.session-controls #loadSession,.performance-controls #performanceLoad { min-height: 36px; height: 36px; border-radius: 999px; background: var(--accent-solid); border: 1px solid #ffffff18; color: #fff; box-shadow: inset 0 1px #ffffff26,0 2px 5px #00000020; font-size: .8125rem; font-weight: 600; }
-.session-controls #loadSession:hover:not(:disabled),.performance-controls #performanceLoad:hover:not(:disabled) { filter: brightness(1.12); box-shadow: inset 0 1px #ffffff30,0 2px 7px #00000030; }
+.session-controls #loadSession,.performance-controls button#performanceLoad { min-height: 36px; height: 36px; border-radius: 999px; background: var(--accent-solid); border: 1px solid #ffffff18; color: #fff; box-shadow: inset 0 1px #ffffff26,0 2px 5px #00000020; font-size: .8125rem; font-weight: 600; }
+.session-controls #loadSession:hover:not(:disabled),.performance-controls button#performanceLoad:hover:not(:disabled) { filter: brightness(1.12); box-shadow: inset 0 1px #ffffff30,0 2px 7px #00000030; }
 .btn-track-action,.performance-actions > button,.performance-explain-toggle,.performance-controls #performanceCancel { border-radius: 999px; background: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-main); box-shadow: var(--shadow-raised); }
 .track-pill { border-radius: 10px; background: var(--surface-muted); border: 1px solid var(--border-color); }
 .track-pill[aria-pressed="true"] { background: color-mix(in srgb,var(--accent-solid) 16%,var(--bg-card)); border-color: color-mix(in srgb,var(--accent) 40%,transparent); box-shadow: inset 2px 0 var(--accent); }
@@ -164,7 +164,7 @@ body :where(*) { font-family: var(--font-sans); }
 .summary-delta { padding: 2px 4px; font-size: .6875rem; border-radius: 4px; font-style: normal; font-variant-numeric: tabular-nums; }
 .summary-sectors > .sector-cell::after { height: 2px; left: 8px; right: 8px; }
 .lap-summary-card .summary-conditions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 3px 10px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border-color); }
-.lap-summary-card .summary-condition { display: inline-flex; flex-direction: row; gap: 4px; padding: 0; min-width: 0; border: 0; }
+.lap-summary-card .summary-condition { display: inline-flex; flex-direction: row; justify-content: flex-start; width: auto; gap: 4px; padding: 0; min-width: 0; border: 0; }
 .lap-summary-card .summary-condition > i { font-size: 11px; }
 .lap-summary-card .summary-condition > span { display: inline-flex; gap: 4px; width: auto; }
 .lap-summary-card .summary-condition small,.lap-summary-card .summary-condition strong { font-size: .6875rem; line-height: 1.4; font-weight: 400; white-space: nowrap; }
@@ -237,6 +237,8 @@ progress { accent-color: var(--accent-solid); border-radius: 999px; overflow: hi
   .site-header .performance-tabs { width: 310px; }
   .site-header .performance-tabs button { min-height: 38px; padding-inline: 10px; font-size: .75rem; }
   .performance-controls :is(#performanceLoad,#performanceCancel) { grid-column: 1 / -1; }
+  .performance-controls .performance-actions { width: 100%; }
+  .performance-controls .performance-actions > button { flex: 1 1 0; }
   #performanceResults { display: block; }
   #performanceResults > .performance-toolbar { position: static; margin-bottom: 16px; padding: 6px; gap: 8px; }
   #performanceResults > .performance-toolbar > .performance-mode { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 3px; }

@@ -1,4 +1,4 @@
-# macOS dark redesign — complete element inventory
+# macOS dark redesign — complete element inventory (v123–124)
 
 This release replaces the Windows/Fluent appearance with a macOS-inspired web interface across Session analysis and Car performance. Dark is the default; an existing explicit Light preference still works. This is a browser adaptation, not a claim to implement native AppKit, desktop wallpaper tinting, system Liquid Glass refraction, or an Apple certification.
 
@@ -85,3 +85,5 @@ Reviewed the current official guidance on 16 October 2026:
 This is a presentation/interaction release. It does not alter source lap eligibility, measured performance, sample counts, point rules, or ranking equations. It does not implement the separately requested local-processing service or fix Sprint/Sprint Qualifying source loading. Those remain separate data/backend work, not theme changes.
 
 Automated checks cover CSS parsing, all element families, delivery order, removal of Windows styling, accessibility fallbacks, summary field retention, dropdown keyboard behavior and the existing calculation regressions. Visual verification and deployment results are recorded in the release handoff; do not equate passing CSS tests with a full visual inspection of every live category.
+
+The live release was checked with Singapore 2026 selected: qualifying session, two comparison laps, run/lap controls, summary, tyres and telemetry; all eight Car categories were navigated at a 1440-pixel desktop breakpoint and a 390-pixel phone breakpoint. No page-level horizontal overflow was observed in any category at either size. This is a representative layout check, not proof that every historical event and every optional evidence table has been visually inspected. The live check found and corrected an inherited full-width weather-item rule, a higher-specificity primary-button shape, and the phone load-action width in v124. All 195 JS tests passed before the final CSS refinement; focused UI checks and the production build are repeated for that refinement.

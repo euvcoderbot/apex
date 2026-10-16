@@ -13,6 +13,7 @@ test('one current macOS appearance layer ships after the workspace and replaces 
   assert.doesNotMatch(page,/fluent-ui/);assert.doesNotMatch(sync,/fluent-ui/);
   assert.match(css,/-apple-system, BlinkMacSystemFont/);
   assert.doesNotMatch(css,/Segoe|Mica|acrylic/i);
+  assert.match(css,/\.performance-controls button#performanceLoad \{/);
 });
 test('every interactive family and every data presentation shares the new appearance',()=>{
   for(const name of ['site-header','performance-tabs','select-trigger','select-menu','driver-pill','tire-option','run-segment','lap-chip','loaded-lap-pill','race-result-controls','corner-picker','map-view-switch','chart','trace-setting','trace-zoom-cluster','tooltip','app-toast','lap-summary-card','summary-sectors','summary-conditions','performance-mode','performance-card','performance-chart-card','performance-bar-track','performance-table','track-pill','performance-tyre-plot-controls','performance-pit-controls','trend-sparkline','retirement-badge','section-empty','performance-error'])assert.ok(css.includes('.'+name),name);
@@ -31,6 +32,7 @@ test('compact lap summary keeps all sectors and all weather fields without hidin
   for(const value of ['air_temperature','track_temperature','wind_speed','rainfall','summary-sectors','summary-lap-time','tyre_life'])assert.ok(renderer.includes(value),value);
   assert.match(css,/summary-lap-time \{ grid-area: 1 \/ 2 \/ 3 \/ 3/);
   assert.match(css,/summary-conditions \{ display: flex; flex-wrap: wrap/);
+  assert.match(css,/summary-condition \{[^}]*width: auto/);
 });
 test('popup keyboard typeahead cycles displayed enabled choices and Escape returns focus',()=>{
   const start=app.indexOf("  let searchPrefix = '', lastSearchAt = 0;");
