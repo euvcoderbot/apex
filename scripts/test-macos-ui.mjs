@@ -8,8 +8,10 @@ const app=fs.readFileSync('app.js','utf8');
 test('one current macOS appearance layer ships after the workspace and replaces Windows styling',()=>{
   postcss.parse(css);
   const page=fs.readFileSync('index.html','utf8'),sync=fs.readFileSync('scripts/sync-static.mjs','utf8');
-  assert.ok(page.indexOf('macos-ui.css')>page.indexOf('workspace-ui.css'));
-  assert.ok(page.indexOf('macos-ui.css')<page.indexOf('</head>'));
+  assert.equal((page.match(/rel="stylesheet"/g)||[]).length,1);
+  const order=fs.readFileSync('lib/ui-style-build.mjs','utf8');
+  assert.ok(order.indexOf("['macos-ui.css'")>order.indexOf("['workspace-ui.css'"));
+  assert.ok(order.indexOf("['ui-controls.css'")>order.indexOf("['macos-ui.css'"));
   assert.doesNotMatch(page,/fluent-ui/);assert.doesNotMatch(sync,/fluent-ui/);
   assert.match(css,/-apple-system, BlinkMacSystemFont/);
   assert.doesNotMatch(css,/Segoe|Mica|acrylic/i);

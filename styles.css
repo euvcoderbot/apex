@@ -1,4 +1,9 @@
-@layer focus, legacy, interface;
+@layer focus, legacy, interface, workspace, appearance, components;
 @import "design-system.css?v=euv2-release-20260823-2" layer(legacy);
 @import "polish.css?v=euv2-release-20260823-2" layer(legacy);
 @import "apple-ui.css?v=euv2-release-20260918" layer(interface);
+@import "car-performance.css" layer(workspace);
+@import "workspace-ui.css" layer(workspace);
+@import "trace-focus.css" layer(workspace);
+@import "macos-ui.css" layer(appearance);
+@import "ui-controls.css" layer(components);

@@ -1,6 +1,7 @@
 import { cp, mkdir, rm, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {createHash} from 'node:crypto';
+import {buildUiStyles} from '../lib/ui-style-build.mjs';
 
 const root = process.cwd();
 const calculationFiles=['verified_sources.py','verified-sources.json.gz','telemetry_sources.py','pace_models.py','performance.py','performance_tracks.py','server.py','session_loader.py','race-cornering.js','corner-geometry.js','corner-position.js','qualifying-telemetry.js','alignment.js','telemetry-model.js','car-performance.js','app.js','analysis-core.js','lib/data-cache.mjs','lib/race-corner-loader.mjs','lib/qualifying-corner-loader.mjs'];
@@ -30,6 +31,9 @@ const staticFiles = [
   "car-performance.css",
   "workspace-ui.css",
   "macos-ui.css",
+  "ui-controls.css",
+  "ui-system.js",
+  "ui-catalog.html",
   "dashboard-ui.js",
   "styles.css",
   "design-system.css",
@@ -41,6 +45,7 @@ const staticFiles = [
 // timing/telemetry caches. Include every stylesheet and presentation module.
 const browserHash=createHash('sha256').update(cacheRevision);
 for(const file of staticFiles)browserHash.update(file).update(await readFile(resolve(root,file)));
+browserHash.update(await readFile(resolve(root,'lib/ui-style-build.mjs')));
 const browserRevision=browserHash.digest('hex').slice(0,20);
 
 await rm(destination, { recursive: true, force: true });
@@ -55,14 +60,13 @@ for(const file of staticFiles.filter(file=>file.endsWith('.js'))){
   const source=await readFile(resolve(destination,file),'utf8');
   await writeFile(resolve(destination,file),source.replace(/((?:from\s+|import\s+)['"]\.\/[^'"?]+\.js)(?:\?[^'"]*)?(['"])/g,`$1?v=${browserRevision}$2`));
 }
-const page=await readFile(resolve(destination,'index.html'),'utf8');
-await writeFile(resolve(destination,'index.html'),page.replace(/((?:src|href)="[^"/:?]+\.(?:js|css))(?:\?[^" ]*)?("[^>]*>)/g,`$1?v=${browserRevision}$2`));
-// Keep the exact cascade, but remove the render-blocking @import waterfall.
-// The browser receives all three layers in its first stylesheet response.
-const layers = await Promise.all([
-  ["design-system.css", "legacy"], ["polish.css", "legacy"], ["apple-ui.css", "interface"],
-].map(async ([file, layer]) => `@layer ${layer} {\n${await readFile(resolve(root, file), "utf8")}\n}`));
-await writeFile(resolve(destination, "styles.css"), `@layer focus, legacy, interface;\n${layers.join("\n")}\n`);
+for(const filename of ['index.html','ui-catalog.html']){
+  const page=await readFile(resolve(destination,filename),'utf8');
+  await writeFile(resolve(destination,filename),page.replace(/((?:src|href)="[^"/:?]+\.(?:js|css))(?:\?[^" ]*)?("[^>]*>)/g,`$1?v=${browserRevision}$2`));
+}
+// One compiled sheet: explicit ownership replaces accidental specificity wars.
+const ui=await buildUiStyles(file=>readFile(resolve(root,file),'utf8'));
+await writeFile(resolve(destination,'styles.css'),ui.css);
 await cp(resolve(root, "assets"), resolve(destination, "assets"), { recursive: true });
 
 const apiOrigin = String(

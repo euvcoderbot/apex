@@ -637,7 +637,7 @@ function straightGapControls() {
 }
 function straightBandControls(available) {
   const entity=telemetrySubject==='driver'?'drivers':'teams';
-  return `<p class="performance-band-hint">Same speed gain in matched zones and DRS states · at least three ${entity}. Missing crossings are not filled.</p><div class="performance-band-options" role="group" aria-label="Acceleration speed range">${STRAIGHT_BANDS.map(key=>`<button type="button" data-straight-band="${key}" aria-pressed="${key===straightBand}" ${available.includes(key)?'':'disabled title="Fewer than three entrants have comparable clean acceleration through this full range"'}>${key.replace('_','–')} <span>km/h</span></button>`).join('')}</div>`;
+  return `<p class="performance-band-hint">Same speed gain in matched zones and DRS states · at least three ${entity}. Missing crossings are not filled.</p><div class="performance-range-control" aria-label="Acceleration speed range"><label for="performanceAccelerationRange">Speed range</label><span class="select-shell"><select id="performanceAccelerationRange" aria-label="Acceleration speed range" data-straight-band-select>${STRAIGHT_BANDS.map(key=>`<option value="${key}" ${key===straightBand?'selected':''} ${available.includes(key)?'':'disabled'}>${key.replace('_','–')} km/h</option>`).join('')}</select></span></div>`;
 }
 let qualyPaceMode='overall'; // 'overall' | 'q1' | 'adjusted'
 const root=$('performanceResults');
@@ -647,7 +647,7 @@ function updateTrackCount() {
   const countEl = $('performanceTrackCount');
   if (countEl) {
     const n = selectedTracks.size;
-    countEl.textContent = `${n} track${n === 1 ? '' : 's'} selected`;
+    countEl.textContent = `${n} selected`;
   }
   const loadBtn = $('performanceLoad');
   if (loadBtn) {
@@ -1218,7 +1218,7 @@ function renderPace(teams) {
   const is2026 = (context?.year >= 2026) || (events[0]?.year >= 2026) || (regEnv && regEnv.year >= 2026);
   const regulatoryBadge = is2026 ? `
     <details class="perf-regulatory-badge"><summary>2026 telemetry limits</summary>
-      <div class="reg-title">⚡ 2026 regulations · active aerodynamics and stronger electrical deployment</div>
+      <div class="reg-title">2026 regulations · active aerodynamics and stronger electrical deployment</div>
       <div class="reg-body">Public traces do not show each car’s active-aero position or ERS state. Straight-line results include those unknown choices.</div>
       <div class="reg-note">Event-specific limits are shown only after the exact FIA event document and session version are verified. <a href="https://www.fia.com/regulation/fia-formula-1-technical-regulations" target="_blank" rel="noopener">FIA regulations ↗</a></div>
     </details>
@@ -1750,7 +1750,7 @@ function renderResults(teams) {
 
   return card('Reliability and results',
      'Total points include official race and sprint classifications. Points per start, finishes and reliability use races only. Missing sprint classifications leave totals unknown, not zero. Results are not isolated car performance.',
-    `<div class="performance-scope-toggle performance-stat-toggle" role="group" aria-label="Results chart measure"><button type="button" data-results-chart="points" aria-pressed="${resultsChartMetric==='points'}">Total points</button><button type="button" data-results-chart="perStart" aria-pressed="${resultsChartMetric==='perStart'}">Points / start</button><button type="button" data-results-chart="finishRate" aria-pressed="${resultsChartMetric==='finishRate'}">Finish rate</button><button type="button" data-results-chart="mechanicalRate" aria-pressed="${resultsChartMetric==='mechanicalRate'}">Mechanical retirements</button></div>`+pointsChart+
+    `<div class="performance-results-measure"><label for="performanceResultsMeasure">Measure</label><span class="select-shell"><select id="performanceResultsMeasure" data-results-chart-select>${[['points','Total points'],['perStart','Points / start'],['finishRate','Finish rate'],['mechanicalRate','Mechanical retirements']].map(([key,label])=>`<option value="${key}" ${resultsChartMetric===key?'selected':''}>${label}</option>`).join('')}</select></span></div>`+pointsChart+
     table(['Team','Total points','Race','Sprint','Race points / start','Finished / starts'],ordered.map(t=>[
       teamLabel(t),finite(t.points)?t.points:'—',finite(t.racePoints)?t.racePoints:'—',finite(t.sprintPoints)?t.sprintPoints:'—',
       fmt(t.pointsPerStart,2),`${t.finishes} / ${t.starts}`]))+
@@ -1775,9 +1775,9 @@ function renderResults(teams) {
       fmt(avg(t.positions),3),
       `${t.finishes} / ${t.starts}`,
       `${fmt(t.mechanicalRatePct,3,'%')}<small>${t.unknownRetirements} unknown-cause retirements · not counted as mechanical</small>`,
-      t.puRetirements > 0 ? `<span class="retirement-badge is-pu">⚙ ${t.puRetirements}</span>` : '0',
-      t.chassisRetirements > 0 ? `<span class="retirement-badge is-chassis">🔧 ${t.chassisRetirements}</span>` : '0',
-      t.incidentRetirements > 0 ? `<span class="retirement-badge is-incident">💥 ${t.incidentRetirements}</span>` : '0',
+      t.puRetirements > 0 ? `<span class="retirement-badge is-pu">${t.puRetirements}</span>` : '0',
+      t.chassisRetirements > 0 ? `<span class="retirement-badge is-chassis">${t.chassisRetirements}</span>` : '0',
+      t.incidentRetirements > 0 ? `<span class="retirement-badge is-incident">${t.incidentRetirements}</span>` : '0',
       (t.otherRetirements + t.unknownRetirements) > 0 ? `<span class="retirement-badge is-other">${t.otherRetirements + t.unknownRetirements}</span>` : '0',
       fmt(t.mechanicalPer1000Laps,3),`${t.completedLaps||0} laps · ${t.lapExposureEntries||0}/${t.starts} starts covered`
     ]))+'</details>')+
@@ -1795,14 +1795,14 @@ function renderResults(teams) {
         eventLabel(r.event),
         escape(r.driver),
         r.category === 'PU-related'
-          ? `<span class="retirement-badge is-pu">⚙ PU</span>`
+          ? `<span class="retirement-badge is-pu">Power unit</span>`
           : r.category === 'Chassis / team-related'
-          ? `<span class="retirement-badge is-chassis">🔧 Chassis</span>`
+          ? `<span class="retirement-badge is-chassis">Chassis</span>`
           : r.category === 'Incident / collision'
-          ? `<span class="retirement-badge is-incident">💥 Incident</span>`
+          ? `<span class="retirement-badge is-incident">Incident</span>`
           : r.category === 'Other confirmed'
-          ? `<span class="retirement-badge is-other">📋 Other</span>`
-          : `<span class="retirement-badge is-unknown">❓ Unknown</span>`,
+          ? `<span class="retirement-badge is-other">Other</span>`
+          : `<span class="retirement-badge is-unknown">Unknown</span>`,
         `<span style="font-weight:600;">${escape(r.cause || 'Unclassified retirement')}</span>`,
         `<small class="perf-tercile-badge is-mid">${escape(r.source || 'Official Timing')}</small>`
       ]))));
@@ -2035,7 +2035,7 @@ function renderTrend(teams) {
   if (!context?.season) {
     return card('Performance trend', 'Season progression requires multi-event data.',
       `<div class="performance-empty" style="padding: 48px 24px;">
-        <div class="empty-icon-badge">📈</div>
+        <div class="empty-icon-badge" aria-hidden="true"></div>
         <h3>Season performance trend requires multiple events</h3>
         <p>You are currently analysing a single track (<strong>${escape(events[0]?.name || 'Grand Prix')}</strong>). Car development curves and performance progression measure how teams evolve round-by-round across the championship.</p>
         <p style="margin-top: 10px; color: var(--text-secondary);">To view season performance trends, set <strong>Scope</strong> to <strong>Season to date</strong> or select multiple tracks in the tray above.</p>
@@ -3295,7 +3295,7 @@ function capturePerformanceUI(container) {
     scroll:[...container.querySelectorAll('.performance-table-wrap,.performance-mode,.performance-scope-toggle,.performance-band-options')]
       .map(el=>({key:performanceUIKey(el),left:el.scrollLeft,top:el.scrollTop,focused:el===focused})),
     details:[...container.querySelectorAll('details[open]')].map(el=>el.querySelector('summary')?.textContent.trim()),
-    focus:container.contains(focused)?[...focused.attributes].filter(a=>a.name.startsWith('data-')).map(a=>[a.name,a.value]):[],
+    focus:container.contains(focused)?[...focused.attributes].filter(a=>a.name.startsWith('data-')&&!a.name.startsWith('data-ui-')).map(a=>[a.name,a.value]):[],
   };
 }
 function restorePerformanceUI(container,state) {
@@ -3317,6 +3317,7 @@ function render() {
   try {renderContent();} finally {
     performanceRenderCache=previousCache;
     window.ApexPresentation?.arrangePerformance(root,activeMetric);
+    window.ApexUI?.decorate(root);
     restorePerformanceUI(root,state);
     root.querySelectorAll('details[open]').forEach(hydratePerformanceEvidence);
   }
@@ -3339,7 +3340,7 @@ function renderContent() {
   if(!context || (!events.length && !running)) {
     root.innerHTML = modeBar + `
       <div class="dashboard-card performance-empty" id="performanceMetricPanel" role="tabpanel" aria-label="Performance measurements">
-        <div class="empty-icon-badge">🏎️</div>
+        <div class="empty-icon-badge" aria-hidden="true"></div>
         <h3>${errors.length?'Source retrieval failed':'Ready for analysis'}</h3>
         ${errors.length?errors.map(e=>`<p class="performance-error">${escape(e.event.name)} · ${escape(e.session)}: ${escape(e.message)}</p>`).join('')+'<p>Choose Analyse to retry. Other sessions and supported cached results are not treated as zero.</p>':'<p>Select a season and scope above, then click <strong>Analyse</strong> to calculate car pace, cornering performance, straight-line speeds, and tyre trends.</p>'}
       </div>`;
@@ -3490,6 +3491,10 @@ root.addEventListener('keydown',event=>{
   replacement?.focus({preventScroll:true});replacement?.scrollIntoView({block:'nearest',inline:'nearest'});
 });
 root.addEventListener('change',event=>{
+  const resultsMeasure=event.target.closest('[data-results-chart-select]');
+  if(resultsMeasure){resultsChartMetric=resultsMeasure.value;render();root.querySelector('#performanceResultsMeasure')?.closest('.select-shell')?.querySelector('.select-trigger')?.focus({preventScroll:true});return;}
+  const speedRange=event.target.closest('[data-straight-band-select]');
+  if(speedRange){straightBand=speedRange.value;render();root.querySelector('#performanceAccelerationRange')?.closest('.select-shell')?.querySelector('.select-trigger')?.focus({preventScroll:true});return;}
   const select=event.target.closest('[data-tyre-plot-filter]');
   if(!select)return;
   const kind=select.dataset.tyrePlotFilter;
@@ -3502,7 +3507,8 @@ root.addEventListener('change',event=>{
   if(kind==='driver')tyrePlotEvent='';
   const scrollY=window.scrollY;
   render();
-  root.querySelector(`[data-tyre-plot-filter="${kind}"]`)?.focus({preventScroll:true});
+  const updatedSelect=root.querySelector(`[data-tyre-plot-filter="${kind}"]`);
+  (updatedSelect?.closest('.select-shell')?.querySelector('.select-trigger')||updatedSelect)?.focus({preventScroll:true});
   window.scrollTo({top:scrollY,behavior:'instant'});
 });
 
@@ -3532,8 +3538,6 @@ root.addEventListener('click',event=>{
   const tyreRunButton=event.target.closest('[data-tyre-run]');
   if(event.target.closest('[data-tyre-exclusions]')){tyreShowExcluded=!tyreShowExcluded;render();return;}
   if(tyreRunButton){tyreRunKey=tyreRunButton.dataset.tyreRun;render();return;}
-  const resultsChartButton=event.target.closest('[data-results-chart]');
-  if(resultsChartButton){resultsChartMetric=resultsChartButton.dataset.resultsChart;render();return;}
   const trendViewButton=event.target.closest('[data-trend-view]');
   if(trendViewButton){trendView=trendViewButton.dataset.trendView;sortKey=trendView==='fitted'?'trendModelled':'trendChange';sortDirection=1;render();return;}
   const metric=event.target.closest('[data-performance-metric]');

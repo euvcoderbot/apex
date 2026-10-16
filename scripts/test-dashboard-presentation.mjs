@@ -35,7 +35,7 @@ test('presentation changes reparent original observations without recalculating 
 
 test('layout assets ship, all categories are responsive, and focused telemetry is isolated',()=>{
   assert.doesNotThrow(()=>postcss.parse(css));
-  assert.match(html,/href="workspace-ui\.css"/);
+  assert.match(html,/href="styles\.css/);
   assert.match(html,/src="dashboard-ui\.js"/);
   const sync=readFileSync('scripts/sync-static.mjs','utf8');
   assert.match(sync,/"workspace-ui\.css"/);assert.match(sync,/"dashboard-ui\.js"/);

@@ -62,6 +62,7 @@
       };
       if (metric === 'pace') placeControls(body.querySelector('.performance-metric-toolbar'), body.querySelector('.performance-chart-card'));
       if (metric === 'straight') placeControls(body.querySelector('.straight-summary-controls'), body.querySelector('.performance-chart-card'));
+      if (metric === 'straight') placeControls(body.querySelector('.performance-range-control'), [...body.querySelectorAll('.performance-chart-card')].at(-1));
       const runControls = body.querySelector('.performance-tyre-plot-controls');
       if (runControls && !runControls.closest('.performance-run-inspector')) {
         const runNote = runControls.nextElementSibling;

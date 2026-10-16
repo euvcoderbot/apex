@@ -1136,7 +1136,7 @@ test('focused speed chart reserves an independent control row with sufficient sp
   assert.ok(rule.nodes.some(n=>n.prop==='grid-template-rows'&&n.value==='auto auto minmax(0, 1fr)'));
   assert.match(css,/\.speed-chart-controls \{ min-height: min-content; \}/);
   assert.match(css,/@layer focus/);
-  assert.match(readFileSync('scripts/sync-static.mjs','utf8'),/@layer focus, legacy, interface/);
+  assert.match(readFileSync('scripts/sync-static.mjs','utf8'),/buildUiStyles/);
 });
 
 test('native corner projection follows the aligned comparison grid', () => {
@@ -1366,11 +1366,12 @@ test('speed annotation labels avoid open trace segments without closing the lap'
 
 test('performance categories expose only defensible alternative summaries', () => {
   const source=readFileSync('car-performance.js','utf8');
-  for(const key of ['pace-stat','results-chart','trend-view'])
+  for(const key of ['pace-stat','trend-view'])
     assert.match(source,new RegExp(`data-${key}=`));
   for(const key of ['telemetry-stat','tyre-stat','tyre-fit','race-pace-model','corner-window','straight-entry','acceleration-comparison'])
     assert.doesNotMatch(source,new RegExp(`data-${key}=`));
-  assert.match(source,/data-results-chart="mechanicalRate"/);
+  assert.match(source,/data-results-chart-select/);
+  assert.match(source,/\['mechanicalRate','Mechanical retirements'\]/);
   assert.match(source,/pitChartMetric==='p90'/);
   assert.match(source,/timed\.length>=10\?percentile\(timed,\.9\):null/);
   assert.match(source,/gpSlopes\.length<4\|\|p75Shortfall\.length/);
