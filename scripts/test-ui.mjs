@@ -308,7 +308,7 @@ test('compact corner choices, grouped laps and motion accessibility are explicit
   assert.ok(css.nodes.some(n=>n.type==='atrule'&&n.params.includes('prefers-reduced-motion')));
   assert.ok(css.nodes.some(n=>n.type==='atrule'&&n.params.includes('prefers-reduced-transparency')));
   const html=readFileSync('index.html','utf8');
-  assert.match(html,/comparison-summary-heading/);
+  assert.match(html,/aria-label="Selected lap sector times"/);
   assert.match(html,/corner-collapse-region/);
   assert.ok(html.indexOf('class="dashboard-card session-controls"') < html.indexOf('<aside'));
 });

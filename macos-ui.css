@@ -170,10 +170,10 @@ body :where(*) { font-family: var(--font-sans); }
 .lap-summary-card .summary-condition > span { display: inline-flex; gap: 4px; width: auto; }
 .lap-summary-card .summary-condition small,.lap-summary-card .summary-condition strong { font-size: .6875rem; line-height: 1.4; font-weight: 400; white-space: nowrap; }
 .analysis-column,#performanceMetricPanel { min-width: 0; }
-#performanceResults { display: grid; grid-template-columns: 216px minmax(0,1fr); gap: 22px; align-items: start; }
-#performanceResults > .performance-toolbar { grid-column: 1; grid-row: 1; position: sticky; top: 86px; display: flex; flex-direction: column; align-items: stretch; padding: 8px; margin: 0; gap: 14px; border: 1px solid var(--glass-edge); border-radius: 18px; background: var(--glass-fill); backdrop-filter: blur(24px) saturate(140%); box-shadow: var(--glass-shadow); z-index: 10; }
-#performanceResults > :not(.performance-toolbar) { grid-column: 2; min-width: 0; }
-#performanceResults > .performance-toolbar > .performance-mode { display: flex; flex-direction: column; align-items: stretch; flex: 0 0 auto; height: auto; min-height: 0; width: 100%; padding: 0; margin: 0; gap: 3px; overflow: visible; background: none; border: 0; box-shadow: none; }
+#performanceResults { display: block; min-width: 0; }
+#performanceResults > .performance-toolbar { position: static; display: flex; flex-direction: row; align-items: center; gap: 10px; margin: 0 0 12px; padding: 0 0 8px; border: 0; border-bottom: 1px solid var(--border-color); border-radius: 0; background: transparent; box-shadow: none; }
+#performanceResults > :not(.performance-toolbar) { min-width: 0; }
+#performanceResults > .performance-toolbar > .performance-mode { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; flex: 1 1 auto; height: auto; min-height: 0; width: auto; padding: 0; margin: 0; gap: 3px; overflow: visible; background: none; border: 0; box-shadow: none; }
 .performance-mode button { display: flex; justify-content: flex-start; align-items: center; gap: 10px; min-height: 38px; padding: 8px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--text-secondary); font-weight: 400; line-height: 1.4; text-align: left; white-space: normal; box-shadow: none; }
 .performance-mode button:hover { background: #ffffff0a; }
 .performance-mode button[aria-selected="true"] { background: var(--surface-selected); box-shadow: var(--shadow-raised); color: var(--text-main); font-weight: 500; }
@@ -229,7 +229,6 @@ progress { accent-color: var(--accent-solid); border-radius: 999px; overflow: hi
 /* Content does not fly, bounce or blur on every data refresh. */
 .dashboard-card,.telemetry-card,.performance-card,.chart { animation: none; }
 @media (max-width:1100px) {
-  #performanceResults { grid-template-columns: 182px minmax(0,1fr); gap: 16px; }
   .performance-split-view,.performance-visual-grid { grid-template-columns: minmax(0,1fr); }
   .performance-card { padding: 15px; }
 }
@@ -241,8 +240,6 @@ progress { accent-color: var(--accent-solid); border-radius: 999px; overflow: hi
   .performance-controls .performance-actions { width: 100%; }
   .performance-controls .performance-actions > button { flex: 1 1 0; }
   #performanceResults { display: block; }
-  #performanceResults > .performance-toolbar { position: static; margin-bottom: 16px; padding: 6px; gap: 8px; }
-  #performanceResults > .performance-toolbar > .performance-mode { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 3px; }
   .performance-mode button { min-height: 42px; font-size: .75rem; padding: 8px 10px; }
   .metric-heading { flex-wrap: wrap; gap: 12px; }
   .metric-heading h2 { font-size: 1.375rem; }
@@ -284,13 +281,16 @@ progress { accent-color: var(--accent-solid); border-radius: 999px; overflow: hi
 .local-compute-link { display: inline-flex; align-items: center; color: var(--text-secondary); text-decoration: none; }
 .local-compute-link:hover { background: var(--bg-card-hover); color: var(--text-main); }
 .local-compute-status { color: var(--green); }
-main { display: grid; grid-template-columns: 240px minmax(0,1fr); gap: 12px; width: 100%; box-sizing: border-box; }
-main > .session-intro { grid-column: 1 / -1; grid-row: 1; }
-main > .session-controls { grid-column: 1 / -1; grid-row: 2; }
-main > #driverSidebar { grid-column: 1; grid-row: 3; position: static; top: auto; display: flex; flex-direction: column; height: auto; max-height: none; overflow: visible; transform: none; }
-main > .analysis-column { grid-column: 2; grid-row: 3; position: static; min-width: 0; width: 100%; }
-main > #driverSidebar > .dashboard-card { position: static; grid-column: auto; grid-row: auto; height: auto; min-height: 0; flex: 0 0 auto; }
-#driverSidebar #driverPills { display: grid; grid-template-columns: minmax(0,1fr); max-height: 420px; overflow-y: auto; overflow-x: hidden; padding: 2px 4px 2px 0; scrollbar-gutter: stable; }
+main { display: block; width: 100%; box-sizing: border-box; }
+main > .session-intro,main > .session-controls { margin-bottom: 12px; }
+#lapSelectionBody { display: grid; grid-template-columns: 220px minmax(0,1fr); gap: 12px; align-items: start; }
+#lapSelectionBody[hidden] { display: none; }
+main #driverSidebar { position: static; display: flex; flex-direction: column; height: auto; max-height: none; overflow: visible; transform: none; }
+main > .analysis-column { position: static; min-width: 0; width: 100%; }
+main #driverSidebar > .dashboard-card { position: static; height: auto; min-height: 0; flex: 0 0 auto; }
+main.sidebar-collapsed #lapSelectionBody { grid-template-columns: minmax(0,1fr); }
+main.sidebar-collapsed #driverSidebar { display: none; }
+#driverSidebar #driverPills { display: grid; grid-template-columns: minmax(0,1fr); max-height: 280px; overflow-y: auto; overflow-x: hidden; padding: 2px 4px 2px 0; scrollbar-gutter: stable; }
 #driverSidebar #driverPills .driver-pill { min-height: 38px; padding: 5px 6px; gap: 6px; border-radius: 7px; grid-template-columns: 18px 20px minmax(0,1fr) 18px; }
 #driverSidebar #driverPills.has-race-results .driver-pill { grid-template-columns: 18px 20px minmax(0,1fr) minmax(45px,auto); }
 #driverSidebar #driverPills .driver-pill.selected { background: #ffffff0d; box-shadow: none; }
@@ -336,8 +336,6 @@ main > #driverSidebar > .dashboard-card { position: static; grid-column: auto; g
 .sector-cards .lap-summary-card .summary-condition { width: auto; justify-content: flex-start; }
 .sector-cards .lap-summary-card .summary-condition > span { display: inline-flex; width: auto; gap: 4px; }
 .sector-cards .lap-summary-card .summary-condition :is(small,strong) { font-size: .6875rem; }
-#performanceResults { grid-template-columns: 184px minmax(0,1fr); gap: 16px; }
-#performanceResults > .performance-toolbar { position: static; top: auto; padding: 5px; gap: 8px; border-radius: 11px; background: var(--surface-muted); box-shadow: none; backdrop-filter: none; }
 #performanceResults .performance-mode button { min-height: 33px; padding: 6px 8px; font-size: .75rem !important; border-radius: 7px; gap: 8px; }
 .metric-nav-icon { width: 16px; height: 16px; flex-basis: 16px; }
 .performance-card { padding: 12px; margin-bottom: 12px; }
@@ -384,13 +382,7 @@ main > #driverSidebar > .dashboard-card { position: static; grid-column: auto; g
   .sector-cards .lap-summary-card .summary-conditions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: flex-start; padding: 5px 0 0; border-left: 0; border-top: 1px solid var(--border-color); gap: 6px 18px; }
 }
 @media(max-width:1000px) {
-  main { grid-template-columns: minmax(0,1fr); }
-  main > #driverSidebar { grid-column: 1; grid-row: 3; display: grid; grid-template-columns: minmax(0,1fr) 190px; align-items: start; }
-  main > .analysis-column { grid-column: 1; grid-row: 4; }
-  #driverSidebar #driverPills { grid-template-columns: repeat(2,minmax(0,1fr)); max-height: 220px; }
-  main.sidebar-collapsed { grid-template-columns: minmax(0,1fr); }
-  main.sidebar-collapsed > #driverSidebar { display: none; }
-  #performanceResults { grid-template-columns: 160px minmax(0,1fr); gap: 12px; }
+  #lapSelectionBody { grid-template-columns: 200px minmax(0,1fr); }
 }
 @media(max-width:760px) {
   .performance-controls { grid-template-columns: minmax(100px,.7fr) minmax(0,1fr); }
@@ -402,7 +394,6 @@ main > #driverSidebar > .dashboard-card { position: static; grid-column: auto; g
   .site-header .header-actions,.site-header .performance-tabs { width: 100%; }
   .site-header .performance-tabs button { font-size: .75rem; padding-inline: 5px; }
   .workspace-tools { flex-wrap: wrap; padding-inline: 12px; }
-  main > #driverSidebar { display: flex; }
   #driverSidebar #driverPills { grid-template-columns: minmax(0,1fr); max-height: 230px; }
   #driverSidebar .tire-nomination-container { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); }
   .sidebar .tire-option { flex-direction: row; justify-content: center; min-height: 38px; }
@@ -411,8 +402,6 @@ main > #driverSidebar > .dashboard-card { position: static; grid-column: auto; g
   .sector-cards .lap-summary-card .summary-sectors { padding-top: 5px; border-top: 1px solid var(--border-color); }
   .sector-cards .lap-summary-card .summary-conditions { grid-column: 1; gap: 4px 10px; }
   #performanceResults { display: block; }
-  #performanceResults > .performance-toolbar { margin-bottom: 12px; }
-  #performanceResults > .performance-toolbar > .performance-mode { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
   .metric-heading { align-items: flex-start; }
   .metric-context { flex-wrap: wrap; }
 }
@@ -471,4 +460,82 @@ main > #driverSidebar > .dashboard-card { position: static; grid-column: auto; g
   .workspace-intro .workspace-tools { flex: 1 0 100%; justify-content: flex-start; margin: 0; padding-top: 4px; }
   .workspace-intro .workspace-tools .local-compute-status,.workspace-intro .workspace-tools .local-compute-link { margin-right: auto; }
   .workspace-heading-actions { margin-left: 0; }
+}
+
+/* Setup is an inspector; selected results own the full analysis width. */
+.workspace-disclosure { display: inline-flex; align-items: center; gap: 8px; padding: 0; min-height: 28px; border: 0; border-radius: 4px; background: transparent; box-shadow: none; font: inherit; color: var(--text-main); }
+.workspace-disclosure i { width: 0; height: 0; border: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--text-muted); }
+.workspace-disclosure[aria-expanded="false"] i { transform: rotate(-90deg); }
+.lap-workspace:has(#lapWorkspaceToggle[aria-expanded="false"]) .workspace-heading { border: 0; padding: 0; margin: 0; }
+.lap-workspace #sidebarToggle { min-width: 0; min-height: 28px; padding: 3px 7px; border: 0; border-radius: 5px; background: transparent; box-shadow: none; font-size: .6875rem; color: var(--text-muted); }
+.lap-workspace #sidebarToggle[hidden] { display: none; }
+.lap-workspace #sidebarToggle i { display: none; }
+.lap-workspace .driver-control-card,.lap-workspace #tireCard { border: 0; box-shadow: none; background: var(--surface-muted); border-radius: 8px; }
+.lap-selection-body #stintPanels { align-self: start; }
+.telemetry-card .analysis-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.telemetry-card .analysis-heading h2 { font-size: 1.125rem; margin: 0; }
+.telemetry-card .analysis-heading .legend:empty { display: none; }
+.session-analysis-tabs { margin-left: auto; }
+.session-analysis-tabs { display: inline-flex; padding: 2px; gap: 2px; border-radius: 7px; background: var(--surface-muted); border: 1px solid var(--border-color); }
+.session-analysis-tabs button { min-height: 28px; padding: 4px 12px; border: 0; border-radius: 5px; background: transparent; box-shadow: none; color: var(--text-secondary); font-size: .75rem; }
+.session-analysis-tabs button[aria-selected="true"] { background: var(--surface-selected); color: var(--text-main); }
+.telemetry-card .comparison-tray { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 12px; margin: 0 0 10px; padding: 0 0 9px; border-top: 0; border-bottom: 1px solid var(--border-color); }
+.comparison-tray-heading { margin: 0; }
+.telemetry-card.is-empty .comparison-tray { display: none; }
+.telemetry-content #charts[hidden],.telemetry-content #cornerAnalysis[hidden] { display: none; }
+.performance-controls { display: grid; grid-template-columns: 130px minmax(235px,.8fr) minmax(220px,1fr) auto; align-items: end; gap: 10px; }
+.performance-controls > .panel-heading { display: none; }
+.performance-controls > .control-field { grid-column: 1; grid-row: 1; }
+.performance-controls > .control-field-scope { grid-column: 2; }
+.performance-controls > .performance-actions { grid-column: 4; grid-row: 1; margin: 0; width: auto; }
+.performance-controls #performanceTrackTray:not([hidden]) { display: contents; }
+.performance-controls #performanceTrackTray[hidden] { display: none; }
+.performance-controls .track-tray-header { grid-column: 3; grid-row: 1; margin: 0; padding: 0; min-height: 34px; }
+.performance-controls .track-tray-title { width: 100%; display: flex; justify-content: space-between; padding: 7px 10px; border: 1px solid var(--border-color-hover); border-radius: 7px; background: var(--bg-input); min-height: 34px; }
+.performance-controls .track-tray-label { font-size: .75rem; }
+.performance-controls .track-count-badge { white-space: nowrap; font-size: .6875rem; }
+.performance-track-choices { grid-column: 1 / -1; padding-top: 9px; border-top: 1px solid var(--border-color); }
+.performance-track-choices[hidden] { display: none; }
+.performance-track-choices .track-tray-actions { justify-content: flex-end; margin-bottom: 8px; }
+.performance-controls .performance-scope-toggle { width: 100%; display: grid; grid-template-columns: 1fr 1fr; min-height: 34px; }
+.performance-controls:not(:has(#performanceTrackTray:not([hidden]))) .control-field-scope { grid-column: 2 / 4; }
+.performance-status-card { margin: 0 0 6px; }
+#performanceResults > .performance-toolbar .performance-mode button { white-space: nowrap; flex: 0 0 auto; }
+#performanceResults > .performance-toolbar > [data-performance-refresh] { flex: 0 0 auto; font-size: .6875rem; padding: 5px 9px; min-height: 30px; border-radius: 6px; }
+.metric-heading { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 0; margin-bottom: 10px; }
+.metric-heading h2 { font-size: 1.125rem; }
+.metric-heading-controls:empty { display: none; }
+.metric-heading-controls .performance-actions { margin: 0; gap: 6px; }
+.metric-load-count { margin-left: auto; color: var(--text-muted); font-size: .6875rem; white-space: nowrap; }
+.performance-run-inspector { clear: both; border: 1px solid var(--border-color); margin: 10px 0; padding: 0; }
+.performance-run-inspector > summary { padding: 9px 11px; font-size: .75rem; }
+.performance-run-inspector[open] > summary { border-bottom: 1px solid var(--border-color); margin-bottom: 10px; }
+.performance-run-inspector .performance-tyre-plot-controls { margin: 0 10px 10px; }
+.performance-run-inspector .performance-tyre-stint-plot { margin: 10px; }
+.performance-chart-card > .straight-summary-controls,.performance-chart-card > .performance-metric-toolbar { margin: 7px 0 10px; }
+@media (max-width: 1000px) {
+  .performance-controls { grid-template-columns: 115px minmax(180px,1fr) minmax(180px,1fr) auto; }
+  #performanceResults > .performance-toolbar { align-items: flex-start; }
+}
+@media (max-width: 760px) {
+  #lapSelectionBody { grid-template-columns: minmax(0,1fr); }
+  #lapSelectionBody #driverSidebar { display: grid; grid-template-columns: minmax(0,1fr) 170px; gap: 8px; }
+  #driverSidebar #driverPills { max-height: 180px; }
+  .performance-controls { grid-template-columns: minmax(100px,.6fr) minmax(0,1fr); }
+  .performance-controls > .control-field-scope { grid-column: 2; }
+  .performance-controls:not(:has(#performanceTrackTray:not([hidden]))) .control-field-scope { grid-column: 2; }
+  .performance-controls .track-tray-header { grid-column: 1; grid-row: 2; }
+  .performance-controls > .performance-actions { grid-column: 2; grid-row: 2; width: auto; }
+  .performance-controls > .performance-actions > button { width: 100%; }
+  .performance-controls .performance-track-choices { grid-row: 3; }
+  #performanceResults > .performance-toolbar { flex-direction: column; }
+  #performanceResults > .performance-toolbar > .performance-mode { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); width: 100%; }
+  #performanceResults > .performance-toolbar .metric-nav-icon { width: 14px; height: 14px; }
+  .performance-controls .track-count-badge { background: transparent; padding: 0; }
+  .performance-controls .track-tray-label { display: none; }
+}
+@media (max-width: 480px) {
+  #lapSelectionBody #driverSidebar { display: flex; }
+  .lap-workspace .workspace-heading { gap: 6px 10px; }
+  .workspace-heading-actions { flex: 1 0 100%; }
 }

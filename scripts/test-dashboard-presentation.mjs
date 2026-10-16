@@ -15,7 +15,7 @@ test('every performance category has a distinct accessible heading and honest co
   for(const metric of ['pace','corners','straight','braking','pits','tyres','trend','results']){
     const heading=box.window.ApexPresentation.metricHeading(metric,{year:2026,events:2,subject:'driver',session:'race'});
     assert.match(heading,/<h2>[^<]+<\/h2>/);
-    assert.match(heading,/<dt>Loaded GPs<\/dt><dd>2<\/dd>/);
+    assert.match(heading,/2 loaded GPs/);
     assert.match(heading,/2026/);
   }
   const unsafe=box.window.ApexPresentation.metricHeading('pace',{year:'<img onerror="bad">'});
@@ -50,7 +50,7 @@ test('layout assets ship, all categories are responsive, and focused telemetry i
 });
 
 test('track selection disclosure stays keyboard accessible and recovers on scope selection',()=>{
-  assert.match(html,/<button[^>]+id="performanceToggleTracks"[^>]+aria-expanded="true"[^>]+aria-controls="performanceTrackPills"/);
+  assert.match(html,/<button[^>]+id="performanceToggleTracks"[^>]+aria-expanded="true"[^>]+aria-controls="performanceTrackChoices"/);
   assert.match(ui,/pills\.hidden = !expanded/);
   assert.match(ui,/performanceLoad.*addEventListener\('click', \(\) => setTrackTrayExpanded\(false\)\)/);
   assert.match(ui,/data-performance-scope="tracks"[\s\S]*setTrackTrayExpanded\(true\)/);

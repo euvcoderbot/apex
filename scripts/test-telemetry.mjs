@@ -118,6 +118,8 @@ function appHarness() {
   vm.createContext(sandbox);
   vm.runInContext(readFileSync(new URL('../app.js', import.meta.url), 'utf8'), sandbox);
   vm.runInContext(readFileSync(new URL('../alignment.js', import.meta.url), 'utf8'), sandbox);
+  // These canvas integration cases explicitly exercise the Corners pane.
+  vm.runInContext("sessionAnalysisView = 'corners'", sandbox);
   return { sandbox, elements, element, textCalls, run: code => vm.runInContext(code, sandbox) };
 }
 

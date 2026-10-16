@@ -19,11 +19,15 @@
   function metricHeading(metric, context = {}) {
     const [number, title, description] = metrics[metric] || ['', 'Performance', ''];
     const subject = ['corners','straight','braking'].includes(metric) ? `${context.subject === 'driver' ? 'Drivers' : 'Teams'}${metric === 'corners' ? ` · ${context.session === 'race' ? 'Race' : 'Qualifying'}` : ''}` : 'Selected events';
-    return `<header class="metric-heading"><div class="metric-heading-copy"><h2>${title}</h2><p class="explanation-only">${description}</p></div><dl class="metric-context"><div><dt>Season</dt><dd>${escape(context.year || '—')}</dd></div><div><dt>Loaded GPs</dt><dd>${Number(context.events) || 0}</dd></div><div><dt>View</dt><dd>${subject}</dd></div></dl></header>`;
+    return `<header class="metric-heading" aria-label="${escape(context.year || '—')} · ${subject}"><div class="metric-heading-copy"><h2>${title}</h2><p class="explanation-only">${description}</p></div><div class="metric-heading-controls"></div><span class="metric-load-count">${Number(context.events) || 0} loaded GP${Number(context.events) === 1 ? '' : 's'}</span></header>`;
   }
   function arrangePerformance(root, metric) {
     if (!root) return;
     root.dataset.presentation = metric;
+    const panel = root.querySelector('#performanceMetricPanel');
+    const controls = panel?.querySelector(':scope > .performance-actions');
+    const headingControls = panel?.querySelector('.metric-heading-controls');
+    if (controls && headingControls) headingControls.append(controls);
     for (const body of root.querySelectorAll('.performance-card-body')) {
       const children = [...body.children];
       const charts = children.filter(el => el.matches('.performance-chart-card:not(.performance-tyre-stint-plot)'));
@@ -53,7 +57,23 @@
       } else if (charts.length === 1) {
         charts[0].classList.add('is-standalone-chart');
       }
+      const placeControls = (control, chart) => {
+        if (control && chart) chart.querySelector('.perf-chart-header')?.after(control);
+      };
+      if (metric === 'pace') placeControls(body.querySelector('.performance-metric-toolbar'), body.querySelector('.performance-chart-card'));
+      if (metric === 'straight') placeControls(body.querySelector('.straight-summary-controls'), body.querySelector('.performance-chart-card'));
+      const runControls = body.querySelector('.performance-tyre-plot-controls');
+      if (runControls && !runControls.closest('.performance-run-inspector')) {
+        const runNote = runControls.nextElementSibling;
+        const inspector = document.createElement('details'), summary = document.createElement('summary');
+        inspector.className = 'performance-run-inspector'; summary.textContent = 'Inspect a tyre run';
+        runControls.before(inspector); inspector.append(summary, runControls);
+        if (runNote?.matches('p.performance-note')) inspector.append(runNote);
+        const plot = body.querySelector('.performance-tyre-stint-plot');
+        if (plot) inspector.append(plot);
+      }
     }
+    if (['straight','braking','pits'].includes(metric)) root.querySelector('#performanceMetricPanel > .performance-card > .panel-heading')?.classList.add('visually-hidden');
     for (const wrap of root.querySelectorAll('.performance-table-wrap')) {
       const table = wrap.querySelector('table');
       if (!table) continue;
@@ -83,6 +103,8 @@
     if (!button || !pills) return;
     button.setAttribute('aria-expanded', String(expanded));
     pills.hidden = !expanded;
+    const choices = document.getElementById('performanceTrackChoices');
+    if (choices) choices.hidden = !expanded;
   }
   document.getElementById('performanceToggleTracks')?.addEventListener('click', event => {
     setTrackTrayExpanded(event.currentTarget.getAttribute('aria-expanded') !== 'true');

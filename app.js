@@ -2,6 +2,7 @@
 let drivers = [];
 let selected = [];
 let loaded = [];
+let sessionAnalysisView = 'traces';
 let openStint = {};
 let realDrivers = new Map();
 const telemetryCache = new Map();
@@ -876,6 +877,29 @@ function setSessionLoading(value) {
   if(sidebar)sidebar.inert=value||$('main')?.classList.contains('sidebar-collapsed');
 }
 
+function setLapSelectionExpanded(expanded, focus = false) {
+  const body = $('#lapSelectionBody'), toggle = $('#lapWorkspaceToggle');
+  if (!body || !toggle) return;
+  body.hidden = !expanded;
+  body.inert = !expanded;
+  toggle.setAttribute('aria-expanded', String(expanded));
+  toggle.querySelector('span').textContent = expanded ? 'Choose laps' : 'Edit laps';
+  $('#sidebarToggle').hidden = !expanded;
+  if (focus) toggle.focus({preventScroll: true});
+}
+
+function setSessionAnalysisView(view) {
+  sessionAnalysisView = view === 'corners' ? 'corners' : 'traces';
+  document.querySelectorAll('[data-session-view]').forEach(button => {
+    const active = button.dataset.sessionView === sessionAnalysisView;
+    button.setAttribute('aria-selected', String(active));
+    button.tabIndex = active ? 0 : -1;
+  });
+  $('#charts').hidden = sessionAnalysisView !== 'traces';
+  updateTelemetryVisibility();
+  scheduleDrawAll();
+}
+
 
 // UI Rendering Functions
 function mergeRaceClassification(classification) {
@@ -1006,6 +1030,7 @@ function renderStints() {
   const root = $('#stintPanels');
   const actions = $('#lapWorkspaceActions');
   if (!selected.length) {
+    setLapSelectionExpanded(true);
     actions.replaceChildren();
     root.innerHTML = '<span class="section-empty">Select a driver to inspect their runs and laps.</span>';
     return;
@@ -1107,6 +1132,7 @@ function renderStints() {
     }
     renderAll();
     renderStints();
+    if (loaded.length) setLapSelectionExpanded(false, true);
   };
 
   root.querySelectorAll('.stint').forEach(button => {
@@ -2867,10 +2893,11 @@ function updateTelemetryVisibility() {
   const card = $('#telemetryCard');
   if (!card) return;
   const empty = loaded.length === 0;
+  const genericMap = empty && sessionAnalysisView === 'corners' && (selected.length > 0 || !!sessionEventName);
   card.classList.toggle('is-empty', empty);
-  card.classList.toggle('has-generic-map', empty && (selected.length > 0 || !!sessionEventName));
+  card.classList.toggle('has-generic-map', genericMap);
   const emptyState = $('#telemetryEmpty');
-  if (emptyState) emptyState.hidden = !empty;
+  if (emptyState) emptyState.hidden = !empty || genericMap;
 }
 
 function renderAll() {
@@ -2971,6 +2998,7 @@ function renderCornerAnalysis() {
   const root = $('#cornerMetricGrid');
   const pickerRoot = $('#cornerPickerRow');
   if (!section || !root || !pickerRoot) return;
+  if (sessionAnalysisView !== 'corners') { section.hidden = true; return; }
   const oldPicker = pickerRoot.querySelector?.('.corner-picker');
   const oldActive = oldPicker?.querySelector('.corner-pick.selected');
   const pickerState = oldPicker && oldActive ? {
@@ -3395,6 +3423,7 @@ function renderMiniSectorMap() {
   const legend = $('#dominanceLegend');
   const title = $('#dominanceTitle');
   if (!canvas || !empty || !legend || !title) return;
+  if ($('#cornerAnalysis')?.hidden) return;
   if (!loaded.length) mapView = 'guide';
   const guideDetails=$('#circuitGuideDetails');
   if(guideDetails){
@@ -3824,6 +3853,18 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const cornerAnalysisToggle = $('#cornerAnalysisToggle');
+  $('#lapWorkspaceToggle')?.addEventListener('click', event => {
+    setLapSelectionExpanded(event.currentTarget.getAttribute('aria-expanded') !== 'true');
+  });
+  document.querySelectorAll('[data-session-view]').forEach(button => {
+    button.addEventListener('click', () => setSessionAnalysisView(button.dataset.sessionView));
+    button.addEventListener('keydown', event => {
+      if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+      event.preventDefault();
+      const next = document.querySelector(`[data-session-view="${event.key === 'Home' ? 'traces' : event.key === 'End' ? 'corners' : sessionAnalysisView === 'traces' ? 'corners' : 'traces'}"]`);
+      next.focus(); setSessionAnalysisView(next.dataset.sessionView);
+    });
+  });
   const cornerAnalysis = $('#cornerAnalysis');
   if (cornerAnalysisToggle && cornerAnalysis) {
     cornerAnalysisToggle.addEventListener('click', () => {

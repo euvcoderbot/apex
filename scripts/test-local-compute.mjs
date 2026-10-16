@@ -38,8 +38,8 @@ test('local compute refuses a public backend and source delivery includes a disc
 });
 test('compact layout has normal-flow sidebars, no selected blue blocks and vector-only sorting',async()=>{
   const css=await readFile('macos-ui.css','utf8'),app=await readFile('car-performance.js','utf8');
-  assert.match(css,/main > #driverSidebar \{[^}]*position: static/);
-  assert.match(css,/main > #driverSidebar > \.dashboard-card \{[^}]*position: static/);
+  assert.match(css,/main #driverSidebar \{[^}]*position: static/);
+  assert.match(css,/main #driverSidebar > \.dashboard-card \{[^}]*position: static/);
   assert.match(css,/#performanceResults > \.performance-toolbar \{ position: static/);
   assert.match(css,/#driverSidebar #driverPills \{[^}]*overflow-x: hidden/);
   assert.match(css,/\.sector-cards \.lap-summary-card \{ display: grid/);
@@ -51,7 +51,8 @@ test('compact layout has normal-flow sidebars, no selected blue blocks and vecto
 
 test('context actions belong to their headings and selectable laps expose their state',async()=>{
   const page=await readFile('index.html','utf8'),app=await readFile('app.js','utf8'),presentation=await readFile('dashboard-ui.js','utf8'),css=await readFile('macos-ui.css','utf8');
-  assert.match(page, /class="workspace-intro session-intro">[\s\S]*?id="sidebarToggle"[\s\S]*?class="workspace-tools"/);
+  assert.match(page, /class="workspace-intro session-intro">[\s\S]*?class="workspace-tools"/);
+  assert.match(page, /class="panel-heading workspace-heading">[\s\S]*?id="sidebarToggle"/);
   assert.match(presentation,/\.performance-intro.*\.session-intro.*append\(workspaceTools\)/);
   assert.match(page, /id="lapWorkspaceActions"/);
   assert.match(app,/replaceUI\(actions, toolbar\)/);assert.doesNotMatch(app,/toolbar \+ cards/);
