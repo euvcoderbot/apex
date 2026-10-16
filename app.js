@@ -124,7 +124,7 @@ async function fetchSessionData(url, options = {}) {
     const controller = new AbortController();
     const abort = () => controller.abort();
     options.signal?.addEventListener('abort', abort, { once: true });
-    const timeout = setTimeout(abort, /\/api\/(performance|race-corners|qualifying-corners)/.test(url)?60000:30000);
+    const timeout = setTimeout(abort, window.APEX_LOCAL_MODE?180000:/\/api\/(performance|race-corners|qualifying-corners)/.test(url)?60000:30000);
     try {
       const shared=sharedDataURL(url),longQuery=shared.startsWith('/api/data?')&&shared.length>12000;
       const query=longQuery?new URLSearchParams(shared.slice(shared.indexOf('?')+1)):null;
@@ -1192,7 +1192,7 @@ function renderSectors() {
     return directions[Math.round(((degrees % 360) + 360) % 360 / 45) % directions.length];
   };
   const conditionCell = (icon, label, value) => `
-    <span class="summary-condition"><i aria-hidden="true">${icon}</i><span><small>${label}</small><strong>${value}</strong></span></span>`;
+    <span class="summary-condition"><span><small>${label}</small><strong>${value}</strong></span></span>`;
   
   const root = $('#sectorRows');
   replaceUI(root, loaded.map((item, i) => {

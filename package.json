@@ -6,6 +6,8 @@
     "node": ">=22.13.0"
   },
   "scripts": {
+    "local": "node scripts/start-local.mjs",
+    "local:precompute": "node scripts/precompute-local.mjs",
     "sync:apex": "node scripts/sync-static.mjs",
     "predev": "npm run sync:apex",
     "dev": "vinext dev",

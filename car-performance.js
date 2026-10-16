@@ -630,7 +630,10 @@ let straightBand='250_300';
 const accelerationComparisonMode='connected';
 let straightGapUnit='percent';
 function straightGapControls() {
-  return `<div class="performance-band-options" role="group" aria-label="Straight-section gap units"><button type="button" data-straight-unit="percent" aria-pressed="${straightGapUnit==='percent'}">Percent of lap</button><button type="button" data-straight-unit="seconds" aria-pressed="${straightGapUnit==='seconds'}">Seconds</button></div><p class="performance-note">Across a season these are different averages over the same supported GPs: percent averages each gap divided by that GP’s reference lap time; seconds averages the actual gaps. Long laps influence seconds more, so spacing or ranking may change. For one GP it is a direct conversion.</p>`;
+  const traces=events.flatMap(e=>Object.values(telemetryEvent(e).traces||{}));
+  const measured=traces.find(t=>finite(t.straight_core_distance_m)&&t.straight_core_distance_m>0);
+  const evidence=events.length===1&&measured?` · ${Math.round(measured.straight_core_distance_m)} m · ${measured.straight_core_windows?.length||0} windows`:'';
+  return `<div class="straight-summary-controls"><div class="performance-band-options" role="group" aria-label="Straight-section gap units"><button type="button" data-straight-unit="percent" aria-pressed="${straightGapUnit==='percent'}">% of lap</button><button type="button" data-straight-unit="seconds" aria-pressed="${straightGapUnit==='seconds'}">Seconds</button></div><span class="measurement-context">Speed-based estimate${evidence}</span></div><p class="performance-note">Same supported straight windows, estimated from native speed over equal distance. This is not measured traversal time or isolated engine power. GPS timing distortion cannot make a slower car artificially faster. Across GPs, percent and seconds weight lap lengths differently.</p>`;
 }
 function straightBandControls(available) {
   const entity=telemetrySubject==='driver'?'drivers':'teams';
@@ -1176,7 +1179,7 @@ function calculateAggregate() {
 }
 
 function table(headers,rows) {
-  return `<div class="performance-table-wrap${headers.length<=6?' is-compact-table':''}" tabindex="0" role="region" aria-label="Measurement table"><table class="performance-table"><thead><tr>${headers.map(h=>`<th scope="col">${h}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.map(row=>`<tr>${row.map(v=>`<td>${v}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${headers.length}" class="section-empty">No eligible data yet.</td></tr>`}</tbody></table></div>`;
+  return `<div class="performance-table-wrap${headers.length<=6?' is-compact-table':''}" tabindex="0" role="region" aria-label="Measurement table"><table class="performance-table"><thead><tr>${headers.map(h=>`<th scope="col"${h.includes('data-sort-state="ascending"')?' aria-sort="ascending"':h.includes('data-sort-state="descending"')?' aria-sort="descending"':''}>${h}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.map(row=>`<tr>${row.map(v=>`<td>${v}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${headers.length}" class="section-empty">No eligible data yet.</td></tr>`}</tbody></table></div>`;
 }
 
 function card(title,note,body) {
@@ -1192,8 +1195,10 @@ function card(title,note,body) {
 function sortHeader(key,label,defaultDirection=1) {
   const group=tableSortGroups.get(key), saved=group&&tableSortStates.get(group);
   const isCurrent = saved?saved.key===key:sortKey === key;
-  const arrow = isCurrent ? ((saved?.direction??sortDirection) === 1 ? '▲' : '▼') : '⇅';
-  return `<button class="perf-sort-btn ${isCurrent ? 'is-sorted' : ''}" data-performance-sort="${key}" data-sort-table="${group||key}" data-sort-direction="${defaultDirection}" type="button"><span>${label}</span><i class="sort-icon" aria-hidden="true">${arrow}</i></button>`;
+  const ascending=(saved?.direction??sortDirection)===1;
+  const state=isCurrent?(ascending?'ascending':'descending'):'none';
+  const path=isCurrent?(ascending?'M3 8 6 5 9 8':'M3 5 6 8 9 5'):'M3 7 6 4 9 7 M3 11 6 14 9 11';
+  return `<button class="perf-sort-btn ${isCurrent ? 'is-sorted' : ''}" data-sort-state="${state}" data-performance-sort="${key}" data-sort-table="${group||key}" data-sort-direction="${defaultDirection}" title="Sort by ${escape(label)}" type="button"><span>${label}</span><svg class="sort-icon" aria-hidden="true" width="12" height="16" viewBox="0 0 12 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"/></svg></button>`;
 }
 
 function sorted(items,getters,defaultKey,defaultDirection=1) {
@@ -1202,6 +1207,7 @@ function sorted(items,getters,defaultKey,defaultDirection=1) {
   const saved=tableSortStates.get(group);
   const key=saved&&getters[saved.key]?saved.key:getters[sortKey]?sortKey:defaultKey;
   const direction=saved&&key===saved.key?saved.direction:sortKey===key?sortDirection:defaultDirection;
+  tableSortStates.set(group,{key,direction});
   return window.ApexAnalysis.sortRows(items,getters,key,direction);
 }
 
@@ -2882,7 +2888,7 @@ function renderTrace() {
         valueKey:'peakGap',unit:'%',digits:3,signedValue:true,zeroBaseline:true
       });
       const coreChart=renderHorizontalBarChart(orderedQualy,{
-        title:straightGapUnit==='seconds'?'Settled straight-section performance · time gap':'Settled straight-section performance · share of lap',
+        title:straightGapUnit==='seconds'?'Straight speed · estimated time gap':'Straight speed · estimated % of lap',
         subtitle:`Shared qualifying windows · Exit, cornering and braking regions excluded · ${telemetryCoverageMode==='common'?'Observed common cohort':'Coverage-adjusted diagnostic'}; not isolated engine/drag`,
         valueKey:'coreDelta',unit:straightGapUnit==='seconds'?' s':'%',digits:3,signedValue:true,zeroBaseline:true
       });
@@ -3058,7 +3064,7 @@ function renderTrace() {
           <button type="button" data-straight-source="qualy" aria-pressed="${straightLineSource === 'qualy'}">Qualifying telemetry</button>
           <button type="button" data-straight-source="race" aria-pressed="${straightLineSource === 'race'}">Race speed traps</button>
         </div>
-        <span class="perf-tercile-badge is-mid">${straightLineSource === 'qualy' ? 'Observed GPS speed and traversal time' : 'ST timing loop · filtered laps'}</span>
+        <span class="measurement-context">${straightLineSource === 'qualy' ? 'Fastest qualifying laps' : 'Speed-trap observations'}</span>
       </div>
     `;
 
@@ -3127,7 +3133,7 @@ function renderTrace() {
       valueKey:'topDeficit',unit:'%',digits:3,signedValue:true,zeroBaseline:true
     });
     const coreChart=renderHorizontalBarChart(ordered,{
-      title:straightGapUnit==='seconds'?'Settled straight-section performance · time gap':'Settled straight-section performance · share of lap',
+      title:straightGapUnit==='seconds'?'Straight speed · estimated time gap':'Straight speed · estimated % of lap',
       subtitle:'Same full-throttle straight windows · Exit and braking buffers excluded · Not isolated engine/drag',
       valueKey:'coreDelta',unit:straightGapUnit==='seconds'?' s':'%',digits:3,signedValue:true,zeroBaseline:true
     });

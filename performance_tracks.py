@@ -788,6 +788,20 @@ def matched_braking_measurements(selected, windows, grid, candidates=None, fixed
     return result
 
 
+def straight_speed_cells(item, grid):
+    """Equal-distance time estimate from speed, not GPS-warped elapsed time.
+
+    This deliberately is NOT a measured timing-line traversal or lap-time
+    attribution. Native speed is interpolated onto the shared spatial frame;
+    integrating reciprocal speed avoids mistaking local GPS compression for
+    superior straight-line speed. No official-lap normalization is applied.
+    """
+    speed = np.asarray(item['speed'], dtype=float)
+    if len(speed) != len(grid) or np.any(~np.isfinite(speed)) or np.any(speed <= 0):
+        raise ValueError('Straight speed estimate requires positive native speed')
+    return np.diff(grid)*3.6*(1/speed[:-1]+1/speed[1:])/2
+
+
 def straight_core_measurements(selected, blocks, grid, ref, fixed_windows=None, _cohort=False):
     """Shared settled, near-full-throttle, low-curvature qualifying windows.
 
@@ -797,7 +811,7 @@ def straight_core_measurements(selected, blocks, grid, ref, fixed_windows=None, 
     empty = {team: {'straight_core_time': None, 'straight_core_delta': None,
                     'straight_core_gap_s': None,
                     'straight_core_distance_m': 0., 'straight_core_windows': [],
-                    'straight_core_method': 'shared-straight-core-v4-length-aware',
+                    'straight_core_method': 'shared-straight-speed-v5-equal-distance-estimate',
                     'straight_core_exclusion': 'No cohort of at least three cars shares 200 m of supported settled straight windows.'} for team in selected}
     if len(selected) < 3 or len(grid) < 3 or ref.get('gps') is None:
         return empty
@@ -866,7 +880,7 @@ def straight_core_measurements(selected, blocks, grid, ref, fixed_windows=None, 
             return empty
         names = sorted(best)
         for row in best.values():
-            row['straight_core_method'] = 'supported-straight-core-v4-length-aware'
+            row['straight_core_method'] = 'supported-straight-speed-v5-equal-distance-estimate'
             row['straight_core_cohort'] = names
             row['straight_core_requested'] = len(selected)
         return {**empty, **best}
@@ -899,14 +913,17 @@ def straight_core_measurements(selected, blocks, grid, ref, fixed_windows=None, 
     measured_distance = float(np.diff(grid)[mask].sum())
     if measured_distance < 200:
         return empty
-    times = {team: float(item['dt'][mask].sum()) for team, item in selected.items()}
+    times = {team: float(straight_speed_cells(item, grid)[mask].sum()) for team, item in selected.items()}
     best = min(times.values())
     return {team: {'straight_core_time': value,
                    'straight_core_gap_s': float(value-best),
                    'straight_core_delta': float((value-best)/ref['official']*100),
                    'straight_core_distance_m': measured_distance,
                    'straight_core_windows': windows,
-                   'straight_core_method': 'shared-straight-core-v4-length-aware',
+                   'straight_core_method': 'shared-straight-speed-v5-equal-distance-estimate',
+                   'straight_core_time_basis': 'estimated-equal-distance-from-native-speed',
+                   'straight_core_observed_time': float(selected[team]['dt'][mask].sum()),
+                   'straight_core_gps_timing_difference_s': float(selected[team]['dt'][mask].sum()-value),
                    'straight_core_exclusion': None} for team, value in times.items()}
 
 
@@ -1289,8 +1306,11 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
             start,end=w['start_m'],w['end_m'];item=selected[team]
             entry=float(np.interp(start,grid,item['speed']));entry_field=[float(np.interp(start,grid,other['speed'])) for other in core_selected.values()]
             middle=float(np.median(entry_field));same_entry=abs(entry-middle)<=max(5.,middle*.02)
-            elapsed=np.r_[0,np.cumsum(item['dt'])]
+            elapsed=np.r_[0,np.cumsum(straight_speed_cells(item,grid))]
+            observed=np.r_[0,np.cumsum(item['dt'])]
             row['straight_core_window_evidence'].append({**w,'duration_s':float(np.interp(end,grid,elapsed)-np.interp(start,grid,elapsed)),
+                'time_basis':'estimated-equal-distance-from-native-speed',
+                'observed_duration_s':float(np.interp(end,grid,observed)-np.interp(start,grid,observed)),
                 'entry_kmh':entry,'exit_kmh':float(np.interp(end,grid,item['speed'])),'entry_field_median_kmh':middle,
                 'compatible_entry_speed':same_entry,'entry_speed_limit_kmh':max(5.,middle*.02)})
     # Optional stricter comparison: same settled windows AND narrowly matched
@@ -1420,7 +1440,7 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
                 result['teams'][team] = {**observation, 'corners': [], 'braking': [], 'categories': {},
                     'quality': {'native_only': True, 'spatial_exclusion': errors.get(team)},
                     'measurement_status': 'native-speed-only'}
-        result['methodology_version'] = 'car-measurements-v14-corner-exit'
+        result['methodology_version'] = 'car-measurements-v15-straight-speed'
         result['source_complete'] = all(not error and samples and len(samples)>=100 for _,samples,error in extracted)
         result['source_coverage'] = {'requested':len(selections),'received':sum(bool(samples) and not error for _,samples,error in extracted),
             'native_speed':len(native),'spatially_measured':sum(not r.get('quality',{}).get('native_only') for r in result['teams'].values())}
