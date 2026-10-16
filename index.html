@@ -35,16 +35,15 @@
       </nav>
     </div>
   </header>
+  <main id="top" tabindex="-1">
+      <div class="workspace-intro session-intro">
+        <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-expanded="true" aria-controls="driverSidebar" title="Hide drivers"><i aria-hidden="true"></i><span class="visually-hidden">Hide drivers</span></button>
+        <div class="workspace-title"><span class="workspace-eyebrow">SESSION ANALYSIS</span><h1>Compare laps</h1></div>
   <div class="workspace-tools" role="group" aria-label="Display options">
     <a class="local-compute-link" href="http://127.0.0.1:54123/apex/" title="Start start-local.cmd on your PC, then open local analysis">Use local compute</a>
     <button id="explanationsToggle" class="sidebar-toggle" type="button" aria-pressed="false"><span>Show explanations</span></button>
     <button id="themeToggle" class="theme-toggle" type="button" aria-pressed="false" aria-label="Switch to light mode"><i aria-hidden="true"></i><span>Light mode</span></button>
   </div>
-  
-  <main id="top" tabindex="-1">
-      <div class="workspace-intro session-intro">
-        <div><span class="workspace-eyebrow">SESSION ANALYSIS</span><h1>Compare laps</h1></div>
-        <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-expanded="true" aria-controls="driverSidebar"><i aria-hidden="true"></i><span>Hide drivers</span></button>
       </div>
       <section class="dashboard-card session-controls" aria-label="Session selection">
         <div class="panel-heading">
@@ -90,7 +89,7 @@
       <section class="dashboard-card lap-workspace" id="lapWorkspace">
         <div class="panel-heading workspace-heading">
           <h2>Lap workspace</h2>
-          <span class="panel-hint explanation-only">Choose laps or compare fastest</span>
+          <div id="lapWorkspaceActions" class="workspace-heading-actions"></div>
         </div>
         <div id="stintPanels">
           <span class="section-empty">Select a driver to inspect their runs and laps.</span>
@@ -129,8 +128,7 @@
 
             <section class="corner-analysis" id="cornerAnalysis" aria-labelledby="cornerAnalysisTitle">
               <div class="corner-analysis-header">
-                <h2 id="cornerAnalysisTitle">Corner performance</h2>
-                <button id="cornerAnalysisToggle" class="corner-analysis-toggle" type="button" aria-expanded="true" aria-controls="cornerWorkspace"><span>Collapse</span><i aria-hidden="true"></i></button>
+                <h2 id="cornerAnalysisTitle"><button id="cornerAnalysisToggle" class="corner-analysis-toggle" type="button" aria-expanded="true" aria-controls="cornerWorkspace"><i aria-hidden="true"></i><span>Corner performance</span></button></h2>
               </div>
               <div class="corner-collapse-region"><div class="corner-workspace" id="cornerWorkspace">
                 <div class="corner-picker-row" id="cornerPickerRow"></div>

@@ -1004,7 +1004,9 @@ function toggleLoadedLap(code, lapNum) {
 
 function renderStints() {
   const root = $('#stintPanels');
+  const actions = $('#lapWorkspaceActions');
   if (!selected.length) {
+    actions.replaceChildren();
     root.innerHTML = '<span class="section-empty">Select a driver to inspect their runs and laps.</span>';
     return;
   }
@@ -1017,7 +1019,7 @@ function renderStints() {
   const toolbar = `
     <div class="run-toolbar">
       <span><b>${selected.length}</b> ${selected.length === 1 ? 'driver' : 'drivers'} selected</span>
-      <button id="compareAllFastest" data-motion-key="compare-fastest" class="compare-all-btn ${isAllFastestLoaded ? 'selected' : ''}" title="Add the fastest timed lap for every selected driver"><i aria-hidden="true">&#9889;</i><span>Compare fastest</span></button>
+      <button type="button" id="compareAllFastest" data-motion-key="compare-fastest" class="compare-all-btn ${isAllFastestLoaded ? 'selected' : ''}" aria-pressed="${isAllFastestLoaded}" title="Add the fastest timed lap for every selected driver"><span>Compare fastest</span></button>
     </div>
   `;
 
@@ -1070,7 +1072,7 @@ function renderStints() {
         : !Number.isFinite(displayTime) ? 'No lap time published by the timing feeds' : '';
       const age = Number.isFinite(lap.tyre_life) && lap.tyre_life >= 1 ? Math.round(lap.tyre_life) : null;
       const tyreDetail = hasQualifyingPhases ? `<small class="lap-tyre-age">Run ${qualifyingRuns.indexOf(lap.stint) + 1} · Tyre age ${age === null ? 'unknown' : `${age} ${age === 1 ? 'lap' : 'laps'}`}</small>` : '';
-      return `<button class="${classes}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${escapeUI(title)}"><span class="lap-token">${flag}${context ? ` <b class="lap-state">${context}</b>` : ''}${neutralised ? ` <b class="lap-state">${neutralised}</b>` : ''}</span><span class="lap-clock">${duration}</span>${compoundBadgeMarkup(lap.compound)}${tyreDetail}</button>`;
+      return `<button class="${classes}" aria-pressed="${isLoaded}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${escapeUI(title)}"><span class="lap-token"><i class="lap-selection-mark" aria-hidden="true">${isLoaded ? '✓' : '+'}</i>${flag}${context ? ` <b class="lap-state">${context}</b>` : ''}${neutralised ? ` <b class="lap-state">${neutralised}</b>` : ''}</span><span class="lap-clock">${duration}</span>${compoundBadgeMarkup(lap.compound)}${tyreDetail}</button>`;
     }).join('');
     const groupLabel = hasQualifyingPhases ? active : `Stint ${active}`;
 
@@ -1088,7 +1090,8 @@ function renderStints() {
     `;
   }).join('');
 
-  replaceUI(root, toolbar + cards);
+  replaceUI(actions, toolbar);
+  replaceUI(root, cards);
 
   $('#compareAllFastest').onclick = () => {
     const fastestLaps = selected.map(code => ({ code, lap: fastestTimedLap(realDrivers.get(code)) })).filter(item => item.lap);
@@ -1432,10 +1435,10 @@ function renderTraceVisibilityControls() {
     const key = telemetryKey(lap);
     const visible = !hiddenTraceKeys.has(key);
     const disableLast = visible && visibleCount === 1;
-    return `<div class="trace-pill-group" style="--team:${getLapColor(lap)}"><label class="trace-swatch"><input type="color" value="${getLapColor(lap)}" data-lap-color="${key}" aria-label="Change ${lap.code} lap ${lap.lap} trace colour"><span aria-hidden="true">✎</span></label><label class="trace-driver-chip ${visible ? 'is-visible' : ''}" style="--team:${getLapColor(lap)}" title="${visible ? 'Hide' : 'Show'} ${lap.code} lap ${lap.lap}">
+    return `<div class="trace-pill-group" style="--team:${getLapColor(lap)}"><label class="trace-driver-chip ${visible ? 'is-visible' : ''}" style="--team:${getLapColor(lap)}" title="${visible ? 'Hide' : 'Show'} ${lap.code} lap ${lap.lap}">
       <input type="checkbox" data-trace-key="${key}" ${visible ? 'checked' : ''} ${disableLast ? 'disabled' : ''}>
       <b>${lap.code}</b><small>L${lap.lap}</small>
-    </label></div>`;
+    </label><label class="trace-swatch" title="Change ${lap.code} lap ${lap.lap} colour"><input type="color" value="${getLapColor(lap)}" data-lap-color="${key}" aria-label="Change ${lap.code} lap ${lap.lap} trace colour"></label></div>`;
   }).join('');
 
   root.querySelectorAll('input[data-lap-color]').forEach(input => {
@@ -3827,8 +3830,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const collapsed = cornerAnalysis.classList.toggle('is-collapsed');
       $('#cornerWorkspace').inert = collapsed;
       cornerAnalysisToggle.setAttribute('aria-expanded', String(!collapsed));
-      const label = cornerAnalysisToggle.querySelector('span');
-      if (label) label.textContent = collapsed ? 'Expand' : 'Collapse';
     });
     cornerAnalysis.addEventListener('transitionend', event => {
       if (event.propertyName === 'grid-template-rows' && !cornerAnalysis.classList.contains('is-collapsed')) renderMiniSectorMap();
@@ -3842,12 +3843,14 @@ document.addEventListener('DOMContentLoaded', () => {
     mainEl.classList.toggle('sidebar-collapsed',saved);
     toggleBtn.querySelector('span').textContent=saved?'Show drivers':'Hide drivers';
     toggleBtn.setAttribute('aria-expanded',String(!saved));
+    toggleBtn.title=saved?'Show drivers':'Hide drivers';
     $('#driverSidebar').inert=saved;
     toggleBtn.onclick = () => {
       const isCollapsed = mainEl.classList.toggle('sidebar-collapsed');
       window.ApexAnalysis?.savePreference('hideDrivers',isCollapsed);
       toggleBtn.querySelector('span').textContent = isCollapsed ? 'Show drivers' : 'Hide drivers';
       toggleBtn.setAttribute('aria-expanded', String(!isCollapsed));
+      toggleBtn.title=isCollapsed?'Show drivers':'Hide drivers';
       $('#driverSidebar').inert = isCollapsed;
       if (loaded.length) scheduleDrawAll();
     };

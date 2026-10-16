@@ -407,7 +407,7 @@ test('dense lap identity, editable trace colours and automatic map recovery', ()
 test('qualifying run pills show every compound and lap state precedes the time', () => {
   assert.match(app, /new Set\(laps\.map\(lap => String\(lap\.compound/);
   assert.match(app, /class="run-compounds">\$\{compoundBadges\}/);
-  assert.match(app, /class="lap-token">\$\{flag\}\$\{context/);
+  assert.match(app, /class="lap-token"><i class="lap-selection-mark"[^>]*>[^<]*<\/i>\$\{flag\}\$\{context/);
   assert.match(app, /class="lap-clock">\$\{duration\}<\/span>/);
   const html = readFileSync('index.html', 'utf8');
   assert.match(html, /app\.js\?v=euv2-release-[\w-]+/);

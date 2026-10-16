@@ -48,3 +48,16 @@ test('compact layout has normal-flow sidebars, no selected blue blocks and vecto
   const controls=postcss.parse(await readFile('car-performance.css','utf8'));
   controls.walkRules(rule=>{if(rule.selector==='.performance-controls')rule.walkDecls('grid-template-columns',decl=>assert.ok(!decl.important,'Responsive grid must not be locked by a legacy !important'));});
 });
+
+test('context actions belong to their headings and selectable laps expose their state',async()=>{
+  const page=await readFile('index.html','utf8'),app=await readFile('app.js','utf8'),presentation=await readFile('dashboard-ui.js','utf8'),css=await readFile('macos-ui.css','utf8');
+  assert.match(page, /class="workspace-intro session-intro">[\s\S]*?id="sidebarToggle"[\s\S]*?class="workspace-tools"/);
+  assert.match(presentation,/\.performance-intro.*\.session-intro.*append\(workspaceTools\)/);
+  assert.match(page, /id="lapWorkspaceActions"/);
+  assert.match(app,/replaceUI\(actions, toolbar\)/);assert.doesNotMatch(app,/toolbar \+ cards/);
+  assert.match(page, /<h2 id="cornerAnalysisTitle"><button[^>]+aria-expanded="true"[^>]*><i[^>]*><\/i><span>Corner performance/);
+  assert.doesNotMatch(app,/collapsed \? 'Expand' : 'Collapse'/);
+  assert.match(app,/class="\$\{classes\}" aria-pressed="\$\{isLoaded\}"/);
+  assert.match(css,/#driverSidebar #driverPills:has\(> \.section-empty\) \{[^}]*overflow: visible/);
+  assert.match(css,/\.trace-pill-group \.trace-driver-chip input\[type="checkbox"\] \{[^}]*position: static/);
+});

@@ -1,5 +1,6 @@
 /* Presentation only: never changes observations, scores, ordering or eligibility. */
 (() => {
+  const workspaceTools = document.querySelector('.workspace-tools');
   if(window.APEX_LOCAL_MODE){
     const localLink=document.querySelector('.local-compute-link');
     if(localLink){const status=document.createElement('span');status.className='local-compute-status';status.textContent='Local compute · disk cache';status.title='Parsing and calculations run on this PC. Vercel is not used.';localLink.replaceWith(status);}
@@ -89,6 +90,7 @@
   document.getElementById('performanceLoad')?.addEventListener('click', () => setTrackTrayExpanded(false));
   document.querySelectorAll('[data-performance-scope="tracks"]').forEach(button => button.addEventListener('click', () => setTrackTrayExpanded(true)));
   document.querySelectorAll('[data-analysis-view]').forEach(button => button.addEventListener('click', () => {
+    document.querySelector(button.dataset.analysisView === 'performance' ? '.performance-intro' : '.session-intro')?.append(workspaceTools);
     document.querySelector('.skip-link')?.setAttribute('href', button.dataset.analysisView === 'performance' ? '#carPerformance' : '#top');
   }));
   window.ApexPresentation = Object.freeze({ metricHeading, arrangePerformance, setTrackTrayExpanded });
