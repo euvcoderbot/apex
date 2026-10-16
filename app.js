@@ -1221,7 +1221,7 @@ function renderSectors() {
     return directions[Math.round(((degrees % 360) + 360) % 360 / 45) % directions.length];
   };
   const conditionCell = (icon, label, value) => `
-    <span class="summary-condition"><span><small>${label}</small><strong>${value}</strong></span></span>`;
+    <span class="summary-condition"><i aria-hidden="true">${icon}</i><span><small>${label}</small><strong>${value}</strong></span></span>`;
   
   const root = $('#sectorRows');
   replaceUI(root, loaded.map((item, i) => {
@@ -1249,16 +1249,15 @@ function renderSectors() {
     return `
       <article class="lap-summary-card has-conditions" data-motion-key="summary-${item.code}-${item.lap}" style="--team:${color}">
         <header>
-          <span class="summary-driver"><b>${item.code}</b><small>L${item.lap}</small>${i === 0 ? '<em>REF</em>' : ''}</span>
+          <span class="summary-driver" title="${item.code} · lap ${item.lap}"><b>${item.code}</b>${i === 0 ? '<em>REF</em>' : ''}</span>
           <span class="summary-header-actions">
             <span class="summary-tyre ${compoundClass}">${tyreImageMarkup(lap.compound)}<span class="summary-tyre-copy"><b>${compound}</b>${tyreLife ? `<small>${tyreLife} used</small>` : ''}</span></span>
-            <span class="summary-lap-time"><small>${lap.in_lap && lap.out_lap ? 'PIT IN/OUT' : lap.out_lap ? 'PIT EXIT → LINE' : lap.in_lap ? 'PIT-IN LAP' : 'LAP'}</small><strong>${lap.display_time_estimated ? '~' : ''}${time(Number.isFinite(lap.display_time) ? lap.display_time : item.time)}</strong>${i === 0 || lap.out_lap || ref.real?.out_lap ? '' : deltaBadge(item.time, ref.time)}</span>
+            <span class="summary-lap-time"><small>${lap.in_lap && lap.out_lap ? 'PIT IN/OUT' : lap.out_lap ? 'PIT EXIT → LINE' : lap.in_lap ? 'PIT-IN LAP' : 'LAP'}</small>${i === 0 || lap.out_lap || ref.real?.out_lap ? '' : deltaBadge(item.time, ref.time)}<strong>${lap.display_time_estimated ? '~' : ''}${time(Number.isFinite(lap.display_time) ? lap.display_time : item.time)}</strong></span>
           </span>
         </header>
         <div class="summary-sectors">${sectors.map(({ label, value, reference, state }) => `
           <span class="sector-cell ${state.className}" title="${label} · ${state.label}">
-            <span class="sector-cell-value"><small>${label}</small><strong>${Number.isFinite(value) ? `${value.toFixed(3)}s` : '—'}</strong></span>
-            <span class="sector-delta-slot">${i === 0 ? '' : deltaBadge(value, reference)}</span>
+            <span class="sector-cell-value"><small>${label}</small><span class="sector-measurements"><span class="sector-delta-slot">${i === 0 ? '' : deltaBadge(value, reference)}</span><strong>${Number.isFinite(value) ? `${value.toFixed(3)}s` : '—'}</strong></span></span>
           </span>`).join('')}
         </div>
         ${conditionsHtml}
@@ -1461,9 +1460,11 @@ function renderTraceVisibilityControls() {
     const key = telemetryKey(lap);
     const visible = !hiddenTraceKeys.has(key);
     const disableLast = visible && visibleCount === 1;
+    const displayTime=Number.isFinite(lap.real?.display_time)?lap.real.display_time:lap.time;
+    const lapLabel=`${lap.real?.display_time_estimated?'~':''}${time(displayTime)}s`;
     return `<div class="trace-pill-group" style="--team:${getLapColor(lap)}"><label class="trace-driver-chip ${visible ? 'is-visible' : ''}" style="--team:${getLapColor(lap)}" title="${visible ? 'Hide' : 'Show'} ${lap.code} lap ${lap.lap}">
       <input type="checkbox" data-trace-key="${key}" ${visible ? 'checked' : ''} ${disableLast ? 'disabled' : ''}>
-      <b>${lap.code}</b><small>L${lap.lap}</small>
+      <b>${lap.code}</b><small>${lapLabel}</small>
     </label><label class="trace-swatch" title="Change ${lap.code} lap ${lap.lap} colour"><input type="color" value="${getLapColor(lap)}" data-lap-color="${key}" aria-label="Change ${lap.code} lap ${lap.lap} trace colour"></label></div>`;
   }).join('');
 

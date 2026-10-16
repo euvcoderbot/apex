@@ -66,7 +66,7 @@ button[data-ui-kind="picker"] .track-tray-disclosure { flex: 0 0 auto; margin-le
 .workspace-tools button[data-ui-kind="toolbar"] { flex: 0 0 auto; width: auto; }
 /* Segments are one control, not a row of unrelated pill buttons. */
 [data-ui-group="segments"] { display: inline-flex; align-items: stretch; gap: 0; padding: 2px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-well); box-shadow: inset 0 1px 2px #0002; }
-[data-ui-group="segments"] > button[data-ui-kind="segment"] { flex: 1 1 0; min-width: 0; min-height: 26px; padding: 4px 10px; border: 0; border-radius: 5px; color: var(--ui-secondary); background: transparent; box-shadow: none; white-space: nowrap; font-size: 12px; font-weight: 400; }
+[data-ui-group="segments"] > button[data-ui-kind="segment"] { flex: 1 1 0; min-width: 0; min-height: 26px; padding: 4px 10px; border: 0; border-radius: 5px; color: var(--ui-secondary); background: transparent; box-shadow: none; white-space: normal; font-size: 12px; font-weight: 400; }
 [data-ui-group="segments"] > button[data-ui-kind="segment"][aria-pressed="true"] { color: var(--ui-label); background: var(--ui-selected); box-shadow: 0 1px 2px #0003,inset 0 1px #ffffff09; }
 [data-ui-group="segments"] > button[data-ui-kind="segment"]::after { display: none; }
 .performance-tabs[data-ui-group] { width: 304px; }
@@ -197,6 +197,94 @@ progress::-moz-progress-bar { background: var(--ui-action); border-radius: 3px; 
   .performance-controls .track-count-badge { white-space: normal; font-size: 11px; }
 }
 /* Accessibility is part of the same system, not an optional skin. */
+/* Analysis layout: explicit placement prevents legacy sidebar rows from
+   auto-placing the lap cards into the narrow driver column. */
+#lapSelectionBody > #driverSidebar { grid-area: 1 / 1; }
+#lapSelectionBody > #stintPanels { grid-area: 1 / 2; min-width: 0; width: 100%; grid-template-columns: repeat(auto-fit,minmax(min(100%,340px),1fr)); }
+main.sidebar-collapsed #lapSelectionBody > #stintPanels { grid-area: 1 / 1; }
+.lap-workspace .run-card-header { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; }
+.lap-workspace .run-driver { min-width: 0; gap: 7px; }
+.lap-workspace .run-driver-copy { min-width: 0; }
+.lap-workspace .run-driver h3 { white-space: normal; overflow: visible; text-overflow: clip; font-size: 13px; line-height: 1.3; }
+.lap-workspace .run-driver small { display: block; white-space: nowrap; font-size: 11px; }
+.lap-workspace .run-segments { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,90px),1fr)); }
+.lap-workspace .run-segment { display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: 5px; }
+.lap-workspace .run-segment small { display: flex; flex-direction: column; align-items: center; flex: 0 0 auto; white-space: nowrap; gap: 2px; }
+.lap-workspace .run-choice-indicator { display: none; }
+/* One lap = identity/time + three aligned sector readings + weather strip. */
+.sector-cards .lap-summary-card { grid-template-columns: minmax(300px,1.05fr) minmax(0,1.8fr); gap: 6px 12px; padding: 8px 10px; }
+.sector-cards .lap-summary-card > header { grid-area: 1 / 1; grid-template-columns: minmax(0,1fr) auto; }
+.sector-cards .lap-summary-card .summary-driver { display: inline-flex; align-items: center; gap: 7px; }
+.sector-cards .lap-summary-card .summary-driver > b { font-size: 14px; }
+.sector-cards .lap-summary-card .summary-tyre-copy { gap: 5px; }
+.sector-cards .lap-summary-card .summary-lap-time { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
+.sector-cards .lap-summary-card .summary-lap-time > strong { font-size: 16px; white-space: nowrap; }
+.sector-cards .lap-summary-card .summary-sectors { grid-area: 1 / 2; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); }
+.sector-cards .lap-summary-card .sector-cell { padding: 6px 8px 9px; min-height: 41px; }
+.sector-cards .lap-summary-card .sector-cell-value { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.sector-cards .lap-summary-card .sector-cell-value > small { font-size: 13px; font-weight: 600; color: var(--ui-label); }
+.sector-cards .lap-summary-card .sector-cell-value strong { font-size: 12px; white-space: nowrap; }
+.sector-measurements { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; }
+.sector-cards .lap-summary-card .sector-delta-slot { display: inline-flex; width: auto; height: auto; min-height: 0; }
+.sector-delta-slot:empty { display: none; }
+.sector-cards .lap-summary-card .sector-cell::after { height: 5px; left: 8px; right: 8px; border-radius: 1px; box-shadow: none; }
+.sector-cell.is-session-best { --sector-status: #b41fff; }
+.sector-cell.is-personal-best { --sector-status: #00ff00; }
+.sector-cell.is-complete { --sector-status: #ffff00; }
+.sector-cards .lap-summary-card .summary-conditions { grid-area: 2 / 1 / auto / -1; display: flex; flex-wrap: wrap; justify-content: flex-start; align-items: center; gap: 5px 18px; padding: 5px 0 0; border: 0; border-top: 1px solid var(--ui-border); margin: 0; }
+.sector-cards .lap-summary-card .summary-condition { display: inline-flex; align-items: center; gap: 5px; }
+.summary-condition > i { font-style: normal; font-size: 13px; line-height: 1; }
+.sector-cards .lap-summary-card .summary-condition :is(small,strong) { font-size: 11px; }
+.trace-pill-group { display: inline-flex; align-items: center; gap: 0; padding: 0 5px 0 0; border: 1px solid color-mix(in srgb,var(--team) 45%,var(--ui-border)); border-radius: 6px; background: color-mix(in srgb,var(--team) 9%,var(--ui-well)); }
+.trace-pill-group .trace-driver-chip,.trace-pill-group .trace-driver-chip.is-visible { padding: 4px 7px; gap: 5px; min-height: 30px; background: transparent; border: 0; }
+.trace-pill-group .trace-driver-chip small { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ui-secondary); white-space: nowrap; }
+.trace-pill-group .trace-swatch { position: relative; margin: 0 1px 0 2px; width: 20px; height: 20px; flex: 0 0 20px; }
+/* Race scope is direct selection, not a second nested disclosure. */
+.performance-controls { display: flex; flex-direction: row; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.performance-controls > .control-field { flex: 0 0 130px; min-width: 0; }
+.performance-controls > .control-field-scope { flex: 0 1 340px; }
+.performance-controls > .performance-actions { flex: 0 0 auto; width: auto; margin: 0; }
+.performance-controls #performanceTrackTray:not([hidden]) { display: block; flex: 1 0 100%; width: 100%; padding: 10px 0 0; margin: 0; border: 0; border-top: 1px solid var(--ui-border); background: none; animation: none; }
+.performance-controls .track-tray-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; padding: 0; border: 0; min-height: 0; }
+.track-selection-title { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; }
+.performance-controls .track-tray-actions { margin: 0; }
+.performance-controls .performance-track-choices { padding: 0; border: 0; animation: none; }
+.performance-controls .performance-track-pills { grid-template-columns: repeat(auto-fill,minmax(180px,1fr)); gap: 5px; }
+/* The metric bar is one navigation group; only the selected tab is filled. */
+#performanceResults > .performance-toolbar > .performance-mode { padding: 3px; gap: 2px; background: var(--ui-well); border: 1px solid var(--ui-border); border-radius: 8px; }
+#performanceResults .performance-mode button[data-ui-kind="tab"] { display: inline-flex; align-items: center; justify-content: flex-start; gap: 6px; min-height: 29px; padding: 4px 8px; }
+#performanceResults .performance-mode button[data-ui-kind="tab"]:hover:not([aria-selected="true"]) { background: #ffffff08; box-shadow: none; border-color: transparent; }
+.metric-nav-emoji { width: 17px; flex: 0 0 17px; text-align: center; font-size: 14px; line-height: 1; }
+.performance-compound-control { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin: 0 0 10px; }
+.performance-compound-control > label { color: var(--ui-secondary); font-size: 12px; }
+.performance-compound-control .select-shell { flex: 0 1 210px; width: 210px; min-width: 0; }
+.performance-tyre-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.performance-tyre-toolbar [data-ui-group="segments"] { flex: 0 1 auto; width: auto; }
+.performance-tyre-toolbar [data-ui-group="segments"] > button { flex: 0 0 auto; white-space: nowrap; }
+.performance-tyre-toolbar .performance-quality-status { flex: 1 0 100%; width: 100%; margin: 0; padding: 0; border: 0; background: none; box-shadow: none; color: var(--ui-tertiary); font-size: 11px; }
+/* One quiet chevron, not a pair of tiny opposing arrows. */
+.select-trigger i { width: 10px; height: 10px; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='m2 4 4 4 4-4' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat; transition: none; }
+@media(max-width:1000px) {
+  .sector-cards .lap-summary-card { grid-template-columns: minmax(0,1fr); }
+  .sector-cards .lap-summary-card > header { grid-area: 1 / 1; }
+  .sector-cards .lap-summary-card .summary-sectors { grid-area: 2 / 1; }
+  .sector-cards .lap-summary-card .summary-conditions { grid-area: 3 / 1; }
+}
+@media(max-width:760px) {
+  #lapSelectionBody > #driverSidebar { grid-area: 1 / 1; }
+  #lapSelectionBody > #stintPanels { grid-area: 2 / 1; }
+  .performance-controls > .control-field { flex: 0 0 100px; }
+  .performance-controls > .control-field-scope { flex: 1 1 180px; }
+  .performance-controls > .performance-actions { flex: 1 0 100%; }
+}
+@media(max-width:480px) {
+  .sector-cards .lap-summary-card .sector-cell-value { flex-wrap: wrap; gap: 3px; }
+  .sector-measurements { flex-wrap: wrap; gap: 3px; }
+  .sector-cards .lap-summary-card .sector-cell-value strong { font-size: 11px; }
+  .sector-cards .lap-summary-card .summary-conditions { gap: 5px 10px; }
+  .performance-controls .performance-track-pills { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .performance-controls .track-pill { gap: 4px; padding: 5px 6px; font-size: 11px; }
+}
 @media(pointer:coarse) {
   button[data-ui-kind],summary[data-ui-kind="disclosure"],select[data-ui-kind="field"],input[data-ui-kind="field"] { min-height: 44px; }
   button[data-ui-kind="icon"],button[data-ui-kind="stepper"] { min-width: 44px; width: 44px; height: 44px; }

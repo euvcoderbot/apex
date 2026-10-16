@@ -1,0 +1,47 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+import postcss from 'postcss';
+const app=readFileSync('app.js','utf8'),css=readFileSync('ui-controls.css','utf8'),car=readFileSync('car-performance.js','utf8');
+
+test('rendered lap and sector differences precede their measured times, with weather icons',()=>{
+  const laps=[{code:'HAM',lap:21,time:91.496,real:{s1:27.273,s2:38.258,s3:25.965,compound:'SOFT'}},{code:'VER',lap:11,time:91.373,real:{s1:27.002,s2:38.531,s3:25.840,compound:'SOFT'}}];
+  let html='';const root={querySelectorAll:()=>[]};
+  const box={loaded:laps,realDrivers:new Map(laps.map(l=>[l.code,{laps:[l.real]}])),nominatedCompounds:[],
+    $:()=>root,replaceUI:(r,value)=>{html=value;},getLapColor:()=> '#4781d7',getCompoundCode:()=> 'SOFT (C5)',getCompoundToneClass:()=> 'soft',tyreImageMarkup:()=> '',time:t=>t.toFixed(3)};
+  vm.createContext(box);vm.runInContext(app.slice(app.indexOf('function renderSectors()'),app.indexOf('// Chart Constants and Configuration')),box);box.renderSectors();
+  const second=html.slice(html.indexOf('data-motion-key="summary-VER'));
+  assert.match(second,/summary-lap-time[\s\S]*?−0\.123s<\/em><strong>91\.373<\/strong>/);
+  assert.match(second,/sector-delta-slot[\s\S]*?−0\.271s<\/em><\/span><strong>27\.002s<\/strong>/);
+  for(const icon of ['🌤️','🌡️','🚩','🌧️'])assert.ok(html.includes(`<i aria-hidden="true">${icon}</i>`));
+  assert.doesNotMatch(html,/<small>L21<\/small>/);
+});
+
+test('lap chooser has explicit two-column placement and compact stacked fallback',()=>{
+  postcss.parse(css);
+  assert.match(css,/#lapSelectionBody > #driverSidebar \{ grid-area: 1 \/ 1/);
+  assert.match(css,/#lapSelectionBody > #stintPanels \{ grid-area: 1 \/ 2/);
+  assert.match(css,/@media\(max-width:760px\)[\s\S]*#lapSelectionBody > #stintPanels \{ grid-area: 2 \/ 1/);
+  assert.match(css,/sector-cell::after \{ height: 5px/);
+  assert.match(css,/sector-cell-value > small \{ font-size: 13px/);
+});
+
+test('trace selectors show exact lap times while retaining stable lap identities',()=>{
+  const source=app.slice(app.indexOf('function renderTraceVisibilityControls()'),app.indexOf('function syncTraceVisibilityControls()'));
+  assert.match(source,/Number\.isFinite\(lap\.real\?\.display_time\)/);
+  assert.match(source,/<b>\$\{lap.code\}<\/b><small>\$\{lapLabel\}<\/small>/);
+  assert.match(source,/data-trace-key="\$\{key\}"/);
+  assert.match(source,/disableLast/);
+});
+
+test('compound pop-up keeps all options and the selected compound',()=>{
+  const source=car.slice(car.indexOf('function tyreCompoundControl('),car.indexOf('function tyreStintKey('));
+  const box={tyreView:'C4'};vm.createContext(box);vm.runInContext(source,box);
+  const html=box.tyreCompoundControl(['OVERALL','C3','C4','C5'],'All C grades');
+  assert.equal((html.match(/<option/g)||[]).length,4);
+  assert.match(html,/<option value="C4" selected>C4/);
+  assert.match(html,/label for="performanceTyreCompound"/);
+  assert.match(car,/const navEmoji=\{pace:'⏱️'/);
+  assert.match(css,/performance-tyre-toolbar \.performance-quality-status \{ flex: 1 0 100%/);
+});

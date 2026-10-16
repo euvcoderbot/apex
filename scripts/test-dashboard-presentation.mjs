@@ -49,11 +49,12 @@ test('layout assets ship, all categories are responsive, and focused telemetry i
   assert.match(html,/class="skip-link"/);
 });
 
-test('track selection disclosure stays keyboard accessible and recovers on scope selection',()=>{
-  assert.match(html,/<button[^>]+id="performanceToggleTracks"[^>]+aria-expanded="true"[^>]+aria-controls="performanceTrackChoices"/);
-  assert.match(ui,/pills\.hidden = !expanded/);
-  assert.match(ui,/performanceLoad.*addEventListener\('click', \(\) => setTrackTrayExpanded\(false\)\)/);
-  assert.match(ui,/data-performance-scope="tracks"[\s\S]*setTrackTrayExpanded\(true\)/);
+test('track scope directly exposes race choices without a second disclosure or automatic close',()=>{
+  assert.doesNotMatch(html,/performanceToggleTracks|Choose races/);
+  assert.doesNotMatch(ui,/setTrackTrayExpanded/);
+  assert.match(car,/tray\.hidden = isSeason/);
+  assert.match(html,/id="performanceTrackChoices" class="performance-track-choices"/);
+  assert.match(html,/role="group" aria-label="Track selection"/);
 });
 
 test('hidden telemetry canvases are skipped before allocating or copying drawing buffers',()=>{

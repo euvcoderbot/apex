@@ -98,23 +98,9 @@
       wrap.prepend(label);
     }
   }
-  function setTrackTrayExpanded(expanded) {
-    const button = document.getElementById('performanceToggleTracks');
-    const pills = document.getElementById('performanceTrackPills');
-    if (!button || !pills) return;
-    button.setAttribute('aria-expanded', String(expanded));
-    pills.hidden = !expanded;
-    const choices = document.getElementById('performanceTrackChoices');
-    if (choices) choices.hidden = !expanded;
-  }
-  document.getElementById('performanceToggleTracks')?.addEventListener('click', event => {
-    setTrackTrayExpanded(event.currentTarget.getAttribute('aria-expanded') !== 'true');
-  });
-  document.getElementById('performanceLoad')?.addEventListener('click', () => setTrackTrayExpanded(false));
-  document.querySelectorAll('[data-performance-scope="tracks"]').forEach(button => button.addEventListener('click', () => setTrackTrayExpanded(true)));
   document.querySelectorAll('[data-analysis-view]').forEach(button => button.addEventListener('click', () => {
     document.querySelector(button.dataset.analysisView === 'performance' ? '.performance-intro' : '.session-intro')?.append(workspaceTools);
     document.querySelector('.skip-link')?.setAttribute('href', button.dataset.analysisView === 'performance' ? '#carPerformance' : '#top');
   }));
-  window.ApexPresentation = Object.freeze({ metricHeading, arrangePerformance, setTrackTrayExpanded });
+  window.ApexPresentation = Object.freeze({ metricHeading, arrangePerformance });
 })();

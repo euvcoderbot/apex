@@ -182,18 +182,17 @@
       </div>
     <section id="performanceTrackTray" class="performance-track-tray" aria-label="Grand Prix selection" hidden>
       <div class="track-tray-header">
-        <button type="button" id="performanceToggleTracks" class="track-tray-title" aria-expanded="true" aria-controls="performanceTrackChoices">
-          <span class="track-tray-label">Choose races</span>
+        <div class="track-selection-title">
+          <span>Races</span>
           <span id="performanceTrackCount" class="track-count-badge">0 selected</span>
-          <span class="track-tray-disclosure" aria-hidden="true">⌃</span>
-        </button>
-      </div>
-      <div id="performanceTrackChoices" class="performance-track-choices">
+        </div>
         <div class="track-tray-actions">
           <button type="button" id="performanceSelectAllTracks" class="btn-track-action">Select all</button>
           <button type="button" id="performanceSelectLatestTracks" class="btn-track-action">Latest 3</button>
           <button type="button" id="performanceClearTracks" class="btn-track-action">Clear</button>
         </div>
+      </div>
+      <div id="performanceTrackChoices" class="performance-track-choices">
       <div id="performanceTrackPills" class="performance-track-pills" role="group" aria-label="Track selection"></div>
       </div>
     </section>
