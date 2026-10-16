@@ -325,8 +325,8 @@ footer { max-width: 1720px; margin: auto; padding: 0 24px 24px; font-size: .6875
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
 
-/* Fluent refinement: stable navigation, Mica-like base, acrylic flyouts.
-   Actual telemetry/data surfaces stay opaque and high contrast. */
+/* Workspace geometry and compact disclosures. Appearance is owned by
+   macos-ui.css; these legacy material tokens are fallbacks only. */
 :root {
   --material-fill: #1a2432d9;
   --material-edge: #c5dcff26;

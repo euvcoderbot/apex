@@ -95,25 +95,6 @@ function canvasFont(size = 12, weight = 400) {
   return `${weight} ${size}px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable", "Segoe UI", Helvetica, Arial, sans-serif`;
 }
 
-function installGlassMotion() {
-  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-  let frame = 0, target = null, pointer = null;
-  document.addEventListener('pointermove', event => {
-    if (event.pointerType !== 'mouse') return;
-    target = event.target.closest('.session-controls, .trace-zoom-cluster');
-    if (!target) return;
-    pointer = { x: event.clientX, y: event.clientY };
-    if (frame) return;
-    frame = window.requestAnimationFrame(() => {
-      frame = 0;
-      if (!target?.isConnected || !pointer) return;
-      const rect = target.getBoundingClientRect();
-      target.style.setProperty('--glass-x', `${Math.round((pointer.x - rect.left) / (rect.width || 1) * 100)}%`);
-      target.style.setProperty('--glass-y', `${Math.round((pointer.y - rect.top) / (rect.height || 1) * 100)}%`);
-    });
-  }, { passive: true });
-}
-
 function positionCornerIndicator(root, previous) {
   const picker = root.querySelector?.('.corner-picker');
   const active = picker?.querySelector('.corner-pick.selected');
@@ -560,6 +541,7 @@ function selectCustomOption(optionButton) {
   const trigger = shell?.querySelector('.select-trigger');
   const optionIndex = Number(optionButton.getAttribute('data-select-index'));
   if (!select || !Number.isInteger(optionIndex) || optionIndex < 0 || optionIndex >= select.options.length) return;
+  if (select.disabled || select.options[optionIndex].disabled) return;
   customSelectValues.set(select, select.options[optionIndex].value);
   select.selectedIndex = optionIndex;
   shell.classList.remove('is-open');
@@ -586,7 +568,7 @@ function syncSelectUI(select) {
   trigger.disabled = select.disabled;
   trigger.setAttribute('aria-expanded', String(shell.classList.contains('is-open')));
   menu.innerHTML = options.map((option, optionIndex) => `
-    <button type="button" role="option" aria-selected="${option === selectedOption}" data-select-index="${optionIndex}" data-select-value="${encodeURIComponent(option.value)}" onclick="selectCustomOption(this)">
+    <button type="button" role="option" tabindex="-1" aria-selected="${option === selectedOption}" ${option.disabled ? 'disabled aria-disabled="true"' : ''} data-select-index="${optionIndex}" data-select-value="${encodeURIComponent(option.value)}" onclick="selectCustomOption(this)">
       ${selectOptionContent(option)}
     </button>`).join('');
 }
@@ -627,8 +609,9 @@ function enhanceSelect(select) {
     trigger.setAttribute('aria-expanded', String(open));
     if (open) menu.querySelector('[aria-selected="true"]')?.focus({ preventScroll: true });
   });
+  let searchPrefix = '', lastSearchAt = 0;
   menu.addEventListener('keydown', event => {
-    const items = [...menu.querySelectorAll('[data-select-value]')];
+    const items = [...menu.querySelectorAll('[data-select-value]:not(:disabled)')];
     const index = items.indexOf(document.activeElement);
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
@@ -644,6 +627,20 @@ function enhanceSelect(select) {
       event.preventDefault();
       close();
       trigger.focus();
+    } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && event.key !== ' ') {
+      event.preventDefault();
+      const now = Date.now();
+      searchPrefix = now - lastSearchAt < 700 ? searchPrefix + event.key : event.key;
+      lastSearchAt = now;
+      const labels = items.map(item => item.textContent.trim().toLocaleLowerCase());
+      // Search in display order after the focused option, cycling repeated keys.
+      const order = items.map((_, offset) => (index + 1 + offset) % items.length);
+      let match = order.find(i => labels[i].startsWith(searchPrefix.toLocaleLowerCase()));
+      if (match === undefined && searchPrefix.length > 1) {
+        searchPrefix = event.key;
+        match = order.find(i => labels[i].startsWith(searchPrefix.toLocaleLowerCase()));
+      }
+      if (match !== undefined) items[match].focus();
     }
   });
   trigger.addEventListener('keydown', event => {
@@ -3792,7 +3789,6 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('apex-descriptions',event=>descriptions(event.detail===true));
   const definitions=$('#performanceDefinitions');
   if(definitions&&window.ApexAnalysis)definitions.innerHTML=Object.values(window.ApexAnalysis.definitions).map(d=>`<dt>${d.title}</dt><dd>${d.description}</dd>`).join('');
-  installGlassMotion();
   window.addEventListener('pointerup', finishZoomDrag);
   applyTheme(document.documentElement.dataset.theme, false);
   document.querySelectorAll('.select-shell select').forEach(enhanceSelect);

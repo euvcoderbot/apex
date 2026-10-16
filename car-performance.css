@@ -439,7 +439,7 @@ body.performance-view #sidebarToggle {
   line-height: 1.4;
 }
 
-/* Category navigation is owned by fluent-ui.css; no competing forced tabs. */
+/* Category navigation is owned by macos-ui.css; no competing forced tabs. */
 
 /* Empty State / Notice Card */
 .performance-empty {

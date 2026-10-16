@@ -29,7 +29,7 @@ const staticFiles = [
   "qualifying-telemetry.js",
   "car-performance.css",
   "workspace-ui.css",
-  "fluent-ui.css",
+  "macos-ui.css",
   "dashboard-ui.js",
   "styles.css",
   "design-system.css",
