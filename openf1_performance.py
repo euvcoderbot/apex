@@ -27,6 +27,63 @@ def retained_bundle(year, gp, code, now=None):
     return bundle
 
 
+def session_payload(year, gp, code, bundle):
+    """Expose the same validated observations to session/qualifying consumers.
+
+    These elapsed windows use OpenF1's session.date_start clock, not the F1
+    archive's t0. UTC starts and the explicit clock label retain that distinction.
+    """
+    adapted = adapt_performance(year, gp, code, bundle)
+    feeds, identity = bundle['feeds'], bundle['session']
+    source_drivers = {str(d['driver_number']): d for d in feeds['drivers']}
+    results = {str(d['driver_number']): d for d in feeds['session_result']}
+    weather = [(stamp(w.get('date')), w) for w in feeds['weather'] if stamp(w.get('date')) is not None]
+    drivers = []
+    complete = True
+    for name in adapted.drivers:
+        info = adapted.get_driver(name)
+        number_id = info['DriverNumber']
+        original = source_drivers[number_id]
+        rows = sorted((r for r in adapted.apex_recorded_rows if r['driver'] == name), key=lambda r: r['lap'])
+        numbers = {r['lap'] for r in rows}
+        missing = sorted(set(range(min(numbers), max(numbers)+1))-numbers) if numbers else []
+        complete = complete and not missing
+        raw_laps = {int(r['lap_number']): r for r in feeds['laps'] if str(r['driver_number']) == number_id and r.get('lap_number')}
+        laps = []
+        for r in rows:
+            raw = raw_laps[r['lap']]
+            start = stamp(r['date_start'])
+            middle = start+r['time']/2 if start is not None and r['time'] is not None else start
+            nearest = min(weather, key=lambda w: abs(w[0]-middle)) if weather and middle is not None else None
+            conditions = None
+            if nearest and abs(nearest[0]-middle) <= 120:
+                w = nearest[1]
+                conditions = {key: number(w.get(key)) for key in ('air_temperature', 'track_temperature', 'wind_speed', 'wind_direction')}
+                conditions['rainfall'] = r['rain']
+            laps.append({'lap': r['lap'], 'time': r['time'], 'display_time': r['time'],
+                         'display_time_estimated': False, 'date_start': r['date_start'],
+                         'lap_start_seconds': r['start'], 'lap_end_seconds': r['end'],
+                         'timing_clock': 'openf1-session-start', 'timing_source': 'OpenF1',
+                         's1': r['sectors'][0], 's2': r['sectors'][1], 's3': r['sectors'][2],
+                         'compound': r['compound'], 'tyre_life': r['age'], 'fresh_tyre': r['fresh'],
+                         'stint': r['stint'], 'phase': r['phase'], 'accurate': r['accurate'],
+                         'deleted': r['deleted'], 'track_status': r['track'],
+                         'out_lap': raw.get('is_pit_out_lap') is True,
+                         'in_lap': r['pit'] and raw.get('is_pit_out_lap') is not True,
+                         'conditions': conditions, 'speed_st': r['speed_st'], 'speed_fl': r['speed_fl']})
+        drivers.append({'code': name, 'number': number_id,
+                        'name': original.get('full_name') or original.get('broadcast_name') or name,
+                        'team': info['TeamName'], 'team_color': '#'+str(original.get('team_colour') or '777777').lstrip('#'),
+                        'position': info['Position'], 'laps': laps, 'lap_data_complete': not missing, 'missing_laps': missing,
+                        'result': {'points': info['Points'], 'status': info['Status'], 'gap': results[number_id].get('gap_to_leader')}})
+    drivers.sort(key=lambda d: (d['position'] is None, d['position'] or 999, d['code']))
+    return {'event': gp, 'session': adapted.name, 'year': year, 'date': identity['date_start'],
+            'drivers': drivers, 'corners': [], 'circuit_rotation': 0,
+            'location': identity.get('location'), 'circuit_key': identity.get('circuit_key'),
+            'openf1_session_key': identity['session_key'], 'lap_data_complete': complete,
+            'timing_clock': 'openf1-session-start'}
+
+
 def number(value):
     try:
         value = float(value)

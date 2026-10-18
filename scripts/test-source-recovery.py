@@ -10,6 +10,39 @@ from verified_sources import recorded_session,recorded_lap,recorded_payload,reco
 
 
 class SourceRecoveryTests(unittest.TestCase):
+    def test_azerbaijan_session_and_every_fastest_native_lap_survive_archive_outage(self):
+        r = recorded_session(2026, 'Azerbaijan Grand Prix', 'Q')
+        self.assertEqual(len(r['data']['drivers']), 22)
+        self.assertEqual(sum(len(d['laps']) for d in r['data']['drivers']), 373)
+        self.assertEqual(len(r['corners']), 20)
+        self.assertEqual(len(r['telemetry']), 22)
+        with patch.object(server, 'load_session', side_effect=AssertionError('Unavailable archive must not be used')):
+            result = server.session_data(Response(), 2026, 'Azerbaijan Grand Prix', 15, 'Q', False)
+        self.assertEqual(len(result['available_telemetry']), 22)
+        for d in result['drivers']:
+            fastest = min((l for l in d['laps'] if l['accurate'] and not l['deleted'] and not l['in_lap'] and not l['out_lap']), key=lambda l: l['time'])
+            native = recorded_lap(r, driver=d['code'], number=d['number'], lap=fastest['lap'],
+                                  start=fastest['lap_start_seconds'], end=fastest['lap_end_seconds'], duration=fastest['time'])
+            self.assertIsNotNone(native)
+            self.assertAlmostEqual(native['samples'][0]['ElapsedSeconds'], 0)
+            self.assertAlmostEqual(native['samples'][-1]['ElapsedSeconds'], fastest['time'])
+            self.assertTrue(native['position_complete'])
+
+    def test_azerbaijan_native_telemetry_does_not_need_live_source_metadata(self):
+        r = recorded_session(2026, 'Azerbaijan Grand Prix', 'Q')
+        native = next(t for t in r['telemetry'] if t['selection']['driver'] == 'VER')
+        s = native['selection']
+        with patch.object(server, 'openf1', side_effect=AssertionError('No repeated native download')), \
+             patch.object(server, 'read_prepared_cache', return_value=None), \
+             patch.object(server, 'write_prepared_cache'):
+            result = server.telemetry(Response(), year=2026, gp='Azerbaijan Grand Prix', round=15,
+                session='Q', driver=s['driver'], lap=s['lap'], driver_number=s['driver_number'],
+                session_key=None, fresh=False, geometry=False, lap_start=None, lap_time=s['time'],
+                next_start=None, lap_start_seconds=s['start'], lap_end_seconds=s['end'], pit_out=False)
+        self.assertEqual(result['lap'], 15)
+        self.assertTrue(result['position_complete'])
+        self.assertEqual(result['source_cache']['kind'], 'verified-recording')
+
     def test_retained_pit_visits_keep_exact_times_and_expiry(self):
         pits=recorded_pits(2026,'Singapore Grand Prix')
         original=_recordings()['2026:Singapore Grand Prix:R']['pits']

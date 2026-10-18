@@ -1416,7 +1416,7 @@ def session_data(
         return payload
     try:
         data = load_fresh_session(year, gp, session) if fresh else load_session(year, gp, session, round)
-        if recording and data.laps.empty:
+        if data.laps.empty:
             raise ValueError('Timing archive returned no laps')
     except Exception as exc:
         if recording:
@@ -1424,6 +1424,17 @@ def session_data(
             payload['source_cache']['refresh_failed'] = fresh
             payload['compounds'] = get_tire_nominations(year, gp)
             return payload
+        if session in ('Q', 'R', 'Qualifying', 'Race') and year >= 2023:
+            try:
+                from openf1_performance import session_payload
+                code = {'Qualifying': 'Q', 'Race': 'R'}.get(session, session)
+                alternate = load_openf1_performance(year, gp, code, fresh=fresh)
+                payload = session_payload(year, gp, code, alternate.apex_source_bundle)
+                payload['source_cache'] = alternate.apex_source_notice
+                payload['compounds'] = get_tire_nominations(year, gp)
+                return payload
+            except Exception as fallback_error:
+                logger.warning('Alternate session timing unavailable for %s: %s', gp, fallback_error)
         raise HTTPException(422, f"Could not load this session: {exc}") from exc
 
     qualifying_phase: dict[Any, str] = {}
@@ -1612,6 +1623,10 @@ def session_data(
     except Exception:
         pass
 
+    try:
+        session_info = data.session_info or {}
+    except Exception:
+        session_info = {}
     payload = {
         "event": data.event["EventName"],
         "session": data.name,
@@ -1619,10 +1634,10 @@ def session_data(
         "drivers": drivers,
         "corners": corners,
         "circuit_rotation": circuit_rotation,
-        "location": str(data.session_info.get("Meeting", {}).get("Location") or data.event.get("Location") or ""),
-        "circuit_key": integer(data.session_info.get("Meeting", {}).get("Circuit", {}).get("Key"), 0) or None,
+        "location": str(session_info.get("Meeting", {}).get("Location") or data.event.get("Location") or ""),
+        "circuit_key": integer(session_info.get("Meeting", {}).get("Circuit", {}).get("Key"), 0) or None,
         "compounds": get_tire_nominations(year, gp),
-        "openf1_session_key": integer(getattr(data, "session_info", {}).get("Key"), 0) or None,
+        "openf1_session_key": integer(session_info.get("Key"), 0) or None,
         "lap_data_complete": lap_data_complete,
     }
     response.headers['Server-Timing'] = f'session;dur={(time.perf_counter()-started)*1000:.1f}'
@@ -1762,6 +1777,7 @@ def load_openf1_performance(year, gp, session, fresh=False):
                               'expires_at': (datetime.fromisoformat(bundle['captured_at']) + timedelta(days=30)).isoformat() if bundle is retained else None,
                               'recorded_session_date': bundle['session']['date_start'],
                               'message': 'OpenF1 timing and classification. Race laps require complete sector timing, known dry tyres/weather and green race-control coverage. Lap-start timestamps are approximate.'}
+    data.apex_source_bundle = bundle
     return data
 
 

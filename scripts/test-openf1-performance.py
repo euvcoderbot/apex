@@ -10,7 +10,7 @@ from urllib.error import HTTPError
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi import Response
 import server
-from openf1_performance import adapt_performance, retained_bundle
+from openf1_performance import adapt_performance, retained_bundle, session_payload
 
 
 def bundle():
@@ -36,6 +36,15 @@ def row(value):
 
 
 class AdapterTests(unittest.TestCase):
+    def test_session_payload_exposes_phase_and_clock_without_reading_archive_metadata(self):
+        value = bundle()
+        payload = session_payload(2026, 'Azerbaijan Grand Prix', 'Q', value)
+        lap = payload['drivers'][0]['laps'][0]
+        self.assertEqual((lap['lap'], lap['time'], lap['phase']), (2, 90, 'Q1'))
+        self.assertEqual(lap['timing_clock'], 'openf1-session-start')
+        self.assertEqual((lap['lap_start_seconds'], lap['lap_end_seconds']), (60, 150))
+        self.assertEqual(payload['openf1_session_key'], 10)
+
     def test_real_timing_and_classification_are_preserved(self):
         value = bundle()
         before = copy.deepcopy(value)
@@ -88,6 +97,40 @@ class AdapterTests(unittest.TestCase):
 
 
 class LoadingTests(unittest.TestCase):
+    def test_loaded_session_with_unavailable_laps_enters_the_alternate_source(self):
+        class MissingTiming:
+            @property
+            def laps(self):
+                raise RuntimeError('DataNotLoadedError: Session.load')
+        alternate = SimpleNamespace(apex_source_bundle=bundle(), apex_source_notice={'kind': 'openf1-timing'})
+        with patch('verified_sources.recorded_session', return_value=None), \
+             patch.object(server, 'read_prepared_cache', return_value=None), \
+             patch.object(server, 'load_session', return_value=MissingTiming()), \
+             patch.object(server, 'load_openf1_performance', return_value=alternate) as recover, \
+             patch.object(server, 'get_tire_nominations', return_value=[]):
+            result = server.session_data(Response(), 2026, 'Azerbaijan Grand Prix', 15, 'Q', False)
+        recover.assert_called_once_with(2026, 'Azerbaijan Grand Prix', 'Q', fresh=False)
+        self.assertEqual(result['drivers'][0]['laps'][0]['time'], 90)
+        self.assertEqual(result['source_cache']['kind'], 'openf1-timing')
+
+    def test_session_info_property_failure_cannot_escape_the_response_builder(self):
+        class MissingMetadata(SimpleNamespace):
+            @property
+            def session_info(self):
+                raise RuntimeError('DataNotLoadedError: Session.load')
+        data = MissingMetadata(laps=SimpleNamespace(empty=False, split_qualifying_sessions=lambda: []),
+                               drivers=[], name='Qualifying', event={'EventName': 'Test Grand Prix', 'Location': 'Baku'},
+                               weather_data=None, get_circuit_info=lambda: None)
+        with patch('verified_sources.recorded_session', return_value=None), \
+             patch.object(server, 'read_prepared_cache', return_value=None), \
+             patch.object(server, 'load_session', return_value=data), \
+             patch.object(server, 'fetch_openf1_session_drivers', return_value=[]), \
+             patch.object(server, 'get_fallback_circuit_corners', return_value=[]), \
+             patch.object(server, 'get_tire_nominations', return_value=[]):
+            result = server.session_data(Response(), 2026, 'Test Grand Prix', 15, 'Q', False)
+        self.assertEqual(result['location'], 'Baku')
+        self.assertIsNone(result['circuit_key'])
+
     def test_retained_sources_have_original_expiry_and_exact_identity(self):
         value = retained_bundle(2026, 'Azerbaijan Grand Prix', 'Q')
         self.assertEqual(value['session']['session_key'], 11373)
