@@ -2,6 +2,7 @@ import {spawn} from 'node:child_process';
 import {existsSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {stopOwnedBackend} from '../lib/local-process.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 process.chdir(root);
 const python=process.env.APEX_PYTHON||path.join(root,'.venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');
@@ -14,8 +15,9 @@ const {createLocalDashboard}=await import('../lib/local-server.mjs');
 const backend=spawn(python,['-m','uvicorn','server:app','--host','127.0.0.1','--port',String(apiPort)],{cwd:root,stdio:'inherit',windowsHide:true,env:{...process.env,APEX_LOCAL_COMPUTE:'1'}});
 let closed=false;
 const sourceOrigin=`http://127.0.0.1:${apiPort}`;
-const {server}=createLocalDashboard({root:path.join(root,'public/apex'),cacheRoot:path.join(root,'.apex-cache/dashboard'),sourceOrigin});
-function close(code=0){if(closed)return;closed=true;server.close();backend.kill();process.exitCode=code;}
+const {server,tabs}=createLocalDashboard({root:path.join(root,'public/apex'),cacheRoot:path.join(root,'.apex-cache/dashboard'),sourceOrigin,
+  ...(process.env.APEX_LOCAL_KEEP_ALIVE==='1'?{}:{onIdle:()=>{console.log('Last local dashboard tab closed; stopping local compute.');void close();}})});
+async function close(code=0){if(closed)return;closed=true;tabs.dispose();server.close();server.closeAllConnections();await stopOwnedBackend(backend);process.exitCode=code;}
 backend.once('error',error=>{console.error(error.message);close(1);});
 backend.once('exit',code=>{if(!closed){console.error('Local parser stopped.');close(code||1);}});
 process.on('SIGINT',()=>close());process.on('SIGTERM',()=>close());
@@ -29,5 +31,5 @@ while(!closed){try{const r=await fetch(sourceOrigin+'/openapi.json',{signal:Abor
 if(!closed)server.listen(uiPort,'127.0.0.1',()=>{
   console.log(`Local: http://127.0.0.1:${uiPort}/apex/`);
   console.log('Compute: this PC. Cache: .apex-cache/dashboard + Python source caches. Vercel: not used.');
-  console.log('Ctrl+C stops both local services; cached data remains on disk.');
+  console.log('Closing the last local dashboard tab stops both services after a 5-second reload grace. Cached data remains on disk.');
 });

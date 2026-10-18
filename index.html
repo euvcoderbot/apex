@@ -35,7 +35,7 @@
       <div class="workspace-intro session-intro">
         <div class="workspace-title"><span class="workspace-eyebrow">SESSION ANALYSIS</span><h1>Compare laps</h1></div>
   <div class="workspace-tools" role="group" aria-label="Display options">
-    <a class="local-compute-link" href="apex-local://start" title="Start local compute on this PC and open its dashboard">Use local compute</a>
+    <a class="local-compute-link" href="http://127.0.0.1:54123/apex/" title="Open the local dashboard on this PC">Use local compute</a>
     <button id="explanationsToggle" class="sidebar-toggle" type="button" aria-pressed="false"><span>Show explanations</span></button>
     <button id="themeToggle" class="theme-toggle" type="button" aria-pressed="false" aria-label="Switch to light mode"><i aria-hidden="true"></i><span>Light mode</span></button>
   </div>
@@ -223,7 +223,15 @@
   <footer>euV2 data · FastF1 / OpenF1 telemetry · Unofficial analysis</footer>
 
   <!-- Single unified app logic -->
+  <dialog id="localComputeDialog" class="local-compute-dialog" aria-labelledby="localComputeTitle">
+    <h2 id="localComputeTitle">Open local compute</h2>
+    <p>Local compute could not be reached from this page. If it is already running, open the local dashboard below.</p>
+    <p>Starting a stopped server requires the installed Windows launcher and your browser’s permission. The Codex in-app browser blocks launching local programs; the website cannot override that.</p>
+    <p>The server stops automatically when its last local dashboard tab closes.</p>
+    <div class="local-compute-actions"><a href="http://127.0.0.1:54123/apex/">Open local dashboard</a><a href="apex-local://start">Start installed launcher</a><button type="button" data-close-local>Cancel</button></div>
+  </dialog>
   <script src="config.js?v=euv2-release-20260813-2"></script>
+  <script src="local-compute.js"></script>
   <script src="analysis-core.js?v=20261008-feature-pass"></script>
   <script src="dashboard-ui.js"></script>
   <script src="ui-system.js"></script>

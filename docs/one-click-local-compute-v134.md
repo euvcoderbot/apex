@@ -1,5 +1,7 @@
 # One-click local compute — v134
 
+Superseded for the website button and shutdown behavior by [v136](local-tabs-and-clipping-v136.md). The installed Windows launcher remains available; the Codex in-app browser cannot activate it. Local tabs now automatically stop compute when the last one closes.
+
 The published **Use local compute** action now activates `apex-local://start`, rather than navigating to a server that might not be running.
 
 The Windows launcher is registered for the current user on this PC. Clicking the button starts the local Node dashboard and Python parser in the background, waits for the readiness response, and opens `http://127.0.0.1:54123/apex/` in the default browser. A running server is reused; repeated or simultaneous clicks do not intentionally start duplicate parsers. Local mode still routes calculations directly to Python on this PC, never Vercel, and preserves its disk caches.

@@ -25,7 +25,7 @@ test('only a healthy loopback compute service counts as ready',async()=>{
   assert.equal(await localReady(async()=>Response.json({mode:'hosted',sourceOrigin:'https://evil.test'})),false);
   assert.equal(await localReady(async()=>{throw Error('offline');}),false);
 });
-test('published action uses the installed protocol and registration cannot change system policy',async()=>{
+test('manual launcher remains explicit in the handoff dialog and registration cannot change system policy',async()=>{
   const page=await readFile('index.html','utf8'),install=await readFile('scripts/install-local-launcher.mjs','utf8'),launch=await readFile('scripts/launch-local.mjs','utf8'),wrapper=await readFile('scripts/launch-local.py','utf8');
   assert.match(page,/href="apex-local:\/\/start"/);assert.doesNotMatch(page,/Start start-local.cmd/);
   assert.match(install,/HKCU/);assert.doesNotMatch(install,/HKLM|ExecutionPolicy|schtasks/i);

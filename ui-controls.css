@@ -176,7 +176,13 @@ details { border-radius: 7px; }
 .performance-chart-card { overflow: visible; }
 .ui-field-label { display: block; margin-bottom: 5px; color: var(--ui-secondary); }
 .performance-error { border-radius: 7px; border: 1px solid color-mix(in srgb,var(--ui-negative) 32%,transparent); background: color-mix(in srgb,var(--ui-negative) 7%,var(--ui-panel)); color: var(--ui-label); font-size: 12px; }
-.performance-quality-status { color: var(--ui-secondary); font-size: 12px; border-radius: 5px; }
+.performance-quality-status { color: var(--ui-secondary); font-size: 12px; border-radius: 5px; box-sizing: border-box; min-width: 0; max-width: 100%; height: auto; padding: 8px 12px; white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
+.local-compute-dialog { box-sizing: border-box; width: min(520px,calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 16px; border: 1px solid var(--ui-border-strong); border-radius: var(--ui-panel-radius); color: var(--ui-label); background: var(--ui-panel); font: 12px/1.5 var(--ui-font); }
+.local-compute-dialog::backdrop { background: #0008; }
+.local-compute-dialog h2 { margin: 0 0 12px; font-size: var(--ui-heading); }
+.local-compute-dialog p { margin: 0 0 12px; color: var(--ui-secondary); }
+.local-compute-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.local-compute-actions a { display: inline-flex; align-items: center; box-sizing: border-box; min-height: var(--ui-control-height); padding: 4px 8px; color: var(--ui-accent); border: 1px solid var(--ui-border); border-radius: var(--ui-radius); text-decoration: none; }
 .status-dot { width: 6px; height: 6px; box-shadow: none; }
 .empty-icon-badge { display: grid; place-items: center; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--ui-tertiary); }
 .empty-icon-badge .ui-symbol { width: 28px; height: 28px; }

@@ -35,6 +35,7 @@ const staticFiles = [
   "ui-system.js",
   "ui-catalog.html",
   "dashboard-ui.js",
+  "local-compute.js",
   "styles.css",
   "design-system.css",
   "polish.css",
