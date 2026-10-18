@@ -8,7 +8,7 @@ Double-click `start-local.cmd` in the project folder, or run:
 npm run local
 ```
 
-Open **http://127.0.0.1:54123/apex/**. The green **Local compute · disk cache** status confirms local mode. The published Site also has a **Use local compute** link, but a browser cannot launch a Python service automatically; start the launcher first.
+Open **http://127.0.0.1:54123/apex/**. The green **Local compute · disk cache** status confirms local mode. As of v134, **Use local compute** uses an installed Windows launcher to start the service automatically. See [one-click local compute](one-click-local-compute-v134.md). Manual startup above remains an optional development alternative.
 
 The local runner starts Python on `127.0.0.1:8000`, serves the same UI and API facade on `127.0.0.1:54123`, and routes parsing/calculations exclusively to that local Python process. There is no Vercel fallback in local mode. Direct source downloads (FastF1/OpenF1 and optional MultiViewer circuit metadata) still need internet access when missing from cache and remain subject to their own limits. No paid plan, public tunnel, system-startup task or publicly exposed listener was added.
 
