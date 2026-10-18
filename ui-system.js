@@ -1,6 +1,6 @@
 /* Component ownership only. No telemetry, data loading or ranking code. */
 (() => {
-  const groups='.performance-tabs,.session-analysis-tabs,.performance-scope-toggle,.performance-band-options,.performance-tyre-options,.performance-range-options,.race-result-controls,.map-view-switch,.run-segments';
+  const groups='.performance-tabs,.session-analysis-tabs,.performance-scope-toggle,.performance-band-options,.performance-tyre-options,.performance-range-options,.race-result-controls,.map-view-switch';
   const symbols={plus:'M12 5v14M5 12h14',minus:'M5 12h14',left:'m14 6-6 6 6 6',right:'m10 6 6 6-6 6',close:'m6 6 12 12M18 6 6 18',chart:'M4 4v16h16M7 15l4-5 4 2 5-7',expand:'M4 9V4h5m6 0h5v5M4 15v5h5m6 0h5v-5',reset:'M5 7a8 8 0 1 1-1 8M5 3v5h5'};
   const symbol=name=>`<svg class="ui-symbol" data-ui-symbol="${name}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${symbols[name]||symbols.chart}"/></svg>`;
   const columnWidths=new Map(); let tableId=0, columnDrag=null;
@@ -51,6 +51,7 @@
     if(el.matches('[role="option"]'))return 'menu-item';
     if(el.matches('#loadSession,#performanceLoad,[data-ui-primary]'))return 'primary';
     if(el.matches('.driver-pill'))return 'list-row';
+    if(el.matches('.run-segment'))return 'run';
     if(el.matches('.lap-chip,.track-pill,.corner-pick,.fastest-lap-pick'))return 'choice';
     if(el.matches('.loaded-lap-main'))return 'reference';
     if(el.matches('.perf-sort-btn')||el.closest('.corner-table-head'))return 'sort';
@@ -131,7 +132,7 @@
   document.addEventListener('keydown',event=>{
     const resizer=event.target.closest?.('.ui-column-resizer');
     if(resizer&&['ArrowLeft','ArrowRight','Home'].includes(event.key)){event.preventDefault();resizeColumn(resizer,event.key==='ArrowLeft'?-8:8,event.key==='Home');return;}
-    const button=event.target.closest?.('button[data-ui-kind="segment"]'),group=button?.closest('[data-ui-group="segments"]');
+    const button=event.target.closest?.('button[data-ui-kind="segment"],button[data-ui-kind="run"]'),group=button?.closest('[data-ui-group="segments"],.run-segments');
     if(!group||event.altKey||event.metaKey||event.ctrlKey||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
     const choices=[...group.querySelectorAll('button:not(:disabled)')];
     const index=choices.indexOf(button),next=event.key==='Home'?choices[0]:event.key==='End'?choices.at(-1):choices[(index+(event.key==='ArrowRight'?1:-1)+choices.length)%choices.length];

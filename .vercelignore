@@ -1,6 +1,8 @@
 *
 !server.py
 !session_loader.py
+!openf1_performance.py
+!openf1-performance.json.gz
 !performance.py
 !performance_tracks.py
 !pace_models.py

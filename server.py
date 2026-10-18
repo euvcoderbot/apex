@@ -392,7 +392,7 @@ def read_prepared_cache(namespace: str, year: int, *parts: Any) -> Any | None:
     age = time.time() - path.stat().st_mtime
     if year >= datetime.now().year and age > 600:
         return None
-    if namespace in {"session", "telemetry"} and age > 7 * 86400:
+    if namespace in {"session", "telemetry", "openf1-performance-v1"} and age > 7 * 86400:
         return None
     try:
         with gzip.open(path, "rt", encoding="utf-8") as handle:
@@ -1728,6 +1728,58 @@ def sprint_classification(response: Response, year: int = Query(..., ge=2021, le
     return payload
 
 
+def load_openf1_performance(year, gp, session, fresh=False):
+    """Recover the real alternate timing feeds when F1 archives are unavailable."""
+    from openf1_performance import adapt_performance, retained_bundle
+    retained = retained_bundle(year, gp, session)
+    refresh_failed = False
+    bundle = None if fresh else read_prepared_cache('openf1-performance-v1', year, gp, session)
+    if bundle is None and not fresh:
+        bundle = retained
+    if bundle is None:
+        try:
+            identity = openf1_session(year, gp, session)
+            if identity is None:
+                raise ValueError('No exact OpenF1 session for the selected event')
+            endpoints = ('drivers', 'laps', 'stints', 'session_result', 'weather', 'race_control', 'pit')
+            with ThreadPoolExecutor(max_workers=2, thread_name_prefix='openf1-performance') as pool:
+                futures = {name: pool.submit(openf1_performance_feed, name, identity['session_key']) for name in endpoints}
+                feeds = {name: future.result() for name, future in futures.items()}
+            bundle = {'session': identity, 'feeds': feeds, 'captured_at': datetime.now(timezone.utc).isoformat()}
+            # Validate before persisting; a failed/partial request cannot become a hit.
+            data = adapt_performance(year, gp, session, bundle)
+            write_prepared_cache('openf1-performance-v1', year, bundle, gp, session)
+        except Exception:
+            if retained is None:
+                raise
+            bundle, refresh_failed = retained, True
+            data = adapt_performance(year, gp, session, bundle)
+    else:
+        data = adapt_performance(year, gp, session, bundle)
+    data.apex_source_notice = {'kind': 'openf1-timing', 'captured_at': bundle['captured_at'],
+                              'refresh_failed': refresh_failed,
+                              'retained': bundle is retained,
+                              'expires_at': (datetime.fromisoformat(bundle['captured_at']) + timedelta(days=30)).isoformat() if bundle is retained else None,
+                              'recorded_session_date': bundle['session']['date_start'],
+                              'message': 'OpenF1 timing and classification. Race laps require complete sector timing, known dry tyres/weather and green race-control coverage. Lap-start timestamps are approximate.'}
+    return data
+
+
+def openf1_performance_feed(endpoint, session_key):
+    """A transient provider throttle must not become a permanent missing session."""
+    for attempt in range(4):
+        try:
+            return openf1(endpoint, session_key=session_key)
+        except HTTPError as error:
+            if error.code not in (429, 502, 503, 504) or attempt == 3:
+                raise
+            try:
+                retry_after = float(error.headers.get('Retry-After', 0))
+            except (TypeError, ValueError, AttributeError):
+                retry_after = 0
+            time.sleep(min(30, max(2 ** (attempt + 1), retry_after)))
+
+
 @app.get("/api/performance")
 def car_performance(response: Response, year: int = Query(..., ge=2018, le=2100),
                     gp: str = Query(..., min_length=3, max_length=120),
@@ -1737,24 +1789,32 @@ def car_performance(response: Response, year: int = Query(..., ge=2018, le=2100)
     try:
         from performance import analyze
         from verified_sources import recorded_session, performance_input, source_notice
+        from openf1_performance import retained_bundle
         recording = recorded_session(year, gp, session)
         recovered = recording if not fresh else None
         if recovered:
             data = performance_input(recovered)
+        elif not fresh and (read_prepared_cache('openf1-performance-v1', year, gp, session) is not None
+                            or retained_bundle(year, gp, session) is not None):
+            data = load_openf1_performance(year, gp, session)
         else:
             try:
                 data = load_fresh_session(year, gp, session)
                 if data.laps.empty:
                     raise ValueError('Timing archive returned no laps')
-            except Exception:
+            except Exception as archive_error:
                 if not recording:
-                    raise
-                recovered = recording
-                data = performance_input(recovered)
+                    logger.info('Timing archive unavailable; trying OpenF1 for %s %s %s: %s', year, gp, session, archive_error)
+                    data = load_openf1_performance(year, gp, session, fresh=fresh)
+                else:
+                    recovered = recording
+                    data = performance_input(recovered)
         result = analyze(data, 2)
         if recovered:
             result['source_cache'] = source_notice(recovered)
             result['source_cache']['refresh_failed'] = fresh
+        elif getattr(data, 'apex_source_notice', None):
+            result['source_cache'] = data.apex_source_notice
     except Exception as exc:
         logger.warning('Car performance unavailable for %s %s: %s', year, gp, exc)
         raise HTTPException(422, 'Performance data is incomplete or unavailable for this session. Try another event.') from exc

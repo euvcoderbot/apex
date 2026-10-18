@@ -16,6 +16,19 @@
     results: ['08', 'Reliability & results', 'Race outcomes, finishes & retirement causes']
   };
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  // The driver rail uses real spare desktop width, never a fixed-height scroller.
+  // Move the same node back into the chooser on compact windows; state survives.
+  const driverRail=window.matchMedia('(min-width:1440px)');
+  function arrangeDriverRail(){
+    const column=document.querySelector('.analysis-column'),body=document.querySelector('#lapSelectionBody'),sidebar=document.querySelector('#driverSidebar');
+    if(!column||!body||!sidebar)return;
+    const wide=driverRail.matches,host=wide?column:body;
+    if(sidebar.parentElement!==host)host.prepend(sidebar);
+    column.classList.toggle('has-driver-rail',wide);
+    const chooser=document.querySelector('#lapWorkspaceToggle'),toggle=document.querySelector('#sidebarToggle');
+    if(toggle)toggle.hidden=!wide&&chooser?.getAttribute('aria-expanded')==='false';
+  }
+  arrangeDriverRail();driverRail.addEventListener('change',arrangeDriverRail);
   function metricHeading(metric, context = {}) {
     const [number, title, description] = metrics[metric] || ['', 'Performance', ''];
     const subject = ['corners','straight','braking'].includes(metric) ? `${context.subject === 'driver' ? 'Drivers' : 'Teams'}${metric === 'corners' ? ` · ${context.session === 'race' ? 'Race' : 'Qualifying'}` : ''}` : 'Selected events';

@@ -883,7 +883,7 @@ function setLapSelectionExpanded(expanded, focus = false) {
   body.inert = !expanded;
   toggle.setAttribute('aria-expanded', String(expanded));
   toggle.querySelector('span').textContent = expanded ? 'Choose laps' : 'Edit laps';
-  $('#sidebarToggle').hidden = !expanded;
+  $('#sidebarToggle').hidden = !expanded && !$('.analysis-column')?.classList?.contains('has-driver-rail');
   if (focus) toggle.focus({preventScroll: true});
 }
 
@@ -1095,7 +1095,7 @@ function renderStints() {
           ${fastest ? `<button class="fastest-lap-pick ${fastestLoaded ? 'selected' : ''}" data-motion-key="fastest-${code}" data-code="${code}" data-lap="${fastest.lap}" title="Add or remove this fastest lap"><span>Fastest</span><strong>${time(fastest.time)}</strong></button>` : ''}
         </header>
         <div class="run-section-label"><span>Runs</span></div>
-        <div class="run-segments">${runButtons}</div>
+        <div class="run-segments" style="--run-count:${Math.min(groupIds.length,3)}" role="group" aria-label="${code} runs">${runButtons}</div>
         <div class="lap-group-header"><span>${groupLabel} laps</span>${hasQualifyingPhases ? '' : `<small>${activeLaps.length} available</small>`}</div>
         <div class="lap-grid">${lapButtons}</div>
       </article>

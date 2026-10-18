@@ -74,7 +74,7 @@ button[data-ui-kind="picker"] .track-tray-disclosure { flex: 0 0 auto; margin-le
 [data-ui-group="segments"] > button[data-ui-kind="segment"][aria-pressed="true"] { color: var(--ui-label); background: var(--ui-selected); box-shadow: 0 1px 2px #0003,inset 0 1px #ffffff09; }
 [data-ui-group="segments"] > button[data-ui-kind="segment"]::after { display: none; }
 .performance-tabs[data-ui-group] { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); width: 304px; }
-.performance-tabs[data-ui-group] > button[data-ui-kind="segment"] { min-width: 0; width: 100%; }
+.performance-tabs[data-ui-group] > button[data-ui-kind="segment"] { min-width: 0; width: 100%; box-sizing: border-box; margin: 0; padding-inline: var(--ui-space-2); }
 /* Tab views and category navigation remain attached to their content. */
 .session-analysis-tabs { border-radius: 8px; padding: 2px; gap: 2px; }
 button[data-ui-kind="tab"] { height: var(--ui-control-height); min-height: var(--ui-control-height); border: 0; background: transparent; box-shadow: none; color: var(--ui-secondary); padding: 0 var(--ui-space-2); font-weight: 400; border-radius: 6px; }
@@ -230,9 +230,12 @@ main #driverSidebar { width: 100%; }
 .lap-workspace .run-driver-copy { min-width: 0; }
 .lap-workspace .run-driver h3 { white-space: normal; overflow: visible; text-overflow: clip; font-size: 13px; line-height: 1.3; }
 .lap-workspace .run-driver small { display: block; white-space: nowrap; font-size: 11px; }
-.lap-workspace .run-segments { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,90px),1fr)); }
-.lap-workspace .run-segment { display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: 5px; }
-.lap-workspace .run-segment small { display: flex; flex-direction: column; align-items: center; flex: 0 0 auto; white-space: nowrap; gap: 2px; }
+.lap-workspace .run-segments { display: grid; grid-template-columns: repeat(var(--run-count,3),minmax(0,1fr)); width: 100%; max-width: none; gap: 4px; padding: 0; margin: 0; border: 0; background: none; }
+.lap-workspace .run-segment[data-ui-kind="run"] { display: grid; grid-template-columns: auto minmax(0,1fr); align-items: center; min-width: 0; width: 100%; min-height: 38px; height: auto; gap: 8px; padding: 4px 8px; border: 1px solid var(--ui-border); border-radius: 6px; background: var(--ui-control); }
+.lap-workspace .run-segment[data-ui-kind="run"][aria-pressed="true"] { border-color: var(--ui-accent); background: var(--ui-selected); box-shadow: inset 0 0 0 1px var(--ui-accent); }
+.lap-workspace .run-segment small { display: flex; flex-direction: row; align-items: center; justify-content: flex-end; min-width: 0; white-space: nowrap; gap: 4px; line-height: 1.2; }
+.lap-workspace .run-compounds { display: inline-flex; align-items: center; gap: 2px; }
+.lap-workspace .run-compounds .compound-badge { width: 16px; height: 16px; min-width: 16px; flex: 0 0 16px; }
 .lap-workspace .run-choice-indicator { display: none; }
 /* One lap = identity/time + three aligned sector readings + weather strip. */
 .sector-cards .lap-summary-card { grid-template-columns: minmax(0,1fr) min(48%,540px); gap: 6px 12px; padding: 8px 10px; }
@@ -242,7 +245,7 @@ main #driverSidebar { width: 100%; }
 .sector-cards .lap-summary-card .summary-tyre-copy { gap: 5px; }
 .sector-cards .lap-summary-card .summary-lap-time { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
 .sector-cards .lap-summary-card .summary-lap-time > strong { font-size: var(--ui-metric); white-space: nowrap; }
-.sector-cards .lap-summary-card .summary-sectors { grid-area: 1 / 2; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); }
+.sector-cards .lap-summary-card .summary-sectors { grid-area: 1 / 2; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); border-left: 1px solid var(--ui-border-strong); padding-left: var(--ui-space-2); }
 .sector-cards .lap-summary-card .sector-cell { padding: 6px 8px 9px; min-height: 41px; }
 .sector-cards .lap-summary-card .sector-cell-value { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .sector-cards .lap-summary-card .sector-cell-value > small { font-size: 13px; font-weight: 600; color: var(--ui-label); }
@@ -293,6 +296,7 @@ main #driverSidebar { width: 100%; }
   .sector-cards .lap-summary-card { grid-template-columns: minmax(0,1fr); }
   .sector-cards .lap-summary-card > header { grid-area: 1 / 1; }
   .sector-cards .lap-summary-card .summary-sectors { grid-area: 2 / 1; }
+  .sector-cards .lap-summary-card .summary-sectors { border-left: 0; padding-left: 0; padding-top: var(--ui-space-2); border-top: 1px solid var(--ui-border-strong); }
   .sector-cards .lap-summary-card .summary-conditions { grid-area: 3 / 1; }
 }
 @media(max-width:760px) {
@@ -389,6 +393,20 @@ button[data-ui-kind="push"],button[data-ui-kind="primary"],button[data-ui-kind="
 .performance-table td .team-name { font-weight: 400; }
 .performance-split-view .performance-table td,.performance-split-view .performance-bar-row { height: var(--ui-row-height); min-height: var(--ui-row-height); }
 .performance-compound-control .performance-tyre-options > button[data-ui-kind="segment"] { height: var(--ui-control-height); min-height: var(--ui-control-height); padding-block: 0; }
+@media(min-width:1440px) {
+  main { max-width: 2240px; }
+  main > .analysis-column.has-driver-rail { display: grid; grid-template-columns: 240px minmax(0,1fr); gap: var(--ui-space-3); align-items: start; }
+  .has-driver-rail > #driverSidebar { grid-column: 1; grid-row: 1 / 3; width: 100%; }
+  .has-driver-rail > #lapWorkspace { grid-column: 2; grid-row: 1; }
+  .has-driver-rail > .main-dashboard { grid-column: 2; grid-row: 2; min-width: 0; }
+  .has-driver-rail #driverPills { grid-template-columns: minmax(0,1fr); max-height: none; overflow: visible; }
+  .has-driver-rail #tireCard { gap: 8px; }
+  .has-driver-rail #tireNomination { display: grid; gap: 8px; }
+  .has-driver-rail #driverSidebar > .dashboard-card { padding: var(--ui-space-2); }
+  main.sidebar-collapsed > .analysis-column.has-driver-rail { grid-template-columns: minmax(0,1fr); }
+  main.sidebar-collapsed .has-driver-rail > :is(#lapWorkspace,.main-dashboard) { grid-column: 1; }
+  main .has-driver-rail #lapSelectionBody > #stintPanels { grid-area: 1 / 1; }
+}
 @media(max-width:1000px) {
   .telemetry-analysis-grid { grid-template-columns: minmax(0,1fr); }
   .telemetry-analysis-grid > #cornerAnalysis { grid-area: 1 / 1; position: static; }
