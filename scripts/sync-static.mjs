@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 import {buildUiStyles} from '../lib/ui-style-build.mjs';
 
 const root = process.cwd();
-const calculationFiles=['verified_sources.py','verified-sources.json.gz','telemetry_sources.py','pace_models.py','performance.py','performance_tracks.py','server.py','session_loader.py','openf1_performance.py','openf1-performance.json.gz','race-cornering.js','corner-geometry.js','corner-position.js','qualifying-telemetry.js','alignment.js','telemetry-model.js','car-performance.js','app.js','analysis-core.js','lib/data-cache.mjs','lib/race-corner-loader.mjs','lib/qualifying-corner-loader.mjs'];
+const calculationFiles=['verified_sources.py','verified-sources.json.gz','telemetry_sources.py','pace_models.py','performance.py','performance_tracks.py','car_physics.py','server.py','session_loader.py','openf1_performance.py','openf1-performance.json.gz','race-cornering.js','corner-geometry.js','corner-position.js','qualifying-telemetry.js','speed-domain.js','alignment.js','telemetry-model.js','car-performance.js','app.js','analysis-core.js','lib/data-cache.mjs','lib/race-corner-loader.mjs','lib/qualifying-corner-loader.mjs'];
 const revision=createHash('sha256');
 for(const file of calculationFiles)revision.update(file).update(await readFile(resolve(root,file)));
 const cacheRevision=revision.digest('hex').slice(0,20);
@@ -12,7 +12,7 @@ const sourceRevision=createHash('sha256');
 for(const file of ['server.py','session_loader.py','openf1_performance.py','openf1-performance.json.gz','telemetry_sources.py','verified_sources.py','verified-sources.json.gz'])sourceRevision.update(file).update(await readFile(resolve(root,file)));
 const rawRevision=sourceRevision.digest('hex').slice(0,20);
 const backend=createHash('sha256'),race=createHash('sha256');
-for(const file of ['server.py','session_loader.py','openf1_performance.py','openf1-performance.json.gz','telemetry_sources.py','performance.py','performance_tracks.py','pace_models.py','verified_sources.py','verified-sources.json.gz'])backend.update(file).update(await readFile(resolve(root,file)));
+for(const file of ['server.py','session_loader.py','openf1_performance.py','openf1-performance.json.gz','telemetry_sources.py','performance.py','performance_tracks.py','car_physics.py','pace_models.py','verified_sources.py','verified-sources.json.gz'])backend.update(file).update(await readFile(resolve(root,file)));
 for(const file of ['race-cornering.js','corner-geometry.js','corner-position.js','lib/race-corner-loader.mjs','lib/qualifying-corner-loader.mjs'])race.update(file).update(await readFile(resolve(root,file)));
 const backendRevision=backend.digest('hex').slice(0,20),measurementRevision=race.digest('hex').slice(0,20);
 await writeFile(resolve(root,'lib/cache-revision.mjs'),`// Generated: source, upstream calculations and race snapshots invalidate independently.\nexport const CACHE_REVISION = ${JSON.stringify(cacheRevision)};\nexport const SOURCE_REVISION = ${JSON.stringify(rawRevision)};\nexport const BACKEND_REVISION = ${JSON.stringify(backendRevision)};\nexport const RACE_REVISION = ${JSON.stringify(measurementRevision)};\n`);
@@ -28,6 +28,7 @@ const staticFiles = [
   "corner-geometry.js",
   "corner-position.js",
   "qualifying-telemetry.js",
+  "speed-domain.js",
   "car-performance.css",
   "workspace-ui.css",
   "macos-ui.css",

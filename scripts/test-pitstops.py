@@ -14,6 +14,16 @@ from server import fastf1_pit_visits, merge_dhl_pit_stops, openf1_pit_visits
 
 
 class PitStopTests(unittest.TestCase):
+    def test_time_penalty_served_at_a_stop_is_not_ranked_as_service(self):
+        from server import mark_penalty_stops
+        visits = [{'driver_number': '44', 'lap': 20, 'stop_duration': 7.4, 'visit_type': 'service'},
+                  {'driver_number': '44', 'lap': 40, 'stop_duration': 2.4, 'visit_type': 'service'},
+                  {'driver_number': '1', 'lap': 22, 'stop_duration': 2.2, 'visit_type': 'service'}]
+        notices = [{'lap_number': 12, 'message': 'FIA STEWARDS: 5 SECOND TIME PENALTY FOR CAR 44 (HAM) - CAUSING A COLLISION'},
+                   {'lap_number': 30, 'message': 'FIA STEWARDS: INCIDENT INVOLVING CAR 1 (VER) REVIEWED NO FURTHER ACTION'}]
+        marked = {(v['driver_number'], v['lap']): v['visit_type'] for v in mark_penalty_stops(visits, notices)}
+        self.assertEqual(marked, {('44', 20): 'penalty-served', ('44', 40): 'service', ('1', 22): 'service'})
+
     def test_openf1_distinguishes_stationary_and_lane_duration(self):
         pits = [
             {'driver_number': 4, 'lap_number': 22, 'lane_duration': 21.345,

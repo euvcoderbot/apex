@@ -207,6 +207,58 @@ def matched_tyre_trend(stint_rows, field_rows, team_name):
     return float(median(candidate[1] for candidate in estimates.values())), len(matched_laps), len(estimates)
 
 
+def joint_tyre_slopes(stints):
+    """Field-relative tyre-age slopes from one race, all cars fitted together.
+
+    lap time = stint pace + race-lap effect + (driver x compound) * tyre age.
+    The race-lap effect is shared by every car, so fuel burn and track
+    evolution are estimated from the data instead of an assumed 0.060 s/lap.
+    Identification comes from cars on different tyre ages on the same lap.
+    Use clean-air laps only: in validation (10 races, 2026) traffic laps
+    removed all car signal, while this model kept it (teammate r = +0.30).
+    Returns {(driver, compound): seconds per lap of age minus that
+    compound's field median}; positive means faster degradation.
+    """
+    rows = []
+    for st in stints:
+        points = st['points']
+        if len(points) < 6 or max(p['age'] for p in points)-min(p['age'] for p in points) < 5:
+            continue
+        rows += [(st['driver'], st['stint'], st['compound'], p['lap'], p['age'], p['time']) for p in points]
+    if len(rows) < 60:
+        return {}
+    stint_keys = sorted({(r[0], r[1]) for r in rows})
+    lap_keys = sorted({r[3] for r in rows})[1:]
+    slope_keys = sorted({(r[0], r[2]) for r in rows})
+    si = {k: i for i, k in enumerate(stint_keys)}
+    li = {k: len(stint_keys)+i for i, k in enumerate(lap_keys)}
+    bi = {k: len(stint_keys)+len(lap_keys)+i for i, k in enumerate(slope_keys)}
+    X = np.zeros((len(rows), len(stint_keys)+len(lap_keys)+len(slope_keys)))
+    y = np.array([r[5] for r in rows], dtype=float)
+    for k, r in enumerate(rows):
+        X[k, si[(r[0], r[1])]] = 1
+        if r[3] in li:
+            X[k, li[r[3]]] = 1
+        X[k, bi[(r[0], r[2])]] = r[4]
+    keep = np.ones(len(rows), dtype=bool)
+    for _ in range(3):
+        beta = np.linalg.lstsq(X[keep], y[keep], rcond=None)[0]
+        residual = y-X@beta
+        centre = float(np.median(residual[keep]))
+        mad = 1.4826*float(np.median(np.abs(residual[keep]-centre)))
+        keep = np.abs(residual-centre) <= max(.3, 3*mad)
+    by_compound = defaultdict(dict)
+    for (driver, compound), i in bi.items():
+        by_compound[compound][driver] = float(beta[i])
+    out = {}
+    for compound, values in by_compound.items():
+        if len(values) < 4:
+            continue
+        centre = float(median(values.values()))
+        out.update({(driver, compound): value-centre for driver, value in values.items()})
+    return out
+
+
 def clean(lap):
     return (lap['time'] is not None and lap['time'] > 0 and lap['accurate']
             and not lap['pit'] and not lap['deleted'] and lap['track'] == '1'
@@ -1295,6 +1347,17 @@ def analyze(data, traffic=2):
                     'fit_method': 'robust-piecewise-residual-screen-v5-full-age-span',
                 })
             team['tyre_age_stints'] = observed
+
+        # Field-relative tyre trend from all cars' clean-air laps together.
+        clear_stints = [{'driver': s['driver'], 'stint': s['stint'], 'compound': s['compound'],
+                         'points': (s.get('clean_air') or {}).get('points') or []}
+                        for team in teams.values() for s in team.get('tyre_age_stints', [])
+                        if (s.get('clean_air') or {}).get('supported') and s.get('stable_condition_screen') is not False]
+        joint = joint_tyre_slopes(clear_stints)
+        for team in teams.values():
+            for s in team.get('tyre_age_stints', []):
+                s['joint_relative_slope'] = joint.get((s['driver'], s['compound']))
+                s['joint_method'] = 'clean-air-joint-race-lap-effects-v1'
 
     return {'event': str(getattr(getattr(data, 'event', {}), 'get', lambda k, d='': getattr(data, 'event', {}).get(k, d))('EventName') or getattr(data, 'name', '')),
             'session': data.name,
