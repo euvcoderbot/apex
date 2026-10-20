@@ -2845,9 +2845,18 @@ function renderMatchedQualifyingCorners() {
     `<details class="performance-evidence"><summary>Matched-corner fit support</summary>${table(['GP','Band','Connected entrants','Compared corners','Fit residual'],reports.flatMap(r=>bands.map(b=>[escape(r.event.name),escape(b),r.bandFits[b].scores.size,r.bandFits[b].snapshots,fmt(r.bandFits[b].residual,3,' s')])))}</details>`);
 }
 
-function speedDomainMethodControls() {
-  return `<div class="performance-scope-toggle" role="group" aria-label="Measurement method">${[['speed','Speed-domain'],['window','Window timing']].map(([key,label])=>`<button type="button" data-speed-method="${key}" aria-pressed="${speedDomainMethod===key}" title="${key==='speed'?'Compare cars at equal speed (default)':'Previous shared-window timing method'}">${label}</button>`).join('')}</div>`;
-}
+// Straight line: the three measures that carried car-specific signal in
+// validation; one is shown at a time. 160-250 km/h alone was the weakest and is
+// inside 'Speed'; traction is a corner-exit measure and lives on Cornering.
+const STRAIGHT_PILLS=[
+  {key:'straight',label:'Speed',title:'Straight-line speed',subtitle:'seconds per straight, 160 km/h to the end of a 500 m run',hint:'Overall straight-line performance',
+   note:"Each car's measured full-throttle acceleration, run over the same simulated straight: 160 to 250 km/h, then 500 m from 250 km/h. Comparing at equal speed means a faster corner exit is not credited to the straight. 2025 DRS-open and DRS-closed data are kept separate. Car, setup, tow and energy deployment together, not isolated engine power or drag."},
+  {key:'straight_top',label:'Top end',title:'Top end, 250 km/h and above',subtitle:'seconds over a 500 m run from 250 km/h',hint:'Where power-unit deployment separates the cars',
+   note:"The same simulated straight from 250 km/h onward. On 2026 cars this is shaped by electrical energy deployment (taper and clipping) as much as by drag or engine power; it is where the power units separate most."},
+  {key:'energy',label:'Energy',title:'Speed lost at full throttle',subtitle:'km/h per lap on the audited straights',hint:'Energy clipping on 2026 power units',
+   note:"Speed lost while flat out on the straights. At full throttle a car only loses speed when its deployable electrical energy runs out (clipping) or a tow has pushed it past its drag limit. This mainly matters for 2026 power units; 2025 cars rarely clip."}
+];
+let straightPill='straight';
 function speedDomainEntities() {
   const style=new Map();
   for(const event of events){
@@ -2883,17 +2892,17 @@ function renderSpeedDomain() {
   const failures=failed.map(e=>`<div class="performance-error">${escape(e.name)} · ${escape(e.speedDomainError||e.speedDomain[telemetrySubject].error)}</div>`).join('')+
     (failed.length&&!speedDomainRunning[telemetrySubject]?`<div class="performance-actions"><button type="button" data-speed-retry>Retry ${failed.length} missing GP${failed.length===1?'':'s'}</button></div>`:'');
   const status=`<p class="performance-quality-status" role="status">${speedDomainRunning[telemetrySubject]?'Loading fastest qualifying laps… ':''}${loaded} of ${total} GPs measured. Season values weight each GP equally; entrants measured in fewer than half of them stay unranked.</p>`;
-  if(activeMetric==='corners')return status+failures+card('Cornering · speed-domain',
+  if(activeMetric==='corners')return status+failures+card('Cornering',
     `Time lost per lap at grip-limited corners, from each car's own minimum speed and the time it spends near that speed. Corners come from the circuit segment audit: a corner is where the field's speed reaches a minimum after braking or lifting. Flat-out bends and energy-management lifts are excluded because they measure power, not grip. Seconds per lap behind the best ${telemetrySubject==='driver'?'driver':'team'}, comparable with qualifying gaps.`,
-    speedDomainChart('corner_low','Low-speed corners','below 120 km/h')+speedDomainChart('corner_medium','Medium-speed corners','120–200 km/h')+speedDomainChart('corner_high','High-speed corners','above 200 km/h; often one corner per circuit, as 2026 cars take most fast bends flat')+speedDomainEventTable(['corner_low','corner_medium','corner_high']));
-  if(activeMetric==='straight')return status+failures+card('Straight line · speed-domain',
-    `Each car's measured full-throttle acceleration curve, run over the same simulated straight: 160→250 km/h, then 500 m from 250 km/h. Comparing at equal speed means a faster corner exit is not credited to the straight. 2025 DRS-open and DRS-closed data are kept separate. On 2026 cars the top end is shaped by energy deployment (taper and clipping) as much as by drag or power. Seconds per straight.`,
-    speedDomainChart('straight','Straight line','160 km/h → end of a 500 m top-speed run')+speedDomainChart('straight_mid','160–250 km/h','acceleration range')+speedDomainChart('straight_top','250 km/h and above','energy-deployment affected on 2026 cars')+speedDomainEventTable(['straight','straight_mid','straight_top']))+
-    card('Energy deployment · speed-domain',`Speed lost while flat out on the straights. At full throttle a car only loses speed when its deployable electrical energy runs out (clipping) or a tow has pushed it past its drag limit. This matters mainly for 2026 power units; 2025 cars rarely clip. km/h lost per lap, against the ${telemetrySubject==='driver'?'driver':'team'} that loses least.`,
-    speedDomainChart('energy','Speed lost at full throttle','per lap, audited straights')+speedDomainEventTable(['energy']))+
-    card('Traction · speed-domain',`Acceleration out of slow corners at any throttle position, once a car has gained 30 km/h over its own apex, simulated from 70 to 170 km/h. Drivers feed in throttle as grip allows, so the throttle position is itself the traction limit. Seconds per corner exit. Unsupported at circuits without slow exits.`,
+    speedDomainChart('corner_low','Low-speed corners','below 120 km/h')+speedDomainChart('corner_medium','Medium-speed corners','120–200 km/h')+speedDomainChart('corner_high','High-speed corners','above 200 km/h; often one corner per circuit, as 2026 cars take most fast bends flat')+speedDomainEventTable(['corner_low','corner_medium','corner_high']))+
+    card('Corner exit traction',`Acceleration out of slow corners at any throttle position, once a car has gained 30 km/h over its own apex, simulated from 70 to 170 km/h. Seconds per corner exit. Evidence only: in validation it carried little car-specific signal in 2025.`,
     speedDomainReliabilityNote('traction')+speedDomainChart('traction','Traction (corner exit)','70–170 km/h')+speedDomainEventTable(['traction']));
-  return status+failures+card('Braking · speed-domain',
+  if(activeMetric==='straight'){
+    const pill=STRAIGHT_PILLS.find(p=>p.key===straightPill)||STRAIGHT_PILLS[0];
+    const pills=`<div class="performance-scope-toggle" role="group" aria-label="Straight-line measure">${STRAIGHT_PILLS.map(p=>`<button type="button" data-straight-pill="${p.key}" aria-pressed="${p.key===pill.key}" title="${escape(p.hint)}">${p.label}</button>`).join('')}</div>`;
+    return status+failures+card('Straight line',pill.note,pills+speedDomainChart(pill.key,pill.title,pill.subtitle)+speedDomainEventTable([pill.key]));
+  }
+  return status+failures+card('Braking',
     `Average deceleration from brake onset until the car reaches its own apex speed, at every braked corner. Distances come from GPS, and each car is compared with the field at the same speeds, because downforce makes every car brake harder when faster. % longer braking distance than the best ${telemetrySubject==='driver'?'driver':'team'}. The 4 Hz feed places the brake onset only to within a few metres, so differences under about 2% in a single GP are noise.`,
     speedDomainReliabilityNote('braking')+speedDomainChart('braking','Braking distance','same speed drop')+speedDomainEventTable(['braking']));
 }
@@ -3502,7 +3511,9 @@ function renderContent() {
   const recordedNotices=events.flatMap(e=>['Q','R','pits'].filter(s=>e[s]?.source_cache).map(s=>`${e.name} ${s==='Q'?'qualifying':s==='pits'?'pit visits':'race'}${e[s].source_cache.refresh_failed||e[s].source_cache.stale?' (live refresh unavailable)':''}`));
   const sourceNotice=recordedNotices.length?`<details class="performance-source-note"><summary>Retained session sources</summary><p>${recordedNotices.map(escape).join(' · ')}. Recalculated with the current methodology; missing fields remain unknown.</p></details>`:'';
   const speedMode=telemetryMode&&speedDomainActive();
-  const methodToggle=telemetryMode&&!(activeMetric==='corners'&&cornerSession==='race')&&!(activeMetric==='straight'&&straightLineSource==='race')?speedDomainMethodControls():'';
+  // One measurement method on the page; the window-timing views were retired
+  // as duplicates (see docs/speed-domain-methodology-20261020.md).
+  const methodToggle='';
   const telemetryControls=telemetryMode?`<div class="performance-actions">${telemetrySubjectControls()}${methodToggle}${activeMetric==='corners'?cornerSessionControls():''}${qualifyingMetricsRunning?'<button type="button" data-qualifying-stop>Stop telemetry</button>':''}</div>`:'';
   const teamBrakingControls=activeMetric==='braking'&&telemetrySubject==='team'?`<div class="performance-actions">${teamBrakingRunning?'<button type="button" data-team-braking-stop>Stop braking load</button><span>Loading only the fastest qualifying lap per team…</span>':events.some(e=>e.Q&&!e.teamBrakingReady)?'<button type="button" data-team-braking-retry>Retry missing braking data</button>':''}</div>`+events.filter(e=>e.brakingError||Object.keys(e.brakingExcluded||{}).length).map(e=>`<p class="performance-quality-status">${escape(e.name)} · ${escape(e.brakingError||Object.entries(e.brakingExcluded).map(([team,reason])=>team+': '+reason).join(' · '))}</p>`).join(''):'';
   const needsQualifying=telemetryMode&&!(activeMetric==='corners'&&cornerSession==='race')&&!(activeMetric==='straight'&&straightLineSource==='race')&&(activeMetric==='corners'||telemetrySubject==='driver');
@@ -3675,8 +3686,8 @@ root.addEventListener('click',event=>{
     for(const e of events){if(e.speedDomainError||e.speedDomain?.[telemetrySubject]?.error){delete e.speedDomainError;if(e.speedDomain)delete e.speedDomain[telemetrySubject];}}
     void loadSpeedDomain(false);return;
   }
-  const methodButton=event.target.closest('[data-speed-method]');
-  if(methodButton){speedDomainMethod=methodButton.dataset.speedMethod;render();loadActiveTelemetry();return;}
+  const straightPillButton=event.target.closest('[data-straight-pill]');
+  if(straightPillButton){straightPill=straightPillButton.dataset.straightPill;render();return;}
   const subjectButton=event.target.closest('[data-telemetry-subject]');
   if(subjectButton){telemetrySubject=subjectButton.dataset.telemetrySubject;sortKey='';render();loadActiveTelemetry();return;}
   const cornerSessionButton=event.target.closest('[data-corner-session]');

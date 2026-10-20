@@ -38,7 +38,10 @@ test('season weights GPs equally and leaves sparsely measured entrants unranked,
 test('the page defaults to speed-domain and keeps every trace-batch speed-domain block',async()=>{
   const source=readFileSync('car-performance.js','utf8');
   assert.match(source,/let speedDomainMethod='speed'/);
-  assert.match(source,/data-speed-method/);
+  // One method on the page; straight line is three pills, one chart at a time.
+  assert.doesNotMatch(source,/data-speed-method/);
+  assert.match(source,/data-straight-pill/);
+  for(const key of ['straight','straight_top','energy'])assert.match(source,new RegExp(`key:'${key}'`));
   // Braking loader stores the block without disturbing its own traces.
   const event={name:'GP',Q:{teams:[]}};
   const result={teams:{A:{braking:[],selection:{}}},excluded:{},speed_domain:{cars:{A:{}}}};
