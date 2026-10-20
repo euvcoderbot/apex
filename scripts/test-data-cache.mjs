@@ -221,12 +221,14 @@ test('Sepang race snapshots compute once from validated source laps and persist 
 test('race selection starts its loader and pace does not eagerly fetch qualifying telemetry',()=>{
   const source=readFileSync('car-performance.js','utf8'),calls=[];
   const box={running:false,context:{},activeMetric:'corners',cornerSession:'race',telemetrySubject:'team',straightLineSource:'qualy',
-    loadRaceCorners:()=>calls.push('race'),loadQualifyingMetrics:()=>calls.push('qualy'),loadTeamTelemetry:()=>calls.push('team')};
+    loadRaceCorners:()=>calls.push('race'),loadQualifyingMetrics:()=>calls.push('qualy'),loadTeamTelemetry:()=>calls.push('team'),
+    speedDomainActive:()=>false,loadSpeedDomain:()=>calls.push('speed')};
   vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function loadActiveTelemetry()'),source.indexOf('async function loadTeamBraking(')),box);
   box.loadActiveTelemetry();assert.deepEqual(calls,['race']);
   box.activeMetric='pace';box.loadActiveTelemetry();assert.equal(calls.length,1);
   box.activeMetric='straight';box.loadActiveTelemetry();assert.deepEqual(calls,['race','team']);
   box.straightLineSource='race';box.loadActiveTelemetry();assert.deepEqual(calls,['race','team'],'race speed traps need no qualifying trace load');
+  box.speedDomainActive=()=>true;box.loadActiveTelemetry();assert.deepEqual(calls,['race','team','speed'],'speed-domain view loads its own trace batch');
   assert.match(source,/cornerSession=cornerSessionButton.dataset.cornerSession;render\(\);loadActiveTelemetry\(\)/);
   const loader=source.slice(source.indexOf('async function loadRaceCorners('),source.indexOf('function renderRaceCorners()'));
   assert.doesNotMatch(loader,/fresh:'true'/);assert.match(loader,/snapshot \$\{index\+1\}/);

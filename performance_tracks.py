@@ -1440,7 +1440,7 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
                 result['teams'][team] = {**observation, 'corners': [], 'braking': [], 'categories': {},
                     'quality': {'native_only': True, 'spatial_exclusion': errors.get(team)},
                     'measurement_status': 'native-speed-only'}
-        result['methodology_version'] = 'car-measurements-v15-straight-speed'
+        result['methodology_version'] = 'car-measurements-v16-speed-domain'
         result['source_complete'] = all(not error and samples and len(samples)>=100 for _,samples,error in extracted)
         result['source_coverage'] = {'requested':len(selections),'received':sum(bool(samples) and not error for _,samples,error in extracted),
             'native_speed':len(native),'spatially_measured':sum(not r.get('quality',{}).get('native_only') for r in result['teams'].values())}
@@ -1846,6 +1846,17 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
                         'lap_boundary_provisional': any((s.get('SourceIntervalSeconds') or 0) > .6 for s in item.get('samples', ()) if s.get('IsInterpolatedBoundary'))}
         }
 
+    # Speed-domain metrics compare cars at equal speed rather than inside
+    # shared distance windows, so entry speed and registration errors do not
+    # move performance between categories. Up to two validated laps per car.
+    try:
+        from car_physics import speed_domain_metrics
+        speed_domain = speed_domain_metrics(
+            {team: [v['a'] for v in (qualifying_candidates.get(team) or [item])[:2]] for team, item in selected.items()},
+            corners)
+    except Exception as exc:  # never lose the established measurements
+        speed_domain = {'method': 'speed-domain-v1', 'cars': {}, 'error': str(exc)[:200]}
+
     # Cross-circuit continuous features for development trend regression
     circuit_features = {
         'median_apex_speed': float(np.median(apex_speeds)),
@@ -1858,5 +1869,6 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
             'method': 'timing-sector-grid-v14-local-quality-geometry', 'corner_count': len(zones),
             'corner_method': 'adaptive-geometry-turning' if mapped_zones else 'speed-dip-fallback-incomplete',
             'unmapped_corners': rejected_markers,
+            'speed_domain': speed_domain,
             'circuit_features': circuit_features})
 

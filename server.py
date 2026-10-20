@@ -190,6 +190,38 @@ def openf1_pit_visits(pits: list[dict], drivers: list[dict], stints=None) -> lis
     return sorted(visits, key=lambda v: (v['lap'], v['driver_number']))
 
 
+def mark_penalty_stops(visits: list[dict], messages: list[dict]) -> list[dict]:
+    """Keep penalties served at a stop out of the pit-crew comparison.
+
+    A time penalty taken in the pit box adds its seconds to the stationary
+    time before work can start, and a stop-and-go has no service at all. The
+    first stop after the race-control notice that lasts at least the penalty
+    is marked; it stays visible as evidence with its reason.
+    """
+    import re
+    pending = {}
+    notices = sorted((m for m in messages or () if m.get('message')), key=lambda m: (m.get('lap_number') or 0, m.get('date') or ''))
+    for m in notices:
+        text = str(m['message']).upper()
+        car = re.search(r'FOR CAR (\d+)', text)
+        if not car or 'PENALTY' not in text or 'NO FURTHER' in text or 'REVIEW' in text:
+            continue
+        timed = re.search(r'(\d+) SECOND TIME PENALTY', text)
+        kind = 'stop-and-go' if 'STOP AND GO' in text else 'time' if timed else None
+        if kind:
+            pending.setdefault(car.group(1), []).append({'lap': m.get('lap_number') or 0, 'kind': kind,
+                                                         'seconds': int(timed.group(1)) if timed else 10})
+    for visit in sorted(visits, key=lambda v: v['lap']):
+        queue = pending.get(str(visit['driver_number'])) or []
+        due = next((p for p in queue if p['lap'] <= visit['lap']), None)
+        stop = visit.get('stop_duration')
+        if due and stop is not None and stop >= due['seconds']:
+            queue.remove(due)
+            visit.update(visit_type='penalty-served',
+                         visit_evidence=f"{due['seconds']} s {'stop-and-go' if due['kind'] == 'stop-and-go' else 'time penalty'} served at this stop (race control)")
+    return visits
+
+
 class _DhlPitTable(HTMLParser):
     """Read the published DHL timing table without depending on page styling."""
     def __init__(self):
@@ -1881,12 +1913,17 @@ def car_performance_pits(response: Response, year: int = Query(..., ge=2018, le=
                     pits_future = pool.submit(openf1, 'pit', session_key=session['session_key'])
                     drivers_future = pool.submit(openf1, 'drivers', session_key=session['session_key'])
                     stints_future = pool.submit(openf1, 'stints', session_key=session['session_key'])
+                    control_future = pool.submit(openf1, 'race_control', session_key=session['session_key'])
                     pits = pits_future.result()
                     drivers = drivers_future.result()
                     try:
                         stints = stints_future.result()
                     except Exception:
                         stints = []
+                    try:
+                        controls = control_future.result()
+                    except Exception:
+                        controls = []
                 if not drivers:
                     raise ValueError('Driver identities are unavailable')
                 visits = openf1_pit_visits(pits, drivers, stints)
@@ -1902,6 +1939,7 @@ def car_performance_pits(response: Response, year: int = Query(..., ge=2018, le=
                     except Exception as exc:
                         supplement_status = 'unavailable'
                         logger.warning('DHL stationary timing unavailable for %s: %s', gp, exc)
+                visits = mark_penalty_stops(visits, controls)
                 set_cache(source, visits, session)
                 response.headers['Server-Timing'] = f'pits;dur={(time.perf_counter()-started)*1000:.1f}'
                 return pit_timing_payload(gp,year,source,visits,drivers,session.get('date_start'),supplement_status)

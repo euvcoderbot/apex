@@ -127,7 +127,7 @@ class SourceRecoveryTests(unittest.TestCase):
             result=server.car_performance_trace_batch(Response(),2026,'Singapore Grand Prix',json.dumps(list(by_team.values())))
         self.assertEqual(len(result['teams']),11)
         self.assertEqual(result['source_cache']['kind'],'verified-recording')
-        self.assertEqual(result['methodology_version'],'car-measurements-v15-straight-speed')
+        self.assertEqual(result['methodology_version'],'car-measurements-v16-speed-domain')
 
 
 if __name__=='__main__':unittest.main()
