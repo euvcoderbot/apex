@@ -1603,10 +1603,11 @@ def session_data(
             payload['source_cache']['refresh_failed'] = fresh
             payload['compounds'] = get_tire_nominations(year, gp)
             return payload
-        if session in ('Q', 'R', 'Qualifying', 'Race') and year >= 2023:
+        if session in ('Q', 'R', 'SQ', 'Qualifying', 'Race', 'Sprint Qualifying', 'Sprint Shootout') and year >= 2023:
             try:
                 from openf1_performance import session_payload
-                code = {'Qualifying': 'Q', 'Race': 'R'}.get(session, session)
+                code = {'Qualifying': 'Q', 'Race': 'R', 'Sprint Qualifying': 'SQ',
+                        'Sprint Shootout': 'SQ'}.get(session, session)
                 alternate = load_openf1_performance(year, gp, code, fresh=fresh)
                 payload = session_payload(year, gp, code, alternate.apex_source_bundle)
                 payload['source_cache'] = alternate.apex_source_notice
