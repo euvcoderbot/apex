@@ -33,6 +33,7 @@ const staticFiles = [
   "workspace-ui.css",
   "macos-ui.css",
   "ui-controls.css",
+  "macos-window.css",
   "ui-system.js",
   "ui-catalog.html",
   "dashboard-ui.js",

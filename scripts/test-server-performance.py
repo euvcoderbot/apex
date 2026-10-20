@@ -161,15 +161,19 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual([(server.seconds(p.get('x')), server.seconds(p.get('y'))) for p in actual],
                          [(server.seconds(p.x), server.seconds(p.y)) for p in expected.itertuples()])
 
-    def test_selected_context_needs_only_two_parallel_streams(self):
+    def test_selected_context_uses_two_channels_across_boundary_windows(self):
         start = datetime(2026, 9, 12, 14, 10, tzinfo=timezone.utc)
         calls = []
         def upstream(endpoint, **params):
             calls.append(endpoint)
-            return [{"date": (start + timedelta(seconds=i/4)).isoformat(),
+            rows = [{"date": (start + timedelta(seconds=i/4)).isoformat(),
+                     "driver_number": 3,
                      "speed": 200, "throttle": 100, "brake": 0, "n_gear": 6,
                      "rpm": 10000, "drs": 0, "x": i*10, "y": i}
                     for i in range(-4, 245)]
+            lo = datetime.fromisoformat(params["date>="]).replace(tzinfo=timezone.utc)
+            hi = datetime.fromisoformat(params["date<"]).replace(tzinfo=timezone.utc)
+            return [row for row in rows if lo <= datetime.fromisoformat(row["date"]) < hi]
         with patch.object(server, 'openf1', side_effect=upstream), \
              patch.object(server, 'load_session', side_effect=AssertionError('whole session loaded')), \
              patch.object(server, 'read_prepared_cache', side_effect=AssertionError('cache read')), \
@@ -178,7 +182,8 @@ class RetrievalTests(unittest.TestCase):
             payload = server.telemetry(response, year=2026, gp='Spanish Grand Prix', session='Q',
                 driver='VER', driver_number='3', session_key=11365, lap=17, round=None,
                 lap_start=start, lap_time=60, fresh=True, geometry=False, next_start=None)
-        self.assertCountEqual(calls, ['car_data','location'])
+        # The one-second lead-in crosses a five-minute cache boundary.
+        self.assertCountEqual(calls, ['car_data','location','car_data','location'])
         self.assertEqual(response.headers['cache-control'], 'no-store')
         samples = payload['samples']
         self.assertEqual(len(samples), 241)

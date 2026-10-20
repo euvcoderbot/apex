@@ -50,7 +50,8 @@ test('session, race and qualifying share the geometry module and disclose fallba
   assert.match(readFileSync('alignment.js','utf8'),/APEXCornerPosition\?\.refineCornerPositions/);
   assert.match(race,/refineCornerPositions\(ref\.payload\.samples/);
   assert.match(race,/refineCornerPositions\(geometryRef\.payload\.samples/);
-  assert.match(app,/marker ≈/);
+  // Speed labels use each lap's own measured extremes, matched across laps by GPS.
+  assert.match(app,/matched to the other laps by GPS position/);
   assert.match(readFileSync('car-performance.js','utf8'),/Corner position evidence · GPS refinements and uncertain markers/);
   assert.match(readFileSync('scripts/sync-static.mjs','utf8'),/corner-position\.js/);
 });

@@ -5,6 +5,7 @@
 !openf1-performance.json.gz
 !performance.py
 !performance_tracks.py
+!car_physics.py
 !pace_models.py
 !telemetry_sources.py
 !verified_sources.py

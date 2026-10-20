@@ -187,6 +187,9 @@ test('sector guide uses timed boundaries and rejects insufficient data', () => {
   assert.equal(h.run('makeSectorGuide({...testLap,s3:null},testSamples,[])'),null);
   assert.equal(h.run('makeSectorGuide({...testLap,time:32},testSamples,[])'),null);
   assert.equal(h.run('makeSectorGuide(testLap,testSamples.filter((_,i)=>i<30||i>40),[])'),null);
+  // A single 1.25 s packet gap (typical ~4 Hz feed) still yields a sector map.
+  h.run('testDense=Array.from({length:241},(_,i)=>({X:Math.cos(i/240*2*Math.PI)*1000,Y:Math.sin(i/240*2*Math.PI)*1000,Distance:i*20,ElapsedSeconds:i/8}))');
+  assert.ok(h.run('makeSectorGuide(testLap,testDense.filter((_,i)=>i<100||i>109),[])'));
   assert.equal(h.run('makeSectorGuide(testLap,testSamples.map(p=>({...p,Y:null})),[])'),null);
   assert.equal(h.run('makeSectorGuide(testLap,testSamples.slice(8),[])'),null);
 });
@@ -259,7 +262,8 @@ test('one interface font family for canvas and every HTML descendant', () => {
   css.walkDecls('font-family', declaration => fonts.push(declaration.value));
   assert.ok(fonts.length > 0 && fonts.every(font => font === 'var(--font-sans)'));
   assert.ok(!/ctx\.font\s*=\s*['"]/.test(app));
-  assert.match(context().run('canvasFont(12)'), /12px -apple-system/);
+  // Canvas text follows the site-wide +2 px type increase.
+  assert.match(context().run('canvasFont(12)'), /14px -apple-system/);
   const imports = readFileSync('styles.css', 'utf8');
   assert.match(imports, /@layer focus, legacy, interface/);
   assert.match(imports, /apple-ui\.css[^;]+layer\(interface\)/);
@@ -310,7 +314,8 @@ test('compact corner choices, grouped laps and motion accessibility are explicit
   const html=readFileSync('index.html','utf8');
   assert.match(html,/aria-label="Selected lap sector times"/);
   assert.match(html,/corner-collapse-region/);
-  assert.ok(html.indexOf('class="dashboard-card session-controls"') < html.indexOf('<aside'));
+  assert.ok(html.indexOf('class="dashboard-card session-controls"') < html.indexOf('<aside class="sidebar"'));
+  assert.ok(html.indexOf('<aside class="app-sidebar" id="sessionSidebar"') < html.indexOf('class="dashboard-card session-controls"'));
 });
 
 test('Grand Prix open rule overrides its GP-specific closed rule', () => {
@@ -1147,29 +1152,60 @@ test('native corner projection follows the aligned comparison grid', () => {
   assert.equal(h.run("resolveCornerMarkers(samples,1000,[{number:'1',fraction:.5,source:'lap_projection'}])[0].fraction"),.6);
 });
 
-test('one optional speed-annotation control combines slow minima, shared fast-corner speeds and straight peaks', () => {
+test('speed annotations label each lap\'s own measured extremes, matched by GPS, in whole km/h', () => {
   const h=context();
-  h.run('sessionStraightEvidence=()=>true');
   assert.equal(h.run('showSpeedAnnotations'),false);
   assert.equal((app.match(/id="speedAnnotationToggle"/g)||[]).length,1);
   assert.match(app,/Corner numbers<\/span><\/label>\s*<label[^\n]+id="speedAnnotationToggle"/);
-  h.sandbox.entries=['A','B'].map((code,index)=>({lap:{code,lap:1},samples:Array.from({length:1001},(_,i)=>({Distance:i*5,AlignedFraction:i/1000,
-    Speed:(i>=190&&i<=210?80+Math.abs(i-200):i>=590&&i<=610?240+(i-590)/2:300)-index*5,
-    Throttle:100,Brake:0}))}));
-  h.sandbox.zones=[{number:'1',apex:.2,minimumSpeed:80,apexStart:.19,apexEnd:.21,start:.15,end:.25},
-    {number:'2',apex:.6,apexConfidence:'estimated',minimumSpeed:240,apexStart:.59,apexEnd:.61,start:.55,end:.65}];
-  const results=h.run('buildSpeedAnnotations(entries,zones,5000)');
-  assert.ok(results.some(r=>r.kind==='peak'));
-  assert.equal(results.find(r=>r.title==='T1 min').values[0].speed,80);
-  assert.equal(results.find(r=>r.title==='T2 bend').values[0].speed,245);
-  assert.equal(results.find(r=>r.title==='T2 bend').fraction,.6);
-  assert.ok(results.find(r=>r.title==='T2 bend').values.every(v=>v.fraction===.6));
-  assert.equal(results.find(r=>r.title==='T1 min').values[1].speed,75);
-  h.run('entries[0].samples=entries[0].samples.filter(p=>p.AlignedFraction<.194||p.AlignedFraction>.206)');
-  assert.equal(h.run("buildSpeedAnnotations(entries,zones,5000).find(r=>r.title==='T1 min').values.length"),1);
-  assert.equal(h.run("buildSpeedAnnotations(entries,zones,5000).find(r=>r.title==='T1 min').missing[0].code"),'A');
-  // A gap in the middle of a straight must not discard a measured peak elsewhere.
-  assert.equal(h.run("buildSpeedAnnotations(entries,zones,5000).filter(r=>r.kind==='peak').every(r=>r.values.length===2)"),true);
+  // Lap B reaches its own minimum 30 m later than A (fractions drift); a fixed
+  // marker at A's minimum would read B's entry speed instead of its apex.
+  const lap=(code,shift,offset)=>({lap:{code,lap:1},samples:Array.from({length:1001},(_,i)=>{
+    const m=i*5,d=Math.abs(m-1000-shift),e=Math.abs(m-3000-shift);
+    return {Distance:m,AlignedFraction:i/1000,X:m*10,Y:0,Speed:(d<150?80.4+d*.8:e<200?300-e*.3:250)-offset};})});
+  h.sandbox.entries=[lap('A',0,0),lap('B',30,3)];
+  h.sandbox.markers=[{number:'1',fraction:.2}];
+  const results=h.run('buildSpeedAnnotations(entries,markers,5000)');
+  const dip=results.find(r=>r.kind==='min'),peak=results.find(r=>r.kind==='max'&&Math.abs(r.fraction-.6)<.01);
+  assert.ok(dip&&peak);
+  assert.equal(dip.title,'T1');
+  assert.equal(dip.values.length,2);
+  assert.ok(Math.abs(dip.values.find(v=>v.lap.code==='B').fraction-.206)<.002,'B uses its own minimum, not A\'s position');
+  assert.equal(dip.values[0].lap.code,'A');assert.equal(Math.round(dip.values[1].speed),77);
+  h.sandbox.dip=dip;
+  assert.deepEqual(JSON.parse(JSON.stringify(h.run('speedAnnotationLines(dip).map(l=>l.text)'))),['A 80','B −3']);
+  // Too far away by GPS: no fabricated match, shown as missing.
+  h.sandbox.entries=[lap('A',0,0),lap('B',400,0)];
+  const far=h.run('buildSpeedAnnotations(entries,markers,5000)').find(r=>r.kind==='min'&&r.fraction<.3);
+  assert.equal(far.values.length,1);assert.equal(far.missing[0].code,'B');
+  assert.doesNotMatch(app,/toFixed\(3\):\(a\.speed/);
+});
+
+test('speed extremes need prominence and native support, so noise and gaps are not labelled', () => {
+  const h=context();
+  h.sandbox.samples=Array.from({length:1001},(_,i)=>({AlignedFraction:i/1000,Speed:300+(i%2?3:0)}));
+  assert.equal(h.run('lapSpeedExtremes(samples,5000).length'),0,'3 km/h ripple is not an extreme');
+  h.run('samples=Array.from({length:1001},(_,i)=>({AlignedFraction:i/1000,Speed:i>=480&&i<=520?150+Math.abs(i-500)*5:250}))');
+  assert.equal(h.run("lapSpeedExtremes(samples,5000).filter(e=>e.kind==='min').length"),1);
+  assert.equal(h.run("lapSpeedExtremes(samples,5000).find(e=>e.kind==='min').speed"),150);
+  h.run('samples=samples.filter(p=>p.AlignedFraction<.49||p.AlignedFraction>.51)');
+  assert.equal(h.run("lapSpeedExtremes(samples,5000).filter(e=>e.kind==='min').length"),0,'no extreme across a telemetry gap');
+});
+
+test('straight maxima use the true raw peak on a sparse 4 Hz feed, and unmatched laps fall back to their own segment extreme', () => {
+  const h=context();
+  // 85 m/s at 4 Hz: packets ~21-50 m apart, plus a routine 1.08 s packet into braking.
+  // The real top speed (308) follows a 37 m gap
+  // and a 306 plateau 61 m earlier; the label must use 308, the value the line draws through.
+  h.sandbox.samples=[[1300,280,0],[1351,296,.6],[1390,299,1.06],[1427,303,1.5],[1467,304,1.97],[1505,305,2.42],[1532,306,2.74],[1556,306,3.02],[1593,308,3.46],[1677,253,4.54],[1700,226,4.86],[1720,180,5.3],[1750,120,5.9],[1770,100,6.4],[1800,140,7]]
+    .map(([m,v,t])=>({AlignedFraction:m/5000,Speed:v,ElapsedSeconds:t}));
+  const max=h.run("lapSpeedExtremes(samples,5000).filter(e=>e.kind==='max')");
+  assert.equal(max.length,1);assert.equal(max[0].speed,308);
+  // B has no matching extreme within 70 m, but has its own clear dip inside the segment.
+  const lap=(code,shift)=>({lap:{code,lap:1},samples:Array.from({length:1001},(_,i)=>{const m=i*5,d=Math.abs(m-2500-shift);return {AlignedFraction:i/1000,Speed:d<150?90+d*.8:210};})});
+  h.sandbox.entries=[lap('A',0),lap('B',90)];
+  const dip=h.run("buildSpeedAnnotations(entries,[],5000).find(r=>r.kind==='min')");
+  assert.equal(dip.values.length,2);assert.equal(dip.missing.length,0);
+  assert.ok(dip.values.find(v=>v.lap.code==='B').segment);
 });
 
 test('shared corner positions interpolate bounded native brackets without fabricating missing speeds', () => {
@@ -1301,21 +1337,6 @@ test('short transitions are absorbed, unknown geometry is not advertised as a st
   assert.doesNotMatch(app,/if\(selectedCornerIndices.size>1\)/);
 });
 
-test('terminal speed annotations exclude mid-straight spikes, unverified links and the timing-line cut',()=>{
-  const h=context();
-  h.run('sessionStraightEvidence=()=>true');
-  h.sandbox.zones=[{number:'1',start:.3,end:.4,apex:.35,apexStart:.34,apexEnd:.36,minimumSpeed:80},
-    {number:'2',start:.8,end:.9,apex:.85,apexStart:.84,apexEnd:.86,minimumSpeed:100}];
-  h.sandbox.entries=[{lap:{code:'A',lap:1},samples:Array.from({length:1001},(_,i)=>({AlignedFraction:i/1000,Speed:i===500?360:300,Throttle:100,Brake:0}))}];
-  const peaks=h.run("buildSpeedAnnotations(entries,zones,5000).filter(a=>a.kind==='peak')");
-  assert.equal(peaks.length,2);
-  assert.ok(peaks.every(p=>p.speed===300));
-  assert.ok(peaks.every(p=>p.fraction<.9));
-  assert.ok(peaks.every(p=>p.fraction>=.28&&p.fraction<=.3||p.fraction>=.78&&p.fraction<=.8));
-  h.run('sessionStraightEvidence=()=>false');
-  assert.equal(h.run("buildSpeedAnnotations(entries,zones,5000).filter(a=>a.kind==='peak').length"),0);
-});
-
 test('circuit guide separates sourced historical characteristics from current tyre nominations',()=>{
   assert.match(app,/Pirelli corner guide · 22 Mar 2012/);
   assert.match(app,/if\(sessionYear===2026\)official/);
@@ -1352,7 +1373,6 @@ test('race classification refresh fills missing data without clearing authoritat
   assert.equal(h.run("realDrivers.get('RUS').result.gap"),2.345);
   assert.match(app,/session_result\?session_key=/);
   assert.match(app,/clearTimeout\(raceResultRefreshTimer\)/);
-  assert.match(app,/ctx\.lineTo\(px,y>py\?y:y\+height\)/);
 });
 
 test('speed annotation labels avoid open trace segments without closing the lap', () => {
@@ -1361,8 +1381,8 @@ test('speed annotation labels avoid open trace segments without closing the lap'
   h.sandbox.points=[{x:0,y:0},{x:0,y:100},{x:100,y:100}];
   assert.equal(h.run('trackIntersectsLabel(box,points,0,false)'),false);
   assert.equal(h.run('trackIntersectsLabel(box,points,0,true)'),true);
-  assert.match(app,/trackIntersectsLabel\(box,trace\.points,4,false\)/);
-  assert.match(app,/const identity=lap=>lap\.code/);
+  assert.match(app,/trackIntersectsLabel\(box, trace\.points, 1, false\)/);
+  assert.match(app,/const identity = lap => lap\.code/);
 });
 
 test('performance categories expose only defensible alternative summaries', () => {
