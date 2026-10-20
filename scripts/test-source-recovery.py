@@ -117,6 +117,26 @@ class SourceRecoveryTests(unittest.TestCase):
         self.assertTrue(session['source_cache']['refresh_failed'])
         self.assertEqual(session['event'],'Singapore Grand Prix')
 
+    def test_driver_batch_reuses_recorded_laps_and_fetches_only_missing_ones(self):
+        # Recordings hold one lap per team; a driver view also asks for the
+        # teammate. One missing lap must not fail the batch or need retries.
+        r=recorded_session(2026,'Singapore Grand Prix','Q')
+        by_team={}
+        for item in r['telemetry']:
+            s=item['selection']
+            if s['team']==s.get('team_name') and s['team']!=s['driver']:by_team[s['team']]=item
+        items=list(by_team.values())
+        selections=[{**it['selection'],'team':it['selection']['driver'],'team_name':it['selection']['driver']} for it in items]
+        extra={**selections[0],'team':'TWIN','team_name':'TWIN','driver':'TWN','driver_number':'99'}
+        calls=[]
+        def openf1_lap(year,gp,session,number,lap,bucket,key=None,*args,**kwargs):
+            calls.append(number);return items[0]['samples']
+        with patch.object(server,'fastf1_runtime',lambda:None),              patch('session_loader.load_selected_laps_telemetry',side_effect=RuntimeError('HTTP Error 401')),              patch('session_loader.download_feed',side_effect=RuntimeError('HTTP Error 401')),              patch.object(server,'openf1_session',lambda *a:{'session_key':1,'circuit_key':61}),              patch.object(server,'_openf1_lap_telemetry',openf1_lap):
+            result=server.car_performance_trace_batch(Response(),2026,'Singapore Grand Prix',json.dumps(selections+[extra]))
+        self.assertEqual(calls,['99'],'only the lap missing from the recording is fetched')
+        self.assertIn('TWIN',result['speed_domain']['cars'])
+        self.assertEqual(len(result['speed_domain']['cars']),len(selections)+1)
+
     def test_team_batch_retains_all_eleven_native_laps_during_archive_outage(self):
         r=recorded_session(2026,'Singapore Grand Prix','Q')
         by_team={}
