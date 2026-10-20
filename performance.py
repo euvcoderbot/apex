@@ -75,7 +75,8 @@ def fit_tyre_stint(laps):
     raw = tyre_age_slope([(r['age'], r['time']) for r in used])
     if raw is None:
         return None
-    shape = tyre_curve(used)
+    # Refit only if the screen removed laps; otherwise it is the same fit.
+    shape = tyre_curve(used) if len(used) != len(candidates) else shape
     shape.pop('residuals',None)
     origin = used[0]['lap']
     corrected = [(r['age'], r['time']+TYRE_FUEL_GAIN_S_PER_LAP*(r['lap']-origin)) for r in used]

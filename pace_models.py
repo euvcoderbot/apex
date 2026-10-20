@@ -3,14 +3,32 @@ import math
 import numpy as np
 
 
+def _median(values):
+    """np.median for a 1-D float array without its per-call overhead (same value)."""
+    n = len(values)
+    if n % 2:
+        return float(np.partition(values, n//2)[n//2])
+    part = np.partition(values, (n//2-1, n//2))
+    return float((part[n//2-1]+part[n//2])/2)
+
+
 def robust_fit(matrix, target, floor=.03):
     matrix, target = np.asarray(matrix,float), np.asarray(target,float)
     weights = np.ones(len(target)); previous = None; converged = False
+    # These designs have 2-4 columns. For a full-rank design the weighted
+    # normal equations give the same solution as lstsq at a fraction of the
+    # cost (this loop ran ~23,000 times per race analysis); rank-deficient
+    # designs keep the minimum-norm lstsq solution.
+    full_rank = np.linalg.matrix_rank(matrix) == matrix.shape[1]
     for iteration in range(60):
-        root = np.sqrt(weights)
-        beta = np.linalg.lstsq(matrix*root[:,None],target*root,rcond=1e-10)[0]
+        if full_rank:
+            weighted = matrix*weights[:,None]
+            beta = np.linalg.solve(matrix.T@weighted, weighted.T@target)
+        else:
+            root = np.sqrt(weights)
+            beta = np.linalg.lstsq(matrix*root[:,None],target*root,rcond=1e-10)[0]
         residual = target-matrix@beta
-        scale = max(floor,1.4826*float(np.median(np.abs(residual-np.median(residual)))))
+        scale = max(floor,1.4826*_median(np.abs(residual-_median(residual))))
         weights = np.minimum(1,1.5*scale/np.maximum(np.abs(residual),1e-12))
         if previous is not None and np.max(np.abs(matrix@(beta-previous)))<1e-8:
             converged = True;break

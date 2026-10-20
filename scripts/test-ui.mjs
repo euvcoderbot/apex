@@ -116,7 +116,7 @@ test('corner client consumes cached measurements and explicit retry retains fast
   const source=readFileSync('car-performance.js','utf8'),calls=[],event={name:'Test GP',round:1,Q:{teams:[]}};
   const box={URLSearchParams,AbortController,Map,Number,finite:Number.isFinite,context:{year:2026},events:[event],generation:1,
     activeMetric:'corners',cornerSession:'qualy',telemetrySubject:'team',qualifyingMetricsRunning:false,
-    render(){},updateStatus(){},loadActiveTelemetry(){},firstTelemetryAttempt:()=>true,
+    render(){},scheduleRender(){},updateStatus(){},loadActiveTelemetry(){},firstTelemetryAttempt:()=>true,
     get:async path=>{calls.push(path);const retry=path.includes('refresh=1');return {
       entrants:[{team:'A',driver:'AAA',lap:{lap:5}},{team:'B',driver:'BBB',lap:{lap:5}}],markers:[{corner:'1',band:'low',speed:80}],
       requested:2,received:2,complete:retry,requestErrors:[],
