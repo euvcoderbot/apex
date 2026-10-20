@@ -394,7 +394,8 @@ let cornerSession='qualy',telemetrySubject='team',qualifyingMetricsRunning=false
 const raceCornerModel='matched';
 const straightEntryBasis='settled';
 // 'speed': equal-speed comparison (car_physics.py, default); 'window': established window timing.
-let speedDomainMethod='speed',speedDomainRunning=false,speedDomainController=null;
+// Loading is tracked per subject so switching Teams/Drivers never waits on the other.
+let speedDomainMethod='speed',speedDomainRunning={team:false,driver:false},speedDomainController={team:null,driver:null};
 // Render-local views plus source-reference memoization. A new lap, corner
 // measurement or methodology control invalidates derived summaries.
 let performanceRenderCache=null;
@@ -726,6 +727,7 @@ function stop() {
   traceController?.abort();
   qualifyingMetricsController?.abort();
   raceCornerController?.abort();
+  for(const key of ['team','driver']){speedDomainController[key]?.abort();speedDomainRunning[key]=false;}
   controller?.abort(); pitController?.abort(); generation++; running=false; traceRunning=false; pitRunning=false;
   $('performanceCancel').hidden=true;
   $('performanceLoad').hidden=false;
@@ -747,6 +749,7 @@ async function analyse(refresh=false) {
   if(refreshPerformance)raceCornerCache.clear();
   qualifyingMetricsController?.abort();
   raceCornerController?.abort();
+  for(const key of ['team','driver']){speedDomainController[key]?.abort();speedDomainRunning[key]=false;}
   controller?.abort(); pitController?.abort(); pitRunning=false; controller=new AbortController(); const signal=controller.signal, id=++generation;
   traceRunning=false;qualifyingMetricsRunning=false;raceCornerRunning=false;
   events=[]; errors=[]; running=true;
@@ -808,18 +811,34 @@ function speedDomainActive() {
 }
 // Speed-domain metrics come from the same trace-batch as straight line and
 // braking: the fastest qualifying lap per team (or per driver).
+function driverSelectionsFromQualifying(teams) {
+  const best=new Map();
+  for(const team of teams||[])for(const p of team.phase_details||[]){
+    if(!finite(p.time)||!finite(p.start)||!finite(p.end)||p.lap==null||p.number==null||!p.driver)return null;
+    if(!best.has(p.driver)||p.time<best.get(p.driver).time)best.set(p.driver,{...p,teamName:team.team,color:team.color});
+  }
+  return best.size>=3?[...best.values()]:null;
+}
 async function loadSpeedDomain(automatic=false) {
-  if(speedDomainRunning||!context)return;
+  if(!context||speedDomainRunning[telemetrySubject])return;
   const subject=telemetrySubject,id=generation,year=context.year;
   const jobs=events.filter(e=>e.Q&&!e.speedDomain?.[subject]&&firstTelemetryAttempt(e,'speed-domain:'+subject,automatic));
   if(!jobs.length)return;
-  speedDomainController=new AbortController();const signal=speedDomainController.signal;
-  speedDomainRunning=true;render();
+  speedDomainController[subject]=new AbortController();const signal=speedDomainController[subject].signal;
+  speedDomainRunning[subject]=true;render();
   async function worker(){while(jobs.length&&!signal.aborted){const event=jobs.shift();
     updateStatus(`Speed-domain metrics · ${event.name} · ${subject}…`,true);
     try{
       let windows;
       if(subject==='team')windows=fastestTeamTelemetrySelections(event.Q.teams);
+      else if(driverSelectionsFromQualifying(event.Q.teams)){
+        // Each driver's fastest qualifying lap is already in the qualifying
+        // analysis; loading the whole session again cost ~20 s per GP cold.
+        const picked=driverSelectionsFromQualifying(event.Q.teams);
+        event.qualifyingDrivers ||= picked.map(p=>({team:p.driver,color:p.color,displayName:p.driver,logoTeam:p.teamName,driver:p.driver}));
+        windows=picked.map(p=>({driver:p.driver,number:p.number,lap:p.lap,time:p.time,start:p.start,end:p.end,sectors:p.sectors,phase:p.phase,
+          compound:p.compound,team:p.driver,team_name:p.driver,driver_number:p.number,qualifying_best_time:p.time,qualifying_best_driver:p.driver,qualifying_best_lap:p.lap}));
+      }
       else{
         const base=new URLSearchParams({year,gp:event.name,round:event.round,session:'Q'});
         event.qualifyingSession ||= await get('/api/session?'+base,signal);
@@ -839,7 +858,9 @@ async function loadSpeedDomain(automatic=false) {
     scheduleRender();
   }}
   try{await Promise.all([worker(),worker()]);}
-  finally{if(id===generation){speedDomainRunning=false;updateStatus(signal.aborted?'Speed-domain loading stopped; measured GPs retained.':'Speed-domain metrics updated. Results are cached.');render();}}
+  // A subject or tab switch during this run was refused above; start whatever
+  // the page needs now, or the new view would wait forever.
+  finally{if(id===generation){speedDomainRunning[subject]=false;updateStatus(signal.aborted?'Speed-domain loading stopped; measured GPs retained.':'Speed-domain metrics updated. Results are cached.');render();if(!signal.aborted)loadActiveTelemetry();}}
 }
 function loadActiveTelemetry() {
   if(!context)return;
@@ -2858,8 +2879,10 @@ function speedDomainEventTable(keys) {
 }
 function renderSpeedDomain() {
   const loaded=events.filter(e=>e.speedDomain?.[telemetrySubject]?.cars).length,total=events.filter(e=>e.Q).length;
-  const failures=events.filter(e=>e.speedDomainError||e.speedDomain?.[telemetrySubject]?.error).map(e=>`<div class="performance-error">${escape(e.name)} · ${escape(e.speedDomainError||e.speedDomain[telemetrySubject].error)}</div>`).join('');
-  const status=`<p class="performance-quality-status" role="status">${speedDomainRunning?'Loading fastest qualifying laps… ':''}${loaded} of ${total} GPs measured. Season values weight each GP equally; entrants measured in fewer than half of them stay unranked.</p>`;
+  const failed=events.filter(e=>e.Q&&(e.speedDomainError||e.speedDomain?.[telemetrySubject]?.error));
+  const failures=failed.map(e=>`<div class="performance-error">${escape(e.name)} · ${escape(e.speedDomainError||e.speedDomain[telemetrySubject].error)}</div>`).join('')+
+    (failed.length&&!speedDomainRunning[telemetrySubject]?`<div class="performance-actions"><button type="button" data-speed-retry>Retry ${failed.length} missing GP${failed.length===1?'':'s'}</button></div>`:'');
+  const status=`<p class="performance-quality-status" role="status">${speedDomainRunning[telemetrySubject]?'Loading fastest qualifying laps… ':''}${loaded} of ${total} GPs measured. Season values weight each GP equally; entrants measured in fewer than half of them stay unranked.</p>`;
   if(activeMetric==='corners')return status+failures+card('Cornering · speed-domain',
     `Time lost per lap at grip-limited corners, from each car's own minimum speed and the time it spends near that speed. Corners come from the circuit segment audit: a corner is where the field's speed reaches a minimum after braking or lifting. Flat-out bends and energy-management lifts are excluded because they measure power, not grip. Seconds per lap behind the best ${telemetrySubject==='driver'?'driver':'team'}, comparable with qualifying gaps.`,
     speedDomainChart('corner_low','Low-speed corners','below 120 km/h')+speedDomainChart('corner_medium','Medium-speed corners','120–200 km/h')+speedDomainChart('corner_high','High-speed corners','above 200 km/h; often one corner per circuit, as 2026 cars take most fast bends flat')+speedDomainEventTable(['corner_low','corner_medium','corner_high']));
@@ -3432,7 +3455,9 @@ let renderQueued=false;
 function scheduleRender() {
   if(renderQueued)return;
   renderQueued=true;
-  (typeof requestAnimationFrame==='function'?requestAnimationFrame:setTimeout)(()=>{renderQueued=false;render();});
+  // A timer, not requestAnimationFrame: frames pause in background tabs, which
+  // froze progress until the whole load finished.
+  setTimeout(()=>{renderQueued=false;render();},60);
 }
 function render() {
   const state=capturePerformanceUI(root);
@@ -3646,6 +3671,10 @@ root.addEventListener('click',event=>{
   if(event.target.closest('[data-qualifying-load]')){void loadQualifyingMetrics();return;}
   if(event.target.closest('[data-qualifying-retry]')){void loadQualifyingMetrics(true);return;}
   if(event.target.closest('[data-qualifying-stop]')){qualifyingMetricsController?.abort();return;}
+  if(event.target.closest('[data-speed-retry]')){
+    for(const e of events){if(e.speedDomainError||e.speedDomain?.[telemetrySubject]?.error){delete e.speedDomainError;if(e.speedDomain)delete e.speedDomain[telemetrySubject];}}
+    void loadSpeedDomain(false);return;
+  }
   const methodButton=event.target.closest('[data-speed-method]');
   if(methodButton){speedDomainMethod=methodButton.dataset.speedMethod;render();loadActiveTelemetry();return;}
   const subjectButton=event.target.closest('[data-telemetry-subject]');
