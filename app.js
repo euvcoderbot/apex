@@ -92,7 +92,8 @@ function replaceUI(root, html) {
 }
 
 function canvasFont(size = 12, weight = 400) {
-  return `${weight} ${size}px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable", "Segoe UI", Helvetica, Arial, sans-serif`;
+  // Site-wide type is 2 px larger than the original 12 px baseline; charts follow.
+  return `${weight} ${size + 2}px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable", "Segoe UI", Helvetica, Arial, sans-serif`;
 }
 
 function positionCornerIndicator(root, previous) {

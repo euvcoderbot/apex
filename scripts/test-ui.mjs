@@ -262,7 +262,8 @@ test('one interface font family for canvas and every HTML descendant', () => {
   css.walkDecls('font-family', declaration => fonts.push(declaration.value));
   assert.ok(fonts.length > 0 && fonts.every(font => font === 'var(--font-sans)'));
   assert.ok(!/ctx\.font\s*=\s*['"]/.test(app));
-  assert.match(context().run('canvasFont(12)'), /12px -apple-system/);
+  // Canvas text follows the site-wide +2 px type increase.
+  assert.match(context().run('canvasFont(12)'), /14px -apple-system/);
   const imports = readFileSync('styles.css', 'utf8');
   assert.match(imports, /@layer focus, legacy, interface/);
   assert.match(imports, /apple-ui\.css[^;]+layer\(interface\)/);
