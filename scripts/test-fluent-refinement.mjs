@@ -5,9 +5,14 @@ import vm from 'node:vm';
 const page=readFileSync('index.html','utf8'),css=readFileSync('workspace-ui.css','utf8'),source=readFileSync('car-performance.js','utf8');
 
 test('primary navigation has only section controls and a stable fixed footprint',()=>{
-  const header=page.slice(page.indexOf('<header class="site-header">'),page.indexOf('</header>'));
-  assert.equal((header.match(/<button/g)||[]).length,2);
-  assert.doesNotMatch(header,/themeToggle|explanationsToggle|sidebarToggle/);
+  const header=page.slice(page.indexOf('<header class="site-header window-toolbar">'),page.indexOf('</header>'));
+  const nav=header.slice(header.indexOf('<nav class="performance-tabs"'),header.indexOf('</nav>'));
+  assert.equal((nav.match(/<button/g)||[]).length,2);
+  assert.doesNotMatch(nav,/themeToggle|explanationsToggle|sidebarToggle/);
+  // The unified toolbar carries the sidebar item and the trailing display tools, outside the view segment.
+  assert.match(header,/id="windowSidebarToggle"[^>]+aria-controls="sessionSidebar performanceSidebar"/);
+  assert.match(header,/class="workspace-tools"[\s\S]*id="explanationsToggle"[\s\S]*id="themeToggle"/);
+  assert.doesNotMatch(header,/id="sidebarToggle"/);
   assert.match(page,/class="workspace-tools"/);
   assert.match(page,/rel="icon" href="assets\/euv2-icon-32.png"/);
   assert.equal(readFileSync('assets/euv2-gauge.png').subarray(1,4).toString(),'PNG');

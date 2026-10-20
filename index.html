@@ -3,7 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#07080a">
+  <meta name="theme-color" content="#1e1e20" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f2f2f4" media="(prefers-color-scheme: light)">
+  <meta name="color-scheme" content="light dark">
   <meta name="description" content="Compare Formula 1 lap telemetry, timing deltas, driver inputs and corner performance.">
   <link rel="icon" href="assets/euv2-icon-32.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="assets/euv2-icon-180.png">
@@ -11,7 +13,7 @@
   <link rel="preconnect" href="https://apex-telemetry-api.vercel.app" crossorigin>
   <script>
     try {
-      document.documentElement.dataset.theme = localStorage.getItem('apex-theme') || 'dark';
+      document.documentElement.dataset.theme = localStorage.getItem('apex-theme') || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
     } catch (_) {
       document.documentElement.dataset.theme = 'dark';
     }
@@ -20,44 +22,50 @@
 </head>
 <body>
   <a class="skip-link" href="#top">Skip to analysis</a>
-  <header class="site-header">
-    <a class="brand" href="#top" aria-label="euV2 data home">
-      <picture><source media="(max-width:760px)" srcset="assets/euv2-icon-256.png"><img src="assets/euv2-wordmark.webp" alt="euV2 data" width="414" height="90"></picture>
-    </a>
+  <header class="site-header window-toolbar">
+    <div class="toolbar-leading">
+      <button id="windowSidebarToggle" class="toolbar-sidebar-toggle" type="button" aria-expanded="true" aria-controls="sessionSidebar performanceSidebar" aria-label="Hide sidebar" title="Hide sidebar"><svg class="ui-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M9.5 5v14"/><path d="M5.5 8.5h1.6M5.5 11h1.6M5.5 13.5h1.6" stroke-linecap="round"/></svg></button>
+      <a class="brand" href="#top" aria-label="euV2 data home">
+        <img src="assets/euv2-icon-180.png" alt="euV2 data" width="180" height="180">
+      </a>
+      <div class="window-title" aria-hidden="true"><strong id="windowTitle">Compare laps</strong><span id="windowSubtitle">Session analysis</span></div>
+    </div>
     <div class="header-actions">
       <nav class="performance-tabs" aria-label="Analysis view">
         <button type="button" data-analysis-view="session" aria-pressed="true">Session analysis</button>
         <button type="button" data-analysis-view="performance" aria-pressed="false">Car performance</button>
       </nav>
     </div>
+    <div class="workspace-tools" role="group" aria-label="Display options">
+      <a class="local-compute-link" href="http://127.0.0.1:54123/apex/" title="Open the local dashboard on this PC">Use local compute</a>
+      <button id="explanationsToggle" class="sidebar-toggle" type="button" aria-pressed="false"><i aria-hidden="true"></i><span>Show explanations</span></button>
+      <button id="themeToggle" class="theme-toggle" type="button" aria-pressed="false" aria-label="Switch to light mode"><i aria-hidden="true"></i><span>Light mode</span></button>
+    </div>
   </header>
   <main id="top" tabindex="-1">
       <div class="workspace-intro session-intro">
         <div class="workspace-title"><span class="workspace-eyebrow">SESSION ANALYSIS</span><h1>Compare laps</h1></div>
-  <div class="workspace-tools" role="group" aria-label="Display options">
-    <a class="local-compute-link" href="http://127.0.0.1:54123/apex/" title="Open the local dashboard on this PC">Use local compute</a>
-    <button id="explanationsToggle" class="sidebar-toggle" type="button" aria-pressed="false"><span>Show explanations</span></button>
-    <button id="themeToggle" class="theme-toggle" type="button" aria-pressed="false" aria-label="Switch to light mode"><i aria-hidden="true"></i><span>Light mode</span></button>
-  </div>
       </div>
-      <section class="dashboard-card session-controls" aria-label="Session selection">
-        <div class="panel-heading">
-          <h2>Session</h2>
-        </div>
-        <div class="control-field">
-          <label for="year">Season</label>
-          <div class="select-shell"><select id="year"></select></div>
-        </div>
-        <div class="control-field">
-          <label for="gp">Grand Prix</label>
-          <div class="select-shell"><select id="gp"><option>Loading calendar…</option></select></div>
-        </div>
-        <div class="control-field">
-          <label for="session">Session</label>
-          <div class="select-shell"><select id="session"></select></div>
-        </div>
-        <button id="loadSession">Load session</button>
-      </section>
+      <aside class="app-sidebar" id="sessionSidebar" aria-label="Session and drivers">
+        <section class="dashboard-card session-controls" aria-label="Session selection">
+          <div class="panel-heading">
+            <h2>Session</h2>
+          </div>
+          <div class="control-field">
+            <label for="year">Season</label>
+            <div class="select-shell"><select id="year"></select></div>
+          </div>
+          <div class="control-field">
+            <label for="gp">Grand Prix</label>
+            <div class="select-shell"><select id="gp"><option>Loading calendar…</option></select></div>
+          </div>
+          <div class="control-field">
+            <label for="session">Session</label>
+            <div class="select-shell"><select id="session"></select></div>
+          </div>
+          <button id="loadSession">Load session</button>
+        </section>
+      </aside>
     <div class="analysis-column">
       <section class="dashboard-card lap-workspace" id="lapWorkspace">
         <div class="panel-heading workspace-heading">
@@ -159,6 +167,7 @@
     <div class="workspace-intro performance-intro">
       <div><span class="workspace-eyebrow">CAR PERFORMANCE</span><h1>Compare performance</h1></div>
     </div>
+    <aside class="app-sidebar" id="performanceSidebar" aria-label="Car performance setup and categories">
     <section class="dashboard-card session-controls performance-controls" aria-label="Car performance controls">
       <div class="panel-heading">
         <h2>Car performance</h2>
@@ -195,6 +204,8 @@
       </div>
     </section>
     </section>
+      <nav class="source-list" id="performanceCategoryList" aria-label="Performance categories" hidden></nav>
+    </aside>
     <div class="performance-status-card" id="performanceStatusCard">
       <div class="status-dot"></div>
       <p id="performanceStatus" role="status" aria-live="polite">Choose a track or analyse completed events across the season.</p>

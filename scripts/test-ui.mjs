@@ -310,7 +310,8 @@ test('compact corner choices, grouped laps and motion accessibility are explicit
   const html=readFileSync('index.html','utf8');
   assert.match(html,/aria-label="Selected lap sector times"/);
   assert.match(html,/corner-collapse-region/);
-  assert.ok(html.indexOf('class="dashboard-card session-controls"') < html.indexOf('<aside'));
+  assert.ok(html.indexOf('class="dashboard-card session-controls"') < html.indexOf('<aside class="sidebar"'));
+  assert.ok(html.indexOf('<aside class="app-sidebar" id="sessionSidebar"') < html.indexOf('class="dashboard-card session-controls"'));
 });
 
 test('Grand Prix open rule overrides its GP-specific closed rule', () => {

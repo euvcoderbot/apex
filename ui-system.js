@@ -50,7 +50,7 @@
     if(el.matches('.select-trigger'))return 'popup';
     if(el.matches('[role="option"]'))return 'menu-item';
     if(el.matches('#loadSession,#performanceLoad,[data-ui-primary]'))return 'primary';
-    if(el.matches('.driver-pill'))return 'list-row';
+    if(el.matches('.driver-pill,.source-list-row'))return 'list-row';
     if(el.matches('.run-segment'))return 'run';
     if(el.matches('.lap-chip,.track-pill,.corner-pick,.fastest-lap-pick'))return 'choice';
     if(el.matches('.loaded-lap-main'))return 'reference';
@@ -61,7 +61,7 @@
     if(el.matches('[data-zoom],[data-pan],[data-delta-zoom]'))return 'stepper';
     if(el.matches('.remove,[data-remove]'))return 'icon';
     if(el.closest(groups))return 'segment';
-    if(el.closest('.workspace-tools')||el.matches('#sidebarToggle'))return 'toolbar';
+    if(el.closest('.workspace-tools')||el.matches('#sidebarToggle,#windowSidebarToggle'))return 'toolbar';
     return 'push';
   }
   function set(el,key,value){if(el.getAttribute(key)!==value)el.setAttribute(key,value);}

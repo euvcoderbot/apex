@@ -1,6 +1,5 @@
 /* Presentation only: never changes observations, scores, ordering or eligibility. */
 (() => {
-  const workspaceTools = document.querySelector('.workspace-tools');
   if(window.APEX_LOCAL_MODE){
     const localLink=document.querySelector('.local-compute-link');
     if(localLink){const status=document.createElement('span');status.className='local-compute-status';status.textContent='Local compute · disk cache';status.title='Parsing and calculations run on this PC. Vercel is not used.';localLink.replaceWith(status);}
@@ -16,19 +15,97 @@
     results: ['08', 'Reliability & results', 'Race outcomes, finishes & retirement causes']
   };
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  // The driver rail uses real spare desktop width, never a fixed-height scroller.
-  // Move the same node back into the chooser on compact windows; state survives.
-  const driverRail=window.matchMedia('(min-width:1440px)');
+  // macOS window layout: a source-list sidebar beside the content whenever the
+  // window is wide enough. The same driver node moves between the sidebar and
+  // the lap chooser, so selection state and listeners survive.
+  const driverRail=window.matchMedia('(min-width:980px)');
   function arrangeDriverRail(){
-    const column=document.querySelector('.analysis-column'),body=document.querySelector('#lapSelectionBody'),sidebar=document.querySelector('#driverSidebar');
+    const column=document.querySelector('#sessionSidebar'),body=document.querySelector('#lapSelectionBody'),sidebar=document.querySelector('#driverSidebar');
     if(!column||!body||!sidebar)return;
     const wide=driverRail.matches,host=wide?column:body;
-    if(sidebar.parentElement!==host)host.prepend(sidebar);
-    column.classList.toggle('has-driver-rail',wide);
+    if(sidebar.parentElement!==host)wide?host.append(sidebar):host.prepend(sidebar);
+    document.querySelector('.analysis-column')?.classList.toggle('has-driver-rail',wide);
     const chooser=document.querySelector('#lapWorkspaceToggle'),toggle=document.querySelector('#sidebarToggle');
     if(toggle)toggle.hidden=!wide&&chooser?.getAttribute('aria-expanded')==='false';
   }
   arrangeDriverRail();driverRail.addEventListener('change',arrangeDriverRail);
+  // Window toolbar: hide/show the sidebar, mirroring the split-view sidebar item.
+  const sidebarButton=document.querySelector('#windowSidebarToggle');
+  function setSidebarVisible(visible,persist=true){
+    document.body?.classList.toggle('is-sidebar-hidden',!visible);
+    for(const aside of document.querySelectorAll('.app-sidebar'))aside.inert=!visible;
+    if(sidebarButton){sidebarButton.setAttribute('aria-expanded',String(visible));const label=visible?'Hide sidebar':'Show sidebar';sidebarButton.setAttribute('aria-label',label);sidebarButton.title=label;}
+    if(persist)window.ApexAnalysis?.savePreference?.('hideSidebar',!visible);
+    if(typeof window.dispatchEvent==='function')window.dispatchEvent(new Event('resize'));
+  }
+  setSidebarVisible(window.ApexAnalysis?.preference?.('hideSidebar',false)!==true,false);
+  sidebarButton?.addEventListener('click',()=>setSidebarVisible(document.body.classList.contains('is-sidebar-hidden')));
+  // Appearance follows the system until the person chooses one explicitly.
+  window.matchMedia('(prefers-color-scheme: light)').addEventListener?.('change',event=>{
+    let stored=null;try{stored=localStorage.getItem('apex-theme');}catch(_){return;}
+    if(stored)return;
+    const isLight=document.documentElement.dataset.theme==='light';
+    if(event.matches!==isLight){document.querySelector('#themeToggle')?.click();try{localStorage.removeItem('apex-theme');}catch(_){}}
+  });
+  // Sidebar categories mirror the in-panel tablist; activation is delegated to
+  // the original control so car-performance.js keeps sole ownership of state.
+  const categoryIcons={
+    pace:'<circle cx="12" cy="13.5" r="7"/><path d="M12 13.5V9.5M10 3.5h4M18.2 7.3l1.3-1.3"/>',
+    corners:'<path d="M5 20v-6a8 8 0 0 1 8-8h6"/><path d="m16 3 3 3-3 3"/>',
+    straight:'<path d="M4 12h15"/><path d="m14 7 5 5-5 5"/><path d="M4 7h4M4 17h4"/>',
+    braking:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 4v2M12 18v2M4 12h2M18 12h2"/>',
+    pits:'<path d="M14.5 6.5a4 4 0 0 0-5.3 5.3L4 17l3 3 5.2-5.2a4 4 0 0 0 5.3-5.3l-2.6 2.6-2.4-.6-.6-2.4z"/>',
+    tyres:'<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 3.5v4M12 16.5v4M3.5 12h4M16.5 12h4"/>',
+    trend:'<path d="M4 19h16"/><path d="m5 15 4.5-4.5 3 3L19 7"/><path d="M15 7h4v4"/>',
+    results:'<path d="M6 21V4"/><path d="M6 4h11l-2 4 2 4H6"/>'
+  };
+  const categoryList=document.querySelector('#performanceCategoryList'),performanceRoot=document.querySelector('#performanceResults');
+  function syncCategoryList(){
+    if(!categoryList||!performanceRoot)return;
+    const tabs=[...performanceRoot.querySelectorAll('.performance-mode [data-performance-metric]')];
+    categoryList.hidden=!tabs.length;
+    if(!tabs.length)return;
+    const signature=tabs.map(tab=>tab.dataset.performanceMetric+(tab.disabled?'!':'')).join(',');
+    if(categoryList.dataset.signature!==signature){
+      categoryList.dataset.signature=signature;
+      const heading=document.createElement('h2');heading.className='source-list-heading';heading.textContent='Categories';
+      const rows=tabs.map(tab=>{
+        const key=tab.dataset.performanceMetric,[,title,description]=metrics[key]||['',tab.textContent.trim(),''];
+        const row=document.createElement('button');row.type='button';row.className='source-list-row';row.dataset.sidebarMetric=key;row.title=description;row.disabled=tab.disabled;
+        row.insertAdjacentHTML('afterbegin',`<svg class="ui-symbol source-list-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${categoryIcons[key]||''}</svg>`);
+        const label=document.createElement('span');label.textContent=title;row.append(label);
+        return row;
+      });
+      categoryList.replaceChildren(heading,...rows);
+    }
+    const active=tabs.find(tab=>tab.getAttribute('aria-selected')==='true')?.dataset.performanceMetric;
+    for(const row of categoryList.querySelectorAll('[data-sidebar-metric]')){
+      if(row.dataset.sidebarMetric===active)row.setAttribute('aria-current','page');else row.removeAttribute('aria-current');
+    }
+  }
+  categoryList?.addEventListener('click',event=>{
+    const row=event.target.closest('[data-sidebar-metric]');if(!row||row.disabled)return;
+    performanceRoot?.querySelector(`.performance-mode [data-performance-metric="${CSS.escape(row.dataset.sidebarMetric)}"]`)?.click();
+    syncCategoryList();
+    if(!driverRail.matches)document.querySelector('#performanceMetricPanel')?.scrollIntoView({block:'start'});
+  });
+  categoryList?.addEventListener('keydown',event=>{
+    if(!['ArrowUp','ArrowDown','Home','End'].includes(event.key))return;
+    const rows=[...categoryList.querySelectorAll('[data-sidebar-metric]:not(:disabled)')],index=rows.indexOf(document.activeElement);
+    if(index<0)return;event.preventDefault();
+    const next=event.key==='Home'?rows[0]:event.key==='End'?rows.at(-1):rows[Math.max(0,Math.min(rows.length-1,index+(event.key==='ArrowDown'?1:-1)))];
+    next?.focus();
+  });
+  if(performanceRoot&&typeof MutationObserver!=='undefined')new MutationObserver(syncCategoryList).observe(performanceRoot,{childList:true});
+  const viewTitles={session:['Compare laps','Session analysis'],performance:['Compare performance','Car performance']};
+  function setWindowTitle(view){
+    const [title,subtitle]=viewTitles[view]||viewTitles.session;
+    const titleEl=document.querySelector('#windowTitle'),subtitleEl=document.querySelector('#windowSubtitle');
+    if(titleEl)titleEl.textContent=title;
+    if(subtitleEl)subtitleEl.textContent=subtitle;
+    if(document.body)document.body.dataset.view=view;
+  }
+  setWindowTitle('session');
   function metricHeading(metric, context = {}) {
     const [number, title, description] = metrics[metric] || ['', 'Performance', ''];
     const subject = ['corners','straight','braking'].includes(metric) ? `${context.subject === 'driver' ? 'Drivers' : 'Teams'}${metric === 'corners' ? ` · ${context.session === 'race' ? 'Race' : 'Qualifying'}` : ''}` : 'Selected events';
@@ -101,6 +178,16 @@
         if(!slot.childElementCount)slot.setAttribute('aria-hidden','true');
       }
     }
+    // Many unavailable sessions read as one grouped notice, not a wall of alerts.
+    const errors=panel?[...panel.querySelectorAll(':scope > .performance-error')]:[];
+    if(errors.length>2){
+      const group=document.createElement('details');group.className='performance-error-group';
+      const title=document.createElement('summary'),dot=document.createElement('span'),text=document.createElement('span');dot.className='error-dot';dot.setAttribute('aria-hidden','true');text.textContent=`${errors.length} sessions are incomplete or unavailable`;title.append(dot,text);
+      const list=document.createElement('ul');list.className='performance-error-list';
+      errors[0].before(group);group.append(title,list);
+      for(const error of errors){const item=document.createElement('li');item.textContent=error.textContent.trim();list.append(item);error.remove();}
+    }
+    syncCategoryList();
     for(const note of root.querySelectorAll('p.performance-quality-status:not(.explanation-only)')){
       if(note.closest('details,.performance-tyre-toolbar')||note.querySelector('button')||note.getAttribute('role')==='status')continue;
       const parent=note.parentElement;
@@ -110,7 +197,7 @@
     }
   }
   document.querySelectorAll('[data-analysis-view]').forEach(button => button.addEventListener('click', () => {
-    document.querySelector(button.dataset.analysisView === 'performance' ? '.performance-intro' : '.session-intro')?.append(workspaceTools);
+    setWindowTitle(button.dataset.analysisView);
     document.querySelector('.skip-link')?.setAttribute('href', button.dataset.analysisView === 'performance' ? '#carPerformance' : '#top');
   }));
   window.ApexPresentation = Object.freeze({ metricHeading, arrangePerformance });

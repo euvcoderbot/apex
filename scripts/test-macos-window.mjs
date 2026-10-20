@@ -1,0 +1,68 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+import postcss from 'postcss';
+const read=f=>readFileSync(f,'utf8');
+const page=read('index.html'),css=read('macos-window.css'),ui=read('dashboard-ui.js'),system=read('ui-system.js'),tokens=read('ui-controls.css');
+
+test('window uses a unified toolbar and a source-list sidebar for both views',()=>{
+  const header=page.slice(page.indexOf('<header class="site-header window-toolbar">'),page.indexOf('</header>'));
+  assert.match(header,/class="toolbar-leading"[\s\S]*id="windowSidebarToggle"[\s\S]*class="window-title"/);
+  assert.match(header,/<nav class="performance-tabs"/);
+  assert.match(page,/<aside class="app-sidebar" id="sessionSidebar"[^>]*>\s*<section class="dashboard-card session-controls"/);
+  assert.match(page,/<aside class="app-sidebar" id="performanceSidebar"[\s\S]*class="dashboard-card session-controls performance-controls"[\s\S]*id="performanceCategoryList"[^>]*hidden/);
+  assert.match(system,/\.source-list-row'\)\)return 'list-row'/);assert.match(system,/#windowSidebarToggle'\)\)return 'toolbar'/);
+});
+
+test('appearance follows the system until the person picks one',()=>{
+  assert.match(page,/localStorage\.getItem\('apex-theme'\) \|\| \(matchMedia\('\(prefers-color-scheme: light\)'\)\.matches \? 'light' : 'dark'\)/);
+  assert.match(page,/name="color-scheme" content="light dark"/);
+  assert.match(ui,/prefers-color-scheme: light[\s\S]*if\(stored\)return/);
+});
+
+test('sidebar categories mirror the original tablist and delegate activation to it',()=>{
+  assert.match(ui,/\.performance-mode \[data-performance-metric\]/);
+  assert.match(ui,/\.performance-mode \[data-performance-metric="\$\{CSS\.escape\(row\.dataset\.sidebarMetric\)\}"\]`\)\?\.click\(\)/);
+  assert.match(ui,/setAttribute\('aria-current','page'\)/);
+  assert.match(ui,/ArrowUp','ArrowDown','Home','End'/);
+  assert.doesNotMatch(ui,/\.innerHTML\s*=/);
+  // The original tab strip stays the state owner; only its presentation is hidden on wide windows.
+  assert.match(css,/@media\(min-width:980px\) \{ #performanceResults > \.performance-toolbar > \.performance-mode \{ display: none; \} \}/);
+});
+
+test('sidebar toggle and source list behave in a minimal DOM',()=>{
+  const listeners={},classes=new Set(),attrs={};
+  const button={setAttribute:(k,v)=>attrs[k]=v,addEventListener:(type,fn)=>listeners[type]=fn,title:''};
+  const asides=[{inert:false},{inert:false}];
+  const body={classList:{toggle:(name,on)=>on?classes.add(name):classes.delete(name),contains:name=>classes.has(name)},dataset:{}};
+  const prefs={};
+  const box={Event:class{constructor(type){this.type=type;}},window:{matchMedia:()=>({matches:true,addEventListener(){}}),dispatchEvent(){},ApexAnalysis:{preference:(k,d)=>k in prefs?prefs[k]:d,savePreference:(k,v)=>prefs[k]=v}},
+    document:{body,querySelector:s=>s==='#windowSidebarToggle'?button:null,querySelectorAll:s=>s==='.app-sidebar'?asides:[]}};
+  vm.createContext(box);vm.runInContext(ui,box);
+  assert.equal(attrs['aria-expanded'],'true');assert.equal(classes.has('is-sidebar-hidden'),false);
+  listeners.click();
+  assert.equal(classes.has('is-sidebar-hidden'),true);assert.equal(attrs['aria-expanded'],'false');assert.equal(attrs['aria-label'],'Show sidebar');
+  assert.ok(asides.every(aside=>aside.inert));assert.equal(prefs.hideSidebar,true);
+  listeners.click();
+  assert.equal(classes.has('is-sidebar-hidden'),false);assert.ok(asides.every(aside=>!aside.inert));
+});
+
+test('window layer is parsed, final, and keeps accessibility fallbacks',()=>{
+  postcss.parse(css);
+  for(const query of ['prefers-reduced-transparency','prefers-contrast:more','prefers-reduced-motion','forced-colors','pointer:coarse','max-width:979px','max-width:700px'])assert.ok(css.includes(query),query);
+  assert.match(css,/\.app-sidebar \{[^}]*grid-row: 1 \/ -1/);
+  assert.match(css,/body\.is-sidebar-hidden > :is\(main#top,#carPerformance\) \{ grid-template-columns: 0 minmax\(0,1fr\); \}/);
+  assert.match(css,/\.select-trigger i \{[^}]*m1\.5 4\.8 3-3 3 3m-6 3\.4 3 3 3-3/,'pop-up buttons carry paired chevrons');
+  assert.doesNotMatch(css,/#performanceMetricPanel[^{]*\{[^}]*animation/,'re-rendered panels must not re-animate on every progress update');
+});
+
+test('sidebar text and accent links stay legible on the sidebar material in both appearances',()=>{
+  const root=postcss.parse(tokens),palettes=[];
+  root.walkRules(rule=>{if([':root',':root[data-theme="light"]'].includes(rule.selector)&&rule.parent.type==='root'){const values={};rule.walkDecls(d=>values[d.prop]=d.value);palettes.push(values);}});
+  const luminance=hex=>{const n=hex.replace('#','');return [0,2,4].map(i=>parseInt(n.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((s,v,i)=>s+v*[.2126,.7152,.0722][i],0);};
+  const ratio=(a,b)=>{const x=luminance(a),y=luminance(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
+  const dark=palettes[0],light={...dark,...palettes[1]};
+  for(const palette of [dark,light])for(const text of ['--ui-label','--ui-secondary','--ui-tertiary','--ui-accent'])
+    for(const surface of ['--ui-sidebar','--ui-panel','--ui-canvas'])assert.ok(ratio(palette[text],palette[surface])>=4.5,`${text} on ${surface}`);
+});

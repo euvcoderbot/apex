@@ -1,21 +1,29 @@
 /* Authoritative macOS web component contract. Loaded in the final normal layer.
    Native OS fonts, system pickers and optical Liquid Glass remain platform-owned. */
 :root {
-  --ui-font: -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;
-  --ui-label: #f5f5f7; --ui-secondary: #c2c2c8; --ui-tertiary: #a5a5ae;
-  --ui-canvas: #1e1e20; --ui-panel: #252527; --ui-well: #1b1b1d;
-  --ui-control: #3b3b3e; --ui-control-hover: #48484c; --ui-selected: #55555b;
-  --ui-border: #ffffff20; --ui-border-strong: #ffffff38;
-  --ui-accent: #6bb4ff; --ui-action: #006bd6; --ui-focus: #52a4ff9c;
-  --ui-positive: #72df9a; --ui-negative: #ff9993; --ui-warning: #f5d480;
-  --ui-radius: 6px; --ui-panel-radius: 10px; --ui-menu-radius: 9px;
-  --ui-shadow-control: 0 1px 2px #0004,inset 0 1px #ffffff10;
-  --ui-shadow-popover: 0 8px 32px #0006,0 0 0 1px #0003;
-  --ui-motion: 130ms; --ui-ease: cubic-bezier(.2,.8,.2,1);
-  --ui-control-height: 30px; --ui-segment-height: auto; --ui-control-font: 12px;
-  --ui-text: 12px; --ui-caption: 11px; --ui-heading: 14px; --ui-metric: 16px; --ui-page-title: 22px;
+  --ui-font: -apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro","Segoe UI Variable Text","Segoe UI",system-ui,"Helvetica Neue",Arial,sans-serif;
+  --ui-font-display: -apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro","Segoe UI Variable Display","Segoe UI",system-ui,"Helvetica Neue",Arial,sans-serif;
+  --ui-font-mono: ui-monospace,"SF Mono",SFMono-Regular,Menlo,"Cascadia Mono",Consolas,monospace;
+  /* Semantic colours modelled on AppKit's dynamic system colours (dark). */
+  --ui-label: #f2f2f4; --ui-secondary: #b9b9bf; --ui-tertiary: #9a9aa2; --ui-quaternary: #6c6c73;
+  --ui-canvas: #1e1e20; --ui-panel: #262628; --ui-well: #202022; --ui-content: #1e1e20;
+  --ui-sidebar: #2b2b2e; --ui-toolbar: #2a2a2d; --ui-header-row: #29292b;
+  --ui-control: #3a3a3d; --ui-control-hover: #444447; --ui-selected: #545458;
+  --ui-seg-track: #ffffff12; --ui-seg-thumb: #636367;
+  --ui-border: #ffffff1a; --ui-border-strong: #ffffff30; --ui-separator: #ffffff14;
+  --ui-row-alt: #ffffff06; --ui-row-hover: #ffffff0d;
+  --ui-accent: #4aa3ff; --ui-action: #0a6cdb; --ui-focus: #3d93ffa6;
+  --ui-selection: #0a5bc2; --ui-selection-muted: #ffffff17;
+  --ui-positive: #5fd38b; --ui-negative: #ff8a82; --ui-warning: #f2c94c;
+  --ui-radius: 6px; --ui-panel-radius: 10px; --ui-menu-radius: 8px;
+  --ui-shadow-control: 0 .5px 1px #0006,inset 0 .5px #ffffff1c;
+  --ui-shadow-popover: 0 10px 34px #0000007a,0 0 0 .5px #00000080,inset 0 .5px #ffffff26;
+  --ui-shadow-window: 0 1px 0 #ffffff0d inset;
+  --ui-motion: 140ms; --ui-motion-slow: 240ms; --ui-ease: cubic-bezier(.25,.1,.25,1); --ui-spring: cubic-bezier(.2,.9,.25,1.05);
+  --ui-control-height: 26px; --ui-segment-height: auto; --ui-control-font: 12px;
+  --ui-text: 12px; --ui-caption: 11px; --ui-heading: 13px; --ui-metric: 17px; --ui-page-title: 20px;
   --ui-space-1: 4px; --ui-space-2: 8px; --ui-space-3: 12px; --ui-space-4: 16px;
-  --ui-row-height: 34px;
+  --ui-row-height: 26px; --ui-toolbar-height: 52px; --ui-sidebar-width: 256px;
   --font-sans: var(--ui-font); --font-mono: var(--ui-font);
   --bg-main: var(--ui-canvas); --bg-card: var(--ui-panel); --bg-input: var(--ui-control);
   --surface-muted: var(--ui-well); --surface-selected: var(--ui-selected); --bg-card-hover: var(--ui-control-hover);
@@ -28,13 +36,19 @@
   color-scheme: dark;
 }
 :root[data-theme="light"] {
-  --ui-label: #1d1d1f; --ui-secondary: #505057; --ui-tertiary: #62626b;
-  --ui-canvas: #ededf0; --ui-panel: #fafafa; --ui-well: #f1f1f3;
-  --ui-control: #fff; --ui-control-hover: #f5f5f7; --ui-selected: #e0e0e5;
-  --ui-border: #0000001b; --ui-border-strong: #00000030;
-  --ui-accent: #0064c8; --ui-positive: #16723d; --ui-negative: #b52c27; --ui-warning: #775b00;
-  --ui-shadow-control: 0 1px 2px #0002,inset 0 1px #fff;
-  --ui-shadow-popover: 0 8px 32px #0003,0 0 0 1px #00000012;
+  --ui-label: #1d1d1f; --ui-secondary: #4f4f55; --ui-tertiary: #66666d; --ui-quaternary: #a1a1a8;
+  --ui-canvas: #f3f3f5; --ui-panel: #ffffff; --ui-well: #f7f7f9; --ui-content: #ffffff;
+  --ui-sidebar: #e9e9ed; --ui-toolbar: #f6f6f8; --ui-header-row: #fafafb;
+  --ui-control: #ffffff; --ui-control-hover: #f6f6f8; --ui-selected: #e3e3e8;
+  --ui-seg-track: #00000010; --ui-seg-thumb: #ffffff;
+  --ui-border: #0000001a; --ui-border-strong: #0000002e; --ui-separator: #00000012;
+  --ui-row-alt: #00000005; --ui-row-hover: #0000000a;
+  --ui-accent: #0062cc; --ui-focus: #2a7fff8c;
+  --ui-selection: #0a6cdb; --ui-selection-muted: #0000000f;
+  --ui-positive: #16743c; --ui-negative: #c0362f; --ui-warning: #7a5900;
+  --ui-shadow-control: 0 .5px 1.5px #00000033,0 0 0 .5px #0000001f;
+  --ui-shadow-popover: 0 10px 34px #00000029,0 0 0 .5px #0000002e;
+  --ui-shadow-window: 0 1px 0 #ffffff inset;
   color-scheme: light;
 }
 /* Type and hierarchy */
