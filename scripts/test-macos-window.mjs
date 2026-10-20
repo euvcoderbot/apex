@@ -69,6 +69,15 @@ test('review fixes: larger sidebar, paired lap cards, single trace toolbar and q
   assert.match(css,/\.source-list-row span \{[^}]*line-height: 1\.35/,'descenders must not clip');
 });
 
+test('fit pass: toolbar labels, lap lists and range choices never clip or overflow',()=>{
+  assert.match(css,/\.trace-tools button\.trace-reset\[data-ui-kind="stepper"\][^{]*\{ width: auto; min-width: max-content;/,'Reset must not be squeezed into a 24px stepper');
+  assert.match(css,/#lapWorkspace \.run-toolbar \{ display: flex; flex-wrap: wrap;/);
+  assert.match(css,/\.lap-workspace \.lap-grid \{ max-height: none; overflow: visible; \}/);
+  assert.match(css,/\.lap-grid:has\(> \.lap-chip:nth-child\(25\)\) \{ max-height: 440px; overflow-y: auto; \}/);
+  assert.match(css,/\.performance-range-options\[data-ui-group="segments"\] \{ display: grid; grid-template-columns: repeat\(auto-fill,minmax\(56px,1fr\)\)/);
+  assert.match(css,/@media\(min-width:1001px\) and \(max-width:1280px\)/);
+});
+
 test('sidebar text and accent links stay legible on the sidebar material in both appearances',()=>{
   const root=postcss.parse(tokens),palettes=[];
   root.walkRules(rule=>{if([':root',':root[data-theme="light"]'].includes(rule.selector)&&rule.parent.type==='root'){const values={};rule.walkDecls(d=>values[d.prop]=d.value);palettes.push(values);}});

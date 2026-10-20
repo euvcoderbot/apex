@@ -235,7 +235,7 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .chart-heading .trace-zoom-cluster .trace-tools button[data-ui-kind="stepper"] { width: 24px; min-width: 24px; height: 22px; min-height: 22px; padding: 0; border-radius: 4px; color: var(--ui-label); }
 .chart-heading .trace-zoom-cluster .trace-tools button[data-ui-kind="stepper"]:hover:not(:disabled) { background: var(--ui-row-hover); }
 .chart-heading .trace-zoom-cluster .trace-tools button:disabled { color: var(--ui-quaternary); opacity: 1; }
-.chart-heading .trace-zoom-cluster .trace-tools .trace-reset { width: auto; min-width: 0; padding: 0 7px; font-size: 14px; }
+.chart-heading .trace-zoom-cluster .trace-tools button.trace-reset[data-ui-kind="stepper"],.chart-heading .trace-zoom-cluster .trace-tools .trace-reset { width: auto; min-width: max-content; padding: 0 8px; font-size: var(--ui-control-font); }
 .chart-heading .trace-zoom-cluster .ui-symbol { width: 14px; height: 14px; }
 .chart-heading .trace-tool-separator { height: 14px; margin: 0 2px; }
 .chart-heading .trace-focus-button,.chart-heading .trace-focus-button[data-ui-kind="push"] { height: var(--ui-control-height); min-height: var(--ui-control-height); padding: 0 10px; font-size: 14px; }
@@ -290,6 +290,18 @@ body.trace-focus .chart-heading .trace-focus-button:not(.trace-focus-close) { di
 :is(.trace-setting,.trace-driver-chip) input:checked::after,:is(.trace-setting,.trace-driver-chip) input::before { content: none; display: none; }
 :is(.trace-setting,.trace-driver-chip) input:focus-visible { outline: 3px solid var(--ui-focus); outline-offset: 1px; }
 .trace-pill-group .trace-driver-chip { padding-inline: 8px 6px; }
+/* Fit pass: nothing overflows its container; rows wrap instead of clipping. */
+#lapWorkspace .workspace-heading { flex-wrap: wrap; row-gap: 6px; }
+#lapWorkspace .workspace-heading-actions { display: flex; justify-content: flex-end; flex: 1 1 auto; min-width: 0; }
+#lapWorkspace .run-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 10px; min-width: 0; max-width: 100%; }
+#lapWorkspace .run-toolbar > * { flex: 0 0 auto; }
+.performance-range-options[data-ui-group="segments"] { display: grid; grid-template-columns: repeat(auto-fill,minmax(56px,1fr)); width: 100%; max-width: 100%; box-sizing: border-box; }
+.performance-range-options[data-ui-group="segments"] > button[data-ui-kind="segment"] { min-width: 0; padding-inline: 4px; }
+.performance-chart-controls { min-width: 0; max-width: 100%; }
+/* Lap tiles: show the whole list; only very long race lists keep a scroll area. */
+.lap-workspace .lap-grid { max-height: none; overflow: visible; }
+.lap-workspace .lap-grid:has(> .lap-chip:nth-child(25)) { max-height: 440px; overflow-y: auto; }
+.lap-workspace .driver-run-card { overflow: visible; }
 /* ---------- Car performance content ---------- */
 #carPerformance > .performance-status-card { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 20px; border: 0; border-bottom: 1px solid var(--ui-separator); border-radius: 0; background: transparent; box-shadow: none; color: var(--ui-secondary); font-size: 14px; }
 #carPerformance > .performance-status-card p { margin: 0; color: inherit; font-size: 14px; }
@@ -454,6 +466,11 @@ body.performance-view > #carPerformance:not([hidden]),body:not(.performance-view
 
 /* ---------- Responsive: compact windows stack the sidebar ---------- */
 @media(max-width:1180px) { .window-title { display: none; } }
+@media(min-width:1001px) and (max-width:1280px) {
+  /* With the sidebar open, three charts per row get too narrow; use two. */
+  .performance-visual-grid:has(> .performance-visual-cell:nth-child(3)) { grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: none; row-gap: 12px; }
+  .performance-visual-grid:has(> .performance-visual-cell:nth-child(3)) .performance-chart-card { display: flex; flex-direction: column; grid-row: auto; }
+}
 @media(max-width:1100px) {
   .workspace-tools button > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .workspace-tools button[data-ui-kind="toolbar"] { width: 30px; min-width: 30px; padding: 0; }
