@@ -28,7 +28,7 @@ a { color: var(--ui-accent); }
 .toolbar-leading { display: flex; align-items: center; gap: 10px; min-width: 0; justify-self: start; }
 .site-header .brand { display: inline-flex; align-items: center; flex: 0 0 auto; width: auto; min-width: 0; height: 28px; margin: 0; padding: 0 2px; border: 0; border-radius: 6px; background: none; box-shadow: none; }
 /* Text wordmark: "F1 Apex data" in the display face, no image. */
-.site-header .brand.brand-wordmark { display: inline-flex; align-items: baseline; gap: 5px; padding: 0 4px; color: var(--ui-label); text-decoration: none; font-family: var(--ui-font-display); font-size: 18px; line-height: 1; letter-spacing: -.02em; white-space: nowrap; }
+.site-header .brand.brand-wordmark { display: inline-flex; align-items: center; height: 30px; padding-top: 1px; gap: 5px; padding: 0 4px; color: var(--ui-label); text-decoration: none; font-family: var(--ui-font-display); font-size: 18px; line-height: 1; letter-spacing: -.02em; white-space: nowrap; }
 .brand-wordmark .brand-f1 { font-weight: 800; font-style: italic; letter-spacing: -.04em; color: var(--ui-accent); }
 .brand-wordmark .brand-apex { font-weight: 700; }
 .brand-wordmark .brand-data { font-weight: 400; color: var(--ui-tertiary); }
@@ -199,7 +199,7 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .telemetry-card { padding: 12px 14px; }
 .telemetry-card .analysis-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .comparison-tray { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; padding: 6px 8px; border: 0; border-radius: 8px; background: var(--ui-well); box-shadow: inset 0 0 0 1px var(--ui-separator); }
-.comparison-tray-heading { display: flex; align-items: baseline; gap: 6px; font-size: 13px; font-weight: 600; color: var(--ui-tertiary); }
+.comparison-tray-heading { flex: 0 0 auto; width: auto; min-width: 0; justify-content: flex-start; display: flex; align-items: baseline; gap: 6px; font-size: 13px; font-weight: 600; color: var(--ui-tertiary); }
 .telemetry-empty { display: grid; place-content: center; justify-items: center; gap: 6px; min-height: 280px; padding: 32px 16px; border: 0; border-radius: 8px; background: var(--ui-well); text-align: center; }
 .telemetry-empty::before { content: ''; width: 34px; height: 34px; margin-bottom: 4px; background: var(--ui-quaternary); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 18.5 8 12l4 3 4.5-7L21 12' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M3 21h18' stroke='black' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 18.5 8 12l4 3 4.5-7L21 12' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M3 21h18' stroke='black' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; }
 .telemetry-empty span { font-size: 13px; font-weight: 500; color: var(--ui-tertiary); letter-spacing: 0; text-transform: none; }
@@ -212,6 +212,13 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .dominance-map-header h2 { font: 600 14px/1.3 var(--ui-font); }
 .dominance-map-header h2 small { color: var(--ui-tertiary); font-weight: 500; letter-spacing: 0; text-transform: none; }
 
+/* Sector status colours sampled from F1 broadcast timing graphics (user-supplied
+   screenshots): each bar is a light upper half over a darker lower half. */
+:root { --f1-purple: #b353c7; --f1-purple-light: #c572db; --f1-green: #49ba4c; --f1-green-light: #7ee582; --f1-yellow: #d5b70b; --f1-yellow-light: #ffea54; }
+.sector-cell.is-session-best { --sector-status: var(--f1-purple); --sector-status-light: var(--f1-purple-light); }
+.sector-cell.is-personal-best { --sector-status: var(--f1-green); --sector-status-light: var(--f1-green-light); }
+.sector-cell.is-complete { --sector-status: var(--f1-yellow); --sector-status-light: var(--f1-yellow-light); }
+.sector-cards .lap-summary-card .sector-cell::after,.summary-sectors > .sector-cell::after { height: 4px; border-radius: 1px; background: linear-gradient(var(--sector-status-light,var(--sector-status)) 50%,var(--sector-status) 50%); box-shadow: none; }
 /* Lap summaries: half-width cards so two laps share a row on wide windows. */
 .sector-cards { display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%,440px),1fr)); gap: 10px; }
 .sector-cards .lap-summary-card { grid-template-columns: minmax(0,1fr); gap: 6px; padding: 9px 12px; }
@@ -221,7 +228,7 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 /* Trace toolbar: one connected group plus regular-size push buttons. */
 .chart-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .chart-heading > h2 { margin-right: auto; }
-.chart-heading .trace-zoom-cluster { display: inline-flex; align-items: center; height: 26px; min-height: 26px; padding: 0 2px 0 0; border: 0; border-radius: 6px; background: var(--ui-control); box-shadow: var(--ui-shadow-control); backdrop-filter: none; }
+.chart-heading .trace-zoom-cluster { display: inline-flex; align-items: center; height: var(--ui-control-height); min-height: var(--ui-control-height); padding: 0 2px 0 0; border: 0; border-radius: 6px; background: var(--ui-control); box-shadow: var(--ui-shadow-control); backdrop-filter: none; }
 .chart-heading .trace-zoom-readout { display: inline-flex; align-items: center; gap: 4px; min-width: 0; height: 100%; padding: 0 9px; border-right: 1px solid var(--ui-separator); font-size: 14px; color: var(--ui-secondary); }
 .chart-heading .trace-zoom-readout b { color: var(--ui-label); font-weight: 500; }
 .chart-heading .trace-zoom-cluster .trace-tools { display: inline-flex; align-items: center; gap: 0; padding: 0 0 0 2px; border: 0; background: none; }
@@ -231,7 +238,7 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .chart-heading .trace-zoom-cluster .trace-tools .trace-reset { width: auto; min-width: 0; padding: 0 7px; font-size: 14px; }
 .chart-heading .trace-zoom-cluster .ui-symbol { width: 14px; height: 14px; }
 .chart-heading .trace-tool-separator { height: 14px; margin: 0 2px; }
-.chart-heading .trace-focus-button[data-ui-kind="push"] { height: 26px; min-height: 26px; padding: 0 10px; font-size: 14px; }
+.chart-heading .trace-focus-button,.chart-heading .trace-focus-button[data-ui-kind="push"] { height: var(--ui-control-height); min-height: var(--ui-control-height); padding: 0 10px; font-size: 14px; }
 .trace-focus-close,.chart-heading .trace-focus-close[data-ui-kind="push"] { display: none; }
 body.trace-focus .trace-focus-close,body.trace-focus .chart-heading .trace-focus-close[data-ui-kind="push"] { display: inline-flex; }
 body.trace-focus .chart-heading .trace-focus-button:not(.trace-focus-close) { display: none; }
@@ -246,7 +253,10 @@ body.trace-focus .chart-heading .trace-focus-button:not(.trace-focus-close) { di
 #dominanceLegend small { display: block; margin-top: 3px; color: var(--ui-tertiary); font-size: 13px; }
 /* Comparison chips: room for the lap identity and a separate close button. */
 #loadedLaps { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
-#loadedLaps .loaded-lap-pill { display: inline-flex; align-items: center; gap: 2px; height: 28px; min-height: 28px; padding: 0 3px 0 2px; overflow: visible; max-width: 100%; }
+#loadedLaps .loaded-lap-pill { display: inline-flex; align-items: center; gap: 2px; height: 30px; min-height: 30px; padding: 0 3px 0 4px; overflow: visible; max-width: 100%; }
+.comparison-tray #loadedLaps { flex: 1 1 auto; }
+/* REF badge: a legible accent tag inside the pill, never pressed against its edge. */
+#loadedLaps .loaded-lap-pill.reference::before { content: 'REF'; flex: 0 0 auto; display: inline-flex; align-items: center; height: 18px; margin: 0 2px 0 3px; padding: 0 5px; border-radius: 4px; background: var(--ui-action); color: #fff; font: 700 11px/1 var(--ui-font); letter-spacing: .02em; box-shadow: none; }
 #loadedLaps .loaded-lap-main[data-ui-kind="reference"] { display: inline-flex; align-items: center; gap: 6px; height: 24px; min-height: 24px; padding: 0 8px 0 6px; overflow: visible; white-space: nowrap; font-size: 14px; }
 #loadedLaps .loaded-lap-main :is(b,small,span) { line-height: 1.2; }
 #loadedLaps .loaded-lap-pill button[data-ui-kind="icon"] { flex: 0 0 20px; width: 20px; min-width: 20px; height: 20px; min-height: 20px; padding: 0; border-radius: 50%; }
@@ -260,6 +270,15 @@ body.trace-focus .chart-heading .trace-focus-button:not(.trace-focus-close) { di
   .telemetry-analysis-grid .dominance-map { border-left: 1px solid var(--ui-separator); }
 }
 @media(max-width:560px) { .telemetry-analysis-grid .dominance-map { border-left: 0; border-top: 1px solid var(--ui-separator); } }
+/* UI pass: one caption size for secondary text across the lap chooser and summaries. */
+.lap-workspace :is(.run-section-label,.lap-group-header,.lap-group-header small,.run-segment small,.lap-token,.lap-state,.lap-tyre-age,.workspace-heading-actions span,.workspace-heading-actions b),
+.lap-summary-card :is(.summary-tyre-copy b,.summary-tyre-copy small,.summary-delta,.summary-driver em),
+.chart-heading h2 small,.alignment-readout span { font-size: var(--ui-caption); }
+.select-trigger img.gp-flag,.select-trigger .gp-flag { width: 18px; height: 13px; flex: 0 0 18px; }
+.select-trigger > span { gap: 6px; }
+.performance-table .team-name { overflow: visible; text-overflow: clip; white-space: nowrap; }
+.performance-run-inspector { border-radius: 8px; }
+.trend-sparkline .performance-trend-label { font-size: var(--ui-caption); }
 /* ---------- Car performance content ---------- */
 #carPerformance > .performance-status-card { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 20px; border: 0; border-bottom: 1px solid var(--ui-separator); border-radius: 0; background: transparent; box-shadow: none; color: var(--ui-secondary); font-size: 14px; }
 #carPerformance > .performance-status-card p { margin: 0; color: inherit; font-size: 14px; }

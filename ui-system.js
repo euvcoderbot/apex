@@ -127,7 +127,8 @@
   let pending=false;
   if(typeof MutationObserver!=='undefined')new MutationObserver(records=>{
     if(!records.some(record=>record.type==='childList'||record.target.matches?.('button,input,select,summary'))||pending)return;
-    pending=true;requestAnimationFrame(()=>{pending=false;decorate();});
+    // rAF pauses in background tabs; the timer guarantees new controls are owned anyway.
+    pending=true;const run=()=>{if(!pending)return;pending=false;decorate();};requestAnimationFrame(run);setTimeout(run,150);
   }).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','aria-pressed','aria-selected','disabled']});
   document.addEventListener('keydown',event=>{
     const resizer=event.target.closest?.('.ui-column-resizer');
