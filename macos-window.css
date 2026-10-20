@@ -1,5 +1,5 @@
 /* macOS window layer (v140). Final presentation owner: unified toolbar,
-   source-list sidebar, grouped content boxes and AppKit-like controls.
+   sidebar, category tab bar, grouped content boxes and AppKit-like controls.
    Pure presentation. No selector here changes measurements, eligibility or
    ranking; charts keep their own data colours. Browser limits: no behind-window
    vibrancy sampling, no SF fonts on non-Apple systems, OS-owned scrollbars. */
@@ -46,6 +46,8 @@ a { color: var(--ui-accent); }
   transition: background-color var(--ui-motion) var(--ui-ease),color var(--ui-motion) var(--ui-ease),box-shadow var(--ui-motion) var(--ui-ease);
 }
 .site-header .performance-tabs > button:hover:not([aria-pressed="true"]) { color: var(--ui-label); background: transparent; }
+.site-header .performance-tabs .view-short { display: none; }
+@media(max-width:520px) { .site-header .performance-tabs .view-label { display: none; } .site-header .performance-tabs .view-short { display: inline; } }
 .site-header .performance-tabs > button[aria-pressed="true"] { color: var(--ui-label); background: var(--ui-seg-thumb); box-shadow: 0 .5px 2px #0000004d,0 0 0 .5px #0000001a,inset 0 .5px #ffffff1f; }
 .site-header .performance-tabs > button + button::before { content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 1px; background: var(--ui-border); transition: opacity var(--ui-motion); }
 .site-header .performance-tabs > button[aria-pressed="true"]::before,.site-header .performance-tabs > button[aria-pressed="true"] + button::before { opacity: 0; }
@@ -93,11 +95,10 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 /* Sidebar sections read as a source list, not as floating cards. */
 .app-sidebar :where(.dashboard-card,.session-controls,.driver-control-card,#tireCard) { position: static; display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; justify-content: flex-start; gap: 8px; text-align: left; width: auto; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; backdrop-filter: none; }
 .app-sidebar .panel-heading { align-self: stretch; display: flex; align-items: center; justify-content: space-between; text-align: left; min-height: 0; margin: 0 0 0; padding: 0 6px; border: 0; }
-.app-sidebar .panel-heading h2,.source-list-heading,.app-sidebar .track-selection-title > span:first-child { margin: 0; font: 700 14px/1.3 var(--ui-font-display); letter-spacing: 0; color: var(--ui-label); text-transform: none; }
+.app-sidebar .panel-heading h2,.app-sidebar .track-selection-title > span:first-child { margin: 0; font: 700 14px/1.3 var(--ui-font-display); letter-spacing: 0; color: var(--ui-label); text-transform: none; }
 /* Each sidebar section is a titled group separated by a hairline, like Finder/Mail sidebars. */
 .app-sidebar > * + *,.app-sidebar #driverSidebar > * + * { padding-top: 14px; border-top: 1px solid var(--ui-separator); }
 .app-sidebar #driverSidebar { padding-top: 14px; }
-.source-list-heading { padding: 0 6px 4px; }
 .app-sidebar .control-field { align-self: stretch; display: grid; justify-items: stretch; align-items: start; gap: 3px; width: auto; min-width: 0; margin: 0; padding: 0 2px; text-align: left; }
 .app-sidebar .control-field label { justify-self: start; }
 .app-sidebar .control-field label,.app-sidebar .control-field > label { padding-left: 4px; font-size: 13px; font-weight: 500; color: var(--ui-secondary); }
@@ -105,7 +106,7 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .app-sidebar .session-controls > #loadSession,.app-sidebar .performance-actions { margin: 4px 2px 0; }
 .app-sidebar .session-controls > #loadSession { width: calc(100% - 4px); }
 .app-sidebar .performance-actions { display: flex; gap: 6px; width: auto; align-self: stretch; }
-.app-sidebar :is(.performance-actions,#performanceTrackTray,.performance-track-choices,.performance-track-pills,.source-list) { align-self: stretch; box-sizing: border-box; }
+.app-sidebar :is(.performance-actions,#performanceTrackTray,.performance-track-choices,.performance-track-pills) { align-self: stretch; box-sizing: border-box; }
 .app-sidebar .performance-actions > button { flex: 1 1 0; }
 .app-sidebar .performance-scope-toggle[data-ui-group="segments"] { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); width: 100%; box-sizing: border-box; }
 .app-sidebar .performance-scope-toggle[data-ui-group="segments"] > button { min-width: 0; }
@@ -156,21 +157,30 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .app-sidebar .track-pill[aria-pressed="true"] { background: color-mix(in srgb,var(--ui-accent) 16%,transparent); box-shadow: none; }
 .app-sidebar .track-pill .gp-flag,.app-sidebar .track-pill img { width: 18px; height: 13px; border-radius: 2px; box-shadow: 0 0 0 .5px var(--ui-border); }
 
-/* Category source list */
-.source-list { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0; }
-.source-list[hidden] { display: none; }
-.source-list-row[data-ui-kind="list-row"],.source-list-row {
-  display: flex; align-items: center; gap: 8px; width: 100%; height: 28px; min-height: 28px; padding: 0 8px; border: 0; border-radius: 6px;
-  background: transparent; color: var(--ui-label); box-shadow: none; font: 400 15px/1 var(--ui-font); text-align: left; white-space: nowrap;
-  transition: background-color var(--ui-motion) var(--ui-ease);
+/* Category bar: a segmented tab strip at the top of the main pane. */
+#carPerformance > .category-bar:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; width: fit-content; max-width: calc(100% - 40px); margin: 14px 20px 2px; padding: 3px; border-radius: 10px; background: var(--ui-seg-track); box-shadow: inset 0 0 0 .5px var(--ui-separator); }
+.category-bar[hidden] { display: none; }
+.category-bar .category-tab,.category-bar .category-tab[data-ui-kind="tab"] {
+  display: inline-flex; align-items: center; gap: 7px; height: 30px; min-height: 30px; padding: 0 12px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--ui-secondary); box-shadow: none; font: 500 14px/1 var(--ui-font); white-space: nowrap;
+  transition: background-color var(--ui-motion) var(--ui-ease),color var(--ui-motion) var(--ui-ease),box-shadow var(--ui-motion) var(--ui-ease);
 }
-.source-list-row span { overflow: hidden; text-overflow: ellipsis; line-height: 1.35; padding-block: 1px; }
-.source-list-icon.ui-symbol { width: 16px; height: 16px; flex: 0 0 16px; color: var(--ui-accent); }
-.source-list-row:hover:not([aria-current]) { background: var(--ui-row-hover); }
-.source-list-row[aria-current="page"] { background: color-mix(in srgb,var(--ui-accent) 22%,transparent); font-weight: 500; }
-.source-list-row:disabled { opacity: .45; }
+.category-bar .category-tab span { line-height: 1.3; }
+.category-bar .category-icon.ui-symbol { width: 16px; height: 16px; flex: 0 0 16px; color: currentColor; }
+.category-bar .category-tab:hover:not([aria-current]):not(:disabled) { color: var(--ui-label); background: var(--ui-row-hover); }
+.category-bar .category-tab[aria-current="page"] { color: var(--ui-label); background: var(--ui-seg-thumb); box-shadow: 0 .5px 2px #0000004d,0 0 0 .5px #0000001a,inset 0 .5px #ffffff1f; }
+.category-bar .category-tab[aria-current="page"] .category-icon { color: var(--ui-accent); }
+.category-bar .category-tab:disabled { opacity: .45; }
+.category-bar .category-short { display: none; }
+@media(max-width:1339px) {
+  /* Too narrow for one line: an even 4 x 2 grid with short labels. */
+  #carPerformance > .category-bar:not([hidden]) { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); width: auto; }
+  .category-bar .category-tab,.category-bar .category-tab[data-ui-kind="tab"] { justify-content: center; padding: 0 8px; }
+  .category-bar .category-label { display: none; }
+  .category-bar .category-short { display: inline; }
+}
 /* The original tab strip stays in the DOM as the state owner. */
-@media(min-width:980px) { #performanceResults > .performance-toolbar > .performance-mode { display: none; } }
+#performanceResults > .performance-toolbar > .performance-mode { display: none; }
 
 /* ---------- Content surfaces ---------- */
 :is(.dashboard-card,.telemetry-card,.performance-card):not(.app-sidebar *) {
@@ -454,7 +464,7 @@ input[data-ui-kind="checkbox"]:checked,input[data-ui-kind="checkbox"]:indetermin
 * { scrollbar-color: color-mix(in srgb,var(--ui-label) 28%,transparent) transparent; }
 ::-webkit-scrollbar-thumb { background-color: color-mix(in srgb,var(--ui-label) 28%,transparent); }
 
-.ui-catalog .source-list { max-width: 260px; padding: 8px; border-radius: 8px; background: var(--ui-sidebar); }
+.ui-catalog .category-bar { display: flex; flex-wrap: wrap; gap: 2px; width: fit-content; padding: 3px; border-radius: 10px; background: var(--ui-seg-track); }
 .ui-catalog-caption { color: var(--ui-secondary); font-size: 14px; }
 
 /* ---------- Motion ---------- */
@@ -494,9 +504,7 @@ body.performance-view > #carPerformance:not([hidden]),body:not(.performance-view
   .app-sidebar .performance-controls > .performance-actions { margin: 0; }
   .app-sidebar .performance-controls #performanceTrackTray:not([hidden]) { grid-column: 1 / -1; }
   .app-sidebar .performance-track-pills { grid-template-columns: repeat(auto-fill,minmax(170px,1fr)); }
-  .source-list:not([hidden]) { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4px; }
-  .source-list-heading { display: none; }
-  .source-list-row { height: 30px; font-size: 14px; background: var(--ui-selection-muted); }
+  #carPerformance > .category-bar:not([hidden]) { margin-inline: 16px; max-width: calc(100% - 32px); }
   #performanceResults > .performance-toolbar > .performance-mode { display: none; }
   #carPerformance > .performance-status-card,#carPerformance > #performanceResults { padding-inline: 16px; }
   #carPerformance > .performance-methods { margin-inline: 16px; }
@@ -523,13 +531,13 @@ body.performance-view > #carPerformance:not([hidden]),body:not(.performance-view
   .lap-workspace .run-toolbar > button { width: auto; }
   .app-sidebar .performance-controls { grid-template-columns: 96px minmax(0,1fr); }
   .app-sidebar .performance-controls > .performance-actions { grid-column: 1 / -1; }
-  .source-list:not([hidden]) { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  #carPerformance > .category-bar:not([hidden]) { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .category-bar .category-tab,.category-bar .category-tab[data-ui-kind="tab"] { justify-content: flex-start; }
   #performanceMetricPanel .metric-heading h2 { font-size: 21px; }
   .performance-methods dl { grid-template-columns: minmax(0,1fr); gap: 2px; }
   .performance-methods dd { margin-bottom: 8px; }
 }
-@media(max-width:520px) { .site-header :is(.local-compute-status,.local-compute-link),.brand-wordmark .brand-data { display: none; } .site-header .brand.brand-wordmark { font-size: 16px; } }
-@media(max-width:400px) { .site-header .brand { display: none; } }
+@media(max-width:520px) { .site-header :is(.local-compute-status,.local-compute-link),.site-header .brand.brand-wordmark { display: none; } }
 
 /* ---------- Accessibility preferences ---------- */
 @media(prefers-reduced-transparency:reduce),(prefers-contrast:more) {
@@ -537,11 +545,11 @@ body.performance-view > #carPerformance:not([hidden]),body:not(.performance-view
   .app-sidebar { background: var(--ui-sidebar); }
 }
 @media(prefers-contrast:more) {
-  .source-list-row[aria-current="page"],#driverPills .driver-pill[aria-pressed="true"] { box-shadow: inset 0 0 0 1.5px var(--ui-accent); }
+  .category-bar .category-tab[aria-current="page"],#driverPills .driver-pill[aria-pressed="true"] { box-shadow: inset 0 0 0 1.5px var(--ui-accent); }
   [data-ui-group="segments"] > button[data-ui-kind="segment"][aria-pressed="true"] { box-shadow: inset 0 0 0 1.5px var(--ui-label); }
 }
 @media(pointer:coarse) {
-  .source-list-row,#driverPills .driver-pill[data-ui-kind="list-row"],.app-sidebar .track-pill[data-ui-kind="choice"] { min-height: 44px; }
+  .category-bar .category-tab,#driverPills .driver-pill[data-ui-kind="list-row"],.app-sidebar .track-pill[data-ui-kind="choice"] { min-height: 44px; }
   .site-header .performance-tabs > button,[data-ui-group="segments"]:not(.performance-tabs) > button[data-ui-kind="segment"] { min-height: 36px; }
   #windowSidebarToggle,.workspace-tools button[data-ui-kind="toolbar"] { min-width: 44px; min-height: 44px; }
 }
@@ -549,6 +557,6 @@ body.performance-view > #carPerformance:not([hidden]),body:not(.performance-view
   body > :is(main#top,#carPerformance) { transition: none; animation: none !important; }
 }
 @media(forced-colors:active) {
-  .source-list-row[aria-current="page"] { forced-color-adjust: none; background: Highlight; color: HighlightText; }
+  .category-bar .category-tab[aria-current="page"] { forced-color-adjust: none; background: Highlight; color: HighlightText; }
   .site-header.window-toolbar,.app-sidebar { border-color: CanvasText; }
 }
