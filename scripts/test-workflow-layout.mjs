@@ -16,7 +16,9 @@ test('lap selection collapses without losing its contents and has a reliable edi
   box.setLapSelectionExpanded(true);
   assert.equal($('#lapSelectionBody').hidden,false);assert.equal($('#lapSelectionBody').inert,false);
   assert.equal($('#sidebarToggle').hidden,false);
-  assert.match(app,/if \(loaded.length\) setLapSelectionExpanded\(false, true\)/);
+  // Comparing laps no longer collapses the chooser; only the disclosure does.
+  assert.doesNotMatch(app,/setLapSelectionExpanded\(false/);
+  assert.match(app,/setLapSelectionExpanded\(event\.currentTarget\.getAttribute\('aria-expanded'\) !== 'true'\)/);
 });
 
 test('traces and corners are simultaneous regions and share the existing hover path',()=>{

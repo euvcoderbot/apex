@@ -1119,7 +1119,7 @@ function renderStints() {
     }
     renderAll();
     renderStints();
-    if (loaded.length) setLapSelectionExpanded(false, true);
+    // The chooser stays open after comparing; people often add or swap laps.
   };
 
   root.querySelectorAll('.stint').forEach(button => {
@@ -1529,7 +1529,7 @@ function renderCharts() {
           <div class="trace-settings" aria-label="Telemetry display settings">
             <div class="alignment-readout"><i></i><span id="alignmentStatus" data-state="idle">Speed trace controls</span></div>
             <label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label>
-            <label class="trace-setting" title="Show slow-corner minima, fast-corner speeds and straight peaks together. Fast-corner speeds use one shared estimated geometric corner position for every lap; they are not measured apex locations. Colours identify laps. A dash means the position has no supported measurement."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label>
+            <label class="trace-setting" title="Label every measured speed peak and dip. Each lap uses its own minimum or maximum, matched to the other laps by GPS position. The fastest lap shows its speed in km/h; the others show their difference. A dash means that lap has no matching measured extreme."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label>
           </div>
           <div class="trace-display-bar">
             <span>Visible traces</span>
@@ -1589,14 +1589,11 @@ function getNiceBounds(name, rawMin, rawMax) {
   let tickStep = null;
   
   if (name === 'Speed trace') {
-    min = Math.max(0, Math.floor(rawMin / 20) * 20 - 20);
-    let tempMax = Math.ceil(rawMax / 20) * 20 + 20;
-    const diff = tempMax - min;
-    const remainder = diff % 40;
-    if (remainder !== 0) {
-      tempMax += (40 - remainder);
-    }
-    max = tempMax;
+    // Broadcast-style speed scale: a gridline every 50 km/h, with headroom
+    // above the fastest peak for its label.
+    min = Math.max(0, Math.floor((rawMin - 10) / 50) * 50);
+    max = Math.ceil((rawMax + 25) / 50) * 50;
+    tickStep = 50;
   } else if (name === 'Engine speed') {
     min = Math.max(0, Math.floor(rawMin / 500) * 500 - 500);
     let tempMax = Math.ceil(rawMax / 500) * 500 + 500;
@@ -1916,13 +1913,24 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
     ctx.textAlign = 'right';
     ctx.fillText(displayVal, left - 8, y + 3);
   });
+  if (unit === 'KM/H') {
+    // Axis title, rotated beside the tick labels: "Speed [km/h]".
+    ctx.save();
+    ctx.translate(11, top + (height - top - bottom) / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.font = canvasFont(10, 500);
+    ctx.fillStyle = theme.text;
+    ctx.fillText('Speed [km/h]', 0, 0);
+    ctx.restore();
+  }
   ctx.textAlign = 'left';
 }
 
 
 
 function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7, viewStart = 0, viewEnd = 1) {
-  const calloutWidth = 32;
+  const calloutWidth = 26;
   const gap = 3;
   const plotWidth = width - left - right;
   const laneEnds = [];
@@ -1963,94 +1971,145 @@ function sharedCornerSpeed(entry, fraction, totalDistance) {
   return {lap:entry.lap,speed:+before.Speed+(+after.Speed-before.Speed)*ratio,fraction,estimated:true};
 }
 
-function buildSpeedAnnotations(entries, zones, totalDistance) {
-  if (!zones?.length || !Number.isFinite(totalDistance) || totalDistance<=0) return [];
-  const measured = (entry,start,end,kind) => {
-    const points=entry.samples.filter(p=>{
-      const f=traceSampleFraction(entry.samples,p);
-      return f>=start && f<=end && p.Speed!=null && Number.isFinite(+p.Speed) && +p.Speed>0;
-    });
-    if (points.length<3) return null;
-    // Never manufacture extrema across missing telemetry. Use native samples,
-    // not the interpolated display curve or a synthetic higher sampling rate.
-    const limit=Math.max(40/totalDistance,.008);
-    const centre=(start+end)/2;
-    if (kind!=='peak' && points.some((p,i)=>i && traceSampleFraction(entry.samples,p)-traceSampleFraction(entry.samples,points[i-1])>limit
-      && traceSampleFraction(entry.samples,points[i-1])<centre && traceSampleFraction(entry.samples,p)>centre)) return null;
-    const supported=points.filter((p,i)=>{
-      const f=traceSampleFraction(entry.samples,p);
-      return (i>0 && f-traceSampleFraction(entry.samples,points[i-1])<=limit)
-        || (i<points.length-1 && traceSampleFraction(entry.samples,points[i+1])-f<=limit);
-    });
-    const eligible=kind==='peak' ? supported.filter(p=>Number(p.Throttle)>=95 && !(Number(p.Brake)>0)) : supported;
-    if (!eligible.length) return null;
-    const point=eligible.reduce((best,p)=>(kind==='peak' ? +p.Speed>+best.Speed : +p.Speed<+best.Speed)?p:best);
-    const fraction=traceSampleFraction(entry.samples,point);
-    if (typeof telemetryEstimateInfo==='function' && telemetryEstimateInfo(entry.samples,fraction,'Speed')) return null;
-    return {lap:entry.lap,speed:+point.Speed,fraction};
+// Each lap's own measured speed extremes: local minima and maxima of native
+// samples with real prominence. Never sampled at a corner marker or a fixed
+// window edge, which reads entry or exit speed instead of the apex.
+function lapSpeedExtremes(samples, totalDistance, {prominence=8, neighbourhood=60, reach=320, gapLimit=45}={}) {
+  if (!samples?.length || !(totalDistance > 0)) return [];
+  const points = samples
+    .filter(p => p?.Speed != null && Number.isFinite(+p.Speed) && +p.Speed > 0)
+    .map(p => ({fraction: traceSampleFraction(samples, p), speed: +p.Speed, x: +p.X, y: +p.Y}))
+    .filter(p => Number.isFinite(p.fraction))
+    .sort((a, b) => a.fraction - b.fraction);
+  const metres = fraction => fraction * totalDistance;
+  const result = [];
+  for (let i = 1; i < points.length - 1; i++) {
+    const here = points[i], at = metres(here.fraction);
+    // Unsupported extremes across telemetry gaps are not measurements.
+    if (metres(here.fraction - points[i - 1].fraction) > gapLimit || metres(points[i + 1].fraction - here.fraction) > gapLimit) continue;
+    let isMin = true, isMax = true, leftHigh = -Infinity, rightHigh = -Infinity, leftLow = Infinity, rightLow = Infinity;
+    for (let j = i - 1; j >= 0 && at - metres(points[j].fraction) <= reach; j--) {
+      const d = at - metres(points[j].fraction), s = points[j].speed;
+      if (d <= neighbourhood) { if (s < here.speed) isMin = false; if (s > here.speed) isMax = false; }
+      leftHigh = Math.max(leftHigh, s); leftLow = Math.min(leftLow, s);
+    }
+    for (let j = i + 1; j < points.length && metres(points[j].fraction) - at <= reach; j++) {
+      const d = metres(points[j].fraction) - at, s = points[j].speed;
+      // Ties resolve to the first sample of a plateau, so one extreme per plateau.
+      if (d <= neighbourhood) { if (s < here.speed) isMin = false; if (s > here.speed) isMax = false; }
+      rightHigh = Math.max(rightHigh, s); rightLow = Math.min(rightLow, s);
+    }
+    const previous = result.at(-1);
+    const accept = (kind, depth) => {
+      if (!(depth >= prominence)) return;
+      // Plateau or noise duplicate: keep the more extreme of two same-kind points.
+      if (previous?.kind === kind && metres(here.fraction - previous.fraction) <= neighbourhood) {
+        if (kind === 'min' ? here.speed < previous.speed : here.speed > previous.speed) result[result.length - 1] = {kind, ...here};
+        return;
+      }
+      result.push({kind, ...here});
+    };
+    if (isMin) accept('min', Math.min(leftHigh, rightHigh) - here.speed);
+    else if (isMax) accept('max', here.speed - Math.max(leftLow, rightLow));
+  }
+  return result.filter(e => !(typeof telemetryEstimateInfo === 'function' && telemetryEstimateInfo(samples, e.fraction, 'Speed')));
+}
+
+// Raw GPS units per metre of this lap, so a 70 m match radius works whether
+// the feed reports metres or tenths of a metre.
+function lapPositionScale(samples, totalDistance) {
+  let path = 0, previous = null;
+  for (const p of samples || []) {
+    if (!Number.isFinite(+p?.X) || !Number.isFinite(+p?.Y) || p.X == null || p.Y == null) continue;
+    if (previous) path += Math.hypot(+p.X - previous.x, +p.Y - previous.y);
+    previous = {x: +p.X, y: +p.Y};
+  }
+  return path > 0 && totalDistance > 0 ? path / totalDistance : null;
+}
+
+function buildSpeedAnnotations(entries, markers, totalDistance, {matchMetres=70} = {}) {
+  if (!entries?.length || !Number.isFinite(totalDistance) || totalDistance <= 0) return [];
+  const lapsWithExtremes = entries.map(entry => ({entry, scale: lapPositionScale(entry.samples, totalDistance), extremes: lapSpeedExtremes(entry.samples, totalDistance)}));
+  const [anchor, ...others] = lapsWithExtremes;
+  const used = others.map(() => new Set());
+  const nearestCorner = extreme => {
+    let best = null;
+    for (const marker of markers || []) {
+      const gap = Math.abs(marker.fraction - extreme.fraction) * totalDistance;
+      if (gap <= 150 && (!best || gap < best.gap)) best = {marker, gap};
+    }
+    return best?.marker || null;
   };
-  const result=[];
-  const add=(title,start,end,kind,position=null)=>{
-    if (end-start<20/totalDistance) return;
-    const values=entries.map(e=>kind==='corner'?sharedCornerSpeed(e,position,totalDistance):measured(e,start,end,kind)).filter(Boolean).sort((a,b)=>b.speed-a.speed);
-    if (!values.length) return;
-    result.push({title,kind,fraction:kind==='corner'?position:values[0].fraction,speed:values[0].speed,values,
-      missing:entries.filter(e=>!values.some(v=>v.lap===e.lap)).map(e=>e.lap)});
-  };
-  zones.forEach(zone=>{
-    // Slow corners show their observed window minimum. Faster corners use
-    // the shared geometric centre; a window-edge minimum is not an apex.
-    const kind=zone.minimumSpeed<=120?'min':'corner';
-    add(`${cornerLabel(zone)} ${kind==='min'?'min':zone.apexConfidence==='estimated'?'bend':'marker ≈'}`,zone.apexStart,zone.apexEnd,kind,zone.apex);
+  return anchor.extremes.map(extreme => {
+    const values = [{lap: anchor.entry.lap, speed: extreme.speed, fraction: extreme.fraction}];
+    const missing = [];
+    others.forEach((other, index) => {
+      let best = null;
+      other.extremes.forEach((candidate, candidateIndex) => {
+        if (candidate.kind !== extreme.kind || used[index].has(candidateIndex)) return;
+        // Match the same physical place by GPS; distance fractions drift between laps.
+        const gps = [extreme.x, extreme.y, candidate.x, candidate.y].every(Number.isFinite) && anchor.scale && other.scale
+          ? Math.hypot(candidate.x - extreme.x, candidate.y - extreme.y) / ((anchor.scale + other.scale) / 2)
+          : null;
+        const metres = gps ?? Math.abs(candidate.fraction - extreme.fraction) * totalDistance;
+        if (metres <= matchMetres && (!best || metres < best.metres)) best = {candidate, candidateIndex, metres};
+      });
+      if (best) { used[index].add(best.candidateIndex); values.push({lap: other.entry.lap, speed: best.candidate.speed, fraction: best.candidate.fraction}); }
+      else missing.push(other.entry.lap);
+    });
+    values.sort((a, b) => b.speed - a.speed);
+    const corner = extreme.kind === 'min' ? nearestCorner(extreme) : null;
+    return {title: corner ? cornerLabel(corner) : '', kind: extreme.kind, fraction: extreme.fraction, speed: values[0].speed, values, missing};
   });
-  // Only real straight ends get a terminal-speed label. No "peak" between
-  // every pair of corners, nor at an unrelated mid-straight speed spike.
-  sessionPerformanceZones(zones,totalDistance).filter(z=>z.kind==='straight'&&z.end>z.start).forEach(zone=>{
-    // The timing line is not the end of the start/finish straight. Its
-    // pre-T1 portion supplies the terminal label, not a second arbitrary one.
-    if(zone.end===1)return;
-    add('Straight max',Math.max(zone.start,zone.end-100/totalDistance),zone.end,'peak');
-  });
-  return result.sort((a,b)=>a.fraction-b.fraction);
+}
+
+// Broadcast-style labels: the leader's whole km/h, then every other lap's
+// whole-km/h difference, stacked in lap colours exactly at the peak or dip.
+function speedAnnotationLines(annotation) {
+  const allLaps = [...annotation.values.map(v => v.lap), ...(annotation.missing || [])];
+  const identity = lap => lap.code + (allLaps.filter(l => l.code === lap.code).length > 1 ? ` L${lap.lap}` : '');
+  const leader = Math.round(annotation.values[0].speed);
+  return [
+    ...annotation.values.map((v, i) => {
+      const delta = Math.round(v.speed) - leader;
+      return {text: `${identity(v.lap)} ${i === 0 ? leader : delta === 0 ? '0' : (delta < 0 ? '−' : '+') + Math.abs(delta)}`, color: getLapColor(v.lap)};
+    }),
+    ...(annotation.missing || []).map(lap => ({text: `${identity(lap)} —`, color: getLapColor(lap)}))
+  ];
 }
 
 function drawSpeedAnnotations(ctx, annotations, rect, bounds, xForFraction, viewStart, viewEnd, traces = []) {
-  const theme=canvasTheme(), occupied=[];
-  const bottom=rect.height-bounds.bottom;
+  const theme = canvasTheme(), occupied = [];
+  const bottom = rect.height - bounds.bottom, lineHeight = 11;
   ctx.save();
-  ctx.font=canvasFont(10);
-  annotations.filter(a=>a.fraction>=viewStart && a.fraction<=viewEnd).forEach(a=>{
-    const allLaps=[...a.values.map(v=>v.lap),...(a.missing||[])];
-    const identity=lap=>lap.code+(allLaps.filter(l=>l.code===lap.code).length>1?` L${lap.lap}`:'');
-    const lines=a.values.map((v,i)=>({text:`${identity(v.lap)} ${i===0?v.speed.toFixed(3):(a.speed-v.speed>0?'−':'')+(a.speed-v.speed).toFixed(3)}`,color:getLapColor(v.lap)}));
-    lines.push(...(a.missing||[]).map(lap=>({text:`${identity(lap)} —`,color:getLapColor(lap)})));
-    const width=Math.max(ctx.measureText(a.title).width,...lines.map(l=>ctx.measureText(l.text).width))+4;
-    const height=10+lines.length*10+3;
-    const px=xForFraction(a.fraction), py=bounds.top+(bounds.max-a.speed)/(bounds.max-bounds.min||1)*(bottom-bounds.top);
-    let placement=null;
-    for (const offset of [8,24,44,68,96,132]) {
-      for (const horizontal of [0]) {
-        const x=Math.max(bounds.left,Math.min(rect.width-bounds.right-width,px-width/2));
-        const candidates=a.kind!=='peak'?[py+offset,py-height-offset]:[py-height-offset,py+offset];
-        const y=candidates.find(y=>{
-          const box={x,y,width,height};
-          return y>=bounds.top+18 && y+height<=bottom-3
-            && !occupied.some(b=>x<b.x+b.width+5 && x+width+5>b.x && y<b.y+b.height+4 && y+height+4>b.y)
-            && !traces.some(trace=>trackIntersectsLabel(box,trace.points,4,false));
-        });
-        if (y!=null) {placement={x,y};break;}
-      }
-      if (placement) break;
+  ctx.font = canvasFont(10, 600);
+  ctx.textAlign = 'center';
+  ctx.lineJoin = 'round';
+  annotations.filter(a => a.fraction >= viewStart && a.fraction <= viewEnd).forEach(a => {
+    const lines = speedAnnotationLines(a);
+    const width = Math.max(...lines.map(l => ctx.measureText(l.text).width)) + 4;
+    const height = lines.length * lineHeight;
+    const px = xForFraction(a.fraction), py = bounds.top + (bounds.max - a.speed) / (bounds.max - bounds.min || 1) * (bottom - bounds.top);
+    const x = Math.max(bounds.left, Math.min(rect.width - bounds.right - width, px - width / 2));
+    // Peaks label above, dips below; nudge further only to avoid another label.
+    let y = null;
+    for (const offset of [5, 15, 27, 41]) {
+      const candidate = a.kind === 'max' ? py - offset - height : py + offset;
+      if (candidate < bounds.top + 16 || candidate + height > bottom - 2) continue;
+      const box = {x, y: candidate, width, height};
+      if (occupied.some(b => box.x < b.x + b.width + 3 && box.x + box.width + 3 > b.x && box.y < b.y + b.height + 2 && box.y + box.height + 2 > b.y)) continue;
+      if (traces.some(trace => trackIntersectsLabel(box, trace.points, 2, false)) && offset < 27) continue;
+      y = candidate; break;
     }
-    if (!placement || width>rect.width-bounds.left-bounds.right) return;
-    const {x,y}=placement;
-    occupied.push({x,y,width,height});
-    ctx.fillStyle=theme.tooltipBackground || theme.background || (lightThemeActive()?'#ffffffee':'#202023ee');
-    ctx.fillRect(x,y,width,height);
-    ctx.fillStyle=theme.textMuted || theme.text;
-    ctx.textAlign='left';ctx.fillText(a.title,x+2,y+9);
-    lines.forEach((line,i)=>{ctx.fillStyle=line.color;ctx.fillText(line.text,x+2,y+19+i*10);});
-    ctx.strokeStyle=theme.gridStrong;ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px,y>py?y:y+height);ctx.stroke();
+    if (y == null) return;
+    occupied.push({x, y, width, height});
+    lines.forEach((line, i) => {
+      const ty = y + (i + 1) * lineHeight - 2;
+      ctx.strokeStyle = theme.labelStroke; ctx.lineWidth = 3;
+      ctx.strokeText(line.text, x + width / 2, ty);
+      ctx.fillStyle = line.color;
+      ctx.fillText(line.text, x + width / 2, ty);
+    });
   });
   ctx.restore();
 }
@@ -2495,8 +2554,7 @@ function drawRealChart(name) {
     const entries=visibleEntries.map(({lap})=>({lap,samples:telemetryCache.get(telemetryKey(lap))})).filter(e=>e.samples?.length && !e.lap.real?.out_lap);
     const key=totalDist.toFixed(1)+'|'+speedCornerMarkers.map(m=>`${m.key}:${m.fraction.toFixed(5)}`).join('|')+'|'+entries.map(e=>e.samples.positionRevision||0).join(':');
     if (!speedAnnotationCache || speedAnnotationCache.key!==key || speedAnnotationCache.entries.length!==entries.length || entries.some((e,i)=>speedAnnotationCache.entries[i].samples!==e.samples || speedAnnotationCache.entries[i].lap!==e.lap)) {
-      const zones=typeof adaptiveCornerZones==='function'?adaptiveCornerZones(speedCornerMarkers):[];
-      speedAnnotationCache={key,entries,annotations:buildSpeedAnnotations(entries,zones,totalDist)};
+      speedAnnotationCache={key,entries,annotations:buildSpeedAnnotations(entries,speedCornerMarkers,totalDist)};
     }
     drawSpeedAnnotations(ctx,speedAnnotationCache.annotations,rect,bounds,xForFraction,viewStart,viewEnd,traceEntries);
   }
@@ -2511,10 +2569,21 @@ function drawRealChart(name) {
       const labelY = rect.height - cornerAxisInset + 4 + lane * rowHeight;
       const left = x - width / 2;
 
-      ctx.fillStyle = theme.textMuted || theme.textStrong;
-      ctx.font = canvasFont(12);
+      // Small grey boxed turn tags, like broadcast speed-trace graphics.
+      const label = cornerLabel(corner);
+      ctx.font = canvasFont(10, 600);
+      const tagWidth = Math.max(22, ctx.measureText(label).width + 8);
+      const tagLeft = Math.max(bounds.left, Math.min(rect.width - bounds.right - tagWidth, x - tagWidth / 2));
+      ctx.fillStyle = lightThemeActive() ? 'rgba(20,25,32,.08)' : 'rgba(255,255,255,.1)';
+      ctx.strokeStyle = theme.outline;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') ctx.roundRect(tagLeft + .5, labelY + 1.5, tagWidth - 1, calloutHeight - 1, 3);
+      else ctx.rect(tagLeft + .5, labelY + 1.5, tagWidth - 1, calloutHeight - 1);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = theme.textStrong;
       ctx.textAlign = 'center';
-      ctx.fillText(cornerLabel(corner), x, labelY + 12);
+      ctx.fillText(label, tagLeft + tagWidth / 2, labelY + 12.5);
       ctx.textAlign = 'left';
     });
   }
@@ -3109,17 +3178,22 @@ function makeSectorGuide(lap, samples, suppliedCorners) {
   // Never bridge missing packets or derive distances from fractions of lap time.
   for (let i=1;i<valid.length;i++) {
     const dt=valid[i].ElapsedSeconds-valid[i-1].ElapsedSeconds;
-    if(dt <= 0 || dt > .75) return null;
+    // ~4 Hz position feeds have occasional 1.2 s packets; longer holes are not bridged.
+    if(dt <= 0 || dt > 1.6) return null;
   }
   const boundaries=[times[0],times[0]+times[1]];
-  const points=valid.map(p=>({x:p.X,y:p.Y,t:p.ElapsedSeconds}));
+  // DRS is only drawn up to 2025: the 2026 straight-mode state isn't in the public feed.
+  const drsKnown=Number(sessionYear)<2026&&valid.some(p=>p.DRS!=null&&Number.isFinite(+p.DRS));
+  const points=valid.map(p=>({x:p.X,y:p.Y,t:p.ElapsedSeconds,drs:drsKnown&&+p.DRS>=.5}));
   for(const t of boundaries) {
     const i=points.findIndex(p=>p.t>=t);
     if(i<1)return null;
     if(points[i].t===t)continue;
     const a=points[i-1],b=points[i],f=(t-a.t)/(b.t-a.t);
-    points.splice(i,0,{x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f,t});
+    points.splice(i,0,{x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f,t,drs:a.drs&&b.drs});
   }
+  // The lap's fastest measured point, where the speed trap normally sits.
+  const fastest=valid.filter(p=>Number.isFinite(+p.Speed)).reduce((best,p)=>!best||+p.Speed>+best.Speed?p:best,null);
   const distance=valid.at(-1).Distance;
   const markers=Number.isFinite(distance) && distance>0
     ? resolveCornerMarkers(valid,distance,suppliedCorners) : [];
@@ -3129,6 +3203,8 @@ function makeSectorGuide(lap, samples, suppliedCorners) {
     return {...c,trackPosition:{x:p.X,y:p.Y}};
   });
   return {x:points.map(p=>p.x),y:points.map(p=>p.y),
+    drs:drsKnown&&points.some(p=>p.drs)?points.map(p=>p.drs):null,
+    topSpeed:fastest?{x:fastest.X,y:fastest.Y,speed:+fastest.Speed}:null,
     segmentSectors:points.slice(1).map((p,i)=>{
       const middle=(p.t+points[i].t)/2;
       return middle<boundaries[0]?0:middle<boundaries[1]?1:2;
@@ -3211,42 +3287,125 @@ const CIRCUIT_API_KEYS = {'gb-1948':2,'hu-1986':4,'it-1953':6,'be-1925':7,'us-20
 function drawApiCircuitGuide(ctx, data, rect) {
   const raw = data.x.map((x,i)=>({x:Number(x),y:-Number(data.y[i])})).filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y));
   if(raw.length<3)return false;
+  const light=lightThemeActive();
   const minX=Math.min(...raw.map(p=>p.x)),maxX=Math.max(...raw.map(p=>p.x));
   const minY=Math.min(...raw.map(p=>p.y)),maxY=Math.max(...raw.map(p=>p.y));
-  const scale=Math.min((rect.width-80)/(maxX-minX||1),(rect.height-60)/(maxY-minY||1));
+  const pad=Math.min(70,Math.max(38,rect.width*.09));
+  const scale=Math.min((rect.width-pad*2)/(maxX-minX||1),(rect.height-pad*2)/(maxY-minY||1));
   const project=p=>({x:(p.x-(minX+maxX)/2)*scale+rect.width/2,y:(p.y-(minY+maxY)/2)*scale+rect.height/2});
   const geometry=raw.map(project);
-  ctx.clearRect(0,0,rect.width,rect.height);ctx.beginPath();
-  geometry.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));
-  ctx.strokeStyle=lightThemeActive()?'#666670':'#b3b3bd';ctx.lineWidth=5;ctx.stroke();
-  if(data.segmentSectors?.length===geometry.length-1) {
-    for(let i=1;i<geometry.length;i++) {
-      ctx.beginPath();ctx.moveTo(geometry[i-1].x,geometry[i-1].y);ctx.lineTo(geometry[i].x,geometry[i].y);
-      ctx.strokeStyle=GUIDE_SECTOR_COLORS[data.segmentSectors[i-1]];ctx.stroke();
+  const centre=geometry.reduce((s,p)=>({x:s.x+p.x/geometry.length,y:s.y+p.y/geometry.length}),{x:0,y:0});
+  const tangent=i=>{const a=geometry[Math.max(0,i-2)],b=geometry[Math.min(geometry.length-1,i+2)],l=Math.hypot(b.x-a.x,b.y-a.y)||1;return {x:(b.x-a.x)/l,y:(b.y-a.y)/l};};
+  const nearestIndex=p=>{let best=0,dist=Infinity;geometry.forEach((g,i)=>{const d=Math.hypot(g.x-p.x,g.y-p.y);if(d<dist){dist=d;best=i;}});return best;};
+  const occupied=[];
+  const overlaps=box=>occupied.some(b=>box.x<b.x+b.width+3&&box.x+box.width+3>b.x&&box.y<b.y+b.height+3&&box.y+box.height+3>b.y);
+  const inside=box=>box.x>=2&&box.y>=2&&box.x+box.width<=rect.width-2&&box.y+box.height<=rect.height-2;
+  // Place a label beside the track along the outward normal (either side), never on it.
+  const placeBeside=(i,width,height,distances)=>{
+    const t=tangent(i),p=geometry[i],normal={x:-t.y,y:t.x};
+    const outward=(p.x-centre.x)*normal.x+(p.y-centre.y)*normal.y>=0?1:-1;
+    for(const d of distances)for(const side of [outward,-outward]){
+      const cx=p.x+normal.x*d*side,cy=p.y+normal.y*d*side;
+      const box={x:cx-width/2,y:cy-height/2,width,height};
+      if(!inside(box)||overlaps(box)||trackIntersectsLabel(box,geometry,6))continue;
+      occupied.push(box);return {x:cx,y:cy,box,anchor:p};
     }
-    ctx.strokeStyle=lightThemeActive()?'#666670':'#b3b3bd';
+    // Tight hairpins: fall back to the nearest free spot around the corner.
+    for(const d of distances)for(let j=0;j<24;j++){
+      const angle=j*Math.PI/12,cx=Math.max(width/2+2,Math.min(rect.width-width/2-2,p.x+Math.cos(angle)*d)),cy=Math.max(height/2+2,Math.min(rect.height-height/2-2,p.y+Math.sin(angle)*d));
+      const box={x:cx-width/2,y:cy-height/2,width,height};
+      if(overlaps(box)||trackIntersectsLabel(box,geometry,4))continue;
+      occupied.push(box);return {x:cx,y:cy,box,anchor:p};
+    }
+    return null;
+  };
+  const trace=(from,to)=>{ctx.beginPath();for(let i=from;i<=to;i++){const p=geometry[i];i===from?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);}};
+  ctx.clearRect(0,0,rect.width,rect.height);
+  ctx.lineJoin='round';ctx.lineCap='round';
+  // Track body: a dark road with a hairline edge so it reads on both appearances.
+  trace(0,geometry.length-1);ctx.lineWidth=15;ctx.strokeStyle=light?'rgba(0,0,0,.18)':'rgba(255,255,255,.22)';ctx.stroke();
+  trace(0,geometry.length-1);ctx.lineWidth=13;ctx.strokeStyle=light?'#2c2c30':'#0c0c0e';ctx.stroke();
+  // Sector centre line, coloured per timing sector.
+  const sectors=data.segmentSectors?.length===geometry.length-1?data.segmentSectors:null;
+  for(let i=1;i<geometry.length;i++){
+    ctx.beginPath();ctx.moveTo(geometry[i-1].x,geometry[i-1].y);ctx.lineTo(geometry[i].x,geometry[i].y);
+    ctx.strokeStyle=sectors?GUIDE_SECTOR_COLORS[sectors[i-1]]:'#d0d0d6';ctx.lineWidth=3.2;ctx.stroke();
   }
-  const occupied=[],leaders=[];ctx.font=canvasFont(12);ctx.textAlign='center';ctx.textBaseline='middle';
+  // DRS zones detected on this lap, as a dashed line beside the road.
+  if(Array.isArray(data.drs)&&data.drs.length===geometry.length){
+    ctx.save();ctx.setLineDash([5,4]);ctx.lineWidth=2;ctx.strokeStyle='#ff453a';ctx.lineCap='butt';
+    let open=false;
+    for(let i=1;i<geometry.length;i++){
+      if(!(data.drs[i]&&data.drs[i-1])){if(open){ctx.stroke();open=false;}continue;}
+      const t=tangent(i),side=((geometry[i].x-centre.x)*-t.y+(geometry[i].y-centre.y)*t.x)>=0?1:-1;
+      const a={x:geometry[i-1].x-t.y*11*side,y:geometry[i-1].y+t.x*11*side},b={x:geometry[i].x-t.y*11*side,y:geometry[i].y+t.x*11*side};
+      if(!open){ctx.beginPath();ctx.moveTo(a.x,a.y);open=true;}
+      ctx.lineTo(b.x,b.y);
+    }
+    if(open)ctx.stroke();ctx.restore();
+  }
+  // Sector boundaries: short white ticks across the road.
+  if(sectors)for(let i=1;i<sectors.length;i++){
+    if(sectors[i]===sectors[i-1])continue;
+    const t=tangent(i),p=geometry[i];
+    ctx.beginPath();ctx.moveTo(p.x+t.y*9,p.y-t.x*9);ctx.lineTo(p.x-t.y*9,p.y+t.x*9);ctx.strokeStyle='#ffffff';ctx.lineWidth=2;ctx.lineCap='butt';ctx.stroke();
+  }
+  // Start/finish: a chequered block across the road plus a direction arrow.
+  {
+    const t=tangent(0),p=geometry[0],n={x:-t.y,y:t.x};
+    ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.atan2(n.y,n.x));
+    const cell=3.2;
+    for(let r=-4;r<4;r++)for(let c=0;c<2;c++){ctx.fillStyle=(r+c)%2?'#111':'#fff';ctx.fillRect(r*cell,(c-1)*cell,cell,cell);}
+    ctx.restore();
+    const side=((p.x-centre.x)*n.x+(p.y-centre.y)*n.y)>=0?1:-1;
+    const base={x:p.x+n.x*17*side+t.x*2,y:p.y+n.y*17*side+t.y*2};
+    ctx.beginPath();ctx.moveTo(base.x-t.x*8,base.y-t.y*8);ctx.lineTo(base.x+t.x*6,base.y+t.y*6);
+    ctx.strokeStyle=light?'#1d1d1f':'#f2f2f4';ctx.lineWidth=1.6;ctx.stroke();
+    ctx.beginPath();ctx.moveTo(base.x+t.x*9,base.y+t.y*9);ctx.lineTo(base.x+t.x*3-n.x*3.5,base.y+t.y*3-n.y*3.5);ctx.lineTo(base.x+t.x*3+n.x*3.5,base.y+t.y*3+n.y*3.5);ctx.closePath();
+    ctx.fillStyle=light?'#1d1d1f':'#f2f2f4';ctx.fill();
+    occupied.push({x:p.x-14,y:p.y-14,width:28,height:28});
+  }
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  // Turn numbers in circles beside the track.
+  ctx.font=canvasFont(10,700);
   for(const corner of data.corners || []){
     const position=corner.trackPosition;
-    if(!position || !Number.isFinite(Number(position.x)) || !Number.isFinite(Number(position.y)))continue;
-    const p=project({x:Number(position.x),y:-Number(position.y)}),label=cornerLabel(corner),width=ctx.measureText(label).width+8;
-    let placement;
-    for(const radius of [24,36,48,64,84,110,140]){
-      for(let j=0;j<24;j++){
-        const angle=-Math.PI/2+j*Math.PI/12;
-        const x=Math.max(width/2+4,Math.min(rect.width-width/2-4,p.x+Math.cos(angle)*radius));
-        const y=Math.max(12,Math.min(rect.height-12,p.y+Math.sin(angle)*radius));
-        const box={x:x-width/2,y:y-9,width,height:18};
-        if(trackIntersectsLabel(box,geometry)||occupied.some(b=>box.x<b.x+b.width+3&&box.x+width+3>b.x&&box.y<b.y+b.height+3&&box.y+18+3>b.y))continue;
-        const connector=cornerLabelConnector(p,box,leaders,occupied);if(!connector)continue;
-        placement={x,y,box,...connector};break;
-      }
-      if(placement)break;
+    if(!position||!Number.isFinite(Number(position.x))||!Number.isFinite(Number(position.y)))continue;
+    const p=project({x:Number(position.x),y:-Number(position.y)}),label=cornerLabel(corner).replace(/^T/,'');
+    const radius=Math.max(8.5,ctx.measureText(label).width/2+4);
+    const spot=placeBeside(nearestIndex(p),radius*2,radius*2,[17,23,30,38,48]);
+    if(!spot)continue;
+    ctx.beginPath();ctx.arc(spot.x,spot.y,radius,0,Math.PI*2);
+    ctx.fillStyle=light?'#ffffff':'#1c1c1e';ctx.fill();ctx.strokeStyle=light?'#1d1d1f':'#e5e5ea';ctx.lineWidth=1.2;ctx.stroke();
+    ctx.fillStyle=light?'#1d1d1f':'#f2f2f4';ctx.fillText(label,spot.x,spot.y+.5);
+  }
+  // Sector names, boxed, beside the middle of each sector.
+  if(sectors){
+    ctx.font=canvasFont(10,700);
+    [0,1,2].forEach(sector=>{
+      const indices=sectors.map((s,i)=>s===sector?i:-1).filter(i=>i>=0);
+      if(!indices.length)return;
+      const label=`SECTOR ${sector+1}`,width=ctx.measureText(label).width+12;
+      let spot=null;
+      for(const fraction of [.5,.35,.65,.2,.8]){spot=placeBeside(indices[Math.floor(indices.length*fraction)],width,17,[24,34,46,60,76,94]);if(spot)break;}
+      if(!spot)return;
+      ctx.fillStyle=light?'#ffffff':'#f2f2f4';ctx.strokeStyle=GUIDE_SECTOR_COLORS[sector];ctx.lineWidth=1.5;
+      ctx.beginPath();if(typeof ctx.roundRect==='function')ctx.roundRect(spot.box.x,spot.box.y,width,17,3);else ctx.rect(spot.box.x,spot.box.y,width,17);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#1d1d1f';ctx.fillText(label,spot.x,spot.y+.5);
+    });
+  }
+  // Fastest point of this lap (where the speed trap normally sits).
+  if(data.topSpeed&&Number.isFinite(+data.topSpeed.x)&&Number.isFinite(+data.topSpeed.y)){
+    const p=project({x:+data.topSpeed.x,y:-+data.topSpeed.y});
+    ctx.beginPath();ctx.arc(p.x,p.y,4.5,0,Math.PI*2);ctx.fillStyle='#ffd60a';ctx.fill();ctx.strokeStyle='#1d1d1f';ctx.lineWidth=1;ctx.stroke();
+    ctx.font=canvasFont(10,600);
+    const label=`TOP SPEED ${Math.round(data.topSpeed.speed)} km/h`,width=ctx.measureText(label).width+10;
+    const spot=placeBeside(nearestIndex(p),width,16,[26,38,52,68,86,106]);
+    if(spot){
+      ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(spot.x,spot.y);ctx.strokeStyle='#ffd60a';ctx.lineWidth=1;ctx.stroke();
+      ctx.fillStyle=light?'#1d1d1f':'#2c2c2e';ctx.beginPath();if(typeof ctx.roundRect==='function')ctx.roundRect(spot.box.x,spot.box.y,width,16,3);else ctx.rect(spot.box.x,spot.box.y,width,16);ctx.fill();
+      ctx.fillStyle='#ffd60a';ctx.fillText(label,spot.x,spot.y+.5);
     }
-    if(!placement)continue;occupied.push(placement.box);
-    if(placement.line){leaders.push(placement.line);ctx.beginPath();ctx.moveTo(placement.line.a.x,placement.line.a.y);ctx.lineTo(placement.line.b.x,placement.line.b.y);ctx.globalAlpha=.35;ctx.lineWidth=.7;ctx.stroke();ctx.globalAlpha=1;}
-    ctx.fillStyle=lightThemeActive()?'#242428':'#eeeef0';ctx.fillText(label,placement.x,placement.y);
   }
   ctx.textAlign='start';ctx.textBaseline='alphabetic';return true;
 }
@@ -3280,8 +3439,8 @@ function renderGenericCircuit(canvas, empty) {
     const ctx=canvas.getContext('2d');ctx.setTransform(ratio,0,0,ratio,0,0);
     if(drawApiCircuitGuide(ctx,sessionSectorGuide,rect)) {
       empty.style.display='none';
-      canvas.setAttribute('aria-label',`${sessionEventName}, timing-derived sector map: sector 1 pink, sector 2 yellow, sector 3 blue`);
-      $('#dominanceLegend').innerHTML='<small><span style="color:#ff4081">S1</span> · <span style="color:#e6bc24">S2</span> · <span style="color:#40a9ed">S3</span> · Official sector times matched to position telemetry<br>Boundary placement is limited by position sampling accuracy.'+(sessionSectorGuide.corners?.some(c=>c.approximate)?'<br>Corner labels use approximate official-map positions.':'')+'</small>';
+      canvas.setAttribute('aria-label',`${sessionEventName} circuit guide: sector 1 pink, sector 2 yellow, sector 3 blue, numbered turns, start/finish and direction${sessionSectorGuide.drs?', DRS zones dashed red':''}${sessionSectorGuide.topSpeed?', fastest point yellow':''}`);
+      $('#dominanceLegend').innerHTML='<span class="guide-legend"><span><i style="background:#ff4081"></i>S1</span><span><i style="background:#e6bc24"></i>S2</span><span><i style="background:#40a9ed"></i>S3</span>'+(sessionSectorGuide.drs?'<span><i class="is-dashed"></i>DRS (this lap)</span>':'')+(sessionSectorGuide.topSpeed?'<span><i class="is-dot"></i>Top speed (this lap)</span>':'')+'</span><small class="explanation-only">Sector boundaries come from the official sector times matched to this lap\'s position telemetry'+(sessionSectorGuide.corners?.some(c=>c.approximate)?'; corner numbers use approximate official-map positions':'')+'.</small>';
       return;
     }
   }

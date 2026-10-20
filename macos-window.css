@@ -27,7 +27,11 @@ a { color: var(--ui-accent); }
 }
 .toolbar-leading { display: flex; align-items: center; gap: 10px; min-width: 0; justify-self: start; }
 .site-header .brand { display: inline-flex; align-items: center; flex: 0 0 auto; width: auto; min-width: 0; height: 28px; margin: 0; padding: 0 2px; border: 0; border-radius: 6px; background: none; box-shadow: none; }
-.site-header .brand img { display: block; width: 24px; height: 24px; max-width: none; border-radius: 6px; box-shadow: 0 0 0 .5px var(--ui-border),0 1px 2px #0003; filter: none; }
+/* Text wordmark: "F1 Apex data" in the display face, no image. */
+.site-header .brand.brand-wordmark { display: inline-flex; align-items: baseline; gap: 5px; padding: 0 4px; color: var(--ui-label); text-decoration: none; font-family: var(--ui-font-display); font-size: 16px; line-height: 1; letter-spacing: -.02em; white-space: nowrap; }
+.brand-wordmark .brand-f1 { font-weight: 800; font-style: italic; letter-spacing: -.04em; color: var(--ui-accent); }
+.brand-wordmark .brand-apex { font-weight: 700; }
+.brand-wordmark .brand-data { font-weight: 400; color: var(--ui-tertiary); }
 .window-title { display: grid; min-width: 0; line-height: 1.2; padding-left: 10px; border-left: 1px solid var(--ui-separator); }
 .window-title strong { overflow: hidden; font: 600 13px/1.25 var(--ui-font); color: var(--ui-label); white-space: nowrap; text-overflow: ellipsis; }
 .window-title span { overflow: hidden; font-size: 11px; color: var(--ui-tertiary); white-space: nowrap; text-overflow: ellipsis; }
@@ -231,6 +235,31 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .trace-focus-close,.chart-heading .trace-focus-close[data-ui-kind="push"] { display: none; }
 body.trace-focus .trace-focus-close,body.trace-focus .chart-heading .trace-focus-close[data-ui-kind="push"] { display: inline-flex; }
 body.trace-focus .chart-heading .trace-focus-button:not(.trace-focus-close) { display: none; }
+/* Circuit guide map: tall enough for sector, turn and top-speed labels. */
+.telemetry-analysis-grid #dominanceCanvas { height: 320px; min-height: 280px; }
+/* Circuit guide legend */
+.guide-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 11px; color: var(--ui-secondary); }
+.guide-legend > span { display: inline-flex; align-items: center; gap: 5px; }
+.guide-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; }
+.guide-legend i.is-dashed { height: 0; border-top: 2px dashed #ff453a; border-radius: 0; background: none; }
+.guide-legend i.is-dot { width: 8px; height: 8px; border-radius: 50%; background: #ffd60a; box-shadow: 0 0 0 1px #1d1d1f; }
+#dominanceLegend small { display: block; margin-top: 3px; color: var(--ui-tertiary); font-size: 11px; }
+/* Comparison chips: room for the lap identity and a separate close button. */
+#loadedLaps { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+#loadedLaps .loaded-lap-pill { display: inline-flex; align-items: center; gap: 2px; height: 28px; min-height: 28px; padding: 0 3px 0 2px; overflow: visible; max-width: 100%; }
+#loadedLaps .loaded-lap-main[data-ui-kind="reference"] { display: inline-flex; align-items: center; gap: 6px; height: 24px; min-height: 24px; padding: 0 8px 0 6px; overflow: visible; white-space: nowrap; font-size: 12px; }
+#loadedLaps .loaded-lap-main :is(b,small,span) { line-height: 1.2; }
+#loadedLaps .loaded-lap-pill button[data-ui-kind="icon"] { flex: 0 0 20px; width: 20px; min-width: 20px; height: 20px; min-height: 20px; padding: 0; border-radius: 50%; }
+#loadedLaps .loaded-lap-pill button[data-ui-kind="icon"]:hover { background: var(--ui-row-hover); color: var(--ui-label); }
+/* Trace toolbar keeps its natural width and wraps as a unit instead of clipping. */
+.chart-heading .trace-zoom-cluster { flex: 0 0 auto; max-width: 100%; overflow: visible; }
+.chart-heading .trace-zoom-readout,.chart-heading .trace-zoom-readout b { white-space: nowrap; }
+.chart-heading > h2 { white-space: nowrap; }
+@media(max-width:1000px) {
+  /* Half-width windows: keep a visible divider between corner choices and the map. */
+  .telemetry-analysis-grid .dominance-map { border-left: 1px solid var(--ui-separator); }
+}
+@media(max-width:560px) { .telemetry-analysis-grid .dominance-map { border-left: 0; border-top: 1px solid var(--ui-separator); } }
 /* ---------- Car performance content ---------- */
 #carPerformance > .performance-status-card { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 20px; border: 0; border-bottom: 1px solid var(--ui-separator); border-radius: 0; background: transparent; box-shadow: none; color: var(--ui-secondary); font-size: 12px; }
 #carPerformance > .performance-status-card p { margin: 0; color: inherit; font-size: 12px; }
@@ -439,7 +468,8 @@ body.performance-view > #carPerformance:not([hidden]),body:not(.performance-view
   .performance-methods dl { grid-template-columns: minmax(0,1fr); gap: 2px; }
   .performance-methods dd { margin-bottom: 8px; }
 }
-@media(max-width:520px) { .site-header .brand,.site-header :is(.local-compute-status,.local-compute-link) { display: none; } }
+@media(max-width:520px) { .site-header :is(.local-compute-status,.local-compute-link),.brand-wordmark .brand-data { display: none; } .site-header .brand.brand-wordmark { font-size: 14px; } }
+@media(max-width:400px) { .site-header .brand { display: none; } }
 
 /* ---------- Accessibility preferences ---------- */
 @media(prefers-reduced-transparency:reduce),(prefers-contrast:more) {
