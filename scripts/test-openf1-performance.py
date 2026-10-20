@@ -36,6 +36,33 @@ def row(value):
 
 
 class AdapterTests(unittest.TestCase):
+    def test_sprint_qualifying_recovers_when_primary_archive_has_no_laps(self):
+        value = bundle()
+        value['session']['session_name'] = 'Sprint Qualifying'
+        for selected in ('SQ', 'Sprint Qualifying', 'Sprint Shootout'):
+            with self.subTest(selected=selected), \
+                 patch('verified_sources.recorded_session', return_value=None), \
+                 patch.object(server, 'read_prepared_cache', return_value=None), \
+                 patch.object(server, 'load_session', side_effect=ValueError('Data not loaded')), \
+                 patch.object(server, 'load_openf1_performance', return_value=SimpleNamespace(
+                     apex_source_bundle=value, apex_source_notice={'kind': 'openf1-timing'})) as fallback:
+                result = server.session_data(Response(), 2026, 'Singapore Grand Prix', 17, selected, False)
+            fallback.assert_called_once_with(2026, 'Singapore Grand Prix', 'SQ', fresh=False)
+            self.assertEqual(result['session'], 'Sprint Qualifying')
+            self.assertEqual(result['drivers'][0]['laps'][0]['phase'], 'Q1')
+            self.assertEqual(result['openf1_session_key'], 10)
+
+    def test_sprint_fallback_never_accepts_regular_qualifying(self):
+        value = bundle()
+        with self.assertRaisesRegex(ValueError, 'identity mismatch'):
+            adapt_performance(2026, 'Singapore Grand Prix', 'SQ', value)
+        for name in ('Sprint Qualifying', 'Sprint Shootout'):
+            value['session']['session_name'] = name
+            self.assertEqual(adapt_performance(2026, 'Singapore Grand Prix', 'SQ', value).name,
+                             'Sprint Qualifying')
+            with self.assertRaisesRegex(ValueError, 'identity mismatch'):
+                adapt_performance(2026, 'Singapore Grand Prix', 'Q', value)
+
     def test_regular_qualifying_never_selects_sprint_qualifying(self):
         sessions = [
             {'session_name': 'Sprint Qualifying', 'session_key': 1},
