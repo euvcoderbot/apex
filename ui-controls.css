@@ -23,7 +23,7 @@
   --ui-control-height: 26px; --ui-segment-height: auto; --ui-control-font: 12px;
   --ui-text: 12px; --ui-caption: 11px; --ui-heading: 13px; --ui-metric: 17px; --ui-page-title: 20px;
   --ui-space-1: 4px; --ui-space-2: 8px; --ui-space-3: 12px; --ui-space-4: 16px;
-  --ui-row-height: 26px; --ui-toolbar-height: 52px; --ui-sidebar-width: 256px;
+  --ui-row-height: 26px; --ui-toolbar-height: 52px; --ui-sidebar-width: 282px;
   --font-sans: var(--ui-font); --font-mono: var(--ui-font);
   --bg-main: var(--ui-canvas); --bg-card: var(--ui-panel); --bg-input: var(--ui-control);
   --surface-muted: var(--ui-well); --surface-selected: var(--ui-selected); --bg-card-hover: var(--ui-control-hover);

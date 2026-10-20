@@ -72,6 +72,7 @@ body > main#top,body > #carPerformance {
 body.performance-view > main#top { display: none; }
 body > #carPerformance[hidden] { display: none; }
 .app-sidebar {
+  zoom: 1.1;
   grid-column: 1; grid-row: 1 / -1; align-self: stretch; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px;
   min-width: 0; margin: 0; padding: 14px 10px 28px; overflow-x: clip; overflow-y: visible;
   background: color-mix(in srgb,var(--ui-sidebar) 92%,transparent); border-right: 1px solid var(--ui-separator);
@@ -88,7 +89,10 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 /* Sidebar sections read as a source list, not as floating cards. */
 .app-sidebar :where(.dashboard-card,.session-controls,.driver-control-card,#tireCard) { position: static; display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; justify-content: flex-start; gap: 8px; text-align: left; width: auto; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; backdrop-filter: none; }
 .app-sidebar .panel-heading { align-self: stretch; display: flex; align-items: center; justify-content: space-between; text-align: left; min-height: 0; margin: 0 0 0; padding: 0 6px; border: 0; }
-.app-sidebar .panel-heading h2,.source-list-heading { margin: 0; font: 600 11px/1.3 var(--ui-font); letter-spacing: .01em; color: var(--ui-tertiary); text-transform: none; }
+.app-sidebar .panel-heading h2,.source-list-heading,.app-sidebar .track-selection-title > span:first-child { margin: 0; font: 700 12px/1.3 var(--ui-font-display); letter-spacing: 0; color: var(--ui-label); text-transform: none; }
+/* Each sidebar section is a titled group separated by a hairline, like Finder/Mail sidebars. */
+.app-sidebar > * + *,.app-sidebar #driverSidebar > * + * { padding-top: 14px; border-top: 1px solid var(--ui-separator); }
+.app-sidebar #driverSidebar { padding-top: 14px; }
 .source-list-heading { padding: 0 6px 4px; }
 .app-sidebar .control-field { align-self: stretch; display: grid; justify-items: stretch; align-items: start; gap: 3px; width: auto; min-width: 0; margin: 0; padding: 0 2px; text-align: left; }
 .app-sidebar .control-field label { justify-self: start; }
@@ -102,7 +106,7 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .app-sidebar .performance-scope-toggle[data-ui-group="segments"] > button { min-width: 0; }
 .app-sidebar #sidebarToggle { display: none; }
 /* Drivers: dense two-line rows with team colour, position and selection mark. */
-.app-sidebar #driverSidebar { position: static; display: flex; flex-direction: column; gap: 14px; width: auto; max-height: none; padding: 0; overflow: visible; grid-area: auto; opacity: 1; visibility: visible; }
+.app-sidebar #driverSidebar { align-self: stretch; position: static; display: flex; flex-direction: column; gap: 14px; width: auto; max-height: none; padding: 0; overflow: visible; grid-area: auto; opacity: 1; visibility: visible; }
 .app-sidebar #driverPills { display: grid; grid-template-columns: minmax(0,1fr); gap: 1px; max-height: none; overflow: visible; padding: 0; }
 .app-sidebar #driverPills .section-empty { padding: 2px 6px; font-size: 12px; }
 #driverPills .driver-pill[data-ui-kind="list-row"] {
@@ -135,10 +139,11 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .app-sidebar #performanceTrackTray:not([hidden]) { flex: none; width: auto; display: flex; flex-direction: column; gap: 6px; margin: 4px 0 0; padding: 10px 0 0; border: 0; border-top: 1px solid var(--ui-separator); background: none; }
 .app-sidebar .track-tray-header { display: grid; gap: 6px; margin: 0; padding: 0 4px; border: 0; border-radius: 0; background: none; box-shadow: none; }
 .app-sidebar .track-selection-title,.app-sidebar .track-count-badge { background: none; box-shadow: none; }
-.app-sidebar .track-selection-title { display: flex; align-items: center; justify-content: space-between; font: 600 11px/1.3 var(--ui-font); color: var(--ui-tertiary); }
-.app-sidebar .track-tray-actions { display: flex; flex-wrap: wrap; gap: 2px; margin: 0; }
-.app-sidebar .btn-track-action[data-ui-kind] { height: 22px; min-height: 22px; padding: 0 7px; border: 0; border-radius: 5px; background: transparent; color: var(--ui-accent); box-shadow: none; font-size: 11px; font-weight: 500; }
-.app-sidebar .btn-track-action[data-ui-kind]:hover:not(:disabled) { background: var(--ui-row-hover); }
+.app-sidebar .track-selection-title { display: flex; align-items: baseline; justify-content: space-between; padding: 0 2px; }
+.app-sidebar .track-count-badge[data-ui-kind="badge"] { height: auto; padding: 0; font-size: 11px; font-weight: 400; color: var(--ui-tertiary); background: none; }
+.app-sidebar .track-tray-actions { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px; margin: 2px 0 4px; }
+.app-sidebar .btn-track-action[data-ui-kind] { width: 100%; height: 24px; min-height: 24px; padding: 0 6px; border: 0; border-radius: 6px; background: var(--ui-control); color: var(--ui-label); box-shadow: var(--ui-shadow-control); font-size: 12px; font-weight: 400; }
+.app-sidebar .btn-track-action[data-ui-kind]:hover:not(:disabled) { background: var(--ui-control-hover); }
 .app-sidebar .performance-track-choices { padding: 0; border: 0; }
 .app-sidebar .performance-track-pills { display: grid; grid-template-columns: minmax(0,1fr); gap: 1px; }
 .app-sidebar .track-pill[data-ui-kind="choice"] { display: flex; align-items: center; justify-content: flex-start; gap: 7px; width: 100%; min-height: 26px; height: auto; padding: 2px 6px; border: 0; border-radius: 6px; background: transparent; box-shadow: none; font-size: 12px; text-align: left; color: var(--ui-label); }
@@ -154,7 +159,7 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
   background: transparent; color: var(--ui-label); box-shadow: none; font: 400 13px/1 var(--ui-font); text-align: left; white-space: nowrap;
   transition: background-color var(--ui-motion) var(--ui-ease);
 }
-.source-list-row span { overflow: hidden; text-overflow: ellipsis; }
+.source-list-row span { overflow: hidden; text-overflow: ellipsis; line-height: 1.35; padding-block: 1px; }
 .source-list-icon.ui-symbol { width: 16px; height: 16px; flex: 0 0 16px; color: var(--ui-accent); }
 .source-list-row:hover:not([aria-current]) { background: var(--ui-row-hover); }
 .source-list-row[aria-current="page"] { background: color-mix(in srgb,var(--ui-accent) 22%,transparent); font-weight: 500; }
@@ -202,23 +207,55 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .dominance-map-header h2 { font: 600 12px/1.3 var(--ui-font); }
 .dominance-map-header h2 small { color: var(--ui-tertiary); font-weight: 500; letter-spacing: 0; text-transform: none; }
 
+/* Lap summaries: half-width cards so two laps share a row on wide windows. */
+.sector-cards { display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%,440px),1fr)); gap: 10px; }
+.sector-cards .lap-summary-card { grid-template-columns: minmax(0,1fr); gap: 6px; padding: 9px 12px; }
+.sector-cards .lap-summary-card > header { grid-area: 1 / 1; }
+.sector-cards .lap-summary-card .summary-sectors { grid-area: 2 / 1; border-left: 0; padding-left: 0; padding-top: 4px; border-top: 1px solid var(--ui-border-strong); }
+.sector-cards .lap-summary-card .summary-conditions { grid-area: 3 / 1; }
+/* Trace toolbar: one connected group plus regular-size push buttons. */
+.chart-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.chart-heading > h2 { margin-right: auto; }
+.chart-heading .trace-zoom-cluster { display: inline-flex; align-items: center; height: 26px; min-height: 26px; padding: 0 2px 0 0; border: 0; border-radius: 6px; background: var(--ui-control); box-shadow: var(--ui-shadow-control); backdrop-filter: none; }
+.chart-heading .trace-zoom-readout { display: inline-flex; align-items: center; gap: 4px; min-width: 0; height: 100%; padding: 0 9px; border-right: 1px solid var(--ui-separator); font-size: 12px; color: var(--ui-secondary); }
+.chart-heading .trace-zoom-readout b { color: var(--ui-label); font-weight: 500; }
+.chart-heading .trace-zoom-cluster .trace-tools { display: inline-flex; align-items: center; gap: 0; padding: 0 0 0 2px; border: 0; background: none; }
+.chart-heading .trace-zoom-cluster .trace-tools button[data-ui-kind="stepper"] { width: 24px; min-width: 24px; height: 22px; min-height: 22px; padding: 0; border-radius: 4px; color: var(--ui-label); }
+.chart-heading .trace-zoom-cluster .trace-tools button[data-ui-kind="stepper"]:hover:not(:disabled) { background: var(--ui-row-hover); }
+.chart-heading .trace-zoom-cluster .trace-tools button:disabled { color: var(--ui-quaternary); opacity: 1; }
+.chart-heading .trace-zoom-cluster .trace-tools .trace-reset { width: auto; min-width: 0; padding: 0 7px; font-size: 12px; }
+.chart-heading .trace-zoom-cluster .ui-symbol { width: 14px; height: 14px; }
+.chart-heading .trace-tool-separator { height: 14px; margin: 0 2px; }
+.chart-heading .trace-focus-button[data-ui-kind="push"] { height: 26px; min-height: 26px; padding: 0 10px; font-size: 12px; }
+.trace-focus-close,.chart-heading .trace-focus-close[data-ui-kind="push"] { display: none; }
+body.trace-focus .trace-focus-close,body.trace-focus .chart-heading .trace-focus-close[data-ui-kind="push"] { display: inline-flex; }
+body.trace-focus .chart-heading .trace-focus-button:not(.trace-focus-close) { display: none; }
 /* ---------- Car performance content ---------- */
 #carPerformance > .performance-status-card { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 20px; border: 0; border-bottom: 1px solid var(--ui-separator); border-radius: 0; background: transparent; box-shadow: none; color: var(--ui-secondary); font-size: 12px; }
 #carPerformance > .performance-status-card p { margin: 0; color: inherit; font-size: 12px; }
 #carPerformance > .performance-status-card .status-dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--ui-quaternary); box-shadow: none; animation: none; }
-#carPerformance > .performance-status-card:is(.is-loading,.loading,[aria-busy="true"]) .status-dot,#carPerformance.is-running .status-dot { background: none; border: 1.5px solid var(--ui-quaternary); border-top-color: var(--ui-accent); animation: ui-spin .8s linear infinite; box-sizing: border-box; }
+body.is-descriptions-hidden #carPerformance > .performance-status-card:not(.is-running) { display: none; }
+/* Progress and assumption notes are explanations: shown only with Show explanations, unless they carry an action. */
+body.is-descriptions-hidden #performanceMetricPanel p.performance-quality-status:not(:has(button)):not(details p) { display: none; }
+#carPerformance > .performance-status-card.is-running .status-dot { background: none; border: 1.5px solid var(--ui-quaternary); border-top-color: var(--ui-accent); animation: ui-spin .8s linear infinite; box-sizing: border-box; }
 #carPerformance > #performanceResults { position: relative; display: block; padding: 14px 20px 8px; }
 #carPerformance > #performanceResults:empty { display: none; }
 #carPerformance > .performance-methods { margin: 6px 20px 24px; }
 #performanceResults:not(:has(> #performanceMetricPanel)) > .performance-toolbar { position: static; display: flex; justify-content: flex-end; margin: 0 0 10px; padding: 0; border: 0; background: none; }
-#performanceResults:has(> #performanceMetricPanel) > .performance-toolbar { position: absolute; top: 16px; right: 20px; z-index: 2; display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin: 0; padding: 0; border: 0; background: none; }
+#performanceResults:has(> #performanceMetricPanel) > .performance-toolbar { position: absolute; top: 18px; right: 20px; z-index: 2; display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin: 0; padding: 0; border: 0; background: none; }
 #performanceResults > .performance-toolbar .performance-explain-toggle[data-ui-kind] { height: 24px; min-height: 24px; padding: 0 9px; font-size: 11px; border-radius: 5px; }
-#performanceMetricPanel .metric-heading { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 12px; padding: 0 96px 10px 0; border: 0; border-bottom: 1px solid var(--ui-separator); }
+#performanceMetricPanel .metric-heading { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 12px; padding: 0 112px 10px 0; border: 0; border-bottom: 1px solid var(--ui-separator); }
 #performanceMetricPanel .metric-heading-copy { flex: 1 1 auto; min-width: 0; margin-right: auto; }
 #performanceMetricPanel .metric-heading h2 { margin: 0; font: 700 22px/1.15 var(--ui-font-display); letter-spacing: -.02em; }
 #performanceMetricPanel .metric-heading-copy p { margin: 3px 0 0; font-size: 12px; color: var(--ui-secondary); }
 #performanceMetricPanel .metric-heading-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-#performanceMetricPanel .metric-load-count { order: 3; height: 20px; display: inline-flex; align-items: center; padding: 0 8px; border-radius: 10px; background: var(--ui-selection-muted); color: var(--ui-secondary); font-size: 11px; font-weight: 500; }
+#performanceMetricPanel .metric-heading { display: grid; grid-template-columns: minmax(0,1fr) auto; grid-template-areas: "title controls" "count controls"; align-items: center; column-gap: 16px; row-gap: 1px; }
+#performanceMetricPanel .metric-heading-copy { grid-area: title; }
+#performanceMetricPanel .metric-heading-controls { grid-area: controls; justify-content: flex-end; }
+#performanceMetricPanel .metric-load-count { grid-area: count; justify-self: start; margin: 0; text-align: left; display: block; height: auto; padding: 0; border-radius: 0; background: none; color: var(--ui-tertiary); font-size: 12px; font-weight: 400; }
+#performanceMetricPanel .metric-heading-controls :is(button[data-ui-kind="push"],button[data-ui-kind="primary"]) { height: 26px; min-height: 26px; }
+#performanceMetricPanel .metric-heading-controls [data-ui-group="segments"] > button[data-ui-kind="segment"] { height: 22px; min-height: 22px; }
+#performanceResults:has(> #performanceMetricPanel) > .performance-toolbar .performance-explain-toggle[data-ui-kind] { height: 26px; min-height: 26px; padding: 0 10px; font-size: 12px; border-radius: 6px; }
 #performanceMetricPanel > .performance-definition { max-width: 92ch; margin: 0 0 12px; font-size: 12px; line-height: 1.5; color: var(--ui-secondary); }
 #performanceMetricPanel .performance-card { margin: 0 0 12px; padding: 12px 14px 14px; }
 #performanceMetricPanel .performance-card > .panel-heading { margin: 0 0 6px; }

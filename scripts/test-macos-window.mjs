@@ -57,6 +57,17 @@ test('window layer is parsed, final, and keeps accessibility fallbacks',()=>{
   assert.doesNotMatch(css,/#performanceMetricPanel[^{]*\{[^}]*animation/,'re-rendered panels must not re-animate on every progress update');
 });
 
+test('review fixes: larger sidebar, paired lap cards, single trace toolbar and quiet status text',()=>{
+  assert.match(css,/\.app-sidebar \{\n  zoom: 1\.1;/);assert.match(tokens,/--ui-sidebar-width: 282px/);
+  assert.match(css,/\.app-sidebar #driverSidebar \{ align-self: stretch;/,'driver list must use the full sidebar width');
+  assert.match(css,/\.sector-cards \{ display: grid; grid-template-columns: repeat\(auto-fill,minmax\(min\(100%,440px\),1fr\)\)/);
+  assert.match(css,/\.trace-focus-close,\.chart-heading \.trace-focus-close\[data-ui-kind="push"\] \{ display: none; \}/);
+  assert.match(css,/body\.trace-focus \.trace-focus-close/);
+  assert.match(css,/body\.is-descriptions-hidden #carPerformance > \.performance-status-card:not\(\.is-running\) \{ display: none; \}/);
+  assert.match(css,/body\.is-descriptions-hidden #performanceMetricPanel p\.performance-quality-status:not\(:has\(button\)\):not\(details p\)/);
+  assert.match(css,/\.source-list-row span \{[^}]*line-height: 1\.35/,'descenders must not clip');
+});
+
 test('sidebar text and accent links stay legible on the sidebar material in both appearances',()=>{
   const root=postcss.parse(tokens),palettes=[];
   root.walkRules(rule=>{if([':root',':root[data-theme="light"]'].includes(rule.selector)&&rule.parent.type==='root'){const values={};rule.walkDecls(d=>values[d.prop]=d.value);palettes.push(values);}});
