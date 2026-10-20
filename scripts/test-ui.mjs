@@ -1191,6 +1191,23 @@ test('speed extremes need prominence and native support, so noise and gaps are n
   assert.equal(h.run("lapSpeedExtremes(samples,5000).filter(e=>e.kind==='min').length"),0,'no extreme across a telemetry gap');
 });
 
+test('straight maxima use the true raw peak on a sparse 4 Hz feed, and unmatched laps fall back to their own segment extreme', () => {
+  const h=context();
+  // 85 m/s at 4 Hz: packets ~21-50 m apart, plus a routine 1.08 s packet into braking.
+  // The real top speed (308) follows a 37 m gap
+  // and a 306 plateau 61 m earlier; the label must use 308, the value the line draws through.
+  h.sandbox.samples=[[1300,280,0],[1351,296,.6],[1390,299,1.06],[1427,303,1.5],[1467,304,1.97],[1505,305,2.42],[1532,306,2.74],[1556,306,3.02],[1593,308,3.46],[1677,253,4.54],[1700,226,4.86],[1720,180,5.3],[1750,120,5.9],[1770,100,6.4],[1800,140,7]]
+    .map(([m,v,t])=>({AlignedFraction:m/5000,Speed:v,ElapsedSeconds:t}));
+  const max=h.run("lapSpeedExtremes(samples,5000).filter(e=>e.kind==='max')");
+  assert.equal(max.length,1);assert.equal(max[0].speed,308);
+  // B has no matching extreme within 70 m, but has its own clear dip inside the segment.
+  const lap=(code,shift)=>({lap:{code,lap:1},samples:Array.from({length:1001},(_,i)=>{const m=i*5,d=Math.abs(m-2500-shift);return {AlignedFraction:i/1000,Speed:d<150?90+d*.8:210};})});
+  h.sandbox.entries=[lap('A',0),lap('B',90)];
+  const dip=h.run("buildSpeedAnnotations(entries,[],5000).find(r=>r.kind==='min')");
+  assert.equal(dip.values.length,2);assert.equal(dip.missing.length,0);
+  assert.ok(dip.values.find(v=>v.lap.code==='B').segment);
+});
+
 test('shared corner positions interpolate bounded native brackets without fabricating missing speeds', () => {
   const h=context();
   h.sandbox.entry={lap:{code:'A',lap:1},samples:[
@@ -1364,7 +1381,7 @@ test('speed annotation labels avoid open trace segments without closing the lap'
   h.sandbox.points=[{x:0,y:0},{x:0,y:100},{x:100,y:100}];
   assert.equal(h.run('trackIntersectsLabel(box,points,0,false)'),false);
   assert.equal(h.run('trackIntersectsLabel(box,points,0,true)'),true);
-  assert.match(app,/trackIntersectsLabel\(box, trace\.points, 2, false\)/);
+  assert.match(app,/trackIntersectsLabel\(box, trace\.points, 1, false\)/);
   assert.match(app,/const identity = lap => lap\.code/);
 });
 

@@ -1931,26 +1931,30 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
 
 
 function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7, viewStart = 0, viewEnd = 1) {
-  const calloutWidth = 26;
-  const gap = 3;
+  const gap = 3, maxNudge = 12;
   const plotWidth = width - left - right;
-  const laneEnds = [];
+  const lanes = [];
   // Source corner rows are normally delivered in lap order, but sorting here
   // guarantees lane allocation still works if a provider returns them shuffled.
   const items = [...markers]
     .filter(corner => Number.isFinite(corner.fraction) && corner.fraction >= viewStart && corner.fraction <= viewEnd)
     .sort((a, b) => a.fraction - b.fraction)
     .map(corner => {
-      const x = left + ((corner.fraction - viewStart) / (viewEnd - viewStart || 1)) * plotWidth;
-      let lane = laneEnds.findIndex(end => x - calloutWidth / 2 >= end + gap);
-      if (lane < 0) {
-        lane = laneEnds.length;
-        laneEnds.push(-Infinity);
+      const anchorX = left + ((corner.fraction - viewStart) / (viewEnd - viewStart || 1)) * plotWidth;
+      const tagWidth = Math.max(22, String(cornerLabel(corner)).length * 7 + 8);
+      // Nudge sideways a few pixels before opening another row; the tick keeps the exact position visible.
+      for (let lane = 0; ; lane++) {
+        lanes[lane] ||= [];
+        for (const shift of [0, 4, -4, 8, -8, maxNudge, -maxNudge]) {
+          const x = Math.max(left + tagWidth / 2, Math.min(width - right - tagWidth / 2, anchorX + shift));
+          if (lanes[lane].every(([l, r]) => x + tagWidth / 2 + gap <= l || x - tagWidth / 2 - gap >= r)) {
+            lanes[lane].push([x - tagWidth / 2, x + tagWidth / 2]);
+            return { corner, x, anchorX, lane, width: tagWidth };
+          }
+        }
       }
-      laneEnds[lane] = x + calloutWidth / 2;
-      return { corner, x, lane, width: calloutWidth };
     });
-  return { items, lanes: laneEnds.length };
+  return { items, lanes: lanes.length };
 }
 
 function sharedCornerSpeed(entry, fraction, totalDistance) {
@@ -1973,45 +1977,52 @@ function sharedCornerSpeed(entry, fraction, totalDistance) {
 }
 
 // Each lap's own measured speed extremes: local minima and maxima of native
-// samples with real prominence. Never sampled at a corner marker or a fixed
-// window edge, which reads entry or exit speed instead of the apex.
-function lapSpeedExtremes(samples, totalDistance, {prominence=8, neighbourhood=60, reach=320, gapLimit=45}={}) {
+// samples with real (topographic) prominence. Never sampled at a corner marker
+// or a fixed window edge, which reads entry or exit speed instead of the apex.
+function lapSpeedExtremes(samples, totalDistance, {prominence=8, reach=900, gapSeconds=1.6, gapMetres=100}={}) {
   if (!samples?.length || !(totalDistance > 0)) return [];
   const points = samples
     .filter(p => p?.Speed != null && Number.isFinite(+p.Speed) && +p.Speed > 0)
-    .map(p => ({fraction: traceSampleFraction(samples, p), speed: +p.Speed, x: +p.X, y: +p.Y}))
+    .map(p => ({fraction: traceSampleFraction(samples, p), speed: +p.Speed, x: +p.X, y: +p.Y, t: Number.isFinite(+p.ElapsedSeconds) && p.ElapsedSeconds != null ? +p.ElapsedSeconds : null}))
     .filter(p => Number.isFinite(p.fraction))
     .sort((a, b) => a.fraction - b.fraction);
   const metres = fraction => fraction * totalDistance;
+  // A packet gap is a hole in the measurement, judged by time where known.
+  // ~4 Hz feeds have routine 1.1 s packets (the drawn line bridges them), so
+  // only longer holes are refused; without timestamps, 100 m.
+  const gap = (a, b) => a.t != null && b.t != null ? b.t - a.t > gapSeconds : metres(b.fraction - a.fraction) > gapMetres;
   const result = [];
-  for (let i = 1; i < points.length - 1; i++) {
+  for (let i = 0; i < points.length; i++) {
     const here = points[i], at = metres(here.fraction);
-    // Unsupported extremes across telemetry gaps are not measurements.
-    if (metres(here.fraction - points[i - 1].fraction) > gapLimit || metres(points[i + 1].fraction - here.fraction) > gapLimit) continue;
-    let isMin = true, isMax = true, leftHigh = -Infinity, rightHigh = -Infinity, leftLow = Infinity, rightLow = Infinity;
-    for (let j = i - 1; j >= 0 && at - metres(points[j].fraction) <= reach; j--) {
-      const d = at - metres(points[j].fraction), s = points[j].speed;
-      if (d <= neighbourhood) { if (s < here.speed) isMin = false; if (s > here.speed) isMax = false; }
-      leftHigh = Math.max(leftHigh, s); leftLow = Math.min(leftLow, s);
+    // Plateaus: evaluate only the first sample of a run of equal speeds.
+    // A plateau never spans a telemetry gap.
+    if (i > 0 && points[i - 1].speed === here.speed && !gap(points[i - 1], here)) continue;
+    let end = i; while (end + 1 < points.length && points[end + 1].speed === here.speed && !gap(points[end], points[end + 1])) end++;
+    const before = points[i - 1], after = points[end + 1];
+    if ((before && gap(before, here)) || (after && gap(points[end], after))) continue;
+    for (const kind of ['max', 'min']) {
+      const higher = (s) => kind === 'max' ? s > here.speed : s < here.speed;
+      if ((before && higher(before.speed)) || (after && higher(after.speed))) continue;
+      // The lap's first and last packets are a cut through the timing line, not a peak or dip.
+      if (!before || !after) continue;
+      // Walk outwards until a more extreme sample: the deepest opposite value on
+      // each side is the col; prominence is the smaller of the two drops.
+      const side = (step, start) => {
+        let base = here.speed, j = start;
+        while (j >= 0 && j < points.length && Math.abs(metres(points[j].fraction) - at) <= reach) {
+          if (higher(points[j].speed)) break;
+          base = kind === 'max' ? Math.min(base, points[j].speed) : Math.max(base, points[j].speed);
+          j += step;
+        }
+        return base;
+      };
+      const left = before ? side(-1, i - 1) : null, right = after ? side(1, end + 1) : null;
+      const drops = [left, right].filter(v => v != null).map(v => Math.abs(here.speed - v));
+      const depth = Math.min(...drops);
+      if (!(depth >= prominence)) continue;
+      const mid = points[Math.floor((i + end) / 2)];
+      result.push({kind, ...here, fraction: mid.fraction, x: mid.x, y: mid.y, prominence: depth});
     }
-    for (let j = i + 1; j < points.length && metres(points[j].fraction) - at <= reach; j++) {
-      const d = metres(points[j].fraction) - at, s = points[j].speed;
-      // Ties resolve to the first sample of a plateau, so one extreme per plateau.
-      if (d <= neighbourhood) { if (s < here.speed) isMin = false; if (s > here.speed) isMax = false; }
-      rightHigh = Math.max(rightHigh, s); rightLow = Math.min(rightLow, s);
-    }
-    const previous = result.at(-1);
-    const accept = (kind, depth) => {
-      if (!(depth >= prominence)) return;
-      // Plateau or noise duplicate: keep the more extreme of two same-kind points.
-      if (previous?.kind === kind && metres(here.fraction - previous.fraction) <= neighbourhood) {
-        if (kind === 'min' ? here.speed < previous.speed : here.speed > previous.speed) result[result.length - 1] = {kind, ...here};
-        return;
-      }
-      result.push({kind, ...here});
-    };
-    if (isMin) accept('min', Math.min(leftHigh, rightHigh) - here.speed);
-    else if (isMax) accept('max', here.speed - Math.max(leftLow, rightLow));
   }
   return result.filter(e => !(typeof telemetryEstimateInfo === 'function' && telemetryEstimateInfo(samples, e.fraction, 'Speed')));
 }
@@ -2028,7 +2039,21 @@ function lapPositionScale(samples, totalDistance) {
   return path > 0 && totalDistance > 0 ? path / totalDistance : null;
 }
 
-function buildSpeedAnnotations(entries, markers, totalDistance, {matchMetres=70} = {}) {
+// A lap's own raw minimum or maximum inside one segment (no matching extreme
+// there, e.g. a flat-out kink for one driver but a lift for another).
+function lapSegmentExtreme(samples, kind, from, to) {
+  let best = null;
+  for (const p of samples || []) {
+    const f = traceSampleFraction(samples, p);
+    if (!(f >= from && f <= to) || p?.Speed == null || !(+p.Speed > 0)) continue;
+    if (!best || (kind === 'max' ? +p.Speed > best.speed : +p.Speed < best.speed)) best = {speed: +p.Speed, fraction: f};
+  }
+  // An extreme sitting on the segment edge is just the slope continuing, not a peak or dip.
+  const margin = (to - from) * .1;
+  return best && best.fraction > from + margin && best.fraction < to - margin ? best : null;
+}
+
+function buildSpeedAnnotations(entries, markers, totalDistance, {matchMetres=70, segmentMetres=120} = {}) {
   if (!entries?.length || !Number.isFinite(totalDistance) || totalDistance <= 0) return [];
   const lapsWithExtremes = entries.map(entry => ({entry, scale: lapPositionScale(entry.samples, totalDistance), extremes: lapSpeedExtremes(entry.samples, totalDistance)}));
   const [anchor, ...others] = lapsWithExtremes;
@@ -2055,7 +2080,11 @@ function buildSpeedAnnotations(entries, markers, totalDistance, {matchMetres=70}
         const metres = gps ?? Math.abs(candidate.fraction - extreme.fraction) * totalDistance;
         if (metres <= matchMetres && (!best || metres < best.metres)) best = {candidate, candidateIndex, metres};
       });
-      if (best) { used[index].add(best.candidateIndex); values.push({lap: other.entry.lap, speed: best.candidate.speed, fraction: best.candidate.fraction}); }
+      if (best) { used[index].add(best.candidateIndex); values.push({lap: other.entry.lap, speed: best.candidate.speed, fraction: best.candidate.fraction}); return; }
+      // No matching extreme: that lap's own raw extreme in the same segment.
+      const span = segmentMetres / totalDistance;
+      const own = lapSegmentExtreme(other.entry.samples, extreme.kind, extreme.fraction - span, extreme.fraction + span);
+      if (own && !(typeof telemetryEstimateInfo === 'function' && telemetryEstimateInfo(other.entry.samples, own.fraction, 'Speed'))) values.push({lap: other.entry.lap, speed: own.speed, fraction: own.fraction, segment: true});
       else missing.push(other.entry.lap);
     });
     values.sort((a, b) => b.speed - a.speed);
@@ -2065,7 +2094,7 @@ function buildSpeedAnnotations(entries, markers, totalDistance, {matchMetres=70}
 }
 
 // Broadcast-style labels: the leader's whole km/h, then every other lap's
-// whole-km/h difference, stacked in lap colours exactly at the peak or dip.
+// whole-km/h difference, stacked in lap colours.
 function speedAnnotationLines(annotation) {
   const allLaps = [...annotation.values.map(v => v.lap), ...(annotation.missing || [])];
   const identity = lap => lap.code + (allLaps.filter(l => l.code === lap.code).length > 1 ? ` L${lap.lap}` : '');
@@ -2081,35 +2110,44 @@ function speedAnnotationLines(annotation) {
 
 function drawSpeedAnnotations(ctx, annotations, rect, bounds, xForFraction, viewStart, viewEnd, traces = []) {
   const theme = canvasTheme(), occupied = [];
-  const bottom = rect.height - bounds.bottom, lineHeight = 11;
+  const bottom = rect.height - bounds.bottom, lineHeight = 13, plotRight = rect.width - bounds.right;
+  const yFor = speed => bounds.top + (bounds.max - speed) / (bounds.max - bounds.min || 1) * (bottom - bounds.top);
   ctx.save();
   ctx.font = canvasFont(10, 600);
   ctx.textAlign = 'center';
   ctx.lineJoin = 'round';
+  const collides = box => occupied.some(b => box.x < b.x + b.width + 3 && box.x + box.width + 3 > b.x && box.y < b.y + b.height + 2 && box.y + box.height + 2 > b.y);
+  const fits = box => box.x >= bounds.left && box.x + box.width <= plotRight && box.y >= bounds.top + 14 && box.y + box.height <= bottom - 2;
   annotations.filter(a => a.fraction >= viewStart && a.fraction <= viewEnd).forEach(a => {
     const lines = speedAnnotationLines(a);
-    const width = Math.max(...lines.map(l => ctx.measureText(l.text).width)) + 4;
-    const height = lines.length * lineHeight;
-    const px = xForFraction(a.fraction), py = bounds.top + (bounds.max - a.speed) / (bounds.max - bounds.min || 1) * (bottom - bounds.top);
-    const x = Math.max(bounds.left, Math.min(rect.width - bounds.right - width, px - width / 2));
-    // Peaks label above, dips below; nudge further only to avoid another label.
-    let y = null;
-    for (const offset of [5, 15, 27, 41]) {
-      const candidate = a.kind === 'max' ? py - offset - height : py + offset;
-      if (candidate < bounds.top + 16 || candidate + height > bottom - 2) continue;
-      const box = {x, y: candidate, width, height};
-      if (occupied.some(b => box.x < b.x + b.width + 3 && box.x + box.width + 3 > b.x && box.y < b.y + b.height + 2 && box.y + box.height + 2 > b.y)) continue;
-      if (traces.some(trace => trackIntersectsLabel(box, trace.points, 2, false)) && offset < 27) continue;
-      y = candidate; break;
-    }
-    if (y == null) return;
-    occupied.push({x, y, width, height});
+    const width = Math.max(...lines.map(l => ctx.measureText(l.text).width)) + 6;
+    const height = lines.length * lineHeight + 2;
+    const points = a.values.filter(v => v.fraction >= viewStart && v.fraction <= viewEnd).map(v => ({x: xForFraction(v.fraction), y: yFor(v.speed), color: getLapColor(v.lap)}));
+    const px = xForFraction(a.fraction), py = yFor(a.speed);
+    // Preferred side first (above peaks, below dips), then the other side,
+    // then beside the point, so labels near the chart edges are never dropped.
+    const vertical = (dir, offset) => ({x: Math.max(bounds.left, Math.min(plotRight - width, px - width / 2)), y: dir < 0 ? py - offset - height : py + offset, width, height});
+    const sideways = (dir, offset) => ({x: dir < 0 ? px - offset - width : px + offset, y: Math.max(bounds.top + 14, Math.min(bottom - 2 - height, py - height / 2)), width, height});
+    const first = a.kind === 'max' ? -1 : 1;
+    const candidates = [];
+    for (const offset of [7, 18, 32]) candidates.push(vertical(first, offset));
+    for (const offset of [7, 18, 32]) candidates.push(vertical(-first, offset));
+    for (const offset of [9, 22, 40]) candidates.push(sideways(1, offset), sideways(-1, offset));
+    const clearOfTraces = box => !traces.some(trace => trackIntersectsLabel(box, trace.points, 1, false));
+    const box = candidates.find(b => fits(b) && !collides(b) && clearOfTraces(b)) || candidates.find(b => fits(b) && !collides(b));
+    if (!box) return;
+    occupied.push(box);
+    // Mark exactly where each value was measured, in that lap's colour.
+    points.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, 2.6, 0, Math.PI * 2); ctx.fillStyle = p.color; ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = theme.labelStroke; ctx.stroke(); });
+    // Leader from the measured point to the nearest edge of its label.
+    const ex = Math.max(box.x, Math.min(box.x + box.width, px)), ey = Math.max(box.y, Math.min(box.y + box.height, py));
+    if (Math.hypot(ex - px, ey - py) > 5) { ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(ex, ey); ctx.strokeStyle = theme.gridStrong; ctx.lineWidth = 1; ctx.stroke(); }
     lines.forEach((line, i) => {
-      const ty = y + (i + 1) * lineHeight - 2;
+      const ty = box.y + (i + 1) * lineHeight - 1;
       ctx.strokeStyle = theme.labelStroke; ctx.lineWidth = 3;
-      ctx.strokeText(line.text, x + width / 2, ty);
+      ctx.strokeText(line.text, box.x + box.width / 2, ty);
       ctx.fillStyle = line.color;
-      ctx.fillText(line.text, x + width / 2, ty);
+      ctx.fillText(line.text, box.x + box.width / 2, ty);
     });
   });
   ctx.restore();
@@ -2565,16 +2603,19 @@ function drawRealChart(name) {
   if (name === 'Speed trace' && $('#cornerToggle').checked) {
     const rowHeight = 20;
     const calloutHeight = 16;
-    cornerCalloutLayout.items.forEach(({ corner, x, lane, width }) => {
+    cornerCalloutLayout.items.forEach(({ corner, x, anchorX, lane, width }) => {
       if (!Number.isFinite(corner.fraction)) return;
       const labelY = rect.height - cornerAxisInset + 4 + lane * rowHeight;
       const left = x - width / 2;
+      // Tick from the exact corner position on the axis to its tag.
+      ctx.beginPath(); ctx.moveTo(anchorX, rect.height - bounds.bottom); ctx.lineTo(anchorX, rect.height - bounds.bottom + 3); ctx.lineTo(x, labelY + 1.5);
+      ctx.strokeStyle = theme.gridStrong; ctx.lineWidth = 1; ctx.stroke();
 
       // Small grey boxed turn tags, like broadcast speed-trace graphics.
       const label = cornerLabel(corner);
       ctx.font = canvasFont(10, 600);
-      const tagWidth = Math.max(22, ctx.measureText(label).width + 8);
-      const tagLeft = Math.max(bounds.left, Math.min(rect.width - bounds.right - tagWidth, x - tagWidth / 2));
+      const tagWidth = width;
+      const tagLeft = left;
       ctx.fillStyle = lightThemeActive() ? 'rgba(20,25,32,.08)' : 'rgba(255,255,255,.1)';
       ctx.strokeStyle = theme.outline;
       ctx.lineWidth = 1;

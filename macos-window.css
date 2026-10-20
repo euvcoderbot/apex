@@ -279,6 +279,17 @@ body.trace-focus .chart-heading .trace-focus-button:not(.trace-focus-close) { di
 .performance-table .team-name { overflow: visible; text-overflow: clip; white-space: nowrap; }
 .performance-run-inspector { border-radius: 8px; }
 .trend-sparkline .performance-trend-label { font-size: var(--ui-caption); }
+/* Trace controls use the same round check mark as the driver list, centred on the label. */
+.trace-setting,.trace-driver-chip { display: inline-flex; align-items: center; gap: 7px; line-height: 1.2; }
+:is(.trace-setting,.trace-driver-chip) input[type="checkbox"],:is(.trace-setting,.trace-driver-chip) input[data-ui-kind="checkbox"] {
+  appearance: none; -webkit-appearance: none; position: relative; flex: 0 0 16px; width: 16px; height: 16px; min-width: 16px; min-height: 16px; margin: 0; padding: 0;
+  border: 0; border-radius: 50%; background: transparent; box-shadow: inset 0 0 0 1.2px var(--ui-border-strong); vertical-align: middle; opacity: 1; clip: auto; clip-path: none; cursor: default;
+  transition: background-color var(--ui-motion) var(--ui-ease),box-shadow var(--ui-motion) var(--ui-ease);
+}
+:is(.trace-setting,.trace-driver-chip) input:checked { background: var(--ui-action) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4.6 8.3 2.3 2.3 4.6-5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat; box-shadow: none; }
+:is(.trace-setting,.trace-driver-chip) input:checked::after,:is(.trace-setting,.trace-driver-chip) input::before { content: none; display: none; }
+:is(.trace-setting,.trace-driver-chip) input:focus-visible { outline: 3px solid var(--ui-focus); outline-offset: 1px; }
+.trace-pill-group .trace-driver-chip { padding-inline: 8px 6px; }
 /* ---------- Car performance content ---------- */
 #carPerformance > .performance-status-card { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 20px; border: 0; border-bottom: 1px solid var(--ui-separator); border-radius: 0; background: transparent; box-shadow: none; color: var(--ui-secondary); font-size: 14px; }
 #carPerformance > .performance-status-card p { margin: 0; color: inherit; font-size: 14px; }
