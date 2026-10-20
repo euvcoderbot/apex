@@ -423,7 +423,8 @@ button[data-ui-kind="menu-item"]:is(:hover,:focus-visible) { background: var(--u
 /* Pop-up menus list every option at once: no inner scrollbar, no truncated
    names, and the current choice is shown by highlight rather than a tick. */
 .select-menu,.select-shell:has(#gp) .select-menu { width: max-content; min-width: 100%; max-width: calc(100vw - 24px); max-height: none; overflow: visible; scrollbar-gutter: auto; }
-.select-menu button,.select-shell:has(#gp) .select-menu button { min-height: 26px; height: auto; padding: 3px 14px 3px 10px; overflow: visible; text-overflow: clip; white-space: nowrap; }
+.select-menu,.select-shell:has(#gp) .select-menu { display: grid; gap: 2px; padding: 6px; }
+.select-menu button,.select-shell:has(#gp) .select-menu button { min-height: 30px; height: auto; padding: 5px 16px 5px 12px; border-radius: 6px; overflow: visible; text-overflow: clip; white-space: nowrap; line-height: 20px; }
 .select-menu .select-option-text { line-height: 20px; padding-block: 0; }
 .select-menu .gp-flag { width: 20px; height: 15px; }
 .select-menu button[aria-selected="true"]::before,.select-menu button[aria-selected="true"]::after { content: none; display: none; }
