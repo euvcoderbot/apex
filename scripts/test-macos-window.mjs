@@ -60,6 +60,7 @@ test('window layer is parsed, final, and keeps accessibility fallbacks',()=>{
 test('review fixes: larger sidebar, paired lap cards, single trace toolbar and quiet status text',()=>{
   assert.match(css,/\.app-sidebar \{\n  zoom: 1\.1;/);assert.match(tokens,/--ui-sidebar-width: 282px/);
   assert.match(css,/\.app-sidebar #driverSidebar \{ align-self: stretch;/,'driver list must use the full sidebar width');
+  assert.match(css,/\.app-sidebar \.track-tray-header \{ grid-template-columns: minmax\(0,1fr\)/,'race actions must use the full sidebar width');
   assert.match(css,/\.sector-cards \{ display: grid; grid-template-columns: repeat\(auto-fill,minmax\(min\(100%,440px\),1fr\)\)/);
   assert.match(css,/\.trace-focus-close,\.chart-heading \.trace-focus-close\[data-ui-kind="push"\] \{ display: none; \}/);
   assert.match(css,/body\.trace-focus \.trace-focus-close/);
