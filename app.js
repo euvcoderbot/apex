@@ -607,7 +607,11 @@ function enhanceSelect(select) {
     });
     const open = shell.classList.toggle('is-open');
     trigger.setAttribute('aria-expanded', String(open));
-    if (open) menu.querySelector('[aria-selected="true"]')?.focus({ preventScroll: true });
+    if (open) {
+      const selected = menu.querySelector('[aria-selected="true"]');
+      selected?.focus({ preventScroll: true });
+      if (selected) menu.scrollTop = selected.offsetTop - (menu.clientHeight - selected.offsetHeight) / 2;
+    }
   });
   let searchPrefix = '', lastSearchAt = 0;
   menu.addEventListener('keydown', event => {

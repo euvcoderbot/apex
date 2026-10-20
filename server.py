@@ -21,6 +21,7 @@ from typing import Any
 from urllib.request import Request as URLRequest, urlopen
 from urllib.error import HTTPError
 from uuid import uuid4
+from threading import Lock
 
 # Direct OpenF1 retrieval only needs standard-library numerics. Load the
 # dataframe stack only when a FastF1/session operation actually uses it.
@@ -516,34 +517,44 @@ def _openf1_meeting(year: int, gp: str, meetings: list[dict[str, Any]]) -> dict[
     return candidates[0][1]
 
 
-@lru_cache(maxsize=64)
+_openf1_metadata_cache = {}
+_openf1_metadata_lock = Lock()
+
+
+def openf1_metadata(endpoint, **params):
+    """Share successful calendar lookups; never cache a throttled lookup as absent."""
+    key = (endpoint, tuple(sorted(params.items())))
+    with _openf1_metadata_lock:
+        cached = _openf1_metadata_cache.get(key)
+        if cached and time.monotonic() - cached[0] < 300:
+            return cached[1]
+        rows = openf1_performance_feed(endpoint, **params)
+        if rows:
+            if len(_openf1_metadata_cache) >= 64:
+                _openf1_metadata_cache.pop(next(iter(_openf1_metadata_cache)))
+            _openf1_metadata_cache[key] = (time.monotonic(), rows)
+        return rows
+
+
 def openf1_session(year: int, gp: str, session_name: str) -> dict[str, Any] | None:
     try:
-        meetings = openf1("meetings", year=year)
+        meetings = openf1_metadata("meetings", year=year)
         meeting = _openf1_meeting(year, gp, meetings)
         if meeting is None or meeting.get("meeting_key") is None:
             return None
-        sessions = openf1("sessions", year=year, meeting_key=meeting["meeting_key"])
+        sessions = openf1_metadata("sessions", year=year, meeting_key=meeting["meeting_key"])
         wanted_session = session_name.lower().strip()
-        
-        for item in sessions:
-            name = item.get("session_name", "").lower().strip()
-            if wanted_session == name:
-                return item
-            if wanted_session == 'q' and 'qualifying' in name:
-                return item
-            if wanted_session == 'r' and 'race' in name:
-                return item
-            if wanted_session == 'fp1' and 'practice 1' in name:
-                return item
-            if wanted_session == 'fp2' and 'practice 2' in name:
-                return item
-            if wanted_session == 'fp3' and 'practice 3' in name:
-                return item
-            if wanted_session == 's' and 'sprint' in name and 'qualifying' not in name:
-                return item
-            if wanted_session == 'sq' and ('sprint qualifying' in name or 'sprint shootout' in name):
-                return item
+        names = {'q': {'qualifying'}, 'r': {'race'},
+                 'fp1': {'practice 1'}, 'fp2': {'practice 2'}, 'fp3': {'practice 3'},
+                 's': {'sprint'}, 'sq': {'sprint qualifying', 'sprint shootout'}}
+        wanted_names = names.get(wanted_session, {wanted_session})
+        matches = [item for item in sessions
+                   if item.get('session_name', '').lower().strip() in wanted_names
+                   and not item.get('is_cancelled', False)]
+        if len(matches) == 1:
+            return matches[0]
+    except HTTPError:
+        raise
     except Exception as e:
         logger.error("Error in openf1_session: %s", e)
         return None
@@ -1781,11 +1792,13 @@ def load_openf1_performance(year, gp, session, fresh=False):
     return data
 
 
-def openf1_performance_feed(endpoint, session_key):
+def openf1_performance_feed(endpoint, session_key=None, **params):
     """A transient provider throttle must not become a permanent missing session."""
     for attempt in range(4):
         try:
-            return openf1(endpoint, session_key=session_key)
+            if session_key is not None:
+                params['session_key'] = session_key
+            return openf1(endpoint, **params)
         except HTTPError as error:
             if error.code not in (429, 502, 503, 504) or attempt == 3:
                 raise
@@ -1833,6 +1846,9 @@ def car_performance(response: Response, year: int = Query(..., ge=2018, le=2100)
             result['source_cache'] = data.apex_source_notice
     except Exception as exc:
         logger.warning('Car performance unavailable for %s %s: %s', year, gp, exc)
+        if isinstance(exc, HTTPError) and exc.code in (429, 502, 503, 504):
+            raise HTTPException(503, 'Timing source temporarily busy. Retrying shortly.',
+                                headers={'Retry-After': '10'}) from exc
         raise HTTPException(422, 'Performance data is incomplete or unavailable for this session. Try another event.') from exc
     response.headers['Server-Timing'] = f'performance;dur={(time.perf_counter()-started)*1000:.1f}'
     return result
