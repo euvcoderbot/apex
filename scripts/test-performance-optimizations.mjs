@@ -108,7 +108,7 @@ test('source cache versions do not change on presentation edits and loader categ
   const loader=ui.slice(ui.indexOf('async function loadTeamTelemetry('),ui.indexOf('async function loadPitData('));
   assert.match(loader,/traceController=new AbortController/);assert.doesNotMatch(loader,/controller\?\.abort\(\)/);
   assert.match(loader,/fastestTeamTelemetrySelections\(event.Q.teams\)/);
-  assert.match(ui,/done\+\+; render\(\);loadActiveTelemetry\(\)/);
+  assert.match(ui,/done\+\+; (?:scheduleRender|render)\(\);loadActiveTelemetry\(\)/);
 });
 
 test('cold distinct requests obey the shared upstream concurrency budget while cache hits bypass the queue',async()=>{

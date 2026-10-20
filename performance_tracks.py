@@ -1851,9 +1851,14 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
     # move performance between categories. Up to two validated laps per car.
     try:
         from car_physics import speed_domain_metrics
-        speed_domain = speed_domain_metrics(
-            {team: [v['a'] for v in (qualifying_candidates.get(team) or [item])[:2]] for team, item in selected.items()},
-            corners)
+        # Every validated lap, not only those the window-timing alignment
+        # kept: speed-domain registration is independent and reports its own
+        # exclusions (a locally stretched GPS frame must not hide a car here).
+        laps_by_team = {team: [v['a'] for v in (qualifying_candidates.get(team) or [item])[:2]] for team, item in selected.items()}
+        for team, values in choices.items():
+            if team not in laps_by_team and values:
+                laps_by_team[team] = [v['a'] for v in sorted(values, key=lambda r: r['official'])[:2]]
+        speed_domain = speed_domain_metrics(laps_by_team, corners)
     except Exception as exc:  # never lose the established measurements
         speed_domain = {'method': 'speed-domain-v1', 'cars': {}, 'error': str(exc)[:200]}
 

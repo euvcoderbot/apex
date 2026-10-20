@@ -479,7 +479,7 @@ async function loadQualifyingMetrics(retry=false,automatic=false) {
       }
       delete event.qualifyingMetricsError;
     }catch(error){if(signal.aborted)return;event.qualifyingMetricsError=error.message;}
-    render();
+    scheduleRender();
   }}
   try{await Promise.all([worker(),worker()]);}
   finally{if(id===generation){qualifyingMetricsRunning=false;updateStatus(signal.aborted?'Qualifying stopped; supported data retained.':'Qualifying updated. Cached measurements are reused; unsupported windows remain disclosed.');render();if(!signal.aborted)loadActiveTelemetry();}}
@@ -788,7 +788,7 @@ async function analyse(refresh=false) {
         if(!item) { item={...job.event,traces:{}}; events.push(item); }
         item[job.session]=data;
       } catch(e) { if(signal.aborted) return; errors.push({...job,message:e.message}); }
-      done++; render();loadActiveTelemetry();
+      done++; scheduleRender();loadActiveTelemetry();
     }
   }
 
@@ -836,7 +836,7 @@ async function loadSpeedDomain(automatic=false) {
       (event.speedDomain ||= {})[subject]=result.speed_domain||{cars:{},error:result.error||'No speed-domain measurement returned; refresh data.'};
       delete event.speedDomainError;
     }catch(error){if(signal.aborted)return;event.speedDomainError=error.message;}
-    render();
+    scheduleRender();
   }}
   try{await Promise.all([worker(),worker()]);}
   finally{if(id===generation){speedDomainRunning=false;updateStatus(signal.aborted?'Speed-domain loading stopped; measured GPs retained.':'Speed-domain metrics updated. Results are cached.');render();}}
@@ -940,7 +940,7 @@ async function loadTeamTelemetry(automatic=false) {
         if(signal.aborted)return;
         errors.push({event,session:'T',message:e.message});
       }
-      tracesDone++; render();
+      tracesDone++; scheduleRender();
     }
   }
 
@@ -3425,6 +3425,14 @@ function restorePerformanceUI(container,state) {
     const replacement=container.querySelector(selector);
     if(replacement&&!replacement.disabled)replacement.focus({preventScroll:true});
   }
+}
+// Background loaders deliver dozens of results in bursts; re-rendering the
+// whole view for each one blocked the page. Coalesce them to one per frame.
+let renderQueued=false;
+function scheduleRender() {
+  if(renderQueued)return;
+  renderQueued=true;
+  (typeof requestAnimationFrame==='function'?requestAnimationFrame:setTimeout)(()=>{renderQueued=false;render();});
 }
 function render() {
   const state=capturePerformanceUI(root);

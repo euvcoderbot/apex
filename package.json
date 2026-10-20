@@ -8,6 +8,7 @@
   "scripts": {
     "local": "node scripts/start-local.mjs",
     "local:precompute": "node scripts/precompute-local.mjs",
+    "local:warm": "node scripts/precompute-local.mjs --season",
     "sync:apex": "node scripts/sync-static.mjs",
     "predev": "npm run sync:apex",
     "dev": "vinext dev",

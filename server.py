@@ -415,6 +415,31 @@ def prepared_cache_path(namespace: str, *parts: Any) -> Path:
     return PREPARED_CACHE / f"{namespace}-{digest}.json.gz"
 
 
+_calendar_memo: dict[int, tuple[float, list]] = {}
+
+
+def _event_settled(year: int, parts: tuple) -> bool:
+    """True when a part names an event whose race day was over two days ago."""
+    names = {str(p) for p in parts if isinstance(p, str)}
+    if not names:
+        return False
+    memo = _calendar_memo.get(year)
+    if memo is None or time.time()-memo[0] > 3600:
+        try:
+            memo = (time.time(), event_calendar(year))
+        except Exception:
+            return False
+        _calendar_memo[year] = memo
+    for event in memo[1]:
+        if event.get("name") in names and event.get("date"):
+            try:
+                day = datetime.fromisoformat(str(event["date"])[:10]).date()
+            except ValueError:
+                return False
+            return (datetime.now(timezone.utc).date()-day).days >= 2
+    return False
+
+
 def read_prepared_cache(namespace: str, year: int, *parts: Any) -> Any | None:
     path = prepared_cache_path(namespace, year, *parts)
     if not path.exists():
@@ -424,7 +449,10 @@ def read_prepared_cache(namespace: str, year: int, *parts: Any) -> Any | None:
     # quickly; historical session/telemetry payloads get a weekly revalidation
     # instead of being treated as immutable forever.
     age = time.time() - path.stat().st_mtime
-    if year >= datetime.now().year and age > 600:
+    # A current-season event that finished days ago is as final as last
+    # season's; only events still in progress (or just finished, while
+    # results can be amended) refresh every ten minutes.
+    if year >= datetime.now().year and age > 600 and not _event_settled(year, parts):
         return None
     if namespace in {"session", "telemetry", "openf1-performance-v1"} and age > 7 * 86400:
         return None
@@ -458,6 +486,7 @@ OPENF1_MIN_INTERVAL_S = 0.6
 OPENF1_ATTEMPTS = 5
 _openf1_lock = threading.Lock()
 _openf1_next = [0.]
+_openf1_session_ends: dict[Any, str] = {}
 
 
 def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
@@ -471,6 +500,82 @@ def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
             parts.append(f"{key}={quote(str(value))}")
     query = "&".join(parts)
     url = f"{OPENF1}/{endpoint}?{query}"
+    session_key = valid_params.get("session_key")
+    settled = endpoint != "sessions" and session_key is not None and _openf1_session_settled(session_key)
+    cache_path = PREPARED_CACHE / "openf1" / (hashlib.sha256(url.encode()).hexdigest()+".json.gz")
+    if settled and cache_path.exists():
+        try:
+            with gzip.open(cache_path, "rt", encoding="utf-8") as handle:
+                return json.load(handle)
+        except (OSError, ValueError):
+            cache_path.unlink(missing_ok=True)
+    result = _openf1_fetch(url)
+    if endpoint == "sessions":
+        for item in result if isinstance(result, list) else []:
+            if item.get("session_key") is not None and item.get("date_end"):
+                _openf1_session_ends[item["session_key"]] = item["date_end"]
+    if settled and result:
+        cache_path.parent.mkdir(exist_ok=True)
+        temporary = cache_path.with_name(f"{cache_path.name}.{uuid4().hex}.tmp")
+        try:
+            with gzip.open(temporary, "wt", encoding="utf-8", compresslevel=5) as handle:
+                json.dump(result, handle, separators=(",", ":"))
+            temporary.replace(cache_path)
+        except OSError:
+            temporary.unlink(missing_ok=True)
+    return result
+
+
+OPENF1_WINDOW_S = 300
+
+
+def openf1_window_points(endpoint: str, session_key: Any, driver_number: Any,
+                         window_start: datetime, window_end: datetime) -> list[dict[str, Any]]:
+    """Points for one driver from the fixed all-driver windows covering a lap."""
+    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    start = window_start if window_start.tzinfo else window_start.replace(tzinfo=timezone.utc)
+    end = window_end if window_end.tzinfo else window_end.replace(tzinfo=timezone.utc)
+    first = int((start-epoch).total_seconds()//OPENF1_WINDOW_S)
+    last = int((end-epoch).total_seconds()//OPENF1_WINDOW_S)
+    points = []
+    for bucket in range(first, last+1):
+        lo = epoch+timedelta(seconds=bucket*OPENF1_WINDOW_S)
+        hi = lo+timedelta(seconds=OPENF1_WINDOW_S)
+        try:
+            rows = openf1(endpoint, session_key=session_key,
+                          **{"date>=": lo.strftime("%Y-%m-%dT%H:%M:%S"), "date<": hi.strftime("%Y-%m-%dT%H:%M:%S")})
+        except Exception:
+            return []
+        points += [row for row in rows if str(row.get("driver_number")) == str(driver_number)]
+    return points
+
+
+def _openf1_session_settled(session_key: Any) -> bool:
+    """Final data: the session ended more than six hours ago.
+
+    Finished-session telemetry never changes, so it is kept on disk across
+    restarts and code changes instead of being downloaded again.
+    """
+    end = _openf1_session_ends.get(session_key)
+    if end is None:
+        try:
+            for item in _openf1_fetch(f"{OPENF1}/sessions?session_key={session_key}"):
+                if item.get("date_end"):
+                    _openf1_session_ends[item["session_key"]] = end = item["date_end"]
+        except Exception:
+            return False
+    if not end:
+        return False
+    try:
+        finished = datetime.fromisoformat(str(end).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if finished.tzinfo is None:
+        finished = finished.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc)-finished > timedelta(hours=6)
+
+
+def _openf1_fetch(url: str) -> Any:
     # OpenF1 rate-limits bursts (HTTP 429). Parallel lap loads used to turn
     # each 429 into a missing driver that only a manual retry recovered, so
     # requests are paced process-wide and transient errors are retried.
@@ -676,8 +781,10 @@ def _openf1_lap_telemetry(
         if next_start:
             driver_laps.append({"lap_number":lap_number+1,"date_start":next_start})
     else:
-        driver_laps = openf1("laps", session_key=session_key, driver_number=driver_number,
-                             **{"lap_number>=": lap_number, "lap_number<=": lap_number+1})
+        # One cached lap list per session instead of one request per driver.
+        driver_laps = [item for item in openf1("laps", session_key=session_key)
+                       if str(item.get("driver_number")) == str(driver_number)
+                       and lap_number <= integer(item.get("lap_number"), -1) <= lap_number+1]
     matching_laps = [
         item for item in driver_laps
         if integer(item.get("lap_number"), -1) == lap_number
@@ -725,12 +832,16 @@ def _openf1_lap_telemetry(
             # unchanged lap-boundary and native-position joining logic below.
             return [point for point in streams.get(endpoint, []) if window_start
                     <= datetime.fromisoformat(point['date'].replace('Z', '+00:00')) <= window_end]
-        points = openf1(
-            endpoint,
-            session_key=session_key,
-            driver_number=driver_number,
-            **{"date>=": start_str, "date<=": end_str},
-        )
+        # One all-driver request per fixed 5-minute window serves every lap
+        # set in it (a qualifying run is a few minutes), and caches on disk.
+        points = openf1_window_points(endpoint, session_key, driver_number, window_start, window_end)
+        if not points:
+            points = openf1(
+                endpoint,
+                session_key=session_key,
+                driver_number=driver_number,
+                **{"date>=": start_str, "date<=": end_str},
+            )
         # Fresh sessions occasionally expose data through the session/driver
         # query before the date-range index catches up.
         if not points:
