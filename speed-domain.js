@@ -1,12 +1,17 @@
 // Speed-domain car metrics (car_physics.py, `speed_domain` in trace-batch).
-// Cars are compared at equal speed, so entry speed and distance registration
-// do not move performance between categories. See
-// docs/speed-domain-methodology-20261020.md for the method and validation.
+// Straight line and braking compare cars at equal speed; cornering times every
+// car over the same fixed stretch of each corner, corrected for entry and exit
+// speed. See docs/speed-domain-methodology-20261020.md for method and validation.
 
 export const SPEED_DOMAIN_METRICS = Object.freeze({
   corner_low: {label: 'Low-speed corners', unit: ' s', digits: 3, reliability: 'cornering'},
   corner_medium: {label: 'Medium-speed corners', unit: ' s', digits: 3, reliability: 'cornering'},
   corner_high: {label: 'High-speed corners', unit: ' s', digits: 3, reliability: 'cornering'},
+  // Several GPs: seconds are not comparable across circuits, % of the time
+  // spent in that corner type is.
+  corner_low_pct: {label: 'Low-speed corners', unit: '%', digits: 2, reliability: 'cornering'},
+  corner_medium_pct: {label: 'Medium-speed corners', unit: '%', digits: 2, reliability: 'cornering'},
+  corner_high_pct: {label: 'High-speed corners', unit: '%', digits: 2, reliability: 'cornering'},
   straight: {label: 'Straight line', unit: ' s', digits: 3, reliability: 'straight'},
   straight_mid: {label: '160–250 km/h', unit: ' s', digits: 3, reliability: 'straight_mid'},
   straight_top: {label: '250 km/h and above', unit: ' s', digits: 3, reliability: 'straight_top'},
@@ -25,9 +30,11 @@ const median = values => {
 export function speedDomainValue(car, key) {
   if (!car) return null;
   if (key.startsWith('corner_')) {
-    // Seconds per lap lost in this band against the median car.
-    const band = car.cornering?.[key.slice(7)];
-    return band && band.index !== null && finite(band.time_vs_median_s) ? band.time_vs_median_s : null;
+    // Seconds per lap (or % of the field's time) lost in this band against
+    // the median car, over the same fixed stretch of every corner.
+    const pct = key.endsWith('_pct'), band = car.cornering?.[key.slice(7).replace(/_pct$/, '')];
+    const value = pct ? band?.pct_vs_median : band?.time_vs_median_s;
+    return band && band.index !== null && finite(value) ? value : null;
   }
   if (key === 'braking') return finite(car.braking?.gap_pct) ? car.braking.gap_pct : null;
   if (key === 'energy') return finite(car.energy?.fade_kmh) ? car.energy.fade_kmh : null;
@@ -61,4 +68,22 @@ export function speedDomainSeason(events, subject, key) {
       perEvent: observed.map(row => ({event: row.event, value: row.values[name]}))};
   });
   return {rows, gps: perEvent.length, events: perEvent.map(row => row.event)};
+}
+
+// Where the band's time goes: braking, mid-corner and exit seconds per GP,
+// each centred on that GP's median entrant and averaged with equal GP weight.
+export function speedDomainPhases(events, subject, band) {
+  const sums = new Map();
+  for (const event of events) {
+    const cars = Object.entries(event.speedDomain?.[subject]?.cars || {})
+      .map(([name, car]) => [name, car.cornering?.[band]]).filter(([, b]) => b && b.index !== null && b.phases_s);
+    if (cars.length < 3) continue;
+    const centre = Object.fromEntries(['braking', 'mid', 'exit'].map(k => [k, median(cars.map(([, b]) => b.phases_s[k]))]));
+    for (const [name, b] of cars) {
+      const row = sums.get(name) || {braking: 0, mid: 0, exit: 0, gps: 0};
+      for (const k of ['braking', 'mid', 'exit']) row[k] += b.phases_s[k]-centre[k];
+      row.gps++; sums.set(name, row);
+    }
+  }
+  return [...sums].map(([name, r]) => ({name, gps: r.gps, braking: r.braking/r.gps, mid: r.mid/r.gps, exit: r.exit/r.gps}));
 }

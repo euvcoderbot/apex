@@ -3142,6 +3142,19 @@ function renderCornerAnalysis() {
   const highestMinimumSpeed = finiteMinimumSpeeds.length ? Math.max(...finiteMinimumSpeeds) : null;
   const referenceSection = metrics[0]?.metric.sectionTime;
   const signedDelta = value => `${value >= 0 ? '+' : '−'}${Math.abs(value).toFixed(3)}s`;
+  // One corner: split each lap's gap to REF into braking / mid-corner / exit,
+  // with entry and exit speed corrected as in the season cornering metric.
+  const cornerOrder=zones.map((z,i)=>[z,i]).filter(([z])=>z.kind==='corner'&&z.end>z.start);
+  const nextCorner=cornerOrder.find(([z])=>z.start>=(zone.end??1))?.[0]||cornerOrder[0]?.[0];
+  const exitStraight=!combined&&zone.kind==='corner'&&nextCorner?((nextCorner.start-zone.end+(nextCorner.start<zone.end?1:0))*totalDistance):0;
+  const referencePhases=!combined&&zone.kind==='corner'&&typeof cornerPhaseBreakdown==='function'?cornerPhaseBreakdown(reference,reference,zone,exitStraight):null;
+  const phaseSplit=lap=>{
+    if(!referencePhases||lap===referenceLap)return '';
+    const own=cornerPhaseBreakdown(telemetryCache.get(telemetryKey(lap)),reference,zone,exitStraight);
+    if(!own)return '';
+    const d=['braking','mid','exit'].map(k=>own[k]-referencePhases[k]);
+    return `<small class="corner-phase-split" title="Gap to REF between shared lines. Braking includes the time from arriving at ${own.entryKmh.toFixed(0)} km/h vs REF's ${referencePhases.entryKmh.toFixed(0)}; exit includes the credit for leaving at ${own.exitKmh.toFixed(0)} vs ${referencePhases.exitKmh.toFixed(0)} km/h onto the next ${Math.round(Math.min(500,exitStraight))} m.">Braking ${signedDelta(d[0])} · Mid ${signedDelta(d[1])} · Exit ${signedDelta(d[2])} · speed-corrected ${signedDelta(d[0]+d[1]+d[2])}</small>`;
+  };
   const picker = kind=>zones.map((candidate, index) => {
     if(candidate.kind!==kind||candidate.end<=candidate.start)return '';
     const candidateMetrics = allMetrics[index];
@@ -3167,10 +3180,11 @@ function renderCornerAnalysis() {
         <span class="corner-time"><strong>${Number.isFinite(sectionTime) ? `${sectionTime.toFixed(3)}s` : '—'}</strong></span>
         <span class="corner-delta ${deltaClass}"><strong>${Number.isFinite(toReference) ? signedDelta(toReference) : '—'}</strong></span>
         <span class="corner-speed"><strong>${Number.isFinite(item.metric.minimumSpeed) ? item.metric.minimumSpeed.toFixed(1) : '—'}</strong></span>
+        ${phaseSplit(item.lap)}
       </div>`;
   }).join('');
 
-  pickerRoot.innerHTML = `<section class="circuit-section-group"><header><h3>Corners</h3><span>Choose one or more</span></header><nav class="corner-picker" aria-label="Select one or more corners">${picker('corner')}</nav></section><section class="circuit-section-group"><header><h3>Straights</h3><span>≥100 m · low GPS curvature</span></header><nav class="corner-picker straight-zone-picker" aria-label="Select straight zones">${picker('straight')||'<small>No supported straight zones.</small>'}</nav></section>${zones.some(z=>z.kind==='transition'&&z.end>z.start)?`<details class="circuit-section-group circuit-links"><summary>Other links <span>Bends or unverified geometry</span></summary><nav class="corner-picker" aria-label="Select transition zones">${picker('transition')}</nav></details>`:''}<small class="corner-selection-note">Turn envelopes include local braking/traction transitions. Links shorter than 100 m join the adjacent corner windows. Consecutive selected corners include their link; click any selected section to remove it. Boundaries are estimated, not official turn-in/apex measurements.</small>`;
+  pickerRoot.innerHTML = `<section class="circuit-section-group"><header><h3>Corners</h3><span>Choose one or more</span></header><nav class="corner-picker" aria-label="Select one or more corners">${picker('corner')}</nav></section><section class="circuit-section-group"><header><h3>Straights</h3><span>≥100 m · low GPS curvature</span></header><nav class="corner-picker straight-zone-picker" aria-label="Select straight zones">${picker('straight')||'<small>No supported straight zones.</small>'}</nav></section>${zones.some(z=>z.kind==='transition'&&z.end>z.start)?`<details class="circuit-section-group circuit-links"><summary>Other links <span>Bends or unverified geometry</span></summary><nav class="corner-picker" aria-label="Select transition zones">${picker('transition')}</nav></details>`:''}<small class="corner-selection-note">Each corner runs from before the earliest braking point of the compared laps to after the last one is back at full throttle, so every driving style is timed over the same distance. One corner shows a braking / mid-corner / exit split, corrected for entry and exit speed. Links shorter than 100 m join the adjacent corner windows; consecutive selected corners include their link; click any selected section to remove it.</small>`;
   const pickedCorners=pickedZones.filter(z=>z.kind==='corner').map(cornerLabel);
   const pickedStraights=pickedZones.filter(z=>z.kind!=='corner');
   const selectionLabel=combined?[...pickedCorners,...(pickedStraights.length?[`${pickedStraights.length} link${pickedStraights.length===1?'':'s'}`]:[])].join(' + '):zone.label||cornerLabel(zone);

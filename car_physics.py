@@ -35,7 +35,7 @@ import math
 import numpy as np
 
 G = 9.80665
-METHOD = 'speed-domain-v1'
+METHOD = 'speed-domain-v2'
 # Field-median apex speed thresholds, the same convention as performance_tracks.
 CORNER_BANDS = (('low', 0., 120.), ('medium', 120., 200.), ('high', 200., 300.))
 # Above this, a "corner" is flat out and not grip-limited for qualifying cars.
@@ -341,6 +341,7 @@ LOAD_LIMIT_G = 3.
 # Entry-speed scaling assumes a near-constant-speed bend; an accelerating exit
 # (Shanghai T13) or a braking entry is not one.
 FLAT_SPEED_CHANGE = .08
+ODOMETER_SMOOTH_M = 100.
 
 
 def project_lap(a, track):
@@ -373,7 +374,16 @@ def project_lap(a, track):
     good = np.isfinite(pos)
     if good.sum() < .6*len(pos):
         return None
-    return np.interp(d, d[good], pos[good])
+    # Nearest-point projection snaps to the 5 m grid (0.1 s at 90 km/h) and
+    # carries GPS jitter. The car's own integrated distance is smooth but
+    # drifts slowly, so keep its shape and take only the slowly varying
+    # offset from GPS (moving average over +-ODOMETER_SMOOTH_M).
+    dg, residual = d[good], pos[good]-d[good]
+    lo = np.searchsorted(dg, dg-ODOMETER_SMOOTH_M)
+    hi = np.searchsorted(dg, dg+ODOMETER_SMOOTH_M, side='right')
+    csum = np.r_[0., np.cumsum(residual)]
+    offset = (csum[hi]-csum[lo])/(hi-lo)
+    return np.maximum.accumulate(d+np.interp(d, dg, offset))
 
 
 def field_segments(laps, track, markers=()):
@@ -647,6 +657,246 @@ def braking_comparison(corner_rows, names):
     return out
 
 
+# --- corner timing on fixed field lines ----------------------------------
+# Every car is timed over the same stretch of track: from before the earliest
+# braking or lift of any car to after the last car is back at full throttle.
+# Whatever line or style a driver uses (late braking, V or U shape, early
+# throttle) is inside the same distance, so only the time to cover it counts.
+LINE_MARGIN_M = 10.
+LINE_REACH_M = 150.          # lines never move further than this from the field's own
+EXIT_CREDIT_MAX_M = 500.     # exit speed pays off over at most this much of the next straight
+FULL_THROTTLE = 98.
+UNBRAKED_REACH_M = 200.      # an unbraked corner's lift starts within this of its apex
+ONSET_GAP_M = 60.            # a gap this long without braking ends the braking run
+EXIT_SPEED_LIMIT = .12       # entry/exit speed this far off the field is a lift or a glitch
+CORNER_OUTLIER = .10         # 10% slower or faster than the field through one corner
+BRAKING_SEARCH_M = 400.      # braking for a corner starts within this of its apex
+ONSET_SPREAD_M = 80.         # real braking points sit within this of the field's median
+MAX_PACKET_GAP_S = 1.5       # OpenF1 car data often skips 1-1.4 s; see _time_at
+
+
+def _monotonic(a, p):
+    keep = np.concatenate([[True], np.diff(p) > 0])
+    return p[keep], a[keep]
+
+
+def _own_onset(p, a, apex_m, lo_m, braked):
+    """Where this lap began slowing for the corner at apex_m.
+
+    Braked corners use the brake: 2026 cars also lift and coast mid-straight
+    to harvest energy, and a throttle lift 600 m before the corner is not the
+    corner. Unbraked corners use the lift, but only near the apex.
+    """
+    lo_m = lo_m if braked else max(lo_m, apex_m-UNBRAKED_REACH_M)
+    idx = np.flatnonzero((p >= lo_m) & (p <= apex_m))
+    if len(idx) < 2:
+        return None
+    off = (a[idx, BRK] >= .5) if braked else (a[idx, BRK] >= .5) | (a[idx, THR] < FULL_THROTTLE)
+    hits = np.flatnonzero(off)
+    if not len(hits):
+        return None
+    # The run of slowing that reaches nearest the apex; short gaps inside it
+    # (a brake release mid-zone, a 4 Hz dropout) do not split it.
+    at = p[idx[hits]]
+    k = len(hits)-1
+    while k > 0 and at[k]-at[k-1] <= ONSET_GAP_M:
+        k -= 1
+    first = hits[k]
+    return float(p[idx[first-1]] if first > 0 else p[idx[first]])
+
+
+def _own_full_throttle(p, a, apex_m, hi_m):
+    idx = np.flatnonzero((p >= apex_m) & (p <= hi_m))
+    on = (a[idx, THR] >= FULL_THROTTLE) & (a[idx, BRK] < .5)
+    for j in range(len(idx)-1):
+        if on[j] and on[j+1]:
+            return float(p[idx[j]])
+    return None
+
+
+def _time_at(p, a, x):
+    """Time at distance x, assuming constant acceleration between packets.
+
+    Linear time-vs-distance interpolation errs by ~a*dt^2/(8v): 0.1 s inside
+    a 1.2 s packet gap under 4 g braking. With speed linear in time the
+    distance covered is quadratic in time; it is scaled to the measured
+    distance between the packets and solved for the time.
+    """
+    i = int(np.clip(np.searchsorted(p, x, side='right')-1, 0, len(p)-2))
+    dt, span = a[i+1, T]-a[i, T], p[i+1]-p[i]
+    v0, v1 = a[i, V]/3.6, a[i+1, V]/3.6
+    if dt <= 0 or span <= 0 or v0+v1 <= 0:
+        return float(np.interp(x, p, a[:, T]))
+    target = (x-p[i])/span*(v0+v1)/2*dt     # distance at model scale
+    accel = (v1-v0)/dt
+    if abs(accel) < 1e-6:
+        tau = target/max(v0, 1e-6)
+    else:
+        tau = (-v0+math.sqrt(max(v0*v0+2*accel*target, 0.)))/accel
+    return float(a[i, T]+min(max(tau, 0.), dt))
+
+
+def _own_release(p, a, start_m, apex_m):
+    idx = np.flatnonzero((p >= start_m) & (p <= apex_m) & (a[:, BRK] >= .5))
+    return float(p[idx[-1]]) if len(idx) else None
+
+
+def _entry_saving(grid, v_ms, start, apex, v_in):
+    """Time a car saves (negative: loses) only from its speed at the line.
+
+    It is assumed to hold that speed until it meets the field's speed trace:
+    a faster car joins the common braking curve almost at once, a car that
+    arrives slow (an energy lift on the straight) stays slower until the
+    field has braked down to its speed.
+    """
+    inside = (grid >= start) & (grid <= apex)
+    s_, vf = grid[inside], v_ms[inside]
+    if len(s_) < 2:
+        return 0.
+    if v_in >= vf[0]:
+        meet = np.flatnonzero(vf < vf[0]-.5)
+        stop = meet[0] if len(meet) else 0
+    else:
+        meet = np.flatnonzero(vf <= v_in)
+        stop = meet[0] if len(meet) else len(vf)-1
+    if stop < 1:
+        return 0.
+    seg = slice(0, stop+1)
+    return float(np.trapezoid(1/np.maximum(vf[seg], 1.)-1/max(v_in, 1.), s_[seg]))
+
+
+def corner_timing(projected, corners, track, field_speed):
+    """Fixed-line corner times with braking / mid-corner / exit phases.
+
+    Raw segment time partly measures power: a car arriving faster covers the
+    stretch before the braking point sooner (dt ~ dv * distance / v^2), and a
+    car leaving faster gains on the next straight outside the segment, a
+    speed difference assumed to fade linearly (dt ~ 0.5 * dv * distance / v^2).
+    Both are corrected to first order.
+    """
+    grid = track['grid']
+    lap_end = float(grid[-1])
+    picked = [c for c in corners if c['grip_limited']]
+    laps = {n: [_monotonic(a, p) for a, p in values] for n, values in projected.items()}
+    lines = []
+    for k, c in enumerate(picked):
+        prev_apex = picked[k-1]['apex_m'] if k else 0.
+        next_apex = picked[k+1]['apex_m'] if k+1 < len(picked) else lap_end
+        # Not the field's top-speed point: 2026 cars peak mid-straight and then
+        # clip, 600 m before the brakes at Shanghai T14. Search back from the apex.
+        lo_m = max(prev_apex, c['apex_m']-BRAKING_SEARCH_M)
+        hi_m = min(next_apex, c['end_m']+LINE_REACH_M)
+        onsets, ends = [], [c['end_m']]
+        for values in laps.values():
+            for p, a in values:
+                if (x := _own_onset(p, a, c['apex_m'], lo_m, c['braked'])) is not None:
+                    onsets.append(x)
+                if (x := _own_full_throttle(p, a, c['apex_m'], hi_m)) is not None:
+                    ends.append(x)
+        # The earliest braker sets the line, but a lone brake flag far ahead of
+        # everyone (a noisy channel) does not.
+        onsets = [x for x in onsets if x >= np.median(onsets)-ONSET_SPREAD_M] if onsets else []
+        start = max(lo_m, (min(onsets) if onsets else max(c['start_m'], lo_m))-LINE_MARGIN_M)
+        lines.append({'corners': [c], 'start_m': start, 'end_m': min(hi_m, max(ends)+LINE_MARGIN_M),
+                      'onset_m': float(np.median(onsets)) if onsets else start})
+    merged = []
+    for seg in lines:
+        if merged and seg['start_m'] < merged[-1]['end_m']:
+            merged[-1]['corners'] += seg['corners']
+            merged[-1]['end_m'] = max(merged[-1]['end_m'], seg['end_m'])
+        else:
+            merged.append(seg)
+    merged = [m for m in merged if m['start_m'] > grid[0] and m['end_m'] < lap_end]
+    v_ms = field_speed/3.6
+
+    def mean_speed(lo, hi):
+        inside = (grid >= lo) & (grid <= hi)
+        return float(np.mean(v_ms[inside])) if inside.any() else float(np.interp(lo, grid, v_ms))
+
+    rows = []
+    for n, seg in enumerate(merged):
+        first, last = seg['corners'][0], seg['corners'][-1]
+        start, end = seg['start_m'], seg['end_m']
+        apex_line = float(min(max(last['apex_m'], start), end))
+        releases = [r for values in laps.values() for p, a in values[:1]
+                    if first['braked'] and (r := _own_release(p, a, start, first['apex_m'])) is not None]
+        release_line = float(min(max(np.median(releases), start), apex_line)) if releases else start
+        nxt = merged[n+1]['start_m'] if n+1 < len(merged) else merged[0]['start_m']+lap_end
+        straight = min(EXIT_CREDIT_MAX_M, max(0., nxt-end))
+        cars = {}
+        for name, values in laps.items():
+            for p, a in values:  # fastest lap first: the first lap covering the segment
+                # Lines fall between packets (~21 m apart at 300 km/h) and are
+                # interpolated; a dropout longer than MAX_PACKET_GAP_S is not.
+                ids = np.flatnonzero((p >= start-130) & (p <= end+130))  # 1.5 s at 310 km/h
+                if len(ids) < 3 or p[ids[0]] > start or p[ids[-1]] < end or np.max(np.diff(a[ids, T])) > MAX_PACKET_GAP_S:
+                    continue
+                t = lambda x: _time_at(p, a, x)
+                v = lambda x: float(np.interp(x, p, a[:, V]))/3.6
+                inside = (p >= start) & (p <= end)
+                cars[name] = {'phases_raw': [t(release_line)-t(start), t(apex_line)-t(release_line), t(end)-t(apex_line)],
+                              'v_in': v(start), 'v_out': v(end), 'v_min_kmh': float(a[inside, V].min())}
+                break
+        if len(cars) < max(3, math.ceil(.5*len(laps))):
+            continue
+        v_in_f = float(np.median([c_['v_in'] for c_ in cars.values()]))
+        v_out_f = float(np.median([c_['v_out'] for c_ in cars.values()]))
+        v_exit = mean_speed(end, end+straight)
+        # A lap that is wildly off the field here is a mistake or a position
+        # glitch (Shanghai: +3.6 s in one corner; 55 km/h slower in yet faster
+        # through), not car performance. Leave that car out of this corner.
+        raw_f = float(np.median([sum(c_['phases_raw']) for c_ in cars.values()]))
+        cars = {n_: c_ for n_, c_ in cars.items()
+                if abs(c_['v_out']/v_out_f-1) <= EXIT_SPEED_LIMIT and abs(c_['v_in']/v_in_f-1) <= EXIT_SPEED_LIMIT
+                and abs(sum(c_['phases_raw'])/raw_f-1) <= CORNER_OUTLIER}
+        if len(cars) < max(3, math.ceil(.5*len(laps))):
+            continue
+        for c_ in cars.values():
+            c_['entry_correction_s'] = _entry_saving(grid, v_ms, start, apex_line, c_['v_in'])
+            c_['exit_credit_s'] = .5*(c_['v_out']-v_out_f)*straight/max(v_exit, 1.)**2
+            braking, mid, exit_ = c_['phases_raw']
+            c_['phases_adj'] = [braking+c_['entry_correction_s'], mid, exit_-c_['exit_credit_s']]
+        field_phases = [float(np.median([c_['phases_adj'][i] for c_ in cars.values()])) for i in range(3)]
+        field_raw = float(np.median([sum(c_['phases_raw']) for c_ in cars.values()]))
+        apex_kmh = min(c['field_apex_kmh'] for c in seg['corners'])
+        labels = [c['turn'] or f"{c['apex_m']:.0f} m" for c in seg['corners']]
+        band = next(b for b, lo, hi in CORNER_BANDS if lo < apex_kmh <= hi) if apex_kmh <= CORNER_BANDS[-1][2] else 'high'
+        rows.append({'corner': labels[0] if len(labels) == 1 else f"{labels[0]}–{labels[-1]}",
+                     'turns': labels, 'band': band, 'field_apex_kmh': apex_kmh,
+                     'start_m': start, 'end_m': end, 'release_m': release_line, 'apex_m': apex_line,
+                     'metres': end-start, 'field_time_s': sum(field_phases), 'field_raw_time_s': field_raw,
+                     'field_entry_kmh': v_in_f*3.6, 'field_exit_kmh': v_out_f*3.6, 'exit_straight_m': straight,
+                     'braked': bool(first['braked']), 'flat_load': any(bool(c.get('flat_load')) for c in seg['corners']),
+                     'cars': {name: {'time_s': sum(c_['phases_adj']),
+                                     'delta_s': sum(c_['phases_adj'])-sum(field_phases),
+                                     'raw_delta_s': sum(c_['phases_raw'])-field_raw,
+                                     'phases_s': {k: c_['phases_adj'][i]-field_phases[i] for i, k in enumerate(('braking', 'mid', 'exit'))},
+                                     'entry_correction_s': c_['entry_correction_s'], 'exit_credit_s': c_['exit_credit_s'],
+                                     'entry_kmh': c_['v_in']*3.6, 'exit_kmh': c_['v_out']*3.6, 'min_kmh': c_['v_min_kmh']}
+                              for name, c_ in cars.items()}})
+    bands = {}
+    for name in laps:
+        bands[name] = {}
+        for band, _, _ in CORNER_BANDS:
+            expected = sum(r['band'] == band for r in rows)
+            mine = [r for r in rows if r['band'] == band and name in r['cars']]
+            if not expected:
+                bands[name][band] = None
+                continue
+            if len(mine) < max(1, math.ceil(.6*expected)):
+                bands[name][band] = {'index': None, 'corners': len(mine), 'expected': expected,
+                                     'exclusion': 'Too few comparable corners in this band'}
+                continue
+            scale = expected/len(mine)
+            delta = sum(r['cars'][name]['delta_s'] for r in mine)
+            field = sum(r['field_time_s'] for r in mine)
+            bands[name][band] = {'index': field/(field+delta), 'corners': len(mine), 'expected': expected,
+                                 'time_vs_median_s': delta*scale, 'pct_vs_median': delta/field*100,
+                                 'phases_s': {k: sum(r['cars'][name]['phases_s'][k] for r in mine)*scale for k in ('braking', 'mid', 'exit')},
+                                 'exclusion': None}
+    return rows, bands
+
+
 def speed_domain_metrics(cars, corners=()):
     """cars: {name: [lap_array, ...]} using prepare()['a'] columns.
 
@@ -787,38 +1037,18 @@ def speed_domain_metrics(cars, corners=()):
                             'dwell_s': float(np.median(dwells)), 'speeds': speeds, 'braking': braking,
                             'apex_methods': apex_methods})
     braking_by_car = braking_comparison(corner_rows, list(projected))
+    timed, bands = corner_timing(projected, segments['corners'], track, segments['field_speed'])
     for name in projected:
         results[name]['braking'] = braking_by_car[name]
-        bands = {}
-        for band, _, _ in CORNER_BANDS:
-            rows = [r for r in corner_rows if r['band'] == band and name in r['speeds']]
-            expected = sum(r['band'] == band for r in corner_rows)
-            if not expected:
-                bands[band] = None
-                continue
-            # A circuit may have a single grip-limited corner of a type (2026
-            # cars take most fast bends flat); one measured corner still counts.
-            if len(rows) < max(1, math.ceil(.6*expected)):
-                bands[band] = {'index': None, 'corners': len(rows), 'expected': expected,
-                               'exclusion': 'Too few comparable corners in this band'}
-                continue
-            ratios = np.sort([r['speeds'][name]/r['field_apex_kmh'] for r in rows])
-            trim = int(len(ratios)*.2)
-            # Time lost to a slower apex ~ time near that speed x speed deficit.
-            loss = sum(r['dwell_s']*(r['field_apex_kmh']/r['speeds'][name]-1) for r in rows)*expected/len(rows)
-            bands[band] = {'index': float(np.mean(ratios[trim:len(ratios)-trim])), 'corners': len(rows),
-                           'expected': expected, 'time_vs_median_s': float(loss), 'exclusion': None,
-                           'provisional': any('bounded-apex-window' in r['apex_methods'].get(name, []) for r in rows)}
-        results[name]['cornering'] = bands
-        results[name]['corners'] = [{'corner': r['corner'], 'band': r['band'], 'apex_kmh': r['speeds'][name],
-                                     'field_apex_kmh': r['field_apex_kmh'], 'apex_methods': r['apex_methods'][name]} for r in corner_rows if name in r['speeds']]
+        results[name]['cornering'] = bands[name]
+        results[name]['corners'] = [{'corner': r['corner'], 'band': r['band'], **r['cars'][name]} for r in timed if name in r['cars']]
     _attach_gaps(results)
     return {'method': METHOD, 'cars': results, 'reliability': RELIABILITY, 'excluded': excluded,
-            'corner_count': len(corner_rows), 'reference_ranges': reference_ranges,
-            'segments': {'corners': [{k: v for k, v in c.items() if k not in ('speeds', 'braking')} for c in corner_rows],
-                         'straights': segments['straights']},
+            'corner_count': len(timed), 'reference_ranges': reference_ranges,
+            'segments': {'corners': [{k: v for k, v in r.items() if k != 'cars'} for r in timed],
+                         'timed_corners': timed, 'straights': segments['straights']},
             'interpretation': {
-                'cornering': 'Time lost at grip-limited corners from each car\'s own apex speed and time spent near it.',
+                'cornering': 'Time over the same fixed stretch of each grip-limited corner, corrected for entry and exit speed, against the median car.',
                 'straight': 'Full-throttle acceleration on the audited straights, simulated over the same straight for every car.',
                 'straight_mid': '160-250 km/h part of the straight-line comparison.',
                 'straight_top': '250 km/h and above; shaped by energy deployment on 2026 cars.',

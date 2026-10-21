@@ -1445,11 +1445,11 @@ def speed_domain_only(extracted, selections, corners=()):
     try:
         speed_domain = speed_domain_metrics(cars, corners)
     except Exception as exc:
-        speed_domain = {'method': 'speed-domain-v1', 'cars': {}, 'error': str(exc)[:200]}
+        speed_domain = {'method': 'speed-domain-v2', 'cars': {}, 'error': str(exc)[:200]}
     speed_domain.setdefault('excluded', {})
     speed_domain['excluded'].update(errors)
     return {'teams': {}, 'excluded': errors, 'speed_domain': speed_domain, 'measures': 'speed',
-            'methodology_version': 'car-measurements-v16-speed-domain'}
+            'methodology_version': 'car-measurements-v17-corner-timing'}
 
 
 def measure_field(extracted, selections, corners=(), measurement_frame=None):
@@ -1470,7 +1470,7 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
                 result['teams'][team] = {**observation, 'corners': [], 'braking': [], 'categories': {},
                     'quality': {'native_only': True, 'spatial_exclusion': errors.get(team)},
                     'measurement_status': 'native-speed-only'}
-        result['methodology_version'] = 'car-measurements-v16-speed-domain'
+        result['methodology_version'] = 'car-measurements-v17-corner-timing'
         result['source_complete'] = all(not error and samples and len(samples)>=100 for _,samples,error in extracted)
         result['source_coverage'] = {'requested':len(selections),'received':sum(bool(samples) and not error for _,samples,error in extracted),
             'native_speed':len(native),'spatially_measured':sum(not r.get('quality',{}).get('native_only') for r in result['teams'].values())}
@@ -1890,7 +1890,7 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
                 laps_by_team[team] = [v['a'] for v in sorted(values, key=lambda r: r['official'])[:2]]
         speed_domain = speed_domain_metrics(laps_by_team, corners)
     except Exception as exc:  # never lose the established measurements
-        speed_domain = {'method': 'speed-domain-v1', 'cars': {}, 'error': str(exc)[:200]}
+        speed_domain = {'method': 'speed-domain-v2', 'cars': {}, 'error': str(exc)[:200]}
 
     # Cross-circuit continuous features for development trend regression
     circuit_features = {

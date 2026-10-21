@@ -78,9 +78,37 @@ class SpeedDomainTests(unittest.TestCase):
 
     def test_more_grip_shows_as_cornering_in_every_band(self):
         for band in ('low', 'medium', 'high'):
-            # Apex-speed ratio: +3% grip is roughly +1.5-3% apex speed (more with downforce).
-            self.assertGreater(corner(self.r, 'grip', band), 1.012, band)
-            self.assertEqual(self.r['cars']['grip']['cornering'][band]['gap_s'], 0.)
+            # Time ratio over the same fixed stretch: +3% grip is ~1-8% less time.
+            self.assertGreater(corner(self.r, 'grip', band), 1.008, band)
+            # Braking is part of the corner now, so the better-brakes car may
+            # lead slow corners; grip must still beat the base and power cars.
+            time = lambda car: self.r['cars'][car]['cornering'][band]['time_vs_median_s']
+            self.assertLess(time('grip'), min(time(c) for c in ('base0', 'base1', 'base2', 'power'))-.05, band)
+
+    def test_identical_cars_sampled_at_different_phases_agree(self):
+        # 4 Hz sampling and GPS projection must not invent cornering time.
+        for k in range(3):
+            for band in ('low', 'medium', 'high'):
+                self.assertLess(abs(self.r['cars'][f'base{k}']['cornering'][band]['time_vs_median_s']), .04, band)
+
+    def test_packet_dropouts_do_not_invent_corner_time(self):
+        # OpenF1 car data often skips 1-1.4 s; lines inside such gaps are
+        # interpolated with constant acceleration, not linearly.
+        lap = simulate(rng=np.random.default_rng(11))
+        keep = np.ones(len(lap), bool)
+        keep[np.arange(5, len(lap)-5, 9)] = False
+        keep[np.arange(6, len(lap)-5, 9)] = False
+        keep[np.arange(7, len(lap)-5, 18)] = False  # gaps up to ~1.1 s
+        r = speed_domain_metrics({**{f'base{k}': [simulate(rng=np.random.default_rng(k))] for k in range(3)}, 'gappy': [lap[keep]]})
+        for band in ('low', 'medium', 'high'):
+            value = r['cars']['gappy']['cornering'][band]
+            self.assertIsNotNone(value['index'], band)
+            self.assertLess(abs(value['time_vs_median_s']), .05, band)
+
+    def test_phases_add_up_to_the_corner_time(self):
+        for car in self.r['cars'].values():
+            for row in car['corners']:
+                self.assertAlmostEqual(sum(row['phases_s'].values()), row['delta_s'], places=9)
 
     def test_more_grip_is_not_mistaken_for_straight_line_speed(self):
         # The grip car exits every corner faster. Window timing credits that
@@ -92,13 +120,17 @@ class SpeedDomainTests(unittest.TestCase):
         # +5% power is ~1% less time over the same straight.
         self.assertLess(index(self.r, 'power', 'straight'), .995)
         self.assertEqual(self.r['cars']['power']['straight']['gap_pct'], 0.)
+        # Entry and exit speed are corrected, so power is not cornering.
         for band in ('low', 'medium', 'high'):
-            self.assertAlmostEqual(corner(self.r, 'power', band), 1., delta=.006, msg=band)
+            self.assertAlmostEqual(corner(self.r, 'power', band), 1., delta=.004, msg=band)
 
     def test_better_brakes_show_as_shorter_braking_only(self):
         self.assertLess(index(self.r, 'brakes', 'braking'), .96)
         self.assertEqual(self.r['cars']['brakes']['braking']['gap_pct'], 0.)
-        self.assertAlmostEqual(corner(self.r, 'brakes', 'medium'), 1., delta=.006)
+        # Braking into a corner is part of the corner: it shows in that phase.
+        low = self.r['cars']['brakes']['cornering']['low']['phases_s']
+        self.assertLess(low['braking'], -.1)
+        self.assertLess(abs(low['mid'])+abs(low['exit']), .05)
 
     def test_more_grip_is_not_mistaken_for_better_braking(self):
         # A higher apex speed changes the speed range braked through; the

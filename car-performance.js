@@ -1,7 +1,7 @@
 import {connectedRaceCornerScores,ageAdjustedRaceCornerScores} from './race-cornering.js';
 import {qualifyingRepresentatives,withCornerMeasurements} from './corner-geometry.js';
 import {fastestTeamTelemetrySelections} from './qualifying-telemetry.js';
-import {SPEED_DOMAIN_METRICS,speedDomainSeason,speedDomainEventValues} from './speed-domain.js';
+import {SPEED_DOMAIN_METRICS,speedDomainSeason,speedDomainEventValues,speedDomainPhases} from './speed-domain.js';
 // APEX - Car Performance Section
 // Full parity with Session Analysis design language: Apple UI, official team logos, GP country flags, custom select menus.
 // Scientific rigor aligned with Astra GPT-6 Hybrid principles: no speculative physical regressions, sampling-aware bounds.
@@ -2891,8 +2891,33 @@ function speedDomainEventTable(keys) {
     for(const name of Object.keys(result.cars))rows.push([escape(event.name),teamLabel(style.get(name)||{team:name}),
       ...keys.map(k=>signed(values[k][name],SPEED_DOMAIN_METRICS[k].digits,SPEED_DOMAIN_METRICS[k].unit))]);
   }
-  const cornerEvidence=keys.some(k=>k.startsWith('corner_'))?table(['Grand Prix','Turn','Band','Field apex','Detection / sampled phase'],events.flatMap(event=>(event.speedDomain?.[telemetrySubject]?.segments?.corners||[]).map(c=>[escape(event.name),escape(c.corner),escape(c.band),fmt(c.field_apex_kmh,1,' km/h'),`${c.mapped_fast_bend?'Map + sustained curvature':'Speed minimum'} · ${fmt(c.dwell_s,2,' s')}`]))):'';
-  return `<details class="performance-evidence"><summary>Values by GP · relative to each GP's median ${telemetrySubject==='driver'?'driver':'team'}</summary>${table(['Grand Prix',telemetrySubject==='driver'?'Driver':'Team',...keys.map(k=>escape(SPEED_DOMAIN_METRICS[k].label))],rows)}${cornerEvidence}</details>`;
+  return `<details class="performance-evidence"><summary>Values by GP · relative to each GP's median ${telemetrySubject==='driver'?'driver':'team'}</summary>${table(['Grand Prix',telemetrySubject==='driver'?'Driver':'Team',...keys.map(k=>escape(SPEED_DOMAIN_METRICS[k].label))],rows)}</details>`;
+}
+// Braking / mid-corner / exit split of each band: how a car gains, not just how much.
+function speedDomainPhaseTable() {
+  const style=speedDomainEntities(),several=events.filter(e=>e.Q).length>1;
+  const sections=[['low','Low-speed'],['medium','Medium-speed'],['high','High-speed']].map(([band,label])=>{
+    const rows=speedDomainPhases(events,telemetrySubject,band).sort((a,b)=>(a.braking+a.mid+a.exit)-(b.braking+b.mid+b.exit));
+    if(!rows.length)return '';
+    return `<h4 class="perf-chart-heading">${label} corners</h4>`+table([telemetrySubject==='driver'?'Driver':'Team','Braking','Mid-corner','Exit','Total',...(several?['GPs']:[])],
+      rows.map(r=>[teamLabel(style.get(r.name)||{team:r.name}),signed(r.braking,3,' s'),signed(r.mid,3,' s'),signed(r.exit,3,' s'),signed(r.braking+r.mid+r.exit,3,' s'),...(several?[String(r.gps)]:[])]));
+  }).join('');
+  return sections?`<details class="performance-evidence"><summary>Where the time goes · braking, mid-corner, exit${several?' · seconds per GP, averaged':''}</summary><p class="performance-quality-status">Seconds per lap against the median ${telemetrySubject==='driver'?'driver':'team'}. Braking runs from the start line to where the field releases the brake (it includes the entry-speed correction), mid-corner to the last apex, exit to the end line (it includes the credit for exit speed carried onto the next straight).</p>${sections}</details>`:'';
+}
+// Every timed corner, fastest first, with the lines and both speed corrections.
+function speedDomainCornerTable() {
+  const style=speedDomainEntities();
+  const measured=events.filter(e=>e.speedDomain?.[telemetrySubject]?.segments?.timed_corners?.length);
+  if(!measured.length)return '';
+  const body=measured.map(event=>{
+    const rows=event.speedDomain[telemetrySubject].segments.timed_corners.flatMap(c=>Object.entries(c.cars).sort((a,b)=>a[1].delta_s-b[1].delta_s).map(([name,v],i)=>[
+      i?'':`<strong>${escape(c.corner)}</strong><br><small>${escape(c.band)} · ${fmt(c.metres,0,' m')} · field ${fmt(c.field_time_s,2,' s')}</small>`,
+      teamLabel(style.get(name)||{team:name}),signed(v.delta_s,3,' s'),signed(v.phases_s.braking,3,' s'),signed(v.phases_s.mid,3,' s'),signed(v.phases_s.exit,3,' s'),
+      `${fmt(v.entry_kmh,0)} / ${fmt(v.min_kmh,0)} / ${fmt(v.exit_kmh,0)}`]));
+    const t=table(['Corner',telemetrySubject==='driver'?'Driver':'Team','Δ to median','Braking','Mid-corner','Exit','In / min / out km/h'],rows);
+    return measured.length===1?t:`<details class="performance-evidence"><summary>${escape(event.name)}</summary>${t}</details>`;
+  }).join('');
+  return `<details class="performance-evidence"><summary>Corner by corner${measured.length===1?' · '+escape(measured[0].name):''}</summary><p class="performance-quality-status">Each corner runs from 10 m before the earliest braking point in the field to 10 m after the last car is back at full throttle; corners whose lines overlap are timed as one complex. Δ is corrected for entry and exit speed; a car more than 10% off the field through one corner, or 12% off at entry or exit, is left out of that corner as a mistake or data glitch.</p>${body}</details>`;
 }
 function renderSpeedDomain() {
   const loaded=events.filter(e=>e.speedDomain?.[telemetrySubject]?.cars).length,total=events.filter(e=>e.Q).length;
@@ -2900,11 +2925,17 @@ function renderSpeedDomain() {
   const failures=failed.map(e=>`<div class="performance-error">${escape(e.name)} · ${escape(e.speedDomainError||e.speedDomain[telemetrySubject].error)}</div>`).join('')+
     (failed.length&&!speedDomainRunning[telemetrySubject]?`<div class="performance-actions"><button type="button" data-speed-retry>Retry ${failed.length} missing GP${failed.length===1?'':'s'}</button></div>`:'');
   const status=`<p class="performance-quality-status" role="status">${speedDomainRunning[telemetrySubject]?'Loading fastest qualifying laps… ':''}${loaded} of ${total} GPs measured. Season values weight each GP equally; entrants measured in fewer than half of them stay unranked.</p>`;
-  if(activeMetric==='corners')return status+failures+card('Cornering',
-    `Estimated time loss from speed carried through measured corners. Braked and lifted corners use local speed minima. Mapped fast turns also require sustained GPS curvature and field speed above 200 km/h, so a linked sequence can contain separate turns without two speed dips. Broad apexes use a bounded observed window and are provisional. Fast-bend speed includes setup, energy and driver effects; it does not isolate grip. Only GPs containing a supported band contribute to that band.`,
-    speedDomainChart('corner_low','Low-speed corners','below 120 km/h')+speedDomainChart('corner_medium','Medium-speed corners','120–200 km/h')+speedDomainChart('corner_high','High-speed corners','above 200 km/h; often one corner per circuit, as 2026 cars take most fast bends flat')+speedDomainEventTable(['corner_low','corner_medium','corner_high']))+
+  if(activeMetric==='corners'){
+    // One GP: seconds per lap. Several: % of the field's time in that corner
+    // type, because seconds over Baku's nine slow corners and Bahrain's three
+    // fast ones are not the same size of deficit.
+    const several=events.filter(e=>e.Q).length>1,suffix=several?'_pct':'',per=several?' · % slower than the best':' · seconds per lap';
+    return status+failures+card('Cornering',
+    `Every car is timed over the same stretch of each corner, from before the earliest braking point in the field to after the last car is back at full throttle, so late or early braking, a V or U line and early throttle count only through the time they take. Arriving faster from the previous straight and leaving faster onto the next one are corrected for, so engine power is not counted as cornering. ${several?'Across several GPs each value is the % of the time the field spends in that corner type, with every GP weighted equally.':'For one GP the values are seconds per lap in that corner type.'} Bands use the field's slowest speed in the corner: low below 120 km/h, medium 120–200, high above 200 (only bends that need braking, a lift or at least 3 g).`,
+    speedDomainChart('corner_low'+suffix,'Low-speed corners','below 120 km/h'+per)+speedDomainChart('corner_medium'+suffix,'Medium-speed corners','120–200 km/h'+per)+speedDomainChart('corner_high'+suffix,'High-speed corners','above 200 km/h'+per)+speedDomainPhaseTable()+speedDomainCornerTable()+speedDomainEventTable(['corner_low','corner_medium','corner_high'].map(k=>k+suffix)))+
     card('Corner exit traction',`Acceleration out of slow corners at any throttle position, once a car has gained 30 km/h over its own apex, simulated from 70 to 170 km/h. Seconds per corner exit. Evidence only: in validation it carried little car-specific signal in 2025.`,
     speedDomainReliabilityNote('traction')+speedDomainChart('traction','Traction (corner exit)','70–170 km/h')+speedDomainEventTable(['traction']));
+  }
   if(activeMetric==='straight'){
     const pill=STRAIGHT_PILLS.find(p=>p.key===straightPill)||STRAIGHT_PILLS[0];
     const pills=`<div class="performance-scope-toggle" role="group" aria-label="Straight-line measure">${STRAIGHT_PILLS.map(p=>`<button type="button" data-straight-pill="${p.key}" aria-pressed="${p.key===pill.key}" title="${escape(p.hint)}">${p.label}</button>`).join('')}</div>`;

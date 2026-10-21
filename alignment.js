@@ -876,6 +876,7 @@ function sessionStraightEvidence(start,end,totalDistance) {
   return curvature.filter(value=>value<.001).length/curvature.length>=.85;
 }
 
+const CORNER_BRAKE_REACH_M=250,CORNER_EXIT_REACH_M=150,CORNER_LINE_MARGIN_M=10,CORNER_EXIT_CREDIT_MAX_M=500;
 let adaptiveZoneMemo=null;
 function adaptiveCornerZones(markers) {
   const totalDistance = referenceDistance();
@@ -964,21 +965,35 @@ function adaptiveCornerZones(markers) {
           if(k>=.001)last=f;
           if(settled>=30)break;
         }
+        // The lines must contain every compared lap's own braking and its
+        // return to full throttle, not the median lap's: otherwise an early
+        // braker's braking is timed as straight and a late one is flattered.
+        // Throttle lifts count only near the turn, because 2026 cars also
+        // lift and coast for energy far down the straight.
+        const brakeReach=direction<0?CORNER_BRAKE_REACH_M:100,liftReach=direction<0?100:CORNER_EXIT_REACH_M;
         let result=last;
-        for(let offset=5;offset<=100;offset+=5){
+        for(let offset=5;offset<=Math.max(brakeReach,liftReach);offset+=5){
           const f=last+direction*offset/totalDistance;
           if(f<midpointStart||f>midpointEnd)break;
-          const throttle=medianTelemetry(series.map(s=>traceTelemetryValue(s,f,'Throttle')).filter(Number.isFinite));
-          const brake=medianTelemetry(series.map(s=>traceTelemetryValue(s,f,'Brake')).filter(Number.isFinite));
-          if(!Number.isFinite(throttle)||(throttle>=95&&!(brake>0)))break;
+          const braking=offset<=brakeReach&&series.some(s=>traceTelemetryValue(s,f,'Brake')>0);
+          const lifting=offset<=liftReach&&series.some(s=>{const t=traceTelemetryValue(s,f,'Throttle');return Number.isFinite(t)&&t<95;});
+          if(!braking&&!lifting)break;
           result=f;
         }
-        return result;
+        if(result===last)return result;  // flat out: the bend's geometry is the line
+        return Math.min(midpointEnd,Math.max(midpointStart,result+direction*CORNER_LINE_MARGIN_M/totalDistance));
       };
       start=Math.max(midpointStart,Math.min(edge(-1),descriptor.apex-20/totalDistance));
       end=Math.min(midpointEnd,Math.max(edge(1),descriptor.apex+20/totalDistance));
-      boundaryMethod='GPS turn envelope + local braking/traction transition';
+      boundaryMethod='GPS turn envelope + every compared lap\'s braking and return to full throttle';
     }
+    // Shared phase line: where the compared laps release the brake (median).
+    const releases=series.map(samples=>{
+      let last=null;
+      for(let f=start;f<=Math.min(end,descriptor.apex);f+=5/totalDistance)if(traceTelemetryValue(samples,f,'Brake')>0)last=f;
+      return last;
+    }).filter(Number.isFinite);
+    const releaseFraction=releases.length?Math.min(Math.max(medianTelemetry(releases),start),Math.min(end,Math.max(start,descriptor.apex))):start;
     const apexStart = Math.max(start, descriptor.apex - descriptor.apexHalfMetres / totalDistance);
     const apexEnd = Math.min(end, descriptor.apex + descriptor.apexHalfMetres / totalDistance);
     return {
@@ -986,6 +1001,7 @@ function adaptiveCornerZones(markers) {
       boundaryMethod,
       start,
       end,
+      releaseFraction,
       apexStart,
       apexEnd,
       metres: Math.round((end - start) * totalDistance),
@@ -1024,6 +1040,39 @@ function cornerPerformance(samples, zone) {
   };
 }
 
+
+// Braking / mid-corner / exit times between the zone's shared lines, plus the
+// two speed corrections used by the season cornering metric (car_physics.py):
+// time saved only by arriving faster than the reference, held until the two
+// speed traces meet, and the credit for exit speed carried onto the next
+// straight, assumed to fade linearly over it.
+function cornerPhaseBreakdown(samples, reference, zone, exitStraightMetres) {
+  if (!samples?.length || !reference?.length || !zone) return null;
+  const totalDistance = referenceDistance();
+  const apex = Math.min(Math.max(zone.apex ?? zone.start, zone.start), zone.end);
+  const release = Math.min(Math.max(zone.releaseFraction ?? zone.start, zone.start), apex);
+  const phases = [[zone.start, release], [release, apex], [apex, zone.end]].map(([a, b]) => b > a ? performanceSectionDuration(samples, a, b) : 0);
+  if (!phases.every(Number.isFinite) || !(totalDistance > 0)) return null;
+  const speed = (s, f) => traceTelemetryValue(s, f, 'Speed') / 3.6;
+  const vIn = speed(samples, zone.start), vOut = speed(samples, zone.end), refOut = speed(reference, zone.end);
+  if (![vIn, vOut, refOut].every(v => Number.isFinite(v) && v > 0)) return null;
+  let saving = 0, previous = null;
+  const step = 5 / totalDistance, first = speed(reference, zone.start);
+  for (let f = zone.start; f <= apex && Number.isFinite(first); f += step) {
+    const v = speed(reference, f);
+    if (!Number.isFinite(v)) break;
+    if (vIn >= first ? v < first - .5 : v <= vIn) break;
+    const gain = 1 / Math.max(v, 1) - 1 / vIn;
+    if (previous !== null) saving += (previous + gain) / 2 * 5;
+    previous = gain;
+  }
+  const metres = Math.min(CORNER_EXIT_CREDIT_MAX_M, Math.max(0, exitStraightMetres || 0));
+  const along = Array.from({ length: 11 }, (_, i) => speed(reference, Math.min(1, zone.end + metres * i / 10 / totalDistance))).filter(Number.isFinite);
+  const mean = along.length ? along.reduce((a, b) => a + b, 0) / along.length : refOut;
+  const credit = .5 * (vOut - refOut) * metres / Math.max(mean, 1) ** 2;
+  return { braking: phases[0] + saving, mid: phases[1], exit: phases[2] - credit, raw: phases.reduce((a, b) => a + b, 0),
+    entrySaving: saving, exitCredit: credit, entryKmh: vIn * 3.6, exitKmh: vOut * 3.6 };
+}
 
 function updateAlignmentStatus() {
   const status = $('#alignmentStatus');

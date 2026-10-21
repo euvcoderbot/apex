@@ -69,7 +69,7 @@ compared.
 
 | Category | Measurement | Reported as |
 | --- | --- | --- |
-| Cornering | Each car's own speed minimum inside each grip-limited corner, and the time it spends within 15% of that speed. Time lost ≈ dwell × (field apex speed / car apex speed − 1), summed per band (low ≤ 120, medium ≤ 200, high > 200 km/h). | Seconds per lap behind the best car in each band |
+| Cornering | Time over the same fixed stretch of each grip-limited corner: from 10 m before the earliest braking point in the field (brake, not throttle: 2026 cars lift and coast for energy mid-straight) to 10 m after the last car is back at full throttle; overlapping corners are one complex. Split at the field's brake release and last apex into braking, mid-corner and exit. Entry speed is corrected by holding the car's line speed until it meets the field's speed trace; exit speed earns a credit over up to 500 m of the next straight, fading linearly. A car >10% off the field through one corner, or >12% off at entry or exit, is left out of that corner. | One GP: seconds per lap per band. Several GPs: % of the field's time in that band, equal weight per GP |
 | Braking | Average deceleration from brake onset (placed between packets from the speed already lost) until the car first reaches its own apex speed + 3 km/h. Distances from GPS projection. Each event is divided by the field's decel = c0 + c2·v² at its own speeds, centred per corner, median over corners. | % longer braking distance than the best car |
 | Straight line | Full-throttle acceleration a(v) from packets on the audited straights only, per DRS state (2025), at 10 km/h nodes. Each car's curve is run over the same simulated straight: 160→250 km/h, then 500 m from 250 km/h. | Seconds per straight |
 | Energy deployment | Speed lost while flat out on the audited straights (clipping, or a tow beyond the drag limit). | km/h per lap above the car losing least |
@@ -85,6 +85,12 @@ per-corner values use the median of the car's laps.
 brakes). Each lap samples at its own random phase, as real telemetry does.
 
 - +3% grip appears in every cornering band and in traction, not in straight-line time or braking.
+- +5% power stays within ±0.02 s per band of cornering (entry and exit speed are corrected).
+- Better brakes show in the braking phase of the corners, not mid-corner or exit.
+- Identical cars sampled at different phases agree within 0.03 s per band, also with 1.1 s packet
+  dropouts (time at a line assumes constant acceleration between packets, not linear time).
+- Positions follow the car's own odometer with a ±100 m GPS offset: nearest-point projection
+  alone snaps to the 5 m centreline grid, ±0.1 s through a slow corner.
 - +5% power appears only in straight-line time.
 - +8% braking appears only as braking distance (about 6–7% shorter).
 - A 12 m distance error leaves cornering unchanged.
@@ -113,6 +119,13 @@ Band coverage below 100% means the circuit has no grip-limited corner of that ty
 (Monza has no slow corners left once the chicanes are counted as medium; 2026 cars take many
 fast bends flat). Mean |correlation| between categories is 0.20 in both years: the categories
 measure different things rather than restating one order.
+
+## Corner timing against qualifying (2026, all 17 GPs)
+
+The sum of each team's corner deltas correlates with its qualifying gap at r = 0.96 on average
+(0.94–0.99 at 16 circuits; 0.80 at Monza, where the lap is decided on the straights). The previous
+apex-speed metric looked at one point per corner and missed braking, entry and exit; it put the
+Bahrain and Singapore pole-sitter (Red Bull) mid-field in cornering.
 
 ## Limits
 

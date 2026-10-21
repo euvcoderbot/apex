@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-import {speedDomainValue,speedDomainEventValues,speedDomainSeason} from '../speed-domain.js';
+import {speedDomainValue,speedDomainEventValues,speedDomainSeason,speedDomainPhases} from '../speed-domain.js';
 
 const car=(grip,straight,braking)=>({cornering:{low:{index:1,time_vs_median_s:grip}},straight:{index:1,gap_to_median_s:straight},braking:{index:1,gap_pct:braking}});
 
@@ -13,6 +13,20 @@ test('values are deficits: corner seconds, straight seconds, braking %',()=>{
   assert.equal(speedDomainValue(c,'braking'),4);
   assert.equal(speedDomainValue({straight:{index:null,gap_to_median_s:.1}},'straight'),null,'unsupported index is not a value');
   assert.equal(speedDomainValue(c,'corner_high'),null);
+});
+
+test('several GPs compare % of corner time, not seconds that differ by circuit',()=>{
+  const band=(s,pct)=>({cornering:{low:{index:1,time_vs_median_s:s,pct_vs_median:pct,phases_s:{braking:s/2,mid:0,exit:s/2}}}});
+  assert.equal(speedDomainValue(band(.4,1.2),'corner_low'),.4);
+  assert.equal(speedDomainValue(band(.4,1.2),'corner_low_pct'),1.2);
+  assert.equal(speedDomainValue({cornering:{low:{index:null,pct_vs_median:1}}},'corner_low_pct'),null);
+  const events=[{name:'GP1',speedDomain:{team:{cars:{A:band(0,0),B:band(.2,.5),C:band(.4,1)}}}},
+                {name:'GP2',speedDomain:{team:{cars:{A:band(0,0),B:band(.6,1.5),C:band(1.2,3)}}}}];
+  const phases=Object.fromEntries(speedDomainPhases(events,'team','low').map(r=>[r.name,r]));
+  // Centred on each GP's median, equal weight per GP, phases add to the total.
+  assert.ok(Math.abs(phases.A.braking-(-.1-.3)/2)<1e-12);
+  assert.equal(phases.B.braking+phases.B.mid+phases.B.exit,0);
+  assert.equal(phases.C.gps,2);
 });
 
 test('each GP is centred on its median entrant; fewer than three entrants is no comparison',()=>{
