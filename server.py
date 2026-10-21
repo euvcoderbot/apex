@@ -1659,6 +1659,12 @@ def session_data(
                 payload = session_payload(year, gp, code, alternate.apex_source_bundle)
                 payload['source_cache'] = alternate.apex_source_notice
                 payload['compounds'] = get_tire_nominations(year, gp)
+                # The alternate source has no circuit info. Official turn
+                # positions are venue metadata, so reuse the same-venue
+                # fallback (never a different track), or the comparison has
+                # no corner controls although the telemetry is complete.
+                if not payload.get('corners') and not fresh:
+                    payload['corners'] = get_fallback_circuit_corners(year, gp, session, str(payload.get('location') or ''))
                 return payload
             except Exception as fallback_error:
                 logger.warning('Alternate session timing unavailable for %s: %s', gp, fallback_error)

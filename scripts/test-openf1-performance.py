@@ -179,6 +179,26 @@ class LoadingTests(unittest.TestCase):
         self.assertEqual(result['drivers'][0]['laps'][0]['time'], 90)
         self.assertEqual(result['source_cache']['kind'], 'openf1-timing')
 
+    def test_alternate_session_gets_same_venue_corners_but_never_another_track(self):
+        # Abu Dhabi 2025: timing archive down, OpenF1 timing complete, but the
+        # alternate source carries no circuit info, so the comparison had no
+        # corner controls. Turn positions are venue metadata.
+        class MissingTiming:
+            @property
+            def laps(self):
+                raise RuntimeError('DataNotLoadedError: Session.load')
+        alternate = SimpleNamespace(apex_source_bundle=bundle(), apex_source_notice={'kind': 'openf1-timing'})
+        corners = [{'number': '1', 'letter': '', 'x': 1., 'y': 2., 'angle': 0., 'distance': None, 'fraction': None}]
+        def run(fallback):
+            with patch('verified_sources.recorded_session', return_value=None),                  patch.object(server, 'read_prepared_cache', return_value=None),                  patch.object(server, 'load_session', return_value=MissingTiming()),                  patch.object(server, 'load_openf1_performance', return_value=alternate),                  patch.object(server, 'get_fallback_circuit_corners', return_value=fallback) as lookup,                  patch.object(server, 'get_tire_nominations', return_value=[]):
+                return server.session_data(Response(), 2026, 'Azerbaijan Grand Prix', 15, 'Q', False), lookup
+        result, lookup = run(corners)
+        self.assertEqual(result['corners'], corners)
+        # Looked up by the payload's own venue, so a moved GP cannot borrow a different track.
+        self.assertEqual(lookup.call_args.args[:3], (2026, 'Azerbaijan Grand Prix', 'Q'))
+        self.assertEqual(lookup.call_args.args[3], str(result.get('location') or ''))
+        self.assertEqual(run([])[0]['corners'], [])
+
     def test_session_info_property_failure_cannot_escape_the_response_builder(self):
         class MissingMetadata(SimpleNamespace):
             @property

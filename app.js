@@ -3206,7 +3206,7 @@ function renderCornerAnalysis() {
     const own=cornerPhaseBreakdown(telemetryCache.get(telemetryKey(lap)),reference,zone,exitStraight);
     if(!own)return '';
     const d=['braking','mid','exit'].map(k=>own[k]-referencePhases[k]);
-    return `<small class="corner-phase-split" title="Model diagnostic only, not the measured section delta or the current season metric. Includes an assumed entry correction (${own.entryKmh.toFixed(0)} vs REF ${referencePhases.entryKmh.toFixed(0)} km/h) and exit-speed credit over up to ${Math.round(Math.min(500,exitStraight))} m of the next straight.">Braking ${signedDelta(d[0])} · Mid ${signedDelta(d[1])} · Exit ${signedDelta(d[2])} · modelled total ${signedDelta(d[0]+d[1]+d[2])}</small>`;
+    return `<small class="corner-phase-split" title="Modelled, not measured: not the section delta above. It applies the same entry-speed correction and exit-speed credit as the season cornering metric. Includes an assumed entry correction (${own.entryKmh.toFixed(0)} vs REF ${referencePhases.entryKmh.toFixed(0)} km/h) and exit-speed credit over up to ${Math.round(Math.min(500,exitStraight))} m of the next straight.">Braking ${signedDelta(d[0])} · Mid ${signedDelta(d[1])} · Exit ${signedDelta(d[2])} · modelled total ${signedDelta(d[0]+d[1]+d[2])}</small>`;
   };
   const picker = kind=>zones.map((candidate, index) => {
     if(candidate.kind!==kind||candidate.end<=candidate.start)return '';
@@ -3248,7 +3248,7 @@ function renderCornerAnalysis() {
       </header>
       <div class="corner-table-head"><span>Driver</span>${[['time','Time','s'],['delta','Delta','s'],['minimum',averageSpeed?'Average speed':'Minimum','km/h']].map(([key,label,unit]) => `<button type="button" data-corner-sort="${key}" aria-pressed="${cornerSort === key}" title="Sort best to worst by ${label}">${label}${cornerSort === key ? ' ↓' : ''}<small>${unit}</small></button>`).join('')}</div>
       <div class="corner-driver-metrics">${rows||'<span class="section-empty">The selected sections have insufficient measured data. Remove a corner or choose another lap.</span>'}</div>
-      ${referencePhases&&metrics.length>1?`<details class="corner-phase-evidence"><summary>Modelled entry / exit diagnostic</summary><p>Separate from the measured section times above and the current car-performance metric.</p>${rankedMetrics.map(item=>{const split=phaseSplit(item.lap);return split?`<div><b>${item.lap.code}</b>${split}</div>`:'';}).join('')}</details>`:''}
+      ${referencePhases&&metrics.length>1?`<details class="corner-phase-evidence"><summary>Modelled entry / exit diagnostic</summary><p>Modelled, not measured: the same entry-speed correction and exit-speed credit the season cornering metric uses, applied to these laps. Separate from the measured section times above.</p>${rankedMetrics.map(item=>{const split=phaseSplit(item.lap);return split?`<div><b>${item.lap.code}</b>${split}</div>`:'';}).join('')}</details>`:''}
     </article>`;
   root.querySelectorAll('[data-corner-sort]').forEach(button => {
     button.onclick = () => { cornerSort = button.dataset.cornerSort; renderCornerAnalysis(); root.querySelector(`[data-corner-sort="${cornerSort}"]`)?.focus({ preventScroll: true }); };
