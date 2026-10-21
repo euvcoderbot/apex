@@ -32,7 +32,12 @@ a { color: var(--ui-accent); }
 .toolbar-leading { display: flex; align-items: center; gap: 10px; min-width: 0; justify-self: start; }
 .site-header .brand { display: inline-flex; align-items: center; flex: 0 0 auto; width: auto; min-width: 0; height: 28px; margin: 0; padding: 0 2px; border: 0; border-radius: 6px; background: none; box-shadow: none; }
 /* Brand: the F1 Apex Data app icon plus a live-text wordmark ("F1" in the logo's teal). */
-:root { --brand-teal: #00a0a8; --ui-choice-selected: color-mix(in srgb,var(--ui-accent) 14%,var(--ui-well)); --ui-choice-ring: inset 0 0 0 1.5px var(--ui-accent); }
+/* Selection families (docs/selection-and-lists-spec-20261022.md). Rings mean
+   keyboard focus only; team colour is identity, never state. List rows: filled
+   selection colour, white label. On/off tiles: accent fill, white label.
+   Segmented controls: raised thumb. */
+:root { --brand-teal: #00a0a8; --ui-list-selected: var(--ui-selection); --ui-list-selected-label: #fff; --ui-list-selected-secondary: #ffffffcc;
+  --ui-tile-on: var(--ui-action); --ui-tile-on-label: #fff; --ui-thumb-shadow: 0 .5px 2px #0000004d,0 0 0 .5px #0000001a,inset 0 .5px #ffffff1f; }
 :root:not([data-theme="light"]) { --brand-teal: #14b4bc; }
 .site-header .brand.brand-wordmark { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 4px 0 2px; color: var(--ui-label); text-decoration: none; font-family: var(--ui-font-display); font-size: 16px; line-height: 1; letter-spacing: -.01em; white-space: nowrap; }
 .brand-wordmark .brand-icon { display: block; flex: 0 0 24px; width: 24px; height: 24px; max-width: none; border-radius: 6px; box-shadow: 0 0 0 .5px var(--ui-border); }
@@ -127,7 +132,7 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 #driverPills.has-race-results .driver-pill[data-ui-kind="list-row"] { grid-template-columns: 18px 22px minmax(0,1fr) auto; }
 #driverPills .driver-pill[data-ui-kind="list-row"]::before { content: none; }
 #driverPills .driver-pill:hover:not([aria-pressed="true"]) { background: var(--ui-row-hover); }
-#driverPills .driver-pill[aria-pressed="true"] { background: var(--ui-choice-selected); box-shadow: var(--ui-choice-ring); }
+#driverPills .driver-pill[aria-pressed="true"] { background: var(--ui-list-selected); color: var(--ui-list-selected-label); box-shadow: none; }
 #driverPills .driver-pill-position { justify-self: end; font-size: 13px; font-weight: 500; color: var(--ui-tertiary); font-variant-numeric: tabular-nums; }
 #driverPills .driver-pill .team-logo { width: 18px; height: 18px; }
 #driverPills .driver-pill-identity { display: grid; min-width: 0; }
@@ -161,7 +166,7 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .app-sidebar .track-pill .track-round { font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; color: var(--ui-tertiary); }
 .app-sidebar .track-pill .track-name { min-width: 0; white-space: normal; overflow-wrap: normal; }
 .app-sidebar .track-pill[data-ui-kind="choice"]:hover:not(:disabled) { background: var(--ui-row-hover); }
-.app-sidebar .track-pill[aria-pressed="true"] { border-color: transparent; background: var(--ui-choice-selected); box-shadow: var(--ui-choice-ring); }
+.app-sidebar .track-pill[aria-pressed="true"] { border-color: transparent; background: var(--ui-list-selected); color: var(--ui-list-selected-label); box-shadow: none; }
 .app-sidebar .track-pill .gp-flag,.app-sidebar .track-pill img { width: 18px; height: 13px; border-radius: 2px; box-shadow: 0 0 0 .5px var(--ui-border); }
 
 /* Category bar: a segmented tab strip at the top of the main pane. */
@@ -209,10 +214,10 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 #stintPanels { gap: 10px; }
 .driver-run-card { padding: 10px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-well); }
 .lap-workspace .run-segment[data-ui-kind="run"] { min-height: 34px; border-radius: 6px; background: var(--ui-control); box-shadow: var(--ui-shadow-control); border: 0; }
-.lap-workspace .run-segment[data-ui-kind="run"][aria-pressed="true"] { background: var(--ui-choice-selected); box-shadow: var(--ui-choice-ring); }
+.lap-workspace .run-segment[data-ui-kind="run"][aria-pressed="true"] { background: var(--ui-seg-thumb); color: var(--ui-label); box-shadow: var(--ui-thumb-shadow); }
 .lap-workspace .lap-chip[data-ui-kind="choice"] { min-height: 30px; padding: 3px 7px; border: 0; border-radius: 6px; background: var(--ui-control); box-shadow: var(--ui-shadow-control); font-size: 14px; }
 .lap-workspace .lap-chip[data-ui-kind="choice"]:hover:not(:disabled) { background: var(--ui-control-hover); }
-.lap-workspace .lap-chip[aria-pressed="true"] { background: var(--ui-choice-selected); box-shadow: var(--ui-choice-ring); }
+.lap-workspace .lap-chip[aria-pressed="true"] { background: var(--ui-tile-on); color: var(--ui-tile-on-label); box-shadow: none; }
 .telemetry-card { padding: 12px 14px; }
 .telemetry-card .analysis-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .comparison-tray { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; padding: 6px 8px; border: 0; border-radius: 8px; background: var(--ui-well); box-shadow: inset 0 0 0 1px var(--ui-separator); }
@@ -245,7 +250,7 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .circuit-section-group .corner-picker button.corner-pick { flex: 0 0 auto; width: auto; min-width: 36px; height: var(--ui-control-height); min-height: var(--ui-control-height); padding-inline: var(--ui-space-2); white-space: nowrap; border: 1px solid var(--ui-border-strong); border-radius: 7px; background: transparent; box-shadow: none; color: var(--ui-secondary); font: 500 var(--ui-control-font)/1 var(--ui-font); }
 .circuit-section-group .straight-zone-picker button.corner-pick { width: auto; min-width: 78px; padding-inline: 10px; }
 .circuit-section-group .corner-picker button.corner-pick:hover { background: var(--ui-row-hover); color: var(--ui-label); }
-.circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"] { background: var(--ui-choice-selected); border-color: transparent; color: var(--ui-label); box-shadow: var(--ui-choice-ring); }
+.circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"] { border-color: transparent; background: var(--ui-tile-on); color: var(--ui-tile-on-label); box-shadow: none; }
 .corner-detail-card h3 { font: 600 14px/1.4 var(--ui-font); }
 
 /* Sector status colours sampled from F1 broadcast timing graphics (user-supplied
@@ -561,7 +566,7 @@ button[data-ui-kind="menu-item"]:is(:hover,:focus-visible) { background: var(--u
 .select-trigger[data-ui-kind="popup"] { padding-left: 10px; }
 .select-menu button .select-option-text { min-width: 0; line-height: 1.35; white-space: normal; }
 .select-menu button .gp-flag { flex: 0 0 18px; width: 18px; height: 13px; }
-.select-menu button[aria-selected="true"] { background: var(--ui-choice-selected); color: var(--ui-label); box-shadow: var(--ui-choice-ring); font-weight: 500; }
+.select-menu button[aria-selected="true"] { background: var(--ui-list-selected); color: var(--ui-list-selected-label); box-shadow: none; font-weight: 500; }
 .select-menu button[aria-selected="true"]::after { display: none; }
 .select-menu button[aria-selected="true"]::before { display: block; }
 .select-menu button[data-ui-kind="menu-item"][aria-selected="true"]::before { left: auto; right: 9px; }
@@ -573,13 +578,14 @@ button[data-ui-kind="menu-item"]:is(:hover,:focus-visible) { background: var(--u
 [data-ui-group="segments"]:not(.performance-tabs) > button[data-ui-kind="segment"][aria-pressed="true"] { color: var(--ui-label); background: var(--ui-seg-thumb); box-shadow: 0 .5px 2px #0000004d,0 0 0 .5px #0000001a,inset 0 .5px #ffffff1f; }
 /* Choices, fields and check marks */
 button[data-ui-kind="choice"] { border: 0; background: var(--ui-control); box-shadow: var(--ui-shadow-control); border-radius: 6px; }
-button[data-ui-kind="choice"][aria-pressed="true"],button[data-ui-kind="choice"].selected { background: var(--ui-choice-selected); box-shadow: var(--ui-choice-ring); }
+button[data-ui-kind="choice"][aria-pressed="true"],button[data-ui-kind="choice"].selected { background: var(--ui-tile-on); color: var(--ui-tile-on-label); box-shadow: none; }
 input[data-ui-kind="field"],textarea[data-ui-kind="field"] { border: 0; border-radius: 5px; background: var(--ui-content); box-shadow: inset 0 0 0 1px var(--ui-border-strong),inset 0 1px 1px #0000001a; }
 input[data-ui-kind="field"]:focus-visible { outline: 3px solid var(--ui-focus); outline-offset: 0; }
 input[data-ui-kind="checkbox"],input[data-ui-kind="radio"] { border: 0; background: var(--ui-control); box-shadow: inset 0 0 0 1px var(--ui-border-strong),0 .5px 1px #0003; }
 input[data-ui-kind="checkbox"]:checked,input[data-ui-kind="checkbox"]:indeterminate,input[data-ui-kind="radio"]:checked { background: var(--ui-action); box-shadow: none; }
 .loaded-lap-pill { border: 0; border-radius: 7px; background: var(--ui-control); box-shadow: var(--ui-shadow-control); }
-.loaded-lap-pill.reference { background: var(--ui-choice-selected); box-shadow: var(--ui-choice-ring); }
+/* REF is a tag, not a selection: the chip stays neutral. */
+.loaded-lap-pill.reference { background: var(--ui-control); box-shadow: var(--ui-shadow-control); }
 .tooltip,.app-toast { border: 0; border-radius: 8px; background: color-mix(in srgb,var(--ui-control) 88%,transparent); -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%); box-shadow: var(--ui-shadow-popover); color: var(--ui-label); font-size: 14px; }
 .app-toast { bottom: 18px; }
 .local-compute-dialog { border: 0; border-radius: 12px; background: var(--ui-panel); box-shadow: var(--ui-shadow-popover); }
@@ -676,7 +682,7 @@ body.performance-view > #carPerformance:not([hidden]),body:not(.performance-view
   .app-sidebar { background: var(--ui-sidebar); }
 }
 @media(prefers-contrast:more) {
-  .category-bar .category-tab[aria-current="page"],#driverPills .driver-pill[aria-pressed="true"] { box-shadow: inset 0 0 0 1.5px var(--ui-accent); }
+  .category-bar .category-tab[aria-current="page"] { box-shadow: inset 0 0 0 1.5px var(--ui-label); }
   [data-ui-group="segments"] > button[data-ui-kind="segment"][aria-pressed="true"] { box-shadow: inset 0 0 0 1.5px var(--ui-label); }
 }
 @media(pointer:coarse) {
@@ -718,8 +724,7 @@ main#top > .analysis-column { padding: 24px; gap: 20px; }
 .loaded-lap-pill,.loaded-lap-pill.reference { border-radius: var(--ui-radius); }
 .driver-run-card { padding: 14px; border-radius: 12px; }
 #driverPills .driver-pill[data-ui-kind="list-row"] { min-height: 42px; padding-block: 6px; border-radius: var(--ui-radius); }
-#driverPills .driver-pill[aria-pressed="true"] { background: var(--ui-choice-selected); box-shadow: var(--ui-choice-ring); }
-#driverPills .driver-pill-identity strong { font-weight: 600; }
+#driverPills .driver-pill[aria-pressed="true"] { background: var(--ui-list-selected); color: var(--ui-list-selected-label); box-shadow: none; }
 .lap-workspace .lap-chip[data-ui-kind="choice"],.lap-workspace .run-segment[data-ui-kind="run"] { border-radius: var(--ui-radius); }
 .lap-workspace .lap-chip[data-ui-kind="choice"] { min-height: 38px; padding: 6px 10px; }
 .sector-cards .lap-summary-card .sector-cell-value :is(strong,em) { white-space: nowrap; }
@@ -737,8 +742,7 @@ main#top > .analysis-column { padding: 24px; gap: 20px; }
 .performance-bar-fill { border-radius: 3px; }
 .select-menu { border-radius: var(--ui-menu-radius); padding: 6px; background: color-mix(in srgb,var(--ui-control) 94%,transparent); }
 .select-menu button,.select-menu button[data-ui-kind="menu-item"] { min-height: var(--ui-control-height); border-radius: 7px; }
-button[data-ui-kind="menu-item"][aria-selected="true"] { background: var(--ui-choice-selected); color: var(--ui-label); box-shadow: var(--ui-choice-ring); }
-button[data-ui-kind="menu-item"][aria-selected="true"]:is(:hover,:focus-visible) { background: var(--ui-choice-selected); color: var(--ui-label); }
+button[data-ui-kind="menu-item"][aria-selected="true"],button[data-ui-kind="menu-item"][aria-selected="true"]:is(:hover,:focus-visible) { background: var(--ui-list-selected); color: var(--ui-list-selected-label); box-shadow: none; }
 [data-ui-group="segments"]:not(.performance-tabs) { padding: 3px; border-radius: 10px; }
 [data-ui-group="segments"]:not(.performance-tabs) > button[data-ui-kind="segment"] { min-height: var(--ui-control-height); height: var(--ui-control-height); border-radius: 7px; padding: 0 10px; font-size: var(--ui-control-font); white-space: nowrap; }
 button[data-ui-kind="tab"],button[data-ui-kind="choice"],button[data-ui-kind="toolbar"],button[data-ui-kind="icon"],button[data-ui-kind="stepper"],input[data-ui-kind="field"],textarea[data-ui-kind="field"] { border-radius: var(--ui-radius); }
@@ -866,7 +870,7 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
 .circuit-section-group .corner-picker button.corner-pick,.corner-picker button[data-ui-kind="choice"],.corner-picker button[data-ui-kind="push"] { border: 0; background: var(--ui-control); box-shadow: var(--ui-shadow-control); color: var(--ui-label); font-weight: 500; transition: background-color var(--ui-motion) var(--ui-ease),box-shadow var(--ui-motion) var(--ui-ease); }
 .circuit-section-group .corner-picker button.corner-pick:hover:not(:disabled),.corner-picker button[data-ui-kind="choice"]:hover:not(:disabled) { background: var(--ui-control-hover); }
 .circuit-section-group .corner-picker button.corner-pick:active:not(:disabled) { background: var(--ui-selected); }
-.circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"],.corner-picker button[aria-pressed="true"] { background: var(--ui-choice-selected); color: var(--ui-label); box-shadow: var(--ui-choice-ring); transition: none; }
+.circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"],.corner-picker button[aria-pressed="true"] { background: var(--ui-tile-on); color: var(--ui-tile-on-label); box-shadow: none; transition: none; }
 /* Corner table header: label above its unit, right-aligned, wrapping inside its
    own column so narrow side panels never overlap headings. */
 .corner-detail-card :is(.corner-table-head,.corner-driver-row) { grid-template-columns: minmax(84px,1.2fr) repeat(3,minmax(0,1fr)); column-gap: 10px; }
@@ -907,7 +911,7 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
 .category-bar [data-sidebar-metric="tyres"] { --category-tint: #dbb339; }
 .category-bar [data-sidebar-metric="trend"] { --category-tint: #54bb76; }
 .category-bar [data-sidebar-metric="results"] { --category-tint: #8b93ed; }
-.category-bar .category-tab[aria-current="page"] { color: var(--ui-label); font-weight: 600; background: var(--ui-choice-selected); box-shadow: var(--ui-choice-ring); }
+.category-bar .category-tab[aria-current="page"] { color: var(--ui-label); font-weight: 600; background: var(--ui-seg-thumb); box-shadow: var(--ui-thumb-shadow); }
 
 /* Motion (motion.js): navigation only. The category panel cross-fades with a
    short rise on the macOS ease-out curve; bars grow once when a category is
@@ -924,3 +928,64 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
   .performance-page[data-motion] .performance-bar { animation: none; }
 }
+
+/* ---------- Selection families (docs/selection-and-lists-spec-20261022.md) ----------
+   Last in the window layer so one rule per family wins over the legacy layers. */
+
+/* List rows: the driver list is a macOS source list. One 32 px line:
+   position · 18 px logo · natural-case name · trailing code (or race result),
+   then a trailing check on selected rows. No rings, no team-tinted state. */
+.app-sidebar #driverPills { gap: 2px; }
+#driverPills .driver-pill[data-ui-kind="list-row"] { grid-template-columns: 20px 18px minmax(0,1fr) auto 12px; gap: 8px; min-height: 32px; height: 32px; padding: 0 8px 0 4px; border-radius: 6px; }
+#driverPills.has-race-results .driver-pill[data-ui-kind="list-row"] { grid-template-columns: 20px 18px minmax(0,1fr) auto 12px; }
+#driverPills .driver-pill-identity { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 14px; font-weight: 500; line-height: 1.2; }
+#driverPills .driver-pill-code { font-size: 13px; font-weight: 500; color: var(--ui-tertiary); letter-spacing: .02em; }
+#driverPills .driver-pill[data-ui-kind="list-row"]::after { content: ''; grid-column: 5; width: 12px; height: 12px; }
+#driverPills .driver-pill[aria-pressed="true"]::after,
+.app-sidebar .track-pill[aria-pressed="true"]::after { content: ''; display: block; width: 12px; height: 12px; background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='m2.2 6.3 2.4 2.4 5.2-5.6' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/12px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='m2.2 6.3 2.4 2.4 5.2-5.6' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/12px no-repeat; }
+#driverPills .driver-pill[aria-pressed="true"] :is(.driver-pill-position,.driver-pill-code,small,span,em,b) { color: var(--ui-list-selected-secondary); }
+#driverPills .driver-pill[aria-pressed="true"] .driver-pill-identity { color: var(--ui-list-selected-label); }
+#driverPills .driver-pill:hover:not([aria-pressed="true"]) { background: var(--ui-row-hover); }
+.app-sidebar .track-pill[data-ui-kind="choice"] { grid-template-columns: 18px 25px minmax(0,1fr) 12px; }
+/* Phones split the list into two columns: too narrow for a name, so a row is
+   position · logo · code (the name stays in the tooltip and label), and the
+   fill alone marks selection. */
+@media(max-width:560px) {
+  #driverPills .driver-pill[data-ui-kind="list-row"],#driverPills.has-race-results .driver-pill[data-ui-kind="list-row"] { grid-template-columns: 16px 18px minmax(0,1fr); gap: 6px; padding-right: 6px; }
+  #driverPills .driver-pill-identity { display: none; }
+  #driverPills .driver-pill[data-ui-kind="list-row"]::after { content: none; }
+}
+.app-sidebar .track-pill[aria-pressed="true"] :is(.track-round,small) { color: var(--ui-list-selected-secondary); }
+.app-sidebar .track-pill[aria-pressed="true"] .track-name { color: var(--ui-list-selected-label); }
+
+/* Segmented control: Q1/Q2/Q3 (or stints) on a recessed track, the chosen
+   run on a raised thumb. The ✓/› marks are not part of a segmented control. */
+.lap-workspace .run-segments { gap: 2px; padding: 2px; border-radius: 9px; background: var(--ui-seg-track); box-shadow: inset 0 0 0 .5px var(--ui-separator); }
+.lap-workspace .run-segment[data-ui-kind="run"] { background: transparent; box-shadow: none; color: var(--ui-secondary); }
+.lap-workspace .run-segment[data-ui-kind="run"]:hover:not([aria-pressed="true"]) { background: transparent; color: var(--ui-label); }
+.lap-workspace .run-segment[data-ui-kind="run"][aria-pressed="true"] { font-weight: 600; }
+.lap-workspace .run-segment .run-choice-indicator { display: none; }
+
+/* Toggle tiles (on/off, multi-select): accent fill and white label when on. */
+#compareAllFastest[aria-pressed="true"],#compareAllFastest.selected,
+.lap-workspace .fastest-lap-pick[aria-pressed="true"] { background: var(--ui-tile-on); color: var(--ui-tile-on-label); box-shadow: none; border-color: transparent; }
+:is(.lap-workspace .lap-chip,.lap-workspace .fastest-lap-pick,.corner-picker button,#compareAllFastest)[aria-pressed="true"] :is(span,strong,small,b,i,.lap-clock,.lap-state,.lap-token,.lap-tyre-age) { color: inherit; }
+:is(.lap-workspace .lap-chip,.lap-workspace .fastest-lap-pick,.corner-picker button)[aria-pressed="true"] :is(small,.lap-state,.lap-tyre-age,span:not(.lap-token):not(.lap-clock)) { color: var(--ui-list-selected-secondary); }
+
+/* REF is a tag on a neutral chip, not a selected state. */
+#loadedLaps .loaded-lap-pill.reference::before { background: color-mix(in srgb,var(--ui-accent) 20%,transparent); color: var(--ui-accent); }
+
+/* Category bar: the same recessed track and raised thumb as the view switch;
+   the coloured symbols stay, the selected symbol is not re-tinted. */
+#carPerformance > .category-bar:not([hidden]) { border: 0; background: var(--ui-seg-track); box-shadow: inset 0 0 0 .5px var(--ui-separator); }
+.category-bar .category-tab[aria-current="page"] .category-icon { color: var(--category-tint,var(--ui-accent)); }
+
+/* Visible-trace chips: neutral bezel; the checkbox shows on/off and the
+   colour well the trace colour. No team-coloured border or tint. */
+.trace-pill-group .trace-driver-chip,.trace-pill-group .trace-driver-chip.is-visible { padding: 3px 8px 3px 6px; border: 0; border-radius: 6px; background: var(--ui-control); box-shadow: var(--ui-shadow-control); color: var(--ui-label); }
+.trace-pill-group .trace-driver-chip:not(.is-visible) { color: var(--ui-secondary); }
+
+/* Rings mean keyboard focus only. */
+:is(#driverPills .driver-pill,.app-sidebar .track-pill,.lap-workspace .run-segment,.lap-workspace .lap-chip,.lap-workspace .fastest-lap-pick,.corner-picker button,#compareAllFastest,.category-bar .category-tab,.select-menu button):focus-visible { outline: 3px solid var(--ui-focus); outline-offset: 1px; }

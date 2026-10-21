@@ -33,5 +33,6 @@ test('compact summary and category controls use shared typography and selection 
   assert.match(css,/summary-lap-time > strong[^}]+var\(--type-title2\)/);
   assert.match(css,/sector-measurements > strong[^}]+var\(--type-headline\)/);
   assert.match(css,/grid-template-areas: "driver time" "tyre time"/);
-  assert.match(css,/category-tab\[aria-current="page"\][^}]+background: var\(--ui-choice-selected\); box-shadow: var\(--ui-choice-ring\)/);
+  // The category bar is a segmented control: a raised thumb, no ring.
+  assert.match(css,/category-tab\[aria-current="page"\][^}]+background: var\(--ui-seg-thumb\); box-shadow: var\(--ui-thumb-shadow\)/);
 });
