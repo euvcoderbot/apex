@@ -731,7 +731,7 @@ function stop() {
   controller?.abort(); pitController?.abort(); generation++; running=false; traceRunning=false; pitRunning=false;
   $('performanceCancel').hidden=true;
   $('performanceLoad').hidden=false;
-  $('performanceLoad').disabled=!calendar.length;
+  updateTrackCount();
   updateStatus('Stopped. Completed results remain visible.', false);
   render();
 }
