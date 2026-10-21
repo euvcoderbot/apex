@@ -78,15 +78,4 @@ test('the page defaults to speed-domain and keeps every trace-batch speed-domain
   assert.match(readFileSync('src/views/SpeedView.tsx','utf8'),/data-straight-pill=\{x\.key\}/);
   assert.match(source,/pills:STRAIGHT_PILLS\.map/);
   for(const key of ['straight','straight_top','energy'])assert.match(source,new RegExp(`key:'${key}'`));
-  // Braking loader stores the block without disturbing its own traces.
-  const event={name:'GP',Q:{teams:[]}};
-  const result={teams:{A:{braking:[],selection:{}}},excluded:{},speed_domain:{cars:{A:{}}}};
-  const box={teamBrakingRunning:false,context:{year:2026},generation:1,events:[event],AbortController,URLSearchParams,
-    firstTelemetryAttempt:()=>true,loadActiveTelemetry:()=>{},fastestTeamTelemetrySelections:()=>[{team:'A'},{team:'B'},{team:'C'}],
-    render:()=>{},updateStatus:()=>{},get:async()=>structuredClone(result)};
-  vm.createContext(box);
-  vm.runInContext(source.slice(source.indexOf('async function loadTeamBraking('),source.indexOf('async function loadTeamTelemetry(')),box);
-  await box.loadTeamBraking();
-  assert.deepEqual(Object.keys(event.speedDomain.team.cars),['A']);
-  assert.ok(event.brakingTraces.A);
 });

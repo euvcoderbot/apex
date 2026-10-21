@@ -52,9 +52,10 @@ Moving another category: build its plain view data in `car-performance.js`,
 return `reactView('<name>', data)`, add `src/views/<Name>View.tsx`, register it
 in `src/islands.tsx`, and render-test it in `scripts/test-react-views.mjs`.
 Still string-rendered: the car-performance chrome around the views and the
-whole session-analysis view. `renderTrace()` and the cards it calls (race speed
-traps, matched qualifying corners, season lap-gap, circuit audit) are
-unreachable legacy: `speedDomainMethod` is always `'speed'`.
+whole session-analysis view. The retired window-timing views (`renderTrace()`,
+race speed traps, matched qualifying corners, season lap-gap and circuit audit
+cards, team braking loader) were removed; qualifying Cornering, Straight line
+and Braking always use the speed-domain method.
 
 ## Pre-rendered data
 

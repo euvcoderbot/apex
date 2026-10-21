@@ -18,7 +18,7 @@ test('experimental and legacy methodology switches have no UI or event handlers'
 });
 
 test('useful task and interpretation controls remain available',()=>{
-  for(const key of ['telemetry-subject','corner-session','corner-band','straight-source','straight-unit',
+  for(const key of ['telemetry-subject','corner-session','corner-band',
     'pit-measure','pit-subject','pit-chart','pit-lane-basis','tyre-metric','tyre-subject','tyre-correction','trend-view'])
     assert.ok(offersControl(performanceSource(),key),key);
   // Reliability & results is a React view: a segmented control of data-results-chart buttons.
@@ -31,17 +31,6 @@ test('useful task and interpretation controls remain available',()=>{
   assert.match(readFileSync('car-performance.css','utf8'),/\.performance-quality-status button[\s\S]*?background: var\(--surface-muted\)/);
 });
 
-test('acceleration keeps speed-band selection without methodology choices',()=>{
-  const start=car.indexOf('function straightBandControls('),end=car.indexOf("let qualyPaceMode",start);
-  const box={telemetrySubject:'team',straightBand:'200_250',STRAIGHT_BANDS:['100_150','200_250','250_300']};
-  vm.createContext(box);vm.runInContext(car.slice(start,end),box);
-  const html=box.straightBandControls(['200_250']);
-  assert.equal((html.match(/<button/g)||[]).length,3);
-  assert.match(html,/role="group" aria-labelledby="performanceAccelerationRangeLabel"/);
-  assert.match(html,/data-straight-band="200_250" aria-pressed="true"/);
-  assert.match(html,/data-straight-band="100_150"[^>]+disabled/);
-  assert.doesNotMatch(html,/diagnostic|strict|Common observed/);
-});
 
 test('tyre subject and metric selector uses a single consistent season summary',()=>{
   // The toolbar is drawn by src/views/TyresView.tsx (rendered in test-react-views.mjs).

@@ -53,7 +53,6 @@ test('session, race and qualifying share the geometry module and disclose fallba
   assert.match(race,/refineCornerPositions\(geometryRef\.payload\.samples/);
   // Speed labels use each lap's own measured extremes, matched across laps by GPS.
   assert.match(app,/matched to the other laps by GPS position/);
-  assert.match(readFileSync('car-performance.js','utf8'),/Corner position evidence · GPS refinements and uncertain markers/);
   assert.match(readFileSync('scripts/sync-static.mjs','utf8'),/corner-position\.js/);
 });
 test('race bend speeds use the registered named-corner frame, not raw GPS fractions',()=>{

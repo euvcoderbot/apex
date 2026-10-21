@@ -55,14 +55,6 @@ test('a long discrete-channel source gap is not bridged by the chart',()=>{
   assert.equal(h.renderedTraceValue(path,.25,true),null);assert.equal(h.renderedTraceValue(path,.5,true),100);
   assert.equal(h.discreteTraceState('Brake',null),null);
 });
-test('missing fastest-lap entrants stay visible without inheriting a measured score',()=>{
-  const context={telemetryEvent:e=>e};vm.createContext(context);
-  vm.runInContext(car.slice(car.indexOf('function retainQualifyingEntrants('),car.indexOf('\nfunction seasonTelemetry(')),context);
-  const event={Q:{teams:[{team:'A'},{team:'B'}]},traceExcluded:{B:'GPS unavailable'}};
-  const rows=context.retainQualifyingEntrants([{team:'A',categories:{},trace:{corners:[]}}],[event]);
-  assert.equal(rows.length,2);assert.equal(rows[1].missingReason,'GPS unavailable');assert.equal(rows[1].brakingScore,null);
-  assert.deepEqual(Object.keys(rows[1].categories),[]);
-});
 test('selected measurements are not silently replaced when coverage is unavailable',()=>{
   assert.doesNotMatch(car,/selectedBrakeView=brakingView==='approach'&&hasApproach/);
   assert.doesNotMatch(car,/if\s*\(noStationary\)\s*pitMeasure\s*=/);

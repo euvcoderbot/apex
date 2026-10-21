@@ -21,14 +21,13 @@ test('regular controls share tokenised type, height and spacing without fixed-he
 
 test('main comparisons have no vertical height cap and no redundant ranking footer',()=>{
   assert.match(css,/\.performance-split-view > \.performance-table-wrap \{ max-height: none; height: auto; overflow-x: auto; overflow-y: visible/);
-  const renderer=car.slice(car.indexOf('function renderHorizontalBarChart('),car.indexOf('function renderCornerBarChart('));
-  assert.doesNotMatch(renderer,/class="chart-coverage"/);
-  assert.match(car,/is-unranked/); // Missing observations remain distinguishable from measured zeros.
+  const chart=readFileSync('src/components/BarChart.tsx','utf8');
+  assert.doesNotMatch(chart,/chart-coverage/);
+  assert.match(chart,/is-unranked/); // Missing observations remain distinguishable from measured zeros.
   assert.doesNotMatch(ui,/performance-chart-evidence/);
 });
 
 test('speed ranges and results use pressed-state pills and retire their dropdown handlers',()=>{
-  assert.match(car,/data-straight-band="\$\{key\}" aria-pressed/);
   // Reliability & results is a React view: a segmented control of data-results-chart buttons.
   const resultsView=readFileSync('src/views/ResultsView.tsx','utf8'),segmented=readFileSync('src/components/SegmentedControl.tsx','utf8');
   assert.match(resultsView,/<SegmentedControl name="results-chart"/);

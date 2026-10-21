@@ -41,22 +41,12 @@ test('loaded session context comes from loaded data, not pending selector values
   assert.doesNotMatch(body,/\$\('#year'\)|\$\('#gp'\)/);
 });
 
-test('only speed-trace flags produce source-gap approximations on shared charts',()=>{
-  const box={finite:Number.isFinite,escape:String,color:()=> '#888',teamLabel:r=>r.team,
-    fmt:(v,d,u)=>v.toFixed(d)+u,signed:(v,d,u)=>v.toFixed(d)+u};
-  vm.createContext(box);
-  vm.runInContext(car.slice(car.indexOf('function renderHorizontalBarChart('),car.indexOf('function lapShareChart(')),box);
-  const html=(row)=>box.renderHorizontalBarChart([{team:'A',value:0,...row}],{unit:' pts',signedValue:false});
-  assert.doesNotMatch(html({provisional:true}),/source gaps|≈/,'generic provisional fields must not masquerade as telemetry gaps');
-  assert.match(html({traceProvisional:true}),/source gaps over 0.6 s/);
-  assert.match(car,/traceProvisional:r.provisional/);
-});
 
 test('mean and median change multi-GP race pace, not the qualifying statistic',()=>{
   const box={};vm.createContext(box);
   // Shared helpers live in performance-format.js (plain consts once exports are dropped).
   vm.runInContext(readFileSync('performance-format.js','utf8').replace(/^export /gm,''),box);
-  vm.runInContext(car.slice(car.indexOf('function rebase('),car.indexOf('function renderHorizontalBarChart(')),box);
+  vm.runInContext(car.slice(car.indexOf('function rebase('),car.indexOf('async function get(')),box);
   vm.runInContext(car.slice(car.indexOf('function summarisePaceTeams('),car.indexOf('function renderPace(')),box);
   const teams=[{team:'A',q:[1,3,20].map(pace=>({pace})),adjDeficits:[1,3,20],r:[2,4,24]},{team:'B',q:[0,0,0].map(pace=>({pace})),adjDeficits:[0,0,0],r:[0,0,0]}];
   const mean=box.summarisePaceTeams(teams,'mean'),median=box.summarisePaceTeams(teams,'median');
