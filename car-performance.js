@@ -803,6 +803,9 @@ async function analyse(refresh=false) {
   render();
   if(activeMetric==='pits')loadPitData();
   loadActiveTelemetry();
+  // Prefetch the car-telemetry measurements in the background so Cornering,
+  // Straight line and Braking are usually ready by the time they are opened.
+  if(!speedDomainActive())void loadSpeedDomain(true);
 }
 
 function speedDomainActive() {
@@ -850,7 +853,8 @@ async function loadSpeedDomain(automatic=false) {
           qualifying_best_time:t.lap.time,qualifying_best_driver:t.lap.driver,qualifying_best_lap:t.lap.lap}));
       }
       if(windows.length<3)throw new Error('Fewer than three qualifying laps have exact timing boundaries.');
-      const result=await get('/api/performance/trace-batch?'+new URLSearchParams({year,gp:event.name,windows:JSON.stringify(windows)}),signal);
+      // Speed-only: skip the retired window-timing alignment on the server.
+      const result=await get('/api/performance/trace-batch?'+new URLSearchParams({year,gp:event.name,windows:JSON.stringify(windows),measures:'speed'}),signal);
       if(id!==generation||signal.aborted)return;
       (event.speedDomain ||= {})[subject]=result.speed_domain||{cars:{},error:result.error||'No speed-domain measurement returned; refresh data.'};
       delete event.speedDomainError;

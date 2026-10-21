@@ -9,6 +9,7 @@
     "local": "node scripts/start-local.mjs",
     "local:precompute": "node scripts/precompute-local.mjs",
     "local:warm": "node scripts/precompute-local.mjs --season",
+    "site:warm": "node scripts/warm-hosted.mjs",
     "sync:apex": "node scripts/sync-static.mjs",
     "predev": "npm run sync:apex",
     "dev": "vinext dev",

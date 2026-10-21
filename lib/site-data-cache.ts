@@ -8,6 +8,9 @@ async function storageKey(key:string) {
 function bucket(){return (env as unknown as {DATA_CACHE?:Bucket}).DATA_CACHE;}
 export const dataCache=createDataCache({
   seeded:true,
+  // The Vercel API may take minutes on a cold, uncached session (maxDuration
+  // 300 s). The default 55 s turned every cold analysis into a 504.
+  sourceTimeoutMs:290_000,
   read:async(key:string)=>{const object=await bucket()?.get(await storageKey(key));return object?object.json():null;},
   write:async(key:string,value:unknown)=>{const bytes=JSON.stringify(value);if(bytes.length<8_000_000)await bucket()?.put(await storageKey(key),bytes,{httpMetadata:{contentType:'application/json'}});}
 });
