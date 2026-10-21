@@ -11,6 +11,7 @@ import {build} from 'esbuild';
 // and data-* attributes, so those are what these tests pin down.
 async function load() {
   const entry = `export {ResultsView} from './src/views/ResultsView';
+export {PitsView} from './src/views/PitsView';
 export {BarChart} from './src/components/BarChart';
 export {DataTable} from './src/components/DataTable';
 export {TeamLogo, EventLabel} from './src/components/TeamLabel';
@@ -57,4 +58,22 @@ test('team marks follow the session rules: official colour + mono, historical, f
   assert.match(render(views.TeamLogo, {team: 'Red Bull Racing'}), /data-team-mark="redbullracing".*redbullracing-color\.webp.*redbullracing\.webp/s);
   assert.match(render(views.TeamLogo, {team: 'Toro Rosso'}), /team-logo-historical.*toro-rosso\.svg/s);
   assert.match(render(views.TeamLogo, {team: 'Nobody'}), /team-logo-fallback/);
+});
+
+test('pit stops view draws the measured sample, never a zero for a missing stop', () => {
+  const {PitsView} = views;
+  const sample = (mean, count, spread = null) => ({mean, median: mean, fastest: mean, p25: 2, p75: 2.5, count, spread});
+  const html = render(PitsView, {note: 'n', serviceNote: 's', failures: [], noStationary: false,
+    quality: {stationary: 1, lane: 2, visits: 2, refresh: true}, isLane: false, isDriver: false, relativeLane: false, chartMetric: 'median',
+    chartRows: [{team: 'Ferrari', chartValue: 2.1}, {team: 'Haas F1 Team', chartValue: null}], chart: {valueKey: 'chartValue', unit: ' s', signedValue: false},
+    emptyMessage: 'none', sort: Object.fromEntries(['pitName', 'pitTeam', 'pitMean', 'pitMedian', 'pitFastest', 'pitSpread', 'pitCount', 'pitEvents'].map(k => [k, sortModel(k)])),
+    rows: [{team: 'Ferrari', sample: sample(2.1, 5, 0.5), eventCount: 2}, {team: 'Haas F1 Team', sample: sample(null, 0), eventCount: 1}],
+    visits: [{event: 'Singapore Grand Prix', team: {team: 'Ferrari'}, driver: 'LEC', lap: 30, stop: 2.1, lane: 24.3, source: 'OpenF1', evidence: 'service'}]});
+  assert.match(html, /data-pit-measure="stop" aria-pressed="true"/);
+  assert.match(html, /<button type="button" data-pit-chart="median" aria-pressed="true">Median<\/button>/);
+  assert.match(html, /0\.500 s<small>2\.000–2\.500 s<\/small>/);
+  assert.match(html, /—<small>No timed samples<\/small>/);
+  assert.match(html, /<button type="button" data-pit-retry="">Refresh missing timing<\/button>/);
+  assert.match(html, />2\.1 s</, 'exact seconds as published');
+  assert.match(html, /is-unranked/);
 });

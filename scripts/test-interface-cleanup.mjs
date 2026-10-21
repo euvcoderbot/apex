@@ -1,3 +1,4 @@
+import {performanceSource,offersControl} from './view-source.mjs';
 import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,7 +20,7 @@ test('experimental and legacy methodology switches have no UI or event handlers'
 test('useful task and interpretation controls remain available',()=>{
   for(const key of ['telemetry-subject','corner-session','corner-band','straight-source','straight-unit',
     'pit-measure','pit-subject','pit-chart','pit-lane-basis','tyre-metric','tyre-subject','tyre-correction','trend-view'])
-    assert.match(car,new RegExp('data-'+key+'='));
+    assert.ok(offersControl(performanceSource(),key),key);
   // Reliability & results is a React view: a segmented control of data-results-chart buttons.
   const resultsView=readFileSync('src/views/ResultsView.tsx','utf8'),segmented=readFileSync('src/components/SegmentedControl.tsx','utf8');
   assert.match(resultsView,/<SegmentedControl name="results-chart"/);

@@ -1804,67 +1804,31 @@ function renderPits(teams) {
   const failures=events.filter(e=>completed(e,'Race')&&e.pitError);
   const pending=data.total-data.loaded-failures.length;
   const note=`${data.loaded}/${data.total} race${data.total===1?'':'s'} loaded${pending>0?' · loading pit timing…':''}${failures.length?` · ${failures.length} race${failures.length===1?'':'s'} unavailable`:''}. Stationary is the broadcast-style time stopped at the box; pit-lane time includes the stop. Raw summaries weight every timed visit; GP-relative lane summaries compare each team or driver's GP median with the median of team GP medians, then give each GP equal weight. Mean includes long stops; median shows a typical visit; the middle-50% spread shows consistency (≥4 samples); P10 and P90 show the quick and slow tails (≥10 samples). Missing stationary times are never inferred.`;
-  const controls=`<div class="performance-pit-controls">
-
-    <div class="performance-scope-toggle" role="group" aria-label="Pit timing measurement">
-      <button type="button" data-pit-measure="stop" aria-pressed="${!isLane}" ${noStationary?'title="No published stationary times for these visits"':''}>Stationary stop</button>
-      <button type="button" data-pit-measure="lane" aria-pressed="${isLane}">Pit lane</button>
-    </div>
-    <div class="performance-scope-toggle" role="group" aria-label="Pit timing subject">
-      <button type="button" data-pit-subject="team" aria-pressed="${!isDriver}">Teams</button>
-      <button type="button" data-pit-subject="driver" aria-pressed="${isDriver}">Drivers</button>
-    </div>
-    ${isLane?`<div class="performance-scope-toggle" role="group" aria-label="Pit-lane comparison basis"><button type="button" data-pit-lane-basis="raw" aria-pressed="${!relativeLane}">Raw seconds</button><button type="button" data-pit-lane-basis="event" aria-pressed="${relativeLane}">Vs GP median</button></div>`:''}
-    <div class="performance-scope-toggle" role="group" aria-label="Pit timing chart statistic">
-      <button type="button" data-pit-chart="mean" aria-pressed="${pitChartMetric==='mean'}">Mean</button>
-      <button type="button" data-pit-chart="median" aria-pressed="${pitChartMetric==='median'}">Median</button>
-
-
-      <button type="button" data-pit-chart="fastest" aria-pressed="${pitChartMetric==='fastest'}">Quickest</button>
-      <button type="button" data-pit-chart="spread" aria-pressed="${pitChartMetric==='spread'}">Consistency · IQR</button>
-
-
-    </div>
-  </div>`;
   const chartRows=ordered.map(r=>({...r,displayName:isDriver?r.driver:r.team,
     logoTeam:r.team,chartValue:pitChartMetric==='spread'?pitMiddleSpread(r[measure]):r[measure][pitChartMetric]}));
   const chartTitle=pitChartMetric==='trimmed'?'10% trimmed mean':pitChartMetric==='winsorized'?'10% winsorized mean':pitChartMetric==='spread'?'Middle-50% spread':pitChartMetric==='p10'?'P10 quick-end time':pitChartMetric==='p90'?'P90 slow-tail time':pitChartMetric==='mean'?'Mean time':pitChartMetric==='fastest'?(relativeLane?'Best GP gap':'Quickest visit'):'Median time';
-  const chart=renderHorizontalBarChart(chartRows,{
-    title:`${chartTitle} · ${relativeLane?'vs GP median':isLane?'pit lane':'stationary stop'} · ${isDriver?'drivers':'teams'}`,
-    subtitle:pitChartMetric==='spread'
-      ? `75th minus 25th percentile · at least four ${relativeLane?'GPs':'visits'} · lower is more consistent`
-      : pitChartMetric==='p10'||pitChartMetric==='p90'?`${pitChartMetric==='p10'?'10th':'90th'} percentile · at least ten ${relativeLane?'GPs':'visits'} · lower is better`
-      : relativeLane?'Equal-weighted GP median gaps; zero is the GP field median':'Visit-weighted seconds · lower is faster',
-    valueKey:'chartValue',labelKey:isDriver?'driver':'team',unit:' s',digits:3,signedValue:relativeLane&&pitChartMetric!=='spread',preserveSignedValues:relativeLane&&pitChartMetric!=='spread',zeroBaseline:true
-  });
-  const metricLabel=relativeLane?'vs GP median':isLane?'pit lane':'stationary stop';
-  const insufficient=(value,sample,minimum)=>finite(value)?(relativeLane?signed(value,3,' s'):fmt(value,3,' s'))
-    :`—<small>${sample.count?`Needs ${minimum} ${relativeLane?'GPs':'visits'} · ${sample.count} measured`:'No timed samples'}</small>`;
-  const summary=card('Pit stops & pit lane',note,
-    `<p class="performance-note">${pitVisitMode==='service'?'Ranking confirmed service visits only.':'Diagnostic: includes all service, pass-through and unclassified visits.'} ${data.visits.filter(v=>v.visit_type!=='service'&&!finite(v.stop_duration)).length} visits lack confirmed service evidence. Missing stationary timing alone does not identify a pass-through; all visits remain in the evidence table.</p>`+
-    (failures.length?`<p class="performance-note">${failures.map(e=>`${escape(e.name)}: ${escape(e.pitError)}`).join(' · ')} <button type="button" class="performance-explain-toggle" data-pit-retry>Retry unavailable</button></p>`:'')+
-    (noStationary?'<p class="performance-note">The source has no stationary-at-the-box values for this selection. “—” means unavailable, not a zero-second stop.</p>':'')+
-    `<p class="performance-quality-status">${data.visits.filter(v=>finite(v.stop_duration)).length} / ${data.visits.length} stationary timings · ${data.visits.filter(v=>finite(v.lane_duration)).length} / ${data.visits.length} lane timings. ${events.some(e=>e.pits&&e.pits.stationary_status!=='complete')?'<button type="button" data-pit-retry>Refresh missing timing</button>':''} Consistency (IQR) needs 4 samples. No recorded visit is not a zero-second stop.</p>`+
-    controls+
-    '<p class="performance-note">Median describes a typical stop; mean includes slow stops; quickest shows the best visit; IQR describes consistency. Only confirmed service visits are ranked. Pit-lane time is not inferred pit loss.</p>'+
-    (chart||`<p class="section-empty" role="status">${pending>0?'Loading published pit timings… measured visits will appear as each selected race is received.':['trimmed','winsorized','p10','p90'].includes(pitChartMetric)?'This statistic needs at least ten measured visits (or ten GPs in GP-relative mode).':pitChartMetric==='spread'?'At least four samples per team or driver are needed for the middle-50% chart.':pitMeasure==='stop'?'No published stationary-stop times for the selected races. Pit-lane timing is a separate measurement; select Pit lane to view it.':'No timed pit-lane visits for the selected races yet.'}</p>`)+
-    table([sortHeader('pitName',isDriver?'Driver':'Team'),...(isDriver?[sortHeader('pitTeam','Team')]:[]),
-      sortHeader('pitMean','Mean'),sortHeader('pitMedian','Median'),sortHeader('pitFastest',relativeLane?'Best GP gap':'Quickest'),
-      sortHeader('pitSpread','Spread (IQR)'),sortHeader('pitCount',relativeLane?'GP samples':'Visits',-1),sortHeader('pitEvents','Races',-1)],
-      ordered.map(r=>[isDriver?escape(r.driver):teamLabel(r),...(isDriver?[teamLabel(r)]:[]),
-        relativeLane?signed(r[measure].mean,3,' s'):fmt(r[measure].mean,3,' s'),
-        relativeLane?signed(r[measure].median,3,' s'):fmt(r[measure].median,3,' s'),
-        relativeLane?signed(r[measure].fastest,3,' s'):fmt(r[measure].fastest,3,' s'),
-        finite(pitMiddleSpread(r[measure]))
-          ? `${fmt(pitMiddleSpread(r[measure]),3,' s')}<small>${fmt(r[measure].p25,3)}–${fmt(r[measure].p75,3)} s</small>`
-          : insufficient(null,r[measure],4),
-        r[measure].count,r.eventCount])));
-  const individual=`<details class="dashboard-card performance-methods"><summary>Exact times for individual pit visits and timing sources</summary>${table(
-    ['Grand Prix','Team','Driver','In-lap','Stationary','Pit lane','Source','Visit evidence'],
-    data.visits.sort((a,b)=>a.event.localeCompare(b.event)||a.lap-b.lap).map(v=>[
-      eventLabel(v.event),teamLabel(v),escape(v.driver),`L${v.lap}`,exactSeconds(v.stop_duration),exactSeconds(v.lane_duration),escape(v.source),escape(`${v.visit_type||'unknown'} · ${v.visit_evidence||'classification unavailable'}`)
-    ]))}</details>`;
-  return summary+individual;
+  // Rendered by src/views/PitsView.tsx; its data-pit-* buttons are handled below.
+  const sample=r=>({...r[measure],spread:pitMiddleSpread(r[measure])});
+  return reactView('pits',{note,
+    serviceNote:`${pitVisitMode==='service'?'Ranking confirmed service visits only.':'Diagnostic: includes all service, pass-through and unclassified visits.'} ${data.visits.filter(v=>v.visit_type!=='service'&&!finite(v.stop_duration)).length} visits lack confirmed service evidence. Missing stationary timing alone does not identify a pass-through; all visits remain in the evidence table.`,
+    failures:failures.map(e=>({name:e.name,error:String(e.pitError)})),noStationary,
+    quality:{stationary:data.visits.filter(v=>finite(v.stop_duration)).length,lane:data.visits.filter(v=>finite(v.lane_duration)).length,
+      visits:data.visits.length,refresh:events.some(e=>e.pits&&e.pits.stationary_status!=='complete')},
+    isLane,isDriver,relativeLane,chartMetric:pitChartMetric,
+    chartRows:chartRows.filter(r=>r),chart:{
+      title:`${chartTitle} · ${relativeLane?'vs GP median':isLane?'pit lane':'stationary stop'} · ${isDriver?'drivers':'teams'}`,
+      subtitle:pitChartMetric==='spread'
+        ? `75th minus 25th percentile · at least four ${relativeLane?'GPs':'visits'} · lower is more consistent`
+        : pitChartMetric==='p10'||pitChartMetric==='p90'?`${pitChartMetric==='p10'?'10th':'90th'} percentile · at least ten ${relativeLane?'GPs':'visits'} · lower is better`
+        : relativeLane?'Equal-weighted GP median gaps; zero is the GP field median':'Visit-weighted seconds · lower is faster',
+      valueKey:'chartValue',labelKey:isDriver?'driver':'team',unit:' s',digits:3,signedValue:relativeLane&&pitChartMetric!=='spread',preserveSignedValues:relativeLane&&pitChartMetric!=='spread',zeroBaseline:true},
+    emptyMessage:pending>0?'Loading published pit timings… measured visits will appear as each selected race is received.':['trimmed','winsorized','p10','p90'].includes(pitChartMetric)?'This statistic needs at least ten measured visits (or ten GPs in GP-relative mode).':pitChartMetric==='spread'?'At least four samples per team or driver are needed for the middle-50% chart.':pitMeasure==='stop'?'No published stationary-stop times for the selected races. Pit-lane timing is a separate measurement; select Pit lane to view it.':'No timed pit-lane visits for the selected races yet.',
+    rows:ordered.map(r=>({...r,sample:sample(r)})),
+    sort:Object.fromEntries([['pitName',isDriver?'Driver':'Team',1],['pitTeam','Team',1],['pitMean','Mean',1],['pitMedian','Median',1],
+      ['pitFastest',relativeLane?'Best GP gap':'Quickest',1],['pitSpread','Spread (IQR)',1],['pitCount',relativeLane?'GP samples':'Visits',-1],['pitEvents','Races',-1]]
+      .map(([key,label,direction])=>[key,sortHeaderModel(key,label,direction)])),
+    visits:data.visits.sort((a,b)=>a.event.localeCompare(b.event)||a.lap-b.lap).map(v=>({event:v.event,team:{team:v.team,color:v.color},driver:v.driver,lap:v.lap,
+      stop:v.stop_duration,lane:v.lane_duration,source:String(v.source||''),evidence:`${v.visit_type||'unknown'} · ${v.visit_evidence||'classification unavailable'}`}))});
 }
 
 function huberRegression(rounds, paces) {

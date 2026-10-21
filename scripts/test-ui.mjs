@@ -21,8 +21,8 @@ test('pit entrants stay visible without loading race pace or inventing a missing
   assert.equal(data.drivers.find(r=>r.driver==='COL').stop.mean,null);
   assert.equal(data.drivers.find(r=>r.driver==='VER').stop.mean,2.2);
   assert.match(source,/if\(retry\)params.set\('fresh','true'\)/);
-  assert.match(source,/Refresh missing timing/);
-  assert.match(source,/Needs \$\{minimum\}/);
+  assert.match(readFileSync('src/views/PitsView.tsx','utf8'),/Refresh missing timing/);
+  assert.match(readFileSync('src/views/PitsView.tsx','utf8'),/Needs 4 \$\{unit\}/);
 });
 test('acceleration retains one connected headline method and its comparison helpers',()=>{
   const source=readFileSync('car-performance.js','utf8');
@@ -1021,7 +1021,7 @@ test('pit category keeps stationary and lane averages separate by team and drive
   sandbox.pitVisitMode='all';
   assert.equal(sandbox.pitMiddleSpread(result.teams[0].stop),null); // two stops cannot establish consistency
   assert.ok(Math.abs(sandbox.pitMiddleSpread({count:4,p25:2.1,p75:2.7})-.6)<1e-9);
-  assert.match(source,/sortHeader\('pitSpread','Spread \(IQR\)'\)/);
+  assert.match(source,/\['pitSpread','Spread \(IQR\)',1\]/);
   assert.match(source,/pitSpread:r=>pitMiddleSpread\(r\[measure\]\)/);
   assert.equal(result.drivers.find(d=>d.driver==='NOR').avgStop,2);
   assert.equal(result.drivers.find(d=>d.driver==='NOR').avgLane,25);
@@ -1038,18 +1038,16 @@ test('pit category keeps stationary and lane averages separate by team and drive
   assert.equal(differentLanes.teams.find(t=>t.team==='A').lane.mean,30);
   assert.equal(differentLanes.teams.find(t=>t.team==='A').laneRelative.mean,-2);
   assert.equal(differentLanes.teams.find(t=>t.team==='B').laneRelative.mean,2);
-  assert.match(source,/data-pit-measure="stop"/);
-  assert.match(source,/data-pit-measure="lane"/);
-  assert.match(source,/data-pit-subject="team"/);
-  assert.match(source,/data-pit-subject="driver"/);
-  assert.match(source,/data-pit-chart="mean"/);
-  assert.match(source,/data-pit-chart="median"/);
-  assert.match(source,/data-pit-chart="spread"/);
-  assert.doesNotMatch(source,/data-pit-chart="p90"/);
-  assert.doesNotMatch(source,/data-pit-chart="p10"/);
-  assert.match(source,/data-pit-lane-basis="event"/);
+  // Controls are drawn by src/views/PitsView.tsx.
+  const pitsView=readFileSync('src/views/PitsView.tsx','utf8');
+  assert.match(pitsView,/data-pit-measure="stop"/);
+  assert.match(pitsView,/data-pit-measure="lane"/);
+  assert.match(pitsView,/name="pit-subject"[^>]*\[\['team', 'Teams'\], \['driver', 'Drivers'\]\]/);
+  assert.match(pitsView,/name="pit-chart"[\s\S]*\['mean', 'Mean'\], \['median', 'Median'\], \['fastest', 'Quickest'\], \['spread', 'Consistency · IQR'\]/);
+  assert.doesNotMatch(pitsView,/'p90'|'p10'/);
+  assert.match(pitsView,/name="pit-lane-basis"[^>]*\['event', 'Vs GP median'\]/);
   assert.match(source,/chartValue:pitChartMetric==='spread'\?pitMiddleSpread/);
-  assert.match(source,/Exact times for individual pit visits/);
+  assert.match(readFileSync('src/views/PitsView.tsx','utf8'),/Exact times for individual pit visits/);
   assert.match(source,/if\(activeMetric==='pits'\) loadPitData\(\);/);
   assert.doesNotMatch(source,/pitRunning \|\| !context \|\| running/);
   assert.match(source,/activeMetric==='pits'\?renderPits\(teams\)/);
@@ -1084,50 +1082,52 @@ test('pit summaries keep raw visits weighted, relative GPs equal, and percentile
   assert.equal(ten.stop.p25,3.25);assert.equal(ten.stop.p75,7.75);
   assert.equal(sandbox.pitMiddleSpread(ten.stop),4.5);
   assert.equal(data.visits.length,13); // exact visit rows retain all source visits
-  assert.match(source,/data-pit-chart="fastest"/);
+  assert.match(readFileSync('src/views/PitsView.tsx','utf8'),/\['fastest', 'Quickest'\]/);
   assert.match(source,/preserveSignedValues:relativeLane/);
 });
 
 test('pit chart, sortable table and exact rows show the same selected measurement', () => {
+  // renderPits hands src/views/PitsView.tsx plain data (rendered in test-react-views.mjs).
   const source=readFileSync('car-performance.js','utf8');
-  const chart=source.slice(source.indexOf('function renderHorizontalBarChart'),source.indexOf('function lapShareChart'));
   const body=source.slice(source.indexOf('function pitSummary'),source.indexOf('function huberRegression'));
-  const captured=[];
+  let view=null;
   const sandbox={finite:Number.isFinite,completed:()=>true,events:[],context:{scope:'tracks',selectedTracks:[1]},
     pitVisitMode:'all',pitMeasure:'lane',pitLaneBasis:'event',pitSubject:'team',pitChartMetric:'mean',sortKey:'pitMean',sortDirection:1,
     avg:a=>{const x=a.filter(Number.isFinite);return x.length?x.reduce((s,v)=>s+v,0)/x.length:null;},
     median:a=>{const x=a.filter(Number.isFinite).sort((v,w)=>v-w);return x.length?x.length%2?x[(x.length-1)/2]:(x[x.length/2-1]+x[x.length/2])/2:null;},
     percentile:(a,p)=>{const x=a.filter(Number.isFinite).sort((v,w)=>v-w);if(!x.length)return null;const i=(x.length-1)*p,l=Math.floor(i),h=Math.ceil(i);return x[l]+(x[h]-x[l])*(i-l);},
-    fmt:(n,d=3,u='')=>Number.isFinite(n)?n.toFixed(d)+u:'—',signed:(n,d=3,u='')=>Number.isFinite(n)?`${n>0?'+':''}${n.toFixed(d)}${u}`:'—',
-    color:v=>v||'#888888',escape:v=>String(v),teamLabel:r=>r.team||r.driver,eventLabel:v=>v,
-    exactSeconds:n=>Number.isFinite(n)?`${n} s`:'—',card:(_title,_note,content)=>content,
-    sortHeader:(_key,label)=>label,table:(headers,rows)=>{captured.push({headers,rows});return '';},
+    sortHeaderModel:(key,label,direction)=>({key,label,direction}),reactView:(name,props)=>{view={name,props};return '';},
     sorted:(rows,getters,key)=>[...rows].sort((a,b)=>{const av=getters[sandbox.sortKey in getters?sandbox.sortKey:key](a),bv=getters[sandbox.sortKey in getters?sandbox.sortKey:key](b);return av==null?1:bv==null?-1:(av-bv)*sandbox.sortDirection;})};
   sandbox.events=[
     {name:'GP 1',pits:{source:'OpenF1',visits:[{driver:'AAA',team:'A',lap:1,lane_duration:22,stop_duration:2},{driver:'BBB',team:'B',lap:1,lane_duration:20,stop_duration:2.5}]}},
     {name:'GP 2',pits:{source:'OpenF1',visits:[{driver:'AAA',team:'A',lap:2,lane_duration:40,stop_duration:3},{driver:'BBB',team:'B',lap:2,lane_duration:28,stop_duration:2.4}]}}
   ];
-  vm.createContext(sandbox);vm.runInContext(chart+body,sandbox);
-  let html=sandbox.renderPits([]);
-  assert.match(html,/\+3\.500 s/);assert.match(html,/-3\.500 s/);
-  assert.equal(captured[0].rows[0][0],'B');assert.equal(captured[0].rows[0][2],'-3.500 s');
-  assert.equal(captured[1].rows.length,4);
-  assert.equal(captured[1].rows[0][5],'22 s');
-  captured.length=0;sandbox.pitChartMetric='fastest';html=sandbox.renderPits([]);
-  assert.match(html,/Best GP gap/);assert.equal(captured[0].rows[0][3],'-6.000 s');
-  captured.length=0;sandbox.pitSubject='driver';sandbox.pitMeasure='stop';sandbox.pitLaneBasis='raw';sandbox.pitChartMetric='median';
-  html=sandbox.renderPits([]);
-  assert.match(html,/stationary stop/);assert.equal(captured[0].rows[0][0],'BBB');
-  assert.equal(captured[1].rows[0][4],'2 s');
+  vm.createContext(sandbox);vm.runInContext(body,sandbox);
+  sandbox.renderPits([]);
+  assert.equal(view.name,'pits');
+  const value=(row,key)=>row.sample[key];
+  assert.deepEqual(view.props.rows.map(r=>r.team),['B','A'],'sorted by the selected GP-relative mean');
+  assert.equal(value(view.props.rows[0],'mean'),-3.5);assert.equal(value(view.props.rows[1],'mean'),3.5);
+  assert.deepEqual(view.props.chartRows.map(r=>r.chartValue).sort(),[-3.5,3.5],'the chart shows the same measurement');
+  assert.equal(view.props.chart.preserveSignedValues,true);
+  assert.equal(view.props.visits.length,4);assert.equal(view.props.visits[0].lane,22);
+  sandbox.pitChartMetric='fastest';sandbox.renderPits([]);
+  assert.match(view.props.chart.title,/Best GP gap/);assert.equal(view.props.sort.pitFastest.label,'Best GP gap');
+  assert.equal(value(view.props.rows.find(r=>r.team==='B'),'fastest'),-6);
+  sandbox.pitSubject='driver';sandbox.pitMeasure='stop';sandbox.pitLaneBasis='raw';sandbox.pitChartMetric='median';sandbox.sortKey='pitMedian';
+  sandbox.renderPits([]);
+  assert.match(view.props.chart.title,/stationary stop/);assert.equal(view.props.rows[0].driver,'BBB');
+  assert.equal(view.props.visits.find(v=>v.driver==='AAA'&&v.lap===1).stop,2);
   sandbox.pitSubject='team';sandbox.events=[{name:'Ten-stop GP',pits:{source:'OpenF1',visits:[
     ...Array.from({length:10},(_,i)=>({driver:'AAA',team:'A',lap:i+1,lane_duration:20+i,stop_duration:i+1})),
     ...Array.from({length:10},(_,i)=>({driver:'BBB',team:'B',lap:i+1,lane_duration:21+i,stop_duration:i+2}))
   ]}}];
-  for(const [metric,expected,column] of [['mean','5.500 s',1],['median','5.500 s',2],['fastest','1.000 s',3],['spread','4.500 s',4]]){
-    captured.length=0;sandbox.pitChartMetric=metric;html=sandbox.renderPits([]);
-    assert.match(html,new RegExp(expected.replace('.','\\.')));
-    assert.match(captured[0].rows.find(row=>row[0]==='A')[column],new RegExp(expected.replace('.','\\.')));
-    assert.equal(captured[1].rows.length,20);
+  for(const [metric,expected,key] of [['mean',5.5,'mean'],['median',5.5,'median'],['fastest',1,'fastest'],['spread',4.5,'spread']]){
+    sandbox.pitChartMetric=metric;sandbox.renderPits([]);
+    const a=view.props.rows.find(r=>r.team==='A');
+    assert.ok(Math.abs(value(a,key)-expected)<1e-9,metric);
+    assert.ok(Math.abs(view.props.chartRows.find(r=>r.team==='A').chartValue-expected)<1e-9,metric);
+    assert.equal(view.props.visits.length,20);
   }
 });
 
