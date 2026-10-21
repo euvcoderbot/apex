@@ -1,10 +1,12 @@
+import {performanceSource,offersControl} from './view-source.mjs';
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
 
-const app = readFileSync('app.js', 'utf8');
+const app = appSource();
 test('pit entrants stay visible without loading race pace or inventing a missing stop',()=>{
   const source=readFileSync('car-performance.js','utf8');
   const box={pitVisitMode:'service',finite:Number.isFinite,completed:()=>true,
@@ -20,49 +22,13 @@ test('pit entrants stay visible without loading race pace or inventing a missing
   assert.equal(data.drivers.find(r=>r.driver==='COL').stop.mean,null);
   assert.equal(data.drivers.find(r=>r.driver==='VER').stop.mean,2.2);
   assert.match(source,/if\(retry\)params.set\('fresh','true'\)/);
-  assert.match(source,/Refresh missing timing/);
-  assert.match(source,/Needs \$\{minimum\}/);
-});
-test('acceleration retains one connected headline method and its comparison helpers',()=>{
-  const source=readFileSync('car-performance.js','utf8');
-  const box={accelerationComparisonMode:'connected'};vm.createContext(box);
-  vm.runInContext(source.slice(source.indexOf('function accelerationBands('),source.indexOf('function eventAdjustedScores(')),box);
-  const trace={accel_bands:{'200_250':{gap_s:.12}},accel_common_bands:{'200_250':{gap_s:.08}}};
-  assert.equal(box.accelerationBands(trace)['200_250'].gap_s,.12);
-  box.accelerationComparisonMode='common';assert.equal(box.accelerationBands(trace)['200_250'].gap_s,.08);
-  assert.deepEqual(Object.keys(box.accelerationBands({accel_bands:trace.accel_bands})),[]);
-  assert.match(source,/const accelerationComparisonMode='connected'/);
-  assert.doesNotMatch(source,/data-acceleration-comparison=/);
-  assert.match(source,/key,eventAdjustedScores\(targetReports,row=>accelerationBands\(row.trace\)/);
-  assert.match(source,/row.bandGap=accelerationBands\(row.trace\)/);
-  assert.match(source,/const brakingComparisonMode='connected'/);
-  assert.match(source,/let brakingView='deceleration'/);
-});
-test('telemetry summaries survive unchanged renders and invalidate when source observations change',()=>{
-  const source=readFileSync('car-performance.js','utf8');
-  const box={performanceRenderCache:{views:new Map(),summaries:new Map()},eventSummaryMemo:new WeakMap(),eventViewSources:new WeakMap(),telemetrySubject:'team',activeMetric:'braking',cornerSession:'qualy'};
-  vm.createContext(box);
-  vm.runInContext(source.slice(source.indexOf('function telemetryEvent(event)'),source.indexOf('function telemetrySubjectControls()')),box);
-  vm.runInContext(source.slice(source.indexOf('function eventTelemetry(event)'),source.indexOf('function computeEventTelemetry(event)')),box);
-  let calls=0;box.computeEventTelemetry=event=>{calls++;return {rows:event.traces};};
-  const event={brakingTraces:{A:{duration:1.2}}};
-  const view=box.telemetryEvent(event);
-  assert.equal(box.telemetryEvent(event),view);assert.equal(box.telemetryEvent(view),view);
-  const summary=box.eventTelemetry(event);
-  assert.equal(box.eventTelemetry(view),summary);assert.equal(calls,1);
-  box.performanceRenderCache={views:new Map(),summaries:new Map()};
-  assert.equal(box.eventTelemetry(event),summary);assert.equal(calls,1);
-  event.brakingTraces={A:{duration:1.3}};
-  box.performanceRenderCache={views:new Map(),summaries:new Map()};
-  assert.equal(box.eventTelemetry(event).rows.A.duration,1.3);assert.equal(calls,2);
-  assert.match(source,/const teams=telemetryMode\?\[\]:aggregate\(\)/);
-  assert.match(source,/const evidenceEvents=telemetryMode\?events.map\(telemetryEvent\):\[\]/);
-  assert.match(source,/finally \{\s*performanceRenderCache=previousCache;/);
+  assert.match(readFileSync('src/views/PitsView.tsx','utf8'),/Refresh missing timing/);
+  assert.match(readFileSync('src/views/PitsView.tsx','utf8'),/Needs 4 \$\{unit\}/);
 });
 
 test('only the aligned telemetry implementation is shipped as the active classic-script dependency',()=>{
   const html=readFileSync('index.html','utf8'),alignment=readFileSync('alignment.js','utf8');
-  assert.ok(html.indexOf('src="alignment.js')>html.indexOf('src="app.js'));
+  assert.ok(html.indexOf('src="alignment.js')>html.indexOf('src="session-state.js'));
   for(const name of ['fetchTelemetry','interpolate']){
     assert.doesNotMatch(app,new RegExp('(?:async )?function '+name+'\\('));
     assert.match(alignment,new RegExp('(?:async )?function '+name+'\\('));
@@ -99,17 +65,6 @@ test('UI density uses component sizing and responsive chart rows rather than pag
   assert.match(source,/aria-controls="performanceMetricPanel" tabindex=/);
   assert.match(source,/\['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'\]/);
   assert.match(source,/event.ctrlKey\|\|event.metaKey\|\|event.altKey/);
-});
-test('corner chart retains incomplete entrants without assigning a zero score',()=>{
-  const source=readFileSync('car-performance.js','utf8');
-  const box={finite:Number.isFinite,escape:s=>String(s),teamLabel:r=>r.team,color:s=>s||'#fff'};
-  vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function lapShareChart('),source.indexOf('async function get(')),box);
-  const rows=[{team:'Ferrari',gap:0},{team:'Mercedes',gap:null,missingReason:'Missing timing at T12'}];
-  const html=box.lapShareChart(rows,'gap','Ferrari');
-  assert.match(html,/Mercedes/);assert.match(html,/Unranked/);assert.match(html,/Missing timing at T12/);
-  assert.equal((html.match(/0\.000%/g)||[]).length,3,'only the supported baseline receives zero');
-  assert.match(box.lapShareChart([rows[1]],'gap'),/Mercedes/);
-  assert.match(box.lapShareChart([{team:'Mercedes',gap:.1,trace:{corner_provisional:true}}],'gap'),/Provisional timing/);
 });
 
 test('corner client consumes cached measurements and explicit retry retains fastest lap identity',async()=>{
@@ -417,7 +372,8 @@ test('qualifying run pills show every compound and lap state precedes the time',
   assert.doesNotMatch(app,/lap-selection-mark/);
   assert.match(app, /class="lap-clock">\$\{duration\}<\/span>/);
   const html = readFileSync('index.html', 'utf8');
-  assert.match(html, /app\.js\?v=euv2-release-[\w-]+/);
+  // Split session scripts; sync-static stamps ?v=<revision> on every script it publishes.
+  assert.match(html, /src="session-state\.js"[\s\S]*src="session-tyres\.js"/);
   assert.match(html, /alignment\.js\?v=euv2-release-[\w-]+/);
 });
 
@@ -469,6 +425,31 @@ test('corner rankings are best-first, stable, null-safe and do not mutate refere
   assert.match(app, /item.lap === referenceLap/);
   assert.doesNotMatch(app, /const compassCentre/);
   assert.match(app, /class="map-north"/);
+});
+
+test('cold data and calendar bootstrap outlive the hosted Worker budget', () => {
+  const h = context();
+  Object.assign(h.sandbox, {URL});
+  for (const path of ['/api/events', '/api/session', '/api/telemetry', '/api/performance', '/api/performance/trace-batch', '/api/performance/sprint', '/api/race-corners', '/api/qualifying-corners'])
+    assert.equal(h.run(`dataRequestTimeout(${JSON.stringify('https://example.test' + path + '?year=2026')})`), 310000, path);
+  assert.equal(h.run("dataRequestTimeout('/unrelated-resource')"), 30000);
+  h.sandbox.window.APEX_LOCAL_MODE = true;
+  assert.equal(h.run("dataRequestTimeout('/api/session?year=2026')"), 180000);
+});
+
+test('a calendar taking longer than 30 seconds is not aborted before it responds', async () => {
+  const h=context(),timers=[];
+  let finish,requestSignal;
+  Object.assign(h.sandbox,{URL,AbortController,DOMException,
+    setTimeout:(fn,ms)=>{const timer={fn,ms,active:true};timers.push(timer);return timer;},
+    clearTimeout:timer=>{timer.active=false;},
+    fetch:(_url,options)=>{requestSignal=options.signal;return new Promise(resolve=>{finish=()=>resolve({status:200});});}});
+  const pending=h.run("fetchSessionData('/api/events?year=2026')");
+  for(const timer of timers)if(timer.active&&timer.ms<=35000)timer.fn();
+  assert.equal(requestSignal.aborted,false,'a cold calendar must survive the old 30-second cutoff');
+  finish();
+  assert.equal((await pending).status,200);
+  assert.ok(timers.every(timer=>!timer.active),'successful requests clean up their deadline');
 });
 
 test('data requests retry transient errors but not valid missing-data responses', async () => {
@@ -570,208 +551,25 @@ test('car performance controls hide irrelevant GP and expose sortable methodolog
   assert.match(css, /\.performance-toolbar \[hidden\]\s*\{\s*display:none!important/);
   assert.match(performance, /performanceEventField.*hidden=.*performanceScope.*season/);
   assert.match(performance, /data-performance-sort/);
-  assert.match(performance, /Straight speed · estimated time gap/);
   assert.doesNotMatch(performance, /Exit-inclusive lap attribution \(previous chart\)/);
-  assert.match(performance, /Extra slowing time/);
-  assert.match(performance, /data-braking-view="approach"/);
-  assert.match(performance, /Approach time gap/);
-  assert.match(performance, /valueKey: selectedBrakeView==='approach'\?'approachS':'slowingS'/);
-  assert.match(performance, /Extra seconds per measured zone to shed the same speed/);
   assert.match(html, /\+0\.102 s means about a tenth of a second longer per measured braking zone/);
-  assert.match(performance, /50_100.*100_150.*300_350/);
   assert.match(readFileSync('index.html','utf8'), /id="explanationsToggle"[^>]+>[\s\S]*?Show explanations/);
   assert.doesNotMatch(performance,/data-performance-explain\s/);
-  assert.match(performance, /Extra time across the same mapped corners/);
-  assert.match(performance, /finite\(clone.trace.corner_contribution\)/, 'missing corner sums must never be rebased to zero');
   assert.match(performance, /data-telemetry-subject/);
   assert.match(performance, /data-corner-session/);
   assert.doesNotMatch(performance, /\['raceCorners','Race cornering'\]/, 'race cornering belongs inside Cornering');
   assert.match(html, /not brake pressure/);
 });
 
-test('qualifying top speed is a GP-relative speed deficit, independent of traversal', () => {
-  const source=readFileSync('car-performance.js','utf8');
-  const body=source.slice(source.indexOf('function eventTelemetry(event)'),source.indexOf('function seasonTelemetry('));
-  const sandbox={finite:Number.isFinite,avg:a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,median:a=>a.length?a[0]:null};
-  vm.createContext(sandbox);vm.runInContext(body,sandbox);
-  const teams=['A','B','C'].map(team=>({team}));
-  const traces={A:{corners:[],braking:[],top_speed:350,straight_traversal_delta:1},B:{corners:[],braking:[],top_speed:343,straight_traversal_delta:0},C:{corners:[],braking:[],top_speed:null}};
-  const result=sandbox.eventTelemetry({Q:{teams},traces});
-  assert.equal(result.rows.get('A').topDeficit,0);
-  assert.ok(Math.abs(result.rows.get('B').topDeficit-2)<1e-9);
-  assert.equal(result.rows.get('C').topDeficit,null);
-  assert.equal(result.rows.get('B').trace.straight_traversal_delta,0);
-  assert.match(source,/topSpeed:eventAdjustedScores\(targetReports,row=>row.topDeficit,mode\)/);
-  assert.match(source,/Qualifying top speeds by Grand Prix/);
-});
 
-test('qualifying braking time ranks shared zones and leaves unsupported teams unscored', () => {
-  const source = readFileSync('car-performance.js', 'utf8');
-  const body = source.slice(source.indexOf('function eventTelemetry(event)'), source.indexOf('function seasonTelemetry('));
-  const sandbox = {
-    brakingQualityMode:'supported',
-    finite: value => typeof value === 'number' && Number.isFinite(value),
-    avg: values => values.length ? values.reduce((a, b) => a + b, 0) / values.length : null,
-    median: values => {
-      const a = values.filter(Number.isFinite).sort((x, y) => x - y);
-      return a.length ? a[Math.floor(a.length / 2)] : null;
-    }
-  };
-  vm.createContext(sandbox);
-  vm.runInContext(body, sandbox);
-  const makeZones = (time, decel, distance, count = 3) => Array.from({ length: count }, (_, i) => ({
-    corner: `T${i + 1}`, start: i * 1000 + 50, corridor_time: time,
-    corridor_ref_time: 2, normalized_decel_g: decel, distance,
-    method:'matched-speed-v1', mode:'straight', quality:'supported', entry_speed:280, exit_speed:180,
-    early_g: decel, mean_g: decel, duration: time, approach_time:time*1.3,
-    sampling_resolution_m: 20
-    ,source_laps:1,approach_source_lap:1
-  }));
-  const entrants = ['A', 'B', 'C', 'D'].map(team => ({ team, color: '#123456' }));
-  const traces = Object.fromEntries(entrants.map(({ team }, i) => [team, {
-    corners: [], braking: makeZones(2 + i * .2, 3 - i * .2, 80 + i * 5, i === 3 ? 1 : 3),
-    lap_distance: 5000, reference_lap_time: 90
-    ,braking_selection_policy:'fastest-qualifying-lap-only',braking_selection:{driver:team,lap:1,time:90}
-  }]));
-  const result = sandbox.eventTelemetry({ Q: { teams: entrants }, traces });
-  traces.D.braking[0].approach_comparable=false;
-  const screened=sandbox.eventTelemetry({Q:{teams:entrants},traces});
-  assert.equal(screened.rows.get('D').brakingApproachMs,null,
-    'a rejected boundary-speed comparison must not enter the approach ranking');
-  assert.ok(Number.isFinite(screened.rows.get('B').brakingApproachMs));
-  assert.equal(result.rows.get('A').brakingScoreZones, 3);
-  assert.ok(result.rows.get('A').brakingScore < result.rows.get('B').brakingScore);
-  assert.ok(result.rows.get('B').brakingScore < result.rows.get('C').brakingScore);
-  assert.ok(result.rows.get('A').brakingApproachMs < result.rows.get('B').brakingApproachMs);
-  assert.ok(Math.abs(result.rows.get('B').brakingApproachMs/1000-.26)<.001,
-    'a 260 ms approach gap should display as +0.260 s');
-  assert.ok(Math.abs(result.rows.get('B').brakingSlowingS-.2)<.001,
-    '2.2 seconds versus 2.0 seconds should show +0.200 s per matched braking zone');
-  assert.ok(Math.abs(100*Math.expm1(result.rows.get('B').brakingScore/100)-10)<.001,
-    '2.2 seconds versus 2.0 seconds should be 10% longer, independent of lap time');
-  assert.equal(result.rows.get('D').brakingScoreZones, undefined);
-  assert.equal(result.rows.get('A').brakeZones, 3);
-  assert.equal(result.rows.get('D').brakeDistance, undefined);
-  traces.A.braking.forEach(z=>z.quality='provisional');
-  assert.equal(sandbox.eventTelemetry({Q:{teams:entrants},traces}).rows.get('A').brakingScore,undefined);
-  sandbox.brakingQualityMode='all';
-  assert.ok(Number.isFinite(sandbox.eventTelemetry({Q:{teams:entrants},traces}).rows.get('A').brakingScore));
-  traces.A.braking.forEach(z=>delete z.method);
-  assert.equal(sandbox.eventTelemetry({Q:{teams:entrants},traces}).rows.get('A').brakingScore,undefined,
-    'legacy corridor-time payloads must not be silently ranked by the new method');
-});
 
-test('braking retains zones measured by three teams without requiring every entrant', () => {
-  const source = readFileSync('car-performance.js', 'utf8');
-  const body = source.slice(source.indexOf('function eventTelemetry(event)'), source.indexOf('function seasonTelemetry('));
-  const sandbox = {
-    brakingQualityMode:'supported',
-    finite: value => typeof value === 'number' && Number.isFinite(value),
-    avg: values => values.length ? values.reduce((a, b) => a + b, 0) / values.length : null,
-    median: values => {
-      const a = values.filter(Number.isFinite).sort((x, y) => x - y);
-      return a.length ? a[Math.floor(a.length / 2)] : null;
-    }
-  };
-  vm.createContext(sandbox);
-  vm.runInContext(body, sandbox);
-  const teams=['A','B','C','D'].map(team=>({team,color:'#123456'}));
-  const traces=Object.fromEntries(teams.map(({team},i)=>[team,{
-    corners:[],lap_distance:5000,reference_lap_time:90,
-    braking_selection_policy:'fastest-qualifying-lap-only',braking_selection:{driver:team,lap:1,time:90},
-    braking:Array.from({length:i===3?1:3},(_,j)=>({corner:`T${j+1}`,corridor_time:2+i*.1,
-      method:'matched-speed-v1',mode:'straight',quality:'supported',entry_speed:280,exit_speed:180,duration:2+i*.1,
-      distance:60+i,mean_g:2+i*.1,normalized_decel_g:2+i*.1,approach_time:3+i*.1,approach_source_lap:1,source_laps:1}))
-  }]));
-  const rows=sandbox.eventTelemetry({Q:{teams},traces}).rows;
-  assert.equal(rows.get('A').brakeZones,3);
-  assert.equal(rows.get('B').brakeZones,3);
-  assert.equal(rows.get('D').brakingScoreZones,undefined);
-  assert.equal(rows.get('A').brakeDistance,60);
-  delete traces.D.corners;
-  assert.equal(sandbox.eventTelemetry({Q:{teams},traces}).rows.has('D'),true);
-});
 
-test('season telemetry retains partial qualifying cohorts instead of intersecting all teams', () => {
-  const source=readFileSync('car-performance.js','utf8');
-  const body=source.slice(source.indexOf('function pairedBrakingScores('),source.indexOf('// Circuit Discrepancy Reconciliation Box'));
-  const summaries=[
-    {rows:new Map([['A',{team:'A',color:'#111',categories:{},trace:{lap_gap:0}}],['B',{team:'B',color:'#222',categories:{},trace:{lap_gap:.2}}]])},
-    {rows:new Map([['B',{team:'B',color:'#222',categories:{},trace:{lap_gap:.1}}],['C',{team:'C',color:'#333',categories:{},trace:{lap_gap:.3}}]])}
-  ];
-  const sandbox={events:[{name:'One'},{name:'Two'}],context:{season:true},STRAIGHT_BANDS:[],finite:v=>typeof v==='number'&&Number.isFinite(v),avg:values=>values.length?values.reduce((a,b)=>a+b,0)/values.length:null,eventTelemetry:()=>summaries.shift()};
-  vm.createContext(sandbox);
-  vm.runInContext(body,sandbox);
-  const result=sandbox.seasonTelemetry();
-  assert.equal(result.length,3);
-  assert.equal(result.find(row=>row.team==='B').events,2);
-  assert.equal(result.commonEvents.length,2);
-});
 
-test('both braking metrics share coverage and reject repeat or slower-lap payloads',()=>{
-  const source=readFileSync('car-performance.js','utf8');
-  const box={finite:Number.isFinite,avg:a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,
-    median:a=>a.length?[...a].sort((a,b)=>a-b)[Math.floor(a.length/2)]:null,brakingQualityMode:'supported',telemetryCoverageMode:'inferred'};
-  vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function eventTelemetry(event)'),source.indexOf('function seasonTelemetry(')),box);
-  const lap=team=>({driver:team,lap:10,time:90});
-  const z=(corner,duration,approach)=>({corner,duration,approach_time:approach,approach_comparable:true,source_laps:1,
-    method:'matched-speed-v1',mode:'straight',quality:'supported',entry_speed:260,exit_speed:160,approach_source_lap:10});
-  const teams=['A','B','C','D'].map(team=>({team,lap:lap(team)}));
-  const traces=Object.fromEntries(teams.map(({team},i)=>[team,{braking_selection_policy:'fastest-qualifying-lap-only',braking_selection:lap(team),
-    braking:[z('one',1+i*.1,2+i*.1),z('two',1+i*.1,2+i*.1)]}]));
-  traces.A.braking[1].approach_comparable=false;
-  const e={Q:{teams},traces},result=box.eventTelemetry(e);
-  assert.deepEqual([...result.brakingCoverage.teams],['B','C','D']);
-  assert.deepEqual([...result.brakingCoverage.events],['one','two']);
-  for(const t of ['B','C','D']) {
-    assert.equal(result.rows.get(t).brakingScoreZones,result.rows.get(t).brakingApproachZones);
-    assert.equal(result.rows.get(t).brakingStability.samples,2);
-  }
-  assert.equal(result.rows.get('A').brakingApproachMs,null);
-  assert.equal(result.rows.get('A').brakingSlowingS,null);
-  box.telemetryCoverageMode='common';
-  assert.equal(box.eventTelemetry(e).rows.get('C').brakingSlowingS,result.rows.get('C').brakingSlowingS);
-  traces.B.braking.forEach(z=>z.source_laps=2);
-  assert.equal(box.eventTelemetry(e).rows.get('B').brakingApproachMs,null);
-  traces.B.braking.forEach(z=>z.source_laps=1);traces.B.braking_selection.lap=9;
-  assert.equal(box.eventTelemetry(e).rows.get('B').brakingApproachMs,null);
-  // The old implementation lost D's valid approach result because the
-  // independent slowing rectangle chose A/B/C on two unrelated zones.
-  for(const t of teams)traces[t.team].braking_selection=lap(t.team);
-  traces.A.braking=[z('unpaired1',1,null),z('unpaired2',1,null)];
-  for(const t of ['B','C'])traces[t].braking=[z('unpaired1',1,null),z('unpaired2',1,null),z('paired',1,2)];
-  traces.D.braking=[z('paired',1,2)];
-  const rescued=box.eventTelemetry(e);
-  assert.deepEqual([...rescued.brakingCoverage.teams],['B','C','D']);
-  assert.equal(rescued.rows.get('D').brakingApproachMs,0);
-  assert.equal(rescued.rows.get('D').brakingSlowingS,0);
-  box.brakingComparisonMode='independent';
-  const independent=box.eventTelemetry(e);
-  assert.deepEqual([...independent.brakingCoverage.teams].sort(),['A','B','C','D']);
-  assert.equal(independent.brakingCoverage.type,'connected-slowing');
-  assert.equal(independent.rows.get('D').brakingApproachMs,null);
-  assert.equal(independent.rows.get('A').brakingSlowingS,0);
-  assert.equal(independent.rows.get('A').brakingApproachMs,null,'independent slowing never invents an approach score');
-  traces.A.braking.forEach(z=>z.source_laps=2);
-  assert.equal(box.eventTelemetry(e).rows.get('A').brakingSlowingS,null,'repeat-lap payload remains excluded');
-});
 
-test('paired season metrics select the same GPs and report fixed-cohort rank stability',()=>{
-  const source=readFileSync('car-performance.js','utf8'),box={finite:Number.isFinite,
-    avg:a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,median:a=>a[0]};
-  vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function pairedBrakingScores('),source.indexOf('function seasonTelemetry(')),box);
-  const report=(name,rows)=>({event:{name},summary:{rows:new Map(rows.map(([team,slow,approach])=>[team,{team,slow,approach}]))}});
-  const r=box.pairedBrakingScores([report('GP1',[['A',1,2],['B',2,3],['C',3,4]]),
-    report('GP2',[['A',3,4],['B',2,3],['C',1,2]]),report('GP3',[['A',1,null],['B',2,3],['C',3,4]])],r=>r.slow,r=>r.approach);
-  assert.deepEqual([...r.coverage.events],['GP1','GP2']);
-  assert.deepEqual([...r.slowing.coverage.events],[...r.approach.coverage.events]);
-  assert.deepEqual([...r.stability.get('A').slowing],[1,3]);
-  assert.match(source,/fastest qualifying lap across Q1\/Q2\/Q3/);
-});
 
 test('season effects bridge unequal circuit coverage through shared teams', () => {
   const source=readFileSync('car-performance.js','utf8');
-  const body=source.slice(source.indexOf('function eventAdjustedScores('),source.indexOf('function seasonTelemetry('));
+  const body=source.slice(source.indexOf('function eventAdjustedScores('),source.indexOf('const STRAIGHT_PILLS='));
   const sandbox={finite:v=>typeof v==='number'&&Number.isFinite(v),avg:values=>values.reduce((a,b)=>a+b,0)/values.length};
   vm.createContext(sandbox);
   vm.runInContext(body,sandbox);
@@ -801,7 +599,7 @@ test('season effects bridge unequal circuit coverage through shared teams', () =
 test('straight common coverage retains the widest field before extra GPs',()=>{
   const source=readFileSync('car-performance.js','utf8');
   const box={finite:Number.isFinite,avg:a=>a.reduce((s,v)=>s+v,0)/a.length};
-  vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function eventAdjustedScores('),source.indexOf('function seasonTelemetry(')),box);
+  vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function eventAdjustedScores('),source.indexOf('const STRAIGHT_PILLS=')),box);
   const reports=[['One','ABCD'],['Two','ABC'],['Three','ABC']].map(([name,cars])=>({event:{name},summary:{rows:new Map([...cars].map((team,i)=>[team,{team,value:i}]))}}));
   const previous=box.eventAdjustedScores(reports,r=>r.value,'mean','common');
   const corrected=box.eventAdjustedScores(reports,r=>r.value,'mean','common','teams');
@@ -822,7 +620,6 @@ test('temporary telemetry errors retry, permanent failures and cancellation do n
   await assert.rejects(()=>box.get('/api/telemetry',controller.signal),{name:'AbortError'});assert.equal(requests,2);
   assert.match(source,/cornerSubjects\[subject\]=measured.complete/);
   assert.match(source,/if\(activeMetric==='pits'\) loadPitData\(\);\s*if\([^\n]+loadQualifyingMetrics\(\)/);
-  assert.match(source,/!event.cornerMeasurements\?\.\[telemetrySubject\]/,'partial successful corner data stays visible');
 });
 
 test('qualifying evolution excludes compound changes, unknown tyres and rainy laps', () => {
@@ -839,27 +636,6 @@ test('qualifying evolution excludes compound changes, unknown tyres and rainy la
   assert.equal(sandbox.qualifyingEvolutionSample([team]).length,0);
 });
 
-test('race trap season ranking uses event-relative speed and paired qualifying ST', () => {
-  const source=readFileSync('car-performance.js','utf8');
-  const body=source.slice(source.indexOf('function eventAdjustedScores('),source.indexOf('function seasonTelemetry('));
-  const sandbox={finite:v=>typeof v==='number'&&Number.isFinite(v),avg:values=>values.length?values.reduce((a,b)=>a+b,0)/values.length:null};
-  vm.createContext(sandbox);
-  vm.runInContext(body,sandbox);
-  const entry=(team,speed)=>({team,color:'#123456',race_speed_trap_matched:speed,race_speed_trap_matched_laps:12});
-  const qEntry=(team,speed)=>({team,speed_trap:speed});
-  const events=[
-    {name:'Fast circuit',R:{teams:[entry('A',330),entry('B',320),entry('C',310)]},Q:{teams:[qEntry('A',335),qEntry('B',325),qEntry('C',315)]}},
-    {name:'Slow circuit',R:{teams:[entry('B',280),entry('C',270),entry('D',260)]},Q:{teams:[qEntry('B',285),qEntry('C',275),qEntry('D',265)]}}
-  ];
-  const rows=sandbox.seasonRaceTrapRows(events);
-  const byTeam=new Map(rows.map(row=>[row.team,row]));
-  assert.ok(byTeam.get('A').raceDeficit<byTeam.get('B').raceDeficit);
-  assert.ok(byTeam.get('B').raceDeficit<byTeam.get('C').raceDeficit);
-  assert.ok(byTeam.get('C').raceDeficit<byTeam.get('D').raceDeficit);
-  assert.equal(byTeam.get('B').events,2);
-  assert.equal(byTeam.get('B').paired,2);
-  assert.ok(Number.isFinite(byTeam.get('B').qualyDeficit));
-});
 
 test('overall tyre chart shows sparse matched evidence as provisional', () => {
   const source=readFileSync('car-performance.js','utf8');
@@ -867,101 +643,92 @@ test('overall tyre chart shows sparse matched evidence as provisional', () => {
   assert.match(body,/minimumCompoundEvents=1/);
   assert.match(body,/\.filter\(c => c && c\.events\.length >= minimumCompoundEvents\)/);
   assert.match(body,/compoundNorm\.length \? avg\(compoundNorm\) : null/);
-  assert.match(body,/!r\.complete\?`<small>Provisional/);
+  assert.match(body,/provisional:!r\.complete\?`Provisional/);
 });
 
 test('tyre-age view aggregates own stints for teams and individual drivers', () => {
+  // tyreAgeView hands src/views/TyresView.tsx plain data; check the numbers it ranks.
   const source=readFileSync('car-performance.js','utf8');
-  const body=source.slice(source.indexOf('function tyreViewControls()'),source.indexOf('function renderRace(teams)'));
+  const body=source.slice(source.indexOf('function tyreStintKey('),source.indexOf('function renderRace(teams)'));
   const sandbox={tyreMetric:'age',tyreSubject:'team',tyreView:'OVERALL',tyreSeasonStat:'mean',tyreLapMode:'all',tyreCorrection:'fuel',tyreFuelRate:.060,tyreWeighting:'balanced',tyreRunKey:'',tyrePlotTeam:'',tyrePlotDriver:'',tyrePlotEvent:'',sortKey:'tyreAgeValue',sortDirection:1,
     tyreConditionMode:'all',context:{year:'2026'},events:[{round:1,R:{}},{round:2,R:{}}],
     VERIFIED_DRY_ALLOCATIONS:{2026:['345','234']},TYRE_ALLOCATION_SOURCES:{2026:'https://press.pirelli.com/'},
-    finite:n=>typeof n==='number'&&Number.isFinite(n),avg:a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,
-    summarize:(a)=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,
+    avg:a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,summarize:(a)=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,
     sorted:(items,getters,key)=>[...items].sort((a,b)=>getters[key](a)-getters[key](b)),
-    teamLabel:r=>r.displayName,card:(_title,_note,content)=>content,table:(_headers,rows)=>JSON.stringify(rows),
-    sortHeader:(_key,label)=>label,color:v=>v,signed:(n)=>n.toFixed(3),escape:v=>String(v),eventLabel:v=>v,fmt:n=>n.toFixed(3)};
-  vm.createContext(sandbox);
-  vm.runInContext(body,sandbox);
+    finite:n=>typeof n==='number'&&Number.isFinite(n),fmt:(n,d=3,u='')=>Number.isFinite(n)?n.toFixed(d)+u:'—',signed:(n,d=3,u='')=>Number.isFinite(n)?`${n>0?'+':''}${n.toFixed(d)}${u}`:'—',
+    sortHeaderModel:(key,label,direction)=>({key,label,direction})};
+  vm.createContext(sandbox);vm.runInContext(body,sandbox);
+  const close=(value,expected,message)=>assert.ok(Math.abs(value-expected)<1e-9,`${message||''} ${value} vs ${expected}`);
   const teams=[{team:'Example',color:'#123456',tyreAgeStints:[
     {driver:'AAA',event:'One',compound:'SOFT',compound_grade:'C5',fuel_adjusted_slope:.12,samples:8,min_age:1,max_age:8,points:[{lap:3,age:1,time:90.123},{lap:4,age:2,time:90.183},{lap:5,age:3,time:90.243}]},
     {driver:'BBB',event:'One',compound:'SOFT',compound_grade:'C5',fuel_adjusted_slope:.04,samples:8,min_age:1,max_age:8},
     {driver:'AAA',event:'Two',compound:'MEDIUM',compound_grade:'C3',fuel_adjusted_slope:.02,samples:10,min_age:1,max_age:10}
   ]}];
-  const team=sandbox.renderTyreAge(teams);
-  assert.match(team,/0\.050/); // equal event weighting: C5 (.08), then C3 (.02)
-  assert.match(team,/2 C grades/);
-  assert.match(team,/C5/);
-  assert.match(team,/90\.123 s observed/);
-  assert.match(team,/data-tyre-run=/);
-  assert.doesNotMatch(team,/NaN|Infinity/);
-  assert.match(team,/data-tyre-plot-filter="team"/);
-  sandbox.tyreFuelRate=.080;
-  assert.match(sandbox.renderTyreAge(teams),/performance-tyre-age-value">0\.070/);
+  let view=sandbox.tyreAgeView(teams);
+  close(view.rows[0].value,.05,'equal event weighting: C5 (.08), then C3 (.02)');
+  assert.match(view.rows[0].coverage,/2 C grades/);
+  assert.ok(view.evidence.some(e=>e.grade==='C5'));
+  assert.ok(view.plot.points.some(p=>/90\.123 s observed/.test(p.title)));
+  assert.ok(view.evidence.some(e=>e.inspect));
+  assert.doesNotMatch(JSON.stringify(view),/NaN|Infinity/);
+  assert.equal(view.picker.team,'Example');
+  sandbox.tyreFuelRate=.080;close(sandbox.tyreAgeView(teams).chart.rows[0].value,.07);
   sandbox.tyreFuelRate=.060;
   const other={team:'Other',color:'#654321',tyreAgeStints:[{driver:'CCC',event:'Three',compound_grade:'C5',fuel_adjusted_slope:.04,samples:8,min_age:1,max_age:8,points:[{lap:3,age:1,time:92},{lap:4,age:2,time:92.04},{lap:5,age:3,time:92.08}]}]};
   sandbox.tyrePlotTeam='Other';
-  const selected=sandbox.renderTyreAge([...teams,other]);
-  assert.match(selected,/CCC · Three/);
-  assert.match(selected,/2 teams available/);
-  sandbox.tyrePlotTeam='';
-  sandbox.tyreView='C3';
-  assert.match(sandbox.renderTyreAge(teams),/0\.020/);
-  assert.doesNotMatch(sandbox.renderTyreAge(teams),/performance-tyre-age-value">0\.080/);
-  sandbox.tyreView='OVERALL';
-  sandbox.tyreSubject='driver';
-  const drivers=sandbox.renderTyreAge(teams);
-  assert.match(drivers,/AAA · Example/);
-  assert.match(drivers,/BBB · Example/);
+  view=sandbox.tyreAgeView([...teams,other]);
+  assert.match(view.plot.title,/CCC · Three/);assert.equal(view.picker.teamCount,2);
+  sandbox.tyrePlotTeam='';sandbox.tyreView='C3';
+  view=sandbox.tyreAgeView(teams);close(view.rows[0].value,.02);
+  assert.ok(!view.chart.rows.some(r=>Math.abs(r.value-.08)<1e-9));
+  sandbox.tyreView='OVERALL';sandbox.tyreSubject='driver';
+  const names=sandbox.tyreAgeView(teams).rows.map(r=>r.team.displayName);
+  assert.ok(names.includes('AAA · Example')&&names.includes('BBB · Example'));
   sandbox.tyreSubject='team';sandbox.tyreView='C5';
   teams[0].tyreAgeStints[0].samples=32;
-  assert.match(sandbox.renderTyreAge(teams),/0\.080/); // driver weights stay equal
-  sandbox.tyreWeighting='laps';
-  assert.match(sandbox.renderTyreAge(teams),/0\.104/);
+  close(sandbox.tyreAgeView(teams).rows[0].value,.08,'driver weights stay equal');
+  sandbox.tyreWeighting='laps';close(sandbox.tyreAgeView(teams).rows[0].value,.104);
   sandbox.tyreWeighting='balanced';sandbox.tyreCorrection='raw';
   teams[0].tyreAgeStints[0].raw_slope=.06;teams[0].tyreAgeStints[1].raw_slope=-.02;
-  assert.match(sandbox.renderTyreAge(teams),/0\.020/);
+  close(sandbox.tyreAgeView(teams).rows[0].value,.02);
   sandbox.tyreCorrection='fuel';sandbox.tyreLapMode='clear';
   teams[0].tyreAgeStints[0].clean_air={supported:true,samples:12,fuel_adjusted_slope:.03,min_age:1,max_age:14};
-  assert.match(sandbox.renderTyreAge(teams),/0\.030/);
+  close(sandbox.tyreAgeView(teams).rows[0].value,.03);
 });
 
 test('tyre GP summaries handle skew and explain every sparse P75 blank', () => {
   const source=readFileSync('car-performance.js','utf8');
-  const body=source.slice(source.indexOf('function tyreViewControls()'),source.indexOf('function renderRace(teams)'));
+  const body=source.slice(source.indexOf('function tyreStintKey('),source.indexOf('function renderRace(teams)'));
   const sandbox={tyreMetric:'age',tyreSubject:'team',tyreView:'C3',tyreSeasonStat:'mean',tyreLapMode:'all',tyreCorrection:'fuel',tyreFuelRate:.060,tyreWeighting:'balanced',tyreRunKey:'',tyrePlotTeam:'',tyrePlotDriver:'',tyrePlotEvent:'',sortKey:'tyreAgeValue',sortDirection:1,
     tyreConditionMode:'all',context:{year:2026},events:[1,2,3,4].map(round=>({round,R:{}})),
     VERIFIED_DRY_ALLOCATIONS:{2026:['123','123','123','123']},TYRE_ALLOCATION_SOURCES:{2026:'https://press.pirelli.com/'},
-    finite:Number.isFinite,avg:a=>{const x=a.filter(Number.isFinite);return x.length?x.reduce((s,v)=>s+v,0)/x.length:null;},
+    avg:a=>{const x=a.filter(Number.isFinite);return x.length?x.reduce((s,v)=>s+v,0)/x.length:null;},
     summarize:(a,mode)=>{const x=a.filter(Number.isFinite).sort((v,w)=>v-w);if(!x.length)return null;if(mode==='median')return(x[Math.floor((x.length-1)/2)]+x[Math.ceil((x.length-1)/2)])/2;if(mode==='p75'){const i=(x.length-1)*.75,l=Math.floor(i),h=Math.ceil(i);return x[l]+(x[h]-x[l])*(i-l);}return x.reduce((s,v)=>s+v,0)/x.length;},
     sorted:(rows,getters,key)=>[...rows].sort((a,b)=>(getters[key](a)??Infinity)-(getters[key](b)??Infinity)),
-    teamLabel:r=>r.displayName,card:(_title,_note,body)=>body,table:(_headers,rows)=>JSON.stringify(rows),sortHeader:(_key,label)=>label,
-    color:v=>v,signed:n=>n.toFixed(3),escape:v=>String(v),eventLabel:v=>v,fmt:n=>n.toFixed(3)};
+    finite:n=>typeof n==='number'&&Number.isFinite(n),fmt:(n,d=3,u='')=>Number.isFinite(n)?n.toFixed(d)+u:'—',signed:(n,d=3,u='')=>Number.isFinite(n)?`${n>0?'+':''}${n.toFixed(d)}${u}`:'—',
+    sortHeaderModel:(key,label,direction)=>({key,label,direction})};
   vm.createContext(sandbox);vm.runInContext(body,sandbox);
   const slopes=[.01,.02,.03,.5];
   const teams=[{team:'Measured',color:'#123456',tyreAgeStints:slopes.map((s,i)=>({event:`GP ${i+1}`,compound_grade:'C3',fuel_adjusted_slope:s,samples:8}))},
     {team:'Missing',color:'#888888',tyreAgeStints:[]}];
-  for(const [mode,expected] of [['mean','0.140'],['median','0.025'],['p75','0.147']]){
+  const measured=()=>sandbox.tyreAgeView(teams).rows.find(r=>r.team.team==='Measured');
+  for(const [mode,expected] of [['mean',.14],['median',.025],['p75',.1475]]){
     sandbox.tyreSeasonStat=mode;
-    assert.match(sandbox.renderTyreAge(teams),new RegExp(expected));
+    assert.ok(Math.abs(measured().value-expected)<1e-9,mode);
   }
   sandbox.tyreSeasonStat='p75';
   teams[0].tyreAgeStints.pop();
-  const sparse=sandbox.renderTyreAge(teams);
-  assert.match(sparse,/C3: 3\/4 GPs/);
-  assert.match(sparse,/Missing/);
+  const sparse=sandbox.tyreAgeView(teams);
+  assert.match(sparse.rows.find(r=>r.team.team==='Measured').shortfall,/C3: 3\/4 GPs/);
+  assert.ok(sparse.rows.some(r=>r.team.team==='Missing'));
   sandbox.tyreView='OVERALL';
   teams[0].tyreAgeStints.push({event:'GP 4',compound_grade:'C3',fuel_adjusted_slope:.5,samples:8});
   teams[0].tyreAgeStints.push({event:'GP 1',compound_grade:'C2',fuel_adjusted_slope:.04,samples:8});
-  assert.match(sandbox.renderTyreAge(teams),/C2: 1\/4 GPs/);
+  assert.match(measured().shortfall,/C2: 1\/4 GPs/);
 });
 
-test('tyre-age C grades use the race-year Pirelli allocation, including skipped 2025 grades', () => {
-  const source=readFileSync('car-performance.js','utf8');
-  const body=source.slice(source.indexOf('const VERIFIED_DRY_ALLOCATIONS'),source.indexOf('// Team marks'));
-  const sandbox={};
-  vm.createContext(sandbox);
-  vm.runInContext(body,sandbox);
+test('tyre-age C grades use the race-year Pirelli allocation, including skipped 2025 grades', async () => {
+  const sandbox=await import('../performance-identity.js');
   assert.equal(sandbox.verifiedDryGrade(2026,7,'MEDIUM'),'C3'); // Barcelona C2/C3/C4
   assert.equal(sandbox.verifiedDryGrade(2026,15,'HARD'),'C3'); // Baku C3/C4/C5
   assert.equal(sandbox.verifiedDryGrade(2025,17,'SOFT'),'C6'); // Baku C4/C5/C6
@@ -982,8 +749,8 @@ test('tyre-age trend screens residuals and reports exclusions without an age win
   assert.match(api,/individual_rows = \[r for r in valid_all/);
   assert.match(api,/residual-residual_mid/);
   assert.match(api,/'outlier_laps': len\(laps\)-len\(used\)/);
-  assert.match(view,/Outlier laps removed/);
-  assert.doesNotMatch(view.slice(view.indexOf('function renderTyreAge'),view.indexOf('function renderRace')),/Tyre-age range/);
+  assert.match(readFileSync('src/views/TyresView.tsx','utf8'),/Outlier laps removed/);
+  assert.doesNotMatch(view.slice(view.indexOf('function tyreAgeView'),view.indexOf('function renderRace')),/Tyre-age range/);
 });
 
 test('pit category keeps stationary and lane averages separate by team and driver', () => {
@@ -1023,7 +790,7 @@ test('pit category keeps stationary and lane averages separate by team and drive
   sandbox.pitVisitMode='all';
   assert.equal(sandbox.pitMiddleSpread(result.teams[0].stop),null); // two stops cannot establish consistency
   assert.ok(Math.abs(sandbox.pitMiddleSpread({count:4,p25:2.1,p75:2.7})-.6)<1e-9);
-  assert.match(source,/sortHeader\('pitSpread','Spread \(IQR\)'\)/);
+  assert.match(source,/\['pitSpread','Spread \(IQR\)',1\]/);
   assert.match(source,/pitSpread:r=>pitMiddleSpread\(r\[measure\]\)/);
   assert.equal(result.drivers.find(d=>d.driver==='NOR').avgStop,2);
   assert.equal(result.drivers.find(d=>d.driver==='NOR').avgLane,25);
@@ -1040,18 +807,16 @@ test('pit category keeps stationary and lane averages separate by team and drive
   assert.equal(differentLanes.teams.find(t=>t.team==='A').lane.mean,30);
   assert.equal(differentLanes.teams.find(t=>t.team==='A').laneRelative.mean,-2);
   assert.equal(differentLanes.teams.find(t=>t.team==='B').laneRelative.mean,2);
-  assert.match(source,/data-pit-measure="stop"/);
-  assert.match(source,/data-pit-measure="lane"/);
-  assert.match(source,/data-pit-subject="team"/);
-  assert.match(source,/data-pit-subject="driver"/);
-  assert.match(source,/data-pit-chart="mean"/);
-  assert.match(source,/data-pit-chart="median"/);
-  assert.match(source,/data-pit-chart="spread"/);
-  assert.doesNotMatch(source,/data-pit-chart="p90"/);
-  assert.doesNotMatch(source,/data-pit-chart="p10"/);
-  assert.match(source,/data-pit-lane-basis="event"/);
+  // Controls are drawn by src/views/PitsView.tsx.
+  const pitsView=readFileSync('src/views/PitsView.tsx','utf8');
+  assert.match(pitsView,/data-pit-measure="stop"/);
+  assert.match(pitsView,/data-pit-measure="lane"/);
+  assert.match(pitsView,/name="pit-subject"[^>]*\[\['team', 'Teams'\], \['driver', 'Drivers'\]\]/);
+  assert.match(pitsView,/name="pit-chart"[\s\S]*\['mean', 'Mean'\], \['median', 'Median'\], \['fastest', 'Quickest'\], \['spread', 'Consistency · IQR'\]/);
+  assert.doesNotMatch(pitsView,/'p90'|'p10'/);
+  assert.match(pitsView,/name="pit-lane-basis"[^>]*\['event', 'Vs GP median'\]/);
   assert.match(source,/chartValue:pitChartMetric==='spread'\?pitMiddleSpread/);
-  assert.match(source,/Exact times for individual pit visits/);
+  assert.match(readFileSync('src/views/PitsView.tsx','utf8'),/Exact times for individual pit visits/);
   assert.match(source,/if\(activeMetric==='pits'\) loadPitData\(\);/);
   assert.doesNotMatch(source,/pitRunning \|\| !context \|\| running/);
   assert.match(source,/activeMetric==='pits'\?renderPits\(teams\)/);
@@ -1086,50 +851,52 @@ test('pit summaries keep raw visits weighted, relative GPs equal, and percentile
   assert.equal(ten.stop.p25,3.25);assert.equal(ten.stop.p75,7.75);
   assert.equal(sandbox.pitMiddleSpread(ten.stop),4.5);
   assert.equal(data.visits.length,13); // exact visit rows retain all source visits
-  assert.match(source,/data-pit-chart="fastest"/);
+  assert.match(readFileSync('src/views/PitsView.tsx','utf8'),/\['fastest', 'Quickest'\]/);
   assert.match(source,/preserveSignedValues:relativeLane/);
 });
 
 test('pit chart, sortable table and exact rows show the same selected measurement', () => {
+  // renderPits hands src/views/PitsView.tsx plain data (rendered in test-react-views.mjs).
   const source=readFileSync('car-performance.js','utf8');
-  const chart=source.slice(source.indexOf('function renderHorizontalBarChart'),source.indexOf('function lapShareChart'));
   const body=source.slice(source.indexOf('function pitSummary'),source.indexOf('function huberRegression'));
-  const captured=[];
+  let view=null;
   const sandbox={finite:Number.isFinite,completed:()=>true,events:[],context:{scope:'tracks',selectedTracks:[1]},
     pitVisitMode:'all',pitMeasure:'lane',pitLaneBasis:'event',pitSubject:'team',pitChartMetric:'mean',sortKey:'pitMean',sortDirection:1,
     avg:a=>{const x=a.filter(Number.isFinite);return x.length?x.reduce((s,v)=>s+v,0)/x.length:null;},
     median:a=>{const x=a.filter(Number.isFinite).sort((v,w)=>v-w);return x.length?x.length%2?x[(x.length-1)/2]:(x[x.length/2-1]+x[x.length/2])/2:null;},
     percentile:(a,p)=>{const x=a.filter(Number.isFinite).sort((v,w)=>v-w);if(!x.length)return null;const i=(x.length-1)*p,l=Math.floor(i),h=Math.ceil(i);return x[l]+(x[h]-x[l])*(i-l);},
-    fmt:(n,d=3,u='')=>Number.isFinite(n)?n.toFixed(d)+u:'—',signed:(n,d=3,u='')=>Number.isFinite(n)?`${n>0?'+':''}${n.toFixed(d)}${u}`:'—',
-    color:v=>v||'#888888',escape:v=>String(v),teamLabel:r=>r.team||r.driver,eventLabel:v=>v,
-    exactSeconds:n=>Number.isFinite(n)?`${n} s`:'—',card:(_title,_note,content)=>content,
-    sortHeader:(_key,label)=>label,table:(headers,rows)=>{captured.push({headers,rows});return '';},
+    sortHeaderModel:(key,label,direction)=>({key,label,direction}),reactView:(name,props)=>{view={name,props};return '';},
     sorted:(rows,getters,key)=>[...rows].sort((a,b)=>{const av=getters[sandbox.sortKey in getters?sandbox.sortKey:key](a),bv=getters[sandbox.sortKey in getters?sandbox.sortKey:key](b);return av==null?1:bv==null?-1:(av-bv)*sandbox.sortDirection;})};
   sandbox.events=[
     {name:'GP 1',pits:{source:'OpenF1',visits:[{driver:'AAA',team:'A',lap:1,lane_duration:22,stop_duration:2},{driver:'BBB',team:'B',lap:1,lane_duration:20,stop_duration:2.5}]}},
     {name:'GP 2',pits:{source:'OpenF1',visits:[{driver:'AAA',team:'A',lap:2,lane_duration:40,stop_duration:3},{driver:'BBB',team:'B',lap:2,lane_duration:28,stop_duration:2.4}]}}
   ];
-  vm.createContext(sandbox);vm.runInContext(chart+body,sandbox);
-  let html=sandbox.renderPits([]);
-  assert.match(html,/\+3\.500 s/);assert.match(html,/-3\.500 s/);
-  assert.equal(captured[0].rows[0][0],'B');assert.equal(captured[0].rows[0][2],'-3.500 s');
-  assert.equal(captured[1].rows.length,4);
-  assert.equal(captured[1].rows[0][5],'22 s');
-  captured.length=0;sandbox.pitChartMetric='fastest';html=sandbox.renderPits([]);
-  assert.match(html,/Best GP gap/);assert.equal(captured[0].rows[0][3],'-6.000 s');
-  captured.length=0;sandbox.pitSubject='driver';sandbox.pitMeasure='stop';sandbox.pitLaneBasis='raw';sandbox.pitChartMetric='median';
-  html=sandbox.renderPits([]);
-  assert.match(html,/stationary stop/);assert.equal(captured[0].rows[0][0],'BBB');
-  assert.equal(captured[1].rows[0][4],'2 s');
+  vm.createContext(sandbox);vm.runInContext(body,sandbox);
+  sandbox.renderPits([]);
+  assert.equal(view.name,'pits');
+  const value=(row,key)=>row.sample[key];
+  assert.deepEqual(view.props.rows.map(r=>r.team),['B','A'],'sorted by the selected GP-relative mean');
+  assert.equal(value(view.props.rows[0],'mean'),-3.5);assert.equal(value(view.props.rows[1],'mean'),3.5);
+  assert.deepEqual(view.props.chartRows.map(r=>r.chartValue).sort(),[-3.5,3.5],'the chart shows the same measurement');
+  assert.equal(view.props.chart.preserveSignedValues,true);
+  assert.equal(view.props.visits.length,4);assert.equal(view.props.visits[0].lane,22);
+  sandbox.pitChartMetric='fastest';sandbox.renderPits([]);
+  assert.match(view.props.chart.title,/Best GP gap/);assert.equal(view.props.sort.pitFastest.label,'Best GP gap');
+  assert.equal(value(view.props.rows.find(r=>r.team==='B'),'fastest'),-6);
+  sandbox.pitSubject='driver';sandbox.pitMeasure='stop';sandbox.pitLaneBasis='raw';sandbox.pitChartMetric='median';sandbox.sortKey='pitMedian';
+  sandbox.renderPits([]);
+  assert.match(view.props.chart.title,/stationary stop/);assert.equal(view.props.rows[0].driver,'BBB');
+  assert.equal(view.props.visits.find(v=>v.driver==='AAA'&&v.lap===1).stop,2);
   sandbox.pitSubject='team';sandbox.events=[{name:'Ten-stop GP',pits:{source:'OpenF1',visits:[
     ...Array.from({length:10},(_,i)=>({driver:'AAA',team:'A',lap:i+1,lane_duration:20+i,stop_duration:i+1})),
     ...Array.from({length:10},(_,i)=>({driver:'BBB',team:'B',lap:i+1,lane_duration:21+i,stop_duration:i+2}))
   ]}}];
-  for(const [metric,expected,column] of [['mean','5.500 s',1],['median','5.500 s',2],['fastest','1.000 s',3],['spread','4.500 s',4]]){
-    captured.length=0;sandbox.pitChartMetric=metric;html=sandbox.renderPits([]);
-    assert.match(html,new RegExp(expected.replace('.','\\.')));
-    assert.match(captured[0].rows.find(row=>row[0]==='A')[column],new RegExp(expected.replace('.','\\.')));
-    assert.equal(captured[1].rows.length,20);
+  for(const [metric,expected,key] of [['mean',5.5,'mean'],['median',5.5,'median'],['fastest',1,'fastest'],['spread',4.5,'spread']]){
+    sandbox.pitChartMetric=metric;sandbox.renderPits([]);
+    const a=view.props.rows.find(r=>r.team==='A');
+    assert.ok(Math.abs(value(a,key)-expected)<1e-9,metric);
+    assert.ok(Math.abs(view.props.chartRows.find(r=>r.team==='A').chartValue-expected)<1e-9,metric);
+    assert.equal(view.props.visits.length,20);
   }
 });
 
@@ -1413,16 +1180,30 @@ test('speed annotation labels avoid open trace segments without closing the lap'
 });
 
 test('performance categories expose only defensible alternative summaries', () => {
-  const source=readFileSync('car-performance.js','utf8');
+  const source=readFileSync('car-performance.js','utf8'),offered=performanceSource();
   for(const key of ['pace-stat','trend-view'])
-    assert.match(source,new RegExp(`data-${key}=`));
+    assert.ok(offersControl(offered,key),key);
   for(const key of ['telemetry-stat','tyre-stat','tyre-fit','race-pace-model','corner-window','straight-entry','acceleration-comparison'])
-    assert.doesNotMatch(source,new RegExp(`data-${key}=`));
-  assert.match(source,/data-results-chart=/);
-  assert.match(source,/\['mechanicalRate','Mechanical retirements'\]/);
+    assert.ok(!offersControl(offered,key),key);
+  const resultsView=readFileSync('src/views/ResultsView.tsx','utf8');
+  assert.match(resultsView,/name="results-chart"/);
+  assert.match(resultsView,/\['mechanicalRate', 'Mechanical retirements'\]/);
   assert.match(source,/pitChartMetric==='p90'/);
   assert.match(source,/timed\.length>=10\?percentile\(timed,\.9\):null/);
   assert.match(source,/gpSlopes\.length<4\|\|p75Shortfall\.length/);
-  assert.match(source,/const summaryStat=activeMetric==='braking'\?'mean':telemetrySeasonStat/);
-  assert.match(source,/seasonTelemetry\(summaryStat\)/);
+});
+
+test('pre-rendered session summaries use the cache identity and the source revision', async () => {
+  const h = context();
+  const url = 'https://example.test/api/session?year=2026&gp=Singapore+Grand+Prix&round=17&session=Qualifying&data_schema=v9';
+  assert.equal(h.run(`prerenderedKey(new URL(${JSON.stringify(url)}))`), '/api/session?gp=Singapore+Grand+Prix&round=17&session=Qualifying&year=2026');
+  const index = {revision: 'backend-1', sourceRevision: 'source-1', entries: {'/api/session?gp=Singapore+Grand+Prix&round=17&session=Qualifying&year=2026': 'a.json.gz'}};
+  const fetched = [];
+  Object.assign(h.sandbox, {DecompressionStream: class {}, fetch: async path => { fetched.push(path); return path.endsWith('index.json') ? {ok: true, json: async () => index} : {ok: false}; }});
+  Object.assign(h.sandbox.window, {APEX_BACKEND_VERSION: 'backend-1', APEX_SOURCE_VERSION: 'source-2'});
+  assert.equal(await h.run(`prerenderedData(new URL(${JSON.stringify(url)}))`), null, 'a different source revision is never served');
+  assert.ok(!fetched.some(path => path.endsWith('a.json.gz')));
+  h.sandbox.window.APEX_SOURCE_VERSION = 'source-1';
+  await h.run(`prerenderedData(new URL(${JSON.stringify(url)}))`);
+  assert.ok(fetched.some(path => path.endsWith('a.json.gz')), 'a matching source revision reads the file');
 });

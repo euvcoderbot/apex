@@ -1,3 +1,4 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -116,7 +117,7 @@ function appHarness() {
       createElement: () => ({width:0,height:0,getContext:()=>ctx}),
       addEventListener() {}, querySelectorAll: () => [], documentElement: { dataset: { theme: 'dark' } } } };
   vm.createContext(sandbox);
-  vm.runInContext(readFileSync(new URL('../app.js', import.meta.url), 'utf8'), sandbox);
+  vm.runInContext(appSource(), sandbox);
   vm.runInContext(readFileSync(new URL('../alignment.js', import.meta.url), 'utf8'), sandbox);
   // The map is available alongside the traces without changing panes.
   return { sandbox, elements, element, textCalls, run: code => vm.runInContext(code, sandbox) };

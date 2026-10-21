@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <!-- App paths such as /apex/cars/corners load this same page; keep relative links rooted at /apex/. -->
+  <base href="/apex/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#1e1e20" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f2f2f4" media="(prefers-color-scheme: light)">
@@ -244,13 +246,24 @@
   </dialog>
   <script src="config.js?v=euv2-release-20260813-2"></script>
   <script src="local-compute.js"></script>
+  <script src="url-state.js"></script>
+  <script src="motion.js"></script>
   <script src="analysis-core.js?v=20261008-feature-pass"></script>
   <script src="dashboard-ui.js"></script>
   <script src="ui-system.js"></script>
   <script src="telemetry-model.js?v=euv2-reconstruction-20260905"></script>
   <script src="corner-position.js"></script>
-  <script src="app.js?v=euv2-release-20261007-loading-v1"></script>
+  <script src="session-state.js"></script>
+  <script src="session-loader.js"></script>
+  <script src="session-laps.js"></script>
+  <script src="session-charts.js"></script>
+  <script src="session-hover.js"></script>
+  <script src="session-corners.js"></script>
+  <script src="session-map.js"></script>
+  <script src="session-init.js"></script>
+  <script src="session-tyres.js"></script>
   <script src="alignment.js?v=euv2-release-20261003-position-motion-check"></script>
+  <script type="module" src="react-islands.js"></script>
   <script type="module" src="car-performance.js?v=20261007-race-v2"></script>
 </body>
 </html>

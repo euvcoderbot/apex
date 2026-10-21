@@ -1,9 +1,10 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import postcss from 'postcss';
 const read=f=>readFileSync(f,'utf8');
-const css=read('ui-controls.css'),car=read('car-performance.js'),app=read('app.js'),ui=read('dashboard-ui.js');
+const css=read('ui-controls.css'),car=read('car-performance.js'),app=appSource(),ui=read('dashboard-ui.js');
 
 test('regular controls share tokenised type, height and spacing without fixed-height segment shells',()=>{
   const root=postcss.parse(css);
@@ -20,15 +21,17 @@ test('regular controls share tokenised type, height and spacing without fixed-he
 
 test('main comparisons have no vertical height cap and no redundant ranking footer',()=>{
   assert.match(css,/\.performance-split-view > \.performance-table-wrap \{ max-height: none; height: auto; overflow-x: auto; overflow-y: visible/);
-  const renderer=car.slice(car.indexOf('function renderHorizontalBarChart('),car.indexOf('function renderCornerBarChart('));
-  assert.doesNotMatch(renderer,/class="chart-coverage"/);
-  assert.match(car,/is-unranked/); // Missing observations remain distinguishable from measured zeros.
+  const chart=readFileSync('src/components/BarChart.tsx','utf8');
+  assert.doesNotMatch(chart,/chart-coverage/);
+  assert.match(chart,/is-unranked/); // Missing observations remain distinguishable from measured zeros.
   assert.doesNotMatch(ui,/performance-chart-evidence/);
 });
 
 test('speed ranges and results use pressed-state pills and retire their dropdown handlers',()=>{
-  assert.match(car,/data-straight-band="\$\{key\}" aria-pressed/);
-  assert.match(car,/data-results-chart="\$\{key\}" aria-pressed/);
+  // Reliability & results is a React view: a segmented control of data-results-chart buttons.
+  const resultsView=readFileSync('src/views/ResultsView.tsx','utf8'),segmented=readFileSync('src/components/SegmentedControl.tsx','utf8');
+  assert.match(resultsView,/<SegmentedControl name="results-chart"/);
+  assert.match(segmented,/<button[^>]+\{\.\.\.\{\[attribute\]: key\}\} aria-pressed=/);
   assert.doesNotMatch(car,/data-straight-band-select|data-results-chart-select/);
   assert.match(read('ui-system.js'),/\.performance-range-options/);
 });

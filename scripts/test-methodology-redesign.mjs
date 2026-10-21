@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import {ageAdjustedRaceCornerScores,raceCornerGroups} from '../race-cornering.js';
 const source=fs.readFileSync('car-performance.js','utf8');
 const avg=a=>a.reduce((s,v)=>s+v,0)/a.length,median=a=>{a=[...a].sort((a,b)=>a-b);return (a[(a.length-1)>>1]+a[a.length>>1])/2;};
-function context(){const box={finite:Number.isFinite,avg,median};vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function eventAdjustedScores('),source.indexOf('function seasonTelemetry(')),box);return box;}
+function context(){const box={finite:Number.isFinite,avg,median};vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function eventAdjustedScores('),source.indexOf('const STRAIGHT_PILLS=')),box);return box;}
 test('mean and median solve the exact long-chain comparison, not a stopped iteration',()=>{
   const box=context(),reports=Array.from({length:20},(_,j)=>({event:{name:'GP'+j},summary:{rows:new Map(Array.from({length:3},(_,k)=>{const i=j+k;return ['D'+i,{team:'D'+i,value:j*.1+i*.01}];}))}}));
   for(const mode of ['mean','median']){const result=box.eventAdjustedScores(reports,r=>r.value,mode,'inferred');

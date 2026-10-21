@@ -1,3 +1,4 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -30,7 +31,7 @@ test('presentation changes reparent original observations without recalculating 
   assert.match(ui,/table\.createCaption\(\)/);
   assert.doesNotMatch(ui,/measurement-table-heading|labelText\.textContent/);
   assert.match(car,/arrangePerformance\(root,activeMetric\)/);
-  assert.match(car,/pace-visual-grid/);
+  assert.match(readFileSync('src/views/PaceView.tsx','utf8'),/pace-visual-grid/);
 });
 
 test('layout assets ship, all categories are responsive, and focused telemetry is isolated',()=>{
@@ -58,7 +59,7 @@ test('track scope directly exposes race choices without a second disclosure or a
 });
 
 test('hidden telemetry canvases are skipped before allocating or copying drawing buffers',()=>{
-  const app=readFileSync('app.js','utf8');
+  const app=appSource();
   const start=app.indexOf('function drawRealChart(name)');
   const prefix=app.slice(start,app.indexOf('  const dpr =',start));
   assert.match(prefix,/rect\.width < 1 \|\| rect\.height < 1/);

@@ -31,27 +31,18 @@ test('run controls wrap without forced minimum widths and optional notes follow 
 });
 
 test('short unfitted tyre runs retain lap inspection without inventing a fitted line',()=>{
-  const plot=source.slice(source.indexOf('function renderTyreStintPlot('),source.indexOf('function renderTyreAge('));
-  const box={finite:Number.isFinite,tyreCorrection:'raw',tyreFuelRate:.06,tyreShowExcluded:false,
-    summarize:a=>a[0],color:v=>v,escape:v=>String(v),fmt:(n,d,s='')=>Number.isFinite(n)?n.toFixed(d)+s:'—',
-    table:(headers,rows)=>JSON.stringify({headers,rows})};
+  // tyreStintPlotModel gives src/components/TyreStintPlot.tsx its geometry.
+  const plot=source.slice(source.indexOf('function tyreStintPlotModel('),source.indexOf('function tyreAgeView('));
+  const box={finite:Number.isFinite,tyreCorrection:'raw',tyreFuelRate:.06,tyreShowExcluded:false,summarize:a=>a[0],fmt:(n,d,s='')=>Number.isFinite(n)?n.toFixed(d)+s:'—'};
   vm.createContext(box);vm.runInContext(plot,box);
-  const html=box.renderTyreStintPlot({color:'#123456'},{driver:'AAA',event:'Test',stint:1,trendValue:null,points:[{lap:3,age:1,time:90},{lap:4,age:2,time:90.2}],excluded_points:[{lap:5,age:3,time:100,reason:'Slow lap'}]});
-  assert.match(html,/3 recorded laps/);assert.match(html,/not enough data for a trend/);
-  assert.doesNotMatch(html,/NaN|Infinity|stroke-dasharray="6 4"/);
-  assert.match(html,/L3/);assert.match(html,/L4/);assert.match(html,/L5/);
+  const model=box.tyreStintPlotModel({color:'#123456'},{driver:'AAA',event:'Test',stint:1,trendValue:null,points:[{lap:3,age:1,time:90},{lap:4,age:2,time:90.2}],excluded_points:[{lap:5,age:3,time:100,reason:'Slow lap'}]});
+  assert.equal(model.laps.length,3);assert.equal(model.noTrend,true);assert.equal(model.curve,null,'no fitted line without a trend');
+  assert.deepEqual([...model.laps].map(l=>l.lap),[3,4,5]);
+  assert.ok(model.points.every(p=>Number.isFinite(p.cx)&&Number.isFinite(p.cy)));
   const selection=source.slice(source.indexOf('const plotRuns='),source.indexOf('let selectedRun=',source.indexOf('const plotRuns=')));
   assert.doesNotMatch(selection,/finite\(s.trendValue\)/);
 });
 
-test('development sparklines show real rounds and never join unobserved gaps',()=>{
-  const plot=source.slice(source.indexOf('function trendSparkline('),source.indexOf('function renderTrend('));
-  const box={events:[{round:16},{round:18}],finite:Number.isFinite,color:v=>v,escape:v=>String(v),fmt:n=>n.toFixed(3)};
-  vm.createContext(box);vm.runInContext(plot,box);
-  const team={team:'Example',color:'#123456',q:[{round:16,pace:1,event:'A'},{round:18,pace:.5,event:'B'}]};
-  const html=box.trendSparkline(team,[team]);
-  assert.equal((html.match(/<circle/g)||[]).length,2);
-  assert.match(html,/common scale across teams/);
-  assert.match(html,/d="M[^"L]+ M/);
+test('development trend keeps its fit-sensitivity gate (sparkline: test-react-views.mjs)',()=>{
   assert.match(source,/const showSensitivity=trendView==='fitted'&&ordered.some/);
 });

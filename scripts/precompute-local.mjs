@@ -32,8 +32,14 @@ const session=await get('/api/session?'+new URLSearchParams({year,gp,round,sessi
 // Use the browser's exact representative-selection function and property order.
 const windows=fastestTeamTelemetrySelections(q.teams);
 batch=await get('/api/performance/trace-batch?'+new URLSearchParams({year,gp,windows:JSON.stringify(windows),measures:'speed'}));
-const driverRows=qualifyingRepresentatives({...session,year,event:gp},'driver',q.teams);
-const driverWindows=driverRows.map(row=>({driver:row.driver.code,number:row.driver.number,lap:row.lap,time:row.time,start:row.lap_start_seconds,end:row.lap_end_seconds,
+// Same driver windows, field order included, as the page (car-performance.js
+// driverSelectionsFromQualifying), so the cached batch is the one it requests.
+const fromPhases=(()=>{const best=new Map();for(const team of q.teams||[])for(const p of team.phase_details||[]){
+  if(![p.time,p.start,p.end].every(Number.isFinite)||p.lap==null||p.number==null||!p.driver)return null;
+  if(!best.has(p.driver)||p.time<best.get(p.driver).time)best.set(p.driver,p);}
+  return best.size>=3?[...best.values()].map(p=>({driver:p.driver,number:p.number,lap:p.lap,time:p.time,start:p.start,end:p.end,sectors:p.sectors,phase:p.phase,
+    compound:p.compound,team:p.driver,team_name:p.driver,driver_number:p.number,qualifying_best_time:p.time,qualifying_best_driver:p.driver,qualifying_best_lap:p.lap})):null;})();
+const driverWindows=fromPhases||qualifyingRepresentatives({...session,year,event:gp},'driver',q.teams).map(row=>({driver:row.driver.code,number:row.driver.number,lap:row.lap,time:row.time,start:row.lap_start_seconds,end:row.lap_end_seconds,
   sectors:[row.s1,row.s2,row.s3],phase:row.phase,compound:row.compound,team:row.driver.code,team_name:row.driver.code,driver_number:row.driver.number,
   qualifying_best_time:row.time,qualifying_best_driver:row.driver.code,qualifying_best_lap:row.lap}));
 await get('/api/performance/trace-batch?'+new URLSearchParams({year,gp,windows:JSON.stringify(driverWindows),measures:'speed'}));
@@ -49,8 +55,17 @@ for(const subject of ['team','driver']){
     console.log(JSON.stringify({subject,raceGroups:plan.groups?.length||0,completed,cacheHits:hits}));
   }
 }
-try{await get('/api/performance/pits?'+new URLSearchParams({year,gp}));}catch(e){console.warn('Pit data: '+e.message);}
-if(event.session_dates?.Sprint)try{await get('/api/performance/sprint?'+new URLSearchParams({year,gp,round}));}catch(e){console.warn('Sprint classification: '+e.message);}
+// The page's own parameters (car-performance.js loadPitData), so the exported file is the one it asks for.
+try{await get('/api/performance/pits?'+new URLSearchParams({year,gp,source:'dhl-fallback-v2',schema:3}));}catch(e){console.warn('Pit data: '+e.message);}
+// Session analysis summaries, with the page's own session names (session-state.js
+// currentQuery; the cache key ignores its data_schema field).
+for(const name of ['Qualifying','Sprint Qualifying','Sprint','Race']){
+  const date=event.session_dates?.[name];
+  if(!date||Date.parse(date)+4*3600000>Date.now())continue;
+  try{await get('/api/session?'+new URLSearchParams({year,gp,round,session:name}));}catch(e){console.warn(`Session ${name}: `+e.message);}
+}
+// The page's own parameters (car-performance.js), so the exported file is the one it asks for.
+if(event.session_dates?.Sprint)try{await get('/api/performance/sprint?'+new URLSearchParams({year,gp,session:'S',round}));}catch(e){console.warn('Sprint classification: '+e.message);}
 }catch(error){console.warn(JSON.stringify({gp,skipped:error.message}));if(targets.length===1)throw error;}
 }
 if(args.includes('--export-seed')){

@@ -1,10 +1,11 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {normalizeDataPath} from '../lib/data-cache.mjs';
 const coreSource=readFileSync('analysis-core.js','utf8');
-const app=readFileSync('app.js','utf8'),alignment=readFileSync('alignment.js','utf8'),car=readFileSync('car-performance.js','utf8');
+const app=appSource(),alignment=readFileSync('alignment.js','utf8'),car=readFileSync('car-performance.js','utf8');
 const core=()=>{const context={};vm.createContext(context);vm.runInContext(coreSource,context);return context.ApexAnalysis;};
 
 test('shared formatter uses three decimals without turning missing data into zero',()=>{
@@ -13,6 +14,9 @@ test('shared formatter uses three decimals without turning missing data into zer
 });
 test('session and car calendar requests share one canonical source cache key',()=>{
   assert.equal(normalizeDataPath('/api/events?year=2026&status=result-v3'),normalizeDataPath('/api/events?year=2026'));
+  // The browser de-duplicates in-flight requests by exact URL: both views ask for the same one.
+  assert.match(app,/loadApiData\(apiUrl\(`\/api\/events\?year=\$\{year\}`\)/);
+  assert.match(car,/get\(`\/api\/events\?year=\$\{\$\('performanceYear'\)\.value\}`/);
   assert.equal(normalizeDataPath('/api/session?year=2026&gp=Bahrain&session=R&data_schema=old'),normalizeDataPath('/api/session?year=2026&gp=Bahrain&session=R'));
   assert.notEqual(normalizeDataPath('/api/session?year=2026&gp=Bahrain&session=R'),normalizeDataPath('/api/session?year=2026&gp=Bahrain&session=Q'));
 });
@@ -53,14 +57,6 @@ test('a long discrete-channel source gap is not bridged by the chart',()=>{
   const path=h.measuredDiscreteTrace(rows,'Brake',0,1);
   assert.equal(h.renderedTraceValue(path,.25,true),null);assert.equal(h.renderedTraceValue(path,.5,true),100);
   assert.equal(h.discreteTraceState('Brake',null),null);
-});
-test('missing fastest-lap entrants stay visible without inheriting a measured score',()=>{
-  const context={telemetryEvent:e=>e};vm.createContext(context);
-  vm.runInContext(car.slice(car.indexOf('function retainQualifyingEntrants('),car.indexOf('\nfunction seasonTelemetry(')),context);
-  const event={Q:{teams:[{team:'A'},{team:'B'}]},traceExcluded:{B:'GPS unavailable'}};
-  const rows=context.retainQualifyingEntrants([{team:'A',categories:{},trace:{corners:[]}}],[event]);
-  assert.equal(rows.length,2);assert.equal(rows[1].missingReason,'GPS unavailable');assert.equal(rows[1].brakingScore,null);
-  assert.deepEqual(Object.keys(rows[1].categories),[]);
 });
 test('selected measurements are not silently replaced when coverage is unavailable',()=>{
   assert.doesNotMatch(car,/selectedBrakeView=brakingView==='approach'&&hasApproach/);

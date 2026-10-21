@@ -1,10 +1,11 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
 const css=fs.readFileSync('macos-ui.css','utf8');
-const app=fs.readFileSync('app.js','utf8');
+const app=appSource();
 test('one current macOS appearance layer ships after the workspace and replaces Windows styling',()=>{
   postcss.parse(css);
   const page=fs.readFileSync('index.html','utf8'),sync=fs.readFileSync('scripts/sync-static.mjs','utf8');

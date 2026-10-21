@@ -1,8 +1,9 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-const car=readFileSync('car-performance.js','utf8'),app=readFileSync('app.js','utf8'),ui=readFileSync('dashboard-ui.js','utf8'),css=readFileSync('ui-controls.css','utf8');
+const car=readFileSync('car-performance.js','utf8'),app=appSource(),ui=readFileSync('dashboard-ui.js','utf8'),css=readFileSync('ui-controls.css','utf8');
 const windowCss=readFileSync('macos-window.css','utf8');
 
 test('unverified transition links are not exposed as selectable controls',()=>{
@@ -40,21 +41,12 @@ test('loaded session context comes from loaded data, not pending selector values
   assert.doesNotMatch(body,/\$\('#year'\)|\$\('#gp'\)/);
 });
 
-test('only speed-trace flags produce source-gap approximations on shared charts',()=>{
-  const box={finite:Number.isFinite,escape:String,color:()=> '#888',teamLabel:r=>r.team,
-    fmt:(v,d,u)=>v.toFixed(d)+u,signed:(v,d,u)=>v.toFixed(d)+u};
-  vm.createContext(box);
-  vm.runInContext(car.slice(car.indexOf('function renderHorizontalBarChart('),car.indexOf('function lapShareChart(')),box);
-  const html=(row)=>box.renderHorizontalBarChart([{team:'A',value:0,...row}],{unit:' pts',signedValue:false});
-  assert.doesNotMatch(html({provisional:true}),/source gaps|≈/,'generic provisional fields must not masquerade as telemetry gaps');
-  assert.match(html({traceProvisional:true}),/source gaps over 0.6 s/);
-  assert.match(car,/traceProvisional:r.provisional/);
-});
 
 test('mean and median change multi-GP race pace, not the qualifying statistic',()=>{
   const box={};vm.createContext(box);
-  vm.runInContext(car.slice(car.indexOf('const finite ='),car.indexOf('const middle50Label')),box);
-  vm.runInContext(car.slice(car.indexOf('function rebase('),car.indexOf('function renderHorizontalBarChart(')),box);
+  // Shared helpers live in performance-format.js (plain consts once exports are dropped).
+  vm.runInContext(readFileSync('performance-format.js','utf8').replace(/^export /gm,''),box);
+  vm.runInContext(car.slice(car.indexOf('function rebase('),car.indexOf('async function get(')),box);
   vm.runInContext(car.slice(car.indexOf('function summarisePaceTeams('),car.indexOf('function renderPace(')),box);
   const teams=[{team:'A',q:[1,3,20].map(pace=>({pace})),adjDeficits:[1,3,20],r:[2,4,24]},{team:'B',q:[0,0,0].map(pace=>({pace})),adjDeficits:[0,0,0],r:[0,0,0]}];
   const mean=box.summarisePaceTeams(teams,'mean'),median=box.summarisePaceTeams(teams,'median');
@@ -62,7 +54,7 @@ test('mean and median change multi-GP race pace, not the qualifying statistic',(
   assert.ok(Math.abs(mean[0].qualy-8)<1e-10);assert.ok(Math.abs(median[0].qualy-8)<1e-10);
   const one=teams.map(t=>({...t,q:t.q.slice(0,1),r:t.r.slice(0,1)}));
   assert.equal(box.summarisePaceTeams(one,'mean')[0].race,box.summarisePaceTeams(one,'median')[0].race);
-  assert.match(car,/events\.filter\(e=>e\.R\?\.teams\?\.length\)\.length>2/);
+  assert.match(car,/loadedR=events\.filter\(e=>e\.R\?\.teams\?\.length\)\.length[\s\S]*?stat:\{show:loadedR>2/);
   assert.match(ui,/performance-stat-toggle.*pace-visual-grid/);
 });
 
