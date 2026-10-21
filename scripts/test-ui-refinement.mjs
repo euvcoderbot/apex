@@ -8,7 +8,7 @@ const app=readFileSync('app.js','utf8'),css=readFileSync('ui-controls.css','utf8
 test('rendered lap and sector differences precede their measured times, with weather icons',()=>{
   const laps=[{code:'HAM',lap:21,time:91.496,real:{s1:27.273,s2:38.258,s3:25.965,compound:'SOFT'}},{code:'VER',lap:11,time:91.373,real:{s1:27.002,s2:38.531,s3:25.840,compound:'SOFT'}}];
   let html='';const root={querySelectorAll:()=>[]};
-  const box={loaded:laps,realDrivers:new Map(laps.map(l=>[l.code,{laps:[l.real]}])),nominatedCompounds:[],
+  const box={loaded:laps,drivers:[],realDrivers:new Map(laps.map(l=>[l.code,{laps:[l.real]}])),nominatedCompounds:[],teamLogoMarkup:()=>'<i class="team-logo"></i>',
     $:()=>root,replaceUI:(r,value)=>{html=value;},getLapColor:()=> '#4781d7',getCompoundCode:()=> 'SOFT (C5)',getCompoundToneClass:()=> 'soft',tyreImageMarkup:()=> '',compoundBadgeMarkup:c=>`<svg class="compound-badge" data-c="${c}"></svg>`,time:t=>t.toFixed(3)};
   vm.createContext(box);vm.runInContext(app.slice(app.indexOf('function renderSectors()'),app.indexOf('// Chart Constants and Configuration')),box);box.renderSectors();
   const second=html.slice(html.indexOf('data-motion-key="summary-VER'));

@@ -66,7 +66,7 @@ test('review fixes: readable sidebar, paired lap cards, single trace toolbar and
   assert.doesNotMatch(css,/zoom:\s*1\.1/);assert.match(tokens,/--ui-sidebar-width: 282px/);
   assert.match(css,/\.app-sidebar #driverSidebar \{ align-self: stretch;/,'driver list must use the full sidebar width');
   assert.match(css,/\.app-sidebar \.track-tray-header \{ grid-template-columns: minmax\(0,1fr\)/,'race actions must use the full sidebar width');
-  assert.match(css,/\.sector-cards \{ display: grid; grid-template-columns: repeat\(auto-fill,minmax\(min\(100%,440px\),1fr\)\)/);
+  assert.match(css,/\.sector-cards \{ display: grid; grid-template-columns: repeat\(auto-fill,minmax\(min\(100%,360px\),1fr\)\)/);
   assert.match(css,/\.trace-focus-close,\.chart-heading \.trace-focus-close\[data-ui-kind="push"\] \{ display: none; \}/);
   assert.match(css,/body\.trace-focus \.trace-focus-close/);
   assert.match(css,/body\.is-descriptions-hidden #carPerformance > \.performance-status-card:not\(\.is-running\) \{ display: none; \}/);
@@ -120,7 +120,7 @@ test('official team marks ship in colour, black and white at 96px and switch by 
 
 test('lap cards: centred sector cells, fixed delta slots, sectors right of the identity',()=>{
   assert.match(css,/\.sector-cards \.lap-summary-card \.sector-cell-value \{ display: flex; flex-direction: column; align-items: center;/);
-  assert.match(css,/\.sector-cards \.lap-summary-card \.sector-delta-slot,\.sector-cards \.lap-summary-card \.sector-delta-slot:empty \{ order: 1; display: flex;[^}]*height: 20px;/);
+  assert.match(css,/\.sector-cards \.lap-summary-card \.sector-delta-slot,\.sector-cards \.lap-summary-card \.sector-delta-slot:empty \{ order: 1; display: flex;[^}]*height: 18px;/);
   assert.match(css,/@container sectorcards \(min-width: 700px\) \{\n  \.sector-cards \.lap-summary-card \{ grid-template-columns: auto minmax\(0,1fr\);/);
   assert.match(css,/\.select-menu button\[aria-selected="true"\]::before,\.select-menu button\[data-ui-kind="menu-item"\]\[aria-selected="true"\]::before \{ content: none; display: none; \}/);
   assert.match(read('app.js'),/menu\.style\.top = top \/ zoom \+ 'px';/);

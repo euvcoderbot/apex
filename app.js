@@ -1061,6 +1061,40 @@ function fastestTimedLap(driver) {
   return timed.length ? timed.reduce((fastest, lap) => lap.time < fastest.time ? lap : fastest) : null;
 }
 
+function qualifyingPreparationLaps(laps, sessionName) {
+  const roles = new Map();
+  if (!/qualifying|shootout/i.test(sessionName || '')) return roles;
+  const runs = new Map();
+  for (const lap of laps || []) {
+    const key = `${lap.phase || ''}|${lap.stint}|${lap.compound || ''}`;
+    if (!runs.has(key)) runs.set(key, []);
+    runs.get(key).push(lap);
+  }
+  const clear = lap => !/[2-7]/.test(String(lap.track_status || '')) && !lap.deleted;
+  for (const run of runs.values()) {
+    run.sort((a,b) => a.lap-b.lap);
+    const timed = run.filter(lap => Number.isFinite(lap.time) && lap.time > 0 && !lap.in_lap && !lap.out_lap && clear(lap));
+    if (timed.length < 2) continue;
+    const best = Math.min(...timed.map(lap => lap.time));
+    const flying = lap => timed.includes(lap) && lap.time <= best * 1.07;
+    const slow = lap => timed.includes(lap) && lap.time >= Math.max(best * 1.12, best + 8);
+    for (let index=0; index<run.length; index++) {
+      const lap=run[index];
+      if (!slow(lap)) continue;
+      let before=index-1, after=index+1;
+      while (before>=0 && slow(run[before])) before--;
+      while (after<run.length && slow(run[after])) after++;
+      const previous=run[before], next=run[after];
+      // Inference only: require an uninterrupted same-tyre sequence leading
+      // back to a flying lap, not a yellow/red flag, pit visit or missing lap.
+      if (!previous || !next || !(flying(previous) || previous.out_lap && clear(previous)) || !flying(next)) continue;
+      if (run.slice(before+1,after+1).some((entry,offset) => entry.lap !== run[before+offset].lap+1)) continue;
+      roles.set(lap.lap, {label:'PREP', reason:'Inferred cool-down / preparation lap: substantially slower between an out/flying lap and the next flying lap on the same tyre run. No pit exit is implied.'});
+    }
+  }
+  return roles;
+}
+
 function toggleLoadedLap(code, lapNum) {
   const lapObj = realDrivers.get(code)?.laps?.find(item => item.lap === lapNum);
   if (!lapObj || (!Number.isFinite(lapObj.time) && !lapObj.in_lap && !lapObj.out_lap)) return;
@@ -1128,21 +1162,24 @@ function renderStints() {
       return `<button type="button" class="stint run-segment ${id === active ? 'selected' : ''}" aria-pressed="${id === active}" aria-label="Show ${escapeUI(runLabel)} laps for ${code}" style="--team:${teamColor}" data-motion-key="run-${code}-${id}" data-code="${code}" data-stint="${id}"><strong>${runLabel}</strong><small><span class="run-compounds">${compoundBadges}</span>${count} ${countLabel}</small><span class="run-choice-indicator" aria-hidden="true">${id === active ? '✓' : '›'}</span></button>`;
     }).join('');
     const qualifyingRuns = [...new Set(activeLaps.map(lap => lap.stint))];
+    const preparationLaps = qualifyingPreparationLaps(driver.laps, loadedSessionName);
     const lapButtons = activeLaps.map(lap => {
       const isLoaded = loaded.some(item => item.code === code && item.lap === lap.lap);
       const flag = `L${lap.lap}`;
-      const classes = ['lap', 'lap-chip', lap.in_lap || lap.out_lap ? 'in-out' : '', isLoaded ? 'selected' : ''].filter(Boolean).join(' ');
+      const preparation = preparationLaps.get(lap.lap);
+      const classes = ['lap', 'lap-chip', lap.in_lap || lap.out_lap ? 'in-out' : '', preparation ? 'is-preparation' : '', isLoaded ? 'selected' : ''].filter(Boolean).join(' ');
       const displayTime = Number.isFinite(lap.display_time) ? lap.display_time : lap.time;
       const estimated = lap.display_time_estimated === true;
       const duration = Number.isFinite(displayTime) ? `${estimated ? '~' : ''}${time(displayTime)}` : '&mdash;';
       const selectable = Number.isFinite(lap.time) || lap.in_lap || lap.out_lap;
-      const context = lap.in_lap && lap.out_lap ? 'IN/OUT' : lap.out_lap ? 'OUT' : lap.in_lap ? 'IN' : '';
+      const context = lap.in_lap && lap.out_lap ? 'IN/OUT' : lap.out_lap ? 'OUT' : lap.in_lap ? 'IN' : preparation?.label || '';
       const neutralised = String(lap.track_status || '').includes('4') ? 'SC'
         : String(lap.track_status || '').includes('6') ? 'VSC' : '';
       const title = lap.in_lap && lap.out_lap ? 'Pit entry and exit occurred in this lap; trace may include a garage stop'
         : lap.out_lap ? 'Pit-out segment from pit exit to the timing line; comparison may be partial'
         : lap.in_lap ? 'Pit-in lap includes the pit entry'
         : neutralised ? `${neutralised} lap; time is not representative of racing pace`
+        : preparation ? preparation.reason
         : !Number.isFinite(displayTime) ? 'No lap time published by the timing feeds' : '';
       const age = Number.isFinite(lap.tyre_life) && lap.tyre_life >= 1 ? Math.round(lap.tyre_life) : null;
       const tyreDetail = hasQualifyingPhases ? `<small class="lap-tyre-age">Run ${qualifyingRuns.indexOf(lap.stint) + 1} · Tyre age ${age === null ? 'unknown' : `${age} ${age === 1 ? 'lap' : 'laps'}`}</small>` : '';
@@ -1299,7 +1336,7 @@ function renderSectors() {
     return `
       <article class="lap-summary-card has-conditions" data-motion-key="summary-${item.code}-${item.lap}" style="--team:${color}">
         <header>
-          <span class="summary-driver" title="${item.code} · lap ${item.lap}"><b>${item.code}</b><span class="summary-lap-label">Lap ${item.lap}</span>${i === 0 ? '<em>REF</em>' : ''}</span>
+          <span class="summary-driver" title="${item.code} · lap ${item.lap}">${teamLogoMarkup(realDrivers.get(item.code)?.team || drivers.find(driver=>driver[0]===item.code)?.[4])}<b>${item.code}</b><span class="summary-lap-label">Lap ${item.lap}</span>${i === 0 ? '<em>REF</em>' : ''}</span>
           <span class="summary-header-actions">
             <span class="summary-tyre ${compoundClass}">${compoundBadgeMarkup(lap.compound)}<span class="summary-tyre-copy"><b>${compound}</b>${tyreLife ? `<small>${tyreLife} used</small>` : ''}</span></span>
             <span class="summary-lap-time"><small>${lap.in_lap && lap.out_lap ? 'PIT IN/OUT' : lap.out_lap ? 'PIT EXIT → LINE' : lap.in_lap ? 'PIT-IN LAP' : 'LAP'}</small>${i === 0 || lap.out_lap || ref.real?.out_lap ? '' : deltaBadge(item.time, ref.time)}<strong>${lap.display_time_estimated ? '~' : ''}${time(Number.isFinite(lap.display_time) ? lap.display_time : item.time)}</strong></span>
