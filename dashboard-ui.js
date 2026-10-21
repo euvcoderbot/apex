@@ -18,7 +18,8 @@
   // macOS window layout: a source-list sidebar beside the content whenever the
   // window is wide enough. The same driver node moves between the sidebar and
   // the lap chooser, so selection state and listeners survive.
-  const driverRail=window.matchMedia('(min-width:980px)');
+  // Breakpoints are authored at 100% and scaled with the page zoom (see UI_ZOOM).
+  const driverRail=window.matchMedia(`(min-width:${Math.round(980*(window.APEX_UI_ZOOM||1))}px)`);
   function arrangeDriverRail(){
     const column=document.querySelector('#sessionSidebar'),body=document.querySelector('#lapSelectionBody'),sidebar=document.querySelector('#driverSidebar');
     if(!column||!body||!sidebar)return;
@@ -29,6 +30,8 @@
     if(toggle)toggle.hidden=!wide&&chooser?.getAttribute('aria-expanded')==='false';
   }
   arrangeDriverRail();driverRail.addEventListener('change',arrangeDriverRail);
+  // Some hosts defer media-query change events; a resize re-check is cheap and idempotent.
+  window.addEventListener?.('resize',arrangeDriverRail,{passive:true});
   // Window toolbar: hide/show the sidebar, mirroring the split-view sidebar item.
   const sidebarButton=document.querySelector('#windowSidebarToggle');
   function setSidebarVisible(visible,persist=true){
@@ -190,11 +193,38 @@
       for(const error of errors){const item=document.createElement('li');item.textContent=error.textContent.trim();list.append(item);error.remove();}
     }
     syncCategoryList();
-    for(const note of root.querySelectorAll('p.performance-quality-status:not(.explanation-only)')){
+    // Paired chart + table: the chart copies the table's header and row heights
+    // (measured after layout), so every bar sits level with its table row.
+    const splits=[...root.querySelectorAll('.performance-split-view')];
+    if(splits.length){
+      const sync=()=>{for(const split of splits){
+        const head=split.querySelector('.performance-table thead tr'),row=split.querySelector('.performance-table tbody tr');
+        if(!head||!row||!row.offsetHeight)continue;
+        split.style.setProperty('--split-head',head.offsetHeight+'px');
+        split.style.setProperty('--split-row',row.offsetHeight+'px');
+        split.classList.add('is-row-synced');
+      }};
+      // rAF pauses in background tabs; the timer covers that case.
+      if(typeof requestAnimationFrame==='function')requestAnimationFrame(sync);
+      setTimeout(sync,60);
+    }
+    // A chart with no measured rows shows its reason inline as an empty state,
+    // rather than an empty box beside full ones.
+    for(const chart of root.querySelectorAll('.performance-chart-card')){
+      const empty=!chart.querySelector('.performance-bar-row,.performance-tyre-age-row,tbody tr,svg,canvas');
+      chart.classList.toggle('is-empty-chart',empty);
+      if(empty)for(const note of chart.querySelectorAll('p.performance-quality-status'))note.classList.add('performance-empty-note');
+    }
+    // Every other coverage note goes into one disclosure per card, below its
+    // charts, so a note in one chart no longer stretches its neighbours.
+    for(const note of root.querySelectorAll('p.performance-quality-status:not(.explanation-only):not(.performance-empty-note)')){
       if(note.closest('details,.performance-tyre-toolbar')||note.querySelector('button')||note.getAttribute('role')==='status')continue;
-      const parent=note.parentElement;
+      const parent=note.closest('.performance-card-body')||note.parentElement;
       let evidence=parent.querySelector(':scope > .performance-status-evidence');
       if(!evidence){evidence=document.createElement('details');evidence.className='performance-evidence performance-status-evidence';const title=document.createElement('summary');title.textContent='Coverage and assumptions';evidence.append(title);parent.append(evidence);}
+      const chart=note.closest('.performance-chart-card');
+      const label=chart?.querySelector('.perf-chart-title,.perf-chart-heading')?.textContent.trim();
+      if(label&&!note.dataset.chart){note.dataset.chart=label;const tag=document.createElement('strong');tag.textContent=label+': ';note.prepend(tag);}
       evidence.append(note);
     }
   }

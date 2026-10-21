@@ -16,6 +16,9 @@ a { color: var(--ui-accent); }
 .skip-link { top: -60px; left: 12px; padding: 6px 12px; border-radius: 6px; background: var(--ui-action); color: #fff; font-size: 14px; box-shadow: var(--ui-shadow-popover); }
 .skip-link:focus { top: 10px; }
 
+/* Interface scale: 110% on tablet and desktop widths (phones already scale UI). */
+@media(min-width:768px) { html { zoom: 1.1; } }
+
 /* ---------- Unified window toolbar ---------- */
 .site-header.window-toolbar {
   position: sticky; top: 0; z-index: 120; box-sizing: border-box;
@@ -49,7 +52,7 @@ a { color: var(--ui-accent); }
 }
 .site-header .performance-tabs > button:hover:not([aria-pressed="true"]) { color: var(--ui-label); background: transparent; }
 .site-header .performance-tabs .view-short { display: none; }
-@media(max-width:520px) { .site-header .performance-tabs .view-label { display: none; } .site-header .performance-tabs .view-short { display: inline; } }
+@media(max-width:520px) { .site-header .performance-tabs .view-label { display: none; } .site-header .performance-tabs .view-short { display: inline; } .site-header .performance-tabs > button { padding: 0 3px; font-size: 13px; } }
 .site-header .performance-tabs > button[aria-pressed="true"] { color: var(--ui-label); background: var(--ui-seg-thumb); box-shadow: 0 .5px 2px #0000004d,0 0 0 .5px #0000001a,inset 0 .5px #ffffff1f; }
 .site-header .performance-tabs > button + button::before { content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 1px; background: var(--ui-border); transition: opacity var(--ui-motion); }
 .site-header .performance-tabs > button[aria-pressed="true"]::before,.site-header .performance-tabs > button[aria-pressed="true"] + button::before { opacity: 0; }
@@ -314,6 +317,38 @@ body.trace-focus .chart-heading .trace-focus-button:not(.trace-focus-close) { di
 .lap-workspace .lap-grid { max-height: none; overflow: visible; }
 .lap-workspace .lap-grid:has(> .lap-chip:nth-child(25)) { max-height: 440px; overflow-y: auto; }
 .lap-workspace .driver-run-card { overflow: visible; }
+/* Box consistency: paired chart + table share header and row heights, so
+   rows line up and neither box carries empty space below its content. */
+.performance-split-view { --split-head: 46px; --split-row: 30px; align-items: stretch; }
+.performance-split-view > .performance-chart-card { display: flex; flex-direction: column; }
+.performance-split-view .perf-chart-header { box-sizing: border-box; height: var(--split-head); min-height: var(--split-head); margin: 0; padding: 0 0 6px; display: flex; align-items: flex-end; border-bottom: 1px solid var(--ui-border); }
+.performance-split-view:not(.is-row-synced) .performance-table thead tr { height: var(--split-head); }
+.performance-split-view :is(.performance-bars,.performance-tyre-age-chart) { display: flex; flex-direction: column; gap: 0; row-gap: 0; margin: 0; padding: 0; }
+.performance-split-view :is(.performance-bar-row,.performance-tyre-age-row) + :is(.performance-bar-row,.performance-tyre-age-row) { margin-top: 0; }
+.performance-split-view :is(.performance-bar-row,.performance-tyre-age-row) { box-sizing: border-box; height: var(--split-row); min-height: var(--split-row); padding-block: 0; margin: 0; }
+.performance-split-view .performance-table td { padding-block: 3px; }
+.performance-split-view > .performance-table-wrap { align-self: stretch; }
+/* Chart + table sit side by side only when the card is wide enough for both;
+   otherwise the chart stacks above the table (container query, zoom-safe). */
+.performance-card-body { container-type: inline-size; container-name: perfcard; }
+@container perfcard (max-width: 980px) {
+  .performance-card-body > .performance-split-view { grid-template-columns: minmax(0,1fr); }
+  .performance-split-view .perf-chart-header { height: auto; min-height: 0; padding-bottom: 6px; }
+  .performance-split-view :is(.performance-bar-row,.performance-tyre-age-row) { height: auto; min-height: var(--ui-row-height); }
+  .performance-split-view > .performance-chart-card { max-width: none; }
+}
+/* Bar labels: one fixed name column wide enough for full team and driver names,
+   so every bar starts at the same x and names are not truncated. */
+.performance-bar-row { grid-template-columns: minmax(0,12.5em) minmax(48px,1fr) max-content; }
+.performance-bar-label .team-name,.performance-chart-card .performance-team .team-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@container perfcard (max-width: 760px) { .performance-visual-grid .performance-bar-row { grid-template-columns: minmax(0,10.5em) minmax(32px,1fr) max-content; } }
+/* An empty controls row is only reserved when some chart in the row uses it. */
+.performance-visual-grid:not(:has(.performance-chart-controls:not([aria-hidden="true"]))) .performance-chart-controls { display: none; }
+/* Charts without a measurement show a compact empty state. */
+.performance-chart-card.is-empty-chart { justify-content: flex-start; }
+.performance-chart-card.is-empty-chart .performance-empty-note { display: block; margin: 12px 0 0; padding: 0; border: 0; background: none; color: var(--ui-tertiary); font-size: var(--ui-text); line-height: 1.5; }
+body.is-descriptions-hidden #performanceMetricPanel .performance-chart-card.is-empty-chart p.performance-empty-note { display: block; }
+.performance-status-evidence .performance-quality-status strong { color: var(--ui-label); font-weight: 600; }
 /* ---------- Car performance content ---------- */
 #carPerformance > .performance-status-card { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 20px; border: 0; border-bottom: 1px solid var(--ui-separator); border-radius: 0; background: transparent; box-shadow: none; color: var(--ui-secondary); font-size: 14px; }
 #carPerformance > .performance-status-card p { margin: 0; color: inherit; font-size: 14px; }
@@ -374,7 +409,7 @@ body.is-descriptions-hidden #performanceMetricPanel p.performance-quality-status
 .performance-table td { height: var(--ui-row-height); padding: 3px 7px; border: 0; border-bottom: 0; font-size: 14px; color: var(--ui-label); vertical-align: middle; }
 .performance-table tbody tr:nth-child(even) td { background: var(--ui-row-alt); }
 .performance-table tbody tr:hover td { background: var(--ui-row-hover); }
-.performance-table td small { display: block; margin-top: 1px; color: var(--ui-tertiary); font-size: 13px; font-weight: 400; line-height: 1.3; }
+.performance-table td small { display: block; white-space: nowrap; margin-top: 1px; color: var(--ui-tertiary); font-size: 13px; font-weight: 400; line-height: 1.3; }
 .performance-table :is(th,td) + :is(th,td) { border-left: 0; }
 .performance-table :is(th,td):first-child { box-shadow: none; }
 .performance-table button[data-ui-kind="sort"] { gap: 3px; color: inherit; font: inherit; }
@@ -405,7 +440,7 @@ details[open] > :not(summary) { animation: ui-reveal var(--ui-motion-slow) var(-
 .performance-empty h3 { margin: 0; font: 600 17px/1.3 var(--ui-font-display); }
 .performance-empty p { max-width: 52ch; margin: 0; font-size: 14px; color: var(--ui-secondary); }
 .empty-icon-badge .ui-symbol { width: 32px; height: 32px; color: var(--ui-quaternary); }
-[data-ui-kind="badge"] { height: 18px; padding: 0 6px; border-radius: 4px; font-size: 13px; font-weight: 500; line-height: 18px; }
+[data-ui-kind="badge"] { box-sizing: content-box; width: max-content; max-width: none; flex-shrink: 0; white-space: nowrap; height: 18px; padding: 0 6px; border-radius: 4px; font-size: 13px; font-weight: 500; line-height: 18px; }
 
 /* ---------- Controls (AppKit-like) ---------- */
 button[data-ui-kind="push"],button[data-ui-kind="primary"],button[data-ui-kind="popup"],button[data-ui-kind="picker"] { height: var(--ui-control-height); min-height: var(--ui-control-height); border-radius: var(--ui-radius); font-size: var(--ui-control-font); }

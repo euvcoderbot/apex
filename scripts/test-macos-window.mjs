@@ -83,6 +83,32 @@ test('fit pass: toolbar labels, lap lists and range choices never clip or overfl
   assert.match(css,/@media\(min-width:1001px\) and \(max-width:1280px\)/);
 });
 
+test('110% interface scale moves breakpoints with it and keeps pointer maths in layout px',async()=>{
+  const {scaleMediaParams,UI_ZOOM,buildUiStyles}=await import('../lib/ui-style-build.mjs');
+  assert.equal(UI_ZOOM,1.1);
+  assert.equal(scaleMediaParams('(max-width:979px) and (min-width:500px)'),'(max-width:1077px) and (min-width:550px)');
+  assert.equal(scaleMediaParams('(prefers-reduced-motion:reduce)'),'(prefers-reduced-motion:reduce)');
+  assert.match(css,/@media\(min-width:768px\) \{ html \{ zoom: 1\.1; \} \}/);
+  const built=(await buildUiStyles(f=>readFileSync(f,'utf8'))).css;
+  assert.match(built,/@media\(min-width:845px\) \{ html \{ zoom: 1\.1; \} \}/);
+  assert.doesNotMatch(built,/@media\s*\(?max-width:\s*979px/,'unscaled breakpoints must not ship');
+  assert.match(page,/window\.APEX_UI_ZOOM = 1\.1;/);
+  assert.match(ui,/980\*\(window\.APEX_UI_ZOOM\|\|1\)/);
+  const app=read('app.js');
+  assert.match(app,/const dx = old \? \(old\.rect\.left - next\.left\) \/ pageZoom : 0;/);
+  assert.match(app,/innerWidth - tipRect\.width - 12\)\) \/ pageZoom\}px/);
+});
+
+test('coverage notes collect once per card, empty charts explain themselves, paired rows line up',()=>{
+  assert.match(ui,/const parent=note\.closest\('\.performance-card-body'\)\|\|note\.parentElement;/);
+  assert.match(ui,/chart\.classList\.toggle\('is-empty-chart',empty\)/);
+  assert.match(ui,/split\.style\.setProperty\('--split-row',row\.offsetHeight\+'px'\)/);
+  assert.match(css,/\.performance-split-view :is\(\.performance-bar-row,\.performance-tyre-age-row\) \{ box-sizing: border-box; height: var\(--split-row\);/);
+  assert.match(css,/@container perfcard \(max-width: 980px\) \{\n  \.performance-card-body > \.performance-split-view \{ grid-template-columns: minmax\(0,1fr\); \}/);
+  assert.match(css,/\.performance-visual-grid:not\(:has\(\.performance-chart-controls:not\(\[aria-hidden="true"\]\)\)\) \.performance-chart-controls \{ display: none; \}/);
+  assert.match(css,/\.performance-table td small \{ display: block; white-space: nowrap;/);
+});
+
 test('sidebar text and accent links stay legible on the sidebar material in both appearances',()=>{
   const root=postcss.parse(tokens),palettes=[];
   root.walkRules(rule=>{if([':root',':root[data-theme="light"]'].includes(rule.selector)&&rule.parent.type==='root'){const values={};rule.walkDecls(d=>values[d.prop]=d.value);palettes.push(values);}});

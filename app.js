@@ -82,8 +82,11 @@ function replaceUI(root, html) {
     }
     const next = node.getBoundingClientRect();
     if (!next.width || !next.height) continue;
-    const dx = old ? old.rect.left - next.left : 0;
-    const dy = old ? old.rect.top - next.top : 6;
+    // Rects include the page zoom; transforms are applied in layout px.
+    const page = document.documentElement;
+    const pageZoom = page?.offsetWidth ? page.getBoundingClientRect().width / page.offsetWidth || 1 : 1;
+    const dx = old ? (old.rect.left - next.left) / pageZoom : 0;
+    const dy = old ? (old.rect.top - next.top) / pageZoom : 6;
     if (!old || Math.abs(dx) + Math.abs(dy) > 1) {
       node.animate([{ opacity: old ? 1 : 0, transform: `translate(${dx}px, ${dy}px)` },
         { opacity: 1, transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.22,.68,0,1)' });
@@ -2807,8 +2810,10 @@ function bindAllChartHover() {
       
       if (document.body.classList.contains('trace-focus')) {
         const tipRect = tooltip.getBoundingClientRect();
-        tooltip.style.left = `${Math.max(8, Math.min(e.clientX + 15, innerWidth - tipRect.width - 12))}px`;
-        tooltip.style.top = `${Math.max(8, Math.min(e.clientY + 15, innerHeight - tipRect.height - 12))}px`;
+        // Fixed positions are in layout px; pointer coordinates include the page zoom.
+        const pageZoom = document.documentElement.getBoundingClientRect().width / document.documentElement.offsetWidth || 1;
+        tooltip.style.left = `${Math.max(8, Math.min(e.clientX + 15, innerWidth - tipRect.width - 12)) / pageZoom}px`;
+        tooltip.style.top = `${Math.max(8, Math.min(e.clientY + 15, innerHeight - tipRect.height - 12)) / pageZoom}px`;
         return;
       }
       const parentRect = telemetryCard.getBoundingClientRect();
