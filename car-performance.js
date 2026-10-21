@@ -2868,7 +2868,8 @@ function speedDomainEntities() {
 function speedDomainChart(key,title,subtitle) {
   const meta=SPEED_DOMAIN_METRICS[key],season=speedDomainSeason(events,telemetrySubject,key),style=speedDomainEntities();
   const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason}));
-  if(!rows.length)return `<div class="performance-chart-card"><h4 class="perf-chart-heading">${escape(title||meta.label)}</h4><p class="performance-quality-status">No supported measurement in the loaded GPs (for cornering: no grip-limited corners of this type). Missing values are not zero.</p></div>`;
+  // While GPs are still loading an empty chart is pending, not a missing measurement.
+  if(!rows.length)return `<div class="performance-chart-card"><h4 class="perf-chart-heading">${escape(title||meta.label)}</h4><p class="performance-quality-status">${speedDomainRunning[telemetrySubject]?'Waiting for the first measured GPs…':'No supported measurement in the loaded GPs (for cornering: no grip-limited corners of this type). Missing values are not zero.'}</p></div>`;
   return renderHorizontalBarChart(rows,{title:title||meta.label,subtitle:`${subtitle?subtitle+' · ':''}${season.gps} GP${season.gps===1?'':'s'} · 0 = best`,unit:meta.unit,digits:meta.digits});
 }
 function speedDomainReliabilityNote(key) {
