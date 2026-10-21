@@ -1,3 +1,4 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -44,8 +45,8 @@ test('session alignment uses the same geometry in the registered spatial frame',
   assert.ok(Math.abs(result.apexFraction-original.apexFraction-shift)<1e-9);
 });
 test('session, race and qualifying share the geometry module and disclose fallbacks',()=>{
-  const html=readFileSync('index.html','utf8'),app=readFileSync('app.js','utf8'),race=readFileSync('race-cornering.js','utf8');
-  assert.ok(html.indexOf('src="corner-position.js')<html.indexOf('src="app.js'));
+  const html=readFileSync('index.html','utf8'),app=appSource(),race=readFileSync('race-cornering.js','utf8');
+  assert.ok(html.indexOf('src="corner-position.js')<html.indexOf('src="session-state.js'));
   assert.match(readFileSync('corner-geometry.js','utf8'),/import '\.\/corner-position\.js'/);
   assert.match(readFileSync('alignment.js','utf8'),/APEXCornerPosition\?\.refineCornerPositions/);
   assert.match(race,/refineCornerPositions\(ref\.payload\.samples/);

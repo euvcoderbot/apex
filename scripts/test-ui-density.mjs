@@ -1,9 +1,10 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import postcss from 'postcss';
 const read=f=>readFileSync(f,'utf8');
-const css=read('ui-controls.css'),car=read('car-performance.js'),app=read('app.js'),ui=read('dashboard-ui.js');
+const css=read('ui-controls.css'),car=read('car-performance.js'),app=appSource(),ui=read('dashboard-ui.js');
 
 test('regular controls share tokenised type, height and spacing without fixed-height segment shells',()=>{
   const root=postcss.parse(css);

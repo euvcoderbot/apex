@@ -1,8 +1,9 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-const car=readFileSync('car-performance.js','utf8'),app=readFileSync('app.js','utf8');
+const car=readFileSync('car-performance.js','utf8'),app=appSource();
 
 test('experimental and legacy methodology switches have no UI or event handlers',()=>{
   for(const key of ['acceleration-comparison','straight-entry','corner-comparison','corner-window',

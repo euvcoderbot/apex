@@ -1,8 +1,9 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-const source=readFileSync('app.js','utf8'), css=readFileSync('macos-window.css','utf8');
+const source=appSource(), css=readFileSync('macos-window.css','utf8');
 const box={};vm.createContext(box);
 vm.runInContext(source.slice(source.indexOf('function qualifyingPreparationLaps('),source.indexOf('function toggleLoadedLap(')),box);
 const fixture=()=>[null,95.700,120.236,125.126,93.594,124.928,92.774,123.042,94.914,121.383].slice(1).map((time,index)=>({lap:index+2,time,stint:index<2?1:2,phase:'Q1',compound:'SOFT',in_lap:[3,10].includes(index+2),out_lap:index+2===4,track_status:'1'}));

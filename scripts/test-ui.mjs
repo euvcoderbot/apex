@@ -1,10 +1,11 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
 
-const app = readFileSync('app.js', 'utf8');
+const app = appSource();
 test('pit entrants stay visible without loading race pace or inventing a missing stop',()=>{
   const source=readFileSync('car-performance.js','utf8');
   const box={pitVisitMode:'service',finite:Number.isFinite,completed:()=>true,
@@ -62,7 +63,7 @@ test('telemetry summaries survive unchanged renders and invalidate when source o
 
 test('only the aligned telemetry implementation is shipped as the active classic-script dependency',()=>{
   const html=readFileSync('index.html','utf8'),alignment=readFileSync('alignment.js','utf8');
-  assert.ok(html.indexOf('src="alignment.js')>html.indexOf('src="app.js'));
+  assert.ok(html.indexOf('src="alignment.js')>html.indexOf('src="session-state.js'));
   for(const name of ['fetchTelemetry','interpolate']){
     assert.doesNotMatch(app,new RegExp('(?:async )?function '+name+'\\('));
     assert.match(alignment,new RegExp('(?:async )?function '+name+'\\('));
@@ -417,7 +418,8 @@ test('qualifying run pills show every compound and lap state precedes the time',
   assert.doesNotMatch(app,/lap-selection-mark/);
   assert.match(app, /class="lap-clock">\$\{duration\}<\/span>/);
   const html = readFileSync('index.html', 'utf8');
-  assert.match(html, /app\.js\?v=euv2-release-[\w-]+/);
+  // Split session scripts; sync-static stamps ?v=<revision> on every script it publishes.
+  assert.match(html, /src="session-state\.js"[\s\S]*src="session-tyres\.js"/);
   assert.match(html, /alignment\.js\?v=euv2-release-[\w-]+/);
 });
 

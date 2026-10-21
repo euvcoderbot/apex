@@ -1,3 +1,4 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -51,8 +52,8 @@ test('the back button hands the restored parameters to the view that owns them',
 
 test('both views write and restore their state through the shared module', () => {
   const read = file => readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
-  const app = read('app.js'), cars = read('car-performance.js'), page = read('index.html');
-  assert.ok(page.indexOf('url-state.js') < page.indexOf('app.js'), 'loaded before the views');
+  const app = appSource().replace(/\r\n/g, '\n'), cars = read('car-performance.js'), page = read('index.html');
+  assert.ok(page.indexOf('url-state.js') < page.indexOf('session-state.js'), 'loaded before the views');
   assert.match(app, /function renderAll\(\) \{[\s\S]*?syncSessionUrl\(\);\n\}/);
   assert.match(app, /ApexUrl\?\.onRestore\('session'/);
   assert.match(cars, /ApexUrl\?\.onRestore\('cars'/);

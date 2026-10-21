@@ -1,8 +1,9 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-const car=readFileSync('car-performance.js','utf8'),app=readFileSync('app.js','utf8'),ui=readFileSync('dashboard-ui.js','utf8'),css=readFileSync('ui-controls.css','utf8');
+const car=readFileSync('car-performance.js','utf8'),app=appSource(),ui=readFileSync('dashboard-ui.js','utf8'),css=readFileSync('ui-controls.css','utf8');
 const windowCss=readFileSync('macos-window.css','utf8');
 
 test('unverified transition links are not exposed as selectable controls',()=>{

@@ -1,3 +1,4 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -93,7 +94,7 @@ test('browser-owned scale keeps breakpoints and pointer maths in layout px',asyn
   assert.match(built,/@media\(max-width:979px\)/);
   assert.match(page,/window\.APEX_UI_ZOOM = 1;/);
   assert.match(ui,/980\*\(window\.APEX_UI_ZOOM\|\|1\)/);
-  const app=read('app.js');
+  const app=appSource();
   assert.match(app,/const dx = old \? \(old\.rect\.left - next\.left\) \/ pageZoom : 0;/);
   assert.match(app,/innerWidth - tipRect\.width - 12\)\) \/ pageZoom\}px/);
 });
@@ -110,7 +111,7 @@ test('coverage notes collect once per card, empty charts explain themselves, pai
 });
 
 test('official team marks ship in colour, black and white at 96px and switch by appearance',()=>{
-  const app=read('app.js');
+  const app=appSource();
   for(const team of ['alpine','astonmartin','audi','cadillac','ferrari','haasf1team','mclaren','mercedes','racingbulls','redbullracing','williams'])
     for(const suffix of ['','-color','-black'])assert.ok(readFileSync(`assets/teams/official/${team}${suffix}.webp`).length>200,team+suffix);
   assert.match(app,/class="team-logo-color" src="assets\/teams\/official\/\$\{base\}-color\.webp"/);
@@ -129,7 +130,7 @@ test('lap cards: horizontal header and inline deltas immediately before times',(
   assert.doesNotMatch(css,/summary-lap-time:not\(:has\(\.summary-delta\)\)::after/);
   assert.doesNotMatch(css,/@container sectorcards \(min-width: 700px\)/);
   assert.match(css,/\.select-menu button\[aria-selected="true"\]::before,\.select-menu button\[data-ui-kind="menu-item"\]\[aria-selected="true"\]::before \{ content: none; display: none; \}/);
-  assert.match(read('app.js'),/menu\.style\.top = top \/ zoom \+ 'px';/);
+  assert.match(appSource(),/menu\.style\.top = top \/ zoom \+ 'px';/);
 });
 
 test('sidebar text and accent links stay legible on the sidebar material in both appearances',()=>{

@@ -1,10 +1,11 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {normalizeDataPath} from '../lib/data-cache.mjs';
 const coreSource=readFileSync('analysis-core.js','utf8');
-const app=readFileSync('app.js','utf8'),alignment=readFileSync('alignment.js','utf8'),car=readFileSync('car-performance.js','utf8');
+const app=appSource(),alignment=readFileSync('alignment.js','utf8'),car=readFileSync('car-performance.js','utf8');
 const core=()=>{const context={};vm.createContext(context);vm.runInContext(coreSource,context);return context.ApexAnalysis;};
 
 test('shared formatter uses three decimals without turning missing data into zero',()=>{

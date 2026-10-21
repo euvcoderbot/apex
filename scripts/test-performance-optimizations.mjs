@@ -1,3 +1,4 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -103,7 +104,7 @@ test('connected paired braking uses actual rows for both metrics and widens real
 });
 
 test('source cache versions do not change on presentation edits and loader categories do not cancel session retrieval',()=>{
-  const app=readFileSync('app.js','utf8'),ui=readFileSync('car-performance.js','utf8');
+  const app=appSource(),ui=readFileSync('car-performance.js','utf8');
   assert.match(app,/window.APEX_SOURCE_VERSION/);assert.match(app,/response.headers.get\('x-data-ttl'\)/);
   const loader=ui.slice(ui.indexOf('async function loadTeamTelemetry('),ui.indexOf('async function loadPitData('));
   assert.match(loader,/traceController=new AbortController/);assert.doesNotMatch(loader,/controller\?\.abort\(\)/);

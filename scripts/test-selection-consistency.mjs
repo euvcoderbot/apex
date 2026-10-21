@@ -1,3 +1,4 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -5,7 +6,7 @@ import vm from 'node:vm';
 import postcss from 'postcss';
 
 const read=file=>readFileSync(file,'utf8').replace(/\r\n/g,'\n');
-const app=read('app.js'), css=read('macos-window.css');
+const app=appSource(), css=read('macos-window.css');
 
 test('corner selection updates the same buttons without moving focus or rebuilding the picker',()=>{
   const buttons=Array.from({length:5},(_,index)=>({

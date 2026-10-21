@@ -1,9 +1,10 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
-const app=readFileSync('app.js','utf8'),page=readFileSync('index.html','utf8'),ui=readFileSync('dashboard-ui.js','utf8'),css=readFileSync('macos-ui.css','utf8');
+const app=appSource(),page=readFileSync('index.html','utf8'),ui=readFileSync('dashboard-ui.js','utf8'),css=readFileSync('macos-ui.css','utf8');
 
 test('lap selection collapses without losing its contents and has a reliable edit action',()=>{
   const elements=new Map();

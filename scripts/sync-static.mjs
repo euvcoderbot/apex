@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 import {buildUiStyles} from '../lib/ui-style-build.mjs';
 
 const root = process.cwd();
-const calculationFiles=['verified_sources.py','verified-sources.json.gz','telemetry_sources.py','pace_models.py','performance.py','performance_tracks.py','car_physics.py','server.py','session_loader.py','openf1_performance.py','openf1-performance.json.gz','race-cornering.js','corner-geometry.js','corner-position.js','qualifying-telemetry.js','speed-domain.js','alignment.js','telemetry-model.js','car-performance.js','app.js','analysis-core.js','lib/data-cache.mjs','lib/race-corner-loader.mjs','lib/qualifying-corner-loader.mjs'];
+const calculationFiles=['verified_sources.py','verified-sources.json.gz','telemetry_sources.py','pace_models.py','performance.py','performance_tracks.py','car_physics.py','server.py','session_loader.py','openf1_performance.py','openf1-performance.json.gz','race-cornering.js','corner-geometry.js','corner-position.js','qualifying-telemetry.js','speed-domain.js','alignment.js','telemetry-model.js','car-performance.js','session-state.js','session-loader.js','session-laps.js','session-charts.js','session-hover.js','session-corners.js','session-map.js','session-init.js','session-tyres.js','analysis-core.js','lib/data-cache.mjs','lib/race-corner-loader.mjs','lib/qualifying-corner-loader.mjs'];
 const revision=createHash('sha256');
 for(const file of calculationFiles)revision.update(file).update(await readFile(resolve(root,file)));
 const cacheRevision=revision.digest('hex').slice(0,20);
@@ -19,7 +19,15 @@ await writeFile(resolve(root,'lib/cache-revision.mjs'),`// Generated: source, up
 const destination = resolve(root, "public", "apex");
 const staticFiles = [
   "index.html",
-  "app.js",
+  "session-state.js",
+  "session-loader.js",
+  "session-laps.js",
+  "session-charts.js",
+  "session-hover.js",
+  "session-corners.js",
+  "session-map.js",
+  "session-init.js",
+  "session-tyres.js",
   "analysis-core.js",
   "url-state.js",
   "alignment.js",
