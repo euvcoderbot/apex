@@ -549,8 +549,7 @@ function selectCustomOption(optionButton) {
   if (select.disabled || select.options[optionIndex].disabled) return;
   customSelectValues.set(select, select.options[optionIndex].value);
   select.selectedIndex = optionIndex;
-  shell.classList.remove('is-open');
-  trigger?.setAttribute('aria-expanded', 'false');
+  closeSelectMenu(shell);
   syncSelectUI(select);
   if (select.id !== 'session') select.dispatchEvent(new Event('change', { bubbles: true }));
   trigger?.focus();
@@ -578,6 +577,27 @@ function syncSelectUI(select) {
     </button>`).join('');
 }
 
+function closeSelectMenu(shell) {
+  const menu = shell?.querySelector('.select-menu');
+  if (typeof menu?.hidePopover === 'function' && menu.matches(':popover-open')) menu.hidePopover();
+  shell?.classList.remove('is-open');
+  shell?.querySelector('.select-trigger')?.setAttribute('aria-expanded', 'false');
+}
+
+function positionSelectMenu(shell) {
+  const menu = shell.querySelector('.select-menu'), trigger = shell.querySelector('.select-trigger');
+  if (!menu?.hasAttribute('popover')) return;
+  const anchor = trigger.getBoundingClientRect(), gutter = 8;
+  if (anchor.bottom < gutter || anchor.top > innerHeight - gutter) { closeSelectMenu(shell); return; }
+  menu.style.minWidth = Math.min(anchor.width, innerWidth - gutter * 2) + 'px';
+  menu.style.maxHeight = Math.max(80, innerHeight - gutter * 2) + 'px';
+  const width = menu.offsetWidth, height = menu.offsetHeight;
+  const below = innerHeight - anchor.bottom - gutter - 4;
+  const top = height <= below ? anchor.bottom + 4 : height + gutter + 4 <= anchor.top ? anchor.top - height - 4 : Math.max(gutter, innerHeight - height - gutter);
+  menu.style.left = Math.max(gutter, Math.min(anchor.left, innerWidth - width - gutter)) + 'px';
+  menu.style.top = top + 'px';
+}
+
 function enhanceSelect(select) {
   const shell = select.closest('.select-shell');
   if (!shell || shell.dataset.enhanced === 'true') return;
@@ -590,6 +610,8 @@ function enhanceSelect(select) {
     <div class="select-menu" role="listbox"></div>`);
   const trigger = shell.querySelector('.select-trigger');
   const menu = shell.querySelector('.select-menu');
+  // The top layer lets all four rounded corners escape the sidebar's clipping.
+  if (typeof menu.showPopover === 'function') menu.setAttribute('popover', 'manual');
   const label = document.querySelector(`label[for="${select.id}"]`);
   if (label) {
     label.id = `${select.id}Label`;
@@ -598,25 +620,23 @@ function enhanceSelect(select) {
   }
   menu.id = `${select.id}Options`;
   trigger.setAttribute('aria-controls', menu.id);
-  const close = () => {
-    shell.classList.remove('is-open');
-    trigger.setAttribute('aria-expanded', 'false');
-  };
+  const close = () => closeSelectMenu(shell);
   trigger.addEventListener('click', event => {
     event.stopPropagation();
     document.querySelectorAll('.select-shell.is-open').forEach(openShell => {
       if (openShell !== shell) {
-        openShell.classList.remove('is-open');
-        openShell.querySelector('.select-trigger')?.setAttribute('aria-expanded', 'false');
+        closeSelectMenu(openShell);
       }
     });
     const open = shell.classList.toggle('is-open');
     trigger.setAttribute('aria-expanded', String(open));
     if (open) {
+      if (typeof menu.showPopover === 'function') menu.showPopover();
+      positionSelectMenu(shell);
       const selected = menu.querySelector('[aria-selected="true"]');
       selected?.focus({ preventScroll: true });
       if (selected) menu.scrollTop = selected.offsetTop - (menu.clientHeight - selected.offsetHeight) / 2;
-    }
+    } else close();
   });
   let searchPrefix = '', lastSearchAt = 0;
   menu.addEventListener('keydown', event => {
@@ -1241,11 +1261,12 @@ function renderSectors() {
     const conditionsHtml = `<div class="summary-conditions">${conditionValues.join('')}</div>`;
     const compound = getCompoundCode(lap.compound || 'UNKNOWN', nominatedCompounds);
     const compoundClass = getCompoundToneClass(lap.compound || 'UNKNOWN');
-    const tyreLife = Number.isFinite(lap.tyre_life) ? `${Math.max(1, Math.round(lap.tyre_life))}L` : '';
+    const tyreAge = Number.isFinite(lap.tyre_life) ? Math.max(1, Math.round(lap.tyre_life)) : null;
+    const tyreLife = tyreAge === null ? '' : `${tyreAge} lap${tyreAge === 1 ? '' : 's'}`;
     return `
       <article class="lap-summary-card has-conditions" data-motion-key="summary-${item.code}-${item.lap}" style="--team:${color}">
         <header>
-          <span class="summary-driver" title="${item.code} · lap ${item.lap}"><b>${item.code}</b>${i === 0 ? '<em>REF</em>' : ''}</span>
+          <span class="summary-driver" title="${item.code} · lap ${item.lap}"><b>${item.code}</b><span class="summary-lap-label">Lap ${item.lap}</span>${i === 0 ? '<em>REF</em>' : ''}</span>
           <span class="summary-header-actions">
             <span class="summary-tyre ${compoundClass}">${tyreImageMarkup(lap.compound)}<span class="summary-tyre-copy"><b>${compound}</b>${tyreLife ? `<small>${tyreLife} used</small>` : ''}</span></span>
             <span class="summary-lap-time"><small>${lap.in_lap && lap.out_lap ? 'PIT IN/OUT' : lap.out_lap ? 'PIT EXIT → LINE' : lap.in_lap ? 'PIT-IN LAP' : 'LAP'}</small>${i === 0 || lap.out_lap || ref.real?.out_lap ? '' : deltaBadge(item.time, ref.time)}<strong>${lap.display_time_estimated ? '~' : ''}${time(Number.isFinite(lap.display_time) ? lap.display_time : item.time)}</strong></span>
@@ -3999,11 +4020,15 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('pointerup', finishZoomDrag);
   applyTheme(document.documentElement.dataset.theme, false);
   document.querySelectorAll('.select-shell select').forEach(enhanceSelect);
+  window.addEventListener('resize', () => document.querySelectorAll('.select-shell.is-open').forEach(positionSelectMenu));
+  window.addEventListener('scroll', event => {
+    if (event.target.closest?.('.select-menu')) return;
+    document.querySelectorAll('.select-shell.is-open').forEach(positionSelectMenu);
+  }, true);
   document.addEventListener('click', event => {
     if (event.target.closest('.select-shell')) return;
     document.querySelectorAll('.select-shell.is-open').forEach(shell => {
-      shell.classList.remove('is-open');
-      shell.querySelector('.select-trigger')?.setAttribute('aria-expanded', 'false');
+      closeSelectMenu(shell);
     });
   });
   const yearSelect = $('#year');
