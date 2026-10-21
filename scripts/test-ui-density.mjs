@@ -36,7 +36,7 @@ test('speed ranges and results use pressed-state pills and retire their dropdown
 test('corner inspector has explicit grouped selection sections instead of floating headings',()=>{
   assert.match(app,/circuit-section-group"><header><h3>Corners/);
   assert.match(app,/circuit-section-group"><header><h3>Straights/);
-  assert.match(app,/<details class="circuit-section-group circuit-links"/);
+  assert.doesNotMatch(app,/<details class="circuit-section-group circuit-links"/);
   assert.match(css,/circuit-section-group \.corner-picker \{ display: grid/);
   assert.match(css,/corner-picker-row \{ order: 1; padding: var\(--ui-space-3\); border-top/);
 });

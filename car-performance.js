@@ -255,13 +255,13 @@ function renderHorizontalBarChart(rows, {
     const rowTitle = escape(r[labelKey] || r.team || r.name || '');
 
     return `
-      <div class="performance-bar-row" title="${rowTitle}: ${displayStr}${r.provisional?' · Provisional: source gaps over 0.6 s; inspect corner evidence':''}">
+      <div class="performance-bar-row" title="${rowTitle}: ${displayStr}${r.traceProvisional?' · Provisional: source gaps over 0.6 s; inspect corner evidence':''}">
         <div class="performance-bar-label">${teamLabel(r)}</div>
         <div class="performance-bar-track">
           ${preserveSignedValues ? `<i class="performance-zero" style="left:${zeroPosition.toFixed(2)}%"></i>` : ''}
           <i class="performance-bar" style="--bar-color:${clr};left:${barLeft.toFixed(2)}%;width:${barWidth.toFixed(2)}%;"></i>
         </div>
-        <span class="performance-bar-val ${gainClass}">${r.provisional?'≈ ':''}${displayStr}</span>
+        <span class="performance-bar-val ${gainClass}">${r.traceProvisional?'≈ ':''}${displayStr}</span>
       </div>
     `;
   }).join('');
@@ -616,7 +616,6 @@ let tyreShowExcluded=false;
 let tyrePlotTeam='',tyrePlotDriver='',tyrePlotEvent='';
 let resultsChartMetric='points'; // 'points' | 'perStart' | 'finishRate' | 'mechanicalRate'
 let trendView='observed';
-const trendChartMode='round'; // ranking and visualization are independent
 let straightLineSource='qualy'; // 'qualy' | 'race'
 let brakingView='deceleration'; // 'approach' | 'deceleration'
 let showPerformanceDescriptions=window.ApexAnalysis?.preference('descriptions',false)===true;
@@ -2873,10 +2872,10 @@ function speedDomainEntities() {
 }
 function speedDomainChart(key,title,subtitle) {
   const meta=SPEED_DOMAIN_METRICS[key],season=speedDomainSeason(events,telemetrySubject,key),style=speedDomainEntities();
-  const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason,provisional:r.provisional}));
+  const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason,traceProvisional:r.provisional}));
   // While GPs are still loading an empty chart is pending, not a missing measurement.
   if(!rows.length)return `<div class="performance-chart-card"><h4 class="perf-chart-heading">${escape(title||meta.label)}</h4><p class="performance-quality-status">${running||speedDomainRunning[telemetrySubject]?'Waiting for the first measured GPs…':key.startsWith('corner_')?'No shared supported corner measurement in this band. Missing values are not zero.':'No supported measurement in the loaded GPs. Missing values are not zero.'}</p></div>`;
-  return renderHorizontalBarChart(rows,{title:title||meta.label,subtitle:`${subtitle?subtitle+' · ':''}${season.gps} supported GP${season.gps===1?'':'s'} of ${events.filter(e=>e.Q).length} selected · ${season.events.join(', ')} · 0 = best${rows.some(r=>r.provisional)?' · ≈ provisional: source gaps >0.6 s':''}`,unit:meta.unit,digits:meta.digits});
+  return renderHorizontalBarChart(rows,{title:title||meta.label,subtitle:`${subtitle?subtitle+' · ':''}${season.gps} supported GP${season.gps===1?'':'s'} of ${events.filter(e=>e.Q).length} selected · ${season.events.join(', ')} · 0 = best${rows.some(r=>r.traceProvisional)?' · ≈ provisional: source gaps >0.6 s':''}`,unit:meta.unit,digits:meta.digits});
 }
 function speedDomainReliabilityNote(key) {
   const level=events.map(e=>e.speedDomain?.[telemetrySubject]?.reliability?.[SPEED_DOMAIN_METRICS[key].reliability]).find(Boolean);

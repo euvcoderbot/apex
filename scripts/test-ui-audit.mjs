@@ -3,6 +3,53 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 const car=readFileSync('car-performance.js','utf8'),app=readFileSync('app.js','utf8'),ui=readFileSync('dashboard-ui.js','utf8'),css=readFileSync('ui-controls.css','utf8');
+const windowCss=readFileSync('macos-window.css','utf8');
+
+test('unverified transition links are not exposed as selectable controls',()=>{
+  assert.doesNotMatch(app,/Other links|Select transition zones|picker\('transition'\)/);
+  assert.doesNotMatch(css,/circuit-links/);
+  assert.match(app,/selectLinkingStraights\(zones,selectedCornerIndices,automaticStraightIndices\)/,'automatic connecting windows remain intact');
+});
+
+test('category, filter, corner and refresh controls share token sizing',()=>{
+  for(const selector of ['.category-bar .category-tab,.category-bar .category-tab[data-ui-kind="tab"]',
+    '.circuit-section-group .corner-picker button.corner-pick',
+    '#performanceMetricPanel .metric-heading-controls .metric-refresh',
+    '#performanceMetricPanel .metric-heading-controls [data-ui-group="segments"] > button[data-ui-kind="segment"]']){
+    const start=windowCss.indexOf(selector+' {');
+    assert.ok(start>=0,selector);
+    const body=windowCss.slice(start,windowCss.indexOf('}',start));
+    assert.match(body,/height: var\(--ui-control-height\)/,selector);
+  }
+  assert.match(windowCss,/corner-pick \{[^}]*white-space: nowrap/);
+  assert.match(windowCss,/#dominanceCanvas \{ height: clamp\(180px,28dvh,260px\); min-height: 0/);
+  assert.match(windowCss,/@media\(pointer:coarse\)[\s\S]*min-height: 44px/);
+});
+
+test('modelled phase diagnostic cannot change primary driver row height',()=>{
+  const rows=app.slice(app.indexOf('const rows = rankedMetrics.map'),app.indexOf('pickerRoot.innerHTML =',app.indexOf('const rows = rankedMetrics.map')));
+  assert.doesNotMatch(rows,/phaseSplit\(item.lap\)/);
+  assert.match(app,/<details class="corner-phase-evidence"><summary>Modelled entry \/ exit diagnostic/);
+  assert.doesNotMatch(app,/as in the season cornering metric/);
+});
+
+test('loaded session context comes from loaded data, not pending selector values',()=>{
+  assert.match(readFileSync('index.html','utf8'),/id="loadedSessionContext"[^>]*hidden/);
+  const body=app.slice(app.indexOf('function renderAll()'),app.indexOf('function rankCornerMetrics'));
+  assert.match(body,/sessionYear.*sessionEventName.*loadedSessionName/);
+  assert.doesNotMatch(body,/\$\('#year'\)|\$\('#gp'\)/);
+});
+
+test('only speed-trace flags produce source-gap approximations on shared charts',()=>{
+  const box={finite:Number.isFinite,escape:String,color:()=> '#888',teamLabel:r=>r.team,
+    fmt:(v,d,u)=>v.toFixed(d)+u,signed:(v,d,u)=>v.toFixed(d)+u};
+  vm.createContext(box);
+  vm.runInContext(car.slice(car.indexOf('function renderHorizontalBarChart('),car.indexOf('function lapShareChart(')),box);
+  const html=(row)=>box.renderHorizontalBarChart([{team:'A',value:0,...row}],{unit:' pts',signedValue:false});
+  assert.doesNotMatch(html({provisional:true}),/source gaps|≈/,'generic provisional fields must not masquerade as telemetry gaps');
+  assert.match(html({traceProvisional:true}),/source gaps over 0.6 s/);
+  assert.match(car,/traceProvisional:r.provisional/);
+});
 
 test('mean and median change multi-GP race pace, not the qualifying statistic',()=>{
   const box={};vm.createContext(box);

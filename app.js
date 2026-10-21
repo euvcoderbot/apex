@@ -26,7 +26,6 @@ let cornerSort = 'time';
 let showCornerNumbers = window.ApexAnalysis?.preference('corner-numbers',false)===true;
 let showSpeedAnnotations = window.ApexAnalysis?.preference('speed-annotations',false)===true;
 let speedAnnotationCache = null;
-const enhancedTraceMode = false;
 const traceTintEnabled = false;
 const hiddenTraceKeys = new Set();
 let dominanceMapHitPoints = [];
@@ -3035,6 +3034,11 @@ function updateTelemetryVisibility() {
 }
 
 function renderAll() {
+  const sessionContext = $('#loadedSessionContext');
+  if (sessionContext) {
+    sessionContext.hidden = !sessionEventName;
+    sessionContext.textContent = sessionEventName ? `${sessionYear} · ${sessionEventName} · ${loadedSessionName}` : '';
+  }
   updateTelemetryVisibility();
   renderLoaded();
   renderSectors();
@@ -3187,8 +3191,8 @@ function renderCornerAnalysis() {
   const highestMinimumSpeed = finiteMinimumSpeeds.length ? Math.max(...finiteMinimumSpeeds) : null;
   const referenceSection = metrics[0]?.metric.sectionTime;
   const signedDelta = value => `${value >= 0 ? '+' : '−'}${Math.abs(value).toFixed(3)}s`;
-  // One corner: split each lap's gap to REF into braking / mid-corner / exit,
-  // with entry and exit speed corrected as in the season cornering metric.
+  // Retained model diagnostic, separate from measured timestamps and the
+  // current common-distance season estimator. Never expand primary driver rows.
   const cornerOrder=zones.map((z,i)=>[z,i]).filter(([z])=>z.kind==='corner'&&z.end>z.start);
   const nextCorner=cornerOrder.find(([z])=>z.start>=(zone.end??1))?.[0]||cornerOrder[0]?.[0];
   const exitStraight=!combined&&zone.kind==='corner'&&nextCorner?((nextCorner.start-zone.end+(nextCorner.start<zone.end?1:0))*totalDistance):0;
@@ -3198,7 +3202,7 @@ function renderCornerAnalysis() {
     const own=cornerPhaseBreakdown(telemetryCache.get(telemetryKey(lap)),reference,zone,exitStraight);
     if(!own)return '';
     const d=['braking','mid','exit'].map(k=>own[k]-referencePhases[k]);
-    return `<small class="corner-phase-split" title="Gap to REF between shared lines. Braking includes the time from arriving at ${own.entryKmh.toFixed(0)} km/h vs REF's ${referencePhases.entryKmh.toFixed(0)}; exit includes the credit for leaving at ${own.exitKmh.toFixed(0)} vs ${referencePhases.exitKmh.toFixed(0)} km/h onto the next ${Math.round(Math.min(500,exitStraight))} m.">Braking ${signedDelta(d[0])} · Mid ${signedDelta(d[1])} · Exit ${signedDelta(d[2])} · speed-corrected ${signedDelta(d[0]+d[1]+d[2])}</small>`;
+    return `<small class="corner-phase-split" title="Model diagnostic only, not the measured section delta or the current season metric. Includes an assumed entry correction (${own.entryKmh.toFixed(0)} vs REF ${referencePhases.entryKmh.toFixed(0)} km/h) and exit-speed credit over up to ${Math.round(Math.min(500,exitStraight))} m of the next straight.">Braking ${signedDelta(d[0])} · Mid ${signedDelta(d[1])} · Exit ${signedDelta(d[2])} · modelled total ${signedDelta(d[0]+d[1]+d[2])}</small>`;
   };
   const picker = kind=>zones.map((candidate, index) => {
     if(candidate.kind!==kind||candidate.end<=candidate.start)return '';
@@ -3225,11 +3229,10 @@ function renderCornerAnalysis() {
         <span class="corner-time"><strong>${Number.isFinite(sectionTime) ? `${sectionTime.toFixed(3)}s` : '—'}</strong></span>
         <span class="corner-delta ${deltaClass}"><strong>${Number.isFinite(toReference) ? signedDelta(toReference) : '—'}</strong></span>
         <span class="corner-speed"><strong>${Number.isFinite(item.metric.minimumSpeed) ? item.metric.minimumSpeed.toFixed(1) : '—'}</strong></span>
-        ${phaseSplit(item.lap)}
       </div>`;
   }).join('');
 
-  pickerRoot.innerHTML = `<section class="circuit-section-group"><header><h3>Corners</h3><span>Choose one or more</span></header><nav class="corner-picker" aria-label="Select one or more corners">${picker('corner')}</nav></section><section class="circuit-section-group"><header><h3>Straights</h3><span>≥100 m · low GPS curvature</span></header><nav class="corner-picker straight-zone-picker" aria-label="Select straight zones">${picker('straight')||'<small>No supported straight zones.</small>'}</nav></section>${zones.some(z=>z.kind==='transition'&&z.end>z.start)?`<details class="circuit-section-group circuit-links"><summary>Other links <span>Bends or unverified geometry</span></summary><nav class="corner-picker" aria-label="Select transition zones">${picker('transition')}</nav></details>`:''}<small class="corner-selection-note">Each corner runs from before the earliest braking point of the compared laps to after the last one is back at full throttle, so every driving style is timed over the same distance. One corner shows a braking / mid-corner / exit split, corrected for entry and exit speed. Links shorter than 100 m join the adjacent corner windows; consecutive selected corners include their link; click any selected section to remove it.</small>`;
+  pickerRoot.innerHTML = `<section class="circuit-section-group"><header><h3>Corners</h3><span>Choose one or more</span></header><nav class="corner-picker" aria-label="Select one or more corners">${picker('corner')}</nav></section><section class="circuit-section-group"><header><h3>Straights</h3><span>≥100 m · low GPS curvature</span></header><nav class="corner-picker straight-zone-picker" aria-label="Select straight zones">${picker('straight')||'<small>No supported straight zones.</small>'}</nav></section><small class="corner-selection-note">Each corner runs from before the earliest braking point of the compared laps to after the last one is back at full throttle. Timestamp section times and the optional speed-correction diagnostic are different estimates, not isolated grip measurements. Links shorter than 100 m join adjacent corner windows; consecutive selected corners include their link; click any selected section to remove it.</small>`;
   const pickedCorners=pickedZones.filter(z=>z.kind==='corner').map(cornerLabel);
   const pickedStraights=pickedZones.filter(z=>z.kind!=='corner');
   const selectionLabel=combined?[...pickedCorners,...(pickedStraights.length?[`${pickedStraights.length} link${pickedStraights.length===1?'':'s'}`]:[])].join(' + '):zone.label||cornerLabel(zone);
@@ -3241,6 +3244,7 @@ function renderCornerAnalysis() {
       </header>
       <div class="corner-table-head"><span>Driver</span>${[['time','Time','s'],['delta','Delta','s'],['minimum',averageSpeed?'Average speed':'Minimum','km/h']].map(([key,label,unit]) => `<button type="button" data-corner-sort="${key}" aria-pressed="${cornerSort === key}" title="Sort best to worst by ${label}">${label}${cornerSort === key ? ' ↓' : ''}<small>${unit}</small></button>`).join('')}</div>
       <div class="corner-driver-metrics">${rows||'<span class="section-empty">The selected sections have insufficient measured data. Remove a corner or choose another lap.</span>'}</div>
+      ${referencePhases&&metrics.length>1?`<details class="corner-phase-evidence"><summary>Modelled entry / exit diagnostic</summary><p>Separate from the measured section times above and the current car-performance metric.</p>${rankedMetrics.map(item=>{const split=phaseSplit(item.lap);return split?`<div><b>${item.lap.code}</b>${split}</div>`:'';}).join('')}</details>`:''}
     </article>`;
   if(combined){pickerRoot.querySelector('.corner-picker')?.classList.add('is-multiple');}
   else if(zone.kind==='corner')positionCornerIndicator(pickerRoot, pickerState);

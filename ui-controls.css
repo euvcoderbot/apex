@@ -345,16 +345,12 @@ main #driverSidebar { width: 100%; }
 .circuit-section-group { min-width: 0; margin: 0; padding: 0; }
 .circuit-section-group > header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--ui-space-1); margin-bottom: var(--ui-space-2); }
 .circuit-section-group h3 { font-size: var(--ui-text); font-weight: 600; margin: 0; }
-.circuit-section-group > header > span,.circuit-links summary > span { color: var(--ui-tertiary); font-size: var(--ui-caption); }
+.circuit-section-group > header > span { color: var(--ui-tertiary); font-size: var(--ui-caption); }
 .circuit-section-group .corner-picker { display: grid; grid-template-columns: repeat(auto-fill,minmax(34px,1fr)); width: 100%; gap: var(--ui-space-1); padding: 0; margin: 0; max-height: none; overflow: visible; border: 0; background: none; }
 .circuit-section-group .straight-zone-picker { grid-template-columns: repeat(auto-fit,minmax(78px,1fr)); }
 .circuit-section-group .corner-picker button.corner-pick { display: inline-flex; align-items: center; justify-content: center; min-width: 0; height: var(--ui-control-height); min-height: var(--ui-control-height); padding: 0 var(--ui-space-1); font-size: var(--ui-control-font); border: 1px solid var(--ui-border); background: var(--ui-control); }
 .circuit-section-group .corner-pick strong { font: inherit; }
 .circuit-section-group .corner-pick[aria-pressed="true"] { border-color: var(--ui-accent); background: var(--ui-selected); box-shadow: inset 0 0 0 1px var(--ui-accent); }
-.circuit-links { border-top: 1px solid var(--ui-border); border-radius: 0; }
-.circuit-links > summary[data-ui-kind="disclosure"] { display: list-item; min-height: var(--ui-control-height); padding: var(--ui-space-2) 0; font-size: var(--ui-text); }
-.circuit-links summary > span { display: block; margin-top: var(--ui-space-1); }
-.circuit-links .corner-picker { grid-template-columns: repeat(auto-fit,minmax(78px,1fr)); padding-top: var(--ui-space-1); }
 .corner-selection-empty { display: grid; gap: var(--ui-space-1); font-size: var(--ui-text); }
 .corner-selection-empty strong { font-weight: 500; }
 .corner-selection-empty span { color: var(--ui-tertiary); font-size: var(--ui-caption); }
