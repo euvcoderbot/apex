@@ -1167,3 +1167,18 @@ test('performance categories expose only defensible alternative summaries', () =
   assert.match(source,/timed\.length>=10\?percentile\(timed,\.9\):null/);
   assert.match(source,/gpSlopes\.length<4\|\|p75Shortfall\.length/);
 });
+
+test('pre-rendered session summaries use the cache identity and the source revision', async () => {
+  const h = context();
+  const url = 'https://example.test/api/session?year=2026&gp=Singapore+Grand+Prix&round=17&session=Qualifying&data_schema=v9';
+  assert.equal(h.run(`prerenderedKey(new URL(${JSON.stringify(url)}))`), '/api/session?gp=Singapore+Grand+Prix&round=17&session=Qualifying&year=2026');
+  const index = {revision: 'backend-1', sourceRevision: 'source-1', entries: {'/api/session?gp=Singapore+Grand+Prix&round=17&session=Qualifying&year=2026': 'a.json.gz'}};
+  const fetched = [];
+  Object.assign(h.sandbox, {DecompressionStream: class {}, fetch: async path => { fetched.push(path); return path.endsWith('index.json') ? {ok: true, json: async () => index} : {ok: false}; }});
+  Object.assign(h.sandbox.window, {APEX_BACKEND_VERSION: 'backend-1', APEX_SOURCE_VERSION: 'source-2'});
+  assert.equal(await h.run(`prerenderedData(new URL(${JSON.stringify(url)}))`), null, 'a different source revision is never served');
+  assert.ok(!fetched.some(path => path.endsWith('a.json.gz')));
+  h.sandbox.window.APEX_SOURCE_VERSION = 'source-1';
+  await h.run(`prerenderedData(new URL(${JSON.stringify(url)}))`);
+  assert.ok(fetched.some(path => path.endsWith('a.json.gz')), 'a matching source revision reads the file');
+});

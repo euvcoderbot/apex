@@ -1,7 +1,10 @@
 """Check the cold-load guards: archive breaker, venue corner cache, OpenF1 pacing."""
 
+from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import gzip
+import json
 from unittest.mock import patch
 import os
 import sys
@@ -77,6 +80,36 @@ class OpenF1PacingTests(unittest.TestCase):
         # Burst spacing between the first three, then the minute cap.
         self.assertEqual(sleeps[:2], [server.OPENF1_MIN_INTERVAL_S]*2)
         self.assertAlmostEqual(sleeps[2], 60-2*server.OPENF1_MIN_INTERVAL_S, places=2)
+
+
+class MirrorTests(unittest.TestCase):
+    def test_a_lap_is_sliced_from_the_mirrored_session_stream_without_a_request(self):
+        rows = [{"date": f"2026-10-11T12:00:{second:02d}.000000+00:00", "speed": second, "driver_number": 4}
+                for second in (30, 10, 20, 40)]
+        with TemporaryDirectory() as directory, patch.object(server, "PREPARED_CACHE", Path(directory)):
+            server.openf1_session_stream.cache_clear()
+            path = server.openf1_cache_path(server.openf1_url("car_data", session_key=11384, driver_number="4"))
+            path.parent.mkdir()
+            with gzip.open(path, "wt", encoding="utf-8") as handle:
+                json.dump(rows, handle)
+            with patch.object(server, "openf1", side_effect=AssertionError("network")):
+                start = datetime(2026, 10, 11, 12, 0, 15, tzinfo=timezone.utc)
+                end = datetime(2026, 10, 11, 12, 0, 35, tzinfo=timezone.utc)
+                points = server.openf1_window_points("car_data", 11384, 4, start, end)
+            server.openf1_session_stream.cache_clear()
+        self.assertEqual([p["speed"] for p in points], [20, 30])
+
+    def test_settled_sessions_are_remembered_across_restarts(self):
+        with TemporaryDirectory() as directory, patch.object(server, "PREPARED_CACHE", Path(directory)):
+            server._settled_session_ends.cache_clear()
+            server._openf1_session_ends.clear()
+            with patch.object(server, "_openf1_fetch", return_value=[{"session_key": 9, "date_end": "2026-01-01T00:00:00+00:00"}]):
+                self.assertTrue(server._openf1_session_settled(9))
+            server._settled_session_ends.cache_clear()
+            server._openf1_session_ends.clear()
+            with patch.object(server, "_openf1_fetch", side_effect=AssertionError("network")):
+                self.assertTrue(server._openf1_session_settled(9))
+            server._settled_session_ends.cache_clear()
 
 
 if __name__ == "__main__":

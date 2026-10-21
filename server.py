@@ -585,17 +585,26 @@ _openf1_session_ends: dict[Any, str] = {}
 _openf1_meta: dict[str, tuple[float, Any]] = {}
 
 
-def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
+def openf1_url(endpoint: str, **params: Any) -> str:
     from urllib.parse import quote
-    valid_params = {key: value for key, value in params.items() if value is not None}
     parts = []
-    for key, value in valid_params.items():
+    for key, value in params.items():
+        if value is None:
+            continue
         if key.endswith(">=") or key.endswith("<=") or key.endswith(">") or key.endswith("<"):
             parts.append(f"{key}{quote(str(value))}")
         else:
             parts.append(f"{key}={quote(str(value))}")
-    query = "&".join(parts)
-    url = f"{OPENF1}/{endpoint}?{query}"
+    return f"{OPENF1}/{endpoint}?{'&'.join(parts)}"
+
+
+def openf1_cache_path(url: str) -> Path:
+    return PREPARED_CACHE / "openf1" / (hashlib.sha256(url.encode()).hexdigest()+".json.gz")
+
+
+def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
+    valid_params = {key: value for key, value in params.items() if value is not None}
+    url = openf1_url(endpoint, **valid_params)
     if endpoint in ("sessions", "meetings"):
         # Calendar metadata is looked up on almost every request; keep it briefly
         # (a live weekend adds sessions, so not longer than ten minutes).
@@ -604,7 +613,7 @@ def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
             return hit[1]
     session_key = valid_params.get("session_key")
     settled = endpoint != "sessions" and session_key is not None and _openf1_session_settled(session_key)
-    cache_path = PREPARED_CACHE / "openf1" / (hashlib.sha256(url.encode()).hexdigest()+".json.gz")
+    cache_path = openf1_cache_path(url)
     if settled and cache_path.exists():
         try:
             with gzip.open(cache_path, "rt", encoding="utf-8") as handle:
@@ -633,12 +642,39 @@ def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
 OPENF1_WINDOW_S = 300
 
 
+def _openf1_epoch(value: Any) -> float:
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+
+
+@lru_cache(maxsize=8)
+def openf1_session_stream(endpoint: str, session_key: Any, driver_number: Any) -> tuple[list[float], list[dict[str, Any]]] | None:
+    """A driver's whole-session stream already on disk, sorted by time.
+
+    Written by scripts/mirror-openf1.py or by an earlier full-race load (the
+    same URL), so a lap is a slice of it instead of an OpenF1 request.
+    """
+    path = openf1_cache_path(openf1_url(endpoint, session_key=session_key, driver_number=driver_number))
+    if not path.exists():
+        return None
+    try:
+        with gzip.open(path, "rt", encoding="utf-8") as handle:
+            rows = json.load(handle)
+        rows = sorted((row for row in rows if row.get("date")), key=lambda row: _openf1_epoch(row["date"]))
+        return [_openf1_epoch(row["date"]) for row in rows], rows
+    except (OSError, ValueError, TypeError):
+        return None
+
+
 def openf1_window_points(endpoint: str, session_key: Any, driver_number: Any,
                          window_start: datetime, window_end: datetime) -> list[dict[str, Any]]:
     """Points for one driver from the fixed all-driver windows covering a lap."""
     epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
     start = window_start if window_start.tzinfo else window_start.replace(tzinfo=timezone.utc)
     end = window_end if window_end.tzinfo else window_end.replace(tzinfo=timezone.utc)
+    stream = openf1_session_stream(endpoint, session_key, str(driver_number))
+    if stream is not None:
+        times, rows = stream
+        return rows[bisect_left(times, start.timestamp()):bisect_right(times, end.timestamp())]
     first = int((start-epoch).total_seconds()//OPENF1_WINDOW_S)
     last = int((end-epoch).total_seconds()//OPENF1_WINDOW_S)
     points = []
@@ -660,7 +696,7 @@ def _openf1_session_settled(session_key: Any) -> bool:
     Finished-session telemetry never changes, so it is kept on disk across
     restarts and code changes instead of being downloaded again.
     """
-    end = _openf1_session_ends.get(session_key)
+    end = _openf1_session_ends.get(session_key) or _settled_session_ends().get(str(session_key))
     if end is None:
         try:
             for item in _openf1_fetch(f"{OPENF1}/sessions?session_key={session_key}"):
@@ -676,7 +712,40 @@ def _openf1_session_settled(session_key: Any) -> bool:
         return False
     if finished.tzinfo is None:
         finished = finished.replace(tzinfo=timezone.utc)
-    return datetime.now(timezone.utc)-finished > timedelta(hours=6)
+    settled = datetime.now(timezone.utc)-finished > timedelta(hours=6)
+    if settled and str(session_key) not in _settled_session_ends():
+        _remember_settled_session(session_key, end)
+    return settled
+
+
+_settled_ends_lock = Lock()
+
+
+def _settled_session_ends_path() -> Path:
+    return PREPARED_CACHE / "openf1" / "settled-sessions.json"
+
+
+@lru_cache(maxsize=1)
+def _settled_session_ends() -> dict[str, str]:
+    """Settled sessions never reopen, so their end times are kept on disk."""
+    try:
+        return json.loads(_settled_session_ends_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _remember_settled_session(session_key: Any, end: str) -> None:
+    with _settled_ends_lock:
+        ends = _settled_session_ends()
+        ends[str(session_key)] = str(end)
+        path = _settled_session_ends_path()
+        path.parent.mkdir(exist_ok=True)
+        temporary = path.with_name(f"{path.name}.{uuid4().hex}.tmp")
+        try:
+            temporary.write_text(json.dumps(ends, sort_keys=True), encoding="utf-8")
+            temporary.replace(path)
+        except OSError:
+            temporary.unlink(missing_ok=True)
 
 
 def _openf1_fetch(url: str) -> Any:
@@ -1385,11 +1454,13 @@ def _load_fallback_circuit_corners(gp, session_name, current_location, normalize
                         and normalized_location not in fallback_location
                         and fallback_location not in normalized_location):
                     continue
-                fb_sess = fb_event.get_session(session_name)
+                # Corner positions are the same in every session; a past
+                # season may not have had this one (a sprint), so use qualifying.
+                fb_sess = fb_event.get_session("Qualifying")
                 def load_metadata(fb_sess=fb_sess):
                     fb_sess.load(laps=True, telemetry=False, weather=False, messages=False)
                     return fb_sess
-                archive_guard(fallback_year, gp, session_name, load_metadata)
+                archive_guard(fallback_year, gp, "Qualifying", load_metadata)
                 c_info = fb_sess.get_circuit_info()
                 if c_info is not None and c_info.corners is not None and not c_info.corners.empty:
                     corners = []
@@ -1730,11 +1801,11 @@ def session_data(
             payload['source_cache']['refresh_failed'] = fresh
             payload['compounds'] = get_tire_nominations(year, gp)
             return payload
-        if session in ('Q', 'R', 'SQ', 'Qualifying', 'Race', 'Sprint Qualifying', 'Sprint Shootout') and year >= 2023:
+        if session in ('Q', 'R', 'SQ', 'S', 'Qualifying', 'Race', 'Sprint Qualifying', 'Sprint Shootout', 'Sprint') and year >= 2023:
             try:
                 from openf1_performance import session_payload
                 code = {'Qualifying': 'Q', 'Race': 'R', 'Sprint Qualifying': 'SQ',
-                        'Sprint Shootout': 'SQ'}.get(session, session)
+                        'Sprint Shootout': 'SQ', 'Sprint': 'S'}.get(session, session)
                 alternate = load_openf1_performance(year, gp, code, fresh=fresh)
                 payload = session_payload(year, gp, code, alternate.apex_source_bundle)
                 payload['source_cache'] = alternate.apex_source_notice

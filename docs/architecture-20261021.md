@@ -59,12 +59,27 @@ and Braking always use the speed-domain method.
 
 ## Pre-rendered data
 
-`npm run local:warm` computes a season with the current methodology;
-`npm run prerender` exports settled entries to
-`assets/data/prerendered/<hash>.json.gz` with an `index.json` manifest. The page
-reads a pre-rendered file before calling the API (`preparedData` in
-`session-state.js`), but only when the manifest's revision equals the page's
-methodology revision, so a methodology change never serves stale numbers.
+A season is built on this PC in three steps, each resumable:
+
+1. `.venv/Scripts/python.exe scripts/mirror-openf1.py --year 2026` downloads
+   every driver's whole-session car data, position and laps for each finished
+   qualifying, sprint qualifying, sprint and race into `.apex-cache/openf1`,
+   paced under OpenF1's limits (about 3 requests a second, 50 a minute). Raw
+   data does not depend on the methodology, so it is downloaded once; the
+   backend then slices any lap from disk (`openf1_session_stream`). 2026 is
+   about 3,100 streams, roughly an hour.
+2. `npm run local:warm` (with `npm run local` running) computes every
+   finished GP with the current methodology: car-performance summaries,
+   telemetry batches, corners, pit stops, sprint, and the session-analysis
+   summaries. With the mirror this needs no network.
+3. `npm run prerender` exports settled entries to
+   `assets/data/prerendered/<hash>.json.gz` with an `index.json` manifest.
+
+The page reads a pre-rendered file before calling the API (`preparedData` in
+`session-state.js`), but only when the entry's revision matches the page's:
+the backend revision for car performance, the source revision for session
+summaries. A methodology change never serves stale numbers; rerun steps 2-3
+(minutes, from the mirror). Per-lap telemetry stays on demand.
 
 ## Motion
 

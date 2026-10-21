@@ -233,11 +233,12 @@ async function cacheData(url, data, ttl) {
 // Settled car-performance data pre-rendered at build time (scripts/prerender.mjs).
 // Used only when it was computed with this page's methodology revision.
 let prerenderedIndex = null;
-const PRERENDERED_PATHS = new Set(['/api/performance', '/api/performance/trace-batch', '/api/performance/pits', '/api/performance/sprint']);
+const PRERENDERED_PATHS = new Set(['/api/performance', '/api/performance/trace-batch', '/api/performance/pits', '/api/performance/sprint', '/api/session']);
 function prerenderedKey(parsed) {
   // Same identity as lib/data-cache.mjs normalizeDataPath for these paths.
   const query = new URLSearchParams(parsed.search);
   for (const key of ['fresh', 'refresh', '_t', 't']) query.delete(key);
+  if (parsed.pathname === '/api/session') for (const key of ['status', 'data_schema']) query.delete(key);
   query.sort();
   return parsed.pathname + '?' + query;
 }
@@ -245,7 +246,10 @@ async function prerenderedData(parsed) {
   if (!PRERENDERED_PATHS.has(parsed.pathname) || typeof DecompressionStream === 'undefined') return null;
   prerenderedIndex ||= fetch('assets/data/prerendered/index.json').then(r => r.ok ? r.json() : null).catch(() => null);
   const index = await prerenderedIndex;
-  if (!index || index.revision !== window.APEX_BACKEND_VERSION) return null;
+  // Session summaries follow the source revision; car performance the backend's.
+  const revision = parsed.pathname === '/api/session' ? index?.sourceRevision : index?.revision;
+  const expected = parsed.pathname === '/api/session' ? window.APEX_SOURCE_VERSION : window.APEX_BACKEND_VERSION;
+  if (!index || !revision || revision !== expected) return null;
   const file = index.entries?.[prerenderedKey(parsed)];
   if (!file) return null;
   const response = await fetch(`assets/data/prerendered/${file}`);
