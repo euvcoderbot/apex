@@ -43,7 +43,9 @@ const worker = {
     // App paths such as /apex/cars/corners have no file of their own: serve
     // the one page, which reads its state from the path and query.
     if (url.pathname.startsWith("/apex/") && !/\.[a-z0-9]+$/i.test(url.pathname)) {
-      return env.ASSETS.fetch(new Request(new URL("/apex/index.html", request.url), request));
+      // Ask for the directory form: Cloudflare canonicalizes index.html with
+      // a redirect, which would discard the public deep link and its query.
+      return env.ASSETS.fetch(new Request(new URL("/apex/", request.url), request));
     }
 
     return handler.fetch(request, env, ctx);

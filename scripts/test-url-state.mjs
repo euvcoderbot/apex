@@ -73,3 +73,21 @@ test('both views write and restore their state through the shared module', () =>
   assert.match(cars, /ApexUrl\?\.onRestore\('cars'/);
   assert.match(cars, /restorePerformanceUI\(root,state\);[\s\S]*?syncCarUrl\(\);/);
 });
+
+test('the hosted app shell does not redirect away from a shared deep link', async () => {
+  const worker = readFileSync('worker/index.ts', 'utf8');
+  const branch = worker.match(/if \(url\.pathname\.startsWith\("\/apex\/"\)[\s\S]*?\n    \}/)?.[0];
+  assert.ok(branch, 'exercise the actual Worker fallback');
+  const run = new (Object.getPrototypeOf(async function(){}).constructor)('request', 'env', 'url', branch);
+  for (const path of ['/apex/', '/apex/cars', '/apex/cars/corners']) {
+    const request = new Request('https://example.test' + path + '?year=2026&races=15,16,17&run=1');
+    const response = await run(request, {ASSETS: {fetch: async internal => {
+      // Cloudflare's pretty-HTML asset handler redirects index.html to /apex/.
+      return new URL(internal.url).pathname === '/apex/'
+        ? new Response('<html>app shell</html>')
+        : Response.redirect('https://example.test/apex/', 307);
+    }}}, new URL(request.url));
+    assert.equal(response.status, 200, path);
+    assert.equal(response.headers.get('location'), null, 'keep the browser path and filters intact');
+  }
+});

@@ -145,6 +145,15 @@ function platformErrorResponse(response) {
 }
 const PLATFORM_RETRY_DELAYS_MS = [5000, 15000];
 
+function dataRequestTimeout(url) {
+  if (window.APEX_LOCAL_MODE) return 180000;
+  const path = new URL(url, window.location?.href || 'http://localhost').pathname;
+  // Calendar metadata can wait on the same upstream rate limiter as telemetry.
+  // It is the bootstrap for both views: cancelling it at 30 s strands the
+  // whole page. Match the Worker's 290 s budget, plus response delivery time.
+  return /^\/api\/(?:events|session|telemetry|performance(?:\/.*)?|race-corners|qualifying-corners)$/.test(path) ? 310000 : 30000;
+}
+
 async function fetchSessionData(url, options = {}) {
   const attempts = window.APEX_LOCAL_MODE ? 2 : 1 + PLATFORM_RETRY_DELAYS_MS.length;
   for (let attempt = 0; attempt < attempts; attempt++) {
@@ -152,7 +161,7 @@ async function fetchSessionData(url, options = {}) {
     const controller = new AbortController();
     const abort = () => controller.abort();
     options.signal?.addEventListener('abort', abort, { once: true });
-    const timeout = setTimeout(abort, window.APEX_LOCAL_MODE?180000:/\/api\/(performance|race-corners|qualifying-corners)/.test(url)?60000:30000);
+    const timeout = setTimeout(abort, dataRequestTimeout(url));
     try {
       const shared=sharedDataURL(url),longQuery=shared.startsWith('/api/data?')&&shared.length>12000;
       const query=longQuery?new URLSearchParams(shared.slice(shared.indexOf('?')+1)):null;
