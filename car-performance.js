@@ -377,6 +377,8 @@ function firstTelemetryAttempt(event,key,automatic){
 let activeScope='season'; // 'season' | 'tracks'
 let selectedTracks=new Set();
 let context=null;
+// Shareable URL state (see the url-state.js section below).
+let calendarReady=null,restoringUrl=false,restoringView=false;
 let refreshPerformance=false,refreshedPaths=new Set();
 let tyreView='OVERALL';
 let tyreMetric='age'; // 'age' | 'relative'
@@ -3518,6 +3520,7 @@ function render() {
     window.ApexUI?.decorate(root);
     restorePerformanceUI(root,state);
     root.querySelectorAll('details[open]').forEach(hydratePerformanceEvidence);
+    syncCarUrl();
   }
 }
 function renderContent() {
@@ -3592,6 +3595,7 @@ const accelerationEvidence=activeMetric==='straight'&&straightLineSource==='qual
 // ---------------------------------------------------------------------------
 document.querySelectorAll('[data-analysis-view]').forEach(button=>button.addEventListener('click',()=>{
   const performance=button.dataset.analysisView==='performance';
+  if(!restoringView)window.ApexUrl?.write(performance?'cars':'session',performance?(initialized?carUrlState():window.ApexUrl.remembered('cars')||{}):window.ApexUrl.remembered('session')||window.sessionUrlState?.()||{});
   document.body.classList.toggle('performance-view',performance);
   $('carPerformance').hidden=!performance;
   document.querySelectorAll('[data-analysis-view]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));
@@ -3602,11 +3606,67 @@ document.querySelectorAll('[data-analysis-view]').forEach(button=>button.addEven
     $('performanceYear').innerHTML=Array.from({length:year-2017},(_,i)=>`<option value="${year-i}">${year-i}</option>`).join('');
     syncSelect($('performanceYear'));
     if ($('performanceScope')) syncSelect($('performanceScope'));
-    loadCalendar();
+    calendarReady=loadCalendar();
   }
 }));
 
-$('performanceYear').addEventListener('change',()=>{reset();loadCalendar();});
+$('performanceYear').addEventListener('change',()=>{reset();calendarReady=loadCalendar();});
+
+// ---------------------------------------------------------------------------
+// Shareable URL (url-state.js): ?view=cars&year&scope&races&metric&subject&session&pill&run
+// ---------------------------------------------------------------------------
+
+const URL_METRICS=['pace','corners','straight','braking','pits','tyres','trend','results'];
+function carUrlState() {
+  // Defaults are left out, so a plain season view stays a short link.
+  const races=activeScope==='tracks'?calendar.filter(e=>selectedTracks.has(e.name)).map(e=>e.round).join(','):'';
+  return {year:$('performanceYear').value||'',scope:activeScope==='tracks'?'tracks':'',races,
+    metric:activeMetric==='pace'?'':activeMetric,subject:telemetrySubject==='driver'?'driver':'',
+    session:cornerSession==='race'?'race':'',pill:straightPill==='straight'?'':straightPill,run:context?'1':''};
+}
+function syncCarUrl() {
+  if(restoringUrl||!initialized||$('carPerformance').hidden)return;
+  window.ApexUrl?.write('cars',carUrlState());
+}
+function showAnalysisView(view) {
+  // Switch views for a link or the back button without writing a new entry.
+  const button=document.querySelector(`[data-analysis-view="${view}"]`);
+  if(!button||button.getAttribute('aria-pressed')==='true')return;
+  restoringView=true;try{button.click();}finally{restoringView=false;}
+}
+async function applyCarUrl(params) {
+  restoringUrl=true;
+  try {
+    showAnalysisView('performance');
+    await calendarReady;
+    const year=$('performanceYear');
+    if(params.year&&year.value!==params.year&&[...year.options].some(o=>o.value===params.year)){
+      year.value=params.year;syncSelect(year);reset();calendarReady=loadCalendar();await calendarReady;
+    }
+    const scope=params.scope==='tracks'?'tracks':'season';
+    if(scope!==activeScope)document.querySelector(`[data-performance-scope="${scope}"]`)?.click();
+    if(scope==='tracks'){
+      const rounds=new Set(String(params.races||'').split(',').map(Number).filter(Number.isFinite));
+      selectedTracks.clear();calendar.filter(e=>rounds.has(Number(e.round))).forEach(e=>selectedTracks.add(e.name));
+      renderTrackPills();
+    }
+    activeMetric=URL_METRICS.includes(params.metric)?params.metric:'pace';
+    telemetrySubject=params.subject==='driver'?'driver':'team';
+    cornerSession=params.session==='race'?'race':'qualy';
+    straightPill=STRAIGHT_PILLS.some(p=>p.key===params.pill)?params.pill:'straight';
+    const runnable=scope==='season'||selectedTracks.size>0;
+    // Same selection already analysed (back/forward between categories): reuse it.
+    const same=context&&String(context.year)===year.value&&String(context.selectedTracks||[])===String(scope==='tracks'?[...selectedTracks]:context.selectedTracks||[]);
+    if(params.run==='1'&&runnable&&!(same&&events.length)){void analyse();}
+    else {render();if(context)loadActiveTelemetry();}
+  } finally {restoringUrl=false;syncCarUrl();}
+}
+window.ApexUrl?.onRestore('cars',params=>void applyCarUrl(params));
+window.ApexShowView=showAnalysisView;
+{
+  const initial=window.ApexUrl?.read();
+  if(initial?.view==='cars')void applyCarUrl(initial.params);
+}
 
 // Scope Toggle (Pill Toggle: [ Season to date ] [ Tracks ])
 document.querySelectorAll('[data-performance-scope]').forEach(btn => {

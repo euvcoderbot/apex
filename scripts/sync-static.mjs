@@ -21,6 +21,7 @@ const staticFiles = [
   "index.html",
   "app.js",
   "analysis-core.js",
+  "url-state.js",
   "alignment.js",
   "telemetry-model.js",
   "car-performance.js",

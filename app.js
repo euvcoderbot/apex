@@ -14,6 +14,10 @@ let corners = [];
 let genericCircuitData = null;
 let genericCircuitRequest = null;
 let sessionEventName = '';
+// Query of the session actually loaded (not the selectors awaiting "Load session").
+let loadedSessionQuery = '';
+let restoringSessionUrl = false;
+let calendarReady = null;
 let sessionYear = null;
 let sessionCircuitKey = null;
 let sessionLocation = '';
@@ -900,6 +904,7 @@ async function loadRealSession() {
     if (request !== sessionRequest || requestedQuery !== String(currentQuery())) return;
     if (!Array.isArray(payload.drivers) || !payload.drivers.length) throw new Error('No driver data is available for this session yet.');
     clearBeforeSessionLoad();
+    loadedSessionQuery = requestedQuery;
     renderCharts();
     
     realDrivers = new Map(payload.drivers.map(driver => [driver.code, driver]));
@@ -3098,6 +3103,54 @@ function updateTelemetryVisibility() {
   if (emptyState) emptyState.hidden = !empty || genericMap;
 }
 
+// Shareable URL for this view (url-state.js): ?year&round&session&laps=VER.11,NOR.16.
+// Round, not name: event names survive venue changes.
+function sessionUrlState() {
+  if (!sessionEventName || !loadedSessionQuery) return {};
+  const query = new URLSearchParams(loadedSessionQuery);
+  return {year: query.get('year'), round: query.get('round'), session: query.get('session'),
+    laps: loaded.map(lap => `${lap.code}.${lap.lap}`).join(',')};
+}
+window.sessionUrlState = sessionUrlState;
+function syncSessionUrl() {
+  if (restoringSessionUrl || !sessionEventName || document.body.classList.contains('performance-view')) return;
+  window.ApexUrl?.write('session', sessionUrlState());
+}
+async function applySessionUrl(params) {
+  window.ApexShowView?.('session');
+  if (!params?.year || !params?.round) return;
+  restoringSessionUrl = true;
+  try {
+    const year = $('#year');
+    if (selectValue(year) !== params.year && [...year.options].some(option => option.value === params.year)) {
+      year.value = params.year; syncSelectUI(year); calendarReady = loadCalendar(); await calendarReady;
+    } else await calendarReady?.catch(() => {});
+    if (!calendar.some(event => String(event.round) === String(params.round))) return;
+    customSelectValues.delete($('#gp'));
+    $('#gp').value = String(params.round); syncSelectUI($('#gp'));
+    populateSessions(params.session || null);
+    const loadedQuery = new URLSearchParams(loadedSessionQuery);
+    const same = sessionEventName && ['year', 'round', 'session'].every(key => loadedQuery.get(key) === String(currentQuery().get(key)));
+    if (!same) await loadRealSession();
+    if (!sessionEventName) return;
+    // Laps that exist in this session only; an unknown lap is ignored, not invented.
+    const wanted = String(params.laps || '').split(',').map(token => token.split('.')).filter(([code, lap]) => code && /^\d+$/.test(lap || ''));
+    loaded = [];
+    for (const [code, lapText] of wanted) {
+      const lap = realDrivers.get(code)?.laps?.find(item => item.lap === Number(lapText));
+      if (!lap || (!Number.isFinite(lap.time) && !lap.in_lap && !lap.out_lap)) continue;
+      if (!selected.includes(code)) selected.push(code);
+      loaded.push({code, lap: lap.lap, time: lap.out_lap ? null : lap.time, real: lap});
+    }
+    if (loaded.length) mapView = 'comparison';
+    renderDrivers(); renderStints(); renderAll();
+  } finally {
+    restoringSessionUrl = false;
+    syncSessionUrl();
+  }
+}
+window.ApexUrl?.onRestore('session', params => void applySessionUrl(params));
+
 function renderAll() {
   const sessionContext = $('#loadedSessionContext');
   if (sessionContext) {
@@ -3109,6 +3162,7 @@ function renderAll() {
   renderSectors();
   renderTraceVisibilityControls();
   drawAll();
+  syncSessionUrl();
 }
 
 function rankCornerMetrics(metrics, category) {
@@ -4190,10 +4244,12 @@ document.addEventListener('DOMContentLoaded', () => {
     renderMiniSectorMap();
   }));
   
-  loadCalendar()
-    .catch(error => {
-      console.warn(error);
-    });
+  calendarReady = loadCalendar();
+  calendarReady.catch(error => {
+    console.warn(error);
+  });
+  const initial = window.ApexUrl?.read();
+  if (initial?.view === 'session' && initial.params.round) void applySessionUrl(initial.params);
 });
 
 // Pirelli Tyre Compounds Helpers
