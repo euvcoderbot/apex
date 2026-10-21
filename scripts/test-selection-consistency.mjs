@@ -36,25 +36,36 @@ test('corner selection updates the same buttons without moving focus or rebuildi
   assert.match(css,/\.telemetry-analysis-grid > #cornerAnalysis \{ position: static; top: auto;/);
 });
 
-test('driver, race, run, lap and corner selected states share a fill and outline, not selection marks',()=>{
+test('each control family has one selected style and rings mean focus only (selection spec)',()=>{
   assert.doesNotMatch(app,/driver-selection-mark|hideDrivers|#sidebarToggle/);
   assert.doesNotMatch(read('index.html'),/id="sidebarToggle"|Hide drivers/);
   const sheet=postcss.parse(css);
-  const selectors=['#driverPills .driver-pill[aria-pressed="true"]',
-    '.app-sidebar .track-pill[aria-pressed="true"]',
-    '.lap-workspace .run-segment[data-ui-kind="run"][aria-pressed="true"]',
-    '.lap-workspace .lap-chip[aria-pressed="true"]',
-    '.circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"]'];
-  for(const selector of selectors){
-    const rules=sheet.nodes.filter(node=>node.type==='rule'&&node.selectors.includes(selector));
+  const family={
+    list:{background:'var(--ui-list-selected)',selectors:['#driverPills .driver-pill[aria-pressed="true"]','.app-sidebar .track-pill[aria-pressed="true"]','.select-menu button[aria-selected="true"]','button[data-ui-kind="menu-item"][aria-selected="true"]']},
+    segment:{background:'var(--ui-seg-thumb)',selectors:['.lap-workspace .run-segment[data-ui-kind="run"][aria-pressed="true"]','.category-bar .category-tab[aria-current="page"]']},
+    tile:{background:'var(--ui-tile-on)',selectors:['.lap-workspace .lap-chip[aria-pressed="true"]','.circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"]','button[data-ui-kind="choice"][aria-pressed="true"]','#compareAllFastest[aria-pressed="true"]']},
+  };
+  for(const [name,{background,selectors}] of Object.entries(family))for(const selector of selectors){
+    const rules=sheet.nodes.filter(node=>node.type==='rule'&&node.selectors.includes(selector)&&node.nodes.some(d=>d.prop==='background'));
     assert.ok(rules.length,selector);
-    for(const rule of rules){
-      assert.ok(rule.nodes.some(d=>d.prop==='background'&&d.value==='var(--ui-choice-selected)'),selector);
-      assert.ok(rule.nodes.some(d=>d.prop==='box-shadow'&&d.value==='var(--ui-choice-ring)'),selector);
-    }
+    for(const rule of rules)assert.ok(rule.nodes.some(d=>d.prop==='background'&&d.value===background),`${name}: ${selector}`);
   }
+  // No inset ring shows selection; team colour never tints a selected control.
+  assert.doesNotMatch(css,/ui-choice-ring|ui-choice-selected/);
+  sheet.walkRules(rule=>{if(/aria-pressed="true"|aria-selected="true"|aria-current="page"/.test(rule.selector.replace(/:not\([^)]*\)/g,''))&&!rule.parent?.params?.includes('contrast')&&!rule.parent?.params?.includes('forced-colors'))
+    rule.walkDecls(d=>{assert.doesNotMatch(d.value,/var\(--team\)/,rule.selector);if(d.prop==='box-shadow')assert.doesNotMatch(d.value,/^inset 0 0 0/,rule.selector);});});
+  assert.match(css,/\.lap-workspace \.run-segment \.run-choice-indicator \{ display: none; \}/);
+  assert.match(css,/#loadedLaps \.loaded-lap-pill\.reference::before \{ background: color-mix\(in srgb,var\(--ui-accent\) 20%,transparent\); color: var\(--ui-accent\); \}/);
+  assert.match(css,/\.loaded-lap-pill\.reference \{ background: var\(--ui-control\)/);
+  // Driver list as a source list: one 32 px line, natural-case name, trailing code and check.
+  assert.match(css,/#driverPills \.driver-pill\[data-ui-kind="list-row"\] \{ grid-template-columns: 20px 18px minmax\(0,1fr\) auto 12px;[^}]*height: 32px/);
   assert.match(css,/#driverPills \.driver-pill\[data-ui-kind="list-row"\]::before \{ content: none; \}/);
-  assert.match(css,/#driverPills\.has-race-results[^}]*grid-template-columns: 18px 22px minmax\(0,1fr\) auto/);
+  assert.match(app,/<span class="driver-pill-identity">\$\{escapeUI\(name\)\}<\/span>\$\{isRace \? raceResultMarkup\(realDrivers\.get\(code\)\) : `<span class="driver-pill-code">/);
+  const box={};vm.createContext(box);vm.runInContext(app.slice(app.indexOf('function naturalDriverName('),app.indexOf('function renderDrivers(')),box);
+  assert.equal(box.naturalDriverName('Max VERSTAPPEN'),'Max Verstappen');
+  assert.equal(box.naturalDriverName('Andrea Kimi ANTONELLI'),'Andrea Kimi Antonelli');
+  assert.equal(box.naturalDriverName('Nico HÜLKENBERG'),'Nico Hülkenberg');
+  assert.equal(box.naturalDriverName('VER'),'VER','a code fallback is not recased');
 });
 
 test('paired chart and table use matching insets and the tallest evidence row',()=>{
