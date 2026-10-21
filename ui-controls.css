@@ -1,29 +1,30 @@
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("assets/fonts/inter-latin-wght-normal.woff2") format("woff2"); }
 /* Authoritative macOS web component contract. Loaded in the final normal layer.
    Native OS fonts, system pickers and optical Liquid Glass remain platform-owned. */
 :root {
-  --ui-font: -apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro","Segoe UI Variable Text","Segoe UI",system-ui,"Helvetica Neue",Arial,sans-serif;
-  --ui-font-display: -apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro","Segoe UI Variable Display","Segoe UI",system-ui,"Helvetica Neue",Arial,sans-serif;
+  --ui-font: -apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro","Inter","Segoe UI Variable Text","Segoe UI",system-ui,"Helvetica Neue",Arial,sans-serif;
+  --ui-font-display: -apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro","Inter","Segoe UI Variable Display","Segoe UI",system-ui,"Helvetica Neue",Arial,sans-serif;
   --ui-font-mono: ui-monospace,"SF Mono",SFMono-Regular,Menlo,"Cascadia Mono",Consolas,monospace;
   /* Semantic colours modelled on AppKit's dynamic system colours (dark). */
-  --ui-label: #f2f2f4; --ui-secondary: #b9b9bf; --ui-tertiary: #9a9aa2; --ui-quaternary: #6c6c73;
-  --ui-canvas: #1e1e20; --ui-panel: #262628; --ui-well: #202022; --ui-content: #1e1e20;
-  --ui-sidebar: #2b2b2e; --ui-toolbar: #2a2a2d; --ui-header-row: #29292b;
-  --ui-control: #3a3a3d; --ui-control-hover: #444447; --ui-selected: #545458;
-  --ui-seg-track: #ffffff12; --ui-seg-thumb: #636367;
-  --ui-border: #ffffff1a; --ui-border-strong: #ffffff30; --ui-separator: #ffffff14;
-  --ui-row-alt: #ffffff06; --ui-row-hover: #ffffff0d;
-  --ui-accent: #4aa3ff; --ui-action: #0a6cdb; --ui-focus: #3d93ffa6;
-  --ui-selection: #0a5bc2; --ui-selection-muted: #ffffff17;
-  --ui-positive: #5fd38b; --ui-negative: #ff8a82; --ui-warning: #f2c94c;
-  --ui-radius: 6px; --ui-panel-radius: 10px; --ui-menu-radius: 8px;
+  --ui-label: #f5f6fa; --ui-secondary: #c2c6d0; --ui-tertiary: #a5adbb; --ui-quaternary: #717b8b;
+  --ui-canvas: #17191d; --ui-panel: #202329; --ui-well: #1b1e24; --ui-content: #202329;
+  --ui-sidebar: #242830; --ui-toolbar: #262a32; --ui-header-row: #292e37;
+  --ui-control: #343a44; --ui-control-hover: #414956; --ui-selected: #505969;
+  --ui-seg-track: #ffffff10; --ui-seg-thumb: #505969;
+  --ui-border: #ffffff1a; --ui-border-strong: #ffffff30; --ui-separator: #ffffff12;
+  --ui-row-alt: #ffffff05; --ui-row-hover: #ffffff0c;
+  --ui-accent: #79b5ff; --ui-action: #0068d9; --ui-focus: #79b5ffa6;
+  --ui-selection: #0068d9; --ui-selection-muted: #ffffff14;
+  --ui-positive: #72daa0; --ui-negative: #ff9b95; --ui-warning: #f7ce68;
+  --ui-radius: 8px; --ui-panel-radius: 16px; --ui-menu-radius: 14px;
   --ui-shadow-control: 0 .5px 1px #0006,inset 0 .5px #ffffff1c;
   --ui-shadow-popover: 0 10px 34px #0000007a,0 0 0 .5px #00000080,inset 0 .5px #ffffff26;
   --ui-shadow-window: 0 1px 0 #ffffff0d inset;
   --ui-motion: 140ms; --ui-motion-slow: 240ms; --ui-ease: cubic-bezier(.25,.1,.25,1); --ui-spring: cubic-bezier(.2,.9,.25,1.05);
-  --ui-control-height: 28px; --ui-segment-height: auto; --ui-control-font: 14px;
-  --ui-text: 14px; --ui-caption: 13px; --ui-heading: 15px; --ui-metric: 19px; --ui-page-title: 22px;
+  --ui-control-height: 30px; --ui-segment-height: auto; --ui-control-font: 14px;
+  --ui-text: 14px; --ui-caption: 12px; --ui-heading: 16px; --ui-metric: 24px; --ui-page-title: 28px;
   --ui-space-1: 4px; --ui-space-2: 8px; --ui-space-3: 12px; --ui-space-4: 16px;
-  --ui-row-height: 28px; --ui-toolbar-height: 52px; --ui-sidebar-width: 282px;
+  --ui-row-height: 30px; --ui-toolbar-height: 60px; --ui-sidebar-width: 282px;
   --font-sans: var(--ui-font); --font-mono: var(--ui-font);
   --bg-main: var(--ui-canvas); --bg-card: var(--ui-panel); --bg-input: var(--ui-control);
   --surface-muted: var(--ui-well); --surface-selected: var(--ui-selected); --bg-card-hover: var(--ui-control-hover);
@@ -34,22 +35,25 @@
   --radius-card: var(--ui-panel-radius); --radius-control: var(--ui-radius); --radius-inner: var(--ui-radius);
   --shadow-main: none; --shadow-raised: var(--ui-shadow-control); --shadow-menu: var(--ui-shadow-popover);
   color-scheme: dark;
+  --ui-space-5: 20px;
+  --ui-space-6: 24px;
 }
 :root[data-theme="light"] {
-  --ui-label: #1d1d1f; --ui-secondary: #4f4f55; --ui-tertiary: #66666d; --ui-quaternary: #a1a1a8;
-  --ui-canvas: #f3f3f5; --ui-panel: #ffffff; --ui-well: #f7f7f9; --ui-content: #ffffff;
-  --ui-sidebar: #e9e9ed; --ui-toolbar: #f6f6f8; --ui-header-row: #fafafb;
-  --ui-control: #ffffff; --ui-control-hover: #f6f6f8; --ui-selected: #e3e3e8;
-  --ui-seg-track: #00000010; --ui-seg-thumb: #ffffff;
-  --ui-border: #0000001a; --ui-border-strong: #0000002e; --ui-separator: #00000012;
-  --ui-row-alt: #00000005; --ui-row-hover: #0000000a;
-  --ui-accent: #0062cc; --ui-focus: #2a7fff8c;
-  --ui-selection: #0a6cdb; --ui-selection-muted: #0000000f;
-  --ui-positive: #16743c; --ui-negative: #c0362f; --ui-warning: #7a5900;
+  --ui-label: #1c2027; --ui-secondary: #4e5868; --ui-tertiary: #596577; --ui-quaternary: #8f99a8;
+  --ui-canvas: #f4f6f9; --ui-panel: #ffffff; --ui-well: #f5f7fa; --ui-content: #ffffff;
+  --ui-sidebar: #e9edf3; --ui-toolbar: #f5f7fa; --ui-header-row: #f5f7fa;
+  --ui-control: #ffffff; --ui-control-hover: #eef2f7; --ui-selected: #e3e9f1;
+  --ui-seg-track: #0000000b; --ui-seg-thumb: #ffffff;
+  --ui-border: #1725391a; --ui-border-strong: #17253930; --ui-separator: #17253912;
+  --ui-row-alt: #17253904; --ui-row-hover: #17253908;
+  --ui-accent: #005cc5; --ui-focus: #297bdb8c;
+  --ui-selection: #0068d9; --ui-selection-muted: #1725390f;
+  --ui-positive: #166c3b; --ui-negative: #bd352d; --ui-warning: #775400;
   --ui-shadow-control: 0 .5px 1.5px #00000033,0 0 0 .5px #0000001f;
   --ui-shadow-popover: 0 10px 34px #00000029,0 0 0 .5px #0000002e;
   --ui-shadow-window: 0 1px 0 #ffffff inset;
   color-scheme: light;
+  --ui-action: #0068d9;
 }
 /* Type and hierarchy */
 html { font-size: 18px; }

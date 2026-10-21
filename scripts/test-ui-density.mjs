@@ -15,7 +15,7 @@ test('regular controls share tokenised type, height and spacing without fixed-he
   const props=Object.fromEntries(button.nodes.filter(n=>n.type==='decl').map(d=>[d.prop,d.value]));
   assert.equal(props.height,'var(--ui-control-height)');assert.equal(props['font-size'],'var(--ui-control-font)');
   assert.equal(props['white-space'],'nowrap');
-  assert.match(css,/--ui-control-height: 28px/);assert.match(css,/--ui-control-font: 14px/);assert.match(css,/@media\(pointer:coarse\)[\s\S]*--ui-control-height: 44px/);
+  assert.match(css,/--ui-control-height: 30px/);assert.match(css,/--ui-control-font: 14px/);assert.match(css,/@media\(pointer:coarse\)[\s\S]*--ui-control-height: 44px/);
 });
 
 test('main comparisons have no vertical height cap and no redundant ranking footer',()=>{

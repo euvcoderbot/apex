@@ -1,5 +1,5 @@
 import { cp, mkdir, rm, readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
 import {createHash} from 'node:crypto';
 import {buildUiStyles} from '../lib/ui-style-build.mjs';
 
@@ -43,6 +43,8 @@ const staticFiles = [
   "polish.css",
   "apple-ui.css",
   "trace-focus.css",
+  "design/tokens.json",
+  "design/components.json",
 ];
 // Visual-only releases must refresh browser assets without invalidating raw
 // timing/telemetry caches. Include every stylesheet and presentation module.
@@ -55,6 +57,7 @@ await rm(destination, { recursive: true, force: true });
 await mkdir(destination, { recursive: true });
 
 for (const file of staticFiles) {
+  await mkdir(dirname(resolve(destination, file)), { recursive: true });
   await cp(resolve(root, file), resolve(destination, file));
 }
 // Version the actual browser assets independently of raw-data cache identity.

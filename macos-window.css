@@ -1,4 +1,6 @@
-/* macOS window layer (v140). Final presentation owner: unified toolbar,
+/* Figma macOS design system — 2026-10-21.
+   Design: https://www.figma.com/design/32fieprdLFtiUcUSq0yU6z
+   macOS window layer (v140). Final presentation owner: unified toolbar,
    sidebar, category tab bar, grouped content boxes and AppKit-like controls.
    Pure presentation. No selector here changes measurements, eligibility or
    ranking; charts keep their own data colours. Browser limits: no behind-window
@@ -596,4 +598,90 @@ body.performance-view > #carPerformance:not([hidden]),body:not(.performance-view
 @media(forced-colors:active) {
   .category-bar .category-tab[aria-current="page"] { forced-color-adjust: none; background: Highlight; color: HighlightText; }
   .site-header.window-toolbar,.app-sidebar { border-color: CanvasText; }
+}
+
+
+/* Figma component geometry: shared by static and dynamically rendered UI. */
+button[data-ui-kind="primary"] { font-weight: 600; }
+.site-header.window-toolbar { gap: 16px; padding-inline: 16px; background: color-mix(in srgb,var(--ui-toolbar) 88%,transparent); }
+.site-header .performance-tabs { padding: 4px; border-radius: 12px; }
+.site-header .performance-tabs > button,.site-header .performance-tabs > button[data-ui-kind="segment"] { height: 30px; min-height: 30px; border-radius: var(--ui-radius); font-weight: 600; }
+.site-header .workspace-tools { gap: 4px; }
+.workspace-tools button[data-ui-kind="toolbar"],#windowSidebarToggle { height: 32px; min-height: 32px; border-radius: var(--ui-radius); }
+.app-sidebar { padding: 18px 14px 28px; gap: 20px; }
+.app-sidebar :is(.panel-heading h2,.track-selection-title > span:first-child) { font-size: 14px; font-weight: 600; }
+.app-sidebar .session-controls,.app-sidebar .performance-controls { gap: 12px; }
+.app-sidebar .control-field { gap: 5px; }
+.app-sidebar .session-controls > #loadSession,.app-sidebar .performance-actions { margin-top: 6px; }
+main#top > .analysis-column { padding: 24px; gap: 20px; }
+:is(.dashboard-card,.telemetry-card,.performance-card):not(.app-sidebar *) { padding: 18px 20px; border-radius: var(--ui-panel-radius); box-shadow: none; }
+.panel-heading h2,.section-heading h2,.analysis-heading h2 { font-size: var(--ui-heading); line-height: 1.4; }
+.metric-heading-copy h2 { font-size: var(--ui-page-title); letter-spacing: -.025em; }
+.metric-heading { gap: 16px; padding-block: 8px; }
+.telemetry-empty { min-height: 300px; gap: 10px; border-radius: calc(var(--ui-panel-radius) - 4px); }
+.telemetry-empty strong { font-size: 18px; line-height: 1.4; }
+.comparison-tray { padding: 10px 12px; border-radius: 12px; gap: 12px; }
+.loaded-lap-pill,.loaded-lap-pill.reference { border-radius: var(--ui-radius); }
+.driver-run-card { padding: 14px; border-radius: 12px; }
+#driverPills .driver-pill[data-ui-kind="list-row"] { min-height: 42px; padding-block: 6px; border-radius: var(--ui-radius); }
+#driverPills .driver-pill[aria-pressed="true"] { background: var(--ui-selection-muted); box-shadow: inset 3px 0 var(--ui-accent); }
+#driverPills .driver-pill-identity strong { font-weight: 600; }
+.lap-workspace .lap-chip[data-ui-kind="choice"],.lap-workspace .run-segment[data-ui-kind="run"] { border-radius: var(--ui-radius); }
+.lap-workspace .lap-chip[data-ui-kind="choice"] { min-height: 38px; padding: 6px 10px; }
+.sector-cards .lap-summary-card .sector-cell-value { flex-wrap: wrap; gap: 4px; min-width: 0; }
+.sector-cards .lap-summary-card .sector-cell-value :is(strong,em) { white-space: nowrap; }
+.sector-cards .lap-summary-card .summary-sectors > * { min-width: 0; }
+.category-bar .category-tab,.category-bar .category-tab[data-ui-kind="tab"] { min-height: 34px; height: auto; padding-block: 6px; border-radius: var(--ui-radius); }
+#carPerformance > .category-bar:not([hidden]) { padding: 4px; border-radius: 12px; margin-top: 20px; }
+.performance-card-body > .performance-split-view,.performance-visual-cell,.performance-chart-card { border-radius: 12px; }
+.performance-chart-card { padding: 16px; background: var(--ui-well); box-shadow: none; }
+.performance-table { font-size: var(--ui-text); }
+.performance-table :is(th,td) { height: var(--ui-row-height); padding-block: 7px; }
+.performance-table th { font-size: var(--ui-caption); color: var(--ui-secondary); font-weight: 600; }
+.performance-table tbody tr:hover td { background: var(--ui-row-hover); }
+.performance-table td small { color: var(--ui-tertiary); font-size: var(--ui-caption); white-space: normal; overflow-wrap: anywhere; max-width: 100%; line-height: 1.4; }
+.performance-bar-track { height: 6px; border-radius: 3px; }
+.performance-bar-fill { border-radius: 3px; }
+.select-menu { border-radius: var(--ui-menu-radius); padding: 6px; background: color-mix(in srgb,var(--ui-control) 94%,transparent); }
+.select-menu button,.select-menu button[data-ui-kind="menu-item"] { min-height: var(--ui-control-height); border-radius: 7px; }
+button[data-ui-kind="menu-item"][aria-selected="true"] { background: var(--ui-selection-muted); color: var(--ui-label); }
+button[data-ui-kind="menu-item"][aria-selected="true"]:is(:hover,:focus-visible) { background: var(--ui-action); color: #fff; }
+[data-ui-group="segments"]:not(.performance-tabs) { padding: 3px; border-radius: 10px; }
+[data-ui-group="segments"]:not(.performance-tabs) > button[data-ui-kind="segment"] { min-height: 28px; height: auto; border-radius: 7px; padding: 4px 10px; }
+button[data-ui-kind="tab"],button[data-ui-kind="choice"],button[data-ui-kind="toolbar"],button[data-ui-kind="icon"],button[data-ui-kind="stepper"],input[data-ui-kind="field"],textarea[data-ui-kind="field"] { border-radius: var(--ui-radius); }
+details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8px; border-radius: var(--ui-radius); line-height: 1.4; }
+:is(.performance-evidence,.performance-source-note,.perf-regulatory-badge,.performance-error-group) { border-radius: 12px; padding: 4px 6px; }
+.performance-error { padding: 10px 12px; border-radius: 12px; }
+.performance-methods,details.dashboard-card.performance-methods { border-radius: var(--ui-panel-radius); padding: 8px 12px; }
+.tooltip,.app-toast { border-radius: 12px; padding: 10px 14px; }
+.local-compute-dialog { border-radius: 20px; padding: 24px; }
+.local-compute-dialog h2 { font-size: 20px; line-height: 1.3; }
+.local-compute-dialog p { color: var(--ui-secondary); line-height: 1.5; }
+.local-compute-dialog::backdrop { background: #0006; backdrop-filter: blur(3px); }
+.ui-catalog-grid > section { border-radius: var(--ui-panel-radius); }
+.ui-catalog h1 { font-size: var(--ui-page-title); }
+.design-system-link { margin-left: 12px; color: var(--ui-tertiary); text-decoration: none; }
+.design-system-link:hover { color: var(--ui-accent); text-decoration: underline; }
+@media(max-width:979px) { main#top > .analysis-column { padding: 16px; gap: 16px; } .app-sidebar { padding: 16px; } }
+@media(max-width:700px) {
+ .site-header.window-toolbar { gap: 6px; padding-inline: 8px; }
+ :is(.dashboard-card,.telemetry-card,.performance-card):not(.app-sidebar *) { padding: 14px; }
+ .metric-heading-copy h2 { font-size: 24px; }
+ .performance-chart-card { padding: 12px; }
+ .comparison-tray { gap: 8px; }
+}
+@media(pointer:coarse) {
+ :is(button[data-ui-kind],summary[data-ui-kind="disclosure"],.select-menu button[data-ui-kind="menu-item"]) { min-height: 44px; }
+ [data-ui-group="segments"]:not(.performance-tabs) > button[data-ui-kind="segment"] { min-height: 44px; }
+ .category-bar .category-tab,.category-bar .category-tab[data-ui-kind="tab"] { min-height: 44px; }
+}
+@media(prefers-reduced-transparency:reduce),(prefers-contrast:more) {
+ .site-header.window-toolbar,.select-menu,.tooltip,.app-toast { background: var(--ui-panel); -webkit-backdrop-filter: none; backdrop-filter: none; }
+ .local-compute-dialog::backdrop { backdrop-filter: none; }
+}
+@media(prefers-contrast:more) { :where(button[aria-pressed="true"],button[aria-selected="true"],[aria-current="page"]) { outline: 2px solid var(--ui-accent); outline-offset: -2px; } }
+@media(forced-colors:active) {
+ .site-header.window-toolbar,.select-menu,.tooltip,.app-toast,.performance-chart-card { background: Canvas; color: CanvasText; }
+ button[data-ui-kind] { border: 1px solid ButtonText; background: ButtonFace; color: ButtonText; box-shadow: none; }
+ button[aria-pressed="true"],button[aria-selected="true"],.category-tab[aria-current="page"] { background: Highlight; color: HighlightText; }
 }
