@@ -3402,7 +3402,11 @@ const accelerationEvidence=activeMetric==='straight'&&straightLineSource==='qual
 // ---------------------------------------------------------------------------
 // Event Listeners & Interactive Wiring
 // ---------------------------------------------------------------------------
-document.querySelectorAll('[data-analysis-view]').forEach(button=>button.addEventListener('click',()=>{
+document.querySelectorAll('[data-analysis-view]').forEach(button=>button.addEventListener('click',event=>{
+  // A pointer click cross-fades the two views (motion.js); links, history
+  // and keyboard activation switch at once.
+  const animate=event.detail>0&&!restoringView&&button.getAttribute('aria-pressed')!=='true';
+  const run=()=>{
   const performance=button.dataset.analysisView==='performance';
   if(!restoringView)window.ApexUrl?.write(performance?'cars':'session',performance?(initialized?carUrlState():window.ApexUrl.remembered('cars')||{}):window.ApexUrl.remembered('session')||window.sessionUrlState?.()||{});
   document.body.classList.toggle('performance-view',performance);
@@ -3417,6 +3421,8 @@ document.querySelectorAll('[data-analysis-view]').forEach(button=>button.addEven
     if ($('performanceScope')) syncSelect($('performanceScope'));
     calendarReady=loadCalendar();
   }
+};
+  if(animate&&window.ApexMotion)window.ApexMotion.transition(run);else run();
 }));
 
 $('performanceYear').addEventListener('change',()=>{reset();calendarReady=loadCalendar();});
@@ -3618,7 +3624,13 @@ root.addEventListener('click',event=>{
   const trendViewButton=event.target.closest('[data-trend-view]');
   if(trendViewButton){trendView=trendViewButton.dataset.trendView;sortKey=trendView==='fitted'?'trendModelled':'trendChange';sortDirection=1;render();return;}
   const metric=event.target.closest('[data-performance-metric]');
-  if(metric) {activeMetric=metric.dataset.performanceMetric;if(events.length&&!running)updateStatus(`Ready · ${events.length} selected event${events.length===1?'':'s'}. Cached results are reused.`);render();if(activeMetric==='pits')loadPitData();loadActiveTelemetry();return;}
+  if(metric) {
+    const next=metric.dataset.performanceMetric,changed=next!==activeMetric;
+    const update=()=>{activeMetric=next;if(events.length&&!running)updateStatus(`Ready · ${events.length} selected event${events.length===1?'':'s'}. Cached results are reused.`);render();if(changed)window.ApexMotion?.enter($('carPerformance'));};
+    // Pointer navigation animates (motion.js); keyboard activation needs the new tab in the DOM at once.
+    if(changed&&event.detail>0&&window.ApexMotion)window.ApexMotion.transition(update);else update();
+    if(next==='pits')loadPitData();loadActiveTelemetry();return;
+  }
   if(event.target.closest('[data-pit-retry]')){loadPitData(true);return;}
   const pitMeasureButton=event.target.closest('[data-pit-measure]');
   if(pitMeasureButton&&!pitMeasureButton.disabled){pitMeasure=pitMeasureButton.dataset.pitMeasure;render();return;}

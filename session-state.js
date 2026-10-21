@@ -230,8 +230,32 @@ async function cacheData(url, data, ttl) {
     transaction.onerror = () => {};
   } catch { /* Storage is optional, including private browsing and full disks. */ }
 }
+// Settled car-performance data pre-rendered at build time (scripts/prerender.mjs).
+// Used only when it was computed with this page's methodology revision.
+let prerenderedIndex = null;
+const PRERENDERED_PATHS = new Set(['/api/performance', '/api/performance/trace-batch', '/api/performance/pits', '/api/performance/sprint']);
+function prerenderedKey(parsed) {
+  // Same identity as lib/data-cache.mjs normalizeDataPath for these paths.
+  const query = new URLSearchParams(parsed.search);
+  for (const key of ['fresh', 'refresh', '_t', 't']) query.delete(key);
+  query.sort();
+  return parsed.pathname + '?' + query;
+}
+async function prerenderedData(parsed) {
+  if (!PRERENDERED_PATHS.has(parsed.pathname) || typeof DecompressionStream === 'undefined') return null;
+  prerenderedIndex ||= fetch('assets/data/prerendered/index.json').then(r => r.ok ? r.json() : null).catch(() => null);
+  const index = await prerenderedIndex;
+  if (!index || index.revision !== window.APEX_BACKEND_VERSION) return null;
+  const file = index.entries?.[prerenderedKey(parsed)];
+  if (!file) return null;
+  const response = await fetch(`assets/data/prerendered/${file}`);
+  if (!response.ok || !response.body) return null;
+  return new Response(response.body.pipeThrough(new DecompressionStream('gzip'))).json();
+}
 async function preparedData(url) {
   const parsed = new URL(url, window.location?.href || 'http://localhost');
+  const prerendered = await prerenderedData(parsed).catch(() => null);
+  if (prerendered) return prerendered;
   const year = Number(parsed.searchParams.get('year'));
   if (parsed.pathname === '/api/events' && year >= 2014 && year <= 2026) {
     // The current calendar carries live OpenF1 completion/cancellation state.

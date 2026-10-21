@@ -908,3 +908,19 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
 .category-bar [data-sidebar-metric="trend"] { --category-tint: #54bb76; }
 .category-bar [data-sidebar-metric="results"] { --category-tint: #8b93ed; }
 .category-bar .category-tab[aria-current="page"] { color: var(--ui-label); font-weight: 600; background: var(--ui-choice-selected); box-shadow: var(--ui-choice-ring); }
+
+/* Motion (motion.js): navigation only. The category panel cross-fades with a
+   short rise on the macOS ease-out curve; bars grow once when a category is
+   opened. Data refreshes re-render without animating. */
+#performanceMetricPanel { view-transition-name: performance-panel; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 220ms; animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+::view-transition-old(performance-panel) { animation: apex-panel-out 140ms cubic-bezier(.4,0,1,1) both; }
+::view-transition-new(performance-panel) { animation: apex-panel-in 280ms cubic-bezier(.2,.8,.2,1) both; }
+@keyframes apex-panel-out { to { opacity: 0; transform: translateY(-4px); } }
+@keyframes apex-panel-in { from { opacity: 0; transform: translateY(10px); } }
+.performance-page[data-motion="enter"] .performance-bar { transform-origin: left center; animation: apex-bar-grow 460ms cubic-bezier(.2,.8,.2,1) both; }
+@keyframes apex-bar-grow { from { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+  .performance-page[data-motion] .performance-bar { animation: none; }
+}
