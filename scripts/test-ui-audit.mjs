@@ -64,7 +64,7 @@ test('mean and median change multi-GP race pace, not the qualifying statistic',(
   assert.ok(Math.abs(mean[0].qualy-8)<1e-10);assert.ok(Math.abs(median[0].qualy-8)<1e-10);
   const one=teams.map(t=>({...t,q:t.q.slice(0,1),r:t.r.slice(0,1)}));
   assert.equal(box.summarisePaceTeams(one,'mean')[0].race,box.summarisePaceTeams(one,'median')[0].race);
-  assert.match(car,/events\.filter\(e=>e\.R\?\.teams\?\.length\)\.length>2/);
+  assert.match(car,/loadedR=events\.filter\(e=>e\.R\?\.teams\?\.length\)\.length[\s\S]*?stat:\{show:loadedR>2/);
   assert.match(ui,/performance-stat-toggle.*pace-visual-grid/);
 });
 

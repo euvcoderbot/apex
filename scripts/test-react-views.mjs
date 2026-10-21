@@ -13,6 +13,7 @@ async function load() {
   const entry = `export {ResultsView} from './src/views/ResultsView';
 export {PitsView} from './src/views/PitsView';
 export {TrendView} from './src/views/TrendView';
+export {PaceView} from './src/views/PaceView';
 export {Sparkline} from './src/components/Sparkline';
 export {BarChart} from './src/components/BarChart';
 export {DataTable} from './src/components/DataTable';
@@ -99,4 +100,23 @@ test('development view: single-GP explanation, ranking switch and coverage', () 
   assert.match(html, /<small>-0\.400% \/ round<\/small>/);
   assert.match(html, /-0\.500 to -0\.300 pp\/round/);
   assert.match(html, /FIA event documents/);
+});
+
+test('pace view: toggles, two charts, cell notes and evidence tables', () => {
+  const team = {team: 'Ferrari', color: '#ff0000'};
+  const html = render(views.PaceView, {regulatory: true, note: 'n', stat: {show: true, value: 'median'}, qualyMode: 'adjusted', qualyBadge: 'Estimated phase evolution',
+    qualyChart: {rows: [{...team, qualyAdjusted: .2}], options: {valueKey: 'qualyAdjusted', title: 'Q'}},
+    raceChart: {rows: [{...team, race: .5}], options: {valueKey: 'race', title: 'R'}},
+    sort: {team: sortModel('team'), pace: sortModel('qualyAdjusted'), race: sortModel('race'), samples: sortModel('samples')},
+    rows: [{team, pace: {value: '0.200%', note: '3 of 3 loaded qualifying events'}, race: {value: '0.500%', provisional: true, note: 'LEC · 3/3 races supported'}, samples: 120}],
+    coverage: [{team, event: 'Bahrain Grand Prix', driver: 'LEC', laps: '2–57', stints: 2, compounds: 'MEDIUM, HARD', range: '0.4–0.6%', common: null, leave: {value: '0.4–0.7%', note: '3 deletion fits'}, noise: '1.100'}],
+    laps: [{team, event: 'Bahrain Grand Prix', phase: 'Q3', driver: 'LEC', time: 89.123}],
+    drivers: [{team, event: 'Bahrain Grand Prix', driver: 'LEC · selected', estimate: '0.500%', samples: 50, basis: 'Clear-air', residual: '0.120% residual'}]});
+  assert.match(html, /2026 telemetry limits/);
+  assert.match(html, /data-pace-stat="median" aria-pressed="true"/);
+  assert.match(html, /data-qualy-mode="adjusted" title="Estimate allowing for track evolution" aria-pressed="true"/);
+  assert.equal((html.match(/performance-chart-card/g) || []).length, 2);
+  assert.match(html, /0\.500% <span class="perf-tercile-badge is-mid">Provisional estimate<\/span><small>LEC · 3\/3 races supported<\/small>/);
+  assert.match(html, /0\.4–0\.7%<small>3 deletion fits<\/small>/);
+  assert.match(html, />89\.123</);
 });

@@ -31,7 +31,7 @@ test('presentation changes reparent original observations without recalculating 
   assert.match(ui,/table\.createCaption\(\)/);
   assert.doesNotMatch(ui,/measurement-table-heading|labelText\.textContent/);
   assert.match(car,/arrangePerformance\(root,activeMetric\)/);
-  assert.match(car,/pace-visual-grid/);
+  assert.match(readFileSync('src/views/PaceView.tsx','utf8'),/pace-visual-grid/);
 });
 
 test('layout assets ship, all categories are responsive, and focused telemetry is isolated',()=>{

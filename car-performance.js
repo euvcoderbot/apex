@@ -1167,29 +1167,6 @@ function renderPace(teams) {
 
   const regEnv = events[0]?.Q?.regulatory_energy_envelope || events[0]?.R?.regulatory_energy_envelope || events[0]?.regulatory_energy_envelope;
   const is2026 = (context?.year >= 2026) || (events[0]?.year >= 2026) || (regEnv && regEnv.year >= 2026);
-  const regulatoryBadge = is2026 ? `
-    <details class="perf-regulatory-badge"><summary>2026 telemetry limits</summary>
-      <div class="reg-title">2026 regulations · active aerodynamics and stronger electrical deployment</div>
-      <div class="reg-body">Public traces do not show each car’s active-aero position or ERS state. Straight-line results include those unknown choices.</div>
-      <div class="reg-note">Event-specific limits are shown only after the exact FIA event document and session version are verified. <a href="https://www.fia.com/regulation/fia-formula-1-technical-regulations" target="_blank" rel="noopener">FIA regulations ↗</a></div>
-    </details>
-  ` : '';
-
-  const qualyToggle = `
-    <div class="performance-metric-toolbar">
-      <div class="performance-scope-toggle" role="radiogroup" aria-label="Qualifying pace comparison mode">
-        <button type="button" data-qualy-mode="overall" aria-pressed="${qualyPaceMode === 'overall'}">Fastest lap</button>
-        <button type="button" data-qualy-mode="adjusted" title="Estimate allowing for track evolution" aria-pressed="${qualyPaceMode === 'adjusted'}">Adjusted</button>
-
-      </div>
-      <span class="perf-tercile-badge is-mid explanation-only">${
-        qualyPaceMode === 'overall'
-          ? 'Best delivered lap · Q1–Q3'
-          : qualyPaceMode==='condition'?'Estimated within common observed time support':'Estimated phase evolution'
-      }</span>
-    </div>
-  `;
-
   const paceKey = qualyPaceMode === 'condition' ? 'qualyCondition' : qualyPaceMode === 'adjusted' ? 'qualyAdjusted' : 'qualy';
   const paceTeams=summarisePaceTeams(teams,paceSeasonStat);
   const ordered = sorted(paceTeams, {
@@ -1214,52 +1191,39 @@ function renderPace(teams) {
     note: 'Estimates the shared improvement between qualifying phases from advancing drivers. Tyres, driver execution and changing conditions can also contribute; this is a diagnostic rather than an official lap result.'
   };
 
-  const qualyChart = renderHorizontalBarChart(ordered, {
-    title: chartMeta.title,
-    subtitle: `${chartMeta.subtitle} · Mean across GPs`,
-    valueKey: paceKey,
-    unit: '%',
-    digits: 3
-  });
-
-  const raceChart = renderHorizontalBarChart(paceTeams, {
-    title: 'Estimated Race Pace Deficit (% to Benchmark)',
-    subtitle: `Shared race-lap, compound and tyre-age model · ${paceSeasonStat==='mean'?'Mean':'Median'} GP estimate · Lower is faster`,
-    valueKey: 'race',
-    unit: '%',
-    digits: 3
-  });
-
+  const loadedQ=events.filter(e=>e.Q?.teams?.length).length,loadedR=events.filter(e=>e.R?.teams?.length).length;
   const qualyColLabel = qualyPaceMode === 'overall'
     ? 'Qualifying · Best lap'
     : qualyPaceMode==='condition'?'Timestamp / set diagnostic':'Evolution-adjusted deficit';
-  const raceSupport=`<details class="dashboard-card performance-methods"><summary>Race-pace coverage and traffic sensitivity by GP</summary><p class="performance-note">The traffic range refits the selected driver using 1.5, 2.0 and 2.5-second checkpoint screens. The common-cohort column keeps the same reference driver across those screens instead of changing the zero each time. These are sensitivity tests, not confidence intervals or a season-wide range. Leave-stint-out removes each of the three largest sampled stints and compares with one fixed reference driver; it can reveal strategy-dependent estimates but is not exhaustive. Noise gain measures sensitivity to perturbing observed lap times, not a confidence interval. Race-lap effects absorb shared fuel burn and track evolution; no measured fuel load is supplied.</p>${table(['Team','Grand Prix','Driver','Race laps covered','Stints','Compounds','Traffic-screen range','Common-cohort contrasts · 1.5 / 2.0 / 2.5 s','Leave-stint-out','Contrast noise gain'],teams.flatMap(t=>t.raceDrivers.filter(r=>r.selected).map(r=>{
-    const result=events.find(e=>e.name===r.event)?.R?.teams?.find(row=>row.team===t.team);
-    const range=result?.traffic_sensitivity_bracket;
-    const model=r.model_diagnostics||result?.race_model_diagnostics||{};
-    const common=result?.traffic_common_cohort;
-    return [teamLabel(t),eventLabel(r.event),escape(r.driver),r.race_lap_range?.join('–')||'—',r.stints??'—',escape(r.compounds?.join(', ')||'—'),range?`${fmt(range[0],3,'%')}–${fmt(range[1],3,'%')}`:'—',common&&Object.keys(common.values||{}).length===3?`${[1.5,2,2.5].map(th=>signed(common.values[String(th)],3,'%')).join(' / ')}<small>vs ${escape(common.reference_driver)} · ${common.drivers.length} common drivers</small>`:'—',model.leave_stint_out_range?`${fmt(model.leave_stint_out_range[0],3,'%')}–${fmt(model.leave_stint_out_range[1],3,'%')}<small>${model.leave_stint_out_fits} deletion fits</small>`:'—',fmt(model.contrast_noise_gain,3)];
-  })))}</details>`;
-
-  return regulatoryBadge +
-    card('Qualifying & race pace',
-      chartMeta.note,
-      (events.filter(e=>e.R?.teams?.length).length>2?`<div class="performance-scope-toggle performance-stat-toggle" role="group" aria-label="Race pace across GPs"><button type="button" data-pace-stat="mean" aria-pressed="${paceSeasonStat==='mean'}">Mean gap</button><button type="button" data-pace-stat="median" aria-pressed="${paceSeasonStat==='median'}">Median gap</button></div>`:'')+
-      qualyToggle +
-      `<div class="performance-visual-grid pace-visual-grid">${qualyChart}${raceChart}</div>` +
-      table([
-        sortHeader('team', 'Team'),
-        sortHeader(paceKey, qualyColLabel),
-        sortHeader('race', 'Estimated race pace deficit'),
-        sortHeader('samples', 'Modelled race laps', -1)
-      ], ordered.map(t => [
-        teamLabel(t),
-        `${fmt(t[paceKey], 3, '%')}<small>${t.qCount} of ${events.filter(e=>e.Q?.teams?.length).length} loaded qualifying events${middle50Label(qualyPaceMode==='adjusted'?t.adjDeficits:t.q.map(q=>q.pace),'%')?` · GP P25–P75 ${middle50Label(qualyPaceMode==='adjusted'?t.adjDeficits:t.q.map(q=>q.pace),'%')}`:''}${t.qCount === 1 && t.q[0]?.lap ? ` · ${escape(t.q[0].lap.driver)} ${fmt(t.q[0].lap.time, 3, ' s')}` : ''}</small>`,
-        `${fmt(t.race, 3, '%')}${t.provisional ? ' <span class="perf-tercile-badge is-mid">Provisional estimate</span>' : ''}<small>${t.fastestRaceDrivers?.length ? `${escape([...new Set(t.fastestRaceDrivers)].join(', '))} · ` : ''}${t.rCount}/${events.filter(e=>e.R?.teams?.length).length} races supported${t.raceCoverage.some(r=>r.supported&&r.basis!=='clear-air')?` · ${t.raceCoverage.filter(r=>r.supported&&r.basis!=='clear-air').length} estimated`:''}${t.sensitivityBracket ? ` · Bracket [${fmt(t.sensitivityBracket[0], 3, '%')}, ${fmt(t.sensitivityBracket[1], 3, '%')}]` : ''}</small>`,
-        t.samples
-      ]))) +
-    raceSupport +
-    `<details class="dashboard-card performance-methods"><summary>Why this pace ranking? View selected laps and race drivers</summary><p class="performance-note">Only the fastest valid lap across the whole qualifying session counts for each team. P25–P75 describes variation in the GP deficits, not uncertainty in the season rank.</p>${table(['Team', 'Event', 'Phase', 'Driver', 'Selected lap (s)'], teams.flatMap(t => t.q.filter(q => q.lap).map(q => [teamLabel(t), eventLabel(q.event), escape(q.lap.phase), escape(q.lap.driver), fmt(q.lap.time, 3)]))) }<p class="performance-note">Standard race pace needs ten clear-air laps. Five to nine can support a provisional fit. Otherwise, known-traffic laps may support a provisional fit with a shared linear proximity effect below two seconds, anchored to at least three standard drivers. This assumes a common traffic response; clear-air extrapolation is flagged. Unknown gaps, wet/pit laps and disconnected fits stay excluded. Residual error is not a confidence interval.</p>${table(['Team', 'Event', 'Driver', 'Estimate', 'Modelled laps', 'Basis / residual'], teams.flatMap(t => t.raceDrivers.map(r => [teamLabel(t), eventLabel(r.event), `${escape(r.driver)}${r.selected ? ' · selected' : ''}`, fmt(r.pace, 3, '%'), r.samples, `${escape(r.estimate_basis==='traffic-adjusted'?'Traffic-adjusted · provisional':r.estimate_basis==='sparse-clear-air'?'Short clean-air sample · provisional':'Clear-air')}${r.model_diagnostics?.clear_air_extrapolation?' · extrapolated':''}<small>${fmt(r.residual_spread,3,'%')} residual</small>`]))) }</details>`;
+  // Rendered by src/views/PaceView.tsx; data-pace-stat / data-qualy-mode buttons are handled below.
+  return reactView('pace',{regulatory:!!is2026,note:chartMeta.note,
+    stat:{show:loadedR>2,value:paceSeasonStat},
+    qualyMode:qualyPaceMode,qualyBadge:qualyPaceMode==='overall'?'Best delivered lap · Q1–Q3':qualyPaceMode==='condition'?'Estimated within common observed time support':'Estimated phase evolution',
+    qualyChart:{rows:ordered,options:{title:chartMeta.title,subtitle:`${chartMeta.subtitle} · Mean across GPs`,valueKey:paceKey,unit:'%',digits:3}},
+    raceChart:{rows:paceTeams,options:{title:'Estimated Race Pace Deficit (% to Benchmark)',
+      subtitle:`Shared race-lap, compound and tyre-age model · ${paceSeasonStat==='mean'?'Mean':'Median'} GP estimate · Lower is faster`,valueKey:'race',unit:'%',digits:3}},
+    sort:{team:sortHeaderModel('team','Team'),pace:sortHeaderModel(paceKey,qualyColLabel),race:sortHeaderModel('race','Estimated race pace deficit'),samples:sortHeaderModel('samples','Modelled race laps',-1)},
+    rows:ordered.map(t=>{
+      const spread=middle50Label(qualyPaceMode==='adjusted'?t.adjDeficits:t.q.map(q=>q.pace),'%');
+      const estimated=t.raceCoverage.filter(r=>r.supported&&r.basis!=='clear-air').length;
+      return {team:t,samples:t.samples,
+        pace:{value:fmt(t[paceKey],3,'%'),note:`${t.qCount} of ${loadedQ} loaded qualifying events${spread?` · GP P25–P75 ${spread}`:''}${t.qCount===1&&t.q[0]?.lap?` · ${t.q[0].lap.driver} ${fmt(t.q[0].lap.time,3,' s')}`:''}`},
+        race:{value:fmt(t.race,3,'%'),provisional:!!t.provisional,
+          note:`${t.fastestRaceDrivers?.length?`${[...new Set(t.fastestRaceDrivers)].join(', ')} · `:''}${t.rCount}/${loadedR} races supported${estimated?` · ${estimated} estimated`:''}${t.sensitivityBracket?` · Bracket [${fmt(t.sensitivityBracket[0],3,'%')}, ${fmt(t.sensitivityBracket[1],3,'%')}]`:''}`}};
+    }),
+    coverage:teams.flatMap(t=>t.raceDrivers.filter(r=>r.selected).map(r=>{
+      const result=events.find(e=>e.name===r.event)?.R?.teams?.find(row=>row.team===t.team);
+      const range=result?.traffic_sensitivity_bracket,model=r.model_diagnostics||result?.race_model_diagnostics||{},common=result?.traffic_common_cohort;
+      return {team:t,event:r.event,driver:r.driver,laps:r.race_lap_range?.join('–')||'—',stints:r.stints??'—',compounds:r.compounds?.join(', ')||'—',
+        range:range?`${fmt(range[0],3,'%')}–${fmt(range[1],3,'%')}`:'—',
+        common:common&&Object.keys(common.values||{}).length===3?{value:[1.5,2,2.5].map(th=>signed(common.values[String(th)],3,'%')).join(' / '),note:`vs ${common.reference_driver} · ${common.drivers.length} common drivers`}:null,
+        leave:model.leave_stint_out_range?{value:`${fmt(model.leave_stint_out_range[0],3,'%')}–${fmt(model.leave_stint_out_range[1],3,'%')}`,note:`${model.leave_stint_out_fits} deletion fits`}:null,
+        noise:fmt(model.contrast_noise_gain,3)};
+    })),
+    laps:teams.flatMap(t=>t.q.filter(q=>q.lap).map(q=>({team:t,event:q.event,phase:q.lap.phase,driver:q.lap.driver,time:q.lap.time}))),
+    drivers:teams.flatMap(t=>t.raceDrivers.map(r=>({team:t,event:r.event,driver:`${r.driver}${r.selected?' · selected':''}`,estimate:fmt(r.pace,3,'%'),samples:r.samples,
+      basis:`${r.estimate_basis==='traffic-adjusted'?'Traffic-adjusted · provisional':r.estimate_basis==='sparse-clear-air'?'Short clean-air sample · provisional':'Clear-air'}${r.model_diagnostics?.clear_air_extrapolation?' · extrapolated':''}`,
+      residual:`${fmt(r.residual_spread,3,'%')} residual`})))});
 }
 
 function tyreViewControls() {
