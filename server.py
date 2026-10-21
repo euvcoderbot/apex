@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from bisect import bisect_left, bisect_right
+from collections import deque
 from functools import lru_cache
 from datetime import datetime, timedelta, timezone
 import gzip
@@ -77,11 +78,47 @@ def fastf1_runtime():
 
 
 ARCHIVE_RETRY_S = 86400
+# Per-season breaker: the archive refuses whole seasons at once (October 2026:
+# HTTP 401 from 2023 on, while 2022 and earlier still load), so after a few
+# failures in a row on different sessions of one season, stop trying that
+# season instead of paying ~13 s per failed load. An open breaker is kept on
+# disk for a day so a restart does not pay for the failures again.
+ARCHIVE_BREAKER_FAILURES = 3
+ARCHIVE_BREAKER_COOLDOWN_S = 1800
+_archive_failures: dict[int, list[float]] = {}
+_archive_breaker_lock = Lock()
+
+
+def archive_breaker_open(year) -> bool:
+    with _archive_breaker_lock:
+        failures = _archive_failures.get(int(year), [])
+        if (len(failures) >= ARCHIVE_BREAKER_FAILURES
+                and time.time()-failures[-1] < ARCHIVE_BREAKER_COOLDOWN_S):
+            return True
+    marker = read_prepared_cache("archive-season-unavailable", 0, int(year))
+    return bool(marker and time.time()-float(marker.get("at", 0)) < ARCHIVE_RETRY_S)
+
+
+def record_archive_result(year, ok: bool) -> None:
+    with _archive_breaker_lock:
+        failures = _archive_failures.setdefault(int(year), [])
+        if ok:
+            failures.clear()
+        else:
+            failures.append(time.time())
+            del failures[:-ARCHIVE_BREAKER_FAILURES]
+        opened = len(failures) >= ARCHIVE_BREAKER_FAILURES
+    if ok:
+        prepared_cache_path("archive-season-unavailable", 0, int(year)).unlink(missing_ok=True)
+    elif opened:
+        write_prepared_cache("archive-season-unavailable", 0, {"at": time.time()}, int(year))
 
 
 def archive_usable(year, gp, session) -> bool:
     """False when the F1 timing archive is disabled here or failed recently."""
     if os.environ.get("APEX_F1_ARCHIVE", "off" if os.environ.get("VERCEL") else "on") == "off":
+        return False
+    if archive_breaker_open(year):
         return False
     marker = read_prepared_cache("archive-unavailable", year, gp, session)
     return not (marker and time.time()-float(marker.get("at", 0)) < ARCHIVE_RETRY_S)
@@ -106,9 +143,11 @@ def archive_guard(year, gp, session, loader):
         data = loader()
         if getattr(data, "laps", None) is not None and data.laps.empty:
             raise ValueError("Timing archive returned no laps")
+        record_archive_result(year, True)
         return data
     except Exception:
         mark_archive_unusable(year, gp, session)
+        record_archive_result(year, False)
         raise
 
 
@@ -518,10 +557,30 @@ def write_prepared_cache(namespace: str, year: int, payload: Any, *parts: Any) -
             pass
 
 
-OPENF1_MIN_INTERVAL_S = 0.6
+# Measured free-tier limits (October 2026): about 3 requests per second in a
+# burst, and HTTP 429 after roughly 45 requests inside a minute. Stay under
+# both so long loads run at a steady rate instead of stalling on backoff.
+OPENF1_MIN_INTERVAL_S = 0.35
+OPENF1_PER_MINUTE = 50
 OPENF1_ATTEMPTS = 5
 _openf1_lock = threading.Lock()
 _openf1_next = [0.]
+_openf1_recent: deque[float] = deque()
+
+
+def _openf1_wait() -> None:
+    """Block until one more request fits both limits; call with the lock held."""
+    now = time.monotonic()
+    while _openf1_recent and now-_openf1_recent[0] >= 60:
+        _openf1_recent.popleft()
+    wait = _openf1_next[0]-now
+    if len(_openf1_recent) >= OPENF1_PER_MINUTE:
+        wait = max(wait, 60-(now-_openf1_recent[0]))
+    if wait > 0:
+        time.sleep(wait)
+    now = time.monotonic()
+    _openf1_recent.append(now)
+    _openf1_next[0] = now+OPENF1_MIN_INTERVAL_S
 _openf1_session_ends: dict[Any, str] = {}
 _openf1_meta: dict[str, tuple[float, Any]] = {}
 
@@ -626,10 +685,7 @@ def _openf1_fetch(url: str) -> Any:
     # requests are paced process-wide and transient errors are retried.
     for attempt in range(OPENF1_ATTEMPTS):
         with _openf1_lock:
-            wait = _openf1_next[0]-time.monotonic()
-            if wait > 0:
-                time.sleep(wait)
-            _openf1_next[0] = time.monotonic()+OPENF1_MIN_INTERVAL_S
+            _openf1_wait()
         request = URLRequest(url, headers={"Accept-Encoding": "gzip", "User-Agent": "euV2-data/1.0"})
         try:
             with urlopen(request, timeout=20) as response:
@@ -1298,6 +1354,24 @@ def get_fallback_circuit_corners(
     # name alone can silently attach a different track's corner positions.
     normalized_location = current_location.strip().casefold()
     first_fallback_year = min(year - 1, 2025)
+    # Corner positions are venue metadata, the same for every session: keep
+    # them on disk, keyed by venue and the years searched, so a cold session
+    # never reloads past seasons. A miss is remembered for a day; the archive
+    # may come back.
+    venue_key = (gp, normalized_location, first_fallback_year)
+    remembered = read_prepared_cache("venue-corners", 0, *venue_key)
+    if remembered is not None and (remembered.get("corners")
+                                   or time.time()-float(remembered.get("at", 0)) < ARCHIVE_RETRY_S):
+        return remembered.get("corners") or []
+    corners = _load_fallback_circuit_corners(gp, session_name, current_location, normalized_location, first_fallback_year)
+    searched = range(first_fallback_year, max(2017, first_fallback_year - 3), -1)
+    if not corners and any(archive_breaker_open(y) for y in searched):
+        return []  # Not every season was tried; do not remember a miss.
+    write_prepared_cache("venue-corners", 0, {"corners": corners, "at": time.time()}, *venue_key)
+    return corners
+
+
+def _load_fallback_circuit_corners(gp, session_name, current_location, normalized_location, first_fallback_year):
     for fallback_year in range(first_fallback_year, max(2017, first_fallback_year - 3), -1):
         try:
             fb_event = exact_fastf1_event(
@@ -1305,11 +1379,17 @@ def get_fallback_circuit_corners(
             )
             if fb_event is not None:
                 fallback_location = str(fb_event.get("Location") or "").strip().casefold()
+                # Providers name one venue differently (OpenF1 "Miami Gardens",
+                # FastF1 "Miami"); a different track shares no name at all.
                 if (normalized_location and fallback_location
-                        and normalized_location != fallback_location):
+                        and normalized_location not in fallback_location
+                        and fallback_location not in normalized_location):
                     continue
                 fb_sess = fb_event.get_session(session_name)
-                fb_sess.load(laps=True, telemetry=False, weather=False, messages=False)
+                def load_metadata(fb_sess=fb_sess):
+                    fb_sess.load(laps=True, telemetry=False, weather=False, messages=False)
+                    return fb_sess
+                archive_guard(fallback_year, gp, session_name, load_metadata)
                 c_info = fb_sess.get_circuit_info()
                 if c_info is not None and c_info.corners is not None and not c_info.corners.empty:
                     corners = []

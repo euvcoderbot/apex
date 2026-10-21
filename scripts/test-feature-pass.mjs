@@ -14,6 +14,9 @@ test('shared formatter uses three decimals without turning missing data into zer
 });
 test('session and car calendar requests share one canonical source cache key',()=>{
   assert.equal(normalizeDataPath('/api/events?year=2026&status=result-v3'),normalizeDataPath('/api/events?year=2026'));
+  // The browser de-duplicates in-flight requests by exact URL: both views ask for the same one.
+  assert.match(app,/loadApiData\(apiUrl\(`\/api\/events\?year=\$\{year\}`\)/);
+  assert.match(car,/get\(`\/api\/events\?year=\$\{\$\('performanceYear'\)\.value\}`/);
   assert.equal(normalizeDataPath('/api/session?year=2026&gp=Bahrain&session=R&data_schema=old'),normalizeDataPath('/api/session?year=2026&gp=Bahrain&session=R'));
   assert.notEqual(normalizeDataPath('/api/session?year=2026&gp=Bahrain&session=R'),normalizeDataPath('/api/session?year=2026&gp=Bahrain&session=Q'));
 });
