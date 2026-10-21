@@ -48,7 +48,12 @@ GPS projection.
   (within 15% of the minimum speed), exit (until the field is back at 98% throttle).
 - **Grip-limited corner:** braked, or a minimum taken below 90% throttle. Other minima are lifts
   or energy dips and are not used for cornering.
-- **Flat-out bend:** lateral load ≥ 1.5 g at ≥ 95% throttle with no speed minimum.
+- **Flat-out bend:** lateral load ≥ 1.5 g at ≥ 95% throttle with no speed minimum. A bend the
+  field takes flat is limited by power and energy deployment, not grip, so it is never ranked as
+  cornering (Baku T18–T20 and Singapore T6 used to put straight-line speed into the high-speed
+  band). Turns found only from map curvature are measured only when unbraked and lifted for; a
+  braked turn is measured from its own speed minimum, never from the arc around its marker. Some
+  circuits therefore have no high-speed comparison at all (Baku, Singapore, Spa, Shanghai in 2026).
 - **Straight:** ≥ 98% throttle and lateral load < 1 g for at least 100 m.
 
 The segmentation was checked circuit by circuit against the real layouts before any car was

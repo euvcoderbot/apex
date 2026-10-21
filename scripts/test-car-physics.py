@@ -146,6 +146,22 @@ class MappedFastCornerTests(unittest.TestCase):
             self.assertLess(apex['dwell'], 3.)
         straight = {**track,'curvature':np.zeros(len(grid))}
         self.assertFalse(field_segments([(a,grid)]*3, straight, [('5',300.,0.)])['corners'])
+        # Taken flat: detected for the circuit guide, never ranked as grip.
+        self.assertFalse(any(c['grip_limited'] for c in bends))
+
+    def test_mapped_turn_does_not_replace_a_braked_speed_minimum(self):
+        from car_physics import field_segments
+        grid = np.arange(0., 1005., 5.)
+        curvature = np.zeros(len(grid)); curvature[(grid >= 220)&(grid <= 380)] = .004
+        track = dict(grid=grid,x=grid,y=np.zeros(len(grid)),curvature=curvature,scale=1.)
+        v = 290-70*np.exp(-((grid-300)/60)**2)  # braked dip to 220 km/h at 300 m
+        a = np.zeros((len(grid),8));a[:,0]=grid;a[:,2]=v;a[:,3]=np.where(np.abs(grid-300)<90,40,100)
+        a[:,4]=((grid>200)&(grid<290)).astype(float);a[:,1]=np.concatenate([[0],np.cumsum(np.diff(grid)/(v[1:]/3.6))])
+        corners = field_segments([(a,grid)]*3, track, [('13',300.,0.)])['corners']
+        self.assertEqual(len(corners), 1)
+        self.assertFalse(corners[0].get('mapped_fast_bend'))
+        self.assertEqual(corners[0]['turn'], '13')
+        self.assertTrue(corners[0]['grip_limited'])
 
 if __name__ == '__main__':
     unittest.main()

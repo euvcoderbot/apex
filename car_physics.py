@@ -430,14 +430,26 @@ def field_segments(laps, track, markers=()):
         if speed <= 200 or np.median(lateral_g) < 1.2 or abs(np.sum(curve)*SEGMENT_STEP) < .15:
             continue
         start, end = float(grid[lo]), float(grid[hi])
-        nearby = [c for c in corners if start <= c['apex_m'] <= end]
-        corners = [c for c in corners if c not in nearby]
+        # A speed-minimum corner already measures this turn over its full
+        # braking-to-exit extent; the narrow curvature arc would cut its apex
+        # off (Bahrain T13 read 204-250 km/h across the field). Label it only.
+        nearby = [c for c in corners if start <= c['apex_m'] <= end and not c.get('mapped_fast_bend')]
+        if nearby:
+            for c in nearby:
+                c['turn'] = c['turn'] or label
+            continue
         i = min(range(lo, hi+1), key=lambda k: v[k])
+        braked = bool((brk[lo:hi+1] >= .5).any())
+        # A braked turn has a real speed minimum, found above when the field
+        # slows; an arc around its map marker is only the braking entry (China
+        # T1 read 192-309 km/h mid-braking). Never measure that as an apex.
+        if braked:
+            continue
         corners.append({'apex_m': float(grid[centre]), 'start_m': start, 'end_m': end,
                         'apex_phase_m': [start, end], 'field_apex_kmh': float(v[i]),
                         'apex_throttle': float(np.median(thr[lo:hi+1])),
-                        'braked': bool((brk[lo:hi+1] >= .5).any()),
-                        'grip_limited': bool(np.median(thr[lo:hi+1]) < GRIP_THROTTLE),
+                        'braked': braked,
+                        'grip_limited': braked or bool(np.median(thr[lo:hi+1]) < GRIP_THROTTLE),
                         'mapped_fast_bend': True, 'band': 'high', 'turn': label,
                         'geometry_source': 'mapped-curvature'})
     corners.sort(key=lambda c: c['apex_m'])
@@ -704,7 +716,11 @@ def speed_domain_metrics(cars, corners=()):
     # --- corners and braking, corner by corner ------------------------------
     corner_rows = []
     for corner in segments['corners']:
-        if not corner['grip_limited'] and not corner.get('mapped_fast_bend'):
+        # A bend the field takes flat out is limited by power and energy
+        # deployment, not grip: its "apex" speed is straight-line speed
+        # (Baku T18-T20 sit on the main straight). Only grip-limited corners
+        # rank cornering, so the high band can be empty at a circuit.
+        if not corner['grip_limited']:
             continue
         speeds, dwells, braking, apex_methods = {}, [], {}, {}
         for name, values in projected.items():
