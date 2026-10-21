@@ -54,7 +54,8 @@ test('only speed-trace flags produce source-gap approximations on shared charts'
 
 test('mean and median change multi-GP race pace, not the qualifying statistic',()=>{
   const box={};vm.createContext(box);
-  vm.runInContext(car.slice(car.indexOf('const finite ='),car.indexOf('const middle50Label')),box);
+  // Shared helpers live in performance-format.js (plain consts once exports are dropped).
+  vm.runInContext(readFileSync('performance-format.js','utf8').replace(/^export /gm,''),box);
   vm.runInContext(car.slice(car.indexOf('function rebase('),car.indexOf('function renderHorizontalBarChart(')),box);
   vm.runInContext(car.slice(car.indexOf('function summarisePaceTeams('),car.indexOf('function renderPace(')),box);
   const teams=[{team:'A',q:[1,3,20].map(pace=>({pace})),adjDeficits:[1,3,20],r:[2,4,24]},{team:'B',q:[0,0,0].map(pace=>({pace})),adjDeficits:[0,0,0],r:[0,0,0]}];

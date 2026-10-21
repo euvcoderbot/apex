@@ -958,12 +958,8 @@ test('tyre GP summaries handle skew and explain every sparse P75 blank', () => {
   assert.match(sandbox.renderTyreAge(teams),/C2: 1\/4 GPs/);
 });
 
-test('tyre-age C grades use the race-year Pirelli allocation, including skipped 2025 grades', () => {
-  const source=readFileSync('car-performance.js','utf8');
-  const body=source.slice(source.indexOf('const VERIFIED_DRY_ALLOCATIONS'),source.indexOf('// Team marks'));
-  const sandbox={};
-  vm.createContext(sandbox);
-  vm.runInContext(body,sandbox);
+test('tyre-age C grades use the race-year Pirelli allocation, including skipped 2025 grades', async () => {
+  const sandbox=await import('../performance-identity.js');
   assert.equal(sandbox.verifiedDryGrade(2026,7,'MEDIUM'),'C3'); // Barcelona C2/C3/C4
   assert.equal(sandbox.verifiedDryGrade(2026,15,'HARD'),'C3'); // Baku C3/C4/C5
   assert.equal(sandbox.verifiedDryGrade(2025,17,'SOFT'),'C6'); // Baku C4/C5/C6
