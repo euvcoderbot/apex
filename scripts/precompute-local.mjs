@@ -31,12 +31,12 @@ await get('/api/performance?'+new URLSearchParams({year,gp,session:'R'}));
 const session=await get('/api/session?'+new URLSearchParams({year,gp,round,session:'Q'}));
 // Use the browser's exact representative-selection function and property order.
 const windows=fastestTeamTelemetrySelections(q.teams);
-batch=await get('/api/performance/trace-batch?'+new URLSearchParams({year,gp,windows:JSON.stringify(windows)}));
+batch=await get('/api/performance/trace-batch?'+new URLSearchParams({year,gp,windows:JSON.stringify(windows),measures:'speed'}));
 const driverRows=qualifyingRepresentatives({...session,year,event:gp},'driver',q.teams);
 const driverWindows=driverRows.map(row=>({driver:row.driver.code,number:row.driver.number,lap:row.lap,time:row.time,start:row.lap_start_seconds,end:row.lap_end_seconds,
   sectors:[row.s1,row.s2,row.s3],phase:row.phase,compound:row.compound,team:row.driver.code,team_name:row.driver.code,driver_number:row.driver.number,
   qualifying_best_time:row.time,qualifying_best_driver:row.driver.code,qualifying_best_lap:row.lap}));
-await get('/api/performance/trace-batch?'+new URLSearchParams({year,gp,windows:JSON.stringify(driverWindows)}));
+await get('/api/performance/trace-batch?'+new URLSearchParams({year,gp,windows:JSON.stringify(driverWindows),measures:'speed'}));
 for(const subject of ['team','driver']){
   const query=new URLSearchParams({year,gp,round,subject});
   console.log(JSON.stringify({subject,corners:(await request('/api/qualifying-corners?'+query)).cache}));
@@ -71,4 +71,4 @@ if(args.includes('--export-seed')){
   await writeFile(filename,JSON.stringify({sourceRevision:SOURCE_REVISION,backendRevision:BACKEND_REVISION,raceRevision:RACE_REVISION,entries}));
   console.log(JSON.stringify({exportedEntries:Object.keys(entries).length,note:'Publish a normal Site release to share these compact cached results.'}));
 }
-console.log(JSON.stringify({done:true,events:targets.length,year,seconds:Math.round((Date.now()-start)/1000),method:batch.methodology_version,teams:Object.keys(batch.teams||{}).length}));
+console.log(JSON.stringify({done:true,events:targets.length,year,seconds:Math.round((Date.now()-start)/1000),method:batch.methodology_version,cars:Object.keys(batch.speed_domain?.cars||{}).length}));

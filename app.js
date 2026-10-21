@@ -82,8 +82,11 @@ function replaceUI(root, html) {
     }
     const next = node.getBoundingClientRect();
     if (!next.width || !next.height) continue;
-    const dx = old ? old.rect.left - next.left : 0;
-    const dy = old ? old.rect.top - next.top : 6;
+    // Rects include the page zoom; transforms are applied in layout px.
+    const page = document.documentElement;
+    const pageZoom = page?.offsetWidth ? page.getBoundingClientRect().width / page.offsetWidth || 1 : 1;
+    const dx = old ? (old.rect.left - next.left) / pageZoom : 0;
+    const dy = old ? (old.rect.top - next.top) / pageZoom : 6;
     if (!old || Math.abs(dx) + Math.abs(dy) > 1) {
       node.animate([{ opacity: old ? 1 : 0, transform: `translate(${dx}px, ${dy}px)` },
         { opacity: 1, transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.22,.68,0,1)' });
@@ -2014,7 +2017,9 @@ function lapSpeedExtremes(samples, totalDistance, {prominence=8, reach=900, gapS
       const side = (step, start) => {
         let base = here.speed, j = start;
         while (j >= 0 && j < points.length && Math.abs(metres(points[j].fraction) - at) <= reach) {
-          if (higher(points[j].speed)) break;
+          // Ties: an equal extreme earlier in the lap wins, so two equal
+          // peaks (e.g. a 306 km/h plateau with a 1 km/h dip) get one label.
+          if (higher(points[j].speed) || (step < 0 && points[j].speed === here.speed)) break;
           base = kind === 'max' ? Math.min(base, points[j].speed) : Math.max(base, points[j].speed);
           j += step;
         }
@@ -2805,8 +2810,10 @@ function bindAllChartHover() {
       
       if (document.body.classList.contains('trace-focus')) {
         const tipRect = tooltip.getBoundingClientRect();
-        tooltip.style.left = `${Math.max(8, Math.min(e.clientX + 15, innerWidth - tipRect.width - 12))}px`;
-        tooltip.style.top = `${Math.max(8, Math.min(e.clientY + 15, innerHeight - tipRect.height - 12))}px`;
+        // Fixed positions are in layout px; pointer coordinates include the page zoom.
+        const pageZoom = document.documentElement.getBoundingClientRect().width / document.documentElement.offsetWidth || 1;
+        tooltip.style.left = `${Math.max(8, Math.min(e.clientX + 15, innerWidth - tipRect.width - 12)) / pageZoom}px`;
+        tooltip.style.top = `${Math.max(8, Math.min(e.clientY + 15, innerHeight - tipRect.height - 12)) / pageZoom}px`;
         return;
       }
       const parentRect = telemetryCard.getBoundingClientRect();

@@ -3,16 +3,21 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
-const read=f=>readFileSync(f,'utf8');
+// Normalise Windows checkouts (CRLF) so source-pattern assertions match.
+const read=f=>readFileSync(f,'utf8').replace(/\r\n/g,'\n');
 const page=read('index.html'),css=read('macos-window.css'),ui=read('dashboard-ui.js'),system=read('ui-system.js'),tokens=read('ui-controls.css');
 
-test('window uses a unified toolbar and a source-list sidebar for both views',()=>{
+test('window uses a unified toolbar, a sidebar for setup and a category bar in the main pane',()=>{
   const header=page.slice(page.indexOf('<header class="site-header window-toolbar">'),page.indexOf('</header>'));
   assert.match(header,/class="toolbar-leading"[\s\S]*id="windowSidebarToggle"[\s\S]*class="window-title"/);
   assert.match(header,/<nav class="performance-tabs"/);
   assert.match(page,/<aside class="app-sidebar" id="sessionSidebar"[^>]*>\s*<section class="dashboard-card session-controls"/);
-  assert.match(page,/<aside class="app-sidebar" id="performanceSidebar"[\s\S]*class="dashboard-card session-controls performance-controls"[\s\S]*id="performanceCategoryList"[^>]*hidden/);
-  assert.match(system,/\.source-list-row'\)\)return 'list-row'/);assert.match(system,/#windowSidebarToggle'\)\)return 'toolbar'/);
+  assert.match(page,/<aside class="app-sidebar" id="performanceSidebar"[\s\S]*class="dashboard-card session-controls performance-controls"/);
+  // Categories live in the main pane, directly above the results, not low in the sidebar.
+  const sidebar=page.slice(page.indexOf('id="performanceSidebar"'),page.indexOf('</aside>',page.indexOf('id="performanceSidebar"')));
+  assert.doesNotMatch(sidebar,/performanceCategoryList/);
+  assert.match(page,/<nav class="category-bar" id="performanceCategoryList"[^>]*hidden><\/nav>\s*<div id="performanceResults">/);
+  assert.match(system,/\.category-tab'\)\)return 'tab'/);assert.match(system,/#windowSidebarToggle'\)\)return 'toolbar'/);
 });
 
 test('appearance follows the system until the person picks one',()=>{
@@ -21,14 +26,14 @@ test('appearance follows the system until the person picks one',()=>{
   assert.match(ui,/prefers-color-scheme: light[\s\S]*if\(stored\)return/);
 });
 
-test('sidebar categories mirror the original tablist and delegate activation to it',()=>{
+test('category bar mirrors the original tablist and delegates activation to it',()=>{
   assert.match(ui,/\.performance-mode \[data-performance-metric\]/);
   assert.match(ui,/\.performance-mode \[data-performance-metric="\$\{CSS\.escape\(row\.dataset\.sidebarMetric\)\}"\]`\)\?\.click\(\)/);
   assert.match(ui,/setAttribute\('aria-current','page'\)/);
-  assert.match(ui,/ArrowUp','ArrowDown','Home','End'/);
+  assert.match(ui,/ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'/);
   assert.doesNotMatch(ui,/\.innerHTML\s*=/);
   // The original tab strip stays the state owner; only its presentation is hidden on wide windows.
-  assert.match(css,/@media\(min-width:980px\) \{ #performanceResults > \.performance-toolbar > \.performance-mode \{ display: none; \} \}/);
+  assert.match(css,/^#performanceResults > \.performance-toolbar > \.performance-mode \{ display: none; \}/m);
 });
 
 test('sidebar toggle and source list behave in a minimal DOM',()=>{
@@ -66,7 +71,7 @@ test('review fixes: larger sidebar, paired lap cards, single trace toolbar and q
   assert.match(css,/body\.trace-focus \.trace-focus-close/);
   assert.match(css,/body\.is-descriptions-hidden #carPerformance > \.performance-status-card:not\(\.is-running\) \{ display: none; \}/);
   assert.match(css,/body\.is-descriptions-hidden #performanceMetricPanel p\.performance-quality-status:not\(:has\(button\)\):not\(details p\)/);
-  assert.match(css,/\.source-list-row span \{[^}]*line-height: 1\.35/,'descenders must not clip');
+  assert.match(css,/\.category-bar \.category-tab span \{ line-height: 1\.3; \}/,'descenders must not clip');
 });
 
 test('fit pass: toolbar labels, lap lists and range choices never clip or overflow',()=>{
@@ -76,6 +81,32 @@ test('fit pass: toolbar labels, lap lists and range choices never clip or overfl
   assert.match(css,/\.lap-grid:has\(> \.lap-chip:nth-child\(25\)\) \{ max-height: 440px; overflow-y: auto; \}/);
   assert.match(css,/\.performance-range-options\[data-ui-group="segments"\] \{ display: grid; grid-template-columns: repeat\(auto-fill,minmax\(56px,1fr\)\)/);
   assert.match(css,/@media\(min-width:1001px\) and \(max-width:1280px\)/);
+});
+
+test('110% interface scale moves breakpoints with it and keeps pointer maths in layout px',async()=>{
+  const {scaleMediaParams,UI_ZOOM,buildUiStyles}=await import('../lib/ui-style-build.mjs');
+  assert.equal(UI_ZOOM,1.1);
+  assert.equal(scaleMediaParams('(max-width:979px) and (min-width:500px)'),'(max-width:1077px) and (min-width:550px)');
+  assert.equal(scaleMediaParams('(prefers-reduced-motion:reduce)'),'(prefers-reduced-motion:reduce)');
+  assert.match(css,/@media\(min-width:768px\) \{ html \{ zoom: 1\.1; \} \}/);
+  const built=(await buildUiStyles(f=>readFileSync(f,'utf8'))).css;
+  assert.match(built,/@media\(min-width:845px\) \{ html \{ zoom: 1\.1; \} \}/);
+  assert.doesNotMatch(built,/@media\s*\(?max-width:\s*979px/,'unscaled breakpoints must not ship');
+  assert.match(page,/window\.APEX_UI_ZOOM = 1\.1;/);
+  assert.match(ui,/980\*\(window\.APEX_UI_ZOOM\|\|1\)/);
+  const app=read('app.js');
+  assert.match(app,/const dx = old \? \(old\.rect\.left - next\.left\) \/ pageZoom : 0;/);
+  assert.match(app,/innerWidth - tipRect\.width - 12\)\) \/ pageZoom\}px/);
+});
+
+test('coverage notes collect once per card, empty charts explain themselves, paired rows line up',()=>{
+  assert.match(ui,/const parent=note\.closest\('\.performance-card-body'\)\|\|note\.parentElement;/);
+  assert.match(ui,/chart\.classList\.toggle\('is-empty-chart',empty\)/);
+  assert.match(ui,/split\.style\.setProperty\('--split-row',row\.offsetHeight\+'px'\)/);
+  assert.match(css,/\.performance-split-view :is\(\.performance-bar-row,\.performance-tyre-age-row\) \{ box-sizing: border-box; height: var\(--split-row\);/);
+  assert.match(css,/@container perfcard \(max-width: 980px\) \{\n  \.performance-card-body > \.performance-split-view \{ grid-template-columns: minmax\(0,1fr\); \}/);
+  assert.match(css,/\.performance-visual-grid:not\(:has\(\.performance-chart-controls:not\(\[aria-hidden="true"\]\)\)\) \.performance-chart-controls \{ display: none; \}/);
+  assert.match(css,/\.performance-table td small \{ display: block; white-space: nowrap;/);
 });
 
 test('sidebar text and accent links stay legible on the sidebar material in both appearances',()=>{

@@ -18,7 +18,8 @@
   // macOS window layout: a source-list sidebar beside the content whenever the
   // window is wide enough. The same driver node moves between the sidebar and
   // the lap chooser, so selection state and listeners survive.
-  const driverRail=window.matchMedia('(min-width:980px)');
+  // Breakpoints are authored at 100% and scaled with the page zoom (see UI_ZOOM).
+  const driverRail=window.matchMedia(`(min-width:${Math.round(980*(window.APEX_UI_ZOOM||1))}px)`);
   function arrangeDriverRail(){
     const column=document.querySelector('#sessionSidebar'),body=document.querySelector('#lapSelectionBody'),sidebar=document.querySelector('#driverSidebar');
     if(!column||!body||!sidebar)return;
@@ -29,6 +30,8 @@
     if(toggle)toggle.hidden=!wide&&chooser?.getAttribute('aria-expanded')==='false';
   }
   arrangeDriverRail();driverRail.addEventListener('change',arrangeDriverRail);
+  // Some hosts defer media-query change events; a resize re-check is cheap and idempotent.
+  window.addEventListener?.('resize',arrangeDriverRail,{passive:true});
   // Window toolbar: hide/show the sidebar, mirroring the split-view sidebar item.
   const sidebarButton=document.querySelector('#windowSidebarToggle');
   function setSidebarVisible(visible,persist=true){
@@ -47,7 +50,7 @@
     const isLight=document.documentElement.dataset.theme==='light';
     if(event.matches!==isLight){document.querySelector('#themeToggle')?.click();try{localStorage.removeItem('apex-theme');}catch(_){}}
   });
-  // Sidebar categories mirror the in-panel tablist; activation is delegated to
+  // The category bar mirrors the in-panel tablist; activation is delegated to
   // the original control so car-performance.js keeps sole ownership of state.
   const categoryIcons={
     pace:'<circle cx="12" cy="13.5" r="7"/><path d="M12 13.5V9.5M10 3.5h4M18.2 7.3l1.3-1.3"/>',
@@ -59,6 +62,7 @@
     trend:'<path d="M4 19h16"/><path d="m5 15 4.5-4.5 3 3L19 7"/><path d="M15 7h4v4"/>',
     results:'<path d="M6 21V4"/><path d="M6 4h11l-2 4 2 4H6"/>'
   };
+  const shortTitles={straight:'Straights',tyres:'Tyres',trend:'Development',results:'Reliability'};
   const categoryList=document.querySelector('#performanceCategoryList'),performanceRoot=document.querySelector('#performanceResults');
   function syncCategoryList(){
     if(!categoryList||!performanceRoot)return;
@@ -68,15 +72,16 @@
     const signature=tabs.map(tab=>tab.dataset.performanceMetric+(tab.disabled?'!':'')).join(',');
     if(categoryList.dataset.signature!==signature){
       categoryList.dataset.signature=signature;
-      const heading=document.createElement('h2');heading.className='source-list-heading';heading.textContent='Categories';
       const rows=tabs.map(tab=>{
         const key=tab.dataset.performanceMetric,[,title,description]=metrics[key]||['',tab.textContent.trim(),''];
-        const row=document.createElement('button');row.type='button';row.className='source-list-row';row.dataset.sidebarMetric=key;row.title=description;row.disabled=tab.disabled;
-        row.insertAdjacentHTML('afterbegin',`<svg class="ui-symbol source-list-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${categoryIcons[key]||''}</svg>`);
-        const label=document.createElement('span');label.textContent=title;row.append(label);
+        const row=document.createElement('button');row.type='button';row.className='category-tab';row.dataset.sidebarMetric=key;row.setAttribute('aria-label',title);row.title=description;row.disabled=tab.disabled;
+        row.insertAdjacentHTML('afterbegin',`<svg class="ui-symbol category-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${categoryIcons[key]||''}</svg>`);
+        const label=document.createElement('span');label.className='category-label';label.textContent=title;
+        const short=document.createElement('span');short.className='category-short';short.setAttribute('aria-hidden','true');short.textContent=shortTitles[key]||title;
+        row.append(label,short);
         return row;
       });
-      categoryList.replaceChildren(heading,...rows);
+      categoryList.replaceChildren(...rows);
     }
     const active=tabs.find(tab=>tab.getAttribute('aria-selected')==='true')?.dataset.performanceMetric;
     for(const row of categoryList.querySelectorAll('[data-sidebar-metric]')){
@@ -90,10 +95,10 @@
     if(!driverRail.matches)document.querySelector('#performanceMetricPanel')?.scrollIntoView({block:'start'});
   });
   categoryList?.addEventListener('keydown',event=>{
-    if(!['ArrowUp','ArrowDown','Home','End'].includes(event.key))return;
+    if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key))return;
     const rows=[...categoryList.querySelectorAll('[data-sidebar-metric]:not(:disabled)')],index=rows.indexOf(document.activeElement);
     if(index<0)return;event.preventDefault();
-    const next=event.key==='Home'?rows[0]:event.key==='End'?rows.at(-1):rows[Math.max(0,Math.min(rows.length-1,index+(event.key==='ArrowDown'?1:-1)))];
+    const next=event.key==='Home'?rows[0]:event.key==='End'?rows.at(-1):rows[Math.max(0,Math.min(rows.length-1,index+(['ArrowDown','ArrowRight'].includes(event.key)?1:-1)))];
     next?.focus();
   });
   if(performanceRoot&&typeof MutationObserver!=='undefined')new MutationObserver(syncCategoryList).observe(performanceRoot,{childList:true});
@@ -188,11 +193,38 @@
       for(const error of errors){const item=document.createElement('li');item.textContent=error.textContent.trim();list.append(item);error.remove();}
     }
     syncCategoryList();
-    for(const note of root.querySelectorAll('p.performance-quality-status:not(.explanation-only)')){
+    // Paired chart + table: the chart copies the table's header and row heights
+    // (measured after layout), so every bar sits level with its table row.
+    const splits=[...root.querySelectorAll('.performance-split-view')];
+    if(splits.length){
+      const sync=()=>{for(const split of splits){
+        const head=split.querySelector('.performance-table thead tr'),row=split.querySelector('.performance-table tbody tr');
+        if(!head||!row||!row.offsetHeight)continue;
+        split.style.setProperty('--split-head',head.offsetHeight+'px');
+        split.style.setProperty('--split-row',row.offsetHeight+'px');
+        split.classList.add('is-row-synced');
+      }};
+      // rAF pauses in background tabs; the timer covers that case.
+      if(typeof requestAnimationFrame==='function')requestAnimationFrame(sync);
+      setTimeout(sync,60);
+    }
+    // A chart with no measured rows shows its reason inline as an empty state,
+    // rather than an empty box beside full ones.
+    for(const chart of root.querySelectorAll('.performance-chart-card')){
+      const empty=!chart.querySelector('.performance-bar-row,.performance-tyre-age-row,tbody tr,svg,canvas');
+      chart.classList.toggle('is-empty-chart',empty);
+      if(empty)for(const note of chart.querySelectorAll('p.performance-quality-status'))note.classList.add('performance-empty-note');
+    }
+    // Every other coverage note goes into one disclosure per card, below its
+    // charts, so a note in one chart no longer stretches its neighbours.
+    for(const note of root.querySelectorAll('p.performance-quality-status:not(.explanation-only):not(.performance-empty-note)')){
       if(note.closest('details,.performance-tyre-toolbar')||note.querySelector('button')||note.getAttribute('role')==='status')continue;
-      const parent=note.parentElement;
+      const parent=note.closest('.performance-card-body')||note.parentElement;
       let evidence=parent.querySelector(':scope > .performance-status-evidence');
       if(!evidence){evidence=document.createElement('details');evidence.className='performance-evidence performance-status-evidence';const title=document.createElement('summary');title.textContent='Coverage and assumptions';evidence.append(title);parent.append(evidence);}
+      const chart=note.closest('.performance-chart-card');
+      const label=chart?.querySelector('.perf-chart-title,.perf-chart-heading')?.textContent.trim();
+      if(label&&!note.dataset.chart){note.dataset.chart=label;const tag=document.createElement('strong');tag.textContent=label+': ';note.prepend(tag);}
       evidence.append(note);
     }
   }

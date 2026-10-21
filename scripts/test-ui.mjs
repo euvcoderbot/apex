@@ -1200,6 +1200,10 @@ test('straight maxima use the true raw peak on a sparse 4 Hz feed, and unmatched
     .map(([m,v,t])=>({AlignedFraction:m/5000,Speed:v,ElapsedSeconds:t}));
   const max=h.run("lapSpeedExtremes(samples,5000).filter(e=>e.kind==='max')");
   assert.equal(max.length,1);assert.equal(max[0].speed,308);
+  // Two equal peaks separated by a 1 km/h dip (Sepang back straight) get one label, not two.
+  h.sandbox.twin=[[0,250],[100,280],[200,306],[230,305],[260,306],[300,250],[400,120],[500,200]].map(([m,v],i)=>({AlignedFraction:m/5000,Speed:v,ElapsedSeconds:i*.4}));
+  assert.equal(h.run("lapSpeedExtremes(twin,5000).filter(e=>e.kind==='max').length"),1);
+  assert.ok(Math.abs(h.run("lapSpeedExtremes(twin,5000).find(e=>e.kind==='max').fraction")-200/5000)<1e-9);
   // B has no matching extreme within 70 m, but has its own clear dip inside the segment.
   const lap=(code,shift)=>({lap:{code,lap:1},samples:Array.from({length:1001},(_,i)=>{const m=i*5,d=Math.abs(m-2500-shift);return {AlignedFraction:i/1000,Speed:d<150?90+d*.8:210};})});
   h.sandbox.entries=[lap('A',0),lap('B',90)];

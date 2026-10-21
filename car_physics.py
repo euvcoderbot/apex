@@ -676,7 +676,9 @@ def speed_domain_metrics(cars, corners=()):
             if not expected:
                 bands[band] = None
                 continue
-            if len(rows) < max(2, math.ceil(.6*expected)):
+            # A circuit may have a single grip-limited corner of a type (2026
+            # cars take most fast bends flat); one measured corner still counts.
+            if len(rows) < max(1, math.ceil(.6*expected)):
                 bands[band] = {'index': None, 'corners': len(rows), 'expected': expected,
                                'exclusion': 'Too few comparable corners in this band'}
                 continue

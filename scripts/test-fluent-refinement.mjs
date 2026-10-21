@@ -14,7 +14,7 @@ test('primary navigation has only section controls and a stable fixed footprint'
   assert.match(header,/class="workspace-tools"[\s\S]*id="explanationsToggle"[\s\S]*id="themeToggle"/);
   assert.doesNotMatch(header,/id="sidebarToggle"/);
   assert.match(page,/class="workspace-tools"/);
-  assert.match(page,/rel="icon" href="assets\/euv2-icon-32.png"/);
+  assert.match(page,/rel="icon" href="assets\/f1apex-icon-32.png"/);assert.match(page,/class="brand-icon" src="assets\/f1apex-icon-64.png"/);
   assert.equal(readFileSync('assets/euv2-gauge.png').subarray(1,4).toString(),'PNG');
   assert.match(css,/\.header-actions \{ grid-column: 2; display: block; width: 340px;/);
   assert.match(css,/\.site-header \.performance-tabs button:active[^}]*transform: none/);

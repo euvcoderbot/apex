@@ -394,7 +394,8 @@ let cornerSession='qualy',telemetrySubject='team',qualifyingMetricsRunning=false
 const raceCornerModel='matched';
 const straightEntryBasis='settled';
 // 'speed': equal-speed comparison (car_physics.py, default); 'window': established window timing.
-let speedDomainMethod='speed',speedDomainRunning=false,speedDomainController=null;
+// Loading is tracked per subject so switching Teams/Drivers never waits on the other.
+let speedDomainMethod='speed',speedDomainRunning={team:false,driver:false},speedDomainController={team:null,driver:null};
 // Render-local views plus source-reference memoization. A new lap, corner
 // measurement or methodology control invalidates derived summaries.
 let performanceRenderCache=null;
@@ -726,6 +727,7 @@ function stop() {
   traceController?.abort();
   qualifyingMetricsController?.abort();
   raceCornerController?.abort();
+  for(const key of ['team','driver']){speedDomainController[key]?.abort();speedDomainRunning[key]=false;}
   controller?.abort(); pitController?.abort(); generation++; running=false; traceRunning=false; pitRunning=false;
   $('performanceCancel').hidden=true;
   $('performanceLoad').hidden=false;
@@ -747,6 +749,7 @@ async function analyse(refresh=false) {
   if(refreshPerformance)raceCornerCache.clear();
   qualifyingMetricsController?.abort();
   raceCornerController?.abort();
+  for(const key of ['team','driver']){speedDomainController[key]?.abort();speedDomainRunning[key]=false;}
   controller?.abort(); pitController?.abort(); pitRunning=false; controller=new AbortController(); const signal=controller.signal, id=++generation;
   traceRunning=false;qualifyingMetricsRunning=false;raceCornerRunning=false;
   events=[]; errors=[]; running=true;
@@ -800,6 +803,9 @@ async function analyse(refresh=false) {
   render();
   if(activeMetric==='pits')loadPitData();
   loadActiveTelemetry();
+  // Prefetch the car-telemetry measurements in the background so Cornering,
+  // Straight line and Braking are usually ready by the time they are opened.
+  if(!speedDomainActive())void loadSpeedDomain(true);
 }
 
 function speedDomainActive() {
@@ -808,18 +814,34 @@ function speedDomainActive() {
 }
 // Speed-domain metrics come from the same trace-batch as straight line and
 // braking: the fastest qualifying lap per team (or per driver).
+function driverSelectionsFromQualifying(teams) {
+  const best=new Map();
+  for(const team of teams||[])for(const p of team.phase_details||[]){
+    if(!finite(p.time)||!finite(p.start)||!finite(p.end)||p.lap==null||p.number==null||!p.driver)return null;
+    if(!best.has(p.driver)||p.time<best.get(p.driver).time)best.set(p.driver,{...p,teamName:team.team,color:team.color});
+  }
+  return best.size>=3?[...best.values()]:null;
+}
 async function loadSpeedDomain(automatic=false) {
-  if(speedDomainRunning||!context)return;
+  if(!context||speedDomainRunning[telemetrySubject])return;
   const subject=telemetrySubject,id=generation,year=context.year;
   const jobs=events.filter(e=>e.Q&&!e.speedDomain?.[subject]&&firstTelemetryAttempt(e,'speed-domain:'+subject,automatic));
   if(!jobs.length)return;
-  speedDomainController=new AbortController();const signal=speedDomainController.signal;
-  speedDomainRunning=true;render();
+  speedDomainController[subject]=new AbortController();const signal=speedDomainController[subject].signal;
+  speedDomainRunning[subject]=true;render();
   async function worker(){while(jobs.length&&!signal.aborted){const event=jobs.shift();
     updateStatus(`Speed-domain metrics · ${event.name} · ${subject}…`,true);
     try{
       let windows;
       if(subject==='team')windows=fastestTeamTelemetrySelections(event.Q.teams);
+      else if(driverSelectionsFromQualifying(event.Q.teams)){
+        // Each driver's fastest qualifying lap is already in the qualifying
+        // analysis; loading the whole session again cost ~20 s per GP cold.
+        const picked=driverSelectionsFromQualifying(event.Q.teams);
+        event.qualifyingDrivers ||= picked.map(p=>({team:p.driver,color:p.color,displayName:p.driver,logoTeam:p.teamName,driver:p.driver}));
+        windows=picked.map(p=>({driver:p.driver,number:p.number,lap:p.lap,time:p.time,start:p.start,end:p.end,sectors:p.sectors,phase:p.phase,
+          compound:p.compound,team:p.driver,team_name:p.driver,driver_number:p.number,qualifying_best_time:p.time,qualifying_best_driver:p.driver,qualifying_best_lap:p.lap}));
+      }
       else{
         const base=new URLSearchParams({year,gp:event.name,round:event.round,session:'Q'});
         event.qualifyingSession ||= await get('/api/session?'+base,signal);
@@ -831,7 +853,8 @@ async function loadSpeedDomain(automatic=false) {
           qualifying_best_time:t.lap.time,qualifying_best_driver:t.lap.driver,qualifying_best_lap:t.lap.lap}));
       }
       if(windows.length<3)throw new Error('Fewer than three qualifying laps have exact timing boundaries.');
-      const result=await get('/api/performance/trace-batch?'+new URLSearchParams({year,gp:event.name,windows:JSON.stringify(windows)}),signal);
+      // Speed-only: skip the retired window-timing alignment on the server.
+      const result=await get('/api/performance/trace-batch?'+new URLSearchParams({year,gp:event.name,windows:JSON.stringify(windows),measures:'speed'}),signal);
       if(id!==generation||signal.aborted)return;
       (event.speedDomain ||= {})[subject]=result.speed_domain||{cars:{},error:result.error||'No speed-domain measurement returned; refresh data.'};
       delete event.speedDomainError;
@@ -839,7 +862,9 @@ async function loadSpeedDomain(automatic=false) {
     scheduleRender();
   }}
   try{await Promise.all([worker(),worker()]);}
-  finally{if(id===generation){speedDomainRunning=false;updateStatus(signal.aborted?'Speed-domain loading stopped; measured GPs retained.':'Speed-domain metrics updated. Results are cached.');render();}}
+  // A subject or tab switch during this run was refused above; start whatever
+  // the page needs now, or the new view would wait forever.
+  finally{if(id===generation){speedDomainRunning[subject]=false;updateStatus(signal.aborted?'Speed-domain loading stopped; measured GPs retained.':'Speed-domain metrics updated. Results are cached.');render();if(!signal.aborted)loadActiveTelemetry();}}
 }
 function loadActiveTelemetry() {
   if(!context)return;
@@ -2824,9 +2849,18 @@ function renderMatchedQualifyingCorners() {
     `<details class="performance-evidence"><summary>Matched-corner fit support</summary>${table(['GP','Band','Connected entrants','Compared corners','Fit residual'],reports.flatMap(r=>bands.map(b=>[escape(r.event.name),escape(b),r.bandFits[b].scores.size,r.bandFits[b].snapshots,fmt(r.bandFits[b].residual,3,' s')])))}</details>`);
 }
 
-function speedDomainMethodControls() {
-  return `<div class="performance-scope-toggle" role="group" aria-label="Measurement method">${[['speed','Speed-domain'],['window','Window timing']].map(([key,label])=>`<button type="button" data-speed-method="${key}" aria-pressed="${speedDomainMethod===key}" title="${key==='speed'?'Compare cars at equal speed (default)':'Previous shared-window timing method'}">${label}</button>`).join('')}</div>`;
-}
+// Straight line: the three measures that carried car-specific signal in
+// validation; one is shown at a time. 160-250 km/h alone was the weakest and is
+// inside 'Speed'; traction is a corner-exit measure and lives on Cornering.
+const STRAIGHT_PILLS=[
+  {key:'straight',label:'Speed',title:'Straight-line speed',subtitle:'seconds per straight, 160 km/h to the end of a 500 m run',hint:'Overall straight-line performance',
+   note:"Each car's measured full-throttle acceleration, run over the same simulated straight: 160 to 250 km/h, then 500 m from 250 km/h. Comparing at equal speed means a faster corner exit is not credited to the straight. 2025 DRS-open and DRS-closed data are kept separate. Car, setup, tow and energy deployment together, not isolated engine power or drag."},
+  {key:'straight_top',label:'Top end',title:'Top end, 250 km/h and above',subtitle:'seconds over a 500 m run from 250 km/h',hint:'Where power-unit deployment separates the cars',
+   note:"The same simulated straight from 250 km/h onward. On 2026 cars this is shaped by electrical energy deployment (taper and clipping) as much as by drag or engine power; it is where the power units separate most."},
+  {key:'energy',label:'Energy',title:'Speed lost at full throttle',subtitle:'km/h per lap on the audited straights',hint:'Energy clipping on 2026 power units',
+   note:"Speed lost while flat out on the straights. At full throttle a car only loses speed when its deployable electrical energy runs out (clipping) or a tow has pushed it past its drag limit. This mainly matters for 2026 power units; 2025 cars rarely clip."}
+];
+let straightPill='straight';
 function speedDomainEntities() {
   const style=new Map();
   for(const event of events){
@@ -2838,7 +2872,8 @@ function speedDomainEntities() {
 function speedDomainChart(key,title,subtitle) {
   const meta=SPEED_DOMAIN_METRICS[key],season=speedDomainSeason(events,telemetrySubject,key),style=speedDomainEntities();
   const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason}));
-  if(!rows.length)return `<div class="performance-chart-card"><h4 class="perf-chart-heading">${escape(title||meta.label)}</h4><p class="performance-quality-status">No supported measurement in the loaded GPs (for cornering: no grip-limited corners of this type). Missing values are not zero.</p></div>`;
+  // While GPs are still loading an empty chart is pending, not a missing measurement.
+  if(!rows.length)return `<div class="performance-chart-card"><h4 class="perf-chart-heading">${escape(title||meta.label)}</h4><p class="performance-quality-status">${speedDomainRunning[telemetrySubject]?'Waiting for the first measured GPs…':'No supported measurement in the loaded GPs (for cornering: no grip-limited corners of this type). Missing values are not zero.'}</p></div>`;
   return renderHorizontalBarChart(rows,{title:title||meta.label,subtitle:`${subtitle?subtitle+' · ':''}${season.gps} GP${season.gps===1?'':'s'} · 0 = best`,unit:meta.unit,digits:meta.digits});
 }
 function speedDomainReliabilityNote(key) {
@@ -2858,19 +2893,21 @@ function speedDomainEventTable(keys) {
 }
 function renderSpeedDomain() {
   const loaded=events.filter(e=>e.speedDomain?.[telemetrySubject]?.cars).length,total=events.filter(e=>e.Q).length;
-  const failures=events.filter(e=>e.speedDomainError||e.speedDomain?.[telemetrySubject]?.error).map(e=>`<div class="performance-error">${escape(e.name)} · ${escape(e.speedDomainError||e.speedDomain[telemetrySubject].error)}</div>`).join('');
-  const status=`<p class="performance-quality-status" role="status">${speedDomainRunning?'Loading fastest qualifying laps… ':''}${loaded} of ${total} GPs measured. Season values weight each GP equally; entrants measured in fewer than half of them stay unranked.</p>`;
-  if(activeMetric==='corners')return status+failures+card('Cornering · speed-domain',
+  const failed=events.filter(e=>e.Q&&(e.speedDomainError||e.speedDomain?.[telemetrySubject]?.error));
+  const failures=failed.map(e=>`<div class="performance-error">${escape(e.name)} · ${escape(e.speedDomainError||e.speedDomain[telemetrySubject].error)}</div>`).join('')+
+    (failed.length&&!speedDomainRunning[telemetrySubject]?`<div class="performance-actions"><button type="button" data-speed-retry>Retry ${failed.length} missing GP${failed.length===1?'':'s'}</button></div>`:'');
+  const status=`<p class="performance-quality-status" role="status">${speedDomainRunning[telemetrySubject]?'Loading fastest qualifying laps… ':''}${loaded} of ${total} GPs measured. Season values weight each GP equally; entrants measured in fewer than half of them stay unranked.</p>`;
+  if(activeMetric==='corners')return status+failures+card('Cornering',
     `Time lost per lap at grip-limited corners, from each car's own minimum speed and the time it spends near that speed. Corners come from the circuit segment audit: a corner is where the field's speed reaches a minimum after braking or lifting. Flat-out bends and energy-management lifts are excluded because they measure power, not grip. Seconds per lap behind the best ${telemetrySubject==='driver'?'driver':'team'}, comparable with qualifying gaps.`,
-    speedDomainChart('corner_low','Low-speed corners','below 120 km/h')+speedDomainChart('corner_medium','Medium-speed corners','120–200 km/h')+speedDomainChart('corner_high','High-speed corners','above 200 km/h')+speedDomainEventTable(['corner_low','corner_medium','corner_high']));
-  if(activeMetric==='straight')return status+failures+card('Straight line · speed-domain',
-    `Each car's measured full-throttle acceleration curve, run over the same simulated straight: 160→250 km/h, then 500 m from 250 km/h. Comparing at equal speed means a faster corner exit is not credited to the straight. 2025 DRS-open and DRS-closed data are kept separate. On 2026 cars the top end is shaped by energy deployment (taper and clipping) as much as by drag or power. Seconds per straight.`,
-    speedDomainChart('straight','Straight line','160 km/h → end of a 500 m top-speed run')+speedDomainChart('straight_mid','160–250 km/h','acceleration range')+speedDomainChart('straight_top','250 km/h and above','energy-deployment affected on 2026 cars')+speedDomainEventTable(['straight','straight_mid','straight_top']))+
-    card('Energy deployment · speed-domain',`Speed lost while flat out on the straights. At full throttle a car only loses speed when its deployable electrical energy runs out (clipping) or a tow has pushed it past its drag limit. This matters mainly for 2026 power units; 2025 cars rarely clip. km/h lost per lap, against the ${telemetrySubject==='driver'?'driver':'team'} that loses least.`,
-    speedDomainChart('energy','Speed lost at full throttle','per lap, audited straights')+speedDomainEventTable(['energy']))+
-    card('Traction · speed-domain',`Acceleration out of slow corners at any throttle position, once a car has gained 30 km/h over its own apex, simulated from 70 to 170 km/h. Drivers feed in throttle as grip allows, so the throttle position is itself the traction limit. Seconds per corner exit. Unsupported at circuits without slow exits.`,
+    speedDomainChart('corner_low','Low-speed corners','below 120 km/h')+speedDomainChart('corner_medium','Medium-speed corners','120–200 km/h')+speedDomainChart('corner_high','High-speed corners','above 200 km/h; often one corner per circuit, as 2026 cars take most fast bends flat')+speedDomainEventTable(['corner_low','corner_medium','corner_high']))+
+    card('Corner exit traction',`Acceleration out of slow corners at any throttle position, once a car has gained 30 km/h over its own apex, simulated from 70 to 170 km/h. Seconds per corner exit. Evidence only: in validation it carried little car-specific signal in 2025.`,
     speedDomainReliabilityNote('traction')+speedDomainChart('traction','Traction (corner exit)','70–170 km/h')+speedDomainEventTable(['traction']));
-  return status+failures+card('Braking · speed-domain',
+  if(activeMetric==='straight'){
+    const pill=STRAIGHT_PILLS.find(p=>p.key===straightPill)||STRAIGHT_PILLS[0];
+    const pills=`<div class="performance-scope-toggle" role="group" aria-label="Straight-line measure">${STRAIGHT_PILLS.map(p=>`<button type="button" data-straight-pill="${p.key}" aria-pressed="${p.key===pill.key}" title="${escape(p.hint)}">${p.label}</button>`).join('')}</div>`;
+    return status+failures+card('Straight line',pill.note,pills+speedDomainChart(pill.key,pill.title,pill.subtitle)+speedDomainEventTable([pill.key]));
+  }
+  return status+failures+card('Braking',
     `Average deceleration from brake onset until the car reaches its own apex speed, at every braked corner. Distances come from GPS, and each car is compared with the field at the same speeds, because downforce makes every car brake harder when faster. % longer braking distance than the best ${telemetrySubject==='driver'?'driver':'team'}. The 4 Hz feed places the brake onset only to within a few metres, so differences under about 2% in a single GP are noise.`,
     speedDomainReliabilityNote('braking')+speedDomainChart('braking','Braking distance','same speed drop')+speedDomainEventTable(['braking']));
 }
@@ -3432,7 +3469,9 @@ let renderQueued=false;
 function scheduleRender() {
   if(renderQueued)return;
   renderQueued=true;
-  (typeof requestAnimationFrame==='function'?requestAnimationFrame:setTimeout)(()=>{renderQueued=false;render();});
+  // A timer, not requestAnimationFrame: frames pause in background tabs, which
+  // froze progress until the whole load finished.
+  setTimeout(()=>{renderQueued=false;render();},60);
 }
 function render() {
   const state=capturePerformanceUI(root);
@@ -3477,7 +3516,9 @@ function renderContent() {
   const recordedNotices=events.flatMap(e=>['Q','R','pits'].filter(s=>e[s]?.source_cache).map(s=>`${e.name} ${s==='Q'?'qualifying':s==='pits'?'pit visits':'race'}${e[s].source_cache.refresh_failed||e[s].source_cache.stale?' (live refresh unavailable)':''}`));
   const sourceNotice=recordedNotices.length?`<details class="performance-source-note"><summary>Retained session sources</summary><p>${recordedNotices.map(escape).join(' · ')}. Recalculated with the current methodology; missing fields remain unknown.</p></details>`:'';
   const speedMode=telemetryMode&&speedDomainActive();
-  const methodToggle=telemetryMode&&!(activeMetric==='corners'&&cornerSession==='race')&&!(activeMetric==='straight'&&straightLineSource==='race')?speedDomainMethodControls():'';
+  // One measurement method on the page; the window-timing views were retired
+  // as duplicates (see docs/speed-domain-methodology-20261020.md).
+  const methodToggle='';
   const telemetryControls=telemetryMode?`<div class="performance-actions">${telemetrySubjectControls()}${methodToggle}${activeMetric==='corners'?cornerSessionControls():''}${qualifyingMetricsRunning?'<button type="button" data-qualifying-stop>Stop telemetry</button>':''}</div>`:'';
   const teamBrakingControls=activeMetric==='braking'&&telemetrySubject==='team'?`<div class="performance-actions">${teamBrakingRunning?'<button type="button" data-team-braking-stop>Stop braking load</button><span>Loading only the fastest qualifying lap per team…</span>':events.some(e=>e.Q&&!e.teamBrakingReady)?'<button type="button" data-team-braking-retry>Retry missing braking data</button>':''}</div>`+events.filter(e=>e.brakingError||Object.keys(e.brakingExcluded||{}).length).map(e=>`<p class="performance-quality-status">${escape(e.name)} · ${escape(e.brakingError||Object.entries(e.brakingExcluded).map(([team,reason])=>team+': '+reason).join(' · '))}</p>`).join(''):'';
   const needsQualifying=telemetryMode&&!(activeMetric==='corners'&&cornerSession==='race')&&!(activeMetric==='straight'&&straightLineSource==='race')&&(activeMetric==='corners'||telemetrySubject==='driver');
@@ -3646,8 +3687,12 @@ root.addEventListener('click',event=>{
   if(event.target.closest('[data-qualifying-load]')){void loadQualifyingMetrics();return;}
   if(event.target.closest('[data-qualifying-retry]')){void loadQualifyingMetrics(true);return;}
   if(event.target.closest('[data-qualifying-stop]')){qualifyingMetricsController?.abort();return;}
-  const methodButton=event.target.closest('[data-speed-method]');
-  if(methodButton){speedDomainMethod=methodButton.dataset.speedMethod;render();loadActiveTelemetry();return;}
+  if(event.target.closest('[data-speed-retry]')){
+    for(const e of events){if(e.speedDomainError||e.speedDomain?.[telemetrySubject]?.error){delete e.speedDomainError;if(e.speedDomain)delete e.speedDomain[telemetrySubject];}}
+    void loadSpeedDomain(false);return;
+  }
+  const straightPillButton=event.target.closest('[data-straight-pill]');
+  if(straightPillButton){straightPill=straightPillButton.dataset.straightPill;render();return;}
   const subjectButton=event.target.closest('[data-telemetry-subject]');
   if(subjectButton){telemetrySubject=subjectButton.dataset.telemetrySubject;sortKey='';render();loadActiveTelemetry();return;}
   const cornerSessionButton=event.target.closest('[data-corner-session]');

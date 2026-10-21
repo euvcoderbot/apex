@@ -959,7 +959,11 @@ def analyze(data, traffic=2):
                     'compound': entry['lap'].get('compound'),
                     'rain': entry['lap'].get('rain'),
                     'end': entry['lap'].get('end'), 'age': entry['lap'].get('age'),
-                    'fresh': entry['lap'].get('fresh')
+                    'fresh': entry['lap'].get('fresh'),
+                    # Enough to request this lap's telemetry without loading
+                    # the whole qualifying session again.
+                    'lap': entry['lap'].get('lap'), 'number': entry['lap'].get('number'),
+                    'start': entry['lap'].get('start'), 'sectors': entry['lap'].get('sectors')
                 })
             for phase in ('Q1', 'Q2', 'Q3'):
                 other_laps = [r for r in valid if r.get('phase') == phase and r.get('team') == name
@@ -978,7 +982,8 @@ def analyze(data, traffic=2):
                         'time': r['time'],
                         'deficit': ((r['time'] / phase_best_time - 1) * 100) if phase_best_time else 0.0,
                         'compound': r.get('compound'),
-                        'rain': r.get('rain'), 'end':r.get('end'), 'age':r.get('age'), 'fresh':r.get('fresh')
+                        'rain': r.get('rain'), 'end':r.get('end'), 'age':r.get('age'), 'fresh':r.get('fresh'),
+                        'lap': r.get('lap'), 'number': r.get('number'), 'start': r.get('start'), 'sectors': r.get('sectors')
                     })
 
             team.update({

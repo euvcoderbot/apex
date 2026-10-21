@@ -76,10 +76,46 @@ def fastf1_runtime():
     return fastf1
 
 
+ARCHIVE_RETRY_S = 86400
+
+
+def archive_usable(year, gp, session) -> bool:
+    """False when the F1 timing archive is disabled here or failed recently."""
+    if os.environ.get("APEX_F1_ARCHIVE", "off" if os.environ.get("VERCEL") else "on") == "off":
+        return False
+    marker = read_prepared_cache("archive-unavailable", year, gp, session)
+    return not (marker and time.time()-float(marker.get("at", 0)) < ARCHIVE_RETRY_S)
+
+
+def mark_archive_unusable(year, gp, session) -> None:
+    write_prepared_cache("archive-unavailable", year, {"at": time.time()}, gp, session)
+
+
+def archive_guard(year, gp, session, loader):
+    """Skip the F1 timing archive for a day after it fails for a session.
+
+    The archive has been returning HTTP 401/404; each attempt cost several
+    seconds of failing feed requests before the OpenF1 fallback, on every
+    request and every restart. A marker on disk short-circuits that.
+    """
+    # Serverless instances start with an empty /tmp, so a failure marker does
+    # not survive there; the archive is skipped outright unless enabled.
+    if not archive_usable(year, gp, session):
+        raise RuntimeError("Timing archive unavailable for this session (disabled or failed recently)")
+    try:
+        data = loader()
+        if getattr(data, "laps", None) is not None and data.laps.empty:
+            raise ValueError("Timing archive returned no laps")
+        return data
+    except Exception:
+        mark_archive_unusable(year, gp, session)
+        raise
+
+
 def load_fresh_session(year, gp, session, telemetry=False):
     fastf1_runtime()
     from session_loader import load_fresh_session as load
-    return load(year, gp, session, telemetry=telemetry)
+    return archive_guard(year, gp, session, lambda: load(year, gp, session, telemetry=telemetry))
 
 
 @app.get("/api/health")
@@ -487,6 +523,7 @@ OPENF1_ATTEMPTS = 5
 _openf1_lock = threading.Lock()
 _openf1_next = [0.]
 _openf1_session_ends: dict[Any, str] = {}
+_openf1_meta: dict[str, tuple[float, Any]] = {}
 
 
 def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
@@ -500,6 +537,12 @@ def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
             parts.append(f"{key}={quote(str(value))}")
     query = "&".join(parts)
     url = f"{OPENF1}/{endpoint}?{query}"
+    if endpoint in ("sessions", "meetings"):
+        # Calendar metadata is looked up on almost every request; keep it briefly
+        # (a live weekend adds sessions, so not longer than ten minutes).
+        hit = _openf1_meta.get(url)
+        if hit and time.monotonic()-hit[0] < 600:
+            return hit[1]
     session_key = valid_params.get("session_key")
     settled = endpoint != "sessions" and session_key is not None and _openf1_session_settled(session_key)
     cache_path = PREPARED_CACHE / "openf1" / (hashlib.sha256(url.encode()).hexdigest()+".json.gz")
@@ -510,6 +553,8 @@ def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
         except (OSError, ValueError):
             cache_path.unlink(missing_ok=True)
     result = _openf1_fetch(url)
+    if endpoint in ("sessions", "meetings") and result:
+        _openf1_meta[url] = (time.monotonic(), result)
     if endpoint == "sessions":
         for item in result if isinstance(result, list) else []:
             if item.get("session_key") is not None and item.get("date_end"):
@@ -997,14 +1042,16 @@ def load_session(year: int, gp: str, session_name: str, round_number: int | None
     # "Invalid round". Resolve the exact event name from the full calendar,
     # then create the session from that event.
     backend = "fastf1" if year >= 2018 else "ergast"
-    event = exact_fastf1_event(year, gp, backend=backend)
 
-    session = event.get_session(session_name)
-    # Session controls need timing/lap data, not the multi-megabyte car stream
-    # for every driver. Fetch the car stream only if OpenF1 cannot provide a
-    # selected lap (mainly older seasons).
-    session.load(laps=True, telemetry=False, weather=True, messages=False)
-    return session
+    def load():
+        event = exact_fastf1_event(year, gp, backend=backend)
+        session = event.get_session(session_name)
+        # Session controls need timing/lap data, not the multi-megabyte car stream
+        # for every driver. Fetch the car stream only if OpenF1 cannot provide a
+        # selected lap (mainly older seasons).
+        session.load(laps=True, telemetry=False, weather=True, messages=False)
+        return session
+    return archive_guard(year, gp, session_name, load)
 
 
 @lru_cache(maxsize=8)
@@ -2203,7 +2250,8 @@ def car_performance_trace(response: Response, year: int = Query(..., ge=2018, le
 @app.get('/api/performance/trace-batch')
 def car_performance_trace_batch(response: Response, year: int = Query(..., ge=2018, le=2100),
                                 gp: str = Query(..., min_length=3, max_length=120),
-                                windows: str = Query(..., min_length=20, max_length=36000)):
+                                windows: str = Query(..., min_length=20, max_length=36000),
+                                measures: str = Query('all', pattern='^(all|speed)$')):
     """Extract all team representatives from one shared qualifying archive."""
     response.headers['Cache-Control'] = 'no-store'
     try:
@@ -2239,10 +2287,11 @@ def car_performance_trace_batch(response: Response, year: int = Query(..., ge=20
                                      lap=s['lap'], start=s['start'], end=s['end'], duration=s['time'])
                         for s in normalized]
             if all(retained):
-                from performance_tracks import measure_field
+                from performance_tracks import measure_field, speed_domain_only
                 extracted = [(s['team'], r['samples'], None) for s, r in zip(normalized, retained)]
+                measure = speed_domain_only if measures == 'speed' else measure_field
                 return {'event':gp, 'source_cache':source_notice(recording), 'fusion':{},
-                        **measure_field(extracted, normalized, recording.get('corners', []))}
+                        **measure(extracted, normalized, recording.get('corners', []))}
         fastf1_runtime()
         from session_loader import load_selected_laps_telemetry, exact_event, download_feed, _PARSERS
         from fastf1.mvapi import get_circuit_info
@@ -2251,12 +2300,16 @@ def car_performance_trace_batch(response: Response, year: int = Query(..., ge=20
         # returned HTTP 401); markers are optional for the speed-domain metrics.
         circuit = {}
         try:
+            if not archive_usable(year, gp, 'Q'):
+                raise RuntimeError('timing archive skipped')
             event = exact_event(year, gp)
             lap_session = event.get_session('Q')
             session_info = _PARSERS['session_info'](lap_session.api_path,
                 response=download_feed(lap_session.api_path, 'session_info'))
             circuit = session_info['Meeting']['Circuit']
         except Exception as archive_error:
+            if str(archive_error) != 'timing archive skipped':
+                mark_archive_unusable(year, gp, 'Q')
             logger.info('Session info unavailable for %s; using OpenF1 circuit key: %s', gp, archive_error)
             lookup = openf1_session(year, gp, 'Q') if year >= 2023 else None
             if lookup and lookup.get('circuit_key') is not None:
@@ -2279,8 +2332,12 @@ def car_performance_trace_batch(response: Response, year: int = Query(..., ge=20
         fetched = {}
         if missing:
             try:
+                if not archive_usable(year, gp, 'Q'):
+                    raise RuntimeError('timing archive skipped')
                 fetched = {id(s): entry for s, entry in zip(missing, load_selected_laps_telemetry(year, gp, 'Q', missing))}
             except Exception as archive_error:
+                if str(archive_error) != 'timing archive skipped':
+                    mark_archive_unusable(year, gp, 'Q')
                 logger.info('Timing archive unavailable for %s Q laps; using OpenF1: %s', gp, archive_error)
                 lookup = openf1_session(year, gp, 'Q') if year >= 2023 else None
                 key = lookup.get('session_key') if lookup else None
@@ -2331,7 +2388,9 @@ def car_performance_trace_batch(response: Response, year: int = Query(..., ge=20
                          (.162902,.151111),(.095616,.249942),(.858059,.488187)]
             corners = [{'number': str(i+1), 'x': x, 'y': y, 'normalized': True}
                        for i, (x, y) in enumerate(positions)]
-        return {'event': gp, 'fusion':fusion, **measure_field(extracted, normalized, corners)}
+        from performance_tracks import speed_domain_only
+        measure = speed_domain_only if measures == 'speed' else measure_field
+        return {'event': gp, 'fusion':fusion, **measure(extracted, normalized, corners)}
     except HTTPError as exc:
         if exc.code in (408, 429, 502, 503, 504):
             raise HTTPException(503, 'Telemetry archive is temporarily busy. Please retry shortly.') from exc
