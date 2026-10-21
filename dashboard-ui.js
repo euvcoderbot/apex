@@ -123,6 +123,19 @@
     const controls = panel?.querySelector(':scope > .performance-actions');
     const headingControls = panel?.querySelector('.metric-heading-controls');
     if (controls && headingControls) headingControls.append(controls);
+    // Keep the refresh action in the same flow and baseline as its filters.
+    const refresh = root.querySelector('[data-performance-refresh]');
+    if (refresh && headingControls) {
+      refresh.classList.add('metric-refresh');
+      refresh.setAttribute('aria-label', 'Refresh data');
+      if (!refresh.querySelector('svg')) {
+        const label = document.createElement('span');
+        label.textContent = refresh.textContent;
+        refresh.replaceChildren(label);
+        refresh.insertAdjacentHTML('afterbegin', '<svg class="ui-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 8a8 8 0 1 0 1 7M19 3v5h-5"/></svg>');
+      }
+      headingControls.append(refresh);
+    }
     for (const body of root.querySelectorAll('.performance-card-body')) {
       const children = [...body.children];
       const charts = children.filter(el => el.matches('.performance-chart-card:not(.performance-tyre-stint-plot)'));

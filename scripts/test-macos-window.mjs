@@ -62,8 +62,8 @@ test('window layer is parsed, final, and keeps accessibility fallbacks',()=>{
   assert.doesNotMatch(css,/#performanceMetricPanel[^{]*\{[^}]*animation/,'re-rendered panels must not re-animate on every progress update');
 });
 
-test('review fixes: larger sidebar, paired lap cards, single trace toolbar and quiet status text',()=>{
-  assert.match(css,/\.app-sidebar \{\n  zoom: 1\.1;/);assert.match(tokens,/--ui-sidebar-width: 282px/);
+test('review fixes: readable sidebar, paired lap cards, single trace toolbar and quiet status text',()=>{
+  assert.doesNotMatch(css,/zoom:\s*1\.1/);assert.match(tokens,/--ui-sidebar-width: 282px/);
   assert.match(css,/\.app-sidebar #driverSidebar \{ align-self: stretch;/,'driver list must use the full sidebar width');
   assert.match(css,/\.app-sidebar \.track-tray-header \{ grid-template-columns: minmax\(0,1fr\)/,'race actions must use the full sidebar width');
   assert.match(css,/\.sector-cards \{ display: grid; grid-template-columns: repeat\(auto-fill,minmax\(min\(100%,440px\),1fr\)\)/);
@@ -83,16 +83,15 @@ test('fit pass: toolbar labels, lap lists and range choices never clip or overfl
   assert.match(css,/@media\(min-width:1001px\) and \(max-width:1280px\)/);
 });
 
-test('110% interface scale moves breakpoints with it and keeps pointer maths in layout px',async()=>{
+test('browser-owned scale keeps breakpoints and pointer maths in layout px',async()=>{
   const {scaleMediaParams,UI_ZOOM,buildUiStyles}=await import('../lib/ui-style-build.mjs');
-  assert.equal(UI_ZOOM,1.1);
-  assert.equal(scaleMediaParams('(max-width:979px) and (min-width:500px)'),'(max-width:1077px) and (min-width:550px)');
+  assert.equal(UI_ZOOM,1);
+  assert.equal(scaleMediaParams('(max-width:979px) and (min-width:500px)'),'(max-width:979px) and (min-width:500px)');
   assert.equal(scaleMediaParams('(prefers-reduced-motion:reduce)'),'(prefers-reduced-motion:reduce)');
-  assert.match(css,/@media\(min-width:768px\) \{ html \{ zoom: 1\.1; \} \}/);
+  assert.doesNotMatch(css,/html\s*\{\s*zoom:/);
   const built=(await buildUiStyles(f=>readFileSync(f,'utf8'))).css;
-  assert.match(built,/@media\(min-width:845px\) \{ html \{ zoom: 1\.1; \} \}/);
-  assert.doesNotMatch(built,/@media\s*\(?max-width:\s*979px/,'unscaled breakpoints must not ship');
-  assert.match(page,/window\.APEX_UI_ZOOM = 1\.1;/);
+  assert.match(built,/@media\(max-width:979px\)/);
+  assert.match(page,/window\.APEX_UI_ZOOM = 1;/);
   assert.match(ui,/980\*\(window\.APEX_UI_ZOOM\|\|1\)/);
   const app=read('app.js');
   assert.match(app,/const dx = old \? \(old\.rect\.left - next\.left\) \/ pageZoom : 0;/);

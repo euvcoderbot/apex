@@ -95,8 +95,9 @@ function replaceUI(root, html) {
 }
 
 function canvasFont(size = 12, weight = 400) {
-  // Site-wide type is 2 px larger than the original 12 px baseline; charts follow.
-  return `${weight} ${size + 2}px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable", "Segoe UI", Helvetica, Arial, sans-serif`;
+  // Canvas labels use the same font as the surrounding interface.
+  const family = typeof getComputedStyle === 'function' ? getComputedStyle(document.body).fontFamily : '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", Inter, "Segoe UI", system-ui, sans-serif';
+  return `${weight} ${size + 1}px ${family}`;
 }
 
 function positionCornerIndicator(root, previous) {
@@ -3854,7 +3855,7 @@ function renderMiniSectorMap() {
 
   // Corner markers rendered ON TOP of mini-sector dominance lines
   if ($('#cornerToggle').checked) {
-    ctx.font = canvasFont(12);
+    ctx.font = canvasFont(12, 500);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const occupiedLabels = [];
@@ -3899,9 +3900,6 @@ function renderMiniSectorMap() {
       ctx.stroke();
       ctx.globalAlpha = 1;
       }
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = theme.labelStroke;
-      ctx.strokeText(label, placement.x, placement.y);
       ctx.fillStyle = theme.labelFill;
       ctx.fillText(label, placement.x, placement.y);
     });
