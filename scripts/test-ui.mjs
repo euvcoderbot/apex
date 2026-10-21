@@ -427,6 +427,16 @@ test('corner rankings are best-first, stable, null-safe and do not mutate refere
   assert.match(app, /class="map-north"/);
 });
 
+test('cold calculations outlive the hosted Worker budget without slowing calendar timeouts', () => {
+  const h = context();
+  Object.assign(h.sandbox, {URL});
+  for (const path of ['/api/session', '/api/telemetry', '/api/performance', '/api/performance/trace-batch', '/api/performance/sprint', '/api/race-corners', '/api/qualifying-corners'])
+    assert.equal(h.run(`dataRequestTimeout(${JSON.stringify('https://example.test' + path + '?year=2026')})`), 310000, path);
+  assert.equal(h.run("dataRequestTimeout('/api/events?year=2026')"), 30000);
+  h.sandbox.window.APEX_LOCAL_MODE = true;
+  assert.equal(h.run("dataRequestTimeout('/api/session?year=2026')"), 180000);
+});
+
 test('data requests retry transient errors but not valid missing-data responses', async () => {
   const h = context(); let calls = 0;
   const waits = [];

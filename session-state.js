@@ -145,6 +145,14 @@ function platformErrorResponse(response) {
 }
 const PLATFORM_RETRY_DELAYS_MS = [5000, 15000];
 
+function dataRequestTimeout(url) {
+  if (window.APEX_LOCAL_MODE) return 180000;
+  const path = new URL(url, window.location?.href || 'http://localhost').pathname;
+  // The Worker waits 290 s for a cold Vercel calculation. Leave room for
+  // response delivery instead of cancelling it at the old 30/60 s limit.
+  return /^\/api\/(?:session|telemetry|performance(?:\/.*)?|race-corners|qualifying-corners)$/.test(path) ? 310000 : 30000;
+}
+
 async function fetchSessionData(url, options = {}) {
   const attempts = window.APEX_LOCAL_MODE ? 2 : 1 + PLATFORM_RETRY_DELAYS_MS.length;
   for (let attempt = 0; attempt < attempts; attempt++) {
@@ -152,7 +160,7 @@ async function fetchSessionData(url, options = {}) {
     const controller = new AbortController();
     const abort = () => controller.abort();
     options.signal?.addEventListener('abort', abort, { once: true });
-    const timeout = setTimeout(abort, window.APEX_LOCAL_MODE?180000:/\/api\/(performance|race-corners|qualifying-corners)/.test(url)?60000:30000);
+    const timeout = setTimeout(abort, dataRequestTimeout(url));
     try {
       const shared=sharedDataURL(url),longQuery=shared.startsWith('/api/data?')&&shared.length>12000;
       const query=longQuery?new URLSearchParams(shared.slice(shared.indexOf('?')+1)):null;
