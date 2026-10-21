@@ -74,3 +74,13 @@ test('paired chart and table use matching insets and the tallest evidence row',(
   const ui=read('dashboard-ui.js');
   assert.match(ui,/Math\.ceil\(Math\.max\(0,\.\.\.rows\.map\(row=>row\.getBoundingClientRect\(\)\.height\)\)\)/);
 });
+
+test('narrow session lists never hide the only driver identity in race rows',()=>{
+  const sheet=postcss.parse(css);
+  const media=sheet.nodes.filter(n=>n.type==='atrule'&&n.name==='media'&&n.params==='(max-width:560px)').at(-1);
+  assert.ok(media);
+  const rule=selector=>media.nodes.find(n=>n.type==='rule'&&n.selectors.includes(selector));
+  assert.ok(rule('#driverSidebar #driverPills').nodes.some(d=>d.prop==='grid-template-columns'&&d.value==='minmax(0,1fr)'));
+  assert.ok(rule('#driverPills .driver-pill-identity').nodes.some(d=>d.prop==='display'&&d.value==='block'));
+  assert.ok(rule('#driverPills.has-race-results .driver-pill[data-ui-kind="list-row"]').nodes.some(d=>d.prop==='grid-template-columns'&&d.value==='16px 18px minmax(0,1fr) auto'));
+});

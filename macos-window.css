@@ -949,12 +949,13 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
 #driverPills .driver-pill[aria-pressed="true"] .driver-pill-identity { color: var(--ui-list-selected-label); }
 #driverPills .driver-pill:hover:not([aria-pressed="true"]) { background: var(--ui-row-hover); }
 .app-sidebar .track-pill[data-ui-kind="choice"] { grid-template-columns: 18px 25px minmax(0,1fr) 12px; }
-/* Phones split the list into two columns: too narrow for a name, so a row is
-   position · logo · code (the name stays in the tooltip and label), and the
-   fill alone marks selection. */
+/* Keep an identifiable driver in narrow panels too. Race rows replace the
+   trailing code with points/gap, so hiding the name leaves only anonymous
+   logos and results. One full-width row preserves both identity and result. */
 @media(max-width:560px) {
-  #driverPills .driver-pill[data-ui-kind="list-row"],#driverPills.has-race-results .driver-pill[data-ui-kind="list-row"] { grid-template-columns: 16px 18px minmax(0,1fr); gap: 6px; padding-right: 6px; }
-  #driverPills .driver-pill-identity { display: none; }
+  #driverSidebar #driverPills { grid-template-columns: minmax(0,1fr); }
+  #driverPills .driver-pill[data-ui-kind="list-row"],#driverPills.has-race-results .driver-pill[data-ui-kind="list-row"] { grid-template-columns: 16px 18px minmax(0,1fr) auto; gap: 6px; padding-right: 6px; }
+  #driverPills .driver-pill-identity { display: block; font-size: 13px; }
   #driverPills .driver-pill[data-ui-kind="list-row"]::after { content: none; }
 }
 .app-sidebar .track-pill[aria-pressed="true"] :is(.track-round,small) { color: var(--ui-list-selected-secondary); }
