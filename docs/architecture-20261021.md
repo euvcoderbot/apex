@@ -28,7 +28,7 @@ Both servers serve `index.html` for any extension-less `/apex/` path
 | --- | --- |
 | `url-state.js`, `motion.js` | Shareable URLs; navigation motion |
 | `session-*.js` (9 files) | Session analysis, in load order: state and data, loader, laps, charts, hover, corners, map, start-up, tyres. Classic scripts sharing one global scope (formerly `app.js`). Tests read them joined via `scripts/app-source.mjs`. |
-| `car-performance.js` | Car-performance state, data loading and the categories not yet moved to React (ES module) |
+| `car-performance.js` | Car-performance state, data loading, view data for the React views, and the page chrome (metric tabs, telemetry controls, evidence panels) (ES module) |
 | `performance-format.js`, `performance-identity.js` | State-free helpers: formatting and statistics; team marks, flags, Pirelli allocations |
 | `src/` | React components and views, bundled by `scripts/sync-static.mjs` (esbuild) into `react-islands.js` |
 
@@ -42,13 +42,19 @@ and the delegated click handlers keep working unchanged.
 
 Shared components (`src/components/`): `Card`, `SegmentedControl`,
 `BarChart`, `DataTable` with `SortHeader`, `TeamLabel`/`TeamLogo`/`EventLabel`,
-`RetirementBadge`. Views (`src/views/`): `ResultsView` (Reliability & results).
+`RetirementBadge`/`CountBadge`, `Sparkline`, `ValueNote`, `DivergingBarChart`,
+`TyreStintPlot`. Views (`src/views/`), one per category: `PaceView`,
+`SpeedView` (qualifying Cornering, Straight line, Braking), `RaceCornersView`
+(race Cornering), `PitsView`, `TyresView`, `TrendView` (Development &
+updates), `ResultsView` (Reliability & results).
 
 Moving another category: build its plain view data in `car-performance.js`,
 return `reactView('<name>', data)`, add `src/views/<Name>View.tsx`, register it
 in `src/islands.tsx`, and render-test it in `scripts/test-react-views.mjs`.
-Still string-rendered: Pace, Cornering, Straight line, Braking, Pit stops,
-Tyre trend, Development, and the whole session-analysis view.
+Still string-rendered: the car-performance chrome around the views and the
+whole session-analysis view. `renderTrace()` and the cards it calls (race speed
+traps, matched qualifying corners, season lap-gap, circuit audit) are
+unreachable legacy: `speedDomainMethod` is always `'speed'`.
 
 ## Pre-rendered data
 
