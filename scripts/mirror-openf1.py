@@ -62,7 +62,9 @@ def main() -> None:
     args = parser.parse_args()
     wanted = {name.strip() for name in args.sessions.split(",") if name.strip()}
 
-    sessions = [s for s in server.openf1("sessions", year=args.year) if s.get("session_name") in wanted and settled(s)]
+    # Cancelled sessions stay listed (2026: Bahrain and Saudi Arabia in April) but have no data.
+    sessions = [s for s in server.openf1("sessions", year=args.year)
+                if s.get("session_name") in wanted and settled(s) and not s.get("is_cancelled")]
     if args.gp:
         keys = {(server.openf1_session(args.year, args.gp, code) or {}).get("session_key") for code in ("Q", "SQ", "S", "R")}
         sessions = [s for s in sessions if s.get("session_key") in keys]
