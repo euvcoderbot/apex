@@ -60,6 +60,15 @@ test('one GP with fast corners remains visible when the other selected circuits 
   assert.equal(result.rows.filter(row=>Number.isFinite(row.value)).length,3);
 });
 
+test('sparse speed packets propagate provisional status to the chart, not other metrics',()=>{
+  const cars=Object.fromEntries(['A','B','C'].map((name,i)=>[name,{...car(i,.01*i,0),cornering:{low:{index:1,time_vs_median_s:i,provisional:name==='B'}}}]));
+  const events=[{name:'GP',speedDomain:{driver:{cars}}}];
+  const rows=speedDomainSeason(events,'driver','corner_low').rows;
+  assert.equal(rows.find(r=>r.name==='A').provisional,false);
+  assert.equal(rows.find(r=>r.name==='B').provisional,true);
+  assert.equal(speedDomainSeason(events,'driver','straight').rows.find(r=>r.name==='B').provisional,false);
+});
+
 test('the page defaults to speed-domain and keeps every trace-batch speed-domain block',async()=>{
   const source=readFileSync('car-performance.js','utf8');
   assert.match(source,/let speedDomainMethod='speed'/);

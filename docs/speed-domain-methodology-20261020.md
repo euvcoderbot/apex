@@ -1,5 +1,10 @@
 # Speed-domain car metrics — 20 October 2026
 
+> Corner timing below is historical. The current common-distance speed estimator,
+> its Sepang HAD/VER audit and limitations are documented in
+> [the 21 October audit](corner-trace-audit-20261021.md). Earlier benchmark numbers
+> do not validate that revised estimator.
+
 Implementation: [`car_physics.py`](../car_physics.py), returned as `speed_domain` by
 `measure_field` (`car-measurements-v16-speed-domain`) and shown by default on the Car
 Performance Cornering, Straight line and Braking tabs. The window-timing method is still

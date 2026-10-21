@@ -255,13 +255,13 @@ function renderHorizontalBarChart(rows, {
     const rowTitle = escape(r[labelKey] || r.team || r.name || '');
 
     return `
-      <div class="performance-bar-row" title="${rowTitle}: ${displayStr}">
+      <div class="performance-bar-row" title="${rowTitle}: ${displayStr}${r.provisional?' · Provisional: source gaps over 0.6 s; inspect corner evidence':''}">
         <div class="performance-bar-label">${teamLabel(r)}</div>
         <div class="performance-bar-track">
           ${preserveSignedValues ? `<i class="performance-zero" style="left:${zeroPosition.toFixed(2)}%"></i>` : ''}
           <i class="performance-bar" style="--bar-color:${clr};left:${barLeft.toFixed(2)}%;width:${barWidth.toFixed(2)}%;"></i>
         </div>
-        <span class="performance-bar-val ${gainClass}">${displayStr}</span>
+        <span class="performance-bar-val ${gainClass}">${r.provisional?'≈ ':''}${displayStr}</span>
       </div>
     `;
   }).join('');
@@ -2873,10 +2873,10 @@ function speedDomainEntities() {
 }
 function speedDomainChart(key,title,subtitle) {
   const meta=SPEED_DOMAIN_METRICS[key],season=speedDomainSeason(events,telemetrySubject,key),style=speedDomainEntities();
-  const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason}));
+  const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason,provisional:r.provisional}));
   // While GPs are still loading an empty chart is pending, not a missing measurement.
-  if(!rows.length)return `<div class="performance-chart-card"><h4 class="perf-chart-heading">${escape(title||meta.label)}</h4><p class="performance-quality-status">${speedDomainRunning[telemetrySubject]?'Waiting for the first measured GPs…':'No supported measurement in the loaded GPs (for cornering: no grip-limited corners of this type). Missing values are not zero.'}</p></div>`;
-  return renderHorizontalBarChart(rows,{title:title||meta.label,subtitle:`${subtitle?subtitle+' · ':''}${season.gps} supported GP${season.gps===1?'':'s'} of ${events.filter(e=>e.Q).length} selected · ${season.events.join(', ')} · 0 = best`,unit:meta.unit,digits:meta.digits});
+  if(!rows.length)return `<div class="performance-chart-card"><h4 class="perf-chart-heading">${escape(title||meta.label)}</h4><p class="performance-quality-status">${running||speedDomainRunning[telemetrySubject]?'Waiting for the first measured GPs…':key.startsWith('corner_')?'No shared supported corner measurement in this band. Missing values are not zero.':'No supported measurement in the loaded GPs. Missing values are not zero.'}</p></div>`;
+  return renderHorizontalBarChart(rows,{title:title||meta.label,subtitle:`${subtitle?subtitle+' · ':''}${season.gps} supported GP${season.gps===1?'':'s'} of ${events.filter(e=>e.Q).length} selected · ${season.events.join(', ')} · 0 = best${rows.some(r=>r.provisional)?' · ≈ provisional: source gaps >0.6 s':''}`,unit:meta.unit,digits:meta.digits});
 }
 function speedDomainReliabilityNote(key) {
   const level=events.map(e=>e.speedDomain?.[telemetrySubject]?.reliability?.[SPEED_DOMAIN_METRICS[key].reliability]).find(Boolean);
@@ -2902,9 +2902,9 @@ function speedDomainPhaseTable() {
     return `<h4 class="perf-chart-heading">${label} corners</h4>`+table([telemetrySubject==='driver'?'Driver':'Team','Braking','Mid-corner','Exit','Total',...(several?['GPs']:[])],
       rows.map(r=>[teamLabel(style.get(r.name)||{team:r.name}),signed(r.braking,3,' s'),signed(r.mid,3,' s'),signed(r.exit,3,' s'),signed(r.braking+r.mid+r.exit,3,' s'),...(several?[String(r.gps)]:[])]));
   }).join('');
-  return sections?`<details class="performance-evidence"><summary>Where the time goes · braking, mid-corner, exit${several?' · seconds per GP, averaged':''}</summary><p class="performance-quality-status">Seconds per lap against the median ${telemetrySubject==='driver'?'driver':'team'}. Braking runs from the start line to where the field releases the brake (it includes the entry-speed correction), mid-corner to the last apex, exit to the end line (it includes the credit for exit speed carried onto the next straight).</p>${sections}</details>`:'';
+  return sections?`<details class="performance-evidence"><summary>Where the time goes · braking, mid-corner, exit${several?' · seconds per GP, averaged':''}</summary><p class="performance-quality-status">Common-distance estimates against the median ${telemetrySubject==='driver'?'driver':'team'}. Braking runs to the field's brake-release line, mid-corner to the last apex, exit to the end line. Only speed inside these lines counts; there are no entry corrections or credits on the next straight. These phases include driver, setup, power and entry context, not isolated grip.</p>${sections}</details>`:'';
 }
-// Every timed corner, fastest first, with the lines and both speed corrections.
+// Every corner, with speed-trace estimates, raw timestamps and source support.
 function speedDomainCornerTable() {
   const style=speedDomainEntities();
   const measured=events.filter(e=>e.speedDomain?.[telemetrySubject]?.segments?.timed_corners?.length);
@@ -2913,11 +2913,13 @@ function speedDomainCornerTable() {
     const rows=event.speedDomain[telemetrySubject].segments.timed_corners.flatMap(c=>Object.entries(c.cars).sort((a,b)=>a[1].delta_s-b[1].delta_s).map(([name,v],i)=>[
       i?'':`<strong>${escape(c.corner)}</strong><br><small>${escape(c.band)} · ${fmt(c.metres,0,' m')} · field ${fmt(c.field_time_s,2,' s')}</small>`,
       teamLabel(style.get(name)||{team:name}),signed(v.delta_s,3,' s'),signed(v.phases_s.braking,3,' s'),signed(v.phases_s.mid,3,' s'),signed(v.phases_s.exit,3,' s'),
-      `${fmt(v.entry_kmh,0)} / ${fmt(v.min_kmh,0)} / ${fmt(v.exit_kmh,0)}`]));
-    const t=table(['Corner',telemetrySubject==='driver'?'Driver':'Team','Δ to median','Braking','Mid-corner','Exit','In / min / out km/h'],rows);
+      `${fmt(v.entry_kmh,0)} / ${fmt(v.min_kmh,0)} / ${fmt(v.exit_kmh,0)}`,
+      signed(v.raw_delta_s,3,' s'),`±${fmt(v.registration_sensitivity_s,3,' s')}`,
+      `${fmt(v.max_packet_gap_s,2,' s')}${v.max_packet_gap_s>.6?' · Provisional':''}`]));
+    const t=table(['Corner',telemetrySubject==='driver'?'Driver':'Team','Trace Δ to median','Braking','Mid-corner','Exit','In / min / out km/h','Timestamp Δ','±5 m sensitivity','Max source gap'],rows);
     return measured.length===1?t:`<details class="performance-evidence"><summary>${escape(event.name)}</summary>${t}</details>`;
   }).join('');
-  return `<details class="performance-evidence"><summary>Corner by corner${measured.length===1?' · '+escape(measured[0].name):''}</summary><p class="performance-quality-status">Each corner runs from 10 m before the earliest braking point in the field to 10 m after the last car is back at full throttle; corners whose lines overlap are timed as one complex. Δ is corrected for entry and exit speed; a car more than 10% off the field through one corner, or 12% off at entry or exit, is left out of that corner as a mistake or data glitch.</p>${body}</details>`;
+  return `<details class="performance-evidence"><summary>Corner by corner${measured.length===1?' · '+escape(measured[0].name):''}</summary><p class="performance-quality-status">Speed is integrated over the same path from 10 m before the earliest braking point to 10 m after the last full-throttle return; overlapping turns form one complex. Timestamp Δ is a separate diagnostic affected by GPS path registration. ±5 m sensitivity shifts each car's registration; it is a scenario, not a confidence interval. Gaps over 0.6 s are provisional; over 1.5 s are excluded. Missing corners are never extrapolated to a complete band. Flat high-load bends compare lifting losses only; staying flat is not evidence of superior grip.</p>${body}</details>`;
 }
 function renderSpeedDomain() {
   const loaded=events.filter(e=>e.speedDomain?.[telemetrySubject]?.cars).length,total=events.filter(e=>e.Q).length;
@@ -2931,7 +2933,7 @@ function renderSpeedDomain() {
     // fast ones are not the same size of deficit.
     const several=events.filter(e=>e.Q).length>1,suffix=several?'_pct':'',per=several?' · % slower than the best':' · seconds per lap';
     return status+failures+card('Cornering',
-    `Every car is timed over the same stretch of each corner, from before the earliest braking point in the field to after the last car is back at full throttle, so late or early braking, a V or U line and early throttle count only through the time they take. Arriving faster from the previous straight and leaving faster onto the next one are corrected for, so engine power is not counted as cornering. ${several?'Across several GPs each value is the % of the time the field spends in that corner type, with every GP weighted equally.':'For one GP the values are seconds per lap in that corner type.'} Bands use the field's slowest speed in the corner: low below 120 km/h, medium 120–200, high above 200 (only bends that need braking, a lift or at least 3 g).`,
+    `Compare the measured speed traces over identical corner distances, with shared braking, mid-corner and exit phases. No hypothetical exit-speed credit or GPS path-length stretch enters the score. This assumes a common path: real racing-line differences are not resolved, and power, setup, driver and entry context still matter. ${several?'Values are % of estimated field time in that corner type, NOT % of lap time; each supported GP has equal weight.':'Values are estimated seconds across this GP’s supported corners in each band.'} Bands use the field minimum: low ≤120 km/h, medium 120–200, high >200. ≈ marks source gaps over 0.6 s; inspect the evidence before treating small gaps as meaningful.`,
     speedDomainChart('corner_low'+suffix,'Low-speed corners','below 120 km/h'+per)+speedDomainChart('corner_medium'+suffix,'Medium-speed corners','120–200 km/h'+per)+speedDomainChart('corner_high'+suffix,'High-speed corners','above 200 km/h'+per)+speedDomainPhaseTable()+speedDomainCornerTable()+speedDomainEventTable(['corner_low','corner_medium','corner_high'].map(k=>k+suffix)))+
     card('Corner exit traction',`Acceleration out of slow corners at any throttle position, once a car has gained 30 km/h over its own apex, simulated from 70 to 170 km/h. Seconds per corner exit. Evidence only: in validation it carried little car-specific signal in 2025.`,
     speedDomainReliabilityNote('traction')+speedDomainChart('traction','Traction (corner exit)','70–170 km/h')+speedDomainEventTable(['traction']));

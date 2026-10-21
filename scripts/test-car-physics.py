@@ -91,9 +91,9 @@ class SpeedDomainTests(unittest.TestCase):
             for band in ('low', 'medium', 'high'):
                 self.assertLess(abs(self.r['cars'][f'base{k}']['cornering'][band]['time_vs_median_s']), .04, band)
 
-    def test_packet_dropouts_do_not_invent_corner_time(self):
-        # OpenF1 car data often skips 1-1.4 s; lines inside such gaps are
-        # interpolated with constant acceleration, not linearly.
+    def test_packet_dropouts_are_explicitly_provisional(self):
+        # Missing a speed trough cannot be reconstructed precisely from its
+        # endpoints. Keep the estimate but never call a 1.1 s gap dense data.
         lap = simulate(rng=np.random.default_rng(11))
         keep = np.ones(len(lap), bool)
         keep[np.arange(5, len(lap)-5, 9)] = False
@@ -103,7 +103,8 @@ class SpeedDomainTests(unittest.TestCase):
         for band in ('low', 'medium', 'high'):
             value = r['cars']['gappy']['cornering'][band]
             self.assertIsNotNone(value['index'], band)
-            self.assertLess(abs(value['time_vs_median_s']), .05, band)
+            self.assertTrue(value['provisional'], band)
+        self.assertTrue(any(c['max_packet_gap_s'] > .6 for c in r['cars']['gappy']['corners']))
 
     def test_phases_add_up_to_the_corner_time(self):
         for car in self.r['cars'].values():
@@ -120,7 +121,8 @@ class SpeedDomainTests(unittest.TestCase):
         # +5% power is ~1% less time over the same straight.
         self.assertLess(index(self.r, 'power', 'straight'), .995)
         self.assertEqual(self.r['cars']['power']['straight']['gap_pct'], 0.)
-        # Entry and exit speed are corrected, so power is not cornering.
+        # Small power changes have little influence in this simulated field.
+        # This is not a promise to isolate power in real entry/exit traces.
         for band in ('low', 'medium', 'high'):
             self.assertAlmostEqual(corner(self.r, 'power', band), 1., delta=.004, msg=band)
 
@@ -157,6 +159,40 @@ class SpeedDomainTests(unittest.TestCase):
 
     def test_too_few_cars(self):
         self.assertIn('error', speed_domain_metrics({'a': [simulate()], 'b': [simulate()]}))
+
+
+class CommonDistanceTimingTests(unittest.TestCase):
+    def test_constant_acceleration_integrates_exactly_across_clipped_packets(self):
+        from car_physics import _speed_trace_time
+        t = np.arange(0., 5.1, .5)
+        p = 30*t+2*t*t
+        a = np.zeros((len(t), 8)); a[:, 1] = t; a[:, 2] = (30+4*t)*3.6
+        distance = lambda time: 30*time+2*time*time
+        self.assertAlmostEqual(_speed_trace_time(p, a, distance(.13), distance(4.81)), 4.68, places=10)
+
+    def test_gps_residual_gradient_cannot_invent_time_at_constant_speed(self):
+        from car_physics import _speed_trace_time, _time_at
+        p = np.arange(0., 501., 5.)
+        a = np.zeros((len(p), 8)); a[:, 0] = p; a[:, 1] = p/60; a[:, 2] = 216
+        warped = p+4*np.sin(p/100)
+        raw = _time_at(warped, a, 400)-_time_at(warped, a, 100)
+        self.assertGreater(abs(raw-5), .05)  # old GPS-stretched timestamp score
+        self.assertAlmostEqual(_speed_trace_time(warped, a, 100, 400), 5., places=10)
+
+    def test_no_speculative_exit_credit_or_partial_band_extrapolation(self):
+        result = field(grip={'mu': 1.03}, power={'power': 990.})
+        for row in result['segments']['timed_corners']:
+            self.assertEqual(row['timing_method'], 'common-distance-speed-integral')
+            self.assertEqual(row['registration_shift_m'], 5.)
+            for car in row['cars'].values():
+                self.assertGreaterEqual(car['registration_sensitivity_s'], 0.)
+        for car in result['cars'].values():
+            for band in ('low', 'medium', 'high'):
+                value = car['cornering'][band]
+                if value and value['index'] is not None:
+                    self.assertEqual(value['corners'], value['expected'])
+                    self.assertAlmostEqual(value['time_vs_median_s'],
+                        sum(c['delta_s'] for c in car['corners'] if c['band'] == band), places=10)
 
 
 class MappedFastCornerTests(unittest.TestCase):

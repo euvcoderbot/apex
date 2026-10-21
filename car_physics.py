@@ -35,7 +35,7 @@ import math
 import numpy as np
 
 G = 9.80665
-METHOD = 'speed-domain-v2'
+METHOD = 'speed-domain-v3-trace-integral'
 # Field-median apex speed thresholds, the same convention as performance_tracks.
 CORNER_BANDS = (('low', 0., 120.), ('medium', 120., 200.), ('high', 200., 300.))
 # Above this, a "corner" is flat out and not grip-limited for qualifying cars.
@@ -658,10 +658,9 @@ def braking_comparison(corner_rows, names):
 
 
 # --- corner timing on fixed field lines ----------------------------------
-# Every car is timed over the same stretch of track: from before the earliest
-# braking or lift of any car to after the last car is back at full throttle.
-# Whatever line or style a driver uses (late braking, V or U shape, early
-# throttle) is inside the same distance, so only the time to cover it counts.
+# Compare measured speed over a common path, not timestamps stretched by each
+# lap's GPS/odometer registration. This is a common-distance estimate, NOT an
+# actual racing-line traversal time or an isolated grip measurement.
 LINE_MARGIN_M = 10.
 LINE_REACH_M = 150.          # lines never move further than this from the field's own
 EXIT_CREDIT_MAX_M = 500.     # exit speed pays off over at most this much of the next straight
@@ -674,6 +673,7 @@ BRAKING_SEARCH_M = 400.      # braking for a corner starts within this of its ap
 ONSET_SPREAD_M = 80.         # real braking points sit within this of the field's median
 FLAT_THROTTLE = 95.          # minimum throttle through a bend that still counts as flat out
 MAX_PACKET_GAP_S = 1.5       # OpenF1 car data often skips 1-1.4 s; see _time_at
+REGISTRATION_SHIFT_M = 5.   # disclosed sensitivity scenario, not a confidence interval
 
 
 def _monotonic(a, p):
@@ -742,6 +742,23 @@ def _own_release(p, a, start_m, apex_m):
     return float(p[idx[-1]]) if len(idx) else None
 
 
+def _speed_trace_time(p, a, lo, hi):
+    """Integral ds/v on the shared track path, using native speed packets.
+
+    Constant acceleration between packets makes v^2 linear in distance.
+    Integrating each clipped interval as 2*ds/(v_left+v_right) is exact for
+    that assumption. GPS chooses where a packet belongs, but its residual
+    gradient must not multiply the inferred local time as timestamp timing did.
+    This deliberately assumes equal path length; real racing-line differences
+    below the public position feed's resolution are not claimed as measured.
+    """
+    if hi <= lo:
+        return 0.
+    points = np.r_[lo, p[(p > lo) & (p < hi)], hi]
+    speeds = np.sqrt(np.maximum(np.interp(points, p, (a[:, V]/3.6)**2), 1.))
+    return float(np.sum(2*np.diff(points)/(speeds[:-1]+speeds[1:])))
+
+
 def _entry_saving(grid, v_ms, start, apex, v_in):
     """Time a car saves (negative: loses) only from its speed at the line.
 
@@ -767,13 +784,12 @@ def _entry_saving(grid, v_ms, start, apex, v_in):
 
 
 def corner_timing(projected, corners, track, field_speed):
-    """Fixed-line corner times with braking / mid-corner / exit phases.
+    """Common-distance speed-trace estimates, split into three shared phases.
 
-    Raw segment time partly measures power: a car arriving faster covers the
-    stretch before the braking point sooner (dt ~ dv * distance / v^2), and a
-    car leaving faster gains on the next straight outside the segment, a
-    speed difference assumed to fade linearly (dt ~ 0.5 * dv * distance / v^2).
-    Both are corrected to first order.
+    Actual timestamp timing and the former entry/exit model remain diagnostics.
+    Neither GPS path-length residuals nor hypothetical gains on the following
+    straight enter the headline score. Power, setup, driver and entry context
+    still affect observed speed; this method does not pretend to isolate grip.
     """
     grid = track['grid']
     lap_end = float(grid[-1])
@@ -829,13 +845,24 @@ def corner_timing(projected, corners, track, field_speed):
             for p, a in values:  # fastest lap first: the first lap covering the segment
                 # Lines fall between packets (~21 m apart at 300 km/h) and are
                 # interpolated; a dropout longer than MAX_PACKET_GAP_S is not.
-                ids = np.flatnonzero((p >= start-130) & (p <= end+130))  # 1.5 s at 310 km/h
+                # Only intervals intersecting this window matter. A gap 100 m
+                # outside it must not disqualify an otherwise measured corner.
+                ids = np.arange(max(0, np.searchsorted(p, start, side='right')-1),
+                                min(len(p), np.searchsorted(p, end, side='left')+1))
                 if len(ids) < 3 or p[ids[0]] > start or p[ids[-1]] < end or np.max(np.diff(a[ids, T])) > MAX_PACKET_GAP_S:
                     continue
                 t = lambda x: _time_at(p, a, x)
                 v = lambda x: float(np.interp(x, p, a[:, V]))/3.6
+                phase_lines = (start, release_line, apex_line, end)
+                trace = [_speed_trace_time(p, a, lo, hi) for lo, hi in zip(phase_lines, phase_lines[1:])]
+                shifted = [_speed_trace_time(p, a, start+shift, end+shift)
+                           for shift in (-REGISTRATION_SHIFT_M, REGISTRATION_SHIFT_M)
+                           if p[0] <= start+shift and p[-1] >= end+shift]
                 inside = (p >= start) & (p <= end)
                 cars[name] = {'phases_raw': [t(release_line)-t(start), t(apex_line)-t(release_line), t(end)-t(apex_line)],
+                              'phases_adj': trace,
+                              'registration_sensitivity_s': max((abs(x-sum(trace)) for x in shifted), default=0.),
+                              'max_packet_gap_s': float(np.max(np.diff(a[ids, T]))),
                               'v_in': v(start), 'v_out': v(end), 'v_min_kmh': float(a[inside, V].min()),
                               'min_throttle': float(a[inside, THR].min()), 'braked': bool((a[inside, BRK] >= .5).any())}
                 break
@@ -856,8 +883,6 @@ def corner_timing(projected, corners, track, field_speed):
         for c_ in cars.values():
             c_['entry_correction_s'] = _entry_saving(grid, v_ms, start, apex_line, c_['v_in'])
             c_['exit_credit_s'] = .5*(c_['v_out']-v_out_f)*straight/max(v_exit, 1.)**2
-            braking, mid, exit_ = c_['phases_raw']
-            c_['phases_adj'] = [braking+c_['entry_correction_s'], mid, exit_-c_['exit_credit_s']]
         field_phases = [float(np.median([c_['phases_adj'][i] for c_ in cars.values()])) for i in range(3)]
         field_raw = float(np.median([sum(c_['phases_raw']) for c_ in cars.values()]))
         flat_bend = all(c.get('flat_load') for c in seg['corners'])
@@ -887,9 +912,14 @@ def corner_timing(projected, corners, track, field_speed):
                      'field_entry_kmh': v_in_f*3.6, 'field_exit_kmh': v_out_f*3.6, 'exit_straight_m': straight,
                      'braked': bool(first['braked']), 'flat_load': any(bool(c.get('flat_load')) for c in seg['corners']),
                      'flat_bend': flat_bend,
+                     'timing_method': 'common-distance-speed-integral',
+                     'registration_shift_m': REGISTRATION_SHIFT_M,
                      'cars': {name: {'time_s': sum(c_['phases_adj']),
                                      'delta_s': sum(c_['phases_adj'])-sum(field_phases),
                                      'raw_delta_s': sum(c_['phases_raw'])-field_raw,
+                                     'raw_time_s': sum(c_['phases_raw']),
+                                     'registration_sensitivity_s': c_['registration_sensitivity_s'],
+                                     'max_packet_gap_s': c_['max_packet_gap_s'],
                                      'phases_s': {k: c_['phases_adj'][i]-field_phases[i] for i, k in enumerate(('braking', 'mid', 'exit'))},
                                      'entry_correction_s': c_['entry_correction_s'], 'exit_credit_s': c_['exit_credit_s'],
                                      'entry_kmh': c_['v_in']*3.6, 'exit_kmh': c_['v_out']*3.6, 'min_kmh': c_['v_min_kmh'],
@@ -904,16 +934,17 @@ def corner_timing(projected, corners, track, field_speed):
             if not expected:
                 bands[name][band] = None
                 continue
-            if len(mine) < max(1, math.ceil(.6*expected)):
+            if len(mine) != expected:
                 bands[name][band] = {'index': None, 'corners': len(mine), 'expected': expected,
-                                     'exclusion': 'Too few comparable corners in this band'}
+                                     'exclusion': 'Incomplete shared corner coverage; measured corners remain in the evidence'}
                 continue
-            scale = expected/len(mine)
             delta = sum(r['cars'][name]['delta_s'] for r in mine)
             field = sum(r['field_time_s'] for r in mine)
             bands[name][band] = {'index': field/(field+delta), 'corners': len(mine), 'expected': expected,
-                                 'time_vs_median_s': delta*scale, 'pct_vs_median': delta/field*100,
-                                 'phases_s': {k: sum(r['cars'][name]['phases_s'][k] for r in mine)*scale for k in ('braking', 'mid', 'exit')},
+                                 'time_vs_median_s': delta, 'pct_vs_median': delta/field*100,
+                                 'registration_sensitivity_s': sum(r['cars'][name]['registration_sensitivity_s'] for r in mine),
+                                 'provisional': any(r['cars'][name]['max_packet_gap_s'] > .6 for r in mine),
+                                 'phases_s': {k: sum(r['cars'][name]['phases_s'][k] for r in mine) for k in ('braking', 'mid', 'exit')},
                                  'exclusion': None}
     return rows, bands
 

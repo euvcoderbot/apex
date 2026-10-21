@@ -1,7 +1,7 @@
 // Speed-domain car metrics (car_physics.py, `speed_domain` in trace-batch).
 // Straight line and braking compare cars at equal speed; cornering times every
-// car over the same fixed stretch of each corner, corrected for entry and exit
-// speed. See docs/speed-domain-methodology-20261020.md for method and validation.
+// car's measured speed over the same path, without hypothetical entry/exit
+// credits. See docs/corner-trace-audit-20261021.md for assumptions and validation.
 
 export const SPEED_DOMAIN_METRICS = Object.freeze({
   corner_low: {label: 'Low-speed corners', unit: ' s', digits: 3, reliability: 'cornering'},
@@ -63,7 +63,10 @@ export function speedDomainSeason(events, subject, key) {
     const observed = perEvent.filter(row => finite(row.values[name]));
     const values = observed.map(row => row.values[name]);
     const value = values.reduce((s, v) => s+v, 0)/values.length;
-    return {name, value: observed.length >= minimum ? value : null, gps: observed.length,
+    const band = key.startsWith('corner_') ? key.slice(7).replace(/_pct$/, '') : null;
+    const provisional = band && events.some(event => observed.some(row => row.event === event.name)
+      && event.speedDomain?.[subject]?.cars?.[name]?.cornering?.[band]?.provisional);
+    return {name, value: observed.length >= minimum ? value : null, gps: observed.length, provisional: Boolean(provisional),
       missingReason: observed.length >= minimum ? null : `Measured in ${observed.length} of ${perEvent.length} GPs`,
       perEvent: observed.map(row => ({event: row.event, value: row.values[name]}))};
   });

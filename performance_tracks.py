@@ -1449,7 +1449,7 @@ def speed_domain_only(extracted, selections, corners=()):
     speed_domain.setdefault('excluded', {})
     speed_domain['excluded'].update(errors)
     return {'teams': {}, 'excluded': errors, 'speed_domain': speed_domain, 'measures': 'speed',
-            'methodology_version': 'car-measurements-v17-corner-timing'}
+            'methodology_version': 'car-measurements-v18-trace-integral'}
 
 
 def measure_field(extracted, selections, corners=(), measurement_frame=None):
@@ -1470,7 +1470,7 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
                 result['teams'][team] = {**observation, 'corners': [], 'braking': [], 'categories': {},
                     'quality': {'native_only': True, 'spatial_exclusion': errors.get(team)},
                     'measurement_status': 'native-speed-only'}
-        result['methodology_version'] = 'car-measurements-v17-corner-timing'
+        result['methodology_version'] = 'car-measurements-v18-trace-integral'
         result['source_complete'] = all(not error and samples and len(samples)>=100 for _,samples,error in extracted)
         result['source_coverage'] = {'requested':len(selections),'received':sum(bool(samples) and not error for _,samples,error in extracted),
             'native_speed':len(native),'spatially_measured':sum(not r.get('quality',{}).get('native_only') for r in result['teams'].values())}
