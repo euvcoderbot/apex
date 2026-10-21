@@ -50,6 +50,17 @@ function raceResultMarkup(driver) {
   return `<span class="driver-result" title="${escapeUI(status || 'Result unavailable')}"><b>${escapeUI(value)}</b>${badge && raceResultView === 'points' ? `<small>${badge}</small>` : ''}</span>`;
 }
 
+// Timing feeds write surnames in capitals ("Max VERSTAPPEN"); lists use natural
+// case ("Max Verstappen"). Only a "First LAST" name is recased: a bare code
+// fallback ("VER") stays as it is.
+function naturalDriverName(value) {
+  const words = String(value).split(' ');
+  if (words.every(word => word === word.toUpperCase())) return String(value);
+  return words.map(word => word.length > 1 && word === word.toUpperCase() && word !== word.toLowerCase()
+    ? word.split('-').map(part => part.charAt(0) + part.slice(1).toLowerCase()).join('-')
+    : word).join(' ');
+}
+
 function renderDrivers() {
   const root = $('#driverPills');
   const isRace = drivers.length > 0 && /^(Race|Sprint)$/i.test(loadedSessionName);
@@ -74,8 +85,10 @@ function renderDrivers() {
     const isSelected = selected.includes(code);
     const position = Number.isFinite(+d[5]) && +d[5] > 0 ? +d[5] : index + 1;
 
-    const name = String(d[2] || code);
-    return `<button class="driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-motion-key="driver-${code}" data-code="${code}" aria-label="${escapeUI(`P${position}, ${name}, ${d[4] || ''}, number ${number}`)}" aria-pressed="${isSelected}"><span class="driver-pill-position">${position}</span>${teamLogoMarkup(d[4])}<span class="driver-pill-identity"><strong>${escapeUI(name)}</strong><small>${code} · ${number}</small></span>${isRace ? raceResultMarkup(realDrivers.get(code)) : ''}</button>`;
+    const name = naturalDriverName(d[2] || code);
+    // A source-list row: position · logo · name · trailing code (a race shows
+    // its result there instead); the car number is in the tooltip.
+    return `<button class="driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-motion-key="driver-${code}" data-code="${code}" aria-label="${escapeUI(`P${position}, ${name}, ${d[4] || ''}, number ${number}`)}" aria-pressed="${isSelected}"><span class="driver-pill-position">${position}</span>${teamLogoMarkup(d[4])}<span class="driver-pill-identity">${escapeUI(name)}</span>${isRace ? raceResultMarkup(realDrivers.get(code)) : `<span class="driver-pill-code">${escapeUI(code)}</span>`}</button>`;
   }).join(''));
   
   root.querySelectorAll('button').forEach(btn => {
