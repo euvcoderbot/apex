@@ -16,6 +16,7 @@ export {TrendView} from './src/views/TrendView';
 export {PaceView} from './src/views/PaceView';
 export {TyresView} from './src/views/TyresView';
 export {SpeedView} from './src/views/SpeedView';
+export {RaceCornersView} from './src/views/RaceCornersView';
 export {Sparkline} from './src/components/Sparkline';
 export {BarChart} from './src/components/BarChart';
 export {DataTable} from './src/components/DataTable';
@@ -176,4 +177,19 @@ test('speed view: cornering evidence, straight-line pills and pending charts', (
     pills: [{key: 'straight', label: 'Speed', hint: 'a'}, {key: 'energy', label: 'Energy', hint: 'b'}], chart: {title: 'Energy', rows: [{...team, value: 2}], options: {unit: ' km/h', digits: 0}}});
   assert.match(straight, /data-straight-pill="energy" aria-pressed="true" title="b">Energy/);
   assert.doesNotMatch(straight, /data-speed-retry/);
+});
+
+test('race cornering view: band control, load action, gaps and snapshot evidence', () => {
+  const team = {team: 'McLaren', color: '#ff8000'};
+  const html = render(views.RaceCornersView, {band: 'low', action: 'calculate', support: 'No supported matched race snapshots yet.', coverage: ['Bahrain Grand Prix · 120 native driver-laps available. ok'], ageModel: null,
+    chart: {rows: [{...team, gap: -.012}], options: {valueKey: 'gap', unit: ' s', digits: 3, signedValue: true}},
+    sort: {team: sortModel('raceCornerTeam'), gap: sortModel('raceCornerGap'), gps: sortModel('raceCornerGPs'), samples: sortModel('raceCornerSamples')},
+    rows: [{team, gap: -.012, events: 2, samples: 2, comparisons: 14}],
+    snapshots: [{event: 'Bahrain Grand Prix', team: 'McLaren', driver: 'NOR', lap: 22, compound: 'HARD', age: 9, corners: 15, alignment: 'GPS'}], problems: ['Singapore Grand Prix · timeout', 'Monaco Grand Prix · no laps']});
+  assert.match(html, /data-corner-band="low" aria-pressed="true" title="Low-speed corners">Low/);
+  assert.match(html, /data-race-corners-load="">Calculate matched race corners/);
+  assert.match(html, />-0\.012 s</);
+  assert.match(html, />14 · sparse</);
+  assert.match(html, /NOR L22/);
+  assert.match(html, /Singapore Grand Prix · timeout<br\/>Monaco Grand Prix · no laps/);
 });
