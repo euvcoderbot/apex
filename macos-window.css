@@ -27,11 +27,13 @@ a { color: var(--ui-accent); }
 }
 .toolbar-leading { display: flex; align-items: center; gap: 10px; min-width: 0; justify-self: start; }
 .site-header .brand { display: inline-flex; align-items: center; flex: 0 0 auto; width: auto; min-width: 0; height: 28px; margin: 0; padding: 0 2px; border: 0; border-radius: 6px; background: none; box-shadow: none; }
-/* Text wordmark: "F1 Apex data" in the display face, no image. */
-.site-header .brand.brand-wordmark { display: inline-flex; align-items: center; height: 30px; padding-top: 1px; gap: 5px; padding: 0 4px; color: var(--ui-label); text-decoration: none; font-family: var(--ui-font-display); font-size: 18px; line-height: 1; letter-spacing: -.02em; white-space: nowrap; }
-.brand-wordmark .brand-f1 { font-weight: 800; font-style: italic; letter-spacing: -.04em; color: var(--ui-accent); }
-.brand-wordmark .brand-apex { font-weight: 700; }
-.brand-wordmark .brand-data { font-weight: 400; color: var(--ui-tertiary); }
+/* Brand: the F1 Apex Data app icon plus a live-text wordmark ("F1" in the logo's teal). */
+:root { --brand-teal: #00a0a8; }
+:root:not([data-theme="light"]) { --brand-teal: #14b4bc; }
+.site-header .brand.brand-wordmark { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 4px 0 2px; color: var(--ui-label); text-decoration: none; font-family: var(--ui-font-display); font-size: 16px; line-height: 1; letter-spacing: -.01em; white-space: nowrap; }
+.brand-wordmark .brand-icon { display: block; flex: 0 0 24px; width: 24px; height: 24px; max-width: none; border-radius: 6px; box-shadow: 0 0 0 .5px var(--ui-border); }
+.site-header .brand-wordmark .brand-f1 { font-style: normal; font-weight: 800; color: var(--brand-teal); letter-spacing: -.03em; }
+.site-header .brand-wordmark .brand-apex { margin-left: -2px; font-style: normal; font-weight: 700; color: var(--ui-label); }
 .window-title { display: grid; min-width: 0; line-height: 1.2; padding-left: 10px; border-left: 1px solid var(--ui-separator); }
 .window-title strong { overflow: hidden; font: 600 15px/1.25 var(--ui-font); color: var(--ui-label); white-space: nowrap; text-overflow: ellipsis; }
 .window-title span { overflow: hidden; font-size: 13px; color: var(--ui-tertiary); white-space: nowrap; text-overflow: ellipsis; }
@@ -537,7 +539,7 @@ body.performance-view > #carPerformance:not([hidden]),body:not(.performance-view
   .performance-methods dl { grid-template-columns: minmax(0,1fr); gap: 2px; }
   .performance-methods dd { margin-bottom: 8px; }
 }
-@media(max-width:520px) { .site-header :is(.local-compute-status,.local-compute-link),.site-header .brand.brand-wordmark { display: none; } }
+@media(max-width:520px) { .site-header :is(.local-compute-status,.local-compute-link),.brand-wordmark :is(.brand-f1,.brand-apex) { display: none; } }
 
 /* ---------- Accessibility preferences ---------- */
 @media(prefers-reduced-transparency:reduce),(prefers-contrast:more) {
