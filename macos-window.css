@@ -847,3 +847,23 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
 :root:not([data-theme="light"]) .team-logo-official:is([data-team-mark="astonmartin"],[data-team-mark="audi"],[data-team-mark="cadillac"],[data-team-mark="mercedes"]) > .team-logo-color { display: none; }
 :root:not([data-theme="light"]) .team-logo-official:is([data-team-mark="astonmartin"],[data-team-mark="audi"],[data-team-mark="cadillac"],[data-team-mark="mercedes"]) > .team-logo-mono { display: block; }
 @media(forced-colors:active) { .team-logo-official > .team-logo-color { display: none; } .team-logo-official > .team-logo-mono { display: block; } }
+/* Lap card, broadcast style: per-sector time and delta, then the sector
+   label in its status colour sitting on one continuous segmented bar;
+   hairlines separate identity, sectors and weather. */
+.sector-cards .lap-summary-card .summary-tyre .compound-badge { width: 20px; height: 20px; flex: 0 0 20px; }
+.sector-cards .lap-summary-card .summary-sectors { gap: 0; }
+.sector-cards .lap-summary-card .sector-cell { padding: 0 0 6px; }
+.sector-cards .lap-summary-card .sector-cell + .sector-cell .sector-cell-value { border-left: 1px solid var(--ui-separator); }
+.sector-cards .lap-summary-card .sector-cell-value { flex: 1 1 auto; justify-content: space-between; padding: 0 6px 6px; }
+.sector-cards .lap-summary-card .sector-measurements { order: 0; }
+.sector-cards .lap-summary-card .sector-cell-value > small { order: 1; margin-top: 4px; font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--sector-status,var(--ui-tertiary)); }
+.sector-cards .lap-summary-card .sector-cell::after { left: 1px; right: 1px; bottom: 0; height: 4px; border-radius: 0; }
+.sector-cards .lap-summary-card .sector-cell:first-child::after { left: 0; border-radius: 2px 0 0 2px; }
+.sector-cards .lap-summary-card .sector-cell:last-child::after { right: 0; border-radius: 0 2px 2px 0; }
+.sector-cards .lap-summary-card .summary-driver,.sector-cards .lap-summary-card .summary-tyre { padding-bottom: 6px; }
+.sector-cards .lap-summary-card .summary-tyre { width: 100%; border-bottom: 1px solid var(--ui-separator); }
+/* Corner and straight choices are buttons: filled, bezelled, with hover and an accent selected state. */
+.circuit-section-group .corner-picker button.corner-pick,.corner-picker button[data-ui-kind="choice"],.corner-picker button[data-ui-kind="push"] { border: 0; background: var(--ui-control); box-shadow: var(--ui-shadow-control); color: var(--ui-label); font-weight: 500; transition: background-color var(--ui-motion) var(--ui-ease),box-shadow var(--ui-motion) var(--ui-ease); }
+.circuit-section-group .corner-picker button.corner-pick:hover:not(:disabled),.corner-picker button[data-ui-kind="choice"]:hover:not(:disabled) { background: var(--ui-control-hover); }
+.circuit-section-group .corner-picker button.corner-pick:active:not(:disabled) { background: var(--ui-selected); }
+.circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"],.corner-picker button[aria-pressed="true"] { background: var(--ui-action); color: #fff; box-shadow: 0 .5px 1px #0000004d,inset 0 .5px #ffffff38; }
