@@ -35,6 +35,17 @@ test('season weights GPs equally and leaves sparsely measured entrants unranked,
   assert.match(row('D').missingReason,/1 of 3/);
 });
 
+test('one GP with fast corners remains visible when the other selected circuits have none',()=>{
+  const cars=Object.fromEntries(['A','B','C'].map((name,i)=>[name,{cornering:{high:{index:1,time_vs_median_s:i*.02}}}]));
+  const events=[{name:'Baku',Q:{},speedDomain:{team:{cars:{A:{},B:{},C:{}}}}},
+    {name:'Sepang',Q:{},speedDomain:{team:{cars}}},
+    {name:'Singapore',Q:{},speedDomain:{team:{cars:{A:{},B:{},C:{}}}}}];
+  const result=speedDomainSeason(events,'team','corner_high');
+  assert.equal(result.gps,1);
+  assert.deepEqual(result.events,['Sepang']);
+  assert.equal(result.rows.filter(row=>Number.isFinite(row.value)).length,3);
+});
+
 test('the page defaults to speed-domain and keeps every trace-batch speed-domain block',async()=>{
   const source=readFileSync('car-performance.js','utf8');
   assert.match(source,/let speedDomainMethod='speed'/);

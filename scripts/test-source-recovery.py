@@ -10,6 +10,14 @@ from verified_sources import recorded_session,recorded_lap,recorded_payload,reco
 
 
 class SourceRecoveryTests(unittest.TestCase):
+    def setUp(self):
+        # Test the recorded snapshot's validity independently of today's clock;
+        # expiry behaviour below supplies explicit boundary timestamps.
+        reference = _recordings()['2026:Bahrain Grand Prix:R']['expires']-60
+        clock = patch('verified_sources.time.time', return_value=reference)
+        clock.start()
+        self.addCleanup(clock.stop)
+
     def test_azerbaijan_session_and_every_fastest_native_lap_survive_archive_outage(self):
         r = recorded_session(2026, 'Azerbaijan Grand Prix', 'Q')
         self.assertEqual(len(r['data']['drivers']), 22)
@@ -102,7 +110,7 @@ class SourceRecoveryTests(unittest.TestCase):
         r=recorded_session(2026,'Singapore Grand Prix','Q')
         before=json.dumps(r,sort_keys=True)
         result=analyze(performance_input(r),2)
-        self.assertEqual(result['method'],'car-performance-v12-supported-nonlinear')
+        self.assertEqual(result['method'],'car-performance-v13-supported-recovery')
         self.assertEqual(len(result['teams']),11)
         self.assertAlmostEqual(result['teams'][0]['lap']['time'],91.373)
         self.assertEqual(json.dumps(r,sort_keys=True),before)

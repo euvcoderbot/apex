@@ -1151,7 +1151,7 @@ function calculateAggregate() {
           completedLaps:0,lapExposureEntries:0,
           puRetirements:0,chassisRetirements:0,incidentRetirements:0,otherRetirements:0,unknownRetirements:0,
           positions:[],samples:0,coverage:[],stints:[],tyreAgeStints:[],results:0,
-          fastestRaceDrivers:[],retirements:[],phaseDetails:[],raceDrivers:[],
+          fastestRaceDrivers:[],retirements:[],phaseDetails:[],raceDrivers:[],raceCoverage:[],
           sampleTiers:[],sensitivityBrackets:[],provisionalFlags:[],fallbackFlags:[],
           trafficSensitivity:{'1.5s':[],'2.0s':[],'2.5s':[]},teammateSpreads:[],
           fieldNormalizedStints:[]
@@ -1184,9 +1184,11 @@ function calculateAggregate() {
       } else {
         item.r.push(typeof racePaceModel!=='undefined'&&racePaceModel==='linear'?t.race_linear_diagnostic?.pace:t.pace);
         item.samples+=t.samples;
-        if(t.sample_tier) item.sampleTiers.push(t.sample_tier);
+        item.raceCoverage.push({event:e.name,supported:finite(t.pace),basis:t.race_pace_basis||'clear-air',
+          provisional:!!t.provisional,samples:t.samples||0});
+        if(finite(t.pace)&&t.sample_tier) item.sampleTiers.push(t.sample_tier);
         if(t.traffic_sensitivity_bracket) item.sensitivityBrackets.push(t.traffic_sensitivity_bracket);
-        if(t.provisional) item.provisionalFlags.push(t.provisional);
+        if(finite(t.pace)&&t.provisional) item.provisionalFlags.push(t.provisional);
         if(t.fallback_used) item.fallbackFlags.push(t.fallback_used);
         if(finite(t.traffic_coverage)) item.coverage.push(t.traffic_coverage);
         if(t.fastest_race_driver)item.fastestRaceDrivers.push(t.fastest_race_driver);
@@ -1384,15 +1386,15 @@ function renderPace(teams) {
         sortHeader('team', 'Team'),
         sortHeader(paceKey, qualyColLabel),
         sortHeader('race', 'Estimated race pace deficit'),
-        sortHeader('samples', 'Eligible race laps', -1)
+        sortHeader('samples', 'Modelled race laps', -1)
       ], ordered.map(t => [
         teamLabel(t),
         `${fmt(t[paceKey], 3, '%')}<small>${t.qCount} of ${events.filter(e=>e.Q?.teams?.length).length} loaded qualifying events${middle50Label(qualyPaceMode==='adjusted'?t.adjDeficits:t.q.map(q=>q.pace),'%')?` · GP P25–P75 ${middle50Label(qualyPaceMode==='adjusted'?t.adjDeficits:t.q.map(q=>q.pace),'%')}`:''}${t.qCount === 1 && t.q[0]?.lap ? ` · ${escape(t.q[0].lap.driver)} ${fmt(t.q[0].lap.time, 3, ' s')}` : ''}</small>`,
-        `${fmt(t.race, 3, '%')}${t.sampleTier === 'insufficient' || t.provisional ? ' <span class="perf-tercile-badge is-mid" style="font-size:0.65rem;">Limited sample</span>' : ''}<small>${t.fastestRaceDrivers?.length ? `Fastest: ${escape([...new Set(t.fastestRaceDrivers)].join(', '))} · ` : ''}${t.rCount} event${t.rCount === 1 ? '' : 's'}${middle50Label(t.r,'%')?` · GP P25–P75 ${middle50Label(t.r,'%')}`:''}${t.sensitivityBracket ? ` · Bracket [${fmt(t.sensitivityBracket[0], 3, '%')}, ${fmt(t.sensitivityBracket[1], 3, '%')}]` : ''}</small>`,
+        `${fmt(t.race, 3, '%')}${t.provisional ? ' <span class="perf-tercile-badge is-mid">Provisional estimate</span>' : ''}<small>${t.fastestRaceDrivers?.length ? `${escape([...new Set(t.fastestRaceDrivers)].join(', '))} · ` : ''}${t.rCount}/${events.filter(e=>e.R?.teams?.length).length} races supported${t.raceCoverage.some(r=>r.supported&&r.basis!=='clear-air')?` · ${t.raceCoverage.filter(r=>r.supported&&r.basis!=='clear-air').length} estimated`:''}${t.sensitivityBracket ? ` · Bracket [${fmt(t.sensitivityBracket[0], 3, '%')}, ${fmt(t.sensitivityBracket[1], 3, '%')}]` : ''}</small>`,
         t.samples
       ]))) +
     raceSupport +
-    `<details class="dashboard-card performance-methods"><summary>Why this pace ranking? View selected laps and race drivers</summary><p class="performance-note">Only the fastest valid lap across the whole qualifying session counts for each team. P25–P75 describes variation in the GP deficits, not uncertainty in the season rank.</p>${table(['Team', 'Event', 'Phase', 'Driver', 'Selected lap (s)'], teams.flatMap(t => t.q.filter(q => q.lap).map(q => [teamLabel(t), eventLabel(q.event), escape(q.lap.phase), escape(q.lap.driver), fmt(q.lap.time, 3)]))) }<p class="performance-note">Race pace models race lap, compound and tyre age, with timing checkpoints as a traffic proxy. Typical model error is the median absolute residual on eligible laps, not a confidence interval. Driver choices and race management remain in the estimate.</p>${table(['Team', 'Event', 'Driver', 'Estimate', 'Eligible laps', 'Typical model error'], teams.flatMap(t => t.raceDrivers.map(r => [teamLabel(t), eventLabel(r.event), `${escape(r.driver)}${r.selected ? ' · selected' : ''}`, fmt(r.pace, 3, '%'), r.samples, fmt(r.residual_spread, 3, '%')]))) }</details>`;
+    `<details class="dashboard-card performance-methods"><summary>Why this pace ranking? View selected laps and race drivers</summary><p class="performance-note">Only the fastest valid lap across the whole qualifying session counts for each team. P25–P75 describes variation in the GP deficits, not uncertainty in the season rank.</p>${table(['Team', 'Event', 'Phase', 'Driver', 'Selected lap (s)'], teams.flatMap(t => t.q.filter(q => q.lap).map(q => [teamLabel(t), eventLabel(q.event), escape(q.lap.phase), escape(q.lap.driver), fmt(q.lap.time, 3)]))) }<p class="performance-note">Standard race pace needs ten clear-air laps. Five to nine can support a provisional fit. Otherwise, known-traffic laps may support a provisional fit with a shared linear proximity effect below two seconds, anchored to at least three standard drivers. This assumes a common traffic response; clear-air extrapolation is flagged. Unknown gaps, wet/pit laps and disconnected fits stay excluded. Residual error is not a confidence interval.</p>${table(['Team', 'Event', 'Driver', 'Estimate', 'Modelled laps', 'Basis / residual'], teams.flatMap(t => t.raceDrivers.map(r => [teamLabel(t), eventLabel(r.event), `${escape(r.driver)}${r.selected ? ' · selected' : ''}`, fmt(r.pace, 3, '%'), r.samples, `${escape(r.estimate_basis==='traffic-adjusted'?'Traffic-adjusted · provisional':r.estimate_basis==='sparse-clear-air'?'Short clean-air sample · provisional':'Clear-air')}${r.model_diagnostics?.clear_air_extrapolation?' · extrapolated':''}<small>${fmt(r.residual_spread,3,'%')} residual</small>`]))) }</details>`;
 }
 
 function tyreViewControls() {
@@ -2874,7 +2876,7 @@ function speedDomainChart(key,title,subtitle) {
   const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason}));
   // While GPs are still loading an empty chart is pending, not a missing measurement.
   if(!rows.length)return `<div class="performance-chart-card"><h4 class="perf-chart-heading">${escape(title||meta.label)}</h4><p class="performance-quality-status">${speedDomainRunning[telemetrySubject]?'Waiting for the first measured GPs…':'No supported measurement in the loaded GPs (for cornering: no grip-limited corners of this type). Missing values are not zero.'}</p></div>`;
-  return renderHorizontalBarChart(rows,{title:title||meta.label,subtitle:`${subtitle?subtitle+' · ':''}${season.gps} GP${season.gps===1?'':'s'} · 0 = best`,unit:meta.unit,digits:meta.digits});
+  return renderHorizontalBarChart(rows,{title:title||meta.label,subtitle:`${subtitle?subtitle+' · ':''}${season.gps} supported GP${season.gps===1?'':'s'} of ${events.filter(e=>e.Q).length} selected · ${season.events.join(', ')} · 0 = best`,unit:meta.unit,digits:meta.digits});
 }
 function speedDomainReliabilityNote(key) {
   const level=events.map(e=>e.speedDomain?.[telemetrySubject]?.reliability?.[SPEED_DOMAIN_METRICS[key].reliability]).find(Boolean);
@@ -2889,7 +2891,8 @@ function speedDomainEventTable(keys) {
     for(const name of Object.keys(result.cars))rows.push([escape(event.name),teamLabel(style.get(name)||{team:name}),
       ...keys.map(k=>signed(values[k][name],SPEED_DOMAIN_METRICS[k].digits,SPEED_DOMAIN_METRICS[k].unit))]);
   }
-  return `<details class="performance-evidence"><summary>Values by GP · relative to each GP's median ${telemetrySubject==='driver'?'driver':'team'}</summary>${table(['Grand Prix',telemetrySubject==='driver'?'Driver':'Team',...keys.map(k=>escape(SPEED_DOMAIN_METRICS[k].label))],rows)}</details>`;
+  const cornerEvidence=keys.some(k=>k.startsWith('corner_'))?table(['Grand Prix','Turn','Band','Field apex','Detection / sampled phase'],events.flatMap(event=>(event.speedDomain?.[telemetrySubject]?.segments?.corners||[]).map(c=>[escape(event.name),escape(c.corner),escape(c.band),fmt(c.field_apex_kmh,1,' km/h'),`${c.mapped_fast_bend?'Map + sustained curvature':'Speed minimum'} · ${fmt(c.dwell_s,2,' s')}`]))):'';
+  return `<details class="performance-evidence"><summary>Values by GP · relative to each GP's median ${telemetrySubject==='driver'?'driver':'team'}</summary>${table(['Grand Prix',telemetrySubject==='driver'?'Driver':'Team',...keys.map(k=>escape(SPEED_DOMAIN_METRICS[k].label))],rows)}${cornerEvidence}</details>`;
 }
 function renderSpeedDomain() {
   const loaded=events.filter(e=>e.speedDomain?.[telemetrySubject]?.cars).length,total=events.filter(e=>e.Q).length;
@@ -2898,7 +2901,7 @@ function renderSpeedDomain() {
     (failed.length&&!speedDomainRunning[telemetrySubject]?`<div class="performance-actions"><button type="button" data-speed-retry>Retry ${failed.length} missing GP${failed.length===1?'':'s'}</button></div>`:'');
   const status=`<p class="performance-quality-status" role="status">${speedDomainRunning[telemetrySubject]?'Loading fastest qualifying laps… ':''}${loaded} of ${total} GPs measured. Season values weight each GP equally; entrants measured in fewer than half of them stay unranked.</p>`;
   if(activeMetric==='corners')return status+failures+card('Cornering',
-    `Time lost per lap at grip-limited corners, from each car's own minimum speed and the time it spends near that speed. Corners come from the circuit segment audit: a corner is where the field's speed reaches a minimum after braking or lifting. Flat-out bends and energy-management lifts are excluded because they measure power, not grip. Seconds per lap behind the best ${telemetrySubject==='driver'?'driver':'team'}, comparable with qualifying gaps.`,
+    `Estimated time loss from speed carried through measured corners. Braked and lifted corners use local speed minima. Mapped fast turns also require sustained GPS curvature and field speed above 200 km/h, so a linked sequence can contain separate turns without two speed dips. Broad apexes use a bounded observed window and are provisional. Fast-bend speed includes setup, energy and driver effects; it does not isolate grip. Only GPs containing a supported band contribute to that band.`,
     speedDomainChart('corner_low','Low-speed corners','below 120 km/h')+speedDomainChart('corner_medium','Medium-speed corners','120–200 km/h')+speedDomainChart('corner_high','High-speed corners','above 200 km/h; often one corner per circuit, as 2026 cars take most fast bends flat')+speedDomainEventTable(['corner_low','corner_medium','corner_high']))+
     card('Corner exit traction',`Acceleration out of slow corners at any throttle position, once a car has gained 30 km/h over its own apex, simulated from 70 to 170 km/h. Seconds per corner exit. Evidence only: in validation it carried little car-specific signal in 2025.`,
     speedDomainReliabilityNote('traction')+speedDomainChart('traction','Traction (corner exit)','70–170 km/h')+speedDomainEventTable(['traction']));

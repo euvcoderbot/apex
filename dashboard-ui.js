@@ -139,9 +139,13 @@
         }
       } else if (charts.length === 1 && table) {
         const split = document.createElement('div');
-        split.className = 'performance-split-view';
+        split.className = 'performance-split-view' + (metric === 'tyres' ? ' is-independent-rows' : '');
         body.insertBefore(split, charts[0]);
-        split.append(charts[0], table);
+        if(metric === 'tyres'){
+          const evidence=document.createElement('details');evidence.className='performance-evidence';
+          const summary=document.createElement('summary');summary.textContent='Tyre trend measurements';
+          evidence.append(summary,table);split.append(charts[0],evidence);
+        } else split.append(charts[0], table);
       } else if (charts.length === 1) {
         charts[0].classList.add('is-standalone-chart');
       }
@@ -198,6 +202,7 @@
     const splits=[...root.querySelectorAll('.performance-split-view')];
     if(splits.length){
       const sync=()=>{for(const split of splits){
+        if(split.classList.contains('is-independent-rows'))continue;
         const head=split.querySelector('.performance-table thead tr'),row=split.querySelector('.performance-table tbody tr');
         if(!head||!row||!row.offsetHeight)continue;
         split.style.setProperty('--split-head',head.offsetHeight+'px');

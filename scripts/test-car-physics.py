@@ -127,5 +127,25 @@ class SpeedDomainTests(unittest.TestCase):
         self.assertIn('error', speed_domain_metrics({'a': [simulate()], 'b': [simulate()]}))
 
 
+class MappedFastCornerTests(unittest.TestCase):
+    def test_two_curved_fast_turns_remain_separate_without_speed_dips(self):
+        from car_physics import field_segments, car_apex
+        grid = np.arange(0., 1005., 5.)
+        curvature = np.zeros(len(grid))
+        curvature[(grid >= 220)&(grid <= 380)] = .004
+        curvature[(grid >= 470)&(grid <= 630)] = -.004
+        track = dict(grid=grid,x=grid,y=np.zeros(len(grid)),curvature=curvature,scale=1.)
+        a = np.zeros((len(grid),8));a[:,0]=grid;a[:,1]=grid/(240/3.6);a[:,2]=240;a[:,3]=100
+        segments = field_segments([(a,grid)]*3, track, [('5',300.,0.),('6',550.,0.)])
+        bends = [c for c in segments['corners'] if c.get('mapped_fast_bend')]
+        self.assertEqual([c['turn'] for c in bends], ['5','6'])
+        self.assertLess(bends[0]['end_m'], bends[1]['start_m'])
+        for c in bends:
+            apex = car_apex(a,grid,c)
+            self.assertEqual(apex['method'], 'bounded-apex-window')
+            self.assertLess(apex['dwell'], 3.)
+        straight = {**track,'curvature':np.zeros(len(grid))}
+        self.assertFalse(field_segments([(a,grid)]*3, straight, [('5',300.,0.)])['corners'])
+
 if __name__ == '__main__':
     unittest.main()

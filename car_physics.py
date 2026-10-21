@@ -412,6 +412,35 @@ def field_segments(laps, track, markers=()):
             if math.hypot(mx-track['x'][i], my-track['y'][i])*track['scale'] <= 150:
                 corner['turn'] = label
         corners.append(corner)
+    # A fast S-bend need not produce two longitudinal speed dips. Recover each
+    # mapped turn from a sustained curvature arc, bounded by neighbouring map
+    # turns. Speed and curvature must both be observed; markers alone add no data.
+    mapped = sorted([(int(np.argmin((track['x']-mx)**2+(track['y']-my)**2)), label)
+                     for label, mx, my in markers])
+    for n, (centre, label) in enumerate(mapped):
+        before = (mapped[n-1][0]+centre)//2 if n else 0
+        after = (centre+mapped[n+1][0])//2 if n+1 < len(mapped) else len(grid)-1
+        lo, hi = max(before, centre-16), min(after, centre+16)
+        if hi-lo < 6:
+            continue
+        curve = track['curvature'][lo:hi+1]
+        speed = float(np.median(v[lo:hi+1]))
+        lateral_g = (v[lo:hi+1]/3.6)**2*np.abs(curve)/G
+        # Reject straight-line noise and isolated GPS kinks.
+        if speed <= 200 or np.median(lateral_g) < 1.2 or abs(np.sum(curve)*SEGMENT_STEP) < .15:
+            continue
+        start, end = float(grid[lo]), float(grid[hi])
+        nearby = [c for c in corners if start <= c['apex_m'] <= end]
+        corners = [c for c in corners if c not in nearby]
+        i = min(range(lo, hi+1), key=lambda k: v[k])
+        corners.append({'apex_m': float(grid[centre]), 'start_m': start, 'end_m': end,
+                        'apex_phase_m': [start, end], 'field_apex_kmh': float(v[i]),
+                        'apex_throttle': float(np.median(thr[lo:hi+1])),
+                        'braked': bool((brk[lo:hi+1] >= .5).any()),
+                        'grip_limited': bool(np.median(thr[lo:hi+1]) < GRIP_THROTTLE),
+                        'mapped_fast_bend': True, 'band': 'high', 'turn': label,
+                        'geometry_source': 'mapped-curvature'})
+    corners.sort(key=lambda c: c['apex_m'])
     straight = (thr >= 98) & (lateral < 1.)
     straights = []
     i = 0
@@ -441,11 +470,32 @@ def car_apex(a, pos, corner):
     inside = (pos >= corner['start_m']) & (pos <= corner['end_m'])
     candidates = [i for i in speed_minima(a) if inside[i]]
     if not candidates:
-        return None
-    i = min(candidates, key=lambda j: abs(pos[j]-corner['apex_m']))
+        # Fast corners can have a broad, almost constant-speed apex: requiring
+        # another 6 km/h dip in every car removes valid packets at the same bend.
+        # Use a fully observed local window about the field apex, and flag it.
+        if corner.get('band') != 'high':
+            return None
+        lo = max(corner['start_m'], corner['apex_m']-35.)
+        hi = min(corner['end_m'], corner['apex_m']+35.)
+        ids = np.flatnonzero((pos >= lo) & (pos <= hi))
+        if len(ids) < 3 or pos[ids[0]]-lo > 20 or hi-pos[ids[-1]] > 20:
+            return None
+        if np.max(np.diff(a[ids, T])) > .6:
+            return None
+        i = int(ids[np.argmin(a[ids, V])])
+        method = 'bounded-apex-window'
+    else:
+        i = min(candidates, key=lambda j: abs(pos[j]-corner['apex_m']))
+        method = 'local-speed-minimum'
     if (i and a[i, T]-a[i-1, T] > .6) or (i+1 < len(a) and a[i+1, T]-a[i, T] > .6):
         return None
-    return {'index': i, 'kmh': float(a[i, V]), 'pos': float(pos[i]), 'dwell': apex_dwell(a, i)}
+    # A fast apex's 15% speed envelope can otherwise run through neighbouring
+    # slow corners for 20+ seconds. Only this corner's local phase contributes.
+    local_start = float(np.interp(corner['start_m'], pos, a[:, T]))
+    local_end = float(np.interp(corner['end_m'], pos, a[:, T]))
+    dwell = min(apex_dwell(a, i), max(0., local_end-local_start))
+    return {'index': i, 'kmh': float(a[i, V]), 'pos': float(pos[i]), 'dwell': dwell,
+            'method': method}
 
 
 def braking_into(a, pos, corner, apex):
@@ -582,8 +632,18 @@ def speed_domain_metrics(cars, corners=()):
     projected = {name: values for name, values in projected.items() if values}
     if len(projected) < 3:
         return {'method': METHOD, 'cars': {}, 'error': 'Fewer than three cars register to the circuit by GPS'}
-    markers = [(str(c['number'])+str(c.get('letter') or ''), c['x'], c['y']) for c in corners or ()
-               if c.get('x') is not None and c.get('y') is not None and not c.get('normalized')]
+    markers = []
+    for c in corners or ():
+        if c.get('x') is None or c.get('y') is None:
+            continue
+        x, y = c['x'], c['y']
+        if c.get('normalized'):
+            x = float(np.min(track['x'])+x*np.ptp(track['x']))
+            y = float(np.min(track['y'])+y*np.ptp(track['y']))
+            error = np.min(np.hypot(track['x']-x, track['y']-y))*track['scale']
+            if error > 150:
+                continue
+        markers.append((str(c['number'])+str(c.get('letter') or ''), x, y))
     segments = field_segments([lp for values in projected.values() for lp in values], track, markers)
     results = {name: {} for name in projected}
     reference_ranges = {}
@@ -644,9 +704,9 @@ def speed_domain_metrics(cars, corners=()):
     # --- corners and braking, corner by corner ------------------------------
     corner_rows = []
     for corner in segments['corners']:
-        if not corner['grip_limited']:
+        if not corner['grip_limited'] and not corner.get('mapped_fast_bend'):
             continue
-        speeds, dwells, braking = {}, [], {}
+        speeds, dwells, braking, apex_methods = {}, [], {}, {}
         for name, values in projected.items():
             apexes, brakes = [], []
             for a, p in values:
@@ -658,6 +718,7 @@ def speed_domain_metrics(cars, corners=()):
             if apexes:
                 speeds[name] = float(np.median([x['kmh'] for x in apexes]))
                 dwells.append(float(np.median([x['dwell'] for x in apexes])))
+                apex_methods[name] = sorted({x['method'] for x in apexes})
             if brakes:
                 braking[name] = brakes
         if len(speeds) < max(3, math.ceil(.5*len(projected))):
@@ -665,7 +726,8 @@ def speed_domain_metrics(cars, corners=()):
         field = float(np.median(list(speeds.values())))
         corner_rows.append({**corner, 'corner': corner['turn'] or f"{corner['apex_m']:.0f} m", 'field_apex_kmh': field,
                             'band': next(b for b, lo, hi in CORNER_BANDS if lo < field <= hi) if field <= CORNER_BANDS[-1][2] else 'high',
-                            'dwell_s': float(np.median(dwells)), 'speeds': speeds, 'braking': braking})
+                            'dwell_s': float(np.median(dwells)), 'speeds': speeds, 'braking': braking,
+                            'apex_methods': apex_methods})
     braking_by_car = braking_comparison(corner_rows, list(projected))
     for name in projected:
         results[name]['braking'] = braking_by_car[name]
@@ -687,10 +749,11 @@ def speed_domain_metrics(cars, corners=()):
             # Time lost to a slower apex ~ time near that speed x speed deficit.
             loss = sum(r['dwell_s']*(r['field_apex_kmh']/r['speeds'][name]-1) for r in rows)*expected/len(rows)
             bands[band] = {'index': float(np.mean(ratios[trim:len(ratios)-trim])), 'corners': len(rows),
-                           'expected': expected, 'time_vs_median_s': float(loss), 'exclusion': None}
+                           'expected': expected, 'time_vs_median_s': float(loss), 'exclusion': None,
+                           'provisional': any('bounded-apex-window' in r['apex_methods'].get(name, []) for r in rows)}
         results[name]['cornering'] = bands
         results[name]['corners'] = [{'corner': r['corner'], 'band': r['band'], 'apex_kmh': r['speeds'][name],
-                                     'field_apex_kmh': r['field_apex_kmh']} for r in corner_rows if name in r['speeds']]
+                                     'field_apex_kmh': r['field_apex_kmh'], 'apex_methods': r['apex_methods'][name]} for r in corner_rows if name in r['speeds']]
     _attach_gaps(results)
     return {'method': METHOD, 'cars': results, 'reliability': RELIABILITY, 'excluded': excluded,
             'corner_count': len(corner_rows), 'reference_ranges': reference_ranges,

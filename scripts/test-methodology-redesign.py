@@ -2,7 +2,7 @@
 import sys,unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from performance import race_estimates,fit_tyre_stint
+from performance import race_estimates,recover_race_estimates,fit_tyre_stint
 from pace_models import tyre_curve,qualifying_conditions
 from telemetry_sources import fuse_native_samples
 from performance_tracks import source_intervals,prepare,speed_crossing_bounds
@@ -10,6 +10,41 @@ import numpy as np
 
 
 class MethodologyTests(unittest.TestCase):
+    def recovery_fixture(self, traffic=False):
+        rows, gaps = [], {}
+        for k, driver in enumerate('ABCD'):
+            for i in range(3, 24 if driver != 'D' else 10):
+                gap = .4+(i%4)*.2 if driver == 'D' and traffic else 2.8
+                if traffic and driver != 'D' and (i+k)%3 == 0:
+                    gap = .6+(k%2)*.3
+                # Known driver effect and a common traffic penalty in log time.
+                value = 90*np.exp((k*.3-i*.02+max(0,2-gap)*.2)/100)
+                rows.append(dict(driver=driver,lap=i,age=i,compound='MEDIUM',stint=1,time=value))
+                gaps[driver,i] = gap
+        clear = [r for r in rows if gaps[r['driver'],r['lap']] > 2]
+        base, support = race_estimates(clear, False)
+        return rows, gaps, base, support
+
+    def test_sparse_clean_laps_recover_a_contrast_without_moving_standard_drivers(self):
+        rows, gaps, base, support = self.recovery_fixture()
+        fitted, detail, basis = recover_race_estimates(rows, gaps, base, support)
+        self.assertEqual(set(base), set('ABC'))
+        for d in base:self.assertEqual(base[d], fitted[d])
+        self.assertEqual(basis['D'], 'sparse-clear-air')
+        self.assertTrue(detail['D']['provisional'])
+        self.assertAlmostEqual(fitted['D'], np.expm1(.009)*100, 5)
+
+    def test_traffic_recovery_identifies_known_effect_and_flags_extrapolation(self):
+        rows, gaps, base, support = self.recovery_fixture(True)
+        fitted, detail, basis = recover_race_estimates(rows, gaps, base, support)
+        self.assertEqual(basis['D'], 'traffic-adjusted')
+        self.assertTrue(detail['D']['clear_air_extrapolation'])
+        self.assertAlmostEqual(fitted['D'], np.expm1(.009)*100, 4)
+        for d in base:self.assertEqual(base[d], fitted[d])
+        # Unknown proximity is not replaced with assumed clean air.
+        unknown = {key: value for key,value in gaps.items() if key[0] != 'D'}
+        self.assertNotIn('D', recover_race_estimates(rows, unknown, base, support)[0])
+
     def test_infeasible_braking_assumption_does_not_produce_reversed_bounds(self):
         self.assertIsNone(speed_crossing_bounds(np.array([0.,.1]),np.array([300.,100.]),200))
         lo,hi=speed_crossing_bounds(np.array([0.,1.]),np.array([300.,100.]),200)
