@@ -48,12 +48,18 @@ GPS projection.
   (within 15% of the minimum speed), exit (until the field is back at 98% throttle).
 - **Grip-limited corner:** braked, or a minimum taken below 90% throttle. Other minima are lifts
   or energy dips and are not used for cornering.
-- **Flat-out bend:** lateral load ≥ 1.5 g at ≥ 95% throttle with no speed minimum. A bend the
-  field takes flat is limited by power and energy deployment, not grip, so it is never ranked as
-  cornering (Baku T18–T20 and Singapore T6 used to put straight-line speed into the high-speed
-  band). Turns found only from map curvature are measured only when unbraked and lifted for; a
-  braked turn is measured from its own speed minimum, never from the arc around its marker. Some
-  circuits therefore have no high-speed comparison at all (Baku, Singapore, Spa, Shanghai in 2026).
+- **Flat-out bend:** lateral load ≥ 1.5 g at ≥ 95% throttle with no speed minimum. Below 3 g a
+  flat bend is limited by power and energy deployment, not grip, and is not ranked (Baku T20
+  ~1.3 g, Singapore T6 ~1.9 g used to put straight-line speed into the high-speed band).
+- **High-load flat bend:** ≥ 3 g sustained, field speed within 8% of its entry speed (Spa
+  Raidillon, Pouhon and Blanchimont; Silverstone Abbey). These are ranked, but a window minimum
+  there measures entry speed (power) and runs into the next braking zone, so each car's speed at
+  the bend apex is scaled to the field's entry speed. A car that stays flat scores about zero; a
+  car that has to lift (Cadillac 39% and Racing Bulls 68% throttle in Pouhon) loses time.
+- Turns found only from map curvature never replace a speed-minimum corner, are dropped when
+  braked (the arc is only the braking entry), and are measured only by one of the two methods
+  above, never by a window minimum. Some circuits have no high-speed comparison (Singapore,
+  Monaco, Montréal in 2026).
 - **Straight:** ≥ 98% throttle and lateral load < 1 g for at least 100 m.
 
 The segmentation was checked circuit by circuit against the real layouts before any car was

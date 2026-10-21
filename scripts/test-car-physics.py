@@ -141,13 +141,29 @@ class MappedFastCornerTests(unittest.TestCase):
         self.assertEqual([c['turn'] for c in bends], ['5','6'])
         self.assertLess(bends[0]['end_m'], bends[1]['start_m'])
         for c in bends:
-            apex = car_apex(a,grid,c)
-            self.assertEqual(apex['method'], 'bounded-apex-window')
-            self.assertLess(apex['dwell'], 3.)
+            # Low load and no field speed dip: nothing bounds an apex window.
+            self.assertIsNone(car_apex(a,grid,c))
         straight = {**track,'curvature':np.zeros(len(grid))}
         self.assertFalse(field_segments([(a,grid)]*3, straight, [('5',300.,0.)])['corners'])
         # Taken flat: detected for the circuit guide, never ranked as grip.
         self.assertFalse(any(c['grip_limited'] for c in bends))
+
+    def test_flat_high_load_bend_measures_scrub_not_power(self):
+        from car_physics import field_segments, car_apex
+        grid = np.arange(0., 1005., 5.)
+        curvature = np.zeros(len(grid)); curvature[(grid >= 420)&(grid <= 580)] = .006  # ~3.3 g at 265 km/h
+        track = dict(grid=grid,x=grid,y=np.zeros(len(grid)),curvature=curvature,scale=1.)
+        def lap(base, lift=0.):
+            v = base-4*np.exp(-((grid-500)/60)**2)-lift*np.exp(-((grid-500)/40)**2)
+            a = np.zeros((len(grid),8));a[:,0]=grid;a[:,2]=v;a[:,3]=100
+            a[:,1]=np.concatenate([[0],np.cumsum(np.diff(grid)/(v[1:]/3.6))]);return a
+        strong, weak, lifting = lap(275), lap(262), lap(268, lift=12)
+        bends = [c for c in field_segments([(x,grid) for x in (strong,weak,lifting)], track, [('10',500.,0.)])['corners'] if c['turn']=='10']
+        self.assertEqual(len(bends), 1); bend = bends[0]
+        self.assertTrue(bend['flat_load'] and bend['grip_limited'])
+        s, w, l = (car_apex(x,grid,bend)['kmh'] for x in (strong,weak,lifting))
+        self.assertAlmostEqual(s, w, delta=.5, msg='more power alone is not more cornering speed')
+        self.assertLess(l, s-5, 'a lift in the bend costs speed')
 
     def test_mapped_turn_does_not_replace_a_braked_speed_minimum(self):
         from car_physics import field_segments
@@ -162,6 +178,9 @@ class MappedFastCornerTests(unittest.TestCase):
         self.assertFalse(corners[0].get('mapped_fast_bend'))
         self.assertEqual(corners[0]['turn'], '13')
         self.assertTrue(corners[0]['grip_limited'])
+        # Flags are served as JSON: plain Python bools, never numpy scalars.
+        for key in ('grip_limited', 'flat_load', 'braked'):
+            self.assertIs(type(corners[0][key]), bool, key)
 
 if __name__ == '__main__':
     unittest.main()

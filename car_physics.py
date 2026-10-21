@@ -334,6 +334,13 @@ SEGMENT_STEP = 5.
 CORNER_PROMINENCE_KMH = 10.
 APEX_PHASE = .15            # apex phase: within 15% of the corner's minimum speed
 GRIP_THROTTLE = 90.         # an unbraked minimum above this throttle is a lift / energy dip
+# A bend taken flat out at this sustained lateral load is still tyre-load
+# limited (Spa Pouhon ~4 g, Silverstone Abbey, Suzuka 130R); flat kinks on a
+# straight sit well below it (Baku T20 ~1.3 g, Singapore T6 ~1.9 g).
+LOAD_LIMIT_G = 3.
+# Entry-speed scaling assumes a near-constant-speed bend; an accelerating exit
+# (Shanghai T13) or a braking entry is not one.
+FLAT_SPEED_CHANGE = .08
 
 
 def project_lap(a, track):
@@ -401,10 +408,14 @@ def field_segments(laps, track, markers=()):
             end += 1
         phase = np.flatnonzero(v[start:end+1] <= v[i]*(1+APEX_PHASE))+start
         braked = bool((brk[start:i+1] >= .5).any())
+        load = float(np.median(lateral[max(0, i-16):i+17]))
         corner = {'apex_m': float(grid[i]), 'start_m': float(grid[start]), 'end_m': float(grid[end]),
                   'apex_phase_m': [float(grid[phase[0]]), float(grid[phase[-1]])],
                   'field_apex_kmh': float(v[i]), 'apex_throttle': float(thr[i]), 'braked': braked,
-                  'grip_limited': braked or float(thr[i]) < GRIP_THROTTLE,
+                  'lateral_g': load, 'entry_kmh': float(v[start]),
+                  'flat_load': bool(not braked and thr[i] >= GRIP_THROTTLE and v[i] > 200 and load >= LOAD_LIMIT_G
+                                    and abs(v[i]/v[start]-1) <= FLAT_SPEED_CHANGE),
+                  'grip_limited': bool(braked or thr[i] < GRIP_THROTTLE or (v[i] > 200 and load >= LOAD_LIMIT_G)),
                   'band': next(b for b, lo, hi in CORNER_BANDS if lo < v[i] <= hi) if v[i] <= CORNER_BANDS[-1][2] else 'high',
                   'turn': None}
         if markers:
@@ -445,11 +456,14 @@ def field_segments(laps, track, markers=()):
         # T1 read 192-309 km/h mid-braking). Never measure that as an apex.
         if braked:
             continue
+        load = float(np.median(lateral_g))
         corners.append({'apex_m': float(grid[centre]), 'start_m': start, 'end_m': end,
                         'apex_phase_m': [start, end], 'field_apex_kmh': float(v[i]),
                         'apex_throttle': float(np.median(thr[lo:hi+1])),
-                        'braked': braked,
-                        'grip_limited': braked or bool(np.median(thr[lo:hi+1]) < GRIP_THROTTLE),
+                        'braked': False, 'lateral_g': load, 'entry_kmh': float(v[lo]),
+                        'flat_load': bool(np.median(thr[lo:hi+1]) >= GRIP_THROTTLE and load >= LOAD_LIMIT_G
+                                          and abs(v[i]/v[lo]-1) <= FLAT_SPEED_CHANGE),
+                        'grip_limited': bool(np.median(thr[lo:hi+1]) < GRIP_THROTTLE or load >= LOAD_LIMIT_G),
                         'mapped_fast_bend': True, 'band': 'high', 'turn': label,
                         'geometry_source': 'mapped-curvature'})
     corners.sort(key=lambda c: c['apex_m'])
@@ -479,13 +493,17 @@ def in_ranges(pos, ranges):
 
 def car_apex(a, pos, corner):
     """This car's own speed minimum inside the corner's extent, or None."""
+    if corner.get('flat_load'):
+        return _flat_bend_speed(a, pos, corner)
     inside = (pos >= corner['start_m']) & (pos <= corner['end_m'])
     candidates = [i for i in speed_minima(a) if inside[i]]
     if not candidates:
         # Fast corners can have a broad, almost constant-speed apex: requiring
         # another 6 km/h dip in every car removes valid packets at the same bend.
         # Use a fully observed local window about the field apex, and flag it.
-        if corner.get('band') != 'high':
+        # A mapped bend has no field speed dip to bound the window: its edge
+        # can reach the next braking zone (Suzuka 130R read 189 km/h).
+        if corner.get('band') != 'high' or corner.get('mapped_fast_bend'):
             return None
         lo = max(corner['start_m'], corner['apex_m']-35.)
         hi = min(corner['end_m'], corner['apex_m']+35.)
@@ -508,6 +526,30 @@ def car_apex(a, pos, corner):
     dwell = min(apex_dwell(a, i), max(0., local_end-local_start))
     return {'index': i, 'kmh': float(a[i, V]), 'pos': float(pos[i]), 'dwell': dwell,
             'method': method}
+
+
+def _flat_bend_speed(a, pos, corner):
+    """Speed through a high-load bend the field takes flat out.
+
+    With no speed dip, a window minimum lands wherever the window ends (Suzuka
+    130R read 189-314 km/h as it reached the chicane braking) and mostly
+    measures entry speed, i.e. power. Instead take the car's speed at the
+    bend's apex scaled to the field's entry speed: what remains is speed
+    scrubbed or lifted away in the bend itself.
+    """
+    lo, apex = corner['start_m'], corner['apex_m']
+    ids = np.flatnonzero((pos >= lo-25) & (pos <= apex+25))
+    if len(ids) < 2 or pos[ids[0]] > lo or pos[ids[-1]] < apex or np.max(np.diff(a[ids, T])) > .6:
+        return None
+    entry, at_apex = float(np.interp(lo, pos, a[:, V])), float(np.interp(apex, pos, a[:, V]))
+    field_ratio = corner['field_apex_kmh']/corner['entry_kmh']
+    if entry <= 0 or abs(at_apex/entry-field_ratio) > FLAT_SPEED_CHANGE:
+        return None
+    i = int(ids[np.argmin(np.abs(pos[ids]-apex))])
+    local_start = float(np.interp(lo, pos, a[:, T]))
+    local_end = float(np.interp(corner['end_m'], pos, a[:, T]))
+    return {'index': i, 'kmh': at_apex*corner['entry_kmh']/entry, 'raw_kmh': at_apex, 'pos': apex,
+            'dwell': max(0., local_end-local_start), 'method': 'entry-normalised-flat-bend'}
 
 
 def braking_into(a, pos, corner, apex):
@@ -716,10 +758,10 @@ def speed_domain_metrics(cars, corners=()):
     # --- corners and braking, corner by corner ------------------------------
     corner_rows = []
     for corner in segments['corners']:
-        # A bend the field takes flat out is limited by power and energy
-        # deployment, not grip: its "apex" speed is straight-line speed
-        # (Baku T18-T20 sit on the main straight). Only grip-limited corners
-        # rank cornering, so the high band can be empty at a circuit.
+        # A low-load bend the field takes flat out is limited by power and
+        # energy deployment, not grip: its "apex" speed is straight-line speed
+        # (Baku T18-T20 sit on the main straight). Only grip- or load-limited
+        # corners rank cornering, so the high band can be empty at a circuit.
         if not corner['grip_limited']:
             continue
         speeds, dwells, braking, apex_methods = {}, [], {}, {}
