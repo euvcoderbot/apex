@@ -17,3 +17,6 @@ start-apex.bat
 
 .vercel
 .env*
+
+# Claude Code session worktrees (separate checkouts of this repository)
+.claude/worktrees/

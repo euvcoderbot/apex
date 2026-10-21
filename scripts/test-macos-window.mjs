@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
-const read=f=>readFileSync(f,'utf8');
+// Normalise Windows checkouts (CRLF) so source-pattern assertions match.
+const read=f=>readFileSync(f,'utf8').replace(/\r\n/g,'\n');
 const page=read('index.html'),css=read('macos-window.css'),ui=read('dashboard-ui.js'),system=read('ui-system.js'),tokens=read('ui-controls.css');
 
 test('window uses a unified toolbar, a sidebar for setup and a category bar in the main pane',()=>{

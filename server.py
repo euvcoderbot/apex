@@ -76,10 +76,33 @@ def fastf1_runtime():
     return fastf1
 
 
+ARCHIVE_RETRY_S = 86400
+
+
+def archive_guard(year, gp, session, loader):
+    """Skip the F1 timing archive for a day after it fails for a session.
+
+    The archive has been returning HTTP 401/404; each attempt cost several
+    seconds of failing feed requests before the OpenF1 fallback, on every
+    request and every restart. A marker on disk short-circuits that.
+    """
+    marker = read_prepared_cache("archive-unavailable", year, gp, session)
+    if marker and time.time()-float(marker.get("at", 0)) < ARCHIVE_RETRY_S:
+        raise RuntimeError("Timing archive unavailable for this session (cached)")
+    try:
+        data = loader()
+        if getattr(data, "laps", None) is not None and data.laps.empty:
+            raise ValueError("Timing archive returned no laps")
+        return data
+    except Exception:
+        write_prepared_cache("archive-unavailable", year, {"at": time.time()}, gp, session)
+        raise
+
+
 def load_fresh_session(year, gp, session, telemetry=False):
     fastf1_runtime()
     from session_loader import load_fresh_session as load
-    return load(year, gp, session, telemetry=telemetry)
+    return archive_guard(year, gp, session, lambda: load(year, gp, session, telemetry=telemetry))
 
 
 @app.get("/api/health")
@@ -487,6 +510,7 @@ OPENF1_ATTEMPTS = 5
 _openf1_lock = threading.Lock()
 _openf1_next = [0.]
 _openf1_session_ends: dict[Any, str] = {}
+_openf1_meta: dict[str, tuple[float, Any]] = {}
 
 
 def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
@@ -500,6 +524,12 @@ def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
             parts.append(f"{key}={quote(str(value))}")
     query = "&".join(parts)
     url = f"{OPENF1}/{endpoint}?{query}"
+    if endpoint in ("sessions", "meetings"):
+        # Calendar metadata is looked up on almost every request; keep it briefly
+        # (a live weekend adds sessions, so not longer than ten minutes).
+        hit = _openf1_meta.get(url)
+        if hit and time.monotonic()-hit[0] < 600:
+            return hit[1]
     session_key = valid_params.get("session_key")
     settled = endpoint != "sessions" and session_key is not None and _openf1_session_settled(session_key)
     cache_path = PREPARED_CACHE / "openf1" / (hashlib.sha256(url.encode()).hexdigest()+".json.gz")
@@ -510,6 +540,8 @@ def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
         except (OSError, ValueError):
             cache_path.unlink(missing_ok=True)
     result = _openf1_fetch(url)
+    if endpoint in ("sessions", "meetings") and result:
+        _openf1_meta[url] = (time.monotonic(), result)
     if endpoint == "sessions":
         for item in result if isinstance(result, list) else []:
             if item.get("session_key") is not None and item.get("date_end"):
@@ -997,14 +1029,16 @@ def load_session(year: int, gp: str, session_name: str, round_number: int | None
     # "Invalid round". Resolve the exact event name from the full calendar,
     # then create the session from that event.
     backend = "fastf1" if year >= 2018 else "ergast"
-    event = exact_fastf1_event(year, gp, backend=backend)
 
-    session = event.get_session(session_name)
-    # Session controls need timing/lap data, not the multi-megabyte car stream
-    # for every driver. Fetch the car stream only if OpenF1 cannot provide a
-    # selected lap (mainly older seasons).
-    session.load(laps=True, telemetry=False, weather=True, messages=False)
-    return session
+    def load():
+        event = exact_fastf1_event(year, gp, backend=backend)
+        session = event.get_session(session_name)
+        # Session controls need timing/lap data, not the multi-megabyte car stream
+        # for every driver. Fetch the car stream only if OpenF1 cannot provide a
+        # selected lap (mainly older seasons).
+        session.load(laps=True, telemetry=False, weather=True, messages=False)
+        return session
+    return archive_guard(year, gp, session_name, load)
 
 
 @lru_cache(maxsize=8)
