@@ -57,7 +57,7 @@ export const historicalTeamMarks = {
 };
 
 export function teamLogoMarkup(teamName) {
-  if (typeof window.teamLogoMarkup === 'function') {
+  if (typeof window !== 'undefined' && typeof window.teamLogoMarkup === 'function') {
     return window.teamLogoMarkup(teamName);
   }
   const key = String(teamName || '').trim().toLowerCase();
@@ -101,7 +101,7 @@ export const GRAND_PRIX_FLAG_RULES = Object.freeze([
 ]);
 
 export function grandPrixCountryCode(event) {
-  if (typeof window.grandPrixCountryCode === 'function') {
+  if (typeof window !== 'undefined' && typeof window.grandPrixCountryCode === 'function') {
     return window.grandPrixCountryCode(event);
   }
   const country = String(event?.country || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();

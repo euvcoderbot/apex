@@ -62,6 +62,12 @@ const staticFiles = [
 const browserHash=createHash('sha256').update(cacheRevision);
 for(const file of staticFiles)browserHash.update(file).update(await readFile(resolve(root,file)));
 browserHash.update(await readFile(resolve(root,'lib/ui-style-build.mjs')));
+// React views (src/): one esbuild bundle next to the page.
+const {build}=await import('esbuild');
+const islands=await build({entryPoints:[resolve(root,'src/islands.tsx')],bundle:true,format:'esm',target:'es2022',
+  jsx:'automatic',minify:true,write:false,legalComments:'none',define:{'process.env.NODE_ENV':'"production"'},logLevel:'warning'});
+const islandsCode=islands.outputFiles[0].contents;
+browserHash.update(islandsCode);
 const browserRevision=browserHash.digest('hex').slice(0,20);
 
 await rm(destination, { recursive: true, force: true });
@@ -71,9 +77,10 @@ for (const file of staticFiles) {
   await mkdir(dirname(resolve(destination, file)), { recursive: true });
   await cp(resolve(root, file), resolve(destination, file));
 }
+await writeFile(resolve(destination,'react-islands.js'),islandsCode);
 // Version the actual browser assets independently of raw-data cache identity.
 // A release must not reuse an old module solely because its URL stayed fixed.
-for(const file of staticFiles.filter(file=>file.endsWith('.js'))){
+for(const file of [...staticFiles.filter(file=>file.endsWith('.js')),'react-islands.js']){
   const source=await readFile(resolve(destination,file),'utf8');
   await writeFile(resolve(destination,file),source.replace(/((?:from\s+|import\s+)['"]\.\/[^'"?]+\.js)(?:\?[^'"]*)?(['"])/g,`$1?v=${browserRevision}$2`));
 }

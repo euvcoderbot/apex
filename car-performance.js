@@ -1121,13 +1121,26 @@ function card(title,note,body) {
   </section>`;
 }
 
-function sortHeader(key,label,defaultDirection=1) {
+// Sort state for one column header; React views (src/components/DataTable)
+// render the same model, so both kinds of table sort through one handler.
+function sortHeaderModel(key,label,defaultDirection=1) {
   const group=tableSortGroups.get(key), saved=group&&tableSortStates.get(group);
   const isCurrent = saved?saved.key===key:sortKey === key;
   const ascending=(saved?.direction??sortDirection)===1;
-  const state=isCurrent?(ascending?'ascending':'descending'):'none';
+  return {key,label,state:isCurrent?(ascending?'ascending':'descending'):'none',group:group||key,direction:defaultDirection};
+}
+function sortHeader(key,label,defaultDirection=1) {
+  const {state,group}=sortHeaderModel(key,label,defaultDirection),isCurrent=state!=='none',ascending=state==='ascending';
   const path=isCurrent?(ascending?'M3 8 6 5 9 8':'M3 5 6 8 9 5'):'M3 7 6 4 9 7 M3 11 6 14 9 11';
-  return `<button class="perf-sort-btn ${isCurrent ? 'is-sorted' : ''}" data-sort-state="${state}" data-performance-sort="${key}" data-sort-table="${group||key}" data-sort-direction="${defaultDirection}" title="Sort by ${escape(label)}" type="button"><span>${label}</span><svg class="sort-icon" aria-hidden="true" width="12" height="16" viewBox="0 0 12 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"/></svg></button>`;
+  return `<button class="perf-sort-btn ${isCurrent ? 'is-sorted' : ''}" data-sort-state="${state}" data-performance-sort="${key}" data-sort-table="${group}" data-sort-direction="${defaultDirection}" title="Sort by ${escape(label)}" type="button"><span>${label}</span><svg class="sort-icon" aria-hidden="true" width="12" height="16" viewBox="0 0 12 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"/></svg></button>`;
+}
+// React views (react-islands.js): renderX() stores its view data here and
+// returns a placeholder; render() mounts them before the layout pass.
+let reactViewProps=new Map();
+function reactView(name,props) {
+  reactViewProps.set(name,props);
+  if(!window.ApexReact)return '<p class="performance-error">This view did not load. Reload the page.</p>';
+  return `<div data-react-view="${name}" style="display:contents"></div>`;
 }
 
 function sorted(items,getters,defaultKey,defaultDirection=1) {
@@ -1678,76 +1691,19 @@ function renderResults(teams) {
     incidents:t=>t.incidentRetirements,
     other:t=>t.otherRetirements + t.unknownRetirements
   },'points',-1);
-
   const selectedResult=resultsChartMetric==='exposure'?'mechanicalPer1000Laps':resultsChartMetric==='perStart'?'pointsPerStart':resultsChartMetric==='finishRate'?'finishRatePct':resultsChartMetric==='mechanicalRate'?'mechanicalRatePct':'points';
-  const pointsChart = renderHorizontalBarChart(ordered, {
-    title: resultsChartMetric==='exposure'?'Confirmed PU/chassis retirements per 1,000 completed laps':resultsChartMetric==='perStart'?'Race points per race start':resultsChartMetric==='finishRate'?'Finish rate':resultsChartMetric==='mechanicalRate'?'Provisional PU/chassis retirements per start':'Points · races + sprints',
-    subtitle: resultsChartMetric==='mechanicalRate'?'Cause-labelled retirements only · lower is better · unclassified cases can undercount':'Official race classifications · higher is better · keep start counts in view',
-    valueKey: selectedResult,
-    unit: resultsChartMetric==='exposure'?' /1,000 laps':['finishRate','mechanicalRate'].includes(resultsChartMetric)?'%':resultsChartMetric==='perStart'?' pts/start':' pts',
-    digits: resultsChartMetric==='points'?0:3,
-    signedValue: false,
-    invertBest: !['mechanicalRate','exposure'].includes(resultsChartMetric)
-  });
-
-  return card('Reliability and results',
-     'Total points include official race and sprint classifications. Points per start, finishes and reliability use races only. Missing sprint classifications leave totals unknown, not zero. Results are not isolated car performance.',
-    `<div class="performance-results-measure"><div class="performance-scope-toggle" role="group" aria-label="Results measure">${[['points','Points'],['perStart','Points / start'],['finishRate','Finish rate'],['mechanicalRate','Mechanical retirements']].map(([key,label])=>`<button type="button" data-results-chart="${key}" aria-pressed="${resultsChartMetric===key}">${label}</button>`).join('')}</div></div>`+pointsChart+
-    table(['Team','Total points','Race','Sprint','Race points / start','Finished / starts'],ordered.map(t=>[
-      teamLabel(t),finite(t.points)?t.points:'—',finite(t.racePoints)?t.racePoints:'—',finite(t.sprintPoints)?t.sprintPoints:'—',
-      fmt(t.pointsPerStart,2),`${t.finishes} / ${t.starts}`]))+
-    '<details class="performance-evidence"><summary>Detailed results and reliability</summary>'+
-    table([
-      sortHeader('resultTeam','Team'),
-      sortHeader('points','Points',-1),
-      'Race points', 'Sprint points',
-      sortHeader('pointsPerStart','Points / start',-1),
-      sortHeader('finish','Avg. finish'),
-      sortHeader('finishRate','Finished / starts',-1),
-      sortHeader('mechanicalRate','PU/chassis / starts'),
-      sortHeader('pu','PU-related'),
-      sortHeader('chassis','Chassis / team'),
-      sortHeader('incidents','Incidents'),
-      sortHeader('other','Other / unverified'),sortHeader('mechanicalExposure','PU/chassis / 1,000 laps'), 'Official lap exposure'
-    ],ordered.map(t=>[
-      teamLabel(t),
-      t.results&&finite(t.points)?t.points:'—',
-      finite(t.racePoints)?t.racePoints:'—', finite(t.sprintPoints)?t.sprintPoints:'—',
-      fmt(t.pointsPerStart,3),
-      fmt(avg(t.positions),3),
-      `${t.finishes} / ${t.starts}`,
-      `${fmt(t.mechanicalRatePct,3,'%')}<small>${t.unknownRetirements} unknown-cause retirements · not counted as mechanical</small>`,
-      t.puRetirements > 0 ? `<span class="retirement-badge is-pu">${t.puRetirements}</span>` : '0',
-      t.chassisRetirements > 0 ? `<span class="retirement-badge is-chassis">${t.chassisRetirements}</span>` : '0',
-      t.incidentRetirements > 0 ? `<span class="retirement-badge is-incident">${t.incidentRetirements}</span>` : '0',
-      (t.otherRetirements + t.unknownRetirements) > 0 ? `<span class="retirement-badge is-other">${t.otherRetirements + t.unknownRetirements}</span>` : '0',
-      fmt(t.mechanicalPer1000Laps,3),`${t.completedLaps||0} laps · ${t.lapExposureEntries||0}/${t.starts} starts covered`
-    ]))+'</details>')+
-     card('Retirement classifications',
-       'Causes come from the supplied classification status. A generic Retired status does not identify a mechanical failure or accident. DSQ and medical withdrawals do not count as mechanical failures.',
-      table([
-        'Team',
-        'Event',
-        'Driver',
-        'Category',
-         'Supplied classification status',
-        'Source attribution'
-      ],teams.flatMap(t=>t.retirements.map(r=>[
-        teamLabel(t),
-        eventLabel(r.event),
-        escape(r.driver),
-        r.category === 'PU-related'
-          ? `<span class="retirement-badge is-pu">Power unit</span>`
-          : r.category === 'Chassis / team-related'
-          ? `<span class="retirement-badge is-chassis">Chassis</span>`
-          : r.category === 'Incident / collision'
-          ? `<span class="retirement-badge is-incident">Incident</span>`
-          : r.category === 'Other confirmed'
-          ? `<span class="retirement-badge is-other">Other</span>`
-          : `<span class="retirement-badge is-unknown">Unknown</span>`,
-        `<span style="font-weight:600;">${escape(r.cause || 'Unclassified retirement')}</span>`,
-        `<small class="perf-tercile-badge is-mid">${escape(r.source || 'Official Timing')}</small>`
-      ]))));
+  // Rendered by src/views/ResultsView.tsx; the data-results-chart and sort
+  // buttons it draws are still handled by the delegated click handler below.
+  return reactView('results',{rows:ordered,chartMetric:resultsChartMetric,
+    chart:{title:resultsChartMetric==='exposure'?'Confirmed PU/chassis retirements per 1,000 completed laps':resultsChartMetric==='perStart'?'Race points per race start':resultsChartMetric==='finishRate'?'Finish rate':resultsChartMetric==='mechanicalRate'?'Provisional PU/chassis retirements per start':'Points · races + sprints',
+      subtitle:resultsChartMetric==='mechanicalRate'?'Cause-labelled retirements only · lower is better · unclassified cases can undercount':'Official race classifications · higher is better · keep start counts in view',
+      valueKey:selectedResult,
+      unit:resultsChartMetric==='exposure'?' /1,000 laps':['finishRate','mechanicalRate'].includes(resultsChartMetric)?'%':resultsChartMetric==='perStart'?' pts/start':' pts',
+      digits:resultsChartMetric==='points'?0:3,signedValue:false,invertBest:!['mechanicalRate','exposure'].includes(resultsChartMetric)},
+    sort:Object.fromEntries([['resultTeam','Team',1],['points','Points',-1],['pointsPerStart','Points / start',-1],['finish','Avg. finish',1],
+      ['finishRate','Finished / starts',-1],['mechanicalRate','PU/chassis / starts',1],['pu','PU-related',1],['chassis','Chassis / team',1],
+      ['incidents','Incidents',1],['other','Other / unverified',1],['mechanicalExposure','PU/chassis / 1,000 laps',1]]
+      .map(([key,label,direction])=>[key,sortHeaderModel(key,label,direction)]))});
 }
 
 function pitSummary(events, teams) {
@@ -3365,8 +3321,10 @@ function render() {
   const state=capturePerformanceUI(root);
   const previousCache=performanceRenderCache;
   performanceRenderCache={views:new Map(),summaries:new Map()};
+  reactViewProps=new Map();
   try {renderContent();} finally {
     performanceRenderCache=previousCache;
+    window.ApexReact?.mountAll(root,reactViewProps);
     window.ApexPresentation?.arrangePerformance(root,activeMetric);
     window.ApexUI?.decorate(root);
     restorePerformanceUI(root,state);

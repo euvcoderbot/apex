@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <!-- App paths such as /apex/cars/corners load this same page; keep relative links rooted at /apex/. -->
+  <base href="/apex/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#1e1e20" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f2f2f4" media="(prefers-color-scheme: light)">
@@ -260,6 +262,7 @@
   <script src="session-init.js"></script>
   <script src="session-tyres.js"></script>
   <script src="alignment.js?v=euv2-release-20261003-position-motion-check"></script>
+  <script type="module" src="react-islands.js"></script>
   <script type="module" src="car-performance.js?v=20261007-race-v2"></script>
 </body>
 </html>

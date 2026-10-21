@@ -29,7 +29,10 @@ test('main comparisons have no vertical height cap and no redundant ranking foot
 
 test('speed ranges and results use pressed-state pills and retire their dropdown handlers',()=>{
   assert.match(car,/data-straight-band="\$\{key\}" aria-pressed/);
-  assert.match(car,/data-results-chart="\$\{key\}" aria-pressed/);
+  // Reliability & results is a React view: a segmented control of data-results-chart buttons.
+  const resultsView=readFileSync('src/views/ResultsView.tsx','utf8'),segmented=readFileSync('src/components/SegmentedControl.tsx','utf8');
+  assert.match(resultsView,/<SegmentedControl name="results-chart"/);
+  assert.match(segmented,/<button[^>]+\{\.\.\.\{\[attribute\]: key\}\} aria-pressed=/);
   assert.doesNotMatch(car,/data-straight-band-select|data-results-chart-select/);
   assert.match(read('ui-system.js'),/\.performance-range-options/);
 });

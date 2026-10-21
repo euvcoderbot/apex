@@ -5,9 +5,9 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 
 const source = readFileSync('url-state.js', 'utf8');
-function browser(search = '') {
+function browser(search = '', pathname = '/apex/') {
   const calls = [], listeners = {};
-  const location = {pathname: '/apex/', search, hash: ''};
+  const location = {pathname, search, hash: ''};
   const history = {
     pushState: (state, title, url) => { calls.push(['push', url]); Object.assign(location, split(url)); },
     replaceState: (state, title, url) => { calls.push(['replace', url]); Object.assign(location, split(url)); }
@@ -26,10 +26,22 @@ test('each view reads only its own parameters; unknown views fall back to sessio
   assert.equal(browser('?view=nonsense&year=2025').url.read().view, 'session');
 });
 
+test('the category is the path; legacy ?view=cars links still read', () => {
+  const path = browser('?year=2026&scope=tracks&races=16,17&run=1', '/apex/cars/corners').url.read();
+  assert.equal(path.view, 'cars');
+  assert.deepEqual({...path.params}, {year: '2026', scope: 'tracks', races: '16,17', run: '1', metric: 'corners'});
+  assert.equal(browser('', '/apex/cars').url.read().view, 'cars');
+  assert.equal(browser('', '/apex/index.html').url.read().view, 'session');
+  const legacy = browser('?view=cars&year=2026&metric=braking');
+  assert.deepEqual({...legacy.url.read().params}, {year: '2026', metric: 'braking'});
+  legacy.url.write('cars', {year: '2026', metric: 'braking'});
+  assert.deepEqual(legacy.calls.at(-1), ['replace', '/apex/cars/braking?year=2026'], 'rewritten to the path in place');
+});
+
 test('navigation adds a history entry, filters replace it, and defaults stay out of the link', () => {
   const b = browser('');
   b.url.write('cars', {year: '2026', metric: 'corners', subject: '', run: '1'});
-  assert.deepEqual(b.calls.at(-1), ['push', '/apex/?view=cars&year=2026&metric=corners&run=1']);
+  assert.deepEqual(b.calls.at(-1), ['push', '/apex/cars/corners?year=2026&run=1']);
   b.url.write('cars', {year: '2026', metric: 'corners', subject: 'driver', run: '1'});
   assert.equal(b.calls.at(-1)[0], 'replace', 'a subject change is a filter');
   b.url.write('cars', {year: '2026', metric: 'braking', subject: 'driver', run: '1'});
@@ -40,10 +52,12 @@ test('navigation adds a history entry, filters replace it, and defaults stay out
   b.url.write('session', {year: '2026', round: '17', session: 'Qualifying', laps: 'VER.11'});
   assert.deepEqual(b.calls.at(-1), ['push', '/apex/?year=2026&round=17&session=Qualifying&laps=VER.11']);
   assert.deepEqual({...b.url.remembered('cars')}, {year: '2026', metric: 'braking', subject: 'driver', run: '1'});
+  b.url.write('cars', {year: '2026', metric: 'pace'});
+  assert.equal(b.calls.at(-1)[1], '/apex/cars?year=2026', 'the default category is /apex/cars');
 });
 
 test('the back button hands the restored parameters to the view that owns them', () => {
-  const b = browser('?view=cars&year=2025&metric=pits');
+  const b = browser('?year=2025', '/apex/cars/pits');
   let restored = null;
   b.url.onRestore('cars', params => restored = {...params});
   b.popstate();

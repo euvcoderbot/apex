@@ -1416,8 +1416,9 @@ test('performance categories expose only defensible alternative summaries', () =
     assert.match(source,new RegExp(`data-${key}=`));
   for(const key of ['telemetry-stat','tyre-stat','tyre-fit','race-pace-model','corner-window','straight-entry','acceleration-comparison'])
     assert.doesNotMatch(source,new RegExp(`data-${key}=`));
-  assert.match(source,/data-results-chart=/);
-  assert.match(source,/\['mechanicalRate','Mechanical retirements'\]/);
+  const resultsView=readFileSync('src/views/ResultsView.tsx','utf8');
+  assert.match(resultsView,/name="results-chart"/);
+  assert.match(resultsView,/\['mechanicalRate', 'Mechanical retirements'\]/);
   assert.match(source,/pitChartMetric==='p90'/);
   assert.match(source,/timed\.length>=10\?percentile\(timed,\.9\):null/);
   assert.match(source,/gpSlopes\.length<4\|\|p75Shortfall\.length/);
