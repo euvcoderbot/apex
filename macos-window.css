@@ -257,13 +257,10 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .sector-cards .lap-summary-card .sector-cell::after,.summary-sectors > .sector-cell::after { height: 3px; border-radius: 2px; background: var(--sector-status); box-shadow: none; }
 /* Lap summaries: half-width cards so two laps share a row on wide windows. */
 .sector-cards { display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%,360px),1fr)); gap: 10px; }
-/* Lap cards (merged with Codex 485795d, then refined to the latest review):
-   identity, tyre and the main lap time on the left with its delta centred
-   underneath; three centred sector cells on the right, each with its time,
-   a fixed-height delta slot and the status bar at the same baseline in every
-   card; weather (with emoji) on one line underneath. */
+/* Compact summaries: identity and tyre left, lap time right; sectors below.
+   Every delta immediately precedes its time on the same baseline. */
 .sector-cards { container-type: inline-size; container-name: sectorcards; }
-.sector-cards .lap-summary-card { display: grid; grid-template-columns: minmax(0,1fr); gap: 0; padding: 10px 12px; border: 1px solid var(--ui-border); border-radius: 10px; background: var(--ui-well); }
+.sector-cards .lap-summary-card { display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: auto 1fr auto; gap: 0; padding: 10px 12px; border: 1px solid var(--ui-border); border-radius: 10px; background: var(--ui-well); container: lapcard / inline-size; }
 .sector-cards .lap-summary-card::before { display: none; }
 .sector-cards .lap-summary-card > header { grid-area: 1 / 1; display: grid; grid-template-columns: minmax(0,1fr) auto; grid-template-areas: "driver time" "tyre time"; align-items: center; gap: 4px 12px; margin: 0; padding: 0; }
 .sector-cards .lap-summary-card .summary-header-actions { display: contents; }
@@ -275,24 +272,24 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .sector-cards .lap-summary-card .summary-tyre-copy { gap: 5px; }
 .sector-cards .lap-summary-card .summary-tyre-copy b { font-size: 12px; font-weight: 500; }
 .sector-cards .lap-summary-card .summary-tyre-copy small { font-size: 12px; color: var(--ui-tertiary); }
-/* Main time with its delta centred underneath (a fixed slot keeps every card's time on one baseline). */
-.sector-cards .lap-summary-card .summary-lap-time { grid-area: time; display: inline-flex; flex-direction: column; align-items: center; justify-self: end; gap: 3px; margin: 0; }
+/* One timing group, not a value floating below the driver metadata. */
+.sector-cards .lap-summary-card .summary-lap-time { grid-area: time; display: inline-flex; flex-direction: row; align-items: baseline; align-self: start; justify-self: end; gap: 6px; margin: 0; }
 .sector-cards .lap-summary-card .summary-lap-time > small { display: none; }
-.sector-cards .lap-summary-card .summary-lap-time > strong { order: 0; font: 600 var(--type-title2)/1.2 var(--ui-font); font-variant-numeric: lining-nums tabular-nums; font-feature-settings: "tnum"; letter-spacing: normal; }
-.sector-cards .lap-summary-card .summary-lap-time > .summary-delta { order: 1; }
-.sector-cards .lap-summary-card .summary-lap-time:not(:has(.summary-delta))::after { content: ''; order: 1; height: 18px; }
-/* Sectors: equal centred cells; label, time, delta slot, bar. */
+.sector-cards .lap-summary-card .summary-lap-time > strong { order: 1; font: 600 var(--type-title2)/1.2 var(--ui-font); font-variant-numeric: lining-nums tabular-nums; font-feature-settings: "tnum"; letter-spacing: normal; }
+.sector-cards .lap-summary-card .summary-lap-time > .summary-delta { order: 0; }
+/* Sectors: equal cells with a single inline timing row under the status bar. */
 .sector-cards .lap-summary-card .summary-sectors { grid-area: 2 / 1; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 0; margin-top: 8px; padding: 8px 0 0; border: 0; border-top: 1px solid var(--ui-separator); }
 .sector-cards .lap-summary-card .sector-cell { position: relative; display: flex; flex-direction: column; align-items: stretch; min-height: 0; padding: 0; border: 0; background: none; }
 .sector-cards .lap-summary-card .sector-cell + .sector-cell { border-left: 0; }
 .sector-cards .lap-summary-card .sector-cell::after { left: 1px; right: 1px; top: 18px; bottom: auto; height: 3px; border-radius: 0; }
 .sector-cards .lap-summary-card .sector-cell-value { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 0; text-align: center; }
 .sector-cards .lap-summary-card .sector-cell-value > small { order: 0; margin: 0 0 10px; color: var(--sector-status,var(--ui-tertiary)); font-size: var(--ui-caption); font-weight: 600; line-height: 16px; }
-.sector-cards .lap-summary-card .sector-measurements { order: 1; display: flex; flex-direction: column; align-items: center; align-self: stretch; gap: 3px; padding: 4px 4px 0; border-top: 1px solid var(--ui-separator); }
+.sector-cards .lap-summary-card .sector-measurements { order: 1; display: flex; flex-direction: row; align-items: baseline; justify-content: center; align-self: stretch; gap: 4px; padding: 4px 4px 0; border-top: 1px solid var(--ui-separator); }
 .sector-cards .lap-summary-card .sector-cell + .sector-cell .sector-measurements { border-left: 1px solid var(--ui-separator); }
-.sector-cards .lap-summary-card .sector-measurements > strong { order: 0; font: 600 var(--type-headline)/1.2 var(--ui-font); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.sector-cards .lap-summary-card .sector-delta-slot,.sector-cards .lap-summary-card .sector-delta-slot:empty { order: 1; display: flex; align-items: center; justify-content: center; height: 18px; min-height: 18px; visibility: visible; }
-.sector-cards .lap-summary-card :is(.sector-delta-slot,.summary-lap-time) .summary-delta { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; border-radius: 4px; font-size: var(--ui-caption); line-height: 1; }
+.sector-cards .lap-summary-card .sector-measurements > strong { order: 1; font: 600 var(--type-headline)/1.2 var(--ui-font); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sector-cards .lap-summary-card .sector-delta-slot { order: 0; display: inline-flex; align-items: baseline; }
+.sector-cards .lap-summary-card .sector-delta-slot:empty { display: none; }
+.sector-cards .lap-summary-card :is(.sector-delta-slot,.summary-lap-time) .summary-delta { display: inline; height: auto; padding: 0; border: 0; border-radius: 0; background: none; font-size: var(--ui-caption); line-height: 1.2; white-space: nowrap; }
 /* Weather: one compact line with the emoji. */
 .sector-cards .lap-summary-card .summary-conditions { grid-area: 3 / 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; margin-top: 8px; padding-top: 8px; border: 0; border-top: 1px solid var(--ui-separator); }
 .sector-cards .lap-summary-card .summary-condition { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; white-space: nowrap; }
@@ -300,14 +297,16 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .sector-cards .lap-summary-card .summary-condition > span { display: inline-flex; align-items: baseline; gap: 4px; }
 .sector-cards .lap-summary-card .summary-condition small { font-size: 12px; color: var(--ui-tertiary); }
 .sector-cards .lap-summary-card .summary-condition strong { font: 500 12px/1.4 var(--ui-font); color: var(--ui-secondary); }
-/* Wide enough: identity left, sectors right, weather across the bottom. */
-@container sectorcards (min-width: 700px) {
-  .sector-cards .lap-summary-card { grid-template-columns: auto minmax(0,1fr); column-gap: 12px; }
-  .sector-cards .lap-summary-card > header { grid-area: 1 / 1; grid-template-columns: minmax(0,1fr); grid-template-areas: "driver" "tyre" "time"; align-content: start; padding-right: 12px; border-right: 1px solid var(--ui-separator); }
-  .sector-cards .lap-summary-card .summary-lap-time { justify-self: center; }
-  .sector-cards .lap-summary-card .summary-sectors { grid-area: 1 / 2; margin-top: 0; padding-top: 0; border-top: 0; align-self: stretch; }
-  .sector-cards .lap-summary-card .sector-cell { justify-content: space-between; }
-  .sector-cards .lap-summary-card .summary-conditions { grid-area: 2 / 1 / auto / -1; flex-wrap: nowrap; }
+@container lapcard (max-width: 340px) {
+  .sector-cards .lap-summary-card > header { grid-template-columns: minmax(0,1fr); grid-template-areas: "driver" "tyre" "time"; }
+  .sector-cards .lap-summary-card .summary-lap-time { justify-self: stretch; justify-content: flex-end; padding-top: 6px; border-top: 1px solid var(--ui-separator); }
+  .sector-cards .lap-summary-card .summary-sectors { grid-template-columns: minmax(0,1fr); gap: 4px; }
+  .sector-cards .lap-summary-card .sector-cell { padding: 4px 8px; border-bottom: 1px solid var(--ui-separator); }
+  .sector-cards .lap-summary-card .sector-cell::after { left: 0; right: auto; top: 4px; bottom: 4px; width: 2px; height: auto; }
+  .sector-cards .lap-summary-card .sector-cell-value { flex-direction: row; justify-content: space-between; }
+  .sector-cards .lap-summary-card .sector-cell-value > small { margin: 0; }
+  .sector-cards .lap-summary-card .sector-measurements { padding: 0; border: 0; }
+  .sector-cards .lap-summary-card .sector-cell + .sector-cell .sector-measurements { border-left: 0; }
 }
 .lap-workspace .lap-clock { font-family: var(--ui-font); font-size: 14px; font-weight: 500; font-variant-numeric: lining-nums tabular-nums; letter-spacing: -.01em; }
 .sector-cards .lap-summary-card .summary-driver > b { font: 600 var(--ui-text)/1.3 var(--ui-font); }
