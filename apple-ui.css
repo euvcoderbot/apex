@@ -407,6 +407,7 @@ main.sidebar-collapsed .sidebar { display: flex; opacity: 0; visibility: hidden;
 .corner-detail-header dd, .corner-detail-card .corner-driver-row, .corner-detail-card .corner-driver-row strong { font-size: .875rem; font-weight: 500; }
 .corner-detail-card .corner-driver-row { min-height: 48px; padding: 10px 0; }
 .corner-driver-row small, .corner-driver em { font-size: .75rem; }
+.corner-detail-card .corner-driver-row .corner-phase-split { grid-column: 1 / -1; color: var(--ui-secondary, var(--text-secondary)); text-align: left; white-space: normal; }
 .corner-method, .corner-detail-card .corner-method { font-size: .75rem; line-height: 1.5; color: var(--text-muted); letter-spacing: 0; }
 .charts { display: grid; gap: 20px; }
 .chart { margin: 0; }

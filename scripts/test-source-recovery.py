@@ -10,6 +10,14 @@ from verified_sources import recorded_session,recorded_lap,recorded_payload,reco
 
 
 class SourceRecoveryTests(unittest.TestCase):
+    def setUp(self):
+        # Test the recorded snapshot's validity independently of today's clock;
+        # expiry behaviour below supplies explicit boundary timestamps.
+        reference = _recordings()['2026:Bahrain Grand Prix:R']['expires']-60
+        clock = patch('verified_sources.time.time', return_value=reference)
+        clock.start()
+        self.addCleanup(clock.stop)
+
     def test_azerbaijan_session_and_every_fastest_native_lap_survive_archive_outage(self):
         r = recorded_session(2026, 'Azerbaijan Grand Prix', 'Q')
         self.assertEqual(len(r['data']['drivers']), 22)
@@ -102,7 +110,7 @@ class SourceRecoveryTests(unittest.TestCase):
         r=recorded_session(2026,'Singapore Grand Prix','Q')
         before=json.dumps(r,sort_keys=True)
         result=analyze(performance_input(r),2)
-        self.assertEqual(result['method'],'car-performance-v12-supported-nonlinear')
+        self.assertEqual(result['method'],'car-performance-v13-supported-recovery')
         self.assertEqual(len(result['teams']),11)
         self.assertAlmostEqual(result['teams'][0]['lap']['time'],91.373)
         self.assertEqual(json.dumps(r,sort_keys=True),before)
@@ -117,6 +125,26 @@ class SourceRecoveryTests(unittest.TestCase):
         self.assertTrue(session['source_cache']['refresh_failed'])
         self.assertEqual(session['event'],'Singapore Grand Prix')
 
+    def test_driver_batch_reuses_recorded_laps_and_fetches_only_missing_ones(self):
+        # Recordings hold one lap per team; a driver view also asks for the
+        # teammate. One missing lap must not fail the batch or need retries.
+        r=recorded_session(2026,'Singapore Grand Prix','Q')
+        by_team={}
+        for item in r['telemetry']:
+            s=item['selection']
+            if s['team']==s.get('team_name') and s['team']!=s['driver']:by_team[s['team']]=item
+        items=list(by_team.values())
+        selections=[{**it['selection'],'team':it['selection']['driver'],'team_name':it['selection']['driver']} for it in items]
+        extra={**selections[0],'team':'TWIN','team_name':'TWIN','driver':'TWN','driver_number':'99'}
+        calls=[]
+        def openf1_lap(year,gp,session,number,lap,bucket,key=None,*args,**kwargs):
+            calls.append(number);return items[0]['samples']
+        with patch.object(server,'fastf1_runtime',lambda:None),              patch('session_loader.load_selected_laps_telemetry',side_effect=RuntimeError('HTTP Error 401')),              patch('session_loader.download_feed',side_effect=RuntimeError('HTTP Error 401')),              patch.object(server,'openf1_session',lambda *a:{'session_key':1,'circuit_key':61}),              patch.object(server,'_openf1_lap_telemetry',openf1_lap):
+            result=server.car_performance_trace_batch(Response(),2026,'Singapore Grand Prix',json.dumps(selections+[extra]))
+        self.assertEqual(calls,['99'],'only the lap missing from the recording is fetched')
+        self.assertIn('TWIN',result['speed_domain']['cars'])
+        self.assertEqual(len(result['speed_domain']['cars']),len(selections)+1)
+
     def test_team_batch_retains_all_eleven_native_laps_during_archive_outage(self):
         r=recorded_session(2026,'Singapore Grand Prix','Q')
         by_team={}
@@ -127,7 +155,7 @@ class SourceRecoveryTests(unittest.TestCase):
             result=server.car_performance_trace_batch(Response(),2026,'Singapore Grand Prix',json.dumps(list(by_team.values())))
         self.assertEqual(len(result['teams']),11)
         self.assertEqual(result['source_cache']['kind'],'verified-recording')
-        self.assertEqual(result['methodology_version'],'car-measurements-v15-straight-speed')
+        self.assertEqual(result['methodology_version'],'car-measurements-v18-trace-integral')
 
 
 if __name__=='__main__':unittest.main()

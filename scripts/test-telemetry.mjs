@@ -1,3 +1,4 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -116,7 +117,7 @@ function appHarness() {
       createElement: () => ({width:0,height:0,getContext:()=>ctx}),
       addEventListener() {}, querySelectorAll: () => [], documentElement: { dataset: { theme: 'dark' } } } };
   vm.createContext(sandbox);
-  vm.runInContext(readFileSync(new URL('../app.js', import.meta.url), 'utf8'), sandbox);
+  vm.runInContext(appSource(), sandbox);
   vm.runInContext(readFileSync(new URL('../alignment.js', import.meta.url), 'utf8'), sandbox);
   // The map is available alongside the traces without changing panes.
   return { sandbox, elements, element, textCalls, run: code => vm.runInContext(code, sandbox) };
@@ -131,6 +132,30 @@ test('session straight classification needs GPS evidence and rejects flat-out be
   assert.equal(h.run('sessionStraightEvidence(.2,.4,5000)'),false);
   h.run('alignedValue=()=>null');
   assert.equal(h.run('sessionStraightEvidence(.2,.4,5000)'),false);
+});
+
+test('corner lines cover every compared lap’s braking, and the phase split adds up',()=>{
+  const h=appHarness();
+  h.run(`loaded=[{code:'A',lap:1},{code:'B',lap:1}];referenceDistance=()=>5000;
+    const lap=()=>Array.from({length:1001},(_,i)=>({Distance:i*5,Speed:250,Throttle:100,Brake:0,X:i*5,Y:0}));
+    telemetryCache.set('A:1',lap());telemetryCache.set('B:1',lap());
+    spatialReferenceTelemetry=()=>({samples:telemetryCache.get('A:1')});
+    // B brakes from 880 m, A only from 960 m: the early braker sets the line.
+    traceTelemetryValue=(s,f,key)=>{const d=f*5000,early=s===telemetryCache.get('B:1');
+      if(key==='Brake')return d>=(early?880:960)&&d<1040?1:0;
+      if(key==='Throttle')return d>=(early?880:960)&&d<1150?20:100;
+      return 250;};
+    alignedValue=(s,f,key)=>{const d=f*5000,a=1000,r=100,e=a+r*Math.PI/2;
+      if(d<a)return key==='X'?d:0;
+      if(d<=e)return key==='X'?a+r*Math.sin((d-a)/r):r*(1-Math.cos((d-a)/r));
+      return key==='X'?a+r:r+d-e;};
+    performanceSectionDuration=(s,a,b)=>(b-a)*5000/(250/3.6);`);
+  const zone=h.run("adaptiveCornerZones([{number:'1',fraction:.215}])[0]");
+  assert.ok(zone.start*5000<=872,`start line ${zone.start*5000} m must be before B's braking at 880 m`);
+  assert.ok(zone.releaseFraction>zone.start&&zone.releaseFraction<=zone.apex);
+  const split=h.run("cornerPhaseBreakdown(telemetryCache.get('B:1'),telemetryCache.get('A:1'),adaptiveCornerZones([{number:'1',fraction:.215}])[0],400)");
+  assert.equal(split.entrySaving,0);assert.equal(split.exitCredit,0);
+  assert.ok(Math.abs(split.braking+split.mid+split.exit-split.raw)<1e-12);
 });
 
 test('flat-out turning envelope uses the bend rather than a fixed-distance window',()=>{

@@ -1,3 +1,4 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -8,15 +9,18 @@ test('richer run choices are not forced into the regular thirty-pixel segment co
   assert.match(ui,/el\.matches\('\.run-segment'\)\)return 'run'/);
   assert.match(css,/grid-template-columns: repeat\(var\(--run-count,3\),minmax\(0,1fr\)\)/);
   assert.match(css,/run-segment\[data-ui-kind="run"\][^}]*min-height: 38px; height: auto/);
-  assert.match(read('app.js'),/class="run-segments" style="--run-count:/);
+  assert.match(appSource(),/class="run-segments" style="--run-count:/);
 });
 
 test('wide driver rail reuses the same node and keeps compact windows in the chooser',()=>{
-  assert.match(layout,/matchMedia\('\(min-width:1440px\)'\)/);
+  // 980 px at 100%, scaled with the 110% interface zoom.
+  assert.match(layout,/matchMedia\(`\(min-width:\$\{Math\.round\(980\*\(window\.APEX_UI_ZOOM\|\|1\)\)\}px\)`\)/);
+  assert.match(layout,/column=document\.querySelector\('#sessionSidebar'\)/);
   assert.match(layout,/host=wide\?column:body/);
-  assert.match(layout,/sidebar.parentElement!==host\)host.prepend\(sidebar\)/);
+  assert.match(layout,/sidebar.parentElement!==host\)wide\?host.append\(sidebar\):host.prepend\(sidebar\)/);
   assert.match(css,/has-driver-rail #driverPills \{ grid-template-columns: minmax\(0,1fr\); max-height: none; overflow: visible/);
-  assert.match(read('app.js'),/hidden = !expanded && !\$\('\.analysis-column'\)/);
+  assert.doesNotMatch(layout,/#sidebarToggle/);
+  assert.doesNotMatch(appSource(),/#sidebarToggle/);
 });
 
 test('lap and sector readings have a real divider in both layout orientations',()=>{

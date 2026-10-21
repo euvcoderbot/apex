@@ -4,7 +4,7 @@ Keep measurements separate from interpretations: timing-line gaps are not
 continuous traffic measurements, and observed corner speed is not downforce.
 Strict adherence to observable physical telemetry and versioned FIA envelopes.
 """
-from collections import defaultdict
+from collections import Counter, defaultdict
 from statistics import median
 import math
 import numpy as np
@@ -75,7 +75,8 @@ def fit_tyre_stint(laps):
     raw = tyre_age_slope([(r['age'], r['time']) for r in used])
     if raw is None:
         return None
-    shape = tyre_curve(used)
+    # Refit only if the screen removed laps; otherwise it is the same fit.
+    shape = tyre_curve(used) if len(used) != len(candidates) else shape
     shape.pop('residuals',None)
     origin = used[0]['lap']
     corrected = [(r['age'], r['time']+TYRE_FUEL_GAIN_S_PER_LAP*(r['lap']-origin)) for r in used]
@@ -205,6 +206,58 @@ def matched_tyre_trend(stint_rows, field_rows, team_name):
     if len(matched_laps) < 6:
         return None, len(matched_laps), len(estimates)
     return float(median(candidate[1] for candidate in estimates.values())), len(matched_laps), len(estimates)
+
+
+def joint_tyre_slopes(stints):
+    """Field-relative tyre-age slopes from one race, all cars fitted together.
+
+    lap time = stint pace + race-lap effect + (driver x compound) * tyre age.
+    The race-lap effect is shared by every car, so fuel burn and track
+    evolution are estimated from the data instead of an assumed 0.060 s/lap.
+    Identification comes from cars on different tyre ages on the same lap.
+    Use clean-air laps only: in validation (10 races, 2026) traffic laps
+    removed all car signal, while this model kept it (teammate r = +0.30).
+    Returns {(driver, compound): seconds per lap of age minus that
+    compound's field median}; positive means faster degradation.
+    """
+    rows = []
+    for st in stints:
+        points = st['points']
+        if len(points) < 6 or max(p['age'] for p in points)-min(p['age'] for p in points) < 5:
+            continue
+        rows += [(st['driver'], st['stint'], st['compound'], p['lap'], p['age'], p['time']) for p in points]
+    if len(rows) < 60:
+        return {}
+    stint_keys = sorted({(r[0], r[1]) for r in rows})
+    lap_keys = sorted({r[3] for r in rows})[1:]
+    slope_keys = sorted({(r[0], r[2]) for r in rows})
+    si = {k: i for i, k in enumerate(stint_keys)}
+    li = {k: len(stint_keys)+i for i, k in enumerate(lap_keys)}
+    bi = {k: len(stint_keys)+len(lap_keys)+i for i, k in enumerate(slope_keys)}
+    X = np.zeros((len(rows), len(stint_keys)+len(lap_keys)+len(slope_keys)))
+    y = np.array([r[5] for r in rows], dtype=float)
+    for k, r in enumerate(rows):
+        X[k, si[(r[0], r[1])]] = 1
+        if r[3] in li:
+            X[k, li[r[3]]] = 1
+        X[k, bi[(r[0], r[2])]] = r[4]
+    keep = np.ones(len(rows), dtype=bool)
+    for _ in range(3):
+        beta = np.linalg.lstsq(X[keep], y[keep], rcond=None)[0]
+        residual = y-X@beta
+        centre = float(np.median(residual[keep]))
+        mad = 1.4826*float(np.median(np.abs(residual[keep]-centre)))
+        keep = np.abs(residual-centre) <= max(.3, 3*mad)
+    by_compound = defaultdict(dict)
+    for (driver, compound), i in bi.items():
+        by_compound[compound][driver] = float(beta[i])
+    out = {}
+    for compound, values in by_compound.items():
+        if len(values) < 4:
+            continue
+        centre = float(median(values.values()))
+        out.update({(driver, compound): value-centre for driver, value in values.items()})
+    return out
 
 
 def clean(lap):
@@ -422,7 +475,7 @@ def compute_lap_traffic(rows, intervals=None, leader_abbr=None):
     return lap_traffic
 
 
-def race_estimates(valid, diagnostics=True, model='nonlinear'):
+def race_estimates(valid, diagnostics=True, model='nonlinear', minimum_laps=10, traffic_adjusted=False):
     """Robust driver effects with shared race-lap, compound and tyre-age terms.
 
     Exact age matching can disconnect the leaders from the midfield. Shared
@@ -432,7 +485,7 @@ def race_estimates(valid, diagnostics=True, model='nonlinear'):
     import numpy as np
     from collections import Counter
     counts = Counter(r['driver'] for r in valid if r['age'] is not None)
-    drivers = sorted(d for d, n in counts.items() if n >= 10)
+    drivers = sorted(d for d, n in counts.items() if n >= minimum_laps)
     selected = [r for r in valid if r['driver'] in drivers and r['age'] is not None]
     if len(drivers) < 3:
         return {}, {}
@@ -445,6 +498,7 @@ def race_estimates(valid, diagnostics=True, model='nonlinear'):
         + [float(r['lap'] == lap) for lap in laps[1:]]
         + [float(r['compound'] == c) for c in compounds[1:]]
         + age_basis[i]
+        + ([max(0., 2.-r['traffic_gap'])] if traffic_adjusted else [])
         for i,r in enumerate(selected)])
     target = np.log([r['time'] for r in selected])*100
     # A common unidentifiable intercept is harmless; driver contrasts must be
@@ -470,7 +524,8 @@ def race_estimates(valid, diagnostics=True, model='nonlinear'):
                            'reason': 'No identifiable comparison group of three drivers',
                            'comparison_groups': groups} for d in drivers}
         retained = set(groups[0])
-        estimates, support = race_estimates([r for r in selected if r['driver'] in retained], diagnostics, model)
+        estimates, support = race_estimates([r for r in selected if r['driver'] in retained], diagnostics, model,
+                                          minimum_laps, traffic_adjusted)
         for d in drivers:
             support.setdefault(d, {'identifiable': False, 'samples': counts[d],
                                    'reason': 'Disconnected race-pace comparison group'})
@@ -502,7 +557,8 @@ def race_estimates(valid, diagnostics=True, model='nonlinear'):
         runs = Counter((r['driver'], r.get('stint')) for r in selected)
         for run, _ in runs.most_common(3):
             remaining = [r for r in selected if (r['driver'], r.get('stint')) != run]
-            alternative, _ = race_estimates(remaining, diagnostics=False, model=model)
+            alternative, _ = race_estimates(remaining, diagnostics=False, model=model,
+                                            minimum_laps=minimum_laps, traffic_adjusted=traffic_adjusted)
             anchor_driver = drivers[anchor]
             if anchor_driver not in alternative:
                 continue
@@ -517,6 +573,9 @@ def race_estimates(valid, diagnostics=True, model='nonlinear'):
             'identifiable': True, 'converged': converged, 'iterations': iteration+1,
             'comparison_group': drivers,
             'age_model': model, 'age_basis': age_specs,
+            'traffic_adjusted': traffic_adjusted,
+            'traffic_coefficient': float(solution[-1]) if traffic_adjusted else None,
+            'traffic_gap_range': [min(r['traffic_gap'] for r in observed), max(r['traffic_gap'] for r in observed)] if traffic_adjusted else None,
             'supported_age_ranges': {c:[min(r['age'] for r in observed if r['compound']==c),max(r['age'] for r in observed if r['compound']==c)] for c in {r['compound'] for r in observed}},
             'samples': counts[d],
             'contrast_noise_gain': gains[d],
@@ -532,6 +591,46 @@ def race_estimates(valid, diagnostics=True, model='nonlinear'):
             'race_lap_range': [int(min(r['lap'] for r in observed)), int(max(r['lap'] for r in observed))],
         }
     return estimates, support
+
+
+def recover_race_estimates(candidates, gaps, standard, standard_support):
+    """Recover sparse drivers against the unchanged well-sampled reference.
+
+    Five to nine clear-air laps can support a provisional contrast. If no such
+    contrast exists, fit the known-traffic laps with one shared linear proximity
+    term below two seconds. Its zero is a modelled clear-air counterfactual,
+    not a measured fuel/traffic correction. Never substitute unknown gaps or
+    bridge unidentifiable driver groups. Established estimates stay unchanged.
+    """
+    estimates, support = dict(standard), dict(standard_support)
+    basis = {d: 'clear-air' for d in standard}
+    known = [{**r, 'traffic_gap': gaps[(r['driver'], r['lap'])]} for r in candidates
+             if gaps.get((r['driver'], r['lap'])) is not None]
+    for kind, rows, adjusted in (
+        ('sparse-clear-air', [r for r in known if r['traffic_gap'] > 2.], False),
+        ('traffic-adjusted', known, True),
+    ):
+        counts = Counter(r['driver'] for r in rows if r['age'] is not None)
+        if not any(n >= 5 and d not in estimates for d, n in counts.items()):
+            continue
+        fitted, detail = race_estimates(rows, diagnostics=False, minimum_laps=5, traffic_adjusted=adjusted)
+        common = set(fitted) & set(standard)
+        if len(common) < 3:
+            continue
+        anchor = min(common, key=lambda d: standard[d])
+        for driver, value in fitted.items():
+            info = detail.get(driver, {})
+            # Large or unstable traffic effects are not a defensible recovery.
+            if driver in estimates or not info.get('practical_stability'):
+                continue
+            if adjusted and abs(info.get('traffic_coefficient') or 0) > 2.:
+                continue
+            estimates[driver] = ((100.+value)/(100.+fitted[anchor])*(100.+standard[anchor])-100.)
+            support[driver] = {**info, 'provisional': True, 'estimate_basis': kind,
+                               'reference_driver': anchor,
+                               'clear_air_extrapolation': adjusted and info['traffic_gap_range'][1] < 2.}
+            basis[driver] = kind
+    return estimates, support, basis
 
 
 VERIFIED_RETIREMENT_REASONS = {
@@ -906,7 +1005,11 @@ def analyze(data, traffic=2):
                     'compound': entry['lap'].get('compound'),
                     'rain': entry['lap'].get('rain'),
                     'end': entry['lap'].get('end'), 'age': entry['lap'].get('age'),
-                    'fresh': entry['lap'].get('fresh')
+                    'fresh': entry['lap'].get('fresh'),
+                    # Enough to request this lap's telemetry without loading
+                    # the whole qualifying session again.
+                    'lap': entry['lap'].get('lap'), 'number': entry['lap'].get('number'),
+                    'start': entry['lap'].get('start'), 'sectors': entry['lap'].get('sectors')
                 })
             for phase in ('Q1', 'Q2', 'Q3'):
                 other_laps = [r for r in valid if r.get('phase') == phase and r.get('team') == name
@@ -925,7 +1028,8 @@ def analyze(data, traffic=2):
                         'time': r['time'],
                         'deficit': ((r['time'] / phase_best_time - 1) * 100) if phase_best_time else 0.0,
                         'compound': r.get('compound'),
-                        'rain': r.get('rain'), 'end':r.get('end'), 'age':r.get('age'), 'fresh':r.get('fresh')
+                        'rain': r.get('rain'), 'end':r.get('end'), 'age':r.get('age'), 'fresh':r.get('fresh'),
+                        'lap': r.get('lap'), 'number': r.get('number'), 'start': r.get('start'), 'sectors': r.get('sectors')
                     })
 
             team.update({
@@ -1054,6 +1158,7 @@ def analyze(data, traffic=2):
         # Headline race pace uses one 2.0s model and one shared baseline.
         # The 1.5s and 2.5s models are diagnostics only.
         std_estimates = traffic_sensitivities.get(2.0, {})
+        recovered_estimates, recovered_support, estimate_basis = recover_race_estimates(candidates, gaps, std_estimates, support)
         linear_estimates,linear_support = race_estimates(valid,diagnostics=False,model='linear') if valid else ({},{})
         common_drivers = set.intersection(*(set(traffic_sensitivities.get(th, {})) for th in (1.5, 2.0, 2.5)))
         common_anchor = min(common_drivers, key=lambda d: std_estimates[d]) if len(common_drivers) >= 3 else None
@@ -1067,16 +1172,20 @@ def analyze(data, traffic=2):
             fastest_driver = None
             if team_drivers:
                 drivers_with_20 = [(d, std_estimates[d]) for d in team_drivers if d in std_estimates]
-                if drivers_with_20:
-                    fastest_driver = min(drivers_with_20, key=lambda x: x[1])[0]
+                choices = drivers_with_20 or [(d, recovered_estimates[d]) for d in team_drivers if d in recovered_estimates]
+                if choices:
+                    fastest_driver = min(choices, key=lambda x: x[1])[0]
 
             # Determine sample counts for headline driver
-            d_laps_20 = [r for r in clean_20 if r['driver'] == fastest_driver] if fastest_driver else []
+            basis = estimate_basis.get(fastest_driver, 'unavailable')
+            model_laps = candidates if basis == 'traffic-adjusted' else clean_20
+            d_laps_20 = [r for r in model_laps if r['driver'] == fastest_driver and r['age'] is not None
+                         and gaps.get((r['driver'], r['lap'])) is not None] if fastest_driver else []
             n_20 = len(d_laps_20)
-            headline_pace = std_estimates.get(fastest_driver)
-            sample_tier = 'normal' if n_20 >= 10 else 'insufficient'
-            provisional = n_20 < 10
-            fallback_used = False
+            headline_pace = recovered_estimates.get(fastest_driver)
+            sample_tier = 'normal' if basis == 'clear-air' else 'insufficient' if basis == 'unavailable' else basis
+            provisional = basis != 'clear-air'
+            fallback_used = basis in ('sparse-clear-air', 'traffic-adjusted')
             model_threshold = 2.0
 
             # Non-monotonic traffic sensitivity bracket [min, max]
@@ -1090,6 +1199,7 @@ def analyze(data, traffic=2):
             bracket = [round(min(valid_th_paces), 4), round(max(valid_th_paces), 4)] if valid_th_paces else None
 
             team['pace'] = headline_pace
+            team['race_pace_basis'] = basis
             legacy_drivers=[d for d in team_drivers if d in linear_estimates]
             team['race_linear_diagnostic'] = {'pace':min((linear_estimates[d] for d in legacy_drivers),default=None),
                 'drivers':[{ 'driver':d,'pace':linear_estimates[d], 'diagnostics':linear_support.get(d,{})} for d in legacy_drivers]}
@@ -1100,21 +1210,22 @@ def analyze(data, traffic=2):
             team['model_threshold'] = model_threshold
             team['traffic_sensitivity_bracket'] = bracket
             team['samples'] = n_20
-            team['race_residual_spread'] = support.get(fastest_driver, {}).get('residual_spread') if fastest_driver else None
-            team['race_model_diagnostics'] = support.get(fastest_driver, {})
-            if fastest_driver and not support.get(fastest_driver, {}).get('practical_stability', True):
+            team['race_residual_spread'] = recovered_support.get(fastest_driver, {}).get('residual_spread') if fastest_driver else None
+            team['race_model_diagnostics'] = recovered_support.get(fastest_driver, {})
+            if fastest_driver and not recovered_support.get(fastest_driver, {}).get('practical_stability', True):
                 team['provisional'] = True
-            eligible_drivers = [(d, std_estimates[d]) for d in team_drivers if d in std_estimates]
+            eligible_drivers = [(d, recovered_estimates[d]) for d in team_drivers if d in recovered_estimates]
             team['race_drivers'] = [
                 {
                     'driver': d,
                     'pace': pace,
-                    'samples': len([r for r in clean_20 if r['driver'] == d]),
-                    'residual_spread': support.get(d, {}).get('residual_spread'),
-                    'stints': support.get(d, {}).get('stints'),
-                    'compounds': support.get(d, {}).get('compounds'),
-                    'race_lap_range': support.get(d, {}).get('race_lap_range'),
-                    'model_diagnostics': support.get(d, {}),
+                    'samples': recovered_support.get(d, {}).get('samples', 0),
+                    'estimate_basis': estimate_basis[d],
+                    'residual_spread': recovered_support.get(d, {}).get('residual_spread'),
+                    'stints': recovered_support.get(d, {}).get('stints'),
+                    'compounds': recovered_support.get(d, {}).get('compounds'),
+                    'race_lap_range': recovered_support.get(d, {}).get('race_lap_range'),
+                    'model_diagnostics': recovered_support.get(d, {}),
                 }
                 for d, pace in sorted(eligible_drivers, key=lambda item: item[1])
             ]
@@ -1296,12 +1407,23 @@ def analyze(data, traffic=2):
                 })
             team['tyre_age_stints'] = observed
 
+        # Field-relative tyre trend from all cars' clean-air laps together.
+        clear_stints = [{'driver': s['driver'], 'stint': s['stint'], 'compound': s['compound'],
+                         'points': (s.get('clean_air') or {}).get('points') or []}
+                        for team in teams.values() for s in team.get('tyre_age_stints', [])
+                        if (s.get('clean_air') or {}).get('supported') and s.get('stable_condition_screen') is not False]
+        joint = joint_tyre_slopes(clear_stints)
+        for team in teams.values():
+            for s in team.get('tyre_age_stints', []):
+                s['joint_relative_slope'] = joint.get((s['driver'], s['compound']))
+                s['joint_method'] = 'clean-air-joint-race-lap-effects-v1'
+
     return {'event': str(getattr(getattr(data, 'event', {}), 'get', lambda k, d='': getattr(data, 'event', {}).get(k, d))('EventName') or getattr(data, 'name', '')),
             'session': data.name,
             'year': session_year,
             'regulatory_energy_envelope': regulatory_energy_envelope,
             'teams': [{'team': name, **team} for name, team in teams.items()],
-            'method': 'car-performance-v12-supported-nonlinear',
+            'method': 'car-performance-v13-supported-recovery',
             'traffic_threshold': traffic,
             'total_laps': len(rows),
             'eligible_laps': len(valid)}

@@ -1,0 +1,142 @@
+{
+  "figmaUrl": "https://www.figma.com/design/32fieprdLFtiUcUSq0yU6z",
+  "fileKey": "32fieprdLFtiUcUSq0yU6z",
+  "font": "Native Apple system font on macOS; self-hosted Inter for Figma and cross-platform web fallback",
+  "componentFamilies": 25,
+  "variants": 160,
+  "implementation": "Native HTML/CSS and the existing shared data-ui-kind decorator. Classic-script source does not use React Code Connect components; mappings below link each production family to its editable Figma component.",
+  "controls": {
+    "[data-ui-kind=\"primary\"]": {
+      "family": "Button",
+      "componentId": "6:32",
+      "properties": {
+        "Tone": "Primary"
+      }
+    },
+    "[data-ui-kind=\"push\"]": {
+      "family": "Button",
+      "componentId": "6:32",
+      "properties": {
+        "Tone": "Secondary"
+      }
+    },
+    "[data-ui-kind=\"toolbar\"]": {
+      "family": "Button",
+      "componentId": "6:32",
+      "properties": {
+        "Tone": "Toolbar"
+      }
+    },
+    "[data-ui-kind=\"sort\"]": {
+      "family": "Button",
+      "componentId": "6:32",
+      "properties": {
+        "Tone": "Toolbar"
+      }
+    },
+    "[data-ui-kind=\"icon\"]": {
+      "family": "Toolbar icon",
+      "componentId": "6:415",
+      "properties": {}
+    },
+    "[data-ui-kind=\"stepper\"]": {
+      "family": "Toolbar icon",
+      "componentId": "6:415",
+      "properties": {}
+    },
+    "[data-ui-kind=\"popup\"]": {
+      "family": "Popup",
+      "componentId": "6:69",
+      "properties": {}
+    },
+    "[data-ui-kind=\"picker\"]": {
+      "family": "Popup",
+      "componentId": "6:69",
+      "properties": {}
+    },
+    "[data-ui-kind=\"menu-item\"]": {
+      "family": "Menu item",
+      "componentId": "6:243",
+      "properties": {}
+    },
+    "[data-ui-kind=\"segment\"]": {
+      "family": "Segment",
+      "componentId": "6:94",
+      "properties": {}
+    },
+    "[data-ui-kind=\"tab\"]": {
+      "family": "Category",
+      "componentId": "6:107",
+      "properties": {}
+    },
+    "[data-ui-kind=\"field\"]": {
+      "family": "Field",
+      "componentId": "6:226",
+      "properties": {}
+    },
+    "[data-ui-kind=\"checkbox\"]": {
+      "family": "Checkbox",
+      "componentId": "6:180",
+      "properties": {}
+    },
+    "[data-ui-kind=\"radio\"]": {
+      "family": "Radio",
+      "componentId": "6:205",
+      "properties": {}
+    },
+    "[data-ui-kind=\"colour\"]": {
+      "family": "Colour well",
+      "componentId": "18:159",
+      "properties": {}
+    },
+    "[data-ui-kind=\"separator\"]": {
+      "family": "Column resizer",
+      "componentId": "18:168",
+      "properties": {}
+    },
+    "[data-ui-kind=\"list-row\"]": {
+      "family": "Driver",
+      "componentId": "6:136",
+      "properties": {}
+    },
+    "[data-ui-kind=\"choice\"]": {
+      "family": "Lap",
+      "componentId": "6:159",
+      "properties": {}
+    },
+    "[data-ui-kind=\"run\"]": {
+      "family": "Run",
+      "componentId": "6:397",
+      "properties": {}
+    },
+    "[data-ui-kind=\"reference\"]": {
+      "family": "Legend",
+      "componentId": "6:390",
+      "properties": {}
+    },
+    "[data-ui-kind=\"disclosure\"]": {
+      "family": "Disclosure",
+      "componentId": "6:330",
+      "properties": {}
+    },
+    "[data-ui-kind=\"badge\"]": {
+      "family": "Badge",
+      "componentId": "6:264",
+      "properties": {}
+    }
+  },
+  "content": {
+    ".performance-table": "Table row",
+    ".performance-chart-card": "Chart row",
+    ".telemetry-empty": "Empty state",
+    ".performance-empty": "Empty state",
+    ".local-compute-dialog": "Dialog",
+    ".tooltip": "Tooltip",
+    ".app-toast": "Tooltip",
+    "progress": "Progress",
+    ".summary-card": "Metric",
+    ".charts > .chart": "Telemetry plot"
+  },
+  "telemetryPlotComponentId": "23:216",
+  "sourceIconCount": 32
+}

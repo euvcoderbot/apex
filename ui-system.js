@@ -51,6 +51,7 @@
     if(el.matches('[role="option"]'))return 'menu-item';
     if(el.matches('#loadSession,#performanceLoad,[data-ui-primary]'))return 'primary';
     if(el.matches('.driver-pill'))return 'list-row';
+    if(el.matches('.category-tab'))return 'tab';
     if(el.matches('.run-segment'))return 'run';
     if(el.matches('.lap-chip,.track-pill,.corner-pick,.fastest-lap-pick'))return 'choice';
     if(el.matches('.loaded-lap-main'))return 'reference';
@@ -61,7 +62,7 @@
     if(el.matches('[data-zoom],[data-pan],[data-delta-zoom]'))return 'stepper';
     if(el.matches('.remove,[data-remove]'))return 'icon';
     if(el.closest(groups))return 'segment';
-    if(el.closest('.workspace-tools')||el.matches('#sidebarToggle'))return 'toolbar';
+    if(el.closest('.workspace-tools')||el.matches('#windowSidebarToggle'))return 'toolbar';
     return 'push';
   }
   function set(el,key,value){if(el.getAttribute(key)!==value)el.setAttribute(key,value);}
@@ -127,7 +128,8 @@
   let pending=false;
   if(typeof MutationObserver!=='undefined')new MutationObserver(records=>{
     if(!records.some(record=>record.type==='childList'||record.target.matches?.('button,input,select,summary'))||pending)return;
-    pending=true;requestAnimationFrame(()=>{pending=false;decorate();});
+    // rAF pauses in background tabs; the timer guarantees new controls are owned anyway.
+    pending=true;const run=()=>{if(!pending)return;pending=false;decorate();};requestAnimationFrame(run);setTimeout(run,150);
   }).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','aria-pressed','aria-selected','disabled']});
   document.addEventListener('keydown',event=>{
     const resizer=event.target.closest?.('.ui-column-resizer');

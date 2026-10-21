@@ -1,0 +1,404 @@
+/* Session analysis: drivers, runs, lap chooser and loaded-lap list. */
+// UI Rendering Functions
+function mergeRaceClassification(classification) {
+  for(const item of classification) {
+    const driver=[...realDrivers.values()].find(d=>String(d.number)===String(item.driver_number));
+    if(!driver)continue;
+    const result={...driver.result};
+    if(typeof item.points==='number' && Number.isFinite(item.points))result.points=item.points;
+    if(item.gap_to_leader!=null && !Array.isArray(item.gap_to_leader))result.gap=item.gap_to_leader;
+    if(item.dsq)result.status='DSQ';else if(item.dns)result.status='DNS';else if(item.dnf)result.status='DNF';
+    else if(item.position>0 && !/^\+\d+ laps?$/i.test(result.status||''))result.status='Finished';
+    driver.result=result;
+    if(item.position>0){driver.position=item.position;const row=drivers.find(d=>d[0]===driver.code);if(row)row[5]=item.position;}
+  }
+}
+
+async function refreshRaceResults(request,query) {
+  if(request!==sessionRequest || !/^(Race|Sprint)$/i.test(loadedSessionName) || !openf1SessionKey)return;
+  const key=openf1SessionKey;
+  let classificationSeen=false;
+  try {
+    const response=await fetchSessionData(`https://api.openf1.org/v1/session_result?session_key=${key}`,{cache:'no-store',signal:request.signal});
+    if(!response.ok)throw new Error('Classification not available yet');
+    const rows=await response.json();
+    if(request!==sessionRequest || query!==String(currentQuery()))return;
+    if(Array.isArray(rows)){classificationSeen=rows.some(r=>r.position>0);mergeRaceClassification(rows);renderDrivers();}
+  } catch(error) { if(error.name==='AbortError')return; }
+  const pending=[...realDrivers.values()].some(d=>!Number.isFinite(d.result?.points)||d.result?.gap==null && !/DNF|DNS|DSQ/i.test(d.result?.status||''));
+  if((pending||!classificationSeen&&sessionYear===new Date().getFullYear()) && raceResultRefreshAttempts++<10 && request===sessionRequest)
+    raceResultRefreshTimer=setTimeout(()=>refreshRaceResults(request,query),60000);
+}
+
+function raceResultMarkup(driver) {
+  const result = driver?.result || {};
+  const status = String(result.status || '').trim();
+  const retired = status && !/^(finished|\+\d+ laps?)$/i.test(status);
+  const badge = /^(dns|did not start|withdrawn|did not qualify|did not prequalify)$/i.test(status) ? 'DNS'
+    : /disqualified|dsq/i.test(status) ? 'DSQ' : retired ? 'DNF' : '';
+  let value = '—';
+  if (raceResultView === 'points') {
+    if (Number.isFinite(result.points)) value = `${result.points} pts`;
+  } else if (badge) value = badge;
+  else if (/^\+\d+ laps?$/i.test(status)) value = status.toLowerCase();
+  else if (typeof result.gap === 'string' && /^\+?\d+\s*laps?$/i.test(result.gap.trim())) value = result.gap.toLowerCase();
+  else if (Number.isFinite(result.gap)) value = result.gap === 0 ? 'Winner' : `+${result.gap.toFixed(3)}s`;
+  else if (typeof result.gap === 'string' && /^\+?\d+(?:\.\d+)?s?$/i.test(result.gap.trim())) {
+    const gap = Number.parseFloat(result.gap);
+    value = gap === 0 ? 'Winner' : `+${gap.toFixed(3)}s`;
+  }
+  return `<span class="driver-result" title="${escapeUI(status || 'Result unavailable')}"><b>${escapeUI(value)}</b>${badge && raceResultView === 'points' ? `<small>${badge}</small>` : ''}</span>`;
+}
+
+function renderDrivers() {
+  const root = $('#driverPills');
+  const isRace = drivers.length > 0 && /^(Race|Sprint)$/i.test(loadedSessionName);
+  const controls = $('#raceResultControls');
+  if (controls) {
+    controls.hidden = !isRace;
+    controls.querySelectorAll('button').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.resultView === raceResultView));
+      button.onclick = () => { raceResultView = button.dataset.resultView; renderDrivers(); };
+    });
+  }
+  root.classList.toggle('has-race-results', isRace);
+  if (!drivers.length) {
+    root.innerHTML = '<span class="section-empty">Load a session to see its drivers.</span>';
+    return;
+  }
+  
+  replaceUI(root, drivers.map((d, index) => {
+    const code = d[0];
+    const number = d[1];
+    const color = d[3];
+    const isSelected = selected.includes(code);
+    const position = Number.isFinite(+d[5]) && +d[5] > 0 ? +d[5] : index + 1;
+
+    const name = String(d[2] || code);
+    return `<button class="driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-motion-key="driver-${code}" data-code="${code}" aria-label="${escapeUI(`P${position}, ${name}, ${d[4] || ''}, number ${number}`)}" aria-pressed="${isSelected}"><span class="driver-pill-position">${position}</span>${teamLogoMarkup(d[4])}<span class="driver-pill-identity"><strong>${escapeUI(name)}</strong><small>${code} · ${number}</small></span>${isRace ? raceResultMarkup(realDrivers.get(code)) : ''}</button>`;
+  }).join(''));
+  
+  root.querySelectorAll('button').forEach(btn => {
+    btn.onkeydown = event => {
+      const rows = [...root.querySelectorAll('button')];
+      const index = rows.indexOf(btn);
+      const target = event.key === 'ArrowDown' ? Math.min(rows.length - 1, index + 1)
+        : event.key === 'ArrowUp' ? Math.max(0, index - 1)
+        : event.key === 'Home' ? 0 : event.key === 'End' ? rows.length - 1 : null;
+      if (target == null) return;
+      event.preventDefault();
+      rows[target]?.focus();
+    };
+    btn.onclick = () => {
+      const code = btn.dataset.code;
+      if (selected.includes(code)) {
+        selected = selected.filter(x => x !== code);
+        loaded = loaded.filter(x => x.code !== code);
+      } else {
+        selected.push(code);
+      }
+      renderDrivers();
+      renderStints();
+      renderAll();
+    };
+  });
+}
+
+
+function fastestTimedLap(driver) {
+  const timed = driver?.laps?.filter(lap => Number.isFinite(lap.time) && lap.time > 0 && !lap.in_lap && !lap.out_lap) || [];
+  return timed.length ? timed.reduce((fastest, lap) => lap.time < fastest.time ? lap : fastest) : null;
+}
+
+function qualifyingPreparationLaps(laps, sessionName) {
+  const roles = new Map();
+  if (!/qualifying|shootout/i.test(sessionName || '')) return roles;
+  const runs = new Map();
+  for (const lap of laps || []) {
+    const key = `${lap.phase || ''}|${lap.stint}|${lap.compound || ''}`;
+    if (!runs.has(key)) runs.set(key, []);
+    runs.get(key).push(lap);
+  }
+  const clear = lap => !/[2-7]/.test(String(lap.track_status || '')) && !lap.deleted;
+  for (const run of runs.values()) {
+    run.sort((a,b) => a.lap-b.lap);
+    const timed = run.filter(lap => Number.isFinite(lap.time) && lap.time > 0 && !lap.in_lap && !lap.out_lap && clear(lap));
+    if (timed.length < 2) continue;
+    const best = Math.min(...timed.map(lap => lap.time));
+    const flying = lap => timed.includes(lap) && lap.time <= best * 1.07;
+    const slow = lap => timed.includes(lap) && lap.time >= Math.max(best * 1.12, best + 8);
+    for (let index=0; index<run.length; index++) {
+      const lap=run[index];
+      if (!slow(lap)) continue;
+      let before=index-1, after=index+1;
+      while (before>=0 && slow(run[before])) before--;
+      while (after<run.length && slow(run[after])) after++;
+      const previous=run[before], next=run[after];
+      // Inference only: require an uninterrupted same-tyre sequence leading
+      // back to a flying lap, not a yellow/red flag, pit visit or missing lap.
+      if (!previous || !next || !(flying(previous) || previous.out_lap && clear(previous)) || !flying(next)) continue;
+      if (run.slice(before+1,after+1).some((entry,offset) => entry.lap !== run[before+offset].lap+1)) continue;
+      roles.set(lap.lap, {label:'PREP', reason:'Inferred cool-down / preparation lap: substantially slower between an out/flying lap and the next flying lap on the same tyre run. No pit exit is implied.'});
+    }
+  }
+  return roles;
+}
+
+function toggleLoadedLap(code, lapNum) {
+  const lapObj = realDrivers.get(code)?.laps?.find(item => item.lap === lapNum);
+  if (!lapObj || (!Number.isFinite(lapObj.time) && !lapObj.in_lap && !lapObj.out_lap)) return;
+  const index = loaded.findIndex(item => item.code === code && item.lap === lapNum);
+  if (index === -1) {
+    loaded.push({ code, lap: lapNum, time: lapObj.out_lap ? null : lapObj.time, real: lapObj });
+    mapView = 'comparison';
+  } else {
+    loaded.splice(index, 1);
+  }
+  renderAll();
+  renderStints();
+}
+
+function renderStints() {
+  const root = $('#stintPanels');
+  const actions = $('#lapWorkspaceActions');
+  if (!selected.length) {
+    setLapSelectionExpanded(true);
+    actions.replaceChildren();
+    root.innerHTML = '<span class="section-empty">Select a driver to inspect their runs and laps.</span>';
+    return;
+  }
+
+  const isAllFastestLoaded = selected.every(code => {
+    const fastest = fastestTimedLap(realDrivers.get(code));
+    return fastest && loaded.some(item => item.code === code && item.lap === fastest.lap);
+  });
+
+  const toolbar = `
+    <div class="run-toolbar">
+      <span><b>${selected.length}</b> ${selected.length === 1 ? 'driver' : 'drivers'} selected</span>
+      <button type="button" id="compareAllFastest" data-motion-key="compare-fastest" class="compare-all-btn ${isAllFastestLoaded ? 'selected' : ''}" aria-pressed="${isAllFastestLoaded}" title="Add the fastest timed lap for every selected driver"><span>Compare fastest</span></button>
+    </div>
+  `;
+
+  const cards = selected.map(code => {
+    const driver = realDrivers.get(code);
+    const display = drivers.find(item => item[0] === code);
+    if (!driver || !display) return '';
+    const teamColor = display[3] || '#777777';
+    if (!driver.laps?.length) {
+      return `<article class="driver-run-card" data-motion-key="run-card-${code}" style="--team:${teamColor}"><header class="run-card-header"><div class="run-driver">${teamLogoMarkup(display[4])}<div class="run-driver-copy"><h3>${escapeUI(driver.name)}</h3><small>${code}</small></div></div></header><p class="section-empty">No laps in this session.</p></article>`;
+    }
+
+    const timedLaps = driver.laps.filter(lap => Number.isFinite(lap.time) && lap.time > 0 && !lap.in_lap && !lap.out_lap);
+    const fastest = fastestTimedLap(driver);
+    const fastestLoaded = fastest && loaded.some(item => item.code === code && item.lap === fastest.lap);
+    const hasQualifyingPhases = driver.laps.some(lap => /^Q[1-3]$/.test(lap.phase || ''));
+    const groupIds = hasQualifyingPhases
+      ? ['Q1', 'Q2', 'Q3'].filter(phase => driver.laps.some(lap => lap.phase === phase))
+      : [...new Set(driver.laps.map(lap => String(lap.stint)))];
+    const active = String(openStint[code] ?? groupIds[0]);
+    const lapsForGroup = id => hasQualifyingPhases
+      ? driver.laps.filter(lap => lap.phase === id)
+      : driver.laps.filter(lap => String(lap.stint) === id);
+    const activeLaps = lapsForGroup(active);
+    const runButtons = groupIds.map(id => {
+      const laps = lapsForGroup(id);
+      const compounds = [...new Set(laps.map(lap => String(lap.compound || '').toUpperCase()).filter(Boolean))];
+      const compoundBadges = compounds.map(compoundBadgeMarkup).join('');
+      const runLabel = hasQualifyingPhases ? id : `Stint ${id}`;
+      const count = hasQualifyingPhases ? new Set(laps.map(lap => lap.stint)).size : laps.length;
+      const countLabel = hasQualifyingPhases ? (count === 1 ? 'run' : 'runs') : (count === 1 ? 'lap' : 'laps');
+      return `<button type="button" class="stint run-segment ${id === active ? 'selected' : ''}" aria-pressed="${id === active}" aria-label="Show ${escapeUI(runLabel)} laps for ${code}" style="--team:${teamColor}" data-motion-key="run-${code}-${id}" data-code="${code}" data-stint="${id}"><strong>${runLabel}</strong><small><span class="run-compounds">${compoundBadges}</span>${count} ${countLabel}</small><span class="run-choice-indicator" aria-hidden="true">${id === active ? '✓' : '›'}</span></button>`;
+    }).join('');
+    const qualifyingRuns = [...new Set(activeLaps.map(lap => lap.stint))];
+    const preparationLaps = qualifyingPreparationLaps(driver.laps, loadedSessionName);
+    const lapButtons = activeLaps.map(lap => {
+      const isLoaded = loaded.some(item => item.code === code && item.lap === lap.lap);
+      const flag = `L${lap.lap}`;
+      const preparation = preparationLaps.get(lap.lap);
+      const classes = ['lap', 'lap-chip', lap.in_lap || lap.out_lap ? 'in-out' : '', preparation ? 'is-preparation' : '', isLoaded ? 'selected' : ''].filter(Boolean).join(' ');
+      const displayTime = Number.isFinite(lap.display_time) ? lap.display_time : lap.time;
+      const estimated = lap.display_time_estimated === true;
+      const duration = Number.isFinite(displayTime) ? `${estimated ? '~' : ''}${time(displayTime)}` : '&mdash;';
+      const selectable = Number.isFinite(lap.time) || lap.in_lap || lap.out_lap;
+      const context = lap.in_lap && lap.out_lap ? 'IN/OUT' : lap.out_lap ? 'OUT' : lap.in_lap ? 'IN' : preparation?.label || '';
+      const neutralised = String(lap.track_status || '').includes('4') ? 'SC'
+        : String(lap.track_status || '').includes('6') ? 'VSC' : '';
+      const title = lap.in_lap && lap.out_lap ? 'Pit entry and exit occurred in this lap; trace may include a garage stop'
+        : lap.out_lap ? 'Pit-out segment from pit exit to the timing line; comparison may be partial'
+        : lap.in_lap ? 'Pit-in lap includes the pit entry'
+        : neutralised ? `${neutralised} lap; time is not representative of racing pace`
+        : preparation ? preparation.reason
+        : !Number.isFinite(displayTime) ? 'No lap time published by the timing feeds' : '';
+      const age = Number.isFinite(lap.tyre_life) && lap.tyre_life >= 1 ? Math.round(lap.tyre_life) : null;
+      const tyreDetail = hasQualifyingPhases ? `<small class="lap-tyre-age">Run ${qualifyingRuns.indexOf(lap.stint) + 1} · Tyre age ${age === null ? 'unknown' : `${age} ${age === 1 ? 'lap' : 'laps'}`}</small>` : '';
+      return `<button class="${classes}" aria-pressed="${isLoaded}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${escapeUI(title)}"><span class="lap-token">${flag}${context ? ` <b class="lap-state">${context}</b>` : ''}${neutralised ? ` <b class="lap-state">${neutralised}</b>` : ''}</span><span class="lap-clock">${duration}</span>${compoundBadgeMarkup(lap.compound)}${tyreDetail}</button>`;
+    }).join('');
+    const groupLabel = hasQualifyingPhases ? active : `Stint ${active}`;
+
+    return `
+      <article class="driver-run-card" data-motion-key="run-card-${code}" style="--team:${teamColor}">
+        <header class="run-card-header">
+          <div class="run-driver">${teamLogoMarkup(display[4])}<div class="run-driver-copy"><h3>${escapeUI(driver.name)}</h3><small>${code} · ${timedLaps.length} timed laps</small></div></div>
+          ${fastest ? `<button class="fastest-lap-pick ${fastestLoaded ? 'selected' : ''}" data-motion-key="fastest-${code}" data-code="${code}" data-lap="${fastest.lap}" title="Add or remove this fastest lap"><span>Fastest</span><strong>${time(fastest.time)}</strong></button>` : ''}
+        </header>
+        <div class="run-section-label"><span>Runs</span></div>
+        <div class="run-segments" style="--run-count:${Math.min(groupIds.length,3)}" role="group" aria-label="${code} runs">${runButtons}</div>
+        <div class="lap-group-header"><span>${groupLabel} laps</span>${hasQualifyingPhases ? '' : `<small>${activeLaps.length} available</small>`}</div>
+        <div class="lap-grid">${lapButtons}</div>
+      </article>
+    `;
+  }).join('');
+
+  replaceUI(actions, toolbar);
+  replaceUI(root, cards);
+
+  $('#compareAllFastest').onclick = () => {
+    const fastestLaps = selected.map(code => ({ code, lap: fastestTimedLap(realDrivers.get(code)) })).filter(item => item.lap);
+    if (isAllFastestLoaded) {
+      loaded = loaded.filter(item => !fastestLaps.some(target => target.code === item.code && target.lap.lap === item.lap));
+    } else {
+      mapView = 'comparison';
+      fastestLaps.forEach(target => {
+        if (!loaded.some(item => item.code === target.code && item.lap === target.lap.lap)) {
+          loaded.push({ code: target.code, lap: target.lap.lap, time: target.lap.time, real: target.lap });
+        }
+      });
+    }
+    renderAll();
+    renderStints();
+    // The chooser stays open after comparing; people often add or swap laps.
+  };
+
+  root.querySelectorAll('.stint').forEach(button => {
+    button.onclick = () => {
+      openStint[button.dataset.code] = button.dataset.stint;
+      renderStints();
+    };
+  });
+  root.querySelectorAll('.lap:not(:disabled), .fastest-lap-pick').forEach(button => {
+    button.onclick = () => toggleLoadedLap(button.dataset.code, +button.dataset.lap);
+  });
+}
+
+function renderLoaded() {
+  const root = $('#loadedLaps');
+  const pitNotice = $('#pitLapNotice');
+  if (pitNotice) pitNotice.hidden = !loaded.some(item => item.real?.in_lap || item.real?.out_lap);
+  if (!loaded.length) {
+    root.innerHTML = '<span class="section-empty">No laps loaded. Click laps in the panel to compare.</span>';
+    return;
+  }
+  
+  replaceUI(root, loaded.map((item, index) => `
+    <div class="loaded-lap-pill ${index === 0 ? 'reference' : ''}" style="--team:${getLapColor(item)}" data-motion-key="comparison-${item.code}-${item.lap}" data-index="${index}">
+      <button class="loaded-lap-main ${index === 0 ? 'reference' : ''}" data-motion-key="reference-${item.code}-${item.lap}" aria-pressed="${index === 0}" aria-label="Use ${item.code} lap ${item.lap} as reference"><b>${item.code}</b><span>L${item.lap}${item.real?.in_lap && item.real?.out_lap ? ' IN/OUT' : item.real?.out_lap ? ' OUT' : item.real?.in_lap ? ' IN' : ''}</span><strong>${item.real?.display_time_estimated ? '~' : ''}${time(Number.isFinite(item.real?.display_time) ? item.real.display_time : item.time)}</strong></button><button class="remove" data-motion-key="remove-${item.code}-${item.lap}" data-remove="${index}" aria-label="Remove ${item.code} lap ${item.lap}">×</button>
+    </div>`).join(''));
+  
+  root.querySelectorAll('.loaded-lap-pill').forEach(p => {
+    p.onclick = e => {
+      const idx = +p.dataset.index;
+      const remove = e.target.closest('[data-remove]');
+      if (remove) {
+        const removeIdx = +remove.dataset.remove;
+        loaded.splice(removeIdx, 1);
+      } else {
+        loaded.unshift(loaded.splice(idx, 1)[0]);
+      }
+      renderAll();
+      renderStints();
+    };
+  });
+}
+
+function renderSectors() {
+  if (!loaded.length) {
+    $('#sectorRows').innerHTML = '';
+    return;
+  }
+  
+  const ref = loaded[0];
+  const sectorFields = ['s1', 's2', 's3'];
+  const finiteMinimum = values => {
+    const finite = values.filter(value => Number.isFinite(value) && value > 0);
+    return finite.length ? Math.min(...finite) : null;
+  };
+  const personalBests = new Map([...realDrivers.entries()].map(([code, driver]) => [
+    code,
+    sectorFields.map(field => finiteMinimum((driver.laps || []).map(lap => lap[field]))),
+  ]));
+  const sessionBests = sectorFields.map((field, sectorIndex) => finiteMinimum(
+    [...personalBests.values()].map(best => best[sectorIndex])
+  ));
+  const sectorState = (code, sectorIndex, value) => {
+    if (!Number.isFinite(value)) return { className: 'is-unset', label: 'No sector time' };
+    const tolerance = .0005;
+    if (Number.isFinite(sessionBests[sectorIndex]) && Math.abs(value - sessionBests[sectorIndex]) <= tolerance) {
+      return { className: 'is-session-best', label: 'Session best' };
+    }
+    const personal = personalBests.get(code)?.[sectorIndex];
+    if (Number.isFinite(personal) && Math.abs(value - personal) <= tolerance) {
+      return { className: 'is-personal-best', label: 'Personal best' };
+    }
+    return { className: 'is-complete', label: 'Completed sector' };
+  };
+  
+  const deltaBadge = (value, reference) => {
+    if (!Number.isFinite(value) || !Number.isFinite(reference)) return '';
+    const delta = value - reference;
+    const className = delta >= 0 ? 'is-slower' : 'is-faster';
+    return `<em class="summary-delta ${className}">${delta >= 0 ? '+' : '−'}${Math.abs(delta).toFixed(3)}s</em>`;
+  };
+
+  const windCardinal = degrees => {
+    if (!Number.isFinite(degrees)) return '';
+    const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    return directions[Math.round(((degrees % 360) + 360) % 360 / 45) % directions.length];
+  };
+  const conditionCell = (icon, label, value) => `
+    <span class="summary-condition"><i aria-hidden="true">${icon}</i><span><small>${label}</small><strong>${value}</strong></span></span>`;
+  
+  const root = $('#sectorRows');
+  replaceUI(root, loaded.map((item, i) => {
+    const lap = item.real || {};
+    const refLap = ref.real || {};
+    const color = getLapColor(item);
+    const sectors = sectorFields.map((field, sectorIndex) => ({
+      label: `S${sectorIndex + 1}`,
+      value: lap[field],
+      reference: refLap[field],
+      state: sectorState(item.code, sectorIndex, lap[field]),
+    }));
+    const conditions = lap.conditions || {};
+    const direction = windCardinal(conditions.wind_direction);
+    const conditionValues = [
+      conditionCell('🌤️', 'Air', Number.isFinite(conditions.air_temperature) ? `${conditions.air_temperature.toFixed(1)}°C` : '—'),
+      conditionCell('🌡️', 'Track', Number.isFinite(conditions.track_temperature) ? `${conditions.track_temperature.toFixed(1)}°C` : '—'),
+      conditionCell('🚩', 'Wind', Number.isFinite(conditions.wind_speed) ? `${conditions.wind_speed.toFixed(1)} m/s${direction ? ` ${direction}` : ''}` : '—'),
+      conditionCell('🌧️', 'Rain', conditions.rainfall === null || conditions.rainfall === undefined ? '—' : (conditions.rainfall ? 'Yes' : 'No')),
+    ];
+    const conditionsHtml = `<div class="summary-conditions">${conditionValues.join('')}</div>`;
+    const compound = getCompoundCode(lap.compound || 'UNKNOWN', nominatedCompounds);
+    const compoundClass = getCompoundToneClass(lap.compound || 'UNKNOWN');
+    const tyreAge = Number.isFinite(lap.tyre_life) ? Math.max(1, Math.round(lap.tyre_life)) : null;
+    const tyreLife = tyreAge === null ? '' : `${tyreAge} lap${tyreAge === 1 ? '' : 's'}`;
+    return `
+      <article class="lap-summary-card has-conditions" data-motion-key="summary-${item.code}-${item.lap}" style="--team:${color}">
+        <header>
+          <span class="summary-driver" title="${item.code} · lap ${item.lap}">${teamLogoMarkup(realDrivers.get(item.code)?.team || drivers.find(driver=>driver[0]===item.code)?.[4])}<b>${item.code}</b><span class="summary-lap-label">Lap ${item.lap}</span>${i === 0 ? '<em>REF</em>' : ''}</span>
+          <span class="summary-header-actions">
+            <span class="summary-tyre ${compoundClass}">${compoundBadgeMarkup(lap.compound)}<span class="summary-tyre-copy"><b>${compound}</b>${tyreLife ? `<small>${tyreLife} used</small>` : ''}</span></span>
+            <span class="summary-lap-time"><small>${lap.in_lap && lap.out_lap ? 'PIT IN/OUT' : lap.out_lap ? 'PIT EXIT → LINE' : lap.in_lap ? 'PIT-IN LAP' : 'LAP'}</small>${i === 0 || lap.out_lap || ref.real?.out_lap ? '' : deltaBadge(item.time, ref.time)}<strong>${lap.display_time_estimated ? '~' : ''}${time(Number.isFinite(lap.display_time) ? lap.display_time : item.time)}</strong></span>
+          </span>
+        </header>
+        <div class="summary-sectors">${sectors.map(({ label, value, reference, state }) => `
+          <span class="sector-cell ${state.className}" title="${label} · ${state.label}">
+            <span class="sector-cell-value"><small>${label}</small><span class="sector-measurements"><span class="sector-delta-slot">${i === 0 ? '' : deltaBadge(value, reference)}</span><strong>${Number.isFinite(value) ? `${value.toFixed(3)}s` : '—'}</strong></span></span>
+          </span>`).join('')}
+        </div>
+        ${conditionsHtml}
+      </article>
+    `;
+  }).join(''));
+
+}

@@ -14,8 +14,16 @@ try{const status=(await request('/api/local-status')).data;if(status.mode!=='loc
 catch{throw new Error('Start start-local.cmd (or npm run local) before precomputing. No Vercel fallback was used.');}
 const start=Date.now();
 const calendar=(await request('/api/data',{path:'/api/events?'+new URLSearchParams({year})})).data;
-const event=(Array.isArray(calendar)?calendar:calendar.events||[]).find(e=>e.name===gp);
-if(!event)throw new Error('Grand Prix not found in this season');
+const allEvents=Array.isArray(calendar)?calendar:calendar.events||[];
+// --season warms every event whose race has run; otherwise just --gp.
+const targets=args.includes('--season')
+  ?allEvents.filter(e=>e.date&&new Date(e.date+'T23:59:59Z').getTime()<Date.now())
+  :allEvents.filter(e=>e.name===gp);
+if(!targets.length)throw new Error('Grand Prix not found in this season');
+let batch={};
+for(const event of targets){
+const gp=event.name;
+try{
 const round=event.round||'';
 const get=async route=>{const result=await request('/api/data',{path:route});console.log(JSON.stringify({route:route.split('?')[0],cache:result.cache}));return result.data;};
 const q=await get('/api/performance?'+new URLSearchParams({year,gp,session:'Q'}));
@@ -23,12 +31,18 @@ await get('/api/performance?'+new URLSearchParams({year,gp,session:'R'}));
 const session=await get('/api/session?'+new URLSearchParams({year,gp,round,session:'Q'}));
 // Use the browser's exact representative-selection function and property order.
 const windows=fastestTeamTelemetrySelections(q.teams);
-const batch=await get('/api/performance/trace-batch?'+new URLSearchParams({year,gp,windows:JSON.stringify(windows)}));
-const driverRows=qualifyingRepresentatives({...session,year,event:gp},'driver',q.teams);
-const driverWindows=driverRows.map(row=>({driver:row.driver.code,number:row.driver.number,lap:row.lap,time:row.time,start:row.lap_start_seconds,end:row.lap_end_seconds,
+batch=await get('/api/performance/trace-batch?'+new URLSearchParams({year,gp,windows:JSON.stringify(windows),measures:'speed'}));
+// Same driver windows, field order included, as the page (car-performance.js
+// driverSelectionsFromQualifying), so the cached batch is the one it requests.
+const fromPhases=(()=>{const best=new Map();for(const team of q.teams||[])for(const p of team.phase_details||[]){
+  if(![p.time,p.start,p.end].every(Number.isFinite)||p.lap==null||p.number==null||!p.driver)return null;
+  if(!best.has(p.driver)||p.time<best.get(p.driver).time)best.set(p.driver,p);}
+  return best.size>=3?[...best.values()].map(p=>({driver:p.driver,number:p.number,lap:p.lap,time:p.time,start:p.start,end:p.end,sectors:p.sectors,phase:p.phase,
+    compound:p.compound,team:p.driver,team_name:p.driver,driver_number:p.number,qualifying_best_time:p.time,qualifying_best_driver:p.driver,qualifying_best_lap:p.lap})):null;})();
+const driverWindows=fromPhases||qualifyingRepresentatives({...session,year,event:gp},'driver',q.teams).map(row=>({driver:row.driver.code,number:row.driver.number,lap:row.lap,time:row.time,start:row.lap_start_seconds,end:row.lap_end_seconds,
   sectors:[row.s1,row.s2,row.s3],phase:row.phase,compound:row.compound,team:row.driver.code,team_name:row.driver.code,driver_number:row.driver.number,
   qualifying_best_time:row.time,qualifying_best_driver:row.driver.code,qualifying_best_lap:row.lap}));
-await get('/api/performance/trace-batch?'+new URLSearchParams({year,gp,windows:JSON.stringify(driverWindows)}));
+await get('/api/performance/trace-batch?'+new URLSearchParams({year,gp,windows:JSON.stringify(driverWindows),measures:'speed'}));
 for(const subject of ['team','driver']){
   const query=new URLSearchParams({year,gp,round,subject});
   console.log(JSON.stringify({subject,corners:(await request('/api/qualifying-corners?'+query)).cache}));
@@ -43,6 +57,8 @@ for(const subject of ['team','driver']){
 }
 try{await get('/api/performance/pits?'+new URLSearchParams({year,gp}));}catch(e){console.warn('Pit data: '+e.message);}
 if(event.session_dates?.Sprint)try{await get('/api/performance/sprint?'+new URLSearchParams({year,gp,round}));}catch(e){console.warn('Sprint classification: '+e.message);}
+}catch(error){console.warn(JSON.stringify({gp,skipped:error.message}));if(targets.length===1)throw error;}
+}
 if(args.includes('--export-seed')){
   const filename=path.join(root,'lib/verified-cache-seed.json'),old=JSON.parse(await readFile(filename,'utf8'));
   const entries={};
@@ -61,4 +77,4 @@ if(args.includes('--export-seed')){
   await writeFile(filename,JSON.stringify({sourceRevision:SOURCE_REVISION,backendRevision:BACKEND_REVISION,raceRevision:RACE_REVISION,entries}));
   console.log(JSON.stringify({exportedEntries:Object.keys(entries).length,note:'Publish a normal Site release to share these compact cached results.'}));
 }
-console.log(JSON.stringify({done:true,gp,year,seconds:Math.round((Date.now()-start)/1000),method:batch.methodology_version,teams:Object.keys(batch.teams||{}).length}));
+console.log(JSON.stringify({done:true,events:targets.length,year,seconds:Math.round((Date.now()-start)/1000),method:batch.methodology_version,cars:Object.keys(batch.speed_domain?.cars||{}).length}));

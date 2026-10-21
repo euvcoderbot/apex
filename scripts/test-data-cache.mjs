@@ -71,15 +71,25 @@ test('source-only compatible migration keeps expiry and never reuses old model s
   assert.equal(requests,1);
 });
 
-test('session inventory refreshes while identical v12 results retain their original expiry',async()=>{
+test('session inventory refreshes while identical v13 results retain their original expiry',async()=>{
   const store=new Map(),session=normalizeDataPath('/api/session?year=2026&gp=Test&session=R'),perf=normalizeDataPath('/api/performance?year=2026&gp=Test&session=R');
   store.set('source:29f8563d4b78ab40fa9f:'+session,{data:{drivers:[{code:'OLD'}]},expires:2000});
-  store.set('data:41044143c0b685844c70:'+perf,{data:{teams:[{team:'A'}],method:'car-performance-v12-supported-nonlinear'},expires:2000});
+  store.set('data:41044143c0b685844c70:'+perf,{data:{teams:[{team:'A'}],method:'car-performance-v13-supported-recovery'},expires:2000});
   let calls=0;const cache=createDataCache({read:async k=>store.get(k),write:async(k,v)=>store.set(k,v),now:()=>1000,
     fetcher:async()=>{calls++;return {ok:true,json:async()=>({drivers:[{code:'NEW'}],available_telemetry:[]})};}});
   assert.equal((await cache.get(session)).data.drivers[0].code,'NEW');
   assert.equal((await cache.get(perf)).cache,'HIT');
   assert.equal(store.get(DATA_VERSION+':'+perf).expires,2000);assert.equal(calls,1);
+});
+
+test('race recovery never migrates old results that lack provisional estimates',async()=>{
+  const path=normalizeDataPath('/api/performance?year=2026&gp=Test&session=R'),store=new Map();
+  store.set('data:41044143c0b685844c70:'+path,{data:{teams:[{team:'OLD'}],method:'car-performance-v12-supported-nonlinear'},expires:2000});
+  let calls=0;
+  const cache=createDataCache({read:async key=>store.get(key),write:async(key,value)=>store.set(key,value),now:()=>1000,
+    fetcher:async()=>{calls++;return {ok:true,json:async()=>({teams:[{team:'NEW'}],method:'car-performance-v13-supported-recovery'})};}});
+  assert.equal((await cache.get(path)).data.teams[0].team,'NEW');
+  assert.equal(calls,1);
 });
 
 test('recorded-source caching cannot renew its original freshness',()=>{
@@ -220,13 +230,13 @@ test('Sepang race snapshots compute once from validated source laps and persist 
 
 test('race selection starts its loader and pace does not eagerly fetch qualifying telemetry',()=>{
   const source=readFileSync('car-performance.js','utf8'),calls=[];
-  const box={running:false,context:{},activeMetric:'corners',cornerSession:'race',telemetrySubject:'team',straightLineSource:'qualy',
-    loadRaceCorners:()=>calls.push('race'),loadQualifyingMetrics:()=>calls.push('qualy'),loadTeamTelemetry:()=>calls.push('team')};
-  vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function loadActiveTelemetry()'),source.indexOf('async function loadTeamBraking(')),box);
+  const box={running:false,context:{},activeMetric:'corners',cornerSession:'race',telemetrySubject:'team',
+    loadRaceCorners:()=>calls.push('race'),loadQualifyingMetrics:()=>calls.push('qualy'),
+    speedDomainActive:()=>false,loadSpeedDomain:()=>calls.push('speed')};
+  vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function loadActiveTelemetry()'),source.indexOf('async function loadPitData(')),box);
   box.loadActiveTelemetry();assert.deepEqual(calls,['race']);
   box.activeMetric='pace';box.loadActiveTelemetry();assert.equal(calls.length,1);
-  box.activeMetric='straight';box.loadActiveTelemetry();assert.deepEqual(calls,['race','team']);
-  box.straightLineSource='race';box.loadActiveTelemetry();assert.deepEqual(calls,['race','team'],'race speed traps need no qualifying trace load');
+  box.speedDomainActive=()=>true;box.activeMetric='straight';box.loadActiveTelemetry();assert.deepEqual(calls,['race','speed'],'speed-domain view loads its own trace batch');
   assert.match(source,/cornerSession=cornerSessionButton.dataset.cornerSession;render\(\);loadActiveTelemetry\(\)/);
   const loader=source.slice(source.indexOf('async function loadRaceCorners('),source.indexOf('function renderRaceCorners()'));
   assert.doesNotMatch(loader,/fresh:'true'/);assert.match(loader,/snapshot \$\{index\+1\}/);

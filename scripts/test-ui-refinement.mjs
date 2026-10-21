@@ -1,21 +1,24 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
-const app=readFileSync('app.js','utf8'),css=readFileSync('ui-controls.css','utf8'),car=readFileSync('car-performance.js','utf8');
+const app=appSource(),css=readFileSync('ui-controls.css','utf8'),car=readFileSync('car-performance.js','utf8');
 
 test('rendered lap and sector differences precede their measured times, with weather icons',()=>{
   const laps=[{code:'HAM',lap:21,time:91.496,real:{s1:27.273,s2:38.258,s3:25.965,compound:'SOFT'}},{code:'VER',lap:11,time:91.373,real:{s1:27.002,s2:38.531,s3:25.840,compound:'SOFT'}}];
   let html='';const root={querySelectorAll:()=>[]};
-  const box={loaded:laps,realDrivers:new Map(laps.map(l=>[l.code,{laps:[l.real]}])),nominatedCompounds:[],
-    $:()=>root,replaceUI:(r,value)=>{html=value;},getLapColor:()=> '#4781d7',getCompoundCode:()=> 'SOFT (C5)',getCompoundToneClass:()=> 'soft',tyreImageMarkup:()=> '',time:t=>t.toFixed(3)};
+  const box={loaded:laps,drivers:[],realDrivers:new Map(laps.map(l=>[l.code,{laps:[l.real]}])),nominatedCompounds:[],teamLogoMarkup:()=>'<i class="team-logo"></i>',
+    $:()=>root,replaceUI:(r,value)=>{html=value;},getLapColor:()=> '#4781d7',getCompoundCode:()=> 'SOFT (C5)',getCompoundToneClass:()=> 'soft',tyreImageMarkup:()=> '',compoundBadgeMarkup:c=>`<svg class="compound-badge" data-c="${c}"></svg>`,time:t=>t.toFixed(3)};
   vm.createContext(box);vm.runInContext(app.slice(app.indexOf('function renderSectors()'),app.indexOf('// Chart Constants and Configuration')),box);box.renderSectors();
   const second=html.slice(html.indexOf('data-motion-key="summary-VER'));
   assert.match(second,/summary-lap-time[\s\S]*?−0\.123s<\/em><strong>91\.373<\/strong>/);
   assert.match(second,/sector-delta-slot[\s\S]*?−0\.271s<\/em><\/span><strong>27\.002s<\/strong>/);
   for(const icon of ['🌤️','🌡️','🚩','🌧️'])assert.ok(html.includes(`<i aria-hidden="true">${icon}</i>`));
   assert.doesNotMatch(html,/<small>L21<\/small>/);
+  // The lap card uses the same compound badge as the lap tiles, not the tyre photo.
+  assert.match(html,/summary-tyre[^"]*"><svg class="compound-badge" data-c="SOFT">/);
 });
 
 test('lap chooser uses an unscrolled driver grid above its lap cards',()=>{
@@ -24,7 +27,7 @@ test('lap chooser uses an unscrolled driver grid above its lap cards',()=>{
   assert.match(css,/#lapSelectionBody > #stintPanels \{ grid-area: 2 \/ 1/);
   assert.match(css,/@media\(max-width:760px\)[\s\S]*#lapSelectionBody > #stintPanels \{ grid-area: 2 \/ 1/);
   assert.match(css,/sector-cell::after \{ height: 5px/);
-  assert.match(css,/sector-cell-value > small \{ font-size: 13px/);
+  assert.match(css,/sector-cell-value > small \{ font-size: 15px/);
 });
 
 test('trace selectors show exact lap times while retaining stable lap identities',()=>{
@@ -36,12 +39,10 @@ test('trace selectors show exact lap times while retaining stable lap identities
 });
 
 test('compound pills keep all options and the selected compound',()=>{
-  const source=car.slice(car.indexOf('function tyreCompoundControl('),car.indexOf('function tyreStintKey('));
-  const box={tyreView:'C4'};vm.createContext(box);vm.runInContext(source,box);
-  const html=box.tyreCompoundControl(['OVERALL','C3','C4','C5'],'All C grades');
-  assert.equal((html.match(/data-tyre-compound=/g)||[]).length,4);
-  assert.match(html,/data-tyre-compound="C4" aria-pressed="true"/);
-  assert.match(html,/aria-labelledby="performanceTyreCompoundLabel"/);
+  // CompoundControl in src/views/TyresView.tsx (rendered in test-react-views.mjs).
+  const tyres=readFileSync('src/views/TyresView.tsx','utf8');
+  assert.match(tyres,/data-tyre-compound=\{c\} aria-pressed=\{compound\.value === c\}/);
+  assert.match(tyres,/aria-labelledby="performanceTyreCompoundLabel"/);
   assert.match(car,/const navEmoji=\{pace:'⏱️'/);
   assert.match(css,/performance-tyre-toolbar \.performance-quality-status \{ flex: 1 0 100%/);
 });

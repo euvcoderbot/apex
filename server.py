@@ -11,6 +11,7 @@ import logging
 import json
 import os
 from pathlib import Path
+import threading
 import time
 import math
 import importlib
@@ -21,6 +22,7 @@ from typing import Any
 from urllib.request import Request as URLRequest, urlopen
 from urllib.error import HTTPError
 from uuid import uuid4
+from threading import Lock
 
 # Direct OpenF1 retrieval only needs standard-library numerics. Load the
 # dataframe stack only when a FastF1/session operation actually uses it.
@@ -74,10 +76,46 @@ def fastf1_runtime():
     return fastf1
 
 
+ARCHIVE_RETRY_S = 86400
+
+
+def archive_usable(year, gp, session) -> bool:
+    """False when the F1 timing archive is disabled here or failed recently."""
+    if os.environ.get("APEX_F1_ARCHIVE", "off" if os.environ.get("VERCEL") else "on") == "off":
+        return False
+    marker = read_prepared_cache("archive-unavailable", year, gp, session)
+    return not (marker and time.time()-float(marker.get("at", 0)) < ARCHIVE_RETRY_S)
+
+
+def mark_archive_unusable(year, gp, session) -> None:
+    write_prepared_cache("archive-unavailable", year, {"at": time.time()}, gp, session)
+
+
+def archive_guard(year, gp, session, loader):
+    """Skip the F1 timing archive for a day after it fails for a session.
+
+    The archive has been returning HTTP 401/404; each attempt cost several
+    seconds of failing feed requests before the OpenF1 fallback, on every
+    request and every restart. A marker on disk short-circuits that.
+    """
+    # Serverless instances start with an empty /tmp, so a failure marker does
+    # not survive there; the archive is skipped outright unless enabled.
+    if not archive_usable(year, gp, session):
+        raise RuntimeError("Timing archive unavailable for this session (disabled or failed recently)")
+    try:
+        data = loader()
+        if getattr(data, "laps", None) is not None and data.laps.empty:
+            raise ValueError("Timing archive returned no laps")
+        return data
+    except Exception:
+        mark_archive_unusable(year, gp, session)
+        raise
+
+
 def load_fresh_session(year, gp, session, telemetry=False):
     fastf1_runtime()
     from session_loader import load_fresh_session as load
-    return load(year, gp, session, telemetry=telemetry)
+    return archive_guard(year, gp, session, lambda: load(year, gp, session, telemetry=telemetry))
 
 
 @app.get("/api/health")
@@ -188,6 +226,38 @@ def openf1_pit_visits(pits: list[dict], drivers: list[dict], stints=None) -> lis
             if changed:
                 visits[-1].update(visit_type='service', visit_evidence='supplied new tyre stint')
     return sorted(visits, key=lambda v: (v['lap'], v['driver_number']))
+
+
+def mark_penalty_stops(visits: list[dict], messages: list[dict]) -> list[dict]:
+    """Keep penalties served at a stop out of the pit-crew comparison.
+
+    A time penalty taken in the pit box adds its seconds to the stationary
+    time before work can start, and a stop-and-go has no service at all. The
+    first stop after the race-control notice that lasts at least the penalty
+    is marked; it stays visible as evidence with its reason.
+    """
+    import re
+    pending = {}
+    notices = sorted((m for m in messages or () if m.get('message')), key=lambda m: (m.get('lap_number') or 0, m.get('date') or ''))
+    for m in notices:
+        text = str(m['message']).upper()
+        car = re.search(r'FOR CAR (\d+)', text)
+        if not car or 'PENALTY' not in text or 'NO FURTHER' in text or 'REVIEW' in text:
+            continue
+        timed = re.search(r'(\d+) SECOND TIME PENALTY', text)
+        kind = 'stop-and-go' if 'STOP AND GO' in text else 'time' if timed else None
+        if kind:
+            pending.setdefault(car.group(1), []).append({'lap': m.get('lap_number') or 0, 'kind': kind,
+                                                         'seconds': int(timed.group(1)) if timed else 10})
+    for visit in sorted(visits, key=lambda v: v['lap']):
+        queue = pending.get(str(visit['driver_number'])) or []
+        due = next((p for p in queue if p['lap'] <= visit['lap']), None)
+        stop = visit.get('stop_duration')
+        if due and stop is not None and stop >= due['seconds']:
+            queue.remove(due)
+            visit.update(visit_type='penalty-served',
+                         visit_evidence=f"{due['seconds']} s {'stop-and-go' if due['kind'] == 'stop-and-go' else 'time penalty'} served at this stop (race control)")
+    return visits
 
 
 class _DhlPitTable(HTMLParser):
@@ -381,6 +451,31 @@ def prepared_cache_path(namespace: str, *parts: Any) -> Path:
     return PREPARED_CACHE / f"{namespace}-{digest}.json.gz"
 
 
+_calendar_memo: dict[int, tuple[float, list]] = {}
+
+
+def _event_settled(year: int, parts: tuple) -> bool:
+    """True when a part names an event whose race day was over two days ago."""
+    names = {str(p) for p in parts if isinstance(p, str)}
+    if not names:
+        return False
+    memo = _calendar_memo.get(year)
+    if memo is None or time.time()-memo[0] > 3600:
+        try:
+            memo = (time.time(), event_calendar(year))
+        except Exception:
+            return False
+        _calendar_memo[year] = memo
+    for event in memo[1]:
+        if event.get("name") in names and event.get("date"):
+            try:
+                day = datetime.fromisoformat(str(event["date"])[:10]).date()
+            except ValueError:
+                return False
+            return (datetime.now(timezone.utc).date()-day).days >= 2
+    return False
+
+
 def read_prepared_cache(namespace: str, year: int, *parts: Any) -> Any | None:
     path = prepared_cache_path(namespace, year, *parts)
     if not path.exists():
@@ -390,7 +485,10 @@ def read_prepared_cache(namespace: str, year: int, *parts: Any) -> Any | None:
     # quickly; historical session/telemetry payloads get a weekly revalidation
     # instead of being treated as immutable forever.
     age = time.time() - path.stat().st_mtime
-    if year >= datetime.now().year and age > 600:
+    # A current-season event that finished days ago is as final as last
+    # season's; only events still in progress (or just finished, while
+    # results can be amended) refresh every ten minutes.
+    if year >= datetime.now().year and age > 600 and not _event_settled(year, parts):
         return None
     if namespace in {"session", "telemetry", "openf1-performance-v1"} and age > 7 * 86400:
         return None
@@ -420,6 +518,14 @@ def write_prepared_cache(namespace: str, year: int, payload: Any, *parts: Any) -
             pass
 
 
+OPENF1_MIN_INTERVAL_S = 0.6
+OPENF1_ATTEMPTS = 5
+_openf1_lock = threading.Lock()
+_openf1_next = [0.]
+_openf1_session_ends: dict[Any, str] = {}
+_openf1_meta: dict[str, tuple[float, Any]] = {}
+
+
 def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
     from urllib.parse import quote
     valid_params = {key: value for key, value in params.items() if value is not None}
@@ -430,15 +536,117 @@ def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
         else:
             parts.append(f"{key}={quote(str(value))}")
     query = "&".join(parts)
-    request = URLRequest(
-        f"{OPENF1}/{endpoint}?{query}",
-        headers={"Accept-Encoding": "gzip", "User-Agent": "euV2-data/1.0"},
-    )
-    with urlopen(request, timeout=20) as response:
-        body = response.read()
-        if response.headers.get("Content-Encoding", "").lower() == "gzip":
-            body = gzip.decompress(body)
-        return json.loads(body.decode("utf-8"))
+    url = f"{OPENF1}/{endpoint}?{query}"
+    if endpoint in ("sessions", "meetings"):
+        # Calendar metadata is looked up on almost every request; keep it briefly
+        # (a live weekend adds sessions, so not longer than ten minutes).
+        hit = _openf1_meta.get(url)
+        if hit and time.monotonic()-hit[0] < 600:
+            return hit[1]
+    session_key = valid_params.get("session_key")
+    settled = endpoint != "sessions" and session_key is not None and _openf1_session_settled(session_key)
+    cache_path = PREPARED_CACHE / "openf1" / (hashlib.sha256(url.encode()).hexdigest()+".json.gz")
+    if settled and cache_path.exists():
+        try:
+            with gzip.open(cache_path, "rt", encoding="utf-8") as handle:
+                return json.load(handle)
+        except (OSError, ValueError):
+            cache_path.unlink(missing_ok=True)
+    result = _openf1_fetch(url)
+    if endpoint in ("sessions", "meetings") and result:
+        _openf1_meta[url] = (time.monotonic(), result)
+    if endpoint == "sessions":
+        for item in result if isinstance(result, list) else []:
+            if item.get("session_key") is not None and item.get("date_end"):
+                _openf1_session_ends[item["session_key"]] = item["date_end"]
+    if settled and result:
+        cache_path.parent.mkdir(exist_ok=True)
+        temporary = cache_path.with_name(f"{cache_path.name}.{uuid4().hex}.tmp")
+        try:
+            with gzip.open(temporary, "wt", encoding="utf-8", compresslevel=5) as handle:
+                json.dump(result, handle, separators=(",", ":"))
+            temporary.replace(cache_path)
+        except OSError:
+            temporary.unlink(missing_ok=True)
+    return result
+
+
+OPENF1_WINDOW_S = 300
+
+
+def openf1_window_points(endpoint: str, session_key: Any, driver_number: Any,
+                         window_start: datetime, window_end: datetime) -> list[dict[str, Any]]:
+    """Points for one driver from the fixed all-driver windows covering a lap."""
+    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    start = window_start if window_start.tzinfo else window_start.replace(tzinfo=timezone.utc)
+    end = window_end if window_end.tzinfo else window_end.replace(tzinfo=timezone.utc)
+    first = int((start-epoch).total_seconds()//OPENF1_WINDOW_S)
+    last = int((end-epoch).total_seconds()//OPENF1_WINDOW_S)
+    points = []
+    for bucket in range(first, last+1):
+        lo = epoch+timedelta(seconds=bucket*OPENF1_WINDOW_S)
+        hi = lo+timedelta(seconds=OPENF1_WINDOW_S)
+        try:
+            rows = openf1(endpoint, session_key=session_key,
+                          **{"date>=": lo.strftime("%Y-%m-%dT%H:%M:%S"), "date<": hi.strftime("%Y-%m-%dT%H:%M:%S")})
+        except Exception:
+            return []
+        points += [row for row in rows if str(row.get("driver_number")) == str(driver_number)]
+    return points
+
+
+def _openf1_session_settled(session_key: Any) -> bool:
+    """Final data: the session ended more than six hours ago.
+
+    Finished-session telemetry never changes, so it is kept on disk across
+    restarts and code changes instead of being downloaded again.
+    """
+    end = _openf1_session_ends.get(session_key)
+    if end is None:
+        try:
+            for item in _openf1_fetch(f"{OPENF1}/sessions?session_key={session_key}"):
+                if item.get("date_end"):
+                    _openf1_session_ends[item["session_key"]] = end = item["date_end"]
+        except Exception:
+            return False
+    if not end:
+        return False
+    try:
+        finished = datetime.fromisoformat(str(end).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if finished.tzinfo is None:
+        finished = finished.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc)-finished > timedelta(hours=6)
+
+
+def _openf1_fetch(url: str) -> Any:
+    # OpenF1 rate-limits bursts (HTTP 429). Parallel lap loads used to turn
+    # each 429 into a missing driver that only a manual retry recovered, so
+    # requests are paced process-wide and transient errors are retried.
+    for attempt in range(OPENF1_ATTEMPTS):
+        with _openf1_lock:
+            wait = _openf1_next[0]-time.monotonic()
+            if wait > 0:
+                time.sleep(wait)
+            _openf1_next[0] = time.monotonic()+OPENF1_MIN_INTERVAL_S
+        request = URLRequest(url, headers={"Accept-Encoding": "gzip", "User-Agent": "euV2-data/1.0"})
+        try:
+            with urlopen(request, timeout=20) as response:
+                body = response.read()
+                if response.headers.get("Content-Encoding", "").lower() == "gzip":
+                    body = gzip.decompress(body)
+                return json.loads(body.decode("utf-8"))
+        except HTTPError as exc:
+            if exc.code not in (429, 502, 503, 504) or attempt+1 == OPENF1_ATTEMPTS:
+                raise
+            retry = exc.headers.get("Retry-After") if exc.headers else None
+            try:
+                delay = min(20., float(retry)) if retry else 1.5*2**attempt
+            except ValueError:
+                delay = 1.5*2**attempt
+            with _openf1_lock:
+                _openf1_next[0] = max(_openf1_next[0], time.monotonic()+delay)
 
 
 def _normalised_name(value: Any) -> str:
@@ -516,34 +724,44 @@ def _openf1_meeting(year: int, gp: str, meetings: list[dict[str, Any]]) -> dict[
     return candidates[0][1]
 
 
-@lru_cache(maxsize=64)
+_openf1_metadata_cache = {}
+_openf1_metadata_lock = Lock()
+
+
+def openf1_metadata(endpoint, **params):
+    """Share successful calendar lookups; never cache a throttled lookup as absent."""
+    key = (endpoint, tuple(sorted(params.items())))
+    with _openf1_metadata_lock:
+        cached = _openf1_metadata_cache.get(key)
+        if cached and time.monotonic() - cached[0] < 300:
+            return cached[1]
+        rows = openf1_performance_feed(endpoint, **params)
+        if rows:
+            if len(_openf1_metadata_cache) >= 64:
+                _openf1_metadata_cache.pop(next(iter(_openf1_metadata_cache)))
+            _openf1_metadata_cache[key] = (time.monotonic(), rows)
+        return rows
+
+
 def openf1_session(year: int, gp: str, session_name: str) -> dict[str, Any] | None:
     try:
-        meetings = openf1("meetings", year=year)
+        meetings = openf1_metadata("meetings", year=year)
         meeting = _openf1_meeting(year, gp, meetings)
         if meeting is None or meeting.get("meeting_key") is None:
             return None
-        sessions = openf1("sessions", year=year, meeting_key=meeting["meeting_key"])
+        sessions = openf1_metadata("sessions", year=year, meeting_key=meeting["meeting_key"])
         wanted_session = session_name.lower().strip()
-        
-        for item in sessions:
-            name = item.get("session_name", "").lower().strip()
-            if wanted_session == name:
-                return item
-            if wanted_session == 'q' and 'qualifying' in name:
-                return item
-            if wanted_session == 'r' and 'race' in name:
-                return item
-            if wanted_session == 'fp1' and 'practice 1' in name:
-                return item
-            if wanted_session == 'fp2' and 'practice 2' in name:
-                return item
-            if wanted_session == 'fp3' and 'practice 3' in name:
-                return item
-            if wanted_session == 's' and 'sprint' in name and 'qualifying' not in name:
-                return item
-            if wanted_session == 'sq' and ('sprint qualifying' in name or 'sprint shootout' in name):
-                return item
+        names = {'q': {'qualifying'}, 'r': {'race'},
+                 'fp1': {'practice 1'}, 'fp2': {'practice 2'}, 'fp3': {'practice 3'},
+                 's': {'sprint'}, 'sq': {'sprint qualifying', 'sprint shootout'}}
+        wanted_names = names.get(wanted_session, {wanted_session})
+        matches = [item for item in sessions
+                   if item.get('session_name', '').lower().strip() in wanted_names
+                   and not item.get('is_cancelled', False)]
+        if len(matches) == 1:
+            return matches[0]
+    except HTTPError:
+        raise
     except Exception as e:
         logger.error("Error in openf1_session: %s", e)
         return None
@@ -608,8 +826,10 @@ def _openf1_lap_telemetry(
         if next_start:
             driver_laps.append({"lap_number":lap_number+1,"date_start":next_start})
     else:
-        driver_laps = openf1("laps", session_key=session_key, driver_number=driver_number,
-                             **{"lap_number>=": lap_number, "lap_number<=": lap_number+1})
+        # One cached lap list per session instead of one request per driver.
+        driver_laps = [item for item in openf1("laps", session_key=session_key)
+                       if str(item.get("driver_number")) == str(driver_number)
+                       and lap_number <= integer(item.get("lap_number"), -1) <= lap_number+1]
     matching_laps = [
         item for item in driver_laps
         if integer(item.get("lap_number"), -1) == lap_number
@@ -657,12 +877,16 @@ def _openf1_lap_telemetry(
             # unchanged lap-boundary and native-position joining logic below.
             return [point for point in streams.get(endpoint, []) if window_start
                     <= datetime.fromisoformat(point['date'].replace('Z', '+00:00')) <= window_end]
-        points = openf1(
-            endpoint,
-            session_key=session_key,
-            driver_number=driver_number,
-            **{"date>=": start_str, "date<=": end_str},
-        )
+        # One all-driver request per fixed 5-minute window serves every lap
+        # set in it (a qualifying run is a few minutes), and caches on disk.
+        points = openf1_window_points(endpoint, session_key, driver_number, window_start, window_end)
+        if not points:
+            points = openf1(
+                endpoint,
+                session_key=session_key,
+                driver_number=driver_number,
+                **{"date>=": start_str, "date<=": end_str},
+            )
         # Fresh sessions occasionally expose data through the session/driver
         # query before the date-range index catches up.
         if not points:
@@ -818,14 +1042,16 @@ def load_session(year: int, gp: str, session_name: str, round_number: int | None
     # "Invalid round". Resolve the exact event name from the full calendar,
     # then create the session from that event.
     backend = "fastf1" if year >= 2018 else "ergast"
-    event = exact_fastf1_event(year, gp, backend=backend)
 
-    session = event.get_session(session_name)
-    # Session controls need timing/lap data, not the multi-megabyte car stream
-    # for every driver. Fetch the car stream only if OpenF1 cannot provide a
-    # selected lap (mainly older seasons).
-    session.load(laps=True, telemetry=False, weather=True, messages=False)
-    return session
+    def load():
+        event = exact_fastf1_event(year, gp, backend=backend)
+        session = event.get_session(session_name)
+        # Session controls need timing/lap data, not the multi-megabyte car stream
+        # for every driver. Fetch the car stream only if OpenF1 cannot provide a
+        # selected lap (mainly older seasons).
+        session.load(laps=True, telemetry=False, weather=True, messages=False)
+        return session
+    return archive_guard(year, gp, session_name, load)
 
 
 @lru_cache(maxsize=8)
@@ -1424,14 +1650,21 @@ def session_data(
             payload['source_cache']['refresh_failed'] = fresh
             payload['compounds'] = get_tire_nominations(year, gp)
             return payload
-        if session in ('Q', 'R', 'Qualifying', 'Race') and year >= 2023:
+        if session in ('Q', 'R', 'SQ', 'Qualifying', 'Race', 'Sprint Qualifying', 'Sprint Shootout') and year >= 2023:
             try:
                 from openf1_performance import session_payload
-                code = {'Qualifying': 'Q', 'Race': 'R'}.get(session, session)
+                code = {'Qualifying': 'Q', 'Race': 'R', 'Sprint Qualifying': 'SQ',
+                        'Sprint Shootout': 'SQ'}.get(session, session)
                 alternate = load_openf1_performance(year, gp, code, fresh=fresh)
                 payload = session_payload(year, gp, code, alternate.apex_source_bundle)
                 payload['source_cache'] = alternate.apex_source_notice
                 payload['compounds'] = get_tire_nominations(year, gp)
+                # The alternate source has no circuit info. Official turn
+                # positions are venue metadata, so reuse the same-venue
+                # fallback (never a different track), or the comparison has
+                # no corner controls although the telemetry is complete.
+                if not payload.get('corners') and not fresh:
+                    payload['corners'] = get_fallback_circuit_corners(year, gp, session, str(payload.get('location') or ''))
                 return payload
             except Exception as fallback_error:
                 logger.warning('Alternate session timing unavailable for %s: %s', gp, fallback_error)
@@ -1781,11 +2014,13 @@ def load_openf1_performance(year, gp, session, fresh=False):
     return data
 
 
-def openf1_performance_feed(endpoint, session_key):
+def openf1_performance_feed(endpoint, session_key=None, **params):
     """A transient provider throttle must not become a permanent missing session."""
     for attempt in range(4):
         try:
-            return openf1(endpoint, session_key=session_key)
+            if session_key is not None:
+                params['session_key'] = session_key
+            return openf1(endpoint, **params)
         except HTTPError as error:
             if error.code not in (429, 502, 503, 504) or attempt == 3:
                 raise
@@ -1833,6 +2068,9 @@ def car_performance(response: Response, year: int = Query(..., ge=2018, le=2100)
             result['source_cache'] = data.apex_source_notice
     except Exception as exc:
         logger.warning('Car performance unavailable for %s %s: %s', year, gp, exc)
+        if isinstance(exc, HTTPError) and exc.code in (429, 502, 503, 504):
+            raise HTTPException(503, 'Timing source temporarily busy. Retrying shortly.',
+                                headers={'Retry-After': '10'}) from exc
         raise HTTPException(422, 'Performance data is incomplete or unavailable for this session. Try another event.') from exc
     response.headers['Server-Timing'] = f'performance;dur={(time.perf_counter()-started)*1000:.1f}'
     return result
@@ -1881,12 +2119,17 @@ def car_performance_pits(response: Response, year: int = Query(..., ge=2018, le=
                     pits_future = pool.submit(openf1, 'pit', session_key=session['session_key'])
                     drivers_future = pool.submit(openf1, 'drivers', session_key=session['session_key'])
                     stints_future = pool.submit(openf1, 'stints', session_key=session['session_key'])
+                    control_future = pool.submit(openf1, 'race_control', session_key=session['session_key'])
                     pits = pits_future.result()
                     drivers = drivers_future.result()
                     try:
                         stints = stints_future.result()
                     except Exception:
                         stints = []
+                    try:
+                        controls = control_future.result()
+                    except Exception:
+                        controls = []
                 if not drivers:
                     raise ValueError('Driver identities are unavailable')
                 visits = openf1_pit_visits(pits, drivers, stints)
@@ -1902,6 +2145,7 @@ def car_performance_pits(response: Response, year: int = Query(..., ge=2018, le=
                     except Exception as exc:
                         supplement_status = 'unavailable'
                         logger.warning('DHL stationary timing unavailable for %s: %s', gp, exc)
+                visits = mark_penalty_stops(visits, controls)
                 set_cache(source, visits, session)
                 response.headers['Server-Timing'] = f'pits;dur={(time.perf_counter()-started)*1000:.1f}'
                 return pit_timing_payload(gp,year,source,visits,drivers,session.get('date_start'),supplement_status)
@@ -2012,7 +2256,8 @@ def car_performance_trace(response: Response, year: int = Query(..., ge=2018, le
 @app.get('/api/performance/trace-batch')
 def car_performance_trace_batch(response: Response, year: int = Query(..., ge=2018, le=2100),
                                 gp: str = Query(..., min_length=3, max_length=120),
-                                windows: str = Query(..., min_length=20, max_length=36000)):
+                                windows: str = Query(..., min_length=20, max_length=36000),
+                                measures: str = Query('all', pattern='^(all|speed)$')):
     """Extract all team representatives from one shared qualifying archive."""
     response.headers['Cache-Control'] = 'no-store'
     try:
@@ -2042,30 +2287,77 @@ def car_performance_trace_batch(response: Response, year: int = Query(..., ge=20
                                'speed_fl': item.get('speed_fl')})
         from verified_sources import recorded_session, recorded_lap, source_notice
         recording = recorded_session(year, gp, 'Q')
+        retained = [None]*len(normalized)
         if recording:
             retained = [recorded_lap(recording, driver=s['driver'], number=s['driver_number'],
                                      lap=s['lap'], start=s['start'], end=s['end'], duration=s['time'])
                         for s in normalized]
             if all(retained):
-                from performance_tracks import measure_field
+                from performance_tracks import measure_field, speed_domain_only
                 extracted = [(s['team'], r['samples'], None) for s, r in zip(normalized, retained)]
+                measure = speed_domain_only if measures == 'speed' else measure_field
                 return {'event':gp, 'source_cache':source_notice(recording), 'fusion':{},
-                        **measure_field(extracted, normalized, recording.get('corners', []))}
+                        **measure(extracted, normalized, recording.get('corners', []))}
         fastf1_runtime()
         from session_loader import load_selected_laps_telemetry, exact_event, download_feed, _PARSERS
         from fastf1.mvapi import get_circuit_info
         from performance_tracks import measure_field
-        event = exact_event(year, gp)
-        lap_session = event.get_session('Q')
-        session_info = _PARSERS['session_info'](lap_session.api_path,
-            response=download_feed(lap_session.api_path, 'session_info'))
-        circuit = session_info['Meeting']['Circuit']
-        key = 146 if circuit.get('Key') == 149 and circuit.get('ShortName') == 'Mugello' else circuit['Key']
-        info = get_circuit_info(year=year, circuit_key=key)
-        corners = [{'number': str(r['Number']), 'letter': str(r.get('Letter') or ''),
-                    'x': seconds(r.get('X')), 'y': seconds(r.get('Y'))}
-                   for _, r in info.corners.iterrows()] if info is not None else []
-        extracted = load_selected_laps_telemetry(year, gp, 'Q', normalized)
+        # Circuit key from the F1 archive, else OpenF1 (the archive has
+        # returned HTTP 401); markers are optional for the speed-domain metrics.
+        circuit = {}
+        try:
+            if not archive_usable(year, gp, 'Q'):
+                raise RuntimeError('timing archive skipped')
+            event = exact_event(year, gp)
+            lap_session = event.get_session('Q')
+            session_info = _PARSERS['session_info'](lap_session.api_path,
+                response=download_feed(lap_session.api_path, 'session_info'))
+            circuit = session_info['Meeting']['Circuit']
+        except Exception as archive_error:
+            if str(archive_error) != 'timing archive skipped':
+                mark_archive_unusable(year, gp, 'Q')
+            logger.info('Session info unavailable for %s; using OpenF1 circuit key: %s', gp, archive_error)
+            lookup = openf1_session(year, gp, 'Q') if year >= 2023 else None
+            if lookup and lookup.get('circuit_key') is not None:
+                circuit = {'Key': lookup['circuit_key'], 'ShortName': lookup.get('circuit_short_name')}
+        corners = list((recording or {}).get('corners') or [])
+        if not corners and circuit.get('Key') is not None:
+            try:
+                key = 146 if circuit.get('Key') == 149 and circuit.get('ShortName') == 'Mugello' else circuit['Key']
+                info = get_circuit_info(year=year, circuit_key=key)
+                corners = [{'number': str(r['Number']), 'letter': str(r.get('Letter') or ''),
+                            'x': seconds(r.get('X')), 'y': seconds(r.get('Y'))}
+                           for _, r in info.corners.iterrows()] if info is not None else []
+            except Exception as exc:
+                logger.info('Circuit markers unavailable for %s: %s', gp, exc)
+        # Recordings usually hold one lap per team; a driver view asks for
+        # both drivers. Reuse every recorded lap and fetch only the rest, from
+        # OpenF1 when the F1 archive refuses (it has returned HTTP 401), so a
+        # single missing lap no longer fails the whole batch.
+        missing = [s for s, r in zip(normalized, retained) if not r]
+        fetched = {}
+        if missing:
+            try:
+                if not archive_usable(year, gp, 'Q'):
+                    raise RuntimeError('timing archive skipped')
+                fetched = {id(s): entry for s, entry in zip(missing, load_selected_laps_telemetry(year, gp, 'Q', missing))}
+            except Exception as archive_error:
+                if str(archive_error) != 'timing archive skipped':
+                    mark_archive_unusable(year, gp, 'Q')
+                logger.info('Timing archive unavailable for %s Q laps; using OpenF1: %s', gp, archive_error)
+                lookup = openf1_session(year, gp, 'Q') if year >= 2023 else None
+                key = lookup.get('session_key') if lookup else None
+                def from_openf1(s):
+                    try:
+                        samples = _openf1_lap_telemetry(year, gp, 'Q', s['driver_number'], int(s['lap']),
+                                                        0, key)
+                        return s['team'], samples, None if samples else 'No OpenF1 telemetry for this lap'
+                    except Exception as exc:
+                        return s['team'], None, str(exc)[:160]
+                from concurrent.futures import ThreadPoolExecutor as LapPool
+                with LapPool(max_workers=2) as pool:
+                    fetched = {id(s): entry for s, entry in zip(missing, pool.map(from_openf1, missing))}
+        extracted = [(s['team'], r['samples'], None) if r else fetched[id(s)] for s, r in zip(normalized, retained)]
         # The feeds usually contain the same upstream packets. Fetch a
         # complement only for incomplete traces; never interlace duplicates
         # into a fictitious higher sample frequency.
@@ -2093,6 +2385,11 @@ def car_performance_trace_batch(response: Response, year: int = Query(..., ge=20
                     with ThreadPoolExecutor(max_workers=3) as pool:extracted=list(pool.map(complement,extracted))
             except Exception as exc:
                 fusion['status']='secondary-unavailable'
+        if not circuit.get('Key') and not corners and year >= 2023:
+            # Archive metadata can be disabled while OpenF1 telemetry works.
+            # Keep the circuit identity so the verified map fallback still runs.
+            identity = openf1_session(year, gp, 'Q')
+            circuit['Key'] = (identity or {}).get('circuit_key')
         if circuit.get('Key') == 12 and not corners:
             # Official Sepang map positions, projected onto this lap's GPS.
             # Event name may still be Bahrain in the upstream test calendar.
@@ -2102,7 +2399,9 @@ def car_performance_trace_batch(response: Response, year: int = Query(..., ge=20
                          (.162902,.151111),(.095616,.249942),(.858059,.488187)]
             corners = [{'number': str(i+1), 'x': x, 'y': y, 'normalized': True}
                        for i, (x, y) in enumerate(positions)]
-        return {'event': gp, 'fusion':fusion, **measure_field(extracted, normalized, corners)}
+        from performance_tracks import speed_domain_only
+        measure = speed_domain_only if measures == 'speed' else measure_field
+        return {'event': gp, 'fusion':fusion, **measure(extracted, normalized, corners)}
     except HTTPError as exc:
         if exc.code in (408, 429, 502, 503, 504):
             raise HTTPException(503, 'Telemetry archive is temporarily busy. Please retry shortly.') from exc

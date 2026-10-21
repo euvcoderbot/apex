@@ -6,8 +6,10 @@ import {buildUiStyles,prepareStyle,UI_LAYERS,UI_STYLES} from '../lib/ui-style-bu
 const read=file=>readFile(file,'utf8');
 
 test('component appearance has one explicit final owner and focused canvas sizing stays first',async()=>{
-  assert.deepEqual(UI_LAYERS,['focus','legacy','interface','workspace','appearance','components']);
-  assert.deepEqual(UI_STYLES.at(-1),['ui-controls.css','components']);
+  assert.deepEqual(UI_LAYERS,['focus','legacy','interface','workspace','appearance','components','window']);
+  assert.deepEqual(UI_STYLES.at(-2),['ui-controls.css','components']);
+  // The macOS window layer owns only layout/materials above the component contract.
+  assert.deepEqual(UI_STYLES.at(-1),['macos-window.css','window']);
   const source='button {color:red!important;min-height:28px!important} @layer focus {canvas {height:100%!important}} @media(forced-colors:active){button{color:ButtonText!important}}';
   const result=prepareStyle(source,'example.css');
   assert.equal(result.demoted,1);assert.match(result.css,/min-height:28px!important/);
@@ -21,6 +23,7 @@ test('the actual shipped CSS is one parsed bundle without an import waterfall',a
   assert.doesNotMatch(built.css,/lap-selection-mark|speed-annotation-evidence|measurement-table-heading|trace-color-picker|track-tray-title/);
   assert.ok(built.demoted>20,'Legacy important appearance declarations must not silently win');
   assert.ok(built.css.lastIndexOf('@layer components')>built.css.lastIndexOf('@layer appearance'));
+  assert.ok(built.css.lastIndexOf('@layer window')>built.css.lastIndexOf('@layer components'));
   let imports=0;root.walkAtRules('import',()=>imports++);assert.equal(imports,0);
   const page=await read('index.html');assert.equal((page.match(/rel="stylesheet"/g)||[]).length,1);
   assert.match(page,/ui-system.js/);

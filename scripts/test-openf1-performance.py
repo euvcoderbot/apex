@@ -36,6 +36,72 @@ def row(value):
 
 
 class AdapterTests(unittest.TestCase):
+    def test_sprint_qualifying_recovers_when_primary_archive_has_no_laps(self):
+        value = bundle()
+        value['session']['session_name'] = 'Sprint Qualifying'
+        for selected in ('SQ', 'Sprint Qualifying', 'Sprint Shootout'):
+            with self.subTest(selected=selected), \
+                 patch('verified_sources.recorded_session', return_value=None), \
+                 patch.object(server, 'read_prepared_cache', return_value=None), \
+                 patch.object(server, 'load_session', side_effect=ValueError('Data not loaded')), \
+                 patch.object(server, 'load_openf1_performance', return_value=SimpleNamespace(
+                     apex_source_bundle=value, apex_source_notice={'kind': 'openf1-timing'})) as fallback:
+                result = server.session_data(Response(), 2026, 'Singapore Grand Prix', 17, selected, False)
+            fallback.assert_called_once_with(2026, 'Singapore Grand Prix', 'SQ', fresh=False)
+            self.assertEqual(result['session'], 'Sprint Qualifying')
+            self.assertEqual(result['drivers'][0]['laps'][0]['phase'], 'Q1')
+            self.assertEqual(result['openf1_session_key'], 10)
+
+    def test_sprint_fallback_never_accepts_regular_qualifying(self):
+        value = bundle()
+        with self.assertRaisesRegex(ValueError, 'identity mismatch'):
+            adapt_performance(2026, 'Singapore Grand Prix', 'SQ', value)
+        for name in ('Sprint Qualifying', 'Sprint Shootout'):
+            value['session']['session_name'] = name
+            self.assertEqual(adapt_performance(2026, 'Singapore Grand Prix', 'SQ', value).name,
+                             'Sprint Qualifying')
+            with self.assertRaisesRegex(ValueError, 'identity mismatch'):
+                adapt_performance(2026, 'Singapore Grand Prix', 'Q', value)
+
+    def test_regular_qualifying_never_selects_sprint_qualifying(self):
+        sessions = [
+            {'session_name': 'Sprint Qualifying', 'session_key': 1},
+            {'session_name': 'Sprint', 'session_key': 2},
+            {'session_name': 'Qualifying', 'session_key': 3},
+            {'session_name': 'Race', 'session_key': 4},
+        ]
+        with patch.object(server, '_openf1_meeting', return_value={'meeting_key': 20}), \
+             patch.object(server, 'openf1_metadata', return_value=sessions):
+            for name, key in [('Q', 3), ('Qualifying', 3), ('SQ', 1), ('S', 2), ('R', 4)]:
+                self.assertEqual(server.openf1_session(2026, 'Canadian Grand Prix', name)['session_key'], key)
+            sessions.pop(2)
+            self.assertIsNone(server.openf1_session(2026, 'Canadian Grand Prix', 'Q'))
+
+    def test_throttled_metadata_is_retried_and_only_success_is_shared(self):
+        limited = HTTPError('', 429, 'limited', {'Retry-After': '3'}, None)
+        with patch.dict(server._openf1_metadata_cache, {}, clear=True), \
+             patch.object(server, 'openf1', side_effect=[limited, [{'meeting_key': 20}]]) as fetch, \
+             patch.object(server.time, 'sleep') as sleep:
+            self.assertEqual(server.openf1_metadata('meetings', year=2026), [{'meeting_key': 20}])
+            self.assertEqual(server.openf1_metadata('meetings', year=2026), [{'meeting_key': 20}])
+            self.assertEqual(fetch.call_count, 2)
+            sleep.assert_called_once_with(3)
+        with patch.object(server, 'openf1_metadata', side_effect=[limited, []]):
+            with self.assertRaises(HTTPError):
+                server.openf1_session(2026, 'Japanese Grand Prix', 'Q')
+            self.assertIsNone(server.openf1_session(2026, 'Japanese Grand Prix', 'Q'))
+
+    def test_source_throttle_remains_retryable_in_the_public_api(self):
+        with patch('verified_sources.recorded_session', return_value=None), \
+             patch('openf1_performance.retained_bundle', return_value=None), \
+             patch.object(server, 'read_prepared_cache', return_value=None), \
+             patch.object(server, 'load_fresh_session', side_effect=ValueError('archive unavailable')), \
+             patch.object(server, 'load_openf1_performance', side_effect=HTTPError('', 429, 'limited', {}, None)):
+            with self.assertRaises(server.HTTPException) as raised:
+                server.car_performance(Response(), 2026, 'Japanese Grand Prix', 'Q', False)
+        self.assertEqual(raised.exception.status_code, 503)
+        self.assertEqual(raised.exception.headers['Retry-After'], '10')
+
     def test_session_payload_exposes_phase_and_clock_without_reading_archive_metadata(self):
         value = bundle()
         payload = session_payload(2026, 'Azerbaijan Grand Prix', 'Q', value)
@@ -112,6 +178,26 @@ class LoadingTests(unittest.TestCase):
         recover.assert_called_once_with(2026, 'Azerbaijan Grand Prix', 'Q', fresh=False)
         self.assertEqual(result['drivers'][0]['laps'][0]['time'], 90)
         self.assertEqual(result['source_cache']['kind'], 'openf1-timing')
+
+    def test_alternate_session_gets_same_venue_corners_but_never_another_track(self):
+        # Abu Dhabi 2025: timing archive down, OpenF1 timing complete, but the
+        # alternate source carries no circuit info, so the comparison had no
+        # corner controls. Turn positions are venue metadata.
+        class MissingTiming:
+            @property
+            def laps(self):
+                raise RuntimeError('DataNotLoadedError: Session.load')
+        alternate = SimpleNamespace(apex_source_bundle=bundle(), apex_source_notice={'kind': 'openf1-timing'})
+        corners = [{'number': '1', 'letter': '', 'x': 1., 'y': 2., 'angle': 0., 'distance': None, 'fraction': None}]
+        def run(fallback):
+            with patch('verified_sources.recorded_session', return_value=None),                  patch.object(server, 'read_prepared_cache', return_value=None),                  patch.object(server, 'load_session', return_value=MissingTiming()),                  patch.object(server, 'load_openf1_performance', return_value=alternate),                  patch.object(server, 'get_fallback_circuit_corners', return_value=fallback) as lookup,                  patch.object(server, 'get_tire_nominations', return_value=[]):
+                return server.session_data(Response(), 2026, 'Azerbaijan Grand Prix', 15, 'Q', False), lookup
+        result, lookup = run(corners)
+        self.assertEqual(result['corners'], corners)
+        # Looked up by the payload's own venue, so a moved GP cannot borrow a different track.
+        self.assertEqual(lookup.call_args.args[:3], (2026, 'Azerbaijan Grand Prix', 'Q'))
+        self.assertEqual(lookup.call_args.args[3], str(result.get('location') or ''))
+        self.assertEqual(run([])[0]['corners'], [])
 
     def test_session_info_property_failure_cannot_escape_the_response_builder(self):
         class MissingMetadata(SimpleNamespace):

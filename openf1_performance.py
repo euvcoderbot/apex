@@ -102,8 +102,9 @@ def stamp(value):
 
 def adapt_performance(year, gp, code, bundle):
     session = bundle['session']
-    expected = {'Q': 'Qualifying', 'R': 'Race'}[code]
-    if session.get('year') != year or session.get('session_name') != expected:
+    expected = {'Q': 'Qualifying', 'R': 'Race', 'SQ': 'Sprint Qualifying'}[code]
+    accepted_names = {expected, 'Sprint Shootout'} if code == 'SQ' else {expected}
+    if session.get('year') != year or session.get('session_name') not in accepted_names:
         raise ValueError('OpenF1 fallback session identity mismatch')
     key = session['session_key']
     for rows in bundle['feeds'].values():
@@ -164,7 +165,7 @@ def adapt_performance(year, gp, code, bundle):
                 'TeamColor': driver.get('team_colour'), 'Position': result.get('position'),
                 'Status': status, 'Points': result.get('points'), 'Laps': result.get('number_of_laps')}
         durations = result.get('duration')
-        if code == 'Q' and isinstance(durations, list):
+        if code in ('Q', 'SQ') and isinstance(durations, list):
             info.update({f'Q{i+1}': number(value) for i, value in enumerate(durations[:3])})
         infos[name] = info
         stints = [r for r in feeds['stints'] if str(r['driver_number']) == number_id]
@@ -183,7 +184,7 @@ def adapt_performance(year, gp, code, bundle):
             nearby = min(weather, key=lambda w: abs(w[0]-(start+duration/2))) if weather and start is not None and duration else None
             rain = bool(nearby[1]['rainfall']) if nearby and abs(nearby[0]-(start+duration/2)) <= 120 and nearby[1].get('rainfall') is not None else None
             phase = None
-            if code == 'Q':
+            if code in ('Q', 'SQ'):
                 matches = [f'Q{i}' for i in (1, 2, 3) if info.get(f'Q{i}') is not None and duration is not None and abs(info[f'Q{i}']-duration) < .005]
                 events = [r for r in controls if start is not None and stamp(r['date']) <= start and r.get('qualifying_phase') in (1, 2, 3)]
                 phase = f"Q{events[-1]['qualifying_phase']}" if events else matches[-1] if matches else None

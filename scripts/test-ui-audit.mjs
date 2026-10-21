@@ -1,13 +1,52 @@
+import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-const car=readFileSync('car-performance.js','utf8'),app=readFileSync('app.js','utf8'),ui=readFileSync('dashboard-ui.js','utf8'),css=readFileSync('ui-controls.css','utf8');
+const car=readFileSync('car-performance.js','utf8'),app=appSource(),ui=readFileSync('dashboard-ui.js','utf8'),css=readFileSync('ui-controls.css','utf8');
+const windowCss=readFileSync('macos-window.css','utf8');
+
+test('unverified transition links are not exposed as selectable controls',()=>{
+  assert.doesNotMatch(app,/Other links|Select transition zones|picker\('transition'\)/);
+  assert.doesNotMatch(css,/circuit-links/);
+  assert.match(app,/selectLinkingStraights\(zones,selectedCornerIndices,automaticStraightIndices\)/,'automatic connecting windows remain intact');
+});
+
+test('category, filter, corner and refresh controls share token sizing',()=>{
+  for(const selector of ['.category-bar .category-tab,.category-bar .category-tab[data-ui-kind="tab"]',
+    '.circuit-section-group .corner-picker button.corner-pick',
+    '#performanceMetricPanel .metric-heading-controls .metric-refresh',
+    '#performanceMetricPanel .metric-heading-controls [data-ui-group="segments"] > button[data-ui-kind="segment"]']){
+    const start=windowCss.indexOf(selector+' {');
+    assert.ok(start>=0,selector);
+    const body=windowCss.slice(start,windowCss.indexOf('}',start));
+    assert.match(body,/height: var\(--ui-control-height\)/,selector);
+  }
+  assert.match(windowCss,/corner-pick \{[^}]*white-space: nowrap/);
+  assert.match(windowCss,/#dominanceCanvas \{ height: clamp\(180px,28dvh,260px\); min-height: 0/);
+  assert.match(windowCss,/@media\(pointer:coarse\)[\s\S]*min-height: 44px/);
+});
+
+test('modelled phase diagnostic cannot change primary driver row height',()=>{
+  const rows=app.slice(app.indexOf('const rows = rankedMetrics.map'),app.indexOf('updateCornerPicker(pickerRoot,',app.indexOf('const rows = rankedMetrics.map')));
+  assert.doesNotMatch(rows,/phaseSplit\(item.lap\)/);
+  assert.match(app,/<details class="corner-phase-evidence"><summary>Modelled entry \/ exit diagnostic/);
+  assert.doesNotMatch(app,/as in the season cornering metric/);
+});
+
+test('loaded session context comes from loaded data, not pending selector values',()=>{
+  assert.match(readFileSync('index.html','utf8'),/id="loadedSessionContext"[^>]*hidden/);
+  const body=app.slice(app.indexOf('function renderAll()'),app.indexOf('function rankCornerMetrics'));
+  assert.match(body,/sessionYear.*sessionEventName.*loadedSessionName/);
+  assert.doesNotMatch(body,/\$\('#year'\)|\$\('#gp'\)/);
+});
+
 
 test('mean and median change multi-GP race pace, not the qualifying statistic',()=>{
   const box={};vm.createContext(box);
-  vm.runInContext(car.slice(car.indexOf('const finite ='),car.indexOf('const middle50Label')),box);
-  vm.runInContext(car.slice(car.indexOf('function rebase('),car.indexOf('function renderHorizontalBarChart(')),box);
+  // Shared helpers live in performance-format.js (plain consts once exports are dropped).
+  vm.runInContext(readFileSync('performance-format.js','utf8').replace(/^export /gm,''),box);
+  vm.runInContext(car.slice(car.indexOf('function rebase('),car.indexOf('async function get(')),box);
   vm.runInContext(car.slice(car.indexOf('function summarisePaceTeams('),car.indexOf('function renderPace(')),box);
   const teams=[{team:'A',q:[1,3,20].map(pace=>({pace})),adjDeficits:[1,3,20],r:[2,4,24]},{team:'B',q:[0,0,0].map(pace=>({pace})),adjDeficits:[0,0,0],r:[0,0,0]}];
   const mean=box.summarisePaceTeams(teams,'mean'),median=box.summarisePaceTeams(teams,'median');
@@ -15,7 +54,7 @@ test('mean and median change multi-GP race pace, not the qualifying statistic',(
   assert.ok(Math.abs(mean[0].qualy-8)<1e-10);assert.ok(Math.abs(median[0].qualy-8)<1e-10);
   const one=teams.map(t=>({...t,q:t.q.slice(0,1),r:t.r.slice(0,1)}));
   assert.equal(box.summarisePaceTeams(one,'mean')[0].race,box.summarisePaceTeams(one,'median')[0].race);
-  assert.match(car,/events\.filter\(e=>e\.R\?\.teams\?\.length\)\.length>2/);
+  assert.match(car,/loadedR=events\.filter\(e=>e\.R\?\.teams\?\.length\)\.length[\s\S]*?stat:\{show:loadedR>2/);
   assert.match(ui,/performance-stat-toggle.*pace-visual-grid/);
 });
 
