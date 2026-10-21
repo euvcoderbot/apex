@@ -335,7 +335,8 @@ test('corner navigation precedes detail/map siblings and retains map height', ()
   assert.equal((html.match(/id="dominanceCanvas"/g) || []).length, 1);
   assert.match(css, /@container \(min-width: 940px\)/);
   assert.match(css, /#dominanceCanvas\s*\{[^}]*height: clamp\(280px, 24vw, 420px\)/);
-  assert.match(app, /positionCornerIndicator\(pickerRoot, pickerState\)/);
+  assert.match(app, /updateCornerPicker\(pickerRoot,/);
+  assert.doesNotMatch(app,/positionCornerIndicator|corner-pick\.selected'\)\?\.focus/);
 });
 
 test('official graphics resolve only to verified local assets', () => {

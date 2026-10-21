@@ -8,6 +8,7 @@ const telemetryCache = new Map();
 const telemetryRequests = new Map();
 const lapColorOverrides = new Map();
 const customSelectValues = new WeakMap();
+const cornerPickerMarkup = new WeakMap();
 let calendar = [];
 let corners = [];
 let genericCircuitData = null;
@@ -99,15 +100,23 @@ function canvasFont(size = 12, weight = 400) {
   return `${weight} ${size + 1}px ${family}`;
 }
 
-function positionCornerIndicator(root, previous) {
-  const picker = root.querySelector?.('.corner-picker');
-  const active = picker?.querySelector('.corner-pick.selected');
-  if (!picker || !active) return;
-  picker.scrollLeft = previous?.scroll || 0;
-  const left = `${active.offsetLeft}px`, width = `${active.offsetWidth}px`;
-  picker.style.setProperty('--selection-left', left);
-  picker.style.setProperty('--selection-width', width);
-  picker.classList.remove('has-indicator');
+function updateCornerPicker(root, markup, selection, automatic) {
+  // Keep the actual buttons in place for selection-only updates. Replacing a
+  // focused, wrapped picker made focus and browser scroll anchoring jump.
+  if (cornerPickerMarkup.get(root) !== markup) {
+    const focusedIndex = root.contains(document.activeElement)
+      ? document.activeElement?.dataset?.cornerIndex : null;
+    root.innerHTML = markup;
+    cornerPickerMarkup.set(root, markup);
+    if (focusedIndex != null) root.querySelector(`[data-corner-index="${focusedIndex}"]`)?.focus({preventScroll:true});
+  }
+  for (const button of root.querySelectorAll('[data-corner-index]')) {
+    const index = Number(button.dataset.cornerIndex), pressed = selection.has(index);
+    button.classList.toggle('selected', pressed);
+    button.setAttribute('aria-pressed', String(pressed));
+    button.title = button.title.replace(/ · automatically included link$/, '')
+      + (automatic.has(index) ? ' · automatically included link' : '');
+  }
 }
 
 function apiUrl(path) {
@@ -917,7 +926,6 @@ function setLapSelectionExpanded(expanded, focus = false) {
   body.inert = !expanded;
   toggle.setAttribute('aria-expanded', String(expanded));
   toggle.querySelector('span').textContent = expanded ? 'Choose laps' : 'Edit laps';
-  $('#sidebarToggle').hidden = !expanded && !$('.analysis-column')?.classList?.contains('has-driver-rail');
   if (focus) toggle.focus({preventScroll: true});
 }
 
@@ -998,7 +1006,7 @@ function renderDrivers() {
     const position = Number.isFinite(+d[5]) && +d[5] > 0 ? +d[5] : index + 1;
 
     const name = String(d[2] || code);
-    return `<button class="driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-motion-key="driver-${code}" data-code="${code}" aria-label="${escapeUI(`P${position}, ${name}, ${d[4] || ''}, number ${number}`)}" aria-pressed="${isSelected}"><span class="driver-pill-position">${position}</span>${teamLogoMarkup(d[4])}<span class="driver-pill-identity"><strong>${escapeUI(name)}</strong><small>${code} · ${number}</small></span>${isRace ? raceResultMarkup(realDrivers.get(code)) : '<span class="driver-selection-mark" aria-hidden="true"></span>'}</button>`;
+    return `<button class="driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-motion-key="driver-${code}" data-code="${code}" aria-label="${escapeUI(`P${position}, ${name}, ${d[4] || ''}, number ${number}`)}" aria-pressed="${isSelected}"><span class="driver-pill-position">${position}</span>${teamLogoMarkup(d[4])}<span class="driver-pill-identity"><strong>${escapeUI(name)}</strong><small>${code} · ${number}</small></span>${isRace ? raceResultMarkup(realDrivers.get(code)) : ''}</button>`;
   }).join(''));
   
   root.querySelectorAll('button').forEach(btn => {
@@ -3136,28 +3144,23 @@ function renderCornerAnalysis() {
   const root = $('#cornerMetricGrid');
   const pickerRoot = $('#cornerPickerRow');
   if (!section || !root || !pickerRoot) return;
-  const oldPicker = pickerRoot.querySelector?.('.corner-picker');
-  const oldActive = oldPicker?.querySelector('.corner-pick.selected');
-  const pickerState = oldPicker && oldActive ? {
-    scroll: oldPicker.scrollLeft,
-    left: `${oldActive.offsetLeft}px`, width: `${oldActive.offsetWidth}px`,
-    focused: oldPicker.contains(document.activeElement),
-  } : null;
-  pickerRoot.innerHTML = '';
   const enabled = loaded.length > 0 || selected.length > 0 || !!sessionEventName;
   section.hidden = !enabled;
   if (!enabled) {
+    pickerRoot.innerHTML = ''; cornerPickerMarkup.delete(pickerRoot);
     root.innerHTML = '';
     return;
   }
 
   if (!loaded.length) {
+    pickerRoot.innerHTML = ''; cornerPickerMarkup.delete(pickerRoot);
     root.innerHTML = '';
     return;
   }
   const referenceLap = loaded[0];
   const reference = telemetryCache.get(telemetryKey(referenceLap));
   if (!reference?.length || typeof adaptiveCornerZones !== 'function' || typeof cornerPerformance !== 'function') {
+    pickerRoot.innerHTML = ''; cornerPickerMarkup.delete(pickerRoot);
     root.innerHTML = '<span class="section-empty">Corner analysis is waiting for aligned position data.</span>';
     return;
   }
@@ -3165,6 +3168,7 @@ function renderCornerAnalysis() {
   const markers = resolveCornerMarkers(reference, totalDistance, referenceLap?.cornerMarkers);
   const zones = sessionPerformanceZones(adaptiveCornerZones(markers), totalDistance);
   if (!zones.length) {
+    pickerRoot.innerHTML = ''; cornerPickerMarkup.delete(pickerRoot);
     root.innerHTML = '<span class="section-empty">Official corner positions are unavailable for this lap.</span>';
     return;
   }
@@ -3210,7 +3214,7 @@ function renderCornerAnalysis() {
     const winner = candidateMetrics.reduce((best, item) => !Number.isFinite(item.metric.sectionTime)
       ? best : !best || item.metric.sectionTime < best.metric.sectionTime ? item : best, null);
     const label=candidate.label||cornerLabel(candidate);
-    return `<button class="corner-pick ${selectedCornerIndices.has(index) ? 'selected' : ''}" data-corner-index="${index}" aria-label="${escapeUI(label)}" aria-pressed="${selectedCornerIndices.has(index)}" title="${escapeUI(label)} · fastest ${winner?.lap.code || 'unavailable'}${automaticStraightIndices.has(index)?' · automatically included link':''}"><strong>${escapeUI(kind==='straight'?label.replace('Straight ',''):label)}</strong><small>${winner?.lap.code || '—'}</small></button>`;
+    return `<button class="corner-pick" data-corner-index="${index}" aria-label="${escapeUI(label)}" aria-pressed="false" title="${escapeUI(label)} · fastest ${winner?.lap.code || 'unavailable'}"><strong>${escapeUI(kind==='straight'?label.replace('Straight ',''):label)}</strong><small>${winner?.lap.code || '—'}</small></button>`;
   }).join('');
   const rankedMetrics = rankCornerMetrics(metrics, cornerSort);
   const rows = rankedMetrics.map((item) => {
@@ -3232,7 +3236,7 @@ function renderCornerAnalysis() {
       </div>`;
   }).join('');
 
-  pickerRoot.innerHTML = `<section class="circuit-section-group"><header><h3>Corners</h3><span>Choose one or more</span></header><nav class="corner-picker" aria-label="Select one or more corners">${picker('corner')}</nav></section><section class="circuit-section-group"><header><h3>Straights</h3><span>≥100 m · low GPS curvature</span></header><nav class="corner-picker straight-zone-picker" aria-label="Select straight zones">${picker('straight')||'<small>No supported straight zones.</small>'}</nav></section><small class="corner-selection-note">Each corner runs from before the earliest braking point of the compared laps to after the last one is back at full throttle. Timestamp section times and the optional speed-correction diagnostic are different estimates, not isolated grip measurements. Links shorter than 100 m join adjacent corner windows; consecutive selected corners include their link; click any selected section to remove it.</small>`;
+  updateCornerPicker(pickerRoot, `<section class="circuit-section-group"><header><h3>Corners</h3><span>Choose one or more</span></header><nav class="corner-picker" aria-label="Select one or more corners">${picker('corner')}</nav></section><section class="circuit-section-group"><header><h3>Straights</h3><span>≥100 m · low GPS curvature</span></header><nav class="corner-picker straight-zone-picker" aria-label="Select straight zones">${picker('straight')||'<small>No supported straight zones.</small>'}</nav></section><small class="corner-selection-note">Each corner runs from before the earliest braking point of the compared laps to after the last one is back at full throttle. Timestamp section times and the optional speed-correction diagnostic are different estimates, not isolated grip measurements. Links shorter than 100 m join adjacent corner windows; consecutive selected corners include their link; click any selected section to remove it.</small>`, selectedCornerIndices, automaticStraightIndices);
   const pickedCorners=pickedZones.filter(z=>z.kind==='corner').map(cornerLabel);
   const pickedStraights=pickedZones.filter(z=>z.kind!=='corner');
   const selectionLabel=combined?[...pickedCorners,...(pickedStraights.length?[`${pickedStraights.length} link${pickedStraights.length===1?'':'s'}`]:[])].join(' + '):zone.label||cornerLabel(zone);
@@ -3246,12 +3250,9 @@ function renderCornerAnalysis() {
       <div class="corner-driver-metrics">${rows||'<span class="section-empty">The selected sections have insufficient measured data. Remove a corner or choose another lap.</span>'}</div>
       ${referencePhases&&metrics.length>1?`<details class="corner-phase-evidence"><summary>Modelled entry / exit diagnostic</summary><p>Separate from the measured section times above and the current car-performance metric.</p>${rankedMetrics.map(item=>{const split=phaseSplit(item.lap);return split?`<div><b>${item.lap.code}</b>${split}</div>`:'';}).join('')}</details>`:''}
     </article>`;
-  if(combined){pickerRoot.querySelector('.corner-picker')?.classList.add('is-multiple');}
-  else if(zone.kind==='corner')positionCornerIndicator(pickerRoot, pickerState);
   root.querySelectorAll('[data-corner-sort]').forEach(button => {
     button.onclick = () => { cornerSort = button.dataset.cornerSort; renderCornerAnalysis(); root.querySelector(`[data-corner-sort="${cornerSort}"]`)?.focus({ preventScroll: true }); };
   });
-  if (pickerState?.focused) pickerRoot.querySelector('.corner-pick.selected')?.focus({ preventScroll: true });
   pickerRoot.onclick = event => {
     const button = event.target.closest('[data-corner-index]');
     if (!button) return;
@@ -4107,29 +4108,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     cornerAnalysis.addEventListener('transitionend', event => {
       if (event.propertyName === 'grid-template-rows' && !cornerAnalysis.classList.contains('is-collapsed')) renderMiniSectorMap();
-    });
-  }
-  
-  const toggleBtn = $('#sidebarToggle');
-  const mainEl = $('main');
-  if (toggleBtn && mainEl) {
-    const saved=window.ApexAnalysis?.preference('hideDrivers',false)===true;
-    mainEl.classList.toggle('sidebar-collapsed',saved);
-    toggleBtn.querySelector('span').textContent=saved?'Show drivers':'Hide drivers';
-    toggleBtn.setAttribute('aria-expanded',String(!saved));
-    toggleBtn.title=saved?'Show drivers':'Hide drivers';
-    $('#driverSidebar').inert=saved;
-    toggleBtn.onclick = () => {
-      const isCollapsed = mainEl.classList.toggle('sidebar-collapsed');
-      window.ApexAnalysis?.savePreference('hideDrivers',isCollapsed);
-      toggleBtn.querySelector('span').textContent = isCollapsed ? 'Show drivers' : 'Hide drivers';
-      toggleBtn.setAttribute('aria-expanded', String(!isCollapsed));
-      toggleBtn.title=isCollapsed?'Show drivers':'Hide drivers';
-      $('#driverSidebar').inert = isCollapsed;
-      if (loaded.length) scheduleDrawAll();
-    };
-    mainEl.addEventListener('transitionend', event => {
-      if (event.target === mainEl && event.propertyName === 'grid-template-columns') scheduleDrawAll();
     });
   }
   

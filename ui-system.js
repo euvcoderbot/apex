@@ -62,7 +62,7 @@
     if(el.matches('[data-zoom],[data-pan],[data-delta-zoom]'))return 'stepper';
     if(el.matches('.remove,[data-remove]'))return 'icon';
     if(el.closest(groups))return 'segment';
-    if(el.closest('.workspace-tools')||el.matches('#sidebarToggle,#windowSidebarToggle'))return 'toolbar';
+    if(el.closest('.workspace-tools')||el.matches('#windowSidebarToggle'))return 'toolbar';
     return 'push';
   }
   function set(el,key,value){if(el.getAttribute(key)!==value)el.setAttribute(key,value);}

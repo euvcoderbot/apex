@@ -15,7 +15,8 @@ test('lap selection collapses without losing its contents and has a reliable edi
   assert.equal($('#lapWorkspaceToggle').attributes['aria-expanded'],'false');assert.equal($('#lapWorkspaceToggle').label.textContent,'Edit laps');assert.equal($('#lapWorkspaceToggle').focused,true);
   box.setLapSelectionExpanded(true);
   assert.equal($('#lapSelectionBody').hidden,false);assert.equal($('#lapSelectionBody').inert,false);
-  assert.equal($('#sidebarToggle').hidden,false);
+  assert.doesNotMatch(page,/id="sidebarToggle"/);
+  assert.doesNotMatch(app,/hideDrivers|#sidebarToggle/);
   // Comparing laps no longer collapses the chooser; only the disclosure does.
   assert.doesNotMatch(app,/setLapSelectionExpanded\(false/);
   assert.match(app,/setLapSelectionExpanded\(event\.currentTarget\.getAttribute\('aria-expanded'\) !== 'true'\)/);

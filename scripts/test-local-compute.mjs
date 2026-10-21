@@ -52,7 +52,7 @@ test('compact layout has normal-flow sidebars, no selected blue blocks and vecto
 test('context actions belong to their headings and selectable laps expose their state',async()=>{
   const page=await readFile('index.html','utf8'),app=await readFile('app.js','utf8'),presentation=await readFile('dashboard-ui.js','utf8'),css=await readFile('macos-ui.css','utf8');
   assert.match(page, /class="site-header window-toolbar">[\s\S]*?class="workspace-tools"[\s\S]*?<\/header>/);
-  assert.match(page, /class="panel-heading workspace-heading">[\s\S]*?id="sidebarToggle"/);
+  assert.doesNotMatch(page, /id="sidebarToggle"|Hide drivers/);
   // Display tools stay in the window toolbar for both views instead of moving between page intros.
   assert.doesNotMatch(presentation,/append\(workspaceTools\)/);assert.match(presentation,/setWindowTitle\(button\.dataset\.analysisView\)/);
   assert.match(page, /id="lapWorkspaceActions"/);

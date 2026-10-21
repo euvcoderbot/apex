@@ -32,7 +32,7 @@ a { color: var(--ui-accent); }
 .toolbar-leading { display: flex; align-items: center; gap: 10px; min-width: 0; justify-self: start; }
 .site-header .brand { display: inline-flex; align-items: center; flex: 0 0 auto; width: auto; min-width: 0; height: 28px; margin: 0; padding: 0 2px; border: 0; border-radius: 6px; background: none; box-shadow: none; }
 /* Brand: the F1 Apex Data app icon plus a live-text wordmark ("F1" in the logo's teal). */
-:root { --brand-teal: #00a0a8; }
+:root { --brand-teal: #00a0a8; --ui-choice-selected: color-mix(in srgb,var(--ui-accent) 14%,var(--ui-well)); --ui-choice-ring: inset 0 0 0 1.5px var(--ui-accent); }
 :root:not([data-theme="light"]) { --brand-teal: #14b4bc; }
 .site-header .brand.brand-wordmark { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 4px 0 2px; color: var(--ui-label); text-decoration: none; font-family: var(--ui-font-display); font-size: 16px; line-height: 1; letter-spacing: -.01em; white-space: nowrap; }
 .brand-wordmark .brand-icon { display: block; flex: 0 0 24px; width: 24px; height: 24px; max-width: none; border-radius: 6px; box-shadow: 0 0 0 .5px var(--ui-border); }
@@ -116,25 +116,23 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .app-sidebar .performance-scope-toggle[data-ui-group="segments"] { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); width: 100%; box-sizing: border-box; }
 .app-sidebar .performance-scope-toggle[data-ui-group="segments"] > button { min-width: 0; }
 .app-sidebar #sidebarToggle { display: none; }
-/* Drivers: dense two-line rows with team colour, position and selection mark. */
+/* Drivers: stable two-line rows; selection uses the shared fill and outline. */
 .app-sidebar #driverSidebar { align-self: stretch; position: static; display: flex; flex-direction: column; gap: 14px; width: auto; max-height: none; padding: 0; overflow: visible; grid-area: auto; opacity: 1; visibility: visible; }
 .app-sidebar #driverPills { display: grid; grid-template-columns: minmax(0,1fr); gap: 1px; max-height: none; overflow: visible; padding: 0; }
 .app-sidebar #driverPills .section-empty { padding: 2px 6px; font-size: 14px; }
 #driverPills .driver-pill[data-ui-kind="list-row"] {
-  display: grid; grid-template-columns: 18px 18px minmax(0,1fr) auto; align-items: center; gap: 7px; width: 100%; min-height: 34px; height: auto; padding: 3px 8px 3px 6px;
+  display: grid; grid-template-columns: 18px 22px minmax(0,1fr); align-items: center; gap: 7px; width: 100%; min-height: 34px; height: auto; padding: 3px 8px 3px 6px;
   border: 0; border-radius: 6px; background: transparent; box-shadow: none; text-align: left; color: var(--ui-label); position: relative;
 }
-#driverPills .driver-pill[data-ui-kind="list-row"]::before { content: ''; position: absolute; left: 1px; top: 8px; bottom: 8px; width: 3px; border-radius: 2px; background: var(--team,var(--ui-quaternary)); opacity: .9; }
+#driverPills.has-race-results .driver-pill[data-ui-kind="list-row"] { grid-template-columns: 18px 22px minmax(0,1fr) auto; }
+#driverPills .driver-pill[data-ui-kind="list-row"]::before { content: none; }
 #driverPills .driver-pill:hover:not([aria-pressed="true"]) { background: var(--ui-row-hover); }
-#driverPills .driver-pill[aria-pressed="true"] { background: color-mix(in srgb,var(--ui-accent) 20%,transparent); box-shadow: none; }
+#driverPills .driver-pill[aria-pressed="true"] { background: var(--ui-choice-selected); box-shadow: var(--ui-choice-ring); }
 #driverPills .driver-pill-position { justify-self: end; font-size: 13px; font-weight: 500; color: var(--ui-tertiary); font-variant-numeric: tabular-nums; }
 #driverPills .driver-pill .team-logo { width: 18px; height: 18px; }
 #driverPills .driver-pill-identity { display: grid; min-width: 0; }
 #driverPills .driver-pill-identity strong { overflow: hidden; font-size: 14px; font-weight: 500; line-height: 1.25; white-space: nowrap; text-overflow: ellipsis; }
 #driverPills .driver-pill-identity small { font-size: 12.5px; color: var(--ui-tertiary); line-height: 1.25; }
-#driverPills .driver-selection-mark { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--ui-border-strong); background: transparent; box-shadow: none; }
-#driverPills .driver-pill[aria-pressed="true"] .driver-selection-mark { border-color: transparent; background: var(--ui-action) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='m4 7.2 2 2 4-4.4' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/14px no-repeat; }
-#driverPills .driver-selection-mark::before,#driverPills .driver-selection-mark::after { display: none; }
 .app-sidebar #raceResultControls[data-ui-group="segments"] { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); width: 100%; box-sizing: border-box; }
 .app-sidebar #tireCard { gap: 6px; }
 .app-sidebar #tireNomination { display: grid; grid-template-columns: minmax(0,1fr); gap: 1px; padding: 0; }
@@ -163,7 +161,7 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .app-sidebar .track-pill .track-round { font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; color: var(--ui-tertiary); }
 .app-sidebar .track-pill .track-name { min-width: 0; white-space: normal; overflow-wrap: normal; }
 .app-sidebar .track-pill[data-ui-kind="choice"]:hover:not(:disabled) { background: var(--ui-row-hover); }
-.app-sidebar .track-pill[aria-pressed="true"] { border-color: color-mix(in srgb,var(--ui-accent) 25%,transparent); background: color-mix(in srgb,var(--ui-accent) 10%,transparent); box-shadow: none; }
+.app-sidebar .track-pill[aria-pressed="true"] { border-color: transparent; background: var(--ui-choice-selected); box-shadow: var(--ui-choice-ring); }
 .app-sidebar .track-pill .gp-flag,.app-sidebar .track-pill img { width: 18px; height: 13px; border-radius: 2px; box-shadow: 0 0 0 .5px var(--ui-border); }
 
 /* Category bar: a segmented tab strip at the top of the main pane. */
@@ -211,10 +209,10 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 #stintPanels { gap: 10px; }
 .driver-run-card { padding: 10px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-well); }
 .lap-workspace .run-segment[data-ui-kind="run"] { min-height: 34px; border-radius: 6px; background: var(--ui-control); box-shadow: var(--ui-shadow-control); border: 0; }
-.lap-workspace .run-segment[data-ui-kind="run"][aria-pressed="true"] { background: color-mix(in srgb,var(--ui-accent) 18%,var(--ui-control)); box-shadow: inset 0 0 0 1.5px var(--ui-accent); }
+.lap-workspace .run-segment[data-ui-kind="run"][aria-pressed="true"] { background: var(--ui-choice-selected); box-shadow: var(--ui-choice-ring); }
 .lap-workspace .lap-chip[data-ui-kind="choice"] { min-height: 30px; padding: 3px 7px; border: 0; border-radius: 6px; background: var(--ui-control); box-shadow: var(--ui-shadow-control); font-size: 14px; }
 .lap-workspace .lap-chip[data-ui-kind="choice"]:hover:not(:disabled) { background: var(--ui-control-hover); }
-.lap-workspace .lap-chip[aria-pressed="true"] { background: color-mix(in srgb,var(--team,var(--ui-accent)) 16%,var(--ui-control)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb,var(--team,var(--ui-accent)) 80%,transparent); }
+.lap-workspace .lap-chip[aria-pressed="true"] { background: var(--ui-choice-selected); box-shadow: var(--ui-choice-ring); }
 .telemetry-card { padding: 12px 14px; }
 .telemetry-card .analysis-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .comparison-tray { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; padding: 6px 8px; border: 0; border-radius: 8px; background: var(--ui-well); box-shadow: inset 0 0 0 1px var(--ui-separator); }
@@ -227,7 +225,9 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .sector-cards .lap-summary-card { border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-well); }
 .chart { border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-well); }
 .chart-heading h2,.chart-heading h3 { font: 600 14px/1.3 var(--ui-font); }
-.telemetry-analysis-grid > #cornerAnalysis { top: calc(var(--ui-toolbar-height) + 12px); border: 1px solid var(--ui-border); border-radius: 10px; background: var(--ui-panel); }
+/* The inspector can exceed the viewport. Keep it in normal flow: sticky's
+   bottom constraint otherwise moves its buttons when result height changes. */
+.telemetry-analysis-grid > #cornerAnalysis { position: static; top: auto; border: 1px solid var(--ui-border); border-radius: 10px; background: var(--ui-panel); }
 .dominance-map-header h2 { font: 600 14px/1.3 var(--ui-font); }
 .dominance-map-header h2 small { color: var(--ui-tertiary); font-weight: 500; letter-spacing: 0; text-transform: none; }
 /* Circuit inspector: a clear map header and compact, visibly selectable rows. */
@@ -245,7 +245,7 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .circuit-section-group .corner-picker button.corner-pick { flex: 0 0 auto; width: auto; min-width: 36px; height: var(--ui-control-height); min-height: var(--ui-control-height); padding-inline: var(--ui-space-2); white-space: nowrap; border: 1px solid var(--ui-border-strong); border-radius: 7px; background: transparent; box-shadow: none; color: var(--ui-secondary); font: 500 var(--ui-control-font)/1 var(--ui-font); }
 .circuit-section-group .straight-zone-picker button.corner-pick { width: auto; min-width: 78px; padding-inline: 10px; }
 .circuit-section-group .corner-picker button.corner-pick:hover { background: var(--ui-row-hover); color: var(--ui-label); }
-.circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"] { background: color-mix(in srgb,var(--ui-accent) 14%,transparent); border-color: var(--ui-accent); color: var(--ui-accent); box-shadow: none; }
+.circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"] { background: var(--ui-choice-selected); border-color: transparent; color: var(--ui-label); box-shadow: var(--ui-choice-ring); }
 .corner-detail-card h3 { font: 600 14px/1.4 var(--ui-font); }
 
 /* Sector status colours sampled from F1 broadcast timing graphics (user-supplied
@@ -388,13 +388,15 @@ body.trace-focus .chart-heading .trace-focus-button:not(.trace-focus-close) { di
    rows line up and neither box carries empty space below its content. */
 .performance-split-view { --split-head: 46px; --split-row: 30px; align-items: stretch; }
 .performance-split-view > .performance-chart-card { display: flex; flex-direction: column; }
-.performance-split-view .perf-chart-header { box-sizing: border-box; height: var(--split-head); min-height: var(--split-head); margin: 0; padding: 0 0 6px; display: flex; align-items: flex-end; border-bottom: 1px solid var(--ui-border); }
+.performance-split-view .perf-chart-header { box-sizing: border-box; height: var(--split-head); min-height: var(--split-head); margin: 0; padding: 0 7px 6px; display: flex; align-items: flex-end; border-bottom: 1px solid var(--ui-border); }
 .performance-split-view:not(.is-row-synced) .performance-table thead tr { height: var(--split-head); }
 .performance-split-view :is(.performance-bars,.performance-tyre-age-chart) { display: flex; flex-direction: column; gap: 0; row-gap: 0; margin: 0; padding: 0; }
 .performance-split-view :is(.performance-bar-row,.performance-tyre-age-row) + :is(.performance-bar-row,.performance-tyre-age-row) { margin-top: 0; }
 .performance-split-view :is(.performance-bar-row,.performance-tyre-age-row) { box-sizing: border-box; height: var(--split-row); min-height: var(--split-row); padding-block: 0; margin: 0; }
 .performance-split-view .performance-table td { padding-block: 3px; }
 .performance-split-view > .performance-table-wrap { align-self: stretch; }
+.performance-split-view > :is(.performance-chart-card,.performance-table-wrap) { padding: 8px; }
+.performance-split-view.is-row-synced .performance-table tbody tr { height: var(--split-row); }
 .performance-split-view.is-independent-rows { grid-template-columns: minmax(0,1fr); align-items: start; }
 .performance-split-view.is-independent-rows .perf-chart-header { height: auto; min-height: 0; padding-bottom: 8px; }
 .performance-split-view.is-independent-rows .performance-bar-row { height: auto; min-height: 32px; padding-block: 5px; }
@@ -552,7 +554,7 @@ button[data-ui-kind="menu-item"]:is(:hover,:focus-visible) { background: var(--u
 .select-trigger[data-ui-kind="popup"] { padding-left: 10px; }
 .select-menu button .select-option-text { min-width: 0; line-height: 1.35; white-space: normal; }
 .select-menu button .gp-flag { flex: 0 0 18px; width: 18px; height: 13px; }
-.select-menu button[aria-selected="true"] { background: var(--ui-selection-muted); color: var(--ui-label); font-weight: 500; }
+.select-menu button[aria-selected="true"] { background: var(--ui-choice-selected); color: var(--ui-label); box-shadow: var(--ui-choice-ring); font-weight: 500; }
 .select-menu button[aria-selected="true"]::after { display: none; }
 .select-menu button[aria-selected="true"]::before { display: block; }
 .select-menu button[data-ui-kind="menu-item"][aria-selected="true"]::before { left: auto; right: 9px; }
@@ -564,13 +566,13 @@ button[data-ui-kind="menu-item"]:is(:hover,:focus-visible) { background: var(--u
 [data-ui-group="segments"]:not(.performance-tabs) > button[data-ui-kind="segment"][aria-pressed="true"] { color: var(--ui-label); background: var(--ui-seg-thumb); box-shadow: 0 .5px 2px #0000004d,0 0 0 .5px #0000001a,inset 0 .5px #ffffff1f; }
 /* Choices, fields and check marks */
 button[data-ui-kind="choice"] { border: 0; background: var(--ui-control); box-shadow: var(--ui-shadow-control); border-radius: 6px; }
-button[data-ui-kind="choice"][aria-pressed="true"],button[data-ui-kind="choice"].selected { background: color-mix(in srgb,var(--ui-accent) 18%,var(--ui-control)); box-shadow: inset 0 0 0 1.5px var(--ui-accent); }
+button[data-ui-kind="choice"][aria-pressed="true"],button[data-ui-kind="choice"].selected { background: var(--ui-choice-selected); box-shadow: var(--ui-choice-ring); }
 input[data-ui-kind="field"],textarea[data-ui-kind="field"] { border: 0; border-radius: 5px; background: var(--ui-content); box-shadow: inset 0 0 0 1px var(--ui-border-strong),inset 0 1px 1px #0000001a; }
 input[data-ui-kind="field"]:focus-visible { outline: 3px solid var(--ui-focus); outline-offset: 0; }
 input[data-ui-kind="checkbox"],input[data-ui-kind="radio"] { border: 0; background: var(--ui-control); box-shadow: inset 0 0 0 1px var(--ui-border-strong),0 .5px 1px #0003; }
 input[data-ui-kind="checkbox"]:checked,input[data-ui-kind="checkbox"]:indeterminate,input[data-ui-kind="radio"]:checked { background: var(--ui-action); box-shadow: none; }
 .loaded-lap-pill { border: 0; border-radius: 7px; background: var(--ui-control); box-shadow: var(--ui-shadow-control); }
-.loaded-lap-pill.reference { background: color-mix(in srgb,var(--ui-accent) 16%,var(--ui-control)); box-shadow: inset 0 0 0 1.5px var(--ui-accent); }
+.loaded-lap-pill.reference { background: var(--ui-choice-selected); box-shadow: var(--ui-choice-ring); }
 .tooltip,.app-toast { border: 0; border-radius: 8px; background: color-mix(in srgb,var(--ui-control) 88%,transparent); -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%); box-shadow: var(--ui-shadow-popover); color: var(--ui-label); font-size: 14px; }
 .app-toast { bottom: 18px; }
 .local-compute-dialog { border: 0; border-radius: 12px; background: var(--ui-panel); box-shadow: var(--ui-shadow-popover); }
@@ -709,7 +711,7 @@ main#top > .analysis-column { padding: 24px; gap: 20px; }
 .loaded-lap-pill,.loaded-lap-pill.reference { border-radius: var(--ui-radius); }
 .driver-run-card { padding: 14px; border-radius: 12px; }
 #driverPills .driver-pill[data-ui-kind="list-row"] { min-height: 42px; padding-block: 6px; border-radius: var(--ui-radius); }
-#driverPills .driver-pill[aria-pressed="true"] { background: var(--ui-selection-muted); box-shadow: inset 3px 0 var(--ui-accent); }
+#driverPills .driver-pill[aria-pressed="true"] { background: var(--ui-choice-selected); box-shadow: var(--ui-choice-ring); }
 #driverPills .driver-pill-identity strong { font-weight: 600; }
 .lap-workspace .lap-chip[data-ui-kind="choice"],.lap-workspace .run-segment[data-ui-kind="run"] { border-radius: var(--ui-radius); }
 .lap-workspace .lap-chip[data-ui-kind="choice"] { min-height: 38px; padding: 6px 10px; }
@@ -728,8 +730,8 @@ main#top > .analysis-column { padding: 24px; gap: 20px; }
 .performance-bar-fill { border-radius: 3px; }
 .select-menu { border-radius: var(--ui-menu-radius); padding: 6px; background: color-mix(in srgb,var(--ui-control) 94%,transparent); }
 .select-menu button,.select-menu button[data-ui-kind="menu-item"] { min-height: var(--ui-control-height); border-radius: 7px; }
-button[data-ui-kind="menu-item"][aria-selected="true"] { background: var(--ui-selection-muted); color: var(--ui-label); }
-button[data-ui-kind="menu-item"][aria-selected="true"]:is(:hover,:focus-visible) { background: var(--ui-action); color: #fff; }
+button[data-ui-kind="menu-item"][aria-selected="true"] { background: var(--ui-choice-selected); color: var(--ui-label); box-shadow: var(--ui-choice-ring); }
+button[data-ui-kind="menu-item"][aria-selected="true"]:is(:hover,:focus-visible) { background: var(--ui-choice-selected); color: var(--ui-label); }
 [data-ui-group="segments"]:not(.performance-tabs) { padding: 3px; border-radius: 10px; }
 [data-ui-group="segments"]:not(.performance-tabs) > button[data-ui-kind="segment"] { min-height: var(--ui-control-height); height: var(--ui-control-height); border-radius: 7px; padding: 0 10px; font-size: var(--ui-control-font); white-space: nowrap; }
 button[data-ui-kind="tab"],button[data-ui-kind="choice"],button[data-ui-kind="toolbar"],button[data-ui-kind="icon"],button[data-ui-kind="stepper"],input[data-ui-kind="field"],textarea[data-ui-kind="field"] { border-radius: var(--ui-radius); }
@@ -832,7 +834,7 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
 .corner-detail-card .corner-driver em { padding: 1px 5px; border-radius: 4px; font: 600 11px/1.3 var(--ui-font); font-style: normal; color: var(--ui-accent); background: color-mix(in srgb,var(--ui-accent) 12%,transparent); }
 /* Team logos: a little larger everywhere they identify a row. */
 #driverPills .driver-pill .team-logo,#driverPills .driver-pill .team-logo img { width: 22px; height: 22px; }
-#driverPills .driver-pill[data-ui-kind="list-row"] { grid-template-columns: 18px 22px minmax(0,1fr) auto; }
+#driverPills .driver-pill[data-ui-kind="list-row"] { grid-template-columns: 18px 22px minmax(0,1fr); }
 .lap-workspace .run-driver .team-logo,.lap-workspace .run-driver .team-logo img { width: 24px; height: 24px; }
 :is(.performance-table,.performance-bar-label,.performance-team) .team-logo,:is(.performance-table,.performance-bar-label,.performance-team) .team-logo img { width: 20px; height: 20px; flex-basis: 20px; }
 .team-logo img { object-fit: contain; image-rendering: auto; }
@@ -866,7 +868,7 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
 .circuit-section-group .corner-picker button.corner-pick,.corner-picker button[data-ui-kind="choice"],.corner-picker button[data-ui-kind="push"] { border: 0; background: var(--ui-control); box-shadow: var(--ui-shadow-control); color: var(--ui-label); font-weight: 500; transition: background-color var(--ui-motion) var(--ui-ease),box-shadow var(--ui-motion) var(--ui-ease); }
 .circuit-section-group .corner-picker button.corner-pick:hover:not(:disabled),.corner-picker button[data-ui-kind="choice"]:hover:not(:disabled) { background: var(--ui-control-hover); }
 .circuit-section-group .corner-picker button.corner-pick:active:not(:disabled) { background: var(--ui-selected); }
-.circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"],.corner-picker button[aria-pressed="true"] { background: var(--ui-action); color: #fff; box-shadow: 0 .5px 1px #0000004d,inset 0 .5px #ffffff38; }
+.circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"],.corner-picker button[aria-pressed="true"] { background: var(--ui-choice-selected); color: var(--ui-label); box-shadow: var(--ui-choice-ring); transition: none; }
 /* Corner table header: label above its unit, right-aligned, wrapping inside its
    own column so narrow side panels never overlap headings. */
 .corner-detail-card :is(.corner-table-head,.corner-driver-row) { grid-template-columns: minmax(84px,1.2fr) repeat(3,minmax(0,1fr)); column-gap: 10px; }

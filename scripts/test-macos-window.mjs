@@ -101,7 +101,8 @@ test('browser-owned scale keeps breakpoints and pointer maths in layout px',asyn
 test('coverage notes collect once per card, empty charts explain themselves, paired rows line up',()=>{
   assert.match(ui,/const parent=note\.closest\('\.performance-card-body'\)\|\|note\.parentElement;/);
   assert.match(ui,/chart\.classList\.toggle\('is-empty-chart',empty\)/);
-  assert.match(ui,/split\.style\.setProperty\('--split-row',row\.offsetHeight\+'px'\)/);
+  assert.match(ui,/split\.style\.setProperty\('--split-row',rowHeight\+'px'\)/);
+  assert.match(ui,/Math\.ceil\(Math\.max\(0,\.\.\.rows\.map\(row=>row\.getBoundingClientRect\(\)\.height\)\)\)/);
   assert.match(css,/\.performance-split-view :is\(\.performance-bar-row,\.performance-tyre-age-row\) \{ box-sizing: border-box; height: var\(--split-row\);/);
   assert.match(css,/@container perfcard \(max-width: 980px\) \{\n  \.performance-card-body > \.performance-split-view \{ grid-template-columns: minmax\(0,1fr\); \}/);
   assert.match(css,/\.performance-visual-grid:not\(:has\(\.performance-chart-controls:not\(\[aria-hidden="true"\]\)\)\) \.performance-chart-controls \{ display: none; \}/);

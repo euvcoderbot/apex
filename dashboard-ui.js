@@ -15,6 +15,22 @@
     results: ['08', 'Reliability & results', 'Race outcomes, finishes & retirement causes']
   };
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function syncPerformanceRows(root=document){
+    for(const split of root.querySelectorAll('.performance-split-view')){
+      if(split.classList.contains('is-independent-rows'))continue;
+      const head=split.querySelector('.performance-table thead tr'),rows=[...split.querySelectorAll('.performance-table tbody tr')];
+      if(!head||!rows.length)continue;
+      // Measure intrinsic rows, not a previously applied minimum. Round upward:
+      // offsetHeight rounds down fractional line boxes and accumulated drift.
+      split.style.removeProperty('--split-row');
+      const rowHeight=Math.ceil(Math.max(0,...rows.map(row=>row.getBoundingClientRect().height)));
+      if(!rowHeight)continue;
+      split.style.setProperty('--split-head',Math.ceil(head.getBoundingClientRect().height)+'px');
+      split.style.setProperty('--split-row',rowHeight+'px');
+      split.classList.add('is-row-synced');
+    }
+  }
+  window.addEventListener?.('resize',()=>syncPerformanceRows());
   // macOS window layout: a source-list sidebar beside the content whenever the
   // window is wide enough. The same driver node moves between the sidebar and
   // the lap chooser, so selection state and listeners survive.
@@ -26,8 +42,6 @@
     const wide=driverRail.matches,host=wide?column:body;
     if(sidebar.parentElement!==host)wide?host.append(sidebar):host.prepend(sidebar);
     document.querySelector('.analysis-column')?.classList.toggle('has-driver-rail',wide);
-    const chooser=document.querySelector('#lapWorkspaceToggle'),toggle=document.querySelector('#sidebarToggle');
-    if(toggle)toggle.hidden=!wide&&chooser?.getAttribute('aria-expanded')==='false';
   }
   arrangeDriverRail();driverRail.addEventListener('change',arrangeDriverRail);
   // Some hosts defer media-query change events; a resize re-check is cheap and idempotent.
@@ -212,16 +226,8 @@
     syncCategoryList();
     // Paired chart + table: the chart copies the table's header and row heights
     // (measured after layout), so every bar sits level with its table row.
-    const splits=[...root.querySelectorAll('.performance-split-view')];
-    if(splits.length){
-      const sync=()=>{for(const split of splits){
-        if(split.classList.contains('is-independent-rows'))continue;
-        const head=split.querySelector('.performance-table thead tr'),row=split.querySelector('.performance-table tbody tr');
-        if(!head||!row||!row.offsetHeight)continue;
-        split.style.setProperty('--split-head',head.offsetHeight+'px');
-        split.style.setProperty('--split-row',row.offsetHeight+'px');
-        split.classList.add('is-row-synced');
-      }};
+    if(root.querySelector('.performance-split-view')){
+      const sync=()=>syncPerformanceRows(root);
       // rAF pauses in background tabs; the timer covers that case.
       if(typeof requestAnimationFrame==='function')requestAnimationFrame(sync);
       setTimeout(sync,60);

@@ -18,7 +18,8 @@ test('wide driver rail reuses the same node and keeps compact windows in the cho
   assert.match(layout,/host=wide\?column:body/);
   assert.match(layout,/sidebar.parentElement!==host\)wide\?host.append\(sidebar\):host.prepend\(sidebar\)/);
   assert.match(css,/has-driver-rail #driverPills \{ grid-template-columns: minmax\(0,1fr\); max-height: none; overflow: visible/);
-  assert.match(read('app.js'),/hidden = !expanded && !\$\('\.analysis-column'\)/);
+  assert.doesNotMatch(layout,/#sidebarToggle/);
+  assert.doesNotMatch(read('app.js'),/#sidebarToggle/);
 });
 
 test('lap and sector readings have a real divider in both layout orientations',()=>{
