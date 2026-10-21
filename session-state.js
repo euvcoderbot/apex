@@ -148,9 +148,10 @@ const PLATFORM_RETRY_DELAYS_MS = [5000, 15000];
 function dataRequestTimeout(url) {
   if (window.APEX_LOCAL_MODE) return 180000;
   const path = new URL(url, window.location?.href || 'http://localhost').pathname;
-  // The Worker waits 290 s for a cold Vercel calculation. Leave room for
-  // response delivery instead of cancelling it at the old 30/60 s limit.
-  return /^\/api\/(?:session|telemetry|performance(?:\/.*)?|race-corners|qualifying-corners)$/.test(path) ? 310000 : 30000;
+  // Calendar metadata can wait on the same upstream rate limiter as telemetry.
+  // It is the bootstrap for both views: cancelling it at 30 s strands the
+  // whole page. Match the Worker's 290 s budget, plus response delivery time.
+  return /^\/api\/(?:events|session|telemetry|performance(?:\/.*)?|race-corners|qualifying-corners)$/.test(path) ? 310000 : 30000;
 }
 
 async function fetchSessionData(url, options = {}) {

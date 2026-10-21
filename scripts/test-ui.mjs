@@ -427,14 +427,29 @@ test('corner rankings are best-first, stable, null-safe and do not mutate refere
   assert.match(app, /class="map-north"/);
 });
 
-test('cold calculations outlive the hosted Worker budget without slowing calendar timeouts', () => {
+test('cold data and calendar bootstrap outlive the hosted Worker budget', () => {
   const h = context();
   Object.assign(h.sandbox, {URL});
-  for (const path of ['/api/session', '/api/telemetry', '/api/performance', '/api/performance/trace-batch', '/api/performance/sprint', '/api/race-corners', '/api/qualifying-corners'])
+  for (const path of ['/api/events', '/api/session', '/api/telemetry', '/api/performance', '/api/performance/trace-batch', '/api/performance/sprint', '/api/race-corners', '/api/qualifying-corners'])
     assert.equal(h.run(`dataRequestTimeout(${JSON.stringify('https://example.test' + path + '?year=2026')})`), 310000, path);
-  assert.equal(h.run("dataRequestTimeout('/api/events?year=2026')"), 30000);
+  assert.equal(h.run("dataRequestTimeout('/unrelated-resource')"), 30000);
   h.sandbox.window.APEX_LOCAL_MODE = true;
   assert.equal(h.run("dataRequestTimeout('/api/session?year=2026')"), 180000);
+});
+
+test('a calendar taking longer than 30 seconds is not aborted before it responds', async () => {
+  const h=context(),timers=[];
+  let finish,requestSignal;
+  Object.assign(h.sandbox,{URL,AbortController,DOMException,
+    setTimeout:(fn,ms)=>{const timer={fn,ms,active:true};timers.push(timer);return timer;},
+    clearTimeout:timer=>{timer.active=false;},
+    fetch:(_url,options)=>{requestSignal=options.signal;return new Promise(resolve=>{finish=()=>resolve({status:200});});}});
+  const pending=h.run("fetchSessionData('/api/events?year=2026')");
+  for(const timer of timers)if(timer.active&&timer.ms<=35000)timer.fn();
+  assert.equal(requestSignal.aborted,false,'a cold calendar must survive the old 30-second cutoff');
+  finish();
+  assert.equal((await pending).status,200);
+  assert.ok(timers.every(timer=>!timer.active),'successful requests clean up their deadline');
 });
 
 test('data requests retry transient errors but not valid missing-data responses', async () => {
