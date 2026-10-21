@@ -672,6 +672,7 @@ EXIT_SPEED_LIMIT = .12       # entry/exit speed this far off the field is a lift
 CORNER_OUTLIER = .10         # 10% slower or faster than the field through one corner
 BRAKING_SEARCH_M = 400.      # braking for a corner starts within this of its apex
 ONSET_SPREAD_M = 80.         # real braking points sit within this of the field's median
+FLAT_THROTTLE = 95.          # minimum throttle through a bend that still counts as flat out
 MAX_PACKET_GAP_S = 1.5       # OpenF1 car data often skips 1-1.4 s; see _time_at
 
 
@@ -835,7 +836,8 @@ def corner_timing(projected, corners, track, field_speed):
                 v = lambda x: float(np.interp(x, p, a[:, V]))/3.6
                 inside = (p >= start) & (p <= end)
                 cars[name] = {'phases_raw': [t(release_line)-t(start), t(apex_line)-t(release_line), t(end)-t(apex_line)],
-                              'v_in': v(start), 'v_out': v(end), 'v_min_kmh': float(a[inside, V].min())}
+                              'v_in': v(start), 'v_out': v(end), 'v_min_kmh': float(a[inside, V].min()),
+                              'min_throttle': float(a[inside, THR].min()), 'braked': bool((a[inside, BRK] >= .5).any())}
                 break
         if len(cars) < max(3, math.ceil(.5*len(laps))):
             continue
@@ -858,6 +860,23 @@ def corner_timing(projected, corners, track, field_speed):
             c_['phases_adj'] = [braking+c_['entry_correction_s'], mid, exit_-c_['exit_credit_s']]
         field_phases = [float(np.median([c_['phases_adj'][i] for c_ in cars.values()])) for i in range(3)]
         field_raw = float(np.median([sum(c_['phases_raw']) for c_ in cars.values()]))
+        flat_bend = all(c.get('flat_load') for c in seg['corners'])
+        if flat_bend:
+            # A high-load bend the field takes flat out limits only the cars
+            # that have to lift. Among cars that stay flat, time differences
+            # are power and energy deployment (Baku T19: 300->305 km/h at
+            # full throttle), so they score zero: taking it flat is the best
+            # possible. A car that lifts loses its time against them, never
+            # gains. If nobody lifts, the bend says nothing about cornering.
+            flat = [c_ for c_ in cars.values() if c_['min_throttle'] >= FLAT_THROTTLE and not c_['braked']]
+            if not flat or len(flat) == len(cars):
+                continue
+            ref = [float(np.median([c_['phases_adj'][i] for c_ in flat])) for i in range(3)]
+            for c_ in cars.values():
+                lifted = c_ not in flat
+                c_['lifted'] = lifted
+                c_['phases_adj'] = [ref[0], ref[1]+(max(0., sum(c_['phases_adj'])-sum(ref)) if lifted else 0.), ref[2]]
+            field_phases = [float(np.median([c_['phases_adj'][i] for c_ in cars.values()])) for i in range(3)]
         apex_kmh = min(c['field_apex_kmh'] for c in seg['corners'])
         labels = [c['turn'] or f"{c['apex_m']:.0f} m" for c in seg['corners']]
         band = next(b for b, lo, hi in CORNER_BANDS if lo < apex_kmh <= hi) if apex_kmh <= CORNER_BANDS[-1][2] else 'high'
@@ -867,12 +886,14 @@ def corner_timing(projected, corners, track, field_speed):
                      'metres': end-start, 'field_time_s': sum(field_phases), 'field_raw_time_s': field_raw,
                      'field_entry_kmh': v_in_f*3.6, 'field_exit_kmh': v_out_f*3.6, 'exit_straight_m': straight,
                      'braked': bool(first['braked']), 'flat_load': any(bool(c.get('flat_load')) for c in seg['corners']),
+                     'flat_bend': flat_bend,
                      'cars': {name: {'time_s': sum(c_['phases_adj']),
                                      'delta_s': sum(c_['phases_adj'])-sum(field_phases),
                                      'raw_delta_s': sum(c_['phases_raw'])-field_raw,
                                      'phases_s': {k: c_['phases_adj'][i]-field_phases[i] for i, k in enumerate(('braking', 'mid', 'exit'))},
                                      'entry_correction_s': c_['entry_correction_s'], 'exit_credit_s': c_['exit_credit_s'],
-                                     'entry_kmh': c_['v_in']*3.6, 'exit_kmh': c_['v_out']*3.6, 'min_kmh': c_['v_min_kmh']}
+                                     'entry_kmh': c_['v_in']*3.6, 'exit_kmh': c_['v_out']*3.6, 'min_kmh': c_['v_min_kmh'],
+                                     'min_throttle': c_['min_throttle'], 'lifted': c_.get('lifted')}
                               for name, c_ in cars.items()}})
     bands = {}
     for name in laps:

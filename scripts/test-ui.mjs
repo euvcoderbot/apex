@@ -1173,10 +1173,18 @@ test('speed annotations label each lap\'s own measured extremes, matched by GPS,
   assert.equal(dip.values[0].lap.code,'A');assert.equal(Math.round(dip.values[1].speed),77);
   h.sandbox.dip=dip;
   assert.deepEqual(JSON.parse(JSON.stringify(h.run('speedAnnotationLines(dip).map(l=>l.text)'))),['A 80','B −3']);
-  // Too far away by GPS: no fabricated match, shown as missing.
+  // Too far away by GPS: B's dip 400 m later is never matched as its minimum.
+  // B is steady at 250 km/h where A brakes, so B's speed at that place is shown.
   h.sandbox.entries=[lap('A',0,0),lap('B',400,0)];
   const far=h.run('buildSpeedAnnotations(entries,markers,5000)').find(r=>r.kind==='min'&&r.fraction<.3);
-  assert.equal(far.values.length,1);assert.equal(far.missing[0].code,'B');
+  assert.equal(far.missing.length,0);
+  const b=far.values.find(v=>v.lap.code==='B');
+  assert.ok(b.atPoint);assert.equal(b.speed,250);assert.ok(Math.abs(b.fraction-far.fraction)<1e-12);
+  // On a slope (still braking or accelerating there) a same-place speed would
+  // depend on position drift: shown as missing, not a number.
+  h.sandbox.entries=[lap('A',0,0),lap('B',150,0)];
+  const slope=h.run('buildSpeedAnnotations(entries,markers,5000)').find(r=>r.kind==='min'&&r.fraction<.3);
+  assert.ok(!slope.values.some(v=>v.lap.code==='B'&&v.atPoint));
   assert.doesNotMatch(app,/toFixed\(3\):\(a\.speed/);
 });
 

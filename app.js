@@ -2090,6 +2090,17 @@ function lapSegmentExtreme(samples, kind, from, to) {
   return best && best.fraction > from + margin && best.fraction < to - margin ? best : null;
 }
 
+const STEADY_SPEED_RANGE_KMH = 10;
+function lapSpeedRange(samples, from, to) {
+  let lo = Infinity, hi = -Infinity;
+  for (const p of samples || []) {
+    const f = traceSampleFraction(samples, p);
+    if (!(f >= from && f <= to) || p?.Speed == null || !(+p.Speed > 0)) continue;
+    lo = Math.min(lo, +p.Speed); hi = Math.max(hi, +p.Speed);
+  }
+  return hi >= lo ? hi - lo : null;
+}
+
 function buildSpeedAnnotations(entries, markers, totalDistance, {matchMetres=70, segmentMetres=120} = {}) {
   if (!entries?.length || !Number.isFinite(totalDistance) || totalDistance <= 0) return [];
   const lapsWithExtremes = entries.map(entry => ({entry, scale: lapPositionScale(entry.samples, totalDistance), extremes: lapSpeedExtremes(entry.samples, totalDistance)}));
@@ -2121,7 +2132,14 @@ function buildSpeedAnnotations(entries, markers, totalDistance, {matchMetres=70,
       // No matching extreme: that lap's own raw extreme in the same segment.
       const span = segmentMetres / totalDistance;
       const own = lapSegmentExtreme(other.entry.samples, extreme.kind, extreme.fraction - span, extreme.fraction + span);
-      if (own && !(typeof telemetryEstimateInfo === 'function' && telemetryEstimateInfo(other.entry.samples, own.fraction, 'Speed'))) values.push({lap: other.entry.lap, speed: own.speed, fraction: own.fraction, segment: true});
+      if (own && !(typeof telemetryEstimateInfo === 'function' && telemetryEstimateInfo(other.entry.samples, own.fraction, 'Speed'))) { values.push({lap: other.entry.lap, speed: own.speed, fraction: own.fraction, segment: true}); return; }
+      // No dip or peak of its own: this lap held a steady speed through here
+      // (flat out where the anchor lifted). Its measured speed at the same
+      // place is the comparison, not a blank. Only when steady: on a slope a
+      // few metres of position drift would read entry or exit speed instead.
+      const steady = lapSpeedRange(other.entry.samples, extreme.fraction - span, extreme.fraction + span);
+      const here = steady !== null && steady <= STEADY_SPEED_RANGE_KMH ? sharedCornerSpeed(other.entry, extreme.fraction, totalDistance) : null;
+      if (here) values.push({lap: other.entry.lap, speed: here.speed, fraction: extreme.fraction, atPoint: true});
       else missing.push(other.entry.lap);
     });
     values.sort((a, b) => b.speed - a.speed);

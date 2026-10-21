@@ -197,6 +197,27 @@ class MappedFastCornerTests(unittest.TestCase):
         self.assertAlmostEqual(s, w, delta=.5, msg='more power alone is not more cornering speed')
         self.assertLess(l, s-5, 'a lift in the bend costs speed')
 
+    def test_flat_bend_scores_only_the_cars_that_lift(self):
+        from car_physics import field_segments, corner_timing
+        grid = np.arange(0., 1005., 5.)
+        curvature = np.zeros(len(grid)); curvature[(grid >= 420)&(grid <= 580)] = .006  # ~3.3 g
+        track = dict(grid=grid,x=grid,y=np.zeros(len(grid)),curvature=curvature,scale=1.)
+        def lap(base, lift=0.):
+            v = base-4*np.exp(-((grid-500)/60)**2)-lift*np.exp(-((grid-500)/40)**2)
+            a = np.zeros((len(grid),8));a[:,0]=grid;a[:,2]=v
+            a[:,3]=np.where(lift and np.abs(grid-500) < 40, 60., 100.)
+            a[:,1]=np.concatenate([[0],np.cumsum(np.diff(grid)/(v[1:]/3.6))]);return a
+        laps = {'strong': lap(278), 'weak': lap(266), 'mid': lap(272), 'lifting': lap(272, lift=14)}
+        projected = {n: [(a, grid)] for n, a in laps.items()}
+        seg = field_segments([lp for v in projected.values() for lp in v], track, [('10',500.,0.)])
+        rows, _ = corner_timing(projected, seg['corners'], track, seg['field_speed'])
+        self.assertEqual(len(rows), 1); cars = rows[0]['cars']
+        self.assertTrue(rows[0]['flat_bend'])
+        # More power through a flat bend is not cornering; lifting is.
+        self.assertAlmostEqual(cars['strong']['delta_s'], cars['weak']['delta_s'], places=9)
+        self.assertGreater(cars['lifting']['delta_s']-cars['strong']['delta_s'], .02)
+        self.assertTrue(cars['lifting']['lifted'])
+
     def test_mapped_turn_does_not_replace_a_braked_speed_minimum(self):
         from car_physics import field_segments
         grid = np.arange(0., 1005., 5.)
