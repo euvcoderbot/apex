@@ -55,7 +55,8 @@ for(const subject of ['team','driver']){
     console.log(JSON.stringify({subject,raceGroups:plan.groups?.length||0,completed,cacheHits:hits}));
   }
 }
-try{await get('/api/performance/pits?'+new URLSearchParams({year,gp}));}catch(e){console.warn('Pit data: '+e.message);}
+// The page's own parameters (car-performance.js loadPitData), so the exported file is the one it asks for.
+try{await get('/api/performance/pits?'+new URLSearchParams({year,gp,source:'dhl-fallback-v2',schema:3}));}catch(e){console.warn('Pit data: '+e.message);}
 // Session analysis summaries, with the page's own session names (session-state.js
 // currentQuery; the cache key ignores its data_schema field).
 for(const name of ['Qualifying','Sprint Qualifying','Sprint','Race']){
@@ -63,7 +64,8 @@ for(const name of ['Qualifying','Sprint Qualifying','Sprint','Race']){
   if(!date||Date.parse(date)+4*3600000>Date.now())continue;
   try{await get('/api/session?'+new URLSearchParams({year,gp,round,session:name}));}catch(e){console.warn(`Session ${name}: `+e.message);}
 }
-if(event.session_dates?.Sprint)try{await get('/api/performance/sprint?'+new URLSearchParams({year,gp,round}));}catch(e){console.warn('Sprint classification: '+e.message);}
+// The page's own parameters (car-performance.js), so the exported file is the one it asks for.
+if(event.session_dates?.Sprint)try{await get('/api/performance/sprint?'+new URLSearchParams({year,gp,session:'S',round}));}catch(e){console.warn('Sprint classification: '+e.message);}
 }catch(error){console.warn(JSON.stringify({gp,skipped:error.message}));if(targets.length===1)throw error;}
 }
 if(args.includes('--export-seed')){
