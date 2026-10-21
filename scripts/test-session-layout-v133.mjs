@@ -12,7 +12,8 @@ test('richer run choices are not forced into the regular thirty-pixel segment co
 });
 
 test('wide driver rail reuses the same node and keeps compact windows in the chooser',()=>{
-  assert.match(layout,/matchMedia\('\(min-width:980px\)'\)/);
+  // 980 px at 100%, scaled with the 110% interface zoom.
+  assert.match(layout,/matchMedia\(`\(min-width:\$\{Math\.round\(980\*\(window\.APEX_UI_ZOOM\|\|1\)\)\}px\)`\)/);
   assert.match(layout,/column=document\.querySelector\('#sessionSidebar'\)/);
   assert.match(layout,/host=wide\?column:body/);
   assert.match(layout,/sidebar.parentElement!==host\)wide\?host.append\(sidebar\):host.prepend\(sidebar\)/);

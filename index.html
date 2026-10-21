@@ -13,6 +13,8 @@
   <title>F1 Apex Data — Telemetry Analytics</title>
   <link rel="preconnect" href="https://apex-telemetry-api.vercel.app" crossorigin>
   <script>
+    // Interface scale; keep in sync with UI_ZOOM in lib/ui-style-build.mjs.
+    window.APEX_UI_ZOOM = 1.1;
     try {
       document.documentElement.dataset.theme = localStorage.getItem('apex-theme') || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
     } catch (_) {
