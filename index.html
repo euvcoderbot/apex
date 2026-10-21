@@ -7,9 +7,10 @@
   <meta name="theme-color" content="#f2f2f4" media="(prefers-color-scheme: light)">
   <meta name="color-scheme" content="light dark">
   <meta name="description" content="Compare Formula 1 lap telemetry, timing deltas, driver inputs and corner performance.">
-  <link rel="icon" href="assets/euv2-icon-32.png" type="image/png" sizes="32x32">
-  <link rel="apple-touch-icon" href="assets/euv2-icon-180.png">
-  <title>F1 Apex data — Telemetry Analytics</title>
+  <link rel="icon" href="assets/f1apex-icon-32.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="assets/f1apex-icon-64.png" type="image/png" sizes="64x64">
+  <link rel="apple-touch-icon" href="assets/f1apex-icon-180.png">
+  <title>F1 Apex Data — Telemetry Analytics</title>
   <link rel="preconnect" href="https://apex-telemetry-api.vercel.app" crossorigin>
   <script>
     try {
@@ -25,13 +26,13 @@
   <header class="site-header window-toolbar">
     <div class="toolbar-leading">
       <button id="windowSidebarToggle" class="toolbar-sidebar-toggle" type="button" aria-expanded="true" aria-controls="sessionSidebar performanceSidebar" aria-label="Hide sidebar" title="Hide sidebar"><svg class="ui-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M9.5 5v14"/><path d="M5.5 8.5h1.6M5.5 11h1.6M5.5 13.5h1.6" stroke-linecap="round"/></svg></button>
-      <a class="brand brand-wordmark" href="#top" aria-label="F1 Apex data home"><span class="brand-f1">F1</span><span class="brand-apex">Apex</span><span class="brand-data">data</span></a>
+      <a class="brand brand-wordmark" href="#top" aria-label="F1 Apex Data home"><img class="brand-icon" src="assets/f1apex-icon-64.png" alt="" width="64" height="64"><span class="brand-f1">F1</span><span class="brand-apex">Apex Data</span></a>
       <div class="window-title" aria-hidden="true"><strong id="windowTitle">Compare laps</strong><span id="windowSubtitle">Session analysis</span></div>
     </div>
     <div class="header-actions">
       <nav class="performance-tabs" aria-label="Analysis view">
-        <button type="button" data-analysis-view="session" aria-pressed="true">Session analysis</button>
-        <button type="button" data-analysis-view="performance" aria-pressed="false">Car performance</button>
+        <button type="button" data-analysis-view="session" aria-pressed="true" aria-label="Session analysis"><span class="view-label">Session analysis</span><span class="view-short" aria-hidden="true">Sessions</span></button>
+        <button type="button" data-analysis-view="performance" aria-pressed="false" aria-label="Car performance"><span class="view-label">Car performance</span><span class="view-short" aria-hidden="true">Cars</span></button>
       </nav>
     </div>
     <div class="workspace-tools" role="group" aria-label="Display options">
@@ -202,12 +203,12 @@
       </div>
     </section>
     </section>
-      <nav class="source-list" id="performanceCategoryList" aria-label="Performance categories" hidden></nav>
     </aside>
     <div class="performance-status-card" id="performanceStatusCard">
       <div class="status-dot"></div>
       <p id="performanceStatus" role="status" aria-live="polite">Choose a track or analyse completed events across the season.</p>
     </div>
+    <nav class="category-bar" id="performanceCategoryList" aria-label="Performance categories" hidden></nav>
     <div id="performanceResults"></div>
     <details class="dashboard-card performance-methods">
       <summary>How to read these measurements</summary>
@@ -229,7 +230,7 @@
 
   <div class="app-toast" id="appToast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <footer>F1 Apex data · FastF1 / OpenF1 telemetry · Unofficial analysis</footer>
+  <footer>F1 Apex Data · FastF1 / OpenF1 telemetry · Unofficial analysis</footer>
 
   <!-- Single unified app logic -->
   <dialog id="localComputeDialog" class="local-compute-dialog" aria-labelledby="localComputeTitle">

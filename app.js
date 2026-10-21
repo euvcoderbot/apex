@@ -2014,7 +2014,9 @@ function lapSpeedExtremes(samples, totalDistance, {prominence=8, reach=900, gapS
       const side = (step, start) => {
         let base = here.speed, j = start;
         while (j >= 0 && j < points.length && Math.abs(metres(points[j].fraction) - at) <= reach) {
-          if (higher(points[j].speed)) break;
+          // Ties: an equal extreme earlier in the lap wins, so two equal
+          // peaks (e.g. a 306 km/h plateau with a 1 km/h dip) get one label.
+          if (higher(points[j].speed) || (step < 0 && points[j].speed === here.speed)) break;
           base = kind === 'max' ? Math.min(base, points[j].speed) : Math.max(base, points[j].speed);
           j += step;
         }

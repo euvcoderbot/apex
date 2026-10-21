@@ -7,13 +7,17 @@ import postcss from 'postcss';
 const read=f=>readFileSync(f,'utf8').replace(/\r\n/g,'\n');
 const page=read('index.html'),css=read('macos-window.css'),ui=read('dashboard-ui.js'),system=read('ui-system.js'),tokens=read('ui-controls.css');
 
-test('window uses a unified toolbar and a source-list sidebar for both views',()=>{
+test('window uses a unified toolbar, a sidebar for setup and a category bar in the main pane',()=>{
   const header=page.slice(page.indexOf('<header class="site-header window-toolbar">'),page.indexOf('</header>'));
   assert.match(header,/class="toolbar-leading"[\s\S]*id="windowSidebarToggle"[\s\S]*class="window-title"/);
   assert.match(header,/<nav class="performance-tabs"/);
   assert.match(page,/<aside class="app-sidebar" id="sessionSidebar"[^>]*>\s*<section class="dashboard-card session-controls"/);
-  assert.match(page,/<aside class="app-sidebar" id="performanceSidebar"[\s\S]*class="dashboard-card session-controls performance-controls"[\s\S]*id="performanceCategoryList"[^>]*hidden/);
-  assert.match(system,/\.source-list-row'\)\)return 'list-row'/);assert.match(system,/#windowSidebarToggle'\)\)return 'toolbar'/);
+  assert.match(page,/<aside class="app-sidebar" id="performanceSidebar"[\s\S]*class="dashboard-card session-controls performance-controls"/);
+  // Categories live in the main pane, directly above the results, not low in the sidebar.
+  const sidebar=page.slice(page.indexOf('id="performanceSidebar"'),page.indexOf('</aside>',page.indexOf('id="performanceSidebar"')));
+  assert.doesNotMatch(sidebar,/performanceCategoryList/);
+  assert.match(page,/<nav class="category-bar" id="performanceCategoryList"[^>]*hidden><\/nav>\s*<div id="performanceResults">/);
+  assert.match(system,/\.category-tab'\)\)return 'tab'/);assert.match(system,/#windowSidebarToggle'\)\)return 'toolbar'/);
 });
 
 test('appearance follows the system until the person picks one',()=>{
@@ -22,14 +26,14 @@ test('appearance follows the system until the person picks one',()=>{
   assert.match(ui,/prefers-color-scheme: light[\s\S]*if\(stored\)return/);
 });
 
-test('sidebar categories mirror the original tablist and delegate activation to it',()=>{
+test('category bar mirrors the original tablist and delegates activation to it',()=>{
   assert.match(ui,/\.performance-mode \[data-performance-metric\]/);
   assert.match(ui,/\.performance-mode \[data-performance-metric="\$\{CSS\.escape\(row\.dataset\.sidebarMetric\)\}"\]`\)\?\.click\(\)/);
   assert.match(ui,/setAttribute\('aria-current','page'\)/);
-  assert.match(ui,/ArrowUp','ArrowDown','Home','End'/);
+  assert.match(ui,/ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'/);
   assert.doesNotMatch(ui,/\.innerHTML\s*=/);
   // The original tab strip stays the state owner; only its presentation is hidden on wide windows.
-  assert.match(css,/@media\(min-width:980px\) \{ #performanceResults > \.performance-toolbar > \.performance-mode \{ display: none; \} \}/);
+  assert.match(css,/^#performanceResults > \.performance-toolbar > \.performance-mode \{ display: none; \}/m);
 });
 
 test('sidebar toggle and source list behave in a minimal DOM',()=>{
@@ -67,7 +71,7 @@ test('review fixes: larger sidebar, paired lap cards, single trace toolbar and q
   assert.match(css,/body\.trace-focus \.trace-focus-close/);
   assert.match(css,/body\.is-descriptions-hidden #carPerformance > \.performance-status-card:not\(\.is-running\) \{ display: none; \}/);
   assert.match(css,/body\.is-descriptions-hidden #performanceMetricPanel p\.performance-quality-status:not\(:has\(button\)\):not\(details p\)/);
-  assert.match(css,/\.source-list-row span \{[^}]*line-height: 1\.35/,'descenders must not clip');
+  assert.match(css,/\.category-bar \.category-tab span \{ line-height: 1\.3; \}/,'descenders must not clip');
 });
 
 test('fit pass: toolbar labels, lap lists and range choices never clip or overflow',()=>{

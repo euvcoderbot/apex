@@ -50,7 +50,8 @@
     if(el.matches('.select-trigger'))return 'popup';
     if(el.matches('[role="option"]'))return 'menu-item';
     if(el.matches('#loadSession,#performanceLoad,[data-ui-primary]'))return 'primary';
-    if(el.matches('.driver-pill,.source-list-row'))return 'list-row';
+    if(el.matches('.driver-pill'))return 'list-row';
+    if(el.matches('.category-tab'))return 'tab';
     if(el.matches('.run-segment'))return 'run';
     if(el.matches('.lap-chip,.track-pill,.corner-pick,.fastest-lap-pick'))return 'choice';
     if(el.matches('.loaded-lap-main'))return 'reference';

@@ -47,7 +47,7 @@
     const isLight=document.documentElement.dataset.theme==='light';
     if(event.matches!==isLight){document.querySelector('#themeToggle')?.click();try{localStorage.removeItem('apex-theme');}catch(_){}}
   });
-  // Sidebar categories mirror the in-panel tablist; activation is delegated to
+  // The category bar mirrors the in-panel tablist; activation is delegated to
   // the original control so car-performance.js keeps sole ownership of state.
   const categoryIcons={
     pace:'<circle cx="12" cy="13.5" r="7"/><path d="M12 13.5V9.5M10 3.5h4M18.2 7.3l1.3-1.3"/>',
@@ -59,6 +59,7 @@
     trend:'<path d="M4 19h16"/><path d="m5 15 4.5-4.5 3 3L19 7"/><path d="M15 7h4v4"/>',
     results:'<path d="M6 21V4"/><path d="M6 4h11l-2 4 2 4H6"/>'
   };
+  const shortTitles={straight:'Straights',tyres:'Tyres',trend:'Development',results:'Reliability'};
   const categoryList=document.querySelector('#performanceCategoryList'),performanceRoot=document.querySelector('#performanceResults');
   function syncCategoryList(){
     if(!categoryList||!performanceRoot)return;
@@ -68,15 +69,16 @@
     const signature=tabs.map(tab=>tab.dataset.performanceMetric+(tab.disabled?'!':'')).join(',');
     if(categoryList.dataset.signature!==signature){
       categoryList.dataset.signature=signature;
-      const heading=document.createElement('h2');heading.className='source-list-heading';heading.textContent='Categories';
       const rows=tabs.map(tab=>{
         const key=tab.dataset.performanceMetric,[,title,description]=metrics[key]||['',tab.textContent.trim(),''];
-        const row=document.createElement('button');row.type='button';row.className='source-list-row';row.dataset.sidebarMetric=key;row.title=description;row.disabled=tab.disabled;
-        row.insertAdjacentHTML('afterbegin',`<svg class="ui-symbol source-list-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${categoryIcons[key]||''}</svg>`);
-        const label=document.createElement('span');label.textContent=title;row.append(label);
+        const row=document.createElement('button');row.type='button';row.className='category-tab';row.dataset.sidebarMetric=key;row.setAttribute('aria-label',title);row.title=description;row.disabled=tab.disabled;
+        row.insertAdjacentHTML('afterbegin',`<svg class="ui-symbol category-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${categoryIcons[key]||''}</svg>`);
+        const label=document.createElement('span');label.className='category-label';label.textContent=title;
+        const short=document.createElement('span');short.className='category-short';short.setAttribute('aria-hidden','true');short.textContent=shortTitles[key]||title;
+        row.append(label,short);
         return row;
       });
-      categoryList.replaceChildren(heading,...rows);
+      categoryList.replaceChildren(...rows);
     }
     const active=tabs.find(tab=>tab.getAttribute('aria-selected')==='true')?.dataset.performanceMetric;
     for(const row of categoryList.querySelectorAll('[data-sidebar-metric]')){
@@ -90,10 +92,10 @@
     if(!driverRail.matches)document.querySelector('#performanceMetricPanel')?.scrollIntoView({block:'start'});
   });
   categoryList?.addEventListener('keydown',event=>{
-    if(!['ArrowUp','ArrowDown','Home','End'].includes(event.key))return;
+    if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key))return;
     const rows=[...categoryList.querySelectorAll('[data-sidebar-metric]:not(:disabled)')],index=rows.indexOf(document.activeElement);
     if(index<0)return;event.preventDefault();
-    const next=event.key==='Home'?rows[0]:event.key==='End'?rows.at(-1):rows[Math.max(0,Math.min(rows.length-1,index+(event.key==='ArrowDown'?1:-1)))];
+    const next=event.key==='Home'?rows[0]:event.key==='End'?rows.at(-1):rows[Math.max(0,Math.min(rows.length-1,index+(['ArrowDown','ArrowRight'].includes(event.key)?1:-1)))];
     next?.focus();
   });
   if(performanceRoot&&typeof MutationObserver!=='undefined')new MutationObserver(syncCategoryList).observe(performanceRoot,{childList:true});
