@@ -473,13 +473,27 @@ test('corner rankings are best-first, stable, null-safe and do not mutate refere
 
 test('data requests retry transient errors but not valid missing-data responses', async () => {
   const h = context(); let calls = 0;
-  Object.assign(h.sandbox, {AbortController, DOMException, setTimeout: (fn, ms) => ms < 2000 ? setTimeout(fn, 0) : setTimeout(fn, ms), clearTimeout});
+  const waits = [];
+  Object.assign(h.sandbox, {AbortController, DOMException, setTimeout: (fn, ms) => { if (ms >= 2000 && ms < 30000) waits.push(ms); return setTimeout(fn, 0); }, clearTimeout});
   h.sandbox.fetch = async () => ({status: ++calls < 2 ? 503 : 200, text: async()=>''});
   assert.equal((await h.run("fetchSessionData('/test')")).status, 200);
   assert.equal(calls, 2);
   calls = 0; h.sandbox.fetch = async () => {calls++;return {status:404};};
   assert.equal((await h.run("fetchSessionData('/missing')")).status, 404);
   assert.equal(calls, 1);
+  // The hosting platform's own HTML 500 (request time limit while the data
+  // Worker still computes) is retried after a real wait; our API's JSON 500 is not.
+  const page = {status: 500, headers: {get: () => 'text/html'}, text: async () => '<!DOCTYPE html><html lang="en-US">'};
+  calls = 0; waits.length = 0;
+  h.sandbox.fetch = async () => ++calls < 3 ? page : {status: 200, headers: {get: () => 'application/json'}, text: async () => '{}'};
+  assert.equal((await h.run("fetchSessionData('/api/data?path=x')")).status, 200);
+  assert.equal(calls, 3); assert.deepEqual(waits, [5000, 15000]);
+  calls = 0; h.sandbox.fetch = async () => {calls++; return {status: 500, headers: {get: () => 'application/json'}, text: async () => '{"detail":"x"}'};};
+  assert.equal((await h.run("fetchSessionData('/api/data?path=y')")).status, 500);
+  assert.equal(calls, 1);
+  // Still failing: a readable message, never the HTML page.
+  h.sandbox.page = page;
+  await assert.rejects(h.run('readApiResponse(page)'), error => /stopped before this session finished computing/.test(error.message) && !/DOCTYPE/.test(error.message) && error.status === 500);
 });
 
 test('reopening telemetry avoids network requests and cached samples stay immutable', async () => {

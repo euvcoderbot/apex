@@ -131,8 +131,18 @@ function sharedDataURL(url) {
   return '/api/data?'+new URLSearchParams({path:parsed.pathname+'?'+parsed.searchParams,...(fresh?{refresh:'1'}:{})});
 }
 
+// A 5xx whose body is not JSON comes from the hosting platform, not our API
+// (which always answers JSON): typically its request time limit while the
+// data Worker is still computing a cold session. The Worker keeps going and
+// caches the result, so waiting and asking again usually succeeds.
+function platformErrorResponse(response) {
+  return response.status >= 500 && !/json/i.test(response.headers?.get?.('content-type') || '');
+}
+const PLATFORM_RETRY_DELAYS_MS = [5000, 15000];
+
 async function fetchSessionData(url, options = {}) {
-  for (let attempt = 0; attempt < 2; attempt++) {
+  const attempts = window.APEX_LOCAL_MODE ? 2 : 1 + PLATFORM_RETRY_DELAYS_MS.length;
+  for (let attempt = 0; attempt < attempts; attempt++) {
     if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     const controller = new AbortController();
     const abort = () => controller.abort();
@@ -143,16 +153,22 @@ async function fetchSessionData(url, options = {}) {
       const query=longQuery?new URLSearchParams(shared.slice(shared.indexOf('?')+1)):null;
       const response = await fetch(longQuery?'/api/data':shared, { ...options, signal: controller.signal,
         ...(longQuery?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:query.get('path'),refresh:query.get('refresh')==='1'})}:{}) });
-      if (![408, 429, 502, 503, 504].includes(response.status) || attempt === 1) return response;
+      const retryable = [408, 429, 502, 503, 504].includes(response.status) || platformErrorResponse(response);
+      if (!retryable || attempt === attempts - 1) return response;
       await response.text();
     } catch (error) {
       if (options.signal?.aborted) throw error;
-      if (attempt === 1) throw new Error(error.name === 'AbortError' ? 'The server took too long. Please retry.' : error.message);
+      if (attempt === attempts - 1) throw new Error(error.name === 'AbortError' ? 'The server took too long. Please retry.' : error.message);
     } finally {
       clearTimeout(timeout);
       options.signal?.removeEventListener('abort', abort);
     }
-    await new Promise(resolve => setTimeout(resolve, 700 * (attempt + 1)));
+    const delay = window.APEX_LOCAL_MODE ? 700 * (attempt + 1) : PLATFORM_RETRY_DELAYS_MS[attempt];
+    await new Promise((resolve, reject) => {
+      const stop = () => { clearTimeout(timer); reject(options.signal.reason || new DOMException('Aborted', 'AbortError')); };
+      const timer = setTimeout(() => { options.signal?.removeEventListener('abort', stop); resolve(); }, delay);
+      options.signal?.addEventListener('abort', stop, { once: true });
+    });
   }
 }
 
@@ -483,8 +499,12 @@ async function readApiResponse(response) {
   try {
     return JSON.parse(body);
   } catch {
-    const summary = body.replace(/\s+/g, ' ').trim().slice(0, 140) || 'empty response';
-    throw new Error(`Server returned ${response.status}: ${summary}`);
+    // Never show a raw HTML error page as the message.
+    const error = platformErrorResponse(response)
+      ? new Error(`The hosted server stopped before this session finished computing (HTTP ${response.status}). It usually finishes in the background: retry in a minute.`)
+      : new Error(`Server returned ${response.status}: ${/^\s*</.test(body) ? 'an HTML error page' : body.replace(/\s+/g, ' ').trim().slice(0, 140) || 'empty response'}`);
+    error.status = response.status;
+    throw error;
   }
 }
 
