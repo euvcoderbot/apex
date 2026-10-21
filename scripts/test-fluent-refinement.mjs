@@ -44,14 +44,6 @@ test('short unfitted tyre runs retain lap inspection without inventing a fitted 
   assert.doesNotMatch(selection,/finite\(s.trendValue\)/);
 });
 
-test('development sparklines show real rounds and never join unobserved gaps',()=>{
-  const plot=source.slice(source.indexOf('function trendSparkline('),source.indexOf('function renderTrend('));
-  const box={events:[{round:16},{round:18}],finite:Number.isFinite,color:v=>v,escape:v=>String(v),fmt:n=>n.toFixed(3)};
-  vm.createContext(box);vm.runInContext(plot,box);
-  const team={team:'Example',color:'#123456',q:[{round:16,pace:1,event:'A'},{round:18,pace:.5,event:'B'}]};
-  const html=box.trendSparkline(team,[team]);
-  assert.equal((html.match(/<circle/g)||[]).length,2);
-  assert.match(html,/common scale across teams/);
-  assert.match(html,/d="M[^"L]+ M/);
+test('development trend keeps its fit-sensitivity gate (sparkline: test-react-views.mjs)',()=>{
   assert.match(source,/const showSensitivity=trendView==='fitted'&&ordered.some/);
 });

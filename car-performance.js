@@ -1884,26 +1884,10 @@ function huberRegression(rounds, paces) {
   return { slope: b, intercept: a };
 }
 
-function trendSparkline(team,teams) {
-  const rounds=events.map(e=>Number(e.round)).filter(finite),lo=Math.min(...rounds),hi=Math.max(...rounds);
-  if(!finite(lo)||!finite(hi))return '—';
-  const ceiling=Math.max(1,...teams.flatMap(t=>t.q.map(q=>q.pace).filter(finite)));
-  const observed=team.q.filter(q=>finite(q.pace)).sort((a,b)=>a.round-b.round);
-  const x=round=>8+(round-lo)/Math.max(1,hi-lo)*164,y=pace=>38-pace/ceiling*30;
-  const path=observed.map((q,i)=>`${i&&q.round-observed[i-1].round===1?'L':'M'}${x(q.round).toFixed(2)},${y(q.pace).toFixed(2)}`).join(' ');
-  return `<div class="trend-sparkline"><svg viewBox="0 0 180 46" role="img" aria-label="${escape(team.team)} qualifying gap by round; common scale across teams"><line x1="8" y1="39" x2="172" y2="39" stroke="var(--border-color)"/><path d="${path}" fill="none" stroke="${color(team.color)}" stroke-width="2"/>${observed.map(q=>`<circle cx="${x(q.round)}" cy="${y(q.pace)}" r="3" fill="${color(team.color)}"><title>R${q.round} · ${escape(q.event)} · ${fmt(q.pace,3,'%')}</title></circle>`).join('')}</svg><div class="performance-trend-label"><span>R${lo}</span><span>R${hi}</span></div></div>`;
-}
 
 function renderTrend(teams) {
-  if (!context?.season) {
-    return card('Performance trend', 'Season progression requires multi-event data.',
-      `<div class="performance-empty" style="padding: 48px 24px;">
-        <div class="empty-icon-badge" aria-hidden="true"></div>
-        <h3>Season performance trend requires multiple events</h3>
-        <p>You are currently analysing a single track (<strong>${escape(events[0]?.name || 'Grand Prix')}</strong>). Car development curves and performance progression measure how teams evolve round-by-round across the championship.</p>
-        <p style="margin-top: 10px; color: var(--text-secondary);">To view season performance trends, set <strong>Scope</strong> to <strong>Season to date</strong> or select multiple tracks in the tray above.</p>
-      </div>`);
-  }
+  // Rendered by src/views/TrendView.tsx; its data-trend-view buttons are handled below.
+  if (!context?.season) return reactView('trend',{single:true,event:events[0]?.name||'Grand Prix'});
   const trendRows = teams.map(t => {
     // Track-evolution-adjusted gaps: a team moving from Q1 exits to Q3 runs
     // must not show the ~1% Q1->Q3 track gain as car development.
@@ -1946,34 +1930,16 @@ function renderTrend(teams) {
     trendCount: r => r.count
   }, trendView==='fitted'?'trendModelled':'trendChange');
   const showSensitivity=trendView==='fitted'&&ordered.some(row=>row.leaveEventRange);
-
-   return card('Relative qualifying progress',
-     `Ranked by ${trendView==='fitted'?'a robust fitted rate across measured rounds':'the observed change between median opening and latest event groups'}. More negative means the team closed the gap to the quickest car. This measures relative one-lap progress, not a proven upgrade effect.`,
-    `<div class="performance-scope-toggle" role="group" aria-label="Development trend ranking"><button type="button" data-trend-view="observed" aria-pressed="${trendView==='observed'}">Opening → latest</button><button type="button" data-trend-view="fitted" aria-pressed="${trendView==='fitted'}">Fitted trend</button></div><p class="performance-note">Each observed GP is shown without filling missing rounds. Circuit suitability, setup and driver changes affect the trend.</p>`+'<div class="performance-trend-table">'+table([
-      sortHeader('trendTeam', 'Team'),
-      'Gap by round',
-      sortHeader('trendLast', 'Start → latest'),
-      sortHeader(trendView==='fitted'?'trendModelled':'trendChange', trendView==='fitted'?'Fitted change':'Gap change'),
-      ...(showSensitivity?['Fit sensitivity']:[]),
-      'GPs'
-    ], ordered.map(row => {
-      const t = row.team, valid = row.valid, first = row.first, last = row.last;
-      const enough = valid.length >= 2;
-      const ceiling = Math.max(1, ...teams.flatMap(t => t.q.map(q => q.pace).filter(finite)));
-      const rateText = enough && finite(row.slopePerRound)
-        ? `${row.slopePerRound > 0 ? '+' : ''}${fmt(row.slopePerRound, 3, '% / round')}`
-        : '—';
-      return [
-        teamLabel(t),
-        trendSparkline(t,teams),
-        enough ? `${fmt(first, 3, '%')} → ${fmt(last, 3, '%')}<small>${escape(row.label)}</small>` : 'Needs ≥ 2 events',
-        enough && finite(trendView==='fitted'?row.modelledShift:row.change) ? `<span class="trend-change ${(trendView==='fitted'?row.modelledShift:row.change)<0?'is-improvement':'is-decline'}" title="Percentage-point change; negative means improvement">${signed(trendView==='fitted'?row.modelledShift:row.change, 3, ' pp')}</span>${trendView==='fitted'?`<small>${rateText}</small>`:''}` : '—',
-        ...(showSensitivity?[row.leaveEventRange?`${signed(row.leaveEventRange[0],3)} to ${signed(row.leaveEventRange[1],3)} pp/round`:'—']:[]),
-        `<span class="trend-coverage" title="${escape(row.sampleTier)}">${row.count}</span>`
-      ];
-    })))+'</div>' + card('FIA event documents',
-      'Reference documents, not an ingested upgrade database. Relative pace changes do not establish an upgrade effect.',
-      '<p><a href="https://www.fia.com/documents" target="_blank" rel="noopener" class="perf-link">Open FIA event documents ↗</a></p><p class="performance-note">Component counts from Car Presentation Submissions are not weighted by competitive impact, and public lap times cannot isolate aerodynamic package gains from setup or driver variation. No synthetic upgrade gains are inferred.</p>');
+  const rounds=events.map(e=>Number(e.round)).filter(finite);
+  const changeKey=trendView==='fitted'?'trendModelled':'trendChange';
+  return reactView('trend',{view:trendView,showSensitivity,
+    // One scale for every sparkline: observed gaps, rounds across the selection.
+    spark:{lo:Math.min(...rounds),hi:Math.max(...rounds),ceiling:Math.max(1,...teams.flatMap(t=>t.q.map(q=>q.pace).filter(finite)))},
+    sort:{team:sortHeaderModel('trendTeam','Team'),last:sortHeaderModel('trendLast','Start → latest'),
+      change:sortHeaderModel(changeKey,trendView==='fitted'?'Fitted change':'Gap change')},
+    rows:ordered.map(row=>({team:row.team,first:row.first,last:row.last,label:row.label,count:row.count,sampleTier:row.sampleTier,
+      change:trendView==='fitted'?row.modelledShift:row.change,slopePerRound:row.slopePerRound,range:row.leaveEventRange,
+      points:row.team.q.filter(q=>finite(q.pace)).sort((x,y)=>x.round-y.round).map(q=>({round:q.round,event:q.event,pace:q.pace}))}))});
 }
 
 function eventTelemetry(event) {

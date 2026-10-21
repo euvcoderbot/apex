@@ -1,3 +1,4 @@
+import {performanceSource,offersControl} from './view-source.mjs';
 import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -1411,11 +1412,11 @@ test('speed annotation labels avoid open trace segments without closing the lap'
 });
 
 test('performance categories expose only defensible alternative summaries', () => {
-  const source=readFileSync('car-performance.js','utf8');
+  const source=readFileSync('car-performance.js','utf8'),offered=performanceSource();
   for(const key of ['pace-stat','trend-view'])
-    assert.match(source,new RegExp(`data-${key}=`));
+    assert.ok(offersControl(offered,key),key);
   for(const key of ['telemetry-stat','tyre-stat','tyre-fit','race-pace-model','corner-window','straight-entry','acceleration-comparison'])
-    assert.doesNotMatch(source,new RegExp(`data-${key}=`));
+    assert.ok(!offersControl(offered,key),key);
   const resultsView=readFileSync('src/views/ResultsView.tsx','utf8');
   assert.match(resultsView,/name="results-chart"/);
   assert.match(resultsView,/\['mechanicalRate', 'Mechanical retirements'\]/);

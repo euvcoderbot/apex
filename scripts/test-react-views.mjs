@@ -12,6 +12,8 @@ import {build} from 'esbuild';
 async function load() {
   const entry = `export {ResultsView} from './src/views/ResultsView';
 export {PitsView} from './src/views/PitsView';
+export {TrendView} from './src/views/TrendView';
+export {Sparkline} from './src/components/Sparkline';
 export {BarChart} from './src/components/BarChart';
 export {DataTable} from './src/components/DataTable';
 export {TeamLogo, EventLabel} from './src/components/TeamLabel';
@@ -76,4 +78,25 @@ test('pit stops view draws the measured sample, never a zero for a missing stop'
   assert.match(html, /<button type="button" data-pit-retry="">Refresh missing timing<\/button>/);
   assert.match(html, />2\.1 s</, 'exact seconds as published');
   assert.match(html, /is-unranked/);
+});
+
+test('development sparklines show real rounds and never join unobserved gaps', () => {
+  const html = render(views.Sparkline, {label: 'Example', teamColor: '#123456', lo: 16, hi: 18, ceiling: 1,
+    points: [{round: 16, pace: 1, event: 'A'}, {round: 18, pace: .5, event: 'B'}]});
+  assert.equal((html.match(/<circle/g) || []).length, 2);
+  assert.match(html, /common scale across teams/);
+  assert.match(html, /d="M[^"L]+ M/, 'round 17 is missing: the line breaks');
+});
+
+test('development view: single-GP explanation, ranking switch and coverage', () => {
+  assert.match(render(views.TrendView, {single: true, event: 'Bahrain Grand Prix'}), /single track \(<strong>Bahrain Grand Prix<\/strong>\)/);
+  const html = render(views.TrendView, {view: 'fitted', showSensitivity: true, spark: {lo: 1, hi: 3, ceiling: 2},
+    sort: {team: sortModel('trendTeam'), last: sortModel('trendLast'), change: sortModel('trendModelled')},
+    rows: [{team: {team: 'Ferrari', color: '#ff0000'}, first: 1.2, last: .4, label: 'R1 → R3', count: 3, sampleTier: 'Limited (<10 events)',
+      change: -.8, slopePerRound: -.4, range: [-.5, -.3], points: [{round: 1, event: 'A', pace: 1.2}, {round: 2, event: 'B', pace: .8}, {round: 3, event: 'C', pace: .4}]}]});
+  assert.match(html, /data-trend-view="fitted" aria-pressed="true"/);
+  assert.match(html, /trend-change is-improvement[^>]*>-0\.800 pp/);
+  assert.match(html, /<small>-0\.400% \/ round<\/small>/);
+  assert.match(html, /-0\.500 to -0\.300 pp\/round/);
+  assert.match(html, /FIA event documents/);
 });
