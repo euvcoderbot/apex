@@ -11,10 +11,13 @@ const uiPort=Number(process.env.APEX_LOCAL_PORT||54123),apiPort=Number(process.e
 if(![uiPort,apiPort].every(p=>Number.isInteger(p)&&p>=1024&&p<=65535)||uiPort===apiPort)throw new Error('Choose two different unprivileged ports.');
 await new Promise((resolve,reject)=>{const child=spawn(process.execPath,['scripts/sync-static.mjs'],{cwd:root,stdio:'inherit',windowsHide:true});child.once('error',reject);child.once('exit',code=>code?reject(new Error('Static bundle sync failed')):resolve());});
 // Load revision-bearing modules only after sync generated the current keys.
-const {createLocalDashboard}=await import('../lib/local-server.mjs');
+const {createLocalDashboard,pruneDiskStore}=await import('../lib/local-server.mjs');
 const backend=spawn(python,['-m','uvicorn','server:app','--host','127.0.0.1','--port',String(apiPort)],{cwd:root,stdio:'inherit',windowsHide:true,env:{...process.env,APEX_LOCAL_COMPUTE:'1'}});
 let closed=false;
 const sourceOrigin=`http://127.0.0.1:${apiPort}`;
+void pruneDiskStore(path.join(root,'.apex-cache/dashboard')).then(({removed,freed})=>{
+  if(removed)console.log(`Cache: removed ${removed} entries from earlier revisions (${(freed/1048576).toFixed(0)} MB).`);
+});
 const {server,tabs}=createLocalDashboard({root:path.join(root,'public/apex'),cacheRoot:path.join(root,'.apex-cache/dashboard'),sourceOrigin,
   ...(process.env.APEX_LOCAL_KEEP_ALIVE==='1'?{}:{onIdle:()=>{console.log('Last local dashboard tab closed; stopping local compute.');void close();}})});
 async function close(code=0){if(closed)return;closed=true;tabs.dispose();server.close();server.closeAllConnections();await stopOwnedBackend(backend);process.exitCode=code;}

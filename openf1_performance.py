@@ -102,7 +102,8 @@ def stamp(value):
 
 def adapt_performance(year, gp, code, bundle):
     session = bundle['session']
-    expected = {'Q': 'Qualifying', 'R': 'Race', 'SQ': 'Sprint Qualifying'}[code]
+    # A sprint is timed and validated like a short race.
+    expected = {'Q': 'Qualifying', 'R': 'Race', 'SQ': 'Sprint Qualifying', 'S': 'Sprint'}[code]
     accepted_names = {expected, 'Sprint Shootout'} if code == 'SQ' else {expected}
     if session.get('year') != year or session.get('session_name') not in accepted_names:
         raise ValueError('OpenF1 fallback session identity mismatch')

@@ -163,7 +163,7 @@ async function loadCalendar() {
   customSelectValues.delete($('#gp'));
   $('#gp').innerHTML = '<option>Loading calendar…</option>';
   try {
-    const payload = await loadApiData(apiUrl(`/api/events?year=${year}&status=result-v3`), { signal: calendarRequest.signal });
+    const payload = await loadApiData(apiUrl(`/api/events?year=${year}`), { signal: calendarRequest.signal });
     if (generation !== calendarGeneration || year !== selectValue($('#year'))) return;
     calendar = payload;
     $('#gp').innerHTML = calendar.map(event => `<option value="${event.round}" data-country="${grandPrixCountryCode(event) || ''}">R${event.round} · ${escapeUI(event.name)}</option>`).join('');

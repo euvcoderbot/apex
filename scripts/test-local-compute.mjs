@@ -64,3 +64,26 @@ test('context actions belong to their headings and selectable laps expose their 
   assert.match(css,/#driverSidebar #driverPills:has\(> \.section-empty\) \{[^}]*overflow: visible/);
   assert.match(css,/\.trace-pill-group \.trace-driver-chip input\[type="checkbox"\] \{[^}]*position: static/);
 });
+
+test('startup pruning removes only unreadable revisions and long-expired entries',async()=>{
+  const {diskStore,pruneDiskStore}=await import('../lib/local-server.mjs');
+  const {SOURCE_VERSION,DATA_VERSION}=await import('../lib/data-cache.mjs');
+  const directory=await mkdtemp(path.join(os.tmpdir(),'apex-prune-test-')),store=diskStore(directory),now=Date.now();
+  const entry=expires=>({data:{teams:[{team:'A'}]},expires,bytes:10});
+  const day=86400000;
+  await store.write(DATA_VERSION+':/api/performance?gp=A&session=Q&year=2026',entry(now+60*day));
+  await store.write(SOURCE_VERSION+':/api/events?year=2026',entry(now-day)); // recently expired: still consulted
+  await store.write('data:0000000000stale0000:/api/performance?gp=A&session=Q&year=2026',entry(now+60*day));
+  await store.write(DATA_VERSION+':/api/performance?gp=B&session=Q&year=2026',entry(now-30*day));
+  await writeFile(path.join(directory,'notes.json'),'{"key":"data:old:/x"}'); // not a cache entry name
+  assert.equal((await pruneDiskStore(directory,{now,dryRun:true})).removed,1);
+  let result=await pruneDiskStore(directory,{now});
+  assert.equal(result.removed,1,'only the long-expired entry; a recent old revision may belong to another branch');
+  assert.ok(await store.read('data:0000000000stale0000:/api/performance?gp=A&session=Q&year=2026'));
+  result=await pruneDiskStore(directory,{now:now+15*day});
+  assert.equal(result.removed,2,'two weeks untouched: the old revision goes, and the calendar has expired for over a week');
+  assert.ok(await store.read(DATA_VERSION+':/api/performance?gp=A&session=Q&year=2026'));
+  await assert.rejects(()=>store.read('data:0000000000stale0000:/api/performance?gp=A&session=Q&year=2026'));
+  assert.ok(await readFile(path.join(directory,'notes.json'),'utf8'));
+  await rm(directory,{recursive:true,force:true});
+});
