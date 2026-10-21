@@ -1226,24 +1226,19 @@ function renderPace(teams) {
       residual:`${fmt(r.residual_spread,3,'%')} residual`})))});
 }
 
-function tyreViewControls() {
 
-  return `<div class="performance-toolbar performance-tyre-toolbar"><div class="performance-scope-toggle" role="group" aria-label="Tyre trend measurement"><button type="button" data-tyre-metric="age" aria-pressed="${tyreMetric==='age'}">Tyre-age trend</button><button type="button" data-tyre-metric="relative" aria-pressed="${tyreMetric==='relative'}">Matched rivals</button></div>${tyreMetric==='age'?`<div class="performance-scope-toggle" role="group" aria-label="Tyre trend subject"><button type="button" data-tyre-subject="team" aria-pressed="${tyreSubject==='team'}">Teams</button><button type="button" data-tyre-subject="driver" aria-pressed="${tyreSubject==='driver'}">Drivers</button></div>`:''}</div>`;
-}
-
-function tyreCompoundControl(choices,overallLabel) {
-  return `<div class="performance-compound-control"><span class="compound-control-label" id="performanceTyreCompoundLabel">Compound</span><div class="performance-tyre-options" role="group" aria-labelledby="performanceTyreCompoundLabel">${choices.map(c=>`<button type="button" data-tyre-compound="${c}" aria-pressed="${tyreView===c}">${c==='OVERALL'?overallLabel:c}</button>`).join('')}</div></div>`;
-}
 
 function tyreStintKey(entity,stint){
   return encodeURIComponent(JSON.stringify([entity.team,stint.event,stint.driver,stint.stint,stint.segment||0]));
 }
 
-function renderTyreStintPlot(entity,stint){
+// Geometry for one run's lap-time plot; drawn by src/components/TyreStintPlot.tsx.
+function tyreStintPlotModel(entity,stint){
   const points=(stint.points||[]).filter(p=>finite(p.age)&&finite(p.time)&&finite(p.lap));
-  const lapRows=[...points.map(p=>({...p,status:'Used'})),...(stint.excluded_points||[]).filter(p=>finite(p.lap)&&finite(p.time)).map(p=>({...p,status:p.reason||'Excluded'}))].sort((a,b)=>a.lap-b.lap);
-  const lapTable=`<details class="tyre-run-laps"><summary>${lapRows.length} recorded laps · view times</summary>${table(['Lap','Tyre age','Lap time','Status'],lapRows.map(p=>[`L${p.lap}`,finite(p.age)?p.age:'—',fmt(p.time,3,' s'),escape(p.status)]))}</details>`;
-  if(!points.length)return `<div class="performance-chart-card performance-tyre-stint-plot"><h4>${escape(stint.driver)} · ${escape(stint.event)} · stint ${stint.stint}</h4><p class="section-empty">No usable timed laps in this run.</p>${lapTable}</div>`;
+  const laps=[...points.map(p=>({...p,status:'Used'})),...(stint.excluded_points||[]).filter(p=>finite(p.lap)&&finite(p.time)).map(p=>({...p,status:p.reason||'Excluded'}))]
+    .sort((a,b)=>a.lap-b.lap).map(p=>({lap:p.lap,age:finite(p.age)?p.age:null,time:p.time,status:String(p.status)}));
+  const base={teamColor:entity.color,laps,exclusions:null,axis:{lo:0,hi:0,grid:[]},curve:null,points:[],excluded:[],noTrend:false,caption:''};
+  if(!points.length)return {...base,title:`${stint.driver} · ${stint.event} · stint ${stint.stint}`,empty:true};
   const fuel=tyreCorrection==='fuel'?tyreFuelRate:0;
   const origin=points[0].lap;
   const values=points.map(p=>p.time+fuel*(p.lap-origin));
@@ -1258,38 +1253,26 @@ function renderTyreStintPlot(entity,stint){
   const fit=curve.map(p=>p.time);
   const min=Math.min(baseline,...fit,...excludedValues),max=Math.max(...values,...fit,...excludedValues),span=Math.max(.1,max-min);
   const x=a=>55+(a-lo)/Math.max(1,hi-lo)*590,y=v=>180-(v-min)/span*145;
-  return `<div class="performance-chart-card performance-tyre-stint-plot"><h4>${escape(stint.driver)} · ${escape(stint.event)} · ${escape(stint.compound_grade||'Unknown grade')} · stint ${stint.stint}</h4>${!finite(rate)?'<p class="section-empty">Laps shown for reference; not enough data for a trend.</p>':''}<span class="perf-chart-sub explanation-only">${tyreCorrection==='fuel'?'Fuel estimate applied':'Recorded times'} · dots are laps${curve.length?', dashed line is the trend':''}${excluded.length?' · hollow dots are excluded':''}</span>${stint.excluded_points?.length?`<button type="button" data-tyre-exclusions aria-pressed="${excluded.length>0}">${excluded.length?'Hide':'Show'} ${stint.excluded_points.length} excluded lap${stint.excluded_points.length===1?'':'s'}</button>`:''}<svg viewBox="0 0 680 230" role="img" aria-label="${escape(stint.driver)} stint lap times against tyre age">
-    ${[0,.5,1].map(f=>{const v=min+span*f;return `<line x1="55" x2="645" y1="${y(v)}" y2="${y(v)}" stroke="var(--border-color)"/><text x="48" y="${y(v)+4}" text-anchor="end">${(v-baseline).toFixed(3)}</text>`;}).join('')}
-    ${curve.length?`<path d="${curve.map((p,i)=>`${i?'L':'M'} ${x(p.age)} ${y(p.time)}`).join(' ')}" stroke="${color(entity.color)}" stroke-width="2" stroke-dasharray="6 4" fill="none"/>`:''}
-    ${points.map((p,i)=>`<circle cx="${x(p.age)}" cy="${y(values[i])}" r="3.5" fill="${color(entity.color)}"><title>Lap ${p.lap} · age ${p.age} · ${p.time.toFixed(3)} s observed · ${(values[i]-baseline).toFixed(3)} s above best ${tyreCorrection==='fuel'?'corrected ':''}lap in this run</title></circle>`).join('')}
-    ${excluded.map((p,i)=>`<circle cx="${x(p.age)}" cy="${y(excludedValues[i])}" r="4" fill="none" stroke="${color(entity.color)}" stroke-dasharray="2 1"><title>Excluded lap ${p.lap} · age ${p.age} · ${p.time.toFixed(3)} s · ${escape(p.reason)} · residual ${fmt(p.residual_s,3,' s')}</title></circle>`).join('')}
-    <text x="55" y="201" text-anchor="middle">${lo}</text><text x="645" y="201" text-anchor="middle">${hi}</text><text x="350" y="223" text-anchor="middle">Tyre age (laps) · vertical scale: seconds above this run's best lap</text>
-    </svg>${lapTable}</div>`;
+  return {...base,empty:false,title:`${stint.driver} · ${stint.event} · ${stint.compound_grade||'Unknown grade'} · stint ${stint.stint}`,noTrend:!finite(rate),
+    caption:`${tyreCorrection==='fuel'?'Fuel estimate applied':'Recorded times'} · dots are laps${curve.length?', dashed line is the trend':''}${excluded.length?' · hollow dots are excluded':''}`,
+    exclusions:stint.excluded_points?.length?{pressed:excluded.length>0,label:`${excluded.length?'Hide':'Show'} ${stint.excluded_points.length} excluded lap${stint.excluded_points.length===1?'':'s'}`}:null,
+    axis:{lo,hi,grid:[0,.5,1].map(f=>{const v=min+span*f;return {y:y(v),label:(v-baseline).toFixed(3)};})},
+    curve:curve.length?curve.map((p,i)=>`${i?'L':'M'} ${x(p.age)} ${y(p.time)}`).join(' '):null,
+    points:points.map((p,i)=>({cx:x(p.age),cy:y(values[i]),title:`Lap ${p.lap} · age ${p.age} · ${p.time.toFixed(3)} s observed · ${(values[i]-baseline).toFixed(3)} s above best ${tyreCorrection==='fuel'?'corrected ':''}lap in this run`})),
+    excluded:excluded.map((p,i)=>({cx:x(p.age),cy:y(excludedValues[i]),title:`Excluded lap ${p.lap} · age ${p.age} · ${p.time.toFixed(3)} s · ${p.reason} · residual ${fmt(p.residual_s,3,' s')}`}))};
 }
 
-function renderTyreAge(teams) {
+// View data for the tyre-age mode of src/views/TyresView.tsx.
+function tyreAgeView(teams) {
   const allocations=VERIFIED_DRY_ALLOCATIONS[context?.year] || [];
   const compounds=[...new Set(allocations.join('').split('').filter(Boolean).map(n=>`C${n}`))].sort((a,b)=>Number(a.slice(1))-Number(b.slice(1)));
-  if(!compounds.length) return card('Tyre-age performance change',
-    'Exact C-grade allocations have not been verified for this season. Soft, Medium and Hard change meaning by race, so showing them here as C grades would be misleading.',
-    '<p class="section-empty">No exact-compound tyre-age results for this season. Matched rivals remains available.</p>');
+  if(!compounds.length) return {noGrades:true};
   const choices=['OVERALL',...compounds];
   if(!choices.includes(tyreView))tyreView='OVERALL';
-  const controls=tyreCompoundControl(choices,'All C grades')+`
-    <div class="performance-toolbar performance-tyre-toolbar">
-
-
-
-
-      <div class="performance-scope-toggle" role="group" aria-label="Tyre trend fuel correction"><button type="button" data-tyre-correction="raw" aria-pressed="${tyreCorrection==='raw'}">Observed pace</button><button type="button" data-tyre-correction="fuel" aria-pressed="${tyreCorrection==='fuel'}">Fuel-adjusted estimate</button></div><p class="performance-quality-status">${tyreCorrection==='fuel'?'Assumes 0.060 s/lap fuel gain; not measured fuel or isolated tyre degradation.':'Observed lap-time change includes fuel burn and track conditions.'}<span class="explanation-only"> Screened laps · balanced drivers · median GP trend.</span></p>
-
-
-    </div>`;
   const loadedRaces=events.filter(e=>e.R);
   const mappedRaces=loadedRaces.filter(e=>Boolean(allocations[Number(e.round)-1])).length;
   const unmappedStints=teams.flatMap(t=>t.tyreAgeStints||[]).filter(s=>!s.compound_grade).length;
   const source=TYRE_ALLOCATION_SOURCES[context?.year];
-  const coverage=`<p class="performance-note">Verified C grades for ${mappedRaces}/${loadedRaces.length} loaded races. ${unmappedStints?`${unmappedStints} stint${unmappedStints===1?'':'s'} without a verified grade excluded. `:''}Fewer samples per grade can make rankings less stable. <a href="${source}" target="_blank" rel="noopener noreferrer">Pirelli allocation sources</a></p>`;
   const entities=[];
   for(const team of teams) {
     const stints=(team.tyreAgeStints||[]).map(s=>{
@@ -1373,10 +1356,6 @@ function renderTyreAge(teams) {
   const ordered=sorted(rows,{tyreAgeName:r=>r.displayName,tyreAgeValue:r=>r.value,tyreAgeEvents:r=>r.events,tyreAgeStints:r=>r.stints,tyreAgeLaps:r=>r.laps},'tyreAgeValue');
   const scored=ordered.filter(r=>finite(r.value));
   const extent=Math.max(.01,...scored.map(r=>Math.abs(r.value)));
-  const chart=scored.length?`<div class="performance-chart-card"><div class="perf-chart-header"><div class="perf-chart-title-group"><h4 class="perf-chart-heading">Tyre-age lap-time change · ${tyreView==='OVERALL'?'verified C grades':tyreView}</h4><span class="perf-chart-sub">Seconds per additional tyre-age lap · left of zero improves, right of zero worsens</span></div></div><div class="performance-tyre-age-chart">${scored.map(r=>{
-    const width=Math.min(50,Math.abs(r.value)/extent*50);
-    return `<div class="performance-tyre-age-row"><div class="performance-tyre-age-name">${teamLabel(r)}</div><div class="performance-tyre-age-track"><i class="performance-tyre-age-zero"></i><i class="performance-tyre-age-bar" style="--bar-color:${color(r.color)};left:${r.value<0?(50-width).toFixed(2):'50'}%;width:${width.toFixed(2)}%"></i></div><span class="performance-tyre-age-value">${signed(r.value,3,' s/lap')}</span></div>`;
-  }).join('')}</div></div>`:`<p class="section-empty">${tyreSeasonStat==='p75'?'P75 needs at least four supported Grands Prix for every included C grade. The table shows each missing grade and its GP count.':tyreLapMode==='clear'?'No supported clean-air fits. Try All usable laps to inspect traffic-affected trends.':'No runs with at least six usable laps spanning five tyre-age steps. Short runs remain in the evidence table.'}</p>`;
   const plotRuns=entities.flatMap(entity=>entity.stints.filter(s=>(tyreView==='OVERALL'||s.compound_grade===tyreView)&&(s.points?.length||s.excluded_points?.length)).map(s=>({entity,stint:s,key:tyreStintKey(entity,s)})));
   let selectedRun=plotRuns.find(r=>r.key===tyreRunKey);
   const choose=(list,value,key)=>list.some(r=>key(r)===value)?list.filter(r=>key(r)===value):list;
@@ -1384,35 +1363,43 @@ function renderTyreAge(teams) {
   filteredRuns=choose(filteredRuns,tyrePlotDriver,r=>r.stint.driver);
   filteredRuns=choose(filteredRuns,tyrePlotEvent,r=>r.stint.event);
   selectedRun=selectedRun||filteredRuns.sort((a,b)=>String(a.entity.team).localeCompare(String(b.entity.team))||String(a.stint.driver).localeCompare(String(b.stint.driver))||Number(a.stint.round)-Number(b.stint.round)||a.stint.stint-b.stint.stint)[0];
-  const options=(values,selected)=>[...new Set(values)].map(value=>`<option value="${escape(value)}" ${value===selected?'selected':''}>${escape(value)}</option>`).join('');
-  const picker=selectedRun?`<div class="performance-tyre-plot-controls"><label>Team<select data-tyre-plot-filter="team">${options(plotRuns.map(r=>r.entity.team).sort(),selectedRun.entity.team)}</select></label><label>Driver<select data-tyre-plot-filter="driver">${options(plotRuns.filter(r=>r.entity.team===selectedRun.entity.team).map(r=>r.stint.driver),selectedRun.stint.driver)}</select></label><label>Grand Prix<select data-tyre-plot-filter="event">${options(plotRuns.filter(r=>r.entity.team===selectedRun.entity.team&&r.stint.driver===selectedRun.stint.driver).map(r=>r.stint.event),selectedRun.stint.event)}</select></label><label>Stint / run<select data-tyre-plot-filter="run">${plotRuns.filter(r=>r.entity.team===selectedRun.entity.team&&r.stint.driver===selectedRun.stint.driver&&r.stint.event===selectedRun.stint.event).map(r=>`<option value="${r.key}" ${r.key===selectedRun.key?'selected':''}>Stint ${r.stint.stint} · ${escape(r.stint.compound_grade)} · age ${r.stint.min_age}–${r.stint.max_age}${r.stint.segment?` · run ${r.stint.segment+1}`:''}</option>`).join('')}</select></label></div><p class="performance-note">Inspecting one individual run · ${plotRuns.length} runs from ${new Set(plotRuns.map(r=>r.entity.team)).size} teams available. The ranking above summarizes the selected compound across all supported runs.</p>`:'';
-  const stintPlot=selectedRun?picker+renderTyreStintPlot(selectedRun.entity,selectedRun.stint):'';
-  const evidence=entities.flatMap(entity=>entity.stints.filter(s=>tyreView==='OVERALL'||s.compound_grade===tyreView).map(s=>[
-    teamLabel(entity),escape(s.driver||'—'),eventLabel(s.event),escape(s.compound_grade||'Unmapped'),`${s.stint}${s.segment?` · green run ${s.segment+1}`:''}`,
-    finite(s.min_age)&&finite(s.max_age)?`${s.min_age}–${s.max_age}`:'—',s.trendSamples||0,
-    finite(s.trendValue)?signed(s.trendValue,3,' s/lap'):'—',
-    finite(s.early_slope)&&finite(s.late_slope)?`${signed(s.early_slope-(s.fuel_assumption_s_per_lap??.060)+(tyreCorrection==='fuel'?tyreFuelRate:0),3)} → ${signed(s.late_slope-(s.fuel_assumption_s_per_lap??.060)+(tyreCorrection==='fuel'?tyreFuelRate:0),3)} s/lap`:'—',
-    finite(s.residual_spread_s)?fmt(s.residual_spread_s,3,' s'):'—',
-    s.trendSensitivity?`${signed(s.trendSensitivity[0],3)} to ${signed(s.trendSensitivity[1],3)} s/lap`:'—',
-    `${s.trendSupported&&s.compound_grade?'Included':'Diagnostic only'}${!s.supported?' · insufficient span or laps':''}${s.condition_flags?.length?` · ${escape(s.condition_flags.join(', '))}`:''}${s.stable_condition_screen==null?' · condition screening unavailable':''}${finite(s.field_trend_s_per_lap)?` · field trend ${signed(s.field_trend_s_per_lap,3)} s/lap (${s.field_trend_drivers} drivers)`:''}${!s.compound_grade?' · unverified compound':''}${s.used_start?' · used tyres':''}`,
-    s.points?.length>=3?`<button type="button" class="performance-stint-inspect" data-tyre-run="${tyreStintKey(entity,s)}">View laps</button>`:'—'
-  ]));
+  const runsFor=(team,driver,event)=>plotRuns.filter(r=>r.entity.team===team&&(driver==null||r.stint.driver===driver)&&(event==null||r.stint.event===event));
   const legacy=teams.some(t=>(t.tyreAgeStints||[]).some(s=>!s.nonlinear));
-  const audit=`<details class="dashboard-card performance-methods" ${tyreRunKey?'open':''}><summary>View stint evidence and early/late trends</summary><p class="performance-note">A run needs six usable laps across at least five tyre-age steps to enter the ranking. Early/late rates need at least six laps in each half. Block sensitivity refits the trend after removing successive groups of adjacent laps; a wide range means sections of the stint strongly influence the result. It needs at least twelve laps. Neither this range nor typical fit error is a confidence interval. Short runs and unmapped compounds are listed but do not enter the ranking. View laps draws the selected run above this table.</p>${table(['Team','Driver','Grand Prix','Compound','Stint / run','Observed tyre ages','Fit laps','Trend','Early → late','Typical fit error','Block sensitivity','Evidence','Lap plot'],evidence)}</details>`;
-  return card('Tyre-age performance change',
-    `The number is the change in lap time for each additional lap on the tyre: +0.050 s/lap means a 0.500-second loss over ten tyre-age steps if the trend continues. Each driver's stint is fitted separately over its observed ages; pit, wet and neutralised laps are excluded. Runs are split at SC/VSC/red flags and unusual laps are screened around the fitted trend. ${tyreLapMode==='clear'?'Clean air requires more than 2 seconds to the car ahead at timing checkpoints.':'All usable laps includes traffic and race management.'} ${tyreCorrection==='fuel'?`The rate adds an assumed ${tyreFuelRate.toFixed(3)} s per race lap for fuel burn. This fixed sensitivity assumption is not a measured fuel load or a calibrated value for any season.`:'Observed rates include the benefit of burning fuel.'} ${tyreWeighting==='balanced'?'Median stints describe each driver, then both drivers receive equal weight within each GP and C grade.':'Stints receive weight proportional to their usable laps within each GP and C grade.'} Each GP receives equal weight in the season summary. Overall averages only the C grades observed in each GP, so differing compound and circuit coverage can affect comparisons. Track evolution, temperature, driving targets and energy management can still influence these estimates.`,
-    controls+`<p class="performance-quality-status explanation-only">${tyreConditionMode==='screened'?'Wet/transition context and rapid field-wide improvement are excluded from the ranking; all fitted runs remain inspectable.':'Diagnostic: all statistically supported pace trends are included, even in changing conditions.'} ${teams.some(t=>(t.tyreAgeStints||[]).some(s=>finite(s.joint_relative_slope)))?'Ranked from clean-air laps only, all cars fitted together per race: a shared race-lap effect absorbs fuel burn and track evolution, and each car is compared with the field on the same compound (s/lap of tyre age; negative is less degradation). Slower cars put less energy into their tyres, so low degradation is not the same as a fast car. ':''}This measures observed pace change, not physical tyre wear. ${typeof tyreFitMode!=='undefined'&&tyreFitMode==='curve'?'The headline uses the steady segment; warm-up and supported late falloff remain in the plotted curve. Short runs use a labelled linear diagnostic.':'The headline summarizes the entire observed age span; nonlinear phases remain evidence.'}</p>`+(commonTyreCoverage?`<p class="performance-note">Same observed GP + grade pairs: ${escape(commonTyreCoverage.events.join(', ')||'none')} · ${commonTyreCoverage.teams.length} comparable entrants. These are still own-run absolute slopes, not rival-subtracted or rebased scores.</p>`:'')+coverage+(legacy?'<p class="performance-note">Some loaded results lack the new curve. Refresh data to obtain the updated fits; missing nonlinear results use the previous linear diagnostic.</p>':'')+chart+table([
-      sortHeader('tyreAgeName',tyreSubject==='team'?'Team':'Driver · team'),
-      sortHeader('tyreAgeValue','Change per tyre-age lap'),
-      sortHeader('tyreAgeEvents','Events',-1),
-      sortHeader('tyreAgeStints','Usable green runs',-1),
-      sortHeader('tyreAgeLaps','Usable laps',-1),
-      'Outlier laps removed','Coverage'
-    ],ordered.map(r=>[teamLabel(r),finite(r.value)?signed(r.value,3,' s/lap'):r.p75Shortfall.length?`—<small>P75 needs ${escape(r.p75Shortfall.join(', '))}</small>`:'—',r.events,r.stints,r.laps,r.outliers,`${r.compounds} C grade${r.compounds===1?'':'s'}${r.lowSample||r.events<3?' · limited evidence':''}${r.short?` · ${r.short} unsupported run${r.short===1?'':'s'}`:''}${r.usedStart?` · ${r.usedStart} used start${r.usedStart===1?'':'s'}`:''}`]))+stintPlot+audit);
+  const jointRanking=teams.some(t=>(t.tyreAgeStints||[]).some(s=>finite(s.joint_relative_slope)));
+  const fuelFor=s=>tyreCorrection==='fuel'?tyreFuelRate:0;
+  return {compound:{choices,value:tyreView,overallLabel:'All C grades'},correction:tyreCorrection,
+    correctionText:tyreCorrection==='fuel'?'Assumes 0.060 s/lap fuel gain; not measured fuel or isolated tyre degradation.':'Observed lap-time change includes fuel burn and track conditions.',
+    note:`The number is the change in lap time for each additional lap on the tyre: +0.050 s/lap means a 0.500-second loss over ten tyre-age steps if the trend continues. Each driver's stint is fitted separately over its observed ages; pit, wet and neutralised laps are excluded. Runs are split at SC/VSC/red flags and unusual laps are screened around the fitted trend. ${tyreLapMode==='clear'?'Clean air requires more than 2 seconds to the car ahead at timing checkpoints.':'All usable laps includes traffic and race management.'} ${tyreCorrection==='fuel'?`The rate adds an assumed ${tyreFuelRate.toFixed(3)} s per race lap for fuel burn. This fixed sensitivity assumption is not a measured fuel load or a calibrated value for any season.`:'Observed rates include the benefit of burning fuel.'} ${tyreWeighting==='balanced'?'Median stints describe each driver, then both drivers receive equal weight within each GP and C grade.':'Stints receive weight proportional to their usable laps within each GP and C grade.'} Each GP receives equal weight in the season summary. Overall averages only the C grades observed in each GP, so differing compound and circuit coverage can affect comparisons. Track evolution, temperature, driving targets and energy management can still influence these estimates.`,
+    quality:`${tyreConditionMode==='screened'?'Wet/transition context and rapid field-wide improvement are excluded from the ranking; all fitted runs remain inspectable.':'Diagnostic: all statistically supported pace trends are included, even in changing conditions.'} ${jointRanking?'Ranked from clean-air laps only, all cars fitted together per race: a shared race-lap effect absorbs fuel burn and track evolution, and each car is compared with the field on the same compound (s/lap of tyre age; negative is less degradation). Slower cars put less energy into their tyres, so low degradation is not the same as a fast car. ':''}This measures observed pace change, not physical tyre wear. ${typeof tyreFitMode!=='undefined'&&tyreFitMode==='curve'?'The headline uses the steady segment; warm-up and supported late falloff remain in the plotted curve. Short runs use a labelled linear diagnostic.':'The headline summarizes the entire observed age span; nonlinear phases remain evidence.'}`,
+    commonCoverage:commonTyreCoverage?`Same observed GP + grade pairs: ${commonTyreCoverage.events.join(', ')||'none'} · ${commonTyreCoverage.teams.length} comparable entrants. These are still own-run absolute slopes, not rival-subtracted or rebased scores.`:null,
+    coverage:{mapped:mappedRaces,loaded:loadedRaces.length,unmapped:unmappedStints,source:String(source||'')},legacy,
+    chart:scored.length?{title:`Tyre-age lap-time change · ${tyreView==='OVERALL'?'verified C grades':tyreView}`,rows:scored,extent}:null,
+    emptyMessage:tyreSeasonStat==='p75'?'P75 needs at least four supported Grands Prix for every included C grade. The table shows each missing grade and its GP count.':tyreLapMode==='clear'?'No supported clean-air fits. Try All usable laps to inspect traffic-affected trends.':'No runs with at least six usable laps spanning five tyre-age steps. Short runs remain in the evidence table.',
+    sort:{name:sortHeaderModel('tyreAgeName',tyreSubject==='team'?'Team':'Driver · team'),value:sortHeaderModel('tyreAgeValue','Change per tyre-age lap'),
+      events:sortHeaderModel('tyreAgeEvents','Events',-1),stints:sortHeaderModel('tyreAgeStints','Usable green runs',-1),laps:sortHeaderModel('tyreAgeLaps','Usable laps',-1)},
+    rows:ordered.map(r=>({team:r,value:finite(r.value)?r.value:null,shortfall:r.p75Shortfall.length?r.p75Shortfall.join(', '):null,events:r.events,stints:r.stints,laps:r.laps,outliers:r.outliers,
+      coverage:`${r.compounds} C grade${r.compounds===1?'':'s'}${r.lowSample||r.events<3?' · limited evidence':''}${r.short?` · ${r.short} unsupported run${r.short===1?'':'s'}`:''}${r.usedStart?` · ${r.usedStart} used start${r.usedStart===1?'':'s'}`:''}`})),
+    picker:selectedRun?{teams:plotRuns.map(r=>r.entity.team).sort(),team:selectedRun.entity.team,
+      drivers:runsFor(selectedRun.entity.team).map(r=>r.stint.driver),driver:selectedRun.stint.driver,
+      events:runsFor(selectedRun.entity.team,selectedRun.stint.driver).map(r=>r.stint.event),event:selectedRun.stint.event,
+      runs:runsFor(selectedRun.entity.team,selectedRun.stint.driver,selectedRun.stint.event).map(r=>({key:r.key,label:`Stint ${r.stint.stint} · ${r.stint.compound_grade} · age ${r.stint.min_age}–${r.stint.max_age}${r.stint.segment?` · run ${r.stint.segment+1}`:''}`})),
+      run:selectedRun.key,total:plotRuns.length,teamCount:new Set(plotRuns.map(r=>r.entity.team)).size}:null,
+    plot:selectedRun?tyreStintPlotModel(selectedRun.entity,selectedRun.stint):null,
+    evidence:entities.flatMap(entity=>entity.stints.filter(s=>tyreView==='OVERALL'||s.compound_grade===tyreView).map(s=>({team:entity,driver:s.driver||'—',event:s.event,
+      grade:s.compound_grade||'Unmapped',run:`${s.stint}${s.segment?` · green run ${s.segment+1}`:''}`,
+      ages:finite(s.min_age)&&finite(s.max_age)?`${s.min_age}–${s.max_age}`:'—',laps:s.trendSamples||0,
+      trend:finite(s.trendValue)?signed(s.trendValue,3,' s/lap'):'—',
+      earlyLate:finite(s.early_slope)&&finite(s.late_slope)?`${signed(s.early_slope-(s.fuel_assumption_s_per_lap??.060)+fuelFor(s),3,'')} → ${signed(s.late_slope-(s.fuel_assumption_s_per_lap??.060)+fuelFor(s),3,'')} s/lap`:'—',
+      error:finite(s.residual_spread_s)?fmt(s.residual_spread_s,3,' s'):'—',
+      sensitivity:s.trendSensitivity?`${signed(s.trendSensitivity[0],3,'')} to ${signed(s.trendSensitivity[1],3,'')} s/lap`:'—',
+      status:`${s.trendSupported&&s.compound_grade?'Included':'Diagnostic only'}${!s.supported?' · insufficient span or laps':''}${s.condition_flags?.length?` · ${s.condition_flags.join(', ')}`:''}${s.stable_condition_screen==null?' · condition screening unavailable':''}${finite(s.field_trend_s_per_lap)?` · field trend ${signed(s.field_trend_s_per_lap,3,'')} s/lap (${s.field_trend_drivers} drivers)`:''}${!s.compound_grade?' · unverified compound':''}${s.used_start?' · used tyres':''}`,
+      inspect:s.points?.length>=3?tyreStintKey(entity,s):null}))),
+    auditOpen:!!tyreRunKey};
 }
 
 function renderRace(teams) {
-  if(tyreMetric==='age')return tyreViewControls()+renderTyreAge(teams);
+  // Rendered by src/views/TyresView.tsx; data-tyre-* buttons and selects are handled below.
+  if(tyreMetric==='age')return reactView('tyres',{metric:'age',subject:tyreSubject,...tyreAgeView(teams)});
   const rows=[];
   const usableStint = s => finite(s.relativeSlope) && s.matchedLaps >= 6 && s.fieldSupport >= 2;
   const cohortTeams = new Map();
@@ -1426,7 +1413,6 @@ function renderRace(teams) {
   const compoundOrder=['HYPERSOFT','ULTRASOFT','SUPERSOFT','SOFT','MEDIUM','HARD','SUPERHARD'];
   const choices=['OVERALL','SOFT','MEDIUM','HARD',...compoundOrder.filter(c=>!['SOFT','MEDIUM','HARD'].includes(c)&&teams.some(t=>t.stints.some(s=>s.compound===c)))];
   if(!choices.includes(tyreView)) tyreView='OVERALL';
-  const controls=tyreCompoundControl(choices,'All compounds');
 
   for(const team of teams) {
     const observedStints=(team.stints||[]).filter(s=>finite(s.slope) && (tyreView==='OVERALL'?['SOFT','MEDIUM','HARD'].includes(s.compound):s.compound===tyreView));
@@ -1549,7 +1535,7 @@ function renderRace(teams) {
 
     rows.push({
       team: team.team,
-      label: teamLabel(team),
+      teamObj: team,
       color: team.color,
       slope: seasonSlope,
       normSlope: seasonNormSlope,
@@ -1579,44 +1565,17 @@ function renderRace(teams) {
     tyreLaps: r => r.laps
   }, 'tyreNorm');
 
-  // SVG Horizontal Bar Graph for Field-Relative Tyre Degradation
-  const tyreChart = renderHorizontalBarChart(ordered, {
-     title: `Relative tyre-age trend · ${tyreView === 'OVERALL' ? 'Available compounds' : tyreView}`,
-     subtitle: `Same-event, same-compound cohorts of ≥3 teams · ${tyreSeasonStat==='p75'?'P75 worse GP':tyreSeasonStat==='median'?'Median GP':'Mean GP'} · Limited samples are provisional`,
-    valueKey: 'normSlope',
-    unit: ' s/lap',
-    digits: 3,
-    signedValue: true,
-    zeroBaseline: true
-  });
-
-   return tyreViewControls()+card('Tyre-age lap-time trend',
-     `Extra lap-time change per tyre-age lap against overlapping rivals on the same compound. Each compound uses the selected GP statistic; Overall then averages supported compounds equally. P75 is a worse-end GP trend, not the 75th percentile of individual laps. One-compound or short-season results are provisional. Missing values mean no matched three-team cohort, not zero tyre wear. Traffic and management remain limitations.`,
-    controls + tyreChart +
-    table([
-      sortHeader('tyreTeam', 'Team'),
-      sortHeader('tyreNorm', 'Extra ageing vs rivals'),
-      'Observed age range',
-      sortHeader('tyreStints', 'Matched sample (stints / laps)', -1),
-      'Field support',
-      'Compound mix'
-    ], ordered.map(r => {
-      const ageRange = (finite(r.minAge) && finite(r.maxAge)) ? `L${r.minAge}–L${r.maxAge} (${r.maxAge - r.minAge + 1} laps)` : '—';
-      const sampleText = `${r.stints} matched stint${r.stints === 1 ? '' : 's'} (${r.laps} laps)${r.observedStints > r.stints ? `<small>${r.observedStints} observed stints total</small>` : ''}`;
-       const supportBadge = r.fieldSupported ? '<span class="perf-tercile-badge is-fast">≥2 overlapping rivals</span>' : '<span class="perf-tercile-badge is-mid">No matched cohort</span>';
-      const normText = finite(r.normSlope)
-        ? `${r.normSlope > 0 ? '+' : ''}${fmt(r.normSlope, 3, ' s/lap')}${!r.complete?`<small>Provisional · ${r.events}/${minimumSeasonEvents} supported events</small>`:''}`
-        : '<small>Not enough overlapping rival stints</small>';
-      const compoundText = `${tyreView === 'OVERALL' && r.compoundBreakdown ? escape(r.compoundBreakdown) : tyreView}${r.usedStartCount > 0 ? `<small>${r.usedStartCount} matched stint${r.usedStartCount===1?'':'s'} on used tyres</small>` : ''}${r.compNote ? `<small>${escape(r.compNote)}</small>` : ''}`;
-      return [
-        r.label,
-        normText,
-        ageRange,
-        sampleText,
-        supportBadge,
-        compoundText
-      ];
-    })));
+  return reactView('tyres',{metric:'relative',subject:tyreSubject,compound:{choices,value:tyreView,overallLabel:'All compounds'},
+    chart:{rows:ordered,options:{title:`Relative tyre-age trend · ${tyreView === 'OVERALL' ? 'Available compounds' : tyreView}`,
+      subtitle:`Same-event, same-compound cohorts of ≥3 teams · ${tyreSeasonStat==='p75'?'P75 worse GP':tyreSeasonStat==='median'?'Median GP':'Mean GP'} · Limited samples are provisional`,
+      valueKey:'normSlope',unit:' s/lap',digits:3,signedValue:true,zeroBaseline:true}},
+    sort:{team:sortHeaderModel('tyreTeam','Team'),norm:sortHeaderModel('tyreNorm','Extra ageing vs rivals'),stints:sortHeaderModel('tyreStints','Matched sample (stints / laps)',-1)},
+    rows:ordered.map(r=>({team:r.teamObj,
+      norm:{value:finite(r.normSlope)?r.normSlope:null,provisional:!r.complete?`Provisional · ${r.events}/${minimumSeasonEvents} supported events`:null},
+      ageRange:(finite(r.minAge)&&finite(r.maxAge))?`L${r.minAge}–L${r.maxAge} (${r.maxAge-r.minAge+1} laps)`:'—',
+      sample:`${r.stints} matched stint${r.stints===1?'':'s'} (${r.laps} laps)`,observed:r.observedStints>r.stints?r.observedStints:null,
+      fieldSupported:r.fieldSupported,compound:tyreView==='OVERALL'&&r.compoundBreakdown?r.compoundBreakdown:tyreView,
+      notes:[...(r.usedStartCount>0?[`${r.usedStartCount} matched stint${r.usedStartCount===1?'':'s'} on used tyres`]:[]),...(r.compNote?[r.compNote]:[])]}))});
 }
 
 function sprintPointsForTeam(selectedEvents,team) {

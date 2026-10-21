@@ -870,93 +870,88 @@ test('overall tyre chart shows sparse matched evidence as provisional', () => {
   assert.match(body,/minimumCompoundEvents=1/);
   assert.match(body,/\.filter\(c => c && c\.events\.length >= minimumCompoundEvents\)/);
   assert.match(body,/compoundNorm\.length \? avg\(compoundNorm\) : null/);
-  assert.match(body,/!r\.complete\?`<small>Provisional/);
+  assert.match(body,/provisional:!r\.complete\?`Provisional/);
 });
 
 test('tyre-age view aggregates own stints for teams and individual drivers', () => {
+  // tyreAgeView hands src/views/TyresView.tsx plain data; check the numbers it ranks.
   const source=readFileSync('car-performance.js','utf8');
-  const body=source.slice(source.indexOf('function tyreViewControls()'),source.indexOf('function renderRace(teams)'));
+  const body=source.slice(source.indexOf('function tyreStintKey('),source.indexOf('function renderRace(teams)'));
   const sandbox={tyreMetric:'age',tyreSubject:'team',tyreView:'OVERALL',tyreSeasonStat:'mean',tyreLapMode:'all',tyreCorrection:'fuel',tyreFuelRate:.060,tyreWeighting:'balanced',tyreRunKey:'',tyrePlotTeam:'',tyrePlotDriver:'',tyrePlotEvent:'',sortKey:'tyreAgeValue',sortDirection:1,
     tyreConditionMode:'all',context:{year:'2026'},events:[{round:1,R:{}},{round:2,R:{}}],
     VERIFIED_DRY_ALLOCATIONS:{2026:['345','234']},TYRE_ALLOCATION_SOURCES:{2026:'https://press.pirelli.com/'},
-    finite:n=>typeof n==='number'&&Number.isFinite(n),avg:a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,
-    summarize:(a)=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,
+    avg:a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,summarize:(a)=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,
     sorted:(items,getters,key)=>[...items].sort((a,b)=>getters[key](a)-getters[key](b)),
-    teamLabel:r=>r.displayName,card:(_title,_note,content)=>content,table:(_headers,rows)=>JSON.stringify(rows),
-    sortHeader:(_key,label)=>label,color:v=>v,signed:(n)=>n.toFixed(3),escape:v=>String(v),eventLabel:v=>v,fmt:n=>n.toFixed(3)};
-  vm.createContext(sandbox);
-  vm.runInContext(body,sandbox);
+    finite:n=>typeof n==='number'&&Number.isFinite(n),fmt:(n,d=3,u='')=>Number.isFinite(n)?n.toFixed(d)+u:'—',signed:(n,d=3,u='')=>Number.isFinite(n)?`${n>0?'+':''}${n.toFixed(d)}${u}`:'—',
+    sortHeaderModel:(key,label,direction)=>({key,label,direction})};
+  vm.createContext(sandbox);vm.runInContext(body,sandbox);
+  const close=(value,expected,message)=>assert.ok(Math.abs(value-expected)<1e-9,`${message||''} ${value} vs ${expected}`);
   const teams=[{team:'Example',color:'#123456',tyreAgeStints:[
     {driver:'AAA',event:'One',compound:'SOFT',compound_grade:'C5',fuel_adjusted_slope:.12,samples:8,min_age:1,max_age:8,points:[{lap:3,age:1,time:90.123},{lap:4,age:2,time:90.183},{lap:5,age:3,time:90.243}]},
     {driver:'BBB',event:'One',compound:'SOFT',compound_grade:'C5',fuel_adjusted_slope:.04,samples:8,min_age:1,max_age:8},
     {driver:'AAA',event:'Two',compound:'MEDIUM',compound_grade:'C3',fuel_adjusted_slope:.02,samples:10,min_age:1,max_age:10}
   ]}];
-  const team=sandbox.renderTyreAge(teams);
-  assert.match(team,/0\.050/); // equal event weighting: C5 (.08), then C3 (.02)
-  assert.match(team,/2 C grades/);
-  assert.match(team,/C5/);
-  assert.match(team,/90\.123 s observed/);
-  assert.match(team,/data-tyre-run=/);
-  assert.doesNotMatch(team,/NaN|Infinity/);
-  assert.match(team,/data-tyre-plot-filter="team"/);
-  sandbox.tyreFuelRate=.080;
-  assert.match(sandbox.renderTyreAge(teams),/performance-tyre-age-value">0\.070/);
+  let view=sandbox.tyreAgeView(teams);
+  close(view.rows[0].value,.05,'equal event weighting: C5 (.08), then C3 (.02)');
+  assert.match(view.rows[0].coverage,/2 C grades/);
+  assert.ok(view.evidence.some(e=>e.grade==='C5'));
+  assert.ok(view.plot.points.some(p=>/90\.123 s observed/.test(p.title)));
+  assert.ok(view.evidence.some(e=>e.inspect));
+  assert.doesNotMatch(JSON.stringify(view),/NaN|Infinity/);
+  assert.equal(view.picker.team,'Example');
+  sandbox.tyreFuelRate=.080;close(sandbox.tyreAgeView(teams).chart.rows[0].value,.07);
   sandbox.tyreFuelRate=.060;
   const other={team:'Other',color:'#654321',tyreAgeStints:[{driver:'CCC',event:'Three',compound_grade:'C5',fuel_adjusted_slope:.04,samples:8,min_age:1,max_age:8,points:[{lap:3,age:1,time:92},{lap:4,age:2,time:92.04},{lap:5,age:3,time:92.08}]}]};
   sandbox.tyrePlotTeam='Other';
-  const selected=sandbox.renderTyreAge([...teams,other]);
-  assert.match(selected,/CCC · Three/);
-  assert.match(selected,/2 teams available/);
-  sandbox.tyrePlotTeam='';
-  sandbox.tyreView='C3';
-  assert.match(sandbox.renderTyreAge(teams),/0\.020/);
-  assert.doesNotMatch(sandbox.renderTyreAge(teams),/performance-tyre-age-value">0\.080/);
-  sandbox.tyreView='OVERALL';
-  sandbox.tyreSubject='driver';
-  const drivers=sandbox.renderTyreAge(teams);
-  assert.match(drivers,/AAA · Example/);
-  assert.match(drivers,/BBB · Example/);
+  view=sandbox.tyreAgeView([...teams,other]);
+  assert.match(view.plot.title,/CCC · Three/);assert.equal(view.picker.teamCount,2);
+  sandbox.tyrePlotTeam='';sandbox.tyreView='C3';
+  view=sandbox.tyreAgeView(teams);close(view.rows[0].value,.02);
+  assert.ok(!view.chart.rows.some(r=>Math.abs(r.value-.08)<1e-9));
+  sandbox.tyreView='OVERALL';sandbox.tyreSubject='driver';
+  const names=sandbox.tyreAgeView(teams).rows.map(r=>r.team.displayName);
+  assert.ok(names.includes('AAA · Example')&&names.includes('BBB · Example'));
   sandbox.tyreSubject='team';sandbox.tyreView='C5';
   teams[0].tyreAgeStints[0].samples=32;
-  assert.match(sandbox.renderTyreAge(teams),/0\.080/); // driver weights stay equal
-  sandbox.tyreWeighting='laps';
-  assert.match(sandbox.renderTyreAge(teams),/0\.104/);
+  close(sandbox.tyreAgeView(teams).rows[0].value,.08,'driver weights stay equal');
+  sandbox.tyreWeighting='laps';close(sandbox.tyreAgeView(teams).rows[0].value,.104);
   sandbox.tyreWeighting='balanced';sandbox.tyreCorrection='raw';
   teams[0].tyreAgeStints[0].raw_slope=.06;teams[0].tyreAgeStints[1].raw_slope=-.02;
-  assert.match(sandbox.renderTyreAge(teams),/0\.020/);
+  close(sandbox.tyreAgeView(teams).rows[0].value,.02);
   sandbox.tyreCorrection='fuel';sandbox.tyreLapMode='clear';
   teams[0].tyreAgeStints[0].clean_air={supported:true,samples:12,fuel_adjusted_slope:.03,min_age:1,max_age:14};
-  assert.match(sandbox.renderTyreAge(teams),/0\.030/);
+  close(sandbox.tyreAgeView(teams).rows[0].value,.03);
 });
 
 test('tyre GP summaries handle skew and explain every sparse P75 blank', () => {
   const source=readFileSync('car-performance.js','utf8');
-  const body=source.slice(source.indexOf('function tyreViewControls()'),source.indexOf('function renderRace(teams)'));
+  const body=source.slice(source.indexOf('function tyreStintKey('),source.indexOf('function renderRace(teams)'));
   const sandbox={tyreMetric:'age',tyreSubject:'team',tyreView:'C3',tyreSeasonStat:'mean',tyreLapMode:'all',tyreCorrection:'fuel',tyreFuelRate:.060,tyreWeighting:'balanced',tyreRunKey:'',tyrePlotTeam:'',tyrePlotDriver:'',tyrePlotEvent:'',sortKey:'tyreAgeValue',sortDirection:1,
     tyreConditionMode:'all',context:{year:2026},events:[1,2,3,4].map(round=>({round,R:{}})),
     VERIFIED_DRY_ALLOCATIONS:{2026:['123','123','123','123']},TYRE_ALLOCATION_SOURCES:{2026:'https://press.pirelli.com/'},
-    finite:Number.isFinite,avg:a=>{const x=a.filter(Number.isFinite);return x.length?x.reduce((s,v)=>s+v,0)/x.length:null;},
+    avg:a=>{const x=a.filter(Number.isFinite);return x.length?x.reduce((s,v)=>s+v,0)/x.length:null;},
     summarize:(a,mode)=>{const x=a.filter(Number.isFinite).sort((v,w)=>v-w);if(!x.length)return null;if(mode==='median')return(x[Math.floor((x.length-1)/2)]+x[Math.ceil((x.length-1)/2)])/2;if(mode==='p75'){const i=(x.length-1)*.75,l=Math.floor(i),h=Math.ceil(i);return x[l]+(x[h]-x[l])*(i-l);}return x.reduce((s,v)=>s+v,0)/x.length;},
     sorted:(rows,getters,key)=>[...rows].sort((a,b)=>(getters[key](a)??Infinity)-(getters[key](b)??Infinity)),
-    teamLabel:r=>r.displayName,card:(_title,_note,body)=>body,table:(_headers,rows)=>JSON.stringify(rows),sortHeader:(_key,label)=>label,
-    color:v=>v,signed:n=>n.toFixed(3),escape:v=>String(v),eventLabel:v=>v,fmt:n=>n.toFixed(3)};
+    finite:n=>typeof n==='number'&&Number.isFinite(n),fmt:(n,d=3,u='')=>Number.isFinite(n)?n.toFixed(d)+u:'—',signed:(n,d=3,u='')=>Number.isFinite(n)?`${n>0?'+':''}${n.toFixed(d)}${u}`:'—',
+    sortHeaderModel:(key,label,direction)=>({key,label,direction})};
   vm.createContext(sandbox);vm.runInContext(body,sandbox);
   const slopes=[.01,.02,.03,.5];
   const teams=[{team:'Measured',color:'#123456',tyreAgeStints:slopes.map((s,i)=>({event:`GP ${i+1}`,compound_grade:'C3',fuel_adjusted_slope:s,samples:8}))},
     {team:'Missing',color:'#888888',tyreAgeStints:[]}];
-  for(const [mode,expected] of [['mean','0.140'],['median','0.025'],['p75','0.147']]){
+  const measured=()=>sandbox.tyreAgeView(teams).rows.find(r=>r.team.team==='Measured');
+  for(const [mode,expected] of [['mean',.14],['median',.025],['p75',.1475]]){
     sandbox.tyreSeasonStat=mode;
-    assert.match(sandbox.renderTyreAge(teams),new RegExp(expected));
+    assert.ok(Math.abs(measured().value-expected)<1e-9,mode);
   }
   sandbox.tyreSeasonStat='p75';
   teams[0].tyreAgeStints.pop();
-  const sparse=sandbox.renderTyreAge(teams);
-  assert.match(sparse,/C3: 3\/4 GPs/);
-  assert.match(sparse,/Missing/);
+  const sparse=sandbox.tyreAgeView(teams);
+  assert.match(sparse.rows.find(r=>r.team.team==='Measured').shortfall,/C3: 3\/4 GPs/);
+  assert.ok(sparse.rows.some(r=>r.team.team==='Missing'));
   sandbox.tyreView='OVERALL';
   teams[0].tyreAgeStints.push({event:'GP 4',compound_grade:'C3',fuel_adjusted_slope:.5,samples:8});
   teams[0].tyreAgeStints.push({event:'GP 1',compound_grade:'C2',fuel_adjusted_slope:.04,samples:8});
-  assert.match(sandbox.renderTyreAge(teams),/C2: 1\/4 GPs/);
+  assert.match(measured().shortfall,/C2: 1\/4 GPs/);
 });
 
 test('tyre-age C grades use the race-year Pirelli allocation, including skipped 2025 grades', async () => {
@@ -981,8 +976,8 @@ test('tyre-age trend screens residuals and reports exclusions without an age win
   assert.match(api,/individual_rows = \[r for r in valid_all/);
   assert.match(api,/residual-residual_mid/);
   assert.match(api,/'outlier_laps': len\(laps\)-len\(used\)/);
-  assert.match(view,/Outlier laps removed/);
-  assert.doesNotMatch(view.slice(view.indexOf('function renderTyreAge'),view.indexOf('function renderRace')),/Tyre-age range/);
+  assert.match(readFileSync('src/views/TyresView.tsx','utf8'),/Outlier laps removed/);
+  assert.doesNotMatch(view.slice(view.indexOf('function tyreAgeView'),view.indexOf('function renderRace')),/Tyre-age range/);
 });
 
 test('pit category keeps stationary and lane averages separate by team and driver', () => {

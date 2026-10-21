@@ -14,8 +14,9 @@ import {PaceView} from './views/PaceView';
 import {PitsView} from './views/PitsView';
 import {ResultsView} from './views/ResultsView';
 import {TrendView} from './views/TrendView';
+import {TyresView} from './views/TyresView';
 
-const VIEWS: Record<string, ComponentType<any>> = {results: ResultsView, pits: PitsView, trend: TrendView, pace: PaceView};
+const VIEWS: Record<string, ComponentType<any>> = {results: ResultsView, pits: PitsView, trend: TrendView, pace: PaceView, tyres: TyresView};
 const roots = new WeakMap<Element, Root>();
 
 /** Render every placeholder in `container` synchronously, so code that runs

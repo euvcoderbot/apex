@@ -14,6 +14,7 @@ async function load() {
 export {PitsView} from './src/views/PitsView';
 export {TrendView} from './src/views/TrendView';
 export {PaceView} from './src/views/PaceView';
+export {TyresView} from './src/views/TyresView';
 export {Sparkline} from './src/components/Sparkline';
 export {BarChart} from './src/components/BarChart';
 export {DataTable} from './src/components/DataTable';
@@ -119,4 +120,36 @@ test('pace view: toggles, two charts, cell notes and evidence tables', () => {
   assert.match(html, /0\.500% <span class="perf-tercile-badge is-mid">Provisional estimate<\/span><small>LEC · 3\/3 races supported<\/small>/);
   assert.match(html, /0\.4–0\.7%<small>3 deletion fits<\/small>/);
   assert.match(html, />89\.123</);
+});
+
+test('tyre trend view: toolbar per mode, compound pills, stint plot and run picker', () => {
+  const team = {team: 'Ferrari', color: '#ff0000'};
+  const relative = render(views.TyresView, {metric: 'relative', subject: 'team', compound: {choices: ['OVERALL', 'C3', 'C4', 'C5'], value: 'C4', overallLabel: 'All compounds'},
+    chart: {rows: [{...team, normSlope: .02}], options: {valueKey: 'normSlope', unit: ' s/lap'}},
+    sort: {team: sortModel('tyreTeam'), norm: sortModel('tyreNorm'), stints: sortModel('tyreStints')},
+    rows: [{team, norm: {value: .02, provisional: 'Provisional · 2/3 supported events'}, ageRange: 'L1–L20 (20 laps)', sample: '4 matched stints (60 laps)', observed: 6, fieldSupported: true, compound: 'S: 40% · M: 60%', notes: ['1 matched stint on used tyres']}]});
+  assert.equal((relative.match(/data-tyre-metric=/g) || []).length, 2);
+  assert.doesNotMatch(relative, /data-tyre-subject=/, 'matched rivals has no subject switch');
+  assert.equal((relative.match(/data-tyre-compound=/g) || []).length, 4);
+  assert.match(relative, /data-tyre-compound="C4" aria-pressed="true"/);
+  assert.match(relative, /aria-labelledby="performanceTyreCompoundLabel"/);
+  assert.match(relative, /\+0\.020 s\/lap<small>Provisional · 2\/3 supported events<\/small>/);
+  const plot = {title: 'LEC · Bahrain Grand Prix · C3 · stint 2', teamColor: '#ff0000', empty: false, noTrend: false, caption: 'Recorded times · dots are laps',
+    exclusions: {pressed: false, label: 'Show 1 excluded lap'}, axis: {lo: 1, hi: 20, grid: [{y: 180, label: '0.000'}]}, curve: 'M 55 170 L 645 40',
+    points: [{cx: 55, cy: 170, title: 'Lap 3 · age 1'}], excluded: [], laps: [{lap: 3, age: 1, time: 95.2, status: 'Used'}]};
+  const age = render(views.TyresView, {metric: 'age', subject: 'driver', note: 'n', compound: {choices: ['OVERALL', 'C3'], value: 'OVERALL', overallLabel: 'All C grades'},
+    correction: 'fuel', correctionText: 'Assumes 0.060 s/lap fuel gain', quality: 'q', commonCoverage: null, coverage: {mapped: 3, loaded: 3, unmapped: 0, source: 'https://press.pirelli.com/'},
+    legacy: false, chart: {title: 'Tyre-age lap-time change', rows: [{...team, value: -.01}], extent: .02}, emptyMessage: '',
+    sort: {name: sortModel('tyreAgeName'), value: sortModel('tyreAgeValue'), events: sortModel('tyreAgeEvents'), stints: sortModel('tyreAgeStints'), laps: sortModel('tyreAgeLaps')},
+    rows: [{team, value: null, shortfall: 'C3: 3/4 GPs', events: 3, stints: 4, laps: 40, outliers: 1, coverage: '1 C grade'}],
+    picker: {teams: ['Ferrari'], team: 'Ferrari', drivers: ['LEC'], driver: 'LEC', events: ['Bahrain Grand Prix'], event: 'Bahrain Grand Prix', runs: [{key: 'k', label: 'Stint 2'}], run: 'k', total: 1, teamCount: 1},
+    plot, evidence: [], auditOpen: true});
+  assert.equal((age.match(/data-tyre-metric=/g) || []).length + (age.match(/data-tyre-subject=/g) || []).length, 4);
+  assert.match(age, /data-tyre-subject="driver" aria-pressed="true"/);
+  assert.match(age, /performance-tyre-age-bar" style="--bar-color:#ff0000;left:25\.00%;width:25\.00%"/);
+  assert.match(age, /—<small>P75 needs C3: 3\/4 GPs<\/small>/);
+  assert.match(age, /<select data-tyre-plot-filter="team">/);
+  assert.match(age, /stroke-dasharray="6 4"/);
+  assert.match(age, /data-tyre-exclusions="" aria-pressed="false">Show 1 excluded lap/);
+  assert.match(age, /<details class="dashboard-card performance-methods" open="">/);
 });

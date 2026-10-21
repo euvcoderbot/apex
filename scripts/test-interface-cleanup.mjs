@@ -44,10 +44,10 @@ test('acceleration keeps speed-band selection without methodology choices',()=>{
 });
 
 test('tyre subject and metric selector uses a single consistent season summary',()=>{
-  const start=car.indexOf('function tyreViewControls()'),end=car.indexOf('function tyreStintKey(',start);
-  const box={tyreMetric:'age',tyreSubject:'team'};vm.createContext(box);vm.runInContext(car.slice(start,end),box);
-  assert.equal((box.tyreViewControls().match(/<button/g)||[]).length,4);
-  box.tyreMetric='relative';assert.equal((box.tyreViewControls().match(/<button/g)||[]).length,2);
+  // The toolbar is drawn by src/views/TyresView.tsx (rendered in test-react-views.mjs).
+  const tyres=readFileSync('src/views/TyresView.tsx','utf8');
+  assert.match(tyres,/name="tyre-metric"[^>]*\[\['age', 'Tyre-age trend'\], \['relative', 'Matched rivals'\]\]/);
+  assert.match(tyres,/p\.metric === 'age' \? <SegmentedControl name="tyre-subject"/);
   assert.match(car,/const tyreSeasonStat='median'/);
   assert.match(car,/const telemetrySeasonStat='mean'/);
 });

@@ -39,12 +39,10 @@ test('trace selectors show exact lap times while retaining stable lap identities
 });
 
 test('compound pills keep all options and the selected compound',()=>{
-  const source=car.slice(car.indexOf('function tyreCompoundControl('),car.indexOf('function tyreStintKey('));
-  const box={tyreView:'C4'};vm.createContext(box);vm.runInContext(source,box);
-  const html=box.tyreCompoundControl(['OVERALL','C3','C4','C5'],'All C grades');
-  assert.equal((html.match(/data-tyre-compound=/g)||[]).length,4);
-  assert.match(html,/data-tyre-compound="C4" aria-pressed="true"/);
-  assert.match(html,/aria-labelledby="performanceTyreCompoundLabel"/);
+  // CompoundControl in src/views/TyresView.tsx (rendered in test-react-views.mjs).
+  const tyres=readFileSync('src/views/TyresView.tsx','utf8');
+  assert.match(tyres,/data-tyre-compound=\{c\} aria-pressed=\{compound\.value === c\}/);
+  assert.match(tyres,/aria-labelledby="performanceTyreCompoundLabel"/);
   assert.match(car,/const navEmoji=\{pace:'⏱️'/);
   assert.match(css,/performance-tyre-toolbar \.performance-quality-status \{ flex: 1 0 100%/);
 });
