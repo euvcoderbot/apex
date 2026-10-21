@@ -121,6 +121,9 @@ test('official team marks ship in colour, black and white at 96px and switch by 
 test('lap cards: horizontal header and inline deltas immediately before times',()=>{
   assert.match(css,/\.sector-cards \.lap-summary-card \.sector-cell-value \{ display: flex; flex-direction: column; align-items: center;/);
   assert.match(css,/summary-lap-time \{[^}]*flex-direction: row;[^}]*align-items: baseline/);
+  assert.match(css,/summary-lap-time \{[^}]*align-self: center;/);
+  assert.match(css,/summary-conditions \{[^}]*grid-template-columns: repeat\(4,max-content\)/);
+  assert.match(css,/@container lapcard \(max-width: 370px\) \{\s*\.sector-cards \.lap-summary-card \.summary-conditions \{ grid-template-columns: repeat\(2,max-content\)/);
   assert.match(css,/sector-delta-slot \{ order: 0; display: inline-flex/);
   assert.match(css,/sector-measurements > strong \{ order: 1;/);
   assert.doesNotMatch(css,/summary-lap-time:not\(:has\(\.summary-delta\)\)::after/);
