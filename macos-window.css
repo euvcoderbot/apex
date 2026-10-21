@@ -157,7 +157,7 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .app-sidebar .btn-track-action[data-ui-kind] { width: 100%; height: 24px; min-height: 24px; padding: 0 6px; border: 0; border-radius: 6px; background: var(--ui-control); color: var(--ui-label); box-shadow: var(--ui-shadow-control); font-size: 14px; font-weight: 400; }
 .app-sidebar .btn-track-action[data-ui-kind]:hover:not(:disabled) { background: var(--ui-control-hover); }
 .app-sidebar .performance-track-choices { padding: 5px; border: 1px solid var(--ui-border); border-radius: 10px; background: var(--ui-well); }
-.app-sidebar .performance-track-pills { display: grid; grid-template-columns: minmax(0,1fr); gap: 3px; max-height: 440px; overflow-y: auto; scrollbar-gutter: stable; }
+.app-sidebar .performance-track-pills { display: grid; grid-template-columns: minmax(0,1fr); gap: 3px; max-height: none; overflow: visible; scrollbar-gutter: auto; }
 .app-sidebar .track-pill[data-ui-kind="choice"] { display: grid; grid-template-columns: 18px 25px minmax(0,1fr); align-items: center; justify-content: start; gap: 7px; width: 100%; min-height: 40px; height: auto; padding: 7px 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; box-shadow: none; font-size: 13px; line-height: 1.35; text-align: left; color: var(--ui-label); }
 .app-sidebar .track-pill::before,.app-sidebar .track-pill::after { content: none; display: none; }
 .app-sidebar .track-pill .track-round { font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; color: var(--ui-tertiary); }
@@ -254,14 +254,56 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .sector-cell.is-session-best { --sector-status: var(--f1-purple); --sector-status-light: var(--f1-purple-light); }
 .sector-cell.is-personal-best { --sector-status: var(--f1-green); --sector-status-light: var(--f1-green-light); }
 .sector-cell.is-complete { --sector-status: var(--f1-yellow); --sector-status-light: var(--f1-yellow-light); }
-.sector-cards .lap-summary-card .sector-cell::after,.summary-sectors > .sector-cell::after { height: 4px; border-radius: 1px; background: linear-gradient(var(--sector-status-light,var(--sector-status)) 50%,var(--sector-status) 50%); box-shadow: none; }
+.sector-cards .lap-summary-card .sector-cell::after,.summary-sectors > .sector-cell::after { height: 3px; border-radius: 2px; background: var(--sector-status); box-shadow: none; }
 /* Lap summaries: half-width cards so two laps share a row on wide windows. */
 .sector-cards { display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%,440px),1fr)); gap: 10px; }
-.sector-cards .lap-summary-card { grid-template-columns: minmax(0,1fr); gap: 6px; padding: 9px 12px; }
-.sector-cards .lap-summary-card > header { grid-area: 1 / 1; }
-.sector-cards .lap-summary-card .summary-sectors { grid-area: 2 / 1; border-left: 0; padding-left: 0; padding-top: 4px; border-top: 1px solid var(--ui-border-strong); }
-.sector-cards .lap-summary-card .summary-conditions { grid-area: 3 / 1; }
-.sector-cards .lap-summary-card .summary-lap-time > strong { font: 500 24px/1.15 var(--ui-font); font-variant-numeric: lining-nums tabular-nums; font-feature-settings: "tnum"; letter-spacing: -.025em; }
+/* Lap cards (merged with Codex 485795d, then refined to the latest review):
+   identity, tyre and the main lap time on the left with its delta centred
+   underneath; three centred sector cells on the right, each with its time,
+   a fixed-height delta slot and the status bar at the same baseline in every
+   card; weather (with emoji) on one line underneath. */
+.sector-cards { container-type: inline-size; container-name: sectorcards; }
+.sector-cards .lap-summary-card { display: grid; grid-template-columns: minmax(0,1fr); gap: 0; padding: 14px 16px; border: 1px solid var(--ui-border); border-radius: 12px; background: var(--ui-well); }
+.sector-cards .lap-summary-card::before { display: none; }
+.sector-cards .lap-summary-card > header { grid-area: 1 / 1; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 0; padding: 0; }
+.sector-cards .lap-summary-card .summary-header-actions { display: contents; }
+.sector-cards .lap-summary-card .summary-driver { display: flex; align-items: center; gap: 7px; }
+.sector-cards .lap-summary-card .summary-driver > em { padding: 2px 5px; border-radius: 4px; font: 600 11px/1.2 var(--ui-font); color: var(--ui-accent); background: color-mix(in srgb,var(--ui-accent) 12%,transparent); }
+.sector-cards .lap-summary-card .summary-tyre-copy { gap: 5px; }
+.sector-cards .lap-summary-card .summary-tyre-copy b { font-size: 12px; font-weight: 500; }
+.sector-cards .lap-summary-card .summary-tyre-copy small { font-size: 12px; color: var(--ui-tertiary); }
+/* Main time with its delta centred underneath (a fixed slot keeps every card's time on one baseline). */
+.sector-cards .lap-summary-card .summary-lap-time { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 4px; }
+.sector-cards .lap-summary-card .summary-lap-time > small { display: none; }
+.sector-cards .lap-summary-card .summary-lap-time > strong { order: 0; font: 500 26px/1.1 var(--ui-font); font-variant-numeric: lining-nums tabular-nums; font-feature-settings: "tnum"; letter-spacing: -.02em; }
+.sector-cards .lap-summary-card .summary-lap-time > .summary-delta { order: 1; }
+.sector-cards .lap-summary-card .summary-lap-time:not(:has(.summary-delta))::after { content: ''; order: 1; height: 20px; }
+/* Sectors: equal centred cells; label, time, delta slot, bar. */
+.sector-cards .lap-summary-card .summary-sectors { grid-area: 2 / 1; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin-top: 12px; padding: 12px 0 0; border: 0; border-top: 1px solid var(--ui-separator); }
+.sector-cards .lap-summary-card .sector-cell { position: relative; display: flex; flex-direction: column; align-items: stretch; min-height: 0; padding: 0 0 10px; border: 0; background: none; }
+.sector-cards .lap-summary-card .sector-cell + .sector-cell { border-left: 0; }
+.sector-cards .lap-summary-card .sector-cell::after { left: 0; right: 0; bottom: 0; height: 4px; }
+.sector-cards .lap-summary-card .sector-cell-value { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px; text-align: center; }
+.sector-cards .lap-summary-card .sector-cell-value > small { color: var(--ui-tertiary); font-size: 12px; font-weight: 600; }
+.sector-cards .lap-summary-card .sector-measurements { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.sector-cards .lap-summary-card .sector-measurements > strong { order: 0; font: 500 17px/1.2 var(--ui-font); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sector-cards .lap-summary-card .sector-delta-slot,.sector-cards .lap-summary-card .sector-delta-slot:empty { order: 1; display: flex; align-items: center; justify-content: center; height: 20px; min-height: 20px; visibility: visible; }
+.sector-cards .lap-summary-card :is(.sector-delta-slot,.summary-lap-time) .summary-delta { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: 5px; font-size: 12px; line-height: 1; }
+/* Weather: one compact line with the emoji. */
+.sector-cards .lap-summary-card .summary-conditions { grid-area: 3 / 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin-top: 12px; padding-top: 10px; border: 0; border-top: 1px solid var(--ui-separator); }
+.sector-cards .lap-summary-card .summary-condition { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; white-space: nowrap; }
+.sector-cards .lap-summary-card .summary-condition > i { display: inline; font-size: 14px; font-style: normal; line-height: 1; }
+.sector-cards .lap-summary-card .summary-condition > span { display: inline-flex; align-items: baseline; gap: 4px; }
+.sector-cards .lap-summary-card .summary-condition small { font-size: 12px; color: var(--ui-tertiary); }
+.sector-cards .lap-summary-card .summary-condition strong { font: 500 12px/1.4 var(--ui-font); color: var(--ui-secondary); }
+/* Wide enough: identity left, sectors right, weather across the bottom. */
+@container sectorcards (min-width: 700px) {
+  .sector-cards .lap-summary-card { grid-template-columns: auto minmax(0,1fr); column-gap: 16px; }
+  .sector-cards .lap-summary-card > header { grid-area: 1 / 1; align-self: stretch; padding-right: 16px; border-right: 1px solid var(--ui-separator); }
+  .sector-cards .lap-summary-card .summary-sectors { grid-area: 1 / 2; margin-top: 0; padding-top: 0; border-top: 0; align-self: stretch; }
+  .sector-cards .lap-summary-card .sector-cell { justify-content: space-between; }
+  .sector-cards .lap-summary-card .summary-conditions { grid-area: 2 / 1 / auto / -1; flex-wrap: nowrap; }
+}
 .lap-workspace .lap-clock { font-family: var(--ui-font); font-size: 14px; font-weight: 500; font-variant-numeric: lining-nums tabular-nums; letter-spacing: -.01em; }
 .sector-cards .lap-summary-card .summary-driver > b { font: 600 15px/1.3 var(--ui-font); }
 /* Trace toolbar: one connected group plus regular-size push buttons. */
@@ -325,7 +367,8 @@ body.trace-focus .chart-heading .trace-focus-button:not(.trace-focus-close) { di
   border: 0; border-radius: 50%; background: transparent; box-shadow: inset 0 0 0 1.2px var(--ui-border-strong); vertical-align: middle; opacity: 1; clip: auto; clip-path: none; cursor: default;
   transition: background-color var(--ui-motion) var(--ui-ease),box-shadow var(--ui-motion) var(--ui-ease);
 }
-:is(.trace-setting,.trace-driver-chip) input:checked { background: var(--ui-action) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4.6 8.3 2.3 2.3 4.6-5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat; box-shadow: none; }
+.trace-setting input[data-ui-kind="checkbox"]:checked,.trace-driver-chip input[data-ui-kind="checkbox"]:checked { background: var(--ui-action) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4.6 8.3 2.3 2.3 4.6-5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat; box-shadow: none; }
+.trace-setting input[data-ui-kind="checkbox"]::after,.trace-driver-chip input[data-ui-kind="checkbox"]::after { display: none; }
 :is(.trace-setting,.trace-driver-chip) input:checked::after,:is(.trace-setting,.trace-driver-chip) input::before { content: none; display: none; }
 :is(.trace-setting,.trace-driver-chip) input:focus-visible { outline: 3px solid var(--ui-focus); outline-offset: 1px; }
 .trace-pill-group .trace-driver-chip { padding-inline: 8px 6px; }
@@ -498,14 +541,21 @@ button[data-ui-kind="menu-item"] { display: flex; align-items: center; gap: 6px;
 button[data-ui-kind="menu-item"][aria-selected="true"]::before { content: ''; position: absolute; left: 7px; top: 50%; width: 10px; height: 10px; margin-top: -5px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='m1.5 5.3 2.3 2.3 4.7-5.2' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='m1.5 5.3 2.3 2.3 4.7-5.2' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat; }
 button[data-ui-kind="menu-item"][aria-selected="true"]::after { display: none; }
 button[data-ui-kind="menu-item"]:is(:hover,:focus-visible) { background: var(--ui-action); color: #fff; }
-/* An anchored, scrollable menu keeps the selected race in view. */
-.select-menu,.select-shell:has(#gp) .select-menu { display: flex; flex-direction: column; gap: 1px; width: max-content; min-width: 100%; max-width: min(360px,calc(100vw - 32px)); max-height: min(352px,55dvh); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 5px; box-sizing: border-box; border: 1px solid var(--ui-border-strong); border-radius: 10px; }
-.select-menu button,.select-shell:has(#gp) .select-menu button { flex: 0 0 auto; width: 100%; min-height: 30px; height: auto; padding: 6px 12px 6px 24px; border-radius: 5px; white-space: normal; text-align: left; font: 400 13px/1.35 var(--ui-font); }
+/* Full-height menus render in the top layer, clear of sidebar clipping. */
+.select-menu,.select-shell:has(#gp) .select-menu { display: flex; flex-direction: column; gap: 0; width: max-content; min-width: 100%; max-width: min(380px,calc(100vw - 16px)); max-height: none; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: auto; padding: 5px; box-sizing: border-box; border: 1px solid var(--ui-border-strong); border-radius: 12px; }
+.select-menu[popover] { position: fixed; inset: auto; margin: 0; min-width: 0; padding: 5px; transform: none; animation: none; }
+.select-menu[popover] button[data-ui-kind="menu-item"] { min-height: 28px; }
+.select-menu[popover]:not(:popover-open) { display: none; }
+.select-menu[popover]:popover-open { opacity: 1; visibility: visible; pointer-events: auto; transform: none; animation: none; }
+.select-menu::backdrop { background: transparent; }
+.select-menu button,.select-shell:has(#gp) .select-menu button { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; width: 100%; min-height: 28px; height: auto; padding: 5px 28px 5px 4px; border-radius: 6px; white-space: normal; text-align: left; font: 400 14px/18px var(--ui-font); }
+.select-trigger[data-ui-kind="popup"] { padding-left: 10px; }
 .select-menu button .select-option-text { min-width: 0; line-height: 1.35; white-space: normal; }
 .select-menu button .gp-flag { flex: 0 0 18px; width: 18px; height: 13px; }
 .select-menu button[aria-selected="true"] { background: var(--ui-selection-muted); color: var(--ui-label); font-weight: 500; }
 .select-menu button[aria-selected="true"]::after { display: none; }
 .select-menu button[aria-selected="true"]::before { display: block; }
+.select-menu button[data-ui-kind="menu-item"][aria-selected="true"]::before { left: auto; right: 9px; }
 .select-menu button:is(:hover,:focus-visible) { background: var(--ui-action); color: #fff; }
 /* Segmented controls: recessed track with a raised thumb. */
 [data-ui-group="segments"]:not(.performance-tabs) { gap: 0; padding: 2px; border: 0; border-radius: 7px; background: var(--ui-seg-track); box-shadow: inset 0 0 0 .5px var(--ui-separator); }
@@ -567,7 +617,7 @@ body.performance-view > #carPerformance:not([hidden]),body:not(.performance-view
   .app-sidebar .performance-controls > .panel-heading { display: none; }
   .app-sidebar .performance-controls > .performance-actions { margin: 0; }
   .app-sidebar .performance-controls #performanceTrackTray:not([hidden]) { grid-column: 1 / -1; }
-  .app-sidebar .performance-track-pills { grid-template-columns: repeat(auto-fill,minmax(min(100%,220px),1fr)); max-height: 380px; }
+  .app-sidebar .performance-track-pills { grid-template-columns: repeat(auto-fill,minmax(min(100%,220px),1fr)); max-height: none; }
   #carPerformance > .category-bar:not([hidden]) { margin-inline: 16px; max-width: calc(100% - 32px); }
   #performanceResults > .performance-toolbar > .performance-mode { display: none; }
   #carPerformance > .performance-status-card,#carPerformance > #performanceResults { padding-inline: 16px; }
@@ -663,7 +713,6 @@ main#top > .analysis-column { padding: 24px; gap: 20px; }
 #driverPills .driver-pill-identity strong { font-weight: 600; }
 .lap-workspace .lap-chip[data-ui-kind="choice"],.lap-workspace .run-segment[data-ui-kind="run"] { border-radius: var(--ui-radius); }
 .lap-workspace .lap-chip[data-ui-kind="choice"] { min-height: 38px; padding: 6px 10px; }
-.sector-cards .lap-summary-card .sector-cell-value { flex-wrap: wrap; gap: 4px; min-width: 0; }
 .sector-cards .lap-summary-card .sector-cell-value :is(strong,em) { white-space: nowrap; }
 .sector-cards .lap-summary-card .summary-sectors > * { min-width: 0; }
 .category-bar .category-tab,.category-bar .category-tab[data-ui-kind="tab"] { min-height: 34px; height: auto; padding-block: 6px; border-radius: var(--ui-radius); }
@@ -720,3 +769,101 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
  button[data-ui-kind] { border: 1px solid ButtonText; background: ButtonFace; color: ButtonText; box-shadow: none; }
  button[aria-pressed="true"],button[aria-selected="true"],.category-tab[aria-current="page"] { background: Highlight; color: HighlightText; }
 }
+
+
+/* ---------- Consistency pass (HIG type scale on top of the Figma tokens) ----------
+   One type ramp, three weights (400/500/600), letter-spacing only on the
+   uppercase eyebrow, and concentric radii for nested controls. */
+:root { --type-caption: 12px; --type-callout: 13px; --type-body: 14px; --type-headline: 15px; --type-title3: 17px; --type-title2: 22px; --type-title1: 28px; }
+:where(h1,h2,h3,h4,strong,b,em,small,span,td,th,button,label,summary) { letter-spacing: normal; }
+.workspace-eyebrow { letter-spacing: .06em; }
+/* Session analysis */
+#driverPills .driver-pill-identity small,.lap-workspace .run-driver small,.lap-workspace .lap-tyre-age { font-size: var(--type-caption); }
+.lap-workspace .run-driver h3,.sector-cards .lap-summary-card .summary-driver > b,.loaded-lap-main b { font-size: var(--type-headline); font-weight: 600; }
+.lap-workspace .run-segment strong,.lap-workspace .lap-group-header,.lap-workspace .run-section-label { font-size: var(--type-callout); font-weight: 600; text-transform: none; }
+.lap-workspace .lap-state { font-size: var(--type-caption); font-weight: 600; }
+.lap-workspace .lap-clock { font-size: var(--type-body); font-weight: 500; }
+.lap-workspace .fastest-lap-pick span,.lap-workspace .fastest-lap-pick strong { font-size: var(--type-callout); }
+.lap-summary-card .summary-condition small { text-transform: none; font-size: var(--type-caption); }
+.lap-summary-card .summary-condition strong { font-size: var(--type-caption); font-weight: 500; }
+#driverSidebar .tire-copy strong,.app-sidebar .tire-copy strong { font-size: var(--type-body); font-weight: 500; text-transform: none; }
+.comparison-tray-heading,.comparison-tray-heading span { font-size: var(--type-callout); font-weight: 600; }
+.trace-setting,.trace-setting span,.alignment-readout span,.trace-visibility-label { font-size: var(--type-callout); font-weight: 500; }
+.trace-pill-group .trace-driver-chip b { font-size: var(--type-callout); font-weight: 600; }
+.chart-heading h2,.dominance-map-header h2,.corner-analysis-toggle,.workspace-disclosure { font-size: var(--type-headline); font-weight: 600; }
+.chart-heading h2 small,.dominance-map-header h2 small { font-size: var(--type-caption); font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
+.loaded-lap-main span { font-size: var(--type-callout); font-weight: 600; }
+.loaded-lap-main strong { font-size: var(--type-body); font-weight: 500; }
+/* Car performance */
+#carPerformance .team-name,.performance-bar-label .team-name,.performance-table .team-name { font-size: var(--type-body); font-weight: 500; }
+.performance-bar-val,.performance-tyre-age-value,.trend-change { font-size: var(--type-body); font-weight: 600; }
+.trend-coverage,.metric-load-count { font-size: var(--type-callout); }
+.perf-chart-title,.perf-chart-heading { font-size: var(--type-headline); font-weight: 600; }
+#performanceMetricPanel .performance-card > .panel-heading h2 { font-size: var(--type-headline); font-weight: 600; }
+#performanceMetricPanel .metric-heading h2,.metric-heading-copy h2 { font-size: var(--type-title1); font-weight: 700; letter-spacing: -.01em; }
+.performance-table th,.performance-table th button { font-size: var(--type-caption); font-weight: 600; }
+.performance-table td { font-size: var(--type-body); }
+/* One weight for every segmented control, including the toolbar view switch. */
+[data-ui-group="segments"] > button[data-ui-kind="segment"],.site-header .performance-tabs > button { font-weight: 500; }
+[data-ui-group="segments"] > button[data-ui-kind="segment"][aria-pressed="true"],.site-header .performance-tabs > button[aria-pressed="true"] { font-weight: 600; }
+/* Concentric radii: controls nested in an 8px container use 6px. */
+.chart-heading .trace-zoom-cluster .trace-tools button[data-ui-kind="stepper"] { border-radius: 6px; }
+.corner-picker button,.circuit-section-group .corner-picker button.corner-pick { border-radius: var(--ui-radius); font-size: var(--type-callout); font-weight: 500; }
+.workspace-tools button[data-ui-kind="toolbar"],#windowSidebarToggle { height: 32px; min-height: 32px; }
+.site-header .performance-tabs > button[data-ui-kind="segment"] { font-weight: 500; }
+.site-header .performance-tabs > button[data-ui-kind="segment"][aria-pressed="true"] { font-weight: 600; }
+.trace-display-bar > span:first-child { font-size: var(--type-callout); font-weight: 500; }
+.map-north { font-size: var(--type-callout); }
+.lap-workspace .lap-clock,.sector-cards .lap-summary-card .summary-lap-time > strong { letter-spacing: normal; }
+:is(.summary-driver em,.loaded-lap-pill.reference::before,.corner-driver em) { font-weight: 700; }
+/* Corner section table: header and rows share one grid, padding and alignment;
+   sorting shows as label colour + arrow, never a filled box. */
+.corner-detail-card :is(.corner-table-head,.corner-driver-row) { display: grid; grid-template-columns: minmax(110px,1.3fr) repeat(3,minmax(0,1fr)); align-items: center; column-gap: 12px; padding: 0 10px; }
+.corner-detail-card .corner-table-head { min-height: 36px; border-bottom: 1px solid var(--ui-border); }
+.corner-detail-card .corner-table-head > span:first-child { font-size: var(--type-caption); font-weight: 600; color: var(--ui-secondary); }
+.corner-detail-card .corner-table-head > button,.corner-detail-card .corner-table-head > button[data-ui-kind="sort"] { display: inline-flex; align-items: baseline; justify-content: flex-end; flex-wrap: nowrap; gap: 4px; min-height: 0; height: auto; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--ui-secondary); font-size: var(--type-caption); font-weight: 600; white-space: nowrap; }
+.corner-detail-card .corner-table-head > button:hover:not(:disabled),.corner-detail-card .corner-table-head > button:active:not(:disabled) { background: none; color: var(--ui-label); }
+.corner-detail-card .corner-table-head > button[aria-pressed="true"] { color: var(--ui-label); }
+.corner-detail-card .corner-table-head > button small { margin: 0; font-size: var(--type-caption); font-weight: 400; color: var(--ui-tertiary); }
+.corner-detail-card .corner-driver-row { min-height: 40px; padding-block: 0; border-bottom: 1px solid var(--ui-separator); }
+.corner-detail-card .corner-driver-row > :not(.corner-driver) { justify-self: end; text-align: right; }
+.corner-detail-card .corner-driver-row strong { font-size: var(--type-body); font-weight: 500; font-variant-numeric: tabular-nums; }
+.corner-detail-card .corner-driver { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.corner-detail-card .corner-driver em { padding: 1px 5px; border-radius: 4px; font: 600 11px/1.3 var(--ui-font); font-style: normal; color: var(--ui-accent); background: color-mix(in srgb,var(--ui-accent) 12%,transparent); }
+/* Team logos: a little larger everywhere they identify a row. */
+#driverPills .driver-pill .team-logo,#driverPills .driver-pill .team-logo img { width: 22px; height: 22px; }
+#driverPills .driver-pill[data-ui-kind="list-row"] { grid-template-columns: 18px 22px minmax(0,1fr) auto; }
+.lap-workspace .run-driver .team-logo,.lap-workspace .run-driver .team-logo img { width: 24px; height: 24px; }
+:is(.performance-table,.performance-bar-label,.performance-team) .team-logo,:is(.performance-table,.performance-bar-label,.performance-team) .team-logo img { width: 20px; height: 20px; flex-basis: 20px; }
+.team-logo img { object-fit: contain; image-rendering: auto; }
+/* Pop-up menus: the current choice is shown by highlight only (no tick), per review. */
+.select-menu button[aria-selected="true"]::before,.select-menu button[data-ui-kind="menu-item"][aria-selected="true"]::before { content: none; display: none; }
+.select-menu button,.select-shell:has(#gp) .select-menu button { padding-right: 12px; }
+/* Official team marks: colour by default; white where the colour mark is dark
+   (Aston Martin, Audi, Cadillac, Mercedes) in the dark appearance. */
+.team-logo-official { position: relative; display: inline-grid; place-items: center; }
+.team-logo-official > img { grid-area: 1 / 1; width: 100%; height: 100%; object-fit: contain; filter: none; }
+.team-logo-official > .team-logo-mono { display: none; }
+:root:not([data-theme="light"]) .team-logo-official:is([data-team-mark="astonmartin"],[data-team-mark="audi"],[data-team-mark="cadillac"],[data-team-mark="mercedes"]) > .team-logo-color { display: none; }
+:root:not([data-theme="light"]) .team-logo-official:is([data-team-mark="astonmartin"],[data-team-mark="audi"],[data-team-mark="cadillac"],[data-team-mark="mercedes"]) > .team-logo-mono { display: block; }
+@media(forced-colors:active) { .team-logo-official > .team-logo-color { display: none; } .team-logo-official > .team-logo-mono { display: block; } }
+/* Lap card, broadcast style: per-sector time and delta, then the sector
+   label in its status colour sitting on one continuous segmented bar;
+   hairlines separate identity, sectors and weather. */
+.sector-cards .lap-summary-card .summary-tyre .compound-badge { width: 20px; height: 20px; flex: 0 0 20px; }
+.sector-cards .lap-summary-card .summary-sectors { gap: 0; }
+.sector-cards .lap-summary-card .sector-cell { padding: 0 0 6px; }
+.sector-cards .lap-summary-card .sector-cell + .sector-cell .sector-cell-value { border-left: 1px solid var(--ui-separator); }
+.sector-cards .lap-summary-card .sector-cell-value { flex: 1 1 auto; justify-content: space-between; padding: 0 6px 6px; }
+.sector-cards .lap-summary-card .sector-measurements { order: 0; }
+.sector-cards .lap-summary-card .sector-cell-value > small { order: 1; margin-top: 4px; font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--sector-status,var(--ui-tertiary)); }
+.sector-cards .lap-summary-card .sector-cell::after { left: 1px; right: 1px; bottom: 0; height: 4px; border-radius: 0; }
+.sector-cards .lap-summary-card .sector-cell:first-child::after { left: 0; border-radius: 2px 0 0 2px; }
+.sector-cards .lap-summary-card .sector-cell:last-child::after { right: 0; border-radius: 0 2px 2px 0; }
+.sector-cards .lap-summary-card .summary-driver,.sector-cards .lap-summary-card .summary-tyre { padding-bottom: 6px; }
+.sector-cards .lap-summary-card .summary-tyre { width: 100%; border-bottom: 1px solid var(--ui-separator); }
+/* Corner and straight choices are buttons: filled, bezelled, with hover and an accent selected state. */
+.circuit-section-group .corner-picker button.corner-pick,.corner-picker button[data-ui-kind="choice"],.corner-picker button[data-ui-kind="push"] { border: 0; background: var(--ui-control); box-shadow: var(--ui-shadow-control); color: var(--ui-label); font-weight: 500; transition: background-color var(--ui-motion) var(--ui-ease),box-shadow var(--ui-motion) var(--ui-ease); }
+.circuit-section-group .corner-picker button.corner-pick:hover:not(:disabled),.corner-picker button[data-ui-kind="choice"]:hover:not(:disabled) { background: var(--ui-control-hover); }
+.circuit-section-group .corner-picker button.corner-pick:active:not(:disabled) { background: var(--ui-selected); }
+.circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"],.corner-picker button[aria-pressed="true"] { background: var(--ui-action); color: #fff; box-shadow: 0 .5px 1px #0000004d,inset 0 .5px #ffffff38; }

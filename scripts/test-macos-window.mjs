@@ -108,6 +108,23 @@ test('coverage notes collect once per card, empty charts explain themselves, pai
   assert.match(css,/\.performance-table td small \{ display: block; white-space: nowrap;/);
 });
 
+test('official team marks ship in colour, black and white at 96px and switch by appearance',()=>{
+  const app=read('app.js');
+  for(const team of ['alpine','astonmartin','audi','cadillac','ferrari','haasf1team','mclaren','mercedes','racingbulls','redbullracing','williams'])
+    for(const suffix of ['','-color','-black'])assert.ok(readFileSync(`assets/teams/official/${team}${suffix}.webp`).length>200,team+suffix);
+  assert.match(app,/class="team-logo-color" src="assets\/teams\/official\/\$\{base\}-color\.webp"/);
+  assert.match(css,/:root:not\(\[data-theme="light"\]\) \.team-logo-official:is\(\[data-team-mark="astonmartin"\],\[data-team-mark="audi"\],\[data-team-mark="cadillac"\],\[data-team-mark="mercedes"\]\) > \.team-logo-color \{ display: none; \}/);
+  assert.match(css,/\.team-logo-official > img \{[^}]*filter: none;/,'colour marks must not be inverted in light mode');
+});
+
+test('lap cards: centred sector cells, fixed delta slots, sectors right of the identity',()=>{
+  assert.match(css,/\.sector-cards \.lap-summary-card \.sector-cell-value \{ display: flex; flex-direction: column; align-items: center;/);
+  assert.match(css,/\.sector-cards \.lap-summary-card \.sector-delta-slot,\.sector-cards \.lap-summary-card \.sector-delta-slot:empty \{ order: 1; display: flex;[^}]*height: 20px;/);
+  assert.match(css,/@container sectorcards \(min-width: 700px\) \{\n  \.sector-cards \.lap-summary-card \{ grid-template-columns: auto minmax\(0,1fr\);/);
+  assert.match(css,/\.select-menu button\[aria-selected="true"\]::before,\.select-menu button\[data-ui-kind="menu-item"\]\[aria-selected="true"\]::before \{ content: none; display: none; \}/);
+  assert.match(read('app.js'),/menu\.style\.top = top \/ zoom \+ 'px';/);
+});
+
 test('sidebar text and accent links stay legible on the sidebar material in both appearances',()=>{
   const root=postcss.parse(tokens),palettes=[];
   root.walkRules(rule=>{if([':root',':root[data-theme="light"]'].includes(rule.selector)&&rule.parent.type==='root'){const values={};rule.walkDecls(d=>values[d.prop]=d.value);palettes.push(values);}});
