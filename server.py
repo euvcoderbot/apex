@@ -2379,6 +2379,11 @@ def car_performance_trace_batch(response: Response, year: int = Query(..., ge=20
                     with ThreadPoolExecutor(max_workers=3) as pool:extracted=list(pool.map(complement,extracted))
             except Exception as exc:
                 fusion['status']='secondary-unavailable'
+        if not circuit.get('Key') and not corners and year >= 2023:
+            # Archive metadata can be disabled while OpenF1 telemetry works.
+            # Keep the circuit identity so the verified map fallback still runs.
+            identity = openf1_session(year, gp, 'Q')
+            circuit['Key'] = (identity or {}).get('circuit_key')
         if circuit.get('Key') == 12 and not corners:
             # Official Sepang map positions, projected onto this lap's GPS.
             # Event name may still be Bahrain in the upstream test calendar.

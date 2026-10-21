@@ -379,6 +379,9 @@ body.trace-focus .chart-heading .trace-focus-button:not(.trace-focus-close) { di
 .performance-split-view :is(.performance-bar-row,.performance-tyre-age-row) { box-sizing: border-box; height: var(--split-row); min-height: var(--split-row); padding-block: 0; margin: 0; }
 .performance-split-view .performance-table td { padding-block: 3px; }
 .performance-split-view > .performance-table-wrap { align-self: stretch; }
+.performance-split-view.is-independent-rows { grid-template-columns: minmax(0,1fr); align-items: start; }
+.performance-split-view.is-independent-rows .perf-chart-header { height: auto; min-height: 0; padding-bottom: 8px; }
+.performance-split-view.is-independent-rows .performance-bar-row { height: auto; min-height: 32px; padding-block: 5px; }
 /* Chart + table sit side by side only when the card is wide enough for both;
    otherwise the chart stacks above the table (container query, zoom-safe). */
 .performance-card-body { container-type: inline-size; container-name: perfcard; }
@@ -397,6 +400,7 @@ body.trace-focus .chart-heading .trace-focus-button:not(.trace-focus-close) { di
 .performance-visual-grid:not(:has(.performance-chart-controls:not([aria-hidden="true"]))) .performance-chart-controls { display: none; }
 /* Charts without a measurement show a compact empty state. */
 .performance-chart-card.is-empty-chart { justify-content: flex-start; }
+.performance-visual-grid .performance-chart-card.is-empty-chart { grid-row: 1 / 3; grid-template-rows: auto auto; align-self: start; min-height: 0; }
 .performance-chart-card.is-empty-chart .performance-empty-note { display: block; margin: 12px 0 0; padding: 0; border: 0; background: none; color: var(--ui-tertiary); font-size: var(--ui-text); line-height: 1.5; }
 body.is-descriptions-hidden #performanceMetricPanel .performance-chart-card.is-empty-chart p.performance-empty-note { display: block; }
 .performance-status-evidence .performance-quality-status strong { color: var(--ui-label); font-weight: 600; }
