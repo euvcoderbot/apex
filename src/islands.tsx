@@ -13,10 +13,11 @@ import {createRoot, type Root} from 'react-dom/client';
 import {PaceView} from './views/PaceView';
 import {PitsView} from './views/PitsView';
 import {ResultsView} from './views/ResultsView';
+import {SpeedView} from './views/SpeedView';
 import {TrendView} from './views/TrendView';
 import {TyresView} from './views/TyresView';
 
-const VIEWS: Record<string, ComponentType<any>> = {results: ResultsView, pits: PitsView, trend: TrendView, pace: PaceView, tyres: TyresView};
+const VIEWS: Record<string, ComponentType<any>> = {results: ResultsView, pits: PitsView, trend: TrendView, pace: PaceView, tyres: TyresView, speed: SpeedView};
 const roots = new WeakMap<Element, Root>();
 
 /** Render every placeholder in `container` synchronously, so code that runs

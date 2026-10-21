@@ -15,6 +15,7 @@ export {PitsView} from './src/views/PitsView';
 export {TrendView} from './src/views/TrendView';
 export {PaceView} from './src/views/PaceView';
 export {TyresView} from './src/views/TyresView';
+export {SpeedView} from './src/views/SpeedView';
 export {Sparkline} from './src/components/Sparkline';
 export {BarChart} from './src/components/BarChart';
 export {DataTable} from './src/components/DataTable';
@@ -152,4 +153,27 @@ test('tyre trend view: toolbar per mode, compound pills, stint plot and run pick
   assert.match(age, /stroke-dasharray="6 4"/);
   assert.match(age, /data-tyre-exclusions="" aria-pressed="false">Show 1 excluded lap/);
   assert.match(age, /<details class="dashboard-card performance-methods" open="">/);
+});
+
+test('speed view: cornering evidence, straight-line pills and pending charts', () => {
+  const team = {team: 'Mercedes', color: '#00d2be'};
+  const events = {subject: 'team', labels: ['Low-speed corners'], rows: [{event: 'Bahrain Grand Prix', team, values: ['-0.120 s']}]};
+  const head = {status: {running: false, loaded: 3, total: 3}, failures: [{name: 'Monaco Grand Prix', error: 'No GPS'}], retry: 1};
+  const corners = render(views.SpeedView, {...head, metric: 'corners', note: 'n',
+    charts: [{title: 'Low-speed corners', rows: [{...team, value: 1.2}], options: {title: 'Low-speed corners', unit: '%'}}, {title: 'High-speed corners', empty: 'No shared supported corner measurement in this band. Missing values are not zero.'}],
+    phases: {several: true, subject: 'team', sections: [{label: 'Low-speed', rows: [{team, braking: '-0.100 s', mid: '+0.020 s', exit: '-0.040 s', total: '-0.120 s', gps: 3}]}]},
+    corners: {single: null, subject: 'team', events: [{name: 'Bahrain Grand Prix', rows: [{corner: {name: 'T1', detail: 'low · 300 m · field 6.10 s'}, team, delta: '-0.050 s', braking: '-0.030 s', mid: '0.000 s', exit: '-0.020 s', speeds: '320 / 85 / 180', raw: '-0.060 s', sensitivity: '±0.010 s', gap: '0.30 s'}]}]},
+    events, traction: {lowConfidence: true, chart: {title: 'Traction', empty: 'Waiting for the first measured GPs…'}, events}});
+  assert.match(corners, /3 of 3 GPs measured/);
+  assert.match(corners, /<div class="performance-error">Monaco Grand Prix · No GPS<\/div>/);
+  assert.match(corners, /data-speed-retry="">Retry 1 missing GP</);
+  assert.match(corners, /Missing values are not zero/);
+  assert.match(corners, /Where the time goes · braking, mid-corner, exit · seconds per GP, averaged/);
+  assert.match(corners, /<summary>Bahrain Grand Prix<\/summary>/, 'several GPs: one disclosure per GP');
+  assert.match(corners, /<strong>T1<\/strong><br\/><small>low · 300 m · field 6\.10 s<\/small>/);
+  assert.match(corners, /Low confidence/);
+  const straight = render(views.SpeedView, {...head, retry: 0, metric: 'straight', pill: 'energy', note: 'n', events,
+    pills: [{key: 'straight', label: 'Speed', hint: 'a'}, {key: 'energy', label: 'Energy', hint: 'b'}], chart: {title: 'Energy', rows: [{...team, value: 2}], options: {unit: ' km/h', digits: 0}}});
+  assert.match(straight, /data-straight-pill="energy" aria-pressed="true" title="b">Energy/);
+  assert.doesNotMatch(straight, /data-speed-retry/);
 });

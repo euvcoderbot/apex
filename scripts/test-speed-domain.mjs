@@ -74,7 +74,9 @@ test('the page defaults to speed-domain and keeps every trace-batch speed-domain
   assert.match(source,/let speedDomainMethod='speed'/);
   // One method on the page; straight line is three pills, one chart at a time.
   assert.doesNotMatch(source,/data-speed-method/);
-  assert.match(source,/data-straight-pill/);
+  // The pills are drawn by src/views/SpeedView.tsx from STRAIGHT_PILLS.
+  assert.match(readFileSync('src/views/SpeedView.tsx','utf8'),/data-straight-pill=\{x\.key\}/);
+  assert.match(source,/pills:STRAIGHT_PILLS\.map/);
   for(const key of ['straight','straight_top','energy'])assert.match(source,new RegExp(`key:'${key}'`));
   // Braking loader stores the block without disturbing its own traces.
   const event={name:'GP',Q:{teams:[]}};
