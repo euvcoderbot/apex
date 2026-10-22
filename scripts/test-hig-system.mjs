@@ -45,7 +45,7 @@ test('motion is brief, never replays on re-render and honours Reduce Motion, Tra
   // Translucent materials only on toolbar, menus, tooltips and toasts.
   const blurred = [];
   root.walkDecls('backdrop-filter', decl => { if (decl.value !== 'none') blurred.push(decl.parent.selector); });
-  assert.deepEqual(blurred, ['.site-header']);
+  assert.deepEqual(blurred, ['.site-header', '.circuit-guide-details[popover]']);
 });
 
 test('segmented controls share one sliding thumb, kept across re-renders', () => {
