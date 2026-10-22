@@ -6,6 +6,15 @@ import postcss from 'postcss';
 const read=f=>readFileSync(f,'utf8');
 const css=read('ui-controls.css'),car=read('car-performance.js'),app=appSource(),ui=read('dashboard-ui.js');
 
+test('lap states cannot wrap and wide tyre/development layouts use bounded label columns',()=>{
+  const hig=read('hig-system.css');
+  assert.match(hig,/\.lap-workspace \.lap-chip\[data-ui-kind="choice"\] \{[^}]*height: 44px;[^}]*grid-template-rows: 18px 14px/);
+  assert.match(hig,/\.lap-workspace \.lap-chip \.lap-token \{[^}]*flex-wrap: nowrap; white-space: nowrap/);
+  assert.match(hig,/\.lap-workspace \.lap-chip \.lap-tyre-age \{[^}]*white-space: nowrap/);
+  assert.match(hig,/performance-trend-table \.performance-table:not\(\.ui-resized-table\) \{ table-layout: fixed/);
+  assert.match(hig,/#carPerformance \.performance-tyre-age-row \{ grid-template-columns: minmax\(0,14em\) minmax\(60px,1fr\) 12ch/);
+});
+
 test('regular controls share tokenised type, height and spacing without fixed-height segment shells',()=>{
   const root=postcss.parse(css);
   const rules=[];root.walkRules(r=>rules.push(r));

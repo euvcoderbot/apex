@@ -32,19 +32,20 @@ export function TrendView(props: TrendViewProps) {
       note={`Ranked by ${fitted ? 'a robust fitted rate across measured rounds' : 'the observed change between median opening and latest event groups'}. More negative means the team closed the gap to the quickest car. This measures relative one-lap progress, not a proven upgrade effect.`}>
       <SegmentedControl name="trend-view" label="Rank development by" value={view} options={[['observed', 'Opening → latest'], ['fitted', 'Fitted trend']]} />
       <p className="performance-note">The dots, opening/latest medians and fit use the same evolution-adjusted gaps (raw gaps where adjustment is unavailable). Observed change compares the endpoint groups; fitted change uses every measured round. {fitted ? 'The dashed line shows that fit. ' : ''}Missing rounds are not filled. Circuit suitability, setup and driver changes affect the trend.</p>
-      <div className="performance-trend-table">
-        <DataTable headers={[sort.team, 'Gap by round', sort.last, sort.change, ...(showSensitivity ? ['Fit sensitivity'] : []), 'GPs']}
+      <div className="performance-trend-table" data-fit-sensitivity={showSensitivity ? 'true' : 'false'}>
+        <DataTable headers={[sort.team, 'Gap by round', sort.last,
+          fitted ? 'Observed change' : {...sort.change,label:'Observed change'},
+          fitted ? {...sort.change,label:'Fitted change'} : 'Fitted change',
+          ...(showSensitivity ? ['Fit sensitivity'] : []), 'GPs']}
           rows={rows.map(r => {
             const enough = r.count >= 2;
             const rate = enough && finite(r.slopePerRound) ? `${signed(r.slopePerRound, 3, '')} pp/round` : '—';
             return [
               <TeamLabel team={r.team} />,
               <Sparkline label={r.team.team} points={r.points} teamColor={r.team.color} {...spark} fit={fitted ? r.fit : null} />,
-              r.count >= 2 ? <>{fmt(r.first, 3, '%')} → {fmt(r.last, 3, '%')}<small>{r.label}</small></> : 'Needs ≥ 2 events',
-              r.count >= 2 && finite(r.change) ? <>
-                <span className={`trend-change ${r.change! < 0 ? 'is-improvement' : 'is-decline'}`} title="Observed opening-to-latest percentage-point change">Observed {signed(r.change, 3, ' pp')}</span>
-                {finite(r.fittedChange) ? <small className="trend-fitted" title={`Robust fitted rate: ${rate}`}>Fitted <span className={`trend-change ${r.fittedChange! < 0 ? 'is-improvement' : 'is-decline'}`}>{signed(r.fittedChange, 3, ' pp')}</span></small> : null}
-              </> : '—',
+              r.count >= 2 ? <span className="trend-endpoints" title={r.label}>{fmt(r.first, 3, '%')} → {fmt(r.last, 3, '%')}</span> : 'Needs ≥ 2 events',
+              r.count >= 2 && finite(r.change) ? <span className={`trend-change ${r.change! < 0 ? 'is-improvement' : 'is-decline'}`} title={`Observed opening-to-latest percentage-point change · ${r.label}`}>{signed(r.change, 3, ' pp')}</span> : '—',
+              r.count >= 2 && finite(r.fittedChange) ? <span className={`trend-change trend-fitted ${r.fittedChange! < 0 ? 'is-improvement' : 'is-decline'}`} title={`Robust fitted rate: ${rate}`}>{signed(r.fittedChange, 3, ' pp')}</span> : '—',
               ...(showSensitivity ? [r.range ? `${signed(r.range[0], 3, "")} to ${signed(r.range[1], 3, "")} pp/round` : '—'] : []),
               <span className="trend-coverage" title={r.sampleTier}>{r.count}</span>,
             ];

@@ -19,6 +19,7 @@ export {SpeedView} from './src/views/SpeedView';
 export {RaceCornersView} from './src/views/RaceCornersView';
 export {Sparkline} from './src/components/Sparkline';
 export {BarChart} from './src/components/BarChart';
+export {DivergingBarChart} from './src/components/DivergingBarChart';
 export {DataTable} from './src/components/DataTable';
 export {TeamLogo, EventLabel} from './src/components/TeamLabel';
 export {renderToStaticMarkup} from 'react-dom/server';
@@ -91,7 +92,8 @@ test('development sparklines show real rounds and never join unobserved gaps', (
     points: [{round: 16, pace: 1, event: 'A'}, {round: 18, pace: .5, event: 'B'}]});
   assert.equal((html.match(/<circle/g) || []).length, 2);
   assert.match(html, /common scale across teams/);
-  assert.match(html, /d="M[^"L]+ M/, 'round 17 is missing: the line breaks');
+  assert.doesNotMatch(html, /data-trend-segment/, 'round 17 is missing: the line breaks');
+  assert.match(html, /cx="96%"/, 'the chart uses the available width without stretching markers');
 });
 
 test('development view: single-GP explanation, ranking switch and coverage', () => {
@@ -101,8 +103,10 @@ test('development view: single-GP explanation, ranking switch and coverage', () 
     rows: [{team: {team: 'Ferrari', color: '#ff0000'}, first: 1.2, last: .4, label: 'R1 → R3', count: 3, sampleTier: 'Limited (<10 events)',
       change: -.8, fittedChange: -.7, slopePerRound: -.35, range: [-.5, -.3], fit:[{round:1,pace:1.1},{round:3,pace:.4}], points: [{round: 1, event: 'A', pace: 1.2}, {round: 2, event: 'B', pace: .8}, {round: 3, event: 'C', pace: .4}]}]});
   assert.match(html, /data-trend-view="fitted" aria-pressed="true"/);
-  assert.match(html, /trend-change is-improvement[^>]*>Observed -0\.800 pp/);
-  assert.match(html, /Fitted <span[^>]*>-0\.700 pp/);
+  assert.match(html, />Observed change</);
+  assert.match(html, />Fitted change</);
+  assert.match(html, /trend-change is-improvement[^>]*>-0\.800 pp/);
+  assert.match(html, /trend-change trend-fitted is-improvement[^>]*>-0\.700 pp/);
   assert.match(html, /-0\.350 pp\/round/);
   assert.match(html, /data-trend-fit=""/);
   assert.match(html, /stroke-dasharray="4 3"/);
@@ -153,12 +157,25 @@ test('tyre trend view: toolbar per mode, compound pills, stint plot and run pick
     plot, evidence: [], auditOpen: true});
   assert.equal((age.match(/data-tyre-metric=/g) || []).length + (age.match(/data-tyre-subject=/g) || []).length, 4);
   assert.match(age, /data-tyre-subject="driver" aria-pressed="true"/);
-  assert.match(age, /performance-tyre-age-bar" style="--bar-color:#ff0000;left:25\.00%;width:25\.00%"/);
+  assert.match(age, /performance-tyre-age-bar" style="--bar-color:#ff0000;left:0\.00%;width:100\.00%"/);
   assert.match(age, /—<small>P75 needs C3: 3\/4 GPs<\/small>/);
   assert.match(age, /<select data-tyre-plot-filter="team">/);
   assert.match(age, /stroke-dasharray="6 4"/);
   assert.match(age, /data-tyre-exclusions="" aria-pressed="false">Show 1 excluded lap/);
   assert.match(age, /<details class="dashboard-card performance-methods" open="">/);
+});
+
+test('tyre bars share the actual signed range, including one-sided and zero samples', () => {
+  const chart = values => render(views.DivergingBarChart, {title:'Age', subtitle:'', unit:' s/lap', extent:1,
+    rows:values.map((value,i)=>({team:`Team ${i}`,value,color:'#ff0000'}))});
+  const mixed=chart([-.012,.385]);
+  assert.match(mixed,/performance-tyre-age-zero" style="left:3\.02%"/);
+  assert.match(mixed,/left:0\.00%;width:3\.02%/);
+  assert.match(mixed,/left:3\.02%;width:96\.98%/);
+  assert.match(chart([.2,.4]),/left:0\.00%;width:100\.00%/);
+  assert.match(chart([-.2,-.4]),/left:0\.00%;width:100\.00%/);
+  assert.match(chart([0]),/left:0\.00%;width:0\.00%/);
+  assert.doesNotMatch(chart([0]),/NaN|Infinity/);
 });
 
 test('speed view: cornering evidence, straight-line pills and pending charts', () => {
