@@ -1,14 +1,15 @@
 import {color, fmt} from '../../performance-format.js';
 
 export type SparkPoint = {round: number; event: string; pace: number};
+export type SparkFit = {round: number; pace: number}[] | null;
 
 /**
  * Qualifying gap by round on a scale shared by every row (`.trend-sparkline`).
  * Consecutive rounds are joined; a missing round breaks the line rather than
  * being filled in.
  */
-export function Sparkline({label, points, teamColor, lo, hi, ceiling}: {
-  label: string; points: SparkPoint[]; teamColor?: string; lo: number; hi: number; ceiling: number;
+export function Sparkline({label, points, teamColor, lo, hi, ceiling, fit}: {
+  label: string; points: SparkPoint[]; teamColor?: string; lo: number; hi: number; ceiling: number; fit?: SparkFit;
 }) {
   if (!Number.isFinite(lo) || !Number.isFinite(hi)) return <>—</>;
   const x = (round: number) => 8 + (round - lo) / Math.max(1, hi - lo) * 164;
@@ -19,6 +20,7 @@ export function Sparkline({label, points, teamColor, lo, hi, ceiling}: {
     <div className="trend-sparkline">
       <svg viewBox="0 0 180 46" role="img" aria-label={`${label} qualifying gap by round; common scale across teams`}>
         <line x1="8" y1="39" x2="172" y2="39" stroke="var(--border-color)" />
+        {fit?.length === 2 ? <line data-trend-fit="" x1={x(fit[0].round)} y1={y(fit[0].pace)} x2={x(fit[1].round)} y2={y(fit[1].pace)} stroke="var(--text-secondary)" strokeWidth="1.5" strokeDasharray="4 3"><title>Robust fitted trend through these same observations</title></line> : null}
         <path d={path} fill="none" stroke={stroke} strokeWidth="2" />
         {points.map(q => (
           <circle key={q.round} cx={x(q.round)} cy={y(q.pace)} r="3" fill={stroke}>

@@ -490,6 +490,7 @@ body.is-descriptions-hidden #performanceMetricPanel p.performance-quality-status
 .trend-sparkline { width: 150px; padding: 0; border: 0; border-radius: 0; background: none; }
 .trend-sparkline svg { height: 30px; }
 .trend-sparkline .performance-trend-label { display: flex; justify-content: space-between; margin: 0; font-size: 12px; line-height: 1.1; color: var(--ui-tertiary); }
+.performance-trend-table :is(.trend-change,.trend-fitted),.performance-trend-table .performance-table td:nth-child(3) { white-space: nowrap; }
 /* Tables follow NSTableView: quiet header, hairline rows, zebra striping. */
 .performance-table-wrap { border: 1px solid var(--ui-separator); border-radius: 8px; background: var(--ui-content); overflow: auto; }
 .performance-table { border-collapse: separate; border-spacing: 0; width: 100%; }

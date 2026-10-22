@@ -97,10 +97,13 @@ test('development view: single-GP explanation, ranking switch and coverage', () 
   const html = render(views.TrendView, {view: 'fitted', showSensitivity: true, spark: {lo: 1, hi: 3, ceiling: 2},
     sort: {team: sortModel('trendTeam'), last: sortModel('trendLast'), change: sortModel('trendModelled')},
     rows: [{team: {team: 'Ferrari', color: '#ff0000'}, first: 1.2, last: .4, label: 'R1 → R3', count: 3, sampleTier: 'Limited (<10 events)',
-      change: -.8, slopePerRound: -.4, range: [-.5, -.3], points: [{round: 1, event: 'A', pace: 1.2}, {round: 2, event: 'B', pace: .8}, {round: 3, event: 'C', pace: .4}]}]});
+      change: -.8, fittedChange: -.7, slopePerRound: -.35, range: [-.5, -.3], fit:[{round:1,pace:1.1},{round:3,pace:.4}], points: [{round: 1, event: 'A', pace: 1.2}, {round: 2, event: 'B', pace: .8}, {round: 3, event: 'C', pace: .4}]}]});
   assert.match(html, /data-trend-view="fitted" aria-pressed="true"/);
-  assert.match(html, /trend-change is-improvement[^>]*>-0\.800 pp/);
-  assert.match(html, /<small>-0\.400% \/ round<\/small>/);
+  assert.match(html, /trend-change is-improvement[^>]*>Observed -0\.800 pp/);
+  assert.match(html, /Fitted <span[^>]*>-0\.700 pp/);
+  assert.match(html, /-0\.350 pp\/round/);
+  assert.match(html, /data-trend-fit=""/);
+  assert.match(html, /stroke-dasharray="4 3"/);
   assert.match(html, /-0\.500 to -0\.300 pp\/round/);
   assert.match(html, /FIA event documents/);
 });

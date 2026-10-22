@@ -1503,7 +1503,7 @@ function renderTrend(teams) {
     let first = null, last = null, label = '';
     let slopePerRound = null;
     let modelledShift = null;
-    let leaveEventRange = null;
+    let leaveEventRange = null, fit = null;
     const n = valid.length;
 
     if (n >= 2) {
@@ -1514,6 +1514,7 @@ function renderTrend(teams) {
 
       const h = huberRegression(valid.map(q => q.round), valid.map(q => q.pace));
       slopePerRound = h.slope;
+      if(finite(h.slope)&&finite(h.intercept))fit=[valid[0].round,valid.at(-1).round].map(round=>({round,pace:h.intercept+h.slope*round}));
       const roundSpan = valid.at(-1).round - valid[0].round;
       modelledShift = finite(slopePerRound) ? slopePerRound * roundSpan : null;
       if(n>=5){
@@ -1525,7 +1526,7 @@ function renderTrend(teams) {
     const change = (finite(first) && finite(last)) ? last - first : null;
     const sampleTier = n >= 15 ? 'Broad (≥15 events)' : n >= 10 ? 'Moderate (10–14 events)' : 'Limited (<10 events)';
     const sampleTierClass = n >= 15 ? 'is-fast' : n >= 10 ? 'is-mid' : 'is-slow';
-    return { team: t, valid, first, last, change, modelledShift, slopePerRound, leaveEventRange, sampleTier, sampleTierClass, label, count: n };
+    return { team: t, valid, first, last, change, modelledShift, slopePerRound, fit, leaveEventRange, sampleTier, sampleTierClass, label, count: n };
   });
 
   const ordered = sorted(trendRows, {
@@ -1541,13 +1542,13 @@ function renderTrend(teams) {
   const rounds=events.map(e=>Number(e.round)).filter(finite);
   const changeKey=trendView==='fitted'?'trendModelled':'trendChange';
   return reactView('trend',{view:trendView,showSensitivity,
-    // One scale for every sparkline: observed gaps, rounds across the selection.
-    spark:{lo:Math.min(...rounds),hi:Math.max(...rounds),ceiling:Math.max(1,...teams.flatMap(t=>t.q.map(q=>q.pace).filter(finite)))},
+    // Plot exactly the adjusted observations used by the medians and fit.
+    spark:{lo:Math.min(...rounds),hi:Math.max(...rounds),ceiling:Math.max(1,...trendRows.flatMap(t=>t.valid.map(q=>q.pace)))},
     sort:{team:sortHeaderModel('trendTeam','Team'),last:sortHeaderModel('trendLast','Start → latest'),
-      change:sortHeaderModel(changeKey,trendView==='fitted'?'Fitted change':'Gap change')},
+      change:sortHeaderModel(changeKey,'Change')},
     rows:ordered.map(row=>({team:row.team,first:row.first,last:row.last,label:row.label,count:row.count,sampleTier:row.sampleTier,
-      change:trendView==='fitted'?row.modelledShift:row.change,slopePerRound:row.slopePerRound,range:row.leaveEventRange,
-      points:row.team.q.filter(q=>finite(q.pace)).sort((x,y)=>x.round-y.round).map(q=>({round:q.round,event:q.event,pace:q.pace}))}))});
+      change:row.change,fittedChange:row.modelledShift,slopePerRound:row.slopePerRound,range:row.leaveEventRange,fit:row.fit,
+      points:row.valid.map(q=>({round:q.round,event:q.event,pace:q.pace}))}))});
 }
 
 function eventAdjustedScores(reports, valueOf, mode='mean',coverageMode=typeof telemetryCoverageMode==='undefined'?'inferred':telemetryCoverageMode,supportPriority='observations') {
@@ -1756,7 +1757,7 @@ function renderSpeedDomain() {
   }
   return reactView('speed',{...head,metric:'braking',lowConfidence:speedDomainLowConfidence('braking'),
     note:`Average deceleration from brake onset until the car reaches its own apex speed, at every braked corner. Distances come from GPS, and each car is compared with the field at the same speeds, because downforce makes every car brake harder when faster. % longer braking distance than the best ${telemetrySubject==='driver'?'driver':'team'}. The 4 Hz feed places the brake onset only to within a few metres, so differences under about 2% in a single GP are noise.`,
-    chart:speedDomainChart('braking','Braking distance','same speed drop'),events:speedDomainEventTable(['braking'])});
+    chart:speedDomainChart('braking','Longer braking distance','same speed drop · % longer than the best'),events:speedDomainEventTable(['braking'])});
 }
 function renderMetricBoundaryEvidence(kind){
   if(kind==='tyres')return '<p class="performance-note">These derivatives describe fitted pace inside each run’s observed age range. A late slope increase can reflect wear, management or conditions; it is not a certified physical tyre cliff. Fuel adds the selected assumption to every slope. No curve is extrapolated into remaining tyre life.</p>'+table(
