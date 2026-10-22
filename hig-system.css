@@ -408,8 +408,9 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 #cornerPickerRow .circuit-section-group { margin: 0; padding: 0; border: 0; }
 .circuit-section-group > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 8px; }
 .circuit-section-group > header h3 { margin: 0; font: 600 var(--type-body)/1.4 var(--ui-font); color: var(--ui-label); }
-.circuit-section-group .corner-picker { gap: 8px; margin: 0; padding: 0; }
-.circuit-section-group .corner-picker button.corner-pick { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: var(--hig-regular); height: auto; min-width: 42px; padding: 6px 10px; border-radius: var(--hig-radius); border: 1px solid var(--ui-border-strong); background: var(--ui-control); color: var(--ui-label); box-shadow: var(--ui-shadow-control); cursor: pointer; }
+.circuit-section-group .corner-picker { display: grid; grid-template-columns: repeat(auto-fill,48px); gap: 8px; margin: 0; padding: 0; }
+.circuit-section-group .straight-zone-picker { grid-template-columns: repeat(auto-fill,104px); }
+.circuit-section-group .corner-picker button.corner-pick { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: var(--hig-regular); height: var(--hig-regular); min-width: 0; width: 100%; padding: 0 4px; border-radius: var(--hig-radius); border: 1px solid var(--ui-border-strong); background: var(--ui-control); color: var(--ui-label); box-shadow: var(--ui-shadow-control); cursor: pointer; }
 .corner-picker button.corner-pick strong { font: 500 var(--type-body)/1.2 var(--ui-font); }
 .corner-picker button.corner-pick small { font: 400 var(--type-caption)/1.2 var(--ui-font); color: var(--ui-secondary); }
 .circuit-section-group .corner-picker button.corner-pick:hover { background: var(--ui-control-hover); }

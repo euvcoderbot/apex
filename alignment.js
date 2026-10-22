@@ -226,10 +226,15 @@ async function fetchTelemetry(lap) {
       const next=realDrivers.get(lap.code)?.laps?.find(item=>item.lap===lap.lap+1);
       if(next?.date_start)query.set('next_start',next.date_start);
     }
-    const response = await fetchSessionData(apiUrl(`/api/telemetry?${query}`), { cache: 'no-store', signal: sessionAtStart?.signal });
-    const payload = await readApiResponse(response);
+    const url=apiUrl(`/api/telemetry?${query}`);
+    let payload=await preparedTelemetryData(new URL(url,window.location?.href || 'http://localhost')).catch(()=>null);
+    let response;
+    if(!payload){
+      response = await fetchSessionData(url, { cache: 'no-store', signal: sessionAtStart?.signal });
+      payload = await readApiResponse(response);
+    }
     if (sessionAtStart !== sessionRequest) throw new DOMException('Session changed', 'AbortError');
-    if (!response.ok) throw new Error(payload.detail || 'Telemetry unavailable for this lap');
+    if (response && !response.ok) throw new Error(payload.detail || 'Telemetry unavailable for this lap');
 
     const samples = normalizeTelemetry(payload.samples || [], lap, payload.source || 'Unknown');
     lap.cornerMarkers = Array.isArray(payload.corners) ? payload.corners : [];

@@ -251,9 +251,6 @@ function renderCornerAnalysis() {
   const selectionLabel=combined?[...pickedCorners,...(pickedStraights.length?[`${pickedStraights.length} link${pickedStraights.length===1?'':'s'}`]:[])].join(' + '):zone.label||cornerLabel(zone);
   root.innerHTML = !pickedZones.length?'<div class="corner-selection-empty"><strong>Compare a section</strong><span>Select corners or straights above to inspect their times.</span></div>':`
     <article class="corner-detail-card">
-      <header class="corner-detail-header">
-        <h3>${escapeUI(selectionLabel)}</h3><span class="corner-distance">${zone.metres} m</span>
-      </header>
       <div class="corner-measurement-wrap" tabindex="0" role="region" aria-label="Selected section measurements"><table class="corner-measurement-table">
         <caption class="visually-hidden">${escapeUI(selectionLabel)} lap comparison</caption><thead><tr><th scope="col">Driver</th>${[['time','Time','s','time'],['delta','Delta','s','delta'],['minimum',averageSpeed?'Avg':'Min','km/h',averageSpeed?'average speed':'minimum speed']].map(([key,label,unit,name]) => {
           const active=cornerSort===key,descending=(key==='minimum')!==cornerSortReverse;

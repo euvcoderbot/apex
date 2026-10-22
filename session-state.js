@@ -295,6 +295,37 @@ async function cacheData(url, data, ttl) {
 // Settled car-performance data pre-rendered at build time (scripts/prerender.mjs).
 // Used only when it was computed with this page's methodology revision.
 let prerenderedIndex = null;
+let nativeTelemetryIndex = null;
+const nativeTelemetryPacks = new Map();
+async function preparedTelemetryData(parsed) {
+  if (typeof DecompressionStream === 'undefined' || parsed.searchParams.get('fresh') === 'true'
+      || parsed.searchParams.get('pit_out') === 'true') return null;
+  nativeTelemetryIndex ||= fetch('assets/data/telemetry/index.json').then(r=>r.ok?r.json():null).catch(()=>null);
+  const index=await nativeTelemetryIndex;
+  if(index?.sourceRevision !== window.APEX_SOURCE_VERSION) return null;
+  const session=({Q:'Qualifying',SQ:'Sprint Qualifying',S:'Sprint',R:'Race'})[parsed.searchParams.get('session')] || parsed.searchParams.get('session');
+  const identity=[parsed.searchParams.get('year'),parsed.searchParams.get('gp'),session,parsed.searchParams.get('driver')].join(':');
+  const file=index.entries?.[identity];
+  if(!file)return null;
+  if(!nativeTelemetryPacks.has(file)) {
+    const pending=fetch(`assets/data/telemetry/${file}`).then(async r=>{
+      if(!r.ok||!r.body)throw new Error('Saved telemetry pack unavailable');
+      return new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).json();
+    }).catch(error=>{nativeTelemetryPacks.delete(file);throw error;});
+    nativeTelemetryPacks.set(file,pending);
+    if(nativeTelemetryPacks.size>24)nativeTelemetryPacks.delete(nativeTelemetryPacks.keys().next().value);
+  }
+  const pack=await nativeTelemetryPacks.get(file);
+  const key=parsed.searchParams.get('session_key');
+  if(key&&String(pack.sessionKey)!==key)return null;
+  const data=pack.laps?.[parsed.searchParams.get('lap')];
+  if(!data?.samples?.length||data.driver!==parsed.searchParams.get('driver'))return null;
+  const duration=Number(parsed.searchParams.get('lap_time'));
+  if(duration>0&&Math.abs(data.samples.at(-1).ElapsedSeconds-duration)>.005)return null;
+  // The alignment layer normalizes/decodes its own copy; never mutate a pack
+  // that another selected lap or a later re-selection will read.
+  return structuredClone(data);
+}
 const PRERENDERED_PATHS = new Set(['/api/performance', '/api/performance/trace-batch', '/api/performance/pits', '/api/performance/sprint', '/api/session']);
 function prerenderedKey(parsed) {
   // Same identity as lib/data-cache.mjs normalizeDataPath for these paths.
@@ -352,9 +383,23 @@ async function requestApiData(url, options = {}) {
   if (cached) return cached; // loadApiData clones once per consumer.
   const prepared = refreshing?null:await preparedData(url).catch(() => null);
   if (prepared) { void cacheData(cacheKey, structuredClone(prepared), 120000); return prepared; }
-  const response = await fetchSessionData(url, options);
-  const data = await readApiResponse(response);
-  if (!response.ok) throw new Error(data.detail || `Data unavailable (${response.status})`);
+  let response, data;
+  try {
+    response = await fetchSessionData(url, options);
+    data = await readApiResponse(response);
+    if (!response.ok) { const error=new Error(data.detail || `Data unavailable (${response.status})`);error.status=response.status;throw error; }
+  } catch(error) {
+    if(parsed.pathname!=='/api/events'||options.signal?.aborted||error.name==='AbortError')throw error;
+    // A saved schedule must remain usable during an upstream outage. Never
+    // cache it as fresh live status: the next calendar load retries the API.
+    const year=Number(parsed.searchParams.get('year'));
+    if(!Number.isInteger(year)||year<2014||year>2026)throw error;
+    const snapshot=await fetch(`assets/data/events/${year}.json`,{signal:options.signal});
+    if(!snapshot.ok)throw error;
+    const calendar=await snapshot.json();
+    if(!Array.isArray(calendar)||!calendar.length)throw error;
+    return calendar.map(event=>({...event,calendar_status_source:'saved-schedule'}));
+  }
   if (!liveCalendar && !/no-store/i.test(response.headers.get('cache-control') || '') && data.position_complete !== false) {
     const year = Number(new URL(url, window.location?.href || 'http://localhost').searchParams.get('year'));
     const historical = year > 0 && year < new Date().getFullYear();

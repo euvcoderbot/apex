@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
+import {gzipSync,gunzipSync} from 'node:zlib';
 
 const app = appSource();
 test('pit entrants stay visible without loading race pace or inventing a missing stop',()=>{
@@ -226,6 +227,50 @@ test('current calendar bypasses browser response cache', async () => {
   await h.run(`requestApiData(${JSON.stringify(url)})`);
   await h.run(`requestApiData(${JSON.stringify(url)})`);
   assert.equal(calls,2);
+});
+
+test('disabled upstream calendar falls back to a saved schedule without caching it as live status',async()=>{
+  const h=context();let calls=0;
+  Object.assign(h.sandbox,{URL,AbortController,DOMException,structuredClone,setTimeout,clearTimeout});
+  h.sandbox.fetch=async url=>{
+    calls++;
+    return String(url).includes('assets/data/events/')
+      ? {ok:true,json:async()=>[{round:17,name:'Singapore Grand Prix'}]}
+      : {status:402,ok:false,headers:{get:()=> 'application/json'},text:async()=>JSON.stringify({detail:'Backend disabled'})};
+  };
+  const url=`https://example.test/api/events?year=${new Date().getFullYear()}`;
+  const first=await h.run(`requestApiData(${JSON.stringify(url)})`);
+  assert.equal(first[0].calendar_status_source,'saved-schedule');
+  await h.run(`requestApiData(${JSON.stringify(url)})`);assert.equal(calls,4);
+});
+
+test('saved native driver packs keep exact identity, duration and immutable per-lap reads',async()=>{
+  const h=context();let calls=0;
+  const payload={sessionKey:11384,laps:{7:{driver:'COL',lap:7,samples:[{ElapsedSeconds:0,Speed:200},{ElapsedSeconds:93.261,Speed:250}]}}};
+  Object.assign(h.sandbox,{URL,Response,DecompressionStream,structuredClone});
+  h.sandbox.window.APEX_SOURCE_VERSION='source-test';
+  h.sandbox.fetch=async url=>{
+    calls++;
+    return String(url).endsWith('index.json')
+      ? {ok:true,json:async()=>({sourceRevision:'source-test',entries:{'2026:Singapore Grand Prix:Qualifying:COL':'col.json.gz'}})}
+      : new Response(gzipSync(JSON.stringify(payload)));
+  };
+  const path='https://example.test/api/telemetry?year=2026&gp=Singapore+Grand+Prix&session=Q&driver=COL&lap=7&lap_time=93.261&session_key=11384';
+  const first=await h.run(`preparedTelemetryData(new URL(${JSON.stringify(path)}))`);first.samples[0].Speed=999;
+  const second=await h.run(`preparedTelemetryData(new URL(${JSON.stringify(path)}))`);
+  assert.equal(second.samples[0].Speed,200);assert.equal(calls,2);
+  assert.equal(await h.run(`preparedTelemetryData(new URL(${JSON.stringify(path.replace('11384','11388'))}))`),null);
+  assert.equal(await h.run(`preparedTelemetryData(new URL(${JSON.stringify(path.replace('93.261','94'))}))`),null);
+});
+
+test('the five reported Singapore laps are retained native traces, not estimated replacements',()=>{
+  const index=JSON.parse(readFileSync('assets/data/telemetry/index.json'));
+  for(const [driver,lap] of [['COL',7],['SAI',12],['RUS',19],['BOR',15],['PIA',21]]){
+    const file=index.entries[`2026:Singapore Grand Prix:Qualifying:${driver}`];assert.ok(file,driver);
+    const data=JSON.parse(gunzipSync(readFileSync('assets/data/telemetry/'+file))).laps[lap];
+    assert.equal(data.driver,driver);assert.equal(data.lap,lap);assert.ok(data.samples.length>250);
+    assert.equal(data.position_complete,true);assert.equal(data.samples[0].ElapsedSeconds,0);
+  }
 });
 
 test('session selection reuses versioned source cache with no speculative load', () => {

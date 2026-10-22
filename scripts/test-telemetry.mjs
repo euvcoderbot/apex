@@ -112,7 +112,7 @@ function appHarness() {
       getContext: () => ctx, classList: { add() {}, remove() {}, toggle() {} } });
     return elements.get(selector);
   }
-  const sandbox = { console, DOMException, URLSearchParams, setTimeout, clearTimeout, TelemetryReconstruction: globalThis.TelemetryReconstruction,
+  const sandbox = { console, DOMException, URL, URLSearchParams, setTimeout, clearTimeout, TelemetryReconstruction: globalThis.TelemetryReconstruction,
     window: { devicePixelRatio: 1 }, document: { querySelector: element, getElementById: id => element('#' + id),
       createElement: () => ({width:0,height:0,getContext:()=>ctx}),
       addEventListener() {}, querySelectorAll: () => [], documentElement: { dataset: { theme: 'dark' } } } };

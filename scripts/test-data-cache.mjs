@@ -3,9 +3,14 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
 import vm from 'node:vm';
-import {createDataCache,normalizeDataPath,dataTTL,usableData,RACE_VERSION,SOURCE_VERSION,DATA_VERSION} from '../lib/data-cache.mjs';
+import {createDataCache,normalizeDataPath,dataTTL,usableData,RACE_VERSION,SOURCE_VERSION,DATA_VERSION,sourceResponseData} from '../lib/data-cache.mjs';
 import {loadRaceSnapshot,loadCachedRaceSnapshots,loadRaceCornerPlan} from '../lib/race-corner-loader.mjs';
 import {connectedRaceCornerScores} from '../race-cornering.js';
+
+test('a disabled non-JSON backend preserves HTTP 402 without leaking a parser exception',async()=>{
+  await assert.rejects(sourceResponseData(new Response('Payment required\nDEPLOYMENT_DISABLED',{status:402})),
+    error=>error.status===402&&/disabled by its hosting provider/.test(error.message)&&!/Unexpected token/.test(error.message));
+});
 import verifiedSeed from '../lib/verified-cache-seed.json' with {type:'json'};
 
 test('native race batches run one at a time and a rate limit starts a shared cooldown',async()=>{
