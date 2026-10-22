@@ -218,6 +218,14 @@ test('timing delta vertical scale is neutral at 100% and supports compression an
   const canvas = h.element('[data-chart="Timing delta"]');
   const normalMax = Number(canvas.attributes['data-axis-max']);
   assert.equal(h.run('timingDeltaZoom'), 1);
+  // Every 5 percentage-point step must change the actual plotted range.
+  // Re-snapping zoomed limits to nice ticks previously swallowed these steps.
+  h.run('setTimingDeltaZoom(1.05)');
+  near(Number(canvas.attributes['data-axis-max']), normalMax / 1.05);
+  assert.equal(h.element('#timingDeltaZoomReadout').textContent, '105%');
+  h.run('setTimingDeltaZoom(.95)');
+  near(Number(canvas.attributes['data-axis-max']), normalMax / .95);
+  assert.equal(h.run('TIMING_DELTA_ZOOM_STEP'), .05);
   h.run('setTimingDeltaZoom(.5)');
   const compressedMax = Number(canvas.attributes['data-axis-max']);
   assert.ok(compressedMax > normalMax, `${compressedMax} should exceed ${normalMax}`);

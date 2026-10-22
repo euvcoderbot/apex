@@ -56,7 +56,9 @@ test('results view keeps the segmented measure, sort headers and retirement badg
 test('bar chart rebases to the best entrant and marks provisional values', () => {
   const html = render(views.BarChart, {rows: [{team: 'A', value: 1.5, color: '#00ff00'}, {team: 'B', value: 1.0, traceProvisional: true}], options: {unit: '%'}});
   assert.ok(html.indexOf('>B<') < html.indexOf('>A<'), 'best first');
-  assert.match(html, /is-gain">≈ 0.000%/);
+  // Provisional values say so in the row tooltip, not with a glyph in the value.
+  assert.match(html, /is-gain is-provisional">0.000%/);
+  assert.match(html, /Provisional: source gaps over 0.6 s/);
   assert.match(html, /is-loss">\+0.500%/);
 });
 

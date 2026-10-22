@@ -55,7 +55,7 @@ function renderTireNomination() {
     
     return `
       <div class="tire-option tire-${String(label).toLowerCase()}" style="--tire-color:${color}">
-        ${tyreImageMarkup(label)}
+        ${compoundBadgeMarkup(label)}
         <span class="tire-copy"><strong>${escapeUI(label)}${isC ? ` · ${escapeUI(displayVal)}` : ''}</strong>${isC ? '' : `<small>${escapeUI(displayVal)}</small>`}</span>
       </div>
     `;

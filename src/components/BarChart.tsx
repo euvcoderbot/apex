@@ -69,7 +69,7 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
                 {preserveSignedValues ? <i className="performance-zero" style={{left: `${zero.toFixed(2)}%`}} /> : null}
                 <i className="performance-bar" style={{'--bar-color': color(r[colorKey] as string), left: `${left.toFixed(2)}%`, width: `${width.toFixed(2)}%`} as React.CSSProperties} />
               </div>
-              <span className={`performance-bar-val ${gain}`.trim()}>{r.traceProvisional ? '≈ ' : ''}{display}</span>
+              <span className={`performance-bar-val ${gain}${r.traceProvisional ? ' is-provisional' : ''}`.trim()}>{display}</span>
             </div>
           );
         })}

@@ -8,11 +8,6 @@ function renderMiniSectorMap() {
   if (!canvas || !empty || !legend || !title) return;
   if ($('#cornerAnalysis')?.hidden) return;
   if (!loaded.length) mapView = 'guide';
-  const guideDetails=$('#circuitGuideDetails');
-  if(guideDetails){
-    guideDetails.hidden=mapView!=='guide'||!sessionEventName;
-    guideDetails.innerHTML=guideDetails.hidden?'':circuitGuideContent();
-  }
   document.querySelectorAll('[data-map-view]').forEach(button => {
     button.setAttribute('aria-pressed', String(button.dataset.mapView === mapView));
     button.disabled = button.dataset.mapView === 'comparison' && !loaded.length;

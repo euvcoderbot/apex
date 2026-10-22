@@ -274,6 +274,7 @@ function paintReadyTelemetry() {
   activeDefs.forEach(definition => drawRealChart(definition[0]));
   renderCornerAnalysis();
   renderMiniSectorMap();
+  renderTelemetryReadout();
 }
 
 function updateTelemetryVisibility() {

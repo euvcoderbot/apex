@@ -59,9 +59,59 @@ let toastTimer = 0;
 const MIN_TRACE_ZOOM = .004;
 const MIN_TIMING_DELTA_ZOOM = .25;
 const MAX_TIMING_DELTA_ZOOM = 4;
-const TIMING_DELTA_ZOOM_STEP = .25;
+const TIMING_DELTA_ZOOM_STEP = .05;
 const CLIENT_DATA_SCHEMA = 'direct-telemetry-v5';
 const API_ORIGIN = String(window.APEX_API_ORIGIN || '').replace(/\/$/, '');
+
+// Attributes the component layer (ui-system.js) adds after render. Keeping
+// them stops a one-frame unstyled flash between a patch and re-decoration.
+function keepsDecoratedAttribute(node, name) {
+  return name.startsWith('data-ui-') || name === 'type'
+    || (name === 'title' && node.dataset?.uiTooltip === 'auto');
+}
+
+// Inline --ui-* properties (segmented thumb geometry) also belong to that layer.
+function decoratedStyle(node) {
+  const style = node.style;
+  if (!style?.length) return [];
+  return [...style].filter(prop => prop.startsWith('--ui-')).map(prop => [prop, style.getPropertyValue(prop)]);
+}
+
+function morphAttributes(node, next) {
+  const kept = decoratedStyle(node);
+  for (const {name} of [...node.attributes]) {
+    if (!next.hasAttribute(name) && !keepsDecoratedAttribute(node, name) && !(name === 'style' && kept.length)) node.removeAttribute(name);
+  }
+  for (const {name, value} of [...next.attributes]) {
+    if (node.getAttribute(name) !== value) node.setAttribute(name, value);
+  }
+  for (const [prop, value] of kept) if (node.style.getPropertyValue(prop) !== value) node.style.setProperty(prop, value);
+}
+
+// Patch the live tree towards the new markup instead of replacing it, so
+// unchanged controls, images and hover state survive a selection change and
+// CSS transitions (not a rebuild) show the new state.
+function morphChildren(parent, source) {
+  const next = [...source.childNodes];
+  for (let index = 0; index < next.length; index++) {
+    const incoming = next[index], current = parent.childNodes[index];
+    const sameElement = current && current.nodeType === 1 && incoming.nodeType === 1
+      && current.tagName === incoming.tagName
+      && (current.dataset.motionKey || '') === (incoming.dataset.motionKey || '');
+    if (sameElement) {
+      morphAttributes(current, incoming);
+      // Decorated symbol buttons own their glyph; leave it in place.
+      if (!(current.querySelector(':scope > [data-ui-symbol]') && !incoming.querySelector('[data-ui-symbol]'))) morphChildren(current, incoming);
+    } else if (current && current.nodeType === 3 && incoming.nodeType === 3) {
+      if (current.nodeValue !== incoming.nodeValue) current.nodeValue = incoming.nodeValue;
+    } else if (current) {
+      parent.replaceChild(incoming.cloneNode(true), current);
+    } else {
+      parent.appendChild(incoming.cloneNode(true));
+    }
+  }
+  while (parent.childNodes.length > next.length) parent.lastChild.remove();
+}
 
 // Animate user-driven updates, not telemetry redraws. Keep keyboard focus
 // on replacement controls without scrolling the page to their new position.
@@ -69,22 +119,24 @@ function replaceUI(root, html) {
   const motion = !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   const oldNodes = [...(root.querySelectorAll?.('[data-motion-key]') || [])];
   const previous = new Map(oldNodes.map(node => [node.dataset.motionKey, {
-    rect: node.getBoundingClientRect(), selected: node.classList.contains('selected'),
+    rect: node.getBoundingClientRect(),
   }]));
   const focusedKey = document.activeElement?.dataset?.motionKey;
-  root.innerHTML = html;
+  if (typeof document.createElement === 'function' && root.childNodes) {
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    morphChildren(root, template.content);
+  } else {
+    root.innerHTML = html;
+  }
   for (const node of [...(root.querySelectorAll?.('[data-motion-key]') || [])]) {
     if (node.matches('button:not(.remove)')) node.setAttribute('aria-pressed', String(node.classList.contains('selected') || node.classList.contains('reference')));
-    if (node.dataset.motionKey === focusedKey) node.focus({ preventScroll: true });
+    if (node.dataset.motionKey === focusedKey && document.activeElement !== node) node.focus({ preventScroll: true });
     if (!motion || !node.animate) continue;
     const ancestor = node.parentElement?.closest('[data-motion-key]');
     const old = previous.get(node.dataset.motionKey);
-    if (ancestor && root.contains(ancestor)) {
-      if (old && old.selected !== node.classList.contains('selected') && node.matches('button')) {
-        node.animate([{ transform: 'scale(.98)' }, { transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.22,.68,0,1)' });
-      }
-      continue;
-    }
+    // Nested controls change state in place; their CSS transition is the feedback.
+    if (ancestor && root.contains(ancestor)) continue;
     const next = node.getBoundingClientRect();
     if (!next.width || !next.height) continue;
     // Rects include the page zoom; transforms are applied in layout px.
@@ -93,8 +145,9 @@ function replaceUI(root, html) {
     const dx = old ? (old.rect.left - next.left) / pageZoom : 0;
     const dy = old ? (old.rect.top - next.top) / pageZoom : 6;
     if (!old || Math.abs(dx) + Math.abs(dy) > 1) {
-      node.animate([{ opacity: old ? 1 : 0, transform: `translate(${dx}px, ${dy}px)` },
+      const animation=node.animate([{ opacity: old ? 1 : 0, transform: `translate(${dx}px, ${dy}px)` },
         { opacity: 1, transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.22,.68,0,1)' });
+      window.ApexMotion?.track(animation);
     }
   }
 }
@@ -333,10 +386,14 @@ function notify(message, tone = 'error') {
   const toast = $('#appToast');
   if (!toast) return;
   window.clearTimeout(toastTimer);
-  toast.textContent = String(message || 'Something went wrong.');
+  const text=document.createElement('span'),dismiss=document.createElement('button');
+  text.textContent=String(message || 'Something went wrong.');
+  dismiss.type='button';dismiss.textContent='Dismiss';dismiss.setAttribute('aria-label','Dismiss notification');
+  const hide=()=>{toast.classList.remove('is-visible');toast.hidden=true;};dismiss.onclick=hide;toast.replaceChildren(text,dismiss);
   toast.dataset.tone = tone;
-  toast.classList.add('is-visible');
-  toastTimer = window.setTimeout(() => toast.classList.remove('is-visible'), 5200);
+  toast.hidden=false;toast.classList.add('is-visible');
+  // Errors remain until dismissed; there is no reading-time deadline.
+  if(tone!=='error')toastTimer = window.setTimeout(hide, 8000);
 }
 
 function scheduleDrawAll() {
@@ -566,7 +623,7 @@ const officialTeamMarks = {
   'aston martin': 'astonmartin.webp', 'cadillac': 'cadillac.webp',
 };
 const historicalTeamMarks = {
-  'sauber': 'sauber.svg', 'kick sauber': 'kick-sauber.png', 'stake f1 team kick sauber': 'kick-sauber.png',
+  'sauber': 'sauber.svg', 'kick sauber': 'kick-sauber', 'stake f1 team kick sauber': 'kick-sauber',
   'alfa romeo': 'alfa-romeo.svg', 'alfa romeo racing': 'alfa-romeo.svg', 'alfa romeo sauber': 'sauber.svg',
   'alphatauri': 'alphatauri.svg', 'alpha tauri': 'alphatauri.svg', 'scuderia alphatauri': 'alphatauri.svg',
   'toro rosso': 'toro-rosso.svg', 'scuderia toro rosso': 'toro-rosso.svg',
@@ -578,6 +635,8 @@ function teamLogoMarkup(teamName) {
   const key = String(teamName || '').trim().toLowerCase();
   if (key === 'renault' || key === 'renault sport f1 team') return '<span class="team-logo team-logo-historical" aria-hidden="true"><img src="assets/teams/historical/renault.png" alt="" width="26" height="26"></span>';
   const historical = historicalTeamMarks[key];
+  // Kick Sauber: transparent black and white wordmarks, swapped by appearance like the official marks.
+  if (historical === 'kick-sauber') return `<span class="team-logo team-logo-official" data-team-mark="kick-sauber" aria-hidden="true"><img class="team-logo-color" src="assets/teams/historical/kick-sauber-black.webp" alt="" width="26" height="26"><img class="team-logo-mono" src="assets/teams/historical/kick-sauber-white.webp" alt="" width="26" height="26"></span>`;
   if (historical) return `<span class="team-logo team-logo-historical" aria-hidden="true"><img src="assets/teams/historical/${historical}" alt="" width="26" height="26"></span>`;
   const asset = officialTeamMarks[key];
   if (!asset) return '<span class="team-logo" aria-hidden="true"><i class="team-logo-fallback"></i></span>';

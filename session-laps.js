@@ -199,7 +199,7 @@ function renderStints() {
     if (!driver || !display) return '';
     const teamColor = display[3] || '#777777';
     if (!driver.laps?.length) {
-      return `<article class="driver-run-card" data-motion-key="run-card-${code}" style="--team:${teamColor}"><header class="run-card-header"><div class="run-driver">${teamLogoMarkup(display[4])}<div class="run-driver-copy"><h3>${escapeUI(driver.name)}</h3><small>${code}</small></div></div></header><p class="section-empty">No laps in this session.</p></article>`;
+      return `<article class="driver-run-card" data-motion-key="run-card-${code}" style="--team:${teamColor}"><header class="run-card-header"><div class="run-driver">${teamLogoMarkup(display[4])}<div class="run-driver-copy"><h3>${escapeUI(naturalDriverName(driver.name))}</h3><small>${code}</small></div></div></header><p class="section-empty">No laps in this session.</p></article>`;
     }
 
     const timedLaps = driver.laps.filter(lap => Number.isFinite(lap.time) && lap.time > 0 && !lap.in_lap && !lap.out_lap);
@@ -252,7 +252,7 @@ function renderStints() {
     return `
       <article class="driver-run-card" data-motion-key="run-card-${code}" style="--team:${teamColor}">
         <header class="run-card-header">
-          <div class="run-driver">${teamLogoMarkup(display[4])}<div class="run-driver-copy"><h3>${escapeUI(driver.name)}</h3><small>${code} · ${timedLaps.length} timed laps</small></div></div>
+          <div class="run-driver">${teamLogoMarkup(display[4])}<div class="run-driver-copy"><h3>${escapeUI(naturalDriverName(driver.name))}</h3><small>${code} · ${timedLaps.length} timed laps</small></div></div>
           ${fastest ? `<button class="fastest-lap-pick ${fastestLoaded ? 'selected' : ''}" data-motion-key="fastest-${code}" data-code="${code}" data-lap="${fastest.lap}" title="Add or remove this fastest lap"><span>Fastest</span><strong>${time(fastest.time)}</strong></button>` : ''}
         </header>
         <div class="run-section-label"><span>Runs</span></div>

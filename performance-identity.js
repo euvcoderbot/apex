@@ -47,7 +47,7 @@ export const officialTeamMarks = {
 };
 
 export const historicalTeamMarks = {
-  'sauber': 'sauber.svg', 'kick sauber': 'kick-sauber.png', 'stake f1 team kick sauber': 'kick-sauber.png',
+  'sauber': 'sauber.svg', 'kick sauber': 'kick-sauber', 'stake f1 team kick sauber': 'kick-sauber',
   'alfa romeo': 'alfa-romeo.svg', 'alfa romeo racing': 'alfa-romeo.svg', 'alfa romeo sauber': 'sauber.svg',
   'alphatauri': 'alphatauri.svg', 'alpha tauri': 'alphatauri.svg', 'scuderia alphatauri': 'alphatauri.svg',
   'toro rosso': 'toro-rosso.svg', 'scuderia toro rosso': 'toro-rosso.svg',
@@ -65,6 +65,8 @@ export function teamLogoMarkup(teamName) {
     return '<span class="team-logo team-logo-historical" aria-hidden="true"><img src="assets/teams/historical/renault.png" alt="" width="24" height="24"></span>';
   }
   const historical = historicalTeamMarks[key];
+  // Kick Sauber: transparent black and white wordmarks, swapped by appearance like the official marks.
+  if (historical === 'kick-sauber') return `<span class="team-logo team-logo-official" data-team-mark="kick-sauber" aria-hidden="true"><img class="team-logo-color" src="assets/teams/historical/kick-sauber-black.webp" alt="" width="24" height="24"><img class="team-logo-mono" src="assets/teams/historical/kick-sauber-white.webp" alt="" width="24" height="24"></span>`;
   if (historical) {
     return `<span class="team-logo team-logo-historical" aria-hidden="true"><img src="assets/teams/historical/${historical}" alt="" width="24" height="24"></span>`;
   }

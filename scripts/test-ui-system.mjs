@@ -6,10 +6,12 @@ import {buildUiStyles,prepareStyle,UI_LAYERS,UI_STYLES} from '../lib/ui-style-bu
 const read=file=>readFile(file,'utf8');
 
 test('component appearance has one explicit final owner and focused canvas sizing stays first',async()=>{
-  assert.deepEqual(UI_LAYERS,['focus','legacy','interface','workspace','appearance','components','window']);
-  assert.deepEqual(UI_STYLES.at(-2),['ui-controls.css','components']);
-  // The macOS window layer owns only layout/materials above the component contract.
-  assert.deepEqual(UI_STYLES.at(-1),['macos-window.css','window']);
+  assert.deepEqual(UI_LAYERS,['focus','legacy','interface','workspace','appearance','components','window','system']);
+  assert.deepEqual(UI_STYLES.at(-3),['ui-controls.css','components']);
+  // The macOS window layer owns layout/materials above the component contract;
+  // the HIG system layer is the single final owner of each control family.
+  assert.deepEqual(UI_STYLES.at(-2),['macos-window.css','window']);
+  assert.deepEqual(UI_STYLES.at(-1),['hig-system.css','system']);
   const source='button {color:red!important;min-height:28px!important} @layer focus {canvas {height:100%!important}} @media(forced-colors:active){button{color:ButtonText!important}}';
   const result=prepareStyle(source,'example.css');
   assert.equal(result.demoted,1);assert.match(result.css,/min-height:28px!important/);
@@ -55,7 +57,7 @@ test('all interactive primitive families have explicit appearance and state cont
 test('presentation decoration has no source requests, storage invalidation or score mutations',async()=>{
   const script=await read('ui-system.js');
   assert.doesNotMatch(script,/fetch\(|XMLHttpRequest|localStorage|telemetryCache|\.sort\(|gap_s\s*=/);
-  assert.match(script,/attributeFilter:\['class','aria-pressed','aria-selected','disabled'\]/);
+  assert.match(script,/attributeFilter:\['class','aria-pressed','aria-selected','aria-current','disabled'\]/);
   assert.match(script,/requestAnimationFrame/);assert.match(script,/unowned/);
   assert.match(script,/window.enhanceSelect\(select\)/);
   assert.match(script,/handle\.setAttribute\('role','separator'\)/);

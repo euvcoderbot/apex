@@ -45,6 +45,7 @@
     if(el.matches('input[type="checkbox"]'))return 'checkbox';
     if(el.matches('input[type="radio"]'))return 'radio';
     if(el.matches('input[type="color"]'))return 'colour';
+    if(el.matches('input[type="range"]'))return 'slider';
     if(el.matches('input,select,textarea'))return 'field';
     if(el.matches('summary'))return 'disclosure';
     if(el.matches('.select-trigger'))return 'popup';
@@ -55,12 +56,12 @@
     if(el.matches('.run-segment'))return 'run';
     if(el.matches('.lap-chip,.track-pill,.corner-pick,.fastest-lap-pick'))return 'choice';
     if(el.matches('.loaded-lap-main'))return 'reference';
-    if(el.matches('.perf-sort-btn')||el.closest('.corner-table-head'))return 'sort';
+    if(el.matches('.perf-sort-btn,[data-corner-sort]')||el.closest('.corner-table-head'))return 'sort';
     if(el.matches('#performanceToggleTracks'))return 'picker';
     if(el.matches('.workspace-disclosure,.corner-analysis-toggle'))return 'disclosure';
     if(el.matches('[data-performance-metric],[data-session-view]'))return 'tab';
     if(el.matches('[data-zoom],[data-pan],[data-delta-zoom]'))return 'stepper';
-    if(el.matches('.remove,[data-remove]'))return 'icon';
+    if(el.matches('.remove,[data-remove],.map-guide-info'))return 'icon';
     if(el.closest(groups))return 'segment';
     if(el.closest('.workspace-tools')||el.matches('#windowSidebarToggle'))return 'toolbar';
     return 'push';
@@ -109,11 +110,40 @@
       // Segmented toggle buttons expose pressed states, not incomplete radio semantics.
       if(group.getAttribute('role')==='radiogroup')group.setAttribute('role','group');
     }
+    for(const tab of root.querySelectorAll('[data-analysis-view]')){
+      const selected=tab.getAttribute('aria-selected')==='true';set(tab,'role','tab');set(tab,'tabindex',selected?'0':'-1');set(tab,'id','analysis-tab-'+tab.dataset.analysisView);
+      set(tab,'aria-controls',tab.dataset.analysisView==='performance'?'carPerformance':'top');set(tab.parentElement,'role','tablist');
+    }
+    for(const group of root.querySelectorAll('.trace-zoom-cluster,.comparison-tray,.trace-settings'))set(group,'role','group');
+    for(const link of root.querySelectorAll('.local-compute-actions > a'))set(link,'data-ui-kind','push');
     for(const el of root.querySelectorAll('.perf-tercile-badge,.track-count-badge,.performance-coverage-badge,.performance-quality-badge,.retirement-badge,.tow-badge')){
       set(el,'data-ui-kind','badge');
       el.style.removeProperty('font-size');el.style.removeProperty('border-radius');
     }
     for(const el of root.querySelectorAll('.empty-icon-badge'))if(!el.querySelector('[data-ui-symbol]'))el.innerHTML=symbol('chart');
+    placeThumbs(root);
+  }
+  // Segmented controls: one thumb per group that slides to the chosen segment
+  // (HIG Segmented controls). Its geometry lives in --ui-thumb-* on the group;
+  // the group's ::before draws it, so re-renders never recreate it.
+  const thumbGroups='[data-ui-group="segments"],.run-segments,.category-bar';
+  const chosen='button[aria-pressed="true"],button[aria-selected="true"],button[aria-current="page"]';
+  function placeThumb(group){
+    const button=group.querySelector(':scope > :is('+chosen+')');
+    if(!button||!button.offsetWidth){group.removeAttribute('data-ui-thumb');return;}
+    const next=[button.offsetLeft,button.offsetTop,button.offsetWidth,button.offsetHeight].map(v=>v+'px');
+    const props=['--ui-thumb-x','--ui-thumb-y','--ui-thumb-w','--ui-thumb-h'];
+    if(props.every((prop,index)=>group.style.getPropertyValue(prop)===next[index])&&group.dataset.uiThumb)return;
+    props.forEach((prop,index)=>group.style.setProperty(prop,next[index]));
+    // The first placement appears in place; later ones slide.
+    if(!group.dataset.uiThumb){group.dataset.uiThumb='placed';requestAnimationFrame(()=>requestAnimationFrame(()=>{if(group.dataset.uiThumb)group.dataset.uiThumb='sliding';}));}
+  }
+  const thumbObserver=typeof ResizeObserver!=='undefined'?new ResizeObserver(entries=>entries.forEach(entry=>placeThumb(entry.target.closest?.(thumbGroups)||entry.target))):null;
+  function placeThumbs(root=document){
+    for(const group of root.querySelectorAll(thumbGroups)){
+      placeThumb(group);
+      if(thumbObserver&&!group.dataset.uiThumbObserved){group.dataset.uiThumbObserved='true';thumbObserver.observe(group);}
+    }
   }
   function audit(root=document){
     const counts={},unowned=[];
@@ -130,7 +160,7 @@
     if(!records.some(record=>record.type==='childList'||record.target.matches?.('button,input,select,summary'))||pending)return;
     // rAF pauses in background tabs; the timer guarantees new controls are owned anyway.
     pending=true;const run=()=>{if(!pending)return;pending=false;decorate();};requestAnimationFrame(run);setTimeout(run,150);
-  }).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','aria-pressed','aria-selected','disabled']});
+  }).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','aria-pressed','aria-selected','aria-current','disabled']});
   document.addEventListener('keydown',event=>{
     const resizer=event.target.closest?.('.ui-column-resizer');
     if(resizer&&['ArrowLeft','ArrowRight','Home'].includes(event.key)){event.preventDefault();resizeColumn(resizer,event.key==='ArrowLeft'?-8:8,event.key==='Home');return;}

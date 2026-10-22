@@ -115,7 +115,7 @@ test('official team marks ship in colour, black and white at 96px and switch by 
   for(const team of ['alpine','astonmartin','audi','cadillac','ferrari','haasf1team','mclaren','mercedes','racingbulls','redbullracing','williams'])
     for(const suffix of ['','-color','-black'])assert.ok(readFileSync(`assets/teams/official/${team}${suffix}.webp`).length>200,team+suffix);
   assert.match(app,/class="team-logo-color" src="assets\/teams\/official\/\$\{base\}-color\.webp"/);
-  assert.match(css,/:root:not\(\[data-theme="light"\]\) \.team-logo-official:is\(\[data-team-mark="astonmartin"\],\[data-team-mark="audi"\],\[data-team-mark="cadillac"\],\[data-team-mark="mercedes"\]\) > \.team-logo-color \{ display: none; \}/);
+  assert.match(css,/:root:not\(\[data-theme="light"\]\) \.team-logo-official:is\(\[data-team-mark="astonmartin"\],\[data-team-mark="audi"\],\[data-team-mark="cadillac"\],\[data-team-mark="mercedes"\],\[data-team-mark="kick-sauber"\]\) > \.team-logo-color \{ display: none; \}/);
   assert.match(css,/\.team-logo-official > img \{[^}]*filter: none;/,'colour marks must not be inverted in light mode');
 });
 

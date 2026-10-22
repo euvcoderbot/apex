@@ -30,7 +30,7 @@ test('category, filter, corner and refresh controls share token sizing',()=>{
 test('modelled phase diagnostic cannot change primary driver row height',()=>{
   const rows=app.slice(app.indexOf('const rows = rankedMetrics.map'),app.indexOf('updateCornerPicker(pickerRoot,',app.indexOf('const rows = rankedMetrics.map')));
   assert.doesNotMatch(rows,/phaseSplit\(item.lap\)/);
-  assert.match(app,/<details class="corner-phase-evidence"><summary>Modelled entry \/ exit diagnostic/);
+  assert.match(app,/<details class="corner-phase-evidence"[^>]*><summary>Modelled entry \/ exit diagnostic/);
   assert.doesNotMatch(app,/as in the season cornering metric/);
 });
 

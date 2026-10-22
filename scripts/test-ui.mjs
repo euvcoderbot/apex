@@ -1135,8 +1135,8 @@ test('circuit guide separates sourced historical characteristics from current ty
   assert.match(app,/Pirelli corner guide · 22 Mar 2012/);
   assert.match(app,/if\(sessionYear===2026\)official/);
   assert.match(app,/ratings are not inferred from lap speed/);
-  assert.match(app,/guideDetails.hidden=mapView!=='guide'/);
-  assert.match(readFileSync('index.html','utf8'),/id="circuitGuideDetails"/);
+  assert.doesNotMatch(readFileSync('index.html','utf8'),/id="circuitGuide(?:Info|Details)"/);
+  assert.match(app,/data-map-view/);
 });
 
 test('map selection shares all merged measured windows and marks every outer boundary',()=>{
