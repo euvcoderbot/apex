@@ -59,3 +59,16 @@ test('corner column sorting reverses repeated selections while unknown values st
   assert.equal(vm.runInContext("cornerSortReverse=false;rankCornerMetrics(rows,'minimum').map(r=>r.id).join(',')",box),'B,A,unknown');
   assert.equal(vm.runInContext("cornerSortReverse=true;rankCornerMetrics(rows,'minimum').map(r=>r.id).join(',')",box),'A,B,unknown');
 });
+
+test('corner measurements retain native table alignment and compact monochrome identities',()=>{
+  const css=postcss.parse(read('hig-system.css'));
+  const cells=css.nodes.find(rule=>rule.selector==='.corner-measurement-table :is(th,td)');
+  for(const [prop,value] of [['display','table-cell'],['height','32px'],['vertical-align','middle']])
+    assert.ok(cells.nodes.some(decl=>decl.prop===prop&&decl.value===value),prop);
+  const identity=css.nodes.find(rule=>rule.selector==='.corner-measurement-table .corner-driver-copy');
+  assert.ok(identity.nodes.some(decl=>decl.prop==='display'&&decl.value==='inline-flex'));
+  const source=read('session-corners.js');
+  assert.match(source,/class="corner-driver">\$\{teamLogoMarkup/);
+  assert.doesNotMatch(source,/class="corner-driver"><i>/);
+  assert.match(read('hig-system.css'),/\.corner-driver \.team-logo-official > \.team-logo-mono \{ display: block;/);
+});

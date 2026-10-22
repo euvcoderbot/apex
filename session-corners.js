@@ -237,8 +237,8 @@ function renderCornerAnalysis() {
     const highestMinimum = Number.isFinite(item.metric.minimumSpeed) && Number.isFinite(highestMinimumSpeed)
       && Math.abs(item.metric.minimumSpeed - highestMinimumSpeed) < .05;
     return `
-      <tr class="corner-measurement-row ${fastest && loaded.length > 1 ? 'is-fastest' : ''} ${highestMinimum && loaded.length > 1 ? 'is-highest-min' : ''}" style="--driver-color:${getLapColor(item.lap)}">
-        <th scope="row" class="corner-driver-cell"><span class="corner-driver"><i></i><span class="corner-driver-copy"><b>${item.lap.code}</b><small>L${item.lap.lap}${item.lap === referenceLap ? ' · REF' : ''}</small></span></span></th>
+      <tr class="corner-measurement-row ${fastest && loaded.length > 1 ? 'is-fastest' : ''} ${highestMinimum && loaded.length > 1 ? 'is-highest-min' : ''}">
+        <th scope="row" class="corner-driver-cell"><span class="corner-driver">${teamLogoMarkup(realDrivers.get(item.lap.code)?.team || drivers.find(driver=>driver[0]===item.lap.code)?.[4])}<span class="corner-driver-copy"><b>${item.lap.code}</b><small>L${item.lap.lap}${item.lap === referenceLap ? ' REF' : ''}</small></span></span></th>
         <td class="corner-time"><strong>${Number.isFinite(sectionTime) ? sectionTime.toFixed(3) : '—'}</strong></td>
         <td class="corner-delta ${deltaClass}"><strong>${Number.isFinite(toReference) ? signedDelta(toReference).replace(/s$/, '') : '—'}</strong></td>
         <td class="corner-speed"><strong>${Number.isFinite(item.metric.minimumSpeed) ? item.metric.minimumSpeed.toFixed(1) : '—'}</strong></td>

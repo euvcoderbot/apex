@@ -416,27 +416,30 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 .circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"] { background: var(--ui-action); color: #fff; border-color: transparent; }
 #cornerMetricGrid { padding: 0 16px 16px; }
 .corner-detail-card { padding: 0; border: 1px solid var(--ui-border); border-radius: 12px; overflow: hidden; background: transparent; }
-.corner-detail-header { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: baseline; justify-content: space-between; gap: 12px; padding: 14px 16px; margin: 0; border: 0; }
+.corner-detail-header { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; padding: 4px 10px; margin: 0; border: 0; }
 .corner-detail-card .corner-detail-header h3 { margin: 0; color: var(--ui-label); font: 600 var(--type-headline)/1.4 var(--ui-font); }
 .corner-distance { font: 400 var(--type-callout)/1.4 var(--ui-font); color: var(--ui-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .corner-measurement-wrap { overflow-x: auto; max-width: 100%; }
 .corner-measurement-table { border-collapse: collapse; table-layout: auto; width: 100%; font: 400 var(--type-body)/1.4 var(--ui-font); font-variant-numeric: tabular-nums; }
-.corner-measurement-table :is(th,td) { height: 42px; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--ui-separator); text-align: right; white-space: nowrap; }
-.corner-measurement-table :is(th,td):first-child { text-align: left; padding-left: 16px; }
-.corner-measurement-table :is(th,td):last-child { padding-right: 16px; }
+.corner-measurement-table :is(th,td) { display: table-cell; box-sizing: border-box; height: 32px; padding: 3px 18px 3px 8px; border: 0; border-bottom: 1px solid var(--ui-separator); text-align: right; vertical-align: middle; white-space: nowrap; }
+.corner-measurement-table :is(th,td):first-child { text-align: left; padding-left: 10px; padding-right: 8px; }
+.corner-measurement-table :is(th,td):last-child { padding-right: 20px; }
 .corner-measurement-table thead th { background: var(--ui-header-row); color: var(--ui-secondary); font-size: var(--type-caption); font-weight: 600; }
-.corner-measurement-table thead th:has(button) { padding: 5px 4px; }
-.corner-measurement-table button[data-corner-sort] { display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; min-height: var(--hig-small); width: auto; margin: 0; padding: 4px 6px; border: 0; border-radius: var(--hig-radius-small); background: transparent; color: var(--ui-secondary); box-shadow: none; cursor: pointer; font: 600 var(--type-caption)/1.4 var(--ui-font); white-space: nowrap; }
+.corner-measurement-table button[data-corner-sort] { position: relative; display: flex; align-items: center; justify-content: flex-end; gap: 0; min-height: var(--hig-small); width: 100%; margin: 0; padding: 0; border: 0; border-radius: var(--hig-radius-small); background: transparent; color: var(--ui-secondary); box-shadow: none; cursor: pointer; font: 600 var(--type-caption)/1.4 var(--ui-font); white-space: nowrap; }
 .corner-measurement-table button[data-corner-sort]:hover { background: var(--ui-control-hover); }
 .corner-measurement-table button[data-corner-sort]:active { background: var(--hig-control-pressed); }
 .corner-measurement-table button small { font: inherit; color: var(--ui-secondary); }
-.corner-measurement-table button svg { flex: 0 0 12px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.corner-measurement-table button svg { position: absolute; right: -13px; width: 10px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .corner-measurement-table th[aria-sort]:not([aria-sort="none"]) button { color: var(--ui-accent); }
 .corner-measurement-table .corner-driver { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
-.corner-measurement-table .corner-driver i { width: 3px; height: 14px; background: var(--driver-color); border-radius: 2px; }
+.corner-measurement-table .corner-driver .team-logo,.corner-measurement-table .corner-driver .team-logo img { width: 18px; height: 18px; flex: 0 0 18px; }
+.corner-measurement-table .corner-driver .team-logo-official > .team-logo-color { display: none; }
+.corner-measurement-table .corner-driver .team-logo-official > .team-logo-mono { display: block; }
+.corner-measurement-table .corner-driver .team-logo img { filter: brightness(0) invert(1); }
+:root[data-theme="light"] .corner-measurement-table .corner-driver .team-logo img { filter: brightness(0); }
 .corner-measurement-table .corner-driver small { font: 400 var(--type-caption)/1.4 var(--ui-font); color: var(--ui-secondary); }
 .corner-measurement-table .corner-driver em { font-style: normal; }
-.corner-measurement-table td strong { font-size: var(--type-body); font-weight: 500; color: inherit; }
+.corner-measurement-table td strong { display: block; font-size: var(--type-body); line-height: 1.4; font-weight: 500; color: inherit; }
 .corner-measurement-table tbody tr:nth-child(even) { background: color-mix(in srgb,var(--ui-label) 3%,transparent); }
 .corner-measurement-table .is-faster { color: var(--ui-positive); }
 .corner-measurement-table .is-slower { color: var(--ui-negative); }
@@ -453,19 +456,18 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 .performance-table .perf-sort-btn > span { white-space: nowrap; overflow-wrap: normal; word-break: normal; }
 .performance-table.ui-resized-table th { overflow-wrap: normal; }
 @media(pointer:coarse) { .circuit-section-group .corner-picker button.corner-pick,.corner-measurement-table button[data-corner-sort],.corner-phase-evidence > summary[data-ui-kind="disclosure"] { min-height: 44px; } }
-@media(max-width:600px) { #cornerPickerRow { padding: 12px; } #cornerMetricGrid { padding: 0 12px 12px; } .corner-detail-header { padding: 12px; } }
+@media(max-width:600px) { #cornerPickerRow { padding: 12px; } #cornerMetricGrid { padding: 0 12px 12px; } }
 
-.corner-measurement-table .corner-driver-copy { display: grid; gap: 1px; }
+.corner-measurement-table .corner-driver-copy { display: inline-flex; align-items: baseline; gap: 5px; }
 .corner-measurement-table .corner-driver-copy b { font-weight: 600; }
 .corner-measurement-table .corner-driver-copy small { white-space: nowrap; }
 .corner-measurement-table tbody th { font-weight: 400; }
 
 @container(max-width:340px) {
-  .corner-measurement-table :is(th,td) { padding: 8px 4px; }
-  .corner-measurement-table :is(th,td):first-child { padding-left: 8px; }
-  .corner-measurement-table :is(th,td):last-child { padding-right: 8px; }
-  .corner-measurement-table thead th:has(button) { padding-inline: 2px; }
-  .corner-measurement-table button[data-corner-sort] { gap: 3px; padding-inline: 5px; }
-  .corner-measurement-table th[aria-sort="none"] svg { display: none; }
-  .corner-measurement-table button svg { flex-basis: 8px; width: 8px; }
+  .corner-measurement-table :is(th,td) { padding: 3px 12px 3px 4px; }
+  .corner-measurement-table :is(th,td):first-child { padding-left: 6px; padding-right: 2px; }
+  .corner-measurement-table :is(th,td):last-child { padding-right: 14px; }
+  .corner-measurement-table .corner-driver { gap: 4px; }
+  .corner-measurement-table .corner-driver-copy { gap: 4px; }
+  .corner-measurement-table button svg { right: -11px; width: 8px; }
 }
