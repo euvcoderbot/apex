@@ -59,7 +59,7 @@ let toastTimer = 0;
 const MIN_TRACE_ZOOM = .004;
 const MIN_TIMING_DELTA_ZOOM = .25;
 const MAX_TIMING_DELTA_ZOOM = 4;
-const TIMING_DELTA_ZOOM_STEP = .25;
+const TIMING_DELTA_ZOOM_STEP = .05;
 const CLIENT_DATA_SCHEMA = 'direct-telemetry-v5';
 const API_ORIGIN = String(window.APEX_API_ORIGIN || '').replace(/\/$/, '');
 

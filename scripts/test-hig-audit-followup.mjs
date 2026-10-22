@@ -44,7 +44,18 @@ test('keyboard telemetry readout keeps estimates, partial-lap delta and visible 
 
 test('the final system layer owns touch density without shrinking source rows or sliding thumbs',()=>{
   assert.deepEqual(UI_STYLES.at(-1),['hig-system.css','system']);
-  const sheet=postcss.parse(read('hig-system.css')),coarse=sheet.nodes.findLast(n=>n.type==='atrule'&&n.params==='(pointer:coarse)');
-  const values={};coarse.walkDecls(d=>values[d.prop]=d.value);
+  const sheet=postcss.parse(read('hig-system.css')),coarse=sheet.nodes.filter(n=>n.type==='atrule'&&n.params==='(pointer:coarse)');
+  const values={};coarse.forEach(rule=>rule.walkDecls(d=>values[d.prop]=d.value));
   for(const token of ['--hig-regular','--hig-small','--hig-large','--hig-thumb','--hig-menu-row'])assert.equal(values[token],'44px');
+});
+
+
+test('corner column sorting reverses repeated selections while unknown values stay last',()=>{
+  const source=read('session-corners.js'),box={};vm.createContext(box);
+  vm.runInContext(source.slice(source.indexOf('let cornerSortReverse'),source.indexOf('function mergeCornerWindows')),box);
+  box.rows=[{id:'A',metric:{sectionTime:5,minimumSpeed:100}},{id:'B',metric:{sectionTime:4,minimumSpeed:120}},{id:'unknown',metric:{sectionTime:null,minimumSpeed:null}}];
+  assert.equal(vm.runInContext("rankCornerMetrics(rows,'time').map(r=>r.id).join(',')",box),'B,A,unknown');
+  assert.equal(vm.runInContext("cornerSortReverse=true;rankCornerMetrics(rows,'time').map(r=>r.id).join(',')",box),'A,B,unknown');
+  assert.equal(vm.runInContext("cornerSortReverse=false;rankCornerMetrics(rows,'minimum').map(r=>r.id).join(',')",box),'B,A,unknown');
+  assert.equal(vm.runInContext("cornerSortReverse=true;rankCornerMetrics(rows,'minimum').map(r=>r.id).join(',')",box),'A,B,unknown');
 });

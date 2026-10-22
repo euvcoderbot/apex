@@ -8,15 +8,6 @@ function renderMiniSectorMap() {
   if (!canvas || !empty || !legend || !title) return;
   if ($('#cornerAnalysis')?.hidden) return;
   if (!loaded.length) mapView = 'guide';
-  const guideDetails=$('#circuitGuideDetails');
-  // The guide's explanation lives in a popover behind an info button, so
-  // switching Guide / Lap comparison never changes the section's height.
-  const guideInfo=$('#circuitGuideInfo');
-  if(guideDetails&&guideInfo){
-    guideInfo.hidden=mapView!=='guide'||!sessionEventName;
-    if(guideInfo.hidden)guideDetails.hidePopover?.();
-    guideDetails.innerHTML=guideInfo.hidden?'':circuitGuideContent();
-  }
   document.querySelectorAll('[data-map-view]').forEach(button => {
     button.setAttribute('aria-pressed', String(button.dataset.mapView === mapView));
     button.disabled = button.dataset.mapView === 'comparison' && !loaded.length;

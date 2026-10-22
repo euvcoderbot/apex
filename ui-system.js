@@ -56,7 +56,7 @@
     if(el.matches('.run-segment'))return 'run';
     if(el.matches('.lap-chip,.track-pill,.corner-pick,.fastest-lap-pick'))return 'choice';
     if(el.matches('.loaded-lap-main'))return 'reference';
-    if(el.matches('.perf-sort-btn')||el.closest('.corner-table-head'))return 'sort';
+    if(el.matches('.perf-sort-btn,[data-corner-sort]')||el.closest('.corner-table-head'))return 'sort';
     if(el.matches('#performanceToggleTracks'))return 'picker';
     if(el.matches('.workspace-disclosure,.corner-analysis-toggle'))return 'disclosure';
     if(el.matches('[data-performance-metric],[data-session-view]'))return 'tab';

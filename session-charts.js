@@ -63,7 +63,7 @@ function updateTimingDeltaZoomReadout() {
 
 function setTimingDeltaZoom(nextZoom) {
   const clamped = Math.max(MIN_TIMING_DELTA_ZOOM, Math.min(MAX_TIMING_DELTA_ZOOM, nextZoom));
-  timingDeltaZoom = Math.round(clamped / TIMING_DELTA_ZOOM_STEP) * TIMING_DELTA_ZOOM_STEP;
+  timingDeltaZoom = Number((Math.round(clamped / TIMING_DELTA_ZOOM_STEP) * TIMING_DELTA_ZOOM_STEP).toFixed(2));
   updateTimingDeltaZoomReadout();
   drawRealChart('Timing delta');
 }
@@ -283,9 +283,9 @@ function renderCharts() {
         <div class="trace-zoom-cluster delta-zoom-cluster" aria-label="Timing delta vertical zoom controls">
           <span class="trace-zoom-readout">Scale <b id="timingDeltaZoomReadout">${Math.round(timingDeltaZoom * 100)}%</b></span>
           <div class="trace-tools">
-            <button data-delta-zoom="out" title="Compress timing delta" aria-label="Compress timing delta">−</button>
-            <button data-delta-zoom="in" title="Magnify timing delta" aria-label="Magnify timing delta">+</button>
-            <button class="trace-reset" data-delta-zoom="reset" title="Reset timing delta scale">Reset</button>
+            <button data-delta-zoom="out" title="Zoom out by 5%" aria-label="Compress timing delta">−</button>
+            <button data-delta-zoom="in" title="Zoom in by 5%" aria-label="Magnify timing delta">+</button>
+            <button class="trace-reset" data-delta-zoom="reset" title="Fit all timing differences" aria-label="Fit timing delta">Fit</button>
           </div>
         </div>` : ''}</div>
       ${name === 'Speed trace' ? `
@@ -433,6 +433,15 @@ function getNiceBounds(name, rawMin, rawMax) {
   }
   
   return { min, max, tickStep };
+}
+
+
+// Keep zoom continuous: rounding the scaled bounds again swallowed small steps.
+// Tick spacing can be nice while the plot limits change on every button press.
+function timingDeltaBounds(rawMin, rawMax, zoom = 1) {
+  const base = getNiceBounds('Timing delta', rawMin, rawMax);
+  const min = base.min / zoom, max = base.max / zoom;
+  return { min, max, tickStep: getNiceBounds('Timing delta', min, max).tickStep };
 }
 
 
@@ -670,7 +679,7 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
   ctx.font = canvasFont(12);
   const ticks = [];
   if (Number.isFinite(tickStep) && tickStep > 0) {
-    for (let value = max; value >= min - tickStep * 0.001; value -= tickStep) {
+    for (let value = Math.floor((max + tickStep * .001) / tickStep) * tickStep; value >= min - tickStep * 0.001; value -= tickStep) {
       ticks.push({ value: Math.abs(value) < tickStep * 0.001 ? 0 : value });
     }
   } else {
@@ -1193,10 +1202,9 @@ function drawRealChart(name) {
   const rawMin = Math.min(...values);
   const rawMax = Math.max(...values);
   
-  let niceBounds = getNiceBounds(name, rawMin, rawMax);
-  if (name === 'Timing delta' && Math.abs(timingDeltaZoom - 1) > 1e-6) {
-    niceBounds = getNiceBounds(name, niceBounds.min / timingDeltaZoom, niceBounds.max / timingDeltaZoom);
-  }
+  const niceBounds = name === 'Timing delta'
+    ? timingDeltaBounds(rawMin, rawMax, timingDeltaZoom)
+    : getNiceBounds(name, rawMin, rawMax);
   const min = niceBounds.min;
   const max = niceBounds.max;
   const refLap = loaded.find(lap => telemetryCache.get(telemetryKey(lap))?.length) || loaded[0];

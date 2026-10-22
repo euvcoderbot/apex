@@ -398,3 +398,74 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 @media(prefers-contrast:more) { .site-header,.app-sidebar,.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover] { background: var(--ui-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 @media(forced-colors:active) { [data-ui-thumb] > button[aria-selected="true"] { background: Highlight; color: HighlightText; } .chart-data-access { background: Canvas; color: CanvasText; } }
+
+
+/* Corner comparison: a compact native table and explicit button affordances.
+   HIG Lists and tables / Buttons / Layout: readable headers, clear feedback,
+   common alignment and spacing. Dimensions are this site's control tokens. */
+.corner-analysis-body { gap: 16px; }
+#cornerPickerRow { padding: 16px; display: grid; gap: 16px; }
+#cornerPickerRow .circuit-section-group { margin: 0; padding: 0; border: 0; }
+.circuit-section-group > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 8px; }
+.circuit-section-group > header h3 { margin: 0; font: 600 var(--type-body)/1.4 var(--ui-font); color: var(--ui-label); }
+.circuit-section-group .corner-picker { gap: 8px; margin: 0; padding: 0; }
+.circuit-section-group .corner-picker button.corner-pick { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: var(--hig-regular); height: auto; min-width: 42px; padding: 6px 10px; border-radius: var(--hig-radius); border: 1px solid var(--ui-border-strong); background: var(--ui-control); color: var(--ui-label); box-shadow: var(--ui-shadow-control); cursor: pointer; }
+.corner-picker button.corner-pick strong { font: 500 var(--type-body)/1.2 var(--ui-font); }
+.corner-picker button.corner-pick small { font: 400 var(--type-caption)/1.2 var(--ui-font); color: var(--ui-secondary); }
+.circuit-section-group .corner-picker button.corner-pick:hover { background: var(--ui-control-hover); }
+.circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"] { background: var(--ui-action); color: #fff; border-color: transparent; }
+#cornerMetricGrid { padding: 0 16px 16px; }
+.corner-detail-card { padding: 0; border: 1px solid var(--ui-border); border-radius: 12px; overflow: hidden; background: var(--ui-panel); }
+.corner-detail-header { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: baseline; justify-content: space-between; gap: 12px; padding: 14px 16px; margin: 0; border: 0; }
+.corner-detail-card .corner-detail-header h3 { margin: 0; color: var(--ui-label); font: 600 var(--type-headline)/1.4 var(--ui-font); }
+.corner-distance { font: 400 var(--type-callout)/1.4 var(--ui-font); color: var(--ui-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.corner-measurement-wrap { overflow-x: auto; max-width: 100%; }
+.corner-measurement-table { border-collapse: collapse; table-layout: auto; width: 100%; font: 400 var(--type-body)/1.4 var(--ui-font); font-variant-numeric: tabular-nums; }
+.corner-measurement-table :is(th,td) { height: 42px; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--ui-separator); text-align: right; white-space: nowrap; }
+.corner-measurement-table :is(th,td):first-child { text-align: left; padding-left: 16px; }
+.corner-measurement-table :is(th,td):last-child { padding-right: 16px; }
+.corner-measurement-table thead th { background: var(--ui-well); color: var(--ui-secondary); font-size: var(--type-caption); font-weight: 600; }
+.corner-measurement-table thead th:has(button) { padding: 5px 4px; }
+.corner-measurement-table button[data-corner-sort] { display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; min-height: var(--hig-regular); width: auto; margin: 0; padding: 4px 6px; border: 1px solid var(--ui-border-strong); border-radius: var(--hig-radius-small); background: var(--ui-control); color: var(--ui-label); box-shadow: var(--ui-shadow-control); cursor: pointer; font: 500 var(--type-caption)/1.4 var(--ui-font); white-space: nowrap; }
+.corner-measurement-table button[data-corner-sort]:hover { background: var(--ui-control-hover); }
+.corner-measurement-table button[data-corner-sort]:active { background: var(--hig-control-pressed); }
+.corner-measurement-table button small { font: inherit; color: var(--ui-secondary); }
+.corner-measurement-table button svg { flex: 0 0 12px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.corner-measurement-table th[aria-sort]:not([aria-sort="none"]) button { color: var(--ui-accent); }
+.corner-measurement-table .corner-driver { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
+.corner-measurement-table .corner-driver i { width: 3px; height: 14px; background: var(--driver-color); border-radius: 2px; }
+.corner-measurement-table .corner-driver small { font: 400 var(--type-caption)/1.4 var(--ui-font); color: var(--ui-secondary); }
+.corner-measurement-table .corner-driver em { font-style: normal; }
+.corner-measurement-table td strong { font-weight: 500; color: inherit; }
+.corner-measurement-table tbody tr:nth-child(even) { background: color-mix(in srgb,var(--ui-label) 3%,transparent); }
+.corner-measurement-table .is-faster { color: var(--ui-positive); }
+.corner-measurement-table .is-slower { color: var(--ui-negative); }
+.corner-detail-card .corner-phase-evidence { display: block; position: static; margin: 0; padding: 8px; border: 0; border-radius: 0; background: transparent; }
+.corner-phase-evidence > summary[data-ui-kind="disclosure"] { box-sizing: border-box; width: 100%; height: auto; min-height: var(--hig-regular); padding: 8px; margin: 0; line-height: 1.4; background: transparent; cursor: pointer; }
+.corner-phase-evidence > summary:hover { background: var(--ui-control-hover); }
+.corner-phase-evidence > :is(p,div) { margin: 8px; }
+.corner-selection-empty { padding: 16px; }
+/* Header words remain intact even in narrow/resized tables. Intrinsic table
+   width is preferable to splitting “Team”, “Mean”, or “Visits” into letters. */
+.performance-table:not(.ui-resized-table) { table-layout: auto; }
+.performance-table thead th { height: auto; min-width: min-content; padding: 8px 14px 8px 10px; white-space: nowrap; overflow-wrap: normal; word-break: normal; text-align: left; vertical-align: middle; }
+.performance-table .perf-sort-btn { display: inline-flex; align-items: center; width: auto; min-width: max-content; gap: 5px; white-space: nowrap; overflow-wrap: normal; word-break: normal; }
+.performance-table .perf-sort-btn > span { white-space: nowrap; overflow-wrap: normal; word-break: normal; }
+.performance-table.ui-resized-table th { overflow-wrap: normal; }
+@media(pointer:coarse) { .circuit-section-group .corner-picker button.corner-pick,.corner-measurement-table button[data-corner-sort],.corner-phase-evidence > summary[data-ui-kind="disclosure"] { min-height: 44px; } }
+@media(max-width:600px) { #cornerPickerRow { padding: 12px; } #cornerMetricGrid { padding: 0 12px 12px; } .corner-detail-header { padding: 12px; } }
+
+.corner-measurement-table .corner-driver-copy { display: grid; gap: 1px; }
+.corner-measurement-table .corner-driver-copy b { font-weight: 600; }
+.corner-measurement-table .corner-driver-copy small { white-space: nowrap; }
+.corner-measurement-table tbody th { font-weight: 400; }
+
+@container(max-width:340px) {
+  .corner-measurement-table :is(th,td) { padding: 8px 4px; }
+  .corner-measurement-table :is(th,td):first-child { padding-left: 8px; }
+  .corner-measurement-table :is(th,td):last-child { padding-right: 8px; }
+  .corner-measurement-table thead th:has(button) { padding-inline: 2px; }
+  .corner-measurement-table button[data-corner-sort] { gap: 3px; padding-inline: 5px; }
+  .corner-measurement-table th[aria-sort="none"] svg { display: none; }
+  .corner-measurement-table button svg { flex-basis: 8px; width: 8px; }
+}
