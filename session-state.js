@@ -63,28 +63,71 @@ const TIMING_DELTA_ZOOM_STEP = .25;
 const CLIENT_DATA_SCHEMA = 'direct-telemetry-v5';
 const API_ORIGIN = String(window.APEX_API_ORIGIN || '').replace(/\/$/, '');
 
+// Attributes the component layer (ui-system.js) adds after render. Keeping
+// them stops a one-frame unstyled flash between a patch and re-decoration.
+function keepsDecoratedAttribute(node, name) {
+  return name.startsWith('data-ui-') || name === 'type'
+    || (name === 'title' && node.dataset?.uiTooltip === 'auto');
+}
+
+function morphAttributes(node, next) {
+  for (const {name} of [...node.attributes]) {
+    if (!next.hasAttribute(name) && !keepsDecoratedAttribute(node, name)) node.removeAttribute(name);
+  }
+  for (const {name, value} of [...next.attributes]) {
+    if (node.getAttribute(name) !== value) node.setAttribute(name, value);
+  }
+}
+
+// Patch the live tree towards the new markup instead of replacing it, so
+// unchanged controls, images and hover state survive a selection change and
+// CSS transitions (not a rebuild) show the new state.
+function morphChildren(parent, source) {
+  const next = [...source.childNodes];
+  for (let index = 0; index < next.length; index++) {
+    const incoming = next[index], current = parent.childNodes[index];
+    const sameElement = current && current.nodeType === 1 && incoming.nodeType === 1
+      && current.tagName === incoming.tagName
+      && (current.dataset.motionKey || '') === (incoming.dataset.motionKey || '');
+    if (sameElement) {
+      morphAttributes(current, incoming);
+      // Decorated symbol buttons own their glyph; leave it in place.
+      if (!(current.querySelector(':scope > [data-ui-symbol]') && !incoming.querySelector('[data-ui-symbol]'))) morphChildren(current, incoming);
+    } else if (current && current.nodeType === 3 && incoming.nodeType === 3) {
+      if (current.nodeValue !== incoming.nodeValue) current.nodeValue = incoming.nodeValue;
+    } else if (current) {
+      parent.replaceChild(incoming.cloneNode(true), current);
+    } else {
+      parent.appendChild(incoming.cloneNode(true));
+    }
+  }
+  while (parent.childNodes.length > next.length) parent.lastChild.remove();
+}
+
 // Animate user-driven updates, not telemetry redraws. Keep keyboard focus
 // on replacement controls without scrolling the page to their new position.
 function replaceUI(root, html) {
   const motion = !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   const oldNodes = [...(root.querySelectorAll?.('[data-motion-key]') || [])];
   const previous = new Map(oldNodes.map(node => [node.dataset.motionKey, {
-    rect: node.getBoundingClientRect(), selected: node.classList.contains('selected'),
+    rect: node.getBoundingClientRect(),
   }]));
   const focusedKey = document.activeElement?.dataset?.motionKey;
-  root.innerHTML = html;
+  if (typeof document.createElement === 'function' && root.childNodes) {
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    morphChildren(root, template.content);
+  } else {
+    root.innerHTML = html;
+  }
   for (const node of [...(root.querySelectorAll?.('[data-motion-key]') || [])]) {
     if (node.matches('button:not(.remove)')) node.setAttribute('aria-pressed', String(node.classList.contains('selected') || node.classList.contains('reference')));
-    if (node.dataset.motionKey === focusedKey) node.focus({ preventScroll: true });
+    if (node.dataset.motionKey === focusedKey && document.activeElement !== node) node.focus({ preventScroll: true });
     if (!motion || !node.animate) continue;
     const ancestor = node.parentElement?.closest('[data-motion-key]');
     const old = previous.get(node.dataset.motionKey);
-    if (ancestor && root.contains(ancestor)) {
-      if (old && old.selected !== node.classList.contains('selected') && node.matches('button')) {
-        node.animate([{ transform: 'scale(.98)' }, { transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.22,.68,0,1)' });
-      }
-      continue;
-    }
+    // Nested controls change state in place; their CSS transition is the feedback.
+    if (ancestor && root.contains(ancestor)) continue;
     const next = node.getBoundingClientRect();
     if (!next.width || !next.height) continue;
     // Rects include the page zoom; transforms are applied in layout px.

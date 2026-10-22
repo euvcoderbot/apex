@@ -47,6 +47,7 @@ const staticFiles = [
   "macos-ui.css",
   "ui-controls.css",
   "macos-window.css",
+  "hig-system.css",
   "ui-system.js",
   "ui-catalog.html",
   "dashboard-ui.js",

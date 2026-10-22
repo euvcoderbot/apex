@@ -1233,7 +1233,10 @@ function drawRealChart(name) {
       const visibleStart = Math.max(viewStart, start);
       const visibleEnd = Math.min(viewEnd, end);
       if (visibleEnd > visibleStart && (visibleEnd - visibleStart) / viewSpan > .08) {
-        ctx.fillText(label, xForFraction((visibleStart + visibleEnd) / 2), bounds.top + 12);
+        // Never let neighbouring sector names collide: shorten, then omit.
+        const span = xForFraction(visibleEnd) - xForFraction(visibleStart) - 8;
+        const text = ctx.measureText(label).width <= span ? label : label.replace('SECTOR ', 'S');
+        if (ctx.measureText(text).width <= span) ctx.fillText(text, xForFraction((visibleStart + visibleEnd) / 2), bounds.top + 12);
       }
     });
     ctx.textAlign = 'left';

@@ -1,0 +1,229 @@
+/* HIG system layer — the single, final owner of control appearance.
+
+   Every control is classified by ui-system.js (data-ui-kind). This layer
+   gives each family ONE size, type style, radius, state set and motion, so a
+   control looks and behaves the same wherever it appears. Earlier layers may
+   still lay controls out (grid, flex, width); they no longer decide how a
+   family looks. Reference: Apple Human Interface Guidelines (macOS) — Buttons,
+   Segmented controls, Pop-up buttons, Toggles, Lists and tables, Sidebars,
+   Toolbars, Typography, Materials, Motion, Accessibility.
+   The rationale and the full element inventory are in docs/hig-audit-20261022.md. */
+
+:root {
+  /* Control sizes (HIG "control size": regular / small / large). */
+  --hig-regular: 30px;          /* push, pop-up, field, segmented track, toggle tile */
+  --hig-small: 24px;            /* chart toolbars, steppers, sort headers, chips */
+  --hig-large: 32px;            /* sidebar rows, toolbar items, category bar */
+  --hig-thumb: 26px;            /* segment inside a regular 30 px track */
+  --hig-menu-row: 28px;
+  --hig-radius: 8px;            /* regular controls and tiles */
+  --hig-radius-small: 6px;      /* small controls, list rows, menu rows */
+  --hig-radius-track: 9px;      /* segmented track; thumb = track - 2 px inset */
+  --hig-radius-thumb: 7px;
+  --hig-radius-overlay: 14px;   /* menus, popovers, tooltips, toasts */
+  --hig-radius-panel: 16px;     /* group boxes, cards, sheets */
+  /* Type ramp (macOS text styles, +1–2 px for this dense web layout). */
+  --type-caption: 12px; --type-callout: 13px; --type-body: 14px; --type-headline: 15px;
+  --type-title3: 17px; --type-title2: 22px; --type-title1: 28px;
+  /* State fills. */
+  --hig-seg-hover: color-mix(in srgb, var(--ui-label) 9%, transparent);
+  --hig-control-pressed: color-mix(in srgb, var(--ui-control-hover) 78%, var(--ui-label) 10%);
+  /* Motion (HIG Motion: brief, purposeful, never decorative). */
+  --hig-fast: 120ms;            /* hover, press, selection change */
+  --hig-medium: 200ms;          /* disclosure, popover, view change */
+  --hig-ease: cubic-bezier(.25,.1,.25,1);
+  --hig-ease-out: cubic-bezier(.2,.8,.2,1);
+}
+
+/* ---------- Shared state behaviour ---------------------------------------- */
+:is(button,summary,[role="option"],[role="tab"])[data-ui-kind] {
+  transition: background-color var(--hig-fast) var(--hig-ease), color var(--hig-fast) var(--hig-ease),
+    box-shadow var(--hig-fast) var(--hig-ease), opacity var(--hig-fast) var(--hig-ease);
+  transform: none;
+}
+:is(button,summary)[data-ui-kind]:active:not(:disabled) { transform: none; }
+:is(button,input,select)[data-ui-kind]:disabled { opacity: .45; cursor: default; }
+
+/* ---------- Push buttons (HIG Buttons: bezel push button) ------------------ */
+button[data-ui-kind="push"],button[data-ui-kind="picker"] {
+  min-height: var(--hig-regular); border: 0; border-radius: var(--hig-radius);
+  background: var(--ui-control); box-shadow: var(--ui-shadow-control); color: var(--ui-label);
+  font-size: var(--type-body); font-weight: 400;
+}
+button[data-ui-kind="push"]:hover:not(:disabled),button[data-ui-kind="picker"]:hover:not(:disabled) { background: var(--ui-control-hover); }
+button[data-ui-kind="push"]:active:not(:disabled),button[data-ui-kind="picker"]:active:not(:disabled) { background: var(--hig-control-pressed); }
+/* A push button that toggles ("Compare fastest") shows on as a toggle tile. */
+button[data-ui-kind="push"][aria-pressed="true"] { background: var(--ui-tile-on); color: var(--ui-tile-on-label); box-shadow: none; }
+
+/* Default (prominent) button: one per view, accent filled. */
+button[data-ui-kind="primary"] {
+  min-height: var(--hig-regular); border: 0; border-radius: var(--hig-radius);
+  background: var(--ui-action); color: #fff; box-shadow: var(--ui-shadow-control);
+  font-size: var(--type-body); font-weight: 600;
+}
+button[data-ui-kind="primary"]:hover:not(:disabled) { background: color-mix(in srgb, var(--ui-action) 88%, #fff); }
+button[data-ui-kind="primary"]:active:not(:disabled) { background: color-mix(in srgb, var(--ui-action) 82%, #000); }
+
+/* ---------- Pop-up buttons and fields (HIG Pop-up buttons, Text fields) ---- */
+button[data-ui-kind="popup"] {
+  min-height: var(--hig-regular); height: var(--hig-regular); border: 0; border-radius: var(--hig-radius);
+  background: var(--ui-control); box-shadow: var(--ui-shadow-control); color: var(--ui-label);
+  font-size: var(--type-body); font-weight: 400;
+}
+button[data-ui-kind="popup"]:hover:not(:disabled) { background: var(--ui-control-hover); }
+button[data-ui-kind="popup"]:active:not(:disabled),button[data-ui-kind="popup"][aria-expanded="true"] { background: var(--hig-control-pressed); }
+:is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),textarea)[data-ui-kind="field"] {
+  min-height: var(--hig-regular); border-radius: var(--hig-radius); font-size: var(--type-body);
+}
+
+/* ---------- Segmented controls (HIG Segmented controls) -------------------
+   Regular: a 30 px recessed track, 26 px raised thumb. The Q1/Q2/Q3 run
+   picker, view switch, map view, scope and option toggles all use it. */
+:is([data-ui-group="segments"],.lap-workspace .run-segments) {
+  min-height: var(--hig-regular); padding: 2px; gap: 2px; border: 0;
+  border-radius: var(--hig-radius-track); background: var(--ui-seg-track);
+  box-shadow: inset 0 0 0 .5px var(--ui-separator);
+}
+:is(button[data-ui-kind="segment"],button[data-ui-kind="run"]) {
+  height: auto; min-height: var(--hig-thumb); border: 0; border-radius: var(--hig-radius-thumb);
+  background: transparent; box-shadow: none; color: var(--ui-secondary);
+  font-size: var(--type-body); font-weight: 400;
+}
+:is(button[data-ui-kind="segment"],button[data-ui-kind="run"]):hover:not([aria-pressed="true"]):not(:disabled) { background: var(--hig-seg-hover); color: var(--ui-label); }
+:is(button[data-ui-kind="segment"],button[data-ui-kind="run"]):active:not([aria-pressed="true"]):not(:disabled) { background: color-mix(in srgb, var(--ui-label) 12%, transparent); }
+:is(button[data-ui-kind="segment"],button[data-ui-kind="run"])[aria-pressed="true"] {
+  background: var(--ui-seg-thumb); color: var(--ui-label); box-shadow: var(--ui-thumb-shadow); font-weight: 600;
+}
+.lap-workspace .run-segment[data-ui-kind="run"] { padding-block: 2px; }
+.lap-workspace .run-segment[data-ui-kind="run"] small { font-size: var(--type-caption); font-weight: 400; color: inherit; opacity: .85; }
+
+/* Large segmented: the category bar is the page's primary navigation. */
+.category-bar button[data-ui-kind="tab"] {
+  min-height: var(--hig-large); border: 0; border-radius: var(--hig-radius-thumb);
+  background: transparent; box-shadow: none; color: var(--ui-secondary);
+  font-size: var(--type-body); font-weight: 400;
+}
+.category-bar button[data-ui-kind="tab"]:hover:not([aria-current]) { background: var(--hig-seg-hover); color: var(--ui-label); }
+.category-bar button[data-ui-kind="tab"][aria-current="page"] {
+  background: var(--ui-seg-thumb); color: var(--ui-label); box-shadow: var(--ui-thumb-shadow); font-weight: 600;
+}
+#carPerformance > .category-bar:not([hidden]) { border-radius: var(--hig-radius-track); background: var(--ui-seg-track); box-shadow: inset 0 0 0 .5px var(--ui-separator); }
+
+/* ---------- Toggle tiles (HIG Toggles: button-style toggle) ---------------
+   Lap tiles, corner and straight picks, "Fastest" picks: bezel when off,
+   accent fill with white label when on. Team colour never shows state. */
+button[data-ui-kind="choice"] {
+  min-height: var(--hig-regular); border: 0; border-radius: var(--hig-radius);
+  background: var(--ui-control); box-shadow: var(--ui-shadow-control); color: var(--ui-label);
+  font-size: var(--type-body); font-weight: 400;
+}
+button[data-ui-kind="choice"]:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--ui-control-hover); }
+button[data-ui-kind="choice"]:active:not(:disabled):not([aria-pressed="true"]) { background: var(--hig-control-pressed); }
+button[data-ui-kind="choice"][aria-pressed="true"] { background: var(--ui-tile-on); color: var(--ui-tile-on-label); box-shadow: none; }
+button[data-ui-kind="choice"][aria-pressed="true"]:hover:not(:disabled) { background: color-mix(in srgb, var(--ui-tile-on) 88%, #fff); }
+button[data-ui-kind="choice"][aria-pressed="true"] :is(small,span,b,strong,em,time) { color: inherit; }
+button[data-ui-kind="choice"] small { font-size: var(--type-caption); }
+
+/* ---------- Lists and source lists (HIG Lists and tables, Sidebars) ------- */
+button[data-ui-kind="list-row"] {
+  min-height: var(--hig-large); border: 0; border-radius: var(--hig-radius-small);
+  background: transparent; box-shadow: none; color: var(--ui-label); font-size: var(--type-body); font-weight: 400;
+}
+button[data-ui-kind="list-row"]:hover:not([aria-pressed="true"]) { background: var(--ui-row-hover); }
+button[data-ui-kind="list-row"][aria-pressed="true"] { background: var(--ui-list-selected); color: var(--ui-list-selected-label); }
+:is(button,[role="option"])[data-ui-kind="menu-item"] {
+  height: var(--hig-menu-row); min-height: var(--hig-menu-row); border: 0; border-radius: var(--hig-radius-small); box-shadow: none;
+  font-size: var(--type-body); font-weight: 400;
+}
+
+/* ---------- Small controls: steppers, sort headers, reference chips ------- */
+button[data-ui-kind="stepper"] {
+  min-height: var(--hig-small); height: var(--hig-small); min-width: var(--hig-small);
+  border: 0; border-radius: var(--hig-radius-small); background: transparent; box-shadow: none;
+  color: var(--ui-secondary); font-size: var(--type-callout);
+}
+button[data-ui-kind="stepper"]:hover:not(:disabled) { background: var(--hig-seg-hover); color: var(--ui-label); }
+button[data-ui-kind="stepper"]:active:not(:disabled) { background: color-mix(in srgb, var(--ui-label) 12%, transparent); }
+button[data-ui-kind="sort"] { border-radius: var(--hig-radius-small); font-size: var(--type-caption); font-weight: 600; }
+button[data-ui-kind="sort"]:hover { color: var(--ui-label); }
+button[data-ui-kind="reference"] {
+  min-height: var(--hig-small); border-radius: var(--hig-radius-small); font-size: var(--type-callout);
+}
+button[data-ui-kind="reference"]:hover { background: var(--hig-seg-hover); }
+
+/* ---------- Toolbar items (HIG Toolbars: borderless icon buttons) --------- */
+button[data-ui-kind="toolbar"] {
+  height: var(--hig-regular); min-height: var(--hig-regular); min-width: var(--hig-regular); border: 0; border-radius: var(--hig-radius);
+  background: transparent; box-shadow: none; color: var(--ui-secondary);
+}
+button[data-ui-kind="toolbar"]:hover:not(:disabled) { background: var(--hig-seg-hover); color: var(--ui-label); }
+button[data-ui-kind="toolbar"]:active:not(:disabled),button[data-ui-kind="toolbar"][aria-pressed="true"] { background: color-mix(in srgb, var(--ui-label) 12%, transparent); color: var(--ui-label); }
+button[data-ui-kind="icon"] { border-radius: 50%; }
+button[data-ui-kind="icon"]:hover { background: var(--hig-seg-hover); color: var(--ui-label); }
+
+/* ---------- Disclosure (HIG Disclosure controls) -------------------------- */
+:is(summary,button)[data-ui-kind="disclosure"] { min-height: var(--hig-regular); border-radius: var(--hig-radius-small); }
+summary[data-ui-kind="disclosure"]:hover { color: var(--ui-label); }
+
+/* ---------- Checkboxes and radio buttons (HIG Toggles) --------------------
+   macOS checkboxes are small rounded squares; circles are radio buttons. */
+input[data-ui-kind="checkbox"] { border-radius: 4px; }
+input[data-ui-kind="radio"] { border-radius: 50%; }
+input[data-ui-kind="checkbox"]:hover:not(:checked):not(:disabled) { background: var(--ui-control-hover); }
+input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 4px; height: 8px; }
+
+/* Visible-trace chips: a neutral bezel holding a checkbox and a colour well;
+   the trace colour lives only in the well (selection spec rule 5). */
+.trace-pill-group { min-height: var(--hig-regular); padding: 0 4px 0 0; border: 0; border-radius: var(--hig-radius); background: var(--ui-control); box-shadow: var(--ui-shadow-control); }
+.trace-pill-group .trace-driver-chip,.trace-pill-group .trace-driver-chip.is-visible { min-height: var(--hig-regular); background: transparent; box-shadow: none; border: 0; }
+.trace-pill-group:hover { background: var(--ui-control-hover); }
+.trace-pill-group .trace-swatch { width: 18px; height: 18px; flex: 0 0 18px; border-radius: 4px; }
+
+/* ---------- Badges (not controls) ---------------------------------------- */
+[data-ui-kind="badge"],.loaded-lap-main em,.corner-driver em,.ref-badge {
+  font-size: var(--type-caption); font-weight: 600; border-radius: 4px; letter-spacing: 0;
+}
+
+/* ---------- Typography (HIG Typography) ----------------------------------- */
+.workspace-intro h1 { font-size: var(--type-title1); font-weight: 600; letter-spacing: -.01em; }
+#carPerformance .metric-heading h2 { font-size: var(--type-title1); font-weight: 600; letter-spacing: -.01em; }
+/* Section headers: one style for every top-level group box in both views. */
+:is(.lap-workspace .workspace-heading h2,.analysis-heading h2,.corner-analysis-header h2,#carPerformance .performance-card > .panel-heading h2) {
+  font-size: var(--type-title3); font-weight: 600; line-height: 1.25; letter-spacing: 0;
+}
+:is(.corner-analysis-header,.lap-workspace .workspace-heading) h2 > button { font: inherit; color: inherit; }
+/* Titles inside a group: charts, driver run cards, metric charts. */
+:is(.chart-heading h2,.perf-chart-heading,.run-driver-copy h3,.corner-detail-header strong,.dominance-map-header h2) {
+  font-size: var(--type-headline); font-weight: 600; letter-spacing: 0;
+}
+/* Group labels: sidebar sections and sub-groups (Corners / Straights). */
+:is(.app-sidebar .panel-heading h2,.driver-control-card .panel-heading h2,.circuit-section-group > header h3) {
+  font-size: var(--type-callout); font-weight: 600; color: var(--ui-secondary); letter-spacing: 0; text-transform: none;
+}
+.circuit-section-group > header span,.workspace-eyebrow { font-size: var(--type-caption); color: var(--ui-tertiary); }
+
+/* ---------- Materials (HIG Materials) -------------------------------------
+   Translucency only where content scrolls underneath: toolbar, pop-up menus,
+   tooltips and toasts. Content panels stay opaque for legibility. */
+.site-header { background: color-mix(in srgb, var(--ui-toolbar) 82%, transparent); -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%); }
+:is(.select-menu,.tooltip,.app-toast) { border-radius: var(--hig-radius-overlay); }
+.local-compute-dialog { border-radius: var(--hig-radius-panel); }
+.local-compute-dialog::backdrop { background: #0000004d; }
+@media (prefers-reduced-transparency: reduce) {
+  :is(.site-header,.select-menu,.tooltip,.app-toast,.app-sidebar) { background: var(--ui-toolbar); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
+/* ---------- Motion (HIG Motion) --------------------------------------------
+   No entrance animation replays when a panel is re-rendered by a selection;
+   content that changes in place relies on the control's colour transition. */
+:is(.lap-summary-card,.driver-run-card,.chart,.corner-analysis,.dominance-map) { animation: none; }
+.performance-page[data-motion="enter"] .performance-bar { animation-duration: 320ms; }
+@media (prefers-reduced-motion: reduce) {
+  :is(button,summary,[role="option"],[role="tab"])[data-ui-kind] { transition: none; }
+}
+
+/* ---------- Increased contrast (HIG Accessibility) ------------------------ */
+@media (prefers-contrast: more) {
+  :is([data-ui-group="segments"],.lap-workspace .run-segments) { box-shadow: inset 0 0 0 1px var(--ui-border-strong); }
+  button:is([data-ui-kind="push"],[data-ui-kind="choice"],[data-ui-kind="popup"]) { box-shadow: inset 0 0 0 1px var(--ui-border-strong); }
+}
