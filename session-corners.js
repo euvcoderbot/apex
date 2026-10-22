@@ -235,11 +235,11 @@ function renderCornerAnalysis() {
     const highestMinimum = Number.isFinite(item.metric.minimumSpeed) && Number.isFinite(highestMinimumSpeed)
       && Math.abs(item.metric.minimumSpeed - highestMinimumSpeed) < .05;
     return `
-      <div class="corner-driver-row ${fastest && loaded.length > 1 ? 'is-fastest' : ''} ${highestMinimum && loaded.length > 1 ? 'is-highest-min' : ''}" style="--driver-color:${getLapColor(item.lap)}">
-        <span class="corner-driver"><i></i><b>${item.lap.code}</b><small>L${item.lap.lap}</small>${item.lap === referenceLap ? '<em>REF</em>' : ''}</span>
-        <span class="corner-time"><strong>${Number.isFinite(sectionTime) ? sectionTime.toFixed(3) : '—'}</strong></span>
-        <span class="corner-delta ${deltaClass}"><strong>${Number.isFinite(toReference) ? signedDelta(toReference).replace(/s$/, '') : '—'}</strong></span>
-        <span class="corner-speed"><strong>${Number.isFinite(item.metric.minimumSpeed) ? item.metric.minimumSpeed.toFixed(1) : '—'}</strong></span>
+      <div role="row" class="corner-driver-row ${fastest && loaded.length > 1 ? 'is-fastest' : ''} ${highestMinimum && loaded.length > 1 ? 'is-highest-min' : ''}" style="--driver-color:${getLapColor(item.lap)}">
+        <span role="rowheader" class="corner-driver"><i></i><b>${item.lap.code}</b><small>L${item.lap.lap}</small>${item.lap === referenceLap ? '<em>REF</em>' : ''}</span>
+        <span role="cell" class="corner-time"><strong>${Number.isFinite(sectionTime) ? sectionTime.toFixed(3) : '—'}</strong></span>
+        <span role="cell" class="corner-delta ${deltaClass}"><strong>${Number.isFinite(toReference) ? signedDelta(toReference).replace(/s$/, '') : '—'}</strong></span>
+        <span role="cell" class="corner-speed"><strong>${Number.isFinite(item.metric.minimumSpeed) ? item.metric.minimumSpeed.toFixed(1) : '—'}</strong></span>
       </div>`;
   }).join('');
 
@@ -253,8 +253,8 @@ function renderCornerAnalysis() {
         <div><strong>${escapeUI(selectionLabel)}</strong><small>${escapeUI(String(zone.type).toLowerCase())}${markers.some(marker => marker.approximate) ? ' · Approx. map position' : ''}${zone.boundaryMethod?' · '+escapeUI(zone.boundaryMethod):''}</small></div>
         <dl><div><dt>Measured distance</dt><dd>${zone.metres} m</dd></div>${averageSpeed?'':`<div><dt>Min-speed window</dt><dd>${zone.apexMetres} m</dd></div>`}</dl>
       </header>
-      <div class="corner-table-head"><span>Driver</span>${[['time','Time','s','time'],['delta','Delta','s','delta'],['minimum',averageSpeed?'Avg':'Min','km/h',averageSpeed?'average speed':'minimum speed']].map(([key,label,unit,name]) => `<button type="button" data-corner-sort="${key}" aria-pressed="${cornerSort === key}" aria-label="Sort by ${name}" title="Sort best to worst by ${name} (${unit})">${label} <small>${unit}</small>${cornerSort === key ? '<i class="sort-indicator" aria-hidden="true">↓</i>' : ''}</button>`).join('')}</div>
-      <div class="corner-driver-metrics">${rows||'<span class="section-empty">The selected sections have insufficient measured data. Remove a corner or choose another lap.</span>'}</div>
+      <div role="table" aria-label="Selected section measurements"><div role="row" class="corner-table-head"><span role="columnheader">Driver</span>${[['time','Time','s','time'],['delta','Delta','s','delta'],['minimum',averageSpeed?'Avg':'Min','km/h',averageSpeed?'average speed':'minimum speed']].map(([key,label,unit,name]) => `<span role="columnheader" aria-sort="${cornerSort===key?(key==='minimum'?'descending':'ascending'):'none'}"><button type="button" data-corner-sort="${key}" aria-pressed="${cornerSort === key}" aria-label="Sort by ${name}" title="Sort best to worst by ${name} (${unit})">${label} <small>${unit}</small>${cornerSort === key ? '<i class="sort-indicator" aria-hidden="true">↓</i>' : ''}</button></span>`).join('')}</div>
+      <div role="rowgroup" class="corner-driver-metrics">${rows||'<span class="section-empty">The selected sections have insufficient measured data. Remove a corner or choose another lap.</span>'}</div></div>
       ${referencePhases&&metrics.length>1?`<details class="corner-phase-evidence"><summary>Modelled entry / exit diagnostic</summary><p>Modelled, not measured: the same entry-speed correction and exit-speed credit the season cornering metric uses, applied to these laps. Separate from the measured section times above.</p>${rankedMetrics.map(item=>{const split=phaseSplit(item.lap);return split?`<div><b>${item.lap.code}</b>${split}</div>`:'';}).join('')}</details>`:''}
     </article>`;
   root.querySelectorAll('[data-corner-sort]').forEach(button => {

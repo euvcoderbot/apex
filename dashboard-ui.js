@@ -83,12 +83,14 @@
     const tabs=[...performanceRoot.querySelectorAll('.performance-mode [data-performance-metric]')];
     categoryList.hidden=!tabs.length;
     if(!tabs.length)return;
+    categoryList.setAttribute('role','tablist');categoryList.setAttribute('aria-label','Performance category');
     const signature=tabs.map(tab=>tab.dataset.performanceMetric+(tab.disabled?'!':'')).join(',');
     if(categoryList.dataset.signature!==signature){
       categoryList.dataset.signature=signature;
       const rows=tabs.map(tab=>{
         const key=tab.dataset.performanceMetric,[,title,description]=metrics[key]||['',tab.textContent.trim(),''];
         const row=document.createElement('button');row.type='button';row.className='category-tab';row.dataset.sidebarMetric=key;row.setAttribute('aria-label',title);row.title=description;row.disabled=tab.disabled;
+        row.id='category-tab-'+key;row.setAttribute('role','tab');row.setAttribute('aria-controls','performanceMetricPanel');
         row.insertAdjacentHTML('afterbegin',`<svg class="ui-symbol category-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${categoryIcons[key]||''}</svg>`);
         const label=document.createElement('span');label.className='category-label';label.textContent=title;
         const short=document.createElement('span');short.className='category-short';short.setAttribute('aria-hidden','true');short.textContent=shortTitles[key]||title;
@@ -99,8 +101,10 @@
     }
     const active=tabs.find(tab=>tab.getAttribute('aria-selected')==='true')?.dataset.performanceMetric;
     for(const row of categoryList.querySelectorAll('[data-sidebar-metric]')){
-      if(row.dataset.sidebarMetric===active)row.setAttribute('aria-current','page');else row.removeAttribute('aria-current');
+      const on=row.dataset.sidebarMetric===active;row.setAttribute('aria-selected',String(on));row.tabIndex=on?0:-1;
+      if(on)row.setAttribute('aria-current','page');else row.removeAttribute('aria-current');
     }
+    const panel=performanceRoot.querySelector('#performanceMetricPanel');if(panel&&active)panel.setAttribute('aria-labelledby','category-tab-'+active);
   }
   categoryList?.addEventListener('click',event=>{
     const row=event.target.closest('[data-sidebar-metric]');if(!row||row.disabled)return;
@@ -112,8 +116,8 @@
     if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key))return;
     const rows=[...categoryList.querySelectorAll('[data-sidebar-metric]:not(:disabled)')],index=rows.indexOf(document.activeElement);
     if(index<0)return;event.preventDefault();
-    const next=event.key==='Home'?rows[0]:event.key==='End'?rows.at(-1):rows[Math.max(0,Math.min(rows.length-1,index+(['ArrowDown','ArrowRight'].includes(event.key)?1:-1)))];
-    next?.focus();
+    const next=event.key==='Home'?rows[0]:event.key==='End'?rows.at(-1):rows[(index+(['ArrowDown','ArrowRight'].includes(event.key)?1:-1)+rows.length)%rows.length];
+    next?.focus();next?.click();
   });
   if(performanceRoot&&typeof MutationObserver!=='undefined')new MutationObserver(syncCategoryList).observe(performanceRoot,{childList:true});
   const viewTitles={session:['Compare laps','Session analysis'],performance:['Compare performance','Car performance']};
@@ -212,6 +216,7 @@
         caption.className = 'visually-hidden';
         caption.textContent = title;
       }
+      wrap.setAttribute('role','region');wrap.setAttribute('aria-label',table.querySelector('caption')?.textContent||title);
     }
     for(const grid of root.querySelectorAll('.performance-visual-grid')){
       for(const chart of grid.querySelectorAll('.performance-chart-card')){

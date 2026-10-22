@@ -122,6 +122,7 @@ function bindChartZoom() {
 
 let traceFocusReturn = null;
 let traceFocusPreviousView = null;
+let traceFocusInert = [];
 function setTraceFocus(expanded) {
   const charts = $('#charts');
   if (!charts) return;
@@ -129,6 +130,16 @@ function setTraceFocus(expanded) {
     if(document.body.classList.contains('trace-focus'))return;
     traceFocusReturn = document.activeElement;
     traceFocusPreviousView = {zoom:{...traceZoom},delta:timingDeltaZoom};
+    // Inert only siblings along the ancestor path, never an ancestor of charts.
+    traceFocusInert = [];
+    for (let node = charts; node.parentElement; node = node.parentElement) {
+      for (const sibling of node.parentElement.children) {
+        if (sibling === node || ['SCRIPT','STYLE','LINK'].includes(sibling.tagName)) continue;
+        traceFocusInert.push([sibling,sibling.inert]);sibling.inert = true;
+      }
+      if (node.parentElement === document.body) break;
+    }
+    charts.setAttribute('role','dialog');charts.setAttribute('aria-modal','true');
     // The expanded view is for reading the entire lap, not magnifying a section.
     traceZoom = { start: 0, end: 1 };
     hoverFraction = null;
@@ -137,6 +148,8 @@ function setTraceFocus(expanded) {
   else if(traceFocusPreviousView) {
     traceZoom={...traceFocusPreviousView.zoom};timingDeltaZoom=traceFocusPreviousView.delta;
     traceFocusPreviousView=null;updateZoomReadout();updateTimingDeltaZoomReadout();
+    for (const [element,inert] of traceFocusInert) element.inert = inert;
+    traceFocusInert = [];charts.setAttribute('role','region');charts.removeAttribute('aria-modal');
   }
   document.body.classList.toggle('trace-focus', expanded);
   $('#realTooltip').style.display = 'none';
@@ -154,6 +167,12 @@ document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && document.body.classList.contains('trace-focus')) {
     event.preventDefault();
     setTraceFocus(false);
+  }
+  if (event.key === 'Tab' && document.body.classList.contains('trace-focus')) {
+    const choices=[...$('#charts').querySelectorAll('button,input,summary,[tabindex="0"]')].filter(el=>!el.disabled&&!el.closest('[inert]')&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden');
+    const first=choices[0],last=choices.at(-1);
+    if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}
+    else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
   }
 });
 
@@ -283,14 +302,50 @@ function renderCharts() {
           <p class="pit-lap-notice" id="pitLapNotice" hidden>Pit-in laps include pit entry. Pit-out traces begin at pit exit and are partial; a lap marked IN/OUT may include a garage stop. No full-lap timing delta is shown for pit-out traces.</p>
           <span class="visually-hidden" id="cornerStatus" aria-live="polite">Corner labels hidden.</span>
         </div>` : ''}
-      <canvas data-chart="${name}" aria-label="${name}${name === 'Speed trace' ? '. Drag horizontally to zoom every telemetry chart.' : ''}"></canvas>
+      <canvas data-chart="${name}" role="img" aria-describedby="telemetryDataHelp" aria-label="${name}${name === 'Speed trace' ? '. Drag horizontally to zoom every telemetry chart.' : ''}"></canvas>
     </section>
   `;
-  }).join('');
+  }).join('') + `<details class="chart-data-access" id="telemetryDataAccess"><summary>Inspect telemetry values</summary>
+    <p id="telemetryDataHelp">Read every visible trace at a chosen lap distance. Use the distance slider or its arrow keys; Home and End go to the start and finish. Values use the same display calculations as the charts. ~ indicates an estimated repair; — means unavailable.</p>
+    <div class="chart-sample-controls"><label for="telemetrySample">Lap distance</label><input id="telemetrySample" type="range" min="0" max="1000" step="1" value="0" aria-describedby="telemetryDataHelp"><output for="telemetrySample" id="telemetrySampleDistance">0.000 km</output></div>
+    <output class="chart-sample-status" id="telemetrySampleStatus" aria-live="polite"></output>
+    <div class="performance-table-wrap" tabindex="0" role="region" aria-label="Telemetry values at selected lap distance"><table class="performance-table"><caption>Values at selected lap distance</caption><thead><tr><th scope="col">Trace</th><th scope="col">Speed (km/h)</th><th scope="col">Delta (s)</th><th scope="col">Throttle (%)</th><th scope="col">Brake</th><th scope="col">Gear</th>${season<2026?'<th scope="col">DRS</th>':''}</tr></thead><tbody id="telemetrySampleRows"></tbody></table></div>
+  </details>`;
   bindAllChartHover();
   bindChartZoom();
   bindSpeedChartControls();
   renderTraceVisibilityControls();
+  $('#telemetryDataAccess').addEventListener('toggle',()=>{if($('#telemetryDataAccess').open)renderTelemetryReadout();});
+  $('#telemetrySample').addEventListener('input',()=>{
+    hoverFraction=Number($('#telemetrySample').value)/1000;
+    hoveredChartName='Speed trace';defs.forEach(def=>drawChartHover(def[0]));drawMapHover();renderTelemetryReadout();
+  });
+  $('#dominanceCanvas')?.setAttribute('aria-describedby','telemetryDataHelp');
+}
+
+function renderTelemetryReadout() {
+  const inspector=$('#telemetryDataAccess'),slider=$('#telemetrySample');
+  if(!inspector?.open||!slider)return;
+  const fraction=Number(slider.value)/1000,reference=loaded[0]&&telemetryCache.get(telemetryKey(loaded[0]));
+  const maxDistance=reference?.at(-1)?.Distance||0,distance=(fraction*maxDistance/1000).toFixed(3)+' km';
+  $('#telemetrySampleDistance').textContent=distance;slider.setAttribute('aria-valuetext',distance);
+  slider.disabled=!reference?.length;
+  const fields=[['Speed','Speed trace'],['Throttle','Throttle application'],['Brake','Brake application'],['nGear','Gear'],['DRS','DRS']];
+  const rows=visibleTraceLaps().map(({lap,index})=>{
+    const samples=telemetryCache.get(telemetryKey(lap));
+    const values={};
+    for(const [field,name] of fields){
+      const value=['Speed','Throttle'].includes(field)&&typeof traceTelemetryValue==='function'?traceTelemetryValue(samples,fraction,field):interpolate(samples,fraction*maxDistance,field);
+      const estimated=typeof isReconstructedTelemetry==='function'&&isReconstructedTelemetry(samples,fraction,field);
+      const low=typeof telemetryEstimateInfo==='function'&&telemetryEstimateInfo(samples,fraction,field)?.confidence==='low';
+      values[field]=!Number.isFinite(value)?'—':field==='Brake'?(value>=50?'On':'Off'):field==='DRS'?(value>=.5?'Open':'Closed'):(estimated?'~':'')+(['Speed','Throttle'].includes(field)?value.toFixed(3):Math.round(value))+(low?' (low confidence)':'');
+    }
+    const delta=lap.real?.out_lap||loaded[0]?.real?.out_lap?null:index===0?0:typeof displayDeltaAt==='function'?displayDeltaAt(samples,reference,fraction):deltaAt(samples,reference,fraction*maxDistance);
+    const deltaText=Number.isFinite(delta)?(delta>=0?'+':'')+delta.toFixed(3):'—';
+    return {label:`${lap.code} L${lap.lap}${index===0?' (reference)':''}`,values,deltaText};
+  });
+  $('#telemetrySampleRows').innerHTML=rows.length?rows.map(({label,values,deltaText})=>`<tr><th scope="row">${escapeUI(label)}</th><td>${values.Speed}</td><td>${deltaText}</td><td>${values.Throttle}</td><td>${values.Brake}</td><td>${values.nGear}</td>${Number($('#year').value)<2026?'<td>'+values.DRS+'</td>':''}</tr>`).join(''):'<tr><td colspan="7">Load a lap to inspect its telemetry.</td></tr>';
+  $('#telemetrySampleStatus').textContent=rows.length?distance+' · '+rows.map(row=>row.label+': '+row.values.Speed+' km/h').join('; '):'Load a lap to inspect its telemetry.';
 }
 
 

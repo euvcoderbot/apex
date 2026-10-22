@@ -45,3 +45,19 @@ test('motion CSS animates navigation only and honours reduced motion', () => {
   // Keyboard activation (detail 0) must not wait for a transition: focus moves to the new tab at once.
   assert.match(cars, /if\(changed&&event\.detail>0&&window\.ApexMotion\)window\.ApexMotion\.transition\(update\);else update\(\);/);
 });
+
+test('a throwing transition callback is never retried as a second mutation',()=>{
+  const {motion}=page();let calls=0;
+  assert.throws(()=>motion.transition(()=>{calls++;throw new Error('update failed');}),/update failed/);
+  assert.equal(calls,1);
+});
+
+test('rapid navigation skips the prior visual transition and reduced-motion changes cancel feedback',()=>{
+  const handlers={},skipped=[],cancelled=[],transitions=[];
+  const box={window:{},document:{hidden:false,documentElement:{},startViewTransition(fn){fn();const entry={skipTransition(){skipped.push(1);},finished:Promise.resolve(),updateCallbackDone:Promise.resolve()};transitions.push(entry);return entry;}},
+    matchMedia:()=>({matches:false,addEventListener:(type,fn)=>handlers[type]=fn}),setTimeout,clearTimeout,getComputedStyle:()=>({getPropertyValue:key=>key==='--ui-motion'?'140ms':'ease-out'})};
+  vm.createContext(box);vm.runInContext(source,box);
+  box.window.ApexMotion.transition(()=>{});box.window.ApexMotion.transition(()=>{});assert.equal(skipped.length,1);
+  box.window.ApexMotion.track({finished:Promise.resolve(),cancel(){cancelled.push(1);}});
+  handlers.change({matches:true});assert.equal(cancelled.length,1);assert.equal(skipped.length,2);
+});

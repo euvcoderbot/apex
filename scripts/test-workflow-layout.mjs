@@ -25,7 +25,8 @@ test('lap selection collapses without losing its contents and has a reliable edi
 
 test('traces and corners are simultaneous regions and share the existing hover path',()=>{
   assert.doesNotMatch(app,/sessionAnalysisView|setSessionAnalysisView/);
-  assert.doesNotMatch(page,/data-session-view|role="tabpanel"/);
+  assert.doesNotMatch(page,/data-session-view/);
+  assert.doesNotMatch(page,/<div class="telemetry-analysis-grid"[^>]*role="tabpanel"/);
   assert.match(page,/class="telemetry-analysis-grid"/);
   assert.match(page,/id="charts" role="region" aria-label="Telemetry traces"/);
   assert.match(app,/hoverFraction = fraction;[\s\S]*?drawMapHover\(\)/);

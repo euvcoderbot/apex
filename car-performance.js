@@ -1880,13 +1880,13 @@ function renderContent() {
 document.querySelectorAll('[data-analysis-view]').forEach(button=>button.addEventListener('click',event=>{
   // A pointer click cross-fades the two views (motion.js); links, history
   // and keyboard activation switch at once.
-  const animate=event.detail>0&&!restoringView&&button.getAttribute('aria-pressed')!=='true';
+  const animate=event.detail>0&&!restoringView&&button.getAttribute('aria-selected')!=='true';
   const run=()=>{
   const performance=button.dataset.analysisView==='performance';
   if(!restoringView)window.ApexUrl?.write(performance?'cars':'session',performance?(initialized?carUrlState():window.ApexUrl.remembered('cars')||{}):window.ApexUrl.remembered('session')||window.sessionUrlState?.()||{});
   document.body.classList.toggle('performance-view',performance);
   $('carPerformance').hidden=!performance;
-  document.querySelectorAll('[data-analysis-view]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));
+  document.querySelectorAll('[data-analysis-view]').forEach(b=>{b.setAttribute('aria-selected',String(b===button));b.tabIndex=b===button?0:-1;});
   if(!performance) { if(running||traceRunning) stop(); window.dispatchEvent(new Event('resize')); }
   if(performance&&!initialized) {
     initialized=true;
@@ -1921,7 +1921,7 @@ function syncCarUrl() {
 function showAnalysisView(view) {
   // Switch views for a link or the back button without writing a new entry.
   const button=document.querySelector(`[data-analysis-view="${view}"]`);
-  if(!button||button.getAttribute('aria-pressed')==='true')return;
+  if(!button||button.getAttribute('aria-selected')==='true')return;
   restoringView=true;try{button.click();}finally{restoringView=false;}
 }
 async function applyCarUrl(params) {

@@ -45,6 +45,7 @@
     if(el.matches('input[type="checkbox"]'))return 'checkbox';
     if(el.matches('input[type="radio"]'))return 'radio';
     if(el.matches('input[type="color"]'))return 'colour';
+    if(el.matches('input[type="range"]'))return 'slider';
     if(el.matches('input,select,textarea'))return 'field';
     if(el.matches('summary'))return 'disclosure';
     if(el.matches('.select-trigger'))return 'popup';
@@ -109,6 +110,12 @@
       // Segmented toggle buttons expose pressed states, not incomplete radio semantics.
       if(group.getAttribute('role')==='radiogroup')group.setAttribute('role','group');
     }
+    for(const tab of root.querySelectorAll('[data-analysis-view]')){
+      const selected=tab.getAttribute('aria-selected')==='true';set(tab,'role','tab');set(tab,'tabindex',selected?'0':'-1');set(tab,'id','analysis-tab-'+tab.dataset.analysisView);
+      set(tab,'aria-controls',tab.dataset.analysisView==='performance'?'carPerformance':'top');set(tab.parentElement,'role','tablist');
+    }
+    for(const group of root.querySelectorAll('.trace-zoom-cluster,.comparison-tray,.trace-settings'))set(group,'role','group');
+    for(const link of root.querySelectorAll('.local-compute-actions > a'))set(link,'data-ui-kind','push');
     for(const el of root.querySelectorAll('.perf-tercile-badge,.track-count-badge,.performance-coverage-badge,.performance-quality-badge,.retirement-badge,.tow-badge')){
       set(el,'data-ui-kind','badge');
       el.style.removeProperty('font-size');el.style.removeProperty('border-radius');
@@ -120,7 +127,7 @@
   // (HIG Segmented controls). Its geometry lives in --ui-thumb-* on the group;
   // the group's ::before draws it, so re-renders never recreate it.
   const thumbGroups='[data-ui-group="segments"],.run-segments,.category-bar';
-  const chosen='button[aria-pressed="true"],button[aria-current="page"]';
+  const chosen='button[aria-pressed="true"],button[aria-selected="true"],button[aria-current="page"]';
   function placeThumb(group){
     const button=group.querySelector(':scope > :is('+chosen+')');
     if(!button||!button.offsetWidth){group.removeAttribute('data-ui-thumb');return;}

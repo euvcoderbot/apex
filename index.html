@@ -35,8 +35,8 @@
     </div>
     <div class="header-actions">
       <nav class="performance-tabs" aria-label="Analysis view">
-        <button type="button" data-analysis-view="session" aria-pressed="true" aria-label="Session analysis"><span class="view-label">Session analysis</span><span class="view-short" aria-hidden="true">Sessions</span></button>
-        <button type="button" data-analysis-view="performance" aria-pressed="false" aria-label="Car performance"><span class="view-label">Car performance</span><span class="view-short" aria-hidden="true">Cars</span></button>
+        <button type="button" data-analysis-view="session" aria-selected="true" aria-label="Session analysis"><span class="view-label">Session analysis</span><span class="view-short" aria-hidden="true">Sessions</span></button>
+        <button type="button" data-analysis-view="performance" aria-selected="false" aria-label="Car performance"><span class="view-label">Car performance</span><span class="view-short" aria-hidden="true">Cars</span></button>
       </nav>
     </div>
     <div class="workspace-tools" role="group" aria-label="Display options">
@@ -45,7 +45,7 @@
       <button id="themeToggle" class="theme-toggle" type="button" aria-pressed="false" aria-label="Switch to light mode"><i aria-hidden="true"></i><span>Light mode</span></button>
     </div>
   </header>
-  <main id="top" tabindex="-1">
+  <main id="top" tabindex="-1" role="tabpanel" aria-labelledby="analysis-tab-session">
       <div class="workspace-intro session-intro">
         <div class="workspace-title"><span class="workspace-eyebrow">SESSION ANALYSIS</span><h1>Compare laps</h1></div>
       </div>
@@ -169,7 +169,7 @@
       </div>
     </div>
   </main>
-  <section id="carPerformance" class="performance-page" aria-label="Car performance" tabindex="-1" hidden>
+  <section id="carPerformance" class="performance-page" role="tabpanel" aria-labelledby="analysis-tab-performance" tabindex="-1" hidden>
     <div class="workspace-intro performance-intro">
       <div><span class="workspace-eyebrow">CAR PERFORMANCE</span><h1>Compare performance</h1></div>
     </div>

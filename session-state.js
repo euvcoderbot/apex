@@ -145,8 +145,9 @@ function replaceUI(root, html) {
     const dx = old ? (old.rect.left - next.left) / pageZoom : 0;
     const dy = old ? (old.rect.top - next.top) / pageZoom : 6;
     if (!old || Math.abs(dx) + Math.abs(dy) > 1) {
-      node.animate([{ opacity: old ? 1 : 0, transform: `translate(${dx}px, ${dy}px)` },
+      const animation=node.animate([{ opacity: old ? 1 : 0, transform: `translate(${dx}px, ${dy}px)` },
         { opacity: 1, transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.22,.68,0,1)' });
+      window.ApexMotion?.track(animation);
     }
   }
 }
@@ -385,10 +386,14 @@ function notify(message, tone = 'error') {
   const toast = $('#appToast');
   if (!toast) return;
   window.clearTimeout(toastTimer);
-  toast.textContent = String(message || 'Something went wrong.');
+  const text=document.createElement('span'),dismiss=document.createElement('button');
+  text.textContent=String(message || 'Something went wrong.');
+  dismiss.type='button';dismiss.textContent='Dismiss';dismiss.setAttribute('aria-label','Dismiss notification');
+  const hide=()=>{toast.classList.remove('is-visible');toast.hidden=true;};dismiss.onclick=hide;toast.replaceChildren(text,dismiss);
   toast.dataset.tone = tone;
-  toast.classList.add('is-visible');
-  toastTimer = window.setTimeout(() => toast.classList.remove('is-visible'), 5200);
+  toast.hidden=false;toast.classList.add('is-visible');
+  // Errors remain until dismissed; there is no reading-time deadline.
+  if(tone!=='error')toastTimer = window.setTimeout(hide, 8000);
 }
 
 function scheduleDrawAll() {
