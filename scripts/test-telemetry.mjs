@@ -304,8 +304,12 @@ test('slow first lap, partial map, late geometry and a session switch remain ind
       assert.equal(h.run("telemetryCache.get('VER:2')[100].X"),1000,'geometry remains on its original clock');
       assert.equal(h.run("JSON.stringify(telemetryCache.get('VER:2').map(({X,Y,...p})=>p))"),before);
       assert.equal(h.element('#dominanceEmpty').style.display,'none');
-      assert.ok(h.run('sessionSectorGuide'));
+      assert.ok(h.run('loaded[1].sectorGuide'),'enriched second lap retains its own guide');
+      assert.equal(h.run('sessionSectorGuide'),null,'never label the pending reference with another lap’s DRS');
       finishFirst();await pending;
+      assert.equal(h.run('sessionSectorGuide===loaded[0].sectorGuide'),true);
+      h.run('loaded.reverse();paintReadyTelemetry()');
+      assert.equal(h.run('sessionSectorGuide===loaded[0].sectorGuide'),true,'reference changes update the guide');
       assert.match(h.element('#dominanceTitle').innerHTML,/Mini-sector dominance/);
     }
   }
@@ -346,7 +350,10 @@ test('active telemetry loader sends existing lap context and creates the sector 
   assert.equal(requested.searchParams.get('lap_start_seconds'),'3600');
   assert.equal(requested.searchParams.get('lap_end_seconds'),'3690');
   assert.equal(requested.searchParams.get('lap_time'),'90');
-  assert.equal(h.run('sessionSectorGuide.segmentSectors.length'),360);
+  assert.equal(h.run('lap.sectorGuide.segmentSectors.length'),360);
+  h.run('var reopened={...lap,sectorGuide:null}');
+  await h.run('fetchTelemetry(reopened)');
+  assert.equal(h.run('reopened.sectorGuide===lap.sectorGuide'),true,'reopening a cached lap keeps its own DRS guide');
 });
 
 test('complete map geometry accepts a bounded provider interval but rejects corruption', () => {

@@ -149,6 +149,51 @@ test('sector guide uses timed boundaries and rejects insufficient data', () => {
   assert.equal(h.run('makeSectorGuide(testLap,testSamples.slice(8),[])'),null);
 });
 
+test('circuit annotations recover named corners without a timing archive or provider chainage', async () => {
+  const h=context(); let calls=0;
+  Object.assign(h.sandbox,{AbortSignal});
+  h.sandbox.fetch=async()=>{calls++;return {ok:true,json:async()=>({corners:[
+    {number:1,length:7000,trackPosition:{x:100,y:0}},
+    {number:2,length:8000,trackPosition:{x:200,y:0}},
+    {number:3,trackPosition:{x:null,y:0}}
+  ]})};};
+  const [a,b]=await Promise.all([h.run('loadCircuitAnnotations(39,2026)'),h.run('loadCircuitAnnotations(39,2026)')]);
+  assert.equal(calls,1);assert.equal(a,b);
+  h.sandbox.guide=a;
+  const rows=h.run('circuitAnnotationRows(guide)');
+  assert.equal(rows.length,2);assert.equal(rows[0].distance,undefined);
+  h.sandbox.rows=rows;
+  h.run("document.querySelector=()=>({value:'13'});calendar=[];sessionCircuitKey=39;corners=rows");
+  const markers=h.run('resolveCornerMarkers([{Distance:0,X:0,Y:0},{Distance:100,X:100,Y:0},{Distance:200,X:200,Y:0},{Distance:300,X:300,Y:0}],300)');
+  assert.equal(markers.length,2);assert.equal(markers[0].fraction,1/3);assert.equal(markers[1].fraction,2/3);
+  await h.run('loadCircuitAnnotations(39,2026)');assert.equal(calls,1);
+});
+
+test('sector guide decodes raw DRS codes, keeps unknown states closed and hides 2026 aero mode',()=>{
+  const h=context();vm.runInContext(readFileSync('analysis-core.js','utf8'),h.sandbox);
+  h.run(`resolveCornerMarkers=()=>[];sessionYear=2025;
+    testLap={time:30,s1:8.15,s2:10.2,s3:11.65};
+    testSamples=Array.from({length:121},(_,i)=>({X:Math.cos(i/120*2*Math.PI)*1000,Y:Math.sin(i/120*2*Math.PI)*1000,Distance:i*40,ElapsedSeconds:i/4,DRS:i<40?8:i<80?12:null}));`);
+  assert.equal(h.run('makeSectorGuide(testLap,testSamples,[]).drs[0]'),false);
+  assert.equal(h.run('makeSectorGuide(testLap,testSamples,[]).drs.at(-1)'),false);
+  assert.ok(h.run('makeSectorGuide(testLap,testSamples,[]).drs.some(Boolean)'));
+  assert.equal(h.run('makeSectorGuide(testLap,testSamples.map(p=>({...p,DRS:8})),[]).drs'),null);
+  assert.ok(h.run('makeSectorGuide(testLap,testSamples.map(p=>({...p,DRS:1})),[],true).drs.every(Boolean)'));
+  h.run('sessionYear=2026');assert.equal(h.run('makeSectorGuide(testLap,testSamples,[]).drs'),null);
+});
+
+test('weekend session order respects dated schedules and historical sprint formats',()=>{
+  const h=context();
+  h.sandbox.event={sessions:['Race','Qualifying','Sprint','Practice 1','Sprint Qualifying']};
+  assert.equal(h.run('orderedWeekendSessions(event,2026).join()'),'Practice 1,Sprint Qualifying,Sprint,Qualifying,Race');
+  h.sandbox.event={sessions:['Race','Sprint','Qualifying','Practice 1','Sprint Shootout']};
+  assert.equal(h.run('orderedWeekendSessions(event,2023).join()'),'Practice 1,Qualifying,Sprint Shootout,Sprint,Race');
+  h.sandbox.event={sessions:['Race','Sprint','Qualifying','Practice 2','Practice 1']};
+  assert.equal(h.run('orderedWeekendSessions(event,2021).join()'),'Practice 1,Qualifying,Practice 2,Sprint,Race');
+  h.sandbox.event={sessions:['Qualifying','Practice 3'],session_dates:{Qualifying:'2026-07-01T10:00:00Z','Practice 3':'2026-07-01T14:00:00Z'}};
+  assert.equal(h.run('orderedWeekendSessions(event,2026).join()'),'Qualifying,Practice 3');
+});
+
 test('actual circuit identity resolves Sepang despite the Bahrain event name', () => {
   const h=context();
   h.sandbox.document.querySelector = selector => ({value:selector==='#gp'?'16':'2026'});

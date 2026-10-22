@@ -415,7 +415,7 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 .circuit-section-group .corner-picker button.corner-pick:hover { background: var(--ui-control-hover); }
 .circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"] { background: var(--ui-action); color: #fff; border-color: transparent; }
 #cornerMetricGrid { padding: 0 16px 16px; }
-.corner-detail-card { padding: 0; border: 1px solid var(--ui-border); border-radius: 12px; overflow: hidden; background: var(--ui-panel); }
+.corner-detail-card { padding: 0; border: 1px solid var(--ui-border); border-radius: 12px; overflow: hidden; background: transparent; }
 .corner-detail-header { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: baseline; justify-content: space-between; gap: 12px; padding: 14px 16px; margin: 0; border: 0; }
 .corner-detail-card .corner-detail-header h3 { margin: 0; color: var(--ui-label); font: 600 var(--type-headline)/1.4 var(--ui-font); }
 .corner-distance { font: 400 var(--type-callout)/1.4 var(--ui-font); color: var(--ui-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -424,9 +424,9 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 .corner-measurement-table :is(th,td) { height: 42px; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--ui-separator); text-align: right; white-space: nowrap; }
 .corner-measurement-table :is(th,td):first-child { text-align: left; padding-left: 16px; }
 .corner-measurement-table :is(th,td):last-child { padding-right: 16px; }
-.corner-measurement-table thead th { background: var(--ui-well); color: var(--ui-secondary); font-size: var(--type-caption); font-weight: 600; }
+.corner-measurement-table thead th { background: var(--ui-header-row); color: var(--ui-secondary); font-size: var(--type-caption); font-weight: 600; }
 .corner-measurement-table thead th:has(button) { padding: 5px 4px; }
-.corner-measurement-table button[data-corner-sort] { display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; min-height: var(--hig-regular); width: auto; margin: 0; padding: 4px 6px; border: 1px solid var(--ui-border-strong); border-radius: var(--hig-radius-small); background: var(--ui-control); color: var(--ui-label); box-shadow: var(--ui-shadow-control); cursor: pointer; font: 500 var(--type-caption)/1.4 var(--ui-font); white-space: nowrap; }
+.corner-measurement-table button[data-corner-sort] { display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; min-height: var(--hig-small); width: auto; margin: 0; padding: 4px 6px; border: 0; border-radius: var(--hig-radius-small); background: transparent; color: var(--ui-secondary); box-shadow: none; cursor: pointer; font: 600 var(--type-caption)/1.4 var(--ui-font); white-space: nowrap; }
 .corner-measurement-table button[data-corner-sort]:hover { background: var(--ui-control-hover); }
 .corner-measurement-table button[data-corner-sort]:active { background: var(--hig-control-pressed); }
 .corner-measurement-table button small { font: inherit; color: var(--ui-secondary); }
@@ -436,7 +436,7 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 .corner-measurement-table .corner-driver i { width: 3px; height: 14px; background: var(--driver-color); border-radius: 2px; }
 .corner-measurement-table .corner-driver small { font: 400 var(--type-caption)/1.4 var(--ui-font); color: var(--ui-secondary); }
 .corner-measurement-table .corner-driver em { font-style: normal; }
-.corner-measurement-table td strong { font-weight: 500; color: inherit; }
+.corner-measurement-table td strong { font-size: var(--type-body); font-weight: 500; color: inherit; }
 .corner-measurement-table tbody tr:nth-child(even) { background: color-mix(in srgb,var(--ui-label) 3%,transparent); }
 .corner-measurement-table .is-faster { color: var(--ui-positive); }
 .corner-measurement-table .is-slower { color: var(--ui-negative); }

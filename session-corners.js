@@ -296,7 +296,37 @@ function clearDominanceMapCanvas(canvas) {
 let sessionSectorGuide = null;
 const GUIDE_SECTOR_COLORS = ['#ff4081', '#e6bc24', '#40a9ed'];
 
-function makeSectorGuide(lap, samples, suppliedCorners) {
+// Circuit geometry is independent of timing-archive availability. The same
+// request supplies the guide, trace labels, comparison map and corner picker.
+const circuitAnnotationFlights = new Map();
+function loadCircuitAnnotations(key, year, signal) {
+  const identity = `${key}:${year}`;
+  if (apiCircuitGuides.get(identity)) return Promise.resolve(apiCircuitGuides.get(identity));
+  if (circuitAnnotationFlights.has(identity)) return circuitAnnotationFlights.get(identity);
+  apiCircuitGuideRequests.add(identity);
+  const request = fetch(`/api/circuit-guide?key=${key}&year=${year}`, {
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000),
+  }).then(response => {
+    if (!response.ok) throw new Error('Circuit metadata unavailable');
+    return response.json();
+  }).then(data => { apiCircuitGuides.set(identity,data); return data; })
+    .finally(() => { circuitAnnotationFlights.delete(identity); apiCircuitGuideRequests.delete(identity); });
+  circuitAnnotationFlights.set(identity,request);
+  return request;
+}
+
+function circuitAnnotationRows(guide) {
+  return (guide?.corners || []).flatMap(corner => {
+    const {x,y} = corner.trackPosition || {};
+    if (x == null || y == null || !Number.isFinite(+x) || !Number.isFinite(+y)) return [];
+    // Provider 'length' is outline chainage in provider units, not lap metres.
+    // Project the physical X/Y onto the actual telemetry instead.
+    return [{number:String(corner.number),letter:corner.letter || '',x:+x,y:+y,
+      angle:corner.angle,source:'circuit_position'}];
+  });
+}
+
+function makeSectorGuide(lap, samples, suppliedCorners, drsNormalized = false) {
   const meta = lap.real || lap;
   const times = [meta.s1, meta.s2, meta.s3];
   const duration = lap.time ?? meta.time;
@@ -314,8 +344,11 @@ function makeSectorGuide(lap, samples, suppliedCorners) {
   }
   const boundaries=[times[0],times[0]+times[1]];
   // DRS is only drawn up to 2025: the 2026 straight-mode state isn't in the public feed.
-  const drsKnown=Number(sessionYear)<2026&&valid.some(p=>p.DRS!=null&&Number.isFinite(+p.DRS));
-  const points=valid.map(p=>({x:p.X,y:p.Y,t:p.ElapsedSeconds,drs:drsKnown&&+p.DRS>=.5}));
+  const drsState = value => drsNormalized
+    ? (value === 0 || value === 1 ? value : null)
+    : window.ApexAnalysis?.observedDRS(value) ?? null;
+  const drsKnown=Number(sessionYear)<2026&&valid.some(p=>drsState(p.DRS)!==null);
+  const points=valid.map(p=>({x:p.X,y:p.Y,t:p.ElapsedSeconds,drs:drsKnown&&drsState(p.DRS)===1}));
   for(const t of boundaries) {
     const i=points.findIndex(p=>p.t>=t);
     if(i<1)return null;
@@ -595,9 +628,7 @@ function renderGenericCircuit(canvas, empty) {
   const guideKey = `${circuitKey}:${sessionYear}`;
   if(circuitKey && !apiCircuitGuides.has(guideKey) && !apiCircuitGuideRequests.has(guideKey)) {
     apiCircuitGuideRequests.add(guideKey);
-    fetch(`/api/circuit-guide?key=${circuitKey}&year=${sessionYear}`)
-      .then(r=>{if(!r.ok)throw new Error('Circuit metadata unavailable');return r.json();})
-      .then(data=>apiCircuitGuides.set(guideKey,data))
+    loadCircuitAnnotations(circuitKey,sessionYear)
       .catch(()=>apiCircuitGuides.set(guideKey,null))
       .finally(()=>{apiCircuitGuideRequests.delete(guideKey);if(mapView==='guide')renderMiniSectorMap();});
   }

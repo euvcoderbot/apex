@@ -29,7 +29,7 @@ let nominatedCompounds = [];
 let selectedCornerIndices = new Set();
 let automaticStraightIndices = new Set();
 let cornerSort = 'time';
-let showCornerNumbers = window.ApexAnalysis?.preference('corner-numbers',false)===true;
+let showCornerNumbers = window.ApexAnalysis?.preference('corner-numbers',true)!==false;
 let showSpeedAnnotations = window.ApexAnalysis?.preference('speed-annotations',false)===true;
 let speedAnnotationCache = null;
 const traceTintEnabled = false;

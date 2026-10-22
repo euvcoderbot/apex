@@ -194,7 +194,11 @@ function normalizeTelemetry(samples, lap, source = 'Unknown') {
 async function fetchTelemetry(lap) {
   const key = telemetryKey(lap);
   const sessionAtStart = sessionRequest;
-  if (telemetryCache.has(key)) return telemetryCache.get(key);
+  if (telemetryCache.has(key)) {
+    const samples = telemetryCache.get(key);
+    lap.sectorGuide = samples.sectorGuide || null;
+    return samples;
+  }
   if (telemetryRequests.has(key)) return telemetryRequests.get(key);
   const request = (async () => {
     const query = currentQuery();
@@ -244,7 +248,8 @@ async function fetchTelemetry(lap) {
     });
 
     telemetryCache.set(key, samples);
-    if (!sessionSectorGuide) sessionSectorGuide = makeSectorGuide(lap, payload.samples || [], payload.corners);
+    lap.sectorGuide = makeSectorGuide(lap, payload.samples || [], payload.corners);
+    setTelemetryMeta(samples,'sectorGuide',lap.sectorGuide);
     // Display useful car channels now; a missing map must not hold them behind
     // a full FastF1-session download. Enrich only the coordinates in the background.
     if (!completePositionGeometry(samples)) {
@@ -260,8 +265,9 @@ async function fetchTelemetry(lap) {
           setTelemetryMeta(samples,'alignmentInputs',null);
           setTelemetryMeta(samples,'positionRevision',(samples.positionRevision || 0)+1);
           dominanceMapGeometryCache=null;
-          if (!sessionSectorGuide) sessionSectorGuide=makeSectorGuide(lap,
-            samples.map(p=>({...p,ElapsedSeconds:p.ElapsedSeconds+(samples.timeOrigin || 0)})),lap.cornerMarkers);
+          lap.sectorGuide=makeSectorGuide(lap,
+            samples.map(p=>({...p,ElapsedSeconds:p.ElapsedSeconds+(samples.timeOrigin || 0)})),lap.cornerMarkers,true);
+          setTelemetryMeta(samples,'sectorGuide',lap.sectorGuide);
           if (loaded.some(item=>telemetryKey(item)===key)) paintReadyTelemetry();
         }).catch(()=>{});
     }

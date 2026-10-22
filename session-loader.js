@@ -245,10 +245,28 @@ function verifiedTireNominations(year, eventName, reported) {
   return reported;
 }
 
+function orderedWeekendSessions(event, year = Number(selectValue($('#year')))) {
+  const sprint = (event?.sessions || []).some(name => /sprint/i.test(name));
+  const order = sprint
+    ? year >= 2024
+      ? ['Practice 1','Sprint Qualifying','Sprint Shootout','Sprint','Qualifying','Race']
+      : year === 2023
+        ? ['Practice 1','Qualifying','Sprint Shootout','Sprint Qualifying','Sprint','Race']
+        : ['Practice 1','Qualifying','Practice 2','Sprint','Race']
+    : ['Practice 1','Practice 2','Practice 3','Qualifying','Race'];
+  const rank = name => { const index = order.indexOf(name); return index < 0 ? 99 : index; };
+  return [...(event?.sessions || [])].sort((a,b) => {
+    const startA = parsedSessionTimestamp(event.session_dates?.[a]);
+    const startB = parsedSessionTimestamp(event.session_dates?.[b]);
+    return Number.isFinite(startA) && Number.isFinite(startB) && startA !== startB
+      ? startA - startB : rank(a) - rank(b);
+  });
+}
+
 function populateSessions(preferredSession = null) {
   const selectedVal = selectValue($('#gp'));
   const event = calendar.find(item => String(item.round) === String(selectedVal) || item.name === selectedVal) || calendar[0];
-  const sessions = event?.sessions || [];
+  const sessions = orderedWeekendSessions(event);
   populate($('#session'), sessions);
   if (!sessions.length) return;
 
@@ -348,6 +366,18 @@ async function loadRealSession() {
     sessionLocation = payload.location || '';
     openf1SessionKey = Number.isInteger(payload.openf1_session_key) ? payload.openf1_session_key : null;
     nominatedCompounds = verifiedTireNominations(sessionYear, sessionEventName, payload.compounds || []);
+    // Archive-free summaries can have complete laps but no CircuitInfo rows.
+    // Fetch venue annotations independently and share them with every view.
+    if (!corners.length && sessionCircuitKey && !isSepangCircuit()) {
+      try {
+        const guide = await loadCircuitAnnotations(sessionCircuitKey, sessionYear, request.signal);
+        if (request !== sessionRequest || requestedQuery !== String(currentQuery())) return;
+        corners = circuitAnnotationRows(guide);
+      } catch (error) {
+        if (error.name === 'AbortError') throw error;
+        console.warn('Circuit annotations unavailable', error.message);
+      }
+    }
     
     renderDrivers();
     renderTireNomination();

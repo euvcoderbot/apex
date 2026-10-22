@@ -264,6 +264,8 @@ async function drawAll() {
 }
 
 function paintReadyTelemetry() {
+  // Always describe the current reference, not whichever request finished first.
+  sessionSectorGuide = loaded[0]?.sectorGuide || null;
   if (typeof prepareTelemetryAlignment === 'function') {
     prepareTelemetryAlignment();
   }
