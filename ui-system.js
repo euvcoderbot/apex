@@ -114,6 +114,29 @@
       el.style.removeProperty('font-size');el.style.removeProperty('border-radius');
     }
     for(const el of root.querySelectorAll('.empty-icon-badge'))if(!el.querySelector('[data-ui-symbol]'))el.innerHTML=symbol('chart');
+    placeThumbs(root);
+  }
+  // Segmented controls: one thumb per group that slides to the chosen segment
+  // (HIG Segmented controls). Its geometry lives in --ui-thumb-* on the group;
+  // the group's ::before draws it, so re-renders never recreate it.
+  const thumbGroups='[data-ui-group="segments"],.run-segments,.category-bar';
+  const chosen='button[aria-pressed="true"],button[aria-current="page"]';
+  function placeThumb(group){
+    const button=group.querySelector(':scope > :is('+chosen+')');
+    if(!button||!button.offsetWidth){group.removeAttribute('data-ui-thumb');return;}
+    const next=[button.offsetLeft,button.offsetTop,button.offsetWidth,button.offsetHeight].map(v=>v+'px');
+    const props=['--ui-thumb-x','--ui-thumb-y','--ui-thumb-w','--ui-thumb-h'];
+    if(props.every((prop,index)=>group.style.getPropertyValue(prop)===next[index])&&group.dataset.uiThumb)return;
+    props.forEach((prop,index)=>group.style.setProperty(prop,next[index]));
+    // The first placement appears in place; later ones slide.
+    if(!group.dataset.uiThumb){group.dataset.uiThumb='placed';requestAnimationFrame(()=>requestAnimationFrame(()=>{if(group.dataset.uiThumb)group.dataset.uiThumb='sliding';}));}
+  }
+  const thumbObserver=typeof ResizeObserver!=='undefined'?new ResizeObserver(entries=>entries.forEach(entry=>placeThumb(entry.target.closest?.(thumbGroups)||entry.target))):null;
+  function placeThumbs(root=document){
+    for(const group of root.querySelectorAll(thumbGroups)){
+      placeThumb(group);
+      if(thumbObserver&&!group.dataset.uiThumbObserved){group.dataset.uiThumbObserved='true';thumbObserver.observe(group);}
+    }
   }
   function audit(root=document){
     const counts={},unowned=[];
@@ -130,7 +153,7 @@
     if(!records.some(record=>record.type==='childList'||record.target.matches?.('button,input,select,summary'))||pending)return;
     // rAF pauses in background tabs; the timer guarantees new controls are owned anyway.
     pending=true;const run=()=>{if(!pending)return;pending=false;decorate();};requestAnimationFrame(run);setTimeout(run,150);
-  }).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','aria-pressed','aria-selected','disabled']});
+  }).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','aria-pressed','aria-selected','aria-current','disabled']});
   document.addEventListener('keydown',event=>{
     const resizer=event.target.closest?.('.ui-column-resizer');
     if(resizer&&['ArrowLeft','ArrowRight','Home'].includes(event.key)){event.preventDefault();resizeColumn(resizer,event.key==='ArrowLeft'?-8:8,event.key==='Home');return;}

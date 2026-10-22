@@ -227,3 +227,30 @@ input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 
   :is([data-ui-group="segments"],.lap-workspace .run-segments) { box-shadow: inset 0 0 0 1px var(--ui-border-strong); }
   button:is([data-ui-kind="push"],[data-ui-kind="choice"],[data-ui-kind="popup"]) { box-shadow: inset 0 0 0 1px var(--ui-border-strong); }
 }
+
+/* ---------- Redundant titles (HIG Layout: avoid repeating the page title) - */
+.performance-card > .panel-heading[data-redundant] { display: none; }
+
+/* ---------- Sliding segmented thumb (HIG Segmented controls) --------------
+   ui-system.js writes the chosen segment's box to --ui-thumb-*; the group's
+   ::before is the thumb and slides between segments. Segments stay clear so
+   the label sits on the moving thumb. */
+:is([data-ui-group="segments"],.lap-workspace .run-segments,#carPerformance > .category-bar)[data-ui-thumb] { position: relative; isolation: isolate; }
+:is([data-ui-group="segments"],.lap-workspace .run-segments,#carPerformance > .category-bar)[data-ui-thumb]::before {
+  content: ''; position: absolute; left: 0; top: 0; z-index: -1; pointer-events: none;
+  width: var(--ui-thumb-w); height: var(--ui-thumb-h);
+  transform: translate(var(--ui-thumb-x), var(--ui-thumb-y));
+  border-radius: var(--hig-radius-thumb); background: var(--ui-seg-thumb); box-shadow: var(--ui-thumb-shadow);
+}
+:is([data-ui-group="segments"],.lap-workspace .run-segments,#carPerformance > .category-bar)[data-ui-thumb="sliding"]::before {
+  transition: transform var(--hig-medium) var(--hig-ease-out), width var(--hig-medium) var(--hig-ease-out), height var(--hig-medium) var(--hig-ease-out);
+}
+[data-ui-thumb] > :is(button[data-ui-kind="segment"],button[data-ui-kind="run"])[aria-pressed="true"],
+[data-ui-thumb] > button[data-ui-kind="tab"][aria-current="page"] { background: transparent; box-shadow: none; }
+@media (prefers-reduced-motion: reduce) {
+  [data-ui-thumb]::before { transition: none !important; }
+}
+@media (forced-colors: active) {
+  [data-ui-thumb]::before { display: none; }
+  [data-ui-thumb] > :is(button[aria-pressed="true"],button[aria-current="page"]) { background: Highlight; color: HighlightText; }
+}

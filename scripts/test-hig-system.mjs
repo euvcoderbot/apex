@@ -48,6 +48,31 @@ test('motion is brief, never replays on re-render and honours Reduce Motion, Tra
   assert.deepEqual(blurred, ['.site-header']);
 });
 
+test('segmented controls share one sliding thumb, kept across re-renders', () => {
+  const system = readFileSync('ui-system.js', 'utf8'), state = readFileSync('session-state.js', 'utf8');
+  assert.match(system, /function placeThumb\(group\)/);
+  assert.match(system, /'--ui-thumb-x','--ui-thumb-y','--ui-thumb-w','--ui-thumb-h'/);
+  assert.match(system, /attributeFilter:\[[^\]]*'aria-current'/);
+  assert.match(css, /\[data-ui-thumb\]::before \{\s*content: '';/);
+  assert.match(css, /\[data-ui-thumb="sliding"\]::before \{\s*transition: transform var\(--hig-medium\)/);
+  assert.match(css, /\[data-ui-thumb\]::before \{ transition: none !important; \}/);
+  // Patching a group keeps the thumb geometry the component layer wrote.
+  assert.match(state, /prop\.startsWith\('--ui-'\)/);
+});
+
+test('a card header that repeats the page title is hidden, and the Kick Sauber mark is transparent', () => {
+  const ui = readFileSync('dashboard-ui.js', 'utf8');
+  assert.match(ui, /heading\.toggleAttribute\('data-redundant', redundant\)/);
+  assert.match(ui, /replace\(\/\\s\*&\\s\*\/g, ' and '\)/);
+  assert.match(css, /\.performance-card > \.panel-heading\[data-redundant\] \{ display: none; \}/);
+  for (const file of ['session-state.js', 'performance-identity.js']) {
+    const source = readFileSync(file, 'utf8');
+    assert.doesNotMatch(source, /kick-sauber\.png/, file);
+    assert.match(source, /kick-sauber-black\.webp.*kick-sauber-white\.webp/, file);
+  }
+  assert.match(readFileSync('macos-window.css', 'utf8'), /\[data-team-mark="kick-sauber"\]/);
+});
+
 // A minimal element tree, enough for the patcher.
 class Node {
   constructor(tag, attrs = {}, children = []) {

@@ -23,4 +23,6 @@ Renault (2016-2020): 2019 Renault F1 Team identity loaded from https://upload.wi
 CC BY-SA 4.0 license: https://creativecommons.org/licenses/by-sa/4.0/
 CC0: https://creativecommons.org/publicdomain/zero/1.0/
 
+Derived: `kick-sauber-black.webp` and `kick-sauber-white.webp` are the "Stake" wordmark cropped from `kick-sauber.png`, with the white background made transparent (alpha from darkness), for small list marks in light and dark appearance.
+
 Notes: Sauber 2018 uses Alfa Romeo Sauber branding; the 2023 Alfa Romeo Stake lockup is not season-exact for 2019-2022. Preserve these distinctions if implementing season-specific logos.

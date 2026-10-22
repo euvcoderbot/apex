@@ -57,7 +57,7 @@ test('all interactive primitive families have explicit appearance and state cont
 test('presentation decoration has no source requests, storage invalidation or score mutations',async()=>{
   const script=await read('ui-system.js');
   assert.doesNotMatch(script,/fetch\(|XMLHttpRequest|localStorage|telemetryCache|\.sort\(|gap_s\s*=/);
-  assert.match(script,/attributeFilter:\['class','aria-pressed','aria-selected','disabled'\]/);
+  assert.match(script,/attributeFilter:\['class','aria-pressed','aria-selected','aria-current','disabled'\]/);
   assert.match(script,/requestAnimationFrame/);assert.match(script,/unowned/);
   assert.match(script,/window.enhanceSelect\(select\)/);
   assert.match(script,/handle\.setAttribute\('role','separator'\)/);

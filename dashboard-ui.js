@@ -150,6 +150,14 @@
       }
       headingControls.append(refresh);
     }
+    // A card header that repeats the page title ("Braking" under "Braking")
+    // adds nothing; hide it so the chart title leads the card.
+    const titleKey = text => String(text || '').trim().toLowerCase().replace(/\s*&\s*/g, ' and ');
+    const pageTitle = titleKey(panel?.querySelector('.metric-heading h2')?.textContent);
+    for (const heading of root.querySelectorAll('.performance-card > .panel-heading')) {
+      const redundant = !!pageTitle && titleKey(heading.querySelector('h2')?.textContent) === pageTitle;
+      heading.toggleAttribute('data-redundant', redundant);
+    }
     for (const body of root.querySelectorAll('.performance-card-body')) {
       const children = [...body.children];
       const charts = children.filter(el => el.matches('.performance-chart-card:not(.performance-tyre-stint-plot)'));
