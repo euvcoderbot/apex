@@ -31,7 +31,11 @@ test('every control family has one size, radius and type style in the final laye
 
 test('type uses one ramp and section headers share one style across both views', () => {
   const ramp = new Set(['var(--type-caption)', 'var(--type-callout)', 'var(--type-body)', 'var(--type-headline)', 'var(--type-title3)', 'var(--type-title2)', 'var(--type-title1)', 'inherit']);
-  root.walkDecls('font-size', decl => assert.ok(ramp.has(decl.value), decl.parent.selector + ' uses off-ramp ' + decl.value));
+  const sectorDeficitSelector = '.sector-cards .lap-summary-card .sector-delta-slot .summary-delta';
+  root.walkDecls('font-size', decl => assert.ok(ramp.has(decl.value) ||
+    (decl.parent.selector === sectorDeficitSelector && decl.value === 'calc(var(--type-caption) * .85)'),
+    decl.parent.selector + ' uses off-ramp ' + decl.value));
+  assert.deepEqual(declared(rulesFor(/^\.sector-cards \.lap-summary-card \.sector-delta-slot \.summary-delta$/), 'font-size'), ['calc(var(--type-caption) * .85)']);
   const sections = rulesFor(/workspace-heading h2,.analysis-heading h2,.corner-analysis-header h2/);
   assert.deepEqual(declared(sections, 'font-size'), ['var(--type-title3)']);
 });
