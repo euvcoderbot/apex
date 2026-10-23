@@ -11,8 +11,9 @@ process-wide pacing as the backend. The backend then serves any lap of those
 sessions from disk (openf1_session_stream) instead of calling OpenF1.
 
 Resumable: files already on disk are skipped, so stopping and running again
-continues where it left off. Only settled sessions (ended over six hours ago)
-are written; live weekends stay on demand. Raw data does not depend on the
+continues where it left off. By default only settled sessions (ended over six
+hours ago) are written. --include-recent explicitly captures finished snapshots;
+live and future sessions remain excluded. Raw data does not depend on the
 methodology revision, so it is downloaded once.
 """
 
@@ -21,6 +22,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import argparse
 import gzip
+import json
 import sys
 import time
 
@@ -31,12 +33,12 @@ SESSIONS = ("Qualifying", "Sprint Qualifying", "Sprint Shootout", "Sprint", "Rac
 STREAMS = ("car_data", "location", "laps")
 
 
-def settled(session: dict) -> bool:
+def settled(session: dict, minimum_hours: float = 6) -> bool:
     end = session.get("date_end")
     if not end:
         return False
     finished = datetime.fromisoformat(str(end).replace("Z", "+00:00"))
-    return datetime.now(timezone.utc)-finished > timedelta(hours=6)
+    return datetime.now(timezone.utc)-finished > timedelta(hours=minimum_hours)
 
 
 def on_disk(endpoint: str, session_key, driver_number) -> bool:
@@ -52,6 +54,22 @@ def on_disk(endpoint: str, session_key, driver_number) -> bool:
         return False
 
 
+def capture_stream(endpoint, key, number, *, include_recent=False, refresh=False):
+    url = server.openf1_url(endpoint, session_key=key, driver_number=number)
+    rows = server._openf1_fetch(url) if refresh else server.openf1(endpoint, session_key=key, driver_number=number)
+    if not isinstance(rows, list) or not rows:
+        raise ValueError('No source observations returned')
+    path = server.openf1_cache_path(url)
+    # Captured snapshots are explicit export inputs, not a change to the API's
+    # freshness policy. Refresh bypasses even an existing settled disk stream.
+    if include_recent or refresh:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(path.suffix+'.tmp')
+        temporary.write_bytes(gzip.compress(json.dumps(rows,separators=(',',':'),allow_nan=False).encode(),mtime=0))
+        temporary.replace(path)
+    return path.stat().st_size if path.exists() else 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--year", type=int, default=datetime.now().year)
@@ -59,14 +77,16 @@ def main() -> None:
     parser.add_argument("--sessions", default=",".join(SESSIONS), help="comma-separated OpenF1 session names")
     parser.add_argument("--workers", type=int, default=3, help="concurrent downloads (pacing still applies)")
     parser.add_argument("--dry-run", action="store_true", help="list what is missing without downloading")
+    parser.add_argument("--include-recent", action="store_true", help="capture finished sessions inside the six-hour correction window")
+    parser.add_argument("--refresh", action="store_true", help="replace selected raw streams instead of resuming")
     args = parser.parse_args()
     wanted = {name.strip() for name in args.sessions.split(",") if name.strip()}
 
     # Cancelled sessions stay listed (2026: Bahrain and Saudi Arabia in April) but have no data.
     sessions = [s for s in server.openf1("sessions", year=args.year)
-                if s.get("session_name") in wanted and settled(s) and not s.get("is_cancelled")]
+                if s.get("session_name") in wanted and settled(s, 0 if args.include_recent else 6) and not s.get("is_cancelled")]
     if args.gp:
-        keys = {(server.openf1_session(args.year, args.gp, code) or {}).get("session_key") for code in ("Q", "SQ", "S", "R")}
+        keys = {(server.openf1_session(args.year, args.gp, name) or {}).get("session_key") for name in wanted}
         sessions = [s for s in sessions if s.get("session_key") in keys]
     if not sessions:
         sys.exit("No finished sessions match.")
@@ -75,7 +95,7 @@ def main() -> None:
     for session in sessions:
         key = session["session_key"]
         drivers = sorted({str(d["driver_number"]) for d in server.openf1("drivers", session_key=key) if d.get("driver_number") is not None}, key=int)
-        missing = [(endpoint, key, number) for number in drivers for endpoint in STREAMS if not on_disk(endpoint, key, number)]
+        missing = [(endpoint, key, number) for number in drivers for endpoint in STREAMS if args.refresh or not on_disk(endpoint, key, number)]
         label = f"{session.get('location') or session.get('circuit_short_name')} {session['session_name']}"
         print(f"{label:<34} {len(drivers):>2} drivers  {len(missing):>3} of {len(drivers)*len(STREAMS)} streams to fetch", flush=True)
         jobs += [(label, *job) for job in missing]
@@ -87,9 +107,7 @@ def main() -> None:
 
     def fetch(job):
         label, endpoint, key, number = job
-        server.openf1(endpoint, session_key=key, driver_number=number)
-        path = server.openf1_cache_path(server.openf1_url(endpoint, session_key=key, driver_number=number))
-        return path.stat().st_size if path.exists() else 0
+        return capture_stream(endpoint,key,number,include_recent=args.include_recent,refresh=args.refresh)
 
     with ThreadPoolExecutor(max_workers=max(1, args.workers), thread_name_prefix="mirror") as pool:
         futures = {pool.submit(fetch, job): job for job in jobs}
@@ -107,6 +125,8 @@ def main() -> None:
     for line in failed:
         print("failed:", line)
     print(f"done: {done-len(failed)} streams, {size/1e6:.0f} MB, {len(failed)} failed (run again to retry)")
+    if failed:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

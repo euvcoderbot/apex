@@ -245,12 +245,13 @@ test('disabled upstream calendar falls back to a saved schedule without caching 
 });
 
 test('saved native driver packs keep exact identity, duration and immutable per-lap reads',async()=>{
-  const h=context();let calls=0;
+  const h=context();let calls=0;const cacheModes=[];
   const payload={sessionKey:11384,laps:{7:{driver:'COL',lap:7,samples:[{ElapsedSeconds:0,Speed:200},{ElapsedSeconds:93.261,Speed:250}]}}};
   Object.assign(h.sandbox,{URL,Response,DecompressionStream,structuredClone});
   h.sandbox.window.APEX_SOURCE_VERSION='source-test';
-  h.sandbox.fetch=async url=>{
+  h.sandbox.fetch=async (url,options)=>{
     calls++;
+    cacheModes.push(options?.cache);
     return String(url).endsWith('index.json')
       ? {ok:true,json:async()=>({sourceRevision:'source-test',entries:{'2026:Singapore Grand Prix:Qualifying:COL':'col.json.gz'}})}
       : new Response(gzipSync(JSON.stringify(payload)));
@@ -259,8 +260,30 @@ test('saved native driver packs keep exact identity, duration and immutable per-
   const first=await h.run(`preparedTelemetryData(new URL(${JSON.stringify(path)}))`);first.samples[0].Speed=999;
   const second=await h.run(`preparedTelemetryData(new URL(${JSON.stringify(path)}))`);
   assert.equal(second.samples[0].Speed,200);assert.equal(calls,2);
+  assert.deepEqual(cacheModes,['no-cache','no-cache'],'newly published snapshots revalidate their index and pack');
   assert.equal(await h.run(`preparedTelemetryData(new URL(${JSON.stringify(path.replace('11384','11388'))}))`),null);
   assert.equal(await h.run(`preparedTelemetryData(new URL(${JSON.stringify(path.replace('93.261','94'))}))`),null);
+});
+
+test('COTA practice loads a captured local summary and every drivers fastest native lap',()=>{
+  const index=JSON.parse(readFileSync('assets/data/prerendered/index.json'));
+  const query='/api/session?gp=United+States+Grand+Prix&round=18&session=Practice+1&year=2026';
+  const summary=JSON.parse(gunzipSync(readFileSync('assets/data/prerendered/'+index.entries[query])));
+  assert.equal(summary.session,'Practice 1');assert.equal(summary.openf1_session_key,11389);
+  assert.equal(summary.drivers.length,22);
+  assert.ok(Date.parse(summary.local_export.captured_at)>Date.parse(summary.local_export.session_ended_at));
+  const telemetry=JSON.parse(readFileSync('assets/data/telemetry/index.json'));
+  assert.equal(telemetry.sourceRevision,index.sourceRevision);
+  for(const driver of summary.drivers){
+    const fastest=driver.laps.filter(lap=>!lap.out_lap&&lap.time>20&&lap.time<300).sort((a,b)=>a.time-b.time)[0];
+    const file=telemetry.entries[`2026:United States Grand Prix:Practice 1:${driver.code}`];
+    assert.ok(file,driver.code);
+    const pack=JSON.parse(gunzipSync(readFileSync('assets/data/telemetry/'+file)));
+    const lap=pack.laps[fastest.lap];assert.ok(lap,`${driver.code} L${fastest.lap}`);
+    assert.equal(pack.sessionKey,11389);assert.equal(lap.driver,driver.code);
+    assert.ok(lap.samples.length>250);assert.equal(lap.samples[0].ElapsedSeconds,0);
+    assert.ok(Math.abs(lap.samples.at(-1).ElapsedSeconds-fastest.time)<.005);
+  }
 });
 
 test('the five reported Singapore laps are retained native traces, not estimated replacements',()=>{

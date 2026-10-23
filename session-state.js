@@ -300,7 +300,7 @@ const nativeTelemetryPacks = new Map();
 async function preparedTelemetryData(parsed) {
   if (typeof DecompressionStream === 'undefined' || parsed.searchParams.get('fresh') === 'true'
       || parsed.searchParams.get('pit_out') === 'true') return null;
-  nativeTelemetryIndex ||= fetch('assets/data/telemetry/index.json').then(r=>r.ok?r.json():null).catch(()=>null);
+  nativeTelemetryIndex ||= fetch('assets/data/telemetry/index.json',{cache:'no-cache'}).then(r=>r.ok?r.json():null).catch(()=>null);
   const index=await nativeTelemetryIndex;
   if(index?.sourceRevision !== window.APEX_SOURCE_VERSION) return null;
   const session=({Q:'Qualifying',SQ:'Sprint Qualifying',S:'Sprint',R:'Race'})[parsed.searchParams.get('session')] || parsed.searchParams.get('session');
@@ -308,7 +308,7 @@ async function preparedTelemetryData(parsed) {
   const file=index.entries?.[identity];
   if(!file)return null;
   if(!nativeTelemetryPacks.has(file)) {
-    const pending=fetch(`assets/data/telemetry/${file}`).then(async r=>{
+    const pending=fetch(`assets/data/telemetry/${file}`,{cache:'no-cache'}).then(async r=>{
       if(!r.ok||!r.body)throw new Error('Saved telemetry pack unavailable');
       return new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).json();
     }).catch(error=>{nativeTelemetryPacks.delete(file);throw error;});
@@ -337,7 +337,7 @@ function prerenderedKey(parsed) {
 }
 async function prerenderedData(parsed) {
   if (!PRERENDERED_PATHS.has(parsed.pathname) || typeof DecompressionStream === 'undefined') return null;
-  prerenderedIndex ||= fetch('assets/data/prerendered/index.json').then(r => r.ok ? r.json() : null).catch(() => null);
+  prerenderedIndex ||= fetch('assets/data/prerendered/index.json',{cache:'no-cache'}).then(r => r.ok ? r.json() : null).catch(() => null);
   const index = await prerenderedIndex;
   // Session summaries follow the source revision; car performance the backend's.
   const revision = parsed.pathname === '/api/session' ? index?.sourceRevision : index?.revision;
@@ -345,7 +345,7 @@ async function prerenderedData(parsed) {
   if (!index || !revision || revision !== expected) return null;
   const file = index.entries?.[prerenderedKey(parsed)];
   if (!file) return null;
-  const response = await fetch(`assets/data/prerendered/${file}`);
+  const response = await fetch(`assets/data/prerendered/${file}`,{cache:'no-cache'});
   if (!response.ok || !response.body) return null;
   return new Response(response.body.pipeThrough(new DecompressionStream('gzip'))).json();
 }
@@ -394,7 +394,7 @@ async function requestApiData(url, options = {}) {
     // cache it as fresh live status: the next calendar load retries the API.
     const year=Number(parsed.searchParams.get('year'));
     if(!Number.isInteger(year)||year<2014||year>2026)throw error;
-    const snapshot=await fetch(`assets/data/events/${year}.json`,{signal:options.signal});
+    const snapshot=await fetch(`assets/data/events/${year}.json`,{signal:options.signal,cache:'no-cache'});
     if(!snapshot.ok)throw error;
     const calendar=await snapshot.json();
     if(!Array.isArray(calendar)||!calendar.length)throw error;

@@ -9,6 +9,7 @@
     "local": "node scripts/start-local.mjs",
     "local:precompute": "node scripts/precompute-local.mjs",
     "local:warm": "node scripts/precompute-local.mjs --season",
+    "local:export-session": "node scripts/export-local-session.mjs",
     "site:warm": "node scripts/warm-hosted.mjs",
     "prerender": "node scripts/prerender.mjs",
     "sync:apex": "node scripts/sync-static.mjs",

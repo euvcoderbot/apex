@@ -21,8 +21,10 @@ def main():
     parser.add_argument('--year', type=int, default=2026)
     parser.add_argument('--cache-root', action='append', type=Path, required=True)
     parser.add_argument('--gp')
+    parser.add_argument('--sessions', default='Qualifying,Sprint Qualifying,Sprint Shootout', help='comma-separated session names, including Practice 1/2/3')
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
+    wanted = {name.strip() for name in args.sessions.split(',') if name.strip()}
     # This is an offline build operation. Missing mirror files are misses,
     # never an invitation to download a new season during a site build.
     def offline(*_args, **_kwargs):
@@ -47,7 +49,7 @@ def main():
             continue
         session = params['session'][0]
         session = {'Q':'Qualifying', 'SQ':'Sprint Qualifying'}.get(session, session)
-        if session not in ('Qualifying', 'Sprint Qualifying', 'Sprint Shootout') or (gp,session) in seen:
+        if session not in wanted or (gp,session) in seen:
             continue
         seen.add((gp,session))
         data = json.loads(gzip.decompress((ROOT/'assets/data/prerendered'/filename).read_bytes()))
@@ -104,13 +106,14 @@ def main():
             if not records:
                 continue
             identity = f'{args.year}:{gp}:{session}:{driver["code"]}'
-            packed = gzip.compress(json.dumps({'sessionKey':key, 'laps':records}, separators=(',',':'), allow_nan=False).encode(), mtime=0)
+            packed = gzip.compress(json.dumps({'sessionKey':key, 'local_export':data.get('local_export'), 'laps':records}, separators=(',',':'), allow_nan=False).encode(), mtime=0)
             name = hashlib.sha256(identity.encode()).hexdigest()[:24]+'.json.gz'
             (out/name).write_bytes(packed)
             index['entries'][identity] = name
             packs += 1
             size += len(packed)
             session_count += len(records)
+            print(f'  {driver["code"]}: {len(records)} timed laps', flush=True)
         laps += session_count
         print(f'{gp} / {session}: {session_count} laps', flush=True)
     if not args.dry_run:
