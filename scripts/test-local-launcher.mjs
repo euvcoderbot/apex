@@ -30,5 +30,6 @@ test('manual launcher remains explicit in the handoff dialog and registration ca
   assert.match(page,/href="apex-local:\/\/start"/);assert.doesNotMatch(page,/Start start-local.cmd/);
   assert.match(install,/HKCU/);assert.doesNotMatch(install,/HKLM|ExecutionPolicy|schtasks/i);
   assert.match(launch,/windowsHide:true/);assert.match(launch,/open\(lock,'wx'\)/);assert.doesNotMatch(launch,/shell:true|exec\(/);
+  assert.match(launch,/APEX_LOCAL_KEEP_ALIVE:'1'/);
   assert.match(install,/pythonw\.exe/);assert.match(wrapper,/CREATE_NO_WINDOW/);assert.doesNotMatch(wrapper,/shell=True|os\.system|exec\(/);
 });

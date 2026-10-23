@@ -12,14 +12,14 @@ if(![uiPort,apiPort].every(p=>Number.isInteger(p)&&p>=1024&&p<=65535)||uiPort===
 await new Promise((resolve,reject)=>{const child=spawn(process.execPath,['scripts/sync-static.mjs'],{cwd:root,stdio:'inherit',windowsHide:true});child.once('error',reject);child.once('exit',code=>code?reject(new Error('Static bundle sync failed')):resolve());});
 // Load revision-bearing modules only after sync generated the current keys.
 const {createLocalDashboard,pruneDiskStore}=await import('../lib/local-server.mjs');
-const backend=spawn(python,['-m','uvicorn','server:app','--host','127.0.0.1','--port',String(apiPort)],{cwd:root,stdio:'inherit',windowsHide:true,env:{...process.env,APEX_LOCAL_COMPUTE:'1'}});
+const backend=spawn(python,['-m','uvicorn','local_api:app','--host','127.0.0.1','--port',String(apiPort)],{cwd:root,stdio:'inherit',windowsHide:true,env:{...process.env,APEX_LOCAL_COMPUTE:'1'}});
 let closed=false;
 const sourceOrigin=`http://127.0.0.1:${apiPort}`;
 void pruneDiskStore(path.join(root,'.apex-cache/dashboard')).then(({removed,freed})=>{
   if(removed)console.log(`Cache: removed ${removed} entries from earlier revisions (${(freed/1048576).toFixed(0)} MB).`);
 });
-const {server,tabs}=createLocalDashboard({root:path.join(root,'public/apex'),cacheRoot:path.join(root,'.apex-cache/dashboard'),sourceOrigin,
-  ...(process.env.APEX_LOCAL_KEEP_ALIVE==='1'?{}:{onIdle:()=>{console.log('Last local dashboard tab closed; stopping local compute.');void close();}})});
+const {server,tabs}=createLocalDashboard({root:path.join(root,'public/apex'),cacheRoot:path.join(root,'.apex-cache/dashboard-local-v2'),sourceOrigin,onStop:()=>void close(),
+  ...(process.env.APEX_LOCAL_KEEP_ALIVE==='0'?{onIdle:()=>{console.log('Last local dashboard tab closed; stopping local compute.');void close();}}:{})});
 async function close(code=0){if(closed)return;closed=true;tabs.dispose();server.close();server.closeAllConnections();await stopOwnedBackend(backend);process.exitCode=code;}
 backend.once('error',error=>{console.error(error.message);close(1);});
 backend.once('exit',code=>{if(!closed){console.error('Local parser stopped.');close(code||1);}});
@@ -33,6 +33,6 @@ while(!closed){try{const r=await fetch(sourceOrigin+'/openapi.json',{signal:Abor
 }
 if(!closed)server.listen(uiPort,'127.0.0.1',()=>{
   console.log(`Local: http://127.0.0.1:${uiPort}/apex/`);
-  console.log('Compute: this PC. Cache: .apex-cache/dashboard + Python source caches. Vercel: not used.');
-  console.log('Closing the last local dashboard tab stops both services after a 5-second reload grace. Cached data remains on disk.');
+  console.log('Compute: this PC. Cache: .apex-cache/dashboard-local-v2 + Python source caches. Vercel: not used.');
+  console.log(process.env.APEX_LOCAL_KEEP_ALIVE!=='0'?'Ready on demand until stopped or this PC shuts down. Closing tabs does not stop compute.':'Closing the last local dashboard tab stops both services after a 5-second reload grace. Cached data remains on disk.');
 });

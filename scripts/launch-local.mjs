@@ -25,7 +25,7 @@ try{
       try{
         const child=spawn(process.execPath,[path.join(root,'scripts/start-local.mjs')],{
           cwd:root,detached:true,windowsHide:true,stdio:['ignore',output.fd,output.fd],
-          env:{...process.env,APEX_LOCAL_PORT:'54123',APEX_LOCAL_API_PORT:'8000'}});
+          env:{...process.env,APEX_LOCAL_PORT:'54123',APEX_LOCAL_API_PORT:'8000',APEX_LOCAL_KEEP_ALIVE:'1'}});
         await new Promise((resolve,reject)=>{child.once('spawn',resolve);child.once('error',reject);});
         child.unref();
       }finally{await output.close();}

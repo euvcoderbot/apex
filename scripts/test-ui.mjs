@@ -8,6 +8,12 @@ import postcss from 'postcss';
 import {gzipSync,gunzipSync} from 'node:zlib';
 
 const app = appSource();
+test('local mode requests Python instead of loading published summary or native packs',async()=>{
+  const h=context();h.sandbox.window.APEX_LOCAL_MODE=true;
+  h.sandbox.fetch=()=>assert.fail('published snapshot fetch in local mode');
+  assert.equal(await h.run("preparedData('/api/session?year=2026&gp=Test&session=Practice+2')"),null);
+  assert.equal(await h.run("preparedTelemetryData(new URL('https://example.test/api/telemetry?year=2026&gp=Test&driver=VER&lap=2'))"),null);
+});
 test('pit entrants stay visible without loading race pace or inventing a missing stop',()=>{
   const source=readFileSync('car-performance.js','utf8');
   const box={pitVisitMode:'service',finite:Number.isFinite,completed:()=>true,

@@ -62,3 +62,17 @@ test('a tab transport disconnect releases its lease even without unload or a bea
     assert.equal(local.tabs.state().activeTabs,0);
   }finally{local.server.closeAllConnections();await new Promise(r=>local.server.close(r));}
 });
+
+test('persistent mode survives closed tabs and only an explicit same-origin POST stops it',async()=>{
+  let stops=0;const local=createLocalDashboard({root:'.',cacheRoot:'.',onStop:()=>stops++,tabOptions:{pollMs:0}});
+  local.server.listen(0,'127.0.0.1');await once(local.server,'listening');const origin='http://127.0.0.1:'+local.server.address().port;
+  try{
+    const state=await fetch(origin+'/api/local-status').then(r=>r.json());assert.equal(state.autoStop,false);
+    local.tabs.touch(a);local.tabs.release(a);local.tabs.check();assert.equal(stops,0);
+    assert.equal((await fetch(origin+'/api/local-stop')).status,405);
+    assert.equal((await fetch(origin+'/api/local-stop',{method:'POST'})).status,403);
+    assert.equal((await fetch(origin+'/api/local-stop',{method:'POST',headers:{Origin:'https://f1apexdata.eufrandota14.chatgpt.site'}})).status,403);
+    const response=await fetch(origin+'/api/local-stop',{method:'POST',headers:{Origin:origin}});assert.equal(response.status,200);await response.json();
+    await new Promise(resolve=>setImmediate(resolve));assert.equal(stops,1);
+  }finally{local.server.closeAllConnections();await new Promise(r=>local.server.close(r));}
+});

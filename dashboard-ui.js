@@ -1,9 +1,5 @@
 /* Presentation only: never changes observations, scores, ordering or eligibility. */
 (() => {
-  if(window.APEX_LOCAL_MODE){
-    const localLink=document.querySelector('.local-compute-link');
-    if(localLink){const status=document.createElement('span');status.className='local-compute-status';status.textContent='Local compute · disk cache';status.title='Parsing and calculations run on this PC. Vercel is not used.';localLink.replaceWith(status);}
-  }
   const metrics = {
     pace: ['01', 'Pace', 'One-lap speed & sustained race pace'],
     corners: ['02', 'Cornering', 'Performance through the same measured turns'],

@@ -298,7 +298,7 @@ let prerenderedIndex = null;
 let nativeTelemetryIndex = null;
 const nativeTelemetryPacks = new Map();
 async function preparedTelemetryData(parsed) {
-  if (typeof DecompressionStream === 'undefined' || parsed.searchParams.get('fresh') === 'true'
+  if (window.APEX_LOCAL_MODE || typeof DecompressionStream === 'undefined' || parsed.searchParams.get('fresh') === 'true'
       || parsed.searchParams.get('pit_out') === 'true') return null;
   nativeTelemetryIndex ||= fetch('assets/data/telemetry/index.json',{cache:'no-cache'}).then(r=>r.ok?r.json():null).catch(()=>null);
   const index=await nativeTelemetryIndex;
@@ -350,6 +350,7 @@ async function prerenderedData(parsed) {
   return new Response(response.body.pipeThrough(new DecompressionStream('gzip'))).json();
 }
 async function preparedData(url) {
+  if (window.APEX_LOCAL_MODE) return null; // Local disk/API owns freshness, not published snapshots.
   const parsed = new URL(url, window.location?.href || 'http://localhost');
   const prerendered = await prerenderedData(parsed).catch(() => null);
   if (prerendered) return prerendered;
