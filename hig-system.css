@@ -257,10 +257,12 @@ input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 
 /* Measurement controls are part of their card, with an intentional boundary
    before the chart. Settings share a row when there is sufficient room. */
 .performance-card-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 0 0 12px; padding: 0 0 12px; border-bottom: 1px solid var(--ui-separator); min-width: 0; }
-.performance-card-controls > .performance-tyre-toolbar { flex: 1 0 100%; margin: 0; }
-.performance-card-controls .performance-tyre-settings { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 20px; width: 100%; min-width: 0; }
+.performance-card-controls:empty { display: none; }
+.performance-card-controls .performance-tyre-toolbar,.performance-card-controls .performance-tyre-settings { display: contents; }
 .performance-card-controls :is(.performance-compound-control,.performance-actions,.performance-toolbar) { margin: 0; }
-.performance-tyre-settings > .performance-tyre-toolbar { flex: 1 1 280px; }
+.performance-card-controls > .performance-scope-toggle { margin: 0; }
+.performance-card-controls [data-ui-group="segments"] { flex: 0 1 auto; width: fit-content; max-width: 100%; }
+.performance-card-controls [data-ui-group="segments"] > button[data-ui-kind="segment"] { flex: 0 0 auto; }
 
 /* Comparison chips are secondary controls, not the larger lap chooser tiles. */
 #loadedLaps .loaded-lap-pill { min-height: 26px; height: 26px; padding: 0 2px; gap: 2px; }

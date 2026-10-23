@@ -152,21 +152,28 @@
       }
       headingControls.append(refresh);
     }
-    // A card header that repeats the page title ("Braking" under "Braking")
-    // adds nothing; hide it so the chart title leads the card.
+    // The page owns the section heading. Every primary card follows the same
+    // pattern; only secondary cards and charts need their own visible titles.
+    const primaryCard = panel?.querySelector('.performance-card');
     const titleKey = text => String(text || '').trim().toLowerCase().replace(/\s*&\s*/g, ' and ');
     const pageTitle = titleKey(panel?.querySelector('.metric-heading h2')?.textContent);
     for (const heading of root.querySelectorAll('.performance-card > .panel-heading')) {
-      const redundant = !!pageTitle && titleKey(heading.querySelector('h2')?.textContent) === pageTitle;
+      const redundant = heading.parentElement === primaryCard || (!!pageTitle && titleKey(heading.querySelector('h2')?.textContent) === pageTitle);
       heading.toggleAttribute('data-redundant', redundant);
     }
     // Shared subject/session controls live with the measurements they affect.
-    const primaryBody = panel?.querySelector('.performance-card > .performance-card-body');
+    const primaryBody = primaryCard?.querySelector(':scope > .performance-card-body');
     const sharedControls = [...(panel?.children || [])].filter(el => el.matches('.performance-actions,.performance-tyre-toolbar'));
-    if (primaryBody && sharedControls.length) {
-      const group = document.createElement('div');
+    const sectionControls = [...(primaryBody?.children || [])].filter(el => !el.matches('.performance-stat-toggle') && el.matches('.performance-scope-toggle,.performance-pit-controls,.performance-results-measure,.performance-actions'));
+    if (primaryBody && (sharedControls.length || sectionControls.length)) {
+      const group = primaryBody.querySelector(':scope > .performance-card-controls') || document.createElement('div');
       group.className = 'performance-card-controls';
-      group.append(...sharedControls); primaryBody.prepend(group);
+      for (const control of [...sharedControls, ...sectionControls]) {
+        if (control.matches('.performance-actions,.performance-pit-controls,.performance-results-measure')) {
+          group.append(...control.children); control.remove();
+        } else group.append(control);
+      }
+      primaryBody.prepend(group);
     }
     for (const body of root.querySelectorAll('.performance-card-body')) {
       const children = [...body.children];
@@ -212,7 +219,6 @@
         if (plot) inspector.append(plot);
       }
     }
-    if (['straight','braking','pits'].includes(metric)) root.querySelector('#performanceMetricPanel > .performance-card > .panel-heading')?.classList.add('visually-hidden');
     for (const wrap of root.querySelectorAll('.performance-table-wrap')) {
       const table = wrap.querySelector('table');
       if (!table) continue;

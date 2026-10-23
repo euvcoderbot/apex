@@ -29,6 +29,19 @@ test('targeted UI fixes keep panels separate, controls contained and units visib
   assert.doesNotMatch(corners,/signedDelta\(toReference\)\.replace/);
 });
 
+test('all primary sections share a heading policy and one unforced filter band',()=>{
+  const hig=read('hig-system.css');
+  assert.match(ui,/heading\.parentElement === primaryCard/);
+  assert.match(ui,/sectionControls.*performance-scope-toggle,\.performance-pit-controls,\.performance-results-measure,\.performance-actions/);
+  assert.match(ui,/group\.append\(\.\.\.control\.children\); control\.remove\(\)/);
+  assert.match(hig,/performance-card-controls > \.performance-scope-toggle \{ margin: 0/);
+  assert.match(hig,/performance-card-controls \[data-ui-group="segments"\] \{ flex: 0 1 auto; width: fit-content/);
+  assert.match(hig,/performance-card-controls:empty \{ display: none/);
+  assert.match(hig,/performance-card-controls \.performance-tyre-toolbar,\.performance-card-controls \.performance-tyre-settings \{ display: contents/);
+  assert.match(ui,/!el\.matches\('\.performance-stat-toggle'\)/);
+  assert.doesNotMatch(ui,/\['straight','braking','pits'\]\.includes\(metric\)/);
+});
+
 test('regular controls share tokenised type, height and spacing without fixed-height segment shells',()=>{
   const root=postcss.parse(css);
   const rules=[];root.walkRules(r=>rules.push(r));
