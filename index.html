@@ -240,7 +240,7 @@
   <!-- Single unified app logic -->
   <dialog id="localComputeDialog" class="local-compute-dialog" aria-labelledby="localComputeTitle">
     <h2 id="localComputeTitle">Open local compute</h2>
-    <p data-local-message>Start local compute once, then sessions and selected laps are fetched from public sources and processed on this PC as requested. Results are cached on disk; no export or deployment is needed.</p>
+    <p data-local-message>If compute is already running, choose Open local dashboard. Browser privacy rules can block its health check without stopping the service. Otherwise start it once below. Sessions and laps are fetched and processed on demand, then cached on this PC; no export or deployment is needed.</p>
     <p data-local-help>Use the installed Windows launcher and approve your browser’s prompt. The Codex in-app browser cannot launch local programs: use your normal browser or start-local.cmd. Once running, compute stays ready until you stop it or shut down this PC.</p>
     <div class="local-compute-actions"><a data-local-open href="http://127.0.0.1:54123/apex/">Open local dashboard</a><a data-local-start href="apex-local://start">Start installed launcher</a><a data-use-hosted hidden>Use hosted site</a><button type="button" data-local-stop hidden>Stop local compute</button><button type="button" data-close-local>Close</button></div>
   </dialog>

@@ -38,6 +38,8 @@ test('lifecycle API is same-origin only; hosted discovery cannot create or close
     r=await fetch(origin+'/api/local-tab',{method:'POST',body,headers:{Origin:'https://f1apexdata.eufrandota14.chatgpt.site'}});assert.equal(r.status,403);
     r=await fetch(origin+'/api/local-status',{headers:{Origin:'https://f1apexdata.eufrandota14.chatgpt.site'}});assert.equal(r.status,200);assert.equal(r.headers.get('access-control-allow-origin'),'https://f1apexdata.eufrandota14.chatgpt.site');
     assert.equal((await r.json()).activeTabs,0);
+    r=await fetch(origin+'/api/local-status',{method:'OPTIONS',headers:{Origin:'https://f1apexdata.eufrandota14.chatgpt.site','Access-Control-Request-Private-Network':'true'}});assert.equal(r.status,204);assert.equal(r.headers.get('access-control-allow-private-network'),'true');
+    r=await fetch(origin+'/api/local-status',{method:'OPTIONS',headers:{Origin:'https://evil.test','Access-Control-Request-Private-Network':'true'}});assert.equal(r.status,403);assert.equal(r.headers.get('access-control-allow-private-network'),null);
     r=await fetch(origin+'/api/local-tab',{method:'POST',body});assert.equal(r.status,200);assert.equal((await r.json()).activeTabs,1);
     r=await fetch(origin+'/api/local-tab',{method:'POST',body:JSON.stringify({id:a,action:'close'})});assert.equal((await r.json()).activeTabs,0);assert.equal(stops,0);
     assert.equal((await fetch(origin+'/api/local-tab')).status,405);
