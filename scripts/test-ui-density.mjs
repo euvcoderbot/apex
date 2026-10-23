@@ -15,6 +15,20 @@ test('lap states cannot wrap and wide tyre/development layouts use bounded label
   assert.match(hig,/#carPerformance \.performance-tyre-age-row \{ grid-template-columns: minmax\(0,14em\) minmax\(60px,1fr\) 12ch/);
 });
 
+test('targeted UI fixes keep panels separate, controls contained and units visible',()=>{
+  const hig=read('hig-system.css'),corners=read('session-corners.js');
+  assert.match(hig,/container: telemetry \/ inline-size/);
+  assert.match(hig,/@container telemetry \(max-width: 1050px\)[\s\S]*grid-template-areas: "corner" "charts"/);
+  assert.match(hig,/#loadedLaps \.loaded-lap-pill \{ min-height: 26px; height: 26px/);
+  assert.match(hig,/\.lap-chip\.is-preparation\[aria-pressed="true"\] \.lap-state \{ color: var\(--ui-accent\)/);
+  assert.match(hig,/summary-lap-time > strong \{ font-weight: 700/);
+  assert.match(hig,/performance-bar-row \{ grid-template-columns: minmax\(0,14em\) minmax\(32px,1fr\) max-content/);
+  assert.match(hig,/performance-tyre-age-row \+ \.performance-tyre-age-row \{ border-top: 1px solid var\(--ui-separator\)/);
+  assert.match(ui,/primaryBody\.prepend\(group\)/);
+  assert.match(corners,/sectionTime\.toFixed\(3\)\+'s'/);
+  assert.doesNotMatch(corners,/signedDelta\(toReference\)\.replace/);
+});
+
 test('regular controls share tokenised type, height and spacing without fixed-height segment shells',()=>{
   const root=postcss.parse(css);
   const rules=[];root.walkRules(r=>rules.push(r));

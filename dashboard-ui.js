@@ -138,10 +138,8 @@
     if (!root) return;
     root.dataset.presentation = metric;
     const panel = root.querySelector('#performanceMetricPanel');
-    const controls = panel?.querySelector(':scope > .performance-actions');
     const headingControls = panel?.querySelector('.metric-heading-controls');
-    if (controls && headingControls) headingControls.append(controls);
-    // Keep the refresh action in the same flow and baseline as its filters.
+    // Refresh is global to the loaded events; measurement filters stay in-card.
     const refresh = root.querySelector('[data-performance-refresh]');
     if (refresh && headingControls) {
       refresh.classList.add('metric-refresh');
@@ -161,6 +159,14 @@
     for (const heading of root.querySelectorAll('.performance-card > .panel-heading')) {
       const redundant = !!pageTitle && titleKey(heading.querySelector('h2')?.textContent) === pageTitle;
       heading.toggleAttribute('data-redundant', redundant);
+    }
+    // Shared subject/session controls live with the measurements they affect.
+    const primaryBody = panel?.querySelector('.performance-card > .performance-card-body');
+    const sharedControls = [...(panel?.children || [])].filter(el => el.matches('.performance-actions,.performance-tyre-toolbar'));
+    if (primaryBody && sharedControls.length) {
+      const group = document.createElement('div');
+      group.className = 'performance-card-controls';
+      group.append(...sharedControls); primaryBody.prepend(group);
     }
     for (const body of root.querySelectorAll('.performance-card-body')) {
       const children = [...body.children];

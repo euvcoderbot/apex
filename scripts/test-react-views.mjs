@@ -140,6 +140,7 @@ test('tyre trend view: toolbar per mode, compound pills, stint plot and run pick
     sort: {team: sortModel('tyreTeam'), norm: sortModel('tyreNorm'), stints: sortModel('tyreStints')},
     rows: [{team, norm: {value: .02, provisional: 'Provisional · 2/3 supported events'}, ageRange: 'L1–L20 (20 laps)', sample: '4 matched stints (60 laps)', observed: 6, fieldSupported: true, compound: 'S: 40% · M: 60%', notes: ['1 matched stint on used tyres']}]});
   assert.equal((relative.match(/data-tyre-metric=/g) || []).length, 2);
+  assert.ok(relative.indexOf('performance-card-body') < relative.indexOf('data-tyre-metric='), 'mode switches stay within the card');
   assert.doesNotMatch(relative, /data-tyre-subject=/, 'matched rivals has no subject switch');
   assert.equal((relative.match(/data-tyre-compound=/g) || []).length, 4);
   assert.match(relative, /data-tyre-compound="C4" aria-pressed="true"/);

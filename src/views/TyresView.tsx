@@ -70,10 +70,9 @@ export function TyresView(p: TyresViewProps) {
   );
   if (p.metric === 'relative') return (
     <>
-      {toolbar}
       <Card title="Tyre-age lap-time trend"
         note="Extra lap-time change per tyre-age lap against overlapping rivals on the same compound. Each compound uses the selected GP statistic; Overall then averages supported compounds equally. P75 is a worse-end GP trend, not the 75th percentile of individual laps. One-compound or short-season results are provisional. Missing values mean no matched three-team cohort, not zero tyre wear. Traffic and management remain limitations.">
-        <CompoundControl compound={p.compound} />
+        <div className="performance-card-controls">{toolbar}<CompoundControl compound={p.compound} /></div>
         <BarChart rows={p.chart.rows} options={p.chart.options} />
         <DataTable headers={[p.sort.team, p.sort.norm, 'Observed age range', p.sort.stints, 'Field support', 'Compound mix']}
           rows={p.rows.map(r => [
@@ -90,20 +89,24 @@ export function TyresView(p: TyresViewProps) {
   );
   if (p.noGrades) return (
     <>
-      {toolbar}
       <Card title="Tyre-age performance change" note="Exact C-grade allocations have not been verified for this season. Soft, Medium and Hard change meaning by race, so showing them here as C grades would be misleading.">
+        {toolbar}
         <p className="section-empty">No exact-compound tyre-age results for this season. Matched rivals remains available.</p>
       </Card>
     </>
   );
   return (
     <>
-      {toolbar}
       <Card title="Tyre-age performance change" note={p.note}>
+        <div className="performance-card-controls">
+        {toolbar}
+        <div className="performance-tyre-settings">
         <CompoundControl compound={p.compound} />
         <div className="performance-toolbar performance-tyre-toolbar">
           <SegmentedControl name="tyre-correction" label="Tyre trend fuel correction" value={p.correction} options={[['raw', 'Observed pace'], ['fuel', 'Fuel-adjusted estimate']]} />
           <p className="performance-quality-status">{p.correctionText}<span className="explanation-only"> Screened laps · balanced drivers · median GP trend.</span></p>
+        </div>
+        </div>
         </div>
         <p className="performance-quality-status explanation-only">{p.quality}</p>
         {p.commonCoverage ? <p className="performance-note">{p.commonCoverage}</p> : null}

@@ -241,11 +241,53 @@ input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 
    Every row shares the same column widths so bar tracks line up within a card
    and across side-by-side cards; values are tabular and right aligned. */
 @media (min-width: 481px) {
-  #carPerformance .performance-bar-row { grid-template-columns: minmax(0,12.5em) minmax(32px,1fr) 7.5ch; }
-  #carPerformance .performance-visual-grid:has(> .performance-visual-cell:nth-child(3)) .performance-bar-row { grid-template-columns: minmax(0,9.5em) minmax(32px,1fr) 7.5ch; }
+  #carPerformance .performance-bars { display: grid; grid-template-columns: minmax(0,14em) minmax(32px,1fr) max-content; column-gap: 12px; }
+  #carPerformance .performance-bar-row { grid-template-columns: minmax(0,14em) minmax(32px,1fr) max-content; }
+  #carPerformance .performance-bars > .performance-bar-row { grid-column: 1 / -1; grid-template-columns: subgrid; }
+  #carPerformance .performance-visual-grid:has(> .performance-visual-cell:nth-child(3)) .performance-bar-row { grid-template-columns: minmax(0,12em) minmax(32px,1fr) max-content; }
 }
-@media (min-width: 481px) { @container perfcard (max-width: 760px) { #carPerformance .performance-visual-grid .performance-bar-row { grid-template-columns: minmax(0,10.5em) minmax(32px,1fr) 7.5ch; } } }
+@media (min-width: 481px) { @container perfcard (max-width: 760px) { #carPerformance .performance-visual-grid .performance-bar-row { grid-template-columns: minmax(0,14em) minmax(32px,1fr) max-content; } } }
 #carPerformance .performance-bar-val { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#carPerformance .performance-bar-row { box-sizing: border-box; }
+#carPerformance .performance-bar-label .team-name { white-space: normal; overflow: visible; text-overflow: clip; }
+#carPerformance .performance-bar-row .performance-team { min-width: 0; }
+#carPerformance .performance-bar-row .team-logo,#carPerformance .performance-bar-row .team-dot { flex-shrink: 0; }
+#carPerformance .performance-tyre-age-row + .performance-tyre-age-row { border-top: 1px solid var(--ui-separator); border-radius: 0; }
+
+/* Measurement controls are part of their card, with an intentional boundary
+   before the chart. Settings share a row when there is sufficient room. */
+.performance-card-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 0 0 12px; padding: 0 0 12px; border-bottom: 1px solid var(--ui-separator); min-width: 0; }
+.performance-card-controls > .performance-tyre-toolbar { flex: 1 0 100%; margin: 0; }
+.performance-card-controls .performance-tyre-settings { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 20px; width: 100%; min-width: 0; }
+.performance-card-controls :is(.performance-compound-control,.performance-actions,.performance-toolbar) { margin: 0; }
+.performance-tyre-settings > .performance-tyre-toolbar { flex: 1 1 280px; }
+
+/* Comparison chips are secondary controls, not the larger lap chooser tiles. */
+#loadedLaps .loaded-lap-pill { min-height: 26px; height: 26px; padding: 0 2px; gap: 2px; }
+#loadedLaps .loaded-lap-main[data-ui-kind="reference"] { min-height: 24px; height: 24px; padding: 0 4px; gap: 4px; }
+#loadedLaps .loaded-lap-main :is(b,span,strong) { font-size: var(--type-caption); }
+#loadedLaps .loaded-lap-pill.reference::before { height: 16px; padding: 0 4px; font-size: var(--type-caption); }
+.sector-cards .lap-summary-card .summary-lap-time > strong { font-weight: 700; }
+.lap-workspace .lap-chip.is-preparation .lap-state { color: var(--ui-accent); }
+.lap-workspace .lap-chip.is-preparation[aria-pressed="true"] .lap-state { color: var(--ui-accent); }
+
+/* Decide the trace/inspector split from actual available content width,
+   including the sidebar, rather than the width of the browser window. */
+.telemetry-content { container: telemetry / inline-size; }
+.telemetry-content .telemetry-analysis-grid { grid-template-areas: "charts corner"; }
+.telemetry-content .telemetry-analysis-grid > #charts { grid-area: charts; }
+.telemetry-content .telemetry-analysis-grid > #cornerAnalysis { grid-area: corner; isolation: isolate; background: var(--ui-panel); }
+.telemetry-analysis-grid #charts canvas { display: block; max-width: 100%; }
+@container telemetry (max-width: 1050px) {
+  .telemetry-content .telemetry-analysis-grid { grid-template-columns: minmax(0,1fr); grid-template-areas: "corner" "charts"; }
+  .telemetry-analysis-grid .corner-workspace { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .telemetry-analysis-grid .dominance-map { grid-area: 1 / 2 / span 2; box-sizing: border-box; }
+  .telemetry-analysis-grid .corner-picker-row { grid-area: 1 / 1; }
+  .telemetry-analysis-grid .corner-metric-grid { grid-area: 2 / 1; }
+}
+@container telemetry (max-width: 640px) {
+  .telemetry-analysis-grid .corner-workspace { display: flex; }
+}
 
 /* Column resize handles stay inside the table, so a table that fits never
    shows a horizontal scroll bar. */
