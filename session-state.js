@@ -31,6 +31,8 @@ let automaticStraightIndices = new Set();
 let cornerSort = 'time';
 let showCornerNumbers = window.ApexAnalysis?.preference('corner-numbers',true)!==false;
 let showSpeedAnnotations = window.ApexAnalysis?.preference('speed-annotations',false)===true;
+// Deliberately opt-in on each page load, never silently restore an estimate.
+let estimateAlignmentCorrection = false;
 let speedAnnotationCache = null;
 const traceTintEnabled = false;
 const hiddenTraceKeys = new Set();

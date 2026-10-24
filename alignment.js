@@ -2,8 +2,9 @@
 //
 // Alignment follows the circuit, not the shape of a driver's speed trace:
 //   1. project position samples onto the reference lap when X/Y is trustworthy;
-//   2. lock the result to official sector boundaries when sector times exist;
-//   3. fall back to sector-normalized integrated distance when position is absent.
+//   2. fall back to sector-normalized supplied distance when position is absent.
+// An opt-in, explicitly estimated mapping instead integrates this lap's own
+// speed/time inside shared sector lines. Never match drivers' speed features.
 //
 // Accurate traces and corner calculations retain the supplied samples.
 // Enhanced display/hover values use the bounded reconstruction; official
@@ -551,6 +552,63 @@ function remapWithSectorAnchors(samples, fractions, lap, targetSectors) {
   };
 }
 
+function alignmentCorrectionEnabled() {
+  return typeof estimateAlignmentCorrection !== 'undefined' && estimateAlignmentCorrection === true;
+}
+
+// Alternative distance registration only. No cross-driver pattern matching,
+// no edited channel values, and no source timestamp/position replacement.
+function estimatedSectorDistance(samples, lap, targetSectors) {
+  const unavailable = reason => ({ used: false, reason });
+  const meta = lapMetadata(lap);
+  if (meta.out_lap || meta.in_lap || meta.is_pit_out_lap) return unavailable('pit or partial lap');
+  const duration = telemetryNumber(lap?.time ?? meta.time ?? samples?.lapDuration);
+  const s1 = telemetryNumber(meta.s1), s2 = telemetryNumber(meta.s2);
+  if (!(duration > 0 && s1 > 0 && s2 > 0 && s1 + s2 < duration)
+      || targetSectors?.length !== 2 || !(targetSectors[0] > 0
+        && targetSectors[1] > targetSectors[0] && targetSectors[1] < 1)) {
+    return unavailable('complete sector timing unavailable');
+  }
+  if (!samples || samples.length < 12) return unavailable('insufficient speed samples');
+  const origin = telemetryNumber(samples.timeOrigin) ?? 0;
+  const points = samples.map(p => ({ t: (telemetryNumber(p.ElapsedSeconds) ?? NaN) + origin,
+    v: telemetryNumber(p.Speed) }));
+  if (points.some(p => !Number.isFinite(p.t) || p.v === null || p.v < 0 || p.v > 450)) {
+    return unavailable('missing or invalid speed/time');
+  }
+  // A small missing boundary interval uses a held endpoint, and is explicitly
+  // part of the estimate. Larger missing intervals must not be invented.
+  if (Math.abs(points[0].t) > .5 || Math.abs(points.at(-1).t - duration) > .5) {
+    return unavailable('incomplete start/finish coverage');
+  }
+  const cumulative = [0];
+  let maximumGap = 0;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1], b = points[i], dt = b.t - a.t;
+    if (!(dt > 0 && dt <= 1.5)) return unavailable('duplicate time or source gap over 1.5 s');
+    maximumGap = Math.max(maximumGap, dt);
+    // Exact integral of the piecewise-linear v(t), not a moving speed average.
+    cumulative.push(cumulative[i - 1] + dt * (a.v + b.v) / 7.2);
+  }
+  const distanceAt = time => {
+    if (time <= points[0].t) return (time - points[0].t) * points[0].v / 3.6;
+    if (time >= points.at(-1).t) return cumulative.at(-1)
+      + (time - points.at(-1).t) * points.at(-1).v / 3.6;
+    let lo = 1, hi = points.length - 1;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (points[mid].t < time) lo = mid + 1; else hi = mid; }
+    const a = points[lo - 1], b = points[lo], dt = time - a.t;
+    const speedHere = a.v + (b.v - a.v) * dt / (b.t - a.t);
+    return cumulative[lo - 1] + dt * (a.v + speedHere) / 7.2;
+  };
+  const times = [0, s1, s1 + s2, duration];
+  const distances = times.map(distanceAt), targets = [0, ...targetSectors, 1];
+  if (distances.some((d, i) => i && !(d > distances[i - 1]))) return unavailable('stationary or invalid sector');
+  const controls = distances.map((distance, i) => ({ distance, fraction: targets[i] }));
+  const fractions = points.map(p => clampTelemetry(interpolateControls(controls, distanceAt(p.t), 'distance', 'fraction')));
+  return { used: true, fractions, maximumGap, sectorDistances: distances.slice(1).map((d, i) => d - distances[i]),
+    boundaryHold: Math.max(0, points[0].t, duration - points.at(-1).t) };
+}
+
 function setAlignedFractions(samples, fractions, method) {
   let previous = 0;
   samples.forEach((point, index) => {
@@ -1086,6 +1144,17 @@ function cornerPhaseBreakdown(samples, reference, zone, exitStraightMetres) {
 }
 
 function updateAlignmentStatus() {
+  const correctionNotice = $('#alignmentCorrectionNotice');
+  if (correctionNotice) {
+    correctionNotice.hidden = !alignmentCorrectionEnabled();
+    const ready = loaded.filter(lap => telemetryCache.get(telemetryKey(lap))?.length);
+    const applied = ready.filter(lap => telemetryCache.get(telemetryKey(lap)).alignmentCorrection?.used);
+    const retained = ready.filter(lap => !telemetryCache.get(telemetryKey(lap)).alignmentCorrection?.used);
+    correctionNotice.textContent = !ready.length ? 'Estimated alignment will apply to eligible complete laps.'
+      : `Estimated distance · ${applied.length}/${ready.length} laps; sectors anchored, no braking-point matching.`
+        + (retained.length ? ` Original retained: ${retained.map(l => `${l.code} L${l.lap} (${telemetryCache.get(telemetryKey(l)).alignmentCorrection?.reason || 'unavailable'})`).join('; ')}.` : '');
+    correctionNotice.title = 'Assumes equal distance within shared sector lines and linear speed between packets. Up to 0.5 s at a missing start/finish boundary uses the nearest speed. Not guaranteed more accurate; switch off to restore the original mapping.';
+  }
   const status = $('#alignmentStatus');
   if (!status) return;
   if (!loaded.length) {
@@ -1107,7 +1176,8 @@ function updateAlignmentStatus() {
   status.dataset.alignment = JSON.stringify(loaded.map(lap => {
     const samples = telemetryCache.get(telemetryKey(lap));
     return {driver:lap.code, lap:lap.lap, source:samples.source,
-      method:samples.alignmentMethod, positionRevision:samples.positionRevision || 0};
+      method:samples.alignmentMethod, correction:samples.alignmentCorrection,
+      positionRevision:samples.positionRevision || 0};
   }));
 }
 
@@ -1133,6 +1203,7 @@ function prepareTelemetryAlignment() {
   const spatialLap = spatial?.lap || referenceLap;
   const spatialReference = spatial?.samples || reference;
   const referenceSectors = sectorFractions(spatialReference, spatialLap);
+  const correctionEnabled = alignmentCorrectionEnabled();
 
   // Corner markers are physical track locations. If the timing-reference lap
   // lacks them, borrow the projected markers from the best-positioned lap.
@@ -1148,7 +1219,8 @@ function prepareTelemetryAlignment() {
     const sectorIdentity=referenceSectors.join(':');
     if(inputs && inputs.reference===spatialReference && inputs.referenceLap===spatialLap
         && inputs.referenceRevision===(spatialReference.positionRevision || 0)
-        && inputs.sectors===sectorIdentity && inputs.meta===lap.real) return;
+        && inputs.sectors===sectorIdentity && inputs.meta===lap.real
+        && inputs.correctionEnabled===correctionEnabled) return;
     let fractions = samples === spatialReference
       ? samples.map(point => rawFractionAt(samples, point))
       : positionAlignment(spatialReference, samples);
@@ -1165,10 +1237,20 @@ function prepareTelemetryAlignment() {
       fractions = sectorRemap.fractions;
       if (sectorRemap.used) method += '+sectors';
     }
+    const correction = correctionEnabled
+      ? estimatedSectorDistance(samples, lap, referenceSectors) : { used: false, reason: 'off' };
+    if (correction.used) {
+      correction.maximumShiftMetres = Math.max(...fractions.map((f, i) => Math.abs(f - correction.fractions[i]))) * referenceDistance();
+      fractions = correction.fractions;
+      method = 'speed-time+sectors-estimated';
+    }
+    // Keep diagnostics small; fractions live only in the shared mapping.
+    const { fractions: estimatedFractions, ...diagnostics } = correction;
+    setTelemetryMeta(samples, 'alignmentCorrection', diagnostics);
     setAlignedFractions(samples, fractions, method);
     setTelemetryMeta(samples, 'alignmentSectors', referenceSectors);
     buildTimeCalibration(samples, lap, referenceSectors);
-    setTelemetryMeta(samples,'alignmentInputs',{reference:spatialReference,referenceLap:spatialLap,referenceRevision:spatialReference.positionRevision || 0,sectors:sectorIdentity,meta:lap.real});
+    setTelemetryMeta(samples,'alignmentInputs',{reference:spatialReference,referenceLap:spatialLap,referenceRevision:spatialReference.positionRevision || 0,sectors:sectorIdentity,meta:lap.real,correctionEnabled});
   });
   updateAlignmentStatus();
 }

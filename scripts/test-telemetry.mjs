@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import vm from 'node:vm';
+import { createHash } from 'node:crypto';
 import '../telemetry-model.js';
 
 const { build, evaluate } = globalThis.TelemetryReconstruction;
@@ -161,6 +162,94 @@ test('COTA source-gap markings preserve all telemetry and delta values',()=>{
   assert.equal(h.run('JSON.stringify([ant,ver])===beforeSamples'),true);
   assert.equal(h.run('Array.from({length:1001},(_,i)=>displayDeltaAt(ver,ant,i/1000)).every((v,i)=>v===beforeDelta[i])'),true);
   near(h.run('displayDeltaAt(ver,ant,1)'),.147);
+});
+
+test('alignment estimate integrates native time-linear speed, including irregular cadence and clock origin',()=>{
+  const h=appHarness();
+  h.run(`var lap={time:12,real:{s1:4,s2:4,s3:4}};
+    var data=Array.from({length:49},(_,i)=>({ElapsedSeconds:i*.25,Speed:144+3.6*i*.25,Distance:i*10}));
+    var before=JSON.stringify(data);var estimate=estimatedSectorDistance(data,lap,[.3,.65]);`);
+  assert.equal(h.run('estimate.used'),true);
+  // v(t)=40+t m/s, exact integral 40t+t²/2. Sector lengths 168,184,200m.
+  assert.deepEqual(Array.from(h.run('estimate.sectorDistances')), [168,184,200]);
+  near(h.run('estimate.fractions[16]'),.3);near(h.run('estimate.fractions[32]'),.65);
+  near(h.run('estimate.fractions[8]'),82/168*.3);
+  assert.equal(h.run('JSON.stringify(data)===before'),true);
+  h.run(`data.forEach(p=>p.ElapsedSeconds-=.25);setTelemetryMeta(data,'timeOrigin',.25);
+    var offsetEstimate=estimatedSectorDistance(data,lap,[.3,.65]);`);
+  assert.deepEqual(Array.from(h.run('offsetEstimate.fractions')),Array.from(h.run('estimate.fractions')));
+});
+
+test('alignment estimate rejects unsupported laps instead of forcing corrections',()=>{
+  const h=appHarness();
+  h.run(`var lap={time:12,real:{s1:4,s2:4,s3:4}};
+    var make=()=>Array.from({length:49},(_,i)=>({ElapsedSeconds:i*.25,Speed:180,Distance:i*12.5}));
+    var cases=[{lap:{...lap,real:{...lap.real,out_lap:true}}},
+      {lap:{...lap,real:{...lap.real,in_lap:true}}},
+      {lap:{time:12,real:{s1:4}}}, {lap:{time:12,real:{s1:6,s2:6}}},
+      {edit:s=>s[20].Speed=null},{edit:s=>s[20].ElapsedSeconds=s[19].ElapsedSeconds},
+      {edit:s=>s.splice(15,7)},{edit:s=>s.splice(0,4)},
+      {edit:s=>s.forEach(p=>p.Speed=0)},{edit:s=>s[20].Speed=900}];`);
+  assert.equal(h.run('cases.every(c=>{const s=make();c.edit?.(s);return !estimatedSectorDistance(s,c.lap||lap,[.3,.65]).used})'),true);
+  assert.equal(h.run('estimatedSectorDistance(make(),lap,[]).used'),false);
+  assert.equal(h.run('estimatedSectorDistance(make(),lap,[.7,.3]).used'),false);
+});
+
+test('COTA estimate is opt-in, native channels remain immutable, OFF restores the exact original mapping/delta', async()=>{
+  const h=appHarness();
+  h.sandbox.fixture=JSON.parse(gunzipSync(readFileSync('scripts/cota-fp2-evidence.json.gz')));
+  h.run(`loaded=fixture.map(e=>e.lap);fixture.forEach(e=>telemetryCache.set(telemetryKey(e.lap),normalizeTelemetry(e.payload.samples,e.lap,e.payload.source)));
+    prepareTelemetryAlignment();var ant=telemetryCache.get('ANT:8'),ver=telemetryCache.get('VER:9');
+    var capture=()=>({fractions:[ant,ver].map(s=>s.map(p=>p.AlignedFraction)),delta:Array.from({length:1001},(_,i)=>displayDeltaAt(ver,ant,i/1000))});
+    var baseline=capture();var native=JSON.stringify([ant,ver].map(s=>s.map(({AlignedFraction,...p})=>p)));`);
+  assert.equal(h.run('alignmentCorrectionEnabled()'),false);
+  // Golden from the untouched pre-checkbox production algorithm, not a
+  // comparison of two executions of the modified implementation.
+  const digest=createHash('sha256').update(JSON.stringify(h.run('baseline'))).digest('hex');
+  assert.equal(digest,'bddf9efc7614133527d4281332c705f8d57bc2f12728e9cf7617ad98e3155cd9');
+  h.run("mapView='comparison';paintReadyTelemetry();var originalGeometry=dominanceMapGeometryCache;var originalMap=JSON.stringify(originalGeometry.canvasGeometry)");
+  h.run('estimateAlignmentCorrection=true;prepareTelemetryAlignment()');
+  assert.equal(h.run("[ant,ver].every(s=>s.alignmentMethod==='speed-time+sectors-estimated')"),true);
+  assert.equal(h.run('JSON.stringify([ant,ver].map(s=>s.map(({AlignedFraction,...p})=>p)))===native'),true);
+  assert.equal(h.run('JSON.stringify(capture().fractions)!==JSON.stringify(baseline.fractions)'),true);
+  assert.equal(h.run('[ant,ver].every(s=>s.every((p,i)=>Number.isFinite(p.AlignedFraction)&&(!i||p.AlignedFraction>=s[i-1].AlignedFraction)))'),true);
+  for(const mode of ['accurate','enhanced']) {
+    h.sandbox.mode=mode;
+    const gaps=Array.from(h.run('[0,...ant.alignmentSectors,1].map(f=>displayDeltaAt(ver,ant,f,mode))'));
+    [0,-.141,.330,.147].forEach((v,i)=>near(gaps[i],v));
+  }
+  // The whole UI uses the same mapping, not a separate smoothed delta plot.
+  await h.run('paintReadyTelemetry()');
+  assert.match(h.element('#alignmentCorrectionNotice').textContent,/2\/2 laps/);
+  assert.equal(h.run('dominanceMapGeometryCache===originalGeometry'),false,'map must not retain the old distance registration');
+  h.run('loaded.reverse();prepareTelemetryAlignment()');
+  const reversed=Array.from(h.run('[0,...ver.alignmentSectors,1].map(f=>displayDeltaAt(ant,ver,f))'));
+  [0,.141,-.330,-.147].forEach((v,i)=>near(reversed[i],v));
+  h.run('loaded.reverse();prepareTelemetryAlignment()');
+  h.run('estimateAlignmentCorrection=false;prepareTelemetryAlignment()');
+  assert.equal(h.run('JSON.stringify(capture())===JSON.stringify(baseline)'),true);
+  h.run('paintReadyTelemetry()');
+  assert.equal(h.run('JSON.stringify(dominanceMapGeometryCache.canvasGeometry)===originalMap'),true);
+  assert.equal(h.element('#alignmentCorrectionNotice').hidden,true);
+  // Repeated switches must not accumulate warping or stale interpolators.
+  h.run('for(let i=0;i<3;i++){estimateAlignmentCorrection=true;prepareTelemetryAlignment();estimateAlignmentCorrection=false;prepareTelemetryAlignment()}');
+  assert.equal(h.run('JSON.stringify(capture())===JSON.stringify(baseline)'),true);
+});
+
+test('estimated mapping never matches another driver’s braking pattern; failures retain original mapping',()=>{
+  const h=appHarness();
+  h.run(`var lap={time:12,real:{s1:4,s2:4,s3:4}};
+    var a=Array.from({length:49},(_,i)=>({ElapsedSeconds:i*.25,Speed:i>=20&&i<=24?90:240,Distance:i*12.5}));
+    var b=a.map((p,i)=>({...p,Speed:i>=24&&i<=28?90:240}));
+    var ea=estimatedSectorDistance(a,lap,[.3,.65]),eb=estimatedSectorDistance(b,lap,[.3,.65]);`);
+  assert.ok(h.run('Math.abs(ea.fractions[22]-eb.fractions[26])')>.02,'different braking locations must remain different');
+  h.sandbox.fixture=JSON.parse(gunzipSync(readFileSync('scripts/cota-fp2-evidence.json.gz')));
+  h.run(`loaded=fixture.map(e=>e.lap);fixture.forEach(e=>telemetryCache.set(telemetryKey(e.lap),normalizeTelemetry(e.payload.samples,e.lap,e.payload.source)));
+    loaded[1].real={...loaded[1].real,in_lap:true};prepareTelemetryAlignment();var ver=telemetryCache.get('VER:9');
+    var original=ver.map(p=>p.AlignedFraction);estimateAlignmentCorrection=true;prepareTelemetryAlignment();`);
+  assert.equal(h.run('ver.alignmentCorrection.used'),false);
+  assert.deepEqual(Array.from(h.run('ver.map(p=>p.AlignedFraction)')),Array.from(h.run('original')));
+  assert.match(h.element('#alignmentCorrectionNotice').textContent,/1\/2 laps.*Original retained: VER L9 \(pit or partial lap\)/);
 });
 
 test('session straight classification needs GPS evidence and rejects flat-out bends',()=>{

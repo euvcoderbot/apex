@@ -242,6 +242,12 @@ function syncTraceVisibilityControls() {
 }
 
 function bindSpeedChartControls() {
+  $('#alignmentCorrectionToggle')?.addEventListener('change', event => {
+    estimateAlignmentCorrection = event.target.checked;
+    speedAnnotationCache = null;
+    if (loaded.length) paintReadyTelemetry();
+    else updateAlignmentStatus();
+  });
   $('#speedAnnotationToggle')?.addEventListener('change', event => {
     showSpeedAnnotations = event.target.checked;
     window.ApexAnalysis?.savePreference('speed-annotations',showSpeedAnnotations);
@@ -294,19 +300,21 @@ function renderCharts() {
             <div class="alignment-readout"><i></i><span id="alignmentStatus" data-state="idle">Speed trace controls</span></div>
             <label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label>
             <label class="trace-setting" title="Label every measured speed peak and dip. Each lap uses its own minimum or maximum, matched to the other laps by GPS position. The fastest lap shows its speed in km/h; the others show their difference. A dash means that lap has no matching measured extreme."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label>
+            <label class="trace-setting" title="Experimental estimate: integrate each lap's measured speed over time and normalize distance within official sectors. This changes the horizontal mapping, not the measured values. Never matches drivers' braking points. Incomplete or unsuitable laps retain the original mapping."><input type="checkbox" id="alignmentCorrectionToggle" ${estimateAlignmentCorrection ? 'checked' : ''} aria-describedby="alignmentCorrectionNotice"><i aria-hidden="true"></i><span>Correct alignment (estimated)</span></label>
           </div>
           <div class="trace-display-bar">
             <span>Visible traces</span>
             <div class="trace-driver-toggles" id="traceDriverToggles"></div>
           </div>
           <p class="pit-lap-notice" id="pitLapNotice" hidden>Pit-in laps include pit entry. Pit-out traces begin at pit exit and are partial; a lap marked IN/OUT may include a garage stop. No full-lap timing delta is shown for pit-out traces.</p>
+          <p class="pit-lap-notice" id="alignmentCorrectionNotice" hidden aria-live="polite"></p>
           <span class="visually-hidden" id="cornerStatus" aria-live="polite">Corner labels hidden.</span>
         </div>` : ''}
       <canvas data-chart="${name}" role="img" aria-describedby="telemetryDataHelp" aria-label="${name}${name === 'Speed trace' ? '. Drag horizontally to zoom every telemetry chart.' : ''}"></canvas>
     </section>
   `;
   }).join('') + `<details class="chart-data-access" id="telemetryDataAccess"><summary>Inspect telemetry values</summary>
-    <p id="telemetryDataHelp">Read every visible trace at a chosen lap distance. Use the distance slider or its arrow keys; Home and End go to the start and finish. Values use the same display calculations as the charts. Dashed segments bridge unusually long source-packet gaps; values inside are interpolated. ~ indicates an estimated repair; — means unavailable.</p>
+    <p id="telemetryDataHelp">Read every visible trace at a chosen lap distance. Use the distance slider or its arrow keys; Home and End go to the start and finish. Values use the same display calculations as the charts. Dashed segments bridge unusually long source-packet gaps; values inside are interpolated. The optional alignment estimate assumes equal distance between shared sector lines and linearly changing speed between packets; it is not measured position or guaranteed more accurate. ~ indicates an estimated repair; — means unavailable.</p>
     <div class="chart-sample-controls"><label for="telemetrySample">Lap distance</label><input id="telemetrySample" type="range" min="0" max="1000" step="1" value="0" aria-describedby="telemetryDataHelp"><output for="telemetrySample" id="telemetrySampleDistance">0.000 km</output></div>
     <output class="chart-sample-status" id="telemetrySampleStatus" aria-live="polite"></output>
     <div class="performance-table-wrap" tabindex="0" role="region" aria-label="Telemetry values at selected lap distance"><table class="performance-table"><caption>Values at selected lap distance</caption><thead><tr><th scope="col">Trace</th><th scope="col">Speed (km/h)</th><th scope="col">Delta (s)</th><th scope="col">Throttle (%)</th><th scope="col">Brake</th><th scope="col">Gear</th>${season<2026?'<th scope="col">DRS</th>':''}</tr></thead><tbody id="telemetrySampleRows"></tbody></table></div>
@@ -1473,9 +1481,9 @@ function drawRealChart(name) {
   });
   ctx.shadowBlur = 0;
   if (name==='Speed trace' && showSpeedAnnotations) {
-    const entries=visibleEntries.map(({lap})=>({lap,samples:telemetryCache.get(telemetryKey(lap))})).filter(e=>e.samples?.length && !e.lap.real?.out_lap);
+    const entries=visibleEntries.map(({lap})=>{const samples=telemetryCache.get(telemetryKey(lap));return {lap,samples,alignment:samples?.alignmentInputs};}).filter(e=>e.samples?.length && !e.lap.real?.out_lap);
     const key=totalDist.toFixed(1)+'|'+speedCornerMarkers.map(m=>`${m.key}:${m.fraction.toFixed(5)}`).join('|')+'|'+entries.map(e=>e.samples.positionRevision||0).join(':');
-    if (!speedAnnotationCache || speedAnnotationCache.key!==key || speedAnnotationCache.entries.length!==entries.length || entries.some((e,i)=>speedAnnotationCache.entries[i].samples!==e.samples || speedAnnotationCache.entries[i].lap!==e.lap)) {
+    if (!speedAnnotationCache || speedAnnotationCache.key!==key || speedAnnotationCache.entries.length!==entries.length || entries.some((e,i)=>speedAnnotationCache.entries[i].samples!==e.samples || speedAnnotationCache.entries[i].lap!==e.lap || speedAnnotationCache.entries[i].alignment!==e.alignment)) {
       speedAnnotationCache={key,entries,annotations:buildSpeedAnnotations(entries,speedCornerMarkers,totalDist)};
     }
     drawSpeedAnnotations(ctx,speedAnnotationCache.annotations,rect,bounds,xForFraction,viewStart,viewEnd,traceEntries);

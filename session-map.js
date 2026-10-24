@@ -89,7 +89,9 @@ function renderMiniSectorMap() {
   const geometryKey = `${telemetryKey(loaded[0])}:${reference.length}:${rect.width.toFixed(2)}:${rect.height.toFixed(2)}:${totalDistance.toFixed(1)}`;
   let geometrySteps;
   let canvasGeometry;
-  if (dominanceMapGeometryCache?.key === geometryKey && dominanceMapGeometryCache.reference === reference) {
+  if (dominanceMapGeometryCache?.key === geometryKey && dominanceMapGeometryCache.reference === reference
+      && dominanceMapGeometryCache.alignment === reference.alignmentInputs
+      && dominanceMapGeometryCache.positionRevision === (reference.positionRevision || 0)) {
     ({ geometrySteps, canvasGeometry } = dominanceMapGeometryCache);
   } else {
     geometrySteps = Math.max(1600, Math.min(4200, Math.ceil(totalDistance / 1.8)));
@@ -160,7 +162,8 @@ function renderMiniSectorMap() {
       y: rect.height - offsetY - (y - minY) * scale,
     });
     canvasGeometry = mapGeometry.map(point => ({ ...point, ...toCanvas(point.x, point.y) }));
-    dominanceMapGeometryCache = { key: geometryKey, reference, geometrySteps, canvasGeometry };
+    dominanceMapGeometryCache = { key: geometryKey, reference, alignment: reference.alignmentInputs,
+      positionRevision: reference.positionRevision || 0, geometrySteps, canvasGeometry };
   }
   const pointAt = fraction => {
     const wrapped = Math.max(0, Math.min(1, fraction)) * canvasGeometry.length;
