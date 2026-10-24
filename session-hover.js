@@ -61,8 +61,15 @@ function bindAllChartHover() {
       
       let hasReconstructedValue = false;
       let hasLowConfidenceValue = false;
+      const sourceGapNotes=new Map();
+      const noteSourceGap=(lap,series)=>{
+        const gap=telemetrySourceGapAt(series,fraction);
+        if(gap)sourceGapNotes.set(telemetryKey(lap),`${lap.code} L${lap.lap}: ${gap.interval.toFixed(3)} s`);
+      };
+      if(hoveredChartName==='Timing delta')noteSourceGap(loaded[0],refSamples);
       const lines = visibleTraceLaps().map(({ lap, index }) => {
         const series = telemetryCache.get(telemetryKey(lap));
+        if(['Speed trace','Throttle application','Timing delta'].includes(hoveredChartName))noteSourceGap(lap,series);
         let val = null;
         const targetDist = fraction * maxDistance;
         if (hoveredChartName === 'Timing delta' && !lap.real?.out_lap && !loaded[0]?.real?.out_lap) {
@@ -104,7 +111,8 @@ function bindAllChartHover() {
       const reconstructionNote = hasReconstructedValue
         ? `<br><small>~ ${hasLowConfidenceValue ? 'LOW-CONFIDENCE GAP ESTIMATE' : 'ESTIMATED REPAIR'}</small>`
         : '';
-      tooltip.innerHTML = `<b>${distanceKM.toFixed(3)} KM</b><br>${lines.join('<br>')}${reconstructionNote}`;
+      const sourceGapNote=sourceGapNotes.size?`<br><small>SOURCE GAP · ${[...sourceGapNotes.values()].map(escapeUI).join('; ')}<br>Curve inside the gap is interpolated.</small>`:'';
+      tooltip.innerHTML = `<b>${distanceKM.toFixed(3)} KM</b><br>${lines.join('<br>')}${sourceGapNote}${reconstructionNote}`;
       tooltip.style.display = 'block';
       
       if (document.body.classList.contains('trace-focus')) {

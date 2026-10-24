@@ -123,6 +123,46 @@ function appHarness() {
   return { sandbox, elements, element, textCalls, run: code => vm.runInContext(code, sandbox) };
 }
 
+test('source-gap evidence is display-only, excludes measured endpoints and follows remapping',()=>{
+  const h=appHarness();
+  h.run(`var packetSeries=Array.from({length:20},(_,i)=>({ElapsedSeconds:i*.24,Distance:i*50,Speed:200+i}));
+    packetSeries.slice(10).forEach(p=>p.ElapsedSeconds+=.721);
+    var originalPackets=JSON.stringify(packetSeries);var ranges=telemetrySourceGapRanges(packetSeries);`);
+  const gaps=h.run('ranges');assert.equal(gaps.length,1);near(gaps[0].interval,.961);
+  h.sandbox.mid=(gaps[0].start+gaps[0].end)/2;
+  assert.equal(h.run('telemetrySourceGapAt(packetSeries,mid).interval'),gaps[0].interval);
+  assert.equal(h.run('telemetrySourceGapAt(packetSeries,ranges[0].start)'),null);
+  assert.equal(h.run('telemetrySourceGapAt(packetSeries,ranges[0].end)'),null);
+  assert.equal(h.run('JSON.stringify(packetSeries)'),h.run('originalPackets'));
+  assert.equal(h.run('telemetrySourceGapRanges(packetSeries)===ranges'),true);
+  h.run(`packetSeries.forEach((p,i)=>p.AlignedFraction=(i/19)**1.1);packetSeries.alignmentInputs={};`);
+  assert.notEqual(h.run('telemetrySourceGapRanges(packetSeries)[0].start'),gaps[0].start);
+});
+
+test('delta gap indication includes a hidden reference but never changes the zero baseline',()=>{
+  const h=appHarness();
+  h.run(`var ref=Array.from({length:20},(_,i)=>({ElapsedSeconds:i*.24+(i>=10?.721:0),Distance:i*50,Speed:200}));
+    var other=Array.from({length:20},(_,i)=>({ElapsedSeconds:i*.24,Distance:i*50,Speed:200}));`);
+  assert.equal(h.run("telemetryTraceGapRanges(other,ref,'Timing delta',1).length"),1);
+  assert.equal(h.run("telemetryTraceGapRanges(other,ref,'Speed trace',1).length"),0);
+  assert.equal(h.run("telemetryTraceGapRanges(ref,ref,'Timing delta',0).length"),0);
+  assert.equal(h.run("telemetryTraceGapRanges(ref,ref,'Brake application',0).length"),0);
+});
+
+test('COTA source-gap markings preserve all telemetry and delta values',()=>{
+  const h=appHarness();
+  h.sandbox.fixture=JSON.parse(gunzipSync(readFileSync('scripts/cota-fp2-evidence.json.gz')));
+  h.run(`loaded=fixture.map(e=>e.lap);fixture.forEach(e=>telemetryCache.set(telemetryKey(e.lap),normalizeTelemetry(e.payload.samples,e.lap,e.payload.source)));prepareTelemetryAlignment();
+    var ant=telemetryCache.get('ANT:8'),ver=telemetryCache.get('VER:9');
+    var beforeDelta=Array.from({length:1001},(_,i)=>displayDeltaAt(ver,ant,i/1000));
+    var beforeSamples=JSON.stringify([ant,ver]);var antGaps=telemetrySourceGapRanges(ant);var verGaps=telemetrySourceGapRanges(ver);`);
+  const gap=h.run('antGaps.find(g=>Math.abs(g.from-60.052)<.001)');
+  assert.ok(gap);near(gap.interval,.961);near(gap.to,61.013);
+  assert.equal(h.run('JSON.stringify([ant,ver])===beforeSamples'),true);
+  assert.equal(h.run('Array.from({length:1001},(_,i)=>displayDeltaAt(ver,ant,i/1000)).every((v,i)=>v===beforeDelta[i])'),true);
+  near(h.run('displayDeltaAt(ver,ant,1)'),.147);
+});
+
 test('session straight classification needs GPS evidence and rejects flat-out bends',()=>{
   const h=appHarness();
   h.run(`spatialReferenceTelemetry=()=>({samples:[{},{}]});

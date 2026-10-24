@@ -33,13 +33,14 @@ test('keyboard telemetry readout keeps estimates, partial-lap delta and visible 
   const series=[{Distance:0},{Distance:6000}];
   const box={$:s=>nodes[s.slice(1)],loaded:[reference,partial],telemetryCache:new Map([['VER',series],['LEC',series]]),telemetryKey:l=>l.code,
     visibleTraceLaps:()=>[{lap:reference,index:0},{lap:partial,index:1}],traceTelemetryValue:(samples,fraction,field)=>{calls.push([fraction,field]);return field==='Speed'?301.25:75;},
-    interpolate:(samples,distance,field)=>field==='Brake'?0:8,isReconstructedTelemetry:(samples,fraction,field)=>field==='Speed',telemetryEstimateInfo:()=>({confidence:'low'}),escapeUI:s=>s,displayDeltaAt:()=>.1};
+    interpolate:(samples,distance,field)=>field==='Brake'?0:8,isReconstructedTelemetry:(samples,fraction,field)=>field==='Speed',telemetryEstimateInfo:()=>({confidence:'low'}),telemetrySourceGapAt:()=>null,escapeUI:s=>s,displayDeltaAt:()=>.1};
   vm.createContext(box);const source=read('session-charts.js');
   vm.runInContext(source.slice(source.indexOf('function renderTelemetryReadout'),source.indexOf('function deltaAt')),box);box.renderTelemetryReadout();
   assert.equal(nodes.telemetrySampleDistance.textContent,'1.500 km');assert.equal(nodes.telemetrySample['aria-valuetext'],'1.500 km');
   assert.match(nodes.telemetrySampleRows.innerHTML,/VER L1 \(reference\)/);assert.match(nodes.telemetrySampleRows.innerHTML,/~301\.250 \(low confidence\)/);
   assert.match(nodes.telemetrySampleRows.innerHTML,/<td>\+0\.000<\/td>/);assert.match(nodes.telemetrySampleRows.innerHTML,/LEC L2<\/th><td>[^<]+<\/td><td>—<\/td>/);
   assert.ok(calls.every(([fraction])=>fraction===.25));assert.equal(nodes.telemetrySample.disabled,false);
+  box.telemetrySourceGapAt=()=>({interval:.961});box.renderTelemetryReadout();assert.match(nodes.telemetrySampleRows.innerHTML,/0\.961 s source gap/);
 });
 
 test('the final system layer owns touch density without shrinking source rows or sliding thumbs',()=>{

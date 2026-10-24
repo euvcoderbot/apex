@@ -306,7 +306,7 @@ function renderCharts() {
     </section>
   `;
   }).join('') + `<details class="chart-data-access" id="telemetryDataAccess"><summary>Inspect telemetry values</summary>
-    <p id="telemetryDataHelp">Read every visible trace at a chosen lap distance. Use the distance slider or its arrow keys; Home and End go to the start and finish. Values use the same display calculations as the charts. ~ indicates an estimated repair; — means unavailable.</p>
+    <p id="telemetryDataHelp">Read every visible trace at a chosen lap distance. Use the distance slider or its arrow keys; Home and End go to the start and finish. Values use the same display calculations as the charts. Dashed segments bridge unusually long source-packet gaps; values inside are interpolated. ~ indicates an estimated repair; — means unavailable.</p>
     <div class="chart-sample-controls"><label for="telemetrySample">Lap distance</label><input id="telemetrySample" type="range" min="0" max="1000" step="1" value="0" aria-describedby="telemetryDataHelp"><output for="telemetrySample" id="telemetrySampleDistance">0.000 km</output></div>
     <output class="chart-sample-status" id="telemetrySampleStatus" aria-live="polite"></output>
     <div class="performance-table-wrap" tabindex="0" role="region" aria-label="Telemetry values at selected lap distance"><table class="performance-table"><caption>Values at selected lap distance</caption><thead><tr><th scope="col">Trace</th><th scope="col">Speed (km/h)</th><th scope="col">Delta (s)</th><th scope="col">Throttle (%)</th><th scope="col">Brake</th><th scope="col">Gear</th>${season<2026?'<th scope="col">DRS</th>':''}</tr></thead><tbody id="telemetrySampleRows"></tbody></table></div>
@@ -342,7 +342,8 @@ function renderTelemetryReadout() {
     }
     const delta=lap.real?.out_lap||loaded[0]?.real?.out_lap?null:index===0?0:typeof displayDeltaAt==='function'?displayDeltaAt(samples,reference,fraction):deltaAt(samples,reference,fraction*maxDistance);
     const deltaText=Number.isFinite(delta)?(delta>=0?'+':'')+delta.toFixed(3):'—';
-    return {label:`${lap.code} L${lap.lap}${index===0?' (reference)':''}`,values,deltaText};
+    const sourceGap=telemetrySourceGapAt(samples,fraction);
+    return {label:`${lap.code} L${lap.lap}${index===0?' (reference)':''}${sourceGap?' · '+sourceGap.interval.toFixed(3)+' s source gap':''}`,values,deltaText};
   });
   $('#telemetrySampleRows').innerHTML=rows.length?rows.map(({label,values,deltaText})=>`<tr><th scope="row">${escapeUI(label)}</th><td>${values.Speed}</td><td>${deltaText}</td><td>${values.Throttle}</td><td>${values.Brake}</td><td>${values.nGear}</td>${Number($('#year').value)<2026?'<td>'+values.DRS+'</td>':''}</tr>`).join(''):'<tr><td colspan="7">Load a lap to inspect its telemetry.</td></tr>';
   $('#telemetrySampleStatus').textContent=rows.length?distance+' · '+rows.map(row=>row.label+': '+row.values.Speed+' km/h').join('; '):'Load a lap to inspect its telemetry.';
@@ -998,6 +999,47 @@ function appendTracePoint(points, x, y) {
   points.push({ x, y });
 }
 
+// Evidence only: these ranges never alter samples, alignment or calculations.
+// Reuse the reconstruction engine's existing cadence rule, but inspect original
+// packet times rather than repaired values or positions joined to the packets.
+function telemetrySourceGapRanges(series) {
+  if(!series?.length)return [];
+  const identity=series.alignmentInputs;
+  const memo=series.sourceGapEvidence;
+  if(memo&&memo.identity===identity&&memo.length===series.length)return memo.ranges;
+  const steps=series.slice(1).map((p,i)=>+p.ElapsedSeconds-(+series[i].ElapsedSeconds)).filter(dt=>dt>0&&dt<2).sort((a,b)=>a-b);
+  const middle=Math.floor(steps.length/2),cadence=steps.length?(steps.length%2?steps[middle]:(steps[middle-1]+steps[middle])/2):.27;
+  const threshold=Math.max(.6,cadence*2.2),ranges=[];
+  for(let i=1;i<series.length;i++){
+    const a=series[i-1],b=series[i];
+    if(!finiteTelemetryTime(a.ElapsedSeconds)||!finiteTelemetryTime(b.ElapsedSeconds))continue;
+    const interval=+b.ElapsedSeconds-(+a.ElapsedSeconds);
+    if(interval<=threshold)continue;
+    const start=traceSampleFraction(series,a),end=traceSampleFraction(series,b);
+    if(Number.isFinite(start)&&Number.isFinite(end)&&end>start)ranges.push({start,end,interval,from:+a.ElapsedSeconds,to:+b.ElapsedSeconds});
+  }
+  Object.defineProperty(series,'sourceGapEvidence',{value:{identity,length:series.length,ranges},writable:true,configurable:true});
+  return ranges;
+}
+
+function telemetrySourceGapAt(series,fraction) {
+  return telemetrySourceGapRanges(series).find(gap=>fraction>gap.start+1e-10&&fraction<gap.end-1e-10)||null;
+}
+
+function telemetryTraceGapRanges(series,reference,name,index) {
+  if(!['Speed trace','Throttle application','Timing delta'].includes(name)||name==='Timing delta'&&index===0)return [];
+  const ranges=[...telemetrySourceGapRanges(series)];
+  if(name==='Timing delta'&&reference!==series)ranges.push(...telemetrySourceGapRanges(reference));
+  // The delta depends on both laps, including a hidden timing-reference trace.
+  const merged=[];
+  for(const range of ranges.sort((a,b)=>a.start-b.start)){
+    const last=merged.at(-1);
+    if(last&&range.start<=last.end)last.end=Math.max(last.end,range.end);
+    else merged.push({start:range.start,end:range.end});
+  }
+  return merged;
+}
+
 function measuredContinuousTrace(series, field, viewStart, viewEnd) {
   const points = [];
   appendTracePoint(points, viewStart, alignedValue(series, viewStart, field));
@@ -1368,7 +1410,8 @@ function drawRealChart(name) {
       y: point.y===null?null:bounds.top + (bounds.max - point.y) / (bounds.max - bounds.min || 1)
         * (rect.height - bounds.top - bounds.bottom),
     }));
-    if (points.length) traceEntries.push({ points, domainPoints, teamColor, index });
+    if (points.length) traceEntries.push({ points, domainPoints, teamColor, index,
+      sourceGaps:telemetryTraceGapRanges(series,refSeries,name,index) });
   });
 
   const tracePath = points => {
@@ -1409,14 +1452,24 @@ function drawRealChart(name) {
 
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  traceEntries.forEach(({ points, teamColor, index }) => {
+  traceEntries.forEach(({ points, teamColor, index, sourceGaps }) => {
     ctx.strokeStyle = teamColor;
     const speedWidthMultiplier = name === 'Speed trace' ? 1.15 : 1;
     ctx.lineWidth = (index === 0 ? 1.44 : 1.12) * speedWidthMultiplier;
     ctx.shadowColor = teamColor;
     ctx.shadowBlur = 0;
-    tracePath(points);
-    ctx.stroke();
+    const gaps=sourceGaps.map(gap=>({start:Math.max(viewStart,gap.start),end:Math.min(viewEnd,gap.end)})).filter(gap=>gap.end>gap.start);
+    if(!gaps.length){tracePath(points);ctx.stroke();return;}
+    // Stroke the identical path twice through complementary clips. This only
+    // changes the line style; it cannot move a knot or change a hover value.
+    const clipWindows=windows=>{
+      ctx.beginPath();for(const window of windows){const left=xForFraction(window.start),right=xForFraction(window.end);ctx.rect(left,bounds.top,right-left,rect.height-bounds.top-bounds.bottom);}ctx.clip();
+    };
+    const solid=[];let start=viewStart;
+    for(const gap of gaps){if(gap.start>start)solid.push({start,end:gap.start});start=Math.max(start,gap.end);}
+    if(start<viewEnd)solid.push({start,end:viewEnd});
+    ctx.save();clipWindows(solid);ctx.setLineDash([]);tracePath(points);ctx.stroke();ctx.restore();
+    ctx.save();clipWindows(gaps);ctx.setLineDash([4,3]);tracePath(points);ctx.stroke();ctx.restore();
   });
   ctx.shadowBlur = 0;
   if (name==='Speed trace' && showSpeedAnnotations) {
