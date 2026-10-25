@@ -123,6 +123,26 @@ function bindChartZoom() {
 let traceFocusReturn = null;
 let traceFocusPreviousView = null;
 let traceFocusInert = [];
+// Resize the drawable graphs, not their headings/controls. Measure the neutral
+// responsive grid each time so repeated redraws never compound the 15% change.
+function focusedGraphRows(speedRow, deltaRow, speedCanvas, deltaCanvas) {
+  return [speedRow + speedCanvas * .15, deltaRow - deltaCanvas * .15];
+}
+function sizeFocusedGraphs() {
+  if (!document.body?.classList.contains('trace-focus')) return;
+  const charts = $('#charts');
+  const speed = charts?.querySelector('[data-chart="Speed trace"]');
+  const delta = charts?.querySelector('[data-chart="Timing delta"]');
+  const speedCard = speed?.closest?.('.chart'), deltaCard = delta?.closest?.('.chart');
+  if (!charts?.style?.removeProperty || !speedCard || !deltaCard) return;
+  charts.style.removeProperty('grid-template-rows');
+  const speedHeight = speed.getBoundingClientRect().height, deltaHeight = delta.getBoundingClientRect().height;
+  if (!(speedHeight > 0 && deltaHeight > 0)) return;
+  const rows = focusedGraphRows(speedCard.getBoundingClientRect().height,
+    deltaCard.getBoundingClientRect().height, speedHeight, deltaHeight);
+  charts.style.gridTemplateRows = `${rows[0]}px ${rows[1]}px auto`;
+  speed.dataset.baseHeight = String(speedHeight); delta.dataset.baseHeight = String(deltaHeight);
+}
 function setTraceFocus(expanded) {
   const charts = $('#charts');
   if (!charts) return;
@@ -152,6 +172,7 @@ function setTraceFocus(expanded) {
     traceFocusInert = [];charts.setAttribute('role','region');charts.removeAttribute('aria-modal');
   }
   document.body.classList.toggle('trace-focus', expanded);
+  if (!expanded) charts.style?.removeProperty?.('grid-template-rows');
   $('#realTooltip').style.display = 'none';
   charts.setAttribute('aria-label', expanded ? 'Expanded speed trace and timing delta' : 'Telemetry charts');
   $('[data-trace-focus="open"]')?.setAttribute('aria-expanded', String(expanded));
@@ -1141,6 +1162,7 @@ const TRACE_PLOT_LEFT = 58;
 const TRACE_PLOT_RIGHT = 7;
 // Draw a single canvas chart
 function drawRealChart(name) {
+  if (name === 'Speed trace') sizeFocusedGraphs();
   const canvas = document.querySelector(`[data-chart="${name}"]`);
   if (!canvas) return;
   

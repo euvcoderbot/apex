@@ -27,6 +27,27 @@ test('expanded charts isolate only background siblings and restore pre-existing 
   assert.equal(box.traceZoom.start,.2);assert.equal(box.traceZoom.end,.6);assert.equal(charts.attrs['aria-modal'],undefined);
 });
 
+test('expanded graph sizing changes drawable height by exactly plus/minus fifteen percent',()=>{
+  const source=read('session-charts.js'),box={};vm.createContext(box);
+  vm.runInContext(source.slice(source.indexOf('function focusedGraphRows'),source.indexOf('function sizeFocusedGraphs')),box);
+  for(const [speedRow,deltaRow,speedCanvas,deltaCanvas] of [[620,400,450,300],[400,220,210,150],[580,280,350,200]]){
+    const [s,d]=box.focusedGraphRows(speedRow,deltaRow,speedCanvas,deltaCanvas);
+    assert.ok(Math.abs((s-speedRow+speedCanvas)/speedCanvas-1.15)<1e-10);
+    assert.ok(Math.abs((d-deltaRow+deltaCanvas)/deltaCanvas-.85)<1e-10);
+  }
+  assert.match(source,/charts\.style\.removeProperty\('grid-template-rows'\)/,'measure neutral layout, not the previous scaled result');
+  assert.match(source,/if \(!expanded\) charts\.style\?\.removeProperty\?\.\('grid-template-rows'\)/);
+});
+
+test('visible-trace time pills use the regular run-control height with compact secondary time text',()=>{
+  const sheet=postcss.parse(read('hig-system.css'));
+  const rule=sheet.nodes.find(n=>n.selector==='.trace-pill-group .trace-driver-chip,.trace-pill-group .trace-driver-chip.is-visible');
+  for(const [prop,value] of [['box-sizing','border-box'],['height','var(--hig-regular)'],['min-height','var(--hig-regular)'],['padding-block','0']])
+    assert.ok(rule.nodes.some(n=>n.prop===prop&&n.value===value),prop);
+  const time=sheet.nodes.find(n=>n.selector==='.trace-pill-group .trace-driver-chip small');
+  assert.ok(time.nodes.some(n=>n.prop==='font-size'&&n.value==='var(--type-caption)'));
+});
+
 test('keyboard telemetry readout keeps estimates, partial-lap delta and visible trace identity',()=>{
   const nodes=Object.fromEntries(['telemetryDataAccess','telemetrySample','telemetrySampleDistance','telemetrySampleRows','telemetrySampleStatus','year'].map(id=>[id,{open:true,value:id==='year'?'2026':'250',setAttribute(k,v){this[k]=v;}}]));
   const reference={code:'VER',lap:1},partial={code:'LEC',lap:2,real:{out_lap:true}},calls=[];

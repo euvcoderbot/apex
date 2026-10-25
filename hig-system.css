@@ -181,7 +181,8 @@ input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 
 /* Visible-trace chips: a neutral bezel holding a checkbox and a colour well;
    the trace colour lives only in the well (selection spec rule 5). */
 .trace-pill-group { min-height: var(--hig-regular); padding: 0 4px 0 0; border: 0; border-radius: var(--hig-radius); background: var(--ui-control); box-shadow: var(--ui-shadow-control); }
-.trace-pill-group .trace-driver-chip,.trace-pill-group .trace-driver-chip.is-visible { min-height: var(--hig-regular); background: transparent; box-shadow: none; border: 0; }
+.trace-pill-group .trace-driver-chip,.trace-pill-group .trace-driver-chip.is-visible { box-sizing: border-box; height: var(--hig-regular); min-height: var(--hig-regular); padding-block: 0; background: transparent; box-shadow: none; border: 0; font-size: var(--type-body); }
+.trace-pill-group .trace-driver-chip small { font-size: var(--type-caption); line-height: 1.2; }
 .trace-pill-group:hover { background: var(--ui-control-hover); }
 .trace-pill-group .trace-swatch { width: 18px; height: 18px; flex: 0 0 18px; border-radius: 4px; }
 
@@ -449,7 +450,7 @@ button.map-guide-info[data-ui-kind="icon"] {
 .chart-sample-controls input[type="range"] { min-height: var(--hig-regular); width: 100%; accent-color: var(--ui-action); }
 .chart-sample-status { display: block; margin-block: 8px; font-size: var(--type-callout); color: var(--ui-secondary); }
 .chart-data-access tbody th { font-size: var(--type-body); color: var(--ui-label); text-align: left; }
-body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,1fr) auto; }
+body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,1fr) auto; scrollbar-gutter: stable; }
 .corner-table-head [role="columnheader"] > button { display: inline-block; width: 100%; min-height: var(--hig-small); padding: 0; font: inherit; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: inherit; background: none; box-shadow: none; }
 .corner-table-head [role="columnheader"] small { display: inline; font-weight: 400; color: var(--ui-tertiary); }
 .corner-table-head [role="columnheader"][aria-sort]:not([aria-sort="none"]) { color: var(--ui-label); }
