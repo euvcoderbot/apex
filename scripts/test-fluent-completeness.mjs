@@ -7,7 +7,7 @@ import {raceCornerGroups} from '../race-cornering.js';
 const source=fs.readFileSync('car-performance.js','utf8');
 
 test('sprint points include both drivers, preserve unknowns and do not affect race-only rates',()=>{
-  const box={finite:Number.isFinite,completed:(e,s)=>s==='Sprint'&&e.sprint};
+  const box={finite:Number.isFinite,sessionAvailable:(e,s)=>s==='Sprint'&&e.sprint};
   vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function sprintPointsForTeam('),source.indexOf('function renderResults(')),box);
   const event={sprint:true,S:{drivers:[{team:'A',result:{points:8}},{team:'A',result:{points:6}},{team:'B',result:{points:0}}]}};
   assert.equal(box.sprintPointsForTeam([event],'A').points,14);

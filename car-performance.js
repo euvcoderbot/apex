@@ -43,9 +43,35 @@ async function get(path, signal, cache='default') {
   }
 }
 
-function completed(event, session) {
-  const start=Date.parse(event.session_dates?.[session] || '');
-  return Number.isFinite(start) && start+4*3600000 < Date.now();
+function performanceSessionTime(value) {
+  if(!value)return NaN;
+  const text=String(value).trim();
+  const iso=text.replace(/^(\d{4}-\d{2}-\d{2}) /,'$1T');
+  return Date.parse(/^\d{4}-\d{2}-\d{2}T/.test(iso)&&!/(Z|[+-]\d{2}:?\d{2})$/i.test(iso)?iso+'Z':iso);
+}
+function completed(event, session, now=Date.now()) {
+  const status=String(event.session_statuses?.[session]||'').toLowerCase();
+  if(['completed','finished','final','ended'].includes(status))return true;
+  if(['live','started','running','in_progress','interrupted','suspended','cancelled','canceled','aborted','upcoming'].includes(status))return false;
+  const end=performanceSessionTime(event.session_end_dates?.[session]);
+  return Number.isFinite(end)&&end<=now;
+}
+function sessionAvailable(event, session, now=Date.now()) {
+  const status=String(event.session_statuses?.[session]||'').toLowerCase();
+  if(['cancelled','canceled','aborted'].includes(status))return false;
+  if(completed(event,session,now)||['live','started','running','in_progress','interrupted','suspended'].includes(status))return true;
+  const start=performanceSessionTime(event.session_dates?.[session]);
+  // Permission to request observations, not a promise that the source has
+  // already published usable laps. A stale "upcoming" flag cannot add a delay.
+  return Number.isFinite(start)&&start<=now;
+}
+function provisionalPerformanceSessions(items,now=Date.now()) {
+  return items.flatMap(event=>['Q','R','S'].flatMap(code=>{
+    if(!event[code])return [];
+    const label=code==='Q'?'Qualifying':code==='S'?'Sprint':'Race';
+    return !completed(event,label,now)||event[code].complete===false||event[code].data_complete===false
+      ? [`${event.name} · ${label}`] : [];
+  }));
 }
 
 function syncSelect(select) {
@@ -59,7 +85,7 @@ function syncSelect(select) {
   }
 }
 
-let initialized=false, calendar=[], calendarLoading=false,calendarController, controller, pitController, generation=0;
+let initialized=false, calendar=[], calendarInventory=[], calendarLoading=false,calendarController, controller, pitController, generation=0;
 let events=[], errors=[], activeMetric='pace', running=false, traceRunning=false, sortKey='qualy', sortDirection=1;
 let pitRunning=false,traceController=null;
 const telemetryAttempts=new WeakMap();
@@ -310,7 +336,7 @@ function renderTrackPills() {
   const container = $('performanceTrackPills');
   if (!container) return;
   if (!calendar.length) {
-    container.innerHTML = `<span class="performance-note" style="margin:0;">${calendarLoading?'Loading race calendar…':'No completed qualifying sessions available.'}</span>`;
+    container.innerHTML = `<span class="performance-note" style="margin:0;">${calendarLoading?'Loading race calendar…':'No qualifying sessions have started yet.'}</span>`;
     updateTrackCount();
     return;
   }
@@ -330,6 +356,7 @@ function renderTrackPills() {
 async function loadCalendar() {
   calendarController?.abort(); calendarController=new AbortController();
   const signal=calendarController.signal;
+  calendarInventory=[];
   calendarLoading=true;updateStatus('Loading race calendar…',true);renderTrackPills();
   $('performanceLoad').disabled=true;
   if ($('performanceEvent')) {
@@ -337,8 +364,8 @@ async function loadCalendar() {
     syncSelect($('performanceEvent'));
   }
   try {
-    calendar=await get(`/api/events?year=${$('performanceYear').value}`,signal);
-    calendar=calendar.filter(e=>completed(e,'Qualifying'));
+    calendarInventory=await get(`/api/events?year=${$('performanceYear').value}`,signal);
+    calendar=calendarInventory.filter(e=>sessionAvailable(e,'Qualifying'));
     if ($('performanceEvent')) {
       $('performanceEvent').innerHTML=calendar.map(e=>{
         const country = grandPrixCountryCode(e) || '';
@@ -348,7 +375,7 @@ async function loadCalendar() {
       syncSelect($('performanceEvent'));
     }
     calendarLoading=false;renderTrackPills();
-    updateStatus(calendar.length ? 'Ready. Data loads only when you choose Analyse.' : 'No completed qualifying sessions available for this season.');
+    updateStatus(calendar.length ? 'Ready. Data loads only when you choose Analyse; live or incomplete results are provisional.' : 'No qualifying sessions have started yet for this season.');
     updateTrackCount();
   } catch(e) {
     if(signal.aborted) return;
@@ -387,7 +414,21 @@ function reset() {
   render();
 }
 
+function refreshPerformanceAvailability() {
+  if(calendarLoading||!calendarInventory.length)return;
+  const next=calendarInventory.filter(e=>sessionAvailable(e,'Qualifying'));
+  if(next.length===calendar.length&&next.every((e,i)=>e===calendar[i]))return;
+  calendar=next;
+  renderTrackPills();
+}
+// Only re-evaluate the already-loaded schedule; no speculative data fetches.
+// This avoids permanently hiding a newly started session in an open tab.
+window.setInterval?.(()=>{
+  if(initialized&&!$('carPerformance').hidden&&!running&&!document.hidden)refreshPerformanceAvailability();
+},15000);
+
 async function analyse(refresh=false) {
+  refreshPerformanceAvailability();
   traceController?.abort();
   refreshPerformance=refresh===true;refreshedPaths.clear();
   if(refreshPerformance)raceCornerCache.clear();
@@ -410,7 +451,7 @@ async function analyse(refresh=false) {
     selectedTracks: [...selectedTracks]
   };
 
-  const jobs=picked.flatMap(event=>['Q','R','S'].filter(s=>s==='Q'||completed(event,s==='S'?'Sprint':'Race')).map(session=>({event,session})));
+  const jobs=picked.flatMap(event=>['Q','R','S'].filter(s=>s==='Q'||sessionAvailable(event,s==='S'?'Sprint':'Race')).map(session=>({event,session})));
   const total=jobs.length;
   let done=0;
   $('performanceLoad').disabled=true; $('performanceLoad').hidden=true; $('performanceCancel').hidden=false;
@@ -520,14 +561,14 @@ async function loadPitData(retry=false) {
   const picked=context.scope==='season'
     ? calendar
     : calendar.filter(e=>context.selectedTracks.includes(e.name));
-  for(const event of picked.filter(e=>completed(e,'Race'))) {
+  for(const event of picked.filter(e=>sessionAvailable(e,'Race'))) {
     if(!events.some(e=>e.name===event.name)) events.push({...event,traces:{}});
   }
   if(retry) for(const event of events) {
     delete event.pitError;
     if(event.pits?.stationary_status!=='complete')delete event.pits;
   }
-  const jobs=events.filter(e=>completed(e,'Race') && !e.pits && !e.pitError);
+  const jobs=events.filter(e=>sessionAvailable(e,'Race') && !e.pits && !e.pitError);
   if(!jobs.length) return;
   pitController?.abort(); pitController=new AbortController();
   const signal=pitController.signal, id=generation;
@@ -1266,7 +1307,7 @@ function renderRace(teams) {
 function sprintPointsForTeam(selectedEvents,team) {
   let points=0,known=true;
   for(const event of selectedEvents){
-    if(!completed(event,'Sprint'))continue;
+    if(!sessionAvailable(event,'Sprint'))continue;
     const roster=event.R?.teams?.find(t=>t.team===team)?.drivers||[];
     const drivers=(event.S?.drivers||[]).filter(d=>roster.length?roster.includes(d.code):d.team===team);
     if(!drivers.length||roster.length&&drivers.length!==roster.length||drivers.some(d=>!finite(d.result?.points))){known=false;continue;}
@@ -1380,7 +1421,7 @@ function pitSummary(events, teams) {
       stopCount:stop.count,laneCount:lane.count,eventCount:group.events.size};
   };
   return {teams:[...groups.values()].map(summarize),drivers:[...drivers.values()].map(summarize),visits,
-    loaded:loadedRaces.length,total:events.filter(e=>completed(e,'Race')).length};
+    loaded:loadedRaces.length,total:events.filter(e=>sessionAvailable(e,'Race')).length};
 }
 
 function pitMiddleSpread(sample) {
@@ -1409,7 +1450,7 @@ function renderPits(teams) {
     pitCount:r=>r[measure].count,
     pitEvents:r=>r.eventCount
   },'pitMedian');
-  const failures=events.filter(e=>completed(e,'Race')&&e.pitError);
+  const failures=events.filter(e=>sessionAvailable(e,'Race')&&e.pitError);
   const pending=data.total-data.loaded-failures.length;
   const note=`${data.loaded}/${data.total} race${data.total===1?'':'s'} loaded${pending>0?' · loading pit timing…':''}${failures.length?` · ${failures.length} race${failures.length===1?'':'s'} unavailable`:''}. Stationary is the broadcast-style time stopped at the box; pit-lane time includes the stop. Raw summaries weight every timed visit; GP-relative lane summaries compare each team or driver's GP median with the median of team GP medians, then give each GP equal weight. Mean includes long stops; median shows a typical visit; the middle-50% spread shows consistency (≥4 samples); P10 and P90 show the quick and slow tails (≥10 samples). Missing stationary times are never inferred.`;
   const chartRows=ordered.map(r=>({...r,displayName:isDriver?r.driver:r.team,
@@ -1862,6 +1903,8 @@ function renderContent() {
   const telemetryMode=['corners','straight','braking'].includes(activeMetric);
   const teams=telemetryMode?[]:aggregate();
   const errorMarkup = errors.map(e=>`<div class="performance-error"><span class="error-dot"></span><span>${escape(e.event.name)} · ${e.session==='Q'?'Qualifying':e.session==='R'?'Race':'Telemetry'}: ${escape(e.message)}</span></div>`).join('');
+  const provisional=provisionalPerformanceSessions(events);
+  const provisionalNotice=provisional.length?`<p class="performance-note" role="status">Provisional · live, incomplete or unconfirmed session data: ${provisional.map(escape).join('; ')}. Results may change. Use Refresh data for the latest available observations.</p>`:'';
   const recordedNotices=events.flatMap(e=>['Q','R','pits'].filter(s=>e[s]?.source_cache).map(s=>`${e.name} ${s==='Q'?'qualifying':s==='pits'?'pit visits':'race'}${e[s].source_cache.refresh_failed||e[s].source_cache.stale?' (live refresh unavailable)':''}`));
   const sourceNotice=recordedNotices.length?`<details class="performance-source-note"><summary>Retained session sources</summary><p>${recordedNotices.map(escape).join(' · ')}. Recalculated with the current methodology; missing fields remain unknown.</p></details>`:'';
   const speedMode=telemetryMode&&speedDomainActive();
@@ -1872,7 +1915,7 @@ function renderContent() {
   let content = speedMode?renderSpeedDomain():(activeMetric==='pace'?renderPace(teams):activeMetric==='corners'&&cornerSession==='race'?renderRaceCorners():activeMetric==='tyres'?renderRace(teams):activeMetric==='results'?renderResults(teams):activeMetric==='pits'?renderPits(teams):renderTrend(teams));
   const metricEvidence=activeMetric==='tyres'?'<details class="dashboard-card performance-methods"><summary>Warm-up, steady trend and late falloff</summary><div data-metric-evidence="tyres"></div></details>':'';
   const metricHeading=window.ApexPresentation?.metricHeading(activeMetric,{year:context.year,events:events.length,subject:telemetrySubject,session:cornerSession})||'';
-  root.innerHTML = deferPerformanceEvidence(modeBar + `<div id="performanceMetricPanel" role="tabpanel" data-metric="${activeMetric}" aria-label="${escape(modes.find(([key])=>key===activeMetric)?.[1]||'Performance')} measurements">`+metricHeading+'<p class="performance-definition">'+escape(window.ApexAnalysis.definitions[activeMetric].description)+'</p>'+telemetryControls + sourceNotice+errorMarkup+content+metricEvidence+'</div>');
+  root.innerHTML = deferPerformanceEvidence(modeBar + `<div id="performanceMetricPanel" role="tabpanel" data-metric="${activeMetric}" aria-label="${escape(modes.find(([key])=>key===activeMetric)?.[1]||'Performance')} measurements">`+metricHeading+'<p class="performance-definition">'+escape(window.ApexAnalysis.definitions[activeMetric].description)+'</p>'+telemetryControls + provisionalNotice+sourceNotice+errorMarkup+content+metricEvidence+'</div>');
 }
 
 // ---------------------------------------------------------------------------
@@ -1897,6 +1940,7 @@ document.querySelectorAll('[data-analysis-view]').forEach(button=>button.addEven
     if ($('performanceScope')) syncSelect($('performanceScope'));
     calendarReady=loadCalendar();
   }
+  else if(performance)refreshPerformanceAvailability();
 };
   if(animate&&window.ApexMotion)window.ApexMotion.transition(run);else run();
 }));

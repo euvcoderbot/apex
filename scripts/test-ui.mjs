@@ -16,7 +16,7 @@ test('local mode requests Python instead of loading published summary or native 
 });
 test('pit entrants stay visible without loading race pace or inventing a missing stop',()=>{
   const source=readFileSync('car-performance.js','utf8');
-  const box={pitVisitMode:'service',finite:Number.isFinite,completed:()=>true,
+  const box={pitVisitMode:'service',finite:Number.isFinite,sessionAvailable:()=>true,
     avg:a=>a.length?a.reduce((s,n)=>s+n,0)/a.length:null,
     median:a=>a.length?[...a].sort((x,y)=>x-y)[Math.floor(a.length/2)]:null,
     percentile:(a,p)=>a.length?[...a].sort((x,y)=>x-y)[Math.floor((a.length-1)*p)]:null};
@@ -878,7 +878,7 @@ test('pit category keeps stationary and lane averages separate by team and drive
   const sandbox={avg:a=>{const found=a.filter(Number.isFinite);return found.length?found.reduce((x,y)=>x+y,0)/found.length:null;},
     median:a=>{const x=a.filter(Number.isFinite).sort((v,w)=>v-w);return x.length?(x.length%2?x[(x.length-1)/2]:(x[x.length/2-1]+x[x.length/2])/2):null;},
     percentile:(a,p)=>{const x=a.filter(Number.isFinite).sort((v,w)=>v-w);if(!x.length)return null;const i=(x.length-1)*p,l=Math.floor(i),h=Math.ceil(i);return x[l]+(x[h]-x[l])*(i-l);},
-    pitVisitMode:'all',finite:Number.isFinite,completed:()=>true};
+    pitVisitMode:'all',finite:Number.isFinite,sessionAvailable:()=>true};
   vm.createContext(sandbox);
   vm.runInContext(body,sandbox);
   const events=[{name:'Example GP',R:{teams:[{team:'McLaren',drivers:['NOR','PIA']}]},
@@ -945,7 +945,7 @@ test('pit category keeps stationary and lane averages separate by team and drive
 test('pit summaries keep raw visits weighted, relative GPs equal, and percentile boundaries exact', () => {
   const source=readFileSync('car-performance.js','utf8');
   const body=source.slice(source.indexOf('function pitSummary'),source.indexOf('function huberRegression'));
-  const sandbox={pitVisitMode:'all',finite:Number.isFinite,completed:()=>true,
+  const sandbox={pitVisitMode:'all',finite:Number.isFinite,sessionAvailable:()=>true,
     avg:a=>{const x=a.filter(Number.isFinite);return x.length?x.reduce((s,v)=>s+v,0)/x.length:null;},
     median:a=>{const x=a.filter(Number.isFinite).sort((a,b)=>a-b);return x.length?x.length%2?x[(x.length-1)/2]:(x[x.length/2-1]+x[x.length/2])/2:null;},
     percentile:(a,p)=>{const x=a.filter(Number.isFinite).sort((a,b)=>a-b);if(!x.length)return null;const i=(x.length-1)*p,l=Math.floor(i),h=Math.ceil(i);return x[l]+(x[h]-x[l])*(i-l);}};
@@ -979,7 +979,7 @@ test('pit chart, sortable table and exact rows show the same selected measuremen
   const source=readFileSync('car-performance.js','utf8');
   const body=source.slice(source.indexOf('function pitSummary'),source.indexOf('function huberRegression'));
   let view=null;
-  const sandbox={finite:Number.isFinite,completed:()=>true,events:[],context:{scope:'tracks',selectedTracks:[1]},
+  const sandbox={finite:Number.isFinite,sessionAvailable:()=>true,events:[],context:{scope:'tracks',selectedTracks:[1]},
     pitVisitMode:'all',pitMeasure:'lane',pitLaneBasis:'event',pitSubject:'team',pitChartMetric:'mean',sortKey:'pitMean',sortDirection:1,
     avg:a=>{const x=a.filter(Number.isFinite);return x.length?x.reduce((s,v)=>s+v,0)/x.length:null;},
     median:a=>{const x=a.filter(Number.isFinite).sort((v,w)=>v-w);return x.length?x.length%2?x[(x.length-1)/2]:(x[x.length/2-1]+x[x.length/2])/2:null;},
