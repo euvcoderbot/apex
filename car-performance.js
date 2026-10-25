@@ -540,7 +540,8 @@ async function loadSpeedDomain(automatic=false) {
       // Speed-only: skip the retired window-timing alignment on the server.
       const result=await get('/api/performance/trace-batch?'+new URLSearchParams({year,gp:event.name,windows:JSON.stringify(windows),measures:'speed'}),signal);
       if(id!==generation||signal.aborted)return;
-      (event.speedDomain ||= {})[subject]=result.speed_domain||{cars:{},error:result.error||'No speed-domain measurement returned; refresh data.'};
+      if(!Object.keys(result.speed_domain?.cars||{}).length)throw new Error(result.speed_domain?.error||result.error||'Qualifying telemetry returned no measured entrants. Retry this GP when the source is available.');
+      (event.speedDomain ||= {})[subject]=result.speed_domain;
       delete event.speedDomainError;
     }catch(error){if(signal.aborted)return;event.speedDomainError=error.message;}
     scheduleRender();
@@ -1735,7 +1736,7 @@ function speedDomainChart(key,title,subtitle) {
   const meta=SPEED_DOMAIN_METRICS[key],season=speedDomainSeason(events,telemetrySubject,key),style=speedDomainEntities();
   const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason,traceProvisional:r.provisional}));
   // While GPs are still loading an empty chart is pending, not a missing measurement.
-  if(!rows.length)return {title:title||meta.label,empty:running||speedDomainRunning[telemetrySubject]?'Waiting for the first measured GPs…':key.startsWith('corner_')?'No shared supported corner measurement in this band. Missing values are not zero.':'No supported measurement in the loaded GPs. Missing values are not zero.'};
+  if(!rows.length)return {title:title||meta.label,empty:running||speedDomainRunning[telemetrySubject]?'Loading qualifying telemetry…':key.startsWith('corner_')?'No shared supported corner measurement in this band. Missing values are not zero.':'No supported measurement in the loaded GPs. Missing values are not zero.'};
   return {title:title||meta.label,rows,options:{title:title||meta.label,subtitle:`${subtitle?subtitle+' · ':''}${season.gps} supported GP${season.gps===1?'':'s'} of ${events.filter(e=>e.Q).length} selected · ${season.events.join(', ')} · 0 = best${rows.some(r=>r.traceProvisional)?' · ≈ provisional: source gaps >0.6 s':''}`,unit:meta.unit,digits:meta.digits}};
 }
 function speedDomainLowConfidence(key) {

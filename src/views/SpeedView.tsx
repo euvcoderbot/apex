@@ -75,8 +75,10 @@ function CornerByCorner({corners: c}: {corners: Corners}) {
 export function SpeedView(p: SpeedViewProps) {
   const head = (
     <>
-      <p className="performance-quality-status" role="status">
-        {p.status.running ? 'Loading fastest qualifying laps… ' : ''}{p.status.loaded} of {p.status.total} GPs measured. Season values weight each GP equally; entrants measured in fewer than half of them stay unranked.
+      <p className={`performance-quality-status${p.status.running ? ' is-loading' : ''}`} role="status">
+        {p.status.running
+          ? `Loading qualifying telemetry · ${p.status.loaded} of ${p.status.total} GPs measured. Lap times are loaded; fetching and processing the fastest laps. The first load can take a few minutes.`
+          : `${p.status.loaded} of ${p.status.total} GPs measured. Season values weight each GP equally; entrants measured in fewer than half of them stay unranked.`}
       </p>
       {p.failures.map(f => <div key={f.name} className="performance-error">{f.name} · {f.error}</div>)}
       {p.retry ? <div className="performance-actions"><button type="button" data-speed-retry="">Retry {p.retry} missing GP{p.retry === 1 ? '' : 's'}</button></div> : null}

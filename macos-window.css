@@ -439,8 +439,8 @@ body.is-descriptions-hidden #performanceMetricPanel .performance-chart-card.is-e
 #carPerformance > .performance-status-card p { margin: 0; color: inherit; font-size: 14px; }
 #carPerformance > .performance-status-card .status-dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--ui-quaternary); box-shadow: none; animation: none; }
 body.is-descriptions-hidden #carPerformance > .performance-status-card:not(.is-running) { display: none; }
-/* Progress and assumption notes are explanations: shown only with Show explanations, unless they carry an action. */
-body.is-descriptions-hidden #performanceMetricPanel p.performance-quality-status:not(:has(button)):not(details p) { display: none; }
+/* Loading is operational status, not an optional methodology explanation. */
+body.is-descriptions-hidden #performanceMetricPanel p.performance-quality-status:not(.is-loading):not(:has(button)):not(details p) { display: none; }
 #carPerformance > .performance-status-card.is-running .status-dot { background: none; border: 1.5px solid var(--ui-quaternary); border-top-color: var(--ui-accent); animation: ui-spin .8s linear infinite; box-sizing: border-box; }
 #carPerformance > #performanceResults { position: relative; display: block; padding: 14px 20px 8px; }
 #carPerformance > #performanceResults:empty { display: none; }

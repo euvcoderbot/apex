@@ -79,3 +79,43 @@ test('the page defaults to speed-domain and keeps every trace-batch speed-domain
   assert.match(source,/pills:STRAIGHT_PILLS\.map/);
   for(const key of ['straight','straight_top','energy'])assert.match(source,new RegExp(`key:'${key}'`));
 });
+
+function loader(result) {
+  const source=readFileSync('car-performance.js','utf8'),event={name:'Test GP',Q:{teams:[]}};
+  const box={context:{year:2026},events:[event],telemetrySubject:'team',generation:1,
+    speedDomainRunning:{team:false},speedDomainController:{},AbortController,URLSearchParams,
+    firstTelemetryAttempt:()=>true,fastestTeamTelemetrySelections:()=>[1,2,3],
+    render(){},scheduleRender(){},updateStatus(){},loadActiveTelemetry(){},get:async()=>result};
+  vm.createContext(box);
+  vm.runInContext(source.slice(source.indexOf('async function loadSpeedDomain('),source.indexOf('function loadActiveTelemetry()')),box);
+  return {box,event};
+}
+
+for(const result of [{},{speed_domain:{cars:{}}},{error:'Upstream unavailable',speed_domain:{cars:{}}}]) {
+  test(`empty qualifying telemetry is retryable, not a completed blank (${JSON.stringify(result)})`,async()=>{
+    const {box,event}=loader(result);
+    await box.loadSpeedDomain();
+    assert.equal(box.speedDomainRunning.team,false);
+    assert.equal(event.speedDomain?.team,undefined);
+    assert.match(event.speedDomainError,/no measured entrants|Upstream unavailable/);
+  });
+}
+
+test('loading remains pending until telemetry arrives, then retains supported entrants',async()=>{
+  const result={speed_domain:{cars:{A:car(0,0,0),B:car(1,0,0),C:car(2,0,0)}}};
+  const {box,event}=loader(result);let finish;
+  box.get=()=>new Promise(resolve=>{finish=resolve;});
+  const pending=box.loadSpeedDomain();
+  assert.equal(box.speedDomainRunning.team,true);
+  finish(result);await pending;
+  assert.equal(box.speedDomainRunning.team,false);
+  assert.equal(event.speedDomain.team,result.speed_domain);
+  assert.equal(event.speedDomainError,undefined);
+});
+
+test('telemetry loading status remains visible with explanations disabled',()=>{
+  const css=readFileSync('macos-window.css','utf8'),view=readFileSync('src/views/SpeedView.tsx','utf8');
+  assert.match(css,/p\.performance-quality-status:not\(\.is-loading\):not\(:has\(button\)\)/);
+  assert.match(view,/p\.status\.running \? ' is-loading'/);
+  assert.match(view,/Lap times are loaded; fetching and processing the fastest laps/);
+});
