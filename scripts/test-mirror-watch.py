@@ -97,6 +97,25 @@ class WatchTests(unittest.TestCase):
             self.assertEqual(source.streams(), [])
 
 
+class WatchLockTests(unittest.TestCase):
+    def test_only_one_watcher_runs_and_a_dead_one_does_not_block(self):
+        with TemporaryDirectory() as directory, patch.object(server, 'RAW_ROOT', Path(directory)):
+            lock = Path(directory)/mirror.LOCK_NAME
+            self.assertIsNone(mirror.acquire_watch_lock(), 'the first watcher takes the lock')
+            self.assertEqual(lock.read_text(), str(__import__('os').getpid()))
+            # Another live process holds it: this one steps aside.
+            holder = __import__('subprocess').Popen([sys.executable, '-c', 'import time; time.sleep(30)'])
+            try:
+                lock.write_text(str(holder.pid))
+                self.assertEqual(mirror.acquire_watch_lock(), holder.pid)
+            finally:
+                holder.kill(); holder.wait()
+            # Its PID is gone (a crash, a restart): the lock is stale and is taken over.
+            lock.write_text(str(holder.pid))
+            self.assertIsNone(mirror.acquire_watch_lock())
+            self.assertEqual(lock.read_text(), str(__import__('os').getpid()))
+
+
 class ScheduleTests(unittest.TestCase):
     """The watcher sleeps until the published schedule says a session has settled."""
     NOW = datetime(2026, 11, 7, 12, 0, tzinfo=timezone.utc)
