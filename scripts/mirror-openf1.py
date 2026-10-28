@@ -32,8 +32,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import argparse
+import atexit
 import gzip
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -179,6 +181,43 @@ def run_once(args, wanted) -> int:
     return len(failed)
 
 
+LOCK_NAME = "mirror-watch.lock"
+
+
+def pid_alive(pid: int) -> bool:
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+        handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return False
+        code = wintypes.DWORD()
+        ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
+        ctypes.windll.kernel32.CloseHandle(handle)
+        return code.value == 259  # STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def acquire_watch_lock() -> int | None:
+    """One watcher at a time: they would share, and so halve, the rate limit.
+    Returns None when this process holds the lock, else the PID that does."""
+    path = server.RAW_ROOT/LOCK_NAME
+    server.RAW_ROOT.mkdir(parents=True, exist_ok=True)
+    try:
+        holder = int(path.read_text().strip())
+    except (OSError, ValueError):
+        holder = None
+    if holder and holder != os.getpid() and pid_alive(holder):
+        return holder
+    path.write_text(str(os.getpid()))
+    atexit.register(lambda: path.unlink(missing_ok=True) if path.exists() and path.read_text().strip() == str(os.getpid()) else None)
+    return None
+
+
 def next_wake(args, wanted, now=None):
     """Seconds until the watcher should run again, and why, from the published schedule."""
     now = now or datetime.now(timezone.utc)
@@ -219,12 +258,18 @@ def main() -> None:
     args = parser.parse_args()
     wanted = {name.strip() for name in args.sessions.split(",") if name.strip()}
     print(f"Archive: {server.RAW_ROOT}", flush=True)
+    if args.watch and (holder := acquire_watch_lock()):
+        print(f"Another watcher is already running (PID {holder}); nothing to do.", flush=True)
+        return
     if not args.watch:
         if run_once(args, wanted):
             raise SystemExit(1)
         return
+    follow_year = "--year" not in sys.argv  # a long-lived watcher moves on when the calendar year does
     while True:
         seconds, why = RETRY_MINUTES*60., "last pass failed"
+        if follow_year:
+            args.year = datetime.now().year
         try:
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] checking {args.year}", flush=True)
             if run_once(args, wanted):
