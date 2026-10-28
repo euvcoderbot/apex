@@ -10,13 +10,16 @@ type EventTable = {subject: string; labels: string[]; rows: {event: string; team
 type Phases = {several: boolean; subject: string; sections: {label: string; rows: {team: Team; braking: string; mid: string; exit: string; total: string; gps: number}[]}[]};
 type Corners = {single: string | null; subject: string; events: {name: string; rows: {corner: {name: string; detail: string} | null; team: Team;
   delta: string; braking: string; mid: string; exit: string; speeds: string; raw: string; sensitivity: string; gap: string}[]}[]};
+type Straights = {single: string | null; subject: string; events: {name: string; rows: {straight: {name: string; detail: string} | null; team: Team;
+  delta: string; speeds: string; gap: string}[]}[]};
+type Basis = 'lap' | 'section' | null;
 export type SpeedViewProps = {
   status: {running: boolean; loaded: number; total: number};
   failures: {name: string; error: string}[]; retry: number;
 } & (
-  | {metric: 'corners'; note: string; charts: SpeedChart[]; phases: Phases | null; corners: Corners | null; events: EventTable;
+  | {metric: 'corners'; basis?: Basis; note: string; charts: SpeedChart[]; phases: Phases | null; corners: Corners | null; events: EventTable;
      traction: {lowConfidence: boolean; chart: SpeedChart; events: EventTable}}
-  | {metric: 'straight'; pill: string; pills: {key: string; label: string; hint: string}[]; note: string; chart: SpeedChart; events: EventTable}
+  | {metric: 'straight'; basis?: Basis; straights?: Straights | null; pill: string; pills: {key: string; label: string; hint: string}[]; note: string; chart: SpeedChart; events: EventTable}
   | {metric: 'braking'; note: string; lowConfidence: boolean; chart: SpeedChart; events: EventTable});
 
 function Chart({chart}: {chart: SpeedChart}) {
@@ -71,6 +74,34 @@ function CornerByCorner({corners: c}: {corners: Corners}) {
   );
 }
 
+// Several GPs: a gap as a share of the lap (the qualifying gap's scale) or of
+// the section's own time (how much slower through those corners or straights).
+function GapBasis({basis, section}: {basis: Basis | undefined; section: string}) {
+  if (!basis) return null;
+  return (
+    <div className="performance-scope-toggle" role="group" aria-label="Gap basis">
+      <button type="button" data-gap-basis="lap" aria-pressed={basis === 'lap'} title="Time lost as a share of the lap, the same scale as the qualifying gap">% of lap</button>
+      <button type="button" data-gap-basis="section" aria-pressed={basis === 'section'} title={`Time lost as a share of the time spent in these ${section}`}>% of {section}</button>
+    </div>
+  );
+}
+
+function StraightByStraight({straights: s}: {straights: Straights}) {
+  const tables = s.events.map(e => {
+    const t = <DataTable key={e.name} headers={['Straight', s.subject === 'driver' ? 'Driver' : 'Team', 'Δ to median', 'In → out km/h', 'Max source gap']}
+      rows={e.rows.map(r => [r.straight ? <><strong>{r.straight.name}</strong><br /><small>{r.straight.detail}</small></> : '',
+        <TeamLabel team={r.team} />, r.delta, r.speeds, r.gap])} />;
+    return s.single ? t : <details key={e.name} className="performance-evidence"><summary>{e.name}</summary>{t}</details>;
+  });
+  return (
+    <details className="performance-evidence">
+      <summary>Straight by straight{s.single ? ' · ' + s.single : ''}</summary>
+      <p className="performance-quality-status">Each straight runs from the end of one timed corner to the start of the next, as in session analysis; the main straight crosses the timing line. Speed is integrated over the same distance for every car. Entry speed comes from the previous corner, so a better exit shows here too.</p>
+      {tables}
+    </details>
+  );
+}
+
 /** Car performance · Cornering, Straight line and Braking (speed-domain measurements). */
 export function SpeedView(p: SpeedViewProps) {
   const head = (
@@ -88,6 +119,7 @@ export function SpeedView(p: SpeedViewProps) {
     <>
       {head}
       <Card title="Cornering" note={p.note}>
+        <GapBasis basis={p.basis} section="corners" />
         {p.charts.map((c, i) => <Chart key={i} chart={c} />)}
         {p.phases ? <PhaseSplit phases={p.phases} /> : null}
         {p.corners ? <CornerByCorner corners={p.corners} /> : null}
@@ -107,7 +139,9 @@ export function SpeedView(p: SpeedViewProps) {
         <div className="performance-scope-toggle" role="group" aria-label="Straight-line measure">
           {p.pills.map(x => <button key={x.key} type="button" data-straight-pill={x.key} aria-pressed={x.key === p.pill} title={x.hint}>{x.label}</button>)}
         </div>
+        <GapBasis basis={p.basis} section="straights" />
         <Chart chart={p.chart} />
+        {p.straights ? <StraightByStraight straights={p.straights} /> : null}
         <EventValues table={p.events} />
       </Card>
     </>

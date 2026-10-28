@@ -195,6 +195,32 @@ class CommonDistanceTimingTests(unittest.TestCase):
                         sum(c['delta_s'] for c in car['corners'] if c['band'] == band), places=10)
 
 
+class TrackStraightTests(unittest.TestCase):
+    """Straight line measured on the track's own straights between timed corners."""
+    @classmethod
+    def setUpClass(cls):
+        cls.r = field(power={'power': 990.})
+
+    def test_every_real_straight_is_measured_and_named_by_its_corners(self):
+        straights = self.r['segments']['track_straights']
+        self.assertGreaterEqual(len(straights), 4)
+        for s in straights:
+            self.assertGreaterEqual(s['metres'], 100)
+            self.assertRegex(s['straight'], r'.+–.+')
+        # The main straight crosses the timing line: two pieces, one straight.
+        self.assertTrue(any(len(s['pieces']) == 2 for s in straights))
+
+    def test_more_power_is_faster_on_the_straights_and_shares_of_lap_add_up(self):
+        power = self.r['cars']['power']['track_straights']
+        self.assertIsNotNone(power['index'])
+        self.assertLess(power['time_vs_median_s'], 0)
+        base = self.r['cars']['base0']['track_straights']
+        self.assertAlmostEqual(base['time_vs_median_s'], 0, delta=.05)
+        lap = self.r['cars']['power']['field_lap_time_s']
+        self.assertGreater(lap, 30)
+        self.assertLess(abs(power['time_vs_median_s'])/lap*100, abs(power['pct_vs_median']))
+
+
 class MappedFastCornerTests(unittest.TestCase):
     def test_two_curved_fast_turns_remain_separate_without_speed_dips(self):
         from car_physics import field_segments, car_apex

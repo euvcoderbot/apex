@@ -991,3 +991,6 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
 
 /* Rings mean keyboard focus only. */
 :is(#driverPills .driver-pill,.app-sidebar .track-pill,.lap-workspace .run-segment,.lap-workspace .lap-chip,.lap-workspace .fastest-lap-pick,.corner-picker button,#compareAllFastest,.category-bar .category-tab,.select-menu button):focus-visible { outline: 3px solid var(--ui-focus); outline-offset: 1px; }
+
+/* Development: a season that is not a straight line says so under its endpoints. */
+.performance-trend-table .trend-uneven { display: block; margin-top: 2px; font-size: var(--ui-caption, 12px); color: var(--ui-tertiary); white-space: normal; }

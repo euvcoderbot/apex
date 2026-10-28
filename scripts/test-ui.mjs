@@ -1326,3 +1326,22 @@ test('pre-rendered session summaries use the cache identity and the source revis
   await h.run(`prerenderedData(new URL(${JSON.stringify(url)}))`);
   assert.ok(fetched.some(path => path.endsWith('a.json.gz')), 'a matching source revision reads the file');
 });
+
+test('untimed pit visits are explained: unpublished race, pack under neutralisation, or single visit', () => {
+  const source=readFileSync('car-performance.js','utf8');
+  const box={finite:Number.isFinite};vm.createContext(box);
+  vm.runInContext(source.slice(source.indexOf('function pitTimingGaps('),source.indexOf('function huberRegression')),box);
+  const visit=(lap,stop=null)=>({lap,stop_duration:stop});
+  const gaps=box.pitTimingGaps([
+    {pits:{stationary_supplement_status:'published',visits:[visit(10,2.1),visit(30),visit(30),visit(31),visit(31),visit(50)]}},
+    {pits:{stationary_supplement_status:'not-published',visits:[visit(12),visit(20)]}},
+    {name:'not loaded'}]);
+  assert.deepEqual({...gaps},{awaiting:2,pack:4,other:1});
+  assert.match(source,/refresh:gaps\.awaiting\+gaps\.other>0/,'refresh is offered only where it can fill something');
+});
+
+test('a season that dips mid-way and returns is flagged instead of read as a trend', () => {
+  const source=readFileSync('car-performance.js','utf8');
+  assert.match(source,/Math\.abs\(middle-\(first\+last\)\/2\) >= Math\.max\(\.15, Math\.abs\(change\)\)/);
+  assert.match(readFileSync('src/views/TrendView.tsx','utf8'),/Not a steady trend · mid-season/);
+});

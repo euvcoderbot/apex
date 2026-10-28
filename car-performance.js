@@ -1462,8 +1462,11 @@ function renderPits(teams) {
   return reactView('pits',{note,
     serviceNote:`${pitVisitMode==='service'?'Ranking confirmed service visits only.':'Diagnostic: includes all service, pass-through and unclassified visits.'} ${data.visits.filter(v=>v.visit_type!=='service'&&!finite(v.stop_duration)).length} visits lack confirmed service evidence. Missing stationary timing alone does not identify a pass-through; all visits remain in the evidence table.`,
     failures:failures.map(e=>({name:e.name,error:String(e.pitError)})),noStationary,
-    quality:{stationary:data.visits.filter(v=>finite(v.stop_duration)).length,lane:data.visits.filter(v=>finite(v.lane_duration)).length,
-      visits:data.visits.length,refresh:events.some(e=>e.pits&&e.pits.stationary_status!=='complete')},
+    quality:(()=>{const gaps=pitTimingGaps(events);
+      return {stationary:data.visits.filter(v=>finite(v.stop_duration)).length,lane:data.visits.filter(v=>finite(v.lane_duration)).length,
+        visits:data.visits.length,gaps,
+        // Refreshing can only fill a race DHL has since published, or a single missed match.
+        refresh:gaps.awaiting+gaps.other>0&&events.some(e=>e.pits&&e.pits.stationary_status!=='complete')};})(),
     isLane,isDriver,relativeLane,chartMetric:pitChartMetric,
     chartRows:chartRows.filter(r=>r),chart:{
       title:`${chartTitle} · ${relativeLane?'vs GP median':isLane?'pit lane':'stationary stop'} · ${isDriver?'drivers':'teams'}`,
@@ -1479,6 +1482,23 @@ function renderPits(teams) {
       .map(([key,label,direction])=>[key,sortHeaderModel(key,label,direction)])),
     visits:data.visits.sort((a,b)=>a.event.localeCompare(b.event)||a.lap-b.lap).map(v=>({event:v.event,team:{team:v.team,color:v.color},driver:v.driver,lap:v.lap,
       stop:v.stop_duration,lane:v.lane_duration,source:String(v.source||''),evidence:`${v.visit_type||'unknown'} · ${v.visit_evidence||'classification unavailable'}`}))});
+}
+
+// Why a pit visit has no stationary time. DHL publishes nothing for a race it
+// has not posted yet, and no time for stops made together under a red flag or
+// safety car (four or more untimed visits within a lap of each other); the rest
+// are single visits such as penalties, retirements or long repairs.
+function pitTimingGaps(events) {
+  const gaps={awaiting:0,pack:0,other:0};
+  for(const event of events.filter(e=>e.pits)){
+    const untimed=(event.pits.visits||[]).filter(v=>!finite(v.stop_duration));
+    for(const visit of untimed){
+      if(event.pits.stationary_supplement_status==='not-published')gaps.awaiting++;
+      else if(untimed.filter(v=>Math.abs(v.lap-visit.lap)<=1).length>=4)gaps.pack++;
+      else gaps.other++;
+    }
+  }
+  return gaps;
 }
 
 function huberRegression(rounds, paces) {
@@ -1566,9 +1586,17 @@ function renderTrend(teams) {
     }
 
     const change = (finite(first) && finite(last)) ? last - first : null;
+    // A season that dips (or rises) in the middle and comes back is not a
+    // trend: the endpoint change and a straight-line fit both understate it.
+    let midSeason = null;
+    if (n >= 8 && finite(change)) {
+      const k = Math.max(2, Math.min(6, Math.floor(n / 4)));
+      const middle = median(valid.slice(k, -k).map(q => q.pace));
+      if (finite(middle) && Math.abs(middle-(first+last)/2) >= Math.max(.15, Math.abs(change))) midSeason = middle;
+    }
     const sampleTier = n >= 15 ? 'Broad (≥15 events)' : n >= 10 ? 'Moderate (10–14 events)' : 'Limited (<10 events)';
     const sampleTierClass = n >= 15 ? 'is-fast' : n >= 10 ? 'is-mid' : 'is-slow';
-    return { team: t, valid, first, last, change, modelledShift, slopePerRound, fit, leaveEventRange, sampleTier, sampleTierClass, label, count: n };
+    return { team: t, valid, first, last, change, midSeason, modelledShift, slopePerRound, fit, leaveEventRange, sampleTier, sampleTierClass, label, count: n };
   });
 
   const ordered = sorted(trendRows, {
@@ -1589,7 +1617,7 @@ function renderTrend(teams) {
     sort:{team:sortHeaderModel('trendTeam','Team'),last:sortHeaderModel('trendLast','Start → latest'),
       change:sortHeaderModel(changeKey,'Change')},
     rows:ordered.map(row=>({team:row.team,first:row.first,last:row.last,label:row.label,count:row.count,sampleTier:row.sampleTier,
-      change:row.change,fittedChange:row.modelledShift,slopePerRound:row.slopePerRound,range:row.leaveEventRange,fit:row.fit,
+      change:row.change,midSeason:row.midSeason,fittedChange:row.modelledShift,slopePerRound:row.slopePerRound,range:row.leaveEventRange,fit:row.fit,
       points:row.valid.map(q=>({round:q.round,event:q.event,pace:q.pace}))}))});
 }
 
@@ -1711,18 +1739,21 @@ function solveEventEffects(observations,mode='mean',sensitivity=true) {
   return scores;
 }
 
-// Straight line: the three measures that carried car-specific signal in
-// validation; one is shown at a time. 160-250 km/h alone was the weakest and is
-// inside 'Speed'; traction is a corner-exit measure and lives on Cornering.
+// Straight line: measured on each track's own straights, the stretches between
+// timed corners that session analysis offers. Top end and energy stay as
+// power-unit diagnostics; traction is a corner-exit measure on Cornering.
 const STRAIGHT_PILLS=[
-  {key:'straight',label:'Speed',title:'Straight-line speed',subtitle:'seconds per straight, 160 km/h to the end of a 500 m run',hint:'Overall straight-line performance',
-   note:"Each car's measured full-throttle acceleration, run over the same simulated straight: 160 to 250 km/h, then 500 m from 250 km/h. Comparing at equal speed means a faster corner exit is not credited to the straight. 2025 DRS-open and DRS-closed data are kept separate. Car, setup, tow and energy deployment together, not isolated engine power or drag."},
+  {key:'track_straights',label:'Straights',title:'Time on the straights',subtitle:"the track's own straights between corners",hint:"Time on each track's real straights",
+   note:"Each car's time on every straight of the track, the stretches between timed corners (the straights session analysis offers), over the same distance for every car. Because these are the real straights, the time includes the speed a car carries out of the previous corner. Car, setup, tow and energy deployment together, not isolated engine power or drag."},
   {key:'straight_top',label:'Top end',title:'Top end, 250 km/h and above',subtitle:'seconds over a 500 m run from 250 km/h',hint:'Where power-unit deployment separates the cars',
    note:"The same simulated straight from 250 km/h onward. On 2026 cars this is shaped by electrical energy deployment (taper and clipping) as much as by drag or engine power; it is where the power units separate most."},
   {key:'energy',label:'Energy',title:'Speed lost at full throttle',subtitle:'km/h per lap on the audited straights',hint:'Energy clipping on 2026 power units',
    note:"Speed lost while flat out on the straights. At full throttle a car only loses speed when its deployable electrical energy runs out (clipping) or a tow has pushed it past its drag limit. This mainly matters for 2026 power units; 2025 cars rarely clip."}
 ];
-let straightPill='straight';
+let straightPill='track_straights';
+// Several GPs: corner and straight gaps as a share of the lap (the qualifying
+// gap's scale) or of that section's own time.
+let gapBasis='lap'; // 'lap' | 'section'
 function speedDomainEntities() {
   const style=new Map();
   for(const event of events){
@@ -1774,6 +1805,18 @@ function speedDomainCornerTable() {
       speeds:`${fmt(v.entry_kmh,0)} / ${fmt(v.min_kmh,0)} / ${fmt(v.exit_kmh,0)}`,raw:signed(v.raw_delta_s,3,' s'),sensitivity:`±${fmt(v.registration_sensitivity_s,3,' s')}`,
       gap:`${fmt(v.max_packet_gap_s,2,' s')}${v.max_packet_gap_s>.6?' · Provisional':''}`})))}))};
 }
+// Every real straight (between timed corners), each car's time against the field.
+function speedDomainStraightTable() {
+  const style=speedDomainEntities();
+  const measured=events.filter(e=>e.speedDomain?.[telemetrySubject]?.segments?.track_straights?.length);
+  if(!measured.length)return null;
+  return {single:measured.length===1?measured[0].name:null,subject:telemetrySubject==='driver'?'driver':'team',
+    events:measured.map(event=>({name:event.name,rows:event.speedDomain[telemetrySubject].segments.track_straights.flatMap(s=>Object.entries(s.cars).sort((a,b)=>a[1].delta_s-b[1].delta_s).map(([name,v],i)=>({
+      // Named like session analysis: "T14–T1" (numbered turns get their T).
+      straight:i?null:{name:s.straight.replace(/(^|–)(\d+[A-Z]?)(?=–|$)/g,'$1T$2'),detail:`${fmt(s.metres,0,' m')} · field ${fmt(s.field_time_s,2,' s')}`},
+      team:style.get(name)||{team:name},delta:signed(v.delta_s,3,' s'),speeds:`${fmt(v.entry_kmh,0)} → ${fmt(v.exit_kmh,0)}`,
+      gap:`${fmt(v.max_packet_gap_s,2,' s')}${v.max_packet_gap_s>.6?' · Provisional':''}`})))}))};
+}
 function renderSpeedDomain() {
   const loaded=events.filter(e=>e.speedDomain?.[telemetrySubject]?.cars).length,total=events.filter(e=>e.Q).length;
   const failed=events.filter(e=>e.Q&&(e.speedDomainError||e.speedDomain?.[telemetrySubject]?.error));
@@ -1785,17 +1828,22 @@ function renderSpeedDomain() {
     // One GP: seconds per lap. Several: % of the field's time in that corner
     // type, because seconds over Baku's nine slow corners and Bahrain's three
     // fast ones are not the same size of deficit.
-    const several=events.filter(e=>e.Q).length>1,suffix=several?'_pct':'',per=several?' · % slower than the best':' · seconds per lap';
-    return reactView('speed',{...head,metric:'corners',
-      note:`Compare the measured speed traces over identical corner distances, with shared braking, mid-corner and exit phases. No hypothetical exit-speed credit or GPS path-length stretch enters the score. This assumes a common path: real racing-line differences are not resolved, and power, setup, driver and entry context still matter. ${several?'Values are % of estimated field time in that corner type, NOT % of lap time; each supported GP has equal weight.':'Values are estimated seconds across this GP’s supported corners in each band.'} Bands use the field minimum: low ≤120 km/h, medium 120–200, high >200. ≈ marks source gaps over 0.6 s; inspect the evidence before treating small gaps as meaningful.`,
+    const several=events.filter(e=>e.Q).length>1,suffix=several?(gapBasis==='lap'?'_lap':'_pct'):'';
+    const per=!several?' · seconds per lap':gapBasis==='lap'?' · % of the lap lost to the best':' · % slower through these corners than the best';
+    return reactView('speed',{...head,metric:'corners',basis:several?gapBasis:null,
+      note:`Compare the measured speed traces over identical corner distances, with shared braking, mid-corner and exit phases. No hypothetical exit-speed credit or GPS path-length stretch enters the score. This assumes a common path: real racing-line differences are not resolved, and power, setup, driver and entry context still matter. ${!several?'Values are estimated seconds across this GP’s supported corners in each band.':gapBasis==='lap'?'Values are % of the lap lost in that corner type, the same scale as the qualifying gap: the three bands and the straights add up towards it. Each supported GP has equal weight.':'Values are % slower through that corner type than the field takes in those corners, not % of the lap: a car 5% slower in low-speed corners that make up a fifth of the lap loses about 1% of the lap there. Each supported GP has equal weight.'} Bands use the field minimum: low ≤120 km/h, medium 120–200, high >200. ≈ marks source gaps over 0.6 s; inspect the evidence before treating small gaps as meaningful.`,
       charts:[speedDomainChart('corner_low'+suffix,'Low-speed corners','below 120 km/h'+per),speedDomainChart('corner_medium'+suffix,'Medium-speed corners','120–200 km/h'+per),speedDomainChart('corner_high'+suffix,'High-speed corners','above 200 km/h'+per)],
       phases:speedDomainPhaseTable(),corners:speedDomainCornerTable(),events:speedDomainEventTable(['corner_low','corner_medium','corner_high'].map(k=>k+suffix)),
       traction:{lowConfidence:speedDomainLowConfidence('traction'),chart:speedDomainChart('traction','Traction (corner exit)','70–170 km/h'),events:speedDomainEventTable(['traction'])}});
   }
   if(activeMetric==='straight'){
     const pill=STRAIGHT_PILLS.find(p=>p.key===straightPill)||STRAIGHT_PILLS[0];
+    const several=events.filter(e=>e.Q).length>1,track=pill.key==='track_straights';
+    const key=track&&several?pill.key+(gapBasis==='lap'?'_lap':'_pct'):pill.key;
+    const subtitle=!track?pill.subtitle:`${pill.subtitle} · ${!several?'seconds per lap':gapBasis==='lap'?'% of the lap lost to the best':'% slower on the straights than the best'}`;
     return reactView('speed',{...head,metric:'straight',pill:pill.key,pills:STRAIGHT_PILLS.map(({key,label,hint})=>({key,label,hint})),note:pill.note,
-      chart:speedDomainChart(pill.key,pill.title,pill.subtitle),events:speedDomainEventTable([pill.key])});
+      basis:track&&several?gapBasis:null,straights:track?speedDomainStraightTable():null,
+      chart:speedDomainChart(key,pill.title,subtitle),events:speedDomainEventTable([key])});
   }
   return reactView('speed',{...head,metric:'braking',lowConfidence:speedDomainLowConfidence('braking'),
     note:`Average deceleration from brake onset until the car reaches its own apex speed, at every braked corner. Distances come from GPS, and each car is compared with the field at the same speeds, because downforce makes every car brake harder when faster. % longer braking distance than the best ${telemetrySubject==='driver'?'driver':'team'}. The 4 Hz feed places the brake onset only to within a few metres, so differences under about 2% in a single GP are noise.`,
@@ -1958,7 +2006,8 @@ function carUrlState() {
   const races=activeScope==='tracks'?calendar.filter(e=>selectedTracks.has(e.name)).map(e=>e.round).join(','):'';
   return {year:$('performanceYear').value||'',scope:activeScope==='tracks'?'tracks':'',races,
     metric:activeMetric==='pace'?'':activeMetric,subject:telemetrySubject==='driver'?'driver':'',
-    session:cornerSession==='race'?'race':'',pill:straightPill==='straight'?'':straightPill,run:context?'1':''};
+    session:cornerSession==='race'?'race':'',pill:straightPill==='track_straights'?'':straightPill,
+    basis:gapBasis==='lap'?'':gapBasis,run:context?'1':''};
 }
 function syncCarUrl() {
   if(restoringUrl||!initialized||$('carPerformance').hidden)return;
@@ -1989,7 +2038,8 @@ async function applyCarUrl(params) {
     activeMetric=URL_METRICS.includes(params.metric)?params.metric:'pace';
     telemetrySubject=params.subject==='driver'?'driver':'team';
     cornerSession=params.session==='race'?'race':'qualy';
-    straightPill=STRAIGHT_PILLS.some(p=>p.key===params.pill)?params.pill:'straight';
+    straightPill=STRAIGHT_PILLS.some(p=>p.key===params.pill)?params.pill:'track_straights';
+    gapBasis=params.basis==='section'?'section':'lap';
     const runnable=scope==='season'||selectedTracks.size>0;
     // Same selection already analysed (back/forward between categories): reuse it.
     const same=context&&String(context.year)===year.value&&String(context.selectedTracks||[])===String(scope==='tracks'?[...selectedTracks]:context.selectedTracks||[]);
@@ -2118,6 +2168,8 @@ root.addEventListener('click',event=>{
     for(const e of events){if(e.speedDomainError||e.speedDomain?.[telemetrySubject]?.error){delete e.speedDomainError;if(e.speedDomain)delete e.speedDomain[telemetrySubject];}}
     void loadSpeedDomain(false);return;
   }
+  const gapBasisButton=event.target.closest('[data-gap-basis]');
+  if(gapBasisButton){gapBasis=gapBasisButton.dataset.gapBasis==='section'?'section':'lap';render();return;}
   const straightPillButton=event.target.closest('[data-straight-pill]');
   if(straightPillButton){straightPill=straightPillButton.dataset.straightPill;render();return;}
   const subjectButton=event.target.closest('[data-telemetry-subject]');
