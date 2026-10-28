@@ -17,7 +17,8 @@ import {resolve} from 'node:path';
 import {BACKEND_REVISION,SOURCE_REVISION} from '../lib/cache-revision.mjs';
 
 const root = process.cwd();
-const cacheDir = resolve(root, '.apex-cache', 'dashboard');
+// The local server's cache (scripts/start-local.mjs cacheRoot).
+const cacheDir = resolve(root, '.apex-cache', 'dashboard-local-v2');
 const outDir = resolve(root, 'assets', 'data', 'prerendered');
 const FAMILIES = {
   ['data:' + BACKEND_REVISION + ':']: ['/api/performance', '/api/performance/trace-batch', '/api/performance/pits', '/api/performance/sprint'],
@@ -27,6 +28,17 @@ const SETTLED_MS = 7 * 86400000;   // the cache gives settled sessions a long ex
 
 const entries = {};
 let bytes = 0;
+// Sessions captured by scripts/export-local-session.py (practice included)
+// are not in the dashboard cache: keep them while the source revision holds.
+const previous = await readFile(resolve(outDir, 'index.json'), 'utf8').then(JSON.parse).catch(() => null);
+const kept = [];
+if (previous?.sourceRevision === SOURCE_REVISION) {
+  for (const [path, capture] of Object.entries(previous.captures || {})) {
+    const file = previous.entries?.[path];
+    const body = file && await readFile(resolve(outDir, file)).catch(() => null);
+    if (body) kept.push({path, file, body, capture});
+  }
+}
 await rm(outDir, {recursive: true, force: true});
 await mkdir(outDir, {recursive: true});
 for (const name of await readdir(cacheDir).catch(() => [])) {
@@ -42,5 +54,12 @@ for (const name of await readdir(cacheDir).catch(() => [])) {
   await writeFile(resolve(outDir, file), body);
   entries[path] = file; bytes += body.length;
 }
-await writeFile(resolve(outDir, 'index.json'), JSON.stringify({revision: BACKEND_REVISION, sourceRevision: SOURCE_REVISION, generated: new Date().toISOString(), entries}, null, 0));
+const captures = {};
+for (const {path, file, body, capture} of kept) {
+  if (entries[path]) continue;
+  await writeFile(resolve(outDir, file), body);
+  entries[path] = file; captures[path] = capture; bytes += body.length;
+}
+await writeFile(resolve(outDir, 'index.json'), JSON.stringify({revision: BACKEND_REVISION, sourceRevision: SOURCE_REVISION, generated: new Date().toISOString(), entries,
+  ...(Object.keys(captures).length ? {captures} : {})}, null, 0));
 console.log(JSON.stringify({revision: BACKEND_REVISION, sourceRevision: SOURCE_REVISION, files: Object.keys(entries).length, megabytes: +(bytes / 1e6).toFixed(2)}));
