@@ -98,6 +98,86 @@ def turn_markers(year, location):
         return []
 
 
+# FIA event names for OpenF1 locations (data/fia-circuit-maps, scripts/fetch-fia-circuit-maps.py).
+FIA_EVENTS = {
+    'Melbourne': 'Australian Grand Prix', 'Shanghai': 'Chinese Grand Prix', 'Suzuka': 'Japanese Grand Prix',
+    'Sakhir': 'Bahrain Grand Prix', 'Kuala Lumpur': 'Bahrain Grand Prix', 'Jeddah': 'Saudi Arabian Grand Prix',
+    'Miami Gardens': 'Miami Grand Prix', 'Miami': 'Miami Grand Prix', 'Montréal': 'Canadian Grand Prix',
+    'Monaco': 'Monaco Grand Prix', 'Monte Carlo': 'Monaco Grand Prix', 'Madrid': 'Spanish Grand Prix',
+    'Barcelona': 'Barcelona-Catalunya Grand Prix', 'Spielberg': 'Austrian Grand Prix', 'Silverstone': 'British Grand Prix',
+    'Spa-Francorchamps': 'Belgian Grand Prix', 'Budapest': 'Hungarian Grand Prix', 'Zandvoort': 'Dutch Grand Prix',
+    'Monza': 'Italian Grand Prix', 'Baku': 'Azerbaijan Grand Prix', 'Marina Bay': 'Singapore Grand Prix',
+    'Austin': 'United States Grand Prix', 'Mexico City': 'Mexico City Grand Prix', 'São Paulo': 'São Paulo Grand Prix',
+    'Las Vegas': 'Las Vegas Grand Prix', 'Lusail': 'Qatar Grand Prix', 'Yas Island': 'Abu Dhabi Grand Prix',
+    'Yas Marina': 'Abu Dhabi Grand Prix', 'Imola': 'Emilia Romagna Grand Prix'}
+# 2025 Barcelona was the Spanish GP; from 2026 the Spanish GP is Madrid.
+FIA_EVENTS_BY_YEAR = {(2025, 'Barcelona'): 'Spanish Grand Prix'}
+AWS_BANDS = (125., 175.)   # F1 / AWS Insights: slow below 125 km/h, fast above 175 km/h
+
+
+def fia_reference(year, location):
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'fia-circuit-maps', f'{year}.json')
+    try:
+        circuits = json.load(open(path, encoding='utf-8'))['circuits']
+    except (OSError, ValueError):
+        return None
+    event = FIA_EVENTS_BY_YEAR.get((year, location)) or FIA_EVENTS.get(location)
+    return next((c for c in circuits if c['event'] == event), None)
+
+
+def validate(reference, grid, cls, official, events, length_m):
+    """How our classification agrees with what the FIA publishes for the track."""
+    out = {'event': reference['event'], 'source': reference['source']}
+    official_m = reference.get('centreline_m')
+    ratio = length_m/official_m if official_m else 1.
+    if official_m:
+        out['length_error_pct'] = (length_m/official_m-1)*100
+    marker = {o['turn']: o for o in official}
+    ends = {e.get('turn'): e for e in events if e.get('turn')}
+
+    def position(p):
+        """FIA "Xm after Tn" on our centreline (scaled to the official length)."""
+        o = marker.get(p['turn'])
+        if not o:
+            return None
+        if p.get('at') == 'exit':
+            base = ends[p['turn']]['end_m'] if p['turn'] in ends else grid[o['hi']]
+            return base
+        if p.get('at') == 'entry':
+            return grid[o['lo']]
+        return grid[o['marker']]+p['offset_m']*ratio
+
+    straightish = np.isin(cls, ['straight', 'straight_lift', 'flat_corner'])
+    zones = []
+    for z in reference.get('zones') or []:
+        start = position(z)
+        if start is None:
+            continue
+        start %= grid[-1]
+        ahead = [grid[o['marker']] for o in official if grid[o['marker']] > start] or [grid[official[0]['marker']]+grid[-1]] if official else []
+        end = (ahead[0] if ahead else start+300)-150*ratio
+        if end <= start:
+            continue
+        cells = (np.arange(int(start//STEP), int(end//STEP)) % len(grid))
+        zones.append({'activation': f"{z['offset_m']:+d} m T{z['turn']}" if not z.get('at') else f"{z['at']} T{z['turn']}",
+                      'from_m': float(start), 'length_m': float(end-start),
+                      'straight_share': float(straightish[cells].mean()),
+                      'classes': {c: float(np.mean(cls[cells] == c)) for c in sorted(set(cls[cells]))}})
+    out['zones'] = zones
+    if zones:
+        metres = sum(z['length_m'] for z in zones)
+        out['zone_straight_share'] = sum(z['straight_share']*z['length_m'] for z in zones)/metres
+    if reference.get('speed_trap') and (at := position(reference['speed_trap'])) is not None:
+        k = int((at % grid[-1])//STEP)
+        out['speed_trap'] = {'at_m': float(at % grid[-1]), 'class': str(cls[min(k, len(cls)-1)])}
+    # Band changes under F1 / AWS thresholds against ours (120 / 200 km/h).
+    ours = lambda v: 'low' if v <= 120 else 'medium' if v <= 200 else 'high'
+    aws = lambda v: 'low' if v < AWS_BANDS[0] else 'high' if v > AWS_BANDS[1] else 'medium'
+    out['band_changes_aws'] = [{'turn': e.get('turn'), 'apex_kmh': e['apex_kmh'], 'ours': ours(e['apex_kmh']), 'aws': aws(e['apex_kmh'])}
+                               for e in events if ours(e['apex_kmh']) != aws(e['apex_kmh'])]
+    return out
+
+
 def audit(path):
     data = json.load(gzip.open(path, 'rt'))
     laps = []
@@ -111,7 +191,11 @@ def audit(path):
         return None
     fastest = min(l['time'] for l, _ in laps)
     laps = [(l, a) for l, a in laps if l['time'] <= fastest*1.03]
-    ref = min(laps, key=lambda r: r[0]['time'])[1]
+    # The reference lap sets the centreline. A lap whose telemetry has a gap is
+    # short (Suzuka 2026: 7.5% under the FIA length), so use the lap whose
+    # distance is the median of the field's, not simply the fastest.
+    distances = sorted((a['d'][-1]-a['d'][0], k) for k, (_, a) in enumerate(laps))
+    ref = laps[distances[len(distances)//2][1]][1]
     grid, x, y, scale = centreline(ref)
     kappa = curvature(grid, x, y)
     fields = defaultdict(list)
@@ -148,7 +232,13 @@ def audit(path):
     official.sort(key=lambda o: o['marker'])
     cls = np.full(len(grid), 'other', dtype=object)
     cls[(thr >= 98) & (lat < 1.)] = 'straight'
-    cls[(cls == 'other') & ~bend & (lat < 1.)] = 'straight_lift'
+    # Off full throttle with little load, outside every official corner: a
+    # lift, coast or energy-management stretch of a straight (2026 cars ease
+    # off on gently curving straights such as Spa T15-T16).
+    in_corner = np.zeros(len(grid), bool)
+    for o in official:
+        in_corner[o['lo']:o['hi']+1] = True
+    cls[(cls == 'other') & ~in_corner & (lat < 1.)] = 'straight_lift'
     cls[(lat >= 1.5) & (thr >= 95)] = 'flat_corner'
     # Corners are minima of the field's speed: that is where grip, not power,
     # sets the pace. Prominence against the fastest point within 300 m.
@@ -193,7 +283,9 @@ def audit(path):
                     cls[j] = 'apex'
                 elif brk[j] >= .5:
                     cls[j] = 'braking'
-                elif j >= entry_from:
+                elif j >= entry_from and (own and own['lo'] <= j or thr[j] < 98):
+                    # Before the corner only a lift counts as entry: where
+                    # the field is still flat out it is still on the straight.
                     cls[j] = 'entry'
                 # else: a lift or clip on the straight keeps its straight class
             else:
@@ -270,7 +362,9 @@ def audit(path):
     share = {c: float(np.mean(cls == c)) for c in CLASS_RULES}
     drs_known = any(np.isin(a['drs'], [10, 12, 14]).any() for _, a in laps)
     step = max(1, len(grid)//400)
-    return {'year': data['year'], 'gp': data['gp'], 'laps': len(fields['v']), 'length_m': float(grid[-1]),
+    reference = fia_reference(data['year'], data['gp'])
+    check = validate(reference, grid, cls, official, events, float(grid[-1])) if reference and official else None
+    return {'year': data['year'], 'gp': data['gp'], 'laps': len(fields['v']), 'length_m': float(grid[-1]), 'fia': check,
             'drs_channel': drs_known, 'distance_share': share, 'energy': energy,
             'markers': [{'turn': m[0], 'x': m[1], 'y': m[2]} for m in markers], 'corners': events, 'flat_corners': flats,
             'straights': straights,
@@ -289,4 +383,11 @@ if __name__ == '__main__':
                   f"{sum(c['band']=='low' for c in result['corners'])}/{sum(c['band']=='medium' for c in result['corners'])}/{sum(c['band']=='high' for c in result['corners'])})"
                   f" flat {len(result['flat_corners']):2} straights {len(result['straights']):2} | "
                   + ' '.join(f"{k} {v*100:4.1f}%" for k, v in sh.items()))
+    checked = [c['fia'] for c in out['circuits'] if c.get('fia')]
+    zoned = [f for f in checked if 'zone_straight_share' in f]
+    if checked:
+        lengths = [abs(f['length_error_pct']) for f in checked if 'length_error_pct' in f]
+        print(f"FIA check: {len(checked)} circuits · length error median {np.median(lengths):.2f}% max {max(lengths):.2f}%"
+              + (f" · official straights classed straight {np.mean([f['zone_straight_share'] for f in zoned])*100:.1f}%" if zoned else '')
+              + f" · speed trap on a straight {sum(f.get('speed_trap', {}).get('class') in ('straight', 'straight_lift', 'flat_corner') for f in checked)}/{sum('speed_trap' in f for f in checked)}")
     json.dump(out, open(sys.argv[2], 'w'))
