@@ -5,6 +5,7 @@ import sys
 import unittest
 import urllib.error
 from argparse import Namespace
+from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -94,6 +95,48 @@ class WatchTests(unittest.TestCase):
             source = Source([session(1, cancelled=True), session(2, ended='2999-01-01T00:00:00+00:00')])
             self.run_pass(source, directory)
             self.assertEqual(source.streams(), [])
+
+
+class ScheduleTests(unittest.TestCase):
+    """The watcher sleeps until the published schedule says a session has settled."""
+    NOW = datetime(2026, 11, 7, 12, 0, tzinfo=timezone.utc)
+
+    def wake(self, sessions, archived=()):
+        source = Source(sessions)
+        with TemporaryDirectory() as directory, patch.object(server, 'RAW_ROOT', Path(directory)),              patch.object(server, 'openf1', source.openf1), patch.object(mirror.server, 'openf1', source.openf1):
+            for key in archived:
+                state = mirror.load_state()
+                state['sessions'][str(key)] = {}
+                mirror.save_state(state)
+            return mirror.next_wake(ARGS, WANTED, now=self.NOW)
+
+    def test_sleeps_until_six_hours_after_the_session_ends(self):
+        # Qualifying ends 15:00 today; settles 21:00, 9 hours from now.
+        seconds, why = self.wake([session(5, 'Qualifying', ended='2026-11-07T15:00:00+00:00')])
+        self.assertAlmostEqual(seconds, 9*3600+120, delta=1)
+        self.assertIn('Marina Bay Qualifying settles', why)
+
+    def test_picks_the_nearest_of_several_sessions(self):
+        seconds, _ = self.wake([session(5, 'Race', ended='2026-11-08T16:00:00+00:00'),
+                                session(4, 'Qualifying', ended='2026-11-07T15:00:00+00:00')])
+        self.assertAlmostEqual(seconds, 9*3600+120, delta=1)
+
+    def test_a_far_off_race_only_wakes_to_reread_the_schedule(self):
+        seconds, why = self.wake([session(5, 'Race', ended='2026-11-29T16:00:00+00:00')])
+        self.assertEqual(seconds, mirror.SCHEDULE_CHECK_HOURS*3600)
+        self.assertIn('re-reading the schedule', why)
+
+    def test_a_session_past_its_settle_time_but_not_archived_is_retried_soon(self):
+        seconds, why = self.wake([session(5, 'Race', ended='2026-11-06T10:00:00+00:00')])
+        self.assertEqual(seconds, mirror.RETRY_MINUTES*60)
+        self.assertIn('not archived yet', why)
+
+    def test_archived_cancelled_and_abandoned_sessions_are_not_waited_for(self):
+        seconds, why = self.wake([session(5, 'Race', ended='2026-11-06T10:00:00+00:00'),
+                                  session(6, 'Qualifying', ended='2026-11-07T15:00:00+00:00', cancelled=True),
+                                  session(7, 'Race', ended='2026-10-01T10:00:00+00:00')], archived=[5])
+        self.assertEqual(seconds, mirror.SCHEDULE_CHECK_HOURS*3600)
+        self.assertIn('no unarchived sessions', why)
 
 
 if __name__ == '__main__':

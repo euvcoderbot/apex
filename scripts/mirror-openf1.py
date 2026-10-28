@@ -5,11 +5,14 @@
     .venv/Scripts/python.exe scripts/mirror-openf1.py --year 2026 --dry-run
     .venv/Scripts/python.exe scripts/mirror-openf1.py --year 2026 --watch 30
 
---watch keeps the archive current: every N minutes it looks for sessions that
-have finished and settled since the last pass and downloads only those. A
-finished session is recorded in mirror-state.json (next to the data), so later
-passes cost one request. A driver with no data in a session is recorded as
-empty instead of being retried forever.
+--watch keeps the archive current without polling. The F1 schedule (as OpenF1
+publishes it) says when every session ends; each session is archived once it
+has settled, six hours after it ends (timing corrections), so the watcher
+sleeps until then and does one pass. If a session overruns or its data is late
+it retries every 20 minutes, up to three days. Between weekends it only wakes
+to re-read the schedule. A finished session is recorded in mirror-state.json
+(next to the data), so a pass with nothing new costs one request. A driver
+with no data in a session is recorded as empty instead of being retried.
 
 Downloads each driver's whole-session car data, position and laps for every
 finished qualifying, sprint qualifying, sprint and race, through server.openf1:
@@ -80,6 +83,10 @@ def capture_stream(endpoint, key, number, *, include_recent=False, refresh=False
 
 
 STATE_NAME = "mirror-state.json"
+SETTLE_HOURS = 6          # a session is archived this long after it ends
+RETRY_MINUTES = 20        # a session past its settle time that is not archived yet
+GIVE_UP_DAYS = 3          # ...is retried for this long
+SCHEDULE_CHECK_HOURS = 12 # longest sleep: schedules change (a race moved, a session added)
 
 
 def load_state() -> dict:
@@ -172,6 +179,33 @@ def run_once(args, wanted) -> int:
     return len(failed)
 
 
+def next_wake(args, wanted, now=None):
+    """Seconds until the watcher should run again, and why, from the published schedule."""
+    now = now or datetime.now(timezone.utc)
+    settle = timedelta(hours=0 if args.include_recent else SETTLE_HOURS)
+    archived = load_state()["sessions"]
+    waits, overdue = [], []
+    for s in server.openf1("sessions", year=args.year):
+        if s.get("session_name") not in wanted or s.get("is_cancelled") or not s.get("date_end") or str(s["session_key"]) in archived:
+            continue
+        ends = datetime.fromisoformat(str(s["date_end"]).replace("Z", "+00:00"))
+        due = ends+settle
+        label = f"{s.get('location') or s.get('circuit_short_name')} {s['session_name']}"
+        if due > now:
+            waits.append((due-now, label, due))
+        elif now-due < timedelta(days=GIVE_UP_DAYS):
+            overdue.append(label)
+    if overdue:
+        return RETRY_MINUTES*60., f"{', '.join(overdue[:3])} past their settle time and not archived yet"
+    if waits:
+        wait, label, due = min(waits)
+        seconds = wait.total_seconds()+120  # a little after, so OpenF1 has the final data
+        if seconds > SCHEDULE_CHECK_HOURS*3600:
+            return SCHEDULE_CHECK_HOURS*3600., f"next is {label} at {due.astimezone().strftime('%a %d %b %H:%M')}; re-reading the schedule first"
+        return seconds, f"{label} settles {due.astimezone().strftime('%a %d %b %H:%M')}"
+    return SCHEDULE_CHECK_HOURS*3600., "no unarchived sessions left on the schedule"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--year", type=int, default=datetime.now().year)
@@ -181,7 +215,7 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true", help="list what is missing without downloading")
     parser.add_argument("--include-recent", action="store_true", help="capture finished sessions inside the six-hour correction window")
     parser.add_argument("--refresh", action="store_true", help="replace selected raw streams instead of resuming")
-    parser.add_argument("--watch", type=float, metavar="MINUTES", help="keep running: check for newly finished sessions every N minutes")
+    parser.add_argument("--watch", action="store_true", help="keep running: archive each session once it has settled, following the published schedule")
     args = parser.parse_args()
     wanted = {name.strip() for name in args.sessions.split(",") if name.strip()}
     print(f"Archive: {server.RAW_ROOT}", flush=True)
@@ -190,12 +224,17 @@ def main() -> None:
             raise SystemExit(1)
         return
     while True:
+        seconds, why = RETRY_MINUTES*60., "last pass failed"
         try:
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] checking {args.year}", flush=True)
-            run_once(args, wanted)
+            if run_once(args, wanted):
+                why = "some streams failed"
+            else:
+                seconds, why = next_wake(args, wanted)
         except Exception as error:  # a network blip must not end the watch
             print("pass failed:", error, flush=True)
-        time.sleep(max(1., args.watch)*60)
+        print(f"sleeping {seconds/3600:.1f} h: {why}", flush=True)
+        time.sleep(seconds)
 
 
 if __name__ == "__main__":
