@@ -63,11 +63,19 @@ A season is built on this PC in three steps, each resumable:
 
 1. `.venv/Scripts/python.exe scripts/mirror-openf1.py --year 2026` downloads
    every driver's whole-session car data, position and laps for each finished
-   qualifying, sprint qualifying, sprint and race into `.apex-cache/openf1`,
-   paced under OpenF1's limits (about 3 requests a second, 50 a minute). Raw
-   data does not depend on the methodology, so it is downloaded once; the
-   backend then slices any lap from disk (`openf1_session_stream`). 2026 is
-   about 3,100 streams, roughly an hour.
+   qualifying, sprint qualifying, sprint and race, paced under OpenF1's limits
+   (free plan: 3 requests a second, 30 a minute). Raw data does not depend on
+   the methodology, so it is downloaded once; the backend then slices any lap
+   from disk (`openf1_session_stream`). A season is about 3,000 streams and
+   500 MB, roughly 1.5 hours.
+
+   The archive is the one irreplaceable part, so it lives in `~/apex-data/openf1`
+   (`APEX_RAW_ROOT` overrides), outside every checkout and worktree: moving or
+   deleting a repo folder no longer takes it along. Files from the old
+   in-repo `.apex-cache/openf1` are still read in place. Keep it current with
+   `scripts/mirror-openf1.py --year 2026 --watch 30`: each pass lists the
+   sessions, skips those recorded in `mirror-state.json` and downloads only
+   what finished and settled (six hours, for timing corrections) since.
 2. `npm run local:warm` (with `npm run local` running) computes every
    finished GP with the current methodology: car-performance summaries,
    telemetry batches, corners, pit stops, sprint, and the session-analysis

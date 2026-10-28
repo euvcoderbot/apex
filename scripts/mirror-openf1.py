@@ -3,10 +3,18 @@
     .venv/Scripts/python.exe scripts/mirror-openf1.py --year 2026
     .venv/Scripts/python.exe scripts/mirror-openf1.py --year 2026 --gp "Singapore Grand Prix"
     .venv/Scripts/python.exe scripts/mirror-openf1.py --year 2026 --dry-run
+    .venv/Scripts/python.exe scripts/mirror-openf1.py --year 2026 --watch 30
+
+--watch keeps the archive current: every N minutes it looks for sessions that
+have finished and settled since the last pass and downloads only those. A
+finished session is recorded in mirror-state.json (next to the data), so later
+passes cost one request. A driver with no data in a session is recorded as
+empty instead of being retried forever.
 
 Downloads each driver's whole-session car data, position and laps for every
 finished qualifying, sprint qualifying, sprint and race, through server.openf1:
-the same requests, the same disk files (.apex-cache/openf1) and the same
+the same requests, the same disk files (server.RAW_ROOT, ~/apex-data/openf1 by
+default, outside every checkout; APEX_RAW_ROOT overrides) and the same
 process-wide pacing as the backend. The backend then serves any lap of those
 sessions from disk (openf1_session_stream) instead of calling OpenF1.
 
@@ -25,6 +33,7 @@ import gzip
 import json
 import sys
 import time
+import urllib.error
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import server
@@ -70,44 +79,65 @@ def capture_stream(endpoint, key, number, *, include_recent=False, refresh=False
     return path.stat().st_size if path.exists() else 0
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--year", type=int, default=datetime.now().year)
-    parser.add_argument("--gp", help="one Grand Prix, by its calendar name")
-    parser.add_argument("--sessions", default=",".join(SESSIONS), help="comma-separated OpenF1 session names")
-    parser.add_argument("--workers", type=int, default=3, help="concurrent downloads (pacing still applies)")
-    parser.add_argument("--dry-run", action="store_true", help="list what is missing without downloading")
-    parser.add_argument("--include-recent", action="store_true", help="capture finished sessions inside the six-hour correction window")
-    parser.add_argument("--refresh", action="store_true", help="replace selected raw streams instead of resuming")
-    args = parser.parse_args()
-    wanted = {name.strip() for name in args.sessions.split(",") if name.strip()}
+STATE_NAME = "mirror-state.json"
 
+
+def load_state() -> dict:
+    try:
+        return json.loads((server.RAW_ROOT/STATE_NAME).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"sessions": {}}
+
+
+def save_state(state: dict) -> None:
+    server.RAW_ROOT.mkdir(parents=True, exist_ok=True)
+    temporary = server.RAW_ROOT/(STATE_NAME+".tmp")
+    temporary.write_text(json.dumps(state, indent=1, sort_keys=True), encoding="utf-8")
+    temporary.replace(server.RAW_ROOT/STATE_NAME)
+
+
+def is_empty(error: Exception) -> bool:
+    """OpenF1 has nothing for this driver in this session (a car that never ran)."""
+    return (isinstance(error, urllib.error.HTTPError) and error.code == 404) or "No source observations" in str(error)
+
+
+def run_once(args, wanted) -> int:
+    """One pass over the finished sessions of a year. Returns the number of failed streams."""
+    state = load_state()
+    done_sessions = state["sessions"]
     # Cancelled sessions stay listed (2026: Bahrain and Saudi Arabia in April) but have no data.
     sessions = [s for s in server.openf1("sessions", year=args.year)
                 if s.get("session_name") in wanted and settled(s, 0 if args.include_recent else 6) and not s.get("is_cancelled")]
     if args.gp:
         keys = {(server.openf1_session(args.year, args.gp, name) or {}).get("session_key") for name in wanted}
         sessions = [s for s in sessions if s.get("session_key") in keys]
+    if not args.refresh and not args.gp:
+        sessions = [s for s in sessions if str(s["session_key"]) not in done_sessions]
     if not sessions:
-        sys.exit("No finished sessions match.")
+        print("Nothing new: every finished session is already archived.", flush=True)
+        return 0
 
     jobs = []
     for session in sessions:
         key = session["session_key"]
         drivers = sorted({str(d["driver_number"]) for d in server.openf1("drivers", session_key=key) if d.get("driver_number") is not None}, key=int)
-        missing = [(endpoint, key, number) for number in drivers for endpoint in STREAMS if args.refresh or not on_disk(endpoint, key, number)]
+        known_empty = set(done_sessions.get(str(key), {}).get("empty", []))
+        missing = [(endpoint, key, number) for number in drivers for endpoint in STREAMS
+                   if (args.refresh or not on_disk(endpoint, key, number)) and f"{endpoint}:{number}" not in known_empty]
         label = f"{session.get('location') or session.get('circuit_short_name')} {session['session_name']}"
         print(f"{label:<34} {len(drivers):>2} drivers  {len(missing):>3} of {len(drivers)*len(STREAMS)} streams to fetch", flush=True)
         jobs += [(label, *job) for job in missing]
+        session["_label"] = label
     print(f"{len(sessions)} sessions, {len(jobs)} streams to fetch", flush=True)
-    if args.dry_run or not jobs:
-        return
+    if args.dry_run:
+        return 0
 
     started, done, failed, size = time.monotonic(), 0, [], 0
+    empty = {}
 
     def fetch(job):
         label, endpoint, key, number = job
-        return capture_stream(endpoint,key,number,include_recent=args.include_recent,refresh=args.refresh)
+        return capture_stream(endpoint, key, number, include_recent=args.include_recent, refresh=args.refresh)
 
     with ThreadPoolExecutor(max_workers=max(1, args.workers), thread_name_prefix="mirror") as pool:
         futures = {pool.submit(fetch, job): job for job in jobs}
@@ -117,16 +147,55 @@ def main() -> None:
             try:
                 size += future.result()
             except Exception as error:  # keep going; a rerun retries what failed
-                failed.append(f"{label} #{number} {endpoint}: {error}")
+                if is_empty(error):
+                    empty.setdefault(key, []).append(f"{endpoint}:{number}")
+                else:
+                    failed.append((key, f"{label} #{number} {endpoint}: {error}"))
             if done % 10 == 0 or done == len(jobs):
                 elapsed = time.monotonic()-started
                 eta = elapsed/done*(len(jobs)-done)
                 print(f"{done}/{len(jobs)} streams  {size/1e6:.0f} MB  {elapsed/60:.1f} min elapsed  ~{eta/60:.0f} min left", flush=True)
-    for line in failed:
+    failed_keys = {key for key, _ in failed}
+    if not args.refresh:
+        for session in sessions:
+            key = session["session_key"]
+            if key in failed_keys:
+                continue  # incomplete: the next pass retries it
+            entry = done_sessions.setdefault(str(key), {})
+            entry.update({"label": session["_label"], "complete_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                          "empty": sorted(set(entry.get("empty", [])) | set(empty.get(key, [])))})
+    save_state(state)
+    for _, line in failed:
         print("failed:", line)
-    print(f"done: {done-len(failed)} streams, {size/1e6:.0f} MB, {len(failed)} failed (run again to retry)")
-    if failed:
-        raise SystemExit(1)
+    print(f"done: {done-len(failed)-sum(map(len, empty.values()))} streams, {size/1e6:.0f} MB, "
+          f"{sum(map(len, empty.values()))} empty at the source, {len(failed)} failed (run again to retry)", flush=True)
+    return len(failed)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("--year", type=int, default=datetime.now().year)
+    parser.add_argument("--gp", help="one Grand Prix, by its calendar name")
+    parser.add_argument("--sessions", default=",".join(SESSIONS), help="comma-separated OpenF1 session names")
+    parser.add_argument("--workers", type=int, default=3, help="concurrent downloads (pacing still applies)")
+    parser.add_argument("--dry-run", action="store_true", help="list what is missing without downloading")
+    parser.add_argument("--include-recent", action="store_true", help="capture finished sessions inside the six-hour correction window")
+    parser.add_argument("--refresh", action="store_true", help="replace selected raw streams instead of resuming")
+    parser.add_argument("--watch", type=float, metavar="MINUTES", help="keep running: check for newly finished sessions every N minutes")
+    args = parser.parse_args()
+    wanted = {name.strip() for name in args.sessions.split(",") if name.strip()}
+    print(f"Archive: {server.RAW_ROOT}", flush=True)
+    if not args.watch:
+        if run_once(args, wanted):
+            raise SystemExit(1)
+        return
+    while True:
+        try:
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] checking {args.year}", flush=True)
+            run_once(args, wanted)
+        except Exception as error:  # a network blip must not end the watch
+            print("pass failed:", error, flush=True)
+        time.sleep(max(1., args.watch)*60)
 
 
 if __name__ == "__main__":
