@@ -10,7 +10,7 @@
 // the cache's own expiry policy are exported; the page uses an entry only when
 // its family's revision matches the page's, so a methodology change can never
 // serve stale numbers. Live or recent sessions keep loading on demand.
-import {readdir, readFile, writeFile, mkdir, rm} from 'node:fs/promises';
+import {readdir, readFile, writeFile, mkdir, rename} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {gzipSync} from 'node:zlib';
 import {resolve} from 'node:path';
@@ -26,20 +26,11 @@ const FAMILIES = {
 };
 const SETTLED_MS = 7 * 86400000;   // the cache gives settled sessions a long expiry
 
-const entries = {};
+const previous = await readFile(resolve(outDir,'index.json'),'utf8').then(JSON.parse).catch(error=>{if(error.code==='ENOENT')return null;throw error;});
+if(previous&&(previous.revision!==BACKEND_REVISION||previous.sourceRevision!==SOURCE_REVISION))
+  throw new Error('Existing snapshot revisions differ; no existing exports were removed.');
+const entries={...previous?.entries},expires={...previous?.expires};
 let bytes = 0;
-// Sessions captured by scripts/export-local-session.py (practice included)
-// are not in the dashboard cache: keep them while the source revision holds.
-const previous = await readFile(resolve(outDir, 'index.json'), 'utf8').then(JSON.parse).catch(() => null);
-const kept = [];
-if (previous?.sourceRevision === SOURCE_REVISION) {
-  for (const [path, capture] of Object.entries(previous.captures || {})) {
-    const file = previous.entries?.[path];
-    const body = file && await readFile(resolve(outDir, file)).catch(() => null);
-    if (body) kept.push({path, file, body, capture});
-  }
-}
-await rm(outDir, {recursive: true, force: true});
 await mkdir(outDir, {recursive: true});
 for (const name of await readdir(cacheDir).catch(() => [])) {
   if (!name.endsWith('.json')) continue;
@@ -52,14 +43,9 @@ for (const name of await readdir(cacheDir).catch(() => [])) {
   const body = gzipSync(JSON.stringify(item.data), {level: 9});
   const file = createHash('sha256').update(path).digest('hex').slice(0, 24) + '.json.gz';
   await writeFile(resolve(outDir, file), body);
-  entries[path] = file; bytes += body.length;
+  entries[path] = file; expires[path]=item.expires; bytes += body.length;
 }
-const captures = {};
-for (const {path, file, body, capture} of kept) {
-  if (entries[path]) continue;
-  await writeFile(resolve(outDir, file), body);
-  entries[path] = file; captures[path] = capture; bytes += body.length;
-}
-await writeFile(resolve(outDir, 'index.json'), JSON.stringify({revision: BACKEND_REVISION, sourceRevision: SOURCE_REVISION, generated: new Date().toISOString(), entries,
-  ...(Object.keys(captures).length ? {captures} : {})}, null, 0));
+const temp=resolve(outDir,'index.json.tmp');
+await writeFile(temp,JSON.stringify({...previous,revision:BACKEND_REVISION,sourceRevision:SOURCE_REVISION,generated:new Date().toISOString(),entries,expires}));
+await rename(temp,resolve(outDir,'index.json'));
 console.log(JSON.stringify({revision: BACKEND_REVISION, sourceRevision: SOURCE_REVISION, files: Object.keys(entries).length, megabytes: +(bytes / 1e6).toFixed(2)}));

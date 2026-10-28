@@ -97,13 +97,13 @@ await writeFile(resolve(destination,'styles.css'),ui.css);
 await cp(resolve(root, "assets"), resolve(destination, "assets"), { recursive: true });
 
 const apiOrigin = String(
-  process.env.APEX_API_ORIGIN || "https://apex-telemetry-api.vercel.app",
+  process.env.APEX_API_ORIGIN || "",
 ).replace(/\/$/, "");
 if (apiOrigin && !/^https:\/\//i.test(apiOrigin)) {
   throw new Error("APEX_API_ORIGIN must be an HTTPS origin");
 }
 await writeFile(
   resolve(destination, "config.js"),
-  `window.APEX_API_ORIGIN = ${JSON.stringify(apiOrigin)};\nwindow.APEX_DATA_VERSION = ${JSON.stringify(cacheRevision)};\nwindow.APEX_SOURCE_VERSION = ${JSON.stringify(rawRevision)};\nwindow.APEX_BACKEND_VERSION = ${JSON.stringify(backendRevision)};\nwindow.APEX_MEASUREMENT_VERSION = ${JSON.stringify(measurementRevision)};\n`,
+  `window.APEX_API_ORIGIN = ${JSON.stringify(apiOrigin)};\nwindow.APEX_SNAPSHOT_MODE = true;\nwindow.APEX_DATA_VERSION = ${JSON.stringify(cacheRevision)};\nwindow.APEX_SOURCE_VERSION = ${JSON.stringify(rawRevision)};\nwindow.APEX_BACKEND_VERSION = ${JSON.stringify(backendRevision)};\nwindow.APEX_MEASUREMENT_VERSION = ${JSON.stringify(measurementRevision)};\n`,
   "utf8",
 );

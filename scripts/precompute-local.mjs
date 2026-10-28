@@ -5,13 +5,21 @@ import {readFile,readdir,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {SOURCE_REVISION,BACKEND_REVISION,RACE_REVISION} from '../lib/cache-revision.mjs';
+import {mergeLocalCaptures} from '../lib/local-captures.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const args=process.argv.slice(2),arg=(name,fallback)=>{const i=args.indexOf(name);return i<0?fallback:args[i+1];};
 const year=Number(arg('--year','2026')),gp=arg('--gp','Singapore Grand Prix');
+const capturing=args.includes('--capture'),revisions={sourceRevision:SOURCE_REVISION,backendRevision:BACKEND_REVISION,measurementRevision:RACE_REVISION};
 const origin=`http://127.0.0.1:${Number(process.env.APEX_LOCAL_PORT||54123)}`;
 async function request(route,body){const r=await fetch(origin+route,{...(body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(180000)});const data=await r.json();if(!r.ok)throw new Error(data.detail||'Local calculation failed');return {data,cache:r.headers.get('X-Data-Cache')};}
-try{const status=(await request('/api/local-status')).data;if(status.mode!=='local')throw new Error('Not a local compute server');}
-catch{throw new Error('Start start-local.cmd (or npm run local) before precomputing. No Vercel fallback was used.');}
+const status=await request('/api/local-status').then(r=>r.data).catch(()=>null);
+if(status?.mode!=='local')throw new Error('Start start-local.cmd (or npm run local) before precomputing. No Vercel fallback was used.');
+if(capturing&&Object.entries(revisions).some(([k,v])=>status[k]!==v))throw new Error('Local server revisions do not match the checkout. Restart local compute before capturing.');
+async function capture(route,data){
+  if(!capturing)return;
+  if(!data||data.detail||data.error||data.lap_data_complete===false||data.position_complete===false)throw new Error('Refusing to publish an invalid capture: '+route.split('?')[0]);
+  await mergeLocalCaptures(root,revisions,[{route,data}]);
+}
 const start=Date.now();
 const calendar=(await request('/api/data',{path:'/api/events?'+new URLSearchParams({year})})).data;
 const allEvents=Array.isArray(calendar)?calendar:calendar.events||[];
@@ -20,14 +28,24 @@ const targets=args.includes('--season')
   ?allEvents.filter(e=>e.date&&new Date(e.date+'T23:59:59Z').getTime()<Date.now())
   :allEvents.filter(e=>e.name===gp);
 if(!targets.length)throw new Error('Grand Prix not found in this season');
+if(capturing){
+  for(const event of targets){
+    const status=event.session_statuses||{};
+    if(status.Qualifying!=='completed'||(!args.includes('--qualifying-only')&&status.Race!=='completed'))
+      throw new Error('Only sessions confirmed complete by the source calendar can be captured.');
+  }
+  await capture('/api/events?'+new URLSearchParams({year}),calendar);
+}
 let batch={};
 for(const event of targets){
 const gp=event.name;
 try{
 const round=event.round||'';
-const get=async route=>{const result=await request('/api/data',{path:route});console.log(JSON.stringify({route:route.split('?')[0],cache:result.cache}));return result.data;};
+const get=async route=>{const result=await request('/api/data',{path:route});console.log(JSON.stringify({route:route.split('?')[0],cache:result.cache}));await capture(route,result.data);return result.data;};
 const q=await get('/api/performance?'+new URLSearchParams({year,gp,session:'Q'}));
-await get('/api/performance?'+new URLSearchParams({year,gp,session:'R'}));
+// Qualifying can be prepared and published before the race exists.
+// Pass --qualifying-only for a weekend where the race has not run yet.
+if(!args.includes('--qualifying-only'))await get('/api/performance?'+new URLSearchParams({year,gp,session:'R'}));
 const session=await get('/api/session?'+new URLSearchParams({year,gp,round,session:'Q'}));
 // Use the browser's exact representative-selection function and property order.
 const windows=fastestTeamTelemetrySelections(q.teams);
@@ -45,23 +63,31 @@ const driverWindows=fromPhases||qualifyingRepresentatives({...session,year,event
 await get('/api/performance/trace-batch?'+new URLSearchParams({year,gp,windows:JSON.stringify(driverWindows),measures:'speed'}));
 for(const subject of ['team','driver']){
   const query=new URLSearchParams({year,gp,round,subject});
-  console.log(JSON.stringify({subject,corners:(await request('/api/qualifying-corners?'+query)).cache}));
+  const cornerResult=await request('/api/qualifying-corners?'+query);
+  if(Object.keys(cornerResult.data.traces||{}).length)await capture('/api/qualifying-corners?'+query,cornerResult.data);
+  const incomplete=Object.entries(cornerResult.data.traces||{}).filter(([,t])=>t.corner_missing?.length).map(([driver,t])=>({driver,corners:t.corner_missing}));
+  console.log(JSON.stringify({subject,corners:cornerResult.cache,complete:cornerResult.data.complete,requested:cornerResult.data.requested,received:cornerResult.data.received,incomplete}));
+  if(!cornerResult.data.complete)console.warn(`Qualifying ${subject} corners are partial; missing measurements remain unavailable: ${cornerResult.data.error||JSON.stringify(incomplete)}`);
   if(args.includes('--race')){
-    const plan=(await request('/api/race-corners?'+new URLSearchParams({...Object.fromEntries(query),cached:'1'}))).data;
+    const planRoute='/api/race-corners?'+new URLSearchParams({...Object.fromEntries(query),cached:'1'});
+    const plan=(await request(planRoute)).data;
+    await capture(planRoute,plan);
     const cached=new Set((plan.snapshots||[]).filter(s=>s.snapshot.complete).map(s=>s.lap+':'+s.compound+':'+s.cohort));
     let completed=cached.size,hits=cached.size;
-    for(const group of (plan.groups||[]).filter(g=>!cached.has(g.lap+':'+g.compound+':'+g.cohort))){const r=await request('/api/race-corners?'+new URLSearchParams({...Object.fromEntries(query),lap:group.lap,compound:group.compound,cohort:group.cohort}));if(r.cache==='HIT')hits++;if(r.data.complete)completed++;if(r.data.sourcePaused)throw new Error('Source rate limited. Completed work remains cached; retry later.');}
-    if(completed!==(plan.groups||[]).length)throw new Error(`Only ${completed}/${plan.groups?.length||0} race groups completed. Supported work remains cached.`);
+    for(const group of (plan.groups||[]).filter(g=>!cached.has(g.lap+':'+g.compound+':'+g.cohort))){const route='/api/race-corners?'+new URLSearchParams({...Object.fromEntries(query),lap:group.lap,compound:group.compound,cohort:group.cohort});const r=await request(route);if(r.cache==='HIT')hits++;if(r.data.complete){completed++;await capture(route,r.data);}if(r.data.sourcePaused)throw new Error('Source rate limited. Completed work remains cached; retry later.');}
+    await capture(planRoute,(await request(planRoute)).data);
+    if(completed!==(plan.groups||[]).length)console.warn(`Only ${completed}/${plan.groups?.length||0} race groups completed. Missing groups remain explicitly unsupported.`);
     console.log(JSON.stringify({subject,raceGroups:plan.groups?.length||0,completed,cacheHits:hits}));
   }
 }
 // The page's own parameters (car-performance.js loadPitData), so the exported file is the one it asks for.
-try{await get('/api/performance/pits?'+new URLSearchParams({year,gp,source:'dhl-fallback-v2',schema:3}));}catch(e){console.warn('Pit data: '+e.message);}
+if(!args.includes('--qualifying-only'))try{await get('/api/performance/pits?'+new URLSearchParams({year,gp,source:'dhl-fallback-v2',schema:3}));}catch(e){console.warn('Pit data: '+e.message);}
 // Session analysis summaries, with the page's own session names (session-state.js
 // currentQuery; the cache key ignores its data_schema field).
 for(const name of ['Qualifying','Sprint Qualifying','Sprint','Race']){
+  if(args.includes('--qualifying-only') && name==='Race')continue;
   const date=event.session_dates?.[name];
-  if(!date||Date.parse(date)+4*3600000>Date.now())continue;
+  if(!date||Date.parse(date)>Date.now())continue;
   try{await get('/api/session?'+new URLSearchParams({year,gp,round,session:name}));}catch(e){console.warn(`Session ${name}: `+e.message);}
 }
 // The page's own parameters (car-performance.js), so the exported file is the one it asks for.
@@ -70,8 +96,12 @@ if(event.session_dates?.Sprint)try{await get('/api/performance/sprint?'+new URLS
 }
 if(args.includes('--export-seed')){
   const filename=path.join(root,'lib/verified-cache-seed.json'),old=JSON.parse(await readFile(filename,'utf8'));
+  // Do not replace an older published seed with a partial set built under a
+  // different methodology. Its historical results need a separate rebuild.
+  if(Object.keys(old.entries||{}).length && (old.sourceRevision!==SOURCE_REVISION || old.backendRevision!==BACKEND_REVISION || old.raceRevision!==RACE_REVISION))
+    throw new Error('Existing seed revisions differ; no seed was replaced. Rebuild and validate its historical results before publication.');
   const entries={};
-  for(const [key,value] of Object.entries(old.entries||{}))if(value.expires>Date.now()&&((key.startsWith('source:')&&old.sourceRevision===SOURCE_REVISION)||(key.startsWith('race:')&&old.raceRevision===RACE_REVISION)))entries[key]=value;
+  for(const [key,value] of Object.entries(old.entries||{}))if(value.expires>Date.now()&&((key.startsWith('source:')&&old.sourceRevision===SOURCE_REVISION)||(key.startsWith('data:')&&old.backendRevision===BACKEND_REVISION)||(key.startsWith('race:')&&old.raceRevision===RACE_REVISION)))entries[key]=value;
   const prefixes={source:SOURCE_REVISION,data:BACKEND_REVISION,race:RACE_REVISION};
   const directory=path.join(root,'.apex-cache/dashboard-local-v2');
   for(const file of await readdir(directory)){

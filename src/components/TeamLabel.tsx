@@ -12,13 +12,13 @@ export type TeamLike = {team?: string; name?: string; displayName?: string; logo
  */
 export function TeamLogo({team}: {team?: string}) {
   const key = String(team || '').trim().toLowerCase();
-  const historical = key === 'renault' || key === 'renault sport f1 team' ? 'renault.png' : historicalTeamMarks[key];
+  const historical = key === 'renault' || key === 'renault sport f1 team' ? 'renault.png' : (historicalTeamMarks as Record<string,string>)[key];
   if (historical) return (
     <span className="team-logo team-logo-historical" aria-hidden="true">
       <img src={`assets/teams/historical/${historical}`} alt="" width={26} height={26} />
     </span>
   );
-  const asset = officialTeamMarks[key];
+  const asset = (officialTeamMarks as Record<string,string>)[key];
   if (!asset) return <span className="team-logo" aria-hidden="true"><i className="team-logo-fallback" /></span>;
   const base = asset.replace(/\.webp$/, '');
   return (

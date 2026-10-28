@@ -99,7 +99,7 @@ test('development table allocates all six columns without inflating rows',()=>{
   assert.match(css,/\.performance-trend-table \.performance-table tbody td \{ padding: 8px 12px; height: auto; \}/);
 });
 function context(reduced = false) {
-  const sandbox = { console, URL, URLSearchParams,
+  const sandbox = { console, URL, URLSearchParams, Blob, TextDecoder,
     document: { addEventListener() {}, querySelector() {}, activeElement: null },
     window: { matchMedia: () => ({ matches: reduced }) } };
   vm.createContext(sandbox);
@@ -269,6 +269,46 @@ test('saved native driver packs keep exact identity, duration and immutable per-
   assert.deepEqual(cacheModes,['no-cache','no-cache'],'newly published snapshots revalidate their index and pack');
   assert.equal(await h.run(`preparedTelemetryData(new URL(${JSON.stringify(path.replace('11384','11388'))}))`),null);
   assert.equal(await h.run(`preparedTelemetryData(new URL(${JSON.stringify(path.replace('93.261','94'))}))`),null);
+});
+
+test('published local captures disclose timestamps and reject incompatible revisions',async()=>{
+  const h=context();let requests=0;
+  Object.assign(h.sandbox,{URL,Response,DecompressionStream});
+  Object.assign(h.sandbox.window,{APEX_SNAPSHOT_MODE:true,APEX_SOURCE_VERSION:'s',APEX_BACKEND_VERSION:'b',APEX_MEASUREMENT_VERSION:'m'});
+  const key='/api/qualifying-corners?gp=Test&subject=team&year=2026',file='a'.repeat(24)+'.json.gz';
+  h.sandbox.fetch=async url=>{
+    requests++;
+    if(String(url).includes('local-captures/index.json'))return {ok:true,json:async()=>({measurementRevision:'m',entries:{[key]:{file,capturedAt:'2026-10-27T12:00:00Z'}}})};
+    if(String(url).endsWith(file))return new Response(gzipSync(JSON.stringify({complete:false,traces:{VER:{}}})));
+    return {ok:false};
+  };
+  const data=await h.run("preparedData('/api/qualifying-corners?year=2026&gp=Test&subject=team&refresh=1')");
+  assert.equal(data.complete,false);assert.equal(data.published_snapshot.captured_at,'2026-10-27T12:00:00Z');assert.equal(requests,2);
+  h.sandbox.window.APEX_MEASUREMENT_VERSION='other';
+  assert.equal(await h.run("preparedData('/api/qualifying-corners?year=2026&gp=Test&subject=team')"),null);
+});
+test('saved files decode both raw gzip and HTTP-decoded JSON',async()=>{
+  const h=context();Object.assign(h.sandbox,{Response,DecompressionStream});
+  h.sandbox.raw=new Response(gzipSync(JSON.stringify({value:42})));
+  h.sandbox.decoded=new Response(JSON.stringify({value:42}),{headers:{'Content-Encoding':'gzip'}});
+  assert.equal((await h.run('readSavedJson(raw)')).value,42);
+  assert.equal((await h.run('readSavedJson(decoded)')).value,42);
+});
+test('race status remains on the points baseline in compact driver rows',()=>{
+  const css=readFileSync('apple-ui.css','utf8');
+  assert.match(css,/\.driver-result\s*\{[^}]*display:\s*flex[^}]*align-items:\s*baseline/s);
+  assert.doesNotMatch(css,/\.driver-result\s*\{[^}]*display:\s*grid/s);
+});
+test('retained summaries use only the explicitly verified storage-only revision pair',async()=>{
+  const h=context();Object.assign(h.sandbox,{URL,Response,DecompressionStream});
+  Object.assign(h.sandbox.window,{APEX_SNAPSHOT_MODE:true,APEX_SOURCE_VERSION:'5b02cc1bb2a6daf808ad',APEX_BACKEND_VERSION:'1af2a5e364d242f1b28d'});
+  const key='/api/performance?gp=Test&session=Q&year=2026',file='a'.repeat(24)+'.json.gz';
+  h.sandbox.fetch=async url=>String(url).endsWith('index.json')?{ok:true,json:async()=>({revision:'8168b392ef2edc130d33',generated:'2026-10-28T00:00:00Z',entries:{[key]:file}})}:
+    new Response(gzipSync(JSON.stringify({method:'car-performance-v13-supported-recovery',teams:[{team:'Test'}]})));
+  const data=await h.run("prerenderedData(new URL('https://example.test/api/performance?year=2026&gp=Test&session=Q'))");
+  assert.equal(data.published_snapshot.kind,'retained');assert.equal(data.teams.length,1);
+  h.sandbox.window.APEX_BACKEND_VERSION='unrelated';
+  assert.equal(await h.run("prerenderedData(new URL('https://example.test/api/performance?year=2026&gp=Test&session=Q'))"),null);
 });
 
 test('COTA practice loads a captured local summary and every drivers fastest native lap',()=>{

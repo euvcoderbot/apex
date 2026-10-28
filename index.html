@@ -13,7 +13,6 @@
   <link rel="icon" href="assets/f1apex-icon-64.png" type="image/png" sizes="64x64">
   <link rel="apple-touch-icon" href="assets/f1apex-icon-180.png">
   <title>F1 Apex Data — Telemetry Analytics</title>
-  <link rel="preconnect" href="https://apex-telemetry-api.vercel.app" crossorigin>
   <script>
     // Interface scale; keep in sync with UI_ZOOM in lib/ui-style-build.mjs.
     window.APEX_UI_ZOOM = 1;
@@ -110,6 +109,7 @@
             <div class="analysis-heading-main">
               <h2>Lap telemetry</h2>
               <p id="loadedSessionContext" class="loaded-session-context" hidden></p>
+              <small id="snapshotBadge" class="snapshot-mode-note" hidden>Published snapshot · not live</small>
             </div>
             <div class="legend" id="legend"></div>
           </div>
