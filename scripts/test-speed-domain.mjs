@@ -77,7 +77,10 @@ test('the page defaults to speed-domain and keeps every trace-batch speed-domain
   // The pills are drawn by src/views/SpeedView.tsx from STRAIGHT_PILLS.
   assert.match(readFileSync('src/views/SpeedView.tsx','utf8'),/data-straight-pill=\{x\.key\}/);
   assert.match(source,/pills:STRAIGHT_PILLS\.map/);
-  for(const key of ['straight','straight_top','energy'])assert.match(source,new RegExp(`key:'${key}'`));
+  for(const key of ['track_straights','straight_top','energy'])assert.match(source,new RegExp(`key:'${key}'`));
+  // Straight line is measured on each track's own straights, not a simulated one.
+  assert.match(source,/let straightPill='track_straights'/);
+  assert.doesNotMatch(source,/key:'straight',label/);
 });
 
 function loader(result) {
@@ -118,4 +121,21 @@ test('telemetry loading status remains visible with explanations disabled',()=>{
   assert.match(css,/p\.performance-quality-status:not\(\.is-loading\):not\(:has\(button\)\)/);
   assert.match(view,/p\.status\.running \? ' is-loading'/);
   assert.match(view,/Lap times are loaded; fetching and processing the fastest laps/);
+});
+
+test('real straights and lap shares put corners and straights on the qualifying-gap scale',()=>{
+  const c={field_lap_time_s:90,
+    cornering:{low:{index:1,time_vs_median_s:.9,pct_vs_median:5,provisional:false}},
+    track_straights:{index:1,time_vs_median_s:.45,pct_vs_median:1.2,provisional:true}};
+  // 5% slower through slow corners that take 18 s of a 90 s lap is 1% of the lap.
+  assert.equal(speedDomainValue(c,'corner_low_pct'),5);
+  assert.equal(speedDomainValue(c,'corner_low_lap'),1);
+  assert.equal(speedDomainValue(c,'track_straights'),.45);
+  assert.equal(speedDomainValue(c,'track_straights_pct'),1.2);
+  assert.equal(speedDomainValue(c,'track_straights_lap'),.5);
+  assert.equal(speedDomainValue({track_straights:{index:null}},'track_straights'),null,'unmeasured is not zero');
+  assert.equal(speedDomainValue({cornering:{low:{index:1,time_vs_median_s:1}}},'corner_low_lap'),null,'no lap time, no share');
+  const event=cars=>({name:'GP',speedDomain:{team:{cars}}});
+  const season=speedDomainSeason([event({A:c,B:{...c,track_straights:{...c.track_straights,time_vs_median_s:0}},C:{...c,track_straights:{...c.track_straights,time_vs_median_s:-.45}}})],'team','track_straights_lap');
+  assert.ok(season.rows.find(r=>r.name==='A').provisional,'a provisional straight marks the row');
 });

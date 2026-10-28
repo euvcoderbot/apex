@@ -15,7 +15,7 @@
 (() => {
   const VIEWS = {
     session: ['year', 'round', 'session', 'laps'],
-    cars: ['year', 'scope', 'races', 'metric', 'subject', 'session', 'pill', 'run']
+    cars: ['year', 'scope', 'races', 'metric', 'subject', 'session', 'pill', 'basis', 'run']
   };
   // Changes to these move to a new "page" and get their own history entry.
   const NAVIGATION = {session: ['year', 'round', 'session', 'laps'], cars: ['year', 'scope', 'races', 'metric', 'run']};

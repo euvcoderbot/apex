@@ -64,7 +64,8 @@ MIN_WEIGHT_COVERAGE = .6
 # removing overall lap time, 21 qualifying sessions (2025 + 2026). Traction
 # fails in 2025 (too few slow exits with clean samples); show it as evidence.
 RELIABILITY = {'straight': 'established', 'straight_mid': 'moderate', 'straight_top': 'established',
-               'energy': 'established', 'cornering': 'moderate', 'braking': 'moderate', 'traction': 'low'}
+               'energy': 'established', 'cornering': 'moderate', 'braking': 'moderate', 'traction': 'low',
+               'track_straights': 'moderate'}
 # Columns of performance_tracks.prepare()['a'].
 D, T, V, THR, BRK, X, Y, DRS = range(8)
 
@@ -491,7 +492,7 @@ def field_segments(laps, track, markers=()):
         else:
             i += 1
     exits = [(c['apex_m'], c['end_m']) for c in corners if c['grip_limited']]
-    return {'corners': corners, 'straights': straights, 'exits': exits, 'field_speed': v}
+    return {'corners': corners, 'straights': straights, 'exits': exits, 'field_speed': v, 'field_throttle': thr}
 
 
 def in_ranges(pos, ranges):
@@ -949,6 +950,94 @@ def corner_timing(projected, corners, track, field_speed):
     return rows, bands
 
 
+STRAIGHT_MIN_M = 100.        # session analysis offers straights of at least this length
+STRAIGHT_FLAT_SHARE = .9     # a link is a straight when the field is flat out over this share of it
+LAP_EDGE_M = 50.             # a lap's first/last packet this close to the timing line still covers it
+
+
+def track_straight_timing(projected, rows, track, field_throttle):
+    """Time on the track's own straights: the stretches between consecutive timed corners.
+
+    These are the straights session analysis offers ("Straight T14-T1"), each
+    measured over the same distance for every car with the speed-trace
+    integral, not a simulated common straight. Because it is the real
+    straight, a car's time includes the speed it carries out of the previous
+    corner. The main straight wraps over the timing line. A link the field is
+    not flat out through (a corner skipped for coverage) is not a straight.
+    """
+    grid = track['grid']
+    lap_end = float(grid[-1])
+    ordered = sorted(rows, key=lambda r: r['start_m'])
+    laps = {n: [_monotonic(a, p) for a, p in values] for n, values in projected.items()}
+
+    def flat(lo, hi):
+        inside = (grid >= lo) & (grid <= hi)
+        return bool(inside.any()) and float(np.mean(field_throttle[inside] >= FULL_THROTTLE)) >= STRAIGHT_FLAT_SHARE
+
+    def measured(p, a, lo, hi):
+        # At the timing line a lap's first or last packet can fall a few metres
+        # inside the lap. The field is flat out there, so cover that edge at the
+        # packet's own speed instead of losing the whole main straight.
+        edge = 0.
+        if lo < p[0] <= lo+LAP_EDGE_M and np.isclose(lo, grid[0]):
+            edge += (p[0]-lo)/max(a[0, V]/3.6, 1.)
+            lo = float(p[0])
+        if hi-LAP_EDGE_M <= p[-1] < hi and np.isclose(hi, lap_end):
+            edge += (hi-p[-1])/max(a[-1, V]/3.6, 1.)
+            hi = float(p[-1])
+        ids = np.arange(max(0, np.searchsorted(p, lo, side='right')-1), min(len(p), np.searchsorted(p, hi, side='left')+1))
+        if len(ids) < 2 or p[ids[0]] > lo or p[ids[-1]] < hi:
+            return None
+        gap = float(np.max(np.diff(a[ids, T])))
+        return None if gap > MAX_PACKET_GAP_S else (_speed_trace_time(p, a, lo, hi)+edge, gap)
+
+    straights = []
+    for k, row in enumerate(ordered):
+        following = ordered[(k+1) % len(ordered)]
+        if k+1 < len(ordered):
+            pieces = [(row['end_m'], following['start_m'])]
+        else:  # the main straight crosses the timing line
+            pieces = [(row['end_m'], lap_end), (float(grid[0]), following['start_m'])]
+        pieces = [(lo, hi) for lo, hi in pieces if hi > lo]
+        metres = sum(hi-lo for lo, hi in pieces)
+        if metres < STRAIGHT_MIN_M or not all(flat(lo, hi) for lo, hi in pieces):
+            continue
+        cars = {}
+        for name, values in laps.items():
+            for p, a in values:  # fastest lap first: the first lap covering the straight
+                parts = [measured(p, a, lo, hi) for lo, hi in pieces]
+                if all(parts):
+                    cars[name] = {'time_s': sum(t for t, _ in parts), 'max_packet_gap_s': max(g for _, g in parts),
+                                  'entry_kmh': float(np.interp(pieces[0][0], p, a[:, V])),
+                                  'exit_kmh': float(np.interp(pieces[-1][1], p, a[:, V]))}
+                    break
+        if len(cars) < max(3, math.ceil(.5*len(laps))):
+            continue
+        field = float(np.median([c['time_s'] for c in cars.values()]))
+        cars = {n: c for n, c in cars.items() if abs(c['time_s']/field-1) <= CORNER_OUTLIER}
+        if len(cars) < max(3, math.ceil(.5*len(laps))):
+            continue
+        field = float(np.median([c['time_s'] for c in cars.values()]))
+        straights.append({'straight': f"{row['turns'][-1]}–{following['turns'][0]}", 'pieces': pieces, 'metres': metres,
+                          'field_time_s': field,
+                          'cars': {n: {**c, 'delta_s': c['time_s']-field} for n, c in cars.items()}})
+    totals = {}
+    for name in laps:
+        mine = [s for s in straights if name in s['cars']]
+        if not straights:
+            totals[name] = {'index': None, 'exclusion': 'No designated straight could be measured'}
+        elif len(mine) != len(straights):
+            totals[name] = {'index': None, 'straights': len(mine), 'expected': len(straights),
+                            'exclusion': 'Incomplete straight coverage; measured straights remain in the evidence'}
+        else:
+            delta = sum(s['cars'][name]['delta_s'] for s in mine)
+            field = sum(s['field_time_s'] for s in mine)
+            totals[name] = {'index': field/(field+delta), 'straights': len(mine), 'expected': len(straights),
+                            'time_vs_median_s': delta, 'pct_vs_median': delta/field*100,
+                            'provisional': any(s['cars'][name]['max_packet_gap_s'] > .6 for s in mine), 'exclusion': None}
+    return straights, totals
+
+
 def speed_domain_metrics(cars, corners=()):
     """cars: {name: [lap_array, ...]} using prepare()['a'] columns.
 
@@ -1090,18 +1179,27 @@ def speed_domain_metrics(cars, corners=()):
                             'apex_methods': apex_methods})
     braking_by_car = braking_comparison(corner_rows, list(projected))
     timed, bands = corner_timing(projected, segments['corners'], track, segments['field_speed'])
+    track_straights, straight_totals = track_straight_timing(projected, timed, track, segments['field_throttle'])
+    # Each car's fastest-lap time and the field's, so a band or straight gap can
+    # also be read as a share of the lap (comparable with the qualifying gap).
+    lap_times = {name: float(values[0][0][-1, T]-values[0][0][0, T]) for name, values in projected.items()}
+    field_lap = float(np.median(list(lap_times.values())))
     for name in projected:
         results[name]['braking'] = braking_by_car[name]
         results[name]['cornering'] = bands[name]
+        results[name]['track_straights'] = straight_totals[name]
+        results[name]['lap_time_s'] = lap_times[name]
+        results[name]['field_lap_time_s'] = field_lap
         results[name]['corners'] = [{'corner': r['corner'], 'band': r['band'], **r['cars'][name]} for r in timed if name in r['cars']]
     _attach_gaps(results)
     return {'method': METHOD, 'cars': results, 'reliability': RELIABILITY, 'excluded': excluded,
             'corner_count': len(timed), 'reference_ranges': reference_ranges,
             'segments': {'corners': [{k: v for k, v in r.items() if k != 'cars'} for r in timed],
-                         'timed_corners': timed, 'straights': segments['straights']},
+                         'timed_corners': timed, 'straights': segments['straights'], 'track_straights': track_straights},
             'interpretation': {
                 'cornering': 'Time over the same fixed stretch of each grip-limited corner, corrected for entry and exit speed, against the median car.',
                 'straight': 'Full-throttle acceleration on the audited straights, simulated over the same straight for every car.',
+                'track_straights': "Time on the track's own straights between timed corners, the same distance for every car, against the median car; includes exit speed from the previous corner.",
                 'straight_mid': '160-250 km/h part of the straight-line comparison.',
                 'straight_top': '250 km/h and above; shaped by energy deployment on 2026 cars.',
                 'traction': 'Acceleration in the exit phase of grip-limited corners, 70-170 km/h.',

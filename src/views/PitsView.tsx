@@ -9,7 +9,7 @@ type Sample = {mean: number | null; median: number | null; fastest: number | nul
 export type PitRow = TeamLike & {team: string; driver?: string; sample: Sample; eventCount: number};
 export type PitsViewProps = {
   note: string; serviceNote: string; failures: {name: string; error: string}[]; noStationary: boolean;
-  quality: {stationary: number; lane: number; visits: number; refresh: boolean};
+  quality: {stationary: number; lane: number; visits: number; refresh: boolean; gaps?: {pack: number; awaiting: number; other: number}};
   isLane: boolean; isDriver: boolean; relativeLane: boolean; chartMetric: string;
   chartRows: (TeamLike & Record<string, unknown>)[]; chart: BarChartOptions; emptyMessage: string;
   rows: PitRow[]; sort: Record<string, SortHeaderModel>;
@@ -31,6 +31,11 @@ export function PitsView(p: PitsViewProps) {
         {p.noStationary ? <p className="performance-note">The source has no stationary-at-the-box values for this selection. “—” means unavailable, not a zero-second stop.</p> : null}
         <p className="performance-quality-status">
           {p.quality.stationary} / {p.quality.visits} stationary timings · {p.quality.lane} / {p.quality.visits} lane timings.{' '}
+          {p.quality.gaps && p.quality.visits > p.quality.stationary ? <>
+            Untimed: {[p.quality.gaps.pack ? `${p.quality.gaps.pack} came in together (likely red flag or safety car; DHL times none)` : '',
+              p.quality.gaps.awaiting ? `${p.quality.gaps.awaiting} await DHL's table for that race` : '',
+              p.quality.gaps.other ? `${p.quality.gaps.other} single visits (penalty, retirement or repair)` : ''].filter(Boolean).join(' · ')}.{' '}
+          </> : null}
           {p.quality.refresh ? <button type="button" data-pit-retry="">Refresh missing timing</button> : null}
           {' '}Consistency (IQR) needs 4 samples. No recorded visit is not a zero-second stop.
         </p>

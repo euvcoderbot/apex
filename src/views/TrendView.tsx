@@ -7,7 +7,7 @@ import {TeamLabel, type TeamLike} from '../components/TeamLabel';
 
 export type TrendRow = {
   team: TeamLike & {team: string}; first: number | null; last: number | null; label: string; count: number; sampleTier: string;
-  change: number | null; fittedChange: number | null; slopePerRound: number | null; range: [number, number] | null; points: SparkPoint[]; fit?: SparkFit;
+  change: number | null; midSeason?: number | null; fittedChange: number | null; slopePerRound: number | null; range: [number, number] | null; points: SparkPoint[]; fit?: SparkFit;
 };
 export type TrendViewProps =
   | {single: true; event: string}
@@ -43,7 +43,11 @@ export function TrendView(props: TrendViewProps) {
             return [
               <TeamLabel team={r.team} />,
               <Sparkline label={r.team.team} points={r.points} teamColor={r.team.color} {...spark} fit={fitted ? r.fit : null} />,
-              r.count >= 2 ? <span className="trend-endpoints" title={r.label}>{fmt(r.first, 3, '%')} → {fmt(r.last, 3, '%')}</span> : 'Needs ≥ 2 events',
+              r.count >= 2 ? <>
+                <span className="trend-endpoints" title={r.label}>{fmt(r.first, 3, '%')} → {fmt(r.last, 3, '%')}</span>
+                {finite(r.midSeason) ? <small className="trend-uneven" title="The middle of the season differs from both ends, so neither the endpoint change nor the straight-line fit describes it: read the dots.">
+                  Not a steady trend · mid-season {fmt(r.midSeason, 3, '%')}</small> : null}
+              </> : 'Needs ≥ 2 events',
               r.count >= 2 && finite(r.change) ? <span className={`trend-change ${r.change! < 0 ? 'is-improvement' : 'is-decline'}`} title={`Observed opening-to-latest percentage-point change · ${r.label}`}>{signed(r.change, 3, ' pp')}</span> : '—',
               r.count >= 2 && finite(r.fittedChange) ? <span className={`trend-change trend-fitted ${r.fittedChange! < 0 ? 'is-improvement' : 'is-decline'}`} title={`Robust fitted rate: ${rate}`}>{signed(r.fittedChange, 3, ' pp')}</span> : '—',
               ...(showSensitivity ? [r.range ? `${signed(r.range[0], 3, "")} to ${signed(r.range[1], 3, "")} pp/round` : '—'] : []),
