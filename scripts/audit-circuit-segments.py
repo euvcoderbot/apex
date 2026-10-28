@@ -17,14 +17,24 @@ STEP = 5.
 G = 9.80665
 CLASS_RULES = {
     'braking': 'approach to a corner apex with at least half the field on the brake',
-    'entry': 'approach to a corner apex off the brake (lift / coast / trail release)',
+    'entry': 'turn-in off the brake: inside the official corner, or at most 100 m before braking',
     'apex': 'within 15% of the corner minimum speed: the grip-limited part',
-    'exit': 'after the apex until the field is back at 98% throttle',
+    'exit': 'after the apex until the field is back at 98% throttle (at most 150 m past the corner)',
     'flat_corner': 'lateral load >= 1.5 g with the field at >= 95% throttle and no speed minimum',
-    'straight': 'field >= 98% throttle and lateral load < 1.0 g',
-    'other': 'none of the above (part throttle on a gentle bend, energy-management lift)',
+    'bend': 'an official turn taken without a speed minimum and not flat out',
+    'straight': 'between official corners, field >= 98% throttle and lateral load < 1.0 g',
+    'straight_lift': 'between official corners but off full throttle: lift-and-coast or energy management',
+    'other': 'none of the above (part throttle on a gentle bend)',
 }
 MIN_PROMINENCE_KMH = 10.
+# Official corners (F1 / MultiViewer turn numbers) bound every approach: a
+# corner's approach never starts before the previous official turn has ended,
+# and lifting on a straight is not corner entry. 2026 cars peak mid-straight
+# and then clip, hundreds of metres before the brakes (Shanghai T14).
+BEND_KAPPA = 1/700.     # 1/m: a tighter radius than this is a bend, not a straight
+MARKER_REACH_M = 150.   # an official marker this close to the centreline belongs to it
+ENTRY_REACH_M = 100.    # off-brake approach counted as entry before braking or turn-in
+EXIT_REACH_M = 150.     # exit ends at full throttle or this far past the corner
 
 
 def centreline(a):
@@ -116,8 +126,29 @@ def audit(path):
     thr = np.median(fields['thr'], axis=0)
     brk = np.mean(np.array(fields['brk']) >= .5, axis=0)
     lat = (v/3.6)**2*np.abs(kappa)/G
+    bend = np.abs(kappa) >= BEND_KAPPA
+    markers = turn_markers(data['year'], data['gp'])
+    # Official turns on the centreline, each with the bend it sits in.
+    official = []
+    for label, mx, my in markers:
+        dist = np.hypot(x-mx, y-my)*scale
+        k = int(np.argmin(dist))
+        if dist[k] > MARKER_REACH_M:
+            continue
+        reach = int(MARKER_REACH_M/STEP)
+        near = [j for j in range(max(0, k-reach), min(len(grid), k+reach+1)) if bend[j]]
+        if near:
+            k = min(near, key=lambda j: abs(j-k))
+        lo = hi = k
+        while lo > 0 and bend[lo-1]:
+            lo -= 1
+        while hi < len(grid)-1 and bend[hi+1]:
+            hi += 1
+        official.append({'turn': label, 'marker': k, 'lo': lo, 'hi': hi})
+    official.sort(key=lambda o: o['marker'])
     cls = np.full(len(grid), 'other', dtype=object)
     cls[(thr >= 98) & (lat < 1.)] = 'straight'
+    cls[(cls == 'other') & ~bend & (lat < 1.)] = 'straight_lift'
     cls[(lat >= 1.5) & (thr >= 95)] = 'flat_corner'
     # Corners are minima of the field's speed: that is where grip, not power,
     # sets the pace. Prominence against the fastest point within 300 m.
@@ -138,16 +169,33 @@ def audit(path):
     for n, i in enumerate(apexes):
         prev_apex = apexes[n-1] if n else 0
         next_apex = apexes[n+1] if n+1 < len(apexes) else len(grid)-1
-        # Approach starts at the last speed peak before the apex.
+        own = next((o for o in official if o['lo'] <= i <= o['hi']), None) \
+            or min((o for o in official if abs(o['marker']-i) <= int(MARKER_REACH_M/STEP)), key=lambda o: abs(o['marker']-i), default=None)
+        # Approach starts at the last speed peak before the apex, but never
+        # before the previous official turn has ended.
         start = prev_apex+int(np.argmax(v[prev_apex:i+1]))
-        # Exit ends when the field is back at full throttle.
+        before = [o['hi'] for o in official if o['hi'] < (own['lo'] if own else i) and not (o['lo'] <= i <= o['hi'])]
+        if before:
+            start = max(start, min(max(before)+1, i))
+        # Exit ends when the field is back at full throttle, and at most
+        # EXIT_REACH_M past the corner.
+        limit = min(next_apex, (own['hi'] if own else i)+int(EXIT_REACH_M/STEP))
         end = i
-        while end < next_apex and thr[end] < 98:
+        while end < limit and thr[end] < 98:
             end += 1
+        braking_at = next((j for j in range(start, i) if brk[j] >= .5), None)
+        turn_in = own['lo'] if own else i
+        entry_from = min(turn_in, braking_at if braking_at is not None else i)-int(ENTRY_REACH_M/STEP)
         band_lo = v[i]*1.15
         for j in range(start, end+1):
             if j < i:
-                cls[j] = 'apex' if v[j] <= band_lo else 'braking' if brk[j] >= .5 else 'entry'
+                if v[j] <= band_lo:
+                    cls[j] = 'apex'
+                elif brk[j] >= .5:
+                    cls[j] = 'braking'
+                elif j >= entry_from:
+                    cls[j] = 'entry'
+                # else: a lift or clip on the straight keeps its straight class
             else:
                 cls[j] = 'apex' if v[j] <= band_lo else 'exit'
         events.append({'apex_m': float(grid[i]), 'start_m': float(grid[start]), 'end_m': float(grid[end]),
@@ -170,20 +218,46 @@ def audit(path):
             i = j
         else:
             i += 1
+    # An official turn with no speed minimum: a flat-out kink stays part of
+    # the straight, a flat-out bend under load stays a flat-out bend, the rest
+    # is a bend taken without a minimum (not entry to the next corner).
+    for o in official:
+        if any(o['lo'] <= a <= o['hi'] for a in apexes):
+            continue
+        for j in range(o['lo'], o['hi']+1):
+            if cls[j] in ('other', 'straight_lift'):
+                cls[j] = 'bend'
     straights = []
+    on_straight = np.isin(cls, ['straight', 'straight_lift'])
     i = 0
     while i < len(grid):
-        if cls[i] == 'straight':
+        if on_straight[i]:
             j = i
-            while j < len(grid) and cls[j] == 'straight':
+            while j < len(grid) and on_straight[j]:
                 j += 1
-            if grid[j-1]-grid[i] >= 100:
-                straights.append({'start_m': float(grid[i]), 'end_m': float(grid[j-1]), 'length_m': float(grid[j-1]-grid[i]),
-                                  'entry_kmh': float(v[i]), 'exit_kmh': float(v[j-1])})
+            straights.append([i, j])
             i = j
         else:
             i += 1
-    markers = turn_markers(data['year'], data['gp'])
+    # The main straight crosses the timing line: one straight, not two.
+    if len(straights) > 1 and straights[0][0] == 0 and straights[-1][1] == len(grid):
+        tail = straights.pop()
+        straights[0] = [tail[0], straights[0][1], tail[1]]
+    runs, straights = straights, []
+    for run in runs:
+        i, j = run[0], run[1]
+        cells = list(range(i, j)) if len(run) == 2 else list(range(i, run[2]))+list(range(0, j))
+        length = len(cells)*STEP
+        if length < 100:
+            continue
+        # Named by the official turns either side, as F1 names a straight.
+        after = [o['turn'] for o in official if o['marker'] < i]
+        ahead = [o['turn'] for o in official if o['marker'] >= j]
+        straights.append({'start_m': float(grid[i]), 'end_m': float(grid[j-1]), 'length_m': float(length),
+                          'from_turn': after[-1] if after else (official[-1]['turn'] if official else None),
+                          'to_turn': ahead[0] if ahead else (official[0]['turn'] if official else None),
+                          'off_throttle_m': float(np.sum(cls[cells] == 'straight_lift')*STEP),
+                          'entry_kmh': float(v[i]), 'exit_kmh': float(v[j-1])})
     for e in events:
         if markers:
             label, mx, my = min(markers, key=lambda m: (m[1]-e['xy'][0])**2+(m[2]-e['xy'][1])**2)
