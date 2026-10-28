@@ -73,7 +73,7 @@ if(args.includes('--export-seed')){
   const entries={};
   for(const [key,value] of Object.entries(old.entries||{}))if(value.expires>Date.now()&&((key.startsWith('source:')&&old.sourceRevision===SOURCE_REVISION)||(key.startsWith('race:')&&old.raceRevision===RACE_REVISION)))entries[key]=value;
   const prefixes={source:SOURCE_REVISION,data:BACKEND_REVISION,race:RACE_REVISION};
-  const directory=path.join(root,'.apex-cache/dashboard');
+  const directory=path.join(root,'.apex-cache/dashboard-local-v2');
   for(const file of await readdir(directory)){
     if(!file.endsWith('.json'))continue;
     const v=JSON.parse(await readFile(path.join(directory,file),'utf8')),m=/^(source|data|race):([^:]+):(.*)$/.exec(v.key||'');

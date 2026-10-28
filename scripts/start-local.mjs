@@ -15,7 +15,7 @@ const {createLocalDashboard,pruneDiskStore}=await import('../lib/local-server.mj
 const backend=spawn(python,['-m','uvicorn','local_api:app','--host','127.0.0.1','--port',String(apiPort)],{cwd:root,stdio:'inherit',windowsHide:true,env:{...process.env,APEX_LOCAL_COMPUTE:'1'}});
 let closed=false;
 const sourceOrigin=`http://127.0.0.1:${apiPort}`;
-void pruneDiskStore(path.join(root,'.apex-cache/dashboard')).then(({removed,freed})=>{
+void pruneDiskStore(path.join(root,'.apex-cache/dashboard-local-v2')).then(({removed,freed})=>{
   if(removed)console.log(`Cache: removed ${removed} entries from earlier revisions (${(freed/1048576).toFixed(0)} MB).`);
 });
 const {server,tabs}=createLocalDashboard({root:path.join(root,'public/apex'),cacheRoot:path.join(root,'.apex-cache/dashboard-local-v2'),sourceOrigin,onStop:()=>void close(),
