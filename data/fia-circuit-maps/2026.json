@@ -1,0 +1,565 @@
+{
+ "year": 2026,
+ "fetched": "2026-10-28",
+ "circuits": [
+  {
+   "event": "Australian Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2026_australian_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_emergency_exits_map_and_quarantine_zone.pdf",
+   "centreline_m": 5278,
+   "sectors_m": [
+    1753,
+    1413,
+    2112
+   ],
+   "speed_trap": {
+    "turn": "1",
+    "offset_m": -120
+   },
+   "zone_kind": "straight-mode",
+   "zones": [
+    {
+     "turn": "14",
+     "offset_m": 50
+    },
+    {
+     "turn": "2",
+     "offset_m": 20
+    },
+    {
+     "turn": "5",
+     "offset_m": 85
+    },
+    {
+     "turn": "8",
+     "offset_m": 35
+    },
+    {
+     "turn": "10",
+     "offset_m": 60
+    }
+   ],
+   "venue": "Melbourne"
+  },
+  {
+   "event": "Austrian Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2026_austrian_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_emergency_exits_map_and_red_zone.pdf",
+   "centreline_m": 4326,
+   "sectors_m": [
+    1414,
+    1697,
+    1215
+   ],
+   "speed_trap": {
+    "turn": "3",
+    "offset_m": -170
+   },
+   "zone_kind": "straight-mode",
+   "zones": [
+    {
+     "turn": "10",
+     "offset_m": 110
+    },
+    {
+     "turn": "1",
+     "offset_m": 110
+    },
+    {
+     "turn": "3",
+     "offset_m": 90
+    },
+    {
+     "turn": "8",
+     "offset_m": 10
+    }
+   ],
+   "venue": "Spielberg"
+  },
+  {
+   "event": "Azerbaijan Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2026_azerbaijan_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_emergency_exits_map_and_red_zone.pdf",
+   "centreline_m": 6003,
+   "sectors_m": [
+    2033,
+    2025,
+    1945
+   ],
+   "speed_trap": {
+    "turn": "20",
+    "offset_m": 210
+   },
+   "zone_kind": "straight-mode",
+   "zones": [
+    {
+     "turn": "19",
+     "offset_m": 45
+    },
+    {
+     "turn": "2",
+     "offset_m": 110
+    }
+   ],
+   "venue": "Baku"
+  },
+  {
+   "event": "Bahrain Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2026_bahrain_grand_prix_in_malaysia_-_competition_notes_-_circuit_map_pit_lane_drawing_emergency_exits_map_and_red_zone.pdf",
+   "centreline_m": 5543,
+   "sectors_m": [
+    1435,
+    1839,
+    2269
+   ],
+   "speed_trap": {
+    "turn": "15",
+    "offset_m": -205
+   },
+   "zone_kind": "straight-mode",
+   "zones": [
+    {
+     "turn": "15",
+     "offset_m": 65
+    },
+    {
+     "turn": "3",
+     "offset_m": 10
+    },
+    {
+     "turn": "8",
+     "offset_m": 65
+    },
+    {
+     "turn": "14",
+     "offset_m": 65
+    }
+   ],
+   "venue": "Sepang"
+  },
+  {
+   "event": "Barcelona-Catalunya Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2026_barcelona-catalunya_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_and_emergency_exits_map.pdf",
+   "centreline_m": 4657,
+   "sectors_m": [
+    1619,
+    1765,
+    1273
+   ],
+   "speed_trap": {
+    "turn": "1",
+    "offset_m": -220
+   },
+   "zone_kind": "straight-mode",
+   "zones": [
+    {
+     "turn": "14",
+     "offset_m": 45
+    },
+    {
+     "turn": "3",
+     "offset_m": -40
+    },
+    {
+     "turn": "5",
+     "offset_m": 90
+    },
+    {
+     "turn": "9",
+     "offset_m": 40
+    }
+   ]
+  },
+  {
+   "event": "Belgian Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2026_belgian_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_emergency_exits_map_and_red_zone.pdf",
+   "centreline_m": 7004,
+   "sectors_m": [
+    2254,
+    2820,
+    1930
+   ],
+   "speed_trap": {
+    "turn": "4",
+    "offset_m": 30
+   },
+   "zone_kind": "straight-mode",
+   "zones": [
+    {
+     "turn": "19",
+     "offset_m": 190
+    },
+    {
+     "turn": "1",
+     "offset_m": 140
+    },
+    {
+     "turn": "4",
+     "offset_m": 60
+    },
+    {
+     "turn": "15",
+     "offset_m": 140
+    },
+    {
+     "turn": "17",
+     "offset_m": 80
+    }
+   ],
+   "venue": "Spa-Francorchamps"
+  },
+  {
+   "event": "British Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2026_british_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_emergency_exits_map_and_red_zone.pdf",
+   "centreline_m": 5891,
+   "sectors_m": [
+    1823,
+    2464,
+    1604
+   ],
+   "speed_trap": {
+    "turn": "15",
+    "offset_m": -140
+   },
+   "zone_kind": "straight-mode",
+   "zones": [
+    {
+     "turn": "18",
+     "offset_m": 65
+    },
+    {
+     "turn": "5",
+     "offset_m": 55
+    },
+    {
+     "turn": "7",
+     "offset_m": 155
+    },
+    {
+     "turn": "14",
+     "offset_m": 65
+    }
+   ],
+   "venue": "Silverstone"
+  },
+  {
+   "event": "Canadian Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2026_canadian_grand_prix_-_competition_notes_-_circuit_map_v2.pdf",
+   "centreline_m": 4361,
+   "sectors_m": [
+    1092,
+    1396,
+    1873
+   ],
+   "speed_trap": {
+    "turn": "13",
+    "offset_m": -250
+   },
+   "zone_kind": "straight-mode",
+   "zones": [
+    {
+     "turn": "14",
+     "offset_m": 100
+    },
+    {
+     "turn": "7",
+     "offset_m": 50
+    },
+    {
+     "turn": "9",
+     "offset_m": 60
+    },
+    {
+     "turn": "11",
+     "offset_m": 30
+    }
+   ],
+   "venue": "Montréal"
+  },
+  {
+   "event": "Chinese Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2026_chinese_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_emergency_exits_map_battery_containment_area_and_red_zone.pdf",
+   "centreline_m": 5451,
+   "sectors_m": [
+    1430,
+    1569,
+    2452
+   ],
+   "speed_trap": {
+    "turn": "14",
+    "offset_m": -240
+   },
+   "zone_kind": "straight-mode",
+   "zones": [
+    {
+     "turn": "16",
+     "offset_m": 100
+    },
+    {
+     "turn": "4",
+     "offset_m": 60
+    },
+    {
+     "turn": "10",
+     "offset_m": 100
+    },
+    {
+     "turn": "13",
+     "offset_m": 60
+    }
+   ],
+   "venue": "Shanghai"
+  },
+  {
+   "event": "Dutch Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2026_dutch_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_and_emergency_exits_map.pdf",
+   "centreline_m": 4259,
+   "sectors_m": [
+    1452,
+    1483,
+    1324
+   ],
+   "speed_trap": {
+    "turn": "1",
+    "offset_m": -95
+   },
+   "zone_kind": "straight-mode",
+   "zones": [
+    {
+     "turn": "14",
+     "offset_m": 20
+    },
+    {
+     "turn": "10",
+     "offset_m": 50
+    }
+   ],
+   "venue": "Zandvoort"
+  },
+  {
+   "event": "Hungarian Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2026_hungarian_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_emergency_exits_map_and_red_zone.pdf",
+   "centreline_m": 4381,
+   "sectors_m": [
+    1736,
+    1542,
+    1103
+   ],
+   "speed_trap": {
+    "turn": "1",
+    "offset_m": -310
+   },
+   "zone_kind": "straight-mode",
+   "zones": [
+    {
+     "turn": "14",
+     "offset_m": 40
+    },
+    {
+     "turn": "3",
+     "offset_m": 50
+    },
+    {
+     "turn": "11",
+     "offset_m": 60
+    }
+   ],
+   "venue": "Budapest"
+  },
+  {
+   "event": "Italian Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2026_italian_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_emergency_exits_map_and_red_zone.pdf",
+   "centreline_m": 5793,
+   "sectors_m": [
+    1909,
+    1823,
+    2061
+   ],
+   "speed_trap": {
+    "turn": "1",
+    "offset_m": -190
+   },
+   "zone_kind": "straight-mode",
+   "zones": [
+    {
+     "turn": "11",
+     "offset_m": 30
+    },
+    {
+     "turn": "3",
+     "offset_m": 70
+    },
+    {
+     "turn": "7",
+     "offset_m": 170
+    },
+    {
+     "turn": "10",
+     "offset_m": 130
+    }
+   ]
+  },
+  {
+   "event": "Japanese Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2026_japanese_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_emergency_exits_map_battery_containment_area_and_red_zone.pdf",
+   "centreline_m": 5807,
+   "sectors_m": [
+    2184,
+    2526,
+    1097
+   ],
+   "speed_trap": {
+    "turn": "15",
+    "offset_m": 70
+   },
+   "zone_kind": "straight-mode",
+   "zones": [
+    {
+     "turn": "18",
+     "offset_m": 0,
+     "at": "exit"
+    },
+    {
+     "turn": "14",
+     "offset_m": 0,
+     "at": "exit"
+    }
+   ],
+   "venue": "Suzuka"
+  },
+  {
+   "event": "Miami Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2026_miami_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_emergency_exits_map_and_red_zone.pdf",
+   "centreline_m": 5412,
+   "sectors_m": [
+    1866,
+    1730,
+    1816
+   ],
+   "speed_trap": {
+    "turn": "17",
+    "offset_m": -150
+   },
+   "zone_kind": "straight-mode",
+   "zones": [
+    {
+     "turn": "19",
+     "offset_m": 0,
+     "at": "exit"
+    },
+    {
+     "turn": "8",
+     "offset_m": 165
+    },
+    {
+     "turn": "16",
+     "offset_m": 90
+    }
+   ],
+   "venue": "Miami Gardens"
+  },
+  {
+   "event": "Monaco Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2026_monaco_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_emergency_exits_map_and_red_zone.pdf",
+   "centreline_m": 3337,
+   "sectors_m": [
+    1051,
+    1419,
+    867
+   ],
+   "speed_trap": {
+    "turn": "10",
+    "offset_m": -190
+   },
+   "zone_kind": "drs",
+   "zones": [],
+   "venue": "Monaco"
+  },
+  {
+   "event": "Singapore Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2026_singapore_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_and_emergency_exits_map.pdf",
+   "centreline_m": 4927,
+   "sectors_m": [
+    1639,
+    1782,
+    1506
+   ],
+   "speed_trap": {
+    "turn": "1",
+    "offset_m": -150
+   },
+   "zone_kind": "straight-mode",
+   "zones": [
+    {
+     "turn": "19",
+     "offset_m": 30
+    },
+    {
+     "turn": "5",
+     "offset_m": 50
+    },
+    {
+     "turn": "9",
+     "offset_m": 70
+    },
+    {
+     "turn": "13",
+     "offset_m": 115
+    },
+    {
+     "turn": "15",
+     "offset_m": 70
+    }
+   ],
+   "venue": "Marina Bay"
+  },
+  {
+   "event": "Spanish Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2026_spanish_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_and_emergency_exits_map.pdf",
+   "centreline_m": 5414,
+   "sectors_m": [
+    1839,
+    2049,
+    1526
+   ],
+   "speed_trap": {
+    "turn": "5",
+    "offset_m": -160
+   },
+   "zone_kind": "straight-mode",
+   "zones": [
+    {
+     "turn": "22",
+     "offset_m": 100
+    },
+    {
+     "turn": "3",
+     "offset_m": 40
+    }
+   ]
+  },
+  {
+   "event": "United States Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2026_united_states_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_and_emergency_exits_map.pdf",
+   "centreline_m": 5513,
+   "sectors_m": [
+    1658,
+    1941,
+    1914
+   ],
+   "speed_trap": {
+    "turn": "12",
+    "offset_m": -180
+   },
+   "zone_kind": "straight-mode",
+   "zones": [
+    {
+     "turn": "20",
+     "offset_m": 120
+    },
+    {
+     "turn": "11",
+     "offset_m": 110
+    }
+   ],
+   "venue": "Austin"
+  }
+ ]
+}
