@@ -892,6 +892,12 @@ test('tyre-age C grades use the race-year Pirelli allocation, including skipped 
   assert.equal(sandbox.verifiedDryGrade(2026,15,'HARD'),'C3'); // Baku C3/C4/C5
   assert.equal(sandbox.verifiedDryGrade(2025,17,'SOFT'),'C6'); // Baku C4/C5/C6
   assert.equal(sandbox.verifiedDryGrade(2025,19,'HARD'),'C1'); // Austin skips C2
+  assert.equal(sandbox.verifiedDryGrade(2026,18,'HARD'),'C2');
+  assert.equal(sandbox.verifiedDryGrade(2026,18,'MEDIUM'),'C3');
+  assert.equal(sandbox.verifiedDryGrade(2026,18,'SOFT'),'C4');
+  assert.equal(sandbox.verifiedDryGrade(2026,19,'HARD'),'C3');
+  assert.equal(sandbox.verifiedDryGrade(2026,20,'SOFT'),'C5');
+  assert.equal(sandbox.verifiedDryGrade(2026,21,'SOFT'),null);
   assert.equal(sandbox.verifiedDryGrade(2025,20,'MEDIUM'),'C4'); // Mexico skips C3
   assert.equal(sandbox.verifiedDryGrade(2024,1,'SOFT'),'C3');
   assert.equal(sandbox.verifiedDryGrade(2023,1,'SOFT'),'C3');
