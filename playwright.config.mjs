@@ -1,6 +1,7 @@
 import {defineConfig, devices} from '@playwright/test';
 
-const port = 54140;
+const port = Number(process.env.APEX_E2E_PORT||54152);
+if(!Number.isInteger(port)||port<1||port>65535)throw Error('Invalid APEX_E2E_PORT');
 export default defineConfig({
   testDir: 'e2e',
   fullyParallel: true,
@@ -13,7 +14,8 @@ export default defineConfig({
   webServer: {
     command: `node scripts/sync-static.mjs && node scripts/serve-static.mjs ${port}`,
     url: `http://127.0.0.1:${port}/apex/ui-catalog.html`,
-    reuseExistingServer: !process.env.CI,
+    // A server from another checkout can silently test obsolete assets.
+    reuseExistingServer: false,
     timeout: 120_000,
   },
   projects: [

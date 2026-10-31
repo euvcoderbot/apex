@@ -54,7 +54,7 @@ def run():
         report[model.__name__]={'median_seconds':statistics.median(samples),'runs':samples,
             'min_seconds':min(samples),'max_seconds':max(samples),'traced_peak_bytes_separate_run':peak,
             'memory_limit':'Python traced allocations only; not total process RSS or all native allocations'}
-    if args.baseline:report['known_input_outputs_identical_except_version']=outputs[0]==outputs[1]
+    if args.baseline:report['known_input_outputs_identical_except_provenance']=outputs[0]==outputs[1]
     print(json.dumps(report,indent=2))
     if args.baseline and outputs[0]!=outputs[1]:raise SystemExit(1)
 
