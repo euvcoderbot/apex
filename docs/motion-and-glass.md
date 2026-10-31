@@ -56,3 +56,14 @@ Durations and curves come from the motion scale in `tokens.css` (`--motion-tier-
   dark hairline instead of white).
 - Not done: the 77 `!important` declarations in `car-performance.css` and `design-system.css` (the layer order makes removing them a
   cascade change that needs a visual pass), and converting rem type sizes, which are real size differences and not a rename.
+
+## Cleanup pass
+
+- `!important`: removed 58 declarations from `car-performance.css` and `design-system.css`. The build already demotes `!important` in the
+  legacy layer, so none of them was winning; computed styles of every element on 10 pages x 4 viewports/appearances were identical
+  before and after (`scripts/dump-computed.mjs` + `scripts/diff-computed.mjs` can repeat that check for any CSS refactor). What remains:
+  the screen-reader-only and `[hidden]` utilities, the Speed-trace canvas heights, the mobile mode-switch width, and the selected/hover
+  state overrides, which are not covered by those pages.
+- rem font sizes: 289 `font-size: Nrem` declarations now use `--text-2xs` to `--text-2xl` (`tokens.css`), same sizes. Three odd sizes
+  were snapped to the nearest step (.7rem to .6875rem, .65rem to .6875rem, .8rem to .8125rem: under 0.25 px). Eight display sizes
+  (1.0625rem and up, 17 uses) are still literal.

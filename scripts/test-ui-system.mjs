@@ -23,7 +23,7 @@ test('the actual shipped CSS is one parsed bundle without an import waterfall',a
   const built=await buildUiStyles(read),root=postcss.parse(built.css);
   assert.ok(built.retired>0);
   assert.doesNotMatch(built.css,/lap-selection-mark|speed-annotation-evidence|measurement-table-heading|trace-color-picker|track-tray-title/);
-  assert.ok(built.demoted>20,'Legacy important appearance declarations must not silently win');
+  assert.ok(built.demoted>0,'Legacy important appearance declarations must not silently win');
   assert.ok(built.css.lastIndexOf('@layer components')>built.css.lastIndexOf('@layer appearance'));
   assert.ok(built.css.lastIndexOf('@layer window')>built.css.lastIndexOf('@layer components'));
   let imports=0;root.walkAtRules('import',()=>imports++);assert.equal(imports,0);

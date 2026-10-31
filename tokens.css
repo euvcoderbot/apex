@@ -142,6 +142,9 @@
   /* Type ramp (macOS text styles, +1–2 px for this dense web layout). */
   --type-caption: 12px; --type-callout: 13px; --type-body: 14px; --type-headline: 15px;
   --type-title3: 17px; --type-title2: 22px; --type-title1: 28px;
+  /* Text sizes in rem, as used across the interface (root is 18px, so .75rem is 13.5px). One owner for each step; the type ramp above is the
+     px scale for newer surfaces. */
+  --text-2xs: .625rem; --text-xs: .6875rem; --text-sm: .75rem; --text-md: .8125rem; --text-base: .875rem; --text-lg: .9375rem; --text-xl: 1rem; --text-2xl: 1.125rem;
   /* State fills. */
   --hig-seg-hover: color-mix(in srgb, var(--ui-label) 9%, transparent);
   --hig-control-pressed: color-mix(in srgb, var(--ui-control-hover) 78%, var(--ui-label) 10%);
