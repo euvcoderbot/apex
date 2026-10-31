@@ -2,7 +2,6 @@ import {fmt} from '../../performance-format.js';
 import {BarChart, type BarChartOptions} from '../components/BarChart';
 import {Card} from '../components/Card';
 import {DataTable, type SortHeaderModel} from '../components/DataTable';
-import {SegmentedControl} from '../components/SegmentedControl';
 import {EventLabel, TeamLabel, type TeamLike} from '../components/TeamLabel';
 import {ValueNote} from '../components/ValueNote';
 

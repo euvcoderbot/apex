@@ -30,7 +30,7 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run sync:apex
-      - run: npm run release:check
+      - run: npm run release:check -- --source
       - run: npm run build
 
   python:

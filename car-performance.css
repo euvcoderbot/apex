@@ -227,18 +227,6 @@ body.performance-view #sidebarToggle {
   border-bottom: 1px solid var(--ui-border);
 }
 
-.track-tray-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.track-tray-label {
-  font-size: var(--text-base);
-  font-weight: 600;
-  color: var(--ui-label);
-}
-
 .track-count-badge {
   font-size: var(--text-sm);
   font-weight: 600;

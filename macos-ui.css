@@ -60,7 +60,6 @@ body :where(*) { font-family: var(--ui-font); }
 .track-pill { border-radius: var(--radius-lg); background: var(--ui-well); border: 1px solid var(--ui-border); }
 .track-pill[aria-pressed="true"] { background: color-mix(in srgb,var(--ui-action) 16%,var(--ui-panel)); border-color: color-mix(in srgb,var(--ui-accent) 40%,transparent); box-shadow: inset 2px 0 var(--ui-accent); }
 .track-count-badge,.perf-tercile-badge,.tow-badge,.retirement-badge { border-radius: var(--radius-pill); }
-.track-tray-title { border-radius: var(--radius-lg); }
 .sidebar { display: flex; flex-direction: column; align-items: stretch; min-width: 0; padding: 0; align-self: start; overflow: visible; max-height: none; }
 .sidebar > .dashboard-card { flex: 0 0 auto; width: 100%; min-width: 0; max-width: 100%; height: auto; min-height: 0; margin: 0; box-sizing: border-box; }
 .sidebar > .driver-control-card { display: flex; flex-direction: column; min-height: 0; }
@@ -145,7 +144,6 @@ body :where(*) { font-family: var(--ui-font); }
 .performance-bar-fill { border-radius: var(--radius-pill); }
 .performance-bar-label .team-name { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.35; }
 .performance-table-wrap { border-radius: var(--radius-lg); border-color: var(--ui-border); background: var(--ui-well); }
-.measurement-table-heading { background: transparent; color: var(--ui-tertiary); border-color: var(--ui-border); }
 .performance-table thead th { background: var(--ui-well); color: var(--ui-secondary); font-weight: 500; text-transform: none; letter-spacing: 0; }
 .performance-table tbody td { border-color: var(--ui-border); }
 .performance-table tbody tr:nth-child(even) td { background-color: #ffffff03; }
@@ -306,7 +304,6 @@ main.sidebar-collapsed #driverSidebar { display: none; }
 .performance-table tbody tr:nth-child(even) td:first-child { background: #ffffff03; }
 .performance-table tbody td,.performance-table thead th { padding: 7px 9px; font-size: var(--text-sm); }
 .performance-table thead th { font-weight: 500; }
-.measurement-table-heading { padding: 6px 9px; min-height: 0; }
 .sort-icon { display: inline-block; flex: 0 0 12px; width: 12px; height: 16px; opacity: 0; font-style: normal; }
 .perf-sort-btn:hover .sort-icon,.perf-sort-btn:focus-visible .sort-icon,.perf-sort-btn.is-sorted .sort-icon { opacity: .8; }
 .perf-sort-btn { gap: 4px; }
@@ -378,8 +375,6 @@ main.sidebar-collapsed #driverSidebar { display: none; }
 .workspace-heading-actions .run-toolbar > span { font-size: var(--text-xs); letter-spacing: 0; text-transform: none; color: var(--ui-tertiary); }
 .workspace-heading-actions .run-toolbar .compare-all-btn { min-height: 28px; padding: 4px 10px; border: 1px solid var(--ui-border-strong); border-radius: var(--radius-sm); background: var(--ui-control); color: var(--ui-label); font-size: var(--text-sm); font-weight: 500; box-shadow: var(--ui-shadow-control); }
 .workspace-heading-actions .run-toolbar .compare-all-btn.selected { background: var(--ui-selected); color: var(--ui-label); }
-.lap-selection-mark { display: inline-grid; place-items: center; flex: 0 0 14px; width: 14px; height: 14px; margin-right: 5px; border: 1px solid var(--ui-border-strong); border-radius: var(--radius-xs); color: var(--ui-secondary); font-size: var(--type-caption); font-style: normal; line-height: 1; }
-.lap-chip.selected .lap-selection-mark { color: #fff; background: var(--ui-action); border-color: transparent; }
 .lap-workspace .lap-chip:not(:disabled):hover { background: var(--ui-control-hover); border-color: var(--ui-border-strong); }
 .lap-workspace .lap-group-header { margin: 8px 0 6px; padding-top: 7px; font-size: var(--text-xs); }
 .lap-workspace .run-section-label { margin-bottom: 4px; font-size: var(--text-xs); }
@@ -439,8 +434,6 @@ main.sidebar-collapsed #driverSidebar { display: none; }
 .performance-controls #performanceTrackTray:not([hidden]) { display: contents; }
 .performance-controls #performanceTrackTray[hidden] { display: none; }
 .performance-controls .track-tray-header { grid-column: 3; grid-row: 1; margin: 0; padding: 0; min-height: 34px; }
-.performance-controls .track-tray-title { width: 100%; display: flex; justify-content: space-between; padding: 7px 10px; border: 1px solid var(--ui-border-strong); border-radius: var(--radius-sm); background: var(--ui-control); min-height: 34px; }
-.performance-controls .track-tray-label { font-size: var(--text-sm); }
 .performance-controls .track-count-badge { white-space: nowrap; font-size: var(--text-xs); }
 .performance-track-choices { grid-column: 1 / -1; padding-top: 9px; border-top: 1px solid var(--ui-border); }
 .performance-track-choices[hidden] { display: none; }
@@ -480,7 +473,6 @@ main.sidebar-collapsed #driverSidebar { display: none; }
   #performanceResults > .performance-toolbar > .performance-mode { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); width: 100%; }
   #performanceResults > .performance-toolbar .metric-nav-icon { width: 14px; height: 14px; }
   .performance-controls .track-count-badge { background: transparent; padding: 0; }
-  .performance-controls .track-tray-label { display: none; }
 }
 @media (max-width: 480px) {
   #lapSelectionBody #driverSidebar { display: flex; }

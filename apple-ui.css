@@ -259,7 +259,6 @@ main.sidebar-collapsed .sidebar { display: flex; opacity: 0; visibility: hidden;
 .lap-summary-card .summary-driver > b { font-size: var(--text-xl); font-weight: 600; }
 .lap-summary-card .summary-driver > small { font-size: var(--text-md); font-weight: 400; }
 .summary-driver > em { font-size: var(--text-xs); letter-spacing: 0; padding: 2px 5px; border-radius: var(--radius-xs); }
-.lap-summary-card .trace-color-picker { grid-area: 1 / 2; justify-self: end; width: 28px; height: 28px; min-width: 28px; border-radius: var(--radius-sm); box-shadow: var(--ui-shadow-control); }
 .lap-summary-card .summary-tyre { grid-area: 2 / 1; display: flex; align-items: center; gap: 6px; font-size: var(--text-md); line-height: 1.3; }
 .summary-tyre b { font-size: var(--text-md); font-weight: 500; }
 .summary-tyre small { font-size: var(--text-sm); font-weight: 400; }
@@ -523,12 +522,6 @@ body { zoom: 1; }
 .loaded-laps { align-items: stretch; }
 .comparison-tray .loaded-lap { min-width: 0; }
 #explanationsToggle { white-space: nowrap; }
-.speed-annotation-evidence { padding: 8px 16px 12px; font-size: var(--text-md); }
-.speed-annotation-evidence summary { min-height: 36px; display: list-item; cursor: pointer; }
-.speed-annotation-evidence p { color: var(--ui-secondary); line-height: 1.5; max-width: 100ch; }
-.speed-annotation-table-wrap { overflow-x: auto; }
-.speed-annotation-evidence table { width: 100%; border-collapse: collapse; text-align: left; font-variant-numeric: tabular-nums; }
-.speed-annotation-evidence th, .speed-annotation-evidence td { padding: 8px 10px; border-bottom: 1px solid var(--ui-border); white-space: nowrap; }
 @media (max-width: 700px) { .site-header .header-actions { justify-content: flex-start; } .site-header { align-items: flex-start; } }
 .run-segment { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; }
 .run-segment small { margin: 0; white-space: nowrap; }

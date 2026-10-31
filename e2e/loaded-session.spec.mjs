@@ -2,14 +2,7 @@ import {test,expect} from '@playwright/test';
 import {readFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
 
-const data=new URL('../assets/data/',import.meta.url);
-const read=file=>JSON.parse(readFileSync(new URL(file,data)));
-const packed=file=>JSON.parse(gunzipSync(readFileSync(new URL(file,data))));
-const captures=read('local-captures/index.json'),packs=read('local-telemetry/index.json');
-const sessionEntry=Object.entries(captures.entries).find(([key])=>key.startsWith('/api/session?')&&key.includes('United+States')&&key.includes('session=Qualifying'));
-const session=packed('local-captures/'+sessionEntry[1].file);
-const performanceEntry=Object.entries(captures.entries).find(([key])=>key.startsWith('/api/performance?')&&key.includes('United+States')&&key.includes('session=Q'));
-const performance=packed('local-captures/'+performanceEntry[1].file);
+const {session,performance,telemetry}=JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/qualifying-comparison.json.gz',import.meta.url))));
 const calendar=[{year:2026,round:18,name:'United States Grand Prix',country:'United States',location:'Austin',date:'2026-10-25',sessions:['Practice 1','Qualifying','Race'],session_statuses:{Qualifying:'completed'}}];
 
 async function loaded(page,{missing=false}={}){
@@ -25,8 +18,7 @@ async function loaded(page,{missing=false}={}){
     else if(url.pathname==='/api/performance'&&url.searchParams.get('session')==='Q')payload=performance;
     else if(url.pathname==='/api/telemetry'){
       if(missing&&url.searchParams.get('driver')==='VER')return route.fulfill({status:503,contentType:'application/json',body:'{"detail":"Telemetry unavailable for this lap"}'});
-      const code=url.searchParams.get('driver'),file=packs.entries[`2026:United States Grand Prix:Qualifying:${code}`];
-      if(file)payload=packed('local-telemetry/'+file).laps[url.searchParams.get('lap')];
+      payload=telemetry[url.searchParams.get('driver')]?.[url.searchParams.get('lap')];
     }
     return route.fulfill({status:payload?200:404,contentType:'application/json',body:JSON.stringify(payload||{detail:'Not available in this fixture'})});
   });

@@ -62,13 +62,25 @@ test('a newer capture replaces an older one without deleting the superseded file
 });
 
 test('lap packs replace only when the prepared file differs and is newer', async () => {
-  const site = await release({}, {'2026:A:Q:VER': ['p.json.gz', {lap: 1}], '2026:A:Q:NOR': ['n.json.gz', {lap: 1}]});
-  const prepared = await release({}, {'2026:A:Q:VER': ['p.json.gz', {lap: 99}], '2026:A:Q:NOR': ['n.json.gz', {lap: 1}]});
+  const site = await release({}, {'2026:A:Q:VER': ['p.json.gz', {lap: 1,local_export:{captured_at:'2026-10-30T00:00:00Z'}}], '2026:A:Q:NOR': ['n.json.gz', {lap: 1}]});
+  const prepared = await release({}, {'2026:A:Q:VER': ['p.json.gz', {lap: 99,local_export:{captured_at:'2026-10-31T00:00:00Z'}}], '2026:A:Q:NOR': ['n.json.gz', {lap: 1}]});
   const later = new Date(Date.now() + 60_000);
   await utimes(path.join(prepared.data, 'local-telemetry', 'p.json.gz'), later, later);
   const p = await plan(prepared.root, site.root);
   assert.deepEqual(p.packs.map(c => [c.action, c.identity]), [['replace', '2026:A:Q:VER']], 'identical packs are left alone');
   await Promise.all([site.cleanup(), prepared.cleanup()]);
+});
+
+test('an older differently named telemetry pack cannot replace a newer capture',async()=>{
+  const site=await release({}, {'2026:A:Q:VER':['new.json.gz',{local_export:{captured_at:'2026-11-01T00:00:00Z'},laps:{1:{samples:[1]}}}]});
+  const prepared=await release({}, {'2026:A:Q:VER':['old.json.gz',{local_export:{captured_at:'2026-10-31T00:00:00Z'},laps:{1:{samples:[0]}}}]});
+  try{
+    await utimes(path.join(prepared.data,'local-telemetry/old.json.gz'),new Date(Date.now()+60000),new Date(Date.now()+60000));
+    const p=await plan(prepared.root,site.root);
+    assert.deepEqual(p.packs,[]);
+    await apply(prepared.root,site.root,p);
+    assert.equal((await index(site,'local-telemetry')).entries['2026:A:Q:VER'],'new.json.gz');
+  }finally{await Promise.all([site.cleanup(),prepared.cleanup()]);}
 });
 
 test('prepared data built for other code revisions is refused', async () => {
