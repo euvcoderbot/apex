@@ -210,15 +210,30 @@ input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 
 .circuit-section-group > header span,.workspace-eyebrow { font-size: var(--type-caption); color: var(--ui-tertiary); }
 
 /* ---------- Materials (HIG Materials) -------------------------------------
-   Translucency only where content scrolls underneath: toolbar, pop-up menus,
-   tooltips and toasts. Content panels stay opaque for legibility. */
-.site-header { background: color-mix(in srgb, var(--ui-toolbar) 82%, transparent); -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%); }
-:is(.select-menu,.tooltip,.app-toast) { border-radius: var(--hig-radius-overlay); }
-.local-compute-dialog { border-radius: var(--hig-radius-panel); }
-.local-compute-dialog::backdrop { background: #0000004d; }
-@media (prefers-reduced-transparency: reduce) {
-  :is(.site-header,.select-menu,.tooltip,.app-toast,.app-sidebar) { background: var(--ui-toolbar); -webkit-backdrop-filter: none; backdrop-filter: none; }
+   Two layers, as in macOS. Navigation and transient surfaces (toolbar,
+   sticky table headers, pop-up menus, popovers, tooltips, toasts, sheets) are
+   translucent and neutral, and only where content really passes beneath them.
+   Content panels, tables and charts stay opaque for legibility. The tokens
+   below are the one place those materials are defined; the block near the end
+   of this file applies them. */
+:root {
+  --mat-bar: color-mix(in srgb, var(--ui-toolbar) 74%, transparent);
+  --mat-header: color-mix(in srgb, var(--ui-header-row) 82%, transparent);
+  --mat-menu: color-mix(in srgb, var(--ui-control) 72%, transparent);
+  --mat-sheet: color-mix(in srgb, var(--ui-panel) 80%, transparent);
+  --mat-blur-bar: blur(24px) saturate(180%);
+  --mat-blur-menu: blur(40px) saturate(190%);
+  /* Thin hairline plus a specular top edge: what separates glass from paint. */
+  --mat-edge: inset 0 0 0 .5px color-mix(in srgb, var(--ui-label) 13%, transparent), inset 0 .5px 0 color-mix(in srgb, #fff 20%, transparent);
+  --mat-scrim: color-mix(in srgb, #000 30%, transparent);
 }
+:root[data-theme="light"] {
+  --mat-edge: inset 0 0 0 .5px #0000001f, inset 0 .5px 0 #ffffffcc;
+  --mat-scrim: color-mix(in srgb, #000 18%, transparent);
+}
+:is(.select-menu,.tooltip,.app-toast) { border-radius: var(--hig-radius-overlay); }
+/* A modal dialog sits centred in the window; an earlier global margin reset had pinned it to the top-left corner. */
+.local-compute-dialog { margin: auto; border-radius: var(--hig-radius-panel); }
 
 /* ---------- Motion (HIG Motion) --------------------------------------------
    No entrance animation replays when a panel is re-rendered by a selection;
@@ -467,8 +482,51 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
   .trace-setting,.trace-driver-chip,.trace-swatch,.ui-catalog-row > label:has(input[type="checkbox"],input[type="radio"]) { min-height: 44px; }
   .site-header.window-toolbar { height: auto; min-height: var(--ui-toolbar-height); padding-block: 8px; }
 }
-@supports not (backdrop-filter: blur(1px)) { .site-header { background: var(--ui-toolbar); } .select-menu,.tooltip,.app-toast,.circuit-guide-details[popover] { background: var(--ui-panel); } }
-@media(prefers-contrast:more) { .site-header,.app-sidebar,.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover] { background: var(--ui-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+/* ---------- Applying the materials ----------------------------------------- */
+.site-header, .site-header.window-toolbar {
+  background: var(--mat-bar); -webkit-backdrop-filter: var(--mat-blur-bar); backdrop-filter: var(--mat-blur-bar);
+  border-bottom: 0; box-shadow: none;
+}
+/* Scroll-edge effect: the toolbar's hairline appears only once content
+   scrolls beneath it. Without scroll-driven animations it is always shown. */
+.site-header::after { content: ''; position: absolute; inset: auto 0 0; height: 1px; background: var(--ui-separator); pointer-events: none; }
+@supports (animation-timeline: scroll()) {
+  .site-header::after { animation: hig-bar-edge linear both; animation-timeline: scroll(root); animation-range: 0 28px; }
+  @keyframes hig-bar-edge { from { opacity: 0; } to { opacity: 1; } }
+}
+.performance-table th { background: var(--mat-header); -webkit-backdrop-filter: var(--mat-blur-bar); backdrop-filter: var(--mat-blur-bar); }
+:is(.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover]) {
+  border: 0; background: var(--mat-menu); -webkit-backdrop-filter: var(--mat-blur-menu); backdrop-filter: var(--mat-blur-menu);
+  box-shadow: var(--ui-shadow-popover), var(--mat-edge);
+}
+.local-compute-dialog { background: var(--mat-sheet); -webkit-backdrop-filter: var(--mat-blur-menu); backdrop-filter: var(--mat-blur-menu); box-shadow: var(--ui-shadow-popover), var(--mat-edge); }
+.local-compute-dialog::backdrop { background: var(--mat-scrim); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+/* Menus and popovers fade in like AppKit's (no scale, no travel). */
+@media (prefers-reduced-motion: no-preference) {
+  :is(.select-menu[popover],.circuit-guide-details[popover]) { transition: opacity var(--hig-fast) var(--hig-ease), overlay var(--hig-fast) allow-discrete, display var(--hig-fast) allow-discrete; }
+  :is(.select-menu[popover],.circuit-guide-details[popover]):popover-open { opacity: 1; }
+  @starting-style { :is(.select-menu[popover],.circuit-guide-details[popover]):popover-open { opacity: 0; } }
+}
+/* Fallbacks. Each replaces the translucent fill with the opaque one. */
+@supports not (backdrop-filter: blur(1px)) {
+  .site-header,.site-header.window-toolbar { background: var(--ui-toolbar); }
+  .performance-table th { background: var(--ui-header-row); }
+  :is(.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover]) { background: var(--ui-control); }
+  .local-compute-dialog { background: var(--ui-panel); }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :is(.site-header,.site-header.window-toolbar) { background: var(--ui-toolbar); }
+  .performance-table th { background: var(--ui-header-row); }
+  :is(.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover]) { background: var(--ui-control); }
+  .local-compute-dialog { background: var(--ui-panel); }
+  :is(.site-header,.site-header.window-toolbar,.performance-table th,.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover],.local-compute-dialog,.local-compute-dialog::backdrop) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@media (prefers-contrast: more) { :is(.app-sidebar) { background: var(--ui-panel); } }
+/* Compute status: a labelled pill beside the toolbar items; a dot when space runs out. */
+.site-header .local-compute-status[data-ui-kind="toolbar"] { width: auto; min-width: 0; height: 22px; min-height: 22px; padding: 0 8px; border-radius: 11px; }
+@media (max-width: 860px) { .site-header .local-compute-status[data-ui-kind="toolbar"] { width: 22px; padding: 0; font-size: 0; } }
+@media (max-width: 520px) { .site-header .local-compute-status[data-ui-kind="toolbar"] { display: none; } }
+@media (pointer: coarse) { .site-header .local-compute-status[data-ui-kind="toolbar"] { min-width: 44px; height: 44px; min-height: 44px; } }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 @media(forced-colors:active) { [data-ui-thumb] > button[aria-selected="true"] { background: Highlight; color: HighlightText; } .chart-data-access { background: Canvas; color: CanvasText; } }
 
