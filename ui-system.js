@@ -152,6 +152,14 @@
       if(thumbObserver&&!group.dataset.uiThumbObserved){group.dataset.uiThumbObserved='true';thumbObserver.observe(group);}
     }
   }
+  function releaseRemovedThumbs(records){
+    if(!thumbObserver)return;
+    for(const record of records)for(const node of record.removedNodes||[]){
+      if(node.nodeType!==1||node.isConnected)continue;
+      const groups=[...(node.matches(thumbGroups)?[node]:[]),...node.querySelectorAll(thumbGroups)];
+      for(const group of groups){thumbObserver.unobserve(group);delete group.dataset.uiThumbObserved;}
+    }
+  }
   function audit(root=document){
     const counts={},unowned=[];
     for(const el of root.querySelectorAll('button,input:not([type="hidden"]),select,textarea,summary,[role="separator"]')){
@@ -164,6 +172,7 @@
   decorate();
   let pending=false;
   if(typeof MutationObserver!=='undefined')new MutationObserver(records=>{
+    releaseRemovedThumbs(records);
     if(!records.some(record=>record.type==='childList'||record.target.matches?.('button,input,select,summary'))||pending)return;
     // rAF pauses in background tabs; the timer guarantees new controls are owned anyway.
     pending=true;const run=()=>{if(!pending)return;pending=false;decorate();};requestAnimationFrame(run);setTimeout(run,150);

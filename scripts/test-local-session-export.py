@@ -18,6 +18,24 @@ mirror_spec.loader.exec_module(mirror)
 
 
 class LocalSessionExportTests(unittest.TestCase):
+    def test_older_python_capture_cannot_replace_newer_observation(self):
+        with TemporaryDirectory() as directory:
+            root=Path(directory);(root/'lib').mkdir()
+            (root/'lib/cache-revision.mjs').write_text('export const SOURCE_REVISION = "s"; export const BACKEND_REVISION = "b"; export const RACE_REVISION = "r";')
+            def capture(at):
+                return {'drivers':[{'code':'VER'}],'local_export':{'captured_at':at}}
+            newer=capture('2026-10-31T12:00:00Z')
+            key=export.merge_local_session_capture(root,2026,'Mexico',19,'Practice 2',newer)
+            target=root/'assets/data/local-captures/index.json'
+            original=target.read_bytes()
+            export.merge_local_session_capture(root,2026,'Mexico',19,'Practice 2',capture('2026-10-31T11:00:00Z'))
+            self.assertEqual(target.read_bytes(),original)
+            entry=json.loads(original)['entries'][key]
+            self.assertEqual(json.loads(gzip.decompress((target.parent/entry['file']).read_bytes())),newer)
+            with self.assertRaises(ValueError):
+                export.merge_local_session_capture(root,2026,'Mexico',19,'Practice 2',capture('invalid'))
+            self.assertEqual(target.read_bytes(),original)
+
     def test_recent_stream_capture_and_explicit_refresh_use_real_source_rows(self):
         with TemporaryDirectory() as directory, patch.object(export.server,'PREPARED_CACHE',Path(directory)),patch.object(export.server,'RAW_ROOT',Path(directory)/'raw'):
             with patch.object(export.server,'openf1',return_value=[{'speed':200}]):

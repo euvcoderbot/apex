@@ -1422,6 +1422,18 @@ def analyze_straights_speed_domain(selected, straight_blocks, grid, ref, corner_
     return straight_results
 
 
+def _speed_domain_inputs(prepared):
+    """Keep authoritative lap timing alongside, not inside, native channels."""
+    cars={};timing={}
+    for team,values in prepared.items():
+        cars[team]=[v['a'] for v in values]
+        timing[team]=[{'official_time_s':v['official'],
+                       'completed_at_s':v['selection'].get('end'),
+                       'driver':v['selection'].get('driver'),
+                       'lap':v['selection'].get('lap')} for v in values]
+    return cars,timing
+
+
 def speed_domain_only(extracted, selections, corners=()):
     """Speed-domain metrics alone, without the window-timing alignment work.
 
@@ -1441,9 +1453,9 @@ def speed_domain_only(extracted, selections, corners=()):
             laps[team].append(prepare(samples, selection, require_gps=False))
         except (ValueError, TypeError) as exc:
             errors[team] = str(exc)
-    cars = {team: [v['a'] for v in sorted(values, key=lambda r: r['official'])[:2]] for team, values in laps.items()}
+    cars,timing = _speed_domain_inputs({team:sorted(values,key=lambda r:r['official'])[:2] for team,values in laps.items()})
     try:
-        speed_domain = speed_domain_metrics(cars, corners)
+        speed_domain = speed_domain_metrics(cars, corners, lap_info=timing)
     except Exception as exc:
         speed_domain = {'method': 'speed-domain-v2', 'cars': {}, 'error': str(exc)[:200]}
     speed_domain.setdefault('excluded', {})
@@ -1884,11 +1896,12 @@ def measure_field(extracted, selections, corners=(), measurement_frame=None):
         # Every validated lap, not only those the window-timing alignment
         # kept: speed-domain registration is independent and reports its own
         # exclusions (a locally stretched GPS frame must not hide a car here).
-        laps_by_team = {team: [v['a'] for v in (qualifying_candidates.get(team) or [item])[:2]] for team, item in selected.items()}
+        prepared_by_team = {team:(qualifying_candidates.get(team) or [item])[:2] for team,item in selected.items()}
         for team, values in choices.items():
-            if team not in laps_by_team and values:
-                laps_by_team[team] = [v['a'] for v in sorted(values, key=lambda r: r['official'])[:2]]
-        speed_domain = speed_domain_metrics(laps_by_team, corners)
+            if team not in prepared_by_team and values:
+                prepared_by_team[team] = sorted(values,key=lambda r:r['official'])[:2]
+        laps_by_team,timing = _speed_domain_inputs(prepared_by_team)
+        speed_domain = speed_domain_metrics(laps_by_team, corners, lap_info=timing)
     except Exception as exc:  # never lose the established measurements
         speed_domain = {'method': 'speed-domain-v2', 'cars': {}, 'error': str(exc)[:200]}
 

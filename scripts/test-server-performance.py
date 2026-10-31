@@ -138,7 +138,8 @@ class RetrievalTests(unittest.TestCase):
             return [{'date':(start+timedelta(seconds=i/4)).isoformat(), 'speed':200,
                      'throttle':100,'brake':0,'n_gear':6,'rpm':10000,'drs':0} for i in range(241)]
         try:
-            with patch.object(server, 'openf1', upstream):
+            with patch.object(server, 'openf1', upstream), \
+                 patch.object(server, 'openf1_session_stream', return_value=None):
                 began=time.perf_counter()
                 samples=server._openf1_lap_telemetry.__wrapped__(2026,'Spanish Grand Prix','Q','3',17,0,
                     11365,start.isoformat(),60,None)
@@ -193,6 +194,7 @@ class RetrievalTests(unittest.TestCase):
             hi = datetime.fromisoformat(params["date<"]).replace(tzinfo=timezone.utc)
             return [row for row in rows if lo <= datetime.fromisoformat(row["date"]) < hi]
         with patch.object(server, 'openf1', side_effect=upstream), \
+             patch.object(server, 'openf1_session_stream', return_value=None), \
              patch.object(server, 'load_session', side_effect=AssertionError('whole session loaded')), \
              patch.object(server, 'read_prepared_cache', side_effect=AssertionError('cache read')), \
              patch.object(server, 'write_prepared_cache', side_effect=AssertionError('cache write')):

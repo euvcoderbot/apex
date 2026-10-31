@@ -14,6 +14,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import server
+from capture_storage import repository_lock,atomic_bytes
 
 
 def main():
@@ -45,6 +46,7 @@ def main():
             raise ValueError('Existing telemetry revisions differ; no packs were removed or replaced')
         index = {'schema': 'native-lap-packs-v1', 'sourceRevision': revision, 'entries': {}}
     seen, missing, laps, packs, size = set(), [], 0, 0, 0
+    new_entries = {}
     from urllib.parse import urlparse, parse_qs, urlencode
     items = [(query, filename, None) for query, filename in manifest['entries'].items()]
     if args.session_summary:
@@ -118,9 +120,12 @@ def main():
                 continue
             identity = f'{args.year}:{gp}:{session}:{driver["code"]}'
             packed = gzip.compress(json.dumps({'sessionKey':key, 'local_export':data.get('local_export'), 'laps':records}, separators=(',',':'), allow_nan=False).encode(), mtime=0)
-            name = hashlib.sha256(identity.encode()).hexdigest()[:24]+'.json.gz'
-            (out/name).write_bytes(packed)
+            # Immutable payload names keep an older index valid while a newer
+            # export is being staged or if the exporting process crashes.
+            name = hashlib.sha256(packed).hexdigest()[:24]+'.json.gz'
+            atomic_bytes(out/name,packed)
             index['entries'][identity] = name
+            new_entries[identity] = name
             packs += 1
             size += len(packed)
             session_count += len(records)
@@ -128,7 +133,12 @@ def main():
         laps += session_count
         print(f'{gp} / {session}: {session_count} laps', flush=True)
     if not args.dry_run:
-        target.write_text(json.dumps(index, separators=(',',':')))
+        with repository_lock(ROOT,[out]):
+            latest=json.loads(target.read_text()) if target.exists() else {}
+            if latest.get('entries') and latest.get('sourceRevision')!=revision:
+                raise ValueError('Telemetry revision changed during export; old index retained')
+            index['entries']={**latest.get('entries',{}),**new_entries}
+            atomic_bytes(target,json.dumps(index,separators=(',',':')).encode())
     print(json.dumps({'laps':laps,'packs':packs,'megabytes':round(size/1e6,2),'missingCount':len(missing),'missing':missing[:20]}), flush=True)
 
 

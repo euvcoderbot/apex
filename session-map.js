@@ -153,7 +153,7 @@ function renderMiniSectorMap() {
     const maxX = Math.max(...mapGeometry.map(point => point.x));
     const minY = Math.min(...mapGeometry.map(point => point.y));
     const maxY = Math.max(...mapGeometry.map(point => point.y));
-    const padding = 34;
+    const padding = 22;
     const scale = Math.min((rect.width - padding * 2) / (maxX - minX || 1), (rect.height - padding * 2) / (maxY - minY || 1));
     const offsetX = (rect.width - (maxX - minX) * scale) / 2;
     const offsetY = (rect.height - (maxY - minY) * scale) / 2;
@@ -258,54 +258,87 @@ function renderMiniSectorMap() {
 
   // Corner markers rendered ON TOP of mini-sector dominance lines
   if ($('#cornerToggle').checked) {
-    ctx.font = canvasFont(12, 500);
+    // Numbered beads touching the road, the same marks as the circuit guide. They sit beside it rather than on it so the dominance colour at
+    // the corner stays visible. A crowded corner slides along the road instead of flying away on a long line, and every corner keeps its number.
+    ctx.font = canvasFont(8, 700);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const occupiedLabels = [];
-    const leaders = [];
-    markerCorners.forEach(corner => {
+    const light = lightThemeActive(), roadHalf = 3.5, beads = [];
+    const roadLength = canvasGeometry.reduce((sum, p, i) => i ? sum + Math.hypot(p.x - canvasGeometry[i - 1].x, p.y - canvasGeometry[i - 1].y) : 0, 0) || 1;
+    const roadDistance = (x, y) => {
+      let best = Infinity;
+      for (let i = 0; i < canvasGeometry.length; i++) {
+        const a = canvasGeometry[i], b = canvasGeometry[(i + 1) % canvasGeometry.length];
+        const dx = b.x - a.x, dy = b.y - a.y, t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+        best = Math.min(best, Math.hypot(a.x + dx * t - x, a.y + dy * t - y));
+      }
+      return best;
+    };
+    const free = (x, y, radius) => x >= radius + 2 && y >= radius + 2 && x <= rect.width - radius - 2 && y <= rect.height - radius - 2
+      && beads.every(b => Math.hypot(b.x - x, b.y - y) >= b.radius + radius + 1) && roadDistance(x, y) >= radius + roadHalf;
+    const crowding = corner => {
+      const here = pointAt(corner.fraction);
+      return here ? Math.min(...markerCorners.filter(other => other !== corner).map(other => { const there = pointAt(other.fraction); return there ? Math.hypot(there.x - here.x, there.y - here.y) : Infinity; })) : Infinity;
+    };
+    // Crowded corners choose first, while there is still room beside them.
+    [...markerCorners].sort((a, b) => crowding(a) - crowding(b)).forEach(corner => {
       const point = pointAt(corner.fraction);
       if (!point) return;
-      const angle = Number(corner.angle);
-      const displayAngle = Number.isFinite(angle) ? angle : NaN;
-      const offsetX = Number.isFinite(displayAngle) ? Math.cos(displayAngle * Math.PI / 180) * 11 : 0;
-      const offsetY = Number.isFinite(displayAngle) ? -Math.sin(displayAngle * Math.PI / 180) * 11 : -11;
-      const label = cornerLabel(corner);
-      const labelWidth = ctx.measureText(label).width + 8;
-      let placement = null;
-      // Search nearby positions, reserving the complete text box. Leader
-      // lines preserve the turn location when a crowded label must move.
-      for (const radius of [24, 36, 48, 64, 80, 100, 124, 152]) {
-        for (let direction = 0; direction < 16; direction++) {
-          const theta = Math.atan2(offsetY, offsetX) + direction * Math.PI / 8;
-          const x = Math.max(labelWidth / 2 + 4, Math.min(rect.width - labelWidth / 2 - 4, point.x + Math.cos(theta) * radius));
-          const y = Math.max(12, Math.min(rect.height - 12, point.y + Math.sin(theta) * radius));
-          const box = {x: x - labelWidth / 2, y: y - 9, width: labelWidth, height: 18};
-          if (trackIntersectsLabel(box, canvasGeometry)) continue;
-          if (occupiedLabels.some(b => box.x < b.x + b.width + 3 && box.x + box.width + 3 > b.x && box.y < b.y + b.height + 3 && box.y + box.height + 3 > b.y)) continue;
-          const connector = cornerLabelConnector(point, box, leaders, occupiedLabels);
-          if (!connector) continue;
-          placement = {x, y, box, ...connector};
-          break;
+      const label = cornerLabel(corner).replace(/^T/, '');
+      const radius = Math.max(6.5, ctx.measureText(label).width / 2 + 2);
+      const angle = Number(corner.angle) * Math.PI / 180;
+      const outward = Number.isFinite(angle) ? {x: Math.cos(angle), y: -Math.sin(angle)} : {x: 0, y: -1};
+      let spot = null;
+      for (const slide of [0, 5, -5, 10, -10, 15, -15, 20, -20, 26, -26, 32, -32]) {
+        const fraction = Math.max(0, Math.min(1, corner.fraction + slide / roadLength));
+        const here = pointAt(fraction), before = pointAt(Math.max(0, fraction - 4 / roadLength)), after = pointAt(Math.min(1, fraction + 4 / roadLength));
+        if (!here || !before || !after) continue;
+        const length = Math.hypot(after.x - before.x, after.y - before.y) || 1;
+        const normal = {x: -(after.y - before.y) / length, y: (after.x - before.x) / length};
+        const first = normal.x * outward.x + normal.y * outward.y >= 0 ? 1 : -1;
+        for (const gap of [0, 3, 7, 12]) for (const side of [first, -first]) {
+          const x = here.x + normal.x * side * (radius + roadHalf + gap), y = here.y + normal.y * side * (radius + roadHalf + gap);
+          if (!spot && free(x, y, radius)) spot = {x, y};
         }
-        if (placement) break;
+        if (spot) break;
       }
-      if (!placement) return; // Never render overlapping text on tiny maps.
-      occupiedLabels.push(placement.box);
-      if (placement.line) {
-      leaders.push(placement.line);
+      if (!spot) {
+        // Nothing free beside the road here: the nearest free place, with a line back to the corner.
+        for (const distance of [24, 30, 38, 48, 60, 76]) {
+          for (let step = 0; step < 16 && !spot; step++) {
+            const theta = step * Math.PI / 8, x = point.x + Math.cos(theta) * distance, y = point.y + Math.sin(theta) * distance;
+            if (free(x, y, radius)) spot = {x, y};
+          }
+          if (spot) break;
+        }
+      }
+      // A tiny map can have no free place at all; the number still shows, at the corner.
+      if (!spot) spot = {x: point.x, y: point.y};
+      beads.push({...spot, radius, label, point});
+    });
+    for (const {x, y, radius, point} of beads) {
+      const distance = Math.hypot(point.x - x, point.y - y);
+      if (distance <= radius + roadHalf + 14) continue;
       ctx.beginPath();
-      ctx.moveTo(placement.line.a.x, placement.line.a.y);
-      ctx.lineTo(placement.line.b.x, placement.line.b.y);
+      ctx.moveTo(point.x, point.y);
+      ctx.lineTo(x, y);
       ctx.strokeStyle = theme.labelFill;
-      ctx.globalAlpha = .35;
+      ctx.globalAlpha = .5;
       ctx.lineWidth = 1;
       ctx.stroke();
       ctx.globalAlpha = 1;
-      }
-      ctx.fillStyle = theme.labelFill;
-      ctx.fillText(label, placement.x, placement.y);
-    });
+    }
+    for (const {x, y, radius, label} of beads) {
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = light ? '#ffffff' : '#1c1c1e';
+      ctx.fill();
+      ctx.strokeStyle = light ? '#1d1d1f' : '#e5e5ea';
+      ctx.lineWidth = 1.1;
+      ctx.stroke();
+      ctx.fillStyle = light ? '#1d1d1f' : '#f2f2f4';
+      ctx.fillText(label, x, y + .5);
+    }
     ctx.textAlign = 'start';
     ctx.textBaseline = 'alphabetic';
   }

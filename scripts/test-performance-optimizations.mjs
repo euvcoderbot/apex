@@ -29,11 +29,31 @@ function qualifyingFixture(){
   return {entries,session,performance};
 }
 
+test('failed qualifying refresh does not replace a prior usable result or renew its expiry',async()=>{
+  const {entries,session,performance}=qualifyingFixture(),store=new Map();let refreshed=false;
+  const bad=entries[0];
+  const cache=createDataCache({read:async k=>store.get(k),write:async(k,v)=>store.set(k,v),fetcher:async url=>{
+    const u=new URL(url),code=u.searchParams.get('driver');
+    if(u.pathname==='/api/session')return {ok:true,json:async()=>refreshed?{...session,drivers:session.drivers.map(d=>d.code===bad.row.driver.code?{...d,laps:[{...d.laps[0],lap:99,time:d.laps[0].time-.1}]}:d)}:session};
+    if(u.pathname==='/api/performance')return {ok:true,json:async()=>refreshed?{teams:performance.teams.map(t=>t.lap.driver===bad.row.driver.code?{...t,lap:{...t.lap,lap:99,time:t.lap.time-.1}}:t)}:performance};
+    if(refreshed&&code===bad.row.driver.code)throw new Error('Provider temporarily unavailable');
+    return {ok:true,json:async()=>entries.find(e=>e.row.driver.code===code).payload};
+  }});
+  const query={year:2026,gp:'Bahrain Grand Prix',round:'16',subject:'team'};
+  const first=await loadQualifyingCorners(cache,query);assert.equal(first.data.complete,true);
+  const key=[...store.keys()].find(k=>k.includes(':qualifying:')),before=JSON.stringify(store.get(key));
+  refreshed=true;
+  const result=await loadQualifyingCorners(cache,{...query,fresh:true});
+  assert.equal(result.data.complete,false);assert.equal(result.data.requestErrors.length,1);assert.equal(result.ttl,0);
+  assert.equal(JSON.stringify(store.get(key)),before);
+});
+
 test('server qualifying calculations coalesce, persist, and retry only the incomplete native lap',async()=>{
-  const {entries,session,performance}=qualifyingFixture(),store=new Map();let requests=0,refreshes=[];
+  const {entries,session,performance}=qualifyingFixture(),store=new Map();let requests=0,refreshes=[],summaryRefreshes=[];
   const bad=entries[0],lo=bad.payload.samples.at(-1).Distance*.32,hi=lo+180;
   const options={read:async k=>store.get(k),write:async(k,v)=>store.set(k,v),fetcher:async url=>{
     requests++;const u=new URL(url),entry=entries.find(e=>e.row.driver.code===u.searchParams.get('driver'));
+    if(['/api/session','/api/performance'].includes(u.pathname)&&u.searchParams.has('fresh'))summaryRefreshes.push(u.pathname);
     let data=u.pathname==='/api/session'?session:u.pathname==='/api/performance'?performance:entry.payload;
     if(u.pathname==='/api/telemetry'&&entry===bad&&!u.searchParams.has('fresh'))data={...entry.payload,samples:entry.payload.samples.filter(p=>p.Distance<lo||p.Distance>hi)};
     if(u.pathname==='/api/telemetry'&&u.searchParams.has('fresh'))refreshes.push(entry.row.driver.code);
@@ -48,6 +68,7 @@ test('server qualifying calculations coalesce, persist, and retry only the incom
   assert.equal((await loadQualifyingCorners(createDataCache(options),query)).cache,'HIT');assert.equal(requests,count);
   const recovered=await loadQualifyingCorners(createDataCache(options),{...query,fresh:true});
   assert.equal(recovered.data.complete,true);assert.deepEqual(refreshes,[bad.row.driver.code]);
+  assert.deepEqual(summaryRefreshes.sort(),['/api/performance','/api/session']);
   assert.equal(recovered.data.traces[bad.row.driver.code].selection.lap,bad.row.lap);
 });
 

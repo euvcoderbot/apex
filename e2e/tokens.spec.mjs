@@ -30,9 +30,13 @@ test('computed :root custom properties are unchanged, in both appearances', asyn
   }
   expect(existsSync(FILE), 'run with UPDATE_TOKENS=1 to record the baseline').toBe(true);
   const expected = JSON.parse(readFileSync(FILE, 'utf8'));
+  // CSS serializers may use seconds or milliseconds for the same duration.
+  // Compare exact time values, without accepting any changed timing.
+  const comparable=value=>/^\.?\d+(?:\.\d+)?m?s$/.test(value)
+    ? `${Number.parseFloat(value)*(value.endsWith('ms')?1:1000)}ms` : value;
   for (const theme of ['dark', 'light']) {
     const missing = Object.keys(expected[theme]).filter(name => !(name in snapshot[theme]));
-    const changed = Object.keys(expected[theme]).filter(name => name in snapshot[theme] && snapshot[theme][name] !== expected[theme][name])
+    const changed = Object.keys(expected[theme]).filter(name => name in snapshot[theme] && comparable(snapshot[theme][name]) !== comparable(expected[theme][name]))
       .map(name => `${name}: ${expected[theme][name]}  ->  ${snapshot[theme][name]}`);
     expect({theme, missing, changed}).toEqual({theme, missing: [], changed: []});
   }

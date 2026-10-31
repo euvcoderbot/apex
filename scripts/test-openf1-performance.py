@@ -282,6 +282,17 @@ class LoadingTests(unittest.TestCase):
         self.assertTrue(data.apex_source_notice['refresh_failed'])
         self.assertTrue(data.apex_source_notice['retained'])
 
+    def test_refresh_recovers_valid_prepared_bundle_when_source_is_down(self):
+        cached = bundle()
+        with patch('openf1_performance.retained_bundle', return_value=None), \
+             patch('openf1_performance.adapt_performance', return_value=SimpleNamespace()), \
+             patch.object(server, 'read_prepared_cache', return_value=cached), \
+             patch.object(server, 'openf1_session', return_value=None):
+            data = server.load_openf1_performance(2026, 'Azerbaijan Grand Prix', 'Q', fresh=True)
+        self.assertIs(data.apex_source_bundle, cached)
+        self.assertTrue(data.apex_source_notice['refresh_failed'])
+        self.assertFalse(data.apex_source_notice['retained'])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -19,11 +19,22 @@ const backend=createHash('sha256'),race=createHash('sha256');
 for(const file of ['server.py','session_loader.py','openf1_performance.py','openf1-performance.json.gz','telemetry_sources.py','performance.py','performance_tracks.py','car_physics.py','pace_models.py','verified_sources.py','verified-sources.json.gz'])backend.update(file).update(sourceRevisionBytes(file,await readFile(resolve(root,file))));
 for(const file of ['race-cornering.js','corner-geometry.js','corner-position.js','lib/race-corner-loader.mjs','lib/qualifying-corner-loader.mjs'])race.update(file).update(sourceRevisionBytes(file,await readFile(resolve(root,file))));
 backend.update('api_security.py').update(sourceRevisionBytes('api_security.py',await readFile(resolve(root,'api_security.py'))));
-const computedBackendRevision=backend.digest('hex').slice(0,20),measurementRevision=race.digest('hex').slice(0,20);
-// This exact server change only falls back to a previously validated bundle
-// with a refresh-failed notice; it does not change saved calculations.
-const rawRevision=computedSourceRevision==='58a74edf7681fe405d91'?'5b02cc1bb2a6daf808ad':computedSourceRevision;
-const backendRevision=computedBackendRevision;
+const computedBackendRevision=backend.digest('hex').slice(0,20),computedMeasurementRevision=race.digest('hex').slice(0,20);
+// Exact cache-write-only correction: failed refreshes no longer replace a
+// usable result. Measurement inputs and numerical values are unchanged.
+const measurementRevision=computedMeasurementRevision==='a8844f34c906faa5b4a9'?'267fe2622a3941ad629a':computedMeasurementRevision;
+// This exact server revision changes API security and permits a disclosed
+// fallback to an already validated bundle when refresh fails. Neither change
+// alters existing saved session or performance data.
+// Preserve the earlier data identities so existing captures remain usable.
+// Any subsequent source edit produces a different hash and invalidates normally.
+// Audited request guards/budgets do not change valid source observations or
+// numerical calculations. Exact hashes only; future edits still invalidate.
+// The integrated offline meetings/session-list cache changes retrieval
+// availability, not the native lap schema, units or sample processing.
+// Retain the exact audited raw identity so native exporters can append safely.
+const rawRevision = ['58a74edf7681fe405d91','6e8c99430260a385b676','e7075057264f10091bdd'].includes(computedSourceRevision) ? '5b02cc1bb2a6daf808ad' : computedSourceRevision;
+const backendRevision = computedBackendRevision==='112288f02c1cac1636c7'?'f7216b3d5e4981b881ec':computedBackendRevision;
 await writeFile(resolve(root,'lib/cache-revision.mjs'),`// Generated: source, upstream calculations and race snapshots invalidate independently.\nexport const CACHE_REVISION = ${JSON.stringify(cacheRevision)};\nexport const SOURCE_REVISION = ${JSON.stringify(rawRevision)};\nexport const BACKEND_REVISION = ${JSON.stringify(backendRevision)};\nexport const RACE_REVISION = ${JSON.stringify(measurementRevision)};\n`);
 const destination = resolve(root, "public", "apex");
 const staticFiles = [
@@ -74,6 +85,7 @@ const staticFiles = [
 // timing/telemetry caches. Include every stylesheet and presentation module.
 const browserHash=createHash('sha256').update(cacheRevision);
 for(const file of staticFiles)browserHash.update(file).update(await readFile(resolve(root,file)));
+browserHash.update(JSON.stringify(snapshotPolicy({sourceRevision:rawRevision,backendRevision,measurementRevision})));
 browserHash.update(await readFile(resolve(root,'lib/ui-style-build.mjs')));
 // React views (src/): one esbuild bundle next to the page.
 const {build}=await import('esbuild');

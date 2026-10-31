@@ -14,11 +14,12 @@
 // page ignores snapshots whose revisions do not match, so they would not show.
 // It does not build or publish; run the Site's own sync/build and publish after.
 import {createHash} from 'node:crypto';
-import {copyFile, mkdir, open, readFile, readdir, rename, stat, unlink, writeFile} from 'node:fs/promises';
+import {mkdir, readFile, stat} from 'node:fs/promises';
 import {gunzipSync} from 'node:zlib';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {mergeLocalCaptures} from '../lib/local-captures.mjs';
+import {atomicBytes,captureLock} from '../lib/atomic-json.mjs';
+import {snapshotCompatible,tagCaptureRevisions} from '../lib/snapshot-policy.mjs';
 
 const read = async file => readFile(file, 'utf8').then(JSON.parse);
 const exists = file => stat(file).then(() => true, () => false);
@@ -49,7 +50,7 @@ export async function plan(from, to) {
   const fromCaptures = await read(path.join(data(from), 'local-captures', 'index.json'));
   const fromPacks = await read(path.join(data(from), 'local-telemetry', 'index.json'));
   for (const key of ['sourceRevision', 'backendRevision', 'measurementRevision'])
-    if (fromCaptures[key] !== wanted[key])
+    if (!snapshotCompatible(key,fromCaptures[key],wanted[key]))
       problems.push(`captures were prepared for ${key} ${fromCaptures[key]} but the Site's code is ${wanted[key]}; the page would ignore them`);
   if (fromPacks.sourceRevision !== wanted.sourceRevision)
     problems.push(`lap packs were prepared for sourceRevision ${fromPacks.sourceRevision} but the Site's code is ${wanted.sourceRevision}`);
@@ -57,7 +58,7 @@ export async function plan(from, to) {
 
   const toCaptures = await read(path.join(data(to), 'local-captures', 'index.json')).catch(() => ({...fromCaptures, entries: {}}));
   const toPacks = await read(path.join(data(to), 'local-telemetry', 'index.json')).catch(() => ({...fromPacks, entries: {}}));
-  const siteMatches = ['sourceRevision', 'backendRevision', 'measurementRevision'].every(k => toCaptures[k] === wanted[k]);
+  const siteMatches = ['sourceRevision', 'backendRevision', 'measurementRevision'].every(k => snapshotCompatible(k,toCaptures[k],wanted[k]));
   if (!siteMatches) problems.push("the Site's own capture index is for other revisions; its entries are already ignored by the page and will be replaced");
 
   for (const [key, entry] of Object.entries(fromCaptures.entries || {})) {
@@ -98,37 +99,48 @@ export async function plan(from, to) {
 }
 
 export async function apply(from, to, p) {
+  return captureLock(to,async commitJson=>{
+    // Planning outside the shared lock must not overwrite a later capture.
+    p=await plan(from,to);
+    if(!p.wanted||p.problems.some(x=>x.startsWith('unreadable')))throw Error('Invalid prepared data');
+    return applyLocked(from,to,p,commitJson);
+  });
+}
+
+async function applyLocked(from,to,p,commitJson) {
   const data = root => path.join(root, 'assets', 'data');
   const put = async (source, target) => {
     await mkdir(path.dirname(target), {recursive: true});
-    const temporary = target + '.tmp'; await copyFile(source, temporary); await rename(temporary, target);
+    await atomicBytes(target,await readFile(source));
   };
-  const captures = {...p.toCaptures, ...p.wanted, schema: p.fromCaptures.schema, entries: p.siteMatches ? {...p.toCaptures.entries} : {}};
+  const captures = {...p.toCaptures, ...p.wanted, schema: p.fromCaptures.schema, entries: p.siteMatches ? tagCaptureRevisions(p.toCaptures) : {}};
   for (const {key, entry, superseded} of p.captures) {
     await put(path.join(data(from), 'local-captures', entry.file), path.join(data(to), 'local-captures', entry.file));
-    captures.entries[key] = entry;
+    captures.entries[key] = tagCaptureRevisions(p.fromCaptures)[key] || entry;
     // Retain the old content-addressed file: another index or a user may need it.
   }
   captures.generated = new Date().toISOString();
-  await writeFile(path.join(data(to), 'local-captures', 'index.json'), JSON.stringify(captures));
+  // Build the captured calendar in the same index transaction, without
+  // recursively acquiring the capture lock.
+  if(p.calendar){
+    const packed=(await import('node:zlib')).gzipSync(JSON.stringify(p.calendar.data.events||p.calendar.data));
+    const file=sha(packed).slice(0,24)+'.json.gz';
+    await atomicBytes(path.join(data(to),'local-captures',file),packed);
+    captures.entries['/api/events?year=2026']={file,capturedAt:(await stat(path.join(data(from),'events',p.calendar.file))).mtime.toISOString()};
+  }
   const packs = {...p.toPacks, sourceRevision: p.wanted.sourceRevision, schema: p.fromPacks.schema, entries: {...p.toPacks.entries}};
   for (const {identity, file, superseded} of p.packs) {
     await put(path.join(data(from), 'local-telemetry', file), path.join(data(to), 'local-telemetry', file));
     packs.entries[identity] = file;
     // Keep superseded packs rather than deleting user data during a sync.
   }
-  await writeFile(path.join(data(to), 'local-telemetry', 'index.json'), JSON.stringify(packs));
+  await commitJson(path.join(data(to), 'local-telemetry', 'index.json'), packs);
   if (p.calendar) {
-    const source=path.join(data(from), 'events', p.calendar.file);
     const target=path.join(data(to), 'events', p.calendar.file);
-    await writeFile(target+'.tmp',JSON.stringify(p.calendar.data));
-    await rename(target+'.tmp',target);
-    // The published snapshot loader prefers the captured /api/events entry
-    // over events/2026.json. Update both or newly prepared sessions stay hidden.
-    const calendar=p.calendar.data;
-    await mergeLocalCaptures(to, p.wanted, [{route:'/api/events?year=2026',data:calendar.events || calendar,
-      capturedAt:(await stat(source)).mtime.toISOString()}]);
+    await commitJson(target,p.calendar.data);
   }
+  // Commit captures last; all referenced files have been copied successfully.
+  await commitJson(path.join(data(to), 'local-captures', 'index.json'),captures);
 }
 
 function describe(p) {
@@ -157,14 +169,9 @@ async function main() {
   if (fatal || p.problems.some(x => x.startsWith('unreadable'))) process.exit(1);
   console.log(describe(p));
   if (!args.includes('--apply')) { console.log('\nDry run. Add --apply to write these into ' + path.resolve(to)); return; }
-  const lock=path.join(path.resolve(to),'assets','data','.sync-prepared.lock');
-  const handle=await open(lock,'wx').catch(e=>{if(e.code==='EEXIST')throw Error('Another prepared-data sync is active; retry later.');throw e;});
-  try {
-    p=await plan(path.resolve(from),path.resolve(to));
-    if(!p.wanted||p.problems.some(x=>x.startsWith('unreadable')))throw Error('Prepared data changed or is invalid; retry after preparation completes.');
-    if(!p.captures.length&&!p.packs.length&&!p.calendar){console.log('\nAlready up to date.');return;}
-    await apply(path.resolve(from), path.resolve(to), p);
-  } finally { await handle.close(); await unlink(lock); }
+  if(!p.captures.length&&!p.packs.length&&!p.calendar){console.log('\nAlready up to date.');return;}
+  // apply re-plans while holding the same OS lock as all capture writers.
+  await apply(path.resolve(from), path.resolve(to), p);
   console.log('\nDone. Rebuild the Site (npm run sync:apex) and publish it.');
 }
 

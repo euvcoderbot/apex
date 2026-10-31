@@ -22,4 +22,5 @@ start-apex.bat
 .claude/worktrees/
 tsconfig.tsbuildinfo
 test-results/
+**/index.oslock
 playwright-report/

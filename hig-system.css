@@ -441,7 +441,7 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 .corner-table-head [role="columnheader"] small { display: inline; font-weight: 400; color: var(--ui-tertiary); }
 .corner-table-head [role="columnheader"][aria-sort]:not([aria-sort="none"]) { color: var(--ui-label); }
 @container (max-width:380px) { .corner-table-head [role="columnheader"] small { display: none; } }
-.ui-catalog-page .app-sidebar { width: 100%; border: 0; padding: 8px; }
+.ui-catalog-page .app-sidebar { width: 100%; min-width: 0; max-width: 100%; flex: 1 1 100%; border: 0; padding: 8px; }
 :root[data-ui-input="coarse"] { --hig-regular: 44px; --hig-small: 44px; --hig-large: 44px; --hig-thumb: 44px; --hig-menu-row: 44px; }
 @media(max-width:700px) { .chart-sample-controls { grid-template-columns: 1fr; } }
 @media(pointer:coarse) {
@@ -682,3 +682,29 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 /* Room for the longest short label, "Development". */
 #carPerformance > .category-bar .category-tab, #carPerformance > .category-bar .category-tab[data-ui-kind="tab"] { padding-inline: 10px; gap: 6px; }
 @media (min-width:1340px) and (max-width:1500px) { #carPerformance > .category-bar .category-tab, #carPerformance > .category-bar .category-tab[data-ui-kind="tab"] { padding-inline: 7px; gap: 5px; } }
+
+/* ---------- Chips and picks answer the pointer the same way: a colour shift on hover, a small springy press ---------- */
+:is(#compareAllFastest, .fastest-lap-pick, .lap-chip, .circuit-section-group .corner-picker button.corner-pick) {
+  transition: background-color var(--motion-tier-fast) var(--ease-standard), color var(--motion-tier-fast) var(--ease-standard), box-shadow var(--motion-tier-fast) var(--ease-standard), transform var(--motion-tier-fast) var(--ease-spring);
+}
+:is(#compareAllFastest, .fastest-lap-pick, .lap-chip, .circuit-section-group .corner-picker button.corner-pick):active:not(:disabled) { transform: scale(var(--glass-press-scale)); }
+@media (prefers-reduced-motion: reduce) { :is(#compareAllFastest, .fastest-lap-pick, .lap-chip, .circuit-section-group .corner-picker button.corner-pick):active:not(:disabled) { transform: none; } }
+#compareAllFastest:hover:not(:disabled):not(.selected) { background: var(--ui-control-hover); }
+#compareAllFastest.selected:hover:not(:disabled) { background: color-mix(in srgb, var(--ui-accent) 28%, transparent); }
+#lapSelectionBody .fastest-lap-pick:not([aria-pressed="true"]):hover:not(:disabled) { background: color-mix(in srgb, var(--ui-accent) 30%, transparent); }
+
+/* Corner and straight picks look and behave exactly like the lap time chips above them. */
+.circuit-section-group .corner-picker { gap: 6px; }
+.circuit-section-group .corner-picker button.corner-pick { border: 0; border-radius: var(--ui-radius); background: var(--ui-control); box-shadow: var(--ui-shadow-control); color: var(--ui-label); }
+.circuit-section-group .corner-picker button.corner-pick:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--ui-control-hover); color: var(--ui-label); }
+.circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"] { background: var(--ui-tile-on); color: var(--ui-tile-on-label); box-shadow: none; }
+.circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"] :is(strong,small) { color: inherit; }
+.circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"]:hover:not(:disabled) { background: color-mix(in srgb, var(--ui-tile-on) 88%, #fff); }
+
+/* Runs and stints: as many to a row as the card has room for, sharing the row's width, so a fourth stint only wraps when it really does not fit. */
+.lap-workspace .run-segments.run-segments { grid-template-columns: repeat(auto-fit, minmax(min(122px, 100%), 1fr)); }
+.lap-workspace .run-segments.run-segments .run-segment { gap: 6px; padding-inline: 8px; }
+.lap-workspace .run-segments.run-segments .run-segment strong { white-space: nowrap; }
+/* The tyre sits at the end of the row, as it does on the lap chips below. */
+.lap-workspace .run-segments.run-segments .run-compounds { order: 1; }
+

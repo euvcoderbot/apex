@@ -4,7 +4,7 @@
 //
 // Chromium only (LCP, layout shift and long-task entries). Each view is loaded RUNS times with a cold cache; the median is printed.
 import {chromium} from '@playwright/test';
-import {replayFixture} from '../e2e/helpers.mjs';
+import {isolate,replayFixture} from '../e2e/helpers.mjs';
 
 const origin = process.argv[2] || 'http://127.0.0.1:4173';
 const RUNS = 3;
@@ -17,6 +17,7 @@ for (const [name, path] of Object.entries(views)) {
   for (let i = 0; i < RUNS; i++) {
     const context = await browser.newContext({viewport: {width: 1440, height: 900}});
     const page = await context.newPage();
+    await isolate(page);
     await replayFixture(page);
     await page.addInitScript(() => {
       window.__m = {lcp: 0, cls: 0, longMs: 0, inp: 0};

@@ -364,9 +364,9 @@ async function prerenderedData(parsed) {
   // Session summaries follow the source revision; car performance the backend's.
   const revision = parsed.pathname === '/api/session' ? index?.sourceRevision : index?.revision;
   const expected = parsed.pathname === '/api/session' ? window.APEX_SOURCE_VERSION : window.APEX_BACKEND_VERSION;
-  const compatibleArchive=window.APEX_SNAPSHOT_MODE && (parsed.pathname==='/api/session'
+  const compatibleArchive=window.APEX_SNAPSHOT_MODE && ((window.APEX_SNAPSHOT_COMPATIBILITY?.[parsed.pathname==='/api/session'?'sourceRevision':'backendRevision']||[]).includes(revision) || (parsed.pathname==='/api/session'
     ? expected==='5b02cc1bb2a6daf808ad'&&revision==='debb63ddadd0fabe2d70'
-    : expected==='1af2a5e364d242f1b28d'&&revision==='8168b392ef2edc130d33');
+    : expected==='1af2a5e364d242f1b28d'&&revision==='8168b392ef2edc130d33'));
   if (!index || !revision || (revision !== expected&&!compatibleArchive)) return null;
   const file = index.entries?.[prerenderedKey(parsed)];
   if (!file) return null;
@@ -392,13 +392,15 @@ async function preparedData(url) {
     const index=await localCaptureIndex;
     const family=/^\/api\/(events|session)$/.test(parsed.pathname)?'sourceRevision':/^\/api\/(qualifying|race)-corners$/.test(parsed.pathname)?'measurementRevision':'backendRevision';
     const expected={sourceRevision:window.APEX_SOURCE_VERSION,backendRevision:window.APEX_BACKEND_VERSION,measurementRevision:window.APEX_MEASUREMENT_VERSION}[family];
-    const entry=index?.[family]===expected?index.entries?.[prerenderedKey(parsed)]:null;
+    const candidate=index?.entries?.[prerenderedKey(parsed)];
+    const capturedRevision=candidate?.[family]||index?.[family];
+    const entry=capturedRevision===expected||(window.APEX_SNAPSHOT_COMPATIBILITY?.[family]||[]).includes(capturedRevision)?candidate:null;
     if(entry?.file && /^[a-f0-9]{24}\.json\.gz$/.test(entry.file) && Number.isFinite(Date.parse(entry.capturedAt))) {
       const response=await fetch(`assets/data/local-captures/${entry.file}`,{cache:'no-cache'});
       if(response.ok && response.body){
         const data=await readSavedJson(response);
         if(parsed.pathname==='/api/events'&&Array.isArray(data))return data.map(event=>({...event,calendar_status_source:'captured-schedule',calendar_captured_at:entry.capturedAt}));
-        if(data && typeof data==='object' && !Array.isArray(data))data.published_snapshot={captured_at:entry.capturedAt,kind:'locally-prepared'};
+        if(data && typeof data==='object' && !Array.isArray(data))data.published_snapshot={captured_at:entry.capturedAt,kind:'locally-prepared',calculation_revision:capturedRevision,retained_methodology:capturedRevision!==expected};
         return data;
       }
     }

@@ -9,6 +9,8 @@ const calendar = readFileSync(new URL('./fixtures/events-2026.json', import.meta
 
 /** The page with no network behind it: a fixed calendar, no API, and no probe of a local dashboard. */
 export async function isolate(page) {
+  // Real published indexes must not override the calendar fixture.
+  await page.route(/\/assets\/data\/(local-captures|prerendered)\/index\.json/, route => route.fulfill({contentType:'application/json',body:'{"entries":{}}'}));
   await page.route(/127\.0\.0\.1:54123/, route => route.abort());
   await page.route('**/assets/data/events/*.json', route => route.fulfill({contentType: 'application/json', body: calendar}));
   await page.route('**/api/events**', route => route.fulfill({contentType: 'application/json', body: calendar}));
