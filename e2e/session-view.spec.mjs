@@ -75,8 +75,8 @@ test('chosen rows stay readable and every state of Compare fastest has visible t
   }, selector);
   for (const theme of ['dark', 'light']) {
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
-    // Colours transition when the appearance changes; judge them once they have arrived, not part way (Firefox measured mid-transition).
-    await page.evaluate(() => Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => {}))));
+    // Colours transition when the appearance changes; judge them once they have arrived, not part way (Firefox measured mid-transition). Only transitions are awaited: looping animations never finish.
+    await page.evaluate(() => Promise.all(document.getAnimations().filter(animation => animation instanceof CSSTransition).map(animation => animation.finished.catch(() => {}))));
     await page.waitForTimeout(350);
     expect(await contrast('#driverPills .driver-pill.selected .driver-pill-position'), `${theme}: chosen driver row`).toBeGreaterThanOrEqual(4.5);
     expect(await contrast('#compareAllFastest'), `${theme}: Compare fastest, on`).toBeGreaterThanOrEqual(3);
