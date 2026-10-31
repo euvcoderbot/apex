@@ -140,3 +140,11 @@ test('a selection change patches the run picker in place instead of rebuilding i
   box.morphChildren(live, new Node('div', {}, [new Node('article', {'data-motion-key': 'run-card-PIA'})]));
   assert.notEqual(live.childNodes[0], card);
 });
+
+test('every team mark in the page has a colour, a white and a black version', () => {
+  const source = readFileSync('session-state.js', 'utf8');
+  const official = [...source.slice(source.indexOf('const officialTeamMarks'), source.indexOf('const historicalTeamMarks')).matchAll(/'([a-z]+)\.webp'/g)].map(m => m[1]);
+  const historical = [...source.slice(source.indexOf('const historicalTeamMarks'), source.indexOf('function historicalMarkup')).matchAll(/'([a-z-]+)\.(?:png|svg)'/g)].map(m => m[1]).concat('renault');
+  for (const team of new Set(official)) for (const suffix of ['-color', '-black', '']) assert.ok(readFileSync(`assets/teams/official/${team}${suffix}.webp`).length > 200, team + suffix);
+  for (const team of new Set(historical)) for (const tone of ['black', 'white']) assert.ok(readFileSync(`assets/teams/historical/${team}-${tone}.webp`).length > 100, team + tone);
+});
