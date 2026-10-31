@@ -12,7 +12,8 @@ const files = readdirSync(path.join(root, 'scripts')).filter(name => /^test-.*\.
 const failed = [];
 for (const file of files) {
   console.log(`\n# ${file}`);
-  const run = spawnSync(python, [path.join('scripts', file)], {cwd: root, stdio: 'inherit'});
+  const run = spawnSync(python, [path.join('scripts', file)], {cwd: root, stdio: 'inherit',timeout:180_000,windowsHide:true});
+  if(run.error)console.error(`${file}: ${run.error.message}`);
   if (run.status !== 0) failed.push(file);
 }
 console.log(failed.length ? `\nFailed: ${failed.join(', ')}` : `\nAll ${files.length} Python test files passed.`);

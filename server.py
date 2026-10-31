@@ -179,6 +179,10 @@ def health() -> dict[str, str]:
 @app.middleware("http")
 async def prevent_stale_local_assets(request: Request, call_next):
     """Apply development-safe asset headers and production API caching."""
+    if not os.environ.get('VERCEL') and request.url.path.startswith('/api/'):
+        from api_security import local_request_allowed
+        if not local_request_allowed(request,CORS_ORIGINS):
+            return JSONResponse(status_code=403,content={'detail':'Local API origin or host not allowed'})
     response = await call_next(request)
     hosted = bool(os.environ.get("VERCEL"))
     if not hosted and request.url.path in {

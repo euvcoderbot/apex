@@ -1,5 +1,5 @@
 // Read-only publication gate: no missing/corrupt files or silently relabelled data.
-import {readFile} from 'node:fs/promises';
+import {readFile,stat} from 'node:fs/promises';
 import {validateIndex,decodeSnapshot,validatePayload} from '../lib/release-validation.mjs';
 import path from 'node:path';
 import {SOURCE_REVISION,BACKEND_REVISION,RACE_REVISION} from '../lib/cache-revision.mjs';
@@ -14,7 +14,9 @@ function requireRevision(family,revision){
 }
 async function payload(folder,file,route=''){
   if(!/^[a-f0-9]{24}\.json\.gz$/.test(file))throw Error('Invalid snapshot filename: '+file);
-  const value=decodeSnapshot(await readFile(path.join(root,folder,file)));
+  const filename=path.join(root,folder,file);
+  if((await stat(filename)).size>32*1024*1024)throw Error('Compressed snapshot exceeds release budget: '+file);
+  const value=decodeSnapshot(await readFile(filename));
   validatePayload(value,folder,route);
   files++;return value;
 }

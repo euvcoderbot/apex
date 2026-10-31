@@ -10,6 +10,14 @@ from fastapi import FastAPI, HTTPException, Query, Response
 import server
 
 app = FastAPI()
+@app.middleware('http')
+async def guard_local_adapter(request,call_next):
+    from api_security import local_request_allowed
+    if request.url.path.startswith('/api/') and not local_request_allowed(request,server.CORS_ORIGINS):
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=403,content={'detail':'Local API origin or host not allowed'})
+    return await call_next(request)
+
 PRACTICE = {'FP1': 'Practice 1', 'FP2': 'Practice 2', 'FP3': 'Practice 3',
             'Practice 1': 'Practice 1', 'Practice 2': 'Practice 2', 'Practice 3': 'Practice 3'}
 
