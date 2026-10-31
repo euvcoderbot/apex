@@ -296,7 +296,7 @@ input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 
 .telemetry-content { container: telemetry / inline-size; }
 .telemetry-content .telemetry-analysis-grid { grid-template-areas: "charts corner"; }
 .telemetry-content .telemetry-analysis-grid > #charts { grid-area: charts; }
-.telemetry-content .telemetry-analysis-grid > #cornerAnalysis { grid-area: corner; isolation: isolate; background: var(--ui-panel); }
+.telemetry-content .telemetry-analysis-grid > #cornerAnalysis { grid-area: corner; isolation: isolate; background: var(--ui-well); }
 .telemetry-analysis-grid #charts canvas { display: block; max-width: 100%; }
 @container telemetry (max-width: 1050px) {
   .telemetry-content .telemetry-analysis-grid { grid-template-columns: minmax(0,1fr); grid-template-areas: "corner" "charts"; }
@@ -535,6 +535,8 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
    HIG Lists and tables / Buttons / Layout: readable headers, clear feedback,
    common alignment and spacing. Dimensions are this site's control tokens. */
 .corner-analysis-body { gap: 16px; }
+/* Surfaces nest: a page card (panel) holds inset cards (well). The corner card was the one inset card left at panel grey,
+   so it blended into its parent while the lap, chart and summary cards beside it were darker. */
 #cornerPickerRow { padding: 16px; display: grid; gap: 16px; }
 #cornerPickerRow .circuit-section-group { margin: 0; padding: 0; border: 0; }
 .circuit-section-group > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 8px; }
@@ -558,11 +560,15 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 .corner-measurement-table :is(th,td):last-child { padding-right: 20px; }
 .corner-measurement-table thead th { background: var(--ui-header-row); color: var(--ui-secondary); font-size: var(--type-caption); font-weight: 600; }
 .corner-measurement-table button[data-corner-sort] { position: relative; display: flex; align-items: center; justify-content: flex-end; gap: 0; min-height: var(--hig-small); width: 100%; margin: 0; padding: 0; border: 0; border-radius: var(--hig-radius-small); background: transparent; color: var(--ui-secondary); box-shadow: none; cursor: pointer; font: 600 var(--type-caption)/1.4 var(--ui-font); white-space: nowrap; }
-.corner-measurement-table button[data-corner-sort]:hover { background: var(--ui-control-hover); }
-.corner-measurement-table button[data-corner-sort]:active { background: var(--hig-control-pressed); }
+/* Column headers (HIG Lists and tables): the whole header cell is the target, so hover and press tint the cell, never
+   just the label. The sorted column keeps the label colour and shows its direction with the chevron. */
+.corner-measurement-table thead th { transition: background-color var(--hig-fast) var(--hig-ease); }
+.corner-measurement-table button[data-corner-sort]:is(:hover,:active) { background: transparent; }
+.corner-measurement-table thead th:has(button[data-corner-sort]:hover) { background: color-mix(in srgb, var(--ui-header-row) 92%, var(--ui-label)); }
+.corner-measurement-table thead th:has(button[data-corner-sort]:active) { background: color-mix(in srgb, var(--ui-header-row) 84%, var(--ui-label)); }
 .corner-measurement-table button small { font: inherit; color: var(--ui-secondary); }
 .corner-measurement-table button svg { position: absolute; right: -13px; width: 10px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.corner-measurement-table th[aria-sort]:not([aria-sort="none"]) button { color: var(--ui-accent); }
+.corner-measurement-table th[aria-sort]:not([aria-sort="none"]) button { color: var(--ui-label); }
 .corner-measurement-table .corner-driver { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
 .corner-measurement-table .corner-driver .team-logo,.corner-measurement-table .corner-driver .team-logo img { width: 18px; height: 18px; flex: 0 0 18px; }
 .corner-measurement-table .corner-driver .team-logo-official > .team-logo-color { display: none; }
