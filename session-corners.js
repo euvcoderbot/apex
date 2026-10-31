@@ -451,7 +451,7 @@ function drawApiCircuitGuide(ctx, data, rect) {
   const light=lightThemeActive();
   const minX=Math.min(...raw.map(p=>p.x)),maxX=Math.max(...raw.map(p=>p.x));
   const minY=Math.min(...raw.map(p=>p.y)),maxY=Math.max(...raw.map(p=>p.y));
-  const pad=Math.min(70,Math.max(38,rect.width*.09));
+  const pad=Math.min(40,Math.max(20,rect.width*.06));
   const scale=Math.min((rect.width-pad*2)/(maxX-minX||1),(rect.height-pad*2)/(maxY-minY||1));
   const project=p=>({x:(p.x-(minX+maxX)/2)*scale+rect.width/2,y:(p.y-(minY+maxY)/2)*scale+rect.height/2});
   const geometry=raw.map(project);
@@ -527,18 +527,46 @@ function drawApiCircuitGuide(ctx, data, rect) {
     occupied.push({x:p.x-14,y:p.y-14,width:28,height:28});
   }
   ctx.textAlign='center';ctx.textBaseline='middle';
-  // Turn numbers in circles beside the track.
-  ctx.font=canvasFont(10,700);
+  // Turn numbers sit on the road at the corner itself. Twenty numbers do not fit beside the road on a map this size: they drift away
+  // and need lines that cross it. Numbers too close to fit slide a little along the road; only if the road has no room does one step off it.
+  ctx.font=canvasFont(8,700);
+  const beads=[];
+  const beadFree=(x,y,radius)=>beads.every(b=>Math.hypot(b.x-x,b.y-y)>=b.radius+radius+1);
+  const alongRoad=(index,distance)=>{
+    const step=distance<0?-1:1;let i=index,walked=0;
+    while(walked<Math.abs(distance)){
+      const next=i+step;
+      if(next<0||next>=geometry.length)return null;
+      walked+=Math.hypot(geometry[next].x-geometry[i].x,geometry[next].y-geometry[i].y);i=next;
+    }
+    return geometry[i];
+  };
   for(const corner of data.corners || []){
     const position=corner.trackPosition;
     if(!position||!Number.isFinite(Number(position.x))||!Number.isFinite(Number(position.y)))continue;
-    const p=project({x:Number(position.x),y:-Number(position.y)}),label=cornerLabel(corner).replace(/^T/,'');
-    const radius=Math.max(8.5,ctx.measureText(label).width/2+4);
-    const spot=placeBeside(nearestIndex(p),radius*2,radius*2,[17,23,30,38,48]);
-    if(!spot)continue;
-    ctx.beginPath();ctx.arc(spot.x,spot.y,radius,0,Math.PI*2);
-    ctx.fillStyle=light?'#ffffff':'#1c1c1e';ctx.fill();ctx.strokeStyle=light?'#1d1d1f':'#e5e5ea';ctx.lineWidth=1.2;ctx.stroke();
-    ctx.fillStyle=light?'#1d1d1f':'#f2f2f4';ctx.fillText(label,spot.x,spot.y+.5);
+    const index=nearestIndex(project({x:Number(position.x),y:-Number(position.y)})),anchor=geometry[index],label=cornerLabel(corner).replace(/^T/,'');
+    const radius=Math.max(6.5,ctx.measureText(label).width/2+2);
+    let spot=null;
+    for(const distance of [0,5,-5,9,-9,13,-13,17,-17]){
+      const point=distance?alongRoad(index,distance):anchor;
+      if(point&&beadFree(point.x,point.y,radius)){spot=point;break;}
+    }
+    if(!spot){
+      const t=tangent(index);
+      for(const d of [radius+9,radius+14,radius+20])for(const side of [1,-1]){
+        const x=anchor.x-t.y*d*side,y=anchor.y+t.x*d*side;
+        if(!spot&&beadFree(x,y,radius)&&inside({x:x-radius,y:y-radius,width:radius*2,height:radius*2})&&!trackIntersectsLabel({x:x-radius,y:y-radius,width:radius*2,height:radius*2},geometry,1))spot={x,y};
+      }
+      if(!spot)continue;
+      ctx.beginPath();ctx.moveTo(anchor.x,anchor.y);ctx.lineTo(spot.x,spot.y);ctx.strokeStyle=light?'rgba(29,29,31,.6)':'rgba(229,229,234,.65)';ctx.lineWidth=1;ctx.stroke();
+    }
+    beads.push({x:spot.x,y:spot.y,radius,label});
+    occupied.push({x:spot.x-radius,y:spot.y-radius,width:radius*2,height:radius*2});
+  }
+  for(const {x,y,radius,label} of beads){
+    ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);
+    ctx.fillStyle=light?'#ffffff':'#1c1c1e';ctx.fill();ctx.strokeStyle=light?'#1d1d1f':'#e5e5ea';ctx.lineWidth=1.1;ctx.stroke();
+    ctx.fillStyle=light?'#1d1d1f':'#f2f2f4';ctx.fillText(label,x,y+.5);
   }
   // Sector names, boxed, beside the middle of each sector.
   if(sectors){

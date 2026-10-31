@@ -625,17 +625,89 @@ def openf1_cache_path(url: str) -> Path:
     return legacy if not path.exists() and legacy.exists() else path
 
 
+# Which meeting and session a name means is looked up before any stored data can be found, so these two lists are kept on disk
+# beside the raw responses (same hashed file name) and used whenever OpenF1 cannot answer: during a live session it refuses
+# everyone without a key, past sessions included (HTTP 401), and it can be down or rate limited. Live is still tried first, so a
+# new session appears as soon as OpenF1 lists it.
+_OPENF1_METADATA = ("sessions", "meetings")
+_OPENF1_OFFLINE_RETRY_S = 60.
+_openf1_offline_until = [0.]
+
+
+def _write_raw(path: Path, rows: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f"{path.name}.{uuid4().hex}.tmp")
+    try:
+        with gzip.open(temporary, "wt", encoding="utf-8", compresslevel=5) as handle:
+            json.dump(rows, handle, separators=(",", ":"))
+        temporary.replace(path)
+    except OSError:
+        temporary.unlink(missing_ok=True)
+
+
+def _saved_openf1_metadata(url: str) -> list[dict[str, Any]] | None:
+    path = openf1_cache_path(url)
+    try:
+        with gzip.open(path, "rt", encoding="utf-8") as handle:
+            rows = json.load(handle)
+    except (OSError, ValueError):
+        return None
+    return rows if isinstance(rows, list) and rows else None
+
+
+def _remember_settled_sessions(rows: Any) -> None:
+    """Session end times from a sessions list, so finished sessions are recognised as settled without asking OpenF1 again."""
+    known = _settled_session_ends()
+    for item in rows if isinstance(rows, list) else []:
+        key, end = item.get("session_key"), item.get("date_end")
+        if key is None or not end or str(key) in known:
+            continue
+        try:
+            finished = datetime.fromisoformat(str(end).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if finished.tzinfo is None:
+            finished = finished.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc)-finished > timedelta(hours=6):
+            _remember_settled_session(key, end)
+
+
+def _openf1_metadata_rows(endpoint: str, url: str) -> list[dict[str, Any]]:
+    hit = _openf1_meta.get(url)
+    if hit and time.monotonic()-hit[0] < 600:
+        return hit[1]
+    if time.monotonic() < _openf1_offline_until[0]:
+        saved = _saved_openf1_metadata(url)
+        if saved is not None:
+            return saved
+    try:
+        result = _openf1_fetch(url)
+    except (OSError, ValueError) as exc:
+        saved = _saved_openf1_metadata(url)
+        if saved is None:
+            raise
+        _openf1_offline_until[0] = time.monotonic()+_OPENF1_OFFLINE_RETRY_S
+        print(f"OpenF1 unavailable ({exc}); using the saved {endpoint} list for {url.split('?', 1)[-1]}", flush=True)
+        return saved
+    _openf1_offline_until[0] = 0.
+    if result:
+        _openf1_meta[url] = (time.monotonic(), result)
+        _write_raw(openf1_cache_path(url), result)
+        if endpoint == "sessions":
+            for item in result if isinstance(result, list) else []:
+                if item.get("session_key") is not None and item.get("date_end"):
+                    _openf1_session_ends[item["session_key"]] = item["date_end"]
+            _remember_settled_sessions(result)
+    return result
+
+
 def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
     valid_params = {key: value for key, value in params.items() if value is not None}
     url = openf1_url(endpoint, **valid_params)
-    if endpoint in ("sessions", "meetings"):
-        # Calendar metadata is looked up on almost every request; keep it briefly
-        # (a live weekend adds sessions, so not longer than ten minutes).
-        hit = _openf1_meta.get(url)
-        if hit and time.monotonic()-hit[0] < 600:
-            return hit[1]
+    if endpoint in _OPENF1_METADATA:
+        return _openf1_metadata_rows(endpoint, url)
     session_key = valid_params.get("session_key")
-    settled = endpoint != "sessions" and session_key is not None and _openf1_session_settled(session_key)
+    settled = session_key is not None and _openf1_session_settled(session_key)
     cache_path = openf1_cache_path(url)
     if settled and cache_path.exists():
         try:
@@ -644,21 +716,8 @@ def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
         except (OSError, ValueError):
             cache_path.unlink(missing_ok=True)
     result = _openf1_fetch(url)
-    if endpoint in ("sessions", "meetings") and result:
-        _openf1_meta[url] = (time.monotonic(), result)
-    if endpoint == "sessions":
-        for item in result if isinstance(result, list) else []:
-            if item.get("session_key") is not None and item.get("date_end"):
-                _openf1_session_ends[item["session_key"]] = item["date_end"]
     if settled and result:
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = cache_path.with_name(f"{cache_path.name}.{uuid4().hex}.tmp")
-        try:
-            with gzip.open(temporary, "wt", encoding="utf-8", compresslevel=5) as handle:
-                json.dump(result, handle, separators=(",", ":"))
-            temporary.replace(cache_path)
-        except OSError:
-            temporary.unlink(missing_ok=True)
+        _write_raw(cache_path, result)
     return result
 
 

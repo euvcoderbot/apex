@@ -245,7 +245,12 @@ function renderStints() {
         : preparation ? preparation.reason
         : !Number.isFinite(displayTime) ? 'No lap time published by the timing feeds' : '';
       const age = Number.isFinite(lap.tyre_life) && lap.tyre_life >= 1 ? Math.round(lap.tyre_life) : null;
-      const tyreDetail = hasQualifyingPhases ? `<small class="lap-tyre-age">Run ${qualifyingRuns.indexOf(lap.stint) + 1} · Tyre age ${age === null ? 'unknown' : `${age} ${age === 1 ? 'lap' : 'laps'}`}</small>` : '';
+      // Practice and race stints: the feed often has no tyre age, so count the laps run in this stint, this one included. A set can have been
+      // used before the stint began, so a counted age is shown with "~" and says so on hover.
+      const counted = activeLaps.findIndex(item => item.lap === lap.lap) + 1;
+      const tyreDetail = hasQualifyingPhases ? `<small class="lap-tyre-age">Run ${qualifyingRuns.indexOf(lap.stint) + 1} · Tyre age ${age === null ? 'unknown' : `${age} ${age === 1 ? 'lap' : 'laps'}`}</small>`
+        : age !== null ? `<small class="lap-tyre-age">Tyre age ${age} ${age === 1 ? 'lap' : 'laps'}</small>`
+        : counted ? `<small class="lap-tyre-age" title="Laps run in this stint. The tyres may have been used before it began.">Tyre age ~${counted} ${counted === 1 ? 'lap' : 'laps'}</small>` : '';
       return `<button class="${classes}" aria-pressed="${isLoaded}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${escapeUI(title)}"><span class="lap-token">${flag}${context ? ` <b class="lap-state">${context}</b>` : ''}${neutralised ? ` <b class="lap-state">${neutralised}</b>` : ''}</span><span class="lap-clock">${duration}</span>${compoundBadgeMarkup(lap.compound)}${tyreDetail}</button>`;
     }).join('');
     const groupLabel = hasQualifyingPhases ? active : `Stint ${active}`;

@@ -57,3 +57,38 @@ test('team marks are real marks, and the monochrome ones follow the appearance',
     for (const mark of marks) { expect(mark.src, `${theme} ${mark.team} shows an image`).toBeTruthy(); expect(mark.width).toBeGreaterThan(0); }
   }
 });
+
+test('chosen rows stay readable and every state of Compare fastest has visible text, in both appearances', async ({page}) => {
+  await open(page);
+  // Contrast of an element's text over what is really behind it, flattening translucent backgrounds.
+  const contrast = selector => page.evaluate(selector => {
+    const parse = value => { const n = value.match(/[\d.]+/g).map(Number); return value.startsWith('color(') ? [n[0] * 255, n[1] * 255, n[2] * 255, n[3] ?? 1] : [n[0], n[1], n[2], n[3] ?? 1]; };
+    const canvas = document.createElement('canvas').getContext('2d', {willReadFrequently: true});
+    const rgba = value => { canvas.clearRect(0, 0, 1, 1); canvas.fillStyle = value; canvas.fillRect(0, 0, 1, 1); const d = canvas.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2], d[3] / 255]; };
+    const el = document.querySelector(selector), layers = [];
+    for (let node = el; node; node = node.parentElement) { const c = rgba(getComputedStyle(node).backgroundColor); if (c[3] > 0) layers.push(c); if (c[3] === 1) break; }
+    const base = layers.reverse().reduce((under, c) => under.map((v, i) => c[i] * c[3] + v * (1 - c[3])), [255, 255, 255]);
+    const fg = rgba(getComputedStyle(el).color), text = base.map((v, i) => fg[i] * fg[3] + v * (1 - fg[3]));
+    const lum = rgb => { const [r, g, b] = rgb.map(v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }); return .2126 * r + .7152 * g + .0722 * b; };
+    const [a, b] = [lum(text), lum(base)].sort((x, y) => y - x);
+    return (a + .05) / (b + .05);
+  }, selector);
+  for (const theme of ['dark', 'light']) {
+    await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
+    // Colours transition when the appearance changes; judge them once they have arrived, not part way (Firefox measured mid-transition). Only transitions are awaited: looping animations never finish.
+    await page.evaluate(() => Promise.all(document.getAnimations().filter(animation => animation instanceof CSSTransition).map(animation => animation.finished.catch(() => {}))));
+    await page.waitForTimeout(350);
+    expect(await contrast('#driverPills .driver-pill.selected .driver-pill-position'), `${theme}: chosen driver row`).toBeGreaterThanOrEqual(4.5);
+    expect(await contrast('#compareAllFastest'), `${theme}: Compare fastest, on`).toBeGreaterThanOrEqual(3);
+  }
+});
+
+test('the toolbar icons are named, and the switches say what they do', async ({page}) => {
+  await open(page);
+  for (const id of ['explanationsToggle', 'themeToggle', 'glassToggle']) {
+    const button = page.locator('#' + id);
+    expect((await button.boundingBox()).width, id + ' is icon sized').toBeLessThanOrEqual(36);
+    expect(await button.getAttribute('title'), id + ' has a tooltip').toBeTruthy();
+    expect((await button.evaluate(el => el.getAttribute('aria-label') || el.textContent)).trim(), id + ' has a name').not.toBe('');
+  }
+});

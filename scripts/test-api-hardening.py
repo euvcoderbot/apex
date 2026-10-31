@@ -11,18 +11,23 @@ import server
 
 
 class FakeRequest:
-    def __init__(self, payload, length=None):
-        self._payload, self.headers = payload, ({'content-length': str(length)} if length is not None else {})
+    """A request whose body arrives as a stream, like a real one: the server reads it in chunks and decides itself when to stop."""
 
-    async def json(self):
-        return self._payload
+    def __init__(self, payload, length=None, raw=None, chunk=64):
+        body = raw if raw is not None else json.dumps(payload).encode()
+        self._chunks = [body[i:i + chunk] for i in range(0, len(body), chunk)] or [b'']
+        self.headers = {'content-length': str(length)} if length is not None else {}
+
+    async def stream(self):
+        for part in self._chunks:
+            yield part
 
     async def stream(self):
         yield json.dumps(self._payload).encode()
 
 
-def development(payload, length=None):
-    return asyncio.run(server.car_development_progression(FakeRequest(payload, length), server.Response()))
+def development(payload, length=None, **body):
+    return asyncio.run(server.car_development_progression(FakeRequest(payload, length, **body), server.Response()))
 
 
 class CorsTests(unittest.TestCase):
@@ -51,9 +56,9 @@ class AssetTests(unittest.TestCase):
 
 
 class DevelopmentEndpointTests(unittest.TestCase):
-    def rejected(self, payload, status=422, length=None):
+    def rejected(self, payload, status=422, length=None, **body):
         with self.assertRaises(HTTPException) as caught:
-            development(payload, length)
+            development(payload, length, **body)
         self.assertEqual(caught.exception.status_code, status)
 
     def test_oversized_or_malformed_requests_are_refused(self):
@@ -64,6 +69,18 @@ class DevelopmentEndpointTests(unittest.TestCase):
         self.rejected({'teams': [{'team': 5, 'rounds': []}]})
         self.rejected({'teams': [{'team': 'X', 'rounds': ['no']}]})
         self.rejected({'teams': []}, status=413, length=2_000_000)
+
+    def test_the_body_limit_holds_without_trusting_the_declared_length(self):
+        # No Content-Length at all, or a lie, must not let an oversized body through: the stream itself is counted.
+        big = b'{"teams": [], "padding": "' + b'x' * (server.DEVELOPMENT_MAX_BYTES + 10) + b'"}'
+        self.rejected(None, status=413, raw=big)
+        self.rejected(None, status=413, length=2, raw=big)
+
+    def test_bad_lengths_and_bad_json_are_client_errors(self):
+        self.rejected(None, status=400, raw=b'{"teams": ')
+        self.rejected(None, status=400, raw=b'\xff\xfe')
+        self.rejected({'teams': []}, status=400, length='abc')
+        self.rejected({'teams': []}, status=400, length=-5)
 
     def test_failures_do_not_echo_internal_errors(self):
         def boom(rounds):
