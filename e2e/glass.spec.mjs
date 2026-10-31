@@ -81,3 +81,21 @@ test('a popover opens from its control with a small scale', async ({page}) => {
   expect(box.width).toBeGreaterThan(100);
   expect(alpha(await popover.evaluate(el => getComputedStyle(el).backgroundColor))).toBeLessThan(1);
 });
+
+test('the glass effect can be switched off by the person, and stays off after a reload', async ({page}) => {
+  const button = page.locator('#catalogSidebarToggle');
+  const image = () => button.evaluate(el => getComputedStyle(el).backgroundImage);
+  await page.evaluate(() => window.ApexGlass.setIntensity('off'));
+  let box = await button.boundingBox();
+  await page.mouse.move(box.x + 6, box.y + 7); await page.mouse.move(box.x + 12, box.y + 9);
+  expect(await image(), 'no highlight while off').not.toContain('radial-gradient');
+  await page.mouse.down();
+  expect(await button.evaluate(el => getComputedStyle(el).transform), 'no press response while off').toBe('none');
+  await page.mouse.up();
+  await page.reload();
+  expect(await page.evaluate(() => document.documentElement.hasAttribute('data-glass-off')), 'remembered').toBe(true);
+  await page.evaluate(() => window.ApexGlass.setIntensity('full'));
+  box = await button.boundingBox();
+  await page.mouse.move(box.x + 6, box.y + 7); await page.mouse.move(box.x + 12, box.y + 9);
+  await expect.poll(image).toContain('radial-gradient');
+});

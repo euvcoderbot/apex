@@ -437,7 +437,7 @@ button#loadSession:disabled {
 }
 
 .fastest-gap {
-  grid-template-columns: 1fr !important;
+  grid-template-columns: 1fr;
   margin-bottom: 14px;
 }
 
@@ -488,8 +488,8 @@ button#loadSession:disabled {
 }
 
 .loaded-line .pill.reference {
-  background: color-mix(in srgb, var(--ui-accent) 14%, var(--ui-control)) !important;
-  border-color: var(--ui-accent) !important;
+  background: color-mix(in srgb, var(--ui-accent) 14%, var(--ui-control));
+  border-color: var(--ui-accent);
   color: var(--ui-label);
   box-shadow: 0 0 12px color-mix(in srgb, var(--ui-accent) 26%, transparent);
 }
@@ -1153,19 +1153,19 @@ canvas[data-chart="Speed trace"] {
 }
 
 canvas[data-chart="Throttle application"] {
-  height: 165px !important;
+  height: 165px;
 }
 
 canvas[data-chart="Brake application"] {
-  height: 165px !important;
+  height: 165px;
 }
 
 canvas[data-chart="Gear"] {
-  height: 135px !important;
+  height: 135px;
 }
 
 canvas[data-chart="DRS"] {
-  height: 80px !important;
+  height: 80px;
 }
 
 /* Sector line overlays over canvases */
@@ -1339,7 +1339,7 @@ main.sidebar-collapsed .sidebar {
   text-align: center;
   padding: 8px 0;
   width: 100%;
-  border-left: 3px solid var(--team) !important;
+  border-left: 3px solid var(--team);
 }
 
 /* Engine Speed Graph height doubling (+100%) */

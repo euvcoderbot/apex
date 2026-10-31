@@ -23,7 +23,7 @@
   }
 
   document.addEventListener('pointermove', event => {
-    if (!fine?.matches || event.pointerType === 'touch') return;
+    if (!fine?.matches || event.pointerType === 'touch' || document.documentElement.hasAttribute('data-glass-off')) return;
     const element = event.target.closest?.('[data-glass]') || null;
     if (element !== target) { release(); target = element; }
     if (!target) return;
@@ -32,9 +32,21 @@
   }, {passive: true});
   document.documentElement.addEventListener('pointerleave', release);
 
+  // A person who finds the effect distracting can turn it off: the highlight and the press response go, the glass itself stays.
+  // Stored per browser; the system's own reduced-transparency and contrast settings are honoured separately, in CSS.
+  const KEY = 'apex-glass-intensity';
+  function setIntensity(value) {
+    const off = value === 'off';
+    document.documentElement.toggleAttribute('data-glass-off', off);
+    try { off ? localStorage.setItem(KEY, 'off') : localStorage.removeItem(KEY); } catch { /* storage unavailable: applies to this page only */ }
+    if (off) release();
+    return off ? 'off' : 'full';
+  }
+  try { if (localStorage.getItem(KEY) === 'off') document.documentElement.setAttribute('data-glass-off', ''); } catch { /* ignore */ }
+
   // The toolbar buttons get their data-ui-kind from ui-system.js, which loads after this file; mark again once it has run.
   mark();
   addEventListener('DOMContentLoaded', () => mark());
   addEventListener('load', () => mark());
-  window.ApexGlass = {mark, selector: SELECTOR};
+  window.ApexGlass = {mark, selector: SELECTOR, setIntensity};
 })();

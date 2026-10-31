@@ -70,7 +70,7 @@ test('review fixes: readable sidebar, paired lap cards, single trace toolbar and
   assert.match(css,/\.sector-cards \{ display: grid; grid-template-columns: repeat\(auto-fill,minmax\(min\(100%,360px\),1fr\)\)/);
   assert.match(css,/\.trace-focus-close,\.chart-heading \.trace-focus-close\[data-ui-kind="push"\] \{ display: none; \}/);
   assert.match(css,/body\.trace-focus \.trace-focus-close/);
-  assert.match(css,/body\.is-descriptions-hidden #carPerformance > \.performance-status-card:not\(\.is-running\) \{ display: none; \}/);
+  assert.match(css,/body\.is-descriptions-hidden #carPerformance > \.performance-status-card:not\(\.is-running\) \{ visibility: hidden; \}/);
   assert.match(css,/body\.is-descriptions-hidden #performanceMetricPanel p\.performance-quality-status:not\(\.is-loading\):not\(:has\(button\)\):not\(details p\)/);
   assert.match(css,/\.category-bar \.category-tab span \{ line-height: 1\.3; \}/,'descenders must not clip');
 });

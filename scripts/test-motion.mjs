@@ -61,3 +61,16 @@ test('rapid navigation skips the prior visual transition and reduced-motion chan
   box.window.ApexMotion.track({finished:Promise.resolve(),cancel(){cancelled.push(1);}});
   handlers.change({matches:true});assert.equal(cancelled.length,1);assert.equal(skipped.length,2);
 });
+
+test('a newer animation on the same element and key interrupts the older one; other keys and elements are left alone', () => {
+  const {motion} = page();
+  const made = [];
+  const element = () => ({animate() { const a = {cancelled: false, cancel() { this.cancelled = true; }, finished: Promise.resolve()}; made.push(a); return a; }});
+  const a = element(), b = element();
+  const first = motion.animate(a, [], {}, 'flip'), other = motion.animate(a, [], {}, 'fade'), elsewhere = motion.animate(b, [], {}, 'flip');
+  const second = motion.animate(a, [], {}, 'flip');
+  assert.equal(first.cancelled, true, 'the interrupted animation is cancelled');
+  assert.equal(second.cancelled, false);
+  assert.equal(other.cancelled, false); assert.equal(elsewhere.cancelled, false);
+  assert.equal(motion.animate({}, [], {}), null, 'an element without animate() is ignored');
+});

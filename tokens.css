@@ -43,24 +43,16 @@
 }
 :root { --ui-panel-padding: 16px; --ui-section-gap: 16px; }
 
-/* ---- from workspace-ui.css ---- */
-:root {
-  --material-fill: #1a2432d9;
-  --material-edge: #c5dcff26;
-  --material-glint: #e4eeff12;
-}
-:root[data-theme="light"] {
-  --material-fill: #f7faffda;
-  --material-edge: #ffffffeb;
-  --material-glint: #ffffffb0;
-}
-
 /* ---- from macos-ui.css ---- */
 :root {
   --shadow-inset: inset 0 1px 3px #00000028;
-  --glass-fill: #2a2a2ad9;
-  --glass-edge: #ffffff22;
-  --glass-glint: #ffffff14;
+  /* Legacy names, now views of the material roles so there is one set of values per appearance. */
+  --glass-fill: var(--mat-sheet);
+  --glass-edge: var(--ui-border);
+  --glass-glint: var(--mat-glint);
+  --material-fill: var(--mat-sheet);
+  --material-edge: var(--ui-border);
+  --material-glint: var(--mat-glint);
   --glass-shadow: inset 0 1px #ffffff20, 0 3px 12px #00000024;
   --scroll-thumb: #8b8b9380;
   --scroll-thumb-hover: #aaaab2b3;
@@ -70,7 +62,6 @@
   --ease-ui: var(--ease-out);
 }
 :root[data-theme="light"] {
-  --glass-fill: #f7f7fae6; --glass-edge: #ffffffcc; --glass-glint: #ffffff80;
   --scroll-thumb: #77778080; --scroll-thumb-hover: #55555eb3;
 }
 
@@ -151,6 +142,9 @@
   /* Type ramp (macOS text styles, +1–2 px for this dense web layout). */
   --type-caption: 12px; --type-callout: 13px; --type-body: 14px; --type-headline: 15px;
   --type-title3: 17px; --type-title2: 22px; --type-title1: 28px;
+  /* Text sizes in rem, as used across the interface (root is 18px, so .75rem is 13.5px). One owner for each step; the type ramp above is the
+     px scale for newer surfaces. */
+  --text-2xs: .625rem; --text-xs: .6875rem; --text-sm: .75rem; --text-md: .8125rem; --text-base: .875rem; --text-lg: .9375rem; --text-xl: 1rem; --text-2xl: 1.125rem;
   /* State fills. */
   --hig-seg-hover: color-mix(in srgb, var(--ui-label) 9%, transparent);
   --hig-control-pressed: color-mix(in srgb, var(--ui-control-hover) 78%, var(--ui-label) 10%);
