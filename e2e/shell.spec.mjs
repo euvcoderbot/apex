@@ -96,3 +96,20 @@ test('toolbar controls in the real page are glass and answer the pointer', async
   await page.mouse.move(box.x + 11, box.y + 8);
   await expect.poll(() => toggle.evaluate(el => getComputedStyle(el).backgroundImage)).toContain('radial-gradient');
 });
+
+test('Car performance with no data says which sessions failed and stays usable', async ({page}) => {
+  await open(page, '/apex/cars');
+  await expect(page.locator('body')).toHaveClass(/performance-view/);
+  await page.getByRole('button', {name: 'Tracks'}).click();
+  const pills = page.locator('.track-pill');
+  await expect(pills.first()).toBeVisible();
+  await pills.first().click();
+  await expect(pills.first()).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', {name: 'Analyse'}).click();
+  const warning = page.locator('.performance-error').first();
+  await expect(warning).toBeVisible({timeout: 30_000});
+  await expect(warning).toContainText('Grand Prix');
+  const analyse = page.getByRole('button', {name: 'Analyse'});
+  await expect(analyse, 'the person can try again').toBeEnabled();
+  await expect(page.locator('.track-pill').first()).toHaveAttribute('title', /Grand Prix/);
+});

@@ -2,7 +2,7 @@ import {readFileSync} from 'node:fs';
 
 export const SECTIONS = ['status-message-wrapping', 'window-toolbar-and-sidebar', 'push-buttons', 'segmented-choices', 'checkboxes-and-radios',
   'fields-and-pop-up-menu', 'selection-and-source-lists', 'tabs-and-disclosure', 'trace-toolbar-and-colour-well', 'tables-and-sorting',
-  'progress-and-feedback', 'empty-state', 'materials', 'popover-and-sheet', 'chart-legend', 'verification'];
+  'progress-and-feedback', 'empty-state', 'materials', 'popover-and-sheet', 'chart-legend', 'long-labels', 'verification'];
 
 const calendar = readFileSync(new URL('./fixtures/events-2026.json', import.meta.url), 'utf8');
 

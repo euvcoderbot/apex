@@ -111,3 +111,29 @@ test.describe('accessibility settings', () => {
     expect(ring.width > 0 || ring.shadow !== 'none').toBe(true);
   });
 });
+
+test.describe('long labels and narrow screens', () => {
+  test('race rows are one line, equally tall, cut with an ellipsis, and carry the full name as a tooltip', async ({page}) => {
+    const pills = page.locator('[data-catalog-section="long-labels"] .track-pill');
+    await expect(pills).toHaveCount(3);
+    const heights = await pills.evaluateAll(list => list.map(el => Math.round(el.getBoundingClientRect().height)));
+    expect(new Set(heights).size, `heights ${heights}`).toBe(1);
+    const name = pills.nth(2).locator('.track-name');
+    expect(await name.evaluate(el => el.scrollWidth > el.clientWidth), 'the long name is cut').toBe(true);
+    expect(await name.evaluate(el => getComputedStyle(el).textOverflow)).toBe('ellipsis');
+    expect(await pills.nth(2).getAttribute('title')).toContain('Emilia Romagna Grand Prix');
+  });
+
+  test('a warning wraps inside its box instead of overflowing', async ({page}) => {
+    const warning = page.locator('[data-catalog-section="long-labels"] .performance-error');
+    const [box, text] = await Promise.all([warning.boundingBox(), warning.locator('span').last().boundingBox()]);
+    expect(text.x + text.width).toBeLessThanOrEqual(box.x + box.width + 1);
+  });
+
+  test('the catalogue does not scroll sideways at phone width', async ({page}) => {
+    await page.setViewportSize({width: 390, height: 844});
+    await page.goto('/apex/ui-catalog.html');
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+    expect(overflow, 'horizontal overflow in px').toBeLessThanOrEqual(0);
+  });
+});
