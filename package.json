@@ -24,6 +24,7 @@
     "lint": "eslint .",
     "test": "node --test",
     "test:py": "node scripts/run-python-tests.mjs",
+    "release:check": "node scripts/check-release.mjs",
     "test:e2e": "playwright test --grep-invert @visual",
     "test:visual": "playwright test --grep @visual --project=chromium"
   },
@@ -48,5 +49,9 @@
     "vite": "^8.3.5",
     "wrangler": "^4.156.0"
   },
-  "type": "module"
+  "type": "module",
+  "overrides": {
+    "fflate": "0.8.3",
+    "minimatch": "11.0.1"
+  }
 }
