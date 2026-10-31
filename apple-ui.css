@@ -2,10 +2,6 @@
    the legacy layer retains data-specific geometry and behaviour. */
 :root {
   color-scheme: dark;
-  --ui-text-xs: .8125rem;
-  --ui-text-sm: .875rem;
-  --ui-text-md: 1rem;
-  --ui-text-lg: 1.125rem;
 }
 :root[data-theme="light"] {
   color-scheme: light;
@@ -674,7 +670,6 @@ body { zoom: 1; }
 }
 
 /* Shared working-surface rhythm. Keep sizing predictable in both views. */
-:root { --ui-panel-padding: 16px; --ui-section-gap: 16px; }
 .site-header, .header-actions, .performance-tabs { min-width: 0; }
 .site-header { gap: 16px; }
 .header-actions { flex-wrap: nowrap; }

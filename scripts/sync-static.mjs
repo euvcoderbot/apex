@@ -53,6 +53,7 @@ const staticFiles = [
   "dashboard-ui.js",
   "local-compute.js",
   "styles.css",
+  "tokens.css",
   "design-system.css",
   "polish.css",
   "apple-ui.css",

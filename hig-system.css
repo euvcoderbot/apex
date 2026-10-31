@@ -9,32 +9,6 @@
    Toolbars, Typography, Materials, Motion, Accessibility.
    The rationale and the full element inventory are in docs/hig-audit-20261022.md. */
 
-:root {
-  /* Control sizes (HIG "control size": regular / small / large). */
-  --hig-regular: 30px;          /* push, pop-up, field, segmented track, toggle tile */
-  --hig-small: 24px;            /* chart toolbars, steppers, sort headers, chips */
-  --hig-large: 32px;            /* sidebar rows, toolbar items, category bar */
-  --hig-thumb: 26px;            /* segment inside a regular 30 px track */
-  --hig-menu-row: 28px;
-  --hig-radius: 8px;            /* regular controls and tiles */
-  --hig-radius-small: 6px;      /* small controls, list rows, menu rows */
-  --hig-radius-track: 9px;      /* segmented track; thumb = track - 2 px inset */
-  --hig-radius-thumb: 7px;
-  --hig-radius-overlay: 14px;   /* menus, popovers, tooltips, toasts */
-  --hig-radius-panel: 16px;     /* group boxes, cards, sheets */
-  /* Type ramp (macOS text styles, +1–2 px for this dense web layout). */
-  --type-caption: 12px; --type-callout: 13px; --type-body: 14px; --type-headline: 15px;
-  --type-title3: 17px; --type-title2: 22px; --type-title1: 28px;
-  /* State fills. */
-  --hig-seg-hover: color-mix(in srgb, var(--ui-label) 9%, transparent);
-  --hig-control-pressed: color-mix(in srgb, var(--ui-control-hover) 78%, var(--ui-label) 10%);
-  /* Motion (HIG Motion: brief, purposeful, never decorative). */
-  --hig-fast: 120ms;            /* hover, press, selection change */
-  --hig-medium: 200ms;          /* disclosure, popover, view change */
-  --hig-ease: cubic-bezier(.25,.1,.25,1);
-  --hig-ease-out: cubic-bezier(.2,.8,.2,1);
-}
-
 /* ---------- Shared state behaviour ---------------------------------------- */
 :is(button,summary,[role="option"],[role="tab"])[data-ui-kind] {
   transition: background-color var(--hig-fast) var(--hig-ease), color var(--hig-fast) var(--hig-ease),
@@ -229,21 +203,6 @@ input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 
    Content panels, tables and charts stay opaque for legibility. The tokens
    below are the one place those materials are defined; the block near the end
    of this file applies them. */
-:root {
-  --mat-bar: color-mix(in srgb, var(--ui-toolbar) 74%, transparent);
-  --mat-header: color-mix(in srgb, var(--ui-header-row) 82%, transparent);
-  --mat-menu: color-mix(in srgb, var(--ui-control) 72%, transparent);
-  --mat-sheet: color-mix(in srgb, var(--ui-panel) 80%, transparent);
-  --mat-blur-bar: blur(24px) saturate(180%);
-  --mat-blur-menu: blur(40px) saturate(190%);
-  /* Thin hairline plus a specular top edge: what separates glass from paint. */
-  --mat-edge: inset 0 0 0 .5px color-mix(in srgb, var(--ui-label) 13%, transparent), inset 0 .5px 0 color-mix(in srgb, #fff 20%, transparent);
-  --mat-scrim: color-mix(in srgb, #000 30%, transparent);
-}
-:root[data-theme="light"] {
-  --mat-edge: inset 0 0 0 .5px #0000001f, inset 0 .5px 0 #ffffffcc;
-  --mat-scrim: color-mix(in srgb, #000 18%, transparent);
-}
 :is(.select-menu,.tooltip,.app-toast) { border-radius: var(--hig-radius-overlay); }
 /* A modal dialog sits centred in the window; an earlier global margin reset had pinned it to the top-left corner. */
 .local-compute-dialog { margin: auto; border-radius: var(--hig-radius-panel); }
@@ -440,7 +399,6 @@ button.map-guide-info[data-ui-kind="icon"] {
 
 /* Audit follow-through on Claude's3cfe307 baseline. Numeric web tokens are
    project choices, not Apple-prescribed CSS dimensions or timings. */
-:root { --ui-focus: var(--ui-accent); --ui-list-selected-secondary: #fff; }
 [hidden] { display: none !important; }
 /* The workspace switch keeps its segmented presentation and sliding thumb,
    with proper tab semantics for its two content panels. */
@@ -487,7 +445,6 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 :root[data-ui-input="coarse"] { --hig-regular: 44px; --hig-small: 44px; --hig-large: 44px; --hig-thumb: 44px; --hig-menu-row: 44px; }
 @media(max-width:700px) { .chart-sample-controls { grid-template-columns: 1fr; } }
 @media(pointer:coarse) {
-  :root { --hig-regular: 44px; --hig-small: 44px; --hig-large: 44px; --hig-thumb: 44px; --hig-menu-row: 44px; }
   button[data-ui-kind],summary[data-ui-kind],.local-compute-actions > a[data-ui-kind] { height: auto; min-height: 44px; }
   button[data-ui-kind="icon"],button[data-ui-kind="stepper"],button[data-ui-kind="toolbar"] { min-width: 44px; }
   .select-trigger,.select-menu button[data-ui-kind="menu-item"],#driverPills .driver-pill[data-ui-kind="list-row"],.app-sidebar .track-pill[data-ui-kind="choice"] { min-height: 44px; height: auto; }

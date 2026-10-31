@@ -67,7 +67,7 @@ test('UI density uses component sizing and responsive chart rows rather than pag
   // Regular controls are 30px; touch input raises them to 44px (ui-controls.css, the component layer).
   const tokens=JSON.parse(readFileSync('e2e/__tokens__/tokens.json','utf8'));
   assert.equal(tokens.dark['--ui-control-height'],'30px');
-  assert.match(readFileSync('ui-controls.css','utf8'),/pointer: ?coarse[\s\S]{0,400}--ui-control-height: 44px/);
+  assert.match(readFileSync('tokens.css','utf8'),/pointer: ?coarse[\s\S]{0,400}--ui-control-height: 44px/);
   assert.match(performance,/\.performance-bar-track, \.performance-tyre-age-track \{ grid-column: 1 \/ -1; grid-row: 2;/);
   assert.match(performance,/focus-visible \{ outline: 3px solid var\(--accent\)/);
   const source=readFileSync('car-performance.js','utf8');

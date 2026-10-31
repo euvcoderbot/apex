@@ -36,9 +36,6 @@ a { color: var(--ui-accent); }
    keyboard focus only; team colour is identity, never state. List rows: filled
    selection colour, white label. On/off tiles: accent fill, white label.
    Segmented controls: raised thumb. */
-:root { --brand-teal: #00a0a8; --ui-list-selected: var(--ui-selection); --ui-list-selected-label: #fff;
-  --ui-tile-on: var(--ui-action); --ui-tile-on-label: #fff; --ui-thumb-shadow: 0 .5px 2px #0000004d,0 0 0 .5px #0000001a,inset 0 .5px #ffffff1f; }
-:root:not([data-theme="light"]) { --brand-teal: #14b4bc; }
 .site-header .brand.brand-wordmark { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 4px 0 2px; color: var(--ui-label); text-decoration: none; font-family: var(--ui-font-display); font-size: 16px; line-height: 1; letter-spacing: -.01em; white-space: nowrap; }
 .brand-wordmark .brand-icon { display: block; flex: 0 0 24px; width: 24px; height: 24px; max-width: none; border-radius: 6px; box-shadow: 0 0 0 .5px var(--ui-border); }
 .site-header .brand-wordmark .brand-f1 { font-style: normal; font-weight: 800; color: var(--brand-teal); letter-spacing: -.03em; }
@@ -255,7 +252,6 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 
 /* Sector status colours sampled from F1 broadcast timing graphics (user-supplied
    screenshots): each bar is a light upper half over a darker lower half. */
-:root { --f1-purple: #b353c7; --f1-purple-light: #c572db; --f1-green: #49ba4c; --f1-green-light: #7ee582; --f1-yellow: #d5b70b; --f1-yellow-light: #ffea54; }
 .sector-cell.is-session-best { --sector-status: var(--f1-purple); --sector-status-light: var(--f1-purple-light); }
 .sector-cell.is-personal-best { --sector-status: var(--f1-green); --sector-status-light: var(--f1-green-light); }
 .sector-cell.is-complete { --sector-status: var(--f1-yellow); --sector-status-light: var(--f1-yellow-light); }

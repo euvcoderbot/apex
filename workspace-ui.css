@@ -290,16 +290,6 @@ footer { max-width: 1720px; margin: auto; padding: 0 24px 24px; font-size: .6875
 
 /* Workspace geometry and compact disclosures. Appearance is owned by
    macos-ui.css; these legacy material tokens are fallbacks only. */
-:root {
-  --material-fill: #1a2432d9;
-  --material-edge: #c5dcff26;
-  --material-glint: #e4eeff12;
-}
-:root[data-theme="light"] {
-  --material-fill: #f7faffda;
-  --material-edge: #ffffffeb;
-  --material-glint: #ffffffb0;
-}
 body { background: radial-gradient(ellipse at 5% 0%,#297cc323,transparent 42%),radial-gradient(ellipse at 90% 25%,#7271b516,transparent 48%),var(--bg-main); background-attachment: fixed; }
 .site-header {
   display: grid; grid-template-columns: minmax(160px,1fr) auto minmax(160px,1fr);
