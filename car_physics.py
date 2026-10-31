@@ -63,6 +63,11 @@ MIN_WEIGHT_COVERAGE = .6
 # From docs/speed-domain-methodology-20261020.md: teammate agreement after
 # removing overall lap time, 21 qualifying sessions (2025 + 2026). Traction
 # fails in 2025 (too few slow exits with clean samples); show it as evidence.
+# Native distance is the integral of 4 Hz speed, so laps of one circuit agree to within about 1%. A lap whose distance differs from
+# the field's median by more than this has speed or time samples that are not comparable (16 of 879 captured qualifying laps, up to
+# 55% off, one with a minimum speed of 278 km/h; a team's laps at one circuit read 3-4% long), not an unusual line. Measured on 22
+# qualifying sessions, excluding them raises teammate agreement of the straight-line metrics from 0.56 to 0.64 after lap time.
+MAX_DISTANCE_ERROR = .03
 RELIABILITY = {'straight': 'established', 'straight_mid': 'moderate', 'straight_top': 'established',
                'energy': 'established', 'cornering': 'moderate', 'braking': 'moderate', 'traction': 'low',
                'track_straights': 'moderate'}
@@ -1058,6 +1063,13 @@ def speed_domain_metrics(cars, corners=()):
         if valid:
             laps[name] = valid
     excluded = {name: 'No usable native telemetry' for name in cars if name not in laps}
+    lengths = [a[-1, D]-a[0, D] for values in laps.values() for a in values]
+    if len(lengths) >= 3:
+        circuit = float(np.median(lengths))
+        laps = {name: kept for name, values in laps.items()
+                if (kept := [a for a in values if abs((a[-1, D]-a[0, D])/circuit-1) <= MAX_DISTANCE_ERROR])}
+        excluded.update({name: 'Lap distance differs from the field by more than 3%: its speed or time samples are not comparable'
+                         for name in cars if name not in laps and name not in excluded})
     durations = [a[-1, T]-a[0, T] for values in laps.values() for a in values]
     if durations:
         fastest = min(durations)
