@@ -21,6 +21,12 @@ import {TyresView} from './views/TyresView';
 
 const VIEWS: Record<string, ComponentType<any>> = {results: ResultsView, pits: PitsView, trend: TrendView, pace: PaceView, tyres: TyresView, speed: SpeedView, 'race-corners': RaceCornersView};
 const roots = new WeakMap<Element, Root>();
+function unmountAll(container: ParentNode) {
+  for(const element of container.querySelectorAll('[data-react-view]')) {
+    const root=roots.get(element);
+    if(root){root.unmount();roots.delete(element);}
+  }
+}
 
 /** Render every placeholder in `container` synchronously, so code that runs
  *  right after (layout arrangement, component decoration) sees the DOM. */
@@ -34,5 +40,5 @@ function mountAll(container: ParentNode, props: Map<string, unknown>) {
   }
 }
 
-declare global { interface Window { ApexReact?: {mountAll: typeof mountAll; views: string[]} } }
-window.ApexReact = {mountAll, views: Object.keys(VIEWS)};
+declare global { interface Window { ApexReact?: {mountAll: typeof mountAll; unmountAll: typeof unmountAll; views: string[]} } }
+window.ApexReact = {mountAll, unmountAll, views: Object.keys(VIEWS)};
