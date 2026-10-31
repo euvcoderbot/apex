@@ -18,7 +18,8 @@
     "dev": "vinext dev",
     "prebuild": "npm run sync:apex",
     "build": "vinext build",
-    "start": "vinext start"
+    "start": "vinext start",
+    "site:sync-prepared": "node scripts/sync-prepared-sessions.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",
