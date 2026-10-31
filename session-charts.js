@@ -969,17 +969,17 @@ function speedAnnotationLines(annotation) {
 
 function drawSpeedAnnotations(ctx, annotations, rect, bounds, xForFraction, viewStart, viewEnd, traces = []) {
   const theme = canvasTheme(), occupied = [];
-  const bottom = rect.height - bounds.bottom, lineHeight = 13, plotRight = rect.width - bounds.right;
+  const bottom = rect.height - bounds.bottom, lineHeight = 11, plotRight = rect.width - bounds.right;
   const yFor = speed => bounds.top + (bounds.max - speed) / (bounds.max - bounds.min || 1) * (bottom - bounds.top);
   ctx.save();
-  ctx.font = canvasFont(10, 600);
+  ctx.font = canvasFont(9, 600);
   ctx.textAlign = 'center';
   ctx.lineJoin = 'round';
-  const collides = box => occupied.some(b => box.x < b.x + b.width + 3 && box.x + box.width + 3 > b.x && box.y < b.y + b.height + 2 && box.y + box.height + 2 > b.y);
+  const collides = box => occupied.some(b => box.x < b.x + b.width + 2 && box.x + box.width + 2 > b.x && box.y < b.y + b.height + 1 && box.y + box.height + 1 > b.y);
   const fits = box => box.x >= bounds.left && box.x + box.width <= plotRight && box.y >= bounds.top + 14 && box.y + box.height <= bottom - 2;
   annotations.filter(a => a.fraction >= viewStart && a.fraction <= viewEnd).forEach(a => {
     const lines = speedAnnotationLines(a);
-    const width = Math.max(...lines.map(l => ctx.measureText(l.text).width)) + 6;
+    const width = Math.max(...lines.map(l => ctx.measureText(l.text).width)) + 4;
     const height = lines.length * lineHeight + 2;
     const points = a.values.filter(v => v.fraction >= viewStart && v.fraction <= viewEnd).map(v => ({x: xForFraction(v.fraction), y: yFor(v.speed), color: getLapColor(v.lap)}));
     const px = xForFraction(a.fraction), py = yFor(a.speed);
@@ -989,9 +989,13 @@ function drawSpeedAnnotations(ctx, annotations, rect, bounds, xForFraction, view
     const sideways = (dir, offset) => ({x: dir < 0 ? px - offset - width : px + offset, y: Math.max(bounds.top + 14, Math.min(bottom - 2 - height, py - height / 2)), width, height});
     const first = a.kind === 'max' ? -1 : 1;
     const candidates = [];
-    for (const offset of [7, 18, 32]) candidates.push(vertical(first, offset));
-    for (const offset of [7, 18, 32]) candidates.push(vertical(-first, offset));
-    for (const offset of [9, 22, 40]) candidates.push(sideways(1, offset), sideways(-1, offset));
+    for (const offset of [6, 14, 24, 36]) candidates.push(vertical(first, offset));
+    for (const offset of [6, 14, 24, 36]) candidates.push(vertical(-first, offset));
+    for (const offset of [8, 18, 30, 44]) candidates.push(sideways(1, offset), sideways(-1, offset));
+    // Last resorts: slid sideways along the preferred side, so a crowded corner still gets a label next to its neighbours instead of none.
+    for (const shift of [width * .6, -width * .6, width * 1.2, -width * 1.2]) for (const offset of [6, 16, 28]) {
+      const box = vertical(first, offset); candidates.push({...box, x: Math.max(bounds.left, Math.min(plotRight - width, box.x + shift))});
+    }
     const clearOfTraces = box => !traces.some(trace => trackIntersectsLabel(box, trace.points, 1, false));
     const box = candidates.find(b => fits(b) && !collides(b) && clearOfTraces(b)) || candidates.find(b => fits(b) && !collides(b));
     if (!box) return;
@@ -1003,7 +1007,7 @@ function drawSpeedAnnotations(ctx, annotations, rect, bounds, xForFraction, view
     if (Math.hypot(ex - px, ey - py) > 5) { ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(ex, ey); ctx.strokeStyle = theme.gridStrong; ctx.lineWidth = 1; ctx.stroke(); }
     lines.forEach((line, i) => {
       const ty = box.y + (i + 1) * lineHeight - 1;
-      ctx.strokeStyle = theme.labelStroke; ctx.lineWidth = 3;
+      ctx.strokeStyle = theme.labelStroke; ctx.lineWidth = 2.5;
       ctx.strokeText(line.text, box.x + box.width / 2, ty);
       ctx.fillStyle = line.color;
       ctx.fillText(line.text, box.x + box.width / 2, ty);
