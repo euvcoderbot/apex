@@ -735,14 +735,14 @@ function teamLogoMarkup(teamName) {
   if (key === 'renault' || key === 'renault sport f1 team') return '<span class="team-logo team-logo-historical" aria-hidden="true"><img src="assets/teams/historical/renault.png" alt="" width="26" height="26"></span>';
   const historical = historicalTeamMarks[key];
   // Kick Sauber: transparent black and white wordmarks, swapped by appearance like the official marks.
-  if (historical === 'kick-sauber') return `<span class="team-logo team-logo-official" data-team-mark="kick-sauber" aria-hidden="true"><img class="team-logo-color" src="assets/teams/historical/kick-sauber-black.webp" alt="" width="26" height="26"><img class="team-logo-mono" src="assets/teams/historical/kick-sauber-white.webp" alt="" width="26" height="26"></span>`;
+  if (historical === 'kick-sauber') return `<span class="team-logo team-logo-official" data-team-mark="kick-sauber" aria-hidden="true"><img class="team-logo-color" src="assets/teams/historical/kick-sauber-black.webp" alt="" width="26" height="26"><img class="team-logo-mono" src="assets/teams/historical/kick-sauber-white.webp" alt="" width="26" height="26"><img class="team-logo-black" src="assets/teams/historical/kick-sauber-black.webp" alt="" width="26" height="26"></span>`;
   if (historical) return `<span class="team-logo team-logo-historical" aria-hidden="true"><img src="assets/teams/historical/${historical}" alt="" width="26" height="26"></span>`;
   const asset = officialTeamMarks[key];
   if (!asset) return '<span class="team-logo" aria-hidden="true"><i class="team-logo-fallback"></i></span>';
   // Official 2026 marks (96 px): colour plus the white version; the stylesheet
   // shows white only where a colour mark is too dark for the dark appearance.
   const base = asset.replace(/\.webp$/, '');
-  return `<span class="team-logo team-logo-official" data-team-mark="${base}" aria-hidden="true"><img class="team-logo-color" src="assets/teams/official/${base}-color.webp" alt="" width="26" height="26"><img class="team-logo-mono" src="assets/teams/official/${asset}" alt="" width="26" height="26"></span>`;
+  return `<span class="team-logo team-logo-official" data-team-mark="${base}" aria-hidden="true"><img class="team-logo-color" src="assets/teams/official/${base}-color.webp" alt="" width="26" height="26"><img class="team-logo-mono" src="assets/teams/official/${asset}" alt="" width="26" height="26"><img class="team-logo-black" src="assets/teams/official/${base}-black.webp" alt="" width="26" height="26"></span>`;
 }
 
 function compoundBadgeMarkup(compound) {

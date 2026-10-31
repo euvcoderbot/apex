@@ -854,6 +854,7 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
 .team-logo-official { position: relative; display: inline-grid; place-items: center; }
 .team-logo-official > img { grid-area: 1 / 1; width: 100%; height: 100%; object-fit: contain; filter: none; }
 .team-logo-official > .team-logo-mono { display: none; }
+.team-logo-official > .team-logo-black { display: none; }
 :root:not([data-theme="light"]) .team-logo-official:is([data-team-mark="astonmartin"],[data-team-mark="audi"],[data-team-mark="cadillac"],[data-team-mark="mercedes"],[data-team-mark="kick-sauber"]) > .team-logo-color { display: none; }
 :root:not([data-theme="light"]) .team-logo-official:is([data-team-mark="astonmartin"],[data-team-mark="audi"],[data-team-mark="cadillac"],[data-team-mark="mercedes"],[data-team-mark="kick-sauber"]) > .team-logo-mono { display: block; }
 @media(forced-colors:active) { .team-logo-official > .team-logo-color { display: none; } .team-logo-official > .team-logo-mono { display: block; } }
