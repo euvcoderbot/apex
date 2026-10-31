@@ -19,7 +19,7 @@ mirror_spec.loader.exec_module(mirror)
 
 class LocalSessionExportTests(unittest.TestCase):
     def test_recent_stream_capture_and_explicit_refresh_use_real_source_rows(self):
-        with TemporaryDirectory() as directory, patch.object(export.server,'PREPARED_CACHE',Path(directory)):
+        with TemporaryDirectory() as directory, patch.object(export.server,'PREPARED_CACHE',Path(directory)),patch.object(export.server,'RAW_ROOT',Path(directory)/'raw'):
             with patch.object(export.server,'openf1',return_value=[{'speed':200}]):
                 self.assertGreater(mirror.capture_stream('car_data',11389,'1',include_recent=True),0)
             with patch.object(export.server,'openf1',side_effect=AssertionError('Must bypass settled cache')),patch.object(export.server,'_openf1_fetch',return_value=[{'speed':210}]):

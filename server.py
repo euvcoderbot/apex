@@ -52,6 +52,12 @@ CACHE = RUNTIME_CACHE_ROOT / ".fastf1-cache"
 CACHE.mkdir(exist_ok=True)
 PREPARED_CACHE = RUNTIME_CACHE_ROOT / ".apex-cache"
 PREPARED_CACHE.mkdir(exist_ok=True)
+# Raw OpenF1 data is the one thing that is slow to get back (rate limited, hours
+# per season) and never changes once a session is settled, while every
+# calculation built on it does. It lives outside the repo and any worktree so a
+# moved or deleted checkout cannot take it along. Override with APEX_RAW_ROOT.
+RAW_ROOT = Path(os.environ.get("APEX_RAW_ROOT") or (
+    PREPARED_CACHE / "openf1" if os.environ.get("VERCEL") else Path.home() / "apex-data" / "openf1"))
 PREPARED_CACHE_VERSION = "v6"
 SESSION_CACHE_SCHEMA = "session-identity-weather-v6"
 
@@ -605,7 +611,12 @@ def openf1_url(endpoint: str, **params: Any) -> str:
 
 
 def openf1_cache_path(url: str) -> Path:
-    return PREPARED_CACHE / "openf1" / (hashlib.sha256(url.encode()).hexdigest()+".json.gz")
+    """Where a raw OpenF1 response is kept: RAW_ROOT, or the old in-repo folder
+    when the file is only there (it is read in place, never copied)."""
+    name = hashlib.sha256(url.encode()).hexdigest()+".json.gz"
+    path = RAW_ROOT / name
+    legacy = PREPARED_CACHE / "openf1" / name
+    return legacy if not path.exists() and legacy.exists() else path
 
 
 def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
@@ -634,7 +645,7 @@ def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
             if item.get("session_key") is not None and item.get("date_end"):
                 _openf1_session_ends[item["session_key"]] = item["date_end"]
     if settled and result:
-        cache_path.parent.mkdir(exist_ok=True)
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
         temporary = cache_path.with_name(f"{cache_path.name}.{uuid4().hex}.tmp")
         try:
             with gzip.open(temporary, "wt", encoding="utf-8", compresslevel=5) as handle:
@@ -728,7 +739,7 @@ _settled_ends_lock = Lock()
 
 
 def _settled_session_ends_path() -> Path:
-    return PREPARED_CACHE / "openf1" / "settled-sessions.json"
+    return RAW_ROOT / "settled-sessions.json"
 
 
 @lru_cache(maxsize=1)
