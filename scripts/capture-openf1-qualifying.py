@@ -2,7 +2,9 @@
 import sys, json, gzip, os, time, urllib.request, urllib.parse
 from datetime import datetime, timezone, timedelta
 import numpy as np
-out = sys.argv[1]; os.makedirs(out, exist_ok=True)  # usage: capture-openf1-qualifying.py <out_dir>
+# usage: capture-openf1-qualifying.py <out_dir> [year ...]
+# With years, every finished qualifying of those seasons; without, the original set.
+out = sys.argv[1]; os.makedirs(out, exist_ok=True)
 def get(path, **q):
     url = 'https://api.openf1.org/v1/' + path + '?' + urllib.parse.urlencode(q, safe='<>=:')
     for attempt in range(10):
@@ -17,9 +19,11 @@ def get(path, **q):
 def ts(s): return datetime.fromisoformat(s.replace('Z', '+00:00')).timestamp()
 ALL = {2025: ['Suzuka', 'Sakhir', 'Monaco', 'Silverstone', 'Budapest', 'Monza', 'Las Vegas', 'Yas Marina', 'Zandvoort', 'Mexico City'],
        2026: ['Melbourne', 'Shanghai', 'Suzuka', 'Sakhir', 'Miami Gardens', 'Monte Carlo', 'Barcelona', 'Silverstone', 'Spa-Francorchamps', 'Budapest', 'Monza', 'Baku', 'Marina Bay']}
-WANT = ALL
+WANT = {int(y): [] for y in sys.argv[2:]} or ALL
 for year, wanted in WANT.items():
-    sessions = [s for s in get('sessions', year=year, session_name='Qualifying') if ts(s['date_end']) < time.time() - 86400]
+    # Cancelled sessions stay listed with no data (2026: Bahrain and Saudi Arabia in April).
+    sessions = [s for s in get('sessions', year=year, session_name='Qualifying')
+                if ts(s['date_end']) < time.time() - 86400 and not s.get('is_cancelled')]
     if wanted: sessions = [s for s in sessions if s['location'] in wanted]
     for s in sessions:
         path = os.path.join(out, f"{year}-{s['location'].replace(' ', '_')}.json.gz")

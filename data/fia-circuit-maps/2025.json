@@ -1,0 +1,177 @@
+{
+ "year": 2025,
+ "fetched": "2026-10-28",
+ "circuits": [
+  {
+   "event": "Abu Dhabi Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_abu_dhabi_grand_prix_-_event_notes_-_circuit_map_pit_lane_drawing_emergency_exits_map_quarantine_zone_and_red_zones.pdf",
+   "zone_kind": "drs",
+   "zones": [],
+   "centreline_m": 5281,
+   "venue": "Yas Island"
+  },
+  {
+   "event": "Australian Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_event_notes_-_circuit_map_pit_lane_and_quarantine_zone.pdf",
+   "zones": []
+  },
+  {
+   "event": "Austrian Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_austrian_grand_prix_-_event_notes_-_circuit_map_pit_lane_emergency_exit_map_quarantine_zone_red_zones.pdf",
+   "zone_kind": "drs",
+   "zones": [],
+   "centreline_m": 4326,
+   "venue": "SpielbergCircuit Map"
+  },
+  {
+   "event": "Azerbaijan Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_azerbaijan_grand_prix_-_event_notes_-_circuit_map_pit_lane_quarantine_zone_and_red_zone.pdf",
+   "zone_kind": "drs",
+   "zones": [],
+   "centreline_m": 6003,
+   "venue": "Baku"
+  },
+  {
+   "event": "Bahrain Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_bahrain_grand_prix_-_event_notes_-_circuit_map_v4.pdf",
+   "zones": []
+  },
+  {
+   "event": "Belgian Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_belgian_grand_prix_-_event_notes_-_circuit_map_pit_lane_emergency_exits_quarantine_zone_and_red_zones.pdf",
+   "zone_kind": "drs",
+   "zones": [],
+   "centreline_m": 7004,
+   "venue": "Spa-Francorchamps"
+  },
+  {
+   "event": "British Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_british_grand_prix_-_event_notes_-_circuit_map_v2.pdf",
+   "zone_kind": "drs",
+   "zones": [],
+   "centreline_m": 5891,
+   "venue": "Silverstone"
+  },
+  {
+   "event": "Canadian Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_canadian_grand_prix_-_event_notes_-_circuit_map_pit_lane_emergency_exits_map_ers_battery_containment_area_red_zones.pdf",
+   "zone_kind": "drs",
+   "zones": [],
+   "centreline_m": 4361,
+   "venue": "Jeddah"
+  },
+  {
+   "event": "Chinese Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_chinese_grand_prix_-_event_notes_-_circuit_map_pit_lane_and_quarantine_zone.pdf",
+   "zones": []
+  },
+  {
+   "event": "Dutch Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_dutch_grand_prix_-_event_notes_-_circuit_map_pit_lane_map_emergency_exit_map_quarantine_zone_and_red_zones_.pdf",
+   "zone_kind": "drs",
+   "zones": [],
+   "centreline_m": 4259,
+   "venue": "Zandvoort"
+  },
+  {
+   "event": "Emilia Romagna Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_emilia_romagna_grand_prix_-_race_director_event_notes_-_circuit_map_pit_lane_emergency_exits_quarantine_zone_and_red_zones.pdf",
+   "zone_kind": "drs",
+   "zones": [],
+   "centreline_m": 4909
+  },
+  {
+   "event": "Hungarian Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_hungarian_grand_prix_-_event_notes_-_circuit_map_pit_lane_emergency_exits_map_quarantine_zone_and_red_zones.pdf",
+   "zone_kind": "drs",
+   "zones": [],
+   "centreline_m": 4381,
+   "venue": "Budapest"
+  },
+  {
+   "event": "Italian Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_italian_grand_prix_-_event_notes_-_circuit_map_pit_lane_emergency_exit_map_quarantine_zone_and_red_zones.pdf",
+   "zone_kind": "drs",
+   "zones": [],
+   "centreline_m": 5793,
+   "venue": "Jeddah"
+  },
+  {
+   "event": "Japanese Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_japanese_grand_prix_-_event_notes_-_circuit_map_pit_lane_quarantine_and_red_zone.pdf",
+   "zones": []
+  },
+  {
+   "event": "Las Vegas Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_las_vegas_grand_prix_-_event_notes_-_circuit_map_v2_pit_lane_drawing_emergency_map_exits_quarantine_zone_and_red_zones.pdf",
+   "zone_kind": "drs",
+   "zones": [],
+   "centreline_m": 6201,
+   "venue": "Las Vegas"
+  },
+  {
+   "event": "Mexico City Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_mexico_city_grand_prix_-_event_notes_-_circuit_map_pit_lane_drawing_emergency_exits_map_and_quarantine_zone_area.pdf",
+   "zone_kind": "drs",
+   "zones": [],
+   "centreline_m": 4304,
+   "venue": "Jeddah"
+  },
+  {
+   "event": "Miami Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_miami_grand_prix_-_event_notes_-_circuit_map_pit_lane_quarantine_zone_emergency_exits_and_red_zones_.pdf",
+   "zones": []
+  },
+  {
+   "event": "Monaco Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_monaco_grand_prix_-_race_directors_event_notes_-_circuit_map_pit_lane_map_ers_battery_containment_area_red_zones.pdf",
+   "zone_kind": "drs",
+   "zones": [],
+   "centreline_m": 3337,
+   "venue": "Monaco"
+  },
+  {
+   "event": "Qatar Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_qatar_grand_prix_-_event_notes_-_circuit_map._pit_lane_drawing_emergency_exits_map_ers_battery_containment_area_red_zones_map.pdf",
+   "zone_kind": "drs",
+   "zones": [],
+   "centreline_m": 5419,
+   "venue": "Lusail"
+  },
+  {
+   "event": "São Paulo Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_sao_paulo_grand_prix_-_event_notes_-_circuit_map_pit_lane_drawing_emergency_exits_map_quarantine_zone_and_red_zones_map.pdf",
+   "zone_kind": "drs",
+   "zones": [],
+   "centreline_m": 4309
+  },
+  {
+   "event": "Saudi Arabian Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_saudi_arabian_grand_prix_-_event_notes_-_circuit_map_pit_lane_and_quarantine_zone.pdf",
+   "zones": []
+  },
+  {
+   "event": "Singapore Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_singapore_grand_prix_-_event_notes_-_circuit_map_pit_lane_emergency_exits_map_and_quarantine_zone.pdf",
+   "zone_kind": "drs",
+   "zones": [],
+   "centreline_m": 4927,
+   "venue": "Marina Bay"
+  },
+  {
+   "event": "Spanish Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_spanish_grand_prix_-_race_director_event_notes_-_circuit_map_pit_lane_quarantine_zone_and_red_zones.pdf",
+   "zone_kind": "drs",
+   "zones": [],
+   "centreline_m": 4657
+  },
+  {
+   "event": "United States Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2025_united_states_grand_prix_-_event_notes_-_circuit_map_pit_lane_drawing_emergency_exits_map_quarantine_zone_map_red_zones_map.pdf",
+   "zone_kind": "drs",
+   "zones": [],
+   "centreline_m": 5513,
+   "venue": "Austin"
+  }
+ ]
+}
