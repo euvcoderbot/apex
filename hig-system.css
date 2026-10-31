@@ -477,6 +477,56 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
   :is(.select-menu[popover],.circuit-guide-details[popover]):popover-open { opacity: 1; }
   @starting-style { :is(.select-menu[popover],.circuit-guide-details[popover]):popover-open { opacity: 0; } }
 }
+/* ---------- Long labels (HIG Lists and tables) -------------------------------
+   A row is one line: text that does not fit is cut with an ellipsis and the full name is the tooltip, so every row keeps the
+   same height whatever the Grand Prix is called. Driver rows already do this. */
+.app-sidebar .track-pill .track-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Interface chrome is not text ------------------------------------
+   Select All or a drag across a window never highlights a button label in a native app; content (tables, values,
+   explanations, fields) stays selectable. */
+:is(button, summary, [role="tab"], [role="option"], [role="radio"], [role="menuitem"], .select-trigger, .site-header, .category-bar,
+    .performance-tabs, .performance-scope-toggle, .session-analysis-tabs, label:has(> input[type="checkbox"]), label:has(> input[type="radio"])) {
+  -webkit-user-select: none; user-select: none;
+}
+
+/* ---------- Interactive glass (macOS 27) -------------------------------------
+   Toolbar controls sit on glass, so they answer the pointer: a faint highlight follows it (glass.js sets --glass-x/-y) and a
+   press gives a small, springy scale. Apple documents the effect ("a little goes a long way") but no values; these are tuned
+   by eye. Hover devices only; reduced transparency and increased contrast remove the highlight, reduced motion the scale. */
+@media (hover: hover) {
+  [data-glass]:is(button, .performance-tabs):hover:not(:disabled) {
+    background-image: radial-gradient(circle 80px at var(--glass-x, 50%) var(--glass-y, 50%), var(--mat-glint), transparent 72%);
+  }
+}
+[data-glass]:is(button, .performance-tabs) { transition: transform var(--motion-tier-fast) var(--ease-spring), background-color var(--hig-fast) var(--hig-ease), color var(--hig-fast) var(--hig-ease), box-shadow var(--hig-fast) var(--hig-ease); }
+[data-glass][data-ui-kind]:active:not(:disabled) { transform: scale(var(--glass-press-scale)); }
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  [data-glass]:is(button, .performance-tabs):hover:not(:disabled) { background-image: none; }
+}
+/* The person's own switch (glass.js, setIntensity): no highlight and no press response. */
+:root[data-glass-off] [data-glass]:is(button, .performance-tabs):hover:not(:disabled) { background-image: none; }
+:root[data-glass-off] [data-glass][data-ui-kind]:active:not(:disabled) { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  [data-glass][data-ui-kind]:active:not(:disabled) { transform: none; }
+}
+
+/* ---------- Presentation: popover and sheet ------------------------------------
+   A popover appears from the control that asked for it (a fade with a 3% scale from its top-left corner), a sheet drops in
+   from the top edge and its scrim fades. Both reverse when dismissed. Menus stay a plain fade, like AppKit's. */
+@media (prefers-reduced-motion: no-preference) {
+  .circuit-guide-details[popover] { transform-origin: top left; transition: opacity var(--hig-fast) var(--hig-ease), transform var(--motion-tier-standard) var(--ease-out), overlay var(--motion-tier-standard) allow-discrete, display var(--motion-tier-standard) allow-discrete; transform: scale(.97); }
+  .circuit-guide-details[popover]:popover-open { transform: none; }
+  @starting-style { .circuit-guide-details[popover]:popover-open { transform: scale(.97); } }
+
+  .local-compute-dialog { animation: none; opacity: 0; transform: translateY(-12px); transition: opacity var(--motion-tier-slow) var(--ease-out), transform var(--motion-tier-slow) var(--ease-out), overlay var(--motion-tier-slow) allow-discrete, display var(--motion-tier-slow) allow-discrete; }
+  .local-compute-dialog[open] { animation: none; opacity: 1; transform: none; }
+  @starting-style { .local-compute-dialog[open] { opacity: 0; transform: translateY(-12px); } }
+  .local-compute-dialog::backdrop { opacity: 0; transition: opacity var(--motion-tier-slow) var(--ease-out), overlay var(--motion-tier-slow) allow-discrete, display var(--motion-tier-slow) allow-discrete; }
+  .local-compute-dialog[open]::backdrop { opacity: 1; }
+  @starting-style { .local-compute-dialog[open]::backdrop { opacity: 0; } }
+}
+
 /* Fallbacks. Each replaces the translucent fill with the opaque one. */
 @supports not (backdrop-filter: blur(1px)) {
   .site-header,.site-header.window-toolbar { background: var(--ui-toolbar); }
@@ -542,8 +592,10 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 .corner-measurement-table .corner-driver .team-logo,.corner-measurement-table .corner-driver .team-logo img { width: 18px; height: 18px; flex: 0 0 18px; }
 .corner-measurement-table .corner-driver .team-logo-official > .team-logo-color { display: none; }
 .corner-measurement-table .corner-driver .team-logo-official > .team-logo-mono { display: block; }
-.corner-measurement-table .corner-driver .team-logo img { filter: brightness(0) invert(1); }
-:root[data-theme="light"] .corner-measurement-table .corner-driver .team-logo img { filter: brightness(0); }
+.corner-measurement-table .corner-driver .team-logo-historical { background: transparent; padding: 0; }
+/* The table is monochrome: the real white mark on dark, the real black mark on light (not a flattened silhouette of the colour one). */
+:root[data-theme="light"] .corner-measurement-table .corner-driver .team-logo-official > .team-logo-mono { display: none; }
+:root[data-theme="light"] .corner-measurement-table .corner-driver .team-logo-official > .team-logo-black { display: block; }
 .corner-measurement-table .corner-driver small { font: 400 var(--type-caption)/1.4 var(--ui-font); color: var(--ui-secondary); }
 .corner-measurement-table .corner-driver em { font-style: normal; }
 .corner-measurement-table td strong { display: block; font-size: var(--type-body); line-height: 1.4; font-weight: 500; color: inherit; }

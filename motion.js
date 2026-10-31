@@ -37,9 +37,22 @@
     animations.add(animation);animation.finished?.catch(() => {}).finally(() => animations.delete(animation));
     return animation;
   }
+  // Start an element animation that a newer one can interrupt: the previous animation on the same element and key is cancelled
+  // first, so quick repeated changes never stack two transforms on one node. Callers measure the element's rect (which includes
+  // the running transform) before calling, so the new animation begins from where the old one visibly was.
+  const running = new WeakMap();
+  function animate(element, keyframes, options, key = 'default') {
+    if (!element?.animate) return null;
+    const byKey = running.get(element) || new Map(); running.set(element, byKey);
+    byKey.get(key)?.cancel();
+    const animation = track(element.animate(keyframes, options));
+    byKey.set(key, animation);
+    animation?.finished?.catch(() => {}).finally(() => { if (byKey.get(key) === animation) byKey.delete(key); });
+    return animation;
+  }
   if (typeof matchMedia === 'function') matchMedia('(prefers-reduced-motion: reduce)').addEventListener?.('change',event => {
     if (!event.matches) return;
     active?.skipTransition?.();for (const animation of animations) animation.cancel();animations.clear();
   });
-  window.ApexMotion = {transition, enter, reduced, track};
+  window.ApexMotion = {transition, enter, reduced, track, animate};
 })();

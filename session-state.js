@@ -147,9 +147,9 @@ function replaceUI(root, html) {
     const dx = old ? (old.rect.left - next.left) / pageZoom : 0;
     const dy = old ? (old.rect.top - next.top) / pageZoom : 6;
     if (!old || Math.abs(dx) + Math.abs(dy) > 1) {
-      const animation=node.animate([{ opacity: old ? 1 : 0, transform: `translate(${dx}px, ${dy}px)` },
-        { opacity: 1, transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.22,.68,0,1)' });
-      window.ApexMotion?.track(animation);
+      const frames = [{ opacity: old ? 1 : 0, transform: `translate(${dx}px, ${dy}px)` }, { opacity: 1, transform: 'none' }];
+      const timing = { duration: 280, easing: 'cubic-bezier(.22,.68,0,1)' };
+      if (window.ApexMotion) window.ApexMotion.animate(node, frames, timing, 'flip'); else node.animate(frames, timing);
     }
   }
 }
@@ -732,19 +732,39 @@ const historicalTeamMarks = {
   'lotus': 'lotus.png', 'lotus f1 team': 'lotus.png', 'manor': 'manor.png', 'manor racing': 'manor.png',
   'marussia': 'marussia.png', 'manor marussia': 'marussia.png', 'caterham': 'caterham.png',
 };
+// Historical marks: the original (colour) plus a white and a black version, so the monochrome corner table can show a real mark.
+function historicalMarkup(file) {
+  const base = file.replace(/\.(png|svg)$/, '');
+  return `<span class="team-logo team-logo-historical team-logo-official" data-team-mark="${base}" aria-hidden="true"><img class="team-logo-color" src="assets/teams/historical/${file}" alt="" width="26" height="26"><img class="team-logo-mono" src="assets/teams/historical/${base}-white.webp" alt="" width="26" height="26"><img class="team-logo-black" src="assets/teams/historical/${base}-black.webp" alt="" width="26" height="26"></span>`;
+}
+// Team names arrive in many spellings across 2014-2026 (sponsor-era names, "F1 Team" suffixes, constructor vs entrant). An exact match wins; otherwise the
+// first pattern that fits picks the franchise, so "Oracle Red Bull Racing", "Sahara Force India F1 Team" or "Visa Cash App RB F1 Team" still get a mark.
+const teamNamePatterns = [
+  [/kick sauber|stake/, 'kick sauber'], [/alfa romeo/, 'alfa romeo'], [/sauber/, 'sauber'],
+  [/red bull racing|^red bull|oracle red bull/, 'red bull racing'], [/racing bulls|visa cash app|^rb|rb f1/, 'racing bulls'],
+  [/alphatauri|alpha tauri/, 'alphatauri'], [/toro rosso/, 'toro rosso'], [/force india/, 'force india'], [/racing point/, 'racing point'],
+  [/renault/, 'renault'], [/alpine/, 'alpine'], [/aston martin/, 'aston martin'], [/williams/, 'williams'], [/haas/, 'haas'],
+  [/mclaren/, 'mclaren'], [/mercedes/, 'mercedes'], [/ferrari/, 'ferrari'], [/lotus/, 'lotus'], [/manor/, 'manor'], [/marussia/, 'marussia'],
+  [/caterham/, 'caterham'], [/audi/, 'audi'], [/cadillac/, 'cadillac'],
+];
+function canonicalTeamKey(key) {
+  if (officialTeamMarks[key] || historicalTeamMarks[key] || key === 'renault' || key === 'renault sport f1 team') return key;
+  for (const [pattern, canonical] of teamNamePatterns) if (pattern.test(key)) return canonical;
+  return key;
+}
 function teamLogoMarkup(teamName) {
-  const key = String(teamName || '').trim().toLowerCase();
-  if (key === 'renault' || key === 'renault sport f1 team') return '<span class="team-logo team-logo-historical" aria-hidden="true"><img src="assets/teams/historical/renault.png" alt="" width="26" height="26"></span>';
+  const key = canonicalTeamKey(String(teamName || '').trim().toLowerCase());
+  if (key === 'renault' || key === 'renault sport f1 team') return historicalMarkup('renault.png');
   const historical = historicalTeamMarks[key];
   // Kick Sauber: transparent black and white wordmarks, swapped by appearance like the official marks.
-  if (historical === 'kick-sauber') return `<span class="team-logo team-logo-official" data-team-mark="kick-sauber" aria-hidden="true"><img class="team-logo-color" src="assets/teams/historical/kick-sauber-black.webp" alt="" width="26" height="26"><img class="team-logo-mono" src="assets/teams/historical/kick-sauber-white.webp" alt="" width="26" height="26"></span>`;
-  if (historical) return `<span class="team-logo team-logo-historical" aria-hidden="true"><img src="assets/teams/historical/${historical}" alt="" width="26" height="26"></span>`;
+  if (historical === 'kick-sauber') return `<span class="team-logo team-logo-official" data-team-mark="kick-sauber" aria-hidden="true"><img class="team-logo-color" src="assets/teams/historical/kick-sauber-black.webp" alt="" width="26" height="26"><img class="team-logo-mono" src="assets/teams/historical/kick-sauber-white.webp" alt="" width="26" height="26"><img class="team-logo-black" src="assets/teams/historical/kick-sauber-black.webp" alt="" width="26" height="26"></span>`;
+  if (historical) return historicalMarkup(historical);
   const asset = officialTeamMarks[key];
   if (!asset) return '<span class="team-logo" aria-hidden="true"><i class="team-logo-fallback"></i></span>';
   // Official 2026 marks (96 px): colour plus the white version; the stylesheet
   // shows white only where a colour mark is too dark for the dark appearance.
   const base = asset.replace(/\.webp$/, '');
-  return `<span class="team-logo team-logo-official" data-team-mark="${base}" aria-hidden="true"><img class="team-logo-color" src="assets/teams/official/${base}-color.webp" alt="" width="26" height="26"><img class="team-logo-mono" src="assets/teams/official/${asset}" alt="" width="26" height="26"></span>`;
+  return `<span class="team-logo team-logo-official" data-team-mark="${base}" aria-hidden="true"><img class="team-logo-color" src="assets/teams/official/${base}-color.webp" alt="" width="26" height="26"><img class="team-logo-mono" src="assets/teams/official/${asset}" alt="" width="26" height="26"><img class="team-logo-black" src="assets/teams/official/${base}-black.webp" alt="" width="26" height="26"></span>`;
 }
 
 function compoundBadgeMarkup(compound) {

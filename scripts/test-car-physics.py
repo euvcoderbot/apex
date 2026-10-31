@@ -297,5 +297,49 @@ class MappedFastCornerTests(unittest.TestCase):
         for key in ('grip_limited', 'flat_load', 'braked'):
             self.assertIs(type(corners[0][key]), bool, key)
 
+class CorruptLapTests(unittest.TestCase):
+    """A lap whose distance disagrees with the field by more than 3% has corrupt samples (real captures had laps 55% off, and
+    one whose minimum speed was 278 km/h); it must not decide a car's cornering, and must not disturb anyone else."""
+
+    def base(self):
+        return {f"base{k}": [simulate(rng=np.random.default_rng(k))] for k in range(4)}
+
+    def test_a_lap_with_an_impossible_distance_is_excluded_and_says_why(self):
+        bad = simulate(rng=np.random.default_rng(9))
+        bad[:, 0] *= 1.4
+        result = speed_domain_metrics({**self.base(), "bad": [bad]})
+        self.assertNotIn("bad", result["cars"])
+        self.assertIn("more than 3%", result["excluded"]["bad"])
+
+    def test_the_other_cars_are_unchanged_by_the_corrupt_one(self):
+        clean = speed_domain_metrics(self.base())
+        bad = simulate(rng=np.random.default_rng(9))
+        bad[:, 0] *= 0.45
+        with_bad = speed_domain_metrics({**self.base(), "bad": [bad]})
+        for name in clean["cars"]:
+            for band in ("low", "medium", "high"):
+                self.assertAlmostEqual(clean["cars"][name]["cornering"][band]["time_vs_median_s"],
+                                       with_bad["cars"][name]["cornering"][band]["time_vs_median_s"], places=9)
+
+    def test_normal_line_to_line_differences_are_kept(self):
+        near = simulate(rng=np.random.default_rng(9))
+        near[:, 0] *= 1.01
+        result = speed_domain_metrics({**self.base(), "near": [near]})
+        self.assertIn("near", result["cars"])
+
+
+class AccelerationIndexContractTests(unittest.TestCase):
+    def test_the_straight_needs_an_end_speed_or_a_distance(self):
+        from car_physics import acceleration_index
+        nodes = np.arange(105., 300., 10.)
+        curves = {name: np.linspace(8, 1, len(nodes)) + i * .1 for i, name in enumerate("ABCD")}
+        with self.assertRaisesRegex(ValueError, "v_end or distance_m"):
+            acceleration_index(curves, nodes, 150.)
+        index, info = acceleration_index(curves, nodes, 150., v_end=250.)
+        self.assertTrue(info and info["distance_m"] > 20)
+        index, info = acceleration_index(curves, nodes, 150., distance_m=400.)
+        self.assertAlmostEqual(info["distance_m"], 400.)
+
+
 if __name__ == '__main__':
     unittest.main()

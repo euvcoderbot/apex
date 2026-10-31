@@ -139,3 +139,19 @@ test('real straights and lap shares put corners and straights on the qualifying-
   const season=speedDomainSeason([event({A:c,B:{...c,track_straights:{...c.track_straights,time_vs_median_s:0}},C:{...c,track_straights:{...c.track_straights,time_vs_median_s:-.45}}})],'team','track_straights_lap');
   assert.ok(season.rows.find(r=>r.name==='A').provisional,'a provisional straight marks the row');
 });
+
+test('a car with a missing braking, mid-corner or exit phase is left out of the breakdown, not counted as zero seconds',()=>{
+  const phased=(braking,mid,exit)=>({cornering:{low:{index:1,phases_s:{braking,mid,exit}}}});
+  const events=[{name:'A',speedDomain:{team:{cars:{X:phased(.10,.20,.30),Y:phased(0,.10,.20),Z:phased(-.10,0,.10),W:phased(null,.15,.25),V:phased(undefined,.15,.25),U:phased(Number.NaN,.15,.25)}}}}];
+  const rows=speedDomainPhases(events,'team','low');
+  assert.deepEqual(rows.map(r=>r.name).sort(),['X','Y','Z']);
+  for(const row of rows)for(const k of ['braking','mid','exit'])assert.ok(Number.isFinite(row[k]),`${row.name} ${k}`);
+});
+
+test('braking is low confidence in 2026 (weak teammate agreement) and keeps its backend label elsewhere', async () => {
+  const {speedDomainIsLowConfidence} = await import('../speed-domain.js');
+  assert.equal(speedDomainIsLowConfidence(2026, 'braking', ['moderate']), true);
+  assert.equal(speedDomainIsLowConfidence(2025, 'braking', ['moderate']), false);
+  assert.equal(speedDomainIsLowConfidence(2025, 'traction', ['low']), true, 'a low backend label always wins');
+  assert.equal(speedDomainIsLowConfidence(2026, 'straight', ['established']), false);
+});

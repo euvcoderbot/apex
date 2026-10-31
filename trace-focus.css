@@ -6,7 +6,7 @@
   background: var(--ui-control);
   color: var(--ui-label);
   font: inherit;
-  font-size: .8rem;
+  font-size: var(--text-md);
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -17,7 +17,7 @@
 .pit-lap-notice {
   margin: 8px 10px 10px;
   color: var(--ui-secondary);
-  font-size: .8rem;
+  font-size: var(--text-md);
   line-height: 1.45;
 }
 .pit-lap-notice[hidden] { display: none; }
