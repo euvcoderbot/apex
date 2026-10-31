@@ -14,11 +14,11 @@
 // page ignores snapshots whose revisions do not match, so they would not show.
 // It does not build or publish; run the Site's own sync/build and publish after.
 import {createHash} from 'node:crypto';
-import {copyFile, mkdir, open, readFile, readdir, rename, stat, unlink, writeFile} from 'node:fs/promises';
+import {mkdir, readFile, stat} from 'node:fs/promises';
 import {gunzipSync} from 'node:zlib';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {atomicJson,captureLock} from '../lib/atomic-json.mjs';
+import {atomicJson,atomicBytes,captureLock} from '../lib/atomic-json.mjs';
 import {snapshotCompatible,tagCaptureRevisions} from '../lib/snapshot-policy.mjs';
 
 const read = async file => readFile(file, 'utf8').then(JSON.parse);
@@ -111,7 +111,7 @@ async function applyLocked(from,to,p) {
   const data = root => path.join(root, 'assets', 'data');
   const put = async (source, target) => {
     await mkdir(path.dirname(target), {recursive: true});
-    const temporary = target + '.tmp'; await copyFile(source, temporary); await rename(temporary, target);
+    await atomicBytes(target,await readFile(source));
   };
   const captures = {...p.toCaptures, ...p.wanted, schema: p.fromCaptures.schema, entries: p.siteMatches ? tagCaptureRevisions(p.toCaptures) : {}};
   for (const {key, entry, superseded} of p.captures) {
@@ -125,7 +125,7 @@ async function applyLocked(from,to,p) {
   if(p.calendar){
     const packed=(await import('node:zlib')).gzipSync(JSON.stringify(p.calendar.data.events||p.calendar.data));
     const file=sha(packed).slice(0,24)+'.json.gz';
-    await writeFile(path.join(data(to),'local-captures',file),packed);
+    await atomicBytes(path.join(data(to),'local-captures',file),packed);
     captures.entries['/api/events?year=2026']={file,capturedAt:(await stat(path.join(data(from),'events',p.calendar.file))).mtime.toISOString()};
   }
   const packs = {...p.toPacks, sourceRevision: p.wanted.sourceRevision, schema: p.fromPacks.schema, entries: {...p.toPacks.entries}};
@@ -169,14 +169,9 @@ async function main() {
   if (fatal || p.problems.some(x => x.startsWith('unreadable'))) process.exit(1);
   console.log(describe(p));
   if (!args.includes('--apply')) { console.log('\nDry run. Add --apply to write these into ' + path.resolve(to)); return; }
-  const lock=path.join(path.resolve(to),'assets','data','.sync-prepared.lock');
-  const handle=await open(lock,'wx').catch(e=>{if(e.code==='EEXIST')throw Error('Another prepared-data sync is active; retry later.');throw e;});
-  try {
-    p=await plan(path.resolve(from),path.resolve(to));
-    if(!p.wanted||p.problems.some(x=>x.startsWith('unreadable')))throw Error('Prepared data changed or is invalid; retry after preparation completes.');
-    if(!p.captures.length&&!p.packs.length&&!p.calendar){console.log('\nAlready up to date.');return;}
-    await apply(path.resolve(from), path.resolve(to), p);
-  } finally { await handle.close(); await unlink(lock); }
+  if(!p.captures.length&&!p.packs.length&&!p.calendar){console.log('\nAlready up to date.');return;}
+  // apply re-plans while holding the same OS lock as all capture writers.
+  await apply(path.resolve(from), path.resolve(to), p);
   console.log('\nDone. Rebuild the Site (npm run sync:apex) and publish it.');
 }
 

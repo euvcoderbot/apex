@@ -20,6 +20,7 @@ from urllib.parse import urlencode
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import server
+from capture_storage import storage_lock,atomic_bytes
 
 
 def timestamp(value):
@@ -35,6 +36,11 @@ def validate_finished(identity, classification, now):
 
 
 def merge_session_export(root, year, gp, round_number, session, payload):
+    with storage_lock(root/'assets/data/prerendered'):
+        return _merge_session_export(root,year,gp,round_number,session,payload)
+
+
+def _merge_session_export(root, year, gp, round_number, session, payload):
     folder = root/'assets/data/prerendered'
     target = folder/'index.json'
     manifest = json.loads(target.read_text(encoding='utf-8'))
@@ -44,29 +50,22 @@ def merge_session_export(root, year, gp, round_number, session, payload):
         raise ValueError('Source revision mismatch: rebuild existing exports before merging a session')
     query = '/api/session?'+urlencode(sorted({'year':year, 'gp':gp, 'round':round_number, 'session':session}.items()))
     packed = gzip.compress(json.dumps(payload,separators=(',',':'),allow_nan=False).encode(),mtime=0)
-    filename = hashlib.sha256(query.encode()).hexdigest()[:24]+'.json.gz'
-    (folder/filename).write_bytes(packed)
+    filename = hashlib.sha256(packed).hexdigest()[:24]+'.json.gz'
+    atomic_bytes(folder/filename,packed)
     manifest['entries'][query] = filename
     manifest.setdefault('captures', {})[query] = payload['local_export']
     # Captures are timestamped snapshots, not a promise of live freshness.
     manifest.get('expires', {}).pop(query, None)
     manifest['generated'] = datetime.now(timezone.utc).isoformat()
-    temp = target.with_name('index.json.tmp')
-    temp.write_text(json.dumps(manifest,separators=(',',':')),encoding='utf-8')
-    temp.replace(target)
+    atomic_bytes(target,json.dumps(manifest,separators=(',',':')).encode())
     return query
 
 
 def merge_local_session_capture(root,year,gp,round_number,session,payload):
     folder=root/'assets/data/local-captures';folder.mkdir(parents=True,exist_ok=True)
     target=folder/'index.json'
-    lock=folder/'index.lock'
-    try: descriptor=os.open(lock,os.O_CREAT|os.O_EXCL|os.O_WRONLY)
-    except FileExistsError: raise ValueError('Another capture is updating the index; retry after it finishes')
-    try:
+    with storage_lock(folder):
         return _merge_locked_session_capture(root,year,gp,round_number,session,payload,folder,target)
-    finally:
-        os.close(descriptor);lock.unlink(missing_ok=True)
 
 
 def _merge_locked_session_capture(root,year,gp,round_number,session,payload,folder,target):
@@ -82,12 +81,18 @@ def _merge_locked_session_capture(root,year,gp,round_number,session,payload,fold
     index['entries']={key:{**previous,**entry} for key,entry in index.get('entries',{}).items()}
     index.update(revisions)
     query='/api/session?'+urlencode(sorted({'year':year,'gp':gp,'round':round_number,'session':session}.items()))
+    captured_at=timestamp(payload['local_export']['captured_at'])
+    previous_capture=index['entries'].get(query,{}).get('capturedAt')
+    # A slower, older export can finish after a newer capture. Locking makes
+    # the write exclusive; timestamp ordering prevents that stale replacement.
+    if previous_capture and timestamp(previous_capture)>captured_at:
+        return query
     packed=gzip.compress(json.dumps(payload,separators=(',',':'),allow_nan=False).encode(),mtime=0)
     filename=hashlib.sha256(packed).hexdigest()[:24]+'.json.gz'
-    (folder/filename).write_bytes(packed)
+    atomic_bytes(folder/filename,packed)
     index['entries'][query]={'file':filename,'capturedAt':payload['local_export']['captured_at'],**revisions}
     index['generated']=datetime.now(timezone.utc).isoformat()
-    temp=target.with_name('index.json.tmp');temp.write_text(json.dumps(index,separators=(',',':')),encoding='utf-8');temp.replace(target)
+    atomic_bytes(target,json.dumps(index,separators=(',',':')).encode())
     return query
 
 
@@ -166,7 +171,12 @@ def main():
     query = merge_local_session_capture(ROOT,args.year,args.gp,args.round,session,payload)
     calendar_path = ROOT/f'assets/data/events/{args.year}.json'
     calendar_path.parent.mkdir(parents=True,exist_ok=True)
-    calendar_path.write_text(json.dumps(calendar,separators=(',',':'),allow_nan=False),encoding='utf-8')
+    with storage_lock(calendar_path.parent):
+        latest=json.loads(calendar_path.read_text(encoding='utf-8')) if calendar_path.exists() else calendar
+        for current in latest:
+            if current.get('round')==args.round and current.get('name')==args.gp:
+                current.setdefault('session_statuses',{})[session]='completed'
+        atomic_bytes(calendar_path,json.dumps(latest,separators=(',',':'),allow_nan=False).encode())
     print(json.dumps({'exported':query,'drivers':len(drivers),'sourceRevision':telemetry['sourceRevision'],
                       'note':'Captured snapshot; run again with --refresh to include source corrections. Build and publish to update the public site.'}),flush=True)
 
