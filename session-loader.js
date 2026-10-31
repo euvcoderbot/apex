@@ -19,9 +19,22 @@ function selectCustomOption(optionButton) {
   trigger?.focus();
 }
 
+/**
+ * Driver codes, numbers and colours reach HTML attributes and inline styles throughout the page, so they are
+ * reduced to what they can legitimately contain where the data comes in. Names are escaped where they are shown.
+ */
+function safeDriver(driver) {
+  if (!driver || typeof driver !== 'object') return null;
+  const code = String(driver.code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+  if (!code) return null;
+  const color = /^#?[0-9a-f]{6}$/i.test(String(driver.team_color ?? '')) ? '#' + String(driver.team_color).replace('#', '') : '#8b8b93';
+  const number = /^\d{1,3}$/.test(String(driver.number ?? '')) ? driver.number : '';
+  return {...driver, code, number, team_color: color};
+}
+
 function populate(select, values, valueFor = x => x, labelFor = x => x) {
   customSelectValues.delete(select);
-  select.innerHTML = values.map(val => `<option value="${valueFor(val)}">${labelFor(val)}</option>`).join('');
+  select.innerHTML = values.map(val => `<option value="${escapeUI(valueFor(val))}">${escapeUI(labelFor(val))}</option>`).join('');
   syncSelectUI(select);
 }
 
@@ -349,7 +362,9 @@ async function loadRealSession() {
   try {
     const payload = await loadApiData(apiUrl(`/api/session?${requestedQuery}`), {signal:request.signal});
     if (request !== sessionRequest || requestedQuery !== String(currentQuery())) return;
-    if (!Array.isArray(payload.drivers) || !payload.drivers.length) throw new Error('No driver data is available for this session yet.');
+    if (!Array.isArray(payload.drivers)) throw new Error('No driver data is available for this session yet.');
+    payload.drivers = payload.drivers.map(safeDriver).filter(Boolean);
+    if (!payload.drivers.length) throw new Error('No driver data is available for this session yet.');
     clearBeforeSessionLoad();
     loadedSessionQuery = requestedQuery;
     renderCharts();
