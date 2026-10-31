@@ -23,4 +23,7 @@ start-apex.bat
 tsconfig.tsbuildinfo
 test-results/
 **/index.oslock
+/assets/data/local-captures/
+/assets/data/local-telemetry/
+/result.json
 playwright-report/

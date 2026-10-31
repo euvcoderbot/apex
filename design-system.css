@@ -3872,34 +3872,6 @@ main,
   font-size: 6px;
 }
 
-.trace-color-picker {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 17px;
-  height: 17px;
-  flex: 0 0 17px;
-  padding: 0;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, .28);
-  border-radius: var(--radius-xs);
-  background: var(--trace-color, transparent);
-  cursor: pointer;
-}
-
-.trace-color-picker::-webkit-color-swatch-wrapper {
-  padding: 0;
-}
-
-.trace-color-picker::-webkit-color-swatch {
-  border: 0;
-  border-radius: var(--radius-xs);
-}
-
-.trace-color-picker::-moz-color-swatch {
-  border: 0;
-  border-radius: var(--radius-xs);
-}
-
 .lap-summary-card.has-conditions .summary-sectors {
   margin-bottom: 0;
 }
@@ -4224,26 +4196,6 @@ main,
   justify-content: end;
   gap: 7px;
   min-height: 21px;
-}
-
-.trace-color-picker {
-  display: block;
-  width: 20px;
-  height: 20px;
-  min-width: 20px;
-  margin: 0;
-  align-self: center;
-  padding: 0;
-  border: 1px solid color-mix(in srgb, var(--team) 55%, var(--ui-border-strong));
-  border-radius: var(--radius-xs);
-  outline: 0;
-  box-shadow: none;
-  line-height: 0;
-  vertical-align: middle;
-}
-
-.trace-color-picker:focus-visible {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--team) 28%, transparent);
 }
 
 /* Selection uses each driver's trace colour instead of the previous olive
@@ -5210,13 +5162,6 @@ main,
 .lap-summary-card .summary-lap-time > strong {
   display: block;
   line-height: 20px;
-}
-
-.lap-summary-card .trace-color-picker {
-  width: 20px;
-  height: 20px;
-  min-width: 20px;
-  align-self: center;
 }
 
 @media (max-width: 520px) {

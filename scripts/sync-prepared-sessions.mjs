@@ -39,7 +39,12 @@ async function readable(file) {
 async function newer(from, to) {
   if (!(await exists(to))) return true;
   const [a, b] = await Promise.all([readFile(from), readFile(to)]);
-  return sha(a) !== sha(b) && (await stat(from)).mtimeMs > (await stat(to)).mtimeMs;
+  if(sha(a)===sha(b))return false;
+  // Checkout/copy times say nothing about telemetry freshness. Never replace
+  // a supported pack without evidence of a later capture, even if filenames differ.
+  const captured=bytes=>Date.parse(JSON.parse(gunzipSync(bytes)).local_export?.captured_at);
+  const first=captured(a),second=captured(b);
+  return Number.isFinite(first)&&Number.isFinite(second)&&first>second;
 }
 
 /** What syncing would do, without writing anything. */
@@ -71,7 +76,7 @@ export async function plan(from, to) {
   for (const [identity, file] of Object.entries(fromPacks.entries || {})) {
     const source = path.join(data(from), 'local-telemetry', file), target = path.join(data(to), 'local-telemetry', toPacks.entries?.[identity] || file);
     const have = toPacks.entries?.[identity];
-    if (have && have === file && !await newer(source, target)) continue;
+    if (have && !await newer(source, target)) continue;
     if (!await readable(source)) { problems.push(`unreadable lap pack for ${identity}`); continue; }
     packs.push({identity, file, action: have ? 'replace' : 'add', superseded: have && have !== file ? have : null});
   }

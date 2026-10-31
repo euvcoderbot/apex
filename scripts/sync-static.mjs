@@ -1,7 +1,8 @@
 import { cp, mkdir, rm, readFile, writeFile } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import {createHash} from 'node:crypto';
-import {buildUiStyles} from '../lib/ui-style-build.mjs';
+import {buildUiStyles,UI_STYLES} from '../lib/ui-style-build.mjs';
+import {copyPublishedAssets} from '../lib/published-assets.mjs';
 import {sourceRevisionBytes} from '../lib/source-revision.mjs';
 import {snapshotPolicy} from '../lib/snapshot-policy.mjs';
 
@@ -62,22 +63,10 @@ const staticFiles = [
   "speed-domain.js",
   "performance-format.js",
   "performance-identity.js",
-  "car-performance.css",
-  "workspace-ui.css",
-  "macos-ui.css",
-  "ui-controls.css",
-  "macos-window.css",
-  "hig-system.css",
   "ui-system.js",
   "ui-catalog.html",
   "dashboard-ui.js",
   "local-compute.js",
-  "styles.css",
-  "tokens.css",
-  "design-system.css",
-  "polish.css",
-  "apple-ui.css",
-  "trace-focus.css",
   "design/tokens.json",
   "design/components.json",
 ];
@@ -85,6 +74,7 @@ const staticFiles = [
 // timing/telemetry caches. Include every stylesheet and presentation module.
 const browserHash=createHash('sha256').update(cacheRevision);
 for(const file of staticFiles)browserHash.update(file).update(await readFile(resolve(root,file)));
+for(const [file] of UI_STYLES)browserHash.update(file).update(await readFile(resolve(root,file)));
 browserHash.update(JSON.stringify(snapshotPolicy({sourceRevision:rawRevision,backendRevision,measurementRevision})));
 browserHash.update(await readFile(resolve(root,'lib/ui-style-build.mjs')));
 // React views (src/): one esbuild bundle next to the page.
@@ -117,7 +107,7 @@ for(const filename of ['index.html','ui-catalog.html']){
 // One compiled sheet: explicit ownership replaces accidental specificity wars.
 const ui=await buildUiStyles(file=>readFile(resolve(root,file),'utf8'));
 await writeFile(resolve(destination,'styles.css'),ui.css);
-await cp(resolve(root, "assets"), resolve(destination, "assets"), { recursive: true });
+await copyPublishedAssets(resolve(root,"assets"),resolve(destination,"assets"));
 // Shipped scripts and the stylesheet are minified (about a fifth less to download). Top-level names of the classic
 // scripts are kept: they share one global scope and the page's inline handlers call them by name.
 // APEX_NO_MINIFY=1 keeps them readable for debugging.

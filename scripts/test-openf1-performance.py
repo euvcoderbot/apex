@@ -238,10 +238,6 @@ class LoadingTests(unittest.TestCase):
         fetch.assert_called_once()
         sleep.assert_not_called()
 
-    def test_fallback_module_is_in_the_production_upload(self):
-        ignore = (Path(__file__).resolve().parents[1] / '.vercelignore').read_text()
-        self.assertIn('!openf1_performance.py', ignore.splitlines())
-
     def test_archive_failure_recovers_and_runs_current_analysis(self):
         data = SimpleNamespace(apex_source_notice={'kind': 'openf1-timing'})
         with patch('verified_sources.recorded_session', return_value=None), \

@@ -6,6 +6,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
 import {gzipSync,gunzipSync} from 'node:zlib';
+import {UI_STYLES,UI_LAYERS} from '../lib/ui-style-build.mjs';
 
 const app = appSource();
 test('local mode requests Python instead of loading published summary or native packs',async()=>{
@@ -383,9 +384,8 @@ test('one interface font family for canvas and every HTML descendant', () => {
   assert.ok(!/ctx\.font\s*=\s*['"]/.test(app));
   // Canvas labels share the interface stack and use a compact readable size.
   assert.match(context().run('canvasFont(12)'), /13px -apple-system/);
-  const imports = readFileSync('styles.css', 'utf8');
-  assert.match(imports, /@layer focus, legacy, interface/);
-  assert.match(imports, /apple-ui\.css[^;]+layer\(interface\)/);
+  assert.ok(UI_LAYERS.indexOf('focus')<UI_LAYERS.indexOf('interface'));
+  assert.ok(UI_STYLES.some(([file,layer])=>file==='apple-ui.css'&&layer==='interface'));
 });
 
 test('every mapped Grand Prix country has a local SVG; option markup is escaped', () => {

@@ -40,7 +40,8 @@ test('layout assets ship, all categories are responsive, and focused telemetry i
   assert.match(html,/href="styles\.css/);
   assert.match(html,/src="dashboard-ui\.js"/);
   const sync=readFileSync('scripts/sync-static.mjs','utf8');
-  assert.match(sync,/"workspace-ui\.css"/);assert.match(sync,/"dashboard-ui\.js"/);
+  assert.match(readFileSync('lib/ui-style-build.mjs','utf8'),/\['workspace-ui.css','workspace'\]/);
+  assert.match(sync,/"dashboard-ui\.js"/);
   assert.match(sync,/const browserRevision=browserHash/);
   assert.match(css,/\.performance-visual-grid[^{}]*\{[^}]*grid-template-columns: repeat\(2/);
   assert.match(css,/@media\(max-width:760px\)/);

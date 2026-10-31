@@ -36,6 +36,6 @@ test('macOS layout uses independent navigation and stacked non-growing sidebar c
   assert.match(css,/#performanceResults \{ display: block; min-width: 0/);
   assert.match(css,/is-compact-table \.performance-table \{[^}]*min-width: 0/);
   assert.match(css,/prefers-reduced-transparency/);
-  assert.match(fs.readFileSync('scripts/sync-static.mjs','utf8'),/"macos-ui.css"/);
+  assert.match(fs.readFileSync('lib/ui-style-build.mjs','utf8'),/\['macos-ui.css','appearance'\]/);
   assert.match(source,/aria-orientation="horizontal"/);
 });
