@@ -32,10 +32,11 @@ Results are still delivered performance (car + driver + setup + energy
 deployment), not isolated drag, horsepower or brake hardware.
 """
 import math
+import hashlib
 import numpy as np
 
 G = 9.80665
-METHOD = 'speed-domain-v4-aero-unknown-integral'
+METHOD = 'speed-domain-v5-official-reference'
 # Field-median apex speed thresholds, the same convention as performance_tracks.
 CORNER_BANDS = (('low', 0., 120.), ('medium', 120., 200.), ('high', 200., 300.))
 # Above this, a "corner" is flat out and not grip-limited for qualifying cars.
@@ -1051,19 +1052,55 @@ def track_straight_timing(projected, rows, track, field_throttle):
     return straights, totals
 
 
-def speed_domain_metrics(cars, corners=()):
+def _reference_lap(laps, timing):
+    """Official timing decides the reference, never packet endpoint coverage.
+
+    Completion times must share the session clock. Missing chronology is
+    disclosed; a stable identity is only a reproducibility fallback, not a
+    claim about which driver achieved an equal official time first.
+    """
+    candidates=[(name,a,timing.get(id(a),{})) for name,values in laps.items() for a in values]
+    def finite(value):
+        return isinstance(value,(int,float)) and not isinstance(value,bool) and math.isfinite(value)
+    timed=[row for row in candidates if finite(row[2].get('official_time_s')) and row[2]['official_time_s']>0]
+    if timed:
+        fastest=min(row[2]['official_time_s'] for row in timed)
+        tied=[row for row in timed if row[2]['official_time_s']==fastest]
+        basis='official-lap-time'
+    else:
+        fastest=min(a[-1,T]-a[0,T] for _,a,_ in candidates)
+        tied=[row for row in candidates if row[1][-1,T]-row[1][0,T]==fastest]
+        basis='packet-span-fallback-no-official-timing'
+    chronological=len(tied)>1 and all(finite(row[2].get('completed_at_s')) for row in tied)
+    if chronological:
+        first=min(row[2]['completed_at_s'] for row in tied)
+        tied=[row for row in tied if row[2]['completed_at_s']==first]
+    def identity(row):
+        name,a,info=row
+        return (str(name),str(info.get('driver','')),str(info.get('lap','')),hashlib.sha256(a.tobytes()).hexdigest())
+    name,a,info=min(tied,key=identity)
+    return a,{'car':name,'driver':info.get('driver'),'lap':info.get('lap'),
+              'official_time_s':info.get('official_time_s') if timed else None,
+              'basis':basis,'tie_break':'earliest-completion' if chronological else
+                  'stable-identity-chronology-unavailable' if len(tied)>1 else 'not-needed'}
+
+
+def speed_domain_metrics(cars, corners=(), *, lap_info=None):
     """cars: {name: [lap_array, ...]} using prepare()['a'] columns.
 
     Every lap is registered to one centreline by GPS and the circuit is split
     once, from the field, into corners (with braking, apex and exit phases)
     and straights. Each category is then measured only in its own phase.
     """
-    laps = {}
+    laps, timing = {}, {}
     for name, items in cars.items():
         valid = []
-        for item in items:
+        for index,item in enumerate(items):
             try:
-                valid.append(_lap(item))
+                clean=_lap(item)
+                valid.append(clean)
+                info=(lap_info or {}).get(name,[])
+                if index<len(info):timing[id(clean)]=info[index]
             except ValueError:
                 continue
         if valid:
@@ -1088,7 +1125,7 @@ def speed_domain_metrics(cars, corners=()):
                          if name not in laps and name not in excluded})
     if len(laps) < 3:
         return {'method': METHOD, 'cars': {}, 'error': 'Fewer than three cars have usable telemetry'}
-    reference_lap = min((lap for values in laps.values() for lap in values), key=lambda a: a[-1, T]-a[0, T])
+    reference_lap, reference = _reference_lap(laps,timing)
     track = track_reference(reference_lap)
     if track is None:
         return {'method': METHOD, 'cars': {}, 'error': 'Reference lap has too little position data'}
@@ -1213,7 +1250,7 @@ def speed_domain_metrics(cars, corners=()):
         results[name]['field_lap_time_s'] = field_lap
         results[name]['corners'] = [{'corner': r['corner'], 'band': r['band'], **r['cars'][name]} for r in timed if name in r['cars']]
     _attach_gaps(results)
-    return {'method': METHOD, 'cars': results, 'reliability': RELIABILITY, 'excluded': excluded,
+    return {'method': METHOD, 'cars': results, 'reliability': RELIABILITY, 'excluded': excluded, 'reference': reference,
             'corner_count': len(timed), 'reference_ranges': reference_ranges,
             'segments': {'corners': [{k: v for k, v in r.items() if k != 'cars'} for r in timed],
                          'timed_corners': timed, 'straights': segments['straights'], 'track_straights': track_straights},
