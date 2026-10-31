@@ -45,13 +45,15 @@ test('only the aligned telemetry implementation is shipped as the active classic
 test('performance redraw retains scroll, evidence disclosure and keyboard focus',()=>{
   const source=readFileSync('car-performance.js','utf8');
   const focused={attributes:[{name:'data-pace-stat',value:'median'}]};
-  const makeTable=heading=>({matches:()=>true,querySelector:()=>({textContent:heading}),scrollLeft:184,scrollTop:62,focus(options){this.focused=options;}});
+  const makeTable=heading=>({nodeType:1,matches:()=>true,querySelector:()=>({textContent:heading}),scrollLeft:184,scrollTop:62,focus(options){this.focused=options;}});
   const before=makeTable('Team Qualifying ▲');
   const open={querySelector:()=>({textContent:'Show lap evidence'})};
   const root={contains:()=>true,querySelectorAll:s=>s==='details[open]'?[open]:[before]};
   const box={document:{activeElement:focused},CSS:{escape:s=>s}};
   vm.createContext(box);
   vm.runInContext(source.slice(source.indexOf('function performanceUIKey('),source.indexOf('function render() {')),box);
+  // Positions are remembered from scroll events (reading them at render time forced a layout), so scroll the table first.
+  box.trackPerformanceScroll({target:before});
   const saved=box.capturePerformanceUI(root);
   const after=makeTable('Team Qualifying ▼');after.scrollLeft=0;after.scrollTop=0;
   const detail={open:false,querySelector:()=>({textContent:'Show lap evidence'})};

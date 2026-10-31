@@ -128,20 +128,27 @@
   // the group's ::before draws it, so re-renders never recreate it.
   const thumbGroups='[data-ui-group="segments"],.run-segments,.category-bar';
   const chosen='button[aria-pressed="true"],button[aria-selected="true"],button[aria-current="page"]';
-  function placeThumb(group){
+  // Read every group's geometry first and write afterwards: alternating a layout read with a style write per group forced a layout each time.
+  function measureThumb(group){
     const button=group.querySelector(':scope > :is('+chosen+')');
-    if(!button||!button.offsetWidth){group.removeAttribute('data-ui-thumb');return;}
-    const next=[button.offsetLeft,button.offsetTop,button.offsetWidth,button.offsetHeight].map(v=>v+'px');
+    if(!button||!button.offsetWidth)return null;
+    return [button.offsetLeft,button.offsetTop,button.offsetWidth,button.offsetHeight].map(v=>v+'px');
+  }
+  function applyThumb(group,next){
+    if(!next){group.removeAttribute('data-ui-thumb');return;}
     const props=['--ui-thumb-x','--ui-thumb-y','--ui-thumb-w','--ui-thumb-h'];
     if(props.every((prop,index)=>group.style.getPropertyValue(prop)===next[index])&&group.dataset.uiThumb)return;
     props.forEach((prop,index)=>group.style.setProperty(prop,next[index]));
     // The first placement appears in place; later ones slide.
     if(!group.dataset.uiThumb){group.dataset.uiThumb='placed';requestAnimationFrame(()=>requestAnimationFrame(()=>{if(group.dataset.uiThumb)group.dataset.uiThumb='sliding';}));}
   }
+  function placeThumb(group){applyThumb(group,measureThumb(group));}
   const thumbObserver=typeof ResizeObserver!=='undefined'?new ResizeObserver(entries=>entries.forEach(entry=>placeThumb(entry.target.closest?.(thumbGroups)||entry.target))):null;
   function placeThumbs(root=document){
-    for(const group of root.querySelectorAll(thumbGroups)){
-      placeThumb(group);
+    const groups=[...root.querySelectorAll(thumbGroups)];
+    const measured=groups.map(measureThumb);
+    groups.forEach((group,index)=>applyThumb(group,measured[index]));
+    for(const group of groups){
       if(thumbObserver&&!group.dataset.uiThumbObserved){group.dataset.uiThumbObserved='true';thumbObserver.observe(group);}
     }
   }

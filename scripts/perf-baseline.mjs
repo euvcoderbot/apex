@@ -7,7 +7,7 @@ import {chromium} from '@playwright/test';
 import {replayFixture} from '../e2e/helpers.mjs';
 
 const origin = process.argv[2] || 'http://127.0.0.1:4173';
-const RUNS = 5;
+const RUNS = 3;
 const views = {'home': '/apex', 'cars (pace)': '/apex/cars/pace?year=2026&scope=tracks&races=16,17,18&run=1', 'cars (cornering)': '/apex/cars/corners?year=2026&scope=tracks&races=16,17,18&run=1'};
 const median = a => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
 
@@ -19,7 +19,8 @@ for (const [name, path] of Object.entries(views)) {
     const page = await context.newPage();
     await replayFixture(page);
     await page.addInitScript(() => {
-      window.__m = {lcp: 0, cls: 0, longMs: 0};
+      window.__m = {lcp: 0, cls: 0, longMs: 0, inp: 0};
+      new PerformanceObserver(l => { for (const e of l.getEntries()) if (e.interactionId) window.__m.inp = Math.max(window.__m.inp, e.duration); }).observe({type: 'event', durationThreshold: 16, buffered: true});
       new PerformanceObserver(l => { for (const e of l.getEntries()) window.__m.lcp = e.startTime; }).observe({type: 'largest-contentful-paint', buffered: true});
       new PerformanceObserver(l => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__m.cls += e.value; }).observe({type: 'layout-shift', buffered: true});
       new PerformanceObserver(l => { for (const e of l.getEntries()) window.__m.longMs += Math.max(0, e.duration - 50); }).observe({type: 'longtask', buffered: true});
@@ -27,11 +28,15 @@ for (const [name, path] of Object.entries(views)) {
     await page.goto(origin + path);
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(1500);
+    // Interaction latency: click through every category tab and a table sort, as a person would; INP is the slowest of them.
+    for (const tab of await page.locator('.category-bar [role="tab"]:not([disabled])').all()) { await tab.click().catch(() => {}); await page.waitForTimeout(700); }
+    const sort = page.locator('.perf-sort-btn').first();
+    if (await sort.count()) { await sort.click().catch(() => {}); await page.waitForTimeout(500); }
     const m = await page.evaluate(() => ({...window.__m, bytes: performance.getEntriesByType('resource').reduce((s, r) => s + (r.transferSize || 0), 0)}));
     rows.push(m);
     await context.close();
   }
   const f = k => median(rows.map(r => r[k]));
-  console.log(`${name.padEnd(18)} LCP ${f('lcp').toFixed(0)} ms | CLS ${f('cls').toFixed(3)} | blocking ${f('longMs').toFixed(0)} ms | transferred ${(f('bytes') / 1024).toFixed(0)} KB`);
+  console.log(`${name.padEnd(18)} LCP ${f('lcp').toFixed(0)} ms | CLS ${f('cls').toFixed(3)} | blocking ${f('longMs').toFixed(0)} ms | INP ${f('inp').toFixed(0)} ms | transferred ${(f('bytes') / 1024).toFixed(0)} KB`);
 }
 await browser.close();

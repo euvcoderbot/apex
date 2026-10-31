@@ -44,6 +44,17 @@
   }
   try { if (localStorage.getItem(KEY) === 'off') document.documentElement.setAttribute('data-glass-off', ''); } catch { /* ignore */ }
 
+  function syncToggle() {
+    const button = document.getElementById('glassToggle');
+    if (button) button.setAttribute('aria-pressed', String(!document.documentElement.hasAttribute('data-glass-off')));
+  }
+  document.addEventListener('click', event => {
+    if (!event.target.closest?.('#glassToggle')) return;
+    setIntensity(document.documentElement.hasAttribute('data-glass-off') ? 'full' : 'off');
+    syncToggle();
+  });
+  addEventListener('DOMContentLoaded', syncToggle);
+
   // The toolbar buttons get their data-ui-kind from ui-system.js, which loads after this file; mark again once it has run.
   mark();
   addEventListener('DOMContentLoaded', () => mark());
