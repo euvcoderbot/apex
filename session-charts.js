@@ -420,8 +420,9 @@ function getNiceBounds(name, rawMin, rawMax) {
   
   if (name === 'Speed trace') {
     // Broadcast-style speed scale: a gridline every 50 km/h, with headroom
-    // above the fastest peak for its label.
-    min = Math.max(0, Math.floor((rawMin - 10) / 50) * 50);
+    // above the fastest peak for its label. The axis starts at zero so the
+    // slow-corner minima and their delta labels have room below the traces.
+    min = 0;
     max = Math.ceil((rawMax + 25) / 50) * 50;
     tickStep = 50;
   } else if (name === 'Engine speed') {

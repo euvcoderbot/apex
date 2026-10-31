@@ -220,7 +220,7 @@ test('COTA estimate is opt-in, native channels remain immutable, OFF restores th
   }
   // The whole UI uses the same mapping, not a separate smoothed delta plot.
   await h.run('paintReadyTelemetry()');
-  assert.match(h.element('#alignmentCorrectionNotice').textContent,/2\/2 laps/);
+  assert.equal(h.element('#alignmentCorrectionNotice').hidden,true,'no note when every lap was corrected');
   assert.equal(h.run('dominanceMapGeometryCache===originalGeometry'),false,'map must not retain the old distance registration');
   h.run('loaded.reverse();prepareTelemetryAlignment()');
   const reversed=Array.from(h.run('[0,...ver.alignmentSectors,1].map(f=>displayDeltaAt(ant,ver,f))'));
@@ -249,7 +249,7 @@ test('estimated mapping never matches another driver’s braking pattern; failur
     var original=ver.map(p=>p.AlignedFraction);estimateAlignmentCorrection=true;prepareTelemetryAlignment();`);
   assert.equal(h.run('ver.alignmentCorrection.used'),false);
   assert.deepEqual(Array.from(h.run('ver.map(p=>p.AlignedFraction)')),Array.from(h.run('original')));
-  assert.match(h.element('#alignmentCorrectionNotice').textContent,/1\/2 laps.*Original retained: VER L9 \(pit or partial lap\)/);
+  assert.match(h.element('#alignmentCorrectionNotice').textContent,/Original distance kept: VER L9 \(pit or partial lap\)/);
 });
 
 test('session straight classification needs GPS evidence and rejects flat-out bends',()=>{
@@ -418,6 +418,7 @@ test('slow first lap, partial map, late geometry and a session switch remain ind
     assert.ok(h.run('paints')>0,'ready second lap paints before first');
     assert.ok(h.textCalls.includes('Waiting for reference lap…'));
     assert.ok(h.element('[data-chart="Speed trace"]').attributes['data-axis-max']);
+    assert.equal(h.element('[data-chart="Speed trace"]').attributes['data-axis-min'],'0','the speed axis starts at zero, leaving room below the slow corners');
     assert.ok(requested.some(q=>q.get('geometry')==='true'));
     assert.equal(h.run('spatialReferenceTelemetry()'),null,'incomplete geometry not rendered as complete');
     const before=h.run("JSON.stringify(telemetryCache.get('VER:2').map(({X,Y,...p})=>p))");

@@ -16,7 +16,7 @@ export type BarChartOptions = {
 export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartOptions}) {
   const {title = '', subtitle = '', valueKey = 'value', labelKey = 'team', colorKey = 'color', unit = '%', digits = 3,
     signedValue = true, zeroBaseline = true, preserveSignedValues = false, invertBest = false} = options;
-  const valid: (Row & {chart: number})[] = (rows || []).filter(r => r && finite(r[valueKey] as number)).map(r => ({...r, chart: 0}));
+  const valid = (rows || []).filter(r => r && finite(r[valueKey] as number)).map((r): Row & {chart: number} => ({...r, chart: 0}));
   const missing = (rows || []).filter(r => r && !finite(r[valueKey] as number));
   const unranked = missing.map((r, i) => (
     <div key={'missing' + i} className="performance-bar-row is-unranked" title={r.missingReason || 'No comparable supported measurement; not zero'}>

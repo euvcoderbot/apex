@@ -22,7 +22,7 @@ export function TrendView(props: TrendViewProps) {
         <div className="empty-icon-badge" aria-hidden="true" />
         <h3>Season performance trend requires multiple events</h3>
         <p>You are currently analysing a single track (<strong>{props.event}</strong>). Car development curves and performance progression measure how teams evolve round-by-round across the championship.</p>
-        <p style={{marginTop: 10, color: 'var(--text-secondary)'}}>To view season performance trends, set <strong>Scope</strong> to <strong>Season to date</strong> or select multiple tracks in the tray above.</p>
+        <p style={{marginTop: 10, color: 'var(--ui-secondary)'}}>To view season performance trends, set <strong>Scope</strong> to <strong>Season to date</strong> or select multiple tracks in the tray above.</p>
       </div>
     </Card>
   );

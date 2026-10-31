@@ -18,8 +18,8 @@ export function Sparkline({label, points, teamColor, lo, hi, ceiling, fit}: {
   return (
     <div className="trend-sparkline">
       <svg width="100%" height="28" role="img" aria-label={`${label} qualifying gap by round; common scale across teams`}>
-        <line x1="4%" y1="25" x2="96%" y2="25" stroke="var(--border-color)" />
-        {fit?.length === 2 ? <line data-trend-fit="" x1={x(fit[0].round)} y1={y(fit[0].pace)} x2={x(fit[1].round)} y2={y(fit[1].pace)} stroke="var(--text-secondary)" strokeWidth="1.5" strokeDasharray="4 3"><title>Robust fitted trend through these same observations</title></line> : null}
+        <line x1="4%" y1="25" x2="96%" y2="25" stroke="var(--ui-border)" />
+        {fit?.length === 2 ? <line data-trend-fit="" x1={x(fit[0].round)} y1={y(fit[0].pace)} x2={x(fit[1].round)} y2={y(fit[1].pace)} stroke="var(--ui-secondary)" strokeWidth="1.5" strokeDasharray="4 3"><title>Robust fitted trend through these same observations</title></line> : null}
         {points.map((q, i) => i && q.round - points[i - 1].round === 1 ? <line key={`segment-${q.round}`} data-trend-segment="" x1={x(points[i - 1].round)} y1={y(points[i - 1].pace)} x2={x(q.round)} y2={y(q.pace)} stroke={stroke} strokeWidth="2" /> : null)}
         {points.map(q => (
           <circle key={q.round} cx={x(q.round)} cy={y(q.pace)} r="2.5" fill={stroke}>

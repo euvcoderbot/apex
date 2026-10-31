@@ -9,6 +9,16 @@
   <meta name="theme-color" content="#f2f2f4" media="(prefers-color-scheme: light)">
   <meta name="color-scheme" content="light dark">
   <meta name="description" content="Compare Formula 1 lap telemetry, timing deltas, driver inputs and corner performance.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://f1apexdata.eufrandota14.chatgpt.site/apex/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="F1 Apex Data">
+  <meta property="og:title" content="F1 Apex Data — Telemetry Analytics">
+  <meta property="og:description" content="Compare Formula 1 lap telemetry, timing deltas, driver inputs and corner performance.">
+  <meta property="og:url" content="https://f1apexdata.eufrandota14.chatgpt.site/apex/">
+  <meta property="og:image" content="https://f1apexdata.eufrandota14.chatgpt.site/apex/assets/f1apex-icon-180.png">
+  <meta name="twitter:card" content="summary">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"F1 Apex Data","url":"https://f1apexdata.eufrandota14.chatgpt.site/apex/","description":"Compare Formula 1 lap telemetry, timing deltas, driver inputs and corner performance.","applicationCategory":"SportsApplication","operatingSystem":"Any","browserRequirements":"Requires a modern browser with JavaScript"}</script>
   <link rel="icon" href="assets/f1apex-icon-32.png" type="image/png" sizes="32x32">
   <link rel="icon" href="assets/f1apex-icon-64.png" type="image/png" sizes="64x64">
   <link rel="apple-touch-icon" href="assets/f1apex-icon-180.png">
@@ -263,7 +273,46 @@
   <script src="session-init.js"></script>
   <script src="session-tyres.js"></script>
   <script src="alignment.js?v=euv2-release-20261003-position-motion-check"></script>
-  <script type="module" src="react-islands.js"></script>
-  <script type="module" src="car-performance.js?v=20261007-race-v2"></script>
+  <!-- Car performance and its React views are about 40% of the script weight and are not needed to read a session.
+       They stay inert until that view is opened, or until the browser is idle after load, whichever is first. -->
+  <script type="lazy-module" src="react-islands.js"></script>
+  <script type="lazy-module" src="car-performance.js?v=20261007-race-v2"></script>
+  <script>
+    (function () {
+      var pending = null, ready = false;
+      function load() {
+        if (!pending) pending = Promise.all([].map.call(document.querySelectorAll('script[type="lazy-module"]'), function (inert) {
+          return new Promise(function (resolve, reject) {
+            var script = document.createElement('script');
+            script.type = 'module'; script.src = inert.getAttribute('src'); script.async = false;
+            script.onload = resolve; script.onerror = reject;
+            document.head.appendChild(script);
+          });
+        })).then(function () { ready = true; window.ApexCarsPending = false; }, function (error) { pending = null; window.ApexCarsPending = false; throw error; });
+        return pending;
+      }
+      window.ApexLoadCars = load;
+      var start = window.ApexUrl && window.ApexUrl.read();
+      // Until the module is in, the page must not rewrite a car-performance address to the session view it is showing.
+      if (start && start.view === 'cars') { window.ApexCarsPending = true; load().catch(function () {}); }
+      addEventListener('load', function () {
+        var idle = window.requestIdleCallback || function (fn) { return setTimeout(fn, 1200); };
+        idle(function () { load().catch(function () {}); }, {timeout: 3000});
+      });
+      // Intent: start loading as soon as the tab is touched, and replay a click that arrives before it is ready.
+      ['pointerdown', 'focusin', 'keydown'].forEach(function (type) {
+        addEventListener(type, function (event) {
+          if (!ready && event.target.closest && event.target.closest('[data-analysis-view]')) load().catch(function () {});
+        }, true);
+      });
+      addEventListener('click', function (event) {
+        // Only a person's click: the module's own start-up code also clicks this tab programmatically.
+        var tab = event.isTrusted && !window.ApexShowView && event.target.closest && event.target.closest('[data-analysis-view="performance"]');
+        if (!tab) return;
+        event.preventDefault(); event.stopImmediatePropagation();
+        load().then(function () { tab.click(); }, function () {});
+      }, true);
+    })();
+  </script>
 </body>
 </html>

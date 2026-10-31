@@ -91,6 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }));
   
   calendarReady = loadCalendar();
+  loadPublishedSessions();
   calendarReady.catch(error => {
     console.warn(error);
   });

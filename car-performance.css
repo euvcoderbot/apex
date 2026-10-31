@@ -8,13 +8,13 @@
   max-width: 1808px;
   margin: 0 auto;
   padding: 20px 24px 40px;
-  font-family: var(--font-sans) !important;
-  color: var(--text-main);
+  font-family: var(--ui-font) !important;
+  color: var(--ui-label);
   animation: none;
 }
 
 .performance-page * {
-  font-family: var(--font-sans);
+  font-family: var(--ui-font);
   box-sizing: border-box;
 }
 
@@ -37,33 +37,33 @@ body.performance-view #sidebarToggle {
 .performance-tabs button {
   background: transparent;
   border: 0 !important;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 6px 14px;
-  color: var(--text-secondary);
+  color: var(--ui-secondary);
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
   box-shadow: none !important;
   outline: none;
-  transition: color var(--motion-fast) ease, background-color var(--motion-fast) ease;
+  transition: color var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard);
 }
 
 .performance-tabs button:hover {
-  color: var(--text-main);
-  background: var(--surface-selected);
+  color: var(--ui-label);
+  background: var(--ui-selected);
 }
 
 .performance-tabs button[aria-pressed="true"] {
-  background: var(--bg-card) !important;
-  color: var(--text-main) !important;
-  box-shadow: var(--shadow-raised) !important;
+  background: var(--ui-panel) !important;
+  color: var(--ui-label) !important;
+  box-shadow: var(--ui-shadow-control) !important;
   font-weight: 600;
 }
 
 :root[data-theme="light"] .performance-tabs button[aria-pressed="true"] {
   background: #ffffff !important;
-  color: var(--text-main) !important;
+  color: var(--ui-label) !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12) !important;
 }
 
@@ -81,9 +81,9 @@ body.performance-view #sidebarToggle {
   min-width: 0;
   margin-bottom: 20px;
   padding: 16px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-card);
-  background: var(--bg-card);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-panel-radius);
+  background: var(--ui-panel);
   box-shadow: var(--shadow-main);
 }
 
@@ -96,7 +96,7 @@ body.performance-view #sidebarToggle {
 }
 
 .performance-controls .panel-heading h2 {
-  color: var(--text-main);
+  color: var(--ui-label);
   font-size: 1.0625rem;
   font-weight: 600;
   line-height: 1.3;
@@ -116,7 +116,7 @@ body.performance-view #sidebarToggle {
   font-size: 0.8125rem;
   font-weight: 500;
   line-height: 1.2;
-  color: var(--text-secondary);
+  color: var(--ui-secondary);
   letter-spacing: 0;
 }
 
@@ -133,24 +133,24 @@ body.performance-view #sidebarToggle {
   padding: 0 14px;
   font-size: 0.9375rem;
   font-weight: 500;
-  color: var(--text-main);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-control);
-  background: linear-gradient(180deg, var(--glass-glint), transparent), var(--bg-input);
-  box-shadow: var(--shadow-raised);
+  color: var(--ui-label);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: linear-gradient(180deg, var(--glass-glint), transparent), var(--ui-control);
+  box-shadow: var(--ui-shadow-control);
   cursor: pointer;
   outline: none;
-  transition: border-color var(--motion-fast) ease, background var(--motion-fast) ease;
+  transition: border-color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard);
 }
 
 .performance-controls select:hover {
-  border-color: var(--border-color-hover);
-  background: var(--bg-card-hover);
+  border-color: var(--ui-border-strong);
+  background: var(--ui-control-hover);
 }
 
 .performance-controls select:focus-visible {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: var(--ui-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 16%, transparent);
 }
 
 /* Scope Segmented Pill Toggle */
@@ -161,10 +161,10 @@ body.performance-view #sidebarToggle {
   min-height: var(--ui-segment-height, 40px);
   padding: 3px;
   gap: 3px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-control);
-  background: var(--bg-input);
-  box-shadow: var(--shadow-raised);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-control);
+  box-shadow: var(--ui-shadow-control);
   box-sizing: border-box;
 }
 
@@ -176,33 +176,33 @@ body.performance-view #sidebarToggle {
   justify-content: center;
   padding: 0 16px;
   border: 0 !important;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--ui-secondary);
   font-size: 0.875rem;
   font-weight: 500;
-  font-family: var(--font-sans);
+  font-family: var(--ui-font);
   cursor: pointer;
   white-space: nowrap;
   outline: none;
-  transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease;
+  transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
 }
 
 .performance-scope-toggle button:hover {
-  color: var(--text-main);
-  background: var(--surface-selected);
+  color: var(--ui-label);
+  background: var(--ui-selected);
 }
 
 .performance-scope-toggle button[aria-pressed="true"] {
-  background: var(--bg-card) !important;
-  color: var(--text-main) !important;
+  background: var(--ui-panel) !important;
+  color: var(--ui-label) !important;
   font-weight: 600;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22) !important;
 }
 
 :root[data-theme="light"] .performance-scope-toggle button[aria-pressed="true"] {
   background: #ffffff !important;
-  color: var(--text-main) !important;
+  color: var(--ui-label) !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12) !important;
 }
 
@@ -210,9 +210,9 @@ body.performance-view #sidebarToggle {
 .performance-track-tray {
   margin-bottom: 20px;
   padding: 16px 20px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-card);
-  background: var(--bg-card);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-panel-radius);
+  background: var(--ui-panel);
   box-shadow: var(--shadow-main);
 }
 
@@ -224,7 +224,7 @@ body.performance-view #sidebarToggle {
   gap: 12px;
   margin-bottom: 14px;
   padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--ui-border);
 }
 
 .track-tray-title {
@@ -236,17 +236,17 @@ body.performance-view #sidebarToggle {
 .track-tray-label {
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--text-main);
+  color: var(--ui-label);
 }
 
 .track-count-badge {
   font-size: 0.75rem;
   font-weight: 600;
   padding: 2px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-  color: var(--accent);
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--ui-accent) 15%, transparent);
+  color: var(--ui-accent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, transparent);
 }
 
 .track-tray-actions {
@@ -256,22 +256,22 @@ body.performance-view #sidebarToggle {
 }
 
 .btn-track-action {
-  background: var(--surface-muted);
-  border: 1px solid var(--border-color) !important;
-  border-radius: 6px;
+  background: var(--ui-well);
+  border: 1px solid var(--ui-border) !important;
+  border-radius: var(--radius-sm);
   padding: 5px 12px;
   font-size: 0.75rem;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--ui-secondary);
   cursor: pointer;
   outline: none;
-  transition: all var(--motion-fast) ease;
+  transition: all var(--motion-fast) var(--ease-standard);
 }
 
 .btn-track-action:hover {
-  background: var(--surface-selected);
-  color: var(--text-main);
-  border-color: var(--border-color-hover) !important;
+  background: var(--ui-selected);
+  color: var(--ui-label);
+  border-color: var(--ui-border-strong) !important;
 }
 
 .performance-track-pills {
@@ -285,37 +285,37 @@ body.performance-view #sidebarToggle {
   align-items: center;
   gap: 8px;
   padding: 7px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-input);
-  color: var(--text-secondary);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--ui-border);
+  background: var(--ui-control);
+  color: var(--ui-secondary);
   font-size: 0.8125rem;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
   outline: none;
-  transition: all var(--motion-fast) ease;
+  transition: all var(--motion-fast) var(--ease-standard);
   user-select: none;
 }
 
 .track-pill:hover {
-  border-color: var(--border-color-hover);
-  background: var(--bg-card-hover);
-  color: var(--text-main);
+  border-color: var(--ui-border-strong);
+  background: var(--ui-control-hover);
+  color: var(--ui-label);
 }
 
 .track-pill[aria-pressed="true"] {
-  border-color: var(--accent) !important;
-  background: color-mix(in srgb, var(--accent) 14%, var(--bg-card)) !important;
-  color: var(--text-main) !important;
+  border-color: var(--ui-accent) !important;
+  background: color-mix(in srgb, var(--ui-accent) 14%, var(--ui-panel)) !important;
+  color: var(--ui-label) !important;
   font-weight: 600;
-  box-shadow: 0 0 0 1px var(--accent);
+  box-shadow: 0 0 0 1px var(--ui-accent);
 }
 
 .track-pill .gp-flag {
   width: 18px;
   height: 13px;
-  border-radius: 2px;
+  border-radius: var(--radius-2xs);
   object-fit: cover;
   flex-shrink: 0;
 }
@@ -323,11 +323,11 @@ body.performance-view #sidebarToggle {
 .track-pill .track-round {
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--ui-tertiary);
 }
 
 .track-pill[aria-pressed="true"] .track-round {
-  color: var(--accent);
+  color: var(--ui-accent);
 }
 
 .performance-controls .performance-actions {
@@ -349,8 +349,8 @@ body.performance-view #sidebarToggle {
   margin: 0;
   padding: 0 20px;
   border: 0 !important;
-  border-radius: var(--radius-control);
-  background: var(--accent-solid) !important;
+  border-radius: var(--ui-radius);
+  background: var(--ui-action) !important;
   color: #ffffff !important;
   font-size: 0.9375rem;
   font-weight: 600;
@@ -358,7 +358,7 @@ body.performance-view #sidebarToggle {
   cursor: pointer;
   white-space: nowrap;
   outline: none;
-  transition: opacity var(--motion-fast) ease, transform var(--motion-fast) ease;
+  transition: opacity var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
 }
 
 .performance-controls button#performanceLoad:hover:not(:disabled) {
@@ -382,20 +382,20 @@ body.performance-view #sidebarToggle {
   height: 44px;
   width: 100%;
   padding: 0 16px;
-  border: 1px solid var(--border-color) !important;
-  border-radius: var(--radius-control);
-  background: var(--surface-muted) !important;
-  color: var(--red) !important;
+  border: 1px solid var(--ui-border) !important;
+  border-radius: var(--ui-radius);
+  background: var(--ui-well) !important;
+  color: var(--ui-negative) !important;
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
   outline: none;
-  transition: background-color var(--motion-fast) ease;
+  transition: background-color var(--motion-fast) var(--ease-standard);
 }
 
 .performance-controls button#performanceCancel:hover {
-  background: var(--surface-selected) !important;
+  background: var(--ui-selected) !important;
 }
 
 /* Status Message Bar */
@@ -405,20 +405,20 @@ body.performance-view #sidebarToggle {
   gap: 12px;
   padding: 12px 18px;
   margin-bottom: 20px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-control);
-  background: linear-gradient(160deg, var(--glass-glint), transparent 45%), var(--bg-card);
-  box-shadow: var(--shadow-raised);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: linear-gradient(160deg, var(--glass-glint), transparent 45%), var(--ui-panel);
+  box-shadow: var(--ui-shadow-control);
 }
 
 .performance-status-card .status-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 50%, transparent);
+  background: var(--ui-accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--ui-accent) 50%, transparent);
   flex-shrink: 0;
-  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+  transition: background-color var(--motion-tier-slow) var(--ease-standard), box-shadow var(--motion-tier-slow) var(--ease-standard);
 }
 
 @keyframes statusPulse {
@@ -427,7 +427,7 @@ body.performance-view #sidebarToggle {
 }
 
 .performance-status-card.is-running .status-dot {
-  animation: statusPulse 1.2s infinite ease-in-out;
+  animation: statusPulse 1.2s infinite var(--ease-standard);
   background: #f59e0b;
   box-shadow: 0 0 10px rgba(245, 158, 11, 0.6);
 }
@@ -435,7 +435,7 @@ body.performance-view #sidebarToggle {
 .performance-status-card p {
   margin: 0;
   font-size: 0.875rem;
-  color: var(--text-secondary);
+  color: var(--ui-secondary);
   line-height: 1.4;
 }
 
@@ -450,9 +450,9 @@ body.performance-view #sidebarToggle {
   text-align: center;
   padding: 56px 24px;
   margin-bottom: 24px;
-  border: 1px dashed var(--border-color);
-  border-radius: var(--radius-card);
-  background: var(--bg-card);
+  border: 1px dashed var(--ui-border);
+  border-radius: var(--ui-panel-radius);
+  background: var(--ui-panel);
 }
 
 .empty-icon-badge {
@@ -460,40 +460,40 @@ body.performance-view #sidebarToggle {
   place-items: center;
   width: 52px;
   height: 52px;
-  border-radius: 14px;
-  background: var(--surface-muted);
-  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--ui-well);
+  border: 1px solid var(--ui-border);
   font-size: 24px;
   margin-bottom: 14px;
-  box-shadow: var(--shadow-raised);
+  box-shadow: var(--ui-shadow-control);
 }
 
 .performance-empty h3 {
   font-size: 1.1875rem;
   font-weight: 600;
-  color: var(--text-main);
+  color: var(--ui-label);
   margin: 0 0 8px;
 }
 
 .performance-empty p {
   font-size: 0.875rem;
-  color: var(--text-muted);
+  color: var(--ui-tertiary);
   max-width: 500px;
   line-height: 1.5;
   margin: 0;
 }
 
 .performance-empty strong {
-  color: var(--text-main);
+  color: var(--ui-label);
 }
 
 /* Cards */
 .performance-card {
   padding: 20px;
   margin-bottom: 20px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-card);
-  background: var(--bg-card);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-panel-radius);
+  background: var(--ui-panel);
   box-shadow: var(--shadow-main);
 }
 
@@ -502,7 +502,7 @@ body.performance-view #sidebarToggle {
 }
 
 .performance-card .panel-heading h2 {
-  color: var(--text-main);
+  color: var(--ui-label);
   font-size: 1.0625rem;
   font-weight: 600;
   line-height: 1.3;
@@ -511,25 +511,25 @@ body.performance-view #sidebarToggle {
 }
 
 .performance-note {
-  color: var(--text-secondary);
+  color: var(--ui-secondary);
   font-size: 0.8125rem;
   line-height: 1.5;
   margin: 0 0 16px;
 }
 
 .performance-note strong {
-  color: var(--text-main);
+  color: var(--ui-label);
 }
 
 /* Data Tables with Sticky First Column */
 .performance-table-wrap {
   width: 100%;
   overflow-x: auto;
-  border-radius: var(--radius-inner);
-  border: 1px solid var(--border-color);
-  background: var(--bg-card);
+  border-radius: var(--ui-radius);
+  border: 1px solid var(--ui-border);
+  background: var(--ui-panel);
   margin: 12px 0 18px;
-  box-shadow: var(--shadow-raised);
+  box-shadow: var(--ui-shadow-control);
 }
 
 .performance-table {
@@ -548,9 +548,9 @@ body.performance-view #sidebarToggle {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--text-muted);
-  background: var(--bg-input);
-  border-bottom: 1px solid var(--border-color);
+  color: var(--ui-tertiary);
+  background: var(--ui-control);
+  border-bottom: 1px solid var(--ui-border);
   position: sticky;
   top: 0;
   z-index: 5;
@@ -562,18 +562,18 @@ body.performance-view #sidebarToggle {
   left: 0;
   z-index: 2;
   text-align: left;
-  background: var(--bg-card);
+  background: var(--ui-panel);
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.08);
 }
 
 .performance-table thead th:first-child {
-  background: var(--bg-input);
+  background: var(--ui-control);
   z-index: 10;
 }
 
 .performance-table tbody tr {
-  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
-  transition: background-color var(--motion-fast) ease;
+  border-bottom: 1px solid color-mix(in srgb, var(--ui-border) 40%, transparent);
+  transition: background-color var(--motion-fast) var(--ease-standard);
 }
 
 .performance-table tbody tr:last-child {
@@ -581,28 +581,28 @@ body.performance-view #sidebarToggle {
 }
 
 .performance-table tbody tr:hover td {
-  background: var(--bg-card-hover);
+  background: var(--ui-control-hover);
 }
 
 .performance-table tbody td {
   padding: 12px 14px;
-  color: var(--text-main);
+  color: var(--ui-label);
   font-weight: 500;
-  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 35%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--ui-border) 35%, transparent);
 }
 
 .performance-table td small {
   display: block;
   font-size: 0.75rem;
   font-weight: 400;
-  color: var(--text-muted);
+  color: var(--ui-tertiary);
   margin-top: 3px;
 }
 
 .performance-table td.section-empty {
   text-align: center;
   padding: 24px;
-  color: var(--text-muted);
+  color: var(--ui-tertiary);
 }
 
 /* Sort Headers */
@@ -619,15 +619,15 @@ body.performance-view #sidebarToggle {
   text-transform: inherit;
   letter-spacing: inherit;
   box-shadow: none !important;
-  transition: color var(--motion-fast) ease;
+  transition: color var(--motion-fast) var(--ease-standard);
 }
 
 .perf-sort-btn:hover {
-  color: var(--text-main);
+  color: var(--ui-label);
 }
 
 .perf-sort-btn.is-sorted {
-  color: var(--accent);
+  color: var(--ui-accent);
 }
 
 .sort-icon {
@@ -645,7 +645,7 @@ body.performance-view #sidebarToggle {
   align-items: center;
   gap: 9px;
   font-weight: 600;
-  color: var(--text-main);
+  color: var(--ui-label);
   white-space: nowrap;
 }
 
@@ -674,7 +674,7 @@ body.performance-view #sidebarToggle {
 
 .performance-team .team-logo-historical {
   background: #ffffff;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 2px;
 }
 
@@ -686,21 +686,21 @@ body.performance-view #sidebarToggle {
   display: block;
   width: 6px;
   height: 18px;
-  border-radius: 2px;
-  background: var(--team-color, var(--accent));
+  border-radius: var(--radius-2xs);
+  background: var(--team-color, var(--ui-accent));
 }
 
 .performance-team .team-dot {
   width: 3px;
   height: 16px;
-  border-radius: 2px;
+  border-radius: var(--radius-2xs);
   flex-shrink: 0;
 }
 
 .performance-team .team-name {
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--text-main);
+  color: var(--ui-label);
   letter-spacing: -0.01em;
 }
 
@@ -718,7 +718,7 @@ body.performance-view #sidebarToggle {
   width: 20px;
   height: 15px;
   object-fit: cover;
-  border-radius: 2px;
+  border-radius: var(--radius-2xs);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18);
 }
 
@@ -751,13 +751,13 @@ body.performance-view #sidebarToggle {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-secondary);
+  color: var(--ui-secondary);
 }
 
 .perf-chart-sub {
   margin: 0;
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--ui-tertiary);
   font-weight: 400;
 }
 
@@ -775,9 +775,9 @@ body.performance-view #sidebarToggle {
   gap: 12px;
   min-height: 26px;
   padding: 3px 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 0.8125rem;
-  transition: background var(--motion-fast) ease;
+  transition: background var(--motion-fast) var(--ease-standard);
 }
 
 .performance-bar-row:hover {
@@ -807,7 +807,7 @@ body.performance-view #sidebarToggle {
 .performance-bar-row .performance-team .team-dot {
   width: 3px;
   height: 14px;
-  border-radius: 1.5px;
+  border-radius: var(--radius-2xs);
 }
 
 .performance-bar-row .performance-team .team-name {
@@ -819,7 +819,7 @@ body.performance-view #sidebarToggle {
 .performance-bar-track {
   height: 10px;
   position: relative;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: rgba(255, 255, 255, 0.06);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
   overflow: hidden;
@@ -844,12 +844,12 @@ body.performance-view #sidebarToggle {
   top: 0;
   bottom: 0;
   height: 100%;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   z-index: 1;
-  background-color: var(--bar-color, var(--accent));
-  background: linear-gradient(90deg, var(--bar-color, var(--accent)), color-mix(in srgb, var(--bar-color, var(--accent)) 85%, #ffffff));
-  box-shadow: 0 0 8px color-mix(in srgb, var(--bar-color, var(--accent)) 25%, transparent);
-  transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  background-color: var(--bar-color, var(--ui-accent));
+  background: linear-gradient(90deg, var(--bar-color, var(--ui-accent)), color-mix(in srgb, var(--bar-color, var(--ui-accent)) 85%, #ffffff));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--bar-color, var(--ui-accent)) 25%, transparent);
+  transition: width var(--motion-tier-slow) var(--ease-out);
 }
 
 .performance-bar:hover {
@@ -861,20 +861,20 @@ body.performance-view #sidebarToggle {
   font-variant-numeric: tabular-nums;
   font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--text-main);
+  color: var(--ui-label);
   white-space: nowrap;
 }
 
 .performance-bar-val.is-gain {
-  color: var(--green);
+  color: var(--ui-positive);
 }
 
 .performance-bar-val.is-loss {
-  color: var(--text-secondary);
+  color: var(--ui-secondary);
 }
 
 .performance-bar-val.is-ref {
-  color: var(--accent);
+  color: var(--ui-accent);
 }
 
 /* Tyre Filter Options */
@@ -890,28 +890,28 @@ body.performance-view #sidebarToggle {
   align-items: center;
   gap: 8px;
   padding: 6px 14px;
-  border: 1px solid var(--border-color) !important;
-  border-radius: 999px;
-  background: var(--bg-input) !important;
-  color: var(--text-secondary) !important;
+  border: 1px solid var(--ui-border) !important;
+  border-radius: var(--radius-pill);
+  background: var(--ui-control) !important;
+  color: var(--ui-secondary) !important;
   font-size: 0.8125rem;
   font-weight: 500;
   cursor: pointer;
-  box-shadow: var(--shadow-raised) !important;
+  box-shadow: var(--ui-shadow-control) !important;
   outline: none;
-  transition: all var(--motion-fast) ease;
+  transition: all var(--motion-fast) var(--ease-standard);
 }
 
 .performance-tyre-options button:hover {
-  background: var(--bg-card-hover) !important;
-  color: var(--text-main) !important;
-  border-color: var(--border-color-hover) !important;
+  background: var(--ui-control-hover) !important;
+  color: var(--ui-label) !important;
+  border-color: var(--ui-border-strong) !important;
 }
 
 .performance-tyre-options button[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--accent) 15%, var(--bg-card)) !important;
-  border-color: var(--accent) !important;
-  color: var(--accent) !important;
+  background: color-mix(in srgb, var(--ui-accent) 15%, var(--ui-panel)) !important;
+  border-color: var(--ui-accent) !important;
+  color: var(--ui-accent) !important;
   font-weight: 600;
 }
 
@@ -933,19 +933,19 @@ body.performance-view #sidebarToggle {
   height: 60px;
   min-width: 120px;
   padding: 6px;
-  background: var(--bg-input);
-  border-radius: var(--radius-control);
-  border: 1px solid var(--border-color);
-  box-shadow: var(--shadow-raised);
+  background: var(--ui-control);
+  border-radius: var(--ui-radius);
+  border: 1px solid var(--ui-border);
+  box-shadow: var(--ui-shadow-control);
 }
 
 .performance-trend span {
   flex: 1;
-  background: var(--team-color, var(--accent));
-  border-radius: 2px 2px 0 0;
+  background: var(--team-color, var(--ui-accent));
+  border-radius: var(--radius-2xs) var(--radius-2xs) 0 0;
   min-height: 3px;
   opacity: 0.85;
-  transition: opacity var(--motion-fast) ease, transform var(--motion-fast) ease;
+  transition: opacity var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
 }
 
 .performance-trend span:hover {
@@ -957,7 +957,7 @@ body.performance-view #sidebarToggle {
   display: flex;
   justify-content: space-between;
   font-size: 0.6875rem;
-  color: var(--text-muted);
+  color: var(--ui-tertiary);
   margin-top: 5px;
   padding: 0 4px;
 }
@@ -974,15 +974,15 @@ body.performance-view #sidebarToggle {
 .performance-explain-toggle {
   flex: 0 0 auto;
   min-height: 40px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-control);
-  background: var(--bg-card);
-  color: var(--text-main);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-panel);
+  color: var(--ui-label);
   padding: 8px 12px;
   font-size: 0.8125rem;
   cursor: pointer;
 }
-.performance-explain-toggle:hover { border-color: var(--accent); }
+.performance-explain-toggle:hover { border-color: var(--ui-accent); }
 .performance-pit-controls {
   display: flex;
   flex-wrap: wrap;
@@ -992,7 +992,7 @@ body.performance-view #sidebarToggle {
 .performance-pit-controls .performance-scope-toggle { flex: 0 1 auto; max-width: 100%; overflow-x: auto; }
 .performance-pit-controls .performance-scope-toggle button:disabled { opacity: .45; cursor: not-allowed; }
 .performance-stat-toggle { max-width: 100%; margin: 0 0 14px; }
-.performance-quality-status { color: var(--text-secondary); font-size: .875rem; line-height: 1.5; margin: 10px 0 14px; }
+.performance-quality-status { color: var(--ui-secondary); font-size: .875rem; line-height: 1.5; margin: 10px 0 14px; }
 .performance-card > .performance-scope-toggle { max-width: 100%; overflow-x: auto; margin-bottom: 10px; }
 .performance-tyre-toolbar .performance-scope-toggle { max-width: 100%; overflow-x: auto; }
 .performance-stat-toggle button:disabled { opacity: .45; cursor: not-allowed; }
@@ -1014,20 +1014,20 @@ body.performance-view #sidebarToggle {
 .performance-band-options button {
   flex: 0 0 auto;
   padding: 6px 9px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-control);
-  background: var(--bg-card);
-  color: var(--text-main);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-panel);
+  color: var(--ui-label);
   font-size: 0.8125rem;
   cursor: pointer;
 }
 .performance-band-options button[aria-pressed="true"] {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, var(--bg-card));
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 14%, var(--ui-panel));
 }
 .performance-band-options button:disabled { opacity: .42; cursor: not-allowed; }
-.performance-band-options button span { color: var(--text-muted); font-size: .75rem; }
-.performance-band-hint { margin: -4px 0 8px; color: var(--text-muted); font-size: .75rem; }
+.performance-band-options button span { color: var(--ui-tertiary); font-size: .75rem; }
+.performance-band-hint { margin: -4px 0 8px; color: var(--ui-tertiary); font-size: .75rem; }
 .performance-trend-table .performance-table { table-layout: fixed; min-width: 1080px; }
 .performance-trend-table .performance-table th,
 .performance-trend-table .performance-table td { white-space: normal; vertical-align: middle; }
@@ -1054,7 +1054,7 @@ body.performance-view #sidebarToggle {
   gap: 10px;
   padding: 12px 16px;
   margin-bottom: 16px;
-  border-radius: var(--radius-control);
+  border-radius: var(--ui-radius);
   border: 1px solid rgba(245, 158, 11, 0.3);
   background: rgba(245, 158, 11, 0.08);
   font-size: 0.875rem;
@@ -1071,7 +1071,7 @@ body.performance-view #sidebarToggle {
 
 /* Links */
 .perf-link {
-  color: var(--accent);
+  color: var(--ui-accent);
   text-decoration: none;
   font-weight: 500;
 }
@@ -1090,7 +1090,7 @@ body.performance-view #sidebarToggle {
 .performance-methods summary {
   font-size: 0.9375rem;
   font-weight: 600;
-  color: var(--text-main);
+  color: var(--ui-label);
   cursor: pointer;
   user-select: none;
   display: flex;
@@ -1108,25 +1108,25 @@ body.performance-view #sidebarToggle {
 .performance-methods dt {
   font-weight: 600;
   font-size: 0.875rem;
-  color: var(--text-main);
+  color: var(--ui-label);
   margin-bottom: 4px;
 }
 
 .performance-methods dd {
   margin: 0;
   font-size: 0.8125rem;
-  color: var(--text-secondary);
+  color: var(--ui-secondary);
   line-height: 1.5;
 }
 
 .performance-methods p {
   font-size: 0.8125rem;
-  color: var(--text-muted);
+  color: var(--ui-tertiary);
   margin: 16px 0 0;
 }
 
 .performance-methods a {
-  color: var(--accent);
+  color: var(--ui-accent);
   text-decoration: none;
 }
 
@@ -1138,10 +1138,10 @@ body.performance-view #sidebarToggle {
 .perf-chart-box {
   margin: 16px 0 24px;
   padding: 16px 18px;
-  background: var(--bg-input);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-control);
-  box-shadow: var(--shadow-raised);
+  background: var(--ui-control);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--ui-shadow-control);
 }
 
 .perf-chart-title {
@@ -1157,7 +1157,7 @@ body.performance-view #sidebarToggle {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-secondary);
+  color: var(--ui-secondary);
 }
 
 .perf-chart-svg {
@@ -1168,24 +1168,24 @@ body.performance-view #sidebarToggle {
 }
 
 .perf-chart-svg text {
-  font-family: var(--font-sans);
-  fill: var(--text-main);
+  font-family: var(--ui-font);
+  fill: var(--ui-label);
   font-variant-numeric: tabular-nums;
 }
 
 .perf-chart-svg .chart-axis-line {
-  stroke: var(--border-color);
+  stroke: var(--ui-border);
   stroke-width: 1px;
 }
 
 .perf-chart-svg .chart-zero-line {
-  stroke: var(--text-muted);
+  stroke: var(--ui-tertiary);
   stroke-width: 1.5px;
   stroke-dasharray: 3 3;
 }
 
 .perf-chart-svg .chart-grid-line {
-  stroke: var(--border-color);
+  stroke: var(--ui-border);
   stroke-width: 1px;
   stroke-dasharray: 2 4;
   opacity: 0.4;
@@ -1194,7 +1194,7 @@ body.performance-view #sidebarToggle {
 .perf-chart-bar-fill {
   rx: 3px;
   ry: 3px;
-  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: width var(--motion-tier-slow) var(--ease-out);
 }
 
 .perf-chart-bar-fill:hover {
@@ -1206,12 +1206,12 @@ body.performance-view #sidebarToggle {
   display: inline-flex;
   align-items: center;
   padding: 2px 7px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: 0.6875rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  background: var(--surface-muted);
-  color: var(--text-secondary);
+  background: var(--ui-well);
+  color: var(--ui-secondary);
   margin-left: 6px;
 }
 
@@ -1220,11 +1220,11 @@ body.performance-view #sidebarToggle {
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 0.6875rem;
   font-weight: 600;
-  background: var(--surface-selected);
-  color: var(--text-secondary);
+  background: var(--ui-selected);
+  color: var(--ui-secondary);
 }
 
 .perf-tercile-badge.is-slow {
@@ -1248,7 +1248,7 @@ body.performance-view #sidebarToggle {
   align-items: center;
   gap: 4px;
   padding: 2px 7px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: 0.6875rem;
   font-weight: 600;
 }
@@ -1273,9 +1273,9 @@ body.performance-view #sidebarToggle {
 .perf-audit-box {
   margin: 18px 0;
   padding: 16px 18px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-control);
-  background: linear-gradient(180deg, var(--glass-glint), transparent 50%), var(--bg-card);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: linear-gradient(180deg, var(--glass-glint), transparent 50%), var(--ui-panel);
 }
 
 .perf-audit-header {
@@ -1288,7 +1288,7 @@ body.performance-view #sidebarToggle {
 .perf-audit-title {
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--text-main);
+  color: var(--ui-label);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1303,9 +1303,9 @@ body.performance-view #sidebarToggle {
 
 .perf-audit-col {
   padding: 12px 14px;
-  border-radius: 6px;
-  background: var(--bg-input);
-  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--ui-control);
+  border: 1px solid var(--ui-border);
 }
 
 .perf-audit-col h5 {
@@ -1314,14 +1314,14 @@ body.performance-view #sidebarToggle {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--text-secondary);
+  color: var(--ui-secondary);
 }
 
 .perf-audit-col ul {
   margin: 0;
   padding: 0 0 0 16px;
   font-size: 0.75rem;
-  color: var(--text-secondary);
+  color: var(--ui-secondary);
   line-height: 1.6;
 }
 
@@ -1335,7 +1335,7 @@ body.performance-view #sidebarToggle {
   align-items: center;
   gap: 5px;
   padding: 3px 9px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 0.75rem;
   font-weight: 600;
 }
@@ -1365,9 +1365,9 @@ body.performance-view #sidebarToggle {
 }
 
 .retirement-badge.is-other {
-  background: var(--surface-muted);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
+  background: var(--ui-well);
+  color: var(--ui-secondary);
+  border: 1px solid var(--ui-border);
 }
 
 .retirement-badge.is-unknown {
@@ -1383,9 +1383,9 @@ body.performance-view #sidebarToggle {
   gap: 4px;
   margin-bottom: 16px;
   padding: 12px 16px;
-  border-radius: 8px;
-  background: color-mix(in srgb, #3b82f6 8%, var(--bg-card));
-  border: 1px solid color-mix(in srgb, #3b82f6 25%, var(--border-color));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, #3b82f6 8%, var(--ui-panel));
+  border: 1px solid color-mix(in srgb, #3b82f6 25%, var(--ui-border));
 }
 
 .perf-regulatory-badge .reg-title {
@@ -1400,13 +1400,13 @@ body.performance-view #sidebarToggle {
 .perf-regulatory-badge .reg-body {
   font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--text-main);
+  color: var(--ui-label);
   line-height: 1.4;
 }
 
 .perf-regulatory-badge .reg-note {
   font-size: 0.75rem;
-  color: var(--text-secondary);
+  color: var(--ui-secondary);
   line-height: 1.4;
 }
 
@@ -1414,27 +1414,27 @@ body.performance-view #sidebarToggle {
 .perf-sensitivity-bracket {
   display: inline-block;
   font-size: 0.75rem;
-  color: var(--text-secondary);
-  font-family: var(--font-mono, monospace);
+  color: var(--ui-secondary);
+  font-family: var(--ui-font, monospace);
   margin-left: 6px;
 }
 
 .perf-loss-density {
   display: inline-block;
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: 0.6875rem;
   font-weight: 600;
-  background: var(--surface-muted);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
+  background: var(--ui-well);
+  color: var(--ui-secondary);
+  border: 1px solid var(--ui-border);
   margin-left: 4px;
 }
 
 .perf-onset-bracket {
   font-size: 0.75rem;
-  font-family: var(--font-mono, monospace);
-  color: var(--text-secondary);
+  font-family: var(--ui-font, monospace);
+  color: var(--ui-secondary);
 }
 
 /* Responsive Media Queries */
@@ -1472,43 +1472,43 @@ body.performance-view #sidebarToggle {
 .performance-tyre-age-chart { display: grid; gap: 4px; margin-top: 16px; }
 .performance-tyre-age-row { display: grid; grid-template-columns: minmax(130px, 190px) minmax(100px, 1fr) 105px; align-items: center; gap: 12px; min-height: 35px; font-variant-numeric: tabular-nums; }
 .performance-tyre-age-name { min-width: 0; overflow: hidden; }
-.performance-tyre-age-track { position: relative; height: 10px; border-radius: 4px; background: var(--surface-muted); }
-.performance-tyre-age-zero { position: absolute; left: 50%; top: -4px; bottom: -4px; width: 1px; background: var(--text-secondary); z-index: 1; }
-.performance-tyre-age-bar { position: absolute; top: 1px; bottom: 1px; min-width: 2px; border-radius: 2px; background: var(--bar-color); }
+.performance-tyre-age-track { position: relative; height: 10px; border-radius: var(--radius-xs); background: var(--ui-well); }
+.performance-tyre-age-zero { position: absolute; left: 50%; top: -4px; bottom: -4px; width: 1px; background: var(--ui-secondary); z-index: 1; }
+.performance-tyre-age-bar { position: absolute; top: 1px; bottom: 1px; min-width: 2px; border-radius: var(--radius-2xs); background: var(--bar-color); }
 .performance-tyre-age-value { text-align: right; font-size: .8125rem; white-space: nowrap; }
 .performance-tyre-stint-plot { margin-top: 20px; }
 .performance-tyre-plot-controls { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin-top: 24px; }
-.performance-tyre-plot-controls label { display: grid; gap: 6px; color: var(--text-secondary); font-size: .875rem; }
-.performance-tyre-plot-controls select { width: 100%; min-width: 0; padding: 10px 12px; min-height: 42px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--surface-muted); color: var(--text-main); font: inherit; }
+.performance-tyre-plot-controls label { display: grid; gap: 6px; color: var(--ui-secondary); font-size: .875rem; }
+.performance-tyre-plot-controls select { width: 100%; min-width: 0; padding: 10px 12px; min-height: 42px; border: 1px solid var(--ui-border); border-radius: var(--radius-md); background: var(--ui-well); color: var(--ui-label); font: inherit; }
 @media (max-width: 800px) { .performance-tyre-plot-controls { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width: 480px) { .performance-tyre-plot-controls { grid-template-columns: minmax(0,1fr); } }
 .performance-tyre-stint-plot h4 { margin: 0 0 6px; }
 .performance-tyre-stint-plot svg { width: 100%; max-height: 320px; margin-top: 12px; overflow: visible; }
-.performance-tyre-stint-plot text { fill: var(--text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
-.performance-stint-inspect { padding: 5px 10px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--surface-muted); color: var(--text-main); white-space: nowrap; cursor: pointer; }
-.performance-bar-row.is-unranked .performance-bar-val { color: var(--text-secondary); font-size: .7rem; }
+.performance-tyre-stint-plot text { fill: var(--ui-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
+.performance-stint-inspect { padding: 5px 10px; border: 1px solid var(--ui-border); border-radius: var(--radius-sm); background: var(--ui-well); color: var(--ui-label); white-space: nowrap; cursor: pointer; }
+.performance-bar-row.is-unranked .performance-bar-val { color: var(--ui-secondary); font-size: .7rem; }
 .performance-bar-row.is-unranked .performance-bar-track { opacity: .35; }
 
 /* Component parity with Session Analysis, without page-wide scaling. */
 .performance-page { --ui-panel-padding: 16px; }
-.performance-definition { margin: 0 0 12px; color: var(--text-secondary); font-size: .875rem; line-height: 1.5; max-width: 100ch; }
-.performance-source-note { margin: 0 0 12px; color: var(--text-secondary); font-size: .8125rem; }
+.performance-definition { margin: 0 0 12px; color: var(--ui-secondary); font-size: .875rem; line-height: 1.5; max-width: 100ch; }
+.performance-source-note { margin: 0 0 12px; color: var(--ui-secondary); font-size: .8125rem; }
 .performance-source-note summary { cursor: pointer; width: fit-content; }
 .performance-source-note p { margin: 8px 0; max-width: 100ch; line-height: 1.5; }
 .performance-quality-status button, .performance-note button[data-pit-retry] {
   display: inline-flex; align-items: center; min-height: 30px; margin: 0 4px;
-  padding: 4px 9px; border: 1px solid var(--border-color); border-radius: 7px;
-  background: var(--surface-muted); color: var(--text-main); font: inherit; cursor: pointer;
+  padding: 4px 9px; border: 1px solid var(--ui-border); border-radius: var(--radius-sm);
+  background: var(--ui-well); color: var(--ui-label); font: inherit; cursor: pointer;
 }
 .is-descriptions-hidden .performance-definition { display: none; }
 .evidence-search { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0; font-size: .875rem; }
-.evidence-search input { flex: 1 1 220px; min-width: 0; min-height: 40px; padding: 8px 12px; font: inherit; color: var(--text-main); background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-control); }
+.evidence-search input { flex: 1 1 220px; min-width: 0; min-height: 40px; padding: 8px 12px; font: inherit; color: var(--ui-label); background: var(--ui-control); border: 1px solid var(--ui-border); border-radius: var(--ui-radius); }
 .performance-table tr[hidden] { display: none; }
-.performance-trend .is-missing { border: 1px dashed var(--border-color); }
+.performance-trend .is-missing { border: 1px dashed var(--ui-border); }
 .performance-pit-controls > *, .performance-metric-toolbar > * { min-width: 0; }
 .performance-controls #performanceLoad, .performance-controls #performanceCancel { min-height: var(--ui-control-height,44px); height: var(--ui-control-height,44px); align-self: end; box-shadow: none; }
 .performance-controls #performanceLoad::before, .performance-controls #performanceLoad::after { display: none; }
-.performance-tyre-stint-plot text { font-size: 12px; }
+.performance-tyre-stint-plot text { font-size: var(--type-caption); }
 .performance-card, .performance-methods { padding: var(--ui-panel-padding); margin-bottom: 16px; }
 .performance-card > :last-child { margin-bottom: 0; }
 .performance-controls, .performance-track-tray, .performance-status-card { margin-bottom: 16px; }
@@ -1518,7 +1518,7 @@ body.performance-view #sidebarToggle {
 .performance-scope-toggle button { padding-inline: 12px; }
 .performance-toolbar, .performance-metric-toolbar, .performance-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; min-width: 0; margin-bottom: 12px; }
 .performance-actions > .performance-note { flex: 1 1 260px; margin: 0; }
-.performance-actions > button { min-height: 36px; padding: 7px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-control); background: var(--bg-input); color: var(--text-main); font-size: .875rem; }
+.performance-actions > button { min-height: 36px; padding: 7px 12px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-control); color: var(--ui-label); font-size: .875rem; }
 .performance-controls .performance-actions { margin: 0; flex-wrap: nowrap; }
 .performance-toolbar:has(.performance-mode) { align-items: stretch; flex-wrap: nowrap; }
 .performance-toolbar .performance-mode { width: auto !important; min-height: var(--ui-segment-height, 40px); flex: 1 1 0; }
@@ -1529,7 +1529,7 @@ body.performance-view #sidebarToggle {
 .performance-stat-toggle { margin-bottom: 12px; }
 .performance-metric-toolbar .performance-scope-toggle { margin: 0; }
 .performance-chart-card { width: 100%; margin: 12px 0 16px; }
-.perf-chart-header { border-bottom-color: var(--border-color); }
+.perf-chart-header { border-bottom-color: var(--ui-border); }
 .perf-chart-heading { font-size: .8125rem; line-height: 1.4; letter-spacing: .025em; }
 .performance-bar-row { grid-template-columns: minmax(150px, 200px) minmax(0, 1fr) minmax(90px, max-content); min-height: 32px; }
 .performance-bar-label .performance-team { display: flex; min-width: 0; }
@@ -1556,7 +1556,7 @@ body.performance-view #sidebarToggle {
 .performance-tyre-plot-controls select { font-size: .875rem; }
 .performance-tyre-options button, .track-pill, .btn-track-action { min-height: 36px; font-size: .875rem; }
 .perf-tercile-badge, .tow-badge { font-size: .75rem !important; line-height: 1.4; white-space: nowrap; }
-.performance-page :where(button, select, summary, [tabindex]):focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.performance-page :where(button, select, summary, [tabindex]):focus-visible { outline: 3px solid var(--ui-accent); outline-offset: 2px; }
 @media (max-width: 1024px) {
   .performance-controls { grid-template-columns: 140px minmax(220px, 1fr) 148px; }
 }

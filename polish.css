@@ -1,10 +1,6 @@
-.telemetry{position:relative}main{max-width:1740px;padding-left:3%;padding-right:3%}#loadedSection{display:none}.section-empty{color:var(--muted);font:13px monospace}.chart-options{display:flex;gap:14px;align-items:center;margin:-8px 0 10px;color:var(--muted);font:12px monospace}.chart-options label{color:var(--ink);cursor:pointer}.chart-options input{accent-color:var(--red)}.fastest-gap{margin-bottom:12px}.lap.in-out{border-style:dashed;color:var(--muted)}#charts .chart:first-child canvas{height:220px}#charts .chart:not(:first-child) canvas{height:105px}@media(max-width:700px){main{padding-left:4%;padding-right:4%}#charts .chart:first-child canvas{height:150px}#charts .chart:not(:first-child) canvas{height:75px}}
+.telemetry{position:relative}main{max-width:1740px;padding-left:3%;padding-right:3%}#loadedSection{display:none}.section-empty{color:var(--ui-tertiary);font:var(--type-callout) monospace}.chart-options{display:flex;gap:14px;align-items:center;margin:-8px 0 10px;color:var(--ui-tertiary);font:var(--type-caption) monospace}.chart-options label{color:var(--ui-label);cursor:pointer}.chart-options input{accent-color:var(--ui-negative)}.fastest-gap{margin-bottom:12px}.lap.in-out{border-style:dashed;color:var(--ui-tertiary)}#charts .chart:first-child canvas{height:220px}#charts .chart:not(:first-child) canvas{height:105px}@media(max-width:700px){main{padding-left:4%;padding-right:4%}#charts .chart:first-child canvas{height:150px}#charts .chart:not(:first-child) canvas{height:75px}}
 
 /* 2026-08-21 responsive controls and system typography ------------------ */
-:root {
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif;
-  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-}
 
 html,
 body {
@@ -67,7 +63,7 @@ body {
 
 .select-shell select,
 .select-trigger {
-  font-size: 13px;
+  font-size: var(--type-callout);
 }
 
 .trace-zoom-readout,
@@ -132,11 +128,11 @@ body {
 }
 
 .run-driver > b {
-  font-size: 15px;
+  font-size: var(--type-headline);
 }
 
 .run-driver h3 {
-  font-size: 13px;
+  font-size: var(--type-callout);
 }
 
 .run-driver small {

@@ -66,7 +66,7 @@ test('keyboard telemetry readout keeps estimates, partial-lap delta and visible 
 
 test('the final system layer owns touch density without shrinking source rows or sliding thumbs',()=>{
   assert.deepEqual(UI_STYLES.at(-1),['hig-system.css','system']);
-  const sheet=postcss.parse(read('hig-system.css')),coarse=sheet.nodes.filter(n=>n.type==='atrule'&&n.params==='(pointer:coarse)');
+  const sheet=postcss.parse(read('tokens.css')),coarse=sheet.nodes.filter(n=>n.type==='atrule'&&n.params==='(pointer:coarse)');
   const values={};coarse.forEach(rule=>rule.walkDecls(d=>values[d.prop]=d.value));
   for(const token of ['--hig-regular','--hig-small','--hig-large','--hig-thumb','--hig-menu-row'])assert.equal(values[token],'44px');
 });

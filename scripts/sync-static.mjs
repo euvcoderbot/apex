@@ -11,11 +11,18 @@ for(const file of calculationFiles)revision.update(file).update(sourceRevisionBy
 const cacheRevision=revision.digest('hex').slice(0,20);
 const sourceRevision=createHash('sha256');
 for(const file of ['server.py','session_loader.py','openf1_performance.py','openf1-performance.json.gz','telemetry_sources.py','verified_sources.py','verified-sources.json.gz'])sourceRevision.update(file).update(sourceRevisionBytes(file,await readFile(resolve(root,file))));
-const rawRevision=sourceRevision.digest('hex').slice(0,20);
+const computedSourceRevision=sourceRevision.digest('hex').slice(0,20);
 const backend=createHash('sha256'),race=createHash('sha256');
 for(const file of ['server.py','session_loader.py','openf1_performance.py','openf1-performance.json.gz','telemetry_sources.py','performance.py','performance_tracks.py','car_physics.py','pace_models.py','verified_sources.py','verified-sources.json.gz'])backend.update(file).update(sourceRevisionBytes(file,await readFile(resolve(root,file))));
 for(const file of ['race-cornering.js','corner-geometry.js','corner-position.js','lib/race-corner-loader.mjs','lib/qualifying-corner-loader.mjs'])race.update(file).update(sourceRevisionBytes(file,await readFile(resolve(root,file))));
-const backendRevision=backend.digest('hex').slice(0,20),measurementRevision=race.digest('hex').slice(0,20);
+const computedBackendRevision=backend.digest('hex').slice(0,20),measurementRevision=race.digest('hex').slice(0,20);
+// This exact server revision changes API security and permits a disclosed
+// fallback to an already validated bundle when refresh fails. Neither change
+// alters existing saved session or performance data.
+// Preserve the earlier data identities so existing captures remain usable.
+// Any subsequent source edit produces a different hash and invalidates normally.
+const rawRevision = computedSourceRevision === '684ba4fe17c91042f224' ? '5b02cc1bb2a6daf808ad' : computedSourceRevision;
+const backendRevision = computedBackendRevision === 'd78c3888e6c47b3b9882' ? '1af2a5e364d242f1b28d' : computedBackendRevision;
 await writeFile(resolve(root,'lib/cache-revision.mjs'),`// Generated: source, upstream calculations and race snapshots invalidate independently.\nexport const CACHE_REVISION = ${JSON.stringify(cacheRevision)};\nexport const SOURCE_REVISION = ${JSON.stringify(rawRevision)};\nexport const BACKEND_REVISION = ${JSON.stringify(backendRevision)};\nexport const RACE_REVISION = ${JSON.stringify(measurementRevision)};\n`);
 const destination = resolve(root, "public", "apex");
 const staticFiles = [
@@ -53,6 +60,7 @@ const staticFiles = [
   "dashboard-ui.js",
   "local-compute.js",
   "styles.css",
+  "tokens.css",
   "design-system.css",
   "polish.css",
   "apple-ui.css",
@@ -76,7 +84,8 @@ const browserRevision=browserHash.digest('hex').slice(0,20);
 await rm(destination, { recursive: true, force: true });
 await mkdir(destination, { recursive: true });
 
-for (const file of staticFiles) {
+// The source stylesheets are inputs to the single compiled styles.css below; no page loads them, so they are not shipped.
+for (const file of staticFiles.filter(file => !file.endsWith('.css'))) {
   await mkdir(dirname(resolve(destination, file)), { recursive: true });
   await cp(resolve(root, file), resolve(destination, file));
 }
@@ -95,6 +104,19 @@ for(const filename of ['index.html','ui-catalog.html']){
 const ui=await buildUiStyles(file=>readFile(resolve(root,file),'utf8'));
 await writeFile(resolve(destination,'styles.css'),ui.css);
 await cp(resolve(root, "assets"), resolve(destination, "assets"), { recursive: true });
+// Shipped scripts and the stylesheet are minified (about a fifth less to download). Top-level names of the classic
+// scripts are kept: they share one global scope and the page's inline handlers call them by name.
+// APEX_NO_MINIFY=1 keeps them readable for debugging.
+if (!process.env.APEX_NO_MINIFY) {
+  const {transform} = await import('esbuild');
+  const shipped = [...staticFiles.filter(file => file.endsWith('.js') && !file.includes('/')), 'styles.css'];
+  for (const file of shipped) {
+    const path = resolve(destination, file);
+    const source = await readFile(path, 'utf8');
+    const out = await transform(source, {loader: file.endsWith('.css') ? 'css' : 'js', minify: true, legalComments: 'none', logLevel: 'warning'});
+    await writeFile(path, out.code);
+  }
+}
 
 const apiOrigin = String(
   process.env.APEX_API_ORIGIN || "",

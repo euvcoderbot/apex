@@ -22,6 +22,7 @@ export {BarChart} from './src/components/BarChart';
 export {DivergingBarChart} from './src/components/DivergingBarChart';
 export {DataTable} from './src/components/DataTable';
 export {TeamLogo, EventLabel} from './src/components/TeamLabel';
+export {ErrorBoundary} from './src/components/ErrorBoundary';
 export {renderToStaticMarkup} from 'react-dom/server';
 export {createElement} from 'react';`;
   const out = await build({stdin: {contents: entry, resolveDir: process.cwd(), loader: 'ts'}, bundle: true, write: false,
@@ -215,4 +216,23 @@ test('race cornering view: band control, load action, gaps and snapshot evidence
   assert.match(html, />14 · sparse</);
   assert.match(html, /NOR L22/);
   assert.match(html, /Singapore Grand Prix · timeout<br\/>Monaco Grand Prix · no laps/);
+});
+
+test('a failing view shows a message in place, and retries when the page hands it new content', () => {
+  const {ErrorBoundary} = views;
+  assert.deepEqual(ErrorBoundary.getDerivedStateFromError(new Error('boom')), {error: new Error('boom')});
+  const boundary = new ErrorBoundary({children: 'a', name: 'pace'});
+  assert.equal(boundary.render(), 'a', 'children render normally');
+  boundary.state = {error: new Error('boom')};
+  const html = views.renderToStaticMarkup(boundary.render());
+  assert.match(html, /role="alert"/);
+  assert.match(html, /This view could not be displayed/);
+  let reset = null;
+  boundary.props = {children: 'b', name: 'pace'};
+  boundary.setState = state => { reset = state; };
+  boundary.componentDidUpdate({children: 'a'});
+  assert.deepEqual(reset, {error: null}, 'new children clear the error so the view is tried again');
+  reset = null;
+  boundary.componentDidUpdate({children: 'b'});
+  assert.equal(reset, null, 'the same children do not loop');
 });
