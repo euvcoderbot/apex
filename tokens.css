@@ -170,10 +170,14 @@
   /* Thin hairline plus a specular top edge: what separates glass from paint. */
   --mat-edge: inset 0 0 0 .5px color-mix(in srgb, var(--ui-label) 13%, transparent), inset 0 .5px 0 color-mix(in srgb, #fff 20%, transparent);
   --mat-scrim: color-mix(in srgb, #000 30%, transparent);
+  /* Interactive glass: the highlight under the pointer on toolbar controls (glass.js), and its press scale. */
+  --mat-glint: color-mix(in srgb, #fff 15%, transparent);
+  --glass-press-scale: .97;
 }
 :root[data-theme="light"] {
   --mat-edge: inset 0 0 0 .5px #0000001f, inset 0 .5px 0 #ffffffcc;
   --mat-scrim: color-mix(in srgb, #000 18%, transparent);
+  --mat-glint: color-mix(in srgb, #fff 85%, transparent);
 }
 :root { --ui-focus: var(--ui-accent); --ui-list-selected-secondary: #fff; }
 @media (pointer:coarse) {

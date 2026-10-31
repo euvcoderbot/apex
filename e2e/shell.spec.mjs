@@ -85,3 +85,14 @@ test('every selection control in the toolbar and sidebar is operable by keyboard
     await expect(trigger).toHaveAttribute('aria-expanded', 'false');
   }
 });
+
+test('toolbar controls in the real page are glass and answer the pointer', async ({page}) => {
+  await open(page);
+  for (const selector of ['.site-header .performance-tabs', '#themeToggle', '#windowSidebarToggle'])
+    await expect(page.locator(selector), selector).toHaveAttribute('data-glass', '');
+  await expect(page.locator('.local-compute-status[data-glass]'), 'the status pill is not a glass control').toHaveCount(0);
+  const toggle = page.locator('#themeToggle'), box = await toggle.boundingBox();
+  await page.mouse.move(box.x + 6, box.y + 6);
+  await page.mouse.move(box.x + 11, box.y + 8);
+  await expect.poll(() => toggle.evaluate(el => getComputedStyle(el).backgroundImage)).toContain('radial-gradient');
+});
