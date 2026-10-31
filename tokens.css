@@ -156,6 +156,8 @@
   --hig-ease-out: var(--ease-out);
 }
 :root {
+  /* A chosen row in a list: a tint, so team marks and text stay readable on it. */
+  --ui-selection-tint: color-mix(in srgb, var(--ui-accent) 18%, transparent);
   --mat-bar: color-mix(in srgb, var(--ui-toolbar) 74%, transparent);
   --mat-header: color-mix(in srgb, var(--ui-header-row) 82%, transparent);
   --mat-menu: color-mix(in srgb, var(--ui-control) 72%, transparent);
