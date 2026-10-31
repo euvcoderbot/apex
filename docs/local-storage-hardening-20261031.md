@@ -5,9 +5,12 @@ the installed PC scheduler, another Claude checkout, GitHub or the hosted site.
 
 ## Storage protocol
 
-Node capture writers and Python capture/export writers now share an OS-held
-lock (`index.oslock`). Node keeps a Python stdlib helper's input pipe open for
-the duration of its critical section. Python uses `msvcrt.locking` on Windows
+Node capture, prerender and synchronization writers and Python export writers
+now share one repository-wide OS-held lock (`assets/data/local-captures/index.oslock`),
+including commits to the telemetry, prerender and calendar manifests. Node
+keeps a Python stdlib helper's input pipe open; the helper itself commits each
+index and acknowledges completion. Killing that helper prevents its parent
+from continuing to commit without ownership. Python uses `msvcrt.locking` on Windows
 and `fcntl.flock` on POSIX. Exiting owners release the lock; file age is never
 used to steal ownership. Diagnostic PID bytes are not an ownership test.
 

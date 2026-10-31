@@ -14,7 +14,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import server
-from capture_storage import storage_lock,atomic_bytes
+from capture_storage import repository_lock,atomic_bytes
 
 
 def main():
@@ -133,7 +133,7 @@ def main():
         laps += session_count
         print(f'{gp} / {session}: {session_count} laps', flush=True)
     if not args.dry_run:
-        with storage_lock(out):
+        with repository_lock(ROOT,[out]):
             latest=json.loads(target.read_text()) if target.exists() else {}
             if latest.get('entries') and latest.get('sourceRevision')!=revision:
                 raise ValueError('Telemetry revision changed during export; old index retained')

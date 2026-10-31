@@ -10,7 +10,8 @@
 // the cache's own expiry policy are exported; the page uses an entry only when
 // its family's revision matches the page's, so a methodology change can never
 // serve stale numbers. Live or recent sessions keep loading on demand.
-import {readdir, readFile, writeFile, mkdir, rename} from 'node:fs/promises';
+import {readdir, readFile, mkdir} from 'node:fs/promises';
+import {captureLock,atomicBytes} from '../lib/atomic-json.mjs';
 import {createHash} from 'node:crypto';
 import {gzipSync} from 'node:zlib';
 import {resolve} from 'node:path';
@@ -26,6 +27,7 @@ const FAMILIES = {
 };
 const SETTLED_MS = 7 * 86400000;   // the cache gives settled sessions a long expiry
 
+await captureLock(root,async commitJson=>{
 const previous = await readFile(resolve(outDir,'index.json'),'utf8').then(JSON.parse).catch(error=>{if(error.code==='ENOENT')return null;throw error;});
 if(previous&&(previous.revision!==BACKEND_REVISION||previous.sourceRevision!==SOURCE_REVISION))
   throw new Error('Existing snapshot revisions differ; no existing exports were removed.');
@@ -41,11 +43,10 @@ for (const name of await readdir(cacheDir).catch(() => [])) {
   const path = item.key.slice(prefix.length);
   if (!FAMILIES[prefix].includes(path.split('?')[0])) continue;
   const body = gzipSync(JSON.stringify(item.data), {level: 9});
-  const file = createHash('sha256').update(path).digest('hex').slice(0, 24) + '.json.gz';
-  await writeFile(resolve(outDir, file), body);
+  const file = createHash('sha256').update(body).digest('hex').slice(0, 24) + '.json.gz';
+  await atomicBytes(resolve(outDir, file), body);
   entries[path] = file; expires[path]=item.expires; bytes += body.length;
 }
-const temp=resolve(outDir,'index.json.tmp');
-await writeFile(temp,JSON.stringify({...previous,revision:BACKEND_REVISION,sourceRevision:SOURCE_REVISION,generated:new Date().toISOString(),entries,expires}));
-await rename(temp,resolve(outDir,'index.json'));
+await commitJson(resolve(outDir,'index.json'),{...previous,revision:BACKEND_REVISION,sourceRevision:SOURCE_REVISION,generated:new Date().toISOString(),entries,expires});
 console.log(JSON.stringify({revision: BACKEND_REVISION, sourceRevision: SOURCE_REVISION, files: Object.keys(entries).length, megabytes: +(bytes / 1e6).toFixed(2)}));
+});

@@ -5,7 +5,6 @@ its holder exits. All writers must be upgraded together while exports stop.
 This is not a distributed lock or a guarantee about network filesystems.
 """
 from contextlib import contextmanager
-import errno
 import json
 import os
 from pathlib import Path
@@ -57,6 +56,15 @@ def sync_directory(folder):
     finally:os.close(descriptor)
 
 
+@contextmanager
+def repository_lock(root,extra_folders=()):
+    root=Path(root)
+    folders=[root/'assets/data'/name for name in ('local-captures','prerendered','local-telemetry','telemetry','events')]
+    if any((root/name).exists() for name in ('.sync-prepared.lock','assets/data/.sync-prepared.lock')) or any((Path(folder)/'index.lock').exists() for folder in [*folders,*extra_folders]):
+        raise RuntimeError('Legacy sentinel lock present; stop all old exporters before migration')
+    with storage_lock(root/'assets/data/local-captures'):yield
+
+
 def atomic_bytes(target,body):
     target=Path(target)
     descriptor,temporary=tempfile.mkstemp(prefix=target.name+'.',suffix='.tmp',dir=target.parent)
@@ -70,9 +78,18 @@ def atomic_bytes(target,body):
 
 if __name__=='__main__':
     try:
-        with storage_lock(sys.argv[1]):
+        root=Path(sys.argv[2]).resolve() if len(sys.argv)>2 else None
+        with repository_lock(root) if root else storage_lock(sys.argv[1]):
             print('LOCKED',flush=True)
-            # EOF also releases ownership when the Node parent dies.
-            sys.stdin.buffer.read()
-    except (OSError,RuntimeError) as error:
+            # The holder performs commits, not the Node parent. If this helper
+            # dies, its parent cannot publish an index after losing ownership.
+            for line in sys.stdin.buffer:
+                command=json.loads(line)
+                target=Path(command['target']).resolve()
+                if not root or not target.is_relative_to(root):raise ValueError('Commit target outside export root')
+                body=command['body'].encode('utf-8')
+                if len(body)>16*1024*1024:raise ValueError('Index exceeds commit budget')
+                atomic_bytes(target,body)
+                print(json.dumps({'id':command['id'],'ok':True}),flush=True)
+    except (OSError,RuntimeError,ValueError,KeyError) as error:
         print(str(error),file=sys.stderr);raise SystemExit(75)

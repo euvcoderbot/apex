@@ -37,3 +37,15 @@ test('prerender refuses revision mismatches without changing existing files',asy
   assert.equal(await readFile(path.join(out,'old.gz'),'utf8'),'old snapshot');
 });
 
+test('refreshing a prerender leaves the superseded content-addressed payload intact',async()=>{
+  const {root,out}=await fixture(),query='/api/performance?gp=Test';
+  const run=()=>spawnSync(process.execPath,[script],{cwd:root,encoding:'utf8',timeout:10000});
+  assert.equal(run().status,0);
+  const first=JSON.parse(await readFile(path.join(out,'index.json'),'utf8')).entries[query];
+  const before=await readFile(path.join(out,first));
+  await writeFile(path.join(root,'.apex-cache/dashboard-local-v2/new.json'),JSON.stringify({key:`data:${BACKEND_REVISION}:${query}`,expires:Date.now()+30*86400000,data:{teams:[{team:'Test'}]}}));
+  assert.equal(run().status,0);
+  const second=JSON.parse(await readFile(path.join(out,'index.json'),'utf8')).entries[query];
+  assert.notEqual(first,second);assert.deepEqual(await readFile(path.join(out,first)),before);
+});
+

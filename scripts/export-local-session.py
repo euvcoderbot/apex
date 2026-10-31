@@ -20,7 +20,7 @@ from urllib.parse import urlencode
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import server
-from capture_storage import storage_lock,atomic_bytes
+from capture_storage import repository_lock,atomic_bytes
 
 
 def timestamp(value):
@@ -36,7 +36,7 @@ def validate_finished(identity, classification, now):
 
 
 def merge_session_export(root, year, gp, round_number, session, payload):
-    with storage_lock(root/'assets/data/prerendered'):
+    with repository_lock(root):
         return _merge_session_export(root,year,gp,round_number,session,payload)
 
 
@@ -64,7 +64,7 @@ def _merge_session_export(root, year, gp, round_number, session, payload):
 def merge_local_session_capture(root,year,gp,round_number,session,payload):
     folder=root/'assets/data/local-captures';folder.mkdir(parents=True,exist_ok=True)
     target=folder/'index.json'
-    with storage_lock(folder):
+    with repository_lock(root):
         return _merge_locked_session_capture(root,year,gp,round_number,session,payload,folder,target)
 
 
@@ -171,7 +171,7 @@ def main():
     query = merge_local_session_capture(ROOT,args.year,args.gp,args.round,session,payload)
     calendar_path = ROOT/f'assets/data/events/{args.year}.json'
     calendar_path.parent.mkdir(parents=True,exist_ok=True)
-    with storage_lock(calendar_path.parent):
+    with repository_lock(ROOT):
         latest=json.loads(calendar_path.read_text(encoding='utf-8')) if calendar_path.exists() else calendar
         for current in latest:
             if current.get('round')==args.round and current.get('name')==args.gp:

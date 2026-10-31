@@ -12,10 +12,28 @@ import unittest
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from capture_storage import storage_lock,atomic_bytes
+from capture_storage import storage_lock,repository_lock,atomic_bytes
 
 
 class StorageTests(unittest.TestCase):
+    def test_helper_death_cannot_leave_node_committing_without_ownership(self):
+        with TemporaryDirectory() as directory:
+            folder=Path(directory)/'assets/data/local-captures';folder.mkdir(parents=True)
+            target=folder/'index.json';atomic_bytes(target,b'{"version":1}')
+            script="import {captureLock} from './lib/atomic-json.mjs';import {readFile} from 'node:fs/promises';import path from 'node:path';let failed=false;try{await captureLock(process.argv[1],async commit=>{const folder=path.join(process.argv[1],'assets/data/local-captures');const owner=JSON.parse((await readFile(path.join(folder,'index.oslock'))).subarray(1));process.kill(owner.pid);await new Promise(r=>setTimeout(r,100));await commit(path.join(folder,'index.json'),{version:2});});}catch{failed=true;}if(!failed)throw Error('Commit accepted without its owner');"
+            env={**os.environ,'APEX_LOCK_PYTHON':sys.executable}
+            result=subprocess.run(['node','--input-type=module','-e',script,directory],cwd=ROOT,env=env,capture_output=True,timeout=10)
+            self.assertEqual(result.returncode,0,result.stderr.decode())
+            self.assertEqual(json.loads(target.read_bytes()),{'version':1})
+            with repository_lock(directory):pass
+
+    def test_repository_lock_refuses_legacy_locks_in_every_manifest_folder(self):
+        with TemporaryDirectory() as directory:
+            folder=Path(directory)/'assets/data/prerendered';folder.mkdir(parents=True)
+            (folder/'index.lock').write_text('old owner')
+            with self.assertRaisesRegex(RuntimeError,'Legacy sentinel'):
+                with repository_lock(directory):pass
+
     def test_python_owner_death_releases_os_lock_and_preserves_index(self):
         with TemporaryDirectory() as directory:
             target=Path(directory)/'index.json';atomic_bytes(target,b'{"version":1}')

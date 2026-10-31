@@ -18,7 +18,7 @@ import {mkdir, readFile, stat} from 'node:fs/promises';
 import {gunzipSync} from 'node:zlib';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {atomicJson,atomicBytes,captureLock} from '../lib/atomic-json.mjs';
+import {atomicBytes,captureLock} from '../lib/atomic-json.mjs';
 import {snapshotCompatible,tagCaptureRevisions} from '../lib/snapshot-policy.mjs';
 
 const read = async file => readFile(file, 'utf8').then(JSON.parse);
@@ -99,15 +99,15 @@ export async function plan(from, to) {
 }
 
 export async function apply(from, to, p) {
-  return captureLock(to,async()=>{
+  return captureLock(to,async commitJson=>{
     // Planning outside the shared lock must not overwrite a later capture.
     p=await plan(from,to);
     if(!p.wanted||p.problems.some(x=>x.startsWith('unreadable')))throw Error('Invalid prepared data');
-    return applyLocked(from,to,p);
+    return applyLocked(from,to,p,commitJson);
   });
 }
 
-async function applyLocked(from,to,p) {
+async function applyLocked(from,to,p,commitJson) {
   const data = root => path.join(root, 'assets', 'data');
   const put = async (source, target) => {
     await mkdir(path.dirname(target), {recursive: true});
@@ -134,13 +134,13 @@ async function applyLocked(from,to,p) {
     packs.entries[identity] = file;
     // Keep superseded packs rather than deleting user data during a sync.
   }
-  await atomicJson(path.join(data(to), 'local-telemetry', 'index.json'), packs);
+  await commitJson(path.join(data(to), 'local-telemetry', 'index.json'), packs);
   if (p.calendar) {
     const target=path.join(data(to), 'events', p.calendar.file);
-    await atomicJson(target,p.calendar.data);
+    await commitJson(target,p.calendar.data);
   }
   // Commit captures last; all referenced files have been copied successfully.
-  await atomicJson(path.join(data(to), 'local-captures', 'index.json'),captures);
+  await commitJson(path.join(data(to), 'local-captures', 'index.json'),captures);
 }
 
 function describe(p) {
