@@ -5,17 +5,19 @@
   --ui-font: -apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro","Inter","Segoe UI Variable Text","Segoe UI",system-ui,"Helvetica Neue",Arial,sans-serif;
   --ui-font-display: var(--ui-font);
   --ui-font-mono: ui-monospace,"SF Mono",SFMono-Regular,Menlo,"Cascadia Mono",Consolas,monospace;
-  /* Semantic colours modelled on AppKit's dynamic system colours (dark). */
-  --ui-label: #f5f6fa; --ui-secondary: #c2c6d0; --ui-tertiary: #a5adbb; --ui-quaternary: #717b8b;
-  --ui-canvas: #17191d; --ui-panel: #202329; --ui-well: #1b1e24; --ui-content: #202329;
-  --ui-sidebar: #242830; --ui-toolbar: #262a32; --ui-header-row: #292e37;
-  --ui-control: #343a44; --ui-control-hover: #414956; --ui-selected: #505969;
-  --ui-seg-track: #ffffff10; --ui-seg-thumb: #505969;
+  /* Semantic colours modelled on AppKit's dynamic system colours (dark).
+     Neutral greys only: macOS dark appearance has no blue cast; colour comes
+     from the accent and from data. */
+  --ui-label: #f5f5f5; --ui-secondary: #c7c7c7; --ui-tertiary: #a1a1a1; --ui-quaternary: #707070;
+  --ui-canvas: #121212; --ui-panel: #1d1d1d; --ui-well: #171717; --ui-content: #1d1d1d;
+  --ui-sidebar: #1a1a1a; --ui-toolbar: #1f1f1f; --ui-header-row: #242424;
+  --ui-control: #2e2e2e; --ui-control-hover: #3a3a3a; --ui-selected: #424242;
+  --ui-seg-track: #ffffff12; --ui-seg-thumb: #4a4a4a;
   --ui-border: #ffffff1a; --ui-border-strong: #ffffff30; --ui-separator: #ffffff12;
   --ui-row-alt: #ffffff05; --ui-row-hover: #ffffff0c;
-  --ui-accent: #79b5ff; --ui-action: #0068d9; --ui-focus: #79b5ffa6;
-  --ui-selection: #0068d9; --ui-selection-muted: #ffffff14;
-  --ui-positive: #72daa0; --ui-negative: #ff9b95; --ui-warning: #f7ce68;
+  --ui-accent: #4da3ff; --ui-action: #0071e3; --ui-focus: #4da3ffb3;
+  --ui-selection: #0071e3; --ui-selection-muted: #ffffff14;
+  --ui-positive: #32d74b; --ui-negative: #ff6b62; --ui-warning: #ffd60a;
   --ui-radius: 8px; --ui-panel-radius: 16px; --ui-menu-radius: 14px;
   --ui-shadow-control: 0 .5px 1px #0006,inset 0 .5px #ffffff1c;
   --ui-shadow-popover: 0 10px 34px #0000007a,0 0 0 .5px #00000080,inset 0 .5px #ffffff26;
@@ -39,14 +41,14 @@
   --ui-space-6: 24px;
 }
 :root[data-theme="light"] {
-  --ui-label: #1c2027; --ui-secondary: #4e5868; --ui-tertiary: #596577; --ui-quaternary: #8f99a8;
-  --ui-canvas: #f4f6f9; --ui-panel: #ffffff; --ui-well: #f5f7fa; --ui-content: #ffffff;
-  --ui-sidebar: #e9edf3; --ui-toolbar: #f5f7fa; --ui-header-row: #f5f7fa;
-  --ui-control: #ffffff; --ui-control-hover: #eef2f7; --ui-selected: #e3e9f1;
+  --ui-label: #1d1d1f; --ui-secondary: #4d4d4f; --ui-tertiary: #5e5e60; --ui-quaternary: #8e8e90;
+  --ui-canvas: #f2f2f2; --ui-panel: #ffffff; --ui-well: #f7f7f7; --ui-content: #ffffff;
+  --ui-sidebar: #e8e8e8; --ui-toolbar: #f6f6f6; --ui-header-row: #f6f6f6;
+  --ui-control: #ffffff; --ui-control-hover: #efefef; --ui-selected: #e3e3e3;
   --ui-seg-track: #0000000b; --ui-seg-thumb: #ffffff;
-  --ui-border: #1725391a; --ui-border-strong: #17253930; --ui-separator: #17253912;
-  --ui-row-alt: #17253904; --ui-row-hover: #17253908;
-  --ui-accent: #005cc5; --ui-focus: #297bdb8c;
+  --ui-border: #0000001a; --ui-border-strong: #00000030; --ui-separator: #00000012;
+  --ui-row-alt: #00000005; --ui-row-hover: #00000008;
+  --ui-accent: #0062cc; --ui-focus: #007affa6;
   --ui-selection: #0068d9; --ui-selection-muted: #1725390f;
   --ui-positive: #166c3b; --ui-negative: #bd352d; --ui-warning: #775400;
   --ui-shadow-control: 0 .5px 1.5px #00000033,0 0 0 .5px #0000001f;

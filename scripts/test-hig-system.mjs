@@ -30,7 +30,7 @@ test('every control family has one size, radius and type style in the final laye
 });
 
 test('type uses one ramp and section headers share one style across both views', () => {
-  const ramp = new Set(['var(--type-caption)', 'var(--type-callout)', 'var(--type-body)', 'var(--type-headline)', 'var(--type-title3)', 'var(--type-title2)', 'var(--type-title1)', 'inherit']);
+  const ramp = new Set(['var(--type-caption)', 'var(--type-callout)', 'var(--type-body)', 'var(--type-headline)', 'var(--type-title3)', 'var(--type-title2)', 'var(--type-title1)', 'inherit', '0']); // 0: an icon-only label, kept for assistive technology
   const sectorDeficitSelector = '.sector-cards .lap-summary-card .sector-delta-slot .summary-delta';
   root.walkDecls('font-size', decl => assert.ok(ramp.has(decl.value) ||
     (decl.parent.selector === sectorDeficitSelector && decl.value === 'calc(var(--type-caption) * .85)'),
@@ -46,10 +46,19 @@ test('motion is brief, never replays on re-render and honours Reduce Motion, Tra
   for (const query of ['prefers-reduced-motion: reduce', 'prefers-reduced-transparency: reduce', 'prefers-contrast: more']) {
     assert.ok(css.includes(query), query);
   }
-  // Translucent materials only on toolbar, menus, tooltips and toasts.
-  const blurred = [];
-  root.walkDecls('backdrop-filter', decl => { if (decl.value !== 'none') blurred.push(decl.parent.selector); });
-  assert.deepEqual(blurred, ['.site-header', '.circuit-guide-details[popover]']);
+  // Translucent materials only on the navigation layer (toolbar, sticky table headers) and the
+  // transient layer (menus, popovers, tooltips, toasts, sheets). Cards, charts and tables stay opaque.
+  const blurred = new Set();
+  root.walkDecls(/^(-webkit-)?backdrop-filter$/, decl => { if (decl.value !== 'none') blurred.add(decl.parent.selector); });
+  assert.deepEqual([...blurred].sort(), [
+    '.circuit-guide-details[popover]', '.local-compute-dialog', '.local-compute-dialog::backdrop', '.performance-table th',
+    '.site-header, .site-header.window-toolbar', ':is(.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover])',
+  ]);
+  // Every translucent fill has an opaque fallback for Reduce Transparency, Increase Contrast and no backdrop-filter.
+  for (const fallback of ['@media (prefers-reduced-transparency: reduce), (prefers-contrast: more)', '@supports not (backdrop-filter: blur(1px))']) assert.ok(css.includes(fallback), fallback);
+  // Neutral dark appearance: no blue cast in the base greys.
+  const tokens = readFileSync('ui-controls.css', 'utf8').match(/--ui-(canvas|panel|well|sidebar|toolbar|control|selected): (#[0-9a-f]{6})/g);
+  for (const token of tokens.slice(0, 7)) { const [r, g, b] = token.match(/#(..)(..)(..)/).slice(1).map(x => parseInt(x, 16)); assert.ok(Math.abs(b - r) <= 2 && Math.abs(g - r) <= 2, token + ' is tinted'); }
 });
 
 test('segmented controls share one sliding thumb, kept across re-renders', () => {

@@ -32,7 +32,7 @@ async function get(path, signal, cache='default') {
       const error=new Error(typeof payload.detail==='string'?payload.detail:`Request failed (${response.status})`);
       error.status=response.status;throw error;
     } catch(error) {
-      if(signal?.aborted||error.name==='AbortError'||attempt===3||error.status&&!([408,429,502,503,504].includes(error.status)))throw error;
+      if(signal?.aborted||error.name==='AbortError'||attempt===3||/not been published/i.test(error.message)||error.status&&!([408,429,502,503,504].includes(error.status)))throw error;
       await new Promise((resolve,reject)=>{
         const abort=()=>{clearTimeout(timer);reject(signal.reason||new DOMException('Stopped','AbortError'));};
         const timer=setTimeout(()=>{signal?.removeEventListener('abort',abort);resolve();},1000*2**attempt);
