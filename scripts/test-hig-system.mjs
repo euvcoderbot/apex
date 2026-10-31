@@ -24,7 +24,7 @@ test('every control family has one size, radius and type style in the final laye
   assert.match(tokenCss, /--hig-regular: 30px/);
   assert.match(tokenCss, /--hig-thumb: 26px/);
   // macOS checkboxes are rounded squares; only radio buttons are circles.
-  assert.deepEqual(declared(rulesFor(/^input\[data-ui-kind="checkbox"\]$/), 'border-radius'), ['4px']);
+  assert.deepEqual(declared(rulesFor(/^input\[data-ui-kind="checkbox"\]$/), 'border-radius'), ['var(--radius-xs)']);
   // Q1/Q2/Q3 run segments respond to hover and use the segmented thumb when chosen.
   assert.ok(rulesFor(/data-ui-kind="run"\]\):hover/).length);
   assert.match(css, /\[data-ui-kind="run"\]\)\[aria-pressed="true"\] \{\s*background: var\(--ui-seg-thumb\)/);
@@ -42,7 +42,8 @@ test('type uses one ramp and section headers share one style across both views',
 });
 
 test('motion is brief, never replays on re-render and honours Reduce Motion, Transparency and Contrast', () => {
-  assert.match(tokenCss, /--hig-fast: 120ms/);
+  assert.match(tokenCss, /--hig-fast: var\(--motion-tier-fast\)/);
+  assert.match(tokenCss, /--motion-tier-fast: 150ms/);
   assert.match(css, /:is\(\.lap-summary-card,\.driver-run-card,\.chart,\.corner-analysis,\.dominance-map\) \{ animation: none; \}/);
   for (const query of ['prefers-reduced-motion: reduce', 'prefers-reduced-transparency: reduce', 'prefers-contrast: more']) {
     assert.ok(css.includes(query), query);

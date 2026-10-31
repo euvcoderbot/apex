@@ -34,7 +34,7 @@ export function TyreStintPlot({model: m}: {model: StintPlotModel}) {
       {m.exclusions ? <button type="button" data-tyre-exclusions="" aria-pressed={m.exclusions.pressed}>{m.exclusions.label}</button> : null}
       <svg viewBox="0 0 680 230" role="img" aria-label={`${m.title.split(' · ')[0]} stint lap times against tyre age`}>
         {m.axis.grid.map((g, i) => (
-          <g key={i}><line x1="55" x2="645" y1={g.y} y2={g.y} stroke="var(--border-color)" /><text x="48" y={g.y + 4} textAnchor="end">{g.label}</text></g>
+          <g key={i}><line x1="55" x2="645" y1={g.y} y2={g.y} stroke="var(--ui-border)" /><text x="48" y={g.y + 4} textAnchor="end">{g.label}</text></g>
         ))}
         {m.curve ? <path d={m.curve} stroke={stroke} strokeWidth="2" strokeDasharray="6 4" fill="none" /> : null}
         {m.points.map((p, i) => <circle key={'p' + i} cx={p.cx} cy={p.cy} r="3.5" fill={stroke}><title>{p.title}</title></circle>)}

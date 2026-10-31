@@ -35,7 +35,7 @@ export function TeamLogo({team}: {team?: string}) {
 export function TeamLabel({team}: {team: TeamLike | string}) {
   const t: TeamLike = typeof team === 'object' && team !== null ? team : {team: String(team || '')};
   const name = t.displayName || t.team || t.name || '';
-  const teamColor = t.color ? color(t.color) : 'var(--text-main)';
+  const teamColor = t.color ? color(t.color) : 'var(--ui-label)';
   return (
     <div className="performance-team" style={{'--team-color': teamColor} as CSSProperties}>
       <TeamLogo team={t.logoTeam || t.team || name} />

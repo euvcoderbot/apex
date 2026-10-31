@@ -160,7 +160,7 @@ summary[data-ui-kind="disclosure"]:hover { color: var(--ui-label); }
 
 /* ---------- Checkboxes and radio buttons (HIG Toggles) --------------------
    macOS checkboxes are small rounded squares; circles are radio buttons. */
-input[data-ui-kind="checkbox"] { border-radius: 4px; }
+input[data-ui-kind="checkbox"] { border-radius: var(--radius-xs); }
 input[data-ui-kind="radio"] { border-radius: 50%; }
 input[data-ui-kind="checkbox"]:hover:not(:checked):not(:disabled) { background: var(--ui-control-hover); }
 input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 4px; height: 8px; }
@@ -171,11 +171,11 @@ input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 
 .trace-pill-group .trace-driver-chip,.trace-pill-group .trace-driver-chip.is-visible { box-sizing: border-box; height: var(--hig-regular); min-height: var(--hig-regular); padding-block: 0; background: transparent; box-shadow: none; border: 0; font-size: var(--type-body); }
 .trace-pill-group .trace-driver-chip small { font-size: var(--type-caption); line-height: 1.2; }
 .trace-pill-group:hover { background: var(--ui-control-hover); }
-.trace-pill-group .trace-swatch { width: 18px; height: 18px; flex: 0 0 18px; border-radius: 4px; }
+.trace-pill-group .trace-swatch { width: 18px; height: 18px; flex: 0 0 18px; border-radius: var(--radius-xs); }
 
 /* ---------- Badges (not controls) ---------------------------------------- */
 [data-ui-kind="badge"],.loaded-lap-main em,.corner-driver em,.ref-badge {
-  font-size: var(--type-caption); font-weight: 600; border-radius: 4px; letter-spacing: 0;
+  font-size: var(--type-caption); font-weight: 600; border-radius: var(--radius-xs); letter-spacing: 0;
 }
 
 /* ---------- Typography (HIG Typography) ----------------------------------- */
@@ -211,7 +211,7 @@ input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 
    No entrance animation replays when a panel is re-rendered by a selection;
    content that changes in place relies on the control's colour transition. */
 :is(.lap-summary-card,.driver-run-card,.chart,.corner-analysis,.dominance-map) { animation: none; }
-.performance-page[data-motion="enter"] .performance-bar { animation-duration: 320ms; }
+.performance-page[data-motion="enter"] .performance-bar { animation-duration: var(--motion-tier-slow); }
 @media (prefers-reduced-motion: reduce) {
   :is(button,summary,[role="option"],[role="tab"])[data-ui-kind] { transition: none; }
 }
@@ -493,7 +493,7 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 }
 @media (prefers-contrast: more) { :is(.app-sidebar) { background: var(--ui-panel); } }
 /* Compute status: a labelled pill beside the toolbar items; a dot when space runs out. */
-.site-header .local-compute-status[data-ui-kind="toolbar"] { width: auto; min-width: 0; height: 22px; min-height: 22px; padding: 0 8px; border-radius: 11px; }
+.site-header .local-compute-status[data-ui-kind="toolbar"] { width: auto; min-width: 0; height: 22px; min-height: 22px; padding: 0 8px; border-radius: var(--radius-lg); }
 @media (max-width: 860px) { .site-header .local-compute-status[data-ui-kind="toolbar"] { width: 22px; padding: 0; font-size: 0; } }
 @media (max-width: 520px) { .site-header .local-compute-status[data-ui-kind="toolbar"] { display: none; } }
 @media (pointer: coarse) { .site-header .local-compute-status[data-ui-kind="toolbar"] { min-width: 44px; height: 44px; min-height: 44px; } }
@@ -518,7 +518,7 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 .circuit-section-group .corner-picker button.corner-pick:hover { background: var(--ui-control-hover); }
 .circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"] { background: var(--ui-action); color: #fff; border-color: transparent; }
 #cornerMetricGrid { padding: 0 16px 16px; }
-.corner-detail-card { padding: 0; border: 1px solid var(--ui-border); border-radius: 12px; overflow: hidden; background: transparent; }
+.corner-detail-card { padding: 0; border: 1px solid var(--ui-border); border-radius: var(--radius-lg); overflow: hidden; background: transparent; }
 .corner-detail-header { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; padding: 4px 10px; margin: 0; border: 0; }
 .corner-detail-card .corner-detail-header h3 { margin: 0; color: var(--ui-label); font: 600 var(--type-headline)/1.4 var(--ui-font); }
 .corner-distance { font: 400 var(--type-callout)/1.4 var(--ui-font); color: var(--ui-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }

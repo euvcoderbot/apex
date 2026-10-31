@@ -4,6 +4,25 @@
    (a team colour on a card, a thumb offset on a control) stay with their component.
    e2e/tokens.spec.mjs records the computed value of every token below in both appearances. */
 
+/* ---- radius scale (reference tier) ----
+   Concentric geometry: an inner radius is its container's minus the padding between them, rounded to this scale.
+   Cards (xl) hold regular controls (md); menus (lg) hold rows (sm); a segmented track (md) holds a thumb (sm). */
+:root {
+  --radius-2xs: 2px; --radius-xs: 4px; --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px; --radius-pill: 999px;
+}
+
+/* ---- motion scale (reference tier) ----
+   Three durations and four curves for every transition. Apple publishes no numeric values for macOS motion, so these are
+   perceptual tunings, not Apple specifications: fast (150 ms) is feedback to a pointer or key (hover, press, selection),
+   standard (220 ms) moves or reveals something (a thumb, a disclosure, a menu), slow (320 ms) changes what is on screen
+   (a sheet, a bar growing, a view). Standard is CSS "ease"; out decelerates into place; in accelerates away; spring
+   overshoots by a few percent and is for the segmented thumb only. Reduced motion removes them all (hig-system.css). */
+:root {
+  --motion-tier-fast: 150ms; --motion-tier-standard: 220ms; --motion-tier-slow: 320ms;
+  --ease-standard: cubic-bezier(.25,.1,.25,1); --ease-out: cubic-bezier(.2,.8,.2,1); --ease-in: cubic-bezier(.4,0,1,1);
+  --ease-spring: cubic-bezier(.2,.9,.25,1.05);
+}
+
 /* ---- from design-system.css ---- */
 :root {
   --team: #777777;
@@ -38,8 +57,6 @@
 
 /* ---- from macos-ui.css ---- */
 :root {
-  --ink: var(--text-main);
-  --muted: var(--text-muted);
   --shadow-inset: inset 0 1px 3px #00000028;
   --glass-fill: #2a2a2ad9;
   --glass-edge: #ffffff22;
@@ -47,10 +64,10 @@
   --glass-shadow: inset 0 1px #ffffff20, 0 3px 12px #00000024;
   --scroll-thumb: #8b8b9380;
   --scroll-thumb-hover: #aaaab2b3;
-  --motion-fast: 130ms;
-  --motion-standard: 200ms;
-  --motion-layout: 260ms;
-  --ease-ui: cubic-bezier(.2,.8,.2,1);
+  --motion-fast: var(--motion-tier-fast);
+  --motion-standard: var(--motion-tier-standard);
+  --motion-layout: var(--motion-tier-standard);
+  --ease-ui: var(--ease-out);
 }
 :root[data-theme="light"] {
   --glass-fill: #f7f7fae6; --glass-edge: #ffffffcc; --glass-glint: #ffffff80;
@@ -72,24 +89,16 @@
   --ui-accent: #4da3ff; --ui-action: #0071e3;
   --ui-selection: #0071e3; --ui-selection-muted: #ffffff14;
   --ui-positive: #32d74b; --ui-negative: #ff6b62; --ui-warning: #ffd60a;
-  --ui-radius: 8px; --ui-panel-radius: 16px; --ui-menu-radius: 14px;
+  --ui-radius: var(--radius-md); --ui-panel-radius: var(--radius-xl); --ui-menu-radius: var(--radius-lg);
   --ui-shadow-control: 0 .5px 1px #0006,inset 0 .5px #ffffff1c;
   --ui-shadow-popover: 0 10px 34px #0000007a,0 0 0 .5px #00000080,inset 0 .5px #ffffff26;
   --ui-shadow-window: 0 1px 0 #ffffff0d inset;
-  --ui-motion: 140ms; --ui-motion-slow: 240ms; --ui-ease: cubic-bezier(.25,.1,.25,1); --ui-spring: cubic-bezier(.2,.9,.25,1.05);
+  --ui-motion: var(--motion-tier-fast); --ui-motion-slow: var(--motion-tier-standard); --ui-ease: var(--ease-standard); --ui-spring: var(--ease-spring);
   --ui-control-height: 30px; --ui-segment-height: auto; --ui-control-font: 14px;
   --ui-text: 14px; --ui-caption: 12px; --ui-heading: 16px; --ui-metric: 24px; --ui-page-title: 28px;
   --ui-space-1: 4px; --ui-space-2: 8px; --ui-space-3: 12px; --ui-space-4: 16px;
   --ui-row-height: 30px; --ui-toolbar-height: 60px; --ui-sidebar-width: 282px;
-  --font-sans: var(--ui-font); --font-mono: var(--ui-font);
-  --bg-main: var(--ui-canvas); --bg-card: var(--ui-panel); --bg-input: var(--ui-control);
-  --surface-muted: var(--ui-well); --surface-selected: var(--ui-selected); --bg-card-hover: var(--ui-control-hover);
-  --text-main: var(--ui-label); --text-primary: var(--ui-label); --text-secondary: var(--ui-secondary); --text-muted: var(--ui-tertiary);
-  --border-color: var(--ui-border); --border-color-hover: var(--ui-border-strong);
-  --accent: var(--ui-accent); --accent-solid: var(--ui-action); --neon-accent: var(--ui-accent);
-  --green: var(--ui-positive); --red: var(--ui-negative); --yellow: var(--ui-warning);
-  --radius-card: var(--ui-panel-radius); --radius-control: var(--ui-radius); --radius-inner: var(--ui-radius);
-  --shadow-main: none; --shadow-raised: var(--ui-shadow-control); --shadow-menu: var(--ui-shadow-popover);
+  --shadow-main: none;
   --ui-space-5: 20px;
   --ui-space-6: 24px;
 }
@@ -133,12 +142,12 @@
   --hig-large: 32px;            /* sidebar rows, toolbar items, category bar */
   --hig-thumb: 26px;            /* segment inside a regular 30 px track */
   --hig-menu-row: 28px;
-  --hig-radius: 8px;            /* regular controls and tiles */
-  --hig-radius-small: 6px;      /* small controls, list rows, menu rows */
-  --hig-radius-track: 9px;      /* segmented track; thumb = track - 2 px inset */
-  --hig-radius-thumb: 7px;
-  --hig-radius-overlay: 14px;   /* menus, popovers, tooltips, toasts */
-  --hig-radius-panel: 16px;     /* group boxes, cards, sheets */
+  --hig-radius: var(--radius-md);            /* regular controls and tiles */
+  --hig-radius-small: var(--radius-sm);      /* small controls, list rows, menu rows */
+  --hig-radius-track: var(--radius-md);      /* segmented track; thumb = track - 2 px inset */
+  --hig-radius-thumb: var(--radius-sm);
+  --hig-radius-overlay: var(--radius-lg);   /* menus, popovers, tooltips, toasts */
+  --hig-radius-panel: var(--radius-xl);     /* group boxes, cards, sheets */
   /* Type ramp (macOS text styles, +1–2 px for this dense web layout). */
   --type-caption: 12px; --type-callout: 13px; --type-body: 14px; --type-headline: 15px;
   --type-title3: 17px; --type-title2: 22px; --type-title1: 28px;
@@ -146,10 +155,10 @@
   --hig-seg-hover: color-mix(in srgb, var(--ui-label) 9%, transparent);
   --hig-control-pressed: color-mix(in srgb, var(--ui-control-hover) 78%, var(--ui-label) 10%);
   /* Motion (HIG Motion: brief, purposeful, never decorative). */
-  --hig-fast: 120ms;            /* hover, press, selection change */
-  --hig-medium: 200ms;          /* disclosure, popover, view change */
-  --hig-ease: cubic-bezier(.25,.1,.25,1);
-  --hig-ease-out: cubic-bezier(.2,.8,.2,1);
+  --hig-fast: var(--motion-tier-fast);            /* hover, press, selection change */
+  --hig-medium: var(--motion-tier-standard);          /* disclosure, popover, view change */
+  --hig-ease: var(--ease-standard);
+  --hig-ease-out: var(--ease-out);
 }
 :root {
   --mat-bar: color-mix(in srgb, var(--ui-toolbar) 74%, transparent);

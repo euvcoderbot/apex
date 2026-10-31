@@ -128,7 +128,7 @@ export function eventLabel(eventName) {
 export const teamLabel = team => {
   const t = typeof team === 'object' && team !== null ? team : { team: String(team || '') };
   const teamName = t.displayName || t.team || t.name || '';
-  const teamColor = t.color ? color(t.color) : 'var(--text-main)';
+  const teamColor = t.color ? color(t.color) : 'var(--ui-label)';
   return `
   <div class="performance-team" style="--team-color:${teamColor}">
     ${teamLogoMarkup(t.logoTeam || t.team || teamName)}

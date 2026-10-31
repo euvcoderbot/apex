@@ -27,7 +27,7 @@ test('lap chooser uses an unscrolled driver grid above its lap cards',()=>{
   assert.match(css,/#lapSelectionBody > #stintPanels \{ grid-area: 2 \/ 1/);
   assert.match(css,/@media\(max-width:760px\)[\s\S]*#lapSelectionBody > #stintPanels \{ grid-area: 2 \/ 1/);
   assert.match(css,/sector-cell::after \{ height: 5px/);
-  assert.match(css,/sector-cell-value > small \{ font-size: 15px/);
+  assert.match(css,/sector-cell-value > small \{ font-size: var\(--type-headline\)/);
 });
 
 test('trace selectors show exact lap times while retaining stable lap identities',()=>{
