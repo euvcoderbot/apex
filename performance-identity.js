@@ -19,7 +19,9 @@ export const VERIFIED_DRY_ALLOCATIONS = Object.freeze({
   2023: '123 234 234 345 234 345 123 345 345 123 345 234 123 345 345 123 123 234 345 234 345 345'.split(' '),
   2024: '123 234 345 123 234 234 345 345 345 123 345 123 345 234 123 345 345 345 234 345 345 345 123 345'.split(' '),
   2025: '345 234 123 123 345 345 456 456 123 456 345 234 134 345 234 345 456 345 134 245 234 345 123 345'.split(' '),
-  2026: '345 234 123 345 345 345 234 345 123 234 345 234 345 234 345 234 345'.split(' ')
+  // https://press.pirelli.com/the-compound-selection-for-austin-mexico-city-and-so-paulo/
+  // Pirelli's 9 October announcement: Austin C2–C4; Mexico and São Paulo C3–C5.
+  2026: '345 234 123 345 345 345 234 345 123 234 345 234 345 234 345 234 345 234 345 345'.split(' ')
 });
 export const TYRE_ALLOCATION_SOURCES = Object.freeze({
   2021: 'https://press.pirelli.com/2021-tyre-compound-choices/',
