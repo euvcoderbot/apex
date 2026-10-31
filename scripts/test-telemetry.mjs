@@ -418,6 +418,7 @@ test('slow first lap, partial map, late geometry and a session switch remain ind
     assert.ok(h.run('paints')>0,'ready second lap paints before first');
     assert.ok(h.textCalls.includes('Waiting for reference lap…'));
     assert.ok(h.element('[data-chart="Speed trace"]').attributes['data-axis-max']);
+    assert.equal(h.element('[data-chart="Speed trace"]').attributes['data-axis-min'],'0','the speed axis starts at zero, leaving room below the slow corners');
     assert.ok(requested.some(q=>q.get('geometry')==='true'));
     assert.equal(h.run('spatialReferenceTelemetry()'),null,'incomplete geometry not rendered as complete');
     const before=h.run("JSON.stringify(telemetryCache.get('VER:2').map(({X,Y,...p})=>p))");
