@@ -1,19 +1,4 @@
 :root {
-  --bg-main: #07080a;
-  --bg-card: rgba(18, 20, 24, 0.85);
-  --bg-card-hover: rgba(28, 31, 38, 0.95);
-  --bg-input: #111215;
-  --border-color: rgba(255, 255, 255, 0.08);
-  --border-color-hover: rgba(255, 255, 255, 0.18);
-  --text-main: #f3f4f6;
-  --text-muted: #9ca3af;
-  --red: #ff1801;
-  --green: #00e676;
-  --yellow: #eaff18;
-  --neon-accent: #eaff18;
-  --shadow-main: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif;
-  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   --team: #777777;
 }
 
@@ -2310,12 +2295,6 @@ main.sidebar-collapsed {
 }
 
 /* Unified telemetry UI ---------------------------------------------------- */
-:root {
-  --ui-text-xs: 9px;
-  --ui-text-sm: 11px;
-  --ui-text-md: 13px;
-  --ui-text-lg: 15px;
-}
 
 .dashboard-card,
 .telemetry-card,
@@ -4135,8 +4114,6 @@ main,
 /* 2026 visual refinement: themes, dense comparison cards and disclosures -- */
 :root {
   color-scheme: dark;
-  --text-primary: var(--text-main);
-  --text-secondary: #c7cbd2;
 }
 
 .header-actions {
@@ -4352,20 +4329,6 @@ main,
 /* Light mode keeps the same hierarchy without merely inverting the page. */
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg-main: #eef1f4;
-  --bg-card: rgba(255, 255, 255, .9);
-  --bg-card-hover: #ffffff;
-  --bg-input: #ffffff;
-  --border-color: rgba(18, 24, 32, .12);
-  --border-color-hover: rgba(18, 24, 32, .25);
-  --text-main: #161b22;
-  --text-primary: #161b22;
-  --text-secondary: #38414c;
-  --text-muted: #68727f;
-  --neon-accent: #829800;
-  --yellow: #829800;
-  --green: #008b4c;
-  --shadow-main: 0 9px 28px rgba(34, 43, 54, .09);
 }
 
 :root[data-theme="light"] body {

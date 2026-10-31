@@ -64,7 +64,10 @@ test('UI density uses component sizing and responsive chart rows rather than pag
   const shared=readFileSync('apple-ui.css','utf8'),performance=readFileSync('car-performance.css','utf8');
   postcss.parse(shared);postcss.parse(performance);
   assert.match(shared,/body \{ zoom: 1; \}/);
-  assert.match(shared,/--ui-control-height: 44px/);
+  // Regular controls are 30px; touch input raises them to 44px (ui-controls.css, the component layer).
+  const tokens=JSON.parse(readFileSync('e2e/__tokens__/tokens.json','utf8'));
+  assert.equal(tokens.dark['--ui-control-height'],'30px');
+  assert.match(readFileSync('ui-controls.css','utf8'),/pointer: ?coarse[\s\S]{0,400}--ui-control-height: 44px/);
   assert.match(performance,/\.performance-bar-track, \.performance-tyre-age-track \{ grid-column: 1 \/ -1; grid-row: 2;/);
   assert.match(performance,/focus-visible \{ outline: 3px solid var\(--accent\)/);
   const source=readFileSync('car-performance.js','utf8');
@@ -481,9 +484,11 @@ test('driver list has fixed leading columns and stretched left-aligned names', (
 
 test('site-wide elevation and independent comparison actions are retained', () => {
   const css = readFileSync('apple-ui.css','utf8');
+  const tokens = JSON.parse(readFileSync('e2e/__tokens__/tokens.json','utf8'));
   for (const token of ['--shadow-main', '--shadow-raised', '--shadow-inset']) {
-    assert.ok((css.match(new RegExp(token + ':', 'g')) || []).length === 2, `${token} needs both themes`);
+    assert.ok(tokens.dark[token] !== undefined && tokens.light[token] !== undefined, `${token} needs both themes`);
   }
+  assert.notEqual(tokens.dark['--shadow-raised'], tokens.light['--shadow-raised'], 'raised elevation differs by appearance');
   assert.match(app, /<button class="loaded-lap-main/);
   assert.match(app, /<button class="remove"/);
   assert.doesNotMatch(app, /<i class="remove"/);
@@ -492,7 +497,8 @@ test('site-wide elevation and independent comparison actions are retained', () =
 
 test('scrollbars stay discoverable in both themes without changing layout', () => {
   const css = readFileSync('apple-ui.css','utf8');
-  assert.equal((css.match(/--scroll-thumb:/g) || []).length, 2);
+  const tokens = JSON.parse(readFileSync('e2e/__tokens__/tokens.json','utf8'));
+  assert.ok(tokens.dark['--scroll-thumb'] && tokens.light['--scroll-thumb'] && tokens.dark['--scroll-thumb'] !== tokens.light['--scroll-thumb'], 'a thumb colour per appearance');
   assert.match(css, /html \{ scrollbar-gutter: stable;/);
   assert.match(css, /\.sidebar, \.select-menu \{ scrollbar-gutter: stable;/);
   assert.doesNotMatch(css, /scrollbar-width: none/);

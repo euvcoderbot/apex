@@ -1,41 +1,4 @@
 /* Unified, compact analysis workspace. No chart-domain or telemetry geometry changes. */
-:root {
-  --bg-main: #0c1017;
-  --bg-card: #151b24;
-  --bg-card-hover: #202a37;
-  --bg-input: #111720;
-  --surface-muted: #10161f;
-  --surface-selected: #253247;
-  --text-main: #edf2f9;
-  --text-primary: var(--text-main);
-  --text-secondary: #b9c5d5;
-  --text-muted: #91a1b7;
-  --border-color: #293344;
-  --border-color-hover: #52647b;
-  --accent: #75b6ff;
-  --accent-solid: #1875d9;
-  --radius-card: 12px;
-  --radius-inner: 9px;
-  --shadow-main: 0 4px 20px #00000012;
-  --shadow-raised: none;
-}
-:root[data-theme="light"] {
-  --bg-main: #eef2f7;
-  --bg-card: #ffffff;
-  --bg-card-hover: #edf3fb;
-  --bg-input: #f6f8fc;
-  --surface-muted: #f3f6fa;
-  --surface-selected: #e3edfb;
-  --text-main: #182637;
-  --text-primary: var(--text-main);
-  --text-secondary: #485a70;
-  --text-muted: #5a6d84;
-  --border-color: #d6dfeb;
-  --border-color-hover: #94a9c1;
-  --accent: #095fb9;
-  --accent-solid: #126ac9;
-  --shadow-main: 0 4px 20px #19395306;
-}
 body { background: var(--bg-main); }
 [hidden] { display: none !important; }
 .skip-link { position: fixed; top: -80px; left: 18px; z-index: 2000; padding: 12px 18px; background: var(--accent-solid); color: white; border-radius: 8px; }
@@ -331,15 +294,11 @@ footer { max-width: 1720px; margin: auto; padding: 0 24px 24px; font-size: .6875
   --material-fill: #1a2432d9;
   --material-edge: #c5dcff26;
   --material-glint: #e4eeff12;
-  --shadow-main: inset 0 1px 0 #e6efff0a, 0 3px 8px #00000018, 0 16px 38px #0000001f;
-  --shadow-raised: inset 0 1px 0 #ffffff10, 0 2px 5px #00000024;
 }
 :root[data-theme="light"] {
   --material-fill: #f7faffda;
   --material-edge: #ffffffeb;
   --material-glint: #ffffffb0;
-  --shadow-main: inset 0 1px 0 #ffffff, 0 3px 8px #29426008, 0 16px 38px #2942600c;
-  --shadow-raised: inset 0 1px 0 #ffffff, 0 2px 5px #29426012;
 }
 body { background: radial-gradient(ellipse at 5% 0%,#297cc323,transparent 42%),radial-gradient(ellipse at 90% 25%,#7271b516,transparent 48%),var(--bg-main); background-attachment: fixed; }
 .site-header {

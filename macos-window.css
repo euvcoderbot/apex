@@ -36,7 +36,7 @@ a { color: var(--ui-accent); }
    keyboard focus only; team colour is identity, never state. List rows: filled
    selection colour, white label. On/off tiles: accent fill, white label.
    Segmented controls: raised thumb. */
-:root { --brand-teal: #00a0a8; --ui-list-selected: var(--ui-selection); --ui-list-selected-label: #fff; --ui-list-selected-secondary: #ffffffcc;
+:root { --brand-teal: #00a0a8; --ui-list-selected: var(--ui-selection); --ui-list-selected-label: #fff;
   --ui-tile-on: var(--ui-action); --ui-tile-on-label: #fff; --ui-thumb-shadow: 0 .5px 2px #0000004d,0 0 0 .5px #0000001a,inset 0 .5px #ffffff1f; }
 :root:not([data-theme="light"]) { --brand-teal: #14b4bc; }
 .site-header .brand.brand-wordmark { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 4px 0 2px; color: var(--ui-label); text-decoration: none; font-family: var(--ui-font-display); font-size: 16px; line-height: 1; letter-spacing: -.01em; white-space: nowrap; }
@@ -788,7 +788,6 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
 /* ---------- Consistency pass (HIG type scale on top of the Figma tokens) ----------
    One type ramp, three weights (400/500/600), letter-spacing only on the
    uppercase eyebrow, and concentric radii for nested controls. */
-:root { --type-caption: 12px; --type-callout: 13px; --type-body: 14px; --type-headline: 15px; --type-title3: 17px; --type-title2: 22px; --type-title1: 28px; }
 :where(h1,h2,h3,h4,strong,b,em,small,span,td,th,button,label,summary) { letter-spacing: normal; }
 .workspace-eyebrow { letter-spacing: .06em; }
 /* Session analysis */

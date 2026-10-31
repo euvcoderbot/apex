@@ -2,80 +2,13 @@
    the legacy layer retains data-specific geometry and behaviour. */
 :root {
   color-scheme: dark;
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable", "Segoe UI", Helvetica, Arial, sans-serif;
-  --font-mono: var(--font-sans);
-  --bg-main: #101012;
-  --bg-card: #1c1c1e;
-  --bg-card-hover: #28282b;
-  --bg-input: #262629;
-  --surface-muted: #222225;
-  --surface-selected: #303033;
-  --text-main: #f5f5f7;
-  --text-primary: var(--text-main);
-  --text-secondary: #c2c2c8;
-  --text-muted: #a1a1aa;
-  --ink: var(--text-main);
-  --muted: var(--text-muted);
-  --border-color: #38383d;
-  --border-color-hover: #606068;
-  --accent: #3395ff;
-  --accent-solid: #0071e3;
-  --neon-accent: var(--accent);
-  --green: #39d977;
-  --red: #ff6961;
-  --yellow: #ffd45a;
-  --shadow-main: inset 0 1px 0 #ffffff0c, 0 2px 4px #00000024, 0 12px 28px #00000030;
-  --shadow-raised: inset 0 1px 0 #ffffff12, 0 1px 3px #00000030, 0 5px 12px #00000024;
-  --shadow-inset: inset 0 1px 3px #00000024, 0 1px 0 #ffffff08;
-  --shadow-menu: 0 10px 38px #00000055, 0 0 0 1px #ffffff06;
-  --radius-card: 16px;
-  --radius-control: 8px;
-  --radius-inner: 12px;
   --ui-text-xs: .8125rem;
   --ui-text-sm: .875rem;
   --ui-text-md: 1rem;
   --ui-text-lg: 1.125rem;
-  --ease-ui: cubic-bezier(.22, .68, 0, 1);
-  --motion-fast: 140ms;
-  --motion-standard: 220ms;
-  --motion-layout: 320ms;
-  --glass-fill: #2b2c32b8;
-  --glass-edge: #ffffff2e;
-  --glass-glint: #ffffff17;
-  --glass-shadow: inset 0 1px 0 #ffffff16, inset 0 -1px 0 #00000025, 0 8px 28px #0000001f;
-  --scroll-thumb: #777780;
-  --scroll-thumb-hover: #a1a1aa;
 }
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg-main: #f5f5f7;
-  --bg-card: #ffffff;
-  --bg-card-hover: #f1f1f4;
-  --bg-input: #f5f5f7;
-  --surface-muted: #f5f5f7;
-  --surface-selected: #e9e9ee;
-  --text-main: #1d1d1f;
-  --text-primary: var(--text-main);
-  --text-secondary: #515158;
-  --text-muted: #67676e;
-  --border-color: #dedee3;
-  --border-color-hover: #ababB3;
-  --accent: #0066cc;
-  --accent-solid: #0071e3;
-  --neon-accent: var(--accent);
-  --green: #168344;
-  --red: #cc3029;
-  --yellow: #986b00;
-  --shadow-main: inset 0 1px 0 #ffffff, 0 1px 3px #1d1d1f0a, 0 8px 24px #1d1d1f0c;
-  --shadow-raised: inset 0 1px 0 #ffffff, 0 1px 2px #1d1d1f12, 0 4px 10px #1d1d1f08;
-  --shadow-inset: inset 0 1px 3px #1d1d1f0a, 0 1px 0 #ffffff;
-  --shadow-menu: 0 10px 38px #1d1d1f24, 0 0 0 1px #1d1d1f05;
-  --glass-fill: #ffffffad;
-  --glass-edge: #ffffffd9;
-  --glass-glint: #ffffffa6;
-  --glass-shadow: inset 0 1px 0 #fffffffa, inset 0 -1px 0 #ffffff50, 0 6px 24px #2634500c;
-  --scroll-thumb: #92929b;
-  --scroll-thumb-hover: #686870;
 }
 html { font-size: 16px; scroll-padding-top: 90px; }
 html { scrollbar-gutter: stable; }
@@ -741,7 +674,7 @@ body { zoom: 1; }
 }
 
 /* Shared working-surface rhythm. Keep sizing predictable in both views. */
-:root { --ui-control-height: 44px; --ui-segment-height: 40px; --ui-panel-padding: 16px; --ui-section-gap: 16px; }
+:root { --ui-panel-padding: 16px; --ui-section-gap: 16px; }
 .site-header, .header-actions, .performance-tabs { min-width: 0; }
 .site-header { gap: 16px; }
 .header-actions { flex-wrap: nowrap; }

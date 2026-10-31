@@ -15,7 +15,7 @@
   --ui-seg-track: #ffffff12; --ui-seg-thumb: #4a4a4a;
   --ui-border: #ffffff1a; --ui-border-strong: #ffffff30; --ui-separator: #ffffff12;
   --ui-row-alt: #ffffff05; --ui-row-hover: #ffffff0c;
-  --ui-accent: #4da3ff; --ui-action: #0071e3; --ui-focus: #4da3ffb3;
+  --ui-accent: #4da3ff; --ui-action: #0071e3;
   --ui-selection: #0071e3; --ui-selection-muted: #ffffff14;
   --ui-positive: #32d74b; --ui-negative: #ff6b62; --ui-warning: #ffd60a;
   --ui-radius: 8px; --ui-panel-radius: 16px; --ui-menu-radius: 14px;
@@ -48,7 +48,7 @@
   --ui-seg-track: #0000000b; --ui-seg-thumb: #ffffff;
   --ui-border: #0000001a; --ui-border-strong: #00000030; --ui-separator: #00000012;
   --ui-row-alt: #00000005; --ui-row-hover: #00000008;
-  --ui-accent: #0062cc; --ui-focus: #007affa6;
+  --ui-accent: #0062cc;
   --ui-selection: #0068d9; --ui-selection-muted: #1725390f;
   --ui-positive: #166c3b; --ui-negative: #bd352d; --ui-warning: #775400;
   --ui-shadow-control: 0 .5px 1.5px #00000033,0 0 0 .5px #0000001f;
