@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import postcss from 'postcss';
 
 const css = readFileSync('hig-system.css', 'utf8');
+const tokenCss = readFileSync('tokens.css', 'utf8');
 const root = postcss.parse(css);
 const rulesFor = pattern => {
   const found = [];
@@ -20,17 +21,17 @@ test('every control family has one size, radius and type style in the final laye
   // Regular controls share one height; segments sit as a 26 px thumb in a 30 px track.
   const regular = rulesFor(/^button\[data-ui-kind="(push|primary|choice)"\]/);
   assert.ok(declared(regular, 'min-height').every(value => value === 'var(--hig-regular)'));
-  assert.match(css, /--hig-regular: 30px/);
-  assert.match(css, /--hig-thumb: 26px/);
+  assert.match(tokenCss, /--hig-regular: 30px/);
+  assert.match(tokenCss, /--hig-thumb: 26px/);
   // macOS checkboxes are rounded squares; only radio buttons are circles.
-  assert.deepEqual(declared(rulesFor(/^input\[data-ui-kind="checkbox"\]$/), 'border-radius'), ['4px']);
+  assert.deepEqual(declared(rulesFor(/^input\[data-ui-kind="checkbox"\]$/), 'border-radius'), ['var(--radius-xs)']);
   // Q1/Q2/Q3 run segments respond to hover and use the segmented thumb when chosen.
   assert.ok(rulesFor(/data-ui-kind="run"\]\):hover/).length);
   assert.match(css, /\[data-ui-kind="run"\]\)\[aria-pressed="true"\] \{\s*background: var\(--ui-seg-thumb\)/);
 });
 
 test('type uses one ramp and section headers share one style across both views', () => {
-  const ramp = new Set(['var(--type-caption)', 'var(--type-callout)', 'var(--type-body)', 'var(--type-headline)', 'var(--type-title3)', 'var(--type-title2)', 'var(--type-title1)', 'inherit']);
+  const ramp = new Set(['var(--type-caption)', 'var(--type-callout)', 'var(--type-body)', 'var(--type-headline)', 'var(--type-title3)', 'var(--type-title2)', 'var(--type-title1)', 'inherit', '0']); // 0: an icon-only label, kept for assistive technology
   const sectorDeficitSelector = '.sector-cards .lap-summary-card .sector-delta-slot .summary-delta';
   root.walkDecls('font-size', decl => assert.ok(ramp.has(decl.value) ||
     (decl.parent.selector === sectorDeficitSelector && decl.value === 'calc(var(--type-caption) * .85)'),
@@ -41,15 +42,28 @@ test('type uses one ramp and section headers share one style across both views',
 });
 
 test('motion is brief, never replays on re-render and honours Reduce Motion, Transparency and Contrast', () => {
-  assert.match(css, /--hig-fast: 120ms/);
+  assert.match(tokenCss, /--hig-fast: var\(--motion-tier-fast\)/);
+  assert.match(tokenCss, /--motion-tier-fast: 150ms/);
   assert.match(css, /:is\(\.lap-summary-card,\.driver-run-card,\.chart,\.corner-analysis,\.dominance-map\) \{ animation: none; \}/);
   for (const query of ['prefers-reduced-motion: reduce', 'prefers-reduced-transparency: reduce', 'prefers-contrast: more']) {
     assert.ok(css.includes(query), query);
   }
-  // Translucent materials only on toolbar, menus, tooltips and toasts.
-  const blurred = [];
-  root.walkDecls('backdrop-filter', decl => { if (decl.value !== 'none') blurred.push(decl.parent.selector); });
-  assert.deepEqual(blurred, ['.site-header', '.circuit-guide-details[popover]']);
+  // Translucent materials only on the navigation layer (toolbar, sticky table headers) and the
+  // transient layer (menus, popovers, tooltips, toasts, sheets). Cards, charts and tables stay opaque.
+  const blurred = new Set();
+  root.walkDecls(/^(-webkit-)?backdrop-filter$/, decl => { if (decl.value !== 'none') blurred.add(decl.parent.selector); });
+  assert.deepEqual([...blurred].sort(), [
+    '.circuit-guide-details[popover]', '.local-compute-dialog', '.local-compute-dialog::backdrop', '.performance-table th',
+    '.site-header, .site-header.window-toolbar', ':is(.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover])',
+  ]);
+  // Every translucent fill has an opaque fallback for Reduce Transparency, Increase Contrast and no backdrop-filter.
+  for (const fallback of ['@media (prefers-reduced-transparency: reduce), (prefers-contrast: more)', '@supports not (backdrop-filter: blur(1px))']) assert.ok(css.includes(fallback), fallback);
+  // Neutral dark appearance: no blue cast in the base greys.
+  const tokens = JSON.parse(readFileSync('e2e/__tokens__/tokens.json', 'utf8'));
+  for (const theme of ['dark', 'light']) for (const name of ['canvas', 'panel', 'well', 'sidebar', 'toolbar', 'control', 'selected']) {
+    const [r, g, b] = tokens[theme]['--ui-' + name].match(/#(..)(..)(..)/).slice(1).map(x => parseInt(x, 16));
+    assert.ok(Math.abs(b - r) <= 2 && Math.abs(g - r) <= 2, `${theme} --ui-${name} is tinted`);
+  }
 });
 
 test('segmented controls share one sliding thumb, kept across re-renders', () => {

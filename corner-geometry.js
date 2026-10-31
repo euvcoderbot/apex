@@ -3,6 +3,20 @@ import './corner-position.js';
 export const refineCornerPositions=globalThis.APEXCornerPosition.refineCornerPositions;
 export const cornerWindow=globalThis.APEXCornerPosition.cornerWindow;
 const finite=n=>typeof n==='number'&&Number.isFinite(n);
+// Circuit metadata is fetched separately from the lightweight local session.
+// Preserve the provider's physical coordinates; never replace them with speed dips.
+export async function sessionWithCircuitCorners(session,getCircuitGuide) {
+  if(session.corners?.length||!getCircuitGuide||!Number.isInteger(session.circuit_key))return session;
+  try {
+    const guide=await getCircuitGuide(session.circuit_key,session.year);
+    const corners=(guide?.corners||[]).flatMap(c=>{
+      const {x,y}=c.trackPosition||{};
+      if(x==null||y==null||!Number.isFinite(+x)||!Number.isFinite(+y))return [];
+      return [{number:String(c.number),letter:c.letter||'',x:+x,y:+y,angle:c.angle,source:'circuit_position'}];
+    });
+    return corners.length?{...session,corners}:session;
+  } catch {return session;}
+}
 // Keep native corner measurements separate from batch straight/braking results.
 export function withCornerMeasurements(traces,measurements={}) {
   const result={...traces};

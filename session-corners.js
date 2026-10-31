@@ -9,7 +9,7 @@ function sessionUrlState() {
 }
 window.sessionUrlState = sessionUrlState;
 function syncSessionUrl() {
-  if (restoringSessionUrl || !sessionEventName || document.body.classList.contains('performance-view')) return;
+  if (restoringSessionUrl || !sessionEventName || window.ApexCarsPending || document.body.classList.contains('performance-view')) return;
   window.ApexUrl?.write('session', sessionUrlState());
 }
 async function applySessionUrl(params) {

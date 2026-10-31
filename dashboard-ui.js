@@ -121,7 +121,7 @@
     const [title,subtitle]=viewTitles[view]||viewTitles.session;
     const titleEl=document.querySelector('#windowTitle'),subtitleEl=document.querySelector('#windowSubtitle');
     if(titleEl)titleEl.textContent=title;
-    if(subtitleEl)subtitleEl.textContent=subtitle;
+    if(subtitleEl)subtitleEl.textContent=window.APEX_SNAPSHOT_MODE&&!window.APEX_LOCAL_MODE?`${subtitle} · published snapshot (not live)`:subtitle;
     if(document.body)document.body.dataset.view=view;
   }
   setWindowTitle('session');
@@ -139,7 +139,7 @@
     const refresh = root.querySelector('[data-performance-refresh]');
     if (refresh && headingControls) {
       refresh.classList.add('metric-refresh');
-      refresh.setAttribute('aria-label', 'Refresh data');
+      refresh.setAttribute('aria-label', window.APEX_SNAPSHOT_MODE&&!window.APEX_LOCAL_MODE?'Reload snapshot':'Refresh data');
       if (!refresh.querySelector('svg')) {
         const label = document.createElement('span');
         label.textContent = refresh.textContent;

@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /apex/
+Disallow: /api/
+
+Sitemap: https://f1apexdata.eufrandota14.chatgpt.site/sitemap.xml

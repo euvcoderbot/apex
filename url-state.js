@@ -52,9 +52,21 @@
 
   function read() { return parse(location.pathname, location.search); }
 
+  // One document serves every route, so the title says where you are (history entries, tabs, bookmarks).
+  const SITE = 'F1 Apex Data';
+  const CATEGORY_TITLES = {pace: 'Pace', corners: 'Cornering', straight: 'Straight line', braking: 'Braking', pits: 'Pit stops',
+    tyres: 'Tyre trend', trend: 'Development & updates', results: 'Reliability & results'};
+  function titleFor(view, params) {
+    if (view === 'cars') return `${CATEGORY_TITLES[params?.metric] || CATEGORY_TITLES.pace} · Car performance${params?.year ? ' ' + params.year : ''} — ${SITE}`;
+    const where = [params?.year, params?.round ? 'round ' + params.round : '', params?.session].filter(Boolean).join(' ');
+    return where ? `${where} · Session analysis — ${SITE}` : `Session analysis — ${SITE}`;
+  }
+  function showTitle(view, params) { if (typeof document !== 'undefined') document.title = titleFor(view, params); }
+
   function write(view, params) {
     if (!VIEWS[view]) return;
     memory[view] = {...params};
+    showTitle(view, params);
     const next = href(view, params);
     if (next === location.pathname + location.search + location.hash) return;
     const current = read();
@@ -84,8 +96,13 @@
   addEventListener('popstate', () => {
     const {view, params} = read();
     memory[view] = {...params};
+    showTitle(view, params);
     restorers[view]?.(params, {fromHistory: true});
   });
+  {
+    const {view, params} = read();
+    if (location.pathname !== BASE || location.search) showTitle(view, params);
+  }
 
-  window.ApexUrl = {read, write, remembered, onRestore, parse, href};
+  window.ApexUrl = {read, write, remembered, onRestore, parse, href, titleFor};
 })();

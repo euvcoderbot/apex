@@ -8,16 +8,17 @@
 // snapshots in assets/data/local-captures, and the calendar in assets/data/events.
 // The Site is published from another folder, so nothing prepared reaches visitors
 // until those files are there. This merges them: a session the Site lacks is
-// added, a newer capture of one it has replaces the old (and the superseded
-// file is removed), an older capture never replaces a newer one. It refuses when
+// added, a newer capture of one it has replaces the old index entry while the
+// old file is preserved, and an older capture never replaces a newer one. It refuses when
 // the prepared data was built for different code revisions than the Site's: the
 // page ignores snapshots whose revisions do not match, so they would not show.
 // It does not build or publish; run the Site's own sync/build and publish after.
 import {createHash} from 'node:crypto';
-import {copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile} from 'node:fs/promises';
+import {copyFile, mkdir, open, readFile, readdir, rename, stat, unlink, writeFile} from 'node:fs/promises';
 import {gunzipSync} from 'node:zlib';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {mergeLocalCaptures} from '../lib/local-captures.mjs';
 
 const read = async file => readFile(file, 'utf8').then(JSON.parse);
 const exists = file => stat(file).then(() => true, () => false);
@@ -76,9 +77,22 @@ export async function plan(from, to) {
   // The calendar carries each session's status; take the preparing checkout's when it is newer and complete.
   let calendar = null;
   const fromCal = path.join(data(from), 'events', '2026.json'), toCal = path.join(data(to), 'events', '2026.json');
-  if (await exists(fromCal) && await newer(fromCal, toCal)) {
+  if (await exists(fromCal)) {
     const a = await read(fromCal), b = await read(toCal).catch(() => []);
-    if ((a.events || a).length >= (b.events || b).length) calendar = {file: '2026.json', rounds: (a.events || a).length};
+    const sourceEvents=a.events || a, targetEvents=b.events || b;
+    // Git checkout times are not capture times. Preserve previously confirmed
+    // session statuses if the new calendar omits them or still says upcoming.
+    const sameEvents=targetEvents.every(old=>sourceEvents.some(e=>e.round===old.round&&e.name===old.name));
+    const merged=sourceEvents.map(current=>{
+      const old=targetEvents.find(e=>e.round===current.round&&e.name===current.name);
+      const statuses={...current.session_statuses};
+      for(const [name,status] of Object.entries(old?.session_statuses||{}))
+        if(['completed','cancelled'].includes(status)&&(!statuses[name]||statuses[name]==='upcoming'))statuses[name]=status;
+      return Object.keys(statuses).length?{...current,session_statuses:statuses}:current;
+    });
+    const mergedCalendar=Array.isArray(a)?merged:{...a,events:merged};
+    if (sameEvents && sourceEvents.length >= targetEvents.length && JSON.stringify(mergedCalendar)!==JSON.stringify(b))
+      calendar = {file: '2026.json', rounds: sourceEvents.length, data:mergedCalendar};
   }
   return {problems, captures, packs, calendar, wanted, fromCaptures, toCaptures, fromPacks, toPacks, siteMatches};
 }
@@ -93,7 +107,7 @@ export async function apply(from, to, p) {
   for (const {key, entry, superseded} of p.captures) {
     await put(path.join(data(from), 'local-captures', entry.file), path.join(data(to), 'local-captures', entry.file));
     captures.entries[key] = entry;
-    if (superseded && superseded !== entry.file) await rm(path.join(data(to), 'local-captures', superseded), {force: true});
+    // Retain the old content-addressed file: another index or a user may need it.
   }
   captures.generated = new Date().toISOString();
   await writeFile(path.join(data(to), 'local-captures', 'index.json'), JSON.stringify(captures));
@@ -101,10 +115,20 @@ export async function apply(from, to, p) {
   for (const {identity, file, superseded} of p.packs) {
     await put(path.join(data(from), 'local-telemetry', file), path.join(data(to), 'local-telemetry', file));
     packs.entries[identity] = file;
-    if (superseded) await rm(path.join(data(to), 'local-telemetry', superseded), {force: true});
+    // Keep superseded packs rather than deleting user data during a sync.
   }
   await writeFile(path.join(data(to), 'local-telemetry', 'index.json'), JSON.stringify(packs));
-  if (p.calendar) await put(path.join(data(from), 'events', p.calendar.file), path.join(data(to), 'events', p.calendar.file));
+  if (p.calendar) {
+    const source=path.join(data(from), 'events', p.calendar.file);
+    const target=path.join(data(to), 'events', p.calendar.file);
+    await writeFile(target+'.tmp',JSON.stringify(p.calendar.data));
+    await rename(target+'.tmp',target);
+    // The published snapshot loader prefers the captured /api/events entry
+    // over events/2026.json. Update both or newly prepared sessions stay hidden.
+    const calendar=p.calendar.data;
+    await mergeLocalCaptures(to, p.wanted, [{route:'/api/events?year=2026',data:calendar.events || calendar,
+      capturedAt:(await stat(source)).mtime.toISOString()}]);
+  }
 }
 
 function describe(p) {
@@ -127,13 +151,20 @@ async function main() {
   const args = process.argv.slice(2), arg = name => { const i = args.indexOf(name); return i < 0 ? null : args[i + 1]; };
   const from = arg('--from'), to = arg('--to');
   if (!from || !to) { console.error('usage: sync-prepared-sessions.mjs --from <preparing checkout> --to <site checkout> [--apply]'); process.exit(2); }
-  const p = await plan(path.resolve(from), path.resolve(to));
+  let p = await plan(path.resolve(from), path.resolve(to));
   const fatal = !p.wanted;
   for (const problem of p.problems) console.error((fatal ? 'refusing: ' : 'note: ') + problem);
   if (fatal || p.problems.some(x => x.startsWith('unreadable'))) process.exit(1);
   console.log(describe(p));
   if (!args.includes('--apply')) { console.log('\nDry run. Add --apply to write these into ' + path.resolve(to)); return; }
-  await apply(path.resolve(from), path.resolve(to), p);
+  const lock=path.join(path.resolve(to),'assets','data','.sync-prepared.lock');
+  const handle=await open(lock,'wx').catch(e=>{if(e.code==='EEXIST')throw Error('Another prepared-data sync is active; retry later.');throw e;});
+  try {
+    p=await plan(path.resolve(from),path.resolve(to));
+    if(!p.wanted||p.problems.some(x=>x.startsWith('unreadable')))throw Error('Prepared data changed or is invalid; retry after preparation completes.');
+    if(!p.captures.length&&!p.packs.length&&!p.calendar){console.log('\nAlready up to date.');return;}
+    await apply(path.resolve(from), path.resolve(to), p);
+  } finally { await handle.close(); await unlink(lock); }
   console.log('\nDone. Rebuild the Site (npm run sync:apex) and publish it.');
 }
 

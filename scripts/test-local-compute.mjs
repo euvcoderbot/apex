@@ -22,7 +22,7 @@ test('local processing uses only loopback Python and disk hits survive a new ser
     assert.equal((await fetch(origin+'/api/local-status').then(r=>r.json())).mode,'local');
     const config=await fetch(origin+'/apex/config.js').then(r=>r.text());assert.match(config,/APEX_API_ORIGIN = ''/);assert.match(config,/APEX_LOCAL_MODE = true/);assert.doesNotMatch(config,/vercel\.app/);
     assert.equal((await fetch(origin+'/server.py')).status,404);
-    assert.equal((await fetch(origin+'/api/data?path=https://evil.test/api/events?year=2025')).status,502);
+    assert.equal((await fetch(origin+'/api/data?path=https://evil.test/api/events?year=2025')).status,400);
     const hostile=await new Promise((resolve,reject)=>{const r=httpRequest(origin+'/api/local-status',{headers:{Host:'attacker.test'}},res=>{res.resume();resolve(res.statusCode);});r.once('error',reject);r.end();});
     assert.equal(hostile,403);
     assert.equal((await fetch(origin+'/api/data',{method:'POST',headers:{Origin:'https://attacker.test'},body:'{}'})).status,403);

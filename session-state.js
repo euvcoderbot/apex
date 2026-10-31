@@ -209,8 +209,10 @@ function dataRequestTimeout(url) {
   return /^\/api\/(?:events|session|telemetry|performance(?:\/.*)?|race-corners|qualifying-corners)$/.test(path) ? 310000 : 30000;
 }
 
+/** The published site answers 503 for a result that was never published. Retrying cannot change that. */
+const notPublished = async response => response.status === 503 && /not been published/i.test((await response.clone().json().catch(() => ({}))).detail || '');
 async function fetchSessionData(url, options = {}) {
-  const attempts = window.APEX_LOCAL_MODE ? 2 : 1 + PLATFORM_RETRY_DELAYS_MS.length;
+  const attempts = window.APEX_SNAPSHOT_MODE ? 1 : window.APEX_LOCAL_MODE ? 2 : 1 + PLATFORM_RETRY_DELAYS_MS.length;
   for (let attempt = 0; attempt < attempts; attempt++) {
     if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     const controller = new AbortController();
@@ -223,7 +225,7 @@ async function fetchSessionData(url, options = {}) {
       const response = await fetch(longQuery?'/api/data':shared, { ...options, signal: controller.signal,
         ...(longQuery?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:query.get('path'),refresh:query.get('refresh')==='1'})}:{}) });
       const retryable = [408, 429, 502, 503, 504].includes(response.status) || platformErrorResponse(response);
-      if (!retryable || attempt === attempts - 1) return response;
+      if (!retryable || attempt === attempts - 1 || await notPublished(response)) return response;
       await response.text();
     } catch (error) {
       if (options.signal?.aborted) throw error;
@@ -298,26 +300,44 @@ async function cacheData(url, data, ttl) {
 // Used only when it was computed with this page's methodology revision.
 let prerenderedIndex = null;
 let nativeTelemetryIndex = null;
+let localTelemetryIndex = null;
+let localCaptureIndex = null;
 const nativeTelemetryPacks = new Map();
+async function readSavedJson(response) {
+  // Some hosts send .json.gz with Content-Encoding: gzip; fetch has already
+  // decoded those bytes. Other hosts deliver the gzip file unchanged.
+  const bytes=new Uint8Array(await response.arrayBuffer());
+  if(bytes[0]===0x1f&&bytes[1]===0x8b)
+    return new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
 async function preparedTelemetryData(parsed) {
-  if (window.APEX_LOCAL_MODE || typeof DecompressionStream === 'undefined' || parsed.searchParams.get('fresh') === 'true'
+  if (window.APEX_LOCAL_MODE || typeof DecompressionStream === 'undefined' || (parsed.searchParams.get('fresh') === 'true' && !window.APEX_SNAPSHOT_MODE)
       || parsed.searchParams.get('pit_out') === 'true') return null;
-  nativeTelemetryIndex ||= fetch('assets/data/telemetry/index.json',{cache:'no-cache'}).then(r=>r.ok?r.json():null).catch(()=>null);
-  const index=await nativeTelemetryIndex;
-  if(index?.sourceRevision !== window.APEX_SOURCE_VERSION) return null;
   const session=({Q:'Qualifying',SQ:'Sprint Qualifying',S:'Sprint',R:'Race'})[parsed.searchParams.get('session')] || parsed.searchParams.get('session');
   const identity=[parsed.searchParams.get('year'),parsed.searchParams.get('gp'),session,parsed.searchParams.get('driver')].join(':');
+  let directory='telemetry',index;
+  if(window.APEX_SNAPSHOT_MODE){
+    localTelemetryIndex ||= fetch('assets/data/local-telemetry/index.json',{cache:'no-cache'}).then(r=>r.ok?r.json():null).catch(()=>null);
+    const local=await localTelemetryIndex;
+    if(local?.sourceRevision===window.APEX_SOURCE_VERSION&&local.entries?.[identity]){directory='local-telemetry';index=local;}
+  }
+  if(!index){nativeTelemetryIndex ||= fetch('assets/data/telemetry/index.json',{cache:'no-cache'}).then(r=>r.ok?r.json():null).catch(()=>null);index=await nativeTelemetryIndex;}
+  // Exact revision pair changes only raw archive storage, not packet maths.
+  const compatibleArchive=window.APEX_SNAPSHOT_MODE&&window.APEX_SOURCE_VERSION==='5b02cc1bb2a6daf808ad'&&index?.sourceRevision==='debb63ddadd0fabe2d70';
+  if(index?.sourceRevision !== window.APEX_SOURCE_VERSION && !compatibleArchive) return null;
   const file=index.entries?.[identity];
   if(!file)return null;
-  if(!nativeTelemetryPacks.has(file)) {
-    const pending=fetch(`assets/data/telemetry/${file}`,{cache:'no-cache'}).then(async r=>{
+  const packKey=directory+'/'+file;
+  if(!nativeTelemetryPacks.has(packKey)) {
+    const pending=fetch(`assets/data/${directory}/${file}`,{cache:'no-cache'}).then(async r=>{
       if(!r.ok||!r.body)throw new Error('Saved telemetry pack unavailable');
-      return new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).json();
-    }).catch(error=>{nativeTelemetryPacks.delete(file);throw error;});
-    nativeTelemetryPacks.set(file,pending);
+      return readSavedJson(r);
+    }).catch(error=>{nativeTelemetryPacks.delete(packKey);throw error;});
+    nativeTelemetryPacks.set(packKey,pending);
     if(nativeTelemetryPacks.size>24)nativeTelemetryPacks.delete(nativeTelemetryPacks.keys().next().value);
   }
-  const pack=await nativeTelemetryPacks.get(file);
+  const pack=await nativeTelemetryPacks.get(packKey);
   const key=parsed.searchParams.get('session_key');
   if(key&&String(pack.sessionKey)!==key)return null;
   const data=pack.laps?.[parsed.searchParams.get('lap')];
@@ -344,26 +364,56 @@ async function prerenderedData(parsed) {
   // Session summaries follow the source revision; car performance the backend's.
   const revision = parsed.pathname === '/api/session' ? index?.sourceRevision : index?.revision;
   const expected = parsed.pathname === '/api/session' ? window.APEX_SOURCE_VERSION : window.APEX_BACKEND_VERSION;
-  if (!index || !revision || revision !== expected) return null;
+  const compatibleArchive=window.APEX_SNAPSHOT_MODE && (parsed.pathname==='/api/session'
+    ? expected==='5b02cc1bb2a6daf808ad'&&revision==='debb63ddadd0fabe2d70'
+    : expected==='1af2a5e364d242f1b28d'&&revision==='8168b392ef2edc130d33');
+  if (!index || !revision || (revision !== expected&&!compatibleArchive)) return null;
   const file = index.entries?.[prerenderedKey(parsed)];
   if (!file) return null;
   const response = await fetch(`assets/data/prerendered/${file}`,{cache:'no-cache'});
   if (!response.ok || !response.body) return null;
-  return new Response(response.body.pipeThrough(new DecompressionStream('gzip'))).json();
+  const data=await readSavedJson(response);
+  if(compatibleArchive){
+    const valid=parsed.pathname==='/api/session'?Array.isArray(data.drivers)&&data.drivers.length>0:
+      parsed.pathname==='/api/performance'?data.method==='car-performance-v13-supported-recovery'&&Array.isArray(data.teams):
+      parsed.pathname==='/api/performance/trace-batch'?data.methodology_version==='car-measurements-v18-trace-integral':
+      parsed.pathname==='/api/performance/pits'?Array.isArray(data.visits):
+      parsed.pathname==='/api/performance/sprint'?Array.isArray(data.drivers):false;
+    if(!valid)return null;
+  }
+  if(window.APEX_SNAPSHOT_MODE)data.published_snapshot={generated_at:index.generated||null,source_revision:revision,kind:'retained'};
+  return data;
 }
 async function preparedData(url) {
   if (window.APEX_LOCAL_MODE) return null; // Local disk/API owns freshness, not published snapshots.
   const parsed = new URL(url, window.location?.href || 'http://localhost');
+  if(window.APEX_SNAPSHOT_MODE && typeof DecompressionStream !== 'undefined') {
+    localCaptureIndex ||= fetch('assets/data/local-captures/index.json',{cache:'no-cache'}).then(r=>r.ok?r.json():null).catch(()=>null);
+    const index=await localCaptureIndex;
+    const family=/^\/api\/(events|session)$/.test(parsed.pathname)?'sourceRevision':/^\/api\/(qualifying|race)-corners$/.test(parsed.pathname)?'measurementRevision':'backendRevision';
+    const expected={sourceRevision:window.APEX_SOURCE_VERSION,backendRevision:window.APEX_BACKEND_VERSION,measurementRevision:window.APEX_MEASUREMENT_VERSION}[family];
+    const entry=index?.[family]===expected?index.entries?.[prerenderedKey(parsed)]:null;
+    if(entry?.file && /^[a-f0-9]{24}\.json\.gz$/.test(entry.file) && Number.isFinite(Date.parse(entry.capturedAt))) {
+      const response=await fetch(`assets/data/local-captures/${entry.file}`,{cache:'no-cache'});
+      if(response.ok && response.body){
+        const data=await readSavedJson(response);
+        if(parsed.pathname==='/api/events'&&Array.isArray(data))return data.map(event=>({...event,calendar_status_source:'captured-schedule',calendar_captured_at:entry.capturedAt}));
+        if(data && typeof data==='object' && !Array.isArray(data))data.published_snapshot={captured_at:entry.capturedAt,kind:'locally-prepared'};
+        return data;
+      }
+    }
+  }
   const prerendered = await prerenderedData(parsed).catch(() => null);
   if (prerendered) return prerendered;
   const year = Number(parsed.searchParams.get('year'));
   if (parsed.pathname === '/api/events' && year >= 2014 && year <= 2026) {
     // The current calendar carries live OpenF1 completion/cancellation state.
     // Do not let a build-time snapshot hide a red flag, restart or correction.
-    if (year === new Date().getFullYear()) return null;
+    if (year === new Date().getFullYear()&&!window.APEX_SNAPSHOT_MODE) return null;
     const response = await fetch(`assets/data/events/${year}.json`);
     if (!response.ok) return null;
-    return response.json();
+    const calendar=await response.json();
+    return window.APEX_SNAPSHOT_MODE?calendar.map(event=>({...event,calendar_status_source:'saved-schedule'})):calendar;
   }
   if (parsed.pathname !== '/api/session' || year >= new Date().getFullYear()) return null;
   preparedSessionIndex ||= fetch('assets/data/sessions/index.json').then(r => r.ok ? r.json() : {}).catch(() => ({}));
@@ -384,7 +434,8 @@ async function requestApiData(url, options = {}) {
   const cached = liveCalendar||refreshing ? null : await storedData(cacheKey);
   if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
   if (cached) return cached; // loadApiData clones once per consumer.
-  const prepared = refreshing?null:await preparedData(url).catch(() => null);
+  if(refreshing&&window.APEX_SNAPSHOT_MODE){prerenderedIndex=null;localCaptureIndex=null;nativeTelemetryIndex=null;localTelemetryIndex=null;nativeTelemetryPacks.clear();}
+  const prepared = refreshing&&!window.APEX_SNAPSHOT_MODE?null:await preparedData(url).catch(() => null);
   if (prepared) { void cacheData(cacheKey, structuredClone(prepared), 120000); return prepared; }
   let response, data;
   try {

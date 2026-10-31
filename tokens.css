@@ -1,0 +1,181 @@
+/* Design tokens: the one owner of every shared design decision.
+   Everything declared on :root lives here, in its own cascade layer below all component styles, so a component can read
+   a token but never redefine it. Light is data-theme="light"; dark is the default. Component-scoped custom properties
+   (a team colour on a card, a thumb offset on a control) stay with their component.
+   e2e/tokens.spec.mjs records the computed value of every token below in both appearances. */
+
+/* ---- radius scale (reference tier) ----
+   Concentric geometry: an inner radius is its container's minus the padding between them, rounded to this scale.
+   Cards (xl) hold regular controls (md); menus (lg) hold rows (sm); a segmented track (md) holds a thumb (sm). */
+:root {
+  --radius-2xs: 2px; --radius-xs: 4px; --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px; --radius-pill: 999px;
+}
+
+/* ---- motion scale (reference tier) ----
+   Three durations and four curves for every transition. Apple publishes no numeric values for macOS motion, so these are
+   perceptual tunings, not Apple specifications: fast (150 ms) is feedback to a pointer or key (hover, press, selection),
+   standard (220 ms) moves or reveals something (a thumb, a disclosure, a menu), slow (320 ms) changes what is on screen
+   (a sheet, a bar growing, a view). Standard is CSS "ease"; out decelerates into place; in accelerates away; spring
+   overshoots by a few percent and is for the segmented thumb only. Reduced motion removes them all (hig-system.css). */
+:root {
+  --motion-tier-fast: 150ms; --motion-tier-standard: 220ms; --motion-tier-slow: 320ms;
+  --ease-standard: cubic-bezier(.25,.1,.25,1); --ease-out: cubic-bezier(.2,.8,.2,1); --ease-in: cubic-bezier(.4,0,1,1);
+  --ease-spring: cubic-bezier(.2,.9,.25,1.05);
+}
+
+/* ---- from design-system.css ---- */
+:root {
+  --team: #777777;
+}
+@media (max-width: 1279px) {
+  :root {
+    --fluid-gap: clamp(8px, 1.2vw, 12px);
+    --fluid-pad: clamp(8px, 1.3vw, 14px);
+  }
+}
+
+/* ---- from apple-ui.css ---- */
+:root {
+  --ui-text-xs: .8125rem;
+  --ui-text-sm: .875rem;
+  --ui-text-md: 1rem;
+  --ui-text-lg: 1.125rem;
+}
+:root { --ui-panel-padding: 16px; --ui-section-gap: 16px; }
+
+/* ---- from workspace-ui.css ---- */
+:root {
+  --material-fill: #1a2432d9;
+  --material-edge: #c5dcff26;
+  --material-glint: #e4eeff12;
+}
+:root[data-theme="light"] {
+  --material-fill: #f7faffda;
+  --material-edge: #ffffffeb;
+  --material-glint: #ffffffb0;
+}
+
+/* ---- from macos-ui.css ---- */
+:root {
+  --shadow-inset: inset 0 1px 3px #00000028;
+  --glass-fill: #2a2a2ad9;
+  --glass-edge: #ffffff22;
+  --glass-glint: #ffffff14;
+  --glass-shadow: inset 0 1px #ffffff20, 0 3px 12px #00000024;
+  --scroll-thumb: #8b8b9380;
+  --scroll-thumb-hover: #aaaab2b3;
+  --motion-fast: var(--motion-tier-fast);
+  --motion-standard: var(--motion-tier-standard);
+  --motion-layout: var(--motion-tier-standard);
+  --ease-ui: var(--ease-out);
+}
+:root[data-theme="light"] {
+  --glass-fill: #f7f7fae6; --glass-edge: #ffffffcc; --glass-glint: #ffffff80;
+  --scroll-thumb: #77778080; --scroll-thumb-hover: #55555eb3;
+}
+
+/* ---- from ui-controls.css ---- */
+:root {
+  --ui-font: -apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro","Inter","Segoe UI Variable Text","Segoe UI",system-ui,"Helvetica Neue",Arial,sans-serif;
+  --ui-font-display: var(--ui-font);
+  --ui-font-mono: ui-monospace,"SF Mono",SFMono-Regular,Menlo,"Cascadia Mono",Consolas,monospace;
+  --ui-label: #f5f5f5; --ui-secondary: #c7c7c7; --ui-tertiary: #a1a1a1; --ui-quaternary: #707070;
+  --ui-canvas: #121212; --ui-panel: #1d1d1d; --ui-well: #171717; --ui-content: #1d1d1d;
+  --ui-sidebar: #1a1a1a; --ui-toolbar: #1f1f1f; --ui-header-row: #242424;
+  --ui-control: #2e2e2e; --ui-control-hover: #3a3a3a; --ui-selected: #424242;
+  --ui-seg-track: #ffffff12; --ui-seg-thumb: #4a4a4a;
+  --ui-border: #ffffff1a; --ui-border-strong: #ffffff30; --ui-separator: #ffffff12;
+  --ui-row-alt: #ffffff05; --ui-row-hover: #ffffff0c;
+  --ui-accent: #4da3ff; --ui-action: #0071e3;
+  --ui-selection: #0071e3; --ui-selection-muted: #ffffff14;
+  --ui-positive: #32d74b; --ui-negative: #ff6b62; --ui-warning: #ffd60a;
+  --ui-radius: var(--radius-md); --ui-panel-radius: var(--radius-xl); --ui-menu-radius: var(--radius-lg);
+  --ui-shadow-control: 0 .5px 1px #0006,inset 0 .5px #ffffff1c;
+  --ui-shadow-popover: 0 10px 34px #0000007a,0 0 0 .5px #00000080,inset 0 .5px #ffffff26;
+  --ui-shadow-window: 0 1px 0 #ffffff0d inset;
+  --ui-motion: var(--motion-tier-fast); --ui-motion-slow: var(--motion-tier-standard); --ui-ease: var(--ease-standard); --ui-spring: var(--ease-spring);
+  --ui-control-height: 30px; --ui-segment-height: auto; --ui-control-font: 14px;
+  --ui-text: 14px; --ui-caption: 12px; --ui-heading: 16px; --ui-metric: 24px; --ui-page-title: 28px;
+  --ui-space-1: 4px; --ui-space-2: 8px; --ui-space-3: 12px; --ui-space-4: 16px;
+  --ui-row-height: 30px; --ui-toolbar-height: 60px; --ui-sidebar-width: 282px;
+  --shadow-main: none;
+  --ui-space-5: 20px;
+  --ui-space-6: 24px;
+}
+:root[data-theme="light"] {
+  --ui-label: #1d1d1f; --ui-secondary: #4d4d4f; --ui-tertiary: #5e5e60; --ui-quaternary: #8e8e90;
+  --ui-canvas: #f2f2f2; --ui-panel: #ffffff; --ui-well: #f7f7f7; --ui-content: #ffffff;
+  --ui-sidebar: #e8e8e8; --ui-toolbar: #f6f6f6; --ui-header-row: #f6f6f6;
+  --ui-control: #ffffff; --ui-control-hover: #efefef; --ui-selected: #e3e3e3;
+  --ui-seg-track: #0000000b; --ui-seg-thumb: #ffffff;
+  --ui-border: #0000001a; --ui-border-strong: #00000030; --ui-separator: #00000012;
+  --ui-row-alt: #00000005; --ui-row-hover: #00000008;
+  --ui-accent: #0062cc;
+  --ui-selection: #0068d9; --ui-selection-muted: #1725390f;
+  --ui-positive: #166c3b; --ui-negative: #bd352d; --ui-warning: #775400;
+  --ui-shadow-control: 0 .5px 1.5px #00000033,0 0 0 .5px #0000001f;
+  --ui-shadow-popover: 0 10px 34px #00000029,0 0 0 .5px #0000002e;
+  --ui-shadow-window: 0 1px 0 #ffffff inset;
+  --ui-action: #0068d9;
+}
+@media (pointer:coarse) {
+  :root { --ui-control-height: 44px; }
+}
+@media (prefers-reduced-transparency:reduce),(prefers-contrast:more) {
+  :root { --ui-border: #ffffff45; --ui-border-strong: #ffffff70; --ui-tertiary: #c4c4ca; }
+}
+@media (prefers-reduced-transparency:reduce),(prefers-contrast:more) {
+  :root[data-theme="light"] { --ui-border: #00000040; --ui-border-strong: #00000070; --ui-tertiary: #4f4f57; }
+}
+
+/* ---- from macos-window.css ---- */
+:root { --brand-teal: #00a0a8; --ui-list-selected: var(--ui-selection); --ui-list-selected-label: #fff;
+  --ui-tile-on: var(--ui-action); --ui-tile-on-label: #fff; --ui-thumb-shadow: 0 .5px 2px #0000004d,0 0 0 .5px #0000001a,inset 0 .5px #ffffff1f; }
+:root:not([data-theme="light"]) { --brand-teal: #14b4bc; }
+:root { --f1-purple: #b353c7; --f1-purple-light: #c572db; --f1-green: #49ba4c; --f1-green-light: #7ee582; --f1-yellow: #d5b70b; --f1-yellow-light: #ffea54; }
+
+/* ---- from hig-system.css ---- */
+:root {
+  /* Control sizes (HIG "control size": regular / small / large). */
+  --hig-regular: 30px;          /* push, pop-up, field, segmented track, toggle tile */
+  --hig-small: 24px;            /* chart toolbars, steppers, sort headers, chips */
+  --hig-large: 32px;            /* sidebar rows, toolbar items, category bar */
+  --hig-thumb: 26px;            /* segment inside a regular 30 px track */
+  --hig-menu-row: 28px;
+  --hig-radius: var(--radius-md);            /* regular controls and tiles */
+  --hig-radius-small: var(--radius-sm);      /* small controls, list rows, menu rows */
+  --hig-radius-track: var(--radius-md);      /* segmented track; thumb = track - 2 px inset */
+  --hig-radius-thumb: var(--radius-sm);
+  --hig-radius-overlay: var(--radius-lg);   /* menus, popovers, tooltips, toasts */
+  --hig-radius-panel: var(--radius-xl);     /* group boxes, cards, sheets */
+  /* Type ramp (macOS text styles, +1–2 px for this dense web layout). */
+  --type-caption: 12px; --type-callout: 13px; --type-body: 14px; --type-headline: 15px;
+  --type-title3: 17px; --type-title2: 22px; --type-title1: 28px;
+  /* State fills. */
+  --hig-seg-hover: color-mix(in srgb, var(--ui-label) 9%, transparent);
+  --hig-control-pressed: color-mix(in srgb, var(--ui-control-hover) 78%, var(--ui-label) 10%);
+  /* Motion (HIG Motion: brief, purposeful, never decorative). */
+  --hig-fast: var(--motion-tier-fast);            /* hover, press, selection change */
+  --hig-medium: var(--motion-tier-standard);          /* disclosure, popover, view change */
+  --hig-ease: var(--ease-standard);
+  --hig-ease-out: var(--ease-out);
+}
+:root {
+  --mat-bar: color-mix(in srgb, var(--ui-toolbar) 74%, transparent);
+  --mat-header: color-mix(in srgb, var(--ui-header-row) 82%, transparent);
+  --mat-menu: color-mix(in srgb, var(--ui-control) 72%, transparent);
+  --mat-sheet: color-mix(in srgb, var(--ui-panel) 80%, transparent);
+  --mat-blur-bar: blur(24px) saturate(180%);
+  --mat-blur-menu: blur(40px) saturate(190%);
+  /* Thin hairline plus a specular top edge: what separates glass from paint. */
+  --mat-edge: inset 0 0 0 .5px color-mix(in srgb, var(--ui-label) 13%, transparent), inset 0 .5px 0 color-mix(in srgb, #fff 20%, transparent);
+  --mat-scrim: color-mix(in srgb, #000 30%, transparent);
+}
+:root[data-theme="light"] {
+  --mat-edge: inset 0 0 0 .5px #0000001f, inset 0 .5px 0 #ffffffcc;
+  --mat-scrim: color-mix(in srgb, #000 18%, transparent);
+}
+:root { --ui-focus: var(--ui-accent); --ui-list-selected-secondary: #fff; }
+@media (pointer:coarse) {
+  :root { --hig-regular: 44px; --hig-small: 44px; --hig-large: 44px; --hig-thumb: 44px; --hig-menu-row: 44px; }
+}

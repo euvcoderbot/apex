@@ -2,6 +2,8 @@ import type {CSSProperties} from 'react';
 import {color} from '../../performance-format.js';
 import {officialTeamMarks, historicalTeamMarks, grandPrixCountryCode} from '../../performance-identity.js';
 
+const historicalMarks: Record<string, string | undefined> = historicalTeamMarks, officialMarks: Record<string, string | undefined> = officialTeamMarks;
+
 export type TeamLike = {team?: string; name?: string; displayName?: string; logoTeam?: string; color?: string};
 
 /**
@@ -12,13 +14,13 @@ export type TeamLike = {team?: string; name?: string; displayName?: string; logo
  */
 export function TeamLogo({team}: {team?: string}) {
   const key = String(team || '').trim().toLowerCase();
-  const historical = key === 'renault' || key === 'renault sport f1 team' ? 'renault.png' : historicalTeamMarks[key];
+  const historical = key === 'renault' || key === 'renault sport f1 team' ? 'renault.png' : historicalMarks[key];
   if (historical) return (
     <span className="team-logo team-logo-historical" aria-hidden="true">
       <img src={`assets/teams/historical/${historical}`} alt="" width={26} height={26} />
     </span>
   );
-  const asset = officialTeamMarks[key];
+  const asset = officialMarks[key];
   if (!asset) return <span className="team-logo" aria-hidden="true"><i className="team-logo-fallback" /></span>;
   const base = asset.replace(/\.webp$/, '');
   return (
@@ -33,7 +35,7 @@ export function TeamLogo({team}: {team?: string}) {
 export function TeamLabel({team}: {team: TeamLike | string}) {
   const t: TeamLike = typeof team === 'object' && team !== null ? team : {team: String(team || '')};
   const name = t.displayName || t.team || t.name || '';
-  const teamColor = t.color ? color(t.color) : 'var(--text-main)';
+  const teamColor = t.color ? color(t.color) : 'var(--ui-label)';
   return (
     <div className="performance-team" style={{'--team-color': teamColor} as CSSProperties}>
       <TeamLogo team={t.logoTeam || t.team || name} />

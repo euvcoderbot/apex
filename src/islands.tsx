@@ -10,6 +10,7 @@
 import type {ComponentType} from 'react';
 import {flushSync} from 'react-dom';
 import {createRoot, type Root} from 'react-dom/client';
+import {ErrorBoundary} from './components/ErrorBoundary';
 import {PaceView} from './views/PaceView';
 import {PitsView} from './views/PitsView';
 import {RaceCornersView} from './views/RaceCornersView';
@@ -29,7 +30,7 @@ function mountAll(container: ParentNode, props: Map<string, unknown>) {
     if (!View || !props.has(name)) continue;
     let root = roots.get(element);
     if (!root) { root = createRoot(element); roots.set(element, root); }
-    flushSync(() => root!.render(<View {...(props.get(name) as object)} />));
+    flushSync(() => root!.render(<ErrorBoundary name={name}><View {...(props.get(name) as object)} /></ErrorBoundary>));
   }
 }
 

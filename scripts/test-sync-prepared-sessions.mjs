@@ -39,7 +39,7 @@ test('a new session is added with its lap packs; nothing else changes', async ()
   assert.deepEqual(p.packs.map(c => [c.action, c.identity]), [['add', '2026:B:P1:VER']]);
   await apply(prepared.root, site.root, p);
   const captures = await index(site, 'local-captures'), packs = await index(site, 'local-telemetry');
-  assert.deepEqual(Object.keys(captures.entries).sort(), ['/api/session?gp=A', '/api/session?gp=B']);
+  assert.deepEqual(Object.keys(captures.entries).sort(), ['/api/events?year=2026', '/api/session?gp=A', '/api/session?gp=B']);
   assert.equal(captures.sourceRevision, 'src1');
   assert.notEqual(captures.generated, 'old');
   assert.deepEqual(Object.keys(packs.entries).sort(), ['2026:A:Q:VER', '2026:B:P1:VER']);
@@ -48,14 +48,14 @@ test('a new session is added with its lap packs; nothing else changes', async ()
   await Promise.all([site.cleanup(), prepared.cleanup()]);
 });
 
-test('a newer capture replaces an older one and removes the superseded file; an older one never wins', async () => {
+test('a newer capture replaces an older one without deleting the superseded file; an older one never wins', async () => {
   const site = await release({'/api/x': ['old.json.gz', '2026-10-28T00:00:00Z', {v: 1}], '/api/y': ['y-new.json.gz', '2026-10-30T00:00:00Z', {v: 'site'}]});
   const prepared = await release({'/api/x': ['fresh.json.gz', '2026-10-29T00:00:00Z', {v: 2}], '/api/y': ['y-old.json.gz', '2026-10-27T00:00:00Z', {v: 'stale'}]});
   const p = await plan(prepared.root, site.root);
   assert.deepEqual(p.captures.map(c => [c.action, c.key]), [['replace', '/api/x']]);
   await apply(prepared.root, site.root, p);
   const files = await readdir(path.join(site.data, 'local-captures'));
-  assert.ok(files.includes('fresh.json.gz') && !files.includes('old.json.gz'), 'the replaced file is removed');
+  assert.ok(files.includes('fresh.json.gz') && files.includes('old.json.gz'), 'the replaced file is preserved');
   assert.ok(files.includes('y-new.json.gz'), 'the newer site capture stays');
   assert.equal((await index(site, 'local-captures')).entries['/api/y'].file, 'y-new.json.gz');
   await Promise.all([site.cleanup(), prepared.cleanup()]);
@@ -83,6 +83,22 @@ test('prepared data built for other code revisions is refused', async () => {
   await Promise.all([site.cleanup(), prepared.cleanup()]);
 });
 
+test('calendar completion is carried over even when the site checkout has a newer mtime', async () => {
+  const site = await release({}, {}, {calendar: [{round: 1, name:'GP', session_statuses:{'Practice 1':'upcoming'}}]});
+  const prepared = await release({}, {}, {calendar: [{round: 1, name:'GP', session_statuses:{'Practice 1':'completed'}}]});
+  await utimes(path.join(site.data, 'events', '2026.json'), new Date(Date.now()+60_000), new Date(Date.now()+60_000));
+  const p = await plan(prepared.root, site.root);
+  assert.ok(p.calendar, 'completed session is not masked by checkout timestamps');
+  await apply(prepared.root, site.root, p);
+  assert.equal(JSON.parse(await readFile(path.join(site.data, 'events', '2026.json'), 'utf8'))[0].session_statuses['Practice 1'], 'completed');
+  const entry=(await index(site, 'local-captures')).entries['/api/events?year=2026'];
+  const captured=JSON.parse((await import('node:zlib')).gunzipSync(await readFile(path.join(site.data, 'local-captures',entry.file))).toString());
+  assert.equal(captured[0].session_statuses['Practice 1'], 'completed');
+  const reverse = await plan(site.root, prepared.root);
+  assert.equal(reverse.calendar, null);
+  await Promise.all([site.cleanup(), prepared.cleanup()]);
+});
+
 test('an unreadable snapshot file is never copied, and a dry run writes nothing', async () => {
   const site = await release();
   const prepared = await release({'/api/session?gp=B': ['bad.json.gz', '2026-10-31T00:00:00Z', {}]});
@@ -93,4 +109,14 @@ test('an unreadable snapshot file is never copied, and a dry run writes nothing'
   assert.match(dry, /Dry run/);
   assert.deepEqual(await readdir(path.join(site.data, 'local-captures')), ['index.json'], 'nothing was written');
   await Promise.all([site.cleanup(), prepared.cleanup(), good.cleanup()]);
+});
+
+test('applying an unchanged sync leaves the index untouched', async () => {
+  const site = await release();
+  const prepared = await release();
+  const before = await readFile(path.join(site.data, 'local-captures', 'index.json'), 'utf8');
+  const output=execFileSync(process.execPath, ['scripts/sync-prepared-sessions.mjs', '--from', prepared.root, '--to', site.root, '--apply']).toString();
+  assert.match(output, /Already up to date/);
+  assert.equal(await readFile(path.join(site.data, 'local-captures', 'index.json'), 'utf8'),before);
+  await Promise.all([site.cleanup(), prepared.cleanup()]);
 });

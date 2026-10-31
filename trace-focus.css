@@ -1,22 +1,22 @@
 .trace-focus-button {
   min-height: 38px;
   padding: 0 13px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-control);
-  background: var(--bg-input);
-  color: var(--text-main);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-control);
+  color: var(--ui-label);
   font: inherit;
   font-size: .8rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
 }
-.trace-focus-button:hover { background: var(--surface-selected); border-color: var(--border-color-hover); }
-.trace-focus-button:focus-visible { outline: 2px solid var(--text-main); outline-offset: 2px; }
+.trace-focus-button:hover { background: var(--ui-selected); border-color: var(--ui-border-strong); }
+.trace-focus-button:focus-visible { outline: 2px solid var(--ui-label); outline-offset: 2px; }
 .trace-focus-close { display: none; }
 .pit-lap-notice {
   margin: 8px 10px 10px;
-  color: var(--text-secondary);
+  color: var(--ui-secondary);
   font-size: .8rem;
   line-height: 1.45;
 }
@@ -35,7 +35,7 @@ body.trace-focus #charts {
   grid-template-rows: minmax(400px, 1.7fr) minmax(220px, 1fr);
   gap: 12px;
   overflow: auto;
-  background: var(--bg-page, var(--bg-card));
+  background: var(--bg-page, var(--ui-panel));
 }
 body.trace-focus #charts > .chart { display: none; }
 body.trace-focus #charts > .chart:nth-child(1),
