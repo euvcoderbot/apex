@@ -24,6 +24,7 @@ test('removed segmented controls release resize observation and can be reinserte
 });
 
 for(const theme of ['dark','light'])test(`shared shell and loaded tyre view meet automated accessibility rules: ${theme}`,async({page})=>{
+  test.setTimeout(60000); // Axe scans the full loaded data view in WebKit.
   await isolate(page);await replayFixture(page);
   await page.addInitScript(t=>localStorage.setItem('apex-theme',t),theme);
   await page.goto('/apex/cars/tyres?year=2026&scope=tracks&races=16,17,18&run=1');
@@ -44,6 +45,7 @@ test('tyre chart stays inside its card after narrowing from desktop to phone',as
       return Math.max(...[...e.children].map(child=>child.getBoundingClientRect().right-card.right));
     })));
     expect(overflow,`width ${width}`).toBeLessThanOrEqual(1);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth),`document width ${width}`).toBeLessThanOrEqual(1);
   }
 });
 

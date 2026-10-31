@@ -61,6 +61,7 @@ test.describe('Car performance with real data', () => {
   });
 
   test('every view fits a phone: no sideways scroll at 390 px', async ({page}) => {
+    test.setTimeout(60000); // Eight independent loaded-page navigations.
     await page.setViewportSize({width: 390, height: 844});
     for (const [slug] of CATEGORIES) {
       await open(page, slug);
