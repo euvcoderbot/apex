@@ -276,11 +276,50 @@ function orderedWeekendSessions(event, year = Number(selectValue($('#year')))) {
   });
 }
 
+// The published site has no live API: it can open only the sessions that were prepared and published.
+// Sessions it does not have are labelled in the menu instead of failing after Load is pressed.
+const SESSION_ALIASES = {q: 'qualifying', r: 'race', fp1: 'practice 1', fp2: 'practice 2', fp3: 'practice 3', sq: 'sprint qualifying', s: 'sprint'};
+const publishedSessionId = (year, gp, session) => {
+  const name = String(session).toLowerCase();
+  return [year, String(gp).toLowerCase(), SESSION_ALIASES[name] || name].join('|');
+};
+let publishedSessions = null; // Set of ids once known; null while unknown or when the page is not a snapshot.
+function publishedSessionIds(indexes, revisions) {
+  const ids = new Set();
+  const add = key => {
+    const [path, query] = String(key).split('?');
+    if (path !== '/api/session') return;
+    const params = new URLSearchParams(query);
+    if (params.get('year') && params.get('gp') && params.get('session')) ids.add(publishedSessionId(params.get('year'), params.get('gp'), params.get('session')));
+  };
+  const {captures, prerendered, prepared} = indexes;
+  if (captures?.sourceRevision === revisions.source) Object.keys(captures.entries || {}).forEach(add);
+  if (prerendered?.sourceRevision === revisions.source) Object.keys(prerendered.entries || {}).forEach(add);
+  for (const key of Object.keys(prepared || {})) { // "year:gp:session"
+    const [year, gp, session] = key.split(':');
+    if (year && gp && session) ids.add(publishedSessionId(year, gp, session));
+  }
+  return ids;
+}
+async function loadPublishedSessions() {
+  if (!window.APEX_SNAPSHOT_MODE || window.APEX_LOCAL_MODE) return;
+  const get = path => fetch(path, {cache: 'no-cache'}).then(r => r.ok ? r.json() : null).catch(() => null);
+  const [captures, prerendered, prepared] = await Promise.all([
+    get('assets/data/local-captures/index.json'), get('assets/data/prerendered/index.json'), get('assets/data/sessions/index.json')]);
+  if (!captures && !prerendered && !prepared) return;
+  publishedSessions = publishedSessionIds({captures, prerendered, prepared}, {source: window.APEX_SOURCE_VERSION});
+  if (calendar.length) populateSessions($('#session').value || null);
+}
+function sessionMenuLabel(event, year, session) {
+  return publishedSessions && !publishedSessions.has(publishedSessionId(year, event?.name, session)) ? `${session} · not published` : session;
+}
+
 function populateSessions(preferredSession = null) {
   const selectedVal = selectValue($('#gp'));
   const event = calendar.find(item => String(item.round) === String(selectedVal) || item.name === selectedVal) || calendar[0];
   const sessions = orderedWeekendSessions(event);
-  populate($('#session'), sessions);
+  const year = Number(selectValue($('#year')));
+  populate($('#session'), sessions, name => name, name => sessionMenuLabel(event, year, name));
   if (!sessions.length) return;
 
   const latestForEvent = latestCompletedSelection([event]);
