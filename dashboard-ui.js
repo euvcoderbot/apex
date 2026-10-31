@@ -128,7 +128,8 @@
   function metricHeading(metric, context = {}) {
     const [number, title, description] = metrics[metric] || ['', 'Performance', ''];
     const subject = ['corners','straight','braking'].includes(metric) ? `${context.subject === 'driver' ? 'Drivers' : 'Teams'}${metric === 'corners' ? ` · ${context.session === 'race' ? 'Race' : 'Qualifying'}` : ''}` : 'Selected events';
-    return `<header class="metric-heading" aria-label="${escape(context.year || '—')} · ${subject}"><div class="metric-heading-copy"><h2>${title}</h2><p class="explanation-only">${description}</p></div><div class="metric-heading-controls"></div><span class="metric-load-count">${Number(context.events) || 0} loaded GP${Number(context.events) === 1 ? '' : 's'}</span></header>`;
+    const measured=Number(context.events)||0,selected=Number(context.selected)||0;
+    return `<header class="metric-heading" aria-label="${escape(context.year || '—')} · ${subject}"><div class="metric-heading-copy"><h2>${title}</h2><p class="explanation-only">${description}</p></div><div class="metric-heading-controls"></div><span class="metric-load-count" role="status">${measured}${selected?'/'+selected:''} GP${selected===1?'':'s'} with data for this view</span></header>`;
   }
   function arrangePerformance(root, metric) {
     if (!root) return;

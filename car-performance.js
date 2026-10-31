@@ -411,6 +411,7 @@ function stop() {
 }
 
 function reset() {
+  window.ApexReact?.unmountAll?.(root);
   stop(); events=[]; errors=[]; context=null; root.replaceChildren();
   updateStatus('Selection changed. Choose Analyse to load fresh results.', false);
   render();
@@ -446,6 +447,7 @@ async function analyse(refresh=false) {
     : calendar.filter(e => selectedTracks.has(e.name));
 
   context = {
+    requestedEvents: picked.length,
     year: $('performanceYear').value,
     scope: activeScope,
     season: isSeason || picked.length > 1,
@@ -1922,6 +1924,7 @@ function scheduleRender() {
 }
 function render() {
   const state=capturePerformanceUI(root);
+  window.ApexReact?.unmountAll?.(root);
   reactViewProps=new Map();
   try {renderContent();} finally {
     window.ApexReact?.mountAll(root,reactViewProps);
@@ -1966,7 +1969,7 @@ function renderContent() {
   const provisionalNotice=provisional.length?`<p class="performance-note" role="status">Provisional · live, incomplete or unconfirmed session data: ${provisional.map(escape).join('; ')}. Results may change. ${snapshotMode?'A new publication is needed for later observations.':'Use Refresh data for the latest available observations.'}</p>`:'';
   const recordedNotices=events.flatMap(e=>['Q','R','pits'].filter(s=>e[s]?.source_cache).map(s=>`${e.name} ${s==='Q'?'qualifying':s==='pits'?'pit visits':'race'}${e[s].source_cache.refresh_failed||e[s].source_cache.stale?' (live refresh unavailable)':''}`));
   const snapshotNotice=window.APEX_SNAPSHOT_MODE&&!window.APEX_LOCAL_MODE?'<p class="snapshot-mode-note" role="status">Published snapshot, not live · updated after local preparation and publication.</p>':'';
-  const sourceNotice=snapshotNotice+(recordedNotices.length?`<details class="performance-source-note"><summary>Retained session sources</summary><p>${recordedNotices.map(escape).join(' · ')}. Recalculated with the current methodology; missing fields remain unknown.</p></details>`:'');
+  const sourceNotice=snapshotNotice+(recordedNotices.length?`<details class="performance-source-note"><summary>Retained session sources</summary><p>${recordedNotices.map(escape).join(' · ')}. ${snapshotMode?'Published calculations retain their original capture and methodology; they are not a fresh recalculation.':'Recalculated locally with the current methodology.'} Missing fields remain unknown.</p></details>`:'');
   const speedMode=telemetryMode&&speedDomainActive();
   // One measurement method on the page; the window-timing views were retired
   // as duplicates (see docs/speed-domain-methodology-20261020.md).
@@ -1974,7 +1977,10 @@ function renderContent() {
   const telemetryControls=telemetryMode?`<div class="performance-actions">${telemetrySubjectControls()}${methodToggle}${activeMetric==='corners'?cornerSessionControls():''}${qualifyingMetricsRunning?'<button type="button" data-qualifying-stop>Stop telemetry</button>':''}</div>`:'';
   let content = speedMode?renderSpeedDomain():(activeMetric==='pace'?renderPace(teams):activeMetric==='corners'&&cornerSession==='race'?renderRaceCorners():activeMetric==='tyres'?renderRace(teams):activeMetric==='results'?renderResults(teams):activeMetric==='pits'?renderPits(teams):renderTrend(teams));
   const metricEvidence=activeMetric==='tyres'?'<details class="dashboard-card performance-methods"><summary>Warm-up, steady trend and late falloff</summary><div data-metric-evidence="tyres"></div></details>':'';
-  const metricHeading=window.ApexPresentation?.metricHeading(activeMetric,{year:context.year,events:events.length,subject:telemetrySubject,session:cornerSession})||'';
+  const supportedGPs=activeMetric==='corners'&&cornerSession==='race'
+    ? events.filter(e=>raceCornerCache.get(context.year+':'+e.name+':'+telemetrySubject+(raceCornerModel==='age-adjusted'?':age-adjusted':''))?.observations?.length).length
+    : window.ApexAnalysis.metricCoverage(events,activeMetric,telemetrySubject,cornerSession);
+  const metricHeading=window.ApexPresentation?.metricHeading(activeMetric,{year:context.year,events:supportedGPs,selected:context.requestedEvents||events.length,subject:telemetrySubject,session:cornerSession})||'';
   root.innerHTML = deferPerformanceEvidence(modeBar + `<div id="performanceMetricPanel" role="tabpanel" data-metric="${activeMetric}" aria-label="${escape(modes.find(([key])=>key===activeMetric)?.[1]||'Performance')} measurements">`+metricHeading+'<p class="performance-definition">'+escape(window.ApexAnalysis.definitions[activeMetric].description)+'</p>'+telemetryControls + provisionalNotice+sourceNotice+errorMarkup+content+metricEvidence+'</div>');
 }
 

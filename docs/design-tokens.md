@@ -42,3 +42,17 @@ checked for use and then folded into materials or removed).
   The 77 declarations below 10 px sit in `design-system.css` and `polish.css`, the two oldest sheets, and are probably overridden.
 - **Motion beyond the scale.** Interruptible animation, anchoring popovers to their trigger and interactive glass are the next
   motion work. Spinner durations (0.7 to 1.2 s) and a few stagger delays stay literal.
+
+## Visual pass (2026-10-31)
+
+The last section of `hig-system.css` holds the deliberate look of the app, on top of the tokens:
+
+- Sidebar driver and race lists are flat rows. A chosen row is `--ui-selection-tint` (the accent at 18%) with an accent check, so team marks and text stay readable on it; it strengthens under increased contrast and gains an outline in forced colours.
+- One filled action per area. *Fastest* and *Compare fastest* are tinted until they are the thing being acted on.
+- Sections sit on the window background; only the cards inside them have a surface.
+- Toolbar options are icons with tooltips and accessible names.
+- Corner cards show a full-width rail under each row instead of a 36 px bar between name and value.
+- The Car performance status strip takes no space: nothing at rest, a floating pill while loading.
+- Pit stops gives its table two thirds of the width, and stacks below 1400 px, so no column is lost to a hidden scroll.
+
+`e2e/integration.spec.mjs` and `e2e/session-view.spec.mjs` check the parts of this that can regress silently: tab labels and table columns are not cut off, no blank band above the tabs, text contrast on chosen rows and on Compare fastest in both appearances, and named toolbar icons.

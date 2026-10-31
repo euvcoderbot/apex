@@ -96,6 +96,58 @@ class WatchTests(unittest.TestCase):
             self.run_pass(source, directory)
             self.assertEqual(source.streams(), [])
 
+    def test_empty_driver_list_is_not_marked_complete(self):
+        with TemporaryDirectory() as directory:
+            source = Source([session(1)])
+            original = source.openf1
+            source.openf1 = lambda endpoint, **params: [] if endpoint == 'drivers' else original(endpoint, **params)
+            self.assertEqual(self.run_pass(source, directory), 1)
+            self.assertNotIn('1', json.loads((Path(directory)/mirror.STATE_NAME).read_text())['sessions'])
+
+    def test_recent_empty_stream_is_retried(self):
+        args = Namespace(**{**vars(ARGS), 'include_recent': True})
+        with TemporaryDirectory() as directory, patch.object(server, 'RAW_ROOT', Path(directory)):
+            source = Source([session(1)])
+            source.empty = {('laps', '30')}
+            def capture(endpoint, key, number, **kwargs):
+                source.openf1(endpoint, session_key=key, driver_number=number)
+                return 0
+            with patch.object(server, 'openf1', source.openf1), patch.object(mirror, 'capture_stream', capture), \
+                 patch.object(mirror, 'settled', side_effect=lambda session, hours=6: hours == 0):
+                self.assertEqual(mirror.run_once(args, WANTED), 1)
+            self.assertNotIn('1', json.loads((Path(directory)/mirror.STATE_NAME).read_text())['sessions'])
+
+    def test_session_key_limits_collection_to_the_requested_session(self):
+        args = Namespace(**{**vars(ARGS), 'session_key': '2'})
+        with TemporaryDirectory() as directory, patch.object(server, 'RAW_ROOT', Path(directory)):
+            source = Source([session(1), session(2)])
+            with patch.object(server, 'openf1', source.openf1):
+                self.assertEqual(mirror.run_once(args, WANTED), 0)
+            self.assertTrue(source.streams())
+            self.assertEqual({call[1] for call in source.streams()}, {2})
+
+    def test_early_capture_stays_provisional_and_is_refreshed_after_settling(self):
+        args = Namespace(**{**vars(ARGS), 'include_recent': True})
+        with TemporaryDirectory() as directory, patch.object(server, 'RAW_ROOT', Path(directory)):
+            source = Source([session(1)])
+            refreshes = []
+            def capture(endpoint, key, number, **kwargs):
+                refreshes.append(kwargs['refresh'])
+                return 0
+            with patch.object(server, 'openf1', source.openf1), patch.object(mirror, 'capture_stream', capture), \
+                 patch.object(mirror, 'settled', side_effect=lambda session, hours=6: hours == 0):
+                self.assertEqual(mirror.run_once(args, WANTED), 0)
+            state = mirror.load_state()
+            self.assertIn('1', state['provisional_sessions'])
+            self.assertNotIn('1', state['sessions'])
+            refreshes.clear()
+            with patch.object(server, 'openf1', source.openf1), patch.object(mirror, 'capture_stream', capture), \
+                 patch.object(mirror, 'settled', return_value=True):
+                self.assertEqual(mirror.run_once(args, WANTED), 0)
+            self.assertTrue(refreshes and all(refreshes))
+            self.assertIn('1', mirror.load_state()['sessions'])
+            self.assertNotIn('1', mirror.load_state()['provisional_sessions'])
+
 
 class WatchLockTests(unittest.TestCase):
     def test_only_one_watcher_runs_and_a_dead_one_does_not_block(self):
