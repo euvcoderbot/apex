@@ -477,6 +477,11 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
   :is(.select-menu[popover],.circuit-guide-details[popover]):popover-open { opacity: 1; }
   @starting-style { :is(.select-menu[popover],.circuit-guide-details[popover]):popover-open { opacity: 0; } }
 }
+/* ---------- Long labels (HIG Lists and tables) -------------------------------
+   A row is one line: text that does not fit is cut with an ellipsis and the full name is the tooltip, so every row keeps the
+   same height whatever the Grand Prix is called. Driver rows already do this. */
+.app-sidebar .track-pill .track-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 /* ---------- Interface chrome is not text ------------------------------------
    Select All or a drag across a window never highlights a button label in a native app; content (tables, values,
    explanations, fields) stays selectable. */

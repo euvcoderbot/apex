@@ -345,7 +345,7 @@ function renderTrackPills() {
     const code = grandPrixCountryCode(e);
     const flagHtml = code ? `<img class="gp-flag" src="assets/flags/${code.toLowerCase()}.svg" alt="${code}" width="18" height="13">` : '';
     const isSelected = selectedTracks.has(e.name);
-    return `<button type="button" class="track-pill" data-track-name="${escape(e.name)}" aria-pressed="${isSelected}">
+    return `<button type="button" class="track-pill" data-track-name="${escape(e.name)}" title="${escape(e.name)}" aria-pressed="${isSelected}">
       ${flagHtml}
       <span class="track-round">R${e.round}</span>
       <span class="track-name">${escape(e.name)}</span>
