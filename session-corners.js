@@ -529,13 +529,26 @@ function drawApiCircuitGuide(ctx, data, rect) {
   ctx.textAlign='center';ctx.textBaseline='middle';
   // Turn numbers in circles beside the track.
   ctx.font=canvasFont(10,700);
+  const turnMarks=[];
   for(const corner of data.corners || []){
     const position=corner.trackPosition;
     if(!position||!Number.isFinite(Number(position.x))||!Number.isFinite(Number(position.y)))continue;
     const p=project({x:Number(position.x),y:-Number(position.y)}),label=cornerLabel(corner).replace(/^T/,'');
     const radius=Math.max(8.5,ctx.measureText(label).width/2+4);
-    const spot=placeBeside(nearestIndex(p),radius*2,radius*2,[17,23,30,38,48]);
+    const spot=placeBeside(nearestIndex(p),radius*2,radius*2,[15,20,26,33,42,54]);
     if(!spot)continue;
+    turnMarks.push({spot,label,radius});
+  }
+  // Each number points at its corner: a short line and a dot on the road, so a number that had to move aside still says where it belongs.
+  ctx.save();ctx.strokeStyle=light?'rgba(29,29,31,.55)':'rgba(229,229,234,.6)';ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=1;
+  for(const {spot,radius} of turnMarks){
+    const dx=spot.anchor.x-spot.x,dy=spot.anchor.y-spot.y,distance=Math.hypot(dx,dy);
+    if(distance<radius+11)continue;
+    ctx.beginPath();ctx.moveTo(spot.x+dx/distance*radius,spot.y+dy/distance*radius);ctx.lineTo(spot.anchor.x,spot.anchor.y);ctx.stroke();
+    ctx.beginPath();ctx.arc(spot.anchor.x,spot.anchor.y,2.4,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+  for(const {spot,label,radius} of turnMarks){
     ctx.beginPath();ctx.arc(spot.x,spot.y,radius,0,Math.PI*2);
     ctx.fillStyle=light?'#ffffff':'#1c1c1e';ctx.fill();ctx.strokeStyle=light?'#1d1d1f':'#e5e5ea';ctx.lineWidth=1.2;ctx.stroke();
     ctx.fillStyle=light?'#1d1d1f':'#f2f2f4';ctx.fillText(label,spot.x,spot.y+.5);

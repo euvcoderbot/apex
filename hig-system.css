@@ -682,3 +682,21 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 /* Room for the longest short label, "Development". */
 #carPerformance > .category-bar .category-tab, #carPerformance > .category-bar .category-tab[data-ui-kind="tab"] { padding-inline: 10px; gap: 6px; }
 @media (min-width:1340px) and (max-width:1500px) { #carPerformance > .category-bar .category-tab, #carPerformance > .category-bar .category-tab[data-ui-kind="tab"] { padding-inline: 7px; gap: 5px; } }
+
+/* ---------- Chips and picks answer the pointer the same way: a colour shift on hover, a small springy press ---------- */
+:is(#compareAllFastest, .fastest-lap-pick, .lap-chip, .circuit-section-group .corner-picker button.corner-pick) {
+  transition: background-color var(--motion-tier-fast) var(--ease-standard), color var(--motion-tier-fast) var(--ease-standard), box-shadow var(--motion-tier-fast) var(--ease-standard), transform var(--motion-tier-fast) var(--ease-spring);
+}
+:is(#compareAllFastest, .fastest-lap-pick, .lap-chip, .circuit-section-group .corner-picker button.corner-pick):active:not(:disabled) { transform: scale(var(--glass-press-scale)); }
+@media (prefers-reduced-motion: reduce) { :is(#compareAllFastest, .fastest-lap-pick, .lap-chip, .circuit-section-group .corner-picker button.corner-pick):active:not(:disabled) { transform: none; } }
+#compareAllFastest:hover:not(:disabled):not(.selected) { background: var(--ui-control-hover); }
+#compareAllFastest.selected:hover:not(:disabled) { background: color-mix(in srgb, var(--ui-accent) 28%, transparent); }
+#lapSelectionBody .fastest-lap-pick:not([aria-pressed="true"]):hover:not(:disabled) { background: color-mix(in srgb, var(--ui-accent) 30%, transparent); }
+
+/* Corner and straight picks look and behave exactly like the lap time chips above them. */
+.circuit-section-group .corner-picker { gap: 6px; }
+.circuit-section-group .corner-picker button.corner-pick { border: 0; border-radius: var(--ui-radius); background: var(--ui-control); box-shadow: var(--ui-shadow-control); color: var(--ui-label); }
+.circuit-section-group .corner-picker button.corner-pick:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--ui-control-hover); color: var(--ui-label); }
+.circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"] { background: var(--ui-tile-on); color: var(--ui-tile-on-label); box-shadow: none; }
+.circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"] :is(strong,small) { color: inherit; }
+.circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"]:hover:not(:disabled) { background: color-mix(in srgb, var(--ui-tile-on) 88%, #fff); }

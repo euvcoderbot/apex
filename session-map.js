@@ -263,7 +263,18 @@ function renderMiniSectorMap() {
     ctx.textBaseline = 'middle';
     const occupiedLabels = [];
     const leaders = [];
-    markerCorners.forEach(corner => {
+    // Crowded corners choose first, while there is still room beside them; isolated ones fit almost anywhere afterwards.
+    const crowding = corner => {
+      const here = pointAt(corner.fraction);
+      return here ? Math.min(...markerCorners.filter(other => other !== corner).map(other => { const there = pointAt(other.fraction); return there ? Math.hypot(there.x - here.x, there.y - here.y) : Infinity; })) : Infinity;
+    };
+    // A leader that cuts across the road reads as a different corner; it is only accepted when nothing else is free.
+    const crossesTrack = (from, to, corner) => canvasGeometry.some((a, index) => {
+      const b = canvasGeometry[(index + 1) % canvasGeometry.length];
+      const near = Math.hypot((a.x + b.x) / 2 - corner.x, (a.y + b.y) / 2 - corner.y);
+      return near > 12 && connectorSegmentsIntersect(from, to, a, b);
+    });
+    [...markerCorners].sort((a, b) => crowding(a) - crowding(b)).forEach(corner => {
       const point = pointAt(corner.fraction);
       if (!point) return;
       const angle = Number(corner.angle);
@@ -275,9 +286,12 @@ function renderMiniSectorMap() {
       let placement = null;
       // Search nearby positions, reserving the complete text box. Leader
       // lines preserve the turn location when a crowded label must move.
-      for (const radius of [24, 36, 48, 64, 80, 100, 124, 152]) {
-        for (let direction = 0; direction < 16; direction++) {
-          const theta = Math.atan2(offsetY, offsetX) + direction * Math.PI / 8;
+      let fallback = null;
+      for (const radius of [20, 26, 33, 41, 51, 63, 78, 96, 118, 146]) {
+        for (let direction = 0; direction < 24; direction++) {
+          // Outward first, then alternately either side of it.
+          const step = Math.ceil(direction / 2) * (direction % 2 ? 1 : -1);
+          const theta = Math.atan2(offsetY, offsetX) + step * Math.PI / 12;
           const x = Math.max(labelWidth / 2 + 4, Math.min(rect.width - labelWidth / 2 - 4, point.x + Math.cos(theta) * radius));
           const y = Math.max(12, Math.min(rect.height - 12, point.y + Math.sin(theta) * radius));
           const box = {x: x - labelWidth / 2, y: y - 9, width: labelWidth, height: 18};
@@ -285,11 +299,13 @@ function renderMiniSectorMap() {
           if (occupiedLabels.some(b => box.x < b.x + b.width + 3 && box.x + box.width + 3 > b.x && box.y < b.y + b.height + 3 && box.y + box.height + 3 > b.y)) continue;
           const connector = cornerLabelConnector(point, box, leaders, occupiedLabels);
           if (!connector) continue;
+          if (connector.line && crossesTrack(connector.line.a, connector.line.b, point)) { fallback = fallback || {x, y, box, ...connector}; continue; }
           placement = {x, y, box, ...connector};
           break;
         }
         if (placement) break;
       }
+      placement = placement || fallback;
       if (!placement) return; // Never render overlapping text on tiny maps.
       occupiedLabels.push(placement.box);
       if (placement.line) {
@@ -298,10 +314,15 @@ function renderMiniSectorMap() {
       ctx.moveTo(placement.line.a.x, placement.line.a.y);
       ctx.lineTo(placement.line.b.x, placement.line.b.y);
       ctx.strokeStyle = theme.labelFill;
-      ctx.globalAlpha = .35;
+      ctx.globalAlpha = .5;
       ctx.lineWidth = 1;
       ctx.stroke();
       ctx.globalAlpha = 1;
+      // Anchor: exactly where the corner is, so a label that had to move still points at it.
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 2.2, 0, Math.PI * 2);
+      ctx.fillStyle = theme.labelFill;
+      ctx.fill();
       }
       ctx.fillStyle = theme.labelFill;
       ctx.fillText(label, placement.x, placement.y);
