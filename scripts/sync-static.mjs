@@ -53,6 +53,7 @@ const staticFiles = [
   "dashboard-ui.js",
   "local-compute.js",
   "styles.css",
+  "tokens.css",
   "design-system.css",
   "polish.css",
   "apple-ui.css",
@@ -76,7 +77,8 @@ const browserRevision=browserHash.digest('hex').slice(0,20);
 await rm(destination, { recursive: true, force: true });
 await mkdir(destination, { recursive: true });
 
-for (const file of staticFiles) {
+// The source stylesheets are inputs to the single compiled styles.css below; no page loads them, so they are not shipped.
+for (const file of staticFiles.filter(file => !file.endsWith('.css'))) {
   await mkdir(dirname(resolve(destination, file)), { recursive: true });
   await cp(resolve(root, file), resolve(destination, file));
 }
@@ -95,15 +97,28 @@ for(const filename of ['index.html','ui-catalog.html']){
 const ui=await buildUiStyles(file=>readFile(resolve(root,file),'utf8'));
 await writeFile(resolve(destination,'styles.css'),ui.css);
 await cp(resolve(root, "assets"), resolve(destination, "assets"), { recursive: true });
+// Shipped scripts and the stylesheet are minified (about a fifth less to download). Top-level names of the classic
+// scripts are kept: they share one global scope and the page's inline handlers call them by name.
+// APEX_NO_MINIFY=1 keeps them readable for debugging.
+if (!process.env.APEX_NO_MINIFY) {
+  const {transform} = await import('esbuild');
+  const shipped = [...staticFiles.filter(file => file.endsWith('.js') && !file.includes('/')), 'styles.css'];
+  for (const file of shipped) {
+    const path = resolve(destination, file);
+    const source = await readFile(path, 'utf8');
+    const out = await transform(source, {loader: file.endsWith('.css') ? 'css' : 'js', minify: true, legalComments: 'none', logLevel: 'warning'});
+    await writeFile(path, out.code);
+  }
+}
 
 const apiOrigin = String(
-  process.env.APEX_API_ORIGIN || "https://apex-telemetry-api.vercel.app",
+  process.env.APEX_API_ORIGIN || "",
 ).replace(/\/$/, "");
 if (apiOrigin && !/^https:\/\//i.test(apiOrigin)) {
   throw new Error("APEX_API_ORIGIN must be an HTTPS origin");
 }
 await writeFile(
   resolve(destination, "config.js"),
-  `window.APEX_API_ORIGIN = ${JSON.stringify(apiOrigin)};\nwindow.APEX_DATA_VERSION = ${JSON.stringify(cacheRevision)};\nwindow.APEX_SOURCE_VERSION = ${JSON.stringify(rawRevision)};\nwindow.APEX_BACKEND_VERSION = ${JSON.stringify(backendRevision)};\nwindow.APEX_MEASUREMENT_VERSION = ${JSON.stringify(measurementRevision)};\n`,
+  `window.APEX_API_ORIGIN = ${JSON.stringify(apiOrigin)};\nwindow.APEX_SNAPSHOT_MODE = true;\nwindow.APEX_DATA_VERSION = ${JSON.stringify(cacheRevision)};\nwindow.APEX_SOURCE_VERSION = ${JSON.stringify(rawRevision)};\nwindow.APEX_BACKEND_VERSION = ${JSON.stringify(backendRevision)};\nwindow.APEX_MEASUREMENT_VERSION = ${JSON.stringify(measurementRevision)};\n`,
   "utf8",
 );

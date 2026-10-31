@@ -6,7 +6,7 @@ import {buildUiStyles,prepareStyle,UI_LAYERS,UI_STYLES} from '../lib/ui-style-bu
 const read=file=>readFile(file,'utf8');
 
 test('component appearance has one explicit final owner and focused canvas sizing stays first',async()=>{
-  assert.deepEqual(UI_LAYERS,['focus','legacy','interface','workspace','appearance','components','window','system']);
+  assert.deepEqual(UI_LAYERS,['focus','tokens','legacy','interface','workspace','appearance','components','window','system']);
   assert.deepEqual(UI_STYLES.at(-3),['ui-controls.css','components']);
   // The macOS window layer owns layout/materials above the component contract;
   // the HIG system layer is the single final owner of each control family.
@@ -32,11 +32,10 @@ test('the actual shipped CSS is one parsed bundle without an import waterfall',a
 });
 
 test('core light/dark labels and primary action text have normal-text contrast',async()=>{
-  const css=postcss.parse(await read('ui-controls.css')),palettes=[];
-  css.walkRules(rule=>{if([':root',':root[data-theme="light"]'].includes(rule.selector)){const values={};rule.walkDecls(d=>values[d.prop]=d.value);palettes.push(values);}});
+  const tokenValues=JSON.parse(await read('e2e/__tokens__/tokens.json')),palettes=[tokenValues.dark,tokenValues.light];
   const luminance=hex=>{const n=hex.replace('#','');return [0,2,4].map(i=>parseInt(n.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((s,v,i)=>s+v*[.2126,.7152,.0722][i],0);};
   const ratio=(a,b)=>{const x=luminance(a),y=luminance(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
-  const dark=palettes[0],light={...dark,...palettes[1]};
+  const dark=palettes[0],light=palettes[1];
   for(const palette of [dark,light])for(const text of ['--ui-label','--ui-secondary','--ui-tertiary'])
     assert.ok(ratio(palette[text],palette['--ui-panel'])>=4.5,text+' must remain legible');
   assert.ok(ratio('#ffffff',dark['--ui-action'])>=4.5);

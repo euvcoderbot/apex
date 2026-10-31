@@ -6,6 +6,7 @@ import vm from 'node:vm';
 import postcss from 'postcss';
 const css=fs.readFileSync('macos-ui.css','utf8');
 const app=appSource();
+const tokens=JSON.parse(fs.readFileSync('e2e/__tokens__/tokens.json','utf8'));
 test('one current macOS appearance layer ships after the workspace and replaces Windows styling',()=>{
   postcss.parse(css);
   const page=fs.readFileSync('index.html','utf8'),sync=fs.readFileSync('scripts/sync-static.mjs','utf8');
@@ -14,7 +15,8 @@ test('one current macOS appearance layer ships after the workspace and replaces 
   assert.ok(order.indexOf("['macos-ui.css'")>order.indexOf("['workspace-ui.css'"));
   assert.ok(order.indexOf("['ui-controls.css'")>order.indexOf("['macos-ui.css'"));
   assert.doesNotMatch(page,/fluent-ui/);assert.doesNotMatch(sync,/fluent-ui/);
-  assert.match(css,/-apple-system, BlinkMacSystemFont/);
+  // The font stack is a token; its computed value is recorded by e2e/tokens.spec.mjs.
+  assert.match(tokens.dark['--ui-font'],/^-apple-system,BlinkMacSystemFont/);
   assert.doesNotMatch(css,/Segoe|Mica|acrylic/i);
   assert.match(css,/\.performance-controls button#performanceLoad \{/);
 });

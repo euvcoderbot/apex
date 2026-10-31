@@ -1146,13 +1146,13 @@ function cornerPhaseBreakdown(samples, reference, zone, exitStraightMetres) {
 function updateAlignmentStatus() {
   const correctionNotice = $('#alignmentCorrectionNotice');
   if (correctionNotice) {
-    correctionNotice.hidden = !alignmentCorrectionEnabled();
     const ready = loaded.filter(lap => telemetryCache.get(telemetryKey(lap))?.length);
     const applied = ready.filter(lap => telemetryCache.get(telemetryKey(lap)).alignmentCorrection?.used);
     const retained = ready.filter(lap => !telemetryCache.get(telemetryKey(lap)).alignmentCorrection?.used);
+    // Nothing to say when every lap was corrected; only laps that kept their original distance are worth a line.
     correctionNotice.textContent = !ready.length ? 'Estimated alignment will apply to eligible complete laps.'
-      : `Estimated distance · ${applied.length}/${ready.length} laps; sectors anchored, no braking-point matching.`
-        + (retained.length ? ` Original retained: ${retained.map(l => `${l.code} L${l.lap} (${telemetryCache.get(telemetryKey(l)).alignmentCorrection?.reason || 'unavailable'})`).join('; ')}.` : '');
+      : retained.length ? `Original distance kept: ${retained.map(l => `${l.code} L${l.lap} (${telemetryCache.get(telemetryKey(l)).alignmentCorrection?.reason || 'unavailable'})`).join('; ')}.` : '';
+    correctionNotice.hidden = !alignmentCorrectionEnabled() || !correctionNotice.textContent;
     correctionNotice.title = 'Assumes equal distance within shared sector lines and linear speed between packets. Up to 0.5 s at a missing start/finish boundary uses the nearest speed. Not guaranteed more accurate; switch off to restore the original mapping.';
   }
   const status = $('#alignmentStatus');

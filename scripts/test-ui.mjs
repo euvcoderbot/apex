@@ -64,9 +64,12 @@ test('UI density uses component sizing and responsive chart rows rather than pag
   const shared=readFileSync('apple-ui.css','utf8'),performance=readFileSync('car-performance.css','utf8');
   postcss.parse(shared);postcss.parse(performance);
   assert.match(shared,/body \{ zoom: 1; \}/);
-  assert.match(shared,/--ui-control-height: 44px/);
+  // Regular controls are 30px; touch input raises them to 44px (ui-controls.css, the component layer).
+  const tokens=JSON.parse(readFileSync('e2e/__tokens__/tokens.json','utf8'));
+  assert.equal(tokens.dark['--ui-control-height'],'30px');
+  assert.match(readFileSync('tokens.css','utf8'),/pointer: ?coarse[\s\S]{0,400}--ui-control-height: 44px/);
   assert.match(performance,/\.performance-bar-track, \.performance-tyre-age-track \{ grid-column: 1 \/ -1; grid-row: 2;/);
-  assert.match(performance,/focus-visible \{ outline: 3px solid var\(--accent\)/);
+  assert.match(performance,/focus-visible \{ outline: 3px solid var\(--ui-accent\)/);
   const source=readFileSync('car-performance.js','utf8');
   assert.match(source,/role="region" aria-label="Measurement table/);
   assert.match(source,/aria-controls="performanceMetricPanel" tabindex=/);
@@ -99,7 +102,7 @@ test('development table allocates all six columns without inflating rows',()=>{
   assert.match(css,/\.performance-trend-table \.performance-table tbody td \{ padding: 8px 12px; height: auto; \}/);
 });
 function context(reduced = false) {
-  const sandbox = { console, URL, URLSearchParams,
+  const sandbox = { console, URL, URLSearchParams, Blob, TextDecoder,
     document: { addEventListener() {}, querySelector() {}, activeElement: null },
     window: { matchMedia: () => ({ matches: reduced }) } };
   vm.createContext(sandbox);
@@ -271,6 +274,46 @@ test('saved native driver packs keep exact identity, duration and immutable per-
   assert.equal(await h.run(`preparedTelemetryData(new URL(${JSON.stringify(path.replace('93.261','94'))}))`),null);
 });
 
+test('published local captures disclose timestamps and reject incompatible revisions',async()=>{
+  const h=context();let requests=0;
+  Object.assign(h.sandbox,{URL,Response,DecompressionStream});
+  Object.assign(h.sandbox.window,{APEX_SNAPSHOT_MODE:true,APEX_SOURCE_VERSION:'s',APEX_BACKEND_VERSION:'b',APEX_MEASUREMENT_VERSION:'m'});
+  const key='/api/qualifying-corners?gp=Test&subject=team&year=2026',file='a'.repeat(24)+'.json.gz';
+  h.sandbox.fetch=async url=>{
+    requests++;
+    if(String(url).includes('local-captures/index.json'))return {ok:true,json:async()=>({measurementRevision:'m',entries:{[key]:{file,capturedAt:'2026-10-27T12:00:00Z'}}})};
+    if(String(url).endsWith(file))return new Response(gzipSync(JSON.stringify({complete:false,traces:{VER:{}}})));
+    return {ok:false};
+  };
+  const data=await h.run("preparedData('/api/qualifying-corners?year=2026&gp=Test&subject=team&refresh=1')");
+  assert.equal(data.complete,false);assert.equal(data.published_snapshot.captured_at,'2026-10-27T12:00:00Z');assert.equal(requests,2);
+  h.sandbox.window.APEX_MEASUREMENT_VERSION='other';
+  assert.equal(await h.run("preparedData('/api/qualifying-corners?year=2026&gp=Test&subject=team')"),null);
+});
+test('saved files decode both raw gzip and HTTP-decoded JSON',async()=>{
+  const h=context();Object.assign(h.sandbox,{Response,DecompressionStream});
+  h.sandbox.raw=new Response(gzipSync(JSON.stringify({value:42})));
+  h.sandbox.decoded=new Response(JSON.stringify({value:42}),{headers:{'Content-Encoding':'gzip'}});
+  assert.equal((await h.run('readSavedJson(raw)')).value,42);
+  assert.equal((await h.run('readSavedJson(decoded)')).value,42);
+});
+test('race status remains on the points baseline in compact driver rows',()=>{
+  const css=readFileSync('apple-ui.css','utf8');
+  assert.match(css,/\.driver-result\s*\{[^}]*display:\s*flex[^}]*align-items:\s*baseline/s);
+  assert.doesNotMatch(css,/\.driver-result\s*\{[^}]*display:\s*grid/s);
+});
+test('retained summaries use only the explicitly verified storage-only revision pair',async()=>{
+  const h=context();Object.assign(h.sandbox,{URL,Response,DecompressionStream});
+  Object.assign(h.sandbox.window,{APEX_SNAPSHOT_MODE:true,APEX_SOURCE_VERSION:'5b02cc1bb2a6daf808ad',APEX_BACKEND_VERSION:'1af2a5e364d242f1b28d'});
+  const key='/api/performance?gp=Test&session=Q&year=2026',file='a'.repeat(24)+'.json.gz';
+  h.sandbox.fetch=async url=>String(url).endsWith('index.json')?{ok:true,json:async()=>({revision:'8168b392ef2edc130d33',generated:'2026-10-28T00:00:00Z',entries:{[key]:file}})}:
+    new Response(gzipSync(JSON.stringify({method:'car-performance-v13-supported-recovery',teams:[{team:'Test'}]})));
+  const data=await h.run("prerenderedData(new URL('https://example.test/api/performance?year=2026&gp=Test&session=Q'))");
+  assert.equal(data.published_snapshot.kind,'retained');assert.equal(data.teams.length,1);
+  h.sandbox.window.APEX_BACKEND_VERSION='unrelated';
+  assert.equal(await h.run("prerenderedData(new URL('https://example.test/api/performance?year=2026&gp=Test&session=Q'))"),null);
+});
+
 test('COTA practice loads a captured local summary and every drivers fastest native lap',()=>{
   const index=JSON.parse(readFileSync('assets/data/prerendered/index.json'));
   const query='/api/session?gp=United+States+Grand+Prix&round=18&session=Practice+1&year=2026';
@@ -334,7 +377,7 @@ test('one interface font family for canvas and every HTML descendant', () => {
   const css = postcss.parse(readFileSync('apple-ui.css', 'utf8'));
   const fonts = [];
   css.walkDecls('font-family', declaration => fonts.push(declaration.value));
-  assert.ok(fonts.length > 0 && fonts.every(font => font === 'var(--font-sans)'));
+  assert.ok(fonts.length > 0 && fonts.every(font => font === 'var(--ui-font)'));
   assert.ok(!/ctx\.font\s*=\s*['"]/.test(app));
   // Canvas labels share the interface stack and use a compact readable size.
   assert.match(context().run('canvasFont(12)'), /13px -apple-system/);
@@ -441,9 +484,11 @@ test('driver list has fixed leading columns and stretched left-aligned names', (
 
 test('site-wide elevation and independent comparison actions are retained', () => {
   const css = readFileSync('apple-ui.css','utf8');
-  for (const token of ['--shadow-main', '--shadow-raised', '--shadow-inset']) {
-    assert.ok((css.match(new RegExp(token + ':', 'g')) || []).length === 2, `${token} needs both themes`);
+  const tokens = JSON.parse(readFileSync('e2e/__tokens__/tokens.json','utf8'));
+  for (const token of ['--shadow-main', '--ui-shadow-control', '--shadow-inset']) {
+    assert.ok(tokens.dark[token] !== undefined && tokens.light[token] !== undefined, `${token} needs both themes`);
   }
+  assert.notEqual(tokens.dark['--ui-shadow-control'], tokens.light['--ui-shadow-control'], 'raised elevation differs by appearance');
   assert.match(app, /<button class="loaded-lap-main/);
   assert.match(app, /<button class="remove"/);
   assert.doesNotMatch(app, /<i class="remove"/);
@@ -452,7 +497,8 @@ test('site-wide elevation and independent comparison actions are retained', () =
 
 test('scrollbars stay discoverable in both themes without changing layout', () => {
   const css = readFileSync('apple-ui.css','utf8');
-  assert.equal((css.match(/--scroll-thumb:/g) || []).length, 2);
+  const tokens = JSON.parse(readFileSync('e2e/__tokens__/tokens.json','utf8'));
+  assert.ok(tokens.dark['--scroll-thumb'] && tokens.light['--scroll-thumb'] && tokens.dark['--scroll-thumb'] !== tokens.light['--scroll-thumb'], 'a thumb colour per appearance');
   assert.match(css, /html \{ scrollbar-gutter: stable;/);
   assert.match(css, /\.sidebar, \.select-menu \{ scrollbar-gutter: stable;/);
   assert.doesNotMatch(css, /scrollbar-width: none/);
@@ -852,6 +898,12 @@ test('tyre-age C grades use the race-year Pirelli allocation, including skipped 
   assert.equal(sandbox.verifiedDryGrade(2026,15,'HARD'),'C3'); // Baku C3/C4/C5
   assert.equal(sandbox.verifiedDryGrade(2025,17,'SOFT'),'C6'); // Baku C4/C5/C6
   assert.equal(sandbox.verifiedDryGrade(2025,19,'HARD'),'C1'); // Austin skips C2
+  assert.equal(sandbox.verifiedDryGrade(2026,18,'HARD'),'C2');
+  assert.equal(sandbox.verifiedDryGrade(2026,18,'MEDIUM'),'C3');
+  assert.equal(sandbox.verifiedDryGrade(2026,18,'SOFT'),'C4');
+  assert.equal(sandbox.verifiedDryGrade(2026,19,'HARD'),'C3');
+  assert.equal(sandbox.verifiedDryGrade(2026,20,'SOFT'),'C5');
+  assert.equal(sandbox.verifiedDryGrade(2026,21,'SOFT'),null);
   assert.equal(sandbox.verifiedDryGrade(2025,20,'MEDIUM'),'C4'); // Mexico skips C3
   assert.equal(sandbox.verifiedDryGrade(2024,1,'SOFT'),'C3');
   assert.equal(sandbox.verifiedDryGrade(2023,1,'SOFT'),'C3');

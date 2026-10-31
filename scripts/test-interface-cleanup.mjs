@@ -28,7 +28,7 @@ test('useful task and interpretation controls remain available',()=>{
   for(const id of ['cornerToggle','speedAnnotationToggle'])assert.match(app,new RegExp('id="'+id+'"'));
   assert.match(car,/Assumes 0\.060 s\/lap fuel gain; not measured fuel/);
   assert.match(car,/Retained session sources/);
-  assert.match(readFileSync('car-performance.css','utf8'),/\.performance-quality-status button[\s\S]*?background: var\(--surface-muted\)/);
+  assert.match(readFileSync('car-performance.css','utf8'),/\.performance-quality-status button[\s\S]*?background: var\(--ui-well\)/);
 });
 
 

@@ -15,6 +15,7 @@ from pathlib import Path
 import threading
 import time
 import math
+import re
 import importlib
 from html import unescape
 from html.parser import HTMLParser
@@ -61,9 +62,14 @@ PREPARED_CACHE_VERSION = "v6"
 SESSION_CACHE_SCHEMA = "session-identity-weather-v6"
 
 app = FastAPI(title="euV2 data API")
+# Browsers may read this API from the published site and from a dashboard on this machine,
+# not from any page on the web. Set APEX_CORS_ORIGINS (comma separated) to add origins.
+CORS_ORIGINS = [origin.strip() for origin in os.environ.get(
+    "APEX_CORS_ORIGINS", "https://f1apexdata.eufrandota14.chatgpt.site").split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
+    allow_origin_regex=r"^http://(127\.0\.0\.1|localhost)(:\d+)?$",
     allow_credentials=False,
     allow_methods=["GET"],
     allow_headers=["*"],
@@ -2367,22 +2373,33 @@ def car_performance_pits(response: Response, year: int = Query(..., ge=2018, le=
     return pit_timing_payload(gp,year,source,visits,drivers,race_date,supplement_status)
 
 
+DEVELOPMENT_MAX_BYTES, DEVELOPMENT_MAX_TEAMS, DEVELOPMENT_MAX_ROUNDS = 1_000_000, 30, 60
+
+
 @app.post("/api/performance/development")
 async def car_development_progression(request: Request, response: Response):
     response.headers['Cache-Control'] = 'no-store'
     try:
         from performance import compute_development_progression
+        if int(request.headers.get('content-length') or 0) > DEVELOPMENT_MAX_BYTES:
+            raise HTTPException(413, 'Request too large')
         payload = await request.json()
-        teams = payload.get('teams', [])
+        teams = payload.get('teams', []) if isinstance(payload, dict) else None
+        if not isinstance(teams, list) or len(teams) > DEVELOPMENT_MAX_TEAMS:
+            raise HTTPException(422, 'Invalid development request')
         results = {}
         for team_data in teams:
-            team_name = team_data.get('team')
-            rounds = team_data.get('rounds', [])
+            team_name = team_data.get('team') if isinstance(team_data, dict) else None
+            rounds = team_data.get('rounds', []) if isinstance(team_data, dict) else None
+            if not isinstance(team_name, str) or len(team_name) > 100 or not isinstance(rounds, list)                     or len(rounds) > DEVELOPMENT_MAX_ROUNDS or not all(isinstance(r, dict) for r in rounds):
+                raise HTTPException(422, 'Invalid development request')
             results[team_name] = compute_development_progression(rounds)
         return {'results': results}
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.warning('Development progression calculation failed: %s', exc)
-        raise HTTPException(422, f'Development progression calculation failed: {exc}') from exc
+        raise HTTPException(422, 'Development progression calculation failed') from exc
 
 
 @app.get('/api/performance/trace')
@@ -2856,23 +2873,8 @@ def frontend_asset(asset_name: str) -> FileResponse:
     """Serve only the browser bundle, never backend source or deployment files."""
     if os.environ.get('VERCEL'):
         raise HTTPException(404, 'Frontend assets are served by the site host.')
-    allowed = {
-        "analysis-core.js",
-        "alignment.js",
-        "telemetry-model.js",
-        "car-performance.js",
-        "race-cornering.js",
-        "corner-geometry.js",
-        "qualifying-telemetry.js",
-        "trace-focus.css",
-        "car-performance.css",
-        "apple-ui.css",
-        "app.js",
-        "config.js",
-        "design-system.css",
-        "polish.css",
-        "styles.css",
-    }
-    if asset_name not in allowed:
+    # Browser scripts and styles sit at the repository root; backend source, configuration
+    # and deployment files have other extensions and are never served.
+    if not re.fullmatch(r"[A-Za-z0-9_-]+\.(js|css)", asset_name) or not (ROOT / asset_name).is_file():
         raise HTTPException(404, "Not found")
     return FileResponse(ROOT / asset_name)

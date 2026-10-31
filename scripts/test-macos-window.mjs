@@ -6,7 +6,7 @@ import vm from 'node:vm';
 import postcss from 'postcss';
 // Normalise Windows checkouts (CRLF) so source-pattern assertions match.
 const read=f=>readFileSync(f,'utf8').replace(/\r\n/g,'\n');
-const page=read('index.html'),css=read('macos-window.css'),ui=read('dashboard-ui.js'),system=read('ui-system.js'),tokens=read('ui-controls.css');
+const page=read('index.html'),css=read('macos-window.css'),ui=read('dashboard-ui.js'),system=read('ui-system.js'),tokens=read('tokens.css'),tokenValues=JSON.parse(read('e2e/__tokens__/tokens.json'));
 
 test('window uses a unified toolbar, a sidebar for setup and a category bar in the main pane',()=>{
   const header=page.slice(page.indexOf('<header class="site-header window-toolbar">'),page.indexOf('</header>'));
@@ -134,8 +134,7 @@ test('lap cards: horizontal header and inline deltas immediately before times',(
 });
 
 test('sidebar text and accent links stay legible on the sidebar material in both appearances',()=>{
-  const root=postcss.parse(tokens),palettes=[];
-  root.walkRules(rule=>{if([':root',':root[data-theme="light"]'].includes(rule.selector)&&rule.parent.type==='root'){const values={};rule.walkDecls(d=>values[d.prop]=d.value);palettes.push(values);}});
+  const palettes=[tokenValues.dark,tokenValues.light];
   const luminance=hex=>{const n=hex.replace('#','');return [0,2,4].map(i=>parseInt(n.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((s,v,i)=>s+v*[.2126,.7152,.0722][i],0);};
   const ratio=(a,b)=>{const x=luminance(a),y=luminance(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
   const dark=palettes[0],light={...dark,...palettes[1]};

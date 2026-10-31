@@ -9,32 +9,6 @@
    Toolbars, Typography, Materials, Motion, Accessibility.
    The rationale and the full element inventory are in docs/hig-audit-20261022.md. */
 
-:root {
-  /* Control sizes (HIG "control size": regular / small / large). */
-  --hig-regular: 30px;          /* push, pop-up, field, segmented track, toggle tile */
-  --hig-small: 24px;            /* chart toolbars, steppers, sort headers, chips */
-  --hig-large: 32px;            /* sidebar rows, toolbar items, category bar */
-  --hig-thumb: 26px;            /* segment inside a regular 30 px track */
-  --hig-menu-row: 28px;
-  --hig-radius: 8px;            /* regular controls and tiles */
-  --hig-radius-small: 6px;      /* small controls, list rows, menu rows */
-  --hig-radius-track: 9px;      /* segmented track; thumb = track - 2 px inset */
-  --hig-radius-thumb: 7px;
-  --hig-radius-overlay: 14px;   /* menus, popovers, tooltips, toasts */
-  --hig-radius-panel: 16px;     /* group boxes, cards, sheets */
-  /* Type ramp (macOS text styles, +1–2 px for this dense web layout). */
-  --type-caption: 12px; --type-callout: 13px; --type-body: 14px; --type-headline: 15px;
-  --type-title3: 17px; --type-title2: 22px; --type-title1: 28px;
-  /* State fills. */
-  --hig-seg-hover: color-mix(in srgb, var(--ui-label) 9%, transparent);
-  --hig-control-pressed: color-mix(in srgb, var(--ui-control-hover) 78%, var(--ui-label) 10%);
-  /* Motion (HIG Motion: brief, purposeful, never decorative). */
-  --hig-fast: 120ms;            /* hover, press, selection change */
-  --hig-medium: 200ms;          /* disclosure, popover, view change */
-  --hig-ease: cubic-bezier(.25,.1,.25,1);
-  --hig-ease-out: cubic-bezier(.2,.8,.2,1);
-}
-
 /* ---------- Shared state behaviour ---------------------------------------- */
 :is(button,summary,[role="option"],[role="tab"])[data-ui-kind] {
   transition: background-color var(--hig-fast) var(--hig-ease), color var(--hig-fast) var(--hig-ease),
@@ -162,6 +136,19 @@ button[data-ui-kind="toolbar"] {
   height: var(--hig-regular); min-height: var(--hig-regular); min-width: var(--hig-regular); border: 0; border-radius: var(--hig-radius);
   background: transparent; box-shadow: none; color: var(--ui-secondary);
 }
+/* The local status contains text directly, unlike the icon-only toolbar buttons.
+   Do not squeeze it into the compact 30px toolbar width and let it overlap. */
+.site-header .workspace-tools button.local-compute-status[data-ui-kind="toolbar"] {
+  flex: 0 0 auto;
+  width: max-content;
+  min-width: max-content;
+}
+@media (max-width: 860px) {
+  .site-header .workspace-tools button.local-compute-status[data-ui-kind="toolbar"] {
+    width: 32px;
+    min-width: 32px;
+  }
+}
 button[data-ui-kind="toolbar"]:hover:not(:disabled) { background: var(--hig-seg-hover); color: var(--ui-label); }
 button[data-ui-kind="toolbar"]:active:not(:disabled),button[data-ui-kind="toolbar"][aria-pressed="true"] { background: color-mix(in srgb, var(--ui-label) 12%, transparent); color: var(--ui-label); }
 button[data-ui-kind="icon"] { border-radius: 50%; }
@@ -173,7 +160,7 @@ summary[data-ui-kind="disclosure"]:hover { color: var(--ui-label); }
 
 /* ---------- Checkboxes and radio buttons (HIG Toggles) --------------------
    macOS checkboxes are small rounded squares; circles are radio buttons. */
-input[data-ui-kind="checkbox"] { border-radius: 4px; }
+input[data-ui-kind="checkbox"] { border-radius: var(--radius-xs); }
 input[data-ui-kind="radio"] { border-radius: 50%; }
 input[data-ui-kind="checkbox"]:hover:not(:checked):not(:disabled) { background: var(--ui-control-hover); }
 input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 4px; height: 8px; }
@@ -184,11 +171,11 @@ input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 
 .trace-pill-group .trace-driver-chip,.trace-pill-group .trace-driver-chip.is-visible { box-sizing: border-box; height: var(--hig-regular); min-height: var(--hig-regular); padding-block: 0; background: transparent; box-shadow: none; border: 0; font-size: var(--type-body); }
 .trace-pill-group .trace-driver-chip small { font-size: var(--type-caption); line-height: 1.2; }
 .trace-pill-group:hover { background: var(--ui-control-hover); }
-.trace-pill-group .trace-swatch { width: 18px; height: 18px; flex: 0 0 18px; border-radius: 4px; }
+.trace-pill-group .trace-swatch { width: 18px; height: 18px; flex: 0 0 18px; border-radius: var(--radius-xs); }
 
 /* ---------- Badges (not controls) ---------------------------------------- */
 [data-ui-kind="badge"],.loaded-lap-main em,.corner-driver em,.ref-badge {
-  font-size: var(--type-caption); font-weight: 600; border-radius: 4px; letter-spacing: 0;
+  font-size: var(--type-caption); font-weight: 600; border-radius: var(--radius-xs); letter-spacing: 0;
 }
 
 /* ---------- Typography (HIG Typography) ----------------------------------- */
@@ -210,21 +197,21 @@ input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 
 .circuit-section-group > header span,.workspace-eyebrow { font-size: var(--type-caption); color: var(--ui-tertiary); }
 
 /* ---------- Materials (HIG Materials) -------------------------------------
-   Translucency only where content scrolls underneath: toolbar, pop-up menus,
-   tooltips and toasts. Content panels stay opaque for legibility. */
-.site-header { background: color-mix(in srgb, var(--ui-toolbar) 82%, transparent); -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%); }
+   Two layers, as in macOS. Navigation and transient surfaces (toolbar,
+   sticky table headers, pop-up menus, popovers, tooltips, toasts, sheets) are
+   translucent and neutral, and only where content really passes beneath them.
+   Content panels, tables and charts stay opaque for legibility. The tokens
+   below are the one place those materials are defined; the block near the end
+   of this file applies them. */
 :is(.select-menu,.tooltip,.app-toast) { border-radius: var(--hig-radius-overlay); }
-.local-compute-dialog { border-radius: var(--hig-radius-panel); }
-.local-compute-dialog::backdrop { background: #0000004d; }
-@media (prefers-reduced-transparency: reduce) {
-  :is(.site-header,.select-menu,.tooltip,.app-toast,.app-sidebar) { background: var(--ui-toolbar); -webkit-backdrop-filter: none; backdrop-filter: none; }
-}
+/* A modal dialog sits centred in the window; an earlier global margin reset had pinned it to the top-left corner. */
+.local-compute-dialog { margin: auto; border-radius: var(--hig-radius-panel); }
 
 /* ---------- Motion (HIG Motion) --------------------------------------------
    No entrance animation replays when a panel is re-rendered by a selection;
    content that changes in place relies on the control's colour transition. */
 :is(.lap-summary-card,.driver-run-card,.chart,.corner-analysis,.dominance-map) { animation: none; }
-.performance-page[data-motion="enter"] .performance-bar { animation-duration: 320ms; }
+.performance-page[data-motion="enter"] .performance-bar { animation-duration: var(--motion-tier-slow); }
 @media (prefers-reduced-motion: reduce) {
   :is(button,summary,[role="option"],[role="tab"])[data-ui-kind] { transition: none; }
 }
@@ -281,7 +268,7 @@ input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 
 .telemetry-content { container: telemetry / inline-size; }
 .telemetry-content .telemetry-analysis-grid { grid-template-areas: "charts corner"; }
 .telemetry-content .telemetry-analysis-grid > #charts { grid-area: charts; }
-.telemetry-content .telemetry-analysis-grid > #cornerAnalysis { grid-area: corner; isolation: isolate; background: var(--ui-panel); }
+.telemetry-content .telemetry-analysis-grid > #cornerAnalysis { grid-area: corner; isolation: isolate; background: var(--ui-well); }
 .telemetry-analysis-grid #charts canvas { display: block; max-width: 100%; }
 @container telemetry (max-width: 1050px) {
   .telemetry-content .telemetry-analysis-grid { grid-template-columns: minmax(0,1fr); grid-template-areas: "corner" "charts"; }
@@ -412,7 +399,6 @@ button.map-guide-info[data-ui-kind="icon"] {
 
 /* Audit follow-through on Claude's3cfe307 baseline. Numeric web tokens are
    project choices, not Apple-prescribed CSS dimensions or timings. */
-:root { --ui-focus: var(--ui-accent); --ui-list-selected-secondary: #fff; }
 [hidden] { display: none !important; }
 /* The workspace switch keeps its segmented presentation and sliding thumb,
    with proper tab semantics for its two content panels. */
@@ -459,7 +445,6 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 :root[data-ui-input="coarse"] { --hig-regular: 44px; --hig-small: 44px; --hig-large: 44px; --hig-thumb: 44px; --hig-menu-row: 44px; }
 @media(max-width:700px) { .chart-sample-controls { grid-template-columns: 1fr; } }
 @media(pointer:coarse) {
-  :root { --hig-regular: 44px; --hig-small: 44px; --hig-large: 44px; --hig-thumb: 44px; --hig-menu-row: 44px; }
   button[data-ui-kind],summary[data-ui-kind],.local-compute-actions > a[data-ui-kind] { height: auto; min-height: 44px; }
   button[data-ui-kind="icon"],button[data-ui-kind="stepper"],button[data-ui-kind="toolbar"] { min-width: 44px; }
   .select-trigger,.select-menu button[data-ui-kind="menu-item"],#driverPills .driver-pill[data-ui-kind="list-row"],.app-sidebar .track-pill[data-ui-kind="choice"] { min-height: 44px; height: auto; }
@@ -467,8 +452,51 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
   .trace-setting,.trace-driver-chip,.trace-swatch,.ui-catalog-row > label:has(input[type="checkbox"],input[type="radio"]) { min-height: 44px; }
   .site-header.window-toolbar { height: auto; min-height: var(--ui-toolbar-height); padding-block: 8px; }
 }
-@supports not (backdrop-filter: blur(1px)) { .site-header { background: var(--ui-toolbar); } .select-menu,.tooltip,.app-toast,.circuit-guide-details[popover] { background: var(--ui-panel); } }
-@media(prefers-contrast:more) { .site-header,.app-sidebar,.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover] { background: var(--ui-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+/* ---------- Applying the materials ----------------------------------------- */
+.site-header, .site-header.window-toolbar {
+  background: var(--mat-bar); -webkit-backdrop-filter: var(--mat-blur-bar); backdrop-filter: var(--mat-blur-bar);
+  border-bottom: 0; box-shadow: none;
+}
+/* Scroll-edge effect: the toolbar's hairline appears only once content
+   scrolls beneath it. Without scroll-driven animations it is always shown. */
+.site-header::after { content: ''; position: absolute; inset: auto 0 0; height: 1px; background: var(--ui-separator); pointer-events: none; }
+@supports (animation-timeline: scroll()) {
+  .site-header::after { animation: hig-bar-edge linear both; animation-timeline: scroll(root); animation-range: 0 28px; }
+  @keyframes hig-bar-edge { from { opacity: 0; } to { opacity: 1; } }
+}
+.performance-table th { background: var(--mat-header); -webkit-backdrop-filter: var(--mat-blur-bar); backdrop-filter: var(--mat-blur-bar); }
+:is(.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover]) {
+  border: 0; background: var(--mat-menu); -webkit-backdrop-filter: var(--mat-blur-menu); backdrop-filter: var(--mat-blur-menu);
+  box-shadow: var(--ui-shadow-popover), var(--mat-edge);
+}
+.local-compute-dialog { background: var(--mat-sheet); -webkit-backdrop-filter: var(--mat-blur-menu); backdrop-filter: var(--mat-blur-menu); box-shadow: var(--ui-shadow-popover), var(--mat-edge); }
+.local-compute-dialog::backdrop { background: var(--mat-scrim); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+/* Menus and popovers fade in like AppKit's (no scale, no travel). */
+@media (prefers-reduced-motion: no-preference) {
+  :is(.select-menu[popover],.circuit-guide-details[popover]) { transition: opacity var(--hig-fast) var(--hig-ease), overlay var(--hig-fast) allow-discrete, display var(--hig-fast) allow-discrete; }
+  :is(.select-menu[popover],.circuit-guide-details[popover]):popover-open { opacity: 1; }
+  @starting-style { :is(.select-menu[popover],.circuit-guide-details[popover]):popover-open { opacity: 0; } }
+}
+/* Fallbacks. Each replaces the translucent fill with the opaque one. */
+@supports not (backdrop-filter: blur(1px)) {
+  .site-header,.site-header.window-toolbar { background: var(--ui-toolbar); }
+  .performance-table th { background: var(--ui-header-row); }
+  :is(.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover]) { background: var(--ui-control); }
+  .local-compute-dialog { background: var(--ui-panel); }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :is(.site-header,.site-header.window-toolbar) { background: var(--ui-toolbar); }
+  .performance-table th { background: var(--ui-header-row); }
+  :is(.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover]) { background: var(--ui-control); }
+  .local-compute-dialog { background: var(--ui-panel); }
+  :is(.site-header,.site-header.window-toolbar,.performance-table th,.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover],.local-compute-dialog,.local-compute-dialog::backdrop) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@media (prefers-contrast: more) { :is(.app-sidebar) { background: var(--ui-panel); } }
+/* Compute status: a labelled pill beside the toolbar items; a dot when space runs out. */
+.site-header .local-compute-status[data-ui-kind="toolbar"] { width: auto; min-width: 0; height: 22px; min-height: 22px; padding: 0 8px; border-radius: var(--radius-lg); }
+@media (max-width: 860px) { .site-header .local-compute-status[data-ui-kind="toolbar"] { width: 22px; padding: 0; font-size: 0; } }
+@media (max-width: 520px) { .site-header .local-compute-status[data-ui-kind="toolbar"] { display: none; } }
+@media (pointer: coarse) { .site-header .local-compute-status[data-ui-kind="toolbar"] { min-width: 44px; height: 44px; min-height: 44px; } }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 @media(forced-colors:active) { [data-ui-thumb] > button[aria-selected="true"] { background: Highlight; color: HighlightText; } .chart-data-access { background: Canvas; color: CanvasText; } }
 
@@ -477,6 +505,7 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
    HIG Lists and tables / Buttons / Layout: readable headers, clear feedback,
    common alignment and spacing. Dimensions are this site's control tokens. */
 .corner-analysis-body { gap: 16px; }
+.view-error { padding: 12px 14px; border-radius: var(--hig-radius); background: var(--ui-well); color: var(--ui-secondary); font-size: var(--type-body); }
 #cornerPickerRow { padding: 16px; display: grid; gap: 16px; }
 #cornerPickerRow .circuit-section-group { margin: 0; padding: 0; border: 0; }
 .circuit-section-group > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 8px; }
@@ -489,7 +518,7 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 .circuit-section-group .corner-picker button.corner-pick:hover { background: var(--ui-control-hover); }
 .circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"] { background: var(--ui-action); color: #fff; border-color: transparent; }
 #cornerMetricGrid { padding: 0 16px 16px; }
-.corner-detail-card { padding: 0; border: 1px solid var(--ui-border); border-radius: 12px; overflow: hidden; background: transparent; }
+.corner-detail-card { padding: 0; border: 1px solid var(--ui-border); border-radius: var(--radius-lg); overflow: hidden; background: transparent; }
 .corner-detail-header { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; padding: 4px 10px; margin: 0; border: 0; }
 .corner-detail-card .corner-detail-header h3 { margin: 0; color: var(--ui-label); font: 600 var(--type-headline)/1.4 var(--ui-font); }
 .corner-distance { font: 400 var(--type-callout)/1.4 var(--ui-font); color: var(--ui-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -500,11 +529,15 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 .corner-measurement-table :is(th,td):last-child { padding-right: 20px; }
 .corner-measurement-table thead th { background: var(--ui-header-row); color: var(--ui-secondary); font-size: var(--type-caption); font-weight: 600; }
 .corner-measurement-table button[data-corner-sort] { position: relative; display: flex; align-items: center; justify-content: flex-end; gap: 0; min-height: var(--hig-small); width: 100%; margin: 0; padding: 0; border: 0; border-radius: var(--hig-radius-small); background: transparent; color: var(--ui-secondary); box-shadow: none; cursor: pointer; font: 600 var(--type-caption)/1.4 var(--ui-font); white-space: nowrap; }
-.corner-measurement-table button[data-corner-sort]:hover { background: var(--ui-control-hover); }
-.corner-measurement-table button[data-corner-sort]:active { background: var(--hig-control-pressed); }
+/* Column headers (HIG Lists and tables): the whole header cell is the target, so hover and press tint the cell, never
+   just the label. The sorted column keeps the label colour and shows its direction with the chevron. */
+.corner-measurement-table thead th { transition: background-color var(--hig-fast) var(--hig-ease); }
+.corner-measurement-table button[data-corner-sort]:is(:hover,:active) { background: transparent; }
+.corner-measurement-table thead th:has(button[data-corner-sort]:hover) { background: color-mix(in srgb, var(--ui-header-row) 92%, var(--ui-label)); }
+.corner-measurement-table thead th:has(button[data-corner-sort]:active) { background: color-mix(in srgb, var(--ui-header-row) 84%, var(--ui-label)); }
 .corner-measurement-table button small { font: inherit; color: var(--ui-secondary); }
 .corner-measurement-table button svg { position: absolute; right: -13px; width: 10px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.corner-measurement-table th[aria-sort]:not([aria-sort="none"]) button { color: var(--ui-accent); }
+.corner-measurement-table th[aria-sort]:not([aria-sort="none"]) button { color: var(--ui-label); }
 .corner-measurement-table .corner-driver { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
 .corner-measurement-table .corner-driver .team-logo,.corner-measurement-table .corner-driver .team-logo img { width: 18px; height: 18px; flex: 0 0 18px; }
 .corner-measurement-table .corner-driver .team-logo-official > .team-logo-color { display: none; }
