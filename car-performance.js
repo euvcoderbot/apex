@@ -1,7 +1,7 @@
 import {connectedRaceCornerScores,ageAdjustedRaceCornerScores} from './race-cornering.js';
 import {qualifyingRepresentatives} from './corner-geometry.js';
 import {fastestTeamTelemetrySelections} from './qualifying-telemetry.js';
-import {SPEED_DOMAIN_METRICS,speedDomainSeason,speedDomainEventValues,speedDomainPhases} from './speed-domain.js';
+import {SPEED_DOMAIN_METRICS,speedDomainSeason,speedDomainEventValues,speedDomainPhases,speedDomainIsLowConfidence} from './speed-domain.js';
 // APEX - Car Performance Section
 // Full parity with Session Analysis design language: Apple UI, official team logos, GP country flags, custom select menus.
 // Scientific rigor aligned with Astra GPT-6 Hybrid principles: no speculative physical regressions, sampling-aware bounds.
@@ -319,6 +319,7 @@ const lazyEvidence=new Map();
 // of track evolution Q3 runners get (2026), so raw fastest laps overstate their gaps.
 let qualyPaceMode='adjusted'; // 'overall' | 'q1' | 'adjusted'
 const root=$('performanceResults');
+root?.addEventListener?.('scroll',event=>trackPerformanceScroll(event),{capture:true,passive:true});
 window.addEventListener('apex-descriptions',event=>{showPerformanceDescriptions=event.detail===true;if(initialized)render();});
 
 function updateTrackCount() {
@@ -1772,7 +1773,7 @@ function speedDomainChart(key,title,subtitle) {
   return {title:title||meta.label,rows,options:{title:title||meta.label,subtitle:`${subtitle?subtitle+' · ':''}${season.gps} supported GP${season.gps===1?'':'s'} of ${events.filter(e=>e.Q).length} selected · ${season.events.join(', ')} · 0 = best${rows.some(r=>r.traceProvisional)?' · ≈ provisional: source gaps >0.6 s':''}`,unit:meta.unit,digits:meta.digits}};
 }
 function speedDomainLowConfidence(key) {
-  return events.map(e=>e.speedDomain?.[telemetrySubject]?.reliability?.[SPEED_DOMAIN_METRICS[key].reliability]).find(Boolean)==='low';
+  return speedDomainIsLowConfidence(context?.year,key,events.map(e=>e.speedDomain?.[telemetrySubject]?.reliability?.[SPEED_DOMAIN_METRICS[key].reliability]).filter(Boolean));
 }
 function speedDomainEventTable(keys) {
   const style=speedDomainEntities(),rows=[];
@@ -1882,11 +1883,15 @@ function performanceUIKey(element) {
   if(element.matches('.performance-table-wrap'))return 'table:'+String(element.querySelector('thead')?.textContent||'').replace(/[⇅▲▼]/g,'').replace(/\s+/g,' ').trim();
   return element.className+'|'+(element.getAttribute('aria-label')||'');
 }
+// Scroll positions are remembered from scroll events: reading scrollLeft/scrollTop at the start of every render forced a full synchronous
+// layout of a page that had just been changed, which was the largest single cost of loading the Cornering view.
+const performanceScroll=new WeakMap();
+function trackPerformanceScroll(event){const el=event.target;if(el&&el.nodeType===1)performanceScroll.set(el,{left:el.scrollLeft,top:el.scrollTop});}
 function capturePerformanceUI(container) {
   const focused=document.activeElement;
   return {
     scroll:[...container.querySelectorAll('.performance-table-wrap,.performance-mode,.performance-scope-toggle,.performance-band-options')]
-      .map(el=>({key:performanceUIKey(el),left:el.scrollLeft,top:el.scrollTop,focused:el===focused})),
+      .map(el=>({key:performanceUIKey(el),left:performanceScroll.get(el)?.left||0,top:performanceScroll.get(el)?.top||0,focused:el===focused})),
     details:[...container.querySelectorAll('details[open]')].map(el=>el.querySelector('summary')?.textContent.trim()),
     focus:container.contains(focused)?[...focused.attributes].filter(a=>a.name.startsWith('data-')&&!a.name.startsWith('data-ui-')).map(a=>[a.name,a.value]):[],
   };
@@ -1895,7 +1900,9 @@ function restorePerformanceUI(container,state) {
   for(const el of container.querySelectorAll('details'))if(state.details.includes(el.querySelector('summary')?.textContent.trim()))el.open=true;
   for(const el of container.querySelectorAll('.performance-table-wrap,.performance-mode,.performance-scope-toggle,.performance-band-options')) {
     const old=state.scroll.find(row=>row.key===performanceUIKey(el));
-    if(old){el.scrollLeft=old.left;el.scrollTop=old.top;if(old.focused)el.focus({preventScroll:true});}
+    // A freshly rendered element already sits at 0,0; writing a scroll position forces a synchronous layout of the whole page, so only write real positions.
+    if(old&&(old.left||old.top)){el.scrollLeft=old.left;el.scrollTop=old.top;}
+    if(old?.focused)el.focus({preventScroll:true});
   }
   if(state.focus.length) {
     const selector=state.focus.map(([name,value])=>`[${name}="${CSS.escape(value)}"]`).join('');

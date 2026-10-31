@@ -36,6 +36,14 @@ const median = values => {
 };
 
 // One car's value for one GP, as a deficit: larger is worse.
+// Seasons in which a metric's car-specific signal measured weaker than the label the backend attaches (RELIABILITY in car_physics.py).
+// Braking in 2026: teammate agreement after removing lap time is +0.14 (2025: +0.42; traction, labelled low, fails below about +0.3).
+// See docs/physics-validation-20261031.md. The backend label is per metric, not per season, so the season override lives here.
+export const LOW_CONFIDENCE_SEASONS = Object.freeze({braking: [2026]});
+export function speedDomainIsLowConfidence(year, metricKey, labels) {
+  return labels.includes('low') || (LOW_CONFIDENCE_SEASONS[metricKey] || []).includes(Number(year));
+}
+
 export function speedDomainValue(car, key) {
   if (!car) return null;
   const section = key.startsWith('corner_') ? car.cornering?.[key.slice(7).replace(/_(pct|lap)$/, '')]

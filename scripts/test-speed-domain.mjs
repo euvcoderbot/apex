@@ -147,3 +147,11 @@ test('a car with a missing braking, mid-corner or exit phase is left out of the 
   assert.deepEqual(rows.map(r=>r.name).sort(),['X','Y','Z']);
   for(const row of rows)for(const k of ['braking','mid','exit'])assert.ok(Number.isFinite(row[k]),`${row.name} ${k}`);
 });
+
+test('braking is low confidence in 2026 (weak teammate agreement) and keeps its backend label elsewhere', async () => {
+  const {speedDomainIsLowConfidence} = await import('../speed-domain.js');
+  assert.equal(speedDomainIsLowConfidence(2026, 'braking', ['moderate']), true);
+  assert.equal(speedDomainIsLowConfidence(2025, 'braking', ['moderate']), false);
+  assert.equal(speedDomainIsLowConfidence(2025, 'traction', ['low']), true, 'a low backend label always wins');
+  assert.equal(speedDomainIsLowConfidence(2026, 'straight', ['established']), false);
+});

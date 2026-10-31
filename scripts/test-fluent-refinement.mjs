@@ -18,7 +18,7 @@ test('primary navigation has only section controls and a stable fixed footprint'
   assert.equal(readFileSync('assets/euv2-gauge.png').subarray(1,4).toString(),'PNG');
   assert.match(css,/\.header-actions \{ grid-column: 2; display: block; width: 340px;/);
   assert.match(css,/\.site-header \.performance-tabs button:active[^}]*transform: none/);
-  assert.match(css,/\.workspace-tools #explanationsToggle span, \.workspace-intro #sidebarToggle span \{ display: inline; position: static/);
+  assert.match(css,/\.workspace-tools :is\(#explanationsToggle,#glassToggle\) span, \.workspace-intro #sidebarToggle span \{ display: inline; position: static/);
 });
 
 test('run controls wrap without forced minimum widths and optional notes follow explanations',()=>{

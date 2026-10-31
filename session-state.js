@@ -735,8 +735,23 @@ function historicalMarkup(file) {
   const base = file.replace(/\.(png|svg)$/, '');
   return `<span class="team-logo team-logo-historical team-logo-official" data-team-mark="${base}" aria-hidden="true"><img class="team-logo-color" src="assets/teams/historical/${file}" alt="" width="26" height="26"><img class="team-logo-mono" src="assets/teams/historical/${base}-white.webp" alt="" width="26" height="26"><img class="team-logo-black" src="assets/teams/historical/${base}-black.webp" alt="" width="26" height="26"></span>`;
 }
+// Team names arrive in many spellings across 2014-2026 (sponsor-era names, "F1 Team" suffixes, constructor vs entrant). An exact match wins; otherwise the
+// first pattern that fits picks the franchise, so "Oracle Red Bull Racing", "Sahara Force India F1 Team" or "Visa Cash App RB F1 Team" still get a mark.
+const teamNamePatterns = [
+  [/kick sauber|stake/, 'kick sauber'], [/alfa romeo/, 'alfa romeo'], [/sauber/, 'sauber'],
+  [/red bull racing|^red bull|oracle red bull/, 'red bull racing'], [/racing bulls|visa cash app|^rb|rb f1/, 'racing bulls'],
+  [/alphatauri|alpha tauri/, 'alphatauri'], [/toro rosso/, 'toro rosso'], [/force india/, 'force india'], [/racing point/, 'racing point'],
+  [/renault/, 'renault'], [/alpine/, 'alpine'], [/aston martin/, 'aston martin'], [/williams/, 'williams'], [/haas/, 'haas'],
+  [/mclaren/, 'mclaren'], [/mercedes/, 'mercedes'], [/ferrari/, 'ferrari'], [/lotus/, 'lotus'], [/manor/, 'manor'], [/marussia/, 'marussia'],
+  [/caterham/, 'caterham'], [/audi/, 'audi'], [/cadillac/, 'cadillac'],
+];
+function canonicalTeamKey(key) {
+  if (officialTeamMarks[key] || historicalTeamMarks[key] || key === 'renault' || key === 'renault sport f1 team') return key;
+  for (const [pattern, canonical] of teamNamePatterns) if (pattern.test(key)) return canonical;
+  return key;
+}
 function teamLogoMarkup(teamName) {
-  const key = String(teamName || '').trim().toLowerCase();
+  const key = canonicalTeamKey(String(teamName || '').trim().toLowerCase());
   if (key === 'renault' || key === 'renault sport f1 team') return historicalMarkup('renault.png');
   const historical = historicalTeamMarks[key];
   // Kick Sauber: transparent black and white wordmarks, swapped by appearance like the official marks.

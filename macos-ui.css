@@ -132,7 +132,7 @@ body :where(*) { font-family: var(--ui-font); }
 .performance-mode button[aria-selected="true"] .metric-nav-icon { color: var(--ui-accent); }
 .performance-explain-toggle { min-height: 32px; font-size: var(--text-sm); }
 .metric-heading { padding: 0 0 14px; margin-bottom: 12px; border: 0; }
-.metric-heading h2 { font-size: 1.625rem; font-weight: 650; letter-spacing: -.035em; }
+.metric-heading h2 { font-size: var(--text-display-lg); font-weight: 650; letter-spacing: -.035em; }
 .metric-context dt { text-transform: none; letter-spacing: 0; font-size: var(--text-xs); }
 .performance-card { padding: 18px; margin-bottom: 16px; border-radius: var(--ui-panel-radius); background: var(--ui-panel); box-shadow: var(--shadow-main); }
 .performance-chart-card { background: var(--ui-well); border: 1px solid var(--ui-border); border-radius: var(--radius-lg); box-shadow: none; }
@@ -192,7 +192,7 @@ progress { accent-color: var(--ui-action); border-radius: var(--radius-pill); ov
   #performanceResults { display: block; }
   .performance-mode button { min-height: 42px; font-size: var(--text-sm); padding: 8px 10px; }
   .metric-heading { flex-wrap: wrap; gap: 12px; }
-  .metric-heading h2 { font-size: 1.375rem; }
+  .metric-heading h2 { font-size: var(--text-display-sm); }
   .sidebar { position: static; }
   .sidebar #driverPills { max-height: 360px; }
   .lap-summary-card { padding: 10px; }
@@ -250,7 +250,7 @@ main.sidebar-collapsed #driverSidebar { display: none; }
 .sidebar .tire-option { min-height: 50px; padding: 5px 3px; border-radius: var(--radius-sm); }
 .sidebar .tire-option .tyre-image { width: 22px; height: 22px; }
 .sidebar .tire-copy { font-size: var(--text-xs); }
-.workspace-intro h1 { font-size: 1.3rem; }
+.workspace-intro h1 { font-size: var(--text-title-lg); }
 .dashboard-card,.telemetry-card { padding: 12px; border-radius: var(--radius-lg); }
 .session-controls { padding: 12px; gap: 12px; }
 .session-controls .select-trigger,.session-controls select,.session-controls #loadSession { height: 34px; min-height: 34px; }
@@ -289,7 +289,7 @@ main.sidebar-collapsed #driverSidebar { display: none; }
 .performance-card { padding: 12px; margin-bottom: 12px; }
 .performance-card .panel-heading { margin-bottom: 8px; }
 .metric-heading { align-items: center; padding-bottom: 8px; margin-bottom: 6px; gap: 12px; }
-.metric-heading h2 { font-size: 1.3rem; }
+.metric-heading h2 { font-size: var(--text-title-lg); }
 .metric-context { gap: 0; }
 .metric-context > div { padding: 0 10px; }
 .metric-context dd { font-size: var(--text-sm); }
