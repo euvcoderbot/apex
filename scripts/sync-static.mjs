@@ -30,7 +30,10 @@ const measurementRevision=computedMeasurementRevision==='a8844f34c906faa5b4a9'?'
 // Any subsequent source edit produces a different hash and invalidates normally.
 // Audited request guards/budgets do not change valid source observations or
 // numerical calculations. Exact hashes only; future edits still invalidate.
-const rawRevision = ['58a74edf7681fe405d91','6e8c99430260a385b676'].includes(computedSourceRevision) ? '5b02cc1bb2a6daf808ad' : computedSourceRevision;
+// The integrated offline meetings/session-list cache changes retrieval
+// availability, not the native lap schema, units or sample processing.
+// Retain the exact audited raw identity so native exporters can append safely.
+const rawRevision = ['58a74edf7681fe405d91','6e8c99430260a385b676','e7075057264f10091bdd'].includes(computedSourceRevision) ? '5b02cc1bb2a6daf808ad' : computedSourceRevision;
 const backendRevision = computedBackendRevision==='112288f02c1cac1636c7'?'f7216b3d5e4981b881ec':computedBackendRevision;
 await writeFile(resolve(root,'lib/cache-revision.mjs'),`// Generated: source, upstream calculations and race snapshots invalidate independently.\nexport const CACHE_REVISION = ${JSON.stringify(cacheRevision)};\nexport const SOURCE_REVISION = ${JSON.stringify(rawRevision)};\nexport const BACKEND_REVISION = ${JSON.stringify(backendRevision)};\nexport const RACE_REVISION = ${JSON.stringify(measurementRevision)};\n`);
 const destination = resolve(root, "public", "apex");
