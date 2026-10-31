@@ -209,6 +209,8 @@ function dataRequestTimeout(url) {
   return /^\/api\/(?:events|session|telemetry|performance(?:\/.*)?|race-corners|qualifying-corners)$/.test(path) ? 310000 : 30000;
 }
 
+/** The published site answers 503 for a result that was never published. Retrying cannot change that. */
+const notPublished = async response => response.status === 503 && /not been published/i.test((await response.clone().json().catch(() => ({}))).detail || '');
 async function fetchSessionData(url, options = {}) {
   const attempts = window.APEX_LOCAL_MODE ? 2 : 1 + PLATFORM_RETRY_DELAYS_MS.length;
   for (let attempt = 0; attempt < attempts; attempt++) {
@@ -223,7 +225,7 @@ async function fetchSessionData(url, options = {}) {
       const response = await fetch(longQuery?'/api/data':shared, { ...options, signal: controller.signal,
         ...(longQuery?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:query.get('path'),refresh:query.get('refresh')==='1'})}:{}) });
       const retryable = [408, 429, 502, 503, 504].includes(response.status) || platformErrorResponse(response);
-      if (!retryable || attempt === attempts - 1) return response;
+      if (!retryable || attempt === attempts - 1 || await notPublished(response)) return response;
       await response.text();
     } catch (error) {
       if (options.signal?.aborted) throw error;

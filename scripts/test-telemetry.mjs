@@ -220,7 +220,7 @@ test('COTA estimate is opt-in, native channels remain immutable, OFF restores th
   }
   // The whole UI uses the same mapping, not a separate smoothed delta plot.
   await h.run('paintReadyTelemetry()');
-  assert.match(h.element('#alignmentCorrectionNotice').textContent,/2\/2 laps/);
+  assert.equal(h.element('#alignmentCorrectionNotice').hidden,true,'no note when every lap was corrected');
   assert.equal(h.run('dominanceMapGeometryCache===originalGeometry'),false,'map must not retain the old distance registration');
   h.run('loaded.reverse();prepareTelemetryAlignment()');
   const reversed=Array.from(h.run('[0,...ver.alignmentSectors,1].map(f=>displayDeltaAt(ant,ver,f))'));
@@ -249,7 +249,7 @@ test('estimated mapping never matches another driver’s braking pattern; failur
     var original=ver.map(p=>p.AlignedFraction);estimateAlignmentCorrection=true;prepareTelemetryAlignment();`);
   assert.equal(h.run('ver.alignmentCorrection.used'),false);
   assert.deepEqual(Array.from(h.run('ver.map(p=>p.AlignedFraction)')),Array.from(h.run('original')));
-  assert.match(h.element('#alignmentCorrectionNotice').textContent,/1\/2 laps.*Original retained: VER L9 \(pit or partial lap\)/);
+  assert.match(h.element('#alignmentCorrectionNotice').textContent,/Original distance kept: VER L9 \(pit or partial lap\)/);
 });
 
 test('session straight classification needs GPS evidence and rejects flat-out bends',()=>{
