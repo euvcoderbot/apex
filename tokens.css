@@ -95,6 +95,7 @@
 }
 :root[data-theme="light"] {
   --ui-label: #1d1d1f; --ui-secondary: #4d4d4f; --ui-tertiary: #5e5e60; --ui-quaternary: #8e8e90;
+  --brand-teal: #00767c;
   --ui-canvas: #f2f2f2; --ui-panel: #ffffff; --ui-well: #f7f7f7; --ui-content: #ffffff;
   --ui-sidebar: #e8e8e8; --ui-toolbar: #f6f6f6; --ui-header-row: #f6f6f6;
   --ui-control: #ffffff; --ui-control-hover: #efefef; --ui-selected: #e3e3e3;

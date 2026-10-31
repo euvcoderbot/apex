@@ -441,7 +441,7 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 .corner-table-head [role="columnheader"] small { display: inline; font-weight: 400; color: var(--ui-tertiary); }
 .corner-table-head [role="columnheader"][aria-sort]:not([aria-sort="none"]) { color: var(--ui-label); }
 @container (max-width:380px) { .corner-table-head [role="columnheader"] small { display: none; } }
-.ui-catalog-page .app-sidebar { width: 100%; border: 0; padding: 8px; }
+.ui-catalog-page .app-sidebar { width: 100%; min-width: 0; max-width: 100%; flex: 1 1 100%; border: 0; padding: 8px; }
 :root[data-ui-input="coarse"] { --hig-regular: 44px; --hig-small: 44px; --hig-large: 44px; --hig-thumb: 44px; --hig-menu-row: 44px; }
 @media(max-width:700px) { .chart-sample-controls { grid-template-columns: 1fr; } }
 @media(pointer:coarse) {

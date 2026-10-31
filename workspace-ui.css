@@ -203,7 +203,9 @@ body:not(.trace-focus) .chart.compact .chart-heading { margin-bottom: 5px; }
 .performance-tyre-plot-controls select { width: 100%; min-width: 0; min-height: 36px; background: var(--ui-panel); font-size: var(--text-sm); border-radius: var(--radius-xs); }
 .performance-tyre-stint-plot { max-width: 1000px; margin-left: auto; margin-right: auto; }
 .performance-tyre-stint-plot svg { width: 100%; max-height: 340px; }
-.performance-tyre-age-row { grid-template-columns: minmax(110px,.9fr) minmax(55px,1fr) 88px; min-height: 34px; gap: 8px; }
+@media (min-width: 481px) {
+  .performance-tyre-age-row { grid-template-columns: minmax(110px,.9fr) minmax(55px,1fr) 88px; min-height: 34px; gap: 8px; }
+}
 .performance-tyre-age-name, .performance-tyre-age-value { font-size: var(--text-sm); }
 .performance-trend-table .performance-table td { padding: 12px; height: auto; }
 .performance-trend-table .performance-sparkline, .performance-trend-table svg { max-height: 64px; }
