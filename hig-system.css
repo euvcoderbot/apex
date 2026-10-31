@@ -700,3 +700,10 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 .circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"] { background: var(--ui-tile-on); color: var(--ui-tile-on-label); box-shadow: none; }
 .circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"] :is(strong,small) { color: inherit; }
 .circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"]:hover:not(:disabled) { background: color-mix(in srgb, var(--ui-tile-on) 88%, #fff); }
+
+/* Runs and stints: as wide as the longest one needs, all the same width, instead of a third of the card each. */
+.lap-workspace .run-segments.run-segments { display: inline-grid; width: fit-content; max-width: 100%; grid-template-columns: repeat(var(--run-count, 3), minmax(0, 1fr)); margin-inline: 0; }
+.lap-workspace .run-segments.run-segments .run-segment { justify-content: flex-start; gap: 12px; }
+.lap-workspace .run-segments.run-segments .run-segment strong { white-space: nowrap; }
+@media (max-width: 520px) { .lap-workspace .run-segments.run-segments { display: grid; width: 100%; } }
+
