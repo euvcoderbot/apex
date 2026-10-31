@@ -16,7 +16,8 @@ test('every performance category has a distinct accessible heading and honest co
   for(const metric of ['pace','corners','straight','braking','pits','tyres','trend','results']){
     const heading=box.window.ApexPresentation.metricHeading(metric,{year:2026,events:2,subject:'driver',session:'race'});
     assert.match(heading,/<h2>[^<]+<\/h2>/);
-    assert.match(heading,/2 loaded GPs/);
+    assert.match(heading,/2 GPs with data for this view/);
+    assert.match(box.window.ApexPresentation.metricHeading(metric,{year:2026,events:2,selected:3}),/2\/3 GPs with data for this view/);
     assert.match(heading,/2026/);
   }
   const unsafe=box.window.ApexPresentation.metricHeading('pace',{year:'<img onerror="bad">'});

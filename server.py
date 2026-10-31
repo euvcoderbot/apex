@@ -71,7 +71,7 @@ app.add_middleware(
     allow_origins=CORS_ORIGINS,
     allow_origin_regex=r"^http://(127\.0\.0\.1|localhost)(:\d+)?$",
     allow_credentials=False,
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 app.add_middleware(GZipMiddleware, minimum_size=900, compresslevel=5)
@@ -209,10 +209,12 @@ async def prevent_stale_local_assets(request: Request, call_next):
 @app.exception_handler(Exception)
 async def unexpected_error(request: Request, error: Exception):
     """Keep API failures parseable and leave the full traceback in Uvicorn."""
-    logger.exception("Unhandled error serving %s", request.url.path)
+    request_id = uuid4().hex
+    logger.exception("Unhandled error %s serving %s", request_id, request.url.path)
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Internal server error: {type(error).__name__}: {error}"},
+        content={"detail": "Internal server error", "request_id": request_id},
+        headers={"X-Request-ID": request_id, "Cache-Control": "no-store"},
     )
 
 
@@ -2149,7 +2151,8 @@ def load_openf1_performance(year, gp, session, fresh=False):
     from openf1_performance import adapt_performance, retained_bundle
     retained = retained_bundle(year, gp, session)
     refresh_failed = False
-    bundle = None if fresh else read_prepared_cache('openf1-performance-v1', year, gp, session)
+    cached = read_prepared_cache('openf1-performance-v1', year, gp, session)
+    bundle = None if fresh else cached
     if bundle is None and not fresh:
         bundle = retained
     if bundle is None:
@@ -2166,9 +2169,10 @@ def load_openf1_performance(year, gp, session, fresh=False):
             data = adapt_performance(year, gp, session, bundle)
             write_prepared_cache('openf1-performance-v1', year, bundle, gp, session)
         except Exception:
-            if retained is None:
+            fallback = retained if retained is not None else cached
+            if fallback is None:
                 raise
-            bundle, refresh_failed = retained, True
+            bundle, refresh_failed = fallback, True
             data = adapt_performance(year, gp, session, bundle)
     else:
         data = adapt_performance(year, gp, session, bundle)
@@ -2381,9 +2385,8 @@ async def car_development_progression(request: Request, response: Response):
     response.headers['Cache-Control'] = 'no-store'
     try:
         from performance import compute_development_progression
-        if int(request.headers.get('content-length') or 0) > DEVELOPMENT_MAX_BYTES:
-            raise HTTPException(413, 'Request too large')
-        payload = await request.json()
+        from api_security import limited_json
+        payload = await limited_json(request, DEVELOPMENT_MAX_BYTES)
         teams = payload.get('teams', []) if isinstance(payload, dict) else None
         if not isinstance(teams, list) or len(teams) > DEVELOPMENT_MAX_TEAMS:
             raise HTTPException(422, 'Invalid development request')

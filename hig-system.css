@@ -630,3 +630,55 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
   .corner-measurement-table .corner-driver-copy { gap: 4px; }
   .corner-measurement-table button svg { right: -11px; width: 8px; }
 }
+
+/* ---------- Visual pass: fewer boxes, quieter selection, more room for the data ---------- */
+/* Toolbar: icons with tooltips, as a macOS toolbar does. Only the state that means something is filled. */
+.workspace-tools :is(#explanationsToggle,#themeToggle,#glassToggle) { width: var(--hig-regular); min-width: var(--hig-regular); padding: 0; justify-content: center; }
+.workspace-tools :is(#explanationsToggle,#themeToggle,#glassToggle) > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.workspace-tools :is(#themeToggle,#glassToggle)[aria-pressed]:not(:hover):not(:active) { background: transparent; }
+.workspace-tools #glassToggle[aria-pressed="false"] > i { opacity: .45; }
+
+/* Sidebar lists are lists: flat rows, not a stack of boxes, and a chosen row is a tint rather than a block of saturated blue. */
+.pills, .performance-track-pills { gap: 1px; }
+.performance-track-choices { border: 0; background: transparent; box-shadow: none; padding: 0; }
+:is(#driverPills .driver-pill, #performanceTrackPills .track-pill) { border: 0; border-radius: var(--radius-md); background: transparent; box-shadow: none; color: var(--ui-label); }
+:is(#driverPills .driver-pill:not(.selected), #performanceTrackPills .track-pill:not([aria-pressed="true"])):hover:not(:disabled) { background: var(--ui-row-hover); box-shadow: none; }
+:is(#driverPills .driver-pill.selected, #performanceTrackPills .track-pill[aria-pressed="true"]) { background: var(--ui-selection-tint); box-shadow: none; color: var(--ui-label); }
+:is(#driverPills .driver-pill.selected, #performanceTrackPills .track-pill[aria-pressed="true"]) > span:not(.team-logo) { color: var(--ui-label); }
+:is(#driverPills .driver-pill.selected, #performanceTrackPills .track-pill[aria-pressed="true"])::after { color: var(--ui-accent); background-color: var(--ui-accent); }
+@media (prefers-contrast: more) { :is(#driverPills .driver-pill.selected, #performanceTrackPills .track-pill[aria-pressed="true"]) { background: color-mix(in srgb, var(--ui-accent) 32%, transparent); } }
+@media (forced-colors: active) { :is(#driverPills .driver-pill.selected, #performanceTrackPills .track-pill[aria-pressed="true"]) { outline: 2px solid Highlight; outline-offset: -2px; } }
+/* The heading repeats the view title and sits straight above a field of nearly the same name. */
+.app-sidebar .session-controls > .panel-heading:first-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+/* One filled action per area. Fastest is an option until it is chosen. */
+#lapSelectionBody .fastest-lap-pick:not([aria-pressed="true"]) { background: var(--ui-selection-tint); color: var(--ui-accent); box-shadow: none; }
+#lapSelectionBody .fastest-lap-pick:not([aria-pressed="true"]) :is(span,strong) { color: inherit; }
+#compareAllFastest.selected { background: var(--ui-selection-tint); color: var(--ui-accent); box-shadow: none; }
+#compareAllFastest:disabled { background: var(--ui-selection-muted); color: var(--ui-tertiary); opacity: 1; box-shadow: none; }
+
+/* Sections sit on the window, not in a box around more boxes. Their own cards still group what belongs together. */
+#performanceMetricPanel .performance-card, #lapWorkspace, #telemetryCard { border: 0; background: transparent; box-shadow: none; padding: 0; }
+#performanceMetricPanel .performance-card + .performance-card { margin-top: 28px; }
+.speed-chart-controls { border: 0; background: transparent; box-shadow: none; padding: 0; }
+
+/* The mark and the bar already carry the team; a third colour cue beside the name is noise. */
+.performance-team .team-dot { display: none; }
+
+/* Where cards share a row they are narrow: a rail under the name gets the whole width instead of 36 px between name and value. */
+[data-metric="corners"] .performance-visual-grid .performance-bar-row { grid-template-columns: minmax(0,1fr) auto; row-gap: 3px; padding-block: 5px; }
+[data-metric="corners"] .performance-visual-grid .performance-bar-track { grid-column: 1 / -1; grid-row: 2; height: 4px; }
+/* A lone chart takes the width of the section. */
+.performance-chart-card.is-standalone-chart { max-width: none; }
+
+/* Pit stops: the table lost its last column to a scroll nobody could see. Give it the room, and stack when there is none. */
+@media (min-width:1101px) { .performance-split-view { grid-template-columns: minmax(280px,1fr) minmax(0,2fr); } }
+@media (max-width:1400px) { .performance-split-view { grid-template-columns: minmax(0,1fr); } }
+.performance-quality-status [data-pit-retry] { float: right; margin: 0 0 4px 12px; }
+
+/* The window subtitle already says this wherever it is on screen. */
+@media (min-width:1181px) { .snapshot-mode-note { display: none; } }
+
+/* Room for the longest short label, "Development". */
+#carPerformance > .category-bar .category-tab, #carPerformance > .category-bar .category-tab[data-ui-kind="tab"] { padding-inline: 10px; gap: 6px; }
+@media (min-width:1340px) and (max-width:1500px) { #carPerformance > .category-bar .category-tab, #carPerformance > .category-bar .category-tab[data-ui-kind="tab"] { padding-inline: 7px; gap: 5px; } }

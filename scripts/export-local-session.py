@@ -74,13 +74,18 @@ def _merge_locked_session_capture(root,year,gp,round_number,session,payload,fold
     revisions={name:re.search(symbol+r'\s*=\s*"([^"]+)"',text).group(1) for name,symbol in (
         ('sourceRevision','SOURCE_REVISION'),('backendRevision','BACKEND_REVISION'),('measurementRevision','RACE_REVISION'))}
     index=json.loads(target.read_text(encoding='utf-8')) if target.exists() else {'schema':'apex-local-captures-v1',**revisions,'entries':{}}
-    if any(index.get(name)!=value for name,value in revisions.items()):
+    policy_file=Path(root)/'lib'/'snapshot-policy.json'
+    policy=json.loads(policy_file.read_text(encoding='utf-8')) if policy_file.is_file() else {}
+    if any(index.get(name)!=value and index.get(name) not in policy.get(name,{}).get(value,[]) for name,value in revisions.items()):
         raise ValueError('Existing captured revisions differ; no local capture was replaced')
+    previous={name:index.get(name) for name in revisions}
+    index['entries']={key:{**previous,**entry} for key,entry in index.get('entries',{}).items()}
+    index.update(revisions)
     query='/api/session?'+urlencode(sorted({'year':year,'gp':gp,'round':round_number,'session':session}.items()))
     packed=gzip.compress(json.dumps(payload,separators=(',',':'),allow_nan=False).encode(),mtime=0)
     filename=hashlib.sha256(packed).hexdigest()[:24]+'.json.gz'
     (folder/filename).write_bytes(packed)
-    index['entries'][query]={'file':filename,'capturedAt':payload['local_export']['captured_at']}
+    index['entries'][query]={'file':filename,'capturedAt':payload['local_export']['captured_at'],**revisions}
     index['generated']=datetime.now(timezone.utc).isoformat()
     temp=target.with_name('index.json.tmp');temp.write_text(json.dumps(index,separators=(',',':')),encoding='utf-8');temp.replace(target)
     return query

@@ -435,8 +435,9 @@ body.is-descriptions-hidden #performanceMetricPanel .performance-chart-card.is-e
 #carPerformance > .performance-status-card { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 20px; border: 0; border-bottom: 1px solid var(--ui-separator); border-radius: 0; background: transparent; box-shadow: none; color: var(--ui-secondary); font-size: var(--type-body); }
 #carPerformance > .performance-status-card p { margin: 0; color: inherit; font-size: var(--type-body); }
 #carPerformance > .performance-status-card .status-dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--ui-quaternary); box-shadow: none; animation: none; }
-/* Hidden, not removed: it toggles while data loads, and removing it moved the category bar by its own height each time. */
-body.is-descriptions-hidden #carPerformance > .performance-status-card:not(.is-running) { visibility: hidden; }
+/* Out of the flow while it comes and goes, so loading moves nothing and leaves no blank band: nothing at rest, a small floating pill while running. */
+body.is-descriptions-hidden #carPerformance > .performance-status-card:not(.is-running) { display: none; }
+body.is-descriptions-hidden #carPerformance > .performance-status-card.is-running { position: fixed; right: 20px; bottom: 20px; z-index: 40; max-width: min(420px, calc(100vw - 40px)); padding: 8px 14px; border: 0; border-radius: var(--radius-pill); background: var(--mat-menu); -webkit-backdrop-filter: var(--mat-blur-menu); backdrop-filter: var(--mat-blur-menu); box-shadow: var(--mat-edge), var(--ui-shadow-popover); }
 /* Loading is operational status, not an optional methodology explanation. */
 body.is-descriptions-hidden #performanceMetricPanel p.performance-quality-status:not(.is-loading):not(:has(button)):not(details p) { display: none; }
 #carPerformance > .performance-status-card.is-running .status-dot { background: none; border: 1.5px solid var(--ui-quaternary); border-top-color: var(--ui-accent); animation: ui-spin .8s linear infinite; box-sizing: border-box; }

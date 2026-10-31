@@ -3,19 +3,27 @@ import { resolve, dirname } from "node:path";
 import {createHash} from 'node:crypto';
 import {buildUiStyles} from '../lib/ui-style-build.mjs';
 import {sourceRevisionBytes} from '../lib/source-revision.mjs';
+import {snapshotPolicy} from '../lib/snapshot-policy.mjs';
 
 const root = process.cwd();
 const calculationFiles=['verified_sources.py','verified-sources.json.gz','telemetry_sources.py','pace_models.py','performance.py','performance_tracks.py','car_physics.py','server.py','session_loader.py','openf1_performance.py','openf1-performance.json.gz','race-cornering.js','corner-geometry.js','corner-position.js','qualifying-telemetry.js','speed-domain.js','performance-format.js','performance-identity.js','alignment.js','telemetry-model.js','car-performance.js','session-state.js','session-loader.js','session-laps.js','session-charts.js','session-hover.js','session-corners.js','session-map.js','session-init.js','session-tyres.js','analysis-core.js','lib/data-cache.mjs','lib/race-corner-loader.mjs','lib/qualifying-corner-loader.mjs'];
 const revision=createHash('sha256');
 for(const file of calculationFiles)revision.update(file).update(sourceRevisionBytes(file,await readFile(resolve(root,file))));
+revision.update('api_security.py').update(sourceRevisionBytes('api_security.py',await readFile(resolve(root,'api_security.py'))));
 const cacheRevision=revision.digest('hex').slice(0,20);
 const sourceRevision=createHash('sha256');
 for(const file of ['server.py','session_loader.py','openf1_performance.py','openf1-performance.json.gz','telemetry_sources.py','verified_sources.py','verified-sources.json.gz'])sourceRevision.update(file).update(sourceRevisionBytes(file,await readFile(resolve(root,file))));
-const rawRevision=sourceRevision.digest('hex').slice(0,20);
+sourceRevision.update('api_security.py').update(sourceRevisionBytes('api_security.py',await readFile(resolve(root,'api_security.py'))));
+const computedSourceRevision=sourceRevision.digest('hex').slice(0,20);
 const backend=createHash('sha256'),race=createHash('sha256');
 for(const file of ['server.py','session_loader.py','openf1_performance.py','openf1-performance.json.gz','telemetry_sources.py','performance.py','performance_tracks.py','car_physics.py','pace_models.py','verified_sources.py','verified-sources.json.gz'])backend.update(file).update(sourceRevisionBytes(file,await readFile(resolve(root,file))));
 for(const file of ['race-cornering.js','corner-geometry.js','corner-position.js','lib/race-corner-loader.mjs','lib/qualifying-corner-loader.mjs'])race.update(file).update(sourceRevisionBytes(file,await readFile(resolve(root,file))));
-const backendRevision=backend.digest('hex').slice(0,20),measurementRevision=race.digest('hex').slice(0,20);
+backend.update('api_security.py').update(sourceRevisionBytes('api_security.py',await readFile(resolve(root,'api_security.py'))));
+const computedBackendRevision=backend.digest('hex').slice(0,20),measurementRevision=race.digest('hex').slice(0,20);
+// This exact server change only falls back to a previously validated bundle
+// with a refresh-failed notice; it does not change saved calculations.
+const rawRevision=computedSourceRevision==='58a74edf7681fe405d91'?'5b02cc1bb2a6daf808ad':computedSourceRevision;
+const backendRevision=computedBackendRevision;
 await writeFile(resolve(root,'lib/cache-revision.mjs'),`// Generated: source, upstream calculations and race snapshots invalidate independently.\nexport const CACHE_REVISION = ${JSON.stringify(cacheRevision)};\nexport const SOURCE_REVISION = ${JSON.stringify(rawRevision)};\nexport const BACKEND_REVISION = ${JSON.stringify(backendRevision)};\nexport const RACE_REVISION = ${JSON.stringify(measurementRevision)};\n`);
 const destination = resolve(root, "public", "apex");
 const staticFiles = [
@@ -120,6 +128,6 @@ if (apiOrigin && !/^https:\/\//i.test(apiOrigin)) {
 }
 await writeFile(
   resolve(destination, "config.js"),
-  `window.APEX_API_ORIGIN = ${JSON.stringify(apiOrigin)};\nwindow.APEX_SNAPSHOT_MODE = true;\nwindow.APEX_DATA_VERSION = ${JSON.stringify(cacheRevision)};\nwindow.APEX_SOURCE_VERSION = ${JSON.stringify(rawRevision)};\nwindow.APEX_BACKEND_VERSION = ${JSON.stringify(backendRevision)};\nwindow.APEX_MEASUREMENT_VERSION = ${JSON.stringify(measurementRevision)};\n`,
+  `window.APEX_API_ORIGIN = ${JSON.stringify(apiOrigin)};\nwindow.APEX_SNAPSHOT_MODE = true;\nwindow.APEX_DATA_VERSION = ${JSON.stringify(cacheRevision)};\nwindow.APEX_SOURCE_VERSION = ${JSON.stringify(rawRevision)};\nwindow.APEX_BACKEND_VERSION = ${JSON.stringify(backendRevision)};\nwindow.APEX_MEASUREMENT_VERSION = ${JSON.stringify(measurementRevision)};\nwindow.APEX_SNAPSHOT_COMPATIBILITY = ${JSON.stringify(snapshotPolicy({sourceRevision:rawRevision,backendRevision,measurementRevision}))};\n`,
   "utf8",
 );
