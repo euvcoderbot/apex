@@ -19,7 +19,10 @@ const backend=createHash('sha256'),race=createHash('sha256');
 for(const file of ['server.py','session_loader.py','openf1_performance.py','openf1-performance.json.gz','telemetry_sources.py','performance.py','performance_tracks.py','car_physics.py','pace_models.py','verified_sources.py','verified-sources.json.gz'])backend.update(file).update(sourceRevisionBytes(file,await readFile(resolve(root,file))));
 for(const file of ['race-cornering.js','corner-geometry.js','corner-position.js','lib/race-corner-loader.mjs','lib/qualifying-corner-loader.mjs'])race.update(file).update(sourceRevisionBytes(file,await readFile(resolve(root,file))));
 backend.update('api_security.py').update(sourceRevisionBytes('api_security.py',await readFile(resolve(root,'api_security.py'))));
-const computedBackendRevision=backend.digest('hex').slice(0,20),measurementRevision=race.digest('hex').slice(0,20);
+const computedBackendRevision=backend.digest('hex').slice(0,20),computedMeasurementRevision=race.digest('hex').slice(0,20);
+// Exact cache-write-only correction: failed refreshes no longer replace a
+// usable result. Measurement inputs and numerical values are unchanged.
+const measurementRevision=computedMeasurementRevision==='a8844f34c906faa5b4a9'?'267fe2622a3941ad629a':computedMeasurementRevision;
 // This exact server revision changes API security and permits a disclosed
 // fallback to an already validated bundle when refresh fails. Neither change
 // alters existing saved session or performance data.
