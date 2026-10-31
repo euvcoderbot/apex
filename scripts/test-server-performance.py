@@ -8,12 +8,30 @@ import time
 import threading
 import json
 import unittest
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import pandas as pd
 import server
 from fastapi import Response
+
+
+# These tests stand in for the network. They must not find real responses in the raw OpenF1 archive on the machine they run on
+# (~/apex-data/openf1), or they measure that archive instead of the code, so the archive is an empty folder for the whole module.
+_empty_archive = None
+
+
+def setUpModule():
+    global _empty_archive, _archive_patch
+    _empty_archive = TemporaryDirectory()
+    _archive_patch = patch.object(server, "RAW_ROOT", Path(_empty_archive.name))
+    _archive_patch.start()
+
+
+def tearDownModule():
+    _archive_patch.stop()
+    _empty_archive.cleanup()
 
 
 class RetrievalTests(unittest.TestCase):
