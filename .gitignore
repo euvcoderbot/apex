@@ -21,3 +21,5 @@ start-apex.bat
 # Claude Code session worktrees (separate checkouts of this repository)
 .claude/worktrees/
 tsconfig.tsbuildinfo
+test-results/
+playwright-report/
