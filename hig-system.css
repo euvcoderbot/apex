@@ -490,6 +490,7 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
    HIG Lists and tables / Buttons / Layout: readable headers, clear feedback,
    common alignment and spacing. Dimensions are this site's control tokens. */
 .corner-analysis-body { gap: 16px; }
+.view-error { padding: 12px 14px; border-radius: var(--hig-radius); background: var(--ui-well); color: var(--ui-secondary); font-size: var(--type-body); }
 #cornerPickerRow { padding: 16px; display: grid; gap: 16px; }
 #cornerPickerRow .circuit-section-group { margin: 0; padding: 0; border: 0; }
 .circuit-section-group > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 8px; }
