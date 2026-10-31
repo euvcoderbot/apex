@@ -27,9 +27,10 @@ and every component layer in `lib/ui-style-build.mjs`), so a component can read 
 | Materials | 8 | `--mat-bar`, `--mat-menu`, `--mat-blur-menu`, `--mat-edge` |
 | Legacy aliases | 35 + 17 | `--bg-card`, `--text-main`, `--accent`, `--border-color`, `--glass-fill`, `--shadow-main`, `--radius-card` |
 
-The legacy aliases are the names the older stylesheets (`design-system`, `apple-ui`, `workspace-ui`, `macos-ui`) read. Each
-resolves to a `--ui-*` role, so there is one value behind every name; the next step is to migrate those stylesheets to the
-role names and delete the aliases.
+The legacy aliases are the names the older stylesheets (`design-system`, `apple-ui`, `workspace-ui`, `macos-ui`) read.
+Of the ones checked, 25 are plain aliases of a `--ui-*` role (`--bg-card: var(--ui-panel)`); the rest hold their own values
+(the `--glass-*` set, `--scroll-thumb*`, `--shadow-main`, `--shadow-inset`). The next step is to migrate the older stylesheets
+to the role names and fold the remaining legacy values into roles or materials, then delete the aliases.
 
 ## Decisions this does not make
 
