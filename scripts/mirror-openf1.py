@@ -114,9 +114,12 @@ def run_once(args, wanted) -> int:
     """One pass over the finished sessions of a year. Returns the number of failed streams."""
     state = load_state()
     done_sessions = state["sessions"]
+    provisional = state.setdefault("provisional_sessions", {})
     # Cancelled sessions stay listed (2026: Bahrain and Saudi Arabia in April) but have no data.
     sessions = [s for s in server.openf1("sessions", year=args.year)
                 if s.get("session_name") in wanted and settled(s, 0 if args.include_recent else 6) and not s.get("is_cancelled")]
+    if getattr(args, 'session_key', None) is not None:
+        sessions = [s for s in sessions if str(s.get('session_key')) == str(args.session_key)]
     if args.gp:
         keys = {(server.openf1_session(args.year, args.gp, name) or {}).get("session_key") for name in wanted}
         sessions = [s for s in sessions if s.get("session_key") in keys]
@@ -127,16 +130,25 @@ def run_once(args, wanted) -> int:
         return 0
 
     jobs = []
+    incomplete_keys = set()
     for session in sessions:
         key = session["session_key"]
+        # Early captures are provisional. Re-fetch every stream once the
+        # correction window has elapsed, even if a provisional file exists.
+        final_refresh = str(key) in provisional and settled(session, SETTLE_HOURS)
         drivers = sorted({str(d["driver_number"]) for d in server.openf1("drivers", session_key=key) if d.get("driver_number") is not None}, key=int)
+        if not drivers:
+            # A newly finished session may exist before its driver list does.
+            # Never record it as complete just because there were no jobs.
+            incomplete_keys.add(key)
         known_empty = set(done_sessions.get(str(key), {}).get("empty", []))
         missing = [(endpoint, key, number) for number in drivers for endpoint in STREAMS
-                   if (args.refresh or not on_disk(endpoint, key, number)) and f"{endpoint}:{number}" not in known_empty]
+                   if (args.refresh or final_refresh or not on_disk(endpoint, key, number)) and f"{endpoint}:{number}" not in known_empty]
         label = f"{session.get('location') or session.get('circuit_short_name')} {session['session_name']}"
         print(f"{label:<34} {len(drivers):>2} drivers  {len(missing):>3} of {len(drivers)*len(STREAMS)} streams to fetch", flush=True)
         jobs += [(label, *job) for job in missing]
         session["_label"] = label
+        session["_final_refresh"] = final_refresh
     print(f"{len(sessions)} sessions, {len(jobs)} streams to fetch", flush=True)
     if args.dry_run:
         return 0
@@ -146,7 +158,8 @@ def run_once(args, wanted) -> int:
 
     def fetch(job):
         label, endpoint, key, number = job
-        return capture_stream(endpoint, key, number, include_recent=args.include_recent, refresh=args.refresh)
+        entry = next(s for s in sessions if s['session_key'] == key)
+        return capture_stream(endpoint, key, number, include_recent=args.include_recent, refresh=args.refresh or entry['_final_refresh'])
 
     with ThreadPoolExecutor(max_workers=max(1, args.workers), thread_name_prefix="mirror") as pool:
         futures = {pool.submit(fetch, job): job for job in jobs}
@@ -157,7 +170,13 @@ def run_once(args, wanted) -> int:
                 size += future.result()
             except Exception as error:  # keep going; a rerun retries what failed
                 if is_empty(error):
-                    empty.setdefault(key, []).append(f"{endpoint}:{number}")
+                    # Missing streams close to the finish may simply not have
+                    # arrived yet. Retry rather than recording them as empty.
+                    matching = next(s for s in sessions if s['session_key'] == key)
+                    if args.include_recent and not settled(matching, SETTLE_HOURS):
+                        failed.append((key, f"{label} #{number} {endpoint}: data not ready"))
+                    else:
+                        empty.setdefault(key, []).append(f"{endpoint}:{number}")
                 else:
                     failed.append((key, f"{label} #{number} {endpoint}: {error}"))
             if done % 10 == 0 or done == len(jobs):
@@ -166,19 +185,25 @@ def run_once(args, wanted) -> int:
                 print(f"{done}/{len(jobs)} streams  {size/1e6:.0f} MB  {elapsed/60:.1f} min elapsed  ~{eta/60:.0f} min left", flush=True)
     failed_keys = {key for key, _ in failed}
     if not args.refresh:
+        failed_keys.update(incomplete_keys)
         for session in sessions:
             key = session["session_key"]
+            if args.include_recent and not settled(session, SETTLE_HOURS):
+                provisional[str(key)] = {"label": session['_label'], "ready": key not in failed_keys,
+                                         "captured_at": datetime.now(timezone.utc).isoformat(timespec='seconds')}
+                continue
             if key in failed_keys:
                 continue  # incomplete: the next pass retries it
             entry = done_sessions.setdefault(str(key), {})
             entry.update({"label": session["_label"], "complete_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                           "empty": sorted(set(entry.get("empty", [])) | set(empty.get(key, [])))})
+            provisional.pop(str(key), None)
     save_state(state)
     for _, line in failed:
         print("failed:", line)
     print(f"done: {done-len(failed)-sum(map(len, empty.values()))} streams, {size/1e6:.0f} MB, "
           f"{sum(map(len, empty.values()))} empty at the source, {len(failed)} failed (run again to retry)", flush=True)
-    return len(failed)
+    return len(failed) + len(incomplete_keys)
 
 
 LOCK_NAME = "mirror-watch.lock"
@@ -249,6 +274,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--year", type=int, default=datetime.now().year)
     parser.add_argument("--gp", help="one Grand Prix, by its calendar name")
+    parser.add_argument("--session-key", help="only archive this exact OpenF1 session")
     parser.add_argument("--sessions", default=",".join(SESSIONS), help="comma-separated OpenF1 session names")
     parser.add_argument("--workers", type=int, default=3, help="concurrent downloads (pacing still applies)")
     parser.add_argument("--dry-run", action="store_true", help="list what is missing without downloading")

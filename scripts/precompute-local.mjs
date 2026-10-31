@@ -10,8 +10,15 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const args=process.argv.slice(2),arg=(name,fallback)=>{const i=args.indexOf(name);return i<0?fallback:args[i+1];};
 const year=Number(arg('--year','2026')),gp=arg('--gp','Singapore Grand Prix');
 const capturing=args.includes('--capture'),revisions={sourceRevision:SOURCE_REVISION,backendRevision:BACKEND_REVISION,measurementRevision:RACE_REVISION};
+const incomplete=[];
+function reportIncomplete(message){incomplete.push(message);console.warn(message);}
 const origin=`http://127.0.0.1:${Number(process.env.APEX_LOCAL_PORT||54123)}`;
-async function request(route,body){const r=await fetch(origin+route,{...(body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(180000)});const data=await r.json();if(!r.ok)throw new Error(data.detail||'Local calculation failed');return {data,cache:r.headers.get('X-Data-Cache')};}
+async function request(route,body){
+  if(args.includes('--fresh')){
+    if(body?.path)body={...body,refresh:true};
+    else if(route.startsWith('/api/qualifying-corners?')||route.startsWith('/api/race-corners?'))route+=(route.includes('?')?'&':'?')+'refresh=1';
+  }
+  const r=await fetch(origin+route,{...(body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(180000)});const data=await r.json();if(!r.ok)throw new Error(data.detail||'Local calculation failed');return {data,cache:r.headers.get('X-Data-Cache')};}
 const status=await request('/api/local-status').then(r=>r.data).catch(()=>null);
 if(status?.mode!=='local')throw new Error('Start start-local.cmd (or npm run local) before precomputing. No Vercel fallback was used.');
 if(capturing&&Object.entries(revisions).some(([k,v])=>status[k]!==v))throw new Error('Local server revisions do not match the checkout. Restart local compute before capturing.');
@@ -67,7 +74,7 @@ for(const subject of ['team','driver']){
   if(Object.keys(cornerResult.data.traces||{}).length)await capture('/api/qualifying-corners?'+query,cornerResult.data);
   const incomplete=Object.entries(cornerResult.data.traces||{}).filter(([,t])=>t.corner_missing?.length).map(([driver,t])=>({driver,corners:t.corner_missing}));
   console.log(JSON.stringify({subject,corners:cornerResult.cache,complete:cornerResult.data.complete,requested:cornerResult.data.requested,received:cornerResult.data.received,incomplete}));
-  if(!cornerResult.data.complete)console.warn(`Qualifying ${subject} corners are partial; missing measurements remain unavailable: ${cornerResult.data.error||JSON.stringify(incomplete)}`);
+  if(!cornerResult.data.complete)reportIncomplete(`Qualifying ${subject} corners are partial; missing measurements remain unavailable: ${cornerResult.data.error||JSON.stringify(incomplete)}`);
   if(args.includes('--race')){
     const planRoute='/api/race-corners?'+new URLSearchParams({...Object.fromEntries(query),cached:'1'});
     const plan=(await request(planRoute)).data;
@@ -76,22 +83,22 @@ for(const subject of ['team','driver']){
     let completed=cached.size,hits=cached.size;
     for(const group of (plan.groups||[]).filter(g=>!cached.has(g.lap+':'+g.compound+':'+g.cohort))){const route='/api/race-corners?'+new URLSearchParams({...Object.fromEntries(query),lap:group.lap,compound:group.compound,cohort:group.cohort});const r=await request(route);if(r.cache==='HIT')hits++;if(r.data.complete){completed++;await capture(route,r.data);}if(r.data.sourcePaused)throw new Error('Source rate limited. Completed work remains cached; retry later.');}
     await capture(planRoute,(await request(planRoute)).data);
-    if(completed!==(plan.groups||[]).length)console.warn(`Only ${completed}/${plan.groups?.length||0} race groups completed. Missing groups remain explicitly unsupported.`);
+    if(completed!==(plan.groups||[]).length)reportIncomplete(`Only ${completed}/${plan.groups?.length||0} race groups completed. Missing groups remain explicitly unsupported.`);
     console.log(JSON.stringify({subject,raceGroups:plan.groups?.length||0,completed,cacheHits:hits}));
   }
 }
 // The page's own parameters (car-performance.js loadPitData), so the exported file is the one it asks for.
-if(!args.includes('--qualifying-only'))try{await get('/api/performance/pits?'+new URLSearchParams({year,gp,source:'dhl-fallback-v2',schema:3}));}catch(e){console.warn('Pit data: '+e.message);}
+if(!args.includes('--qualifying-only'))try{const pits=await get('/api/performance/pits?'+new URLSearchParams({year,gp,source:'dhl-fallback-v2',schema:3}));if(pits.stationary_status!=='complete')reportIncomplete('Pit stationary timing remains partial.');}catch(e){reportIncomplete('Pit data: '+e.message);}
 // Session analysis summaries, with the page's own session names (session-state.js
 // currentQuery; the cache key ignores its data_schema field).
 for(const name of ['Qualifying','Sprint Qualifying','Sprint','Race']){
   if(args.includes('--qualifying-only') && name==='Race')continue;
   const date=event.session_dates?.[name];
   if(!date||Date.parse(date)>Date.now())continue;
-  try{await get('/api/session?'+new URLSearchParams({year,gp,round,session:name}));}catch(e){console.warn(`Session ${name}: `+e.message);}
+  try{await get('/api/session?'+new URLSearchParams({year,gp,round,session:name}));}catch(e){reportIncomplete(`Session ${name}: `+e.message);}
 }
 // The page's own parameters (car-performance.js), so the exported file is the one it asks for.
-if(event.session_dates?.Sprint)try{await get('/api/performance/sprint?'+new URLSearchParams({year,gp,session:'S',round}));}catch(e){console.warn('Sprint classification: '+e.message);}
+if(event.session_dates?.Sprint)try{await get('/api/performance/sprint?'+new URLSearchParams({year,gp,session:'S',round}));}catch(e){reportIncomplete('Sprint classification: '+e.message);}
 }catch(error){console.warn(JSON.stringify({gp,skipped:error.message}));if(targets.length===1)throw error;}
 }
 if(args.includes('--export-seed')){
@@ -116,4 +123,5 @@ if(args.includes('--export-seed')){
   await writeFile(filename,JSON.stringify({sourceRevision:SOURCE_REVISION,backendRevision:BACKEND_REVISION,raceRevision:RACE_REVISION,entries}));
   console.log(JSON.stringify({exportedEntries:Object.keys(entries).length,note:'Publish a normal Site release to share these compact cached results.'}));
 }
-console.log(JSON.stringify({done:true,events:targets.length,year,seconds:Math.round((Date.now()-start)/1000),method:batch.methodology_version,cars:Object.keys(batch.speed_domain?.cars||{}).length}));
+console.log(JSON.stringify({done:incomplete.length===0,partial:incomplete.length>0,events:targets.length,year,seconds:Math.round((Date.now()-start)/1000),method:batch.methodology_version,cars:Object.keys(batch.speed_domain?.cars||{}).length}));
+if(args.includes('--require-complete')&&incomplete.length){console.error(JSON.stringify({complete:false,incomplete}));process.exitCode=2;}

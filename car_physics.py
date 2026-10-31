@@ -35,7 +35,7 @@ import math
 import numpy as np
 
 G = 9.80665
-METHOD = 'speed-domain-v3-trace-integral'
+METHOD = 'speed-domain-v4-aero-unknown-integral'
 # Field-median apex speed thresholds, the same convention as performance_tracks.
 CORNER_BANDS = (('low', 0., 120.), ('medium', 120., 200.), ('high', 200., 300.))
 # Above this, a "corner" is flat out and not grip-limited for qualifying cars.
@@ -180,11 +180,14 @@ def lap_signals(a, track, pos=None):
     # closed-wing packets in one curve would compare different drag states,
     # so curves are built per state. Where the feed carries no aero state
     # (2026 active aero is not published) everything is one stratum.
-    drs_open = a[:, DRS] >= 10 if a.shape[1] > DRS else np.zeros(len(a), bool)
-    drs_open = np.nan_to_num(drs_open).astype(bool)
+    drs = a[:, DRS] if a.shape[1] > DRS else np.full(len(a), np.nan)
+    drs_open = np.isin(drs, [10, 12, 14])
+    drs_closed = np.isin(drs, [0, 1, 8])
+    drs_unknown = ~(drs_open | drs_closed)
     return {'speed_kmh': a[:, V], 'accel': accel, 'lateral_g': lateral_g,
             'full_throttle': window_all(full, lo, hi), 'exiting': window_all(exiting, lo, hi),
-            'drs_open': window_all(drs_open, lo, hi), 'drs_closed': window_all(~drs_open, lo, hi)}
+            'drs_open': window_all(drs_open, lo, hi), 'drs_closed': window_all(drs_closed, lo, hi),
+            'aero_unknown': window_all(drs_unknown, lo, hi)}
 
 
 NODE_KMH = 10.
@@ -231,14 +234,17 @@ def simulate_straight(nodes, curve, v0_kmh, distance_m, fallback, step=2.):
     ref_v, ref_a = nodes/3.6, fallback
     offset = known_a[-1]-np.interp(known_v[-1], ref_v, ref_a)
     v, t, extrapolated = v0_kmh/3.6, 0., False
-    for _ in range(int(distance_m/step)):
+    if not math.isfinite(distance_m) or distance_m < 0 or not math.isfinite(step) or step <= 0:
+        raise ValueError('Distance must be non-negative and step must be positive')
+    for i in range(math.ceil(distance_m/step)):
+        ds = min(step, distance_m-i*step)
         if v <= known_v[-1]:
             a = float(np.interp(v, known_v, known_a))
         else:
             a = float(np.interp(v, ref_v, ref_a))+offset
             extrapolated = True
-        v_next = math.sqrt(max(v*v+2*a*step, (5/3.6)**2))
-        t += 2*step/(v+v_next)
+        v_next = math.sqrt(max(v*v+2*a*ds, (5/3.6)**2))
+        t += 2*ds/(v+v_next)
         v = v_next
     return t, v*3.6, extrapolated
 
@@ -509,12 +515,12 @@ def in_ranges(pos, ranges):
     return mask
 
 
-def car_apex(a, pos, corner):
+def car_apex(a, pos, corner, minima=None):
     """This car's own speed minimum inside the corner's extent, or None."""
     if corner.get('flat_load'):
         return _flat_bend_speed(a, pos, corner)
     inside = (pos >= corner['start_m']) & (pos <= corner['end_m'])
-    candidates = [i for i in speed_minima(a) if inside[i]]
+    candidates = [i for i in (speed_minima(a) if minima is None else minima) if inside[i]]
     if not candidates:
         # Fast corners can have a broad, almost constant-speed apex: requiring
         # another 6 km/h dip in every car removes valid packets at the same bend.
@@ -1108,7 +1114,7 @@ def speed_domain_metrics(cars, corners=()):
     reference_ranges = {}
 
     # --- straight line and traction: equal-speed acceleration ---------------
-    states = ('drs_closed', 'drs_open')
+    states = ('drs_closed', 'drs_open', 'aero_unknown')
     ranges = (('traction', TRACTION_RANGE), ('straight_mid', STRAIGHT_MID_RANGE), ('straight_top', STRAIGHT_TOP_RANGE))
     accel_fits = {(key, state): {} for key, _ in ranges for state in states}
     nodes, fades = {}, {}
@@ -1162,6 +1168,7 @@ def speed_domain_metrics(cars, corners=()):
 
     # --- corners and braking, corner by corner ------------------------------
     corner_rows = []
+    minima_by_lap = {id(a): speed_minima(a) for values in projected.values() for a, _ in values}
     for corner in segments['corners']:
         # A low-load bend the field takes flat out is limited by power and
         # energy deployment, not grip: its "apex" speed is straight-line speed
@@ -1173,7 +1180,7 @@ def speed_domain_metrics(cars, corners=()):
         for name, values in projected.items():
             apexes, brakes = [], []
             for a, p in values:
-                apex = car_apex(a, p, corner)
+                apex = car_apex(a, p, corner, minima_by_lap[id(a)])
                 if apex:
                     apexes.append(apex)
                     if corner['braked'] and (b := braking_into(a, p, corner, apex)):

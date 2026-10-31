@@ -41,5 +41,18 @@
       return (typeof av==='number'&&typeof bv==='number'?av-bv:String(av).localeCompare(String(bv)))*direction;
     });
   }
-  root.ApexAnalysis=Object.freeze({version,definitions,preference,savePreference,format,observedBrake,observedDRS,sortRows});
+  function metricCoverage(events, metric, subject='team', session='qualy') {
+    const supported=events.filter(event=>{
+      if(['corners','straight','braking'].includes(metric)) {
+        if(metric==='corners'&&session==='race')return Boolean(event.raceCorners?.[subject]?.traces&&Object.keys(event.raceCorners[subject].traces).length);
+        return Boolean(event.speedDomain?.[subject]?.cars&&Object.keys(event.speedDomain[subject].cars).length);
+      }
+      if(metric==='pits')return Boolean(event.pits?.visits?.length);
+      if(['tyres','results'].includes(metric))return Boolean(event.R?.teams?.length);
+      if(metric==='pace')return Boolean(event.Q?.teams?.length||event.R?.teams?.length);
+      return Boolean(event.Q?.teams?.length);
+    }).length;
+    return supported;
+  }
+  root.ApexAnalysis=Object.freeze({version,definitions,preference,savePreference,format,observedBrake,observedDRS,sortRows,metricCoverage});
 })(typeof window==='object'?window:globalThis);
