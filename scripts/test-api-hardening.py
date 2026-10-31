@@ -1,5 +1,6 @@
 """The Python API is read from the published site and from this machine only, and never serves source."""
 import asyncio
+import json
 from pathlib import Path
 import sys
 import unittest
@@ -15,6 +16,9 @@ class FakeRequest:
 
     async def json(self):
         return self._payload
+
+    async def stream(self):
+        yield json.dumps(self._payload).encode()
 
 
 def development(payload, length=None):
@@ -73,6 +77,27 @@ class DevelopmentEndpointTests(unittest.TestCase):
             performance.compute_development_progression = original
         self.assertEqual(caught.exception.status_code, 422)
         self.assertNotIn('secret', caught.exception.detail)
+
+    def test_body_limit_is_enforced_without_content_length(self):
+        self.rejected({'teams': [], 'padding': 'x' * 1_000_001}, status=413)
+
+    def test_allowed_post_preflight_and_rejected_foreign_origin(self):
+        from starlette.middleware.cors import CORSMiddleware
+        from starlette.datastructures import Headers
+        options=next(m.kwargs for m in server.app.user_middleware if m.cls.__name__=='CORSMiddleware')
+        middleware=CORSMiddleware(server.app, **options)
+        def preflight(origin):
+            return middleware.preflight_response(Headers({'origin':origin,'access-control-request-method':'POST','access-control-request-headers':'content-type'}))
+        self.assertEqual(preflight('https://f1apexdata.eufrandota14.chatgpt.site').status_code,200)
+        self.assertEqual(preflight('https://evil.example').status_code,400)
+
+    def test_global_error_has_an_opaque_request_id(self):
+        from types import SimpleNamespace
+        response=asyncio.run(server.unexpected_error(SimpleNamespace(url=SimpleNamespace(path='/api/test')),RuntimeError('SECRET')))
+        payload=json.loads(response.body)
+        self.assertEqual(payload['detail'],'Internal server error')
+        self.assertEqual(payload['request_id'],response.headers['X-Request-ID'])
+        self.assertNotIn('SECRET',response.body.decode())
 
     def test_a_valid_request_still_works(self):
         self.assertEqual(development({'teams': []}), {'results': {}})
