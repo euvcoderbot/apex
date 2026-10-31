@@ -387,13 +387,15 @@ async function loadRealSession() {
   } catch (error) {
     if (error.name !== 'AbortError') notify(`Could not load this session. ${error.message}`);
   } finally {
-    if (request !== sessionRequest) return;
-    setSessionLoading(false);
-    button.disabled = false;
-    button.classList.remove('is-loading');
-    button.removeAttribute('aria-busy');
-    button.removeAttribute('aria-label');
-    button.textContent = 'Load session';
+    // A newer request owns the button now. (No return here: a return in finally would swallow an error in flight.)
+    if (request === sessionRequest) {
+      setSessionLoading(false);
+      button.disabled = false;
+      button.classList.remove('is-loading');
+      button.removeAttribute('aria-busy');
+      button.removeAttribute('aria-label');
+      button.textContent = 'Load session';
+    }
   }
 }
 

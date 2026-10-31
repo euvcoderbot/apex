@@ -241,11 +241,12 @@ async function loadRaceCorners(automatic=false) {
       render();
     }
   } finally {
-    if(id!==generation)return;
-    raceCornerRunning=false;
-    updateStatus(signal.aborted?'Race cornering stopped; completed observations retained.':sourcePaused?'Race source busy. Cached results retained; retry after one minute.':'Race cornering · available groups processed and cached.');
-    render();
-    if(!signal.aborted)loadActiveTelemetry();
+    if(id===generation){
+      raceCornerRunning=false;
+      updateStatus(signal.aborted?'Race cornering stopped; completed observations retained.':sourcePaused?'Race source busy. Cached results retained; retry after one minute.':'Race cornering · available groups processed and cached.');
+      render();
+      if(!signal.aborted)loadActiveTelemetry();
+    }
   }
 }
 
