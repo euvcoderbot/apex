@@ -18,6 +18,7 @@ import {copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile} from 'n
 import {gunzipSync} from 'node:zlib';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {mergeLocalCaptures} from '../lib/local-captures.mjs';
 
 const read = async file => readFile(file, 'utf8').then(JSON.parse);
 const exists = file => stat(file).then(() => true, () => false);
@@ -76,9 +77,22 @@ export async function plan(from, to) {
   // The calendar carries each session's status; take the preparing checkout's when it is newer and complete.
   let calendar = null;
   const fromCal = path.join(data(from), 'events', '2026.json'), toCal = path.join(data(to), 'events', '2026.json');
-  if (await exists(fromCal) && await newer(fromCal, toCal)) {
+  if (await exists(fromCal)) {
     const a = await read(fromCal), b = await read(toCal).catch(() => []);
-    if ((a.events || a).length >= (b.events || b).length) calendar = {file: '2026.json', rounds: (a.events || a).length};
+    const sourceEvents=a.events || a, targetEvents=b.events || b;
+    // Git checkout times are not capture times. Preserve previously confirmed
+    // session statuses if the new calendar omits them or still says upcoming.
+    const sameEvents=targetEvents.every(old=>sourceEvents.some(e=>e.round===old.round&&e.name===old.name));
+    const merged=sourceEvents.map(current=>{
+      const old=targetEvents.find(e=>e.round===current.round&&e.name===current.name);
+      const statuses={...current.session_statuses};
+      for(const [name,status] of Object.entries(old?.session_statuses||{}))
+        if(['completed','cancelled'].includes(status)&&(!statuses[name]||statuses[name]==='upcoming'))statuses[name]=status;
+      return Object.keys(statuses).length?{...current,session_statuses:statuses}:current;
+    });
+    const mergedCalendar=Array.isArray(a)?merged:{...a,events:merged};
+    if (sameEvents && sourceEvents.length >= targetEvents.length && JSON.stringify(mergedCalendar)!==JSON.stringify(b))
+      calendar = {file: '2026.json', rounds: sourceEvents.length, data:mergedCalendar};
   }
   return {problems, captures, packs, calendar, wanted, fromCaptures, toCaptures, fromPacks, toPacks, siteMatches};
 }
@@ -104,7 +118,17 @@ export async function apply(from, to, p) {
     if (superseded) await rm(path.join(data(to), 'local-telemetry', superseded), {force: true});
   }
   await writeFile(path.join(data(to), 'local-telemetry', 'index.json'), JSON.stringify(packs));
-  if (p.calendar) await put(path.join(data(from), 'events', p.calendar.file), path.join(data(to), 'events', p.calendar.file));
+  if (p.calendar) {
+    const source=path.join(data(from), 'events', p.calendar.file);
+    const target=path.join(data(to), 'events', p.calendar.file);
+    await writeFile(target+'.tmp',JSON.stringify(p.calendar.data));
+    await rename(target+'.tmp',target);
+    // The published snapshot loader prefers the captured /api/events entry
+    // over events/2026.json. Update both or newly prepared sessions stay hidden.
+    const calendar=p.calendar.data;
+    await mergeLocalCaptures(to, p.wanted, [{route:'/api/events?year=2026',data:calendar.events || calendar,
+      capturedAt:(await stat(source)).mtime.toISOString()}]);
+  }
 }
 
 function describe(p) {
