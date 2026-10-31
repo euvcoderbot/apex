@@ -26,6 +26,7 @@ jobs:
         with:
           python-version: '3.12' # Node capture tests use the stdlib OS-lock holder.
       - run: npm ci
+      - run: npm run source:check
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test

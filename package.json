@@ -20,11 +20,12 @@
     "build": "vinext build",
     "start": "vinext start",
     "site:sync-prepared": "node scripts/sync-prepared-sessions.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit --noUnusedLocals --noUnusedParameters",
     "lint": "eslint .",
     "test": "node --test",
     "test:py": "node scripts/run-python-tests.mjs",
     "release:check": "node scripts/check-release.mjs",
+    "source:check": "node scripts/check-source-tree.mjs",
     "test:e2e": "playwright test --grep-invert @visual",
     "test:visual": "playwright test --grep @visual --project=chromium"
   },
