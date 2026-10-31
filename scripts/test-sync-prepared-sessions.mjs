@@ -39,7 +39,7 @@ test('a new session is added with its lap packs; nothing else changes', async ()
   assert.deepEqual(p.packs.map(c => [c.action, c.identity]), [['add', '2026:B:P1:VER']]);
   await apply(prepared.root, site.root, p);
   const captures = await index(site, 'local-captures'), packs = await index(site, 'local-telemetry');
-  assert.deepEqual(Object.keys(captures.entries).sort(), ['/api/session?gp=A', '/api/session?gp=B']);
+  assert.deepEqual(Object.keys(captures.entries).sort(), ['/api/events?year=2026', '/api/session?gp=A', '/api/session?gp=B']);
   assert.equal(captures.sourceRevision, 'src1');
   assert.notEqual(captures.generated, 'old');
   assert.deepEqual(Object.keys(packs.entries).sort(), ['2026:A:Q:VER', '2026:B:P1:VER']);
@@ -80,6 +80,22 @@ test('prepared data built for other code revisions is refused', async () => {
   const result = (() => { try { execFileSync(process.execPath, ['scripts/sync-prepared-sessions.mjs', '--from', prepared.root, '--to', site.root, '--apply'], {stdio: 'pipe'}); return 0; } catch (e) { return e.status; } })();
   assert.equal(result, 1, 'the command exits non-zero and writes nothing');
   assert.deepEqual(Object.keys((await index(site, 'local-captures')).entries), []);
+  await Promise.all([site.cleanup(), prepared.cleanup()]);
+});
+
+test('calendar completion is carried over even when the site checkout has a newer mtime', async () => {
+  const site = await release({}, {}, {calendar: [{round: 1, name:'GP', session_statuses:{'Practice 1':'upcoming'}}]});
+  const prepared = await release({}, {}, {calendar: [{round: 1, name:'GP', session_statuses:{'Practice 1':'completed'}}]});
+  await utimes(path.join(site.data, 'events', '2026.json'), new Date(Date.now()+60_000), new Date(Date.now()+60_000));
+  const p = await plan(prepared.root, site.root);
+  assert.ok(p.calendar, 'completed session is not masked by checkout timestamps');
+  await apply(prepared.root, site.root, p);
+  assert.equal(JSON.parse(await readFile(path.join(site.data, 'events', '2026.json'), 'utf8'))[0].session_statuses['Practice 1'], 'completed');
+  const entry=(await index(site, 'local-captures')).entries['/api/events?year=2026'];
+  const captured=JSON.parse((await import('node:zlib')).gunzipSync(await readFile(path.join(site.data, 'local-captures',entry.file))).toString());
+  assert.equal(captured[0].session_statuses['Practice 1'], 'completed');
+  const reverse = await plan(site.root, prepared.root);
+  assert.equal(reverse.calendar, null);
   await Promise.all([site.cleanup(), prepared.cleanup()]);
 });
 
