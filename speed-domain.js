@@ -94,7 +94,8 @@ export function speedDomainPhases(events, subject, band) {
   const sums = new Map();
   for (const event of events) {
     const cars = Object.entries(event.speedDomain?.[subject]?.cars || {})
-      .map(([name, car]) => [name, car.cornering?.[band]]).filter(([, b]) => b && b.index !== null && b.phases_s);
+      // A car is in the breakdown only with all three phases measured. A missing one is not zero seconds.
+      .map(([name, car]) => [name, car.cornering?.[band]]).filter(([, b]) => b && b.index !== null && ['braking', 'mid', 'exit'].every(k => finite(b.phases_s?.[k])));
     if (cars.length < 3) continue;
     const centre = Object.fromEntries(['braking', 'mid', 'exit'].map(k => [k, median(cars.map(([, b]) => b.phases_s[k]))]));
     for (const [name, b] of cars) {

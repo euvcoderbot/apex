@@ -113,3 +113,36 @@ test('Car performance with no data says which sessions failed and stays usable',
   await expect(analyse, 'the person can try again').toBeEnabled();
   await expect(page.locator('.track-pill').first()).toHaveAttribute('title', /Grand Prix/);
 });
+
+// A person can change their mind while a session loads. The slow answer to the first request must not replace the second.
+const driver = (code, number, name, team, colour, position) => ({code, number, name, team, team_color: colour, position, laps: []});
+const payloads = {
+  'Practice 1': {event: 'Australian Grand Prix', session: 'Practice 1', year: 2026, drivers: [driver('VER', '1', 'Max Verstappen', 'Red Bull Racing', '#3671C6', 1), driver('NOR', '4', 'Lando Norris', 'McLaren', '#FF8000', 2)], corners: [], compounds: []},
+  'Practice 2': {event: 'Australian Grand Prix', session: 'Practice 2', year: 2026, drivers: [driver('LEC', '16', 'Charles Leclerc', 'Ferrari', '#E8002D', 1), driver('HAM', '44', 'Lewis Hamilton', 'Ferrari', '#E8002D', 2)], corners: [], compounds: []},
+};
+async function serveSessions(page, delays) {
+  await page.route('**/api/data**', async route => {
+    const path = new URL(route.request().url()).searchParams.get('path') || '';
+    const name = /session=Practice\+1|session=Practice%201/.test(path) ? 'Practice 1' : /session=Practice\+2|session=Practice%202/.test(path) ? 'Practice 2' : null;
+    if (!name || !path.startsWith('/api/session')) return route.fulfill({status: 404, contentType: 'application/json', body: '{"detail":"not available in tests"}'});
+    await new Promise(resolve => setTimeout(resolve, delays[name] || 0));
+    await route.fulfill({contentType: 'application/json', body: JSON.stringify(payloads[name])}).catch(() => {});
+  });
+}
+const driversShown = page => page.locator('#driverPills .driver-pill').evaluateAll(list => list.map(el => el.dataset.code));
+
+test('a slow answer to an earlier session request does not replace the later one', async ({page}) => {
+  await open(page);
+  await serveSessions(page, {'Practice 1': 2500, 'Practice 2': 0});
+  const session = page.getByRole('combobox', {name: 'Session'});
+  const load = page.getByRole('button', {name: 'Load session'});
+  const choose = async name => { await session.click(); await page.getByRole('option', {name}).click(); };
+  await choose('Practice 1');
+  await load.click();
+  await choose('Practice 2');
+  await load.click();
+  await expect.poll(() => driversShown(page), {timeout: 10_000}).toEqual(['LEC', 'HAM']);
+  await page.waitForTimeout(3500);
+  expect(await driversShown(page), 'the slow first answer arrived and was ignored').toEqual(['LEC', 'HAM']);
+  await expect(load, 'the button is usable again').toBeEnabled();
+});
