@@ -48,14 +48,14 @@ test('a new session is added with its lap packs; nothing else changes', async ()
   await Promise.all([site.cleanup(), prepared.cleanup()]);
 });
 
-test('a newer capture replaces an older one and removes the superseded file; an older one never wins', async () => {
+test('a newer capture replaces an older one without deleting the superseded file; an older one never wins', async () => {
   const site = await release({'/api/x': ['old.json.gz', '2026-10-28T00:00:00Z', {v: 1}], '/api/y': ['y-new.json.gz', '2026-10-30T00:00:00Z', {v: 'site'}]});
   const prepared = await release({'/api/x': ['fresh.json.gz', '2026-10-29T00:00:00Z', {v: 2}], '/api/y': ['y-old.json.gz', '2026-10-27T00:00:00Z', {v: 'stale'}]});
   const p = await plan(prepared.root, site.root);
   assert.deepEqual(p.captures.map(c => [c.action, c.key]), [['replace', '/api/x']]);
   await apply(prepared.root, site.root, p);
   const files = await readdir(path.join(site.data, 'local-captures'));
-  assert.ok(files.includes('fresh.json.gz') && !files.includes('old.json.gz'), 'the replaced file is removed');
+  assert.ok(files.includes('fresh.json.gz') && files.includes('old.json.gz'), 'the replaced file is preserved');
   assert.ok(files.includes('y-new.json.gz'), 'the newer site capture stays');
   assert.equal((await index(site, 'local-captures')).entries['/api/y'].file, 'y-new.json.gz');
   await Promise.all([site.cleanup(), prepared.cleanup()]);
@@ -109,4 +109,14 @@ test('an unreadable snapshot file is never copied, and a dry run writes nothing'
   assert.match(dry, /Dry run/);
   assert.deepEqual(await readdir(path.join(site.data, 'local-captures')), ['index.json'], 'nothing was written');
   await Promise.all([site.cleanup(), prepared.cleanup(), good.cleanup()]);
+});
+
+test('applying an unchanged sync leaves the index untouched', async () => {
+  const site = await release();
+  const prepared = await release();
+  const before = await readFile(path.join(site.data, 'local-captures', 'index.json'), 'utf8');
+  const output=execFileSync(process.execPath, ['scripts/sync-prepared-sessions.mjs', '--from', prepared.root, '--to', site.root, '--apply']).toString();
+  assert.match(output, /Already up to date/);
+  assert.equal(await readFile(path.join(site.data, 'local-captures', 'index.json'), 'utf8'),before);
+  await Promise.all([site.cleanup(), prepared.cleanup()]);
 });
