@@ -17,27 +17,28 @@ and every component layer in `lib/ui-style-build.mjs`), so a component can read 
    `UPDATE_TOKENS=1 npm run test:e2e -- tokens` and review the diff of that file. Moving a token between files must leave it
    untouched.
 
-## What is in it (155 tokens)
+## What is in it
 
-| Family | Count | Examples |
-|---|---|---|
-| UI roles | 71 | `--ui-label`, `--ui-canvas`, `--ui-panel`, `--ui-accent`, `--ui-control-height`, `--ui-sidebar-width` |
-| Control sizes, radii, state fills, motion | 17 | `--hig-regular`, `--hig-radius`, `--hig-fast` |
-| Type ramp | 7 | `--type-caption` … `--type-title1` |
-| Materials | 8 | `--mat-bar`, `--mat-menu`, `--mat-blur-menu`, `--mat-edge` |
-| Legacy aliases | 35 + 17 | `--bg-card`, `--text-main`, `--accent`, `--border-color`, `--glass-fill`, `--shadow-main`, `--radius-card` |
+Reference scales, then roles built on them:
 
-The legacy aliases are the names the older stylesheets (`design-system`, `apple-ui`, `workspace-ui`, `macos-ui`) read.
-Of the ones checked, 25 are plain aliases of a `--ui-*` role (`--bg-card: var(--ui-panel)`); the rest hold their own values
-(the `--glass-*` set, `--scroll-thumb*`, `--shadow-main`, `--shadow-inset`). The next step is to migrate the older stylesheets
-to the role names and fold the remaining legacy values into roles or materials, then delete the aliases.
+| Tier | Tokens |
+|---|---|
+| Radius scale | `--radius-2xs` 2, `-xs` 4, `-sm` 6, `-md` 8, `-lg` 12, `-xl` 16 px, `-pill`. Concentric: a card (xl) holds controls (md); a menu (lg) holds rows (sm); a segmented track (md) holds a thumb (sm) inset 2 px. |
+| Motion scale | `--motion-tier-fast` 150 ms (hover, press, selection), `-standard` 220 ms (something moves or opens), `-slow` 320 ms (sheet, bar, view); `--ease-standard`, `--ease-out`, `--ease-in`, `--ease-spring`. Apple publishes no numeric motion values; these are perceptual tunings. |
+| Type ramp | `--type-caption` 12, `-callout` 13, `-body` 14, `-headline` 15, `-title3` 17, `-title2` 22, `-title1` 28 px |
+| UI roles | `--ui-label`, `--ui-canvas`, `--ui-panel`, `--ui-accent`, `--ui-control-height`, `--ui-sidebar-width` and the rest of the `--ui-*` set |
+| Controls | `--hig-regular`, `--hig-small`, `--hig-radius*`, `--hig-fast`, `--hig-medium` (now aliases of the scales above) |
+| Materials | `--mat-bar`, `--mat-menu`, `--mat-blur-menu`, `--mat-edge`, ... |
 
-## Decisions this does not make
+The old colour, radius, shadow and font names (`--bg-card`, `--text-main`, `--accent`, `--font-sans` and 23 others) were
+rewritten to their `--ui-*` roles and deleted. What still carries its own value from the first design: the `--glass-*` set,
+`--scroll-thumb*`, `--shadow-main`, `--shadow-inset`, and the `--material-*` set in `workspace-ui.css` (blue-tinted, to be
+checked for use and then folded into materials or removed).
 
-Collapsing duplicates changes no pixel. Choosing *values* does, and is a design decision with its own milestone:
+## Decisions still open
 
-- **Radii.** The stylesheets use 14 literal corner radii (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14 px, 999 px, 50%). Native macOS
-  uses contextual, concentric geometry, so the target is a short scale plus container-derived inner radii, not one number.
-- **Type sizes.** 12+ literal sizes, including values below 10 px that need inspection.
-- **Motion.** 16 durations and 9 curves; milestone 3.
-- **Materials.** Defined once here (`--mat-*`); their placement and interactive behaviour belong to milestone 4.
+- **Type sizes.** 147 literal px sizes were tied to the ramp at the same size. The `rem` sizes were not: the root font size is
+  18 px, so `.875rem` is 15.75 px and `.75rem` is 13.5 px, a second set of sizes that a ramp change would move visibly.
+  The 77 declarations below 10 px sit in `design-system.css` and `polish.css`, the two oldest sheets, and are probably overridden.
+- **Motion beyond the scale.** Interruptible animation, anchoring popovers to their trigger and interactive glass are the next
+  motion work. Spinner durations (0.7 to 1.2 s) and a few stagger delays stay literal.
