@@ -147,9 +147,9 @@ function replaceUI(root, html) {
     const dx = old ? (old.rect.left - next.left) / pageZoom : 0;
     const dy = old ? (old.rect.top - next.top) / pageZoom : 6;
     if (!old || Math.abs(dx) + Math.abs(dy) > 1) {
-      const animation=node.animate([{ opacity: old ? 1 : 0, transform: `translate(${dx}px, ${dy}px)` },
-        { opacity: 1, transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.22,.68,0,1)' });
-      window.ApexMotion?.track(animation);
+      const frames = [{ opacity: old ? 1 : 0, transform: `translate(${dx}px, ${dy}px)` }, { opacity: 1, transform: 'none' }];
+      const timing = { duration: 280, easing: 'cubic-bezier(.22,.68,0,1)' };
+      if (window.ApexMotion) window.ApexMotion.animate(node, frames, timing, 'flip'); else node.animate(frames, timing);
     }
   }
 }

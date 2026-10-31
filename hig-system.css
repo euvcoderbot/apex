@@ -504,6 +504,9 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   [data-glass]:is(button, .performance-tabs):hover:not(:disabled) { background-image: none; }
 }
+/* The person's own switch (glass.js, setIntensity): no highlight and no press response. */
+:root[data-glass-off] [data-glass]:is(button, .performance-tabs):hover:not(:disabled) { background-image: none; }
+:root[data-glass-off] [data-glass][data-ui-kind]:active:not(:disabled) { transform: none; }
 @media (prefers-reduced-motion: reduce) {
   [data-glass][data-ui-kind]:active:not(:disabled) { transform: none; }
 }
