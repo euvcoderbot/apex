@@ -592,8 +592,9 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 .corner-measurement-table .corner-driver .team-logo,.corner-measurement-table .corner-driver .team-logo img { width: 18px; height: 18px; flex: 0 0 18px; }
 .corner-measurement-table .corner-driver .team-logo-official > .team-logo-color { display: none; }
 .corner-measurement-table .corner-driver .team-logo-official > .team-logo-mono { display: block; }
-.corner-measurement-table .corner-driver .team-logo img { filter: brightness(0) invert(1); }
-:root[data-theme="light"] .corner-measurement-table .corner-driver .team-logo img { filter: brightness(0); }
+/* The table is monochrome: the real white mark on dark, the real black mark on light (not a flattened silhouette of the colour one). */
+:root[data-theme="light"] .corner-measurement-table .corner-driver .team-logo-official > .team-logo-mono { display: none; }
+:root[data-theme="light"] .corner-measurement-table .corner-driver .team-logo-official > .team-logo-black { display: block; }
 .corner-measurement-table .corner-driver small { font: 400 var(--type-caption)/1.4 var(--ui-font); color: var(--ui-secondary); }
 .corner-measurement-table .corner-driver em { font-style: normal; }
 .corner-measurement-table td strong { display: block; font-size: var(--type-body); line-height: 1.4; font-weight: 500; color: inherit; }
