@@ -22,10 +22,6 @@ class FakeRequest:
         for part in self._chunks:
             yield part
 
-    async def stream(self):
-        yield json.dumps(self._payload).encode()
-
-
 def development(payload, length=None, **body):
     return asyncio.run(server.car_development_progression(FakeRequest(payload, length, **body), server.Response()))
 
