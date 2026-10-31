@@ -4,6 +4,13 @@ The public site reads locally prepared timing, native telemetry, and supported
 performance/corner measurements without a hosted telemetry API. These are
 captured snapshots, not live streaming or an automatic publication job.
 
+The installed session scheduler stages validated prepared data into the current
+Site checkout (`site-claude-oct31` alongside the local preparing checkout) after
+each exported session and on recovery runs. Set `APEX_SITE_CHECKOUT` if the
+checkout moves. Staging does not build or publish the Site; use the Sites
+release workflow to make changes visible to visitors. Failed preparation or
+sync is logged to `~/apex-data/session-archive.log` and retried.
+
 Start the local server from this checkout, then prepare a completed qualifying:
 
 ```powershell
