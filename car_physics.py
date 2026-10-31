@@ -247,6 +247,8 @@ def acceleration_index(curves, nodes, v_start, v_end=None, distance_m=None):
     speed, where comparing 1/acceleration would amplify noise without bound
     (2026 power units taper to ~0 g long before the end of a straight).
     """
+    if v_end is None and distance_m is None:
+        raise ValueError('acceleration_index needs v_end or distance_m to define the straight')
     names = [n for n in curves if curves[n] is not None]
     if len(names) < 3:
         return {}, None

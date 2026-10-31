@@ -297,5 +297,18 @@ class MappedFastCornerTests(unittest.TestCase):
         for key in ('grip_limited', 'flat_load', 'braked'):
             self.assertIs(type(corners[0][key]), bool, key)
 
+class AccelerationIndexContractTests(unittest.TestCase):
+    def test_the_straight_needs_an_end_speed_or_a_distance(self):
+        from car_physics import acceleration_index
+        nodes = np.arange(105., 300., 10.)
+        curves = {name: np.linspace(8, 1, len(nodes)) + i * .1 for i, name in enumerate("ABCD")}
+        with self.assertRaisesRegex(ValueError, "v_end or distance_m"):
+            acceleration_index(curves, nodes, 150.)
+        index, info = acceleration_index(curves, nodes, 150., v_end=250.)
+        self.assertTrue(info and info["distance_m"] > 20)
+        index, info = acceleration_index(curves, nodes, 150., distance_m=400.)
+        self.assertAlmostEqual(info["distance_m"], 400.)
+
+
 if __name__ == '__main__':
     unittest.main()
