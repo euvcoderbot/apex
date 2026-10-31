@@ -162,6 +162,19 @@ button[data-ui-kind="toolbar"] {
   height: var(--hig-regular); min-height: var(--hig-regular); min-width: var(--hig-regular); border: 0; border-radius: var(--hig-radius);
   background: transparent; box-shadow: none; color: var(--ui-secondary);
 }
+/* The local status contains text directly, unlike the icon-only toolbar buttons.
+   Do not squeeze it into the compact 30px toolbar width and let it overlap. */
+.site-header .workspace-tools button.local-compute-status[data-ui-kind="toolbar"] {
+  flex: 0 0 auto;
+  width: max-content;
+  min-width: max-content;
+}
+@media (max-width: 860px) {
+  .site-header .workspace-tools button.local-compute-status[data-ui-kind="toolbar"] {
+    width: 32px;
+    min-width: 32px;
+  }
+}
 button[data-ui-kind="toolbar"]:hover:not(:disabled) { background: var(--hig-seg-hover); color: var(--ui-label); }
 button[data-ui-kind="toolbar"]:active:not(:disabled),button[data-ui-kind="toolbar"][aria-pressed="true"] { background: color-mix(in srgb, var(--ui-label) 12%, transparent); color: var(--ui-label); }
 button[data-ui-kind="icon"] { border-radius: 50%; }
