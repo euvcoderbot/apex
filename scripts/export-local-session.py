@@ -9,10 +9,12 @@ from datetime import datetime, timezone
 import gzip
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
 from urllib.parse import urlencode
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,8 +48,41 @@ def merge_session_export(root, year, gp, round_number, session, payload):
     (folder/filename).write_bytes(packed)
     manifest['entries'][query] = filename
     manifest.setdefault('captures', {})[query] = payload['local_export']
+    # Captures are timestamped snapshots, not a promise of live freshness.
+    manifest.get('expires', {}).pop(query, None)
     manifest['generated'] = datetime.now(timezone.utc).isoformat()
-    target.write_text(json.dumps(manifest,separators=(',',':')),encoding='utf-8')
+    temp = target.with_name('index.json.tmp')
+    temp.write_text(json.dumps(manifest,separators=(',',':')),encoding='utf-8')
+    temp.replace(target)
+    return query
+
+
+def merge_local_session_capture(root,year,gp,round_number,session,payload):
+    folder=root/'assets/data/local-captures';folder.mkdir(parents=True,exist_ok=True)
+    target=folder/'index.json'
+    lock=folder/'index.lock'
+    try: descriptor=os.open(lock,os.O_CREAT|os.O_EXCL|os.O_WRONLY)
+    except FileExistsError: raise ValueError('Another capture is updating the index; retry after it finishes')
+    try:
+        return _merge_locked_session_capture(root,year,gp,round_number,session,payload,folder,target)
+    finally:
+        os.close(descriptor);lock.unlink(missing_ok=True)
+
+
+def _merge_locked_session_capture(root,year,gp,round_number,session,payload,folder,target):
+    text=(root/'lib/cache-revision.mjs').read_text(encoding='utf-8')
+    revisions={name:re.search(symbol+r'\s*=\s*"([^"]+)"',text).group(1) for name,symbol in (
+        ('sourceRevision','SOURCE_REVISION'),('backendRevision','BACKEND_REVISION'),('measurementRevision','RACE_REVISION'))}
+    index=json.loads(target.read_text(encoding='utf-8')) if target.exists() else {'schema':'apex-local-captures-v1',**revisions,'entries':{}}
+    if any(index.get(name)!=value for name,value in revisions.items()):
+        raise ValueError('Existing captured revisions differ; no local capture was replaced')
+    query='/api/session?'+urlencode(sorted({'year':year,'gp':gp,'round':round_number,'session':session}.items()))
+    packed=gzip.compress(json.dumps(payload,separators=(',',':'),allow_nan=False).encode(),mtime=0)
+    filename=hashlib.sha256(packed).hexdigest()[:24]+'.json.gz'
+    (folder/filename).write_bytes(packed)
+    index['entries'][query]={'file':filename,'capturedAt':payload['local_export']['captured_at']}
+    index['generated']=datetime.now(timezone.utc).isoformat()
+    temp=target.with_name('index.json.tmp');temp.write_text(json.dumps(index,separators=(',',':')),encoding='utf-8');temp.replace(target)
     return query
 
 
@@ -59,6 +94,8 @@ def main():
     parser.add_argument('--session',required=True,help='Practice 1/2/3, Qualifying, Sprint Qualifying, Sprint or Race')
     parser.add_argument('--refresh',action='store_true',help='redownload mirrored streams to capture later corrections')
     args = parser.parse_args()
+    revisions=(ROOT/'lib/cache-revision.mjs').read_text(encoding='utf-8')
+    current=re.search(r'SOURCE_REVISION\s*=\s*"([^"]+)"',revisions).group(1)
     if args.refresh:
         server.openf1 = lambda endpoint, **params: server._openf1_fetch(server.openf1_url(endpoint,**params))
     session = {'FP1':'Practice 1','FP2':'Practice 2','FP3':'Practice 3','Q':'Qualifying','SQ':'Sprint Qualifying','S':'Sprint','R':'Race'}.get(args.session,args.session)
@@ -86,13 +123,6 @@ def main():
                'local_export':snapshot}
     print(json.dumps({'event':args.gp,'session':session,'drivers':len(drivers),
                       'laps':sum(len(d['laps']) for d in drivers),'snapshot':snapshot}),flush=True)
-    # Update only the requested event's completion evidence; future sessions
-    # retain their calendar status. No synthetic "completed" flag for the GP.
-    event.setdefault('session_statuses',{})[session] = 'completed'
-    query = merge_session_export(ROOT,args.year,args.gp,args.round,session,payload)
-    calendar_path = ROOT/f'assets/data/events/{args.year}.json'
-    calendar_path.parent.mkdir(parents=True,exist_ok=True)
-    calendar_path.write_text(json.dumps(calendar,separators=(',',':'),allow_nan=False),encoding='utf-8')
     # The running local API can immediately reuse this exact parsed payload.
     server.write_prepared_cache('session',args.year,payload,server.SESSION_CACHE_SCHEMA,args.gp,args.round,session)
     mirror = [sys.executable,str(ROOT/'scripts/mirror-openf1.py'),'--year',str(args.year),'--gp',args.gp,
@@ -100,11 +130,17 @@ def main():
     if args.refresh:
         mirror.append('--refresh')
     subprocess.run(mirror,cwd=ROOT,check=True)
-    subprocess.run([sys.executable,str(ROOT/'scripts/export-session-telemetry.py'),'--year',str(args.year),
-                    '--gp',args.gp,'--sessions',session,'--cache-root',str(server.PREPARED_CACHE)],cwd=ROOT,check=True)
+    with tempfile.TemporaryDirectory(prefix='apex-session-export-') as staged_dir:
+        staged_summary=Path(staged_dir)/'session.json'
+        staged_summary.write_text(json.dumps(payload,separators=(',',':'),allow_nan=False),encoding='utf-8')
+        subprocess.run([sys.executable,str(ROOT/'scripts/export-session-telemetry.py'),'--year',str(args.year),
+                        '--gp',args.gp,'--sessions',session,'--cache-root',str(server.PREPARED_CACHE),
+                        '--session-summary',str(staged_summary),'--output-dir',str(ROOT/'assets/data/local-telemetry'),
+                        '--source-revision',current],cwd=ROOT,check=True)
     # Require a pack for every driver with an eligible timed lap. Missing
     # individual boundary observations remain explicit in the exporter report.
-    telemetry = json.loads((ROOT/'assets/data/telemetry/index.json').read_text())
+    telemetry_root=ROOT/'assets/data/local-telemetry'
+    telemetry = json.loads((telemetry_root/'index.json').read_text())
     missing = [d['code'] for d in drivers if any(not lap.get('out_lap') and isinstance(lap.get('time'),(int,float)) and 20<lap['time']<300 for lap in d['laps'])
                and f"{args.year}:{args.gp}:{session}:{d['code']}" not in telemetry['entries']]
     if missing:
@@ -115,9 +151,17 @@ def main():
             continue
         best = min(eligible,key=lambda lap:lap['time'])
         file = telemetry['entries'][f"{args.year}:{args.gp}:{session}:{driver['code']}"]
-        pack = json.loads(gzip.decompress((ROOT/'assets/data/telemetry'/file).read_bytes()))
+        pack = json.loads(gzip.decompress((telemetry_root/file).read_bytes()))
         if str(best['lap']) not in pack['laps']:
             raise ValueError(f"Fastest source lap has no supported native trace: {driver['code']} L{best['lap']}")
+    # Only record a complete session after its required driver packs validate.
+    # Pack downloads may remain staged on failure, but the session/calendar
+    # are not advertised as a successfully prepared public export.
+    event.setdefault('session_statuses',{})[session] = 'completed'
+    query = merge_local_session_capture(ROOT,args.year,args.gp,args.round,session,payload)
+    calendar_path = ROOT/f'assets/data/events/{args.year}.json'
+    calendar_path.parent.mkdir(parents=True,exist_ok=True)
+    calendar_path.write_text(json.dumps(calendar,separators=(',',':'),allow_nan=False),encoding='utf-8')
     print(json.dumps({'exported':query,'drivers':len(drivers),'sourceRevision':telemetry['sourceRevision'],
                       'note':'Captured snapshot; run again with --refresh to include source corrections. Build and publish to update the public site.'}),flush=True)
 

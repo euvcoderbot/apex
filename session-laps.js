@@ -15,6 +15,7 @@ function mergeRaceClassification(classification) {
 }
 
 async function refreshRaceResults(request,query) {
+  if(window.APEX_SNAPSHOT_MODE && !window.APEX_LOCAL_MODE)return;
   if(request!==sessionRequest || !/^(Race|Sprint)$/i.test(loadedSessionName) || !openf1SessionKey)return;
   const key=openf1SessionKey;
   let classificationSeen=false;

@@ -1,8 +1,21 @@
 # Publish a new completed session using local compute
 
-The public site can read exported timing and native telemetry files even when
-the hosted telemetry API is unavailable. This is a captured snapshot, not live
-streaming or an automatic recurring job.
+The public site reads locally prepared timing, native telemetry, and supported
+performance/corner measurements without a hosted telemetry API. These are
+captured snapshots, not live streaming or an automatic publication job.
+
+Start the local server from this checkout, then prepare a completed qualifying:
+
+```powershell
+npm run site:prepare -- --year 2026 --gp "United States Grand Prix" --round 18
+```
+
+Add `--race` once the source calendar confirms the race completed; this also
+captures race sessions and matched race-corner groups. Unsupported windows and
+incomplete groups remain unavailable, never substituted with zeros. Add
+`--refresh` to recapture raw streams after source corrections. The command
+checks that the local server and checkout have matching calculation revisions.
+It prepares files only: a separate validated Sites release publishes them.
 
 From the project checkout, with the existing Python environment installed:
 
@@ -25,5 +38,11 @@ have a supported trace before the command reports success.
 To incorporate later timing corrections, rerun with `--refresh`; otherwise raw
 streams already captured on disk are reused so interrupted downloads can resume.
 Build, validate and publish the resulting assets through the normal Sites
-workflow to update the public site. Do not run the full-season `prerender`
-command for this update: it clears exports before rebuilding them.
+workflow to update the public site. Pre-rendering merges compatible files and
+refuses to overwrite a revision mismatch rather than clearing older exports.
+
+The retained historical index keeps its original source and methodology
+revisions. The site recognizes the specifically audited migration from the old
+in-repository OpenF1 raw location to the durable raw archive; this changes
+storage location, not captured packet bytes or calculation formulas. Other
+revision pairs are not implicitly treated as compatible.

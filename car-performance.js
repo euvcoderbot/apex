@@ -1938,7 +1938,9 @@ function renderContent() {
   ];
   $('carPerformance').classList.toggle('is-descriptions-hidden',!showPerformanceDescriptions);
   const navEmoji={pace:'⏱️',corners:'🏎️',straight:'🚀',braking:'🛑',pits:'🔧',tyres:'🛞',trend:'📈',results:'🏆'};
-  const modeBar = `<div class="performance-toolbar"><div class="performance-mode" role="tablist" aria-label="Performance metric" aria-orientation="horizontal">${modes.map(([key,label])=>`<button type="button" role="tab" data-performance-metric="${key}" aria-controls="performanceMetricPanel" tabindex="${activeMetric===key?0:-1}" aria-pressed="${activeMetric===key}" aria-selected="${activeMetric===key}"><span class="metric-nav-emoji" aria-hidden="true">${navEmoji[key]}</span>${label}</button>`).join('')}</div><button type="button" class="performance-explain-toggle" data-performance-refresh ${running?'disabled':''} title="Re-fetch the selected events and replace cached measurements. The first refresh can take longer.">Refresh data</button></div>`;
+  const snapshotMode=window.APEX_SNAPSHOT_MODE&&!window.APEX_LOCAL_MODE;
+  const refreshTitle=snapshotMode?'Reload the published snapshot. New observations require local preparation and publication.':'Re-fetch the selected events and replace cached measurements. The first refresh can take longer.';
+  const modeBar = `<div class="performance-toolbar"><div class="performance-mode" role="tablist" aria-label="Performance metric" aria-orientation="horizontal">${modes.map(([key,label])=>`<button type="button" role="tab" data-performance-metric="${key}" aria-controls="performanceMetricPanel" tabindex="${activeMetric===key?0:-1}" aria-pressed="${activeMetric===key}" aria-selected="${activeMetric===key}"><span class="metric-nav-emoji" aria-hidden="true">${navEmoji[key]}</span>${label}</button>`).join('')}</div><button type="button" class="performance-explain-toggle" data-performance-refresh ${running?'disabled':''} title="${refreshTitle}">${snapshotMode?'Reload snapshot':'Refresh data'}</button></div>`;
 
   if(!context || (!events.length && !running)) {
     root.innerHTML = modeBar + `
@@ -1954,9 +1956,10 @@ function renderContent() {
   const teams=telemetryMode?[]:aggregate();
   const errorMarkup = errors.map(e=>`<div class="performance-error"><span class="error-dot"></span><span>${escape(e.event.name)} · ${e.session==='Q'?'Qualifying':e.session==='R'?'Race':'Telemetry'}: ${escape(e.message)}</span></div>`).join('');
   const provisional=provisionalPerformanceSessions(events);
-  const provisionalNotice=provisional.length?`<p class="performance-note" role="status">Provisional · live, incomplete or unconfirmed session data: ${provisional.map(escape).join('; ')}. Results may change. Use Refresh data for the latest available observations.</p>`:'';
+  const provisionalNotice=provisional.length?`<p class="performance-note" role="status">Provisional · live, incomplete or unconfirmed session data: ${provisional.map(escape).join('; ')}. Results may change. ${snapshotMode?'A new publication is needed for later observations.':'Use Refresh data for the latest available observations.'}</p>`:'';
   const recordedNotices=events.flatMap(e=>['Q','R','pits'].filter(s=>e[s]?.source_cache).map(s=>`${e.name} ${s==='Q'?'qualifying':s==='pits'?'pit visits':'race'}${e[s].source_cache.refresh_failed||e[s].source_cache.stale?' (live refresh unavailable)':''}`));
-  const sourceNotice=recordedNotices.length?`<details class="performance-source-note"><summary>Retained session sources</summary><p>${recordedNotices.map(escape).join(' · ')}. Recalculated with the current methodology; missing fields remain unknown.</p></details>`:'';
+  const snapshotNotice=window.APEX_SNAPSHOT_MODE&&!window.APEX_LOCAL_MODE?'<p class="snapshot-mode-note" role="status">Published snapshot, not live · updated after local preparation and publication.</p>':'';
+  const sourceNotice=snapshotNotice+(recordedNotices.length?`<details class="performance-source-note"><summary>Retained session sources</summary><p>${recordedNotices.map(escape).join(' · ')}. Recalculated with the current methodology; missing fields remain unknown.</p></details>`:'');
   const speedMode=telemetryMode&&speedDomainActive();
   // One measurement method on the page; the window-timing views were retired
   // as duplicates (see docs/speed-domain-methodology-20261020.md).

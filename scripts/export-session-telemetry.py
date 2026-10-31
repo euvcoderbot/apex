@@ -22,6 +22,9 @@ def main():
     parser.add_argument('--cache-root', action='append', type=Path, required=True)
     parser.add_argument('--gp')
     parser.add_argument('--sessions', default='Qualifying,Sprint Qualifying,Sprint Shootout', help='comma-separated session names, including Practice 1/2/3')
+    parser.add_argument('--session-summary', type=Path, help='Validated session summary staged outside the public manifest')
+    parser.add_argument('--output-dir', type=Path, help='Separate pack directory for locally captured sessions')
+    parser.add_argument('--source-revision', help='Source revision of the staged packs')
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
     wanted = {name.strip() for name in args.sessions.split(',') if name.strip()}
@@ -31,16 +34,24 @@ def main():
         raise RuntimeError('Offline export: source stream not mirrored')
     server._openf1_fetch = offline
     manifest = json.loads((ROOT/'assets/data/prerendered/index.json').read_text())
-    out = ROOT/'assets/data/telemetry'
+    out = args.output_dir or ROOT/'assets/data/telemetry'
+    revision = args.source_revision or manifest['sourceRevision']
     if not args.dry_run:
         out.mkdir(parents=True, exist_ok=True)
     target = out/'index.json'
     index = json.loads(target.read_text()) if target.exists() else {}
-    if index.get('sourceRevision') != manifest['sourceRevision']:
-        index = {'schema': 'native-lap-packs-v1', 'sourceRevision': manifest['sourceRevision'], 'entries': {}}
+    if index.get('sourceRevision') != revision:
+        if index.get('entries'):
+            raise ValueError('Existing telemetry revisions differ; no packs were removed or replaced')
+        index = {'schema': 'native-lap-packs-v1', 'sourceRevision': revision, 'entries': {}}
     seen, missing, laps, packs, size = set(), [], 0, 0, 0
-    for query, filename in manifest['entries'].items():
-        from urllib.parse import urlparse, parse_qs
+    from urllib.parse import urlparse, parse_qs, urlencode
+    items = [(query, filename, None) for query, filename in manifest['entries'].items()]
+    if args.session_summary:
+        staged = json.loads(args.session_summary.read_text(encoding='utf-8'))
+        query = '/api/session?' + urlencode({'year':args.year,'gp':staged['event'],'session':staged['session']})
+        items.insert(0,(query,None,staged))
+    for query, filename, staged in items:
         params = parse_qs(urlparse(query).query)
         if not query.startswith('/api/session?') or int(params.get('year', ['0'])[0]) != args.year:
             continue
@@ -52,7 +63,7 @@ def main():
         if session not in wanted or (gp,session) in seen:
             continue
         seen.add((gp,session))
-        data = json.loads(gzip.decompress((ROOT/'assets/data/prerendered'/filename).read_bytes()))
+        data = staged if staged is not None else json.loads(gzip.decompress((ROOT/'assets/data/prerendered'/filename).read_bytes()))
         key = data.get('openf1_session_key')
         if not key:
             continue

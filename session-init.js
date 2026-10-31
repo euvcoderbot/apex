@@ -1,6 +1,8 @@
 /* Session analysis: page start-up (runs on DOMContentLoaded). */
 // Initial Setup on Document Load
 document.addEventListener('DOMContentLoaded', () => {
+  const snapshotBadge=document.querySelector('#snapshotBadge');
+  if(snapshotBadge)snapshotBadge.hidden=!(window.APEX_SNAPSHOT_MODE&&!window.APEX_LOCAL_MODE);
   function descriptions(value) {
     document.body.classList.toggle('is-descriptions-hidden',!value);
     const toggle=$('#explanationsToggle');toggle?.setAttribute('aria-pressed',String(value));
