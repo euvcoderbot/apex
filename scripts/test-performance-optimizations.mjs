@@ -30,10 +30,11 @@ function qualifyingFixture(){
 }
 
 test('server qualifying calculations coalesce, persist, and retry only the incomplete native lap',async()=>{
-  const {entries,session,performance}=qualifyingFixture(),store=new Map();let requests=0,refreshes=[];
+  const {entries,session,performance}=qualifyingFixture(),store=new Map();let requests=0,refreshes=[],summaryRefreshes=[];
   const bad=entries[0],lo=bad.payload.samples.at(-1).Distance*.32,hi=lo+180;
   const options={read:async k=>store.get(k),write:async(k,v)=>store.set(k,v),fetcher:async url=>{
     requests++;const u=new URL(url),entry=entries.find(e=>e.row.driver.code===u.searchParams.get('driver'));
+    if(['/api/session','/api/performance'].includes(u.pathname)&&u.searchParams.has('fresh'))summaryRefreshes.push(u.pathname);
     let data=u.pathname==='/api/session'?session:u.pathname==='/api/performance'?performance:entry.payload;
     if(u.pathname==='/api/telemetry'&&entry===bad&&!u.searchParams.has('fresh'))data={...entry.payload,samples:entry.payload.samples.filter(p=>p.Distance<lo||p.Distance>hi)};
     if(u.pathname==='/api/telemetry'&&u.searchParams.has('fresh'))refreshes.push(entry.row.driver.code);
@@ -48,6 +49,7 @@ test('server qualifying calculations coalesce, persist, and retry only the incom
   assert.equal((await loadQualifyingCorners(createDataCache(options),query)).cache,'HIT');assert.equal(requests,count);
   const recovered=await loadQualifyingCorners(createDataCache(options),{...query,fresh:true});
   assert.equal(recovered.data.complete,true);assert.deepEqual(refreshes,[bad.row.driver.code]);
+  assert.deepEqual(summaryRefreshes.sort(),['/api/performance','/api/session']);
   assert.equal(recovered.data.traces[bad.row.driver.code].selection.lap,bad.row.lap);
 });
 
