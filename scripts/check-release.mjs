@@ -44,6 +44,9 @@ for(const folder of ['prerendered','local-telemetry','telemetry']){
   validateIndex(index,folder);
   requireRevision('sourceRevision',index.sourceRevision);
   if(index.revision)requireRevision('backendRevision',index.revision);
-  for(const [route,file] of Object.entries(index.entries))await payload(folder,file,folder==='prerendered'?route:'');
+  for(const [route,file] of Object.entries(index.entries)){
+    if(index.entrySourceRevisions?.[route])requireRevision('sourceRevision',index.entrySourceRevisions[route]);
+    await payload(folder,file,folder==='prerendered'?route:'');
+  }
 }
 console.log(`${sourceOnly?'Source recordings':'Release snapshots'} valid: ${files} referenced files checked; ${retained} retained revision references keep their original provenance.`);

@@ -17,6 +17,16 @@ import server
 from capture_storage import repository_lock,atomic_bytes
 
 
+def compatible_revision(stored, current):
+    policy=json.loads((ROOT/'lib/snapshot-policy.json').read_text(encoding='utf-8'))
+    return stored==current or stored in policy.get('sourceRevision',{}).get(current,[])
+
+
+def entry_revisions(index):
+    return {key:index.get('entrySourceRevisions',{}).get(key,index.get('sourceRevision'))
+            for key in index.get('entries',{})}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--year', type=int, default=2026)
@@ -42,9 +52,10 @@ def main():
     target = out/'index.json'
     index = json.loads(target.read_text()) if target.exists() else {}
     if index.get('sourceRevision') != revision:
-        if index.get('entries'):
+        if index.get('entries') and not compatible_revision(index.get('sourceRevision'),revision):
             raise ValueError('Existing telemetry revisions differ; no packs were removed or replaced')
-        index = {'schema': 'native-lap-packs-v1', 'sourceRevision': revision, 'entries': {}}
+        index = {**index,'schema': 'native-lap-packs-v1', 'sourceRevision': revision,
+                 'entrySourceRevisions':entry_revisions(index),'entries':index.get('entries',{})}
     seen, missing, laps, packs, size = set(), [], 0, 0, 0
     new_entries = {}
     from urllib.parse import urlparse, parse_qs, urlencode
@@ -135,9 +146,10 @@ def main():
     if not args.dry_run:
         with repository_lock(ROOT,[out]):
             latest=json.loads(target.read_text()) if target.exists() else {}
-            if latest.get('entries') and latest.get('sourceRevision')!=revision:
+            if latest.get('entries') and not compatible_revision(latest.get('sourceRevision'),revision):
                 raise ValueError('Telemetry revision changed during export; old index retained')
             index['entries']={**latest.get('entries',{}),**new_entries}
+            index['entrySourceRevisions']={**entry_revisions(latest),**{key:revision for key in new_entries}}
             atomic_bytes(target,json.dumps(index,separators=(',',':')).encode())
     print(json.dumps({'laps':laps,'packs':packs,'megabytes':round(size/1e6,2),'missingCount':len(missing),'missing':missing[:20]}), flush=True)
 

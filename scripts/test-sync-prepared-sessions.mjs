@@ -30,6 +30,20 @@ async function release(captures = {}, packs = {}, {revisions = REV, calendar = [
 }
 const index = async (r, dir) => JSON.parse(await readFile(path.join(r.data, dir, 'index.json'), 'utf8'));
 
+test('approved retained native packs keep their original source revision during sync',async()=>{
+  const old={sourceRevision:'5b02cc1bb2a6daf808ad',backendRevision:'c26911530dd5fb9a297f',measurementRevision:'267fe2622a3941ad629a'};
+  const current={...old,sourceRevision:'a829fc069dfa8da25c00',backendRevision:'ee938f8efad87dc979fa'};
+  const source=await release({}, {'2026:Mexico:Q:VER':['p1.json.gz',{laps:{}}]}, {revisions:old});
+  const site=await release({}, {}, {revisions:current});
+  try{
+    const p=await plan(source.root,site.root);assert.deepEqual(p.problems,[]);
+    await apply(source.root,site.root,p);
+    const saved=await index(site,'local-telemetry');
+    assert.equal(saved.sourceRevision,current.sourceRevision);
+    assert.equal(saved.entrySourceRevisions['2026:Mexico:Q:VER'],old.sourceRevision);
+  }finally{await Promise.all([source.cleanup(),site.cleanup()]);}
+});
+
 test('a new session is added with its lap packs; nothing else changes', async () => {
   const site = await release({'/api/session?gp=A': ['aaaa.json.gz', '2026-10-28T00:00:00Z', {s: 'A'}]}, {'2026:A:Q:VER': ['p1.json.gz', {lap: 1}]});
   const prepared = await release({'/api/session?gp=A': ['aaaa.json.gz', '2026-10-28T00:00:00Z', {s: 'A'}], '/api/session?gp=B': ['bbbb.json.gz', '2026-10-31T01:00:00Z', {s: 'B'}]},

@@ -326,15 +326,17 @@ async function preparedTelemetryData(parsed) {
   const session=({Q:'Qualifying',SQ:'Sprint Qualifying',S:'Sprint',R:'Race'})[parsed.searchParams.get('session')] || parsed.searchParams.get('session');
   const identity=[parsed.searchParams.get('year'),parsed.searchParams.get('gp'),session,parsed.searchParams.get('driver')].join(':');
   let directory='telemetry',index;
+  const compatibleSource = revision => revision===window.APEX_SOURCE_VERSION ||
+    Boolean(window.APEX_SNAPSHOT_MODE && window.APEX_SNAPSHOT_COMPATIBILITY?.sourceRevision?.includes(revision));
   if(window.APEX_SNAPSHOT_MODE){
     localTelemetryIndex ||= fetch('assets/data/local-telemetry/index.json',{cache:'no-cache'}).then(r=>r.ok?r.json():null).catch(()=>null);
     const local=await localTelemetryIndex;
-    if(local?.sourceRevision===window.APEX_SOURCE_VERSION&&local.entries?.[identity]){directory='local-telemetry';index=local;}
+    if(compatibleSource(local?.entrySourceRevisions?.[identity]||local?.sourceRevision)&&local?.entries?.[identity]){directory='local-telemetry';index=local;}
   }
   if(!index){nativeTelemetryIndex ||= fetch('assets/data/telemetry/index.json',{cache:'no-cache'}).then(r=>r.ok?r.json():null).catch(()=>null);index=await nativeTelemetryIndex;}
   // Exact revision pair changes only raw archive storage, not packet maths.
   const compatibleArchive=window.APEX_SNAPSHOT_MODE&&window.APEX_SOURCE_VERSION==='5b02cc1bb2a6daf808ad'&&index?.sourceRevision==='debb63ddadd0fabe2d70';
-  if(index?.sourceRevision !== window.APEX_SOURCE_VERSION && !compatibleArchive) return null;
+  if(!compatibleSource(index?.entrySourceRevisions?.[identity]||index?.sourceRevision) && !compatibleArchive) return null;
   const file=index.entries?.[identity];
   if(!file)return null;
   const packKey=directory+'/'+file;
