@@ -22,6 +22,10 @@ def session(key, end, name='Practice 1', cancelled=False):
 
 
 class SchedulerTests(unittest.TestCase):
+    def test_busy_job_is_not_reported_as_a_healthy_check(self):
+        with patch.object(scheduler.mirror,'acquire_watch_lock',return_value='busy'):
+            self.assertIsNone(scheduler.run_due([],NOW))
+
     def test_schedule_diagnostics_do_not_pollute_json_stdout(self):
         def source(*args, **kwargs):
             print('OpenF1 unavailable; using saved sessions')

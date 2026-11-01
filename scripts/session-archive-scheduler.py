@@ -192,7 +192,7 @@ def prepare_session(session, final):
 def run_due(sessions, now):
     if mirror.acquire_watch_lock():
         print('Another archive job is running; leaving it alone.', flush=True)
-        return []
+        return None
     failures = []
     for session in sessions:
         end = parse_date(session.get('date_end'))
@@ -251,6 +251,8 @@ def main():
     else:
         print(f"[{now.isoformat(timespec='seconds')}] checking recently finished sessions", flush=True)
         failures = run_due(sessions, now)
+        if failures is None:
+            return  # Busy is not a successful health check; retain the owner's report.
         # Reconcile work prepared before this scheduler update, or after an
         # interrupted sync. A failure must be visible to Task Scheduler.
         sync_prepared()
