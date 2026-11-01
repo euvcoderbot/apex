@@ -238,7 +238,7 @@ function renderCornerAnalysis() {
       && Math.abs(item.metric.minimumSpeed - highestMinimumSpeed) < .05;
     return `
       <tr class="corner-measurement-row ${fastest && loaded.length > 1 ? 'is-fastest' : ''} ${highestMinimum && loaded.length > 1 ? 'is-highest-min' : ''}">
-        <th scope="row" class="corner-driver-cell"><span class="corner-driver">${teamLogoMarkup(realDrivers.get(item.lap.code)?.team || drivers.find(driver=>driver[0]===item.lap.code)?.[4])}<span class="corner-driver-copy"><b>${item.lap.code}</b><small>L${item.lap.lap}${item.lap === referenceLap ? ' REF' : ''}</small></span></span></th>
+        <th scope="row" class="corner-driver-cell"><span class="corner-driver">${teamLogoMarkup(realDrivers.get(item.lap.code)?.team || drivers.find(driver=>driver[0]===item.lap.code)?.[4])}<span class="corner-driver-copy"><b>${item.lap.code}</b><small>L${item.lap.lap}</small></span></span></th>
         <td class="corner-time"><strong>${Number.isFinite(sectionTime) ? sectionTime.toFixed(3)+'s' : '—'}</strong></td>
         <td class="corner-delta ${deltaClass}"><strong>${Number.isFinite(toReference) ? signedDelta(toReference) : '—'}</strong></td>
         <td class="corner-speed"><strong>${Number.isFinite(item.metric.minimumSpeed) ? item.metric.minimumSpeed.toFixed(1) : '—'}</strong></td>
@@ -527,46 +527,37 @@ function drawApiCircuitGuide(ctx, data, rect) {
     occupied.push({x:p.x-14,y:p.y-14,width:28,height:28});
   }
   ctx.textAlign='center';ctx.textBaseline='middle';
-  // Turn numbers sit on the road at the corner itself. Twenty numbers do not fit beside the road on a map this size: they drift away
-  // and need lines that cross it. Numbers too close to fit slide a little along the road; only if the road has no room does one step off it.
+  // The same corner markers as the lap comparison map: touching the road, beside it, with a line only when one has to step away.
   ctx.font=canvasFont(8,700);
-  const beads=[];
-  const beadFree=(x,y,radius)=>beads.every(b=>Math.hypot(b.x-x,b.y-y)>=b.radius+radius+1);
-  const alongRoad=(index,distance)=>{
-    const step=distance<0?-1:1;let i=index,walked=0;
-    while(walked<Math.abs(distance)){
-      const next=i+step;
-      if(next<0||next>=geometry.length)return null;
-      walked+=Math.hypot(geometry[next].x-geometry[i].x,geometry[next].y-geometry[i].y);i=next;
+  {
+    const GUIDE_ROAD_HALF=7.5,lengths=[0];
+    for(let i=1;i<geometry.length;i++)lengths.push(lengths[i-1]+Math.hypot(geometry[i].x-geometry[i-1].x,geometry[i].y-geometry[i-1].y));
+    const total=lengths.at(-1)||1;
+    const pointAt=fraction=>{
+      const target=Math.max(0,Math.min(1,fraction))*total;let i=1;
+      while(i<lengths.length-1&&lengths[i]<target)i++;
+      const a=geometry[i-1],b=geometry[i],span=lengths[i]-lengths[i-1]||1,t=(target-lengths[i-1])/span;
+      return {x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
+    };
+    const items=[];
+    for(const corner of data.corners || []){
+      const position=corner.trackPosition;
+      if(!position||!Number.isFinite(Number(position.x))||!Number.isFinite(Number(position.y)))continue;
+      const index=nearestIndex(project({x:Number(position.x),y:-Number(position.y)})),anchor=geometry[index];
+      items.push({fraction:lengths[index]/total,label:cornerLabel(corner).replace(/^T/,''),outward:{x:anchor.x-centre.x,y:anchor.y-centre.y}});
     }
-    return geometry[i];
-  };
-  for(const corner of data.corners || []){
-    const position=corner.trackPosition;
-    if(!position||!Number.isFinite(Number(position.x))||!Number.isFinite(Number(position.y)))continue;
-    const index=nearestIndex(project({x:Number(position.x),y:-Number(position.y)})),anchor=geometry[index],label=cornerLabel(corner).replace(/^T/,'');
-    const radius=Math.max(6.5,ctx.measureText(label).width/2+2);
-    let spot=null;
-    for(const distance of [0,5,-5,9,-9,13,-13,17,-17]){
-      const point=distance?alongRoad(index,distance):anchor;
-      if(point&&beadFree(point.x,point.y,radius)){spot=point;break;}
+    const clear=(x,y,radius)=>!occupied.some(box=>x+radius>box.x&&x-radius<box.x+box.width&&y+radius>box.y&&y-radius<box.y+box.height);
+    const beads=placeRoadBeads(ctx,items,{road:geometry,pointAt,width:rect.width,height:rect.height,roadHalf:GUIDE_ROAD_HALF,isFree:clear});
+    for(const {x,y,radius,point} of beads){
+      occupied.push({x:x-radius,y:y-radius,width:radius*2,height:radius*2});
+      if(Math.hypot(point.x-x,point.y-y)<=radius+GUIDE_ROAD_HALF+14)continue;
+      ctx.beginPath();ctx.moveTo(point.x,point.y);ctx.lineTo(x,y);ctx.strokeStyle=light?'rgba(29,29,31,.6)':'rgba(229,229,234,.65)';ctx.lineWidth=1;ctx.stroke();
     }
-    if(!spot){
-      const t=tangent(index);
-      for(const d of [radius+9,radius+14,radius+20])for(const side of [1,-1]){
-        const x=anchor.x-t.y*d*side,y=anchor.y+t.x*d*side;
-        if(!spot&&beadFree(x,y,radius)&&inside({x:x-radius,y:y-radius,width:radius*2,height:radius*2})&&!trackIntersectsLabel({x:x-radius,y:y-radius,width:radius*2,height:radius*2},geometry,1))spot={x,y};
-      }
-      if(!spot)continue;
-      ctx.beginPath();ctx.moveTo(anchor.x,anchor.y);ctx.lineTo(spot.x,spot.y);ctx.strokeStyle=light?'rgba(29,29,31,.6)':'rgba(229,229,234,.65)';ctx.lineWidth=1;ctx.stroke();
+    for(const {x,y,radius,label} of beads){
+      ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);
+      ctx.fillStyle=light?'#ffffff':'#1c1c1e';ctx.fill();ctx.strokeStyle=light?'#1d1d1f':'#e5e5ea';ctx.lineWidth=1.1;ctx.stroke();
+      ctx.fillStyle=light?'#1d1d1f':'#f2f2f4';ctx.fillText(label,x,y+.5);
     }
-    beads.push({x:spot.x,y:spot.y,radius,label});
-    occupied.push({x:spot.x-radius,y:spot.y-radius,width:radius*2,height:radius*2});
-  }
-  for(const {x,y,radius,label} of beads){
-    ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);
-    ctx.fillStyle=light?'#ffffff':'#1c1c1e';ctx.fill();ctx.strokeStyle=light?'#1d1d1f':'#e5e5ea';ctx.lineWidth=1.1;ctx.stroke();
-    ctx.fillStyle=light?'#1d1d1f':'#f2f2f4';ctx.fillText(label,x,y+.5);
   }
   // Sector names, boxed, beside the middle of each sector.
   if(sectors){

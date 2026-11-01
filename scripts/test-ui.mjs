@@ -600,7 +600,7 @@ test('corner rankings are best-first, stable, null-safe and do not mutate refere
   assert.equal(h.run("rankCornerMetrics(sampleMetrics,'delta').map(x=>x.id).join()"), 'b,a,c');
   assert.equal(h.run("rankCornerMetrics(sampleMetrics,'minimum').map(x=>x.id).join()"), 'a,b,c');
   assert.equal(h.run("sampleMetrics.map(x=>x.id).join()"), 'a,b,c');
-  assert.match(app, /item.lap === referenceLap/);
+  assert.match(app, /<small>L\$\{item\.lap\.lap\}<\/small>/);
   assert.doesNotMatch(app, /const compassCentre/);
   assert.match(app, /class="map-north"/);
 });

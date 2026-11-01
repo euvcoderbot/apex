@@ -794,7 +794,7 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
 #telemetryCard .analysis-heading { margin: 2px 2px 8px; }
 #telemetryCard .comparison-tray { min-height: 0; margin-bottom: 8px; padding-block: 5px; }
 .telemetry-content .sector-cards { grid-template-columns: minmax(0,1fr); gap: 6px; margin-bottom: 10px; }
-.speed-chart-controls .trace-settings:has(#alignmentStatus:is([data-state="idle"],[data-state="loading"],[data-state="ready"])) .alignment-readout { display: none; }
+.speed-chart-controls .alignment-readout:has(#alignmentStatus:is([data-state="idle"],[data-state="loading"],[data-state="ready"])) { display: none; }
 .speed-chart-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
 .speed-chart-controls > :is(.pit-lap-notice,.visually-hidden) { flex: 0 0 100%; }
 .speed-chart-controls .trace-settings, .speed-chart-controls .trace-display-bar { margin: 0; padding: 0; border: 0; flex-wrap: wrap; gap: 4px 14px; }
@@ -855,7 +855,7 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
 
 /* Sector and time centred on the bar in every row. The gap hangs off the left of the time in a column of its own, so its length can never move the time. */
 @container telemetry (min-width: 726px) {
-  .telemetry-content .sector-cards .lap-summary-card .sector-cell .sector-measurements, .telemetry-content .sector-cards .lap-summary-card .sector-cell + .sector-cell .sector-measurements { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); align-items: baseline; align-self: stretch; column-gap: 5px; }
+  .telemetry-content .sector-cards .lap-summary-card .sector-cell .sector-measurements, .telemetry-content .sector-cards .lap-summary-card .sector-cell + .sector-cell .sector-measurements { display: grid; grid-template-columns: minmax(46px,1fr) auto minmax(0,1fr); align-items: baseline; align-self: stretch; column-gap: 3px; }
   .telemetry-content .sector-cards .lap-summary-card .sector-delta-slot { grid-column: 1; justify-self: end; min-width: 0; white-space: nowrap; }
   .telemetry-content .sector-cards .lap-summary-card .sector-delta-slot:empty { display: none; }
   .telemetry-content .sector-cards .lap-summary-card .sector-measurements > strong { grid-column: 2; }
@@ -882,7 +882,7 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
 .app-inspector .corner-measurement-table thead th button svg { display: none; }
 .app-inspector .corner-measurement-table thead th:is([aria-sort="ascending"],[aria-sort="descending"]) button svg, .app-inspector .corner-measurement-table thead th button:hover svg { display: inline-block; }
 .app-inspector .corner-measurement-table .corner-driver { gap: 8px; }
-.app-inspector .corner-measurement-table .corner-driver-copy { display: grid; gap: 0; line-height: 1.2; }
+.app-inspector .corner-measurement-table .corner-driver-copy { display: inline-flex; align-items: baseline; gap: 5px; white-space: nowrap; }
 
 /* Track pane: three cards on one rhythm, the same as the driver cards on the Laps tab. Same inset, same radius, same gap. */
 #sessionInspector .inspector-corners .corner-workspace { display: flex; flex-direction: column; gap: 12px; }
@@ -980,3 +980,29 @@ body > #carPerformance .performance-table td small { white-space: nowrap; }
 /* What each lap was: flying laps read as positive, abandoned ones as a warning. A chosen row keeps its own label colour. */
 .lap-workspace .lap-chip.is-push:not([aria-pressed="true"]) .lap-state { color: var(--ui-positive); }
 .lap-workspace .lap-chip.is-abort:not([aria-pressed="true"]) .lap-state { color: var(--ui-warning); }
+
+/* Sector rows: a line between sections keeps each time with its own sector. */
+.telemetry-content .sector-cards .lap-summary-card .summary-sectors { column-gap: 3px; }
+.telemetry-content .sector-cards .lap-summary-card .sector-cell + .sector-cell .sector-measurements { border-left: 1px solid var(--ui-border-strong); }
+.telemetry-content .sector-cards .lap-summary-card .sector-measurements { box-sizing: border-box; padding-block: 2px; }
+
+/* Display menu in the speed trace header, so its options do not take a row above the chart. */
+.trace-display-menu { position: relative; flex: none; }
+.trace-display-menu > summary { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: var(--ui-radius); background: var(--ui-control); box-shadow: var(--ui-shadow-control); color: var(--ui-label); font: 500 var(--type-body)/1 var(--ui-font); list-style: none; cursor: default; user-select: none; }
+.trace-display-menu > summary::-webkit-details-marker { display: none; }
+.trace-display-menu > summary::before { display: none; content: none; }
+.trace-display-menu > summary::after { content: ''; width: 6px; height: 6px; margin-top: -3px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); opacity: .7; }
+.trace-display-menu > summary:hover { background: var(--ui-control-hover); }
+.speed-chart .chart-heading .trace-display-menu > .trace-settings { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; display: grid; gap: 2px; width: max-content; margin: 0; padding: 6px; border-radius: var(--ui-menu-radius); background: var(--ui-panel); box-shadow: var(--ui-shadow-popover); }
+.speed-chart .chart-heading .trace-display-menu .trace-setting { min-height: 30px; padding: 4px 8px; }
+
+/* The gap beside a sector time sits a size down, so the time can stay centred on its bar. */
+.telemetry-content .sector-cards .lap-summary-card .sector-delta-slot .summary-delta { font-size: var(--type-caption2,.6875rem); letter-spacing: -.01em; }
+
+/* Closed menu contents do not run animations, so a transition started there would never finish. */
+.trace-display-menu:not([open]) * { transition: none; }
+
+/* Corner and straight pills share out the whole width of the card, instead of stopping short of its right edge. */
+.circuit-section-group .corner-picker.corner-picker { grid-template-columns: repeat(auto-fill,minmax(46px,1fr)); width: 100%; }
+.circuit-section-group .straight-zone-picker.straight-zone-picker { grid-template-columns: repeat(auto-fit,minmax(86px,1fr)); }
+.circuit-section-group .corner-picker.corner-picker button.corner-pick { width: 100%; min-width: 0; padding-inline: 4px; }
