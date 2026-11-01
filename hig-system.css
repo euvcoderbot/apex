@@ -855,7 +855,7 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
 
 /* Sector and time centred on the bar in every row. The gap hangs off the left of the time in a column of its own, so its length can never move the time. */
 @container telemetry (min-width: 726px) {
-  .telemetry-content .sector-cards .lap-summary-card .sector-cell .sector-measurements, .telemetry-content .sector-cards .lap-summary-card .sector-cell + .sector-cell .sector-measurements { display: grid; grid-template-columns: minmax(46px,1fr) auto minmax(0,1fr); align-items: baseline; align-self: stretch; column-gap: 3px; }
+  .telemetry-content .sector-cards .lap-summary-card .sector-cell .sector-measurements, .telemetry-content .sector-cards .lap-summary-card .sector-cell + .sector-cell .sector-measurements { display: grid; grid-template-columns: minmax(42px,1fr) auto minmax(0,1fr); align-items: baseline; align-self: stretch; column-gap: 3px; }
   .telemetry-content .sector-cards .lap-summary-card .sector-delta-slot { grid-column: 1; justify-self: end; min-width: 0; white-space: nowrap; }
   .telemetry-content .sector-cards .lap-summary-card .sector-delta-slot:empty { display: none; }
   .telemetry-content .sector-cards .lap-summary-card .sector-measurements > strong { grid-column: 2; }
@@ -995,9 +995,6 @@ body > #carPerformance .performance-table td small { white-space: nowrap; }
 .trace-display-menu > summary:hover { background: var(--ui-control-hover); }
 .speed-chart .chart-heading .trace-display-menu > .trace-settings { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; display: grid; gap: 2px; width: max-content; margin: 0; padding: 6px; border-radius: var(--ui-menu-radius); background: var(--ui-panel); box-shadow: var(--ui-shadow-popover); }
 .speed-chart .chart-heading .trace-display-menu .trace-setting { min-height: 30px; padding: 4px 8px; }
-
-/* The gap beside a sector time sits a size down, so the time can stay centred on its bar. */
-.telemetry-content .sector-cards .lap-summary-card .sector-delta-slot .summary-delta { font-size: var(--type-caption2,.6875rem); letter-spacing: -.01em; }
 
 /* Closed menu contents do not run animations, so a transition started there would never finish. */
 .trace-display-menu:not([open]) * { transition: none; }
