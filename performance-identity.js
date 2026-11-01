@@ -120,11 +120,6 @@ export function gpFlagMarkup(eventName) {
   return `<img class="gp-flag" src="assets/flags/${code.toLowerCase()}.svg" alt="${code}" width="22" height="16">`;
 }
 
-export function eventLabel(eventName) {
-  const flag = gpFlagMarkup(eventName);
-  return `<span class="performance-event-cell">${flag}<span>${escape(eventName)}</span></span>`;
-}
-
 export const teamLabel = team => {
   const t = typeof team === 'object' && team !== null ? team : { team: String(team || '') };
   const teamName = t.displayName || t.team || t.name || '';

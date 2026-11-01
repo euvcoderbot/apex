@@ -174,7 +174,7 @@ input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 
 .trace-pill-group .trace-swatch { width: 18px; height: 18px; flex: 0 0 18px; border-radius: var(--radius-xs); }
 
 /* ---------- Badges (not controls) ---------------------------------------- */
-[data-ui-kind="badge"],.loaded-lap-main em,.corner-driver em,.ref-badge {
+[data-ui-kind="badge"], .loaded-lap-main em, .corner-driver em {
   font-size: var(--type-caption); font-weight: 600; border-radius: var(--radius-xs); letter-spacing: 0;
 }
 
@@ -347,7 +347,6 @@ table.performance-table th:last-child > .ui-column-resizer { right: 0; }
 @container (max-width: 380px) { .corner-detail-card .corner-table-head > button small { display: none; } }
 .corner-detail-card .corner-table-head > button small { display: inline; font-weight: 400; color: var(--ui-tertiary); }
 .corner-detail-card .corner-table-head > button[aria-pressed="true"] { color: var(--ui-label); }
-.corner-detail-card .corner-table-head .sort-indicator { font-style: normal; font-size: var(--type-caption); }
 
 /* ---------- Circuit guide info (HIG Popovers) ------------------------------
    Guide / Lap comparison switches the canvas only; the guide's explanation is
@@ -554,7 +553,6 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 /* Corner comparison: a compact native table and explicit button affordances.
    HIG Lists and tables / Buttons / Layout: readable headers, clear feedback,
    common alignment and spacing. Dimensions are this site's control tokens. */
-.corner-analysis-body { gap: 16px; }
 .view-error { padding: 12px 14px; border-radius: var(--hig-radius); background: var(--ui-well); color: var(--ui-secondary); font-size: var(--type-body); }
 #cornerPickerRow { padding: 16px; display: grid; gap: 16px; }
 #cornerPickerRow .circuit-section-group { margin: 0; padding: 0; border: 0; }
@@ -571,7 +569,6 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 .corner-detail-card { padding: 0; border: 1px solid var(--ui-border); border-radius: var(--radius-lg); overflow: hidden; background: transparent; }
 .corner-detail-header { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; padding: 4px 10px; margin: 0; border: 0; }
 .corner-detail-card .corner-detail-header h3 { margin: 0; color: var(--ui-label); font: 600 var(--type-headline)/1.4 var(--ui-font); }
-.corner-distance { font: 400 var(--type-callout)/1.4 var(--ui-font); color: var(--ui-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .corner-measurement-wrap { overflow-x: auto; max-width: 100%; }
 .corner-measurement-table { border-collapse: collapse; table-layout: auto; width: 100%; font: 400 var(--type-body)/1.4 var(--ui-font); font-variant-numeric: tabular-nums; }
 .corner-measurement-table :is(th,td) { display: table-cell; box-sizing: border-box; height: 32px; padding: 3px 18px 3px 8px; border: 0; border-bottom: 1px solid var(--ui-separator); text-align: right; vertical-align: middle; white-space: nowrap; }
