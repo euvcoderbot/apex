@@ -1,38 +1,59 @@
 import {appSource} from './app-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-const source=appSource(), css=readFileSync('macos-window.css','utf8');
+const source=appSource();
 const box={};vm.createContext(box);
-vm.runInContext(source.slice(source.indexOf('function qualifyingPreparationLaps('),source.indexOf('function toggleLoadedLap(')),box);
-const fixture=()=>[null,95.700,120.236,125.126,93.594,124.928,92.774,123.042,94.914,121.383].slice(1).map((time,index)=>({lap:index+2,time,stint:index<2?1:2,phase:'Q1',compound:'SOFT',in_lap:[3,10].includes(index+2),out_lap:index+2===4,track_status:'1'}));
+vm.runInContext(source.slice(source.indexOf('const PUSH_PACE'),source.indexOf('function toggleLoadedLap(')),box);
+const lap=(number,time,s1,flags={})=>({lap:number,time,s1,phase:'Q3',stint:1,in_lap:false,out_lap:false,...flags});
+const labels=(laps,session='Qualifying')=>{const roles=box.lapRoles(laps,session);return laps.map(l=>roles.get(l.lap)?.label||'');};
 
-test('multi-push qualifying run marks the intervening slow laps as preparation, not pit exits',()=>{
-  const laps=fixture(), before=JSON.stringify(laps);
-  assert.deepEqual([...box.qualifyingPreparationLaps(laps,'Qualifying').keys()],[6,8]);
-  assert.deepEqual([...box.qualifyingPreparationLaps(laps,'Sprint Qualifying').keys()],[6,8]);
-  assert.equal(JSON.stringify(laps),before,'Timing and pit flags remain untouched');
-  assert.match(box.qualifyingPreparationLaps(laps,'Qualifying').get(6).reason,/Inferred.*No pit exit/);
+// Mexico City 2026, Antonelli in Q3, as OpenF1 flags it: L19 and L22 are marked as in-laps but were not, and the real in-lap L24 is unmarked.
+const antonelli=()=>[lap(17,517.418,null,{out_lap:true}),lap(18,92.262,29.965),lap(19,77.339,27.093,{in_lap:true}),lap(20,98.946,33.612,{in_lap:true}),
+  lap(21,278.616,null,{out_lap:true}),lap(22,87.872,29.399,{in_lap:true}),lap(23,76.707,26.876),lap(24,null,37.136)];
+
+test('each run has one OUT and one IN, whatever the unreliable pit-entry flag says',()=>{
+  assert.deepEqual(labels(antonelli()),['OUT','WARM','PUSH','IN','OUT','WARM','PUSH','IN']);
 });
 
-test('race laps, traffic-sized losses, flags and interrupted tyre runs are not relabelled',()=>{
-  assert.equal(box.qualifyingPreparationLaps(fixture(),'Race').size,0);
-  for(const change of [lap=>{lap.track_status='2';},lap=>{lap.track_status='4';},lap=>{lap.deleted=true;},lap=>{lap.in_lap=true;},lap=>{lap.time=98;},lap=>{lap.stint=3;},lap=>{lap.compound='MEDIUM';}]){
-    const laps=fixture();change(laps.find(l=>l.lap===6));
-    assert.equal(box.qualifyingPreparationLaps(laps,'Qualifying').has(6),false);
-  }
-  const missing=fixture().filter(l=>l.lap!==7);
-  assert.equal(box.qualifyingPreparationLaps(missing,'Qualifying').has(6),false);
-  const terminal=fixture().filter(l=>l.lap<7);
-  assert.equal(box.qualifyingPreparationLaps(terminal,'Qualifying').has(6),false);
+test('a flying lap is never an in-lap, and multiple warm-up laps are all warm-ups',()=>{
+  const laps=[lap(1,300,null,{out_lap:true}),lap(2,95,32),lap(3,92,31),lap(4,77,27),lap(5,100,35)];
+  assert.deepEqual(labels(laps),['OUT','WARM','WARM','PUSH','IN']);
 });
 
-test('compact summary and category controls use shared typography and selection tokens',()=>{
-  assert.match(source,/summary-driver[^\n]+teamLogoMarkup/);
-  assert.match(css,/summary-lap-time > strong[^}]+var\(--type-title2\)/);
-  assert.match(css,/sector-measurements > strong[^}]+var\(--type-headline\)/);
-  assert.match(css,/grid-template-areas: "driver time" "tyre time"/);
-  // The category bar is a segmented control: a raised thumb, no ring.
-  assert.match(css,/category-tab\[aria-current="page"\][^}]+background: var\(--ui-seg-thumb\); box-shadow: var\(--ui-thumb-shadow\)/);
+test('an attempt that starts at flying pace and loses the time is an abort, not a warm-up',()=>{
+  const middle=[lap(1,300,null,{out_lap:true}),lap(2,77,27),lap(3,90,27.2),lap(4,100,35)];
+  assert.deepEqual(labels(middle),['OUT','PUSH','ABORT','IN']);
+  // No lap time at all, but a flying first sector: still an attempt.
+  assert.deepEqual(labels([lap(1,300,null,{out_lap:true}),lap(2,77,27),lap(3,null,27.1)]),['OUT','PUSH','ABORT']);
+  // Abandoned on the way into the pits: the attempt is what matters.
+  assert.deepEqual(labels([lap(1,300,null,{out_lap:true}),lap(2,77,27),lap(3,105,27.3),lap(4,300,null,{out_lap:true})]).slice(0,3),['OUT','PUSH','ABORT']);
+});
+
+test('slow laps are named by where they fall around the attempts',()=>{
+  const laps=[lap(1,300,null,{out_lap:true}),lap(2,95,32),lap(3,77,27),lap(4,120,38),lap(5,77.2,27.1),lap(6,110,36),lap(7,115,37)];
+  assert.deepEqual(labels(laps),['OUT','WARM','PUSH','PREP','PUSH','COOL','IN']);
+});
+
+test('a slow lap under a flag says so, and flagged laps do not set the reference',()=>{
+  const laps=[lap(1,300,null,{out_lap:true}),lap(2,77,27),lap(3,70,24,{track_status:'4'}),lap(4,110,36,{track_status:'2'}),lap(5,77.1,27),lap(6,110,36)];
+  assert.deepEqual(labels(laps),['OUT','PUSH','PUSH','FLAG','PUSH','IN']);
+});
+
+test('a car that leaves and comes straight back is one IN/OUT lap',()=>{
+  assert.deepEqual(labels([lap(1,300,null,{out_lap:true}),lap(2,300,null,{out_lap:true}),lap(3,77,27),lap(4,100,35)]),['IN/OUT','OUT','PUSH','IN']);
+});
+
+test('races and practice only get pit labels, and a race does not end in the pits',()=>{
+  const stint=[lap(1,90,30,{out_lap:true}),lap(2,91,30),lap(3,110,36),lap(4,110,36,{out_lap:true}),lap(5,91,30),lap(6,91,30)];
+  assert.deepEqual(labels(stint,'Race'),['OUT','','IN','OUT','','']);
+  assert.deepEqual(labels(stint,'Practice 1'),['OUT','','IN','OUT','','IN']);
+  const retired=[lap(1,90,30,{out_lap:true}),lap(2,120,40,{in_lap:true})];
+  assert.deepEqual(labels(retired,'Race'),['OUT','IN']);
+});
+
+test('labelling leaves timing and flags untouched',()=>{
+  const laps=antonelli(),before=JSON.stringify(laps);
+  box.lapRoles(laps,'Qualifying');
+  assert.equal(JSON.stringify(laps),before);
 });

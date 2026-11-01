@@ -124,37 +124,66 @@ function fastestTimedLap(driver) {
   return timed.length ? timed.reduce((fastest, lap) => lap.time < fastest.time ? lap : fastest) : null;
 }
 
-function qualifyingPreparationLaps(laps, sessionName) {
+// What each lap actually was, for the label on its row. A run starts at a pit exit and ends with the lap into the pits, so it has one OUT and
+// one IN. The source's pit-entry flag is not used to place them: its lap number can be off by one or two, while pit exits are reliable.
+// Between them, qualifying laps are judged against the driver's own best in that phase. This only labels laps; timing and flags are untouched.
+const PUSH_PACE = 1.04, PUSH_SECTOR = 1.02;
+const LAP_ROLES = {
+  out: ['OUT', 'Out-lap: from pit exit to the timing line. Comparison may be partial.'],
+  in: ['IN', 'In-lap: the last lap of this run, into the pits.'],
+  inOut: ['IN/OUT', 'Left the pits and came back in on the same lap; the trace may include a garage stop.'],
+  push: ['PUSH', 'Flying lap: within 4% of this driver\'s best in this phase.'],
+  abort: ['ABORT', 'Started at flying-lap pace, then lost the time: a mistake or an abandoned attempt.'],
+  warm: ['WARM', 'Warm-up lap: slow throughout, before the flying attempt.'],
+  prep: ['PREP', 'Slow lap between two flying attempts on the same tyres: cooling down and preparing. No pit stop.'],
+  cool: ['COOL', 'Slow lap after the last flying attempt, before the in-lap.'],
+  flag: ['FLAG', 'Slow lap under a yellow or red flag; its time says little about pace.'],
+};
+function lapRoles(laps, sessionName) {
   const roles = new Map();
-  if (!/qualifying|shootout/i.test(sessionName || '')) return roles;
-  const runs = new Map();
-  for (const lap of laps || []) {
-    const key = `${lap.phase || ''}|${lap.stint}|${lap.compound || ''}`;
-    if (!runs.has(key)) runs.set(key, []);
-    runs.get(key).push(lap);
+  const ordered = [...(laps || [])].sort((a, b) => a.lap - b.lap);
+  const qualifying = /qualifying|shootout/i.test(sessionName || ''), race = /^(race|sprint)$/i.test(sessionName || '');
+  const set = (lap, kind) => roles.set(lap.lap, {kind, label: LAP_ROLES[kind][0], reason: LAP_ROLES[kind][1]});
+  const flagged = lap => /[2-7]/.test(String(lap.track_status || ''));
+  const finite = value => Number.isFinite(value) && value > 0;
+  // Best time and first sector per phase, from laps that were not out-laps, under a flag or deleted.
+  const bests = new Map();
+  for (const lap of ordered) {
+    if (lap.out_lap || lap.deleted || flagged(lap)) continue;
+    const best = bests.get(lap.phase || '') || {time: Infinity, s1: Infinity};
+    if (finite(lap.time)) best.time = Math.min(best.time, lap.time);
+    if (finite(lap.s1)) best.s1 = Math.min(best.s1, lap.s1);
+    bests.set(lap.phase || '', best);
   }
-  const clear = lap => !/[2-7]/.test(String(lap.track_status || '')) && !lap.deleted;
-  for (const run of runs.values()) {
-    run.sort((a,b) => a.lap-b.lap);
-    const timed = run.filter(lap => Number.isFinite(lap.time) && lap.time > 0 && !lap.in_lap && !lap.out_lap && clear(lap));
-    if (timed.length < 2) continue;
-    const best = Math.min(...timed.map(lap => lap.time));
-    const flying = lap => timed.includes(lap) && lap.time <= best * 1.07;
-    const slow = lap => timed.includes(lap) && lap.time >= Math.max(best * 1.12, best + 8);
-    for (let index=0; index<run.length; index++) {
-      const lap=run[index];
-      if (!slow(lap)) continue;
-      let before=index-1, after=index+1;
-      while (before>=0 && slow(run[before])) before--;
-      while (after<run.length && slow(run[after])) after++;
-      const previous=run[before], next=run[after];
-      // Inference only: require an uninterrupted same-tyre sequence leading
-      // back to a flying lap, not a yellow/red flag, pit visit or missing lap.
-      if (!previous || !next || !(flying(previous) || previous.out_lap && clear(previous)) || !flying(next)) continue;
-      if (run.slice(before+1,after+1).some((entry,offset) => entry.lap !== run[before+offset].lap+1)) continue;
-      roles.set(lap.lap, {label:'PREP', reason:'Inferred cool-down / preparation lap: substantially slower between an out/flying lap and the next flying lap on the same tyre run. No pit exit is implied.'});
-    }
+  const runs = [];
+  for (const lap of ordered) {
+    if (lap.out_lap || !runs.length) runs.push([]);
+    runs.at(-1).push(lap);
   }
+  runs.forEach((run, index) => {
+    const followed = index < runs.length - 1;
+    const pace = lap => {
+      const best = bests.get(lap.phase || '');
+      if (!best) return 'slow';
+      if (finite(lap.time) && lap.time <= best.time * PUSH_PACE) return 'push';
+      return finite(lap.s1) && lap.s1 <= best.s1 * PUSH_SECTOR ? 'abort' : 'slow';
+    };
+    const middle = run.filter(lap => !lap.out_lap);
+    const attempts = qualifying ? middle.map((lap, at) => pace(lap) === 'slow' ? -1 : at).filter(at => at >= 0) : [];
+    const first = attempts[0], last = attempts.at(-1);
+    middle.forEach((lap, at) => {
+      const final = lap === run.at(-1);
+      const kind = qualifying ? pace(lap) : 'slow';
+      if (kind !== 'slow') return set(lap, kind);
+      // A race ends on the line, not in the pits, so its last lap is an in-lap only if the timing says so.
+      if (final && (followed || (race ? lap.in_lap : true))) return set(lap, 'in');
+      if (!qualifying) return;
+      if (flagged(lap)) return set(lap, 'flag');
+      set(lap, first === undefined || at < first ? 'warm' : at > last ? 'cool' : 'prep');
+    });
+    const out = run[0];
+    if (out?.out_lap) set(out, run.length === 1 && followed ? 'inOut' : 'out');
+  });
   return roles;
 }
 
@@ -225,30 +254,27 @@ function renderStints() {
       return `<button type="button" class="stint run-segment ${id === active ? 'selected' : ''}" aria-pressed="${id === active}" aria-label="Show ${escapeUI(runLabel)} laps for ${code}" style="--team:${teamColor}" data-motion-key="run-${code}-${id}" data-code="${code}" data-stint="${id}"><strong>${runLabel}</strong><small><span class="run-compounds">${compoundBadges}</span>${count} ${countLabel}</small><span class="run-choice-indicator" aria-hidden="true">${id === active ? '✓' : '›'}</span></button>`;
     }).join('');
     const qualifyingRuns = [...new Set(activeLaps.map(lap => lap.stint))];
-    const preparationLaps = qualifyingPreparationLaps(driver.laps, loadedSessionName);
+    const roles = lapRoles(driver.laps, loadedSessionName);
     const lapButtons = activeLaps.map(lap => {
       const isLoaded = loaded.some(item => item.code === code && item.lap === lap.lap);
       const flag = `L${lap.lap}`;
-      const preparation = preparationLaps.get(lap.lap);
-      const classes = ['lap', 'lap-chip', lap.in_lap || lap.out_lap ? 'in-out' : '', preparation ? 'is-preparation' : '', isLoaded ? 'selected' : ''].filter(Boolean).join(' ');
+      const role = roles.get(lap.lap);
+      const classes = ['lap', 'lap-chip', ['in', 'out', 'inOut'].includes(role?.kind) ? 'in-out' : '', ['warm', 'prep', 'cool', 'flag'].includes(role?.kind) ? 'is-preparation' : '', role?.kind === 'push' ? 'is-push' : '', role?.kind === 'abort' ? 'is-abort' : '', isLoaded ? 'selected' : ''].filter(Boolean).join(' ');
       const displayTime = Number.isFinite(lap.display_time) ? lap.display_time : lap.time;
       const estimated = lap.display_time_estimated === true;
       const duration = Number.isFinite(displayTime) ? `${estimated ? '~' : ''}${time(displayTime)}` : '&mdash;';
       const selectable = Number.isFinite(lap.time) || lap.in_lap || lap.out_lap;
-      const context = lap.in_lap && lap.out_lap ? 'IN/OUT' : lap.out_lap ? 'OUT' : lap.in_lap ? 'IN' : preparation?.label || '';
+      const context = role?.label || '';
       const neutralised = String(lap.track_status || '').includes('4') ? 'SC'
         : String(lap.track_status || '').includes('6') ? 'VSC' : '';
-      const title = lap.in_lap && lap.out_lap ? 'Pit entry and exit occurred in this lap; trace may include a garage stop'
-        : lap.out_lap ? 'Pit-out segment from pit exit to the timing line; comparison may be partial'
-        : lap.in_lap ? 'Pit-in lap includes the pit entry'
-        : neutralised ? `${neutralised} lap; time is not representative of racing pace`
-        : preparation ? preparation.reason
-        : !Number.isFinite(displayTime) ? 'No lap time published by the timing feeds' : '';
+      const title = role?.reason
+        || (neutralised ? `${neutralised} lap; time is not representative of racing pace` : '')
+        || (!Number.isFinite(displayTime) ? 'No lap time published by the timing feeds' : '');
       const age = Number.isFinite(lap.tyre_life) && lap.tyre_life >= 1 ? Math.round(lap.tyre_life) : null;
       // Practice and race stints: the feed often has no tyre age, so count the laps run in this stint, this one included. A set can have been
       // used before the stint began, so a counted age is shown with "~" and says so on hover.
       const counted = activeLaps.findIndex(item => item.lap === lap.lap) + 1;
-      const tyreDetail = hasQualifyingPhases ? `<small class="lap-tyre-age">Run ${qualifyingRuns.indexOf(lap.stint) + 1} · Tyre age ${age === null ? 'unknown' : `${age} ${age === 1 ? 'lap' : 'laps'}`}</small>`
+      const tyreDetail = hasQualifyingPhases ? `<small class="lap-tyre-age" title="Tyre age: ${age === null ? 'unknown' : `${age} ${age === 1 ? 'lap' : 'laps'}`}">Run ${qualifyingRuns.indexOf(lap.stint) + 1} · Age ${age === null ? '?' : age}</small>`
         : age !== null ? `<small class="lap-tyre-age">Tyre age ${age} ${age === 1 ? 'lap' : 'laps'}</small>`
         : counted ? `<small class="lap-tyre-age" title="Laps run in this stint. The tyres may have been used before it began.">Tyre age ~${counted} ${counted === 1 ? 'lap' : 'laps'}</small>` : '';
       return `<button class="${classes}" aria-pressed="${isLoaded}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${escapeUI(title)}"><span class="lap-token">${flag}${context ? ` <b class="lap-state">${context}</b>` : ''}${neutralised ? ` <b class="lap-state">${neutralised}</b>` : ''}</span><span class="lap-clock">${duration}</span>${compoundBadgeMarkup(lap.compound)}${tyreDetail}</button>`;

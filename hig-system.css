@@ -862,7 +862,7 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
 
 /* Inspector lists. Laps read as one-line rows: which lap, how old the tyre was, then the time and the tyre at a shared right edge. */
 .app-inspector .lap-workspace .lap-grid { grid-template-columns: repeat(auto-fill,minmax(min(100%,280px),1fr)); gap: 4px; }
-.app-inspector .lap-workspace .lap-chip[data-ui-kind="choice"] { grid-template-columns: 56px minmax(0,1fr) max-content 18px; grid-template-rows: auto; grid-template-areas: "token age clock tyre"; align-items: center; column-gap: 8px; height: 34px; min-height: 34px; padding: 0 8px 0 10px; }
+.app-inspector .lap-workspace .lap-chip[data-ui-kind="choice"] { grid-template-columns: 82px minmax(0,1fr) max-content 18px; grid-template-rows: auto; grid-template-areas: "token age clock tyre"; align-items: center; column-gap: 8px; height: 34px; min-height: 34px; padding: 0 8px 0 10px; }
 .app-inspector .lap-workspace .lap-chip .lap-token { grid-area: token; font-size: var(--type-body); font-weight: 600; }
 .app-inspector .lap-workspace .lap-chip .lap-state { font-size: var(--type-caption); }
 .app-inspector .lap-workspace .lap-chip .lap-tyre-age { grid-area: age; line-height: 1.2; color: var(--ui-tertiary); }
@@ -951,3 +951,7 @@ body > #carPerformance .performance-table td small { white-space: nowrap; }
 #tireCard:not(.app-sidebar *) > .panel-heading { margin: 0; padding: 0; min-height: 0; }
 #tireCard:not(.app-sidebar *) > .panel-heading h2 { margin: 0; line-height: 24px; }
 #tireCard:not(.app-sidebar *) > .tire-nomination-container { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 8px 20px; margin: 0; padding: 0; }
+
+/* What each lap was: flying laps read as positive, abandoned ones as a warning. A chosen row keeps its own label colour. */
+.lap-workspace .lap-chip.is-push:not([aria-pressed="true"]) .lap-state { color: var(--ui-positive); }
+.lap-workspace .lap-chip.is-abort:not([aria-pressed="true"]) .lap-state { color: var(--ui-warning); }
