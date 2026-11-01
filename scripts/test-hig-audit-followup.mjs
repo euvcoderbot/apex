@@ -27,18 +27,6 @@ test('expanded charts isolate only background siblings and restore pre-existing 
   assert.equal(box.traceZoom.start,.2);assert.equal(box.traceZoom.end,.6);assert.equal(charts.attrs['aria-modal'],undefined);
 });
 
-test('expanded graph sizing changes drawable height by exactly plus/minus fifteen percent',()=>{
-  const source=read('session-charts.js'),box={};vm.createContext(box);
-  vm.runInContext(source.slice(source.indexOf('function focusedGraphRows'),source.indexOf('function sizeFocusedGraphs')),box);
-  for(const [speedRow,deltaRow,speedCanvas,deltaCanvas] of [[620,400,450,300],[400,220,210,150],[580,280,350,200]]){
-    const [s,d]=box.focusedGraphRows(speedRow,deltaRow,speedCanvas,deltaCanvas);
-    assert.ok(Math.abs((s-speedRow+speedCanvas)/speedCanvas-1.15)<1e-10);
-    assert.ok(Math.abs((d-deltaRow+deltaCanvas)/deltaCanvas-.85)<1e-10);
-  }
-  assert.match(source,/charts\.style\.removeProperty\('grid-template-rows'\)/,'measure neutral layout, not the previous scaled result');
-  assert.match(source,/if \(!expanded\) charts\.style\?\.removeProperty\?\.\('grid-template-rows'\)/);
-});
-
 test('visible-trace time pills use the regular run-control height with compact secondary time text',()=>{
   const sheet=postcss.parse(read('hig-system.css'));
   const rule=sheet.nodes.find(n=>n.selector==='.trace-pill-group .trace-driver-chip,.trace-pill-group .trace-driver-chip.is-visible');

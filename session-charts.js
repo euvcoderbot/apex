@@ -124,43 +124,34 @@ function bindChartZoom() {
 let traceFocusReturn = null;
 let traceFocusPreviousView = null;
 let traceFocusInert = [];
-// Resize the drawable graphs, not their headings/controls. Measure the neutral
-// responsive grid each time so repeated redraws never compound the 15% change.
-function focusedGraphRows(speedRow, deltaRow, speedCanvas, deltaCanvas) {
-  return [speedRow + speedCanvas * .15, deltaRow - deltaCanvas * .15];
-}
-function sizeFocusedGraphs() {
-  if (!document.body?.classList.contains('trace-focus')) return;
-  const charts = $('#charts');
-  const speed = charts?.querySelector('[data-chart="Speed trace"]');
-  const delta = charts?.querySelector('[data-chart="Timing delta"]');
-  const speedCard = speed?.closest?.('.chart'), deltaCard = delta?.closest?.('.chart');
-  if (!charts?.style?.removeProperty || !speedCard || !deltaCard) return;
-  charts.style.removeProperty('grid-template-rows');
-  const speedHeight = speed.getBoundingClientRect().height, deltaHeight = delta.getBoundingClientRect().height;
-  if (!(speedHeight > 0 && deltaHeight > 0)) return;
-  const rows = focusedGraphRows(speedCard.getBoundingClientRect().height,
-    deltaCard.getBoundingClientRect().height, speedHeight, deltaHeight);
-  charts.style.gridTemplateRows = `${rows[0]}px ${rows[1]}px auto`;
-  speed.dataset.baseHeight = String(speedHeight); delta.dataset.baseHeight = String(deltaHeight);
-}
+// Set while a screenshot redraws the charts, so they are as sharp as the text around them.
+let chartCaptureScale = null;
+// Expanded charts keep their height on the page, with more room for the speed trace.
+const EXPANDED_SPEED_TRACE = 1.15;
 function setTraceFocus(expanded) {
   const charts = $('#charts');
   if (!charts) return;
+  // The whole telemetry section comes along, so it reads exactly as it does on the page.
+  const view = $('#telemetryCard') || charts;
+  const canvases = [...(charts.querySelectorAll?.('canvas') || [])];
   if (expanded) {
     if(document.body.classList.contains('trace-focus'))return;
     traceFocusReturn = document.activeElement;
     traceFocusPreviousView = {zoom:{...traceZoom},delta:timingDeltaZoom};
     // Inert only siblings along the ancestor path, never an ancestor of charts.
     traceFocusInert = [];
-    for (let node = charts; node.parentElement; node = node.parentElement) {
+    for (let node = view; node.parentElement; node = node.parentElement) {
       for (const sibling of node.parentElement.children) {
         if (sibling === node || ['SCRIPT','STYLE','LINK'].includes(sibling.tagName)) continue;
         traceFocusInert.push([sibling,sibling.inert]);sibling.inert = true;
       }
       if (node.parentElement === document.body) break;
     }
-    charts.setAttribute('role','dialog');charts.setAttribute('aria-modal','true');
+    view.setAttribute('role','dialog');view.setAttribute('aria-modal','true');
+    for (const canvas of canvases) {
+      const height = canvas.getBoundingClientRect().height * (canvas.dataset.chart === 'Speed trace' ? EXPANDED_SPEED_TRACE : 1);
+      canvas.style.setProperty('--focus-height', `${height}px`);
+    }
     // The expanded view is for reading the entire lap, not magnifying a section.
     traceZoom = { start: 0, end: 1 };
     hoverFraction = null;
@@ -170,19 +161,17 @@ function setTraceFocus(expanded) {
     traceZoom={...traceFocusPreviousView.zoom};timingDeltaZoom=traceFocusPreviousView.delta;
     traceFocusPreviousView=null;updateZoomReadout();updateTimingDeltaZoomReadout();
     for (const [element,inert] of traceFocusInert) element.inert = inert;
-    traceFocusInert = [];charts.setAttribute('role','region');charts.removeAttribute('aria-modal');
+    traceFocusInert = [];view.removeAttribute('role');view.removeAttribute('aria-modal');
+    for (const canvas of canvases) canvas.style.removeProperty('--focus-height');
   }
   document.body.classList.toggle('trace-focus', expanded);
-  if (!expanded) charts.style?.removeProperty?.('grid-template-rows');
   $('#realTooltip').style.display = 'none';
-  charts.setAttribute('aria-label', expanded ? 'Expanded speed trace and timing delta' : 'Telemetry charts');
+  if (expanded) view.setAttribute('aria-label', 'Expanded lap telemetry');
+  else view.removeAttribute('aria-label');
   $('[data-trace-focus="open"]')?.setAttribute('aria-expanded', String(expanded));
   if (expanded) $('[data-trace-focus="close"]')?.focus();
   else if (traceFocusReturn?.isConnected) traceFocusReturn.focus();
-  requestAnimationFrame(() => {
-    drawRealChart('Speed trace');
-    drawRealChart('Timing delta');
-  });
+  requestAnimationFrame(() => drawAll());
 }
 
 document.addEventListener('keydown', event => {
@@ -191,7 +180,7 @@ document.addEventListener('keydown', event => {
     setTraceFocus(false);
   }
   if (event.key === 'Tab' && document.body.classList.contains('trace-focus')) {
-    const choices=[...$('#charts').querySelectorAll('button,input,summary,[tabindex="0"]')].filter(el=>!el.disabled&&!el.closest('[inert]')&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden');
+    const choices=[...($('#telemetryCard') || $('#charts')).querySelectorAll('button,input,summary,[tabindex="0"]')].filter(el=>!el.disabled&&!el.closest('[inert]')&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden');
     const first=choices[0],last=choices.at(-1);
     if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}
     else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
@@ -307,7 +296,7 @@ function renderCharts() {
             <button data-pan="right" title="Move zoom window right" aria-label="Move zoom window right">›</button>
             <button class="trace-reset" data-zoom="reset" title="Reset zoom">Reset</button>
           </div>
-        </div><details class="trace-display-menu"><summary title="Corner numbers, speed annotations and alignment">Display</summary><div class="trace-settings" aria-label="Telemetry display settings"><label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label><label class="trace-setting" title="Label every measured speed peak and dip. Each lap uses its own minimum or maximum, matched to the other laps by GPS position. The fastest lap shows its speed in km/h; the others show their difference. A dash means that lap has no matching measured extreme."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label><label class="trace-setting" title="Experimental estimate: integrate each lap's measured speed over time and normalize distance within official sectors. This changes the horizontal mapping, not the measured values. Never matches drivers' braking points. Incomplete or unsuitable laps retain the original mapping."><input type="checkbox" id="alignmentCorrectionToggle" ${estimateAlignmentCorrection ? 'checked' : ''} aria-describedby="alignmentCorrectionNotice"><i aria-hidden="true"></i><span>Correct alignment (estimated)</span></label></div></details><button type="button" class="trace-focus-button" data-trace-focus="open" aria-expanded="false" aria-controls="charts" title="Show speed trace and timing delta across the full page">Expand charts</button><button type="button" class="trace-focus-button trace-focus-close" data-trace-focus="close" title="Return to session analysis">Close view</button>` : name === 'Timing delta' ? `
+        </div><details class="trace-display-menu"><summary title="Corner numbers, speed annotations and alignment">Display</summary><div class="trace-settings" aria-label="Telemetry display settings"><label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label><label class="trace-setting" title="Label every measured speed peak and dip. Each lap uses its own minimum or maximum, matched to the other laps by GPS position. The fastest lap shows its speed in km/h; the others show their difference. A dash means that lap has no matching measured extreme."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label><label class="trace-setting" title="Experimental estimate: integrate each lap's measured speed over time and normalize distance within official sectors. This changes the horizontal mapping, not the measured values. Never matches drivers' braking points. Incomplete or unsuitable laps retain the original mapping."><input type="checkbox" id="alignmentCorrectionToggle" ${estimateAlignmentCorrection ? 'checked' : ''} aria-describedby="alignmentCorrectionNotice"><i aria-hidden="true"></i><span>Correct alignment (estimated)</span></label></div></details><button type="button" class="trace-focus-button" data-trace-focus="open" aria-expanded="false" aria-controls="telemetryCard" title="Show the lap details and every chart across the full page">Expand charts</button><details class="trace-display-menu trace-capture-menu"><summary title="Save the charts as an image">Screenshot</summary><div class="trace-settings" aria-label="Screenshot options"><button type="button" class="trace-capture-option" data-capture="traces">Speed trace and timing delta</button><button type="button" class="trace-capture-option" data-capture="all">All charts with lap details</button></div></details><button type="button" class="trace-focus-button trace-focus-close" data-trace-focus="close" title="Return to session analysis">Close view</button>` : name === 'Timing delta' ? `
         <div class="trace-zoom-cluster delta-zoom-cluster" aria-label="Timing delta vertical zoom controls">
           <span class="trace-zoom-readout">Scale <b id="timingDeltaZoomReadout">${Math.round(timingDeltaZoom * 100)}%</b></span>
           <div class="trace-tools">
@@ -339,6 +328,7 @@ function renderCharts() {
   bindAllChartHover();
   bindChartZoom();
   bindSpeedChartControls();
+  bindChartCapture();
   renderTraceVisibilityControls();
   $('#telemetryDataAccess').addEventListener('toggle',()=>{if($('#telemetryDataAccess').open)renderTelemetryReadout();});
   $('#telemetrySample').addEventListener('input',()=>{
@@ -1163,7 +1153,6 @@ const TRACE_PLOT_LEFT = 58;
 const TRACE_PLOT_RIGHT = 7;
 // Draw a single canvas chart
 function drawRealChart(name) {
-  if (name === 'Speed trace') sizeFocusedGraphs();
   const canvas = document.querySelector(`[data-chart="${name}"]`);
   if (!canvas) return;
   
@@ -1174,7 +1163,7 @@ function drawRealChart(name) {
     chartStaticLayers.delete(canvas);
     return;
   }
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = chartCaptureScale || window.devicePixelRatio || 1;
   canvas.width = rect.width * dpr;
   canvas.height = rect.height * dpr;
   

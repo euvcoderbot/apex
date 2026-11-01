@@ -291,6 +291,8 @@ function updateTelemetryVisibility() {
   const card = $('#telemetryCard');
   if (!card) return;
   const empty = loaded.length === 0;
+  // Clearing every lap from the expanded view leaves nothing to expand.
+  if (empty && document.body?.classList?.contains('trace-focus')) setTraceFocus(false);
   const genericMap = empty && (selected.length > 0 || !!sessionEventName);
   card.classList.toggle('is-empty', empty);
   card.classList.toggle('has-generic-map', genericMap);
