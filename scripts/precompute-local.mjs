@@ -6,6 +6,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {SOURCE_REVISION,BACKEND_REVISION,RACE_REVISION} from '../lib/cache-revision.mjs';
 import {mergeLocalCaptures} from '../lib/local-captures.mjs';
+import {confirmedQualifying} from '../lib/confirmed-qualifying.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const args=process.argv.slice(2),arg=(name,fallback)=>{const i=args.indexOf(name);return i<0?fallback:args[i+1];};
 const year=Number(arg('--year','2026')),gp=arg('--gp','Singapore Grand Prix');
@@ -38,6 +39,11 @@ if(!targets.length)throw new Error('Grand Prix not found in this season');
 if(capturing){
   for(const event of targets){
     const status=event.session_statuses||{};
+    if(status.Qualifying!=='completed' && args.includes('--confirmed-local-qualifying') && await confirmedQualifying(root,year,event)) {
+      event.session_statuses={...status,Qualifying:'completed'};
+      status.Qualifying='completed';
+      console.log(`Qualifying completion confirmed by local source capture: ${event.name}.`);
+    }
     if(status.Qualifying!=='completed'||(!args.includes('--qualifying-only')&&status.Race!=='completed'))
       throw new Error('Only sessions confirmed complete by the source calendar can be captured.');
   }
