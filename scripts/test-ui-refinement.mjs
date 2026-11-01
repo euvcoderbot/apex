@@ -15,7 +15,7 @@ test('rendered lap and sector differences precede their measured times, with wea
   const second=html.slice(html.indexOf('data-motion-key="summary-VER'));
   assert.match(second,/summary-lap-time[\s\S]*?−0\.123s<\/em><strong>91\.373<\/strong>/);
   assert.match(second,/sector-delta-slot[\s\S]*?−0\.271s<\/em><\/span><strong>27\.002s<\/strong>/);
-  for(const icon of ['🌤️','🌡️','🚩','🌧️'])assert.ok(html.includes(`<i aria-hidden="true">${icon}</i>`));
+  for(const icon of ['🌤️','🌡️','💨','🌧️'])assert.ok(html.includes(`<i aria-hidden="true">${icon}</i>`));
   assert.doesNotMatch(html,/<small>L21<\/small>/);
   // The lap card uses the same compound badge as the lap tiles, not the tyre photo.
   assert.match(html,/summary-tyre[^"]*"><svg class="compound-badge" data-c="SOFT">/);

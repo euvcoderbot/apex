@@ -10,7 +10,7 @@ from urllib.error import HTTPError
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi import Response
 import server
-from openf1_performance import adapt_performance, retained_bundle, session_payload, pit_entry_laps, stewards_lap, deleted_laps
+from openf1_performance import adapt_performance, retained_bundle, session_payload, pit_entry_laps, stewards_lap, deleted_laps, red_flag_periods, lap_in_red_flag
 
 
 def bundle():
@@ -181,6 +181,22 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(deleted_laps([deletion], feeds, 'Q'), {('87', 17)})
         self.assertEqual(deleted_laps([deletion, reinstated], feeds, 'Q'), set())
         self.assertEqual(deleted_laps([{'category': 'Flag'}], feeds, 'Q'), set())
+
+    def test_red_flag_periods_and_the_laps_they_catch(self):
+        controls = [{'date': '2026-10-31T21:06:54Z', 'category': 'Flag', 'flag': 'RED', 'scope': 'Track'},
+                    {'date': '2026-10-31T21:07:25Z', 'category': 'Flag', 'flag': 'YELLOW', 'scope': 'Sector', 'sector': 14},
+                    {'date': '2026-10-31T21:15:00Z', 'category': 'Flag', 'flag': 'GREEN', 'scope': 'Track'}]
+        periods = red_flag_periods(controls)
+        self.assertEqual(len(periods), 1)
+        began, ended = periods[0]
+        self.assertEqual(ended - began, 486)
+        self.assertTrue(lap_in_red_flag(began - 58, None, periods), 'flying when it came out')
+        self.assertTrue(lap_in_red_flag(began + 60, None, periods), 'started while it was out')
+        self.assertTrue(lap_in_red_flag(began - 40, began + 40, periods), 'ran through it')
+        self.assertFalse(lap_in_red_flag(began - 100, began - 10, periods), 'finished before it')
+        self.assertFalse(lap_in_red_flag(ended + 5, ended + 90, periods), 'started after it ended')
+        self.assertFalse(lap_in_red_flag(None, None, periods))
+        self.assertEqual(red_flag_periods([controls[1]]), [])
 
     def test_a_message_without_a_time_uses_the_lap_number_for_that_session(self):
         feeds = {'drivers': [{'driver_number': 1, 'name_acronym': 'VER'}], 'laps': []}

@@ -60,6 +60,17 @@ test('a deleted flying lap reads DEL and is never the driver\'s fastest',()=>{
   assert.equal(box.fastestTimedLap({laps:[lap(17,77.847,27,{deleted:true})]}),null);
 });
 
+test('a lap caught by a red flag shows the flag, whatever it would otherwise be called',()=>{
+  // Mexico City 2026 Q1: Verstappen was flying with no lap time, Antonelli had just started his in-lap.
+  const verstappen=[lap(1,null,null,{out_lap:true}),lap(2,null,26.977,{red_flag:true}),lap(3,696,null,{out_lap:true}),lap(4,77.9,27)];
+  assert.deepEqual(labels(verstappen),['OUT','🚩','OUT','PUSH']);
+  const antonelli=[lap(1,null,null,{out_lap:true}),lap(2,null,null,{red_flag:true}),lap(3,598,null,{out_lap:true}),lap(4,78,27)];
+  assert.deepEqual(labels(antonelli),['OUT','🚩','OUT','PUSH']);
+  assert.equal(labels([lap(1,300,null,{out_lap:true}),lap(2,77,27),lap(3,110,36,{track_status:'5'}),lap(4,300,null,{out_lap:true})])[2],'🚩');
+  // A flying lap finished as the flag came out still counts as a flying lap.
+  assert.equal(labels([lap(1,300,null,{out_lap:true}),lap(2,77,27,{red_flag:true}),lap(3,110,36)])[1],'PUSH');
+});
+
 test('labelling leaves timing and flags untouched',()=>{
   const laps=antonelli(),before=JSON.stringify(laps);
   box.lapRoles(laps,'Qualifying');
