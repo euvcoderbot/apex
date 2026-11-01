@@ -599,24 +599,6 @@ function drawApiCircuitGuide(ctx, data, rect) {
   ctx.textAlign='start';ctx.textBaseline='alphabetic';return true;
 }
 
-function circuitGuideContent() {
-  const event=calendar.find(item=>item.name===sessionEventName);
-  const sepang=isSepangCircuit(event);
-  const samples=loaded.length?telemetryCache.get(telemetryKey(loaded[0])):null;
-  const distance=samples?.at(-1)?.Distance;
-  const markers=distance?resolveCornerMarkers(samples,distance,loaded[0]?.cornerMarkers):[];
-  const zones=markers.length?sessionPerformanceZones(adaptiveCornerZones(markers),distance):[];
-  const straights=zones.filter(z=>z.kind==='straight'&&z.end>z.start);
-  const lap=loaded[0]?.real;
-  const sectors=[lap?.s1,lap?.s2,lap?.s3].map(Number);
-  let official='';
-  if(sepang){
-    official=`<div class="circuit-guide-source"><strong>Sepang · Pirelli track characteristics</strong><p>Lateral load: T5–T7 and T12–T13. Traction: the T2 exit. Braking: the approach to T15. These are qualitative circuit characteristics from Pirelli’s 2012 guide, not current-car g-force ratings.</p><a href="https://press.pirelli.com/the-malaysian-grand-prix-from-a-tyre-point-of-view/" target="_blank" rel="noopener">Pirelli corner guide · 22 Mar 2012</a></div>`;
-    if(sessionYear===2026)official+=`<div class="circuit-guide-source"><strong>2026 tyre briefing</strong><p>Medium circuit-wide tyre stress; abrasive asphalt. Nominated compounds: C2 / C3 / C4.</p><a href="https://press.pirelli.com/tyre-compound-selections-for-baku-sepang-and-singapore/" target="_blank" rel="noopener">Pirelli preview · 27 Aug 2026</a></div>`;
-  }
-  return `<div class="circuit-guide-facts"><span><small>Measured lap</small><b>${distance?(distance/1000).toFixed(3)+' km':'Load a lap'}</b></span><span><small>Numbered corners</small><b>${markers.length|| (sepang?15:'Map annotations')}</b></span><span><small>Supported straight zones</small><b>${distance?straights.length:'Load telemetry'}</b></span></div>${sectors.every(t=>Number.isFinite(t)&&t>0)?`<p class="circuit-guide-sector-times">Reference lap sectors · S1 ${sectors[0].toFixed(3)} s · S2 ${sectors[1].toFixed(3)} s · S3 ${sectors[2].toFixed(3)} s</p>`:''}${official||'<p class="circuit-guide-sector-times">Map turn numbering and timing-derived sectors are shown where available. No verified Pirelli characteristic ratings are currently stored for this circuit; ratings are not inferred from lap speed.</p>'}<details><summary>What the guide describes</summary><p>Traction concerns acceleration out of corners; braking concerns deceleration demands; lateral load concerns turning. These describe a circuit, not a team ranking. GPS boundaries and corner centres are approximate.</p><a href="https://www.pirelli.com/global/en-ww/race/racingspot/formula-1/formula-1-for-dummies-the-choice-of-tyres-in-formula-1-53864/" target="_blank" rel="noopener">Pirelli’s circuit-characteristic definitions</a></details>`;
-}
-
 function renderGenericCircuit(canvas, empty) {
   if (!sessionEventName) { empty.style.display = 'grid'; empty.textContent = 'Load a session to see its circuit guide.'; return; }
   if(sessionSectorGuide) {

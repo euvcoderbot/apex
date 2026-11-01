@@ -1304,10 +1304,7 @@ test('short transitions are absorbed, unknown geometry is not advertised as a st
   assert.doesNotMatch(app,/if\(selectedCornerIndices.size>1\)/);
 });
 
-test('circuit guide separates sourced historical characteristics from current tyre nominations',()=>{
-  assert.match(app,/Pirelli corner guide · 22 Mar 2012/);
-  assert.match(app,/if\(sessionYear===2026\)official/);
-  assert.match(app,/ratings are not inferred from lap speed/);
+test('the circuit guide has a map view and no separate details panel',()=>{
   assert.doesNotMatch(readFileSync('index.html','utf8'),/id="circuitGuide(?:Info|Details)"/);
   assert.match(app,/data-map-view/);
 });
