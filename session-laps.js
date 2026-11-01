@@ -139,6 +139,7 @@ const LAP_ROLES = {
   cool: ['COOL', 'Slow lap after the last flying attempt, before the in-lap.'],
   flag: ['FLAG', 'Slow lap under a yellow or red flag; its time says little about pace.'],
   deleted: ['DEL', 'Deleted by the stewards, so this time does not count.'],
+  red: ['🚩', 'A red flag stopped the session during this lap, so it was not completed at speed.'],
 };
 function lapRoles(laps, sessionName) {
   const roles = new Map();
@@ -175,6 +176,7 @@ function lapRoles(laps, sessionName) {
     middle.forEach((lap, at) => {
       const final = lap === run.at(-1);
       const kind = qualifying ? pace(lap) : 'slow';
+      if ((lap.red_flag || /5/.test(String(lap.track_status || ''))) && (kind !== 'push' || !finite(lap.time))) return set(lap, 'red');
       if (qualifying && lap.deleted && finite(lap.time) && kind !== 'slow') return set(lap, 'deleted');
       if (kind !== 'slow') return set(lap, kind);
       // A race ends on the line, not in the pits, so its last lap is an in-lap only if the timing says so.
@@ -263,7 +265,7 @@ function renderStints() {
       const isLoaded = loaded.some(item => item.code === code && item.lap === lap.lap);
       const flag = `L${lap.lap}`;
       const role = roles.get(lap.lap);
-      const classes = ['lap', 'lap-chip', ['in', 'out', 'inOut'].includes(role?.kind) ? 'in-out' : '', ['warm', 'prep', 'cool', 'flag'].includes(role?.kind) ? 'is-preparation' : '', role?.kind === 'push' ? 'is-push' : '', ['abort', 'deleted'].includes(role?.kind) ? 'is-abort' : '', isLoaded ? 'selected' : ''].filter(Boolean).join(' ');
+      const classes = ['lap', 'lap-chip', ['in', 'out', 'inOut'].includes(role?.kind) ? 'in-out' : '', ['warm', 'prep', 'cool', 'flag', 'red'].includes(role?.kind) ? 'is-preparation' : '', role?.kind === 'push' ? 'is-push' : '', ['abort', 'deleted'].includes(role?.kind) ? 'is-abort' : '', isLoaded ? 'selected' : ''].filter(Boolean).join(' ');
       const displayTime = Number.isFinite(lap.display_time) ? lap.display_time : lap.time;
       const estimated = lap.display_time_estimated === true;
       const duration = Number.isFinite(displayTime) ? `${estimated ? '~' : ''}${time(displayTime)}` : '&mdash;';
@@ -424,14 +426,14 @@ function renderSectors() {
     const conditionValues = [
       conditionCell('🌤️', 'Air', Number.isFinite(conditions.air_temperature) ? `${conditions.air_temperature.toFixed(1)}°C` : '—'),
       conditionCell('🌡️', 'Track', Number.isFinite(conditions.track_temperature) ? `${conditions.track_temperature.toFixed(1)}°C` : '—'),
-      conditionCell('🚩', 'Wind', Number.isFinite(conditions.wind_speed) ? `${conditions.wind_speed.toFixed(1)} m/s${direction ? ` ${direction}` : ''}` : '—'),
+      conditionCell('💨', 'Wind', Number.isFinite(conditions.wind_speed) ? `${conditions.wind_speed.toFixed(1)} m/s${direction ? ` ${direction}` : ''}` : '—'),
       conditionCell('🌧️', 'Rain', conditions.rainfall === null || conditions.rainfall === undefined ? '—' : (conditions.rainfall ? 'Yes' : 'No')),
     ];
     const conditionsHtml = `<div class="summary-conditions">${conditionValues.join('')}</div>`;
     const compound = getCompoundCode(lap.compound || 'UNKNOWN', nominatedCompounds);
     const compoundClass = getCompoundToneClass(lap.compound || 'UNKNOWN');
     const tyreAge = Number.isFinite(lap.tyre_life) ? Math.max(1, Math.round(lap.tyre_life)) : null;
-    const tyreLife = tyreAge === null ? '' : `${tyreAge} lap${tyreAge === 1 ? '' : 's'}`;
+    const tyreLife = tyreAge === null ? '' : `Tyre lap ${tyreAge}`;
     return `
       <article class="lap-summary-card has-conditions" data-motion-key="summary-${item.code}-${item.lap}" style="--team:${color}">
         <header>

@@ -872,10 +872,10 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
 
 /* Corner table: fixed columns, and the lap and REF tag under the driver, so the numbers get the room. */
 .app-inspector .corner-measurement-table { table-layout: fixed; width: 100%; }
-.app-inspector .corner-measurement-table thead th:nth-child(1) { width: 28%; }
-.app-inspector .corner-measurement-table thead th:nth-child(2) { width: 21%; }
+.app-inspector .corner-measurement-table thead th:nth-child(1) { width: 31%; }
+.app-inspector .corner-measurement-table thead th:nth-child(2) { width: 23%; }
 .app-inspector .corner-measurement-table thead th:nth-child(3) { width: 23%; }
-.app-inspector .corner-measurement-table thead th:nth-child(4) { width: 28%; }
+.app-inspector .corner-measurement-table thead th:nth-child(4) { width: 23%; }
 .app-inspector .corner-measurement-table :is(thead th,tbody td,tbody th) { padding: 6px 10px 6px 4px; }
 .app-inspector .corner-measurement-table :is(thead th,tbody th):first-child { padding-left: 10px; }
 .app-inspector .corner-measurement-table tbody td { font-size: var(--type-body); }
@@ -943,8 +943,9 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
 .lap-summary-card .summary-tyre small { font-size: calc(var(--type-caption) - 2px); }
 .lap-summary-card .summary-tyre .compound-badge { width: 16px; height: 16px; font-size: calc(var(--type-caption) - 2px); flex-basis: 16px; }
 /* Sort indicators occupy real space rather than protruding past the last cell. */
-.app-inspector .corner-measurement-table button[data-corner-sort] { gap: 3px; }
-.app-inspector .corner-measurement-table thead th button svg { position: static; flex: 0 0 8px; width: 8px; }
+/* The sort arrow sits before the label, so the label keeps the same right edge as the numbers beneath it. */
+.app-inspector .corner-measurement-table button[data-corner-sort] { gap: 3px; flex-direction: row-reverse; justify-content: flex-start; }
+.app-inspector .corner-measurement-table thead th button svg { position: static; flex: 0 0 8px; width: 8px; margin-left: -11px; }
 .app-inspector .corner-measurement-table thead th:last-child { padding-right: 10px; }
 
 /* Shared header/row geometry keeps each result aligned with its chart row. */
@@ -1011,9 +1012,9 @@ body > #carPerformance .performance-table td small { white-space: nowrap; }
 .lap-workspace .lap-chip.is-push:not([aria-pressed="true"]) .lap-state { color: var(--ui-positive); }
 .lap-workspace .lap-chip.is-abort:not([aria-pressed="true"]) .lap-state { color: var(--ui-warning); }
 
-/* Sector rows: a line between sections keeps each time with its own sector. */
-.telemetry-content .sector-cards .lap-summary-card .summary-sectors { column-gap: 3px; }
-.telemetry-content .sector-cards .lap-summary-card .sector-cell + .sector-cell .sector-measurements { border-left: 1px solid var(--ui-border-strong); }
+/* Sector rows: a line centred in the gap between sections, the same distance from the bar on either side, keeps each time with its own sector. */
+.telemetry-content .sector-cards .lap-summary-card .summary-sectors { column-gap: 9px; }
+.telemetry-content .sector-cards .lap-summary-card .sector-cell + .sector-cell::before { content: ''; position: absolute; left: -5px; top: 0; bottom: 0; width: 1px; background: var(--ui-border-strong); }
 .telemetry-content .sector-cards .lap-summary-card .sector-measurements { box-sizing: border-box; padding-block: 2px; }
 
 /* Display menu in the speed trace header, so its options do not take a row above the chart. */

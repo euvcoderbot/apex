@@ -52,6 +52,35 @@ def stewards_lap(message, feeds, code):
     return (driver, expected) if expected is not None else None
 
 
+BLANK_LAP_SECONDS = 120  # An untimed lap has no end; long enough for a lap at speed, short of the next run.
+
+
+def red_flag_periods(controls):
+    """(start, end) of each red flag, in epoch seconds. A green or clear track flag ends one; an unended one runs on."""
+    periods, current = [], None
+    for row in sorted(controls, key=lambda r: str(r.get('date') or '')):
+        at = stamp(row.get('date'))
+        if at is None or row.get('category') != 'Flag':
+            continue
+        flag = row.get('flag')
+        if flag == 'RED' and current is None:
+            current = at
+        elif flag in ('GREEN', 'CLEAR') and row.get('scope') == 'Track' and current is not None:
+            periods.append((current, at))
+            current = None
+    if current is not None:
+        periods.append((current, float('inf')))
+    return periods
+
+
+def lap_in_red_flag(start, end, periods):
+    """Whether a lap was running during a red flag. A lap with no recorded end gets BLANK_LAP_SECONDS."""
+    if start is None:
+        return False
+    finish = start + BLANK_LAP_SECONDS if end is None else end
+    return any(start < stop and finish >= began for began, stop in periods)
+
+
 def deleted_laps(controls, feeds, code):
     """(driver number, lap) of laps still deleted after these messages, in the order they are given."""
     deleted = set()
@@ -140,7 +169,7 @@ def session_payload(year, gp, code, bundle):
                          's1': r['sectors'][0], 's2': r['sectors'][1], 's3': r['sectors'][2],
                          'compound': r['compound'], 'tyre_life': r['age'], 'fresh_tyre': r['fresh'],
                          'stint': r['stint'], 'phase': r['phase'], 'accurate': r['accurate'],
-                         'deleted': r['deleted'], 'track_status': r['track'],
+                         'deleted': r['deleted'], 'track_status': r['track'], 'red_flag': r['red_flag'],
                          'out_lap': raw.get('is_pit_out_lap') is True,
                          'in_lap': r['pit'] and raw.get('is_pit_out_lap') is not True,
                          'conditions': conditions, 'speed_st': r['speed_st'], 'speed_fl': r['speed_fl']})
@@ -198,6 +227,7 @@ def adapt_performance(year, gp, code, bundle):
     # green closes the neutralised interval. Unknown controls never mean green.
     active, blocked = {}, []
     deleted = deleted_laps(controls, feeds, code)
+    red_flags = red_flag_periods(controls)
     for r in controls:
         t, category, flag, scope = stamp(r['date']), r.get('category'), r.get('flag'), r.get('scope')
         message = r.get('message', '').upper()
@@ -259,6 +289,7 @@ def adapt_performance(year, gp, code, bundle):
                          'end': end-origin if end is not None else None, 'compound': str(stint.get('compound') or 'UNKNOWN').upper(),
                          'age': age, 'fresh': None, 'stint': stint.get('stint_number'), 'phase': phase,
                          'pit': pit, 'accurate': consistent and legal and start is not None and not pit,
+                         'red_flag': lap_in_red_flag(start, end, red_flags),
                          'deleted': not legal, 'track': track, 'rain': rain, 'sectors': sectors,
                          'speed_st': number(lap.get('st_speed')), 'speed_fl': None,
                          'speed_i1': number(lap.get('i1_speed')), 'speed_i2': number(lap.get('i2_speed')),
