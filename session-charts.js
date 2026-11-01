@@ -100,22 +100,23 @@ function bindChartZoom() {
   $('[data-delta-zoom="out"]')?.addEventListener('click', () => setTimingDeltaZoom(timingDeltaZoom - TIMING_DELTA_ZOOM_STEP));
   $('[data-delta-zoom="in"]')?.addEventListener('click', () => setTimingDeltaZoom(timingDeltaZoom + TIMING_DELTA_ZOOM_STEP));
   $('[data-delta-zoom="reset"]')?.addEventListener('click', () => setTimingDeltaZoom(1));
-  const speedCanvas = document.querySelector('[data-chart="Speed trace"]');
-  if (speedCanvas) {
-    speedCanvas.addEventListener('pointerdown', event => {
-      if (event.button !== 0 || !loaded.length) return;
-      const rect = speedCanvas.getBoundingClientRect();
+  // Drag across any chart to zoom; the window applies to all of them. A finger still scrolls the page over the charts below the speed trace.
+  document.querySelectorAll('canvas[data-chart]').forEach(canvas => {
+    const chart = canvas.dataset.chart;
+    canvas.addEventListener('pointerdown', event => {
+      if (event.button !== 0 || !loaded.length || (event.pointerType === 'touch' && chart !== 'Speed trace')) return;
+      const rect = canvas.getBoundingClientRect();
       const local = Math.max(0, Math.min(1, (event.clientX - rect.left - TRACE_PLOT_LEFT) / (rect.width - TRACE_PLOT_LEFT - TRACE_PLOT_RIGHT)));
       const fraction = traceZoom.start + local * (traceZoom.end - traceZoom.start);
-      zoomDrag = { anchor: fraction, current: fraction };
-      speedCanvas.setPointerCapture?.(event.pointerId);
+      zoomDrag = { chart, anchor: fraction, current: fraction };
+      canvas.setPointerCapture?.(event.pointerId);
       hoverFraction = null;
       event.preventDefault();
-      drawRealChart('Speed trace');
+      drawRealChart(chart);
     });
-    speedCanvas.addEventListener('dblclick', () => setTraceZoom(0, 1));
-    speedCanvas.addEventListener('pointercancel', () => { zoomDrag=null; drawRealChart('Speed trace'); });
-  }
+    canvas.addEventListener('dblclick', () => setTraceZoom(0, 1));
+    canvas.addEventListener('pointercancel', () => { zoomDrag=null; drawRealChart(chart); });
+  });
   updateZoomReadout();
   updateTimingDeltaZoomReadout();
 }
@@ -331,7 +332,7 @@ function renderCharts() {
           <p class="pit-lap-notice" id="alignmentCorrectionNotice" hidden aria-live="polite"></p>
           <span class="visually-hidden" id="cornerStatus" aria-live="polite">Corner labels hidden.</span>
         </div>` : ''}
-      <canvas data-chart="${name}" role="img" aria-describedby="telemetryDataHelp" aria-label="${name}${name === 'Speed trace' ? '. Drag horizontally to zoom every telemetry chart.' : ''}"></canvas>
+      <canvas data-chart="${name}" role="img" aria-describedby="telemetryDataHelp" aria-label="${name}. Drag horizontally to zoom every telemetry chart."></canvas>
     </section>
   `;
   }).join('') + `<details class="chart-data-access" id="telemetryDataAccess"><summary>Inspect telemetry values</summary>
@@ -1594,9 +1595,9 @@ function drawRealChart(name) {
     });
   }
 
-  // Selection band while dragging on the speed trace. Releasing the mouse
-  // applies this same distance window to every telemetry chart.
-  if (name === 'Speed trace' && zoomDrag) {
+  // Selection band on the chart being dragged. Releasing the mouse applies
+  // this same distance window to every telemetry chart.
+  if (zoomDrag?.chart === name) {
     const start = Math.max(viewStart, Math.min(zoomDrag.anchor, zoomDrag.current));
     const end = Math.min(viewEnd, Math.max(zoomDrag.anchor, zoomDrag.current));
     const x = xForFraction(start);

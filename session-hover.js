@@ -36,10 +36,10 @@ function bindAllChartHover() {
       const localFraction = Math.max(0, Math.min(1, (e.clientX - rect.left - TRACE_PLOT_LEFT) / printableWidth));
       const fraction = traceZoom.start + localFraction * (traceZoom.end - traceZoom.start);
 
-      if (zoomDrag && canvas.dataset.chart === 'Speed trace') {
+      if (zoomDrag?.chart === canvas.dataset.chart) {
         zoomDrag.current = fraction;
         tooltip.style.display = 'none';
-        drawRealChart('Speed trace');
+        drawRealChart(zoomDrag.chart);
         return;
       }
       
@@ -136,7 +136,7 @@ function bindAllChartHover() {
     
     canvas.addEventListener('mouseleave', () => {
       if(hoverFrame){cancelAnimationFrame(hoverFrame);hoverFrame=0;}
-      if (zoomDrag && canvas.dataset.chart === 'Speed trace') return;
+      if (zoomDrag?.chart === canvas.dataset.chart) return;
       hoverFraction = null;
       hoveredChartName = null;
       tooltip.style.display = 'none';
