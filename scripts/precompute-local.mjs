@@ -37,13 +37,16 @@ const targets=args.includes('--season')
   :allEvents.filter(e=>e.name===gp);
 if(!targets.length)throw new Error('Grand Prix not found in this season');
 if(capturing){
-  for(const event of targets){
-    const status=event.session_statuses||{};
-    if(status.Qualifying!=='completed' && args.includes('--confirmed-local-qualifying') && await confirmedQualifying(root,year,event)) {
-      event.session_statuses={...status,Qualifying:'completed'};
-      status.Qualifying='completed';
+  // Preserve independently confirmed qualifying sessions in the captured
+  // calendar, not just the one currently being recalculated.
+  if(args.includes('--confirmed-local-qualifying'))for(const event of allEvents){
+    if(event.session_statuses?.Qualifying!=='completed' && await confirmedQualifying(root,year,event)){
+      event.session_statuses={...event.session_statuses,Qualifying:'completed'};
       console.log(`Qualifying completion confirmed by local source capture: ${event.name}.`);
     }
+  }
+  for(const event of targets){
+    const status=event.session_statuses||{};
     if(status.Qualifying!=='completed'||(!args.includes('--qualifying-only')&&status.Race!=='completed'))
       throw new Error('Only sessions confirmed complete by the source calendar can be captured.');
   }
