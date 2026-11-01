@@ -1100,14 +1100,14 @@ test('Sepang corners use GPS geometry and aligned fractions, not outline chainag
   assert.match(app,/resolveCornerMarkers\(reference, totalDistance, spatial\?\.lap\?\.cornerMarkers\)/);
 });
 
-test('focused speed chart reserves an independent control row with sufficient specificity', () => {
+test('expanded charts reuse the telemetry section, with a taller speed trace', () => {
   const css=readFileSync('trace-focus.css','utf8');
-  const root=postcss.parse(css);
-  const rule=root.nodes.find(n=>n.selector==='body.trace-focus #charts > .chart.speed-chart:nth-child(1)');
-  assert.ok(rule);
-  assert.ok(rule.nodes.some(n=>n.prop==='grid-template-rows'&&n.value==='auto auto minmax(0, 1fr)'));
-  assert.match(css,/\.speed-chart-controls \{ min-height: min-content; \}/);
-  assert.match(css,/@layer focus/);
+  assert.match(css,/body\.trace-focus #telemetryCard \{[^}]*position: fixed;/);
+  assert.match(css,/@layer focus[\s\S]*var\(--focus-height, auto\)/);
+  assert.doesNotMatch(css,/#charts > \.chart \{ display: none/);
+  const charts=readFileSync('session-charts.js','utf8');
+  assert.match(charts,/EXPANDED_SPEED_TRACE = 1\.15/);
+  assert.match(charts,/\$\('#telemetryCard'\) \|\| charts/);
   assert.match(readFileSync('scripts/sync-static.mjs','utf8'),/buildUiStyles/);
 });
 

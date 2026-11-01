@@ -44,6 +44,7 @@ const staticFiles = [
   "session-loader.js",
   "session-laps.js",
   "session-charts.js",
+  "session-capture.js",
   "session-hover.js",
   "session-corners.js",
   "session-map.js",
