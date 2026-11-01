@@ -841,7 +841,7 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
   .telemetry-content .sector-cards .lap-summary-card .summary-condition { flex: none; }
   .telemetry-content .sector-cards .lap-summary-card .summary-lap-time { flex-direction: row; align-items: baseline; justify-content: flex-end; gap: 10px; }
 }
-@container telemetry (max-width: 700px) {
+@container telemetry (max-width: 725px) {
   .telemetry-content .sector-cards .lap-summary-card .summary-tyre-copy small { display: none; }
   /* Too narrow for the gap beside the time: it moves beneath. */
   .telemetry-content .sector-cards .lap-summary-card .sector-cell .sector-measurements { flex-direction: column-reverse; align-items: center; gap: 0; }
@@ -852,11 +852,12 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
   .telemetry-content .sector-cards .lap-summary-card .summary-condition:last-child { display: none; }
 }
 
-/* Sector and time centred on the bar in every row. The gap sits at the end of the label line, so it cannot push the time off centre. */
-@container telemetry (min-width: 701px) {
-  .telemetry-content .sector-cards .lap-summary-card .sector-cell .sector-measurements { position: static; justify-content: center; }
-  .telemetry-content .sector-cards .lap-summary-card .sector-delta-slot { position: absolute; top: 0; right: 0; min-width: 0; line-height: 14px; }
+/* Sector and time centred on the bar in every row. The gap hangs off the left of the time in a column of its own, so its length can never move the time. */
+@container telemetry (min-width: 726px) {
+  .telemetry-content .sector-cards .lap-summary-card .sector-cell .sector-measurements, .telemetry-content .sector-cards .lap-summary-card .sector-cell + .sector-cell .sector-measurements { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); align-items: baseline; align-self: stretch; column-gap: 5px; }
+  .telemetry-content .sector-cards .lap-summary-card .sector-delta-slot { grid-column: 1; justify-self: end; min-width: 0; white-space: nowrap; }
   .telemetry-content .sector-cards .lap-summary-card .sector-delta-slot:empty { display: none; }
+  .telemetry-content .sector-cards .lap-summary-card .sector-measurements > strong { grid-column: 2; }
 }
 
 /* Inspector lists. Laps read as one-line rows: which lap, how old the tyre was, then the time and the tyre at a shared right edge. */
