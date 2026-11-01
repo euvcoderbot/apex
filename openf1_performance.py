@@ -27,6 +27,31 @@ def retained_bundle(year, gp, code, now=None):
     return bundle
 
 
+def stewards_lap(message, feeds, code):
+    """(driver number, lap) that a DELETED or REINSTATED message is about, or None.
+
+    A published time names the lap exactly. Without one, the message's lap number
+    has to do, and it only matches timing in a race: in every other session it
+    runs one ahead. Cars can be named by number or by three-letter code.
+    """
+    car = re.search(r'CAR\s+(\d+|[A-Z]{3})\b', message)
+    if not car:
+        return None
+    codes = {str(d.get('name_acronym')).upper(): str(d['driver_number']) for d in feeds['drivers']}
+    driver = codes.get(car.group(1), car.group(1))
+    counter = re.search(r'\bLAP\s+(\d+)\b', message)
+    expected = int(counter.group(1)) - (0 if code in ('R', 'S') else 1) if counter else None
+    published = re.search(r'\bTIME\s+(?:(\d+):)?(\d+\.\d+)', message)
+    if published:
+        seconds = int(published.group(1) or 0) * 60 + float(published.group(2))
+        matches = [int(number(r['lap_number'])) for r in feeds['laps']
+                   if str(r['driver_number']) == driver and number(r.get('lap_number'))
+                   and number(r.get('lap_duration')) and abs(number(r['lap_duration']) - seconds) < .0015]
+        if matches:
+            return driver, min(matches, key=lambda lap: abs(lap - expected)) if expected is not None else matches[0]
+    return (driver, expected) if expected is not None else None
+
+
 def pit_entry_laps(feeds, code):
     """(driver number, lap) of each lap into the pits.
 
@@ -164,10 +189,8 @@ def adapt_performance(year, gp, code, bundle):
         t, category, flag, scope = stamp(r['date']), r.get('category'), r.get('flag'), r.get('scope')
         message = r.get('message', '').upper()
         if 'DELETED' in message or 'REINSTATED' in message:
-            driver = re.search(r'CAR\s+(\d+)\b', message)
-            lap = re.search(r'\bLAP\s+(\d+)\b', message)
-            if driver and lap:
-                pair = (driver.group(1), int(lap.group(1)))
+            pair = stewards_lap(message, feeds, code)
+            if pair:
                 if 'REINSTATED' in message:
                     deleted.discard(pair)
                 else:

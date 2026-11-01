@@ -10,7 +10,7 @@ from urllib.error import HTTPError
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi import Response
 import server
-from openf1_performance import adapt_performance, retained_bundle, session_payload, pit_entry_laps
+from openf1_performance import adapt_performance, retained_bundle, session_payload, pit_entry_laps, stewards_lap
 
 
 def bundle():
@@ -164,15 +164,34 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(pit_entry_laps(feeds, 'R'), {('1', 10), ('1', 16)})
         self.assertEqual(pit_entry_laps(feeds, 'S'), {('1', 10), ('1', 16)})
 
+    def test_stewards_messages_name_the_lap_by_its_published_time(self):
+        # Mexico City 2026, Bearman: the message says lap 18, but 1:17.847 was lap 17.
+        feeds = {'drivers': [{'driver_number': 87, 'name_acronym': 'BEA'}],
+                 'laps': [{'driver_number': 87, 'lap_number': 17, 'lap_duration': 77.847}, {'driver_number': 87, 'lap_number': 18, 'lap_duration': 105.2}]}
+        message = 'CAR 87 (BEA) TIME 1:17.847 DELETED - TRACK LIMITS AT TURN 12 LAP 18 15:47:02'
+        self.assertEqual(stewards_lap(message, feeds, 'Q'), ('87', 17))
+        self.assertEqual(stewards_lap('CAR BEA TIME 1:17.847 DELETED - TRACK LIMITS AT TURN 14 (NEXT LAP) (Q2)', feeds, 'Q'), ('87', 17))
+        self.assertEqual(stewards_lap('CAR 87 (BEA) TIME 1:17.847 WILL BE REINSTATED', feeds, 'Q'), ('87', 17))
+
+    def test_a_message_without_a_time_uses_the_lap_number_for_that_session(self):
+        feeds = {'drivers': [{'driver_number': 1, 'name_acronym': 'VER'}], 'laps': []}
+        message = 'CAR 1 (VER) LAP DELETED - TRACK LIMITS AT TURN 9 LAP 7 15:18:09 (PIT)'
+        self.assertEqual(stewards_lap(message, feeds, 'Q'), ('1', 6))
+        self.assertEqual(stewards_lap(message, feeds, 'SQ'), ('1', 6))
+        self.assertEqual(stewards_lap(message, feeds, 'R'), ('1', 7))
+        self.assertEqual(stewards_lap(message, feeds, 'S'), ('1', 7))
+        self.assertIsNone(stewards_lap('CAR LAW TIME DELETED - TRACK LIMITS AT TURN 14 (NEXT LAP PIT) (Q2)', feeds, 'Q'))
+        self.assertIsNone(stewards_lap('LAP TIMES DELETED FOR ALL CARS', feeds, 'Q'))
+
     def test_pits_and_deleted_laps_are_excluded(self):
         value = bundle()
         value['feeds']['laps'][0]['is_pit_out_lap'] = True
         self.assertTrue(row(value)['pit'])
         self.assertFalse(row(value)['accurate'])
         value['feeds']['laps'][0]['is_pit_out_lap'] = False
-        value['feeds']['race_control'].append({'date': '2026-09-25T12:03:00Z', 'message': 'CAR 1 LAP 2 DELETED'})
+        value['feeds']['race_control'].append({'date': '2026-09-25T12:03:00Z', 'message': 'CAR 1 (VER) TIME 1:30.000 DELETED - TRACK LIMITS AT TURN 1 LAP 3 12:03:00'})
         self.assertTrue(row(value)['deleted'])
-        value['feeds']['race_control'].append({'date': '2026-09-25T12:04:00Z', 'message': 'CAR 1 LAP 2 REINSTATED'})
+        value['feeds']['race_control'].append({'date': '2026-09-25T12:04:00Z', 'message': 'CAR 1 (VER) TIME 1:30.000 WILL BE REINSTATED'})
         self.assertFalse(row(value)['deleted'])
 
     def test_sc_in_this_lap_is_not_a_green_signal(self):
