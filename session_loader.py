@@ -336,7 +336,7 @@ def load_selected_laps_telemetry(year, gp, session_name, selections):
         return [future.result() for future in futures]
 
 
-def load_fresh_session(year, gp, session_name, telemetry=False):
+def load_fresh_session(year, gp, session_name, telemetry=False, messages=False):
     started = time.perf_counter()
     context = {'path':None, 'feeds':{}, 'network_seconds':[]}
     token = _active.set(context)
@@ -373,7 +373,7 @@ def load_fresh_session(year, gp, session_name, telemetry=False):
                 first_lap = submit(original_laps, event.year, event.RoundNumber, lap_number=1)
                 data._ergast.get_lap_times = lambda *args, **kwargs: first_lap.result()
             try:
-                data.load(laps=True, telemetry=telemetry, weather=True, messages=False)
+                data.load(laps=True, telemetry=telemetry, weather=True, messages=messages)
             finally:
                 data._drivers_results_from_ergast = original_results
                 data._ergast.get_lap_times = original_laps

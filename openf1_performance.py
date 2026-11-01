@@ -52,6 +52,18 @@ def stewards_lap(message, feeds, code):
     return (driver, expected) if expected is not None else None
 
 
+def deleted_laps(controls, feeds, code):
+    """(driver number, lap) of laps still deleted after these messages, in the order they are given."""
+    deleted = set()
+    for row in controls:
+        message = row.get('message', '').upper()
+        if 'DELETED' in message or 'REINSTATED' in message:
+            pair = stewards_lap(message, feeds, code)
+            if pair:
+                (deleted.discard if 'REINSTATED' in message else deleted.add)(pair)
+    return deleted
+
+
 def pit_entry_laps(feeds, code):
     """(driver number, lap) of each lap into the pits.
 
@@ -184,17 +196,11 @@ def adapt_performance(year, gp, code, bundle):
     # Race-control intervals are conservative: any sector yellow excludes the
     # whole lap. SC IN THIS LAP is not green; only a published track clear or
     # green closes the neutralised interval. Unknown controls never mean green.
-    active, blocked, deleted = {}, [], set()
+    active, blocked = {}, []
+    deleted = deleted_laps(controls, feeds, code)
     for r in controls:
         t, category, flag, scope = stamp(r['date']), r.get('category'), r.get('flag'), r.get('scope')
         message = r.get('message', '').upper()
-        if 'DELETED' in message or 'REINSTATED' in message:
-            pair = stewards_lap(message, feeds, code)
-            if pair:
-                if 'REINSTATED' in message:
-                    deleted.discard(pair)
-                else:
-                    deleted.add(pair)
         name = None
         if category == 'SafetyCar' and 'DEPLOYED' in message:
             name = 'neutralised'
