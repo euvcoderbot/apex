@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 const source=appSource();
 const box={};vm.createContext(box);
-vm.runInContext(source.slice(source.indexOf('const PUSH_PACE'),source.indexOf('function toggleLoadedLap(')),box);
+vm.runInContext(source.slice(source.indexOf('function fastestTimedLap('),source.indexOf('function toggleLoadedLap(')),box);
 const lap=(number,time,s1,flags={})=>({lap:number,time,s1,phase:'Q3',stint:1,in_lap:false,out_lap:false,...flags});
 const labels=(laps,session='Qualifying')=>{const roles=box.lapRoles(laps,session);return laps.map(l=>roles.get(l.lap)?.label||'');};
 
@@ -50,6 +50,14 @@ test('races and practice only get pit labels, and a race does not end in the pit
   assert.deepEqual(labels(stint,'Practice 1'),['OUT','','IN','OUT','','IN']);
   const retired=[lap(1,90,30,{out_lap:true}),lap(2,120,40,{in_lap:true})];
   assert.deepEqual(labels(retired,'Race'),['OUT','IN']);
+});
+
+test('a deleted flying lap reads DEL and is never the driver\'s fastest',()=>{
+  // Mexico City 2026, Bearman: 1:17.847 was deleted, and his official best is 1:18.083.
+  const laps=[lap(16,300,null,{out_lap:true}),lap(17,77.847,27,{deleted:true}),lap(18,110,36),lap(19,300,null,{out_lap:true}),lap(20,78.083,27.2),lap(21,110,36)];
+  assert.deepEqual(labels(laps),['OUT','DEL','IN','OUT','PUSH','IN']);
+  assert.equal(box.fastestTimedLap({laps}).lap,20);
+  assert.equal(box.fastestTimedLap({laps:[lap(17,77.847,27,{deleted:true})]}),null);
 });
 
 test('labelling leaves timing and flags untouched',()=>{

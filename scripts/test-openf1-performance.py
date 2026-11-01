@@ -10,7 +10,7 @@ from urllib.error import HTTPError
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi import Response
 import server
-from openf1_performance import adapt_performance, retained_bundle, session_payload, pit_entry_laps, stewards_lap
+from openf1_performance import adapt_performance, retained_bundle, session_payload, pit_entry_laps, stewards_lap, deleted_laps
 
 
 def bundle():
@@ -172,6 +172,15 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(stewards_lap(message, feeds, 'Q'), ('87', 17))
         self.assertEqual(stewards_lap('CAR BEA TIME 1:17.847 DELETED - TRACK LIMITS AT TURN 14 (NEXT LAP) (Q2)', feeds, 'Q'), ('87', 17))
         self.assertEqual(stewards_lap('CAR 87 (BEA) TIME 1:17.847 WILL BE REINSTATED', feeds, 'Q'), ('87', 17))
+
+    def test_reinstating_a_lap_undoes_its_deletion_in_message_order(self):
+        feeds = {'drivers': [{'driver_number': 87, 'name_acronym': 'BEA'}],
+                 'laps': [{'driver_number': 87, 'lap_number': 17, 'lap_duration': 77.847}]}
+        deletion = {'message': 'CAR 87 (BEA) TIME 1:17.847 DELETED - TRACK LIMITS AT TURN 12 LAP 18 15:47:02'}
+        reinstated = {'message': 'CAR 87 (BEA) TIME 1:17.847 WILL BE REINSTATED'}
+        self.assertEqual(deleted_laps([deletion], feeds, 'Q'), {('87', 17)})
+        self.assertEqual(deleted_laps([deletion, reinstated], feeds, 'Q'), set())
+        self.assertEqual(deleted_laps([{'category': 'Flag'}], feeds, 'Q'), set())
 
     def test_a_message_without_a_time_uses_the_lap_number_for_that_session(self):
         feeds = {'drivers': [{'driver_number': 1, 'name_acronym': 'VER'}], 'laps': []}

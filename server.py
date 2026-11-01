@@ -163,10 +163,10 @@ def archive_guard(year, gp, session, loader):
         raise
 
 
-def load_fresh_session(year, gp, session, telemetry=False):
+def load_fresh_session(year, gp, session, telemetry=False, messages=False):
     fastf1_runtime()
     from session_loader import load_fresh_session as load
-    return archive_guard(year, gp, session, lambda: load(year, gp, session, telemetry=telemetry))
+    return archive_guard(year, gp, session, lambda: load(year, gp, session, telemetry=telemetry, messages=messages))
 
 
 @app.get("/api/health")
@@ -1256,7 +1256,8 @@ def load_session(year: int, gp: str, session_name: str, round_number: int | None
         # Session controls need timing/lap data, not the multi-megabyte car stream
         # for every driver. Fetch the car stream only if OpenF1 cannot provide a
         # selected lap (mainly older seasons).
-        session.load(laps=True, telemetry=False, weather=True, messages=False)
+        # Race control messages are what fill in FastF1's deleted-lap column.
+        session.load(laps=True, telemetry=False, weather=True, messages=True)
         return session
     return archive_guard(year, gp, session_name, load)
 
@@ -1480,7 +1481,7 @@ def get_fastest_lap_time(driver_obj: dict[str, Any]) -> float:
     valid_times = [
         lap["time"] for lap in driver_obj.get("laps", [])
         if lap.get("time") is not None and lap["time"] > 0
-        and not lap.get("in_lap") and not lap.get("out_lap")
+        and not lap.get("in_lap") and not lap.get("out_lap") and not lap.get("deleted")
     ]
     return min(valid_times) if valid_times else float("inf")
 
@@ -1708,6 +1709,15 @@ def fetch_openf1_session_drivers(
         except Exception as weather_err:
             logger.warning("OpenF1 weather fetch failed: %s", weather_err)
             weather_raw = []
+        # Also optional: without it laps simply are not marked as deleted.
+        try:
+            from openf1_performance import deleted_laps
+            controls = sorted(openf1("race_control", session_key=session_key), key=lambda item: str(item.get("date") or ""))
+            code = "R" if str(session_name).strip().lower() in ("race", "r", "sprint", "s") else "Q"
+            deleted = deleted_laps(controls, {"laps": laps_raw, "drivers": drivers_raw}, code)
+        except Exception as control_err:
+            logger.warning("OpenF1 race control fetch failed: %s", control_err)
+            deleted = set()
 
         lap_stint_map: dict[tuple[int, int], tuple[int, str, float | None]] = {}
         for stint in stints_raw:
@@ -1770,6 +1780,7 @@ def fetch_openf1_session_drivers(
                     "tyre_life": tyre_life,
                     "stint": st_num,
                     "phase": None,
+                    "deleted": (str(d_num), int(lap_num)) in deleted,
                     "in_lap": False,
                     "out_lap": lap.get("is_pit_out_lap") is True,
                     "_date_start": lap.get("date_start"),
@@ -1874,7 +1885,7 @@ def session_data(
         payload['compounds'] = get_tire_nominations(year, gp)
         return payload
     try:
-        data = load_fresh_session(year, gp, session) if fresh else load_session(year, gp, session, round)
+        data = load_fresh_session(year, gp, session, messages=True) if fresh else load_session(year, gp, session, round)
         if data.laps.empty:
             raise ValueError('Timing archive returned no laps')
     except Exception as exc:

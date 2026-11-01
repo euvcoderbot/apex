@@ -120,7 +120,7 @@ function renderDrivers() {
 
 
 function fastestTimedLap(driver) {
-  const timed = driver?.laps?.filter(lap => Number.isFinite(lap.time) && lap.time > 0 && !lap.in_lap && !lap.out_lap) || [];
+  const timed = driver?.laps?.filter(lap => Number.isFinite(lap.time) && lap.time > 0 && !lap.in_lap && !lap.out_lap && !lap.deleted) || [];
   return timed.length ? timed.reduce((fastest, lap) => lap.time < fastest.time ? lap : fastest) : null;
 }
 
@@ -138,6 +138,7 @@ const LAP_ROLES = {
   prep: ['PREP', 'Slow lap between two flying attempts on the same tyres: cooling down and preparing. No pit stop.'],
   cool: ['COOL', 'Slow lap after the last flying attempt, before the in-lap.'],
   flag: ['FLAG', 'Slow lap under a yellow or red flag; its time says little about pace.'],
+  deleted: ['DEL', 'Deleted by the stewards, so this time does not count.'],
 };
 function lapRoles(laps, sessionName) {
   const roles = new Map();
@@ -174,6 +175,7 @@ function lapRoles(laps, sessionName) {
     middle.forEach((lap, at) => {
       const final = lap === run.at(-1);
       const kind = qualifying ? pace(lap) : 'slow';
+      if (qualifying && lap.deleted && finite(lap.time) && kind !== 'slow') return set(lap, 'deleted');
       if (kind !== 'slow') return set(lap, kind);
       // A race ends on the line, not in the pits, so its last lap is an in-lap only if the timing says so.
       if (final && (followed || (race ? lap.in_lap : true))) return set(lap, 'in');
@@ -261,7 +263,7 @@ function renderStints() {
       const isLoaded = loaded.some(item => item.code === code && item.lap === lap.lap);
       const flag = `L${lap.lap}`;
       const role = roles.get(lap.lap);
-      const classes = ['lap', 'lap-chip', ['in', 'out', 'inOut'].includes(role?.kind) ? 'in-out' : '', ['warm', 'prep', 'cool', 'flag'].includes(role?.kind) ? 'is-preparation' : '', role?.kind === 'push' ? 'is-push' : '', role?.kind === 'abort' ? 'is-abort' : '', isLoaded ? 'selected' : ''].filter(Boolean).join(' ');
+      const classes = ['lap', 'lap-chip', ['in', 'out', 'inOut'].includes(role?.kind) ? 'in-out' : '', ['warm', 'prep', 'cool', 'flag'].includes(role?.kind) ? 'is-preparation' : '', role?.kind === 'push' ? 'is-push' : '', ['abort', 'deleted'].includes(role?.kind) ? 'is-abort' : '', isLoaded ? 'selected' : ''].filter(Boolean).join(' ');
       const displayTime = Number.isFinite(lap.display_time) ? lap.display_time : lap.time;
       const estimated = lap.display_time_estimated === true;
       const duration = Number.isFinite(displayTime) ? `${estimated ? '~' : ''}${time(displayTime)}` : '&mdash;';
