@@ -927,6 +927,6 @@ body > #carPerformance .performance-table td small { white-space: nowrap; }
 .trend-board.has-active [data-trend-series]:not(.is-active) { opacity: .22; }
 @media (prefers-reduced-motion:reduce) { .trend-series, .trend-board .performance-tyre-age-row { transition: none; } }
 .trend-board .performance-tyre-age-chart { display: grid; align-content: space-between; }
-#carPerformance .trend-board .performance-tyre-age-row { grid-template-columns: 124px minmax(0,1fr) 76px; }
+#carPerformance .trend-board .performance-tyre-age-row { grid-template-columns: 142px minmax(0,1fr) 76px; }
 .trend-board .performance-chart-card { display: flex; flex-direction: column; }
 .trend-board .performance-tyre-age-chart, .trend-board .trend-chart { flex: 1 1 auto; }
