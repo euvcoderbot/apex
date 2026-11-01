@@ -235,13 +235,15 @@ function renderStints() {
     const timedLaps = driver.laps.filter(lap => Number.isFinite(lap.time) && lap.time > 0 && !lap.in_lap && !lap.out_lap);
     const fastest = fastestTimedLap(driver);
     const fastestLoaded = fastest && loaded.some(item => item.code === code && item.lap === fastest.lap);
-    const hasQualifyingPhases = driver.laps.some(lap => /^Q[1-3]$/.test(lap.phase || ''));
+    const hasQualifyingPhases = /^(Qualifying|Q|Sprint Qualifying|Sprint Shootout|SQ)$/i.test(loadedSessionName)
+      || driver.laps.some(lap => /^Q[1-3]$/.test(lap.phase || ''));
+    const phaseFor = lap => /^Q[1-3]$/.test(lap.phase || '') ? lap.phase : 'Unassigned';
     const groupIds = hasQualifyingPhases
-      ? ['Q1', 'Q2', 'Q3'].filter(phase => driver.laps.some(lap => lap.phase === phase))
+      ? ['Q1', 'Q2', 'Q3', 'Unassigned'].filter(phase => driver.laps.some(lap => phaseFor(lap) === phase))
       : [...new Set(driver.laps.map(lap => String(lap.stint)))];
-    const active = String(openStint[code] ?? groupIds[0]);
+    const active = groupIds.includes(String(openStint[code])) ? String(openStint[code]) : groupIds[0];
     const lapsForGroup = id => hasQualifyingPhases
-      ? driver.laps.filter(lap => lap.phase === id)
+      ? driver.laps.filter(lap => phaseFor(lap) === id)
       : driver.laps.filter(lap => String(lap.stint) === id);
     const activeLaps = lapsForGroup(active);
     const runButtons = groupIds.map(id => {
@@ -286,8 +288,8 @@ function renderStints() {
           <div class="run-driver">${teamLogoMarkup(display[4])}<div class="run-driver-copy"><h3>${escapeUI(naturalDriverName(driver.name))}</h3><small>${code} · ${timedLaps.length} timed laps</small></div></div>
           ${fastest ? `<button class="fastest-lap-pick ${fastestLoaded ? 'selected' : ''}" data-motion-key="fastest-${code}" data-code="${code}" data-lap="${fastest.lap}" title="Add or remove this fastest lap"><span>Fastest</span><strong>${time(fastest.time)}</strong></button>` : ''}
         </header>
-        <div class="run-section-label"><span>Runs</span></div>
-        <div class="run-segments" style="--run-count:${Math.min(groupIds.length,3)}" role="group" aria-label="${code} runs">${runButtons}</div>
+        <div class="run-section-label"><span>${hasQualifyingPhases ? 'Qualifying phases' : 'Runs'}</span></div>
+        <div class="run-segments" ${hasQualifyingPhases ? 'data-qualifying-phases' : ''} style="--run-count:${Math.min(groupIds.length,3)}" role="group" aria-label="${code} runs">${runButtons}</div>
         <div class="lap-group-header"><span>${groupLabel} laps</span>${hasQualifyingPhases ? '' : `<small>${activeLaps.length} available</small>`}</div>
         <div class="lap-grid">${lapButtons}</div>
       </article>

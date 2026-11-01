@@ -1989,7 +1989,7 @@ function renderContent() {
   // One measurement method on the page; the window-timing views were retired
   // as duplicates (see docs/speed-domain-methodology-20261020.md).
   const methodToggle='';
-  const telemetryControls=telemetryMode?`<div class="performance-actions">${telemetrySubjectControls()}${methodToggle}${activeMetric==='corners'?cornerSessionControls():''}${qualifyingMetricsRunning?'<button type="button" data-qualifying-stop>Stop telemetry</button>':''}</div>`:'';
+  const telemetryControls=telemetryMode?`<div class="performance-actions">${speedMode?'':telemetrySubjectControls()}${methodToggle}${activeMetric==='corners'?cornerSessionControls():''}${qualifyingMetricsRunning?'<button type="button" data-qualifying-stop>Stop telemetry</button>':''}</div>`:'';
   let content = speedMode?renderSpeedDomain():(activeMetric==='pace'?renderPace(teams):activeMetric==='corners'&&cornerSession==='race'?renderRaceCorners():activeMetric==='tyres'?renderRace(teams):activeMetric==='results'?renderResults(teams):activeMetric==='pits'?renderPits(teams):renderTrend(teams));
   const metricEvidence=activeMetric==='tyres'?'<details class="dashboard-card performance-methods"><summary>Warm-up, steady trend and late falloff</summary><div data-metric-evidence="tyres"></div></details>':'';
   const supportedGPs=activeMetric==='corners'&&cornerSession==='race'

@@ -408,6 +408,19 @@ async function loadRealSession() {
   
   try {
     const payload = await loadApiData(apiUrl(`/api/session?${requestedQuery}`), {signal:request.signal});
+    const phaseQuery = new URLSearchParams(requestedQuery);
+    const phaseCode = /^(Qualifying|Q)$/i.test(phaseQuery.get('session') || '') ? 'Q'
+      : /^(Sprint Qualifying|Sprint Shootout|SQ)$/i.test(phaseQuery.get('session') || '') ? 'SQ' : null;
+    if (phaseCode && phaseQuery.get('session') !== phaseCode && payload.drivers?.some(d => d.laps?.some(l => !/^Q[1-3]$/.test(l.phase || '')))) {
+      phaseQuery.set('session', phaseCode);
+      try {
+        const phases = await loadApiData(apiUrl(`/api/session?${phaseQuery}`), {signal:request.signal});
+        mergeConfirmedQualifyingPhases(payload, phases);
+      } catch (error) {
+        if (error.name === 'AbortError') throw error;
+        // Missing phase metadata must not prevent loading the original laps.
+      }
+    }
     if (request !== sessionRequest || requestedQuery !== String(currentQuery())) return;
     if (!Array.isArray(payload.drivers)) throw new Error('No driver data is available for this session yet.');
     payload.drivers = payload.drivers.map(safeDriver).filter(Boolean);
@@ -461,6 +474,19 @@ async function loadRealSession() {
       button.removeAttribute('aria-busy');
       button.removeAttribute('aria-label');
       button.textContent = 'Load session';
+    }
+  }
+}
+
+function mergeConfirmedQualifyingPhases(payload, phases) {
+  if (!payload.openf1_session_key || payload.openf1_session_key !== phases.openf1_session_key) return;
+  for (const driver of payload.drivers || []) {
+    const confirmed = phases.drivers?.find(d => d.code === driver.code);
+    for (const lap of driver.laps || []) {
+      if (/^Q[1-3]$/.test(lap.phase || '')) continue;
+      const match = confirmed?.laps?.find(l => l.lap === lap.lap && l.date_start && lap.date_start
+        && Date.parse(l.date_start) === Date.parse(lap.date_start));
+      if (/^Q[1-3]$/.test(match?.phase || '')) lap.phase = match.phase;
     }
   }
 }

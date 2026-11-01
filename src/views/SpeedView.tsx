@@ -36,10 +36,17 @@ function ChartPair({chart, driverChart}: {chart: SpeedChart; driverChart?: Speed
   return <div className="subject-pair"><Chart chart={chart} /><Chart chart={driverChart} /></div>;
 }
 
+function EvidenceSubject({subject}: {subject: string}) {
+  return <div className="performance-scope-toggle" role="group" aria-label="Detailed table subject">
+    {['team', 'driver'].map(value => <button key={value} type="button" data-telemetry-subject={value} aria-pressed={subject === value}>{value === 'team' ? 'Teams' : 'Drivers'}</button>)}
+  </div>;
+}
+
 function EventValues({table}: {table: EventTable}) {
   return (
     <details className="performance-evidence">
       <summary>Values by GP · relative to each GP's median {table.subject}</summary>
+      <EvidenceSubject subject={table.subject} />
       <DataTable headers={['Grand Prix', table.subject === 'driver' ? 'Driver' : 'Team', ...table.labels]}
         rows={table.rows.map(r => [r.event, <TeamLabel team={r.team} />, ...r.values])} />
     </details>
@@ -52,6 +59,7 @@ function PhaseSplit({phases: p}: {phases: Phases}) {
   return (
     <details className="performance-evidence">
       <summary>Where the time goes · braking, mid-corner, exit{p.several ? ' · seconds per GP, averaged' : ''}</summary>
+      <EvidenceSubject subject={p.subject} />
       <p className="performance-quality-status">Common-distance estimates against the median {p.subject}. Braking runs to the field's brake-release line, mid-corner to the last apex, exit to the end line. Only speed inside these lines counts; there are no entry corrections or credits on the next straight. These phases include driver, setup, power and entry context, not isolated grip.</p>
       {p.sections.map(s => (
         <Fragment key={s.label}>
@@ -74,6 +82,7 @@ function CornerByCorner({corners: c}: {corners: Corners}) {
   return (
     <details className="performance-evidence">
       <summary>Corner by corner{c.single ? ' · ' + c.single : ''}</summary>
+      <EvidenceSubject subject={c.subject} />
       <p className="performance-quality-status">Speed is integrated over the same path from 10 m before the earliest braking point to 10 m after the last full-throttle return; overlapping turns form one complex. Timestamp Δ is a separate diagnostic affected by GPS path registration. ±5 m sensitivity shifts each car's registration; it is a scenario, not a confidence interval. Gaps over 0.6 s are provisional; over 1.5 s are excluded. Missing corners are never extrapolated to a complete band. Flat high-load bends compare lifting losses only; staying flat is not evidence of superior grip.</p>
       {tables}
     </details>
@@ -102,6 +111,7 @@ function StraightByStraight({straights: s}: {straights: Straights}) {
   return (
     <details className="performance-evidence">
       <summary>Straight by straight{s.single ? ' · ' + s.single : ''}</summary>
+      <EvidenceSubject subject={s.subject} />
       <p className="performance-quality-status">Each straight runs from the end of one timed corner to the start of the next, as in session analysis; the main straight crosses the timing line. Speed is integrated over the same distance for every car. Entry speed comes from the previous corner, so a better exit shows here too.</p>
       {tables}
     </details>
