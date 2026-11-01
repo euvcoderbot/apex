@@ -922,8 +922,9 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
 #sessionInspector .corner-measurement-table .corner-driver-copy small { line-height: 1.1; }
 #sessionInspector .corner-measurement-table button[data-corner-sort] { min-width: 0; white-space: normal; line-height: 1.1; }
 #sessionInspector .corner-measurement-table button[data-corner-sort] > span { min-width: 0; }
-#sessionInspector .corner-measurement-table button[data-corner-sort] small { display: block; }
+#sessionInspector .corner-measurement-table button[data-corner-sort] small { display: inline; }
 @container (max-width:300px) {
+  #sessionInspector .corner-measurement-table button[data-corner-sort] small { display: block; }
   #sessionInspector .corner-measurement-table :is(thead th,tbody th,tbody td) { padding-inline: 4px; }
   #sessionInspector .corner-measurement-table td strong { font-size: var(--type-caption); }
 }
