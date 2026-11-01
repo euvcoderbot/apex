@@ -79,7 +79,11 @@
           <button id="loadSession">Load session</button>
         </section>
       </aside>
-    <div class="analysis-column">
+    <aside class="app-inspector" id="sessionInspector" data-pane="laps" aria-label="Laps and track">
+      <div class="inspector-tabs" data-ui-group="segments" role="tablist" aria-label="Inspector">
+        <button type="button" role="tab" id="inspectorTabLaps" data-inspector-tab="laps" aria-selected="true" aria-controls="lapWorkspace">Laps</button>
+        <button type="button" role="tab" id="inspectorTabTrack" data-inspector-tab="track" aria-selected="false" aria-controls="cornerAnalysis" tabindex="-1">Track &amp; corners</button>
+      </div>
       <section class="dashboard-card lap-workspace" id="lapWorkspace">
         <div class="panel-heading workspace-heading">
           <h2><button id="lapWorkspaceToggle" class="workspace-disclosure" type="button" aria-expanded="true" aria-controls="lapSelectionBody"><i aria-hidden="true"></i><span>Choose laps</span></button></h2>
@@ -113,40 +117,7 @@
         </div>
         </div>
       </section>
-
-      <div class="main-dashboard">
-        <section class="telemetry-card is-empty" id="telemetryCard">
-          <div class="section-heading analysis-heading">
-            <div class="analysis-heading-main">
-              <h2>Lap telemetry</h2>
-              <p id="loadedSessionContext" class="loaded-session-context" hidden></p>
-              <small id="snapshotBadge" class="snapshot-mode-note" hidden>Published snapshot · not live</small>
-            </div>
-            <div class="legend" id="legend"></div>
-          </div>
-        <div class="comparison-tray" aria-label="Loaded comparison laps">
-          <div class="comparison-tray-heading">
-            <span>Comparison</span>
-            <small class="explanation-only">Click a lap to use as reference</small>
-          </div>
-          <div class="loaded-laps" id="loadedLaps">
-            <span class="section-empty">No laps loaded.</span>
-          </div>
-        </div>
-
-          <div class="telemetry-empty" id="telemetryEmpty">
-            <span>Ready when you are</span>
-            <strong>Your telemetry stack will appear here.</strong>
-            <p>Select laps in the workspace above to start the comparison.</p>
-          </div>
-
-          <div class="telemetry-content" id="telemetryContent">
-            <section class="sector-times" aria-label="Selected lap sector times">
-              <div class="sector-cards" id="sectorRows"></div>
-            </section>
-
-            <div class="telemetry-analysis-grid">
-            <div class="charts" id="charts" role="region" aria-label="Telemetry traces" tabindex="0"></div>
+      <div class="telemetry-analysis-grid inspector-corners">
             <section class="corner-analysis" id="cornerAnalysis" aria-labelledby="cornerAnalysisTitle" hidden>
               <div class="corner-analysis-header">
                 <h2 id="cornerAnalysisTitle"><button id="cornerAnalysisToggle" class="corner-analysis-toggle" type="button" aria-expanded="true" aria-controls="cornerWorkspace"><i aria-hidden="true"></i><span>Corner performance</span></button></h2>
@@ -170,6 +141,43 @@
                 </section>
               </div></div>
             </section>
+      </div>
+    </aside>
+    <div class="analysis-column">
+      <div class="main-dashboard">
+        <section class="telemetry-card is-empty" id="telemetryCard">
+          <div class="section-heading analysis-heading">
+            <div class="analysis-heading-main">
+              <h2>Lap telemetry</h2>
+              <p id="loadedSessionContext" class="loaded-session-context" hidden></p>
+              <small id="snapshotBadge" class="snapshot-mode-note" hidden>Published snapshot · not live</small>
+            </div>
+            <div class="legend" id="legend"></div>
+          </div>
+        <div class="comparison-tray" aria-label="Loaded comparison laps">
+          <div class="comparison-tray-heading">
+            <span>Comparison</span>
+            <small class="explanation-only">Click a lap to use as reference</small>
+          </div>
+          <div class="loaded-laps" id="loadedLaps">
+            <span class="section-empty">No laps loaded.</span>
+          </div>
+          <button type="button" id="clearComparison" class="comparison-clear" hidden>Clear all</button>
+        </div>
+
+          <div class="telemetry-empty" id="telemetryEmpty">
+            <span>Ready when you are</span>
+            <strong>Your telemetry stack will appear here.</strong>
+            <p>Select laps in the workspace above to start the comparison.</p>
+          </div>
+
+          <div class="telemetry-content" id="telemetryContent">
+            <section class="sector-times" aria-label="Selected lap sector times">
+              <div class="sector-cards" id="sectorRows"></div>
+            </section>
+
+            <div class="telemetry-analysis-grid">
+            <div class="charts" id="charts" role="region" aria-label="Telemetry traces" tabindex="0"></div>
 
             </div>
             <div class="tooltip" id="realTooltip"></div>
@@ -183,6 +191,7 @@
       <div><span class="workspace-eyebrow">CAR PERFORMANCE</span><h1>Compare performance</h1></div>
     </div>
     <aside class="app-sidebar" id="performanceSidebar" aria-label="Car performance setup and categories">
+    <nav class="category-bar" id="performanceCategoryList" aria-label="Performance categories" hidden></nav>
     <section class="dashboard-card session-controls performance-controls" aria-label="Car performance controls">
       <div class="panel-heading">
         <h2>Car performance</h2>
@@ -224,7 +233,6 @@
       <div class="status-dot"></div>
       <p id="performanceStatus" role="status" aria-live="polite">Choose a track or analyse completed events across the season.</p>
     </div>
-    <nav class="category-bar" id="performanceCategoryList" aria-label="Performance categories" hidden></nav>
     <div id="performanceResults"></div>
     <details class="dashboard-card performance-methods">
       <summary>How to read these measurements</summary>

@@ -77,13 +77,14 @@
   function syncCategoryList(){
     if(!categoryList||!performanceRoot)return;
     const tabs=[...performanceRoot.querySelectorAll('.performance-mode [data-performance-metric]')];
-    categoryList.hidden=!tabs.length;
-    if(!tabs.length)return;
+    // Until results arrive the list is shown disabled, so the sidebar does not jump when they do.
+    const sources=tabs.length?tabs:Object.keys(categoryIcons).map(key=>({dataset:{performanceMetric:key},disabled:true,textContent:metrics[key]?.[1]||key}));
+    categoryList.hidden=false;
     categoryList.setAttribute('role','tablist');categoryList.setAttribute('aria-label','Performance category');
-    const signature=tabs.map(tab=>tab.dataset.performanceMetric+(tab.disabled?'!':'')).join(',');
+    const signature=sources.map(tab=>tab.dataset.performanceMetric+(tab.disabled?'!':'')).join(',');
     if(categoryList.dataset.signature!==signature){
       categoryList.dataset.signature=signature;
-      const rows=tabs.map(tab=>{
+      const rows=sources.map(tab=>{
         const key=tab.dataset.performanceMetric,[,title,description]=metrics[key]||['',tab.textContent.trim(),''];
         const row=document.createElement('button');row.type='button';row.className='category-tab';row.dataset.sidebarMetric=key;row.setAttribute('aria-label',title);row.title=description;row.disabled=tab.disabled;
         row.id='category-tab-'+key;row.setAttribute('role','tab');row.setAttribute('aria-controls','performanceMetricPanel');
@@ -102,6 +103,12 @@
     }
     const panel=performanceRoot.querySelector('#performanceMetricPanel');if(panel&&active)panel.setAttribute('aria-labelledby','category-tab-'+active);
   }
+  performanceRoot?.addEventListener('pointerover',event=>{
+    const board=event.target.closest?.('.trend-board');if(!board)return;
+    const key=event.target.closest('[data-trend-series]')?.dataset.trendSeries;
+    board.classList.toggle('has-active',!!key);
+    for(const item of board.querySelectorAll('[data-trend-series]'))item.classList.toggle('is-active',item.dataset.trendSeries===key);
+  });
   categoryList?.addEventListener('click',event=>{
     const row=event.target.closest('[data-sidebar-metric]');if(!row||row.disabled)return;
     performanceRoot?.querySelector(`.performance-mode [data-performance-metric="${CSS.escape(row.dataset.sidebarMetric)}"]`)?.click();
@@ -115,6 +122,7 @@
     const next=event.key==='Home'?rows[0]:event.key==='End'?rows.at(-1):rows[(index+(['ArrowDown','ArrowRight'].includes(event.key)?1:-1)+rows.length)%rows.length];
     next?.focus();next?.click();
   });
+  syncCategoryList();
   if(performanceRoot&&typeof MutationObserver!=='undefined')new MutationObserver(syncCategoryList).observe(performanceRoot,{childList:true});
   const viewTitles={session:['Compare laps','Session analysis'],performance:['Compare performance','Car performance']};
   function setWindowTitle(view){
@@ -244,6 +252,16 @@
       const list=document.createElement('ul');list.className='performance-error-list';
       errors[0].before(group);group.append(title,list);
       for(const error of errors){const item=document.createElement('li');item.textContent=error.textContent.trim();list.append(item);error.remove();}
+    }
+    // A column's header aligns with its values: numbers right so digits compare, text left, a column of small charts centred.
+    for(const table of root.querySelectorAll('.performance-table')){
+      const rows=[...table.querySelectorAll('tbody tr')];
+      [...(table.querySelector('thead tr')?.children||[])].forEach((heading,index)=>{
+        const values=rows.map(row=>row.children[index]?.textContent.trim()||'').filter(text=>text&&!/^(—|–|-|n\/a)$/i.test(text));
+        const kind=index===0?'text':!values.length?'chart':values.every(text=>/^[+\-−~]?\d/.test(text))?'number':'text';
+        heading.dataset.column=kind;
+        for(const row of rows)if(row.children[index])row.children[index].dataset.column=kind;
+      });
     }
     syncCategoryList();
     // Paired chart + table: the chart copies the table's header and row heights

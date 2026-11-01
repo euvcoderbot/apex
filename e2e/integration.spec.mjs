@@ -69,11 +69,11 @@ test.describe('Car performance with real data', () => {
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth), {message: slug, timeout: 5000}).toBeLessThanOrEqual(0);
     }
   });
-  test('nothing is cut off and no blank band sits above the category tabs', async ({page}) => {
+  test('nothing is cut off and the sidebar opens on the category list', async ({page}) => {
     await page.setViewportSize({width: 1440, height: 900});
     await open(page, 'pits');
     const report = await page.evaluate(() => {
-      const header = document.querySelector('.site-header').getBoundingClientRect().bottom, bar = document.querySelector('#carPerformance > .category-bar');
+      const header = document.querySelector('.site-header').getBoundingClientRect().bottom, bar = document.querySelector('#performanceSidebar > .category-bar');
       return {
         gap: bar.getBoundingClientRect().top - header,
         truncated: [...bar.querySelectorAll('.category-tab span')].filter(el => el.offsetParent && el.scrollWidth > el.clientWidth + 1).map(el => el.textContent),
@@ -87,6 +87,7 @@ test.describe('Car performance with real data', () => {
 
   test('layout stays put while the data arrives (CLS under the 0.1 "good" limit)', async ({page, browserName}) => {
     test.skip(browserName !== 'chromium', 'layout-shift entries exist only in Chromium');
+    test.setTimeout(60_000); // Eight full page loads; alone this takes about 17 s, in a parallel run it can pass 30 s.
     await page.addInitScript(() => {
       window.__cls = 0;
       new PerformanceObserver(list => { for (const e of list.getEntries()) if (!e.hadRecentInput) window.__cls += e.value; })

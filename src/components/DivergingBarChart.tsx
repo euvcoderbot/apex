@@ -7,8 +7,8 @@ import {TeamLabel, type TeamLike} from './TeamLabel';
  * right worsens. Use the actual signed range, rather than reserving half the
  * entire chart for a tiny negative outlier. All rows share this same scale.
  */
-export function DivergingBarChart({title, subtitle, rows, unit, extent}: {
-  title: string; subtitle: string; rows: (TeamLike & {value: number})[]; unit: string; extent: number;
+export function DivergingBarChart({title, subtitle, rows, unit, extent, seriesKey}: {
+  title: string; subtitle: string; rows: (TeamLike & {value: number})[]; unit: string; extent: number; seriesKey?: (row: TeamLike & {value: number}) => string;
 }) {
   const minimum = Math.min(0,...rows.map(row=>row.value));
   const maximum = Math.max(0,...rows.map(row=>row.value));
@@ -24,7 +24,7 @@ export function DivergingBarChart({title, subtitle, rows, unit, extent}: {
           const width = Math.min(100, Math.abs(r.value) / span * 100);
           const left = r.value < 0 ? zero-width : zero;
           return (
-            <div key={i} className="performance-tyre-age-row">
+            <div key={i} className="performance-tyre-age-row" data-trend-series={seriesKey?.(r)}>
               <div className="performance-tyre-age-name"><TeamLabel team={r} /></div>
               <div className="performance-tyre-age-track">
                 <i className="performance-tyre-age-zero" style={{left:`${zero.toFixed(2)}%`}} />

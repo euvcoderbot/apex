@@ -93,7 +93,7 @@ button[data-ui-kind="choice"][aria-pressed="true"],button[data-ui-kind="choice"]
 .loaded-lap-pill { border-radius: var(--radius-sm); padding: 2px; border: 1px solid var(--ui-border); background: var(--ui-well); box-shadow: none; }
 .loaded-lap-pill.reference { border-color: var(--ui-accent); background: color-mix(in srgb,var(--ui-action) 12%,var(--ui-well)); }
 button[data-ui-kind="reference"] { border: 0; background: transparent; box-shadow: none; padding: 3px 6px; min-height: 26px; }
-.loaded-lap-main b,.summary-driver > b,.corner-driver-lap b { color: var(--ui-label); }
+.loaded-lap-main b, .summary-driver > b { color: var(--ui-label); }
 button[data-ui-kind="icon"] { display: inline-grid; place-items: center; width: var(--ui-control-height); min-width: var(--ui-control-height); height: var(--ui-control-height); min-height: var(--ui-control-height); border: 0; border-radius: var(--radius-xs); padding: var(--ui-space-1); background: transparent; box-shadow: none; color: var(--ui-secondary); }
 .ui-symbol { display: inline-block; width: 16px; height: 16px; flex: 0 0 16px; vertical-align: middle; }
 .loaded-lap-pill button .ui-symbol { width: 12px; height: 12px; }
@@ -128,9 +128,9 @@ details { border-radius: var(--radius-sm); }
 .sort-icon { width: 10px; height: 14px; color: var(--ui-secondary); }
 .perf-sort-btn.is-sorted { color: var(--ui-label); }
 .perf-chart-heading,.perf-chart-title { font-size: var(--type-body); font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--ui-label); }
-.perf-chart-sub,.chart-coverage,.measurement-context { font-size: var(--type-callout); color: var(--ui-tertiary); }
+.perf-chart-sub, .chart-coverage { font-size: var(--type-callout); color: var(--ui-tertiary); }
 .performance-bar-track { height: 5px; border-radius: var(--radius-xs); background: var(--ui-control); }
-.performance-bar-fill,.performance-bar { border-radius: var(--radius-xs); box-shadow: none; }
+.performance-bar { border-radius: var(--radius-xs); box-shadow: none; }
 .performance-bar-val,.summary-lap-time,.sector-cell-value { font-variant-numeric: tabular-nums; }
 /* Badges, empty, loading and feedback states */
 [data-ui-kind="badge"] { display: inline-flex; align-items: center; padding: 2px 6px; border: 0; border-radius: var(--radius-xs); background: var(--ui-selected); color: var(--ui-secondary); font-size: var(--type-callout); line-height: 1.35; font-weight: 400; box-shadow: none; }
@@ -138,7 +138,6 @@ details { border-radius: var(--radius-sm); }
 [data-ui-kind="badge"].is-low,[data-ui-kind="badge"].is-pu,[data-ui-kind="badge"].is-chassis { color: var(--ui-negative); background: color-mix(in srgb,var(--ui-negative) 10%,transparent); }
 [data-ui-kind="badge"].is-high { color: var(--ui-positive); background: color-mix(in srgb,var(--ui-positive) 10%,transparent); }
 .performance-range-control { display: grid; width: 100%; gap: var(--ui-space-1); margin: 0; }
-.control-caption { color: var(--ui-secondary); font-size: var(--ui-caption); }
 .performance-range-options[data-ui-group="segments"] { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); width: 100%; min-width: 0; }
 .performance-range-options[data-ui-group="segments"] > button[data-ui-kind="segment"] { min-width: 0; }
 .performance-results-measure { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
@@ -314,7 +313,6 @@ main #driverSidebar { width: 100%; }
 .telemetry-analysis-grid .dominance-map-header h2 small { display: inline; margin-left: var(--ui-space-1); font-size: var(--ui-caption); }
 .telemetry-analysis-grid .map-view-switch { width: 100%; margin: 5px 0; }
 .telemetry-analysis-grid .map-wind { display: none; }
-.telemetry-analysis-grid .corner-detail-table { font-size: var(--type-callout); }
 .corner-table-head > button[data-ui-kind="sort"] { display: flex; flex-direction: row; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--ui-space-1); min-height: var(--ui-control-height); padding: 0; font-size: var(--ui-text); }
 .corner-table-head > button small { display: inline; margin: 0; font-size: var(--ui-caption); }
 body.trace-focus .telemetry-analysis-grid { display: block; }
@@ -334,7 +332,6 @@ body.trace-focus #cornerAnalysis { display: none; }
 .performance-visual-grid .chart-coverage { grid-row: 4; margin: 0; align-self: end; }
 .performance-chart-card .performance-bar-label { min-width: 0; }
 .performance-chart-card .performance-team .team-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.performance-chart-controls .measurement-context { display: none; }
 .performance-chart-controls .performance-band-options { margin: 0; }
 .performance-chart-controls [data-ui-group="segments"]:not(.performance-range-options) { min-width: max-content; }
 .performance-chart-controls [data-ui-group="segments"] > button[data-ui-kind="segment"] { white-space: nowrap; }
@@ -363,7 +360,7 @@ button[data-ui-kind="push"],button[data-ui-kind="primary"],button[data-ui-kind="
 .performance-card-body > .performance-scope-toggle,.performance-results-measure { margin-bottom: var(--ui-space-3); }
 .performance-chart-card { padding: var(--ui-space-2); }
 .performance-table :is(th,td),.performance-bar-label,.performance-team,.performance-bar-val { font-size: var(--ui-text); }
-.performance-table td small,.performance-note,.performance-definition,.performance-quality-status,.performance-load-notice,.corner-detail-header small { font-size: var(--ui-caption); }
+.performance-table td small, .performance-note, .performance-definition, .performance-quality-status, .corner-detail-header small { font-size: var(--ui-caption); }
 .performance-table td .team-name { font-weight: 400; }
 .performance-split-view .performance-table td,.performance-split-view .performance-bar-row { height: var(--ui-row-height); min-height: var(--ui-row-height); }
 .performance-compound-control .performance-tyre-options > button[data-ui-kind="segment"] { height: var(--ui-control-height); min-height: var(--ui-control-height); padding-block: 0; }
@@ -425,7 +422,6 @@ button[data-ui-kind="push"],button[data-ui-kind="primary"],button[data-ui-kind="
   button[data-ui-kind],input[data-ui-kind],select[data-ui-kind] { border: 1px solid ButtonText; background: Canvas; color: ButtonText; box-shadow: none; }
   button[aria-pressed="true"],button[aria-selected="true"],input[data-ui-kind="checkbox"]:checked { background: Highlight; color: HighlightText; }
   input[data-ui-kind="checkbox"]:checked::after { border-color: HighlightText; }
-  .performance-bar-fill { forced-color-adjust: none; }
 }
 /* Component catalogue uses the exact production stylesheet and decorator. */
 .ui-catalog { max-width: 1120px; margin: 0 auto; padding: 24px; }

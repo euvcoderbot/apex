@@ -126,7 +126,7 @@
   // Segmented controls: one thumb per group that slides to the chosen segment
   // (HIG Segmented controls). Its geometry lives in --ui-thumb-* on the group;
   // the group's ::before draws it, so re-renders never recreate it.
-  const thumbGroups='[data-ui-group="segments"],.run-segments,.category-bar';
+  const thumbGroups='[data-ui-group="segments"],.run-segments';
   const chosen='button[aria-pressed="true"],button[aria-selected="true"],button[aria-current="page"]';
   // Read every group's geometry first and write afterwards: alternating a layout read with a style write per group forced a layout each time.
   function measureThumb(group){

@@ -17,10 +17,10 @@ export type SpeedViewProps = {
   status: {running: boolean; loaded: number; total: number};
   failures: {name: string; error: string}[]; retry: number;
 } & (
-  | {metric: 'corners'; basis?: Basis; note: string; charts: SpeedChart[]; phases: Phases | null; corners: Corners | null; events: EventTable;
-     traction: {lowConfidence: boolean; chart: SpeedChart; events: EventTable}}
-  | {metric: 'straight'; basis?: Basis; straights?: Straights | null; pill: string; pills: {key: string; label: string; hint: string}[]; note: string; chart: SpeedChart; events: EventTable}
-  | {metric: 'braking'; note: string; lowConfidence: boolean; chart: SpeedChart; events: EventTable});
+  | {metric: 'corners'; basis?: Basis; note: string; charts: SpeedChart[]; driverCharts?: SpeedChart[]; phases: Phases | null; corners: Corners | null; events: EventTable;
+     traction: {lowConfidence: boolean; chart: SpeedChart; driverChart?: SpeedChart; events: EventTable}}
+  | {metric: 'straight'; basis?: Basis; straights?: Straights | null; pill: string; pills: {key: string; label: string; hint: string}[]; note: string; chart: SpeedChart; driverChart?: SpeedChart; events: EventTable}
+  | {metric: 'braking'; note: string; lowConfidence: boolean; chart: SpeedChart; driverChart?: SpeedChart; events: EventTable});
 
 function Chart({chart}: {chart: SpeedChart}) {
   // While GPs are still loading an empty chart is pending, not a missing measurement.
@@ -28,6 +28,12 @@ function Chart({chart}: {chart: SpeedChart}) {
     <div className="performance-chart-card"><h4 className="perf-chart-heading">{chart.title}</h4><p className="performance-quality-status">{chart.empty}</p></div>
   );
   return <BarChart rows={chart.rows} options={chart.options} />;
+}
+
+/** The same measurement for teams and for drivers, side by side. */
+function ChartPair({chart, driverChart}: {chart: SpeedChart; driverChart?: SpeedChart}) {
+  if (!driverChart) return <Chart chart={chart} />;
+  return <div className="subject-pair"><Chart chart={chart} /><Chart chart={driverChart} /></div>;
 }
 
 function EventValues({table}: {table: EventTable}) {
@@ -120,14 +126,17 @@ export function SpeedView(p: SpeedViewProps) {
       {head}
       <Card title="Cornering" note={p.note}>
         <GapBasis basis={p.basis} section="corners" />
-        {p.charts.map((c, i) => <Chart key={i} chart={c} />)}
+        {p.driverCharts
+          ? <><div className="subject-bands">{p.charts.map((c, i) => <Chart key={i} chart={c} />)}</div>
+              <div className="subject-bands">{p.driverCharts.map((c, i) => <Chart key={i} chart={c} />)}</div></>
+          : p.charts.map((c, i) => <Chart key={i} chart={c} />)}
         {p.phases ? <PhaseSplit phases={p.phases} /> : null}
         {p.corners ? <CornerByCorner corners={p.corners} /> : null}
         <EventValues table={p.events} />
       </Card>
       <Card title="Corner exit traction" note="Acceleration out of slow corners at any throttle position, once a car has gained 30 km/h over its own apex, simulated from 70 to 170 km/h. Seconds per corner exit. Evidence only: in validation it carried little car-specific signal in 2025.">
         {p.traction.lowConfidence ? <p className="performance-quality-status">{LOW_CONFIDENCE}</p> : null}
-        <Chart chart={p.traction.chart} />
+        <ChartPair chart={p.traction.chart} driverChart={p.traction.driverChart} />
         <EventValues table={p.traction.events} />
       </Card>
     </>
@@ -140,7 +149,7 @@ export function SpeedView(p: SpeedViewProps) {
           {p.pills.map(x => <button key={x.key} type="button" data-straight-pill={x.key} aria-pressed={x.key === p.pill} title={x.hint}>{x.label}</button>)}
         </div>
         <GapBasis basis={p.basis} section="straights" />
-        <Chart chart={p.chart} />
+        <ChartPair chart={p.chart} driverChart={p.driverChart} />
         {p.straights ? <StraightByStraight straights={p.straights} /> : null}
         <EventValues table={p.events} />
       </Card>
@@ -151,7 +160,7 @@ export function SpeedView(p: SpeedViewProps) {
       {head}
       <Card title="Braking" note={p.note}>
         {p.lowConfidence ? <p className="performance-quality-status">{LOW_CONFIDENCE}</p> : null}
-        <Chart chart={p.chart} />
+        <ChartPair chart={p.chart} driverChart={p.driverChart} />
         <EventValues table={p.events} />
       </Card>
     </>

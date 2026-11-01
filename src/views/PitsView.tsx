@@ -11,7 +11,7 @@ export type PitsViewProps = {
   note: string; serviceNote: string; failures: {name: string; error: string}[]; noStationary: boolean;
   quality: {stationary: number; lane: number; visits: number; refresh: boolean; gaps?: {pack: number; awaiting: number; other: number}};
   isLane: boolean; isDriver: boolean; relativeLane: boolean; chartMetric: string;
-  chartRows: (TeamLike & Record<string, unknown>)[]; chart: BarChartOptions; emptyMessage: string;
+  chartRows: (TeamLike & Record<string, unknown>)[]; driverChartRows?: (TeamLike & Record<string, unknown>)[]; chart: BarChartOptions; emptyMessage: string;
   rows: PitRow[]; sort: Record<string, SortHeaderModel>;
   visits: {event: string; team: TeamLike; driver: string; lap: number; stop: number | null; lane: number | null; source: string; evidence: string}[];
 };
@@ -52,7 +52,12 @@ export function PitsView(p: PitsViewProps) {
         <p className="performance-note">Median describes a typical stop; mean includes slow stops; quickest shows the best visit; IQR describes consistency. Only confirmed service visits are ranked. Pit-lane time is not inferred pit loss.</p>
         {/* Unranked rows still draw (missing is not zero); only no rows at all is empty. */}
         {p.chartRows.length
-          ? <BarChart rows={p.chartRows} options={p.chart} />
+          ? p.driverChartRows
+            ? <div className="subject-pair">
+                <BarChart rows={p.chartRows} options={p.chart} />
+                <BarChart rows={p.driverChartRows} options={{...p.chart, title: String(p.chart.title).replace(/Teams$/, 'Drivers')}} />
+              </div>
+            : <BarChart rows={p.chartRows} options={p.chart} />
           : <p className="section-empty" role="status">{p.emptyMessage}</p>}
         <DataTable
           headers={[p.sort.pitName, ...(p.isDriver ? [p.sort.pitTeam] : []), p.sort.pitMean, p.sort.pitMedian, p.sort.pitFastest, p.sort.pitSpread, p.sort.pitCount, p.sort.pitEvents]}
