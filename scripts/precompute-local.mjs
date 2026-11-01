@@ -102,6 +102,9 @@ if(!args.includes('--qualifying-only'))try{const pits=await get('/api/performanc
 // currentQuery; the cache key ignores its data_schema field).
 for(const name of ['Qualifying','Sprint Qualifying','Sprint','Race']){
   if(args.includes('--qualifying-only') && name==='Race')continue;
+  // Preserve the independently confirmed, richer native session capture. The
+  // generic API summary does not carry its completion provenance or coverage.
+  if(name==='Qualifying' && args.includes('--confirmed-local-qualifying') && await confirmedQualifying(root,year,event))continue;
   const date=event.session_dates?.[name];
   if(!date||Date.parse(date)>Date.now())continue;
   try{await get('/api/session?'+new URLSearchParams({year,gp,round,session:name}));}catch(e){reportIncomplete(`Session ${name}: `+e.message);}
