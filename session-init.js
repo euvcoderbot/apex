@@ -122,6 +122,15 @@ document.addEventListener('DOMContentLoaded', () => {
   
   calendarReady = loadCalendar();
   loadPublishedSessions();
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState==='visible' && window.APEX_SNAPSHOT_MODE && Date.now()-snapshotCheckedAt>=60000){
+      invalidateSnapshotData();
+      void loadPublishedSessions();
+    }
+  });
+  if(window.APEX_SNAPSHOT_MODE)window.setInterval(() => {
+    if(document.visibilityState==='visible')void loadPublishedSessions();
+  },60000);
   calendarReady.catch(error => {
     console.warn(error);
   });

@@ -18,6 +18,17 @@ mirror_spec.loader.exec_module(mirror)
 
 
 class LocalSessionExportTests(unittest.TestCase):
+    def test_confirmed_calendar_capture_does_not_require_a_session_export(self):
+        with TemporaryDirectory() as directory:
+            root=Path(directory);(root/'lib').mkdir()
+            (root/'lib/cache-revision.mjs').write_text('export const SOURCE_REVISION = "s"; export const BACKEND_REVISION = "b"; export const RACE_REVISION = "r";')
+            calendar=[{'round':19,'session_statuses':{'Practice 3':'completed'}}]
+            key=export.merge_local_session_capture(root,2026,'Mexico',19,None,calendar,'2026-11-01T04:00:00Z')
+            self.assertEqual(key,'/api/events?year=2026')
+            folder=root/'assets/data/local-captures'
+            index=json.loads((folder/'index.json').read_text())
+            self.assertEqual(json.loads(gzip.decompress((folder/index['entries'][key]['file']).read_bytes())),calendar)
+
     def test_older_python_capture_cannot_replace_newer_observation(self):
         with TemporaryDirectory() as directory:
             root=Path(directory);(root/'lib').mkdir()

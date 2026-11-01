@@ -5,7 +5,7 @@ import {gunzipSync} from 'node:zlib';
 const {session,performance,telemetry}=JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/qualifying-comparison.json.gz',import.meta.url))));
 const calendar=[{year:2026,round:18,name:'United States Grand Prix',country:'United States',location:'Austin',date:'2026-10-25',sessions:['Practice 1','Qualifying','Race'],session_statuses:{Qualifying:'completed'}}];
 
-async function loaded(page,{missing=false}={}){
+async function loaded(page,{missing=false,partial=false}={}){
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.route(/127\.0\.0\.1:54123/,route=>route.abort());
   await page.route('**/config.js*',route=>route.fulfill({contentType:'text/javascript',body:'window.APEX_API_ORIGIN="";window.APEX_SNAPSHOT_MODE=false;window.APEX_LOCAL_MODE=true;'}));
@@ -14,7 +14,9 @@ async function loaded(page,{missing=false}={}){
     const url=new URL(outer.searchParams.get('path')||outer.pathname+outer.search,'http://fixture');
     let payload;
     if(url.pathname==='/api/events')payload=calendar;
-    else if(url.pathname==='/api/session')payload=session;
+    else if(url.pathname==='/api/session')payload=partial?{...session,lap_data_complete:false,
+      telemetry_complete:false,drivers:session.drivers.map((driver,i)=>i?driver:{...driver,
+        lap_data_complete:false,missing_laps:[2],telemetry_missing_laps:[2]})}:session;
     else if(url.pathname==='/api/performance'&&url.searchParams.get('session')==='Q')payload=performance;
     else if(url.pathname==='/api/telemetry'){
       if(missing&&url.searchParams.get('driver')==='VER')return route.fulfill({status:503,contentType:'application/json',body:'{"detail":"Telemetry unavailable for this lap"}'});
@@ -34,6 +36,14 @@ test('recorded qualifying comparison renders both laps and supports trace toggle
   const toggle=page.locator('input[data-trace-key]').first();
   await toggle.focus();await toggle.press('Space');await expect(toggle).not.toBeChecked();
   await toggle.press('Space');await expect(toggle).toBeChecked();
+  expect(errors).toEqual([]);
+});
+
+test('partial source history discloses gaps without blocking supported comparisons',async({page})=>{
+  const errors=await loaded(page,{partial:true});
+  await expect(page.locator('canvas[data-chart="Speed trace"]')).toBeVisible();
+  await expect(page.locator('input[data-trace-key]')).toHaveCount(2);
+  await expect(page.locator('#appToast')).toContainText('missing data is not estimated');
   expect(errors).toEqual([]);
 });
 
