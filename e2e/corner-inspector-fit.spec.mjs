@@ -45,4 +45,9 @@ for (const height of [850, 1000]) test(`corner results fit at ${height}px withou
   await page.setViewportSize({width: 1600, height: 600});
   await page.locator('.corner-measurement-table tbody tr').last().scrollIntoViewIfNeeded();
   await expect(page.locator('.corner-measurement-table tbody tr').last()).toBeInViewport();
+  await page.setViewportSize({width: 390, height: 844});
+  const narrowOverflow = await page.locator('.corner-measurement-table').evaluate(table => Math.max(
+    table.scrollWidth - table.clientWidth,
+    ...[...table.querySelectorAll('td')].map(cell => cell.scrollWidth - cell.clientWidth)));
+  expect(narrowOverflow).toBeLessThanOrEqual(1);
 });

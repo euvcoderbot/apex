@@ -923,6 +923,10 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
 #sessionInspector .corner-measurement-table button[data-corner-sort] { min-width: 0; white-space: normal; line-height: 1.1; }
 #sessionInspector .corner-measurement-table button[data-corner-sort] > span { min-width: 0; }
 #sessionInspector .corner-measurement-table button[data-corner-sort] small { display: block; }
+@container (max-width:300px) {
+  #sessionInspector .corner-measurement-table :is(thead th,tbody th,tbody td) { padding-inline: 4px; }
+  #sessionInspector .corner-measurement-table td strong { font-size: var(--type-caption); }
+}
 
 /* Comparison tray: one row of title, laps and Clear all, on a single inset. */
 #telemetryCard .comparison-tray { flex-wrap: nowrap; align-items: flex-start; gap: 12px; padding: 7px 10px 7px 14px; }
