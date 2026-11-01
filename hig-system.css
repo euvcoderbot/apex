@@ -899,6 +899,35 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
 #sessionInspector .inspector-corners #dominanceCanvas { display: block; height: clamp(200px,25dvh,250px); margin: 0; }
 #sessionInspector .inspector-corners .dominance-map-header .legend { justify-content: flex-start; margin-top: 8px; }
 
+/* A corner result uses the inspector's available height, rather than adding a
+   full table below a fixed-height map. Keep one outer scroll region for very
+   short windows or large comparisons; never make a nested table scroller. */
+@media (min-width:1240px) {
+  body > main#top > #sessionInspector { scrollbar-gutter: stable; }
+  #sessionInspector[data-pane="track"] > .inspector-corners { flex: 1 1 0; min-height: 0; }
+  #sessionInspector .inspector-corners #cornerAnalysis,
+  #sessionInspector .inspector-corners .corner-collapse-region { height: 100%; min-height: 0; }
+  #sessionInspector .inspector-corners .corner-workspace { height: 100%; min-height: 0; overflow: visible; }
+  #sessionInspector .inspector-corners .dominance-map { display: flex; flex-direction: column; flex: 1 1 auto; min-height: min-content; max-height: 420px; }
+  #sessionInspector .inspector-corners .dominance-map-header,
+  #sessionInspector .inspector-corners .map-view-row { flex: 0 0 auto; }
+  #sessionInspector .inspector-corners #dominanceCanvas { flex: 1 1 auto; height: 0; min-height: 120px; max-height: 250px; }
+  #sessionInspector .inspector-corners :is(.corner-picker-row,.corner-metric-grid) { flex: 0 0 auto; }
+}
+#sessionInspector .inspector-corners .corner-picker { gap: 6px; }
+#sessionInspector .corner-measurement-wrap { overflow: visible; }
+#sessionInspector .corner-measurement-table :is(thead th,tbody th,tbody td) { height: 32px; padding-block: 2px; }
+#sessionInspector .corner-measurement-table .corner-driver { gap: 5px; }
+#sessionInspector .corner-measurement-table .corner-driver-copy { line-height: 1.1; }
+#sessionInspector .corner-measurement-table .corner-driver-copy small { line-height: 1.1; }
+#sessionInspector .corner-measurement-table button[data-corner-sort] { min-width: 0; white-space: normal; line-height: 1.1; }
+#sessionInspector .corner-measurement-table button[data-corner-sort] > span { min-width: 0; }
+#sessionInspector .corner-measurement-table button[data-corner-sort] small { display: block; }
+@container (max-width:300px) {
+  #sessionInspector .corner-measurement-table :is(thead th,tbody th,tbody td) { padding-inline: 4px; }
+  #sessionInspector .corner-measurement-table td strong { font-size: var(--type-caption); }
+}
+
 /* Comparison tray: one row of title, laps and Clear all, on a single inset. */
 #telemetryCard .comparison-tray { flex-wrap: nowrap; align-items: flex-start; gap: 12px; padding: 7px 10px 7px 14px; }
 #telemetryCard .comparison-tray-heading { align-self: flex-start; min-height: 28px; align-items: center; }
