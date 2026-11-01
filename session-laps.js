@@ -267,9 +267,8 @@ function renderStints() {
       const context = role?.label || '';
       const neutralised = String(lap.track_status || '').includes('4') ? 'SC'
         : String(lap.track_status || '').includes('6') ? 'VSC' : '';
-      const title = role?.reason
-        || (neutralised ? `${neutralised} lap; time is not representative of racing pace` : '')
-        || (!Number.isFinite(displayTime) ? 'No lap time published by the timing feeds' : '');
+      const title = [role?.reason, neutralised ? `${neutralised} lap; time is not representative of racing pace` : '',
+        !Number.isFinite(displayTime) ? 'No lap time published by the timing feeds: normal for a lap that starts or ends in the pits.' : ''].filter(Boolean).join(' ');
       const age = Number.isFinite(lap.tyre_life) && lap.tyre_life >= 1 ? Math.round(lap.tyre_life) : null;
       // Practice and race stints: the feed often has no tyre age, so count the laps run in this stint, this one included. A set can have been
       // used before the stint began, so a counted age is shown with "~" and says so on hover.
