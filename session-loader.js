@@ -410,9 +410,9 @@ async function loadRealSession() {
     if (!Array.isArray(payload.drivers)) throw new Error('No driver data is available for this session yet.');
     payload.drivers = payload.drivers.map(safeDriver).filter(Boolean);
     if (!payload.drivers.length) throw new Error('No driver data is available for this session yet.');
-    if(payload.lap_data_complete===false){
-      const affected=payload.drivers.filter(d=>d.lap_data_complete===false).map(d=>d.code);
-      notify(`Source lap records are incomplete${affected.length?' for '+affected.join(', '):''}. Only recorded laps are shown; missing laps are not estimated.`, 'info');
+    if(payload.lap_data_complete===false || payload.telemetry_complete===false){
+      const affected=payload.drivers.filter(d=>d.lap_data_complete===false || d.telemetry_missing_laps?.length).map(d=>d.code);
+      notify(`Source laps or telemetry are incomplete${affected.length?' for '+affected.join(', '):''}. Only supported data is shown; missing data is not estimated.`, 'info');
     }
     clearBeforeSessionLoad();
     loadedSessionQuery = requestedQuery;

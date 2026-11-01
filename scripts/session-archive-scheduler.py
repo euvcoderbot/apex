@@ -186,7 +186,7 @@ def prepare_session(session, final):
     folder=ROOT/'assets/data/local-captures'
     index=json.loads((folder/'index.json').read_text(encoding='utf-8'))
     payload=json.loads(gzip.decompress((folder/index['entries'][key]['file']).read_bytes()))
-    return payload.get('lap_data_complete') is False
+    return payload.get('lap_data_complete') is False or payload.get('telemetry_complete') is False
 
 
 def run_due(sessions, now):
@@ -227,7 +227,7 @@ def run_due(sessions, now):
             save_compute_state(compute)
             if incomplete:
                 failures.append({'session_key':key,'session':session.get('session_name'),
-                                 'error':'Published supported laps; source lap history remains incomplete; retry required'})
+                                 'error':'Prepared supported laps; source lap history or telemetry remains incomplete; retry required'})
         except Exception as error:
             failures.append({'session_key': key, 'session': session.get('session_name'), 'error': str(error)})
             print(f"Session {key}: failed, will retry: {error}", flush=True)

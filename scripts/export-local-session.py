@@ -183,19 +183,23 @@ def main():
     # individual boundary observations remain explicit in the exporter report.
     telemetry_root=ROOT/'assets/data/local-telemetry'
     telemetry = json.loads((telemetry_root/'index.json').read_text())
-    missing = [d['code'] for d in drivers if any(not lap.get('out_lap') and isinstance(lap.get('time'),(int,float)) and 20<lap['time']<300 for lap in d['laps'])
-               and f"{args.year}:{args.gp}:{session}:{d['code']}" not in telemetry['entries']]
-    if missing:
-        raise ValueError('Drivers without exported native telemetry: '+', '.join(missing))
+    supported=0
     for driver in drivers:
         eligible = [lap for lap in driver['laps'] if not lap.get('out_lap') and isinstance(lap.get('time'),(int,float)) and 20<lap['time']<300]
         if not eligible:
             continue
-        best = min(eligible,key=lambda lap:lap['time'])
-        file = telemetry['entries'][f"{args.year}:{args.gp}:{session}:{driver['code']}"]
-        pack = json.loads(gzip.decompress((telemetry_root/file).read_bytes()))
-        if str(best['lap']) not in pack['laps']:
-            raise ValueError(f"Fastest source lap has no supported native trace: {driver['code']} L{best['lap']}")
+        file = telemetry['entries'].get(f"{args.year}:{args.gp}:{session}:{driver['code']}")
+        pack = json.loads(gzip.decompress((telemetry_root/file).read_bytes())) if file else {}
+        records=pack.get('laps',{}) if str(pack.get('sessionKey'))==str(identity['session_key']) else {}
+        for lap in eligible:
+            samples=records.get(str(lap['lap']),{}).get('samples',[])
+            lap['telemetry_available']=bool(samples and isinstance(samples[-1].get('ElapsedSeconds'),(int,float))
+                and abs(samples[-1]['ElapsedSeconds']-lap['time'])<=.005)
+            supported+=int(lap['telemetry_available'])
+        driver['telemetry_missing_laps']=[lap['lap'] for lap in eligible if not lap['telemetry_available']]
+    if not supported:
+        raise ValueError('No supported native timed laps; no session export written')
+    payload['telemetry_complete']=not any(d.get('telemetry_missing_laps') for d in drivers)
     # Only record a complete session after its required driver packs validate.
     # Pack downloads may remain staged on failure, but the session/calendar
     # are not advertised as a successfully prepared public export.
