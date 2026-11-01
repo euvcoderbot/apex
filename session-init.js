@@ -52,6 +52,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // The trailing inspector shows one pane at a time; the map cannot measure itself while hidden, so it draws on arrival.
+  const inspector = $('#sessionInspector');
+  const inspectorTabs = [...(inspector?.querySelectorAll('[data-inspector-tab]') || [])];
+  const showInspectorPane = pane => {
+    inspector.dataset.pane = pane;
+    for (const tab of inspectorTabs) {
+      const on = tab.dataset.inspectorTab === pane;
+      tab.setAttribute('aria-selected', String(on));
+      tab.tabIndex = on ? 0 : -1;
+    }
+    if (pane === 'track') renderMiniSectorMap();
+  };
+  inspector?.querySelector('.inspector-tabs')?.addEventListener('click', event => {
+    const tab = event.target.closest('[data-inspector-tab]');
+    if (tab) showInspectorPane(tab.dataset.inspectorTab);
+  });
+  inspector?.querySelector('.inspector-tabs')?.addEventListener('keydown', event => {
+    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    event.preventDefault();
+    const next = inspectorTabs[(inspectorTabs.indexOf(document.activeElement) + 1) % inspectorTabs.length];
+    showInspectorPane(next.dataset.inspectorTab);
+    next.focus();
+  });
+
   const cornerAnalysisToggle = $('#cornerAnalysisToggle');
   $('#lapWorkspaceToggle')?.addEventListener('click', event => {
     setLapSelectionExpanded(event.currentTarget.getAttribute('aria-expanded') !== 'true');

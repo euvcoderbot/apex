@@ -168,7 +168,6 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .app-sidebar .track-pill .gp-flag,.app-sidebar .track-pill img { width: 18px; height: 13px; border-radius: var(--radius-2xs); box-shadow: 0 0 0 .5px var(--ui-border); }
 
 /* Category bar: a segmented tab strip at the top of the main pane. */
-#carPerformance > .category-bar:not([hidden]) { display: grid; grid-template-columns: repeat(8,minmax(0,1fr)); align-items: center; gap: 4px; width: auto; max-width: calc(100% - 40px); margin: 14px 20px 2px; padding: 4px; border: 1px solid var(--ui-separator); border-radius: var(--radius-lg); background: var(--ui-well); box-shadow: none; }
 .category-bar[hidden] { display: none; }
 .category-bar .category-tab,.category-bar .category-tab[data-ui-kind="tab"] {
   display: inline-flex; align-items: center; gap: 7px; height: var(--ui-control-height); min-height: var(--ui-control-height); padding: 0 12px; border: 0; border-radius: var(--radius-sm);
@@ -184,7 +183,6 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .category-bar .category-short { display: none; }
 @media(max-width:1339px) {
   /* Too narrow for one line: an even 4 x 2 grid with short labels. */
-  #carPerformance > .category-bar:not([hidden]) { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); width: auto; }
   .category-bar .category-tab,.category-bar .category-tab[data-ui-kind="tab"] { justify-content: flex-start; padding: 0 10px; }
   .category-bar .category-label { display: none; }
   .category-bar .category-short { display: inline; }
@@ -633,7 +631,6 @@ body.performance-view > #carPerformance:not([hidden]),body:not(.performance-view
   .app-sidebar .performance-controls > .performance-actions { margin: 0; }
   .app-sidebar .performance-controls #performanceTrackTray:not([hidden]) { grid-column: 1 / -1; }
   .app-sidebar .performance-track-pills { grid-template-columns: repeat(auto-fill,minmax(min(100%,220px),1fr)); max-height: none; }
-  #carPerformance > .category-bar:not([hidden]) { margin-inline: 16px; max-width: calc(100% - 32px); }
   #performanceResults > .performance-toolbar > .performance-mode { display: none; }
   #carPerformance > .performance-status-card,#carPerformance > #performanceResults { padding-inline: 16px; }
   #carPerformance > .performance-methods { margin-inline: 16px; }
@@ -660,7 +657,6 @@ body.performance-view > #carPerformance:not([hidden]),body:not(.performance-view
   .lap-workspace .run-toolbar > button { width: auto; }
   .app-sidebar .performance-controls { grid-template-columns: 96px minmax(0,1fr); }
   .app-sidebar .performance-controls > .performance-actions { grid-column: 1 / -1; }
-  #carPerformance > .category-bar:not([hidden]) { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .category-bar .category-tab,.category-bar .category-tab[data-ui-kind="tab"] { justify-content: flex-start; }
   #performanceMetricPanel .metric-heading h2 { font-size: 21px; }
   #performanceMetricPanel .metric-heading { grid-template-columns: minmax(0,1fr); grid-template-areas: "title" "count" "controls"; row-gap: 5px; }
@@ -730,7 +726,6 @@ main#top > .analysis-column { padding: 24px; gap: 20px; }
 .sector-cards .lap-summary-card .sector-cell-value :is(strong,em) { white-space: nowrap; }
 .sector-cards .lap-summary-card .summary-sectors > * { min-width: 0; }
 .category-bar .category-tab,.category-bar .category-tab[data-ui-kind="tab"] { min-height: var(--ui-control-height); height: var(--ui-control-height); padding-block: 0; border-radius: var(--ui-radius); }
-#carPerformance > .category-bar:not([hidden]) { padding: 4px; border-radius: var(--radius-lg); margin-top: 20px; }
 .performance-card-body > .performance-split-view,.performance-visual-cell,.performance-chart-card { border-radius: var(--radius-lg); }
 .performance-chart-card { padding: 16px; background: var(--ui-well); box-shadow: none; }
 .performance-table { font-size: var(--ui-text); }
@@ -972,7 +967,6 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
 
 /* Category bar: the same recessed track and raised thumb as the view switch;
    the coloured symbols stay, the selected symbol is not re-tinted. */
-#carPerformance > .category-bar:not([hidden]) { border: 0; background: var(--ui-seg-track); box-shadow: inset 0 0 0 .5px var(--ui-separator); }
 .category-bar .category-tab[aria-current="page"] .category-icon { color: var(--category-tint,var(--ui-accent)); }
 
 /* Visible-trace chips: neutral bezel; the checkbox shows on/off and the

@@ -8,16 +8,17 @@ import postcss from 'postcss';
 const read=f=>readFileSync(f,'utf8').replace(/\r\n/g,'\n');
 const page=read('index.html'),css=read('macos-window.css'),ui=read('dashboard-ui.js'),system=read('ui-system.js'),tokens=read('tokens.css'),tokenValues=JSON.parse(read('e2e/__tokens__/tokens.json'));
 
-test('window uses a unified toolbar, a sidebar for setup and a category bar in the main pane',()=>{
+test('window uses a unified toolbar, a sidebar for categories and setup, and a trailing inspector for laps and track',()=>{
   const header=page.slice(page.indexOf('<header class="site-header window-toolbar">'),page.indexOf('</header>'));
   assert.match(header,/class="toolbar-leading"[\s\S]*id="windowSidebarToggle"[\s\S]*class="window-title"/);
   assert.match(header,/<nav class="performance-tabs"/);
   assert.match(page,/<aside class="app-sidebar" id="sessionSidebar"[^>]*>\s*<section class="dashboard-card session-controls"/);
   assert.match(page,/<aside class="app-sidebar" id="performanceSidebar"[\s\S]*class="dashboard-card session-controls performance-controls"/);
-  // Categories live in the main pane, directly above the results, not low in the sidebar.
+  // Categories lead the sidebar as its source list; laps and track share the inspector, so the traces own the main pane.
   const sidebar=page.slice(page.indexOf('id="performanceSidebar"'),page.indexOf('</aside>',page.indexOf('id="performanceSidebar"')));
-  assert.doesNotMatch(sidebar,/performanceCategoryList/);
-  assert.match(page,/<nav class="category-bar" id="performanceCategoryList"[^>]*hidden><\/nav>\s*<div id="performanceResults">/);
+  assert.match(sidebar,/<nav class="category-bar" id="performanceCategoryList"[^>]*hidden><\/nav>\s*<section class="dashboard-card session-controls performance-controls"/);
+  const inspector=page.slice(page.indexOf('id="sessionInspector"'),page.indexOf('<div class="analysis-column">'));
+  for(const part of ['data-inspector-tab="laps"','data-inspector-tab="track"','id="lapWorkspace"','id="cornerAnalysis"'])assert.ok(inspector.includes(part),part);
   assert.match(system,/\.category-tab'\)\)return 'tab'/);assert.match(system,/#windowSidebarToggle'\)\)return 'toolbar'/);
 });
 
@@ -64,7 +65,7 @@ test('window layer is parsed, final, and keeps accessibility fallbacks',()=>{
 });
 
 test('review fixes: readable sidebar, paired lap cards, single trace toolbar and quiet status text',()=>{
-  assert.doesNotMatch(css,/zoom:\s*1\.1/);assert.match(tokens,/--ui-sidebar-width: 282px/);
+  assert.doesNotMatch(css,/zoom:\s*1\.1/);assert.match(tokens,/--ui-sidebar-width: 268px/);
   assert.match(css,/\.app-sidebar #driverSidebar \{ align-self: stretch;/,'driver list must use the full sidebar width');
   assert.match(css,/\.app-sidebar \.track-tray-header \{ grid-template-columns: minmax\(0,1fr\)/,'race actions must use the full sidebar width');
   assert.match(css,/\.sector-cards \{ display: grid; grid-template-columns: repeat\(auto-fill,minmax\(min\(100%,360px\),1fr\)\)/);

@@ -79,7 +79,11 @@
           <button id="loadSession">Load session</button>
         </section>
       </aside>
-    <div class="analysis-column">
+    <aside class="app-inspector" id="sessionInspector" data-pane="laps" aria-label="Laps and track">
+      <div class="inspector-tabs" data-ui-group="segments" role="tablist" aria-label="Inspector">
+        <button type="button" role="tab" id="inspectorTabLaps" data-inspector-tab="laps" aria-selected="true" aria-controls="lapWorkspace">Laps</button>
+        <button type="button" role="tab" id="inspectorTabTrack" data-inspector-tab="track" aria-selected="false" aria-controls="cornerAnalysis" tabindex="-1">Track &amp; corners</button>
+      </div>
       <section class="dashboard-card lap-workspace" id="lapWorkspace">
         <div class="panel-heading workspace-heading">
           <h2><button id="lapWorkspaceToggle" class="workspace-disclosure" type="button" aria-expanded="true" aria-controls="lapSelectionBody"><i aria-hidden="true"></i><span>Choose laps</span></button></h2>
@@ -113,7 +117,33 @@
         </div>
         </div>
       </section>
-
+      <div class="telemetry-analysis-grid inspector-corners">
+            <section class="corner-analysis" id="cornerAnalysis" aria-labelledby="cornerAnalysisTitle" hidden>
+              <div class="corner-analysis-header">
+                <h2 id="cornerAnalysisTitle"><button id="cornerAnalysisToggle" class="corner-analysis-toggle" type="button" aria-expanded="true" aria-controls="cornerWorkspace"><i aria-hidden="true"></i><span>Corner performance</span></button></h2>
+              </div>
+              <div class="corner-collapse-region"><div class="corner-workspace" id="cornerWorkspace">
+                <div class="corner-picker-row" id="cornerPickerRow"></div>
+                <div class="corner-metric-grid" id="cornerMetricGrid"></div>
+                <section class="dominance-map" aria-labelledby="dominanceTitle">
+              <div class="dominance-map-header">
+                <h2 id="dominanceTitle">Mini-sector dominance <small>25 M SEGMENTS</small></h2>
+                <div class="legend" id="dominanceLegend"></div>
+              </div>
+              <div class="map-view-row">
+              <div class="map-view-switch" role="group" aria-label="Map view">
+                <button type="button" data-map-view="guide" aria-pressed="true">Guide</button>
+                <button type="button" data-map-view="comparison" aria-pressed="false">Lap comparison</button>
+              </div>
+              </div>
+              <canvas id="dominanceCanvas" aria-label="Track map showing the fastest loaded lap in each mini-sector"></canvas>
+              <span class="section-empty" id="dominanceEmpty">Load comparison laps to generate the track map.</span>
+                </section>
+              </div></div>
+            </section>
+      </div>
+    </aside>
+    <div class="analysis-column">
       <div class="main-dashboard">
         <section class="telemetry-card is-empty" id="telemetryCard">
           <div class="section-heading analysis-heading">
@@ -147,29 +177,6 @@
 
             <div class="telemetry-analysis-grid">
             <div class="charts" id="charts" role="region" aria-label="Telemetry traces" tabindex="0"></div>
-            <section class="corner-analysis" id="cornerAnalysis" aria-labelledby="cornerAnalysisTitle" hidden>
-              <div class="corner-analysis-header">
-                <h2 id="cornerAnalysisTitle"><button id="cornerAnalysisToggle" class="corner-analysis-toggle" type="button" aria-expanded="true" aria-controls="cornerWorkspace"><i aria-hidden="true"></i><span>Corner performance</span></button></h2>
-              </div>
-              <div class="corner-collapse-region"><div class="corner-workspace" id="cornerWorkspace">
-                <div class="corner-picker-row" id="cornerPickerRow"></div>
-                <div class="corner-metric-grid" id="cornerMetricGrid"></div>
-                <section class="dominance-map" aria-labelledby="dominanceTitle">
-              <div class="dominance-map-header">
-                <h2 id="dominanceTitle">Mini-sector dominance <small>25 M SEGMENTS</small></h2>
-                <div class="legend" id="dominanceLegend"></div>
-              </div>
-              <div class="map-view-row">
-              <div class="map-view-switch" role="group" aria-label="Map view">
-                <button type="button" data-map-view="guide" aria-pressed="true">Guide</button>
-                <button type="button" data-map-view="comparison" aria-pressed="false">Lap comparison</button>
-              </div>
-              </div>
-              <canvas id="dominanceCanvas" aria-label="Track map showing the fastest loaded lap in each mini-sector"></canvas>
-              <span class="section-empty" id="dominanceEmpty">Load comparison laps to generate the track map.</span>
-                </section>
-              </div></div>
-            </section>
 
             </div>
             <div class="tooltip" id="realTooltip"></div>
@@ -183,6 +190,7 @@
       <div><span class="workspace-eyebrow">CAR PERFORMANCE</span><h1>Compare performance</h1></div>
     </div>
     <aside class="app-sidebar" id="performanceSidebar" aria-label="Car performance setup and categories">
+    <nav class="category-bar" id="performanceCategoryList" aria-label="Performance categories" hidden></nav>
     <section class="dashboard-card session-controls performance-controls" aria-label="Car performance controls">
       <div class="panel-heading">
         <h2>Car performance</h2>
@@ -224,7 +232,6 @@
       <div class="status-dot"></div>
       <p id="performanceStatus" role="status" aria-live="polite">Choose a track or analyse completed events across the season.</p>
     </div>
-    <nav class="category-bar" id="performanceCategoryList" aria-label="Performance categories" hidden></nav>
     <div id="performanceResults"></div>
     <details class="dashboard-card performance-methods">
       <summary>How to read these measurements</summary>
