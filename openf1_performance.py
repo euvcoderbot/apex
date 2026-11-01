@@ -27,6 +27,67 @@ def retained_bundle(year, gp, code, now=None):
     return bundle
 
 
+def stewards_lap(message, feeds, code):
+    """(driver number, lap) that a DELETED or REINSTATED message is about, or None.
+
+    A published time names the lap exactly. Without one, the message's lap number
+    has to do, and it only matches timing in a race: in every other session it
+    runs one ahead. Cars can be named by number or by three-letter code.
+    """
+    car = re.search(r'CAR\s+(\d+|[A-Z]{3})\b', message)
+    if not car:
+        return None
+    codes = {str(d.get('name_acronym')).upper(): str(d['driver_number']) for d in feeds['drivers']}
+    driver = codes.get(car.group(1), car.group(1))
+    counter = re.search(r'\bLAP\s+(\d+)\b', message)
+    expected = int(counter.group(1)) - (0 if code in ('R', 'S') else 1) if counter else None
+    published = re.search(r'\bTIME\s+(?:(\d+):)?(\d+\.\d+)', message)
+    if published:
+        seconds = int(published.group(1) or 0) * 60 + float(published.group(2))
+        matches = [int(number(r['lap_number'])) for r in feeds['laps']
+                   if str(r['driver_number']) == driver and number(r.get('lap_number'))
+                   and number(r.get('lap_duration')) and abs(number(r['lap_duration']) - seconds) < .0015]
+        if matches:
+            return driver, min(matches, key=lambda lap: abs(lap - expected)) if expected is not None else matches[0]
+    return (driver, expected) if expected is not None else None
+
+
+def pit_entry_laps(feeds, code):
+    """(driver number, lap) of each lap into the pits.
+
+    A pit exit always follows the lap before it. Race pit rows agree with that,
+    but qualifying rows are numbered unreliably, usually two or more laps early,
+    which marks flying laps as in-laps. There a row only says that the car came
+    back in: with a later pit exit that lap is already known, and without one it
+    is the driver's last lap, unless that lap was itself at flying pace.
+    """
+    exits, durations = {}, {}
+    for row in feeds['laps']:
+        driver, lap = str(row['driver_number']), number(row.get('lap_number'))
+        if not lap:
+            continue
+        lap = int(lap)
+        durations.setdefault(driver, {})[lap] = number(row.get('lap_duration'))
+        if row.get('is_pit_out_lap'):
+            exits.setdefault(driver, set()).add(lap)
+    entries = {(driver, lap - 1) for driver, laps in exits.items() for lap in laps}
+    for row in feeds['pit']:
+        driver, lap = str(row['driver_number']), number(row.get('lap_number'))
+        if not lap:
+            continue
+        lap = int(lap)
+        if code not in ('Q', 'SQ'):
+            entries.add((driver, lap))
+            continue
+        if any(later > lap for later in exits.get(driver, ())) or driver not in durations:
+            continue
+        last = max(durations[driver])
+        times = [t for at, t in durations[driver].items() if t and at not in exits.get(driver, ())]
+        if not durations[driver][last] or not times or durations[driver][last] > min(times) * 1.04:
+            entries.add((driver, last))
+    return entries
+
+
 def session_payload(year, gp, code, bundle):
     """Expose the same validated observations to session/qualifying consumers.
 
@@ -128,10 +189,8 @@ def adapt_performance(year, gp, code, bundle):
         t, category, flag, scope = stamp(r['date']), r.get('category'), r.get('flag'), r.get('scope')
         message = r.get('message', '').upper()
         if 'DELETED' in message or 'REINSTATED' in message:
-            driver = re.search(r'CAR\s+(\d+)\b', message)
-            lap = re.search(r'\bLAP\s+(\d+)\b', message)
-            if driver and lap:
-                pair = (driver.group(1), int(lap.group(1)))
+            pair = stewards_lap(message, feeds, code)
+            if pair:
                 if 'REINSTATED' in message:
                     deleted.discard(pair)
                 else:
@@ -149,10 +208,7 @@ def adapt_performance(year, gp, code, bundle):
                 if name in active:
                     blocked.append((active.pop(name), t))
     blocked.extend((start, float('inf')) for start in active.values())
-    pits = {(str(r['driver_number']), int(r['lap_number'])) for r in feeds['pit'] if r.get('lap_number')}
-    for r in feeds['laps']:
-        if r.get('is_pit_out_lap') and number(r.get('lap_number')):
-            pits.add((str(r['driver_number']), int(r['lap_number']) - 1))
+    pits = pit_entry_laps(feeds, code)
 
     infos, rows = {}, []
     for driver in feeds['drivers']:
