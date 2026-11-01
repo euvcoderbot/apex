@@ -681,6 +681,7 @@ body.trace-focus #charts { grid-template-rows: minmax(400px,1.7fr) minmax(220px,
 
 /* Runs and stints: as many to a row as the card has room for, sharing the row's width, so a fourth stint only wraps when it really does not fit. */
 .lap-workspace .run-segments.run-segments { grid-template-columns: repeat(auto-fit, minmax(min(122px, 100%), 1fr)); }
+.lap-workspace .run-segments.run-segments[data-qualifying-phases] { grid-template-columns: repeat(var(--run-count,3),minmax(0,1fr)); }
 .lap-workspace .run-segments.run-segments .run-segment { gap: 6px; padding-inline: 8px; }
 .lap-workspace .run-segments.run-segments .run-segment strong { white-space: nowrap; }
 /* The tyre sits at the end of the row, as it does on the lap chips below. */
@@ -902,7 +903,7 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
 #telemetryCard .comparison-tray { flex-wrap: nowrap; align-items: flex-start; gap: 12px; padding: 7px 10px 7px 14px; }
 #telemetryCard .comparison-tray-heading { align-self: flex-start; min-height: 28px; align-items: center; }
 #telemetryCard .comparison-tray #loadedLaps { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; }
-#telemetryCard .comparison-tray #loadedLaps > .section-empty { display: flex; align-items: center; min-height: 28px; margin: 0; }
+#telemetryCard .comparison-tray #loadedLaps > .section-empty { display: flex; align-items: center; min-height: 28px; margin: 0; padding: 0; }
 
 /* Keep compute discovery available without a persistent mode button. */
 #computeSettings { inset: 52px 12px auto auto; width: min(300px,calc(100vw - 24px)); box-sizing: border-box; padding: 16px; border: 1px solid var(--ui-border); border-radius: 12px; background: var(--ui-panel); color: var(--ui-label); box-shadow: 0 8px 30px #0004; }
