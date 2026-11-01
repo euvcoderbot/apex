@@ -908,7 +908,7 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
   #sessionInspector .inspector-corners #cornerAnalysis,
   #sessionInspector .inspector-corners .corner-collapse-region { height: 100%; min-height: 0; }
   #sessionInspector .inspector-corners .corner-workspace { height: 100%; min-height: 0; overflow: visible; }
-  #sessionInspector .inspector-corners .dominance-map { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 240px; max-height: 420px; }
+  #sessionInspector .inspector-corners .dominance-map { display: flex; flex-direction: column; flex: 1 1 auto; min-height: min-content; max-height: 420px; }
   #sessionInspector .inspector-corners .dominance-map-header,
   #sessionInspector .inspector-corners .map-view-row { flex: 0 0 auto; }
   #sessionInspector .inspector-corners #dominanceCanvas { flex: 1 1 auto; height: 0; min-height: 120px; max-height: 250px; }

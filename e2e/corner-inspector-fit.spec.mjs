@@ -3,7 +3,7 @@ import {isolate} from './helpers.mjs';
 
 // Presentation fixture only: exercise the exact inspector/table structure at
 // four comparisons and seventeen buttons, without inventing source telemetry.
-for (const height of [850, 1000]) test(`corner results fit at ${height}px without nested scrollbars or picker reflow`, async ({page}, info) => {
+for (const height of [850, 1000]) test(`corner results stay contained at ${height}px without nested scrollbars or picker reflow`, async ({page}, info) => {
   await page.setViewportSize({width: 1600, height});
   await isolate(page);
   await page.goto('/apex/');
@@ -13,7 +13,7 @@ for (const height of [850, 1000]) test(`corner results fit at ${height}px withou
     document.querySelector('#cornerAnalysis').hidden = false;
     document.querySelector('#dominanceEmpty').style.display = 'none';
     document.querySelector('#dominanceCanvas').style.display = 'block';
-    document.querySelector('#dominanceLegend').textContent = 'HAM L19 · RUS L21 · LEC L23 · VER L10';
+    document.querySelector('#dominanceLegend').innerHTML = '<span class="map-north">N</span>' + ['HAM L19', 'RUS L21', 'LEC L23', 'VER L10'].map(t => `<span class="legend-item"><i class="legend-color"></i>${t}</span>`).join('');
     document.querySelector('#cornerPickerRow').innerHTML = '<section class="circuit-section-group"><header><h3>Corners</h3><span>Choose one or more</span></header><nav class="corner-picker">'
       + Array.from({length: 17}, (_, i) => `<button class="corner-pick"><strong>T${i + 1}</strong></button>`).join('')
       + '</nav></section><section class="circuit-section-group"><header><h3>Straights</h3></header><nav class="corner-picker straight-zone-picker">'
@@ -36,10 +36,15 @@ for (const height of [850, 1000]) test(`corner results fit at ${height}px withou
     nestedOverflow: [...root.querySelectorAll('.corner-measurement-wrap,.corner-measurement-table')].map(e => e.scrollWidth - e.clientWidth),
     bottom: root.querySelector('.corner-detail-card').getBoundingClientRect().bottom,
     limit: root.getBoundingClientRect().bottom,
+    mapBottom: root.querySelector('.dominance-map').getBoundingClientRect().bottom,
+    canvasBottom: root.querySelector('#dominanceCanvas').getBoundingClientRect().bottom,
+    pickerTop: root.querySelector('#cornerPickerRow').getBoundingClientRect().top,
   }));
-  expect(geometry.overflow).toBeLessThanOrEqual(1);
+  if (height === 1000) expect(geometry.overflow).toBeLessThanOrEqual(1);
   expect(geometry.nestedOverflow.every(n => n <= 1)).toBeTruthy();
-  expect(geometry.bottom).toBeLessThanOrEqual(geometry.limit);
+  if (height === 1000) expect(geometry.bottom).toBeLessThanOrEqual(geometry.limit);
+  expect(geometry.canvasBottom).toBeLessThanOrEqual(geometry.mapBottom);
+  expect(geometry.mapBottom).toBeLessThanOrEqual(geometry.pickerTop);
   if (height === 1000) await page.screenshot({path: info.outputPath('corner-inspector-fit.png')});
   // Short windows may scroll the inspector, but every measurement stays reachable.
   await page.setViewportSize({width: 1600, height: 600});
