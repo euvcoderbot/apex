@@ -10,7 +10,7 @@ from urllib.error import HTTPError
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi import Response
 import server
-from openf1_performance import adapt_performance, retained_bundle, session_payload
+from openf1_performance import adapt_performance, retained_bundle, session_payload, pit_entry_laps
 
 
 def bundle():
@@ -141,12 +141,35 @@ class AdapterTests(unittest.TestCase):
         self.assertIsNone(lap['rain'])
         self.assertFalse(lap['accurate'])
 
+    def test_qualifying_in_laps_come_from_pit_exits_not_pit_row_numbers(self):
+        # Mexico City 2026, Antonelli in Q3. OpenF1's pit rows name laps 19 and 22, which were
+        # flying and warm-up laps, and nothing names the real last in-lap.
+        laps = [{'driver_number': 12, 'lap_number': lap, 'lap_duration': time, 'is_pit_out_lap': out}
+                for lap, time, out in [(17, 517.418, True), (18, 92.262, False), (19, 77.339, False), (20, 98.946, False),
+                                       (21, 278.616, True), (22, 87.872, False), (23, 76.707, False), (24, None, False)]]
+        feeds = {'laps': laps, 'pit': [{'driver_number': 12, 'lap_number': 19}, {'driver_number': 12, 'lap_number': 22}]}
+        self.assertEqual(pit_entry_laps(feeds, 'Q'), {('12', 16), ('12', 20), ('12', 24)})
+        self.assertEqual(pit_entry_laps(feeds, 'SQ'), {('12', 16), ('12', 20), ('12', 24)})
+
+    def test_a_flying_last_lap_is_not_an_in_lap(self):
+        laps = [{'driver_number': 1, 'lap_number': 1, 'lap_duration': 300, 'is_pit_out_lap': True},
+                {'driver_number': 1, 'lap_number': 2, 'lap_duration': 90, 'is_pit_out_lap': False}]
+        self.assertEqual(pit_entry_laps({'laps': laps, 'pit': [{'driver_number': 1, 'lap_number': 2}]}, 'Q'), {('1', 0)})
+        laps.append({'driver_number': 1, 'lap_number': 3, 'lap_duration': 120, 'is_pit_out_lap': False})
+        self.assertEqual(pit_entry_laps({'laps': laps, 'pit': [{'driver_number': 1, 'lap_number': 1}]}, 'Q'), {('1', 0), ('1', 3)})
+
+    def test_race_pit_rows_are_still_used_as_published(self):
+        laps = [{'driver_number': 1, 'lap_number': lap, 'lap_duration': 90, 'is_pit_out_lap': lap == 11} for lap in range(1, 21)]
+        feeds = {'laps': laps, 'pit': [{'driver_number': 1, 'lap_number': 10}, {'driver_number': 1, 'lap_number': 16}]}
+        self.assertEqual(pit_entry_laps(feeds, 'R'), {('1', 10), ('1', 16)})
+        self.assertEqual(pit_entry_laps(feeds, 'S'), {('1', 10), ('1', 16)})
+
     def test_pits_and_deleted_laps_are_excluded(self):
         value = bundle()
-        value['feeds']['pit'] = [{'driver_number': 1, 'lap_number': 2}]
+        value['feeds']['laps'][0]['is_pit_out_lap'] = True
         self.assertTrue(row(value)['pit'])
         self.assertFalse(row(value)['accurate'])
-        value['feeds']['pit'] = []
+        value['feeds']['laps'][0]['is_pit_out_lap'] = False
         value['feeds']['race_control'].append({'date': '2026-09-25T12:03:00Z', 'message': 'CAR 1 LAP 2 DELETED'})
         self.assertTrue(row(value)['deleted'])
         value['feeds']['race_control'].append({'date': '2026-09-25T12:04:00Z', 'message': 'CAR 1 LAP 2 REINSTATED'})

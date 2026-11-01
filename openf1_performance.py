@@ -27,6 +27,42 @@ def retained_bundle(year, gp, code, now=None):
     return bundle
 
 
+def pit_entry_laps(feeds, code):
+    """(driver number, lap) of each lap into the pits.
+
+    A pit exit always follows the lap before it. Race pit rows agree with that,
+    but qualifying rows are numbered unreliably, usually two or more laps early,
+    which marks flying laps as in-laps. There a row only says that the car came
+    back in: with a later pit exit that lap is already known, and without one it
+    is the driver's last lap, unless that lap was itself at flying pace.
+    """
+    exits, durations = {}, {}
+    for row in feeds['laps']:
+        driver, lap = str(row['driver_number']), number(row.get('lap_number'))
+        if not lap:
+            continue
+        lap = int(lap)
+        durations.setdefault(driver, {})[lap] = number(row.get('lap_duration'))
+        if row.get('is_pit_out_lap'):
+            exits.setdefault(driver, set()).add(lap)
+    entries = {(driver, lap - 1) for driver, laps in exits.items() for lap in laps}
+    for row in feeds['pit']:
+        driver, lap = str(row['driver_number']), number(row.get('lap_number'))
+        if not lap:
+            continue
+        lap = int(lap)
+        if code not in ('Q', 'SQ'):
+            entries.add((driver, lap))
+            continue
+        if any(later > lap for later in exits.get(driver, ())) or driver not in durations:
+            continue
+        last = max(durations[driver])
+        times = [t for at, t in durations[driver].items() if t and at not in exits.get(driver, ())]
+        if not durations[driver][last] or not times or durations[driver][last] > min(times) * 1.04:
+            entries.add((driver, last))
+    return entries
+
+
 def session_payload(year, gp, code, bundle):
     """Expose the same validated observations to session/qualifying consumers.
 
@@ -149,10 +185,7 @@ def adapt_performance(year, gp, code, bundle):
                 if name in active:
                     blocked.append((active.pop(name), t))
     blocked.extend((start, float('inf')) for start in active.values())
-    pits = {(str(r['driver_number']), int(r['lap_number'])) for r in feeds['pit'] if r.get('lap_number')}
-    for r in feeds['laps']:
-        if r.get('is_pit_out_lap') and number(r.get('lap_number')):
-            pits.add((str(r['driver_number']), int(r['lap_number']) - 1))
+    pits = pit_entry_laps(feeds, code)
 
     infos, rows = {}, []
     for driver in feeds['drivers']:
