@@ -303,6 +303,15 @@ let nativeTelemetryIndex = null;
 let localTelemetryIndex = null;
 let localCaptureIndex = null;
 const nativeTelemetryPacks = new Map();
+let snapshotCheckedAt = 0;
+let snapshotGeneration = 0;
+function invalidateSnapshotData(now = Date.now()) {
+  prerenderedIndex = null; localCaptureIndex = null;
+  nativeTelemetryIndex = null; localTelemetryIndex = null;
+  nativeTelemetryPacks.clear();
+  snapshotCheckedAt = now;
+  snapshotGeneration++;
+}
 async function readSavedJson(response) {
   // Some hosts send .json.gz with Content-Encoding: gzip; fetch has already
   // decoded those bytes. Other hosts deliver the gzip file unchanged.
@@ -426,17 +435,18 @@ async function preparedData(url) {
   return response.ok ? response.json() : null;
 }
 async function requestApiData(url, options = {}) {
+  if(window.APEX_SNAPSHOT_MODE && Date.now()-snapshotCheckedAt>=60000)invalidateSnapshotData();
   const parsed = new URL(url, window.location?.href || 'http://localhost');
   const refreshing=parsed.searchParams.get('fresh')==='true'||parsed.searchParams.get('refresh')==='1';
   const identity=new URL(parsed);identity.searchParams.delete('fresh');identity.searchParams.delete('refresh');identity.searchParams.sort();
   const family=/^\/api\/(events|session|telemetry)$/.test(parsed.pathname)?window.APEX_SOURCE_VERSION:/^\/api\/(race|qualifying)-corners$/.test(parsed.pathname)?window.APEX_MEASUREMENT_VERSION:window.APEX_BACKEND_VERSION;
-  const cacheKey='source-'+(family||window.APEX_DATA_VERSION||'20261007-load-v1')+':'+identity.href;
+  const cacheKey='source-'+(family||window.APEX_DATA_VERSION||'20261007-load-v1')+':'+(window.APEX_SNAPSHOT_MODE?snapshotGeneration+':':'')+identity.href;
   const liveCalendar = parsed.pathname === '/api/events'
     && Number(parsed.searchParams.get('year')) >= new Date().getFullYear();
   const cached = liveCalendar||refreshing ? null : await storedData(cacheKey);
   if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
   if (cached) return cached; // loadApiData clones once per consumer.
-  if(refreshing&&window.APEX_SNAPSHOT_MODE){prerenderedIndex=null;localCaptureIndex=null;nativeTelemetryIndex=null;localTelemetryIndex=null;nativeTelemetryPacks.clear();}
+  if(refreshing&&window.APEX_SNAPSHOT_MODE)invalidateSnapshotData();
   const prepared = refreshing&&!window.APEX_SNAPSHOT_MODE?null:await preparedData(url).catch(() => null);
   if (prepared) { void cacheData(cacheKey, structuredClone(prepared), 120000); return prepared; }
   let response, data;

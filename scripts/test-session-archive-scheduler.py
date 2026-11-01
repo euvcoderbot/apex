@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import json
 import subprocess
 import unittest
@@ -7,6 +8,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 from unittest.mock import MagicMock
+from contextlib import redirect_stdout, redirect_stderr
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('scheduler', ROOT / 'scripts' / 'session-archive-scheduler.py')
@@ -20,6 +22,29 @@ def session(key, end, name='Practice 1', cancelled=False):
 
 
 class SchedulerTests(unittest.TestCase):
+    def test_schedule_diagnostics_do_not_pollute_json_stdout(self):
+        def source(*args, **kwargs):
+            print('OpenF1 unavailable; using saved sessions')
+            return [session(1,NOW)]
+        out,err=io.StringIO(),io.StringIO()
+        with TemporaryDirectory() as directory, patch.object(scheduler.server,'RAW_ROOT',Path(directory)), \
+             patch.object(scheduler.server,'openf1',side_effect=source), redirect_stdout(out), redirect_stderr(err):
+            scheduler.schedule(2026)
+        self.assertEqual(out.getvalue(),'')
+        self.assertIn('OpenF1 unavailable',err.getvalue())
+
+    def test_partial_export_is_recorded_but_remains_retryable(self):
+        item=session(1,NOW-timedelta(hours=7))
+        with TemporaryDirectory() as directory, patch.object(scheduler.server,'RAW_ROOT',Path(directory)), \
+             patch.object(scheduler.mirror,'acquire_watch_lock',return_value=None), \
+             patch.object(scheduler,'finished',return_value=True), \
+             patch.object(scheduler,'prepare_session',return_value=True) as prepare:
+            scheduler.mirror.save_state({'sessions':{'1':{}},'provisional_sessions':{}})
+            self.assertEqual(len(scheduler.run_due([item],NOW)),1)
+            self.assertEqual(len(scheduler.run_due([item],NOW)),1)
+            self.assertEqual(prepare.call_count,2)
+            self.assertTrue(scheduler.load_compute_state()['sessions']['1']['incomplete'])
+
     def test_sync_uses_same_project_site_checkout_and_apply(self):
         with TemporaryDirectory() as directory:
             root=Path(directory)/'local'; target=Path(directory)/'site'
@@ -126,8 +151,8 @@ class SchedulerTests(unittest.TestCase):
              patch.object(scheduler, 'prepare_session', side_effect=RuntimeError('not ready')) as prepare, \
              patch.object(scheduler, 'finished', return_value=True):
             scheduler.mirror.save_state({'sessions': {'1': {}}, 'provisional_sessions': {}})
-            scheduler.run_due([item], NOW)
-            scheduler.run_due([item], NOW)
+            self.assertEqual(len(scheduler.run_due([item], NOW)),1)
+            self.assertEqual(len(scheduler.run_due([item], NOW)),1)
             self.assertEqual(prepare.call_count, 2)
             self.assertNotIn('1', scheduler.load_compute_state()['sessions'])
 

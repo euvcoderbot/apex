@@ -4,6 +4,8 @@ The schedule refresh is lightweight; only completed sessions are downloaded.
 This script does not publish the website.
 """
 import argparse
+from contextlib import redirect_stdout
+import gzip
 import importlib.util
 import json
 import os
@@ -85,7 +87,9 @@ def schedule(year):
     jobs run, so the last good list is kept on disk and used when the live one is refused."""
     cache = server.RAW_ROOT / f'schedule-{year}.json'
     try:
-        sessions = server.openf1('sessions', year=year)
+        # Metadata fallback diagnostics must not corrupt `plan`'s JSON stdout.
+        with redirect_stdout(sys.stderr):
+            sessions = server.openf1('sessions', year=year)
     except Exception as error:
         if cache.exists():
             print(f'Schedule unavailable ({error}); using the saved one.', file=sys.stderr, flush=True)
@@ -177,12 +181,19 @@ def prepare_session(session, final):
         # validated captures and let the failed preparation remain retryable.
         sync_prepared()
     print(f'Prepared {event["name"]} {name} ({"settled" if final else "provisional"}); local only.', flush=True)
+    from urllib.parse import urlencode
+    key='/api/session?'+urlencode(sorted({'year':year,'gp':event['name'],'round':event['round'],'session':name}.items()))
+    folder=ROOT/'assets/data/local-captures'
+    index=json.loads((folder/'index.json').read_text(encoding='utf-8'))
+    payload=json.loads(gzip.decompress((folder/index['entries'][key]['file']).read_bytes()))
+    return payload.get('lap_data_complete') is False
 
 
 def run_due(sessions, now):
     if mirror.acquire_watch_lock():
         print('Another archive job is running; leaving it alone.', flush=True)
-        return
+        return []
+    failures = []
     for session in sessions:
         end = parse_date(session.get('date_end'))
         key = session.get('session_key')
@@ -209,13 +220,18 @@ def run_due(sessions, now):
             compute = load_compute_state()
             phase = 'final' if final else 'provisional'
             recorded = compute['sessions'].get(str(key), {})
-            if isinstance(recorded, dict) and recorded.get('revisions') == revisions() and (recorded.get('phase') == phase or recorded.get('phase') == 'final'):
+            if isinstance(recorded, dict) and not recorded.get('incomplete') and recorded.get('revisions') == revisions() and (recorded.get('phase') == phase or recorded.get('phase') == 'final'):
                 continue
-            prepare_session(session, final)
-            compute['sessions'][str(key)] = {'phase': phase, 'revisions': revisions()}
+            incomplete=prepare_session(session, final) is True
+            compute['sessions'][str(key)] = {'phase': phase, 'revisions': revisions(), 'incomplete': incomplete}
             save_compute_state(compute)
+            if incomplete:
+                failures.append({'session_key':key,'session':session.get('session_name'),
+                                 'error':'Published supported laps; source lap history remains incomplete; retry required'})
         except Exception as error:
+            failures.append({'session_key': key, 'session': session.get('session_name'), 'error': str(error)})
             print(f"Session {key}: failed, will retry: {error}", flush=True)
+    return failures
 
 
 def main():
@@ -234,10 +250,15 @@ def main():
         print(json.dumps([d.astimezone().isoformat() for d in planned_starts(sessions, now)]))
     else:
         print(f"[{now.isoformat(timespec='seconds')}] checking recently finished sessions", flush=True)
-        run_due(sessions, now)
+        failures = run_due(sessions, now)
         # Reconcile work prepared before this scheduler update, or after an
         # interrupted sync. A failure must be visible to Task Scheduler.
         sync_prepared()
+        health = {'checked_at': now.isoformat(), 'failures': failures}
+        from capture_storage import atomic_bytes
+        atomic_bytes(server.RAW_ROOT / 'pipeline-health.json', json.dumps(health).encode())
+        if failures:
+            raise SystemExit(1)
 
 
 if __name__ == '__main__':
@@ -245,4 +266,11 @@ if __name__ == '__main__':
         log = Path.home() / 'apex-data' / 'session-archive.log'
         log.parent.mkdir(parents=True, exist_ok=True)
         sys.stdout = sys.stderr = log.open('a', encoding='utf-8', buffering=1)
-    main()
+    try:
+        main()
+    except Exception as error:
+        from capture_storage import atomic_bytes
+        health={'checked_at':datetime.now(timezone.utc).isoformat(),
+                'failures':[{'stage':'scheduler','error':str(error)}]}
+        atomic_bytes(server.RAW_ROOT/'pipeline-health.json',json.dumps(health).encode())
+        raise

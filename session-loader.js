@@ -307,7 +307,13 @@ async function loadPublishedSessions() {
   const [captures, prerendered, prepared] = await Promise.all([
     get('assets/data/local-captures/index.json'), get('assets/data/prerendered/index.json'), get('assets/data/sessions/index.json')]);
   if (!captures && !prerendered && !prepared) return;
-  publishedSessions = publishedSessionIds({captures, prerendered, prepared}, {source: window.APEX_SOURCE_VERSION});
+  const next=publishedSessionIds({captures, prerendered, prepared}, {source: window.APEX_SOURCE_VERSION});
+  const changed=publishedSessions && (next.size!==publishedSessions.size || [...next].some(id=>!publishedSessions.has(id)));
+  publishedSessions = next;
+  if(changed){
+    invalidateSnapshotData();
+    notify('New session data is available. Choose the session and load it; your current comparison is unchanged.', 'info');
+  }
   if (calendar.length) populateSessions($('#session').value || null);
 }
 function sessionMenuLabel(event, year, session) {
@@ -404,6 +410,10 @@ async function loadRealSession() {
     if (!Array.isArray(payload.drivers)) throw new Error('No driver data is available for this session yet.');
     payload.drivers = payload.drivers.map(safeDriver).filter(Boolean);
     if (!payload.drivers.length) throw new Error('No driver data is available for this session yet.');
+    if(payload.lap_data_complete===false){
+      const affected=payload.drivers.filter(d=>d.lap_data_complete===false).map(d=>d.code);
+      notify(`Source lap records are incomplete${affected.length?' for '+affected.join(', '):''}. Only recorded laps are shown; missing laps are not estimated.`, 'info');
+    }
     clearBeforeSessionLoad();
     loadedSessionQuery = requestedQuery;
     renderCharts();
