@@ -58,6 +58,18 @@ document.addEventListener('DOMContentLoaded', () => {
     renderStints();
   });
 
+  // The Display menu closes like any menu: on a click elsewhere or Escape.
+  const closeDisplayMenu = target => {
+    const menu = document.querySelector('.trace-display-menu[open]');
+    if (menu && !menu.contains(target)) menu.open = false;
+  };
+  document.addEventListener('pointerdown', event => closeDisplayMenu(event.target));
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    const menu = document.querySelector('.trace-display-menu[open]');
+    if (menu) { menu.open = false; menu.querySelector('summary')?.focus(); }
+  });
+
   // The trailing inspector shows one pane at a time; the map cannot measure itself while hidden, so it draws on arrival.
   const inspector = $('#sessionInspector');
   const inspectorTabs = [...(inspector?.querySelectorAll('[data-inspector-tab]') || [])];
