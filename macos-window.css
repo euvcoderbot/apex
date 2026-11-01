@@ -366,7 +366,6 @@ body.trace-focus .chart-heading .trace-focus-button:not(.trace-focus-close) { di
 .select-trigger > span { gap: 6px; }
 .performance-table .team-name { overflow: visible; text-overflow: clip; white-space: nowrap; }
 .performance-run-inspector { border-radius: var(--radius-md); }
-.trend-sparkline .performance-trend-label { font-size: var(--ui-caption); }
 /* Trace controls use the same round check mark as the driver list, centred on the label. */
 .trace-setting,.trace-driver-chip { display: inline-flex; align-items: center; gap: 7px; line-height: 1.2; }
 :is(.trace-setting,.trace-driver-chip) input[type="checkbox"],:is(.trace-setting,.trace-driver-chip) input[data-ui-kind="checkbox"] {
@@ -484,9 +483,6 @@ body.is-descriptions-hidden #performanceMetricPanel p.performance-quality-status
 .performance-tyre-age-row .performance-team { min-height: 0; height: auto; }
 .performance-tyre-age-value { font-size: var(--type-body); font-weight: 500; }
 /* Development sparklines: compact inline plots so each team stays one dense row. */
-.trend-sparkline { width: 150px; padding: 0; border: 0; border-radius: 0; background: none; }
-.trend-sparkline svg { height: 30px; }
-.trend-sparkline .performance-trend-label { display: flex; justify-content: space-between; margin: 0; font-size: var(--type-caption); line-height: 1.1; color: var(--ui-tertiary); }
 .performance-trend-table :is(.trend-change,.trend-fitted),.performance-trend-table .performance-table td:nth-child(3) { white-space: nowrap; }
 /* Tables follow NSTableView: quiet header, hairline rows, zebra striping. */
 .performance-table-wrap { border: 1px solid var(--ui-separator); border-radius: var(--radius-md); background: var(--ui-content); overflow: auto; }

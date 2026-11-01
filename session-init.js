@@ -52,6 +52,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  $('#clearComparison')?.addEventListener('click', () => {
+    loaded = [];
+    renderAll();
+    renderStints();
+  });
+
   // The trailing inspector shows one pane at a time; the map cannot measure itself while hidden, so it draws on arrival.
   const inspector = $('#sessionInspector');
   const inspectorTabs = [...(inspector?.querySelectorAll('[data-inspector-tab]') || [])];

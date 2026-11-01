@@ -302,6 +302,8 @@ function renderStints() {
 
 function renderLoaded() {
   const root = $('#loadedLaps');
+  const clear = $('#clearComparison');
+  if (clear) clear.hidden = loaded.length < 2;
   const pitNotice = $('#pitLapNotice');
   if (pitNotice) pitNotice.hidden = !loaded.some(item => item.real?.in_lap || item.real?.out_lap);
   if (!loaded.length) {

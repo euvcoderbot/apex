@@ -285,25 +285,11 @@ input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 
 table.performance-table th:last-child > .ui-column-resizer { right: 0; }
 
 /* Development measurements use the full width, not a giant empty name cell. */
-.performance-trend-table .performance-table:not(.ui-resized-table) { table-layout: fixed; width: 100%; min-width: 920px; }
-.performance-trend-table .performance-table:not(.ui-resized-table) :is(th,td) { width: auto; white-space: nowrap; }
-.performance-trend-table .performance-table:not(.ui-resized-table) :is(th,td):nth-child(1) { width: 18%; }
-.performance-trend-table .performance-table:not(.ui-resized-table) :is(th,td):nth-child(2) { width: 28%; }
-.performance-trend-table .performance-table:not(.ui-resized-table) :is(th,td):nth-child(3) { width: 24%; }
-.performance-trend-table .performance-table:not(.ui-resized-table) :is(th,td):nth-child(4),.performance-trend-table .performance-table:not(.ui-resized-table) :is(th,td):nth-child(5) { width: 13%; }
-.performance-trend-table .performance-table:not(.ui-resized-table) :is(th,td):last-child { width: 4%; }
-.performance-trend-table[data-fit-sensitivity="true"] .performance-table:not(.ui-resized-table) { min-width: 1100px; }
-.performance-trend-table[data-fit-sensitivity="true"] .performance-table:not(.ui-resized-table) :is(th,td):nth-child(2) { width: 18%; }
-.performance-trend-table[data-fit-sensitivity="true"] .performance-table:not(.ui-resized-table) :is(th,td):nth-child(3) { width: 20%; }
-.performance-trend-table[data-fit-sensitivity="true"] .performance-table:not(.ui-resized-table) :is(th,td):nth-child(4),.performance-trend-table[data-fit-sensitivity="true"] .performance-table:not(.ui-resized-table) :is(th,td):nth-child(5) { width: 10%; }
-.performance-trend-table[data-fit-sensitivity="true"] .performance-table:not(.ui-resized-table) :is(th,td):nth-last-child(2) { width: 20%; }
-.performance-trend-table .performance-table tbody td { height: 36px; padding: 3px 10px; }
-.performance-trend-table .performance-table :is(th,td):first-child { text-align: left; }
+.performance-trend-table .performance-table:not(.ui-resized-table) { table-layout: fixed; width: 100%; }
+.performance-trend-table .performance-table:not(.ui-resized-table) :is(th,td):nth-child(1) { width: 24%; }
+.performance-trend-table .performance-table:not(.ui-resized-table) :is(th,td):nth-child(2) { width: 32%; }
+.performance-trend-table .performance-table:not(.ui-resized-table) :is(th,td):last-child { width: 8%; }
 .performance-trend-table .performance-table th :is(button,span) { white-space: nowrap; }
-.performance-trend-table .performance-table :is(th,td):nth-child(2) { text-align: center; }
-.performance-trend-table .trend-sparkline { width: 100%; min-width: 0; margin: 0; }
-.performance-trend-table .trend-sparkline svg { display: block; width: 100%; height: 28px; }
-.performance-trend-table .performance-trend-label { display: none; }
 .performance-trend-table .performance-table td small { display: block; color: var(--ui-tertiary); font-size: var(--type-caption); }
 
 /* Tyre bars start directly after a bounded label column. A wide card never
@@ -715,7 +701,7 @@ html, body { background: radial-gradient(90vw 70vh at 85% -10%,color-mix(in srgb
 .workspace-tools button[data-ui-kind="toolbar"] { border-radius: var(--radius-pill); }
 .site-header .performance-tabs[data-ui-group], .site-header .performance-tabs { padding: 3px; width: 310px; }
 .site-header .performance-tabs > button, .site-header .performance-tabs > button[data-ui-kind="segment"] { height: 28px; min-height: 28px; border-radius: var(--radius-pill); }
-.site-header .performance-tabs[data-ui-thumb]::before { border-radius: var(--radius-pill); }
+:is(#carPerformance,.site-header) .performance-tabs[data-ui-thumb]::before { border-radius: var(--radius-pill); }
 
 /* Panes */
 @media (min-width:980px) {
@@ -756,12 +742,12 @@ body > main#top > .app-inspector { display: flex; flex-direction: column; gap: 1
 .app-inspector :is(.lap-workspace,.corner-analysis), .app-inspector .telemetry-analysis-grid > #cornerAnalysis { padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; overflow: visible; }
 .app-inspector .workspace-heading { margin: 2px 4px 10px; }
 .app-inspector .workspace-heading h2 { font: 700 var(--type-body)/1.3 var(--ui-font-display); }
-.app-inspector #lapWorkspace .driver-run-card { padding: 10px; border-radius: 12px; }
+.app-inspector #lapWorkspace .driver-run-card { padding: 12px; border-radius: 12px; }
 .app-inspector #stintPanels { grid-template-columns: minmax(0,1fr); }
 .app-inspector .corner-analysis-header { display: none; }
 .app-inspector .inspector-corners .dominance-map { grid-area: auto; width: auto; padding: 4px 4px 12px; border: 0; }
 .app-inspector .inspector-corners .corner-picker-row, .app-inspector .inspector-corners .corner-metric-grid { padding: 12px 4px; border-top: 1px solid var(--ui-separator); }
-.app-inspector .inspector-corners #dominanceCanvas { height: clamp(260px,38dvh,380px); max-height: none; }
+.app-inspector .inspector-corners #dominanceCanvas { height: clamp(220px,30dvh,300px); max-height: none; }
 @media (max-width:1239px) { .app-inspector #stintPanels { grid-template-columns: repeat(auto-fit,minmax(min(340px,100%),1fr)); } }
 
 /* Content: the laps as a timing board, then the traces at full width. */
@@ -849,9 +835,10 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
   .telemetry-content .sector-cards .lap-summary-card .summary-conditions { display: grid; grid-template-columns: repeat(2,max-content); align-content: center; gap: 2px 16px; padding-top: 0; }
 }
 /* Widest: a true timing table, one line per lap. Driver, tyre, the three sectors, the conditions, then the gap and the lap time. */
-@container telemetry (min-width: 1400px) {
-  .telemetry-content .sector-cards .lap-summary-card { grid-template-columns: 150px 150px minmax(0,3fr) minmax(0,2.2fr) 180px; grid-template-rows: auto; grid-template-areas: "driver tyre sectors conds time"; padding-block: 9px; }
+@container telemetry (min-width: 1500px) {
+  .telemetry-content .sector-cards .lap-summary-card { grid-template-columns: 150px 140px minmax(0,1fr) 510px 170px; grid-template-rows: auto; grid-template-areas: "driver tyre sectors conds time"; padding-block: 9px; }
   .telemetry-content .sector-cards .lap-summary-card .summary-conditions { display: flex; align-items: center; gap: 16px; }
+  .telemetry-content .sector-cards .lap-summary-card .summary-condition { flex: none; }
   .telemetry-content .sector-cards .lap-summary-card .summary-lap-time { flex-direction: row; align-items: baseline; justify-content: flex-end; gap: 10px; }
 }
 /* Too tight for the label beside a gap and a time: the colour bar and the column still say which sector it is. */
@@ -888,3 +875,58 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
 .app-inspector .corner-measurement-table thead th:is([aria-sort="ascending"],[aria-sort="descending"]) button svg, .app-inspector .corner-measurement-table thead th button:hover svg { display: inline-block; }
 .app-inspector .corner-measurement-table .corner-driver { gap: 8px; }
 .app-inspector .corner-measurement-table .corner-driver-copy { display: grid; gap: 0; line-height: 1.2; }
+
+/* Track pane: three cards on one rhythm, the same as the driver cards on the Laps tab. Same inset, same radius, same gap. */
+#sessionInspector .inspector-corners .corner-workspace { display: flex; flex-direction: column; gap: 12px; }
+#sessionInspector .inspector-corners :is(.dominance-map,.corner-picker-row,.corner-detail-card,.corner-selection-empty) { box-sizing: border-box; width: 100%; margin: 0; border: 0; border-radius: 12px; background: var(--ui-well); box-shadow: 0 0 0 .5px var(--ui-border); }
+#sessionInspector .inspector-corners :is(.dominance-map,.corner-picker-row,.corner-selection-empty) { padding: 12px; }
+#sessionInspector .inspector-corners .corner-picker-row { display: grid; gap: 12px; }
+#sessionInspector .inspector-corners .corner-metric-grid { width: 100%; margin: 0; padding: 0; border: 0; }
+#sessionInspector .inspector-corners .corner-detail-card { padding: 0; overflow: hidden; }
+#sessionInspector .inspector-corners .circuit-section-group { margin: 0; padding: 0; border: 0; background: none; }
+#sessionInspector .inspector-corners .circuit-section-group > header { margin: 0 0 8px; }
+#sessionInspector .inspector-corners .dominance-map-header { margin: 0 0 10px; padding: 0; }
+#sessionInspector .inspector-corners .map-view-row { margin: 0 0 10px; padding: 0; }
+#sessionInspector .inspector-corners .map-view-switch[data-ui-group="segments"] { display: grid; grid-template-columns: 1fr 1fr; width: 100%; margin: 0; }
+#sessionInspector .inspector-corners #dominanceCanvas { display: block; height: clamp(200px,25dvh,250px); margin: 0; }
+#sessionInspector .inspector-corners .dominance-map-header .legend { justify-content: flex-start; margin-top: 8px; }
+
+/* Comparison tray: one row of title, laps and Clear all, on a single inset. */
+#telemetryCard .comparison-tray { flex-wrap: nowrap; align-items: flex-start; gap: 12px; padding: 7px 10px 7px 14px; }
+#telemetryCard .comparison-tray-heading { align-self: flex-start; min-height: 28px; align-items: center; }
+#telemetryCard .comparison-tray #loadedLaps { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.comparison-clear[hidden] { display: none; }
+.comparison-tray .comparison-clear, .comparison-tray .comparison-clear[data-ui-kind] { flex: none; height: 28px; min-height: 28px; padding: 0 10px; border: 0; border-radius: var(--radius-sm); background: transparent; box-shadow: none; color: var(--ui-accent); font: 500 var(--type-callout)/1 var(--ui-font); white-space: nowrap; }
+.comparison-tray .comparison-clear:hover, .comparison-tray .comparison-clear[data-ui-kind]:hover:not(:disabled) { background: var(--ui-row-hover); color: var(--ui-accent); }
+
+/* Results tables: one design everywhere, in the manner of a macOS table. A quiet header on the same surface as the rows, hairlines rather than stripes, a single cell inset, and columns aligned by what they hold. */
+body > #carPerformance .performance-table-wrap, body > #carPerformance .performance-split-view > .performance-table-wrap, body > #carPerformance .performance-chart-card, body > #carPerformance .performance-split-view > .performance-chart-card { border: 0; border-radius: 14px; background: var(--ui-panel); box-shadow: 0 0 0 .5px var(--ui-border); }
+body > #carPerformance .performance-table-wrap, body > #carPerformance .performance-split-view > .performance-table-wrap { padding: 0; }
+body > #carPerformance .performance-table thead th { height: 34px; padding: 0 12px; border: 0; border-bottom: 1px solid var(--ui-border); background: var(--ui-panel); -webkit-backdrop-filter: none; backdrop-filter: none; color: var(--ui-secondary); font: 600 var(--type-caption)/1.2 var(--ui-font); letter-spacing: 0; text-transform: none; vertical-align: middle; }
+body > #carPerformance .performance-table thead th:has(.perf-sort-btn.is-sorted) { color: var(--ui-label); }
+body > #carPerformance .performance-table tbody td, body > #carPerformance .performance-split-view .performance-table tbody td { height: 34px; padding: 5px 12px; border: 0; border-bottom: 1px solid var(--ui-separator); background: transparent; vertical-align: middle; font-variant-numeric: tabular-nums; }
+body > #carPerformance .performance-table tbody tr:nth-child(even) td { background: transparent; }
+body > #carPerformance .performance-table tbody tr:last-child td { border-bottom: 0; }
+body > #carPerformance .performance-table tbody tr:hover td { background: var(--ui-row-hover); }
+body > #carPerformance .performance-table :is(th,td)[data-column="text"] { text-align: left; }
+body > #carPerformance .performance-table :is(th,td)[data-column="number"] { text-align: right; }
+body > #carPerformance .performance-table :is(th,td)[data-column="chart"] { text-align: center; }
+body > #carPerformance .performance-table th[data-column="number"] .perf-sort-btn { flex-direction: row-reverse; justify-content: flex-end; }
+body > #carPerformance .performance-table th[data-column="chart"] .perf-sort-btn { justify-content: center; }
+body > #carPerformance .performance-table td small { margin-top: 1px; color: var(--ui-tertiary); font-size: var(--type-caption); font-weight: 400; }
+body > #carPerformance details .performance-table-wrap { border-radius: 0; background: none; box-shadow: none; }
+body > #carPerformance .performance-table td small { white-space: nowrap; }
+
+/* Development: the lines and the ranked change share a board; hovering either picks out one team. */
+.trend-board { display: grid; grid-template-columns: minmax(0,1.8fr) minmax(320px,1fr); gap: 12px; margin-bottom: 12px; }
+@media (max-width:1180px) { .trend-board { grid-template-columns: minmax(0,1fr); } }
+.trend-chart svg { display: block; width: 100%; }
+.trend-chart .trend-axis { fill: var(--ui-tertiary); font: 500 11px var(--ui-font); font-variant-numeric: tabular-nums; }
+.trend-series { transition: opacity var(--ui-motion) var(--ui-ease); }
+.trend-board .performance-tyre-age-row { transition: opacity var(--ui-motion) var(--ui-ease); }
+.trend-board.has-active [data-trend-series]:not(.is-active) { opacity: .22; }
+@media (prefers-reduced-motion:reduce) { .trend-series, .trend-board .performance-tyre-age-row { transition: none; } }
+.trend-board .performance-tyre-age-chart { display: grid; align-content: space-between; }
+#carPerformance .trend-board .performance-tyre-age-row { grid-template-columns: 124px minmax(0,1fr) 76px; }
+.trend-board .performance-chart-card { display: flex; flex-direction: column; }
+.trend-board .performance-tyre-age-chart, .trend-board .trend-chart { flex: 1 1 auto; }

@@ -334,9 +334,6 @@ body.is-descriptions-hidden .explanation-only, body.is-descriptions-hidden .perf
 .performance-trend-table .performance-table th:first-child { min-width: 160px; }
 .performance-trend-table .performance-table td:nth-child(2) { min-width: 150px; }
 .performance-trend-table .performance-table td { padding: 10px 14px; }
-.trend-sparkline { width: 170px; max-width: 100%; }
-.trend-sparkline svg { width: 100%; height: 46px; display: block; }
-.trend-sparkline .performance-trend-label { font-size: var(--text-2xs); margin-top: 0; }
 .trend-coverage { font-size: var(--text-md); color: var(--ui-secondary); }
 .trend-change { font-weight: 650; }
 .trend-change.is-improvement { color: var(--ui-positive); }

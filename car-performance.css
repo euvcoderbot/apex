@@ -909,14 +909,6 @@ body.performance-view #sidebarToggle {
 
 /* Trend Charts */
 
-.performance-trend-label {
-  display: flex;
-  justify-content: space-between;
-  font-size: var(--text-xs);
-  color: var(--ui-tertiary);
-  margin-top: 5px;
-  padding: 0 4px;
-}
 
 /* Keep the working controls compact; descriptions can be revealed on demand. */
 .performance-toolbar {
