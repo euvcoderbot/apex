@@ -77,13 +77,14 @@
   function syncCategoryList(){
     if(!categoryList||!performanceRoot)return;
     const tabs=[...performanceRoot.querySelectorAll('.performance-mode [data-performance-metric]')];
-    categoryList.hidden=!tabs.length;
-    if(!tabs.length)return;
+    // Until results arrive the list is shown disabled, so the sidebar does not jump when they do.
+    const sources=tabs.length?tabs:Object.keys(categoryIcons).map(key=>({dataset:{performanceMetric:key},disabled:true,textContent:metrics[key]?.[1]||key}));
+    categoryList.hidden=false;
     categoryList.setAttribute('role','tablist');categoryList.setAttribute('aria-label','Performance category');
-    const signature=tabs.map(tab=>tab.dataset.performanceMetric+(tab.disabled?'!':'')).join(',');
+    const signature=sources.map(tab=>tab.dataset.performanceMetric+(tab.disabled?'!':'')).join(',');
     if(categoryList.dataset.signature!==signature){
       categoryList.dataset.signature=signature;
-      const rows=tabs.map(tab=>{
+      const rows=sources.map(tab=>{
         const key=tab.dataset.performanceMetric,[,title,description]=metrics[key]||['',tab.textContent.trim(),''];
         const row=document.createElement('button');row.type='button';row.className='category-tab';row.dataset.sidebarMetric=key;row.setAttribute('aria-label',title);row.title=description;row.disabled=tab.disabled;
         row.id='category-tab-'+key;row.setAttribute('role','tab');row.setAttribute('aria-controls','performanceMetricPanel');
@@ -115,6 +116,7 @@
     const next=event.key==='Home'?rows[0]:event.key==='End'?rows.at(-1):rows[(index+(['ArrowDown','ArrowRight'].includes(event.key)?1:-1)+rows.length)%rows.length];
     next?.focus();next?.click();
   });
+  syncCategoryList();
   if(performanceRoot&&typeof MutationObserver!=='undefined')new MutationObserver(syncCategoryList).observe(performanceRoot,{childList:true});
   const viewTitles={session:['Compare laps','Session analysis'],performance:['Compare performance','Car performance']};
   function setWindowTitle(view){

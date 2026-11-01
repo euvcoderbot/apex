@@ -814,16 +814,18 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
 /* Timing board: one row per lap, so four laps fit where two cards used to. Identity, then sectors over the conditions, then the lap time. */
 @container telemetry (min-width: 500px) {
   /* Fixed side columns, so the dividers line up whatever each lap shows (a REF badge, a longer gap). */
-  .telemetry-content .sector-cards .lap-summary-card { grid-template-columns: 142px minmax(0,1fr) 112px; grid-template-rows: auto auto; grid-template-areas: "driver sectors time" "tyre conds time"; align-items: center; gap: 0 14px; padding: 7px 14px; }
+  .telemetry-content .sector-cards .lap-summary-card { grid-template-columns: 132px minmax(0,1fr) 112px; grid-template-rows: auto auto; grid-template-areas: "driver sectors time" "tyre conds time"; align-items: center; gap: 0 14px; padding: 7px 14px; }
   .telemetry-content .sector-cards .lap-summary-card > header { display: contents; }
   .telemetry-content .sector-cards .lap-summary-card .summary-driver { grid-area: driver; min-width: 0; min-height: 0; }
   .telemetry-content .sector-cards .lap-summary-card .summary-tyre { grid-area: tyre; min-width: 0; min-height: 0; }
   .telemetry-content .sector-cards .lap-summary-card .summary-tyre-copy { white-space: nowrap; }
   .telemetry-content .sector-cards .lap-summary-card .summary-lap-time { grid-area: time; }
-  .telemetry-content .sector-cards .lap-summary-card .summary-sectors { grid-area: sectors; margin: 0; padding: 0 0 3px 14px; border: 0; border-left: 1px solid var(--ui-border); align-self: stretch; column-gap: 10px; }
+  .telemetry-content .sector-cards .lap-summary-card .summary-sectors { grid-area: sectors; margin: 0; padding: 0 0 3px 14px; border: 0; border-left: 1px solid var(--ui-border); align-self: stretch; column-gap: 6px; }
   .telemetry-content .sector-cards .lap-summary-card .sector-cell { padding-left: 8px; }
   .telemetry-content .sector-cards .lap-summary-card .sector-cell::after { left: 0; right: auto; top: 2px; bottom: 2px; width: 3px; height: auto; border-radius: var(--radius-2xs); }
-  .telemetry-content .sector-cards .lap-summary-card .sector-cell-value { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 4px; }
+  /* Label, gap and time stay together, and an empty gap keeps its width, so each sector's time lines up down the board. */
+  .telemetry-content .sector-cards .lap-summary-card .sector-cell-value { flex-direction: row; align-items: baseline; justify-content: flex-start; gap: 5px; }
+  .telemetry-content .sector-cards .lap-summary-card .sector-delta-slot, .telemetry-content .sector-cards .lap-summary-card .sector-delta-slot:empty { display: inline-flex; flex: 0 0 auto; justify-content: flex-end; min-width: 46px; }
   .telemetry-content .sector-cards .lap-summary-card .sector-cell-value > small { margin: 0; line-height: 1.2; }
   .telemetry-content .sector-cards .lap-summary-card .sector-cell .sector-measurements, .telemetry-content .sector-cards .lap-summary-card .sector-cell + .sector-cell .sector-measurements { align-self: auto; justify-content: flex-end; padding: 0; border: 0; }
   .telemetry-content .sector-cards .lap-summary-card .sector-measurements > strong { font-size: var(--type-body); }
@@ -831,11 +833,24 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
   .telemetry-content .sector-cards .lap-summary-card .summary-lap-time { flex-direction: column; align-items: flex-end; justify-content: center; justify-self: stretch; align-self: stretch; gap: 0; padding-left: 14px; border-left: 1px solid var(--ui-border); }
   .telemetry-content .sector-cards .lap-summary-card .summary-lap-time > .summary-delta:empty { display: none; }
   .telemetry-content .sector-cards .lap-summary-card .sector-cell-value > small { flex: 0 0 auto; }
-  .telemetry-content .sector-cards .lap-summary-card .sector-cell .sector-measurements { flex: 1 1 auto; min-width: 0; gap: 5px; }
+  .telemetry-content .sector-cards .lap-summary-card .sector-cell .sector-measurements { flex: 0 0 auto; gap: 4px; }
 }
-/* In a wide view the sectors stop growing, and the spare width goes to the sides. */
-@container telemetry (min-width: 1000px) {
-  .telemetry-content .sector-cards .lap-summary-card { grid-template-columns: minmax(142px,1fr) 600px minmax(112px,1fr); }
+/* With room to spare the sectors and conditions spread evenly across their blocks, leaving no empty band beside them. */
+@container telemetry (min-width: 725px) {
+  .telemetry-content .sector-cards .lap-summary-card .summary-sectors { grid-template-columns: repeat(3,max-content); justify-content: space-between; padding-right: 4px; }
+  .telemetry-content .sector-cards .lap-summary-card .summary-conditions { justify-content: space-between; padding-right: 4px; }
+}
+/* Wider: the track details leave the sectors and get a block of their own, beside the driver. The lap time keeps the right edge and the narrowest column. */
+@container telemetry (min-width: 1100px) {
+  .telemetry-content .sector-cards .lap-summary-card { grid-template-columns: 132px 270px minmax(0,1fr) 112px; grid-template-areas: "driver conds sectors time" "tyre conds sectors time"; }
+  .telemetry-content .sector-cards .lap-summary-card .summary-sectors { align-self: stretch; align-items: center; padding-bottom: 0; }
+  .telemetry-content .sector-cards .lap-summary-card .summary-conditions { display: grid; grid-template-columns: repeat(2,max-content); align-content: center; gap: 2px 16px; padding-top: 0; }
+}
+/* Widest: a true timing table, one line per lap. Driver, tyre, the three sectors, the conditions, then the gap and the lap time. */
+@container telemetry (min-width: 1400px) {
+  .telemetry-content .sector-cards .lap-summary-card { grid-template-columns: 150px 150px minmax(0,3fr) minmax(0,2.2fr) 180px; grid-template-rows: auto; grid-template-areas: "driver tyre sectors conds time"; padding-block: 9px; }
+  .telemetry-content .sector-cards .lap-summary-card .summary-conditions { display: flex; align-items: center; gap: 16px; }
+  .telemetry-content .sector-cards .lap-summary-card .summary-lap-time { flex-direction: row; align-items: baseline; justify-content: flex-end; gap: 10px; }
 }
 /* Too tight for the label beside a gap and a time: the colour bar and the column still say which sector it is. */
 @container telemetry (max-width: 725px) {
@@ -848,3 +863,26 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
   .telemetry-content .sector-cards .lap-summary-card { grid-template-columns: 104px minmax(0,1fr) 118px; column-gap: 10px; padding-inline: 10px; }
   .telemetry-content .sector-cards .lap-summary-card .summary-condition:last-child { display: none; }
 }
+
+/* Inspector lists. Laps read as one-line rows: which lap, how old the tyre was, then the time and the tyre at a shared right edge. */
+.app-inspector .lap-workspace .lap-grid { grid-template-columns: repeat(auto-fill,minmax(min(100%,280px),1fr)); gap: 4px; }
+.app-inspector .lap-workspace .lap-chip[data-ui-kind="choice"] { grid-template-columns: 56px minmax(0,1fr) max-content 18px; grid-template-rows: auto; grid-template-areas: "token age clock tyre"; align-items: center; column-gap: 8px; height: 34px; min-height: 34px; padding: 0 8px 0 10px; }
+.app-inspector .lap-workspace .lap-chip .lap-token { grid-area: token; font-size: var(--type-body); font-weight: 600; }
+.app-inspector .lap-workspace .lap-chip .lap-state { font-size: var(--type-caption); }
+.app-inspector .lap-workspace .lap-chip .lap-tyre-age { grid-area: age; line-height: 1.2; color: var(--ui-tertiary); }
+.app-inspector .lap-workspace .lap-chip .lap-clock { grid-area: clock; justify-self: end; line-height: 1.2; }
+.app-inspector .lap-workspace .lap-chip .compound-badge { grid-area: tyre; justify-self: end; width: 18px; height: 18px; }
+
+/* Corner table: fixed columns, and the lap and REF tag under the driver, so the numbers get the room. */
+.app-inspector .corner-measurement-table { table-layout: fixed; width: 100%; }
+.app-inspector .corner-measurement-table thead th:nth-child(1) { width: 31%; }
+.app-inspector .corner-measurement-table thead th:nth-child(2) { width: 22%; }
+.app-inspector .corner-measurement-table thead th:nth-child(3) { width: 25%; }
+.app-inspector .corner-measurement-table thead th:nth-child(4) { width: 22%; }
+.app-inspector .corner-measurement-table :is(thead th,tbody td,tbody th) { padding: 6px 10px 6px 4px; }
+.app-inspector .corner-measurement-table :is(thead th,tbody th):first-child { padding-left: 10px; }
+.app-inspector .corner-measurement-table tbody td { font-size: var(--type-body); }
+.app-inspector .corner-measurement-table thead th button svg { display: none; }
+.app-inspector .corner-measurement-table thead th:is([aria-sort="ascending"],[aria-sort="descending"]) button svg, .app-inspector .corner-measurement-table thead th button:hover svg { display: inline-block; }
+.app-inspector .corner-measurement-table .corner-driver { gap: 8px; }
+.app-inspector .corner-measurement-table .corner-driver-copy { display: grid; gap: 0; line-height: 1.2; }
