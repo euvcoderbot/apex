@@ -930,3 +930,8 @@ body > #carPerformance .performance-table td small { white-space: nowrap; }
 #carPerformance .trend-board .performance-tyre-age-row { grid-template-columns: 142px minmax(0,1fr) 76px; }
 .trend-board .performance-chart-card { display: flex; flex-direction: column; }
 .trend-board .performance-tyre-age-chart, .trend-board .trend-chart { flex: 1 1 auto; }
+
+/* Teams and drivers side by side, rather than one chart stretched across the page. */
+.subject-pair { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); align-items: start; gap: 12px; margin-bottom: 12px; }
+.subject-bands { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); align-items: start; gap: 12px; margin-bottom: 12px; }
+@media (max-width:1180px) { .subject-pair, .subject-bands { grid-template-columns: minmax(0,1fr); } }
