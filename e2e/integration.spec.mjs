@@ -87,6 +87,7 @@ test.describe('Car performance with real data', () => {
 
   test('layout stays put while the data arrives (CLS under the 0.1 "good" limit)', async ({page, browserName}) => {
     test.skip(browserName !== 'chromium', 'layout-shift entries exist only in Chromium');
+    test.setTimeout(60_000); // Eight full page loads; alone this takes about 17 s, in a parallel run it can pass 30 s.
     await page.addInitScript(() => {
       window.__cls = 0;
       new PerformanceObserver(list => { for (const e of list.getEntries()) if (!e.hadRecentInput) window.__cls += e.value; })

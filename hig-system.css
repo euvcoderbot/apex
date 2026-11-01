@@ -375,8 +375,8 @@ button.map-guide-info[data-ui-kind="icon"] {
    ui-system.js writes the chosen segment's box to --ui-thumb-*; the group's
    ::before is the thumb and slides between segments. Segments stay clear so
    the label sits on the moving thumb. */
-:is([data-ui-group="segments"],.lap-workspace .run-segments)[data-ui-thumb] { position: relative; isolation: isolate; }
-:is([data-ui-group="segments"],.lap-workspace .run-segments)[data-ui-thumb]::before {
+:is([data-ui-group="segments"],.lap-workspace .run-segments,#carPerformance > .category-bar)[data-ui-thumb] { position: relative; isolation: isolate; }
+:is([data-ui-group="segments"],.lap-workspace .run-segments,#carPerformance > .category-bar)[data-ui-thumb]::before {
   content: ''; position: absolute; left: 0; top: 0; z-index: -1; pointer-events: none;
   width: var(--ui-thumb-w); height: var(--ui-thumb-h);
   transform: translate(var(--ui-thumb-x), var(--ui-thumb-y));
@@ -787,6 +787,8 @@ body > main#top > .app-inspector { display: flex; flex-direction: column; gap: 1
   .app-sidebar .category-bar .category-short { display: inline; }
 }
 body > #carPerformance > :not(.app-sidebar,.workspace-intro) { padding-inline: 18px; }
+/* A table draws at full width for a frame or two before it is fitted; that must not make the whole page scroll sideways. */
+body > #carPerformance > #performanceResults { overflow-x: clip; overflow-clip-margin: 8px; }
 body > #carPerformance > .performance-status-card { border-bottom: 0; background: none; }
 body > #carPerformance .performance-chart-card, body > #carPerformance .performance-table-wrap { border-radius: 14px; }
 
