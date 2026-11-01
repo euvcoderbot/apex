@@ -35,6 +35,13 @@ def validate_finished(identity, classification, now):
         raise ValueError('Session completion is not confirmed by source classification yet')
 
 
+def lap_coverage(drivers):
+    if not drivers:
+        raise ValueError('No source drivers; no public export written')
+    return {d['code']: d.get('missing_laps', []) for d in drivers
+            if not d.get('lap_data_complete', True)}
+
+
 def merge_session_export(root, year, gp, round_number, session, payload):
     with repository_lock(root):
         return _merge_session_export(root,year,gp,round_number,session,payload)
@@ -61,14 +68,14 @@ def _merge_session_export(root, year, gp, round_number, session, payload):
     return query
 
 
-def merge_local_session_capture(root,year,gp,round_number,session,payload):
+def merge_local_session_capture(root,year,gp,round_number,session,payload,capture_time=None):
     folder=root/'assets/data/local-captures';folder.mkdir(parents=True,exist_ok=True)
     target=folder/'index.json'
     with repository_lock(root):
-        return _merge_locked_session_capture(root,year,gp,round_number,session,payload,folder,target)
+        return _merge_locked_session_capture(root,year,gp,round_number,session,payload,folder,target,capture_time)
 
 
-def _merge_locked_session_capture(root,year,gp,round_number,session,payload,folder,target):
+def _merge_locked_session_capture(root,year,gp,round_number,session,payload,folder,target,capture_time=None):
     text=(root/'lib/cache-revision.mjs').read_text(encoding='utf-8')
     revisions={name:re.search(symbol+r'\s*=\s*"([^"]+)"',text).group(1) for name,symbol in (
         ('sourceRevision','SOURCE_REVISION'),('backendRevision','BACKEND_REVISION'),('measurementRevision','RACE_REVISION'))}
@@ -80,8 +87,10 @@ def _merge_locked_session_capture(root,year,gp,round_number,session,payload,fold
     previous={name:index.get(name) for name in revisions}
     index['entries']={key:{**previous,**entry} for key,entry in index.get('entries',{}).items()}
     index.update(revisions)
-    query='/api/session?'+urlencode(sorted({'year':year,'gp':gp,'round':round_number,'session':session}.items()))
-    captured_at=timestamp(payload['local_export']['captured_at'])
+    query=('/api/events?'+urlencode({'year':year}) if session is None else
+           '/api/session?'+urlencode(sorted({'year':year,'gp':gp,'round':round_number,'session':session}.items())))
+    capture_time=capture_time or payload['local_export']['captured_at']
+    captured_at=timestamp(capture_time)
     previous_capture=index['entries'].get(query,{}).get('capturedAt')
     # A slower, older export can finish after a newer capture. Locking makes
     # the write exclusive; timestamp ordering prevents that stale replacement.
@@ -90,7 +99,7 @@ def _merge_locked_session_capture(root,year,gp,round_number,session,payload,fold
     packed=gzip.compress(json.dumps(payload,separators=(',',':'),allow_nan=False).encode(),mtime=0)
     filename=hashlib.sha256(packed).hexdigest()[:24]+'.json.gz'
     atomic_bytes(folder/filename,packed)
-    index['entries'][query]={'file':filename,'capturedAt':payload['local_export']['captured_at'],**revisions}
+    index['entries'][query]={'file':filename,'capturedAt':capture_time,**revisions}
     index['generated']=datetime.now(timezone.utc).isoformat()
     atomic_bytes(target,json.dumps(index,separators=(',',':')).encode())
     return query
@@ -119,17 +128,40 @@ def main():
     event = next((e for e in calendar if e.get('name') == args.gp and e.get('round') == args.round),None)
     if event is None:
         raise ValueError('Grand Prix and round do not match the calendar')
+    # Completion is confirmed independently of telemetry/export readiness.
+    event.setdefault('session_statuses',{})[session] = 'completed'
+    calendar_path=ROOT/f'assets/data/events/{args.year}.json'
+    with repository_lock(ROOT):
+        latest=json.loads(calendar_path.read_text(encoding='utf-8')) if calendar_path.exists() else calendar
+        for current_event in latest:
+            if current_event.get('round')==args.round and current_event.get('name')==args.gp:
+                current_event.setdefault('session_statuses',{})[session]='completed'
+        atomic_bytes(calendar_path,json.dumps(latest,separators=(',',':'),allow_nan=False).encode())
+    merge_local_session_capture(ROOT,args.year,args.gp,args.round,None,latest,now.isoformat())
     drivers = server.fetch_openf1_session_drivers.__wrapped__(args.year,args.gp,session,0)
-    if not drivers or any(not d.get('lap_data_complete',True) for d in drivers):
-        raise ValueError('Incomplete source lap sequence; no public export written')
+    missing_laps = lap_coverage(drivers)
+    if missing_laps and not args.refresh:
+        # Settled raw caches may retain an incomplete ingest forever. Recheck
+        # timing rows only; do not redownload every telemetry stream on retry.
+        saved_openf1=server.openf1
+        try:
+            server.openf1=lambda endpoint, **params: (server._openf1_fetch(server.openf1_url(endpoint,**params))
+                if endpoint=='laps' else saved_openf1(endpoint,**params))
+            refreshed=server.fetch_openf1_session_drivers.__wrapped__(args.year,args.gp,session,0)
+            if refreshed and sum(len(d['laps']) for d in refreshed)>=sum(len(d['laps']) for d in drivers):
+                drivers=refreshed
+                missing_laps=lap_coverage(drivers)
+        finally:
+            server.openf1=saved_openf1
     captured = datetime.now(timezone.utc).isoformat()
     snapshot = {'captured_at':captured,'session_ended_at':identity['date_end'],
                 'session_key':identity['session_key'],'source':'OpenF1 via local compute',
-                'provisional':(now-timestamp(identity['date_end'])).total_seconds()<6*3600}
+                'provisional':(now-timestamp(identity['date_end'])).total_seconds()<6*3600,
+                'missing_laps': missing_laps}
     payload = {'event':args.gp,'session':session,'date':identity['date_start'],'drivers':drivers,
                'corners':[],'circuit_rotation':0,'location':identity.get('location',''),
                'circuit_key':identity.get('circuit_key'),'openf1_session_key':identity['session_key'],
-               'compounds':server.get_tire_nominations(args.year,args.gp),'lap_data_complete':True,
+               'compounds':server.get_tire_nominations(args.year,args.gp),'lap_data_complete':not missing_laps,
                'local_export':snapshot}
     print(json.dumps({'event':args.gp,'session':session,'drivers':len(drivers),
                       'laps':sum(len(d['laps']) for d in drivers),'snapshot':snapshot}),flush=True)
@@ -151,19 +183,23 @@ def main():
     # individual boundary observations remain explicit in the exporter report.
     telemetry_root=ROOT/'assets/data/local-telemetry'
     telemetry = json.loads((telemetry_root/'index.json').read_text())
-    missing = [d['code'] for d in drivers if any(not lap.get('out_lap') and isinstance(lap.get('time'),(int,float)) and 20<lap['time']<300 for lap in d['laps'])
-               and f"{args.year}:{args.gp}:{session}:{d['code']}" not in telemetry['entries']]
-    if missing:
-        raise ValueError('Drivers without exported native telemetry: '+', '.join(missing))
+    supported=0
     for driver in drivers:
         eligible = [lap for lap in driver['laps'] if not lap.get('out_lap') and isinstance(lap.get('time'),(int,float)) and 20<lap['time']<300]
         if not eligible:
             continue
-        best = min(eligible,key=lambda lap:lap['time'])
-        file = telemetry['entries'][f"{args.year}:{args.gp}:{session}:{driver['code']}"]
-        pack = json.loads(gzip.decompress((telemetry_root/file).read_bytes()))
-        if str(best['lap']) not in pack['laps']:
-            raise ValueError(f"Fastest source lap has no supported native trace: {driver['code']} L{best['lap']}")
+        file = telemetry['entries'].get(f"{args.year}:{args.gp}:{session}:{driver['code']}")
+        pack = json.loads(gzip.decompress((telemetry_root/file).read_bytes())) if file else {}
+        records=pack.get('laps',{}) if str(pack.get('sessionKey'))==str(identity['session_key']) else {}
+        for lap in eligible:
+            samples=records.get(str(lap['lap']),{}).get('samples',[])
+            lap['telemetry_available']=bool(samples and isinstance(samples[-1].get('ElapsedSeconds'),(int,float))
+                and abs(samples[-1]['ElapsedSeconds']-lap['time'])<=.005)
+            supported+=int(lap['telemetry_available'])
+        driver['telemetry_missing_laps']=[lap['lap'] for lap in eligible if not lap['telemetry_available']]
+    if not supported:
+        raise ValueError('No supported native timed laps; no session export written')
+    payload['telemetry_complete']=not any(d.get('telemetry_missing_laps') for d in drivers)
     # Only record a complete session after its required driver packs validate.
     # Pack downloads may remain staged on failure, but the session/calendar
     # are not advertised as a successfully prepared public export.

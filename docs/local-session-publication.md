@@ -2,14 +2,18 @@
 
 The public site reads locally prepared timing, native telemetry, and supported
 performance/corner measurements without a hosted telemetry API. These are
-captured snapshots, not live streaming or an automatic publication job.
+captured snapshots, not live streaming. The PC scheduler prepares data; the
+separate Codex publication automation validates and publishes prepared assets.
 
 The installed session scheduler stages validated prepared data into the current
-Site checkout (`site-claude-oct31` alongside the local preparing checkout) after
+Site checkout (`site-claude-latest-release` alongside the local preparing checkout) after
 each exported session and on recovery runs. Set `APEX_SITE_CHECKOUT` if the
 checkout moves. Staging does not build or publish the Site; use the Sites
 release workflow to make changes visible to visitors. Failed preparation or
-sync is logged to `~/apex-data/session-archive.log` and retried.
+sync is logged to `~/apex-data/session-archive.log` and retried. Machine-readable
+health is written to `~/apex-data/openf1/pipeline-health.json`. Failed or partial
+preparation exits nonzero; an overlapping job does not overwrite the owner's
+health report. The publisher checks health before declaring no new work.
 
 Start the local server from this checkout, then prepare a completed qualifying:
 
@@ -39,8 +43,19 @@ depends on the unavailable official timing archive or Vercel.
 Existing exports are merged, not cleared. Sessions inside the six-hour source
 correction window carry `local_export.provisional: true` and a capture timestamp.
 Live, future, cancelled and unconfirmed sessions are rejected. Unsupported lap
-boundaries are reported and not invented; every driver's fastest timed lap must
-have a supported trace before the command reports success.
+boundaries are reported and not invented. A partial session can publish its
+supported native laps without discarding other drivers: `lap_data_complete`,
+per-driver `missing_laps`, `telemetry_complete`, and `telemetry_missing_laps`
+disclose the gaps. Individual timed laps carry `telemetry_available`. A session
+with no supported native timed laps is rejected. Partial sessions remain
+retryable, and their official completion status is independent of export
+readiness. Timing-row retries bypass a stale settled cache without downloading
+all telemetry again.
+
+Open snapshot pages revalidate availability every minute while visible and
+invalidate cached indexes when returning to the page. Newly published sessions
+become selectable without clearing an existing comparison. All publication
+still requires an awake PC, the app, and Sites access.
 
 To incorporate later timing corrections, rerun with `--refresh`; otherwise raw
 streams already captured on disk are reused so interrupted downloads can resume.
