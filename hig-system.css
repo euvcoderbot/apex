@@ -871,10 +871,10 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
 
 /* Corner table: fixed columns, and the lap and REF tag under the driver, so the numbers get the room. */
 .app-inspector .corner-measurement-table { table-layout: fixed; width: 100%; }
-.app-inspector .corner-measurement-table thead th:nth-child(1) { width: 31%; }
-.app-inspector .corner-measurement-table thead th:nth-child(2) { width: 22%; }
-.app-inspector .corner-measurement-table thead th:nth-child(3) { width: 25%; }
-.app-inspector .corner-measurement-table thead th:nth-child(4) { width: 22%; }
+.app-inspector .corner-measurement-table thead th:nth-child(1) { width: 28%; }
+.app-inspector .corner-measurement-table thead th:nth-child(2) { width: 21%; }
+.app-inspector .corner-measurement-table thead th:nth-child(3) { width: 23%; }
+.app-inspector .corner-measurement-table thead th:nth-child(4) { width: 28%; }
 .app-inspector .corner-measurement-table :is(thead th,tbody td,tbody th) { padding: 6px 10px 6px 4px; }
 .app-inspector .corner-measurement-table :is(thead th,tbody th):first-child { padding-left: 10px; }
 .app-inspector .corner-measurement-table tbody td { font-size: var(--type-body); }
@@ -902,6 +902,30 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
 #telemetryCard .comparison-tray { flex-wrap: nowrap; align-items: flex-start; gap: 12px; padding: 7px 10px 7px 14px; }
 #telemetryCard .comparison-tray-heading { align-self: flex-start; min-height: 28px; align-items: center; }
 #telemetryCard .comparison-tray #loadedLaps { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+#telemetryCard .comparison-tray #loadedLaps > .section-empty { display: flex; align-items: center; min-height: 28px; margin: 0; }
+
+/* Keep compute discovery available without a persistent mode button. */
+#computeSettings { inset: 52px 12px auto auto; width: min(300px,calc(100vw - 24px)); box-sizing: border-box; padding: 16px; border: 1px solid var(--ui-border); border-radius: 12px; background: var(--ui-panel); color: var(--ui-label); box-shadow: 0 8px 30px #0004; }
+#computeSettings p { margin: 8px 0 12px; color: var(--ui-secondary); font-size: var(--type-callout); line-height: 1.4; }
+#computeSettings .local-compute-link { color: var(--ui-accent); }
+.lap-summary-card .summary-tyre, .lap-summary-card .summary-tyre b { font-size: calc(var(--type-callout) - 2px); }
+.lap-summary-card .summary-tyre small { font-size: calc(var(--type-caption) - 2px); }
+.lap-summary-card .summary-tyre .compound-badge { width: 16px; height: 16px; font-size: calc(var(--type-caption) - 2px); flex-basis: 16px; }
+/* Sort indicators occupy real space rather than protruding past the last cell. */
+.app-inspector .corner-measurement-table button[data-corner-sort] { gap: 3px; }
+.app-inspector .corner-measurement-table thead th button svg { position: static; flex: 0 0 8px; width: 8px; }
+.app-inspector .corner-measurement-table thead th:last-child { padding-right: 10px; }
+
+/* Shared header/row geometry keeps each result aligned with its chart row. */
+.results-overview { display: grid; grid-template-columns: minmax(280px,1fr) minmax(0,2fr); gap: 12px; align-items: start; --result-row-height: 36px; }
+body > #carPerformance .results-overview .performance-chart-card { padding: 0 12px; }
+body > #carPerformance .results-overview .perf-chart-header { box-sizing: border-box; height: 42px; min-height: 42px; margin: 0; padding: 0; display: flex; align-items: center; border-bottom: 1px solid var(--ui-border); }
+.results-overview .perf-chart-sub { display: none; }
+body > #carPerformance .results-overview .performance-bars { gap: 0; margin: 0; padding: 0; }
+body > #carPerformance .results-overview .performance-bar-row { box-sizing: border-box; height: var(--result-row-height); min-height: var(--result-row-height); margin: 0; padding-block: 0; border-bottom: 1px solid var(--ui-separator); }
+body > #carPerformance .results-overview .performance-table thead th { box-sizing: border-box; height: 42px; }
+body > #carPerformance .results-overview .performance-table tbody td { box-sizing: border-box; height: var(--result-row-height); padding-block: 0; }
+@media (max-width:1400px) { .results-overview { grid-template-columns: minmax(0,1fr); } }
 .comparison-clear[hidden] { display: none; }
 .comparison-tray .comparison-clear, .comparison-tray .comparison-clear[data-ui-kind] { flex: none; height: 28px; min-height: 28px; padding: 0 10px; border: 0; border-radius: var(--radius-sm); background: transparent; box-shadow: none; color: var(--ui-accent); font: 500 var(--type-callout)/1 var(--ui-font); white-space: nowrap; }
 .comparison-tray .comparison-clear:hover, .comparison-tray .comparison-clear[data-ui-kind]:hover:not(:disabled) { background: var(--ui-row-hover); color: var(--ui-accent); }

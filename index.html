@@ -49,7 +49,12 @@
       </nav>
     </div>
     <div class="workspace-tools" role="group" aria-label="Display options">
-      <a class="local-compute-link" href="http://127.0.0.1:54123/apex/" title="Open the local dashboard on this PC">Use local compute</a>
+      <button type="button" popovertarget="computeSettings" aria-label="Compute settings" title="Compute settings">⚙</button>
+      <div id="computeSettings" popover aria-label="Compute settings">
+        <strong>Compute settings</strong>
+        <p>The published site uses prepared data. Use this PC for sessions not published yet.</p>
+        <a class="local-compute-link" href="http://127.0.0.1:54123/apex/" title="Open the local dashboard on this PC">Use local compute</a>
+      </div>
       <button id="explanationsToggle" class="sidebar-toggle" type="button" aria-pressed="false" title="Show or hide explanations"><i aria-hidden="true"></i><span>Show explanations</span></button>
       <button id="themeToggle" class="theme-toggle" type="button" aria-pressed="false" aria-label="Switch to light mode" title="Switch between light and dark"><i aria-hidden="true"></i><span>Light mode</span></button>
       <button id="glassToggle" class="sidebar-toggle" type="button" aria-pressed="true" title="Pointer highlight and press response on toolbar controls"><i aria-hidden="true"></i><span>Glass effects</span></button>
