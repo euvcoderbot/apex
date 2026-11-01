@@ -277,6 +277,17 @@ test('saved native driver packs keep exact identity, duration and immutable per-
   assert.equal(await h.run(`preparedTelemetryData(new URL(${JSON.stringify(path.replace('93.261','94'))}))`),null);
 });
 
+test('only policy-approved retained native packs load after a source revision change',async()=>{
+  const h=context();Object.assign(h.sandbox,{URL,Response,DecompressionStream,structuredClone});
+  Object.assign(h.sandbox.window,{APEX_SNAPSHOT_MODE:true,APEX_SOURCE_VERSION:'new',APEX_SNAPSHOT_COMPATIBILITY:{sourceRevision:['old']}});
+  const index={sourceRevision:'new',entrySourceRevisions:{'2026:Mexico:Qualifying:VER':'old'},entries:{'2026:Mexico:Qualifying:VER':'pack.json.gz'}};
+  h.sandbox.fetch=async url=>String(url).endsWith('index.json')?{ok:true,json:async()=>index}:new Response(gzipSync(JSON.stringify({sessionKey:1,laps:{2:{driver:'VER',samples:[{ElapsedSeconds:80,Speed:200}]}}})));
+  const url="new URL('https://example.test/api/telemetry?year=2026&gp=Mexico&session=Q&driver=VER&lap=2&lap_time=80&session_key=1')";
+  assert.equal((await h.run(`preparedTelemetryData(${url})`)).samples[0].Speed,200);
+  h.sandbox.window.APEX_SNAPSHOT_COMPATIBILITY={sourceRevision:[]};
+  assert.equal(await h.run(`preparedTelemetryData(${url})`),null);
+});
+
 test('published local captures disclose timestamps and reject incompatible revisions',async()=>{
   const h=context();let requests=0;
   Object.assign(h.sandbox,{URL,Response,DecompressionStream});

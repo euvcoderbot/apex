@@ -293,8 +293,10 @@ function publishedSessionIds(indexes, revisions) {
     if (params.get('year') && params.get('gp') && params.get('session')) ids.add(publishedSessionId(params.get('year'), params.get('gp'), params.get('session')));
   };
   const {captures, prerendered, prepared} = indexes;
-  if (captures?.sourceRevision === revisions.source) Object.keys(captures.entries || {}).forEach(add);
-  if (prerendered?.sourceRevision === revisions.source) Object.keys(prerendered.entries || {}).forEach(add);
+  const compatible = revision => revision===revisions.source || revisions.compatible?.includes(revision);
+  for(const [key,entry] of Object.entries(captures?.entries||{}))
+    if(compatible(entry.sourceRevision||captures.sourceRevision))add(key);
+  if (compatible(prerendered?.sourceRevision)) Object.keys(prerendered.entries || {}).forEach(add);
   for (const key of Object.keys(prepared || {})) { // "year:gp:session"
     const [year, gp, session] = key.split(':');
     if (year && gp && session) ids.add(publishedSessionId(year, gp, session));
@@ -307,7 +309,7 @@ async function loadPublishedSessions() {
   const [captures, prerendered, prepared] = await Promise.all([
     get('assets/data/local-captures/index.json'), get('assets/data/prerendered/index.json'), get('assets/data/sessions/index.json')]);
   if (!captures && !prerendered && !prepared) return;
-  const next=publishedSessionIds({captures, prerendered, prepared}, {source: window.APEX_SOURCE_VERSION});
+  const next=publishedSessionIds({captures, prerendered, prepared}, {source: window.APEX_SOURCE_VERSION, compatible: window.APEX_SNAPSHOT_COMPATIBILITY?.sourceRevision});
   const changed=publishedSessions && (next.size!==publishedSessions.size || [...next].some(id=>!publishedSessions.has(id)));
   publishedSessions = next;
   if(changed){

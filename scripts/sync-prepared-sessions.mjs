@@ -57,7 +57,7 @@ export async function plan(from, to) {
   for (const key of ['sourceRevision', 'backendRevision', 'measurementRevision'])
     if (!snapshotCompatible(key,fromCaptures[key],wanted[key]))
       problems.push(`captures were prepared for ${key} ${fromCaptures[key]} but the Site's code is ${wanted[key]}; the page would ignore them`);
-  if (fromPacks.sourceRevision !== wanted.sourceRevision)
+  if (!snapshotCompatible('sourceRevision',fromPacks.sourceRevision,wanted.sourceRevision))
     problems.push(`lap packs were prepared for sourceRevision ${fromPacks.sourceRevision} but the Site's code is ${wanted.sourceRevision}`);
   if (problems.length) return {problems, captures, packs, calendar: null};
 
@@ -74,11 +74,15 @@ export async function plan(from, to) {
     else if (Date.parse(entry.capturedAt) > Date.parse(have.capturedAt)) captures.push({key, entry, action: 'replace', superseded: have.file});
   }
   for (const [identity, file] of Object.entries(fromPacks.entries || {})) {
+    const sourceRevision=fromPacks.entrySourceRevisions?.[identity]||fromPacks.sourceRevision;
+    if(!snapshotCompatible('sourceRevision',sourceRevision,wanted.sourceRevision)){
+      problems.push(`unreadable lap pack revision for ${identity}`);continue;
+    }
     const source = path.join(data(from), 'local-telemetry', file), target = path.join(data(to), 'local-telemetry', toPacks.entries?.[identity] || file);
     const have = toPacks.entries?.[identity];
     if (have && !await newer(source, target)) continue;
     if (!await readable(source)) { problems.push(`unreadable lap pack for ${identity}`); continue; }
-    packs.push({identity, file, action: have ? 'replace' : 'add', superseded: have && have !== file ? have : null});
+    packs.push({identity, file, sourceRevision, action: have ? 'replace' : 'add', superseded: have && have !== file ? have : null});
   }
   // The calendar carries each session's status; take the preparing checkout's when it is newer and complete.
   let calendar = null;
@@ -133,10 +137,12 @@ async function applyLocked(from,to,p,commitJson) {
     await atomicBytes(path.join(data(to),'local-captures',file),packed);
     captures.entries['/api/events?year=2026']={file,capturedAt:(await stat(path.join(data(from),'events',p.calendar.file))).mtime.toISOString()};
   }
-  const packs = {...p.toPacks, sourceRevision: p.wanted.sourceRevision, schema: p.fromPacks.schema, entries: {...p.toPacks.entries}};
-  for (const {identity, file, superseded} of p.packs) {
+  const entrySourceRevisions=Object.fromEntries(Object.keys(p.toPacks.entries||{}).map(key=>[key,p.toPacks.entrySourceRevisions?.[key]||p.toPacks.sourceRevision]));
+  const packs = {...p.toPacks, sourceRevision: p.wanted.sourceRevision, entrySourceRevisions, schema: p.fromPacks.schema, entries: {...p.toPacks.entries}};
+  for (const {identity, file, superseded,sourceRevision} of p.packs) {
     await put(path.join(data(from), 'local-telemetry', file), path.join(data(to), 'local-telemetry', file));
     packs.entries[identity] = file;
+    packs.entrySourceRevisions[identity]=sourceRevision;
     // Keep superseded packs rather than deleting user data during a sync.
   }
   await commitJson(path.join(data(to), 'local-telemetry', 'index.json'), packs);

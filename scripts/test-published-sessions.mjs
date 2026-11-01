@@ -17,6 +17,7 @@ test('the session menu knows which sessions the published site can open', () => 
   assert.ok(!ids.has(publishedSessionId(2026, 'Australian Grand Prix', 'Race')));
   assert.ok(!ids.has(publishedSessionId(2026, 'Barcelona Grand Prix', 'Race')), 'only session snapshots count, not performance ones');
   assert.equal(publishedSessionIds({captures, prerendered: null, prepared: null}, {source: 'other'}).size, 0, 'a capture index built for other code is ignored, as the page ignores it');
+  assert.ok(publishedSessionIds({captures},{source:'new',compatible:['rev1']}).has(publishedSessionId(2026,'Mexico City Grand Prix','Practice 2')));
   assert.match(loader, /not published`/);
   assert.match(loader, /if \(!window\.APEX_SNAPSHOT_MODE \|\| window\.APEX_LOCAL_MODE\) return;/);
 });
