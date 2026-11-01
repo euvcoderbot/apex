@@ -307,7 +307,7 @@ function renderCharts() {
             <button data-pan="right" title="Move zoom window right" aria-label="Move zoom window right">›</button>
             <button class="trace-reset" data-zoom="reset" title="Reset zoom">Reset</button>
           </div>
-        </div><button type="button" class="trace-focus-button" data-trace-focus="open" aria-expanded="false" aria-controls="charts" title="Show speed trace and timing delta across the full page">Expand charts</button><button type="button" class="trace-focus-button trace-focus-close" data-trace-focus="close" title="Return to session analysis">Close view</button>` : name === 'Timing delta' ? `
+        </div><details class="trace-display-menu"><summary title="Corner numbers, speed annotations and alignment">Display</summary><div class="trace-settings" aria-label="Telemetry display settings"><label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label><label class="trace-setting" title="Label every measured speed peak and dip. Each lap uses its own minimum or maximum, matched to the other laps by GPS position. The fastest lap shows its speed in km/h; the others show their difference. A dash means that lap has no matching measured extreme."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label><label class="trace-setting" title="Experimental estimate: integrate each lap's measured speed over time and normalize distance within official sectors. This changes the horizontal mapping, not the measured values. Never matches drivers' braking points. Incomplete or unsuitable laps retain the original mapping."><input type="checkbox" id="alignmentCorrectionToggle" ${estimateAlignmentCorrection ? 'checked' : ''} aria-describedby="alignmentCorrectionNotice"><i aria-hidden="true"></i><span>Correct alignment (estimated)</span></label></div></details><button type="button" class="trace-focus-button" data-trace-focus="open" aria-expanded="false" aria-controls="charts" title="Show speed trace and timing delta across the full page">Expand charts</button><button type="button" class="trace-focus-button trace-focus-close" data-trace-focus="close" title="Return to session analysis">Close view</button>` : name === 'Timing delta' ? `
         <div class="trace-zoom-cluster delta-zoom-cluster" aria-label="Timing delta vertical zoom controls">
           <span class="trace-zoom-readout">Scale <b id="timingDeltaZoomReadout">${Math.round(timingDeltaZoom * 100)}%</b></span>
           <div class="trace-tools">
@@ -318,12 +318,7 @@ function renderCharts() {
         </div>` : ''}</div>
       ${name === 'Speed trace' ? `
         <div class="speed-chart-controls">
-          <div class="trace-settings" aria-label="Telemetry display settings">
-            <div class="alignment-readout"><i></i><span id="alignmentStatus" data-state="idle">Speed trace controls</span></div>
-            <label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label>
-            <label class="trace-setting" title="Label every measured speed peak and dip. Each lap uses its own minimum or maximum, matched to the other laps by GPS position. The fastest lap shows its speed in km/h; the others show their difference. A dash means that lap has no matching measured extreme."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label>
-            <label class="trace-setting" title="Experimental estimate: integrate each lap's measured speed over time and normalize distance within official sectors. This changes the horizontal mapping, not the measured values. Never matches drivers' braking points. Incomplete or unsuitable laps retain the original mapping."><input type="checkbox" id="alignmentCorrectionToggle" ${estimateAlignmentCorrection ? 'checked' : ''} aria-describedby="alignmentCorrectionNotice"><i aria-hidden="true"></i><span>Correct alignment (estimated)</span></label>
-          </div>
+          <div class="alignment-readout"><i></i><span id="alignmentStatus" data-state="idle">Speed trace controls</span></div>
           <div class="trace-display-bar">
             <span>Visible traces</span>
             <div class="trace-driver-toggles" id="traceDriverToggles"></div>

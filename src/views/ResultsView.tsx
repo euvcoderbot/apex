@@ -25,6 +25,15 @@ const value = (n: number | null | undefined) => (finite(n) ? n : '—');
 
 /** Car performance · Reliability and results. */
 export function ResultsView({rows, chartMetric, chart, sort}: ResultsViewProps) {
+  // The overview table follows the chart's measure and ordering. Detailed
+  // results below retain their independent user-selected table sort.
+  const key = (chart.valueKey || 'value') as keyof ResultRow;
+  const overview = [...rows].sort((a, b) => {
+    const av = a[key], bv = b[key];
+    if (!finite(av)) return finite(bv) ? 1 : 0;
+    if (!finite(bv)) return -1;
+    return chart.invertBest ? Number(bv) - Number(av) : Number(av) - Number(bv);
+  });
   return (
     <>
       <Card title="Reliability and results"
@@ -32,10 +41,12 @@ export function ResultsView({rows, chartMetric, chart, sort}: ResultsViewProps) 
         <div className="performance-results-measure">
           <SegmentedControl name="results-chart" label="Results measure" value={chartMetric} options={MEASURES} />
         </div>
-        <BarChart rows={rows} options={chart} />
+        <div className="results-overview">
+        <BarChart rows={overview} options={chart} />
         <DataTable headers={['Team', 'Total points', 'Race', 'Sprint', 'Race points / start', 'Finished / starts']}
-          rows={rows.map(t => [<TeamLabel team={t} />, value(t.points), value(t.racePoints), value(t.sprintPoints),
+          rows={overview.map(t => [<TeamLabel team={t} />, value(t.points), value(t.racePoints), value(t.sprintPoints),
             fmt(t.pointsPerStart, 2), `${t.finishes} / ${t.starts}`])} />
+        </div>
         <details className="performance-evidence">
           <summary>Detailed results and reliability</summary>
           <DataTable

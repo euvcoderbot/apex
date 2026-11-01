@@ -39,6 +39,36 @@ test('recorded qualifying comparison renders both laps and supports trace toggle
   expect(errors).toEqual([]);
 });
 
+test('qualifying phases, empty comparison alignment and compute settings remain usable', async ({page}) => {
+  const errors = await loaded(page);
+  await expect(page.locator('.run-segment strong').filter({hasText: /^Stint/})).toHaveCount(0);
+  await page.locator('#clearComparison').click();
+  const centers = await page.locator('.comparison-tray').evaluate(root => {
+    const center = el => { const r = el.getBoundingClientRect(); return r.y + r.height / 2; };
+    return [center(root.querySelector('.comparison-tray-heading')), center(root.querySelector('.section-empty'))];
+  });
+  expect(Math.abs(centers[0] - centers[1])).toBeLessThan(1);
+  await expect(page.locator('.workspace-tools > .local-compute-status')).toHaveCount(0);
+  await page.getByRole('button', {name: 'Compute settings', exact: true}).click();
+  await expect(page.locator('#computeSettings')).toBeVisible();
+  await expect(page.locator('#computeSettings .local-compute-status')).toBeVisible();
+  await page.keyboard.press('Escape');
+  // A presentation-only narrow-header fixture: no synthetic telemetry enters
+  // the comparison. Include the widest selectable speed heading and its icon.
+  const overflow = await page.locator('.app-inspector').evaluate(root => {
+    const fixture = document.createElement('div');
+    fixture.innerHTML = '<table class="corner-measurement-table"><thead><tr><th>Driver</th><th>Time s</th><th>Delta s</th><th aria-sort="ascending"><button data-corner-sort="speed"><span>Min <small>km/h</small></span><svg viewBox="0 0 12 16"></svg></button></th></tr></thead></table>';
+    root.append(fixture);
+    const cell = fixture.querySelector('th:last-child'), button = cell.querySelector('button');
+    const result = Math.max(button.scrollWidth - button.clientWidth,
+      button.getBoundingClientRect().right - cell.getBoundingClientRect().right);
+    fixture.remove();
+    return result;
+  });
+  expect(overflow).toBeLessThanOrEqual(1);
+  expect(errors).toEqual([]);
+});
+
 test('partial source history discloses gaps without blocking supported comparisons',async({page})=>{
   const errors=await loaded(page,{partial:true});
   await expect(page.locator('canvas[data-chart="Speed trace"]')).toBeVisible();

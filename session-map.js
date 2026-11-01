@@ -1,4 +1,59 @@
 /* Session analysis: track map and mini-sector dominance. */
+// Numbered corner markers touching the road, shared by both track maps. They sit beside the road so its colours stay visible. Crowded corners
+// choose first, a corner with no room slides along the road, and only then does one step away with a line back. Every corner keeps its number.
+function placeRoadBeads(ctx, items, {road, pointAt, width, height, roadHalf, isFree = () => true}) {
+  const beads = [];
+  const roadLength = road.reduce((sum, p, i) => i ? sum + Math.hypot(p.x - road[i - 1].x, p.y - road[i - 1].y) : 0, 0) || 1;
+  const roadDistance = (x, y) => {
+    let best = Infinity;
+    for (let i = 0; i < road.length; i++) {
+      const a = road[i], b = road[(i + 1) % road.length];
+      const dx = b.x - a.x, dy = b.y - a.y, t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+      best = Math.min(best, Math.hypot(a.x + dx * t - x, a.y + dy * t - y));
+    }
+    return best;
+  };
+  const free = (x, y, radius) => x >= radius + 2 && y >= radius + 2 && x <= width - radius - 2 && y <= height - radius - 2
+    && beads.every(b => Math.hypot(b.x - x, b.y - y) >= b.radius + radius + 1) && roadDistance(x, y) >= radius + roadHalf && isFree(x, y, radius);
+  const crowding = item => {
+    const here = pointAt(item.fraction);
+    return here ? Math.min(Infinity, ...items.filter(other => other !== item).map(other => { const there = pointAt(other.fraction); return there ? Math.hypot(there.x - here.x, there.y - here.y) : Infinity; })) : Infinity;
+  };
+  [...items].sort((a, b) => crowding(a) - crowding(b)).forEach(item => {
+    const point = pointAt(item.fraction);
+    if (!point) return;
+    const radius = Math.max(6.5, ctx.measureText(item.label).width / 2 + 2);
+    let spot = null;
+    for (const slide of [0, 5, -5, 10, -10, 15, -15, 20, -20, 26, -26, 32, -32]) {
+      const fraction = Math.max(0, Math.min(1, item.fraction + slide / roadLength));
+      const here = pointAt(fraction), before = pointAt(Math.max(0, fraction - 4 / roadLength)), after = pointAt(Math.min(1, fraction + 4 / roadLength));
+      if (!here || !before || !after) continue;
+      const length = Math.hypot(after.x - before.x, after.y - before.y) || 1;
+      const normal = {x: -(after.y - before.y) / length, y: (after.x - before.x) / length};
+      const outward = item.outward || {x: 0, y: -1};
+      const first = normal.x * outward.x + normal.y * outward.y >= 0 ? 1 : -1;
+      for (const gap of [0, 3, 7, 12]) for (const side of [first, -first]) {
+        const x = here.x + normal.x * side * (radius + roadHalf + gap), y = here.y + normal.y * side * (radius + roadHalf + gap);
+        if (!spot && free(x, y, radius)) spot = {x, y};
+      }
+      if (spot) break;
+    }
+    if (!spot) {
+      for (const distance of [24, 30, 38, 48, 60, 76]) {
+        for (let step = 0; step < 16 && !spot; step++) {
+          const theta = step * Math.PI / 8, x = point.x + Math.cos(theta) * distance, y = point.y + Math.sin(theta) * distance;
+          if (free(x, y, radius)) spot = {x, y};
+        }
+        if (spot) break;
+      }
+    }
+    // A tiny map can have no free place at all; the number still shows, at the corner.
+    if (!spot) spot = {x: point.x, y: point.y};
+    beads.push({...spot, radius, label: item.label, point});
+  });
+  return beads;
+}
+
 function renderMiniSectorMap() {
   mapStaticLayer=null;
   const canvas = $('#dominanceCanvas');
@@ -263,59 +318,11 @@ function renderMiniSectorMap() {
     ctx.font = canvasFont(8, 700);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const light = lightThemeActive(), roadHalf = 3.5, beads = [];
-    const roadLength = canvasGeometry.reduce((sum, p, i) => i ? sum + Math.hypot(p.x - canvasGeometry[i - 1].x, p.y - canvasGeometry[i - 1].y) : 0, 0) || 1;
-    const roadDistance = (x, y) => {
-      let best = Infinity;
-      for (let i = 0; i < canvasGeometry.length; i++) {
-        const a = canvasGeometry[i], b = canvasGeometry[(i + 1) % canvasGeometry.length];
-        const dx = b.x - a.x, dy = b.y - a.y, t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / (dx * dx + dy * dy || 1)));
-        best = Math.min(best, Math.hypot(a.x + dx * t - x, a.y + dy * t - y));
-      }
-      return best;
-    };
-    const free = (x, y, radius) => x >= radius + 2 && y >= radius + 2 && x <= rect.width - radius - 2 && y <= rect.height - radius - 2
-      && beads.every(b => Math.hypot(b.x - x, b.y - y) >= b.radius + radius + 1) && roadDistance(x, y) >= radius + roadHalf;
-    const crowding = corner => {
-      const here = pointAt(corner.fraction);
-      return here ? Math.min(...markerCorners.filter(other => other !== corner).map(other => { const there = pointAt(other.fraction); return there ? Math.hypot(there.x - here.x, there.y - here.y) : Infinity; })) : Infinity;
-    };
-    // Crowded corners choose first, while there is still room beside them.
-    [...markerCorners].sort((a, b) => crowding(a) - crowding(b)).forEach(corner => {
-      const point = pointAt(corner.fraction);
-      if (!point) return;
-      const label = cornerLabel(corner).replace(/^T/, '');
-      const radius = Math.max(6.5, ctx.measureText(label).width / 2 + 2);
+    const light = lightThemeActive(), roadHalf = 3.5;
+    const beads = placeRoadBeads(ctx, markerCorners.map(corner => {
       const angle = Number(corner.angle) * Math.PI / 180;
-      const outward = Number.isFinite(angle) ? {x: Math.cos(angle), y: -Math.sin(angle)} : {x: 0, y: -1};
-      let spot = null;
-      for (const slide of [0, 5, -5, 10, -10, 15, -15, 20, -20, 26, -26, 32, -32]) {
-        const fraction = Math.max(0, Math.min(1, corner.fraction + slide / roadLength));
-        const here = pointAt(fraction), before = pointAt(Math.max(0, fraction - 4 / roadLength)), after = pointAt(Math.min(1, fraction + 4 / roadLength));
-        if (!here || !before || !after) continue;
-        const length = Math.hypot(after.x - before.x, after.y - before.y) || 1;
-        const normal = {x: -(after.y - before.y) / length, y: (after.x - before.x) / length};
-        const first = normal.x * outward.x + normal.y * outward.y >= 0 ? 1 : -1;
-        for (const gap of [0, 3, 7, 12]) for (const side of [first, -first]) {
-          const x = here.x + normal.x * side * (radius + roadHalf + gap), y = here.y + normal.y * side * (radius + roadHalf + gap);
-          if (!spot && free(x, y, radius)) spot = {x, y};
-        }
-        if (spot) break;
-      }
-      if (!spot) {
-        // Nothing free beside the road here: the nearest free place, with a line back to the corner.
-        for (const distance of [24, 30, 38, 48, 60, 76]) {
-          for (let step = 0; step < 16 && !spot; step++) {
-            const theta = step * Math.PI / 8, x = point.x + Math.cos(theta) * distance, y = point.y + Math.sin(theta) * distance;
-            if (free(x, y, radius)) spot = {x, y};
-          }
-          if (spot) break;
-        }
-      }
-      // A tiny map can have no free place at all; the number still shows, at the corner.
-      if (!spot) spot = {x: point.x, y: point.y};
-      beads.push({...spot, radius, label, point});
-    });
+      return {fraction: corner.fraction, label: cornerLabel(corner).replace(/^T/, ''), outward: Number.isFinite(angle) ? {x: Math.cos(angle), y: -Math.sin(angle)} : {x: 0, y: -1}};
+    }), {road: canvasGeometry, pointAt, width: rect.width, height: rect.height, roadHalf});
     for (const {x, y, radius, point} of beads) {
       const distance = Math.hypot(point.x - x, point.y - y);
       if (distance <= radius + roadHalf + 14) continue;

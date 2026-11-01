@@ -55,6 +55,18 @@ test('results view keeps the segmented measure, sort headers and retirement badg
   assert.match(html, /<img class="gp-flag" src="assets\/flags\/bh.svg"/);
 });
 
+test('results overview table follows the chart measure, independent of detailed-table sorting', () => {
+  const html = render(views.ResultsView, {
+    rows: [row('Ferrari', 40, {pointsPerStart: 5}), row('Mercedes', 20, {pointsPerStart: 10}), row('Cadillac', null)],
+    chartMetric: 'perStart', chart: {title: 'Points / start', valueKey: 'pointsPerStart', signedValue: false, invertBest: true},
+    sort: Object.fromEntries(['resultTeam', 'points', 'pointsPerStart', 'finish', 'finishRate', 'mechanicalRate', 'pu', 'chassis', 'incidents', 'other', 'mechanicalExposure'].map(k => [k, sortModel(k)]))
+  });
+  const overview = html.split('class="results-overview"')[1].split('<details')[0];
+  const table = overview.split('<tbody>')[1];
+  assert.ok(table.indexOf('Mercedes') < table.indexOf('Ferrari'));
+  assert.ok(table.indexOf('Ferrari') < table.indexOf('Cadillac'));
+});
+
 test('bar chart rebases to the best entrant and marks provisional values', () => {
   const html = render(views.BarChart, {rows: [{team: 'A', value: 1.5, color: '#00ff00'}, {team: 'B', value: 1.0, traceProvisional: true}], options: {unit: '%'}});
   assert.ok(html.indexOf('>B<') < html.indexOf('>A<'), 'best first');

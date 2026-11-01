@@ -9,7 +9,7 @@ test('richer run choices are not forced into the regular thirty-pixel segment co
   assert.match(ui,/el\.matches\('\.run-segment'\)\)return 'run'/);
   assert.match(css,/grid-template-columns: repeat\(var\(--run-count,3\),minmax\(0,1fr\)\)/);
   assert.match(css,/run-segment\[data-ui-kind="run"\][^}]*min-height: 38px; height: auto/);
-  assert.match(appSource(),/class="run-segments" style="--run-count:/);
+  assert.match(appSource(),/class="run-segments"[^\n]*style="--run-count:/);
 });
 
 test('wide driver rail reuses the same node and keeps compact windows in the chooser',()=>{

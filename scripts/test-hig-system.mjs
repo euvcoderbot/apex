@@ -34,6 +34,9 @@ test('type uses one ramp and section headers share one style across both views',
   const ramp = new Set(['var(--type-caption)', 'var(--type-callout)', 'var(--type-body)', 'var(--type-headline)', 'var(--type-title3)', 'var(--type-title2)', 'var(--type-title1)', 'inherit', '0']); // 0: an icon-only label, kept for assistive technology
   const sectorDeficitSelector = '.sector-cards .lap-summary-card .sector-delta-slot .summary-delta';
   root.walkDecls('font-size', decl => assert.ok(ramp.has(decl.value) ||
+    // Explicit user-requested two-pixel reduction, scoped to inspector tyre details.
+    (decl.parent.selector === '.lap-summary-card .summary-tyre, .lap-summary-card .summary-tyre b' && decl.value === 'calc(var(--type-callout) - 2px)') ||
+    (['.lap-summary-card .summary-tyre small', '.lap-summary-card .summary-tyre .compound-badge'].includes(decl.parent.selector) && decl.value === 'calc(var(--type-caption) - 2px)') ||
     (decl.parent.selector === sectorDeficitSelector && decl.value === 'calc(var(--type-caption) * .85)'),
     decl.parent.selector + ' uses off-ramp ' + decl.value));
   assert.deepEqual(declared(rulesFor(/^\.sector-cards \.lap-summary-card \.sector-delta-slot \.summary-delta$/), 'font-size'), ['calc(var(--type-caption) * .85)']);
