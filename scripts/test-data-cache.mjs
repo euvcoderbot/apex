@@ -237,7 +237,7 @@ test('race selection starts its loader and pace does not eagerly fetch qualifyin
   const source=readFileSync('car-performance.js','utf8'),calls=[];
   const box={running:false,context:{},activeMetric:'corners',cornerSession:'race',telemetrySubject:'team',
     loadRaceCorners:()=>calls.push('race'),loadQualifyingMetrics:()=>calls.push('qualy'),
-    speedDomainActive:()=>false,loadSpeedDomain:()=>calls.push('speed')};
+    speedDomainActive:()=>false,loadSpeedDomainBoth:()=>calls.push('speed')};
   vm.createContext(box);vm.runInContext(source.slice(source.indexOf('function loadActiveTelemetry()'),source.indexOf('async function loadPitData(')),box);
   box.loadActiveTelemetry();assert.deepEqual(calls,['race']);
   box.activeMetric='pace';box.loadActiveTelemetry();assert.equal(calls.length,1);

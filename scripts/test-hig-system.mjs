@@ -49,12 +49,12 @@ test('motion is brief, never replays on re-render and honours Reduce Motion, Tra
     assert.ok(css.includes(query), query);
   }
   // Translucent materials only on the navigation layer (toolbar, sticky table headers) and the
-  // transient layer (menus, popovers, tooltips, toasts, sheets). Cards, charts and tables stay opaque.
+  // transient layer (menus, popovers, tooltips, toasts, sheets) and the window's floating panes. Cards, charts and tables stay opaque.
   const blurred = new Set();
   root.walkDecls(/^(-webkit-)?backdrop-filter$/, decl => { if (decl.value !== 'none') blurred.add(decl.parent.selector); });
   assert.deepEqual([...blurred].sort(), [
     '.circuit-guide-details[popover]', '.local-compute-dialog', '.local-compute-dialog::backdrop', '.performance-table th',
-    '.site-header, .site-header.window-toolbar', ':is(.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover])',
+    '.site-header, .site-header.window-toolbar', ':is(.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover])', 'body > main#top > .app-sidebar, body > #carPerformance > .app-sidebar, body > main#top > .app-inspector',
   ]);
   // Every translucent fill has an opaque fallback for Reduce Transparency, Increase Contrast and no backdrop-filter.
   for (const fallback of ['@media (prefers-reduced-transparency: reduce), (prefers-contrast: more)', '@supports not (backdrop-filter: blur(1px))']) assert.ok(css.includes(fallback), fallback);

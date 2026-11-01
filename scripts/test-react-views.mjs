@@ -17,7 +17,7 @@ export {PaceView} from './src/views/PaceView';
 export {TyresView} from './src/views/TyresView';
 export {SpeedView} from './src/views/SpeedView';
 export {RaceCornersView} from './src/views/RaceCornersView';
-export {Sparkline} from './src/components/Sparkline';
+export {TrendChart} from './src/components/TrendChart';
 export {BarChart} from './src/components/BarChart';
 export {DivergingBarChart} from './src/components/DivergingBarChart';
 export {DataTable} from './src/components/DataTable';
@@ -88,9 +88,9 @@ test('pit stops view draws the measured sample, never a zero for a missing stop'
   assert.match(html, /is-unranked/);
 });
 
-test('development sparklines show real rounds and never join unobserved gaps', () => {
-  const html = render(views.Sparkline, {label: 'Example', teamColor: '#123456', lo: 16, hi: 18, ceiling: 1,
-    points: [{round: 16, pace: 1, event: 'A'}, {round: 18, pace: .5, event: 'B'}]});
+test('development chart shows real rounds and never joins unobserved gaps', () => {
+  const html = render(views.TrendChart, {lo: 16, hi: 18, ceiling: 1, series: [{key: 'Example', label: 'Example', teamColor: '#123456',
+    points: [{round: 16, pace: 1, event: 'A'}, {round: 18, pace: .5, event: 'B'}]}]});
   assert.equal((html.match(/<circle/g) || []).length, 2);
   assert.match(html, /common scale across teams/);
   assert.doesNotMatch(html, /data-trend-segment/, 'round 17 is missing: the line breaks');

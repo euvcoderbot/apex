@@ -466,6 +466,8 @@ async function loadRealSession() {
 function setSessionLoading(value) {
   const analysis=$('.analysis-column'),sidebar=$('#driverSidebar');
   if(analysis){analysis.inert=value;analysis.setAttribute('aria-busy',String(value));}
+  const inspector=$('#sessionInspector');
+  if(inspector)inspector.inert=value;
   if(sidebar)sidebar.inert=value||$('main')?.classList.contains('sidebar-collapsed');
 }
 

@@ -510,9 +510,9 @@ function driverSelectionsFromQualifying(teams) {
   }
   return best.size>=3?[...best.values()]:null;
 }
-async function loadSpeedDomain(automatic=false) {
-  if(!context||speedDomainRunning[telemetrySubject])return;
-  const subject=telemetrySubject,id=generation,year=context.year;
+async function loadSpeedDomain(automatic=false,subject=telemetrySubject) {
+  if(!context||speedDomainRunning[subject])return;
+  const id=generation,year=context.year;
   const jobs=events.filter(e=>e.Q&&!e.speedDomain?.[subject]&&firstTelemetryAttempt(e,'speed-domain:'+subject,automatic));
   if(!jobs.length)return;
   speedDomainController[subject]=new AbortController();const signal=speedDomainController[subject].signal;
@@ -546,8 +546,8 @@ async function loadSpeedDomain(automatic=false) {
       if(id!==generation||signal.aborted)return;
       if(!Object.keys(result.speed_domain?.cars||{}).length)throw new Error(result.speed_domain?.error||result.error||'Qualifying telemetry returned no measured entrants. Retry this GP when the source is available.');
       (event.speedDomain ||= {})[subject]=result.speed_domain;
-      delete event.speedDomainError;
-    }catch(error){if(signal.aborted)return;event.speedDomainError=error.message;}
+      delete event[speedDomainErrorKey(subject)];
+    }catch(error){if(signal.aborted)return;event[speedDomainErrorKey(subject)]=error.message;}
     scheduleRender();
   }}
   try{await Promise.all([worker(),worker()]);}
@@ -555,9 +555,15 @@ async function loadSpeedDomain(automatic=false) {
   // the page needs now, or the new view would wait forever.
   finally{if(id===generation){speedDomainRunning[subject]=false;updateStatus(signal.aborted?'Speed-domain loading stopped; measured GPs retained.':'Speed-domain metrics updated. Results are cached.');render();if(!signal.aborted)loadActiveTelemetry();}}
 }
+function speedDomainErrorKey(subject){return subject==='driver'?'speedDomainDriverError':'speedDomainError';}
+// The team and driver charts sit side by side: the subject in view loads first, the other follows.
+async function loadSpeedDomainBoth() {
+  await loadSpeedDomain(true,telemetrySubject);
+  await loadSpeedDomain(true,telemetrySubject==='driver'?'team':'driver');
+}
 function loadActiveTelemetry() {
   if(!context)return;
-  if(speedDomainActive())return void loadSpeedDomain(true);
+  if(speedDomainActive())return void loadSpeedDomainBoth();
   if(activeMetric==='corners'&&cornerSession==='race')void loadRaceCorners(true);
 }
 
@@ -1130,7 +1136,11 @@ function tyreAgeView(teams) {
 
 function renderRace(teams) {
   // Rendered by src/views/TyresView.tsx; data-tyre-* buttons and selects are handled below.
-  if(tyreMetric==='age')return reactView('tyres',{metric:'age',subject:tyreSubject,...tyreAgeView(teams)});
+  if(tyreMetric==='age'){
+    const view=tyreAgeView(teams);
+    const chartFor=subject=>{if(subject===tyreSubject)return view.chart;const shown=tyreSubject;tyreSubject=subject;try{return tyreAgeView(teams).chart;}finally{tyreSubject=shown;}};
+    return reactView('tyres',{metric:'age',subject:tyreSubject,...view,chart:chartFor('team'),driverChart:chartFor('driver')});
+  }
   const rows=[];
   const usableStint = s => finite(s.relativeSlope) && s.matchedLaps >= 6 && s.fieldSupport >= 2;
   const cohortTeams = new Map();
@@ -1458,8 +1468,8 @@ function renderPits(teams) {
   const failures=events.filter(e=>sessionAvailable(e,'Race')&&e.pitError);
   const pending=data.total-data.loaded-failures.length;
   const note=`${data.loaded}/${data.total} race${data.total===1?'':'s'} loaded${pending>0?' · loading pit timing…':''}${failures.length?` · ${failures.length} race${failures.length===1?'':'s'} unavailable`:''}. Stationary is the broadcast-style time stopped at the box; pit-lane time includes the stop. Raw summaries weight every timed visit; GP-relative lane summaries compare each team or driver's GP median with the median of team GP medians, then give each GP equal weight. Mean includes long stops; median shows a typical visit; the middle-50% spread shows consistency (≥4 samples); P10 and P90 show the quick and slow tails (≥10 samples). Missing stationary times are never inferred.`;
-  const chartRows=ordered.map(r=>({...r,displayName:isDriver?r.driver:r.team,
-    logoTeam:r.team,chartValue:pitChartMetric==='spread'?pitMiddleSpread(r[measure]):r[measure][pitChartMetric]}));
+  const chartRowsFor=driver=>sorted(driver?data.drivers:data.teams,{pitName:r=>driver?r.driver:r.team,pitTeam:r=>r.team,pitMean:r=>r[measure].mean,pitMedian:r=>r[measure].median,pitTrimmed:r=>r[measure].trimmed,pitWinsorized:r=>r[measure].winsorized,pitFastest:r=>r[measure].fastest,pitP10:r=>r[measure].p10,pitP90:r=>r[measure].p90,pitSpread:r=>pitMiddleSpread(r[measure]),pitCount:r=>r[measure].count,pitEvents:r=>r.eventCount},'pitMedian')
+    .map(r=>({...r,displayName:driver?r.driver:r.team,logoTeam:r.team,chartValue:pitChartMetric==='spread'?pitMiddleSpread(r[measure]):r[measure][pitChartMetric]}));
   const chartTitle=pitChartMetric==='trimmed'?'10% trimmed mean':pitChartMetric==='winsorized'?'10% winsorized mean':pitChartMetric==='spread'?'Middle-50% spread':pitChartMetric==='p10'?'P10 quick-end time':pitChartMetric==='p90'?'P90 slow-tail time':pitChartMetric==='mean'?'Mean time':pitChartMetric==='fastest'?(relativeLane?'Best GP gap':'Quickest visit'):'Median time';
   // Rendered by src/views/PitsView.tsx; its data-pit-* buttons are handled below.
   const sample=r=>({...r[measure],spread:pitMiddleSpread(r[measure])});
@@ -1472,13 +1482,13 @@ function renderPits(teams) {
         // Refreshing can only fill a race DHL has since published, or a single missed match.
         refresh:gaps.awaiting+gaps.other>0&&events.some(e=>e.pits&&e.pits.stationary_status!=='complete')};})(),
     isLane,isDriver,relativeLane,chartMetric:pitChartMetric,
-    chartRows:chartRows.filter(r=>r),chart:{
-      title:`${chartTitle} · ${relativeLane?'vs GP median':isLane?'pit lane':'stationary stop'} · ${isDriver?'drivers':'teams'}`,
+    chartRows:chartRowsFor(false),driverChartRows:chartRowsFor(true),chart:{
+      title:`${chartTitle} · ${relativeLane?'vs GP median':isLane?'pit lane':'stationary stop'} · Teams`,
       subtitle:pitChartMetric==='spread'
         ? `75th minus 25th percentile · at least four ${relativeLane?'GPs':'visits'} · lower is more consistent`
         : pitChartMetric==='p10'||pitChartMetric==='p90'?`${pitChartMetric==='p10'?'10th':'90th'} percentile · at least ten ${relativeLane?'GPs':'visits'} · lower is better`
         : relativeLane?'Equal-weighted GP median gaps; zero is the GP field median':'Visit-weighted seconds · lower is faster',
-      valueKey:'chartValue',labelKey:isDriver?'driver':'team',unit:' s',digits:3,signedValue:relativeLane&&pitChartMetric!=='spread',preserveSignedValues:relativeLane&&pitChartMetric!=='spread',zeroBaseline:true},
+      valueKey:'chartValue',labelKey:'team',unit:' s',digits:3,signedValue:relativeLane&&pitChartMetric!=='spread',preserveSignedValues:relativeLane&&pitChartMetric!=='spread',zeroBaseline:true},
     emptyMessage:pending>0?'Loading published pit timings… measured visits will appear as each selected race is received.':['trimmed','winsorized','p10','p90'].includes(pitChartMetric)?'This statistic needs at least ten measured visits (or ten GPs in GP-relative mode).':pitChartMetric==='spread'?'At least four samples per team or driver are needed for the middle-50% chart.':pitMeasure==='stop'?'No published stationary-stop times for the selected races. Pit-lane timing is a separate measurement; select Pit lane to view it.':'No timed pit-lane visits for the selected races yet.',
     rows:ordered.map(r=>({...r,sample:sample(r)})),
     sort:Object.fromEntries([['pitName',isDriver?'Driver':'Team',1],['pitTeam','Team',1],['pitMean','Mean',1],['pitMedian','Median',1],
@@ -1758,20 +1768,20 @@ let straightPill='track_straights';
 // Several GPs: corner and straight gaps as a share of the lap (the qualifying
 // gap's scale) or of that section's own time.
 let gapBasis='lap'; // 'lap' | 'section'
-function speedDomainEntities() {
+function speedDomainEntities(subject=telemetrySubject) {
   const style=new Map();
   for(const event of events){
-    const list=telemetrySubject==='driver'?event.qualifyingDrivers||[]:event.Q?.teams||[];
+    const list=subject==='driver'?event.qualifyingDrivers||[]:event.Q?.teams||[];
     for(const t of list)if(!style.has(t.team))style.set(t.team,{team:t.team,color:t.color,displayName:t.displayName,logoTeam:t.logoTeam});
   }
   return style;
 }
 // View data for src/views/SpeedView.tsx (Cornering, Straight line, Braking).
-function speedDomainChart(key,title,subtitle) {
-  const meta=SPEED_DOMAIN_METRICS[key],season=speedDomainSeason(events,telemetrySubject,key),style=speedDomainEntities();
+function speedDomainChart(key,title,subtitle,subject=telemetrySubject) {
+  const meta=SPEED_DOMAIN_METRICS[key],season=speedDomainSeason(events,subject,key),style=speedDomainEntities(subject);
   const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason,traceProvisional:r.provisional}));
   // While GPs are still loading an empty chart is pending, not a missing measurement.
-  if(!rows.length)return {title:title||meta.label,empty:running||speedDomainRunning[telemetrySubject]?'Loading qualifying telemetry…':key.startsWith('corner_')?'No shared supported corner measurement in this band. Missing values are not zero.':'No supported measurement in the loaded GPs. Missing values are not zero.'};
+  if(!rows.length)return {title:title||meta.label,empty:running||speedDomainRunning[subject]?'Loading qualifying telemetry…':key.startsWith('corner_')?'No shared supported corner measurement in this band. Missing values are not zero.':'No supported measurement in the loaded GPs. Missing values are not zero.'};
   return {title:title||meta.label,rows,options:{title:title||meta.label,subtitle:`${subtitle?subtitle+' · ':''}${season.gps} supported GP${season.gps===1?'':'s'} of ${events.filter(e=>e.Q).length} selected · ${season.events.join(', ')} · 0 = best${rows.some(r=>r.traceProvisional)?' · ≈ provisional: source gaps >0.6 s':''}`,unit:meta.unit,digits:meta.digits}};
 }
 function speedDomainLowConfidence(key) {
@@ -1823,10 +1833,13 @@ function speedDomainStraightTable() {
 }
 function renderSpeedDomain() {
   const loaded=events.filter(e=>e.speedDomain?.[telemetrySubject]?.cars).length,total=events.filter(e=>e.Q).length;
-  const failed=events.filter(e=>e.Q&&(e.speedDomainError||e.speedDomain?.[telemetrySubject]?.error));
+  const errorKey=speedDomainErrorKey(telemetrySubject);
+  const failed=events.filter(e=>e.Q&&(e[errorKey]||e.speedDomain?.[telemetrySubject]?.error));
+  // One chart per subject, side by side. Details below still follow the Teams / Drivers choice.
+  const subjectCharts=(key,title,subtitle)=>({chart:speedDomainChart(key,title+' · Teams',subtitle,'team'),driverChart:speedDomainChart(key,title+' · Drivers',subtitle,'driver')});
   // Rendered by src/views/SpeedView.tsx; its data-straight-pill and data-speed-retry buttons are handled below.
   const head={status:{running:!!speedDomainRunning[telemetrySubject],loaded,total},
-    failures:failed.map(e=>({name:e.name,error:String(e.speedDomainError||e.speedDomain[telemetrySubject].error)})),
+    failures:failed.map(e=>({name:e.name,error:String(e[errorKey]||e.speedDomain[telemetrySubject].error)})),
     retry:failed.length&&!speedDomainRunning[telemetrySubject]?failed.length:0};
   if(activeMetric==='corners'){
     // One GP: seconds per lap. Several: % of the field's time in that corner
@@ -1834,11 +1847,13 @@ function renderSpeedDomain() {
     // fast ones are not the same size of deficit.
     const several=events.filter(e=>e.Q).length>1,suffix=several?(gapBasis==='lap'?'_lap':'_pct'):'';
     const per=!several?' · seconds per lap':gapBasis==='lap'?' · % of the lap lost to the best':' · % slower through these corners than the best';
+    const cornerBands=subject=>[['corner_low','Low-speed corners','below 120 km/h'],['corner_medium','Medium-speed corners','120–200 km/h'],['corner_high','High-speed corners','above 200 km/h']]
+      .map(([key,title,range])=>speedDomainChart(key+suffix,title+(subject==='driver'?' · Drivers':' · Teams'),range+per,subject));
     return reactView('speed',{...head,metric:'corners',basis:several?gapBasis:null,
       note:`Compare the measured speed traces over identical corner distances, with shared braking, mid-corner and exit phases. No hypothetical exit-speed credit or GPS path-length stretch enters the score. This assumes a common path: real racing-line differences are not resolved, and power, setup, driver and entry context still matter. ${!several?'Values are estimated seconds across this GP’s supported corners in each band.':gapBasis==='lap'?'Values are % of the lap lost in that corner type, the same scale as the qualifying gap: the three bands and the straights add up towards it. Each supported GP has equal weight.':'Values are % slower through that corner type than the field takes in those corners, not % of the lap: a car 5% slower in low-speed corners that make up a fifth of the lap loses about 1% of the lap there. Each supported GP has equal weight.'} Bands use the field minimum: low ≤120 km/h, medium 120–200, high >200. ≈ marks source gaps over 0.6 s; inspect the evidence before treating small gaps as meaningful.`,
-      charts:[speedDomainChart('corner_low'+suffix,'Low-speed corners','below 120 km/h'+per),speedDomainChart('corner_medium'+suffix,'Medium-speed corners','120–200 km/h'+per),speedDomainChart('corner_high'+suffix,'High-speed corners','above 200 km/h'+per)],
+      charts:cornerBands('team'),driverCharts:cornerBands('driver'),
       phases:speedDomainPhaseTable(),corners:speedDomainCornerTable(),events:speedDomainEventTable(['corner_low','corner_medium','corner_high'].map(k=>k+suffix)),
-      traction:{lowConfidence:speedDomainLowConfidence('traction'),chart:speedDomainChart('traction','Traction (corner exit)','70–170 km/h'),events:speedDomainEventTable(['traction'])}});
+      traction:{lowConfidence:speedDomainLowConfidence('traction'),...subjectCharts('traction','Traction (corner exit)','70–170 km/h'),events:speedDomainEventTable(['traction'])}});
   }
   if(activeMetric==='straight'){
     const pill=STRAIGHT_PILLS.find(p=>p.key===straightPill)||STRAIGHT_PILLS[0];
@@ -1847,11 +1862,11 @@ function renderSpeedDomain() {
     const subtitle=!track?pill.subtitle:`${pill.subtitle} · ${!several?'seconds per lap':gapBasis==='lap'?'% of the lap lost to the best':'% slower on the straights than the best'}`;
     return reactView('speed',{...head,metric:'straight',pill:pill.key,pills:STRAIGHT_PILLS.map(({key,label,hint})=>({key,label,hint})),note:pill.note,
       basis:track&&several?gapBasis:null,straights:track?speedDomainStraightTable():null,
-      chart:speedDomainChart(key,pill.title,subtitle),events:speedDomainEventTable([key])});
+      ...subjectCharts(key,pill.title,subtitle),events:speedDomainEventTable([key])});
   }
   return reactView('speed',{...head,metric:'braking',lowConfidence:speedDomainLowConfidence('braking'),
     note:`Average deceleration from brake onset until the car reaches its own apex speed, at every braked corner. Distances come from GPS, and each car is compared with the field at the same speeds, because downforce makes every car brake harder when faster. % longer braking distance than the best ${telemetrySubject==='driver'?'driver':'team'}. The 4 Hz feed places the brake onset only to within a few metres, so differences under about 2% in a single GP are noise.`,
-    chart:speedDomainChart('braking','Longer braking distance','same speed drop · % longer than the best'),events:speedDomainEventTable(['braking'])});
+    ...subjectCharts('braking','Longer braking distance','same speed drop · % longer than the best'),events:speedDomainEventTable(['braking'])});
 }
 function renderMetricBoundaryEvidence(kind){
   if(kind==='tyres')return '<p class="performance-note">These derivatives describe fitted pace inside each run’s observed age range. A late slope increase can reflect wear, management or conditions; it is not a certified physical tyre cliff. Fuel adds the selected assumption to every slope. No curve is extrapolated into remaining tyre life.</p>'+table(
@@ -2182,7 +2197,8 @@ root.addEventListener('click',event=>{
   if(event.target.closest('[data-performance-refresh]')){void analyse(true);return;}
   if(event.target.closest('[data-qualifying-stop]')){qualifyingMetricsController?.abort();return;}
   if(event.target.closest('[data-speed-retry]')){
-    for(const e of events){if(e.speedDomainError||e.speedDomain?.[telemetrySubject]?.error){delete e.speedDomainError;if(e.speedDomain)delete e.speedDomain[telemetrySubject];}}
+    const errorKey=speedDomainErrorKey(telemetrySubject);
+    for(const e of events){if(e[errorKey]||e.speedDomain?.[telemetrySubject]?.error){delete e[errorKey];if(e.speedDomain)delete e.speedDomain[telemetrySubject];}}
     void loadSpeedDomain(false);return;
   }
   const gapBasisButton=event.target.closest('[data-gap-basis]');

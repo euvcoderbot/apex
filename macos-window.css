@@ -14,7 +14,7 @@ h1,h2,h3,h4 { font-family: var(--ui-font-display); color: var(--ui-label); }
 ::selection { background: color-mix(in srgb,var(--ui-selection) 55%,transparent); color: inherit; }
 :where(button,input,select,textarea,summary,a,[tabindex]):focus-visible { outline: 3px solid var(--ui-focus); outline-offset: 0; }
 a { color: var(--ui-accent); }
-.visually-hidden-window,.workspace-intro { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; margin: -1px; padding: 0; border: 0; }
+.workspace-intro { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; margin: -1px; padding: 0; border: 0; }
 .skip-link { top: -60px; left: 12px; padding: 6px 12px; border-radius: var(--radius-sm); background: var(--ui-action); color: #fff; font-size: var(--type-body); box-shadow: var(--ui-shadow-popover); }
 .skip-link:focus { top: 10px; }
 
@@ -168,7 +168,6 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .app-sidebar .track-pill .gp-flag,.app-sidebar .track-pill img { width: 18px; height: 13px; border-radius: var(--radius-2xs); box-shadow: 0 0 0 .5px var(--ui-border); }
 
 /* Category bar: a segmented tab strip at the top of the main pane. */
-#carPerformance > .category-bar:not([hidden]) { display: grid; grid-template-columns: repeat(8,minmax(0,1fr)); align-items: center; gap: 4px; width: auto; max-width: calc(100% - 40px); margin: 14px 20px 2px; padding: 4px; border: 1px solid var(--ui-separator); border-radius: var(--radius-lg); background: var(--ui-well); box-shadow: none; }
 .category-bar[hidden] { display: none; }
 .category-bar .category-tab,.category-bar .category-tab[data-ui-kind="tab"] {
   display: inline-flex; align-items: center; gap: 7px; height: var(--ui-control-height); min-height: var(--ui-control-height); padding: 0 12px; border: 0; border-radius: var(--radius-sm);
@@ -184,7 +183,6 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .category-bar .category-short { display: none; }
 @media(max-width:1339px) {
   /* Too narrow for one line: an even 4 x 2 grid with short labels. */
-  #carPerformance > .category-bar:not([hidden]) { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); width: auto; }
   .category-bar .category-tab,.category-bar .category-tab[data-ui-kind="tab"] { justify-content: flex-start; padding: 0 10px; }
   .category-bar .category-label { display: none; }
   .category-bar .category-short { display: inline; }
@@ -368,7 +366,6 @@ body.trace-focus .chart-heading .trace-focus-button:not(.trace-focus-close) { di
 .select-trigger > span { gap: 6px; }
 .performance-table .team-name { overflow: visible; text-overflow: clip; white-space: nowrap; }
 .performance-run-inspector { border-radius: var(--radius-md); }
-.trend-sparkline .performance-trend-label { font-size: var(--ui-caption); }
 /* Trace controls use the same round check mark as the driver list, centred on the label. */
 .trace-setting,.trace-driver-chip { display: inline-flex; align-items: center; gap: 7px; line-height: 1.2; }
 :is(.trace-setting,.trace-driver-chip) input[type="checkbox"],:is(.trace-setting,.trace-driver-chip) input[data-ui-kind="checkbox"] {
@@ -474,7 +471,7 @@ body.is-descriptions-hidden #performanceMetricPanel p.performance-quality-status
 .performance-bar-row { gap: 8px; min-height: 26px; padding-block: 3px; border-radius: var(--radius-xs); }
 .performance-bar-row:hover { background: var(--ui-row-hover); }
 .performance-bar-track { height: 6px; border-radius: var(--radius-xs); background: color-mix(in srgb,var(--ui-label) 8%,transparent); }
-.performance-bar-fill,.performance-bar { border-radius: var(--radius-xs); }
+.performance-bar { border-radius: var(--radius-xs); }
 .performance-bar-val { font-size: var(--type-body); font-weight: 500; color: var(--ui-label); }
 .performance-bar-label,.performance-team { font-size: var(--type-body); color: var(--ui-label); }
 /* Split chart + table: the table keeps its natural width, the chart takes the rest. */
@@ -486,9 +483,6 @@ body.is-descriptions-hidden #performanceMetricPanel p.performance-quality-status
 .performance-tyre-age-row .performance-team { min-height: 0; height: auto; }
 .performance-tyre-age-value { font-size: var(--type-body); font-weight: 500; }
 /* Development sparklines: compact inline plots so each team stays one dense row. */
-.trend-sparkline { width: 150px; padding: 0; border: 0; border-radius: 0; background: none; }
-.trend-sparkline svg { height: 30px; }
-.trend-sparkline .performance-trend-label { display: flex; justify-content: space-between; margin: 0; font-size: var(--type-caption); line-height: 1.1; color: var(--ui-tertiary); }
 .performance-trend-table :is(.trend-change,.trend-fitted),.performance-trend-table .performance-table td:nth-child(3) { white-space: nowrap; }
 /* Tables follow NSTableView: quiet header, hairline rows, zebra striping. */
 .performance-table-wrap { border: 1px solid var(--ui-separator); border-radius: var(--radius-md); background: var(--ui-content); overflow: auto; }
@@ -633,7 +627,6 @@ body.performance-view > #carPerformance:not([hidden]),body:not(.performance-view
   .app-sidebar .performance-controls > .performance-actions { margin: 0; }
   .app-sidebar .performance-controls #performanceTrackTray:not([hidden]) { grid-column: 1 / -1; }
   .app-sidebar .performance-track-pills { grid-template-columns: repeat(auto-fill,minmax(min(100%,220px),1fr)); max-height: none; }
-  #carPerformance > .category-bar:not([hidden]) { margin-inline: 16px; max-width: calc(100% - 32px); }
   #performanceResults > .performance-toolbar > .performance-mode { display: none; }
   #carPerformance > .performance-status-card,#carPerformance > #performanceResults { padding-inline: 16px; }
   #carPerformance > .performance-methods { margin-inline: 16px; }
@@ -660,7 +653,6 @@ body.performance-view > #carPerformance:not([hidden]),body:not(.performance-view
   .lap-workspace .run-toolbar > button { width: auto; }
   .app-sidebar .performance-controls { grid-template-columns: 96px minmax(0,1fr); }
   .app-sidebar .performance-controls > .performance-actions { grid-column: 1 / -1; }
-  #carPerformance > .category-bar:not([hidden]) { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .category-bar .category-tab,.category-bar .category-tab[data-ui-kind="tab"] { justify-content: flex-start; }
   #performanceMetricPanel .metric-heading h2 { font-size: 21px; }
   #performanceMetricPanel .metric-heading { grid-template-columns: minmax(0,1fr); grid-template-areas: "title" "count" "controls"; row-gap: 5px; }
@@ -730,7 +722,6 @@ main#top > .analysis-column { padding: 24px; gap: 20px; }
 .sector-cards .lap-summary-card .sector-cell-value :is(strong,em) { white-space: nowrap; }
 .sector-cards .lap-summary-card .summary-sectors > * { min-width: 0; }
 .category-bar .category-tab,.category-bar .category-tab[data-ui-kind="tab"] { min-height: var(--ui-control-height); height: var(--ui-control-height); padding-block: 0; border-radius: var(--ui-radius); }
-#carPerformance > .category-bar:not([hidden]) { padding: 4px; border-radius: var(--radius-lg); margin-top: 20px; }
 .performance-card-body > .performance-split-view,.performance-visual-cell,.performance-chart-card { border-radius: var(--radius-lg); }
 .performance-chart-card { padding: 16px; background: var(--ui-well); box-shadow: none; }
 .performance-table { font-size: var(--ui-text); }
@@ -739,7 +730,6 @@ main#top > .analysis-column { padding: 24px; gap: 20px; }
 .performance-table tbody tr:hover td { background: var(--ui-row-hover); }
 .performance-table td small { color: var(--ui-tertiary); font-size: var(--ui-caption); white-space: normal; overflow-wrap: anywhere; max-width: 100%; line-height: 1.4; }
 .performance-bar-track { height: 6px; border-radius: var(--radius-xs); }
-.performance-bar-fill { border-radius: var(--radius-xs); }
 .select-menu { border-radius: var(--ui-menu-radius); padding: 6px; background: color-mix(in srgb,var(--ui-control) 94%,transparent); }
 .select-menu button,.select-menu button[data-ui-kind="menu-item"] { min-height: var(--ui-control-height); border-radius: var(--radius-sm); }
 button[data-ui-kind="menu-item"][aria-selected="true"],button[data-ui-kind="menu-item"][aria-selected="true"]:is(:hover,:focus-visible) { background: var(--ui-list-selected); color: var(--ui-list-selected-label); box-shadow: none; }
@@ -800,7 +790,7 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
 .lap-summary-card .summary-condition strong { font-size: var(--type-caption); font-weight: 500; }
 #driverSidebar .tire-copy strong,.app-sidebar .tire-copy strong { font-size: var(--type-body); font-weight: 500; text-transform: none; }
 .comparison-tray-heading,.comparison-tray-heading span { font-size: var(--type-callout); font-weight: 600; }
-.trace-setting,.trace-setting span,.alignment-readout span,.trace-visibility-label { font-size: var(--type-callout); font-weight: 500; }
+.trace-setting, .trace-setting span, .alignment-readout span { font-size: var(--type-callout); font-weight: 500; }
 .trace-pill-group .trace-driver-chip b { font-size: var(--type-callout); font-weight: 600; }
 .chart-heading h2,.dominance-map-header h2,.corner-analysis-toggle,.workspace-disclosure { font-size: var(--type-headline); font-weight: 600; }
 .chart-heading h2 small,.dominance-map-header h2 small { font-size: var(--type-caption); font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
@@ -830,16 +820,12 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
 :is(.summary-driver em,.loaded-lap-pill.reference::before,.corner-driver em) { font-weight: 700; }
 /* Corner section table: header and rows share one grid, padding and alignment;
    sorting shows as label colour + arrow, never a filled box. */
-.corner-detail-card :is(.corner-table-head,.corner-driver-row) { display: grid; grid-template-columns: minmax(110px,1.3fr) repeat(3,minmax(0,1fr)); align-items: center; column-gap: 12px; padding: 0 10px; }
 .corner-detail-card .corner-table-head { min-height: 36px; border-bottom: 1px solid var(--ui-border); }
 .corner-detail-card .corner-table-head > span:first-child { font-size: var(--type-caption); font-weight: 600; color: var(--ui-secondary); }
 .corner-detail-card .corner-table-head > button,.corner-detail-card .corner-table-head > button[data-ui-kind="sort"] { display: inline-flex; align-items: baseline; justify-content: flex-end; flex-wrap: nowrap; gap: 4px; min-height: 0; height: auto; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--ui-secondary); font-size: var(--type-caption); font-weight: 600; white-space: nowrap; }
 .corner-detail-card .corner-table-head > button:hover:not(:disabled),.corner-detail-card .corner-table-head > button:active:not(:disabled) { background: none; color: var(--ui-label); }
 .corner-detail-card .corner-table-head > button[aria-pressed="true"] { color: var(--ui-label); }
 .corner-detail-card .corner-table-head > button small { margin: 0; font-size: var(--type-caption); font-weight: 400; color: var(--ui-tertiary); }
-.corner-detail-card .corner-driver-row { min-height: 40px; padding-block: 0; border-bottom: 1px solid var(--ui-separator); }
-.corner-detail-card .corner-driver-row > :not(.corner-driver) { justify-self: end; text-align: right; }
-.corner-detail-card .corner-driver-row strong { font-size: var(--type-body); font-weight: 500; font-variant-numeric: tabular-nums; }
 .corner-detail-card .corner-driver { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .corner-detail-card .corner-driver em { padding: 1px 5px; border-radius: var(--radius-xs); font: 600 11px/1.3 var(--ui-font); font-style: normal; color: var(--ui-accent); background: color-mix(in srgb,var(--ui-accent) 12%,transparent); }
 /* Team logos: a little larger everywhere they identify a row. */
@@ -873,7 +859,6 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
 .circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"],.corner-picker button[aria-pressed="true"] { background: var(--ui-tile-on); color: var(--ui-tile-on-label); box-shadow: none; transition: none; }
 /* Corner table header: label above its unit, right-aligned, wrapping inside its
    own column so narrow side panels never overlap headings. */
-.corner-detail-card :is(.corner-table-head,.corner-driver-row) { grid-template-columns: minmax(84px,1.2fr) repeat(3,minmax(0,1fr)); column-gap: 10px; }
 .corner-detail-card .corner-table-head { align-items: end; padding-block: 6px; }
 .corner-detail-card .corner-table-head > button,.corner-detail-card .corner-table-head > button[data-ui-kind="sort"] { display: flex; flex-direction: column; align-items: flex-end; justify-content: flex-end; gap: 1px; min-width: 0; white-space: normal; text-align: right; line-height: 1.2; overflow-wrap: anywhere; }
 .corner-detail-card .corner-table-head > button small { display: block; }
@@ -895,8 +880,6 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
   .workspace-tools button[data-ui-kind="toolbar"],#windowSidebarToggle { min-height: 44px; height: 44px; min-width: 44px; }
   .corner-detail-card .corner-table-head > button[data-ui-kind="sort"] { min-height: 44px; }
 }
-.corner-detail-card .corner-driver-row strong { white-space: nowrap; }
-@container (max-width: 360px) { .corner-detail-card .corner-driver-row strong { font-size: var(--type-callout); } }
 .corner-detail-card { container-type: inline-size; }
 
 /* Category bar: macOS-style coloured symbol tiles, a raised selected tab with
@@ -980,7 +963,6 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
 
 /* Category bar: the same recessed track and raised thumb as the view switch;
    the coloured symbols stay, the selected symbol is not re-tinted. */
-#carPerformance > .category-bar:not([hidden]) { border: 0; background: var(--ui-seg-track); box-shadow: inset 0 0 0 .5px var(--ui-separator); }
 .category-bar .category-tab[aria-current="page"] .category-icon { color: var(--category-tint,var(--ui-accent)); }
 
 /* Visible-trace chips: neutral bezel; the checkbox shows on/off and the

@@ -21,7 +21,7 @@ export type TyresViewProps = {metric: 'age' | 'relative'; subject: 'team' | 'dri
   | {metric: 'age'; noGrades?: false; note: string; compound: Compound; correction: 'raw' | 'fuel'; correctionText: string;
      quality: string; commonCoverage: string | null;
      coverage: {mapped: number; loaded: number; unmapped: number; source: string}; legacy: boolean;
-     chart: {title: string; rows: (Team & {value: number})[]; extent: number} | null; emptyMessage: string;
+     chart: {title: string; rows: (Team & {value: number})[]; extent: number} | null; driverChart?: {title: string; rows: (Team & {value: number})[]; extent: number} | null; emptyMessage: string;
      sort: Record<'name' | 'value' | 'events' | 'stints' | 'laps', SortHeaderModel>;
      rows: {team: Team; value: number | null; shortfall: string | null; events: number; stints: number; laps: number; outliers: number; coverage: string}[];
      picker: Picker | null; plot: StintPlotModel | null;
@@ -115,7 +115,10 @@ export function TyresView(p: TyresViewProps) {
           <a href={p.coverage.source} target="_blank" rel="noopener noreferrer">Pirelli allocation sources</a>
         </p>
         {p.legacy ? <p className="performance-note">Some loaded results lack the new curve. Refresh data to obtain the updated fits; missing nonlinear results use the previous linear diagnostic.</p> : null}
-        {p.chart ? <DivergingBarChart title={p.chart.title} subtitle="Seconds per additional tyre-age lap · left of zero improves, right of zero worsens" rows={p.chart.rows} unit=" s/lap" extent={p.chart.extent} />
+        {p.chart ? <div className={p.driverChart ? 'subject-pair' : undefined}>
+          <DivergingBarChart title={p.driverChart ? `${p.chart.title} · Teams` : p.chart.title} subtitle="Seconds per additional tyre-age lap · left of zero improves, right of zero worsens" rows={p.chart.rows} unit=" s/lap" extent={p.chart.extent} />
+          {p.driverChart ? <DivergingBarChart title={`${p.driverChart.title} · Drivers`} subtitle="Seconds per additional tyre-age lap · left of zero improves, right of zero worsens" rows={p.driverChart.rows} unit=" s/lap" extent={p.driverChart.extent} /> : null}
+        </div>
           : <p className="section-empty">{p.emptyMessage}</p>}
         <DataTable headers={[p.sort.name, p.sort.value, p.sort.events, p.sort.stints, p.sort.laps, 'Outlier laps removed', 'Coverage']}
           rows={p.rows.map(r => [<TeamLabel team={r.team} />,

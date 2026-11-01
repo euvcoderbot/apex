@@ -88,7 +88,7 @@
   --ui-control-height: 30px; --ui-segment-height: auto; --ui-control-font: 14px;
   --ui-text: 14px; --ui-caption: 12px; --ui-heading: 16px; --ui-metric: 24px; --ui-page-title: 28px;
   --ui-space-1: 4px; --ui-space-2: 8px; --ui-space-3: 12px; --ui-space-4: 16px;
-  --ui-row-height: 30px; --ui-toolbar-height: 60px; --ui-sidebar-width: 282px;
+  --ui-row-height: 30px; --ui-toolbar-height: 52px; --ui-sidebar-width: 268px; --ui-inspector-width: 368px; --ui-pane-gap: 8px; --ui-pane-radius: 18px;
   --shadow-main: none;
   --ui-space-5: 20px;
   --ui-space-6: 24px;
