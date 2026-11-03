@@ -27,6 +27,10 @@ mirror = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mirror)
 WANTED = set(mirror.SESSIONS) | {'Practice 1', 'Practice 2', 'Practice 3'}
 COMPUTE_STATE = 'local-compute-state.json'
+# One check per session, this long after it was scheduled to end. OpenF1's free tier is locked from 30 minutes before a
+# session starts until 30 minutes after it ends, so this leaves ten minutes of margin. Sessions that were missed (the PC was
+# off) or not ready yet are picked up by the next session's check, which looks back three days; nothing repeats on a timer.
+CHECK_DELAY = timedelta(minutes=40)
 
 
 def parse_date(value):
@@ -38,15 +42,15 @@ def parse_date(value):
 
 
 def planned_starts(sessions, now):
-    """Trigger 35 min after scheduled end, then retry; never infer completion."""
+    """One trigger per session, CHECK_DELAY after its scheduled end; never infer completion."""
     starts = set()
     for session in sessions:
         end = parse_date(session.get('date_end'))
         if session.get('is_cancelled') or session.get('session_name') not in WANTED or end is None:
             continue
-        due = end + timedelta(minutes=35)
-        # Retain triggers still in their retry window when the daily schedule
-        # refresh runs; otherwise it could cancel a session's final refresh.
+        due = end + CHECK_DELAY
+        # Keep a trigger that fell due in the last nine hours when the daily schedule refresh runs, so a check the PC slept
+        # through is still run (Task Scheduler starts it when the PC is next available) instead of being cancelled.
         if now - timedelta(hours=9) < due <= now + timedelta(days=8):
             starts.add(due)
     return sorted(starts)
@@ -200,12 +204,12 @@ def run_due(sessions, now):
         if key is None or end is None or session.get('is_cancelled') or session.get('session_name') not in WANTED:
             continue
         age = now - end
-        if age < timedelta(minutes=35) or age > timedelta(days=3):
+        if age < CHECK_DELAY or age > timedelta(days=3):
             continue
         state = mirror.load_state()
         try:
             if not finished(session):
-                print(f"Session {key}: no confirmed finish yet; retry later.", flush=True)
+                print(f"Session {key}: no confirmed finish at the check; the next session's check looks again.", flush=True)
                 continue
             provisional = state.get('provisional_sessions', {}).get(str(key), {})
             if str(key) not in state['sessions'] and not (provisional.get('ready') and age < timedelta(hours=mirror.SETTLE_HOURS, minutes=5)):

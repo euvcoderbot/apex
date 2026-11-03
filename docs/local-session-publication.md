@@ -15,6 +15,14 @@ health is written to `~/apex-data/openf1/pipeline-health.json`. Failed or partia
 preparation exits nonzero; an overlapping job does not overwrite the owner's
 health report. The publisher checks health before declaring no new work.
 
+## When it runs
+
+Each session gets one check, 40 minutes after it was scheduled to end (OpenF1 is locked for the free tier until 30 minutes after a
+session, so this leaves a margin). Nothing repeats on a timer. A session that was missed because the PC was off, or was not ready at its check,
+is looked at again by the next session's check, which covers the last three days; a session prepared while still inside the six-hour source
+correction window stays marked provisional until then. The timing is `CHECK_DELAY` in `scripts/session-archive-scheduler.py`; after changing
+it, re-register the tasks with `scripts/install-session-archive-task.ps1 -Refresh`.
+
 Start the local server from this checkout, then prepare a completed qualifying:
 
 ```powershell

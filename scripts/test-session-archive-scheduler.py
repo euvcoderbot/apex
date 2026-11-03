@@ -82,10 +82,10 @@ class SchedulerTests(unittest.TestCase):
             with self.assertRaises(subprocess.CalledProcessError): scheduler.prepare_session(item,False)
             sync.assert_called_once()
 
-    def test_plan_waits_35_minutes_and_ignores_cancelled_and_far_events(self):
+    def test_plan_waits_40_minutes_and_ignores_cancelled_and_far_events(self):
         sessions = [session(1, NOW + timedelta(hours=2)), session(2, NOW + timedelta(days=9)),
                     session(3, NOW + timedelta(hours=1), cancelled=True)]
-        self.assertEqual(scheduler.planned_starts(sessions, NOW), [NOW + timedelta(hours=2, minutes=35)])
+        self.assertEqual(scheduler.planned_starts(sessions, NOW), [NOW + timedelta(hours=2, minutes=40)])
 
     def test_finish_requires_race_control_or_results(self):
         with patch.object(scheduler.server, 'openf1', return_value=[]):
@@ -93,9 +93,26 @@ class SchedulerTests(unittest.TestCase):
         with patch.object(scheduler.server, 'openf1', side_effect=lambda endpoint, **kw: [{'flag': 'CHEQUERED'}] if endpoint == 'race_control' else []):
             self.assertTrue(scheduler.finished(session(1, NOW)))
 
-    def test_plan_keeps_current_retry_window(self):
+    def test_plan_keeps_a_check_that_fell_due_recently_but_not_an_old_one(self):
         items = [session(1, NOW - timedelta(hours=1)), session(2, NOW - timedelta(hours=11))]
-        self.assertEqual(scheduler.planned_starts(items, NOW), [NOW - timedelta(minutes=25)])
+        self.assertEqual(scheduler.planned_starts(items, NOW), [NOW - timedelta(minutes=20)])
+
+    def test_each_session_gets_exactly_one_trigger_and_the_installer_does_not_repeat_it(self):
+        items = [session(n, NOW + timedelta(hours=n)) for n in range(1, 5)]
+        starts = scheduler.planned_starts(items, NOW)
+        self.assertEqual(len(starts), 4)
+        self.assertEqual(len(set(starts)), 4)
+        installer = (Path(scheduler.__file__).parent / 'install-session-archive-task.ps1').read_text(encoding='utf-8')
+        self.assertNotIn('RepetitionInterval', installer)
+        self.assertNotIn('RepetitionDuration', installer)
+
+    def test_a_session_is_not_checked_before_the_delay_has_passed(self):
+        items = [session(1, NOW - timedelta(minutes=39)), session(2, NOW - timedelta(minutes=41))]
+        with patch.object(scheduler.mirror, 'acquire_watch_lock', return_value=False), \
+             patch.object(scheduler, 'finished', return_value=False) as finished, \
+             patch.object(scheduler.mirror, 'load_state', return_value={'sessions': {}}):
+            scheduler.run_due(items, NOW)
+        self.assertEqual([call.args[0]['session_key'] for call in finished.call_args_list], [2])
 
     def test_a_live_session_401_falls_back_to_the_saved_schedule(self):
         import urllib.error
