@@ -15,7 +15,8 @@ foreach ($value in $dates) {
   if (-not $value) { continue }
   $at = [DateTimeOffset]::Parse($value).LocalDateTime
   if ($at -le (Get-Date).AddHours(-9)) { continue }
-  $triggers += New-ScheduledTaskTrigger -Once -At $at -RepetitionInterval (New-TimeSpan -Minutes 30) -RepetitionDuration (New-TimeSpan -Hours 9)
+  # One check per session. Nothing repeats on a timer; a session that was missed or not ready is picked up by the next check.
+  $triggers += New-ScheduledTaskTrigger -Once -At $at
 }
 if ($triggers.Count -gt 0) {
   $action = New-ScheduledTaskAction -Execute $pythonw -Argument ('"{0}" run' -f $runner) -WorkingDirectory $root
