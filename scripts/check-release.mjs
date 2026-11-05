@@ -18,7 +18,15 @@ async function indexFor(folder){
   }
 }
 let files=0,retained=0;
-function requireRevision(family,revision){
+function requireRevision(family,revision,{recording=false}={}){
+  // Source CI validates the integrity of committed historical recordings, not
+  // their suitability for publication under the current calculation code.
+  // The ordinary release gate always requires explicit compatibility.
+  if(sourceOnly&&recording){
+    if(!/^[a-f0-9]{20}$/.test(revision||''))throw Error(`Invalid ${family}: ${revision}`);
+    if(revision!==revisions[family])retained++;
+    return;
+  }
   if(!snapshotCompatible(family,revision,revisions[family]))throw Error(`Unsupported ${family}: ${revision}`);
   if(revision!==revisions[family])retained++;
 }
@@ -42,11 +50,12 @@ for(const folder of ['prerendered','local-telemetry','telemetry']){
   const index=await indexFor(folder);
   if(!index)continue;
   validateIndex(index,folder);
-  requireRevision('sourceRevision',index.sourceRevision);
-  if(index.revision)requireRevision('backendRevision',index.revision);
+  const recording=folder==='prerendered'||folder==='telemetry';
+  requireRevision('sourceRevision',index.sourceRevision,{recording});
+  if(index.revision)requireRevision('backendRevision',index.revision,{recording});
   for(const [route,file] of Object.entries(index.entries)){
-    if(index.entrySourceRevisions?.[route])requireRevision('sourceRevision',index.entrySourceRevisions[route]);
+    if(index.entrySourceRevisions?.[route])requireRevision('sourceRevision',index.entrySourceRevisions[route],{recording});
     await payload(folder,file,folder==='prerendered'?route:'');
   }
 }
-console.log(`${sourceOnly?'Source recordings':'Release snapshots'} valid: ${files} referenced files checked; ${retained} retained revision references keep their original provenance.`);
+console.log(`${sourceOnly?'Source recordings structurally valid (publication compatibility not checked)':'Release snapshots valid'}: ${files} referenced files checked; ${retained} retained revision references keep their original provenance.`);
