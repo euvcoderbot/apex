@@ -347,7 +347,7 @@
 /* ---- Workspace rail ---- */
 :root[data-skin="linear"] #linearWorkspace {
   position: fixed; inset: 0 auto 0 0; z-index: 121; display: flex; flex-direction: column; gap: 0;
-  width: var(--linear-rail); box-sizing: border-box; padding: 8px 12px 12px 8px; overflow: auto; scrollbar-gutter: stable;
+  width: var(--linear-rail); box-sizing: border-box; padding: 8px 8px 12px; overflow: auto; scrollbar-gutter: stable both-edges;
   background: var(--ui-canvas); color: var(--ui-secondary); border: 0;
 }
 :root[data-skin="linear"] .linear-workspace-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; margin: 4px 0 10px; }
@@ -399,7 +399,7 @@
 :root[data-skin="linear"] #linearWorkspace #driverPills { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; max-height: none; overflow: visible; padding: 0; }
 :root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill[data-ui-kind="list-row"],
 :root[data-skin="linear"] #linearWorkspace #driverPills.has-race-results .driver-pill[data-ui-kind="list-row"] {
-  grid-template-columns: 18px 16px minmax(0, 1fr) auto 12px; gap: 7px; height: 28px; min-height: 28px; padding: 0 6px 0 2px; border-radius: 8px;
+  grid-template-columns: 18px 16px minmax(0, 1fr) auto 12px; gap: 7px; height: 28px; min-height: 28px; padding: 0 6px; border-radius: 8px;
 }
 :root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill .team-logo, :root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill .team-logo img { width: 16px; height: 16px; }
 :root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill-identity { font: 510 13px/1.2 var(--ui-font); color: var(--ui-secondary); }
@@ -893,3 +893,7 @@
 /* Tyre trend and Development lists: the same 2 px row spacing as Pace, starting right under the header. */
 :root[data-skin="linear"] #carPerformance .performance-tyre-age-chart { margin-top: 0; gap: 0; row-gap: 0; }
 :root[data-skin="linear"] #carPerformance .trend-board .performance-tyre-age-chart { align-content: start; flex: 0 0 auto; }
+
+/* Inspector tables share the panel surface; selection and hover provide emphasis. */
+:root[data-skin="linear"] .corner-measurement-table tbody tr:nth-child(even) { background: transparent; }
+.performance-bar-label .metric-coverage { margin-left: auto; padding-left: 6px; color: var(--ui-tertiary); font-size: 10px; white-space: nowrap; }

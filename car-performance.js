@@ -1781,7 +1781,7 @@ function speedDomainEntities(subject=telemetrySubject) {
 // View data for src/views/SpeedView.tsx (Cornering, Straight line, Braking).
 function speedDomainChart(key,title,subtitle,subject=telemetrySubject) {
   const meta=SPEED_DOMAIN_METRICS[key],season=speedDomainSeason(events,subject,key),style=speedDomainEntities(subject);
-  const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason,traceProvisional:r.provisional}));
+  const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason,traceProvisional:r.provisional,coverageLabel:season.gps>1?`${r.gps}/${season.gps} GPs`:''}));
   // While GPs are still loading an empty chart is pending, not a missing measurement.
   if(!rows.length)return {title:title||meta.label,empty:running||speedDomainRunning[subject]?'Loading qualifying telemetry…':key.startsWith('corner_')?'No shared supported corner measurement in this band. Missing values are not zero.':'No supported measurement in the loaded GPs. Missing values are not zero.'};
   return {title:title||meta.label,rows,options:{title:title||meta.label,subtitle:`${subtitle?subtitle+' · ':''}${season.gps} supported GP${season.gps===1?'':'s'} of ${events.filter(e=>e.Q).length} selected · ${season.events.join(', ')} · 0 = best${rows.some(r=>r.traceProvisional)?' · ≈ provisional: source gaps >0.6 s':''}`,unit:meta.unit,digits:meta.digits}};

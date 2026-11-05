@@ -2,7 +2,7 @@ import {color, finite, fmt, signed} from '../../performance-format.js';
 import {TeamLabel, type TeamLike} from './TeamLabel';
 import {visibleBarValue} from '../../lib/chart-bar.mjs';
 
-type Row = TeamLike & Record<string, unknown> & {missingReason?: string; traceProvisional?: boolean};
+type Row = TeamLike & Record<string, unknown> & {missingReason?: string; traceProvisional?: boolean; coverageLabel?: string};
 export type BarChartOptions = {
   title?: string; subtitle?: string; valueKey?: string; labelKey?: string; colorKey?: string;
   unit?: string; digits?: number; signedValue?: boolean; zeroBaseline?: boolean;
@@ -53,6 +53,7 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
           {subtitle ? <span className="perf-chart-sub">{subtitle}</span> : null}
         </div></div>
       ) : null}
+      {new Set(rows.map(r => r.coverageLabel).filter(Boolean)).size > 1 ? <p className="performance-quality-status">GP coverage differs between entrants. These are averages over each entrant’s available GPs, not a comparison over identical races.</p> : null}
       <div className="performance-bars">
         {valid.map((r, i) => {
           const value = r.chart, plotted = visibleBarValue(value, digits), position = ((plotted - lo) / span) * 100;
@@ -65,7 +66,7 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
           return (
             <div key={label + i} className="performance-bar-row"
               title={`${label}: ${display}${plotted === 0 && value !== 0 ? ` · Exact change ${value}${unit}; below displayed precision` : ''}${r.traceProvisional ? ' · Provisional: source gaps over 0.6 s; inspect corner evidence' : ''}`}>
-              <div className="performance-bar-label"><TeamLabel team={r} /></div>
+              <div className="performance-bar-label"><TeamLabel team={r} />{r.coverageLabel ? <small className="metric-coverage">{r.coverageLabel}</small> : null}</div>
               <div className="performance-bar-track">
                 {preserveSignedValues ? <i className="performance-zero" style={{left: `${zero.toFixed(2)}%`}} /> : null}
                 <i className="performance-bar" style={{'--bar-color': color(r[colorKey] as string), left: `${left.toFixed(2)}%`, width: `${width.toFixed(2)}%`} as React.CSSProperties} />
