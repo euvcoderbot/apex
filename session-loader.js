@@ -76,7 +76,9 @@ function positionSelectMenu(shell) {
   if (chip) menu.style.width = Math.min(anchor.width, innerWidth - gutter * 2) / zoom + 'px';
   else menu.style.removeProperty('width');
   menu.style.maxHeight = Math.max(80, innerHeight - gutter * 2) / zoom + 'px';
-  const box = menu.getBoundingClientRect(), width = box.width, height = box.height;
+  // Opening animations scale the painted rectangle. Position from the final
+  // layout size so a long menu remains inside the viewport after it animates.
+  const width = menu.offsetWidth * zoom, height = menu.offsetHeight * zoom;
   const below = innerHeight - anchor.bottom - gutter - 4;
   const top = height <= below ? anchor.bottom + 4 : height + gutter + 4 <= anchor.top ? anchor.top - height - 4 : Math.max(gutter, innerHeight - height - gutter);
   menu.style.left = Math.max(gutter, Math.min(anchor.left, innerWidth - width - gutter)) / zoom + 'px';

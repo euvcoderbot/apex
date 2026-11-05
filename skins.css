@@ -433,7 +433,7 @@
 :root[data-skin="linear"] body > :is(main#top, #carPerformance) > .workspace-intro { display: none; }
 :root[data-skin="linear"] body > :is(main#top, #carPerformance) > .app-sidebar {
   grid-column: 1 / -1; grid-row: 1; position: relative; top: auto; height: auto; min-height: var(--linear-header); visibility: visible; opacity: 1;
-  display: flex; align-items: center; padding: 8px 12px 8px 20px; margin: 0; overflow: visible;
+  display: flex; align-items: center; min-width: 0; max-width: 100%; box-sizing: border-box; padding: 8px 12px 8px 20px; margin: 0; overflow: visible;
   border: 0; border-bottom: 1px solid var(--lin-hairline); border-radius: 0; background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
 }
 :root[data-skin="linear"] #carPerformance > .app-sidebar { flex-wrap: wrap; }
@@ -623,7 +623,7 @@
 :root[data-skin="linear"] #linearWorkspace #tireCard .tire-nomination-container { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 0; }
 :root[data-skin="linear"] #linearWorkspace #tireCard .tire-option { display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 6px; font: 400 12px/1 var(--ui-font); color: var(--ui-secondary); white-space: nowrap; }
 :root[data-skin="linear"] #linearWorkspace #tireCard .tire-option .compound-badge { width: 16px; height: 16px; flex: 0 0 16px; }
-:root[data-skin="linear"] .app-sidebar .session-controls { width: 100%; max-width: none; margin: 0; }
+:root[data-skin="linear"] .app-sidebar .session-controls { width: 100%; min-width: 0; max-width: 100%; margin: 0; }
 :root[data-skin="linear"] #linearWorkspace #tireCard { display: block; margin-top: 8px; }
 :root[data-skin="linear"] #linearWorkspace #tireCard .panel-heading { display: block; padding: 0; margin: 0; }
 :root[data-skin="linear"] .linear-rail-footer button { display: flex; align-items: center; justify-content: flex-start; }

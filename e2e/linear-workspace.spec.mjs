@@ -46,6 +46,19 @@ test('command search supports keyboard filtering, activation and focus restorati
   await expect(page.locator('#linearCommandMenu')).toBeHidden();
 });
 
+test('animated calendar menu stays within a short viewport', async ({page}) => {
+  await page.setViewportSize({width: 1280, height: 600});
+  await open(page);
+  await page.locator('#gp').locator('..').locator('.select-trigger').click();
+  await expect(page.locator('#gpOptions')).toBeVisible();
+  await expect.poll(() => page.locator('#gpOptions').evaluate(el => {
+    const rect = el.getBoundingClientRect();
+    return rect.bottom <= innerHeight - 7 && rect.top >= 7;
+  })).toBe(true);
+  await page.locator('#gpOptions').press('Escape');
+  await expect(page.locator('#gpOptions')).toBeHidden();
+});
+
 test('density persists and both themes fit desktop and mobile', async ({page}) => {
   await open(page);
   await page.locator('button[data-linear-density]').click();
