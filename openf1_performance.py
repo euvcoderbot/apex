@@ -55,22 +55,74 @@ def stewards_lap(message, feeds, code):
 BLANK_LAP_SECONDS = 120  # An untimed lap has no end; long enough for a lap at speed, short of the next run.
 
 
+# Whole words: "CHEQUERED FLAG" contains the letters "RED FLAG".
+RED_FLAG_TEXT = re.compile(r'\bRED FLAG\b')
+
+
 def red_flag_periods(controls):
-    """(start, end) of each red flag, in epoch seconds. A green or clear track flag ends one; an unended one runs on."""
+    """(start, end) of each red flag, in epoch seconds.
+
+    Race control reports a red flag either as a RED flag message or only as text ("RED FLAG - RACE SUSPENDED") together with the session
+    status "SESSION ABORTED" (Mexico City 2026). When the feed carries session status, the red flag lasts until the session is started again;
+    a "TRACK CLEAR" during the stoppage does not end it. Without session status, a green or clear track flag ends it. An unended one runs on.
+    """
+    rows = sorted(controls, key=lambda r: str(r.get('date') or ''))
+    with_status = any(r.get('category') == 'SessionStatus' for r in rows)
     periods, current = [], None
-    for row in sorted(controls, key=lambda r: str(r.get('date') or '')):
+    for row in rows:
         at = stamp(row.get('date'))
-        if at is None or row.get('category') != 'Flag':
+        if at is None:
             continue
-        flag = row.get('flag')
-        if flag == 'RED' and current is None:
+        category, flag, message = row.get('category'), row.get('flag'), str(row.get('message') or '').upper()
+        starts = (category == 'Flag' and flag == 'RED') or RED_FLAG_TEXT.search(message) is not None \
+            or (category == 'SessionStatus' and ('ABORTED' in message or 'SUSPENDED' in message))
+        ends = (category == 'SessionStatus' and ('STARTED' in message or 'RESUMED' in message)) if with_status \
+            else (category == 'Flag' and flag in ('GREEN', 'CLEAR') and row.get('scope') == 'Track')
+        if starts and current is None:
             current = at
-        elif flag in ('GREEN', 'CLEAR') and row.get('scope') == 'Track' and current is not None:
+        elif ends and current is not None:
             periods.append((current, at))
             current = None
     if current is not None:
         periods.append((current, float('inf')))
     return periods
+
+
+def neutralised_periods(controls):
+    """(kind, start, end) of each safety car ('SC'), virtual safety car ('VSC') and red flag ('RED'), in epoch seconds, for labelling laps.
+
+    A safety car runs from DEPLOYED until it is called in (LIGHTS OFF), a track-wide green or clear flag, or a red flag; a VSC from DEPLOYED to
+    ENDING or a track-wide green or clear flag. This only says what a lap ran under; which laps count for pace is decided separately and more
+    conservatively (adapt_performance).
+    """
+    rows = sorted(controls, key=lambda r: str(r.get('date') or ''))
+    periods, open_ = [], {}
+    for row in rows:
+        at = stamp(row.get('date'))
+        if at is None:
+            continue
+        category, flag, message = row.get('category'), row.get('flag'), str(row.get('message') or '').upper()
+        virtual = 'VSC' in message or 'VIRTUAL' in message
+        track_clear = category == 'Flag' and flag in ('GREEN', 'CLEAR') and row.get('scope') == 'Track'
+        red = (category == 'Flag' and flag == 'RED') or RED_FLAG_TEXT.search(message) is not None
+        if category == 'SafetyCar' and 'DEPLOYED' in message:
+            open_.setdefault('VSC' if virtual else 'SC', at)
+        elif 'VSC' in open_ and (track_clear or (category == 'SafetyCar' and virtual and 'ENDING' in message)):
+            periods.append(('VSC', open_.pop('VSC'), at))
+        if 'SC' in open_ and (track_clear or red or 'SAFETY CAR LIGHTS OFF' in message):
+            periods.append(('SC', open_.pop('SC'), at))
+    periods.extend((kind, began, float('inf')) for kind, began in open_.items())
+    periods.extend(('RED', began, ended) for began, ended in red_flag_periods(controls))
+    return sorted(periods, key=lambda p: p[1])
+
+
+def lap_neutralised(start, end, periods):
+    """The most serious neutralisation a lap ran under: 'RED', then 'SC', then 'VSC', or None. A lap with no end gets BLANK_LAP_SECONDS."""
+    if start is None:
+        return None
+    finish = start + BLANK_LAP_SECONDS if end is None else end
+    kinds = {kind for kind, began, stop in periods if start < stop and finish >= began}
+    return next((kind for kind in ('RED', 'SC', 'VSC') if kind in kinds), None)
 
 
 def lap_in_red_flag(start, end, periods):
@@ -169,7 +221,7 @@ def session_payload(year, gp, code, bundle):
                          's1': r['sectors'][0], 's2': r['sectors'][1], 's3': r['sectors'][2],
                          'compound': r['compound'], 'tyre_life': r['age'], 'fresh_tyre': r['fresh'],
                          'stint': r['stint'], 'phase': r['phase'], 'accurate': r['accurate'],
-                         'deleted': r['deleted'], 'track_status': r['track'], 'red_flag': r['red_flag'],
+                         'deleted': r['deleted'], 'track_status': r['track'], 'red_flag': r['red_flag'], 'neutralised': r.get('neutralised'),
                          'out_lap': raw.get('is_pit_out_lap') is True,
                          'in_lap': r['pit'] and raw.get('is_pit_out_lap') is not True,
                          'conditions': conditions, 'speed_st': r['speed_st'], 'speed_fl': r['speed_fl']})
@@ -228,6 +280,7 @@ def adapt_performance(year, gp, code, bundle):
     active, blocked = {}, []
     deleted = deleted_laps(controls, feeds, code)
     red_flags = red_flag_periods(controls)
+    neutral = neutralised_periods(controls)
     for r in controls:
         t, category, flag, scope = stamp(r['date']), r.get('category'), r.get('flag'), r.get('scope')
         message = r.get('message', '').upper()
@@ -289,7 +342,7 @@ def adapt_performance(year, gp, code, bundle):
                          'end': end-origin if end is not None else None, 'compound': str(stint.get('compound') or 'UNKNOWN').upper(),
                          'age': age, 'fresh': None, 'stint': stint.get('stint_number'), 'phase': phase,
                          'pit': pit, 'accurate': consistent and legal and start is not None and not pit,
-                         'red_flag': lap_in_red_flag(start, end, red_flags),
+                         'red_flag': lap_in_red_flag(start, end, red_flags), 'neutralised': lap_neutralised(start, end, neutral),
                          'deleted': not legal, 'track': track, 'rain': rain, 'sectors': sectors,
                          'speed_st': number(lap.get('st_speed')), 'speed_fl': None,
                          'speed_i1': number(lap.get('i1_speed')), 'speed_i2': number(lap.get('i2_speed')),
