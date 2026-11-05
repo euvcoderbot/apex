@@ -177,4 +177,5 @@ test('only the system layer defines how scrollbars look, so they cannot drift ap
   const system = readFileSync('hig-system.css', 'utf8');
   assert.match(system, /\* \{ scrollbar-width: thin; scrollbar-color: var\(--scroll-thumb\) transparent; \}/);
   assert.doesNotMatch(system, /::-webkit-scrollbar/);
+  assert.equal((system.match(/scrollbar-width:\s*thin/g) || []).length, 1, 'the system layer sets the thin scrollbar exactly once');
 });
