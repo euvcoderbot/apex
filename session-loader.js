@@ -503,7 +503,7 @@ function setLapSelectionExpanded(expanded, focus = false) {
   const body = $('#lapSelectionBody'), toggle = $('#lapWorkspaceToggle');
   if (!body || !toggle) return;
   // PROTOTYPE (lap picker B): the picker is a sheet, so it opens only when the person asks, never because a driver was chosen.
-  if (document.documentElement.dataset.lapPicker === 'sheet') { if (expanded && !window.apexLapSheetAsked) expanded = false; window.apexLapSheetAsked = false; }
+  if (typeof document !== 'undefined' && document.documentElement?.dataset.lapPicker === 'sheet') { if (expanded && !window.apexLapSheetAsked) expanded = false; window.apexLapSheetAsked = false; }
   body.hidden = !expanded;
   body.inert = !expanded;
   toggle.setAttribute('aria-expanded', String(expanded));

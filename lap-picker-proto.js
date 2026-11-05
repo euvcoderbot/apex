@@ -32,11 +32,14 @@
   addEventListener('DOMContentLoaded', () => {
     const body = document.getElementById('lapSelectionBody');
     if (!body || !body.showPopover) return;
-    body.setAttribute('popover', 'manual');
+    // Only the sheet design is a popover: the attribute alone makes the browser lay the element over the page, so the other designs
+    // must not carry it.
     const sync = () => {
-      const sheet = document.documentElement.dataset.lapPicker === 'sheet', open = body.matches(':popover-open');
-      if (sheet && !body.hidden && !open) body.showPopover();
-      else if ((!sheet || body.hidden) && open) body.hidePopover();
+      const sheet = document.documentElement.dataset.lapPicker === 'sheet';
+      if (body.matches(':popover-open') && (!sheet || body.hidden)) body.hidePopover();
+      if (sheet && !body.hasAttribute('popover')) body.setAttribute('popover', 'manual');
+      if (!sheet && body.hasAttribute('popover')) body.removeAttribute('popover');
+      if (sheet && !body.hidden && !body.matches(':popover-open')) body.showPopover();
     };
     new MutationObserver(sync).observe(body, {attributes: true, attributeFilter: ['hidden']});
     new MutationObserver(sync).observe(document.documentElement, {attributes: true, attributeFilter: ['data-lap-picker']});
