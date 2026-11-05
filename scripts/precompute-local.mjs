@@ -6,6 +6,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {SOURCE_REVISION,BACKEND_REVISION,RACE_REVISION} from '../lib/cache-revision.mjs';
 import {mergeLocalCaptures} from '../lib/local-captures.mjs';
+import {confirmedQualifying} from '../lib/confirmed-qualifying.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const args=process.argv.slice(2),arg=(name,fallback)=>{const i=args.indexOf(name);return i<0?fallback:args[i+1];};
 const year=Number(arg('--year','2026')),gp=arg('--gp','Singapore Grand Prix');
@@ -36,6 +37,14 @@ const targets=args.includes('--season')
   :allEvents.filter(e=>e.name===gp);
 if(!targets.length)throw new Error('Grand Prix not found in this season');
 if(capturing){
+  // Preserve independently confirmed qualifying sessions in the captured
+  // calendar, not just the one currently being recalculated.
+  if(args.includes('--confirmed-local-qualifying'))for(const event of allEvents){
+    if(event.session_statuses?.Qualifying!=='completed' && await confirmedQualifying(root,year,event)){
+      event.session_statuses={...event.session_statuses,Qualifying:'completed'};
+      console.log(`Qualifying completion confirmed by local source capture: ${event.name}.`);
+    }
+  }
   for(const event of targets){
     const status=event.session_statuses||{};
     if(status.Qualifying!=='completed'||(!args.includes('--qualifying-only')&&status.Race!=='completed'))
@@ -93,6 +102,9 @@ if(!args.includes('--qualifying-only'))try{const pits=await get('/api/performanc
 // currentQuery; the cache key ignores its data_schema field).
 for(const name of ['Qualifying','Sprint Qualifying','Sprint','Race']){
   if(args.includes('--qualifying-only') && name==='Race')continue;
+  // Preserve the independently confirmed, richer native session capture. The
+  // generic API summary does not carry its completion provenance or coverage.
+  if(name==='Qualifying' && args.includes('--confirmed-local-qualifying') && await confirmedQualifying(root,year,event))continue;
   const date=event.session_dates?.[name];
   if(!date||Date.parse(date)>Date.now())continue;
   try{await get('/api/session?'+new URLSearchParams({year,gp,round,session:name}));}catch(e){reportIncomplete(`Session ${name}: `+e.message);}
