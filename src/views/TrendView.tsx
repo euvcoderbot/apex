@@ -43,7 +43,7 @@ export function TrendView(props: TrendViewProps) {
           </div></div>
           <TrendChart {...spark} series={rows.map(r => ({key: r.team.team, label: r.team.team, teamColor: r.team.color, points: r.points, fit: fitted ? r.fit : null}))} />
         </div>
-        <DivergingBarChart title={fitted ? 'Fitted change' : 'Change, opening to latest'} subtitle="Left of zero closed the gap, right of zero lost ground" unit=" pp"
+        <DivergingBarChart title={fitted ? 'Fitted change' : 'Change, opening to latest'} subtitle="Left of zero closed the gap, right of zero lost ground" unit="%"
           extent={Math.max(0, ...ranked.map(r => Math.abs(r.value)))} rows={ranked} seriesKey={r => r.team || ''} />
       </div>
       <div className="performance-trend-table" data-fit-sensitivity={showSensitivity ? 'true' : 'false'}>
@@ -53,7 +53,7 @@ export function TrendView(props: TrendViewProps) {
           ...(showSensitivity ? ['Fit sensitivity'] : []), 'GPs']}
           rows={rows.map(r => {
             const enough = r.count >= 2;
-            const rate = enough && finite(r.slopePerRound) ? `${signed(r.slopePerRound, 3, '')} pp/round` : '—';
+            const rate = enough && finite(r.slopePerRound) ? `${signed(r.slopePerRound, 3, '')}%/round` : '—';
             return [
               <TeamLabel team={r.team} />,
               r.count >= 2 ? <>
@@ -61,9 +61,9 @@ export function TrendView(props: TrendViewProps) {
                 {finite(r.midSeason) ? <small className="trend-uneven" title="The middle of the season differs from both ends, so neither the endpoint change nor the straight-line fit describes it: read the dots.">
                   Not a steady trend · mid-season {fmt(r.midSeason, 3, '%')}</small> : null}
               </> : 'Needs ≥ 2 events',
-              r.count >= 2 && finite(r.change) ? <span className={`trend-change ${r.change! < 0 ? 'is-improvement' : 'is-decline'}`} title={`Observed opening-to-latest percentage-point change · ${r.label}`}>{signed(r.change, 3, ' pp')}</span> : '—',
-              r.count >= 2 && finite(r.fittedChange) ? <span className={`trend-change trend-fitted ${r.fittedChange! < 0 ? 'is-improvement' : 'is-decline'}`} title={`Robust fitted rate: ${rate}`}>{signed(r.fittedChange, 3, ' pp')}</span> : '—',
-              ...(showSensitivity ? [r.range ? `${signed(r.range[0], 3, "")} to ${signed(r.range[1], 3, "")} pp/round` : '—'] : []),
+              r.count >= 2 && finite(r.change) ? <span className={`trend-change ${r.change! < 0 ? 'is-improvement' : 'is-decline'}`} title={`Observed opening-to-latest percentage-point change · ${r.label}`}>{signed(r.change, 3, '%')}</span> : '—',
+              r.count >= 2 && finite(r.fittedChange) ? <span className={`trend-change trend-fitted ${r.fittedChange! < 0 ? 'is-improvement' : 'is-decline'}`} title={`Robust fitted rate: ${rate}`}>{signed(r.fittedChange, 3, '%')}</span> : '—',
+              ...(showSensitivity ? [r.range ? `${signed(r.range[0], 3, "")} to ${signed(r.range[1], 3, "")}%/round` : '—'] : []),
               <span className="trend-coverage" title={r.sampleTier}>{r.count}</span>,
             ];
           })} />
