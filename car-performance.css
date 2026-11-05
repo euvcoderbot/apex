@@ -1318,8 +1318,6 @@ body.performance-view #sidebarToggle {
 .performance-toolbar:has(.performance-mode) { align-items: stretch; flex-wrap: nowrap; }
 .performance-toolbar .performance-mode { width: auto !important; min-height: var(--ui-segment-height, 40px); flex: 1 1 0; }
 .performance-mode button { min-height: 32px; font-size: var(--text-base); flex: 0 0 auto; justify-content: center; }
-.performance-mode { scrollbar-width: thin; }
-.performance-mode::-webkit-scrollbar { display: block; height: 5px; }
 .performance-explain-toggle { min-height: var(--ui-segment-height, 40px); font-size: var(--text-base); }
 .performance-stat-toggle { margin-bottom: 12px; }
 .performance-metric-toolbar .performance-scope-toggle { margin: 0; }

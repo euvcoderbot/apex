@@ -23,7 +23,7 @@ test('one current macOS appearance layer ships after the workspace and replaces 
 test('every interactive family and every data presentation shares the new appearance',()=>{
   for(const name of ['site-header','performance-tabs','select-trigger','select-menu','driver-pill','tire-option','run-segment','lap-chip','loaded-lap-pill','race-result-controls','corner-picker','map-view-switch','chart','trace-setting','trace-zoom-cluster','tooltip','app-toast','lap-summary-card','summary-sectors','summary-conditions','performance-mode','performance-card','performance-chart-card','performance-bar-track','performance-table','track-pill','performance-tyre-plot-controls','performance-pit-controls','retirement-badge','section-empty','performance-error'])assert.ok(css.includes('.'+name),name);
   assert.match(css,/input\[type="checkbox"\]/);assert.match(css,/input\[type="search"\]/);
-  assert.match(css,/scrollbar-thumb/);assert.match(css,/progress \{/);assert.match(css,/summary \{/);
+  assert.match(fs.readFileSync('tokens.css','utf8'),/--scroll-thumb:/);assert.match(css,/progress \{/);assert.match(css,/summary \{/);
 });
 test('motion, contrast, transparency and touch alternatives remain explicit',()=>{
   for(const media of ['prefers-reduced-motion','prefers-reduced-transparency','prefers-contrast','forced-colors','pointer:coarse'])assert.ok(css.includes(media),media);

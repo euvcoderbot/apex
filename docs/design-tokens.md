@@ -56,3 +56,15 @@ The last section of `hig-system.css` holds the deliberate look of the app, on to
 - Pit stops gives its table two thirds of the width, and stacks below 1400 px, so no column is lost to a hidden scroll.
 
 `e2e/integration.spec.mjs` and `e2e/session-view.spec.mjs` check the parts of this that can regress silently: tab labels and table columns are not cut off, no blank band above the tabs, text contrast on chosen rows and on Compare fastest in both appearances, and named toolbar icons.
+
+## Scrollbars
+
+There is one definition, at the end of `hig-system.css`: `* { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }`. Every scrolling
+area, vertical or horizontal, the page and the menus alike, gets the same thin system scrollbar in the theme's thumb colour (`--scroll-thumb`, one value
+per appearance). Only the standard properties are used, so the browser keeps drawing the bar and the OS's overlay and always-show settings still apply;
+under increased contrast and forced colours the bar goes back to the browser's own. Nothing else may set `scrollbar-width`, `scrollbar-color` or a
+`::-webkit-scrollbar` rule (`scripts/test-hig-system.mjs` fails if it does), and `e2e/session-view.spec.mjs` checks that every scrolling area on the
+page computes to the same bar in both appearances.
+
+Before this, six stylesheets each defined scrollbars and the layer order picked a different winner per element: the sidebars were `thin`, the lap list and
+the page were `auto` (15 px, light grey on the dark theme), and menus had their own colours.

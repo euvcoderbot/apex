@@ -164,11 +164,6 @@ summary:hover { color: var(--ui-label); }
 input[type="checkbox"],input[type="radio"],input[type="range"] { accent-color: var(--ui-action); }
 input[type="search"],input[type="text"],input[type="number"] { min-height: 32px; border: 1px solid var(--ui-border-strong); border-radius: var(--radius-md); color: var(--ui-label); background: var(--ui-well); }
 progress { accent-color: var(--ui-action); border-radius: var(--radius-pill); overflow: hidden; }
-* { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
-*::-webkit-scrollbar { width: 9px; height: 9px; }
-*::-webkit-scrollbar-track,*::-webkit-scrollbar-corner { background: transparent; }
-*::-webkit-scrollbar-thumb { min-height: 32px; border: 2px solid transparent; border-radius: var(--radius-pill); background: var(--scroll-thumb); background-clip: padding-box; }
-*::-webkit-scrollbar-thumb:hover { background-color: var(--scroll-thumb-hover); }
 /* Content does not fly, bounce or blur on every data refresh. */
 .dashboard-card,.telemetry-card,.performance-card,.chart { animation: none; }
 @media (max-width:1100px) {

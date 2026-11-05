@@ -92,3 +92,22 @@ test('the toolbar icons are named, and the switches say what they do', async ({p
     expect((await button.evaluate(el => el.getAttribute('aria-label') || el.textContent)).trim(), id + ' has a name').not.toBe('');
   }
 });
+
+test('every scrolling area has the same scrollbar, in both appearances', async ({page}) => {
+  await open(page);
+  for (const theme of ['dark', 'light']) {
+    await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
+    const styles = await page.evaluate(() => {
+      const found = new Map();
+      for (const el of document.querySelectorAll('html, body, body *')) {
+        const style = getComputedStyle(el);
+        if (el.tagName !== 'HTML' && !/(auto|scroll)/.test(style.overflowX + style.overflowY)) continue;
+        const key = `${style.scrollbarWidth} ${style.scrollbarColor}`;
+        found.set(key, [...(found.get(key) || []), el.tagName.toLowerCase() + (el.id ? '#' + el.id : '')]);
+      }
+      return Object.fromEntries([...found].map(([key, names]) => [key, [...new Set(names)].slice(0, 6)]));
+    });
+    expect(Object.keys(styles), `${theme}: scrollbar styles in use ${JSON.stringify(styles)}`).toHaveLength(1);
+    expect(Object.keys(styles)[0], theme).toMatch(/^thin /);
+  }
+});

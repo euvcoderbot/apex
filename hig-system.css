@@ -399,11 +399,11 @@ button.map-guide-info[data-ui-kind="icon"] {
 .select-trigger .select-option-text { line-height: 1.35; }
 .select-menu button[data-ui-kind="menu-item"] { height: auto; min-height: var(--hig-menu-row); padding-left: 3px; gap: 8px; }
 :is(.select-trigger,.select-menu) .gp-flag { width: 18px; height: 13px; flex: 0 0 18px; }
-/* Retain browser/OS scrollbar preferences and necessary viewport overflow. */
-* { scrollbar-width: auto; scrollbar-color: auto; }
-*::-webkit-scrollbar { width: revert; height: revert; }
-*::-webkit-scrollbar-track { background: revert; }
-*::-webkit-scrollbar-thumb,*::-webkit-scrollbar-thumb:hover { background: revert; border: revert; border-radius: revert; background-clip: revert; }
+/* The one scrollbar definition. Every scrolling area, vertical or horizontal, the page and the menus alike, is a thin system scrollbar
+   in the theme's thumb colour: the standard properties only, so the browser keeps drawing it (no arrow buttons, and the OS's
+   overlay and always-show settings still apply). Nothing else in the stylesheets may set scrollbar-width or scrollbar-color. */
+* { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+@media (prefers-contrast: more), (forced-colors: active) { * { scrollbar-width: auto; scrollbar-color: auto; } }
 .local-compute-actions > a[data-ui-kind] { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-height: var(--hig-regular); padding: 4px 12px; font: 400 var(--type-body)/1.4 var(--ui-font); border-radius: var(--hig-radius); }
 .local-compute-dialog p { font-size: var(--type-body); }
 .app-toast { display: flex; align-items: center; gap: 12px; pointer-events: none; }
@@ -710,7 +710,7 @@ html, body { background: radial-gradient(90vw 70vh at 85% -10%,color-mix(in srgb
   body > main#top, body > #carPerformance { grid-template-columns: var(--ui-sidebar-width) minmax(0,1fr); column-gap: 0; padding: 0 0 var(--ui-pane-gap) var(--ui-pane-gap); }
   body.is-sidebar-hidden > main#top, body.is-sidebar-hidden > #carPerformance { grid-template-columns: 0 minmax(0,1fr); padding-left: 0; }
   body > main#top > .app-sidebar, body > #carPerformance > .app-sidebar, body > main#top > .app-inspector {
-    position: sticky; top: var(--ui-toolbar-height); align-self: start; box-sizing: border-box; height: calc(100dvh - var(--ui-toolbar-height) - var(--ui-pane-gap)); overflow: hidden auto; overscroll-behavior: contain; scrollbar-width: thin;
+    position: sticky; top: var(--ui-toolbar-height); align-self: start; box-sizing: border-box; height: calc(100dvh - var(--ui-toolbar-height) - var(--ui-pane-gap)); overflow: hidden auto; overscroll-behavior: contain;
     border: 0; border-radius: var(--ui-pane-radius); background: color-mix(in srgb,var(--ui-sidebar) 70%,transparent);
     -webkit-backdrop-filter: blur(36px) saturate(170%); backdrop-filter: blur(36px) saturate(170%); box-shadow: inset 0 .5px var(--mat-glint),0 0 0 .5px var(--ui-border),0 8px 28px #00000033;
   }

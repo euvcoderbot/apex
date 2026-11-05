@@ -16,22 +16,6 @@ body {
   min-height: 100vh;
 }
 
-/* Custom Scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-xs);
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
 /* Header */
 .site-header {
   height: 60px;
@@ -1244,7 +1228,6 @@ main.sidebar-collapsed .sidebar {
   gap: 5px;
   padding: 0 0 9px;
   overflow-x: auto;
-  scrollbar-width: thin;
 }
 
 .corner-pick {
@@ -2029,7 +2012,6 @@ input {
   grid-template-columns: repeat(auto-fit, minmax(46px, 1fr));
   gap: 5px;
   overflow: visible;
-  scrollbar-width: auto;
 }
 
 .corner-pick {
@@ -3999,8 +3981,6 @@ main,
   border-radius: var(--radius-sm);
   background: #0c0e11;
   box-shadow: 0 14px 36px rgba(0, 0, 0, .46);
-  scrollbar-color: rgba(255, 255, 255, .34) rgba(255, 255, 255, .05);
-  scrollbar-width: thin;
 }
 
 .select-shell.is-open .select-menu {
@@ -4031,21 +4011,6 @@ main,
   background: color-mix(in srgb, var(--ui-accent) 11%, transparent);
   color: var(--ui-accent);
   box-shadow: inset 2px 0 0 var(--ui-accent);
-}
-
-.select-menu::-webkit-scrollbar {
-  width: 8px;
-}
-
-.select-menu::-webkit-scrollbar-track {
-  border-radius: var(--radius-xs);
-  background: rgba(255, 255, 255, .05);
-}
-
-.select-menu::-webkit-scrollbar-thumb {
-  border: 2px solid #0c0e11;
-  border-radius: var(--radius-xs);
-  background: rgba(255, 255, 255, .36);
 }
 
 .run-toolbar .compare-all-btn {
@@ -4130,7 +4095,6 @@ main,
   border-color: #aeb6c0;
   background: #fff;
   box-shadow: 0 14px 32px rgba(30, 38, 48, .18);
-  scrollbar-color: #7b8591 #e7eaee;
 }
 
 :root[data-theme="light"] .select-menu button {
@@ -4145,15 +4109,6 @@ main,
 :root[data-theme="light"] .select-menu button[aria-selected="true"] {
   background: color-mix(in srgb, var(--ui-accent) 12%, white);
   color: #536200;
-}
-
-:root[data-theme="light"] .select-menu::-webkit-scrollbar-track {
-  background: #e7eaee;
-}
-
-:root[data-theme="light"] .select-menu::-webkit-scrollbar-thumb {
-  border-color: #fff;
-  background: #7b8591;
 }
 
 :root[data-theme="light"] .run-toolbar .compare-all-btn {

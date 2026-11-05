@@ -584,8 +584,6 @@ input[data-ui-kind="checkbox"]:checked,input[data-ui-kind="checkbox"]:indetermin
 .app-toast { bottom: 18px; }
 .local-compute-dialog { border: 0; border-radius: var(--radius-lg); background: var(--ui-panel); box-shadow: var(--ui-shadow-popover); }
 .local-compute-dialog[open] { animation: ui-sheet-in var(--motion-tier-standard) var(--ui-spring); }
-* { scrollbar-color: color-mix(in srgb,var(--ui-label) 28%,transparent) transparent; }
-::-webkit-scrollbar-thumb { background-color: color-mix(in srgb,var(--ui-label) 28%,transparent); }
 
 .ui-catalog .category-bar { display: flex; flex-wrap: wrap; gap: 2px; width: fit-content; padding: 3px; border-radius: var(--radius-lg); background: var(--ui-seg-track); }
 .ui-catalog-caption { color: var(--ui-secondary); font-size: var(--type-body); }
