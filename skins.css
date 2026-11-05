@@ -243,6 +243,12 @@
 /* Light: Linear's selected segment is a white pill on a grey track, set off by a hairline. */
 :root[data-skin="linear"][data-theme="light"] :is([data-ui-group="segments"], .performance-tabs, .run-segments, .category-bar)[data-ui-thumb]::before { box-shadow: 0 0 0 1px var(--ui-border); }
 :root[data-skin="linear"] .site-header .performance-tabs > button { font-weight: var(--lin-weight-medium); }
+/* One concentric selection shape: 8px frame, 6px buttons and thumb.
+   Only the measured thumb paints selection; buttons must not double it. */
+:root[data-skin="linear"] :is([data-ui-group="segments"], .performance-tabs, .run-segments) { border-radius: 8px; padding: 3px; }
+:root[data-skin="linear"] :is([data-ui-group="segments"], .performance-tabs, .run-segments) > button { border-radius: 6px; }
+:root[data-skin="linear"] :is([data-ui-group="segments"], .performance-tabs, .run-segments)[data-ui-thumb]::before { border-radius: 6px; }
+:root[data-skin="linear"] :is([data-ui-group="segments"], .performance-tabs, .run-segments)[data-ui-thumb] > button:is([aria-selected="true"], [aria-pressed="true"], .active) { background: transparent; box-shadow: none; }
 /* Category tabs: monochrome icons, the active tab in the label colour (Linear 2026: fewer, quieter icons). */
 :root[data-skin="linear"] .app-sidebar .category-bar { background: transparent; }
 :root[data-skin="linear"] .category-bar .category-tab { color: var(--ui-tertiary); font-weight: var(--lin-weight-medium); }

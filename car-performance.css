@@ -844,6 +844,12 @@ body.performance-view #sidebarToggle {
   filter: brightness(1.2);
 }
 
+/* Quantitative bars share a flat, square-ended visual language. No glow
+   or gradient may imply a measurement beyond either end of the bar. */
+.performance-bar-track { border-radius: 2px; box-shadow: none; }
+.performance-bar { border-radius: 2px; background: var(--bar-color, var(--ui-accent)); box-shadow: none; }
+.performance-tyre-age-bar { border-radius: 2px; }
+
 .performance-bar-val {
   text-align: right;
   font-variant-numeric: tabular-nums;

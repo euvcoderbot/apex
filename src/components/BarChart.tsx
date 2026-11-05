@@ -1,5 +1,6 @@
 import {color, finite, fmt, signed} from '../../performance-format.js';
 import {TeamLabel, type TeamLike} from './TeamLabel';
+import {visibleBarValue} from '../../lib/chart-bar.mjs';
 
 type Row = TeamLike & Record<string, unknown> & {missingReason?: string; traceProvisional?: boolean};
 export type BarChartOptions = {
@@ -54,16 +55,16 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
       ) : null}
       <div className="performance-bars">
         {valid.map((r, i) => {
-          const value = r.chart, position = ((value - lo) / span) * 100;
+          const value = r.chart, plotted = visibleBarValue(value, digits), position = ((plotted - lo) / span) * 100;
           const left = preserveSignedValues ? Math.min(zero, position) : 0;
-          const width = preserveSignedValues ? Math.abs(position - zero) : Math.min(100, Math.max(value > 0.00001 ? 2 : 0, position));
+          const width = preserveSignedValues ? Math.abs(position - zero) : Math.min(100, Math.max(0, position));
           const display = preserveSignedValues ? signed(value, digits, unit) : signedValue
             ? (value <= 0.00001 ? fmt(0, digits, unit) : `+${fmt(value, digits, unit)}`) : fmt(value, digits, unit);
           const gain = signedValue ? (preserveSignedValues ? (value < 0 ? 'is-gain' : 'is-loss') : value <= 0.00001 ? 'is-gain' : 'is-loss') : '';
           const label = String(r[labelKey] || r.team || r.name || '');
           return (
             <div key={label + i} className="performance-bar-row"
-              title={`${label}: ${display}${r.traceProvisional ? ' · Provisional: source gaps over 0.6 s; inspect corner evidence' : ''}`}>
+              title={`${label}: ${display}${plotted === 0 && value !== 0 ? ` · Exact change ${value}${unit}; below displayed precision` : ''}${r.traceProvisional ? ' · Provisional: source gaps over 0.6 s; inspect corner evidence' : ''}`}>
               <div className="performance-bar-label"><TeamLabel team={r} /></div>
               <div className="performance-bar-track">
                 {preserveSignedValues ? <i className="performance-zero" style={{left: `${zero.toFixed(2)}%`}} /> : null}
