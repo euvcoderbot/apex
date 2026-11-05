@@ -166,3 +166,15 @@ test('every team name used from 2014 to 2026, in any common spelling, gets a rea
   const missing = names.filter(name => /team-logo-fallback/.test(box.markup(name)));
   assert.deepEqual(missing, []);
 });
+
+test('only the system layer defines how scrollbars look, so they cannot drift apart again', () => {
+  const files = ['design-system.css', 'polish.css', 'apple-ui.css', 'car-performance.css', 'workspace-ui.css', 'trace-focus.css', 'macos-ui.css', 'ui-controls.css', 'macos-window.css'];
+  for (const file of files) {
+    const source = readFileSync(file, 'utf8');
+    assert.doesNotMatch(source, /scrollbar-(width|color)\s*:/, `${file} sets scrollbar-width or scrollbar-color`);
+    assert.doesNotMatch(source, /::-webkit-scrollbar/, `${file} styles a WebKit scrollbar`);
+  }
+  const system = readFileSync('hig-system.css', 'utf8');
+  assert.match(system, /\* \{ scrollbar-width: thin; scrollbar-color: var\(--scroll-thumb\) transparent; \}/);
+  assert.doesNotMatch(system, /::-webkit-scrollbar/);
+});

@@ -399,11 +399,11 @@ button.map-guide-info[data-ui-kind="icon"] {
 .select-trigger .select-option-text { line-height: 1.35; }
 .select-menu button[data-ui-kind="menu-item"] { height: auto; min-height: var(--hig-menu-row); padding-left: 3px; gap: 8px; }
 :is(.select-trigger,.select-menu) .gp-flag { width: 18px; height: 13px; flex: 0 0 18px; }
-/* Retain browser/OS scrollbar preferences and necessary viewport overflow. */
-* { scrollbar-width: auto; scrollbar-color: auto; }
-*::-webkit-scrollbar { width: revert; height: revert; }
-*::-webkit-scrollbar-track { background: revert; }
-*::-webkit-scrollbar-thumb,*::-webkit-scrollbar-thumb:hover { background: revert; border: revert; border-radius: revert; background-clip: revert; }
+/* The one scrollbar definition. Every scrolling area, vertical or horizontal, the page and the menus alike, is a thin system scrollbar
+   in the theme's thumb colour: the standard properties only, so the browser keeps drawing it (no arrow buttons, and the OS's
+   overlay and always-show settings still apply). Nothing else in the stylesheets may set scrollbar-width or scrollbar-color. */
+* { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+@media (prefers-contrast: more), (forced-colors: active) { * { scrollbar-width: auto; scrollbar-color: auto; } }
 .local-compute-actions > a[data-ui-kind] { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-height: var(--hig-regular); padding: 4px 12px; font: 400 var(--type-body)/1.4 var(--ui-font); border-radius: var(--hig-radius); }
 .local-compute-dialog p { font-size: var(--type-body); }
 .app-toast { display: flex; align-items: center; gap: 12px; pointer-events: none; }

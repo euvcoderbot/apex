@@ -516,8 +516,8 @@ test('scrollbars stay discoverable in both themes without changing layout', () =
   assert.match(css, /\.sidebar, \.select-menu \{ scrollbar-gutter: stable;/);
   assert.doesNotMatch(css, /scrollbar-width: none/);
   assert.doesNotMatch(css, /::-webkit-scrollbar\s*\{\s*display: none/);
-  assert.match(css, /forced-colors: active/);
-  assert.match(css, /:root body \* \{ scrollbar-width: auto; scrollbar-color: auto;/);
+  // How they look is defined once, in the system layer (test-hig-system.mjs), with the OS's own look kept for forced colours and high contrast.
+  assert.match(readFileSync('hig-system.css','utf8'), /prefers-contrast: more\), \(forced-colors: active\) \{ \* \{ scrollbar-width: auto; scrollbar-color: auto;/);
   assert.match(css, /\.sidebar \{ position: static; max-height: none; overflow: visible;/);
 });
 

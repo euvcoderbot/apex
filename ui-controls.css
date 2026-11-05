@@ -165,12 +165,6 @@ progress { appearance: none; height: 4px; border: 0; border-radius: var(--radius
 progress::-webkit-progress-bar { background: var(--ui-control); }
 progress::-webkit-progress-value { background: var(--ui-action); border-radius: var(--radius-xs); }
 progress::-moz-progress-bar { background: var(--ui-action); border-radius: var(--radius-xs); }
-/* Scrollbars are unobtrusive and never reserve an empty horizontal track. */
-* { scrollbar-width: thin; scrollbar-color: #85858c80 transparent; }
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: var(--radius-md); background: #85858c80; background-clip: padding-box; }
-::-webkit-scrollbar-thumb:hover { background-color: #a3a3aa; }
 @media(max-width:700px) {
   .workspace-intro .workspace-tools { justify-content: flex-start; gap: 4px 10px; }
   .workspace-intro .workspace-tools :is(.local-compute-status,.local-compute-link) { flex: 1 0 100%; margin-right: 0; padding-left: 0; }
