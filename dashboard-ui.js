@@ -35,23 +35,25 @@
   function arrangeDriverRail(){
     const column=document.querySelector('#sessionSidebar'),body=document.querySelector('#lapSelectionBody'),sidebar=document.querySelector('#driverSidebar');
     if(!column||!body||!sidebar)return;
-    const wide=driverRail.matches,host=wide?column:body;
+    const wide=driverRail.matches&&document.documentElement.dataset.skin!=='linear',host=wide?column:body;
     if(sidebar.parentElement!==host)wide?host.append(sidebar):host.prepend(sidebar);
     document.querySelector('.analysis-column')?.classList.toggle('has-driver-rail',wide);
   }
   arrangeDriverRail();driverRail.addEventListener('change',arrangeDriverRail);
+  window.addEventListener('apex-skin',arrangeDriverRail);
   // Some hosts defer media-query change events; a resize re-check is cheap and idempotent.
   window.addEventListener?.('resize',arrangeDriverRail,{passive:true});
   // Window toolbar: hide/show the sidebar, mirroring the split-view sidebar item.
   const sidebarButton=document.querySelector('#windowSidebarToggle');
   function setSidebarVisible(visible,persist=true){
     document.body?.classList.toggle('is-sidebar-hidden',!visible);
-    for(const aside of document.querySelectorAll('.app-sidebar'))aside.inert=!visible;
+    for(const aside of document.querySelectorAll('.app-sidebar'))aside.inert=!visible&&document.documentElement.dataset.skin!=='linear';
     if(sidebarButton){sidebarButton.setAttribute('aria-expanded',String(visible));const label=visible?'Hide sidebar':'Show sidebar';sidebarButton.setAttribute('aria-label',label);sidebarButton.title=label;}
     if(persist)window.ApexAnalysis?.savePreference?.('hideSidebar',!visible);
     if(typeof window.dispatchEvent==='function')window.dispatchEvent(new Event('resize'));
   }
   setSidebarVisible(window.ApexAnalysis?.preference?.('hideSidebar',false)!==true,false);
+  window.addEventListener('apex-skin',()=>setSidebarVisible(!document.body.classList.contains('is-sidebar-hidden'),false));
   sidebarButton?.addEventListener('click',()=>setSidebarVisible(document.body.classList.contains('is-sidebar-hidden')));
   // Appearance follows the system until the person chooses one explicitly.
   window.matchMedia('(prefers-color-scheme: light)').addEventListener?.('change',event=>{

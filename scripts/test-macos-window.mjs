@@ -47,8 +47,8 @@ test('sidebar toggle and source list behave in a minimal DOM',()=>{
   const asides=[{inert:false},{inert:false}];
   const body={classList:{toggle:(name,on)=>on?classes.add(name):classes.delete(name),contains:name=>classes.has(name)},dataset:{}};
   const prefs={};
-  const box={Event:class{constructor(type){this.type=type;}},window:{matchMedia:()=>({matches:true,addEventListener(){}}),dispatchEvent(){},ApexAnalysis:{preference:(k,d)=>k in prefs?prefs[k]:d,savePreference:(k,v)=>prefs[k]=v}},
-    document:{body,querySelector:s=>s==='#windowSidebarToggle'?button:null,querySelectorAll:s=>s==='.app-sidebar'?asides:[]}};
+  const box={Event:class{constructor(type){this.type=type;}},window:{addEventListener(){},matchMedia:()=>({matches:true,addEventListener(){}}),dispatchEvent(){},ApexAnalysis:{preference:(k,d)=>k in prefs?prefs[k]:d,savePreference:(k,v)=>prefs[k]=v}},
+    document:{documentElement:{dataset:{}},body,querySelector:s=>s==='#windowSidebarToggle'?button:null,querySelectorAll:s=>s==='.app-sidebar'?asides:[]}};
   vm.createContext(box);vm.runInContext(ui,box);
   assert.equal(attrs['aria-expanded'],'true');assert.equal(classes.has('is-sidebar-hidden'),false);
   listeners.click();
