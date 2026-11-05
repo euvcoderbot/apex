@@ -20,7 +20,7 @@
       {label: 'Choose comparison laps', detail: 'Session analysis', action: () => { document.querySelector('[data-analysis-view="session"]')?.click(); document.getElementById('lapWorkspaceToggle')?.click(); }},
       {label: 'Change appearance', detail: 'Switch light / dark', action: () => document.getElementById('themeToggle')?.click()},
       {label: 'Toggle explanations', detail: 'Show or hide measurement guidance', action: () => document.getElementById('explanationsToggle')?.click()},
-      {label: 'Switch density', detail: 'Compact / comfortable', action: toggleDensity},
+      {label: 'Switch density', detail: 'Normal / compact', action: toggleDensity},
       ...[...document.querySelectorAll('#performanceCategoryList button:not(:disabled)')].map(button => ({label: button.getAttribute('aria-label') || button.textContent.trim(), detail: 'Car performance category', action: () => { document.querySelector('[data-analysis-view="performance"]')?.click(); button.click(); }})),
     ];
   }
@@ -45,11 +45,11 @@
     search.value = ''; renderCommands(); dialog.showModal(); search.focus();
   }
   function toggleDensity() {
-    const next = root.dataset.linearDensity === 'compact' ? 'comfortable' : 'compact';
+    const next = root.dataset.linearDensity === 'compact' ? 'normal' : 'compact';
     root.dataset.linearDensity = next;
     try { localStorage.setItem('apex-linear-density', next); } catch { /* page only */ }
     const button = rail.querySelector('[data-linear-density]');
-    button.textContent = next === 'compact' ? 'Comfortable spacing' : 'Compact spacing';
+    button.textContent = next === 'compact' ? 'Normal density' : 'Compact density';
     button.setAttribute('aria-pressed', String(next === 'compact'));
     requestAnimationFrame(() => window.ApexUI?.decorate(document));
     window.dispatchEvent(new Event('resize'));
@@ -72,7 +72,7 @@
       + section('analysis', 'Analysis', '<div class="linear-navigation"></div>')
       + section('categories', 'Measurements', '<div class="linear-categories"></div>', 'linear-category-heading')
       + section('drivers', 'Drivers', '<div class="linear-drivers"></div>', 'linear-drivers-heading')
-      + '<div class="linear-rail-footer"><button type="button" data-linear-density aria-pressed="false">Compact spacing</button></div>';
+      + '<div class="linear-rail-footer"><button type="button" data-linear-density aria-pressed="false">Compact density</button></div>';
     rail.addEventListener('click', event => {
       const heading = event.target.closest('.linear-section-toggle'); if (!heading) return;
       const open = heading.getAttribute('aria-expanded') !== 'true';
@@ -110,8 +110,8 @@
     lapHeader.innerHTML = '<strong>Comparison laps</strong><div class="linear-lap-actions"></div><button type="button" aria-label="Close lap chooser">Done</button>';
     lapHeader.querySelector('button').addEventListener('click', () => document.getElementById('lapWorkspaceToggle')?.click());
     document.getElementById('lapSelectionBody').prepend(lapHeader);
-    try { root.dataset.linearDensity = localStorage.getItem('apex-linear-density') === 'compact' ? 'compact' : 'comfortable'; } catch { root.dataset.linearDensity = 'comfortable'; }
-    if (root.dataset.linearDensity === 'compact') { root.dataset.linearDensity = 'comfortable'; toggleDensity(); }
+    try { root.dataset.linearDensity = localStorage.getItem('apex-linear-density') === 'compact' ? 'compact' : 'normal'; } catch { root.dataset.linearDensity = 'normal'; }
+    if (root.dataset.linearDensity === 'compact') { root.dataset.linearDensity = 'normal'; toggleDensity(); }
   }
   function reconcile() {
     if (!rail) return;

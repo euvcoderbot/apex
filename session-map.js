@@ -421,4 +421,6 @@ function applyTheme(theme, persist = true) {
   }
   if (loaded.length) drawAll();
   else if (selected.length) renderMiniSectorMap();
+  // Some colours depend on the background (team-colours.js); views drawn outside the canvas redraw on this.
+  if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') window.dispatchEvent(new CustomEvent('apex-theme', {detail: nextTheme}));
 }

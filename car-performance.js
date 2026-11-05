@@ -1939,6 +1939,8 @@ function scheduleRender() {
   // froze progress until the whole load finished.
   setTimeout(()=>{renderQueued=false;render();},60);
 }
+// Haas is drawn darker on light backgrounds (team-colours.js), so the bars are redrawn when the appearance changes.
+if(typeof window!=='undefined')window.addEventListener?.('apex-theme',()=>{try{render();}catch(_){/* not mounted yet */}});
 function render() {
   const state=capturePerformanceUI(root);
   window.ApexReact?.unmountAll?.(root);
