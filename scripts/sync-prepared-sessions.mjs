@@ -47,6 +47,18 @@ async function newer(from, to) {
   return Number.isFinite(first)&&Number.isFinite(second)&&first>second;
 }
 
+// Metadata-only migrations preserve the observation's capture time. Carry one
+// only with a current annotation revision and identical non-annotation content.
+async function annotationOnlyUpdate(from,to){
+  const strip=bytes=>{
+    const value=JSON.parse(gunzipSync(bytes));
+    if(value.local_export){delete value.local_export.annotation_revision;delete value.local_export.annotation_method;}
+    for(const driver of value.drivers||[])for(const lap of driver.laps||[]){delete lap.red_flag;delete lap.neutralised;}
+    return JSON.stringify(value);
+  };
+  return strip(await readFile(from))===strip(await readFile(to));
+}
+
 /** What syncing would do, without writing anything. */
 export async function plan(from, to) {
   const data = root => path.join(root, 'assets', 'data');
@@ -72,6 +84,8 @@ export async function plan(from, to) {
     if (!await readable(file)) { problems.push(`unreadable capture file for ${key}`); continue; }
     if (!have || !siteMatches) captures.push({key, entry, action: 'add'});
     else if (Date.parse(entry.capturedAt) > Date.parse(have.capturedAt)) captures.push({key, entry, action: 'replace', superseded: have.file});
+    else if(entry.annotationRevision===wanted.sourceRevision&&entry.file!==have.file&&entry.capturedAt===have.capturedAt&&await annotationOnlyUpdate(file,path.join(data(to),'local-captures',have.file)))
+      captures.push({key,entry,action:'replace',superseded:have.file});
   }
   for (const [identity, file] of Object.entries(fromPacks.entries || {})) {
     const sourceRevision=fromPacks.entrySourceRevisions?.[identity]||fromPacks.sourceRevision;

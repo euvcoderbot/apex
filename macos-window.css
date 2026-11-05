@@ -471,7 +471,7 @@ body.is-descriptions-hidden #performanceMetricPanel p.performance-quality-status
 .performance-bar-row { gap: 8px; min-height: 26px; padding-block: 3px; border-radius: var(--radius-xs); }
 .performance-bar-row:hover { background: var(--ui-row-hover); }
 .performance-bar-track { height: 6px; border-radius: var(--radius-xs); background: color-mix(in srgb,var(--ui-label) 8%,transparent); }
-.performance-bar { border-radius: var(--radius-xs); }
+.performance-bar { border-radius: 2px; }
 .performance-bar-val { font-size: var(--type-body); font-weight: 500; color: var(--ui-label); }
 .performance-bar-label,.performance-team { font-size: var(--type-body); color: var(--ui-label); }
 /* Split chart + table: the table keeps its natural width, the chart takes the rest. */
@@ -727,7 +727,7 @@ main#top > .analysis-column { padding: 24px; gap: 20px; }
 .performance-table th { font-size: var(--ui-caption); color: var(--ui-secondary); font-weight: 600; }
 .performance-table tbody tr:hover td { background: var(--ui-row-hover); }
 .performance-table td small { color: var(--ui-tertiary); font-size: var(--ui-caption); white-space: normal; overflow-wrap: anywhere; max-width: 100%; line-height: 1.4; }
-.performance-bar-track { height: 6px; border-radius: var(--radius-xs); }
+.performance-bar-track { height: 6px; border-radius: 2px; }
 .select-menu { border-radius: var(--ui-menu-radius); padding: 6px; background: color-mix(in srgb,var(--ui-control) 94%,transparent); }
 .select-menu button,.select-menu button[data-ui-kind="menu-item"] { min-height: var(--ui-control-height); border-radius: var(--radius-sm); }
 button[data-ui-kind="menu-item"][aria-selected="true"],button[data-ui-kind="menu-item"][aria-selected="true"]:is(:hover,:focus-visible) { background: var(--ui-list-selected); color: var(--ui-list-selected-label); box-shadow: none; }

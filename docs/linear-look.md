@@ -4,6 +4,8 @@ A second look for the app, switched with the toolbar button beside Light/Dark (`
 for the Linear look is scoped to `:root[data-skin="linear"]` and lives in `skins.css`, the last cascade layer (`skin`). The choice is stored in
 this browser (`localStorage['apex-skin']`) and applied by an inline script in `index.html` before the first paint. It works with both Light and Dark.
 
+The full workspace redesign extends this foundation. See [research and interaction specification](linear-workspace-spec.md) for official product-documentation sources, layout decisions and verification. `linear-workspace.js` reparents existing navigation and lap actions, supplies command search, and restores the default layout on toggle; it does not own data or calculations.
+
 ## Files
 
 | File | Role |
@@ -26,7 +28,7 @@ this browser (`localStorage['apex-skin']`) and applied by an inline script in `i
 - Inter / Inter Display (rsms.me/inter): Linear's typefaces. The app ships Inter Variable with the optical-size axis, which gives Display
   shapes at large sizes.
 
-Linear's product app sits behind a sign-in and was not inspected; values come from the public site and Linear's own write-ups.
+The authenticated product app was not inspected. Its public embedded product demo, official documentation and design write-ups were inspected; the evidence matrix distinguishes measured public values from Apex-specific adaptations.
 
 ## What was taken, and how closely
 
@@ -47,7 +49,7 @@ Linear's product app sits behind a sign-in and was not inspected; values come fr
 | Type | Inter Variable 13 px body, weights 510 and 590 | same; ramp 11/12/13/14/15/20/24. |
 | Radii | 4/6/8/12, pill 9999 | controls 6, cards 8, panel 12, chips pill. |
 | Controls | 28 px, flat, hairline inset ring | same; primary actions in the accent. |
-| Frame | inverted L, content raised | at 980 px and wider the content and inspector sit on one raised panel; the sidebar and top bar stay on the canvas. |
+| Frame | location / view bar hierarchy, subdued navigation | persistent 208px workspace rail, 48px location bar, horizontal view filters, broad analysis area and contextual trailing inspector; responsive horizontal navigation on phones. |
 | Materials | no glass | blur, glint and press scaling are off. |
 
 ## Motion
@@ -66,7 +68,7 @@ All of it is turned off under `prefers-reduced-motion: reduce`.
 
 - Linear's logo, wordmark, illustrations and marketing layouts.
 - Exit animations for menus and the sheet: the app removes them from the page on close, so only the entrance animates.
-- Linear's command menu and keyboard model; the app keeps its own controls.
+- Issue-tracker commands and unrelated workflows; Apex's command dialog operates its existing analysis controls.
 
 ## Changing it
 

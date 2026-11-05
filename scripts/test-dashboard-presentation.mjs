@@ -11,7 +11,7 @@ const css=readFileSync('workspace-ui.css','utf8');
 const car=readFileSync('car-performance.js','utf8');
 
 test('every performance category has a distinct accessible heading and honest context',()=>{
-  const box={window:{matchMedia:()=>({matches:false,addEventListener(){}})},document:{getElementById:()=>null,querySelector:()=>null,querySelectorAll:()=>[]}};
+  const box={window:{addEventListener(){},matchMedia:()=>({matches:false,addEventListener(){}})},document:{documentElement:{dataset:{}},getElementById:()=>null,querySelector:()=>null,querySelectorAll:()=>[]}};
   vm.createContext(box);vm.runInContext(ui,box);
   for(const metric of ['pace','corners','straight','braking','pits','tyres','trend','results']){
     const heading=box.window.ApexPresentation.metricHeading(metric,{year:2026,events:2,subject:'driver',session:'race'});

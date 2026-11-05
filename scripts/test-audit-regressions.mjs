@@ -19,6 +19,9 @@ test('web batch body limits apply before JSON parsing, including streaming reque
 test('snapshot allowances apply only to specifically audited current revisions',()=>{
   assert.ok(snapshotCompatible('backendRevision','1af2a5e364d242f1b28d','71adaa62766be3dbf91d'));
   assert.equal(snapshotCompatible('backendRevision','1af2a5e364d242f1b28d','future-model'),false);
+  assert.ok(snapshotCompatible('sourceRevision','b6adedb102cdf8caca3e','17534d7592c1c357898d'));
+  assert.ok(snapshotCompatible('backendRevision','0a1762c2ea19ed91113c','2623ae524ce37d83e700'));
+  assert.equal(snapshotCompatible('sourceRevision','b6adedb102cdf8caca3e','unknown-future'),false);
 });
 
 test('metric coverage does not count successful race results as qualifying telemetry',()=>{

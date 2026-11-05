@@ -44,7 +44,9 @@ for(const [key,entry] of Object.entries(captures?.entries||{})){
   const family=/^\/api\/(events|session)\?/.test(key)?'sourceRevision':/^\/api\/(qualifying|race)-corners\?/.test(key)?'measurementRevision':'backendRevision';
   requireRevision(family,entry[family]||captures[family]);
   if(!Number.isFinite(Date.parse(entry.capturedAt)))throw Error('Missing capture time: '+key);
-  await payload('local-captures',entry.file,key);
+  const value=await payload('local-captures',entry.file,key);
+  if(family==='sourceRevision'&&value.openf1_session_key&&(entry.sourceRevision||captures.sourceRevision)!==SOURCE_REVISION&&value.local_export?.annotation_revision!==SOURCE_REVISION)
+    throw Error('Retained OpenF1 session needs current offline race-control annotations: '+key);
 }
 for(const folder of ['prerendered','local-telemetry','telemetry']){
   const index=await indexFor(folder);
@@ -55,7 +57,9 @@ for(const folder of ['prerendered','local-telemetry','telemetry']){
   if(index.revision)requireRevision('backendRevision',index.revision,{recording});
   for(const [route,file] of Object.entries(index.entries)){
     if(index.entrySourceRevisions?.[route])requireRevision('sourceRevision',index.entrySourceRevisions[route],{recording});
-    await payload(folder,file,folder==='prerendered'?route:'');
+    const value=await payload(folder,file,folder==='prerendered'?route:'');
+    if(!sourceOnly&&folder==='prerendered'&&value.openf1_session_key&&index.sourceRevision!==SOURCE_REVISION&&value.local_export?.annotation_revision!==SOURCE_REVISION)
+      throw Error('Historical OpenF1 session needs current offline race-control annotations: '+route);
   }
 }
 console.log(`${sourceOnly?'Source recordings structurally valid (publication compatibility not checked)':'Release snapshots valid'}: ${files} referenced files checked; ${retained} retained revision references keep their original provenance.`);
