@@ -366,7 +366,7 @@
 :root[data-skin="linear"] .app-sidebar .performance-actions button { padding-inline: 12px; }
 :root[data-skin="linear"] .app-sidebar #performanceTrackTray { flex: 1 0 100%; padding-top: 12px; margin-top: 2px; border-top: 1px solid var(--ui-separator); }
 :root[data-skin="linear"] .app-sidebar .performance-track-pills { display: flex; flex-wrap: wrap; gap: 4px; max-height: 150px; overflow: auto; }
-:root[data-skin="linear"] .app-sidebar .track-pill[data-ui-kind="choice"] { width: auto; flex: 0 1 auto; min-height: 28px; padding: 5px 9px; grid-template-columns: 18px 24px minmax(0,1fr); border-radius: 6px; }
+:root[data-skin="linear"] .app-sidebar .track-pill[data-ui-kind="choice"] { width: auto; flex: 0 1 auto; min-height: 28px; padding: 5px 9px; grid-template-columns: 18px 24px minmax(0,1fr) 12px; border-radius: 6px; }
 :root[data-skin="linear"] .app-sidebar .track-tray-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
 :root[data-skin="linear"] .app-sidebar .track-tray-actions { display: flex; gap: 6px; }
 :root[data-skin="linear"] .app-sidebar .btn-track-action[data-ui-kind] { width: auto; padding-inline: 9px; }

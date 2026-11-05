@@ -85,10 +85,10 @@ test('real recorded laps load in the redesigned workspace without changing value
   await page.keyboard.press('Escape');
   expect(errors).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
-  await page.screenshot({path: 'test-results/linear-session-desktop.png', fullPage: true});
+  await page.screenshot({path: `test-results/linear-session-${test.info().project.name}.png`});
   await page.setViewportSize({width: 390, height: 844});
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
-  await page.screenshot({path: 'test-results/linear-session-mobile.png', fullPage: true});
+  await page.screenshot({path: `test-results/linear-mobile-${test.info().project.name}.png`});
 });
 
 test('all eight performance categories work with the Linear rail and flat bars', async ({page}) => {
@@ -109,6 +109,8 @@ test('all eight performance categories work with the Linear rail and flat bars',
   }
   await page.setViewportSize({width: 1440, height: 900});
   await page.locator('#linearWorkspace [data-sidebar-metric="trend"]').click();
+  const selected = page.locator('#performanceTrackPills .track-pill[aria-pressed="true"]').first();
+  expect(await selected.evaluate(el => getComputedStyle(el).gridTemplateRows.split(' ').length), 'selected track check stays on one row').toBe(1);
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.screenshot({path: 'test-results/linear-performance-desktop.png', fullPage: true});
+  await page.screenshot({path: `test-results/linear-performance-${test.info().project.name}.png`});
 });
