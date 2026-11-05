@@ -65,8 +65,10 @@
         if (!group.isConnected) (clear || tray.lastElementChild).before(group);
         document.getElementById('inspectorTabTrack')?.click();
       } else {
+        const moved = !!tray?.querySelector('.comparison-picker');
         for (const [node, mark] of homes) mark.after(node);
         tray?.querySelector('.comparison-picker')?.remove();
+        if (moved) document.getElementById('inspectorTabLaps')?.click();
       }
     };
     new MutationObserver(place).observe(document.documentElement, {attributes: true, attributeFilter: ['data-lap-picker']});
