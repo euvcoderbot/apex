@@ -1377,7 +1377,9 @@ function pitSummary(events, teams) {
   const groups=new Map(), drivers=new Map();
   // Pit timing should not depend on first loading the unrelated race-pace API.
   for(const event of loadedRaces)for(const entrant of event.pits.entrants||[]) {
-    const team=entrant.team||'Unknown team',driver=entrant.driver||`#${entrant.driver_number}`;
+    const driver=entrant.driver||`#${entrant.driver_number}`;
+    // The pit feed can list a stand-in without a team; the race's own classification may still name it.
+    const team=entrant.team||event.R?.teams?.find(t=>t.drivers?.includes(driver))?.team||'Unknown team';
     if(!groups.has(team))groups.set(team,{team,color:teamColors.get(team),visits:[],events:new Set()});
     const key=`${team}:${driver}`;
     if(!drivers.has(key))drivers.set(key,{team,driver,color:teamColors.get(team),visits:[],events:new Set()});
