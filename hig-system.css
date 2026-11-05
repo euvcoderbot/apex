@@ -1059,9 +1059,28 @@ html[data-lap-picker="compact"] .lap-workspace .lap-chip .compound-badge { grid-
 html[data-lap-picker="compact"] .lap-workspace .lap-chip .lap-clock { grid-column: 1 / -1; grid-row: 2; text-align: left; font-size: var(--type-callout); line-height: 16px; }
 html[data-lap-picker="compact"] .lap-workspace .lap-chip .lap-tyre-age { display: none; }
 
-/* B: the picker is a sheet over the page (a popover in the top layer); the pane keeps only the Choose laps button. */
-html[data-lap-picker="sheet"] #lapSelectionBody:popover-open { position: fixed; inset: 7vh auto auto 50%; transform: translateX(-50%); margin: 0; box-sizing: border-box; width: min(960px, calc(100vw - 32px)); max-height: 86vh; overflow-y: auto; padding: 18px; border: 0; border-radius: var(--radius-xl); background: var(--mat-sheet); color: var(--ui-label); -webkit-backdrop-filter: var(--mat-blur-menu); backdrop-filter: var(--mat-blur-menu); box-shadow: var(--mat-edge), var(--ui-shadow-popover); }
+/* B: the picker is a sheet over the page (a popover in the top layer), opened from the Comparison bar; the right pane shows Track & corners only. */
+.lap-age { display: none; }
+html[data-lap-picker="sheet"] #sessionInspector > .inspector-tabs { display: none; }
+/* The lap workspace stays in the document (the sheet is its child) but takes no room and is not seen; the sheet itself is shown in the top layer. */
+html[data-lap-picker="sheet"] #sessionInspector > #lapWorkspace, html[data-lap-picker="sheet"] #sessionInspector[data-pane] > #lapWorkspace { display: block; position: absolute; width: 0; height: 0; margin: 0; padding: 0; border: 0; overflow: hidden; visibility: hidden; }
+html[data-lap-picker="sheet"] #lapSelectionBody:popover-open { visibility: visible; position: fixed; inset: 6vh auto auto 50%; transform: translateX(-50%); margin: 0; box-sizing: border-box; width: min(1480px, calc(100vw - 32px)); max-height: 88vh; overflow-y: auto; padding: 16px; border: 0; border-radius: var(--radius-xl); background: var(--mat-sheet); color: var(--ui-label); -webkit-backdrop-filter: var(--mat-blur-menu); backdrop-filter: var(--mat-blur-menu); box-shadow: var(--mat-edge), var(--ui-shadow-popover); }
 html[data-lap-picker="sheet"] #lapSelectionBody::backdrop { background: var(--mat-scrim); }
-html[data-lap-picker="sheet"] #stintPanels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 14px; }
-html[data-lap-picker="sheet"] .lap-workspace .lap-grid { max-height: none; overflow: visible; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
-html[data-lap-picker="sheet"] #lapWorkspaceToggle { padding-inline: 10px; background: var(--ui-control); box-shadow: var(--ui-shadow-control); border-radius: var(--radius-md); }
+/* Three drivers across, three laps across in each. */
+html[data-lap-picker="sheet"] #stintPanels { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 12px; }
+html[data-lap-picker="sheet"] .lap-workspace .lap-grid { max-height: none; overflow: visible; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 0; }
+/* Two lines per lap: lap number with tyre and tyre age on top, the time underneath, so OUT/IN laps and long times fit three across. */
+html[data-lap-picker="sheet"] .lap-workspace .lap-chip[data-ui-kind="choice"] { box-sizing: border-box; height: auto; min-height: 42px; padding: 4px 8px; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-rows: auto auto; gap: 1px 4px; align-items: center; align-content: center; }
+html[data-lap-picker="sheet"] .lap-workspace .lap-chip .lap-token { grid-column: 1; grid-row: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: var(--type-caption); }
+html[data-lap-picker="sheet"] .lap-workspace .lap-chip .compound-badge { grid-column: 2; grid-row: 1; width: 14px; height: 14px; }
+html[data-lap-picker="sheet"] .lap-workspace .lap-chip .lap-age { grid-column: 3; grid-row: 1; display: inline; min-width: 2ch; color: var(--ui-secondary); font-size: var(--type-caption); font-variant-numeric: tabular-nums; line-height: 1; text-align: right; }
+html[data-lap-picker="sheet"] .lap-workspace .lap-chip .lap-clock { grid-column: 1 / -1; grid-row: 2; font-size: var(--type-callout); line-height: 16px; text-align: left; }
+html[data-lap-picker="sheet"] .lap-workspace .lap-chip .lap-tyre-age { display: none; }
+html[data-lap-picker="sheet"] .lap-workspace .lap-chip[aria-pressed="true"] .lap-age { color: inherit; opacity: .8; }
+/* The picker's button and Compare fastest, in the Comparison bar. */
+.comparison-picker { display: flex; flex: none; align-items: center; gap: 8px; margin-left: auto; }
+.comparison-picker #lapWorkspaceToggle { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border: 0; border-radius: var(--radius-md); background: var(--ui-control); box-shadow: var(--ui-shadow-control); color: var(--ui-label); font: 600 var(--type-callout)/1 var(--ui-font); white-space: nowrap; }
+.comparison-picker #lapWorkspaceToggle > i { display: none; }
+.comparison-picker #lapWorkspaceToggle:hover { background: var(--ui-control-hover); }
+.comparison-picker #lapWorkspaceActions { display: flex; align-items: center; gap: 8px; margin: 0; }
+.comparison-picker #lapWorkspaceActions .run-toolbar { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; color: var(--ui-secondary); font-size: var(--type-caption); white-space: nowrap; }

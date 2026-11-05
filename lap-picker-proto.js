@@ -1,7 +1,7 @@
 /* PROTOTYPE, not for merging: three ways to choose laps, switchable on the page so they can be compared.
    current  the lap list scrolls inside the right pane (what ships today)
    compact  A: every lap of the stint is visible as a small tile grid, so nothing scrolls inside the pane
-   sheet    B: the picker opens as a sheet over the page; the pane keeps only the Choose laps button
+   sheet    B: the picker opens as a sheet over the page from the Comparison bar; the right pane shows Track & corners only
    Pick one with the control at the bottom left, or open /apex?laps=compact or /apex?laps=sheet. The choice is remembered in this browser. */
 (() => {
   const KEY = 'apex-lap-picker', MODES = [['current', 'Current'], ['compact', 'A · Compact tiles'], ['sheet', 'B · Sheet']];
@@ -45,10 +45,29 @@
     // A popover's backdrop does not take clicks, so a click anywhere outside the sheet is caught here, closes it, and is not passed on to
     // whatever was behind (it would otherwise also select that driver or lap).
     addEventListener('click', event => {
-      if (!body.matches(':popover-open') || event.target.closest('#lapSelectionBody, #lapWorkspaceToggle, #lapWorkspaceActions, #lapPickerProto')) return;
+      if (!body.matches(':popover-open') || event.target.closest('#lapSelectionBody, #lapWorkspaceToggle, #lapWorkspaceActions, #lapPickerProto, #loadedLaps, #clearComparison')) return;
       event.preventDefault(); event.stopPropagation();
       setLapSelectionExpanded(false, true);
     }, true);
+    // With the picker in a sheet, the right pane's Laps tab would hold only a button, so the button and Compare fastest move into the
+    // Comparison bar over the charts, and the right pane shows Track & corners alone. Switching back to another design puts them back.
+    const toggle = document.getElementById('lapWorkspaceToggle'), actions = document.getElementById('lapWorkspaceActions');
+    const tray = document.querySelector('.comparison-tray'), clear = document.getElementById('clearComparison');
+    const homes = new Map([toggle, actions].filter(Boolean).map(node => { const mark = document.createComment(node.id); node.before(mark); return [node, mark]; }));
+    const place = () => {
+      const sheet = document.documentElement.dataset.lapPicker === 'sheet';
+      if (sheet && tray) {
+        const group = tray.querySelector('.comparison-picker') || Object.assign(document.createElement('div'), {className: 'comparison-picker'});
+        group.append(...homes.keys());
+        if (!group.isConnected) (clear || tray.lastElementChild).before(group);
+        document.getElementById('inspectorTabTrack')?.click();
+      } else {
+        for (const [node, mark] of homes) mark.after(node);
+        tray?.querySelector('.comparison-picker')?.remove();
+      }
+    };
+    new MutationObserver(place).observe(document.documentElement, {attributes: true, attributeFilter: ['data-lap-picker']});
+    place();
     // In sheet mode the picker starts closed; its markup starts open for the in-pane designs.
     if (document.documentElement.dataset.lapPicker === 'sheet') setLapSelectionExpanded(false);
     sync();

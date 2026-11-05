@@ -282,7 +282,12 @@ function renderStints() {
       const tyreDetail = hasQualifyingPhases ? `<small class="lap-tyre-age" title="Tyre age: ${age === null ? 'unknown' : `${age} ${age === 1 ? 'lap' : 'laps'}`}">Run ${qualifyingRuns.indexOf(lap.stint) + 1} Lap ${activeLaps.filter(item => item.stint === lap.stint).indexOf(lap) + 1}</small>`
         : age !== null ? `<small class="lap-tyre-age">Tyre age ${age} ${age === 1 ? 'lap' : 'laps'}</small>`
         : counted ? `<small class="lap-tyre-age" title="Laps run in this stint. The tyres may have been used before it began.">Tyre age ~${counted} ${counted === 1 ? 'lap' : 'laps'}</small>` : '';
-      return `<button class="${classes}" aria-pressed="${isLoaded}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${escapeUI(title)}"><span class="lap-token">${flag}${context ? ` <b class="lap-state">${context}</b>` : ''}${neutralised ? ` <b class="lap-state">${neutralised}</b>` : ''}</span><span class="lap-clock">${duration}</span>${compoundBadgeMarkup(lap.compound)}${tyreDetail}</button>`;
+      // The same fact in a few characters, set beside the tyre badge where a whole line of text does not fit (the lap sheet).
+      const runIndex = qualifyingRuns.indexOf(lap.stint) + 1, lapInRun = activeLaps.filter(item => item.stint === lap.stint).indexOf(lap) + 1;
+      const shortAge = hasQualifyingPhases ? `<small class="lap-age" title="Run ${runIndex}, lap ${lapInRun} of that run">R${runIndex}·${lapInRun}</small>`
+        : age !== null ? `<small class="lap-age" title="Tyre age ${age} ${age === 1 ? 'lap' : 'laps'}">${age}</small>`
+        : counted ? `<small class="lap-age" title="Laps run in this stint. The tyres may have been used before it began.">~${counted}</small>` : '';
+      return `<button class="${classes}" aria-pressed="${isLoaded}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${escapeUI(title)}"><span class="lap-token">${flag}${context ? ` <b class="lap-state">${context}</b>` : ''}${neutralised ? ` <b class="lap-state">${neutralised}</b>` : ''}</span><span class="lap-clock">${duration}</span>${compoundBadgeMarkup(lap.compound)}${shortAge}${tyreDetail}</button>`;
     }).join('');
     const groupLabel = hasQualifyingPhases ? active : `Stint ${active}`;
 
