@@ -832,9 +832,11 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
 }
 /* Wider: the track details leave the sectors and get a block of their own, beside the driver. The lap time keeps the right edge and the narrowest column. */
 @container telemetry (min-width: 1100px) {
-  .telemetry-content .sector-cards .lap-summary-card { grid-template-columns: 152px 270px minmax(0,1fr) 112px; grid-template-areas: "driver conds sectors time" "tyre conds sectors time"; }
+  /* The four conditions read on one line; the sectors take what is left (they compress a little to make room). */
+  .telemetry-content .sector-cards .lap-summary-card { grid-template-columns: 152px max-content minmax(0,1fr) 112px; grid-template-areas: "driver conds sectors time" "tyre conds sectors time"; }
   .telemetry-content .sector-cards .lap-summary-card .summary-sectors { align-self: stretch; align-items: center; padding-bottom: 0; }
-  .telemetry-content .sector-cards .lap-summary-card .summary-conditions { display: grid; grid-template-columns: repeat(2,max-content); align-content: center; gap: 2px 16px; padding-top: 0; }
+  .telemetry-content .sector-cards .lap-summary-card .summary-conditions { display: flex; flex-wrap: nowrap; align-items: center; gap: 14px; padding-top: 0; padding-right: 0; }
+  .telemetry-content .sector-cards .lap-summary-card .summary-condition { flex: none; white-space: nowrap; }
 }
 /* Widest: a true timing table, one line per lap. Driver, tyre, the conditions, the three sectors beside the lap time, then the gap and the lap time
    (the same order as the two-line layout, so the sectors always sit next to the time they add up to). */

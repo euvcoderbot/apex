@@ -104,6 +104,11 @@
       if (isLinear() && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault(); if (dialog.open) dialog.close(); else openCommands();
       }
+      // "[" folds the sidebar, as in Linear; never while typing or with a modifier held.
+      const typing = event.target.closest?.('input, textarea, select, [contenteditable="true"]');
+      if (isLinear() && event.key === '[' && !typing && !event.ctrlKey && !event.metaKey && !event.altKey && !dialog.open) {
+        event.preventDefault(); document.getElementById('windowSidebarToggle')?.click();
+      }
     });
     new MutationObserver(syncView).observe(document.querySelector('.performance-tabs'), {subtree: true, attributes: true, attributeFilter: ['aria-selected']});
     lapHeader = document.createElement('div'); lapHeader.className = 'linear-lap-header'; lapHeader.hidden = true;

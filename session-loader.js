@@ -64,7 +64,9 @@ function closeSelectMenu(shell) {
 function positionSelectMenu(shell) {
   const menu = shell.querySelector('.select-menu'), trigger = shell.querySelector('.select-trigger');
   if (!menu?.hasAttribute('popover')) return;
-  const anchor = trigger.getBoundingClientRect(), gutter = 8;
+  // In the Linear look the trigger is the value part of a chip ("Season 2026"); the menu lines up with the whole chip.
+  const chip = document.documentElement.dataset.skin === 'linear' ? trigger.closest('.control-field') : null;
+  const anchor = (chip || trigger).getBoundingClientRect(), gutter = 8;
   if (anchor.bottom < gutter || anchor.top > innerHeight - gutter) { closeSelectMenu(shell); return; }
   // Measurements include the page zoom; inline styles are applied in layout px.
   const page = document.documentElement;

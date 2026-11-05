@@ -145,6 +145,8 @@
   function placeThumb(group){applyThumb(group,measureThumb(group));}
   const thumbObserver=typeof ResizeObserver!=='undefined'?new ResizeObserver(entries=>entries.forEach(entry=>placeThumb(entry.target.closest?.(thumbGroups)||entry.target))):null;
   function placeThumbs(root=document){
+    // The Linear look fills the chosen segment instead of drawing a sliding thumb; measuring would only force layouts.
+    if(document.documentElement.dataset.skin==='linear')return;
     const groups=[...root.querySelectorAll(thumbGroups)];
     const measured=groups.map(measureThumb);
     groups.forEach((group,index)=>applyThumb(group,measured[index]));
@@ -170,12 +172,27 @@
     return {version:'macos-components-v1',counts,unowned};
   }
   decorate();
-  let pending=false;
+  // New controls are decorated where they appeared, not across the whole page: re-scanning every button in the document after each
+  // render cost more than the render. State changes on existing controls only move segment thumbs.
+  let pending=false,dirtyRoots=new Set(),thumbsDirty=false;
+  function flush(){
+    if(!pending)return;pending=false;
+    const roots=[...dirtyRoots].filter(node=>node.isConnected);dirtyRoots=new Set();
+    const outermost=roots.filter(node=>!roots.some(other=>other!==node&&other.contains(node)));
+    for(const node of outermost)decorate(node.parentElement||node);
+    if(thumbsDirty&&!outermost.length)placeThumbs();
+    thumbsDirty=false;
+  }
   if(typeof MutationObserver!=='undefined')new MutationObserver(records=>{
     releaseRemovedThumbs(records);
-    if(!records.some(record=>record.type==='childList'||record.target.matches?.('button,input,select,summary'))||pending)return;
+    let relevant=false;
+    for(const record of records){
+      if(record.type==='childList'&&record.addedNodes.length){dirtyRoots.add(record.target);relevant=true;}
+      else if(record.type==='attributes'&&record.target.matches?.('button,input,select,summary')){thumbsDirty=true;relevant=true;}
+    }
+    if(!relevant||pending)return;
     // rAF pauses in background tabs; the timer guarantees new controls are owned anyway.
-    pending=true;const run=()=>{if(!pending)return;pending=false;decorate();};requestAnimationFrame(run);setTimeout(run,150);
+    pending=true;requestAnimationFrame(flush);setTimeout(flush,150);
   }).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','aria-pressed','aria-selected','aria-current','disabled']});
   document.addEventListener('keydown',event=>{
     const resizer=event.target.closest?.('.ui-column-resizer');

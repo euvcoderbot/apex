@@ -37,7 +37,8 @@
     if(!column||!body||!sidebar)return;
     // The Linear look lists drivers in its workspace rail, one per row as in the macOS sidebar; on phones the rail is a strip, so they go in the lap sheet.
     const linear=document.documentElement.dataset.skin==='linear',railSlot=document.querySelector('#linearWorkspace .linear-drivers');
-    const railShown=railSlot&&window.matchMedia(`(min-width:${Math.round(761*(window.APEX_UI_ZOOM||1))}px)`).matches;
+    // A collapsed rail cannot hold them either; the lap sheet takes them until it opens again.
+    const railShown=railSlot&&!document.body?.classList.contains('is-sidebar-hidden')&&window.matchMedia(`(min-width:${Math.round(761*(window.APEX_UI_ZOOM||1))}px)`).matches;
     const wide=driverRail.matches&&!linear,host=linear?(railShown?railSlot:body):(wide?column:body);
     if(sidebar.parentElement!==host)wide?host.append(sidebar):host.prepend(sidebar);
     document.querySelector('.analysis-column')?.classList.toggle('has-driver-rail',wide);
@@ -50,6 +51,8 @@
   const sidebarButton=document.querySelector('#windowSidebarToggle');
   function setSidebarVisible(visible,persist=true){
     document.body?.classList.toggle('is-sidebar-hidden',!visible);
+    // Also on <html>, where the Linear look sets the rail width it lays the whole frame out from.
+    document.documentElement.dataset.sidebar=visible?'shown':'hidden';
     for(const aside of document.querySelectorAll('.app-sidebar'))aside.inert=!visible&&document.documentElement.dataset.skin!=='linear';
     if(sidebarButton){sidebarButton.setAttribute('aria-expanded',String(visible));const label=visible?'Hide sidebar':'Show sidebar';sidebarButton.setAttribute('aria-label',label);sidebarButton.title=label;}
     if(persist)window.ApexAnalysis?.savePreference?.('hideSidebar',!visible);
@@ -125,9 +128,16 @@
   });
   categoryList?.addEventListener('click',event=>{
     const row=event.target.closest('[data-sidebar-metric]');if(!row||row.disabled)return;
-    performanceRoot?.querySelector(`.performance-mode [data-performance-metric="${CSS.escape(row.dataset.sidebarMetric)}"]`)?.click();
-    syncCategoryList();
-    if(!driverRail.matches)document.querySelector('#performanceMetricPanel')?.scrollIntoView({block:'start'});
+    // The chosen row is marked at once; the category, which rebuilds the whole panel, renders after that frame is painted,
+    // so the click is acknowledged immediately instead of after the render.
+    for(const other of categoryList.querySelectorAll('[data-sidebar-metric]')){const on=other===row;other.setAttribute('aria-selected',String(on));if(on)other.setAttribute('aria-current','page');else other.removeAttribute('aria-current');}
+    const metric=row.dataset.sidebarMetric;
+    const show=()=>{
+      performanceRoot?.querySelector(`.performance-mode [data-performance-metric="${CSS.escape(metric)}"]`)?.click();
+      syncCategoryList();
+      if(!driverRail.matches)document.querySelector('#performanceMetricPanel')?.scrollIntoView({block:'start'});
+    };
+    if(typeof requestAnimationFrame==='function')requestAnimationFrame(()=>setTimeout(show,0));else show();
   });
   categoryList?.addEventListener('keydown',event=>{
     if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key))return;
