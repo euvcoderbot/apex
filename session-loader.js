@@ -72,6 +72,9 @@ function positionSelectMenu(shell) {
   const page = document.documentElement;
   const zoom = page?.offsetWidth ? page.getBoundingClientRect().width / page.offsetWidth || 1 : 1;
   menu.style.minWidth = Math.min(anchor.width, innerWidth - gutter * 2) / zoom + 'px';
+  // A chip's menu is exactly as wide as the chip, so both edges line up; long names shorten with an ellipsis.
+  if (chip) menu.style.width = Math.min(anchor.width, innerWidth - gutter * 2) / zoom + 'px';
+  else menu.style.removeProperty('width');
   menu.style.maxHeight = Math.max(80, innerHeight - gutter * 2) / zoom + 'px';
   const box = menu.getBoundingClientRect(), width = box.width, height = box.height;
   const below = innerHeight - anchor.bottom - gutter - 4;

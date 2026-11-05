@@ -664,7 +664,7 @@
 :root[data-skin="linear"] .app-sidebar .control-field-scope .performance-scope-toggle > button { height: 20px; min-height: 20px; }
 
 /* Pop-up menus: Linear's. 8 px panel, 28 px rows, the chosen row marked with a check, not a fill. */
-:root[data-skin="linear"] .select-menu { min-width: 180px !important; padding: 4px; gap: 1px; }
+:root[data-skin="linear"] .select-menu { box-sizing: border-box; padding: 4px; gap: 1px; }
 :root[data-skin="linear"] .select-menu button[data-ui-kind="menu-item"] {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 28px; min-height: 28px; padding: 0 8px;
   border-radius: 6px; background: transparent; color: var(--ui-secondary); font: 400 13px/1 var(--ui-font); letter-spacing: -.01em;
@@ -834,3 +834,24 @@
 :root[data-skin="linear"] .select-menu button[data-ui-kind="menu-item"] { justify-content: flex-start; }
 :root[data-skin="linear"] .select-menu button[data-ui-kind="menu-item"] .select-option-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
 :root[data-skin="linear"] .select-menu button[data-ui-kind="menu-item"][aria-selected="true"]::before { margin-left: auto; }
+
+/* ======================= v3.3 ======================= */
+/* Scope toggle inside its chip. The shared segmented rule names #raceResultControls inside :is(), which gives it ID weight,
+   so these rules carry an ID too (and come later) to win: no second frame, segments as tall as the chip allows, inset 2 px. */
+:root[data-skin="linear"][data-skin][data-skin] #performanceSidebar .control-field-scope { height: 28px; padding: 0 2px 0 9px; gap: 0; }
+:root[data-skin="linear"][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle {
+  display: grid; grid-template-columns: 1fr 1fr; height: 24px; margin: 0 0 0 6px; padding: 0; gap: 2px; border-radius: 5px; background: transparent; box-shadow: none;
+}
+:root[data-skin="linear"][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button {
+  height: 24px; min-height: 24px; padding: 0 10px; border-radius: 4px; background: transparent; color: var(--ui-tertiary); box-shadow: none;
+}
+:root[data-skin="linear"][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button:hover:not(:disabled) { background: var(--lin-nav-hover); color: var(--ui-label); }
+:root[data-skin="linear"][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button[aria-pressed="true"] { background: var(--lin-seg-on); color: var(--ui-label); }
+:root[data-skin="linear"][data-skin][data-skin][data-linear-density="compact"] #performanceSidebar .control-field-scope { height: 24px; }
+:root[data-skin="linear"][data-skin][data-skin][data-linear-density="compact"] #performanceSidebar .control-field-scope .performance-scope-toggle,
+:root[data-skin="linear"][data-skin][data-skin][data-linear-density="compact"] #performanceSidebar .control-field-scope .performance-scope-toggle > button { height: 20px; min-height: 20px; }
+
+/* Rail: every highlight spans the same width, including the Points / Gap to winner switch. */
+:root[data-skin="linear"][data-skin] #linearWorkspace #raceResultControls:not([hidden]) { display: grid; grid-template-columns: 1fr 1fr; width: 100%; box-sizing: border-box; }
+:root[data-skin="linear"][data-skin] #linearWorkspace #raceResultControls > button { width: 100%; justify-content: center; }
+:root[data-skin="linear"][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle { min-height: 0; }
