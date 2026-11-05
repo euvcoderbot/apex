@@ -54,6 +54,10 @@
     requestAnimationFrame(() => window.ApexUI?.decorate(document));
     window.dispatchEvent(new Event('resize'));
   }
+  // A rail section: a heading button that folds its content, as Linear's "Workspace" and "Favorites" headings do.
+  function section(id, label, content, extra = '') {
+    return `<div class="linear-rail-section" data-section="${id}"><button type="button" class="linear-nav-heading linear-section-toggle ${extra}" aria-expanded="true" aria-controls="linearSection-${id}">${label}</button><div id="linearSection-${id}" class="linear-section-body">${content}</div></div>`;
+  }
   function syncView() {
     if (!rail) return;
     const performance = document.querySelector('[data-analysis-view="performance"]')?.getAttribute('aria-selected') === 'true';
@@ -62,7 +66,19 @@
   function mount() {
     rail = document.createElement('aside'); rail.id = 'linearWorkspace'; rail.setAttribute('aria-label', 'Apex workspace'); rail.hidden = true;
     // Static authored markup only; labels from data always use textContent.
-    rail.innerHTML = '<div class="linear-workspace-brand"><img src="assets/f1apex-icon-32.png" alt="" width="22" height="22"><strong>Apex Data</strong><span>Workspace</span></div><button type="button" class="linear-search" aria-haspopup="dialog"><span>Search commands</span><kbd>Ctrl K</kbd></button><div class="linear-nav-heading">Analysis</div><div class="linear-navigation"></div><div class="linear-category-heading linear-nav-heading">Measurements</div><div class="linear-categories"></div><div class="linear-rail-footer"><span>Formula 1 · Analytics</span><button type="button" data-linear-density aria-pressed="false">Compact spacing</button></div>';
+    // Linear's sidebar: a workspace row with a round search button, 28 px rows, and quiet section headings that fold their section.
+    rail.innerHTML = '<div class="linear-workspace-top"><div class="linear-workspace-brand"><img src="assets/f1apex-icon-32.png" alt="" width="18" height="18"><strong>Apex Data</strong></div>'
+      + '<button type="button" class="linear-search" aria-haspopup="dialog" aria-label="Search commands" title="Search commands · Ctrl K"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3" stroke-linecap="round"/></svg></button></div>'
+      + section('analysis', 'Analysis', '<div class="linear-navigation"></div>')
+      + section('categories', 'Measurements', '<div class="linear-categories"></div>', 'linear-category-heading')
+      + section('drivers', 'Drivers', '<div class="linear-drivers"></div>', 'linear-drivers-heading')
+      + '<div class="linear-rail-footer"><button type="button" data-linear-density aria-pressed="false">Compact spacing</button></div>';
+    rail.addEventListener('click', event => {
+      const heading = event.target.closest('.linear-section-toggle'); if (!heading) return;
+      const open = heading.getAttribute('aria-expanded') !== 'true';
+      heading.setAttribute('aria-expanded', String(open));
+      document.getElementById(heading.getAttribute('aria-controls')).hidden = !open;
+    });
     document.querySelector('.site-header').before(rail);
     dialog = document.createElement('dialog'); dialog.id = 'linearCommandMenu'; dialog.setAttribute('aria-label', 'Search Apex commands');
     dialog.innerHTML = '<div class="linear-command-input"><label for="linearCommandSearch">Search commands</label><input id="linearCommandSearch" type="search" placeholder="What would you like to do?" autocomplete="off"><button type="button" aria-label="Close command search">Esc</button></div><div class="linear-command-results" aria-label="Commands"></div><div class="linear-command-footer">↑ ↓ navigate <span>Enter to open · Esc to close</span></div>';
@@ -109,6 +125,8 @@
       for (const [node, anchor] of anchors) anchor.after(node);
     }
     syncView(); requestAnimationFrame(() => window.ApexUI?.decorate(document));
+    // The driver list's placement belongs to dashboard-ui.js (arrangeDriverRail); a resize makes it re-place the list now that the rail exists.
+    window.dispatchEvent(new Event('resize'));
   }
   addEventListener('DOMContentLoaded', () => { mount(); reconcile(); });
   addEventListener('apex-skin', reconcile);

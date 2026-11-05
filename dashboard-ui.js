@@ -35,7 +35,10 @@
   function arrangeDriverRail(){
     const column=document.querySelector('#sessionSidebar'),body=document.querySelector('#lapSelectionBody'),sidebar=document.querySelector('#driverSidebar');
     if(!column||!body||!sidebar)return;
-    const wide=driverRail.matches&&document.documentElement.dataset.skin!=='linear',host=wide?column:body;
+    // The Linear look lists drivers in its workspace rail, one per row as in the macOS sidebar; on phones the rail is a strip, so they go in the lap sheet.
+    const linear=document.documentElement.dataset.skin==='linear',railSlot=document.querySelector('#linearWorkspace .linear-drivers');
+    const railShown=railSlot&&window.matchMedia(`(min-width:${Math.round(761*(window.APEX_UI_ZOOM||1))}px)`).matches;
+    const wide=driverRail.matches&&!linear,host=linear?(railShown?railSlot:body):(wide?column:body);
     if(sidebar.parentElement!==host)wide?host.append(sidebar):host.prepend(sidebar);
     document.querySelector('.analysis-column')?.classList.toggle('has-driver-rail',wide);
   }
