@@ -118,12 +118,13 @@ test('development view: single-GP explanation, ranking switch and coverage', () 
   assert.match(html, /data-trend-view="fitted" aria-pressed="true"/);
   assert.match(html, />Observed change</);
   assert.match(html, />Fitted change</);
-  assert.match(html, /trend-change is-improvement[^>]*>-0\.800 pp/);
-  assert.match(html, /trend-change trend-fitted is-improvement[^>]*>-0\.700 pp/);
-  assert.match(html, /-0\.350 pp\/round/);
+  assert.match(html, /trend-change is-improvement[^>]*>-0\.800%/);
+  assert.match(html, /trend-change trend-fitted is-improvement[^>]*>-0\.700%/);
+  assert.match(html, /-0\.350%\/round/);
+  assert.doesNotMatch(html, / pp\b/);
   assert.match(html, /data-trend-fit=""/);
   assert.match(html, /stroke-dasharray="4 3"/);
-  assert.match(html, /-0\.500 to -0\.300 pp\/round/);
+  assert.match(html, /-0\.500 to -0\.300%\/round/);
   assert.match(html, /FIA event documents/);
 });
 

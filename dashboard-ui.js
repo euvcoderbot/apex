@@ -103,11 +103,20 @@
     }
     const panel=performanceRoot.querySelector('#performanceMetricPanel');if(panel&&active)panel.setAttribute('aria-labelledby','category-tab-'+active);
   }
+  // Picking out a team: the highlight stays on the last team hovered while the pointer crosses the gaps between lines
+  // or bars, and clears only when the pointer leaves the board. Clearing on every gap made all lines flash back to full strength.
+  const highlightTrend=(board,key)=>{
+    board.classList.toggle('has-active',!!key);
+    for(const item of board.querySelectorAll('[data-trend-series]'))item.classList.toggle('is-active',item.dataset.trendSeries===key);
+  };
   performanceRoot?.addEventListener('pointerover',event=>{
     const board=event.target.closest?.('.trend-board');if(!board)return;
     const key=event.target.closest('[data-trend-series]')?.dataset.trendSeries;
-    board.classList.toggle('has-active',!!key);
-    for(const item of board.querySelectorAll('[data-trend-series]'))item.classList.toggle('is-active',item.dataset.trendSeries===key);
+    if(key)highlightTrend(board,key);
+  });
+  performanceRoot?.addEventListener('pointerout',event=>{
+    const board=event.target.closest?.('.trend-board');
+    if(board&&!board.contains(event.relatedTarget))highlightTrend(board,null);
   });
   categoryList?.addEventListener('click',event=>{
     const row=event.target.closest('[data-sidebar-metric]');if(!row||row.disabled)return;

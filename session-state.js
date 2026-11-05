@@ -633,6 +633,13 @@ function lightThemeActive() {
 }
 
 function canvasTheme() {
+  // A look other than the default (skins.css) supplies its own chart colours as --chart-* tokens.
+  if (typeof document !== 'undefined' && document.documentElement.dataset.skin) {
+    const css = getComputedStyle(document.documentElement), v = name => css.getPropertyValue(name).trim();
+    if (v('--chart-grid')) return {text: v('--chart-text'), textStrong: v('--chart-text-strong'), grid: v('--chart-grid'), gridStrong: v('--chart-grid-strong'),
+      panel: v('--chart-panel'), outline: v('--chart-outline'), mapBase: v('--chart-map-base'), labelStroke: v('--chart-label-stroke'),
+      labelFill: v('--chart-label-fill'), crosshair: v('--chart-crosshair')};
+  }
   return lightThemeActive() ? {
     text: '#67676e',
     textStrong: 'rgba(20, 25, 32, .82)',

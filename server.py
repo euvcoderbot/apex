@@ -709,16 +709,59 @@ def openf1(endpoint: str, **params: Any) -> list[dict[str, Any]]:
     session_key = valid_params.get("session_key")
     settled = session_key is not None and _openf1_session_settled(session_key)
     cache_path = openf1_cache_path(url)
+    cached = None
     if settled and cache_path.exists():
         try:
             with gzip.open(cache_path, "rt", encoding="utf-8") as handle:
-                return json.load(handle)
+                cached = json.load(handle)
         except (OSError, ValueError):
             cache_path.unlink(missing_ok=True)
-    result = _openf1_fetch(url)
-    if settled and result:
+        # A saved driver list with a driver missing a team is not final: OpenF1 fills a stand-in's team in later. Ask again.
+        if cached is not None and (endpoint != "drivers" or _driver_rows_complete(cached)):
+            return cached
+    try:
+        result = _openf1_fetch(url)
+    except (OSError, ValueError):
+        if cached:
+            return _fill_driver_identities(cached) if endpoint == "drivers" else cached
+        raise
+    if endpoint == "drivers":
+        result = _fill_driver_identities(result)
+    if settled and result and (endpoint != "drivers" or _driver_rows_complete(result)):
         _write_raw(cache_path, result)
     return result
+
+
+def _driver_rows_complete(rows: Any) -> bool:
+    return isinstance(rows, list) and all(row.get("team_name") for row in rows if isinstance(row, dict))
+
+
+def _fill_driver_identities(rows: Any) -> Any:
+    """A driver listed without a team takes the team the same car number has in the meeting's other sessions.
+
+    OpenF1 can publish a stand-in (Hirakawa for Ocon, Mexico City 2026) with no team in one session while practice and
+    qualifying name it. The car number is fixed for the weekend, so the meeting's own list is the evidence; nothing is
+    guessed from other weekends.
+    """
+    if not isinstance(rows, list) or _driver_rows_complete(rows):
+        return rows
+    meeting = next((row.get("meeting_key") for row in rows if isinstance(row, dict) and row.get("meeting_key") is not None), None)
+    if meeting is None:
+        return rows
+    try:
+        weekend = _openf1_fetch(openf1_url("drivers", meeting_key=meeting))
+    except (OSError, ValueError):
+        return rows
+    known = {}
+    for other in weekend if isinstance(weekend, list) else []:
+        if isinstance(other, dict) and other.get("team_name"):
+            known[other.get("driver_number")] = other
+    for row in rows:
+        other = known.get(row.get("driver_number")) if isinstance(row, dict) and not row.get("team_name") else None
+        if other:
+            row["team_name"] = other["team_name"]
+            row["team_colour"] = row.get("team_colour") or other.get("team_colour")
+    return rows
 
 
 OPENF1_WINDOW_S = 300
