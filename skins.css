@@ -314,14 +314,14 @@
 :root[data-skin="linear"] {
   --linear-rail: 240px; --linear-gap: 8px; --linear-view-radius: 10px; --linear-header: 44px; --linear-content-pad: 28px;
   --lin-nav-active: #ffffff0a; --lin-nav-hover: #ffffff05; --lin-hairline: #ffffff0d; --lin-card: #ffffff05; --lin-card-border: #ffffff0f;
-  --lin-label-border: #2e2e32; --lin-view-ring: #00000033; --lin-shadow-high: 0 7px 32px #00000059; --lin-shadow-medium: 0 4px 24px #00000033;
+  --lin-label-border: #2e2e32; --lin-frame-border: #ffffff14; --lin-view-ring: #00000033; --lin-shadow-high: 0 7px 32px #00000059; --lin-shadow-medium: 0 4px 24px #00000033;
   --lin-bar: 8px;
 }
 :root[data-skin="linear"][data-theme="light"] {
   --lin-nav-active: #0000000a; --lin-nav-hover: #00000005; --lin-hairline: #0000000f; --lin-card: #00000003; --lin-card-border: #00000012;
-  --lin-label-border: #dcdbdd; --lin-view-ring: #0000000a; --lin-shadow-high: 0 7px 32px #0000001f; --lin-shadow-medium: 0 4px 24px #00000014;
+  --lin-label-border: #dcdbdd; --lin-frame-border: #0000001a; --lin-view-ring: #0000000a; --lin-shadow-high: 0 7px 32px #0000001f; --lin-shadow-medium: 0 4px 24px #00000014;
 }
-:root[data-skin="linear"] body { font-feature-settings: "cv01", "ss03"; background: var(--ui-canvas); background-image: none; }
+:root[data-skin="linear"] body { font-feature-settings: "cv01", "ss03"; background: var(--ui-canvas); background-image: none; isolation: isolate; }
 
 /* ---- Frame: the inverted L. The rail sits on the canvas; header, view bar and content share one raised view with 10 px corners,
    a hairline and Linear's 2 px outer ring. A fixed mask outside the view's rounded edge keeps scrolled content inside it. ---- */
@@ -333,7 +333,7 @@
   :root[data-skin="linear"] body::after {
     content: ""; position: fixed; z-index: 110; top: var(--linear-gap); right: var(--linear-gap); bottom: var(--linear-gap); left: var(--linear-rail);
     border-radius: var(--linear-view-radius); pointer-events: none;
-    box-shadow: 0 0 0 1px var(--lin-hairline), 0 0 0 3px var(--lin-view-ring), 0 0 0 100vmax var(--ui-canvas);
+    box-shadow: 0 0 0 1px var(--lin-frame-border), 0 0 0 3px var(--lin-view-ring), 0 0 0 100vmax var(--ui-canvas);
   }
   :root[data-skin="linear"] body.trace-focus::after, :root[data-skin="linear"] body.trace-focus::before { display: none; }
   :root[data-skin="linear"] .site-header.window-toolbar {
@@ -605,7 +605,7 @@
   :root[data-skin="linear"] #linearWorkspace .linear-nav-heading::after { transition: none; }
 }
 @media (prefers-contrast: more) {
-  :root[data-skin="linear"] { --lin-hairline: var(--ui-border-strong); --lin-card-border: var(--ui-border-strong); --lin-label-border: var(--ui-border-strong); }
+  :root[data-skin="linear"] { --lin-hairline: var(--ui-border-strong); --lin-frame-border: var(--ui-border-strong); --lin-card-border: var(--ui-border-strong); --lin-label-border: var(--ui-border-strong); }
 }
 
 /* ---- v3 corrections ---- */
