@@ -35,6 +35,9 @@ async function payload(folder,file,route=''){
   const filename=path.join(root,folder,file);
   if((await stat(filename)).size>32*1024*1024)throw Error('Compressed snapshot exceeds release budget: '+file);
   const value=decodeSnapshot(await readFile(filename));
+  const query=new URL(route,'https://release.invalid');
+  if(!sourceOnly&&query.pathname==='/api/performance'&&['r','race'].includes((query.searchParams.get('session')||'').toLowerCase())&&value.retirement_annotation_revision!==BACKEND_REVISION)
+    throw Error('Race retirement classifications need rebuilding: '+route);
   validatePayload(value,folder,route);
   files++;return value;
 }
@@ -45,7 +48,7 @@ for(const [key,entry] of Object.entries(captures?.entries||{})){
   requireRevision(family,entry[family]||captures[family]);
   if(!Number.isFinite(Date.parse(entry.capturedAt)))throw Error('Missing capture time: '+key);
   const value=await payload('local-captures',entry.file,key);
-  if(family==='sourceRevision'&&value.openf1_session_key&&(entry.sourceRevision||captures.sourceRevision)!==SOURCE_REVISION&&value.local_export?.annotation_revision!==SOURCE_REVISION)
+  if(family==='sourceRevision'&&value.openf1_session_key&&(entry.sourceRevision||captures.sourceRevision)!==SOURCE_REVISION&&!snapshotCompatible('sourceRevision',value.local_export?.annotation_revision,SOURCE_REVISION))
     throw Error('Retained OpenF1 session needs current offline race-control annotations: '+key);
 }
 for(const folder of ['prerendered','local-telemetry','telemetry']){
@@ -58,7 +61,7 @@ for(const folder of ['prerendered','local-telemetry','telemetry']){
   for(const [route,file] of Object.entries(index.entries)){
     if(index.entrySourceRevisions?.[route])requireRevision('sourceRevision',index.entrySourceRevisions[route],{recording});
     const value=await payload(folder,file,folder==='prerendered'?route:'');
-    if(!sourceOnly&&folder==='prerendered'&&value.openf1_session_key&&index.sourceRevision!==SOURCE_REVISION&&value.local_export?.annotation_revision!==SOURCE_REVISION)
+    if(!sourceOnly&&folder==='prerendered'&&value.openf1_session_key&&index.sourceRevision!==SOURCE_REVISION&&!snapshotCompatible('sourceRevision',value.local_export?.annotation_revision,SOURCE_REVISION))
       throw Error('Historical OpenF1 session needs current offline race-control annotations: '+route);
   }
 }
