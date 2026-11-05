@@ -7,7 +7,7 @@ import {sourceRevisionBytes} from '../lib/source-revision.mjs';
 import {snapshotPolicy} from '../lib/snapshot-policy.mjs';
 
 const root = process.cwd();
-const calculationFiles=['verified_sources.py','verified-sources.json.gz','telemetry_sources.py','pace_models.py','performance.py','performance_tracks.py','car_physics.py','server.py','session_loader.py','openf1_performance.py','openf1-performance.json.gz','race-cornering.js','corner-geometry.js','corner-position.js','qualifying-telemetry.js','speed-domain.js','performance-format.js','performance-identity.js','alignment.js','telemetry-model.js','car-performance.js','session-state.js','session-loader.js','session-laps.js','session-charts.js','session-hover.js','session-corners.js','session-map.js','session-init.js','session-tyres.js','analysis-core.js','lib/data-cache.mjs','lib/race-corner-loader.mjs','lib/qualifying-corner-loader.mjs'];
+const calculationFiles=['verified_sources.py','verified-sources.json.gz','telemetry_sources.py','pace_models.py','performance.py','retirement_sources.py','performance_tracks.py','car_physics.py','server.py','session_loader.py','openf1_performance.py','openf1-performance.json.gz','race-cornering.js','corner-geometry.js','corner-position.js','qualifying-telemetry.js','speed-domain.js','performance-format.js','performance-identity.js','alignment.js','telemetry-model.js','car-performance.js','session-state.js','session-loader.js','session-laps.js','session-charts.js','session-hover.js','session-corners.js','session-map.js','session-init.js','session-tyres.js','analysis-core.js','lib/data-cache.mjs','lib/race-corner-loader.mjs','lib/qualifying-corner-loader.mjs'];
 const revision=createHash('sha256');
 for(const file of calculationFiles)revision.update(file).update(sourceRevisionBytes(file,await readFile(resolve(root,file))));
 revision.update('api_security.py').update(sourceRevisionBytes('api_security.py',await readFile(resolve(root,'api_security.py'))));
@@ -17,7 +17,7 @@ for(const file of ['server.py','session_loader.py','openf1_performance.py','open
 sourceRevision.update('api_security.py').update(sourceRevisionBytes('api_security.py',await readFile(resolve(root,'api_security.py'))));
 const computedSourceRevision=sourceRevision.digest('hex').slice(0,20);
 const backend=createHash('sha256'),race=createHash('sha256');
-for(const file of ['server.py','session_loader.py','openf1_performance.py','openf1-performance.json.gz','telemetry_sources.py','performance.py','performance_tracks.py','car_physics.py','pace_models.py','verified_sources.py','verified-sources.json.gz'])backend.update(file).update(sourceRevisionBytes(file,await readFile(resolve(root,file))));
+for(const file of ['server.py','session_loader.py','openf1_performance.py','openf1-performance.json.gz','telemetry_sources.py','performance.py','retirement_sources.py','performance_tracks.py','car_physics.py','pace_models.py','verified_sources.py','verified-sources.json.gz'])backend.update(file).update(sourceRevisionBytes(file,await readFile(resolve(root,file))));
 for(const file of ['race-cornering.js','corner-geometry.js','corner-position.js','lib/race-corner-loader.mjs','lib/qualifying-corner-loader.mjs'])race.update(file).update(sourceRevisionBytes(file,await readFile(resolve(root,file))));
 backend.update('api_security.py').update(sourceRevisionBytes('api_security.py',await readFile(resolve(root,'api_security.py'))));
 const computedBackendRevision=backend.digest('hex').slice(0,20),computedMeasurementRevision=race.digest('hex').slice(0,20);

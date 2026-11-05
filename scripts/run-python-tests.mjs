@@ -12,7 +12,8 @@ const files = readdirSync(path.join(root, 'scripts')).filter(name => /^test-.*\.
 const failed = [];
 for (const file of files) {
   console.log(`\n# ${file}`);
-  const run = spawnSync(python, [path.join('scripts', file)], {cwd: root, stdio: 'inherit',timeout:180_000,windowsHide:true});
+  // Tests never reach Wikipedia: retirement causes come from fixtures (retirement_sources.py honours this switch).
+  const run = spawnSync(python, [path.join('scripts', file)], {cwd: root, stdio: 'inherit',timeout:180_000,windowsHide:true,env:{...process.env,APEX_RETIREMENT_SOURCES:'off'}});
   if(run.error)console.error(`${file}: ${run.error.message}`);
   if (run.status !== 0) failed.push(file);
 }
