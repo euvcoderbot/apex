@@ -1939,6 +1939,8 @@ function scheduleRender() {
   // froze progress until the whole load finished.
   setTimeout(()=>{renderQueued=false;render();},60);
 }
+// Haas is drawn darker on light backgrounds (team-colours.js), so the bars are redrawn when the appearance changes.
+if(typeof window!=='undefined')window.addEventListener?.('apex-theme',()=>{try{render();}catch(_){/* not mounted yet */}});
 function render() {
   const state=capturePerformanceUI(root);
   window.ApexReact?.unmountAll?.(root);
@@ -2190,6 +2192,15 @@ root.addEventListener('change',event=>{
   window.scrollTo({top:scrollY,behavior:'instant'});
 });
 
+// Segmented choices rebuild the whole panel. Mark the new choice at once and replay the click after that frame is painted,
+// so the control answers immediately; the handler below then runs exactly as before.
+root.addEventListener('click',event=>{
+  const segment=event.target.closest?.('button[data-ui-kind="segment"]');
+  if(!segment||event.apexDeferred||segment.disabled||segment.getAttribute('aria-pressed')==='true'||typeof requestAnimationFrame!=='function')return;
+  event.stopImmediatePropagation();
+  for(const button of segment.parentElement.querySelectorAll(':scope > button'))button.setAttribute('aria-pressed',String(button===segment));
+  requestAnimationFrame(()=>setTimeout(()=>{const replay=new MouseEvent('click',{bubbles:true,cancelable:true});replay.apexDeferred=true;segment.dispatchEvent(replay);},0));
+},true);
 root.addEventListener('click',event=>{
   const resultsMeasure=event.target.closest('[data-results-chart]');
   if(resultsMeasure){resultsChartMetric=resultsMeasure.dataset.resultsChart;render();return;}

@@ -20,7 +20,7 @@
       {label: 'Choose comparison laps', detail: 'Session analysis', action: () => { document.querySelector('[data-analysis-view="session"]')?.click(); document.getElementById('lapWorkspaceToggle')?.click(); }},
       {label: 'Change appearance', detail: 'Switch light / dark', action: () => document.getElementById('themeToggle')?.click()},
       {label: 'Toggle explanations', detail: 'Show or hide measurement guidance', action: () => document.getElementById('explanationsToggle')?.click()},
-      {label: 'Switch density', detail: 'Compact / comfortable', action: toggleDensity},
+      {label: 'Switch density', detail: 'Normal / compact', action: toggleDensity},
       ...[...document.querySelectorAll('#performanceCategoryList button:not(:disabled)')].map(button => ({label: button.getAttribute('aria-label') || button.textContent.trim(), detail: 'Car performance category', action: () => { document.querySelector('[data-analysis-view="performance"]')?.click(); button.click(); }})),
     ];
   }
@@ -45,14 +45,34 @@
     search.value = ''; renderCommands(); dialog.showModal(); search.focus();
   }
   function toggleDensity() {
-    const next = root.dataset.linearDensity === 'compact' ? 'comfortable' : 'compact';
+    const next = root.dataset.linearDensity === 'compact' ? 'normal' : 'compact';
     root.dataset.linearDensity = next;
     try { localStorage.setItem('apex-linear-density', next); } catch { /* page only */ }
-    const button = rail.querySelector('[data-linear-density]');
-    button.textContent = next === 'compact' ? 'Comfortable spacing' : 'Compact spacing';
-    button.setAttribute('aria-pressed', String(next === 'compact'));
+    syncDensityButton();
     requestAnimationFrame(() => window.ApexUI?.decorate(document));
     window.dispatchEvent(new Event('resize'));
+  }
+  // Density is a toggle in the header, beside the appearance controls: pressed means compact.
+  function syncDensityButton() {
+    const button = document.getElementById('densityToggle'); if (!button) return;
+    const compact = root.dataset.linearDensity === 'compact';
+    button.setAttribute('aria-pressed', String(compact));
+    button.setAttribute('aria-label', compact ? 'Use normal density' : 'Use compact density');
+    button.title = compact ? 'Density: compact. Switch to normal' : 'Density: normal. Switch to compact';
+  }
+  function mountDensityButton() {
+    const button = document.createElement('button');
+    button.id = 'densityToggle'; button.type = 'button'; button.className = 'sidebar-toggle'; button.dataset.linearDensity = '';
+    // Static authored markup: three tight rows, the compact list.
+    button.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h10"/></svg>';
+    button.addEventListener('click', toggleDensity);
+    const theme = document.getElementById('themeToggle');
+    if (theme) theme.after(button); else document.querySelector('.site-header .workspace-tools')?.append(button);
+    syncDensityButton();
+  }
+  // A rail section: a heading button that folds its content, as Linear's "Workspace" and "Favorites" headings do.
+  function section(id, label, content, extra = '') {
+    return `<div class="linear-rail-section" data-section="${id}"><button type="button" class="linear-nav-heading linear-section-toggle ${extra}" aria-expanded="true" aria-controls="linearSection-${id}">${label}</button><div id="linearSection-${id}" class="linear-section-body">${content}</div></div>`;
   }
   function syncView() {
     if (!rail) return;
@@ -62,14 +82,34 @@
   function mount() {
     rail = document.createElement('aside'); rail.id = 'linearWorkspace'; rail.setAttribute('aria-label', 'Apex workspace'); rail.hidden = true;
     // Static authored markup only; labels from data always use textContent.
-    rail.innerHTML = '<div class="linear-workspace-brand"><img src="assets/f1apex-icon-32.png" alt="" width="22" height="22"><strong>Apex Data</strong><span>Workspace</span></div><button type="button" class="linear-search" aria-haspopup="dialog"><span>Search commands</span><kbd>Ctrl K</kbd></button><div class="linear-nav-heading">Analysis</div><div class="linear-navigation"></div><div class="linear-category-heading linear-nav-heading">Measurements</div><div class="linear-categories"></div><div class="linear-rail-footer"><span>Formula 1 · Analytics</span><button type="button" data-linear-density aria-pressed="false">Compact spacing</button></div>';
+    // Linear's sidebar: a workspace row with a round search button, 28 px rows, and quiet section headings that fold their section.
+    rail.innerHTML = '<div class="linear-workspace-top"><div class="linear-workspace-brand"><img src="assets/f1apex-icon-32.png" alt="" width="18" height="18"><strong>Apex Data</strong></div>'
+      + '<button type="button" class="linear-search" aria-haspopup="dialog" aria-label="Search commands" title="Search commands · Ctrl K"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3" stroke-linecap="round"/></svg></button></div>'
+      + section('analysis', 'Analysis', '<div class="linear-navigation"></div>')
+      + section('categories', 'Measurements', '<div class="linear-categories"></div>', 'linear-category-heading')
+      + section('drivers', 'Drivers', '<div class="linear-drivers"></div>', 'linear-drivers-heading')
+      ;
+    rail.addEventListener('click', event => {
+      const heading = event.target.closest('.linear-section-toggle'); if (!heading) return;
+      const open = heading.getAttribute('aria-expanded') !== 'true';
+      heading.setAttribute('aria-expanded', String(open));
+      document.getElementById(heading.getAttribute('aria-controls')).hidden = !open;
+    });
     document.querySelector('.site-header').before(rail);
     dialog = document.createElement('dialog'); dialog.id = 'linearCommandMenu'; dialog.setAttribute('aria-label', 'Search Apex commands');
     dialog.innerHTML = '<div class="linear-command-input"><label for="linearCommandSearch">Search commands</label><input id="linearCommandSearch" type="search" placeholder="What would you like to do?" autocomplete="off"><button type="button" aria-label="Close command search">Esc</button></div><div class="linear-command-results" aria-label="Commands"></div><div class="linear-command-footer">↑ ↓ navigate <span>Enter to open · Esc to close</span></div>';
     document.body.append(dialog);
     search = dialog.querySelector('input'); results = dialog.querySelector('.linear-command-results');
     rail.querySelector('.linear-search').addEventListener('click', openCommands);
-    rail.querySelector('[data-linear-density]').addEventListener('click', toggleDensity);
+    mountDensityButton();
+    // The whole filter chip opens its menu ("Season 2026 ⌄"), not only the value part.
+    document.addEventListener('click', event => {
+      if (!isLinear()) return;
+      const chip = event.target.closest?.('.app-sidebar .control-field');
+      if (!chip || event.target.closest('.select-trigger, .select-menu, button, input, a')) return;
+      const trigger = chip.querySelector('.select-trigger'); if (!trigger) return;
+      event.preventDefault(); trigger.click(); trigger.focus({preventScroll: true});
+    });
     dialog.querySelector('[aria-label="Close command search"]').addEventListener('click', () => dialog.close());
     dialog.addEventListener('close', () => { if (returnFocus?.isConnected) returnFocus.focus(); });
     dialog.addEventListener('click', event => { if (event.target === dialog) { const r = dialog.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) dialog.close(); } });
@@ -88,18 +128,24 @@
       if (isLinear() && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault(); if (dialog.open) dialog.close(); else openCommands();
       }
+      // "[" folds the sidebar, as in Linear; never while typing or with a modifier held.
+      const typing = event.target.closest?.('input, textarea, select, [contenteditable="true"]');
+      if (isLinear() && event.key === '[' && !typing && !event.ctrlKey && !event.metaKey && !event.altKey && !dialog.open) {
+        event.preventDefault(); document.getElementById('windowSidebarToggle')?.click();
+      }
     });
     new MutationObserver(syncView).observe(document.querySelector('.performance-tabs'), {subtree: true, attributes: true, attributeFilter: ['aria-selected']});
     lapHeader = document.createElement('div'); lapHeader.className = 'linear-lap-header'; lapHeader.hidden = true;
     lapHeader.innerHTML = '<strong>Comparison laps</strong><div class="linear-lap-actions"></div><button type="button" aria-label="Close lap chooser">Done</button>';
     lapHeader.querySelector('button').addEventListener('click', () => document.getElementById('lapWorkspaceToggle')?.click());
     document.getElementById('lapSelectionBody').prepend(lapHeader);
-    try { root.dataset.linearDensity = localStorage.getItem('apex-linear-density') === 'compact' ? 'compact' : 'comfortable'; } catch { root.dataset.linearDensity = 'comfortable'; }
-    if (root.dataset.linearDensity === 'compact') { root.dataset.linearDensity = 'comfortable'; toggleDensity(); }
+    try { root.dataset.linearDensity = localStorage.getItem('apex-linear-density') === 'compact' ? 'compact' : 'normal'; } catch { root.dataset.linearDensity = 'normal'; }
+    if (root.dataset.linearDensity === 'compact') { root.dataset.linearDensity = 'normal'; toggleDensity(); }
   }
   function reconcile() {
     if (!rail) return;
     const active = isLinear(); rail.hidden = !active; lapHeader.hidden = !active;
+    const density = document.getElementById('densityToggle'); if (density) density.hidden = !active;
     if (active) {
       move(document.querySelector('.performance-tabs'), rail.querySelector('.linear-navigation'));
       move(document.getElementById('performanceCategoryList'), rail.querySelector('.linear-categories'));
@@ -109,6 +155,8 @@
       for (const [node, anchor] of anchors) anchor.after(node);
     }
     syncView(); requestAnimationFrame(() => window.ApexUI?.decorate(document));
+    // The driver list's placement belongs to dashboard-ui.js (arrangeDriverRail); a resize makes it re-place the list now that the rail exists.
+    window.dispatchEvent(new Event('resize'));
   }
   addEventListener('DOMContentLoaded', () => { mount(); reconcile(); });
   addEventListener('apex-skin', reconcile);

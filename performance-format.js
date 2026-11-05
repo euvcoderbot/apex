@@ -18,5 +18,6 @@ export const middle50Label = (values, suffix='') => {
 };
 export const fmt = (n, digits=3, suffix='') => finite(n) ? `${n.toFixed(digits)}${suffix}` : '—';
 export const exactSeconds = n => finite(n) ? `${n} s` : '—';
-export const color = value => /^#[a-f\d]{6}$/i.test(value || '') ? value : '#888888';
+// Team colours are drawn as formula1.com shows them (team-colours.js); without that script (tests, prerender) the data's colour is used.
+export const color = value => /^#[a-f\d]{6}$/i.test(value || '') ? (globalThis.apexTeamColour?.(value) ?? value) : '#888888';
 export const signed = (n, digits=3, suffix='%') => finite(n) ? `${n>0?'+':''}${Math.abs(n)<.5*10**(-digits)?(0).toFixed(digits):n.toFixed(digits)}${suffix}` : '—';

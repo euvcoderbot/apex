@@ -73,10 +73,12 @@ test('real recorded laps load in the redesigned workspace without changing value
     }
   });
   await page.locator('#loadSession').click();
-  await page.locator('#lapWorkspaceToggle').click();
-  const drivers = page.locator('#driverPills button');
+  // Drivers are listed one per row in the workspace rail (as in the macOS sidebar); laps are then chosen in the sheet.
+  const drivers = page.locator('#linearWorkspace #driverPills button');
   await expect(drivers.nth(4)).toBeVisible({timeout: 30000});
+  expect(await drivers.nth(0).evaluate(el => el.getBoundingClientRect().left)).toBe(await drivers.nth(4).evaluate(el => el.getBoundingClientRect().left));
   await drivers.nth(0).click(); await drivers.nth(4).click();
+  await page.locator('#lapWorkspaceToggle').click();
   await page.locator('#compareAllFastest').click();
   await expect(page.locator('#loadedLaps .loaded-lap-pill')).toHaveCount(2, {timeout: 30000});
   await expect(page.locator('.driver-run-card')).toHaveCount(2, {timeout: 30000});

@@ -33,7 +33,10 @@ test('appearance follows the system until the person picks one',()=>{
 
 test('category bar mirrors the original tablist and delegates activation to it',()=>{
   assert.match(ui,/\.performance-mode \[data-performance-metric\]/);
-  assert.match(ui,/\.performance-mode \[data-performance-metric="\$\{CSS\.escape\(row\.dataset\.sidebarMetric\)\}"\]`\)\?\.click\(\)/);
+  // Activation still goes through the original tab, after the chosen row has been painted.
+  assert.match(ui,/const metric=row\.dataset\.sidebarMetric/);
+  assert.match(ui,/\.performance-mode \[data-performance-metric="\$\{CSS\.escape\(metric\)\}"\]`\)\?\.click\(\)/);
+  assert.match(ui,/requestAnimationFrame\(\(\)=>setTimeout\(show,0\)\)/);
   assert.match(ui,/setAttribute\('aria-current','page'\)/);
   assert.match(ui,/ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'/);
   assert.doesNotMatch(ui,/\.innerHTML\s*=/);

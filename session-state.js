@@ -124,6 +124,12 @@ function replaceUI(root, html) {
     rect: node.getBoundingClientRect(),
   }]));
   const focusedKey = document.activeElement?.dataset?.motionKey;
+  // A look can set how re-rendered items move: --flip-duration (ms), --flip-easing and --flip-enter-offset (px a new item rises from).
+  const look = typeof getComputedStyle === 'function' && document.documentElement ? getComputedStyle(document.documentElement) : null;
+  const flipDuration = parseFloat(look?.getPropertyValue('--flip-duration')) || 280;
+  const flipEasing = look?.getPropertyValue('--flip-easing').trim() || 'cubic-bezier(.22,.68,0,1)';
+  const flipEnter = look?.getPropertyValue('--flip-enter-offset').trim();
+  const enterOffset = flipEnter ? parseFloat(flipEnter) : 6;
   if (typeof document.createElement === 'function' && root.childNodes) {
     const template = document.createElement('template');
     template.innerHTML = html;
@@ -145,10 +151,10 @@ function replaceUI(root, html) {
     const page = document.documentElement;
     const pageZoom = page?.offsetWidth ? page.getBoundingClientRect().width / page.offsetWidth || 1 : 1;
     const dx = old ? (old.rect.left - next.left) / pageZoom : 0;
-    const dy = old ? (old.rect.top - next.top) / pageZoom : 6;
+    const dy = old ? (old.rect.top - next.top) / pageZoom : enterOffset;
     if (!old || Math.abs(dx) + Math.abs(dy) > 1) {
       const frames = [{ opacity: old ? 1 : 0, transform: `translate(${dx}px, ${dy}px)` }, { opacity: 1, transform: 'none' }];
-      const timing = { duration: 280, easing: 'cubic-bezier(.22,.68,0,1)' };
+      const timing = { duration: flipDuration, easing: flipEasing };
       if (window.ApexMotion) window.ApexMotion.animate(node, frames, timing, 'flip'); else node.animate(frames, timing);
     }
   }
@@ -688,7 +694,9 @@ function hexToRgba(hex, alpha = 1) {
 // Get driver team color
 function getDriverColor(code) {
   const display = drivers.find(item => item[0] === code);
-  return display ? display[3] : '#777777';
+  if (!display) return '#777777';
+  // Drawn as formula1.com shows it (team-colours.js); the stored colour stays the feed's.
+  return typeof window !== 'undefined' && window.apexTeamColour ? window.apexTeamColour(display[3]) : display[3];
 }
 
 function getLapColor(lap) {

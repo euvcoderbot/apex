@@ -54,6 +54,20 @@ function placeRoadBeads(ctx, items, {road, pointAt, width, height, roadHalf, isF
   return beads;
 }
 
+// A smooth curve through a polyline: quadratic segments between successive midpoints, passing exactly through the first and
+// last points so neighbouring runs meet. Straight chords between sparse position samples read as a jagged line at 7 px.
+function traceSmoothPath(ctx, points) {
+  if (!points.length) return;
+  ctx.moveTo(points[0].x, points[0].y);
+  if (points.length < 3) { for (const point of points.slice(1)) ctx.lineTo(point.x, point.y); return; }
+  for (let index = 1; index < points.length - 1; index++) {
+    const point = points[index], next = points[index + 1];
+    ctx.quadraticCurveTo(point.x, point.y, (point.x + next.x) / 2, (point.y + next.y) / 2);
+  }
+  const last = points[points.length - 1];
+  ctx.lineTo(last.x, last.y);
+}
+
 function renderMiniSectorMap() {
   mapStaticLayer=null;
   const canvas = $('#dominanceCanvas');
@@ -242,15 +256,12 @@ function renderMiniSectorMap() {
   ctx.lineWidth = 7;
   ctx.lineCap = 'round';
   ctx.beginPath();
-  let geometryStarted = false;
+  const outline = [];
   for (let index = 0; index <= geometrySteps; index++) {
     const pos = pointAt(index / geometrySteps);
-    if (!pos) continue;
-    if (!geometryStarted) {
-      ctx.moveTo(pos.x, pos.y);
-      geometryStarted = true;
-    } else ctx.lineTo(pos.x, pos.y);
+    if (pos) outline.push(pos);
   }
+  traceSmoothPath(ctx, outline);
   ctx.stroke();
 
   // Mark section boundaries without obscuring the track's dominance colours.
@@ -267,27 +278,33 @@ function renderMiniSectorMap() {
   ctx.lineWidth = 11;
   for (const window of highlightedCornerWindows) {
     ctx.beginPath();
-    miniSectorGeometryPoints(canvasGeometry, window.start, window.end, pointAt).forEach((point, index) => {
-      if (index === 0) ctx.moveTo(point.x, point.y);
-      else ctx.lineTo(point.x, point.y);
-    });
+    traceSmoothPath(ctx, miniSectorGeometryPoints(canvasGeometry, window.start, window.end, pointAt));
     ctx.stroke();
   }
   ctx.restore();
 
   let unavailableSegments = 0;
   if (comparative) {
+    // Consecutive mini-sectors won by the same lap are one run: one smooth stroke with flat ends, so neighbouring colours meet
+    // edge to edge instead of overlapping round caps at every 25 m boundary. The winners themselves are unchanged.
+    const runs = [];
     for (const {start, end, winner} of miniSectorDominanceSegments(allSeries, totalDistance)) {
       if (winner < 0) { unavailableSegments++; continue; }
+      const last = runs[runs.length - 1];
+      if (last && last.winner === winner && Math.abs(last.end - start) < 1e-9) last.end = end;
+      else runs.push({start, end, winner});
+    }
+    ctx.save();
+    ctx.lineWidth = 7;
+    ctx.lineCap = 'butt';
+    ctx.lineJoin = 'round';
+    for (const {start, end, winner} of runs) {
       ctx.strokeStyle = getLapColor(mapEntries[winner].lap);
-      ctx.lineWidth = 7;
       ctx.beginPath();
-      miniSectorGeometryPoints(canvasGeometry, start, end, pointAt).forEach((point, index) => {
-        if (index === 0) ctx.moveTo(point.x, point.y);
-        else ctx.lineTo(point.x, point.y);
-      });
+      traceSmoothPath(ctx, miniSectorGeometryPoints(canvasGeometry, start, end, pointAt));
       ctx.stroke();
     }
+    ctx.restore();
   }
 
   if (highlightedCornerWindows.length) {
@@ -421,4 +438,6 @@ function applyTheme(theme, persist = true) {
   }
   if (loaded.length) drawAll();
   else if (selected.length) renderMiniSectorMap();
+  // Some colours depend on the background (team-colours.js); views drawn outside the canvas redraw on this.
+  if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') window.dispatchEvent(new CustomEvent('apex-theme', {detail: nextTheme}));
 }

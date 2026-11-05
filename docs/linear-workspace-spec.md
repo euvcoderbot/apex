@@ -19,6 +19,35 @@ published essays explain intent; product documentation explains behavior.
 | [Brand](https://linear.app/brand) | Restrained neutral foundation and identifiable accent. | Retain Apex branding and team identity colors. Do not use Linear's logo. |
 | [Public demo](https://linear.app/homepage) | Measured navigation rows ~28px, Inter 13px/510, 8px menus, neutral selection. | Shared rhythm: 28px controls, 28px rail rows, 6px control corners, 8px menus. |
 
+## v3: measured from Linear's own app frame (2026-11-05)
+
+Linear's homepage renders its real app chrome. Measured there, and in its token sheet:
+
+| Element | Linear | Apex (Linear look) |
+| --- | --- | --- |
+| Frame | canvas `#090a0b`, 12 px outer radius, 8 px padding; the view is a separate panel: 8 px radius, 1 px white 5% border, a 2 px `#0003` outer ring | rail on the canvas; header, view bar and content share one view inset 8 px, 10 px corners, hairline and ring. A fixed mask outside the rounded edge keeps scrolled content inside. |
+| Sidebar | 232 px; workspace row with a 28 px round search button | 264 px (driver rows need the width); same row and round search button (Ctrl K) |
+| Nav rows | 28 px, 8 px radius, padding 0 7, gap 8, 13 px/510 secondary text, icons quaternary, 2 px between rows; active white 4%, hover white 2% | same values |
+| Section headings | 24 px, 12 px/510, quaternary, caret, fold their section | same; Analysis, Measurements, Drivers fold |
+| View header | 44 px, hairline bottom border, breadcrumb left, actions right | same; icon actions 28 px |
+| Labels | 24 px pills, hairline border, 12 px, coloured dot | filter chips (`Season 2026 ⌄`), track choices, comparison laps with the lap colour as the dot and a "Ref" tag like Linear's model tag |
+| Cards | `#161718`, 6 px radius, white 6% border | widgets: white 2% fill, white 6% hairline, 8 px corners, 13 px/590 titles |
+| Dialogs, menus | 12 px dialog radius, shadow-high `0 7px 32px #00000059`; menus 8 px with 28 px rows | lap sheet and command menu at 12 px with shadow-high; menus 8 px with 28 px rows |
+| Type | text-mini 13/1.5 −.01em, micro 12/1.4, title-2 20 px/1.33 −.012em | same |
+| Motion | highlight fade-in 0 s, fade-out .15 s; quick .1 s; ease-out-quad | same |
+
+From Linear's design essays: the 2024 redesign (inverted-L chrome; three theme inputs in LCH; Inter Display for headings),
+the 2026 refresh (navigation a few notches dimmer than content; compact rounded tabs; fewer, smaller icons; fewer, softer separators;
+a slightly warmer grey), "A Linear spin on Liquid Glass" (the ProKit stance: depth without refraction, clarity for dense work,
+solid outlines under increased contrast), "Best practices for designing Linear Dashboards" (purpose-built, glanceable widgets; context beside
+each number), and "Invisible details" (contextual menus that teach shortcuts).
+
+Applied to Apex:
+- Drivers are listed one per row in the rail (Linear's favourites pattern); on phones they stay in the lap sheet, still one per row.
+- Ranked bars share one thickness (8 px, 6 px in compact density) in every Car performance category. Rows have no separators;
+  the hover is a rounded wash that bleeds 8 px past the text, so nothing clips it.
+- Under `prefers-contrast: more` every hairline becomes the strong border.
+
 ## Foundations
 
 Exact measured color tokens and contrast adjustments are in `generate-skin.mjs`
