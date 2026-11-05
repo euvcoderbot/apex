@@ -30,6 +30,26 @@ async function release(captures = {}, packs = {}, {revisions = REV, calendar = [
 }
 const index = async (r, dir) => JSON.parse(await readFile(path.join(r.data, dir, 'index.json'), 'utf8'));
 
+test('annotation-only refresh preserves capture time and refuses changed timing observations',async()=>{
+  const route='/api/session?gp=A',at='2026-10-31T00:00:00Z';
+  const body={drivers:[{code:'VER',laps:[{lap:1,time:90,red_flag:false}]}],local_export:{captured_at:at}};
+  const updated={drivers:[{code:'VER',laps:[{lap:1,time:90,red_flag:true,neutralised:'RED'}]}],local_export:{captured_at:at,annotation_revision:REV.sourceRevision,annotation_method:'retained-race-control-v1'}};
+  const site=await release({[route]:['old.json.gz',at,body]});
+  const prepared=await release({[route]:['new.json.gz',at,updated]});
+  try{
+    const file=path.join(prepared.data,'local-captures/index.json');
+    const value=await index(prepared,'local-captures');value.entries[route].annotationRevision=REV.sourceRevision;
+    await writeFile(file,JSON.stringify(value));
+    const p=await plan(prepared.root,site.root);assert.equal(p.captures.length,1);
+    await apply(prepared.root,site.root,p);
+    assert.equal((await index(site,'local-captures')).entries[route].capturedAt,at);
+    updated.drivers[0].laps[0].time=89;
+    await writeFile(path.join(prepared.data,'local-captures/changed.json.gz'),gz(updated));
+    value.entries[route].file='changed.json.gz';await writeFile(file,JSON.stringify(value));
+    assert.equal((await plan(prepared.root,site.root)).captures.length,0,'same-time timing changes cannot masquerade as annotation migration');
+  }finally{await Promise.all([site.cleanup(),prepared.cleanup()]);}
+});
+
 test('approved retained native packs keep their original source revision during sync',async()=>{
   const old={sourceRevision:'5b02cc1bb2a6daf808ad',backendRevision:'c26911530dd5fb9a297f',measurementRevision:'267fe2622a3941ad629a'};
   const current={...old,sourceRevision:'a829fc069dfa8da25c00',backendRevision:'ee938f8efad87dc979fa'};
