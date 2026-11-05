@@ -96,6 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const cornerAnalysisToggle = $('#cornerAnalysisToggle');
   $('#lapWorkspaceToggle')?.addEventListener('click', event => {
+    window.apexLapSheetAsked = true;
     setLapSelectionExpanded(event.currentTarget.getAttribute('aria-expanded') !== 'true');
   });
   const cornerAnalysis = $('#cornerAnalysis');
