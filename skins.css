@@ -855,3 +855,41 @@
 :root[data-skin="linear"][data-skin] #linearWorkspace #raceResultControls:not([hidden]) { display: grid; grid-template-columns: 1fr 1fr; width: 100%; box-sizing: border-box; }
 :root[data-skin="linear"][data-skin] #linearWorkspace #raceResultControls > button { width: 100%; justify-content: center; }
 :root[data-skin="linear"][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle { min-height: 0; }
+
+/* ======================= v3.4 ======================= */
+/* Every ranked chart in Car performance uses Pace's rhythm: 26 px rows on a 28 px step, the first row 12 px under the header. */
+:root[data-skin="linear"] #carPerformance :is(.performance-bar-row, .performance-tyre-age-row) { box-sizing: border-box; height: 26px; min-height: 26px; padding-block: 0; }
+:root[data-skin="linear"] #carPerformance .performance-split-view :is(.performance-bar-row, .performance-tyre-age-row) { height: var(--split-row); min-height: var(--split-row); }
+:root[data-skin="linear"][data-linear-density="compact"] #carPerformance :is(.performance-bar-row, .performance-tyre-age-row) { height: 22px; min-height: 22px; }
+
+/* Results: the chart beside its table reads row for row. The chart takes the table's geometry: a 32 px header row with a hairline,
+   then rows exactly as tall as the table's, with no gaps. */
+:root[data-skin="linear"] #carPerformance .results-overview { align-items: start; }
+:root[data-skin="linear"] #carPerformance .results-overview > .performance-chart-card { padding: 0 16px 6px; }
+:root[data-skin="linear"] #carPerformance .results-overview .perf-chart-header { display: flex; align-items: center; height: 32px; margin: 0; padding: 0; border-bottom: 1px solid var(--lin-hairline); box-sizing: border-box; }
+:root[data-skin="linear"] #carPerformance .results-overview .perf-chart-title-group { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+:root[data-skin="linear"] #carPerformance .results-overview .perf-chart-heading { white-space: nowrap; font-size: 12px; }
+:root[data-skin="linear"] #carPerformance .results-overview .perf-chart-sub { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; }
+:root[data-skin="linear"] #carPerformance .results-overview .performance-table thead th { height: 32px; box-sizing: border-box; }
+:root[data-skin="linear"] #carPerformance .results-overview .performance-table tbody :is(td, th) { height: 36px; box-sizing: border-box; }
+:root[data-skin="linear"][data-skin] #carPerformance .results-overview :is(.performance-bar-row, .performance-tyre-age-row) { height: 36px; min-height: 36px; margin-top: 0; }
+:root[data-skin="linear"][data-linear-density="compact"] #carPerformance .results-overview .perf-chart-header,
+:root[data-skin="linear"][data-linear-density="compact"] #carPerformance .results-overview .performance-table thead th { height: 28px; }
+:root[data-skin="linear"][data-linear-density="compact"] #carPerformance .results-overview .performance-table tbody :is(td, th),
+:root[data-skin="linear"][data-skin][data-linear-density="compact"] #carPerformance .results-overview :is(.performance-bar-row, .performance-tyre-age-row) { height: 28px; min-height: 28px; }
+
+/* Filter chips: the whole chip opens its menu, not only the value. */
+:root[data-skin="linear"] .app-sidebar .control-field:has(.select-trigger) { cursor: pointer; }
+:root[data-skin="linear"] .app-sidebar .control-field:has(.select-trigger) > label { cursor: pointer; }
+
+/* Density lives in the header beside the appearance controls; the rail no longer has a footer. */
+:root[data-skin="linear"] .linear-rail-footer { display: none; }
+:root[data-skin="linear"] .site-header .workspace-tools > #densityToggle { display: inline-grid; place-items: center; }
+:root[data-skin="linear"] #densityToggle[aria-pressed="true"] { background: var(--lin-nav-active); color: var(--ui-label); }
+:root[data-skin="linear"] #densityToggle svg { width: 16px; height: 16px; }
+
+:root[data-skin="linear"][data-skin] #carPerformance .results-overview .perf-chart-header { min-height: 0; }
+:root[data-skin="linear"][data-skin][data-linear-density="compact"] #carPerformance .results-overview .perf-chart-header { min-height: 0; }
+/* Tyre trend and Development lists: the same 2 px row spacing as Pace, starting right under the header. */
+:root[data-skin="linear"] #carPerformance .performance-tyre-age-chart { margin-top: 0; gap: 0; row-gap: 0; }
+:root[data-skin="linear"] #carPerformance .trend-board .performance-tyre-age-chart { align-content: start; flex: 0 0 auto; }

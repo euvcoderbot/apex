@@ -48,11 +48,27 @@
     const next = root.dataset.linearDensity === 'compact' ? 'normal' : 'compact';
     root.dataset.linearDensity = next;
     try { localStorage.setItem('apex-linear-density', next); } catch { /* page only */ }
-    const button = rail.querySelector('[data-linear-density]');
-    button.textContent = next === 'compact' ? 'Normal density' : 'Compact density';
-    button.setAttribute('aria-pressed', String(next === 'compact'));
+    syncDensityButton();
     requestAnimationFrame(() => window.ApexUI?.decorate(document));
     window.dispatchEvent(new Event('resize'));
+  }
+  // Density is a toggle in the header, beside the appearance controls: pressed means compact.
+  function syncDensityButton() {
+    const button = document.getElementById('densityToggle'); if (!button) return;
+    const compact = root.dataset.linearDensity === 'compact';
+    button.setAttribute('aria-pressed', String(compact));
+    button.setAttribute('aria-label', compact ? 'Use normal density' : 'Use compact density');
+    button.title = compact ? 'Density: compact. Switch to normal' : 'Density: normal. Switch to compact';
+  }
+  function mountDensityButton() {
+    const button = document.createElement('button');
+    button.id = 'densityToggle'; button.type = 'button'; button.className = 'sidebar-toggle'; button.dataset.linearDensity = '';
+    // Static authored markup: three tight rows, the compact list.
+    button.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h10"/></svg>';
+    button.addEventListener('click', toggleDensity);
+    const theme = document.getElementById('themeToggle');
+    if (theme) theme.after(button); else document.querySelector('.site-header .workspace-tools')?.append(button);
+    syncDensityButton();
   }
   // A rail section: a heading button that folds its content, as Linear's "Workspace" and "Favorites" headings do.
   function section(id, label, content, extra = '') {
@@ -72,7 +88,7 @@
       + section('analysis', 'Analysis', '<div class="linear-navigation"></div>')
       + section('categories', 'Measurements', '<div class="linear-categories"></div>', 'linear-category-heading')
       + section('drivers', 'Drivers', '<div class="linear-drivers"></div>', 'linear-drivers-heading')
-      + '<div class="linear-rail-footer"><button type="button" data-linear-density aria-pressed="false">Compact density</button></div>';
+      ;
     rail.addEventListener('click', event => {
       const heading = event.target.closest('.linear-section-toggle'); if (!heading) return;
       const open = heading.getAttribute('aria-expanded') !== 'true';
@@ -85,7 +101,15 @@
     document.body.append(dialog);
     search = dialog.querySelector('input'); results = dialog.querySelector('.linear-command-results');
     rail.querySelector('.linear-search').addEventListener('click', openCommands);
-    rail.querySelector('[data-linear-density]').addEventListener('click', toggleDensity);
+    mountDensityButton();
+    // The whole filter chip opens its menu ("Season 2026 ⌄"), not only the value part.
+    document.addEventListener('click', event => {
+      if (!isLinear()) return;
+      const chip = event.target.closest?.('.app-sidebar .control-field');
+      if (!chip || event.target.closest('.select-trigger, .select-menu, button, input, a')) return;
+      const trigger = chip.querySelector('.select-trigger'); if (!trigger) return;
+      event.preventDefault(); trigger.click(); trigger.focus({preventScroll: true});
+    });
     dialog.querySelector('[aria-label="Close command search"]').addEventListener('click', () => dialog.close());
     dialog.addEventListener('close', () => { if (returnFocus?.isConnected) returnFocus.focus(); });
     dialog.addEventListener('click', event => { if (event.target === dialog) { const r = dialog.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) dialog.close(); } });
@@ -121,6 +145,7 @@
   function reconcile() {
     if (!rail) return;
     const active = isLinear(); rail.hidden = !active; lapHeader.hidden = !active;
+    const density = document.getElementById('densityToggle'); if (density) density.hidden = !active;
     if (active) {
       move(document.querySelector('.performance-tabs'), rail.querySelector('.linear-navigation'));
       move(document.getElementById('performanceCategoryList'), rail.querySelector('.linear-categories'));
