@@ -1711,15 +1711,17 @@ def fetch_openf1_session_drivers(
             weather_raw = []
         # Also optional: without it laps simply are not marked as deleted.
         try:
-            from openf1_performance import deleted_laps, lap_in_red_flag, red_flag_periods, stamp
+            from openf1_performance import deleted_laps, lap_in_red_flag, lap_neutralised, neutralised_periods, red_flag_periods, stamp
             controls = sorted(openf1("race_control", session_key=session_key), key=lambda item: str(item.get("date") or ""))
             red_flags = red_flag_periods(controls)
+            neutral = neutralised_periods(controls)
             code = "R" if str(session_name).strip().lower() in ("race", "r", "sprint", "s") else "Q"
             deleted = deleted_laps(controls, {"laps": laps_raw, "drivers": drivers_raw}, code)
         except Exception as control_err:
             logger.warning("OpenF1 race control fetch failed: %s", control_err)
             deleted = set()
             red_flags = []
+            neutral = []
 
         lap_stint_map: dict[tuple[int, int], tuple[int, str, float | None]] = {}
         for stint in stints_raw:
@@ -1808,10 +1810,12 @@ def fetch_openf1_session_drivers(
                                 lap_info["display_time_estimated"] = True
                         except (TypeError, ValueError):
                             pass
-                if red_flags:
+                if red_flags or neutral:
                     started = stamp(lap_info.get("_date_start"))
-                    lap_info["red_flag"] = lap_in_red_flag(
-                        started, started + lap_info["time"] if started is not None and lap_info.get("time") else None, red_flags)
+                    finished = started + lap_info["time"] if started is not None and lap_info.get("time") else None
+                    lap_info["red_flag"] = lap_in_red_flag(started, finished, red_flags)
+                    # SC / VSC / RED, for labelling the lap; track_status (what pace models read) is unchanged.
+                    lap_info["neutralised"] = lap_neutralised(started, finished, neutral)
                 lap_info["conditions"] = openf1_conditions(
                     lap_info.get("_date_start"), seconds(lap_info.get("time"))
                 )

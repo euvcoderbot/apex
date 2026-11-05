@@ -1050,7 +1050,10 @@ body > #carPerformance .performance-table td small { white-space: nowrap; }
    time in the middle; the tyre as a large mark on the right spanning both lines. */
 #lapSelectionBody .lap-chip[data-ui-kind="choice"] { grid-template-areas: none; box-sizing: border-box; height: auto; min-height: 44px; padding: 4px 6px 4px 8px; grid-template-columns: auto minmax(0, 1fr) 26px; grid-template-rows: auto auto; gap: 1px 6px; align-items: center; }
 #lapSelectionBody .lap-chip .lap-token { grid-column: 1; grid-row: 1 / span 2; align-self: stretch; display: flex; flex-direction: column-reverse; justify-content: flex-start; align-items: flex-start; gap: 0; font-size: var(--type-caption); line-height: 16px; }
+#lapSelectionBody .lap-chip .lap-token .lap-states { display: flex; gap: 4px; white-space: nowrap; }
 #lapSelectionBody .lap-chip .lap-token .lap-state { line-height: 14px; }
+/* SC, VSC and red-flag laps in the same amber as the yellow flag that brings them out. */
+#lapSelectionBody .lap-chip .lap-token .lap-neutralised { color: var(--ui-warning); }
 #lapSelectionBody .lap-chip .lap-token .lap-state { margin: 0; }
 #lapSelectionBody .lap-chip .lap-tyre-age { grid-column: 2; grid-row: 1; justify-self: stretch; text-align: right; min-width: 0; overflow: hidden; color: var(--ui-secondary); font-size: calc(var(--type-caption) - 2px); line-height: 14px; text-overflow: ellipsis; white-space: nowrap; }
 #lapSelectionBody .lap-chip .lap-clock { grid-column: 2; grid-row: 2; justify-self: end; font-size: var(--type-callout); line-height: 16px; text-align: right; }

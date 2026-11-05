@@ -176,7 +176,7 @@ function lapRoles(laps, sessionName) {
     middle.forEach((lap, at) => {
       const final = lap === run.at(-1);
       const kind = qualifying ? pace(lap) : 'slow';
-      if ((lap.red_flag || /5/.test(String(lap.track_status || ''))) && (kind !== 'push' || !finite(lap.time))) return set(lap, 'red');
+      if ((lap.red_flag || lap.neutralised === 'RED' || /5/.test(String(lap.track_status || ''))) && (kind !== 'push' || !finite(lap.time))) return set(lap, 'red');
       if (qualifying && lap.deleted && finite(lap.time) && kind !== 'slow') return set(lap, 'deleted');
       if (kind !== 'slow') return set(lap, kind);
       // A race ends on the line, not in the pits, so its last lap is an in-lap only if the timing says so.
@@ -270,8 +270,10 @@ function renderStints() {
       const duration = Number.isFinite(displayTime) ? `${estimated ? '~' : ''}${time(displayTime)}` : '&mdash;';
       const selectable = Number.isFinite(lap.time) || lap.in_lap || lap.out_lap;
       const context = role?.label || '';
-      const neutralised = String(lap.track_status || '').includes('4') ? 'SC'
-        : String(lap.track_status || '').includes('6') ? 'VSC' : '';
+      // From the official timing feed's track status, or (OpenF1 sessions) from race control: SC, VSC or a red flag.
+      const neutralised = String(lap.track_status || '').includes('4') || lap.neutralised === 'SC' ? 'SC'
+        : String(lap.track_status || '').includes('6') || lap.neutralised === 'VSC' ? 'VSC'
+        : lap.neutralised === 'RED' && role?.kind !== 'red' ? '🚩' : '';
       const title = [role?.reason, neutralised ? `${neutralised} lap; time is not representative of racing pace` : '',
         !Number.isFinite(displayTime) ? 'No lap time published by the timing feeds: normal for a lap that starts or ends in the pits.' : ''].filter(Boolean).join(' ');
       const age = Number.isFinite(lap.tyre_life) && lap.tyre_life >= 1 ? Math.round(lap.tyre_life) : null;
@@ -282,7 +284,7 @@ function renderStints() {
       const tyreDetail = hasQualifyingPhases ? `<small class="lap-tyre-age" title="Run ${runIndex}, lap ${lapInRun} of that run. Tyre age: ${age === null ? 'unknown' : `${age} ${age === 1 ? 'lap' : 'laps'}`}">Run ${runIndex} · Lap ${lapInRun}</small>`
         : age !== null ? `<small class="lap-tyre-age" title="Tyre age: ${age} ${age === 1 ? 'lap' : 'laps'}">Tyre age ${age}</small>`
         : counted ? `<small class="lap-tyre-age" title="Laps run in this stint. The tyres may have been used before it began.">Tyre age ~${counted}</small>` : '';
-      return `<button class="${classes}" aria-pressed="${isLoaded}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${escapeUI(title)}"><span class="lap-token">${flag}${context ? ` <b class="lap-state">${context}</b>` : ''}${neutralised ? ` <b class="lap-state">${neutralised}</b>` : ''}</span><span class="lap-clock">${duration}</span>${compoundBadgeMarkup(lap.compound)}${tyreDetail}</button>`;
+      return `<button class="${classes}" aria-pressed="${isLoaded}" style="--team:${teamColor}" data-motion-key="lap-${code}-${lap.lap}" data-code="${code}" data-lap="${lap.lap}" ${selectable ? '' : 'disabled'} title="${escapeUI(title)}"><span class="lap-token">${flag}${context || neutralised ? `<span class="lap-states">${context ? `<b class="lap-state">${context}</b>` : ''}${neutralised ? `<b class="lap-state lap-neutralised">${neutralised}</b>` : ''}</span>` : ''}</span><span class="lap-clock">${duration}</span>${compoundBadgeMarkup(lap.compound)}${tyreDetail}</button>`;
     }).join('');
     const groupLabel = hasQualifyingPhases ? active : `Stint ${active}`;
 

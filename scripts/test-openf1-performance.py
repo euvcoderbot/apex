@@ -10,7 +10,7 @@ from urllib.error import HTTPError
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi import Response
 import server
-from openf1_performance import adapt_performance, retained_bundle, session_payload, pit_entry_laps, stewards_lap, deleted_laps, red_flag_periods, lap_in_red_flag
+from openf1_performance import stamp, lap_neutralised, neutralised_periods, adapt_performance, retained_bundle, session_payload, pit_entry_laps, stewards_lap, deleted_laps, red_flag_periods, lap_in_red_flag
 
 
 def bundle():
@@ -197,6 +197,37 @@ class AdapterTests(unittest.TestCase):
         self.assertFalse(lap_in_red_flag(ended + 5, ended + 90, periods), 'started after it ended')
         self.assertFalse(lap_in_red_flag(None, None, periods))
         self.assertEqual(red_flag_periods([controls[1]]), [])
+
+    def test_mexico_city_2026_red_flag_reported_in_text_lasts_until_the_restart(self):
+        # As race control published it: no RED flag message, only text and session status, and a TRACK CLEAR two minutes into the stoppage.
+        controls = [{'date': '2026-11-01T20:03:25Z', 'category': 'SessionStatus', 'message': 'SESSION STARTED'},
+                    {'date': '2026-11-01T20:12:05Z', 'category': 'SafetyCar', 'message': 'VSC DEPLOYED'},
+                    {'date': '2026-11-01T20:14:42Z', 'category': 'SafetyCar', 'message': 'VSC ENDING'},
+                    {'date': '2026-11-01T21:04:06Z', 'category': 'SafetyCar', 'message': 'SAFETY CAR DEPLOYED'},
+                    {'date': '2026-11-01T21:06:02Z', 'category': 'SessionStatus', 'message': 'SESSION ABORTED'},
+                    {'date': '2026-11-01T21:06:02Z', 'category': 'Other', 'message': 'RED FLAG - RACE SUSPENDED'},
+                    {'date': '2026-11-01T21:08:04Z', 'category': 'Flag', 'flag': 'CLEAR', 'scope': 'Track', 'message': 'TRACK CLEAR'},
+                    {'date': '2026-11-01T21:45:00Z', 'category': 'SessionStatus', 'message': 'SESSION STARTED'},
+                    {'date': '2026-11-01T22:05:00Z', 'category': 'SafetyCar', 'message': 'SAFETY CAR DEPLOYED'},
+                    {'date': '2026-11-01T22:11:09Z', 'category': 'SafetyCar', 'message': 'SAFETY CAR IN THIS LAP'},
+                    {'date': '2026-11-01T22:11:23Z', 'category': 'Other', 'message': 'SAFETY CAR LIGHTS OFF'},
+                    {'date': '2026-11-01T22:23:53Z', 'category': 'Flag', 'flag': 'CHEQUERED', 'scope': 'Track', 'message': 'CHEQUERED FLAG'},
+                    {'date': '2026-11-01T22:23:54Z', 'category': 'SessionStatus', 'message': 'SESSION FINISHED'}]
+        t = lambda clock: stamp('2026-11-01T' + clock + 'Z')
+        red = red_flag_periods(controls)
+        self.assertEqual([(round(b - t('21:06:02')), round(e - t('21:06:02'))) for b, e in red], [(0, 2338)], 'until the restart, not the track clear')
+        periods = neutralised_periods(controls)
+        self.assertEqual(lap_neutralised(t('20:10:00'), t('20:11:20'), periods), None, 'a green lap')
+        self.assertEqual(lap_neutralised(t('20:11:30'), t('20:12:50'), periods), 'VSC')
+        self.assertEqual(lap_neutralised(t('21:03:00'), t('21:04:30'), periods), 'SC')
+        self.assertEqual(lap_neutralised(t('21:05:30'), t('21:47:00'), periods), 'RED', 'the lap that ran through the stoppage')
+        self.assertEqual(lap_neutralised(t('22:10:00'), t('22:11:40'), periods), 'SC', 'the lap the safety car came in')
+        self.assertEqual(lap_neutralised(t('22:12:00'), t('22:13:20'), periods), None, 'racing again')
+        self.assertEqual(lap_neutralised(t('22:22:40'), t('22:24:00'), periods), None, 'the chequered flag is not a red flag')
+        self.assertEqual(lap_neutralised(None, None, periods), None)
+        text_only = [{'date': '2026-11-01T21:06:02Z', 'category': 'Other', 'message': 'RED FLAG - RACE SUSPENDED'}]
+        self.assertEqual(len(red_flag_periods(text_only)), 1, 'a red flag given only as text still counts')
+        self.assertEqual(red_flag_periods([{'date': '2026-11-01T22:23:53Z', 'category': 'Other', 'message': 'CHEQUERED FLAG'}]), [])
 
     def test_a_message_without_a_time_uses_the_lap_number_for_that_session(self):
         feeds = {'drivers': [{'driver_number': 1, 'name_acronym': 'VER'}], 'laps': []}
