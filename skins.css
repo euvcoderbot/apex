@@ -896,4 +896,4 @@
 
 /* Inspector tables share the panel surface; selection and hover provide emphasis. */
 :root[data-skin="linear"] .corner-measurement-table tbody tr:nth-child(even) { background: transparent; }
-.performance-bar-label .metric-coverage { margin-left: auto; padding-left: 6px; color: var(--ui-tertiary); font-size: 10px; white-space: nowrap; }
+:root[data-skin="linear"] .performance-bar-label .metric-coverage { margin-left: auto; padding-left: 6px; color: var(--ui-tertiary); font-size: 10px; white-space: nowrap; }
