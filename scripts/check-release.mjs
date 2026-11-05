@@ -57,7 +57,9 @@ for(const folder of ['prerendered','local-telemetry','telemetry']){
   if(index.revision)requireRevision('backendRevision',index.revision,{recording});
   for(const [route,file] of Object.entries(index.entries)){
     if(index.entrySourceRevisions?.[route])requireRevision('sourceRevision',index.entrySourceRevisions[route],{recording});
-    await payload(folder,file,folder==='prerendered'?route:'');
+    const value=await payload(folder,file,folder==='prerendered'?route:'');
+    if(!sourceOnly&&folder==='prerendered'&&value.openf1_session_key&&index.sourceRevision!==SOURCE_REVISION&&value.local_export?.annotation_revision!==SOURCE_REVISION)
+      throw Error('Historical OpenF1 session needs current offline race-control annotations: '+route);
   }
 }
 console.log(`${sourceOnly?'Source recordings structurally valid (publication compatibility not checked)':'Release snapshots valid'}: ${files} referenced files checked; ${retained} retained revision references keep their original provenance.`);

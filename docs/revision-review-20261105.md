@@ -28,3 +28,11 @@ OpenF1 session captures. The exact source/backend pairs are now reviewed; future
 unknown revisions remain rejected. Missing Mexico lap 5 is still missing, not
 zero or invented. Unknown team metadata remains unknown in historical captures;
 it is not guessed from another weekend.
+
+The same migration also covers all 65 OpenF1 session payloads in the curated
+prerendered index, keeping its sourceRevision/revision and captures metadata.
+One missing race-control response (session 11388) was retrieved from OpenF1 with
+the explicit --fetch-missing-controls option. This is bounded race-control
+metadata, not lap samples or telemetry. All other inputs were retained locally.
+The publication gate enforces current annotation metadata for these historical
+payloads too; source-only CI continues to validate the unchanged recordings.

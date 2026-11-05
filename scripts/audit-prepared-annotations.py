@@ -8,7 +8,10 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from openf1_performance import red_flag_periods, lap_in_red_flag, neutralised_periods, lap_neutralised, stamp
 
-root = Path(sys.argv[1]) / 'assets/data/local-captures'
+folder = sys.argv[sys.argv.index('--folder') + 1] if '--folder' in sys.argv else 'local-captures'
+if folder not in ('local-captures', 'prerendered'):
+    raise SystemExit('Unsupported capture folder')
+root = Path(sys.argv[1]) / 'assets/data' / folder
 raw = Path.home() / 'apex-data/openf1'
 index = json.loads((root / 'index.json').read_text())
 report = []
@@ -16,7 +19,8 @@ patches = []
 for route, entry in index['entries'].items():
     if not route.startswith('/api/session?'):
         continue
-    payload = json.loads(gzip.decompress((root / entry['file']).read_bytes()))
+    filename = entry if isinstance(entry, str) else entry['file']
+    payload = json.loads(gzip.decompress((root / filename).read_bytes()))
     key = payload.get('openf1_session_key')
     if not key:
         continue
@@ -39,7 +43,7 @@ for route, entry in index['entries'].items():
             if current != bool(lap.get('red_flag')):
                 differences.append({'driver': driver['code'], 'lap': lap['lap'], 'timed': lap.get('time') is not None, 'old': bool(lap.get('red_flag')), 'new': current})
     report.append({'session': key, 'event': payload.get('event'), 'name': payload.get('session'), 'changed_flags': len(differences), 'examples': differences[:3], 'unknown_teams': [d['code'] for d in payload.get('drivers', []) if not d.get('team') or d.get('team') == 'Unknown']})
-    patches.append({'route': route, 'file': entry['file'], 'changes': changes})
+    patches.append({'route': route, 'file': filename, 'changes': changes})
 if '--patches' in sys.argv and any(item.get('missing_raw') for item in report):
     raise SystemExit('Missing retained race-control input; no annotation migration is safe.')
 print(json.dumps(patches if '--patches' in sys.argv else report, indent=2))
