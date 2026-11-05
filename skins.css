@@ -231,6 +231,8 @@
     background: var(--ui-panel); box-shadow: 0 0 0 1px var(--ui-border);
   }
   :root[data-skin="linear"] body.is-sidebar-hidden > :is(main#top, #carPerformance)::before { left: var(--ui-pane-gap); }
+  /* Expanded charts cover the window with their own surface; the panel outline behind them would show through as a stray edge. */
+  :root[data-skin="linear"] body.trace-focus > :is(main#top, #carPerformance)::before { display: none; }
   :root[data-skin="linear"] :is(body > main#top, body > #carPerformance) > .app-sidebar,
   :root[data-skin="linear"] body > main#top > .app-inspector {
     background: transparent; border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
@@ -256,6 +258,9 @@
 }
 :root[data-skin="linear"] :is(#loadSession, #performanceLoad):hover:not(:disabled) { background: color-mix(in oklch, var(--ui-action), #fff 8%); }
 :root[data-skin="linear"] #compareAllFastest.selected { background: var(--ui-control); box-shadow: inset 0 0 0 1px var(--ui-border); color: var(--ui-label); }
+/* Toolbar groups are rounded rectangles, not capsules, so the square-ish highlights inside them stay concentric (8 px outside, 4 px padding, 6 px inside). */
+:root[data-skin="linear"] :is(#windowSidebarToggle, .site-header .workspace-tools) { border-radius: var(--radius-lg); background: transparent; box-shadow: none; }
+:root[data-skin="linear"] .site-header .performance-tabs { box-shadow: none; }
 /* Toolbar: quiet icon buttons on the frame. */
 :root[data-skin="linear"] .workspace-tools button, :root[data-skin="linear"] button[data-ui-kind="toolbar"] {
   border-radius: var(--radius-sm); background: transparent; box-shadow: none; color: var(--ui-tertiary);
@@ -294,6 +299,12 @@
 
 /* Comparison chips: Linear's labels, a full pill with a hairline. */
 :root[data-skin="linear"] #loadedLaps .loaded-lap-pill { border-radius: var(--radius-pill); background: var(--ui-control); box-shadow: inset 0 0 0 1px var(--ui-border); }
+/* The chip's parts follow its shape: the lap button is part of the pill, not a box inside it, and the remove button is round. */
+:root[data-skin="linear"] #loadedLaps .loaded-lap-pill > .loaded-lap-main { min-height: 0; border-radius: var(--radius-pill); background: transparent; box-shadow: none; }
+:root[data-skin="linear"] #loadedLaps .loaded-lap-pill > .loaded-lap-main:hover:not(:disabled) { background: transparent; }
+:root[data-skin="linear"] #loadedLaps .loaded-lap-pill:has(> .loaded-lap-main:hover) { background: var(--ui-control-hover); }
+:root[data-skin="linear"] #loadedLaps .loaded-lap-pill > .remove { border-radius: 50%; background: transparent; box-shadow: none; }
+:root[data-skin="linear"] #loadedLaps .loaded-lap-pill > .remove:hover { background: var(--ui-row-hover); }
 
 /* Lap sheet tiles. */
 :root[data-skin="linear"] #lapSelectionBody .lap-chip[data-ui-kind="choice"] { border-radius: var(--radius-sm); background: var(--ui-control); box-shadow: inset 0 0 0 1px var(--ui-separator); }
