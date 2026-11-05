@@ -307,7 +307,7 @@ def adapt_performance(year, gp, code, bundle):
             continue
         name = driver['name_acronym']
         status = 'Disqualified' if result.get('dsq') else 'Did not start' if result.get('dns') else 'Retired' if result.get('dnf') else 'Finished'
-        info = {'Abbreviation': name, 'DriverNumber': number_id, 'TeamName': driver['team_name'],
+        info = {'Abbreviation': name, 'DriverNumber': number_id, 'LastName': driver.get('last_name'), 'TeamName': driver['team_name'],
                 'TeamColor': driver.get('team_colour'), 'Position': result.get('position'),
                 'Status': status, 'Points': result.get('points'), 'Laps': result.get('number_of_laps')}
         durations = result.get('duration')
