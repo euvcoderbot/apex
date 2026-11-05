@@ -26,6 +26,9 @@ if(capturing&&Object.entries(revisions).some(([k,v])=>status[k]!==v))throw new E
 async function capture(route,data){
   if(!capturing)return;
   if(!data||data.detail||data.error||data.lap_data_complete===false||data.position_complete===false)throw new Error('Refusing to publish an invalid capture: '+route.split('?')[0]);
+  const identity=new URL(route,'https://local.invalid');
+  if(identity.pathname==='/api/performance'&&['r','race'].includes((identity.searchParams.get('session')||'').toLowerCase()))
+    data={...data,retirement_annotation_revision:BACKEND_REVISION};
   await mergeLocalCaptures(root,revisions,[{route,data}]);
 }
 const start=Date.now();
