@@ -13,7 +13,7 @@ test('lap selection collapses without losing its contents and has a reliable edi
   vm.runInContext(app.slice(app.indexOf('function setLapSelectionExpanded('),app.indexOf('// UI Rendering Functions')),box);
   box.setLapSelectionExpanded(false,true);
   assert.equal($('#lapSelectionBody').hidden,true);assert.equal($('#lapSelectionBody').inert,true);
-  assert.equal($('#lapWorkspaceToggle').attributes['aria-expanded'],'false');assert.equal($('#lapWorkspaceToggle').label.textContent,'Edit laps');assert.equal($('#lapWorkspaceToggle').focused,true);
+  assert.equal($('#lapWorkspaceToggle').attributes['aria-expanded'],'false');assert.equal($('#lapWorkspaceToggle').label.textContent,undefined,'the button keeps saying Choose laps');assert.equal($('#lapWorkspaceToggle').focused,true);
   box.setLapSelectionExpanded(true);
   assert.equal($('#lapSelectionBody').hidden,false);assert.equal($('#lapSelectionBody').inert,false);
   assert.doesNotMatch(page,/id="sidebarToggle"/);

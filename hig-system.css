@@ -740,17 +740,12 @@ body > main#top > .app-inspector { display: flex; flex-direction: column; gap: 1
 }
 .inspector-tabs[data-ui-group="segments"] { display: grid; grid-template-columns: 1fr 1fr; flex: 0 0 auto; width: 100%; margin: 0; padding: 2px; }
 .inspector-tabs[data-ui-group="segments"] > button { min-width: 0; }
-.app-inspector[data-pane="laps"] .inspector-corners, .app-inspector[data-pane="track"] #lapWorkspace { display: none; }
+/* The lap chooser is a sheet (see the end of this file); the inspector shows Track & corners only. */
 .app-inspector :is(.lap-workspace,.corner-analysis), .app-inspector .telemetry-analysis-grid > #cornerAnalysis { padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; overflow: visible; }
-.app-inspector .workspace-heading { margin: 2px 4px 10px; }
-.app-inspector .workspace-heading h2 { font: 700 var(--type-body)/1.3 var(--ui-font-display); }
-.app-inspector #lapWorkspace .driver-run-card { padding: 12px; border-radius: 12px; }
-.app-inspector #stintPanels { grid-template-columns: minmax(0,1fr); }
 .app-inspector .corner-analysis-header { display: none; }
 .app-inspector .inspector-corners .dominance-map { grid-area: auto; width: auto; padding: 4px 4px 12px; border: 0; }
 .app-inspector .inspector-corners .corner-picker-row, .app-inspector .inspector-corners .corner-metric-grid { padding: 12px 4px; border-top: 1px solid var(--ui-separator); }
 .app-inspector .inspector-corners #dominanceCanvas { height: clamp(220px,30dvh,300px); max-height: none; }
-@media (max-width:1239px) { .app-inspector #stintPanels { grid-template-columns: repeat(auto-fit,minmax(min(340px,100%),1fr)); } }
 
 /* Content: the laps as a timing board, then the traces at full width. */
 .telemetry-card.telemetry-card { padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
@@ -870,13 +865,6 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
 }
 
 /* Inspector lists. Laps read as one-line rows: which lap, how old the tyre was, then the time and the tyre at a shared right edge. */
-.app-inspector .lap-workspace .lap-grid { grid-template-columns: repeat(auto-fill,minmax(min(100%,280px),1fr)); gap: 4px; }
-.app-inspector .lap-workspace .lap-chip[data-ui-kind="choice"] { grid-template-columns: 82px minmax(0,1fr) max-content 18px; grid-template-rows: auto; grid-template-areas: "token age clock tyre"; align-items: center; column-gap: 8px; height: 34px; min-height: 34px; padding: 0 8px 0 10px; }
-.app-inspector .lap-workspace .lap-chip .lap-token { grid-area: token; font-size: var(--type-body); font-weight: 600; }
-.app-inspector .lap-workspace .lap-chip .lap-state { font-size: var(--type-caption); }
-.app-inspector .lap-workspace .lap-chip .lap-tyre-age { grid-area: age; line-height: 1.2; color: var(--ui-tertiary); }
-.app-inspector .lap-workspace .lap-chip .lap-clock { grid-area: clock; justify-self: end; line-height: 1.2; }
-.app-inspector .lap-workspace .lap-chip .compound-badge { grid-area: tyre; justify-self: end; width: 18px; height: 18px; }
 
 /* Corner table: fixed columns, and the lap and REF tag under the driver, so the numbers get the room. */
 .app-inspector .corner-measurement-table { table-layout: fixed; width: 100%; }
@@ -938,9 +926,11 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
 }
 
 /* Comparison tray: one row of title, laps and Clear all, on a single inset. */
-#telemetryCard .comparison-tray { flex-wrap: nowrap; align-items: flex-start; gap: 12px; padding: 7px 10px 7px 14px; }
+#telemetryCard .comparison-tray { flex-wrap: wrap; align-items: flex-start; gap: 8px 12px; padding: 7px 10px 7px 14px; }
 #telemetryCard .comparison-tray-heading { align-self: flex-start; min-height: 28px; align-items: center; }
-#telemetryCard .comparison-tray #loadedLaps { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+/* The laps take the width that is left and wrap within it; the chooser buttons drop to their own line before they squeeze the laps. */
+#telemetryCard .comparison-tray #loadedLaps { flex: 1 1 360px; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+#loadedLaps .loaded-lap-pill { flex: none; }
 #telemetryCard .comparison-tray #loadedLaps > .section-empty { display: flex; align-items: center; min-height: 28px; margin: 0; padding: 0; }
 
 /* Keep compute discovery available without a persistent mode button. */
@@ -1045,42 +1035,30 @@ body > #carPerformance .performance-table td small { white-space: nowrap; }
 .circuit-section-group .straight-zone-picker.straight-zone-picker { grid-template-columns: repeat(auto-fit,minmax(86px,1fr)); }
 .circuit-section-group .corner-picker.corner-picker button.corner-pick { width: 100%; min-width: 0; padding-inline: 4px; }
 
-/* ---------- PROTOTYPE: lap picker designs A and B (see lap-picker-proto.js). Not for merging as it stands. ---------- */
-#lapPickerProto { position: fixed; left: 16px; bottom: 16px; z-index: 80; display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: var(--radius-pill); background: var(--mat-menu); -webkit-backdrop-filter: var(--mat-blur-menu); backdrop-filter: var(--mat-blur-menu); box-shadow: var(--mat-edge), var(--ui-shadow-popover); font-size: var(--type-caption); }
-#lapPickerProto > span { padding: 0 8px 0 10px; color: var(--ui-secondary); }
-#lapPickerProto button { height: 24px; padding: 0 10px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--ui-label); font: inherit; white-space: nowrap; }
-#lapPickerProto button[aria-pressed="true"] { background: var(--ui-selection-tint); color: var(--ui-accent); }
-
-/* A: every lap of the stint is a small tile; nothing scrolls inside the pane. */
-html[data-lap-picker="compact"] .lap-workspace .lap-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 4px; max-height: none; overflow: visible; padding: 0; }
-html[data-lap-picker="compact"] .lap-workspace .lap-chip[data-ui-kind="choice"] { height: auto; min-height: 40px; padding: 4px 7px; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 1px 4px; align-content: center; }
-html[data-lap-picker="compact"] .lap-workspace .lap-chip .lap-token { grid-column: 1; grid-row: 1; font-size: var(--type-caption); }
-html[data-lap-picker="compact"] .lap-workspace .lap-chip .compound-badge { grid-column: 2; grid-row: 1; width: 14px; height: 14px; }
-html[data-lap-picker="compact"] .lap-workspace .lap-chip .lap-clock { grid-column: 1 / -1; grid-row: 2; text-align: left; font-size: var(--type-callout); line-height: 16px; }
-html[data-lap-picker="compact"] .lap-workspace .lap-chip .lap-tyre-age { display: none; }
-
-/* B: the picker is a sheet over the page (a popover in the top layer), opened from the Comparison bar; the right pane shows Track & corners only. */
-.lap-age { display: none; }
-html[data-lap-picker="sheet"] #sessionInspector > .inspector-tabs { display: none; }
-/* The lap workspace stays in the document (the sheet is its child) but takes no room and is not seen; the sheet itself is shown in the top layer. */
-html[data-lap-picker="sheet"] #sessionInspector > #lapWorkspace, html[data-lap-picker="sheet"] #sessionInspector[data-pane] > #lapWorkspace { display: block; position: absolute; width: 0; height: 0; margin: 0; padding: 0; border: 0; overflow: hidden; visibility: hidden; }
-html[data-lap-picker="sheet"] #lapSelectionBody:popover-open { visibility: visible; position: fixed; inset: 6vh auto auto 50%; transform: translateX(-50%); margin: 0; box-sizing: border-box; width: min(1480px, calc(100vw - 32px)); max-height: 88vh; overflow-y: auto; padding: 16px; border: 0; border-radius: var(--radius-xl); background: var(--mat-sheet); color: var(--ui-label); -webkit-backdrop-filter: var(--mat-blur-menu); backdrop-filter: var(--mat-blur-menu); box-shadow: var(--mat-edge), var(--ui-shadow-popover); }
-html[data-lap-picker="sheet"] #lapSelectionBody::backdrop { background: var(--mat-scrim); }
+/* ---------- Lap chooser: a sheet over the page, opened from Choose laps in the Comparison bar (lap-sheet.js) ---------- */
+/* The wrapper takes no space; the sheet is in the top layer. */
+#lapWorkspace { display: contents; }
+#lapSelectionBody:popover-open { position: fixed; inset: 6vh auto auto 50%; transform: translateX(-50%); margin: 0; box-sizing: border-box; width: min(1480px, calc(100vw - 32px)); max-height: 88vh; overflow-y: auto; padding: 16px; border: 0; border-radius: var(--radius-xl); background: var(--mat-sheet); color: var(--ui-label); -webkit-backdrop-filter: var(--mat-blur-menu); backdrop-filter: var(--mat-blur-menu); box-shadow: var(--mat-edge), var(--ui-shadow-popover); }
+#lapSelectionBody:popover-open:not(:has(> #driverSidebar)) { display: block; }
+#lapSelectionBody::backdrop { background: var(--mat-scrim); }
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) { #lapSelectionBody:popover-open { background: var(--ui-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 /* Three drivers across, three laps across in each. */
-html[data-lap-picker="sheet"] #stintPanels { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 12px; }
-html[data-lap-picker="sheet"] .lap-workspace .lap-grid { max-height: none; overflow: visible; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 0; }
-/* Two lines per lap: lap number with tyre and tyre age on top, the time underneath, so OUT/IN laps and long times fit three across. */
-html[data-lap-picker="sheet"] .lap-workspace .lap-chip[data-ui-kind="choice"] { box-sizing: border-box; height: auto; min-height: 42px; padding: 4px 8px; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-rows: auto auto; gap: 1px 4px; align-items: center; align-content: center; }
-html[data-lap-picker="sheet"] .lap-workspace .lap-chip .lap-token { grid-column: 1; grid-row: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: var(--type-caption); }
-html[data-lap-picker="sheet"] .lap-workspace .lap-chip .compound-badge { grid-column: 2; grid-row: 1; width: 14px; height: 14px; }
-html[data-lap-picker="sheet"] .lap-workspace .lap-chip .lap-age { grid-column: 3; grid-row: 1; display: inline; min-width: 2ch; color: var(--ui-secondary); font-size: var(--type-caption); font-variant-numeric: tabular-nums; line-height: 1; text-align: right; }
-html[data-lap-picker="sheet"] .lap-workspace .lap-chip .lap-clock { grid-column: 1 / -1; grid-row: 2; font-size: var(--type-callout); line-height: 16px; text-align: left; }
-html[data-lap-picker="sheet"] .lap-workspace .lap-chip .lap-tyre-age { display: none; }
-html[data-lap-picker="sheet"] .lap-workspace .lap-chip[aria-pressed="true"] .lap-age { color: inherit; opacity: .8; }
-/* The picker's button and Compare fastest, in the Comparison bar. */
+#lapSelectionBody > #stintPanels { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 12px; }
+/* Three laps across when a tile has room for the lap, the tyre age over the time and the tyre (about 136 px); two when the window is narrower. */
+#lapSelectionBody .lap-workspace .lap-grid, #lapSelectionBody .lap-grid { max-height: none; overflow: visible; grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); gap: 4px; padding: 0; }
+/* A lap tile: on the left the lap's description (OUT, IN, PUSH...) on top and the lap number at the bottom, level with the time; tyre age over the
+   time in the middle; the tyre as a large mark on the right spanning both lines. */
+#lapSelectionBody .lap-chip[data-ui-kind="choice"] { grid-template-areas: none; box-sizing: border-box; height: auto; min-height: 44px; padding: 4px 6px 4px 8px; grid-template-columns: auto minmax(0, 1fr) 26px; grid-template-rows: auto auto; gap: 1px 6px; align-items: center; }
+#lapSelectionBody .lap-chip .lap-token { grid-column: 1; grid-row: 1 / span 2; align-self: stretch; display: flex; flex-direction: column-reverse; justify-content: flex-start; align-items: flex-start; gap: 0; font-size: var(--type-caption); line-height: 16px; }
+#lapSelectionBody .lap-chip .lap-token .lap-state { line-height: 14px; }
+#lapSelectionBody .lap-chip .lap-token .lap-state { margin: 0; }
+#lapSelectionBody .lap-chip .lap-tyre-age { grid-column: 2; grid-row: 1; justify-self: stretch; text-align: right; min-width: 0; overflow: hidden; color: var(--ui-secondary); font-size: calc(var(--type-caption) - 2px); line-height: 14px; text-overflow: ellipsis; white-space: nowrap; }
+#lapSelectionBody .lap-chip .lap-clock { grid-column: 2; grid-row: 2; justify-self: end; font-size: var(--type-callout); line-height: 16px; text-align: right; }
+#lapSelectionBody .lap-chip .compound-badge { grid-column: 3; grid-row: 1 / span 2; align-self: center; width: 26px; height: 26px; }
+#lapSelectionBody .lap-chip[aria-pressed="true"] .lap-tyre-age { color: inherit; opacity: .85; }
+/* Choose laps and Compare fastest, in the Comparison bar. */
 .comparison-picker { display: flex; flex: none; align-items: center; gap: 8px; margin-left: auto; }
-.comparison-picker #lapWorkspaceToggle { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border: 0; border-radius: var(--radius-md); background: var(--ui-control); box-shadow: var(--ui-shadow-control); color: var(--ui-label); font: 600 var(--type-callout)/1 var(--ui-font); white-space: nowrap; }
-.comparison-picker #lapWorkspaceToggle > i { display: none; }
-.comparison-picker #lapWorkspaceToggle:hover { background: var(--ui-control-hover); }
+.comparison-picker .comparison-choose { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border: 0; border-radius: var(--radius-md); background: var(--ui-control); box-shadow: var(--ui-shadow-control); color: var(--ui-label); font: 600 var(--type-callout)/1 var(--ui-font); white-space: nowrap; }
+.comparison-picker .comparison-choose:hover { background: var(--ui-control-hover); }
 .comparison-picker #lapWorkspaceActions { display: flex; align-items: center; gap: 8px; margin: 0; }
 .comparison-picker #lapWorkspaceActions .run-toolbar { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; color: var(--ui-secondary); font-size: var(--type-caption); white-space: nowrap; }

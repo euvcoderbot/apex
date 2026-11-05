@@ -37,6 +37,8 @@ test('type uses one ramp and section headers share one style across both views',
     // Explicit user-requested two-pixel reduction, scoped to inspector tyre details.
     (decl.parent.selector === '.lap-summary-card .summary-tyre, .lap-summary-card .summary-tyre b' && decl.value === 'calc(var(--type-callout) - 2px)') ||
     (['.lap-summary-card .summary-tyre small', '.lap-summary-card .summary-tyre .compound-badge'].includes(decl.parent.selector) && decl.value === 'calc(var(--type-caption) - 2px)') ||
+    // Explicit user-requested two-pixel reduction of the tyre age in the lap sheet's tiles.
+    (decl.parent.selector === '#lapSelectionBody .lap-chip .lap-tyre-age' && decl.value === 'calc(var(--type-caption) - 2px)') ||
     (decl.parent.selector === sectorDeficitSelector && decl.value === 'calc(var(--type-caption) * .85)'),
     decl.parent.selector + ' uses off-ramp ' + decl.value));
   assert.deepEqual(declared(rulesFor(/^\.sector-cards \.lap-summary-card \.sector-delta-slot \.summary-delta$/), 'font-size'), ['calc(var(--type-caption) * .85)']);
@@ -58,8 +60,8 @@ test('motion is brief, never replays on re-render and honours Reduce Motion, Tra
   assert.deepEqual([...blurred].sort(), [
     '.circuit-guide-details[popover]', '.local-compute-dialog', '.local-compute-dialog::backdrop', '.performance-table th',
     '.site-header, .site-header.window-toolbar', ':is(.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover])', 'body > main#top > .app-sidebar, body > #carPerformance > .app-sidebar, body > main#top > .app-inspector',
-    // PROTOTYPE: the lap sheet (a sheet, so the transient layer) and the floating design switcher, which goes when a design is chosen.
-    '#lapPickerProto', 'html[data-lap-picker="sheet"] #lapSelectionBody:popover-open',
+    // The lap chooser is a sheet, so the transient layer.
+    '#lapSelectionBody:popover-open',
   ].sort());
   // Every translucent fill has an opaque fallback for Reduce Transparency, Increase Contrast and no backdrop-filter.
   for (const fallback of ['@media (prefers-reduced-transparency: reduce), (prefers-contrast: more)', '@supports not (backdrop-filter: blur(1px))']) assert.ok(css.includes(fallback), fallback);
