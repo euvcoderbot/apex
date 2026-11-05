@@ -93,7 +93,7 @@ test('the toolbar icons are named, and the switches say what they do', async ({p
   }
 });
 
-test('every scrolling area has the same scrollbar, in both appearances', async ({page}) => {
+test('every scrolling area has the same scrollbar, in both appearances', async ({page, browserName}) => {
   await open(page);
   for (const theme of ['dark', 'light']) {
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
@@ -108,6 +108,8 @@ test('every scrolling area has the same scrollbar, in both appearances', async (
       return Object.fromEntries([...found].map(([key, names]) => [key, [...new Set(names)].slice(0, 6)]));
     });
     expect(Object.keys(styles), `${theme}: scrollbar styles in use ${JSON.stringify(styles)}`).toHaveLength(1);
-    expect(Object.keys(styles)[0], theme).toMatch(/^thin /);
+    // Headless Firefox in CI computes scrollbar-width as none on every element, while still applying our thumb colour; the stylesheets
+    // never set none (test-ui.mjs), so there only the uniformity and the colour are checked.
+    expect(Object.keys(styles)[0], theme).toMatch(browserName === 'firefox' ? /^(thin|none) / : /^thin /);
   }
 });

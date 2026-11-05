@@ -1,6 +1,12 @@
-// Generates the colour tokens of an alternative look ("skin") from three inputs, the way Linear generates its themes (base colour, accent
-// colour, contrast; see docs/linear-look.md). Every surface, text, border and selection colour is a step in OKLCH lightness away from the base,
-// so one base gives a coherent set and the contrast input widens or narrows every step at once (100 is the high-contrast theme).
+// Generates the colour tokens of an alternative look ("skin") from that design system's own colour tokens, so the look uses the
+// system's real values and variants rather than approximations. The Linear palette below is Linear's published token set, read from
+// linear.app's stylesheet on 2026-11-05 (the --color-* custom properties under [data-theme="dark"] / [data-theme="light"]), plus the
+// brand colours on linear.app/brand. See docs/linear-look.md.
+//
+// Each of the app's tokens maps to one Linear token. Only two kinds of change are made, and both are listed in ADJUSTED:
+//   - a colour that fails WCAG AA where the app uses it as text, or behind white text, keeps its hue and chroma and moves in OKLCH
+//     lightness just far enough to pass (Linear's light-theme indigo #7070ff is 3.85:1 with white; the app needs 4.5:1);
+//   - the high-contrast theme (prefers-contrast: more) pulls the dimmer text tiers toward the label colour and strengthens borders.
 //
 //   node scripts/generate-skin.mjs            rewrites the generated block in skins.css
 //   node scripts/generate-skin.mjs --check    fails if skins.css is out of date
@@ -8,60 +14,128 @@ import {readFileSync, writeFileSync} from 'node:fs';
 
 export const SKINS = {
   linear: {
-    // Calibrated to linear.app (measured 2026-11-05): dark canvas #08090a, panel #0f1011, text #f7f8f8, accent indigo #5e6ad2.
-    dark: {base: {l: .148, c: .003, h: 260}, accent: {l: .565, c: .14, h: 277}, contrast: 30},
-    light: {base: {l: .999, c: .002, h: 300}, accent: {l: .545, c: .165, h: 277}, contrast: 30},
+    dark: {
+      'bg-level-0': '#08090a', 'bg-panel': '#0f1011', 'bg-level-2': '#141516', 'bg-secondary': '#1c1c1f', 'bg-tertiary': '#232326',
+      'bg-quaternary': '#28282c', 'bg-translucent': '#ffffff0d', 'border-secondary': '#34343a', 'border-translucent': '#ffffff0d',
+      'border-translucent-strong': '#ffffff14', 'text-primary': '#f7f8f8', 'text-secondary': '#d0d6e0', 'text-tertiary': '#8a8f98',
+      'text-quaternary': '#62666d', 'brand-bg': '#5e6ad2', accent: '#7170ff', 'accent-tint': '#18182f', 'link-primary': '#828fff',
+      green: '#27a644', red: '#eb5757', yellow: '#f0bf00', 'overlay-primary': '#000000d9',
+    },
+    light: {
+      'bg-level-0': '#ffffff', 'bg-panel': '#ffffff', 'bg-secondary': '#f9f8f9', 'bg-tertiary': '#f4f2f4', 'bg-quaternary': '#eeedef',
+      'bg-quinary': '#e9e8ea', 'bg-translucent': '#00000005', 'border-tertiary': '#dcdbdd', 'border-translucent': '#0000000d',
+      'border-translucent-strong': '#00000014', 'text-primary': '#282a30', 'text-secondary': '#3c4149', 'text-tertiary': '#6f6e77',
+      'text-quaternary': '#86848d', 'brand-bg': '#7070ff', accent: '#7170ff', 'accent-tint': '#f1f1ff', 'link-primary': '#7070ff',
+      green: '#27a644', red: '#eb5757', yellow: '#f0bf00', 'overlay-primary': '#ffffffa6',
+    },
   },
 };
 
-// OKLCH -> sRGB hex (CSS Color 4 reference matrices).
+// ---------- Colour maths (CSS Color 4 OKLab matrices) ----------
+const toLinear = v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4;
+const toGamma = v => { const x = Math.min(1, Math.max(0, v)); return x <= .0031308 ? 12.92 * x : 1.055 * x ** (1 / 2.4) - .055; };
+const rgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
+
+export function hexToOklch(hex) {
+  const [r, g, b] = rgb(hex).map(toLinear);
+  const l = Math.cbrt(.4122214708 * r + .5363325363 * g + .0514459929 * b), m = Math.cbrt(.2119034982 * r + .6806995451 * g + .1073969566 * b), s = Math.cbrt(.0883024619 * r + .2817188376 * g + .6299787005 * b);
+  const L = .2104542553 * l + .7936177850 * m - .0040720468 * s, A = 1.9779984951 * l - 2.4285922050 * m + .4505937099 * s, B = .0259040371 * l + .7827717662 * m - .8086757660 * s;
+  return {l: L, c: Math.hypot(A, B), h: (Math.atan2(B, A) * 180 / Math.PI + 360) % 360};
+}
+
 export function oklchToHex({l, c, h}, alpha = 1) {
   const a = c * Math.cos(h * Math.PI / 180), b = c * Math.sin(h * Math.PI / 180);
   const l_ = (l + .3963377774 * a + .2158037573 * b) ** 3, m_ = (l - .1055613458 * a - .0638541728 * b) ** 3, s_ = (l - .0894841775 * a - 1.2914855480 * b) ** 3;
   const lin = [4.0767416621 * l_ - 3.3077115913 * m_ + .2309699292 * s_, -1.2684380046 * l_ + 2.6097574011 * m_ - .3413193965 * s_, -.0041960863 * l_ - .7034186147 * m_ + 1.7076147010 * s_];
-  const srgb = lin.map(v => { const x = Math.min(1, Math.max(0, v)); return x <= .0031308 ? 12.92 * x : 1.055 * x ** (1 / 2.4) - .055; });
-  const hex = srgb.map(v => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
+  const hex = lin.map(toGamma).map(v => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
   return '#' + hex + (alpha < 1 ? Math.round(alpha * 255).toString(16).padStart(2, '0') : '');
 }
 
 // WCAG contrast of two opaque hex colours.
 export function contrastRatio(x, y) {
-  const lum = hex => { const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(v => v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4); return .2126 * r + .7152 * g + .0722 * b; };
+  const lum = hex => { const [r, g, b] = rgb(hex).map(toLinear); return .2126 * r + .7152 * g + .0722 * b; };
   const [a, b] = [lum(x), lum(y)].sort((p, q) => q - p);
   return (a + .05) / (b + .05);
 }
 
-// One theme: lightness steps from the base, scaled by contrast (30 is the default, 100 the high-contrast theme).
-export function generate({base, accent, contrast}) {
-  const dark = base.l < .5, dir = dark ? 1 : -1, k = .75 + contrast / 120;
-  const surface = step => oklchToHex({l: base.l + dir * step * k, c: base.c, h: base.h});
-  const ink = (l, alpha) => oklchToHex({l, c: base.c * 2, h: base.h}, alpha);
-  const text = dark ? [.982, .885, .672, .53] : [.27, .37, .53, .62];
-  const t = text.map((l, i) => oklchToHex({l: dark ? Math.min(1, l + (k - 1) * .04 * i) : Math.max(0, l - (k - 1) * .05 * i), c: base.c * 1.2, h: base.h}));
-  const fg = dark ? .985 : .2, line = alpha => ink(fg, Math.min(1, alpha * k));
+// The least change in OKLCH lightness (hue and chroma kept) that gives `min` contrast against every colour in `against`.
+export function meetContrast(hex, against, min, direction) {
+  if (against.every(other => contrastRatio(hex, other) >= min)) return hex;
+  const start = hexToOklch(hex);
+  for (let step = 1; step <= 200; step++) {
+    const next = oklchToHex({...start, l: Math.min(1, Math.max(0, start.l + direction * step * .0025))});
+    if (against.every(other => contrastRatio(next, other) >= min)) return next;
+  }
+  throw new Error(`no lightness of ${hex} reaches ${min}:1`);
+}
+
+const alpha = (hex, factor) => hex.slice(0, 7) + Math.min(255, Math.round(parseInt(hex.slice(7, 9) || 'ff', 16) * factor)).toString(16).padStart(2, '0');
+const mix = (from, to, amount) => '#' + rgb(from).map((v, i) => Math.round((v + (rgb(to)[i] - v) * amount) * 255).toString(16).padStart(2, '0')).join('');
+
+// ---------- Linear token -> app token ----------
+export function generate(p, {theme, highContrast = false}) {
+  const dark = theme === 'dark';
+  // Inverted L: the frame (sidebar, toolbar) is the base level, the content one raised panel. Linear's app is darker outside and lighter
+  // inside in dark mode, and grey outside with white content in light mode.
+  const frame = dark ? p['bg-level-0'] : p['bg-secondary'], panel = p['bg-panel'];
+  const well = dark ? p['bg-level-2'] : p['bg-secondary'];
+  const control = dark ? p['bg-secondary'] : p['bg-tertiary'], hover = dark ? p['bg-tertiary'] : p['bg-quaternary'];
+  const selected = dark ? p['bg-quaternary'] : p['bg-quinary'];
+  const surfaces = [frame, panel, control];
+  const ink = dark ? '#ffffff' : '#000000', dir = dark ? 1 : -1;
+  let text = [p['text-primary'], p['text-secondary'], p['text-tertiary'], p['text-quaternary']];
+  let [border, strong, separator] = [p['border-translucent-strong'], dark ? p['border-secondary'] : p['border-tertiary'], p['border-translucent']];
+  if (highContrast) {
+    text = [text[0], ...text.slice(1).map(t => mix(t, text[0], .4))];
+    [border, separator] = [alpha(border, 1.75), alpha(separator, 1.75)];
+    strong = mix(strong, text[2], .35);
+  }
+  // Text roles must pass AA where the app sets them on its surfaces; fills behind white text must pass with white.
+  text = text.map((t, i) => i < 3 ? meetContrast(t, surfaces, i ? 4.5 : 7, dir) : t);
+  const action = meetContrast(p['brand-bg'], ['#ffffff'], 4.5, -1);
+  const accent = meetContrast(dark ? p.accent : p['link-primary'], [panel, well, p['accent-tint']], 4.5, dir);
+  const status = name => meetContrast(p[name], [panel, control], 4.5, dir);
   return {
-    '--ui-canvas': surface(0), '--ui-sidebar': surface(0), '--ui-toolbar': surface(0),
-    '--ui-panel': surface(dark ? .022 : .006), '--ui-content': surface(dark ? .022 : .006), '--ui-well': surface(dark ? .052 : .018),
-    '--ui-header-row': surface(dark ? .052 : .018), '--ui-control': surface(dark ? .075 : .03), '--ui-control-hover': surface(dark ? .095 : .045),
-    '--ui-selected': surface(dark ? .11 : .06), '--ui-seg-track': line(.035), '--ui-seg-thumb': line(.08),
-    '--ui-label': t[0], '--ui-secondary': t[1], '--ui-tertiary': t[2], '--ui-quaternary': t[3],
-    '--ui-border': line(.08), '--ui-border-strong': line(.13), '--ui-separator': line(.05),
-    '--ui-row-alt': line(.015), '--ui-row-hover': line(.045),
-    '--ui-accent': oklchToHex({l: dark ? accent.l + .12 : accent.l, c: accent.c, h: accent.h}), '--ui-action': oklchToHex(accent),
-    '--ui-selection': oklchToHex(accent), '--ui-selection-muted': line(.07), '--ui-selection-tint': line(.07),
-    '--ui-list-selected': line(.07), '--ui-list-selected-label': t[0], '--ui-tile-on': oklchToHex(accent), '--ui-tile-on-label': '#ffffff',
-    '--scroll-thumb': line(.1), '--scroll-thumb-hover': line(.2),
+    '--ui-canvas': frame, '--ui-sidebar': frame, '--ui-toolbar': frame, '--ui-panel': panel, '--ui-content': panel,
+    '--ui-well': well, '--ui-header-row': well, '--ui-control': control, '--ui-control-hover': hover, '--ui-selected': selected,
+    '--ui-seg-track': dark ? p['bg-translucent'] : p['border-translucent'], '--ui-seg-thumb': dark ? p['border-translucent-strong'] : p['bg-level-0'],
+    '--ui-label': text[0], '--ui-secondary': text[1], '--ui-tertiary': text[2], '--ui-quaternary': text[3],
+    '--ui-border': border, '--ui-border-strong': strong, '--ui-separator': separator,
+    '--ui-row-alt': alpha(p['bg-translucent'], dark ? .4 : 1), '--ui-row-hover': dark ? p['bg-translucent'] : p['border-translucent'],
+    '--ui-accent': accent, '--ui-action': action, '--ui-selection': action,
+    // Accent-on-tint controls use Linear's accent tint; neutral pressed states (toolbar, disabled) stay grey, as Linear's do.
+    '--ui-selection-tint': p['accent-tint'], '--ui-selection-muted': dark ? p['border-translucent-strong'] : p['border-translucent'],
+    '--ui-list-selected': dark ? p['border-translucent-strong'] : p['border-translucent'], '--ui-list-selected-label': text[0], '--ui-list-selected-secondary': text[1],
+    '--ui-tile-on': action, '--ui-tile-on-label': '#ffffff',
+    '--ui-positive': status('green'), '--ui-negative': status('red'), '--ui-warning': dark ? p.yellow : meetContrast(p.yellow, [panel, control], 4.5, -1),
+    '--lin-overlay': p['overlay-primary'],
+    '--scroll-thumb': ink + '1a', '--scroll-thumb-hover': ink + '33',
   };
 }
 
+// Which app tokens differ from the Linear token they map to, and why: printed into skins.css so the deviations stay visible.
+export function adjusted(name) {
+  const notes = [];
+  for (const [theme, palette] of Object.entries(SKINS[name])) {
+    const out = generate(palette, {theme});
+    const sources = {'--ui-label': 'text-primary', '--ui-secondary': 'text-secondary', '--ui-tertiary': 'text-tertiary', '--ui-action': 'brand-bg',
+      '--ui-accent': theme === 'dark' ? 'accent' : 'link-primary', '--ui-positive': 'green', '--ui-negative': 'red', '--ui-warning': 'yellow'};
+    for (const [token, source] of Object.entries(sources)) if (out[token] !== palette[source]) notes.push(`${theme} ${token}: Linear ${source} ${palette[source]} -> ${out[token]} (WCAG AA)`);
+  }
+  return notes;
+}
+
 const css = () => {
-  const out = ['/* GENERATED by scripts/generate-skin.mjs from three inputs per theme; edit the inputs there, not these values. */'];
+  const out = ['/* GENERATED by scripts/generate-skin.mjs from Linear\'s own colour tokens; edit the palette there, not these values. */'];
   for (const [name, themes] of Object.entries(SKINS)) {
-    for (const [theme, input] of Object.entries(themes)) {
+    const notes = adjusted(name);
+    if (notes.length) out.push(`/* Adjusted for contrast:\n${notes.map(n => '   ' + n).join('\n')} */`);
+    for (const [theme, palette] of Object.entries(themes)) {
       const selector = theme === 'dark' ? `:root[data-skin="${name}"]:not([data-theme="light"])` : `:root[data-skin="${name}"][data-theme="light"]`;
-      const tokens = generate(input), strong = generate({...input, contrast: 100});
+      const tokens = generate(palette, {theme}), strong = generate(palette, {theme, highContrast: true});
       out.push(`${selector} {\n${Object.entries(tokens).map(([k, v]) => `  ${k}: ${v};`).join('\n')}\n}`);
-      out.push(`@media (prefers-contrast: more) {\n  ${selector} {\n${Object.entries(strong).map(([k, v]) => `    ${k}: ${v};`).join('\n')}\n  }\n}`);
+      const changed = Object.entries(strong).filter(([k, v]) => tokens[k] !== v);
+      out.push(`@media (prefers-contrast: more) {\n  ${selector} {\n${changed.map(([k, v]) => `    ${k}: ${v};`).join('\n')}\n  }\n}`);
     }
   }
   return out.join('\n');

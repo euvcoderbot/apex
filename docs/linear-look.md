@@ -9,18 +9,20 @@ this browser (`localStorage['apex-skin']`) and applied by an inline script in `i
 | File | Role |
 | --- | --- |
 | `skins.css` | Every Linear-look rule, plus the generated colour tokens between `<generated-skin-tokens>` markers. |
-| `scripts/generate-skin.mjs` | Generates the colour tokens from three inputs per theme. `--check` fails when `skins.css` is stale. |
+| `scripts/generate-skin.mjs` | Holds Linear's colour tokens and maps them onto the app's tokens. `--check` fails when `skins.css` is stale. |
 | `skin.js` | The toggle: sets `data-skin`, updates the button state, re-measures segment thumbs, redraws canvas charts. |
 | `session-state.js` (`canvasTheme`) | Canvas charts read `--chart-*` tokens when a look defines them. |
 | `assets/fonts/inter/` | Inter Variable (latin, optical size axis), SIL Open Font License. Only downloaded when the Linear look is on. |
-| `scripts/test-skin.mjs` | Generator is current, contrast of generated colours, every rule opt-in, toggle state and persistence. |
+| `scripts/test-skin.mjs` | Generator is current, Linear's values used as published, contrast of every text and fill role, every rule opt-in, toggle state and persistence. |
 
 ## Sources (read 2026-11-05)
 
 - Linear, "How we redesigned the Linear UI" (2024) and the 2026 refresh notes: themes generated from three variables (base, accent, contrast) in
   LCH; an inverted-L frame (sidebar and top bar on the canvas, the content raised as one panel); "structure should be felt, not seen"; quieter
   sidebar and fewer icons.
-- linear.app computed styles: colours, type, radii and transition timings listed below were measured from the public site.
+- linear.app/brand: Mercury White `#F4F5F8`, Nordic Gray `#222326` (monochrome wordmark accents) and the desaturated-blue brand colour.
+- linear.app stylesheet: the full `--color-*` token set under `[data-theme="dark"]` and `[data-theme="light"]` (46 and 44 tokens), and
+  the type, radii and transition timings listed below.
 - Inter / Inter Display (rsms.me/inter): Linear's typefaces. The app ships Inter Variable with the optical-size axis, which gives Display
   shapes at large sizes.
 
@@ -30,15 +32,21 @@ Linear's product app sits behind a sign-in and was not inspected; values come fr
 
 | Area | Linear | Here |
 | --- | --- | --- |
-| Theme method | base + accent + contrast in LCH | Same three inputs in OKLCH (`SKINS.linear`); high-contrast theme = contrast 100 under `prefers-contrast: more`. |
-| Dark surfaces | bg `#08090a`, panel `#0f1011`, controls `#1c1c1f`–`#28282c` | canvas `#0a0b0c`, panel `#0f0f11`, controls from the same lightness steps. |
-| Light surfaces | `#ffffff`, `#f9f8f9`, `#f4f2f4` | generated from base L .999. |
-| Text | `#f7f8f8`, `#d0d6e0`, `#8a8f98`, `#62666d` | four generated steps; the test holds the label at 7:1 and the second and third at 4.5:1 (the fourth, for hints, is about 3.6:1). |
-| Accent | indigo `#5e6ad2` | action `#636bc6` dark / `#5b61ce` light (white text at 4.7:1 and 5.2:1). |
+| Colour source | themes generated from base, accent, contrast | Linear's generated output is used directly: its published tokens are the palette in `SKINS.linear`. |
+| Frame and panel | dark: frame `bg-level-0 #08090a`, panel `bg-panel #0f1011`; light: grey frame, white content | dark canvas `#08090a`, panel `#0f1011`; light canvas `bg-secondary #f9f8f9`, panel `#ffffff`. |
+| Surface levels | `bg-level-2`, `bg-secondary`, `bg-tertiary`, `bg-quaternary` (`bg-quinary` light) | well, control, control hover, selected, in that order. |
+| Text tiers | dark `#f7f8f8 #d0d6e0 #8a8f98 #62666d`; light `#282a30 #3c4149 #6f6e77 #86848d` | label, secondary, tertiary, quaternary, exactly. |
+| Borders | translucent 5% and 8%; opaque `border-secondary` / `border-tertiary` | separator 5%, border 8%, strong border opaque. |
+| Brand fill | dark `#5e6ad2`; light `#7070ff` | primary buttons, selected tiles, selection. Light darkened to `#6563f1` (3.85 → 4.5:1 with white text). |
+| Accent text | dark `accent #7170ff`; light `link-primary #7070ff` | `--ui-accent`. Light darkened to `#5f5be8` for 4.5:1 on white. |
+| Accent tint | `accent-tint` dark `#18182f`, light `#f1f1ff` | `--ui-selection-tint` (accent-on-tint buttons such as each driver's Fastest pick). |
+| Neutral selection | white 8% / black 5% | list rows, toolbar pressed state, disabled. |
+| Status | green `#27a644`, red `#eb5757`, yellow `#f0bf00` | deltas and warnings. Exact in dark; in light darkened to `#00811d`, `#cb383d`, `#946600` for 4.5:1. |
+| Overlay | `overlay-primary` dark `#000000d9`, light `#ffffffa6` | the lap sheet's backdrop. |
+| High contrast | Linear's contrast slider | under `prefers-contrast: more`, secondary to quaternary text move 40% toward the label and borders strengthen. |
 | Type | Inter Variable 13 px body, weights 510 and 590 | same; ramp 11/12/13/14/15/20/24. |
 | Radii | 4/6/8/12, pill 9999 | controls 6, cards 8, panel 12, chips pill. |
 | Controls | 28 px, flat, hairline inset ring | same; primary actions in the accent. |
-| Selection in lists | grey, not the accent | `--ui-list-selected` (white 7%). |
 | Frame | inverted L, content raised | at 980 px and wider the content and inspector sit on one raised panel; the sidebar and top bar stay on the canvas. |
 | Materials | no glass | blur, glint and press scaling are off. |
 
@@ -62,5 +70,5 @@ All of it is turned off under `prefers-reduced-motion: reduce`.
 
 ## Changing it
 
-Edit the inputs in `scripts/generate-skin.mjs`, then run `node scripts/generate-skin.mjs` and `node --test scripts/test-skin.mjs`. The contrast
+Edit the palette in `scripts/generate-skin.mjs` (re-read it from linear.app's stylesheet if Linear changes it), then run `node scripts/generate-skin.mjs` and `node --test scripts/test-skin.mjs`. The contrast
 test fails if a change makes text or the primary action unreadable.
