@@ -757,7 +757,7 @@ def get_verified_retirement(event_name, abbr, year=None):
     return None
 
 
-def classify_retirement(status, event_name, abbr, session_year=None):
+def classify_retirement(status, event_name, abbr, session_year=None, reported=None):
     """Audited year-aware reliability taxonomy.
 
     Categories:
@@ -768,7 +768,16 @@ def classify_retirement(status, event_name, abbr, session_year=None):
     - Unknown / unverified (unconfirmed/generic retirements)
     """
     v_ret = get_verified_retirement(event_name, abbr, session_year)
-    if v_ret:
+    source_url = None
+    if reported:
+        # Reported reason from the race's Wikipedia classification (retirement_sources.py), already matched to this car's
+        # number, surname and laps. Context with a traceable revision, not a verified failure analysis.
+        raw_cat = None
+        cause = str(reported['reason'])
+        source = 'Wikipedia race classification'
+        source_url = reported.get('url')
+        verified = False
+    elif v_ret:
         raw_cat, cause = v_ret
         source = 'Unlinked 2026 event note'
         verified = False
@@ -796,19 +805,21 @@ def classify_retirement(status, event_name, abbr, session_year=None):
     pu_keywords = ['power unit', 'engine', 'turbo', 'oil pressure', 'water leak', 'coolant',
                    'cooling', 'radiator', 'oil leak', 'fuel leak', 'fuel system',
                    'fuel pressure', 'battery', 'ers', 'mgu-k', 'loss of drive',
-                   'exhaust', 'electrical cut-off', 'electrical / halo']
+                   'exhaust', 'electrical cut-off', 'electrical / halo',
+                   # Reasons as Wikipedia's classifications word them.
+                   'water pressure', 'power loss', 'overheating', 'electrical', 'electronics', 'energy store']
     if not (session_year and session_year >= 2026):
         pu_keywords.append('mgu-h')
 
     chassis_keywords = ['gearbox', 'transmission', 'hydraulics', 'hydraulic',
                         'brakes', 'brake', 'suspension', 'steering', 'driveshaft',
                         'differential', 'clutch', 'floor vibration', 'kerb strike',
-                        'wheel attachment', 'wheel bearing']
+                        'wheel attachment', 'wheel bearing', 'wheel', 'puncture', 'tyre failure', 'vibration']
 
     incident_keywords = ['accident', 'collision', 'contact', 'barrier', 'crash',
                          'spun off', 'spin', 'damage from contact', 'wall']
 
-    other_keywords = ['medical', 'illness', 'disqualified', 'dsq', 'withdrew', 'withdrawn']
+    other_keywords = ['medical', 'illness', 'disqualified', 'dsq', 'withdrew', 'withdrawn', 'covid', 'unwell', 'fatigue']
 
     if any(k in cause_lower for k in incident_keywords) or 'accident' in cat_lower or 'collision' in cat_lower:
         category = 'Incident / collision'
@@ -830,6 +841,7 @@ def classify_retirement(status, event_name, abbr, session_year=None):
         'category': category,
         'cause': str(cause),
         'source': source,
+        'source_url': source_url,
         'verified': verified,
         'is_mechanical': is_mechanical,
         'year_compliant': True
@@ -862,6 +874,7 @@ def analyze(data, traffic=2):
                                   'positions': [], 'retirements': []})
 
     leader_abbr = None
+    race_report = None  # Wikipedia's race classification, fetched once and only if someone retired.
     for code in data.drivers:
         info = data.get_driver(code)
         abbr = str(info.get('Abbreviation'))
@@ -887,7 +900,15 @@ def analyze(data, traffic=2):
         if status in ('Finished', 'Lapped') or status.startswith('+'):
             team['finishes'] += 1
         elif status not in ('Did not start', 'Withdrew', 'Did not qualify'):
-            ret_info = classify_retirement(status, event_name, abbr, session_year)
+            reported = None
+            if not qualifying:
+                if race_report is None:
+                    from retirement_sources import reported_retirements
+                    race_report = reported_retirements(session_year, event_name) or {}
+                from retirement_sources import match
+                reported = match(race_report, info.get('DriverNumber'), str(info.get('LastName') or ''), info.get('Laps'))
+                if reported: reported = {**reported, 'url': race_report.get('url')}
+            ret_info = classify_retirement(status, event_name, abbr, session_year, reported)
             cat = ret_info['category']
             if cat == 'PU-related':
                 team['pu_retirements'] += 1
@@ -907,6 +928,7 @@ def analyze(data, traffic=2):
                 'category': cat,
                 'cause': ret_info['cause'],
                 'source': ret_info['source'],
+                'source_url': ret_info.get('source_url'),
                 'verified': ret_info['verified'],
                 'year_compliant': ret_info['year_compliant']
             })

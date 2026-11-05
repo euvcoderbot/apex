@@ -11,7 +11,7 @@ export type ResultRow = TeamLike & {
   pointsPerStart: number | null; finishRatePct: number | null; mechanicalRatePct: number | null; mechanicalPer1000Laps: number | null;
   positions: number[]; finishes: number; starts: number; completedLaps?: number; lapExposureEntries?: number;
   puRetirements: number; chassisRetirements: number; incidentRetirements: number; otherRetirements: number; unknownRetirements: number;
-  retirements: {event: string; driver: string; category: string; cause?: string; source?: string}[];
+  retirements: {event: string; driver: string; category: string; cause?: string; source?: string; source_url?: string | null}[];
 };
 export type ResultsViewProps = {
   rows: ResultRow[];           // already sorted by the page's table sort state
@@ -63,12 +63,14 @@ export function ResultsView({rows, chartMetric, chart, sort}: ResultsViewProps) 
         </details>
       </Card>
       <Card title="Retirement classifications"
-        note="Causes come from the supplied classification status. A generic Retired status does not identify a mechanical failure or accident. DSQ and medical withdrawals do not count as mechanical failures.">
-        <DataTable headers={['Team', 'Event', 'Driver', 'Category', 'Supplied classification status', 'Source attribution']}
+        note="Causes are the reasons reported in each race's Wikipedia classification, used only when the car number, driver and laps completed match the timing data; each links to the page revision it came from. They are reported context, not verified failure analysis. Where no matching report exists the timing status is shown, and a generic Retired status counts as unknown, never as mechanical. DSQ and medical withdrawals do not count as mechanical failures.">
+        <DataTable headers={['Team', 'Event', 'Driver', 'Category', 'Reported cause', 'Source']}
           rows={rows.flatMap(t => t.retirements.map(r => [
             <TeamLabel team={t} />, <EventLabel event={r.event} />, r.driver, <RetirementBadge category={r.category} />,
             <span style={{fontWeight: 600}}>{r.cause || 'Unclassified retirement'}</span>,
-            <small className="perf-tercile-badge is-mid">{r.source || 'Official Timing'}</small>,
+            r.source_url
+              ? <a className="perf-link" href={r.source_url} target="_blank" rel="noopener noreferrer" title="The Wikipedia revision this cause was read from">{r.source || 'Wikipedia'} ↗</a>
+              : <small className="perf-tercile-badge is-mid">{r.source || 'Official Timing'}</small>,
           ]))} />
       </Card>
     </>
