@@ -18,7 +18,10 @@ test('window uses a unified toolbar, a sidebar for categories and setup, and a t
   const sidebar=page.slice(page.indexOf('id="performanceSidebar"'),page.indexOf('</aside>',page.indexOf('id="performanceSidebar"')));
   assert.match(sidebar,/<nav class="category-bar" id="performanceCategoryList"[^>]*hidden><\/nav>\s*<section class="dashboard-card session-controls performance-controls"/);
   const inspector=page.slice(page.indexOf('id="sessionInspector"'),page.indexOf('<div class="analysis-column">'));
-  for(const part of ['data-inspector-tab="laps"','data-inspector-tab="track"','id="lapWorkspace"','id="cornerAnalysis"'])assert.ok(inspector.includes(part),part);
+  // The inspector is Track & corners only; the lap chooser inside it is a top-layer sheet opened from the Comparison bar.
+  for(const part of ['id="lapWorkspace"','popover="manual"','id="cornerAnalysis"'])assert.ok(inspector.includes(part),part);
+  assert.doesNotMatch(inspector,/data-inspector-tab=/);
+  assert.match(page,/class="comparison-picker">\s*<button id="lapWorkspaceToggle"/);
   assert.match(system,/\.category-tab'\)\)return 'tab'/);assert.match(system,/#windowSidebarToggle'\)\)return 'toolbar'/);
 });
 

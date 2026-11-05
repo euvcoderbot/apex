@@ -505,7 +505,6 @@ function setLapSelectionExpanded(expanded, focus = false) {
   body.hidden = !expanded;
   body.inert = !expanded;
   toggle.setAttribute('aria-expanded', String(expanded));
-  toggle.querySelector('span').textContent = expanded ? 'Choose laps' : 'Edit laps';
   if (focus) toggle.focus({preventScroll: true});
 }
 

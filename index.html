@@ -84,17 +84,10 @@
           <button id="loadSession">Load session</button>
         </section>
       </aside>
-    <aside class="app-inspector" id="sessionInspector" data-pane="laps" aria-label="Laps and track">
-      <div class="inspector-tabs" data-ui-group="segments" role="tablist" aria-label="Inspector">
-        <button type="button" role="tab" id="inspectorTabLaps" data-inspector-tab="laps" aria-selected="true" aria-controls="lapWorkspace">Laps</button>
-        <button type="button" role="tab" id="inspectorTabTrack" data-inspector-tab="track" aria-selected="false" aria-controls="cornerAnalysis" tabindex="-1">Track &amp; corners</button>
-      </div>
-      <section class="dashboard-card lap-workspace" id="lapWorkspace">
-        <div class="panel-heading workspace-heading">
-          <h2><button id="lapWorkspaceToggle" class="workspace-disclosure" type="button" aria-expanded="true" aria-controls="lapSelectionBody"><i aria-hidden="true"></i><span>Choose laps</span></button></h2>
-          <div id="lapWorkspaceActions" class="workspace-heading-actions"></div>
-        </div>
-        <div id="lapSelectionBody" class="lap-selection-body">
+    <aside class="app-inspector" id="sessionInspector" data-pane="track" aria-label="Track and corners">
+      <!-- The lap chooser is a sheet over the page (lap-sheet.js), opened from the Comparison bar. This wrapper takes no space. -->
+      <section class="lap-workspace" id="lapWorkspace">
+        <div id="lapSelectionBody" class="lap-selection-body" popover="manual" role="dialog" aria-label="Choose laps" hidden>
     <aside class="sidebar" id="driverSidebar" aria-label="Driver controls">
       <section class="dashboard-card driver-control-card">
         <div class="panel-heading">
@@ -166,6 +159,10 @@
           </div>
           <div class="loaded-laps" id="loadedLaps">
             <span class="section-empty">No laps loaded.</span>
+          </div>
+          <div class="comparison-picker">
+            <button id="lapWorkspaceToggle" class="comparison-choose" type="button" aria-expanded="false" aria-controls="lapSelectionBody" aria-haspopup="dialog"><span>Choose laps</span></button>
+            <div id="lapWorkspaceActions" class="workspace-heading-actions"></div>
           </div>
           <button type="button" id="clearComparison" class="comparison-clear" hidden>Clear all</button>
         </div>
@@ -287,6 +284,7 @@
   <script src="session-corners.js"></script>
   <script src="session-map.js"></script>
   <script src="session-init.js"></script>
+  <script src="lap-sheet.js"></script>
   <script src="session-tyres.js"></script>
   <script src="alignment.js?v=euv2-release-20261003-position-motion-check"></script>
   <!-- Car performance and its React views are about 40% of the script weight and are not needed to read a session.
