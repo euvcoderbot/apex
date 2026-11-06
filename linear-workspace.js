@@ -154,10 +154,20 @@
       if (dialog.open) dialog.close();
       for (const [node, anchor] of anchors) anchor.after(node);
     }
+    placeChooseLaps();
     syncView(); requestAnimationFrame(() => window.ApexUI?.decorate(document));
     // The driver list's placement belongs to dashboard-ui.js (arrangeDriverRail); a resize makes it re-place the list now that the rail exists.
     window.dispatchEvent(new Event('resize'));
   }
+  // Choose laps sits under the driver list while the list is in the rail: pick drivers, then choose their laps, in one column.
+  // Anywhere else (the macOS look, a folded rail, phones) it returns to the Comparison bar.
+  function placeChooseLaps() {
+    const toggle = document.getElementById('lapWorkspaceToggle'), card = document.querySelector('#linearWorkspace .linear-drivers .driver-control-card');
+    if (!toggle) return;
+    if (isLinear() && card) { if (toggle.parentElement !== card) move(toggle, card); toggle.classList.add('is-rail-pill'); }
+    else { toggle.classList.remove('is-rail-pill'); const anchor = anchors.get(toggle); if (anchor && toggle.previousSibling !== anchor) anchor.after(toggle); }
+  }
+  addEventListener('resize', () => requestAnimationFrame(placeChooseLaps), {passive: true});
   addEventListener('DOMContentLoaded', () => { mount(); reconcile(); });
   addEventListener('apex-skin', reconcile);
 })();

@@ -483,14 +483,23 @@ function drawApiCircuitGuide(ctx, data, rect) {
   const trace=(from,to)=>{ctx.beginPath();for(let i=from;i<=to;i++){const p=geometry[i];i===from?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);}};
   ctx.clearRect(0,0,rect.width,rect.height);
   ctx.lineJoin='round';ctx.lineCap='round';
-  // Track body: a dark road with a hairline edge so it reads on both appearances.
-  trace(0,geometry.length-1);ctx.lineWidth=15;ctx.strokeStyle=light?'rgba(0,0,0,.18)':'rgba(255,255,255,.22)';ctx.stroke();
-  trace(0,geometry.length-1);ctx.lineWidth=13;ctx.strokeStyle=light?'#2c2c30':'#0c0c0e';ctx.stroke();
-  // Sector centre line, coloured per timing sector.
+  // The road is the same 7 px smooth line as the lap comparison map, one run per timing sector (no casing, no dark road), so the
+  // two views read as one map. Runs meet edge to edge; sector changes are marked by a short break below.
+  // The page's chart colours when it has them; drawing never depends on them (fallbacks below).
+  let theme={};try{theme=typeof canvasTheme==='function'?canvasTheme()||{}:{};}catch(_){theme={};}
   const sectors=data.segmentSectors?.length===geometry.length-1?data.segmentSectors:null;
-  for(let i=1;i<geometry.length;i++){
-    ctx.beginPath();ctx.moveTo(geometry[i-1].x,geometry[i-1].y);ctx.lineTo(geometry[i].x,geometry[i].y);
-    ctx.strokeStyle=sectors?GUIDE_SECTOR_COLORS[sectors[i-1]]:'#d0d0d6';ctx.lineWidth=3.2;ctx.stroke();
+  const smooth=points=>{ctx.beginPath();if(typeof traceSmoothPath==='function')traceSmoothPath(ctx,points);else points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));};
+  ctx.lineWidth=7;
+  if(!sectors){smooth(geometry);ctx.strokeStyle=theme.mapBase||(light?'#9a9aa2':'#d0d0d6');ctx.stroke();}
+  else{
+    let start=0;
+    for(let i=1;i<=sectors.length;i++){
+      if(i<sectors.length&&sectors[i]===sectors[start])continue;
+      ctx.lineCap=start===0||i===sectors.length?'round':'butt';
+      smooth(geometry.slice(start,i+1));ctx.strokeStyle=GUIDE_SECTOR_COLORS[sectors[start]];ctx.stroke();
+      start=i;
+    }
+    ctx.lineCap='round';
   }
   // DRS zones detected on this lap, as a dashed line beside the road.
   if(Array.isArray(data.drs)&&data.drs.length===geometry.length){
@@ -505,11 +514,11 @@ function drawApiCircuitGuide(ctx, data, rect) {
     }
     if(open)ctx.stroke();ctx.restore();
   }
-  // Sector boundaries: short white ticks across the road.
+  // Sector boundaries: a short break in the page colour across the line.
   if(sectors)for(let i=1;i<sectors.length;i++){
     if(sectors[i]===sectors[i-1])continue;
     const t=tangent(i),p=geometry[i];
-    ctx.beginPath();ctx.moveTo(p.x+t.y*9,p.y-t.x*9);ctx.lineTo(p.x-t.y*9,p.y+t.x*9);ctx.strokeStyle='#ffffff';ctx.lineWidth=2;ctx.lineCap='butt';ctx.stroke();
+    ctx.beginPath();ctx.moveTo(p.x+t.y*5,p.y-t.x*5);ctx.lineTo(p.x-t.y*5,p.y+t.x*5);ctx.strokeStyle=theme.panel||(light?'#ffffff':'#0f1011');ctx.lineWidth=2;ctx.lineCap='butt';ctx.stroke();
   }
   // Start/finish: a chequered block across the road plus a direction arrow.
   {
@@ -530,7 +539,7 @@ function drawApiCircuitGuide(ctx, data, rect) {
   // The same corner markers as the lap comparison map: touching the road, beside it, with a line only when one has to step away.
   ctx.font=canvasFont(8,700);
   {
-    const GUIDE_ROAD_HALF=7.5,lengths=[0];
+    const GUIDE_ROAD_HALF=3.5,lengths=[0];
     for(let i=1;i<geometry.length;i++)lengths.push(lengths[i-1]+Math.hypot(geometry[i].x-geometry[i-1].x,geometry[i].y-geometry[i-1].y));
     const total=lengths.at(-1)||1;
     const pointAt=fraction=>{
@@ -559,33 +568,33 @@ function drawApiCircuitGuide(ctx, data, rect) {
       ctx.fillStyle=light?'#1d1d1f':'#f2f2f4';ctx.fillText(label,x,y+.5);
     }
   }
-  // Sector names, boxed, beside the middle of each sector.
+  // Small label pills: the panel colour, a hairline, a dot in the sector's colour. Quiet enough to sit beside the road.
+  const pill=(box,text,dot,textColor)=>{
+    const h=box.height;
+    ctx.beginPath();if(typeof ctx.roundRect==='function')ctx.roundRect(box.x,box.y,box.width,h,h/2);else ctx.rect(box.x,box.y,box.width,h);
+    ctx.fillStyle=theme.panel||(light?'#ffffff':'#151617');ctx.fill();ctx.strokeStyle=light?'rgba(0,0,0,.14)':'rgba(255,255,255,.16)';ctx.lineWidth=1;ctx.stroke();
+    ctx.beginPath();ctx.arc(box.x+h/2+1,box.y+h/2,3,0,Math.PI*2);ctx.fillStyle=dot;ctx.fill();
+    ctx.fillStyle=textColor||(light?'#282a30':'#e6e7ea');ctx.textAlign='left';ctx.fillText(text,box.x+h/2+7,box.y+h/2+.5);ctx.textAlign='center';
+  };
   if(sectors){
-    ctx.font=canvasFont(10,700);
+    ctx.font=canvasFont(9,600);
     [0,1,2].forEach(sector=>{
       const indices=sectors.map((s,i)=>s===sector?i:-1).filter(i=>i>=0);
       if(!indices.length)return;
-      const label=`SECTOR ${sector+1}`,width=ctx.measureText(label).width+12;
+      const label=`Sector ${sector+1}`,width=ctx.measureText(label).width+22;
       let spot=null;
-      for(const fraction of [.5,.35,.65,.2,.8]){spot=placeBeside(indices[Math.floor(indices.length*fraction)],width,17,[24,34,46,60,76,94]);if(spot)break;}
-      if(!spot)return;
-      ctx.fillStyle=light?'#ffffff':'#f2f2f4';ctx.strokeStyle=GUIDE_SECTOR_COLORS[sector];ctx.lineWidth=1.5;
-      ctx.beginPath();if(typeof ctx.roundRect==='function')ctx.roundRect(spot.box.x,spot.box.y,width,17,3);else ctx.rect(spot.box.x,spot.box.y,width,17);ctx.fill();ctx.stroke();
-      ctx.fillStyle='#1d1d1f';ctx.fillText(label,spot.x,spot.y+.5);
+      for(const fraction of [.5,.35,.65,.2,.8]){spot=placeBeside(indices[Math.floor(indices.length*fraction)],width,16,[20,30,42,56,72,90]);if(spot)break;}
+      if(spot)pill(spot.box,label,GUIDE_SECTOR_COLORS[sector]);
     });
   }
   // Fastest point of this lap (where the speed trap normally sits).
   if(data.topSpeed&&Number.isFinite(+data.topSpeed.x)&&Number.isFinite(+data.topSpeed.y)){
     const p=project({x:+data.topSpeed.x,y:-+data.topSpeed.y});
-    ctx.beginPath();ctx.arc(p.x,p.y,4.5,0,Math.PI*2);ctx.fillStyle='#ffd60a';ctx.fill();ctx.strokeStyle='#1d1d1f';ctx.lineWidth=1;ctx.stroke();
-    ctx.font=canvasFont(10,600);
-    const label=`TOP SPEED ${Math.round(data.topSpeed.speed)} km/h`,width=ctx.measureText(label).width+10;
-    const spot=placeBeside(nearestIndex(p),width,16,[26,38,52,68,86,106]);
-    if(spot){
-      ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(spot.x,spot.y);ctx.strokeStyle='#ffd60a';ctx.lineWidth=1;ctx.stroke();
-      ctx.fillStyle=light?'#1d1d1f':'#2c2c2e';ctx.beginPath();if(typeof ctx.roundRect==='function')ctx.roundRect(spot.box.x,spot.box.y,width,16,3);else ctx.rect(spot.box.x,spot.box.y,width,16);ctx.fill();
-      ctx.fillStyle='#ffd60a';ctx.fillText(label,spot.x,spot.y+.5);
-    }
+    ctx.font=canvasFont(9,600);
+    const label=`Top speed ${Math.round(data.topSpeed.speed)} km/h`,width=ctx.measureText(label).width+22;
+    const spot=placeBeside(nearestIndex(p),width,16,[24,34,46,60,76,94]);
+    if(spot){ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(spot.x,spot.y);ctx.strokeStyle=light?'rgba(0,0,0,.35)':'rgba(255,255,255,.35)';ctx.lineWidth=1;ctx.stroke();pill(spot.box,label,'#ffd60a');}
+    ctx.beginPath();ctx.arc(p.x,p.y,4,0,Math.PI*2);ctx.fillStyle='#ffd60a';ctx.fill();ctx.strokeStyle=theme.panel||(light?'#ffffff':'#0f1011');ctx.lineWidth=1.5;ctx.stroke();
   }
   ctx.textAlign='start';ctx.textBaseline='alphabetic';return true;
 }
@@ -596,7 +605,8 @@ function renderGenericCircuit(canvas, empty) {
     canvas.style.display='block';
     const rect=canvas.getBoundingClientRect();
     if(!rect.width || !rect.height)return;
-    const ratio=Math.max(2,window.devicePixelRatio||1);
+    // The same render density as the lap comparison map, so curves are equally smooth on fractional-scaling displays.
+    const ratio=Math.min(4,Math.max(3,(window.devicePixelRatio||1)*1.5));
     canvas.width=Math.round(rect.width*ratio);canvas.height=Math.round(rect.height*ratio);
     const ctx=canvas.getContext('2d');ctx.setTransform(ratio,0,0,ratio,0,0);
     if(drawApiCircuitGuide(ctx,sessionSectorGuide,rect)) {
