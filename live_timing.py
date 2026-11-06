@@ -628,6 +628,47 @@ class LiveState:
                 out[str(number)] = list(history)[bisect.bisect_left(times, cutoff):]
             return out
 
+    def current_laps(self, numbers: list[str]) -> dict[str, Any]:
+        """The lap each chosen car is on, from the timing line to now, measured along the track (as completed laps are),
+        plus the track length for a full-lap scale. Falls back to integrated speed before the circuit is learned."""
+        with self.lock:
+            geometry = self._geometry()
+            reference = self._reference_lap()
+            length = round(geometry['length'] / 10, 1) if geometry else (reference or {}).get('distance')
+            out = {'length': length, 'laps': {}}
+            for number in numbers:
+                number = str(number)
+                history = self.telemetry.get(number)
+                start = self.lap_marks.get(number)
+                if not history or start is None:
+                    out['laps'][number] = None
+                    continue
+                samples = [sample for sample in history if sample['t'] >= start - 1]
+                if len(samples) < 2:
+                    out['laps'][number] = None
+                    continue
+                spatial = self._track_distances(number, [sample['t'] for sample in samples])
+                if spatial:
+                    xs = spatial[0]
+                else:
+                    xs, total = [], 0.0
+                    for i, sample in enumerate(samples):
+                        if i:
+                            total += ((samples[i - 1].get('speed') or 0) + (sample.get('speed') or 0)) / 2 / 3.6 * (sample['t'] - samples[i - 1]['t'])
+                        xs.append(round(total, 1))
+                out['laps'][number] = {'lap': (self.lap_counts.get(number) or 0) + 1, 'x': xs,
+                                       **{name: [sample.get(name) for sample in samples] for name in ('speed', 'throttle', 'brake', 'gear')}}
+            return out
+
+    def missing_laps(self) -> bool:
+        """Whether any car has completed laps that were not captured (from before connecting, or a gap in the feed)."""
+        with self.lock:
+            for number, count in self.lap_counts.items():
+                have = self.laps.get(number) or {}
+                if any(lap not in have for lap in range(2, count + 1)):
+                    return True
+            return False
+
 
 # ---------- sources ----------
 class Source(threading.Thread):
@@ -948,7 +989,21 @@ class LiveManager:
             self.state.reset()
             self.source = LiveSource(self.state, self.recording_dir)
             self.source.start()
+            threading.Thread(target=self._watch_missing_laps, args=(self.source,), daemon=True, name='live-backfill-watch').start()
             return self.status()
+
+    def _watch_missing_laps(self, source: 'Source', every: float = 90.0) -> None:
+        """While connected live: when laps are missing (completed before connecting, or during a gap), load them from
+        F1's archive. F1 publishes a session's archive when it ends, so this keeps trying until it succeeds."""
+        while not source.stop_event.wait(every):
+            status = self.backfill_status
+            path = ((self.state.topics.get('SessionInfo') or {}).get('Path') or '').strip('/')
+            recent = status.get('finished_at') and time.time() - status['finished_at'] < every and status.get('path') == path and not status.get('error')
+            if path and not status.get('running') and not recent and self.state.missing_laps():
+                try:
+                    self.backfill()
+                except ValueError:
+                    pass
 
     def start_replay(self, path: str, speed: float = 1.0, start: float = 0.0, archive: bool = False) -> dict[str, Any]:
         with self.lock:

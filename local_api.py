@@ -285,6 +285,7 @@ async def live_stream(request: Request, drivers: str = Query('', max_length=200)
                 payload = {'state': LIVE.state.snapshot(), 'source': LIVE.status()['source']}
                 if numbers:
                     payload['telemetry'] = LIVE.state.telemetry_for(numbers, 20)
+                    payload['current'] = LIVE.state.current_laps(numbers)
                 outline = LIVE.state.outline()
                 if outline['complete'] != outline_seen:
                     outline_seen = outline['complete']

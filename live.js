@@ -19,7 +19,7 @@
   let page, button, stream, statusTimer, active = false;
   let state = null, source = null, outline = null, telemetry = {}, bounds = null;
   const chosen = [];   // up to two driver numbers for the telemetry trace
-  let lapLists = {}, compareTraces = [null, null], lapsFetchedAt = 0, compareKey = '';
+  let lapLists = {}, compareTraces = [null, null], lapsFetchedAt = 0, compareKey = '', currentLaps = null;
   let drawQueued = false;
 
   const api = (path, options = {}) => fetch('/api/live/' + path, {cache: 'no-store', ...options}).then(async r => {
@@ -108,7 +108,7 @@
             <canvas data-live="map" role="img" aria-label="Car positions on track"></canvas>
           </section>
           <section class="dashboard-card live-telemetry-card" aria-label="Live telemetry">
-            <div class="live-card-head"><h2>Telemetry</h2><small data-live="telenote">Last 20 seconds</small></div>
+            <div class="live-card-head"><h2>Telemetry</h2><small data-live="telenote">Current lap</small></div>
             <div class="live-readouts" data-live="readouts"></div>
             <div class="live-charts" data-live="traceCharts" role="img" aria-label="Speed, throttle and brake over the last 20 seconds"></div>
           </section>
@@ -197,6 +197,7 @@
       let payload; try { payload = JSON.parse(event.data); } catch { return; }
       state = payload.state; source = payload.source;
       if (payload.telemetry) telemetry = payload.telemetry;
+      if (payload.current) currentLaps = payload.current;
       if (payload.outline) { outline = payload.outline; bounds = null; }
       render();
     };
@@ -301,7 +302,7 @@
   function toggleDriver(number) {
     const at = chosen.indexOf(number);
     if (at >= 0) chosen.splice(at, 1); else { chosen.push(number); if (chosen.length > 2) chosen.shift(); }
-    telemetry = {}; renderTower(); renderReadouts(); queueDraw();
+    telemetry = {}; currentLaps = null; renderTower(); renderReadouts(); queueDraw();
     if (active) connect();
   }
 
@@ -414,6 +415,8 @@
     }));
   }
 
+  const lapSecondsOf = text => { const m = /^(?:(\d+):)?(\d+(?:\.\d+)?)$/.exec(String(text || '').trim()); return m ? Number(m[1] || 0) * 60 + Number(m[2]) : Infinity; };
+
   // ---------- earlier laps from Formula 1's archive ----------
   const backfilled = new Set();
   async function backfill(force = false) {
@@ -460,8 +463,11 @@
   function syncLapOptions() {
     [['driverA', 'lapA'], ['driverB', 'lapB']].forEach(([driverName, lapName]) => {
       const laps = lapLists[$(page, driverName).value] || [], select = $(page, lapName), current = select.value || 'fastest';
-      const fastest = laps.find(l => l.fastest);
-      const options = [new Option(fastest ? `Fastest · L${fastest.lap} ${fastest.time || ''}` : 'Fastest', 'fastest'), new Option('Last completed', 'last'),
+      const fastest = laps.find(l => l.fastest), best = driverFor($(page, driverName).value).best;
+      // The driver's best lap may predate the connection; it loads once Formula 1 publishes the session.
+      const missed = best && fastest?.time && fastest.time !== best && lapSecondsOf(best) < (fastest.seconds || Infinity);
+      const label = !fastest ? 'Fastest' : missed ? `Fastest captured · L${fastest.lap} ${fastest.time} · best ${best} loads after the session` : `Fastest · L${fastest.lap} ${fastest.time || ''}`;
+      const options = [new Option(label, 'fastest'), new Option('Last completed', 'last'),
         ...laps.slice().reverse().map(l => new Option(`Lap ${l.lap}${l.time ? ' · ' + l.time : ''}${l.pit ? ' · pit' : ''}`, String(l.lap)))];
       select.replaceChildren(...options);
       setSelect(select, options.some(o => o.value === current) ? current : 'fastest');
@@ -678,22 +684,24 @@
       drawPanel(canvas, spec, series, view, compareHover);
     }
   }
+  // The chosen cars' current laps over the full lap distance (line to line), filling in as they go round.
   function drawTrace() {
     const container = $(page, 'traceCharts');
-    const series = chosen.map(n => [n, telemetry[n] || []]).filter(([, s]) => s.length > 1);
+    const laps = currentLaps?.laps || {};
+    const series = chosen.map(n => [n, laps[n]]).filter(([, lap]) => lap?.x?.length > 1);
     if (!series.length) {
-      container.replaceChildren(el('p', 'live-empty', chosen.length ? 'Waiting for telemetry.' : 'Select a driver in the timing tower.')); container.dataset.layout = '';
+      container.replaceChildren(el('p', 'live-empty', chosen.length ? 'Waiting for this lap\'s telemetry (it starts at the line).' : 'Select a driver in the timing tower.')); container.dataset.layout = '';
       return;
     }
-    const end = Math.max(...series.map(([, s]) => s.at(-1).t)), span = 20;
-    const view = {min: -span, max: 0, marks: [-15, -10, -5].map(v => ({value: v, label: `${v} s`}))};
+    const length = currentLaps.length || Math.max(...series.map(([, lap]) => lap.x.at(-1)));
+    const view = {min: 0, max: length, marks: []};
+    for (let m = 1000; m < length; m += 1000) view.marks.push({value: m, label: `${m / 1000} km`});
+    $(page, 'telenote').textContent = `Current lap · ${series.map(([n, lap]) => `${driverFor(n).code} L${lap.lap}`).join(' · ')}`;
     const list = panels(container, ['speed', 'throttle', 'brake'].map(id => ({...SPECS[id], height: id === 'speed' ? 150 : id === 'brake' ? 48 : 72, axis: id === 'brake'})));
-    bindHover(container, f => -span + f * span, v => { traceHover = v; });
+    bindHover(container, f => f * length, v => { traceHover = v; });
     for (const [spec, canvas] of list) {
-      const lines = series.map(([number, samples]) => {
-        const xs = samples.map(s => s.t - end), ys = samples.map(s => s[spec.id]);
-        return {colour: colour(driverFor(number)), points: spec.id === 'brake' ? xs.map((x, i) => [x, ys[i]]) : changes(xs, ys)};
-      });
+      const lines = series.map(([number, lap]) => ({colour: colour(driverFor(number)),
+        points: spec.id === 'brake' ? lap.x.map((x, i) => [x, lap.brake[i]]) : changes(lap.x, lap[spec.id])}));
       drawPanel(canvas, spec, lines, view, traceHover);
     }
   }
