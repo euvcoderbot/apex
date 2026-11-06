@@ -98,10 +98,34 @@ def replay_sessions():
     return sorted(found, key=lambda s: (s['date'], s['path']), reverse=True)
 
 
+_ARCHIVE_INDEX = {'at': 0.0, 'sessions': []}
+
+
+def archive_replays():
+    """This season's published sessions from F1's archive (kept ten minutes); empty without an F1 TV sign-in."""
+    if not live_timing.stored_token_status().get('available'):
+        return []
+    if time.time() - _ARCHIVE_INDEX['at'] > 600:
+        try:
+            _ARCHIVE_INDEX['sessions'] = live_timing.archive_sessions(datetime.now(timezone.utc).year)
+        except Exception:
+            _ARCHIVE_INDEX['sessions'] = []
+        _ARCHIVE_INDEX['at'] = time.time()
+    return _ARCHIVE_INDEX['sessions']
+
+
+def all_replays():
+    """Sessions in this PC's cache, then this season's archive sessions not cached here, newest first."""
+    cached = replay_sessions()
+    known = {s['path'].rstrip('/') for s in cached}
+    extra = [s for s in archive_replays() if s['path'].rstrip('/') not in known]
+    return sorted(cached + extra, key=lambda s: (s['date'], s['path']), reverse=True)
+
+
 @app.get('/api/live/status')
 def live_status():
     browser = {'waiting': _BROWSER_SIGNIN['server'] is not None, 'url': _BROWSER_SIGNIN['url'], 'error': _BROWSER_SIGNIN['error']}
-    return {**LIVE.status(), 'replays': replay_sessions(), 'browser_signin': browser}
+    return {**LIVE.status(), 'replays': all_replays(), 'browser_signin': browser}
 
 
 @app.get('/api/live/state')
@@ -140,13 +164,14 @@ def live_start(body: dict = Body(...)):
         return LIVE.start_live()
     if mode == 'replay':
         path = str(body.get('path') or '')
-        if path not in {s['path'] for s in replay_sessions()}:
-            raise HTTPException(404, 'That session is not in the local cache.')
+        choice = next((s for s in all_replays() if s['path'] == path), None)
+        if choice is None:
+            raise HTTPException(404, 'That session is not available to replay.')
         try:
             speed, start = float(body.get('speed', 1)), float(body.get('start', 0))
         except (TypeError, ValueError):
             raise HTTPException(422, 'Speed and start must be numbers.')
-        return LIVE.start_replay(path, min(max(speed, .1), 200), max(start, 0))
+        return LIVE.start_replay(path, min(max(speed, .1), 200), max(start, 0), archive=bool(choice.get('archive')))
     raise HTTPException(422, 'mode must be live or replay')
 
 

@@ -80,11 +80,9 @@ body.live-view .performance-tabs[data-ui-thumb]::before { opacity: 0; }
 .live-empty { color: var(--ui-tertiary); font-size: var(--text-sm, 13px); text-align: center; padding: 14px 6px; list-style: none; }
 
 .live-map-card canvas { display: block; width: 100%; height: clamp(260px, 30vw, 440px); }
-.live-telemetry-card canvas { display: block; width: 100%; height: 190px; }
 .live-readouts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
 .live-readouts .live-empty { padding: 4px 0; text-align: left; margin: 0; }
 .live-readout { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 6px 10px; border-radius: var(--radius-md); border-left: 3px solid var(--team); background: var(--ui-well); font-size: var(--text-sm, 13px); font-variant-numeric: tabular-nums; color: var(--ui-secondary); }
-.live-readout.is-second { border-left-style: dashed; }
 .live-readout strong { color: var(--ui-label); }
 .live-readout .is-braking { color: #ff453a; font-weight: 600; }
 
@@ -108,15 +106,12 @@ body.live-view .performance-tabs[data-ui-thumb]::before { opacity: 0; }
 .live-compare-pick label { display: inline-flex; align-items: center; gap: 6px; color: var(--ui-secondary); font-size: var(--text-sm, 13px); }
 .live-compare-pick select { min-height: 30px; padding: 3px 10px; border: 1px solid var(--ui-border-strong, var(--ui-border)); border-radius: var(--radius-pill); background: var(--ui-control); color: var(--ui-label); font: inherit; font-size: var(--text-sm, 13px); max-width: 260px; }
 .live-compare-key { width: 22px; height: 0; border-top: 2.5px solid var(--team, var(--ui-tertiary)); }
-.live-compare-key.is-second { border-top-style: dashed; }
 .live-compare-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 8px; min-height: 28px; }
 .live-compare-summary .live-empty { margin: 0; padding: 4px 0; text-align: left; }
 .live-compare-lap { display: inline-flex; align-items: baseline; gap: 8px; padding: 4px 10px; border-radius: var(--radius-md); border-left: 3px solid var(--team, var(--ui-border)); background: var(--ui-well); font-size: var(--text-sm, 13px); color: var(--ui-secondary); font-variant-numeric: tabular-nums; }
-.live-compare-lap.is-second { border-left-style: dashed; }
 .live-compare-lap strong, .live-compare-lap b { color: var(--ui-label); }
 .live-compare-lap small { color: #ff9f0a; }
 .live-compare-gap { font-weight: 600; color: var(--ui-label); font-variant-numeric: tabular-nums; }
-.live-compare canvas { display: block; width: 100%; height: clamp(280px, 26vw, 380px); }
 
 @media (max-width: 1080px) {
   .live-grid { grid-template-columns: minmax(0, 1fr); }
@@ -140,3 +135,10 @@ body.live-view .performance-tabs[data-ui-thumb]::before { opacity: 0; }
 .live-signin-or { color: var(--ui-tertiary); font-size: var(--text-xs, 12px); }
 .live-signin-note a { color: var(--ui-accent, #0a84ff); }
 .live-table td { vertical-align: middle; }
+/* Telemetry panels, as the main site's chart cards: a caption row, then the canvas. */
+.live-charts { display: grid; gap: 6px; }
+.live-chart { margin: 0; padding: 8px 4px 2px; border-radius: var(--radius-md); background: var(--ui-well); }
+.live-chart figcaption { display: flex; align-items: baseline; gap: 8px; padding: 0 8px 2px; }
+.live-chart figcaption strong { color: var(--ui-label); font-size: var(--text-sm, 13px); font-weight: 600; }
+.live-chart figcaption small { color: var(--ui-tertiary); font-size: var(--text-xs, 12px); }
+.live-chart canvas { display: block; width: 100%; cursor: crosshair; touch-action: pan-y; }

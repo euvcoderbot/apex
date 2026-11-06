@@ -99,7 +99,7 @@
           <button type="button" class="live-button" data-live="backfill" title="Load the laps Formula 1 has published for this session, including those from before you connected">Reload laps</button>
           </div>
           <div class="live-compare-summary" data-live="compareSummary"><p class="live-empty">Laps appear here as drivers complete them.</p></div>
-          <canvas data-live="compare" role="img" aria-label="Speed, time delta, throttle and brake over the lap for the two chosen laps"></canvas>
+          <div class="live-charts" data-live="compareCharts" role="img" aria-label="Speed, time delta, throttle, brake and gear over the lap for the two chosen laps"></div>
         </section>
         </div>
         <div class="live-col live-col-side">
@@ -110,7 +110,7 @@
           <section class="dashboard-card live-telemetry-card" aria-label="Live telemetry">
             <div class="live-card-head"><h2>Telemetry</h2><small data-live="telenote">Last 20 seconds</small></div>
             <div class="live-readouts" data-live="readouts"></div>
-            <canvas data-live="trace" role="img" aria-label="Speed, throttle and brake trace"></canvas>
+            <div class="live-charts" data-live="traceCharts" role="img" aria-label="Speed, throttle and brake over the last 20 seconds"></div>
           </section>
           <section class="dashboard-card live-side" aria-label="Race control and weather">
             <div class="live-card-head"><h2>Conditions</h2></div>
@@ -203,7 +203,7 @@
   }
   function disconnect() { stream?.close(); stream = null; }
   async function refreshOutline() {
-    try { outline = await api('outline'); bounds = null; queueDraw(); } catch { /* next update retries */ }
+    try { outline = {...await api('outline'), fetchedAt: Date.now()}; bounds = null; queueDraw(); } catch { /* next update retries */ }
   }
   async function refreshStatus() {
     try { applyStatus(await api('status')); } catch (error) { showError(error); }
@@ -339,7 +339,8 @@
     if (!flag.hidden) { flag.dataset.flag = FLAGS[code] || 'yellow'; flag.textContent = state.track_status.label || 'Track status'; }
     if (state.outline === 'complete' && !outline?.complete) refreshOutline();
     else if (!outline && Object.keys(state.positions || {}).length) refreshOutline();
-    $(page, 'mapnote').textContent = outline?.complete ? (s.circuit || 'Circuit') : 'Learning the circuit from car positions';
+    $(page, 'mapnote').textContent = outline?.complete ? `${s.circuit || 'Circuit'}${outline.sectors?.every(Boolean) ? ' · S1 S2 S3' : ''}` : 'Learning the circuit from car positions';
+    if (outline?.complete && !outline.sectors?.every(Boolean) && Date.now() - (outline.fetchedAt || 0) > 10000) refreshOutline();
     syncSource(); syncDot();
     renderTower(); renderWeather(); renderRaceControl(); renderReadouts(); queueDraw();
     if (Date.now() - lapsFetchedAt > 5000) refreshLaps();
@@ -500,49 +501,200 @@
   // Time at a given distance along a lap (linear interpolation).
   function timeAt(trace, x) {
     const xs = trace.x; let lo = 0, hi = xs.length - 1;
-    if (x <= xs[0]) return trace.t[0];
-    if (x >= xs[hi]) return trace.t[hi];
+    // Before the first or after the last sample (a lap's samples start a few metres either side of the line): carry on at
+    // that sample's speed rather than holding its time.
+    if (x <= xs[0]) return trace.t[0] - (xs[0] - x) / Math.max(5, (trace.speed?.[0] || 0) / 3.6);
+    if (x >= xs[hi]) return trace.t[hi] + (x - xs[hi]) / Math.max(5, (trace.speed?.[hi] || 0) / 3.6);
     while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (xs[mid] < x) lo = mid; else hi = mid; }
     const f = (x - xs[lo]) / ((xs[hi] - xs[lo]) || 1);
     return trace.t[lo] + f * (trace.t[hi] - trace.t[lo]);
   }
-  function drawCompare() {
-    const canvas = $(page, 'compare'), frame = sized(canvas); if (!frame) return;
-    const {ctx, w, h} = frame, traces = compareTraces.filter(Boolean), colours = compareColours();
-    const muted = css('--ui-tertiary') || '#888', grid = css('--ui-border') || '#ffffff14';
-    ctx.font = '10px var(--ui-font, system-ui)'; ctx.fillStyle = muted; ctx.textBaseline = 'middle';
-    if (!traces.length) { ctx.textAlign = 'center'; ctx.fillText('Choose two completed laps', w / 2, h / 2); return; }
-    const left = 40, right = 10, top = 8, length = Math.max(...traces.map(t => t.x.at(-1)));
-    const speedH = h * .5, deltaTop = top + speedH + 12, deltaH = h * .2, pedalTop = deltaTop + deltaH + 10, pedalH = Math.max(10, (h - pedalTop - 18) / 2);
-    const X = x => left + x / length * (w - left - right);
-    ctx.strokeStyle = grid; ctx.lineWidth = 1; ctx.textAlign = 'right';
-    for (const v of [100, 200, 300]) { const y = top + speedH - v / 350 * speedH; ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(w - right, y); ctx.stroke(); ctx.fillText(v, left - 6, y); }
-    ctx.fillText('Δ s', left - 6, deltaTop + deltaH / 2);
-    ctx.fillText('Thr', left - 6, pedalTop + pedalH / 2); ctx.fillText('Brk', left - 6, pedalTop + pedalH + 3 + pedalH / 2);
-    ctx.textAlign = 'center';
-    for (let m = 1000; m < length; m += 1000) { const x = X(m); ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, h - 14); ctx.stroke(); ctx.fillText(m / 1000 + ' km', x, h - 6); }
-    compareTraces.forEach((t, i) => {
-      if (!t) return;
-      ctx.strokeStyle = colours[i]; ctx.setLineDash(i ? [6, 3] : []); ctx.lineWidth = 1.7;
-      ctx.beginPath(); t.x.forEach((x, j) => { const y = top + speedH - Math.min(350, t.speed[j] || 0) / 350 * speedH; j ? ctx.lineTo(X(x), y) : ctx.moveTo(X(x), y); }); ctx.stroke();
-      ctx.lineWidth = 1.3;
-      ctx.beginPath(); t.x.forEach((x, j) => { const y = pedalTop + pedalH - (t.throttle[j] ?? 0) / 100 * pedalH; j ? ctx.lineTo(X(x), y) : ctx.moveTo(X(x), y); }); ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = colours[i]; ctx.globalAlpha = i ? .5 : .85;
-      const by = pedalTop + pedalH + 3 + (i ? pedalH / 2 : 0);
-      for (let j = 1; j < t.x.length; j++) if (t.brake[j - 1]) ctx.fillRect(X(t.x[j - 1]), by, Math.max(1, X(t.x[j]) - X(t.x[j - 1])), pedalH / 2 - 1);
-      ctx.globalAlpha = 1;
+  // ---------- charts in the main site's style: one panel per channel, theme colours, tinted speed, crosshair ----------
+  const theme = () => window.canvasTheme?.() || {text: '#8a8f98', textStrong: '#f7f8f8', grid: 'rgba(255,255,255,.06)', gridStrong: 'rgba(255,255,255,.18)', crosshair: 'rgba(255,255,255,.4)', labelStroke: '#0f1011'};
+  const font = (size, weight) => window.canvasFont?.(size, weight) || `${weight || 400} ${size + 1}px system-ui, sans-serif`;
+  const rgba = (hex, alpha) => {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(hex).trim());
+    if (!m) return hex;
+    const n = parseInt(m[1], 16);
+    return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${alpha})`;
+  };
+  // The feed holds a value until it changes; drawing every held repeat makes stairs. Keep the first sample of each run.
+  function changes(xs, ys) {
+    const out = [];
+    for (let i = 0; i < xs.length; i++) {
+      if (ys[i] == null) { out.push([xs[i], null]); continue; }
+      if (i && ys[i] === ys[i - 1] && i < xs.length - 1 && ys[i + 1] === ys[i]) continue;
+      out.push([xs[i], ys[i]]);
+    }
+    return out;
+  }
+  const PANEL_HEIGHTS = {speed: 210, delta: 104, throttle: 96, brake: 58, gear: 96};
+  function panels(container, specs) {
+    // One canvas per channel, created once per layout, like the main site's chart cards.
+    const key = specs.map(p => p.id).join(',');
+    if (container.dataset.layout !== key) {
+      container.dataset.layout = key;
+      container.replaceChildren(...specs.map(spec => {
+        const figure = el('figure', 'live-chart'); figure.dataset.panel = spec.id;
+        const head = el('figcaption'); head.append(el('strong', null, spec.title), el('small', null, spec.unit || ''));
+        const canvas = el('canvas'); canvas.style.height = (spec.height || PANEL_HEIGHTS[spec.id] || 96) + 'px';
+        figure.append(head, canvas);
+        return figure;
+      }));
+    }
+    return specs.map(spec => [spec, container.querySelector(`[data-panel="${spec.id}"] canvas`)]);
+  }
+  const PLOT = {left: 46, right: 12, top: 8, bottom: 8};
+  function drawPanel(canvas, spec, series, view, hover) {
+    const frame = sized(canvas); if (!frame) return;
+    const {ctx, w, h} = frame, t = theme(), last = spec.axis;
+    const bottom = PLOT.bottom + (last ? 16 : 0), plotW = w - PLOT.left - PLOT.right, plotH = h - PLOT.top - bottom;
+    const X = x => PLOT.left + (x - view.min) / ((view.max - view.min) || 1) * plotW;
+    const Y = v => PLOT.top + (spec.max - v) / ((spec.max - spec.min) || 1) * plotH;
+    // grid and tick labels
+    ctx.font = font(11); ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
+    for (const tick of spec.ticks) {
+      const y = Y(tick.value);
+      ctx.beginPath(); ctx.moveTo(PLOT.left, y); ctx.lineTo(w - PLOT.right, y);
+      ctx.strokeStyle = tick.strong ? t.gridStrong : t.grid; ctx.lineWidth = tick.strong ? 1.2 : 1; ctx.stroke();
+      ctx.fillStyle = tick.strong ? t.textStrong : t.text; ctx.fillText(tick.label, PLOT.left - 8, y);
+    }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    for (const mark of view.marks) {
+      const x = X(mark.value);
+      ctx.beginPath(); ctx.moveTo(x, PLOT.top); ctx.lineTo(x, PLOT.top + plotH); ctx.strokeStyle = t.grid; ctx.lineWidth = 1; ctx.stroke();
+      if (last) { ctx.fillStyle = t.text; ctx.fillText(mark.label, x, h - 6); }
+    }
+    ctx.save(); ctx.beginPath(); ctx.rect(PLOT.left, PLOT.top - 2, plotW, plotH + 4); ctx.clip();
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    series.forEach((line, index) => {
+      const points = line.points.filter(([x]) => x >= view.min - 1 && x <= view.max + 1);
+      if (points.length < 2) return;
+      const path = () => {
+        ctx.beginPath(); let previous = null;
+        for (const [x, v] of points) {
+          if (v == null) { previous = null; continue; }
+          const px = X(x), py = Y(Math.max(spec.min, Math.min(spec.max, v)));
+          if (!previous) ctx.moveTo(px, py);
+          else { if (spec.steps) ctx.lineTo(px, previous[1]); ctx.lineTo(px, py); }
+          previous = [px, py];
+        }
+      };
+      if (spec.tint) {
+        path(); ctx.lineTo(X(points.at(-1)[0]), PLOT.top + plotH); ctx.lineTo(X(points[0][0]), PLOT.top + plotH); ctx.closePath();
+        const gradient = ctx.createLinearGradient(0, PLOT.top, 0, PLOT.top + plotH);
+        gradient.addColorStop(0, rgba(line.colour, .14 / Math.sqrt(series.length))); gradient.addColorStop(1, rgba(line.colour, 0));
+        ctx.fillStyle = gradient; ctx.fill();
+      }
+      path(); ctx.strokeStyle = line.colour; ctx.lineWidth = (index ? 1.12 : 1.44) * (spec.id === 'speed' ? 1.15 : 1); ctx.stroke();
     });
-    const [a, b] = compareTraces;
-    if (a && b) {
-      // Above the line: the second lap is behind the first at that point of the lap.
-      const steps = 240, deltas = [];
-      for (let k = 0; k <= steps; k++) { const x = length * k / steps; deltas.push([x, timeAt(b, x) - timeAt(a, x)]); }
-      const range = Math.max(.2, ...deltas.map(([, d]) => Math.abs(d))), mid = deltaTop + deltaH / 2;
-      ctx.strokeStyle = grid; ctx.beginPath(); ctx.moveTo(left, mid); ctx.lineTo(w - right, mid); ctx.stroke();
-      ctx.strokeStyle = colours[1]; ctx.lineWidth = 1.6; ctx.beginPath();
-      deltas.forEach(([x, d], k) => { const y = mid - d / range * deltaH / 2; k ? ctx.lineTo(X(x), y) : ctx.moveTo(X(x), y); }); ctx.stroke();
-      ctx.fillStyle = muted; ctx.textAlign = 'left'; ctx.fillText(`±${range.toFixed(2)} s`, left + 4, deltaTop + 4);
+    ctx.restore();
+    if (spec.id === 'speed') {
+      ctx.save(); ctx.translate(11, PLOT.top + plotH / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center';
+      ctx.font = font(10, 500); ctx.fillStyle = t.text; ctx.fillText('Speed [km/h]', 0, 0); ctx.restore();
+    }
+    // crosshair with each line's value
+    if (hover != null && hover >= view.min && hover <= view.max) {
+      const x = X(hover);
+      ctx.beginPath(); ctx.moveTo(x, PLOT.top); ctx.lineTo(x, PLOT.top + plotH); ctx.strokeStyle = t.crosshair || t.gridStrong; ctx.lineWidth = 1; ctx.stroke();
+      const labels = [];
+      series.forEach(line => {
+        const v = valueAt(line.points, hover, spec.steps); if (v == null) return;
+        ctx.beginPath(); ctx.arc(x, Y(Math.max(spec.min, Math.min(spec.max, v))), 3, 0, Math.PI * 2);
+        ctx.fillStyle = line.colour; ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = t.labelStroke || '#000'; ctx.stroke();
+        labels.push([line.colour, spec.format(v)]);
+      });
+      ctx.font = font(11, 600); ctx.textBaseline = 'top';
+      let lx = x + 8; const widths = labels.map(([, text]) => ctx.measureText(text).width + 14);
+      if (lx + widths.reduce((a, b) => a + b, 0) > w - PLOT.right) lx = x - 8 - widths.reduce((a, b) => a + b, 0);
+      labels.forEach(([colour, text], i) => {
+        ctx.fillStyle = colour; ctx.fillRect(lx, PLOT.top + 4, 3, 12);
+        ctx.fillStyle = t.textStrong; ctx.textAlign = 'left'; ctx.fillText(text, lx + 6, PLOT.top + 4);
+        lx += widths[i];
+      });
+    }
+  }
+  function valueAt(points, x, steps) {
+    let lo = 0, hi = points.length - 1;
+    if (hi < 0 || x < points[0][0] || x > points[hi][0]) return null;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (points[mid][0] <= x) lo = mid; else hi = mid; }
+    const [x0, v0] = points[lo], [x1, v1] = points[hi];
+    if (v0 == null || v1 == null || steps) return v0;
+    return v0 + (v1 - v0) * ((x - x0) / ((x1 - x0) || 1));
+  }
+  const SPECS = {
+    speed: {id: 'speed', title: 'Speed', unit: 'km/h', min: 0, max: 350, tint: true, ticks: [100, 200, 300].map(v => ({value: v, label: v})), format: v => `${Math.round(v)} km/h`},
+    delta: {id: 'delta', title: 'Time delta', unit: 'seconds, second lap against the first', steps: false, format: v => `${v > 0 ? '+' : ''}${v.toFixed(3)} s`},
+    throttle: {id: 'throttle', title: 'Throttle', unit: '%', min: 0, max: 100, ticks: [0, 50, 100].map(v => ({value: v, label: v})), format: v => `${Math.round(v)}%`},
+    brake: {id: 'brake', title: 'Brake', unit: 'on / off', min: 0, max: 100, steps: true, ticks: [{value: 0, label: 'OFF'}, {value: 100, label: 'ON'}], format: v => (v ? 'ON' : 'OFF')},
+    gear: {id: 'gear', title: 'Gear', unit: '', min: 1, max: 8, steps: true, ticks: [2, 4, 6, 8].map(v => ({value: v, label: v})), format: v => `Gear ${Math.round(v)}`},
+  };
+  let compareHover = null, traceHover = null;
+  function bindHover(container, toValue, set) {
+    if (container.dataset.hover) return;
+    container.dataset.hover = '1';
+    container.addEventListener('pointermove', event => {
+      const canvas = event.target.closest('canvas'); if (!canvas) return;
+      const r = canvas.getBoundingClientRect(), f = (event.clientX - r.left - PLOT.left) / (r.width - PLOT.left - PLOT.right);
+      set(f < 0 || f > 1 ? null : toValue(f)); queueDraw();
+    });
+    container.addEventListener('pointerleave', () => { set(null); queueDraw(); });
+  }
+  function drawCompare() {
+    const container = $(page, 'compareCharts'), [a, b] = compareTraces, colours = compareColours();
+    const traces = [a, b].map((t, i) => t && {trace: t, colour: colours[i]}).filter(Boolean);
+    if (!traces.length) { container.replaceChildren(el('p', 'live-empty', 'Choose two completed laps.')); container.dataset.layout = ''; return; }
+    const length = Math.max(...traces.map(({trace}) => trace.x.at(-1) || 0));
+    const view = {min: 0, max: length, marks: []};
+    for (let m = 1000; m < length; m += 1000) view.marks.push({value: m, label: `${m / 1000} km`});
+    const ids = a && b ? ['speed', 'delta', 'throttle', 'brake', 'gear'] : ['speed', 'throttle', 'brake', 'gear'];
+    const list = panels(container, ids.map(id => ({...SPECS[id], axis: id === 'gear'})));
+    bindHover(container, f => f * length, v => { compareHover = v; });
+    for (const [spec, canvas] of list) {
+      let series;
+      if (spec.id === 'delta') {
+        // Each lap's clock starts at the timing line and is scaled to its official lap time, so the line ends on the
+        // official gap; a short moving average removes the position feed's sampling jitter.
+        const span = Math.min(a.x.at(-1), b.x.at(-1));
+        const clock = trace => {
+          const t0 = timeAt(trace, 0), tEnd = timeAt(trace, span), scale = trace.seconds && tEnd > t0 ? trace.seconds / (tEnd - t0) : 1;
+          return x => (timeAt(trace, x) - t0) * scale;
+        };
+        const ta = clock(a), tb = clock(b), raw = [];
+        for (let k = 0; k <= 400; k++) { const x = span * k / 400; raw.push([x, tb(x) - ta(x)]); }
+        const deltas = raw.map(([x], k) => {
+          const lo = Math.max(0, k - 4), hi = Math.min(raw.length - 1, k + 4), reach = Math.min(k - lo, hi - k);
+          let sum = 0; for (let j = k - reach; j <= k + reach; j++) sum += raw[j][1];
+          return [x, sum / (2 * reach + 1)];
+        });
+        const range = Math.max(.1, ...deltas.map(([, d]) => Math.abs(d)));
+        const step = [0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 5].find(s => range / s <= 2.5) || 5;
+        const top = Math.ceil(range / step) * step;
+        Object.assign(spec, {min: -top, max: top, ticks: [-top, 0, top].map(v => ({value: v, label: v ? `${v > 0 ? '+' : ''}${v.toFixed(step < .1 ? 2 : 1)}` : '0', strong: !v}))});
+        series = [{colour: colours[1], points: deltas}];
+      } else {
+        series = traces.map(({trace, colour}) => ({colour, points: spec.id === 'brake' || spec.id === 'gear' ? trace.x.map((x, i) => [x, trace[spec.id][i]]) : changes(trace.x, trace[spec.id])}));
+      }
+      drawPanel(canvas, spec, series, view, compareHover);
+    }
+  }
+  function drawTrace() {
+    const container = $(page, 'traceCharts');
+    const series = chosen.map(n => [n, telemetry[n] || []]).filter(([, s]) => s.length > 1);
+    if (!series.length) {
+      container.replaceChildren(el('p', 'live-empty', chosen.length ? 'Waiting for telemetry.' : 'Select a driver in the timing tower.')); container.dataset.layout = '';
+      return;
+    }
+    const end = Math.max(...series.map(([, s]) => s.at(-1).t)), span = 20;
+    const view = {min: -span, max: 0, marks: [-15, -10, -5].map(v => ({value: v, label: `${v} s`}))};
+    const list = panels(container, ['speed', 'throttle', 'brake'].map(id => ({...SPECS[id], height: id === 'speed' ? 150 : id === 'brake' ? 48 : 72, axis: id === 'brake'})));
+    bindHover(container, f => -span + f * span, v => { traceHover = v; });
+    for (const [spec, canvas] of list) {
+      const lines = series.map(([number, samples]) => {
+        const xs = samples.map(s => s.t - end), ys = samples.map(s => s[spec.id]);
+        return {colour: colour(driverFor(number)), points: spec.id === 'brake' ? xs.map((x, i) => [x, ys[i]]) : changes(xs, ys)};
+      });
+      drawPanel(canvas, spec, lines, view, traceHover);
     }
   }
 
@@ -556,6 +708,71 @@
     return {ctx, w, h};
   }
   const css = name => getComputedStyle(page).getPropertyValue(name).trim();
+  // The road as the main site's circuit guide draws it: a 7 px line per timing sector (S1 pink, S2 yellow, S3 blue),
+  // a start/finish mark, and numbered corner beads placed with the guide's own helper (session-map.js).
+  const SECTOR_COLOURS = ['#ff4081', '#e6bc24', '#40a9ed'];
+  const guides = new Map();
+  function circuitGuide() {
+    const key = state?.session?.circuit_key, year = state?.session?.year;
+    if (!key || !year) return null;
+    const id = `${key}/${year}`;
+    if (!guides.has(id)) {
+      guides.set(id, null);
+      fetch(`/api/circuit-guide?key=${encodeURIComponent(key)}&year=${encodeURIComponent(year)}`).then(r => (r.ok ? r.json() : null))
+        .then(data => { guides.set(id, data); queueDraw(); }).catch(() => {});
+    }
+    return guides.get(id);
+  }
+  function drawRoad(ctx, road, {w, h, px, py}) {
+    const light = document.documentElement.dataset.theme === 'light';
+    const nearest = (x, y) => { let best = 0, dist = Infinity; road.forEach((p, i) => { const d = Math.hypot(p.x - px(x), p.y - py(y)); if (d < dist) { dist = d; best = i; } }); return best; };
+    const closed = outline.complete, n = road.length;
+    const path = (from, count) => { ctx.beginPath(); for (let k = 0; k <= count; k++) { const p = road[(from + k) % n]; k ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); } };
+    ctx.lineJoin = 'round'; ctx.lineWidth = 7;
+    const marks = closed && outline.line && outline.sectors?.every(Boolean) ? [outline.line, ...outline.sectors].map(([x, y]) => nearest(x, y)) : null;
+    if (marks) {
+      // Runs go forward from the line: line -> sector 1 end -> sector 2 end -> line.
+      marks.forEach((from, k) => {
+        const to = marks[(k + 1) % 3], count = (to - from + n) % n || n;
+        ctx.lineCap = 'butt'; path(from, count); ctx.strokeStyle = SECTOR_COLOURS[k]; ctx.stroke();
+      });
+      // Sector changes: a short break in the page colour, as on the guide.
+      ctx.lineCap = 'butt';
+      marks.slice(1).forEach(i => { const a = road[(i - 1 + n) % n], b = road[(i + 1) % n], c = road[i], l = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+        ctx.beginPath(); ctx.moveTo(c.x - (b.x - a.x) / l * 1.2, c.y - (b.y - a.y) / l * 1.2); ctx.lineTo(c.x + (b.x - a.x) / l * 1.2, c.y + (b.y - a.y) / l * 1.2);
+        ctx.strokeStyle = getComputedStyle(page).getPropertyValue('--ui-panel').trim() || (light ? '#fff' : '#161618'); ctx.lineWidth = 9; ctx.stroke(); ctx.lineWidth = 7; });
+      // Start/finish: a chequered bar across the road.
+      const i = marks[0], a = road[(i - 1 + n) % n], b = road[(i + 1) % n], c = road[i], l = Math.hypot(b.x - a.x, b.y - a.y) || 1, nx = -(b.y - a.y) / l, ny = (b.x - a.x) / l;
+      ctx.beginPath(); ctx.moveTo(c.x - nx * 8, c.y - ny * 8); ctx.lineTo(c.x + nx * 8, c.y + ny * 8);
+      ctx.strokeStyle = light ? '#1d1d1f' : '#f2f2f4'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.stroke();
+    } else {
+      ctx.lineCap = 'round'; path(0, closed ? n : n - 1); ctx.strokeStyle = light ? '#9a9aa2' : '#d0d0d6'; ctx.globalAlpha = .55; ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    // Corner numbers from the circuit guide's data, in the same coordinates as the live car positions.
+    const guide = circuitGuide();
+    if (closed && guide?.corners?.length && typeof window.placeRoadBeads === 'function') {
+      const lengths = [0]; for (let i = 1; i < n; i++) lengths.push(lengths[i - 1] + Math.hypot(road[i].x - road[i - 1].x, road[i].y - road[i - 1].y));
+      const total = lengths[n - 1] || 1, centre = road.reduce((acc, p) => ({x: acc.x + p.x / n, y: acc.y + p.y / n}), {x: 0, y: 0});
+      const pointAt = fraction => { const target = Math.max(0, Math.min(1, fraction)) * total; let i = 1; while (i < n - 1 && lengths[i] < target) i++;
+        const a = road[i - 1], b = road[i], t = (target - lengths[i - 1]) / ((lengths[i] - lengths[i - 1]) || 1); return {x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t}; };
+      const items = guide.corners.filter(c => Number.isFinite(Number(c.trackPosition?.x))).map(c => {
+        const index = nearest(Number(c.trackPosition.x), Number(c.trackPosition.y)), anchor = road[index];
+        return {fraction: lengths[index] / total, label: `${c.number}${c.letter || ''}`, outward: {x: anchor.x - centre.x, y: anchor.y - centre.y}};
+      });
+      ctx.font = window.canvasFont?.(9, 600) || '600 10px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const beads = window.placeRoadBeads(ctx, items, {road, pointAt, width: w, height: h, roadHalf: 3.5});
+      for (const {x, y, radius, point} of beads) {
+        if (Math.hypot(point.x - x, point.y - y) <= radius + 3.5 + 14) continue;
+        ctx.beginPath(); ctx.moveTo(point.x, point.y); ctx.lineTo(x, y); ctx.strokeStyle = light ? 'rgba(29,29,31,.6)' : 'rgba(229,229,234,.65)'; ctx.lineWidth = 1; ctx.stroke();
+      }
+      for (const {x, y, radius, label} of beads) {
+        ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fillStyle = light ? '#ffffff' : '#1c1c1e'; ctx.fill(); ctx.strokeStyle = light ? '#1d1d1f' : '#e5e5ea'; ctx.lineWidth = 1.1; ctx.stroke();
+        ctx.fillStyle = light ? '#1d1d1f' : '#f2f2f4'; ctx.fillText(label, x, y + .5);
+      }
+      ctx.textAlign = 'left';
+    }
+  }
   function drawMap() {
     const canvas = $(page, 'map'), frame = sized(canvas); if (!frame) return;
     const {ctx, w, h} = frame, points = outline?.points || [], cars = Object.entries(state?.positions || {}).filter(([, p]) => p.x || p.y);
@@ -567,13 +784,7 @@
     const pad = 22, scale = Math.min((w - pad * 2) / Math.max(1, bounds.x1 - bounds.x0), (h - pad * 2) / Math.max(1, bounds.y1 - bounds.y0));
     const ox = (w - (bounds.x1 - bounds.x0) * scale) / 2, oy = (h - (bounds.y1 - bounds.y0) * scale) / 2;
     const px = x => ox + (x - bounds.x0) * scale, py = y => h - (oy + (y - bounds.y0) * scale);
-    if (points.length > 2) {
-      ctx.beginPath(); points.forEach(([x, y], i) => (i ? ctx.lineTo(px(x), py(y)) : ctx.moveTo(px(x), py(y))));
-      if (outline.complete) ctx.closePath();
-      ctx.lineJoin = ctx.lineCap = 'round';
-      ctx.strokeStyle = css('--ui-border-strong') || '#ffffff30'; ctx.lineWidth = 9; ctx.stroke();
-      ctx.strokeStyle = css('--ui-well') || '#00000040'; ctx.lineWidth = 5; ctx.stroke();
-    }
+    if (points.length > 2) drawRoad(ctx, points.map(([x, y]) => ({x: px(x), y: py(y)})), {w, h, px, py});
     const order = new Map((state?.drivers || []).map(d => [d.number, d]));
     // Leader drawn last, on top.
     cars.sort(([a], [b]) => (order.get(b)?.position ?? 99) - (order.get(a)?.position ?? 99));
@@ -588,32 +799,6 @@
       ctx.globalAlpha = 1;
     }
   }
-  function drawTrace() {
-    const canvas = $(page, 'trace'), frame = sized(canvas); if (!frame) return;
-    const {ctx, w, h} = frame, series = chosen.map(n => [n, telemetry[n] || []]).filter(([, s]) => s.length > 1);
-    const muted = css('--ui-tertiary') || '#888', grid = css('--ui-border') || '#ffffff14';
-    const left = 34, right = 8, top = 8, speedH = Math.max(40, h * .62), pedalTop = top + speedH + 10, pedalH = Math.max(14, (h - pedalTop - 16) / 2);
-    ctx.font = '10px var(--ui-font, system-ui)'; ctx.fillStyle = muted; ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
-    ctx.strokeStyle = grid; ctx.lineWidth = 1;
-    for (const v of [100, 200, 300]) { const y = top + speedH - v / 350 * speedH; ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(w - right, y); ctx.stroke(); ctx.fillText(v, left - 6, y); }
-    ctx.fillText('Thr', left - 6, pedalTop + pedalH / 2); ctx.fillText('Brk', left - 6, pedalTop + pedalH + 4 + pedalH / 2);
-    if (!series.length) { ctx.textAlign = 'center'; ctx.fillText(chosen.length ? 'Waiting for telemetry' : 'Select a driver to trace', (w + left) / 2, top + speedH / 2); return; }
-    const end = Math.max(...series.map(([, s]) => s.at(-1).t)), span = 20, x = t => left + (1 - (end - t) / span) * (w - left - right);
-    series.forEach(([number, samples], index) => {
-      const c = colour(driverFor(number)), visible = samples.filter(s => end - s.t <= span);
-      ctx.setLineDash(index ? [5, 3] : []);
-      ctx.strokeStyle = c; ctx.lineWidth = 1.8; ctx.beginPath();
-      visible.forEach((s, i) => { const y = top + speedH - Math.min(350, s.speed || 0) / 350 * speedH; i ? ctx.lineTo(x(s.t), y) : ctx.moveTo(x(s.t), y); }); ctx.stroke();
-      ctx.lineWidth = 1.4; ctx.beginPath();
-      visible.forEach((s, i) => { const y = pedalTop + pedalH - (s.throttle ?? 0) / 100 * pedalH; i ? ctx.lineTo(x(s.t), y) : ctx.moveTo(x(s.t), y); }); ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.globalAlpha = index ? .45 : .8; ctx.fillStyle = c;
-      const by = pedalTop + pedalH + 4 + (index ? pedalH / 2 : 0);
-      for (let i = 1; i < visible.length; i++) if (visible[i - 1].brake) ctx.fillRect(x(visible[i - 1].t), by, Math.max(1, x(visible[i].t) - x(visible[i - 1].t)), pedalH / 2 - 1);
-      ctx.globalAlpha = 1;
-    });
-  }
-
   // ---------- start ----------
   function poll() {
     clearInterval(statusTimer);

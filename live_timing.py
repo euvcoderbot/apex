@@ -139,6 +139,10 @@ def align_lap(lap: dict, reference: dict | None) -> dict:
     slightly different point of the circuit each time. The lap is rotated (wrapping its end to its start) by the shift
     that best matches the reference lap's speed trace, then scaled to the reference length. `x` is the aligned
     distance; `t` restarts at the aligned start; `shift` is the rotation applied, as a fraction of the lap."""
+    if lap.get('spatial'):
+        out = {k: v for k, v in lap.items() if k != 'd'}
+        out.update({'x': lap['d'], 'reference': lap['distance'], 'shift': 0.0, 'aligned_by': 'position'})
+        return out
     length = (reference or lap)['distance'] or lap['distance'] or 1
     count, total, duration = len(lap['d']), lap['distance'] or 1, lap['t'][-1] if lap['t'] else 0
     shift = 0
@@ -170,6 +174,18 @@ def _clock_shift(stamps: list[float | None], received: float | None) -> float:
     return received - max(known) if received is not None and known else 0.0
 
 
+def _median_point(points) -> list[float] | None:
+    if len(points) < 5:
+        return None
+    xs, ys = sorted(p[0] for p in points), sorted(p[1] for p in points)
+    return [round(xs[len(xs) // 2], 1), round(ys[len(ys) // 2], 1)]
+
+
+def _session_year(info: dict) -> int | None:
+    path = str(info.get('Path') or '')
+    return int(path[:4]) if path[:4].isdigit() else None
+
+
 class LiveState:
     """Merged live state plus rolling telemetry and positions. Thread-safe."""
 
@@ -196,6 +212,7 @@ class LiveState:
             self.lap_waiting: dict[str, int] = {}
             self.lap_pending: list[dict] = []   # laps waiting for their last telemetry to arrive
             self.line_points: collections.deque = collections.deque(maxlen=400)   # car positions at lap-count changes
+            self.sector_points: list[collections.deque] = [collections.deque(maxlen=400), collections.deque(maxlen=400)]  # at sector 1 and 2 times
             self.version = 0
             self.messages = 0
 
@@ -216,6 +233,11 @@ class LiveState:
             elif topic == 'Position':
                 self._positions(data, moment)
             elif isinstance(data, dict):
+                if topic == 'SessionInfo':
+                    old = (self.topics.get('SessionInfo') or {}).get('Path')
+                    if old and data.get('Path') and data.get('Path') != old:
+                        self.reset()   # the feed moved on to the next session; never mix two sessions' laps
+                        self.messages = 1
                 existing = self.topics.get(topic)
                 if isinstance(existing, dict) and not data.get('_kf'):
                     merge(existing, data)
@@ -286,6 +308,14 @@ class LiveState:
             if not isinstance(change, dict):
                 continue
             number = str(number)
+            sectors = change.get('Sectors')
+            if moment is not None and isinstance(sectors, (dict, list)):
+                items = sectors.items() if isinstance(sectors, dict) else enumerate(sectors)
+                for index, sector in items:
+                    if str(index) in ('0', '1') and isinstance(sector, dict) and sector.get('Value'):
+                        near = self._position_at(number, moment)
+                        if near:
+                            self.sector_points[int(index)].append(near)
             if change.get('InPit') is True or change.get('PitOut') is True:
                 self.lap_pit[number] = True
             new_time = (change.get('LastLapTime') or {}).get('Value') if isinstance(change.get('LastLapTime'), dict) else None
@@ -384,7 +414,74 @@ class LiveState:
             for name in ('speed', 'throttle', 'brake', 'gear'):
                 out[name].append(sample.get(name))
         out['distance'] = round(distance, 1)
+        spatial = self._track_distances(number, [s['t'] for s in samples])
+        if spatial:
+            out['d'], out['distance'], out['spatial'] = spatial[0], spatial[1], True
         return out
+
+    # ---------- distance along the track, from car positions (as the main site lines laps up by GPS) ----------
+    def _geometry(self) -> dict | None:
+        """The learned outline as a polyline measured in metres from the timing line."""
+        line = _median_point(self.line_points)
+        if not self.outline_loop or not line:
+            return None
+        key = (id(self.outline_loop), tuple(line))
+        if getattr(self, '_geometry_cache', None) and self._geometry_cache['key'] == key:
+            return self._geometry_cache
+        points = list(self.outline_loop) + [self.outline_loop[0]]
+        cumulative = [0.0]
+        for (x0, y0), (x1, y1) in zip(points, points[1:]):
+            cumulative.append(cumulative[-1] + ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** .5)
+        geometry = {'key': key, 'points': points, 'cum': cumulative, 'length': cumulative[-1]}
+        geometry['origin'] = self._project(geometry, line[0], line[1])[0]
+        self._geometry_cache = geometry
+        return geometry
+
+    @staticmethod
+    def _project(geometry: dict, x: float, y: float, hint: int | None = None, window: int = 25) -> tuple[float, int, float]:
+        """Nearest point of the outline: (distance along it, segment index, distance from it). With a hint only the
+        segments near it are searched, since consecutive samples move forward a little."""
+        points, cumulative, count = geometry['points'], geometry['cum'], len(geometry['points']) - 1
+        indices = range(count) if hint is None else ((hint + k) % count for k in range(-window // 3, window))
+        best = (0.0, 0, float('inf'))
+        for i in indices:
+            (x0, y0), (x1, y1) = points[i], points[i + 1]
+            dx, dy = x1 - x0, y1 - y0
+            span = dx * dx + dy * dy
+            f = 0.0 if not span else max(0.0, min(1.0, ((x - x0) * dx + (y - y0) * dy) / span))
+            gap = ((x0 + f * dx - x) ** 2 + (y0 + f * dy - y) ** 2) ** .5
+            if gap < best[2]:
+                best = (cumulative[i] + f * (cumulative[i + 1] - cumulative[i]), i, gap)
+        return best
+
+    def _track_distances(self, number: str, times: list[float]) -> tuple[list[float], float] | None:
+        """Distance from the timing line in metres for each sample time, from the car's position at that moment
+        projected onto the outline. None when the outline or line is not known yet, or positions are missing."""
+        geometry = self._geometry()
+        if not geometry or not times:
+            return None
+        track = [p for p in self.positions.get(number, ()) if times[0] - 2 <= p[0] <= times[-1] + 2 and (p[1] or p[2])]
+        if len(track) < 10:
+            return None
+        stamps = [p[0] for p in track]
+        length, origin, out, hint = geometry['length'], geometry['origin'], [], None
+        for t in times:
+            i = min(max(bisect.bisect_left(stamps, t), 1), len(track) - 1)
+            a, b = track[i - 1], track[i]
+            f = 0.0 if b[0] == a[0] else max(0.0, min(1.0, (t - a[0]) / (b[0] - a[0])))
+            along, hint, gap = self._project(geometry, a[1] + f * (b[1] - a[1]), a[2] + f * (b[2] - a[2]), hint)
+            if gap > 600:   # off the outline (pit lane): fall back to a full search next time
+                hint = None
+            out.append((along - origin) % length)
+        # Laps start a moment either side of the line: unwrap, so distance runs on from about 0 to one lap.
+        if out[0] > length / 2:
+            out[0] -= length
+        for k in range(1, len(out)):
+            while out[k] < out[k - 1] - length / 2:
+                out[k] += length
+            while out[k] > out[k - 1] + length / 2:
+                out[k] -= length
+        return [round(v / 10, 1) for v in out], round(length / 10, 1)
 
     def lap_list(self) -> dict[str, list[dict]]:
         """Completed laps per driver, without samples. `fastest` marks each driver's quickest lap that did not touch the pit lane."""
@@ -496,6 +593,7 @@ class LiveState:
                 'data_time': self.data_time,
                 'session': {'name': info.get('Name'), 'type': info.get('Type'), 'meeting': meeting.get('Name') or meeting.get('OfficialName'),
                             'circuit': (meeting.get('Circuit') or {}).get('ShortName'), 'path': info.get('Path'),
+                            'circuit_key': (meeting.get('Circuit') or {}).get('Key'), 'year': _session_year(info),
                             'status': status.get('Status') or (info.get('ArchiveStatus') or {}).get('Status')},
                 'track_status': {'code': str(track.get('Status')) if track.get('Status') is not None else None,
                                  'label': TRACK_STATUS.get(str(track.get('Status')), track.get('Message'))},
@@ -513,7 +611,9 @@ class LiveState:
         """The learned track outline: the closed loop once a car has lapped, else the longest partial path so far."""
         with self.lock:
             points = self.outline_loop or max(self.paths.values(), key=len, default=[])
-            return {'complete': self.outline_loop is not None, 'points': [[round(x, 1), round(y, 1)] for x, y in points]}
+            return {'complete': self.outline_loop is not None, 'points': [[round(x, 1), round(y, 1)] for x, y in points],
+                    # Where the timing line and the two sector boundaries are (medians of car positions when those times arrived).
+                    'line': _median_point(self.line_points), 'sectors': [_median_point(p) for p in self.sector_points]}
 
     def telemetry_for(self, numbers: list[str], seconds: float = 60) -> dict[str, list[dict]]:
         with self.lock:
@@ -658,6 +758,26 @@ def archive_stream_reader() -> Callable[[str, str], list[str] | None]:
     return read
 
 
+def archive_sessions(year: int) -> list[dict[str, Any]]:
+    """The season's sessions Formula 1 has published, from its archive index (needs the F1 TV sign-in)."""
+    import requests
+    from fastf1.internals.f1account import token_manager
+    from fastf1.internals.f1account.transport import LIVETIMING_URL, LivetimingAuthAdapter
+    session = requests.Session()
+    session.mount(LIVETIMING_URL, LivetimingAuthAdapter(token_manager))
+    response = session.get(f'https://livetiming.formula1.com/static/{year}/Index.json', timeout=30)
+    response.raise_for_status()
+    index = json.loads(response.content.decode('utf-8-sig'))
+    found = []
+    for meeting in index.get('Meetings') or []:
+        for item in meeting.get('Sessions') or []:
+            path = item.get('Path')
+            if path:
+                found.append({'path': '/static/' + path, 'year': year, 'event': meeting.get('Name'), 'session': item.get('Name'),
+                              'date': str(item.get('StartDate') or '')[:10], 'archive': True})
+    return found
+
+
 class ReplaySource(Source):
     """A finished session's archived streams, replayed through the same state at `speed` times real time."""
     kind = 'replay'
@@ -785,6 +905,16 @@ class LiveManager:
                 if not events:
                     raise RuntimeError('Formula 1 has not published this session\'s data yet.')
                 base = loader._utc_base(events)
+                # First pass: geometry only (outline, timing line, sector boundaries); then a clean pass that cuts laps.
+                for offset, topic, data in events:
+                    if topic in ('Position.z', 'TimingData', 'CarData.z'):
+                        scratch.apply(topic, data, base + offset if base else None)
+                geometry = (scratch.outline_loop, list(scratch.line_points), [list(p) for p in scratch.sector_points])
+                scratch = LiveState()
+                scratch.outline_loop = geometry[0]
+                scratch.line_points.extend(geometry[1])
+                for mine, learned in zip(scratch.sector_points, geometry[2]):
+                    mine.extend(learned)
                 for offset, topic, data in events:
                     scratch.apply(topic, data, base + offset if base else None)
                 scratch._flush_laps(force=True)
@@ -797,6 +927,11 @@ class LiveManager:
                                 added += 1
                     if state.outline_loop is None and scratch.outline_loop:
                         state.outline_loop = scratch.outline_loop
+                    if len(state.line_points) < 5:
+                        state.line_points.extend(scratch.line_points)
+                    for mine, theirs in zip(state.sector_points, scratch.sector_points):
+                        if len(mine) < 5:
+                            mine.extend(theirs)
                     state.version += 1
                 self.backfill_status['laps'] = added
             except Exception as exc:
@@ -815,11 +950,11 @@ class LiveManager:
             self.source.start()
             return self.status()
 
-    def start_replay(self, path: str, speed: float = 1.0, start: float = 0.0) -> dict[str, Any]:
+    def start_replay(self, path: str, speed: float = 1.0, start: float = 0.0, archive: bool = False) -> dict[str, Any]:
         with self.lock:
             self._stop()
             self.state.reset()
-            self.source = ReplaySource(self.state, path, speed, start, self.cache_dir)
+            self.source = ReplaySource(self.state, path, speed, start, self.cache_dir, fetch=archive_stream_reader() if archive else None)
             self.source.start()
             return self.status()
 
