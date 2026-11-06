@@ -1007,3 +1007,25 @@
 /* Rail section headings are labels that fold their section, not buttons with a surface. */
 :root[data-skin="linear"][data-skin][data-skin] #linearWorkspace .linear-nav-heading { border-radius: 8px; background: transparent; box-shadow: none; }
 :root[data-skin="linear"][data-skin][data-skin] #linearWorkspace .linear-nav-heading:hover { background: transparent; color: var(--ui-tertiary); }
+
+/* Scope toggle inside its chip, final. The shared pill rule carries an ID (via :is(#raceResultControls)) and many classes, so these
+   rules repeat the skin attribute to outrank it: the choices sit inside the chip with a 3 px inset, only the chosen one is filled. */
+:root[data-skin="linear"][data-skin][data-skin][data-skin][data-skin][data-skin] #performanceSidebar .control-field-scope { height: 32px; padding: 0 3px 0 12px; }
+:root[data-skin="linear"][data-skin][data-skin][data-skin][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle {
+  display: grid; grid-template-columns: auto auto; gap: 2px; height: 26px; min-height: 0; margin: 0 0 0 8px; padding: 0; background: transparent; box-shadow: none; border-radius: 9999px;
+}
+:root[data-skin="linear"][data-skin][data-skin][data-skin][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button {
+  height: 26px; min-height: 26px; padding: 0 12px; border: 0; border-radius: 9999px; background: transparent; box-shadow: none; color: var(--ui-tertiary); font: 510 12px/1 var(--ui-font);
+}
+:root[data-skin="linear"][data-skin][data-skin][data-skin][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--lin-pill-hover); color: var(--ui-secondary); }
+:root[data-skin="linear"][data-skin][data-skin][data-skin][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button[aria-pressed="true"] { background: var(--lin-pill-on); color: var(--ui-label); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); }
+:root[data-skin="linear"][data-skin][data-skin][data-skin][data-skin][data-skin][data-linear-density="compact"] #performanceSidebar .control-field-scope { height: 26px; }
+:root[data-skin="linear"][data-skin][data-skin][data-skin][data-skin][data-skin][data-linear-density="compact"] #performanceSidebar .control-field-scope .performance-scope-toggle,
+:root[data-skin="linear"][data-skin][data-skin][data-skin][data-skin][data-skin][data-linear-density="compact"] #performanceSidebar .control-field-scope .performance-scope-toggle > button { height: 20px; min-height: 20px; }
+/* The other chips match the scope chip's height. */
+:root[data-skin="linear"][data-skin] .app-sidebar .control-field { height: 32px; }
+:root[data-skin="linear"][data-skin] .app-sidebar .control-field .select-trigger { height: 30px; min-height: 30px; }
+:root[data-skin="linear"][data-skin] .app-sidebar :is(#loadSession, .performance-actions button) { height: 32px; min-height: 32px; }
+:root[data-skin="linear"][data-skin][data-linear-density="compact"] .app-sidebar .control-field { height: 26px; }
+:root[data-skin="linear"][data-skin][data-linear-density="compact"] .app-sidebar .control-field .select-trigger { height: 24px; min-height: 24px; }
+:root[data-skin="linear"][data-skin][data-linear-density="compact"] .app-sidebar :is(#loadSession, .performance-actions button) { height: 26px; min-height: 26px; }
