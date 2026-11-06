@@ -120,6 +120,31 @@ class CompletedLaps(unittest.TestCase):
         self.assertIsNone(state.lap_trace('1', 99))
         self.assertIsNone(state.lap_trace('44', 'fastest'))
 
+    def test_latest_push_lap_skips_cool_down_and_pit_laps(self):
+        state = lt.LiveState()
+        drive(state, laps=5)
+        for lap, seconds, pit in ((2, 60.0, False), (3, 75.0, False), (4, 61.0, False), (5, 59.0, True)):
+            state.laps['1'][lap].update(seconds=seconds, pit=pit)
+        self.assertEqual(state.lap_trace('1', 'latest')['lap'], 4)          # 3 is a cool-down lap, 5 a pit lap
+        self.assertEqual([l['push'] for l in state.lap_list()['1']], [True, False, True, False])
+
+    def test_recordings_restore_captured_laps(self):
+        import tempfile
+        recorded = lt.LiveState()
+        lines = []
+        original = recorded.apply
+
+        def record(topic, data, stamp=None):
+            lines.append(repr([topic, data, iso(stamp) if isinstance(stamp, float) else (stamp or '')]))
+            original(topic, data, stamp)
+        recorded.apply = record
+        drive(recorded, laps=3)
+        with tempfile.TemporaryDirectory() as folder:
+            (Path(folder) / 'live-20261106-120000.txt').write_text('\n'.join(lines), encoding='utf-8')
+            restored = lt.LiveState()
+            self.assertEqual(lt.restore_recordings(restored, Path(folder)), len(lines))
+        self.assertEqual(sorted(restored.laps['1']), sorted(recorded.laps['1']))
+
     def test_lap_time_arriving_after_the_lap_count(self):
         state = lt.LiveState()
         drive(state, laps=3, lap_times=False)

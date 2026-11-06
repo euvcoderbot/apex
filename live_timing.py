@@ -483,6 +483,14 @@ class LiveState:
                 out[k] -= length
         return [round(v / 10, 1) for v in out], round(length / 10, 1)
 
+    PUSH_MARGIN = 1.07   # within 107% of the session's best lap: a push lap, not a cool-down, in- or out-lap
+
+    def _is_push(self, lap: dict) -> bool:
+        if not lap.get('seconds') or lap.get('pit'):
+            return False
+        timed = [l['seconds'] for laps in self.laps.values() for l in laps.values() if l.get('seconds') and not l.get('pit')]
+        return bool(timed) and lap['seconds'] <= min(timed) * self.PUSH_MARGIN
+
     def lap_list(self) -> dict[str, list[dict]]:
         """Completed laps per driver, without samples. `fastest` marks each driver's quickest lap that did not touch the pit lane."""
         with self.lock:
@@ -491,7 +499,8 @@ class LiveState:
                 timed = [l for l in laps.values() if l.get('seconds') and not l.get('pit')]
                 best = min(timed, key=lambda l: l['seconds'])['lap'] if timed else None
                 result[number] = [{'lap': l['lap'], 'time': l.get('time'), 'seconds': l.get('seconds'), 'pit': l.get('pit'),
-                                   'distance': l.get('distance'), 'fastest': l['lap'] == best} for l in sorted(laps.values(), key=lambda l: l['lap'])]
+                                   'distance': l.get('distance'), 'fastest': l['lap'] == best, 'push': self._is_push(l)}
+                                  for l in sorted(laps.values(), key=lambda l: l['lap'])]
             return result
 
     def lap_trace(self, number: str, lap: str | int) -> dict | None:
@@ -505,6 +514,9 @@ class LiveState:
                 chosen = min(timed, key=lambda l: l['seconds']) if timed else None
             elif lap == 'last':
                 chosen = laps[max(laps)]
+            elif lap == 'latest':   # the most recent push lap (see _is_push)
+                flying = [l for l in laps.values() if self._is_push(l)]
+                chosen = max(flying, key=lambda l: l['lap']) if flying else None
             else:
                 try:
                     chosen = laps.get(int(lap))
@@ -728,6 +740,7 @@ class LiveSource(Source):
             self.error = f'FastF1 live client unavailable: {exc}'
             return
         state, authenticated = self.state, bool(self.auth.get('available'))
+        self.detail['restored'] = restore_recordings(state, self.recording.parent, exclude=self.recording)
 
         class Client(SignalRClient):
             def _access_token_factory(self):  # never prompt; use the stored token or connect without one
@@ -761,6 +774,29 @@ class LiveSource(Source):
                     self.client._exit()
             except Exception:
                 pass
+
+
+def restore_recordings(state: LiveState, folder: Path, exclude: Path | None = None, hours: float = 4.0) -> int:
+    """Replay today's recent recordings into the state before connecting, so a reconnect (or restarting the app)
+    keeps the laps already captured. A recording of an earlier session is replaced as soon as the newer session's
+    SessionInfo arrives (LiveState never mixes sessions). Returns the number of messages restored."""
+    import ast
+    cutoff, count = time.time() - hours * 3600, 0
+    for path in sorted(folder.glob('live-*.txt')):
+        if path == exclude or path.stat().st_mtime < cutoff or not path.stat().st_size:
+            continue
+        with open(path, encoding='utf-8', errors='replace') as handle:
+            for line in handle:
+                try:
+                    topic, data, stamp = ast.literal_eval(line)
+                    if isinstance(data, str) and not topic.endswith('.z'):
+                        data = json.loads(data)   # snapshot lines store the topic as JSON
+                    state.apply(str(topic), data, stamp or None)
+                    count += 1
+                except (ValueError, SyntaxError, TypeError):
+                    continue
+    state._flush_laps(force=True)
+    return count
 
 
 def cached_stream_reader(cache_dir: str | None) -> Callable[[str, str], list[str] | None]:

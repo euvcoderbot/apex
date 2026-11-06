@@ -344,7 +344,7 @@
     if (outline?.complete && !outline.sectors?.every(Boolean) && Date.now() - (outline.fetchedAt || 0) > 10000) refreshOutline();
     syncSource(); syncDot();
     renderTower(); renderWeather(); renderRaceControl(); renderReadouts(); queueDraw();
-    if (Date.now() - lapsFetchedAt > 5000) refreshLaps();
+    if (Date.now() - lapsFetchedAt > 2000) refreshLaps();
     backfill();
   }
   function timeCell(row, value, flags = {}) {
@@ -462,21 +462,24 @@
   }
   function syncLapOptions() {
     [['driverA', 'lapA'], ['driverB', 'lapB']].forEach(([driverName, lapName]) => {
-      const laps = lapLists[$(page, driverName).value] || [], select = $(page, lapName), current = select.value || 'fastest';
+      // While live, follow each driver's newest push lap; afterwards (replay, ended session) start from the fastest.
+      const laps = lapLists[$(page, driverName).value] || [], select = $(page, lapName), fallback = source?.kind === 'live' ? 'latest' : 'fastest', current = select.value || fallback;
+      const flying = laps.filter(l => l.push).at(-1);
       const fastest = laps.find(l => l.fastest), best = driverFor($(page, driverName).value).best;
       // The driver's best lap may predate the connection; it loads once Formula 1 publishes the session.
       const missed = best && fastest?.time && fastest.time !== best && lapSecondsOf(best) < (fastest.seconds || Infinity);
       const label = !fastest ? 'Fastest' : missed ? `Fastest captured · L${fastest.lap} ${fastest.time} · best ${best} loads after the session` : `Fastest · L${fastest.lap} ${fastest.time || ''}`;
-      const options = [new Option(label, 'fastest'), new Option('Last completed', 'last'),
+      const options = [new Option(flying ? `Latest push lap · L${flying.lap} ${flying.time}` : 'Latest push lap (none yet)', 'latest'), new Option(label, 'fastest'), new Option('Last completed (any lap)', 'last'),
         ...laps.slice().reverse().map(l => new Option(`Lap ${l.lap}${l.time ? ' · ' + l.time : ''}${l.pit ? ' · pit' : ''}`, String(l.lap)))];
       select.replaceChildren(...options);
-      setSelect(select, options.some(o => o.value === current) ? current : 'fastest');
+      setSelect(select, options.some(o => o.value === current) ? current : fallback);
     });
   }
   async function loadCompare() {
     const picks = [['driverA', 'lapA'], ['driverB', 'lapB']].map(([d, l]) => [$(page, d).value, $(page, l).value]);
     // Fetch again only when the choice changed, or the lap that "fastest" / "last" points at moved on.
-    const key = picks.map(([d, l]) => `${d}:${l}:${l === 'fastest' ? lapLists[d]?.find(x => x.fastest)?.lap : l === 'last' ? lapLists[d]?.at(-1)?.lap : ''}`).join('|');
+    const key = picks.map(([d, l]) => `${d}:${l}:${l === 'fastest' ? lapLists[d]?.find(x => x.fastest)?.lap : l === 'last' ? lapLists[d]?.at(-1)?.lap
+      : l === 'latest' ? lapLists[d]?.filter(x => x.push).at(-1)?.lap : ''}:${lapLists[d]?.at(-1)?.time || ''}`).join('|');
     if (key === compareKey) return;
     compareKey = key;
     compareTraces = await Promise.all(picks.map(([driver, lap]) => driver ? api(`lap?driver=${encodeURIComponent(driver)}&lap=${encodeURIComponent(lap)}`).catch(() => null) : null));

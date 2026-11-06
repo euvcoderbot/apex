@@ -150,7 +150,7 @@ def live_laps():
 
 
 @app.get('/api/live/lap')
-def live_lap(driver: str = Query(..., pattern=r'^\d{1,3}$'), lap: str = Query('fastest', pattern=r'^(fastest|last|\d{1,3})$')):
+def live_lap(driver: str = Query(..., pattern=r'^\d{1,3}$'), lap: str = Query('fastest', pattern=r'^(fastest|latest|last|\d{1,3})$')):
     trace = LIVE.state.lap_trace(driver, lap)
     if not trace:
         raise HTTPException(404, 'That lap has not been completed in this session yet.')
