@@ -100,7 +100,8 @@ def replay_sessions():
 
 @app.get('/api/live/status')
 def live_status():
-    return {**LIVE.status(), 'replays': replay_sessions()}
+    browser = {'waiting': _BROWSER_SIGNIN['server'] is not None, 'url': _BROWSER_SIGNIN['url'], 'error': _BROWSER_SIGNIN['error']}
+    return {**LIVE.status(), 'replays': replay_sessions(), 'browser_signin': browser}
 
 
 @app.get('/api/live/state')
@@ -171,6 +172,51 @@ def live_signin(body: dict = Body(...)):
     finally:
         password = None
     return {'auth': live_timing.stored_token_status()}
+
+
+_BROWSER_SIGNIN = {'server': None, 'url': None, 'error': None, 'started': 0.0}
+
+
+@app.post('/api/live/signin-browser')
+def live_signin_browser():
+    """FastF1's browser sign-in, without blocking: start its short-lived local receiver, return the sign-in page address
+    for the person to open, and finish in the background once FastF1's Companion add-on hands over the sign-in. The
+    person signs in on Formula 1's own page in their own browser; nothing here sees the password."""
+    import threading
+    try:
+        from fastf1.internals.f1account import browser as f1browser, token_manager
+        from fastf1.internals.f1account.tokens import SubscriptionToken
+    except Exception:
+        raise HTTPException(501, 'FastF1 3.9.2 or newer is needed to sign in.')
+    state = _BROWSER_SIGNIN
+    if state['server'] is not None and time.time() - state['started'] < 600:
+        return {'url': state['url'], 'waiting': True}
+    server = f1browser._AuthServer()
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    state.update(server=server, url=f'{f1browser.LOGIN_URL}?port={server.server_port}', error=None, started=time.time())
+
+    def receive():
+        received = server.received.wait(timeout=600)
+        server.shutdown(); server.server_close()
+        if not received or not server.token:
+            return 'The browser sign-in timed out or returned no F1 TV subscription.'
+        f1browser._verify_jwt(server.token)
+        return SubscriptionToken.from_jwt(server.token)
+
+    def finish():
+        try:
+            result = receive()
+            if isinstance(result, str):
+                state['error'] = result
+            else:
+                token_manager.get(force_renew=True, auth_func=lambda: result)
+        except Exception as exc:
+            state['error'] = f'Browser sign-in failed: {exc}'
+        finally:
+            state['server'] = None
+
+    threading.Thread(target=finish, daemon=True, name='f1tv-browser-signin').start()
+    return {'url': state['url'], 'waiting': True}
 
 
 @app.post('/api/live/signout')

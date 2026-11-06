@@ -68,7 +68,10 @@
           <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
           <button type="submit" class="live-button live-primary">Sign in</button>
           <button type="button" class="live-button" data-live="signinCancel">Cancel</button>
-          <p class="live-signin-note">Sent only to the local app on this PC, which passes it to FastF1's sign-in with Formula 1. Only the resulting sign-in token is kept; the password is not stored.</p>
+          <span class="live-signin-or">or</span>
+          <button type="button" class="live-button" data-live="signinBrowser">Sign in with browser</button>
+          <p class="live-signin-note">Email and password go only to the local app on this PC, which passes them to FastF1's sign-in with Formula 1; only the resulting token is kept. If Formula 1 rejects them, use Sign in with browser: you sign in on Formula 1's own page, and FastF1's Companion browser add-on (offered on that page the first time) hands the sign-in to this PC.</p>
+          <p class="live-signin-note" data-live="browserWaiting" hidden>Waiting for the browser sign-in… finish it in the tab that opened. <a data-live="browserLink" target="_blank" rel="noopener">Open the sign-in page again</a></p>
           <p class="live-signin-error" data-live="signinError" role="alert" hidden></p>
         </form>
         <p class="live-help" data-live="help" hidden></p>
@@ -119,6 +122,7 @@
     $(page, 'connect').addEventListener('click', () => start({mode: 'live'}));
     $(page, 'signin').addEventListener('click', () => showSignin($(page, 'signinForm').hidden));
     $(page, 'signinCancel').addEventListener('click', () => showSignin(false));
+    $(page, 'signinBrowser').addEventListener('click', signInWithBrowser);
     $(page, 'signinForm').addEventListener('submit', submitSignin);
     $(page, 'signout').addEventListener('click', signOut);
     $(page, 'play').addEventListener('click', () => {
@@ -222,6 +226,30 @@
       error.textContent = problem.message || String(problem); error.hidden = false;
     } finally {
       signinBusy = false; submit.disabled = false; submit.textContent = 'Sign in';
+    }
+  }
+  let browserTimer = null;
+  async function signInWithBrowser() {
+    // Open the tab now, inside the click, so it is not blocked as a pop-up; it is pointed at the sign-in page once known.
+    const tab = window.open('about:blank', '_blank');
+    const error = $(page, 'signinError'); error.hidden = true;
+    try {
+      const reply = await post('signin-browser');
+      if (tab) { try { tab.opener = null; } catch { /* cross-origin later */ } tab.location.href = reply.url; }
+      $(page, 'browserLink').href = reply.url; $(page, 'browserWaiting').hidden = false;
+      clearInterval(browserTimer);
+      browserTimer = setInterval(async () => {
+        let status; try { status = await api('status'); } catch { return; }
+        const browser = status.browser_signin || {};
+        if (status.auth?.available || !browser.waiting) {
+          clearInterval(browserTimer); $(page, 'browserWaiting').hidden = true;
+          if (!status.auth?.available && browser.error) { error.textContent = browser.error; error.hidden = false; }
+          applyStatus({...status, replays: null});
+        }
+      }, 2000);
+    } catch (problem) {
+      tab?.close();
+      error.textContent = problem.message || String(problem); error.hidden = false;
     }
   }
   async function signOut() {
