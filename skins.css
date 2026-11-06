@@ -896,4 +896,114 @@
 
 /* Inspector tables share the panel surface; selection and hover provide emphasis. */
 :root[data-skin="linear"] .corner-measurement-table tbody tr:nth-child(even) { background: transparent; }
-:root[data-skin="linear"] .performance-bar-label .metric-coverage { margin-left: auto; padding-left: 6px; color: var(--ui-tertiary); font-size: 10px; white-space: nowrap; }
+:root[data-skin="linear"] .performance-bar-label { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
+:root[data-skin="linear"] .performance-bar-label .metric-coverage { flex: 0 0 auto; margin-left: auto; padding: 1px 5px; border-radius: 4px; box-shadow: inset 0 0 0 .5px var(--ui-border-strong); color: var(--ui-tertiary); font: 510 10.5px/14px var(--ui-font); white-space: nowrap; }
+
+/* ======================= v4 ======================= */
+/* Paired chart + table (Race cornering and other split views): the chart's header takes the table header's measured height and
+   its rows the table rows' height (--split-head / --split-row from dashboard-ui.js), so every team's bar sits beside its row.
+   The Linear card insets must not add to either. */
+:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) { align-items: start; }
+:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) > .performance-chart-card { padding: 0 16px 6px; }
+:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) > .performance-table-wrap { padding: 0; }
+:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) .perf-chart-header {
+  box-sizing: border-box; height: var(--split-head); min-height: var(--split-head); margin: 0; padding: 0; align-items: center; border-bottom: 1px solid var(--lin-hairline);
+}
+:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) .perf-chart-title-group { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) .perf-chart-heading { white-space: nowrap; font-size: 12px; }
+:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) .perf-chart-sub { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; }
+:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) :is(.performance-bars, .performance-tyre-age-chart) { margin: 0; gap: 0; row-gap: 0; }
+:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) :is(.performance-bar-row, .performance-tyre-age-row) { height: var(--split-row); min-height: var(--split-row); margin-top: 0; }
+
+/* Choose laps under the driver list: a full-width pill in the rail. */
+:root[data-skin="linear"][data-skin] #linearWorkspace #lapWorkspaceToggle.is-rail-pill {
+  display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 28px; min-height: 28px; margin: 8px 0 0; padding: 0 12px;
+  border: 0; border-radius: 9999px; background: var(--ui-control); box-shadow: inset 0 0 0 1px var(--lin-label-border); color: var(--ui-label); font: 510 13px/1 var(--ui-font);
+}
+:root[data-skin="linear"][data-skin] #linearWorkspace #lapWorkspaceToggle.is-rail-pill:hover { background: var(--ui-control-hover); }
+:root[data-skin="linear"][data-skin] #linearWorkspace #lapWorkspaceToggle.is-rail-pill[aria-expanded="true"] { background: var(--lin-seg-on); }
+:root[data-skin="linear"][data-skin][data-linear-density="compact"] #linearWorkspace #lapWorkspaceToggle.is-rail-pill { height: 24px; min-height: 24px; font-size: 12px; }
+
+/* ======================= v4: Linear's surfaces, measured from linear.app's app frame (2026-11-06) =======================
+   Tabs are separate pills (Linear's filterTab: 28 px, full radius, white 3% with a 5% inset ring, chosen 8%); the header is frosted;
+   icon buttons are 28 px circles (pillButton: white 2% and a 5% ring); cards carry Linear's corner shine (a 3% radial glow and a
+   border that brightens toward the top-left corner); table heads are rounded 2% bands like Linear's list group headers. */
+:root[data-skin="linear"] {
+  --lin-pill: #ffffff08; --lin-pill-ring: #ffffff0d; --lin-pill-on: #ffffff14; --lin-pill-hover: #ffffff0f; --lin-icon-btn: #ffffff05;
+  --lin-header-bg: linear-gradient(rgb(15 16 17 / .86), rgb(15 16 17 / .78));
+  --lin-shine: rgb(255 255 255 / .10); --lin-glow: rgb(255 255 255 / .025); --lin-band: #ffffff05;
+}
+:root[data-skin="linear"][data-theme="light"] {
+  --lin-pill: transparent; --lin-pill-ring: #00000014; --lin-pill-on: #ffffff; --lin-pill-hover: #00000008; --lin-icon-btn: transparent;
+  --lin-header-bg: linear-gradient(rgb(255 255 255 / .86), rgb(255 255 255 / .78));
+  --lin-shine: rgb(0 0 0 / 0); --lin-glow: rgb(0 0 0 / 0); --lin-band: #00000005;
+}
+
+/* ---- Tabs: separate pills, no track ---- */
+:root[data-skin="linear"][data-skin][data-skin] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) {
+  gap: 6px; padding: 0; border-radius: 0; background: transparent; box-shadow: none;
+}
+:root[data-skin="linear"][data-skin][data-skin] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) > button {
+  height: 28px; min-height: 28px; padding: 0 11px; border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring);
+  color: var(--ui-tertiary); font: 510 12px/1 var(--ui-font);
+}
+:root[data-skin="linear"][data-skin][data-skin] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) > button:hover:not(:disabled) { background: var(--lin-pill-hover); color: var(--ui-secondary); }
+:root[data-skin="linear"][data-skin][data-skin] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) > button:is([aria-pressed="true"], [aria-selected="true"], .active, .selected) {
+  background: var(--lin-pill-on); color: var(--ui-label); box-shadow: inset 0 0 0 1px var(--lin-pill-ring);
+}
+:root[data-skin="linear"][data-skin][data-skin][data-theme="light"] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) > button:is([aria-pressed="true"], [aria-selected="true"], .active, .selected) {
+  box-shadow: inset 0 0 0 1px var(--lin-pill-ring), 0 1px 2px #0000000f;
+}
+:root[data-skin="linear"][data-skin][data-skin][data-linear-density="compact"] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) > button { height: 24px; min-height: 24px; padding-inline: 9px; }
+/* In the rail and the track panel the two choices share the width. */
+:root[data-skin="linear"][data-skin][data-skin] :is(#linearWorkspace #raceResultControls, .map-view-switch) { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+/* Inside a filter chip the scope choices are small pills too. */
+:root[data-skin="linear"][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle { gap: 4px; }
+:root[data-skin="linear"][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button { height: 22px; min-height: 22px; border-radius: 9999px; box-shadow: none; background: transparent; }
+:root[data-skin="linear"][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button[aria-pressed="true"] { background: var(--lin-pill-on); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); }
+
+/* ---- Filter chips and buttons: Linear's pill shapes ---- */
+:root[data-skin="linear"] .app-sidebar .control-field { border-radius: 9999px; padding-left: 11px; }
+:root[data-skin="linear"] .app-sidebar .control-field .select-trigger { border-radius: 0 9999px 9999px 0; padding-right: 10px; }
+:root[data-skin="linear"][data-skin] .app-sidebar .control-field:has(.select-trigger:focus-visible) { border-radius: 9999px; }
+:root[data-skin="linear"] .app-sidebar :is(#loadSession, .performance-actions button) { border-radius: 9999px; padding-inline: 14px; }
+:root[data-skin="linear"] :is(button[data-ui-kind="push"], .comparison-choose, .trace-tools :is(button, summary), .performance-explain-toggle) { border-radius: 9999px; }
+:root[data-skin="linear"] :is(button[data-ui-kind="push"], .comparison-choose, .trace-tools summary, .performance-explain-toggle):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) {
+  background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring);
+}
+:root[data-skin="linear"] :is(button[data-ui-kind="push"], .comparison-choose, .trace-tools summary, .performance-explain-toggle):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):hover:not(:disabled) { background: var(--lin-pill-hover); }
+
+/* ---- Header: frosted, as Linear's (a translucent gradient over a 20 px blur), with round icon buttons ---- */
+:root[data-skin="linear"] .site-header.window-toolbar { background: var(--lin-header-bg); -webkit-backdrop-filter: blur(20px) saturate(1.2); backdrop-filter: blur(20px) saturate(1.2); }
+:root[data-skin="linear"][data-skin] .site-header .workspace-tools > button, :root[data-skin="linear"][data-skin] .site-header #windowSidebarToggle {
+  border-radius: 9999px; background: var(--lin-icon-btn); box-shadow: inset 0 0 0 1px var(--lin-pill-ring);
+}
+:root[data-skin="linear"][data-skin] .site-header .workspace-tools { gap: 6px; }
+:root[data-skin="linear"][data-skin] .site-header .workspace-tools > button:hover:not(:disabled), :root[data-skin="linear"][data-skin] .site-header #windowSidebarToggle:hover { background: var(--lin-pill-hover); }
+:root[data-skin="linear"][data-skin] .site-header .workspace-tools > button[aria-pressed="true"]:is(#densityToggle, #skinToggle) { background: var(--lin-pill-on); }
+:root[data-skin="linear"][data-skin] #linearWorkspace .linear-search { box-shadow: inset 0 0 0 1px var(--lin-pill-ring); background: var(--lin-icon-btn); }
+
+/* ---- Cards: Linear's corner shine. A faint radial light in the top-left corner and a border that brightens toward it. ---- */
+:root[data-skin="linear"] :is(#charts .chart, .sector-cards .lap-summary-card, #carPerformance .performance-chart-card, #carPerformance .performance-table-wrap, .app-inspector .dominance-map, .app-inspector .corner-picker-row, .app-inspector .corner-selection-empty, #carPerformance .dashboard-card .dashboard-card) {
+  position: relative; isolation: isolate;
+  background-image: radial-gradient(60% 50% at 0% 0%, var(--lin-glow), transparent 70%);
+}
+:root[data-skin="linear"] :is(#charts .chart, .sector-cards .lap-summary-card, #carPerformance .performance-chart-card, #carPerformance .performance-table-wrap, .app-inspector .dominance-map, .app-inspector .corner-picker-row, .app-inspector .corner-selection-empty, #carPerformance .dashboard-card .dashboard-card)::after {
+  content: ""; position: absolute; inset: 0; z-index: 1; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: radial-gradient(220px 220px at 0% 0%, var(--lin-shine), transparent 70%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+
+/* ---- Table heads: Linear's group header band (rounded, 2%), no rule beneath ---- */
+:root[data-skin="linear"][data-skin] .performance-table thead th { background: var(--lin-band); border-bottom: 0; }
+:root[data-skin="linear"][data-skin] .performance-table thead th:first-child { border-radius: 8px 0 0 8px; }
+:root[data-skin="linear"][data-skin] .performance-table thead th:last-child { border-radius: 0 8px 8px 0; }
+:root[data-skin="linear"][data-skin] .performance-table tbody tr:first-child :is(td, th) { border-top: 0; }
+
+@media (prefers-contrast: more) {
+  :root[data-skin="linear"] { --lin-pill-ring: var(--ui-border-strong); --lin-shine: transparent; }
+}
+/* Rail section headings are labels that fold their section, not buttons with a surface. */
+:root[data-skin="linear"][data-skin][data-skin] #linearWorkspace .linear-nav-heading { border-radius: 8px; background: transparent; box-shadow: none; }
+:root[data-skin="linear"][data-skin][data-skin] #linearWorkspace .linear-nav-heading:hover { background: transparent; color: var(--ui-tertiary); }
