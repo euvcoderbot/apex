@@ -82,7 +82,8 @@ function renderMiniSectorMap() {
     button.disabled = button.dataset.mapView === 'comparison' && !loaded.length;
   });
   if (mapView === 'guide' || !loaded.length) {
-    title.textContent = 'Circuit guide';
+    // Every map title has the same two lines, so switching Guide / Lap comparison never moves the map or the panels below it.
+    title.innerHTML = 'Circuit guide <small>SECTORS · CORNERS</small>';
     dominanceMapHitPoints = [];
     clearDominanceMapCanvas(canvas);
     renderGenericCircuit(canvas, empty);
@@ -95,7 +96,7 @@ function renderMiniSectorMap() {
     ? 'Track map showing the fastest loaded lap in each mini-sector'
     : 'Circuit map for the visible telemetry trace');
   title.innerHTML = !mapEntries.length
-    ? 'Track map'
+    ? 'Track map <small>NO LAP LOADED</small>'
     : comparative
       ? 'Mini-sector dominance <small>25 M SEGMENTS</small>'
       : 'Track map <small>SINGLE TRACE</small>';
