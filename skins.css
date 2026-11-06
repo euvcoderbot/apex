@@ -340,7 +340,7 @@
     position: sticky; top: var(--linear-gap); z-index: 100; margin: var(--linear-gap) var(--linear-gap) 0 var(--linear-rail);
     border-radius: var(--linear-view-radius) var(--linear-view-radius) 0 0;
   }
-  :root[data-skin="linear"] body > :is(main#top, #carPerformance, #liveTiming) { width: auto; margin: 0 var(--linear-gap) 0 var(--linear-rail); background: transparent; min-height: calc(100dvh - var(--linear-header) - 2 * var(--linear-gap)); }
+  :root[data-skin="linear"] body > :is(main#top, #carPerformance) { width: auto; margin: 0 var(--linear-gap) 0 var(--linear-rail); background: transparent; min-height: calc(100dvh - var(--linear-header) - 2 * var(--linear-gap)); }
   :root[data-skin="linear"] body > footer { margin: 0 var(--linear-gap) var(--linear-gap) var(--linear-rail); background: transparent; border-radius: 0 0 var(--linear-view-radius) var(--linear-view-radius); }
 }
 

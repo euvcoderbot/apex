@@ -3,7 +3,7 @@ import {isolate} from './helpers.mjs';
 
 // Budgets are set just above today's numbers (hosted-like gzip, 22 files before lazy loading was 271 KB; the session view
 // now needs about 154 KB). They exist to catch regressions, not to define a target.
-const BUDGET = {initialScriptKB: 185, initialStyleKB: 80, idleDomNodes: 600, layoutShift: 0.02};
+const BUDGET = {initialScriptKB: 185, initialStyleKB: 82, idleDomNodes: 600, layoutShift: 0.02};
 
 /** Records long tasks, layout shift and the moment of the load event from the very start of the page. */
 const observe = () => {

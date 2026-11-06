@@ -1,0 +1,60 @@
+/* The Linear look for the Live view (live.js). Loaded only by the local app, in the "skin" layer like skins.css,
+   so the published page's stylesheet does not carry it. Every rule is scoped to the Linear look. */
+/* The page sits in the Linear frame beside the rail, as the other views do (skins.css). */
+@media (min-width: 761px) {
+  :root[data-skin="linear"] body > #liveTiming { width: auto; margin: 0 var(--linear-gap) 0 var(--linear-rail); background: transparent; min-height: calc(100dvh - var(--linear-header) - 2 * var(--linear-gap)); }
+}
+/* The rail row matches the other Analysis rows: 28 px, 8 px radius, a 14 px glyph (here the live dot). */
+:root[data-skin="linear"][data-skin] #linearWorkspace .linear-navigation .live-view-button {
+  display: flex; justify-content: flex-start; align-items: center; gap: 8px; width: 100%; height: 28px; min-height: 28px; margin: 2px 0 0; padding: 0 7px;
+  border: 0; border-radius: 8px; background: transparent; box-shadow: none; color: var(--ui-secondary); font: 510 13px/1 var(--ui-font);
+}
+:root[data-skin="linear"][data-skin] #linearWorkspace .linear-navigation .live-view-button .live-dot { flex: 0 0 8px; width: 8px; height: 8px; margin: 0 4px 0 4px; }
+:root[data-skin="linear"][data-skin] #linearWorkspace .linear-navigation .live-view-button:hover:not([aria-pressed="true"]) { background: var(--lin-nav-hover); color: var(--ui-label); }
+:root[data-skin="linear"][data-skin] #linearWorkspace .linear-navigation .live-view-button[aria-pressed="true"] { background: var(--lin-nav-active); color: var(--ui-label); }
+:root[data-skin="linear"][data-skin][data-linear-density="compact"] #linearWorkspace .linear-navigation .live-view-button { height: 24px; min-height: 24px; }
+/* The view's own title lives in the header breadcrumb, as on the other views; the page keeps a quieter heading. */
+:root[data-skin="linear"][data-skin] #liveTiming { padding: 20px var(--linear-content-pad) 32px; gap: 12px; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-title .workspace-eyebrow { display: none; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-title h1 { font: 590 20px/1.3 var(--ui-font); letter-spacing: -.012em; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-title p { font: 400 13px/1.5 var(--ui-font); color: var(--ui-tertiary); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-card-head h2 { font: 590 13px/1.4 var(--ui-font); }
+/* Cards: the corner shine. */
+:root[data-skin="linear"][data-skin] #liveTiming .dashboard-card {
+  position: relative; isolation: isolate; border-radius: 12px;
+  background-image: radial-gradient(60% 50% at 0% 0%, var(--lin-glow), transparent 70%);
+}
+:root[data-skin="linear"][data-skin] #liveTiming .dashboard-card::after {
+  content: ""; position: absolute; inset: 0; z-index: 1; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: radial-gradient(220px 220px at 0% 0%, var(--lin-shine), transparent 70%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+/* Controls: Linear's pills (28 px, 3% fill, 5% ring, 510 12 px). */
+:root[data-skin="linear"][data-skin] #liveTiming :is(.live-button, .live-source input, .live-chip, .live-badge) {
+  height: 28px; min-height: 28px; padding: 0 11px; border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring);
+  color: var(--ui-secondary); font: 510 12px/1 var(--ui-font);
+}
+:root[data-skin="linear"][data-skin] #liveTiming .live-button:hover:not(:disabled) { background: var(--lin-pill-hover); color: var(--ui-label); }
+/* The :not(#…) chain outranks the general push-button pill rule above, which carries three IDs. */
+:root[data-skin="linear"][data-skin] #liveTiming .live-button.live-primary:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: #e5484d; box-shadow: none; color: #fff; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-button.live-primary:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):hover { background: #ec5d61; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-button:not(.live-primary):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-button:not(.live-primary):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):hover { background: var(--lin-pill-hover); }
+/* Choosing comparison laps belongs to Session analysis. */
+:root[data-skin="linear"][data-skin] body.live-view #linearWorkspace #lapWorkspaceToggle { display: none; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-badge[data-kind="live"] { background: #e5484d; box-shadow: none; color: #fff; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-badge[data-kind="replay"] { background: var(--lin-pill-on); color: var(--ui-label); }
+:root[data-skin="linear"][data-skin] #liveTiming .select-shell .select-trigger { height: 28px; min-height: 28px; border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); font: 510 12px/1 var(--ui-font); }
+:root[data-skin="linear"][data-skin] #liveTiming :is(.live-source label, .live-compare-pick label) { font: 510 12px/1 var(--ui-font); color: var(--ui-tertiary); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-flag { border-radius: 9999px; padding: 6px 14px; font: 590 13px/1.2 var(--ui-font); }
+/* Timing tower: the group-header band, quiet rows. */
+:root[data-skin="linear"][data-skin] #liveTiming .live-table thead th { background: var(--lin-band); border-bottom: 0; font: 510 12px/1 var(--ui-font); color: var(--ui-tertiary); padding-block: 8px; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-table thead th:first-child { border-radius: 8px 0 0 8px; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-table thead th:last-child { border-radius: 0 8px 8px 0; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-table td { border-bottom: 0; font-size: 13px; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-table tbody tr td:first-child { border-radius: 6px 0 0 6px; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-table tbody tr td:last-child { border-radius: 0 6px 6px 0; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-table tbody tr:hover td { background: var(--lin-nav-hover); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-table tbody tr[aria-selected="true"] td { background: var(--lin-nav-active); }
+:root[data-skin="linear"][data-skin] #liveTiming :is(.live-readout, .live-compare-lap, .live-rc li) { border-radius: 8px; background: var(--lin-band); }

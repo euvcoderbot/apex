@@ -12,8 +12,6 @@ body.live-view .performance-tabs[data-ui-thumb]::before { opacity: 0; }
 .live-view-button[data-state="replay"] .live-dot { background: var(--ui-accent, #0a84ff); opacity: 1; }
 @keyframes live-pulse { 70% { box-shadow: 0 0 0 6px #ff3b3000; } 100% { box-shadow: 0 0 0 0 #ff3b3000; } }
 @media (prefers-reduced-motion: reduce) { .live-view-button[data-state="live"] .live-dot { animation: none; } }
-#linearWorkspace .linear-navigation .live-view-button { width: 100%; justify-content: flex-start; min-height: 28px; padding: 4px 10px; border: 0; border-radius: var(--radius-md); background: transparent; box-shadow: none; }
-#linearWorkspace .linear-navigation .live-view-button[aria-pressed="true"] { background: var(--ui-selected); }
 
 .live-page { display: grid; gap: 14px; width: min(1680px, 100%); margin: 0 auto; padding: 18px clamp(12px, 2.4vw, 28px) 40px; box-sizing: border-box; outline: none; }
 .live-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }

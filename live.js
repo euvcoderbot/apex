@@ -5,9 +5,11 @@
   if (!window.APEX_LOCAL_MODE) return;
   // Its stylesheet ships separately (the published page never loads it), with this script's version.
   {
-    const link = document.createElement('link'); link.rel = 'stylesheet';
-    link.href = 'live.css' + (document.currentScript?.src.match(/\?v=[^&#]+/)?.[0] || '');
-    document.head.append(link);
+    const version = document.currentScript?.src.match(/\?v=[^&#]+/)?.[0] || '';
+    for (const sheet of ['live.css', 'live-linear.css']) {
+      const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = sheet + version;
+      document.head.append(link);
+    }
   }
   const root = document.documentElement;
   const $ = (scope, name) => scope.querySelector(`[data-live="${name}"]`);
