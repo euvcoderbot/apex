@@ -154,7 +154,8 @@ def live_signin(body: dict = Body(...)):
     """Sign in to the F1 TV account with FastF1's own sign-in. The email and password are used for this one request,
     passed straight to FastF1 (which talks only to Formula 1's sign-in service) and never stored or logged; FastF1
     stores the resulting token on this PC, which the live connection then uses."""
-    email, password = str(body.get('email') or '').strip(), str(body.get('password') or '')
+    # Copy-paste often brings a line break or tab along; those are never part of a password.
+    email, password = str(body.get('email') or '').strip(), str(body.get('password') or '').strip('\r\n\t')
     if not email or not password:
         raise HTTPException(422, 'Enter your F1 TV email and password.')
     try:
