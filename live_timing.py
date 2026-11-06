@@ -640,6 +640,24 @@ def cached_stream_reader(cache_dir: str | None) -> Callable[[str, str], list[str
     return read
 
 
+def archive_stream_reader() -> Callable[[str, str], list[str] | None]:
+    """Read a session's `.jsonStream` files from Formula 1's archive over the network, signed in with the F1 TV token
+    FastF1 stores on this PC (FastF1's own authenticating transport, mounted only for the livetiming host). F1 publishes
+    these files while a session runs, so they also hold what happened before the live connection started."""
+    import requests
+    from fastf1.internals.f1account import token_manager
+    from fastf1.internals.f1account.transport import LIVETIMING_URL, LivetimingAuthAdapter
+    session = requests.Session()
+    session.mount(LIVETIMING_URL, LivetimingAuthAdapter(token_manager))
+
+    def read(path: str, topic: str) -> list[str] | None:
+        response = session.get('https://livetiming.formula1.com' + path + topic + '.jsonStream', timeout=90)
+        if response.status_code != 200:
+            return None
+        return response.content.decode('utf-8-sig').splitlines()
+    return read
+
+
 class ReplaySource(Source):
     """A finished session's archived streams, replayed through the same state at `speed` times real time."""
     kind = 'replay'
@@ -656,17 +674,17 @@ class ReplaySource(Source):
         self.base: float | None = None
         self.detail = {'path': path, 'speed': self.speed, 'position': 0.0, 'duration': None, 'topics': []}
 
-    def _load(self) -> list[tuple[float, str, Any]]:
+    def _load(self, topics: tuple[str, ...] | None = None) -> list[tuple[float, str, Any]]:
         fetch = self.fetch or cached_stream_reader(self.cache_dir)
-        events, topics = [], []
-        for topic in self.TOPICS.values():
+        events, found = [], []
+        for topic in topics or tuple(self.TOPICS.values()):
             try:
                 lines = fetch(self.path, topic)
             except Exception:
                 lines = None
             if not lines:
                 continue
-            topics.append(topic)
+            found.append(topic)
             for line in lines:
                 stamp, body = line[:12], line[12:].strip()
                 if not body:
@@ -679,7 +697,7 @@ class ReplaySource(Source):
                 except ValueError:
                     continue
         events.sort(key=lambda e: e[0])
-        self.detail['topics'] = topics
+        self.detail['topics'] = found
         self.base = self._utc_base(events)
         return events
 
@@ -743,6 +761,51 @@ class LiveManager:
         self.source: Source | None = None
         self.recording_dir, self.cache_dir = recording_dir, cache_dir
         self.lock = threading.Lock()
+        self.backfill_status: dict[str, Any] = {'running': False, 'laps': 0, 'error': None, 'finished_at': None, 'path': None}
+
+    BACKFILL_TOPICS = ('DriverList', 'TimingData', 'TimingAppData', 'CarData.z', 'Position.z')
+
+    def backfill(self, reader: Callable | None = None) -> dict[str, Any]:
+        """Completed laps from before the live connection (or the whole session once it has ended): the session's
+        archived streams run through a scratch state with the same lap engine, and laps the live state lacks are added.
+        Runs in the background; `backfill_status` reports progress."""
+        path = ((self.state.topics.get('SessionInfo') or {}).get('Path') or '').strip('/')
+        if not path:
+            raise ValueError('No session yet: connect to live timing first.')
+        if self.backfill_status['running']:
+            return dict(self.backfill_status)
+        self.backfill_status = {'running': True, 'laps': 0, 'error': None, 'finished_at': None, 'path': path}
+        state = self.state
+
+        def run() -> None:
+            try:
+                scratch = LiveState()
+                loader = ReplaySource(scratch, '/static/' + path + '/', fetch=reader or archive_stream_reader())
+                events = loader._load(self.BACKFILL_TOPICS)
+                if not events:
+                    raise RuntimeError('Formula 1 has not published this session\'s data yet.')
+                base = loader._utc_base(events)
+                for offset, topic, data in events:
+                    scratch.apply(topic, data, base + offset if base else None)
+                scratch._flush_laps(force=True)
+                added = 0
+                with state.lock:
+                    for number, laps in scratch.laps.items():
+                        for lap, record in laps.items():
+                            if lap not in state.laps[number]:
+                                state.laps[number][lap] = record
+                                added += 1
+                    if state.outline_loop is None and scratch.outline_loop:
+                        state.outline_loop = scratch.outline_loop
+                    state.version += 1
+                self.backfill_status['laps'] = added
+            except Exception as exc:
+                self.backfill_status['error'] = f'Could not load earlier laps: {exc}'
+            finally:
+                self.backfill_status.update(running=False, finished_at=time.time())
+
+        threading.Thread(target=run, daemon=True, name='live-backfill').start()
+        return dict(self.backfill_status)
 
     def start_live(self) -> dict[str, Any]:
         with self.lock:
@@ -773,4 +836,5 @@ class LiveManager:
 
     def status(self) -> dict[str, Any]:
         return {'source': self.source.describe() if self.source else None, 'auth': stored_token_status(),
+                'backfill': dict(self.backfill_status),
                 'version': self.state.version, 'messages': self.state.messages}

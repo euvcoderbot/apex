@@ -230,6 +230,15 @@ def live_signout():
     return {'auth': live_timing.stored_token_status()}
 
 
+@app.post('/api/live/backfill')
+def live_backfill():
+    """Load the current session's completed laps from Formula 1's archive (laps from before connecting)."""
+    try:
+        return LIVE.backfill()
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+
+
 @app.post('/api/live/stop')
 def live_stop():
     return LIVE.stop()

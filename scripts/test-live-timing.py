@@ -170,6 +170,33 @@ class Replay(unittest.TestCase):
         source.run()
         self.assertIn('not in the local cache', source.error)
 
+    def test_backfill_adds_laps_from_before_the_connection(self):
+        def stamp(seconds):
+            return f'{int(seconds // 3600):02d}:{int(seconds % 3600 // 60):02d}:{seconds % 60:06.3f}'
+        car, timing = [], []
+        for second in range(0, 185):
+            entries = [{'Utc': iso(T0 + second + k * .25), 'Cars': {'1': {'Channels': {'2': round(speed_at(second + k * .25))}}}} for k in range(4)]
+            car.append(f'{stamp(second + .75)}"{z({"Entries": entries})}"')
+            if second and second % 60 == 0:
+                timing.append(stamp(second) + json.dumps({'Lines': {'1': {'NumberOfLaps': second // 60, 'LastLapTime': {'Value': '1:00.000'}}}}))
+        streams = {'TimingData': timing, 'CarData.z': car, 'DriverList': ['00:00:00.000{"1": {"Tla": "NOR"}}']}
+        manager = lt.LiveManager(Path('.'), None)
+        manager.state.apply('SessionInfo', {'Path': '2026/x/y/'})
+        manager.state.laps['1'][3] = {'lap': 3, 'live': True}   # a lap already cut live is kept
+        manager.backfill(reader=lambda path, topic: streams.get(topic) if path == '/static/2026/x/y/' else None)
+        for _ in range(100):
+            if not manager.backfill_status['running']:
+                break
+            import time; time.sleep(.05)
+        self.assertIsNone(manager.backfill_status['error'])
+        self.assertEqual(sorted(manager.state.laps['1']), [2, 3])
+        self.assertTrue(manager.state.laps['1'][3].get('live'))
+        self.assertEqual(manager.backfill_status['laps'], 1)
+
+    def test_backfill_needs_a_session(self):
+        with self.assertRaises(ValueError):
+            lt.LiveManager(Path('.'), None).backfill(reader=lambda *a: None)
+
     def test_token_status_never_signs_in(self):
         status = lt.stored_token_status()
         self.assertIn('available', status)

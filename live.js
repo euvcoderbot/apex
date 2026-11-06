@@ -78,43 +78,48 @@
         <div class="live-progress" data-live="progress" hidden><span></span></div>
       </section>
       <div class="live-grid">
-        <section class="dashboard-card live-tower" aria-label="Timing tower">
-          <div class="live-card-head"><h2>Timing</h2><small>Select up to two drivers for telemetry</small></div>
-          <div class="live-table-wrap"><table class="live-table">
-            <thead><tr><th scope="col">P</th><th scope="col">Driver</th><th scope="col">Gap</th><th scope="col">Int</th><th scope="col">Last</th><th scope="col">S1</th><th scope="col">S2</th><th scope="col">S3</th><th scope="col">Best</th><th scope="col">Tyre</th><th scope="col">Pit</th></tr></thead>
-            <tbody data-live="tower"><tr><td colspan="11" class="live-empty">Waiting for timing data.</td></tr></tbody>
-          </table></div>
+        <div class="live-col live-col-main">
+          <section class="dashboard-card live-tower" aria-label="Timing tower">
+            <div class="live-card-head"><h2>Timing</h2><small>Select up to two drivers for telemetry</small></div>
+            <div class="live-table-wrap"><table class="live-table">
+              <thead><tr><th scope="col">P</th><th scope="col">Driver</th><th scope="col">Gap</th><th scope="col">Int</th><th scope="col">Last</th><th scope="col">S1</th><th scope="col">S2</th><th scope="col">S3</th><th scope="col">Best</th><th scope="col">Tyre</th><th scope="col">Pit</th></tr></thead>
+              <tbody data-live="tower"><tr><td colspan="11" class="live-empty">Waiting for timing data.</td></tr></tbody>
+            </table></div>
+          </section>
+        <section class="dashboard-card live-compare" aria-label="Compare completed laps">
+          <div class="live-card-head"><h2>Compare laps</h2><small data-live="lapsNote">Completed laps from this session · aligned by lap distance</small></div>
+          <div class="live-compare-pickers">
+            <div class="live-compare-pick"><span class="live-compare-key"></span>
+              <label>Driver <select id="liveCompareDriverA" data-live="driverA" aria-label="First driver"></select></label>
+              <label>Lap <select id="liveCompareLapA" data-live="lapA" aria-label="First driver's lap"></select></label></div>
+            <div class="live-compare-pick"><span class="live-compare-key is-second"></span>
+              <label>Driver <select id="liveCompareDriverB" data-live="driverB" aria-label="Second driver"></select></label>
+              <label>Lap <select id="liveCompareLapB" data-live="lapB" aria-label="Second driver's lap"></select></label></div>
+            <button type="button" class="live-button" data-live="bothFastest">Both fastest laps</button>
+          <button type="button" class="live-button" data-live="backfill" title="Load the laps Formula 1 has published for this session, including those from before you connected">Reload laps</button>
+          </div>
+          <div class="live-compare-summary" data-live="compareSummary"><p class="live-empty">Laps appear here as drivers complete them.</p></div>
+          <canvas data-live="compare" role="img" aria-label="Speed, time delta, throttle and brake over the lap for the two chosen laps"></canvas>
         </section>
-        <section class="dashboard-card live-map-card" aria-label="Track map">
-          <div class="live-card-head"><h2>Track</h2><small data-live="mapnote">Learning the circuit from car positions</small></div>
-          <canvas data-live="map" role="img" aria-label="Car positions on track"></canvas>
-        </section>
-        <section class="dashboard-card live-telemetry-card" aria-label="Live telemetry">
-          <div class="live-card-head"><h2>Telemetry</h2><small data-live="telenote">Last 20 seconds</small></div>
-          <div class="live-readouts" data-live="readouts"></div>
-          <canvas data-live="trace" role="img" aria-label="Speed, throttle and brake trace"></canvas>
-        </section>
-        <section class="dashboard-card live-side" aria-label="Race control and weather">
-          <div class="live-card-head"><h2>Conditions</h2></div>
-          <dl class="live-weather" data-live="weather"></dl>
-          <div class="live-card-head"><h2>Race control</h2></div>
-          <ol class="live-rc" data-live="rc"><li class="live-empty">No messages yet.</li></ol>
-        </section>
-      </div>
-      <section class="dashboard-card live-compare" aria-label="Compare completed laps">
-        <div class="live-card-head"><h2>Compare laps</h2><small>Completed laps from this session · aligned by lap distance (approximate: the feed sends about four telemetry samples a second)</small></div>
-        <div class="live-compare-pickers">
-          <div class="live-compare-pick"><span class="live-compare-key"></span>
-            <label>Driver <select id="liveCompareDriverA" data-live="driverA" aria-label="First driver"></select></label>
-            <label>Lap <select id="liveCompareLapA" data-live="lapA" aria-label="First driver's lap"></select></label></div>
-          <div class="live-compare-pick"><span class="live-compare-key is-second"></span>
-            <label>Driver <select id="liveCompareDriverB" data-live="driverB" aria-label="Second driver"></select></label>
-            <label>Lap <select id="liveCompareLapB" data-live="lapB" aria-label="Second driver's lap"></select></label></div>
-          <button type="button" class="live-button" data-live="bothFastest">Both fastest laps</button>
         </div>
-        <div class="live-compare-summary" data-live="compareSummary"><p class="live-empty">Laps appear here as drivers complete them.</p></div>
-        <canvas data-live="compare" role="img" aria-label="Speed, time delta, throttle and brake over the lap for the two chosen laps"></canvas>
-      </section>`;
+        <div class="live-col live-col-side">
+          <section class="dashboard-card live-map-card" aria-label="Track map">
+            <div class="live-card-head"><h2>Track</h2><small data-live="mapnote">Learning the circuit from car positions</small></div>
+            <canvas data-live="map" role="img" aria-label="Car positions on track"></canvas>
+          </section>
+          <section class="dashboard-card live-telemetry-card" aria-label="Live telemetry">
+            <div class="live-card-head"><h2>Telemetry</h2><small data-live="telenote">Last 20 seconds</small></div>
+            <div class="live-readouts" data-live="readouts"></div>
+            <canvas data-live="trace" role="img" aria-label="Speed, throttle and brake trace"></canvas>
+          </section>
+          <section class="dashboard-card live-side" aria-label="Race control and weather">
+            <div class="live-card-head"><h2>Conditions</h2></div>
+            <dl class="live-weather" data-live="weather"></dl>
+            <div class="live-card-head"><h2>Race control</h2></div>
+            <ol class="live-rc" data-live="rc"><li class="live-empty">No messages yet.</li></ol>
+          </section>
+        </div>
+      </div>`;
     const anchor = document.getElementById('carPerformance');
     (anchor || document.querySelector('main#top')).after(page);
     const speed = $(page, 'speed');
@@ -142,6 +147,7 @@
     new ResizeObserver(() => queueDraw()).observe(page);
     for (const name of ['driverA', 'driverB']) $(page, name).addEventListener('change', () => { syncLapOptions(); loadCompare(); });
     for (const name of ['lapA', 'lapB']) $(page, name).addEventListener('change', loadCompare);
+    $(page, 'backfill').addEventListener('click', () => backfill(true));
     $(page, 'bothFastest').addEventListener('click', () => { for (const name of ['lapA', 'lapB']) setSelect($(page, name), 'fastest'); loadCompare(); });
   }
 
@@ -307,6 +313,7 @@
   }
   function syncSource() {
     if (!page) return;
+    $(page, 'backfill').hidden = source?.kind !== 'live';
     const running = !!source?.running, badge = $(page, 'badge');
     badge.dataset.kind = running ? source.kind : 'idle';
     badge.textContent = running ? (source.kind === 'live' ? 'Live' : `Replay ${source.speed}×`) : source?.error ? 'Stopped' : 'Idle';
@@ -336,6 +343,7 @@
     syncSource(); syncDot();
     renderTower(); renderWeather(); renderRaceControl(); renderReadouts(); queueDraw();
     if (Date.now() - lapsFetchedAt > 5000) refreshLaps();
+    backfill();
   }
   function timeCell(row, value, flags = {}) {
     const cell = el('td', 'live-time', value || '');
@@ -361,7 +369,7 @@
       if (d.stint?.compound) {
         const [letter, hue] = TYRES[d.stint.compound] || ['?', '#8e8e93'];
         const badge = el('b', null, letter); badge.style.setProperty('--tyre', hue); badge.title = d.stint.compound.toLowerCase() + (d.stint.new ? ', new' : ', used');
-        tyre.append(badge, el('span', null, d.stint.laps ?? ''));
+        const group = el('span', 'live-tyre-group'); group.append(badge, el('span', null, d.stint.laps ?? '')); tyre.append(group);
       }
       row.append(tyre);
       const pit = d.retired ? 'OUT' : d.stopped ? 'STOP' : d.in_pit ? 'PIT' : d.pit_out ? 'OUT LAP' : d.pits ? String(d.pits) : '';
@@ -403,6 +411,28 @@
         el('span', last.brake ? 'is-braking' : null, last.brake ? 'Brake' : ''));
       return card;
     }));
+  }
+
+  // ---------- earlier laps from Formula 1's archive ----------
+  const backfilled = new Set();
+  async function backfill(force = false) {
+    const path = state?.session?.path;
+    if (source?.kind !== 'live' || !path || (!force && backfilled.has(path))) return;
+    backfilled.add(path);
+    const note = $(page, 'lapsNote');
+    note.textContent = 'Loading the laps Formula 1 has published for this session…';
+    try {
+      await post('backfill');
+      for (let i = 0; i < 60; i++) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const status = (await api('status')).backfill || {};
+        if (!status.running) {
+          note.textContent = status.error || `Completed laps from this session · ${status.laps} loaded from Formula 1 · aligned by lap distance`;
+          lapsFetchedAt = 0; refreshLaps();
+          return;
+        }
+      }
+    } catch (error) { note.textContent = error.message || String(error); }
   }
 
   // ---------- completed lap comparison ----------

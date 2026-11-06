@@ -44,11 +44,9 @@ body.live-view .performance-tabs[data-ui-thumb]::before { opacity: 0; }
 .live-progress { height: 3px; margin-top: 10px; border-radius: 3px; background: var(--ui-well); overflow: hidden; }
 .live-progress span { display: block; height: 100%; background: var(--ui-accent, #0a84ff); transition: width .5s linear; }
 
-.live-grid { display: grid; gap: 14px; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); grid-template-areas: "tower map" "tower telemetry" "tower side"; align-items: start; }
-.live-tower { grid-area: tower; padding: 12px 6px 6px; }
-.live-map-card { grid-area: map; }
-.live-telemetry-card { grid-area: telemetry; }
-.live-side { grid-area: side; }
+.live-grid { display: grid; gap: 14px; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); align-items: start; }
+.live-col { display: grid; gap: 14px; min-width: 0; align-content: start; }
+.live-tower { padding: 12px 6px 6px; }
 .live-map-card, .live-telemetry-card, .live-side { padding: 12px 14px; }
 .live-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 0 0 8px; padding: 0 8px; }
 .live-map-card .live-card-head, .live-telemetry-card .live-card-head, .live-side .live-card-head { padding: 0; }
@@ -74,7 +72,7 @@ body.live-view .performance-tabs[data-ui-thumb]::before { opacity: 0; }
 .live-time.is-overall { color: #bf5af2; font-weight: 600; }
 :root[data-theme="light"] .live-time.is-personal { color: #248a3d; }
 :root[data-theme="light"] .live-time.is-overall { color: #8944ab; }
-.live-tyre { display: flex; align-items: center; gap: 6px; }
+.live-tyre-group { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; }
 .live-tyre b { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--tyre); font-size: 10px; font-weight: 700; color: var(--ui-label); box-sizing: border-box; }
 .live-tyre span { color: var(--ui-secondary); }
 .live-pit { color: var(--ui-secondary); font-size: var(--text-xs, 12px); }
@@ -121,7 +119,9 @@ body.live-view .performance-tabs[data-ui-thumb]::before { opacity: 0; }
 .live-compare canvas { display: block; width: 100%; height: clamp(280px, 26vw, 380px); }
 
 @media (max-width: 1080px) {
-  .live-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "map" "tower" "telemetry" "side"; }
+  .live-grid { grid-template-columns: minmax(0, 1fr); }
+  .live-col { display: contents; }
+  .live-map-card { order: 1; } .live-tower { order: 2; } .live-telemetry-card { order: 3; } .live-compare { order: 4; } .live-side { order: 5; }
   .live-map-card canvas { height: clamp(240px, 60vw, 380px); }
 }
 @media (max-width: 960px) {
@@ -139,3 +139,4 @@ body.live-view .performance-tabs[data-ui-thumb]::before { opacity: 0; }
 .live-signin-error { flex-basis: 100%; margin: 0; color: #ff453a; font-size: var(--text-sm, 13px); }
 .live-signin-or { color: var(--ui-tertiary); font-size: var(--text-xs, 12px); }
 .live-signin-note a { color: var(--ui-accent, #0a84ff); }
+.live-table td { vertical-align: middle; }
