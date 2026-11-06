@@ -6,7 +6,7 @@ All other routes use the shared backend, including native per-lap telemetry.
 from datetime import datetime, timezone
 import time
 
-from fastapi import FastAPI, HTTPException, Query, Response
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 import server
 
 app = FastAPI()
@@ -62,6 +62,159 @@ def session_data(response: Response, year: int = Query(2025, ge=2014),
                 raise
             # Older weekends absent from OpenF1 can still use the archive.
     return server.session_data(response, year, gp, round, session, fresh)
+
+
+# ---------- Live timing (this machine only; never part of the hosted site) ----------
+import asyncio
+import json as _json
+import os
+import re
+from pathlib import Path
+
+from fastapi import Body
+from fastapi.responses import StreamingResponse
+
+import live_timing
+
+REPLAY_CACHE = Path(os.environ.get('APEX_REPLAY_CACHE') or server.CACHE)
+LIVE = live_timing.LiveManager(Path(os.environ.get('APEX_LIVE_DIR') or Path.home() / 'apex-data' / 'live'), str(REPLAY_CACHE))
+_SESSION_DIR = re.compile(r'^\d{4}-\d{2}-\d{2}_(.+)$')
+
+
+def replay_sessions():
+    """Sessions whose folders exist in the FastF1 cache, newest first: the ones a replay can read offline."""
+    found = []
+    for year_dir in REPLAY_CACHE.glob('[12][0-9][0-9][0-9]'):
+        for event_dir in year_dir.iterdir():
+            event = _SESSION_DIR.match(event_dir.name)
+            if not event_dir.is_dir() or not event:
+                continue
+            for session_dir in event_dir.iterdir():
+                session = _SESSION_DIR.match(session_dir.name)
+                if session_dir.is_dir() and session:
+                    found.append({'path': f'/static/{year_dir.name}/{event_dir.name}/{session_dir.name}/',
+                                  'year': int(year_dir.name), 'event': event.group(1).replace('_', ' '),
+                                  'session': session.group(1).replace('_', ' '), 'date': session_dir.name[:10]})
+    return sorted(found, key=lambda s: (s['date'], s['path']), reverse=True)
+
+
+@app.get('/api/live/status')
+def live_status():
+    return {**LIVE.status(), 'replays': replay_sessions()}
+
+
+@app.get('/api/live/state')
+def live_state():
+    return LIVE.state.snapshot()
+
+
+@app.get('/api/live/outline')
+def live_outline():
+    return LIVE.state.outline()
+
+
+@app.get('/api/live/telemetry')
+def live_telemetry(drivers: str = Query('', max_length=200), seconds: float = Query(60, gt=0, le=live_timing.TELEMETRY_SECONDS)):
+    numbers = [d for d in drivers.split(',') if d.isdigit()][:6]
+    return LIVE.state.telemetry_for(numbers, seconds)
+
+
+@app.get('/api/live/laps')
+def live_laps():
+    return LIVE.state.lap_list()
+
+
+@app.get('/api/live/lap')
+def live_lap(driver: str = Query(..., pattern=r'^\d{1,3}$'), lap: str = Query('fastest', pattern=r'^(fastest|last|\d{1,3})$')):
+    trace = LIVE.state.lap_trace(driver, lap)
+    if not trace:
+        raise HTTPException(404, 'That lap has not been completed in this session yet.')
+    return trace
+
+
+@app.post('/api/live/start')
+def live_start(body: dict = Body(...)):
+    mode = body.get('mode')
+    if mode == 'live':
+        return LIVE.start_live()
+    if mode == 'replay':
+        path = str(body.get('path') or '')
+        if path not in {s['path'] for s in replay_sessions()}:
+            raise HTTPException(404, 'That session is not in the local cache.')
+        try:
+            speed, start = float(body.get('speed', 1)), float(body.get('start', 0))
+        except (TypeError, ValueError):
+            raise HTTPException(422, 'Speed and start must be numbers.')
+        return LIVE.start_replay(path, min(max(speed, .1), 200), max(start, 0))
+    raise HTTPException(422, 'mode must be live or replay')
+
+
+_SIGNIN = {'process': None}
+
+
+@app.post('/api/live/signin')
+def live_signin():
+    """Open a console window on this PC running FastF1's own F1 TV sign-in. The person types their F1 account details
+    there; they go from FastF1 to Formula 1 and never pass through this API or the page. The token FastF1 stores is
+    what the live connection then uses (see live_timing.stored_token_status)."""
+    import subprocess
+    import sys
+    running = _SIGNIN['process']
+    if running is not None and running.poll() is None:
+        return {'started': False, 'running': True}
+    command = [sys.executable, '-m', 'fastf1', 'auth', 'f1tv', '--authenticate', '--method', 'password']
+    if os.name != 'nt':
+        raise HTTPException(501, 'Run this in a terminal: ' + ' '.join(command))
+    # The window stays open after the sign-in, so its result can be read before closing it.
+    _SIGNIN['process'] = subprocess.Popen(['cmd', '/c', subprocess.list2cmdline(command) + ' & echo. & pause'],
+                                          creationflags=subprocess.CREATE_NEW_CONSOLE)
+    return {'started': True, 'running': True}
+
+
+@app.post('/api/live/signout')
+def live_signout():
+    """Forget the F1 TV sign-in stored on this PC."""
+    try:
+        from fastf1.internals.f1account import clear_token
+        clear_token()
+    except Exception as exc:
+        raise HTTPException(500, f'Could not clear the stored sign-in: {exc}')
+    return {'auth': live_timing.stored_token_status()}
+
+
+@app.post('/api/live/stop')
+def live_stop():
+    return LIVE.stop()
+
+
+@app.get('/api/live/stream')
+async def live_stream(request: Request, drivers: str = Query('', max_length=200)):
+    """Server-sent events: the timing snapshot at most twice a second, telemetry for chosen drivers, the outline when it changes."""
+    numbers = [d for d in drivers.split(',') if d.isdigit()][:6]
+
+    async def events():
+        seen, outline_seen, beat = -1, None, 0.0
+        yield 'retry: 2000\n\n'
+        while not await request.is_disconnected():
+            version = LIVE.state.version
+            now = time.monotonic()
+            if version != seen:
+                seen = version
+                payload = {'state': LIVE.state.snapshot(), 'source': LIVE.status()['source']}
+                if numbers:
+                    payload['telemetry'] = LIVE.state.telemetry_for(numbers, 20)
+                outline = LIVE.state.outline()
+                if outline['complete'] != outline_seen:
+                    outline_seen = outline['complete']
+                    payload['outline'] = outline
+                yield f'data: {_json.dumps(payload, separators=(",", ":"), default=str)}\n\n'
+                beat = now
+            elif now - beat > 10:
+                yield ': alive\n\n'
+                beat = now
+            await asyncio.sleep(.5)
+
+    return StreamingResponse(events(), media_type='text/event-stream', headers={'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no'})
 
 
 app.mount('/', server.app)
