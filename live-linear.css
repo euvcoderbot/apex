@@ -58,3 +58,5 @@
 :root[data-skin="linear"][data-skin] #liveTiming .live-table tbody tr:hover td { background: var(--lin-nav-hover); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-table tbody tr[aria-selected="true"] td { background: var(--lin-nav-active); }
 :root[data-skin="linear"][data-skin] #liveTiming :is(.live-readout, .live-compare-lap, .live-rc li) { border-radius: 8px; background: var(--lin-band); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-signin input { height: 28px; min-height: 28px; border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); font: 400 12px/1 var(--ui-font); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-signin label { font: 510 12px/1 var(--ui-font); color: var(--ui-tertiary); }

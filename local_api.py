@@ -149,26 +149,27 @@ def live_start(body: dict = Body(...)):
     raise HTTPException(422, 'mode must be live or replay')
 
 
-_SIGNIN = {'process': None}
-
-
 @app.post('/api/live/signin')
-def live_signin():
-    """Open a console window on this PC running FastF1's own F1 TV sign-in. The person types their F1 account details
-    there; they go from FastF1 to Formula 1 and never pass through this API or the page. The token FastF1 stores is
-    what the live connection then uses (see live_timing.stored_token_status)."""
-    import subprocess
-    import sys
-    running = _SIGNIN['process']
-    if running is not None and running.poll() is None:
-        return {'started': False, 'running': True}
-    command = [sys.executable, '-m', 'fastf1', 'auth', 'f1tv', '--authenticate', '--method', 'password']
-    if os.name != 'nt':
-        raise HTTPException(501, 'Run this in a terminal: ' + ' '.join(command))
-    # The window stays open after the sign-in, so its result can be read before closing it.
-    _SIGNIN['process'] = subprocess.Popen(['cmd', '/c', subprocess.list2cmdline(command) + ' & echo. & pause'],
-                                          creationflags=subprocess.CREATE_NEW_CONSOLE)
-    return {'started': True, 'running': True}
+def live_signin(body: dict = Body(...)):
+    """Sign in to the F1 TV account with FastF1's own sign-in. The email and password are used for this one request,
+    passed straight to FastF1 (which talks only to Formula 1's sign-in service) and never stored or logged; FastF1
+    stores the resulting token on this PC, which the live connection then uses."""
+    email, password = str(body.get('email') or '').strip(), str(body.get('password') or '')
+    if not email or not password:
+        raise HTTPException(422, 'Enter your F1 TV email and password.')
+    try:
+        from fastf1.exceptions import F1AuthError
+        from fastf1.internals.f1account import token_manager
+        from fastf1.internals.f1account.login import login
+    except Exception:
+        raise HTTPException(501, 'FastF1 3.9.2 or newer is needed to sign in.')
+    try:
+        token_manager.get(force_renew=True, auth_func=lambda: login(email, password))
+    except F1AuthError as exc:
+        raise HTTPException(401, str(exc) or 'Formula 1 did not accept the sign-in.')
+    finally:
+        password = None
+    return {'auth': live_timing.stored_token_status()}
 
 
 @app.post('/api/live/signout')

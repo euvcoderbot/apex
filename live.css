@@ -132,3 +132,8 @@ body.live-view .performance-tabs[data-ui-thumb]::before { opacity: 0; }
   .live-source-row { align-items: stretch; }
 }
 .live-quiet { background: transparent; color: var(--ui-secondary); }
+.live-signin { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--ui-border); }
+.live-signin label { display: inline-flex; align-items: center; gap: 6px; color: var(--ui-secondary); font-size: var(--text-sm, 13px); }
+.live-signin input { min-height: 30px; width: 220px; max-width: 70vw; padding: 3px 12px; border: 1px solid var(--ui-border-strong, var(--ui-border)); border-radius: var(--radius-pill); background: var(--ui-control); color: var(--ui-label); font: inherit; font-size: var(--text-sm, 13px); }
+.live-signin-note { flex-basis: 100%; margin: 0; color: var(--ui-tertiary); font-size: var(--text-xs, 12px); }
+.live-signin-error { flex-basis: 100%; margin: 0; color: #ff453a; font-size: var(--text-sm, 13px); }

@@ -52,7 +52,7 @@
           <div class="live-source-group">
             <button type="button" class="live-button live-primary" data-live="connect">Connect to live timing</button>
             <span class="live-auth" data-live="auth"></span>
-            <button type="button" class="live-button" data-live="signin">Sign in to F1 TV</button>
+            <button type="button" class="live-button" data-live="signin" aria-expanded="false" aria-controls="liveSignin">Sign in to F1 TV</button>
             <button type="button" class="live-button live-quiet" data-live="signout" hidden>Sign out</button>
           </div>
           <div class="live-source-group live-replay">
@@ -63,6 +63,14 @@
           </div>
           <button type="button" class="live-button" data-live="stop" hidden>Stop</button>
         </div>
+        <form id="liveSignin" class="live-signin" data-live="signinForm" hidden>
+          <label>F1 TV email <input name="email" type="email" autocomplete="username" required></label>
+          <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+          <button type="submit" class="live-button live-primary">Sign in</button>
+          <button type="button" class="live-button" data-live="signinCancel">Cancel</button>
+          <p class="live-signin-note">Sent only to the local app on this PC, which passes it to FastF1's sign-in with Formula 1. Only the resulting sign-in token is kept; the password is not stored.</p>
+          <p class="live-signin-error" data-live="signinError" role="alert" hidden></p>
+        </form>
         <p class="live-help" data-live="help" hidden></p>
         <div class="live-progress" data-live="progress" hidden><span></span></div>
       </section>
@@ -109,7 +117,9 @@
     const speed = $(page, 'speed');
     for (const value of SPEEDS) speed.append(new Option(value + '×', value, value === 10, value === 10));
     $(page, 'connect').addEventListener('click', () => start({mode: 'live'}));
-    $(page, 'signin').addEventListener('click', signIn);
+    $(page, 'signin').addEventListener('click', () => showSignin($(page, 'signinForm').hidden));
+    $(page, 'signinCancel').addEventListener('click', () => showSignin(false));
+    $(page, 'signinForm').addEventListener('submit', submitSignin);
     $(page, 'signout').addEventListener('click', signOut);
     $(page, 'play').addEventListener('click', () => {
       const path = $(page, 'replay').value; if (!path) return;
@@ -189,24 +199,30 @@
     try { applyStatus(await api('status')); } catch (error) { showError(error); }
   }
   // ---------- F1 TV sign-in ----------
-  let signinWaiting = false, signinTimer = null;
+  let signinBusy = false;
   function signedIn(yes) {
     $(page, 'signin').hidden = yes; $(page, 'signout').hidden = !yes;
-    $(page, 'signin').textContent = signinWaiting && !yes ? 'Waiting for sign-in…' : 'Sign in to F1 TV';
-    if (yes && signinWaiting) { signinWaiting = false; clearInterval(signinTimer); }
+    if (yes) showSignin(false);
   }
-  async function signIn() {
+  function showSignin(open) {
+    const form = $(page, 'signinForm');
+    form.hidden = !open; $(page, 'signin').setAttribute('aria-expanded', String(open));
+    if (open) form.elements.email.focus(); else { form.elements.password.value = ''; $(page, 'signinError').hidden = true; }
+  }
+  async function submitSignin(event) {
+    event.preventDefault();
+    if (signinBusy) return;
+    const form = event.currentTarget, error = $(page, 'signinError'), submit = form.querySelector('[type="submit"]');
+    signinBusy = true; submit.disabled = true; submit.textContent = 'Signing in…'; error.hidden = true;
     try {
-      await post('signin');
-      signinWaiting = true; refreshStatus();
-      clearInterval(signinTimer);
-      const started = Date.now();
-      // Watch for the stored sign-in for ten minutes; the person may take a while in the window.
-      signinTimer = setInterval(() => {
-        if (Date.now() - started > 600000) { signinWaiting = false; clearInterval(signinTimer); }
-        refreshStatus();
-      }, 3000);
-    } catch (error) { showError(error); }
+      const reply = await post('signin', {email: form.elements.email.value, password: form.elements.password.value});
+      form.elements.password.value = '';
+      applyStatus({auth: reply.auth, source, replays: null});
+    } catch (problem) {
+      error.textContent = problem.message || String(problem); error.hidden = false;
+    } finally {
+      signinBusy = false; submit.disabled = false; submit.textContent = 'Sign in';
+    }
   }
   async function signOut() {
     try { await post('signout'); refreshStatus(); } catch (error) { showError(error); }
@@ -224,9 +240,7 @@
     } else {
       authText.textContent = auth.reason || 'Not signed in.';
       help.hidden = false;
-      help.textContent = signinWaiting
-        ? 'A sign-in window is open on this PC. Enter your F1 TV email and password there; this page updates by itself once you are signed in.'
-        : 'Live timing needs your F1 TV account. Press Sign in: a window opens on this PC where you enter your F1 TV details (they go straight to Formula 1, not to this page). The sign-in lasts a few days. Replays need no sign-in.';
+      help.textContent = 'Live timing needs your F1 TV account (Access or Pro). Sign in once; it lasts a few days. Replays need no sign-in.';
       signedIn(false);
     }
     if (Array.isArray(status.replays)) {
