@@ -349,7 +349,15 @@
   function render() {
     if (!active || !state) { syncSource(); syncDot(); return; }
     const s = state.session || {};
-    $(page, 'title').textContent = s.meeting ? `${s.meeting} · ${s.name || ''}` : 'Waiting for session data';
+    const title = $(page, 'title'), titleText = s.meeting ? `${s.meeting} · ${s.name || ''}` : 'Waiting for session data';
+    if (title.dataset.text !== titleText) {
+    title.dataset.text = titleText; title.textContent = titleText;
+    const country = s.meeting && window.grandPrixCountryCode?.({name: s.meeting, country: s.country});
+    if (/^[A-Z]{2}$/.test(country || '')) {
+      const img = el('img', 'title-flag'); img.src = `assets/flags/${country.toLowerCase()}.svg`; img.alt = ''; img.width = 24; img.height = 18;
+      title.prepend(img);
+    }
+    }
     $(page, 'subtitle').textContent = [s.circuit, s.status].filter(Boolean).join(' · ') || 'Connected. Timing appears when the session sends it.';
     const lap = $(page, 'lap');
     lap.hidden = !state.lap?.current;

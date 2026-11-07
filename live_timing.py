@@ -621,6 +621,7 @@ class LiveState:
                 'session': {'name': info.get('Name'), 'type': info.get('Type'), 'meeting': meeting.get('Name') or meeting.get('OfficialName'),
                             'circuit': (meeting.get('Circuit') or {}).get('ShortName'), 'path': info.get('Path'),
                             'circuit_key': (meeting.get('Circuit') or {}).get('Key'), 'year': _session_year(info),
+                            'country': (meeting.get('Country') or {}).get('Name'),
                             'status': status.get('Status') or (info.get('ArchiveStatus') or {}).get('Status')},
                 'track_status': {'code': str(track.get('Status')) if track.get('Status') is not None else None,
                                  'label': TRACK_STATUS.get(str(track.get('Status')), track.get('Message'))},

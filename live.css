@@ -188,3 +188,4 @@ body.live-view .performance-tabs[data-ui-thumb]::before { opacity: 0; }
 .live-source .select-shell:has(#liveSpeed) { width: 76px; }
 .live-source .select-shell .select-trigger { width: 100%; }
 @media (min-width: 1081px) { .live-source-group { flex-wrap: nowrap; } }
+.live-title h1 .title-flag { width: 24px; height: 18px; margin-right: 10px; vertical-align: -2px; border-radius: 3px; object-fit: cover; box-shadow: 0 0 0 1px #00000024; }

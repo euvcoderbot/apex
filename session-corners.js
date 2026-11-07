@@ -51,7 +51,14 @@ function renderAll() {
   const sessionContext = $('#loadedSessionContext');
   if (sessionContext) {
     sessionContext.hidden = !sessionEventName;
+    // The text stays as it was (screenshots read it); the event's flag, as on the Grand Prix chip, goes in front.
     sessionContext.textContent = sessionEventName ? `${sessionYear} · ${sessionEventName} · ${loadedSessionName}` : '';
+    const code = sessionEventName && grandPrixCountryCode({name: sessionEventName});   // from the loaded event, never the pending menu
+    if (/^[A-Z]{2}$/.test(code || '')) {
+      const flag = document.createElement('img');
+      flag.className = 'title-flag'; flag.src = `assets/flags/${code.toLowerCase()}.svg`; flag.alt = ''; flag.width = 20; flag.height = 15;
+      sessionContext.prepend(flag);
+    }
   }
   updateTelemetryVisibility();
   renderLoaded();
