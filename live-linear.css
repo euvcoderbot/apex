@@ -91,3 +91,7 @@
 :root[data-skin="linear"][data-skin] #liveTiming :is(.live-picker-lap, .live-lap-add, .live-picker-driver):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { height: auto; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-picker-lap:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { min-height: 36px; padding: 7px 10px; border-radius: 8px; row-gap: 2px; align-content: center; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-picker-driver:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { height: 30px; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-sectors-cell { border-radius: 6px; background: var(--lin-band); box-shadow: inset 0 0 0 1px var(--lin-card-border); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-sectors-cell b { font: 590 13px/1.2 var(--ui-font); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-sectors-cell.is-lap b { font-size: 14px; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-sectors-row.is-head span { font: 510 11px/1 var(--ui-font); color: var(--ui-tertiary); }

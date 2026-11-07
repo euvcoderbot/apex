@@ -603,31 +603,39 @@
     }));
     renderChips(); renderSectorTable(); queueDraw();
   }
+  // Sector times of the compared laps, as the main page's sector cards: one aligned column per sector and the lap,
+  // a bar on each cell (purple fastest of these laps, green faster than the reference, red slower), the time, then
+  // the gap to the reference underneath (the reference row says "Ref" there, so every row is the same height).
   function renderSectorTable() {
     const box = $(page, 'sectorTable'), colours = pickColours();
     const rows = compareTraces.map((trace, i) => trace && {trace, colour: colours[i]}).filter(Boolean);
     if (!rows.length || !rows.some(r => r.trace.sectors?.length === 3)) { box.replaceChildren(); return; }
     const value = (r, k) => (k < 3 ? r.trace.sectors?.[k]?.seconds : r.trace.seconds) ?? null;
+    const text = (r, k) => (k < 3 ? r.trace.sectors?.[k]?.time : r.trace.time) || null;
     const best = [0, 1, 2, 3].map(k => Math.min(...rows.map(r => value(r, k) ?? Infinity)));
-    const table = el('table', 'live-sector-grid');
-    const head = el('tr'); ['', 'S1', 'S2', 'S3', 'Lap'].forEach(text => head.append(el('th', null, text)));
-    table.append(el('thead')); table.tHead.append(head);
-    const body = el('tbody');
+    const grid = el('div', 'live-sectors'); grid.setAttribute('role', 'table'); grid.setAttribute('aria-label', 'Sector times of the compared laps');
+    const head = el('div', 'live-sectors-row is-head'); head.setAttribute('role', 'row');
+    ['Lap', 'Sector 1', 'Sector 2', 'Sector 3', 'Lap time'].forEach((label, k) => { const c = el('span', null, label); c.setAttribute('role', k ? 'columnheader' : 'rowheader'); head.append(c); });
+    grid.append(head);
     rows.forEach((r, i) => {
-      const tr = el('tr'), who = el('th'); who.scope = 'row';
-      const tag = el('span', 'live-sector-who'); tag.style.setProperty('--team', r.colour);
-      tag.append(el('i'), el('strong', null, driverFor(r.trace.driver).code), el('small', null, `L${r.trace.lap}`)); who.append(tag); tr.append(who);
+      const row = el('div', 'live-sectors-row'); row.setAttribute('role', 'row');
+      const who = el('div', 'live-sectors-who'); who.setAttribute('role', 'rowheader'); who.style.setProperty('--team', r.colour);
+      who.append(el('i'), el('strong', null, driverFor(r.trace.driver).code), el('small', null, `L${r.trace.lap}`));
+      row.append(who);
       for (let k = 0; k < 4; k++) {
-        const v = value(r, k), ref = value(rows[0], k), td = el('td');
-        if (v == null) { td.textContent = '—'; tr.append(td); continue; }
-        td.append(el('b', v === best[k] && rows.length > 1 ? 'is-best' : null, k < 3 ? r.trace.sectors[k].time : r.trace.time));
-        if (i && ref != null) { const gap = v - ref; td.append(el('small', gap > 0 ? 'is-slower' : gap < 0 ? 'is-faster' : null, formatGap(gap))); }
-        tr.append(td);
+        const v = value(r, k), ref = value(rows[0], k), cell = el('div', 'live-sectors-cell'); cell.setAttribute('role', 'cell');
+        if (k === 3) cell.classList.add('is-lap');
+        if (!i) cell.classList.add('is-ref');
+        const gap = i && v != null && ref != null ? v - ref : null;
+        cell.dataset.tone = v == null ? 'none' : rows.length > 1 && v === best[k] ? 'best' : !i ? 'ref' : gap < 0 ? 'faster' : gap > 0 ? 'slower' : 'ref';
+        cell.append(el('b', null, text(r, k) || '—'), el('small', null, !i ? (rows.length > 1 ? 'Ref' : '') : gap == null ? '' : formatGap(gap)));
+        row.append(cell);
       }
-      body.append(tr);
+      grid.append(row);
     });
-    table.append(body); box.replaceChildren(table);
+    box.replaceChildren(grid);
   }
+
   // Time at a given distance along a lap (linear interpolation).
   function timeAt(trace, x) {
     const xs = trace.x; let lo = 0, hi = xs.length - 1;
