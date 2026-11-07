@@ -58,6 +58,7 @@ const staticFiles = [
   "team-colours.js",
   "linear-workspace.js",
   "live.js",
+  "season.js",
   "lap-sheet.js",
   "alignment.js",
   "telemetry-model.js",

@@ -5,7 +5,7 @@ import {gunzipSync} from 'node:zlib';
 const {session,performance,telemetry}=JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/qualifying-comparison.json.gz',import.meta.url))));
 const calendar=[{year:2026,round:18,name:'United States Grand Prix',country:'United States',location:'Austin',date:'2026-10-25',sessions:['Practice 1','Qualifying','Race'],session_statuses:{Qualifying:'completed'}}];
 
-async function loaded(page,{missing=false,partial=false}={}){
+async function loaded(page,{missing=false,partial=false,corners=null}={}){
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.route(/127\.0\.0\.1:54123/,route=>route.abort());
   await page.route('**/config.js*',route=>route.fulfill({contentType:'text/javascript',body:'window.APEX_API_ORIGIN="";window.APEX_SNAPSHOT_MODE=false;window.APEX_LOCAL_MODE=true;'}));
@@ -16,7 +16,7 @@ async function loaded(page,{missing=false,partial=false}={}){
     if(url.pathname==='/api/events')payload=calendar;
     else if(url.pathname==='/api/session')payload=partial?{...session,lap_data_complete:false,
       telemetry_complete:false,drivers:session.drivers.map((driver,i)=>i?driver:{...driver,
-        lap_data_complete:false,missing_laps:[2],telemetry_missing_laps:[2]})}:session;
+        lap_data_complete:false,missing_laps:[2],telemetry_missing_laps:[2]})}:corners?{...session,corners}:session;
     else if(url.pathname==='/api/performance'&&url.searchParams.get('session')==='Q')payload=performance;
     else if(url.pathname==='/api/telemetry'){
       if(missing&&url.searchParams.get('driver')==='VER')return route.fulfill({status:503,contentType:'application/json',body:'{"detail":"Telemetry unavailable for this lap"}'});
@@ -36,6 +36,50 @@ test('recorded qualifying comparison renders both laps and supports trace toggle
   const toggle=page.locator('input[data-trace-key]').first();
   await toggle.focus();await toggle.press('Space');await expect(toggle).not.toBeChecked();
   await toggle.press('Space');await expect(toggle).toBeChecked();
+  expect(errors).toEqual([]);
+});
+
+test('telemetry display controls apply to every graph and retain independent annotations',async({page},testInfo)=>{
+  // Observe text actually painted on each canvas, rather than only control state.
+  await page.addInitScript(()=>{
+    const original=CanvasRenderingContext2D.prototype.fillText;
+    const clear=CanvasRenderingContext2D.prototype.clearRect;
+    CanvasRenderingContext2D.prototype.clearRect=function(...args){
+      this.canvas.paintedLabels=[];
+      return clear.apply(this,args);
+    };
+    CanvasRenderingContext2D.prototype.fillText=function(text,...args){
+      (this.canvas.paintedLabels??=[]).push(String(text));
+      return original.call(this,text,...args);
+    };
+  });
+  // The recorded fixture carries no corner positions; give this test three, as lap fractions, so corner labels can be painted.
+  const errors=await loaded(page,{corners:[{number:1,fraction:.06},{number:12,fraction:.42},{number:19,fraction:.83}]});
+  const canvases=page.locator('canvas[data-chart]');
+  // The heading shows the event's country flag before its name (as on the Grand Prix chip).
+  await expect(page.locator('#loadedSessionContext')).toContainText('United States Grand Prix');
+  await expect(page.locator('#loadedSessionContext img.title-flag')).toHaveAttribute('src',/flags\/us\.svg$/);
+  const painted=()=>canvases.evaluateAll(nodes=>nodes.map(c=>({name:c.dataset.chart,labels:c.paintedLabels||[]})));
+  await expect.poll(async()=> (await painted()).every(c=>c.labels.some(t=>/^T\d/.test(t)))).toBe(true);
+  // The styled switch's label covers its input, as for a person: click the label, then check the state.
+  const toggle=async(id,on)=>{
+    const input=page.locator('#'+id);
+    if(await input.isChecked()!==on)await page.locator('label.trace-setting',{has:input}).click();
+    await expect(input).toBeChecked({checked:on});
+  };
+  await page.locator('.trace-display-menu').first().locator('summary').click();
+  await toggle('distanceNumbersToggle',false);
+  await expect.poll(async()=> (await painted()).every(c=>!c.labels.some(t=>/^\d+ M$/.test(t)))).toBe(true);
+  await toggle('speedAnnotationToggle',true);
+  await toggle('cornerToggle',false);
+  await expect.poll(async()=> (await painted()).every(c=>!c.labels.some(t=>/^T\d/.test(t)))).toBe(true);
+  await expect(page.locator('#speedAnnotationToggle')).toBeChecked();
+  await toggle('cornerToggle',true);
+  await page.locator('.trace-display-menu').first().locator('summary').click();
+  await page.locator('#telemetryCard').screenshot({path:testInfo.outputPath('telemetry-display.png')});
+  await page.reload();
+  await expect(page.locator('canvas[data-chart="Speed trace"]')).toBeVisible();
+  await expect(page.locator('#distanceNumbersToggle')).not.toBeChecked();
   expect(errors).toEqual([]);
 });
 

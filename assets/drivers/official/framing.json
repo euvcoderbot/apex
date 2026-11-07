@@ -1,0 +1,112 @@
+{
+ "alealb01": {
+  "head_x": 0.4813,
+  "head_top": 0.0417,
+  "head_w": 0.2917
+ },
+ "andant01": {
+  "head_x": 0.4688,
+  "head_top": 0.0333,
+  "head_w": 0.3333
+ },
+ "arvlin01": {
+  "head_x": 0.4979,
+  "head_top": 0.0292,
+  "head_w": 0.2958
+ },
+ "carsai01": {
+  "head_x": 0.5083,
+  "head_top": 0.05,
+  "head_w": 0.3208
+ },
+ "chalec01": {
+  "head_x": 0.4896,
+  "head_top": 0.0208,
+  "head_w": 0.3125
+ },
+ "feralo01": {
+  "head_x": 0.4729,
+  "head_top": 0.0125,
+  "head_w": 0.2958
+ },
+ "fracol01": {
+  "head_x": 0.4958,
+  "head_top": 0.0333,
+  "head_w": 0.3208
+ },
+ "gabbor01": {
+  "head_x": 0.5125,
+  "head_top": 0.0167,
+  "head_w": 0.3208
+ },
+ "georus01": {
+  "head_x": 0.4875,
+  "head_top": 0.0375,
+  "head_w": 0.3125
+ },
+ "isahad01": {
+  "head_x": 0.5083,
+  "head_top": 0.0167,
+  "head_w": 0.2917
+ },
+ "lannor01": {
+  "head_x": 0.5104,
+  "head_top": 0.0208,
+  "head_w": 0.3375
+ },
+ "lanstr01": {
+  "head_x": 0.5167,
+  "head_top": 0.0125,
+  "head_w": 0.3
+ },
+ "lewham01": {
+  "head_x": 0.5,
+  "head_top": 0.025,
+  "head_w": 0.2917
+ },
+ "lialaw01": {
+  "head_x": 0.5062,
+  "head_top": 0.0292,
+  "head_w": 0.3083
+ },
+ "maxver01": {
+  "head_x": 0.4562,
+  "head_top": 0.0208,
+  "head_w": 0.2958
+ },
+ "nichul01": {
+  "head_x": 0.4958,
+  "head_top": 0.0167,
+  "head_w": 0.2792
+ },
+ "olibea01": {
+  "head_x": 0.5125,
+  "head_top": 0.0208,
+  "head_w": 0.2917
+ },
+ "oscpia01": {
+  "head_x": 0.5125,
+  "head_top": 0.0417,
+  "head_w": 0.3083
+ },
+ "piegas01": {
+  "head_x": 0.4208,
+  "head_top": 0.0292,
+  "head_w": 0.3
+ },
+ "rafcam01": {
+  "head_x": 0.5354,
+  "head_top": 0.0458,
+  "head_w": 0.3083
+ },
+ "serper01": {
+  "head_x": 0.4729,
+  "head_top": 0.0208,
+  "head_w": 0.3
+ },
+ "valbot01": {
+  "head_x": 0.5104,
+  "head_top": 0.0167,
+  "head_w": 0.2875
+ }
+}

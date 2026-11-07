@@ -172,12 +172,22 @@
     button.addEventListener('click', () => (active ? null : enter()));
   }
 
+  // In the header's tab list the button is one more tab (aria-selected); in the Linear rail it is a toggle (aria-pressed).
+  function mark(on) {
+    if (button.closest('.performance-tabs')) {
+      button.setAttribute('role', 'tab'); button.removeAttribute('aria-pressed'); button.setAttribute('aria-selected', String(on));
+    } else {
+      button.removeAttribute('role'); button.removeAttribute('aria-selected'); button.setAttribute('aria-pressed', String(on));
+    }
+  }
+
   // macOS look: a pill beside the view tabs. Linear look: a row in the rail's Analysis section.
   function place() {
     const rail = root.dataset.skin === 'linear' && document.querySelector('#linearWorkspace .linear-navigation');
     if (rail) rail.append(button);
     // macOS look: the third segment of the view tabs (Session analysis · Car performance · Live), not a separate pill.
     else (document.querySelector('.site-header .performance-tabs') || document.querySelector('.site-header .header-actions'))?.append(button);
+    mark(active);
   }
 
   // ---------- entering and leaving the view ----------
@@ -185,7 +195,7 @@
     active = true;
     document.querySelectorAll('[data-analysis-view]').forEach(tab => tab.setAttribute('aria-selected', 'false'));
     document.body.classList.add('live-view');
-    page.hidden = false; button.setAttribute('aria-pressed', 'true');
+    page.hidden = false; mark(true);
     const title = document.getElementById('windowTitle'), subtitle = document.getElementById('windowSubtitle');
     // The breadcrumb reads like the other views' ("Session analysis › Compare laps"): Live › Timing, or Live › Replay.
     if (title) title.textContent = source?.kind === 'replay' ? 'Replay' : 'Timing';
@@ -198,11 +208,11 @@
     if (!active) return;
     active = false;
     document.body.classList.remove('live-view');
-    page.hidden = true; button.setAttribute('aria-pressed', 'false');
+    page.hidden = true; mark(false);
     disconnect();
   }
   // Any of the existing view tabs takes the page back; their own handlers then show their view.
-  document.addEventListener('click', event => { if (event.target.closest?.('[data-analysis-view]')) leave(); }, true);
+  document.addEventListener('click', event => { if (event.target.closest?.('[data-analysis-view], #seasonViewButton, [data-season-tab]')) leave(); }, true);
 
   // ---------- data ----------
   function connect() {
