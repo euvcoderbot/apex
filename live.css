@@ -168,7 +168,7 @@ body.live-view .performance-tabs[data-ui-thumb]::before { opacity: 0; }
 .live-picker-driver:hover { background: var(--ui-well); }
 .live-picker-driver[aria-pressed="true"] { background: color-mix(in srgb, var(--team) 18%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--team) 55%, transparent); }
 .live-picker-laps { display: grid; gap: 2px; padding-top: 8px; border-top: 1px solid var(--ui-border); }
-.live-picker-lap { display: grid; grid-template-columns: 1fr auto; column-gap: 12px; align-items: baseline; padding: 6px 10px; border: 0; border-radius: 8px; background: none; color: var(--ui-secondary); font: inherit; font-size: var(--text-sm, 13px); font-variant-numeric: tabular-nums; text-align: left; cursor: pointer; }
+.live-picker-lap { display: grid; grid-template-columns: 1fr auto; column-gap: 12px; row-gap: 2px; align-items: baseline; align-content: center; height: auto; min-height: 36px; padding: 7px 10px; border: 0; border-radius: 8px; background: none; color: var(--ui-secondary); font: inherit; font-size: var(--text-sm, 13px); font-variant-numeric: tabular-nums; text-align: left; cursor: pointer; }
 .live-picker-lap b { color: var(--ui-label); font-weight: 600; }
 .live-picker-lap small { grid-column: 1 / -1; color: var(--ui-tertiary); font-size: 11px; }
 .live-picker-lap:hover:not(:disabled), .live-picker-lap[aria-pressed="true"] { background: var(--ui-well); color: var(--ui-label); }
@@ -189,3 +189,23 @@ body.live-view .performance-tabs[data-ui-thumb]::before { opacity: 0; }
 .live-source .select-shell .select-trigger { width: 100%; }
 @media (min-width: 1081px) { .live-source-group { flex-wrap: nowrap; } }
 .live-title h1 .title-flag { width: 24px; height: 18px; margin-right: 10px; vertical-align: -2px; border-radius: 3px; object-fit: cover; box-shadow: 0 0 0 1px #00000024; }
+/* Sector times of the compared laps, as the main page's sector cards: fastest in purple, gaps to the reference. */
+.live-sector-table { margin: -4px 0 12px; overflow-x: auto; }
+.live-sector-grid { border-collapse: collapse; font-size: var(--text-sm, 13px); font-variant-numeric: tabular-nums; }
+.live-sector-grid th, .live-sector-grid td { padding: 5px 14px 5px 0; text-align: right; white-space: nowrap; }
+.live-sector-grid thead th { color: var(--ui-tertiary); font-size: var(--text-xs, 12px); font-weight: 500; }
+.live-sector-grid tbody th { text-align: left; font-weight: 400; }
+.live-sector-grid td b { color: var(--ui-label); font-weight: 600; }
+.live-sector-grid td b.is-best { color: #bf5af2; }
+:root[data-theme="light"] .live-sector-grid td b.is-best { color: #8944ab; }
+.live-sector-grid td small { margin-left: 6px; color: var(--ui-tertiary); font-size: 11px; }
+.live-sector-grid td small.is-slower { color: #ff6961; }
+.live-sector-grid td small.is-faster { color: #30d158; }
+:root[data-theme="light"] .live-sector-grid td small.is-slower { color: #d70015; }
+:root[data-theme="light"] .live-sector-grid td small.is-faster { color: #248a3d; }
+.live-sector-who { display: inline-flex; align-items: center; gap: 6px; }
+.live-sector-who i { width: 8px; height: 8px; border-radius: 50%; background: var(--team); }
+.live-sector-who strong { color: var(--ui-label); font-weight: 600; }
+.live-sector-who small { color: var(--ui-tertiary); font-size: 11px; }
+.live-readout-sectors { color: var(--ui-tertiary); font-size: var(--text-xs, 12px); }
+.live-readout-sectors:empty { display: none; }

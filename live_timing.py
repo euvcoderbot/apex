@@ -335,10 +335,10 @@ class LiveState:
                 self.lap_pit[number] = True
             new_time = (change.get('LastLapTime') or {}).get('Value') if isinstance(change.get('LastLapTime'), dict) else None
             waiting = self.lap_waiting.pop(number, None) if new_time and 'NumberOfLaps' not in change else None
-            if waiting is not None:  # the lap time came after the lap count
+            if waiting is not None:  # the lap time (and the last sector) came after the lap count
                 for lap in [self.laps.get(number, {}).get(waiting), *[p for p in self.lap_pending if p['number'] == number and p['lap'] == waiting]]:
                     if lap:
-                        lap.update({'time': new_time, 'seconds': lap_seconds(new_time)})
+                        lap.update({'time': new_time, 'seconds': lap_seconds(new_time), 'sectors': self._sector_times(number)})
             count = change.get('NumberOfLaps')
             if not isinstance(count, int):
                 continue
@@ -359,13 +359,27 @@ class LiveState:
             if start is None and seconds:
                 start = mark - seconds
             if start is not None and mark - start > 20:
-                self.lap_pending.append({'number': number, 'lap': count, 'start': start, 'end': mark, 'time': new_time, 'seconds': seconds,
-                                         'pit': self.lap_pit[number] or bool(line.get('InPit')) or bool(line.get('PitOut'))})
+                lap_number = count - self._lap_offset()
+                self.lap_pending.append({'number': number, 'lap': lap_number, 'start': start, 'end': mark, 'time': new_time, 'seconds': seconds,
+                                         'pit': self.lap_pit[number] or bool(line.get('InPit')) or bool(line.get('PitOut')),
+                                         'sectors': self._sector_times(number)})
                 if not new_time:
-                    self.lap_waiting[number] = count
+                    self.lap_waiting[number] = lap_number
                 self._flush_laps()
             self.lap_marks[number] = mark
             self.lap_pit[number] = bool(line.get('InPit'))
+
+    def _lap_offset(self) -> int:
+        """Outside races F1's lap counter also counts the first exit from the pit lane, so its count runs one ahead of the
+        lap numbers FastF1 and OpenF1 use (checked against OpenF1 for every driver in Brazil FP2)."""
+        kind = str((self.topics.get('SessionInfo') or {}).get('Type') or '')
+        return 1 if kind in ('Practice', 'Qualifying') else 0
+
+    def _sector_times(self, number: str) -> list[dict]:
+        line = ((self.topics.get('TimingData') or {}).get('Lines') or {}).get(number) or {}
+        return [{'time': sector.get('Value') or None, 'seconds': lap_seconds(sector.get('Value')),
+                 'personal': bool(sector.get('PersonalFastest')), 'overall': bool(sector.get('OverallFastest'))}
+                for sector in _seq(line.get('Sectors'))[:3] if isinstance(sector, dict)]
 
     def _flush_laps(self, force: bool = False) -> None:
         keep = []
@@ -377,7 +391,7 @@ class LiveState:
             start, end = self._snap(pending['number'], pending['start']), self._snap(pending['number'], pending['end'])
             lap = self._cut_lap(pending['number'], start, end)
             if lap:
-                lap.update({k: pending[k] for k in ('lap', 'time', 'seconds', 'pit')})
+                lap.update({k: pending.get(k) for k in ('lap', 'time', 'seconds', 'pit', 'sectors')})
                 self.laps[pending['number']][pending['lap']] = lap
         self.lap_pending = keep
 
@@ -416,9 +430,13 @@ class LiveState:
         return samples[-1]['t'] if samples else None
 
     def _cut_lap(self, number: str, start: float, end: float) -> dict | None:
-        samples = [s for s in self.telemetry.get(number, ()) if start <= s['t'] <= end]
+        history = list(self.telemetry.get(number, ()))
+        samples = [s for s in history if start <= s['t'] <= end]
         if len(samples) < 20:
             return None
+        spatial_lap = self._cut_on_track(number, history, start, end)
+        if spatial_lap:
+            return spatial_lap
         distance, out = 0.0, {'t': [], 'd': [], 'speed': [], 'throttle': [], 'brake': [], 'gear': []}
         for index, sample in enumerate(samples):
             if index:
@@ -433,6 +451,53 @@ class LiveState:
         if spatial:
             out['d'], out['distance'], out['spatial'] = spatial[0], spatial[1], True
         return out
+
+    def _cut_on_track(self, number: str, history: list[dict], start: float, end: float) -> dict | None:
+        """The lap from timing line to timing line by track position. One sample either side of the window is kept, so
+        a sample can be interpolated exactly on the line at each end (the main page's laps start and end there too)."""
+        inside = [i for i, s in enumerate(history) if start <= s['t'] <= end]
+        if not inside:
+            return None
+        chosen = history[max(0, inside[0] - 1): inside[-1] + 2]
+        measured = self._track_distances(number, [s['t'] for s in chosen])
+        if not measured:
+            return None
+        xs, length = measured
+        names = ('speed', 'throttle', 'brake', 'gear')
+        rows = []
+        for i, sample in enumerate(chosen):
+            x = xs[i]
+            if i and xs[i - 1] < 0 <= x:   # crossing the line at the start
+                f = (0 - xs[i - 1]) / ((x - xs[i - 1]) or 1)
+                rows.append(self._between(chosen[i - 1], sample, f, 0.0, names))
+            if 0 <= x <= length:
+                rows.append({'t': sample['t'], 'x': x, **{n: sample.get(n) for n in names}})
+            if i and xs[i - 1] <= length < x:   # crossing it at the end
+                f = (length - xs[i - 1]) / ((x - xs[i - 1]) or 1)
+                rows.append(self._between(chosen[i - 1], sample, f, length, names))
+                break
+        if len(rows) < 20:
+            return None
+        t0 = rows[0]['t']
+        out = {'t': [round(r['t'] - t0, 3) for r in rows], 'd': [round(r['x'], 1) for r in rows],
+               **{n: [r[n] for r in rows] for n in names}, 'distance': length, 'spatial': True}
+        return out
+
+    @staticmethod
+    def _between(a: dict, b: dict, f: float, x: float, names) -> dict:
+        row = {'t': a['t'] + f * (b['t'] - a['t']), 'x': x}
+        for n in names:
+            va, vb = a.get(n), b.get(n)
+            row[n] = round(va + f * (vb - va), 2) if n in ('speed', 'throttle') and va is not None and vb is not None else (va if f < .5 else vb)
+        return row
+
+    def sector_marks(self) -> list[float] | None:
+        """Where sectors 1 and 2 end, in metres from the timing line along the learned outline."""
+        geometry = self._geometry()
+        points = [_median_point(p) for p in self.sector_points]
+        if not geometry or not all(points):
+            return None
+        return [round(((self._project(geometry, x, y)[0] - geometry['origin']) % geometry['length']) / 10, 1) for x, y in points]
 
     # ---------- distance along the track, from car positions (as the main site lines laps up by GPS) ----------
     def _geometry(self) -> dict | None:
@@ -513,7 +578,7 @@ class LiveState:
             for number, laps in self.laps.items():
                 timed = [l for l in laps.values() if l.get('seconds') and not l.get('pit')]
                 best = min(timed, key=lambda l: l['seconds'])['lap'] if timed else None
-                result[number] = [{'lap': l['lap'], 'time': l.get('time'), 'seconds': l.get('seconds'), 'pit': l.get('pit'),
+                result[number] = [{'lap': l['lap'], 'time': l.get('time'), 'seconds': l.get('seconds'), 'pit': l.get('pit'), 'sectors': l.get('sectors'),
                                    'distance': l.get('distance'), 'fastest': l['lap'] == best, 'push': self._is_push(l)}
                                   for l in sorted(laps.values(), key=lambda l: l['lap'])]
             return result
@@ -540,7 +605,7 @@ class LiveState:
             if not chosen:
                 return None
             reference = self._reference_lap()
-            return {'driver': str(number), **align_lap(chosen, reference)}
+            return {'driver': str(number), **align_lap(chosen, reference), 'sector_marks': self.sector_marks()}
 
 
     def _learn_outline(self, number: str, x: float, y: float) -> None:
@@ -663,7 +728,7 @@ class LiveState:
             geometry = self._geometry()
             reference = self._reference_lap()
             length = round(geometry['length'] / 10, 1) if geometry else (reference or {}).get('distance')
-            out = {'length': length, 'laps': {}}
+            out = {'length': length, 'laps': {}, 'sector_marks': self.sector_marks()}
             for number in numbers:
                 number = str(number)
                 history = self.telemetry.get(number)
@@ -691,9 +756,10 @@ class LiveState:
     def missing_laps(self) -> bool:
         """Whether any car has completed laps that were not captured (from before connecting, or a gap in the feed)."""
         with self.lock:
+            offset = self._lap_offset()
             for number, count in self.lap_counts.items():
                 have = self.laps.get(number) or {}
-                if any(lap not in have for lap in range(2, count + 1)):
+                if any(lap not in have for lap in range(2 - offset, count - offset + 1)):
                     return True
             return False
 
@@ -1018,6 +1084,7 @@ class LiveManager:
         def run() -> None:
             try:
                 scratch = LiveState()
+                scratch.topics['SessionInfo'] = copy.deepcopy(state.topics.get('SessionInfo') or {})
                 loader = ReplaySource(scratch, '/static/' + path + '/', fetch=reader or archive_stream_reader())
                 events = loader._load(self.BACKFILL_TOPICS)
                 if not events:
@@ -1029,6 +1096,8 @@ class LiveManager:
                         scratch.apply(topic, data, base + offset if base else None)
                 geometry = (scratch.outline_loop, list(scratch.line_points), [list(p) for p in scratch.sector_points])
                 scratch = LiveState()
+                # The session's details (its type decides the lap numbering) come from the live state.
+                scratch.topics['SessionInfo'] = copy.deepcopy(state.topics.get('SessionInfo') or {})
                 scratch.outline_loop = geometry[0]
                 scratch.line_points.extend(geometry[1])
                 for mine, learned in zip(scratch.sector_points, geometry[2]):

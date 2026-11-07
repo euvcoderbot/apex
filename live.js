@@ -101,6 +101,7 @@
             </div>
           </div>
           <div class="live-lap-chips" data-live="lapChips" role="list" aria-label="Laps being compared"></div>
+          <div class="live-sector-table" data-live="sectorTable"></div>
           <div class="live-lap-picker" id="liveLapPicker" data-live="lapPicker" popover="auto" aria-label="Choose a lap">
             <div class="live-picker-head"><strong data-live="pickerTitle">Add a lap</strong><button type="button" class="live-picker-close" data-live="pickerClose" aria-label="Close">×</button></div>
             <div class="live-picker-drivers" data-live="pickerDrivers" role="group" aria-label="Driver"></div>
@@ -440,7 +441,8 @@
         el('span', null, last.speed != null ? `${last.speed} km/h` : '—'),
         el('span', null, last.gear != null ? `Gear ${last.gear}` : ''),
         el('span', null, last.throttle != null ? `Throttle ${last.throttle}%` : ''),
-        el('span', last.brake ? 'is-braking' : null, last.brake ? 'Brake' : ''));
+        el('span', last.brake ? 'is-braking' : null, last.brake ? 'Brake' : ''),
+        el('span', 'live-readout-sectors', (d.sectors || []).map((sector, k) => sector.time ? `S${k + 1} ${sector.time}` : '').filter(Boolean).join(' · ')));
       return card;
     }));
   }
@@ -599,7 +601,32 @@
       const lap = resolve(p);
       return lap ? api(`lap?driver=${encodeURIComponent(p.driver)}&lap=${lap.lap}`).catch(() => null) : null;
     }));
-    renderChips(); queueDraw();
+    renderChips(); renderSectorTable(); queueDraw();
+  }
+  function renderSectorTable() {
+    const box = $(page, 'sectorTable'), colours = pickColours();
+    const rows = compareTraces.map((trace, i) => trace && {trace, colour: colours[i]}).filter(Boolean);
+    if (!rows.length || !rows.some(r => r.trace.sectors?.length === 3)) { box.replaceChildren(); return; }
+    const value = (r, k) => (k < 3 ? r.trace.sectors?.[k]?.seconds : r.trace.seconds) ?? null;
+    const best = [0, 1, 2, 3].map(k => Math.min(...rows.map(r => value(r, k) ?? Infinity)));
+    const table = el('table', 'live-sector-grid');
+    const head = el('tr'); ['', 'S1', 'S2', 'S3', 'Lap'].forEach(text => head.append(el('th', null, text)));
+    table.append(el('thead')); table.tHead.append(head);
+    const body = el('tbody');
+    rows.forEach((r, i) => {
+      const tr = el('tr'), who = el('th'); who.scope = 'row';
+      const tag = el('span', 'live-sector-who'); tag.style.setProperty('--team', r.colour);
+      tag.append(el('i'), el('strong', null, driverFor(r.trace.driver).code), el('small', null, `L${r.trace.lap}`)); who.append(tag); tr.append(who);
+      for (let k = 0; k < 4; k++) {
+        const v = value(r, k), ref = value(rows[0], k), td = el('td');
+        if (v == null) { td.textContent = '—'; tr.append(td); continue; }
+        td.append(el('b', v === best[k] && rows.length > 1 ? 'is-best' : null, k < 3 ? r.trace.sectors[k].time : r.trace.time));
+        if (i && ref != null) { const gap = v - ref; td.append(el('small', gap > 0 ? 'is-slower' : gap < 0 ? 'is-faster' : null, formatGap(gap))); }
+        tr.append(td);
+      }
+      body.append(tr);
+    });
+    table.append(body); box.replaceChildren(table);
   }
   // Time at a given distance along a lap (linear interpolation).
   function timeAt(trace, x) {
@@ -667,6 +694,17 @@
       const x = X(mark.value);
       ctx.beginPath(); ctx.moveTo(x, PLOT.top); ctx.lineTo(x, PLOT.top + plotH); ctx.strokeStyle = t.grid; ctx.lineWidth = 1; ctx.stroke();
       if (last) { ctx.fillStyle = t.text; ctx.fillText(mark.label, x, h - 6); }
+    }
+    if (view.sectors?.length === 2) {
+      ctx.save(); ctx.setLineDash([4, 4]); ctx.strokeStyle = t.gridStrong; ctx.lineWidth = 1;
+      for (const at of view.sectors) { const x = X(at); ctx.beginPath(); ctx.moveTo(x, PLOT.top); ctx.lineTo(x, PLOT.top + plotH); ctx.stroke(); }
+      ctx.restore();
+      if (spec.id === 'speed') {
+        const edges = [view.min, ...view.sectors, view.max];
+        ctx.font = font(10, 600); ctx.fillStyle = t.text; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        for (let k = 0; k < 3; k++) ctx.fillText(`SECTOR ${k + 1}`, X((edges[k] + edges[k + 1]) / 2), PLOT.top + 2);
+        ctx.font = font(11); ctx.textBaseline = 'alphabetic';
+      }
     }
     ctx.save(); ctx.beginPath(); ctx.rect(PLOT.left, PLOT.top - 2, plotW, plotH + 4); ctx.clip();
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -748,7 +786,7 @@
     const traces = compareTraces.map((t, i) => t && {trace: t, colour: colours[i]}).filter(Boolean);
     if (!traces.length) { container.replaceChildren(el('p', 'live-empty', 'Add laps to compare their telemetry.')); container.dataset.layout = ''; return; }
     const length = Math.max(...traces.map(({trace}) => trace.x.at(-1) || 0));
-    const view = {min: 0, max: length, marks: []};
+    const view = {min: 0, max: length, marks: [], sectors: (compareTraces.find(Boolean) || {}).sector_marks || null};
     for (let m = 1000; m < length; m += 1000) view.marks.push({value: m, label: `${m / 1000} km`});
     const ids = traces.length > 1 ? ['speed', 'delta', 'throttle', 'brake', 'gear'] : ['speed', 'throttle', 'brake', 'gear'];
     const list = panels(container, ids.map(id => ({...SPECS[id], unit: id === 'delta' ? `seconds against ${driverFor(traces[0].trace.driver).code} L${traces[0].trace.lap}` : SPECS[id].unit, axis: id === 'gear'})));
@@ -796,7 +834,7 @@
       return;
     }
     const length = currentLaps.length || Math.max(...series.map(([, lap]) => lap.x.at(-1)));
-    const view = {min: 0, max: length, marks: []};
+    const view = {min: 0, max: length, marks: [], sectors: currentLaps?.sector_marks || null};
     for (let m = 1000; m < length; m += 1000) view.marks.push({value: m, label: `${m / 1000} km`});
     $(page, 'telenote').textContent = `Current lap · ${series.map(([n, lap]) => `${driverFor(n).code} L${lap.lap}`).join(' · ')}`;
     const list = panels(container, ['speed', 'throttle', 'brake'].map(id => ({...SPECS[id], height: id === 'speed' ? 150 : id === 'brake' ? 48 : 72, axis: id === 'brake'})));

@@ -120,6 +120,20 @@ class CompletedLaps(unittest.TestCase):
         self.assertIsNone(state.lap_trace('1', 99))
         self.assertIsNone(state.lap_trace('44', 'fastest'))
 
+    def test_practice_laps_use_fastf1_numbers_and_keep_sectors(self):
+        race, practice = lt.LiveState(), lt.LiveState()
+        practice.apply('SessionInfo', {'Type': 'Practice', 'Path': '2026/x/p/'})
+        race.apply('SessionInfo', {'Type': 'Race', 'Path': '2026/x/r/'})
+        for state in (race, practice):
+            state.apply('TimingData', {'Lines': {'1': {'Sectors': [{'Value': '18.315', 'OverallFastest': True}, {'Value': '36.460'}, {'Value': '15.988'}]}}})
+            drive(state, laps=3)
+        self.assertEqual(sorted(race.laps['1']), [2, 3])
+        self.assertEqual(sorted(practice.laps['1']), [1, 2])   # F1's counter also counts the first pit exit outside races
+        sectors = practice.lap_trace('1', 2)['sectors']
+        self.assertEqual([s['time'] for s in sectors], ['18.315', '36.460', '15.988'])
+        self.assertTrue(sectors[0]['overall'])
+        self.assertFalse(practice.missing_laps())
+
     def test_latest_push_lap_skips_cool_down_and_pit_laps(self):
         state = lt.LiveState()
         drive(state, laps=5)
