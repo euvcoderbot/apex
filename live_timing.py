@@ -186,6 +186,21 @@ def _session_year(info: dict) -> int | None:
     return int(path[:4]) if path[:4].isdigit() else None
 
 
+def _remaining(clock: dict, now: float | None) -> str | None:
+    """Session time left. While the clock runs ('Extrapolating'), F1 sends Remaining only at its last change, so it is
+    counted down from that message's time to the newest feed time (which also works in a replay)."""
+    value = clock.get('Remaining')
+    if not value or not clock.get('Extrapolating') or now is None:
+        return value
+    since = _utc_seconds(clock.get('Utc'))
+    try:
+        h, m, sec = (float(x) for x in str(value).split(':'))
+    except ValueError:
+        return value
+    left = max(0.0, h * 3600 + m * 60 + sec - max(0.0, now - since)) if since else h * 3600 + m * 60 + sec
+    return f'{int(left // 3600):02d}:{int(left % 3600 // 60):02d}:{int(left % 60):02d}'
+
+
 class LiveState:
     """Merged live state plus rolling telemetry and positions. Thread-safe."""
 
@@ -609,7 +624,7 @@ class LiveState:
                             'status': status.get('Status') or (info.get('ArchiveStatus') or {}).get('Status')},
                 'track_status': {'code': str(track.get('Status')) if track.get('Status') is not None else None,
                                  'label': TRACK_STATUS.get(str(track.get('Status')), track.get('Message'))},
-                'clock': {'remaining': clock.get('Remaining'), 'extrapolating': bool(clock.get('Extrapolating')), 'utc': clock.get('Utc')},
+                'clock': {'remaining': _remaining(clock, self.data_time), 'extrapolating': bool(clock.get('Extrapolating')), 'utc': clock.get('Utc')},
                 'lap': {'current': laps.get('CurrentLap'), 'total': laps.get('TotalLaps')},
                 'weather': {k: weather.get(v) for k, v in (('air', 'AirTemp'), ('track', 'TrackTemp'), ('humidity', 'Humidity'),
                                                           ('rain', 'Rainfall'), ('wind_speed', 'WindSpeed'), ('wind_direction', 'WindDirection'))},
@@ -760,20 +775,45 @@ class LiveSource(Source):
                 except Exception:
                     logger.exception('Could not apply a live timing message')
 
-        try:
-            self.client = Client(str(self.recording), timeout=0, no_auth=not authenticated)
-            self.client._run()
-            while not self.stop_event.wait(1):
-                pass
-        except Exception as exc:
-            self.error = f'Live connection failed: {exc}'
-            logger.warning('Live timing connection failed: %s', exc)
-        finally:
+            def _on_close(self):
+                # Formula 1 closes the feed between sessions; note it and let the loop reconnect, never end the process.
+                try:
+                    super()._on_close()
+                except Exception:
+                    pass
+                closed.set()
+
+        closed = threading.Event()
+        attempt = 0
+        while not self.stop_event.is_set():
+            closed.clear()
+            recording = self.recording if not attempt else self.recording.with_name(f'{self.recording.stem}-{attempt}.txt')
             try:
-                if self.client and self.client._connection:
-                    self.client._exit()
-            except Exception:
-                pass
+                self.client = Client(str(recording), timeout=0, no_auth=not authenticated)
+                self.client._run()
+                self.detail.update(connected=True, reconnects=attempt)
+                self.detail.pop('waiting', None)
+                self.error = None
+                while not self.stop_event.wait(1) and not closed.is_set():
+                    pass
+            except Exception as exc:
+                self.error = f'Live connection failed: {exc}'
+                logger.warning('Live timing connection failed: %s', exc)
+            finally:
+                self.detail['connected'] = False
+                try:
+                    if self.client and self.client._connection:
+                        self.client._exit()
+                except Exception:
+                    pass
+            if self.stop_event.is_set():
+                break
+            # The feed closed (session over) or the connection failed: try again in 30 s, keeping everything captured.
+            self.detail['waiting'] = 'Formula 1 closed the live feed; reconnecting every 30 s until the next session.'
+            attempt += 1
+            if self.stop_event.wait(30):
+                break
+        self.detail.pop('waiting', None)
 
 
 def restore_recordings(state: LiveState, folder: Path, exclude: Path | None = None, hours: float = 4.0) -> int:

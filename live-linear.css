@@ -14,16 +14,22 @@
 :root[data-skin="linear"][data-skin] #linearWorkspace .linear-navigation .live-view-button[aria-pressed="true"] { background: var(--lin-nav-active); color: var(--ui-label); }
 :root[data-skin="linear"][data-skin][data-linear-density="compact"] #linearWorkspace .linear-navigation .live-view-button { height: 24px; min-height: 24px; }
 /* The view's own title lives in the header breadcrumb, as on the other views; the page keeps a quieter heading. */
-:root[data-skin="linear"][data-skin] #liveTiming { padding: 20px var(--linear-content-pad) 32px; gap: 12px; }
+/* Spacing as the main views: 24 / content pad / 32 around, 12 px between cards (8 compact). */
+:root[data-skin="linear"][data-skin] #liveTiming { padding: 24px var(--linear-content-pad) 32px; gap: 12px; }
+:root[data-skin="linear"][data-skin] #liveTiming :is(.live-grid, .live-col) { gap: 12px; }
+:root[data-skin="linear"][data-skin][data-linear-density="compact"] #liveTiming, :root[data-skin="linear"][data-skin][data-linear-density="compact"] #liveTiming :is(.live-grid, .live-col) { gap: 8px; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-title .workspace-eyebrow { display: none; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-title h1 { font: 590 20px/1.3 var(--ui-font); letter-spacing: -.012em; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-title p { font: 400 13px/1.5 var(--ui-font); color: var(--ui-tertiary); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-card-head h2 { font: 590 13px/1.4 var(--ui-font); }
 /* Cards: the corner shine. */
 :root[data-skin="linear"][data-skin] #liveTiming .dashboard-card {
-  position: relative; isolation: isolate; border-radius: 12px;
+  position: relative; isolation: isolate; border: 0; border-radius: 8px; padding: 16px;
+  background-color: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border);
   background-image: radial-gradient(60% 50% at 0% 0%, var(--lin-glow), transparent 70%);
 }
+:root[data-skin="linear"][data-skin][data-linear-density="compact"] #liveTiming .dashboard-card { padding: 12px; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-card-head { padding: 0; margin-bottom: 12px; }
 :root[data-skin="linear"][data-skin] #liveTiming .dashboard-card::after {
   content: ""; position: absolute; inset: 0; z-index: 1; border-radius: inherit; padding: 1px; pointer-events: none;
   background: radial-gradient(220px 220px at 0% 0%, var(--lin-shine), transparent 70%);
@@ -45,7 +51,8 @@
 :root[data-skin="linear"][data-skin] body.live-view #linearWorkspace #lapWorkspaceToggle { display: none; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-badge[data-kind="live"] { background: #e5484d; box-shadow: none; color: #fff; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-badge[data-kind="replay"] { background: var(--lin-pill-on); color: var(--ui-label); }
-:root[data-skin="linear"][data-skin] #liveTiming .select-shell .select-trigger { height: 28px; min-height: 28px; border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); font: 510 12px/1 var(--ui-font); }
+:root[data-skin="linear"][data-skin] #liveTiming .select-shell .select-trigger:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { box-sizing: border-box; height: 28px; min-height: 28px; border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); font: 510 12px/1 var(--ui-font); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-group-label { font: 510 11px/1 var(--ui-font); letter-spacing: .02em; text-transform: none; color: var(--ui-quaternary, var(--ui-tertiary)); }
 :root[data-skin="linear"][data-skin] #liveTiming :is(.live-source label, .live-compare-pick label) { font: 510 12px/1 var(--ui-font); color: var(--ui-tertiary); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-flag { border-radius: 9999px; padding: 6px 14px; font: 590 13px/1.2 var(--ui-font); }
 /* Timing tower: the group-header band, quiet rows. */
@@ -60,6 +67,24 @@
 :root[data-skin="linear"][data-skin] #liveTiming :is(.live-readout, .live-compare-lap, .live-rc li) { border-radius: 8px; background: var(--lin-band); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-signin input { height: 28px; min-height: 28px; border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); font: 400 12px/1 var(--ui-font); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-signin label { font: 510 12px/1 var(--ui-font); color: var(--ui-tertiary); }
-:root[data-skin="linear"][data-skin] #liveTiming .live-chart { border-radius: 8px; background: var(--lin-band); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-chart { border-radius: 6px; background: var(--lin-band); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-chart figcaption strong { font: 590 12px/1.4 var(--ui-font); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-chart figcaption small { font: 400 12px/1.4 var(--ui-font); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-table th:first-child, :root[data-skin="linear"][data-skin] #liveTiming .live-table td:first-child { padding-left: 10px; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-table th:last-child, :root[data-skin="linear"][data-skin] #liveTiming .live-table td:last-child { padding-right: 10px; }
+/* Lap chips and the picker in Linear's shapes: 28 px pills with the 5% ring, the picker as Linear's menus. */
+:root[data-skin="linear"][data-skin] #liveTiming .live-lap-chip { background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-lap-chip-body { min-height: 28px; font: 510 12px/1 var(--ui-font); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-lap-chip-body :is(strong, b) { font-weight: 590; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-lap-chip-body:hover, :root[data-skin="linear"][data-skin] #liveTiming .live-lap-chip-remove:hover { background: var(--lin-pill-hover); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-lap-add { min-height: 28px; border-color: var(--lin-pill-ring); font: 510 12px/1 var(--ui-font); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-lap-picker { border-radius: 12px; background: var(--ui-panel); box-shadow: 0 0 0 1px var(--ui-border), var(--lin-shadow-high, 0 12px 32px #00000040); }
+:root[data-skin="linear"][data-skin] #liveTiming :is(.live-picker-driver, .live-picker-lap) { font: 400 13px/1.2 var(--ui-font); }
+:root[data-skin="linear"][data-skin] #liveTiming :is(.live-picker-driver:hover, .live-picker-lap:hover:not(:disabled), .live-picker-lap[aria-pressed="true"]) { background: var(--lin-nav-hover); }
+/* The picker's and chips' own buttons are not push buttons: no generic pill ring (that rule carries three IDs). */
+:root[data-skin="linear"][data-skin] #liveTiming :is(.live-picker-driver, .live-picker-lap, .live-picker-close, .live-lap-chip-body, .live-lap-chip-remove):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: transparent; box-shadow: none; }
+:root[data-skin="linear"][data-skin] #liveTiming :is(.live-picker-driver:hover, .live-picker-lap:hover, .live-lap-chip-body:hover, .live-lap-chip-remove:hover):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: var(--lin-nav-hover); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-picker-driver[aria-pressed="true"]:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: color-mix(in srgb, var(--team) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--team) 60%, transparent); color: var(--ui-label); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-picker-lap[aria-pressed="true"]:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: var(--lin-nav-active); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-lap-add:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: transparent; box-shadow: none; border: 1px dashed var(--ui-border-strong); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-auth { font: 400 12px/1.3 var(--ui-font); color: var(--ui-tertiary); }

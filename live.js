@@ -19,7 +19,10 @@
   let page, button, stream, statusTimer, active = false;
   let state = null, source = null, outline = null, telemetry = {}, bounds = null;
   const chosen = [];   // up to two driver numbers for the telemetry trace
-  let lapLists = {}, compareTraces = [null, null], lapsFetchedAt = 0, compareKey = '', currentLaps = null;
+  let lapLists = {}, compareTraces = [], lapsFetchedAt = 0, compareKey = '', currentLaps = null;
+  // The laps being compared: [{driver, lap}] where lap is 'latest', 'fastest', 'last' or a lap number. The first is the reference.
+  let picks = [], picksTouched = false;
+  const MAX_PICKS = 4;
   let drawQueued = false;
 
   const api = (path, options = {}) => fetch('/api/live/' + path, {cache: 'no-store', ...options}).then(async r => {
@@ -49,19 +52,21 @@
       <div class="live-flag" data-live="flag" role="status" aria-live="polite" hidden></div>
       <section class="dashboard-card live-source" aria-label="Data source">
         <div class="live-source-row">
-          <div class="live-source-group">
-            <button type="button" class="live-button live-primary" data-live="connect">Connect to live timing</button>
+          <div class="live-source-group live-connect" role="group" aria-label="Live">
+            <span class="live-group-label">Live</span>
+            <button type="button" class="live-button live-primary" data-live="connect">Connect</button>
             <span class="live-auth" data-live="auth"></span>
             <button type="button" class="live-button" data-live="signin" aria-expanded="false" aria-controls="liveSignin">Sign in to F1 TV</button>
             <button type="button" class="live-button live-quiet" data-live="signout" hidden>Sign out</button>
           </div>
-          <div class="live-source-group live-replay">
-            <label>Replay <select id="liveReplay" data-live="replay" aria-label="Session to replay"></select></label>
-            <label>Speed <select id="liveSpeed" data-live="speed" aria-label="Replay speed"></select></label>
-            <label>From <input data-live="from" type="number" min="0" step="5" value="0" inputmode="numeric" aria-label="Start minutes into the session"> min</label>
-            <button type="button" class="live-button" data-live="play">Replay</button>
+          <div class="live-source-group live-replay" role="group" aria-label="Replay">
+            <span class="live-group-label">Replay</span>
+            <select id="liveReplay" data-live="replay" aria-label="Session to replay"></select>
+            <select id="liveSpeed" data-live="speed" aria-label="Replay speed"></select>
+            <label class="live-from">from <input data-live="from" type="number" min="0" step="5" value="0" inputmode="numeric" aria-label="Start minutes into the session"> min</label>
+            <button type="button" class="live-button" data-live="play">Play</button>
+            <button type="button" class="live-button" data-live="stop" hidden>Stop</button>
           </div>
-          <button type="button" class="live-button" data-live="stop" hidden>Stop</button>
         </div>
         <form id="liveSignin" class="live-signin" data-live="signinForm" hidden>
           <label>F1 TV email <input name="email" type="email" autocomplete="username" required></label>
@@ -87,19 +92,21 @@
             </table></div>
           </section>
         <section class="dashboard-card live-compare" aria-label="Compare completed laps">
-          <div class="live-card-head"><h2>Compare laps</h2><small data-live="lapsNote">Completed laps from this session · aligned by lap distance</small></div>
-          <div class="live-compare-pickers">
-            <div class="live-compare-pick"><span class="live-compare-key"></span>
-              <label>Driver <select id="liveCompareDriverA" data-live="driverA" aria-label="First driver"></select></label>
-              <label>Lap <select id="liveCompareLapA" data-live="lapA" aria-label="First driver's lap"></select></label></div>
-            <div class="live-compare-pick"><span class="live-compare-key is-second"></span>
-              <label>Driver <select id="liveCompareDriverB" data-live="driverB" aria-label="Second driver"></select></label>
-              <label>Lap <select id="liveCompareLapB" data-live="lapB" aria-label="Second driver's lap"></select></label></div>
-            <button type="button" class="live-button" data-live="bothFastest">Both fastest laps</button>
-          <button type="button" class="live-button" data-live="backfill" title="Load the laps Formula 1 has published for this session, including those from before you connected">Reload laps</button>
+          <div class="live-card-head">
+            <div class="live-card-title"><h2>Compare laps</h2><small data-live="lapsNote">Completed laps from this session · aligned by track position</small></div>
+            <div class="live-card-actions">
+              <button type="button" class="live-button" data-live="quickLatest" title="The two leading drivers' latest push laps">Latest 2</button>
+              <button type="button" class="live-button" data-live="quickFastest" title="The session's two fastest drivers, fastest laps">Fastest 2</button>
+              <button type="button" class="live-button" data-live="backfill" title="Load the laps Formula 1 has published for this session, including those from before you connected">Reload laps</button>
+            </div>
           </div>
-          <div class="live-compare-summary" data-live="compareSummary"><p class="live-empty">Laps appear here as drivers complete them.</p></div>
-          <div class="live-charts" data-live="compareCharts" role="img" aria-label="Speed, time delta, throttle, brake and gear over the lap for the two chosen laps"></div>
+          <div class="live-lap-chips" data-live="lapChips" role="list" aria-label="Laps being compared"></div>
+          <div class="live-lap-picker" id="liveLapPicker" data-live="lapPicker" popover="auto" aria-label="Choose a lap">
+            <div class="live-picker-head"><strong data-live="pickerTitle">Add a lap</strong><button type="button" class="live-picker-close" data-live="pickerClose" aria-label="Close">×</button></div>
+            <div class="live-picker-drivers" data-live="pickerDrivers" role="group" aria-label="Driver"></div>
+            <div class="live-picker-laps" data-live="pickerLaps" role="group" aria-label="Lap"></div>
+          </div>
+          <div class="live-charts" data-live="compareCharts" role="img" aria-label="Speed, time delta, throttle, brake and gear over the lap for the chosen laps"></div>
         </section>
         </div>
         <div class="live-col live-col-side">
@@ -145,10 +152,15 @@
       event.preventDefault(); toggleDriver(row.dataset.number);
     });
     new ResizeObserver(() => queueDraw()).observe(page);
-    for (const name of ['driverA', 'driverB']) $(page, name).addEventListener('change', () => { syncLapOptions(); loadCompare(); });
-    for (const name of ['lapA', 'lapB']) $(page, name).addEventListener('change', loadCompare);
-    $(page, 'backfill').addEventListener('click', () => backfill(true));
-    $(page, 'bothFastest').addEventListener('click', () => { for (const name of ['lapA', 'lapB']) setSelect($(page, name), 'fastest'); loadCompare(); });
+    $(page, 'quickFastest').addEventListener('click', () => quickPicks('fastest'));
+    $(page, 'quickLatest').addEventListener('click', () => quickPicks('latest'));
+    $(page, 'pickerClose').addEventListener('click', () => $(page, 'lapPicker').hidePopover?.());
+    $(page, 'lapChips').addEventListener('click', event => {
+      const remove = event.target.closest('[data-remove]');
+      if (remove) { picks.splice(Number(remove.dataset.remove), 1); picksTouched = true; renderChips(); loadCompare(); return; }
+      const chip = event.target.closest('[data-pick]');
+      if (chip) openPicker(chip, chip.dataset.pick === 'add' ? null : Number(chip.dataset.pick));
+    });
   }
 
   function buildButton() {
@@ -269,7 +281,9 @@
     const authText = $(page, 'auth'), help = $(page, 'help');
     if (auth.available) {
       const until = auth.expires_at ? new Date(Number(auth.expires_at) * 1000) : null;
-      authText.textContent = 'Signed in to F1 TV' + (auth.subscription ? ` (${auth.subscription})` : '') + (until && !Number.isNaN(until.getTime()) ? ` · until ${until.toLocaleString([], {weekday: 'short', hour: '2-digit', minute: '2-digit'})}` : '');
+      const untilText = until && !Number.isNaN(until.getTime()) ? ` until ${until.toLocaleString([], {weekday: 'short', hour: '2-digit', minute: '2-digit'})}` : '';
+      authText.textContent = `F1 TV · signed in${untilText}`;
+      authText.title = `Signed in to F1 TV${auth.subscription ? ` (${auth.subscription})` : ''}${untilText}. The sign-in lasts a few days.`;
       help.hidden = true;
       signedIn(true);
     } else {
@@ -291,7 +305,7 @@
   async function start(body) {
     const help = $(page, 'help');
     try {
-      state = null; outline = null; telemetry = {}; bounds = null; lapLists = {}; compareTraces = [null, null]; compareKey = '';
+      state = null; outline = null; telemetry = {}; bounds = null; lapLists = {}; compareTraces = []; compareKey = ''; picks = []; picksTouched = false;
       applyStatus({...(await post('start', body)), replays: null});
       connect(); render();
     } catch (error) { showError(error); help.hidden = false; }
@@ -319,6 +333,14 @@
     badge.dataset.kind = running ? source.kind : 'idle';
     badge.textContent = running ? (source.kind === 'live' ? 'Live' : `Replay ${source.speed}×`) : source?.error ? 'Stopped' : 'Idle';
     $(page, 'stop').hidden = !running;
+    $(page, 'stop').textContent = source?.kind === 'live' ? 'Disconnect' : 'Stop';
+    $(page, 'connect').textContent = running && source.kind === 'live' ? (source.connected === false ? 'Reconnecting…' : 'Connected') : 'Connect';
+    $(page, 'connect').disabled = running && source.kind === 'live';
+    if (running && source.kind === 'replay') {
+      const speed = $(page, 'speed');
+      if ([...speed.options].some(o => Number(o.value) === Number(source.speed)) && Number(speed.value) !== Number(source.speed)) { speed.value = String(source.speed); window.syncSelectUI?.(speed); }
+    }
+    if (source?.waiting) { const help = $(page, 'help'); help.hidden = false; help.textContent = source.waiting; }
     if (source?.error) showError({message: source.error});
     const progress = $(page, 'progress');
     progress.hidden = !(source?.kind === 'replay' && source.duration);
@@ -402,7 +424,7 @@
   function driverFor(number) { return (state?.drivers || []).find(d => d.number === number) || {number, code: number}; }
   function renderReadouts() {
     const box = $(page, 'readouts');
-    if (!chosen.length) { box.replaceChildren(el('p', 'live-empty', 'Select a driver in the timing tower.')); return; }
+    if (!chosen.length) { box.replaceChildren(); return; }
     box.replaceChildren(...chosen.map((number, index) => {
       const d = driverFor(number), last = (telemetry[number] || []).at(-1) || {};
       const card = el('div', 'live-readout'); card.style.setProperty('--team', colour(d)); if (index) card.classList.add('is-second');
@@ -439,73 +461,137 @@
     } catch (error) { note.textContent = error.message || String(error); }
   }
 
-  // ---------- completed lap comparison ----------
-  function setSelect(select, value) { select.value = value; window.syncSelectUI?.(select); }
+  // ---------- completed lap comparison: up to four laps, the first is the reference ----------
   async function refreshLaps() {
     lapsFetchedAt = Date.now();
-    try { lapLists = await api('laps'); } catch { return; }
-    syncDriverOptions(); syncLapOptions(); loadCompare();
+    if (refreshLaps.busy) return;
+    refreshLaps.busy = true;
+    try { lapLists = await api('laps'); } catch { return; } finally { refreshLaps.busy = false; }
+    if (!picksTouched) defaultPicks();
+    picks = picks.filter(p => (lapLists[p.driver] || []).length);
+    renderChips(); loadCompare();
+    if ($(page, 'lapPicker').matches?.(':popover-open')) renderPicker();
   }
-  function syncDriverOptions() {
-    const drivers = (state?.drivers || []).filter(d => (lapLists[d.number] || []).length);
-    const signature = drivers.map(d => d.number).join(',');
-    ['driverA', 'driverB'].forEach((name, slot) => {
-      const select = $(page, name), current = select.value;
-      if (select.dataset.signature !== signature) {
-        select.dataset.signature = signature;
-        select.replaceChildren(...drivers.map(d => new Option(`${d.code} · ${d.team || d.number}`, d.number)));
-        if (!drivers.length) select.append(new Option('No completed laps yet', ''));
-      }
-      const fallback = drivers[slot]?.number || drivers[0]?.number || '';
-      setSelect(select, current && drivers.some(d => d.number === current) ? current : fallback);
+  const lapMode = () => (source?.kind === 'live' ? 'latest' : 'fastest');
+  const driversWithLaps = () => (state?.drivers || []).filter(d => (lapLists[d.number] || []).length);
+  function defaultPicks() {
+    let drivers = driversWithLaps();
+    if (lapMode() === 'fastest') drivers = drivers.slice().sort((a, b) => (resolve({driver: a.number, lap: 'fastest'})?.seconds || Infinity) - (resolve({driver: b.number, lap: 'fastest'})?.seconds || Infinity));
+    picks = drivers.slice(0, 2).map(d => ({driver: d.number, lap: lapMode()}));
+  }
+  function quickPicks(mode) {
+    // Fastest 2: the two quickest drivers by their fastest captured lap; Latest 2: the two leading drivers' latest push laps.
+    let drivers = driversWithLaps();
+    if (mode === 'fastest') drivers = drivers.slice().sort((a, b) => (resolve({driver: a.number, lap: 'fastest'})?.seconds || Infinity) - (resolve({driver: b.number, lap: 'fastest'})?.seconds || Infinity));
+    picks = drivers.slice(0, 2).map(d => ({driver: d.number, lap: mode}));
+    picksTouched = true; renderChips(); loadCompare();
+  }
+  // The lap a pick points at now ('latest' and 'fastest' move on as laps complete).
+  function resolve(pick) {
+    const laps = lapLists[pick.driver] || [];
+    if (pick.lap === 'latest') return laps.filter(l => l.push).at(-1) || null;
+    if (pick.lap === 'fastest') return laps.find(l => l.fastest) || null;
+    if (pick.lap === 'last') return laps.at(-1) || null;
+    return laps.find(l => l.lap === Number(pick.lap)) || null;
+  }
+  // Each lap its team colour; a second lap from the same team (or driver) takes a contrasting neutral.
+  function pickColours() {
+    const used = [], spare = [css('--ui-label') || '#fff', '#a1a1aa', '#f5a524'];
+    return picks.map(p => {
+      let c = colour(driverFor(p.driver));
+      if (used.includes(c)) c = spare.find(x => !used.includes(x)) || c;
+      used.push(c); return c;
     });
   }
-  function syncLapOptions() {
-    [['driverA', 'lapA'], ['driverB', 'lapB']].forEach(([driverName, lapName]) => {
-      // While live, follow each driver's newest push lap; afterwards (replay, ended session) start from the fastest.
-      const laps = lapLists[$(page, driverName).value] || [], select = $(page, lapName), fallback = source?.kind === 'live' ? 'latest' : 'fastest', current = select.value || fallback;
-      const flying = laps.filter(l => l.push).at(-1);
-      const fastest = laps.find(l => l.fastest), best = driverFor($(page, driverName).value).best;
-      // The driver's best lap may predate the connection; it loads once Formula 1 publishes the session.
-      const missed = best && fastest?.time && fastest.time !== best && lapSecondsOf(best) < (fastest.seconds || Infinity);
-      const label = !fastest ? 'Fastest' : missed ? `Fastest captured · L${fastest.lap} ${fastest.time} · best ${best} loads after the session` : `Fastest · L${fastest.lap} ${fastest.time || ''}`;
-      const options = [new Option(flying ? `Latest push lap · L${flying.lap} ${flying.time}` : 'Latest push lap (none yet)', 'latest'), new Option(label, 'fastest'), new Option('Last completed (any lap)', 'last'),
-        ...laps.slice().reverse().map(l => new Option(`Lap ${l.lap}${l.time ? ' · ' + l.time : ''}${l.pit ? ' · pit' : ''}`, String(l.lap)))];
-      select.replaceChildren(...options);
-      setSelect(select, options.some(o => o.value === current) ? current : fallback);
+  const MODE_NAMES = {latest: 'Latest push', fastest: 'Fastest', last: 'Last'};
+  function formatGap(seconds) { return `${seconds > 0 ? '+' : seconds < 0 ? '−' : '±'}${Math.abs(seconds).toFixed(3)}`; }
+  function renderChips() {
+    const box = $(page, 'lapChips'), colours = pickColours(), ref = picks[0] && resolve(picks[0]);
+    const chips = picks.map((pick, i) => {
+      const lap = resolve(pick), d = driverFor(pick.driver);
+      const chip = el('div', 'live-lap-chip'); chip.setAttribute('role', 'listitem'); chip.style.setProperty('--team', colours[i]);
+      const body = el('button', 'live-lap-chip-body'); body.type = 'button'; body.dataset.pick = String(i);
+      body.setAttribute('aria-label', `Change lap ${i + 1}: ${d.code} ${lap ? 'lap ' + lap.lap : ''}`);
+      body.append(el('i'), el('strong', null, d.code), el('span', null, lap ? `L${lap.lap}` : '—'), el('b', null, lap?.time || 'no lap yet'));
+      if (typeof pick.lap === 'string') body.append(el('small', 'live-lap-mode', MODE_NAMES[pick.lap]));
+      body.append(el('small', i ? 'live-lap-gap' : 'live-lap-ref', i ? (lap?.seconds && ref?.seconds ? formatGap(lap.seconds - ref.seconds) : '') : 'Reference'));
+      const remove = el('button', 'live-lap-chip-remove', '×'); remove.type = 'button'; remove.dataset.remove = String(i);
+      remove.setAttribute('aria-label', `Remove ${d.code} lap from the comparison`);
+      chip.append(body, remove);
+      return chip;
     });
+    if (picks.length < MAX_PICKS) {
+      const add = el('button', 'live-lap-add', '+ Add lap'); add.type = 'button'; add.dataset.pick = 'add';
+      add.disabled = !driversWithLaps().length; chips.push(add);
+    }
+    if (!driversWithLaps().length) chips.unshift(el('p', 'live-empty', 'Laps appear here as drivers complete them.'));
+    box.replaceChildren(...chips);
+  }
+  // The picker: drivers in running order, then the chosen driver's laps.
+  let pickerTarget = null, pickerDriver = null;
+  function openPicker(anchor, index) {
+    pickerTarget = index; pickerDriver = index == null ? (driversWithLaps().find(d => !picks.some(p => p.driver === d.number)) || driversWithLaps()[0])?.number : picks[index].driver;
+    const picker = $(page, 'lapPicker');
+    $(page, 'pickerTitle').textContent = index == null ? 'Add a lap' : `Change lap ${index + 1}`;
+    renderPicker();
+    picker.showPopover?.();
+    const r = anchor.getBoundingClientRect(), w = Math.min(420, innerWidth - 24);
+    picker.style.width = w + 'px';
+    picker.style.left = Math.max(12, Math.min(innerWidth - w - 12, r.left)) + 'px';
+    const below = r.bottom + 6, height = picker.offsetHeight;
+    picker.style.top = (below + height > innerHeight - 12 ? Math.max(12, r.top - height - 6) : below) + 'px';
+    picker.querySelector('[aria-pressed="true"]')?.focus({preventScroll: true});
+  }
+  function renderPicker() {
+    const drivers = driversWithLaps(), current = pickerTarget == null ? null : picks[pickerTarget];
+    $(page, 'pickerDrivers').replaceChildren(...drivers.map(d => {
+      const b = el('button', 'live-picker-driver'); b.type = 'button';
+      b.setAttribute('aria-pressed', String(d.number === pickerDriver)); b.style.setProperty('--team', colour(d));
+      b.append(el('i'), el('strong', null, d.code), el('small', null, d.position ? `P${d.position}` : ''));
+      b.addEventListener('click', () => { pickerDriver = d.number; renderPicker(); });
+      return b;
+    }));
+    const laps = lapLists[pickerDriver] || [], best = driverFor(pickerDriver).best;
+    const row = (value, title, lap, extra = '') => {
+      const b = el('button', 'live-picker-lap'); b.type = 'button';
+      const selected = current && current.driver === pickerDriver && String(current.lap) === String(value);
+      b.setAttribute('aria-pressed', String(!!selected));
+      b.append(el('span', null, title), el('b', null, lap?.time || '—'));
+      if (extra) b.append(el('small', null, extra));
+      if (lap?.fastest) b.classList.add('is-fastest');
+      if (lap?.pit) b.classList.add('is-pit');
+      b.disabled = !lap;
+      b.addEventListener('click', () => choose(value));
+      return b;
+    };
+    const latest = laps.filter(l => l.push).at(-1), fastest = laps.find(l => l.fastest);
+    const missed = best && fastest?.time && fastest.time !== best && lapSecondsOf(best) < (fastest.seconds || Infinity);
+    const rows = [
+      row('latest', latest ? `Latest push · L${latest.lap}` : 'Latest push lap', latest, 'follows new laps'),
+      row('fastest', fastest ? `Fastest · L${fastest.lap}` : 'Fastest lap', fastest, missed ? `best ${best} loads after the session` : 'follows new bests'),
+      el('div', 'live-picker-rule'),
+      ...laps.slice().reverse().map(l => row(l.lap, `Lap ${l.lap}`, l, l.pit ? 'pit lap' : l.push ? '' : 'not a push lap')),
+    ];
+    $(page, 'pickerLaps').replaceChildren(...rows);
+  }
+  function choose(value) {
+    if (!$(page, 'lapPicker').matches?.(':popover-open') || (pickerTarget == null && picks.length >= MAX_PICKS)) return;
+    const pick = {driver: pickerDriver, lap: value};
+    if (pickerTarget == null) picks.push(pick); else picks[pickerTarget] = pick;
+    picksTouched = true;
+    $(page, 'lapPicker').hidePopover?.();
+    renderChips(); loadCompare();
   }
   async function loadCompare() {
-    const picks = [['driverA', 'lapA'], ['driverB', 'lapB']].map(([d, l]) => [$(page, d).value, $(page, l).value]);
-    // Fetch again only when the choice changed, or the lap that "fastest" / "last" points at moved on.
-    const key = picks.map(([d, l]) => `${d}:${l}:${l === 'fastest' ? lapLists[d]?.find(x => x.fastest)?.lap : l === 'last' ? lapLists[d]?.at(-1)?.lap
-      : l === 'latest' ? lapLists[d]?.filter(x => x.push).at(-1)?.lap : ''}:${lapLists[d]?.at(-1)?.time || ''}`).join('|');
+    // Fetch again only when a pick changed, or the lap a moving pick points at moved on (or got its time).
+    const key = picks.map(p => { const lap = resolve(p); return `${p.driver}:${p.lap}:${lap?.lap}:${lap?.time || ''}`; }).join('|');
     if (key === compareKey) return;
     compareKey = key;
-    compareTraces = await Promise.all(picks.map(([driver, lap]) => driver ? api(`lap?driver=${encodeURIComponent(driver)}&lap=${encodeURIComponent(lap)}`).catch(() => null) : null));
-    renderCompareSummary(); queueDraw();
-  }
-  function compareColours() {
-    const [a, b] = compareTraces.map(t => t && colour(driverFor(t.driver)));
-    // Two laps from one team (or one driver) still need two colours.
-    return [a || '#8e8e93', b && b !== a ? b : css('--ui-label') || '#fff'];
-  }
-  function renderCompareSummary() {
-    const box = $(page, 'compareSummary'), [a, b] = compareTraces, colours = compareColours();
-    page.querySelectorAll('.live-compare-key').forEach((key, i) => key.style.setProperty('--team', colours[i]));
-    if (!a && !b) { box.replaceChildren(el('p', 'live-empty', 'Laps appear here as drivers complete them.')); return; }
-    const parts = [a, b].map((t, i) => {
-      if (!t) return el('span', 'live-compare-lap', '—');
-      const item = el('span', 'live-compare-lap'); item.style.setProperty('--team', colours[i]); if (i) item.classList.add('is-second');
-      item.append(el('strong', null, driverFor(t.driver).code), el('span', null, `Lap ${t.lap}`), el('b', null, t.time || '—'));
-      if (t.pit) item.append(el('small', null, 'pit lap'));
-      return item;
-    });
-    if (a?.seconds && b?.seconds) {
-      const gap = b.seconds - a.seconds;
-      parts.push(el('span', 'live-compare-gap', `${gap > 0 ? '+' : gap < 0 ? '−' : '±'}${Math.abs(gap).toFixed(3)} s`));
-    }
-    box.replaceChildren(...parts);
+    compareTraces = await Promise.all(picks.map(p => {
+      const lap = resolve(p);
+      return lap ? api(`lap?driver=${encodeURIComponent(p.driver)}&lap=${lap.lap}`).catch(() => null) : null;
+    }));
+    renderChips(); queueDraw();
   }
   // Time at a given distance along a lap (linear interpolation).
   function timeAt(trace, x) {
@@ -650,39 +736,44 @@
     container.addEventListener('pointerleave', () => { set(null); queueDraw(); });
   }
   function drawCompare() {
-    const container = $(page, 'compareCharts'), [a, b] = compareTraces, colours = compareColours();
-    const traces = [a, b].map((t, i) => t && {trace: t, colour: colours[i]}).filter(Boolean);
-    if (!traces.length) { container.replaceChildren(el('p', 'live-empty', 'Choose two completed laps.')); container.dataset.layout = ''; return; }
+    const container = $(page, 'compareCharts'), colours = pickColours();
+    const traces = compareTraces.map((t, i) => t && {trace: t, colour: colours[i]}).filter(Boolean);
+    if (!traces.length) { container.replaceChildren(el('p', 'live-empty', 'Add laps to compare their telemetry.')); container.dataset.layout = ''; return; }
     const length = Math.max(...traces.map(({trace}) => trace.x.at(-1) || 0));
     const view = {min: 0, max: length, marks: []};
     for (let m = 1000; m < length; m += 1000) view.marks.push({value: m, label: `${m / 1000} km`});
-    const ids = a && b ? ['speed', 'delta', 'throttle', 'brake', 'gear'] : ['speed', 'throttle', 'brake', 'gear'];
-    const list = panels(container, ids.map(id => ({...SPECS[id], axis: id === 'gear'})));
+    const ids = traces.length > 1 ? ['speed', 'delta', 'throttle', 'brake', 'gear'] : ['speed', 'throttle', 'brake', 'gear'];
+    const list = panels(container, ids.map(id => ({...SPECS[id], unit: id === 'delta' ? `seconds against ${driverFor(traces[0].trace.driver).code} L${traces[0].trace.lap}` : SPECS[id].unit, axis: id === 'gear'})));
     bindHover(container, f => f * length, v => { compareHover = v; });
+    // Captions are created once per layout; keep the reference named in the delta caption current.
+    const deltaCaption = container.querySelector('[data-panel="delta"] figcaption small');
+    if (deltaCaption) deltaCaption.textContent = `seconds against ${driverFor(traces[0].trace.driver).code} L${traces[0].trace.lap}`;
     for (const [spec, canvas] of list) {
       let series;
       if (spec.id === 'delta') {
-        // Each lap's clock starts at the timing line and is scaled to its official lap time, so the line ends on the
-        // official gap; a short moving average removes the position feed's sampling jitter.
-        const span = Math.min(a.x.at(-1), b.x.at(-1));
+        // Each lap's clock starts at the timing line and is scaled to its official lap time, so each line ends on the
+        // official gap to the reference; a short moving average removes the position feed's sampling jitter.
+        const span = Math.min(...traces.map(({trace}) => trace.x.at(-1)));
         const clock = trace => {
           const t0 = timeAt(trace, 0), tEnd = timeAt(trace, span), scale = trace.seconds && tEnd > t0 ? trace.seconds / (tEnd - t0) : 1;
           return x => (timeAt(trace, x) - t0) * scale;
         };
-        const ta = clock(a), tb = clock(b), raw = [];
-        for (let k = 0; k <= 400; k++) { const x = span * k / 400; raw.push([x, tb(x) - ta(x)]); }
-        const deltas = raw.map(([x], k) => {
-          const lo = Math.max(0, k - 4), hi = Math.min(raw.length - 1, k + 4), reach = Math.min(k - lo, hi - k);
-          let sum = 0; for (let j = k - reach; j <= k + reach; j++) sum += raw[j][1];
-          return [x, sum / (2 * reach + 1)];
+        const reference = clock(traces[0].trace);
+        series = traces.slice(1).map(({trace, colour: c}) => {
+          const other = clock(trace), raw = [];
+          for (let k = 0; k <= 400; k++) { const x = span * k / 400; raw.push([x, other(x) - reference(x)]); }
+          return {colour: c, points: raw.map(([x], k) => {
+            const reach = Math.min(k, raw.length - 1 - k, 4);
+            let sum = 0; for (let j = k - reach; j <= k + reach; j++) sum += raw[j][1];
+            return [x, sum / (2 * reach + 1)];
+          })};
         });
-        const range = Math.max(.1, ...deltas.map(([, d]) => Math.abs(d)));
-        const step = [0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 5].find(s => range / s <= 2.5) || 5;
+        const range = Math.max(.1, ...series.flatMap(line => line.points.map(([, d]) => Math.abs(d))));
+        const step = [0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 5].find(st => range / st <= 2.5) || 5;
         const top = Math.ceil(range / step) * step;
         Object.assign(spec, {min: -top, max: top, ticks: [-top, 0, top].map(v => ({value: v, label: v ? `${v > 0 ? '+' : ''}${v.toFixed(step < .1 ? 2 : 1)}` : '0', strong: !v}))});
-        series = [{colour: colours[1], points: deltas}];
       } else {
-        series = traces.map(({trace, colour}) => ({colour, points: spec.id === 'brake' || spec.id === 'gear' ? trace.x.map((x, i) => [x, trace[spec.id][i]]) : changes(trace.x, trace[spec.id])}));
+        series = traces.map(({trace, colour: c}) => ({colour: c, points: spec.id === 'brake' || spec.id === 'gear' ? trace.x.map((x, i) => [x, trace[spec.id][i]]) : changes(trace.x, trace[spec.id])}));
       }
       drawPanel(canvas, spec, series, view, compareHover);
     }
@@ -799,14 +890,42 @@
     const order = new Map((state?.drivers || []).map(d => [d.number, d]));
     // Leader drawn last, on top.
     cars.sort(([a], [b]) => (order.get(b)?.position ?? 99) - (order.get(a)?.position ?? 99));
-    ctx.font = '600 10px var(--ui-font, system-ui)'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.font = window.canvasFont?.(10, 600) || '600 11px system-ui'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    const labels = [];
+    // Cars on track sit on the drawn road (their line differs a little from the learned one); cars in the pit lane are
+    // hollow, dimmed rings at their real position, beside the road.
+    const road = outline?.complete ? points.map(([rx, ry]) => [px(rx), py(ry)]) : [];
+    const onRoad = (x, y) => {
+      let best = null, dist = Infinity;
+      for (let i = 0; i < road.length; i++) {
+        const [ax, ay] = road[i], [bx, by] = road[(i + 1) % road.length], dx = bx - ax, dy = by - ay;
+        const f = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1))), cx = ax + f * dx, cy = ay + f * dy, gap = Math.hypot(cx - x, cy - y);
+        if (gap < dist) { dist = gap; best = [cx, cy]; }
+      }
+      return dist <= 12 ? best : null;
+    };
     for (const [number, p] of cars) {
-      const d = order.get(number) || {code: number}, x = px(p.x), y = py(p.y), picked = chosen.includes(number);
-      if (p.status && p.status !== 'OnTrack') ctx.globalAlpha = .35;
+      const d = order.get(number) || {code: number}, picked = chosen.includes(number);
+      const pit = d.in_pit || d.pit_out && false || (p.status && p.status !== 'OnTrack');
+      let x = px(p.x), y = py(p.y);
+      if (!pit) { const snapped = onRoad(x, y); if (snapped) [x, y] = snapped; }
       ctx.beginPath(); ctx.arc(x, y, picked ? 6.5 : 5, 0, Math.PI * 2);
-      ctx.fillStyle = colour(d); ctx.fill();
-      ctx.lineWidth = picked ? 2 : 1.2; ctx.strokeStyle = picked ? (css('--ui-label') || '#fff') : '#000000aa'; ctx.stroke();
-      if (picked || (d.position && d.position <= 3)) { ctx.fillStyle = css('--ui-label') || '#fff'; ctx.fillText(d.code || number, x + 8, y); }
+      if (pit) {
+        ctx.globalAlpha = .7; ctx.lineWidth = 2; ctx.strokeStyle = colour(d); ctx.stroke();
+      } else {
+        ctx.fillStyle = colour(d); ctx.fill();
+        ctx.lineWidth = picked ? 2 : 1.2; ctx.strokeStyle = picked ? (css('--ui-label') || '#fff') : '#000000aa'; ctx.stroke();
+      }
+      if (picked || (d.position && d.position <= 3)) {
+        // Labels never sit on each other: nudge down (then up) until the box is free.
+        const text = d.code || number, width = ctx.measureText(text).width + 4;
+        let ly = y, tries = 0;
+        const hits = yy => labels.some(b => x + 8 < b.x + b.w && x + 8 + width > b.x && yy - 6 < b.y + 12 && yy + 6 > b.y);
+        while (hits(ly) && tries < 8) { tries++; ly = y + (tries % 2 ? 1 : -1) * Math.ceil(tries / 2) * 12; }
+        labels.push({x: x + 8, y: ly - 6, w: width});
+        if (Math.abs(ly - y) > 4) { ctx.beginPath(); ctx.moveTo(x + 5, y); ctx.lineTo(x + 8, ly); ctx.strokeStyle = css('--ui-tertiary') || '#888'; ctx.lineWidth = 1; ctx.stroke(); }
+        ctx.fillStyle = css('--ui-label') || '#fff'; ctx.fillText(text, x + 9, ly);
+      }
       ctx.globalAlpha = 1;
     }
   }
