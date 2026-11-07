@@ -230,4 +230,9 @@ body.live-view .performance-tabs[data-ui-thumb]::before { opacity: 0; }
   .live-sectors-cell b, .live-sectors-cell.is-lap b { font-size: 12px; }
   .live-sectors-cell small { font-size: 10px; }
 }
-.live-tyre-image { display: block; width: 20px; height: 20px; object-fit: contain; flex: none; }
+.live-tyre-badge { display: inline-flex; flex: none; }
+.live-tyre-badge .compound-badge { width: 20px; height: 20px; flex: 0 0 20px; }
+.live-sectors-cell small.is-slower { color: #ff6961; }
+.live-sectors-cell small.is-faster { color: #30d158; }
+:root[data-theme="light"] .live-sectors-cell small.is-slower { color: #d70015; }
+:root[data-theme="light"] .live-sectors-cell small.is-faster { color: #248a3d; }

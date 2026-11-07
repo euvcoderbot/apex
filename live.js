@@ -400,13 +400,11 @@
       timeCell(row, d.best);
       const tyre = el('td', 'live-tyre');
       if (d.stint?.compound) {
-        // The official Pirelli images the main page uses (assets/tyres/official); a lettered badge for anything else.
-        const name = String(d.stint.compound).toLowerCase(), asset = {soft: 'soft', medium: 'medium', hard: 'hard', intermediate: 'intermediate', wet: 'wet'}[name];
-        const label = name + (d.stint.new ? ', new' : ', used');
-        let badge;
-        if (asset) { badge = el('img', 'live-tyre-image'); badge.src = `assets/tyres/official/${asset}.png`; badge.alt = label; badge.width = 20; badge.height = 20; badge.loading = 'lazy'; }
-        else { const [letter, hue] = TYRES[d.stint.compound] || ['?', '#8e8e93']; badge = el('b', null, letter); badge.style.setProperty('--tyre', hue); }
-        badge.title = label;
+        // The main page's compound badge (session-state.js compoundBadgeMarkup: the ringed S/M/H/I/W), from a fixed list of names.
+        const label = String(d.stint.compound).toLowerCase() + (d.stint.new ? ', new' : ', used');
+        const badge = el('span', 'live-tyre-badge'); badge.title = label;
+        if (typeof window.compoundBadgeMarkup === 'function' && /^(soft|medium|hard|intermediate|inter|wet)$/i.test(d.stint.compound)) badge.innerHTML = window.compoundBadgeMarkup(d.stint.compound);
+        else { const [letter, hue] = TYRES[d.stint.compound] || ['?', '#8e8e93']; const b = el('b', null, letter); b.style.setProperty('--tyre', hue); badge.append(b); }
         const group = el('span', 'live-tyre-group'); group.append(badge, el('span', null, d.stint.laps ?? '')); tyre.append(group);
       }
       row.append(tyre);
@@ -484,7 +482,8 @@
     try { lapLists = await api('laps'); } catch { return; } finally { refreshLaps.busy = false; }
     if (!picksTouched) defaultPicks();
     picks = picks.filter(p => (lapLists[p.driver] || []).length);
-    renderChips(); loadCompare();
+    // Colours follow the session as it runs: a new session or personal best elsewhere recolours these laps at once.
+    renderChips(); renderSectorTable(); loadCompare();
     if ($(page, 'lapPicker').matches?.(':popover-open')) renderPicker();
   }
   const lapMode = () => (source?.kind === 'live' ? 'latest' : 'fastest');
@@ -645,13 +644,13 @@
         const gap = i && v != null && ref != null ? v - ref : null;
         cell.dataset.tone = v == null ? 'none' : close(v, bests.overall[k]) ? 'overall' : close(v, bests.personal[r.trace.driver]?.[k] ?? Infinity) ? 'personal' : 'slower';
         cell.title = {overall: 'Fastest of the session', personal: `${driverFor(r.trace.driver).code}'s personal best`, slower: `Neither the session's nor the driver's best`}[cell.dataset.tone] || '';
-        cell.append(el('b', null, text(r, k) || '—'), el('small', null, !i ? (rows.length > 1 ? 'Ref' : '') : gap == null ? '' : formatGap(gap)));
+        cell.append(el('b', null, text(r, k) || '—'), el('small', gap > 0 ? 'is-slower' : gap < 0 ? 'is-faster' : null, !i ? (rows.length > 1 ? 'Ref' : '') : gap == null ? '' : formatGap(gap)));
         row.append(cell);
       }
       grid.append(row);
     });
     const legend = el('div', 'live-sectors-legend');
-    [['#bf5af2', 'Session best'], ['#30d158', 'Personal best'], ['#ffd60a', 'Neither'], [null, 'Gaps against the first lap']].forEach(([tone, label]) => {
+    [['#bf5af2', 'Session best'], ['#30d158', 'Personal best'], ['#ffd60a', 'Neither'], [null, 'Gaps against the first lap: − faster, + slower']].forEach(([tone, label]) => {
       const item = el('span'); if (tone) { const bar = el('i'); bar.style.setProperty('--tone', tone); item.append(bar); } item.append(label); legend.append(item);
     });
     box.replaceChildren(grid, legend);
