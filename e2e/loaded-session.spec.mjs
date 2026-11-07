@@ -39,6 +39,41 @@ test('recorded qualifying comparison renders both laps and supports trace toggle
   expect(errors).toEqual([]);
 });
 
+test('telemetry display controls apply to every graph and retain independent annotations',async({page},testInfo)=>{
+  // Observe text actually painted on each canvas, rather than only control state.
+  await page.addInitScript(()=>{
+    const original=CanvasRenderingContext2D.prototype.fillText;
+    const clear=CanvasRenderingContext2D.prototype.clearRect;
+    CanvasRenderingContext2D.prototype.clearRect=function(...args){
+      this.canvas.paintedLabels=[];
+      return clear.apply(this,args);
+    };
+    CanvasRenderingContext2D.prototype.fillText=function(text,...args){
+      (this.canvas.paintedLabels??=[]).push(String(text));
+      return original.call(this,text,...args);
+    };
+  });
+  const errors=await loaded(page);
+  const canvases=page.locator('canvas[data-chart]');
+  await expect(page.locator('#loadedSessionContext')).toContainText('🗺️ United States Grand Prix');
+  const painted=()=>canvases.evaluateAll(nodes=>nodes.map(c=>({name:c.dataset.chart,labels:c.paintedLabels||[]})));
+  await expect.poll(async()=> (await painted()).every(c=>c.labels.some(t=>/^T\d/.test(t)))).toBe(true);
+  await page.locator('.trace-display-menu').first().locator('summary').click();
+  await page.locator('#distanceNumbersToggle').uncheck();
+  await expect.poll(async()=> (await painted()).every(c=>!c.labels.some(t=>/^\d+ M$/.test(t)))).toBe(true);
+  await page.locator('#speedAnnotationToggle').check();
+  await page.locator('#cornerToggle').uncheck();
+  await expect.poll(async()=> (await painted()).every(c=>!c.labels.some(t=>/^T\d/.test(t)))).toBe(true);
+  await expect(page.locator('#speedAnnotationToggle')).toBeChecked();
+  await page.locator('#cornerToggle').check();
+  await page.locator('.trace-display-menu').first().locator('summary').click();
+  await page.locator('#telemetryCard').screenshot({path:testInfo.outputPath('telemetry-display.png')});
+  await page.reload();
+  await expect(page.locator('canvas[data-chart="Speed trace"]')).toBeVisible();
+  await expect(page.locator('#distanceNumbersToggle')).not.toBeChecked();
+  expect(errors).toEqual([]);
+});
+
 test('qualifying phases, empty comparison alignment and compute settings remain usable', async ({page}) => {
   const errors = await loaded(page);
   await expect(page.locator('.run-segment strong').filter({hasText: /^Stint/})).toHaveCount(0);

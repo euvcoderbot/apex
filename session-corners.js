@@ -51,7 +51,7 @@ function renderAll() {
   const sessionContext = $('#loadedSessionContext');
   if (sessionContext) {
     sessionContext.hidden = !sessionEventName;
-    sessionContext.textContent = sessionEventName ? `${sessionYear} · ${sessionEventName} · ${loadedSessionName}` : '';
+    sessionContext.textContent = sessionEventName ? `${sessionYear} · 🗺️ ${sessionEventName} · ${loadedSessionName}` : '';
   }
   updateTelemetryVisibility();
   renderLoaded();
