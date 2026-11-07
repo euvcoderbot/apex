@@ -192,7 +192,7 @@ function apiUrl(path) {
 function sharedDataURL(url) {
   const parsed=new URL(url,window.location?.href||'http://localhost');
   if(parsed.origin!==new URL(API_ORIGIN||window.location?.href||'http://localhost').origin)return url;
-  if(!['/api/events','/api/session','/api/telemetry','/api/performance','/api/performance/trace-batch','/api/performance/pits'].includes(parsed.pathname))return url;
+  if(!['/api/events','/api/session','/api/telemetry','/api/performance','/api/performance/trace-batch','/api/performance/pits','/api/season','/api/season/upgrades','/api/season/power-units'].includes(parsed.pathname))return url;
   const fresh=parsed.searchParams.get('fresh')==='true';parsed.searchParams.delete('fresh');
   return '/api/data?'+new URLSearchParams({path:parsed.pathname+'?'+parsed.searchParams,...(fresh?{refresh:'1'}:{})});
 }
@@ -212,7 +212,7 @@ function dataRequestTimeout(url) {
   // Calendar metadata can wait on the same upstream rate limiter as telemetry.
   // It is the bootstrap for both views: cancelling it at 30 s strands the
   // whole page. Match the Worker's 290 s budget, plus response delivery time.
-  return /^\/api\/(?:events|session|telemetry|performance(?:\/.*)?|race-corners|qualifying-corners)$/.test(path) ? 310000 : 30000;
+  return /^\/api\/(?:events|session|telemetry|performance(?:\/.*)?|season(?:\/.*)?|race-corners|qualifying-corners)$/.test(path) ? 310000 : 30000;
 }
 
 /** The published site answers 503 for a result that was never published. Retrying cannot change that. */

@@ -632,8 +632,12 @@ body.performance-view > #carPerformance:not([hidden]),body:not(.performance-view
   body > footer { padding-left: 16px; }
 }
 @media(max-width:700px) {
-  .site-header.window-toolbar { grid-template-columns: auto minmax(0,1fr) auto; gap: 6px; padding: 0 8px; }
-  .site-header .header-actions { justify-self: stretch; min-width: 0; }
+  .site-header.window-toolbar { grid-template-columns: auto minmax(0,1fr); grid-template-rows: auto auto; gap: 6px; height: auto; padding: 6px 8px; }
+  /* The view tabs get their own full-width row on phones; the toolbar's tools keep the first row. */
+  .site-header .header-actions { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; min-width: 0; }
+  .site-header .workspace-tools { grid-column: 2; grid-row: 1; justify-self: end; }
+  .site-header .header-actions > .performance-tabs { flex: 1 1 auto; width: 100%; max-width: none; }
+  .site-header .performance-tabs > button { flex: 1 1 0; justify-content: center; }
   .site-header .performance-tabs[data-ui-group],.site-header .performance-tabs { width: 100%; }
   .site-header .performance-tabs > button { padding: 0 6px; font-size: 13.5px; }
   .app-sidebar .session-controls:not(.performance-controls) { grid-template-columns: minmax(0,1fr) minmax(0,1fr); grid-template-areas: "season session" "gp gp" "load load"; }

@@ -15,10 +15,12 @@
 (() => {
   const VIEWS = {
     session: ['year', 'round', 'session', 'laps'],
-    cars: ['year', 'scope', 'races', 'metric', 'subject', 'session', 'pill', 'basis', 'run']
+    cars: ['year', 'scope', 'races', 'metric', 'subject', 'session', 'pill', 'basis', 'run'],
+    // /apex/season/<tab>?year=2026&driver=antonelli&a=antonelli&b=russell&team=ferrari
+    season: ['year', 'tab', 'driver', 'a', 'b', 'team']
   };
   // Changes to these move to a new "page" and get their own history entry.
-  const NAVIGATION = {session: ['year', 'round', 'session', 'laps'], cars: ['year', 'scope', 'races', 'metric', 'run']};
+  const NAVIGATION = {session: ['year', 'round', 'session', 'laps'], cars: ['year', 'scope', 'races', 'metric', 'run'], season: ['year', 'tab', 'driver', 'a', 'b']};
   const restorers = {};
   const memory = {};
   // The app's root path: /apex/ on both servers; elsewhere (tests, catalog) the page's own folder.
@@ -27,26 +29,28 @@
   function parse(pathname, search) {
     const query = new URLSearchParams(search);
     const segments = (pathname.startsWith(BASE) ? pathname.slice(BASE.length) : '').split('/').filter(Boolean);
-    const view = segments[0] === 'cars' || query.get('view') === 'cars' ? 'cars' : 'session';
+    const view = segments[0] === 'cars' || query.get('view') === 'cars' ? 'cars' : segments[0] === 'season' ? 'season' : 'session';
     const params = {};
     for (const key of VIEWS[view]) {
       const value = query.get(key);
       if (value !== null && value !== '') params[key] = value;
     }
     if (view === 'cars' && segments[0] === 'cars' && segments[1]) params.metric = decodeURIComponent(segments[1]);
+    if (view === 'season' && segments[1]) params.tab = decodeURIComponent(segments[1]);
     return {view, params};
   }
 
   function href(view, params) {
     const query = new URLSearchParams();
     for (const key of VIEWS[view]) {
-      if (view === 'cars' && key === 'metric') continue;  // the category is the path
+      if ((view === 'cars' && key === 'metric') || (view === 'season' && key === 'tab')) continue;  // the category is the path
       const value = params?.[key];
       if (value !== undefined && value !== null && value !== '') query.set(key, String(value));
     }
     // Commas are safe in a query string; keep lists readable (races=16,17).
     const text = query.toString().replace(/%2C/gi, ',');
     const metric = params?.metric && params.metric !== 'pace' ? '/' + encodeURIComponent(params.metric) : '';
+    if (view === 'season') return BASE + 'season' + (params?.tab ? '/' + encodeURIComponent(params.tab) : '') + (text ? '?' + text : '') + location.hash;
     return (view === 'cars' ? BASE + 'cars' + metric : BASE) + (text ? '?' + text : '') + location.hash;
   }
 
@@ -56,7 +60,10 @@
   const SITE = 'F1 Apex Data';
   const CATEGORY_TITLES = {pace: 'Pace', corners: 'Cornering', straight: 'Straight line', braking: 'Braking', pits: 'Pit stops',
     tyres: 'Tyre trend', trend: 'Development & updates', results: 'Reliability & results'};
+  const SEASON_TITLES = {schedule: 'Schedule', results: 'Results', standings: 'Standings', drivers: 'Driver stats',
+    h2h: 'Head-to-head', upgrades: 'Upgrades', units: 'Power units'};
   function titleFor(view, params) {
+    if (view === 'season') return `${SEASON_TITLES[params?.tab] || 'Schedule'} · Season${params?.year ? ' ' + params.year : ''} — ${SITE}`;
     if (view === 'cars') return `${CATEGORY_TITLES[params?.metric] || CATEGORY_TITLES.pace} · Car performance${params?.year ? ' ' + params.year : ''} — ${SITE}`;
     const where = [params?.year, params?.round ? 'round ' + params.round : '', params?.session].filter(Boolean).join(' ');
     return where ? `${where} · Session analysis — ${SITE}` : `Session analysis — ${SITE}`;

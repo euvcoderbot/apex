@@ -298,6 +298,7 @@
        They stay inert until that view is opened, or until the browser is idle after load, whichever is first. -->
   <script type="lazy-module" src="react-islands.js"></script>
   <script type="lazy-module" src="car-performance.js?v=20261007-race-v2"></script>
+  <script type="lazy-module" src="season.js"></script>
   <script>
     (function () {
       var pending = null, ready = false;
@@ -316,6 +317,7 @@
       var start = window.ApexUrl && window.ApexUrl.read();
       // Until the module is in, the page must not rewrite a car-performance address to the session view it is showing.
       if (start && start.view === 'cars') { window.ApexCarsPending = true; load().catch(function () {}); }
+      if (start && start.view === 'season') load().catch(function () {});
       addEventListener('load', function () {
         var idle = window.requestIdleCallback || function (fn) { return setTimeout(fn, 1200); };
         idle(function () { load().catch(function () {}); }, {timeout: 3000});

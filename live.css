@@ -4,7 +4,7 @@ body.live-view .performance-tabs[data-ui-thumb]::before { opacity: 0; }
 
 .live-view-button { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 5px 14px; border: 1px solid var(--ui-border); border-radius: var(--radius-pill); background: var(--ui-control); color: var(--ui-secondary); font-weight: 500; white-space: nowrap; cursor: pointer; }
 .live-view-button:hover { color: var(--ui-label); background: var(--ui-control-hover, var(--ui-control)); }
-.live-view-button[aria-pressed="true"] { color: var(--ui-label); background: var(--ui-selected); box-shadow: var(--ui-shadow-control); }
+.live-view-button:is([aria-pressed="true"],[aria-selected="true"]) { color: var(--ui-label); background: var(--ui-selected); box-shadow: var(--ui-shadow-control); }
 .site-header .header-actions:has(> .live-view-button) { display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; gap: 8px; }
 .site-header .header-actions > .live-view-button, .site-header .header-actions:has(> .live-view-button) > .performance-tabs { flex: none; }
 .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ui-tertiary); opacity: .55; flex: none; }
@@ -242,4 +242,4 @@ body.live-view .performance-tabs[data-ui-thumb]::before { opacity: 0; }
 .site-header .performance-tabs:has(> .live-view-button) > button { padding-inline: 14px; white-space: nowrap; }
 .site-header .performance-tabs > .live-view-button { min-height: 0; height: auto; align-self: stretch; padding: 0 14px; border: 0; border-radius: var(--radius-pill); background: transparent; box-shadow: none; color: var(--ui-secondary); font: inherit; font-weight: 500; }
 .site-header .performance-tabs > .live-view-button:hover { color: var(--ui-label); background: transparent; }
-.site-header .performance-tabs > .live-view-button[aria-pressed="true"] { background: var(--ui-selected); box-shadow: var(--ui-shadow-control); color: var(--ui-label); }
+.site-header .performance-tabs > .live-view-button:is([aria-pressed="true"],[aria-selected="true"]) { background: var(--ui-selected); box-shadow: var(--ui-shadow-control); color: var(--ui-label); }

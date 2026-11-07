@@ -1667,6 +1667,114 @@ def project_corners_onto_lap(data: Any, samples: list[dict[str, Any]]) -> list[d
     return result
 
 
+# ---------- Season hub: schedule, results, standings, driver stats, head-to-heads, upgrades, power units ----------
+import season_data
+import fia_documents
+
+SEASON_CACHE = PREPARED_CACHE / "season"
+_season_memo: dict[int, tuple[float, dict]] = {}
+_season_lock = Lock()
+
+
+def season_bundle(year: int) -> dict:
+    """The season summary (season_data.build), kept in memory for ten minutes; Jolpica pages are cached on disk."""
+    with _season_lock:
+        memo = _season_memo.get(year)
+        if memo and time.time() - memo[0] < 600:
+            return memo[1]
+    bundle = season_data.build(year, season_data.Source(SEASON_CACHE))
+    with _season_lock:
+        _season_memo[year] = (time.time(), bundle)
+    return bundle
+
+
+def _round_for_dates(rounds: list[dict], dates: list[str] | None, event: str | None = None) -> dict | None:
+    """The calendar round of an FIA document: its race day within the document's dates (or up to three days after them,
+    as some documents list Thursday to Saturday), else the round of the same name."""
+    if dates:
+        last = (datetime.fromisoformat(dates[1]) + timedelta(days=3)).date().isoformat()
+        found = next((r for r in rounds if dates[0] <= r["date"] <= last), None)
+        if found:
+            return found
+    if event:
+        key = fia_documents.event_key(event)
+        return next((r for r in rounds if fia_documents.event_key(r["name"]) == key), None)
+    return None
+
+
+@app.get("/api/season")
+def season(response: Response, year: int = Query(2026, ge=1950, le=2100)):
+    try:
+        bundle = season_bundle(year)
+    except Exception as exc:
+        raise HTTPException(503, f"Season data is unavailable right now: {exc}")
+    response.headers["Cache-Control"] = "public, max-age=300" if year >= datetime.now(timezone.utc).year else "public, max-age=86400"
+    return bundle
+
+
+@app.get("/api/season/upgrades")
+def season_upgrades(response: Response, year: int = Query(2026, ge=2022, le=2100)):
+    """Car upgrades from every Grand Prix's FIA Car Presentation Submissions (from 2022, when the FIA began publishing them)."""
+    bundle = season_bundle(year)
+    rounds = bundle["rounds"]
+    documents = fia_documents.Documents(SEASON_CACHE / "fia")
+    today = datetime.now(timezone.utc).date().isoformat()
+    try:
+        items = documents.upgrades(year)
+    except Exception as exc:
+        raise HTTPException(503, f"FIA documents are unavailable right now: {exc}")
+    events = {}
+    for item in items:
+        r = _round_for_dates(rounds, item.get("event_dates"), item.get("event"))
+        item["round"] = r["round"] if r else None
+        item["round_name"] = r["name"] if r else item["event"]
+        events.setdefault(item["document"], {"round": item["round"], "name": item["round_name"], "document": item["document"]})
+    response.headers["Cache-Control"] = "public, max-age=1800"
+    return {"year": year, "items": items, "events": sorted(events.values(), key=lambda e: e["round"] or 99),
+            "source": "FIA Car Presentation Submissions", "checked": today}
+
+
+@app.get("/api/season/power-units")
+def season_power_units(response: Response, year: int = Query(2026, ge=2022, le=2100)):
+    """Power-unit elements each driver has used so far, from the latest FIA 'PU elements used per driver' document."""
+    bundle = season_bundle(year)
+    documents = fia_documents.Documents(SEASON_CACHE / "fia")
+    try:
+        latest = documents.pu_elements(year)
+    except Exception as exc:
+        raise HTTPException(503, f"FIA documents are unavailable right now: {exc}")
+    if not latest:
+        raise HTTPException(404, "The FIA has not published power-unit element usage for this season yet.")
+    by_number = {str(d.get("number") or "").lstrip("0"): d for d in bundle["drivers"].values()}
+    for row in latest["rows"]:
+        driver = by_number.get(row["number"].lstrip("0"))
+        if not driver:
+            driver = next((d for d in bundle["drivers"].values() if d["family"].lower() in row["label"].lower()), None)
+        row["driver"] = driver["id"] if driver else None
+    # Each event's cumulative table, turned into the elements newly fitted at that event (per driver number).
+    history = []
+    try:
+        previous: dict[str, int] = {}
+        for event in documents.pu_history(year):
+            totals = {row["number"].lstrip("0"): sum(v or 0 for v in row["elements"].values()) for row in event["rows"]}
+            at = _round_for_dates(bundle["rounds"], event.get("dates"), event.get("event"))
+            # A driver missing from one table keeps their last total; a first appearance is their starting set, not new parts.
+            history.append({"round": at["round"] if at else None, "round_name": at["name"] if at else event["event"],
+                            "new": {n: max(0, t - previous[n]) for n, t in totals.items() if n in previous},
+                            "first": {n: t for n, t in totals.items() if n not in previous}})
+            previous.update(totals)
+    except Exception:
+        history = []
+    by_number_ids = {n: (d["id"] if d else None) for n, d in by_number.items()}
+    for entry in history:
+        entry["new"] = {by_number_ids.get(n) or n: v for n, v in entry["new"].items()}
+        entry["first"] = {by_number_ids.get(n) or n: v for n, v in entry["first"].items()}
+    r = _round_for_dates(bundle["rounds"], latest.get("dates"), latest.get("event"))
+    response.headers["Cache-Control"] = "public, max-age=1800"
+    return {"year": year, **latest, "round": r["round"] if r else None, "round_name": r["name"] if r else latest.get("event"), "history": history,
+            "source": "FIA Technical Delegate: PU elements used per driver up to now"}
+
+
 @app.get("/api/events")
 def events(response: Response, year: int = Query(2025, ge=2014)):
     current = year >= datetime.now(timezone.utc).year
