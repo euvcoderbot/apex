@@ -1,6 +1,6 @@
 // Read-only publication gate: no missing/corrupt files or silently relabelled data.
 import {readFile,stat} from 'node:fs/promises';
-import {validateIndex,decodeSnapshot,validatePayload} from '../lib/release-validation.mjs';
+import {validateIndex,decodeSnapshot,validatePayload,validateSeasonIndex,validateSeasonPayload} from '../lib/release-validation.mjs';
 import path from 'node:path';
 import {SOURCE_REVISION,BACKEND_REVISION,RACE_REVISION} from '../lib/cache-revision.mjs';
 import {snapshotCompatible} from '../lib/snapshot-policy.mjs';
@@ -65,4 +65,15 @@ for(const folder of ['prerendered','local-telemetry','telemetry']){
       throw Error('Historical OpenF1 session needs current offline race-control annotations: '+route);
   }
 }
-console.log(`${sourceOnly?'Source recordings structurally valid (publication compatibility not checked)':'Release snapshots valid'}: ${files} referenced files checked; ${retained} retained revision references keep their original provenance.`);
+// Season hub snapshots: committed with the source and read first by the hosted site (no backend for new data),
+// so they are checked in both modes whenever the folder exists.
+let seasonFiles=0;
+const season=await read(path.join(root,'season','index.json')).catch(error=>{if(error.code==='ENOENT')return null;throw error;});
+if(season){
+  validateSeasonIndex(season);
+  for(const [route,entry] of Object.entries(season.entries)){
+    validateSeasonPayload(await payload('season',entry.file,route),route);
+    seasonFiles++;
+  }
+}
+console.log(`${sourceOnly?'Source recordings structurally valid (publication compatibility not checked)':'Release snapshots valid'}: ${files} referenced files checked (${seasonFiles} season snapshots); ${retained} retained revision references keep their original provenance.`);
