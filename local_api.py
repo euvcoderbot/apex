@@ -6,7 +6,7 @@ All other routes use the shared backend, including native per-lap telemetry.
 from datetime import datetime, timezone
 import time
 
-from fastapi import FastAPI, HTTPException, Query, Response
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 import server
 
 app = FastAPI()
@@ -62,6 +62,242 @@ def session_data(response: Response, year: int = Query(2025, ge=2014),
                 raise
             # Older weekends absent from OpenF1 can still use the archive.
     return server.session_data(response, year, gp, round, session, fresh)
+
+
+# ---------- Live timing (this machine only; never part of the hosted site) ----------
+import asyncio
+import json as _json
+import os
+import re
+from pathlib import Path
+
+from fastapi import Body
+from fastapi.responses import StreamingResponse
+
+import live_timing
+
+REPLAY_CACHE = Path(os.environ.get('APEX_REPLAY_CACHE') or server.CACHE)
+LIVE = live_timing.LiveManager(Path(os.environ.get('APEX_LIVE_DIR') or Path.home() / 'apex-data' / 'live'), str(REPLAY_CACHE))
+_SESSION_DIR = re.compile(r'^\d{4}-\d{2}-\d{2}_(.+)$')
+
+
+def replay_sessions():
+    """Sessions whose folders exist in the FastF1 cache, newest first: the ones a replay can read offline."""
+    found = []
+    for year_dir in REPLAY_CACHE.glob('[12][0-9][0-9][0-9]'):
+        for event_dir in year_dir.iterdir():
+            event = _SESSION_DIR.match(event_dir.name)
+            if not event_dir.is_dir() or not event:
+                continue
+            for session_dir in event_dir.iterdir():
+                session = _SESSION_DIR.match(session_dir.name)
+                if session_dir.is_dir() and session:
+                    found.append({'path': f'/static/{year_dir.name}/{event_dir.name}/{session_dir.name}/',
+                                  'year': int(year_dir.name), 'event': event.group(1).replace('_', ' '),
+                                  'session': session.group(1).replace('_', ' '), 'date': session_dir.name[:10]})
+    return sorted(found, key=lambda s: (s['date'], s['path']), reverse=True)
+
+
+_ARCHIVE_INDEX = {'at': 0.0, 'sessions': []}
+
+
+def archive_replays():
+    """This season's published sessions from F1's archive (kept ten minutes); empty without an F1 TV sign-in."""
+    if not live_timing.stored_token_status().get('available'):
+        return []
+    if time.time() - _ARCHIVE_INDEX['at'] > 600:
+        try:
+            _ARCHIVE_INDEX['sessions'] = live_timing.archive_sessions(datetime.now(timezone.utc).year)
+        except Exception:
+            _ARCHIVE_INDEX['sessions'] = []
+        _ARCHIVE_INDEX['at'] = time.time()
+    return _ARCHIVE_INDEX['sessions']
+
+
+def all_replays():
+    """Sessions in this PC's cache, then this season's archive sessions not cached here, newest first."""
+    cached = replay_sessions()
+    known = {s['path'].rstrip('/') for s in cached}
+    extra = [s for s in archive_replays() if s['path'].rstrip('/') not in known]
+    return sorted(cached + extra, key=lambda s: (s['date'], s['path']), reverse=True)
+
+
+@app.get('/api/live/status')
+def live_status():
+    browser = {'waiting': _BROWSER_SIGNIN['server'] is not None, 'url': _BROWSER_SIGNIN['url'], 'error': _BROWSER_SIGNIN['error']}
+    return {**LIVE.status(), 'replays': all_replays(), 'browser_signin': browser}
+
+
+@app.get('/api/live/state')
+def live_state():
+    return LIVE.state.snapshot()
+
+
+@app.get('/api/live/outline')
+def live_outline():
+    return LIVE.state.outline()
+
+
+@app.get('/api/live/telemetry')
+def live_telemetry(drivers: str = Query('', max_length=200), seconds: float = Query(60, gt=0, le=live_timing.TELEMETRY_SECONDS)):
+    numbers = [d for d in drivers.split(',') if d.isdigit()][:6]
+    return LIVE.state.telemetry_for(numbers, seconds)
+
+
+@app.get('/api/live/laps')
+def live_laps():
+    return LIVE.state.lap_list()
+
+
+@app.get('/api/live/lap')
+def live_lap(driver: str = Query(..., pattern=r'^\d{1,3}$'), lap: str = Query('fastest', pattern=r'^(fastest|latest|last|\d{1,3})$')):
+    trace = LIVE.state.lap_trace(driver, lap)
+    if not trace:
+        raise HTTPException(404, 'That lap has not been completed in this session yet.')
+    return trace
+
+
+@app.post('/api/live/start')
+def live_start(body: dict = Body(...)):
+    mode = body.get('mode')
+    if mode == 'live':
+        return LIVE.start_live()
+    if mode == 'replay':
+        path = str(body.get('path') or '')
+        choice = next((s for s in all_replays() if s['path'] == path), None)
+        if choice is None:
+            raise HTTPException(404, 'That session is not available to replay.')
+        try:
+            speed, start = float(body.get('speed', 1)), float(body.get('start', 0))
+        except (TypeError, ValueError):
+            raise HTTPException(422, 'Speed and start must be numbers.')
+        return LIVE.start_replay(path, min(max(speed, .1), 200), max(start, 0), archive=bool(choice.get('archive')))
+    raise HTTPException(422, 'mode must be live or replay')
+
+
+@app.post('/api/live/signin')
+def live_signin(body: dict = Body(...)):
+    """Sign in to the F1 TV account with FastF1's own sign-in. The email and password are used for this one request,
+    passed straight to FastF1 (which talks only to Formula 1's sign-in service) and never stored or logged; FastF1
+    stores the resulting token on this PC, which the live connection then uses."""
+    # Copy-paste often brings a line break or tab along; those are never part of a password.
+    email, password = str(body.get('email') or '').strip(), str(body.get('password') or '').strip('\r\n\t')
+    if not email or not password:
+        raise HTTPException(422, 'Enter your F1 TV email and password.')
+    try:
+        from fastf1.exceptions import F1AuthError
+        from fastf1.internals.f1account import token_manager
+        from fastf1.internals.f1account.login import login
+    except Exception:
+        raise HTTPException(501, 'FastF1 3.9.2 or newer is needed to sign in.')
+    try:
+        token_manager.get(force_renew=True, auth_func=lambda: login(email, password))
+    except F1AuthError as exc:
+        raise HTTPException(401, str(exc) or 'Formula 1 did not accept the sign-in.')
+    finally:
+        password = None
+    return {'auth': live_timing.stored_token_status()}
+
+
+_BROWSER_SIGNIN = {'server': None, 'url': None, 'error': None, 'started': 0.0}
+
+
+@app.post('/api/live/signin-browser')
+def live_signin_browser():
+    """FastF1's browser sign-in, without blocking: start its short-lived local receiver, return the sign-in page address
+    for the person to open, and finish in the background once FastF1's Companion add-on hands over the sign-in. The
+    person signs in on Formula 1's own page in their own browser; nothing here sees the password."""
+    import threading
+    try:
+        from fastf1.internals.f1account import browser as f1browser, token_manager
+        from fastf1.internals.f1account.tokens import SubscriptionToken
+    except Exception:
+        raise HTTPException(501, 'FastF1 3.9.2 or newer is needed to sign in.')
+    state = _BROWSER_SIGNIN
+    if state['server'] is not None and time.time() - state['started'] < 600:
+        return {'url': state['url'], 'waiting': True}
+    server = f1browser._AuthServer()
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    state.update(server=server, url=f'{f1browser.LOGIN_URL}?port={server.server_port}', error=None, started=time.time())
+
+    def receive():
+        received = server.received.wait(timeout=600)
+        server.shutdown(); server.server_close()
+        if not received or not server.token:
+            return 'The browser sign-in timed out or returned no F1 TV subscription.'
+        f1browser._verify_jwt(server.token)
+        return SubscriptionToken.from_jwt(server.token)
+
+    def finish():
+        try:
+            result = receive()
+            if isinstance(result, str):
+                state['error'] = result
+            else:
+                token_manager.get(force_renew=True, auth_func=lambda: result)
+        except Exception as exc:
+            state['error'] = f'Browser sign-in failed: {exc}'
+        finally:
+            state['server'] = None
+
+    threading.Thread(target=finish, daemon=True, name='f1tv-browser-signin').start()
+    return {'url': state['url'], 'waiting': True}
+
+
+@app.post('/api/live/signout')
+def live_signout():
+    """Forget the F1 TV sign-in stored on this PC."""
+    try:
+        from fastf1.internals.f1account import clear_token
+        clear_token()
+    except Exception as exc:
+        raise HTTPException(500, f'Could not clear the stored sign-in: {exc}')
+    return {'auth': live_timing.stored_token_status()}
+
+
+@app.post('/api/live/backfill')
+def live_backfill():
+    """Load the current session's completed laps from Formula 1's archive (laps from before connecting)."""
+    try:
+        return LIVE.backfill()
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+
+
+@app.post('/api/live/stop')
+def live_stop():
+    return LIVE.stop()
+
+
+@app.get('/api/live/stream')
+async def live_stream(request: Request, drivers: str = Query('', max_length=200)):
+    """Server-sent events: the timing snapshot at most twice a second, telemetry for chosen drivers, the outline when it changes."""
+    numbers = [d for d in drivers.split(',') if d.isdigit()][:6]
+
+    async def events():
+        seen, outline_seen, beat = -1, None, 0.0
+        yield 'retry: 2000\n\n'
+        while not await request.is_disconnected():
+            version = LIVE.state.version
+            now = time.monotonic()
+            if version != seen:
+                seen = version
+                payload = {'state': LIVE.state.snapshot(), 'source': LIVE.status()['source']}
+                if numbers:
+                    payload['telemetry'] = LIVE.state.telemetry_for(numbers, 20)
+                    payload['current'] = LIVE.state.current_laps(numbers)
+                outline = LIVE.state.outline()
+                if outline['complete'] != outline_seen:
+                    outline_seen = outline['complete']
+                    payload['outline'] = outline
+                yield f'data: {_json.dumps(payload, separators=(",", ":"), default=str)}\n\n'
+                beat = now
+            elif now - beat > 10:
+                yield ': alive\n\n'
+                beat = now
+            await asyncio.sleep(.5)
+
+    return StreamingResponse(events(), media_type='text/event-stream', headers={'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no'})
 
 
 app.mount('/', server.app)

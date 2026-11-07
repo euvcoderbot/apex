@@ -109,6 +109,7 @@ main.sidebar-collapsed .sidebar { display: flex; opacity: 0; visibility: hidden;
 }
 .select-trigger i { width: 7px; height: 7px; border-color: var(--ui-tertiary); }
 .select-trigger > span, .select-menu button { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.title-flag { display: inline-block; width: 18px; height: 13px; margin-right: 7px; vertical-align: -2px; object-fit: cover; border-radius: 2px; box-shadow: 0 0 0 1px #00000014; }
 .gp-flag { flex: 0 0 24px; width: 24px; height: 18px; object-fit: cover; border-radius: var(--radius-xs); box-shadow: 0 0 0 1px #00000014; }
 .select-option-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .select-menu, .select-shell:has(#gp) .select-menu {

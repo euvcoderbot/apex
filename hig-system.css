@@ -582,6 +582,8 @@ body.trace-focus #telemetryCard { scrollbar-gutter: stable; padding: 8px 16px 24
 .corner-measurement-table td strong { display: block; font-size: var(--type-body); line-height: 1.4; font-weight: 500; color: inherit; }
 .corner-measurement-table tbody tr:nth-child(even) { background: color-mix(in srgb,var(--ui-label) 3%,transparent); }
 .corner-measurement-table .is-faster { color: var(--ui-positive); }
+/* The fastest section time and the highest average/minimum speed are green too, as the faster delta. */
+.corner-measurement-table .is-fastest .corner-time, .corner-measurement-table .is-highest-min .corner-speed { color: var(--ui-positive); }
 .corner-measurement-table .is-slower { color: var(--ui-negative); }
 .corner-detail-card .corner-phase-evidence { display: block; position: static; margin: 0; padding: 8px; border: 0; border-radius: 0; background: transparent; }
 .corner-phase-evidence > summary[data-ui-kind="disclosure"] { box-sizing: border-box; width: 100%; height: auto; min-height: var(--hig-regular); padding: 8px; margin: 0; line-height: 1.4; background: transparent; cursor: pointer; }
@@ -935,7 +937,7 @@ body > #carPerformance .performance-chart-card, body > #carPerformance .performa
 
 /* Comparison tray: one row of title, laps and Clear all, on a single inset. */
 #telemetryCard .comparison-tray { flex-wrap: wrap; align-items: flex-start; gap: 8px 12px; padding: 7px 10px 7px 14px; }
-#telemetryCard .comparison-tray-heading { align-self: flex-start; min-height: 28px; align-items: center; }
+#telemetryCard .comparison-tray-heading { align-self: center; min-height: 28px; margin-bottom: 0; align-items: center; }
 /* The laps take the width that is left and wrap within it; the chooser buttons drop to their own line before they squeeze the laps. */
 #telemetryCard .comparison-tray #loadedLaps { flex: 1 1 360px; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 #loadedLaps .loaded-lap-pill { flex: none; }

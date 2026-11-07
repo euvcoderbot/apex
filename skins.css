@@ -347,7 +347,7 @@
 /* ---- Workspace rail ---- */
 :root[data-skin="linear"] #linearWorkspace {
   position: fixed; inset: 0 auto 0 0; z-index: 121; display: flex; flex-direction: column; gap: 0;
-  width: var(--linear-rail); box-sizing: border-box; padding: 8px 8px 12px; overflow: auto; scrollbar-gutter: stable both-edges;
+  width: var(--linear-rail); box-sizing: border-box; padding: 8px 8px 12px; overflow-y: auto; scrollbar-width: none;
   background: var(--ui-canvas); color: var(--ui-secondary); border: 0;
 }
 :root[data-skin="linear"] .linear-workspace-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; margin: 4px 0 10px; }
@@ -1029,3 +1029,26 @@
 :root[data-skin="linear"][data-skin][data-linear-density="compact"] .app-sidebar .control-field { height: 26px; }
 :root[data-skin="linear"][data-skin][data-linear-density="compact"] .app-sidebar .control-field .select-trigger { height: 24px; min-height: 24px; }
 :root[data-skin="linear"][data-skin][data-linear-density="compact"] .app-sidebar :is(#loadSession, .performance-actions button) { height: 26px; min-height: 26px; }
+
+/* ======================= v5: Linear's 2026 refresh ("A calmer interface for a product in motion") =======================
+   The navigation recedes ("a few notches dimmer") so the content leads; icons are smaller with softer contrast; separators
+   without a clear reason go ("structure should be felt not seen"). Headings already use Inter's display optical size. */
+/* Surfaces as in Linear's 2026 app (warmer, less saturated grey): the rail on the darkest canvas, the content on a clearly
+   lighter raised panel, cards filled a step above the panel. That contrast is what makes the navigation recede; the rail's
+   item text stays readable at the secondary level, only its icons and section labels are muted. */
+:root[data-skin="linear"]:not([data-theme="light"]) {
+  --ui-canvas: #0e0e0f; --ui-sidebar: #0e0e0f; --ui-toolbar: #0e0e0f;
+  --ui-panel: #161617; --ui-content: #161617; --ui-well: #1c1c1e; --ui-header-row: #1c1c1e;
+  --lin-card: #ffffff05; --lin-header-bg: linear-gradient(rgb(22 22 23 / .88), rgb(22 22 23 / .8));
+}
+:root[data-skin="linear"] { --lin-rail-text: var(--ui-secondary); }
+:root[data-skin="linear"][data-skin] #linearWorkspace :is(.performance-tabs > button, .category-bar .category-tab, .live-view-button, .linear-rail-footer button):not([aria-selected="true"]):not([aria-current="page"]):not([aria-pressed="true"]),
+:root[data-skin="linear"][data-skin] #linearWorkspace #driverPills .driver-pill:not(.selected) .driver-pill-identity { color: var(--lin-rail-text); }
+:root[data-skin="linear"][data-skin] #linearWorkspace :is(.performance-tabs > button, .category-bar .category-tab, .live-view-button):hover,
+:root[data-skin="linear"][data-skin] #linearWorkspace #driverPills .driver-pill:hover .driver-pill-identity { color: var(--ui-label); }
+:root[data-skin="linear"][data-skin] .site-header :is(.workspace-tools > button, #windowSidebarToggle) svg { width: 16px; height: 16px; color: var(--ui-tertiary); }
+:root[data-skin="linear"][data-skin] .site-header :is(.workspace-tools > button, #windowSidebarToggle):hover svg { color: var(--ui-label); }
+:root[data-skin="linear"][data-skin] :is(#sessionSidebar, #performanceSidebar, .comparison-tray) { border-bottom-color: transparent; }
+:root[data-skin="linear"][data-skin] .sector-cards .lap-summary-card :is(.summary-lap-time, .summary-sectors, .summary-conditions) { border-left-color: transparent; }
+/* The rail scrolls only when it overflows, and shows a thin bar only while hovered (no permanent track). */
+:root[data-skin="linear"] #linearWorkspace:hover { scrollbar-width: thin; }
