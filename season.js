@@ -10,7 +10,8 @@
   const TEAM_HEX = {mercedes: '#27f4d2', ferrari: '#e8002d', red_bull: '#3671c6', mclaren: '#ff8000', rb: '#6692ff', alpine: '#00a1e8',
     aston_martin: '#229971', williams: '#1868db', haas: '#dee1e2', audi: '#ff2d00', sauber: '#52e252', cadillac: '#aaaaad'};
   const ELEMENT_NAMES = {ICE: 'Internal combustion engine', TC: 'Turbocharger', EXH: 'Exhaust set', 'MGU-K': 'Motor generator unit, kinetic',
-    ES: 'Energy store', 'PU-CE': 'Control electronics', 'PU-ANC': 'Ancillary components'};
+    ES: 'Energy store', 'PU-CE': 'Control electronics', 'PU-ANC': 'Ancillary components',
+    'MGU-H': 'Motor generator unit, heat', CE: 'Control electronics', EX: 'Exhaust system'};
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
   const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
   const teamColour = id => window.apexTeamColour?.(TEAM_HEX[id] || '#8e8e93') || TEAM_HEX[id] || '#8e8e93';
@@ -113,21 +114,52 @@
   const cache = {};   // `${kind}:${year}` -> Promise of data
 
   // ---------- data ----------
+  // Saved snapshots (scripts/snapshot-season.mjs, assets/data/season) come first wherever the live API cannot do
+  // better: always on the hosted site, which has no backend for new data, and for finished seasons everywhere. The
+  // local app keeps the current season live and falls back to the snapshot only if the API fails.
+  let snapshotIndex = null;
+  async function savedSeason(path) {
+    if (typeof DecompressionStream === 'undefined') return null;
+    snapshotIndex ||= fetch('assets/data/season/index.json', {cache: 'no-cache'}).then(r => (r.ok ? r.json() : null)).catch(() => null);
+    const entry = (await snapshotIndex)?.entries?.[path];
+    if (!entry || !/^[a-f0-9]{24}\.json\.gz$/.test(entry.file || '')) return null;
+    try {
+      const response = await fetch(`assets/data/season/${entry.file}`);
+      if (!response.ok) return null;
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      // Some hosts send .json.gz already decoded (Content-Encoding: gzip); others deliver the gzip bytes.
+      const data = bytes[0] === 0x1f && bytes[1] === 0x8b
+        ? await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json()
+        : JSON.parse(new TextDecoder().decode(bytes));
+      return data && typeof data === 'object' ? Object.assign(data, {saved_at: entry.saved_at}) : null;
+    } catch { return null; }
+  }
+  function liveSeason(kind, path) {
+    const url = (typeof apiUrl === 'function' ? apiUrl(path) : path);
+    const request = typeof fetchSessionData === 'function' ? fetchSessionData(url) : fetch(url);
+    return request.then(async response => {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || `Could not load ${kind} (${response.status}).`);
+      return data;
+    });
+  }
   function load(kind, year) {
     const key = `${kind}:${year}`;
     if (!cache[key]) {
-      const path = {season: '/api/season', upgrades: '/api/season/upgrades', units: '/api/season/power-units'}[kind];
-      const url = (typeof apiUrl === 'function' ? apiUrl(`${path}?year=${year}`) : `${path}?year=${year}`);
-      const request = typeof fetchSessionData === 'function' ? fetchSessionData(url) : fetch(url);
-      cache[key] = request.then(async response => {
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.detail || `Could not load ${kind} (${response.status}).`);
-        return data;
-      });
+      const path = `${{season: '/api/season', upgrades: '/api/season/upgrades', units: '/api/season/power-units'}[kind]}?year=${year}`;
+      const savedFirst = !window.APEX_LOCAL_MODE || year < new Date().getFullYear();
+      cache[key] = (savedFirst ? savedSeason(path) : Promise.resolve(null))
+        .then(saved => saved || liveSeason(kind, path).catch(async error => (savedFirst ? null : await savedSeason(path)) || Promise.reject(error)));
       cache[key].catch(() => { delete cache[key]; });
     }
     return cache[key];
   }
+  // How old saved data is, for the note under the page header ('' when the data is live).
+  const savedNote = data => {
+    if (!data?.saved_at) return '';
+    const at = new Date(data.saved_at);
+    return Number.isFinite(at.getTime()) ? `Data saved ${at.toLocaleString([], {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'})}` : '';
+  };
 
   // ---------- small shared pieces ----------
   const driverName = (data, id) => data.drivers[id]?.name || id;
@@ -163,6 +195,7 @@
   // ---------- page ----------
   function build() {
     page = document.createElement('section');
+    queueMicrotask(() => bindTips(page));
     page.id = 'seasonHub'; page.className = 'season-page'; page.hidden = true; page.tabIndex = -1; page.setAttribute('aria-label', 'Season');
     const head = el('header', 'season-head');
     const title = el('div', 'season-title');
@@ -170,7 +203,7 @@
     yearSelect = el('select'); yearSelect.id = 'seasonYear'; yearSelect.setAttribute('aria-label', 'Season');
     for (let y = new Date().getFullYear(); y >= 2018; y--) yearSelect.append(new Option(String(y), String(y)));
     const shell = el('div', 'select-shell season-year'); shell.append(yearSelect);
-    title.append(shell);
+    title.append(shell, el('span', 'season-saved'));
     tabsNav = el('nav', 'season-tabs'); tabsNav.setAttribute('aria-label', 'Season pages');
     for (const [id, label] of TABS) {
       const b = el('button', null, label); b.type = 'button'; b.dataset.seasonTab = id; b.setAttribute('aria-pressed', 'false');
@@ -264,6 +297,9 @@
       if (token !== renderToken) return;
       const view = {schedule: renderSchedule, results: renderResults, standings: renderStandings, drivers: renderDrivers,
         h2h: renderH2H, upgrades: renderUpgrades, units: renderUnits}[tab];
+      setCodes(data);
+      const note = savedNote(extra?.saved_at ? extra : data), saved = page.querySelector('.season-saved');
+      if (saved) { saved.textContent = note; saved.hidden = !note; }
       body.replaceChildren(...view(data, extra));
       requestAnimationFrame(() => window.ApexUI?.decorate?.(body));
     } catch (error) {
@@ -402,7 +438,9 @@
       past.append(ol);
       body.append(past);
     }
-    if (data.next_weather?.length) {
+    // A forecast saved more than a day ago is out of date: leave it out rather than show old weather.
+    const forecastFresh = !data.saved_at || Date.now() - Date.parse(data.saved_at) < 86400000;
+    if (data.next_weather?.length && forecastFresh) {
       const sky = code => code == null ? '' : code === 0 ? 'Clear' : code <= 2 ? 'Partly cloudy' : code === 3 ? 'Cloudy' : code <= 48 ? 'Fog' : code <= 57 ? 'Drizzle' : code <= 67 ? 'Rain' : code <= 77 ? 'Snow' : code <= 82 ? 'Showers' : 'Thunderstorms';
       const forecast = el('div', 'season-weather');
       forecast.append(el('h3', null, 'Weekend forecast'));
@@ -753,10 +791,80 @@
   const signed = (v, digits = 2, unit = '') => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(digits)}${unit}`;
   const median = values => { const v = values.filter(Number.isFinite).sort((x, y) => x - y); return v.length ? (v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2) : null; };
 
+  // ---------- race codes: three letters per Grand Prix, as F1's own graphics use ----------
+  const RACE_CODES = [['australia', 'AUS'], ['chin', 'CHN'], ['japan', 'JPN'], ['bahrain', 'BHR'], ['saudi', 'KSA'], ['miami', 'MIA'],
+    ['emilia', 'EMI'], ['monaco', 'MON'], ['canad', 'CAN'], ['barcelona', 'BAR'], ['spanish', 'ESP'], ['madrid', 'MAD'], ['austria', 'AUT'],
+    ['styria', 'STY'], ['70th', '70A'], ['british', 'GBR'], ['hungar', 'HUN'], ['belgi', 'BEL'], ['dutch', 'NED'], ['italian', 'ITA'],
+    ['tuscan', 'TUS'], ['russian', 'RUS'], ['azerbaijan', 'AZE'], ['singapore', 'SIN'], ['turkish', 'TUR'], ['portug', 'POR'], ['eifel', 'EIF'],
+    ['united states', 'USA'], ['mexic', 'MEX'], ['paulo', 'BRA'], ['brazil', 'BRA'], ['las vegas', 'LVG'], ['qatar', 'QAT'], ['abu dhabi', 'ABU'],
+    ['sakhir', 'SKH'], ['french', 'FRA'], ['german', 'GER'], ['malaysia', 'MAL']];
+  let codes = {}, roundNames = {};
+  function setCodes(data) {
+    codes = {}; roundNames = {};
+    const used = new Set();
+    for (const r of data.rounds) {
+      const name = String(r.name || '').toLowerCase();
+      let c = (RACE_CODES.find(([k]) => name.includes(k)) || [])[1] || String(r.name || `R${r.round}`).replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase();
+      if (used.has(c)) c = c.slice(0, 2) + (r.round % 10);   // a second race in one country that year
+      used.add(c); codes[r.round] = c; roundNames[r.round] = r.name;
+    }
+  }
+  const code = n => codes[n] || `R${n}`;
+  const roundTip = n => `${code(n)} · ${roundNames[n] || `Round ${n}`}`;
+
+  // ---------- one hover card for every chart ----------
+  // Marks carry data-tip ("title line\nother lines"); the card follows the pointer inside the season page.
+  let tipCard = null;
+  function bindTips(scope) {
+    if (scope.dataset.tips) return;
+    scope.dataset.tips = '1';
+    scope.addEventListener('pointermove', event => {
+      const mark = event.target.closest?.('[data-tip]');
+      if (!mark) { if (tipCard) tipCard.hidden = true; return; }
+      if (!tipCard) { tipCard = el('div', 'season-tip'); tipCard.setAttribute('role', 'tooltip'); document.body.append(tipCard); }
+      const [head, ...rest] = mark.dataset.tip.split('\n');
+      tipCard.replaceChildren(el('b', null, head), ...rest.map(line => el('span', null, line)));
+      tipCard.hidden = false;
+      const w = tipCard.offsetWidth, h = tipCard.offsetHeight;
+      tipCard.style.left = `${Math.min(innerWidth - w - 8, event.clientX + 14)}px`;
+      tipCard.style.top = `${Math.max(8, event.clientY - h - 12)}px`;
+    });
+    scope.addEventListener('pointerleave', () => { if (tipCard) tipCard.hidden = true; });
+  }
+
   // ---------- SVG charts (numbers only go into markup; labels are escaped) ----------
+  // Round labels along the bottom: every code when there is room for it, else every other one.
+  const xLabels = (rounds, xOf, H, slot) => rounds.map((r, i) => (slot >= 26 || i % 2 === 0 || i === rounds.length - 1)
+    ? `<text class="axis" x="${xOf(i).toFixed(1)}" y="${H - 6}" text-anchor="middle">${esc(code(r))}</text>` : '').join('');
+  // A bar rounded only at its outer end (top for positive values, bottom for negative).
+  function barPath(x, y0, y1, w, r = 3) {
+    const h = Math.abs(y1 - y0); r = Math.min(r, w / 2, h);
+    if (y1 <= y0) return `M${x} ${y0}V${y1 + r}Q${x} ${y1} ${x + r} ${y1}H${x + w - r}Q${x + w} ${y1} ${x + w} ${y1 + r}V${y0}Z`;
+    return `M${x} ${y0}V${y1 - r}Q${x} ${y1} ${x + r} ${y1}H${x + w - r}Q${x + w} ${y1} ${x + w} ${y1 - r}V${y0}Z`;
+  }
+  // Smooth paths: monotone for values (never overshoots between points), bump curves for positions.
+  function monotone(points) {
+    if (points.length < 3) return points.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join('');
+    const n = points.length, dx = [], m = [], t = [];
+    for (let i = 0; i < n - 1; i++) { dx[i] = points[i + 1][0] - points[i][0]; m[i] = (points[i + 1][1] - points[i][1]) / (dx[i] || 1); }
+    t[0] = m[0]; t[n - 1] = m[n - 2];
+    for (let i = 1; i < n - 1; i++) t[i] = m[i - 1] * m[i] <= 0 ? 0 : 3 * (dx[i - 1] + dx[i]) / ((2 * dx[i] + dx[i - 1]) / m[i - 1] + (dx[i] + 2 * dx[i - 1]) / m[i]);
+    let d = `M${points[0][0].toFixed(1)} ${points[0][1].toFixed(1)}`;
+    for (let i = 0; i < n - 1; i++) {
+      const [x0, y0] = points[i], [x1, y1] = points[i + 1], h = dx[i] / 3;
+      d += `C${(x0 + h).toFixed(1)} ${(y0 + t[i] * h).toFixed(1)} ${(x1 - h).toFixed(1)} ${(y1 - t[i + 1] * h).toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+    }
+    return d;
+  }
+  const bumpPath = points => points.map(([x, y], i) => {
+    if (!i) return `M${x.toFixed(1)} ${y.toFixed(1)}`;
+    const [px, py] = points[i - 1], mx = (px + x) / 2;
+    return `C${mx.toFixed(1)} ${py.toFixed(1)} ${mx.toFixed(1)} ${y.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join('');
+
   // One bar per round, up for positive values; `extra` stacks a second, lighter value on top (sprint points).
   function barChart(rounds, raw, {width = 640, height = 190, colour = () => 'var(--ui-accent, #5e6ad2)', format = v => String(v), tips = [], title = '', extra = null, clip = false} = {}) {
-    const W = width, H = height, L = 44, R = 8, T = 10, B = 24;
+    const W = width, H = height, L = 44, R = 8, T = 12, B = 24;
     const sizes = raw.filter(Number.isFinite).map(Math.abs).sort((x, y) => y - x);
     const limit = clip && sizes.length > 2 && sizes[0] > 2 * sizes[1] ? sizes[1] * 1.3 : Infinity;
     const values = raw.map(v => (Number.isFinite(v) ? Math.max(-limit, Math.min(limit, v)) : v));
@@ -765,73 +873,96 @@
     const ticks = niceTicks(Math.min(0, ...finite), Math.max(0, ...finite), 4);
     const top = Math.max(0, ...finite, ticks.at(-1) ?? 0), bottom = Math.min(0, ...finite, ticks[0] ?? 0);
     const y = v => T + (top - v) / ((top - bottom) || 1) * (H - T - B);
-    const n = Math.max(1, rounds.length), bw = (W - L - R) / n;
+    const n = Math.max(1, rounds.length), bw = (W - L - R) / n, mid = i => L + i * bw + bw / 2;
     let svg = `<svg class="season-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)}">`;
-    for (const t of ticks) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"/><text class="axis" x="${L - 6}" y="${(y(t) + 4).toFixed(1)}" text-anchor="end">${esc(format(t))}</text>`;
+    for (const t of ticks) svg += `<line class="grid${t === 0 ? ' is-zero' : ''}" x1="${L}" x2="${W - R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"/><text class="axis" x="${L - 8}" y="${(y(t) + 3.5).toFixed(1)}" text-anchor="end">${esc(format(t))}</text>`;
     values.forEach((v, i) => {
       if (!Number.isFinite(v)) return;
-      const x = L + i * bw + bw * .2, w = bw * .6, y0 = y(0), y1 = y(v), clipped = Math.abs(raw[i]) > limit;
-      const tip = `${tips[i] || `R${rounds[i]}`}: ${format(raw[i])}${extra?.[i] ? ` + ${format(extra[i])} sprint` : ''}${clipped ? ' (bar cut short)' : ''}`;
-      if (clipped) svg += `<path class="clip-mark" d="M${x.toFixed(1)} ${(y1 + (v < 0 ? -3 : 3)).toFixed(1)}l${(w / 2).toFixed(1)} ${v < 0 ? 4 : -4}l${(w / 2).toFixed(1)} ${v < 0 ? -4 : 4}"/>`;
-      svg += `<rect class="bar${clipped ? ' is-clipped' : ''}" x="${x.toFixed(1)}" y="${Math.min(y0, y1).toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(1, Math.abs(y1 - y0)).toFixed(1)}" rx="2" style="fill:${esc(colour(v, i))}"><title>${esc(tip)}</title></rect>`;
-      if (extra?.[i]) { const y2 = y(v + extra[i]); svg += `<rect class="bar is-extra" x="${x.toFixed(1)}" y="${y2.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(1, y1 - y2).toFixed(1)}" rx="2" style="fill:${esc(colour(v, i))}"><title>${esc(tip)}</title></rect>`; }
+      const w = Math.min(bw * .62, 28), x = mid(i) - w / 2, y0 = y(0), y1 = y(v), clipped = Math.abs(raw[i]) > limit;
+      const tip = `${tips[i] || roundTip(rounds[i])}\n${format(raw[i])}${extra?.[i] ? ` + ${format(extra[i])} sprint` : ''}${clipped ? '\nBar cut short: an outlier' : ''}`;
+      svg += `<rect class="hit" x="${(L + i * bw).toFixed(1)}" y="${T}" width="${bw.toFixed(1)}" height="${H - T - B}" data-tip="${esc(tip)}"/>`;
+      if (extra?.[i]) {
+        const y2 = y(v + extra[i]);
+        svg += `<path class="bar" d="${barPath(x, y0, y1, w, 0)}" style="fill:${esc(colour(v, i))}"/><path class="bar is-extra" d="${barPath(x, y1, y2, w)}" style="fill:${esc(colour(v, i))}"/>`;
+      } else svg += `<path class="bar${clipped ? ' is-clipped' : ''}" d="${barPath(x, y0, y1, w)}" style="fill:${esc(colour(v, i))}"/>`;
+      if (clipped) svg += `<path class="clip-mark" d="M${x.toFixed(1)} ${(y1 + (v < 0 ? -4 : 4)).toFixed(1)}l${(w / 2).toFixed(1)} ${v < 0 ? 4 : -4}l${(w / 2).toFixed(1)} ${v < 0 ? -4 : 4}"/>`;
     });
-    svg += `<line class="zero" x1="${L}" x2="${W - R}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}"/>`;
-    rounds.forEach((r, i) => { if (n <= 12 || i % 2 === 0) svg += `<text class="axis" x="${(L + i * bw + bw / 2).toFixed(1)}" y="${H - 7}" text-anchor="middle">R${r}</text>`; });
-    return htmlNode(svg + '</svg>');
+    return htmlNode(svg + xLabels(rounds, mid, H, bw) + '</svg>');
   }
   // Grid slot to finishing position for each round: a hollow dot where the car started, a filled one where it finished.
   function gridFinishChart(rounds, rows, colour) {
     const W = 640, H = 230, L = 36, R = 8, T = 10, B = 24;
     const maxP = Math.max(20, ...rows.flatMap(r => [r.grid || 0, r.finish || 0]));
     const y = p => T + (p - 1) / (maxP - 1) * (H - T - B);
-    const n = Math.max(1, rounds.length), bw = (W - L - R) / n;
+    const n = Math.max(1, rounds.length), bw = (W - L - R) / n, mid = i => L + i * bw + bw / 2;
     let svg = `<svg class="season-chart season-dumbbell" viewBox="0 0 ${W} ${H}" role="img" aria-label="Grid to finish, each round">`;
-    for (const p of [1, 5, 10, 15, 20].filter(p => p <= maxP)) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(p)}" y2="${y(p)}"/><text class="axis" x="${L - 6}" y="${y(p) + 4}" text-anchor="end">P${p}</text>`;
+    for (const p of [1, 5, 10, 15, 20].filter(p => p <= maxP)) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(p)}" y2="${y(p)}"/><text class="axis" x="${L - 8}" y="${y(p) + 3.5}" text-anchor="end">P${p}</text>`;
     rows.forEach((r, i) => {
-      const x = (L + i * bw + bw / 2).toFixed(1), tip = `<title>${esc(r.tip)}</title>`;
+      const x = mid(i).toFixed(1);
+      svg += `<rect class="hit" x="${(L + i * bw).toFixed(1)}" y="${T}" width="${bw.toFixed(1)}" height="${H - T - B}" data-tip="${esc(`${roundTip(rounds[i])}\n${r.tip}`)}"/>`;
       if (r.grid && r.finish) {
         const cls = r.finish < r.grid ? 'is-gain' : r.finish > r.grid ? 'is-loss' : '';
-        svg += `<g class="${cls}">${tip}<line class="link" x1="${x}" x2="${x}" y1="${y(r.grid)}" y2="${y(r.finish)}"/><circle class="from" cx="${x}" cy="${y(r.grid)}" r="3.5"/><circle class="to" cx="${x}" cy="${y(r.finish)}" r="4.5" style="fill:${esc(colour)}"/></g>`;
+        svg += `<g class="${cls}"><line class="link" x1="${x}" x2="${x}" y1="${y(r.grid)}" y2="${y(r.finish)}"/><circle class="from" cx="${x}" cy="${y(r.grid)}" r="3.5"/><circle class="to" cx="${x}" cy="${y(r.finish)}" r="4.5" style="fill:${esc(colour)}"/></g>`;
       } else if (r.grid || r.finish) {
         const at = y(r.grid || r.finish);
-        svg += `<g class="is-out">${tip}<circle class="from" cx="${x}" cy="${at}" r="3.5"/><path class="cross" d="M${+x - 4} ${at + 9}l8 8m0 -8l-8 8"/></g>`;
+        svg += `<g class="is-out"><circle class="from" cx="${x}" cy="${at}" r="3.5"/><path class="cross" d="M${+x - 4} ${at + 9}l8 8m0 -8l-8 8"/></g>`;
       }
-      if (n <= 12 || i % 2 === 0) svg += `<text class="axis" x="${x}" y="${H - 7}" text-anchor="middle">R${rounds[i]}</text>`;
     });
-    return htmlNode(svg + '</svg>');
+    return htmlNode(svg + xLabels(rounds, mid, H, bw) + '</svg>');
   }
-
-  function lineChart(rounds, series, {title = '', invert = false, height = 260, min = null, max = null} = {}) {
-    const W = 640, H = height, L = 40, R = 12, T = 10, B = 26;
+  // Values over the season. One series gets a soft area under it and its last value at the end; several series
+  // stay plain lines (hover one to bring it forward), and the hover card lists the leaders at that round.
+  function lineChart(rounds, series, {title = '', invert = false, height = 260, min = null, max = null, format = v => String(v)} = {}) {
+    const W = 640, H = height, L = 40, R = series.length === 1 ? 44 : 12, T = 12, B = 24;
     const values = series.flatMap(s => s.values.filter(v => v != null));
     const lo = min ?? Math.min(0, ...values), hi = max ?? Math.max(1, ...values);
     const x = i => L + (rounds.length < 2 ? 0 : i / (rounds.length - 1) * (W - L - R));
     const y = v => invert ? T + (v - lo) / ((hi - lo) || 1) * (H - T - B) : H - B - (v - lo) / ((hi - lo) || 1) * (H - T - B);
-    const ticks = niceTicks(lo, hi, 5);
+    const ticks = niceTicks(lo, hi, invert ? Math.min(5, hi - lo) : 4);
+    const gid = `g${Math.random().toString(36).slice(2, 8)}`;
     let svg = `<svg class="season-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)}">`;
-    for (const t of ticks) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}"/><text class="axis" x="${L - 6}" y="${y(t) + 4}" text-anchor="end">${t}</text>`;
-    rounds.forEach((r, i) => { if (rounds.length <= 12 || i % 2 === 0 || i === rounds.length - 1) svg += `<text class="axis" x="${x(i)}" y="${H - 8}" text-anchor="middle">R${r}</text>`; });
+    for (const t of ticks) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"/><text class="axis" x="${L - 8}" y="${(y(t) + 3.5).toFixed(1)}" text-anchor="end">${esc(invert ? 'P' + t : format(t))}</text>`;
+    const slot = rounds.length > 1 ? (W - L - R) / (rounds.length - 1) : 40;
+    rounds.forEach((r, i) => {
+      const at = series.map(s => [s, s.values[i]]).filter(([, v]) => v != null).sort((p, q) => (invert ? p[1] - q[1] : q[1] - p[1]));
+      const lines = at.slice(0, 5).map(([s, v]) => `${s.label}  ${invert ? 'P' + v : format(v)}`).join('\n');
+      svg += `<rect class="hit" x="${(x(i) - slot / 2).toFixed(1)}" y="${T}" width="${slot.toFixed(1)}" height="${H - T - B}" data-tip="${esc(`${roundTip(r)}\n${lines}`)}"/>`;
+    });
     for (const s of [...series].reverse()) {
-      const pts = s.values.map((v, i) => v == null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean).join(' ');
-      svg += `<polyline data-id="${esc(s.id)}" class="line" style="stroke:${esc(s.colour)}" points="${pts}"><title>${esc(s.label)}</title></polyline>`;
+      const pts = s.values.map((v, i) => (v == null ? null : [x(i), y(v)])).filter(Boolean);
+      if (!pts.length) continue;
+      const d = monotone(pts);
+      if (series.length === 1 && !invert) {
+        svg += `<defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${esc(s.colour)}" stop-opacity=".28"/><stop offset="1" stop-color="${esc(s.colour)}" stop-opacity="0"/></linearGradient></defs>`;
+        svg += `<path class="area" d="${d}L${pts.at(-1)[0].toFixed(1)} ${H - B}L${pts[0][0].toFixed(1)} ${H - B}Z" fill="url(#${gid})"/>`;
+      }
+      svg += `<path data-id="${esc(s.id)}" class="line" style="stroke:${esc(s.colour)}" d="${d}"/>`;
+      if (series.length === 1) {
+        const [ex, ey] = pts.at(-1), last = s.values.filter(v => v != null).at(-1);
+        svg += `<circle class="end" cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="4" style="fill:${esc(s.colour)}"/><text class="label" x="${(ex + 8).toFixed(1)}" y="${(ey + 4).toFixed(1)}" style="fill:${esc(s.colour)}">${esc(invert ? 'P' + last : format(last))}</text>`;
+      }
     }
-    return htmlNode(svg + '</svg>');
+    return htmlNode(svg + xLabels(rounds, x, H, slot) + '</svg>');
   }
   function bumpChart(rounds, series) {
     const n = series.length, W = 640, H = Math.max(200, n * 18 + 30), L = 12, R = 46, T = 10, B = 22;
     const x = i => L + (rounds.length < 2 ? 0 : i / (rounds.length - 1) * (W - L - R));
     const y = p => T + (p - 1) / Math.max(1, n - 1) * (H - T - B);
+    const slot = rounds.length > 1 ? (W - L - R) / (rounds.length - 1) : 40;
     let svg = `<svg class="season-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Championship position after each round">`;
-    rounds.forEach((r, i) => { if (rounds.length <= 12 || i % 2 === 0 || i === rounds.length - 1) svg += `<text class="axis" x="${x(i)}" y="${H - 6}" text-anchor="middle">R${r}</text>`; });
+    rounds.forEach((r, i) => {
+      const order = series.map(s => [s, s.values[i]]).filter(([, v]) => v != null).sort((p, q) => p[1] - q[1]).slice(0, 5).map(([s, v]) => `P${v}  ${s.label}`).join('\n');
+      svg += `<rect class="hit" x="${(x(i) - slot / 2).toFixed(1)}" y="${T}" width="${slot.toFixed(1)}" height="${H - T - B}" data-tip="${esc(`${roundTip(r)}\n${order}`)}"/>`;
+    });
     for (const s of [...series].reverse()) {
-      const pts = s.values.map((v, i) => v == null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean).join(' ');
+      const pts = s.values.map((v, i) => (v == null ? null : [x(i), y(v)])).filter(Boolean);
+      if (!pts.length) continue;
       const lastValue = s.values.at(-1);
-      svg += `<g data-id="${esc(s.id)}"><polyline class="line is-bump" style="stroke:${esc(s.colour)}" points="${pts}"/>`;
-      if (lastValue != null) svg += `<text class="label" x="${W - R + 6}" y="${y(lastValue) + 4}" style="fill:${esc(s.colour)}">${esc(s.label)}</text>`;
+      svg += `<g data-id="${esc(s.id)}"><path class="line is-bump" style="stroke:${esc(s.colour)}" d="${bumpPath(pts)}"/>`;
+      if (lastValue != null) svg += `<circle class="end" cx="${pts.at(-1)[0].toFixed(1)}" cy="${pts.at(-1)[1].toFixed(1)}" r="3" style="fill:${esc(s.colour)}"/><text class="label" x="${W - R + 8}" y="${y(lastValue) + 4}" style="fill:${esc(s.colour)}">${esc(s.label)}</text>`;
       svg += '</g>';
     }
-    return htmlNode(svg + '</svg>');
+    return htmlNode(svg + xLabels(rounds, x, H, slot) + '</svg>');
   }
   function niceTicks(lo, hi, count) {
     const span = hi - lo || 1, raw = span / count, mag = 10 ** Math.floor(Math.log10(raw)), step = [1, 2, 2.5, 5, 10].find(m => m * mag >= raw) * mag;
@@ -873,7 +1004,8 @@
     side.append(el('b', 'season-big', standing ? `P${standing.position}` : '—'), el('span', 'season-muted', standing ? `${standing.points} points` : ''));
     const car = carImage(team, 'season-car is-hero');
     hero.append(portrait, ident, side);
-    if (car) hero.append(car);
+    // The car stands on the header's floor line with a ground shadow, rather than floating over the wash.
+    if (car) { const stage = el('div', 'season-car-stage'); stage.append(car); hero.append(stage); }
     head.append(hero);
     const facts = el('div', 'season-facts');
     const fact = (label, value, note) => { const f = el('div'); f.append(el('span', 'season-muted', label), el('b', null, value)); if (note) f.append(el('small', 'season-muted', note)); facts.append(f); };
@@ -903,14 +1035,17 @@
       const finish = r.finish, n = Number(finish), cell = el('div', 'season-strip-cell');
       cell.dataset.tone = !Number.isFinite(n) ? (finish ? 'out' : 'none') : n === 1 ? 'win' : n <= 3 ? 'podium' : r.race_points > 0 ? 'points' : 'none';
       cell.title = `${data.rounds.find(x => x.round === r.round)?.name}: ${finish ? (Number.isFinite(n) ? 'P' + n : finish) : 'did not start'}${r.grid ? ' from P' + r.grid : ''}${r.race_points ? ' · ' + r.race_points + ' pts' : ''}`;
-      cell.append(el('small', null, `R${r.round}`), el('b', null, Number.isFinite(n) ? String(n) : finish || '–'));
+      cell.append(el('small', null, code(r.round)), el('b', null, Number.isFinite(n) ? String(n) : finish || '–'));
       strip.append(cell);
     }
     const counts = s.finish_counts, maxCount = Math.max(1, ...Object.values(counts));
-    const dist = el('div', 'season-dist');
+    const dist = el('div', 'season-dist'); dist.style.setProperty('--team', teamColour(data.drivers[id]?.team));
     for (let p = 1; p <= 22; p++) {
-      const n = counts[String(p)] || 0, col = el('div', 'season-dist-col'); col.title = `P${p}: ${n}`;
-      const bar = el('i'); bar.style.height = `${n / maxCount * 100}%`; col.append(bar, el('small', null, String(p)));
+      const n = counts[String(p)] || 0, col = el('div', 'season-dist-col'); col.dataset.tip = `P${p}\n${n} finish${n === 1 ? '' : 'es'}`;
+      const stack = el('div', 'season-dist-stack'), bar = el('i'), share = n / maxCount * 100, count = el('span', null, n ? String(n) : '');
+      bar.style.height = `${share}%`; count.style.bottom = `calc(${share}% + 3px)`;
+      stack.append(count, bar);
+      col.append(stack, el('small', null, String(p)));
       dist.append(col);
     }
     const positions = lineChart(s.position_after.map(p => p.round), [{id, colour: teamColour(data.drivers[id].team), label: driverName(data, id),
@@ -1028,7 +1163,7 @@
     const weeks = el('div', 'season-h2h-weeks');
     for (const w of result.weekends) {
       const cell = el('div'); cell.title = data.rounds.find(r => r.round === w.round)?.name || '';
-      cell.append(el('small', null, `R${w.round}`));
+      cell.append(el('small', null, code(w.round)));
       for (const kind of ['qualifying', 'race']) {
         const dot = el('i'); dot.title = kind;
         if (w[kind] != null) dot.style.background = w[kind] === 0 ? ca : cb;
@@ -1096,7 +1231,8 @@
   // 'Mirror stay' and 'Mirror Stay' are one component: shown in sentence case.
   const componentLabel = name => { const t = String(name || '').trim().replace(/\s+/g, ' '); return t && t[0].toUpperCase() + t.slice(1).toLowerCase(); };
   function renderUpgrades(data, ups) {
-    const items = ups.items.filter(i => i.team);
+    const items = (ups.items || []).filter(i => i.team);
+    if (!items.length) return [card(null, empty(`The FIA's documents for ${data.year} include no car presentation submissions, so there are no team upgrade lists for this season.`))];
     const teams = [...new Set(items.map(i => i.team))].sort((x, y) => items.filter(i => i.team === y).length - items.filter(i => i.team === x).length);
     const types = [...new Set(items.map(i => i.reason_type))];
     const filtered = items.filter(i => (!state.team || i.team === state.team) && (!state.type || i.reason_type === state.type));
@@ -1140,7 +1276,7 @@
     const roundsWith = [...new Set(items.map(i => i.round).filter(Boolean))].sort((x, y) => x - y);
     const matrix = el('table', 'season-table season-matrix');
     const headRow = el('tr'); headRow.append(el('th', null, ''));
-    for (const r of roundsWith) { const th = el('th', 'num', `R${r}`); th.title = data.rounds.find(x => x.round === r)?.name || ''; headRow.append(th); }
+    for (const r of roundsWith) { const th = el('th', 'num', code(r)); th.title = data.rounds.find(x => x.round === r)?.name || ''; headRow.append(th); }
     const thead = el('thead'); thead.append(headRow); matrix.append(thead);
     const mbody = el('tbody'); const maxCell = Math.max(1, ...teams.flatMap(t => roundsWith.map(r => items.filter(i => i.team === t && i.round === r).length)));
     for (const t of teams) {
@@ -1177,7 +1313,7 @@
     const total = el('div', 'season-numbers');
     for (const [label, value, note] of [['Updates', items.length, `${filtered.length} shown`], ['Grands Prix', roundsWith.length, `${(items.length / Math.max(1, roundsWith.length)).toFixed(1)} per race`],
       ['Most updated', teams[0] ? teamName(data, teams[0]) : '\u2014', teams[0] ? `${items.filter(i => i.team === teams[0]).length} updates` : null],
-      ['Busiest weekend', busiest ? `R${busiest[0]}` : '\u2014', busiest ? `${data.rounds.find(r => r.round === busiest[0])?.name} \u00b7 ${busiest[1]}` : null],
+      ['Busiest weekend', busiest ? code(busiest[0]) : '\u2014', busiest ? `${data.rounds.find(r => r.round === busiest[0])?.name} \u00b7 ${busiest[1]}` : null],
       ['For performance', items.length ? `${Math.round(perf / items.length * 100)}%` : '\u2014', `${perf} updates`]]) {
       const d = el('div'); d.append(el('span', 'season-muted', label), el('b', null, String(value))); if (note) d.append(el('small', 'season-muted', note)); total.append(d);
     }

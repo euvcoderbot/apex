@@ -189,6 +189,8 @@ class FiaDocumentsTest(unittest.TestCase):
     def test_team_id(self):
         self.assertEqual(fia.team_id('Visa Cash App Racing Bulls F1 Team'), 'rb')
         self.assertEqual(fia.team_id('Oracle Red Bull Racing'), 'red_bull')
+        self.assertEqual(fia.team_id('VISA CASH APP RB FORMULA ONE TEAM'), 'rb')
+        self.assertEqual(fia.team_id('STAKE F1 TEAM KICK SAUBER'), 'sauber')
         self.assertIsNone(fia.team_id('Unknown'))
 
     def test_dates(self):
@@ -196,6 +198,19 @@ class FiaDocumentsTest(unittest.TestCase):
         self.assertEqual(fia._dates('30 October - 01 November 2026'), ['2026-10-30', '2026-11-01'])
         self.assertEqual(fia._dates('30 December - 01 January 2027'), ['2026-12-30', '2027-01-01'])
         self.assertIsNone(fia._dates('no dates here'))
+
+    def test_document_names_in_both_eras(self):
+        new = '/system/files/decision-document/2025_hungarian_grand_prix_-_car_presentation_submissions.pdf'
+        old = '/sites/default/files/decision-document/2024 Hungarian Grand Prix - PU elements used per driver up to now.pdf'
+        self.assertIn('car_presentation', fia.doc_kind(new))
+        self.assertIn('pu_elements_used', fia.doc_kind(old))
+        self.assertIn('pu_elements_used', fia.doc_kind(old.replace(' ', '%20')))
+
+    def test_repair_item(self):
+        shifted = fia.repair_item({'component': '', 'reason': '8', 'geometry': 'Floor Leading Edge', 'description': 'Performance - Local Load Reprofiled floor surfaces'})
+        self.assertEqual((shifted['component'], shifted['reason'], shifted['geometry']), ('Floor Leading Edge', 'Performance - Local Load', 'Reprofiled floor surfaces'))
+        self.assertEqual(fia.repair_item({'component': 'Rear Wing Rear Wing', 'reason': 'Performance', 'geometry': 'x', 'description': 'y'})['component'], 'Rear Wing')
+        self.assertIsNone(fia.repair_item({'component': '', 'reason': '', 'geometry': '', 'description': ''}))
 
     def test_event_names_in_either_encoding(self):
         self.assertEqual(fia._unquote('S%C3%A3o%20Paulo'), 'São Paulo')

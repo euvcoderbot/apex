@@ -26,9 +26,9 @@ CHAMPIONSHIP = FIA + '/documents/championships/fia-formula-one-world-championshi
 MONTHS = {m: i for i, m in enumerate(('january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september',
                                       'october', 'november', 'december'), 1)}
 # FIA team names to the constructor ids used everywhere else (Jolpica), most specific first.
-TEAM_KEYS = (('racing bulls', 'rb'), ('red bull', 'red_bull'), ('mclaren', 'mclaren'), ('ferrari', 'ferrari'), ('mercedes', 'mercedes'),
+TEAM_KEYS = (('racing bulls', 'rb'), ('visa cash app', 'rb'), ('vcarb', 'rb'), ('alphatauri', 'rb'), ('red bull', 'red_bull'), ('mclaren', 'mclaren'), ('ferrari', 'ferrari'), ('mercedes', 'mercedes'),
              ('aston martin', 'aston_martin'), ('alpine', 'alpine'), ('williams', 'williams'), ('haas', 'haas'), ('audi', 'audi'),
-             ('sauber', 'sauber'), ('cadillac', 'cadillac'), ('kick', 'sauber'))
+             ('sauber', 'sauber'), ('cadillac', 'cadillac'), ('kick', 'sauber'), ('stake', 'sauber'))
 PU_ELEMENTS = ('ICE', 'TC', 'EXH', 'MGU-K', 'ES', 'PU-CE', 'PU-ANC')
 
 
@@ -89,7 +89,7 @@ def repair_item(item: dict) -> dict | None:
         detail = row.get('description') or ''
         reason = re.match(r'(performance|circuit specific|reliability|cooling range|balance range)(\s*-\s*(?:local load|flow conditioning|drag reduction|drag|downforce|cooling|brake cooling|aero efficiency|load))?\s*', detail, re.I)
         row['component'] = row['geometry']
-        row['reason'] = reason.group(1).strip() if reason else ''
+        row['reason'] = ' '.join(reason.group(0).split()) if reason else ''   # the category and its detail ('Performance - Local Load')
         row['geometry'] = detail[reason.end():].strip() if reason else ''
         row['description'] = row['geometry']
         row['reason_type'] = reason_type(row['reason'], detail)
@@ -149,22 +149,24 @@ class Documents:
     def event_documents(self, year: int, event: str, finished: bool) -> list[str]:
         def build():
             page = self.http(f'{self.season_url(year)}/event/{quote(event, encoding=_event_encoding(event))}')
-            return sorted(set(re.findall(r'href="(/system/files/decision-document/[^"]+\.pdf)"', page)))
+            # 2025 on: /system/files/decision-document/2025_hungarian_grand_prix_-_....pdf; before that
+            # /sites/default/files/decision-document/2024 Hungarian Grand Prix - Car Presentation Submissions.pdf.
+            return sorted(set(re.findall(r'href="(/(?:system|sites/default)/files/decision-document/[^"]+\.pdf)"', page)))
         # A finished event's list is final; the current one gains documents through the weekend.
-        return self._cached(f'fia-docs-{year}-{_ascii(event)}', None if finished else 1800, build)
+        return self._cached(f'fia-docs2-{year}-{_ascii(event)}', None if finished else 1800, build)
 
     def pdf(self, path: str) -> bytes:
-        return self.http(FIA + path, binary=True)
+        return self.http(FIA + quote(_unquote(path), safe='/'), binary=True)
 
     # ---- car presentation submissions ----
     def upgrades(self, year: int, finished: Callable[[str], bool] = lambda event: True) -> list[dict]:
         updates = []
         for event in self.events(year):
-            docs = [d for d in self.event_documents(year, event, finished(event)) if 'car_presentation' in d]
+            docs = [d for d in self.event_documents(year, event, finished(event)) if 'car_presentation' in doc_kind(d)]
             if not docs:
                 continue
             path = sorted(docs, key=lambda d: (len(d), d))[-1]   # a corrected re-issue (_1, _2) replaces the first
-            parsed = self._cached(f'fia-upgrades-{_ascii(path.rsplit("/", 1)[-1])}', None,
+            parsed = self._cached(f'fia-upgrades-{_cache_name(path)}', None,
                                   lambda: parse_car_presentation(self.pdf(path)))
             for item in filter(None, map(repair_item, parsed['items'])):
                 updates.append({'event': event, 'event_dates': parsed['dates'], 'document': FIA + path, **item})
@@ -174,11 +176,11 @@ class Documents:
     def pu_elements(self, year: int, finished: Callable[[str], bool] = lambda event: True) -> dict | None:
         best = None
         for event in self.events(year):
-            docs = [d for d in self.event_documents(year, event, finished(event)) if 'pu_elements_used' in d]
+            docs = [d for d in self.event_documents(year, event, finished(event)) if 'pu_elements_used' in doc_kind(d)]
             if not docs:
                 continue
             path = sorted(docs, key=lambda d: (len(d), d))[-1]
-            parsed = self._cached(f'fia-pu-{_ascii(path.rsplit("/", 1)[-1])}', None, lambda: parse_pu_elements(self.pdf(path)))
+            parsed = self._cached(f'fia-pu-{_cache_name(path)}', None, lambda: parse_pu_elements(self.pdf(path)))
             if parsed and parsed.get('dates') and (best is None or parsed['dates'][1] > best['dates'][1]):
                 best = {**parsed, 'event': event, 'document': FIA + path}
         return best
@@ -188,17 +190,26 @@ class Documents:
         """Every event's 'PU elements used' table (cumulative counts), oldest first."""
         out = []
         for event in self.events(year):
-            docs = [d for d in self.event_documents(year, event, finished(event)) if 'pu_elements_used' in d]
+            docs = [d for d in self.event_documents(year, event, finished(event)) if 'pu_elements_used' in doc_kind(d)]
             if not docs:
                 continue
             path = sorted(docs, key=lambda d: (len(d), d))[-1]
-            parsed = self._cached(f'fia-pu-{_ascii(path.rsplit("/", 1)[-1])}', None, lambda: parse_pu_elements(self.pdf(path)))
+            parsed = self._cached(f'fia-pu-{_cache_name(path)}', None, lambda: parse_pu_elements(self.pdf(path)))
             if parsed and parsed.get('dates'):
                 out.append({'event': event, 'dates': parsed['dates'], 'elements': parsed['elements'], 'rows': parsed['rows']})
         return sorted(out, key=lambda e: e['dates'][1])
 
 
 # ---------- parsing ----------
+def _cache_name(path: str) -> str:
+    return re.sub(r'[^A-Za-z0-9._-]+', '_', _ascii(_unquote(path.rsplit('/', 1)[-1])))
+
+
+def doc_kind(path: str) -> str:
+    """A document's file name, normalised across the FIA's naming eras: lower case, words joined by underscores."""
+    return re.sub(r'[^a-z0-9]+', '_', _unquote(path.rsplit('/', 1)[-1]).lower())
+
+
 def _dates(text: str) -> list[str] | None:
     """'06 - 08 November 2026' or '30 October - 01 November 2026' as [first day, last day] (ISO)."""
     m = re.search(r'(\d{1,2})\s*(?:([A-Za-z]+)\s*)?-\s*(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})', text)
@@ -232,9 +243,14 @@ def parse_car_presentation(data: bytes) -> dict:
                     teams[team_id(team)] = 'partly unreadable'
                 continue
             lines = [line.strip() for line in text.splitlines() if line.strip()]
-            for i, line in enumerate(lines[:4]):
-                if line.lower().startswith('car presentation') and i + 1 < len(lines) and team_id(lines[i + 1]):
-                    team = lines[i + 1]
+            # The team's name heads its pages: the line just above the table header ('Updated ...') or 'No updates
+            # submitted', whether or not a 'Car presentation' title comes first (2026) or only on the first page (2024).
+            # A name we do not recognise still starts a new team, so its rows are left out rather than misattributed.
+            heading = next((lines[i] for i in range(min(5, len(lines) - 1)) if re.match(r'(updated|no updates?)', lines[i + 1], re.I)), None)
+            if heading is None:
+                heading = next((line for line in lines[:3] if team_id(line) and not line.lower().startswith('car presentation')), None)
+            if heading and len(heading) < 70 and not heading.lower().startswith('car presentation'):
+                team = heading
             if team and team_id(team):
                 no_updates = re.search(r'no updates?\b', text, re.I) is not None
                 teams.setdefault(team_id(team), 'none' if no_updates else 'updates')
@@ -279,19 +295,16 @@ def parse_pu_elements(data: bytes) -> dict | None:
     if anchor is None:
         return None
     near = [w for w in words if abs(w['top'] - anchor['top']) < 16]   # the table header spans two lines around "Driver"
+    # 2026 on: ICE TC EXH MGU-K ES PU-CE PU-ANC. 2014-2025: ICE TC MGU-H MGU-K ES CE EX.
+    era_2026 = any(w['text'] in ('ANC', 'PU-ANC', 'EXH') for w in near)
+    names = {'ICE': 'ICE', 'TC': 'TC', 'EXH': 'EXH', 'EX': 'EX', 'ES': 'ES', '-K': 'MGU-K', 'MGU-K': 'MGU-K', '-H': 'MGU-H', 'MGU-H': 'MGU-H',
+             'CE': 'PU-CE' if era_2026 else 'CE', 'PU-CE': 'PU-CE', 'ANC': 'PU-ANC', 'PU-ANC': 'PU-ANC'}
     header = {}
     for w in near:
-        label = w['text']
-        centre = (w['x0'] + w['x1']) / 2
-        if label in ('ICE', 'TC', 'EXH', 'ES'):
-            header.setdefault(label, centre)
-        elif label == '-K':
-            header['MGU-K'] = centre
-        elif label == 'CE':
-            header['PU-CE'] = centre
-        elif label == 'ANC':
-            header['PU-ANC'] = centre
-    if len(header) < 7:
+        name = names.get(w['text'])
+        if name:
+            header.setdefault(name, (w['x0'] + w['x1']) / 2)
+    if len(header) < 6:
         return None
     columns = sorted(header.items(), key=lambda kv: kv[1])
     lines: dict[int, list[dict]] = {}
@@ -304,7 +317,7 @@ def parse_pu_elements(data: bytes) -> dict | None:
             continue
         counts = [w for w in ws[1:] if re.fullmatch(r'\d{1,2}', w['text']) and w['x0'] > columns[0][1] - 25]
         label = [w['text'] for w in ws[1:] if w not in counts]
-        if len(counts) < 7:
+        if len(counts) < len(columns) - 1:
             continue
         values = {}
         for w in counts:
@@ -312,4 +325,4 @@ def parse_pu_elements(data: bytes) -> dict | None:
             name = min(columns, key=lambda c: abs(c[1] - centre))[0]
             values[name] = int(w['text'])
         rows.append({'number': str(int(ws[0]['text'])), 'label': ' '.join(label), 'team': team_id(' '.join(label)), 'elements': values})
-    return {'dates': dates, 'elements': list(PU_ELEMENTS), 'rows': rows}
+    return {'dates': dates, 'elements': [name for name, _ in columns], 'rows': rows}
