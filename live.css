@@ -236,3 +236,10 @@ body.live-view .performance-tabs[data-ui-thumb]::before { opacity: 0; }
 .live-sectors-cell small.is-faster { color: #30d158; }
 :root[data-theme="light"] .live-sectors-cell small.is-slower { color: #d70015; }
 :root[data-theme="light"] .live-sectors-cell small.is-faster { color: #248a3d; }
+/* In the header the Live button is the tabs' third segment: same height, type and selected fill as the other two. */
+/* An earlier layout rule fixes the two-tab width with !important; three tabs size to their labels. */
+.site-header .performance-tabs:has(> .live-view-button) { grid-template-columns: repeat(3, max-content) !important; width: max-content !important; max-width: none !important; }
+.site-header .performance-tabs:has(> .live-view-button) > button { padding-inline: 14px; white-space: nowrap; }
+.site-header .performance-tabs > .live-view-button { min-height: 0; height: auto; align-self: stretch; padding: 0 14px; border: 0; border-radius: var(--radius-pill); background: transparent; box-shadow: none; color: var(--ui-secondary); font: inherit; font-weight: 500; }
+.site-header .performance-tabs > .live-view-button:hover { color: var(--ui-label); background: transparent; }
+.site-header .performance-tabs > .live-view-button[aria-pressed="true"] { background: var(--ui-selected); box-shadow: var(--ui-shadow-control); color: var(--ui-label); }

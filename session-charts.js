@@ -422,7 +422,7 @@ function getNiceBounds(name, rawMin, rawMax) {
     max = tempMax;
   } else if (name === 'Timing delta') {
     const span = Math.max(rawMax - rawMin, 0.02);
-    const targetTicks = span >= 2 ? 6 : 5;
+    const targetTicks = span >= 2 ? 8 : 7;   // finer steps: more labelled gridlines on the delta axis
     const magnitude = 10 ** Math.floor(Math.log10(span / targetTicks));
     const normalized = (span / targetTicks) / magnitude;
     const multiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10;

@@ -176,7 +176,8 @@
   function place() {
     const rail = root.dataset.skin === 'linear' && document.querySelector('#linearWorkspace .linear-navigation');
     if (rail) rail.append(button);
-    else document.querySelector('.site-header .header-actions')?.append(button);
+    // macOS look: the third segment of the view tabs (Session analysis · Car performance · Live), not a separate pill.
+    else (document.querySelector('.site-header .performance-tabs') || document.querySelector('.site-header .header-actions'))?.append(button);
   }
 
   // ---------- entering and leaving the view ----------
@@ -186,8 +187,9 @@
     document.body.classList.add('live-view');
     page.hidden = false; button.setAttribute('aria-pressed', 'true');
     const title = document.getElementById('windowTitle'), subtitle = document.getElementById('windowSubtitle');
-    if (title) title.textContent = 'Live timing';
-    if (subtitle) subtitle.textContent = 'This PC · F1 live feed';
+    // The breadcrumb reads like the other views' ("Session analysis › Compare laps"): Live › Timing, or Live › Replay.
+    if (title) title.textContent = source?.kind === 'replay' ? 'Replay' : 'Timing';
+    if (subtitle) subtitle.textContent = 'Live';
     document.body.dataset.view = 'live';
     refreshStatus(); connect(); queueDraw();
     page.focus({preventScroll: true});
@@ -334,6 +336,7 @@
     badge.dataset.kind = running ? source.kind : 'idle';
     badge.textContent = running ? (source.kind === 'live' ? 'Live' : `Replay ${source.speed}×`) : source?.error ? 'Stopped' : 'Idle';
     $(page, 'stop').hidden = !running;
+    if (active) { const crumb = document.getElementById('windowTitle'); if (crumb) crumb.textContent = source?.kind === 'replay' && running ? 'Replay' : 'Timing'; }
     $(page, 'stop').textContent = source?.kind === 'live' ? 'Disconnect' : 'Stop';
     $(page, 'connect').textContent = running && source.kind === 'live' ? (source.connected === false ? 'Reconnecting…' : 'Connected') : 'Connect';
     $(page, 'connect').disabled = running && source.kind === 'live';
@@ -845,7 +848,8 @@
         const range = Math.max(.1, ...series.flatMap(line => line.points.map(([, d]) => Math.abs(d))));
         const step = [0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 5].find(st => range / st <= 2.5) || 5;
         const top = Math.ceil(range / step) * step;
-        Object.assign(spec, {min: -top, max: top, ticks: [-top, 0, top].map(v => ({value: v, label: v ? `${v > 0 ? '+' : ''}${v.toFixed(step < .1 ? 2 : 1)}` : '0', strong: !v}))});
+        // Finer steps: a labelled gridline every half step either side of zero.
+        Object.assign(spec, {min: -top, max: top, ticks: [-top, -top / 2, 0, top / 2, top].map(v => ({value: v, label: v ? `${v > 0 ? '+' : ''}${v.toFixed(step <= .1 ? 2 : step < 1 ? 2 : 1)}` : '0', strong: !v}))});
       } else {
         series = traces.map(({trace, colour: c}) => ({colour: c, points: spec.id === 'brake' || spec.id === 'gear' ? trace.x.map((x, i) => [x, trace[spec.id][i]]) : changes(trace.x, trace[spec.id])}));
       }
