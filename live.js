@@ -400,8 +400,13 @@
       timeCell(row, d.best);
       const tyre = el('td', 'live-tyre');
       if (d.stint?.compound) {
-        const [letter, hue] = TYRES[d.stint.compound] || ['?', '#8e8e93'];
-        const badge = el('b', null, letter); badge.style.setProperty('--tyre', hue); badge.title = d.stint.compound.toLowerCase() + (d.stint.new ? ', new' : ', used');
+        // The official Pirelli images the main page uses (assets/tyres/official); a lettered badge for anything else.
+        const name = String(d.stint.compound).toLowerCase(), asset = {soft: 'soft', medium: 'medium', hard: 'hard', intermediate: 'intermediate', wet: 'wet'}[name];
+        const label = name + (d.stint.new ? ', new' : ', used');
+        let badge;
+        if (asset) { badge = el('img', 'live-tyre-image'); badge.src = `assets/tyres/official/${asset}.png`; badge.alt = label; badge.width = 20; badge.height = 20; badge.loading = 'lazy'; }
+        else { const [letter, hue] = TYRES[d.stint.compound] || ['?', '#8e8e93']; badge = el('b', null, letter); badge.style.setProperty('--tyre', hue); }
+        badge.title = label;
         const group = el('span', 'live-tyre-group'); group.append(badge, el('span', null, d.stint.laps ?? '')); tyre.append(group);
       }
       row.append(tyre);
@@ -603,16 +608,27 @@
     }));
     renderChips(); renderSectorTable(); queueDraw();
   }
-  // Sector times of the compared laps, as the main page's sector cards: one aligned column per sector and the lap,
-  // a bar on each cell (purple fastest of these laps, green faster than the reference, red slower), the time, then
-  // the gap to the reference underneath (the reference row says "Ref" there, so every row is the same height).
+  // Sector times of the compared laps in F1's colours for the session: purple the session's fastest, green the driver's
+  // personal best, yellow neither. The bests come from every lap of the session the app holds (F1's own flags are only
+  // true at the moment a lap finishes). The gap to the reference sits underneath in neutral grey.
+  function sessionBests() {
+    const overall = [Infinity, Infinity, Infinity, Infinity], personal = {};
+    for (const [number, laps] of Object.entries(lapLists)) {
+      const mine = personal[number] = [Infinity, Infinity, Infinity, Infinity];
+      for (const lap of laps) {
+        const values = [...(lap.sectors || []).slice(0, 3).map(sector => sector?.seconds), lap.pit ? null : lap.seconds];
+        values.forEach((v, k) => { if (v) { mine[k] = Math.min(mine[k], v); overall[k] = Math.min(overall[k], v); } });
+      }
+    }
+    return {overall, personal};
+  }
   function renderSectorTable() {
     const box = $(page, 'sectorTable'), colours = pickColours();
     const rows = compareTraces.map((trace, i) => trace && {trace, colour: colours[i]}).filter(Boolean);
     if (!rows.length || !rows.some(r => r.trace.sectors?.length === 3)) { box.replaceChildren(); return; }
     const value = (r, k) => (k < 3 ? r.trace.sectors?.[k]?.seconds : r.trace.seconds) ?? null;
     const text = (r, k) => (k < 3 ? r.trace.sectors?.[k]?.time : r.trace.time) || null;
-    const best = [0, 1, 2, 3].map(k => Math.min(...rows.map(r => value(r, k) ?? Infinity)));
+    const bests = sessionBests(), close = (a, b) => Math.abs(a - b) < 0.0005;
     const grid = el('div', 'live-sectors'); grid.setAttribute('role', 'table'); grid.setAttribute('aria-label', 'Sector times of the compared laps');
     const head = el('div', 'live-sectors-row is-head'); head.setAttribute('role', 'row');
     ['Lap', 'Sector 1', 'Sector 2', 'Sector 3', 'Lap time'].forEach((label, k) => { const c = el('span', null, label); c.setAttribute('role', k ? 'columnheader' : 'rowheader'); head.append(c); });
@@ -627,13 +643,18 @@
         if (k === 3) cell.classList.add('is-lap');
         if (!i) cell.classList.add('is-ref');
         const gap = i && v != null && ref != null ? v - ref : null;
-        cell.dataset.tone = v == null ? 'none' : rows.length > 1 && v === best[k] ? 'best' : !i ? 'ref' : gap < 0 ? 'faster' : gap > 0 ? 'slower' : 'ref';
+        cell.dataset.tone = v == null ? 'none' : close(v, bests.overall[k]) ? 'overall' : close(v, bests.personal[r.trace.driver]?.[k] ?? Infinity) ? 'personal' : 'slower';
+        cell.title = {overall: 'Fastest of the session', personal: `${driverFor(r.trace.driver).code}'s personal best`, slower: `Neither the session's nor the driver's best`}[cell.dataset.tone] || '';
         cell.append(el('b', null, text(r, k) || '—'), el('small', null, !i ? (rows.length > 1 ? 'Ref' : '') : gap == null ? '' : formatGap(gap)));
         row.append(cell);
       }
       grid.append(row);
     });
-    box.replaceChildren(grid);
+    const legend = el('div', 'live-sectors-legend');
+    [['#bf5af2', 'Session best'], ['#30d158', 'Personal best'], ['#ffd60a', 'Neither'], [null, 'Gaps against the first lap']].forEach(([tone, label]) => {
+      const item = el('span'); if (tone) { const bar = el('i'); bar.style.setProperty('--tone', tone); item.append(bar); } item.append(label); legend.append(item);
+    });
+    box.replaceChildren(grid, legend);
   }
 
   // Time at a given distance along a lap (linear interpolation).

@@ -204,19 +204,21 @@ body.live-view .performance-tabs[data-ui-thumb]::before { opacity: 0; }
 .live-sectors-cell b { color: var(--ui-label); font-size: var(--text-sm, 13px); font-weight: 600; line-height: 1.2; }
 .live-sectors-cell small { min-height: 13px; color: var(--ui-tertiary); font-size: 11px; line-height: 1.2; }
 .live-sectors-cell.is-lap b { font-size: 14px; }
-.live-sectors-cell[data-tone="best"] { --tone: #bf5af2; }
-.live-sectors-cell[data-tone="best"] b { color: #bf5af2; }
-.live-sectors-cell[data-tone="faster"] { --tone: #30d158; }
-.live-sectors-cell[data-tone="faster"] small { color: #30d158; }
-.live-sectors-cell[data-tone="slower"] { --tone: #ff6961; }
-.live-sectors-cell[data-tone="slower"] small { color: #ff6961; }
-.live-sectors-cell[data-tone="best"] small { color: #30d158; }
-:root[data-theme="light"] .live-sectors-cell[data-tone="best"] { --tone: #8944ab; }
-:root[data-theme="light"] .live-sectors-cell[data-tone="best"] b { color: #8944ab; }
-:root[data-theme="light"] .live-sectors-cell[data-tone="faster"] { --tone: #248a3d; }
-:root[data-theme="light"] .live-sectors-cell:is([data-tone="faster"], [data-tone="best"]) small { color: #248a3d; }
-:root[data-theme="light"] .live-sectors-cell[data-tone="slower"] { --tone: #d70015; }
-:root[data-theme="light"] .live-sectors-cell[data-tone="slower"] small { color: #d70015; }
+/* F1's timing colours: purple session best, green personal best, yellow neither. Gaps to the reference stay neutral. */
+.live-sectors-cell[data-tone="overall"] { --tone: #bf5af2; }
+.live-sectors-cell[data-tone="overall"] b { color: #bf5af2; }
+.live-sectors-cell[data-tone="personal"] { --tone: #30d158; }
+.live-sectors-cell[data-tone="personal"] b { color: #30d158; }
+.live-sectors-cell[data-tone="slower"] { --tone: #ffd60a; }
+:root[data-theme="light"] .live-sectors-cell[data-tone="overall"] { --tone: #8944ab; }
+:root[data-theme="light"] .live-sectors-cell[data-tone="overall"] b { color: #8944ab; }
+:root[data-theme="light"] .live-sectors-cell[data-tone="personal"] { --tone: #248a3d; }
+:root[data-theme="light"] .live-sectors-cell[data-tone="personal"] b { color: #248a3d; }
+:root[data-theme="light"] .live-sectors-cell[data-tone="slower"] { --tone: #d4a600; }
+.live-sectors-cell small { color: var(--ui-tertiary); }
+.live-sectors-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 2px; color: var(--ui-tertiary); font-size: 11px; }
+.live-sectors-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.live-sectors-legend i { width: 12px; height: 2px; border-radius: 1px; background: var(--tone); }
 .live-readout-sectors { color: var(--ui-tertiary); font-size: var(--text-xs, 12px); }
 .live-readout-sectors:empty { display: none; }
 @media (max-width: 640px) {
@@ -228,4 +230,4 @@ body.live-view .performance-tabs[data-ui-thumb]::before { opacity: 0; }
   .live-sectors-cell b, .live-sectors-cell.is-lap b { font-size: 12px; }
   .live-sectors-cell small { font-size: 10px; }
 }
-.live-sectors-cell.is-ref small, :root[data-theme="light"] .live-sectors-cell.is-ref small { color: var(--ui-tertiary); }
+.live-tyre-image { display: block; width: 20px; height: 20px; object-fit: contain; flex: none; }
