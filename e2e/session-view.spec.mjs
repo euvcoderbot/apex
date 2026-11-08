@@ -48,16 +48,19 @@ test('layout stays put while the laps load (CLS under 0.1)', async ({page, brows
   expect(await page.evaluate(() => window.__cls)).toBeLessThan(0.1);
 });
 
-test('team marks are real marks, and the monochrome ones follow the appearance', async ({page}) => {
+test('team marks are drawn tiles with a visible code, in both appearances', async ({page}) => {
   await open(page);
   for (const theme of ['dark', 'light']) {
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
-    const marks = await page.evaluate(() => [...document.querySelectorAll('.team-logo-official')].filter(el => el.offsetParent).map(el => {
-      const shown = [...el.children].find(img => getComputedStyle(img).display !== 'none');
-      return {team: el.dataset.teamMark, src: shown?.getAttribute('src').split('/').pop(), width: shown?.getBoundingClientRect().width};
+    const marks = await page.evaluate(() => [...document.querySelectorAll('.team-mark')].filter(el => el.offsetParent).map(el => {
+      const after = getComputedStyle(el, '::after');
+      return {team: el.dataset.teamMark, code: after.content.replace(/"/g, ''), size: parseFloat(after.fontSize), width: el.getBoundingClientRect().width, images: el.querySelectorAll('img').length};
     }));
     expect(marks.length, `${theme}: marks on the page`).toBeGreaterThan(0);
-    for (const mark of marks) { expect(mark.src, `${theme} ${mark.team} shows an image`).toBeTruthy(); expect(mark.width).toBeGreaterThan(0); }
+    for (const mark of marks) {
+      expect(mark.code, `${theme} ${mark.team} shows its code`).toMatch(/^[A-Z]{2,3}$/);
+      expect(mark.width).toBeGreaterThan(0); expect(mark.size).toBeGreaterThan(4); expect(mark.images).toBe(0);
+    }
   }
 });
 

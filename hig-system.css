@@ -468,13 +468,8 @@ body.trace-focus #telemetryCard { scrollbar-gutter: stable; padding: 8px 16px 24
 .corner-measurement-table button svg { position: absolute; right: -13px; width: 10px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .corner-measurement-table th[aria-sort]:not([aria-sort="none"]) button { color: var(--ui-label); }
 .corner-measurement-table .corner-driver { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
-.corner-measurement-table .corner-driver .team-logo,.corner-measurement-table .corner-driver .team-logo img { width: 18px; height: 18px; flex: 0 0 18px; }
-.corner-measurement-table .corner-driver .team-logo-official > .team-logo-color { display: none; }
-.corner-measurement-table .corner-driver .team-logo-official > .team-logo-mono { display: block; }
-.corner-measurement-table .corner-driver .team-logo-historical { background: transparent; padding: 0; }
+.corner-measurement-table .corner-driver .team-logo { width: 18px; height: 18px; flex: 0 0 18px; }
 /* The table is monochrome: the real white mark on dark, the real black mark on light (not a flattened silhouette of the colour one). */
-:root[data-theme="light"] .corner-measurement-table .corner-driver .team-logo-official > .team-logo-mono { display: none; }
-:root[data-theme="light"] .corner-measurement-table .corner-driver .team-logo-official > .team-logo-black { display: block; }
 .corner-measurement-table .corner-driver small { font: 400 var(--type-caption)/1.4 var(--ui-font); color: var(--ui-secondary); }
 .corner-measurement-table .corner-driver em { font-style: normal; }
 .corner-measurement-table td strong { display: block; font-size: var(--type-body); line-height: 1.4; font-weight: 500; color: inherit; }

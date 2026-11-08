@@ -16,57 +16,19 @@
   const teamColour = id => window.apexTeamColour?.(TEAM_HEX[id] || '#8e8e93') || TEAM_HEX[id] || '#8e8e93';
   const now = () => new Date();
 
-  // ---------- imagery: driver portraits, team marks, car profiles and circuit outlines ----------
-  // Portraits and car profiles are formula1.com images saved by scripts/fetch-official-assets.mjs (sources and the rights
-  // note are in assets/official-sources.json); circuit outlines are bacinger/f1-circuits (MIT, assets/circuits/LICENSE.md).
-  const CAR_IDS = {red_bull: 'redbullracing', rb: 'racingbulls', haas: 'haasf1team', aston_martin: 'astonmartin', mclaren: 'mclaren',
-    ferrari: 'ferrari', mercedes: 'mercedes', alpine: 'alpine', williams: 'williams', audi: 'audi', cadillac: 'cadillac'};
-  const imagery = {portraits: new Set(), cars: new Set(), circuits: null, framing: {}};
-  let imageryRequest = null, circuitRequest = null;
-  function loadImagery() {
-    const framing = fetch('assets/drivers/official/framing.json').then(r => (r.ok ? r.json() : {})).then(f => { imagery.framing = f || {}; }).catch(() => {});
-    imageryRequest ||= Promise.all([framing, fetch('assets/official-sources.json').then(r => (r.ok ? r.json() : {}))]).then(([, manifest]) => {
-      for (const {path} of manifest.assets || []) {
-        const portrait = path.match(/^assets\/drivers\/official\/([a-z]{6}\d\d)\.webp$/), car = path.match(/^assets\/teams\/cars\/([a-z0-9]+)\.webp$/);
-        if (portrait) imagery.portraits.add(portrait[1]);
-        if (car) imagery.cars.add(car[1]);
-      }
-    }).catch(() => {});
-    return imageryRequest;
-  }
+  // ---------- imagery: driver avatars, team marks and circuit outlines ----------
+  // Avatars and team marks are drawn by the app (team colour and code); circuit outlines are bacinger/f1-circuits (MIT, assets/circuits/LICENSE.md).
+  const imagery = {circuits: null};
+  let circuitRequest = null;
   function loadCircuits() {
     circuitRequest ||= fetch('assets/circuits/f1-circuits.geojson').then(r => (r.ok ? r.json() : null))
       .then(geo => { imagery.circuits = geo?.features || []; }).catch(() => { imagery.circuits = []; });
     return circuitRequest;
   }
-  const ascii = text => String(text || '').normalize('NFKD').toLowerCase().replace(/[^a-z]/g, '');
-  // formula1.com's driver key: the first three letters of the given and family names ('Andrea Kimi Antonelli' -> andant01).
-  function portraitKey(data, id) {
-    const d = data.drivers[id];
-    if (!d?.name || !d.family) return null;
-    const key = `${ascii(d.name.slice(0, d.name.length - d.family.length)).slice(0, 3)}${ascii(d.family).slice(0, 3)}01`;
-    return imagery.portraits.has(key) ? key : null;
-  }
-  function portraitImage(data, id, cls) {
-    const key = portraitKey(data, id);
-    if (!key) return null;
-    const img = el('img', cls); img.src = `assets/drivers/official/${key}.webp`; img.alt = ''; img.decoding = 'async'; img.loading = 'lazy';
-    return img;
-  }
   function avatar(data, id, size = 'sm') {
     const span = el('span', `season-avatar is-${size}`);
     span.style.setProperty('--team', teamColour(data.drivers[id]?.team));
-    const img = portraitImage(data, id);
-    // Scale the cut-out so the head is about 70% of the circle, centred on the head this portrait was measured to have.
-    const frame = img && imagery.framing[portraitKey(data, id)];
-    if (frame) {
-      const scale = .7 / frame.head_w;   // image width as a multiple of the circle
-      img.style.width = `${scale * 100}%`;
-      img.style.left = `${(50 - frame.head_x * scale * 100).toFixed(1)}%`;
-      img.style.top = `${(14 - frame.head_top * scale * 100).toFixed(1)}%`;
-      img.style.transform = 'none';
-    }
-    span.append(img || el('b', null, (data.drivers[id]?.code || '').slice(0, 3)));
+    span.append(el('b', null, (data.drivers[id]?.code || '').slice(0, 3)));
     return span;
   }
   function teamMark(data, id) {
@@ -77,12 +39,7 @@
     const dot = el('i'); dot.style.setProperty('--team', teamColour(id));
     return dot;
   }
-  function carImage(id, cls = 'season-car') {
-    const car = CAR_IDS[id];
-    if (!car || !imagery.cars.has(car)) return null;
-    const img = el('img', cls); img.src = `assets/teams/cars/${car}.webp`; img.alt = ''; img.decoding = 'async'; img.loading = 'lazy';
-    return img;
-  }
+
   // The circuit whose centre is nearest the round's coordinates (within 30 km).
   function circuitFeature(round) {
     if (!imagery.circuits?.length || !Number.isFinite(round.lat) || (!round.lat && !round.lon)) return null;
@@ -291,7 +248,7 @@
     const token = ++renderToken, tab = state.tab, year = state.year;
     body.replaceChildren(el('p', 'season-loading', tab === 'upgrades' ? 'Reading the FIA car presentation documents… the first time takes up to a minute.' : 'Loading…'));
     try {
-      const [data] = await Promise.all([load('season', year), loadImagery(), tab === 'schedule' ? loadCircuits() : null]);
+      const [data] = await Promise.all([load('season', year), tab === 'schedule' ? loadCircuits() : null]);
       const extra = tab === 'upgrades' ? await load('upgrades', year) : tab === 'units' ? await load('units', year) : null;
       if (token !== renderToken) return;
       const view = {schedule: renderSchedule, results: renderResults, standings: renderStandings, drivers: renderDrivers,
@@ -637,7 +594,6 @@
       const before = previous?.find(x => x.id === e.id)?.position, change = before ? before - e.position : 0;
       const tr = el('tr'); tr.dataset.id = e.id;
       const name = el('td'); name.append(drivers ? who(data, e.id) : teamTag(data, e.id));
-      if (!drivers) { const car = carImage(e.id, 'season-car is-row'); if (car) name.firstChild.append(car); }
       tr.append(el('td', 'num season-pos', String(e.position)), el('td', `season-move ${change > 0 ? 'is-up' : change < 0 ? 'is-down' : ''}`, change > 0 ? `▲${change}` : change < 0 ? `▼${-change}` : ''),
         name, el('td', 'num', String(e.wins)), el('td', 'num season-strong', String(e.points)), el('td', 'num season-muted', e.position === 1 ? '' : `−${(leaderPoints - e.points).toFixed(0)}`));
       tb.append(tr);
@@ -995,16 +951,13 @@
     const head = el('section', 'season-card season-driver-head');
     head.style.setProperty('--team', teamColour(team));
     const hero = el('div', 'season-hero');
-    const portrait = el('div', 'season-hero-portrait'); portrait.append(portraitImage(data, id) || avatar(data, id, 'lg'));
+    const portrait = el('div', 'season-hero-portrait'); portrait.append(avatar(data, id, 'lg'));
     const ident = el('div', 'season-hero-id');
     if (driver?.number) ident.append(el('span', 'season-hero-number', driver.number));
     ident.append(el('h2', null, driverName(data, id)), teamTag(data, team));
     const side = el('div', 'season-driver-pos');
     side.append(el('b', 'season-big', standing ? `P${standing.position}` : '—'), el('span', 'season-muted', standing ? `${standing.points} points` : ''));
-    const car = carImage(team, 'season-car is-hero');
     hero.append(portrait, ident, side);
-    // The car stands on the header's floor line with a ground shadow, rather than floating over the wash.
-    if (car) { const stage = el('div', 'season-car-stage'); stage.append(car); hero.append(stage); }
     head.append(hero);
     const facts = el('div', 'season-facts');
     const fact = (label, value, note) => { const f = el('div'); f.append(el('span', 'season-muted', label), el('b', null, value)); if (note) f.append(el('small', 'season-muted', note)); facts.append(f); };
@@ -1106,13 +1059,12 @@
     const rows = el('div', 'season-h2h');
     const face = (id, colour, mirrored) => {
       const side = el('div', `season-h2h-side${mirrored ? ' is-right' : ''}`); side.style.setProperty('--team', colour);
-      const portrait = el('div', 'season-hero-portrait'); portrait.append(portraitImage(data, id) || avatar(data, id, 'lg'));
+      const portrait = el('div', 'season-hero-portrait'); portrait.append(avatar(data, id, 'lg'));
       const ident = el('div', 'season-hero-id'); ident.append(el('h2', null, driverName(data, id)), teamTag(data, data.drivers[id]?.team));
       const st = data.driver_stats[id], pos = data.standings.drivers.at(-1)?.table.find(e => e.id === id)?.position;
       const line = el('div', 'season-hero-line');
       for (const [k, v] of [['Position', pos ? `P${pos}` : '\u2014'], ['Points', st?.points ?? 0], ['Wins', st?.wins ?? 0], ['Poles', st?.poles ?? 0]]) { const d = el('div'); d.append(el('b', null, String(v)), el('span', null, k)); line.append(d); }
       ident.append(line);
-      const car = carImage(data.drivers[id]?.team, 'season-car is-h2h'); if (car) side.append(car);
       side.append(portrait, ident);
       return side;
     };

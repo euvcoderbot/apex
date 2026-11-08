@@ -458,18 +458,21 @@ test('corner navigation precedes detail/map siblings and retains map height', ()
   assert.doesNotMatch(app,/positionCornerIndicator|corner-pick\.selected'\)\?\.focus/);
 });
 
-test('official graphics resolve only to verified local assets', () => {
+test('team marks and tyres are drawn by the app, never loaded from image files', () => {
   const h = context();
-  const marks = h.run('[...new Set(Object.values(officialTeamMarks))]');
-  assert.equal(marks.length, 11);
-  for (const mark of marks) assert.ok(existsSync(`assets/teams/official/${mark}`));
-  assert.match(h.run("teamLogoMarkup('Haas F1 Team')"), /haasf1team.webp/);
-  assert.doesNotMatch(h.run("teamLogoMarkup('Kick Sauber')"), /audi/);
+  h.run(readFileSync('team-marks.js', 'utf8'));
+  assert.match(h.run("teamLogoMarkup('Haas F1 Team')"), /data-code="HAA"/);
+  assert.match(h.run("teamLogoMarkup('Kick Sauber')"), /data-code="SAU"/);
+  assert.doesNotMatch(h.run("teamLogoMarkup('Kick Sauber')"), /AUD/);
   assert.doesNotMatch(h.run("teamLogoMarkup('<img>')"), /<img/);
-  for (const compound of ['hard','medium','soft','intermediate','wet']) {
-    assert.ok(existsSync(`assets/tyres/official/${compound}.png`));
-    assert.match(h.run(`tyreImageMarkup('${compound}')`), /class="tyre-image"/);
+  const colours = {hard: '#f5f5f7', medium: '#ffd735', soft: '#ff493e', intermediate: '#43cf79', wet: '#3395ff'};
+  for (const [compound, colour] of Object.entries(colours)) {
+    const tyre = h.run(`tyreImageMarkup('${compound}')`);
+    assert.match(tyre, /^<svg class="tyre-image"/);
+    assert.match(tyre, new RegExp(`stroke="${colour}"`));
+    assert.doesNotMatch(tyre, /<img|\.png/);
   }
+  assert.equal(h.run("tyreImageMarkup('unknown')"), '');
 });
 
 test('driver list has fixed leading columns and stretched left-aligned names', () => {

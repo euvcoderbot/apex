@@ -211,7 +211,7 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .sector-cards .lap-summary-card > header { grid-area: 1 / 1; display: grid; grid-template-columns: minmax(0,1fr) auto; grid-template-areas: "driver time" "tyre time"; align-items: center; gap: 4px 12px; margin: 0; padding: 0; }
 .sector-cards .lap-summary-card .summary-header-actions { display: contents; }
 .sector-cards .lap-summary-card .summary-driver { grid-area: driver; display: flex; align-items: center; gap: 5px; min-height: 20px; font-size: var(--ui-text); }
-.sector-cards .lap-summary-card .summary-driver .team-logo,.sector-cards .lap-summary-card .summary-driver .team-logo img { width: 18px; height: 18px; flex: 0 0 18px; }
+.sector-cards .lap-summary-card .summary-driver .team-logo { width: 18px; height: 18px; flex: 0 0 18px; }
 .sector-cards .lap-summary-card .summary-lap-label { font-size: var(--ui-caption); color: var(--ui-secondary); }
 .sector-cards .lap-summary-card .summary-tyre { grid-area: tyre; min-height: 20px; }
 .sector-cards .lap-summary-card .summary-driver > em { padding: 2px 5px; border-radius: var(--radius-xs); font: 600 11px/1.2 var(--ui-font); color: var(--ui-accent); background: color-mix(in srgb,var(--ui-accent) 12%,transparent); }
@@ -657,19 +657,12 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
 .corner-detail-card .corner-driver { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .corner-detail-card .corner-driver em { padding: 1px 5px; border-radius: var(--radius-xs); font: 600 11px/1.3 var(--ui-font); font-style: normal; color: var(--ui-accent); background: color-mix(in srgb,var(--ui-accent) 12%,transparent); }
 /* Team logos: a little larger everywhere they identify a row. */
-#driverPills .driver-pill .team-logo,#driverPills .driver-pill .team-logo img { width: 22px; height: 22px; }
-.lap-workspace .run-driver .team-logo,.lap-workspace .run-driver .team-logo img { width: 24px; height: 24px; }
-:is(.performance-table,.performance-bar-label,.performance-team) .team-logo,:is(.performance-table,.performance-bar-label,.performance-team) .team-logo img { width: 20px; height: 20px; flex-basis: 20px; }
+#driverPills .driver-pill .team-logo { width: 22px; height: 22px; }
+.lap-workspace .run-driver .team-logo { width: 24px; height: 24px; }
+:is(.performance-table,.performance-bar-label,.performance-team) .team-logo { width: 20px; height: 20px; flex-basis: 20px; }
 /* Pop-up menus: the current choice is shown by highlight only (no tick), per review. */
 /* Official team marks: colour by default; white where the colour mark is dark
    (Aston Martin, Audi, Cadillac, Mercedes) in the dark appearance. */
-.team-logo-official { position: relative; display: inline-grid; place-items: center; }
-.team-logo-official > img { grid-area: 1 / 1; width: 100%; height: 100%; object-fit: contain; filter: none; }
-.team-logo-official > .team-logo-mono { display: none; }
-.team-logo-official > .team-logo-black { display: none; }
-:root:not([data-theme="light"]) .team-logo-official:is([data-team-mark="astonmartin"],[data-team-mark="audi"],[data-team-mark="cadillac"],[data-team-mark="mercedes"],[data-team-mark="kick-sauber"]) > .team-logo-color { display: none; }
-:root:not([data-theme="light"]) .team-logo-official:is([data-team-mark="astonmartin"],[data-team-mark="audi"],[data-team-mark="cadillac"],[data-team-mark="mercedes"],[data-team-mark="kick-sauber"]) > .team-logo-mono { display: block; }
-@media(forced-colors:active) { .team-logo-official > .team-logo-color { display: none; } .team-logo-official > .team-logo-mono { display: block; } }
 /* Lap card, broadcast style: per-sector time and delta, then the sector
    label in its status colour sitting on one continuous segmented bar;
    hairlines separate identity, sectors and weather. */

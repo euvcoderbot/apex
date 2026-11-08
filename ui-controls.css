@@ -289,3 +289,12 @@ button[data-ui-kind="push"],button[data-ui-kind="primary"],button[data-ui-kind="
 .ui-catalog-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
 .ui-catalog p { color: var(--ui-secondary); font-size: var(--type-body); }
 .ui-catalog .select-menu { position: static; display: grid; opacity: 1; visibility: visible; transform: none; pointer-events: auto; max-height: none; }
+
+/* Team marks (team-marks.js): a tile tinted in the team colour with its code, mixed toward the text colour so the code stays readable. */
+.team-mark { position: relative; display: inline-grid; place-items: center; container-type: size; overflow: hidden; border-radius: 27%;
+  background: color-mix(in oklch, var(--team-mark) 20%, var(--ui-panel)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--team-mark) 60%, transparent); }
+/* The code scales with the tile (cqw), so one rule fits every size the tile is drawn at. */
+.team-mark::after { content: attr(data-code); color: color-mix(in oklch, var(--team-mark) 55%, var(--ui-label)); font: 700 35cqw/1 var(--ui-font); letter-spacing: -.02em; }
+.team-mark:is([data-code="RB"],[data-code="AT"],[data-code="RP"],[data-code="FI"])::after { font-size: 40cqw; }
+:root[data-theme="light"] .team-mark::after { color: color-mix(in oklch, var(--team-mark) 38%, var(--ui-label)); }
+@media (forced-colors: active) { .team-mark { background: Canvas; box-shadow: inset 0 0 0 1px CanvasText; } .team-mark::after { color: CanvasText; } }

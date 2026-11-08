@@ -392,7 +392,7 @@
 :root[data-skin="linear"] #linearWorkspace #driverPills.has-race-results .driver-pill[data-ui-kind="list-row"] {
   grid-template-columns: 18px 16px minmax(0, 1fr) auto 12px; gap: 7px; height: 28px; min-height: 28px; padding: 0 6px; border-radius: 8px;
 }
-:root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill .team-logo, :root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill .team-logo img { width: 16px; height: 16px; }
+:root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill .team-logo { width: 16px; height: 16px; }
 :root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill-identity { font: 510 13px/1.2 var(--ui-font); color: var(--ui-secondary); }
 :root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill-position { font-size: 12px; color: var(--ui-tertiary); }
 :root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill.selected .driver-pill-position { color: var(--ui-secondary); }

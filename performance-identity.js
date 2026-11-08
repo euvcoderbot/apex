@@ -37,46 +37,10 @@ export function verifiedDryGrade(year, raceRound, relativeCompound) {
   return allocation && position !== undefined ? `C${allocation[position]}` : null;
 }
 
-// Team marks - exact match with Session Analysis
-export const officialTeamMarks = {
-  'mercedes': 'mercedes.webp', 'ferrari': 'ferrari.webp', 'mclaren': 'mclaren.webp',
-  'red bull racing': 'redbullracing.webp', 'red bull': 'redbullracing.webp',
-  'racing bulls': 'racingbulls.webp', 'rb': 'racingbulls.webp',
-  'alpine': 'alpine.webp', 'alpine f1 team': 'alpine.webp',
-  'haas': 'haasf1team.webp', 'haas f1 team': 'haasf1team.webp',
-  'audi': 'audi.webp', 'williams': 'williams.webp',
-  'aston martin': 'astonmartin.webp', 'cadillac': 'cadillac.webp',
-};
-
-export const historicalTeamMarks = {
-  'sauber': 'sauber.svg', 'kick sauber': 'kick-sauber', 'stake f1 team kick sauber': 'kick-sauber',
-  'alfa romeo': 'alfa-romeo.svg', 'alfa romeo racing': 'alfa-romeo.svg', 'alfa romeo sauber': 'sauber.svg',
-  'alphatauri': 'alphatauri.svg', 'alpha tauri': 'alphatauri.svg', 'scuderia alphatauri': 'alphatauri.svg',
-  'toro rosso': 'toro-rosso.svg', 'scuderia toro rosso': 'toro-rosso.svg',
-  'racing point': 'racing-point.svg', 'force india': 'force-india.png',
-  'lotus': 'lotus.png', 'lotus f1 team': 'lotus.png', 'manor': 'manor.png', 'manor racing': 'manor.png',
-  'marussia': 'marussia.png', 'manor marussia': 'marussia.png', 'caterham': 'caterham.png',
-};
-
+// Team marks: drawn by team-marks.js, the same as in Session Analysis.
 export function teamLogoMarkup(teamName) {
-  if (typeof window !== 'undefined' && typeof window.teamLogoMarkup === 'function') {
-    return window.teamLogoMarkup(teamName);
-  }
-  const key = String(teamName || '').trim().toLowerCase();
-  if (key === 'renault' || key === 'renault sport f1 team') {
-    return '<span class="team-logo team-logo-historical" aria-hidden="true"><img src="assets/teams/historical/renault.png" alt="" width="24" height="24"></span>';
-  }
-  const historical = historicalTeamMarks[key];
-  // Kick Sauber: transparent black and white wordmarks, swapped by appearance like the official marks.
-  if (historical === 'kick-sauber') return `<span class="team-logo team-logo-official" data-team-mark="kick-sauber" aria-hidden="true"><img class="team-logo-color" src="assets/teams/historical/kick-sauber-black.webp" alt="" width="24" height="24"><img class="team-logo-mono" src="assets/teams/historical/kick-sauber-white.webp" alt="" width="24" height="24"></span>`;
-  if (historical) {
-    return `<span class="team-logo team-logo-historical" aria-hidden="true"><img src="assets/teams/historical/${historical}" alt="" width="24" height="24"></span>`;
-  }
-  const asset = officialTeamMarks[key];
-  if (!asset) {
-    return '<span class="team-logo" aria-hidden="true"><i class="team-logo-fallback"></i></span>';
-  }
-  return `<span class="team-logo" aria-hidden="true"><img src="assets/teams/official/${asset}" alt="" width="24" height="24"></span>`;
+  const marks = typeof window !== 'undefined' ? window.ApexTeamMarks : null;
+  return marks?.teamMarkMarkup(teamName) || '<span class="team-logo" aria-hidden="true"><i class="team-logo-fallback"></i></span>';
 }
 
 // Grand Prix Flag Resolution

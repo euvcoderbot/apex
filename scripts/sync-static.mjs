@@ -55,6 +55,7 @@ const staticFiles = [
   "motion.js",
   "skin.js",
   "team-colours.js",
+  "team-marks.js",
   "linear-workspace.js",
   "live.js",
   "season.js",

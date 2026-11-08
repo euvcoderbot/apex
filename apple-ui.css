@@ -298,8 +298,6 @@ footer { padding: 0 24px 32px; font-size: var(--text-sm); color: var(--ui-tertia
 .map-north { display: inline-flex; align-items: center; gap: 5px; color: var(--ui-secondary); font-size: var(--text-sm); font-weight: 600; }
 .dominance-map-header .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .tire-copy small { display: block; }
-.team-logo-historical { background: #fff; border-radius: var(--radius-xs); padding: 2px; }
-:root .team-logo-historical img { filter: none; }
 
 /* Each run is an individual control, with a stable trailing selection cue. */
 .map-view-switch button { padding: 6px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ui-secondary); cursor: pointer; font-size: var(--type-callout); }
