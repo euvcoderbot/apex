@@ -167,7 +167,9 @@ main.sidebar-collapsed #lapSelectionBody > #stintPanels { grid-area: 1 / 1; }
 #performanceResults > .performance-toolbar > .performance-mode { padding: 2px; gap: 2px; background: var(--ui-well); border: 1px solid var(--ui-border); border-radius: var(--radius-md); }
 #performanceResults .performance-mode button[data-ui-kind="tab"] { display: inline-flex; align-items: center; justify-content: flex-start; gap: var(--ui-space-1); height: var(--ui-control-height); min-height: var(--ui-control-height); padding: 0 var(--ui-space-2); }
 #performanceResults .performance-mode button[data-ui-kind="tab"]:hover:not([aria-selected="true"]) { background: #ffffff08; box-shadow: none; border-color: transparent; }
-.performance-compound-control { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin: 0 0 10px; }
+/* min-width 0: without it the row keeps its one-line width at phone sizes and runs past the card instead of wrapping. */
+.performance-compound-control { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin: 0 0 10px; min-width: 0; max-width: 100%; }
+.performance-compound-control > .performance-tyre-options { min-width: 0; }
 .performance-compound-control .compound-control-label { color: var(--ui-secondary); font-size: var(--type-body); }
 .performance-compound-control .performance-tyre-options > button { flex: 0 0 auto; min-width: 40px; min-height: 29px; padding: 4px 8px; border: 1px solid var(--ui-border); background: var(--ui-well); }
 .performance-tyre-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
