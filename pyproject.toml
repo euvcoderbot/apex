@@ -14,4 +14,6 @@ package = false
 # All charts are rendered in the browser. FastF1's plotting-only dependencies
 # are unused by this service; retain scipy for its telemetry interpolation.
 # This API reads published HTTP archives, not the live SignalR/WebSocket client.
-exclude-dependencies = ["matplotlib", "timple", "signalrcore", "websockets", "cryptography", "pyjwt"]
+# pyjwt and cryptography stay: FastF1 3.9.2 imports jwt's RSA support when the package loads
+# (fastf1.internals.f1account), so without them `import fastf1` fails.
+exclude-dependencies = ["matplotlib", "timple", "signalrcore", "websockets"]
