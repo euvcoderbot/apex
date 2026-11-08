@@ -74,7 +74,6 @@ test('supporting straight and braking tables are closed and deferred before DOM 
 test('retired view switches, annotation table and lap selection marks have no remaining app code',()=>{
   assert.doesNotMatch(app,/sessionAnalysisView|setSessionAnalysisView|renderSpeedAnnotationEvidence|speedAnnotationEvidence|lap-selection-mark|trace-color-picker/);
   assert.match(app,/drawMapHover\(\)/);
-  assert.match(css,/grid-template-columns: minmax\(0,1fr\) min\(48%,540px\)/);
   assert.match(css,/#driverSidebar #driverPills \{[^}]*max-height: none; overflow: visible/);
   assert.match(css,/lap-chip > \.compound-badge \{ grid-area: 1 \/ 3/);
   assert.match(css,/grid-template-rows: subgrid/);

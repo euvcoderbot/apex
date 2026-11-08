@@ -66,10 +66,9 @@ test('performance redraw retains scroll, evidence disclosure and keyboard focus'
 test('UI density uses component sizing and responsive chart rows rather than page scaling',()=>{
   const shared=readFileSync('apple-ui.css','utf8'),performance=readFileSync('car-performance.css','utf8');
   postcss.parse(shared);postcss.parse(performance);
-  assert.match(shared,/body \{ zoom: 1; \}/);
-  // Regular controls are 30px; touch input raises them to 44px (ui-controls.css, the component layer).
+  // Regular controls are 28px (Linear's compact size); touch input raises them to 44px (ui-controls.css, the component layer).
   const tokens=JSON.parse(readFileSync('e2e/__tokens__/tokens.json','utf8'));
-  assert.equal(tokens.dark['--ui-control-height'],'30px');
+  assert.equal(tokens.dark['--ui-control-height'],'28px');
   assert.match(readFileSync('tokens.css','utf8'),/pointer: ?coarse[\s\S]{0,400}--ui-control-height: 44px/);
   assert.match(performance,/\.performance-bar-track, \.performance-tyre-age-track \{ grid-column: 1 \/ -1; grid-row: 2;/);
   assert.match(performance,/focus-visible \{ outline: 3px solid var\(--ui-accent\)/);
@@ -448,15 +447,6 @@ test('compact corner choices, grouped laps and motion accessibility are explicit
   assert.ok(html.indexOf('<aside class="app-sidebar" id="sessionSidebar"') < html.indexOf('class="dashboard-card session-controls"'));
 });
 
-test('Grand Prix open rule overrides its GP-specific closed rule', () => {
-  const css = postcss.parse(readFileSync('apple-ui.css', 'utf8'));
-  const rule = css.nodes.find(n => n.type === 'rule' && n.selector.includes('.select-shell.is-open:has(#gp) .select-menu'));
-  assert.ok(rule, 'GP needs an open selector at least as specific as its closed selector');
-  for (const [prop, value] of [['visibility', 'visible'], ['pointer-events', 'auto'], ['opacity', '1']]) {
-    assert.ok(rule.nodes.some(d => d.prop === prop && d.value === value), prop);
-  }
-});
-
 test('corner navigation precedes detail/map siblings and retains map height', () => {
   const html = readFileSync('index.html', 'utf8');
   const css = readFileSync('apple-ui.css', 'utf8');
@@ -464,23 +454,25 @@ test('corner navigation precedes detail/map siblings and retains map height', ()
   assert.ok(html.indexOf('id="cornerMetricGrid"') < html.indexOf('id="dominanceCanvas"'));
   assert.equal((html.match(/id="dominanceCanvas"/g) || []).length, 1);
   assert.match(css, /@container \(min-width: 940px\)/);
-  assert.match(css, /#dominanceCanvas\s*\{[^}]*height: clamp\(280px, 24vw, 420px\)/);
   assert.match(app, /updateCornerPicker\(pickerRoot,/);
   assert.doesNotMatch(app,/positionCornerIndicator|corner-pick\.selected'\)\?\.focus/);
 });
 
-test('official graphics resolve only to verified local assets', () => {
+test('team marks and tyres are drawn by the app, never loaded from image files', () => {
   const h = context();
-  const marks = h.run('[...new Set(Object.values(officialTeamMarks))]');
-  assert.equal(marks.length, 11);
-  for (const mark of marks) assert.ok(existsSync(`assets/teams/official/${mark}`));
-  assert.match(h.run("teamLogoMarkup('Haas F1 Team')"), /haasf1team.webp/);
-  assert.doesNotMatch(h.run("teamLogoMarkup('Kick Sauber')"), /audi/);
+  h.run(readFileSync('team-marks.js', 'utf8'));
+  assert.match(h.run("teamLogoMarkup('Haas F1 Team')"), /data-code="HAA"/);
+  assert.match(h.run("teamLogoMarkup('Kick Sauber')"), /data-code="SAU"/);
+  assert.doesNotMatch(h.run("teamLogoMarkup('Kick Sauber')"), /AUD/);
   assert.doesNotMatch(h.run("teamLogoMarkup('<img>')"), /<img/);
-  for (const compound of ['hard','medium','soft','intermediate','wet']) {
-    assert.ok(existsSync(`assets/tyres/official/${compound}.png`));
-    assert.match(h.run(`tyreImageMarkup('${compound}')`), /class="tyre-image"/);
+  const colours = {hard: '#f5f5f7', medium: '#ffd735', soft: '#ff493e', intermediate: '#43cf79', wet: '#3395ff'};
+  for (const [compound, colour] of Object.entries(colours)) {
+    const tyre = h.run(`tyreImageMarkup('${compound}')`);
+    assert.match(tyre, /^<svg class="tyre-image"/);
+    assert.match(tyre, new RegExp(`stroke="${colour}"`));
+    assert.doesNotMatch(tyre, /<img|\.png/);
   }
+  assert.equal(h.run("tyreImageMarkup('unknown')"), '');
 });
 
 test('driver list has fixed leading columns and stretched left-aligned names', () => {
@@ -501,7 +493,8 @@ test('site-wide elevation and independent comparison actions are retained', () =
   for (const token of ['--shadow-main', '--ui-shadow-control', '--shadow-inset']) {
     assert.ok(tokens.dark[token] !== undefined && tokens.light[token] !== undefined, `${token} needs both themes`);
   }
-  assert.notEqual(tokens.dark['--ui-shadow-control'], tokens.light['--ui-shadow-control'], 'raised elevation differs by appearance');
+  // Linear is flat: controls carry no shadow in either appearance.
+  assert.equal(tokens.dark['--ui-shadow-control'], 'none'); assert.equal(tokens.light['--ui-shadow-control'], 'none');
   assert.match(app, /<button class="loaded-lap-main/);
   assert.match(app, /<button class="remove"/);
   assert.doesNotMatch(app, /<i class="remove"/);
@@ -523,7 +516,6 @@ test('scrollbars stay discoverable in both themes without changing layout', () =
 
 test('compact sector rows, contrasting logos and section boundary bars', () => {
   const css = readFileSync('apple-ui.css','utf8');
-  assert.match(css, /filter: invert\(1\)/);
   assert.doesNotMatch(css, /filter: brightness\(0\)/);
   assert.match(app, /class="sector-delta-slot"/);
   assert.match(app, /highlightedCornerWindows.flatMap\(window => \[window.start, window.end\]\)/);

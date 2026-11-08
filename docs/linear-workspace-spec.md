@@ -44,7 +44,7 @@ each number), and "Invisible details" (contextual menus that teach shortcuts).
 
 Applied to Apex:
 - Drivers are listed one per row in the rail (Linear's favourites pattern); on phones they stay in the lap sheet, still one per row.
-- Ranked bars share one thickness (8 px, 6 px in compact density) in every Car performance category. Rows have no separators;
+- Ranked bars share one thickness (8 px) in every Car performance category. Rows have no separators;
   the hover is a rounded wash that bleeds 8 px past the text, so nothing clips it.
 - Under `prefers-contrast: more` every hairline becomes the strong border.
 
@@ -72,7 +72,6 @@ public implementation observation, not a promise about every Linear screen.
   anchors restore exact original positions when returning to macOS.
 - Command search supports Ctrl/Cmd K, arrows, Enter and Escape; native dialog
   provides focus containment. Closing restores the invoking control.
-- Density only changes presentation, never eligibility, calculations or values.
 - Ranked bars have no artificial minimum width. Values rounding to displayed
   zero draw no colored sliver; raw values and exact tooltip data are preserved.
 - No download, computation, data revision relabeling or release-policy relaxation
@@ -80,7 +79,6 @@ public implementation observation, not a promise about every Linear screen.
 
 ## Verification
 
-Test both looks, themes, navigation, command keyboard flow, density persistence,
-node restoration, responsive overflow and existing session comparisons. Verify
+Test both themes, navigation, command keyboard flow, responsive overflow and existing session comparisons. Verify
 source checks and typechecks. Publication still requires full strict release
 checks against honestly compatible prepared data; source-only CI is not enough.

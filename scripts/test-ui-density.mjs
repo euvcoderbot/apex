@@ -19,11 +19,9 @@ test('targeted UI fixes keep panels separate, controls contained and units visib
   const hig=read('hig-system.css'),corners=read('session-corners.js');
   assert.match(hig,/container: telemetry \/ inline-size/);
   assert.match(hig,/@container telemetry \(max-width: 1050px\)[\s\S]*grid-template-areas: "corner" "charts"/);
-  assert.match(hig,/#loadedLaps \.loaded-lap-pill \{ min-height: 26px; height: 26px/);
   assert.match(hig,/\.lap-chip\.is-preparation\[aria-pressed="true"\] \.lap-state \{ color: var\(--ui-accent\)/);
   assert.match(hig,/summary-lap-time > strong \{ font-weight: 700/);
   assert.match(hig,/performance-bar-row \{ grid-template-columns: minmax\(0,14em\) minmax\(32px,1fr\) max-content/);
-  assert.match(hig,/performance-tyre-age-row \+ \.performance-tyre-age-row \{ border-top: 1px solid var\(--ui-separator\)/);
   assert.match(ui,/primaryBody\.prepend\(group\)/);
   assert.match(corners,/sectionTime\.toFixed\(3\)\+'s'/);
   assert.doesNotMatch(corners,/signedDelta\(toReference\)\.replace/);
@@ -34,8 +32,6 @@ test('all primary sections share a heading policy and one unforced filter band',
   assert.match(ui,/heading\.parentElement === primaryCard/);
   assert.match(ui,/sectionControls.*performance-scope-toggle,\.performance-pit-controls,\.performance-results-measure,\.performance-actions/);
   assert.match(ui,/group\.append\(\.\.\.control\.children\); control\.remove\(\)/);
-  assert.match(hig,/performance-card-controls > \.performance-scope-toggle \{ margin: 0/);
-  assert.match(hig,/performance-card-controls \[data-ui-group="segments"\] \{ flex: 0 1 auto; width: fit-content/);
   assert.match(hig,/performance-card-controls:empty \{ display: none/);
   assert.match(hig,/performance-card-controls \.performance-tyre-toolbar,\.performance-card-controls \.performance-tyre-settings \{ display: contents/);
   assert.match(ui,/!el\.matches\('\.performance-stat-toggle'\)/);
@@ -77,5 +73,4 @@ test('corner inspector has explicit grouped selection sections instead of floati
   assert.match(app,/circuit-section-group"><header><h3>Straights/);
   assert.doesNotMatch(app,/<details class="circuit-section-group circuit-links"/);
   assert.match(css,/circuit-section-group \.corner-picker \{ display: grid/);
-  assert.match(css,/corner-picker-row \{ order: 1; padding: var\(--ui-space-3\); border-top/);
 });

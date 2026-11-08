@@ -35,13 +35,12 @@
   function arrangeDriverRail(){
     const column=document.querySelector('#sessionSidebar'),body=document.querySelector('#lapSelectionBody'),sidebar=document.querySelector('#driverSidebar');
     if(!column||!body||!sidebar)return;
-    // The Linear look lists drivers in its workspace rail, one per row as in the macOS sidebar; on phones the rail is a strip, so they go in the lap sheet.
-    const linear=document.documentElement.dataset.skin==='linear',railSlot=document.querySelector('#linearWorkspace .linear-drivers');
+    // Drivers are listed in the workspace rail, one per row; on phones the rail is a strip, so they go in the lap sheet.
+    const railSlot=document.querySelector('#linearWorkspace .linear-drivers');
     // A collapsed rail cannot hold them either; the lap sheet takes them until it opens again.
     const railShown=railSlot&&!document.body?.classList.contains('is-sidebar-hidden')&&window.matchMedia(`(min-width:${Math.round(761*(window.APEX_UI_ZOOM||1))}px)`).matches;
-    const wide=driverRail.matches&&!linear,host=linear?(railShown?railSlot:body):(wide?column:body);
-    if(sidebar.parentElement!==host)wide?host.append(sidebar):host.prepend(sidebar);
-    document.querySelector('.analysis-column')?.classList.toggle('has-driver-rail',wide);
+    const host=railShown?railSlot:body;
+    if(sidebar.parentElement!==host)host.prepend(sidebar);
   }
   arrangeDriverRail();driverRail.addEventListener('change',arrangeDriverRail);
   window.addEventListener('apex-skin',arrangeDriverRail);
@@ -53,7 +52,6 @@
     document.body?.classList.toggle('is-sidebar-hidden',!visible);
     // Also on <html>, where the Linear look sets the rail width it lays the whole frame out from.
     document.documentElement.dataset.sidebar=visible?'shown':'hidden';
-    for(const aside of document.querySelectorAll('.app-sidebar'))aside.inert=!visible&&document.documentElement.dataset.skin!=='linear';
     if(sidebarButton){sidebarButton.setAttribute('aria-expanded',String(visible));const label=visible?'Hide sidebar':'Show sidebar';sidebarButton.setAttribute('aria-label',label);sidebarButton.title=label;}
     if(persist)window.ApexAnalysis?.savePreference?.('hideSidebar',!visible);
     if(typeof window.dispatchEvent==='function')window.dispatchEvent(new Event('resize'));

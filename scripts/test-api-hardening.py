@@ -43,12 +43,10 @@ class CorsTests(unittest.TestCase):
 
 
 class AssetTests(unittest.TestCase):
-    def test_only_browser_scripts_and_styles_are_served(self):
-        for name in ('server.py', 'package.json', 'vite.config.ts', '.env', 'requirements.txt', 'nope.js', '..%2Fserver.py'):
-            with self.assertRaises(HTTPException) as caught:
-                server.frontend_asset(name)
-            self.assertEqual(caught.exception.status_code, 404, name)
-        self.assertEqual(Path(server.frontend_asset('session-state.js').path).name, 'session-state.js')
+    def test_the_compute_api_serves_no_copy_of_the_site(self):
+        self.assertFalse(hasattr(server, 'frontend_asset'))
+        response = server.frontend_index()
+        self.assertEqual(response.headers['location'], 'https://f1apexdata.eufrandota14.chatgpt.site/apex/')
 
 
 class DevelopmentEndpointTests(unittest.TestCase):

@@ -47,40 +47,37 @@ test('every rule in skins.css is opt-in, so the default look is unchanged', () =
   const loose = [];
   root.walkRules(rule => {
     if (rule.parent?.type === 'atrule' && /keyframes/.test(rule.parent.name)) return;
-    for (const selector of rule.selectors) if (!selector.startsWith(':root[data-skin="linear"]') && !selector.startsWith('#skinToggle')) loose.push(selector);
+    for (const selector of rule.selectors) if (!selector.startsWith(':root[data-skin="linear"]')) loose.push(selector);
   });
   assert.deepEqual(loose, []);
   assert.ok(root.toString().includes('@media (prefers-reduced-motion: reduce)'), 'Linear motion respects reduced motion');
 });
 
-test('the look toggle is in the toolbar, applied before first paint and shipped', () => {
+test('the Linear look is the only look: fixed before first paint, no look or glass switches, and shipped', () => {
   const html = read('index.html');
-  assert.match(html, /localStorage\.getItem\('apex-skin'\) === 'linear'/);
-  assert.match(html, /<button id="skinToggle"[^>]*aria-pressed="false"/);
-  assert.ok(html.indexOf('id="skinToggle"') > html.indexOf('id="glassToggle"'));
+  assert.match(html, /<html lang="en" data-skin="linear">/);
+  assert.doesNotMatch(html, /apex-skin|id="skinToggle"|id="glassToggle"|glass\.js/);
   assert.match(html, /<script src="skin\.js"><\/script>/);
   assert.match(read('scripts/sync-static.mjs'), /"skin\.js"/);
+  assert.doesNotMatch(read('scripts/sync-static.mjs'), /"glass\.js"/);
   assert.match(read('lib/ui-style-build.mjs'), /\['skins\.css','skin'\]/);
 });
 
-test('the toggle switches looks, updates its state and remembers the choice', () => {
-  const store = new Map(), listeners = {}, events = [];
-  const button = {attrs: {}, title: '', setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(type, fn) { listeners['button:' + type] = fn; }};
-  const document = {documentElement: {dataset: {}}, getElementById: id => id === 'skinToggle' ? button : null};
+test('start-up announces the Linear look once and forgets choices saved by earlier versions', () => {
+  const removed = [], listeners = {}, events = [];
+  const document = {documentElement: {dataset: {}}};
   const context = {
-    document, localStorage: {setItem: (k, v) => store.set(k, v)}, requestAnimationFrame: () => {},
+    document, localStorage: {removeItem: k => removed.push(k)}, requestAnimationFrame: () => {},
     addEventListener: (type, fn) => { listeners[type] = fn; }, dispatchEvent: e => events.push(e.detail), CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init.detail; } },
   };
   context.window = context;
   vm.runInNewContext(read('skin.js'), context);
   listeners.DOMContentLoaded();
-  assert.equal(button.attrs['aria-pressed'], 'false');
-  listeners['button:click']();
   assert.equal(document.documentElement.dataset.skin, 'linear');
-  assert.equal(button.attrs['aria-pressed'], 'true');
-  assert.equal(store.get('apex-skin'), 'linear');
-  listeners['button:click']();
-  assert.equal(document.documentElement.dataset.skin, undefined);
-  assert.equal(store.get('apex-skin'), 'macos');
-  assert.deepEqual(events, ['macos', 'linear', 'macos']);
+  assert.deepEqual(removed, ['apex-skin']);
+  assert.deepEqual(events, ['linear']);
+});
+
+test('the compact density mode is gone', () => {
+  for (const file of ['skins.css', 'live-linear.css', 'linear-workspace.js']) assert.doesNotMatch(read(file), /data-linear-density|densityToggle|toggleDensity/, file);
 });

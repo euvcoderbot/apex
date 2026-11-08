@@ -1,34 +1,13 @@
 import type {CSSProperties} from 'react';
 import {color} from '../../performance-format.js';
-import {officialTeamMarks, historicalTeamMarks, grandPrixCountryCode} from '../../performance-identity.js';
-
-const historicalMarks: Record<string, string | undefined> = historicalTeamMarks, officialMarks: Record<string, string | undefined> = officialTeamMarks;
+import {teamLogoMarkup, grandPrixCountryCode} from '../../performance-identity.js';
 
 export type TeamLike = {team?: string; name?: string; displayName?: string; logoTeam?: string; color?: string};
 
-/**
- * Team mark, resolved by the session's own team name (historical sessions keep
- * historical branding). Same rules as teamLogoMarkup in session-state.js:
- * official 2026 marks ship a colour and a mono version; the stylesheet shows
- * mono only where the colour mark is too dark for the dark appearance.
- */
+/** Team mark, resolved by the session's own team name (historical sessions keep their team's mark); drawn by team-marks.js. */
 export function TeamLogo({team}: {team?: string}) {
-  const key = String(team || '').trim().toLowerCase();
-  const historical = key === 'renault' || key === 'renault sport f1 team' ? 'renault.png' : historicalMarks[key];
-  if (historical) return (
-    <span className="team-logo team-logo-historical" aria-hidden="true">
-      <img src={`assets/teams/historical/${historical}`} alt="" width={26} height={26} />
-    </span>
-  );
-  const asset = officialMarks[key];
-  if (!asset) return <span className="team-logo" aria-hidden="true"><i className="team-logo-fallback" /></span>;
-  const base = asset.replace(/\.webp$/, '');
-  return (
-    <span className="team-logo team-logo-official" data-team-mark={base} aria-hidden="true">
-      <img className="team-logo-color" src={`assets/teams/official/${base}-color.webp`} alt="" width={26} height={26} />
-      <img className="team-logo-mono" src={`assets/teams/official/${asset}`} alt="" width={26} height={26} />
-    </span>
-  );
+  // The markup is built from a fixed table of codes and colours, never from the team name itself.
+  return <span style={{display: 'contents'}} dangerouslySetInnerHTML={{__html: teamLogoMarkup(team)}} />;
 }
 
 /** Team logo, colour dot and name (`.performance-team`). */

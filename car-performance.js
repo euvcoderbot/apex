@@ -1375,11 +1375,18 @@ function pitSummary(events, teams) {
   const visits=[];
   const loadedRaces=events.filter(e=>e.pits);
   const groups=new Map(), drivers=new Map();
+  // A driver's team anywhere in the loaded season: a weekend saved before its team was published (a stand-in, an older
+  // snapshot) still finds it. Within one weekend the race classification wins; this is only the last resort before Unknown.
+  const seasonTeam=new Map();
+  for(const event of loadedRaces){
+    for(const entrant of event.pits.entrants||[])if(entrant.team&&entrant.driver&&!seasonTeam.has(entrant.driver))seasonTeam.set(entrant.driver,entrant.team);
+    for(const team of event.R?.teams||[])for(const driver of team.drivers||[])if(!seasonTeam.has(driver))seasonTeam.set(driver,team.team);
+  }
   // Pit timing should not depend on first loading the unrelated race-pace API.
   for(const event of loadedRaces)for(const entrant of event.pits.entrants||[]) {
     const driver=entrant.driver||`#${entrant.driver_number}`;
     // The pit feed can list a stand-in without a team; the race's own classification may still name it.
-    const team=entrant.team||event.R?.teams?.find(t=>t.drivers?.includes(driver))?.team||'Unknown team';
+    const team=entrant.team||event.R?.teams?.find(t=>t.drivers?.includes(driver))?.team||seasonTeam.get(driver)||'Unknown team';
     if(!groups.has(team))groups.set(team,{team,color:teamColors.get(team),visits:[],events:new Set()});
     const key=`${team}:${driver}`;
     if(!drivers.has(key))drivers.set(key,{team,driver,color:teamColors.get(team),visits:[],events:new Set()});
@@ -1393,7 +1400,7 @@ function pitSummary(events, teams) {
   }
   for(const event of loadedRaces) for(const visit of event.pits.visits||[]) {
     const driver=String(visit.driver||'').trim() || `#${visit.driver_number}`;
-    const team=event.R?.teams?.find(t=>t.drivers?.includes(driver))?.team || visit.team || 'Unknown team';
+    const team=event.R?.teams?.find(t=>t.drivers?.includes(driver))?.team || visit.team || seasonTeam.get(driver) || 'Unknown team';
     visits.push({...visit,driver,team,event:event.name,source:event.pits.source});
   }
   for(const visit of visits) {
@@ -1406,6 +1413,9 @@ function pitSummary(events, teams) {
       group.visits.push(visit); group.events.add(visit.event);
     }
   }
+  // A team that could not be resolved and has no stops is not a result; leave it out instead of an empty Unknown row.
+  for(const [key,group] of groups)if(group.team==='Unknown team'&&!group.visits.length)groups.delete(key);
+  for(const [key,entry] of drivers)if(entry.team==='Unknown team'&&!entry.visits.length)drivers.delete(key);
   const summarizeTimes=values=>{
     const timed=values.filter(finite);
     const ordered=[...timed].sort((a,b)=>a-b),cut=Math.floor(ordered.length*.1),trimmed=ordered.slice(cut,ordered.length-cut);
@@ -1781,7 +1791,8 @@ function speedDomainEntities(subject=telemetrySubject) {
 // View data for src/views/SpeedView.tsx (Cornering, Straight line, Braking).
 function speedDomainChart(key,title,subtitle,subject=telemetrySubject) {
   const meta=SPEED_DOMAIN_METRICS[key],season=speedDomainSeason(events,subject,key),style=speedDomainEntities(subject);
-  const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason,traceProvisional:r.provisional,coverageLabel:season.gps>1?`${r.gps}/${season.gps} GPs`:''}));
+  // Coverage is disclosed only where it differs: a team measured in fewer GPs than the others ("2/3 GPs"); full coverage says nothing.
+  const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason,traceProvisional:r.provisional,coverageLabel:season.gps>1&&r.gps<season.gps?`${r.gps}/${season.gps} GPs`:''}));
   // While GPs are still loading an empty chart is pending, not a missing measurement.
   if(!rows.length)return {title:title||meta.label,empty:running||speedDomainRunning[subject]?'Loading qualifying telemetry…':key.startsWith('corner_')?'No shared supported corner measurement in this band. Missing values are not zero.':'No supported measurement in the loaded GPs. Missing values are not zero.'};
   return {title:title||meta.label,rows,options:{title:title||meta.label,subtitle:`${subtitle?subtitle+' · ':''}${season.gps} supported GP${season.gps===1?'':'s'} of ${events.filter(e=>e.Q).length} selected · ${season.events.join(', ')} · 0 = best${rows.some(r=>r.traceProvisional)?' · ≈ provisional: source gaps >0.6 s':''}`,unit:meta.unit,digits:meta.digits}};

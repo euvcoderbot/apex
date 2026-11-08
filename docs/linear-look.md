@@ -1,10 +1,9 @@
 # The Linear look
 
-A second look for the app, switched with the toolbar button beside Light/Dark (`#skinToggle`). The default macOS look is unchanged: every rule
-for the Linear look is scoped to `:root[data-skin="linear"]` and lives in `skins.css`, the last cascade layer (`skin`). The choice is stored in
-this browser (`localStorage['apex-skin']`) and applied by an inline script in `index.html` before the first paint. It works with both Light and Dark.
+The app's only look. `index.html` marks `<html data-skin="linear">`; every Linear rule is scoped to `:root[data-skin="linear"]` and lives in
+`skins.css`, the last cascade layer (`skin`), drawn on top of the shared component layers. It works with both Light and Dark.
 
-The full workspace redesign extends this foundation. See [research and interaction specification](linear-workspace-spec.md) for official product-documentation sources, layout decisions and verification. `linear-workspace.js` reparents existing navigation and lap actions, supplies command search, and restores the default layout on toggle; it does not own data or calculations.
+The full workspace redesign extends this foundation. See [research and interaction specification](linear-workspace-spec.md) for official product-documentation sources, layout decisions and verification. `linear-workspace.js` reparents existing navigation and lap actions, and supplies command search; it does not own data or calculations.
 
 ## Files
 

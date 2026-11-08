@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-skin="linear">
 <head>
   <meta charset="utf-8">
   <!-- App paths such as /apex/cars/corners load this same page; keep relative links rooted at /apex/. -->
@@ -28,8 +28,6 @@
     window.APEX_UI_ZOOM = 1;
     try {
       document.documentElement.dataset.theme = localStorage.getItem('apex-theme') || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-      // The chosen look (skin.js), before the first paint.
-      if (localStorage.getItem('apex-skin') === 'linear') document.documentElement.dataset.skin = 'linear';
     } catch (_) {
       document.documentElement.dataset.theme = 'dark';
     }
@@ -51,16 +49,18 @@
       </nav>
     </div>
     <div class="workspace-tools" role="group" aria-label="Display options">
-      <button type="button" popovertarget="computeSettings" aria-label="Compute settings" title="Compute settings">⚙</button>
+      <button type="button" popovertarget="computeSettings" aria-label="Compute settings" title="Compute settings"><svg class="ui-symbol" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="2.1"/><path d="M8 1.8v1.6M8 12.6v1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M1.8 8h1.6M12.6 8h1.6M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1"/></svg></button>
       <div id="computeSettings" popover aria-label="Compute settings">
-        <strong>Compute settings</strong>
-        <p>The published site uses prepared data. Use this PC for sessions not published yet.</p>
-        <a class="local-compute-link" href="http://127.0.0.1:54123/apex/" title="Open the local dashboard on this PC">Use local compute</a>
+        <strong>Compute</strong>
+        <p data-compute-status>Showing published data.</p>
+        <div class="compute-actions">
+          <button type="button" data-compute-use>Use this PC</button>
+          <a data-compute-start href="apex-local://start" hidden>Start compute on this PC</a>
+          <button type="button" data-compute-off hidden>Stop using this PC</button>
+        </div>
       </div>
       <button id="explanationsToggle" class="sidebar-toggle" type="button" aria-pressed="false" title="Show or hide explanations"><i aria-hidden="true"></i><span>Show explanations</span></button>
       <button id="themeToggle" class="theme-toggle" type="button" aria-pressed="false" aria-label="Switch to light mode" title="Switch between light and dark"><i aria-hidden="true"></i><span>Light mode</span></button>
-      <button id="glassToggle" class="sidebar-toggle" type="button" aria-pressed="true" title="Pointer highlight and press response on toolbar controls"><i aria-hidden="true"></i><span>Glass effects</span></button>
-      <button id="skinToggle" class="sidebar-toggle" type="button" aria-pressed="false" aria-label="Use the Linear look" title="Look: macOS. Switch to the Linear look"><i aria-hidden="true"></i><span>Linear look</span></button>
     </div>
   </header>
   <main id="top" tabindex="-1" role="tabpanel" aria-labelledby="analysis-tab-session">
@@ -259,21 +259,15 @@
 
   <div class="app-toast" id="appToast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <footer>F1 Apex Data · FastF1 / OpenF1 telemetry · Unofficial analysis<a class="design-system-link" href="ui-catalog.html">UI components</a><a class="design-system-link" href="https://www.figma.com/design/32fieprdLFtiUcUSq0yU6z" target="_blank" rel="noopener">Figma design</a></footer>
+  <footer>F1 Apex Data · FastF1 / OpenF1 telemetry · Unofficial analysis<a class="design-system-link" href="ui-catalog.html">UI components</a></footer>
 
   <!-- Single unified app logic -->
-  <dialog id="localComputeDialog" class="local-compute-dialog" aria-labelledby="localComputeTitle">
-    <h2 id="localComputeTitle">Open local compute</h2>
-    <p data-local-message>If compute is already running, choose Open local dashboard. Browser privacy rules can block its health check without stopping the service. Otherwise start it once below. Sessions and laps are fetched and processed on demand, then cached on this PC; no export or deployment is needed.</p>
-    <p data-local-help>Use the installed Windows launcher and approve your browser’s prompt. The Codex in-app browser cannot launch local programs: use your normal browser or start-local.cmd. Once running, compute stays ready until you stop it or shut down this PC.</p>
-    <div class="local-compute-actions"><a data-local-open href="http://127.0.0.1:54123/apex/">Open local dashboard</a><a data-local-start href="apex-local://start">Start installed launcher</a><a data-use-hosted hidden>Use hosted site</a><button type="button" data-local-stop hidden>Stop local compute</button><button type="button" data-close-local>Close</button></div>
-  </dialog>
   <script src="config.js?v=euv2-release-20260813-2"></script>
   <script src="team-colours.js"></script>
+  <script src="team-marks.js"></script>
   <script src="local-compute.js"></script>
   <script src="url-state.js"></script>
   <script src="motion.js"></script>
-  <script src="glass.js"></script>
   <script src="skin.js"></script>
   <script src="linear-workspace.js"></script>
   <script src="analysis-core.js?v=20261008-feature-pass"></script>
@@ -292,11 +286,13 @@
   <script src="session-init.js"></script>
   <script src="lap-sheet.js"></script>
   <script src="session-tyres.js"></script>
+  <script src="live.js"></script>
   <script src="alignment.js?v=euv2-release-20261003-position-motion-check"></script>
   <!-- Car performance and its React views are about 40% of the script weight and are not needed to read a session.
        They stay inert until that view is opened, or until the browser is idle after load, whichever is first. -->
   <script type="lazy-module" src="react-islands.js"></script>
   <script type="lazy-module" src="car-performance.js?v=20261007-race-v2"></script>
+  <script type="lazy-module" src="season.js"></script>
   <script>
     (function () {
       var pending = null, ready = false;
@@ -315,6 +311,7 @@
       var start = window.ApexUrl && window.ApexUrl.read();
       // Until the module is in, the page must not rewrite a car-performance address to the session view it is showing.
       if (start && start.view === 'cars') { window.ApexCarsPending = true; load().catch(function () {}); }
+      if (start && start.view === 'season') load().catch(function () {});
       addEventListener('load', function () {
         var idle = window.requestIdleCallback || function (fn) { return setTimeout(fn, 1200); };
         idle(function () { load().catch(function () {}); }, {timeout: 3000});

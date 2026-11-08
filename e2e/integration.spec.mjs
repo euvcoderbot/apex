@@ -73,14 +73,14 @@ test.describe('Car performance with real data', () => {
     await page.setViewportSize({width: 1440, height: 900});
     await open(page, 'pits');
     const report = await page.evaluate(() => {
-      const header = document.querySelector('.site-header').getBoundingClientRect().bottom, bar = document.querySelector('#performanceSidebar > .category-bar');
+      const bar = document.querySelector('#linearWorkspace .linear-categories #performanceCategoryList');
       return {
-        gap: bar.getBoundingClientRect().top - header,
-        truncated: [...bar.querySelectorAll('.category-tab span')].filter(el => el.offsetParent && el.scrollWidth > el.clientWidth + 1).map(el => el.textContent),
+        shown: Boolean(bar?.offsetParent),
+        truncated: [...(bar?.querySelectorAll('*') || [])].filter(el => !el.children.length && el.offsetParent && el.scrollWidth > el.clientWidth + 1).map(el => el.textContent),
         hiddenScroll: [...document.querySelectorAll('#performanceMetricPanel .performance-split-view .performance-table-wrap')].filter(el => el.offsetParent).map(el => el.scrollWidth - el.clientWidth),
       };
     });
-    expect(report.gap, 'space between the toolbar and the tabs').toBeLessThanOrEqual(24);
+    expect(report.shown, 'the category list is in the sidebar').toBe(true);
     expect(report.truncated, 'category labels cut short').toEqual([]);
     for (const overflow of report.hiddenScroll) expect(overflow, 'table columns hidden behind a scroll').toBeLessThanOrEqual(1);
   });

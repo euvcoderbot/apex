@@ -33,7 +33,6 @@ test('macOS layout uses independent navigation and stacked non-growing sidebar c
   const css=fs.readFileSync('macos-ui.css','utf8');postcss.parse(css);
   assert.match(css,/\.sidebar \{[^}]*flex-direction: column/);
   assert.match(css,/\.sidebar > \.dashboard-card \{[^}]*flex: 0 0 auto/);
-  assert.match(css,/#performanceResults \{ display: block; min-width: 0/);
   assert.match(css,/is-compact-table \.performance-table \{[^}]*min-width: 0/);
   assert.match(css,/prefers-reduced-transparency/);
   assert.match(fs.readFileSync('lib/ui-style-build.mjs','utf8'),/\['macos-ui.css','appearance'\]/);

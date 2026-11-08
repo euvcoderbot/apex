@@ -41,11 +41,10 @@ pd = _AnalysisModule('pandas')
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse, RedirectResponse
 
 ROOT = Path(__file__).parent
-DEFAULT_CACHE_ROOT = Path("/tmp/apex-data") if os.environ.get("VERCEL") else ROOT
+DEFAULT_CACHE_ROOT = ROOT
 RUNTIME_CACHE_ROOT = Path(os.environ.get("APEX_CACHE_ROOT", DEFAULT_CACHE_ROOT))
 RUNTIME_CACHE_ROOT.mkdir(parents=True, exist_ok=True)
 CACHE = RUNTIME_CACHE_ROOT / ".fastf1-cache"
@@ -56,8 +55,7 @@ PREPARED_CACHE.mkdir(exist_ok=True)
 # per season) and never changes once a session is settled, while every
 # calculation built on it does. It lives outside the repo and any worktree so a
 # moved or deleted checkout cannot take it along. Override with APEX_RAW_ROOT.
-RAW_ROOT = Path(os.environ.get("APEX_RAW_ROOT") or (
-    PREPARED_CACHE / "openf1" if os.environ.get("VERCEL") else Path.home() / "apex-data" / "openf1"))
+RAW_ROOT = Path(os.environ.get("APEX_RAW_ROOT") or Path.home() / "apex-data" / "openf1")
 PREPARED_CACHE_VERSION = "v6"
 SESSION_CACHE_SCHEMA = "session-identity-weather-v7"
 
@@ -128,7 +126,7 @@ def record_archive_result(year, ok: bool) -> None:
 
 def archive_usable(year, gp, session) -> bool:
     """False when the F1 timing archive is disabled here or failed recently."""
-    if os.environ.get("APEX_F1_ARCHIVE", "off" if os.environ.get("VERCEL") else "on") == "off":
+    if os.environ.get("APEX_F1_ARCHIVE", "on") == "off":
         return False
     if archive_breaker_open(year):
         return False
@@ -178,25 +176,16 @@ def health() -> dict[str, str]:
 
 @app.middleware("http")
 async def prevent_stale_local_assets(request: Request, call_next):
-    """Apply development-safe asset headers and production API caching."""
-    if not os.environ.get('VERCEL') and request.url.path.startswith('/api/'):
+    """Refuse API requests from pages and hosts that are not this PC's, and cache complete API answers."""
+    if request.url.path.startswith('/api/'):
         from api_security import local_request_allowed
         if not local_request_allowed(request,CORS_ORIGINS):
             return JSONResponse(status_code=403,content={'detail':'Local API origin or host not allowed'})
     response = await call_next(request)
-    hosted = bool(os.environ.get("VERCEL"))
-    if not hosted and request.url.path in {
-        "/", "/index.html", "/app.js", "/alignment.js", "/telemetry-model.js", "/config.js", "/styles.css", "/design-system.css", "/apple-ui.css"
-    }:
-        response.headers["Cache-Control"] = "no-store, max-age=0"
-    elif hosted and request.url.path in {"/", "/index.html"}:
-        response.headers["Cache-Control"] = "public, max-age=60, s-maxage=300, stale-while-revalidate=86400"
-    elif hosted and request.url.path.endswith((".js", ".css", ".svg")):
-        response.headers["Cache-Control"] = "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800"
-    elif request.url.path.startswith("/api/") and response.status_code == 200:
+    if request.url.path.startswith("/api/") and response.status_code == 200:
         # URLs contain season, session, driver and lap identity. Cache complete
         # responses at the browser/CDN edge so reopening a comparison avoids a
-        # Vercel cold start. Incomplete current-season position streams set
+        # repeat calculation. Incomplete current-season position streams set
         # their own no-store header inside the endpoint and are left untouched.
         if "cache-control" not in response.headers:
             current_year = str(datetime.now().year)
@@ -1667,6 +1656,114 @@ def project_corners_onto_lap(data: Any, samples: list[dict[str, Any]]) -> list[d
     return result
 
 
+# ---------- Season hub: schedule, results, standings, driver stats, head-to-heads, upgrades, power units ----------
+import season_data
+import fia_documents
+
+SEASON_CACHE = PREPARED_CACHE / "season"
+_season_memo: dict[int, tuple[float, dict]] = {}
+_season_lock = Lock()
+
+
+def season_bundle(year: int) -> dict:
+    """The season summary (season_data.build), kept in memory for ten minutes; Jolpica pages are cached on disk."""
+    with _season_lock:
+        memo = _season_memo.get(year)
+        if memo and time.time() - memo[0] < 600:
+            return memo[1]
+    bundle = season_data.build(year, season_data.Source(SEASON_CACHE))
+    with _season_lock:
+        _season_memo[year] = (time.time(), bundle)
+    return bundle
+
+
+def _round_for_dates(rounds: list[dict], dates: list[str] | None, event: str | None = None) -> dict | None:
+    """The calendar round of an FIA document: its race day within the document's dates (or up to three days after them,
+    as some documents list Thursday to Saturday), else the round of the same name."""
+    if dates:
+        last = (datetime.fromisoformat(dates[1]) + timedelta(days=3)).date().isoformat()
+        found = next((r for r in rounds if dates[0] <= r["date"] <= last), None)
+        if found:
+            return found
+    if event:
+        key = fia_documents.event_key(event)
+        return next((r for r in rounds if fia_documents.event_key(r["name"]) == key), None)
+    return None
+
+
+@app.get("/api/season")
+def season(response: Response, year: int = Query(2026, ge=1950, le=2100)):
+    try:
+        bundle = season_bundle(year)
+    except Exception as exc:
+        raise HTTPException(503, f"Season data is unavailable right now: {exc}")
+    response.headers["Cache-Control"] = "public, max-age=300" if year >= datetime.now(timezone.utc).year else "public, max-age=86400"
+    return bundle
+
+
+@app.get("/api/season/upgrades")
+def season_upgrades(response: Response, year: int = Query(2026, ge=2022, le=2100)):
+    """Car upgrades from every Grand Prix's FIA Car Presentation Submissions (from 2022, when the FIA began publishing them)."""
+    bundle = season_bundle(year)
+    rounds = bundle["rounds"]
+    documents = fia_documents.Documents(SEASON_CACHE / "fia")
+    today = datetime.now(timezone.utc).date().isoformat()
+    try:
+        items = documents.upgrades(year)
+    except Exception as exc:
+        raise HTTPException(503, f"FIA documents are unavailable right now: {exc}")
+    events = {}
+    for item in items:
+        r = _round_for_dates(rounds, item.get("event_dates"), item.get("event"))
+        item["round"] = r["round"] if r else None
+        item["round_name"] = r["name"] if r else item["event"]
+        events.setdefault(item["document"], {"round": item["round"], "name": item["round_name"], "document": item["document"]})
+    response.headers["Cache-Control"] = "public, max-age=1800"
+    return {"year": year, "items": items, "events": sorted(events.values(), key=lambda e: e["round"] or 99),
+            "source": "FIA Car Presentation Submissions", "checked": today}
+
+
+@app.get("/api/season/power-units")
+def season_power_units(response: Response, year: int = Query(2026, ge=2022, le=2100)):
+    """Power-unit elements each driver has used so far, from the latest FIA 'PU elements used per driver' document."""
+    bundle = season_bundle(year)
+    documents = fia_documents.Documents(SEASON_CACHE / "fia")
+    try:
+        latest = documents.pu_elements(year)
+    except Exception as exc:
+        raise HTTPException(503, f"FIA documents are unavailable right now: {exc}")
+    if not latest:
+        raise HTTPException(404, "The FIA has not published power-unit element usage for this season yet.")
+    by_number = {str(d.get("number") or "").lstrip("0"): d for d in bundle["drivers"].values()}
+    for row in latest["rows"]:
+        driver = by_number.get(row["number"].lstrip("0"))
+        if not driver:
+            driver = next((d for d in bundle["drivers"].values() if d["family"].lower() in row["label"].lower()), None)
+        row["driver"] = driver["id"] if driver else None
+    # Each event's cumulative table, turned into the elements newly fitted at that event (per driver number).
+    history = []
+    try:
+        previous: dict[str, int] = {}
+        for event in documents.pu_history(year):
+            totals = {row["number"].lstrip("0"): sum(v or 0 for v in row["elements"].values()) for row in event["rows"]}
+            at = _round_for_dates(bundle["rounds"], event.get("dates"), event.get("event"))
+            # A driver missing from one table keeps their last total; a first appearance is their starting set, not new parts.
+            history.append({"round": at["round"] if at else None, "round_name": at["name"] if at else event["event"],
+                            "new": {n: max(0, t - previous[n]) for n, t in totals.items() if n in previous},
+                            "first": {n: t for n, t in totals.items() if n not in previous}})
+            previous.update(totals)
+    except Exception:
+        history = []
+    by_number_ids = {n: (d["id"] if d else None) for n, d in by_number.items()}
+    for entry in history:
+        entry["new"] = {by_number_ids.get(n) or n: v for n, v in entry["new"].items()}
+        entry["first"] = {by_number_ids.get(n) or n: v for n, v in entry["first"].items()}
+    r = _round_for_dates(bundle["rounds"], latest.get("dates"), latest.get("event"))
+    response.headers["Cache-Control"] = "public, max-age=1800"
+    return {"year": year, **latest, "round": r["round"] if r else None, "round_name": r["name"] if r else latest.get("event"), "history": history,
+            "source": "FIA Technical Delegate: PU elements used per driver up to now"}
+
+
 @app.get("/api/events")
 def events(response: Response, year: int = Query(2025, ge=2014)):
     current = year >= datetime.now(timezone.utc).year
@@ -2986,25 +3083,9 @@ def telemetry(
     raise HTTPException(422, "No telemetry is published for this session/lap yet. Try a completed session or a 2023+ event with OpenF1 coverage.")
 
 
-ASSETS_DIR = ROOT / "assets"
-if ASSETS_DIR.is_dir():
-    app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
 
 
 @app.get("/")
-def frontend_index() -> FileResponse:
-    if os.environ.get('VERCEL'):
-        return RedirectResponse('https://f1apexdata.eufrandota14.chatgpt.site/apex/')
-    return FileResponse(ROOT / "index.html")
-
-
-@app.get("/{asset_name}")
-def frontend_asset(asset_name: str) -> FileResponse:
-    """Serve only the browser bundle, never backend source or deployment files."""
-    if os.environ.get('VERCEL'):
-        raise HTTPException(404, 'Frontend assets are served by the site host.')
-    # Browser scripts and styles sit at the repository root; backend source, configuration
-    # and deployment files have other extensions and are never served.
-    if not re.fullmatch(r"[A-Za-z0-9_-]+\.(js|css)", asset_name) or not (ROOT / asset_name).is_file():
-        raise HTTPException(404, "Not found")
-    return FileResponse(ROOT / asset_name)
+def frontend_index() -> RedirectResponse:
+    """This is the compute API only; the site is the published one, which uses this PC for compute."""
+    return RedirectResponse('https://f1apexdata.eufrandota14.chatgpt.site/apex/')

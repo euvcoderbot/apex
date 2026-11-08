@@ -55,17 +55,6 @@ test('the popover opens beside its control and closes with Escape', async ({page
   await expect(popover).toBeHidden();
 });
 
-test('a segmented control has one thumb that moves to the chosen segment', async ({page}) => {
-  const group = page.locator('[aria-label="Catalogue subject"]');
-  const read = () => group.evaluate(el => ({x: getComputedStyle(el).getPropertyValue('--ui-thumb-x').trim(), thumb: el.dataset.uiThumb}));
-  const before = await read();
-  await group.getByRole('button', {name: 'Drivers'}).click();
-  await expect.poll(async () => (await read()).x).not.toBe(before.x);
-  expect((await read()).thumb).toBeTruthy();
-  await group.getByRole('button', {name: 'Teams'}).click();
-  await expect.poll(async () => (await read()).x, {message: 'reverses to where it started'}).toBe(before.x);
-});
-
 test.describe('accessibility settings', () => {
   test('reduced motion removes the thumb slide and the transient animations', async ({page}) => {
     await page.emulateMedia({reducedMotion: 'reduce'});
@@ -78,15 +67,15 @@ test.describe('accessibility settings', () => {
     for (const value of durations) expect(value.split(',').every(part => parseFloat(part) <= 0.001), `${value} (reduced motion leaves only an imperceptible duration)`).toBe(true);
   });
 
-  test('materials are translucent by default and opaque with reduced transparency or increased contrast', async ({page, browserName}) => {
+  test('materials stay opaque by default and with reduced transparency or increased contrast', async ({page, browserName}) => {
     test.skip(browserName !== 'chromium', 'prefers-reduced-transparency can only be emulated through the Chromium protocol');
     const read = () => page.locator('[data-catalog-section="materials"] .tooltip').evaluate(el => {
       const style = getComputedStyle(el);
       return {background: style.backgroundColor, filter: style.backdropFilter || style.webkitBackdropFilter};
     });
     const normal = await read();
-    expect(normal.filter).not.toBe('none');
-    expect(alpha(normal.background)).toBeLessThan(1);
+    expect(normal.filter).toBe('none');
+    expect(alpha(normal.background)).toBe(1);
     await emulateChromiumMedia(page, [{name: 'prefers-reduced-transparency', value: 'reduce'}]);
     const reduced = await read();
     expect(reduced.filter).toBe('none');

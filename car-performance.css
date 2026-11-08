@@ -649,27 +649,6 @@ body.performance-view #sidebarToggle {
   box-shadow: none;
 }
 
-.performance-team .team-logo img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-:root[data-theme="light"] .performance-team .team-logo img {
-  filter: invert(1);
-}
-
-.performance-team .team-logo-historical {
-  background: #ffffff;
-  border-radius: var(--radius-xs);
-  padding: 2px;
-}
-
-:root .performance-team .team-logo-historical img {
-  filter: none;
-}
-
 .performance-team .team-logo-fallback {
   display: block;
   width: 6px;

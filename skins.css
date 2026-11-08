@@ -233,22 +233,14 @@
   border-radius: var(--radius-sm); background: transparent; box-shadow: none; color: var(--ui-tertiary);
 }
 :root[data-skin="linear"] :is(.workspace-tools button, button[data-ui-kind="toolbar"]):hover:not(:disabled) { background: var(--ui-row-hover); color: var(--ui-label); }
-:root[data-skin="linear"] .workspace-tools button[aria-pressed="true"]:not(#themeToggle):not(#glassToggle) { background: var(--ui-selection-muted); color: var(--ui-label); }
 /* Segmented controls: a faint track and a raised, flat thumb. */
 :root[data-skin="linear"] :is([data-ui-group="segments"], .performance-tabs, .run-segments, .category-bar) { background: var(--ui-seg-track); box-shadow: none; border-radius: var(--radius-lg); }
-:root[data-skin="linear"] :is([data-ui-group="segments"], .performance-tabs, .run-segments, .category-bar)[data-ui-thumb]::before {
-  background: var(--ui-seg-thumb); box-shadow: none; border-radius: var(--radius-sm);
-  transition-duration: var(--lin-hover-out); transition-timing-function: var(--lin-ease-out-quad);
-}
 /* Light: Linear's selected segment is a white pill on a grey track, set off by a hairline. */
-:root[data-skin="linear"][data-theme="light"] :is([data-ui-group="segments"], .performance-tabs, .run-segments, .category-bar)[data-ui-thumb]::before { box-shadow: 0 0 0 1px var(--ui-border); }
 :root[data-skin="linear"] .site-header .performance-tabs > button { font-weight: var(--lin-weight-medium); }
 /* One concentric selection shape: 8px frame, 6px buttons and thumb.
    Only the measured thumb paints selection; buttons must not double it. */
 :root[data-skin="linear"] :is([data-ui-group="segments"], .performance-tabs, .run-segments) { border-radius: 8px; padding: 3px; }
 :root[data-skin="linear"] :is([data-ui-group="segments"], .performance-tabs, .run-segments) > button { border-radius: 6px; }
-:root[data-skin="linear"] :is([data-ui-group="segments"], .performance-tabs, .run-segments)[data-ui-thumb]::before { border-radius: 6px; }
-:root[data-skin="linear"] :is([data-ui-group="segments"], .performance-tabs, .run-segments)[data-ui-thumb] > button:is([aria-selected="true"], [aria-pressed="true"], .active) { background: transparent; box-shadow: none; }
 /* Category tabs: monochrome icons, the active tab in the label colour (Linear 2026: fewer, quieter icons). */
 :root[data-skin="linear"] .app-sidebar .category-bar { background: transparent; }
 :root[data-skin="linear"] .category-bar .category-tab { color: var(--ui-tertiary); font-weight: var(--lin-weight-medium); }
@@ -301,7 +293,6 @@
 :root[data-skin="linear"] .local-compute-dialog { background: var(--ui-panel); box-shadow: var(--ui-shadow-popover); }
 
 /* The toggle's own icon: an inverted L frame around a raised panel. */
-#skinToggle > i { -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1.5' y='2' width='13' height='12' rx='2.5' fill='none' stroke='black' stroke-width='1.3'/%3E%3Crect x='5.5' y='5' width='8' height='8' rx='1.5' fill='black'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1.5' y='2' width='13' height='12' rx='2.5' fill='none' stroke='black' stroke-width='1.3'/%3E%3Crect x='5.5' y='5' width='8' height='8' rx='1.5' fill='black'/%3E%3C/svg%3E") center/contain no-repeat; }
 
 @media (prefers-reduced-motion: reduce) {
   :root[data-skin="linear"] :is(.select-menu, .tooltip, #lapSelectionBody, #lapSelectionBody::backdrop) { animation: none; }
@@ -347,7 +338,7 @@
 /* ---- Workspace rail ---- */
 :root[data-skin="linear"] #linearWorkspace {
   position: fixed; inset: 0 auto 0 0; z-index: 121; display: flex; flex-direction: column; gap: 0;
-  width: var(--linear-rail); box-sizing: border-box; padding: 8px 8px 12px; overflow: auto; scrollbar-gutter: stable both-edges;
+  width: var(--linear-rail); box-sizing: border-box; padding: 8px 8px 12px; overflow-y: auto; scrollbar-width: none;
   background: var(--ui-canvas); color: var(--ui-secondary); border: 0;
 }
 :root[data-skin="linear"] .linear-workspace-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; margin: 4px 0 10px; }
@@ -364,7 +355,7 @@
 /* Section headings: 12 px, the quaternary colour, a caret that turns when the section folds. */
 :root[data-skin="linear"] #linearWorkspace .linear-nav-heading {
   display: flex; align-items: center; gap: 4px; width: 100%; height: 24px; min-height: 24px; margin: 14px 0 2px; padding: 4px 0 4px 6px;
-  border-radius: 8px; background: transparent; color: var(--ui-quaternary); font: 510 12px/14px var(--ui-font); letter-spacing: 0; text-align: left;
+  border-radius: 8px; background: transparent; color: var(--ui-tertiary); font: 510 12px/14px var(--ui-font); letter-spacing: 0; text-align: left;
 }
 :root[data-skin="linear"] #linearWorkspace .linear-nav-heading::after {
   content: ""; width: 0; height: 0; border-inline: 3.5px solid transparent; border-top: 4px solid currentColor; opacity: .8;
@@ -401,9 +392,10 @@
 :root[data-skin="linear"] #linearWorkspace #driverPills.has-race-results .driver-pill[data-ui-kind="list-row"] {
   grid-template-columns: 18px 16px minmax(0, 1fr) auto 12px; gap: 7px; height: 28px; min-height: 28px; padding: 0 6px; border-radius: 8px;
 }
-:root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill .team-logo, :root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill .team-logo img { width: 16px; height: 16px; }
+:root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill .team-logo { width: 16px; height: 16px; }
 :root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill-identity { font: 510 13px/1.2 var(--ui-font); color: var(--ui-secondary); }
-:root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill-position { font-size: 12px; color: var(--ui-quaternary); }
+:root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill-position { font-size: 12px; color: var(--ui-tertiary); }
+:root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill.selected .driver-pill-position { color: var(--ui-secondary); }
 :root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill :is(.driver-pill-code, small, em, b) { font-size: 12px; color: var(--ui-tertiary); font-variant-numeric: tabular-nums; }
 :root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill:hover:not([aria-pressed="true"]) { background: var(--lin-nav-hover); }
 :root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill[aria-pressed="true"] { background: var(--lin-nav-active); }
@@ -419,7 +411,7 @@
   height: var(--linear-header); min-height: var(--linear-header); grid-template-columns: minmax(0, 1fr) auto; padding: 0 12px 0 20px;
   border: 0; border-bottom: 1px solid var(--lin-hairline); background: var(--ui-panel); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
 }
-:root[data-skin="linear"] .site-header .header-actions, :root[data-skin="linear"] .site-header :is(.brand, #windowSidebarToggle), :root[data-skin="linear"] #glassToggle { display: none; }
+:root[data-skin="linear"] .site-header .header-actions, :root[data-skin="linear"] .site-header :is(.brand, #windowSidebarToggle) { display: none; }
 :root[data-skin="linear"] .site-header .window-title { display: flex; flex-direction: row-reverse; align-items: center; gap: 8px; padding: 0; border: 0; }
 :root[data-skin="linear"] .window-title strong { font: 510 13px/1 var(--ui-font); color: var(--ui-label); }
 :root[data-skin="linear"] .window-title span { display: flex; align-items: center; gap: 8px; font: 510 13px/1 var(--ui-font); color: var(--ui-tertiary); }
@@ -531,12 +523,6 @@
   :root[data-skin="linear"] body > main#top:has(#cornerAnalysis[hidden]) { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* ---- Density ---- */
-:root[data-skin="linear"][data-linear-density="compact"] { --linear-content-pad: 20px; --lin-bar: 6px; }
-:root[data-skin="linear"][data-linear-density="compact"] .performance-table tbody :is(td, th) { height: 30px; padding-block: 3px; }
-:root[data-skin="linear"][data-linear-density="compact"] #carPerformance :is(.performance-bar-row, .performance-tyre-age-row) { min-height: 28px; height: 28px; }
-:root[data-skin="linear"][data-linear-density="compact"] #charts .chart { margin-bottom: 8px; }
-
 /* ---- Lap sheet: a Linear dialog. 12 px corners, the panel colour, a hairline, the high shadow, a 44 px header. ---- */
 :root[data-skin="linear"] #lapSelectionBody:popover-open { border-radius: 12px; border: 0; background: var(--ui-panel); box-shadow: 0 0 0 1px var(--ui-border), var(--lin-shadow-high); }
 :root[data-skin="linear"] .linear-lap-header { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 0 12px; margin-bottom: 16px; border-bottom: 1px solid var(--lin-hairline); }
@@ -645,7 +631,6 @@
 
 /* Segmented controls: one style everywhere. A faint track with a hairline, the chosen segment filled; nothing slides
    (Linear's tabs switch in place, and a measured sliding thumb drifted when sizes changed). */
-:root[data-skin="linear"] [data-ui-thumb]::before { display: none !important; }
 :root[data-skin="linear"] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar) {
   gap: 2px; padding: 2px; border-radius: 8px; background: var(--lin-seg-track); box-shadow: inset 0 0 0 1px var(--lin-card-border);
 }
@@ -715,42 +700,7 @@
 :root[data-skin="linear"] #lapSelectionBody .lap-chip .lap-clock { grid-column: 2; grid-row: 2; justify-self: end; font: 590 13px/1 var(--ui-font); font-variant-numeric: tabular-nums; color: var(--ui-label); }
 :root[data-skin="linear"] #lapSelectionBody .lap-chip .compound-badge { grid-column: 3; grid-row: 1 / 3; width: 22px; height: 22px; }
 
-/* ---------- Compact density: more on screen, nothing cramped. Spacing and control heights shrink; text stays readable
-   (12-13 px), and long labels shorten with an ellipsis instead of wrapping. ---------- */
-:root[data-skin="linear"][data-linear-density="compact"] { --linear-content-pad: 16px; --linear-header: 40px; --lin-bar: 6px; --linear-gap: 6px; }
-:root[data-skin="linear"][data-linear-density="compact"] #linearWorkspace { padding: 6px 10px 10px 6px; }
-:root[data-skin="linear"][data-linear-density="compact"] #linearWorkspace :is(.performance-tabs > button, .category-bar .category-tab, .linear-rail-footer button) { height: 24px; min-height: 24px; }
-:root[data-skin="linear"][data-linear-density="compact"] #linearWorkspace #driverPills .driver-pill[data-ui-kind="list-row"] { height: 24px; min-height: 24px; }
-:root[data-skin="linear"][data-linear-density="compact"] #linearWorkspace .linear-nav-heading { height: 20px; min-height: 20px; margin-top: 10px; }
-:root[data-skin="linear"][data-linear-density="compact"] #linearWorkspace :is(.performance-tabs, .category-bar, #driverPills) { gap: 1px; }
-:root[data-skin="linear"][data-linear-density="compact"] body > :is(main#top, #carPerformance) > .app-sidebar { min-height: 40px; padding-block: 6px; }
-:root[data-skin="linear"][data-linear-density="compact"] .app-sidebar .control-field { height: 24px; }
-:root[data-skin="linear"][data-linear-density="compact"] .app-sidebar .control-field .select-trigger { height: 22px; min-height: 22px; font-size: 12px; }
-:root[data-skin="linear"][data-linear-density="compact"] .app-sidebar :is(#loadSession, .performance-actions button) { height: 24px; min-height: 24px; font-size: 12px; }
-:root[data-skin="linear"][data-linear-density="compact"] body > main#top > .analysis-column { padding-block: 14px 20px; }
-:root[data-skin="linear"][data-linear-density="compact"] body > #carPerformance > #performanceResults { padding-block: 14px 20px; }
-:root[data-skin="linear"][data-linear-density="compact"] :is(.analysis-heading, .metric-heading) { margin-bottom: 10px; }
-:root[data-skin="linear"][data-linear-density="compact"] :is(.analysis-heading, .metric-heading) h2 { font-size: 16px; }
-:root[data-skin="linear"][data-linear-density="compact"] .telemetry-card .comparison-tray { padding-bottom: 10px; margin-bottom: 10px; }
-:root[data-skin="linear"][data-linear-density="compact"] #loadedLaps .loaded-lap-pill { height: 22px; min-height: 22px; }
-:root[data-skin="linear"][data-linear-density="compact"] .sector-cards { gap: 4px; }
-:root[data-skin="linear"][data-linear-density="compact"] .telemetry-content .sector-cards .lap-summary-card { padding-block: 4px; }
-:root[data-skin="linear"][data-linear-density="compact"] #charts .chart { margin-bottom: 8px; padding: 10px 12px; }
-:root[data-skin="linear"][data-linear-density="compact"] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls):not(.performance-tabs):not(.category-bar):not(.run-segments) > button { height: 22px; min-height: 22px; padding-inline: 8px; }
-:root[data-skin="linear"][data-linear-density="compact"] :is(button[data-ui-kind="push"], .select-trigger) { min-height: 24px; }
-:root[data-skin="linear"][data-linear-density="compact"] #carPerformance .dashboard-card .dashboard-card, :root[data-skin="linear"][data-linear-density="compact"] #carPerformance .performance-chart-card { padding: 12px; }
-:root[data-skin="linear"][data-linear-density="compact"] #carPerformance .perf-chart-header { margin-bottom: 8px; padding-bottom: 8px; }
-:root[data-skin="linear"][data-linear-density="compact"] #carPerformance .performance-card-controls { padding-bottom: 10px; }
-:root[data-skin="linear"][data-linear-density="compact"] #carPerformance :is(.performance-bar-row, .performance-tyre-age-row) { min-height: 24px; height: 24px; font-size: 12px; }
-:root[data-skin="linear"][data-linear-density="compact"] #carPerformance :is(.performance-bar-row, .performance-tyre-age-row) + :is(.performance-bar-row, .performance-tyre-age-row) { margin-top: 1px; }
-:root[data-skin="linear"][data-linear-density="compact"] #carPerformance :is(.performance-bar-row, .performance-tyre-age-row) .team-logo { width: 16px; height: 16px; }
-:root[data-skin="linear"][data-linear-density="compact"] .performance-table thead th { height: 28px; }
-:root[data-skin="linear"][data-linear-density="compact"] .performance-table tbody :is(td, th) { height: 28px; padding-block: 2px; font-size: 12px; }
-:root[data-skin="linear"][data-linear-density="compact"] .performance-table tbody :is(td, th) :is(small, .muted) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-:root[data-skin="linear"][data-linear-density="compact"] body > main#top > .app-inspector { padding: 14px 12px; }
-:root[data-skin="linear"][data-linear-density="compact"] .corner-picker button { min-height: 28px; height: 28px; }
-:root[data-skin="linear"][data-linear-density="compact"] #lapSelectionBody .lap-chip[data-ui-kind="choice"] { min-height: 38px; padding-block: 4px; row-gap: 2px; }
-:root[data-skin="linear"][data-linear-density="compact"] #lapSelectionBody .lap-chip .compound-badge { width: 20px; height: 20px; }
+/* ---------- Compact density: more on screen, nothing cramped. Spacing and control heights shrink;
 
 /* Phones: the view fills the screen. */
 @media (max-width: 760px) {
@@ -766,12 +716,6 @@
 :root[data-skin="linear"] #lapSelectionBody .lap-chip[data-ui-kind="choice"] { column-gap: 6px; padding: 6px 8px; }
 :root[data-skin="linear"] #lapSelectionBody .lap-chip .lap-tyre-age { font-size: 10.5px; }
 
-/* Compact: chart toolbars shrink with everything else, so they stay on one line. */
-:root[data-skin="linear"][data-linear-density="compact"] .trace-tools { gap: 4px; }
-:root[data-skin="linear"][data-linear-density="compact"] .trace-tools :is(button, summary, .trace-zoom-readout) { height: 24px; min-height: 24px; padding-inline: 7px; font-size: 12px; }
-:root[data-skin="linear"][data-linear-density="compact"] .trace-tools .trace-zoom-cluster button { width: 22px; min-width: 22px; padding: 0; }
-:root[data-skin="linear"][data-linear-density="compact"] :is(.chart-heading, .perf-chart-heading) { font-size: 12.5px; }
-
 /* Phones: comparison laps stay labels, sized to their content. */
 @media (max-width: 760px) {
   :root[data-skin="linear"] #loadedLaps { display: flex; flex-wrap: wrap; }
@@ -783,9 +727,6 @@
 :root[data-skin="linear"][data-skin] .app-sidebar .control-field-scope { height: 28px; padding: 0 2px 0 9px; }
 :root[data-skin="linear"][data-skin] .app-sidebar .control-field-scope .performance-scope-toggle { height: 24px; margin-left: 6px; padding: 0; gap: 2px; background: transparent; box-shadow: none; }
 :root[data-skin="linear"][data-skin] .app-sidebar .control-field-scope .performance-scope-toggle > button { height: 24px; min-height: 24px; padding: 0 10px; border-radius: 5px; }
-:root[data-skin="linear"][data-skin][data-linear-density="compact"] .app-sidebar .control-field-scope { height: 24px; }
-:root[data-skin="linear"][data-skin][data-linear-density="compact"] .app-sidebar .control-field-scope .performance-scope-toggle,
-:root[data-skin="linear"][data-skin][data-linear-density="compact"] .app-sidebar .control-field-scope .performance-scope-toggle > button { height: 20px; min-height: 20px; }
 
 /* Narrow lap cards: the lap time on the driver's line (the gap above it), sectors and conditions full width below. */
 @container lapcard (max-width: 499.98px) {
@@ -847,9 +788,6 @@
 }
 :root[data-skin="linear"][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button:hover:not(:disabled) { background: var(--lin-nav-hover); color: var(--ui-label); }
 :root[data-skin="linear"][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button[aria-pressed="true"] { background: var(--lin-seg-on); color: var(--ui-label); }
-:root[data-skin="linear"][data-skin][data-skin][data-linear-density="compact"] #performanceSidebar .control-field-scope { height: 24px; }
-:root[data-skin="linear"][data-skin][data-skin][data-linear-density="compact"] #performanceSidebar .control-field-scope .performance-scope-toggle,
-:root[data-skin="linear"][data-skin][data-skin][data-linear-density="compact"] #performanceSidebar .control-field-scope .performance-scope-toggle > button { height: 20px; min-height: 20px; }
 
 /* Rail: every highlight spans the same width, including the Points / Gap to winner switch. */
 :root[data-skin="linear"][data-skin] #linearWorkspace #raceResultControls:not([hidden]) { display: grid; grid-template-columns: 1fr 1fr; width: 100%; box-sizing: border-box; }
@@ -860,7 +798,6 @@
 /* Every ranked chart in Car performance uses Pace's rhythm: 26 px rows on a 28 px step, the first row 12 px under the header. */
 :root[data-skin="linear"] #carPerformance :is(.performance-bar-row, .performance-tyre-age-row) { box-sizing: border-box; height: 26px; min-height: 26px; padding-block: 0; }
 :root[data-skin="linear"] #carPerformance .performance-split-view :is(.performance-bar-row, .performance-tyre-age-row) { height: var(--split-row); min-height: var(--split-row); }
-:root[data-skin="linear"][data-linear-density="compact"] #carPerformance :is(.performance-bar-row, .performance-tyre-age-row) { height: 22px; min-height: 22px; }
 
 /* Results: the chart beside its table reads row for row. The chart takes the table's geometry: a 32 px header row with a hairline,
    then rows exactly as tall as the table's, with no gaps. */
@@ -873,27 +810,176 @@
 :root[data-skin="linear"] #carPerformance .results-overview .performance-table thead th { height: 32px; box-sizing: border-box; }
 :root[data-skin="linear"] #carPerformance .results-overview .performance-table tbody :is(td, th) { height: 36px; box-sizing: border-box; }
 :root[data-skin="linear"][data-skin] #carPerformance .results-overview :is(.performance-bar-row, .performance-tyre-age-row) { height: 36px; min-height: 36px; margin-top: 0; }
-:root[data-skin="linear"][data-linear-density="compact"] #carPerformance .results-overview .perf-chart-header,
-:root[data-skin="linear"][data-linear-density="compact"] #carPerformance .results-overview .performance-table thead th { height: 28px; }
-:root[data-skin="linear"][data-linear-density="compact"] #carPerformance .results-overview .performance-table tbody :is(td, th),
-:root[data-skin="linear"][data-skin][data-linear-density="compact"] #carPerformance .results-overview :is(.performance-bar-row, .performance-tyre-age-row) { height: 28px; min-height: 28px; }
 
 /* Filter chips: the whole chip opens its menu, not only the value. */
 :root[data-skin="linear"] .app-sidebar .control-field:has(.select-trigger) { cursor: pointer; }
 :root[data-skin="linear"] .app-sidebar .control-field:has(.select-trigger) > label { cursor: pointer; }
 
-/* Density lives in the header beside the appearance controls; the rail no longer has a footer. */
+/* The rail has no footer. */
 :root[data-skin="linear"] .linear-rail-footer { display: none; }
-:root[data-skin="linear"] .site-header .workspace-tools > #densityToggle { display: inline-grid; place-items: center; }
-:root[data-skin="linear"] #densityToggle[aria-pressed="true"] { background: var(--lin-nav-active); color: var(--ui-label); }
-:root[data-skin="linear"] #densityToggle svg { width: 16px; height: 16px; }
 
 :root[data-skin="linear"][data-skin] #carPerformance .results-overview .perf-chart-header { min-height: 0; }
-:root[data-skin="linear"][data-skin][data-linear-density="compact"] #carPerformance .results-overview .perf-chart-header { min-height: 0; }
 /* Tyre trend and Development lists: the same 2 px row spacing as Pace, starting right under the header. */
 :root[data-skin="linear"] #carPerformance .performance-tyre-age-chart { margin-top: 0; gap: 0; row-gap: 0; }
 :root[data-skin="linear"] #carPerformance .trend-board .performance-tyre-age-chart { align-content: start; flex: 0 0 auto; }
 
 /* Inspector tables share the panel surface; selection and hover provide emphasis. */
 :root[data-skin="linear"] .corner-measurement-table tbody tr:nth-child(even) { background: transparent; }
-:root[data-skin="linear"] .performance-bar-label .metric-coverage { margin-left: auto; padding-left: 6px; color: var(--ui-tertiary); font-size: 10px; white-space: nowrap; }
+:root[data-skin="linear"] .performance-bar-label { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
+:root[data-skin="linear"] .performance-bar-label .metric-coverage { flex: 0 0 auto; margin-left: auto; padding: 1px 5px; border-radius: 4px; box-shadow: inset 0 0 0 .5px var(--ui-border-strong); color: var(--ui-tertiary); font: 510 10.5px/14px var(--ui-font); white-space: nowrap; }
+
+/* ======================= v4 ======================= */
+/* Paired chart + table (Race cornering and other split views): the chart's header takes the table header's measured height and
+   its rows the table rows' height (--split-head / --split-row from dashboard-ui.js), so every team's bar sits beside its row.
+   The Linear card insets must not add to either. */
+:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) { align-items: start; }
+:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) > .performance-chart-card { padding: 0 16px 6px; }
+:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) > .performance-table-wrap { padding: 0; }
+:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) .perf-chart-header {
+  box-sizing: border-box; height: var(--split-head); min-height: var(--split-head); margin: 0; padding: 0; align-items: center; border-bottom: 1px solid var(--lin-hairline);
+}
+:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) .perf-chart-title-group { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) .perf-chart-heading { white-space: nowrap; font-size: 12px; }
+:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) .perf-chart-sub { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; }
+:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) :is(.performance-bars, .performance-tyre-age-chart) { margin: 0; gap: 0; row-gap: 0; }
+:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) :is(.performance-bar-row, .performance-tyre-age-row) { height: var(--split-row); min-height: var(--split-row); margin-top: 0; }
+
+/* Choose laps under the driver list: a full-width pill in the rail. */
+:root[data-skin="linear"][data-skin] #linearWorkspace #lapWorkspaceToggle.is-rail-pill {
+  display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 28px; min-height: 28px; margin: 8px 0 0; padding: 0 12px;
+  border: 0; border-radius: 9999px; background: var(--ui-control); box-shadow: inset 0 0 0 1px var(--lin-label-border); color: var(--ui-label); font: 510 13px/1 var(--ui-font);
+}
+:root[data-skin="linear"][data-skin] #linearWorkspace #lapWorkspaceToggle.is-rail-pill:hover { background: var(--ui-control-hover); }
+:root[data-skin="linear"][data-skin] #linearWorkspace #lapWorkspaceToggle.is-rail-pill[aria-expanded="true"] { background: var(--lin-seg-on); }
+
+/* ======================= v4: Linear's surfaces, measured from linear.app's app frame (2026-11-06) =======================
+   Tabs are separate pills (Linear's filterTab: 28 px, full radius, white 3% with a 5% inset ring, chosen 8%); the header is frosted;
+   icon buttons are 28 px circles (pillButton: white 2% and a 5% ring); cards carry Linear's corner shine (a 3% radial glow and a
+   border that brightens toward the top-left corner); table heads are rounded 2% bands like Linear's list group headers. */
+:root[data-skin="linear"] {
+  --lin-pill: #ffffff08; --lin-pill-ring: #ffffff0d; --lin-pill-on: #ffffff14; --lin-pill-hover: #ffffff0f; --lin-icon-btn: #ffffff05;
+  --lin-header-bg: linear-gradient(rgb(15 16 17 / .86), rgb(15 16 17 / .78));
+  --lin-shine: rgb(255 255 255 / .10); --lin-glow: rgb(255 255 255 / .025); --lin-band: #ffffff05;
+}
+:root[data-skin="linear"][data-theme="light"] {
+  --lin-pill: transparent; --lin-pill-ring: #00000014; --lin-pill-on: #ffffff; --lin-pill-hover: #00000008; --lin-icon-btn: transparent;
+  --lin-header-bg: linear-gradient(rgb(255 255 255 / .86), rgb(255 255 255 / .78));
+  --lin-shine: rgb(0 0 0 / 0); --lin-glow: rgb(0 0 0 / 0); --lin-band: #00000005;
+}
+
+/* ---- Tabs: separate pills, no track ---- */
+:root[data-skin="linear"][data-skin][data-skin] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) {
+  gap: 6px; padding: 0; border-radius: 0; background: transparent; box-shadow: none;
+}
+:root[data-skin="linear"][data-skin][data-skin] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) > button {
+  height: 28px; min-height: 28px; padding: 0 11px; border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring);
+  color: var(--ui-tertiary); font: 510 12px/1 var(--ui-font);
+}
+:root[data-skin="linear"][data-skin][data-skin] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) > button:hover:not(:disabled) { background: var(--lin-pill-hover); color: var(--ui-secondary); }
+:root[data-skin="linear"][data-skin][data-skin] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) > button:is([aria-pressed="true"], [aria-selected="true"], .active, .selected) {
+  background: var(--lin-pill-on); color: var(--ui-label); box-shadow: inset 0 0 0 1px var(--lin-pill-ring);
+}
+:root[data-skin="linear"][data-skin][data-skin][data-theme="light"] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) > button:is([aria-pressed="true"], [aria-selected="true"], .active, .selected) {
+  box-shadow: inset 0 0 0 1px var(--lin-pill-ring), 0 1px 2px #0000000f;
+}
+/* In the rail and the track panel the two choices share the width. */
+:root[data-skin="linear"][data-skin][data-skin] :is(#linearWorkspace #raceResultControls, .map-view-switch) { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+/* Inside a filter chip the scope choices are small pills too. */
+:root[data-skin="linear"][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle { gap: 4px; }
+:root[data-skin="linear"][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button { height: 22px; min-height: 22px; border-radius: 9999px; box-shadow: none; background: transparent; }
+:root[data-skin="linear"][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button[aria-pressed="true"] { background: var(--lin-pill-on); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); }
+
+/* ---- Filter chips and buttons: Linear's pill shapes ---- */
+:root[data-skin="linear"] .app-sidebar .control-field { border-radius: 9999px; padding-left: 11px; }
+:root[data-skin="linear"] .app-sidebar .control-field .select-trigger { border-radius: 0 9999px 9999px 0; padding-right: 10px; }
+:root[data-skin="linear"][data-skin] .app-sidebar .control-field:has(.select-trigger:focus-visible) { border-radius: 9999px; }
+:root[data-skin="linear"] .app-sidebar :is(#loadSession, .performance-actions button) { border-radius: 9999px; padding-inline: 14px; }
+:root[data-skin="linear"] :is(button[data-ui-kind="push"], .comparison-choose, .trace-tools :is(button, summary), .performance-explain-toggle) { border-radius: 9999px; }
+:root[data-skin="linear"] :is(button[data-ui-kind="push"], .comparison-choose, .trace-tools summary, .performance-explain-toggle):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) {
+  background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring);
+}
+:root[data-skin="linear"] :is(button[data-ui-kind="push"], .comparison-choose, .trace-tools summary, .performance-explain-toggle):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):hover:not(:disabled) { background: var(--lin-pill-hover); }
+
+/* ---- Header: frosted, as Linear's (a translucent gradient over a 20 px blur), with round icon buttons ---- */
+:root[data-skin="linear"] .site-header.window-toolbar { background: var(--lin-header-bg); -webkit-backdrop-filter: blur(20px) saturate(1.2); backdrop-filter: blur(20px) saturate(1.2); }
+:root[data-skin="linear"][data-skin] .site-header .workspace-tools > button, :root[data-skin="linear"][data-skin] .site-header #windowSidebarToggle {
+  border-radius: 9999px; background: var(--lin-icon-btn); box-shadow: inset 0 0 0 1px var(--lin-pill-ring);
+}
+:root[data-skin="linear"][data-skin] .site-header .workspace-tools { gap: 6px; }
+:root[data-skin="linear"][data-skin] .site-header .workspace-tools > button:hover:not(:disabled), :root[data-skin="linear"][data-skin] .site-header #windowSidebarToggle:hover { background: var(--lin-pill-hover); }
+:root[data-skin="linear"][data-skin] #linearWorkspace .linear-search { box-shadow: inset 0 0 0 1px var(--lin-pill-ring); background: var(--lin-icon-btn); }
+
+/* ---- Cards: Linear's corner shine. A faint radial light in the top-left corner and a border that brightens toward it. ---- */
+:root[data-skin="linear"] :is(#charts .chart, .sector-cards .lap-summary-card, #carPerformance .performance-chart-card, #carPerformance .performance-table-wrap, .app-inspector .dominance-map, .app-inspector .corner-picker-row, .app-inspector .corner-selection-empty, #carPerformance .dashboard-card .dashboard-card) {
+  position: relative; isolation: isolate;
+  background-image: radial-gradient(60% 50% at 0% 0%, var(--lin-glow), transparent 70%);
+}
+:root[data-skin="linear"] :is(#charts .chart, .sector-cards .lap-summary-card, #carPerformance .performance-chart-card, #carPerformance .performance-table-wrap, .app-inspector .dominance-map, .app-inspector .corner-picker-row, .app-inspector .corner-selection-empty, #carPerformance .dashboard-card .dashboard-card)::after {
+  content: ""; position: absolute; inset: 0; z-index: 1; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: radial-gradient(220px 220px at 0% 0%, var(--lin-shine), transparent 70%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+
+/* ---- Table heads: Linear's group header band (rounded, 2%), no rule beneath ---- */
+:root[data-skin="linear"][data-skin] .performance-table thead th { background: var(--lin-band); border-bottom: 0; }
+:root[data-skin="linear"][data-skin] .performance-table thead th:first-child { border-radius: 8px 0 0 8px; }
+:root[data-skin="linear"][data-skin] .performance-table thead th:last-child { border-radius: 0 8px 8px 0; }
+:root[data-skin="linear"][data-skin] .performance-table tbody tr:first-child :is(td, th) { border-top: 0; }
+
+@media (prefers-contrast: more) {
+  :root[data-skin="linear"] { --lin-pill-ring: var(--ui-border-strong); --lin-shine: transparent; }
+}
+/* Rail section headings are labels that fold their section, not buttons with a surface. */
+:root[data-skin="linear"][data-skin][data-skin] #linearWorkspace .linear-nav-heading { border-radius: 8px; background: transparent; box-shadow: none; }
+:root[data-skin="linear"][data-skin][data-skin] #linearWorkspace .linear-nav-heading:hover { background: transparent; color: var(--ui-tertiary); }
+
+/* Scope toggle inside its chip, final. The shared pill rule carries an ID (via :is(#raceResultControls)) and many classes, so these
+   rules repeat the skin attribute to outrank it: the choices sit inside the chip with a 3 px inset, only the chosen one is filled. */
+:root[data-skin="linear"][data-skin][data-skin][data-skin][data-skin][data-skin] #performanceSidebar .control-field-scope { height: 32px; padding: 0 3px 0 12px; }
+:root[data-skin="linear"][data-skin][data-skin][data-skin][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle {
+  display: grid; grid-template-columns: auto auto; gap: 2px; height: 26px; min-height: 0; margin: 0 0 0 8px; padding: 0; background: transparent; box-shadow: none; border-radius: 9999px;
+}
+:root[data-skin="linear"][data-skin][data-skin][data-skin][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button {
+  height: 26px; min-height: 26px; padding: 0 12px; border: 0; border-radius: 9999px; background: transparent; box-shadow: none; color: var(--ui-tertiary); font: 510 12px/1 var(--ui-font);
+}
+:root[data-skin="linear"][data-skin][data-skin][data-skin][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--lin-pill-hover); color: var(--ui-secondary); }
+:root[data-skin="linear"][data-skin][data-skin][data-skin][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button[aria-pressed="true"] { background: var(--lin-pill-on); color: var(--ui-label); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); }
+/* The other chips match the scope chip's height. */
+:root[data-skin="linear"][data-skin] .app-sidebar .control-field { height: 32px; }
+:root[data-skin="linear"][data-skin] .app-sidebar .control-field .select-trigger { height: 30px; min-height: 30px; }
+:root[data-skin="linear"][data-skin] .app-sidebar :is(#loadSession, .performance-actions button) { height: 32px; min-height: 32px; }
+
+/* ======================= v5: Linear's 2026 refresh ("A calmer interface for a product in motion") =======================
+   The navigation recedes ("a few notches dimmer") so the content leads; icons are smaller with softer contrast; separators
+   without a clear reason go ("structure should be felt not seen"). Headings already use Inter's display optical size. */
+/* Surfaces as in Linear's 2026 app (warmer, less saturated grey): the rail on the darkest canvas, the content on a clearly
+   lighter raised panel, cards filled a step above the panel. That contrast is what makes the navigation recede; the rail's
+   item text stays readable at the secondary level, only its icons and section labels are muted. */
+:root[data-skin="linear"]:not([data-theme="light"]) {
+  --ui-canvas: #0e0e0f; --ui-sidebar: #0e0e0f; --ui-toolbar: #0e0e0f;
+  --ui-panel: #161617; --ui-content: #161617; --ui-well: #1c1c1e; --ui-header-row: #1c1c1e;
+  --lin-card: #ffffff05; --lin-header-bg: linear-gradient(rgb(22 22 23 / .88), rgb(22 22 23 / .8));
+}
+:root[data-skin="linear"] { --lin-rail-text: var(--ui-secondary); }
+:root[data-skin="linear"][data-skin] #linearWorkspace :is(.performance-tabs > button, .category-bar .category-tab, .live-view-button, .linear-rail-footer button):not([aria-selected="true"]):not([aria-current="page"]):not([aria-pressed="true"]),
+:root[data-skin="linear"][data-skin] #linearWorkspace #driverPills .driver-pill:not(.selected) .driver-pill-identity { color: var(--lin-rail-text); }
+:root[data-skin="linear"][data-skin] #linearWorkspace :is(.performance-tabs > button, .category-bar .category-tab, .live-view-button):hover,
+:root[data-skin="linear"][data-skin] #linearWorkspace #driverPills .driver-pill:hover .driver-pill-identity { color: var(--ui-label); }
+:root[data-skin="linear"][data-skin] .site-header :is(.workspace-tools > button, #windowSidebarToggle) svg { width: 16px; height: 16px; color: var(--ui-tertiary); }
+:root[data-skin="linear"][data-skin] .site-header :is(.workspace-tools > button, #windowSidebarToggle):hover svg { color: var(--ui-label); }
+:root[data-skin="linear"][data-skin] :is(#sessionSidebar, #performanceSidebar, .comparison-tray) { border-bottom-color: transparent; }
+:root[data-skin="linear"][data-skin] .sector-cards .lap-summary-card :is(.summary-lap-time, .summary-sectors, .summary-conditions) { border-left-color: transparent; }
+/* The rail scrolls only when it overflows, and shows a thin bar only while hovered (no permanent track). */
+:root[data-skin="linear"] #linearWorkspace:hover { scrollbar-width: thin; }
+
+/* Compute on this PC (local-compute.js): the popover's actions, and a dot on the Compute button while the PC is used. */
+:root[data-skin="linear"] #computeSettings .compute-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+:root[data-skin="linear"] #computeSettings .compute-actions :is(button, a) { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border: 0; border-radius: 6px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); color: var(--ui-label); font: 510 12px/1 var(--ui-font); text-decoration: none; cursor: pointer; }
+:root[data-skin="linear"] #computeSettings .compute-actions :is(button, a):hover { background: var(--lin-nav-hover); }
+:root[data-skin="linear"] #computeSettings [data-compute-use], :root[data-skin="linear"] #computeSettings [data-compute-start] { background: var(--ui-action); box-shadow: none; color: #fff; }
+:root[data-skin="linear"] #computeSettings[data-state="checking"] [data-compute-status]::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--ui-tertiary); animation: lin-pulse 1s ease-in-out infinite alternate; }
+:root[data-skin="linear"] .site-header [popovertarget="computeSettings"] { position: relative; }
+:root[data-skin="linear"] .site-header [popovertarget="computeSettings"][data-compute="local"]::after { content: ""; position: absolute; right: 4px; bottom: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--ui-positive); box-shadow: 0 0 0 2px var(--lin-header-bg, var(--ui-canvas)); }
+:root[data-skin="linear"] .site-header [popovertarget="computeSettings"][data-compute="offline"]::after { content: ""; position: absolute; right: 4px; bottom: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--ui-tertiary); }
+@keyframes lin-pulse { from { opacity: .35; } to { opacity: 1; } }

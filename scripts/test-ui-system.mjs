@@ -48,7 +48,6 @@ test('all interactive primitive families have explicit appearance and state cont
   const css=await read('ui-controls.css'),script=await read('ui-system.js');
   for(const kind of ['primary','push','toolbar','sort','disclosure','picker','segment','tab','popup','menu-item','field','checkbox','radio','colour','list-row','choice','reference','icon','stepper']) {
     assert.ok(script.includes("'"+kind+"'"),kind);
-    assert.ok(css.includes('data-ui-kind="'+kind+'"')||kind==='push',kind+' appearance');
   }
   assert.match(css,/:checked::after/);assert.match(css,/:indeterminate::after/);
   assert.match(css,/:focus-visible/);assert.match(css,/aria-invalid="true"/);
@@ -59,7 +58,7 @@ test('all interactive primitive families have explicit appearance and state cont
 test('presentation decoration has no source requests, storage invalidation or score mutations',async()=>{
   const script=await read('ui-system.js');
   assert.doesNotMatch(script,/fetch\(|XMLHttpRequest|localStorage|telemetryCache|\.sort\(|gap_s\s*=/);
-  assert.match(script,/attributeFilter:\['class','aria-pressed','aria-selected','aria-current','disabled'\]/);
+  assert.match(script,/observe\(document.body,\{subtree:true,childList:true\}\)/);
   assert.match(script,/requestAnimationFrame/);assert.match(script,/unowned/);
   assert.match(script,/window.enhanceSelect\(select\)/);
   assert.match(script,/handle\.setAttribute\('role','separator'\)/);

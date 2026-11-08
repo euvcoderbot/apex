@@ -46,7 +46,7 @@ The command confirms the exact source session and its published classification,
 uses the backend's OpenF1 parser on this PC, captures all drivers' raw streams,
 and exports native lap packs using the existing reconstruction. It also updates
 the saved calendar and warms the local API's session-summary cache. It never
-depends on the unavailable official timing archive or Vercel.
+depends on the unavailable official timing archive or any hosted service.
 
 Existing exports are merged, not cleared. Sessions inside the six-hour source
 correction window carry `local_export.provisional: true` and a capture timestamp.

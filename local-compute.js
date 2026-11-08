@@ -1,80 +1,77 @@
-// Read-only hosted discovery; lifecycle messages exist only inside the local app.
+/* Compute on this PC, from the published site. The site always shows what is already published or saved; anything not
+   calculated yet is calculated by the compute service on the person's own PC (start-local.cmd or the installed
+   launcher), which the page reaches at 127.0.0.1 once the person has chosen "Use this PC" in Compute settings.
+
+   - Nothing on the PC is contacted until the person has chosen it (a public page reaching this PC needs the browser's
+     local network permission, so other visitors are never asked).
+   - After that, each visit checks the service quickly before the first data request (window.apexComputeReady), so
+     requests go to the PC from the start. While a page uses it, a lease keeps the service from stopping.
+   - The PC's address is the only setting: window.APEX_COMPUTE_ORIGIN is set while the service answers; session-state.js
+     sends data requests there, live.js starts once it is set ('apex-compute' event). */
 (() => {
-  const dashboard='http://127.0.0.1:54123/apex/';
-  const hosted='https://f1apexdata.eufrandota14.chatgpt.site';
-  const dialog=document.querySelector('#localComputeDialog');
-  const preference=value=>{try{if(value)localStorage.setItem('apex-compute',value);return localStorage.getItem('apex-compute');}catch{return null;}};
-  const target=origin=>{const current=new URL(location.href),url=new URL(current.pathname+current.search+current.hash,origin);url.searchParams.delete('compute');return url;};
-  const message=text=>{const box=dialog?.querySelector('[data-local-message]');if(box)box.textContent=text;};
-  let watching;
-  const stopWatching=()=>{clearInterval(watching);watching=null;};
-  dialog?.addEventListener('close',stopWatching);
-  dialog?.querySelector('[data-close-local]')?.addEventListener('click',()=>dialog.close());
-  if(window.APEX_LOCAL_MODE){
-    const link=document.querySelector('.local-compute-link');
-    if(link){
-      const status=document.createElement('button');status.type='button';status.className='local-compute-status';
-      status.textContent='Local compute';status.title='On demand: requests are processed on this PC and cached on disk. Click for compute options.';
-      status.addEventListener('click',()=>dialog?.showModal());link.replaceWith(status);
-    }
-    if(dialog){
-      dialog.querySelector('#localComputeTitle').textContent='Local compute is ready';
-      message('Data is fetched and processed on this PC when requested, then cached on disk. The installed launcher keeps compute available even after you close the dashboard.');
-      dialog.querySelector('[data-local-help]').textContent='No export or deployment is needed for local results. This PC must remain awake and connected to fetch new data.';
-      dialog.querySelectorAll('[data-local-open],[data-local-start]').forEach(node=>node.hidden=true);
-      const hostedLink=dialog.querySelector('[data-use-hosted]'),url=target(hosted);url.searchParams.set('compute','hosted');hostedLink.href=url.href;hostedLink.hidden=false;
-      const stop=dialog.querySelector('[data-local-stop]');stop.hidden=false;
-      stop.addEventListener('click',async()=>{
-        stop.disabled=true;
-        try{const r=await fetch('/api/local-stop',{method:'POST'});if(!r.ok)throw new Error((await r.json()).detail);location.assign(url.href);}
-        catch(error){message('Could not stop local compute: '+error.message);stop.disabled=false;}
-      });
-    }
-    const id=crypto.randomUUID();let leaving=false,connection;
-    const send=action=>fetch('/api/local-tab',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,action}),keepalive:true}).catch(()=>{});
-    const heartbeat=()=>{if(!leaving&&!connection)void send('heartbeat');};
-    const connect=()=>{connection?.close();if(typeof EventSource==='function')connection=new EventSource('/api/local-tab-stream?id='+encodeURIComponent(id));};
-    connect();if(!connection)void send('open');let timer=setInterval(heartbeat,15000);
-    window.addEventListener('pagehide',()=>{leaving=true;clearInterval(timer);connection?.close();navigator.sendBeacon('/api/local-tab',new Blob([JSON.stringify({id,action:'close'})],{type:'application/json'}));});
-    window.addEventListener('pageshow',()=>{leaving=false;clearInterval(timer);timer=setInterval(heartbeat,15000);if(!connection||connection.readyState===2)connect();heartbeat();});
-    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')heartbeat();});
-    return;
+  // The service's address; tests and a second service on another port can override it before this script runs.
+  const COMPUTE = String(window.APEX_LOCAL_COMPUTE_ORIGIN || 'http://127.0.0.1:54123').replace(/\/$/, ''), KEY = 'apex-compute';
+  const choice = value => { try { if (value) localStorage.setItem(KEY, value); return localStorage.getItem(KEY); } catch { return null; } };
+  const panel = document.getElementById('computeSettings'), trigger = document.querySelector('[popovertarget="computeSettings"]');
+  const $ = name => panel?.querySelector(`[data-compute-${name}]`);
+  let watching = null, lease = null;
+
+  function show(state, text) {
+    if (!panel) return;
+    panel.dataset.state = state;
+    trigger?.setAttribute('data-compute', state);
+    if (trigger) trigger.title = state === 'local' ? 'Compute: this PC' : 'Compute settings';
+    $('status').textContent = text;
+    $('use').hidden = state === 'local' || state === 'checking';
+    $('start').hidden = state !== 'offline';
+    $('off').hidden = !(state === 'local' || state === 'offline');
   }
-  const link=document.querySelector('.local-compute-link');
-  if(!link||!dialog)return;
-  const localTarget=target(dashboard).href;
-  link.href=localTarget;dialog.querySelector('[data-local-open]').href=localTarget;
-  async function connect(){
-    try{
-      const r=await fetch('http://127.0.0.1:54123/api/local-status',{signal:AbortSignal.timeout(1500),credentials:'omit'}),data=await r.json();
-      if(r.ok&&data.mode==='local'&&data.sourceOrigin==='http://127.0.0.1:8000'){
-        stopWatching();preference('local');location.assign(localTarget);return true;
-      }
-    }catch{}
+  async function reachable(timeout = 1500) {
+    try {
+      const r = await fetch(COMPUTE + '/api/local-status', {signal: AbortSignal.timeout(timeout), credentials: 'omit'});
+      const data = await r.json();
+      return r.ok && data.mode === 'local';
+    } catch { return false; }
+  }
+  function hold() {
+    // A lease keeps an auto-stopping service running while this page is open; the stream ends it when the page closes.
+    if (lease || typeof EventSource !== 'function') return;
+    const id = crypto.randomUUID();
+    fetch(COMPUTE + '/api/local-tab', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id, action: 'open'}), credentials: 'omit'})
+      .then(() => { lease = new EventSource(COMPUTE + '/api/local-tab-stream?id=' + encodeURIComponent(id)); }).catch(() => {});
+  }
+  function connected() {
+    window.APEX_COMPUTE_ORIGIN = COMPUTE;
+    show('local', 'Using this PC. Published data is shown first; anything not published yet is calculated on this PC and kept in its cache.');
+    hold();
+    window.dispatchEvent(new CustomEvent('apex-compute', {detail: COMPUTE}));
+  }
+  async function connect({quiet = false} = {}) {
+    if (!quiet) show('checking', 'Looking for compute on this PC…');
+    if (await reachable()) { connected(); return true; }
+    show('offline', 'Compute is not running on this PC. Start it with the installed launcher (or start-local.cmd); this page connects as soon as it answers.');
     return false;
   }
-  link.addEventListener('click',async event=>{
-    event.preventDefault();if(link.getAttribute('aria-busy')==='true')return;
-    link.setAttribute('aria-busy','true');
-    try{if(await connect())return;}
-    finally{link.removeAttribute('aria-busy');}
-    // No silent custom-scheme redirect, hidden frame or attempt to bypass a
-    // browser's external-app/private-network permission. Explain the handoff.
-    if(!dialog.open)dialog.showModal();
+
+  if (!panel) { window.apexComputeReady = Promise.resolve(false); return; }
+  show('off', 'Showing published data. To calculate sessions that are not published yet, run compute on your PC.');
+  // The first data request waits for this check (at most 1.5 s), so it goes to the PC from the start.
+  window.apexComputeReady = choice() === 'local' ? connect({quiet: true}) : Promise.resolve(false);
+
+  $('use').addEventListener('click', () => { choice('local'); void connect(); });
+  $('off').addEventListener('click', () => {
+    choice('off');
+    // Requests already made went to the PC; reloading starts again from published data only.
+    location.reload();
   });
-  dialog.querySelector('[data-local-start]').addEventListener('click',()=>{
-    // The explicit link invokes the installed launcher only with browser permission.
-    // Watch readiness, then preserve the current session/view in the handoff.
-    stopWatching();message('Waiting for the installed launcher. Approve the browser prompt if shown. This page will connect when compute is ready.');
-    const deadline=Date.now()+120000;let checking=false;
-    watching=setInterval(async()=>{
-      if(checking)return;
-      if(Date.now()>deadline){stopWatching();message('The launcher did not become reachable. In the Codex in-app browser, start the installed launcher from your normal browser or run start-local.cmd, then click Use local compute again.');return;}
-      checking=true;try{await connect();}finally{checking=false;}
-    },1500);
+  $('start').addEventListener('click', () => {
+    // The link opens the installed launcher (the browser asks first); then wait for the service to answer.
+    clearInterval(watching);
+    const deadline = Date.now() + 120000;
+    show('offline', 'Starting compute on this PC… approve the browser prompt if one appears.');
+    watching = setInterval(async () => {
+      if (await reachable()) { clearInterval(watching); connected(); return; }
+      if (Date.now() > deadline) { clearInterval(watching); show('offline', 'Compute did not answer. Run start-local.cmd on this PC, then choose Use this PC again.'); }
+    }, 1500);
   });
-  const explicitHosted=new URL(location.href).searchParams.get('compute')==='hosted';
-  if(explicitHosted)preference('hosted');
-  // A running companion is reused automatically; never silently start software.
-  if(location.origin===hosted&&!explicitHosted&&preference()!=='hosted')void connect();
 })();

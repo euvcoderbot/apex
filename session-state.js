@@ -30,6 +30,7 @@ let selectedCornerIndices = new Set();
 let automaticStraightIndices = new Set();
 let cornerSort = 'time';
 let showCornerNumbers = window.ApexAnalysis?.preference('corner-numbers',true)!==false;
+let showDistanceNumbers = window.ApexAnalysis?.preference('distance-numbers',true)!==false;
 let showSpeedAnnotations = window.ApexAnalysis?.preference('speed-annotations',false)===true;
 // Deliberately opt-in on each page load, never silently restore an estimate.
 let estimateAlignmentCorrection = false;
@@ -185,16 +186,20 @@ function updateCornerPicker(root, markup, selection, automatic) {
   }
 }
 
+// This PC's compute service, once the person has chosen to use it and it answered (local-compute.js). Published and
+// saved data is still read first; only what is not there yet is calculated on the PC.
+const computeOrigin = () => String(window.APEX_COMPUTE_ORIGIN || '').replace(/\/$/, '');
 function apiUrl(path) {
-  return `${API_ORIGIN}${path}`;
+  return `${computeOrigin() || API_ORIGIN}${path}`;
 }
 
 function sharedDataURL(url) {
-  const parsed=new URL(url,window.location?.href||'http://localhost');
-  if(parsed.origin!==new URL(API_ORIGIN||window.location?.href||'http://localhost').origin)return url;
-  if(!['/api/events','/api/session','/api/telemetry','/api/performance','/api/performance/trace-batch','/api/performance/pits'].includes(parsed.pathname))return url;
+  const parsed=new URL(url,window.location?.href||'http://localhost'),compute=computeOrigin();
+  const onCompute=Boolean(compute)&&parsed.origin===compute;
+  if(!onCompute&&parsed.origin!==new URL(API_ORIGIN||window.location?.href||'http://localhost').origin)return url;
+  if(!['/api/events','/api/session','/api/telemetry','/api/performance','/api/performance/trace-batch','/api/performance/pits','/api/season','/api/season/upgrades','/api/season/power-units'].includes(parsed.pathname))return url;
   const fresh=parsed.searchParams.get('fresh')==='true';parsed.searchParams.delete('fresh');
-  return '/api/data?'+new URLSearchParams({path:parsed.pathname+'?'+parsed.searchParams,...(fresh?{refresh:'1'}:{})});
+  return (onCompute?compute:'')+'/api/data?'+new URLSearchParams({path:parsed.pathname+'?'+parsed.searchParams,...(fresh?{refresh:'1'}:{})});
 }
 
 // A 5xx whose body is not JSON comes from the hosting platform, not our API
@@ -207,18 +212,19 @@ function platformErrorResponse(response) {
 const PLATFORM_RETRY_DELAYS_MS = [5000, 15000];
 
 function dataRequestTimeout(url) {
-  if (window.APEX_LOCAL_MODE) return 180000;
+  if (window.APEX_LOCAL_MODE || computeOrigin()) return 180000;
   const path = new URL(url, window.location?.href || 'http://localhost').pathname;
   // Calendar metadata can wait on the same upstream rate limiter as telemetry.
   // It is the bootstrap for both views: cancelling it at 30 s strands the
   // whole page. Match the Worker's 290 s budget, plus response delivery time.
-  return /^\/api\/(?:events|session|telemetry|performance(?:\/.*)?|race-corners|qualifying-corners)$/.test(path) ? 310000 : 30000;
+  return /^\/api\/(?:events|session|telemetry|performance(?:\/.*)?|season(?:\/.*)?|race-corners|qualifying-corners)$/.test(path) ? 310000 : 30000;
 }
 
 /** The published site answers 503 for a result that was never published. Retrying cannot change that. */
 const notPublished = async response => response.status === 503 && /not been published/i.test((await response.clone().json().catch(() => ({}))).detail || '');
 async function fetchSessionData(url, options = {}) {
-  const attempts = window.APEX_SNAPSHOT_MODE ? 1 : window.APEX_LOCAL_MODE ? 2 : 1 + PLATFORM_RETRY_DELAYS_MS.length;
+  const local = window.APEX_LOCAL_MODE || Boolean(computeOrigin());
+  const attempts = local ? 2 : window.APEX_SNAPSHOT_MODE ? 1 : 1 + PLATFORM_RETRY_DELAYS_MS.length;
   for (let attempt = 0; attempt < attempts; attempt++) {
     if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     const controller = new AbortController();
@@ -226,9 +232,9 @@ async function fetchSessionData(url, options = {}) {
     options.signal?.addEventListener('abort', abort, { once: true });
     const timeout = setTimeout(abort, dataRequestTimeout(url));
     try {
-      const shared=sharedDataURL(url),longQuery=shared.startsWith('/api/data?')&&shared.length>12000;
+      const shared=sharedDataURL(url),longQuery=/(^|:\d+)\/api\/data\?/.test(shared)&&shared.length>12000;
       const query=longQuery?new URLSearchParams(shared.slice(shared.indexOf('?')+1)):null;
-      const response = await fetch(longQuery?'/api/data':shared, { ...options, signal: controller.signal,
+      const response = await fetch(longQuery?shared.slice(0,shared.indexOf('?')):shared, { ...options, signal: controller.signal,
         ...(longQuery?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:query.get('path'),refresh:query.get('refresh')==='1'})}:{}) });
       const retryable = [408, 429, 502, 503, 504].includes(response.status) || platformErrorResponse(response);
       if (!retryable || attempt === attempts - 1 || await notPublished(response)) return response;
@@ -240,7 +246,7 @@ async function fetchSessionData(url, options = {}) {
       clearTimeout(timeout);
       options.signal?.removeEventListener('abort', abort);
     }
-    const delay = window.APEX_LOCAL_MODE ? 700 * (attempt + 1) : PLATFORM_RETRY_DELAYS_MS[attempt];
+    const delay = local ? 700 * (attempt + 1) : PLATFORM_RETRY_DELAYS_MS[attempt];
     await new Promise((resolve, reject) => {
       const stop = () => { clearTimeout(timer); reject(options.signal.reason || new DOMException('Aborted', 'AbortError')); };
       const timer = setTimeout(() => { options.signal?.removeEventListener('abort', stop); resolve(); }, delay);
@@ -443,6 +449,8 @@ async function preparedData(url) {
   return response.ok ? response.json() : null;
 }
 async function requestApiData(url, options = {}) {
+  // If the person uses compute on their PC, its quick check (at most 1.5 s) decides where requests go.
+  if (window.apexComputeReady) { await window.apexComputeReady.catch(() => false); if (window.APEX_COMPUTE_ORIGIN && !/^https?:/.test(url)) url = apiUrl(url.replace(/^https?:\/\/[^/]+/, '')); }
   if(window.APEX_SNAPSHOT_MODE && Date.now()-snapshotCheckedAt>=60000)invalidateSnapshotData();
   const parsed = new URL(url, window.location?.href || 'http://localhost');
   const refreshing=parsed.searchParams.get('fresh')==='true'||parsed.searchParams.get('refresh')==='1';
@@ -739,59 +747,10 @@ function telemetryKey(lap) {
   return `${lap.code}:${lap.lap}`;
 }
 
-// Official marks are resolved by the session's team, never by a driver's
-// current team: historical sessions must not acquire modern branding.
-const officialTeamMarks = {
-  'mercedes': 'mercedes.webp', 'ferrari': 'ferrari.webp', 'mclaren': 'mclaren.webp',
-  'red bull racing': 'redbullracing.webp', 'red bull': 'redbullracing.webp',
-  'racing bulls': 'racingbulls.webp', 'rb': 'racingbulls.webp',
-  'alpine': 'alpine.webp', 'alpine f1 team': 'alpine.webp',
-  'haas': 'haasf1team.webp', 'haas f1 team': 'haasf1team.webp',
-  'audi': 'audi.webp', 'williams': 'williams.webp',
-  'aston martin': 'astonmartin.webp', 'cadillac': 'cadillac.webp',
-};
-const historicalTeamMarks = {
-  'sauber': 'sauber.svg', 'kick sauber': 'kick-sauber', 'stake f1 team kick sauber': 'kick-sauber',
-  'alfa romeo': 'alfa-romeo.svg', 'alfa romeo racing': 'alfa-romeo.svg', 'alfa romeo sauber': 'sauber.svg',
-  'alphatauri': 'alphatauri.svg', 'alpha tauri': 'alphatauri.svg', 'scuderia alphatauri': 'alphatauri.svg',
-  'toro rosso': 'toro-rosso.svg', 'scuderia toro rosso': 'toro-rosso.svg',
-  'racing point': 'racing-point.svg', 'force india': 'force-india.png',
-  'lotus': 'lotus.png', 'lotus f1 team': 'lotus.png', 'manor': 'manor.png', 'manor racing': 'manor.png',
-  'marussia': 'marussia.png', 'manor marussia': 'marussia.png', 'caterham': 'caterham.png',
-};
-// Historical marks: the original (colour) plus a white and a black version, so the monochrome corner table can show a real mark.
-function historicalMarkup(file) {
-  const base = file.replace(/\.(png|svg)$/, '');
-  return `<span class="team-logo team-logo-historical team-logo-official" data-team-mark="${base}" aria-hidden="true"><img class="team-logo-color" src="assets/teams/historical/${file}" alt="" width="26" height="26"><img class="team-logo-mono" src="assets/teams/historical/${base}-white.webp" alt="" width="26" height="26"><img class="team-logo-black" src="assets/teams/historical/${base}-black.webp" alt="" width="26" height="26"></span>`;
-}
-// Team names arrive in many spellings across 2014-2026 (sponsor-era names, "F1 Team" suffixes, constructor vs entrant). An exact match wins; otherwise the
-// first pattern that fits picks the franchise, so "Oracle Red Bull Racing", "Sahara Force India F1 Team" or "Visa Cash App RB F1 Team" still get a mark.
-const teamNamePatterns = [
-  [/kick sauber|stake/, 'kick sauber'], [/alfa romeo/, 'alfa romeo'], [/sauber/, 'sauber'],
-  [/red bull racing|^red bull|oracle red bull/, 'red bull racing'], [/racing bulls|visa cash app|^rb|rb f1/, 'racing bulls'],
-  [/alphatauri|alpha tauri/, 'alphatauri'], [/toro rosso/, 'toro rosso'], [/force india/, 'force india'], [/racing point/, 'racing point'],
-  [/renault/, 'renault'], [/alpine/, 'alpine'], [/aston martin/, 'aston martin'], [/williams/, 'williams'], [/haas/, 'haas'],
-  [/mclaren/, 'mclaren'], [/mercedes/, 'mercedes'], [/ferrari/, 'ferrari'], [/lotus/, 'lotus'], [/manor/, 'manor'], [/marussia/, 'marussia'],
-  [/caterham/, 'caterham'], [/audi/, 'audi'], [/cadillac/, 'cadillac'],
-];
-function canonicalTeamKey(key) {
-  if (officialTeamMarks[key] || historicalTeamMarks[key] || key === 'renault' || key === 'renault sport f1 team') return key;
-  for (const [pattern, canonical] of teamNamePatterns) if (pattern.test(key)) return canonical;
-  return key;
-}
+// Team marks are resolved by the session's team, never by a driver's current team: a historical session keeps its team's
+// mark. They are drawn by team-marks.js (the teams' own logos are trademarks the site does not publish).
 function teamLogoMarkup(teamName) {
-  const key = canonicalTeamKey(String(teamName || '').trim().toLowerCase());
-  if (key === 'renault' || key === 'renault sport f1 team') return historicalMarkup('renault.png');
-  const historical = historicalTeamMarks[key];
-  // Kick Sauber: transparent black and white wordmarks, swapped by appearance like the official marks.
-  if (historical === 'kick-sauber') return `<span class="team-logo team-logo-official" data-team-mark="kick-sauber" aria-hidden="true"><img class="team-logo-color" src="assets/teams/historical/kick-sauber-black.webp" alt="" width="26" height="26"><img class="team-logo-mono" src="assets/teams/historical/kick-sauber-white.webp" alt="" width="26" height="26"><img class="team-logo-black" src="assets/teams/historical/kick-sauber-black.webp" alt="" width="26" height="26"></span>`;
-  if (historical) return historicalMarkup(historical);
-  const asset = officialTeamMarks[key];
-  if (!asset) return '<span class="team-logo" aria-hidden="true"><i class="team-logo-fallback"></i></span>';
-  // Official 2026 marks (96 px): colour plus the white version; the stylesheet
-  // shows white only where a colour mark is too dark for the dark appearance.
-  const base = asset.replace(/\.webp$/, '');
-  return `<span class="team-logo team-logo-official" data-team-mark="${base}" aria-hidden="true"><img class="team-logo-color" src="assets/teams/official/${base}-color.webp" alt="" width="26" height="26"><img class="team-logo-mono" src="assets/teams/official/${asset}" alt="" width="26" height="26"><img class="team-logo-black" src="assets/teams/official/${base}-black.webp" alt="" width="26" height="26"></span>`;
+  return window.ApexTeamMarks?.teamMarkMarkup(teamName) || '<span class="team-logo" aria-hidden="true"><i class="team-logo-fallback"></i></span>';
 }
 
 function compoundBadgeMarkup(compound) {
@@ -801,10 +760,17 @@ function compoundBadgeMarkup(compound) {
   return `<svg class="compound-badge" viewBox="0 0 32 32" role="img" aria-label="${name}" width="26" height="26"><title>${name}</title><circle cx="16" cy="16" r="15" fill="#202124"/><circle cx="16" cy="16" r="12" fill="none" stroke="${spec[1]}" stroke-width="3" stroke-dasharray="31.7 6" transform="rotate(-76 16 16)"/><text x="16" y="21" text-anchor="middle" fill="#fff" font-size="15" font-weight="700">${spec[0]}</text></svg>`;
 }
 
+// A tyre drawn by the app (dark sidewall, the compound's colour stripe, a five-spoke rim), in place of the tyre maker's images.
+const TYRE_COLOURS = {soft: '#ff493e', medium: '#ffd735', hard: '#f5f5f7', intermediate: '#43cf79', inter: '#43cf79', wet: '#3395ff'};
 function tyreImageMarkup(compound) {
-  const name = String(compound || '').trim().toLowerCase();
-  const asset = ({hard:'hard', medium:'medium', soft:'soft', intermediate:'intermediate', inter:'intermediate', wet:'wet'})[name];
-  return asset ? `<img class="tyre-image" src="assets/tyres/official/${asset}.png" alt="" width="32" height="32" loading="lazy">` : '';
+  const colour = TYRE_COLOURS[String(compound || '').trim().toLowerCase()];
+  if (!colour) return '';
+  const spokes = [0, 72, 144, 216, 288].map(a => { const r = a * Math.PI / 180; return `M${(16 + 2.6 * Math.sin(r)).toFixed(2)} ${(16 - 2.6 * Math.cos(r)).toFixed(2)}L${(16 + 7 * Math.sin(r)).toFixed(2)} ${(16 - 7 * Math.cos(r)).toFixed(2)}`; }).join('');
+  return `<svg class="tyre-image" viewBox="0 0 32 32" width="32" height="32" aria-hidden="true" focusable="false">`
+    + `<circle cx="16" cy="16" r="15.5" fill="#18181a"/><circle cx="16" cy="16" r="15.1" fill="none" stroke="#2c2c30" stroke-width=".8"/>`
+    + `<circle cx="16" cy="16" r="11.7" fill="none" stroke="${colour}" stroke-width="2.3"/>`
+    + `<circle cx="16" cy="16" r="8.7" fill="#2b2b2f" stroke="#46464c" stroke-width=".8"/>`
+    + `<path d="${spokes}" stroke="#5e5e66" stroke-width="1.3" stroke-linecap="round"/><circle cx="16" cy="16" r="2.3" fill="#707078"/></svg>`;
 }
 
 function traceLapIsVisible(lap) {

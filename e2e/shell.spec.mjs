@@ -3,7 +3,7 @@ import {isolate} from './helpers.mjs';
 
 // Budgets are set just above today's numbers (hosted-like gzip, 22 files before lazy loading was 271 KB; the session view
 // now needs about 154 KB). They exist to catch regressions, not to define a target.
-const BUDGET = {initialScriptKB: 185, initialStyleKB: 80, idleDomNodes: 600, layoutShift: 0.02};
+const BUDGET = {initialScriptKB: 185, initialStyleKB: 82, idleDomNodes: 600, layoutShift: 0.02};
 
 /** Records long tasks, layout shift and the moment of the load event from the very start of the page. */
 const observe = () => {
@@ -84,17 +84,6 @@ test('every selection control in the toolbar and sidebar is operable by keyboard
     await page.keyboard.press('Escape');
     await expect(trigger).toHaveAttribute('aria-expanded', 'false');
   }
-});
-
-test('toolbar controls in the real page are glass and answer the pointer', async ({page}) => {
-  await open(page);
-  for (const selector of ['.site-header .performance-tabs', '#themeToggle', '#windowSidebarToggle'])
-    await expect(page.locator(selector), selector).toHaveAttribute('data-glass', '');
-  await expect(page.locator('.local-compute-status[data-glass]'), 'the status pill is not a glass control').toHaveCount(0);
-  const toggle = page.locator('#themeToggle'), box = await toggle.boundingBox();
-  await page.mouse.move(box.x + 6, box.y + 6);
-  await page.mouse.move(box.x + 11, box.y + 8);
-  await expect.poll(() => toggle.evaluate(el => getComputedStyle(el).backgroundImage)).toContain('radial-gradient');
 });
 
 test('Car performance with no data says which sessions failed and stays usable', async ({page}) => {

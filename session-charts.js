@@ -264,6 +264,11 @@ function bindSpeedChartControls() {
     window.ApexAnalysis?.savePreference('speed-annotations',showSpeedAnnotations);
     if (loaded.length) drawRealChart('Speed trace');
   });
+  $('#distanceNumbersToggle')?.addEventListener('change', event => {
+    showDistanceNumbers = event.target.checked;
+    window.ApexAnalysis?.savePreference('distance-numbers', showDistanceNumbers);
+    if (loaded.length) drawAll();
+  });
   $('#cornerToggle')?.addEventListener('change', event => {
     showCornerNumbers = event.target.checked;
     window.ApexAnalysis?.savePreference('corner-numbers',showCornerNumbers);
@@ -296,7 +301,7 @@ function renderCharts() {
             <button data-pan="right" title="Move zoom window right" aria-label="Move zoom window right">›</button>
             <button class="trace-reset" data-zoom="reset" title="Reset zoom">Reset</button>
           </div>
-        </div><details class="trace-display-menu"><summary title="Corner numbers, speed annotations and alignment">Display</summary><div class="trace-settings" aria-label="Telemetry display settings"><label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label><label class="trace-setting" title="Label every measured speed peak and dip. Each lap uses its own minimum or maximum, matched to the other laps by GPS position. The fastest lap shows its speed in km/h; the others show their difference. A dash means that lap has no matching measured extreme."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label><label class="trace-setting" title="Experimental estimate: integrate each lap's measured speed over time and normalize distance within official sectors. This changes the horizontal mapping, not the measured values. Never matches drivers' braking points. Incomplete or unsuitable laps retain the original mapping."><input type="checkbox" id="alignmentCorrectionToggle" ${estimateAlignmentCorrection ? 'checked' : ''} aria-describedby="alignmentCorrectionNotice"><i aria-hidden="true"></i><span>Correct alignment (estimated)</span></label></div></details><button type="button" class="trace-focus-button" data-trace-focus="open" aria-expanded="false" aria-controls="telemetryCard" title="Show the lap details and every chart across the full page">Expand charts</button><details class="trace-display-menu trace-capture-menu"><summary title="Save the charts as an image">Screenshot</summary><div class="trace-settings" aria-label="Screenshot options"><button type="button" class="trace-capture-option" data-capture="traces">Speed trace and timing delta</button><button type="button" class="trace-capture-option" data-capture="all">All charts with lap details</button></div></details><button type="button" class="trace-focus-button trace-focus-close" data-trace-focus="close" title="Return to session analysis">Close view</button>` : name === 'Timing delta' ? `
+        </div><details class="trace-display-menu"><summary title="Corner numbers, speed annotations and alignment">Display</summary><div class="trace-settings" aria-label="Telemetry display settings"><label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label><label class="trace-setting" title="Label every measured speed peak and dip. Each lap uses its own minimum or maximum, matched to the other laps by GPS position. The fastest lap shows its speed in km/h; the others show their difference. A dash means that lap has no matching measured extreme."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label><label class="trace-setting"><input type="checkbox" id="distanceNumbersToggle" ${showDistanceNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Distance-axis numbers</span></label><label class="trace-setting" title="Experimental estimate: integrate each lap's measured speed over time and normalize distance within official sectors. This changes the horizontal mapping, not the measured values. Never matches drivers' braking points. Incomplete or unsuitable laps retain the original mapping."><input type="checkbox" id="alignmentCorrectionToggle" ${estimateAlignmentCorrection ? 'checked' : ''} aria-describedby="alignmentCorrectionNotice"><i aria-hidden="true"></i><span>Correct alignment (estimated)</span></label></div></details><button type="button" class="trace-focus-button" data-trace-focus="open" aria-expanded="false" aria-controls="telemetryCard" title="Show the lap details and every chart across the full page">Expand charts</button><details class="trace-display-menu trace-capture-menu"><summary title="Save the charts as an image">Screenshot</summary><div class="trace-settings" aria-label="Screenshot options"><button type="button" class="trace-capture-option" data-capture="traces">Speed trace and timing delta</button><button type="button" class="trace-capture-option" data-capture="all">All charts with lap details</button></div></details><button type="button" class="trace-focus-button trace-focus-close" data-trace-focus="close" title="Return to session analysis">Close view</button>` : name === 'Timing delta' ? `
         <div class="trace-zoom-cluster delta-zoom-cluster" aria-label="Timing delta vertical zoom controls">
           <span class="trace-zoom-readout">Scale <b id="timingDeltaZoomReadout">${Math.round(timingDeltaZoom * 100)}%</b></span>
           <div class="trace-tools">
@@ -422,7 +427,7 @@ function getNiceBounds(name, rawMin, rawMax) {
     max = tempMax;
   } else if (name === 'Timing delta') {
     const span = Math.max(rawMax - rawMin, 0.02);
-    const targetTicks = span >= 2 ? 6 : 5;
+    const targetTicks = span >= 2 ? 8 : 7;   // finer steps: more labelled gridlines on the delta axis
     const magnitude = 10 ** Math.floor(Math.log10(span / targetTicks));
     const normalized = (span / targetTicks) / magnitude;
     const multiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10;
@@ -1273,18 +1278,16 @@ function drawRealChart(name) {
   const refSamples = telemetryCache.get(telemetryKey(refLap));
   const totalDist = refSamples && refSamples.length ? refSamples[refSamples.length - 1].Distance : 5891;
   const axisLeft = TRACE_PLOT_LEFT;
-  const speedCornerMarkers = name === 'Speed trace'
-    ? resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers)
-    : [];
+  const speedCornerMarkers = resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers);
   const cornerCalloutLayout = layoutSpeedCornerCallouts(speedCornerMarkers, rect.width, axisLeft, 7, viewStart, viewEnd);
-  const cornerAxisInset = speedCornerMarkers.length
+  const cornerAxisInset = showCornerNumbers && speedCornerMarkers.length
     ? 8 + cornerCalloutLayout.lanes * 20
     : 0;
   const bounds = {
     left: axisLeft,
     right: TRACE_PLOT_RIGHT,
-    top: 8,
-    bottom: 21 + (name === 'Speed trace' ? cornerAxisInset : 0),
+    top: name === 'Speed trace' ? 30 : 8,
+    bottom: 21 + cornerAxisInset,
     min,
     max,
     tickStep: niceBounds.tickStep
@@ -1314,11 +1317,11 @@ function drawRealChart(name) {
     ctx.fillStyle = theme.text;
     ctx.font = canvasFont(12);
     ctx.textAlign = tick === 0 ? 'left' : tick === distanceTickCount ? 'right' : 'center';
-    ctx.fillText(`${Math.round(fraction * totalDist)} M`, x, rect.height - bounds.bottom + 18);
+    if (showDistanceNumbers) ctx.fillText(`${Math.round(fraction * totalDist)} M`, x, rect.height - bounds.bottom + 18);
   }
   ctx.textAlign = 'left';
   
-  if (name === 'Speed trace' && $('#cornerToggle').checked) {
+  if (showCornerNumbers) {
     const count = speedCornerMarkers.length;
     const projection = refLap?.cornerMarkers?.[0]?.source === 'lap_projection';
     const approximate = speedCornerMarkers.some(marker => marker.approximate);
@@ -1361,7 +1364,7 @@ function drawRealChart(name) {
         // Never let neighbouring sector names collide: shorten, then omit.
         const span = xForFraction(visibleEnd) - xForFraction(visibleStart) - 8;
         const text = ctx.measureText(label).width <= span ? label : label.replace('SECTOR ', 'S');
-        if (ctx.measureText(text).width <= span) ctx.fillText(text, xForFraction((visibleStart + visibleEnd) / 2), bounds.top + 12);
+        if (ctx.measureText(text).width <= span) ctx.fillText(text, xForFraction((visibleStart + visibleEnd) / 2), 18);
       }
     });
     ctx.textAlign = 'left';
@@ -1501,9 +1504,9 @@ function drawRealChart(name) {
     drawSpeedAnnotations(ctx,speedAnnotationCache.annotations,rect,bounds,xForFraction,viewStart,viewEnd,traceEntries);
   }
   
-  // Draw collision-free corner labels in a reserved header band. Corner
+  // Draw collision-free corner labels in a reserved band below the axis. Corner
   // speeds live in the dedicated analysis panel below the track map.
-  if (name === 'Speed trace' && $('#cornerToggle').checked) {
+  if (showCornerNumbers) {
     const rowHeight = 20;
     const calloutHeight = 16;
     cornerCalloutLayout.items.forEach(({ corner, x, anchorX, lane, width }) => {

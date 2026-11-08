@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync, writeFileSync} from 'node:fs';
+import {mkdtempSync, writeFileSync, readFileSync} from 'node:fs';
+import vm from 'node:vm';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -76,10 +77,16 @@ test('bar chart rebases to the best entrant and marks provisional values', () =>
   assert.match(html, /is-loss">\+0.500%/);
 });
 
-test('team marks follow the session rules: official colour + mono, historical, fallback', () => {
-  assert.match(render(views.TeamLogo, {team: 'Red Bull Racing'}), /data-team-mark="redbullracing".*redbullracing-color\.webp.*redbullracing\.webp/s);
-  assert.match(render(views.TeamLogo, {team: 'Toro Rosso'}), /team-logo-historical.*toro-rosso\.svg/s);
-  assert.match(render(views.TeamLogo, {team: 'Nobody'}), /team-logo-fallback/);
+test('team marks are the shared drawn marks (team-marks.js), current and historical, with a fallback', () => {
+  const hadWindow = 'window' in globalThis;
+  globalThis.window ??= {};
+  vm.runInNewContext(readFileSync('team-marks.js', 'utf8'), {window: globalThis.window});
+  try {
+    assert.match(render(views.TeamLogo, {team: 'Red Bull Racing'}), /data-team-mark="red-bull-racing" data-code="RBR"/);
+    assert.match(render(views.TeamLogo, {team: 'Toro Rosso'}), /data-team-mark="toro-rosso" data-code="STR"/);
+    assert.match(render(views.TeamLogo, {team: 'Nobody'}), /team-logo-fallback/);
+    assert.doesNotMatch(render(views.TeamLogo, {team: 'Ferrari'}), /<img/);
+  } finally { if (!hadWindow) delete globalThis.window; else delete globalThis.window.ApexTeamMarks; }
 });
 
 test('pit stops view draws the measured sample, never a zero for a missing stop', () => {
