@@ -45,7 +45,16 @@ test('tyre chart stays inside its card after narrowing from desktop to phone',as
       return Math.max(...[...e.children].map(child=>child.getBoundingClientRect().right-card.right));
     })));
     expect(overflow,`width ${width}`).toBeLessThanOrEqual(1);
-    expect(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth),`document width ${width}`).toBeLessThanOrEqual(1);
+    // On failure, name the elements that stick out of a parent that itself fits (outside any horizontal scroller).
+    const wide=await page.evaluate(()=>{
+      const over=document.documentElement.scrollWidth-innerWidth,edge=document.documentElement.clientWidth+1;
+      if(over<=1)return {over,culprits:[]};
+      const clipped=el=>{for(let p=el.parentElement;p&&p!==document.body;p=p.parentElement)if(/(auto|scroll|hidden|clip)/.test(getComputedStyle(p).overflowX))return true;return false;};
+      const name=el=>el.tagName.toLowerCase()+(el.id?'#'+el.id:'')+[...el.classList].map(c=>'.'+c).join('');
+      const out=[...document.querySelectorAll('body *')].filter(el=>el.getClientRects().length&&el.getBoundingClientRect().right>edge&&!clipped(el)&&(el.parentElement===document.body||el.parentElement.getBoundingClientRect().right<=edge));
+      return {over,culprits:out.slice(0,8).map(el=>`${name(el)} right=${Math.round(el.getBoundingClientRect().right)} width=${Math.round(el.getBoundingClientRect().width)} in ${name(el.parentElement)}`)};
+    });
+    expect(wide.over,`document width ${width}: ${wide.culprits.join(' | ')||'no element found'}`).toBeLessThanOrEqual(1);
   }
 });
 
