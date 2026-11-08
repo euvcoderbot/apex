@@ -45,16 +45,29 @@ test('tyre chart stays inside its card after narrowing from desktop to phone',as
       return Math.max(...[...e.children].map(child=>child.getBoundingClientRect().right-card.right));
     })));
     expect(overflow,`width ${width}`).toBeLessThanOrEqual(1);
-    // On failure, name the elements that stick out of a parent that itself fits (outside any horizontal scroller).
+    // On failure, find what makes the page wide: hide each child in turn and follow the one whose removal fixes it
+    // (this also catches ::before/::after and anything positioned off the edge).
     const wide=await page.evaluate(()=>{
-      const over=document.documentElement.scrollWidth-innerWidth,edge=document.documentElement.clientWidth+1;
-      if(over<=1)return {over,culprits:[]};
-      const clipped=el=>{for(let p=el.parentElement;p&&p!==document.body;p=p.parentElement)if(/(auto|scroll|hidden|clip)/.test(getComputedStyle(p).overflowX))return true;return false;};
-      const name=el=>el.tagName.toLowerCase()+(el.id?'#'+el.id:'')+[...el.classList].map(c=>'.'+c).join('');
-      const out=[...document.querySelectorAll('body *')].filter(el=>el.getClientRects().length&&el.getBoundingClientRect().right>edge&&!clipped(el)&&(el.parentElement===document.body||el.parentElement.getBoundingClientRect().right<=edge));
-      return {over,culprits:out.slice(0,8).map(el=>`${name(el)} right=${Math.round(el.getBoundingClientRect().right)} width=${Math.round(el.getBoundingClientRect().width)} in ${name(el.parentElement)}`)};
+      const root=document.documentElement,excess=()=>root.scrollWidth-innerWidth,over=excess();
+      if(over<=1)return {over,path:''};
+      const name=el=>el.tagName.toLowerCase()+(el.id?'#'+el.id:'')+[...el.classList].slice(0,3).map(c=>'.'+c).join('');
+      const metrics=`html ${root.clientWidth}/${root.scrollWidth} body ${document.body.offsetWidth}/${document.body.scrollWidth} inner ${innerWidth}`;
+      const path=[];let node=document.body;
+      for(let depth=0;depth<40;depth++){
+        let next=null;
+        for(const child of node.children){
+          const before=child.style.display;child.style.display='none';
+          const fixed=excess()<=1;child.style.display=before;
+          if(fixed){next=child;break;}
+        }
+        if(!next)break;
+        const r=next.getBoundingClientRect(),s=getComputedStyle(next);
+        path.push(`${name(next)}[x${Math.round(r.left)}-${Math.round(r.right)} w${Math.round(r.width)} ${s.position} minw:${s.minWidth}]`);
+        node=next;
+      }
+      return {over,path:metrics+' :: '+(path.join(' > ')||'no single element')};
     });
-    expect(wide.over,`document width ${width}: ${wide.culprits.join(' | ')||'no element found'}`).toBeLessThanOrEqual(1);
+    expect(wide.over,`document width ${width}: ${wide.path}`).toBeLessThanOrEqual(1);
   }
 });
 

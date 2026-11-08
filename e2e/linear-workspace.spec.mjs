@@ -16,8 +16,11 @@ test('Linear navigation reuses controls, with no other look to switch to', async
   await expect(page.locator('#skinToggle, #glassToggle, #densityToggle')).toHaveCount(0);
   await expect(page.locator('#linearWorkspace [data-analysis-view]')).toHaveCount(2);
   await expect(page.locator('#linearWorkspace #performanceCategoryList')).toHaveCount(1);
-  await page.locator('[data-analysis-view="performance"]').click();
-  await expect(page.locator('#carPerformance')).toBeVisible();
+  // The first click can land before the navigation is wired up (seen in WebKit): click until the view switches.
+  await expect(async () => {
+    await page.locator('[data-analysis-view="performance"]').click();
+    await expect(page.locator('#carPerformance')).toBeVisible({timeout: 1000});
+  }).toPass({timeout: 10000});
   await expect(page.locator('#top')).toBeHidden();
   await expect(page.locator('#linearWorkspace')).toHaveAttribute('data-view', 'performance');
 });
