@@ -21,6 +21,11 @@ test('snapshot allowances apply only to specifically audited current revisions',
   assert.equal(snapshotCompatible('backendRevision','1af2a5e364d242f1b28d','future-model'),false);
   assert.ok(snapshotCompatible('sourceRevision','b6adedb102cdf8caca3e','17534d7592c1c357898d'));
   assert.ok(snapshotCompatible('backendRevision','0a1762c2ea19ed91113c','2623ae524ce37d83e700'));
+  assert.ok(snapshotCompatible('sourceRevision','17534d7592c1c357898d','1493e081d26a72cd8feb'));
+  assert.ok(snapshotCompatible('sourceRevision','663cb426faf4514b6d8c','1493e081d26a72cd8feb'));
+  assert.ok(snapshotCompatible('backendRevision','2623ae524ce37d83e700','95272b8c86a3b0b51eca'));
+  assert.equal(snapshotCompatible('sourceRevision','unreviewed','1493e081d26a72cd8feb'),false);
+  assert.equal(snapshotCompatible('backendRevision','unreviewed','95272b8c86a3b0b51eca'),false);
   assert.equal(snapshotCompatible('sourceRevision','b6adedb102cdf8caca3e','unknown-future'),false);
 });
 
