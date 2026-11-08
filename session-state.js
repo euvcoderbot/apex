@@ -186,16 +186,20 @@ function updateCornerPicker(root, markup, selection, automatic) {
   }
 }
 
+// This PC's compute service, once the person has chosen to use it and it answered (local-compute.js). Published and
+// saved data is still read first; only what is not there yet is calculated on the PC.
+const computeOrigin = () => String(window.APEX_COMPUTE_ORIGIN || '').replace(/\/$/, '');
 function apiUrl(path) {
-  return `${API_ORIGIN}${path}`;
+  return `${computeOrigin() || API_ORIGIN}${path}`;
 }
 
 function sharedDataURL(url) {
-  const parsed=new URL(url,window.location?.href||'http://localhost');
-  if(parsed.origin!==new URL(API_ORIGIN||window.location?.href||'http://localhost').origin)return url;
+  const parsed=new URL(url,window.location?.href||'http://localhost'),compute=computeOrigin();
+  const onCompute=Boolean(compute)&&parsed.origin===compute;
+  if(!onCompute&&parsed.origin!==new URL(API_ORIGIN||window.location?.href||'http://localhost').origin)return url;
   if(!['/api/events','/api/session','/api/telemetry','/api/performance','/api/performance/trace-batch','/api/performance/pits','/api/season','/api/season/upgrades','/api/season/power-units'].includes(parsed.pathname))return url;
   const fresh=parsed.searchParams.get('fresh')==='true';parsed.searchParams.delete('fresh');
-  return '/api/data?'+new URLSearchParams({path:parsed.pathname+'?'+parsed.searchParams,...(fresh?{refresh:'1'}:{})});
+  return (onCompute?compute:'')+'/api/data?'+new URLSearchParams({path:parsed.pathname+'?'+parsed.searchParams,...(fresh?{refresh:'1'}:{})});
 }
 
 // A 5xx whose body is not JSON comes from the hosting platform, not our API
@@ -208,7 +212,7 @@ function platformErrorResponse(response) {
 const PLATFORM_RETRY_DELAYS_MS = [5000, 15000];
 
 function dataRequestTimeout(url) {
-  if (window.APEX_LOCAL_MODE) return 180000;
+  if (window.APEX_LOCAL_MODE || computeOrigin()) return 180000;
   const path = new URL(url, window.location?.href || 'http://localhost').pathname;
   // Calendar metadata can wait on the same upstream rate limiter as telemetry.
   // It is the bootstrap for both views: cancelling it at 30 s strands the
@@ -219,7 +223,8 @@ function dataRequestTimeout(url) {
 /** The published site answers 503 for a result that was never published. Retrying cannot change that. */
 const notPublished = async response => response.status === 503 && /not been published/i.test((await response.clone().json().catch(() => ({}))).detail || '');
 async function fetchSessionData(url, options = {}) {
-  const attempts = window.APEX_SNAPSHOT_MODE ? 1 : window.APEX_LOCAL_MODE ? 2 : 1 + PLATFORM_RETRY_DELAYS_MS.length;
+  const local = window.APEX_LOCAL_MODE || Boolean(computeOrigin());
+  const attempts = local ? 2 : window.APEX_SNAPSHOT_MODE ? 1 : 1 + PLATFORM_RETRY_DELAYS_MS.length;
   for (let attempt = 0; attempt < attempts; attempt++) {
     if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     const controller = new AbortController();
@@ -227,9 +232,9 @@ async function fetchSessionData(url, options = {}) {
     options.signal?.addEventListener('abort', abort, { once: true });
     const timeout = setTimeout(abort, dataRequestTimeout(url));
     try {
-      const shared=sharedDataURL(url),longQuery=shared.startsWith('/api/data?')&&shared.length>12000;
+      const shared=sharedDataURL(url),longQuery=/(^|:\d+)\/api\/data\?/.test(shared)&&shared.length>12000;
       const query=longQuery?new URLSearchParams(shared.slice(shared.indexOf('?')+1)):null;
-      const response = await fetch(longQuery?'/api/data':shared, { ...options, signal: controller.signal,
+      const response = await fetch(longQuery?shared.slice(0,shared.indexOf('?')):shared, { ...options, signal: controller.signal,
         ...(longQuery?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:query.get('path'),refresh:query.get('refresh')==='1'})}:{}) });
       const retryable = [408, 429, 502, 503, 504].includes(response.status) || platformErrorResponse(response);
       if (!retryable || attempt === attempts - 1 || await notPublished(response)) return response;
@@ -241,7 +246,7 @@ async function fetchSessionData(url, options = {}) {
       clearTimeout(timeout);
       options.signal?.removeEventListener('abort', abort);
     }
-    const delay = window.APEX_LOCAL_MODE ? 700 * (attempt + 1) : PLATFORM_RETRY_DELAYS_MS[attempt];
+    const delay = local ? 700 * (attempt + 1) : PLATFORM_RETRY_DELAYS_MS[attempt];
     await new Promise((resolve, reject) => {
       const stop = () => { clearTimeout(timer); reject(options.signal.reason || new DOMException('Aborted', 'AbortError')); };
       const timer = setTimeout(() => { options.signal?.removeEventListener('abort', stop); resolve(); }, delay);
@@ -444,6 +449,8 @@ async function preparedData(url) {
   return response.ok ? response.json() : null;
 }
 async function requestApiData(url, options = {}) {
+  // If the person uses compute on their PC, its quick check (at most 1.5 s) decides where requests go.
+  if (window.apexComputeReady) { await window.apexComputeReady.catch(() => false); if (window.APEX_COMPUTE_ORIGIN && !/^https?:/.test(url)) url = apiUrl(url.replace(/^https?:\/\/[^/]+/, '')); }
   if(window.APEX_SNAPSHOT_MODE && Date.now()-snapshotCheckedAt>=60000)invalidateSnapshotData();
   const parsed = new URL(url, window.location?.href || 'http://localhost');
   const refreshing=parsed.searchParams.get('fresh')==='true'||parsed.searchParams.get('refresh')==='1';

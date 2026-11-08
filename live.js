@@ -1,8 +1,19 @@
-/* Live timing view: local compute only. The page talks to this PC's live service (/api/live/*),
-   which reads F1's live feed with the user's own F1 TV sign-in, or replays a cached session through the same pipeline.
-   Nothing here runs on the published site. All data-derived text is set with textContent. */
+/* Live timing view: needs compute on this PC. The page talks to the PC's live service (/api/live/*), which reads F1's
+   live feed with the user's own F1 TV sign-in, or replays a cached session through the same pipeline. On the published
+   site it starts once the person has connected their PC (local-compute.js); before that it does nothing. All
+   data-derived text is set with textContent. */
 (() => {
-  if (!window.APEX_LOCAL_MODE) return;
+  if (!window.APEX_LOCAL_MODE && !window.APEX_COMPUTE_ORIGIN) {
+    // Not connected yet: run this script again once the PC's compute answers.
+    const src = document.currentScript?.src;
+    if (src) addEventListener('apex-compute', () => { const again = document.createElement('script'); again.src = src; document.body.append(again); }, {once: true});
+    return;
+  }
+  if (window.ApexLive) return;
+  // The PC's compute service, or this page's own origin when the PC serves it.
+  const base = String(window.APEX_COMPUTE_ORIGIN || '').replace(/\/$/, '');
+  // The email and password form only appears on a page this PC serves; elsewhere sign-in happens on Formula 1's own page.
+  const passwordSignin = !base;
   // Its stylesheet ships separately (the published page never loads it), with this script's version.
   {
     const version = document.currentScript?.src.match(/\?v=[^&#]+/)?.[0] || '';
@@ -25,7 +36,7 @@
   const MAX_PICKS = 4;
   let drawQueued = false;
 
-  const api = (path, options = {}) => fetch('/api/live/' + path, {cache: 'no-store', ...options}).then(async r => {
+  const api = (path, options = {}) => fetch(base + '/api/live/' + path, {cache: 'no-store', ...options}).then(async r => {
     const body = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(body.detail || `Live service error ${r.status}`);
     return body;
@@ -217,7 +228,7 @@
   // ---------- data ----------
   function connect() {
     disconnect();
-    stream = new EventSource('/api/live/stream' + (chosen.length ? '?drivers=' + chosen.join(',') : ''));
+    stream = new EventSource(base + '/api/live/stream' + (chosen.length ? '?drivers=' + chosen.join(',') : ''));
     stream.onmessage = event => {
       let payload; try { payload = JSON.parse(event.data); } catch { return; }
       state = payload.state; source = payload.source;
@@ -243,6 +254,14 @@
   function showSignin(open) {
     const form = $(page, 'signinForm');
     form.hidden = !open; $(page, 'signin').setAttribute('aria-expanded', String(open));
+    if (!passwordSignin) {
+      // Only the browser sign-in: no password passes through a page this PC does not serve.
+      for (const field of form.querySelectorAll('label, [type="submit"], .live-signin-or')) field.hidden = true;
+      form.querySelector('.live-signin-note').textContent = 'Sign in on Formula 1\u2019s own page: FastF1\u2019s Companion browser add-on (offered there the first time) hands the sign-in to this PC. Only the resulting token is kept, on this PC.';
+      if (open) $(page, 'signinBrowser').focus();
+      if (!open) $(page, 'signinError').hidden = true;
+      return;
+    }
     if (open) form.elements.email.focus(); else { form.elements.password.value = ''; $(page, 'signinError').hidden = true; }
   }
   async function submitSignin(event) {
@@ -908,7 +927,7 @@
     const id = `${key}/${year}`;
     if (!guides.has(id)) {
       guides.set(id, null);
-      fetch(`/api/circuit-guide?key=${encodeURIComponent(key)}&year=${encodeURIComponent(year)}`).then(r => (r.ok ? r.json() : null))
+      fetch(`${base}/api/circuit-guide?key=${encodeURIComponent(key)}&year=${encodeURIComponent(year)}`).then(r => (r.ok ? r.json() : null))
         .then(data => { guides.set(id, data); queueDraw(); }).catch(() => {});
     }
     return guides.get(id);
@@ -1023,10 +1042,12 @@
     // The red dot stays current while another view is open; inside the view the stream keeps it current.
     statusTimer = setInterval(() => { if (!active && !document.hidden) api('status').then(status => { source = status.source; syncDot(); }).catch(() => {}); }, 15000);
   }
-  addEventListener('DOMContentLoaded', () => {
+  const boot = () => {
     build(); buildButton(); place(); poll();
     api('status').then(applyStatus).catch(() => {});
-  });
+  };
+  // On the published site this runs after the PC connects, when the page has long finished loading.
+  if (document.readyState === 'loading') addEventListener('DOMContentLoaded', boot); else boot();
   addEventListener('apex-skin', () => button && place());
   window.ApexLive = Object.freeze({enter, leave});
 })();

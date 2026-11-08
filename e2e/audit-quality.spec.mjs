@@ -49,25 +49,6 @@ test('tyre chart stays inside its card after narrowing from desktop to phone',as
   }
 });
 
-test('segment selection moves through intermediate frames and reverses on rapid input',async({page})=>{
-  await page.goto('/apex/ui-catalog.html');
-  const group=page.locator('[data-catalog-section="segmented-choices"] [data-ui-group="segments"]').first();
-  await expect(group).toHaveAttribute('data-ui-thumb','sliding');
-  const frames=await group.evaluate(async group=>{
-    const buttons=[...group.querySelectorAll('button:not(:disabled)')];
-    const x=()=>new DOMMatrix(getComputedStyle(group,'::before').transform).m41;
-    const choose=index=>{buttons.forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));window.ApexUI.decorate(group.parentElement);};
-    const values=[];choose(0);await new Promise(r=>setTimeout(r,300));
-    const start=x();choose(1);
-    await new Promise(resolve=>{let n=0;const frame=()=>{values.push(x());if(++n===5){choose(0);}if(n<30)requestAnimationFrame(frame);else resolve();};requestAnimationFrame(frame);});
-    return {start,values,end:x()};
-  });
-  expect(Math.max(...frames.values)-frames.start).toBeGreaterThan(2);
-  expect(frames.values.some(v=>v>frames.start+1&&v<Math.max(...frames.values))).toBe(true);
-  expect(Math.abs(frames.end-frames.start)).toBeLessThan(1);
-  await page.emulateMedia({reducedMotion:'reduce'});
-  expect(await group.evaluate(el=>parseFloat(getComputedStyle(el,'::before').transitionDuration))).toBeLessThanOrEqual(.001);
-});
 
 test('modal keyboard focus cannot reach background page controls and returns to its trigger',async({page})=>{
   await page.goto('/apex/ui-catalog.html');

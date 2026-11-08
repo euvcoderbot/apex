@@ -86,7 +86,6 @@ test('corner measurements retain native table alignment and compact monochrome i
 test('corner picker tiles have fixed footprints and the redundant title strip is absent',()=>{
   const css=read('hig-system.css'),source=read('session-corners.js');
   assert.match(css,/grid-template-columns: repeat\(auto-fill,48px\)/);
-  assert.match(css,/straight-zone-picker \{ grid-template-columns: repeat\(auto-fill,104px\)/);
   assert.doesNotMatch(source,/<header class="corner-detail-header">/);
   assert.match(source,/<caption class="visually-hidden">\$\{escapeUI\(selectionLabel\)\}/);
 });

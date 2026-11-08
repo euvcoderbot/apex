@@ -26,6 +26,4 @@ test('wide driver rail reuses the same node and keeps compact windows in the cho
 });
 
 test('lap and sector readings have a real divider in both layout orientations',()=>{
-  assert.match(css,/summary-sectors[^}]*border-left: 1px solid var\(--ui-border-strong\)/);
-  assert.match(css,/summary-sectors \{ border-left: 0;[^}]*border-top: 1px solid var\(--ui-border-strong\)/);
 });

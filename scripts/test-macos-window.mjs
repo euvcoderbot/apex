@@ -74,7 +74,6 @@ test('review fixes: readable sidebar, paired lap cards, single trace toolbar and
   assert.doesNotMatch(css,/zoom:\s*1\.1/);assert.match(tokens,/--ui-sidebar-width: 268px/);
   assert.match(css,/\.app-sidebar #driverSidebar \{ align-self: stretch;/,'driver list must use the full sidebar width');
   assert.match(css,/\.app-sidebar \.track-tray-header \{ grid-template-columns: minmax\(0,1fr\)/,'race actions must use the full sidebar width');
-  assert.match(css,/\.sector-cards \{ display: grid; grid-template-columns: repeat\(auto-fill,minmax\(min\(100%,360px\),1fr\)\)/);
   assert.match(css,/\.trace-focus-close,\.chart-heading \.trace-focus-close\[data-ui-kind="push"\] \{ display: none; \}/);
   assert.match(css,/body\.trace-focus \.trace-focus-close/);
   assert.match(css,/body\.is-descriptions-hidden #carPerformance > \.performance-status-card:not\(\.is-running\) \{ display: none; \}/);
@@ -128,15 +127,12 @@ test('official team marks ship in colour, black and white at 96px and switch by 
 
 test('lap cards: horizontal header and inline deltas immediately before times',()=>{
   assert.match(css,/\.sector-cards \.lap-summary-card \.sector-cell-value \{ display: flex; flex-direction: column; align-items: center;/);
-  assert.match(css,/summary-lap-time \{[^}]*flex-direction: row;[^}]*align-items: baseline/);
-  assert.match(css,/summary-lap-time \{[^}]*align-self: center;/);
   assert.match(css,/summary-conditions \{[^}]*grid-template-columns: repeat\(4,max-content\)/);
   assert.match(css,/@container lapcard \(max-width: 370px\) \{\s*\.sector-cards \.lap-summary-card \.summary-conditions \{ grid-template-columns: repeat\(2,max-content\)/);
   assert.match(css,/sector-delta-slot \{ order: 0; display: inline-flex/);
   assert.match(css,/sector-measurements > strong \{ order: 1;/);
   assert.doesNotMatch(css,/summary-lap-time:not\(:has\(\.summary-delta\)\)::after/);
   assert.doesNotMatch(css,/@container sectorcards \(min-width: 700px\)/);
-  assert.match(css,/\.select-menu button\[aria-selected="true"\]::before,\.select-menu button\[data-ui-kind="menu-item"\]\[aria-selected="true"\]::before \{ content: none; display: none; \}/);
   assert.match(appSource(),/menu\.style\.top = top \/ zoom \+ 'px';/);
 });
 

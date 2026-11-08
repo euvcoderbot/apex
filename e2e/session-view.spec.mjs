@@ -21,8 +21,11 @@ async function open(page) {
   const pills = page.locator('#driverPills button');
   await expect(pills.nth(4)).toBeVisible({timeout: 30_000});
   await pills.nth(0).click(); await pills.nth(4).click();
+  // Laps are chosen in the lap sheet (Linear look); close it once both fastest laps are in.
+  await page.locator('#lapWorkspaceToggle').click();
   await page.click('#compareAllFastest');
   await expect(page.locator('.driver-run-card')).toHaveCount(2, {timeout: 30_000});
+  await page.keyboard.press('Escape');
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(800);
   return errors;
@@ -76,16 +79,23 @@ test('chosen rows stay readable and every state of Compare fastest has visible t
   for (const theme of ['dark', 'light']) {
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
     // Colours transition when the appearance changes; judge them once they have arrived, not part way (Firefox measured mid-transition). Only transitions are awaited: looping animations never finish.
-    await page.evaluate(() => Promise.all(document.getAnimations().filter(animation => animation instanceof CSSTransition).map(animation => animation.finished.catch(() => {}))));
+    // A transition on a closed sheet never runs, so the wait is capped.
+    await page.evaluate(() => Promise.race([new Promise(done => setTimeout(done, 1500)),
+      Promise.all(document.getAnimations().filter(animation => animation instanceof CSSTransition).map(animation => animation.finished.catch(() => {})))]));
     await page.waitForTimeout(350);
     expect(await contrast('#driverPills .driver-pill.selected .driver-pill-position'), `${theme}: chosen driver row`).toBeGreaterThanOrEqual(4.5);
+    // Compare fastest lives in the lap sheet: judge it where it is seen, with the sheet open.
+    await page.locator('#lapWorkspaceToggle').click();
+    await expect(page.locator('#compareAllFastest')).toBeVisible();
+    await page.waitForTimeout(350);
     expect(await contrast('#compareAllFastest'), `${theme}: Compare fastest, on`).toBeGreaterThanOrEqual(3);
+    await page.keyboard.press('Escape');
   }
 });
 
 test('the toolbar icons are named, and the switches say what they do', async ({page}) => {
   await open(page);
-  for (const id of ['explanationsToggle', 'themeToggle', 'glassToggle']) {
+  for (const id of ['explanationsToggle', 'themeToggle']) {
     const button = page.locator('#' + id);
     expect((await button.boundingBox()).width, id + ' is icon sized').toBeLessThanOrEqual(36);
     expect(await button.getAttribute('title'), id + ' has a tooltip').toBeTruthy();
@@ -102,6 +112,7 @@ test('every scrolling area has the same scrollbar, in both appearances', async (
       for (const el of document.querySelectorAll('html, body, body *')) {
         const style = getComputedStyle(el);
         if (el.tagName !== 'HTML' && !/(auto|scroll)/.test(style.overflowX + style.overflowY)) continue;
+        if (el.id === 'linearWorkspace') continue;   // the rail hides its scrollbar on purpose; it scrolls by wheel and touch
         const key = `${style.scrollbarWidth} ${style.scrollbarColor}`;
         found.set(key, [...(found.get(key) || []), el.tagName.toLowerCase() + (el.id ? '#' + el.id : '')]);
       }

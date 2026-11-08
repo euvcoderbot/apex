@@ -12,12 +12,10 @@
 :root[data-skin="linear"][data-skin] #linearWorkspace .linear-navigation .live-view-button .live-dot { flex: 0 0 8px; width: 8px; height: 8px; margin: 0 4px 0 4px; }
 :root[data-skin="linear"][data-skin] #linearWorkspace .linear-navigation .live-view-button:hover:not([aria-pressed="true"]) { background: var(--lin-nav-hover); color: var(--ui-label); }
 :root[data-skin="linear"][data-skin] #linearWorkspace .linear-navigation .live-view-button[aria-pressed="true"] { background: var(--lin-nav-active); color: var(--ui-label); }
-:root[data-skin="linear"][data-skin][data-linear-density="compact"] #linearWorkspace .linear-navigation .live-view-button { height: 24px; min-height: 24px; }
 /* The view's own title lives in the header breadcrumb, as on the other views; the page keeps a quieter heading. */
 /* Spacing as the main views: 24 / content pad / 32 around, 12 px between cards (8 compact). */
 :root[data-skin="linear"][data-skin] #liveTiming { padding: 24px var(--linear-content-pad) 32px; gap: 12px; }
 :root[data-skin="linear"][data-skin] #liveTiming :is(.live-grid, .live-col) { gap: 12px; }
-:root[data-skin="linear"][data-skin][data-linear-density="compact"] #liveTiming, :root[data-skin="linear"][data-skin][data-linear-density="compact"] #liveTiming :is(.live-grid, .live-col) { gap: 8px; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-title .workspace-eyebrow { display: none; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-title h1 { font: 590 20px/1.3 var(--ui-font); letter-spacing: -.012em; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-title p { font: 400 13px/1.5 var(--ui-font); color: var(--ui-tertiary); }
@@ -28,7 +26,6 @@
   background-color: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border);
   background-image: radial-gradient(60% 50% at 0% 0%, var(--lin-glow), transparent 70%);
 }
-:root[data-skin="linear"][data-skin][data-linear-density="compact"] #liveTiming .dashboard-card { padding: 12px; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-card-head { padding: 0; margin-bottom: 12px; }
 :root[data-skin="linear"][data-skin] #liveTiming .dashboard-card::after {
   content: ""; position: absolute; inset: 0; z-index: 1; border-radius: inherit; padding: 1px; pointer-events: none;

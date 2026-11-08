@@ -12,7 +12,13 @@ npm ci
 npm run local
 ```
 
-Then open http://127.0.0.1:54123/apex/.
+This starts the compute service on this PC (127.0.0.1:54123; Python on 127.0.0.1:8000). There is one site: open
+https://f1apexdata.eufrandota14.chatgpt.site/apex/ and choose **Use this PC** under Compute settings. Published and saved
+data is shown first; anything not published yet is calculated on this PC and cached on disk. The service's own
+address only redirects to the site. Without it running, the site shows published data only.
+
+For development, `npm run sync:apex` then `node scripts/serve-static.mjs 54140` serves the site from this PC; it uses
+the same compute service the published site does.
 
 ## Source, local data and publication
 
@@ -29,8 +35,7 @@ Run `npm run release:check -- --source` on a source-only checkout. Publication
 requires the strict `npm run release:check` after prepared data is staged.
 Browser tests use their own recorded fixtures and do not depend on local exports.
 
-The hosted site serves prepared snapshots; Python computations run on the PC.
-`npm run site:warm` prepares local captured results, not a retired hosted Python
-service. Vercel and Render deployment configurations are no longer maintained.
+The hosted site serves prepared snapshots and never computes; Python computations run on the PC, either for the
+person using it (Use this PC) or to prepare results for publication (`npm run site:warm`).
 
 The first load for a session downloads and caches FastF1 data; later loads are much faster. FastF1 provides historical timing and telemetry coverage from 2018 onward, including speed, RPM, gear, throttle, brake and DRS. [FastF1 documentation](https://docs.fastf1.dev/data_reference/index.html)

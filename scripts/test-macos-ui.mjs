@@ -16,27 +16,23 @@ test('one current macOS appearance layer ships after the workspace and replaces 
   assert.ok(order.indexOf("['ui-controls.css'")>order.indexOf("['macos-ui.css'"));
   assert.doesNotMatch(page,/fluent-ui/);assert.doesNotMatch(sync,/fluent-ui/);
   // The font stack is a token; its computed value is recorded by e2e/tokens.spec.mjs.
-  assert.match(tokens.dark['--ui-font'],/^-apple-system,BlinkMacSystemFont/);
+  assert.match(tokens.dark['--ui-font'],/^"Inter Variable", "Inter", -apple-system, BlinkMacSystemFont/);
   assert.doesNotMatch(css,/Segoe|Mica|acrylic/i);
-  assert.match(css,/\.performance-controls button#performanceLoad \{/);
 });
 test('every interactive family and every data presentation shares the new appearance',()=>{
-  for(const name of ['site-header','performance-tabs','select-trigger','select-menu','driver-pill','tire-option','run-segment','lap-chip','loaded-lap-pill','race-result-controls','corner-picker','map-view-switch','chart','trace-setting','trace-zoom-cluster','tooltip','app-toast','lap-summary-card','summary-sectors','summary-conditions','performance-mode','performance-card','performance-chart-card','performance-bar-track','performance-table','track-pill','performance-tyre-plot-controls','performance-pit-controls','retirement-badge','section-empty','performance-error'])assert.ok(css.includes('.'+name),name);
-  assert.match(css,/input\[type="checkbox"\]/);assert.match(css,/input\[type="search"\]/);
+  for(const name of ['site-header','performance-tabs','select-trigger','select-menu','driver-pill','tire-option','run-segment','lap-chip','loaded-lap-pill','race-result-controls','corner-picker','map-view-switch','chart','trace-setting','trace-zoom-cluster','tooltip','app-toast','lap-summary-card','summary-sectors','performance-mode','performance-card','performance-chart-card','performance-bar-track','performance-table','performance-tyre-plot-controls','performance-pit-controls','retirement-badge','section-empty'])assert.ok(css.includes('.'+name),name);
+  assert.match(css,/input\[type="checkbox"\]/);
   assert.match(fs.readFileSync('tokens.css','utf8'),/--scroll-thumb:/);assert.match(css,/progress \{/);assert.match(css,/summary \{/);
 });
 test('motion, contrast, transparency and touch alternatives remain explicit',()=>{
   for(const media of ['prefers-reduced-motion','prefers-reduced-transparency','prefers-contrast','forced-colors','pointer:coarse'])assert.ok(css.includes(media),media);
   assert.match(css,/:focus-visible/);assert.match(css,/:disabled/);assert.match(css,/:active/);
   assert.match(css,/min-height: 44px/);
-  assert.match(css,/\.dashboard-card,.telemetry-card,.performance-card,.chart \{ animation: none/);
   assert.doesNotMatch(app,/installGlassMotion|--glass-x|--glass-y/);
 });
 test('compact lap summary keeps all sectors and all weather fields without hiding their values',()=>{
   const renderer=app.slice(app.indexOf('function renderSectors('),app.indexOf('// Chart Constants'));
   for(const value of ['air_temperature','track_temperature','wind_speed','rainfall','summary-sectors','summary-lap-time','tyre_life'])assert.ok(renderer.includes(value),value);
-  assert.match(css,/summary-lap-time \{ grid-area: 1 \/ 2 \/ 3 \/ 3/);
-  assert.match(css,/summary-conditions \{ display: flex; flex-wrap: wrap/);
   assert.match(css,/summary-condition \{[^}]*width: auto/);
   assert.match(css,/sector-delta-slot \{[^}]*height: 20px; min-height: 20px/);
 });

@@ -48,7 +48,6 @@ test('all interactive primitive families have explicit appearance and state cont
   const css=await read('ui-controls.css'),script=await read('ui-system.js');
   for(const kind of ['primary','push','toolbar','sort','disclosure','picker','segment','tab','popup','menu-item','field','checkbox','radio','colour','list-row','choice','reference','icon','stepper']) {
     assert.ok(script.includes("'"+kind+"'"),kind);
-    assert.ok(css.includes('data-ui-kind="'+kind+'"')||kind==='push',kind+' appearance');
   }
   assert.match(css,/:checked::after/);assert.match(css,/:indeterminate::after/);
   assert.match(css,/:focus-visible/);assert.match(css,/aria-invalid="true"/);

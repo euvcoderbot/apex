@@ -37,8 +37,6 @@ def enabled() -> bool:
 
 
 def _cache_root() -> Path:
-    if os.environ.get("VERCEL"):
-        return Path("/tmp/apex-data/wikipedia")
     return Path(os.environ.get("APEX_WIKI_ROOT") or Path.home() / "apex-data" / "wikipedia")
 
 

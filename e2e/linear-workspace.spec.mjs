@@ -4,22 +4,18 @@ import {isolate, replayFixture} from './helpers.mjs';
 async function open(page) {
   await isolate(page);
   await replayFixture(page, 'session-view.json.gz');
-  await page.addInitScript(() => { localStorage.setItem('apex-skin', 'linear'); localStorage.setItem('apex-theme', 'dark'); });
+  await page.addInitScript(() => { localStorage.setItem('apex-theme', 'dark'); });
   await page.goto('/apex?year=2026');
   await expect(page.locator('#linearWorkspace')).toBeVisible();
   await page.waitForLoadState('networkidle');
 }
 
-test('Linear navigation reuses controls and restores the original window', async ({page}) => {
+test('Linear navigation reuses controls, with no other look to switch to', async ({page}) => {
   await open(page);
+  await expect(page.locator('html')).toHaveAttribute('data-skin', 'linear');
+  await expect(page.locator('#skinToggle, #glassToggle, #densityToggle')).toHaveCount(0);
   await expect(page.locator('#linearWorkspace [data-analysis-view]')).toHaveCount(2);
   await expect(page.locator('#linearWorkspace #performanceCategoryList')).toHaveCount(1);
-  await page.locator('#skinToggle').click();
-  await expect(page.locator('#linearWorkspace')).toBeHidden();
-  await expect(page.locator('.site-header [data-analysis-view]')).toHaveCount(2);
-  await expect(page.locator('#performanceSidebar #performanceCategoryList')).toHaveCount(1);
-  await page.locator('#skinToggle').click();
-  await expect(page.locator('#linearWorkspace [data-analysis-view]')).toHaveCount(2);
   await page.locator('[data-analysis-view="performance"]').click();
   await expect(page.locator('#carPerformance')).toBeVisible();
   await expect(page.locator('#top')).toBeHidden();
@@ -59,19 +55,15 @@ test('animated calendar menu stays within a short viewport', async ({page}) => {
   await expect(page.locator('#gpOptions')).toBeHidden();
 });
 
-test('density persists and both themes fit desktop and mobile', async ({page}) => {
+test('both themes fit desktop and mobile', async ({page}) => {
   await open(page);
-  await page.locator('button[data-linear-density]').click();
-  await expect(page.locator('html')).toHaveAttribute('data-linear-density', 'compact');
-  await page.reload();
-  await expect(page.locator('html')).toHaveAttribute('data-linear-density', 'compact');
   for (const width of [1440, 1024, 760, 390]) {
     await page.setViewportSize({width, height: 900});
     for (const theme of ['dark', 'light']) {
       await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
       expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), `${width}px ${theme}`).toBeLessThanOrEqual(1);
       await expect(page.locator('#loadSession')).toBeVisible();
-      await expect(page.locator('#skinToggle')).toBeVisible();
+      await expect(page.locator('#themeToggle')).toBeVisible();
     }
   }
 });
@@ -109,7 +101,6 @@ test('real recorded laps load in the redesigned workspace without changing value
 test('all eight performance categories work with the Linear rail and flat bars', async ({page}) => {
   test.setTimeout(90000);
   await isolate(page); await replayFixture(page);
-  await page.addInitScript(() => { localStorage.setItem('apex-skin', 'linear'); });
   await page.goto('/apex/cars/pace?year=2026&scope=tracks&races=16,17,18&run=1');
   await expect(page.locator('#performanceMetricPanel')).toBeVisible({timeout: 30000});
   await expect(page.locator('#performanceMetricPanel')).not.toHaveAttribute('aria-busy', 'true', {timeout: 30000});

@@ -41,11 +41,10 @@ pd = _AnalysisModule('pandas')
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse, RedirectResponse
 
 ROOT = Path(__file__).parent
-DEFAULT_CACHE_ROOT = Path("/tmp/apex-data") if os.environ.get("VERCEL") else ROOT
+DEFAULT_CACHE_ROOT = ROOT
 RUNTIME_CACHE_ROOT = Path(os.environ.get("APEX_CACHE_ROOT", DEFAULT_CACHE_ROOT))
 RUNTIME_CACHE_ROOT.mkdir(parents=True, exist_ok=True)
 CACHE = RUNTIME_CACHE_ROOT / ".fastf1-cache"
@@ -56,8 +55,7 @@ PREPARED_CACHE.mkdir(exist_ok=True)
 # per season) and never changes once a session is settled, while every
 # calculation built on it does. It lives outside the repo and any worktree so a
 # moved or deleted checkout cannot take it along. Override with APEX_RAW_ROOT.
-RAW_ROOT = Path(os.environ.get("APEX_RAW_ROOT") or (
-    PREPARED_CACHE / "openf1" if os.environ.get("VERCEL") else Path.home() / "apex-data" / "openf1"))
+RAW_ROOT = Path(os.environ.get("APEX_RAW_ROOT") or Path.home() / "apex-data" / "openf1")
 PREPARED_CACHE_VERSION = "v6"
 SESSION_CACHE_SCHEMA = "session-identity-weather-v7"
 
@@ -128,7 +126,7 @@ def record_archive_result(year, ok: bool) -> None:
 
 def archive_usable(year, gp, session) -> bool:
     """False when the F1 timing archive is disabled here or failed recently."""
-    if os.environ.get("APEX_F1_ARCHIVE", "off" if os.environ.get("VERCEL") else "on") == "off":
+    if os.environ.get("APEX_F1_ARCHIVE", "on") == "off":
         return False
     if archive_breaker_open(year):
         return False
@@ -178,25 +176,16 @@ def health() -> dict[str, str]:
 
 @app.middleware("http")
 async def prevent_stale_local_assets(request: Request, call_next):
-    """Apply development-safe asset headers and production API caching."""
-    if not os.environ.get('VERCEL') and request.url.path.startswith('/api/'):
+    """Refuse API requests from pages and hosts that are not this PC's, and cache complete API answers."""
+    if request.url.path.startswith('/api/'):
         from api_security import local_request_allowed
         if not local_request_allowed(request,CORS_ORIGINS):
             return JSONResponse(status_code=403,content={'detail':'Local API origin or host not allowed'})
     response = await call_next(request)
-    hosted = bool(os.environ.get("VERCEL"))
-    if not hosted and request.url.path in {
-        "/", "/index.html", "/app.js", "/alignment.js", "/telemetry-model.js", "/config.js", "/styles.css", "/design-system.css", "/apple-ui.css"
-    }:
-        response.headers["Cache-Control"] = "no-store, max-age=0"
-    elif hosted and request.url.path in {"/", "/index.html"}:
-        response.headers["Cache-Control"] = "public, max-age=60, s-maxage=300, stale-while-revalidate=86400"
-    elif hosted and request.url.path.endswith((".js", ".css", ".svg")):
-        response.headers["Cache-Control"] = "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800"
-    elif request.url.path.startswith("/api/") and response.status_code == 200:
+    if request.url.path.startswith("/api/") and response.status_code == 200:
         # URLs contain season, session, driver and lap identity. Cache complete
         # responses at the browser/CDN edge so reopening a comparison avoids a
-        # Vercel cold start. Incomplete current-season position streams set
+        # repeat calculation. Incomplete current-season position streams set
         # their own no-store header inside the endpoint and are left untouched.
         if "cache-control" not in response.headers:
             current_year = str(datetime.now().year)
@@ -3094,25 +3083,9 @@ def telemetry(
     raise HTTPException(422, "No telemetry is published for this session/lap yet. Try a completed session or a 2023+ event with OpenF1 coverage.")
 
 
-ASSETS_DIR = ROOT / "assets"
-if ASSETS_DIR.is_dir():
-    app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
 
 
 @app.get("/")
-def frontend_index() -> FileResponse:
-    if os.environ.get('VERCEL'):
-        return RedirectResponse('https://f1apexdata.eufrandota14.chatgpt.site/apex/')
-    return FileResponse(ROOT / "index.html")
-
-
-@app.get("/{asset_name}")
-def frontend_asset(asset_name: str) -> FileResponse:
-    """Serve only the browser bundle, never backend source or deployment files."""
-    if os.environ.get('VERCEL'):
-        raise HTTPException(404, 'Frontend assets are served by the site host.')
-    # Browser scripts and styles sit at the repository root; backend source, configuration
-    # and deployment files have other extensions and are never served.
-    if not re.fullmatch(r"[A-Za-z0-9_-]+\.(js|css)", asset_name) or not (ROOT / asset_name).is_file():
-        raise HTTPException(404, "Not found")
-    return FileResponse(ROOT / asset_name)
+def frontend_index() -> RedirectResponse:
+    """This is the compute API only; the site is the published one, which uses this PC for compute."""
+    return RedirectResponse('https://f1apexdata.eufrandota14.chatgpt.site/apex/')

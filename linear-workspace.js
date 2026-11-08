@@ -20,7 +20,6 @@
       {label: 'Choose comparison laps', detail: 'Session analysis', action: () => { document.querySelector('[data-analysis-view="session"]')?.click(); document.getElementById('lapWorkspaceToggle')?.click(); }},
       {label: 'Change appearance', detail: 'Switch light / dark', action: () => document.getElementById('themeToggle')?.click()},
       {label: 'Toggle explanations', detail: 'Show or hide measurement guidance', action: () => document.getElementById('explanationsToggle')?.click()},
-      {label: 'Switch density', detail: 'Normal / compact', action: toggleDensity},
       ...[...document.querySelectorAll('#performanceCategoryList button:not(:disabled)')].map(button => ({label: button.getAttribute('aria-label') || button.textContent.trim(), detail: 'Car performance category', action: () => { document.querySelector('[data-analysis-view="performance"]')?.click(); button.click(); }})),
     ];
   }
@@ -43,32 +42,6 @@
     if (!isLinear()) return;
     returnFocus = event?.currentTarget instanceof HTMLElement ? event.currentTarget : document.activeElement;
     search.value = ''; renderCommands(); dialog.showModal(); search.focus();
-  }
-  function toggleDensity() {
-    const next = root.dataset.linearDensity === 'compact' ? 'normal' : 'compact';
-    root.dataset.linearDensity = next;
-    try { localStorage.setItem('apex-linear-density', next); } catch { /* page only */ }
-    syncDensityButton();
-    requestAnimationFrame(() => window.ApexUI?.decorate(document));
-    window.dispatchEvent(new Event('resize'));
-  }
-  // Density is a toggle in the header, beside the appearance controls: pressed means compact.
-  function syncDensityButton() {
-    const button = document.getElementById('densityToggle'); if (!button) return;
-    const compact = root.dataset.linearDensity === 'compact';
-    button.setAttribute('aria-pressed', String(compact));
-    button.setAttribute('aria-label', compact ? 'Use normal density' : 'Use compact density');
-    button.title = compact ? 'Density: compact. Switch to normal' : 'Density: normal. Switch to compact';
-  }
-  function mountDensityButton() {
-    const button = document.createElement('button');
-    button.id = 'densityToggle'; button.type = 'button'; button.className = 'sidebar-toggle'; button.dataset.linearDensity = '';
-    // Static authored markup: three tight rows, the compact list.
-    button.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h10"/></svg>';
-    button.addEventListener('click', toggleDensity);
-    const theme = document.getElementById('themeToggle');
-    if (theme) theme.after(button); else document.querySelector('.site-header .workspace-tools')?.append(button);
-    syncDensityButton();
   }
   // A rail section: a heading button that folds its content, as Linear's "Workspace" and "Favorites" headings do.
   function section(id, label, content, extra = '') {
@@ -101,7 +74,6 @@
     document.body.append(dialog);
     search = dialog.querySelector('input'); results = dialog.querySelector('.linear-command-results');
     rail.querySelector('.linear-search').addEventListener('click', openCommands);
-    mountDensityButton();
     // The whole filter chip opens its menu ("Season 2026 ⌄"), not only the value part.
     document.addEventListener('click', event => {
       if (!isLinear()) return;
@@ -139,13 +111,12 @@
     lapHeader.innerHTML = '<strong>Comparison laps</strong><div class="linear-lap-actions"></div><button type="button" aria-label="Close lap chooser">Done</button>';
     lapHeader.querySelector('button').addEventListener('click', () => document.getElementById('lapWorkspaceToggle')?.click());
     document.getElementById('lapSelectionBody').prepend(lapHeader);
-    try { root.dataset.linearDensity = localStorage.getItem('apex-linear-density') === 'compact' ? 'compact' : 'normal'; } catch { root.dataset.linearDensity = 'normal'; }
-    if (root.dataset.linearDensity === 'compact') { root.dataset.linearDensity = 'normal'; toggleDensity(); }
+    // One density only: forget a compact choice saved by earlier versions.
+    try { localStorage.removeItem('apex-linear-density'); } catch { /* storage is optional */ }
   }
   function reconcile() {
     if (!rail) return;
     const active = isLinear(); rail.hidden = !active; lapHeader.hidden = !active;
-    const density = document.getElementById('densityToggle'); if (density) density.hidden = !active;
     if (active) {
       move(document.querySelector('.performance-tabs'), rail.querySelector('.linear-navigation'));
       move(document.getElementById('performanceCategoryList'), rail.querySelector('.linear-categories'));

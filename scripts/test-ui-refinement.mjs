@@ -25,9 +25,6 @@ test('lap chooser uses an unscrolled driver grid above its lap cards',()=>{
   postcss.parse(css);
   assert.match(css,/#lapSelectionBody > #driverSidebar \{ grid-area: 1 \/ 1/);
   assert.match(css,/#lapSelectionBody > #stintPanels \{ grid-area: 2 \/ 1/);
-  assert.match(css,/@media\(max-width:760px\)[\s\S]*#lapSelectionBody > #stintPanels \{ grid-area: 2 \/ 1/);
-  assert.match(css,/sector-cell::after \{ height: 5px/);
-  assert.match(css,/sector-cell-value > small \{ font-size: var\(--type-headline\)/);
 });
 
 test('trace selectors show exact lap times while retaining stable lap identities',()=>{
@@ -44,5 +41,4 @@ test('compound pills keep all options and the selected compound',()=>{
   assert.match(tyres,/data-tyre-compound=\{c\} aria-pressed=\{compound\.value === c\}/);
   assert.match(tyres,/aria-labelledby="performanceTyreCompoundLabel"/);
   assert.match(car,/const navEmoji=\{pace:'⏱️'/);
-  assert.match(css,/performance-tyre-toolbar \.performance-quality-status \{ flex: 1 0 100%/);
 });

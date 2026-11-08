@@ -49,7 +49,6 @@ test('type uses one ramp and section headers share one style across both views',
 test('motion is brief, never replays on re-render and honours Reduce Motion, Transparency and Contrast', () => {
   assert.match(tokenCss, /--hig-fast: var\(--motion-tier-fast\)/);
   assert.match(tokenCss, /--motion-tier-fast: 150ms/);
-  assert.match(css, /:is\(\.lap-summary-card,\.driver-run-card,\.chart,\.corner-analysis,\.dominance-map\) \{ animation: none; \}/);
   for (const query of ['prefers-reduced-motion: reduce', 'prefers-reduced-transparency: reduce', 'prefers-contrast: more']) {
     assert.ok(css.includes(query), query);
   }
@@ -58,18 +57,17 @@ test('motion is brief, never replays on re-render and honours Reduce Motion, Tra
   const blurred = new Set();
   root.walkDecls(/^(-webkit-)?backdrop-filter$/, decl => { if (decl.value !== 'none') blurred.add(decl.parent.selector); });
   assert.deepEqual([...blurred].sort(), [
-    '.circuit-guide-details[popover]', '.local-compute-dialog', '.local-compute-dialog::backdrop', '.performance-table th',
-    '.site-header, .site-header.window-toolbar', ':is(.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover])', 'body > main#top > .app-sidebar, body > #carPerformance > .app-sidebar, body > main#top > .app-inspector',
+    '.local-compute-dialog::backdrop', ':is(.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover])', 'body > main#top > .app-sidebar, body > #carPerformance > .app-sidebar, body > main#top > .app-inspector',
     // The lap chooser is a sheet, so the transient layer.
     '#lapSelectionBody:popover-open',
   ].sort());
   // Every translucent fill has an opaque fallback for Reduce Transparency, Increase Contrast and no backdrop-filter.
   for (const fallback of ['@media (prefers-reduced-transparency: reduce), (prefers-contrast: more)', '@supports not (backdrop-filter: blur(1px))']) assert.ok(css.includes(fallback), fallback);
-  // Neutral dark appearance: no blue cast in the base greys.
+  // Near-neutral greys: Linear's carry at most a faint cool cast (a few levels of blue), never a visible tint.
   const tokens = JSON.parse(readFileSync('e2e/__tokens__/tokens.json', 'utf8'));
   for (const theme of ['dark', 'light']) for (const name of ['canvas', 'panel', 'well', 'sidebar', 'toolbar', 'control', 'selected']) {
     const [r, g, b] = tokens[theme]['--ui-' + name].match(/#(..)(..)(..)/).slice(1).map(x => parseInt(x, 16));
-    assert.ok(Math.abs(b - r) <= 2 && Math.abs(g - r) <= 2, `${theme} --ui-${name} is tinted`);
+    assert.ok(Math.abs(b - r) <= 4 && Math.abs(g - r) <= 2, `${theme} --ui-${name} is tinted`);
   }
 });
 

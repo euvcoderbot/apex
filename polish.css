@@ -1,4 +1,4 @@
-.telemetry{position:relative}main{max-width:1740px;padding-left:3%;padding-right:3%}#loadedSection{display:none}.section-empty{color:var(--ui-tertiary);font:var(--type-callout) monospace}.fastest-gap{margin-bottom:12px}.lap.in-out{border-style:dashed;color:var(--ui-tertiary)}#charts .chart:first-child canvas{height:220px}#charts .chart:not(:first-child) canvas{height:105px}@media(max-width:700px){main{padding-left:4%;padding-right:4%}#charts .chart:first-child canvas{height:150px}#charts .chart:not(:first-child) canvas{height:75px}}
+.telemetry{position:relative}.section-empty{color:var(--ui-tertiary);font:var(--type-callout) monospace}
 
 /* 2026-08-21 responsive controls and system typography ------------------ */
 
@@ -36,13 +36,6 @@ body {
   max-width: 100%;
 }
 
-.session-controls .select-trigger span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 @media (max-width: 759px) {
   .sidebar .session-controls {
     width: 100%;
@@ -57,74 +50,14 @@ body {
   font-size: 10px;
 }
 
-.control-field label {
-  font-size: 11px;
-}
-
-.select-shell select,
-.select-trigger {
-  font-size: var(--type-callout);
-}
-
-.trace-zoom-readout,
-.trace-setting,
-.alignment-readout {
-  font-size: 11px;
-}
-
-.trace-display-bar > span,
-.trace-driver-chip b {
-  font-size: 10px;
-}
-
-.trace-driver-chip small,
-.trace-filter-empty {
-  font-size: 9px;
-}
-
-.corner-pick strong {
-  font-size: 11px;
-}
-
-.corner-pick small, .corner-detail-header > div > span, .corner-detail-header > div > small, .corner-detail-header dt {
-  font-size: 8px;
-}
-
-.corner-detail-header dd {
-  font-size: 11px;
-}
-
 .corner-table-head {
   font-size: 8px;
 }
 
-.telemetry-empty span,
-.telemetry-empty p {
-  font-size: 11px;
-}
-
 /* Lap workspace labels shown in the run/lap cards. */
-.run-toolbar > span,
-.run-section-label,
-.lap-group-header,
-.comparison-tray-heading {
-  font-size: 10px;
-}
-
-.run-toolbar .compare-all-btn {
-  font-size: 11px;
-}
 
 .run-driver > b {
   font-size: var(--type-headline);
-}
-
-.run-driver h3 {
-  font-size: var(--type-callout);
-}
-
-.run-driver small {
-  font-size: 10px;
 }
 
 .fastest-lap-pick span,
@@ -132,26 +65,6 @@ body {
 .lap-group-header small,
 .comparison-tray-heading small {
   font-size: 9px;
-}
-
-.fastest-lap-pick strong {
-  font-size: 11px;
-}
-
-.run-segment strong {
-  font-size: 11px;
-}
-
-.run-segment small {
-  font-size: 10px;
-}
-
-.lap-chip .lap-token {
-  font-size: 10px;
-}
-
-.lap-chip .lap-clock {
-  font-size: 11px;
 }
 
 /* Timing deltas need enough vertical resolution for multi-second gaps while

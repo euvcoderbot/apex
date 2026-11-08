@@ -29,15 +29,16 @@ test('Windows shutdown targets only the owned backend process tree',async()=>{
   assert.deepEqual(calls,[['taskkill.exe',['/PID','123','/T','/F'],{windowsHide:true}]]);
   await stopOwnedBackend({pid:process.pid,exitCode:null},{platform:'win32',run:()=>assert.fail('must not kill parent')});
 });
-test('lifecycle API is same-origin only; hosted discovery cannot create or close a lease',async()=>{
+test('the published site may hold a lease while it uses this PC; other sites may not',async()=>{
   let stops=0;const local=createLocalDashboard({root:'.',cacheRoot:'.',onIdle:()=>stops++,tabOptions:{pollMs:0}});
   local.server.listen(0,'127.0.0.1');await once(local.server,'listening');const origin='http://127.0.0.1:'+local.server.address().port;
   const body=JSON.stringify({id:a,action:'open'});
   try{
     let r=await fetch(origin+'/api/local-tab',{method:'POST',body,headers:{Origin:'https://evil.test'}});assert.equal(r.status,403);
-    r=await fetch(origin+'/api/local-tab',{method:'POST',body,headers:{Origin:'https://f1apexdata.eufrandota14.chatgpt.site'}});assert.equal(r.status,403);
     r=await fetch(origin+'/api/local-status',{headers:{Origin:'https://f1apexdata.eufrandota14.chatgpt.site'}});assert.equal(r.status,200);assert.equal(r.headers.get('access-control-allow-origin'),'https://f1apexdata.eufrandota14.chatgpt.site');
     assert.equal((await r.json()).activeTabs,0);
+    r=await fetch(origin+'/api/local-tab',{method:'POST',body,headers:{Origin:'https://f1apexdata.eufrandota14.chatgpt.site'}});assert.equal(r.status,200);assert.equal((await r.json()).activeTabs,1);
+    r=await fetch(origin+'/api/local-tab',{method:'POST',body:JSON.stringify({id:a,action:'close'}),headers:{Origin:'https://f1apexdata.eufrandota14.chatgpt.site'}});assert.equal((await r.json()).activeTabs,0);
     r=await fetch(origin+'/api/local-status',{method:'OPTIONS',headers:{Origin:'https://f1apexdata.eufrandota14.chatgpt.site','Access-Control-Request-Private-Network':'true'}});assert.equal(r.status,204);assert.equal(r.headers.get('access-control-allow-private-network'),'true');
     r=await fetch(origin+'/api/local-status',{method:'OPTIONS',headers:{Origin:'https://evil.test','Access-Control-Request-Private-Network':'true'}});assert.equal(r.status,403);assert.equal(r.headers.get('access-control-allow-private-network'),null);
     r=await fetch(origin+'/api/local-tab',{method:'POST',body});assert.equal(r.status,200);assert.equal((await r.json()).activeTabs,1);
@@ -45,14 +46,15 @@ test('lifecycle API is same-origin only; hosted discovery cannot create or close
     assert.equal((await fetch(origin+'/api/local-tab')).status,405);
   }finally{await new Promise(r=>local.server.close(r));}
 });
-test('status messages have horizontal text clearance and local navigation is not a silent scheme launch',async()=>{
+test('status messages have horizontal text clearance and the PC is only contacted once the person chooses it',async()=>{
   const css=await readFile('ui-controls.css','utf8'),page=await readFile('index.html','utf8'),client=await readFile('local-compute.js','utf8');
   assert.match(css,/performance-quality-status[^}]*padding: 8px 12px/);assert.match(css,/performance-quality-status[^}]*overflow-wrap: anywhere/);
-  assert.match(page,/class="local-compute-link" href="http:\/\/127\.0\.0\.1:54123\/apex\/"/);
-  assert.match(client,/pagehide/);assert.match(client,/navigator\.sendBeacon/);assert.match(client,/pageshow/);
-  assert.match(client,/new EventSource/);
+  assert.match(page,/id="computeSettings" popover/);assert.match(page,/data-compute-start href="apex-local:\/\/start"/);
+  // A lease stream keeps the service awake while the page is open; the launcher only starts through the browser's own prompt.
+  assert.match(client,/new EventSource/);assert.match(client,/\/api\/local-tab-stream/);
   assert.doesNotMatch(client,/location\.(?:assign|href).*apex-local|iframe|window\.open/);
-  assert.match(client,/dialog\.showModal/);assert.match(await readFile('scripts/sync-static.mjs','utf8'),/"local-compute\.js"/);
+  // Nothing on the PC is contacted unless the person chose it.
+  assert.match(client,/choice\(\) === 'local' \? connect\(\{quiet: true\}\) : Promise\.resolve\(false\)/);assert.match(await readFile('scripts/sync-static.mjs','utf8'),/"local-compute\.js"/);
 });
 test('a tab transport disconnect releases its lease even without unload or a beacon',async()=>{
   const local=createLocalDashboard({root:'.',cacheRoot:'.',onIdle:()=>{},tabOptions:{pollMs:0}});

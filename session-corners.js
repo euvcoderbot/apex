@@ -308,7 +308,7 @@ function loadCircuitAnnotations(key, year, signal) {
   if (apiCircuitGuides.get(identity)) return Promise.resolve(apiCircuitGuides.get(identity));
   if (circuitAnnotationFlights.has(identity)) return circuitAnnotationFlights.get(identity);
   apiCircuitGuideRequests.add(identity);
-  const request = fetch(`/api/circuit-guide?key=${key}&year=${year}`, {
+  const request = fetch(`${String(window.APEX_COMPUTE_ORIGIN || '').replace(/\/$/, '')}/api/circuit-guide?key=${key}&year=${year}`, {
     signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000),
   }).then(response => {
     if (!response.ok) throw new Error('Circuit metadata unavailable');

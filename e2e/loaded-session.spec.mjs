@@ -92,10 +92,11 @@ test('qualifying phases, empty comparison alignment and compute settings remain 
     return [center(root.querySelector('.comparison-tray-heading')), center(root.querySelector('.section-empty'))];
   });
   expect(Math.abs(centers[0] - centers[1])).toBeLessThan(1);
-  await expect(page.locator('.workspace-tools > .local-compute-status')).toHaveCount(0);
+  // Compute on this PC is offered in Compute settings; nothing on the PC is contacted until it is chosen.
   await page.getByRole('button', {name: 'Compute settings', exact: true}).click();
   await expect(page.locator('#computeSettings')).toBeVisible();
-  await expect(page.locator('#computeSettings .local-compute-status')).toBeVisible();
+  await expect(page.locator('#computeSettings [data-compute-use]')).toHaveText('Use this PC');
+  await expect(page.locator('#computeSettings [data-compute-status]')).toContainText('published data');
   await page.keyboard.press('Escape');
   // A presentation-only narrow-header fixture: no synthetic telemetry enters
   // the comparison. Include the widest selectable speed heading and its icon.

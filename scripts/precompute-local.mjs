@@ -21,7 +21,7 @@ async function request(route,body){
   }
   const r=await fetch(origin+route,{...(body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(180000)});const data=await r.json();if(!r.ok)throw new Error(data.detail||'Local calculation failed');return {data,cache:r.headers.get('X-Data-Cache')};}
 const status=await request('/api/local-status').then(r=>r.data).catch(()=>null);
-if(status?.mode!=='local')throw new Error('Start start-local.cmd (or npm run local) before precomputing. No Vercel fallback was used.');
+if(status?.mode!=='local')throw new Error('Start start-local.cmd (or npm run local) before precomputing. Nothing is computed elsewhere.');
 if(capturing&&Object.entries(revisions).some(([k,v])=>status[k]!==v))throw new Error('Local server revisions do not match the checkout. Restart local compute before capturing.');
 async function capture(route,data){
   if(!capturing)return;
