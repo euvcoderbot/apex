@@ -1,0 +1,7 @@
+# Linear release snapshot compatibility audit
+
+The currently published Site source is commit `cca17cb7db10b76c87ffc8ca7c49cc9090943cba` in the Site repository. Its generated source and backend identities are `17534d7592c1c357898d` and `2623ae524ce37d83e700`. The Linear-only GitHub source at `d98afb7c3ac378424cb6aa891b1cf34170d9fa66` generates `1493e081d26a72cd8feb` and `95272b8c86a3b0b51eca` respectively. The measurement identity remains `267fe2622a3941ad629a`.
+
+Comparison of the inputs used by `scripts/sync-static.mjs` found differences only in `server.py` and `retirement_sources.py`. The server changes remove Vercel/frontend hosting paths, apply the local API request guard, and add separate season endpoints; existing session and performance calculation implementations are unchanged. The retirement-source change removes a Vercel-specific cache location. Existing captured measurements and their original revision identifiers can therefore remain available under the new identities, including older identities already approved for the published source.
+
+These allowances do not permit unknown revisions and do not waive the full release gate. In particular, race retirement classifications must still be refreshed and validated under the current backend revision, and historical OpenF1 sessions must still satisfy the offline race-control annotation check. Never change capture times or silently relabel observations.
