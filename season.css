@@ -583,3 +583,14 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 #seasonHub .season-update[open] { background: color-mix(in oklch, var(--ui-label) 3%, transparent); }
 #seasonHub .season-update summary:hover { background: color-mix(in oklch, var(--ui-label) 3%, transparent); }
 .season-update-group h4 { padding: 6px 0; box-shadow: inset 0 -1px var(--line); margin: 0; }
+
+/* driver photos (Wikimedia Commons, credited below each page that shows them) */
+.season-avatar > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.season-photo-credit { margin: 2px 0 0; color: var(--ui-tertiary); font-size: 11px; line-height: 1.4; }
+.season-photo-credit a, .season-credits a { color: inherit; text-decoration: underline; text-decoration-color: color-mix(in oklch, currentColor 40%, transparent); text-underline-offset: 2px; }
+.season-photo-credit a:hover, .season-credits a:hover { color: var(--ui-label); }
+.season-credits { margin-top: 4px; padding: 10px 2px; color: var(--ui-tertiary); font-size: 12px; }
+.season-credits > summary { width: max-content; color: var(--ui-secondary); cursor: pointer; }
+.season-credits ul { display: grid; gap: 4px; margin: 10px 0 6px; padding: 0; list-style: none; columns: 2 320px; }
+.season-credits li { break-inside: avoid; }
+.season-credits li b { color: var(--ui-secondary); font-weight: 500; }

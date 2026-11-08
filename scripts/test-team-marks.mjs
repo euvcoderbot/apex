@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync, existsSync} from 'node:fs';
+import {readFileSync, existsSync, readdirSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import vm from 'node:vm';
 
@@ -37,13 +37,34 @@ test('a mark is the team code on a tile in the team colour, with no image and no
   assert.equal(new Set(current.map(t => teamMark(t).code)).size, current.length);
 });
 
-test('the site ships no third-party team logos, driver portraits, car images or tyre maker images', () => {
-  for (const dir of ['assets/teams', 'assets/drivers', 'assets/tyres']) assert.equal(existsSync(dir), false, dir);
+test('the site ships no team logos, car images or tyre maker images, and no formula1.com or Pirelli files', () => {
+  for (const dir of ['assets/teams', 'assets/tyres']) assert.equal(existsSync(dir), false, dir);
   assert.equal(existsSync('assets/official-sources.json'), false);
   const tracked = execFileSync('git', ['ls-files', '*.js', '*.mjs', '*.ts', '*.tsx', '*.html', '*.css'], {encoding: 'utf8'}).split('\n')
     .filter(f => f && !f.startsWith('scripts/test-') && !f.startsWith('e2e/'));
-  const offenders = tracked.filter(f => existsSync(f) && /assets\/(teams|drivers|tyres)\/|media\.formula1\.com|tyre24\.pirelli/.test(readFileSync(f, 'utf8')));
+  const offenders = tracked.filter(f => existsSync(f) && /assets\/(teams|tyres)\/|media\.formula1\.com|tyre24\.pirelli/.test(readFileSync(f, 'utf8')));
   assert.deepEqual(offenders, []);
+});
+
+test('every driver photo is a credited Wikimedia Commons file under a free licence', () => {
+  const {photos} = JSON.parse(readFileSync('assets/drivers/credits.json', 'utf8'));
+  const files = readdirSync('assets/drivers').filter(f => f !== 'credits.json');
+  assert.ok(files.length >= 20, `${files.length} photos`);
+  for (const file of files) {
+    const id = file.replace(/\.webp$/, ''), credit = photos[id];
+    assert.ok(file.endsWith('.webp') && credit, `${file} has a credit`);
+    assert.match(credit.page, /^https:\/\/commons\.wikimedia\.org\/wiki\/File:/, id);
+    assert.match(credit.licence, /^(CC BY(-SA)? [\d.]+|CC0( 1\.0)?|Public domain|OGL [23])$/, `${id}: ${credit.licence}`);
+    assert.ok(credit.author && credit.name, id);
+    if (!/^(CC0|Public domain)/.test(credit.licence)) assert.match(credit.licence_url, /^https:\/\//, `${id} links its licence`);
+  }
+  for (const id of Object.keys(photos)) assert.ok(files.includes(`${id}.webp`), `${id} credit has a photo`);
+  // Pages that show photos list their credits; the driver header credits its own.
+  const season = readFileSync('season.js', 'utf8');
+  assert.match(season, /function photoCredits\(\)/);
+  assert.match(season, /const credit = photoCredit\(id\); if \(credit\) ident\.append\(credit\);/);
+  assert.match(season, /function paint\(views\) \{\n    imagery\.shown\.clear\(\);/);
+  assert.doesNotMatch(season, /body\.replaceChildren\(\.\.\.render/);
 });
 
 test('every page that shows teams loads the marks before the views that draw them', () => {

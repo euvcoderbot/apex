@@ -16,10 +16,42 @@
   const teamColour = id => window.apexTeamColour?.(TEAM_HEX[id] || '#8e8e93') || TEAM_HEX[id] || '#8e8e93';
   const now = () => new Date();
 
-  // ---------- imagery: driver avatars, team marks and circuit outlines ----------
-  // Avatars and team marks are drawn by the app (team colour and code); circuit outlines are bacinger/f1-circuits (MIT, assets/circuits/LICENSE.md).
-  const imagery = {circuits: null};
-  let circuitRequest = null;
+  // ---------- imagery: driver photos and avatars, team marks and circuit outlines ----------
+  // Driver photos are Wikimedia Commons files under free licences (CC BY, CC BY-SA, CC0, OGL), credited on every page that shows
+  // them (assets/drivers/credits.json). Without a photo the avatar is the driver's code on the team colour. Team marks are drawn by
+  // team-marks.js; circuit outlines are bacinger/f1-circuits (MIT, assets/circuits/LICENSE.md).
+  const imagery = {circuits: null, photos: {}, shown: new Set()};
+  let circuitRequest = null, photoRequest = null;
+  function loadPhotos() {
+    photoRequest ||= fetch('assets/drivers/credits.json').then(r => (r.ok ? r.json() : {}))
+      .then(list => { imagery.photos = list?.photos || {}; }).catch(() => { imagery.photos = {}; });
+    return photoRequest;
+  }
+  const safeUrl = url => (/^https:\/\//.test(url || '') ? url : null);
+  function link(text, url) {
+    const href = safeUrl(url);
+    if (!href) return el('span', null, text);
+    const a = el('a', null, text); a.href = href; a.target = '_blank'; a.rel = 'noopener';
+    return a;
+  }
+  // "Photo: <author>, <licence>", linked to the file's Commons page and the licence, as the licences ask.
+  function photoCredit(id) {
+    const c = imagery.photos[id];
+    if (!c) return null;
+    const p = el('p', 'season-photo-credit');
+    p.append('Photo: ', link(c.author || 'Wikimedia Commons', c.page), ', ', link(c.licence, c.licence_url));
+    return p;
+  }
+  function photoCredits() {
+    const ids = [...imagery.shown].filter(id => imagery.photos[id]).sort();
+    if (!ids.length) return null;
+    const box = el('details', 'season-credits');
+    box.append(el('summary', null, 'Photo credits'));
+    const list = el('ul');
+    for (const id of ids) { const li = el('li'); li.append(el('b', null, imagery.photos[id].name + ': ')); li.append(...photoCredit(id).childNodes); list.append(li); }
+    box.append(list, el('p', 'season-muted', 'Driver photos from Wikimedia Commons, cropped to a headshot.'));
+    return box;
+  }
   function loadCircuits() {
     circuitRequest ||= fetch('assets/circuits/f1-circuits.geojson').then(r => (r.ok ? r.json() : null))
       .then(geo => { imagery.circuits = geo?.features || []; }).catch(() => { imagery.circuits = []; });
@@ -29,6 +61,12 @@
     const span = el('span', `season-avatar is-${size}`);
     span.style.setProperty('--team', teamColour(data.drivers[id]?.team));
     span.append(el('b', null, (data.drivers[id]?.code || '').slice(0, 3)));
+    if (imagery.photos[id]) {
+      // The code stays underneath: if the photo fails to load, removing it shows the code.
+      const img = el('img'); img.src = `assets/drivers/${encodeURIComponent(id)}.webp`; img.alt = ''; img.decoding = 'async'; img.loading = 'lazy';
+      img.addEventListener('error', () => img.remove(), {once: true});
+      span.append(img); imagery.shown.add(id);
+    }
     return span;
   }
   function teamMark(data, id) {
@@ -243,12 +281,18 @@
   document.addEventListener('click', event => { if (event.target.closest?.('[data-analysis-view], #liveViewButton')) leave(); }, true);
 
   // ---------- rendering ----------
+  // A page's views, then the credits for the driver photos those views showed.
+  function paint(views) {
+    imagery.shown.clear();
+    const nodes = views(), credits = photoCredits();
+    body.replaceChildren(...nodes, ...(credits ? [credits] : []));
+  }
   let renderToken = 0;
   async function render() {
     const token = ++renderToken, tab = state.tab, year = state.year;
     body.replaceChildren(el('p', 'season-loading', tab === 'upgrades' ? 'Reading the FIA car presentation documents… the first time takes up to a minute.' : 'Loading…'));
     try {
-      const [data] = await Promise.all([load('season', year), tab === 'schedule' ? loadCircuits() : null]);
+      const [data] = await Promise.all([load('season', year), loadPhotos(), tab === 'schedule' ? loadCircuits() : null]);
       const extra = tab === 'upgrades' ? await load('upgrades', year) : tab === 'units' ? await load('units', year) : null;
       if (token !== renderToken) return;
       const view = {schedule: renderSchedule, results: renderResults, standings: renderStandings, drivers: renderDrivers,
@@ -256,7 +300,7 @@
       setCodes(data);
       const note = savedNote(extra?.saved_at ? extra : data), saved = page.querySelector('.season-saved');
       if (saved) { saved.textContent = note; saved.hidden = !note; }
-      body.replaceChildren(...view(data, extra));
+      paint(() => view(data, extra));
       requestAnimationFrame(() => window.ApexUI?.decorate?.(body));
     } catch (error) {
       if (token !== renderToken) return;
@@ -474,7 +518,7 @@
       const at = p => r.race.find(x => x.position === p)?.driver;
       tr.append(el('td', 'num', String(r.round)), gp, cell(w.pole), cell(w.race_winner), cell(at(2)), cell(at(3)),
         cell(r.race.find(x => x.fastest_lap_rank === 1)?.driver), cell(w.sprint_winner), el('td', 'num', w.margin != null ? `${w.margin.toFixed(3)} s` : '—'));
-      const toggle = () => { state.expanded = state.expanded === r.round ? null : r.round; body.replaceChildren(...renderResults(data)); };
+      const toggle = () => { state.expanded = state.expanded === r.round ? null : r.round; paint(() => renderResults(data)); };
       tr.addEventListener('click', toggle);
       tr.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); } });
       tbody.append(tr);
@@ -579,7 +623,7 @@
     const toggle = el('div', 'season-segment');
     for (const [id, label] of [['drivers', 'Drivers'], ['teams', 'Constructors']]) {
       const b = el('button', null, label); b.type = 'button'; b.setAttribute('aria-pressed', String(state.standings === id));
-      b.addEventListener('click', () => { state.standings = id; body.replaceChildren(...renderStandings(data)); });
+      b.addEventListener('click', () => { state.standings = id; paint(() => renderStandings(data)); });
       toggle.append(b);
     }
     if (!evo.length) return [toggle, empty('No races yet this season.')];
@@ -941,7 +985,7 @@
     if (!state.driver || !data.drivers[state.driver]) state.driver = order[0];
     const id = state.driver, s = data.driver_stats[id];
     if (!s) return [empty('No races yet this season.')];
-    const pick = driverPicker(data, id, value => { state.driver = value; window.ApexUrl?.write('season', urlParams()); body.replaceChildren(...renderDrivers(data)); });
+    const pick = driverPicker(data, id, value => { state.driver = value; window.ApexUrl?.write('season', urlParams()); paint(() => renderDrivers(data)); });
     const standing = data.standings.drivers.at(-1)?.table.find(e => e.id === id);
     const table = data.standings.drivers.at(-1)?.table || [];
     const ahead = standing && table[standing.position - 2], behind = standing && table[standing.position];
@@ -955,6 +999,7 @@
     const ident = el('div', 'season-hero-id');
     if (driver?.number) ident.append(el('span', 'season-hero-number', driver.number));
     ident.append(el('h2', null, driverName(data, id)), teamTag(data, team));
+    const credit = photoCredit(id); if (credit) ident.append(credit);
     const side = el('div', 'season-driver-pos');
     side.append(el('b', 'season-big', standing ? `P${standing.position}` : '—'), el('span', 'season-muted', standing ? `${standing.points} points` : ''));
     hero.append(portrait, ident, side);
@@ -1050,7 +1095,7 @@
       state.b = pair ? (pair.a === state.a ? pair.b : pair.a) : order.find(x => x !== state.a);
     }
     const a = state.a, b = state.b, sa = data.driver_stats[a], sb = data.driver_stats[b];
-    const repaint = () => { window.ApexUrl?.write('season', urlParams()); body.replaceChildren(...renderH2H(data)); };
+    const repaint = () => { window.ApexUrl?.write('season', urlParams()); paint(() => renderH2H(data)); };
     const toolbar = el('div', 'season-toolbar');
     toolbar.append(driverPicker(data, a, v => { state.a = v; if (state.b === v) state.b = null; repaint(); }, 'First driver'), el('span', 'season-vs', 'vs'),
       driverPicker(data, b, v => { state.b = v; repaint(); }, 'Second driver'));
@@ -1193,7 +1238,7 @@
       if (team) { const mark = teamMark(data, team); b.prepend(mark); b.classList.add('has-mark'); } else if (colour) b.style.setProperty('--team', colour);
       b.addEventListener('click', onClick); return b;
     };
-    const repaint = () => { window.ApexUrl?.write('season', urlParams()); body.replaceChildren(...renderUpgrades(data, ups)); };
+    const repaint = () => { window.ApexUrl?.write('season', urlParams()); paint(() => renderUpgrades(data, ups)); };
     filters.append(chip('All teams', !state.team, () => { state.team = null; repaint(); }));
     for (const t of teams) filters.append(chip(teamName(data, t), state.team === t, () => { state.team = state.team === t ? null : t; repaint(); }, teamColour(t), t));
     const typeFilters = el('div', 'season-filters');
