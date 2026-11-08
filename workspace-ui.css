@@ -147,7 +147,7 @@ body:not(.trace-focus) .chart.compact .chart-heading { margin-bottom: 5px; }
 .header-actions .performance-tabs button[aria-selected="true"] { box-shadow: var(--ui-shadow-control); background: var(--ui-selected); }
 .site-header .performance-tabs button:active, .site-header .performance-tabs button:hover { transform: none; }
 .workspace-tools { display: flex; align-items: center; justify-content: flex-end; gap: 7px; max-width: 1720px; padding: 12px 24px 0; margin: auto; min-height: 44px; }
-.workspace-tools :is(#explanationsToggle,#glassToggle) span, .workspace-intro #sidebarToggle span { display: inline; position: static; width: auto; height: auto; padding: 0; overflow: visible; clip-path: none; white-space: nowrap; }
+.workspace-tools :is(#explanationsToggle) span,.workspace-intro #sidebarToggle span { display: inline; position: static; width: auto; height: auto; padding: 0; overflow: visible; clip-path: none; white-space: nowrap; }
 .performance-chart-card, .chart, .corner-detail-card, .driver-run-card { box-shadow: inset 0 1px 0 #ffffff05,0 2px 7px #00000010; }
 .lap-workspace .run-segments { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,104px),1fr)); overflow: visible; padding: 0; margin-inline: 0; gap: 6px; }
 .lap-workspace .run-segment { display: grid; grid-template-columns: auto minmax(0,1fr) 16px; min-width: 0; width: 100%; gap: 5px; padding: 8px; white-space: normal; flex: initial; }

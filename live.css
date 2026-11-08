@@ -1,6 +1,5 @@
 /* Live timing view (live.js, local compute only). Built from the shared tokens, so both looks restyle it. */
 body.live-view > main#top, body.live-view > #carPerformance, body.live-view #sessionSidebar, body.live-view #performanceSidebar { display: none !important; }
-body.live-view .performance-tabs[data-ui-thumb]::before { opacity: 0; }
 
 .live-view-button { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 5px 14px; border: 1px solid var(--ui-border); border-radius: var(--radius-pill); background: var(--ui-control); color: var(--ui-secondary); font-weight: 500; white-space: nowrap; cursor: pointer; }
 .live-view-button:hover { color: var(--ui-label); background: var(--ui-control-hover, var(--ui-control)); }

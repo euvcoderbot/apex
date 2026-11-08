@@ -1,10 +1,8 @@
 /* Presentation-only workspace. Original controls are reparented, never cloned:
    existing listeners, URL state and loaded data remain owned by the app. */
 (() => {
-  const root = document.documentElement;
   const anchors = new Map();
   let rail, dialog, search, results, returnFocus, lapHeader;
-  const isLinear = () => root.dataset.skin === 'linear';
   const move = (node, destination) => {
     if (!node || !destination) return;
     if (!anchors.has(node)) {
@@ -39,7 +37,6 @@
     }
   }
   function openCommands(event) {
-    if (!isLinear()) return;
     returnFocus = event?.currentTarget instanceof HTMLElement ? event.currentTarget : document.activeElement;
     search.value = ''; renderCommands(); dialog.showModal(); search.focus();
   }
@@ -76,7 +73,6 @@
     rail.querySelector('.linear-search').addEventListener('click', openCommands);
     // The whole filter chip opens its menu ("Season 2026 ⌄"), not only the value part.
     document.addEventListener('click', event => {
-      if (!isLinear()) return;
       const chip = event.target.closest?.('.app-sidebar .control-field');
       if (!chip || event.target.closest('.select-trigger, .select-menu, button, input, a')) return;
       const trigger = chip.querySelector('.select-trigger'); if (!trigger) return;
@@ -97,12 +93,12 @@
       } else if (event.key === 'Enter' && document.activeElement === search) { event.preventDefault(); buttons[0]?.click(); }
     });
     document.addEventListener('keydown', event => {
-      if (isLinear() && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault(); if (dialog.open) dialog.close(); else openCommands();
       }
       // "[" folds the sidebar, as in Linear; never while typing or with a modifier held.
       const typing = event.target.closest?.('input, textarea, select, [contenteditable="true"]');
-      if (isLinear() && event.key === '[' && !typing && !event.ctrlKey && !event.metaKey && !event.altKey && !dialog.open) {
+      if (event.key === '[' && !typing && !event.ctrlKey && !event.metaKey && !event.altKey && !dialog.open) {
         event.preventDefault(); document.getElementById('windowSidebarToggle')?.click();
       }
     });
@@ -116,26 +112,21 @@
   }
   function reconcile() {
     if (!rail) return;
-    const active = isLinear(); rail.hidden = !active; lapHeader.hidden = !active;
-    if (active) {
-      move(document.querySelector('.performance-tabs'), rail.querySelector('.linear-navigation'));
-      move(document.getElementById('performanceCategoryList'), rail.querySelector('.linear-categories'));
-      move(document.getElementById('lapWorkspaceActions'), lapHeader.querySelector('.linear-lap-actions'));
-    } else {
-      if (dialog.open) dialog.close();
-      for (const [node, anchor] of anchors) anchor.after(node);
-    }
+    rail.hidden = false; lapHeader.hidden = false;
+    move(document.querySelector('.performance-tabs'), rail.querySelector('.linear-navigation'));
+    move(document.getElementById('performanceCategoryList'), rail.querySelector('.linear-categories'));
+    move(document.getElementById('lapWorkspaceActions'), lapHeader.querySelector('.linear-lap-actions'));
     placeChooseLaps();
     syncView(); requestAnimationFrame(() => window.ApexUI?.decorate(document));
     // The driver list's placement belongs to dashboard-ui.js (arrangeDriverRail); a resize makes it re-place the list now that the rail exists.
     window.dispatchEvent(new Event('resize'));
   }
   // Choose laps sits under the driver list while the list is in the rail: pick drivers, then choose their laps, in one column.
-  // Anywhere else (the macOS look, a folded rail, phones) it returns to the Comparison bar.
+  // Anywhere else (a folded rail, phones) it returns to the Comparison bar.
   function placeChooseLaps() {
     const toggle = document.getElementById('lapWorkspaceToggle'), card = document.querySelector('#linearWorkspace .linear-drivers .driver-control-card');
     if (!toggle) return;
-    if (isLinear() && card) { if (toggle.parentElement !== card) move(toggle, card); toggle.classList.add('is-rail-pill'); }
+    if (card) { if (toggle.parentElement !== card) move(toggle, card); toggle.classList.add('is-rail-pill'); }
     else { toggle.classList.remove('is-rail-pill'); const anchor = anchors.get(toggle); if (anchor && toggle.previousSibling !== anchor) anchor.after(toggle); }
   }
   addEventListener('resize', () => requestAnimationFrame(placeChooseLaps), {passive: true});

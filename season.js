@@ -3,7 +3,6 @@
    (parsed FIA documents), fetched through the same cached data path as the other views. Loaded after the page
    (lazy module), so it never delays the session view. Text from data is always set as text or escaped. */
 (() => {
-  const root = document.documentElement;
   const TABS = [['schedule', 'Schedule'], ['results', 'Results'], ['standings', 'Standings'], ['drivers', 'Driver stats'],
     ['h2h', 'Head-to-head'], ['upgrades', 'Upgrades'], ['units', 'Power units']];
   // Teams' formula1.com colours (team-colours.js maps the feed's shades to these and handles light mode).
@@ -234,7 +233,7 @@
   }
   // Linear look: a row in the rail's Analysis section, with the season's pages listed underneath while it is open.
   function place() {
-    const rail = root.dataset.skin === 'linear' && document.querySelector('#linearWorkspace .linear-navigation');
+    const rail = document.querySelector('#linearWorkspace .linear-navigation');
     if (rail) {
       rail.append(button);
       if (!railSection) {

@@ -56,7 +56,8 @@ test('sidebar toggle and source list behave in a minimal DOM',()=>{
   assert.equal(attrs['aria-expanded'],'true');assert.equal(classes.has('is-sidebar-hidden'),false);
   listeners.click();
   assert.equal(classes.has('is-sidebar-hidden'),true);assert.equal(attrs['aria-expanded'],'false');assert.equal(attrs['aria-label'],'Show sidebar');
-  assert.ok(asides.every(aside=>aside.inert));assert.equal(prefs.hideSidebar,true);
+  // The rail is hidden by CSS (data-sidebar); it is never made inert.
+  assert.ok(asides.every(aside=>!aside.inert));assert.equal(prefs.hideSidebar,true);
   listeners.click();
   assert.equal(classes.has('is-sidebar-hidden'),false);assert.ok(asides.every(aside=>!aside.inert));
 });

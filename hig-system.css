@@ -6,8 +6,7 @@
    still lay controls out (grid, flex, width); they no longer decide how a
    family looks. Reference: Apple Human Interface Guidelines (macOS) — Buttons,
    Segmented controls, Pop-up buttons, Toggles, Lists and tables, Sidebars,
-   Toolbars, Typography, Materials, Motion, Accessibility.
-   The rationale and the full element inventory are in docs/hig-audit-20261022.md. */
+   Toolbars, Typography, Materials, Motion, Accessibility. The Linear look (skins.css) is drawn on top. */
 
 /* ---------- Shared state behaviour ---------------------------------------- */
 :is(button,summary)[data-ui-kind]:active:not(:disabled) { transform: none; }
@@ -305,37 +304,11 @@ button.map-guide-info[data-ui-kind="icon"] {
 .circuit-guide-details[popover]:not(:popover-open) { display: none; }
 @media (prefers-reduced-transparency: reduce) { .circuit-guide-details[popover] { background: var(--ui-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 
-/* ---------- Sliding segmented thumb (HIG Segmented controls) --------------
-   ui-system.js writes the chosen segment's box to --ui-thumb-*; the group's
-   ::before is the thumb and slides between segments. Segments stay clear so
-   the label sits on the moving thumb. */
-:is([data-ui-group="segments"],.lap-workspace .run-segments,#carPerformance > .category-bar)[data-ui-thumb] { position: relative; isolation: isolate; }
-:is([data-ui-group="segments"],.lap-workspace .run-segments,#carPerformance > .category-bar)[data-ui-thumb]::before {
-  content: ''; position: absolute; left: 0; top: 0; z-index: -1; pointer-events: none;
-  width: var(--ui-thumb-w); height: var(--ui-thumb-h);
-  transform: translate(var(--ui-thumb-x), var(--ui-thumb-y));
-  border-radius: var(--hig-radius-thumb); background: var(--ui-seg-thumb); box-shadow: var(--ui-thumb-shadow);
-}
-:is([data-ui-group="segments"],.lap-workspace .run-segments,#carPerformance > .category-bar)[data-ui-thumb="sliding"]::before {
-  transition: transform var(--hig-medium) var(--hig-ease-out), width var(--hig-medium) var(--hig-ease-out), height var(--hig-medium) var(--hig-ease-out);
-}
-[data-ui-thumb] > :is(button[data-ui-kind="segment"],button[data-ui-kind="run"])[aria-pressed="true"],
-[data-ui-thumb] > button[data-ui-kind="tab"][aria-current="page"] { background: transparent; box-shadow: none; }
-@media (prefers-reduced-motion: reduce) {
-  [data-ui-thumb]::before { transition: none !important; }
-}
-@media (forced-colors: active) {
-  [data-ui-thumb]::before { display: none; }
-  [data-ui-thumb] > :is(button[aria-pressed="true"],button[aria-current="page"]) { background: Highlight; color: HighlightText; }
-}
-
 /* Audit follow-through on Claude's3cfe307 baseline. Numeric web tokens are
    project choices, not Apple-prescribed CSS dimensions or timings. */
 [hidden] { display: none !important; }
-/* The workspace switch keeps its segmented presentation and sliding thumb,
-   with proper tab semantics for its two content panels. */
+/* The workspace switch keeps proper tab semantics for its two content panels. */
 .performance-tabs > button[aria-selected="true"],.performance-tabs > button[aria-selected="true"]:hover { color: var(--ui-label); font-weight: 600; background: transparent; box-shadow: none; }
-[data-ui-thumb] > button[aria-selected="true"] { background: transparent; box-shadow: none; }
 /* Concise labels avoid overlap; the full category names remain accessible. */
 /* Shared flag/text columns in the closed field and each option. The menu's
    border +4px inset +3px row inset matches the field's8px inset. */
@@ -464,7 +437,7 @@ body.trace-focus #telemetryCard { scrollbar-gutter: stable; padding: 8px 16px 24
 /* Compute status: a labelled pill beside the toolbar items; a dot when space runs out. */
 @media (pointer: coarse) { .site-header .local-compute-status[data-ui-kind="toolbar"] { min-width: 44px; height: 44px; min-height: 44px; } }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
-@media(forced-colors:active) { [data-ui-thumb] > button[aria-selected="true"] { background: Highlight; color: HighlightText; } .chart-data-access { background: Canvas; color: CanvasText; } }
+@media(forced-colors:active) { .chart-data-access { background: Canvas; color: CanvasText; } }
 
 /* Corner comparison: a compact native table and explicit button affordances.
    HIG Lists and tables / Buttons / Layout: readable headers, clear feedback,
@@ -539,13 +512,13 @@ body.trace-focus #telemetryCard { scrollbar-gutter: stable; padding: 8px 16px 24
 
 /* ---------- Visual pass: fewer boxes, quieter selection, more room for the data ---------- */
 /* Toolbar: icons with tooltips, as a macOS toolbar does. Only the state that means something is filled. */
-.workspace-tools :is(#explanationsToggle,#themeToggle,#glassToggle,#skinToggle) { width: var(--hig-regular); min-width: var(--hig-regular); padding: 0; justify-content: center; }
-.workspace-tools :is(#explanationsToggle,#themeToggle,#glassToggle,#skinToggle) > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.workspace-tools :is(#themeToggle,#glassToggle)[aria-pressed]:not(:hover):not(:active) { background: transparent; }
+.workspace-tools :is(#explanationsToggle,#themeToggle) { width: var(--hig-regular); min-width: var(--hig-regular); padding: 0; justify-content: center; }
+.workspace-tools :is(#explanationsToggle,#themeToggle) > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.workspace-tools :is(#themeToggle)[aria-pressed]:not(:hover):not(:active) { background: transparent; }
 /* Phones with a fine pointer: five toolbar icons sit flush so the page tabs keep their full names. Touch keeps 44 px targets. */
 @media (max-width: 430px) and (pointer: fine) {
   .site-header .workspace-tools { gap: 0; padding-inline: 2px; }
-  .workspace-tools :is(#explanationsToggle,#themeToggle,#glassToggle,#skinToggle) { width: 28px; min-width: 28px; }
+  .workspace-tools :is(#explanationsToggle,#themeToggle) { width: 28px; min-width: 28px; }
 }
 
 /* Sidebar lists are lists: flat rows, not a stack of boxes, and a chosen row is a tint rather than a block of saturated blue. */
@@ -618,7 +591,6 @@ html, body { background: radial-gradient(90vw 70vh at 85% -10%,color-mix(in srgb
 .site-header .workspace-tools { height: 34px; padding-inline: 4px; }
 .site-header .performance-tabs[data-ui-group], .site-header .performance-tabs { padding: 3px; width: 310px; }
 .site-header .performance-tabs > button, .site-header .performance-tabs > button[data-ui-kind="segment"] { height: 28px; min-height: 28px; border-radius: var(--radius-pill); }
-:is(#carPerformance,.site-header) .performance-tabs[data-ui-thumb]::before { border-radius: var(--radius-pill); }
 
 /* Panes */
 @media (min-width:980px) {

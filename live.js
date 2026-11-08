@@ -22,7 +22,6 @@
       document.head.append(link);
     }
   }
-  const root = document.documentElement;
   const $ = (scope, name) => scope.querySelector(`[data-live="${name}"]`);
   const SPEEDS = [1, 2, 5, 10, 30, 60];
   const TYRES = {SOFT: ['S', '#ff3b30'], MEDIUM: ['M', '#ffd60a'], HARD: ['H', '#f2f2f7'], INTERMEDIATE: ['I', '#34c759'], WET: ['W', '#0a84ff']};
@@ -194,7 +193,7 @@
 
   // macOS look: a pill beside the view tabs. Linear look: a row in the rail's Analysis section.
   function place() {
-    const rail = root.dataset.skin === 'linear' && document.querySelector('#linearWorkspace .linear-navigation');
+    const rail = document.querySelector('#linearWorkspace .linear-navigation');
     if (rail) rail.append(button);
     // macOS look: the third segment of the view tabs (Session analysis · Car performance · Live), not a separate pill.
     else (document.querySelector('.site-header .performance-tabs') || document.querySelector('.site-header .header-actions'))?.append(button);

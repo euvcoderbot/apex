@@ -121,46 +121,6 @@
       el.style.removeProperty('font-size');el.style.removeProperty('border-radius');
     }
     for(const el of root.querySelectorAll('.empty-icon-badge'))if(!el.querySelector('[data-ui-symbol]'))el.innerHTML=symbol('chart');
-    placeThumbs(root);
-  }
-  // Segmented controls: one thumb per group that slides to the chosen segment
-  // (HIG Segmented controls). Its geometry lives in --ui-thumb-* on the group;
-  // the group's ::before draws it, so re-renders never recreate it.
-  const thumbGroups='[data-ui-group="segments"],.run-segments';
-  const chosen='button[aria-pressed="true"],button[aria-selected="true"],button[aria-current="page"]';
-  // Read every group's geometry first and write afterwards: alternating a layout read with a style write per group forced a layout each time.
-  function measureThumb(group){
-    const button=group.querySelector(':scope > :is('+chosen+')');
-    if(!button||!button.offsetWidth)return null;
-    return [button.offsetLeft,button.offsetTop,button.offsetWidth,button.offsetHeight].map(v=>v+'px');
-  }
-  function applyThumb(group,next){
-    if(!next){group.removeAttribute('data-ui-thumb');return;}
-    const props=['--ui-thumb-x','--ui-thumb-y','--ui-thumb-w','--ui-thumb-h'];
-    if(props.every((prop,index)=>group.style.getPropertyValue(prop)===next[index])&&group.dataset.uiThumb)return;
-    props.forEach((prop,index)=>group.style.setProperty(prop,next[index]));
-    // The first placement appears in place; later ones slide.
-    if(!group.dataset.uiThumb){group.dataset.uiThumb='placed';requestAnimationFrame(()=>requestAnimationFrame(()=>{if(group.dataset.uiThumb)group.dataset.uiThumb='sliding';}));}
-  }
-  function placeThumb(group){applyThumb(group,measureThumb(group));}
-  const thumbObserver=typeof ResizeObserver!=='undefined'?new ResizeObserver(entries=>entries.forEach(entry=>placeThumb(entry.target.closest?.(thumbGroups)||entry.target))):null;
-  function placeThumbs(root=document){
-    // The Linear look fills the chosen segment instead of drawing a sliding thumb; measuring would only force layouts.
-    if(document.documentElement.dataset.skin==='linear')return;
-    const groups=[...root.querySelectorAll(thumbGroups)];
-    const measured=groups.map(measureThumb);
-    groups.forEach((group,index)=>applyThumb(group,measured[index]));
-    for(const group of groups){
-      if(thumbObserver&&!group.dataset.uiThumbObserved){group.dataset.uiThumbObserved='true';thumbObserver.observe(group);}
-    }
-  }
-  function releaseRemovedThumbs(records){
-    if(!thumbObserver)return;
-    for(const record of records)for(const node of record.removedNodes||[]){
-      if(node.nodeType!==1||node.isConnected)continue;
-      const groups=[...(node.matches(thumbGroups)?[node]:[]),...node.querySelectorAll(thumbGroups)];
-      for(const group of groups){thumbObserver.unobserve(group);delete group.dataset.uiThumbObserved;}
-    }
   }
   function audit(root=document){
     const counts={},unowned=[];
@@ -173,27 +133,23 @@
   }
   decorate();
   // New controls are decorated where they appeared, not across the whole page: re-scanning every button in the document after each
-  // render cost more than the render. State changes on existing controls only move segment thumbs.
-  let pending=false,dirtyRoots=new Set(),thumbsDirty=false;
+  // render cost more than the render.
+  let pending=false,dirtyRoots=new Set();
   function flush(){
     if(!pending)return;pending=false;
     const roots=[...dirtyRoots].filter(node=>node.isConnected);dirtyRoots=new Set();
     const outermost=roots.filter(node=>!roots.some(other=>other!==node&&other.contains(node)));
     for(const node of outermost)decorate(node.parentElement||node);
-    if(thumbsDirty&&!outermost.length)placeThumbs();
-    thumbsDirty=false;
   }
   if(typeof MutationObserver!=='undefined')new MutationObserver(records=>{
-    releaseRemovedThumbs(records);
     let relevant=false;
     for(const record of records){
       if(record.type==='childList'&&record.addedNodes.length){dirtyRoots.add(record.target);relevant=true;}
-      else if(record.type==='attributes'&&record.target.matches?.('button,input,select,summary')){thumbsDirty=true;relevant=true;}
     }
     if(!relevant||pending)return;
     // rAF pauses in background tabs; the timer guarantees new controls are owned anyway.
     pending=true;requestAnimationFrame(flush);setTimeout(flush,150);
-  }).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','aria-pressed','aria-selected','aria-current','disabled']});
+  }).observe(document.body,{subtree:true,childList:true});
   document.addEventListener('keydown',event=>{
     const resizer=event.target.closest?.('.ui-column-resizer');
     if(resizer&&['ArrowLeft','ArrowRight','Home'].includes(event.key)){event.preventDefault();resizeColumn(resizer,event.key==='ArrowLeft'?-8:8,event.key==='Home');return;}

@@ -16,10 +16,10 @@ test('wide driver rail reuses the same node and keeps compact windows in the cho
   // 980 px at 100%, scaled with the 110% interface zoom.
   assert.match(layout,/matchMedia\(`\(min-width:\$\{Math\.round\(980\*\(window\.APEX_UI_ZOOM\|\|1\)\)\}px\)`\)/);
   assert.match(layout,/column=document\.querySelector\('#sessionSidebar'\)/);
-  // macOS look: the sidebar when wide, the chooser otherwise. Linear look: its workspace rail when shown, the chooser on phones.
-  assert.match(layout,/host=linear\?\(railShown\?railSlot:body\):\(wide\?column:body\)/);
+  // The workspace rail when it is shown, the lap chooser otherwise (phones, a folded rail).
+  assert.match(layout,/host=railShown\?railSlot:body/);
   assert.match(layout,/railSlot=document\.querySelector\('#linearWorkspace \.linear-drivers'\)/);
-  assert.match(layout,/sidebar.parentElement!==host\)wide\?host.append\(sidebar\):host.prepend\(sidebar\)/);
+  assert.match(layout,/sidebar.parentElement!==host\)host.prepend\(sidebar\)/);
   assert.match(css,/has-driver-rail #driverPills \{ grid-template-columns: minmax\(0,1fr\); max-height: none; overflow: visible/);
   assert.doesNotMatch(layout,/#sidebarToggle/);
   assert.doesNotMatch(appSource(),/#sidebarToggle/);

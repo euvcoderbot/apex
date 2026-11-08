@@ -2,7 +2,6 @@
    stylesheet. Built from the shared tokens; the Linear look adjusts surfaces and type at the end. */
 body.season-view > main#top, body.season-view > #carPerformance, body.season-view > #liveTiming,
 body.season-view #sessionSidebar, body.season-view #performanceSidebar { display: none !important; }
-body.season-view .performance-tabs[data-ui-thumb]::before { opacity: 0; }
 
 /* the entry point: a header tab segment (macOS look) or a rail row (Linear look) */
 .season-view-button { display: inline-flex; align-items: center; gap: 7px; padding: 0 14px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--ui-secondary); font: inherit; font-weight: 500; white-space: nowrap; cursor: pointer; }
