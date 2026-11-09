@@ -3,7 +3,7 @@
 The app's only look. `index.html` marks `<html data-skin="linear">`; every Linear rule is scoped to `:root[data-skin="linear"]` and lives in
 `skins.css`, the last cascade layer (`skin`), drawn on top of the shared component layers. It works with both Light and Dark.
 
-The full workspace redesign extends this foundation. See [research and interaction specification](linear-workspace-spec.md) for official product-documentation sources, layout decisions and verification. `linear-workspace.js` reparents existing navigation and lap actions, and supplies command search; it does not own data or calculations.
+How to build new elements in this look (cards, tiles, charts, buttons, tables) is in [linear-components.md](linear-components.md). The full workspace redesign extends this foundation. See [research and interaction specification](linear-workspace-spec.md) for official product-documentation sources, layout decisions and verification. `linear-workspace.js` reparents existing navigation and lap actions, and supplies command search; it does not own data or calculations.
 
 ## Files
 

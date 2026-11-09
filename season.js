@@ -331,30 +331,44 @@
     const grid = el('div', 'season-rounds');
     for (const r of data.rounds) {
       const item = el('article', 'season-round'); item.dataset.status = r.status;
+      // Header: round, flag and a quiet Sprint label; status on the right as Linear writes it (a small icon and a word).
       const head = el('div', 'season-round-head');
       head.append(el('span', 'season-round-no', `R${r.round}`));
       const f = flag(r); if (f) head.append(f);
       if (r.sprint_weekend) head.append(el('span', 'season-chip is-quiet', 'Sprint'));
       const status = el('span', 'season-status', {done: 'Done', next: 'Next', upcoming: 'Upcoming', awaiting: 'Awaiting results'}[r.status] || r.status); status.dataset.status = r.status;
+      status.prepend(htmlNode(r.status === 'done'
+        ? '<svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="currentColor"/><path d="M4.4 7.2l1.8 1.8 3.4-3.6" fill="none" stroke="var(--ui-panel)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+        : r.status === 'next' ? '<svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true"><circle cx="7" cy="7" r="5.75" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M7 3.5a3.5 3.5 0 0 1 0 7z" fill="currentColor"/></svg>'
+        : '<svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true"><circle cx="7" cy="7" r="5.75" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.2 2"/></svg>'));
       head.append(status);
-      item.append(head, el('h3', null, r.name), el('p', 'season-muted', `${r.locality} · ${dateRange(r)}`));
-      const outline = circuitOutline(r); if (outline) item.append(outline);
+      // Title and dates beside the circuit, in one row with a fixed slot for the outline, so it never runs into the results.
+      const titleRow = el('div', 'season-round-title');
+      const text = el('div'); text.append(el('h3', null, r.name), el('p', 'season-muted', `${r.locality} · ${dateRange(r)}`));
+      titleRow.append(text);
+      const outline = circuitOutline(r); if (outline) titleRow.append(outline);
+      item.append(head, titleRow);
       if (r.status === 'done') {
-        const podium = el('ol', 'season-podium');
-        for (const row of r.race.filter(x => x.position && x.position <= 3).sort((x, y) => x.position - y.position)) {
-          const li = el('li'); li.dataset.pos = String(row.position); li.title = `P${row.position} ${driverName(data, row.driver)}`;
-          li.append(el('small', null, String(row.position)), avatar(data, row.driver), el('b', null, driverCode(data, row.driver)));
-          podium.append(li);
-        }
-        const facts = el('div', 'season-round-result');
+        // Results as one aligned list: the podium, then pole, fastest lap and the sprint winner, each a 24 px row.
+        const rows = el('dl', 'season-round-rows');
+        const row = (label, id, cls) => {
+          if (!id) { const line = el('div', `${cls || ''} is-empty`.trim()); line.append(el('dt', null, label), el('dd', null, label === 'Sprint' ? 'No sprint' : '—')); rows.append(line); return; }
+          const line = el('div', cls); line.title = `${label}: ${driverName(data, id)}`;
+          const dd = el('dd'); dd.append(avatar(data, id), el('b', null, driverCode(data, id)));
+          line.append(el('dt', null, label), dd); rows.append(line);
+        };
+        for (const x of r.race.filter(x => x.position && x.position <= 3).sort((a, b) => a.position - b.position)) row(`P${x.position}`, x.driver, x.position === 1 ? 'is-winner' : '');
         const w = data.winners.find(x => x.round === r.round);
         const fastest = r.race.find(x => x.fastest_lap_rank === 1);
-        if (w?.pole) facts.append(el('span', 'season-round-k', 'Pole'), who(data, w.pole, {code: true, team: false}));
-        if (fastest) facts.append(el('span', 'season-round-k', 'Fastest lap'), who(data, fastest.driver, {code: true, team: false}));
-        if (w?.sprint_winner) facts.append(el('span', 'season-round-k', 'Sprint'), who(data, w.sprint_winner, {code: true, team: false}));
-        const link = el('a', 'season-link', 'Analyse the race');
+        row('Pole', w?.pole, 'is-first-extra');
+        row('Fastest lap', fastest?.driver);
+        // Always six rows (the sprint row says "No sprint" when there was none), so every card lines up and its link sits in
+        // the same place.
+        row('Sprint', w?.sprint_winner);
+        const link = el('a', 'season-round-link');
+        link.append(el('span', null, 'Analyse race'), htmlNode('<svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M2.5 6h7M6.5 3l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'));
         link.href = window.ApexUrl?.href('session', {year: data.year, round: r.round, session: 'Race'}) || `./?year=${data.year}&round=${r.round}&session=Race`;
-        item.append(podium, facts, link);
+        item.append(rows, link);
       } else {
         const race = new Date(r.start);
         item.append(el('p', 'season-round-when', `Race ${race.toLocaleString([], {weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'})}`));
@@ -420,7 +434,7 @@
     }
     let zoneToggle = null;
     if (offset != null) {
-      zoneToggle = el('div', 'season-zone-toggle'); zoneToggle.setAttribute('role', 'group'); zoneToggle.setAttribute('aria-label', 'Session times');
+      zoneToggle = el('div', 'season-segment season-zone-toggle'); zoneToggle.setAttribute('role', 'group'); zoneToggle.setAttribute('aria-label', 'Session times');
       const paint = () => {
         list.querySelectorAll('time').forEach((t, i) => { t.textContent = clock(next.sessions[i]); });
         zoneToggle.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.zone === 'track') === trackTime)));

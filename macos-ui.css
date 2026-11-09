@@ -18,12 +18,12 @@ body :where(*) { font-family: var(--ui-font); }
 :where(button):disabled { opacity: .45; cursor: not-allowed; }
 :where(button,input,select,a,summary,[tabindex]):focus-visible { outline: 3px solid color-mix(in srgb,var(--ui-accent) 75%,transparent); outline-offset: 3px; }
 .site-header .performance-tabs { display: grid; grid-template-columns: 1fr 1fr; width: 340px; max-width: 100%; padding: 4px; gap: 3px; border: 1px solid var(--glass-edge); border-radius: var(--radius-pill); background: var(--glass-fill); box-shadow: var(--glass-shadow); }
-.site-header .performance-tabs button { position: relative; min-height: 36px; padding: 7px 15px; border: 0; border-radius: var(--radius-pill); font-weight: 500; color: var(--ui-secondary); background: transparent; white-space: nowrap; }
+.site-header .performance-tabs button { position: relative; min-height: 36px; padding: 7px 15px; border: 0; border-radius: var(--radius-pill); font-weight: 510; color: var(--ui-secondary); background: transparent; white-space: nowrap; }
 .site-header .performance-tabs button[aria-selected="true"] { background: var(--ui-selected); box-shadow: var(--ui-shadow-control); color: var(--ui-label); }
 .site-header .performance-tabs button::after { display: none; }
 .workspace-tools button:hover,.workspace-intro #sidebarToggle:hover { background: var(--ui-control-hover); }
 .dashboard-card:hover,.dashboard-card:focus-within { border-color: var(--ui-border); }
-.panel-heading h2,.section-heading h1 { font-weight: 600; letter-spacing: -.02em; }
+.panel-heading h2,.section-heading h1 { font-weight: 590; letter-spacing: -.02em; }
 .select-trigger > span { overflow: hidden; min-width: 0; min-height: 24px; }
 .select-option-text { line-height: 24px; padding-block: 1px; }
 .select-trigger:hover,.select-shell select:hover { border-color: var(--ui-border-strong); background-color: var(--ui-control-hover); }
@@ -37,7 +37,7 @@ body :where(*) { font-family: var(--ui-font); }
 .sidebar #driverPills { min-height: 0; max-height: calc(100dvh - 220px); overflow-y: auto; }
 #driverPills .driver-pill:hover { background: var(--ui-control-hover); }
 .race-result-controls,.map-view-switch,.performance-scope-toggle,.performance-band-options,.performance-tyre-options { border: 1px solid var(--ui-border); border-radius: var(--radius-pill); background: var(--ui-well); padding: 3px; gap: 2px; box-shadow: var(--shadow-inset); max-width: 100%; flex-wrap: wrap; height: auto; overflow: visible; }
-:is(.race-result-controls,.map-view-switch,.performance-scope-toggle,.performance-band-options,.performance-tyre-options) button { min-height: 30px; padding: 5px 12px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--ui-secondary); font-weight: 500; line-height: 1.4; box-shadow: none; white-space: normal; }
+:is(.race-result-controls,.map-view-switch,.performance-scope-toggle,.performance-band-options,.performance-tyre-options) button { min-height: 30px; padding: 5px 12px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--ui-secondary); font-weight: 510; line-height: 1.4; box-shadow: none; white-space: normal; }
 :is(.race-result-controls,.map-view-switch,.performance-scope-toggle,.performance-band-options,.performance-tyre-options) button[aria-pressed="true"] { color: var(--ui-label); background: var(--ui-selected); box-shadow: var(--ui-shadow-control); }
 .corner-picker button[aria-pressed="true"] { background: color-mix(in srgb,var(--ui-action) 20%,var(--ui-panel)); border-color: color-mix(in srgb,var(--ui-accent) 40%,transparent); color: var(--ui-accent); box-shadow: inset 0 0 0 1px color-mix(in srgb,var(--ui-accent) 40%,transparent); }
 .corner-analysis,.corner-detail-card,.dominance-map,.chart { border-radius: var(--radius-lg); background: var(--ui-well); border-color: var(--ui-border); box-shadow: none; }
@@ -60,9 +60,9 @@ body :where(*) { font-family: var(--ui-font); }
 .performance-explain-toggle { min-height: 32px; font-size: var(--text-sm); }
 .performance-tyre-plot-controls { border-radius: var(--radius-lg); background: var(--ui-well); border-color: var(--ui-border); }
 .performance-pit-controls { align-items: center; gap: 10px; }
-.perf-chart-title { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--ui-secondary); }
+.perf-chart-title { text-transform: none; letter-spacing: 0; font-weight: 590; color: var(--ui-secondary); }
 .performance-bar-label .team-name { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.35; }
-.performance-table thead th { background: var(--ui-well); color: var(--ui-secondary); font-weight: 500; text-transform: none; letter-spacing: 0; }
+.performance-table thead th { background: var(--ui-well); color: var(--ui-secondary); font-weight: 510; text-transform: none; letter-spacing: 0; }
 .performance-table tbody tr:hover td { background-color: var(--ui-control-hover); }
 .performance-table-wrap.is-compact-table .performance-table { width: 100%; min-width: 0; table-layout: fixed; }
 .is-compact-table .performance-table :is(th,td) { min-width: 0; max-width: none; white-space: normal; overflow-wrap: normal; word-break: normal; }
@@ -70,7 +70,7 @@ body :where(*) { font-family: var(--ui-font); }
 .is-compact-table .performance-team .team-name { white-space: normal; line-height: 1.35; }
 .is-compact-table:has([data-performance-sort="raceCornerSamples"]) .performance-table :is(th,td):nth-child(3) { width: 8%; }
 .is-compact-table .perf-sort-btn { white-space: normal; }
-.performance-coverage-badge,.performance-quality-badge { border-radius: var(--radius-pill); background: var(--ui-selected); font-weight: 500; }
+.performance-coverage-badge,.performance-quality-badge { border-radius: var(--radius-pill); background: var(--ui-selected); font-weight: 510; }
 .performance-quality-status { line-height: 1.5; padding: 8px 0; }
 .performance-status-card p { font-size: var(--text-sm); }
 .performance-status-card:not(.is-running) { color: var(--ui-tertiary); }
@@ -120,7 +120,7 @@ main #driverSidebar > .dashboard-card { position: static; height: auto; min-heig
 main.sidebar-collapsed #lapSelectionBody { grid-template-columns: minmax(0,1fr); }
 main.sidebar-collapsed #driverSidebar { display: none; }
 #driverSidebar #driverPills.has-race-results .driver-pill { grid-template-columns: 18px 20px minmax(0,1fr) minmax(45px,auto); }
-#driverSidebar #driverPills .driver-pill .driver-pill-identity strong { font-size: var(--text-sm); font-weight: 500; }
+#driverSidebar #driverPills .driver-pill .driver-pill-identity strong { font-size: var(--text-sm); font-weight: 510; }
 #driverSidebar #driverPills .driver-pill .driver-pill-identity small { font-size: var(--text-xs); }
 #driverSidebar .team-logo { width: 20px; height: 20px; flex-basis: 20px; }
 #driverSidebar #tireCard { position: static; align-self: stretch; padding: 10px; }
@@ -135,10 +135,10 @@ main.sidebar-collapsed #driverSidebar { display: none; }
 .sector-cards .lap-summary-card .summary-sectors { margin: 0; padding: 0; border: 0; align-self: stretch; align-items: center; }
 .sector-cards .lap-summary-card .summary-condition > span { display: inline-flex; width: auto; gap: 4px; }
 :is(.performance-scope-toggle,.performance-band-options,.performance-tyre-options,.race-result-controls,.map-view-switch) button { min-height: 27px; padding: 4px 9px; font-size: var(--text-sm); border-radius: var(--radius-sm); }
-.performance-scope-toggle button[aria-pressed="true"],.performance-band-options button[aria-pressed="true"] { font-weight: 500; }
+.performance-scope-toggle button[aria-pressed="true"],.performance-band-options button[aria-pressed="true"] { font-weight: 510; }
 .performance-table thead th:first-child,.performance-table tbody td:first-child { position: static; left: auto; z-index: auto; background: transparent; }
 .performance-table tbody td,.performance-table thead th { padding: 7px 9px; font-size: var(--text-sm); }
-.performance-table thead th { font-weight: 500; }
+.performance-table thead th { font-weight: 510; }
 .sort-icon { display: inline-block; flex: 0 0 12px; width: 12px; height: 16px; opacity: 0; font-style: normal; }
 .perf-sort-btn:hover .sort-icon,.perf-sort-btn:focus-visible .sort-icon,.perf-sort-btn.is-sorted .sort-icon { opacity: .8; }
 .straight-summary-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 8px; }

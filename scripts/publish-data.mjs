@@ -64,7 +64,8 @@ async function upload({folder, file}) {
   const signedAt = new Date().toISOString(), hash = createHash('sha256').update(body).digest('hex');
   const signature = b64(await subtle.sign({name: 'Ed25519'}, privateKey, new TextEncoder().encode(signedMessage(folder, file, hash, signedAt))));
   for (let attempt = 1; attempt <= 3; attempt++) {
-    const response = await fetch(`${site}/api/publish/${folder}/${file}`, {method: 'PUT', body,
+    // Every request has a deadline: one connection that never answers must not stall a worker for ever.
+    const response = await fetch(`${site}/api/publish/${folder}/${file}`, {method: 'PUT', body, signal: AbortSignal.timeout(180000),
       headers: {'Content-Type': 'application/octet-stream', 'X-Apex-Signed-At': signedAt, 'X-Apex-Signature': signature}}).catch(error => ({ok: false, status: 0, error}));
     if (response.ok) return true;
     if (attempt === 3 || (response.status >= 400 && response.status < 500)) { failures.push(`${folder}/${file}: ${response.status}`); return false; }
@@ -79,18 +80,18 @@ async function pool(items, work, size = 6) {
 
 // 1. Content-addressed files the Site does not yet serve (never re-sent: their name is their content).
 await pool(immutable, async item => {
-  const head = await fetch(`${site}/apex/assets/data/${item.folder}/${item.file}`, {method: 'HEAD'}).catch(() => null);
+  const head = await fetch(`${site}/apex/assets/data/${item.folder}/${item.file}`, {method: 'HEAD', signal: AbortSignal.timeout(30000)}).catch(() => null);
   if (head?.ok) { counts.present++; return; }
   if (dryRun) { counts.uploaded++; return; }
   (await upload(item)) ? counts.uploaded++ : counts.failed++;
   const done = counts.present + counts.uploaded + counts.failed;
-  if (done % 200 === 0) console.log(`  ${done}/${immutable.length}`);
+  if (done % 50 === 0) console.log(`  ${done}/${immutable.length} (${counts.uploaded} uploaded, ${counts.present} already there, ${counts.failed} failed)`);
 });
 // 2. Indexes and calendars, only when different from what is live, and only if every file above is in place.
 if (counts.failed) throw new Error(`${counts.failed} file uploads failed; indexes were not updated. ${failures.slice(0, 5).join('; ')}`);
 for (const item of mutable) {
   const local = await readFile(path.join(data, item.folder, item.file));
-  const live = await fetch(`${site}/apex/assets/data/${item.folder}/${item.file}`, {cache: 'no-store'}).then(r => (r.ok ? r.arrayBuffer() : null)).catch(() => null);
+  const live = await fetch(`${site}/apex/assets/data/${item.folder}/${item.file}`, {cache: 'no-store', signal: AbortSignal.timeout(30000)}).then(r => (r.ok ? r.arrayBuffer() : null)).catch(() => null);
   if (live && Buffer.from(live).equals(local)) { counts.unchanged++; continue; }
   if (dryRun) { counts.uploaded++; continue; }
   (await upload(item)) ? counts.uploaded++ : counts.failed++;

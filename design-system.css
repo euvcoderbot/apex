@@ -48,7 +48,7 @@ body {
   background: color-mix(in srgb, var(--ui-control-hover) 94%, black);
   box-shadow: 0 16px 42px rgba(0, 0, 0, .42);
   color: var(--ui-label);
-  font: 700 10px/1.45 var(--ui-font);
+  font: 590 10px/1.45 var(--ui-font);
   opacity: 0;
   pointer-events: none;
   transform: translateY(10px);
@@ -130,7 +130,7 @@ button#loadSession:active:not(:disabled) {
   padding: 8px 10px;
   font-size: 11px;
   font-family: var(--ui-font);
-  font-weight: 600;
+  font-weight: 590;
   cursor: pointer;
   transition: all var(--motion-tier-standard) var(--ease-out);
   text-align: left;
@@ -159,7 +159,7 @@ button#loadSession:active:not(:disabled) {
   border-radius: var(--radius-xs);
   color: white;
   font-family: var(--ui-font);
-  font-weight: 800;
+  font-weight: 680;
   font-size: 8px;
 }
 
@@ -173,7 +173,7 @@ button#loadSession:active:not(:disabled) {
   background: var(--team);
   color: white;
   font-family: var(--ui-font);
-  font-weight: 800;
+  font-weight: 680;
   font-size: 8px;
 }
 
@@ -284,7 +284,7 @@ button#loadSession:active:not(:disabled) {
   color: var(--ui-label);
   font-family: var(--ui-font);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 590;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -409,7 +409,7 @@ button#loadSession:active:not(:disabled) {
 
 .section-heading h1 {
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 590;
   letter-spacing: -0.5px;
 }
 
@@ -442,7 +442,7 @@ button#loadSession:active:not(:disabled) {
 .dominance-map h2 {
   font-family: var(--ui-font);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 590;
   letter-spacing: 0.02em;
 }
 
@@ -476,7 +476,7 @@ button#loadSession:active:not(:disabled) {
   justify-content: space-between;
   align-items: baseline;
   font-size: var(--type-caption);
-  font-weight: 600;
+  font-weight: 590;
   color: var(--ui-label);
   margin-bottom: 8px;
 }
@@ -671,7 +671,7 @@ main.sidebar-collapsed .sidebar {
   color: var(--ui-label);
   font-family: var(--ui-font);
   font-size: 11px;
-  font-weight: 650;
+  font-weight: 590;
   letter-spacing: .015em;
   cursor: pointer;
   transition: border-color var(--motion-tier-fast) var(--ease-standard), box-shadow var(--motion-tier-fast) var(--ease-standard), background var(--motion-tier-fast) var(--ease-standard);
@@ -702,7 +702,7 @@ main.sidebar-collapsed .sidebar {
   color: var(--ui-accent);
   font-family: var(--ui-font);
   font-size: 6px;
-  font-weight: 700;
+  font-weight: 590;
   letter-spacing: .08em;
   line-height: 1;
 }
@@ -731,7 +731,7 @@ main.sidebar-collapsed .sidebar {
   color: var(--ui-accent);
   font-family: var(--ui-font);
   font-size: 7px;
-  font-weight: 700;
+  font-weight: 590;
   letter-spacing: .1em;
   white-space: nowrap;
 }
@@ -768,7 +768,7 @@ main.sidebar-collapsed .sidebar {
   color: var(--ui-accent);
   font-family: var(--ui-font);
   font-size: 8px;
-  font-weight: 700;
+  font-weight: 590;
   letter-spacing: .05em;
 }
 
@@ -877,7 +877,7 @@ input {
 .chart h2 {
   font-family: var(--ui-font);
   font-size: var(--ui-text-md);
-  font-weight: 700;
+  font-weight: 590;
   letter-spacing: .035em;
 }
 
@@ -968,7 +968,7 @@ input {
 
 .trace-tools > span b {
   color: var(--ui-accent);
-  font-weight: 700;
+  font-weight: 590;
 }
 
 .trace-tools button {
@@ -982,7 +982,7 @@ input {
   background: rgba(0, 0, 0, .22);
   color: var(--ui-tertiary);
   font-size: var(--ui-text-sm);
-  font-weight: 700;
+  font-weight: 590;
   cursor: pointer;
   transition: color var(--motion-tier-fast) var(--ease-standard), border-color var(--motion-tier-fast) var(--ease-standard), background var(--motion-tier-fast) var(--ease-standard), transform var(--motion-tier-fast) var(--ease-standard);
 }
@@ -1030,7 +1030,7 @@ canvas[data-chart="Speed trace"] {
   background: color-mix(in srgb, var(--ui-accent) 7%, transparent);
   color: var(--ui-accent);
   font-size: var(--ui-text-xs);
-  font-weight: 700;
+  font-weight: 590;
 }
 
 .analysis-heading-main > div {
@@ -1170,7 +1170,7 @@ canvas[data-chart="Speed trace"] {
   border: 1px solid currentColor;
   border-radius: var(--radius-xs);
   font-size: var(--ui-text-sm);
-  font-weight: 800;
+  font-weight: 680;
   font-variant-numeric: tabular-nums lining-nums;
   font-feature-settings: "tnum" 1, "lnum" 1;
   letter-spacing: .015em;
@@ -1297,12 +1297,12 @@ button#loadSession.is-loading::before {
 #driverPills .driver-pill .driver-pill-number,
 #driverPills .driver-pill strong {
   font-size: var(--ui-text-sm);
-  font-weight: 700;
+  font-weight: 590;
   line-height: 1;
 }
 
 .compound-label {
-  font-weight: 800;
+  font-weight: 680;
   letter-spacing: .025em;
 }
 
@@ -1339,7 +1339,7 @@ button#loadSession.is-loading::before {
   color: var(--ui-label);
   font-family: var(--ui-font);
   font-size: var(--type-caption);
-  font-weight: 700;
+  font-weight: 590;
   letter-spacing: .05em;
   line-height: 1.2;
   text-transform: uppercase;
@@ -1349,7 +1349,7 @@ button#loadSession.is-loading::before {
   color: #aeb3bd;
   font-family: var(--ui-font);
   font-size: 8px;
-  font-weight: 700;
+  font-weight: 590;
   letter-spacing: .055em;
   line-height: 1.2;
 }
@@ -1390,7 +1390,7 @@ button#loadSession.is-loading::before {
   background: var(--ui-accent);
   color: #050608;
   font-size: 6px;
-  font-weight: 800;
+  font-weight: 680;
 }
 
 .loaded-lap-pill .remove:hover {
@@ -1554,7 +1554,7 @@ main,
   padding: 7px 9px;
   color: #b8bdc7;
   font-size: 8px;
-  font-weight: 800;
+  font-weight: 680;
   letter-spacing: .055em;
   text-align: center;
 }
@@ -1853,7 +1853,7 @@ main,
 .summary-driver small,
 .summary-lap-time small,
 .summary-sectors small {
-  font-weight: 650;
+  font-weight: 590;
 }
 
 .tire-copy {
@@ -1931,7 +1931,7 @@ main,
   color: var(--ui-label);
   font-family: var(--ui-font);
   font-size: 11px;
-  font-weight: 650;
+  font-weight: 590;
   letter-spacing: .015em;
   text-align: left;
   cursor: pointer;
@@ -2037,7 +2037,7 @@ main,
   color: var(--ui-tertiary);
   font-family: var(--ui-font);
   font-size: 8px;
-  font-weight: 700;
+  font-weight: 590;
   letter-spacing: .07em;
   white-space: nowrap;
 }

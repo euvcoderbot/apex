@@ -37,7 +37,7 @@ a { color: var(--ui-accent); }
    Segmented controls: raised thumb. */
 .brand-wordmark .brand-icon { display: block; flex: 0 0 24px; width: 24px; height: 24px; max-width: none; border-radius: var(--radius-sm); box-shadow: 0 0 0 .5px var(--ui-border); }
 .window-title { display: grid; min-width: 0; line-height: 1.2; padding-left: 10px; border-left: 1px solid var(--ui-separator); }
-.window-title strong { overflow: hidden; font: 600 var(--type-headline)/1.25 var(--ui-font); color: var(--ui-label); white-space: nowrap; text-overflow: ellipsis; }
+.window-title strong { overflow: hidden; font: 590 var(--type-headline)/1.25 var(--ui-font); color: var(--ui-label); white-space: nowrap; text-overflow: ellipsis; }
 .window-title span { overflow: hidden; font-size: var(--type-callout); color: var(--ui-tertiary); white-space: nowrap; text-overflow: ellipsis; }
 .site-header .header-actions { justify-self: center; display: flex; margin: 0; padding: 0; border: 0; background: none; box-shadow: none; backdrop-filter: none; }
 .site-header .performance-tabs[data-ui-group],.site-header .performance-tabs {
@@ -46,7 +46,7 @@ a { color: var(--ui-accent); }
 }
 .site-header .performance-tabs > button,.site-header .performance-tabs > button[data-ui-kind="segment"] {
   position: relative; height: 24px; min-height: 24px; padding: 0 10px; border: 0; border-radius: var(--radius-sm);
-  background: transparent; color: var(--ui-secondary); font: 700 var(--type-body)/1 var(--ui-font); box-shadow: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: transparent; color: var(--ui-secondary); font: 590 var(--type-body)/1 var(--ui-font); box-shadow: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   transition: background-color var(--ui-motion) var(--ui-ease),color var(--ui-motion) var(--ui-ease),box-shadow var(--ui-motion) var(--ui-ease);
 }
 .site-header .performance-tabs > button:hover:not([aria-pressed="true"]) { color: var(--ui-label); background: transparent; }
@@ -91,7 +91,7 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 
 /* Sidebar sections read as a source list, not as floating cards. */
 .app-sidebar :where(.dashboard-card,.session-controls,.driver-control-card,#tireCard) { position: static; display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; justify-content: flex-start; gap: 8px; text-align: left; width: auto; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; backdrop-filter: none; }
-.app-sidebar .panel-heading h2,.app-sidebar .track-selection-title > span:first-child { margin: 0; font: 700 var(--type-body)/1.3 var(--ui-font-display); letter-spacing: 0; color: var(--ui-label); text-transform: none; }
+.app-sidebar .panel-heading h2,.app-sidebar .track-selection-title > span:first-child { margin: 0; font: 590 var(--type-body)/1.3 var(--ui-font-display); letter-spacing: 0; color: var(--ui-label); text-transform: none; }
 /* Each sidebar section is a titled group separated by a hairline, like Finder/Mail sidebars. */
 .app-sidebar > * + *,.app-sidebar #driverSidebar > * + * { padding-top: 14px; border-top: 1px solid var(--ui-separator); }
 .app-sidebar #driverSidebar { padding-top: 14px; }
@@ -109,8 +109,8 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 #driverPills.has-race-results .driver-pill[data-ui-kind="list-row"] { grid-template-columns: 18px 22px minmax(0,1fr) auto; }
 #driverPills .driver-pill[data-ui-kind="list-row"]::before { content: none; }
 #driverPills .driver-pill:hover:not([aria-pressed="true"]) { background: var(--ui-row-hover); }
-#driverPills .driver-pill-position { justify-self: end; font-size: var(--type-callout); font-weight: 500; color: var(--ui-tertiary); font-variant-numeric: tabular-nums; }
-#driverPills .driver-pill-identity strong { overflow: hidden; font-size: var(--type-body); font-weight: 500; line-height: 1.25; white-space: nowrap; text-overflow: ellipsis; }
+#driverPills .driver-pill-position { justify-self: end; font-size: var(--type-callout); font-weight: 510; color: var(--ui-tertiary); font-variant-numeric: tabular-nums; }
+#driverPills .driver-pill-identity strong { overflow: hidden; font-size: var(--type-body); font-weight: 510; line-height: 1.25; white-space: nowrap; text-overflow: ellipsis; }
 #driverPills .driver-pill-identity small { font-size: 12.5px; color: var(--ui-tertiary); line-height: 1.25; }
 .app-sidebar #raceResultControls[data-ui-group="segments"] { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); width: 100%; box-sizing: border-box; }
 .app-sidebar #tireCard { gap: 6px; }
@@ -118,7 +118,7 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .app-sidebar .tire-option { display: grid; grid-template-columns: 20px minmax(0,1fr); align-items: center; justify-items: start; gap: 8px; width: auto; min-width: 0; min-height: 26px; padding: 2px 8px 2px 6px; border: 0; border-radius: var(--radius-sm); background: transparent; overflow: visible; }
 .app-sidebar .tire-option .tyre-image { width: 20px; height: 20px; }
 .app-sidebar .tire-copy { display: flex; align-items: baseline; gap: 6px; min-width: 0; text-align: left; }
-.app-sidebar .tire-copy strong { overflow: hidden; font-size: var(--type-body); font-weight: 500; white-space: nowrap; text-overflow: ellipsis; }
+.app-sidebar .tire-copy strong { overflow: hidden; font-size: var(--type-body); font-weight: 510; white-space: nowrap; text-overflow: ellipsis; }
 .app-sidebar .tire-copy small { font-size: var(--type-caption); color: var(--ui-tertiary); }
 
 /* Car performance setup in the sidebar */
@@ -143,7 +143,7 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .category-bar[hidden] { display: none; }
 .category-bar .category-tab,.category-bar .category-tab[data-ui-kind="tab"] {
   display: inline-flex; align-items: center; gap: 7px; height: var(--ui-control-height); min-height: var(--ui-control-height); padding: 0 12px; border: 0; border-radius: var(--radius-sm);
-  background: transparent; color: var(--ui-secondary); box-shadow: none; font: 500 var(--type-body)/1 var(--ui-font); white-space: nowrap;
+  background: transparent; color: var(--ui-secondary); box-shadow: none; font: 510 var(--type-body)/1 var(--ui-font); white-space: nowrap;
   transition: background-color var(--ui-motion) var(--ui-ease),color var(--ui-motion) var(--ui-ease),box-shadow var(--ui-motion) var(--ui-ease);
 }
 .category-bar .category-tab span { line-height: 1.3; }
@@ -161,40 +161,40 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
   background: var(--ui-panel); box-shadow: 0 .5px 1px #0000000d; backdrop-filter: none;
 }
 .panel-heading,.section-heading,.analysis-heading { margin: 0 0 8px; padding: 0; border: 0; }
-.panel-heading h2,.section-heading h2,.analysis-heading h2 { margin: 0; font: 600 var(--type-headline)/1.3 var(--ui-font-display); letter-spacing: -.005em; color: var(--ui-label); }
+.panel-heading h2,.section-heading h2,.analysis-heading h2 { margin: 0; font: 590 var(--type-headline)/1.3 var(--ui-font-display); letter-spacing: -.005em; color: var(--ui-label); }
 .section-empty { color: var(--ui-tertiary); font-size: var(--type-body); }
 
 /* Session analysis content */
 #lapWorkspace .workspace-heading { display: flex; align-items: center; gap: 8px; min-height: 26px; margin: 0; }
 #lapWorkspace .workspace-heading h2 { flex: 1 1 auto; }
-.workspace-disclosure,.corner-analysis-toggle { display: inline-flex; align-items: center; gap: 6px; font: 600 var(--type-headline)/1.3 var(--ui-font-display); color: var(--ui-label); }
+.workspace-disclosure,.corner-analysis-toggle { display: inline-flex; align-items: center; gap: 6px; font: 590 var(--type-headline)/1.3 var(--ui-font-display); color: var(--ui-label); }
 .workspace-disclosure > i,.corner-analysis-toggle > i { width: 10px; height: 10px; border: 0; background: var(--ui-secondary); transform: rotate(90deg); transition: transform var(--ui-motion) var(--ui-ease); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='m3.5 1.8 3.2 3.2-3.2 3.2' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='m3.5 1.8 3.2 3.2-3.2 3.2' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat; }
 :is(.workspace-disclosure,.corner-analysis-toggle)[aria-expanded="false"] > i { transform: none; }
 :is(.workspace-disclosure,.corner-analysis-toggle) > i::before,:is(.workspace-disclosure,.corner-analysis-toggle) > i::after { display: none; }
 .lap-workspace .lap-chip[data-ui-kind="choice"]:hover:not(:disabled) { background: var(--ui-control-hover); }
 .telemetry-card .analysis-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .comparison-tray { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; padding: 6px 8px; border: 0; border-radius: var(--radius-md); background: var(--ui-well); box-shadow: inset 0 0 0 1px var(--ui-separator); }
-.comparison-tray-heading { flex: 0 0 auto; width: auto; min-width: 0; justify-content: flex-start; display: flex; align-items: baseline; gap: 6px; font-size: var(--type-callout); font-weight: 600; color: var(--ui-tertiary); }
+.comparison-tray-heading { flex: 0 0 auto; width: auto; min-width: 0; justify-content: flex-start; display: flex; align-items: baseline; gap: 6px; font-size: var(--type-callout); font-weight: 590; color: var(--ui-tertiary); }
 .telemetry-empty { display: grid; place-content: center; justify-items: center; gap: 6px; min-height: 280px; padding: 32px 16px; border: 0; border-radius: var(--radius-md); background: var(--ui-well); text-align: center; }
 .telemetry-empty::before { content: ''; width: 34px; height: 34px; margin-bottom: 4px; background: var(--ui-quaternary); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 18.5 8 12l4 3 4.5-7L21 12' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M3 21h18' stroke='black' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 18.5 8 12l4 3 4.5-7L21 12' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M3 21h18' stroke='black' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; }
-.telemetry-empty span { font-size: var(--type-callout); font-weight: 500; color: var(--ui-tertiary); letter-spacing: 0; text-transform: none; }
-.chart-heading h2,.chart-heading h3 { font: 600 var(--type-body)/1.3 var(--ui-font); }
+.telemetry-empty span { font-size: var(--type-callout); font-weight: 510; color: var(--ui-tertiary); letter-spacing: 0; text-transform: none; }
+.chart-heading h2,.chart-heading h3 { font: 590 var(--type-body)/1.3 var(--ui-font); }
 /* The inspector can exceed the viewport. Keep it in normal flow: sticky's
    bottom constraint otherwise moves its buttons when result height changes. */
 .telemetry-analysis-grid > #cornerAnalysis { position: static; top: auto; border: 1px solid var(--ui-border); border-radius: var(--radius-lg); background: var(--ui-panel); }
-.dominance-map-header h2 { font: 600 var(--type-body)/1.3 var(--ui-font); }
-.dominance-map-header h2 small { color: var(--ui-tertiary); font-weight: 500; letter-spacing: 0; text-transform: none; }
+.dominance-map-header h2 { font: 590 var(--type-body)/1.3 var(--ui-font); }
+.dominance-map-header h2 small { color: var(--ui-tertiary); font-weight: 510; letter-spacing: 0; text-transform: none; }
 /* Circuit inspector: a clear map header and compact, visibly selectable rows. */
 .telemetry-analysis-grid .dominance-map-header { align-items: flex-start; gap: 8px 16px; margin-bottom: 12px; }
-.telemetry-analysis-grid .dominance-map-header h2 { font: 600 var(--type-body)/1.4 var(--ui-font); }
+.telemetry-analysis-grid .dominance-map-header h2 { font: 590 var(--type-body)/1.4 var(--ui-font); }
 .telemetry-analysis-grid .dominance-map-header h2 small { display: block; margin: 3px 0 0; font: 400 var(--type-caption)/1.3 var(--ui-font); }
-.telemetry-analysis-grid .dominance-map-header .legend { gap: 6px 12px; font: 500 var(--type-caption)/1.4 var(--ui-font); }
+.telemetry-analysis-grid .dominance-map-header .legend { gap: 6px 12px; font: 510 var(--type-caption)/1.4 var(--ui-font); }
 .telemetry-analysis-grid .map-view-switch[data-ui-group="segments"] { display: inline-flex; width: fit-content; max-width: 100%; margin: 0 0 8px; align-self: flex-start; }
 .telemetry-analysis-grid .map-view-switch[data-ui-group="segments"] > button { min-width: 100px; }
-.circuit-section-group .corner-picker button.corner-pick { flex: 0 0 auto; width: auto; min-width: 36px; height: var(--ui-control-height); min-height: var(--ui-control-height); padding-inline: var(--ui-space-2); white-space: nowrap; border: 1px solid var(--ui-border-strong); border-radius: var(--radius-sm); background: transparent; box-shadow: none; color: var(--ui-secondary); font: 500 var(--ui-control-font)/1 var(--ui-font); }
+.circuit-section-group .corner-picker button.corner-pick { flex: 0 0 auto; width: auto; min-width: 36px; height: var(--ui-control-height); min-height: var(--ui-control-height); padding-inline: var(--ui-space-2); white-space: nowrap; border: 1px solid var(--ui-border-strong); border-radius: var(--radius-sm); background: transparent; box-shadow: none; color: var(--ui-secondary); font: 510 var(--ui-control-font)/1 var(--ui-font); }
 .circuit-section-group .corner-picker button.corner-pick:hover { background: var(--ui-row-hover); color: var(--ui-label); }
 .circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"] { border-color: transparent; background: var(--ui-tile-on); color: var(--ui-tile-on-label); box-shadow: none; }
-.corner-detail-card h3 { font: 600 var(--type-body)/1.4 var(--ui-font); }
+.corner-detail-card h3 { font: 590 var(--type-body)/1.4 var(--ui-font); }
 
 /* Sector status colours sampled from F1 broadcast timing graphics (user-supplied
    screenshots): each bar is a light upper half over a darker lower half. */
@@ -214,19 +214,19 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .sector-cards .lap-summary-card .summary-driver .team-logo { width: 18px; height: 18px; flex: 0 0 18px; }
 .sector-cards .lap-summary-card .summary-lap-label { font-size: var(--ui-caption); color: var(--ui-secondary); }
 .sector-cards .lap-summary-card .summary-tyre { grid-area: tyre; min-height: 20px; }
-.sector-cards .lap-summary-card .summary-driver > em { padding: 2px 5px; border-radius: var(--radius-xs); font: 600 11px/1.2 var(--ui-font); color: var(--ui-accent); background: color-mix(in srgb,var(--ui-accent) 12%,transparent); }
+.sector-cards .lap-summary-card .summary-driver > em { padding: 2px 5px; border-radius: var(--radius-xs); font: 590 11px/1.2 var(--ui-font); color: var(--ui-accent); background: color-mix(in srgb,var(--ui-accent) 12%,transparent); }
 .sector-cards .lap-summary-card .summary-tyre-copy { gap: 5px; }
 /* One timing group, not a value floating below the driver metadata. */
 .sector-cards .lap-summary-card .summary-lap-time > small { display: none; }
-.sector-cards .lap-summary-card .summary-lap-time > strong { order: 1; font: 600 var(--type-title2)/1.2 var(--ui-font); font-variant-numeric: lining-nums tabular-nums; font-feature-settings: "tnum"; letter-spacing: normal; }
+.sector-cards .lap-summary-card .summary-lap-time > strong { order: 1; font: 590 var(--type-title2)/1.2 var(--ui-font); font-variant-numeric: lining-nums tabular-nums; font-feature-settings: "tnum"; letter-spacing: normal; }
 /* Sectors: equal cells with a single inline timing row under the status bar. */
 .sector-cards .lap-summary-card .summary-sectors { grid-area: 2 / 1; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 0; margin-top: 8px; padding: 8px 0 0; border: 0; border-top: 1px solid var(--ui-separator); }
 .sector-cards .lap-summary-card .sector-cell { position: relative; display: flex; flex-direction: column; align-items: stretch; min-height: 0; padding: 0; border: 0; background: none; }
 .sector-cards .lap-summary-card .sector-cell::after { left: 1px; right: 1px; top: 18px; bottom: auto; height: 3px; border-radius: 0; }
 .sector-cards .lap-summary-card .sector-cell-value { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 0; text-align: center; }
-.sector-cards .lap-summary-card .sector-cell-value > small { order: 0; margin: 0 0 10px; color: var(--sector-status,var(--ui-tertiary)); font-size: var(--ui-caption); font-weight: 600; line-height: 16px; }
+.sector-cards .lap-summary-card .sector-cell-value > small { order: 0; margin: 0 0 10px; color: var(--sector-status,var(--ui-tertiary)); font-size: var(--ui-caption); font-weight: 590; line-height: 16px; }
 .sector-cards .lap-summary-card .sector-measurements { order: 1; display: flex; flex-direction: row; align-items: baseline; justify-content: center; align-self: stretch; gap: 4px; padding: 4px 4px 0; border-top: 1px solid var(--ui-separator); }
-.sector-cards .lap-summary-card .sector-measurements > strong { order: 1; font: 600 var(--type-headline)/1.2 var(--ui-font); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sector-cards .lap-summary-card .sector-measurements > strong { order: 1; font: 590 var(--type-headline)/1.2 var(--ui-font); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .sector-cards .lap-summary-card .sector-delta-slot { order: 0; display: inline-flex; align-items: baseline; }
 .sector-cards .lap-summary-card .sector-delta-slot:empty { display: none; }
 .sector-cards .lap-summary-card :is(.sector-delta-slot,.summary-lap-time) .summary-delta { display: inline; height: auto; padding: 0; border: 0; border-radius: 0; background: none; font-size: var(--ui-caption); line-height: 1.2; white-space: nowrap; }
@@ -236,7 +236,7 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .sector-cards .lap-summary-card .summary-condition > i { display: inline; font-size: var(--type-body); font-style: normal; line-height: 1; }
 .sector-cards .lap-summary-card .summary-condition > span { display: inline-flex; align-items: baseline; gap: 2px; }
 .sector-cards .lap-summary-card .summary-condition small { font-size: var(--type-caption); color: var(--ui-tertiary); }
-.sector-cards .lap-summary-card .summary-condition strong { font: 500 var(--type-caption)/1.4 var(--ui-font); color: var(--ui-secondary); }
+.sector-cards .lap-summary-card .summary-condition strong { font: 510 var(--type-caption)/1.4 var(--ui-font); color: var(--ui-secondary); }
 @container lapcard (max-width: 370px) {
   .sector-cards .lap-summary-card .summary-conditions { grid-template-columns: repeat(2,max-content); }
 }
@@ -251,14 +251,14 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
   .sector-cards .lap-summary-card .sector-measurements { padding: 0; border: 0; }
   .sector-cards .lap-summary-card .sector-cell + .sector-cell .sector-measurements { border-left: 0; }
 }
-.lap-workspace .lap-clock { font-family: var(--ui-font); font-size: var(--type-body); font-weight: 500; font-variant-numeric: lining-nums tabular-nums; letter-spacing: -.01em; }
-.sector-cards .lap-summary-card .summary-driver > b { font: 600 var(--ui-text)/1.3 var(--ui-font); }
+.lap-workspace .lap-clock { font-family: var(--ui-font); font-size: var(--type-body); font-weight: 510; font-variant-numeric: lining-nums tabular-nums; letter-spacing: -.01em; }
+.sector-cards .lap-summary-card .summary-driver > b { font: 590 var(--ui-text)/1.3 var(--ui-font); }
 /* Trace toolbar: one connected group plus regular-size push buttons. */
 .chart-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .chart-heading > h2 { margin-right: auto; }
 .chart-heading .trace-zoom-cluster { display: inline-flex; align-items: center; height: var(--ui-control-height); min-height: var(--ui-control-height); padding: 0 2px 0 0; border: 0; border-radius: var(--radius-sm); background: var(--ui-control); box-shadow: var(--ui-shadow-control); backdrop-filter: none; }
 .chart-heading .trace-zoom-readout { display: inline-flex; align-items: center; gap: 4px; min-width: 0; height: 100%; padding: 0 9px; border-right: 1px solid var(--ui-separator); font-size: var(--type-body); color: var(--ui-secondary); }
-.chart-heading .trace-zoom-readout b { color: var(--ui-label); font-weight: 500; }
+.chart-heading .trace-zoom-readout b { color: var(--ui-label); font-weight: 510; }
 .chart-heading .trace-zoom-cluster .trace-tools { display: inline-flex; align-items: center; gap: 0; padding: 0 0 0 2px; border: 0; background: none; }
 .chart-heading .trace-zoom-cluster .trace-tools button[data-ui-kind="stepper"] { width: 24px; min-width: 24px; height: 22px; min-height: 22px; padding: 0; border-radius: var(--radius-xs); color: var(--ui-label); }
 .chart-heading .trace-zoom-cluster .trace-tools button[data-ui-kind="stepper"]:hover:not(:disabled) { background: var(--ui-row-hover); }
@@ -281,7 +281,7 @@ body.trace-focus .chart-heading .trace-focus-button:not(.trace-focus-close) { di
 /* Comparison chips: room for the lap identity and a separate close button. */
 #loadedLaps { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
 /* REF badge: a legible accent tag inside the pill, never pressed against its edge. */
-#loadedLaps .loaded-lap-pill.reference::before { content: 'REF'; flex: 0 0 auto; display: inline-flex; align-items: center; height: 18px; margin: 0 2px 0 3px; padding: 0 5px; border-radius: var(--radius-xs); background: var(--ui-action); color: #fff; font: 700 11px/1 var(--ui-font); letter-spacing: .02em; box-shadow: none; }
+#loadedLaps .loaded-lap-pill.reference::before { content: 'REF'; flex: 0 0 auto; display: inline-flex; align-items: center; height: 18px; margin: 0 2px 0 3px; padding: 0 5px; border-radius: var(--radius-xs); background: var(--ui-action); color: #fff; font: 590 11px/1 var(--ui-font); letter-spacing: .02em; box-shadow: none; }
 #loadedLaps .loaded-lap-main :is(b,small,span) { line-height: 1.2; }
 #loadedLaps .loaded-lap-pill button[data-ui-kind="icon"] { flex: 0 0 20px; width: 20px; min-width: 20px; height: 20px; min-height: 20px; padding: 0; border-radius: 50%; }
 #loadedLaps .loaded-lap-pill button[data-ui-kind="icon"]:hover { background: var(--ui-row-hover); color: var(--ui-label); }
@@ -352,7 +352,7 @@ body.trace-focus .chart-heading .trace-focus-button:not(.trace-focus-close) { di
 .performance-visual-grid .performance-chart-card.is-empty-chart { grid-row: 1 / 3; grid-template-rows: auto auto; align-self: start; min-height: 0; }
 .performance-chart-card.is-empty-chart .performance-empty-note { display: block; margin: 12px 0 0; padding: 0; border: 0; background: none; color: var(--ui-tertiary); font-size: var(--ui-text); line-height: 1.5; }
 body.is-descriptions-hidden #performanceMetricPanel .performance-chart-card.is-empty-chart p.performance-empty-note { display: block; }
-.performance-status-evidence .performance-quality-status strong { color: var(--ui-label); font-weight: 600; }
+.performance-status-evidence .performance-quality-status strong { color: var(--ui-label); font-weight: 590; }
 /* ---------- Car performance content ---------- */
 #carPerformance > .performance-status-card { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 20px; border: 0; border-bottom: 1px solid var(--ui-separator); border-radius: 0; background: transparent; box-shadow: none; color: var(--ui-secondary); font-size: var(--type-body); }
 #carPerformance > .performance-status-card p { margin: 0; color: inherit; font-size: var(--type-body); }
@@ -370,13 +370,13 @@ body.is-descriptions-hidden #performanceMetricPanel p.performance-quality-status
 #performanceResults > .performance-toolbar .performance-explain-toggle[data-ui-kind] { height: 24px; min-height: 24px; padding: 0 9px; font-size: var(--type-callout); border-radius: var(--radius-xs); }
 #performanceMetricPanel .metric-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 16px; padding: 4px 0 16px; border: 0; border-bottom: 1px solid var(--ui-separator); }
 #performanceMetricPanel .metric-heading-copy { flex: 1 1 auto; min-width: 0; margin-right: auto; }
-#performanceMetricPanel .metric-heading h2 { margin: 0; font: 600 24px/1.2 var(--ui-font); letter-spacing: -.025em; }
+#performanceMetricPanel .metric-heading h2 { margin: 0; font: 590 24px/1.2 var(--ui-font); letter-spacing: -.025em; }
 #performanceMetricPanel .metric-heading-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 #performanceMetricPanel .metric-heading { display: grid; grid-template-columns: minmax(0,1fr) auto; grid-template-areas: "title controls" "count controls"; align-items: center; column-gap: 16px; row-gap: 1px; }
 #performanceMetricPanel .metric-heading-copy { grid-area: title; }
 #performanceMetricPanel .metric-heading-controls { grid-area: controls; justify-content: flex-end; }
 #performanceMetricPanel .metric-heading-controls > .performance-actions { margin: 0; gap: 8px; align-items: center; }
-#performanceMetricPanel .metric-heading-controls .metric-refresh { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: var(--ui-control-height); min-height: var(--ui-control-height); padding: 0 10px; font-size: var(--ui-control-font); font-weight: 500; }
+#performanceMetricPanel .metric-heading-controls .metric-refresh { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: var(--ui-control-height); min-height: var(--ui-control-height); padding: 0 10px; font-size: var(--ui-control-font); font-weight: 510; }
 #performanceMetricPanel .metric-refresh .ui-symbol { width: 15px; height: 15px; }
 #performanceMetricPanel .metric-load-count { grid-area: count; justify-self: start; margin: 0; text-align: left; display: block; height: auto; padding: 0; border-radius: 0; background: none; color: var(--ui-tertiary); font-size: var(--type-body); font-weight: 400; }
 #performanceMetricPanel .metric-heading-controls [data-ui-group="segments"] > button[data-ui-kind="segment"] { height: var(--ui-control-height); min-height: var(--ui-control-height); font-size: var(--ui-control-font); }
@@ -385,7 +385,7 @@ body.is-descriptions-hidden #performanceMetricPanel p.performance-quality-status
 #performanceMetricPanel .performance-card > .panel-heading { margin: 0 0 6px; }
 .performance-chart-card,.performance-split-view > :is(.performance-chart-card,.performance-table-wrap) { border: 1px solid var(--ui-separator); border-radius: var(--radius-md); background: var(--ui-well); box-shadow: none; }
 .perf-chart-header { gap: 2px; }
-.perf-chart-title,.perf-chart-heading { font: 600 var(--type-body)/1.3 var(--ui-font); color: var(--ui-label); text-transform: none; letter-spacing: 0; }
+.perf-chart-title,.perf-chart-heading { font: 590 var(--type-body)/1.3 var(--ui-font); color: var(--ui-label); text-transform: none; letter-spacing: 0; }
 .performance-bar-row { gap: 8px; min-height: 26px; padding-block: 3px; border-radius: var(--radius-xs); }
 .performance-bar-row:hover { background: var(--ui-row-hover); }
 .performance-bar-label,.performance-team { font-size: var(--type-body); color: var(--ui-label); }
@@ -399,7 +399,7 @@ body.is-descriptions-hidden #performanceMetricPanel p.performance-quality-status
 /* Tables follow NSTableView: quiet header, hairline rows, zebra striping. */
 .performance-table-wrap { border: 1px solid var(--ui-separator); border-radius: var(--radius-md); background: var(--ui-content); overflow: auto; }
 .performance-table { border-collapse: separate; border-spacing: 0; width: 100%; }
-.performance-table th { position: sticky; top: 0; z-index: 1; height: 26px; padding: 4px 13px 4px 7px; border: 0; border-bottom: 1px solid var(--ui-border); background: var(--ui-header-row); color: var(--ui-secondary); font: 600 var(--type-callout)/1.25 var(--ui-font); text-align: inherit; vertical-align: bottom; }
+.performance-table th { position: sticky; top: 0; z-index: 1; height: 26px; padding: 4px 13px 4px 7px; border: 0; border-bottom: 1px solid var(--ui-border); background: var(--ui-header-row); color: var(--ui-secondary); font: 590 var(--type-callout)/1.25 var(--ui-font); text-align: inherit; vertical-align: bottom; }
 .performance-table td { height: var(--ui-row-height); padding: 3px 7px; border: 0; border-bottom: 0; font-size: var(--type-body); color: var(--ui-label); vertical-align: middle; }
 .performance-table tbody tr:nth-child(even) td { background: var(--ui-row-alt); }
 .performance-table tbody tr:hover td { background: var(--ui-row-hover); }
@@ -408,7 +408,7 @@ body.is-descriptions-hidden #performanceMetricPanel p.performance-quality-status
 .performance-table button[data-ui-kind="sort"] { gap: 3px; color: inherit; font: inherit; }
 .performance-table th:has(.perf-sort-btn.is-sorted) { color: var(--ui-label); }
 /* Disclosures use the macOS disclosure triangle. */
-details > summary[data-ui-kind="disclosure"] { display: flex; align-items: center; gap: 6px; list-style: none; min-height: 26px; padding: 3px 6px; border-radius: var(--radius-sm); font-size: var(--type-body); font-weight: 500; color: var(--ui-label); cursor: default; }
+details > summary[data-ui-kind="disclosure"] { display: flex; align-items: center; gap: 6px; list-style: none; min-height: 26px; padding: 3px 6px; border-radius: var(--radius-sm); font-size: var(--type-body); font-weight: 510; color: var(--ui-label); cursor: default; }
 details > summary[data-ui-kind="disclosure"]::-webkit-details-marker { display: none; }
 details > summary[data-ui-kind="disclosure"]::before { content: ''; flex: 0 0 10px; width: 10px; height: 10px; background: var(--ui-secondary); transition: transform var(--ui-motion) var(--ui-ease); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='m3.5 1.8 3.2 3.2-3.2 3.2' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='m3.5 1.8 3.2 3.2-3.2 3.2' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat; }
 details[open] > summary[data-ui-kind="disclosure"]::before { transform: rotate(90deg); }
@@ -426,10 +426,10 @@ details[open] > :not(summary) { animation: ui-reveal var(--ui-motion-slow) var(-
 .performance-error { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 7px 10px; border: 1px solid color-mix(in srgb,var(--ui-warning) 30%,transparent); border-radius: var(--radius-md); background: color-mix(in srgb,var(--ui-warning) 7%,var(--ui-panel)); color: var(--ui-label); font-size: var(--type-body); }
 /* Empty, loading, badges */
 .performance-empty { display: grid; justify-items: center; gap: 6px; padding: 48px 16px; text-align: center; }
-.performance-empty h3 { margin: 0; font: 600 var(--type-title3)/1.3 var(--ui-font-display); }
+.performance-empty h3 { margin: 0; font: 590 var(--type-title3)/1.3 var(--ui-font-display); }
 .performance-empty p { max-width: 52ch; margin: 0; font-size: var(--type-body); color: var(--ui-secondary); }
 .empty-icon-badge .ui-symbol { width: 32px; height: 32px; color: var(--ui-quaternary); }
-[data-ui-kind="badge"] { box-sizing: content-box; width: max-content; max-width: none; flex-shrink: 0; white-space: nowrap; height: 18px; padding: 0 6px; border-radius: var(--radius-xs); font-size: var(--type-callout); font-weight: 500; line-height: 18px; }
+[data-ui-kind="badge"] { box-sizing: content-box; width: max-content; max-width: none; flex-shrink: 0; white-space: nowrap; height: 18px; padding: 0 6px; border-radius: var(--radius-xs); font-size: var(--type-callout); font-weight: 510; line-height: 18px; }
 
 /* ---------- Controls (AppKit-like) ---------- */
 button[data-ui-kind="push"],button[data-ui-kind="primary"],button[data-ui-kind="popup"],button[data-ui-kind="picker"] { height: var(--ui-control-height); min-height: var(--ui-control-height); border-radius: var(--ui-radius); font-size: var(--ui-control-font); }
@@ -464,7 +464,7 @@ button[data-ui-kind="menu-item"]:is(:hover,:focus-visible) { background: var(--u
 .select-menu button[data-ui-kind="menu-item"][aria-selected="true"]::before { left: auto; right: 9px; }
 .select-menu button:is(:hover,:focus-visible) { background: var(--ui-action); color: #fff; }
 /* Segmented controls: recessed track with a raised thumb. */
-[data-ui-group="segments"]:not(.performance-tabs) > button[data-ui-kind="segment"] { position: relative; height: 22px; min-height: 22px; padding: 0 9px; border: 0; border-radius: var(--radius-xs); background: transparent; color: var(--ui-secondary); font-size: var(--type-body); font-weight: 500; box-shadow: none; transition: background-color var(--ui-motion) var(--ui-ease),color var(--ui-motion) var(--ui-ease); }
+[data-ui-group="segments"]:not(.performance-tabs) > button[data-ui-kind="segment"] { position: relative; height: 22px; min-height: 22px; padding: 0 9px; border: 0; border-radius: var(--radius-xs); background: transparent; color: var(--ui-secondary); font-size: var(--type-body); font-weight: 510; box-shadow: none; transition: background-color var(--ui-motion) var(--ui-ease),color var(--ui-motion) var(--ui-ease); }
 [data-ui-group="segments"]:not(.performance-tabs) > button[data-ui-kind="segment"]:hover:not(:disabled):not([aria-pressed="true"]) { color: var(--ui-label); background: transparent; }
 [data-ui-group="segments"]:not(.performance-tabs) > button[data-ui-kind="segment"][aria-pressed="true"] { color: var(--ui-label); background: var(--ui-seg-thumb); box-shadow: 0 .5px 2px #0000004d,0 0 0 .5px #0000001a,inset 0 .5px #ffffff1f; }
 /* Choices, fields and check marks */
@@ -572,9 +572,9 @@ body.performance-view > #carPerformance:not([hidden]),body:not(.performance-view
 /* Figma component geometry: shared by static and dynamically rendered UI. */
 .site-header.window-toolbar { gap: 16px; padding-inline: 16px; background: color-mix(in srgb,var(--ui-toolbar) 88%,transparent); }
 .site-header .performance-tabs { padding: 4px; border-radius: var(--radius-lg); }
-.site-header .performance-tabs > button,.site-header .performance-tabs > button[data-ui-kind="segment"] { height: var(--ui-control-height); min-height: var(--ui-control-height); border-radius: var(--ui-radius); font-weight: 600; }
+.site-header .performance-tabs > button,.site-header .performance-tabs > button[data-ui-kind="segment"] { height: var(--ui-control-height); min-height: var(--ui-control-height); border-radius: var(--ui-radius); font-weight: 590; }
 .app-sidebar { padding: 18px 14px 28px; gap: 20px; }
-.app-sidebar :is(.panel-heading h2,.track-selection-title > span:first-child) { font-size: var(--type-body); font-weight: 600; }
+.app-sidebar :is(.panel-heading h2,.track-selection-title > span:first-child) { font-size: var(--type-body); font-weight: 590; }
 :is(.dashboard-card,.telemetry-card,.performance-card):not(.app-sidebar *) { padding: 18px 20px; border-radius: var(--ui-panel-radius); box-shadow: none; }
 .panel-heading h2,.section-heading h2,.analysis-heading h2 { font-size: var(--ui-heading); line-height: 1.4; }
 .telemetry-empty { min-height: 300px; gap: 10px; border-radius: calc(var(--ui-panel-radius) - 4px); }
@@ -583,7 +583,7 @@ body.performance-view > #carPerformance:not([hidden]),body:not(.performance-view
 .sector-cards .lap-summary-card .summary-sectors > * { min-width: 0; }
 .performance-card-body > .performance-split-view,.performance-visual-cell,.performance-chart-card { border-radius: var(--radius-lg); }
 .performance-table { font-size: var(--ui-text); }
-.performance-table th { font-size: var(--ui-caption); color: var(--ui-secondary); font-weight: 600; }
+.performance-table th { font-size: var(--ui-caption); color: var(--ui-secondary); font-weight: 590; }
 .performance-table tbody tr:hover td { background: var(--ui-row-hover); }
 .performance-table td small { color: var(--ui-tertiary); font-size: var(--ui-caption); white-space: normal; overflow-wrap: anywhere; max-width: 100%; line-height: 1.4; }
 button[data-ui-kind="menu-item"][aria-selected="true"],button[data-ui-kind="menu-item"][aria-selected="true"]:is(:hover,:focus-visible) { background: var(--ui-list-selected); color: var(--ui-list-selected-label); box-shadow: none; }
@@ -624,38 +624,38 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
 :where(h1,h2,h3,h4,strong,b,em,small,span,td,th,button,label,summary) { letter-spacing: normal; }
 /* Session analysis */
 #driverPills .driver-pill-identity small,.lap-workspace .run-driver small,.lap-workspace .lap-tyre-age { font-size: var(--type-caption); }
-.lap-workspace .run-segment strong,.lap-workspace .lap-group-header,.lap-workspace .run-section-label { font-size: var(--type-callout); font-weight: 600; text-transform: none; }
+.lap-workspace .run-segment strong,.lap-workspace .lap-group-header,.lap-workspace .run-section-label { font-size: var(--type-callout); font-weight: 590; text-transform: none; }
 .lap-workspace .fastest-lap-pick span,.lap-workspace .fastest-lap-pick strong { font-size: var(--type-callout); }
 .lap-summary-card .summary-condition small { text-transform: none; font-size: var(--type-caption); }
-#driverSidebar .tire-copy strong,.app-sidebar .tire-copy strong { font-size: var(--type-body); font-weight: 500; text-transform: none; }
-.trace-pill-group .trace-driver-chip b { font-size: var(--type-callout); font-weight: 600; }
-.chart-heading h2,.dominance-map-header h2,.corner-analysis-toggle,.workspace-disclosure { font-size: var(--type-headline); font-weight: 600; }
-.chart-heading h2 small,.dominance-map-header h2 small { font-size: var(--type-caption); font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
-.loaded-lap-main span { font-size: var(--type-callout); font-weight: 600; }
+#driverSidebar .tire-copy strong,.app-sidebar .tire-copy strong { font-size: var(--type-body); font-weight: 510; text-transform: none; }
+.trace-pill-group .trace-driver-chip b { font-size: var(--type-callout); font-weight: 590; }
+.chart-heading h2,.dominance-map-header h2,.corner-analysis-toggle,.workspace-disclosure { font-size: var(--type-headline); font-weight: 590; }
+.chart-heading h2 small,.dominance-map-header h2 small { font-size: var(--type-caption); font-weight: 510; text-transform: uppercase; letter-spacing: .04em; }
+.loaded-lap-main span { font-size: var(--type-callout); font-weight: 590; }
 /* Car performance */
-#carPerformance .team-name,.performance-bar-label .team-name,.performance-table .team-name { font-size: var(--type-body); font-weight: 500; }
-.performance-bar-val,.performance-tyre-age-value,.trend-change { font-size: var(--type-body); font-weight: 600; }
+#carPerformance .team-name,.performance-bar-label .team-name,.performance-table .team-name { font-size: var(--type-body); font-weight: 510; }
+.performance-bar-val,.performance-tyre-age-value,.trend-change { font-size: var(--type-body); font-weight: 590; }
 .trend-coverage,.metric-load-count { font-size: var(--type-callout); }
-.perf-chart-title,.perf-chart-heading { font-size: var(--type-headline); font-weight: 600; }
-.performance-table th,.performance-table th button { font-size: var(--type-caption); font-weight: 600; }
+.perf-chart-title,.perf-chart-heading { font-size: var(--type-headline); font-weight: 590; }
+.performance-table th,.performance-table th button { font-size: var(--type-caption); font-weight: 590; }
 /* One weight for every segmented control, including the toolbar view switch. */
-[data-ui-group="segments"] > button[data-ui-kind="segment"],.site-header .performance-tabs > button { font-weight: 500; }
-[data-ui-group="segments"] > button[data-ui-kind="segment"][aria-pressed="true"],.site-header .performance-tabs > button[aria-selected="true"] { font-weight: 600; }
+[data-ui-group="segments"] > button[data-ui-kind="segment"],.site-header .performance-tabs > button { font-weight: 510; }
+[data-ui-group="segments"] > button[data-ui-kind="segment"][aria-pressed="true"],.site-header .performance-tabs > button[aria-selected="true"] { font-weight: 590; }
 /* Concentric radii: controls nested in an 8px container use 6px. */
-.site-header .performance-tabs > button[data-ui-kind="segment"] { font-weight: 500; }
-.site-header .performance-tabs > button[data-ui-kind="segment"][aria-selected="true"] { font-weight: 600; }
+.site-header .performance-tabs > button[data-ui-kind="segment"] { font-weight: 510; }
+.site-header .performance-tabs > button[data-ui-kind="segment"][aria-selected="true"] { font-weight: 590; }
 .map-north { font-size: var(--type-callout); }
 .lap-workspace .lap-clock,.sector-cards .lap-summary-card .summary-lap-time > strong { letter-spacing: normal; }
 /* Corner section table: header and rows share one grid, padding and alignment;
    sorting shows as label colour + arrow, never a filled box. */
 .corner-detail-card .corner-table-head { min-height: 36px; border-bottom: 1px solid var(--ui-border); }
-.corner-detail-card .corner-table-head > span:first-child { font-size: var(--type-caption); font-weight: 600; color: var(--ui-secondary); }
-.corner-detail-card .corner-table-head > button,.corner-detail-card .corner-table-head > button[data-ui-kind="sort"] { display: inline-flex; align-items: baseline; justify-content: flex-end; flex-wrap: nowrap; gap: 4px; min-height: 0; height: auto; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--ui-secondary); font-size: var(--type-caption); font-weight: 600; white-space: nowrap; }
+.corner-detail-card .corner-table-head > span:first-child { font-size: var(--type-caption); font-weight: 590; color: var(--ui-secondary); }
+.corner-detail-card .corner-table-head > button,.corner-detail-card .corner-table-head > button[data-ui-kind="sort"] { display: inline-flex; align-items: baseline; justify-content: flex-end; flex-wrap: nowrap; gap: 4px; min-height: 0; height: auto; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--ui-secondary); font-size: var(--type-caption); font-weight: 590; white-space: nowrap; }
 .corner-detail-card .corner-table-head > button:hover:not(:disabled),.corner-detail-card .corner-table-head > button:active:not(:disabled) { background: none; color: var(--ui-label); }
 .corner-detail-card .corner-table-head > button[aria-pressed="true"] { color: var(--ui-label); }
 .corner-detail-card .corner-table-head > button small { margin: 0; font-size: var(--type-caption); font-weight: 400; color: var(--ui-tertiary); }
 .corner-detail-card .corner-driver { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
-.corner-detail-card .corner-driver em { padding: 1px 5px; border-radius: var(--radius-xs); font: 600 11px/1.3 var(--ui-font); font-style: normal; color: var(--ui-accent); background: color-mix(in srgb,var(--ui-accent) 12%,transparent); }
+.corner-detail-card .corner-driver em { padding: 1px 5px; border-radius: var(--radius-xs); font: 590 11px/1.3 var(--ui-font); font-style: normal; color: var(--ui-accent); background: color-mix(in srgb,var(--ui-accent) 12%,transparent); }
 /* Team logos: a little larger everywhere they identify a row. */
 #driverPills .driver-pill .team-logo { width: 22px; height: 22px; }
 .lap-workspace .run-driver .team-logo { width: 24px; height: 24px; }
@@ -669,7 +669,7 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
 .lap-workspace .lap-chip.is-preparation:not([aria-pressed="true"]) { background: var(--ui-well); box-shadow: inset 0 0 0 1px var(--ui-border); }
 .lap-workspace .lap-chip.is-preparation .lap-state { color: var(--ui-secondary); }
 /* Corner and straight choices are buttons: filled, bezelled, with hover and an accent selected state. */
-.circuit-section-group .corner-picker button.corner-pick,.corner-picker button[data-ui-kind="choice"],.corner-picker button[data-ui-kind="push"] { border: 0; background: var(--ui-control); box-shadow: var(--ui-shadow-control); color: var(--ui-label); font-weight: 500; transition: background-color var(--ui-motion) var(--ui-ease),box-shadow var(--ui-motion) var(--ui-ease); }
+.circuit-section-group .corner-picker button.corner-pick,.corner-picker button[data-ui-kind="choice"],.corner-picker button[data-ui-kind="push"] { border: 0; background: var(--ui-control); box-shadow: var(--ui-shadow-control); color: var(--ui-label); font-weight: 510; transition: background-color var(--ui-motion) var(--ui-ease),box-shadow var(--ui-motion) var(--ui-ease); }
 .circuit-section-group .corner-picker button.corner-pick:hover:not(:disabled),.corner-picker button[data-ui-kind="choice"]:hover:not(:disabled) { background: var(--ui-control-hover); }
 .circuit-section-group .corner-picker button.corner-pick:active:not(:disabled) { background: var(--ui-selected); }
 .circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"],.corner-picker button[aria-pressed="true"] { background: var(--ui-tile-on); color: var(--ui-tile-on-label); box-shadow: none; transition: none; }
@@ -725,8 +725,8 @@ details > summary[data-ui-kind="disclosure"] { min-height: 32px; padding: 5px 8p
    then a trailing check on selected rows. No rings, no team-tinted state. */
 #driverPills .driver-pill[data-ui-kind="list-row"] { grid-template-columns: 20px 18px minmax(0,1fr) auto 12px; gap: 8px; min-height: 32px; height: 32px; padding: 0 8px 0 4px; border-radius: var(--radius-sm); }
 #driverPills.has-race-results .driver-pill[data-ui-kind="list-row"] { grid-template-columns: 20px 18px minmax(0,1fr) auto 12px; }
-#driverPills .driver-pill-identity { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--type-body); font-weight: 500; line-height: 1.2; }
-#driverPills .driver-pill-code { font-size: var(--type-callout); font-weight: 500; color: var(--ui-tertiary); letter-spacing: .02em; }
+#driverPills .driver-pill-identity { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--type-body); font-weight: 510; line-height: 1.2; }
+#driverPills .driver-pill-code { font-size: var(--type-callout); font-weight: 510; color: var(--ui-tertiary); letter-spacing: .02em; }
 #driverPills .driver-pill[data-ui-kind="list-row"]::after { content: ''; grid-column: 5; width: 12px; height: 12px; }
 #driverPills .driver-pill[aria-pressed="true"]::after,
 .app-sidebar .track-pill[aria-pressed="true"]::after { content: ''; display: block; width: 12px; height: 12px; background: currentColor;

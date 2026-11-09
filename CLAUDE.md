@@ -1,0 +1,12 @@
+# Apex (F1 Apex Data)
+
+## UI work: read the design docs first
+
+The site has one look, Linear's. Before adding or changing anything visible, read:
+
+1. `docs/linear-design.md`: everything Linear has published about its design, its full token set (`design/linear-tokens.json`) and measurements of linear.app.
+2. `docs/linear-components.md`: recipes for cards, tiles, charts, buttons, tables, chips, and the checklist.
+3. `docs/linear-look.md`: Linear's published colours, type ramp, radii and motion, with sources.
+4. `docs/linear-workspace-spec.md`: the frame and layout (rail, header, content, inspector).
+
+Follow the recipes and the checklist in `docs/linear-components.md`; check dark, light and 390 px width; run `npm run test:visual`.

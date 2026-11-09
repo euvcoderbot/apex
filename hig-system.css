@@ -26,7 +26,7 @@ button[data-ui-kind="push"]:active:not(:disabled),button[data-ui-kind="picker"]:
 button[data-ui-kind="primary"] {
   min-height: var(--hig-regular); border: 0; border-radius: var(--hig-radius);
   background: var(--ui-action); color: #fff; box-shadow: var(--ui-shadow-control);
-  font-size: var(--type-body); font-weight: 600;
+  font-size: var(--type-body); font-weight: 590;
 }
 button[data-ui-kind="primary"]:hover:not(:disabled) { background: color-mix(in srgb, var(--ui-action) 88%, #fff); }
 button[data-ui-kind="primary"]:active:not(:disabled) { background: color-mix(in srgb, var(--ui-action) 82%, #000); }
@@ -59,7 +59,7 @@ button[data-ui-kind="popup"]:active:not(:disabled),button[data-ui-kind="popup"][
 :is(button[data-ui-kind="segment"],button[data-ui-kind="run"]):hover:not([aria-pressed="true"]):not(:disabled) { background: var(--hig-seg-hover); color: var(--ui-label); }
 :is(button[data-ui-kind="segment"],button[data-ui-kind="run"]):active:not([aria-pressed="true"]):not(:disabled) { background: color-mix(in srgb, var(--ui-label) 12%, transparent); }
 :is(button[data-ui-kind="segment"],button[data-ui-kind="run"])[aria-pressed="true"] {
-  background: var(--ui-seg-thumb); color: var(--ui-label); box-shadow: var(--ui-thumb-shadow); font-weight: 600;
+  background: var(--ui-seg-thumb); color: var(--ui-label); box-shadow: var(--ui-thumb-shadow); font-weight: 590;
 }
 .lap-workspace .run-segment[data-ui-kind="run"] { padding-block: 2px; }
 .lap-workspace .run-segment[data-ui-kind="run"] small { font-size: var(--type-caption); font-weight: 400; color: inherit; opacity: .85; }
@@ -111,7 +111,7 @@ button[data-ui-kind="stepper"] {
 }
 button[data-ui-kind="stepper"]:hover:not(:disabled) { background: var(--hig-seg-hover); color: var(--ui-label); }
 button[data-ui-kind="stepper"]:active:not(:disabled) { background: color-mix(in srgb, var(--ui-label) 12%, transparent); }
-button[data-ui-kind="sort"] { border-radius: var(--hig-radius-small); font-size: var(--type-caption); font-weight: 600; }
+button[data-ui-kind="sort"] { border-radius: var(--hig-radius-small); font-size: var(--type-caption); font-weight: 590; }
 button[data-ui-kind="sort"]:hover { color: var(--ui-label); }
 button[data-ui-kind="reference"] {
   min-height: var(--hig-small); border-radius: var(--hig-radius-small); font-size: var(--type-callout);
@@ -151,21 +151,21 @@ input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 
 
 /* ---------- Badges (not controls) ---------------------------------------- */
 [data-ui-kind="badge"], .loaded-lap-main em, .corner-driver em {
-  font-size: var(--type-caption); font-weight: 600; border-radius: var(--radius-xs); letter-spacing: 0;
+  font-size: var(--type-caption); font-weight: 590; border-radius: var(--radius-xs); letter-spacing: 0;
 }
 
 /* ---------- Typography (HIG Typography) ----------------------------------- */
 /* Section headers: one style for every top-level group box in both views. */
 :is(.lap-workspace .workspace-heading h2,.analysis-heading h2,.corner-analysis-header h2,#carPerformance .performance-card > .panel-heading h2) {
-  font-size: var(--type-title3); font-weight: 600; line-height: 1.25; letter-spacing: 0;
+  font-size: var(--type-title3); font-weight: 590; line-height: 1.25; letter-spacing: 0;
 }
 /* Titles inside a group: charts, driver run cards, metric charts. */
 :is(.chart-heading h2,.perf-chart-heading,.run-driver-copy h3,.corner-detail-header strong,.dominance-map-header h2) {
-  font-size: var(--type-headline); font-weight: 600; letter-spacing: 0;
+  font-size: var(--type-headline); font-weight: 590; letter-spacing: 0;
 }
 /* Group labels: sidebar sections and sub-groups (Corners / Straights). */
 :is(.app-sidebar .panel-heading h2,.driver-control-card .panel-heading h2,.circuit-section-group > header h3) {
-  font-size: var(--type-callout); font-weight: 600; color: var(--ui-secondary); letter-spacing: 0; text-transform: none;
+  font-size: var(--type-callout); font-weight: 590; color: var(--ui-secondary); letter-spacing: 0; text-transform: none;
 }
 .circuit-section-group > header span,.workspace-eyebrow { font-size: var(--type-caption); color: var(--ui-tertiary); }
 
@@ -216,7 +216,7 @@ input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 
 
 /* Comparison chips are secondary controls, not the larger lap chooser tiles. */
 #loadedLaps .loaded-lap-main[data-ui-kind="reference"] { min-height: 24px; height: 24px; padding: 0 4px; gap: 4px; }
-.sector-cards .lap-summary-card .summary-lap-time > strong { font-weight: 700; }
+.sector-cards .lap-summary-card .summary-lap-time > strong { font-weight: 590; }
 /* Sector deficits only: 15% smaller than the existing caption size. */
 .sector-cards .lap-summary-card .sector-delta-slot .summary-delta { font-size: calc(var(--type-caption) * .85); }
 .lap-workspace .lap-chip.is-preparation .lap-state { color: var(--ui-accent); }
@@ -284,7 +284,7 @@ table.performance-table th:last-child > .ui-column-resizer { right: 0; }
 .corner-detail-card .corner-table-head > :is(span,button) {
   display: block; text-align: right; padding-inline: 0;
   min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  font-size: var(--type-caption); font-weight: 600; color: var(--ui-secondary); line-height: 1.3;
+  font-size: var(--type-caption); font-weight: 590; color: var(--ui-secondary); line-height: 1.3;
 }
 .corner-detail-card .corner-table-head > span:first-child { text-align: left; }
 @container (max-width: 380px) { .corner-detail-card .corner-table-head > button small { display: none; } }
@@ -298,7 +298,7 @@ table.performance-table th:last-child > .ui-column-resizer { right: 0; }
 .map-view-row { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; }
 button.map-guide-info[data-ui-kind="icon"] {
   width: 22px; height: 22px; min-height: 22px; padding: 0; border: 1px solid var(--ui-border-strong);
-  background: transparent; color: var(--ui-secondary); font: 600 var(--type-caption)/1 var(--ui-font); font-style: italic;
+  background: transparent; color: var(--ui-secondary); font: 590 var(--type-caption)/1 var(--ui-font); font-style: italic;
 }
 .circuit-guide-details[popover]:popover-open { display: grid; }
 .circuit-guide-details[popover]:not(:popover-open) { display: none; }
@@ -308,7 +308,7 @@ button.map-guide-info[data-ui-kind="icon"] {
    project choices, not Apple-prescribed CSS dimensions or timings. */
 [hidden] { display: none !important; }
 /* The workspace switch keeps proper tab semantics for its two content panels. */
-.performance-tabs > button[aria-selected="true"],.performance-tabs > button[aria-selected="true"]:hover { color: var(--ui-label); font-weight: 600; background: transparent; box-shadow: none; }
+.performance-tabs > button[aria-selected="true"],.performance-tabs > button[aria-selected="true"]:hover { color: var(--ui-label); font-weight: 590; background: transparent; box-shadow: none; }
 /* Concise labels avoid overlap; the full category names remain accessible. */
 /* Shared flag/text columns in the closed field and each option. The menu's
    border +4px inset +3px row inset matches the field's8px inset. */
@@ -328,7 +328,7 @@ button.map-guide-info[data-ui-kind="icon"] {
 .app-toast > button { flex-shrink: 0; }
 .trace-swatch:focus-within { outline: 3px solid var(--ui-focus); outline-offset: 2px; }
 .chart-data-access { grid-column: 1 / -1; margin-top: 8px; padding: 8px; border: 1px solid var(--ui-border); border-radius: var(--hig-radius); background: var(--ui-well); }
-.chart-data-access > summary { display: flex; align-items: center; min-height: var(--hig-regular); font-size: var(--type-body); font-weight: 600; }
+.chart-data-access > summary { display: flex; align-items: center; min-height: var(--hig-regular); font-size: var(--type-body); font-weight: 590; }
 .chart-sample-controls { display: grid; grid-template-columns: auto minmax(100px,1fr) auto; gap: 8px; align-items: center; margin-block: 8px; }
 .chart-sample-controls input[type="range"] { min-height: var(--hig-regular); width: 100%; accent-color: var(--ui-action); }
 .chart-sample-status { display: block; margin-block: 8px; font-size: var(--type-callout); color: var(--ui-secondary); }
@@ -444,10 +444,10 @@ body.trace-focus #telemetryCard { scrollbar-gutter: stable; padding: 8px 16px 24
    common alignment and spacing. Dimensions are this site's control tokens. */
 .view-error { padding: 12px 14px; border-radius: var(--hig-radius); background: var(--ui-well); color: var(--ui-secondary); font-size: var(--type-body); }
 .circuit-section-group > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 8px; }
-.circuit-section-group > header h3 { margin: 0; font: 600 var(--type-body)/1.4 var(--ui-font); color: var(--ui-label); }
+.circuit-section-group > header h3 { margin: 0; font: 590 var(--type-body)/1.4 var(--ui-font); color: var(--ui-label); }
 .circuit-section-group .corner-picker { display: grid; grid-template-columns: repeat(auto-fill,48px); gap: 8px; margin: 0; padding: 0; }
 .circuit-section-group .corner-picker button.corner-pick { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: var(--hig-regular); height: var(--hig-regular); min-width: 0; width: 100%; padding: 0 4px; border-radius: var(--hig-radius); border: 1px solid var(--ui-border-strong); background: var(--ui-control); color: var(--ui-label); box-shadow: var(--ui-shadow-control); cursor: pointer; }
-.corner-picker button.corner-pick strong { font: 500 var(--type-body)/1.2 var(--ui-font); }
+.corner-picker button.corner-pick strong { font: 510 var(--type-body)/1.2 var(--ui-font); }
 .circuit-section-group .corner-picker button.corner-pick:hover { background: var(--ui-control-hover); }
 .circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"] { background: var(--ui-action); color: #fff; border-color: transparent; }
 .corner-detail-card { padding: 0; border: 1px solid var(--ui-border); border-radius: var(--radius-lg); overflow: hidden; background: transparent; }
@@ -456,8 +456,8 @@ body.trace-focus #telemetryCard { scrollbar-gutter: stable; padding: 8px 16px 24
 .corner-measurement-table :is(th,td) { display: table-cell; box-sizing: border-box; height: 32px; padding: 3px 18px 3px 8px; border: 0; border-bottom: 1px solid var(--ui-separator); text-align: right; vertical-align: middle; white-space: nowrap; }
 .corner-measurement-table :is(th,td):first-child { text-align: left; padding-left: 10px; padding-right: 8px; }
 .corner-measurement-table :is(th,td):last-child { padding-right: 20px; }
-.corner-measurement-table thead th { background: var(--ui-header-row); color: var(--ui-secondary); font-size: var(--type-caption); font-weight: 600; }
-.corner-measurement-table button[data-corner-sort] { position: relative; display: flex; align-items: center; justify-content: flex-end; gap: 0; min-height: var(--hig-small); width: 100%; margin: 0; padding: 0; border: 0; border-radius: var(--hig-radius-small); background: transparent; color: var(--ui-secondary); box-shadow: none; cursor: pointer; font: 600 var(--type-caption)/1.4 var(--ui-font); white-space: nowrap; }
+.corner-measurement-table thead th { background: var(--ui-header-row); color: var(--ui-secondary); font-size: var(--type-caption); font-weight: 590; }
+.corner-measurement-table button[data-corner-sort] { position: relative; display: flex; align-items: center; justify-content: flex-end; gap: 0; min-height: var(--hig-small); width: 100%; margin: 0; padding: 0; border: 0; border-radius: var(--hig-radius-small); background: transparent; color: var(--ui-secondary); box-shadow: none; cursor: pointer; font: 590 var(--type-caption)/1.4 var(--ui-font); white-space: nowrap; }
 /* Column headers (HIG Lists and tables): the whole header cell is the target, so hover and press tint the cell, never
    just the label. The sorted column keeps the label colour and shows its direction with the chevron. */
 .corner-measurement-table thead th { transition: background-color var(--hig-fast) var(--hig-ease); }
@@ -467,12 +467,12 @@ body.trace-focus #telemetryCard { scrollbar-gutter: stable; padding: 8px 16px 24
 .corner-measurement-table button small { font: inherit; color: var(--ui-secondary); }
 .corner-measurement-table button svg { position: absolute; right: -13px; width: 10px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .corner-measurement-table th[aria-sort]:not([aria-sort="none"]) button { color: var(--ui-label); }
-.corner-measurement-table .corner-driver { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
+.corner-measurement-table .corner-driver { display: inline-flex; align-items: center; gap: 6px; font-weight: 510; }
 .corner-measurement-table .corner-driver .team-logo { width: 18px; height: 18px; flex: 0 0 18px; }
 /* The table is monochrome: the real white mark on dark, the real black mark on light (not a flattened silhouette of the colour one). */
 .corner-measurement-table .corner-driver small { font: 400 var(--type-caption)/1.4 var(--ui-font); color: var(--ui-secondary); }
 .corner-measurement-table .corner-driver em { font-style: normal; }
-.corner-measurement-table td strong { display: block; font-size: var(--type-body); line-height: 1.4; font-weight: 500; color: inherit; }
+.corner-measurement-table td strong { display: block; font-size: var(--type-body); line-height: 1.4; font-weight: 510; color: inherit; }
 .corner-measurement-table tbody tr:nth-child(even) { background: color-mix(in srgb,var(--ui-label) 3%,transparent); }
 .corner-measurement-table .is-faster { color: var(--ui-positive); }
 /* The fastest section time and the highest average/minimum speed are green too, as the faster delta. */
@@ -492,7 +492,7 @@ body.trace-focus #telemetryCard { scrollbar-gutter: stable; padding: 8px 16px 24
 @media(pointer:coarse) { .circuit-section-group .corner-picker button.corner-pick,.corner-measurement-table button[data-corner-sort],.corner-phase-evidence > summary[data-ui-kind="disclosure"] { min-height: 44px; } }
 
 .corner-measurement-table .corner-driver-copy { display: inline-flex; align-items: baseline; gap: 5px; }
-.corner-measurement-table .corner-driver-copy b { font-weight: 600; }
+.corner-measurement-table .corner-driver-copy b { font-weight: 590; }
 .corner-measurement-table .corner-driver-copy small { white-space: nowrap; }
 .corner-measurement-table tbody th { font-weight: 400; }
 
@@ -643,7 +643,7 @@ body > #carPerformance > .performance-status-card { border-bottom: 0; background
 
 /* Inspector tabs and the track pane: the map first, then what you can pick on it. */
 .inspector-tabs[data-ui-group="segments"] > button { border: 0; background: transparent; box-shadow: none; color: var(--ui-secondary); }
-.inspector-tabs[data-ui-group="segments"] > button[aria-selected="true"] { color: var(--ui-label); background: var(--ui-seg-thumb); box-shadow: 0 .5px 2px #0000004d,0 0 0 .5px #0000001a; font-weight: 600; }
+.inspector-tabs[data-ui-group="segments"] > button[aria-selected="true"] { color: var(--ui-label); background: var(--ui-seg-thumb); box-shadow: 0 .5px 2px #0000004d,0 0 0 .5px #0000001a; font-weight: 590; }
 .app-inspector .inspector-corners { display: block; }
 .app-inspector .inspector-corners .corner-picker-row { order: 1; }
 .app-inspector .inspector-corners .corner-metric-grid { order: 2; }
@@ -810,13 +810,13 @@ body > #carPerformance > .performance-status-card { border-bottom: 0; background
 .results-overview { display: grid; grid-template-columns: minmax(280px,1fr) minmax(0,2fr); gap: 12px; align-items: start; --result-row-height: 36px; }
 body > #carPerformance .results-overview .performance-bars { gap: 0; margin: 0; padding: 0; }
 @media (max-width:1400px) { .results-overview { grid-template-columns: minmax(0,1fr); } }
-.comparison-tray .comparison-clear, .comparison-tray .comparison-clear[data-ui-kind] { flex: none; height: 28px; min-height: 28px; padding: 0 10px; border: 0; border-radius: var(--radius-sm); background: transparent; box-shadow: none; color: var(--ui-accent); font: 500 var(--type-callout)/1 var(--ui-font); white-space: nowrap; }
+.comparison-tray .comparison-clear, .comparison-tray .comparison-clear[data-ui-kind] { flex: none; height: 28px; min-height: 28px; padding: 0 10px; border: 0; border-radius: var(--radius-sm); background: transparent; box-shadow: none; color: var(--ui-accent); font: 510 var(--type-callout)/1 var(--ui-font); white-space: nowrap; }
 .comparison-tray .comparison-clear:hover, .comparison-tray .comparison-clear[data-ui-kind]:hover:not(:disabled) { background: var(--ui-row-hover); color: var(--ui-accent); }
 
 /* Results tables: one design everywhere, in the manner of a macOS table. A quiet header on the same surface as the rows, hairlines rather than stripes, a single cell inset, and columns aligned by what they hold. */
 body > #carPerformance .performance-table-wrap, body > #carPerformance .performance-split-view > .performance-table-wrap, body > #carPerformance .performance-chart-card, body > #carPerformance .performance-split-view > .performance-chart-card { border: 0; border-radius: 14px; background: var(--ui-panel); box-shadow: 0 0 0 .5px var(--ui-border); }
 body > #carPerformance .performance-table-wrap, body > #carPerformance .performance-split-view > .performance-table-wrap { padding: 0; }
-body > #carPerformance .performance-table thead th { height: 34px; padding: 0 12px; border: 0; border-bottom: 1px solid var(--ui-border); background: var(--ui-panel); -webkit-backdrop-filter: none; backdrop-filter: none; color: var(--ui-secondary); font: 600 var(--type-caption)/1.2 var(--ui-font); letter-spacing: 0; text-transform: none; vertical-align: middle; }
+body > #carPerformance .performance-table thead th { height: 34px; padding: 0 12px; border: 0; border-bottom: 1px solid var(--ui-border); background: var(--ui-panel); -webkit-backdrop-filter: none; backdrop-filter: none; color: var(--ui-secondary); font: 590 var(--type-caption)/1.2 var(--ui-font); letter-spacing: 0; text-transform: none; vertical-align: middle; }
 body > #carPerformance .performance-table thead th:has(.perf-sort-btn.is-sorted) { color: var(--ui-label); }
 body > #carPerformance .performance-table tbody td, body > #carPerformance .performance-split-view .performance-table tbody td { height: 34px; padding: 5px 12px; border: 0; border-bottom: 1px solid var(--ui-separator); background: transparent; vertical-align: middle; font-variant-numeric: tabular-nums; }
 body > #carPerformance .performance-table tbody tr:last-child td { border-bottom: 0; }
@@ -832,7 +832,7 @@ body > #carPerformance .performance-table td small { white-space: nowrap; }
 .trend-board { display: grid; grid-template-columns: minmax(0,1.8fr) minmax(320px,1fr); gap: 12px; margin-bottom: 12px; }
 @media (max-width:1180px) { .trend-board { grid-template-columns: minmax(0,1fr); } }
 .trend-chart svg { display: block; width: 100%; }
-.trend-chart .trend-axis { fill: var(--ui-tertiary); font: 500 11px var(--ui-font); font-variant-numeric: tabular-nums; }
+.trend-chart .trend-axis { fill: var(--ui-tertiary); font: 510 11px var(--ui-font); font-variant-numeric: tabular-nums; }
 .trend-series { transition: opacity var(--ui-motion) var(--ui-ease); }
 .trend-board .performance-tyre-age-row { transition: opacity var(--ui-motion) var(--ui-ease); }
 .trend-board.has-active [data-trend-series]:not(.is-active) { opacity: .22; }
@@ -866,7 +866,7 @@ body > #carPerformance .performance-table td small { white-space: nowrap; }
 
 /* Display menu in the speed trace header, so its options do not take a row above the chart. */
 .trace-display-menu { position: relative; flex: none; }
-.trace-display-menu > summary { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: var(--ui-radius); background: var(--ui-control); box-shadow: var(--ui-shadow-control); color: var(--ui-label); font: 500 var(--type-body)/1 var(--ui-font); list-style: none; cursor: default; user-select: none; }
+.trace-display-menu > summary { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: var(--ui-radius); background: var(--ui-control); box-shadow: var(--ui-shadow-control); color: var(--ui-label); font: 510 var(--type-body)/1 var(--ui-font); list-style: none; cursor: default; user-select: none; }
 .trace-display-menu > summary::-webkit-details-marker { display: none; }
 .trace-display-menu > summary::before { display: none; content: none; }
 .trace-display-menu > summary::after { content: ''; width: 6px; height: 6px; margin-top: -3px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); opacity: .7; }
@@ -880,7 +880,7 @@ body > #carPerformance .performance-table td small { white-space: nowrap; }
 .speed-chart .chart-heading .trace-display-menu { position: static; }
 .speed-chart .chart-heading .trace-display-menu > .trace-settings { max-width: 100%; box-sizing: border-box; }
 .speed-chart .chart-heading .trace-display-menu :is(.trace-setting, .trace-capture-option) { white-space: normal; }
-.trace-capture-option { display: block; width: 100%; min-height: 30px; padding: 4px 8px; border: 0; border-radius: var(--hig-radius-small); background: transparent; box-shadow: none; color: var(--ui-label); font: 500 var(--type-body)/1.3 var(--ui-font); text-align: left; white-space: nowrap; cursor: default; }
+.trace-capture-option { display: block; width: 100%; min-height: 30px; padding: 4px 8px; border: 0; border-radius: var(--hig-radius-small); background: transparent; box-shadow: none; color: var(--ui-label); font: 510 var(--type-body)/1.3 var(--ui-font); text-align: left; white-space: nowrap; cursor: default; }
 .trace-capture-option:is(:hover,:focus-visible) { background: var(--ui-selected); }
 
 /* Closed menu contents do not run animations, so a transition started there would never finish. */
@@ -911,7 +911,7 @@ body > #carPerformance .performance-table td small { white-space: nowrap; }
 #lapSelectionBody .lap-chip[aria-pressed="true"] .lap-tyre-age { color: inherit; opacity: .85; }
 /* Choose laps and Compare fastest, in the Comparison bar. */
 .comparison-picker { display: flex; flex: none; align-items: center; gap: 8px; margin-left: auto; }
-.comparison-picker .comparison-choose { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border: 0; border-radius: var(--radius-md); background: var(--ui-control); box-shadow: var(--ui-shadow-control); color: var(--ui-label); font: 600 var(--type-callout)/1 var(--ui-font); white-space: nowrap; }
+.comparison-picker .comparison-choose { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border: 0; border-radius: var(--radius-md); background: var(--ui-control); box-shadow: var(--ui-shadow-control); color: var(--ui-label); font: 590 var(--type-callout)/1 var(--ui-font); white-space: nowrap; }
 .comparison-picker .comparison-choose:hover { background: var(--ui-control-hover); }
 .comparison-picker #lapWorkspaceActions { display: flex; align-items: center; gap: 8px; margin: 0; }
 .comparison-picker #lapWorkspaceActions .run-toolbar { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; color: var(--ui-secondary); font-size: var(--type-caption); white-space: nowrap; }

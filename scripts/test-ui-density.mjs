@@ -20,7 +20,7 @@ test('targeted UI fixes keep panels separate, controls contained and units visib
   assert.match(hig,/container: telemetry \/ inline-size/);
   assert.match(hig,/@container telemetry \(max-width: 1050px\)[\s\S]*grid-template-areas: "corner" "charts"/);
   assert.match(hig,/\.lap-chip\.is-preparation\[aria-pressed="true"\] \.lap-state \{ color: var\(--ui-accent\)/);
-  assert.match(hig,/summary-lap-time > strong \{ font-weight: 700/);
+  assert.match(hig,/summary-lap-time > strong \{ font-weight: 590/);
   assert.match(hig,/performance-bar-row \{ grid-template-columns: minmax\(0,14em\) minmax\(32px,1fr\) max-content/);
   assert.match(ui,/primaryBody\.prepend\(group\)/);
   assert.match(corners,/sectionTime\.toFixed\(3\)\+'s'/);

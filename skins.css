@@ -718,7 +718,7 @@
 :root[data-skin="linear"] .app-sidebar .control-field:has(.select-trigger:focus-visible) { box-shadow: inset 0 0 0 1px var(--lin-label-border), 0 0 0 2px var(--ui-accent); }
 /* Tiles: tighter insets so the run label fits beside a state at three tiles per row. */
 :root[data-skin="linear"] #lapSelectionBody .lap-chip[data-ui-kind="choice"] { column-gap: 6px; padding: 6px 8px; }
-:root[data-skin="linear"] #lapSelectionBody .lap-chip .lap-tyre-age { font-size: 10.5px; }
+:root[data-skin="linear"] #lapSelectionBody .lap-chip .lap-tyre-age { font-size: 11px; }
 
 /* Phones: comparison laps stay labels, sized to their content. */
 @media (max-width: 760px) {
@@ -830,7 +830,7 @@
 /* Inspector tables share the panel surface; selection and hover provide emphasis. */
 :root[data-skin="linear"] .corner-measurement-table tbody tr:nth-child(even) { background: transparent; }
 :root[data-skin="linear"] .performance-bar-label { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
-:root[data-skin="linear"] .performance-bar-label .metric-coverage { flex: 0 0 auto; margin-left: auto; padding: 1px 5px; border-radius: 4px; box-shadow: inset 0 0 0 .5px var(--ui-border-strong); color: var(--ui-tertiary); font: 510 10.5px/14px var(--ui-font); white-space: nowrap; }
+:root[data-skin="linear"] .performance-bar-label .metric-coverage { flex: 0 0 auto; margin-left: auto; padding: 1px 5px; border-radius: 4px; box-shadow: inset 0 0 0 .5px var(--ui-border-strong); color: var(--ui-tertiary); font: 510 11px/14px var(--ui-font); white-space: nowrap; }
 
 /* ======================= v4 ======================= */
 /* Paired chart + table (Race cornering and other split views): the chart's header takes the table header's measured height and
@@ -987,3 +987,14 @@
 :root[data-skin="linear"] .site-header [popovertarget="computeSettings"][data-compute="local"]::after { content: ""; position: absolute; right: 4px; bottom: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--ui-positive); box-shadow: 0 0 0 2px var(--lin-header-bg, var(--ui-canvas)); }
 :root[data-skin="linear"] .site-header [popovertarget="computeSettings"][data-compute="offline"]::after { content: ""; position: absolute; right: 4px; bottom: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--ui-tertiary); }
 @keyframes lin-pulse { from { opacity: .35; } to { opacity: 1; } }
+
+/* ---- Team profile ranks (car-performance.js teamProfileCard). Here, not in car-performance.css: the table rules above are in this
+   last layer, which wins over any earlier layer whatever its specificity (docs/linear-components.md). ---- */
+:root[data-skin="linear"] .team-profile-table tbody td.profile-rank { color: var(--ui-secondary); font: 510 12px/1 var(--ui-font); font-variant-numeric: tabular-nums; }
+:root[data-skin="linear"] .team-profile-table tbody td.profile-rank.is-top { color: var(--ui-label); font-weight: 590; }
+:root[data-skin="linear"] .team-profile-table tbody td.profile-rank.is-low { color: var(--ui-quaternary); }
+:root[data-skin="linear"] .team-profile-table tbody td.profile-strongest { color: var(--ui-tertiary); }
+/* CSV download (table-export.js): a 24 px ghost button on the right above its table. Here because the Linear button rules in
+   this layer reset button margins. */
+:root[data-skin="linear"] .table-csv:not(#linearWorkspace *) { display: flex; width: fit-content; margin: 0 0 6px auto; height: 24px; min-height: 24px; padding: 0 9px; border-radius: 6px; background: transparent; box-shadow: inset 0 0 0 1px var(--lin-label-border); color: var(--ui-tertiary); font: 510 12px/1 var(--ui-font); }
+:root[data-skin="linear"] .table-csv:not(#linearWorkspace *):hover { background: var(--lin-nav-hover); color: var(--ui-label); }

@@ -43,7 +43,7 @@
     const execution = quick.sort((a, b) => a.left - b.left)[0];
     const leftOver = rows.filter(r => Number.isFinite(r.left)).sort((a, b) => b.left - a.left)[0];
     const trap = pick('trap', (a, b) => b - a);
-    const tile = (label, row, value, note) => row ? `<div class="overview-tile"><small>${label}</small><b>${esc(value)}</b><span>${teamLogoMarkup(row.team, row.number)}${esc(row.code)}${note ? ` · ${esc(note)}` : ''}</span></div>` : '';
+    const tile = (label, row, value, note) => row ? `<div class="overview-tile"><small>${label}</small><b>${esc(value)}</b><span>${teamLogoMarkup(row.team, row.number)}${esc(row.code)}${note ? `<em>${esc(note)}</em>` : ''}</span></div>` : '';
     return [
       tile('Fastest lap', fastest, fastest && fmtLap(fastest.best)),
       tile('Best ideal lap', ideal, ideal && fmtLap(ideal.ideal), 'sum of best sectors'),
@@ -165,7 +165,7 @@
     const rows = [...realDrivers.values()].map(driverSummary);
     // Rendered from many places (every renderAll): replace the markup only when it changed, so a point being clicked is
     // never swapped out between mouse down and up.
-    const html = `<div class="section-heading"><h2 id="sessionOverviewTitle">Session overview</h2></div>
+    const html = `<div class="section-heading analysis-heading"><h2 id="sessionOverviewTitle">Session overview</h2></div>
       <div class="overview-readout">${readout(rows)}</div>
       <div class="overview-chart"><h3>Lap times</h3>${lapChart()}</div>${raceCharts()}`;
     if (renderedOverview !== html || !root.firstChild) { root.innerHTML = html; renderedOverview = html; }

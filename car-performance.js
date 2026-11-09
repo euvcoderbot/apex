@@ -960,14 +960,13 @@ function teamProfileModel(paceTeams) {
 function teamProfileCard(paceTeams) {
   if(!paceTeams.length)return '';
   const model=teamProfileModel(paceTeams),{measures,rows}=model;
-  const heat=(rank,count)=>rank==null?'':`style="--heat:${(0.12+0.6*(1-(rank-1)/Math.max(1,count-1))).toFixed(2)}"`;
   const head=`<tr><th scope="col">Team</th>${measures.map(m=>`<th scope="col">${escape(m.label)}</th>`).join('')}<th scope="col">Strongest at</th></tr>`;
   const body=rows.sort((a,b)=>(a.ranks[0]??99)-(b.ranks[0]??99)).map(r=>`<tr style="--team:${escape(color(r.team.color))}"><th scope="row">${teamLabel(r.team)}</th>${r.ranks.map((rank,i)=>{
     const m=measures[i],v=m.values.get(r.team.team);
-    return `<td class="profile-rank${rank==null?'':' is-ranked'}" ${heat(rank,m.count)} title="${escape(`${m.label}: ${rank==null?'not measured':`${rank} of ${m.count} · ${signed(v,m.digits??3,m.unit)}`}`)}">${rank==null?'—':rank}</td>`;}).join('')}<td class="profile-strongest">${escape(r.strongest||'—')}</td></tr>`).join('');
+    return `<td class="profile-rank${rank==null?'':rank<=3?' is-top':rank>m.count-3?' is-low':''}" title="${escape(`${m.label}: ${rank==null?'not measured':`${rank} of ${m.count} · ${signed(v,m.digits??3,m.unit)}`}`)}">${rank==null?'—':rank}</td>`;}).join('')}<td class="profile-strongest">${escape(r.strongest||'—')}</td></tr>`).join('');
   const loadButton=model.speedLoaded?'':`<p class="performance-note">Add the corner bands, straights, traction and braking from qualifying telemetry: <button type="button" class="btn-track-action" data-profile-load>Measure from telemetry</button></p>`;
   return `<section class="dashboard-card performance-card team-profile-card"><div class="panel-heading"><h2>Team profiles</h2></div>
-    <p class="performance-note">Each team’s rank among the teams measured, 1 = best, in every measurement on this page set. Deeper colour is a better rank; the measured value is on hover. Ranks hide how close teams are: check the gaps before reading much into neighbouring places.</p>
+    <p class="performance-note">Each team’s rank among the teams measured, 1 = best, in every measurement on this page set. The top three in each are marked; the measured value is on hover. Ranks hide how close teams are: check the gaps before reading much into neighbouring places.</p>
     ${loadButton}<div class="performance-table-wrap" tabindex="0" role="region" aria-label="Team profiles"><table class="performance-table team-profile-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>
     ${model.speedLoaded?tradeOffPlot(model):''}</section>`;
 }
@@ -984,7 +983,7 @@ function tradeOffPlot(model) {
   // The measurements are centred on each GP's median car; shift both axes so 0 is the best team, as on the bar charts.
   const minX=Math.min(...points.map(p=>p.x)),minY=Math.min(...points.map(p=>p.y));
   for(const p of points){p.x-=minX;p.y-=minY;}
-  const W=560,H=300,L=60,R=16,T=14,B=40;
+  const W=640,H=320,L=60,R=16,T=14,B=40;
   const pad=(lo,hi)=>{const span=hi-lo||Math.abs(hi)||1;return [lo-span*.08,hi+span*.08];};
   const [x0,x1]=pad(Math.min(...points.map(p=>p.x)),Math.max(...points.map(p=>p.x))),[y0,y1]=pad(Math.min(...points.map(p=>p.y)),Math.max(...points.map(p=>p.y)));
   const X=v=>L+(v-x0)/(x1-x0)*(W-L-R),Y=v=>T+(y1-v)/(y1-y0)*(H-T-B);   // more time lost is higher, so bottom left is quickest at both
@@ -999,7 +998,7 @@ function tradeOffPlot(model) {
   svg+=`<text class="axis-title" x="${(L+W-R)/2}" y="${H-6}" text-anchor="middle">Time lost on the straights (${unit}) → slower</text><text class="axis-title" transform="translate(12 ${(T+H-B)/2}) rotate(-90)" text-anchor="middle">Time lost in corners (${unit}) ↑ slower</text>`;
   for(const {p,lx,ly} of labels)svg+=`<circle cx="${X(p.x).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="5" style="fill:${escape(color(p.team.color))}"><title>${escape(`${p.team.displayName||p.team.team}: straights ${p.x.toFixed(3)}, corners ${p.y.toFixed(3)} ${unit}`)}</title></circle><text class="label" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}">${escape(p.team.displayName||p.team.team)}</text>`;
   svg+='</svg>';
-  return `<h3 class="perf-chart-heading">Straights against corners</h3><p class="performance-note">Each team’s time lost to the best on the straights (across) and in all corners together (up), from the same qualifying laps. Bottom left is quickest at both. A car far left but high is quick on the straights and loses in corners (less drag, less downforce); one low but to the right is the opposite. 0 = best in each.</p>${svg}`;
+  return `<div class="performance-chart-card trade-off-card"><div class="perf-chart-header"><div class="perf-chart-title-group"><h4 class="perf-chart-heading">Straights against corners</h4><span class="perf-chart-sub">0 = best · bottom left is quickest at both</span></div></div><p class="performance-note">Each team’s time lost to the best on the straights (across) and in all corners together (up), from the same qualifying laps. Bottom left is quickest at both. A car far left but high is quick on the straights and loses in corners (less drag, less downforce); one low but to the right is the opposite. 0 = best in each.</p>${svg}</div>`;
 }
 
 function renderPace(teams) {
