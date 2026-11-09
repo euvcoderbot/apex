@@ -1,9 +1,16 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
+import {packRead, packWrite, servePack, acceptPack} from "../lib/lap-pack-store.mjs";
 
 interface Env {
   ASSETS: {fetch(request: Request): Promise<Response>};
+  // The Site's R2 bucket: lap-telemetry packs too large for the deployment package (lib/lap-pack-store.mjs).
+  DATA_CACHE?: {
+    get(key: string): Promise<{body: ReadableStream; size: number} | null>;
+    head(key: string): Promise<unknown | null>;
+    put(key: string, value: ArrayBuffer, options?: Record<string, unknown>): Promise<unknown>;
+  };
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -38,6 +45,12 @@ const worker = {
         },
       }, allowedWidths);
     }
+
+    // Lap-telemetry packs: from the package when it has them, otherwise from R2; verified uploads into R2.
+    const pack = packRead(url.pathname);
+    if (pack && (request.method === "GET" || request.method === "HEAD")) return servePack(request, env, pack);
+    const upload = packWrite(url.pathname);
+    if (upload) return acceptPack(request, env, upload, url.origin);
 
     // App paths such as /apex/cars/corners have no file of their own: serve
     // the one page, which reads its state from the path and query.
