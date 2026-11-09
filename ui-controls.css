@@ -301,3 +301,59 @@ button[data-ui-kind="push"],button[data-ui-kind="primary"],button[data-ui-kind="
 .team-mark.has-number[data-digits="1"]::after { font-size: 54cqw; }
 .team-mark.has-number[data-digits="3"]::after { font-size: 34cqw; }
 @media (forced-colors: active) { .team-mark:not(.has-number)::before, .team-mark.has-number { background: CanvasText; } .team-mark.has-number::after { color: Canvas; } }
+
+/* The menus name another session than the one on screen: the title says it is still the old one. */
+#loadedSessionContext[data-pending]::after { content: " · still showing; load to switch"; color: var(--ui-tertiary, var(--ui-secondary)); }
+#loadSession.is-pending { box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-accent) 45%, transparent); }
+
+/* Quickest of the compared laps in a sector: the time in bold with a small mark, independent of the F1 timing colour. */
+.lap-summary-card .sector-cell.is-compared-best .sector-measurements strong { font-weight: 750; }
+.lap-summary-card .sector-cell.is-compared-best .sector-cell-value > small::after { content: " ▲"; color: var(--ui-positive); font-size: .85em; }
+
+/* ---------- Session overview (session-overview.js) ---------- */
+.session-overview { margin-bottom: 14px; }
+.session-overview .section-heading h2 { margin: 0 0 10px; }
+.overview-readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.overview-tile { display: grid; gap: 3px; padding: 10px 12px; border-radius: 8px; background: var(--ui-well, rgba(255,255,255,.04)); border: 1px solid var(--ui-border); min-width: 0; }
+.overview-tile small { color: var(--ui-tertiary, var(--ui-secondary)); font-size: 11px; font-weight: 500; }
+.overview-tile b { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.overview-tile span { display: flex; align-items: center; gap: 6px; color: var(--ui-secondary); font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.overview-tile .team-logo { width: 16px; height: 16px; flex: none; }
+.overview-chart h3, .time-summary h3 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.overview-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 12px; color: var(--ui-secondary); margin-bottom: 4px; }
+.overview-legend i { display: inline-block; width: 10px; height: 3px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+.overview-slow-toggle { margin-left: auto; border: 1px solid var(--ui-border); background: none; color: var(--ui-secondary); border-radius: 6px; padding: 3px 8px; font: inherit; font-size: 12px; cursor: pointer; }
+.overview-lap-chart { display: block; width: 100%; height: auto; overflow: visible; }
+.overview-lap-chart .grid { stroke: var(--ui-border); stroke-width: 1; }
+.overview-lap-chart .axis { fill: var(--ui-tertiary, var(--ui-secondary)); font-size: 11px; font-variant-numeric: tabular-nums; }
+.overview-lap-chart .line { fill: none; stroke-width: 1.5; opacity: .55; }
+.overview-lap-chart .point { cursor: pointer; stroke: var(--ui-canvas, #111); stroke-width: 1; }
+.overview-lap-chart .point:hover, .overview-lap-chart .point:focus-visible { r: 6; outline: none; stroke: var(--ui-label); }
+.overview-lap-chart .point.is-loaded { stroke: var(--ui-label); stroke-width: 2; }
+.overview-note { margin: 6px 0 0; font-size: 11px; color: var(--ui-tertiary, var(--ui-secondary)); }
+.summary-ideal { display: block; font-size: 11px; color: var(--ui-tertiary, var(--ui-secondary)); font-variant-numeric: tabular-nums; text-align: right; }
+
+/* ---------- Where the time went ---------- */
+.time-summary { display: grid; gap: 8px; margin: 12px 0; }
+.time-summary-card { border: 1px solid var(--ui-border); border-left: 3px solid var(--team, var(--ui-accent)); border-radius: 8px; padding: 10px 12px; }
+.time-summary-card header { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; font-size: 13px; margin-bottom: 8px; }
+.time-summary-card header span { margin-left: auto; color: var(--ui-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
+.time-summary-lists { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.time-summary-lists small { color: var(--ui-tertiary, var(--ui-secondary)); font-size: 11px; }
+.time-summary-lists ol { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 3px; }
+.time-summary-lists li { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.time-summary-lists li.is-loss span { color: var(--ui-negative, #ff6b6b); }
+.time-summary-lists li.is-gain span { color: var(--ui-positive); }
+.time-summary-lists li.is-none { color: var(--ui-tertiary, var(--ui-secondary)); }
+@media (max-width: 520px) { .time-summary-lists { grid-template-columns: 1fr; } }
+.overview-tile span { white-space: normal; flex-wrap: wrap; overflow: visible; }
+.overview-lap-chart .line.is-solid { opacity: 1; stroke-width: 1.8; stroke-linejoin: round; }
+.overview-lap-chart .line.is-faint { opacity: .2; stroke-width: 1.2; }
+.overview-lap-chart .label { font-size: 10px; font-weight: 650; }
+.overview-chart + .overview-chart { margin-top: 14px; }
+
+/* CSV download above a data table (table-export.js) */
+.table-csv { display: block; margin: 0 0 4px auto; border: 1px solid var(--ui-border); background: none; color: var(--ui-secondary); border-radius: 5px; padding: 2px 7px; font: 600 10.5px/1.4 var(--ui-font, inherit); letter-spacing: .03em; cursor: pointer; }
+.table-csv:hover { color: var(--ui-label); border-color: var(--ui-border-strong, var(--ui-border)); }
+@media print { .table-csv { display: none; } }
+.table-csv, #seasonHub .table-csv { width: auto; flex: none; align-self: flex-end; justify-self: end; }

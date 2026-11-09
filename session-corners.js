@@ -61,8 +61,10 @@ function renderAll() {
     }
   }
   updateTelemetryVisibility();
+  window.ApexSessionOverview?.render();
   renderLoaded();
   renderSectors();
+  window.ApexSessionOverview?.renderTimeSummary();
   renderTraceVisibilityControls();
   drawAll();
   syncSessionUrl();
@@ -283,6 +285,7 @@ function renderCornerAnalysis() {
     renderCornerAnalysis();
     renderMiniSectorMap();
   };
+  window.ApexSessionOverview?.renderTimeSummary();
 }
 
 

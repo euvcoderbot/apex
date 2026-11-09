@@ -51,6 +51,8 @@ const staticFiles = [
   "session-map.js",
   "session-init.js",
   "session-tyres.js",
+  "session-overview.js",
+  "table-export.js",
   "analysis-core.js",
   "url-state.js",
   "motion.js",

@@ -118,7 +118,11 @@ test('all eight performance categories work with the Linear rail and flat bars',
   }
   await page.setViewportSize({width: 1440, height: 900});
   await page.locator('#linearWorkspace [data-sidebar-metric="trend"]').click();
+  // After an analysis the race picker is folded; Change opens it again.
+  await expect(page.locator('#performanceTrackChoices')).toBeHidden();
+  await page.locator('#performanceTrackToggle').click();
   const selected = page.locator('#performanceTrackPills .track-pill[aria-pressed="true"]').first();
+  await expect(selected).toBeVisible();
   expect(await selected.evaluate(el => getComputedStyle(el).gridTemplateRows.split(' ').length), 'selected track check stays on one row').toBe(1);
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({path: `test-results/linear-performance-${test.info().project.name}.png`});

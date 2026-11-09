@@ -33,9 +33,9 @@ export function PaceView(p: PaceViewProps) {
       ) : null}
       <Card title="Qualifying & race pace" note={p.note}>
         {p.stat.show ? (
-          <div className="performance-scope-toggle performance-stat-toggle" role="group" aria-label="Race pace across GPs">
-            <button type="button" data-pace-stat="mean" aria-pressed={p.stat.value === 'mean'}>Mean gap</button>
+          <div className="performance-scope-toggle performance-stat-toggle" role="group" aria-label="Pace across GPs">
             <button type="button" data-pace-stat="median" aria-pressed={p.stat.value === 'median'}>Median gap</button>
+            <button type="button" data-pace-stat="mean" aria-pressed={p.stat.value === 'mean'}>Mean gap</button>
           </div>
         ) : null}
         <div className="performance-metric-toolbar">

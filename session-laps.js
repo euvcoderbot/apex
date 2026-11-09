@@ -206,6 +206,7 @@ function toggleLoadedLap(code, lapNum) {
 }
 
 function renderStints() {
+  window.ApexSessionOverview?.render();
   const root = $('#stintPanels');
   const actions = $('#lapWorkspaceActions');
   if (!selected.length) {
@@ -412,6 +413,9 @@ function renderSectors() {
   const conditionCell = (icon, label, value) => `
     <span class="summary-condition"><i aria-hidden="true">${icon}</i><span><small>${label}</small><strong>${value}</strong></span></span>`;
   
+  // The colours are F1's timing colours over the whole session (purple session best, green personal best); they do not say
+  // which compared lap was quicker. The quickest of the compared laps in each sector is marked separately.
+  const comparedBests = sectorFields.map(field => loaded.length > 1 ? finiteMinimum(loaded.map(item => item.real?.[field])) : null);
   const root = $('#sectorRows');
   replaceUI(root, loaded.map((item, i) => {
     const lap = item.real || {};
@@ -422,6 +426,7 @@ function renderSectors() {
       value: lap[field],
       reference: refLap[field],
       state: sectorState(item.code, sectorIndex, lap[field]),
+      quickest: Number.isFinite(lap[field]) && Number.isFinite(comparedBests[sectorIndex]) && Math.abs(lap[field] - comparedBests[sectorIndex]) <= .0005,
     }));
     const conditions = lap.conditions || {};
     const direction = windCardinal(conditions.wind_direction);
@@ -436,17 +441,20 @@ function renderSectors() {
     const compoundClass = getCompoundToneClass(lap.compound || 'UNKNOWN');
     const tyreAge = Number.isFinite(lap.tyre_life) ? Math.max(1, Math.round(lap.tyre_life)) : null;
     const tyreLife = tyreAge === null ? '' : `Tyre lap ${tyreAge}`;
+    // The driver's ideal lap in this session: the sum of their best three sectors.
+    const own = personalBests.get(item.code);
+    const ideal = own && own.every(Number.isFinite) ? own.reduce((a, b) => a + b, 0) : null;
     return `
       <article class="lap-summary-card has-conditions" data-motion-key="summary-${item.code}-${item.lap}" style="--team:${color}">
         <header>
           <span class="summary-driver" title="${item.code} · lap ${item.lap}">${teamLogoMarkup(realDrivers.get(item.code)?.team || drivers.find(driver=>driver[0]===item.code)?.[4], drivers.find(driver=>driver[0]===item.code)?.[1])}<b>${item.code}</b><span class="summary-lap-label">Lap ${item.lap}</span>${i === 0 ? '<em>REF</em>' : ''}</span>
           <span class="summary-header-actions">
             <span class="summary-tyre ${compoundClass}">${compoundBadgeMarkup(lap.compound)}<span class="summary-tyre-copy"><b>${compound}</b>${tyreLife ? `<small>${tyreLife}</small>` : ''}</span></span>
-            <span class="summary-lap-time"><small>${lap.in_lap && lap.out_lap ? 'PIT IN/OUT' : lap.out_lap ? 'PIT EXIT → LINE' : lap.in_lap ? 'PIT-IN LAP' : 'LAP'}</small>${i === 0 || lap.out_lap || ref.real?.out_lap ? '' : deltaBadge(item.time, ref.time)}<strong>${lap.display_time_estimated ? '~' : ''}${time(Number.isFinite(lap.display_time) ? lap.display_time : item.time)}</strong></span>
+            <span class="summary-lap-time"><small>${lap.in_lap && lap.out_lap ? 'PIT IN/OUT' : lap.out_lap ? 'PIT EXIT → LINE' : lap.in_lap ? 'PIT-IN LAP' : 'LAP'}</small>${i === 0 || lap.out_lap || ref.real?.out_lap ? '' : deltaBadge(item.time, ref.time)}<strong>${lap.display_time_estimated ? '~' : ''}${time(Number.isFinite(lap.display_time) ? lap.display_time : item.time)}</strong>${Number.isFinite(ideal) ? `<small class="summary-ideal" title="Sum of ${item.code}’s best three sectors this session">Ideal ${time(ideal)}</small>` : ''}</span>
           </span>
         </header>
-        <div class="summary-sectors">${sectors.map(({ label, value, reference, state }) => `
-          <span class="sector-cell ${state.className}" title="${label} · ${state.label}">
+        <div class="summary-sectors">${sectors.map(({ label, value, reference, state, quickest }) => `
+          <span class="sector-cell ${state.className}${quickest ? ' is-compared-best' : ''}" title="${label} · ${state.label}${quickest ? ' · quickest of the compared laps' : ''}">
             <span class="sector-cell-value"><small>${label}</small><span class="sector-measurements"><span class="sector-delta-slot">${i === 0 ? '' : deltaBadge(value, reference)}</span><strong>${Number.isFinite(value) ? `${value.toFixed(3)}s` : '—'}</strong></span></span>
           </span>`).join('')}
         </div>

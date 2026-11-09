@@ -44,6 +44,8 @@ document.addEventListener('DOMContentLoaded', () => {
   yearSelect.addEventListener('change', () => loadCalendar().catch(() => {}));
   $('#gp').addEventListener('change', populateSessions);
   $('#loadSession').onclick = loadRealSession;
+  // The Load button names the session the menus point at when it differs from the one on screen (session-loader.js).
+  for (const id of ['#year', '#gp', '#session']) $(id)?.addEventListener?.('change', () => setTimeout(markPendingSelection));
   
   const themeToggle = $('#themeToggle');
   if (themeToggle) {

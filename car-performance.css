@@ -1359,3 +1359,31 @@ body.performance-view #sidebarToggle {
   .performance-bar-track, .performance-tyre-age-track { grid-column: 1 / -1; grid-row: 2; }
   .performance-table th:first-child, .performance-table td:first-child { min-width: 140px; max-width: 170px; }
 }
+
+/* Likely range of a season figure (bootstrap over GPs): a thin whisker across the bar's end. */
+.performance-bar-range {
+  position: absolute; top: 50%; height: 0; z-index: 3; transform: translateY(-50%);
+  border-top: 1.5px solid var(--ui-label); opacity: .55; pointer-events: none;
+}
+.performance-bar-range::before, .performance-bar-range::after {
+  content: ""; position: absolute; top: -4px; height: 7px; border-left: 1.5px solid var(--ui-label);
+}
+.performance-bar-range::before { left: 0; }
+.performance-bar-range::after { right: 0; }
+.performance-bar-seconds { display: block; margin-top: 2px; font: 500 var(--text-xs)/1 var(--ui-font, inherit); color: var(--ui-tertiary, var(--ui-secondary)); text-align: right; }
+.performance-level { text-decoration: none; color: var(--ui-secondary); cursor: help; }
+
+/* Folded race picker: just the heading with its count and a Change button. */
+.performance-track-tray.is-collapsed :is(.performance-track-choices, .track-tray-actions) { display: none; }
+.track-selection-title .track-tray-toggle { margin-left: 8px; }
+#performanceTrackTray.is-collapsed .track-tray-actions, #performanceTrackTray.is-collapsed #performanceTrackChoices { display: none; }
+
+/* Team profiles (renderPace) */
+.team-profile-table td.profile-rank { text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }
+.team-profile-table td.profile-rank.is-ranked { background: color-mix(in srgb, var(--team, var(--ui-accent)) calc(var(--heat, .2) * 100%), transparent); }
+.team-profile-table td.profile-strongest { color: var(--ui-secondary); white-space: nowrap; }
+.trade-off-plot { display: block; width: 100%; max-width: 720px; height: auto; overflow: visible; margin-top: 4px; }
+.trade-off-plot .grid { stroke: var(--ui-border); }
+.trade-off-plot .axis { fill: var(--ui-tertiary, var(--ui-secondary)); font-size: 10px; font-variant-numeric: tabular-nums; }
+.trade-off-plot .axis-title { fill: var(--ui-secondary); font-size: 11px; }
+.trade-off-plot .label { fill: var(--ui-label); font-size: 10.5px; font-weight: 600; }

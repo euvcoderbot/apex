@@ -400,13 +400,38 @@
     top.append(title, count);
     const list = el('ol', 'season-sessions');
     const upcoming = next.sessions.find(x => new Date(x.start) > now());
+    // Your time or the circuit's (its UTC offset comes with the forecast). The choice is remembered on this device.
+    const offset = Number.isFinite(next.utc_offset) ? next.utc_offset : null;
+    let trackTime = false;
+    try { trackTime = offset != null && localStorage.getItem('apex-season-track-time') === '1'; } catch { /* storage blocked */ }
+    const clock = x => {
+      const at = new Date(x.start);
+      if (!trackTime) return at.toLocaleString([], {weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
+      return new Date(at.getTime() + offset * 1000).toLocaleString([], {weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC'});
+    };
     for (const x of next.sessions) {
       const at = new Date(x.start), li = el('li'); li.dataset.state = x === upcoming ? 'next' : at < now() ? 'done' : 'ahead';
       const name = el('span', null, x.name);
       if (li.dataset.state === 'done') name.prepend(htmlNode('<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7"/></svg>'));
       if (li.dataset.state === 'next') name.append(el('em', null, 'Next'));
-      li.append(name, el('time', null, at.toLocaleString([], {weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'})));
+      const stamp = el('time', null, clock(x)); stamp.dateTime = x.start;
+      li.append(name, stamp);
       list.append(li);
+    }
+    let zoneToggle = null;
+    if (offset != null) {
+      zoneToggle = el('div', 'season-zone-toggle'); zoneToggle.setAttribute('role', 'group'); zoneToggle.setAttribute('aria-label', 'Session times');
+      const paint = () => {
+        list.querySelectorAll('time').forEach((t, i) => { t.textContent = clock(next.sessions[i]); });
+        zoneToggle.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.zone === 'track') === trackTime)));
+        note.textContent = trackTime ? `Times at the circuit (UTC${offset >= 0 ? '+' : '−'}${Math.abs(offset / 3600)}).` : 'Times in your time zone.';
+      };
+      for (const [zone, label] of [['mine', 'Your time'], ['track', 'Track time']]) {
+        const b = el('button', null, label); b.type = 'button'; b.dataset.zone = zone;
+        b.addEventListener('click', () => { trackTime = zone === 'track'; try { localStorage.setItem('apex-season-track-time', trackTime ? '1' : '0'); } catch { /* storage blocked */ } paint(); });
+        zoneToggle.append(b);
+      }
+      queueMicrotask(paint);
     }
     // The circuit (outline and facts) and its history.
     const body = el('div', 'season-next-body');
@@ -452,6 +477,9 @@
       const sky = code => code == null ? '' : code === 0 ? 'Clear' : code <= 2 ? 'Partly cloudy' : code === 3 ? 'Cloudy' : code <= 48 ? 'Fog' : code <= 57 ? 'Drizzle' : code <= 67 ? 'Rain' : code <= 77 ? 'Snow' : code <= 82 ? 'Showers' : 'Thunderstorms';
       const forecast = el('div', 'season-weather');
       forecast.append(el('h3', null, 'Weekend forecast'));
+      // Beyond about a week a forecast is a rough guide: say so rather than show it with the same confidence as tomorrow's.
+      const daysAhead = (Date.parse(`${data.next_weather[0].date}T12:00:00`) - Date.now()) / 86400000;
+      if (daysAhead > 7) forecast.append(el('p', 'season-muted season-weather-range', 'Long-range forecast: likely to change.'));
       for (const d of data.next_weather) {
         const day = el('div'); day.dataset.wet = String(d.rain >= 50);
         const icon = weatherIcon(d.code); icon.dataset.kind = d.code >= 95 ? 'storm' : d.rain >= 50 ? 'wet' : d.code <= 2 ? 'sun' : 'cloud';
@@ -463,7 +491,9 @@
       }
       body.append(forecast);
     }
-    hero.append(top, list, body, el('p', 'season-footnote', 'Times in your time zone. Circuit outline and facts: f1-circuits (MIT); history: Jolpica; forecast: Open-Meteo.'));
+    const note = el('span', null, 'Times in your time zone.');
+    const foot = el('p', 'season-footnote'); foot.append(note, ' Circuit outline and facts: f1-circuits (MIT); history: Jolpica; forecast: Open-Meteo.');
+    hero.append(top, ...(zoneToggle ? [zoneToggle] : []), list, body, foot);
     return hero;
   }
 
@@ -492,12 +522,12 @@
       return [row];
     });
     grid.append(pair('Most wins', 'wins', 'wins'), pair('Most podiums', 'podiums', 'podiums'), pair('Most poles', 'poles', 'poles'));
-    grid.append(stat(data, 'Best average finish', cards.average_finish, e => [el('b', 'season-big', e.value.toFixed(2)), who(data, e.ids[0]), el('p', 'season-footnote', `Over ${e.races} classified finishes; drivers classified in at least half the races.`)]));
+    grid.append(stat(data, 'Best average finish', cards.average_finish, e => [el('b', 'season-big', e.value.toFixed(2)), who(data, e.ids[0]), el('p', 'season-footnote', `Over ${e.races} classified finishes; drivers classified in at least half the races. Retirements are not in this average: Driver stats shows each driver\u2019s finish rate and an average that counts them.`)]));
     grid.append(stat(data, 'Most places gained', cards.positions_gained, e => [el('b', 'season-big', `+${e.value}`), who(data, e.ids[0]), el('p', 'season-footnote', 'Grid to finish, classified finishes only; places lost are not subtracted.')]));
     const roundName = n => data.rounds.find(r => r.round === n)?.name || `Round ${n}`;
     grid.append(stat(data, 'Largest winning margin', cards.largest_margin, e => [el('b', 'season-big', `${e.value.toFixed(3)} s`), who(data, e.ids[0]), el('p', 'season-footnote', roundName(e.round))]));
     grid.append(stat(data, 'Closest winning margin', cards.closest_margin, e => [el('b', 'season-big', `${e.value.toFixed(3)} s`), who(data, e.ids[0]), el('p', 'season-footnote', roundName(e.round))]));
-    grid.append(stat(data, 'Biggest climb', cards.comeback, e => [el('b', 'season-big', `+${e.gain}`), who(data, e.driver), el('p', 'season-footnote', `P${e.grid} → P${e.finish} · ${roundName(e.round)}`)]));
+    grid.append(stat(data, 'Biggest climb', cards.comeback, e => [el('b', 'season-big', `+${e.gain}`), who(data, e.driver), el('p', 'season-footnote', `${e.pit_lane ? 'Pit lane' : `P${e.grid}`} → P${e.finish} · ${roundName(e.round)}`)]));
     const retirements = stat(data, 'Retirements by team', cards.retirements, e => {
       const max = Math.max(1, ...Object.values(e.by_team));
       const list = el('div', 'season-bars');
@@ -506,7 +536,8 @@
         const bar = el('span', 'season-bar'); const fill = el('i'); fill.style.width = `${n / max * 100}%`; fill.style.background = teamColour(t); bar.append(fill);
         row.append(bar, el('b', null, String(n))); list.append(row);
       }
-      return [list];
+      const dns = Object.values(e.did_not_start || {}).reduce((a, b) => a + b, 0);
+      return [list, el('p', 'season-footnote', `Cars that started and were not classified.${dns ? ` ${dns} more did not start, and are not counted.` : ''}`)];
     });
     out.push(seasonNumbers(data), grid);
     // Two columns of stacked cards, paired so the columns come out about the same length (the last card in each
@@ -554,7 +585,7 @@
       ['Different pole sitters', distinct(done.map(r => r.qualifying.find(x => x.position === 1)?.driver)), null],
       ['Podium finishers', distinct(done.flatMap(r => r.race.filter(x => x.position && x.position <= 3).map(x => x.driver))), null],
       ['Won from pole', done.length ? `${Math.round(poleWins / done.length * 100)}%` : '—', `${poleWins} of ${done.length}`],
-      ['Retirements', done.reduce((n, r) => n + r.race.filter(x => !x.position).length, 0), 'not classified'],
+      ['Retirements', done.reduce((n, r) => n + r.race.filter(x => !x.position && !notStarted(x)).length, 0), 'started, not classified'],
       ['Most fastest laps', flId ? family(data, flId) : '—', flId ? `${flCount} of ${done.length}` : null],
     ];
     const row = el('div', 'season-numbers');
@@ -639,21 +670,37 @@
     const colour = id => teamColour(drivers ? data.drivers[id]?.team : id);
     const label = id => drivers ? driverName(data, id) : teamName(data, id);
     const table = el('table', 'season-table season-standings');
-    table.innerHTML = `<thead><tr><th scope="col" class="num">Pos</th><th scope="col"></th><th scope="col">${drivers ? 'Driver' : 'Constructor'}</th><th scope="col" class="num">Wins</th><th scope="col" class="num">Points</th><th scope="col" class="num">Gap</th></tr></thead>`;
+    table.innerHTML = `<thead><tr><th scope="col" class="num">Pos</th><th scope="col"></th><th scope="col">${drivers ? 'Driver' : 'Constructor'}</th><th scope="col" class="num">Wins</th><th scope="col" class="num" title="Points from the last five rounds, sprints included">Last 5</th>${drivers ? '' : '<th scope="col">Split</th>'}<th scope="col" class="num">Points</th><th scope="col" class="num">Gap</th></tr></thead>`;
     const tb = el('tbody');
     const leaderPoints = last[0].points;
+    // Form: points over the last five completed rounds. Constructors: each driver's share of the team's points.
+    const recent = data.rounds.filter(r => r.race.length).slice(-5);
+    const form = id => recent.reduce((sum, r) => sum + roundPoints(r, drivers ? 'driver' : 'team', id), 0);
+    const split = team => {
+      const by = {};
+      for (const r of data.rounds) for (const x of [...r.race, ...r.sprint]) if (x.team === team && x.points) by[x.driver] = (by[x.driver] || 0) + x.points;
+      return Object.entries(by).sort((a, b) => b[1] - a[1]);
+    };
     for (const e of last) {
       const before = previous?.find(x => x.id === e.id)?.position, change = before ? before - e.position : 0;
       const tr = el('tr'); tr.dataset.id = e.id;
       const name = el('td'); name.append(drivers ? who(data, e.id) : teamTag(data, e.id));
       tr.append(el('td', 'num season-pos', String(e.position)), el('td', `season-move ${change > 0 ? 'is-up' : change < 0 ? 'is-down' : ''}`, change > 0 ? `▲${change}` : change < 0 ? `▼${-change}` : ''),
-        name, el('td', 'num', String(e.wins)), el('td', 'num season-strong', String(e.points)), el('td', 'num season-muted', e.position === 1 ? '' : `−${(leaderPoints - e.points).toFixed(0)}`));
+        name, el('td', 'num', String(e.wins)), el('td', 'num season-muted', String(Math.round(form(e.id) * 10) / 10)));
+      if (!drivers) {
+        const parts = split(e.id), total = parts.reduce((a, [, v]) => a + v, 0), cell = el('td', 'season-split');
+        const bar = el('span', 'season-split-bar');
+        parts.forEach(([d, v], i) => { const seg = el('i'); seg.style.width = `${total ? v / total * 100 : 0}%`; seg.style.background = colour(e.id); seg.style.opacity = String(i ? .45 : 1); seg.title = `${driverName(data, d)}: ${v} points`; bar.append(seg); });
+        cell.append(bar); cell.title = parts.map(([d, v]) => `${driverCode(data, d)} ${v}`).join(' · ');
+        tr.append(cell);
+      }
+      tr.append(el('td', 'num season-strong', String(e.points)), el('td', 'num season-muted', e.position === 1 ? '' : `−${(leaderPoints - e.points).toFixed(0)}`));
       tb.append(tr);
     }
     table.append(tb);
     const ids = last.map(e => e.id);
-    const points = lineChart(evo.map(s => s.round), ids.map(id => ({id, colour: colour(id), label: label(id),
-      values: evo.map(s => s.table.find(x => x.id === id)?.points ?? 0)})), {title: 'Points after each round'});
+    const points = lineChart(evo.map(s => s.round), ids.map(id => ({id, colour: colour(id), label: label(id), short: drivers ? driverCode(data, id) : teamName(data, id),
+      values: evo.map(s => s.table.find(x => x.id === id)?.points ?? 0)})), {title: 'Points after each round', endLabels: drivers ? 6 : 5, height: 300});
     const ranks = bumpChart(evo.map(s => s.round), ids.map(id => ({id, colour: colour(id), label: drivers ? driverCode(data, id) : teamName(data, id),
       values: evo.map(s => s.table.find(x => x.id === id)?.position ?? null)})));
     const layout = el('div', 'season-two');
@@ -675,7 +722,10 @@
     const sprintsLeft = data.rounds.filter(r => !r.race.length && r.sprint_weekend && !r.sprint.length).length;
     const left = racesLeft * (drivers ? 25 : 43) + sprintsLeft * (drivers ? 8 : 15);
     const [leaderId, leaderPoints] = ranked[0];
-    const alive = ranked.filter(([, p]) => p + left >= leaderPoints);
+    const table = data.standings[drivers ? 'drivers' : 'teams'].at(-1)?.table || [];
+    const wins = id => table.find(e => e.id === id)?.wins || 0;
+    // Level on points is settled on countback, first on wins: a rival who can only tie needs to be able to out-win the leader.
+    const alive = ranked.filter(([id, p]) => p + left > leaderPoints || id === leaderId || (p + left === leaderPoints && wins(id) + racesLeft > wins(leaderId)));
     const name = id => (drivers ? driverName(data, id) : teamName(data, id));
     const lead = leaderPoints - (ranked[1]?.[1] || 0);
     const headline = !racesLeft ? `${name(leaderId)} won the ${drivers ? 'drivers\u2019' : 'constructors\u2019'} title.`
@@ -742,18 +792,20 @@
     const rounds = data.rounds.filter(r => r.qualifying.length);
     if (!rounds.length) return null;
     const teams = Object.keys(data.teams);
+    // The same definition as Car performance: each team's fastest lap in any part of qualifying against the fastest lap
+    // anyone set (not necessarily the pole-sitter's), as % of that lap; across rounds, the median.
     const gaps = Object.fromEntries(teams.map(t => [t, rounds.map(r => {
-      const pole = bestLap(r.qualifying.find(x => x.position === 1));
+      const fastest = Math.min(...r.qualifying.map(bestLap));
       const best = Math.min(...r.qualifying.filter(x => x.team === t).map(bestLap));
-      return Number.isFinite(pole) && Number.isFinite(best) ? (best - pole) / pole * 100 : null;
+      return Number.isFinite(fastest) && Number.isFinite(best) ? (best - fastest) / fastest * 100 : null;
     })]));
-    const avg = t => { const v = gaps[t].filter(Number.isFinite); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : Infinity; };
+    const avg = t => median(gaps[t]) ?? Infinity;
     const order = teams.filter(t => gaps[t].some(Number.isFinite)).sort((x, y) => avg(x) - avg(y));
     const worst = Math.max(.5, ...order.flatMap(t => gaps[t].filter(Number.isFinite)));
     const tbl = el('table', 'season-table season-matrix season-grid');
     const head = el('tr'); head.append(el('th', null, 'Constructor'));
     for (const r of rounds) { const th = el('th', 'num'); const f = flag(r); th.title = r.name; if (f) th.append(f); else th.textContent = `R${r.round}`; head.append(th); }
-    head.append(el('th', 'num', 'Average'));
+    head.append(el('th', 'num', 'Median'));
     const thead = el('thead'); thead.append(head); tbl.append(thead);
     const tb = el('tbody');
     for (const t of order) {
@@ -761,9 +813,9 @@
       gaps[t].forEach((g, i) => {
         const td = el('td', 'num');
         if (Number.isFinite(g)) {
-          td.textContent = g < .0005 ? 'Pole' : g.toFixed(2);
+          td.textContent = g < .0005 ? 'Best' : g.toFixed(2);
           td.classList.add('is-heat'); td.style.setProperty('--team', teamColour(t)); td.style.setProperty('--heat', String(.1 + .7 * (1 - Math.min(g / worst, 1))));
-          td.title = `${rounds[i].name}: ${g < .0005 ? 'pole' : `+${g.toFixed(3)}% to pole`}`;
+          td.title = `${rounds[i].name}: ${g < .0005 ? 'fastest lap of qualifying' : `+${g.toFixed(3)}% to the fastest lap`}`;
         }
         tr.append(td);
       });
@@ -771,7 +823,7 @@
       tb.append(tr);
     }
     tbl.append(tb);
-    return card('Qualifying pace: gap to pole', wrap(tbl), el('p', 'season-footnote', 'Each team\u2019s fastest lap in any qualifying session against the pole lap, in % of the pole lap; deeper colour is closer to pole.'));
+    return card('Qualifying pace: gap to the fastest lap', wrap(tbl), el('p', 'season-footnote', 'Each team’s fastest lap in any part of qualifying against the fastest lap anyone set, in % of that lap; deeper colour is closer. The median across rounds keeps one wet or red-flagged session from deciding the order. A team out in Q1 ran on a slower track than Q3, so its gap includes track evolution; Car performance can adjust for it.'));
   }
   // Hovering a row, a line or a legend entry highlights that entry everywhere in the layout.
   function linkHover(scope) {
@@ -783,6 +835,7 @@
   }
 
   // ---------- derived data ----------
+  const notStarted = row => /did not start|withdr/i.test(row.status || '') || row.position_text === 'W';
   const bestLap = q => (q ? Math.min(...[q.q1, q.q2, q.q3].filter(Number.isFinite)) : Infinity);
   const roundPoints = (round, key, id) => [...round.race, ...round.sprint].filter(x => x[key] === id).reduce((sum, x) => sum + x.points, 0);
   const family = (data, id) => data.drivers[id]?.family || driverName(data, id);
@@ -920,8 +973,10 @@
   }
   // Values over the season. One series gets a soft area under it and its last value at the end; several series
   // stay plain lines (hover one to bring it forward), and the hover card lists the leaders at that round.
-  function lineChart(rounds, series, {title = '', invert = false, height = 260, min = null, max = null, format = v => String(v)} = {}) {
-    const W = 640, H = height, R = series.length === 1 ? 44 : 12, T = 12, B = 24;
+  // endLabels: with many series, name the first N at the end of their lines (spread apart so they never overlap) and draw
+  // the rest faint, so the leaders read without a legend; hovering any line or table row still brings it forward.
+  function lineChart(rounds, series, {title = '', invert = false, height = 260, min = null, max = null, format = v => String(v), endLabels = 0} = {}) {
+    const W = 640, H = height, R = series.length === 1 ? 44 : endLabels ? 46 : 12, T = 12, B = 24;
     const values = series.flatMap(s => s.values.filter(v => v != null));
     // Values (not positions) get round outer ticks that enclose the data; the scale then runs to those ticks.
     const dataLo = min ?? Math.min(0, ...values), dataHi = max ?? Math.max(1, ...values);
@@ -947,11 +1002,17 @@
         svg += `<defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${esc(s.colour)}" stop-opacity=".28"/><stop offset="1" stop-color="${esc(s.colour)}" stop-opacity="0"/></linearGradient></defs>`;
         svg += `<path class="area" d="${d}L${pts.at(-1)[0].toFixed(1)} ${H - B}L${pts[0][0].toFixed(1)} ${H - B}Z" fill="url(#${gid})"/>`;
       }
-      svg += `<path data-id="${esc(s.id)}" class="line" style="stroke:${esc(s.colour)}" d="${d}"/>`;
+      const faint = endLabels && series.indexOf(s) >= endLabels;
+      svg += `<path data-id="${esc(s.id)}" class="line${faint ? ' is-faint' : ''}" style="stroke:${esc(s.colour)}" d="${d}"/>`;
       if (series.length === 1) {
         const [ex, ey] = pts.at(-1), last = s.values.filter(v => v != null).at(-1);
         svg += `<circle class="end" cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="4" style="fill:${esc(s.colour)}"/><text class="label" x="${(ex + 8).toFixed(1)}" y="${(ey + 4).toFixed(1)}" style="fill:${esc(s.colour)}">${esc(invert ? 'P' + last : format(last))}</text>`;
       }
+    }
+    if (endLabels && series.length > 1) {
+      const ends = series.slice(0, endLabels).map(s => { const last = s.values.filter(v => v != null).at(-1); return last == null ? null : {s, y: y(last), last}; }).filter(Boolean).sort((a, b) => a.y - b.y);
+      for (let i = 1; i < ends.length; i++) ends[i].y = Math.max(ends[i].y, ends[i - 1].y + 12);
+      for (const e of ends) svg += `<text class="label" data-id="${esc(e.s.id)}" x="${W - R + 6}" y="${(e.y + 4).toFixed(1)}" style="fill:${esc(e.s.colour)}">${esc(e.s.short || e.s.label)}</text>`;
     }
     return htmlNode(svg + xLabels(rounds, x, H, slot) + '</svg>');
   }
@@ -1041,9 +1102,11 @@
     tile('Points finishes', `${s.points_finishes}/${s.starts}`);
     tile('Q3 appearances', `${s.q3}/${s.starts}`);
     tile('Average finish', s.average_finish != null ? s.average_finish.toFixed(2) : '—', 'classified races');
+    if (s.average_result != null) tile('Average result', s.average_result.toFixed(2), 'a retirement counts as last');
+    if (s.finish_rate != null) tile('Finish rate', `${Math.round(s.finish_rate * 100)}%`, `${s.starts - s.retirements} of ${s.starts} starts`);
     tile('Average grid', s.average_grid != null ? s.average_grid.toFixed(2) : '—');
     tile('Best qualifying', s.best_qualifying ? `P${s.best_qualifying}` : '—');
-    tile('Retirements', String(s.retirements));
+    tile('Retirements', String(s.retirements), s.mechanical_retirements ? `${s.mechanical_retirements} car failure${s.mechanical_retirements === 1 ? '' : 's'}` : null);
     tile('Sprint points', String(s.sprint_points));
     // Weekend strip: each round's finish (F1 colours: purple win, green podium, white points, grey no points, red retirement).
     const strip = el('div', 'season-strip');
@@ -1134,6 +1197,10 @@
     };
     const versus = el('div', 'season-h2h-score');
     versus.append(el('b', null, `${result.tally.race[0]}–${result.tally.race[1]}`), el('span', 'season-muted', 'races ahead'));
+    const qGaps = data.rounds.map(r => qualiGap(r, a, b)).filter(Boolean);
+    const qMedian = median(qGaps.map(g => g.seconds));
+    if (qMedian != null) versus.append(el('span', 'season-h2h-pace', `${signed(qMedian, 3, ' s')} qualifying`),
+      el('small', 'season-muted', `median over ${qGaps.length} sessions`));
     const hero = el('div', 'season-h2h-hero'); hero.append(face(a, ca, false), versus, face(b, cb0, true));
     // A butterfly: each driver's bar grows out from the label and the longer bar is always the better one (for averages
     // and retirements, where lower is better, the length is the better value over this one); the better side is in full
@@ -1161,6 +1228,7 @@
     section('Weekends');
     metric('Qualifying ahead', result.tally.qualifying[0], result.tally.qualifying[1]);
     metric('Race ahead', result.tally.race[0], result.tally.race[1]);
+    if (result.weekends.some(w => w.raceMechanical)) metric('Race ahead, car failures left out', result.clean[0], result.clean[1]);
     if (result.tally.sprint[0] + result.tally.sprint[1]) metric('Sprint ahead', result.tally.sprint[0], result.tally.sprint[1]);
     section('Results');
     metric('Points', sa.points, sb.points);
@@ -1171,6 +1239,8 @@
     metric('Points finishes', sa.points_finishes, sb.points_finishes);
     section('Averages');
     metric('Average finish', sa.average_finish, sb.average_finish, {lower: true, format: v => v.toFixed(2)});
+    if (sa.average_result != null && sb.average_result != null) metric('Average result', sa.average_result, sb.average_result, {lower: true, format: v => v.toFixed(2)});
+    if (sa.finish_rate != null && sb.finish_rate != null) metric('Finish rate', sa.finish_rate, sb.finish_rate, {format: v => `${Math.round(v * 100)}%`});
     metric('Average grid', sa.average_grid, sb.average_grid, {lower: true, format: v => v.toFixed(2)});
     metric('Best finish', sa.best_finish, sb.best_finish, {lower: true, format: v => `P${v}`});
     metric('Retirements', sa.retirements, sb.retirements, {lower: true});
@@ -1182,6 +1252,7 @@
       for (const kind of ['qualifying', 'race']) {
         const dot = el('i'); dot.title = kind;
         if (w[kind] != null) dot.style.background = w[kind] === 0 ? ca : cb;
+        if (kind === 'race' && w.raceMechanical) { dot.classList.add('is-car-failure'); dot.title = 'race · the other car failed'; }
         cell.append(dot);
       }
       weeks.append(cell);
@@ -1201,7 +1272,7 @@
       }
       battles.append(row);
     }
-    return [toolbar, hero, card(null, rows), h2hExtras(data, a, b, ca, cb), card('Weekend by weekend', weeks, el('p', 'season-footnote', 'Top dot qualifying, bottom dot race, in the colour of whoever finished ahead. A classified finish beats a retirement; two retirements count for neither.')),
+    return [toolbar, hero, card(null, rows), h2hExtras(data, a, b, ca, cb), card('Weekend by weekend', weeks, el('p', 'season-footnote', 'Top dot qualifying, bottom dot race, in the colour of whoever finished ahead. A classified finish beats a retirement; two retirements count for neither. A ring marks a race decided by the other car failing, where the reported cause was mechanical.')),
       card('Every teammate battle', battles)];
   }
   function h2hExtras(data, a, b, ca, cb) {
@@ -1227,7 +1298,7 @@
   }
   // Same rules as season_data.compare, for any two drivers.
   function compare(data, a, b) {
-    const tally = {qualifying: [0, 0], race: [0, 0], sprint: [0, 0]}, weekends = [];
+    const tally = {qualifying: [0, 0], race: [0, 0], sprint: [0, 0]}, clean = [0, 0], weekends = [];
     for (const r of data.rounds) {
       const find = (rows, id) => rows.find(x => x.driver === id);
       const entry = {round: r.round};
@@ -1235,11 +1306,16 @@
       if (qa?.position && qb?.position) { const side = qa.position < qb.position ? 0 : 1; tally.qualifying[side]++; entry.qualifying = side; }
       for (const [kind, rows] of [['race', r.race], ['sprint', r.sprint]]) {
         const x = find(rows, a), y = find(rows, b);
-        if (x && y && (x.position || y.position)) { const side = (x.position || 99) < (y.position || 99) ? 0 : 1; tally[kind][side]++; entry[kind] = side; }
+        if (x && y && (x.position || y.position)) {
+          const side = (x.position || 99) < (y.position || 99) ? 0 : 1; tally[kind][side]++; entry[kind] = side;
+          // The loser's car failed (reported cause): a result the winner did not have to earn on track.
+          const loser = side === 0 ? y : x;
+          if (kind === 'race') { if (!loser.position && loser.cause === 'mechanical') entry.raceMechanical = true; else clean[side]++; }
+        }
       }
       if (Object.keys(entry).length > 1) weekends.push(entry);
     }
-    return {tally, weekends};
+    return {tally, clean, weekends};
   }
 
   // ----- upgrades -----

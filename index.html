@@ -49,7 +49,7 @@
       </nav>
     </div>
     <div class="workspace-tools" role="group" aria-label="Display options">
-      <button type="button" popovertarget="computeSettings" aria-label="Compute settings" title="Compute settings"><svg class="ui-symbol" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="2.1"/><path d="M8 1.8v1.6M8 12.6v1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M1.8 8h1.6M12.6 8h1.6M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1"/></svg></button>
+      <button type="button" popovertarget="computeSettings" aria-label="Compute settings" title="Compute settings"><svg class="ui-symbol" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><rect x="6.3" y="6.3" width="3.4" height="3.4" rx=".6"/><path d="M6 1.8V4M10 1.8V4M6 12v2.2M10 12v2.2M1.8 6H4M1.8 10H4M12 6h2.2M12 10h2.2"/></svg></button>
       <div id="computeSettings" popover aria-label="Compute settings">
         <strong>Compute</strong>
         <p data-compute-status>Showing published data.</p>
@@ -146,7 +146,8 @@
     </aside>
     <div class="analysis-column">
       <div class="main-dashboard">
-        <section class="telemetry-card is-empty" id="telemetryCard">
+        <section class="dashboard-card session-overview" id="sessionOverview" aria-labelledby="sessionOverviewTitle" hidden></section>
+      <section class="telemetry-card is-empty" id="telemetryCard">
           <div class="section-heading analysis-heading">
             <div class="analysis-heading-main">
               <h2>Lap telemetry</h2>
@@ -286,6 +287,8 @@
   <script src="session-init.js"></script>
   <script src="lap-sheet.js"></script>
   <script src="session-tyres.js"></script>
+  <script src="session-overview.js"></script>
+  <script src="table-export.js" defer></script>
   <script src="live.js"></script>
   <script src="alignment.js?v=euv2-release-20261003-position-motion-check"></script>
   <!-- Car performance and its React views are about 40% of the script weight and are not needed to read a session.

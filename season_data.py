@@ -162,6 +162,15 @@ def _classified_row(row: dict) -> dict:
     }
 
 
+def started(row: dict) -> bool:
+    """False for an entry that never took the start (DNS, withdrawn): it is not a race retirement."""
+    return (row.get('status') or '').lower() not in {'did not start', 'withdrew', 'withdrawn'} and row.get('position_text') != 'W'
+
+
+def field_size(rows: list[dict]) -> int:
+    return sum(1 for x in rows if started(x)) or len(rows)
+
+
 def _qualifying_row(row: dict) -> dict:
     times = [_seconds(row.get(k)) for k in ('Q1', 'Q2', 'Q3')]
     return {'driver': row['Driver']['driverId'], 'team': row['Constructor']['constructorId'], 'position': _int(row.get('position')),
@@ -301,18 +310,25 @@ def _season_cards(done: list[dict], drivers: dict, teams: dict) -> dict:
     finishes: dict[str, list[int]] = defaultdict(list)
     gained: dict[str, int] = defaultdict(int)
     retirements: dict[str, int] = defaultdict(int)
+    not_started: dict[str, int] = defaultdict(int)
     comeback = None
     for r in done:
+        size = field_size(r['race'])
         for row in r['race']:
             if row['position']:
                 finishes[row['driver']].append(row['position'])
-                if row['grid']:
-                    gain = row['grid'] - row['position']
+                # A pit-lane start has grid 0: it started behind the whole field.
+                grid = row['grid'] if row['grid'] else (size if row['grid'] == 0 else None)
+                if grid:
+                    gain = grid - row['position']
                     gained[row['driver']] += max(0, gain)
                     if comeback is None or gain > comeback['gain']:
-                        comeback = {'driver': row['driver'], 'gain': gain, 'grid': row['grid'], 'finish': row['position'], 'round': r['round']}
-            else:
+                        comeback = {'driver': row['driver'], 'gain': gain, 'grid': grid, 'pit_lane': row['grid'] == 0,
+                                    'finish': row['position'], 'round': r['round']}
+            elif started(row):
                 retirements[row['team']] += 1
+            else:
+                not_started[row['team']] += 1
     enough = {d: v for d, v in finishes.items() if len(v) >= max(1, len(done) // 2)}
     if enough:
         best = min(enough, key=lambda d: sum(enough[d]) / len(enough[d]))
@@ -330,7 +346,8 @@ def _season_cards(done: list[dict], drivers: dict, teams: dict) -> dict:
     if comeback and comeback['gain'] > 0:
         cards['comeback'] = comeback
     if done:
-        cards['retirements'] = {'by_team': dict(sorted(retirements.items(), key=lambda kv: -kv[1]))}
+        cards['retirements'] = {'by_team': dict(sorted(retirements.items(), key=lambda kv: -kv[1])),
+                                'did_not_start': dict(sorted(not_started.items(), key=lambda kv: -kv[1]))}
     return cards
 
 
@@ -346,10 +363,19 @@ def driver_stats(data: dict, driver_id: str, evolution: list[dict] | None = None
         if race or sprint or quali:
             rows.append({'round': r['round'], 'race': race, 'sprint': sprint, 'qualifying': quali})
     classified = [x['race']['position'] for x in rows if x['race'] and x['race']['position']]
-    starts = [x for x in rows if x['race']]
+    starts = [x for x in rows if x['race'] and started(x['race'])]
+    # A retirement counts as one place behind the last classified finisher, so unreliability is not hidden from the average.
+    results = []
+    for x in starts:
+        race = next(r for r in rounds if r['round'] == x['round'])['race']
+        results.append(x['race']['position'] or (sum(1 for y in race if y['position']) + 1))
     after = [next((e for e in step['table'] if e['id'] == driver_id), None) for step in evolution]
-    team = data['drivers'].get(driver_id, {}).get('team')
-    team_points = sum(x['points'] for r in rounds for x in [*r['race'], *r['sprint']] if x['team'] == team)
+    # The team's points over the rounds this driver drove for it, so a mid-season move compares like with like.
+    team_points = 0.0
+    for x in rows:
+        own = x['race'] or x['sprint'] or x['qualifying']
+        r = next(r for r in rounds if r['round'] == x['round'])
+        team_points += sum(y['points'] for y in [*r['race'], *r['sprint']] if y['team'] == own['team'])
     points = sum((x['race'] or {}).get('points', 0) + (x['sprint'] or {}).get('points', 0) for x in rows)
     return {
         'id': driver_id, 'starts': len(starts), 'points': round(points, 1),
@@ -361,6 +387,10 @@ def driver_stats(data: dict, driver_id: str, evolution: list[dict] | None = None
         'sprint_wins': sum(1 for x in rows if x['sprint'] and x['sprint']['position'] == 1),
         'sprint_points': round(sum((x['sprint'] or {}).get('points', 0) for x in rows), 1),
         'retirements': sum(1 for x in starts if not x['race']['position']),
+        'did_not_start': sum(1 for x in rows if x['race'] and not started(x['race'])),
+        'mechanical_retirements': sum(1 for x in starts if not x['race']['position'] and x['race'].get('cause') == 'mechanical'),
+        'finish_rate': round(len(classified) / len(starts), 3) if starts else None,
+        'average_result': round(sum(results) / len(results), 2) if results else None,
         'best_finish': min(classified) if classified else None,
         'average_finish': round(sum(classified) / len(classified), 2) if classified else None,
         'average_grid': round(sum(x['race']['grid'] for x in starts if x['race']['grid']) / max(1, sum(1 for x in starts if x['race']['grid'])), 2) if starts else None,
@@ -397,6 +427,10 @@ def compare(data: dict, a: str, b: str) -> dict:
                 side = 0 if (x['position'] or 99) < (y['position'] or 99) else 1
                 tally[kind][side] += 1
                 entry[kind] = side
+                # The loser's car failed: a result the other driver did not have to earn on track.
+                loser = y if side == 0 else x
+                if kind == 'race' and not loser['position'] and loser.get('cause') == 'mechanical':
+                    entry['race_mechanical'] = True
         if len(entry) > 1:
             weekends.append(entry)
     return {'a': a, 'b': b, 'tally': tally, 'weekends': weekends}
@@ -500,13 +534,43 @@ def weather(fetch: Callable[[str], dict], round_: dict) -> list[dict] | None:
     url = (f"https://api.open-meteo.com/v1/forecast?latitude={round_['lat']}&longitude={round_['lon']}"
            f"&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,weather_code"
            f"&timezone=auto&start_date={first}&end_date={last}")
-    d = fetch(url).get('daily') or {}
+    response = fetch(url)
+    # Open-Meteo answers in the circuit's own time zone (timezone=auto): its offset lets the page show track time.
+    if isinstance(response.get('utc_offset_seconds'), (int, float)):
+        round_['utc_offset'] = int(response['utc_offset_seconds'])
+    d = response.get('daily') or {}
     return [{'date': day, 'max': d['temperature_2m_max'][i], 'min': d['temperature_2m_min'][i], 'rain': d['precipitation_probability_max'][i],
              'wind': d['wind_speed_10m_max'][i], 'code': d['weather_code'][i]} for i, day in enumerate(d.get('time', []))]
 
 
+def tag_retirement_causes(data: dict) -> None:
+    """Adds 'cause' (mechanical / incident / other) to race retirements, from the reported reason in each race's classification
+    (retirement_sources). Jolpica only says "Retired" since 2024. Unknown causes stay untagged: never assumed mechanical."""
+    import retirement_sources
+    from performance import classify_retirement
+    for r in data['rounds']:
+        out = [x for x in r['race'] if not x['position'] and started(x)]
+        if not out:
+            continue
+        report = retirement_sources.reported_retirements(data['year'], r['name'])
+        for row in out:
+            d = data['drivers'].get(row['driver'], {})
+            reported = retirement_sources.match(report, d.get('number'), d.get('family') or '', row['laps'])
+            if not reported:
+                continue
+            c = classify_retirement(row['status'], r['name'], d.get('code'), data['year'], reported)
+            row['cause'] = ('mechanical' if c['is_mechanical'] else 'incident' if c['category'] == 'Incident / collision'
+                            else 'other' if c['category'] == 'Other confirmed' else None)
+            row['cause_text'] = c['cause']
+
+
 def build(year: int, source: Source) -> dict:
-    summary = season_summary(load_season(year, source))
+    data = load_season(year, source)
+    try:
+        tag_retirement_causes(data)
+    except Exception:   # reported causes are context; the season never fails for them
+        pass
+    summary = season_summary(data)
     try:
         summary['pit_stops'] = pit_stops(source, year, summary['rounds'], summary['drivers'])
     except Exception:   # optional extras never fail the season

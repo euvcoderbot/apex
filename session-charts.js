@@ -427,7 +427,7 @@ function getNiceBounds(name, rawMin, rawMax) {
     max = tempMax;
   } else if (name === 'Timing delta') {
     const span = Math.max(rawMax - rawMin, 0.02);
-    const targetTicks = span >= 2 ? 8 : 7;   // finer steps: more labelled gridlines on the delta axis
+    const targetTicks = span >= 2 ? 6 : 5;   // labelled gridlines on the delta axis; drawGridAxes thins them on short charts
     const magnitude = 10 ** Math.floor(Math.log10(span / targetTicks));
     const normalized = (span / targetTicks) / magnitude;
     const multiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10;
@@ -710,7 +710,15 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
     }
   }
 
-  ticks.forEach(({ value, tick }) => {
+  // Keep labelled gridlines at least 18 px apart: on a short chart take every second (or fourth) one, always keeping zero
+  // and the ends of a 0-100 scale.
+  const plotHeight = Math.max(1, height - top - bottom);
+  const spacing = ticks.length > 1 ? plotHeight / (ticks.length - 1) : plotHeight;
+  const every = spacing >= 18 ? 1 : spacing * 2 >= 18 ? 2 : 4;
+  const zeroIndex = ticks.findIndex(t => Math.abs(t.value) < 1e-9);
+  const anchor = zeroIndex >= 0 ? zeroIndex : 0;
+  const shown = ticks.filter((t, i) => (i - anchor) % every === 0 || (unit === 'OPEN / CLOSED' || unit === 'ON / OFF') && (t.tick === 0 || t.tick === 4));
+  shown.forEach(({ value, tick }) => {
     const y = top + (height - top - bottom) * ((max - value) / (max - min || 1));
     ctx.beginPath();
     ctx.moveTo(left, y);
@@ -760,7 +768,9 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
 
 
 
-function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7, viewStart = 0, viewEnd = 1) {
+// maxLanes caps the rows of tags: a tag that fits in none of them is left out (its tick on the axis stays), so a short
+// channel chart is not mostly turn labels.
+function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7, viewStart = 0, viewEnd = 1, maxLanes = Infinity) {
   const gap = 3, maxNudge = 12;
   const plotWidth = width - left - right;
   const lanes = [];
@@ -773,7 +783,7 @@ function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7, viewSta
       const anchorX = left + ((corner.fraction - viewStart) / (viewEnd - viewStart || 1)) * plotWidth;
       const tagWidth = Math.max(22, String(cornerLabel(corner)).length * 7 + 8);
       // Nudge sideways a few pixels before opening another row; the tick keeps the exact position visible.
-      for (let lane = 0; ; lane++) {
+      for (let lane = 0; lane < maxLanes; lane++) {
         lanes[lane] ||= [];
         for (const shift of [0, 4, -4, 8, -8, maxNudge, -maxNudge]) {
           const x = Math.max(left + tagWidth / 2, Math.min(width - right - tagWidth / 2, anchorX + shift));
@@ -783,8 +793,9 @@ function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7, viewSta
           }
         }
       }
+      return { corner, x: anchorX, anchorX, lane: -1, width: tagWidth };
     });
-  return { items, lanes: lanes.length };
+  return { items, lanes: lanes.filter(lane => lane.length).length };
 }
 
 function sharedCornerSpeed(entry, fraction, totalDistance) {
@@ -1279,7 +1290,9 @@ function drawRealChart(name) {
   const totalDist = refSamples && refSamples.length ? refSamples[refSamples.length - 1].Distance : 5891;
   const axisLeft = TRACE_PLOT_LEFT;
   const speedCornerMarkers = resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers);
-  const cornerCalloutLayout = layoutSpeedCornerCallouts(speedCornerMarkers, rect.width, axisLeft, 7, viewStart, viewEnd);
+  // The speed trace gets up to two rows of turn tags (one when narrow); the shorter channels one row.
+  const maxTagLanes = name === 'Speed trace' ? (rect.width < 560 ? 1 : 2) : 1;
+  const cornerCalloutLayout = layoutSpeedCornerCallouts(speedCornerMarkers, rect.width, axisLeft, 7, viewStart, viewEnd, maxTagLanes);
   const cornerAxisInset = showCornerNumbers && speedCornerMarkers.length
     ? 8 + cornerCalloutLayout.lanes * 20
     : 0;
@@ -1511,6 +1524,11 @@ function drawRealChart(name) {
     const calloutHeight = 16;
     cornerCalloutLayout.items.forEach(({ corner, x, anchorX, lane, width }) => {
       if (!Number.isFinite(corner.fraction)) return;
+      if (lane < 0) {   // no room for its tag: just the tick on the axis
+        ctx.beginPath(); ctx.moveTo(anchorX, rect.height - bounds.bottom); ctx.lineTo(anchorX, rect.height - bounds.bottom + 4);
+        ctx.strokeStyle = theme.gridStrong; ctx.lineWidth = 1; ctx.stroke();
+        return;
+      }
       const labelY = rect.height - cornerAxisInset + 4 + lane * rowHeight;
       const left = x - width / 2;
       // Tick from the exact corner position on the axis to its tag.

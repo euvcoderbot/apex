@@ -596,3 +596,24 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 .season-credits ul { display: grid; gap: 4px; margin: 10px 0 6px; padding: 0; list-style: none; columns: 2 320px; }
 .season-credits li { break-inside: avoid; }
 .season-credits li b { color: var(--ui-secondary); font-weight: 500; }
+.season-h2h-score .season-h2h-pace { margin-top: 6px; font-weight: 600; color: var(--ui-label); font-variant-numeric: tabular-nums; }
+.season-h2h-score small { font-size: 11px; }
+.season-h2h-weeks i.is-car-failure { box-shadow: 0 0 0 2px var(--ui-bg, #111), 0 0 0 3px var(--ui-secondary); }
+.season-chart .line.is-faint { opacity: .28; stroke-width: 1.5; }
+.season-chart .line.is-faint:not(.is-dim):hover { opacity: 1; }
+.season-chart:has(.is-dim) .line.is-faint:not(.is-dim) { opacity: 1; stroke-width: 2; }
+
+/* The rail already lists the season's pages beside the page: the pill row repeats them, so it shows only where the rail
+   is not there (phone width, or the sidebar hidden). */
+@media (min-width: 761px) {
+  body:not(.is-sidebar-hidden):has(.season-rail-pages) #seasonHub .season-tabs { display: none; }
+}
+.season-zone-toggle { display: inline-flex; gap: 2px; margin: 10px 0 6px; padding: 2px; border-radius: 7px; background: var(--ui-well, rgba(255,255,255,.05)); }
+.season-zone-toggle button { border: 0; background: none; color: var(--ui-secondary); font: 500 12px/1 inherit; padding: 5px 9px; border-radius: 5px; cursor: pointer; }
+.season-zone-toggle button[aria-pressed="true"] { background: var(--ui-raised, rgba(255,255,255,.1)); color: var(--ui-label); }
+.season-weather-range { margin: -4px 0 6px; font-size: 11px; grid-column: 1 / -1; }
+.season-split { min-width: 80px; }
+.season-split-bar { display: flex; height: 8px; border-radius: 3px; overflow: hidden; background: var(--ui-border); gap: 1px; }
+.season-split-bar i { display: block; height: 100%; }
+/* With the Last 5 column the standings table fits its half of the page without the team names (Constructors lists them). */
+#seasonHub .season-standings .season-who small { display: none; }

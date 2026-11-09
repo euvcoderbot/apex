@@ -484,8 +484,22 @@ async function loadRealSession() {
       button.removeAttribute('aria-busy');
       button.removeAttribute('aria-label');
       button.textContent = 'Load session';
+      markPendingSelection();
     }
   }
+}
+
+// When the menus name a different session from the one on screen, the button says so ("Load Race") and the loaded
+// session's title is marked as still showing, so the two can never be read as one.
+function markPendingSelection() {
+  const button = $('#loadSession');
+  if (!button || button.classList.contains('is-loading')) return;
+  const query = typeof loadedSessionQuery === 'string' ? loadedSessionQuery : '';
+  const pending = !!query && String(currentQuery()) !== query;
+  button.classList.toggle?.('is-pending', pending);
+  const session = $('#session')?.selectedOptions?.[0]?.textContent?.split('·')[0].trim();
+  button.textContent = pending && session ? `Load ${session}` : 'Load session';
+  $('#loadedSessionContext')?.toggleAttribute?.('data-pending', pending);
 }
 
 function mergeConfirmedQualifyingPhases(payload, phases) {

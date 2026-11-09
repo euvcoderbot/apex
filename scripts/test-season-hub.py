@@ -1,11 +1,13 @@
 """Season hub (season_data.py, fia_documents.py): paging, standings with countback, driver stats, head-to-heads and the
 FIA document helpers. No network: Jolpica pages and FIA listings come from injected fakes."""
 from pathlib import Path
+import os
 import sys
 import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+os.environ['APEX_RETIREMENT_SOURCES'] = 'off'   # no Wikipedia lookups for retirement causes
 import fia_documents as fia
 import season_data as sd
 
@@ -149,6 +151,27 @@ class SeasonDataTest(unittest.TestCase):
         self.assertEqual(ver['team_share'], round(51 / 63, 3))
         self.assertEqual([p['position'] for p in ver['position_after']], [1, 1])
         self.assertEqual(self.summary['driver_stats']['lin']['q3'], 1)
+        # HAD: retired in round 1 (3 classified, so counted as P4), fourth in round 2.
+        had = self.summary['driver_stats']['had']
+        self.assertEqual((had['retirements'], had['finish_rate'], had['average_finish'], had['average_result']), (1, 0.5, 4.0, 4.0))
+
+    def test_did_not_start_and_pit_lane_starts(self):
+        rows = [{'driver': 'a', 'team': 't', 'position': 1, 'grid': 0, 'points': 25, 'status': 'Finished', 'time_ms': None, 'laps': 50},
+                {'driver': 'b', 'team': 't', 'position': 2, 'grid': 1, 'points': 18, 'status': 'Finished', 'time_ms': None, 'laps': 50},
+                {'driver': 'c', 'team': 'u', 'position': None, 'grid': 2, 'points': 0, 'status': 'Did not start'},
+                {'driver': 'd', 'team': 'u', 'position': None, 'grid': 3, 'points': 0, 'status': 'Retired'}]
+        cards = sd._season_cards([{'round': 1, 'race': rows, 'qualifying': [], 'sprint': []}], {}, {})
+        self.assertEqual(cards['retirements'], {'by_team': {'u': 1}, 'did_not_start': {'u': 1}})
+        # From the pit lane (grid 0) to a win, behind the 3 starters: a 2-place gain.
+        self.assertEqual((cards['comeback']['driver'], cards['comeback']['gain'], cards['comeback']['pit_lane']), ('a', 2, True))
+
+    def test_team_share_follows_the_drivers_team(self):
+        # 'x' scores 10 for team A in round 1, then moves to team B and scores 5; team A also scores 20 (y), team B 15 (z).
+        r = lambda n, rows: {'round': n, 'race': rows, 'sprint': [], 'qualifying': []}
+        e = lambda d, t, p: {'driver': d, 'team': t, 'position': 1, 'grid': 1, 'points': p, 'status': 'Finished', 'position_text': '1'}
+        data = {'rounds': [r(1, [e('x', 'A', 10), e('y', 'A', 20)]), r(2, [e('x', 'B', 5), e('z', 'B', 15)])],
+                'drivers': {'x': {'team': 'B'}}}
+        self.assertEqual(sd.driver_stats(data, 'x', [])['team_share'], round(15 / 50, 3))
 
     def test_head_to_head_rules(self):
         h = sd.compare(self.summary, 'ver', 'had')
