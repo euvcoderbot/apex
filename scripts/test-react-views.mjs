@@ -82,8 +82,8 @@ test('team marks are the shared drawn marks (team-marks.js), current and histori
   globalThis.window ??= {};
   vm.runInNewContext(readFileSync('team-marks.js', 'utf8'), {window: globalThis.window});
   try {
-    assert.match(render(views.TeamLogo, {team: 'Red Bull Racing'}), /data-team-mark="red-bull-racing" data-code="RBR"/);
-    assert.match(render(views.TeamLogo, {team: 'Toro Rosso'}), /data-team-mark="toro-rosso" data-code="STR"/);
+    assert.match(render(views.TeamLogo, {team: 'Red Bull Racing'}), /data-team-mark="red-bull-racing" style="--team-mark:#3671c6/);
+    assert.match(render(views.TeamLogo, {team: 'Toro Rosso'}), /data-team-mark="toro-rosso" style="--team-mark:#469bff/);
     assert.match(render(views.TeamLogo, {team: 'Nobody'}), /team-logo-fallback/);
     assert.doesNotMatch(render(views.TeamLogo, {team: 'Ferrari'}), /<img/);
   } finally { if (!hadWindow) delete globalThis.window; else delete globalThis.window.ApexTeamMarks; }

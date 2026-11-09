@@ -22,13 +22,19 @@ test('every team name used from 2014 to 2026, in any common spelling, gets a dra
   assert.deepEqual(names.filter(name => /team-logo-fallback/.test(teamMarkMarkup(name))), []);
 });
 
-test('a mark is the team code on a tile in the team colour, with no image and nothing taken from the name', () => {
+test('a mark is a team-colour swatch, or a chip with the car number beside a driver; no image, nothing taken from the name', () => {
   const {teamMark, teamMarkMarkup} = marks();
-  assert.deepEqual({...teamMark('Oracle Red Bull Racing')}, {key: 'red-bull-racing', code: 'RBR', colour: '#3671c6'});
+  assert.deepEqual({...teamMark('Oracle Red Bull Racing')}, {key: 'red-bull-racing', code: 'RBR', colour: '#3671c6', ink: '#ffffff'});
   assert.equal(teamMark('Visa Cash App RB F1 Team').code, 'RB');
   assert.equal(teamMark('Stake F1 Team Kick Sauber').code, 'SAU');
-  const html = teamMarkMarkup('Haas F1 Team');
-  assert.equal(html, '<span class="team-logo team-mark" data-team-mark="haas" data-code="HAA" style="--team-mark:#b6babd" aria-hidden="true"></span>');
+  // A team: the swatch alone. Light colours get dark ink, dark ones white.
+  assert.equal(teamMarkMarkup('Haas F1 Team'), '<span class="team-logo team-mark" data-team-mark="haas" style="--team-mark:#b6babd;--team-mark-ink:#111114" aria-hidden="true"></span>');
+  assert.equal(teamMark('Mercedes').ink, '#111114'); assert.equal(teamMark('Ferrari').ink, '#ffffff');
+  // A driver: the car number, drawn by CSS from data-number (never part of the page's text).
+  assert.equal(teamMarkMarkup('McLaren', '1'), '<span class="team-logo team-mark has-number" data-team-mark="mclaren" data-number="1" data-digits="1" style="--team-mark:#ff8000;--team-mark-ink:#111114" aria-hidden="true"></span>');
+  assert.match(teamMarkMarkup('Ferrari', 44), /data-number="44" data-digits="2"/);
+  // Only plain car numbers are accepted.
+  for (const bad of ['', null, undefined, '1234', '4"><img>', 'VER']) assert.doesNotMatch(teamMarkMarkup('Ferrari', bad), /has-number|data-number/);
   // Unknown or hostile names get the plain fallback, never their own text.
   assert.match(teamMarkMarkup('<img src=x onerror=alert(1)>'), /team-logo-fallback/);
   assert.match(teamMarkMarkup(''), /team-logo-fallback/);
@@ -72,6 +78,7 @@ test('every page that shows teams loads the marks before the views that draw the
   assert.ok(page.indexOf('src="team-marks.js"') > 0 && page.indexOf('src="team-marks.js"') < page.indexOf('src="session-state.js"'));
   assert.match(readFileSync('scripts/sync-static.mjs', 'utf8'), /"team-marks\.js"/);
   const css = readFileSync('ui-controls.css', 'utf8');
-  assert.match(css, /\.team-mark::after \{ content: attr\(data-code\);/);
-  assert.match(css, /@media \(forced-colors: active\) \{ \.team-mark \{ background: Canvas;/);
+  assert.match(css, /\.team-mark:not\(\.has-number\)::before \{ content: ""; [^}]*background: var\(--team-mark\)/);
+  assert.match(css, /\.team-mark\.has-number::after \{ content: attr\(data-number\); color: var\(--team-mark-ink\)/);
+  assert.match(css, /@media \(forced-colors: active\) \{ \.team-mark:not\(\.has-number\)::before, \.team-mark\.has-number \{ background: CanvasText;/);
 });

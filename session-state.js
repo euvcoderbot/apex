@@ -749,8 +749,8 @@ function telemetryKey(lap) {
 
 // Team marks are resolved by the session's team, never by a driver's current team: a historical session keeps its team's
 // mark. They are drawn by team-marks.js (the teams' own logos are trademarks the site does not publish).
-function teamLogoMarkup(teamName) {
-  return window.ApexTeamMarks?.teamMarkMarkup(teamName) || '<span class="team-logo" aria-hidden="true"><i class="team-logo-fallback"></i></span>';
+function teamLogoMarkup(teamName, number) {
+  return window.ApexTeamMarks?.teamMarkMarkup(teamName, number) || '<span class="team-logo" aria-hidden="true"><i class="team-logo-fallback"></i></span>';
 }
 
 function compoundBadgeMarkup(compound) {

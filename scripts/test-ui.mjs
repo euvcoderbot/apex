@@ -464,8 +464,9 @@ test('corner navigation precedes detail/map siblings and retains map height', ()
 test('team marks and tyres are drawn by the app, never loaded from image files', () => {
   const h = context();
   h.run(readFileSync('team-marks.js', 'utf8'));
-  assert.match(h.run("teamLogoMarkup('Haas F1 Team')"), /data-code="HAA"/);
-  assert.match(h.run("teamLogoMarkup('Kick Sauber')"), /data-code="SAU"/);
+  assert.match(h.run("teamLogoMarkup('Haas F1 Team')"), /data-team-mark="haas"/);
+  assert.match(h.run("teamLogoMarkup('Kick Sauber')"), /data-team-mark="kick-sauber"/);
+  assert.match(h.run("teamLogoMarkup('McLaren', '81')"), /data-number="81"/);
   assert.doesNotMatch(h.run("teamLogoMarkup('Kick Sauber')"), /AUD/);
   assert.doesNotMatch(h.run("teamLogoMarkup('<img>')"), /<img/);
   const colours = {hard: '#f5f5f7', medium: '#ffd735', soft: '#ff493e', intermediate: '#43cf79', wet: '#3395ff'};

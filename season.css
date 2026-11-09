@@ -217,8 +217,10 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 /* imagery: driver avatars (team colour and code), team marks, circuit outlines */
 .season-avatar { --size: 22px; position: relative; display: inline-grid; place-items: center; width: var(--size); height: var(--size); flex: none; overflow: hidden; border-radius: 50%; background: color-mix(in oklch, var(--team, var(--ui-tertiary)) 24%, var(--ui-well)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--team, var(--ui-border)) 45%, transparent); }
 .season-avatar b { color: var(--ui-label); font-size: 8px; font-weight: 700; letter-spacing: .02em; }
+.season-avatar b.is-number { font-size: 10px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
 .season-avatar.is-lg { --size: 96px; background: radial-gradient(circle at 32% 26%, color-mix(in oklch, var(--team, var(--ui-tertiary)) 42%, var(--ui-well)), color-mix(in oklch, var(--team, var(--ui-tertiary)) 14%, var(--ui-well)) 72%);
   box-shadow: inset 0 0 0 2px color-mix(in oklch, var(--team, var(--ui-border)) 70%, transparent), 0 6px 18px -8px color-mix(in oklch, var(--team, #000) 60%, transparent); }
+.season-avatar.is-lg b.is-number { font-size: 38px; }
 .season-avatar.is-lg b { color: color-mix(in oklch, var(--team, var(--ui-label)) 30%, var(--ui-label)); font-size: 26px; font-weight: 750; letter-spacing: .04em; }
 .season-who .season-team-mark { display: inline-grid; place-items: center; width: 18px; height: 18px; flex: none; }
 /* names in table cells are rows of their own, so the avatar never moves the baseline */

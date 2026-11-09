@@ -38,9 +38,9 @@ export function verifiedDryGrade(year, raceRound, relativeCompound) {
 }
 
 // Team marks: drawn by team-marks.js, the same as in Session Analysis.
-export function teamLogoMarkup(teamName) {
+export function teamLogoMarkup(teamName, number) {
   const marks = typeof window !== 'undefined' ? window.ApexTeamMarks : null;
-  return marks?.teamMarkMarkup(teamName) || '<span class="team-logo" aria-hidden="true"><i class="team-logo-fallback"></i></span>';
+  return marks?.teamMarkMarkup(teamName, number) || '<span class="team-logo" aria-hidden="true"><i class="team-logo-fallback"></i></span>';
 }
 
 // Grand Prix Flag Resolution

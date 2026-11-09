@@ -15,14 +15,17 @@ const STEPS = [.05, .1, .2, .25, .5, 1, 2, 5];
 export function TrendChart({series, lo, hi, ceiling}: {series: TrendSeries[]; lo: number; hi: number; ceiling: number}) {
   if (!Number.isFinite(lo) || !Number.isFinite(hi) || !series.length) return <>—</>;
   const x = (round: number) => `${7 + (round - lo) / Math.max(1, hi - lo) * 89}%`;
-  const y = (pace: number) => TOP + pace / ceiling * (HEIGHT - TOP - BOTTOM);
+  // The scale runs to the next round tick at or above the largest gap, so no point sits below the last labelled line
+  // (or on the round labels).
   const step = STEPS.find(value => ceiling / value <= 5) || ceiling;
-  const ticks = Array.from({length: Math.floor(ceiling / step) + 1}, (_, index) => index * step);
+  const top = Math.max(step, Math.ceil(ceiling / step - 1e-9) * step);
+  const y = (pace: number) => TOP + pace / top * (HEIGHT - TOP - BOTTOM);
+  const ticks = Array.from({length: Math.round(top / step) + 1}, (_, index) => index * step);
   const rounds = [...new Set(series.flatMap(line => line.points.map(point => point.round)))].sort((a, b) => a - b);
   const every = Math.max(1, Math.ceil(rounds.length / 12));
   return (
     <div className="trend-chart">
-      <svg width="100%" height={HEIGHT} role="img" aria-label="Qualifying gap by round for each team; common scale across teams">
+      <svg width="100%" height={HEIGHT} overflow="visible" role="img" aria-label="Qualifying gap by round for each team; common scale across teams">
         {ticks.map(tick => <g key={tick}>
           <line x1="7%" x2="96%" y1={y(tick)} y2={y(tick)} stroke="var(--ui-separator)" />
           <text x="5.5%" y={y(tick) + 4} textAnchor="end" className="trend-axis">{fmt(tick, step < .1 ? 2 : 1, '%')}</text>

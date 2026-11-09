@@ -87,9 +87,9 @@ function renderDrivers() {
     const position = Number.isFinite(+d[5]) && +d[5] > 0 ? +d[5] : index + 1;
 
     const name = naturalDriverName(d[2] || code);
-    // A source-list row: position · logo · name · trailing code (a race shows
-    // its result there instead); the car number is in the tooltip.
-    return `<button class="driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-motion-key="driver-${code}" data-code="${code}" aria-label="${escapeUI(`P${position}, ${name}, ${d[4] || ''}, number ${number}`)}" aria-pressed="${isSelected}"><span class="driver-pill-position">${position}</span>${teamLogoMarkup(d[4])}<span class="driver-pill-identity">${escapeUI(name)}</span>${isRace ? raceResultMarkup(realDrivers.get(code)) : `<span class="driver-pill-code">${escapeUI(code)}</span>`}</button>`;
+    // A source-list row: position · team-colour chip with the car number · name · trailing code (a race shows
+    // its result there instead).
+    return `<button class="driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-motion-key="driver-${code}" data-code="${code}" aria-label="${escapeUI(`P${position}, ${name}, ${d[4] || ''}, number ${number}`)}" aria-pressed="${isSelected}"><span class="driver-pill-position">${position}</span>${teamLogoMarkup(d[4], number)}<span class="driver-pill-identity">${escapeUI(name)}</span>${isRace ? raceResultMarkup(realDrivers.get(code)) : `<span class="driver-pill-code">${escapeUI(code)}</span>`}</button>`;
   }).join(''));
   
   root.querySelectorAll('button').forEach(btn => {
@@ -232,7 +232,7 @@ function renderStints() {
     if (!driver || !display) return '';
     const teamColor = display[3] || '#777777';
     if (!driver.laps?.length) {
-      return `<article class="driver-run-card" data-motion-key="run-card-${code}" style="--team:${teamColor}"><header class="run-card-header"><div class="run-driver">${teamLogoMarkup(display[4])}<div class="run-driver-copy"><h3>${escapeUI(naturalDriverName(driver.name))}</h3><small>${code}</small></div></div></header><p class="section-empty">No laps in this session.</p></article>`;
+      return `<article class="driver-run-card" data-motion-key="run-card-${code}" style="--team:${teamColor}"><header class="run-card-header"><div class="run-driver">${teamLogoMarkup(display[4], display[1])}<div class="run-driver-copy"><h3>${escapeUI(naturalDriverName(driver.name))}</h3><small>${code}</small></div></div></header><p class="section-empty">No laps in this session.</p></article>`;
     }
 
     const timedLaps = driver.laps.filter(lap => Number.isFinite(lap.time) && lap.time > 0 && !lap.in_lap && !lap.out_lap);
@@ -291,7 +291,7 @@ function renderStints() {
     return `
       <article class="driver-run-card" data-motion-key="run-card-${code}" style="--team:${teamColor}">
         <header class="run-card-header">
-          <div class="run-driver">${teamLogoMarkup(display[4])}<div class="run-driver-copy"><h3>${escapeUI(naturalDriverName(driver.name))}</h3><small>${code} · ${timedLaps.length} timed laps</small></div></div>
+          <div class="run-driver">${teamLogoMarkup(display[4], display[1])}<div class="run-driver-copy"><h3>${escapeUI(naturalDriverName(driver.name))}</h3><small>${code} · ${timedLaps.length} timed laps</small></div></div>
           ${fastest ? `<button class="fastest-lap-pick ${fastestLoaded ? 'selected' : ''}" data-motion-key="fastest-${code}" data-code="${code}" data-lap="${fastest.lap}" title="Add or remove this fastest lap"><span>Fastest</span><strong>${time(fastest.time)}</strong></button>` : ''}
         </header>
         <div class="run-section-label"><span>${hasQualifyingPhases ? 'Qualifying phases' : 'Runs'}</span></div>
@@ -439,7 +439,7 @@ function renderSectors() {
     return `
       <article class="lap-summary-card has-conditions" data-motion-key="summary-${item.code}-${item.lap}" style="--team:${color}">
         <header>
-          <span class="summary-driver" title="${item.code} · lap ${item.lap}">${teamLogoMarkup(realDrivers.get(item.code)?.team || drivers.find(driver=>driver[0]===item.code)?.[4])}<b>${item.code}</b><span class="summary-lap-label">Lap ${item.lap}</span>${i === 0 ? '<em>REF</em>' : ''}</span>
+          <span class="summary-driver" title="${item.code} · lap ${item.lap}">${teamLogoMarkup(realDrivers.get(item.code)?.team || drivers.find(driver=>driver[0]===item.code)?.[4], drivers.find(driver=>driver[0]===item.code)?.[1])}<b>${item.code}</b><span class="summary-lap-label">Lap ${item.lap}</span>${i === 0 ? '<em>REF</em>' : ''}</span>
           <span class="summary-header-actions">
             <span class="summary-tyre ${compoundClass}">${compoundBadgeMarkup(lap.compound)}<span class="summary-tyre-copy"><b>${compound}</b>${tyreLife ? `<small>${tyreLife}</small>` : ''}</span></span>
             <span class="summary-lap-time"><small>${lap.in_lap && lap.out_lap ? 'PIT IN/OUT' : lap.out_lap ? 'PIT EXIT → LINE' : lap.in_lap ? 'PIT-IN LAP' : 'LAP'}</small>${i === 0 || lap.out_lap || ref.real?.out_lap ? '' : deltaBadge(item.time, ref.time)}<strong>${lap.display_time_estimated ? '~' : ''}${time(Number.isFinite(lap.display_time) ? lap.display_time : item.time)}</strong></span>

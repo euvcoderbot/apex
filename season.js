@@ -59,10 +59,13 @@
   }
   function avatar(data, id, size = 'sm') {
     const span = el('span', `season-avatar is-${size}`);
+    span.setAttribute('aria-hidden', 'true');
     span.style.setProperty('--team', teamColour(data.drivers[id]?.team));
-    span.append(el('b', null, (data.drivers[id]?.code || '').slice(0, 3)));
+    // Without a photo: the car number on the team colour (the code when a season's data has no number).
+    const number = String(data.drivers[id]?.number || '').match(/^\d{1,3}$/)?.[0];
+    span.append(el('b', number ? 'is-number' : null, number || (data.drivers[id]?.code || '').slice(0, 3)));
     if (imagery.photos[id]) {
-      // The code stays underneath: if the photo fails to load, removing it shows the code.
+      // The number stays underneath: if the photo fails to load, removing it shows the number.
       const img = el('img'); img.src = `assets/drivers/${encodeURIComponent(id)}.webp`; img.alt = ''; img.decoding = 'async'; img.loading = 'lazy';
       img.addEventListener('error', () => img.remove(), {once: true});
       span.append(img); imagery.shown.add(id);
@@ -868,7 +871,7 @@
 
   // One bar per round, up for positive values; `extra` stacks a second, lighter value on top (sprint points).
   function barChart(rounds, raw, {width = 640, height = 190, colour = () => 'var(--ui-accent, #5e6ad2)', format = v => String(v), tips = [], title = '', extra = null, clip = false} = {}) {
-    const W = width, H = height, L = 44, R = 8, T = 12, B = 24;
+    const W = width, H = height, R = 8, T = 12, B = 24;
     const sizes = raw.filter(Number.isFinite).map(Math.abs).sort((x, y) => y - x);
     const limit = clip && sizes.length > 2 && sizes[0] > 2 * sizes[1] ? sizes[1] * 1.3 : Infinity;
     const values = raw.map(v => (Number.isFinite(v) ? Math.max(-limit, Math.min(limit, v)) : v));
@@ -876,6 +879,7 @@
     const finite = totals.filter(Number.isFinite).concat(values.filter(Number.isFinite));
     const ticks = niceTicks(Math.min(0, ...finite), Math.max(0, ...finite), 4);
     const top = Math.max(0, ...finite, ticks.at(-1) ?? 0), bottom = Math.min(0, ...finite, ticks[0] ?? 0);
+    const L = axisRoom(ticks.map(format));
     const y = v => T + (top - v) / ((top - bottom) || 1) * (H - T - B);
     const n = Math.max(1, rounds.length), bw = (W - L - R) / n, mid = i => L + i * bw + bw / 2;
     let svg = `<svg class="season-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)}">`;
@@ -917,12 +921,15 @@
   // Values over the season. One series gets a soft area under it and its last value at the end; several series
   // stay plain lines (hover one to bring it forward), and the hover card lists the leaders at that round.
   function lineChart(rounds, series, {title = '', invert = false, height = 260, min = null, max = null, format = v => String(v)} = {}) {
-    const W = 640, H = height, L = 40, R = series.length === 1 ? 44 : 12, T = 12, B = 24;
+    const W = 640, H = height, R = series.length === 1 ? 44 : 12, T = 12, B = 24;
     const values = series.flatMap(s => s.values.filter(v => v != null));
-    const lo = min ?? Math.min(0, ...values), hi = max ?? Math.max(1, ...values);
+    // Values (not positions) get round outer ticks that enclose the data; the scale then runs to those ticks.
+    const dataLo = min ?? Math.min(0, ...values), dataHi = max ?? Math.max(1, ...values);
+    const ticks = niceTicks(dataLo, dataHi, invert ? Math.min(5, dataHi - dataLo) : 4, {outward: !invert && min == null && max == null});
+    const lo = Math.min(dataLo, ticks[0] ?? dataLo), hi = Math.max(dataHi, ticks.at(-1) ?? dataHi);
+    const L = axisRoom(ticks.map(t => (invert ? 'P' + t : format(t))));
     const x = i => L + (rounds.length < 2 ? 0 : i / (rounds.length - 1) * (W - L - R));
     const y = v => invert ? T + (v - lo) / ((hi - lo) || 1) * (H - T - B) : H - B - (v - lo) / ((hi - lo) || 1) * (H - T - B);
-    const ticks = niceTicks(lo, hi, invert ? Math.min(5, hi - lo) : 4);
     const gid = `g${Math.random().toString(36).slice(2, 8)}`;
     let svg = `<svg class="season-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)}">`;
     for (const t of ticks) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"/><text class="axis" x="${L - 8}" y="${(y(t) + 3.5).toFixed(1)}" text-anchor="end">${esc(invert ? 'P' + t : format(t))}</text>`;
@@ -968,11 +975,18 @@
     }
     return htmlNode(svg + xLabels(rounds, x, H, slot) + '</svg>');
   }
-  function niceTicks(lo, hi, count) {
-    const span = hi - lo || 1, raw = span / count, mag = 10 ** Math.floor(Math.log10(raw)), step = [1, 2, 2.5, 5, 10].find(m => m * mag >= raw) * mag;
-    const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(Math.round(v * 100) / 100);
+  // Round ticks for a value range. Outward (the default): the first tick is at or below the smallest value and the last at or
+  // above the largest, so the labelled range always encloses the data and nothing runs past the outer gridlines. Inward
+  // keeps every tick inside the range (positions: there is no P0).
+  function niceTicks(lo, hi, count, {outward = true} = {}) {
+    const span = hi - lo || 1, raw = span / Math.max(1, count), mag = 10 ** Math.floor(Math.log10(raw)), step = [1, 2, 2.5, 5, 10].find(m => m * mag >= raw - 1e-12) * mag;
+    const first = (outward ? Math.floor(lo / step + 1e-9) : Math.ceil(lo / step - 1e-9)) * step;
+    const last = (outward ? Math.ceil(hi / step - 1e-9) : Math.floor(hi / step + 1e-9)) * step;
+    const out = []; for (let v = first; v <= last + step * 1e-6; v += step) out.push(Math.round(v * 1e6) / 1e6);
     return out;
   }
+  // Room left of the plot for the longest axis label (about 6.2 px a character at the axis size, plus the gap).
+  const axisRoom = labels => Math.max(36, Math.ceil(Math.max(...labels.map(t => String(t).length)) * 6.2 + 12));
   function htmlNode(markup) { const t = document.createElement('template'); t.innerHTML = markup; return t.content.firstElementChild; }
 
   // ----- driver stats -----

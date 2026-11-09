@@ -48,18 +48,21 @@ test('layout stays put while the laps load (CLS under 0.1)', async ({page, brows
   expect(await page.evaluate(() => window.__cls)).toBeLessThan(0.1);
 });
 
-test('team marks are drawn tiles with a visible code, in both appearances', async ({page}) => {
+test('drivers carry a team-colour chip with their car number, in both appearances', async ({page}) => {
   await open(page);
   for (const theme of ['dark', 'light']) {
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
-    const marks = await page.evaluate(() => [...document.querySelectorAll('.team-mark')].filter(el => el.offsetParent).map(el => {
+    const chips = await page.evaluate(() => [...document.querySelectorAll('#driverPills .team-mark')].filter(el => el.offsetParent).map(el => {
       const after = getComputedStyle(el, '::after');
-      return {team: el.dataset.teamMark, code: after.content.replace(/"/g, ''), size: parseFloat(after.fontSize), width: el.getBoundingClientRect().width, images: el.querySelectorAll('img').length};
+      return {team: el.dataset.teamMark, number: after.content.replace(/"/g, ''), size: parseFloat(after.fontSize), width: el.getBoundingClientRect().width,
+        background: getComputedStyle(el).backgroundColor, ink: after.color, images: el.querySelectorAll('img').length, text: el.textContent};
     }));
-    expect(marks.length, `${theme}: marks on the page`).toBeGreaterThan(0);
-    for (const mark of marks) {
-      expect(mark.code, `${theme} ${mark.team} shows its code`).toMatch(/^[A-Z]{2,3}$/);
-      expect(mark.width).toBeGreaterThan(0); expect(mark.size).toBeGreaterThan(4); expect(mark.images).toBe(0);
+    expect(chips.length, `${theme}: driver chips`).toBeGreaterThan(4);
+    for (const chip of chips) {
+      expect(chip.number, `${theme} ${chip.team} shows its car number`).toMatch(/^\d{1,3}$/);
+      expect(chip.width).toBeGreaterThan(0); expect(chip.size).toBeGreaterThan(4); expect(chip.images).toBe(0);
+      expect(chip.text, 'the number is not part of the text').toBe('');
+      expect(chip.background).not.toBe(chip.ink);
     }
   }
 });
