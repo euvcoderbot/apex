@@ -15,5 +15,7 @@ async function run(script,more){
 const identity=['--year',year,'--gp',gp,'--round',round];
 await run('scripts/export-local-session.mjs',[...identity,'--session','Qualifying',...(args.includes('--refresh')?['--refresh']:[])]);
 if(args.includes('--race'))await run('scripts/export-local-session.mjs',[...identity,'--session','Race',...(args.includes('--refresh')?['--refresh']:[])]);
-await run('scripts/precompute-local.mjs',['--year',year,'--gp',gp,'--capture',...(args.includes('--race')?['--race']:['--qualifying-only'])]);
+// --confirmed-local: past rounds whose completion the source calendar no longer reports are confirmed by the settled exports above.
+await run('scripts/precompute-local.mjs',['--year',year,'--gp',gp,'--capture',...(args.includes('--race')?['--race']:['--qualifying-only']),
+  ...(args.includes('--confirmed-local')?['--confirmed-local-qualifying','--confirmed-local-race']:[])]);
 console.log('Local snapshots prepared. Validate and publish a Sites release to update the public site.');

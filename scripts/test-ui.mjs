@@ -327,10 +327,13 @@ test('retained summaries use only the explicitly verified storage-only revision 
   assert.equal(await h.run("prerenderedData(new URL('https://example.test/api/performance?year=2026&gp=Test&session=Q'))"),null);
 });
 
-test('COTA practice loads a captured local summary and every drivers fastest native lap',()=>{
-  const index=JSON.parse(readFileSync('assets/data/prerendered/index.json'));
+test('COTA practice loads a captured local summary and every drivers fastest native lap',(t)=>{
+  // Captured summaries (with their local_export provenance) are kept in the prepared captures; skip where they are absent
+  // (a fresh clone without prepared data), since they are not tracked.
+  if(!existsSync('assets/data/local-captures/index.json'))return t.skip('no prepared captures in this checkout');
+  const index=JSON.parse(readFileSync('assets/data/local-captures/index.json'));
   const query='/api/session?gp=United+States+Grand+Prix&round=18&session=Practice+1&year=2026';
-  const summary=JSON.parse(gunzipSync(readFileSync('assets/data/prerendered/'+index.entries[query])));
+  const summary=JSON.parse(gunzipSync(readFileSync('assets/data/local-captures/'+index.entries[query].file)));
   assert.equal(summary.session,'Practice 1');assert.equal(summary.openf1_session_key,11389);
   assert.equal(summary.drivers.length,22);
   assert.ok(Date.parse(summary.local_export.captured_at)>Date.parse(summary.local_export.session_ended_at));
