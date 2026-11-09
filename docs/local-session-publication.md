@@ -2,15 +2,35 @@
 
 The public site reads locally prepared timing, native telemetry, and supported
 performance/corner measurements without a hosted telemetry API. These are
-captured snapshots, not live streaming. The PC scheduler prepares data; the
-separate Codex publication automation validates and publishes prepared assets.
+captured snapshots, not live streaming. The PC scheduler prepares data and
+publishes it straight to the live Site.
 
-The installed session scheduler stages validated prepared data into the current
-Site checkout (`site-claude-latest-release` alongside the local preparing checkout) after
-each exported session and on recovery runs. Set `APEX_SITE_CHECKOUT` if the
-checkout moves. Staging does not build or publish the Site; use the Sites
-release workflow to make changes visible to visitors. Failed preparation or
-sync is logged to `~/apex-data/session-archive.log` and retried. Machine-readable
+## How data reaches the live Site
+
+Published data lives in the Site's R2 bucket (`DATA_CACHE`), not in the
+deployment package. The page still reads `assets/data/<folder>/<file>`; the
+Worker answers those paths from R2 (`lib/data-store.mjs`). The hosted build is
+made with `APEX_DATA=r2` and contains no data, so code is deployed only when
+code changes.
+
+`node scripts/publish-data.mjs` runs `npm run release:check`, then uploads the
+files the Site does not have yet and, last, the indexes and calendars that
+changed, so a published index never refers to a missing file. Each upload is
+signed with an Ed25519 key that stays on the publishing PC
+(`%USERPROFILE%\apex-data\publish-key.json`); the Worker holds only the public
+key (`lib/publish-key.mjs`). A signature covers the path, the content hash and
+the signing time; content-addressed files must match their name, an index
+cannot be replaced by an older signed copy, and signatures older than a day
+are refused. Rotate the key with `--init-key` after moving the old one away,
+then deploy the new public key.
+
+The installed session scheduler publishes after each exported session and on
+recovery runs, so a session is live about 40 minutes after it ends with no
+manual step. It also refreshes the Season hub snapshot after each Qualifying,
+Sprint and Race. Without the key on the PC, prepared data stays local. A Site
+still built from a separate checkout can be staged with `APEX_SITE_CHECKOUT`.
+Failed preparation, sync or publishing is logged to
+`~/apex-data/session-archive.log` and retried. Machine-readable
 health is written to `~/apex-data/openf1/pipeline-health.json`. Failed or partial
 preparation exits nonzero; an overlapping job does not overwrite the owner's
 health report. The publisher checks health before declaring no new work.

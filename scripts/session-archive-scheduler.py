@@ -135,8 +135,12 @@ def revisions():
 
 
 def sync_prepared():
-    """Stage prepared snapshots in the current Site checkout; never publish."""
-    target = Path(os.environ.get('APEX_SITE_CHECKOUT') or ROOT.parent / 'site-claude-latest-release').resolve()
+    """Stage prepared snapshots in a separate Site checkout, when one is configured; never publish.
+    Data now reaches the Site through publish_prepared (R2); this only serves a Site still built from a checkout."""
+    configured = os.environ.get('APEX_SITE_CHECKOUT')
+    target = Path(configured or ROOT.parent / 'site-claude-latest-release').resolve()
+    if not configured and not target.exists():
+        return
     if target == ROOT.resolve():
         raise ValueError('Prepared-data source and Site checkout must differ')
     try:
@@ -154,6 +158,24 @@ def sync_prepared():
                    cwd=target, check=True, stdout=sys.stdout, stderr=sys.stderr,
                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     print(f'Staged prepared sessions in {target}. Publication is still separate.', flush=True)
+
+
+def publish_prepared(node=None, env=None, flags=None):
+    """Publish prepared data to the live Site's R2 (scripts/publish-data.mjs), when this PC holds the signing key.
+    Uploads only what the Site lacks; a failure is logged and the next run publishes again."""
+    key = Path(os.environ.get('APEX_PUBLISH_KEY') or Path.home() / 'apex-data' / 'publish-key.json')
+    if not key.is_file():
+        print('No publishing key on this PC; prepared data stays local.', flush=True)
+        return False
+    node = node or shutil.which('node.exe') or shutil.which('node')
+    try:
+        subprocess.run([node, str(ROOT / 'scripts' / 'publish-data.mjs')], cwd=ROOT, env=env or os.environ.copy(), check=True,
+                       stdout=sys.stdout, stderr=sys.stderr, creationflags=flags if flags is not None else getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        print('Published prepared data to the live Site.', flush=True)
+        return True
+    except (subprocess.CalledProcessError, OSError) as error:
+        print(f'Publishing failed ({error}); the next run publishes again.', flush=True)
+        return False
 
 
 def prepare_session(session, final):
@@ -193,6 +215,7 @@ def prepare_session(session, final):
         # Export has succeeded: even if derived results are partial, stage the
         # validated captures and let the failed preparation remain retryable.
         sync_prepared()
+        publish_prepared(node, env, flags)
     print(f'Prepared {event["name"]} {name} ({"settled" if final else "provisional"}); local only.', flush=True)
     from urllib.parse import urlencode
     key='/api/session?'+urlencode(sorted({'year':year,'gp':event['name'],'round':event['round'],'session':name}.items()))
@@ -267,8 +290,9 @@ def main():
         if failures is None:
             return  # Busy is not a successful health check; retain the owner's report.
         # Reconcile work prepared before this scheduler update, or after an
-        # interrupted sync. A failure must be visible to Task Scheduler.
+        # interrupted sync or publish. A failure must be visible to Task Scheduler.
         sync_prepared()
+        publish_prepared()
         health = {'checked_at': now.isoformat(), 'failures': failures}
         from capture_storage import atomic_bytes
         atomic_bytes(server.RAW_ROOT / 'pipeline-health.json', json.dumps(health).encode())

@@ -3,7 +3,7 @@ import { resolve, dirname } from "node:path";
 import {createHash} from 'node:crypto';
 import {buildUiStyles,prepareStyle,UI_STYLES,LOCAL_STYLES} from '../lib/ui-style-build.mjs';
 import {copyPublishedAssets} from '../lib/published-assets.mjs';
-import {REMOTE_FOLDERS} from '../lib/lap-pack-store.mjs';
+import {DATA_FOLDERS} from '../lib/data-store.mjs';
 import {sourceRevisionBytes} from '../lib/source-revision.mjs';
 import {snapshotPolicy} from '../lib/snapshot-policy.mjs';
 
@@ -123,9 +123,9 @@ ${prepared.css}
 }
 `);
 }
-// APEX_LAP_PACKS=r2: the hosted build ships lap-telemetry indexes but not the packs, which are served from the Site's R2
-// bucket (upload them with scripts/upload-lap-packs.mjs after deploying). Without it every pack is bundled.
-await copyPublishedAssets(resolve(root,"assets"),resolve(destination,"assets"),{remoteFolders:process.env.APEX_LAP_PACKS==='r2'?REMOTE_FOLDERS:[]});
+// APEX_DATA=r2: the hosted build ships no data; the Site serves it from R2, where scripts/publish-data.mjs puts it
+// (lib/data-store.mjs). Without it the data is bundled (local previews and tests).
+await copyPublishedAssets(resolve(root,"assets"),resolve(destination,"assets"),{remoteFolders:process.env.APEX_DATA==='r2'?DATA_FOLDERS:[]});
 // Shipped scripts and the stylesheet are minified (about a fifth less to download). Top-level names of the classic
 // scripts are kept: they share one global scope and the page's inline handlers call them by name.
 // APEX_NO_MINIFY=1 keeps them readable for debugging.

@@ -78,9 +78,12 @@ class SchedulerTests(unittest.TestCase):
              patch.object(scheduler.json,'load',return_value={'mode':'local'}), \
              patch.object(scheduler,'revisions',return_value={}), \
              patch.object(scheduler.subprocess,'run',side_effect=[None,None,subprocess.CalledProcessError(2,'precompute'),None]) as run, \
-             patch.object(scheduler,'sync_prepared') as sync:
+             patch.object(scheduler,'sync_prepared') as sync, \
+             patch.object(scheduler,'publish_prepared') as publish:
             with self.assertRaises(subprocess.CalledProcessError): scheduler.prepare_session(item,False)
             sync.assert_called_once()
+            # Validated captures are published to the live Site even when derived results are partial.
+            publish.assert_called_once()
             # The Season hub snapshot is refreshed even when derived results are partial.
             snapshot=run.call_args_list[-1]
             self.assertTrue(str(snapshot.args[0][1]).endswith('snapshot-season.mjs'))
