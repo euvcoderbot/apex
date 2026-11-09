@@ -214,14 +214,17 @@ function latestCompletedSelection(events, now = Date.now()) {
   (events || []).forEach((event, eventIndex) => {
     (event.sessions || []).forEach((session, sessionIndex) => {
       const status = String(event.session_statuses?.[session] || '').toLowerCase();
-      if (['cancelled', 'live', 'upcoming', 'interrupted', 'aborted', 'suspended'].includes(status)) return;
+      if (['cancelled', 'interrupted', 'aborted', 'suspended'].includes(status)) return;
       const timestamp = parsedSessionTimestamp(
         event.session_end_dates?.[session] || event.session_dates?.[session]
       );
-      // A missing finish flag can leave a published weekend marked unknown.
-      // After 36 hours, it is safe to offer the session as the default; this
-      // only changes the selection and never fetches its data automatically.
-      if (status === 'unknown' && timestamp > now - 36 * 3600000) return;
+      // A calendar saved before the weekend still says "upcoming" after the session has run: three hours past its scheduled end,
+      // the clock wins over that stale status.
+      if (status === 'upcoming' && !(timestamp < now - 3 * 3600000)) return;
+      // A missing finish flag can leave a published weekend marked unknown, and a red-flagged session can stay "live" past its
+      // scheduled end. After 36 hours, it is safe to offer either as the default; this only changes the selection and never
+      // fetches its data automatically.
+      if ((status === 'unknown' || status === 'live') && !(timestamp < now - 36 * 3600000)) return;
       if (!Number.isFinite(timestamp) || timestamp > now) return;
       if (!latest || timestamp > latest.timestamp) {
         latest = { event, session, timestamp, eventIndex, sessionIndex };

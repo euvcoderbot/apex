@@ -685,6 +685,16 @@ test('latest event selection follows the newest completed session timestamp', ()
   assert.equal(h.run("latestCompletedSelection(statuses, Date.parse('2026-09-29T07:00:00Z')).session"), 'Practice 1');
   h.run("statuses[1].session_statuses['Practice 1']='completed'; statuses[1].session_end_dates['Practice 1']='2026-09-30T10:00:00Z'");
   assert.equal(h.run("latestCompletedSelection(statuses, Date.parse('2026-09-29T07:00:00Z')).event.name"), 'Finished GP');
+  // A calendar saved before the weekend: every session still "upcoming". Three hours after a session's scheduled end it is
+  // offered; "live" waits 36 hours (a red flag can run long).
+  h.run(`var stale=[{round:20,name:'São Paulo Grand Prix',sessions:['Practice 1','Qualifying','Race'],
+    session_end_dates:{'Practice 1':'2026-11-06T16:30:00Z',Qualifying:'2026-11-07T19:00:00Z',Race:'2026-11-08T19:00:00Z'},
+    session_statuses:{'Practice 1':'upcoming',Qualifying:'upcoming',Race:'upcoming'}}]`);
+  assert.equal(h.run("latestCompletedSelection(stale, Date.parse('2026-11-09T08:47:00Z')).session"), 'Race');
+  assert.equal(h.run("latestCompletedSelection(stale, Date.parse('2026-11-08T21:00:00Z')).session"), 'Qualifying');
+  h.run("stale[0].session_statuses.Race='live'");
+  assert.equal(h.run("latestCompletedSelection(stale, Date.parse('2026-11-09T08:47:00Z')).session"), 'Qualifying');
+  assert.equal(h.run("latestCompletedSelection(stale, Date.parse('2026-11-10T08:00:00Z')).session"), 'Race');
   h.sandbox.currentCalendar = JSON.parse(readFileSync('assets/data/events/2026.json', 'utf8'));
   assert.equal(h.run("latestCompletedSelection(currentCalendar, Date.parse('2026-09-17T00:00:00Z')).event.round"), 14);
   assert.equal(h.run("latestCompletedSelection(currentCalendar, Date.parse('2026-09-17T00:00:00Z')).session"), 'Race');
