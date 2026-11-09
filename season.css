@@ -792,3 +792,9 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 /* The finishing place is the point of the cell: 15 px semibold, centred. */
 #seasonHub .season-strip-cell { justify-items: center; text-align: center; }
 #seasonHub .season-strip-cell b { display: block; width: 100%; text-align: center; font: 590 15px/1.1 var(--ui-font); font-variant-numeric: tabular-nums; }
+
+/* Driver photos are cut-outs (background removed): each sits on its team colour. The number or code underneath is hidden while
+   the photo shows; if the photo fails to load the image is removed and the number appears again. */
+#seasonHub .season-avatar:has(> img) { background: var(--team, var(--ui-tertiary)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--ui-label) 8%, transparent); }
+#seasonHub .season-avatar:has(> img) > b { visibility: hidden; }
+#seasonHub .season-avatar > img { object-position: center top; }

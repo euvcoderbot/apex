@@ -39,7 +39,8 @@
     const c = imagery.photos[id];
     if (!c) return null;
     const p = el('p', 'season-photo-credit');
-    p.append('Photo: ', link(c.author || 'Wikimedia Commons', c.page), ', ', link(c.licence, c.licence_url));
+    // The licence requires saying the photo was changed: these are cropped cut-outs with the background removed.
+    p.append('Photo: ', link(c.author || 'Wikimedia Commons', c.page), ', ', link(c.licence, c.licence_url), c.changes ? `; ${c.changes}` : '');
     return p;
   }
   function photoCredits() {

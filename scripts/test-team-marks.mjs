@@ -62,12 +62,15 @@ test('every driver photo is a credited Wikimedia Commons file under a free licen
     assert.match(credit.page, /^https:\/\/commons\.wikimedia\.org\/wiki\/File:/, id);
     assert.match(credit.licence, /^(CC BY(-SA)? [\d.]+|CC0( 1\.0)?|Public domain|OGL [23])$/, `${id}: ${credit.licence}`);
     assert.ok(credit.author && credit.name, id);
+    // The photos are cut-outs: the licences require saying they were changed, and the credit line shows it.
+    assert.match(credit.changes || '', /background removed/, `${id} says it was modified`);
     if (!/^(CC0|Public domain)/.test(credit.licence)) assert.match(credit.licence_url, /^https:\/\//, `${id} links its licence`);
   }
   for (const id of Object.keys(photos)) assert.ok(files.includes(`${id}.webp`), `${id} credit has a photo`);
   // Pages that show photos list their credits; the driver header credits its own.
   const season = readFileSync('season.js', 'utf8');
   assert.match(season, /function photoCredits\(\)/);
+  assert.match(season, /c\.changes \? `; \$\{c\.changes\}` : ''/);
   assert.match(season, /const credit = photoCredit\(id\); if \(credit\) ident\.append\(credit\);/);
   assert.match(season, /function paint\(views\) \{\n    imagery\.shown\.clear\(\);/);
   assert.doesNotMatch(season, /body\.replaceChildren\(\.\.\.render/);
