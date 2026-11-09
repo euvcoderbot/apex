@@ -983,7 +983,8 @@ function tradeOffPlot(model) {
   // The measurements are centred on each GP's median car; shift both axes so 0 is the best team, as on the bar charts.
   const minX=Math.min(...points.map(p=>p.x)),minY=Math.min(...points.map(p=>p.y));
   for(const p of points){p.x-=minX;p.y-=minY;}
-  const W=640,H=320,L=60,R=16,T=14,B=40;
+  // Drawn at the card's real width (its 16 px padding and the page's taken off), so text and dots keep their real size.
+  const W=Math.round(Math.max(innerWidth<=600?560:420,Math.min(1200,(document.getElementById('performanceResults')?.clientWidth||700)-96))),H=300,L=60,R=24,T=14,B=40;
   const pad=(lo,hi)=>{const span=hi-lo||Math.abs(hi)||1;return [lo-span*.08,hi+span*.08];};
   const [x0,x1]=pad(Math.min(...points.map(p=>p.x)),Math.max(...points.map(p=>p.x))),[y0,y1]=pad(Math.min(...points.map(p=>p.y)),Math.max(...points.map(p=>p.y)));
   const X=v=>L+(v-x0)/(x1-x0)*(W-L-R),Y=v=>T+(y1-v)/(y1-y0)*(H-T-B);   // more time lost is higher, so bottom left is quickest at both

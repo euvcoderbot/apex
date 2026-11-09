@@ -15,7 +15,14 @@
   const esc = value => (typeof escapeUI === 'function' ? escapeUI(value) : String(value ?? ''));
   const fmtLap = t => (typeof time === 'function' ? time(t) : `${t.toFixed(3)}`);
   const signedS = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(3)} s`;
-  let showSlowLaps = false, renderedOverview = '';
+  let showSlowLaps = false, renderedOverview = '', drawnWidth = 0;
+  // Charts are drawn at the card's real pixel width (16 px padding each side), so an 11 px label stays 11 px on any screen.
+  // Phones get at least 560 px and scroll inside the card.
+  const chartWidth = () => {
+    const root = document.getElementById('sessionOverview');
+    const inner = (root?.clientWidth || 672) - 34;
+    return Math.round(Math.max(innerWidth <= 600 ? 560 : 320, inner));
+  };
 
   // A lap that counts as a representative timed lap: timed, not deleted, not a pit in- or out-lap.
   const timed = lap => Number.isFinite(lap?.time) && lap.time > 0 && !lap.deleted && !lap.in_lap && !lap.out_lap;
@@ -53,6 +60,14 @@
     ].join('');
   }
 
+  // Teammates share a team colour: the second driver of a colour in a chart is drawn dashed with hollow points, so the two
+  // can be told apart without leaving the team's colour (identity) for something arbitrary.
+  function styleFor(codes) {
+    const seen = new Set(), out = new Map();
+    for (const code of codes) { const c = getDriverColor(code); out.set(code, {colour: c, dashed: seen.has(c)}); seen.add(c); }
+    return out;
+  }
+
   // ---------- lap chart ----------
   function chartDrivers() {
     const chosen = selected.filter(code => realDrivers.has(code));
@@ -62,10 +77,11 @@
 
   function lapChart() {
     const codes = chartDrivers();
+    const styles = styleFor(codes);
     const series = codes.map(code => {
       const d = realDrivers.get(code), laps = (d?.laps || []).filter(timed);
       const best = bestOf(laps, 'time');
-      return {code, colour: getDriverColor(code), laps: laps.filter(l => showSlowLaps || l.time <= best * 1.07)};
+      return {code, colour: getDriverColor(code), dashed: styles.get(code)?.dashed, laps: laps.filter(l => showSlowLaps || l.time <= best * 1.07)};
     }).filter(s => s.laps.length);
     if (!series.length) return '<p class="section-empty">No timed laps for these drivers.</p>';
     const all = series.flatMap(s => s.laps);
@@ -74,23 +90,26 @@
     // Round second ticks that enclose the data.
     const span = Math.max(0.5, tHi - tLo), step = [0.25, 0.5, 1, 2, 5, 10, 20].find(s => span / s <= 5) || 30;
     const yLo = Math.floor(tLo / step) * step, yHi = Math.ceil(tHi / step) * step;
-    const W = 640, H = 220, L = 58, R = 12, T = 10, B = 26;
+    const W = chartWidth(), H = 240, L = 48, R = 12, T = 10, B = 26;
     const x = lap => L + (lapHi === lapLo ? (W - L - R) / 2 : (lap - lapLo) / (lapHi - lapLo) * (W - L - R));
     const y = t => T + (yHi - t) / ((yHi - yLo) || 1) * (H - T - B);
     let svg = `<svg class="overview-lap-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Lap times by lap for ${esc(codes.join(', '))}">`;
-    for (let t = yLo; t <= yHi + 1e-9; t += step) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"/><text class="axis" x="${L - 6}" y="${(y(t) + 3.5).toFixed(1)}" text-anchor="end">${esc(fmtLap(t))}</text>`;
+    // Tick labels carry only the decimals the step needs: 1:16 for whole seconds, 1:16.5 for halves, 1:16.25 for quarters.
+    const decimals = step >= 1 ? 0 : step >= .5 ? 1 : 2;
+    const tick = t => { const m = Math.floor(t / 60), sec = t - m * 60; return `${m}:${sec.toFixed(decimals).padStart(decimals ? 3 + decimals : 2, '0')}`; };
+    for (let t = yLo; t <= yHi + 1e-9; t += step) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"/><text class="axis" x="${L - 8}" y="${(y(t) + 3.5).toFixed(1)}" text-anchor="end">${esc(tick(t))}</text>`;
     const lapStep = Math.max(1, Math.ceil((lapHi - lapLo) / 10));
     for (let lap = lapLo; lap <= lapHi; lap += lapStep) svg += `<text class="axis" x="${x(lap).toFixed(1)}" y="${H - 8}" text-anchor="middle">${lap}</text>`;
     for (const s of series) {
       const pts = s.laps.map(l => `${x(l.lap).toFixed(1)},${y(l.time).toFixed(1)}`).join(' ');
-      svg += `<polyline class="line" points="${pts}" style="stroke:${esc(s.colour)}"/>`;
+      svg += `<polyline class="line${s.dashed ? ' is-dashed' : ''}" points="${pts}" style="stroke:${esc(s.colour)}"/>`;
       for (const l of s.laps) {
         const isLoaded = loaded.some(item => item.code === s.code && item.lap === l.lap);
-        svg += `<circle class="point${isLoaded ? ' is-loaded' : ''}" cx="${x(l.lap).toFixed(1)}" cy="${y(l.time).toFixed(1)}" r="${isLoaded ? 5 : 3.5}" style="fill:${esc(s.colour)}" data-code="${esc(s.code)}" data-lap="${l.lap}" tabindex="0" role="button" aria-label="${esc(`${s.code} lap ${l.lap}, ${fmtLap(l.time)}${l.compound ? `, ${l.compound}` : ''}. ${isLoaded ? 'In the comparison; select to remove' : 'Select to compare'}`)}"><title>${esc(`${s.code} · lap ${l.lap} · ${fmtLap(l.time)}${l.compound ? ` · ${l.compound}` : ''}${Number.isFinite(l.tyre_life) ? ` (${l.tyre_life} laps old)` : ''}`)}</title></circle>`;
+        svg += `<circle class="point${isLoaded ? ' is-loaded' : ''}${s.dashed ? ' is-hollow' : ''}" style="--c:${esc(s.colour)}" cx="${x(l.lap).toFixed(1)}" cy="${y(l.time).toFixed(1)}" r="${isLoaded ? 5 : 3.5}" data-code="${esc(s.code)}" data-lap="${l.lap}" tabindex="0" role="button" aria-label="${esc(`${s.code} lap ${l.lap}, ${fmtLap(l.time)}${l.compound ? `, ${l.compound}` : ''}. ${isLoaded ? 'In the comparison; select to remove' : 'Select to compare'}`)}"><title>${esc(`${s.code} · lap ${l.lap} · ${fmtLap(l.time)}${l.compound ? ` · ${l.compound}` : ''}${Number.isFinite(l.tyre_life) ? ` (${l.tyre_life} laps old)` : ''}`)}</title></circle>`;
       }
     }
     svg += '</svg>';
-    const legend = series.map(s => `<span><i style="background:${esc(s.colour)}"></i>${esc(s.code)}</span>`).join('');
+    const legend = series.map(s => `<span><i class="${s.dashed ? 'is-dashed' : ''}" style="--c:${esc(s.colour)}"></i>${esc(s.code)}</span>`).join('');
     return `<div class="overview-legend">${legend}<button type="button" class="overview-slow-toggle" aria-pressed="${showSlowLaps}">${showSlowLaps ? 'Hide slow laps' : 'Show slow laps'}</button></div>${svg}
       <p class="overview-note">${selected.length ? 'The drivers chosen in the list' : 'The top three'}; laps over 107% of a driver’s best are ${showSlowLaps ? 'shown' : 'hidden'}. Select a point to add that lap to the comparison.</p>`;
   }
@@ -126,7 +145,8 @@
     if (progress.laps < 2) return '';
     const codes = chartDrivers();
     const shown = progress.rows.filter(r => codes.includes(r.code));
-    const W = 640, L = 46, R = 40, T = 10, B = 24;
+    const styles = styleFor(codes);
+    const W = chartWidth(), L = 58, R = 40, T = 10, B = 24;
     const x = lap => L + (lap - 1) / Math.max(1, progress.laps - 1) * (W - L - R);
     const lapAxis = H => { let out = ''; const step = Math.max(1, Math.ceil(progress.laps / 12)); for (let lap = 1; lap <= progress.laps; lap += step) out += `<text class="axis" x="${x(lap).toFixed(1)}" y="${H - 7}" text-anchor="middle">${lap}</text>`; return out; };
     const path = (map, y) => { let d = '', open = false; for (let lap = 1; lap <= progress.laps; lap++) { const v = map.get(lap); if (v == null) { open = false; continue; } d += `${open ? 'L' : 'M'}${x(lap).toFixed(1)} ${y(v).toFixed(1)}`; open = true; } return d; };
@@ -137,8 +157,8 @@
     let gap = `<svg class="overview-lap-chart" viewBox="0 0 ${W} ${H1}" role="img" aria-label="Gap to the race leader by lap">`;
     for (let v = 0; v <= top1 + 1e-9; v += step1) gap += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y1(v).toFixed(1)}" y2="${y1(v).toFixed(1)}"/><text class="axis" x="${L - 6}" y="${(y1(v) + 3.5).toFixed(1)}" text-anchor="end">${v ? `+${v}s` : 'Leader'}</text>`;
     for (const r of shown) {
-      const colour = esc(getDriverColor(r.code)), last = [...r.gaps.entries()].at(-1);
-      gap += `<path class="line is-solid" d="${path(r.gaps, y1)}" style="stroke:${colour}"/>`;
+      const colour = esc(getDriverColor(r.code)), last = [...r.gaps.entries()].at(-1), dash = styles.get(r.code)?.dashed ? ' is-dashed' : '';
+      gap += `<path class="line is-solid${dash}" d="${path(r.gaps, y1)}" style="stroke:${colour}"/>`;
       if (last) gap += `<text class="label" x="${(x(last[0]) + 4).toFixed(1)}" y="${(y1(last[1]) + 3.5).toFixed(1)}" style="fill:${colour}">${esc(r.code)}</text>`;
     }
     gap += lapAxis(H1) + '</svg>';
@@ -149,7 +169,7 @@
     for (const p of [1, 5, 10, 15, 20].filter(p => p <= n)) pos += `<text class="axis" x="${L - 6}" y="${(y2(p) + 3.5).toFixed(1)}" text-anchor="end">P${p}</text>`;
     for (const r of [...progress.rows].sort((a, b) => codes.includes(a.code) - codes.includes(b.code))) {
       const colour = esc(getDriverColor(r.code)), chosen = codes.includes(r.code), last = [...r.positions.entries()].at(-1);
-      pos += `<path class="line is-solid${chosen ? '' : ' is-faint'}" d="${path(r.positions, y2)}" style="stroke:${colour}"/>`;
+      pos += `<path class="line is-solid${chosen ? (styles.get(r.code)?.dashed ? ' is-dashed' : '') : ' is-faint'}" d="${path(r.positions, y2)}" style="stroke:${colour}"/>`;
       if (last && chosen) pos += `<text class="label" x="${(x(last[0]) + 4).toFixed(1)}" y="${(y2(last[1]) + 3.5).toFixed(1)}" style="fill:${colour}">${esc(r.code)}</text>`;
     }
     pos += lapAxis(H2) + '</svg>';
@@ -169,6 +189,7 @@
       <div class="overview-readout">${readout(rows)}</div>
       <div class="overview-chart"><h3>Lap times</h3>${lapChart()}</div>${raceCharts()}`;
     if (renderedOverview !== html || !root.firstChild) { root.innerHTML = html; renderedOverview = html; }
+    drawnWidth = chartWidth();
   }
 
   // ---------- where the time went ----------
@@ -218,6 +239,12 @@
     const point = event.target.closest?.('#sessionOverview .point');
     if (point && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); toggleLoadedLap(point.dataset.code, Number(point.dataset.lap)); }
   });
+
+  // Redraw when the card's width changes (window resize, sidebar toggled), so the charts keep their real pixel size.
+  if (typeof ResizeObserver === 'function') {
+    const host = document.getElementById('sessionOverview');
+    if (host) new ResizeObserver(() => { if (!host.hidden && Math.abs(chartWidth() - drawnWidth) > 8) renderSessionOverview(); }).observe(host);
+  }
 
   window.ApexSessionOverview = {driverSummary, timeBreakdown, raceProgress, render: renderSessionOverview, renderTimeSummary};
 })();

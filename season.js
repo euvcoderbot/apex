@@ -476,9 +476,10 @@
       const ol = el('ol');
       for (const r of hist.races) {
         const li = el('li');
-        const mark = typeof window.teamLogoMarkup === 'function' ? htmlNode(window.teamLogoMarkup(r.team)) : null;
-        if (mark) mark.classList.add('season-team-mark');
-        const name = el('span', 'season-who'); if (mark) name.append(mark); name.append(el('strong', null, r.winner), el('small', null, r.team));
+        // A Linear list row: the driver's face where this season has their photo, otherwise the team's colour swatch.
+        const face = data.drivers[r.winner_id] ? avatar(data, r.winner_id) : (typeof window.teamLogoMarkup === 'function' ? htmlNode(window.teamLogoMarkup(r.team)) : null);
+        if (face) face.classList.add('season-history-face');
+        const name = el('span', 'season-who'); if (face) name.append(face); name.append(el('strong', null, r.winner), el('small', null, r.team));
         li.append(el('span', 'season-history-year', String(r.year)), name, el('span', 'season-muted', r.grid === 1 ? 'from pole' : r.grid ? `from P${r.grid}` : 'from the pit lane'));
         ol.append(li);
       }
@@ -494,15 +495,21 @@
       // Beyond about a week a forecast is a rough guide: say so rather than show it with the same confidence as tomorrow's.
       const daysAhead = (Date.parse(`${data.next_weather[0].date}T12:00:00`) - Date.now()) / 86400000;
       if (daysAhead > 7) forecast.append(el('p', 'season-muted season-weather-range', 'Long-range forecast: likely to change.'));
+      // One Linear list row per day under quiet column labels: day, sky, high and low, chance of rain, wind.
+      const list = el('div', 'season-forecast');
+      const header = el('div', 'season-forecast-head');
+      header.append(el('span', null, 'Day'), el('span'), el('span', null, 'High / low'), el('span', null, 'Rain'), el('span', null, 'Wind'));
+      list.append(header);
       for (const d of data.next_weather) {
-        const day = el('div'); day.dataset.wet = String(d.rain >= 50);
+        const row = el('div', 'season-forecast-row'); row.dataset.wet = String(d.rain >= 50);
+        row.title = `${sky(d.code)} \u00b7 ${Math.round(d.max)}\u00b0 / ${Math.round(d.min)}\u00b0 \u00b7 ${d.rain ?? 0}% chance of rain \u00b7 wind ${Math.round(d.wind)} km/h`;
         const icon = weatherIcon(d.code); icon.dataset.kind = d.code >= 95 ? 'storm' : d.rain >= 50 ? 'wet' : d.code <= 2 ? 'sun' : 'cloud';
-        day.append(el('span', 'season-muted', new Date(`${d.date}T12:00:00`).toLocaleDateString([], {weekday: 'long'})), icon,
-          el('b', null, `${Math.round(d.max)}\u00b0`), el('span', 'season-weather-low', `${Math.round(d.min)}\u00b0 low \u00b7 ${sky(d.code)}`));
-        const rain = el('span', 'season-rain'); const fill = el('i'); fill.style.width = `${d.rain || 0}%`; rain.append(fill);
-        day.append(rain, el('small', 'season-muted', `${d.rain ?? 0}% rain`), el('small', 'season-muted', `Wind ${Math.round(d.wind)} km/h`));
-        forecast.append(day);
+        const temp = el('span', 'season-forecast-temp'); temp.append(el('b', null, `${Math.round(d.max)}\u00b0`), el('span', null, `${Math.round(d.min)}\u00b0`));
+        row.append(el('span', 'season-forecast-day', new Date(`${d.date}T12:00:00`).toLocaleDateString([], {weekday: 'short'})), icon, temp,
+          el('span', 'season-forecast-rain', `${d.rain ?? 0}%`), el('span', 'season-forecast-wind', `${Math.round(d.wind)} km/h`));
+        list.append(row);
       }
+      forecast.append(list);
       body.append(forecast);
     }
     const note = el('span', null, 'Times in your time zone.');
@@ -714,7 +721,7 @@
     table.append(tb);
     const ids = last.map(e => e.id);
     const points = lineChart(evo.map(s => s.round), ids.map(id => ({id, colour: colour(id), label: label(id), short: drivers ? driverCode(data, id) : teamName(data, id),
-      values: evo.map(s => s.table.find(x => x.id === id)?.points ?? 0)})), {title: 'Points after each round', endLabels: drivers ? 6 : 5, height: 300});
+      values: evo.map(s => s.table.find(x => x.id === id)?.points ?? 0)})), {title: 'Points after each round', endLabels: drivers ? 6 : 5, height: 400});
     const ranks = bumpChart(evo.map(s => s.round), ids.map(id => ({id, colour: colour(id), label: drivers ? driverCode(data, id) : teamName(data, id),
       values: evo.map(s => s.table.find(x => x.id === id)?.position ?? null)})));
     const layout = el('div', 'season-two');
@@ -991,6 +998,7 @@
   // the rest faint, so the leaders read without a legend; hovering any line or table row still brings it forward.
   function lineChart(rounds, series, {title = '', invert = false, height = 260, min = null, max = null, format = v => String(v), endLabels = 0} = {}) {
     const W = 640, H = height, R = series.length === 1 ? 44 : endLabels ? 46 : 12, T = 12, B = 24;
+    const dashed = teammateDashes(series);
     const values = series.flatMap(s => s.values.filter(v => v != null));
     // Values (not positions) get round outer ticks that enclose the data; the scale then runs to those ticks.
     const dataLo = min ?? Math.min(0, ...values), dataHi = max ?? Math.max(1, ...values);
@@ -1017,7 +1025,7 @@
         svg += `<path class="area" d="${d}L${pts.at(-1)[0].toFixed(1)} ${H - B}L${pts[0][0].toFixed(1)} ${H - B}Z" fill="url(#${gid})"/>`;
       }
       const faint = endLabels && series.indexOf(s) >= endLabels;
-      svg += `<path data-id="${esc(s.id)}" class="line${faint ? ' is-faint' : ''}" style="stroke:${esc(s.colour)}" d="${d}"/>`;
+      svg += `<path data-id="${esc(s.id)}" class="line${faint ? ' is-faint' : ''}${dashed.has(s) ? ' is-dashed' : ''}" style="stroke:${esc(s.colour)}" d="${d}"/>`;
       if (series.length === 1) {
         const [ex, ey] = pts.at(-1), last = s.values.filter(v => v != null).at(-1);
         svg += `<circle class="end" cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="4" style="fill:${esc(s.colour)}"/><text class="label" x="${(ex + 8).toFixed(1)}" y="${(ey + 4).toFixed(1)}" style="fill:${esc(s.colour)}">${esc(invert ? 'P' + last : format(last))}</text>`;
@@ -1030,8 +1038,15 @@
     }
     return htmlNode(svg + xLabels(rounds, x, H, slot) + '</svg>');
   }
+  // Teammates share a team colour: the second series of a colour is dashed, so the two can be told apart.
+  function teammateDashes(series) {
+    const seen = new Set(), out = new Set();
+    for (const s of series) { if (seen.has(s.colour)) out.add(s); seen.add(s.colour); }
+    return out;
+  }
   function bumpChart(rounds, series) {
     const n = series.length, W = 640, H = Math.max(200, n * 18 + 30), L = 12, R = 46, T = 10, B = 22;
+    const dashed = teammateDashes(series.slice(0, 6));
     const x = i => L + (rounds.length < 2 ? 0 : i / (rounds.length - 1) * (W - L - R));
     const y = p => T + (p - 1) / Math.max(1, n - 1) * (H - T - B);
     const slot = rounds.length > 1 ? (W - L - R) / (rounds.length - 1) : 40;
@@ -1044,7 +1059,9 @@
       const pts = s.values.map((v, i) => (v == null ? null : [x(i), y(v)])).filter(Boolean);
       if (!pts.length) continue;
       const lastValue = s.values.at(-1);
-      svg += `<g data-id="${esc(s.id)}"><path class="line is-bump" style="stroke:${esc(s.colour)}" d="${bumpPath(pts)}"/>`;
+      // The top six (current order) in full colour; the rest faint until hovered, as on the points chart.
+      const faint = series.indexOf(s) >= 6;
+      svg += `<g data-id="${esc(s.id)}"${faint ? ' class="is-faint-group"' : ''}><path class="line is-bump${faint ? ' is-faint' : dashed.has(s) ? ' is-dashed' : ''}" style="stroke:${esc(s.colour)}" d="${bumpPath(pts)}"/>`;
       if (lastValue != null) svg += `<circle class="end" cx="${pts.at(-1)[0].toFixed(1)}" cy="${pts.at(-1)[1].toFixed(1)}" r="3" style="fill:${esc(s.colour)}"/><text class="label" x="${W - R + 8}" y="${y(lastValue) + 4}" style="fill:${esc(s.colour)}">${esc(s.label)}</text>`;
       svg += '</g>';
     }
@@ -1128,7 +1145,14 @@
       const finish = r.finish, n = Number(finish), cell = el('div', 'season-strip-cell');
       cell.dataset.tone = !Number.isFinite(n) ? (finish ? 'out' : 'none') : n === 1 ? 'win' : n <= 3 ? 'podium' : r.race_points > 0 ? 'points' : 'none';
       cell.title = `${data.rounds.find(x => x.round === r.round)?.name}: ${finish ? (Number.isFinite(n) ? 'P' + n : finish) : 'did not start'}${r.grid ? ' from P' + r.grid : ''}${r.race_points ? ' · ' + r.race_points + ' pts' : ''}`;
-      cell.append(el('small', null, code(r.round)), el('b', null, Number.isFinite(n) ? String(n) : finish || '–'));
+      // Flag and round code, the finishing place, and under it the classification when the race did not end in a place
+      // (no colours: the number says the result).
+      const round = data.rounds.find(x => x.round === r.round), head = el('small'), f = round && flag(round);
+      if (f) head.append(f);
+      head.append(code(r.round));
+      const CLASS = {R: 'DNF', D: 'DSQ', E: 'EXC', W: 'DNS', N: 'NC', F: 'DNQ'};
+      const status = Number.isFinite(n) ? '' : finish ? (CLASS[finish] || 'DNF') : 'DNS';
+      cell.append(head, el('b', null, Number.isFinite(n) ? String(n) : '–'), el('span', 'season-strip-status', status || ' '));
       strip.append(cell);
     }
     const counts = s.finish_counts, maxCount = Math.max(1, ...Object.values(counts));
@@ -1143,8 +1167,7 @@
     }
     const positions = lineChart(s.position_after.map(p => p.round), [{id, colour: teamColour(data.drivers[id].team), label: driverName(data, id),
       values: s.position_after.map(p => p.position)}], {title: 'Championship position after each round', invert: true, min: 1, max: Math.max(5, ...s.position_after.map(p => p.position || 1)), height: 200});
-    const legend = el('div', 'season-legend');
-    for (const [tone, text] of [['win', 'Win'], ['podium', 'Podium'], ['points', 'Points'], ['none', 'No points'], ['out', 'Not classified']]) { const i = el('span'); i.dataset.tone = tone; i.textContent = text; legend.append(i); }
+    const legend = el('p', 'season-footnote', 'Finishing place in each Grand Prix. DNF did not finish, DNS did not start, DSQ disqualified, NC not classified.');
     return [el('div', 'season-toolbar'), head, tiles, card('Weekend by weekend', strip, legend), el('div', 'season-two'),
     ].map((node, i) => {
       if (i === 0) node.append(pick);
@@ -1216,27 +1239,31 @@
     if (qMedian != null) versus.append(el('span', 'season-h2h-pace', `${signed(qMedian, 3, ' s')} qualifying`),
       el('small', 'season-muted', `median over ${qGaps.length} sessions`));
     const hero = el('div', 'season-h2h-hero'); hero.append(face(a, ca, false), versus, face(b, cb0, true));
-    // A butterfly: each driver's bar grows out from the label and the longer bar is always the better one (for averages
-    // and retirements, where lower is better, the length is the better value over this one); the better side is in full
-    // team colour with its number in bold, the other side muted.
+    // Linear list rows: the measurement, then each driver's value either side of one split bar. The bar is the share of the
+    // better quantity (for "lower is better" rows, the other driver's share of the total), so the longer side is the one ahead;
+    // the leader's value is in the label colour and 590, the other in the secondary colour.
     let wonA = 0, wonB = 0;
+    const nameCell = (id, colour, right) => { const n = el('span', `season-h2h-name${right ? ' is-right' : ''}`); const dot = el('i'); dot.style.background = colour; n.append(dot, el('b', null, family(data, id))); return n; };
+    const headRow = el('div', 'season-h2h-row season-h2h-head');
+    headRow.append(el('span'), nameCell(a, ca), el('span'), nameCell(b, cb0, true));
+    rows.append(headRow);
     const section = title => rows.append(el('div', 'season-h2h-section', title));
     const metric = (label, va, vb, {lower = false, format = v => String(v)} = {}) => {
       const row = el('div', 'season-h2h-row');
       const better = va == null || vb == null || va === vb ? 0 : (lower ? va < vb : va > vb) ? -1 : 1;
       if (better < 0) wonA++; else if (better > 0) wonB++;
-      const max = Math.max(Math.abs(va || 0), Math.abs(vb || 0)) || 1, min = Math.min(va ?? Infinity, vb ?? Infinity);
-      const share = value => (value == null ? 0 : lower ? (value ? min / value : 1) : Math.abs(value) / max);
-      const side = (value, colour, wins, cls) => {
-        const track = el('span', `season-h2h-track ${cls}`); const fill = el('i');
-        fill.style.width = `${Math.max(value != null ? 3 : 0, share(value) * 100)}%`;
-        fill.style.background = colour; if (!wins) fill.classList.add('is-muted');
-        track.append(fill); return track;
-      };
+      const bar = el('span', 'season-h2h-split');
+      if (va != null && vb != null) {
+        const x = Math.abs(va), y = Math.abs(vb), share = x + y === 0 ? .5 : lower ? y / (x + y) : x / (x + y);
+        const left = el('i'), right = el('i');
+        left.style.width = `${(share * 100).toFixed(1)}%`; left.style.background = ca; right.style.background = cb;
+        bar.append(left, right);
+        bar.title = `${family(data, a)} ${format(va)} · ${family(data, b)} ${format(vb)}`;
+      }
       const name = el('span', 'season-h2h-label', label);
-      if (lower) { name.title = 'Lower is better'; name.append(el('small', null, ' \u2193')); }
-      row.append(el('b', better < 0 ? 'is-better' : null, va == null ? '\u2014' : format(va)), side(va, ca, better < 0, 'is-left'), name,
-        side(vb, cb, better > 0, 'is-right'), el('b', better > 0 ? 'is-better' : null, vb == null ? '\u2014' : format(vb)));
+      if (lower) { name.title = 'Lower is better'; name.append(el('small', null, ' ↓')); }
+      row.append(name, el('b', `season-h2h-value${better < 0 ? ' is-better' : ''}`, va == null ? '—' : format(va)), bar,
+        el('b', `season-h2h-value is-right${better > 0 ? ' is-better' : ''}`, vb == null ? '—' : format(vb)));
       rows.append(row);
     };
     section('Weekends');
@@ -1258,7 +1285,7 @@
     metric('Average grid', sa.average_grid, sb.average_grid, {lower: true, format: v => v.toFixed(2)});
     metric('Best finish', sa.best_finish, sb.best_finish, {lower: true, format: v => `P${v}`});
     metric('Retirements', sa.retirements, sb.retirements, {lower: true});
-    rows.prepend(el('p', 'season-h2h-sum', `${family(data, a)} is ahead on ${wonA} of these, ${family(data, b)} on ${wonB}. The longer bar is the better one.`));
+    rows.prepend(el('p', 'season-h2h-sum', `${family(data, a)} is ahead on ${wonA} of these, ${family(data, b)} on ${wonB}. Each bar is split by who is ahead; the longer side leads.`));
     const weeks = el('div', 'season-h2h-weeks');
     for (const w of result.weekends) {
       const cell = el('div'); cell.title = data.rounds.find(r => r.round === w.round)?.name || '';
