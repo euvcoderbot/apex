@@ -141,9 +141,14 @@
     const key = `${kind}:${year}`;
     if (!cache[key]) {
       const path = `${{season: '/api/season', upgrades: '/api/season/upgrades', units: '/api/season/power-units'}[kind]}?year=${year}`;
-      const savedFirst = !window.APEX_LOCAL_MODE || year < new Date().getFullYear();
-      cache[key] = (savedFirst ? savedSeason(path) : Promise.resolve(null))
-        .then(saved => saved || liveSeason(kind, path).catch(async error => (savedFirst ? null : await savedSeason(path)) || Promise.reject(error)));
+      // The current season is read live wherever something can compute it: the local app, or the published site once
+      // this PC's compute is connected ("Use this PC"). Otherwise, and for finished seasons, the saved snapshot comes first.
+      cache[key] = Promise.resolve(window.apexComputeReady).then(() => {
+        const live = window.APEX_LOCAL_MODE || Boolean(window.APEX_COMPUTE_ORIGIN);
+        const savedFirst = !live || year < new Date().getFullYear();
+        return (savedFirst ? savedSeason(path) : Promise.resolve(null))
+          .then(saved => saved || liveSeason(kind, path).catch(async error => (savedFirst ? null : await savedSeason(path)) || Promise.reject(error)));
+      });
       cache[key].catch(() => { delete cache[key]; });
     }
     return cache[key];

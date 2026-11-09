@@ -181,6 +181,15 @@ def prepare_session(session, final):
             command += ['--race'] if name == 'Race' else ['--qualifying-only']
             subprocess.run(command, cwd=ROOT, env=env, check=True, stdout=sys.stdout, stderr=sys.stderr, creationflags=flags)
     finally:
+        # Season hub snapshot (standings, results, stats) for this year, so the published Season pages follow each
+        # weekend instead of waiting for a manual `npm run snapshot:season`. Compute's Python API runs on :8000.
+        if name in {'Qualifying', 'Sprint', 'Race'}:
+            try:
+                subprocess.run([node, str(ROOT / 'scripts' / 'snapshot-season.mjs'), str(year)], cwd=ROOT,
+                               env={**env, 'APEX_LOCAL_API_PORT': '8000'}, check=True, stdout=sys.stdout, stderr=sys.stderr,
+                               creationflags=flags)
+            except subprocess.CalledProcessError as error:
+                print(f'Season snapshot failed ({error.returncode}); the next session retries it.', flush=True)
         # Export has succeeded: even if derived results are partial, stage the
         # validated captures and let the failed preparation remain retryable.
         sync_prepared()
