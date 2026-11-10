@@ -835,3 +835,5 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
   #seasonHub .season-battle-bar { grid-column: 1 / -1; }
 }
 .season-chart.is-crowded .x-label.is-alt { display: none; }
+/* Round grids (results, points, upgrades, qualifying pace): the total column is centred like its heading and the rounds. */
+#seasonHub .season-matrix tbody td:last-child { padding-inline: 6px; text-align: center; }
