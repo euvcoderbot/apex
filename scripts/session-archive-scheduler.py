@@ -31,6 +31,25 @@ COMPUTE_STATE = 'local-compute-state.json'
 # session starts until 30 minutes after it ends, so this leaves ten minutes of margin. Sessions that were missed (the PC was
 # off) or not ready yet are picked up by the next session's check, which looks back three days; nothing repeats on a timer.
 CHECK_DELAY = timedelta(minutes=40)
+# Catch-up: a finished session of this season older than the three-day window that has no published capture (the PC was off
+# for longer, or the session type was added later) is prepared too, oldest first, a few per run so one run stays short.
+CATCH_UP_PER_RUN = 3
+
+
+def captured_sessions(root=None):
+    """(year, gp, session) of every published session capture (local captures and prerendered)."""
+    from urllib.parse import parse_qs, urlsplit
+    found = set()
+    for folder in ('local-captures', 'prerendered'):
+        try:
+            index = json.loads((Path(root or ROOT) / 'assets' / 'data' / folder / 'index.json').read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            continue
+        for key in index.get('entries', {}):
+            if key.startswith('/api/session?'):
+                query = parse_qs(urlsplit(key).query)
+                found.add((query.get('year', [''])[0], query.get('gp', [''])[0], query.get('session', [''])[0]))
+    return found
 
 
 def parse_date(value):
@@ -230,14 +249,29 @@ def run_due(sessions, now):
         print('Another archive job is running; leaving it alone.', flush=True)
         return None
     failures = []
-    for session in sessions:
+    captured, calendars, caught_up = None, {}, 0
+    for session in sorted(sessions, key=lambda item: str(item.get('date_end') or '')):
         end = parse_date(session.get('date_end'))
         key = session.get('session_key')
         if key is None or end is None or session.get('is_cancelled') or session.get('session_name') not in WANTED:
             continue
         age = now - end
-        if age < CHECK_DELAY or age > timedelta(days=3):
+        if age < CHECK_DELAY:
             continue
+        if age > timedelta(days=3):
+            if caught_up >= CATCH_UP_PER_RUN:
+                continue
+            year = int(session.get('year') or now.year)
+            try:
+                captured = captured_sessions() if captured is None else captured
+                calendar = calendars.setdefault(year, server.event_calendar(year))
+                event, name = event_for_session(session, calendar)
+            except Exception:
+                continue
+            if (str(year), event['name'], name) in captured:
+                continue
+            caught_up += 1
+            print(f"Session {key}: {event['name']} {name} has no published capture; catching up.", flush=True)
         state = mirror.load_state()
         try:
             if not finished(session):
