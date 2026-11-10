@@ -847,3 +847,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 .season-chart.is-crowded .x-label.is-alt { display: none; }
 /* Round grids (results, points, upgrades, qualifying pace): the total column is centred like its heading and the rounds. */
 #seasonHub .season-matrix tbody td:last-child { padding-inline: 6px; text-align: center; }
+/* Round labels (flag above code) in every grid and strip of rounds. */
+#seasonHub .season-round-mark { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; }
+#seasonHub .season-round-mark .season-flag { width: 16px; height: 12px; border-radius: 2px; object-fit: cover; }
+#seasonHub .season-round-mark small { color: var(--ui-tertiary); font: 450 10px/1 var(--ui-font); letter-spacing: 0; }

@@ -174,6 +174,13 @@
     const img = el('img', 'season-flag'); img.src = `assets/flags/${code.toLowerCase()}.svg`; img.alt = ''; img.width = 20; img.height = 15; img.loading = 'lazy';
     return img;
   }
+  // A round's label everywhere rounds are listed: its flag above its three-letter code (code alone when there is no flag).
+  function roundMark(round) {
+    const mark = el('span', 'season-round-mark'); mark.title = round.name || '';
+    const f = flag(round); if (f) mark.append(f);
+    mark.append(el('small', null, code(round.round)));
+    return mark;
+  }
   function who(data, id, {code = false, team = true, family = false} = {}) {
     const span = el('span', 'season-who');
     const t = data.drivers[id]?.team;
@@ -797,7 +804,7 @@
     const rounds = data.rounds.filter(r => r.race.length);
     const t = el('table', 'season-table season-matrix season-grid');
     const head = el('tr'); head.append(el('th', null, drivers ? 'Driver' : 'Constructor'));
-    for (const r of rounds) { const th = el('th', 'num'); const f = flag(r); th.title = r.name; if (f) th.append(f); else th.textContent = `R${r.round}`; head.append(th); }
+    for (const r of rounds) { const th = el('th', 'num'); th.append(roundMark(r)); head.append(th); }
     head.append(el('th', 'num', 'Pts'));
     const thead = el('thead'); thead.append(head); t.append(thead);
     const tb = el('tbody');
@@ -847,7 +854,7 @@
     const worst = Math.max(.5, ...order.flatMap(t => gaps[t].filter(Number.isFinite)));
     const tbl = el('table', 'season-table season-matrix season-grid');
     const head = el('tr'); head.append(el('th', null, 'Constructor'));
-    for (const r of rounds) { const th = el('th', 'num'); const f = flag(r); th.title = r.name; if (f) th.append(f); else th.textContent = `R${r.round}`; head.append(th); }
+    for (const r of rounds) { const th = el('th', 'num'); th.append(roundMark(r)); head.append(th); }
     head.append(el('th', 'num', 'Median'));
     const thead = el('thead'); thead.append(head); tbl.append(thead);
     const tb = el('tbody');
@@ -1321,7 +1328,7 @@
     const weeks = el('div', 'season-h2h-weeks');
     for (const w of result.weekends) {
       const cell = el('div'); cell.title = data.rounds.find(r => r.round === w.round)?.name || '';
-      cell.append(el('small', null, code(w.round)));
+      const round = data.rounds.find(r => r.round === w.round); cell.append(round ? roundMark(round) : el('small', null, code(w.round)));
       for (const kind of ['qualifying', 'race']) {
         const dot = el('i'); dot.title = kind;
         if (w[kind] != null) dot.style.background = w[kind] === 0 ? ca : cb;
@@ -1448,7 +1455,7 @@
     const roundsWith = [...new Set(items.map(i => i.round).filter(Boolean))].sort((x, y) => x - y);
     const matrix = el('table', 'season-table season-matrix');
     const headRow = el('tr'); headRow.append(el('th', null, ''));
-    for (const r of roundsWith) { const th = el('th', 'num', code(r)); th.title = data.rounds.find(x => x.round === r)?.name || ''; headRow.append(th); }
+    for (const r of roundsWith) { const th = el('th', 'num'); const round = data.rounds.find(x => x.round === r); th.append(round ? roundMark(round) : document.createTextNode(code(r))); headRow.append(th); }
     const thead = el('thead'); thead.append(headRow); matrix.append(thead);
     const mbody = el('tbody'); const maxCell = Math.max(1, ...teams.flatMap(t => roundsWith.map(r => items.filter(i => i.team === t && i.round === r).length)));
     for (const t of teams) {
