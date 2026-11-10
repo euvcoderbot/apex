@@ -851,3 +851,6 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-round-mark { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; }
 #seasonHub .season-round-mark .season-flag { width: 16px; height: 12px; border-radius: 2px; object-fit: cover; }
 #seasonHub .season-round-mark small { color: var(--ui-tertiary); font: 450 10px/1 var(--ui-font); letter-spacing: 0; }
+/* Weekend-by-weekend cells: room between the race label (flag and code) and the finishing place. */
+#seasonHub .season-strip-cell { gap: 8px; }
+#seasonHub .season-strip-cell small { margin-bottom: 2px; }

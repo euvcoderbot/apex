@@ -572,8 +572,8 @@
     // Two columns of stacked cards, paired so the columns come out about the same length (the last card in each
     // stretches to meet the other), rather than side-by-side pairs of very different heights.
     const [crews, quickest] = data.pit_stops?.teams?.length ? pitStops(data) : [];
-    out.push(columns([retirements, winsCard(data)], [crews, quickest]));
-    // Grand Prix table
+    const breakdown = columns([retirements, winsCard(data)], [crews, quickest]);
+    // Grand Prix table: straight after the season's numbers, before the team breakdowns.
     const table = el('table', 'season-table');
     table.innerHTML = '<thead><tr><th scope="col" class="num">Round</th><th scope="col">Grand Prix</th><th scope="col">Pole</th><th scope="col">Winner</th><th scope="col">Second</th><th scope="col">Third</th><th scope="col">Fastest lap</th><th scope="col">Sprint</th><th scope="col" class="num">Margin</th></tr></thead>';
     const tbody = el('tbody');
@@ -597,7 +597,7 @@
       }
     }
     table.append(tbody);
-    out.push(card('Grand Prix results', el('p', 'season-footnote', 'Select a race for its classification.'), wrap(table)));
+    out.push(card('Grand Prix results', el('p', 'season-footnote', 'Select a race for its classification.'), wrap(table)), breakdown);
     return out;
   }
   // The season in a row of numbers.
