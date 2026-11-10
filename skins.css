@@ -992,3 +992,5 @@
 :root[data-skin="linear"] :is(button[data-ui-kind="push"], .compare-all-btn, .comparison-choose, .trace-tools summary, .performance-explain-toggle, .table-sort, #lapWorkspaceToggle.is-rail-pill, #performanceCancel, #computeSettings .compute-actions :is(button, a)):active:not(:disabled):not(#loadSession):not(#performanceLoad) { background: var(--lin-pill-press) !important; color: var(--ui-label); }
 :root[data-skin="linear"] :is(#loadSession, #performanceLoad):active:not(:disabled) { background: color-mix(in oklch, var(--ui-action), #000 12%); }
 :root[data-skin="linear"] :is(button, summary, [role="button"]):focus-visible { outline: 1px solid var(--ui-focus, #5e69d1); outline-offset: 2px; }
+/* Charts drawn in SVG (session, car performance) use the site's Inter letterforms too; a font shorthand would otherwise reset them. */
+:root[data-skin="linear"] svg text { font-feature-settings: "cv01", "ss03", "tnum"; }

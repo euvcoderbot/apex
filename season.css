@@ -131,6 +131,8 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 /* Chart type (spec §11): axes 450 11 tertiary, end labels 500 12 in the series colour, both at their real size on any card width. */
 .season-chart .axis { fill: var(--ui-tertiary); font: 450 calc(11px / var(--chart-scale, 1)) var(--ui-font); letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .season-chart .label { font: 500 calc(12px / var(--chart-scale, 1)) var(--ui-font); }
+/* The font shorthand resets Inter's features: restore the site's letterforms (cv01, ss03) and tabular figures in every chart. */
+svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03", "tnum"; }
 .season-chart .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; transition: opacity .12s; }
 .season-chart .line.is-bump { stroke-width: 2.5; }
 .season-chart .is-dim, .season-chart g.is-dim { opacity: .14; }
