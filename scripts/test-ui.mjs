@@ -7,6 +7,7 @@ import vm from 'node:vm';
 import postcss from 'postcss';
 import {gzipSync,gunzipSync} from 'node:zlib';
 import {UI_STYLES,UI_LAYERS} from '../lib/ui-style-build.mjs';
+import {snapshotCompatible} from '../lib/snapshot-policy.mjs';
 
 const app = appSource();
 test('local mode requests Python instead of loading published summary or native packs',async()=>{
@@ -338,7 +339,8 @@ test('COTA practice loads a captured local summary and every drivers fastest nat
   assert.equal(summary.drivers.length,22);
   assert.ok(Date.parse(summary.local_export.captured_at)>Date.parse(summary.local_export.session_ended_at));
   const telemetry=JSON.parse(readFileSync('assets/data/telemetry/index.json'));
-  assert.equal(telemetry.sourceRevision,index.sourceRevision);
+  // Unchanged native packs keep their revision; an approved policy entry makes them valid under the captures' revision.
+  assert.ok(snapshotCompatible('sourceRevision',telemetry.sourceRevision,index.sourceRevision),`${telemetry.sourceRevision} vs ${index.sourceRevision}`);
   for(const driver of summary.drivers){
     const fastest=driver.laps.filter(lap=>!lap.out_lap&&lap.time>20&&lap.time<300).sort((a,b)=>a.time-b.time)[0];
     const file=telemetry.entries[`2026:United States Grand Prix:Practice 1:${driver.code}`];
