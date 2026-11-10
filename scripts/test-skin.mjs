@@ -11,13 +11,13 @@ const read = file => readFileSync(new URL('../' + file, import.meta.url), 'utf8'
 test('the Linear look tokens come from Linear\'s own token set and skins.css is current', () => {
   const out = execFileSync(process.execPath, [new URL('./generate-skin.mjs', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'), '--check'], {encoding: 'utf8'});
   assert.match(out, /up to date/);
-  // Linear's published values (linear.app, 2026-11-05) are used as they are wherever they pass contrast.
+  // Dark: the signed-in app's values (2026-11-10); light: Linear's published values. Used as they are wherever they pass contrast.
   const dark = generate(SKINS.linear.dark, {theme: 'dark'}), light = generate(SKINS.linear.light, {theme: 'light'});
   assert.deepEqual([dark['--ui-canvas'], dark['--ui-panel'], dark['--ui-well'], dark['--ui-control'], dark['--ui-control-hover'], dark['--ui-selected']],
-    ['#08090a', '#0f1011', '#141516', '#1c1c1f', '#232326', '#28282c']);
-  assert.deepEqual([dark['--ui-label'], dark['--ui-secondary'], dark['--ui-tertiary'], dark['--ui-quaternary']], ['#f7f8f8', '#d0d6e0', '#8a8f98', '#62666d']);
-  assert.deepEqual([dark['--ui-action'], dark['--ui-accent'], dark['--ui-selection-tint'], dark['--ui-positive'], dark['--ui-negative']], ['#5e6ad2', '#7170ff', '#18182f', '#27a644', '#eb5757']);
-  assert.deepEqual([dark['--ui-border'], dark['--ui-separator'], dark['--ui-border-strong']], ['#ffffff14', '#ffffff0d', '#34343a']);
+    ['#09090a', '#121213', '#191a1b', '#1b1c1d', '#232325', '#29292b']);
+  assert.deepEqual([dark['--ui-label'], dark['--ui-secondary'], dark['--ui-tertiary'], dark['--ui-quaternary']], ['#ffffff', '#e3e4e6', '#959597', '#565759']);
+  assert.deepEqual([dark['--ui-action'], dark['--ui-accent'], dark['--ui-selection-tint'], dark['--ui-positive'], dark['--ui-negative']], ['#5e69d1', '#7170ff', '#18182f', '#27a644', '#eb5757']);
+  assert.deepEqual([dark['--ui-border'], dark['--ui-separator'], dark['--ui-border-strong']], ['#ffffff14', '#ffffff0d', '#28282b']);
   // Light: grey frame, white content (Linear's inverted L), and Linear's light text tiers.
   assert.deepEqual([light['--ui-canvas'], light['--ui-panel'], light['--ui-control']], ['#f9f8f9', '#ffffff', '#f4f2f4']);
   assert.deepEqual([light['--ui-label'], light['--ui-secondary'], light['--ui-tertiary'], light['--ui-quaternary']], ['#282a30', '#3c4149', '#6f6e77', '#86848d']);

@@ -43,22 +43,8 @@ body {
 }
 
 /* Readability pass: lift the light metadata without changing chart sizing. */
-.panel-heading p,
-.workspace-heading p,
-.section-heading p,
-.corner-analysis-header p {
-  font-size: 10px;
-}
-
-.corner-table-head {
-  font-size: 8px;
-}
 
 /* Lap workspace labels shown in the run/lap cards. */
-
-.run-driver > b {
-  font-size: var(--type-headline);
-}
 
 .fastest-lap-pick span,
 .run-section-label small,

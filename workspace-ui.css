@@ -1,40 +1,32 @@
 /* Unified, compact analysis workspace. No chart-domain or telemetry geometry changes. */
 .skip-link { position: fixed; top: -80px; left: 18px; z-index: 2000; padding: 12px 18px; background: var(--ui-action); color: white; border-radius: var(--radius-md); }
 .skip-link:focus { top: 10px; }
-.header-actions { background: transparent; border: 0; box-shadow: none; backdrop-filter: none; gap: 6px; }
-.header-actions .performance-tabs { padding: 3px; background: var(--ui-well); border: 1px solid var(--ui-border); border-radius: var(--radius-md); }
-.header-actions .performance-tabs button { min-height: 34px; border-radius: var(--radius-xs); }
-.header-actions .performance-tabs button[aria-selected="true"] { background: var(--ui-selected); box-shadow: none; color: var(--ui-label); }
+.header-actions { border: 0; gap: 6px; }
+.header-actions .performance-tabs { padding: 3px; }
+.header-actions .performance-tabs button { min-height: 34px; }
 main { grid-template-columns: 254px minmax(0,1fr); gap: 18px; }
 .session-intro { grid-column: 1 / -1; grid-row: 1; }
-.workspace-eyebrow { display: block; color: var(--ui-accent); font-size: var(--text-xs); font-weight: 590; letter-spacing: .15em; line-height: 1.5; }
-.workspace-intro > p { margin: 0 0 2px; color: var(--ui-tertiary); font-size: var(--text-md); }
+.workspace-eyebrow { display: block; color: var(--ui-accent); font-size: var(--text-xs); font-weight: 600; letter-spacing: .15em; line-height: 1.5; }
+.workspace-intro > p { margin: 0 0 2px; }
 main > .session-controls { grid-row: 2; }
 main > .sidebar, main > .analysis-column { grid-row: 3; }
 .session-controls:hover, .session-controls:focus-within { border-color: var(--ui-border); box-shadow: none; }
 .sidebar { top: 86px; max-height: calc(100dvh - 105px); gap: 12px; }
-#driverPills .driver-pill-identity strong { font-size: var(--text-md); }
-#driverPills .driver-pill-identity small { font-size: var(--text-xs); }
 .team-logo { width: 22px; height: 22px; flex-basis: 22px; }
-.tire-option { display: flex; flex-direction: column; padding: 8px 4px; gap: 4px; text-align: center; min-height: 64px; background: var(--ui-well); }
+.tire-option { display: flex; flex-direction: column; padding: 8px 4px; gap: 4px; text-align: center; min-height: 64px; }
 .tire-option .tyre-image { width: 26px; height: 26px; }
 .workspace-heading { justify-content: space-between; flex-wrap: wrap; margin-bottom: 12px; gap: 4px 12px; }
-.panel-hint { font-size: var(--text-sm); color: var(--ui-tertiary); font-weight: 400; }
 .lap-workspace #stintPanels { grid-template-columns: repeat(auto-fit,minmax(min(100%,380px),1fr)); gap: 10px; align-items: start; }
-.lap-chip .lap-clock { font-size: var(--text-md); text-align: right; white-space: nowrap; }
+.lap-chip .lap-clock { text-align: right; white-space: nowrap; }
 .loaded-lap-main { padding: 8px 10px; gap: 8px; }
-.section-heading h1 { font-size: var(--text-title); }
-.corner-picker { border-radius: var(--radius-md); box-shadow: none; background: var(--ui-well); flex-wrap: wrap; height: auto; max-height: 132px; overflow-y: auto; }
-.corner-picker button[aria-pressed="true"] { background: var(--ui-selected); box-shadow: inset 0 -2px var(--ui-accent); }
-.corner-detail-card { border: 1px solid var(--ui-border); border-radius: var(--radius-md); box-shadow: none; }
-.dominance-map h2 { font-size: var(--text-base); }
-.map-view-switch button { min-height: 30px; padding: 5px 9px; font-size: var(--text-sm); border-radius: var(--radius-xs); }
+.corner-picker { flex-wrap: wrap; height: auto; max-height: 132px; overflow-y: auto; }
+.map-view-switch button { min-height: 30px; padding: 5px 9px; }
 .charts { gap: 12px; }
-.chart { padding: 14px; border-radius: var(--radius-md); box-shadow: none; }
+.chart { padding: 14px; }
 .chart-heading { gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-.chart-heading h2 small { font-size: var(--text-xs); margin-left: 5px; color: var(--ui-tertiary); }
-.speed-chart-controls { background: var(--ui-well); box-shadow: none; margin-bottom: 10px; }
-.trace-settings .alignment-readout { flex: 0 1 auto; min-height: 26px; padding: 0 8px 0 0; font-size: var(--text-xs); }
+.chart-heading h2 small { margin-left: 5px; }
+.speed-chart-controls { margin-bottom: 10px; }
+.trace-settings .alignment-readout { flex: 0 1 auto; min-height: 26px; padding: 0 8px 0 0; }
 /* Each telemetry channel retains the same horizontal distance axis. */
 body:not(.trace-focus) .chart.compact { padding-top: 10px; padding-bottom: 10px; }
 body:not(.trace-focus) .chart.compact .chart-heading { margin-bottom: 5px; }
@@ -46,47 +38,44 @@ body:not(.trace-focus) .chart.compact .chart-heading { margin-bottom: 5px; }
   body:not(.trace-focus) .chart:has(canvas[data-chart="Engine speed"]) canvas,
   body:not(.trace-focus) .chart:has(canvas[data-chart="Gear"]) canvas { height: 132px !important; min-height: 0 !important; }
 }
-.track-pill { border-radius: var(--radius-sm); justify-content: flex-start; padding: 8px 10px; white-space: normal; font-size: var(--text-sm); }
+.track-pill { justify-content: flex-start; padding: 8px 10px; white-space: normal; }
 .performance-status-card p { font-size: var(--text-sm); }
-#performanceResults > .performance-toolbar { position: sticky; top: 76px; z-index: 24; background: var(--ui-canvas); padding: 8px 0; }
+#performanceResults > .performance-toolbar { position: sticky; top: 76px; z-index: 24; padding: 8px 0; }
 .metric-heading { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 4px 2px 16px; margin-bottom: 12px; border-bottom: 1px solid var(--ui-border); }
 .performance-card > .performance-note { margin: 0 0 14px; max-width: 120ch; }
 .performance-card-body > :last-child { margin-bottom: 0; }
-.performance-scope-toggle, .performance-band-options { padding: 3px; gap: 2px; border-radius: var(--radius-sm); box-shadow: none; background: var(--ui-well); }
-.performance-scope-toggle button, .performance-band-options button { min-height: 32px; padding: 6px 10px; font-size: var(--text-sm); border-radius: var(--radius-xs); box-shadow: none; }
-.performance-scope-toggle button[aria-pressed="true"], .performance-band-options button[aria-pressed="true"] { box-shadow: none; background: var(--ui-selected); color: var(--ui-label); }
+.performance-scope-toggle, .performance-band-options { padding: 3px; gap: 2px; }
+.performance-scope-toggle button, .performance-band-options button { min-height: 32px; padding: 6px 10px; }
 .performance-visual-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; margin: 14px 0; align-items: start; }
 .performance-visual-cell { min-width: 0; }
 .performance-visual-cell .performance-chart-card { margin: 0; }
 .performance-visual-cell:last-child:nth-child(odd) { grid-column: 1 / -1; max-width: calc(50% - 7px); width: 100%; }
 .performance-visual-cell .performance-band-options { flex-wrap: wrap; overflow: visible; }
 .performance-split-view { display: grid; grid-template-columns: minmax(330px,.88fr) minmax(0,1.12fr); gap: 16px; align-items: start; margin: 14px 0; }
-.performance-chart-card { padding: 14px; border: 1px solid var(--ui-border); border-radius: var(--radius-md); background: var(--ui-well); margin: 12px 0; min-width: 0; }
+.performance-chart-card { padding: 14px; margin: 12px 0; min-width: 0; }
 .performance-split-view > .performance-chart-card, .performance-visual-grid > .performance-chart-card { margin: 0; }
 .is-standalone-chart { max-width: 820px; }
 .performance-bars { display: grid; gap: 0; }
 .performance-bar-label, .performance-team { font-size: var(--text-sm); min-width: 0; gap: 6px; }
 .performance-bar-row.is-unranked { opacity: .7; }
-.performance-table-wrap { border-radius: var(--radius-md); margin: 12px 0; box-shadow: none; background: var(--ui-panel); border: 1px solid var(--ui-border); }
+.performance-table-wrap { border-radius: var(--radius-md); margin: 12px 0; border: 1px solid var(--ui-border); }
 .performance-split-view > .performance-table-wrap { margin: 0; max-height: 650px; overflow: auto; }
-.performance-table { font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
-.performance-table th { background: var(--ui-well); padding: 10px 12px; height: auto; font-size: var(--text-2xs); letter-spacing: .04em; text-transform: uppercase; }
+.performance-table th { background: var(--ui-well); padding: 10px 12px; height: auto; font-size: var(--text-2xs); }
 .performance-split-view .performance-table td { padding: 7px 10px; }
 .performance-table tr:hover td { background-color: var(--ui-control-hover); }
 .performance-table th:first-child, .performance-table td:first-child { min-width: 155px; }
 .performance-split-view .performance-table .team-logo { width: 19px; height: 19px; flex-basis: 19px; }
-.perf-sort-btn { padding: 0; font-size: inherit; line-height: 1.4; gap: 5px; }
-.perf-sort-btn.is-sorted { color: var(--ui-accent); }
+.perf-sort-btn { padding: 0; gap: 5px; }
 .performance-quality-status { font-size: var(--text-sm); padding: 9px 12px; background: var(--ui-well); border-left: 2px solid var(--ui-accent); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; }
 .performance-error { font-size: var(--text-sm); padding: 10px 12px; border-radius: var(--radius-sm); line-height: 1.5; }
 .performance-methods:not([open]), .performance-evidence:not([open]), .performance-source-note:not([open]), .perf-regulatory-badge:not([open]) { padding: 0; margin: 8px 0; }
 .performance-methods > summary, .performance-evidence > summary, .performance-source-note > summary { padding: 12px 14px; font-size: var(--text-sm); }
 .performance-methods[open] > summary, .performance-evidence[open] > summary { border-bottom: 1px solid var(--ui-border); margin-bottom: 12px; }
-.evidence-search { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 0 2px 10px; color: var(--ui-secondary); font-size: var(--text-sm); }
-.evidence-search input { min-width: min(100%,220px); flex: 0 1 360px; min-height: 36px; padding: 7px 10px; border: 1px solid var(--ui-border); border-radius: var(--radius-sm); background: var(--ui-well); color: var(--ui-label); font-size: var(--text-sm); }
+.evidence-search { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 0 2px 10px; }
+.evidence-search input { min-width: min(100%,220px); flex: 0 1 360px; min-height: 36px; padding: 7px 10px; }
 .performance-empty { padding: 36px 20px; min-height: 240px; display: grid; justify-items: center; align-content: center; gap: 9px; }
 .performance-empty p { font-size: var(--text-md); max-width: 65ch; margin: 0; line-height: 1.6; }
-.performance-tyre-plot-controls { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; padding: 12px; border: 1px solid var(--ui-border); border-radius: var(--radius-md); background: var(--ui-well); }
+.performance-tyre-plot-controls { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; padding: 12px; }
 .performance-tyre-stint-plot svg { width: 100%; max-height: 340px; }
 .performance-tyre-age-name, .performance-tyre-age-value { font-size: var(--text-sm); }
 .performance-trend-table svg { max-height: 64px; }
@@ -108,7 +97,7 @@ body:not(.trace-focus) .chart.compact .chart-heading { margin-bottom: 5px; }
   main { grid-template-columns: 226px minmax(0,1fr); padding: 18px; gap: 14px; }
   .workspace-intro > p { display: none; }
   .header-actions { gap: 2px; }
-  .header-actions .sidebar-toggle { font-size: var(--text-xs); padding: 7px; }
+  .header-actions .sidebar-toggle { padding: 7px; }
   .performance-split-view { grid-template-columns: minmax(0,1fr); }
   .performance-split-view > .performance-chart-card { max-width: 820px; }
   .performance-split-view > .performance-table-wrap { max-height: none; }
@@ -116,7 +105,7 @@ body:not(.trace-focus) .chart.compact .chart-heading { margin-bottom: 5px; }
 @media(max-width:760px) {
   .site-header { height: auto; min-height: 62px; padding: 10px 12px; align-items: center; flex-wrap: wrap; gap: 8px; }
   .header-actions { flex-wrap: wrap; justify-content: flex-end; flex: 1; }
-  .header-actions .performance-tabs button { padding: 7px 8px; font-size: var(--text-sm); min-height: 32px; }
+  .header-actions .performance-tabs button { padding: 7px 8px; min-height: 32px; }
   .theme-toggle span { display: none; }
   main { display: flex; flex-direction: column; gap: 12px; }
   main.sidebar-collapsed .sidebar { display: none; }
@@ -126,7 +115,7 @@ body:not(.trace-focus) .chart.compact .chart-heading { margin-bottom: 5px; }
   .session-controls .control-field:has(#gp) { grid-area: 3 / 1 / auto / -1; }
   .session-controls #loadSession { grid-area: 4 / 1 / auto / -1; }
   .metric-heading { align-items: start; flex-direction: column; gap: 12px; padding-bottom: 12px; }
-  .performance-explain-toggle[data-performance-refresh] { font-size: var(--text-xs); padding: 6px; }
+  .performance-explain-toggle[data-performance-refresh] { padding: 6px; }
   .performance-visual-cell:last-child:nth-child(odd) { grid-column: auto; max-width: none; }
   .performance-tyre-plot-controls { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .comparison-tray-heading { align-items: start; flex-direction: column; gap: 3px; }
@@ -138,17 +127,15 @@ body:not(.trace-focus) .chart.compact .chart-heading { margin-bottom: 5px; }
 
 /* Workspace geometry and compact disclosures. Appearance is owned by
    macos-ui.css; these legacy material tokens are fallbacks only. */
-.brand { display: block; position: relative; overflow: hidden; width: 160px; height: 42px; border-radius: var(--radius-md); background: #080a0a; }
+.brand { display: block; position: relative; overflow: hidden; width: 160px; height: 42px; border-radius: var(--radius-md); }
 .brand picture { display: block; width: 100%; height: 100%; }
 .brand img { display: block; position: static; width: 100%; height: 100%; max-width: 100%; padding: 2px; object-fit: contain; }
 .header-actions { grid-column: 2; display: block; width: 340px; margin: 0; padding: 0; }
-.header-actions .performance-tabs { display: grid; grid-template-columns: 1fr 1fr; width: 100%; padding: 4px; gap: 3px; border-radius: var(--radius-lg); background: #00000012; box-shadow: inset 0 1px 4px #00000010; }
-.header-actions .performance-tabs button { width: 100%; min-height: 38px; font-size: var(--text-base); font-weight: 590; padding: 9px; border-radius: var(--radius-sm); }
-.header-actions .performance-tabs button[aria-selected="true"] { box-shadow: var(--ui-shadow-control); background: var(--ui-selected); }
+.header-actions .performance-tabs { display: grid; grid-template-columns: 1fr 1fr; width: 100%; padding: 4px; gap: 3px; }
+.header-actions .performance-tabs button { width: 100%; min-height: 38px; padding: 9px; }
 .site-header .performance-tabs button:active, .site-header .performance-tabs button:hover { transform: none; }
 .workspace-tools { display: flex; align-items: center; justify-content: flex-end; gap: 7px; max-width: 1720px; padding: 12px 24px 0; margin: auto; min-height: 44px; }
 .workspace-tools :is(#explanationsToggle) span,.workspace-intro #sidebarToggle span { display: inline; position: static; width: auto; height: auto; padding: 0; overflow: visible; clip-path: none; white-space: nowrap; }
-.performance-chart-card, .chart, .corner-detail-card, .driver-run-card { box-shadow: inset 0 1px 0 #ffffff05,0 2px 7px #00000010; }
 .lap-workspace .run-segments { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,104px),1fr)); overflow: visible; padding: 0; margin-inline: 0; gap: 6px; }
 .lap-workspace .run-segment { display: grid; grid-template-columns: auto minmax(0,1fr) 16px; min-width: 0; width: 100%; gap: 5px; padding: 8px; white-space: normal; flex: initial; }
 .lap-workspace .run-segment small { min-width: 0; margin: 0; justify-content: center; flex-wrap: wrap; gap: 3px; font-size: var(--text-xs); line-height: 1.4; }
@@ -163,7 +150,7 @@ body.is-descriptions-hidden .explanation-only, body.is-descriptions-hidden .perf
 .trend-change.is-improvement { color: var(--ui-positive); }
 @media(max-width:760px) {
   .brand img { width: 48px; height: 48px; padding: 0; }
-  .header-actions .performance-tabs button { min-height: 38px; font-size: var(--text-sm); padding: 8px 5px; }
+  .header-actions .performance-tabs button { min-height: 38px; padding: 8px 5px; }
   .performance-tyre-plot-controls { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
   .performance-tyre-plot-controls > label:nth-child(3), .performance-tyre-plot-controls > label:last-child { grid-column: 1 / -1; }
 }

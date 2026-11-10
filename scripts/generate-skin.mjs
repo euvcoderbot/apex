@@ -14,11 +14,12 @@ import {readFileSync, writeFileSync} from 'node:fs';
 
 export const SKINS = {
   linear: {
+    // Dark: verified in the signed-in Linear app (2026-11-10; docs/linear-design-spec.md §1). Light: Linear's published tokens.
     dark: {
-      'bg-level-0': '#08090a', 'bg-panel': '#0f1011', 'bg-level-2': '#141516', 'bg-secondary': '#1c1c1f', 'bg-tertiary': '#232326',
-      'bg-quaternary': '#28282c', 'bg-translucent': '#ffffff0d', 'border-secondary': '#34343a', 'border-translucent': '#ffffff0d',
-      'border-translucent-strong': '#ffffff14', 'text-primary': '#f7f8f8', 'text-secondary': '#d0d6e0', 'text-tertiary': '#8a8f98',
-      'text-quaternary': '#62666d', 'brand-bg': '#5e6ad2', accent: '#7170ff', 'accent-tint': '#18182f', 'link-primary': '#828fff',
+      'bg-level-0': '#09090a', 'bg-panel': '#121213', 'bg-level-2': '#191a1b', 'bg-secondary': '#1b1c1d', 'bg-tertiary': '#232325',
+      'bg-quaternary': '#29292b', 'bg-translucent': '#ffffff0d', 'border-secondary': '#28282b', 'border-translucent': '#ffffff0d',
+      'border-translucent-strong': '#ffffff14', 'text-primary': '#ffffff', 'text-secondary': '#e3e4e6', 'text-tertiary': '#959597',
+      'text-quaternary': '#565759', 'brand-bg': '#5e69d1', accent: '#7170ff', 'accent-tint': '#18182f', 'link-primary': '#828fff',
       green: '#27a644', red: '#eb5757', yellow: '#f0bf00', 'overlay-primary': '#000000d9',
     },
     light: {

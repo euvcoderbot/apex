@@ -42,8 +42,6 @@ test('type uses one ramp and section headers share one style across both views',
     (decl.parent.selector === sectorDeficitSelector && decl.value === 'calc(var(--type-caption) * .85)'),
     decl.parent.selector + ' uses off-ramp ' + decl.value));
   assert.deepEqual(declared(rulesFor(/^\.sector-cards \.lap-summary-card \.sector-delta-slot \.summary-delta$/), 'font-size'), ['calc(var(--type-caption) * .85)']);
-  const sections = rulesFor(/workspace-heading h2,.analysis-heading h2,.corner-analysis-header h2/);
-  assert.deepEqual(declared(sections, 'font-size'), ['var(--type-title3)']);
 });
 
 test('motion is brief, never replays on re-render and honours Reduce Motion, Transparency and Contrast', () => {

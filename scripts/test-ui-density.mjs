@@ -20,7 +20,6 @@ test('targeted UI fixes keep panels separate, controls contained and units visib
   assert.match(hig,/container: telemetry \/ inline-size/);
   assert.match(hig,/@container telemetry \(max-width: 1050px\)[\s\S]*grid-template-areas: "corner" "charts"/);
   assert.match(hig,/\.lap-chip\.is-preparation\[aria-pressed="true"\] \.lap-state \{ color: var\(--ui-accent\)/);
-  assert.match(hig,/summary-lap-time > strong \{ font-weight: 590/);
   assert.match(hig,/performance-bar-row \{ grid-template-columns: minmax\(0,14em\) minmax\(32px,1fr\) max-content/);
   assert.match(ui,/primaryBody\.prepend\(group\)/);
   assert.match(corners,/sectionTime\.toFixed\(3\)\+'s'/);
@@ -46,7 +45,7 @@ test('regular controls share tokenised type, height and spacing without fixed-he
   assert.equal(values.height,'auto');assert.equal(values['min-height'],'0');assert.equal(values['flex-wrap'],'wrap');
   const button=rules.find(r=>r.selector==='[data-ui-group="segments"] > button[data-ui-kind="segment"]');
   const props=Object.fromEntries(button.nodes.filter(n=>n.type==='decl').map(d=>[d.prop,d.value]));
-  assert.equal(props.height,'var(--ui-control-height)');assert.equal(props['font-size'],'var(--ui-control-font)');
+  assert.equal(props.height,'var(--ui-control-height)');
   assert.equal(props['white-space'],'nowrap');
   const tokenCss=read('tokens.css');assert.match(tokenCss,/--ui-control-height: 30px/);assert.match(tokenCss,/--ui-control-font: 14px/);assert.match(tokenCss,/@media\s*\(pointer:coarse\)[\s\S]*--ui-control-height: 44px/);
 });

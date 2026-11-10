@@ -161,7 +161,7 @@ function replaceUI(root, html) {
   }
 }
 
-function canvasFont(size = 12, weight = 400) {
+function canvasFont(size = 12, weight = 450) {
   // Canvas labels use the same font as the surrounding interface.
   const family = typeof getComputedStyle === 'function' ? getComputedStyle(document.body).fontFamily : '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", Inter, "Segoe UI", system-ui, sans-serif';
   return `${weight} ${size + 1}px ${family}`;

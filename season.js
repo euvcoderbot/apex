@@ -108,7 +108,7 @@
   }
 
   let page, body, tabsNav, yearSelect, button, railSection, active = false;
-  const state = {year: new Date().getFullYear(), tab: 'schedule', driver: null, a: null, b: null, team: null, standings: 'drivers', type: null, expanded: null};
+  const state = {year: new Date().getFullYear(), tab: 'schedule', driver: null, a: null, b: null, team: null, standings: 'drivers', matrix: 'position', type: null, expanded: null};
   const cache = {};   // `${kind}:${year}` -> Promise of data
 
   // ---------- data ----------
@@ -729,8 +729,27 @@
     layout.append(card(null, wrap(table)), el('div', 'season-stack'));
     layout.lastChild.append(card('Points evolution', points), card('Championship position', ranks));
     linkHover(layout);
-    const matrix = card(drivers ? 'Results by round' : 'Points by round', resultsMatrix(data, drivers, last),
-      el('p', 'season-footnote', drivers ? 'Grand Prix finishing position; a small number is the sprint result when it scored. Purple win, green podium, light points, red not classified.' : 'Points scored at each Grand Prix weekend, sprint included; deeper colour means more points.'));
+    // Drivers: finishing positions or points per round, switched in place (the choice is kept while the page is open).
+    const showPoints = () => !drivers || state.matrix === 'points';
+    const note = () => showPoints() ? 'Points scored at each Grand Prix weekend, sprint included; deeper colour means more points.'
+      : 'Grand Prix finishing position; a small number is the sprint result when it scored. Purple win, green podium, light points, red not classified.';
+    let grid = resultsMatrix(data, drivers, last, showPoints());
+    const foot = el('p', 'season-footnote', note());
+    let matrixToggle = null;
+    if (drivers) {
+      matrixToggle = el('div', 'season-segment season-zone-toggle'); matrixToggle.setAttribute('role', 'group'); matrixToggle.setAttribute('aria-label', 'Show by round');
+      for (const [id, label] of [['position', 'Positions'], ['points', 'Points']]) {
+        const b = el('button', null, label); b.type = 'button'; b.dataset.mode = id; b.setAttribute('aria-pressed', String(state.matrix === id));
+        b.addEventListener('click', () => {
+          if (state.matrix === id) return;
+          state.matrix = id;
+          matrixToggle.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.mode === id)));
+          const next = resultsMatrix(data, drivers, last, showPoints()); grid.replaceWith(next); grid = next; foot.textContent = note();
+        });
+        matrixToggle.append(b);
+      }
+    }
+    const matrix = card(drivers ? 'Results by round' : 'Points by round', ...[matrixToggle, grid, foot].filter(Boolean));
     return [toggle, titleFight(data, drivers), layout, matrix, ...(drivers ? [] : [qualiPace(data)])].filter(Boolean);
   }
   // Who can still win: points scored (sprints included) against the most still available.
@@ -773,7 +792,8 @@
     c.append(list, legend);
     return c;
   }
-  function resultsMatrix(data, drivers, table) {
+  function resultsMatrix(data, drivers, table, points = !drivers) {
+    const key = drivers ? 'driver' : 'team';
     const rounds = data.rounds.filter(r => r.race.length);
     const t = el('table', 'season-table season-matrix season-grid');
     const head = el('tr'); head.append(el('th', null, drivers ? 'Driver' : 'Constructor'));
@@ -781,13 +801,13 @@
     head.append(el('th', 'num', 'Pts'));
     const thead = el('thead'); thead.append(head); t.append(thead);
     const tb = el('tbody');
-    const maxTeam = drivers ? 1 : Math.max(1, ...rounds.flatMap(r => table.map(e => roundPoints(r, 'team', e.id))));
+    const maxPoints = points ? Math.max(1, ...rounds.flatMap(r => table.map(e => roundPoints(r, key, e.id)))) : 1;
     for (const e of table) {
       const tr = el('tr'); tr.dataset.id = e.id;
       const name = el('th'); name.append(drivers ? who(data, e.id, {code: true, team: false}) : teamTag(data, e.id)); tr.append(name);
       for (const r of rounds) {
         const td = el('td', 'num');
-        if (drivers) {
+        if (!points) {
           const row = r.race.find(x => x.driver === e.id), sprint = r.sprint.find(x => x.driver === e.id);
           if (row) {
             td.dataset.tone = !row.position ? 'out' : row.position === 1 ? 'win' : row.position <= 3 ? 'podium' : row.points > 0 ? 'points' : 'none';
@@ -796,10 +816,11 @@
             td.title = `${r.name}: ${row.position ? 'P' + row.position : row.status}${row.grid ? ' from P' + row.grid : ''}${sprint ? ` · sprint P${sprint.position_text}` : ''}`;
           }
         } else {
-          const pts = roundPoints(r, 'team', e.id);
-          td.textContent = pts ? String(pts) : '';
-          if (pts) { td.classList.add('is-heat'); td.style.setProperty('--heat', String(.12 + .7 * pts / maxTeam)); td.style.setProperty('--team', teamColour(e.id)); }
-          td.title = `${r.name}: ${pts} points`;
+          const pts = roundPoints(r, key, e.id), ran = !drivers || r.race.some(x => x.driver === e.id) || r.sprint.some(x => x.driver === e.id);
+          td.textContent = pts ? String(pts) : ran ? '0' : '';
+          if (!pts && ran) td.classList.add('is-zero');
+          if (pts) { td.classList.add('is-heat'); td.style.setProperty('--heat', String(.12 + .7 * pts / maxPoints)); td.style.setProperty('--team', teamColour(drivers ? data.drivers[e.id]?.team : e.id)); }
+          td.title = `${r.name}: ${pts} point${pts === 1 ? '' : 's'}`;
         }
         tr.append(td);
       }

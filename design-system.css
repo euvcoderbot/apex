@@ -5,13 +5,6 @@
 }
 
 body {
-  background-color: var(--ui-canvas);
-  background-image: 
-    radial-gradient(at 10% 10%, rgba(255, 24, 1, 0.03) 0px, transparent 50%),
-    radial-gradient(at 90% 90%, rgba(214, 251, 67, 0.02) 0px, transparent 50%);
-  color: var(--ui-label);
-  font-family: var(--ui-font);
-  font-size: var(--type-callout);
   line-height: 1.5;
   min-height: 100vh;
 }
@@ -23,9 +16,6 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0 4%;
-  background: rgba(11, 12, 15, 0.8);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--ui-border);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -48,7 +38,7 @@ body {
   background: color-mix(in srgb, var(--ui-control-hover) 94%, black);
   box-shadow: 0 16px 42px rgba(0, 0, 0, .42);
   color: var(--ui-label);
-  font: 590 10px/1.45 var(--ui-font);
+  font: 600 10px/1.45 var(--ui-font);
   opacity: 0;
   pointer-events: none;
   transform: translateY(10px);
@@ -74,9 +64,7 @@ body {
 
 .sidebar h2 {
   font-size: 11px;
-  font-family: var(--ui-font);
   letter-spacing: 0.1em;
-  text-transform: uppercase;
   color: var(--ui-tertiary);
   margin-bottom: 12px;
   display: flex;
@@ -85,19 +73,6 @@ body {
 }
 
 /* Keep page hierarchy in the same technical typeface as the Session Control heading. */
-.section-heading h1,
-.section-heading p,
-.chart h2,
-.driver-panel h3 {
-  font-family: var(--ui-font);
-}
-
-.sidebar h2 small {
-  font-size: 9px;
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: 0;
-}
 
 /* Session Controls */
 
@@ -125,12 +100,8 @@ button#loadSession:active:not(:disabled) {
 .pill, .lap {
   border: 1px solid var(--ui-border);
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.02);
-  color: var(--ui-tertiary);
   padding: 8px 10px;
   font-size: 11px;
-  font-family: var(--ui-font);
-  font-weight: 590;
   cursor: pointer;
   transition: all var(--motion-tier-standard) var(--ease-out);
   text-align: left;
@@ -144,23 +115,12 @@ button#loadSession:active:not(:disabled) {
 }
 
 /* Specific Pill styling */
-.pill.selected {
-  border-color: var(--team) !important;
-  color: var(--ui-label);
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: 0 0 15px color-mix(in srgb, var(--team) 30%, transparent);
-}
 
 .team-logo-fallback {
   display: none;
   place-items: center;
   width: 18px;
   height: 12px;
-  border-radius: var(--radius-xs);
-  color: white;
-  font-family: var(--ui-font);
-  font-weight: 680;
-  font-size: 8px;
 }
 
 .team-logo {
@@ -172,8 +132,7 @@ button#loadSession:active:not(:disabled) {
   border-radius: var(--radius-xs);
   background: var(--team);
   color: white;
-  font-family: var(--ui-font);
-  font-weight: 680;
+  font-weight: 600;
   font-size: 8px;
 }
 
@@ -192,13 +151,6 @@ button#loadSession:active:not(:disabled) {
   transform: translateY(-1.5px);
 }
 
-.lap.selected {
-  border-color: var(--ui-accent) !important;
-  color: var(--ui-label);
-  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
-  box-shadow: 0 0 14px color-mix(in srgb, var(--ui-accent) 22%, transparent);
-}
-
 /* Loaded Laps list */
 
 .remove:hover {
@@ -209,7 +161,6 @@ button#loadSession:active:not(:disabled) {
 
 .workspace-heading {
   padding: 2px 2px 12px;
-  border-bottom: 1px solid var(--ui-border);
   margin-bottom: 12px;
 }
 
@@ -217,19 +168,11 @@ button#loadSession:active:not(:disabled) {
   margin-bottom: 4px;
 }
 
-.workspace-heading p {
-  color: var(--ui-tertiary);
-  font-family: var(--ui-font);
-  font-size: 9px;
-  line-height: 1.45;
-}
-
 .run-toolbar .compare-all-btn {
   width: auto;
   margin: 0;
   min-height: 31px;
   padding: 6px 9px;
-  font-size: 9px;
   white-space: nowrap;
 }
 
@@ -272,19 +215,10 @@ button#loadSession:active:not(:disabled) {
   column-gap: 7px;
 }
 
-.run-driver > b {
-  color: var(--team);
-  font-family: var(--ui-font);
-  font-size: var(--type-callout);
-  letter-spacing: .02em;
-}
-
 .run-driver h3 {
   min-width: 0;
   color: var(--ui-label);
-  font-family: var(--ui-font);
   font-size: 11px;
-  font-weight: 590;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -294,9 +228,7 @@ button#loadSession:active:not(:disabled) {
   grid-column: 1 / -1;
   margin-top: 3px;
   color: var(--ui-tertiary);
-  font-family: var(--ui-font);
   font-size: 8px;
-  letter-spacing: .07em;
 }
 
 .fastest-lap-pick {
@@ -322,7 +254,6 @@ button#loadSession:active:not(:disabled) {
 
 .fastest-lap-pick span,
 .fastest-lap-pick strong {
-  font-family: var(--ui-font);
   line-height: 1.1;
 }
 
@@ -334,10 +265,7 @@ button#loadSession:active:not(:disabled) {
   align-items: baseline;
   gap: 8px;
   color: var(--ui-tertiary);
-  font-family: var(--ui-font);
   font-size: 8px;
-  letter-spacing: .08em;
-  text-transform: uppercase;
 }
 
 .run-section-label small,
@@ -346,13 +274,11 @@ button#loadSession:active:not(:disabled) {
   color: var(--ui-tertiary);
   font-size: 8px;
   letter-spacing: 0;
-  text-transform: none;
 }
 
 .run-segment strong {
   color: var(--ui-label);
   font-size: 9px;
-  letter-spacing: .03em;
 }
 
 .lap-group-header {
@@ -368,7 +294,6 @@ button#loadSession:active:not(:disabled) {
   gap: 6px;
   min-height: 32px;
   padding: 5px 7px;
-  background: rgba(0, 0, 0, .13);
   text-align: left;
 }
 
@@ -382,9 +307,7 @@ button#loadSession:active:not(:disabled) {
 /* Empty states */
 .section-empty {
   color: var(--ui-tertiary);
-  font-family: var(--ui-font);
   font-size: 10px;
-  font-style: italic;
   padding: 8px 0;
 }
 
@@ -396,27 +319,17 @@ button#loadSession:active:not(:disabled) {
 }
 
 .telemetry-card {
-  background: var(--ui-panel);
-  backdrop-filter: blur(8px);
   border: 1px solid var(--ui-border);
   border-radius: var(--radius-md);
   padding: 20px;
-  box-shadow: var(--shadow-main);
   position: relative;
 }
 
 /* Telemetry Section Header */
 
-.section-heading h1 {
-  font-size: 18px;
-  font-weight: 590;
-  letter-spacing: -0.5px;
-}
-
 .legend {
   display: flex;
   gap: 12px;
-  font-family: var(--ui-font);
   font-size: 10px;
   align-items: center;
 }
@@ -439,19 +352,11 @@ button#loadSession:active:not(:disabled) {
 
 /* Mini-sector dominance track */
 
-.dominance-map h2 {
-  font-family: var(--ui-font);
-  font-size: 11px;
-  font-weight: 590;
-  letter-spacing: 0.02em;
-}
-
 /* Chart options */
 
 #cornerStatus {
   color: var(--ui-tertiary);
   font-size: 10px;
-  font-family: var(--ui-font);
 }
 
 /* Charts Grid */
@@ -463,9 +368,6 @@ button#loadSession:active:not(:disabled) {
 
 .chart {
   position: relative;
-  background: rgba(255, 255, 255, 0.01);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--radius-sm);
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
@@ -475,9 +377,6 @@ button#loadSession:active:not(:disabled) {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  font-size: var(--type-caption);
-  font-weight: 590;
-  color: var(--ui-label);
   margin-bottom: 8px;
 }
 
@@ -554,7 +453,6 @@ main.sidebar-collapsed .sidebar {
   text-align: center;
   padding: 8px 0;
   width: 100%;
-  border-left: 3px solid var(--team);
 }
 
 /* Engine Speed Graph height doubling (+100%) */
@@ -570,27 +468,13 @@ main.sidebar-collapsed .sidebar {
 
 /* Compact selectable corner workspace ----------------------------------- */
 
-.corner-analysis-header p {
-  line-height: 1.35;
-}
-
 .corner-pick:hover {
   border-color: rgba(255, 255, 255, .23);
   color: var(--ui-label);
   transform: translateY(-1px);
 }
 
-.corner-pick.selected {
-  border-color: color-mix(in srgb, var(--ui-accent) 68%, transparent);
-  background: color-mix(in srgb, var(--ui-accent) 8%, transparent);
-  color: var(--ui-accent);
-  box-shadow: inset 0 -2px 0 var(--ui-accent), 0 0 11px color-mix(in srgb, var(--ui-accent) 9%, transparent);
-}
-
 .corner-detail-card {
-  border: 1px solid rgba(255, 255, 255, .09);
-  border-radius: var(--radius-sm);
-  background: rgba(7, 9, 12, .58);
   overflow: hidden;
 }
 
@@ -603,29 +487,15 @@ main.sidebar-collapsed .sidebar {
 
 .corner-table-head {
   padding: 5px 10px;
-  color: rgba(255, 255, 255, .35);
-  font-family: var(--ui-font);
-  font-size: 6px;
-  letter-spacing: .08em;
   text-align: right;
-  text-transform: uppercase;
 }
 
 .corner-table-head span:first-child {
   text-align: left;
 }
 
-.corner-driver b {
-  color: var(--driver-color);
-}
-
 .corner-driver em {
   padding: 2px 4px;
-  border-radius: var(--radius-xs);
-  background: rgba(255, 255, 255, .1);
-  color: var(--ui-secondary);
-  font-size: 6px;
-  font-style: normal;
 }
 
 @media (max-width: 620px) {
@@ -666,13 +536,11 @@ main.sidebar-collapsed .sidebar {
   border-radius: var(--radius-sm);
   outline: 0;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, .035), transparent),
     #0c0e11;
   color: var(--ui-label);
   font-family: var(--ui-font);
   font-size: 11px;
-  font-weight: 590;
-  letter-spacing: .015em;
+  font-weight: 600;
   cursor: pointer;
   transition: border-color var(--motion-tier-fast) var(--ease-standard), box-shadow var(--motion-tier-fast) var(--ease-standard), background var(--motion-tier-fast) var(--ease-standard);
 }
@@ -680,7 +548,6 @@ main.sidebar-collapsed .sidebar {
 .select-shell:hover select {
   border-color: rgba(255, 255, 255, .2);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, .055), transparent),
     #0c0e11;
 }
 
@@ -699,12 +566,6 @@ main.sidebar-collapsed .sidebar {
 .lap-clock small {
   display: block;
   margin-top: 2px;
-  color: var(--ui-accent);
-  font-family: var(--ui-font);
-  font-size: 6px;
-  font-weight: 590;
-  letter-spacing: .08em;
-  line-height: 1;
 }
 
 .lap-chip.in-out:disabled:hover {
@@ -717,22 +578,11 @@ main.sidebar-collapsed .sidebar {
 .corner-analysis-header p {
   max-width: 660px;
   margin: 0;
-  color: var(--ui-tertiary);
-  font-family: var(--ui-font);
-  font-size: 9px;
-  line-height: 1.55;
 }
 
 .corner-analysis-header > span {
   flex: 0 0 auto;
   padding: 5px 8px;
-  border: 1px solid color-mix(in srgb, var(--ui-accent) 28%, transparent);
-  border-radius: var(--radius-xs);
-  color: var(--ui-accent);
-  font-family: var(--ui-font);
-  font-size: 7px;
-  font-weight: 590;
-  letter-spacing: .1em;
   white-space: nowrap;
 }
 
@@ -762,22 +612,10 @@ main.sidebar-collapsed .sidebar {
   place-items: center;
   width: 27px;
   height: 27px;
-  border: 1px solid color-mix(in srgb, var(--ui-accent) 38%, var(--ui-border));
-  border-radius: var(--radius-xs);
-  background: color-mix(in srgb, var(--ui-accent) 7%, transparent);
-  color: var(--ui-accent);
-  font-family: var(--ui-font);
-  font-size: 8px;
-  font-weight: 590;
-  letter-spacing: .05em;
 }
 
 .panel-heading p {
   margin-top: 4px;
-  color: var(--ui-tertiary);
-  font-family: var(--ui-font);
-  font-size: 8px;
-  line-height: 1.45;
 }
 
 #loadSession:hover {
@@ -787,9 +625,6 @@ main.sidebar-collapsed .sidebar {
 
 #driverPills .pill {
   min-height: 34px;
-  border-radius: var(--radius-xs);
-  background: rgba(0, 0, 0, .18);
-  font-size: 9px;
 }
 
 .lap-workspace .workspace-heading {
@@ -811,9 +646,6 @@ main.sidebar-collapsed .sidebar {
   gap: 6px;
   border: 1px dashed rgba(255, 255, 255, .11);
   border-radius: var(--radius-md);
-  background:
-    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--ui-accent) 5%, transparent), transparent 45%),
-    rgba(0, 0, 0, .12);
   text-align: center;
 }
 
@@ -875,26 +707,8 @@ input {
 .dominance-map h2,
 .corner-analysis h2,
 .chart h2 {
-  font-family: var(--ui-font);
   font-size: var(--ui-text-md);
-  font-weight: 590;
   letter-spacing: .035em;
-}
-
-.panel-heading p,
-.workspace-heading p,
-.section-heading p {
-  font-family: var(--ui-font);
-  font-size: var(--ui-text-sm);
-}
-
-.run-driver h3,
-.pill,
-.lap,
-.stint,
-.fastest-lap-pick,
-.compare-all-btn {
-  font-family: var(--ui-font);
 }
 
 /* Driver selection uses the same tinted, edged card language as each lap
@@ -915,7 +729,6 @@ input {
   background:
     linear-gradient(115deg, color-mix(in srgb, var(--team) 9%, transparent), transparent 58%),
     rgba(4, 6, 8, .48);
-  color: var(--ui-label);
   font-size: var(--ui-text-sm);
 }
 
@@ -924,8 +737,6 @@ input {
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: var(--team);
-  box-shadow: 0 0 13px color-mix(in srgb, var(--team) 42%, transparent);
 }
 
 #driverPills .driver-pill:hover {
@@ -933,12 +744,6 @@ input {
   background:
     linear-gradient(115deg, color-mix(in srgb, var(--team) 14%, transparent), transparent 64%),
     rgba(8, 10, 13, .68);
-}
-
-.driver-pill strong {
-  color: var(--team);
-  font-size: var(--ui-text-sm);
-  letter-spacing: .035em;
 }
 
 /* Corner selectors wrap into the available width: no scrollbar and no scroll
@@ -961,14 +766,6 @@ input {
 
 .trace-tools > span {
   margin-right: 3px;
-  color: var(--ui-tertiary);
-  font-size: var(--ui-text-xs);
-  letter-spacing: .06em;
-}
-
-.trace-tools > span b {
-  color: var(--ui-accent);
-  font-weight: 590;
 }
 
 .trace-tools button {
@@ -982,7 +779,7 @@ input {
   background: rgba(0, 0, 0, .22);
   color: var(--ui-tertiary);
   font-size: var(--ui-text-sm);
-  font-weight: 590;
+  font-weight: 600;
   cursor: pointer;
   transition: color var(--motion-tier-fast) var(--ease-standard), border-color var(--motion-tier-fast) var(--ease-standard), background var(--motion-tier-fast) var(--ease-standard), transform var(--motion-tier-fast) var(--ease-standard);
 }
@@ -1025,12 +822,6 @@ canvas[data-chart="Speed trace"] {
   width: 27px;
   height: 27px;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--ui-accent) 38%, var(--ui-border));
-  border-radius: var(--radius-xs);
-  background: color-mix(in srgb, var(--ui-accent) 7%, transparent);
-  color: var(--ui-accent);
-  font-size: var(--ui-text-xs);
-  font-weight: 590;
 }
 
 .analysis-heading-main > div {
@@ -1040,15 +831,9 @@ canvas[data-chart="Speed trace"] {
   column-gap: 8px;
 }
 
-.analysis-heading h1 {
-  font-size: var(--ui-text-lg);
-  letter-spacing: .01em;
-}
-
 .analysis-heading p {
   grid-column: 1 / -1;
   margin: 1px 0 0;
-  font-size: var(--ui-text-xs);
   line-height: 1.35;
 }
 
@@ -1057,9 +842,6 @@ canvas[data-chart="Speed trace"] {
   padding: 9px;
   overflow: visible;
   border-radius: var(--radius-md);
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, .018), transparent 48%),
-    rgba(0, 0, 0, .15);
 }
 
 .lap-summary-card {
@@ -1067,11 +849,6 @@ canvas[data-chart="Speed trace"] {
   min-width: 0;
   padding: 8px 9px 8px 11px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--team) 20%, rgba(255, 255, 255, .08));
-  border-radius: var(--radius-sm);
-  background:
-    linear-gradient(118deg, color-mix(in srgb, var(--team) 9%, transparent), transparent 55%),
-    rgba(7, 9, 12, .56);
 }
 
 .lap-summary-card::before {
@@ -1080,7 +857,6 @@ canvas[data-chart="Speed trace"] {
   inset: 0 auto 0 0;
   width: 3px;
   background: var(--team);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--team) 38%, transparent);
 }
 
 .lap-summary-card header {
@@ -1089,7 +865,6 @@ canvas[data-chart="Speed trace"] {
   justify-content: space-between;
   gap: 12px;
   padding-bottom: 6px;
-  border-bottom: 1px solid rgba(255, 255, 255, .06);
 }
 
 .summary-driver,
@@ -1105,7 +880,6 @@ canvas[data-chart="Speed trace"] {
 .summary-sectors small {
   color: var(--ui-tertiary);
   font-size: var(--ui-text-xs);
-  letter-spacing: .05em;
 }
 
 .summary-sectors > .sector-cell::after {
@@ -1116,11 +890,6 @@ canvas[data-chart="Speed trace"] {
   left: 0;
   height: 4px;
   background: var(--sector-status);
-  box-shadow: 0 -2px 10px color-mix(in srgb, var(--sector-status) 24%, transparent);
-}
-
-.summary-delta.is-faster {
-  color: var(--ui-positive);
 }
 
 /* Compact compound rows replace the oversized tyre circles. */
@@ -1134,11 +903,6 @@ canvas[data-chart="Speed trace"] {
   min-height: 39px;
   padding: 5px 8px 5px 11px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--tire-color) 22%, rgba(255, 255, 255, .08));
-  border-radius: var(--radius-sm);
-  background:
-    linear-gradient(110deg, color-mix(in srgb, var(--tire-color) 9%, transparent), transparent 62%),
-    rgba(4, 6, 8, .45);
 }
 
 .tire-option::before {
@@ -1153,14 +917,6 @@ canvas[data-chart="Speed trace"] {
 .tire-copy strong {
   color: var(--ui-label);
   font-size: var(--ui-text-sm);
-  letter-spacing: .04em;
-  text-transform: uppercase;
-}
-
-.tire-copy small {
-  color: var(--ui-tertiary);
-  font-size: 6px;
-  letter-spacing: .07em;
 }
 
 /* Dense data workspace --------------------------------------------------- */
@@ -1170,16 +926,10 @@ canvas[data-chart="Speed trace"] {
   border: 1px solid currentColor;
   border-radius: var(--radius-xs);
   font-size: var(--ui-text-sm);
-  font-weight: 680;
+  font-weight: 600;
   font-variant-numeric: tabular-nums lining-nums;
   font-feature-settings: "tnum" 1, "lnum" 1;
-  letter-spacing: .015em;
   line-height: 1.15;
-}
-
-.summary-delta.is-faster {
-  color: #38e983;
-  background: rgba(40, 217, 111, .08);
 }
 
 .summary-lap-time,
@@ -1197,7 +947,6 @@ canvas[data-chart="Speed trace"] {
 
   .sidebar .panel-heading p {
     margin-top: 2px;
-    line-height: 1.3;
   }
 
   .sidebar .session-controls {
@@ -1294,40 +1043,9 @@ button#loadSession.is-loading::before {
 }
 
 /* Typography and compound clarity --------------------------------------- */
-#driverPills .driver-pill .driver-pill-number,
-#driverPills .driver-pill strong {
-  font-size: var(--ui-text-sm);
-  font-weight: 590;
-  line-height: 1;
-}
-
-.compound-label {
-  font-weight: 680;
-  letter-spacing: .025em;
-}
 
 .compound-soft {
   color: #ff4967;
-}
-
-.compound-medium {
-  color: #ffd33d;
-}
-
-.compound-hard {
-  color: #f2f4f7;
-}
-
-.compound-intermediate {
-  color: #38d37b;
-}
-
-.compound-wet {
-  color: #4ea4ff;
-}
-
-.compound-unknown {
-  color: var(--ui-tertiary);
 }
 
 .analysis-heading-main > div {
@@ -1337,20 +1055,14 @@ button#loadSession.is-loading::before {
 
 .panel-heading h2, .sidebar .panel-heading h2, .workspace-heading h2, .analysis-heading h1, .dominance-map h2, .corner-analysis h2, .chart h2 {
   color: var(--ui-label);
-  font-family: var(--ui-font);
   font-size: var(--type-caption);
-  font-weight: 590;
-  letter-spacing: .05em;
   line-height: 1.2;
-  text-transform: uppercase;
 }
 
 .summary-driver small, .summary-lap-time small, .summary-sectors small, .dominance-map h2 small, .corner-analysis h2 small, .chart h2 small {
   color: #aeb3bd;
-  font-family: var(--ui-font);
   font-size: 8px;
-  font-weight: 590;
-  letter-spacing: .055em;
+  font-weight: 600;
   line-height: 1.2;
 }
 
@@ -1379,7 +1091,6 @@ button#loadSession.is-loading::before {
   min-height: 29px;
   padding: 4px 6px 4px 9px;
   border-left: 3px solid var(--team);
-  font-variant-numeric: tabular-nums lining-nums;
   font-feature-settings: "tnum" 1, "lnum" 1;
 }
 
@@ -1390,7 +1101,7 @@ button#loadSession.is-loading::before {
   background: var(--ui-accent);
   color: #050608;
   font-size: 6px;
-  font-weight: 680;
+  font-weight: 600;
 }
 
 .loaded-lap-pill .remove:hover {
@@ -1405,15 +1116,6 @@ button#loadSession.is-loading::before {
 
 .corner-detail-card .corner-driver b {
   color: var(--ui-label);
-}
-
-.corner-detail-card .corner-delta.is-faster strong, .corner-detail-card .corner-delta.is-faster small {
-  color: #38e983;
-}
-
-.corner-detail-card .corner-delta.is-slower strong,
-.corner-detail-card .corner-delta.is-slower small {
-  color: #ff746c;
 }
 
 /* Split-screen/tablet layout: controls become a horizontal data band. */
@@ -1552,10 +1254,6 @@ main,
 
 .corner-table-head {
   padding: 7px 9px;
-  color: #b8bdc7;
-  font-size: 8px;
-  font-weight: 680;
-  letter-spacing: .055em;
   text-align: center;
 }
 
@@ -1693,8 +1391,6 @@ main,
   place-items: center;
   width: 17px;
   height: 17px;
-  font-family: "Segoe UI Emoji", sans-serif;
-  font-size: var(--type-caption);
   font-style: normal;
   line-height: 1;
 }
@@ -1794,8 +1490,6 @@ main,
   width: 12px;
   height: 12px;
   overflow: hidden;
-  border: 1px solid currentColor;
-  border-radius: 50%;
 }
 
 .theme-toggle i::after {
@@ -1845,15 +1539,13 @@ main,
 :root[data-theme="light"] .lap-chip.selected,
 :root[data-theme="light"] .fastest-lap-pick.selected {
   border-color: color-mix(in srgb, var(--team) 62%, #8d96a0);
-  background: color-mix(in srgb, var(--team) 8%, white);
-  box-shadow: inset 0 -2px 0 var(--team), 0 3px 10px color-mix(in srgb, var(--team) 8%, transparent);
 }
 
 .summary-condition small,
 .summary-driver small,
 .summary-lap-time small,
 .summary-sectors small {
-  font-weight: 590;
+  font-weight: 600;
 }
 
 .tire-copy {
@@ -1868,13 +1560,6 @@ main,
 /* Light mode keeps the same hierarchy without merely inverting the page. */
 :root[data-theme="light"] {
   color-scheme: light;
-}
-
-:root[data-theme="light"] .lap-summary-card, :root[data-theme="light"] .driver-run-card, :root[data-theme="light"] .corner-detail-card, :root[data-theme="light"] .comparison-tray, :root[data-theme="light"] .tire-option {
-  border-color: color-mix(in srgb, var(--team, var(--tire-color, #68727f)) 22%, var(--ui-border));
-  background:
-    linear-gradient(118deg, color-mix(in srgb, var(--team, var(--tire-color, #68727f)) 7%, transparent), transparent 58%),
-    rgba(255, 255, 255, .78);
 }
 
 :root[data-theme="light"] #driverPills .driver-pill,
@@ -1924,15 +1609,7 @@ main,
   width: 100%;
   min-height: 40px;
   padding: 0 13px;
-  border: 1px solid rgba(255, 255, 255, .14);
-  border-radius: var(--radius-sm);
   outline: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, .035), transparent), #0c0e11;
-  color: var(--ui-label);
-  font-family: var(--ui-font);
-  font-size: 11px;
-  font-weight: 590;
-  letter-spacing: .015em;
   text-align: left;
   cursor: pointer;
   transition: border-color var(--motion-tier-fast) var(--ease-standard), box-shadow var(--motion-tier-fast) var(--ease-standard), background var(--motion-tier-fast) var(--ease-standard), transform var(--motion-tier-fast) var(--ease-standard);
@@ -1969,17 +1646,10 @@ main,
   min-height: 31px;
   padding: 6px 12px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--ui-accent) 52%, var(--ui-border));
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--ui-accent) 6%, rgba(7, 9, 12, .74));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 6%, transparent);
   transition: transform var(--motion-tier-fast) var(--ease-out), border-color var(--motion-tier-fast) var(--ease-standard), box-shadow var(--motion-tier-fast) var(--ease-standard), background var(--motion-tier-fast) var(--ease-standard);
 }
 
 .run-toolbar .compare-all-btn i {
-  color: var(--ui-accent);
-  font-size: 10px;
-  font-style: normal;
   transition: transform var(--motion-tier-standard) var(--ease-out), filter var(--motion-tier-fast) var(--ease-standard);
 }
 
@@ -2035,10 +1705,7 @@ main,
   padding: 0 9px;
   border-right: 1px solid var(--ui-border);
   color: var(--ui-tertiary);
-  font-family: var(--ui-font);
-  font-size: 8px;
-  font-weight: 590;
-  letter-spacing: .07em;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -2046,7 +1713,6 @@ main,
   min-height: 25px;
   padding: 0 8px 0 5px;
   margin-right: 2px;
-  border-right: 1px solid var(--ui-border);
 }
 
 .trace-setting:hover {
@@ -2072,7 +1738,6 @@ main,
   border: 1px solid var(--ui-border-strong);
   border-radius: var(--radius-xs);
   background: rgba(0, 0, 0, .18);
-  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .28);
 }
 
 .trace-setting input:checked + i {
@@ -2124,9 +1789,6 @@ main,
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--team) 24%, var(--ui-border));
   border-radius: var(--radius-xs);
-  background: color-mix(in srgb, var(--team) 4%, rgba(0, 0, 0, .18));
-  color: var(--ui-tertiary);
-  font-family: var(--ui-font);
   cursor: pointer;
   opacity: .58;
   transition: opacity var(--motion-tier-fast) var(--ease-standard), color var(--motion-tier-fast) var(--ease-standard), border-color var(--motion-tier-fast) var(--ease-standard), background var(--motion-tier-fast) var(--ease-standard), transform var(--motion-tier-fast) var(--ease-standard);
@@ -2143,13 +1805,6 @@ main,
 .trace-driver-chip > i {
   width: 7px;
   height: 7px;
-  border: 1px solid var(--team);
-  border-radius: 50%;
-}
-
-.trace-driver-chip.is-visible > i {
-  background: var(--team);
-  box-shadow: 0 0 7px color-mix(in srgb, var(--team) 48%, transparent);
 }
 
 .trace-driver-chip:hover:not(:has(input:disabled)) {
@@ -2194,8 +1849,6 @@ main,
 
   .trace-settings .alignment-readout {
     grid-column: 1 / -1;
-    border-right: 0;
-    border-bottom: 1px solid var(--ui-border);
   }
 }
 
@@ -2222,7 +1875,6 @@ main,
   justify-self: center;
   width: 14px;
   height: 16px;
-  font-size: 11px;
 }
 
 .lap-summary-card .summary-condition small,

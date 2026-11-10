@@ -1,12 +1,12 @@
 /* Session analysis: telemetry chart stack (speed trace, delta, inputs). */
 // Chart Constants and Configuration
 const defs = [
-  ['Speed trace', 'KM/H', false],
-  ['Timing delta', 'SECONDS VS REFERENCE', false],
+  ['Speed trace', 'km/h', false],
+  ['Timing delta', 'seconds vs reference', false],
   ['Throttle application', '%', true],
-  ['Brake application', 'ON / OFF', true],
+  ['Brake application', 'on / off', true],
   ['Gear', '0–8', false],
-  ['DRS', 'OPEN / CLOSED', true]
+  ['DRS', 'open / closed', true]
 ];
 
 const chartField = {
@@ -717,7 +717,7 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
   const every = spacing >= 18 ? 1 : spacing * 2 >= 18 ? 2 : 4;
   const zeroIndex = ticks.findIndex(t => Math.abs(t.value) < 1e-9);
   const anchor = zeroIndex >= 0 ? zeroIndex : 0;
-  const shown = ticks.filter((t, i) => (i - anchor) % every === 0 || (unit === 'OPEN / CLOSED' || unit === 'ON / OFF') && (t.tick === 0 || t.tick === 4));
+  const shown = ticks.filter((t, i) => (i - anchor) % every === 0 || (unit === 'open / closed' || unit === 'on / off') && (t.tick === 0 || t.tick === 4));
   shown.forEach(({ value, tick }) => {
     const y = top + (height - top - bottom) * ((max - value) / (max - min || 1));
     ctx.beginPath();
@@ -740,11 +740,11 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
         ? '0'
         : `${value > 0 ? '+' : ''}${value.toFixed(decimals)}`;
     }
-    if (unit === 'OPEN / CLOSED' || unit === 'ON / OFF') {
-      if (tick === 0) displayVal = 'OPEN';
-      else if (tick === 4) displayVal = 'CLOSED';
+    if (unit === 'open / closed' || unit === 'on / off') {
+      if (tick === 0) displayVal = 'Open';
+      else if (tick === 4) displayVal = 'Closed';
       else return;
-      if (unit === 'ON / OFF') displayVal = tick === 0 ? 'ON' : 'OFF';
+      if (unit === 'on / off') displayVal = tick === 0 ? 'On' : 'Off';
     }
     ctx.fillStyle = unit.includes('SECONDS') && Math.abs(value) < 1e-5
       ? theme.textStrong
@@ -752,7 +752,7 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
     ctx.textAlign = 'right';
     ctx.fillText(displayVal, left - 8, y + 3);
   });
-  if (unit === 'KM/H') {
+  if (unit === 'km/h') {
     // Axis title, rotated beside the tick labels: "Speed [km/h]".
     ctx.save();
     ctx.translate(11, top + (height - top - bottom) / 2);
@@ -1366,7 +1366,7 @@ function drawRealChart(name) {
   });
 
   if (name === 'Speed trace' && sectorBoundaries.length === 2) {
-    const ranges = [[0, sectorBoundaries[0], 'SECTOR 1'], [sectorBoundaries[0], sectorBoundaries[1], 'SECTOR 2'], [sectorBoundaries[1], 1, 'SECTOR 3']];
+    const ranges = [[0, sectorBoundaries[0], 'Sector 1'], [sectorBoundaries[0], sectorBoundaries[1], 'Sector 2'], [sectorBoundaries[1], 1, 'Sector 3']];
     ctx.fillStyle = theme.text;
     ctx.font = canvasFont(12);
     ctx.textAlign = 'center';

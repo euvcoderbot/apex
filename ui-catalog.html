@@ -3,7 +3,7 @@
 /* Catalogue layout only. Appearance comes from styles.css, the same sheet production uses. These rules show transient
    surfaces (tooltip, toast, menu) in place instead of floating, and give the material demo something to sit over. */
 .ui-catalog-static .tooltip,.ui-catalog-static .app-toast{position:static;display:block;opacity:1;visibility:visible;transform:none;pointer-events:auto;max-width:none}
-.ui-catalog-backdrop{position:relative;padding:18px;border-radius:12px;background:repeating-linear-gradient(135deg,#7a7a7a 0 14px,#2a6fdb 14px 28px,#e8a33a 28px 42px,#3fae6a 42px 56px);display:grid;gap:12px}
+.ui-catalog-backdrop{position:relative;padding:18px;border-radius:12px;background:var(--ui-well);display:grid;gap:12px}
 .ui-catalog-scroll{max-height:96px;overflow:auto;border:1px solid var(--ui-separator,#8884);border-radius:8px;padding:8px}
 .ui-catalog-scroll p{margin:0 0 8px}
 .ui-catalog-note{margin:0;font-size:12px;opacity:.8}

@@ -54,7 +54,6 @@ test('each control family has one selected style and rings mean focus only (sele
   sheet.walkRules(rule=>{if(/aria-pressed="true"|aria-selected="true"|aria-current="page"/.test(rule.selector.replace(/:not\([^)]*\)/g,''))&&!rule.parent?.params?.includes('contrast')&&!rule.parent?.params?.includes('forced-colors'))
     rule.walkDecls(d=>{assert.doesNotMatch(d.value,/var\(--team\)/,rule.selector);if(d.prop==='box-shadow')assert.doesNotMatch(d.value,/^inset 0 0 0/,rule.selector);});});
   assert.match(css,/\.lap-workspace \.run-segment \.run-choice-indicator \{ display: none; \}/);
-  assert.match(css,/#loadedLaps \.loaded-lap-pill\.reference::before \{ background: color-mix\(in srgb,var\(--ui-accent\) 20%,transparent\); color: var\(--ui-accent\); \}/);
   // Driver list as a source list: one 32 px line, natural-case name, trailing code and check.
   assert.match(css,/#driverPills \.driver-pill\[data-ui-kind="list-row"\] \{ grid-template-columns: 20px 18px minmax\(0,1fr\) auto 12px;[^}]*height: 32px/);
   assert.match(css,/#driverPills \.driver-pill\[data-ui-kind="list-row"\]::before \{ content: none; \}/);

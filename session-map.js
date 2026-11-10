@@ -98,7 +98,7 @@ function renderMiniSectorMap() {
   title.innerHTML = !mapEntries.length
     ? 'Track map <small>NO LAP LOADED</small>'
     : comparative
-      ? 'Mini-sector dominance <small>25 M SEGMENTS</small>'
+      ? 'Mini-sector dominance <small>25 m segments</small>'
       : 'Track map <small>SINGLE TRACE</small>';
   if (!mapEntries.length) {
     clearDominanceMapCanvas(canvas);
