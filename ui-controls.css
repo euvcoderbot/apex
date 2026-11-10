@@ -358,7 +358,8 @@ button[data-ui-kind="push"],button[data-ui-kind="primary"],button[data-ui-kind="
 
 /* ---------- Hand-drawn SVG charts at real size (svg-scale.js sets --chart-scale = rendered width / drawn width) ----------
    Text is divided by the stretch so labels stay 11 px; lines and grid use non-scaling strokes so they stay their set width. */
-:is(svg.season-chart, svg.trade-off-plot, svg.overview-lap-chart) :is(.axis, .axis-title, .label) { font-size: calc(11px / var(--chart-scale, 1)); }
+:is(svg.season-chart, svg.trade-off-plot, svg.overview-lap-chart) :is(.axis, .axis-title) { font-size: calc(10px / var(--chart-scale, 1)); }
+:is(svg.season-chart, svg.trade-off-plot, svg.overview-lap-chart) .label { font-size: calc(11px / var(--chart-scale, 1)); }
 :is(svg.season-chart, svg.trade-off-plot, svg.overview-lap-chart) :is(.grid, .line, line, path.line, polyline) { vector-effect: non-scaling-stroke; }
 /* Lap chart: lines in full colour at 1.5 px, small points with no halo; the hovered and compared laps get a ring. */
 .overview-lap-chart .line { opacity: .85; stroke-width: 1.5; }

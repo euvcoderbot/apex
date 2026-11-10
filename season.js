@@ -937,9 +937,12 @@
 
   // ---------- SVG charts (numbers only go into markup; labels are escaped) ----------
   // Round labels along the bottom: every code when there is room for it, else every other one.
-  // On a crowded axis every other round is labelled, always the last; the one before it then gives way so the two never touch.
-  const xLabels = (rounds, xOf, H, slot) => rounds.map((r, i) => (slot >= 34 || (i % 2 === 0 && !(i === rounds.length - 2)) || i === rounds.length - 1)
-    ? `<text class="axis" x="${xOf(i).toFixed(1)}" y="${H - 6}" text-anchor="middle">${esc(code(r))}</text>` : '').join('');
+  // Every round is labelled; when the chart is drawn narrow (svg-scale.js measures the real spacing) every other label hides,
+  // always keeping the last, and the one before it gives way so the two never touch.
+  const xLabels = (rounds, xOf, H) => rounds.map((r, i) => {
+    const alt = i !== rounds.length - 1 && (i % 2 === 1 || i === rounds.length - 2);
+    return `<text class="axis x-label${alt ? ' is-alt' : ''}" x="${xOf(i).toFixed(1)}" y="${H - 6}" text-anchor="middle">${esc(code(r))}</text>`;
+  }).join('');
   // A bar rounded only at its outer end (top for positive values, bottom for negative).
   function barPath(x, y0, y1, w, r = 3) {
     const h = Math.abs(y1 - y0); r = Math.min(r, w / 2, h);

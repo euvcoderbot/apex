@@ -9,6 +9,14 @@
     const vb = svg.viewBox?.baseVal, w = svg.getBoundingClientRect().width;
     if (!vb?.width || !w) return;
     svg.style.setProperty('--chart-scale', String(Math.round(w / vb.width * 1000) / 1000));
+    // Round labels: every one where the widest fits between its neighbours (measured on screen), every other one where not.
+    const labels = [...svg.querySelectorAll('text.x-label')];
+    if (labels.length > 1) {
+      svg.classList.remove('is-crowded');
+      const boxes = labels.map(t => t.getBoundingClientRect());
+      const spacing = Math.min(...boxes.slice(1).map((b, i) => b.left + b.width / 2 - (boxes[i].left + boxes[i].width / 2)));
+      svg.classList.toggle('is-crowded', spacing < Math.max(...boxes.map(b => b.width)) + 4);
+    }
   };
   const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(entries => requestAnimationFrame(() => entries.forEach(e => measure(e.target)))) : null;
   const scan = () => { for (const svg of document.querySelectorAll(SELECTOR)) if (!sized.has(svg)) { sized.add(svg); measure(svg); observer?.observe(svg); } };

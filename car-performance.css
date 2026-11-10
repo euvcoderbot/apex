@@ -1383,6 +1383,6 @@ body.performance-view #sidebarToggle {
 .team-profile-table td.profile-strongest { font: 500 12px/1 var(--ui-font); color: var(--ui-tertiary); white-space: nowrap; }
 .team-profile-card .trade-off-card { margin-top: 16px; padding: 16px; }
 .trade-off-plot { margin-top: 8px; }
-.trade-off-plot .axis-title { fill: var(--ui-tertiary); font-size: 11px; font-weight: 500; }
+.trade-off-plot .axis-title { fill: var(--ui-tertiary); font-size: calc(10px / var(--chart-scale, 1)); font-weight: 450; }
 .trade-off-plot .label { fill: var(--ui-secondary); font-size: 11px; font-weight: 500; }
 .trade-off-plot circle { stroke: var(--ui-panel); stroke-width: 1.5; }

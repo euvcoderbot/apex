@@ -128,8 +128,8 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 .season-move { width: 30px; font-size: 11px; }
 .season-chart { display: block; width: 100%; height: auto; overflow: visible; }
 .season-chart .grid { stroke: var(--ui-border); stroke-width: 1; }
-/* Chart type (spec §11): axes 450 11 tertiary, end labels 500 12 in the series colour, both at their real size on any card width. */
-.season-chart .axis { fill: var(--ui-tertiary); font: 450 calc(11px / var(--chart-scale, 1)) var(--ui-font); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+/* Chart type (spec §11): axes 450 10 tertiary (caption size), end labels 500 12 in the series colour, both at their real size on any card width. */
+.season-chart .axis { fill: var(--ui-tertiary); font: 450 calc(10px / var(--chart-scale, 1)) var(--ui-font); letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .season-chart .label { font: 500 calc(12px / var(--chart-scale, 1)) var(--ui-font); }
 /* The font shorthand resets Inter's features: restore the site's letterforms (cv01, ss03) and tabular figures in every chart. */
 svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03", "tnum"; }
@@ -834,3 +834,4 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
   #seasonHub .season-battle { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 16px; padding: 10px; }
   #seasonHub .season-battle-bar { grid-column: 1 / -1; }
 }
+.season-chart.is-crowded .x-label.is-alt { display: none; }

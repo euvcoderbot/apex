@@ -698,7 +698,7 @@ function resolveCornerMarkers(samples, totalDistance, suppliedMarkers = null) {
 function drawGridAxes(ctx, width, height, bounds, unit) {
   const { left, right, top, bottom, min, max, tickStep } = bounds;
   const theme = canvasTheme();
-  ctx.font = canvasFont(12);
+  ctx.font = canvasFont(9);   // value axis: 10 px, the chart caption size
   const ticks = [];
   if (Number.isFinite(tickStep) && tickStep > 0) {
     for (let value = Math.floor((max + tickStep * .001) / tickStep) * tickStep; value >= min - tickStep * 0.001; value -= tickStep) {
@@ -1328,9 +1328,9 @@ function drawRealChart(name) {
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.fillStyle = theme.text;
-    ctx.font = canvasFont(12);
+    ctx.font = canvasFont(9);   // distance axis: 10 px
     ctx.textAlign = tick === 0 ? 'left' : tick === distanceTickCount ? 'right' : 'center';
-    if (showDistanceNumbers) ctx.fillText(`${Math.round(fraction * totalDist)} M`, x, rect.height - bounds.bottom + 18);
+    if (showDistanceNumbers) ctx.fillText(`${Math.round(fraction * totalDist)} m`, x, rect.height - bounds.bottom + 18);
   }
   ctx.textAlign = 'left';
   
