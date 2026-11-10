@@ -333,7 +333,7 @@ button[data-ui-kind="push"],button[data-ui-kind="primary"],button[data-ui-kind="
 /* ---------- Where the time went: one Linear card per compared lap ---------- */
 .time-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 8px; margin: 0 0 16px; }
 .time-summary > h3, .time-summary > .overview-note { grid-column: 1 / -1; margin-bottom: 0; }
-.time-summary-card { padding: 12px 14px; border-radius: 8px; background: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border); }
+.time-summary-card { padding: 12px 14px; }
 .time-summary-card header { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0 0 10px; font: 500 12px/1.3 var(--ui-font); color: var(--ui-tertiary); }
 .time-summary-card header::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--team, var(--ui-accent)); }
 .time-summary-card header b { font: 600 13px/1 var(--ui-font); color: var(--ui-label); }

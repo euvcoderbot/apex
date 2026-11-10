@@ -413,7 +413,7 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 /* the session view's Drivers section (and its Choose laps button) means nothing on the season pages */
 :root[data-skin="linear"][data-skin] body.season-view #linearWorkspace .linear-rail-section:has(> .linear-drivers-heading) { display: none; }
 /* teammate battles are buttons: the look's generic button height must not clip their (wrapping) rows */
-:root[data-skin="linear"][data-skin] #seasonHub .season-battle:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { height: auto; min-height: 0; padding: 8px 10px; border-radius: 6px; background: none; box-shadow: inset 0 -1px var(--line); }
+:root[data-skin="linear"][data-skin] #seasonHub .season-battle:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { height: auto; min-height: 0; padding: 8px 10px; border-radius: 8px; background: none; box-shadow: none; }
 :root[data-skin="linear"][data-skin] #seasonHub .season-battle:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):hover { background: color-mix(in oklch, var(--ui-label) 4%, transparent); }
 :root[data-skin="linear"] #seasonHub .season-grid :is(thead, tbody) th:first-child { background: var(--lin-card); }
 :root[data-skin="linear"] #seasonHub .season-numbers > div { border-color: var(--lin-hairline, var(--ui-border)); }
@@ -430,9 +430,9 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 @media (prefers-contrast: more) { #seasonHub { --s-contrast: 2.2; } }
 
 /* the next race: one sectioned panel */
-.season-countdown { background: none; box-shadow: inset 0 0 0 1px var(--line); }
+.season-countdown { background: none; box-shadow: none; padding: 0; }
 :root[data-skin="linear"] #seasonHub .season-countdown { background: none; }
-.season-sessions { gap: 0; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.season-sessions { gap: 0; border-radius: 8px; overflow: hidden; }
 #seasonHub .season-sessions li { position: relative; padding: 10px 14px; border-radius: 0; background: none; box-shadow: inset 1px 0 var(--line); opacity: 1; }
 #seasonHub .season-sessions li:first-child { box-shadow: none; }
 .season-sessions li span { display: flex; align-items: center; gap: 6px; }
@@ -441,10 +441,10 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 #seasonHub .season-sessions li[data-state="next"] { background: color-mix(in oklch, var(--ui-accent, #5e6ad2) 10%, transparent); }
 .season-sessions li[data-state="next"]::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; background: var(--ui-accent, #5e6ad2); }
 .season-sessions em { margin-left: auto; color: var(--ui-accent, #5e6ad2); font-size: 11px; font-style: normal; font-weight: 600; }
-.season-next-body { gap: 0; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.25fr) minmax(0, 1fr); border-radius: 8px; box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.season-next-body { gap: 0; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.25fr) minmax(0, 1fr); overflow: hidden; }
 #seasonHub .season-next-body > * { padding: 16px; border-radius: 0; background: none; box-shadow: inset 1px 0 var(--line); }
 #seasonHub .season-next-body > :first-child { box-shadow: none; }
-.season-next-body h3 { grid-column: 1 / -1; margin: 0 0 10px; font-size: 13px; font-weight: 600; }
+.season-next-body h3 { grid-column: 1 / -1; margin: 0 0 10px; color: var(--ui-tertiary); font-size: 13px; font-weight: 500; }
 #seasonHub .season-next-circuit { grid-template-columns: 116px minmax(0, 1fr); align-items: start; gap: 0 18px; }
 .season-track.is-hero { width: 116px; height: 116px; stroke: var(--ui-label); stroke-width: 2.5; }
 .season-facts-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
@@ -487,7 +487,7 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 
 /* stat grids: one surface split by hairlines (the gap shows the line colour) */
 .season-tiles, .season-facts { gap: 0; overflow: hidden; }
-#seasonHub .season-tiles { border-radius: 8px; background: var(--s-base); box-shadow: inset 0 0 0 1px var(--line); }
+#seasonHub .season-tiles { border-radius: var(--lin-card-radius, 10px); background: var(--s-base); box-shadow: inset 0 0 0 1px var(--lin-card-border, var(--line)), var(--lin-faint-shadow, 0 0 #0000); }
 /* each cell draws its right and bottom hairline; the panel's own edge hides the outer ones */
 #seasonHub .season-tile, #seasonHub .season-facts > div { border-radius: 0; background: none; box-shadow: 1px 0 0 var(--line), 0 1px 0 var(--line); }
 #seasonHub .season-driver-head > .season-facts { padding: 0; border-top: 1px solid var(--line); }
@@ -572,7 +572,7 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 
 /* lists of rows (teammate battles, upgrade entries): hairline-separated rows on the card, a hover tint instead of boxes */
 .season-battles, .season-update-group { gap: 0; }
-#seasonHub .season-battle { border-radius: 6px; background: none; box-shadow: inset 0 -1px var(--line); }
+#seasonHub .season-battle { border-radius: 8px; background: none; box-shadow: none; }
 #seasonHub .season-battle:hover { background: color-mix(in oklch, var(--ui-label) 4%, transparent); }
 #seasonHub .season-update { margin: 0; border-radius: 0; background: none; box-shadow: inset 0 -1px var(--line); }
 #seasonHub .season-update[open] { background: color-mix(in oklch, var(--ui-label) 3%, transparent); }

@@ -257,8 +257,8 @@
 /* ---------- Surfaces: structure felt, not seen ---------- */
 /* Section containers (.dashboard-card) are layout, not cards: only the widgets inside them are drawn (spec §7; one card level).
    The same for the detail disclosures (.performance-evidence): their tables are the cards. */
-:root[data-skin="linear"] #carPerformance details.performance-evidence { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
-:root[data-skin="linear"] #carPerformance details.performance-evidence > summary { color: var(--ui-secondary); font: 500 13px/1.4 var(--ui-font); }
+:root[data-skin="linear"] #carPerformance details:is(.performance-evidence, .performance-methods) { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+:root[data-skin="linear"] #carPerformance details:is(.performance-evidence, .performance-methods) > summary { color: var(--ui-secondary); font: 500 13px/1.4 var(--ui-font); }
 :root[data-skin="linear"] .dashboard-card:not(.chart):not(.lap-summary-card) { background: transparent; border: 0; border-radius: 0; box-shadow: none; }
 /* The sidebar is the frame, not a stack of cards: its groups sit on the canvas with no outline. */
 :root[data-skin="linear"] .app-sidebar :is(.dashboard-card, #driverSidebar, .performance-nav, .performance-controls) { border: 0; box-shadow: none; background: transparent; }
@@ -453,7 +453,7 @@
 :root[data-skin="linear"] body > :is(main#top, #carPerformance) > .workspace-intro { display: none; }
 :root[data-skin="linear"] body > :is(main#top, #carPerformance) > .app-sidebar {
   grid-column: 1 / -1; grid-row: 1; position: relative; top: auto; height: auto; min-height: var(--linear-header); visibility: visible; opacity: 1;
-  display: flex; align-items: center; min-width: 0; max-width: 100%; box-sizing: border-box; padding: 8px 12px 8px 20px; margin: 0; overflow: visible;
+  display: flex; align-items: center; min-width: 0; max-width: 100%; box-sizing: border-box; padding: 8px 12px 8px var(--linear-content-pad); margin: 0; overflow: visible;
   border: 0; border-bottom: 1px solid var(--lin-hairline); border-radius: 0; background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
 }
 :root[data-skin="linear"] #carPerformance > .app-sidebar { flex-wrap: wrap; }
@@ -488,12 +488,12 @@
 :root[data-skin="linear"] body > main#top > .analysis-column { grid-column: 1; grid-row: 2; padding: 24px var(--linear-content-pad) 32px; }
 :root[data-skin="linear"] body > #carPerformance > :not(.app-sidebar, .workspace-intro) { grid-column: 1; grid-row: auto; padding-inline: var(--linear-content-pad); }
 :root[data-skin="linear"] body > #carPerformance > #performanceResults { padding-top: 24px; padding-bottom: 32px; }
-:root[data-skin="linear"] :is(.analysis-heading, .metric-heading) { margin-bottom: 20px; }
+:root[data-skin="linear"] :is(.analysis-heading, .metric-heading) { margin-bottom: 20px; margin-inline: 0; padding-inline: 0; }
 :root[data-skin="linear"] :is(.analysis-heading, .metric-heading) h2 { font: 600 24px/32px var(--ui-font); letter-spacing: -.16px; color: var(--ui-label); }
 :root[data-skin="linear"] :is(.analysis-heading, .metric-heading) :is(p, small, .metric-subtitle) { font-size: 13px; color: var(--ui-tertiary); }
 
 /* Widgets: the spec's card (§8): #191a1b, a 1 px #222324 border, 10 px corners, the faint shadow; title 500 13 tertiary. */
-:root[data-skin="linear"] :is(#charts .chart, .sector-cards .lap-summary-card, #carPerformance .performance-chart-card, #carPerformance .performance-table-wrap, .corner-analysis, .dominance-map, details.chart-data-access) {
+:root[data-skin="linear"] :is(#charts .chart, .sector-cards .lap-summary-card, #carPerformance .performance-chart-card, #carPerformance .performance-table-wrap, .corner-analysis, .dominance-map, details.chart-data-access, .driver-run-card, .time-summary-card) {
   border: 0; border-radius: var(--lin-card-radius); background: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border), var(--lin-faint-shadow);
 }
 :root[data-skin="linear"] #charts .chart { margin-bottom: 12px; }
@@ -504,7 +504,7 @@
 :root[data-skin="linear"] :is(.chart-heading h2, .dominance-map-header h2) small { font: 450 12px/1 var(--ui-font); color: var(--ui-quaternary); }
 /* Cards that drew their own outline: the one card (spec §8). */
 :root[data-skin="linear"] :is(#cornerPickerRow, #sessionOverview .overview-chart) { border: 0; border-radius: var(--lin-card-radius); background: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border), var(--lin-faint-shadow); }
-:root[data-skin="linear"] .performance-run-inspector .performance-tyre-plot-controls { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+:root[data-skin="linear"] :is(.performance-run-inspector, .performance-run-inspector .performance-tyre-plot-controls, #carPerformance .performance-chart-card .performance-table-wrap, #carPerformance details .performance-chart-card .performance-table-wrap) { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 :root[data-skin="linear"] .perf-chart-sub { font-size: 12px; color: var(--ui-tertiary); }
 
 /* Comparison laps: Linear's label pills, 24 px, with the lap's colour as the dot. */
@@ -699,7 +699,6 @@
 :root[data-skin="linear"] #carPerformance .dashboard-card .dashboard-card :is(h2, h3, .card-title) { margin-top: 0; }
 :root[data-skin="linear"] #carPerformance .performance-chart-card { padding: 16px; }
 :root[data-skin="linear"] #carPerformance .perf-chart-header { margin: 0 0 12px; padding: 0; border-bottom: 0; }
-:root[data-skin="linear"] #carPerformance details.performance-methods { padding: 10px 16px; }
 :root[data-skin="linear"] #carPerformance .performance-card-controls { padding: 0 0 16px; gap: 8px; }
 /* Long names never wrap a row: they shorten with an ellipsis. */
 :root[data-skin="linear"] #carPerformance :is(.performance-bar-row, .performance-tyre-age-row) .performance-team { min-width: 0; }
@@ -762,7 +761,8 @@
 }
 
 :root[data-skin="linear"] body > main#top > .app-inspector .corner-analysis { padding: 0; background: transparent; box-shadow: none; }
-:root[data-skin="linear"] .app-inspector :is(.dominance-map, .corner-picker-row, .corner-selection-empty) { background: transparent; border: 0; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--lin-card-border); }
+:root[data-skin="linear"] .app-inspector :is(.dominance-map, .corner-picker-row, .corner-selection-empty) { background: transparent; border: 0; border-radius: var(--lin-card-radius); box-shadow: inset 0 0 0 1px var(--lin-card-border); }
+:root[data-skin="linear"] .app-inspector .corner-selection-empty { box-shadow: inset 0 0 0 1px var(--lin-outline-border); }
 :root[data-skin="linear"] .app-inspector :is(.dominance-map, .corner-picker-row, .corner-selection-empty) { padding: 14px; }
 
 /* Inspector: track map and corners, a further sixth wider. */
@@ -862,7 +862,7 @@
 /* Choose laps under the driver list: a full-width pill in the rail. */
 :root[data-skin="linear"][data-skin] #linearWorkspace #lapWorkspaceToggle.is-rail-pill {
   display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 28px; min-height: 28px; margin: 8px 0 0; padding: 0 12px;
-  border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); color: var(--ui-label); font: 500 13px/1 var(--ui-font);
+  border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); color: var(--ui-label); font: 500 12px/1 var(--ui-font);
 }
 :root[data-skin="linear"][data-skin] #linearWorkspace #lapWorkspaceToggle.is-rail-pill:hover { background: var(--lin-pill-hover); }
 :root[data-skin="linear"][data-skin] #linearWorkspace #lapWorkspaceToggle.is-rail-pill[aria-expanded="true"] { background: var(--lin-pill-on); }
@@ -894,7 +894,7 @@
 :root[data-skin="linear"] .app-sidebar .control-field .select-trigger { border-radius: 0 9999px 9999px 0; padding-right: 10px; }
 :root[data-skin="linear"][data-skin] .app-sidebar .control-field:has(.select-trigger:focus-visible) { border-radius: 9999px; }
 :root[data-skin="linear"] .app-sidebar :is(#loadSession, .performance-actions button) { border-radius: 9999px; padding-inline: 14px; }
-:root[data-skin="linear"] :is(button[data-ui-kind="push"], .comparison-choose, .trace-tools :is(button, summary), .performance-explain-toggle) { border-radius: 9999px; }
+:root[data-skin="linear"] :is(button[data-ui-kind="push"], .comparison-choose, .trace-tools :is(button, summary), .performance-explain-toggle) { border-radius: 9999px; font: 500 12px/1 var(--ui-font); }
 :root[data-skin="linear"] :is(button[data-ui-kind="push"], .comparison-choose, .trace-tools summary, .performance-explain-toggle):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) {
   background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring);
 }
@@ -927,7 +927,7 @@
 :root[data-skin="linear"][data-skin][data-skin][data-skin][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--lin-pill-hover); color: var(--ui-secondary); }
 :root[data-skin="linear"][data-skin][data-skin][data-skin][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button[aria-pressed="true"] { background: var(--lin-pill-on); color: var(--ui-label); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); }
 /* Pop-up buttons (select triggers) everywhere: 28 px (spec §3). */
-:root[data-skin="linear"] .select-trigger:not(.app-sidebar *) { height: var(--ui-control-height); min-height: var(--ui-control-height); }
+:root[data-skin="linear"] .select-trigger:not(.app-sidebar *) { height: var(--ui-control-height); min-height: var(--ui-control-height); border: 0; border-radius: 8px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); font: 500 13px/1 var(--ui-font); }
 :root[data-skin="linear"] :is(.run-card-header .fastest-lap-pick, #computeSettings .compute-actions :is(button, a)) { box-sizing: border-box; height: 28px; min-height: 28px; }
 /* Filter chips and the primary action: 28 px pills (spec §3, §8). */
 :root[data-skin="linear"][data-skin] .app-sidebar .control-field { height: 28px; }
@@ -966,7 +966,7 @@
 :root[data-skin="linear"] .team-profile-table tbody td.profile-strongest { color: var(--ui-tertiary); }
 /* CSV download (table-export.js): a 24 px ghost button on the right above its table. Here because the Linear button rules in
    this layer reset button margins. */
-:root[data-skin="linear"] .table-csv:not(#linearWorkspace *) { display: flex; width: fit-content; margin: 0 0 6px auto; height: 24px; min-height: 24px; padding: 0 9px; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); }
+:root[data-skin="linear"] .table-csv:not(#linearWorkspace *) { display: flex; border: 0; width: fit-content; margin: 0 0 6px auto; height: 24px; min-height: 24px; padding: 0 9px; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); }
 :root[data-skin="linear"] .table-csv:not(#linearWorkspace *):hover { background: var(--lin-pill-hover); color: var(--ui-label); }
 /* ---- UI catalogue (ui-catalog.html): a page like the others; sections are cards, controls the 28 px primitives ---- */
 :root[data-skin="linear"] .ui-catalog h1 { font: 600 24px/32px var(--ui-font); letter-spacing: -.16px; }
@@ -983,4 +983,5 @@
 :root[data-skin="linear"] .performance-table .perf-sort-btn { color: var(--ui-tertiary); font: 450 12px/1 var(--ui-font); }
 :root[data-skin="linear"] .performance-table [aria-sort]:not([aria-sort="none"]) .perf-sort-btn { color: var(--ui-label); }
 /* Qualifying-phase segments: the chosen one by fill, not by weight. */
-:root[data-skin="linear"] .run-segments .stint { font-weight: 500; }
+:root[data-skin="linear"] .run-segments .stint { box-sizing: border-box; height: 28px; min-height: 28px; border-radius: 8px; font-weight: 500; }
+:root[data-skin="linear"] .run-segments .stint:is([aria-pressed="true"], [aria-selected="true"], .active, .selected) { background: var(--lin-pill-on); }
