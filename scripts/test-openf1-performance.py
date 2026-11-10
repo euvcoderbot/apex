@@ -10,7 +10,7 @@ from urllib.error import HTTPError
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi import Response
 import server
-from openf1_performance import stamp, lap_neutralised, neutralised_periods, adapt_performance, retained_bundle, session_payload, pit_entry_laps, stewards_lap, deleted_laps, red_flag_periods, lap_in_red_flag
+from openf1_performance import stamp, lap_neutralised, neutralised_periods, adapt_performance, retained_bundle, session_payload, pit_entry_laps, stewards_lap, deleted_laps, red_flag_periods, lap_in_red_flag, qualifying_phase_bounds
 
 
 def bundle():
@@ -258,6 +258,48 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(row(value)['track'], '')
         value['feeds']['race_control'].append({'date': '2026-09-25T12:00:50Z', 'category': 'Flag', 'flag': 'CLEAR', 'scope': 'Track'})
         self.assertEqual(row(value)['track'], '1')
+
+
+class QualifyingPhaseFallbackTests(unittest.TestCase):
+    """Without race-control phase markers, Q1/Q2/Q3 come from the classification and the timing gaps."""
+    @staticmethod
+    def lap(driver, minute, duration=90.0, out=False):
+        from datetime import datetime, timedelta, timezone
+        start = datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(minutes=minute)
+        return {'driver_number': driver, 'date_start': start.isoformat(), 'lap_duration': None if out else duration, 'is_pit_out_lap': out}
+
+    def session(self, stopped_car=False):
+        laps = []
+        for driver in range(1, 21):            # Q1, all cars
+            laps += [self.lap(driver, 2, out=True), self.lap(driver, 4), self.lap(driver, 10), self.lap(driver, 15)]
+        for driver in range(1, 16):            # Q2 after a 7-minute intermission
+            laps += [self.lap(driver, 24, out=True), self.lap(driver, 26), self.lap(driver, 33)]
+        for driver in range(1, 11):            # Q3 with a mid-session lull
+            laps += [self.lap(driver, 44, out=True), self.lap(driver, 46), self.lap(driver, 51), self.lap(driver, 57)]
+        if stopped_car:                        # a car stopped on track during Q2: its "lap" spans the intermission
+            laps.append(self.lap(15, 34, duration=900.0))
+        return laps
+
+    def test_boundaries_fall_in_the_intermissions(self):
+        knocked = ({str(d) for d in range(16, 21)}, {str(d) for d in range(11, 16)})
+        laps = [dict(l, driver_number=str(l['driver_number'])) for l in self.session()]
+        bounds = qualifying_phase_bounds(laps, knocked, [])
+        origin = stamp(laps[0]['date_start']) - 2 * 60
+        q2, q3 = [(b - origin) / 60 for b in bounds]
+        self.assertTrue(16.5 < q2 < 24, q2)
+        self.assertTrue(34.5 < q3 < 44, q3)
+
+    def test_a_stopped_car_does_not_hide_the_intermission(self):
+        knocked = ({str(d) for d in range(16, 21)}, {str(d) for d in range(11, 16)})
+        laps = [dict(l, driver_number=str(l['driver_number'])) for l in self.session(stopped_car=True)]
+        bounds = qualifying_phase_bounds(laps, knocked, [])
+        self.assertIsNotNone(bounds)
+        origin = stamp(laps[0]['date_start']) - 2 * 60
+        self.assertTrue(34.5 < (bounds[1] - origin) / 60 < 44)
+
+    def test_no_classification_means_no_guess(self):
+        laps = [dict(l, driver_number=str(l['driver_number'])) for l in self.session()]
+        self.assertIsNone(qualifying_phase_bounds(laps, (set(), set()), []))
 
 
 class LoadingTests(unittest.TestCase):

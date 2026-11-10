@@ -59,6 +59,52 @@ BLANK_LAP_SECONDS = 120  # An untimed lap has no end; long enough for a lap at s
 RED_FLAG_TEXT = re.compile(r'\bRED FLAG\b')
 
 
+def qualifying_phase_bounds(laps, knocked_out, red_flags):
+    """Two boundaries (epoch seconds) splitting qualifying into Q1, Q2 and Q3, for when race control publishes no phase
+    markers. `knocked_out` gives the driver numbers eliminated in Q1 and in Q2 (from the classification: no Q2 or no Q3
+    time). Every lap of a driver eliminated in Q1 belongs to Q1, so the Q1/Q2 boundary is the longest spell with no car on
+    track in the 15 minutes after the last of those laps ends (the intermission), or failing that the first out-lap from the
+    pits in that time; the same for Q2/Q3. Pauses during a red flag are not intermissions. Returns None when either boundary cannot be found that way."""
+    spans = sorted((start, start + duration, str(r.get('driver_number'))) for start, duration, r in
+                   ((stamp(r.get('date_start')), number(r.get('lap_duration')), r) for r in laps)
+                   if start is not None and duration is not None and duration > 0)
+    # A lap far slower than a flying lap (a car stopped on track, a slow in-lap) would bridge an intermission: leave it out.
+    if spans:
+        fastest = min(end - start for start, end, _ in spans)
+        spans = [span for span in spans if span[1] - span[0] <= 1.5 * fastest]
+    if len(spans) < 3:
+        return None
+    spans_out = [(stamp(r.get('date_start')), None, str(r.get('driver_number')), bool(r.get('is_pit_out_lap'))) for r in laps
+                 if stamp(r.get('date_start')) is not None]
+    busy, gaps = [spans[0][0], spans[0][1]], []
+    for start, end, _ in spans[1:]:
+        if start > busy[1]:
+            gaps.append((busy[1], start))
+            busy = [start, end]
+        else:
+            busy[1] = max(busy[1], end)
+    gaps = [g for g in gaps if not any(a < g[1] and (b if b is not None else float('inf')) > g[0] for a, b in red_flags)]
+    bounds = []
+    for drivers in knocked_out:
+        ends = [end for _, end, number_id in spans if number_id in drivers]
+        if not ends:
+            return None
+        last = max(ends)
+        window = [g for g in gaps if g[1] > last and g[0] < last + 900 and g[1] - g[0] >= 60]
+        if window:
+            # The intermission is the first long idle spell (a lull later in the next phase can be as long).
+            long = [g for g in window if g[1] - g[0] >= 180]
+            gap = min(long, key=lambda g: g[0]) if long else max(window, key=lambda g: g[1] - g[0])
+            bounds.append((max(gap[0], last) + gap[1]) / 2)
+            continue
+        # No idle spell (in-laps overlap the intermission): the next phase starts with the first out-lap after that last lap.
+        outs = [start for start, _, number_id, out in spans_out if out and last <= start < last + 900]
+        if not outs:
+            return None
+        bounds.append(min(outs) - 1)
+    return bounds if len(bounds) == 2 and bounds[0] < bounds[1] else None
+
+
 def red_flag_periods(controls):
     """(start, end) of each red flag, in epoch seconds.
 
@@ -298,6 +344,14 @@ def adapt_performance(year, gp, code, bundle):
                     blocked.append((active.pop(name), t))
     blocked.extend((start, float('inf')) for start in active.values())
     pits = pit_entry_laps(feeds, code)
+    # Qualifying phases: race control's phase markers when it publishes them; otherwise the timing gaps between phases.
+    has_markers = any(r.get('qualifying_phase') in (1, 2, 3) for r in controls)
+    gap_bounds = None
+    if code in ('Q', 'SQ') and not has_markers:
+        durations = {n: r.get('duration') for n, r in results.items() if isinstance(r.get('duration'), list) and len(r['duration']) >= 3}
+        out_q1 = {n for n, d in durations.items() if d[0] is not None and d[1] is None}
+        out_q2 = {n for n, d in durations.items() if d[1] is not None and d[2] is None}
+        gap_bounds = qualifying_phase_bounds(feeds['laps'], (out_q1, out_q2), red_flags)
 
     infos, rows = {}, []
     for driver in feeds['drivers']:
@@ -334,6 +388,8 @@ def adapt_performance(year, gp, code, bundle):
                 matches = [f'Q{i}' for i in (1, 2, 3) if info.get(f'Q{i}') is not None and duration is not None and abs(info[f'Q{i}']-duration) < .005]
                 events = [r for r in controls if start is not None and stamp(r['date']) <= start and r.get('qualifying_phase') in (1, 2, 3)]
                 phase = f"Q{events[-1]['qualifying_phase']}" if events else matches[-1] if matches else None
+                if phase is None and gap_bounds and start is not None:
+                    phase = 'Q1' if start < gap_bounds[0] else 'Q2' if start < gap_bounds[1] else 'Q3'
             legal = (number_id, lap_no) not in deleted
             pit = bool(lap.get('is_pit_out_lap') or (number_id, lap_no) in pits)
             track = '1' if controls and start is not None and end is not None and not any(a < end and b > start for a, b in blocked) else ''
