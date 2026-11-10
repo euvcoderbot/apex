@@ -986,11 +986,20 @@
 /* Count labels above histogram bars need room under the card title. */
 :root[data-skin="linear"] #seasonHub .season-dist { padding-top: 20px; box-sizing: border-box; }
 /* Session toolbar: Load session shares the filter chips' top edge (the row is taller than a chip, so centring offset it). */
-:root[data-skin="linear"] #sessionSidebar .session-controls { align-items: flex-start; }
-:root[data-skin="linear"] #sessionSidebar #loadSession { align-self: flex-start; }
+/* Toolbars: the primary action and Stop share the filter chips' top edge (their rows can be taller than a chip, and an old
+   rule pinned Analyse to the bottom of its box). */
+:root[data-skin="linear"] .app-sidebar :is(.session-controls, .performance-controls, .performance-actions) { align-items: flex-start; }
+:root[data-skin="linear"] .app-sidebar :is(#loadSession, #performanceLoad, #performanceCancel, .performance-actions) { align-self: flex-start; }
 /* Pressed state for every pill and push button (lap sheet header, compare, toolbar actions): one step brighter than hover, so a click is visible. */
 :root[data-skin="linear"] :is(button[data-ui-kind="push"], .compare-all-btn, .comparison-choose, .trace-tools summary, .performance-explain-toggle, .table-sort, #lapWorkspaceToggle.is-rail-pill, #performanceCancel, #computeSettings .compute-actions :is(button, a)):active:not(:disabled):not(#loadSession):not(#performanceLoad) { background: var(--lin-pill-press) !important; color: var(--ui-label); }
 :root[data-skin="linear"] :is(#loadSession, #performanceLoad):active:not(:disabled) { background: color-mix(in oklch, var(--ui-action), #000 12%); }
 :root[data-skin="linear"] :is(button, summary, [role="button"]):focus-visible { outline: 1px solid var(--ui-focus, #5e69d1); outline-offset: 2px; }
 /* Charts drawn in SVG (session, car performance) use the site's Inter letterforms too; a font shorthand would otherwise reset them. */
 :root[data-skin="linear"] svg text { font-feature-settings: "cv01", "ss03", "tnum"; }
+/* Lap card tyre line: the compound in its colour, then the tyre's age after a dot in the secondary text colour, so the
+   two never run together (spec §2: meta 450 12). */
+:root[data-skin="linear"] .lap-summary-card .summary-tyre { gap: 6px; }
+:root[data-skin="linear"] .lap-summary-card .summary-tyre-copy { display: inline-flex; align-items: baseline; gap: 6px; }
+:root[data-skin="linear"] .lap-summary-card .summary-tyre-copy b { font: 500 12px/1.3 var(--ui-font); }
+:root[data-skin="linear"] .lap-summary-card .summary-tyre-copy small { color: var(--ui-tertiary); font: 450 12px/1.3 var(--ui-font); }
+:root[data-skin="linear"] .lap-summary-card .summary-tyre-copy small::before { content: "·"; margin-right: 6px; color: var(--ui-quaternary); }
