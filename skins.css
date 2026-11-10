@@ -444,8 +444,8 @@
 }
 :root[data-skin="linear"] .site-header .header-actions, :root[data-skin="linear"] .site-header :is(.brand, #windowSidebarToggle) { display: none; }
 :root[data-skin="linear"] .site-header .window-title { display: flex; flex-direction: row-reverse; align-items: center; gap: 8px; padding: 0; border: 0; }
-:root[data-skin="linear"] .window-title strong { font: 500 13px/1 var(--ui-font); color: var(--ui-label); }
-:root[data-skin="linear"] .window-title span { display: flex; align-items: center; gap: 8px; font: 500 13px/1 var(--ui-font); color: var(--ui-tertiary); }
+:root[data-skin="linear"] .window-title strong { font: 500 13px/18px var(--ui-font); color: var(--ui-label); }
+:root[data-skin="linear"] .window-title span { display: flex; align-items: center; gap: 8px; font: 500 13px/18px var(--ui-font); color: var(--ui-tertiary); }
 :root[data-skin="linear"] .window-title span::after { content: '›'; color: var(--ui-quaternary); font-weight: 450; }
 :root[data-skin="linear"] .site-header .workspace-tools { gap: 2px; padding: 0; background: transparent; box-shadow: none; }
 :root[data-skin="linear"] .site-header .workspace-tools > button { width: 28px; min-width: 28px; height: 28px; min-height: 28px; border-radius: 6px; color: var(--ui-tertiary); }

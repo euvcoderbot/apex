@@ -1273,24 +1273,28 @@
     let wonA = 0, wonB = 0;
     const nameCell = (id, colour, right) => { const n = el('span', `season-h2h-name${right ? ' is-right' : ''}`); const dot = el('i'); dot.style.background = colour; n.append(dot, el('b', null, family(data, id))); return n; };
     const headRow = el('div', 'season-h2h-row season-h2h-head');
-    headRow.append(el('span'), nameCell(a, ca), el('span'), nameCell(b, cb0, true));
+    headRow.append(nameCell(a, ca), el('span'), nameCell(b, cb0, true));
     rows.append(headRow);
     const section = title => rows.append(el('div', 'season-h2h-section', title));
     const metric = (label, va, vb, {lower = false, format = v => String(v)} = {}) => {
       const row = el('div', 'season-h2h-row');
       const better = va == null || vb == null || va === vb ? 0 : (lower ? va < vb : va > vb) ? -1 : 1;
       if (better < 0) wonA++; else if (better > 0) wonB++;
-      const bar = el('span', 'season-h2h-split');
+      // Mirrored: each driver's bar grows outward from the label in the middle, its length that driver's share (the longer
+      // side leads; for lower-is-better values the shares are swapped). The side behind is drawn faint.
+      const barA = el('span', 'season-h2h-bar is-left'), barB = el('span', 'season-h2h-bar');
       if (va != null && vb != null) {
         const x = Math.abs(va), y = Math.abs(vb), share = x + y === 0 ? .5 : lower ? y / (x + y) : x / (x + y);
-        const left = el('i'), right = el('i');
-        left.style.width = `${(share * 100).toFixed(1)}%`; left.style.background = ca; right.style.background = cb;
-        bar.append(left, right);
-        bar.title = `${family(data, a)} ${format(va)} · ${family(data, b)} ${format(vb)}`;
+        const fa = el('i'), fb = el('i');
+        fa.style.width = `${(share * 100).toFixed(1)}%`; fb.style.width = `${((1 - share) * 100).toFixed(1)}%`;
+        fa.style.background = ca; fb.style.background = cb;
+        if (better > 0) fa.classList.add('is-behind'); if (better < 0) fb.classList.add('is-behind');
+        barA.append(fa); barB.append(fb);
+        barA.title = barB.title = `${family(data, a)} ${format(va)} · ${family(data, b)} ${format(vb)}`;
       }
       const name = el('span', 'season-h2h-label', label);
       if (lower) { name.title = 'Lower is better'; name.append(el('small', null, ' ↓')); }
-      row.append(name, el('b', `season-h2h-value${better < 0 ? ' is-better' : ''}`, va == null ? '—' : format(va)), bar,
+      row.append(el('b', `season-h2h-value${better < 0 ? ' is-better' : ''}`, va == null ? '—' : format(va)), barA, name, barB,
         el('b', `season-h2h-value is-right${better > 0 ? ' is-better' : ''}`, vb == null ? '—' : format(vb)));
       rows.append(row);
     };
