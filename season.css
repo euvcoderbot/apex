@@ -128,8 +128,9 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 .season-move { width: 30px; font-size: 11px; }
 .season-chart { display: block; width: 100%; height: auto; overflow: visible; }
 .season-chart .grid { stroke: var(--ui-border); stroke-width: 1; }
-.season-chart .axis { fill: var(--ui-tertiary); font-size: 11px; font-family: inherit; }
-.season-chart .label { font-size: 11px; font-weight: 600; font-family: inherit; }
+/* Chart type (spec §11): axes 450 11 tertiary, end labels 500 12 in the series colour, both at their real size on any card width. */
+.season-chart .axis { fill: var(--ui-tertiary); font: 450 calc(11px / var(--chart-scale, 1)) var(--ui-font); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.season-chart .label { font: 500 calc(12px / var(--chart-scale, 1)) var(--ui-font); }
 .season-chart .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; transition: opacity .12s; }
 .season-chart .line.is-bump { stroke-width: 2.5; }
 .season-chart .is-dim, .season-chart g.is-dim { opacity: .14; }
@@ -544,11 +545,9 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 /* ---- charts, Linear Insights style: faint grid, smooth lines, soft areas, rounded bar ends, one hover card ---- */
 .season-chart .grid { stroke: var(--line, var(--ui-border)); stroke-width: 1; }
 .season-chart .grid.is-zero { stroke: var(--line-strong, var(--ui-border-strong)); }
-.season-chart .axis { fill: var(--ui-quaternary); font-size: 11px; font-weight: 500; letter-spacing: 0; }
 .season-chart .line { stroke-width: 1.75; }
 .season-chart .line.is-bump { stroke-width: 2.25; }
 .season-chart .end { stroke: var(--s-base, var(--ui-panel)); stroke-width: 2; }
-.season-chart .label { font-size: 11px; font-weight: 600; }
 .season-chart .hit { fill: transparent; }
 .season-chart .hit:hover { fill: color-mix(in oklch, var(--ui-label) 5%, transparent); }
 .season-chart .bar { transition: opacity .12s; }
@@ -670,11 +669,9 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 /* Season charts on the Linear chart recipe: hairline grid, quaternary 11 px axes, 1.75 px lines (sizes held by svg-scale.js). */
 #seasonHub .season-chart .grid { stroke: var(--lin-hairline); }
 #seasonHub .season-chart .grid.is-zero { stroke: var(--lin-label-border); }
-#seasonHub .season-chart .axis { fill: var(--ui-quaternary); font-weight: 500; }
-#seasonHub .season-chart .label { font-weight: 600; }
 #seasonHub .season-chart .line.is-dashed { stroke-dasharray: 5 3; }
-#seasonHub .season-chart .is-faint-group .label { fill: var(--ui-quaternary) !important; font-weight: 500; }
-#seasonHub .season-chart .is-faint-group .end { opacity: .3; }
+#seasonHub .season-chart .is-faint-group .label { fill: var(--ui-quaternary) !important; font-weight: 450; }
+#seasonHub .season-chart .is-faint-group .end { display: none; }
 #seasonHub .season-chart .is-faint-group:hover .line, #seasonHub .season-chart:has(.is-dim) .is-faint-group:not(.is-dim) .line { opacity: 1; stroke-width: 2; }
 
 /* Give the supporting copy its own breathing room before the rows below. */
@@ -710,7 +707,7 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
    thin progress bars. Section labels in sentence case, 12 px tertiary; no bands, no separators. ---- */
 #seasonHub .season-h2h { gap: 0; max-width: none; padding: 4px 0 0; }
 #seasonHub .season-h2h-sum { margin: 0 0 12px; text-align: left; font: 450 12px/1.4 var(--ui-font); color: var(--ui-tertiary); }
-#seasonHub .season-h2h-row { grid-template-columns: minmax(140px, 1fr) 72px minmax(160px, 2fr) 72px; gap: 16px; align-items: center; min-height: 32px; margin-inline: -8px; padding: 0 8px; border-radius: 6px; box-shadow: none; }
+#seasonHub .season-h2h-row { grid-template-columns: 200px 56px minmax(160px, 1fr) 56px; gap: 16px; align-items: center; min-height: 32px; margin-inline: -8px; padding: 0 8px; border-radius: 6px; box-shadow: none; }
 #seasonHub .season-h2h-row:hover { background: var(--lin-nav-hover); }
 #seasonHub .season-h2h-head, #seasonHub .season-h2h-head:hover { min-height: 28px; background: none; }
 #seasonHub .season-h2h-name { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; font: 500 12px/1 var(--ui-font); color: var(--ui-secondary); white-space: nowrap; }
@@ -797,3 +794,41 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 #seasonHub .season-avatar:has(> img) { background: var(--team, var(--ui-tertiary)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--ui-label) 8%, transparent); }
 #seasonHub .season-avatar:has(> img) > b { visibility: hidden; }
 #seasonHub .season-avatar > img { object-position: center top; }
+/* Grand Prix results: the Round number is a narrow left-aligned column, so the race names start close to the card's edge. */
+#seasonHub .season-table:has(tr.season-row-expand) :is(th, td).num:first-child { width: 1%; padding-right: 20px; text-align: left; white-space: nowrap; }
+/* Position chart: calm lines (one weight), the rest faint with no end dots, labels in the axis type. */
+.season-chart .line.is-bump { stroke-width: 1.75; }
+.season-chart .line.is-bump.is-faint { stroke-width: 1; opacity: .28; }
+.season-chart .line.is-bump.is-dashed { stroke-dasharray: 5 4; }
+/* Head-to-head: a comparison reads best at a measure of its own, not across the whole page. The names sit above the ends of the bars
+   they belong to, the label column hugs its text, and the numbers stay next to the bar. */
+#seasonHub .season-h2h { max-width: 880px; margin-inline: 0; }
+#seasonHub .season-card > .season-footnote + .season-battles { margin-top: 12px; }
+#seasonHub .season-h2h-head > :nth-child(odd) { display: none; }
+#seasonHub .season-h2h-head > :nth-child(2) { grid-row: 1; grid-column: 2 / 4; justify-content: flex-start; }
+#seasonHub .season-h2h-head > :nth-child(4) { grid-row: 1; grid-column: 3 / 5; justify-content: flex-end; }
+@media (max-width: 760px) {
+  #seasonHub .season-h2h-row { grid-template-columns: minmax(110px, 1fr) 40px minmax(80px, 1fr) 40px; gap: 8px; }
+}
+/* Every teammate battle: a table in four columns (team, the two names, qualifying, race). In each of the last two the first driver's
+   weekends ahead are on the left, the second's on the right, the leader's number in the label colour. */
+#seasonHub .season-battles { gap: 0; max-width: 980px; }
+#seasonHub .season-battle-head, #seasonHub .season-battle { display: grid; grid-template-columns: 150px 190px minmax(0, 1fr) minmax(0, 1fr); gap: 28px; align-items: center; }
+#seasonHub .season-battle-head { padding: 0 10px 6px; color: var(--ui-tertiary); font: 450 12px/1 var(--ui-font); }
+#seasonHub .season-battle { min-height: 40px; padding: 0 10px; }
+#seasonHub .season-battle-names { gap: 8px; }
+#seasonHub .season-battle-bar { grid-template-columns: 24px minmax(0, 1fr) 24px; gap: 10px; }
+#seasonHub .season-battle-bar > b { font: 450 13px/1 var(--ui-font); color: var(--ui-tertiary); font-variant-numeric: tabular-nums; }
+#seasonHub .season-battle-bar > b.is-better { font-weight: 600; color: var(--ui-label); }
+#seasonHub .season-battle-bar > b:first-child { text-align: right; }
+#seasonHub .season-battle-bar > b:last-child { text-align: left; }
+#seasonHub .season-battle-bar span { display: flex; height: 8px; border-radius: 4px; background: none; }
+#seasonHub .season-battle-bar span i { height: 100%; }
+#seasonHub .season-battle-bar span i:last-child { flex: 1 1 0; opacity: .3; }
+#seasonHub .season-battle-bar span i:first-child { border-radius: 4px 0 0 4px; }
+#seasonHub .season-battle-bar span i:last-child { border-radius: 0 4px 4px 0; }
+@media (max-width: 860px) {
+  #seasonHub .season-battle-head { display: none; }
+  #seasonHub .season-battle { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 16px; padding: 10px; }
+  #seasonHub .season-battle-bar { grid-column: 1 / -1; }
+}

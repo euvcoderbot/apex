@@ -166,7 +166,7 @@ class Documents:
             if not docs:
                 continue
             path = sorted(docs, key=lambda d: (len(d), d))[-1]   # a corrected re-issue (_1, _2) replaces the first
-            parsed = self._cached(f'fia-upgrades-{_cache_name(path)}', None,
+            parsed = self._cached(f'fia-upgrades2-{_cache_name(path)}', None,   # 2: header-less pages are read too
                                   lambda: parse_car_presentation(self.pdf(path)))
             for item in filter(None, map(repair_item, parsed['items'])):
                 updates.append({'event': event, 'event_dates': parsed['dates'], 'document': FIA + path, **item})
@@ -256,12 +256,20 @@ def parse_car_presentation(data: bytes) -> dict:
                 teams.setdefault(team_id(team), 'none' if no_updates else 'updates')
             for table in page.extract_tables():
                 header = next((row for row in table[:3] if any('Updated' in (c or '') for c in row)), None)
-                if not header:
-                    continue
-                marks = [i for i, c in enumerate(header) if c and c.strip()]   # Updated / Primary reason / Geometric / Brief description
-                if len(marks) < 4:
-                    continue
-                spans = [(marks[0] - 1, marks[1] - 1), (marks[1] - 1, marks[2] - 1), (marks[2] - 1, marks[3] - 1), (marks[3] - 1, len(header))]
+                if header:
+                    marks = [i for i, c in enumerate(header) if c and c.strip()]   # Updated / Primary reason / Geometric / Brief description
+                    if len(marks) < 4:
+                        continue
+                    spans = [(marks[0] - 1, marks[1] - 1), (marks[1] - 1, marks[2] - 1), (marks[2] - 1, marks[3] - 1), (marks[3] - 1, len(header))]
+                else:
+                    # Some teams' pages carry no header row (Red Bull in 2025, and continuation pages): take the columns from the
+                    # first numbered row, whose four filled cells after the number are component, reason, geometry and
+                    # description. Tables without numbered rows (the small boxes pdfplumber also finds) are skipped.
+                    first = next((row for row in table if (row[0] or '').strip().isdigit()), None)
+                    cells = [i for i, c in enumerate(first) if i and c and c.strip()] if first else []
+                    if len(cells) < 4 or not team or not team_id(team):
+                        continue
+                    spans = [(cells[0], cells[1]), (cells[1], cells[2]), (cells[2], cells[3]), (cells[3], len(first))]
                 current = None
                 for row in table:
                     if row is header or any(c and ('component' in c or 'for update' in c or 'previous version' in c) for c in row if c):

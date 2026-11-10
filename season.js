@@ -937,7 +937,7 @@
 
   // ---------- SVG charts (numbers only go into markup; labels are escaped) ----------
   // Round labels along the bottom: every code when there is room for it, else every other one.
-  const xLabels = (rounds, xOf, H, slot) => rounds.map((r, i) => (slot >= 26 || i % 2 === 0 || i === rounds.length - 1)
+  const xLabels = (rounds, xOf, H, slot) => rounds.map((r, i) => (slot >= 34 || i % 2 === 0 || i === rounds.length - 1)
     ? `<text class="axis" x="${xOf(i).toFixed(1)}" y="${H - 6}" text-anchor="middle">${esc(code(r))}</text>` : '').join('');
   // A bar rounded only at its outer end (top for positive values, bottom for negative).
   function barPath(x, y0, y1, w, r = 3) {
@@ -1067,7 +1067,7 @@
     return out;
   }
   function bumpChart(rounds, series) {
-    const n = series.length, W = 640, H = Math.max(200, n * 18 + 30), L = 12, R = 46, T = 10, B = 22;
+    const n = series.length, W = 640, H = Math.max(200, n * 18 + 30), L = 30, R = 46, T = 10, B = 22;
     const dashed = teammateDashes(series.slice(0, 6));
     const x = i => L + (rounds.length < 2 ? 0 : i / (rounds.length - 1) * (W - L - R));
     const y = p => T + (p - 1) / Math.max(1, n - 1) * (H - T - B);
@@ -1077,6 +1077,8 @@
       const order = series.map(s => [s, s.values[i]]).filter(([, v]) => v != null).sort((p, q) => p[1] - q[1]).slice(0, 5).map(([s, v]) => `P${v}  ${s.label}`).join('\n');
       svg += `<rect class="hit" x="${(x(i) - slot / 2).toFixed(1)}" y="${T}" width="${slot.toFixed(1)}" height="${H - T - B}" data-tip="${esc(`${roundTip(r)}\n${order}`)}"/>`;
     });
+    // Hairline rows with the position on the left (P1, P5, P10, ...), as the other charts' value axes.
+    for (const p of [1, 5, 10, 15, 20].filter(p => p <= n)) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(p).toFixed(1)}" y2="${y(p).toFixed(1)}"/><text class="axis" x="${L - 8}" y="${(y(p) + 3.5).toFixed(1)}" text-anchor="end">P${p}</text>`;
     for (const s of [...series].reverse()) {
       const pts = s.values.map((v, i) => (v == null ? null : [x(i), y(v)])).filter(Boolean);
       if (!pts.length) continue;
@@ -1321,22 +1323,30 @@
       weeks.append(cell);
     }
     const battles = el('div', 'season-battles');
+    // Column headings, and one line saying how to read a row: numbers and bars follow the order of the names.
+    const heads = el('div', 'season-battle-head', null); heads.setAttribute('aria-hidden', 'true');
+    for (const t of ['Team', 'Teammates', 'Qualifying', 'Race']) heads.append(el('span', null, t));
+    battles.append(heads);
     for (const p of data.teammates) {
       const row = el('button', 'season-battle'); row.type = 'button';
       row.addEventListener('click', () => { state.a = p.a; state.b = p.b; repaint(); });
       const names = el('div', 'season-battle-names'); names.append(who(data, p.a, {code: true, team: false}), el('span', 'season-muted', 'vs'), who(data, p.b, {code: true, team: false}));
       row.append(teamTag(data, p.team), names);
-      for (const [kind, label] of [['qualifying', 'Quali'], ['race', 'Race']]) {
+      for (const [kind, label] of [['qualifying', 'qualifying'], ['race', 'race']]) {
         const [x, y] = p.tally[kind], bar = el('div', 'season-battle-bar');
-        bar.append(el('b', null, String(x)));
-        const track = el('span'); const fill = el('i'); fill.style.width = `${x + y ? x / (x + y) * 100 : 50}%`; fill.style.background = teamColour(p.team); track.append(fill);
-        bar.append(track, el('b', null, String(y)), el('small', 'season-muted', label));
+        bar.title = `${family(data, p.a)} ${x} · ${family(data, p.b)} ${y} weekends ahead in ${label}`;
+        bar.append(el('b', x > y ? 'is-better' : null, String(x)));
+        // The first driver's share in the team colour, the second's in the same colour, faint.
+        const track = el('span'); const left = el('i'), right = el('i');
+        left.style.width = `${x + y ? x / (x + y) * 100 : 50}%`; left.style.background = teamColour(p.team); right.style.background = teamColour(p.team);
+        track.append(left, right);
+        bar.append(track, el('b', y > x ? 'is-better' : null, String(y)));
         row.append(bar);
       }
       battles.append(row);
     }
     return [toolbar, hero, card(null, rows), h2hExtras(data, a, b, ca, cb), card('Weekend by weekend', weeks, el('p', 'season-footnote', 'Top dot qualifying, bottom dot race, in the colour of whoever finished ahead. A classified finish beats a retirement; two retirements count for neither. A ring marks a race decided by the other car failing, where the reported cause was mechanical.')),
-      card('Every teammate battle', battles)];
+      card('Every teammate battle', el('p', 'season-footnote', 'Weekends each driver finished ahead of their teammate. Numbers and bars follow the order of the names: the first driver on the left, the second on the right.'), battles)];
   }
   function h2hExtras(data, a, b, ca, cb) {
     const rounds = data.rounds.filter(r => r.race.length);

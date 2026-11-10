@@ -157,14 +157,15 @@ back. After a prune, compare screenshots (`audit-linear.mjs --shots`) before and
 ## 5. Measured state
 
 <!-- measured -->
-_Generated 2026-11-10T05:51 from 132 page renders (baseline 2026-11-10, 132 renders)._
+_Generated 2026-11-10T12:22 from 132 page renders (baseline 2026-11-10, 132 renders)._
 
 ### Competing component looks (distinct variants per family; target in brackets)
 
 | Family | Baseline | Now | Target |
 | --- | --- | --- | --- |
-| button | 70 | 55 | 7 |
-| card | 18 | 21 | 1 |
+| button | 70 | 48 | 7 |
+| button-role | 0 | 979 | 7 |
+| card | 18 | 15 | 1 |
 | heading | 36 | 27 | 4 |
 | table-header | 14 | 13 | 1 |
 
@@ -185,20 +186,20 @@ _Generated 2026-11-10T05:51 from 132 page renders (baseline 2026-11-10, 132 rend
 | Route | Rail | Header | Left edges | Block gaps (px×n) | Nested cards | Row heights (px×n) | Headings (tag:size) |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | session-empty | 244 | 52 | 1 | — | 0 | — | H2:24 |
-| session-loaded | 244 | 52 | 7 | 6×1 8×1 12×1 24×4 40×1 67×1 179×1 | 0 | 24×6 28×22 | H3:13 H3:13 H2:13 H2:24 H3:13 H2:24 H3:13 H2:13 H2:13 H2:13 H2:13 H2:13 |
-| session-lap-sheet | 244 | 52 | 7 | 6×1 8×1 12×1 24×4 40×1 67×1 179×1 | 0 | 24×6 28×22 | H3:14 H3:14 H3:13 H3:13 H2:13 H2:24 H3:13 H2:24 H3:13 H2:13 H2:13 H2:13 H2:13 H2:13 |
-| session-compute | 244 | 52 | 7 | 6×1 8×1 12×1 24×4 40×1 67×1 179×1 | 0 | 24×6 28×22 | H3:13 H3:13 H2:13 H2:24 H3:13 H2:24 H3:13 H2:13 H2:13 H2:13 H2:13 H2:13 |
-| session-explanations | 244 | 52 | 7 | 6×1 8×1 12×1 24×4 40×1 67×1 179×1 | 0 | 24×6 28×22 | H3:13 H3:13 H2:13 H2:24 H3:13 H2:24 H3:13 H2:13 H2:13 H2:13 H2:13 H2:13 |
-| cars-pace | 244 | 52 | 4 | 8×2 12×2 16×1 48×1 50×1 106×1 | 0 | 44×45 47×3 48×105 | H2:24 H4:13 H4:13 H2:13 H4:13 |
-| cars-corners | 244 | 52 | 5 | 16×1 28×1 36×3 42×1 66×2 120×1 172×1 375×1 415×1 455×1 539×1 | 0 | 44×366 48×27 | H2:24 H4:13 H4:13 H4:13 H4:13 H4:13 H4:13 H4:13 H4:13 H4:13 H2:13 H4:13 H4:13 |
-| cars-straight | 244 | 52 | 3 | 56×1 160×1 | 0 | 44×221 48×19 | H2:24 H4:13 H4:13 |
-| cars-braking | 244 | 52 | 3 | 16×1 120×1 | 0 | 44×33 | H2:24 H4:13 H4:13 |
-| cars-pits | 244 | 52 | 4 | 12×2 368×1 | 0 | 44×130 47×1 48×10 | H2:24 H4:13 H4:13 |
-| cars-tyres | 244 | 52 | 6 | 12×1 20×1 54×1 368×1 | 2 | 44×214 | H2:24 H4:13 H4:13 H4:13 |
-| cars-trend | 244 | 52 | 3 | 12×1 60×1 | 0 | 44×11 | H2:24 H4:13 H4:13 H2:13 |
-| cars-results | 244 | 52 | 3 | 26×1 78×1 | 0 | 36×11 44×10 47×1 48×10 | H2:24 H4:12 H2:13 |
-| cars-empty | 244 | 52 | 2 | — | 0 | — | H3:15 |
-| season-schedule | 244 | 52 | 5 | 8×19 41×1 | 1 | 24×120 28×6 | H1:24 H2:20 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 |
+| session-loaded | 244 | 52 | 6 | 6×1 8×1 12×1 24×4 40×1 67×1 85×1 179×1 | 0 | 24×6 28×22 | H3:13 H3:13 H2:13 H2:24 H3:13 H2:24 H3:13 H2:13 H2:13 H2:13 H2:13 H2:13 |
+| session-lap-sheet | 244 | 52 | 6 | 6×1 8×1 12×1 24×4 40×1 67×1 85×1 179×1 | 0 | 24×6 28×22 | H3:14 H3:14 H3:13 H3:13 H2:13 H2:24 H3:13 H2:24 H3:13 H2:13 H2:13 H2:13 H2:13 H2:13 |
+| session-compute | 244 | 52 | 6 | 6×1 8×1 12×1 24×4 40×1 67×1 85×1 179×1 | 0 | 24×6 28×22 | H3:13 H3:13 H2:13 H2:24 H3:13 H2:24 H3:13 H2:13 H2:13 H2:13 H2:13 H2:13 |
+| session-explanations | 244 | 52 | 6 | 6×1 8×1 12×1 24×4 40×1 67×1 85×1 179×1 | 0 | 24×6 28×22 | H3:13 H3:13 H2:13 H2:24 H3:13 H2:24 H3:13 H2:13 H2:13 H2:13 H2:13 H2:13 |
+| cars-pace | 244 | 52 | 2 | 8×2 12×1 16×1 50×1 52×2 79×1 125×1 | 0 | 44×45 47×3 48×105 | H2:24 H4:13 H4:13 H2:13 H4:13 |
+| cars-corners | 244 | 52 | 4 | 28×1 36×3 42×2 68×1 96×1 125×1 172×1 327×1 367×1 407×1 491×1 | 0 | 44×366 48×27 | H2:24 H4:13 H4:13 H4:13 H4:13 H4:13 H4:13 H4:13 H4:13 H4:13 H2:13 H4:13 H4:13 |
+| cars-straight | 244 | 52 | 2 | 32×1 125×1 136×1 | 0 | 44×221 48×19 | H2:24 H4:13 H4:13 |
+| cars-braking | 244 | 52 | 2 | 96×1 125×1 | 0 | 44×33 | H2:24 H4:13 H4:13 |
+| cars-pits | 244 | 52 | 2 | 12×3 125×1 332×1 | 0 | 44×130 47×1 48×10 | H2:24 H4:13 H4:13 |
+| cars-tyres | 244 | 52 | 5 | 12×1 20×1 52×1 125×1 332×1 | 1 | 44×214 | H2:24 H4:13 H4:13 H4:13 |
+| cars-trend | 244 | 52 | 2 | 12×1 24×1 125×1 | 0 | 44×11 | H2:24 H4:13 H4:13 H2:13 |
+| cars-results | 244 | 52 | 2 | 2×1 54×1 125×1 | 0 | 36×11 44×10 47×1 48×10 | H2:24 H4:12 H2:13 |
+| cars-empty | 244 | 52 | 1 | 33×1 | 0 | — | H3:15 |
+| season-schedule | 244 | 52 | 5 | 8×19 41×1 | 0 | 24×120 28×6 | H1:24 H2:20 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 |
 | season-results | 244 | 52 | 5 | 12×10 | 0 | 36×20 | H1:24 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 |
 | season-standings | 244 | 52 | 2 | 12×3 | 0 | 30×25 44×25 | H1:24 H3:13 H3:13 H3:13 H3:13 |
 | season-drivers | 244 | 52 | 2 | 12×6 | 0 | — | H1:24 H2:24 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 |
@@ -212,71 +213,1152 @@ _Generated 2026-11-10T05:51 from 132 page renders (baseline 2026-11-10, 132 rend
 | Family | Uses | Look | Example | Routes |
 | --- | --- | --- | --- | --- |
 | button | 1164 | h 28 \| r 8px \| bg rgba(0, 0, 0, 0) \| ring  \| font 500 13px | `.performance-tabs > #analysis-tab-performance` «Car performanceCars» | session-empty, session-loaded, session-lap-sheet |
-| button | 671 | h 28 \| r pill \| bg rgb(27, 28, 29) \| ring rgba(0,0,0,0) 0px 0px 0px 1px inset \| font 500 13px | `.overview-legend > .overview-slow-toggle` «Show slow laps» | session-loaded, session-lap-sheet, session-compute |
-| button | 617 | h 28 \| r pill \| bg rgba(0, 0, 0, 0) \| ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset \| font 500 13px | `.overview-legend > .overview-slow-toggle` «Show slow laps» | session-loaded, session-lap-sheet, session-compute |
+| button | 913 | h 28 \| r pill \| bg rgb(27, 28, 29) \| ring rgba(0,0,0,0) 0px 0px 0px 1px inset \| font 500 12px | `.dashboard-card > #lapWorkspaceToggle` «Choose laps» | session-empty, session-loaded, session-lap-sheet |
+| button | 835 | h 28 \| r pill \| bg rgba(0, 0, 0, 0) \| ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset \| font 500 12px | `.dashboard-card > #lapWorkspaceToggle` «Choose laps» | session-empty, session-loaded, session-lap-sheet |
 | button | 462 | h 28 \| r pill \| bg rgba(0, 0, 0, 0) \| ring  \| font 450 13px | `.toolbar-leading > #windowSidebarToggle` «» | session-empty, session-loaded, session-lap-sheet |
 | button | 276 | h 28 \| r 8px \| bg rgb(27, 28, 29) \| ring  \| font 500 12px | `.corner-picker > .corner-pick` «T1LEC» | session-loaded, session-lap-sheet, session-compute |
 | button | 276 | h 28 \| r 8px \| bg rgb(244, 242, 244) \| ring  \| font 500 12px | `.corner-picker > .corner-pick` «T1LEC» | session-loaded, session-lap-sheet, session-compute |
-| button | 240 | h 24 \| r pill \| bg rgba(0, 0, 0, 0) \| ring  \| font 450 12px | `.loaded-lap-pill > .loaded-lap-main` «VERL111:35.130» | session-loaded, session-lap-sheet, session-compute |
-| button | 231 | h 28 \| r pill \| bg rgb(27, 28, 29) \| ring rgba(0,0,0,0) 0px 0px 0px 1px inset \| font 500 12px | `.map-view-switch > button` «Guide» | session-loaded, session-lap-sheet, session-compute |
-| button | 207 | h 28 \| r pill \| bg rgba(0, 0, 0, 0) \| ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset \| font 500 12px | `.map-view-switch > button` «Guide» | session-loaded, session-lap-sheet, session-compute |
-| button | 195 | h 24 \| r pill \| bg rgb(27, 28, 29) \| ring rgba(0,0,0,0) 0px 0px 0px 1px inset \| font 500 12px | `.track-selection-title > #performanceTrackToggle` «Change» | cars-pace, cars-corners, cars-straight |
-| button | 195 | h 24 \| r pill \| bg rgba(0, 0, 0, 0) \| ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset \| font 500 12px | `.track-selection-title > #performanceTrackToggle` «Change» | cars-pace, cars-corners, cars-straight |
+| button | 192 | h 24 \| r pill \| bg rgba(0, 0, 0, 0) \| ring  \| font 500 12px | `.trace-tools > button` «» | session-loaded, session-lap-sheet, session-compute |
 | button | 186 | h 24 \| r 8px \| bg rgba(0, 0, 0, 0) \| ring  \| font 450 12px | `th > .perf-sort-btn` «Team» | cars-pace, cars-pits, cars-tyres |
 | button | 144 | h 26 \| r 0px \| bg rgba(0, 0, 0, 0) \| ring  \| font 500 13px | `.select-shell > .select-trigger` «2026» | session-empty, session-loaded, session-lap-sheet |
 | button | 140 | h 24 \| r 8px \| bg rgba(0, 0, 0, 0) \| ring  \| font 500 12px | `.linear-rail-section > .linear-nav-heading` «Analysis» | session-empty, session-loaded, session-lap-sheet |
-| button | 134 | h 28 \| r pill \| bg rgba(0, 0, 0, 0) \| ring  \| font 500 13px | `.linear-workspace-top > .linear-search` «» | session-empty, session-loaded, session-lap-sheet |
+| button | 126 | h 28 \| r pill \| bg rgba(0, 0, 0, 0) \| ring  \| font 500 13px | `.linear-workspace-top > .linear-search` «» | session-empty, session-loaded, session-lap-sheet |
 | button | 120 | h 28 \| r 8px \| bg rgb(35, 35, 37) \| ring  \| font 500 13px | `.performance-tabs > #analysis-tab-session` «Session analysisSess» | session-empty, session-loaded, session-lap-sheet |
+| button | 120 | h 28 \| r pill \| bg rgb(41, 41, 43) \| ring rgba(0,0,0,0) 0px 0px 0px 1px inset \| font 500 12px | `.map-view-switch > button` «Lap comparison» | session-loaded, session-lap-sheet, session-compute |
 | button | 120 | h 28 \| r 8px \| bg rgb(238, 237, 239) \| ring  \| font 500 13px | `.performance-tabs > #analysis-tab-session` «Session analysisSess» | session-empty, session-loaded, session-lap-sheet |
-| button | 118 | h 28 \| r pill \| bg rgb(41, 41, 43) \| ring rgba(0,0,0,0) 0px 0px 0px 1px inset \| font 500 12px | `.map-view-switch > button` «Lap comparison» | session-loaded, session-lap-sheet, session-compute |
-| button | 100 | h 28 \| r pill \| bg rgb(255, 255, 255) \| ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset \| font 500 12px | `.map-view-switch > button` «Lap comparison» | session-loaded, session-lap-sheet, session-compute |
+| button | 102 | h 28 \| r pill \| bg rgb(255, 255, 255) \| ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset \| font 500 12px | `.map-view-switch > button` «Lap comparison» | session-loaded, session-lap-sheet, session-compute |
+| button | 96 | h 24 \| r pill \| bg rgb(27, 28, 29) \| ring rgba(0,0,0,0) 0px 0px 0px 1px inset \| font 500 12px | `.track-selection-title > #performanceTrackToggle` «Change» | cars-pace, cars-corners, cars-straight |
+| button | 96 | h 24 \| r pill \| bg rgba(0, 0, 0, 0) \| ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset \| font 500 12px | `.track-selection-title > #performanceTrackToggle` «Change» | cars-pace, cars-corners, cars-straight |
 | button | 54 | h 22 \| r pill \| bg rgba(0, 0, 0, 0) \| ring  \| font 500 12px | `.performance-scope-toggle > button` «Season to date» | cars-pace, cars-corners, cars-straight |
 | button | 48 | h 28 \| r pill \| bg rgb(94, 105, 209) \| ring  \| font 500 12px | `.dashboard-card > #loadSession` «Load session» | session-empty, session-loaded, session-lap-sheet |
+| button | 48 | h 24 \| r pill \| bg rgba(0, 0, 0, 0) \| ring  \| font 450 12px | `.loaded-lap-pill > .loaded-lap-main` «VERL111:35.130» | session-loaded, session-lap-sheet, session-compute |
 | button | 48 | h 20 \| r pill \| bg rgba(0, 0, 0, 0) \| ring  \| font 450 14px | `.loaded-lap-pill > .remove` «» | session-loaded, session-lap-sheet, session-compute |
-| button | 48 | h 28 \| r 8px \| bg rgb(27, 28, 29) \| ring rgba(255,255,255,0.08) 0px 0px 0px 1px inset \| font 500 13px | `.select-shell > .select-trigger` «Alpine» | cars-tyres, season-schedule, season-results |
+| button | 48 | h 28 \| r 8px \| bg rgb(27, 28, 29) \| ring rgba(0,0,0,0) 0px 0px 0px 1px inset \| font 500 13px | `.select-shell > .select-trigger` «Alpine» | cars-tyres, season-schedule, season-results |
 | button | 48 | h 28 \| r pill \| bg rgb(101, 99, 241) \| ring  \| font 500 12px | `.dashboard-card > #loadSession` «Load session» | session-empty, session-loaded, session-lap-sheet |
-| button | 42 | h 28 \| r 8px \| bg rgb(244, 242, 244) \| ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset \| font 500 13px | `.select-shell > .select-trigger` «Alpine» | cars-tyres, season-schedule, season-results |
-| button | 30 | h 28 \| r pill \| bg rgba(0, 0, 0, 0) \| ring  \| font 450 12px | `.trace-tools > button` «» | ui-catalog |
+| button | 42 | h 28 \| r 8px \| bg rgba(0, 0, 0, 0) \| ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset \| font 500 13px | `.select-shell > .select-trigger` «Alpine» | cars-tyres, season-schedule, season-results |
+| button | 30 | h 38 \| r 8px \| bg rgba(0, 0, 0, 0) \| ring  \| font 500 12px | `.season-battles > .season-battle` «Alpine43COLvs10GAS51» | season-h2h |
+| button | 30 | h 28 \| r pill \| bg rgba(0, 0, 0, 0) \| ring  \| font 500 12px | `.trace-tools > button` «» | ui-catalog |
 | button | 27 | h 22 \| r pill \| bg rgb(41, 41, 43) \| ring rgba(0,0,0,0) 0px 0px 0px 1px inset \| font 500 12px | `.performance-scope-toggle > button` «Tracks» | cars-pace, cars-corners, cars-straight |
 | button | 27 | h 22 \| r pill \| bg rgb(255, 255, 255) \| ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset \| font 500 12px | `.performance-scope-toggle > button` «Tracks» | cars-pace, cars-corners, cars-straight |
-| button | 24 | h 26 \| r 6px \| bg rgba(0, 0, 0, 0) \| ring  \| font 500 13px | `.run-segments > .stint` «Q2softS1 run›» | session-lap-sheet |
+| button | 24 | h 28 \| r 8px \| bg rgba(0, 0, 0, 0) \| ring  \| font 500 12px | `.run-segments > .stint` «Q2softS1 run›» | session-lap-sheet |
 | button | 18 | h 32 \| r 8px \| bg rgba(0, 0, 0, 0) \| ring  \| font 500 13px | `.category-bar > #catalog-category-tab-0` «Pace» | ui-catalog |
 | button | 18 | h 28 \| r 6px \| bg rgba(0, 0, 0, 0) \| ring  \| font 450 13px | `#catalogMenu > button` «Qualifying» | ui-catalog |
 | button | 18 | h 24 \| r pill \| bg rgb(27, 28, 29) \| ring rgba(40,40,43) 0px 0px 0px 1px inset \| font 450 12px | `.performance-track-pills > .track-pill` «R9British Grand Prix» | ui-catalog |
-| button | 15 | h 38 \| r 6px \| bg rgba(0, 0, 0, 0) \| ring oklch(0.999994 0.0000497986 none / 0.09) 0px -1px 0px 0px inset \| font 500 13px | `.season-battles > .season-battle` «Alpine43COLvs10GAS51» | season-h2h |
-| button | 15 | h 38 \| r 6px \| bg rgba(0, 0, 0, 0) \| ring oklch(0.285448 0.011323 none / 0.09) 0px -1px 0px 0px inset \| font 500 13px | `.season-battles > .season-battle` «Alpine43COLvs10GAS51» | season-h2h |
 | button | 12 | h 44 \| r 8px \| bg rgb(27, 28, 29) \| ring rgba(255,255,255,0.05) 0px 0px 0px 1px inset \| font 450 13px | `.lap-grid > .lap` «L1OUT—softSRun 1 · L» | session-lap-sheet |
 | button | 12 | h 24 \| r pill \| bg rgba(255, 255, 255, 0.08) \| ring rgba(40,40,43) 0px 0px 0px 1px inset \| font 450 12px | `.performance-track-pills > .track-pill` «R17Singapore Grand P» | ui-catalog |
 | button | 12 | h 26 \| r 6px \| bg rgba(0, 0, 0, 0) \| ring  \| font 450 13px | `.run-segments > .run-segment` «Q2» | ui-catalog |
 | button | 12 | h 44 \| r 8px \| bg rgb(27, 28, 29) \| ring  \| font 450 13px | `.lap-grid > .lap-chip` «L7 OUTVSC~2:04.020MR» | ui-catalog |
 | button | 12 | h 28 \| r pill \| bg rgba(0, 0, 0, 0) \| ring  \| font 450 14px | `.loaded-lap-pill > .remove` «» | ui-catalog |
 | button | 12 | h 44 \| r 8px \| bg rgb(244, 242, 244) \| ring rgba(0,0,0,0.05) 0px 0px 0px 1px inset \| font 450 13px | `.lap-grid > .lap` «L1OUT—softSRun 1 · L» | session-lap-sheet |
-| button | 8 | h 28 \| r pill \| bg rgb(27, 28, 29) \| ring  \| font 500 13px | `.dashboard-card > #lapWorkspaceToggle` «Choose laps» | session-empty, session-loaded, session-compute |
 | button | 8 | h 28 \| r 8px \| bg rgba(255, 255, 255, 0.08) \| ring  \| font 500 13px | `#driverPills > .driver-pill` «1RMax VerstappenVER» | ui-catalog, session-lap-sheet |
-| button | 6 | h 26 \| r 6px \| bg rgba(255, 255, 255, 0.08) \| ring  \| font 500 13px | `.run-segments > .stint` «Q1softS1 run✓» | session-lap-sheet |
+| button | 6 | h 28 \| r 8px \| bg rgb(41, 41, 43) \| ring  \| font 500 12px | `.run-segments > .stint` «Q1softS1 run✓» | session-lap-sheet |
 | button | 6 | h 28 \| r 8px \| bg rgb(94, 105, 209) \| ring  \| font 600 13px | `.ui-catalog-row > button` «Analyse» | ui-catalog |
 | button | 6 | h 26 \| r 6px \| bg rgba(255, 255, 255, 0.08) \| ring  \| font 600 13px | `.run-segments > .run-segment` «Q1» | ui-catalog |
 | button | 6 | h 44 \| r 8px \| bg rgb(94, 105, 209) \| ring  \| font 450 13px | `.lap-grid > .lap-chip` «L6 INSC2:00.434SRun » | ui-catalog |
 | button | 6 | h 28 \| r 8px \| bg rgba(0, 0, 0, 0) \| ring  \| font 450 12px | `.loaded-lap-pill > .loaded-lap-main` «VER 1:31.373» | ui-catalog |
 | button | 6 | h 42 \| r 8px \| bg rgb(27, 28, 29) \| ring rgba(255,255,255,0.05) 0px 0px 0px 1px inset \| font 450 13px | `.lap-grid > .lap` «L1OUT—softSRun 1 · L» | session-lap-sheet |
-| button | 6 | h 26 \| r 6px \| bg rgb(255, 255, 255) \| ring  \| font 500 13px | `.run-segments > .stint` «Q1softS1 run✓» | session-lap-sheet |
+| button | 6 | h 28 \| r 8px \| bg rgb(255, 255, 255) \| ring  \| font 500 12px | `.run-segments > .stint` «Q1softS1 run✓» | session-lap-sheet |
 | button | 6 | h 42 \| r 8px \| bg rgb(244, 242, 244) \| ring rgba(0,0,0,0.05) 0px 0px 0px 1px inset \| font 450 13px | `.lap-grid > .lap` «L1OUT—softSRun 1 · L» | session-lap-sheet |
-| button | 3 | h 28 \| r pill \| bg rgb(27, 28, 29) \| ring  \| font 500 12px | `.compute-actions > button` «Use this PC» | session-compute |
-| button | 3 | h 28 \| r pill \| bg rgba(0, 0, 0, 0) \| ring  \| font 500 12px | `.compute-actions > button` «Use this PC» | session-compute |
-| button | 2 | h 28 \| r pill \| bg rgb(41, 41, 43) \| ring  \| font 500 13px | `.dashboard-card > #lapWorkspaceToggle` «Choose laps» | session-lap-sheet |
-| button | 2 | h 28 \| r pill \| bg rgb(255, 255, 255) \| ring  \| font 500 13px | `.dashboard-card > #lapWorkspaceToggle` «Choose laps» | session-lap-sheet |
 | button | 2 | h 28 \| r 8px \| bg rgba(0, 0, 0, 0.05) \| ring  \| font 500 13px | `#driverPills > .driver-pill` «1Max VerstappenVER» | session-lap-sheet |
-| card | 553 | bg rgb(25, 26, 27) \| ring rgba(34,35,36) 0px 0px 0px 1px inset, rgba(0,0,0,0.3) 0px 0.5px 1px 1p \| r 10px | `#cornerWorkspace > #cornerPickerRow` «CornersChoose one or» | session-loaded, session-lap-sheet, session-compute |
-| card | 457 | bg rgb(255, 255, 255) \| ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset, rgba(0,0,0,0.05) 0px 0.5px 1px \| r 10px | `#cornerWorkspace > #cornerPickerRow` «CornersChoose one or» | session-loaded, session-lap-sheet, session-compute |
-| card | 23 | bg rgb(25, 26, 27) \| ring rgba(34,35,36) 0px 0px 0px 1px inset \| r 8px | `#timeSummary > .time-summary-card` «LEC L11 vs VER L11Co» | session-loaded, session-lap-sheet, session-compute |
-| card | 23 | bg rgb(255, 255, 255) \| ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset \| r 8px | `#timeSummary > .time-summary-card` «LEC L11 vs VER L11Co» | session-loaded, session-lap-sheet, session-compute |
-| card | 12 | bg rgba(0, 0, 0, 0) \| ring rgba(34,35,36) 0px 0px 0px 1px inset \| r 8px | `#cornerMetricGrid > .corner-selection-empty` «Compare a sectionSel» | session-loaded, session-lap-sheet, session-compute |
-| card | 12 | bg rgba(0, 0, 0, 0) \| ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset \| r 8px | `#cornerMetricGrid > .corner-selection-empty` «Compare a sectionSel» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 46348 | h 44 \| r 0px \| font 500 13px | `tr > td` «Audi» | cars-pace, cars-corners, cars-straight |
+| button-role | 14250 | h 18 \| r 0px \| font 500 13px | `header > h3` «Corners» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 9226 | h 17 \| r 0px \| font 500 12px | `#telemetryEmpty > span` «Ready when you are» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 9108 | h 20 \| r 0px \| font 450 13px | `.performance-bar-row > .performance-bar-label` «Red Bull Racing» | cars-pace, cars-corners, cars-straight |
+| button-role | 8178 | h 20 \| r 4px \| font 600 8px | `span > .team-logo` «» | cars-pace, cars-corners, cars-straight |
+| button-role | 6834 | h 48 \| r 0px \| font 500 13px | `tr > td` «Red Bull Racing» | cars-pace, cars-corners, cars-straight |
+| button-role | 5726 | h 44 \| r 0px \| font 450 14px | `tbody > tr` «AudiBahrain Grand Pr» | cars-pace, cars-corners, cars-straight |
+| button-role | 4960 | h 12 \| r 0px \| font 500 12px | `#lapWorkspaceToggle > span` «Choose laps» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 4954 | h 15 \| r 0px \| font 450 11px | `header > span` «Choose one or more» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 3348 | h 18 \| r 0px \| font 450 12px | `.season-bars > .season-bar-row` «Aston Martin21» | season-results, season-upgrades |
+| button-role | 3000 | h 18 \| r 4px \| font 600 8px | `.season-who > .team-logo` «» | season-results, season-drivers, season-h2h |
+| button-role | 2982 | h 30 \| r 6px \| font 600 12px | `tr > .num` «2» | season-standings, season-upgrades, season-units |
+| button-role | 2752 | h 18 \| r 0px \| font 500 12px | `.overview-tile > span` «VER» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 2702 | h 36 \| r 0px \| font 450 12px | `tbody > .season-row-expand` «1Australian Grand Pr» | season-results, season-upgrades, season-units |
+| button-role | 2610 | h 20 \| r pill \| font 500 11px | `summary > .season-chip` «Performance» | season-upgrades |
+| button-role | 2256 | h 30 \| r 0px \| font 450 12px | `tbody > tr` «12ANT215116131163151» | season-standings, season-upgrades, season-units |
+| button-role | 2136 | h 22 \| r 0px \| font 450 12px | `.season-bars > .season-bar-row` «12Antonelli9 +1» | season-results, season-standings, season-units |
+| button-role | 2108 | h 32 \| r 0px \| font 450 12px | `tr > th` «Trace» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 2096 | h 28 \| r pill \| font 500 12px | `.dashboard-card > #lapWorkspaceToggle` «Choose laps» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 1960 | h 38 \| r 0px \| font 450 13px | `.summary-sectors > .sector-cell` «S124.609s» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 1862 | h 38 \| r 8px \| font 500 12px | `.season-battles > .season-battle` «Alpine43COLvs10GAS51» | season-h2h, season-upgrades |
+| button-role | 1842 | h 18 \| r 0px \| font 450 13px | `.circuit-section-group > header` «CornersChoose one or» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 1838 | h 49 \| r 0px \| font 500 13px | `tr > td` «McLaren» | cars-pace, cars-corners, cars-straight |
+| button-role | 1590 | h 15 \| r 0px \| font 500 12px | `span > b` «2» | session-lap-sheet, cars-trend, season-schedule |
+| button-role | 1552 | h 28 \| r 8px \| font 500 13px | `.performance-tabs > #analysis-tab-session` «Session analysisSess» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 1536 | h 8 \| r 2px \| font 450 13px | `.performance-bar-row > .performance-bar-track` «» | cars-pace, cars-corners, cars-straight |
+| button-role | 1240 | h 15 \| r 0px \| font 450 12px | `footer > .design-system-link` «UI components» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 1200 | h 15 \| r 0px \| font 600 12px | `.num > span` «2» | season-standings |
+| button-role | 1128 | h 13 \| r 0px \| font 500 13px | `#analysis-tab-session > .view-label` «Session analysis» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 1020 | h 22 \| r pill \| font 450 12px | `.season-who > .season-avatar` «12» | season-results, season-standings, season-units |
+| button-role | 1014 | h 14 \| r 0px \| font 500 12px | `.driver-pill > .driver-pill-position` «1» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 1006 | h 17 \| r 0px \| font 450 12px | `.overview-chart > .overview-note` «The drivers chosen i» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 954 | h 30 \| r 6px \| font 500 12px | `tr > .num` «16» | season-standings |
+| button-role | 924 | h 36 \| r 8px \| font 600 12px | `tr > .num` «6» | season-units |
+| button-role | 866 | h 16 \| r 0px \| font 500 13px | `.driver-pill > .driver-pill-identity` «Max Verstappen» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 856 | h 48 \| r 0px \| font 450 14px | `tbody > tr` «Red Bull Racing0.000» | cars-pace, cars-corners, cars-straight |
+| button-role | 760 | h 26 \| r 6px \| font 450 13px | `.performance-bars > .performance-bar-row` «Red Bull Racing0.00%» | cars-pace, cars-corners, cars-straight |
+| button-role | 758 | h 28 \| r 0px \| font 450 13px | `#linearWorkspace > .linear-workspace-top` «Apex Data» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 750 | h 44 \| r 0px \| font 450 12px | `tbody > tr` «112Andrea Kimi Anton» | season-standings |
+| button-role | 720 | h 24 \| r 6px \| font 450 13px | `.season-round-rows > div` «P163RUS» | season-schedule |
+| button-role | 660 | h 28 \| r pill \| font 450 13px | `.toolbar-leading > #windowSidebarToggle` «» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 636 | h 15 \| r 0px \| font 450 13px | `#explanationsToggle > i` «» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 636 | h 18 \| r pill \| font 450 13px | `dd > .season-avatar` «63» | season-schedule |
+| button-role | 624 | h 15 \| r 0px \| font 500 11px | `#dominanceLegend > .legend-item` «VER L11» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 616 | h 68 \| r 0px \| font 500 13px | `tr > td` «Bahrain Grand Prix» | cars-corners, cars-straight, cars-braking |
+| button-role | 588 | h 28 \| r 8px \| font 500 12px | `.corner-picker > .corner-pick` «T1LEC» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 566 | h 30 \| r 0px \| font 450 13px | `.dominance-map > .map-view-row` «Guide
+              » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 558 | h 22 \| r 0px \| font 500 11px | `th > .season-who` «12ANT» | season-standings, season-units |
+| button-role | 540 | h 63 \| r 0px \| font 450 13px | `.season-numbers > div` «Grands Prix20/233 to» | season-results, season-upgrades |
+| button-role | 534 | h 44 \| r 0px \| font 500 12px | `tr > .profile-rank` «7» | cars-pace, season-standings |
+| button-role | 520 | h 18 \| r pill \| font 600 8px | `.driver-pill > .team-logo` «» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 520 | h 63 \| r 8px \| font 500 12px | `.season-update > summary` «McLarenFront wingPer» | season-upgrades |
+| button-role | 508 | h 8 \| r 2px \| font 450 12px | `.performance-bar-row > .performance-bar-track` «» | cars-pace, cars-corners, cars-straight |
+| button-role | 492 | h 22 \| r 0px \| font 500 12px | `li > b` «12.092 s» | season-results, season-h2h |
+| button-role | 486 | h 30 \| r 6px \| font 600 11px | `tr > .num` «DNF» | season-standings |
+| button-role | 486 | h 14 \| r 0px \| font 600 11px | `.num > span` «DNF» | season-standings |
+| button-role | 456 | h 20 \| r 0px \| font 500 13px | `.select-trigger > span` «2026» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 450 | h 17 \| r 0px \| font 500 13px | `#category-tab-pace > .category-label` «Pace» | cars-pace, cars-corners, cars-straight |
+| button-role | 446 | h 54 \| r 0px \| font 450 12px | `.season-update > p` «The 2026 floor archi» | season-upgrades |
+| button-role | 444 | h 11 \| r 0px \| font 500 11px | `.performance-bar-val > .performance-bar-seconds` «0.16 s» | cars-pace, season-schedule, season-drivers |
+| button-role | 432 | h 24 \| r pill \| font 500 12px | `.overview-legend > span` «VER» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 408 | h 12 \| r 0px \| font 450 12px | `#dominanceTitle > small` «25 m segments» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 400 | h 36 \| r 0px \| font 500 13px | `tr > td` «Ferrari» | cars-results, cars-tyres |
+| button-role | 372 | h 32 \| r 0px \| font 450 14px | `.performance-table > thead` «TraceSpeed (km/h)Del» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 360 | h 13 \| r 0px \| font 450 13px | `.toolbar-leading > .window-title` «Compare lapsSession » | session-empty, session-loaded, session-lap-sheet |
+| button-role | 342 | h 8 \| r 0px \| font 450 12px | `.season-bar > i` «» | season-results, season-standings, season-upgrades |
+| button-role | 342 | h 30 \| r 0px \| font 500 11px | `tr > th` «12ANT» | season-standings, season-upgrades, season-units |
+| button-role | 338 | h 72 \| r 0px \| font 450 12px | `.season-update > p` «The aerodynamic chan» | season-upgrades |
+| button-role | 330 | h 49 \| r 0px \| font 450 14px | `tbody > tr` «McLarenBahrain Grand» | cars-pace, cars-corners, cars-straight |
+| button-role | 322 | h 8 \| r pill \| font 450 12px | `.season-bar-row > .season-bar` «» | season-results, season-standings, season-upgrades |
+| button-role | 294 | h 44 \| r 0px \| font 600 12px | `tr > .profile-rank` «1» | cars-pace, season-standings |
+| button-role | 288 | h 22 \| r pill \| font 500 12px | `.performance-scope-toggle > button` «Season to date» | cars-pace, cars-corners, cars-straight |
+| button-role | 288 | h 12 \| r 0px \| font 600 10px | `.num > sup` «5» | season-standings |
+| button-role | 284 | h 14 \| r 0px \| font 450 10px | `.season-dist-col > small` «1» | season-drivers, season-h2h, session-loaded |
+| button-role | 282 | h 30 \| r 8px \| font 500 13px | `.chart-heading > .trace-display-menu` «DisplayCorner number» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 282 | h 22 \| r pill \| font 500 11px | `.season-who > .season-avatar` «12» | season-standings, season-units |
+| button-role | 280 | h 86 \| r 0px \| font 500 13px | `tr > td` «United States Grand » | cars-corners, cars-straight, cars-braking |
+| button-role | 276 | h 13 \| r 0px \| font 600 13px | `.linear-workspace-brand > strong` «Apex Data» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 270 | h 64 \| r 8px \| font 500 12px | `.season-battles > .season-battle` «Alpine43COLvs10GAS51» | season-h2h, season-upgrades |
+| button-role | 264 | h 30 \| r 8px \| font 450 13px | `.skip-link` «Skip to analysis» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 264 | h 24 \| r 6px \| font 500 12px | `ol > li` «T2+0.125 s» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 264 | h 21 \| r 0px \| font 450 12px | `.performance-tyre-age-row > .performance-tyre-age-name` «Audi» | cars-tyres, cars-trend |
+| button-role | 264 | h 84 \| r 0px \| font 500 13px | `tr > td` «McLaren» | cars-pace |
+| button-role | 258 | h 64 \| r 0px \| font 450 13px | `#lapSelectionBody > .linear-lap-header` «Comparison laps
+    » | session-lap-sheet, cars-pace, cars-corners |
+| button-role | 252 | h 13 \| r 2px \| font 450 12px | `.num > .season-flag` «» | season-standings, season-units, ui-catalog |
+| button-role | 246 | h 34 \| r 0px \| font 450 12px | `.corner-selection-empty > span` «Select corners or st» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 242 | h 26 \| r 6px \| font 450 12px | `.performance-bars > .performance-bar-row` «Red Bull Racing0.00%» | cars-pace, cars-corners, cars-straight |
+| button-role | 240 | h 10 \| r pill \| font 450 13px | `div > i` «» | season-h2h |
+| button-role | 228 | h 2 \| r pill \| font 450 14px | `.select-shell > #year` «20262025202420232022» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 222 | h 47 \| r 0px \| font 500 13px | `tr > td` «Cadillac» | cars-pace, cars-pits, cars-results |
+| button-role | 192 | h 16 \| r 0px \| font 600 13px | `td > .trend-change` «-0.502%» | cars-trend, cars-results |
+| button-role | 186 | h 24 \| r 8px \| font 450 12px | `th > .perf-sort-btn` «Team» | cars-pace, cars-pits, cars-tyres |
+| button-role | 186 | h 6 \| r pill \| font 450 13px | `.season-h2h-split > i` «» | season-h2h |
+| button-role | 180 | h 37 \| r 0px \| font 450 13px | `.season-round-title > div` «Australian Grand Pri» | season-schedule, season-h2h |
+| button-role | 180 | h 6 \| r pill \| font 500 12px | `.season-battle-bar > span` «» | season-h2h |
+| button-role | 176 | h 18 \| r 0px \| font 600 13px | `#timeSummary > h3` «Where the time went» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 176 | h 68 \| r 0px \| font 450 14px | `tbody > tr` «Bahrain Grand PrixMc» | cars-corners, cars-straight, cars-braking |
+| button-role | 174 | h 6 \| r 0px \| font 500 12px | `span > i` «» | season-h2h |
+| button-role | 172 | h 52 \| r 0px \| font 450 13px | `#top > #sessionSidebar` «Session
+          
+ » | session-empty, session-loaded, session-lap-sheet |
+| button-role | 168 | h 24 \| r 0px \| font 500 20px | `.overview-tile > b` «1:35.130» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 162 | h 18 \| r 4px \| font 600 11px | `.track-selection-title > #performanceTrackCount` «3 selected» | cars-pace, cars-corners, cars-straight |
+| button-role | 156 | h 32 \| r 0px \| font 450 13px | `#telemetryCard > .section-heading` «Lap telemetry
+      » | session-empty, session-loaded, session-lap-sheet |
+| button-role | 150 | h 32 \| r 0px \| font 600 24px | `.analysis-heading-main > h2` «Lap telemetry» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 150 | h 16 \| r 4px \| font 400 13px | `.trace-setting > #cornerToggle` «» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 150 | h 44 \| r 0px \| font 450 11px | `tr > .season-move` «» | season-standings |
+| button-role | 150 | h 30 \| r 0px \| font 600 12px | `tr > .num` «390» | season-standings |
+| button-role | 148 | h 26 \| r 0px \| font 450 13px | `.dashboard-card > #driverPills` «Load a session to se» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 144 | h 26 \| r 0px \| font 500 13px | `.select-shell > .select-trigger` «2026» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 144 | h 14 \| r 0px \| font 600 12px | `.loaded-lap-main > span` «L11» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 144 | h 130 \| r 0px \| font 450 13px | `.season-dist > .season-dist-col` «91» | season-drivers, session-empty, session-loaded |
+| button-role | 140 | h 24 \| r 8px \| font 500 12px | `.linear-rail-section > .linear-nav-heading` «Analysis» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 138 | h 6 \| r pill \| font 450 12px | `.season-progress-track > i` «» | season-schedule |
+| button-role | 138 | h 12 \| r 2px \| font 450 13px | `.season-round-head > .season-flag` «» | season-schedule |
+| button-role | 138 | h 56 \| r 0px \| font 450 13px | `.season-round > .season-round-title` «Australian Grand Pri» | season-schedule, session-lap-sheet |
+| button-role | 138 | h 30 \| r 0px \| font 500 12px | `tr > .num` «8» | season-units, session-lap-sheet |
+| button-role | 136 | h 112 \| r 0px \| font 450 13px | `.season-dist-col > .season-dist-stack` «9» | season-drivers, session-empty, ui-catalog |
+| button-role | 134 | h 88 \| r 0px \| font 450 13px | `.linear-rail-section > #linearSection-analysis` «Session analysisSess» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 132 | h 36 \| r 0px \| font 600 12px | `tr > .num` «45» | season-units |
+| button-role | 126 | h 18 \| r 5px \| font 450 13px | `.linear-workspace-brand > img` «» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 126 | h 28 \| r pill \| font 500 13px | `.linear-workspace-top > .linear-search` «» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 126 | h 34 \| r 10px \| font 450 13px | `.site-header > .workspace-tools` «Compute
+        Show» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 126 | h 20 \| r pill \| font 500 13px | `#appToast` «» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 126 | h 150 \| r 0px \| font 450 13px | `.season-round > .season-round-rows` «P163RUSP212ANTP316LE» | season-schedule, season-drivers |
+| button-role | 126 | h 60 \| r 0px \| font 450 13px | `#linearWorkspace > .linear-rail-section` «Analysis
+        Ses» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 122 | h 28 \| r 0px \| font 500 20px | `div > b` «20/23» | season-results, season-drivers, season-upgrades |
+| button-role | 120 | h 304 \| r 10px \| font 450 13px | `.season-rounds > .season-round` «R1DoneAustralian Gra» | season-schedule, season-results |
+| button-role | 120 | h 12 \| r 0px \| font 600 12px | `dd > b` «RUS» | season-schedule |
+| button-role | 120 | h 15 \| r 2px \| font 450 12px | `.season-gp > .season-flag` «» | season-results |
+| button-role | 120 | h 59 \| r 6px \| font 450 13px | `.season-strip > .season-strip-cell` «AUS2» | season-drivers |
+| button-role | 120 | h 9 \| r 2px \| font 500 11px | `small > .season-flag` «» | season-drivers |
+| button-role | 120 | h 9 \| r 0px \| font 500 9px | `.season-strip-cell > .season-strip-status` «» | season-drivers |
+| button-role | 120 | h 54 \| r 6px \| font 450 13px | `.season-h2h-weeks > div` «AUS» | season-h2h |
+| button-role | 120 | h 27 \| r 0px \| font 600 11px | `.season-update-group > h4` «Brazilian Grand Prix» | season-upgrades |
+| button-role | 108 | h 17 \| r 0px \| font 600 15px | `.season-strip-cell > b` «2» | season-drivers |
+| button-role | 106 | h 26 \| r 0px \| font 450 12px | `#driverPills > .section-empty` «Load a session to se» | session-empty, season-units |
+| button-role | 102 | h 13 \| r 0px \| font 450 11px | `.tire-option > .tire-copy` «Hard · C2» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 102 | h 16 \| r 0px \| font 450 12px | `span > em` «sum of best sectors» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 102 | h 22 \| r pill \| font 450 13px | `.control-field > .performance-scope-toggle` «Season to date
+     » | cars-pace, cars-corners, cars-straight |
+| button-role | 96 | h 111 \| r 8px \| font 450 13px | `.overview-readout > .overview-tile` «Fastest lap1:35.130V» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 96 | h 22 \| r 0px \| font 450 13px | `div > .season-who` «12Antonelli» | season-results |
+| button-role | 96 | h 2 \| r pill \| font 450 13px | `.season-dist-stack > i` «» | season-drivers |
+| button-role | 96 | h 6 \| r 0px \| font 450 13px | `.season-h2h-row > .season-h2h-split` «» | season-h2h |
+| button-role | 92 | h 58 \| r 0px \| font 450 13px | `.linear-navigation > .performance-tabs` «Session analysisSess» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 90 | h 17 \| r 0px \| font 600 12px | `#dominanceLegend > .map-north` «N» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 90 | h 14 \| r 0px \| font 500 11px | `div > small` «Loses most» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 90 | h 640 \| r 10px \| font 450 13px | `.dashboard-card > .performance-table-wrap` «Measurement evidence» | cars-pace, cars-corners, cars-straight |
+| button-role | 88 | h 20 \| r 0px \| font 450 14px | `.chart-sample-controls > label` «Lap distance» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 88 | h 90 \| r 0px \| font 450 12px | `.season-update > p` «The 2026 floor archi» | season-upgrades |
+| button-role | 86 | h 1000 \| r 0px \| font 450 13px | `#linearWorkspace` «Apex DataAnalysis
+  » | session-empty, session-loaded, session-lap-sheet |
+| button-role | 86 | h 24 \| r 0px \| font 450 13px | `.comparison-tray > #loadedLaps` «VERL111:35.130
+    
+» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 84 | h 52 \| r 12px \| font 450 13px | `.site-header` «F1Apex Data
+      Co» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 84 | h 41 \| r 0px \| font 450 12px | `footer` «F1 Apex Data · FastF» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 80 | h 100 \| r 0px \| font 450 13px | `#driverSidebar > #tireCard` «Event tyres
+        » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 80 | h 86 \| r 0px \| font 450 14px | `tbody > tr` «United States Grand » | cars-corners, cars-straight, cars-braking |
+| button-role | 78 | h 24 \| r pill \| font 450 12px | `.loaded-lap-pill > .loaded-lap-main` «VERL111:35.130» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 78 | h 18 \| r 0px \| font 450 11px | `.stint > small` «softS1 run» | session-lap-sheet |
+| button-role | 72 | h 72 \| r 0px \| font 450 13px | `.dominance-map > .dominance-map-header` «Mini-sector dominanc» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 72 | h 36 \| r 0px \| font 500 12px | `.overview-tile > span` «VERsum of best secto» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 72 | h 11 \| r 0px \| font 500 9.35px | `.sector-delta-slot > .summary-delta` «+0.221s» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 72 | h 25 \| r 0px \| font 500 13px | `.chart > .chart-heading` «Throttle application» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 72 | h 238 \| r 0px \| font 450 13px | `.linear-rail-section > #linearSection-categories` «PacePaceCorneringCor» | cars-pace, cars-corners, cars-straight |
+| button-role | 72 | h 34 \| r 0px \| font 600 24px | `.season-value > .season-big` «9» | season-results, season-drivers, season-h2h |
+| button-role | 68 | h 44 \| r 0px \| font 450 13px | `#lapSelectionBody > .linear-lap-header` «Comparison laps
+    » | session-lap-sheet, session-loaded, session-compute |
+| button-role | 68 | h 79 \| r 0px \| font 450 13px | `.season-card > .season-stat-pair` «Driver9wins12Antonel» | season-results, session-empty, session-loaded |
+| button-role | 66 | h 35 \| r 0px \| font 450 13px | `#sessionSidebar > .dashboard-card` «Session
+          
+ » | session-empty, session-loaded, session-lap-sheet |
+| button-role | 66 | h 306 \| r 0px \| font 450 13px | `.performance-chart-card > .performance-bars` «Red Bull Racing0.00%» | cars-pace, cars-corners, cars-straight |
+| button-role | 66 | h 44 \| r 0px \| font 500 11px | `tr > th` «Red Bull Racing» | cars-pace |
+| button-role | 66 | h 28 \| r 0px \| font 450 14px | `label > .select-shell` «AlpineAston MartinAu» | cars-tyres, ui-catalog |
+| button-role | 66 | h 36 \| r 0px \| font 450 14px | `tbody > tr` «Ferrari96831313.836 » | cars-results |
+| button-role | 66 | h 14 \| r 4px \| font 600 8px | `.season-filter > .team-logo` «» | season-upgrades |
+| button-role | 66 | h 18 \| r 0px \| font 500 11px | `th > .season-who` «McLaren» | season-upgrades |
+| button-role | 64 | h 14 \| r 0px \| font 450 13px | `#tireCard > .panel-heading` «Event tyres» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 64 | h 76 \| r 0px \| font 450 13px | `div > ol` «T2+0.125 sbefore T1+» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 64 | h 32 \| r 6px \| font 450 13px | `.season-h2h > .season-h2h-row` «Qualifying ahead119» | season-h2h |
+| button-role | 62 | h 62 \| r 0px \| font 450 13px | `.linear-rail-section > #linearSection-drivers` «Drivers
+        
+   » | session-empty, season-upgrades, session-loaded |
+| button-role | 60 | h 8 \| r pill \| font 500 12px | `span > i` «» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 60 | h 14 \| r 0px \| font 500 10px | `.summary-tyre-copy > b` «SOFT (C4)» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 60 | h 18 \| r 4px \| font 450 11px | `td > .perf-tercile-badge` «Official Timing» | cars-results |
+| button-role | 58 | h 128 \| r 0px \| font 450 13px | `#linearWorkspace > .linear-rail-section` «Analysis
+        Ses» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 58 | h 96 \| r 0px \| font 450 13px | `.circuit-section-group > .corner-picker` «T1LECT2VERT3VERT4LEC» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 58 | h 21 \| r 0px \| font 500 15px | `div > b` «+111 pts» | season-drivers, season-h2h |
+| button-role | 56 | h 292 \| r 0px \| font 450 13px | `.linear-rail-section > #linearSection-analysis` «Session analysisSess» | season-schedule, season-results, season-standings |
+| button-role | 54 | h 18 \| r 4px \| font 450 14px | `.trace-pill-group > .trace-swatch` «» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 54 | h 87 \| r 0px \| font 450 13px | `.season-tiles > .season-tile` «Wins9+1 sprint» | season-drivers, ui-catalog |
+| button-role | 54 | h 21 \| r 0px \| font 450 13px | `.performance-empty > p` «Choose a session to » | ui-catalog, session-loaded, session-lap-sheet |
+| button-role | 50 | h 182 \| r 10px \| font 450 13px | `#charts > .chart` «Throttle application» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 50 | h 368 \| r 10px \| font 450 13px | `.subject-bands > .performance-chart-card` «Low-speed corners · » | cars-corners, cars-straight, cars-braking |
+| button-role | 50 | h 34 \| r 0px \| font 450 13px | `div > .season-value` «9wins» | season-results, season-schedule, season-standings |
+| button-role | 48 | h 804 \| r 0px \| font 450 13px | `.linear-rail-section > #linearSection-drivers` «Drivers
+        
+   » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 48 | h 24 \| r 0px \| font 450 12px | `#tireNomination > .tire-option` «hardH
+        Hard ·» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 48 | h 4 \| r pill \| font 500 11px | `.legend-item > .legend-color` «» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 48 | h 24 \| r pill \| font 450 13px | `#loadedLaps > .loaded-lap-pill` «VERL111:35.130» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 48 | h 20 \| r pill \| font 450 14px | `.loaded-lap-pill > .remove` «» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 48 | h 18 \| r 0px \| font 500 14px | `.summary-driver > b` «VER» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 48 | h 16 \| r 0px \| font 450 13px | `.sector-cell-value > .sector-measurements` «24.609s» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 48 | h 24 \| r 8px \| font 500 13px | `.trace-zoom-cluster > .trace-tools` «Reset» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 48 | h 42 \| r 0px \| font 500 14px | `.trace-settings > .trace-setting` «Corner numbers» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 48 | h 34 \| r 0px \| font 500 14px | `.trace-setting > span` «Corner numbers» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 48 | h 58 \| r 0px \| font 500 14px | `.trace-settings > .trace-setting` «Distance-axis number» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 48 | h 50 \| r 0px \| font 500 14px | `.trace-setting > span` «Distance-axis number» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 48 | h 16 \| r 0px \| font 400 13px | `.trace-swatch > input` «» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 48 | h 24 \| r 0px \| font 500 13px | `.track-tray-header > .track-selection-title` «Races
+          3 se» | cars-pace, cars-corners, cars-straight |
+| button-role | 48 | h 17 \| r 0px \| font 600 13px | `.track-selection-title > span` «Races» | cars-pace, cars-corners, cars-straight |
+| button-role | 48 | h 16 \| r 0px \| font 600 12px | `.sector-cell-value > small` «S1» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 48 | h 17 \| r 0px \| font 500 14px | `.sector-measurements > strong` «24.609s» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 46 | h 31 \| r 0px \| font 450 11px | `.season-card > .season-footnote` «Grid to finish, clas» | season-results, season-drivers, season-h2h |
+| button-role | 44 | h 36 \| r 6px \| font 450 13px | `.performance-bars > .performance-bar-row` «Ferrari96 pts» | cars-results |
+| button-role | 44 | h 78 \| r 0px \| font 450 13px | `.season-card > .season-bars` «12Antonelli3903Verst» | season-standings, ui-catalog, session-loaded |
+| button-role | 44 | h 84 \| r 0px \| font 450 14px | `tbody > tr` «McLarenBahrain Grand» | cars-pace |
+| button-role | 44 | h 22 \| r pill \| font 600 8px | `.driver-pill > .team-logo` «» | session-lap-sheet |
+| button-role | 42 | h 13 \| r 0px \| font 500 12px | `.fastest-lap-pick > span` «Fastest» | session-lap-sheet, season-schedule |
+| button-role | 42 | h 44 \| r 8px \| font 450 13px | `.lap-grid > .lap` «L1OUT—softSRun 1 · L» | session-lap-sheet, ui-catalog |
+| button-role | 42 | h 11 \| r 0px \| font 450 11px | `.lap > .lap-tyre-age` «Run 1 · Lap 1» | session-lap-sheet, season-schedule |
+| button-role | 42 | h 67 \| r 0px \| font 450 13px | `.season-card > .season-numbers` «Grands Prix20/233 to» | season-results, season-upgrades, ui-catalog |
+| button-role | 42 | h 36 \| r 0px \| font 450 13px | `section > p` «Primary, secondary, » | ui-catalog, cars-tyres, season-schedule |
+| button-role | 42 | h 59 \| r 0px \| font 450 12px | `footer` «F1 Apex Data · FastF» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 38 | h 122 \| r 0px \| font 450 13px | `#cornerPickerRow > .circuit-section-group` «CornersChoose one or» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 36 | h 10 \| r 0px \| font 500 12px | `.lap-token > .lap-states` «OUT» | session-lap-sheet |
+| button-role | 36 | h 10 \| r 0px \| font 600 10px | `.lap-states > .lap-state` «OUT» | session-lap-sheet |
+| button-role | 36 | h 278 \| r 0px \| font 450 13px | `#linearWorkspace > .linear-rail-section` «MeasurementsPacePace» | cars-pace, cars-corners, cars-straight |
+| button-role | 36 | h 238 \| r 10px \| font 450 13px | `.linear-categories > #performanceCategoryList` «PacePaceCorneringCor» | cars-pace, cars-corners, cars-straight |
+| button-role | 36 | h 110 \| r 0px \| font 450 13px | `#carPerformance > #performanceSidebar` «Car performance
+    » | cars-pace, cars-corners, cars-straight |
+| button-role | 36 | h 20 \| r 0px \| font 450 12px | `li > .season-who` «3Max VerstappenRed B» | season-schedule |
+| button-role | 36 | h 14 \| r 0px \| font 450 11px | `.season-footnote > span` «Times in your time z» | season-schedule, season-drivers, ui-catalog |
+| button-role | 36 | h 18 \| r pill \| font 500 11px | `.season-round-head > .season-chip` «Sprint» | season-schedule |
+| button-role | 36 | h 55 \| r 0px \| font 450 13px | `.season-round-title > div` «Bahrain Grand Prix i» | season-schedule, ui-catalog, session-loaded |
+| button-role | 36 | h 50 \| r 8px \| font 450 12px | `.season-body > .season-credits` «Photo creditsAndrea » | season-schedule, season-results, season-standings |
+| button-role | 36 | h 80 \| r 0px \| font 450 13px | `.season-facts > div` «Lead+111 ptsover Max» | season-drivers, ui-catalog, season-upgrades |
+| button-role | 36 | h 14 \| r 0px \| font 600 10px | `.season-dist-stack > span` «9» | season-drivers |
+| button-role | 36 | h 108 \| r 0px \| font 450 12px | `.season-update > p` «Taking the recently » | season-upgrades |
+| button-role | 34 | h 1590 \| r 0px \| font 450 13px | `#telemetryContent > .telemetry-analysis-grid` «Speed trace km/h
+   » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 34 | h 93 \| r 0px \| font 450 13px | `#performanceSidebar > .dashboard-card` «Car performance
+    » | cars-pace, cars-corners, cars-straight |
+| button-role | 32 | h 18 \| r 0px \| font 450 14px | `header > .summary-driver` «VERLap 11REF» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 32 | h 17 \| r 0px \| font 450 10px | `.summary-header-actions > .summary-tyre` «softSSOFT (C4)Tyre l» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 32 | h 51 \| r 12px \| font 450 13px | `.dashboard-card > #performanceTrackTray` «Races
+          3 se» | cars-pace, cars-corners, cars-straight |
+| button-role | 32 | h 54 \| r 0px \| font 450 13px | `.season-sessions > li` «Practice 1NextFri 20» | season-schedule, season-h2h |
+| button-role | 32 | h 111 \| r 0px \| font 450 13px | `.season-hero > .season-hero-id` «12Andrea Kimi Antone» | season-drivers, season-h2h, session-empty |
+| button-role | 32 | h 42 \| r 6px \| font 450 13px | `.season-h2h > .season-h2h-row` «Qualifying ahead119» | season-h2h |
+| button-role | 30 | h 13 \| r 2px \| font 500 13px | `span > .gp-flag` «» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 30 | h 285 \| r 10px \| font 450 13px | `#cornerWorkspace > #cornerPickerRow` «CornersChoose one or» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 30 | h 78 \| r 8px \| font 500 12px | `.season-battles > .season-battle` «Alpine43COLvs10GAS51» | season-h2h |
+| button-role | 28 | h 28 \| r 0px \| font 600 12px | `.comparison-tray > .comparison-tray-heading` «Comparison
+         » | session-empty, session-loaded, session-lap-sheet |
+| button-role | 28 | h 516 \| r 10px \| font 450 13px | `.dashboard-card > .performance-table-wrap` «Team profilesTeamQua» | cars-pace, cars-corners, cars-tyres |
+| button-role | 28 | h 516 \| r 0px \| font 450 14px | `.performance-table-wrap > #ui-table-5` «Team profilesTeamQua» | cars-pace, cars-corners, cars-tyres |
+| button-role | 28 | h 484 \| r 0px \| font 450 14px | `#ui-table-5 > tbody` «Red Bull Racing
+  11» | cars-pace, cars-corners, cars-tyres |
+| button-role | 28 | h 336 \| r 0px \| font 450 13px | `#linearWorkspace > .linear-rail-section` «Analysis
+        Ses» | season-schedule, season-results, season-standings |
+| button-role | 28 | h 202 \| r 0px \| font 450 13px | `.linear-navigation > .season-rail-pages` «ScheduleResultsStand» | season-schedule, season-results, season-standings |
+| button-role | 28 | h 85 \| r 0px \| font 500 13px | `tr > td` «United States Grand » | cars-corners, cars-straight, cars-braking |
+| button-role | 26 | h 54 \| r 8px \| font 450 13px | `#telemetryDataAccess > .performance-table-wrap` «Values at selected l» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 26 | h 32 \| r 0px \| font 500 12px | `.lap > .lap-token` «L1OUT» | session-lap-sheet, season-schedule |
+| button-role | 26 | h 47 \| r 0px \| font 450 14px | `tbody > tr` «Cadillac3.659%3 of 3» | cars-pace, cars-pits, cars-results |
+| button-role | 26 | h 47 \| r 0px \| font 450 13px | `.performance-card-body > .performance-card-controls` «QualifyingRace% of l» | cars-corners, cars-straight, cars-pits |
+| button-role | 26 | h 18 \| r 0px \| font 600 15px | `div > dd` «6.201 km» | season-schedule |
+| button-role | 26 | h 26 \| r 0px \| font 500 12px | `.season-round > .season-round-when` «Race Sun 22 Nov, 09:» | season-schedule, season-units |
+| button-role | 24 | h 45 \| r 0px \| font 450 13px | `#telemetryCard > .comparison-tray` «Comparison
+         » | session-empty, session-loaded, session-lap-sheet |
+| button-role | 24 | h 892 \| r 0px \| font 450 13px | `#sessionInspector > .telemetry-analysis-grid` «Corner performance
+ » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 24 | h 20 \| r 0px \| font 500 14px | `.corner-selection-empty > strong` «Compare a section» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 24 | h 33 \| r 0px \| font 500 13px | `.dominance-map-header > #dominanceTitle` «Mini-sector dominanc» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 24 | h 17 \| r 0px \| font 500 11px | `.dominance-map-header > #dominanceLegend` «NWind from NW · 0.4 » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 24 | h 92 \| r 8px \| font 450 13px | `.overview-readout > .overview-tile` «Top speed trap329 km» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 24 | h 13 \| r 2px \| font 450 13px | `#loadedSessionContext > .title-flag` «» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 24 | h 17 \| r 4px \| font 600 11px | `.summary-driver > em` «REF» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 24 | h 59 \| r 0px \| font 450 13px | `.summary-header-actions > .summary-lap-time` «LAP1:35.130Ideal 1:3» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 24 | h 11 \| r 0px \| font 450 13px | `.sector-measurements > .sector-delta-slot` «+0.221s» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 24 | h 35 \| r 0px \| font 500 12px | `.time-summary-card > header` «LEC L11 vs VER L11Co» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 24 | h 16 \| r 0px \| font 500 12px | `header > span` «Corners +0.153 s · S» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 24 | h 35 \| r 0px \| font 450 12px | `#timeSummary > .overview-note` «Elapsed time over th» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 24 | h 195 \| r 10px \| font 450 13px | `#charts > .chart` «Gear 0–8» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 24 | h 46 \| r 10px \| font 450 13px | `#charts > #telemetryDataAccess` «Inspect telemetry va» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 24 | h 30 \| r 8px \| font 600 13px | `#telemetryDataAccess > summary` «Inspect telemetry va» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 24 | h 30 \| r 0px \| font 400 13px | `.chart-sample-controls > #telemetrySample` «» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 24 | h 52 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «Values at selected l» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 24 | h 16 \| r 4px \| font 500 11px | `.performance-bar-label > .metric-coverage` «2/3 GPs» | cars-corners, cars-straight |
+| button-role | 24 | h 54 \| r 0px \| font 450 14px | `.performance-tyre-plot-controls > label` «TeamAlpineAston Mart» | cars-tyres |
+| button-role | 24 | h 12 \| r 0px \| font 500 10px | `b > .season-muted` «+1» | season-results |
+| button-role | 24 | h 28 \| r 6px \| font 450 13px | `.season-h2h > .season-h2h-row` «AntonelliRussell» | season-h2h, ui-catalog |
+| button-role | 24 | h 73 \| r 0px \| font 450 13px | `.ui-catalog > section` «Status message wrapp» | ui-catalog, session-loaded, session-lap-sheet |
+| button-role | 24 | h 14 \| r 4px \| font 400 13px | `label > input` «» | ui-catalog |
+| button-role | 24 | h 40 \| r 0px \| font 450 12px | `tr > th` «Team» | ui-catalog |
+| button-role | 24 | h 4 \| r pill \| font 450 13px | `.ui-catalog-row > progress` «» | ui-catalog |
+| button-role | 24 | h 709 \| r 0px \| font 450 13px | `#sessionInspector > .telemetry-analysis-grid` «Corner performance
+ » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 24 | h 102 \| r 0px \| font 500 13px | `tr > td` «Audi» | cars-pace |
+| button-role | 24 | h 83 \| r 0px \| font 500 13px | `tr > td` «Haas F1 Team» | cars-pace |
+| button-role | 24 | h 794 \| r 0px \| font 450 13px | `#sessionInspector > .telemetry-analysis-grid` «Corner performance
+ » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 22 | h 932 \| r 0px \| font 450 13px | `#top` «SESSION ANALYSISComp» | session-empty, session-loaded, session-lap-sheet |
+| button-role | 22 | h 85 \| r 0px \| font 450 13px | `#cornerWorkspace > #cornerMetricGrid` «Compare a sectionSel» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 22 | h 91 \| r 0px \| font 450 13px | `#telemetryDataAccess > #telemetryDataHelp` «Read every visible t» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 22 | h 24 \| r 0px \| font 450 11px | `.season-tile > .season-muted` «Podiums» | season-drivers |
+| button-role | 22 | h 37 \| r 0px \| font 500 20px | `.season-tile > b` «16» | season-drivers |
+| button-role | 22 | h 34 \| r 0px \| font 500 13px | `td > .trend-endpoints` «0.502% → 0.000%» | cars-trend |
+| button-role | 22 | h 36 \| r 6px \| font 450 12px | `.performance-bars > .performance-bar-row` «Ferrari96 pts» | cars-results |
+| button-role | 20 | h 1484 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «Measurement evidence» | cars-pace, cars-corners, cars-straight |
+| button-role | 20 | h 1452 \| r 0px \| font 450 14px | `.performance-table > tbody` «McLarenBahrain Grand» | cars-pace, cars-corners, cars-straight |
+| button-role | 20 | h 69 \| r 0px \| font 450 13px | `.season-tiles > .season-tile` «Retirements0» | season-drivers |
+| button-role | 20 | h 82 \| r 0px \| font 450 13px | `.season-card > .season-filter-row` «TeamAll teamsMcLaren» | season-upgrades, season-results |
+| button-role | 18 | h 658 \| r 0px \| font 450 13px | `.dashboard-card > #driverPills` «1Max VerstappenVER2L» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 18 | h 246 \| r 0px \| font 450 13px | `#telemetryContent > #timeSummary` «Where the time went
+» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 18 | h 20 \| r 0px \| font 600 15px | `.linear-lap-header > strong` «Comparison laps» | session-lap-sheet, cars-empty, ui-catalog |
+| button-role | 18 | h 46 \| r 0px \| font 450 13px | `.driver-run-card > .run-card-header` «Max VerstappenVER · » | session-lap-sheet, cars-pace, cars-corners |
+| button-role | 18 | h 104 \| r 10px \| font 450 13px | `.subject-bands > .performance-chart-card` «Low-speed corners · » | cars-corners, cars-straight, cars-braking |
+| button-role | 18 | h 42 \| r 4px \| font 450 14px | `.performance-chart-card > .performance-quality-status` «No shared supported » | cars-corners, cars-straight, cars-braking |
+| button-role | 18 | h 83 \| r 10px \| font 450 13px | `.subject-pair > .performance-chart-card` «Traction (corner exi» | cars-corners, cars-straight, cars-braking |
+| button-role | 18 | h 21 \| r 4px \| font 450 14px | `.performance-chart-card > .performance-quality-status` «No supported measure» | cars-corners, cars-straight, cars-braking |
+| button-role | 18 | h 42 \| r 8px \| font 450 13px | `.season-next-top > .season-countdown` «Practice 1 in9d 12h » | season-schedule, session-lap-sheet |
+| button-role | 18 | h 28 \| r 6px \| font 450 12px | `ol > li` «20253Max VerstappenR» | season-schedule |
+| button-role | 18 | h 20 \| r pill \| font 450 12px | `.season-who > .season-avatar` «3» | season-schedule |
+| button-role | 18 | h 28 \| r 6px \| font 500 12px | `.season-forecast > .season-forecast-row` «Fri11°8°11%24 km/h» | season-schedule |
+| button-role | 18 | h 258 \| r 0px \| font 450 13px | `.season-card > .season-bars` «Aston Martin21Cadill» | season-results, season-upgrades |
+| button-role | 18 | h 16 \| r 1px \| font 500 12px | `.season-bar > .season-bar-mark` «» | season-standings |
+| button-role | 18 | h 12 \| r pill \| font 500 12px | `.season-h2h > .season-h2h-section` «Weekends» | season-h2h |
+| button-role | 18 | h 32 \| r 8px \| font 500 13px | `.category-bar > #catalog-category-tab-0` «Pace» | ui-catalog |
+| button-role | 18 | h 17 \| r 0px \| font 450 11px | `.lap-chip > .lap-token` «L6 INSC» | ui-catalog |
+| button-role | 18 | h 52 \| r 0px \| font 450 12px | `.overview-chart > .overview-note` «The drivers chosen i» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 18 | h 145 \| r 0px \| font 450 13px | `#linearWorkspace` «Apex DataAnalysis
+  » | cars-pace, cars-corners, cars-straight |
+| button-role | 18 | h 28 \| r 10px \| font 450 13px | `.linear-categories > #performanceCategoryList` «PacePaceCorneringCor» | cars-pace, cars-corners, cars-straight |
+| button-role | 18 | h 178 \| r 0px \| font 450 13px | `#carPerformance > #performanceSidebar` «Car performance
+    » | cars-pace, cars-corners, cars-straight |
+| button-role | 18 | h 161 \| r 0px \| font 450 13px | `#performanceSidebar > .dashboard-card` «Car performance
+    » | cars-pace, cars-corners, cars-straight |
+| button-role | 18 | h 126 \| r 0px \| font 450 12px | `.season-update > p` «The FBD geometry was» | season-upgrades |
+| button-role | 16 | h 844 \| r 0px \| font 450 13px | `#linearWorkspace > .linear-rail-section` «Drivers
+      
+     » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 16 | h 694 \| r 0px \| font 450 13px | `#driverSidebar > .dashboard-card` «Drivers
+        
+   » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 16 | h 76 \| r 0px \| font 450 12px | `#tireCard > #tireNomination` «hardH
+        Hard ·» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 16 | h 85 \| r 10px \| font 450 14px | `#cornerMetricGrid > .corner-selection-empty` «Compare a sectionSel» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 16 | h 211 \| r 0px \| font 450 13px | `#sessionOverview > .overview-readout` «Fastest lap1:35.130V» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 16 | h 73 \| r 10px \| font 450 13px | `#sectorRows > .lap-summary-card` «VERLap 11REF
+       » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 16 | h 41 \| r 0px \| font 450 13px | `.lap-summary-card > .summary-sectors` «S124.609s
+          » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 16 | h 169 \| r 10px \| font 450 13px | `#timeSummary > .time-summary-card` «LEC L11 vs VER L11Co» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 16 | h 581 \| r 10px \| font 450 13px | `#charts > .chart` «Speed trace km/h
+   » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 16 | h 30 \| r 0px \| font 500 13px | `.chart > .chart-heading` «Speed trace km/h
+   » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 16 | h 218 \| r 10px \| font 500 13px | `.trace-display-menu > .trace-settings` «Corner numbersSpeed » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 16 | h 70 \| r 10px \| font 500 13px | `.trace-display-menu > .trace-settings` «Speed trace and timi» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 16 | h 276 \| r 10px \| font 450 13px | `#charts > .chart` «Timing delta seconds» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 16 | h 28 \| r 0px \| font 500 13px | `.chart > .chart-heading` «Timing delta seconds» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 16 | h 50 \| r 0px \| font 450 12px | `#computeSettings > p` «Showing published da» | session-compute, season-schedule, season-results |
+| button-role | 16 | h 508 \| r 0px \| font 450 13px | `div > .dashboard-card` «Corner exit traction» | cars-corners, cars-results, session-loaded |
+| button-role | 16 | h 136 \| r 10px \| font 450 13px | `.season-rounds > .season-round` «R21NextLas Vegas Gra» | season-schedule |
+| button-role | 16 | h 400 \| r 10px \| font 450 13px | `#cornerWorkspace > .dominance-map` «Mini-sector dominanc» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 16 | h 87 \| r 10px \| font 450 13px | `#sectorRows > .lap-summary-card` «VERLap 11REF
+       » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 16 | h 16 \| r 0px \| font 450 10px | `.summary-header-actions > .summary-tyre` «softSSOFT (C4)Tyre l» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 16 | h 20 \| r 0px \| font 450 10px | `.summary-header-actions > .summary-tyre` «softSSOFT (C4)Tyre l» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 16 | h 1523 \| r 0px \| font 450 13px | `#telemetryContent > .telemetry-analysis-grid` «Speed trace km/h
+   » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 16 | h 85 \| r 12px \| font 450 13px | `.dashboard-card > #performanceTrackTray` «Races
+          3 se» | cars-pace, cars-corners, cars-straight |
+| button-role | 16 | h 30 \| r 0px \| font 450 11px | `#performanceMetricPanel > .snapshot-mode-note` «Published snapshot, » | cars-pace, cars-corners, cars-straight |
+| button-role | 16 | h 144 \| r 0px \| font 450 12px | `.season-update > p` «Seen as a package, t» | season-upgrades |
+| button-role | 14 | h 167 \| r 10px \| font 450 13px | `.season-stats > .season-card` «Most places gained+6» | season-results |
+| button-role | 14 | h 247 \| r 10px \| font 450 13px | `.ui-catalog-grid > section` «Window toolbar and s» | ui-catalog |
+| button-role | 14 | h 326 \| r 10px \| font 450 13px | `.ui-catalog-grid > section` «Progress and feedbac» | ui-catalog |
+| button-role | 14 | h 108 \| r 0px \| font 450 13px | `#seasonHub > .season-head` «Season20262025202420» | season-schedule, season-results, season-standings |
+| button-role | 12 | h 24 \| r pill \| font 600 8px | `.run-driver > .team-logo` «» | session-lap-sheet |
+| button-role | 12 | h 18 \| r 0px \| font 600 14px | `.run-driver-copy > h3` «Max Verstappen» | session-lap-sheet |
+| button-role | 12 | h 34 \| r 8px \| font 450 13px | `.driver-run-card > .run-segments` «Q1softS1 run✓Q2softS» | session-lap-sheet |
+| button-role | 12 | h 25 \| r 0px \| font 600 12px | `.driver-run-card > .lap-group-header` «Q1 laps» | session-lap-sheet |
+| button-role | 12 | h 484 \| r 0px \| font 450 13px | `.dashboard-card > .performance-card-body` «Traction (corner exi» | cars-corners, cars-braking, cars-results |
+| button-role | 12 | h 614 \| r 0px \| font 450 13px | `.performance-chart-card > .performance-bars` «VER2.325 sANT2.405 s» | cars-pits, cars-tyres |
+| button-role | 12 | h 554 \| r 10px \| font 450 13px | `.performance-card-body > .performance-table-wrap` «Pit stops & pit lane» | cars-pits, cars-results |
+| button-role | 12 | h 554 \| r 0px \| font 450 14px | `.performance-table-wrap > #ui-table-11` «Pit stops & pit lane» | cars-pits, cars-results |
+| button-role | 12 | h 522 \| r 0px \| font 450 14px | `#ui-table-11 > tbody` «Red Bull Racing2.615» | cars-pits, cars-results |
+| button-role | 12 | h 52 \| r 0px \| font 450 24px | `#performanceMetricPanel > .empty-icon-badge` «» | cars-empty, ui-catalog |
+| button-role | 12 | h 96 \| r pill \| font 450 13px | `.season-hero-portrait > .season-avatar` «12» | season-drivers, season-h2h |
+| button-role | 12 | h 17 \| r 0px \| font 500 15px | `.season-strip-cell > b` «16» | season-drivers |
+| button-role | 12 | h 12 \| r 4px \| font 450 13px | `.season-dist-stack > i` «» | season-drivers |
+| button-role | 12 | h 14 \| r pill \| font 400 13px | `label > input` «» | ui-catalog |
+| button-role | 12 | h 28 \| r 8px \| font 400 13px | `label > input` «» | ui-catalog |
+| button-role | 12 | h 22 \| r 4px \| font 600 8px | `.driver-pill > .team-logo` «R» | ui-catalog |
+| button-role | 12 | h 51 \| r 0px \| font 450 13px | `.app-sidebar > p` «Driver and race rows» | ui-catalog, session-lap-sheet |
+| button-role | 12 | h 28 \| r pill \| font 450 14px | `.loaded-lap-pill > .remove` «» | ui-catalog |
+| button-role | 12 | h 40 \| r 0px \| font 450 14px | `#ui-table-1 > thead` «Team Gap» | ui-catalog |
+| button-role | 12 | h 89 \| r 0px \| font 450 13px | `.season-update-group > .season-update` «HaasRear impact stru» | season-upgrades |
+| button-role | 12 | h 89 \| r 8px \| font 500 12px | `.season-update > summary` «HaasRear impact stru» | season-upgrades |
+| button-role | 10 | h 1352 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «CorneringPerformance» | cars-corners, cars-tyres, season-upgrades |
+| button-role | 10 | h 676 \| r 10px \| font 450 13px | `.subject-pair > .performance-chart-card` «Median time · statio» | cars-pits, cars-tyres |
+| button-role | 10 | h 36 \| r 0px \| font 600 13px | `div > h3` «Bahrain Grand Prix i» | season-schedule |
+| button-role | 10 | h 213 \| r 10px \| font 450 13px | `.season-stats > .season-card` «Most winsDriver9wins» | season-results, ui-catalog |
+| button-role | 10 | h 172 \| r 0px \| font 450 13px | `.season-card > .season-hero` «1212Andrea Kimi Anto» | season-drivers, season-h2h |
+| button-role | 10 | h 236 \| r 10px \| font 450 13px | `.season-two > .season-card` «Race finishing posit» | season-drivers, season-h2h |
+| button-role | 10 | h 23 \| r 0px \| font 600 20px | `.season-hero-id > h2` «Andrea Kimi Antonell» | season-h2h, season-drivers |
+| button-role | 10 | h 35 \| r 0px \| font 450 11px | `.season-card > .season-legend` «Performance · 329Cir» | season-upgrades, season-units, season-standings |
+| button-role | 10 | h 197 \| r 10px \| font 450 13px | `.ui-catalog-grid > section` «VerificationEvery st» | ui-catalog, season-results |
+| button-role | 10 | h 68 \| r 0px \| font 450 13px | `#cornerWorkspace > #cornerMetricGrid` «Compare a sectionSel» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 10 | h 649 \| r 0px \| font 450 13px | `.main-dashboard > #sessionOverview` «Session overview
+   » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 10 | h 374 \| r 10px \| font 450 13px | `#sessionOverview > .overview-chart` «Lap timesVERLECShow » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 10 | h 139 \| r 10px \| font 450 13px | `.season-stats > .season-card` «Most winsDriver9wins» | season-results |
+| button-role | 10 | h 151 \| r 10px \| font 450 13px | `.season-stats > .season-card` «Closest winning marg» | season-results |
+| button-role | 10 | h 321 \| r 10px \| font 450 13px | `.ui-catalog-grid > section` «Popover and sheetSho» | ui-catalog, season-h2h |
+| button-role | 10 | h 147 \| r 0px \| font 450 13px | `#top > #sessionSidebar` «Session
+          
+ » | session-empty, session-loaded, session-lap-sheet |
+| button-role | 10 | h 230 \| r 10px \| font 450 13px | `#sectorRows > .lap-summary-card` «VERLap 11REF
+       » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 2937 \| r 0px \| font 450 13px | `#top` «SESSION ANALYSISComp» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 892 \| r 10px \| font 450 13px | `.telemetry-analysis-grid > #cornerAnalysis` «Corner performance
+ » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 420 \| r 10px \| font 450 13px | `#cornerWorkspace > .dominance-map` «Mini-sector dominanc» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 2885 \| r 0px \| font 450 13px | `#top > .analysis-column` «Session overview
+   » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 2829 \| r 0px \| font 450 13px | `.analysis-column > .main-dashboard` «Session overview
+   » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 631 \| r 0px \| font 450 13px | `.main-dashboard > #sessionOverview` «Session overview
+   » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 356 \| r 10px \| font 450 13px | `#sessionOverview > .overview-chart` «Lap timesVERLECShow » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 2154 \| r 0px \| font 450 13px | `.main-dashboard > #telemetryCard` «Lap telemetry
+      » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 2019 \| r 0px \| font 450 13px | `#telemetryCard > #telemetryContent` «VERLap 11REF
+       » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 152 \| r 8px \| font 450 13px | `#telemetryContent > .sector-times` «VERLap 11REF
+       » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 152 \| r 0px \| font 450 13px | `.sector-times > #sectorRows` «VERLap 11REF
+       » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 218 \| r 10px \| font 450 13px | `#stintPanels > .driver-run-card` «Max VerstappenVER · » | session-lap-sheet |
+| button-role | 8 | h 450 \| r 0px \| font 450 13px | `div > .dashboard-card` «Qualifying & race pa» | cars-pace |
+| button-role | 8 | h 436 \| r 10px \| font 450 13px | `.performance-visual-grid > .performance-chart-card` «Qualifying Pace Defi» | cars-pace |
+| button-role | 8 | h 392 \| r 0px \| font 450 13px | `.performance-card-body > .subject-bands` «Low-speed corners · » | cars-corners, cars-straight, cars-braking |
+| button-role | 8 | h 52 \| r 4px \| font 450 12px | `.performance-evidence > .performance-quality-status` «Common-distance esti» | cars-corners, cars-straight, cars-pits |
+| button-role | 8 | h 462 \| r 10px \| font 450 13px | `.trend-board > .performance-chart-card` «Gap to the quickest » | cars-trend |
+| button-role | 8 | h 50 \| r 0px \| font 450 13px | `.season-card > .season-next-top` «Las Vegas Grand Prix» | season-schedule |
+| button-role | 8 | h 28 \| r 0px \| font 600 20px | `.season-next-title > h2` «Las Vegas Grand Prix» | season-schedule, season-drivers |
+| button-role | 8 | h 201 \| r 0px \| font 450 13px | `.season-card > .season-next-body` «Las Vegas Strip Stre» | season-schedule |
+| button-role | 8 | h 49 \| r 0px \| font 450 12px | `.season-facts-list > div` «Grands Prix here3» | season-schedule |
+| button-role | 8 | h 675 \| r 0px \| font 450 13px | `.season-body > .season-columns` «Retirements by teamA» | season-results |
+| button-role | 8 | h 782 \| r 0px \| font 450 13px | `.season-card > .season-table-wrap` «DriverPts12ANT215116» | season-standings, cars-braking |
+| button-role | 8 | h 495 \| r 0px \| font 450 12px | `.season-credits > ul` «Alexander Albon: Pho» | season-standings, season-h2h |
+| button-role | 8 | h 236 \| r 0px \| font 450 13px | `.season-body > .season-two` «Race finishing posit» | season-drivers, season-h2h |
+| button-role | 8 | h 369 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Mexico City Grand Pr» | season-upgrades |
+| button-role | 8 | h 1053 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Hungarian Grand Prix» | season-upgrades, cars-results |
+| button-role | 8 | h 36 \| r 4px \| font 450 13px | `section > #catalogLongStatus` «Loading fastest qual» | ui-catalog |
+| button-role | 8 | h 3800 \| r 0px \| font 450 13px | `#top` «SESSION ANALYSISComp» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 741 \| r 8px \| font 450 13px | `#top > #sessionInspector` «Comparison laps
+    » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 709 \| r 10px \| font 450 13px | `.telemetry-analysis-grid > #cornerAnalysis` «Corner performance
+ » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 217 \| r 10px \| font 450 13px | `#cornerWorkspace > #cornerPickerRow` «CornersChoose one or» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 68 \| r 10px \| font 450 14px | `#cornerMetricGrid > .corner-selection-empty` «Compare a sectionSel» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 2956 \| r 0px \| font 450 13px | `#top > .analysis-column` «Session overview
+   » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 2900 \| r 0px \| font 450 13px | `.analysis-column > .main-dashboard` «Session overview
+   » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 2207 \| r 0px \| font 450 13px | `.main-dashboard > #telemetryCard` «Lap telemetry
+      » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 2047 \| r 0px \| font 450 13px | `#telemetryCard > #telemetryContent` «VERLap 11REF
+       » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 180 \| r 8px \| font 450 13px | `#telemetryContent > .sector-times` «VERLap 11REF
+       » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 180 \| r 0px \| font 450 13px | `.sector-times > #sectorRows` «VERLap 11REF
+       » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 46 \| r 0px \| font 450 12px | `.season-facts-list > div` «Opened2023» | season-schedule |
+| button-role | 8 | h 826 \| r 8px \| font 450 13px | `#top > #sessionInspector` «Comparison laps
+    » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 794 \| r 10px \| font 450 13px | `.telemetry-analysis-grid > #cornerAnalysis` «Corner performance
+ » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 784 \| r 0px \| font 450 13px | `.main-dashboard > #sessionOverview` «Session overview
+   » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 330 \| r 0px \| font 450 13px | `#sessionOverview > .overview-readout` «Fastest lap1:35.130V» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 390 \| r 10px \| font 450 13px | `#sessionOverview > .overview-chart` «Lap timesVERLECShow » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 2435 \| r 0px \| font 450 13px | `#telemetryCard > #telemetryContent` «VERLap 11REF
+       » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 508 \| r 8px \| font 450 13px | `#telemetryContent > .sector-times` «VERLap 11REF
+       » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 106 \| r 0px \| font 450 13px | `.lap-summary-card > .summary-sectors` «S124.609s
+          » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 272 \| r 10px \| font 450 13px | `#sectorRows > .lap-summary-card` «LECLap 11
+          » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 148 \| r 0px \| font 450 13px | `.lap-summary-card > .summary-sectors` «S1+0.221s24.830s
+   » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 374 \| r 0px \| font 450 13px | `#telemetryContent > #timeSummary` «Where the time went
+» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 280 \| r 10px \| font 450 13px | `#timeSummary > .time-summary-card` «LEC L11 vs VER L11Co» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 210 \| r 0px \| font 450 13px | `.time-summary-card > .time-summary-lists` «Loses mostT2+0.125 s» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 522 \| r 10px \| font 450 13px | `#charts > .chart` «Speed trace km/h
+   » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 92 \| r 0px \| font 500 13px | `.chart > .chart-heading` «Speed trace km/h
+   » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 114 \| r 10px \| font 500 13px | `.trace-display-menu > .trace-settings` «Corner numbersSpeed » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 40 \| r 10px \| font 500 13px | `.trace-display-menu > .trace-settings` «Speed trace and timi» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 267 \| r 10px \| font 450 13px | `#charts > .chart` «Timing delta seconds» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 54 \| r 0px \| font 500 13px | `.chart > .chart-heading` «Timing delta seconds» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 182 \| r 0px \| font 450 13px | `#telemetryDataAccess > #telemetryDataHelp` «Read every visible t» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 84 \| r 0px \| font 450 13px | `#telemetryDataAccess > .chart-sample-controls` «Lap distance0.000 km» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 8 | h 574 \| r 10px \| font 450 13px | `.performance-evidence > .performance-table-wrap` «CorneringTeamBraking» | cars-corners, cars-trend |
+| button-role | 8 | h 574 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «CorneringTeamBraking» | cars-corners, cars-trend |
+| button-role | 8 | h 542 \| r 0px \| font 450 14px | `.performance-table > tbody` «Ferrari-0.377 s-0.41» | cars-corners, cars-trend |
+| button-role | 8 | h 2461 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «CorneringGrand PrixT» | cars-corners, cars-straight, cars-braking |
+| button-role | 8 | h 2429 \| r 0px \| font 450 14px | `.performance-table > tbody` «Bahrain Grand PrixMc» | cars-corners, cars-straight, cars-braking |
+| button-role | 8 | h 85 \| r 0px \| font 450 14px | `tbody > tr` «United States Grand » | cars-corners, cars-straight, cars-braking |
+| button-role | 8 | h 46 \| r 0px \| font 450 11px | `.season-card > .season-footnote` «Median of each team’» | season-results, season-standings, season-upgrades |
+| button-role | 6 | h 300 \| r 8px \| font 450 13px | `#telemetryCard > #telemetryEmpty` «Ready when you are
+ » | session-empty |
+| button-role | 6 | h 21 \| r 0px \| font 600 15px | `#telemetryEmpty > strong` «Your telemetry stack» | session-empty |
+| button-role | 6 | h 39 \| r 0px \| font 450 13px | `#telemetryEmpty > p` «Select laps in the w» | session-empty |
+| button-role | 6 | h 149 \| r 12px \| font 450 13px | `.workspace-tools > #computeSettings` «Compute
+        Show» | session-compute |
+| button-role | 6 | h 555 \| r 10px \| font 450 13px | `.performance-evidence > .performance-table-wrap` «Measurement evidence» | cars-pace |
+| button-role | 6 | h 555 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «Measurement evidence» | cars-pace |
+| button-role | 6 | h 523 \| r 0px \| font 450 14px | `.performance-table > tbody` «Red Bull Racing0.000» | cars-pace |
+| button-role | 6 | h 1598 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «Measurement evidence» | cars-pace |
+| button-role | 6 | h 1566 \| r 0px \| font 450 14px | `.performance-table > tbody` «McLarenBahrain Grand» | cars-pace |
+| button-role | 6 | h 70 \| r 4px \| font 450 12px | `.performance-evidence > .performance-quality-status` «Speed is integrated » | cars-corners, cars-straight |
+| button-role | 6 | h 4420 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «CorneringCornerTeamT» | cars-corners |
+| button-role | 6 | h 4388 \| r 0px \| font 450 14px | `.performance-table > tbody` «1–3low · 699 m · fie» | cars-corners |
+| button-role | 6 | h 3845 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «CorneringCornerTeamT» | cars-corners |
+| button-role | 6 | h 3813 \| r 0px \| font 450 14px | `.performance-table > tbody` «1–3low · 401 m · fie» | cars-corners |
+| button-role | 6 | h 4864 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «CorneringCornerTeamT» | cars-corners |
+| button-role | 6 | h 4832 \| r 0px \| font 450 14px | `.performance-table > tbody` «1–2low · 493 m · fie» | cars-corners |
+| button-role | 6 | h 635 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «Straight lineSettled» | cars-straight, season-upgrades |
+| button-role | 6 | h 5752 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «Measurement evidence» | cars-pits |
+| button-role | 6 | h 5720 \| r 0px \| font 450 14px | `.performance-table > tbody` «Bahrain Grand PrixCa» | cars-pits |
+| button-role | 6 | h 43 \| r 8px \| font 450 13px | `.performance-chart-card > .tyre-run-laps` «30 recorded laps · v» | cars-tyres |
+| button-role | 6 | h 1352 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «Tyre-age performance» | cars-tyres |
+| button-role | 6 | h 1320 \| r 0px \| font 450 14px | `.performance-table > tbody` «L134106.217 sUsedL14» | cars-tyres |
+| button-role | 6 | h 62 \| r 8px \| font 450 13px | `.performance-card-body > .dashboard-card` «View stint evidence » | cars-tyres |
+| button-role | 6 | h 7644 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «Tyre-age performance» | cars-tyres |
+| button-role | 6 | h 7612 \| r 0px \| font 450 14px | `.performance-table > tbody` «McLarenNORBahrain Gr» | cars-tyres |
+| button-role | 6 | h 400 \| r 0px \| font 450 13px | `.performance-chart-card > .trend-chart` «0.0%1.0%2.0%3.0%4.0%» | cars-trend |
+| button-role | 6 | h 74 \| r 8px \| font 450 13px | `.performance-card-body > .dashboard-card` «FIA event documentsR» | cars-trend |
+| button-role | 6 | h 434 \| r 10px \| font 450 13px | `.results-overview > .performance-chart-card` «Points · races + spr» | cars-results |
+| button-role | 6 | h 17 \| r 0px \| font 450 13px | `.perf-chart-header > .perf-chart-title-group` «Points · races + spr» | cars-results |
+| button-role | 6 | h 396 \| r 0px \| font 450 13px | `.performance-chart-card > .performance-bars` «Ferrari96 ptsRed Bul» | cars-results |
+| button-role | 6 | h 428 \| r 10px \| font 450 13px | `.results-overview > .performance-table-wrap` «Reliability and resu» | cars-results |
+| button-role | 6 | h 428 \| r 0px \| font 450 14px | `.performance-table-wrap > #ui-table-13` «Reliability and resu» | cars-results |
+| button-role | 6 | h 396 \| r 0px \| font 450 14px | `#ui-table-13 > tbody` «Ferrari96831313.836 » | cars-results |
+| button-role | 6 | h 472 \| r 10px \| font 450 13px | `.performance-card-body > .performance-table-wrap` «Retirement classific» | cars-results |
+| button-role | 6 | h 472 \| r 0px \| font 450 14px | `.performance-table-wrap > #ui-table-14` «Retirement classific» | cars-results |
+| button-role | 6 | h 440 \| r 0px \| font 450 14px | `#ui-table-14 > tbody` «MercedesBahrain Gran» | cars-results |
+| button-role | 6 | h 320 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-empty |
+| button-role | 6 | h 240 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «Ready for analysis
+ » | cars-empty |
+| button-role | 6 | h 42 \| r 0px \| font 450 13px | `#performanceMetricPanel > p` «Select a season and » | cars-empty, season-drivers |
+| button-role | 6 | h 21 \| r 2px \| font 450 13px | `.season-next-title > .season-flag` «» | season-schedule |
+| button-role | 6 | h 25 \| r 0px \| font 500 18px | `.season-countdown > b` «9d 12h 12m» | season-schedule |
+| button-role | 6 | h 15 \| r 0px \| font 600 11px | `span > em` «Next» | season-schedule |
+| button-role | 6 | h 88 \| r 0px \| font 450 12px | `.season-history > ol` «20253Max VerstappenR» | season-schedule |
+| button-role | 6 | h 110 \| r 0px \| font 450 12px | `.season-weather > .season-forecast` «DayHigh / lowRainWin» | season-schedule |
+| button-role | 6 | h 20 \| r 0px \| font 500 11px | `.season-forecast > .season-forecast-head` «DayHigh / lowRainWin» | season-schedule |
+| button-role | 6 | h 6 \| r 0px \| font 450 12px | `.season-progress > .season-progress-track` «» | season-schedule |
+| button-role | 6 | h 218 \| r 0px \| font 450 12px | `.season-card > .season-ranked` «43Franco Colapinto12» | season-results |
+| button-role | 6 | h 830 \| r 10px \| font 450 13px | `.season-body > .season-card` «Grand Prix resultsSe» | season-results |
+| button-role | 6 | h 752 \| r 0px \| font 450 13px | `.season-card > .season-table-wrap` «RoundGrand PrixPoleW» | season-results |
+| button-role | 6 | h 752 \| r 0px \| font 450 12px | `.season-table-wrap > .season-table` «RoundGrand PrixPoleW» | season-results |
+| button-role | 6 | h 720 \| r 0px \| font 450 12px | `.season-table > tbody` «1Australian Grand Pr» | season-results |
+| button-role | 6 | h 1164 \| r 10px \| font 450 13px | `.season-two > .season-card` «PosDriverWinsLast 5P» | season-standings |
+| button-role | 6 | h 1132 \| r 0px \| font 450 13px | `.season-card > .season-table-wrap` «PosDriverWinsLast 5P» | season-standings |
+| button-role | 6 | h 1132 \| r 0px \| font 450 12px | `.season-table-wrap > .season-table` «PosDriverWinsLast 5P» | season-standings |
+| button-role | 6 | h 1100 \| r 0px \| font 450 12px | `.season-table > tbody` «112Andrea Kimi Anton» | season-standings |
+| button-role | 6 | h 782 \| r 0px \| font 450 12px | `.season-table-wrap > .season-table` «DriverPts12ANT215116» | season-standings |
+| button-role | 6 | h 750 \| r 0px \| font 450 12px | `.season-table > tbody` «12ANT215116131163151» | season-standings |
+| button-role | 6 | h 112 \| r 4px \| font 450 13px | `.season-dist-stack > i` «» | season-drivers |
+| button-role | 6 | h 37 \| r 4px \| font 450 13px | `.season-dist-stack > i` «» | season-drivers |
+| button-role | 6 | h 50 \| r 4px \| font 450 13px | `.season-dist-stack > i` «» | season-drivers |
+| button-role | 6 | h 25 \| r 4px \| font 450 13px | `.season-dist-stack > i` «» | season-drivers |
+| button-role | 6 | h 10 \| r 0px \| font 500 10px | `.season-avatar > b` «51» | season-h2h |
+| button-role | 6 | h 365 \| r 10px \| font 450 13px | `.season-two > .season-card` «By team and reasonMc» | season-upgrades |
+| button-role | 6 | h 424 \| r 10px \| font 450 13px | `.season-body > .season-card` «Updates by team and » | season-upgrades |
+| button-role | 6 | h 362 \| r 0px \| font 450 13px | `.season-card > .season-table-wrap` «AUSCHNJPNMIACANMONBA» | season-upgrades |
+| button-role | 6 | h 362 \| r 0px \| font 450 12px | `.season-table-wrap > .season-table` «AUSCHNJPNMIACANMONBA» | season-upgrades |
+| button-role | 6 | h 330 \| r 0px \| font 450 12px | `.season-table > tbody` «McLaren3776122253217» | season-upgrades |
+| button-role | 6 | h 824 \| r 0px \| font 450 13px | `.season-card > .season-table-wrap` «DriverICETCEXHMGU-KE» | season-units |
+| button-role | 6 | h 824 \| r 0px \| font 450 12px | `.season-table-wrap > .season-table` «DriverICETCEXHMGU-KE» | season-units |
+| button-role | 6 | h 792 \| r 0px \| font 450 12px | `.season-table > tbody` «18Lance StrollAston » | season-units |
+| button-role | 6 | h 688 \| r 0px \| font 450 13px | `.season-card > .season-table-wrap` «Driver18STR812631421» | season-units |
+| button-role | 6 | h 688 \| r 0px \| font 450 12px | `.season-table-wrap > .season-table` «Driver18STR812631421» | season-units |
+| button-role | 6 | h 656 \| r 0px \| font 450 12px | `.season-table > tbody` «18STR81263142135456H» | season-units |
+| button-role | 6 | h 26 \| r 0px \| font 500 11px | `tr > th` «50HIR» | season-units |
+| button-role | 6 | h 27 \| r 0px \| font 600 19.5px | `section > h2` «Status message wrapp» | ui-catalog |
+| button-role | 6 | h 72 \| r 10px \| font 450 13px | `section > .category-bar` «PaceCorneringUnavail» | ui-catalog |
+| button-role | 6 | h 28 \| r 8px \| font 600 13px | `.ui-catalog-row > button` «Analyse» | ui-catalog |
+| button-role | 6 | h 630 \| r 10px \| font 450 13px | `.ui-catalog-grid > section` «Checkboxes and radio» | ui-catalog |
+| button-role | 6 | h 94 \| r 8px \| font 450 13px | `section > #catalogMenu` «QualifyingRaceSprint» | ui-catalog |
+| button-role | 6 | h 233 \| r 0px \| font 450 13px | `section > .app-sidebar` «1RMax VerstappenVER2» | ui-catalog |
+| button-role | 6 | h 60 \| r 8px \| font 450 13px | `.lap-workspace > .run-segments` «Q1Q2Q3» | ui-catalog |
+| button-role | 6 | h 26 \| r 6px \| font 600 13px | `.run-segments > .run-segment` «Q1» | ui-catalog |
+| button-role | 6 | h 144 \| r 0px \| font 450 13px | `.lap-workspace > .lap-grid` «L6 INSC2:00.434SRun » | ui-catalog |
+| button-role | 6 | h 32 \| r 8px \| font 450 13px | `.ui-catalog-row > .loaded-lap-pill` «VER 1:31.373» | ui-catalog |
+| button-role | 6 | h 28 \| r 8px \| font 450 12px | `.loaded-lap-pill > .loaded-lap-main` «VER 1:31.373» | ui-catalog |
+| button-role | 6 | h 28 \| r 8px \| font 450 13px | `section > .trace-tools` «Reset» | ui-catalog |
+| button-role | 6 | h 28 \| r 0px \| font 400 13px | `.trace-swatch > input` «» | ui-catalog |
+| button-role | 6 | h 174 \| r 8px \| font 450 13px | `section > .performance-table-wrap` «Team GapRed Bull Rac» | ui-catalog |
+| button-role | 6 | h 172 \| r 0px \| font 450 14px | `.performance-table-wrap > #ui-table-1` «Team GapRed Bull Rac» | ui-catalog |
+| button-role | 6 | h 132 \| r 0px \| font 450 14px | `#ui-table-1 > tbody` «Red Bull Racing0.000» | ui-catalog |
+| button-role | 6 | h 61 \| r 10px \| font 450 13px | `section > .performance-error` «Telemetry unavailabl» | ui-catalog |
+| button-role | 6 | h 240 \| r 12px \| font 450 13px | `section > .performance-empty` «Ready for analysisCh» | ui-catalog |
+| button-role | 6 | h 42 \| r 8px \| font 450 12px | `.ui-catalog-backdrop > .tooltip` «VER L13Speed 275.3 k» | ui-catalog |
+| button-role | 6 | h 303 \| r 10px \| font 450 13px | `.ui-catalog-grid > section` «Popover and sheetSho» | ui-catalog |
+| button-role | 6 | h 96 \| r 8px \| font 450 13px | `section > .ui-catalog-scroll` «Scrollbars follow th» | ui-catalog |
+| button-role | 6 | h 100 \| r 10px \| font 450 13px | `section > .performance-error` «United States Grand » | ui-catalog |
+| button-role | 6 | h 7 \| r pill \| font 450 13px | `.performance-error > .error-dot` «» | ui-catalog |
+| button-role | 6 | h 106 \| r 4px \| font 450 12px | `.performance-evidence > .performance-quality-status` «Speed is integrated » | cars-corners, cars-straight, cars-pits |
+| button-role | 6 | h 603 \| r 0px \| font 450 13px | `.dashboard-card > .performance-card-body` «Traction (corner exi» | cars-corners, cars-braking |
+| button-role | 6 | h 511 \| r 0px \| font 450 13px | `.performance-card-body > .subject-pair` «Traction (corner exi» | cars-corners, cars-straight, cars-braking |
+| button-role | 6 | h 1104 \| r 0px \| font 450 13px | `.performance-card-body > .subject-pair` «Median time · statio» | cars-pits, cars-tyres |
+| button-role | 6 | h 922 \| r 0px \| font 450 13px | `.performance-card-body > .results-overview` «Points · races + spr» | cars-results, cars-pace |
+| button-role | 6 | h 24 \| r 0px \| font 500 12px | `div > dt` «First Grand Prix» | season-schedule |
+| button-role | 6 | h 320 \| r 10px \| font 450 13px | `.season-rounds > .season-round` «R19DoneMexico City G» | season-schedule |
+| button-role | 6 | h 62 \| r 0px \| font 450 11px | `.season-card > .season-footnote` «Over 20 classified f» | season-results, season-h2h |
+| button-role | 6 | h 239 \| r 0px \| font 450 13px | `.season-h2h-hero > .season-h2h-side` «12Andrea Kimi Antone» | season-h2h |
+| button-role | 6 | h 627 \| r 10px \| font 450 13px | `.ui-catalog-grid > section` «Checkboxes and radio» | ui-catalog |
+| button-role | 6 | h 4540 \| r 0px \| font 450 13px | `#top` «SESSION ANALYSISComp» | session-loaded, session-lap-sheet, session-compute |
+| button-role | 6 | h 3543 \| r 0px \| font 450 13px | `#top > .analysis-column` «Session overview
+   » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 6 | h 3487 \| r 0px \| font 450 13px | `.analysis-column > .main-dashboard` «Session overview
+   » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 6 | h 2664 \| r 0px \| font 450 13px | `.main-dashboard > #telemetryCard` «Lap telemetry
+      » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 6 | h 113 \| r 0px \| font 450 13px | `#telemetryCard > .comparison-tray` «Comparison
+         » | session-loaded, session-lap-sheet, session-compute |
+| button-role | 6 | h 846 \| r 0px \| font 450 13px | `div > .dashboard-card` «Qualifying & race pa» | cars-pace, season-h2h |
+| button-role | 6 | h 46 \| r 8px \| font 500 13px | `.dashboard-card > summary` «Why this pace rankin» | cars-pace, cars-corners, cars-pits |
+| button-role | 6 | h 624 \| r 0px \| font 450 13px | `.dashboard-card > .performance-card-body` «Traction (corner exi» | cars-corners, cars-braking |
+| button-role | 6 | h 532 \| r 0px \| font 450 13px | `.performance-card-body > .subject-pair` «Traction (corner exi» | cars-corners, cars-straight, cars-braking |
+| button-role | 6 | h 86 \| r 0px \| font 450 13px | `.season-hero > .season-hero-portrait` «12» | season-drivers, season-h2h |
+| button-role | 6 | h 72 \| r pill \| font 450 13px | `.season-hero-portrait > .season-avatar` «12» | season-drivers, season-h2h |
+| button-role | 6 | h 80 \| r 8px \| font 500 12px | `.season-update > summary` «HaasFront cornerPerf» | season-upgrades |
+| button-role | 6 | h 34 \| r 0px \| font 500 12px | `summary > .season-muted` «Flow Conditioning Pe» | season-upgrades |
+| button-role | 4 | h 415 \| r 0px \| font 450 13px | `.analysis-column > .main-dashboard` «Lap telemetry
+      » | session-empty |
+| button-role | 4 | h 310 \| r 12px \| font 450 13px | `#lapWorkspace > #lapSelectionBody` «Comparison laps
+    » | session-lap-sheet |
+| button-role | 4 | h 218 \| r 0px \| font 450 13px | `#lapSelectionBody > #stintPanels` «Max VerstappenVER · » | session-lap-sheet |
+| button-role | 4 | h 436 \| r 0px \| font 450 13px | `.performance-card-body > .performance-visual-grid` «Qualifying Pace Defi» | cars-pace |
+| button-role | 4 | h 723 \| r 0px \| font 450 13px | `div > .dashboard-card` «CorneringCompare the» | cars-corners |
+| button-role | 4 | h 38 \| r 4px \| font 450 12px | `.performance-evidence > .performance-quality-status` «Low confidence: in v» | cars-corners, cars-braking |
+| button-role | 4 | h 543 \| r 0px \| font 450 13px | `div > .dashboard-card` «Straight lineEach ca» | cars-straight |
+| button-role | 4 | h 3445 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «Straight lineStraigh» | cars-straight |
+| button-role | 4 | h 3413 \| r 0px \| font 450 14px | `.performance-table > tbody` «T3–T4253 m · field 3» | cars-straight |
+| button-role | 4 | h 3401 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «Straight lineStraigh» | cars-straight |
+| button-role | 4 | h 3369 \| r 0px \| font 450 14px | `.performance-table > tbody` «T3–T5154 m · field 2» | cars-straight |
+| button-role | 4 | h 2426 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «Straight lineStraigh» | cars-straight |
+| button-role | 4 | h 2394 \| r 0px \| font 450 14px | `.performance-table > tbody` «T2–T5237 m · field 3» | cars-straight |
+| button-role | 4 | h 1392 \| r 0px \| font 450 13px | `div > .dashboard-card` «Pit stops & pit lane» | cars-pits |
+| button-role | 4 | h 700 \| r 0px \| font 450 13px | `.performance-card-body > .subject-pair` «Median time · statio» | cars-pits, cars-tyres |
+| button-role | 4 | h 1409 \| r 0px \| font 450 13px | `div > .dashboard-card` «Tyre-age performance» | cars-tyres |
+| button-role | 4 | h 135 \| r 0px \| font 450 13px | `.performance-run-inspector > .performance-tyre-plot-controls` «TeamAlpineAston Mart» | cars-tyres |
+| button-role | 4 | h 1172 \| r 0px \| font 450 13px | `div > .dashboard-card` «Relative qualifying » | cars-trend |
+| button-role | 4 | h 516 \| r 0px \| font 450 13px | `.performance-card-body > .performance-trend-table` «Relative qualifying » | cars-trend |
+| button-role | 4 | h 557 \| r 0px \| font 450 13px | `div > .dashboard-card` «Reliability and resu» | cars-results |
+| button-role | 4 | h 26 \| r 0px \| font 600 15px | `div > dd` «3» | season-schedule |
+| button-role | 4 | h 183 \| r 0px \| font 450 12px | `.season-credits > ul` «Andrea Kimi Antonell» | season-schedule |
+| button-role | 4 | h 77 \| r 0px \| font 450 11px | `.season-card > .season-footnote` «Over 20 classified f» | season-results, season-h2h |
+| button-role | 4 | h 348 \| r 10px \| font 450 13px | `.season-column > .season-card` «Retirements by teamA» | season-results |
+| button-role | 4 | h 359 \| r 10px \| font 450 13px | `.season-column > .season-card` «Pit crews against th» | season-results |
+| button-role | 4 | h 287 \| r 0px \| font 450 12px | `.season-credits > ul` «Andrea Kimi Antonell» | season-results |
+| button-role | 4 | h 190 \| r 10px \| font 450 13px | `.season-body > .season-card` «Title fightAndrea Ki» | season-standings |
+| button-role | 4 | h 1164 \| r 0px \| font 450 13px | `.season-body > .season-two` «PosDriverWinsLast 5P» | season-standings |
+| button-role | 4 | h 253 \| r 10px \| font 450 13px | `.season-body > .season-card` «1212Andrea Kimi Anto» | season-drivers |
+| button-role | 4 | h 28 \| r 0px \| font 600 24px | `.season-hero-id > h2` «Andrea Kimi Antonell» | season-drivers |
+| button-role | 4 | h 81 \| r 0px \| font 450 13px | `.season-card > .season-facts` «Lead+111 ptsover Max» | season-drivers |
+| button-role | 4 | h 243 \| r 10px \| font 450 13px | `.season-body > .season-tiles` «Wins9+1 sprintPodium» | season-drivers |
+| button-role | 4 | h 144 \| r 10px \| font 450 13px | `.season-body > .season-card` «Weekend by weekendAU» | season-drivers, ui-catalog |
+| button-role | 4 | h 289 \| r 10px \| font 450 13px | `.season-two > .season-card` «Grid to finishP1P5P1» | season-drivers |
+| button-role | 4 | h 109 \| r 0px \| font 450 13px | `.season-h2h-side > .season-hero-id` «Andrea Kimi Antonell» | season-h2h |
+| button-role | 4 | h 45 \| r 0px \| font 600 32px | `.season-h2h-score > b` «14–6» | season-h2h |
+| button-role | 4 | h 701 \| r 10px \| font 450 13px | `.season-body > .season-card` «Antonelli is ahead o» | season-h2h |
+| button-role | 4 | h 669 \| r 0px \| font 450 13px | `.season-card > .season-h2h` «Antonelli is ahead o» | season-h2h |
+| button-role | 4 | h 397 \| r 10px \| font 450 13px | `.season-two > .season-card` «Points gapRunning to» | season-h2h |
+| button-role | 4 | h 17406 \| r 10px \| font 450 13px | `.season-body > .season-card` «UpdatesBrazilian Gra» | season-upgrades |
+| button-role | 4 | h 17344 \| r 0px \| font 450 13px | `.season-card > .season-updates` «Brazilian Grand Prix» | season-upgrades |
+| button-role | 4 | h 179 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Brazilian Grand Prix» | season-upgrades |
+| button-role | 4 | h 787 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «United States Grand » | season-upgrades |
+| button-role | 4 | h 217 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Singapore Grand Prix» | season-upgrades |
+| button-role | 4 | h 521 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Bahrain Grand Prix i» | season-upgrades |
+| button-role | 4 | h 1167 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Azerbaijan Grand Pri» | season-upgrades |
+| button-role | 4 | h 407 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Spanish Grand Prix ·» | season-upgrades |
+| button-role | 4 | h 1015 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Italian Grand Prix ·» | season-upgrades |
+| button-role | 4 | h 863 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Dutch Grand Prix · R» | season-upgrades |
+| button-role | 4 | h 825 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Belgian Grand Prix ·» | season-upgrades |
+| button-role | 4 | h 1471 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Austrian Grand Prix » | season-upgrades |
+| button-role | 4 | h 711 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Barcelona Grand Prix» | season-upgrades |
+| button-role | 4 | h 1205 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Monaco Grand Prix · » | season-upgrades |
+| button-role | 4 | h 1509 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Canadian Grand Prix » | season-upgrades |
+| button-role | 4 | h 2117 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Miami Grand Prix · R» | season-upgrades |
+| button-role | 4 | h 293 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Chinese Grand Prix ·» | season-upgrades |
+| button-role | 4 | h 1357 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Australian Grand Pri» | season-upgrades |
+| button-role | 4 | h 1775 \| r 0px \| font 450 13px | `#seasonHub > .season-body` «DriverICETCEXHMGU-KE» | season-units, season-upgrades |
+| button-role | 4 | h 454 \| r 0px \| font 450 12px | `.season-credits > ul` «Alexander Albon: Pho» | season-units |
+| button-role | 4 | h 90 \| r 0px \| font 450 13px | `.ui-catalog > header` «F1 Apex Data · UI co» | ui-catalog |
+| button-role | 4 | h 48 \| r 8px \| font 450 13px | `section > details` «Open evidenceExpande» | ui-catalog |
+| button-role | 4 | h 128 \| r 12px \| font 450 13px | `section > .ui-catalog-backdrop` «VER L13Speed 275.3 k» | ui-catalog |
+| button-role | 4 | h 39 \| r 12px \| font 500 13px | `.ui-catalog-backdrop > .app-toast` «Session loaded. Toas» | ui-catalog |
+| button-role | 4 | h 134 \| r 0px \| font 450 12px | `section > .ui-catalog-note` «Every state above us» | ui-catalog |
+| button-role | 4 | h 497 \| r 0px \| font 450 13px | `#top > .analysis-column` «Lap telemetry
+      » | session-empty, season-upgrades |
+| button-role | 4 | h 441 \| r 0px \| font 450 13px | `.analysis-column > .main-dashboard` «Lap telemetry
+      » | session-empty |
+| button-role | 4 | h 3672 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «Measurement evidence» | cars-pace |
+| button-role | 4 | h 3640 \| r 0px \| font 450 14px | `.performance-table > tbody` «McLarenBahrain Grand» | cars-pace |
+| button-role | 4 | h 102 \| r 0px \| font 450 14px | `tbody > tr` «AudiSingapore Grand » | cars-pace |
+| button-role | 4 | h 83 \| r 0px \| font 450 14px | `tbody > tr` «Haas F1 TeamUnited S» | cars-pace |
+| button-role | 4 | h 1749 \| r 0px \| font 450 13px | `div > .dashboard-card` «CorneringCompare the» | cars-corners |
+| button-role | 4 | h 1201 \| r 0px \| font 450 13px | `.performance-card-body > .subject-bands` «Low-speed corners · » | cars-corners |
+| button-role | 4 | h 56 \| r 4px \| font 450 12px | `.performance-evidence > .performance-quality-status` «Low confidence: in v» | cars-corners, cars-braking |
+| button-role | 4 | h 662 \| r 0px \| font 450 13px | `div > .dashboard-card` «Straight lineEach ca» | cars-straight |
+| button-role | 4 | h 1796 \| r 0px \| font 450 13px | `div > .dashboard-card` «Pit stops & pit lane» | cars-pits |
+| button-role | 4 | h 2068 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-tyres, season-units |
+| button-role | 4 | h 1851 \| r 0px \| font 450 13px | `div > .dashboard-card` «Tyre-age performance» | cars-tyres |
+| button-role | 4 | h 1576 \| r 0px \| font 450 13px | `div > .dashboard-card` «Relative qualifying » | cars-trend |
+| button-role | 4 | h 890 \| r 0px \| font 450 13px | `.performance-card-body > .trend-board` «Gap to the quickest » | cars-trend |
+| button-role | 4 | h 1021 \| r 0px \| font 450 13px | `div > .dashboard-card` «Reliability and resu» | cars-results |
+| button-role | 4 | h 3273 \| r 0px \| font 450 13px | `#seasonHub` «Season20262025202420» | season-schedule, season-h2h |
+| button-role | 4 | h 225 \| r 0px \| font 450 13px | `.season-next-body > .season-next-circuit` «Las Vegas Strip Stre» | season-schedule |
+| button-role | 4 | h 24 \| r 0px \| font 600 15px | `div > dd` «2023» | season-schedule |
+| button-role | 4 | h 61 \| r 0px \| font 450 12px | `.season-facts-list > div` «Grands Prix here3» | season-schedule |
+| button-role | 4 | h 192 \| r 0px \| font 450 13px | `.season-next-body > .season-weather` «Weekend forecastLong» | season-schedule |
+| button-role | 4 | h 250 \| r 10px \| font 450 13px | `.season-column > .season-card` «Wins12Antonelli9 +16» | season-results |
+| button-role | 4 | h 162 \| r 0px \| font 450 13px | `.season-card > .season-bars` «12Antonelli9 +163Rus» | season-results |
+| button-role | 4 | h 2239 \| r 0px \| font 450 13px | `.season-body > .season-two` «PosDriverWinsLast 5P» | season-standings, season-upgrades |
+| button-role | 4 | h 215 \| r 10px \| font 450 13px | `.season-body > .season-card` «Weekend by weekendAU» | season-h2h, season-drivers |
+| button-role | 4 | h 114 \| r 0px \| font 450 13px | `.season-card > .season-h2h-weeks` «AUSCHNJPNMIACANMONBA» | season-h2h, season-upgrades |
+| button-role | 4 | h 278 \| r 10px \| font 450 13px | `.season-body > .season-card` «Updates435435 shownG» | season-upgrades, season-h2h |
+| button-role | 4 | h 284 \| r 10px \| font 450 13px | `.season-two > .season-card` «Most-updated compone» | season-upgrades |
+| button-role | 4 | h 222 \| r 0px \| font 450 12px | `.season-card > .season-ranked` «Rear wing51Front win» | season-upgrades |
+| button-role | 4 | h 952 \| r 0px \| font 450 13px | `#top` «SESSION ANALYSISComp» | session-empty, cars-empty |
+| button-role | 4 | h 513 \| r 0px \| font 450 13px | `.analysis-column > .main-dashboard` «Lap telemetry
+      » | session-empty |
+| button-role | 4 | h 262 \| r 10px \| font 450 13px | `#stintPanels > .driver-run-card` «Max VerstappenVER · » | session-lap-sheet |
+| button-role | 4 | h 412 \| r 10px \| font 450 13px | `.performance-visual-grid > .performance-chart-card` «Qualifying Pace Defi» | cars-pace |
+| button-role | 4 | h 1829 \| r 0px \| font 450 13px | `div > .dashboard-card` «CorneringCompare the» | cars-corners |
+| button-role | 4 | h 409 \| r 0px \| font 450 13px | `.performance-card-body > .subject-bands` «Low-speed corners · » | cars-corners, season-drivers |
+| button-role | 4 | h 74 \| r 4px \| font 450 12px | `.performance-evidence > .performance-quality-status` «Low confidence: in v» | cars-corners, cars-braking |
+| button-role | 4 | h 721 \| r 0px \| font 450 13px | `div > .dashboard-card` «Straight lineEach ca» | cars-straight |
+| button-role | 4 | h 1888 \| r 0px \| font 450 13px | `div > .dashboard-card` «Pit stops & pit lane» | cars-pits |
+| button-role | 4 | h 1989 \| r 0px \| font 450 13px | `div > .dashboard-card` «Tyre-age performance» | cars-tyres |
+| button-role | 4 | h 1634 \| r 0px \| font 450 13px | `div > .dashboard-card` «Relative qualifying » | cars-trend |
+| button-role | 4 | h 915 \| r 0px \| font 450 12px | `.season-credits > ul` «Alexander Albon: Pho» | season-standings, season-h2h |
+| button-role | 4 | h 35 \| r 0px \| font 600 15px | `.season-hero-id > h2` «Andrea Kimi Antonell» | season-h2h |
+| button-role | 2 | h 102 \| r 0px \| font 450 13px | `#linearWorkspace > .linear-rail-section` «Drivers
+      
+     » | session-empty |
+| button-role | 2 | h 471 \| r 0px \| font 450 13px | `#top > .analysis-column` «Lap telemetry
+      » | session-empty |
+| button-role | 2 | h 1773 \| r 0px \| font 450 13px | `#carPerformance` «CAR PERFORMANCECompa» | cars-pace |
+| button-role | 2 | h 1663 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-pace |
+| button-role | 2 | h 1595 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «PaceOne-lap speed & » | cars-pace |
+| button-role | 2 | h 3124 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «Measurement evidence» | cars-pace |
+| button-role | 2 | h 3092 \| r 0px \| font 450 14px | `.performance-table > tbody` «McLarenBahrain Grand» | cars-pace |
+| button-role | 2 | h 925 \| r 0px \| font 450 13px | `#performanceMetricPanel > .dashboard-card` «Team profiles
+    Ea» | cars-pace |
+| button-role | 2 | h 364 \| r 10px \| font 450 13px | `.dashboard-card > .performance-chart-card` «Straights against co» | cars-pace |
+| button-role | 2 | h 1530 \| r 0px \| font 450 13px | `#carPerformance` «CAR PERFORMANCECompa» | cars-corners |
+| button-role | 2 | h 1420 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-corners |
+| button-role | 2 | h 703 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-straight |
+| button-role | 2 | h 644 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-braking |
+| button-role | 2 | h 576 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «BrakingTwo views of » | cars-braking |
+| button-role | 2 | h 1700 \| r 0px \| font 450 13px | `#carPerformance` «CAR PERFORMANCECompa» | cars-pits |
+| button-role | 2 | h 1526 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «Pit stopsService spe» | cars-pits |
+| button-role | 2 | h 1717 \| r 0px \| font 450 13px | `#carPerformance` «CAR PERFORMANCECompa» | cars-tyres |
+| button-role | 2 | h 1607 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-tyres |
+| button-role | 2 | h 1543 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «Tyre trendHow perfor» | cars-tyres |
+| button-role | 2 | h 463 \| r 10px \| font 450 13px | `.performance-run-inspector > .performance-chart-card` «COL · Bahrain Grand » | cars-tyres |
+| button-role | 2 | h 1442 \| r 0px \| font 450 13px | `#carPerformance` «CAR PERFORMANCECompa» | cars-trend |
+| button-role | 2 | h 1332 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-trend |
+| button-role | 2 | h 1264 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «Development & update» | cars-trend |
+| button-role | 2 | h 486 \| r 0px \| font 450 13px | `.performance-card-body > .trend-board` «Gap to the quickest » | cars-trend |
+| button-role | 2 | h 1363 \| r 0px \| font 450 13px | `#carPerformance` «CAR PERFORMANCECompa» | cars-results |
+| button-role | 2 | h 1253 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-results |
+| button-role | 2 | h 1185 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «Reliability & result» | cars-results |
+| button-role | 2 | h 458 \| r 0px \| font 450 13px | `.performance-card-body > .results-overview` «Points · races + spr» | cars-results |
+| button-role | 2 | h 2363 \| r 0px \| font 450 13px | `#seasonHub` «Season20262025202420» | season-schedule |
+| button-role | 2 | h 2263 \| r 0px \| font 450 13px | `#seasonHub > .season-body` «Las Vegas Grand Prix» | season-schedule |
+| button-role | 2 | h 461 \| r 10px \| font 450 13px | `.season-body > .season-card` «Las Vegas Grand Prix» | season-schedule |
+| button-role | 2 | h 141 \| r 0px \| font 450 12px | `.season-next-circuit > .season-facts-list` «Lap length6.201 kmAl» | season-schedule |
+| button-role | 2 | h 20 \| r 0px \| font 500 12px | `div > dt` «Grands Prix here» | season-schedule |
+| button-role | 2 | h 1696 \| r 0px \| font 450 13px | `.season-body > .season-rounds` «R1DoneAustralian Gra» | season-schedule |
+| button-role | 2 | h 2196 \| r 0px \| font 450 13px | `#seasonHub` «Season20262025202420» | season-results |
+| button-role | 2 | h 2096 \| r 0px \| font 450 13px | `#seasonHub > .season-body` «Grands Prix20/233 to» | season-results |
+| button-role | 2 | h 99 \| r 10px \| font 450 13px | `.season-body > .season-card` «Grands Prix20/233 to» | season-results |
+| button-role | 2 | h 391 \| r 0px \| font 450 13px | `.season-body > .season-stats` «Most winsDriver9wins» | season-results |
+| button-role | 2 | h 315 \| r 10px \| font 450 13px | `.season-column > .season-card` «Wins12Antonelli9 +16» | season-results |
+| button-role | 2 | h 227 \| r 0px \| font 450 13px | `.season-card > .season-bars` «12Antonelli9 +163Rus» | season-results |
+| button-role | 2 | h 2488 \| r 0px \| font 450 13px | `#seasonHub` «Season20262025202420» | season-standings |
+| button-role | 2 | h 2388 \| r 0px \| font 450 13px | `#seasonHub > .season-body` «DriversConstructorsT» | season-standings |
+| button-role | 2 | h 389 \| r 10px \| font 450 13px | `.season-stack > .season-card` «Points evolution0100» | season-standings |
+| button-role | 2 | h 454 \| r 10px \| font 450 13px | `.season-stack > .season-card` «Championship positio» | season-standings |
+| button-role | 2 | h 904 \| r 10px \| font 450 13px | `.season-body > .season-card` «Results by roundPosi» | season-standings |
+| button-role | 2 | h 1686 \| r 0px \| font 450 13px | `#seasonHub` «Season20262025202420» | season-drivers |
+| button-role | 2 | h 1586 \| r 0px \| font 450 13px | `#seasonHub > .season-body` «Andrea Kimi Antonell» | season-drivers |
+| button-role | 2 | h 289 \| r 0px \| font 450 13px | `.season-body > .season-two` «Grid to finishP1P5P1» | season-drivers |
+| button-role | 2 | h 256 \| r 10px \| font 450 13px | `.season-body > .season-card` «Points by round01020» | season-drivers |
+| button-role | 2 | h 2311 \| r 0px \| font 450 13px | `#seasonHub` «Season20262025202420» | season-h2h |
+| button-role | 2 | h 2211 \| r 0px \| font 450 13px | `#seasonHub > .season-body` «Andrea Kimi Antonell» | season-h2h |
+| button-role | 2 | h 172 \| r 10px \| font 450 13px | `.season-body > .season-h2h-hero` «12Andrea Kimi Antone» | season-h2h |
+| button-role | 2 | h 397 \| r 0px \| font 450 13px | `.season-body > .season-two` «Points gapRunning to» | season-h2h |
+| button-role | 2 | h 155 \| r 10px \| font 450 13px | `.season-body > .season-card` «Weekend by weekendAU» | season-h2h |
+| button-role | 2 | h 632 \| r 10px \| font 450 13px | `.season-body > .season-card` «Every teammate battl» | season-h2h |
+| button-role | 2 | h 570 \| r 0px \| font 450 13px | `.season-card > .season-battles` «Alpine43COLvs10GAS51» | season-h2h |
+| button-role | 2 | h 18595 \| r 0px \| font 450 13px | `#seasonHub` «Season20262025202420» | season-upgrades |
+| button-role | 2 | h 18495 \| r 0px \| font 450 13px | `#seasonHub > .season-body` «Updates435435 shownG» | season-upgrades |
+| button-role | 2 | h 229 \| r 10px \| font 450 13px | `.season-body > .season-card` «Updates435435 shownG» | season-upgrades |
+| button-role | 2 | h 99 \| r 0px \| font 450 13px | `.season-card > .season-numbers` «Updates435435 shownG» | season-upgrades |
+| button-role | 2 | h 48 \| r 0px \| font 450 13px | `.season-card > .season-filter-row` «ReasonAll reasonsPer» | season-upgrades |
+| button-role | 2 | h 365 \| r 0px \| font 450 13px | `.season-body > .season-two` «By team and reasonMc» | season-upgrades |
+| button-role | 2 | h 303 \| r 0px \| font 450 12px | `.season-card > .season-ranked` «Rear wing51Front win» | season-upgrades |
+| button-role | 2 | h 1875 \| r 0px \| font 450 13px | `#seasonHub` «Season20262025202420» | season-units |
+| button-role | 2 | h 923 \| r 10px \| font 450 13px | `.season-body > .season-card` «DriverICETCEXHMGU-KE» | season-units |
+| button-role | 2 | h 34 \| r 0px \| font 450 11px | `.season-card > .season-footnote` «Elements each driver» | season-units |
+| button-role | 2 | h 774 \| r 10px \| font 450 13px | `.season-body > .season-card` «New elements fitted » | season-units |
+| button-role | 2 | h 2294 \| r 0px \| font 450 13px | `.ui-catalog` «F1 Apex Data · UI co» | ui-catalog |
+| button-role | 2 | h 2057 \| r 0px \| font 450 13px | `.ui-catalog > .ui-catalog-grid` «Window toolbar and s» | ui-catalog |
+| button-role | 2 | h 190 \| r 0px \| font 450 13px | `section > .lap-workspace` «Lap-state layout exa» | ui-catalog |
+| button-role | 2 | h 1793 \| r 0px \| font 450 13px | `#carPerformance` «CAR PERFORMANCECompa» | cars-pace |
+| button-role | 2 | h 1683 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-pace |
+| button-role | 2 | h 1615 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «PaceOne-lap speed & » | cars-pace |
+| button-role | 2 | h 926 \| r 0px \| font 450 13px | `#performanceMetricPanel > .dashboard-card` «Team profiles
+    Ea» | cars-pace |
+| button-role | 2 | h 366 \| r 10px \| font 450 13px | `.dashboard-card > .performance-chart-card` «Straights against co» | cars-pace |
+| button-role | 2 | h 2694 \| r 0px \| font 450 13px | `#carPerformance` «CAR PERFORMANCECompa» | cars-corners |
+| button-role | 2 | h 2584 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-corners |
+| button-role | 2 | h 2516 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «CorneringPerformance» | cars-corners |
+| button-role | 2 | h 346 \| r 0px \| font 450 13px | `.performance-card-body > .subject-bands` «Low-speed corners · » | cars-corners |
+| button-role | 2 | h 1660 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «CorneringGrand PrixT» | cars-corners |
+| button-role | 2 | h 1628 \| r 0px \| font 450 14px | `.performance-table > tbody` «Bahrain Grand PrixMc» | cars-corners |
+| button-role | 2 | h 628 \| r 0px \| font 450 13px | `div > .dashboard-card` «Corner exit traction» | cars-corners |
+| button-role | 2 | h 951 \| r 0px \| font 450 13px | `#carPerformance` «CAR PERFORMANCECompa» | cars-straight |
+| button-role | 2 | h 841 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-straight |
+| button-role | 2 | h 773 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «Straight lineSettled» | cars-straight |
+| button-role | 2 | h 714 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «BrakingTwo views of » | cars-braking |
+| button-role | 2 | h 2123 \| r 0px \| font 450 13px | `#carPerformance` «CAR PERFORMANCECompa» | cars-pits |
+| button-role | 2 | h 2013 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-pits |
+| button-role | 2 | h 1949 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «Pit stopsService spe» | cars-pits |
+| button-role | 2 | h 2178 \| r 0px \| font 450 13px | `#carPerformance` «CAR PERFORMANCECompa» | cars-tyres |
+| button-role | 2 | h 2004 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «Tyre trendHow perfor» | cars-tyres |
+| button-role | 2 | h 351 \| r 10px \| font 450 13px | `.performance-run-inspector > .performance-chart-card` «COL · Bahrain Grand » | cars-tyres |
+| button-role | 2 | h 1865 \| r 0px \| font 450 13px | `#carPerformance` «CAR PERFORMANCECompa» | cars-trend |
+| button-role | 2 | h 1755 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-trend |
+| button-role | 2 | h 1687 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «Development & update» | cars-trend |
+| button-role | 2 | h 1846 \| r 0px \| font 450 13px | `#carPerformance` «CAR PERFORMANCECompa» | cars-results |
+| button-role | 2 | h 1736 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-results |
+| button-role | 2 | h 1668 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «Reliability & result» | cars-results |
+| button-role | 2 | h 3173 \| r 0px \| font 450 13px | `#seasonHub > .season-body` «Las Vegas Grand Prix» | season-schedule |
+| button-role | 2 | h 731 \| r 10px \| font 450 13px | `.season-body > .season-card` «Las Vegas Grand Prix» | season-schedule |
+| button-role | 2 | h 108 \| r 8px \| font 450 13px | `.season-card > .season-sessions` «Practice 1NextFri 20» | season-schedule |
+| button-role | 2 | h 417 \| r 0px \| font 450 13px | `.season-card > .season-next-body` «Las Vegas Strip Stre» | season-schedule |
+| button-role | 2 | h 165 \| r 0px \| font 450 12px | `.season-next-circuit > .season-facts-list` «Lap length6.201 kmAl» | season-schedule |
+| button-role | 2 | h 2336 \| r 0px \| font 450 13px | `.season-body > .season-rounds` «R1DoneAustralian Gra» | season-schedule |
+| button-role | 2 | h 3198 \| r 0px \| font 450 13px | `#seasonHub` «Season20262025202420» | season-results |
+| button-role | 2 | h 3098 \| r 0px \| font 450 13px | `#seasonHub > .season-body` «Grands Prix20/233 to» | season-results |
+| button-role | 2 | h 181 \| r 10px \| font 450 13px | `.season-body > .season-card` «Grands Prix20/233 to» | season-results |
+| button-role | 2 | h 149 \| r 0px \| font 450 13px | `.season-card > .season-numbers` «Grands Prix20/233 to» | season-results |
+| button-role | 2 | h 690 \| r 0px \| font 450 13px | `.season-body > .season-stats` «Most winsDriver9wins» | season-results |
+| button-role | 2 | h 1296 \| r 0px \| font 450 13px | `.season-body > .season-columns` «Retirements by teamA» | season-results |
+| button-role | 2 | h 609 \| r 0px \| font 450 13px | `.season-columns > .season-column` «Retirements by teamA» | season-results |
+| button-role | 2 | h 3578 \| r 0px \| font 450 13px | `#seasonHub` «Season20262025202420» | season-standings |
+| button-role | 2 | h 3478 \| r 0px \| font 450 13px | `#seasonHub > .season-body` «DriversConstructorsT» | season-standings |
+| button-role | 2 | h 1063 \| r 0px \| font 450 13px | `.season-two > .season-stack` «Points evolution0100» | season-standings |
+| button-role | 2 | h 483 \| r 10px \| font 450 13px | `.season-stack > .season-card` «Points evolution0100» | season-standings |
+| button-role | 2 | h 568 \| r 10px \| font 450 13px | `.season-stack > .season-card` «Championship positio» | season-standings |
+| button-role | 2 | h 919 \| r 10px \| font 450 13px | `.season-body > .season-card` «Results by roundPosi» | season-standings |
+| button-role | 2 | h 2349 \| r 0px \| font 450 13px | `#seasonHub` «Season20262025202420» | season-drivers |
+| button-role | 2 | h 2249 \| r 0px \| font 450 13px | `#seasonHub > .season-body` «Andrea Kimi Antonell» | season-drivers |
+| button-role | 2 | h 207 \| r 10px \| font 450 13px | `.season-body > .season-card` «Weekend by weekendAU» | season-drivers |
+| button-role | 2 | h 121 \| r 0px \| font 450 13px | `.season-card > .season-strip` «AUS2 CHN1 JPN1 MIA1 » | season-drivers |
+| button-role | 2 | h 520 \| r 0px \| font 450 13px | `.season-body > .season-two` «Race finishing posit» | season-drivers |
+| button-role | 2 | h 273 \| r 10px \| font 450 13px | `.season-two > .season-card` «Championship positio» | season-drivers |
+| button-role | 2 | h 670 \| r 0px \| font 450 13px | `.season-body > .season-two` «Grid to finishP1P5P1» | season-drivers |
+| button-role | 2 | h 330 \| r 10px \| font 450 13px | `.season-two > .season-card` «Grid to finishP1P5P1» | season-drivers |
+| button-role | 2 | h 328 \| r 10px \| font 450 13px | `.season-two > .season-card` «Qualifying gap to Ru» | season-drivers |
+| button-role | 2 | h 191 \| r 10px \| font 450 13px | `.season-body > .season-card` «Points by round01020» | season-drivers |
+| button-role | 2 | h 3373 \| r 0px \| font 450 13px | `#seasonHub` «Season20262025202420» | season-h2h |
+| button-role | 2 | h 239 \| r 10px \| font 450 13px | `.season-body > .season-h2h-hero` «12Andrea Kimi Antone» | season-h2h |
+| button-role | 2 | h 942 \| r 0px \| font 450 13px | `.season-body > .season-two` «Points gapRunning to» | season-h2h |
+| button-role | 2 | h 457 \| r 10px \| font 450 13px | `.season-two > .season-card` «Points gapRunning to» | season-h2h |
+| button-role | 2 | h 473 \| r 10px \| font 450 13px | `.season-two > .season-card` «Pace gapQualifying, » | season-h2h |
+| button-role | 2 | h 1022 \| r 10px \| font 450 13px | `.season-body > .season-card` «Every teammate battl» | season-h2h |
+| button-role | 2 | h 960 \| r 0px \| font 450 13px | `.season-card > .season-battles` «Alpine43COLvs10GAS51» | season-h2h |
+| button-role | 2 | h 18956 \| r 0px \| font 450 13px | `#seasonHub` «Season20262025202420» | season-upgrades |
+| button-role | 2 | h 18856 \| r 0px \| font 450 13px | `#seasonHub > .season-body` «Updates435435 shownG» | season-upgrades |
+| button-role | 2 | h 661 \| r 0px \| font 450 13px | `.season-body > .season-two` «By team and reasonMc» | season-upgrades |
+| button-role | 2 | h 1908 \| r 0px \| font 450 13px | `#seasonHub` «Season20262025202420» | season-units |
+| button-role | 2 | h 1808 \| r 0px \| font 450 13px | `#seasonHub > .season-body` «DriverICETCEXHMGU-KE» | season-units |
+| button-role | 2 | h 941 \| r 10px \| font 450 13px | `.season-body > .season-card` «DriverICETCEXHMGU-KE» | season-units |
+| button-role | 2 | h 32 \| r 0px \| font 450 11px | `.season-card > .season-footnote` «Elements each driver» | season-units |
+| button-role | 2 | h 789 \| r 10px \| font 450 13px | `.season-body > .season-card` «New elements fitted » | season-units |
+| button-role | 2 | h 2326 \| r 0px \| font 450 13px | `.ui-catalog` «F1 Apex Data · UI co» | ui-catalog |
+| button-role | 2 | h 2089 \| r 0px \| font 450 13px | `.ui-catalog > .ui-catalog-grid` «Window toolbar and s» | ui-catalog |
+| button-role | 2 | h 66 \| r 0px \| font 450 13px | `section > .ui-catalog-row` «Speed annotationsCor» | ui-catalog |
+| button-role | 2 | h 189 \| r 0px \| font 450 13px | `section > .lap-workspace` «Lap-state layout exa» | ui-catalog |
+| button-role | 2 | h 66 \| r 8px \| font 450 13px | `section > details` «Open evidenceExpande» | ui-catalog |
+| button-role | 2 | h 55 \| r 4px \| font 450 13px | `section > .performance-quality-status` «Speed-based estimate» | ui-catalog |
+| button-role | 2 | h 147 \| r 12px \| font 450 13px | `section > .ui-catalog-backdrop` «VER L13Speed 275.3 k» | ui-catalog |
+| button-role | 2 | h 58 \| r 12px \| font 500 13px | `.ui-catalog-backdrop > .app-toast` «Session loaded. Toas» | ui-catalog |
+| button-role | 2 | h 151 \| r 0px \| font 450 12px | `section > .ui-catalog-note` «Every state above us» | ui-catalog |
+| button-role | 2 | h 569 \| r 0px \| font 450 13px | `#top > .analysis-column` «Lap telemetry
+      » | session-empty |
+| button-role | 2 | h 117 \| r 0px \| font 450 13px | `#telemetryCard > .comparison-tray` «Comparison
+         » | session-empty |
+| button-role | 2 | h 880 \| r 12px \| font 450 13px | `#lapWorkspace > #lapSelectionBody` «Comparison laps
+    » | session-lap-sheet |
+| button-role | 2 | h 40 \| r 0px \| font 600 15px | `.linear-lap-header > strong` «Comparison laps» | session-lap-sheet |
+| button-role | 2 | h 830 \| r 0px \| font 450 13px | `#lapSelectionBody > #driverSidebar` «Drivers
+        
+   » | session-lap-sheet |
+| button-role | 2 | h 712 \| r 0px \| font 450 13px | `#driverSidebar > .dashboard-card` «Drivers
+        
+   » | session-lap-sheet |
+| button-role | 2 | h 536 \| r 0px \| font 450 13px | `#lapSelectionBody > #stintPanels` «Max VerstappenVER · » | session-lap-sheet |
+| button-role | 2 | h 4547 \| r 0px \| font 450 13px | `#top` «SESSION ANALYSISComp» | session-explanations |
+| button-role | 2 | h 3550 \| r 0px \| font 450 13px | `#top > .analysis-column` «Session overview
+   » | session-explanations |
+| button-role | 2 | h 3494 \| r 0px \| font 450 13px | `.analysis-column > .main-dashboard` «Session overview
+   » | session-explanations |
+| button-role | 2 | h 2670 \| r 0px \| font 450 13px | `.main-dashboard > #telemetryCard` «Lap telemetry
+      » | session-explanations |
+| button-role | 2 | h 120 \| r 0px \| font 450 13px | `#telemetryCard > .comparison-tray` «Comparison
+         » | session-explanations |
+| button-role | 2 | h 35 \| r 0px \| font 600 12px | `.comparison-tray > .comparison-tray-heading` «Comparison
+         » | session-explanations |
+| button-role | 2 | h 2289 \| r 0px \| font 450 13px | `#carPerformance` «CAR PERFORMANCECompa» | cars-pace |
+| button-role | 2 | h 2111 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-pace |
+| button-role | 2 | h 2043 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «PaceOne-lap speed & » | cars-pace |
+| button-role | 2 | h 832 \| r 0px \| font 450 13px | `.performance-card-body > .performance-visual-grid` «Qualifying Pace Defi» | cars-pace |
+| button-role | 2 | h 362 \| r 10px \| font 450 13px | `.dashboard-card > .performance-chart-card` «Straights against co» | cars-pace |
+| button-role | 2 | h 2881 \| r 0px \| font 450 13px | `#carPerformance` «CAR PERFORMANCECompa» | cars-corners |
+| button-role | 2 | h 2703 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-corners |
+| button-role | 2 | h 2635 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «CorneringPerformance» | cars-corners |
+| button-role | 2 | h 124 \| r 4px \| font 450 12px | `.performance-evidence > .performance-quality-status` «Common-distance esti» | cars-corners |
+| button-role | 2 | h 196 \| r 4px \| font 450 12px | `.performance-evidence > .performance-quality-status` «Speed is integrated » | cars-corners |
+| button-role | 2 | h 1097 \| r 0px \| font 450 13px | `#carPerformance` «CAR PERFORMANCECompa» | cars-straight |
+| button-role | 2 | h 919 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-straight |
+| button-role | 2 | h 851 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «Straight lineSettled» | cars-straight |
+| button-role | 2 | h 3505 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «Straight lineStraigh» | cars-straight |
+| button-role | 2 | h 3473 \| r 0px \| font 450 14px | `.performance-table > tbody` «T3–T4253 m · field 3» | cars-straight |
+| button-role | 2 | h 3457 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «Straight lineStraigh» | cars-straight |
+| button-role | 2 | h 3425 \| r 0px \| font 450 14px | `.performance-table > tbody` «T3–T5154 m · field 2» | cars-straight |
+| button-role | 2 | h 2460 \| r 0px \| font 450 14px | `.performance-table-wrap > .performance-table` «Straight lineStraigh» | cars-straight |
+| button-role | 2 | h 2428 \| r 0px \| font 450 14px | `.performance-table > tbody` «T2–T5237 m · field 3» | cars-straight |
+| button-role | 2 | h 822 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-braking |
+| button-role | 2 | h 754 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «BrakingTwo views of » | cars-braking |
+| button-role | 2 | h 2318 \| r 0px \| font 450 13px | `#carPerformance` «CAR PERFORMANCECompa» | cars-pits |
+| button-role | 2 | h 2140 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-pits |
+| button-role | 2 | h 2076 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «Pit stopsService spe» | cars-pits |
+| button-role | 2 | h 2403 \| r 0px \| font 450 13px | `#carPerformance` «CAR PERFORMANCECompa» | cars-tyres |
+| button-role | 2 | h 2225 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-tyres |
+| button-role | 2 | h 2161 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «Tyre trendHow perfor» | cars-tyres |
+| button-role | 2 | h 186 \| r 0px \| font 450 13px | `.performance-card-body > .performance-card-controls` «Tyre-age trendMatche» | cars-tyres |
+| button-role | 2 | h 1141 \| r 0px \| font 450 13px | `.performance-card-body > .subject-pair` «Tyre-age lap-time ch» | cars-tyres |
+| button-role | 2 | h 386 \| r 10px \| font 450 13px | `.subject-pair > .performance-chart-card` «Tyre-age lap-time ch» | cars-tyres |
+| button-role | 2 | h 694 \| r 10px \| font 450 13px | `.subject-pair > .performance-chart-card` «Tyre-age lap-time ch» | cars-tyres |
+| button-role | 2 | h 197 \| r 0px \| font 450 13px | `.performance-run-inspector > .performance-tyre-plot-controls` «TeamAlpineAston Mart» | cars-tyres |
+| button-role | 2 | h 2010 \| r 0px \| font 450 13px | `#carPerformance` «CAR PERFORMANCECompa» | cars-trend |
+| button-role | 2 | h 1832 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-trend |
+| button-role | 2 | h 1764 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «Development & update» | cars-trend |
+| button-role | 2 | h 574 \| r 0px \| font 450 13px | `.performance-card-body > .performance-trend-table` «Relative qualifying » | cars-trend |
+| button-role | 2 | h 1965 \| r 0px \| font 450 13px | `#carPerformance` «CAR PERFORMANCECompa» | cars-results |
+| button-role | 2 | h 1787 \| r 0px \| font 450 13px | `#carPerformance > #performanceResults` «⏱️Pace🏎️Cornering🚀» | cars-results |
+| button-role | 2 | h 1719 \| r 0px \| font 450 13px | `#performanceResults > #performanceMetricPanel` «Reliability & result» | cars-results |
+| button-role | 2 | h 8136 \| r 0px \| font 450 13px | `#seasonHub` «Season20262025202420» | season-schedule |
+| button-role | 2 | h 7961 \| r 0px \| font 450 13px | `#seasonHub > .season-body` «Las Vegas Grand Prix» | season-schedule |
+| button-role | 2 | h 1156 \| r 10px \| font 450 13px | `.season-body > .season-card` «Las Vegas Grand Prix» | season-schedule |
+| button-role | 2 | h 271 \| r 8px \| font 450 13px | `.season-card > .season-sessions` «Practice 1NextFri 20» | season-schedule |
+| button-role | 2 | h 593 \| r 0px \| font 450 13px | `.season-card > .season-next-body` «Las Vegas Strip Stre» | season-schedule |
+| button-role | 2 | h 213 \| r 0px \| font 450 13px | `.season-next-body > .season-next-circuit` «Las Vegas Strip Stre» | season-schedule |
+| button-role | 2 | h 153 \| r 0px \| font 450 12px | `.season-next-circuit > .season-facts-list` «Lap length6.201 kmAl» | season-schedule |
+| button-role | 2 | h 188 \| r 0px \| font 450 13px | `.season-next-body > .season-history` «Recent winners hereM» | season-schedule |
+| button-role | 2 | h 6663 \| r 0px \| font 450 13px | `.season-body > .season-rounds` «R1DoneAustralian Gra» | season-schedule |
+| button-role | 2 | h 351 \| r 0px \| font 450 12px | `.season-credits > ul` «Andrea Kimi Antonell» | season-schedule |
+| button-role | 2 | h 4070 \| r 0px \| font 450 13px | `#seasonHub` «Season20262025202420» | season-results |
+| button-role | 2 | h 3894 \| r 0px \| font 450 13px | `#seasonHub > .season-body` «Grands Prix20/233 to» | season-results |
+| button-role | 2 | h 302 \| r 10px \| font 450 13px | `.season-body > .season-card` «Grands Prix20/233 to» | season-results |
+| button-role | 2 | h 270 \| r 0px \| font 450 13px | `.season-card > .season-numbers` «Grands Prix20/233 to» | season-results |
+| button-role | 2 | h 1319 \| r 0px \| font 450 13px | `.season-body > .season-stats` «Most winsDriver9wins» | season-results |
+| button-role | 2 | h 1342 \| r 0px \| font 450 13px | `.season-body > .season-columns` «Retirements by teamA» | season-results |
+| button-role | 2 | h 625 \| r 0px \| font 450 13px | `.season-columns > .season-column` «Retirements by teamA» | season-results |
+| button-role | 2 | h 363 \| r 10px \| font 450 13px | `.season-column > .season-card` «Retirements by teamA» | season-results |
+| button-role | 2 | h 705 \| r 0px \| font 450 13px | `.season-columns > .season-column` «Pit crews against th» | season-results |
+| button-role | 2 | h 319 \| r 10px \| font 450 13px | `.season-column > .season-card` «Quickest pit lane ti» | season-results |
+| button-role | 2 | h 539 \| r 0px \| font 450 12px | `.season-credits > ul` «Andrea Kimi Antonell» | season-results |
+| button-role | 2 | h 3213 \| r 0px \| font 450 13px | `#seasonHub` «Season20262025202420» | season-standings |
+| button-role | 2 | h 3038 \| r 0px \| font 450 13px | `#seasonHub > .season-body` «DriversConstructorsT» | season-standings |
+| button-role | 2 | h 227 \| r 10px \| font 450 13px | `.season-body > .season-card` «Title fightAndrea Ki» | season-standings |
+| button-role | 2 | h 1747 \| r 0px \| font 450 13px | `.season-body > .season-two` «PosDriverWinsLast 5P» | season-standings |
+| button-role | 2 | h 571 \| r 0px \| font 450 13px | `.season-two > .season-stack` «Points evolution0100» | season-standings |
+| button-role | 2 | h 260 \| r 10px \| font 450 13px | `.season-stack > .season-card` «Points evolution0100» | season-standings |
+| button-role | 2 | h 299 \| r 10px \| font 450 13px | `.season-stack > .season-card` «Championship positio» | season-standings |
+| button-role | 2 | h 934 \| r 10px \| font 450 13px | `.season-body > .season-card` «Results by roundPosi» | season-standings |
+| button-role | 2 | h 2519 \| r 0px \| font 450 13px | `#seasonHub` «Season20262025202420» | season-drivers |
+| button-role | 2 | h 2344 \| r 0px \| font 450 13px | `#seasonHub > .season-body` «Andrea Kimi Antonell» | season-drivers |
+| button-role | 2 | h 339 \| r 10px \| font 450 13px | `.season-body > .season-card` «1212Andrea Kimi Anto» | season-drivers |
+| button-role | 2 | h 486 \| r 10px \| font 450 13px | `.season-body > .season-tiles` «Wins9+1 sprintPodium» | season-drivers |
+| button-role | 2 | h 347 \| r 10px \| font 450 13px | `.season-body > .season-card` «Weekend by weekendAU» | season-drivers |
+| button-role | 2 | h 161 \| r 10px \| font 450 13px | `.season-two > .season-card` «Championship positio» | season-drivers |
+| button-role | 2 | h 447 \| r 0px \| font 450 13px | `.season-body > .season-two` «Grid to finishP1P5P1» | season-drivers |
+| button-role | 2 | h 221 \| r 10px \| font 450 13px | `.season-two > .season-card` «Grid to finishP1P5P1» | season-drivers |
+| button-role | 2 | h 150 \| r 10px \| font 450 13px | `.season-body > .season-card` «Points by round01020» | season-drivers |
+| button-role | 2 | h 3676 \| r 0px \| font 450 13px | `#seasonHub` «Season20262025202420» | season-h2h |
+| button-role | 2 | h 3501 \| r 0px \| font 450 13px | `#seasonHub > .season-body` «Andrea Kimi Antonell» | season-h2h |
+| button-role | 2 | h 878 \| r 10px \| font 450 13px | `.season-body > .season-card` «Antonelli is ahead o» | season-h2h |
+| button-role | 2 | h 615 \| r 0px \| font 450 13px | `.season-body > .season-two` «Points gapRunning to» | season-h2h |
+| button-role | 2 | h 325 \| r 10px \| font 450 13px | `.season-two > .season-card` «Pace gapQualifying, » | season-h2h |
+| button-role | 2 | h 174 \| r 0px \| font 450 13px | `.season-card > .season-h2h-weeks` «AUSCHNJPNMIACANMONBA» | season-h2h |
+| button-role | 2 | h 1232 \| r 10px \| font 450 13px | `.season-body > .season-card` «Every teammate battl» | season-h2h |
+| button-role | 2 | h 1170 \| r 0px \| font 450 13px | `.season-card > .season-battles` «Alpine43COLvs10GAS51» | season-h2h |
+| button-role | 2 | h 29341 \| r 0px \| font 450 13px | `#seasonHub` «Season20262025202420» | season-upgrades |
+| button-role | 2 | h 29166 \| r 0px \| font 450 13px | `#seasonHub > .season-body` «Updates435435 shownG» | season-upgrades |
+| button-role | 2 | h 556 \| r 10px \| font 450 13px | `.season-body > .season-card` «Updates435435 shownG» | season-upgrades |
+| button-role | 2 | h 244 \| r 0px \| font 450 13px | `.season-card > .season-numbers` «Updates435435 shownG» | season-upgrades |
+| button-role | 2 | h 173 \| r 0px \| font 450 13px | `.season-card > .season-filter-row` «TeamAll teamsMcLaren» | season-upgrades |
+| button-role | 2 | h 139 \| r 0px \| font 450 13px | `.season-card > .season-filter-row` «ReasonAll reasonsPer» | season-upgrades |
+| button-role | 2 | h 681 \| r 0px \| font 450 13px | `.season-body > .season-two` «By team and reasonMc» | season-upgrades |
+| button-role | 2 | h 384 \| r 10px \| font 450 13px | `.season-two > .season-card` «By team and reasonMc» | season-upgrades |
+| button-role | 2 | h 54 \| r 0px \| font 450 11px | `.season-card > .season-legend` «Performance · 329Cir» | season-upgrades |
+| button-role | 2 | h 27403 \| r 10px \| font 450 13px | `.season-body > .season-card` «UpdatesBrazilian Gra» | season-upgrades |
+| button-role | 2 | h 27341 \| r 0px \| font 450 13px | `.season-card > .season-updates` «Brazilian Grand Prix» | season-upgrades |
+| button-role | 2 | h 279 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Brazilian Grand Prix» | season-upgrades |
+| button-role | 2 | h 1213 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «United States Grand » | season-upgrades |
+| button-role | 2 | h 344 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Singapore Grand Prix» | season-upgrades |
+| button-role | 2 | h 876 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Bahrain Grand Prix i» | season-upgrades |
+| button-role | 2 | h 607 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Spanish Grand Prix ·» | season-upgrades |
+| button-role | 2 | h 1568 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Italian Grand Prix ·» | season-upgrades |
+| button-role | 2 | h 1289 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Dutch Grand Prix · R» | season-upgrades |
+| button-role | 2 | h 1731 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Hungarian Grand Prix» | season-upgrades |
+| button-role | 2 | h 596 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «British Grand Prix ·» | season-upgrades |
+| button-role | 2 | h 2369 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Austrian Grand Prix » | season-upgrades |
+| button-role | 2 | h 1065 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Barcelona Grand Prix» | season-upgrades |
+| button-role | 2 | h 1853 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Monaco Grand Prix · » | season-upgrades |
+| button-role | 2 | h 2433 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Canadian Grand Prix » | season-upgrades |
+| button-role | 2 | h 3509 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Miami Grand Prix · R» | season-upgrades |
+| button-role | 2 | h 1037 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Japanese Grand Prix » | season-upgrades |
+| button-role | 2 | h 445 \| r 0px \| font 450 13px | `.season-updates > .season-update-group` «Chinese Grand Prix ·» | season-upgrades |
+| button-role | 2 | h 198 \| r 0px \| font 450 12px | `.season-update > p` «The 2026 floor archi» | season-upgrades |
+| button-role | 2 | h 180 \| r 0px \| font 450 12px | `.season-update > p` «Most teams encourage» | season-upgrades |
+| button-role | 2 | h 1893 \| r 0px \| font 450 13px | `#seasonHub > .season-body` «DriverICETCEXHMGU-KE» | season-units |
+| button-role | 2 | h 1011 \| r 10px \| font 450 13px | `.season-body > .season-card` «DriverICETCEXHMGU-KE» | season-units |
+| button-role | 2 | h 74 \| r 0px \| font 450 11px | `.season-card > .season-legend` «ICE · Internal combu» | season-units |
+| button-role | 2 | h 63 \| r 0px \| font 450 11px | `.season-card > .season-footnote` «Elements each driver» | season-units |
+| button-role | 2 | h 804 \| r 10px \| font 450 13px | `.season-body > .season-card` «New elements fitted » | season-units |
+| button-role | 2 | h 840 \| r 0px \| font 450 12px | `.season-credits > ul` «Alexander Albon: Pho» | season-units |
+| button-role | 2 | h 4515 \| r 0px \| font 450 13px | `.ui-catalog` «F1 Apex Data · UI co» | ui-catalog |
+| button-role | 2 | h 193 \| r 0px \| font 450 13px | `.ui-catalog > header` «F1 Apex Data · UI co» | ui-catalog |
+| button-role | 2 | h 94 \| r 0px \| font 450 13px | `header > .ui-catalog-row` «Back to analysisLigh» | ui-catalog |
+| button-role | 2 | h 75 \| r 4px \| font 450 13px | `section > #catalogLongStatus` «Loading fastest qual» | ui-catalog |
+| button-role | 2 | h 4136 \| r 0px \| font 450 13px | `.ui-catalog > .ui-catalog-grid` «Window toolbar and s» | ui-catalog |
+| button-role | 2 | h 179 \| r 10px \| font 450 13px | `.ui-catalog-grid > section` «Push buttonsAnalyseR» | ui-catalog |
+| button-role | 2 | h 183 \| r 10px \| font 450 13px | `.ui-catalog-grid > section` «Segmented choicesTea» | ui-catalog |
+| button-role | 2 | h 288 \| r 10px \| font 450 13px | `.ui-catalog-grid > section` «Fields and pop-up me» | ui-catalog |
+| button-role | 2 | h 606 \| r 10px \| font 450 13px | `.ui-catalog-grid > section` «Selection and source» | ui-catalog |
+| button-role | 2 | h 76 \| r 8px \| font 450 13px | `section > .lap-workspace` «Q1Q2Q3» | ui-catalog |
+| button-role | 2 | h 178 \| r 8px \| font 450 13px | `section > .lap-workspace` «Lap-state layout exa» | ui-catalog |
+| button-role | 2 | h 189 \| r 10px \| font 450 13px | `.ui-catalog-grid > section` «Tabs and disclosureT» | ui-catalog |
+| button-role | 2 | h 209 \| r 10px \| font 450 13px | `.ui-catalog-grid > section` «Progress and feedbac» | ui-catalog |
+| button-role | 2 | h 282 \| r 10px \| font 450 13px | `.ui-catalog-grid > section` «MaterialsVER L13Spee» | ui-catalog |
+| button-role | 2 | h 102 \| r 10px \| font 450 13px | `.ui-catalog-grid > section` «Popover and sheetSho» | ui-catalog |
+| button-role | 2 | h 188 \| r 10px \| font 450 13px | `.ui-catalog-grid > section` «Chart legend and scr» | ui-catalog |
+| card | 573 | bg rgb(25, 26, 27) \| ring rgba(34,35,36) 0px 0px 0px 1px inset, rgba(0,0,0,0.3) 0px 0.5px 1px 1p \| r 10px | `#cornerWorkspace > #cornerPickerRow` «CornersChoose one or» | session-loaded, session-lap-sheet, session-compute |
+| card | 477 | bg rgb(255, 255, 255) \| ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset, rgba(0,0,0,0.05) 0px 0.5px 1px \| r 10px | `#cornerWorkspace > #cornerPickerRow` «CornersChoose one or» | session-loaded, session-lap-sheet, session-compute |
+| card | 12 | bg rgba(0, 0, 0, 0) \| ring rgba(35,36,38) 0px 0px 0px 1px inset \| r 10px | `#cornerMetricGrid > .corner-selection-empty` «Compare a sectionSel» | session-loaded, session-lap-sheet, session-compute |
+| card | 12 | bg rgba(0, 0, 0, 0) \| ring rgba(0,0,0,0.1) 0px 0px 0px 1px inset \| r 10px | `#cornerMetricGrid > .corner-selection-empty` «Compare a sectionSel» | session-loaded, session-lap-sheet, session-compute |
+| card | 11 | bg rgb(25, 26, 27) \| ring rgba(34,35,36) 0px 0px 0px 1px inset \| r 8px | `.performance-card-body > .dashboard-card` «FIA event documentsR» | cars-trend, session-loaded, session-lap-sheet |
+| card | 11 | bg rgb(255, 255, 255) \| ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset \| r 8px | `.performance-card-body > .dashboard-card` «FIA event documentsR» | cars-trend, session-loaded, session-lap-sheet |
 | card | 8 | bg rgba(0, 0, 0, 0) \| ring  border 1px 0px 0px rgba(255, 255, 255, 0.05) rgb(255, 255, 255) rgb(255, 255, 255) \| r 12px | `.dashboard-card > #performanceTrackTray` «Races
           3 se» | cars-pace, cars-corners, cars-straight |
 | card | 8 | bg rgba(0, 0, 0, 0) \| ring  border 1px 0px 0px rgba(0, 0, 0, 0.06) rgb(40, 42, 48) rgb(40, 42, 48) \| r 12px | `.dashboard-card > #performanceTrackTray` «Races
           3 se» | cars-pace, cars-corners, cars-straight |
-| card | 6 | bg rgb(25, 26, 27) \| ring  border 1px rgba(255, 255, 255, 0.08) \| r 10px | `#stintPanels > .driver-run-card` «Max VerstappenVER · » | session-lap-sheet |
 | card | 6 | bg rgba(255, 255, 255, 0.05) \| ring  \| r 10px | `section > .category-bar` «PaceCorneringUnavail» | ui-catalog |
 | card | 6 | bg rgb(32, 33, 34) \| ring rgba(255,255,255,0.05) 0px 0px 0px 1px inset, rgba(0,0,0,0.1) 0px 4px  \| r 8px | `section > #catalogMenu` «QualifyingRaceSprint» | ui-catalog |
 | card | 6 | bg rgb(18, 18, 19) \| ring  border 1px rgba(255, 255, 255, 0.05) \| r 8px | `section > .performance-table-wrap` «Team GapRed Bull Rac» | ui-catalog |
@@ -284,11 +1366,6 @@ _Generated 2026-11-10T05:51 from 132 page renders (baseline 2026-11-10, 132 rend
 | card | 6 | bg rgb(25, 26, 27) \| ring  \| r 12px | `section > .ui-catalog-backdrop` «VER L13Speed 275.3 k» | ui-catalog |
 | card | 6 | bg rgba(0, 0, 0, 0) \| ring  border 1px rgba(255, 255, 255, 0.05) \| r 8px | `section > .ui-catalog-scroll` «Scrollbars follow th» | ui-catalog |
 | card | 6 | bg color(srgb 0.131529 0.118078 0.0692941) \| ring  border 1px color(srgb 0.941176 0.74902 0 / 0.3) \| r 10px | `section > .performance-error` «United States Grand » | ui-catalog |
-| card | 6 | bg rgb(249, 248, 249) \| ring  border 1px rgba(0, 0, 0, 0.08) \| r 10px | `#stintPanels > .driver-run-card` «Max VerstappenVER · » | session-lap-sheet |
-| card | 5 | bg rgba(0, 0, 0, 0) \| ring oklch(0.999994 0.0000497986 none / 0.09) 0px 0px 0px 1px inset \| r 8px | `.season-card > .season-next-body` «Las Vegas Strip Stre» | season-schedule |
-| card | 5 | bg rgba(0, 0, 0, 0) \| ring oklch(0.285448 0.011323 none / 0.09) 0px 0px 0px 1px inset \| r 8px | `.season-card > .season-next-body` «Las Vegas Strip Stre» | season-schedule |
-| card | 3 | bg rgb(25, 26, 27) \| ring oklch(0.999994 0.0000497986 none / 0.09) 0px 0px 0px 1px inset \| r 8px | `.season-body > .season-tiles` «Wins9+1 sprintPodium» | season-drivers |
-| card | 3 | bg rgb(255, 255, 255) \| ring oklch(0.285448 0.011323 none / 0.09) 0px 0px 0px 1px inset \| r 8px | `.season-body > .season-tiles` «Wins9+1 sprintPodium» | season-drivers |
 | heading | 182 | h2 \| font 500 13px \| color rgb(149, 149, 151) | `.dominance-map-header > #dominanceTitle` «Mini-sector dominanc» | session-loaded, session-lap-sheet, session-compute |
 | heading | 132 | h3 \| font 500 13px \| color rgb(149, 149, 151) | `header > h3` «Corners» | session-loaded, session-lap-sheet, session-compute |
 | heading | 132 | h3 \| font 500 13px \| color rgb(111, 110, 119) | `header > h3` «Corners» | session-loaded, session-lap-sheet, session-compute |

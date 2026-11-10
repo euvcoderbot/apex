@@ -323,7 +323,7 @@
   --lin-shadow-high: 0 7px 32px #00000059; --lin-shadow-medium: 0 4px 24px #00000033;
   --lin-bar: 8px; --lin-band: var(--ui-well);
   /* Pills [A]: filled, no ring; hover one step lighter; header icon buttons transparent. */
-  --lin-pill: var(--lin-control); --lin-pill-ring: transparent; --lin-pill-on: var(--lin-control-on); --lin-pill-hover: var(--lin-chip); --lin-icon-btn: transparent;
+  --lin-pill: var(--lin-control); --lin-pill-ring: transparent; --lin-pill-on: var(--lin-control-on); --lin-pill-hover: #2a2b2d; --lin-pill-press: #353638; --lin-icon-btn: transparent;
 }
 :root[data-skin="linear"][data-theme="light"] {
   /* Light [P]: the app's light theme was not inspected; Linear's published light tokens in the same structure. */
@@ -334,7 +334,7 @@
   --lin-nav-text: #6f6e77; --lin-prop-label: #6f6e77;
   --lin-shadow-high: 0 7px 32px #0000001f; --lin-shadow-medium: 0 4px 24px #00000014;
   --lin-band: #f4f2f4;
-  --lin-pill: transparent; --lin-pill-ring: #00000014; --lin-pill-on: #ffffff; --lin-pill-hover: #00000008; --lin-icon-btn: transparent;
+  --lin-pill: transparent; --lin-pill-ring: #00000014; --lin-pill-on: #ffffff; --lin-pill-hover: #0000000f; --lin-pill-press: #0000001c; --lin-icon-btn: transparent;
 }
 :root[data-skin="linear"] body { font-feature-settings: "cv01", "ss03"; background: var(--ui-canvas); background-image: none; isolation: isolate;
   /* The base text: primary colour in Inter (spec §2); nothing inherits from the browser default. */
@@ -664,17 +664,17 @@
 
 /* Segmented controls: one style everywhere. A faint track with a hairline, the chosen segment filled; nothing slides
    (Linear's tabs switch in place, and a measured sliding thumb drifted when sizes changed). */
-:root[data-skin="linear"] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar) {
+:root[data-skin="linear"] :is([data-ui-group="segments"], .map-view-switch, .race-result-controls):not(.performance-tabs):not(.category-bar) {
   gap: 2px; padding: 2px; border-radius: 8px; background: var(--lin-seg-track); box-shadow: inset 0 0 0 1px var(--lin-card-border);
 }
-:root[data-skin="linear"] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) > button {
+:root[data-skin="linear"] :is([data-ui-group="segments"], .map-view-switch, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) > button {
   height: 26px; min-height: 26px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; box-shadow: none; color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); white-space: nowrap;
 }
-:root[data-skin="linear"][data-skin] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar) > button:hover:not(:disabled) { background: var(--lin-nav-hover); color: var(--ui-label); }
-:root[data-skin="linear"][data-skin] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar) > button:is([aria-pressed="true"], [aria-selected="true"], .active, .selected) {
+:root[data-skin="linear"] :is([data-ui-group="segments"], .map-view-switch, .race-result-controls):not(.performance-tabs):not(.category-bar) > button:hover:not(:disabled) { background: var(--lin-nav-hover); color: var(--ui-label); }
+:root[data-skin="linear"] :is([data-ui-group="segments"], .map-view-switch, .race-result-controls):not(.performance-tabs):not(.category-bar) > button:is([aria-pressed="true"], [aria-selected="true"], .active, .selected) {
   background: var(--lin-seg-on); color: var(--ui-label); box-shadow: none;
 }
-:root[data-skin="linear"][data-theme="light"][data-skin] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar) > button:is([aria-pressed="true"], [aria-selected="true"], .active, .selected) {
+:root[data-skin="linear"][data-theme="light"][data-skin] :is([data-ui-group="segments"], .map-view-switch, .race-result-controls):not(.performance-tabs):not(.category-bar) > button:is([aria-pressed="true"], [aria-selected="true"], .active, .selected) {
   box-shadow: 0 0 0 1px var(--lin-card-border), 0 1px 2px #0000000d;
 }
 /* Inside a filter chip the scope toggle is a smaller inset. */
@@ -806,8 +806,8 @@
 
 /* ---- Rail switches ---- */
 /* Rail: every highlight spans the same width, including the Points / Gap to winner switch. */
-:root[data-skin="linear"][data-skin] #linearWorkspace #raceResultControls:not([hidden]) { display: grid; grid-template-columns: 1fr 1fr; width: 100%; box-sizing: border-box; }
-:root[data-skin="linear"][data-skin] #linearWorkspace #raceResultControls > button { width: 100%; justify-content: center; }
+:root[data-skin="linear"] #linearWorkspace #raceResultControls:not([hidden]) { display: grid; grid-template-columns: 1fr 1fr; width: 100%; box-sizing: border-box; }
+:root[data-skin="linear"] #linearWorkspace #raceResultControls > button { width: 100%; justify-content: center; }
 
 /* ---- Car performance: ranked charts ---- */
 /* Every ranked chart in Car performance uses Pace's rhythm: 26 px rows on a 28 px step, the first row 12 px under the header. */
@@ -824,7 +824,7 @@
 :root[data-skin="linear"] #carPerformance .results-overview .perf-chart-sub { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; }
 :root[data-skin="linear"] #carPerformance .results-overview .performance-table thead th { height: 32px; box-sizing: border-box; }
 :root[data-skin="linear"] #carPerformance .results-overview .performance-table tbody :is(td, th) { height: 36px; box-sizing: border-box; }
-:root[data-skin="linear"][data-skin] #carPerformance .results-overview :is(.performance-bar-row, .performance-tyre-age-row) { height: 36px; min-height: 36px; margin-top: 0; }
+:root[data-skin="linear"] #carPerformance .results-overview :is(.performance-bar-row, .performance-tyre-age-row) { height: 36px; min-height: 36px; margin-top: 0; }
 
 /* Filter chips: the whole chip opens its menu, not only the value. */
 :root[data-skin="linear"] .app-sidebar .control-field:has(.select-trigger) { cursor: pointer; }
@@ -833,7 +833,7 @@
 /* The rail has no footer. */
 :root[data-skin="linear"] .linear-rail-footer { display: none; }
 
-:root[data-skin="linear"][data-skin] #carPerformance .results-overview .perf-chart-header { min-height: 0; }
+:root[data-skin="linear"] #carPerformance .results-overview .perf-chart-header { min-height: 0; }
 /* Tyre trend and Development lists: the same 2 px row spacing as Pace, starting right under the header. */
 :root[data-skin="linear"] #carPerformance .performance-tyre-age-chart { margin-top: 0; gap: 0; row-gap: 0; }
 :root[data-skin="linear"] #carPerformance .trend-board .performance-tyre-age-chart { align-content: start; flex: 0 0 auto; }
@@ -847,52 +847,49 @@
 /* Paired chart + table (Race cornering and other split views): the chart's header takes the table header's measured height and
    its rows the table rows' height (--split-head / --split-row from dashboard-ui.js), so every team's bar sits beside its row.
    The Linear card insets must not add to either. */
-:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) { align-items: start; }
-:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) > .performance-chart-card { padding: 0 16px 6px; }
-:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) > .performance-table-wrap { padding: 0; }
-:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) .perf-chart-header {
+:root[data-skin="linear"] #carPerformance .performance-split-view:not(.is-independent-rows) { align-items: start; }
+:root[data-skin="linear"] #carPerformance .performance-split-view:not(.is-independent-rows) > .performance-chart-card { padding: 0 16px 6px; }
+:root[data-skin="linear"] #carPerformance .performance-split-view:not(.is-independent-rows) > .performance-table-wrap { padding: 0; }
+:root[data-skin="linear"] #carPerformance .performance-split-view:not(.is-independent-rows) .perf-chart-header {
   box-sizing: border-box; height: var(--split-head); min-height: var(--split-head); margin: 0; padding: 0; align-items: center; border-bottom: 1px solid var(--lin-hairline);
 }
-:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) .perf-chart-title-group { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) .perf-chart-heading { white-space: nowrap; font-size: 12px; }
-:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) .perf-chart-sub { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; }
-:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) :is(.performance-bars, .performance-tyre-age-chart) { margin: 0; gap: 0; row-gap: 0; }
-:root[data-skin="linear"][data-skin] #carPerformance .performance-split-view:not(.is-independent-rows) :is(.performance-bar-row, .performance-tyre-age-row) { height: var(--split-row); min-height: var(--split-row); margin-top: 0; }
+:root[data-skin="linear"] #carPerformance .performance-split-view:not(.is-independent-rows) .perf-chart-title-group { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+:root[data-skin="linear"] #carPerformance .performance-split-view:not(.is-independent-rows) .perf-chart-heading { white-space: nowrap; font-size: 12px; }
+:root[data-skin="linear"] #carPerformance .performance-split-view:not(.is-independent-rows) .perf-chart-sub { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; }
+:root[data-skin="linear"] #carPerformance .performance-split-view:not(.is-independent-rows) :is(.performance-bars, .performance-tyre-age-chart) { margin: 0; gap: 0; row-gap: 0; }
+:root[data-skin="linear"] #carPerformance .performance-split-view:not(.is-independent-rows) :is(.performance-bar-row, .performance-tyre-age-row) { height: var(--split-row); min-height: var(--split-row); margin-top: 0; }
 
 /* Choose laps under the driver list: a full-width pill in the rail. */
-:root[data-skin="linear"][data-skin] #linearWorkspace #lapWorkspaceToggle.is-rail-pill {
+:root[data-skin="linear"] #linearWorkspace #lapWorkspaceToggle.is-rail-pill {
   display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 28px; min-height: 28px; margin: 8px 0 0; padding: 0 12px;
   border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); color: var(--ui-label); font: 500 12px/1 var(--ui-font);
 }
-:root[data-skin="linear"][data-skin] #linearWorkspace #lapWorkspaceToggle.is-rail-pill:hover { background: var(--lin-pill-hover); }
-:root[data-skin="linear"][data-skin] #linearWorkspace #lapWorkspaceToggle.is-rail-pill[aria-expanded="true"] { background: var(--lin-pill-on); }
+:root[data-skin="linear"] #linearWorkspace #lapWorkspaceToggle.is-rail-pill:hover { background: var(--lin-pill-hover); }
+:root[data-skin="linear"] #linearWorkspace #lapWorkspaceToggle.is-rail-pill[aria-expanded="true"] { background: var(--lin-pill-on); }
 
 /* ---- Tabs and segmented choices: separate 28 px pills, no track (spec §8 view tab) ---- */
-:root[data-skin="linear"][data-skin][data-skin] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) {
+:root[data-skin="linear"] :is([data-ui-group="segments"], .map-view-switch, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) {
   gap: 6px; padding: 0; border-radius: 0; background: transparent; box-shadow: none;
 }
-:root[data-skin="linear"][data-skin][data-skin] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) > button {
+:root[data-skin="linear"] :is([data-ui-group="segments"], .map-view-switch, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) > button {
   height: 28px; min-height: 28px; padding: 0 11px; border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring);
   color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font);
 }
-:root[data-skin="linear"][data-skin][data-skin] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) > button:hover:not(:disabled) { background: var(--lin-pill-hover); color: var(--ui-secondary); }
-:root[data-skin="linear"][data-skin][data-skin] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) > button:is([aria-pressed="true"], [aria-selected="true"], .active, .selected) {
+:root[data-skin="linear"] :is([data-ui-group="segments"], .map-view-switch, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) > button:hover:not(:disabled) { background: var(--lin-pill-hover); color: var(--ui-secondary); }
+:root[data-skin="linear"] :is([data-ui-group="segments"], .map-view-switch, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) > button:is([aria-pressed="true"], [aria-selected="true"], .active, .selected) {
   background: var(--lin-pill-on); color: var(--ui-label); box-shadow: inset 0 0 0 1px var(--lin-pill-ring);
 }
-:root[data-skin="linear"][data-skin][data-skin][data-theme="light"] :is([data-ui-group="segments"], .map-view-switch, #raceResultControls, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) > button:is([aria-pressed="true"], [aria-selected="true"], .active, .selected) {
+:root[data-skin="linear"][data-theme="light"] :is([data-ui-group="segments"], .map-view-switch, .race-result-controls):not(.performance-tabs):not(.category-bar):not(.run-segments) > button:is([aria-pressed="true"], [aria-selected="true"], .active, .selected) {
   box-shadow: inset 0 0 0 1px var(--lin-pill-ring);
 }
 /* In the rail and the track panel the two choices share the width. */
-:root[data-skin="linear"][data-skin][data-skin] :is(#linearWorkspace #raceResultControls, .map-view-switch) { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+:root[data-skin="linear"] :is(#linearWorkspace .race-result-controls, .map-view-switch) { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
 /* Inside a filter chip the scope choices are small pills too. */
-:root[data-skin="linear"][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle { gap: 4px; }
-:root[data-skin="linear"][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button { height: 22px; min-height: 22px; border-radius: 9999px; box-shadow: none; background: transparent; }
-:root[data-skin="linear"][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button[aria-pressed="true"] { background: var(--lin-pill-on); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); }
 
 /* ---- Filter chips and buttons: Linear's pill shapes ---- */
 :root[data-skin="linear"] .app-sidebar .control-field { border-radius: 9999px; padding-left: 11px; }
 :root[data-skin="linear"] .app-sidebar .control-field .select-trigger { border-radius: 0 9999px 9999px 0; padding-right: 10px; }
-:root[data-skin="linear"][data-skin] .app-sidebar .control-field:has(.select-trigger:focus-visible) { border-radius: 9999px; }
+:root[data-skin="linear"] .app-sidebar .control-field:has(.select-trigger:focus-visible) { border-radius: 9999px; }
 :root[data-skin="linear"] .app-sidebar :is(#loadSession, .performance-actions button) { border-radius: 9999px; padding-inline: 14px; }
 :root[data-skin="linear"] :is(button[data-ui-kind="push"], .comparison-choose, .trace-tools :is(button, summary), .performance-explain-toggle) { border-radius: 9999px; font: 500 12px/1 var(--ui-font); }
 :root[data-skin="linear"] :is(button[data-ui-kind="push"], .comparison-choose, .trace-tools summary, .performance-explain-toggle):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) {
@@ -901,49 +898,48 @@
 :root[data-skin="linear"] :is(button[data-ui-kind="push"], .comparison-choose, .trace-tools summary, .performance-explain-toggle):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):hover:not(:disabled) { background: var(--lin-pill-hover); }
 
 /* ---- Header icon buttons: 28 px circles, transparent until hovered (spec §6) ---- */
-:root[data-skin="linear"][data-skin] .site-header .workspace-tools > button, :root[data-skin="linear"][data-skin] .site-header #windowSidebarToggle {
+:root[data-skin="linear"] .site-header .workspace-tools > button, :root[data-skin="linear"] .site-header #windowSidebarToggle {
   border-radius: 9999px; background: var(--lin-icon-btn); box-shadow: none;
 }
-:root[data-skin="linear"][data-skin] .site-header .workspace-tools { gap: 6px; }
-:root[data-skin="linear"][data-skin] .site-header .workspace-tools > button:hover:not(:disabled), :root[data-skin="linear"][data-skin] .site-header #windowSidebarToggle:hover { background: var(--lin-pill-hover); }
-:root[data-skin="linear"][data-skin] #linearWorkspace .linear-search { box-shadow: none; background: var(--lin-icon-btn); }
+:root[data-skin="linear"] .site-header .workspace-tools { gap: 6px; }
+:root[data-skin="linear"] .site-header .workspace-tools > button:hover:not(:disabled), :root[data-skin="linear"] .site-header #windowSidebarToggle:hover { background: var(--lin-pill-hover); }
+:root[data-skin="linear"] #linearWorkspace .linear-search { box-shadow: none; background: var(--lin-icon-btn); }
 
 @media (prefers-contrast: more) {
   :root[data-skin="linear"] { --lin-pill-ring: var(--ui-border-strong); }
 }
 /* Rail section headings are labels that fold their section, not buttons with a surface. */
-:root[data-skin="linear"][data-skin][data-skin] #linearWorkspace .linear-nav-heading { border-radius: 8px; background: transparent; box-shadow: none; }
-:root[data-skin="linear"][data-skin][data-skin] #linearWorkspace .linear-nav-heading:hover { background: transparent; color: var(--ui-tertiary); }
+:root[data-skin="linear"] #linearWorkspace .linear-nav-heading { border-radius: 8px; background: transparent; box-shadow: none; }
+:root[data-skin="linear"] #linearWorkspace .linear-nav-heading:hover { background: transparent; color: var(--ui-tertiary); }
 
-/* Scope toggle inside its chip, final. The shared pill rule carries an ID (via :is(#raceResultControls)) and many classes, so these
-   rules repeat the skin attribute to outrank it: the choices sit inside the chip with a 3 px inset, only the chosen one is filled. */
-:root[data-skin="linear"][data-skin][data-skin][data-skin][data-skin][data-skin] #performanceSidebar .control-field-scope { height: 28px; padding: 0 3px 0 10px; gap: 0; }
-:root[data-skin="linear"][data-skin][data-skin][data-skin][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle {
+/* Scope toggle inside its chip: the choices sit inside the chip with a 3 px inset; only the chosen one is filled. */
+:root[data-skin="linear"] #performanceSidebar .control-field-scope { height: 28px; padding: 0 3px 0 10px; gap: 0; }
+:root[data-skin="linear"] #performanceSidebar .control-field-scope .performance-scope-toggle {
   display: grid; grid-template-columns: auto auto; gap: 2px; height: 22px; min-height: 0; margin: 0 0 0 8px; padding: 0; background: transparent; box-shadow: none; border-radius: 9999px;
 }
-:root[data-skin="linear"][data-skin][data-skin][data-skin][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button {
+:root[data-skin="linear"] #performanceSidebar .control-field-scope .performance-scope-toggle > button {
   height: 22px; min-height: 22px; padding: 0 10px; border: 0; border-radius: 9999px; background: transparent; box-shadow: none; color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font);
 }
-:root[data-skin="linear"][data-skin][data-skin][data-skin][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--lin-pill-hover); color: var(--ui-secondary); }
-:root[data-skin="linear"][data-skin][data-skin][data-skin][data-skin][data-skin] #performanceSidebar .control-field-scope .performance-scope-toggle > button[aria-pressed="true"] { background: var(--lin-pill-on); color: var(--ui-label); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); }
+:root[data-skin="linear"] #performanceSidebar .control-field-scope .performance-scope-toggle > button:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--lin-pill-hover); color: var(--ui-secondary); }
+:root[data-skin="linear"] #performanceSidebar .control-field-scope .performance-scope-toggle > button[aria-pressed="true"] { background: var(--lin-pill-on); color: var(--ui-label); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); }
 /* Pop-up buttons (select triggers) everywhere: 28 px (spec §3). */
 :root[data-skin="linear"] .select-trigger:not(.app-sidebar *) { height: var(--ui-control-height); min-height: var(--ui-control-height); border: 0; border-radius: 8px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); font: 500 13px/1 var(--ui-font); }
 :root[data-skin="linear"] :is(.run-card-header .fastest-lap-pick, #computeSettings .compute-actions :is(button, a)) { box-sizing: border-box; height: 28px; min-height: 28px; }
 /* Filter chips and the primary action: 28 px pills (spec §3, §8). */
-:root[data-skin="linear"][data-skin] .app-sidebar .control-field { height: 28px; }
-:root[data-skin="linear"][data-skin] .app-sidebar .control-field .select-trigger { height: 26px; min-height: 26px; }
-:root[data-skin="linear"][data-skin] .app-sidebar :is(#loadSession, .performance-actions button) { height: 28px; min-height: 28px; padding-inline: 10px; font: 500 12px/1 var(--ui-font); }
+:root[data-skin="linear"] .app-sidebar .control-field { height: 28px; }
+:root[data-skin="linear"] .app-sidebar .control-field .select-trigger { height: 26px; min-height: 26px; }
+:root[data-skin="linear"] .app-sidebar :is(#loadSession, .performance-actions button) { height: 28px; min-height: 28px; padding-inline: 10px; font: 500 12px/1 var(--ui-font); }
 
 /* Rail text: rows in the nav colour, white when hovered or chosen (spec §5). */
 :root[data-skin="linear"] { --lin-rail-text: var(--lin-nav-text); }
-:root[data-skin="linear"][data-skin] #linearWorkspace :is(.performance-tabs > button, .category-bar .category-tab, .live-view-button, .linear-rail-footer button):not([aria-selected="true"]):not([aria-current="page"]):not([aria-pressed="true"]),
-:root[data-skin="linear"][data-skin] #linearWorkspace #driverPills .driver-pill:not(.selected) .driver-pill-identity { color: var(--lin-rail-text); }
-:root[data-skin="linear"][data-skin] #linearWorkspace :is(.performance-tabs > button, .category-bar .category-tab, .live-view-button):hover,
-:root[data-skin="linear"][data-skin] #linearWorkspace #driverPills .driver-pill:hover .driver-pill-identity { color: var(--ui-label); }
-:root[data-skin="linear"][data-skin] .site-header :is(.workspace-tools > button, #windowSidebarToggle) svg { width: 16px; height: 16px; color: var(--ui-tertiary); }
-:root[data-skin="linear"][data-skin] .site-header :is(.workspace-tools > button, #windowSidebarToggle):hover svg { color: var(--ui-label); }
-:root[data-skin="linear"][data-skin] :is(#sessionSidebar, #performanceSidebar, .comparison-tray) { border-bottom-color: transparent; }
-:root[data-skin="linear"][data-skin] .sector-cards .lap-summary-card :is(.summary-lap-time, .summary-sectors, .summary-conditions) { border-left-color: transparent; }
+:root[data-skin="linear"] #linearWorkspace :is(.performance-tabs > button, .category-bar .category-tab, .live-view-button, .linear-rail-footer button):not([aria-selected="true"]):not([aria-current="page"]):not([aria-pressed="true"]),
+:root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill:not(.selected) .driver-pill-identity { color: var(--lin-rail-text); }
+:root[data-skin="linear"] #linearWorkspace :is(.performance-tabs > button, .category-bar .category-tab, .live-view-button):hover,
+:root[data-skin="linear"] #linearWorkspace #driverPills .driver-pill:hover .driver-pill-identity { color: var(--ui-label); }
+:root[data-skin="linear"] .site-header :is(.workspace-tools > button, #windowSidebarToggle) svg { width: 16px; height: 16px; color: var(--ui-tertiary); }
+:root[data-skin="linear"] .site-header :is(.workspace-tools > button, #windowSidebarToggle):hover svg { color: var(--ui-label); }
+:root[data-skin="linear"] :is(#sessionSidebar, #performanceSidebar, .comparison-tray) { border-bottom-color: transparent; }
+:root[data-skin="linear"] .sector-cards .lap-summary-card :is(.summary-lap-time, .summary-sectors, .summary-conditions) { border-left-color: transparent; }
 /* The rail scrolls only when it overflows, and shows a thin bar only while hovered (no permanent track). */
 :root[data-skin="linear"] #linearWorkspace:hover { scrollbar-width: thin; }
 
@@ -979,7 +975,7 @@
 :root[data-skin="linear"] .performance-table .perf-sort-btn { color: var(--ui-tertiary); font: 450 12px/1 var(--ui-font); }
 :root[data-skin="linear"] .performance-table [aria-sort]:not([aria-sort="none"]) .perf-sort-btn { color: var(--ui-label); }
 /* Qualifying-phase segments: the chosen one by fill, not by weight. */
-:root[data-skin="linear"] .run-segments .stint { box-sizing: border-box; height: 28px; min-height: 28px; border-radius: 8px; font-weight: 500; }
+:root[data-skin="linear"] .run-segments .stint { box-sizing: border-box; height: 28px; min-height: 28px; border-radius: 8px; font: 500 12px/1 var(--ui-font); }
 :root[data-skin="linear"] .run-segments .stint:is([aria-pressed="true"], [aria-selected="true"], .active, .selected) { background: var(--lin-pill-on); }
 /* Stop (cancel a running analysis): the same 28 px pill as Analyse, in the negative colour, aligned with the filter chips. */
 :root[data-skin="linear"] .app-sidebar .performance-controls button#performanceCancel, :root[data-skin="linear"] #performanceCancel {
@@ -989,3 +985,10 @@
 :root[data-skin="linear"] #performanceCancel:hover { background: var(--lin-pill-hover) !important; }
 /* Count labels above histogram bars need room under the card title. */
 :root[data-skin="linear"] #seasonHub .season-dist { padding-top: 20px; box-sizing: border-box; }
+/* Session toolbar: Load session shares the filter chips' top edge (the row is taller than a chip, so centring offset it). */
+:root[data-skin="linear"] #sessionSidebar .session-controls { align-items: flex-start; }
+:root[data-skin="linear"] #sessionSidebar #loadSession { align-self: flex-start; }
+/* Pressed state for every pill and push button (lap sheet header, compare, toolbar actions): one step brighter than hover, so a click is visible. */
+:root[data-skin="linear"] :is(button[data-ui-kind="push"], .compare-all-btn, .comparison-choose, .trace-tools summary, .performance-explain-toggle, .table-sort, #lapWorkspaceToggle.is-rail-pill, #performanceCancel, #computeSettings .compute-actions :is(button, a)):active:not(:disabled):not(#loadSession):not(#performanceLoad) { background: var(--lin-pill-press) !important; color: var(--ui-label); }
+:root[data-skin="linear"] :is(#loadSession, #performanceLoad):active:not(:disabled) { background: color-mix(in oklch, var(--ui-action), #000 12%); }
+:root[data-skin="linear"] :is(button, summary, [role="button"]):focus-visible { outline: 1px solid var(--ui-focus, #5e69d1); outline-offset: 2px; }

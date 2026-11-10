@@ -16,7 +16,7 @@ const esc = s => String(s).replace(/\|/g, '\\|');
 
 let md = `\n_Generated ${current.generated.slice(0, 16)} from ${current.runs} page renders (baseline ${baseline.generated.slice(0, 10)}, ${baseline.runs} renders)._\n\n`;
 md += '### Competing component looks (distinct variants per family; target in brackets)\n\n| Family | Baseline | Now | Target |\n| --- | --- | --- | --- |\n';
-const kb = kinds(baseline), kc = kinds(current), target = {button: 7, card: 1, heading: 4, 'table-header': 1};
+const kb = kinds(baseline), kc = kinds(current), target = {button: 7, 'button-role': 7, card: 1, heading: 4, 'table-header': 1};
 for (const k of Object.keys(target)) md += `| ${k} | ${kb[k] || 0} | ${kc[k] || 0} | ${target[k]} |\n`;
 md += '\n### Rule findings (distinct component × value)\n\n| Rule | Baseline | Now |\n| --- | --- | --- |\n';
 const rb = rules(baseline), rc = rules(current);

@@ -82,8 +82,11 @@ const AUDIT = spec => {
     const boxed = s.backgroundColor !== 'rgba(0, 0, 0, 0)' || s.boxShadow !== 'none' || (s.borderStyle !== 'none' && parseFloat(s.borderWidth) > 0);
     if (boxed && r.width >= 220 && r.height >= 64 && parseFloat(s.borderTopLeftRadius) >= 6 && !el.matches('button, [popover], dialog') && s.position !== 'fixed')
       sig(el, 'card', [`bg ${s.backgroundColor}`, `ring ${ring(s)}`, `r ${s.borderTopLeftRadius}`]);
-    if (el.matches('button, a[role="button"], .select-trigger') && r.height < 60)
+    if (el.matches('button, a[role="button"], .select-trigger') && r.height < 60) {
       sig(el, 'button', [`h ${Math.round(r.height)}`, `r ${parseFloat(s.borderTopLeftRadius) >= r.height / 2 - 1 ? 'pill' : s.borderTopLeftRadius}`, `bg ${s.backgroundColor}`, `ring ${ring(s)}`, `font ${s.fontWeight} ${s.fontSize}`]);
+      // The same without fill and ring: selected, hover and disabled states of one role are not separate looks.
+      sig(el, 'button-role', [`h ${Math.round(r.height)}`, `r ${parseFloat(s.borderTopLeftRadius) >= r.height / 2 - 1 ? 'pill' : s.borderTopLeftRadius}`, `font ${s.fontWeight} ${s.fontSize}`]);
+    }
     if (el.matches('h1, h2, h3, h4, .perf-chart-heading, .chart-heading h2'))
       sig(el, 'heading', [`${el.tagName.toLowerCase()}`, `font ${s.fontWeight} ${s.fontSize}`, `color ${s.color}`]);
     if (el.matches('th'))
