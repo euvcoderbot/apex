@@ -399,8 +399,11 @@
   display: flex; justify-content: flex-start; align-items: center; gap: 8px; width: 100%; height: 28px; min-height: 28px; margin: 0; padding: 0 9px 0 8px;
   border-radius: 8px; background: transparent; color: var(--lin-nav-text); text-align: left; font: 500 13px/1 var(--ui-font);
 }
-:root[data-skin="linear"] #linearWorkspace .performance-tabs > button::before { content: ''; position: static; flex: 0 0 14px; width: 14px; height: 14px; margin: 0 1px; border: 1.3px solid var(--ui-quaternary); border-radius: 4px; background: none; opacity: 1; }
-:root[data-skin="linear"] #linearWorkspace .performance-tabs > button[data-analysis-view="performance"]::before { border-width: 0 0 1.3px 1.3px; border-radius: 0; background: linear-gradient(90deg,transparent 15%,var(--ui-quaternary) 15% 30%,transparent 30% 45%,var(--ui-quaternary) 45% 60%,transparent 60% 75%,var(--ui-quaternary) 75% 90%,transparent 90%) bottom/100% 70% no-repeat; }
+:root[data-skin="linear"] #linearWorkspace .performance-tabs > button[data-analysis-view="session"]::before { content: ''; position: static; flex: 0 0 14px; width: 14px; height: 14px; margin: 0 1px; border: 0; border-radius: 0; opacity: 1;
+  /* A lap trace: the session view's icon (the Live and Season rows carry their own, so no placeholder box). */
+  background: var(--ui-quaternary); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12l3.5-4 3 2.5L14 4'/%3E%3C/svg%3E") center / 14px no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12l3.5-4 3 2.5L14 4'/%3E%3C/svg%3E") center / 14px no-repeat; }
+:root[data-skin="linear"] #linearWorkspace .performance-tabs > :is(.live-view-button, .season-view-button)::before { content: none; }
+:root[data-skin="linear"] #linearWorkspace .performance-tabs > button[data-analysis-view="performance"]::before { content: ''; position: static; flex: 0 0 14px; width: 14px; height: 14px; margin: 0 1px; opacity: 1; border-style: solid; border-color: var(--ui-quaternary); border-width: 0 0 1.3px 1.3px; border-radius: 0; background: linear-gradient(90deg,transparent 15%,var(--ui-quaternary) 15% 30%,transparent 30% 45%,var(--ui-quaternary) 45% 60%,transparent 60% 75%,var(--ui-quaternary) 75% 90%,transparent 90%) bottom/100% 70% no-repeat; }
 :root[data-skin="linear"] #linearWorkspace :is(.performance-tabs > button[aria-selected="true"], .category-bar .category-tab[aria-current="page"]) { background: var(--lin-nav-active); color: var(--ui-label); box-shadow: none; }
 :root[data-skin="linear"] #linearWorkspace .category-bar:not([hidden]) { display: flex; flex-direction: column; padding: 0; margin: 0; gap: 2px; background: transparent; width: 100%; }
 :root[data-skin="linear"] #linearWorkspace .category-icon { color: var(--ui-quaternary); width: 16px; height: 16px; flex-basis: 16px; }
@@ -814,9 +817,6 @@
 /* Results: the chart beside its table reads row for row. The chart takes the table's geometry: a 32 px header row with a hairline,
    then rows exactly as tall as the table's, with no gaps. */
 :root[data-skin="linear"] #carPerformance .results-overview { align-items: start; }
-/* The CSV button (table-export.js) takes its own row above the pair, so the chart and the table stay side by side and aligned. */
-:root[data-skin="linear"] #carPerformance .results-overview > .table-csv { grid-column: 1 / -1; grid-row: 1; justify-self: end; margin: 0; }
-:root[data-skin="linear"] #carPerformance .results-overview > :is(.performance-chart-card, .performance-table-wrap) { grid-row: 2; }
 :root[data-skin="linear"] #carPerformance .results-overview > .performance-chart-card { padding: 0 16px 6px; }
 :root[data-skin="linear"] #carPerformance .results-overview .perf-chart-header { display: flex; align-items: center; height: 32px; margin: 0; padding: 0; border-bottom: 1px solid var(--lin-hairline); box-sizing: border-box; }
 :root[data-skin="linear"] #carPerformance .results-overview .perf-chart-title-group { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
@@ -964,10 +964,6 @@
 :root[data-skin="linear"] .team-profile-table tbody td.profile-rank.is-top { color: var(--ui-label); font-weight: 600; }
 :root[data-skin="linear"] .team-profile-table tbody td.profile-rank.is-low { color: var(--ui-quaternary); }
 :root[data-skin="linear"] .team-profile-table tbody td.profile-strongest { color: var(--ui-tertiary); }
-/* CSV download (table-export.js): a 24 px ghost button on the right above its table. Here because the Linear button rules in
-   this layer reset button margins. */
-:root[data-skin="linear"] .table-csv:not(#linearWorkspace *) { display: flex; border: 0; width: fit-content; margin: 0 0 6px auto; height: 24px; min-height: 24px; padding: 0 9px; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); }
-:root[data-skin="linear"] .table-csv:not(#linearWorkspace *):hover { background: var(--lin-pill-hover); color: var(--ui-label); }
 /* ---- UI catalogue (ui-catalog.html): a page like the others; sections are cards, controls the 28 px primitives ---- */
 :root[data-skin="linear"] .ui-catalog h1 { font: 600 24px/32px var(--ui-font); letter-spacing: -.16px; }
 :root[data-skin="linear"] .ui-catalog-grid h2 { font: 500 13px/1.4 var(--ui-font); color: var(--ui-tertiary); }
@@ -985,3 +981,11 @@
 /* Qualifying-phase segments: the chosen one by fill, not by weight. */
 :root[data-skin="linear"] .run-segments .stint { box-sizing: border-box; height: 28px; min-height: 28px; border-radius: 8px; font-weight: 500; }
 :root[data-skin="linear"] .run-segments .stint:is([aria-pressed="true"], [aria-selected="true"], .active, .selected) { background: var(--lin-pill-on); }
+/* Stop (cancel a running analysis): the same 28 px pill as Analyse, in the negative colour, aligned with the filter chips. */
+:root[data-skin="linear"] .app-sidebar .performance-controls button#performanceCancel, :root[data-skin="linear"] #performanceCancel {
+  box-sizing: border-box; width: auto; height: 28px; min-height: 28px; align-self: center; padding: 0 10px; border: 0; border-radius: 9999px;
+  background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); color: var(--ui-negative); font: 500 12px/1 var(--ui-font);
+}
+:root[data-skin="linear"] #performanceCancel:hover { background: var(--lin-pill-hover) !important; }
+/* Count labels above histogram bars need room under the card title. */
+:root[data-skin="linear"] #seasonHub .season-dist { padding-top: 20px; box-sizing: border-box; }

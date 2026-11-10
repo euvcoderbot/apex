@@ -213,7 +213,7 @@ timeline, split and fullscreen.
 | List rows, hairline separators | `.performance-table`, `.season-table` |
 | Cards: panel fill, ring, radius 8 | charts, lap cards, overview tiles, profile, time summary |
 | Label pills | comparison laps, chart legends |
-| Small controls 24–28 px | toggles, segmented controls, CSV, Change |
+| Small controls 24–28 px | toggles, segmented controls, Change |
 | Primary action in brand colour | Load session, Analyse |
 | Accent tint | per-driver Fastest pick |
 | Status colours | gains/losses, warnings |

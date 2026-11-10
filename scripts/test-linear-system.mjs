@@ -55,5 +55,5 @@ test('no decorative gradients or glows in the Linear stylesheets', () => {
 test('specificity hacks do not grow', () => {
   // Repeating [data-skin] to win a fight inside the skin layer means two rules own one look. The count may only go down.
   const count = Object.values(css).reduce((n, t) => n + (code(t).match(/\[data-skin\]\[data-skin\]/g) || []).length, 0);
-  assert.ok(count <= 22, `${count} doubled [data-skin] selectors (limit 22): merge the competing rules instead of adding weight`);
+  assert.ok(count <= 21, `${count} doubled [data-skin] selectors (limit 21): merge the competing rules instead of adding weight`);
 });

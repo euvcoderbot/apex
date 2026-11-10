@@ -243,7 +243,8 @@
   // Redraw when the card's width changes (window resize, sidebar toggled), so the charts keep their real pixel size.
   if (typeof ResizeObserver === 'function') {
     const host = document.getElementById('sessionOverview');
-    if (host) new ResizeObserver(() => { if (!host.hidden && Math.abs(chartWidth() - drawnWidth) > 8) renderSessionOverview(); }).observe(host);
+    // Redraw on the next frame: drawing inside the callback changes the observed size and WebKit reports a ResizeObserver loop.
+    if (host) new ResizeObserver(() => requestAnimationFrame(() => { if (!host.hidden && Math.abs(chartWidth() - drawnWidth) > 8) renderSessionOverview(); })).observe(host);
   }
 
   window.ApexSessionOverview = {driverSummary, timeBreakdown, raceProgress, render: renderSessionOverview, renderTimeSummary};

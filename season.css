@@ -34,7 +34,7 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 .season-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: stretch; }
 .season-chart-sub { margin: 6px 0 2px; color: var(--ui-tertiary); font-size: var(--text-xs, 12px); font-weight: 500; }
 .season-card > h3 + .season-chart-sub { margin-top: -6px; }
-.season-stack { display: grid; gap: 14px; min-width: 0; }
+.season-stack { display: grid; align-content: start; gap: 14px; min-width: 0; }
 .season-muted { color: var(--ui-tertiary); }
 .season-strong { font-weight: 600; }
 .season-big { font-size: 24px; font-weight: 600; letter-spacing: -.012em; font-variant-numeric: tabular-nums; }

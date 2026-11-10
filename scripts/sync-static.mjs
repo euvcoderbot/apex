@@ -52,7 +52,6 @@ const staticFiles = [
   "session-init.js",
   "session-tyres.js",
   "session-overview.js",
-  "table-export.js",
   "svg-scale.js",
   "analysis-core.js",
   "url-state.js",

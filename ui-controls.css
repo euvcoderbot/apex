@@ -316,8 +316,8 @@ button[data-ui-kind="push"],button[data-ui-kind="primary"],button[data-ui-kind="
 .overview-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; }
 .overview-legend > span { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px 0 8px; border-radius: 9999px; box-shadow: inset 0 0 0 1px var(--lin-label-border); font: 500 12px/1 var(--ui-font); color: var(--ui-secondary); }
 .overview-legend > span i { width: 8px; height: 8px; border-radius: 50%; }
-.overview-slow-toggle, .table-csv { display: inline-flex; align-items: center; height: 24px; min-height: 24px; padding: 0 9px; cursor: pointer; transition: background-color var(--lin-hover-out, .15s) ease, color var(--lin-hover-out, .15s) ease; }
-.overview-slow-toggle:hover, .table-csv:hover { background: var(--lin-nav-hover); color: var(--ui-label); transition-duration: 0s; }
+.overview-slow-toggle { display: inline-flex; align-items: center; height: 24px; min-height: 24px; padding: 0 9px; cursor: pointer; transition: background-color var(--lin-hover-out, .15s) ease, color var(--lin-hover-out, .15s) ease; }
+.overview-slow-toggle:hover { background: var(--lin-nav-hover); color: var(--ui-label); transition-duration: 0s; }
 .overview-slow-toggle { margin-left: auto; }
 :is(.overview-lap-chart, .trade-off-plot) { display: block; width: 100%; height: auto; overflow: visible; }
 :is(.overview-lap-chart, .trade-off-plot) .grid { stroke: var(--lin-hairline); stroke-width: 1; }
@@ -348,9 +348,6 @@ button[data-ui-kind="push"],button[data-ui-kind="primary"],button[data-ui-kind="
 .time-summary-lists li.is-gain span { color: var(--ui-positive); }
 @media (max-width: 520px) { .time-summary-lists { grid-template-columns: 1fr; gap: 10px; } }
 
-/* CSV download above a data table (table-export.js): a small ghost button on the right. */
-.table-csv, #seasonHub .table-csv { display: flex; width: fit-content; flex: none; margin: 0 0 6px auto; align-self: flex-end; justify-self: end; }
-@media print { .table-csv { display: none; } }
 
 /* Phones: the SVG charts keep a readable size (their 11 px labels would shrink to about 6 px) and scroll sideways inside their
    card, like the tables. */

@@ -10,7 +10,7 @@
     if (!vb?.width || !w) return;
     svg.style.setProperty('--chart-scale', String(Math.round(w / vb.width * 1000) / 1000));
   };
-  const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(entries => entries.forEach(e => measure(e.target))) : null;
+  const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(entries => requestAnimationFrame(() => entries.forEach(e => measure(e.target)))) : null;
   const scan = () => { for (const svg of document.querySelectorAll(SELECTOR)) if (!sized.has(svg)) { sized.add(svg); measure(svg); observer?.observe(svg); } };
   new MutationObserver(records => { if (records.some(r => r.addedNodes.length)) scan(); }).observe(document.documentElement, {childList: true, subtree: true});
   scan();
