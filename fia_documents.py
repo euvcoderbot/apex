@@ -152,11 +152,12 @@ class Documents:
             # 2025 on: /system/files/decision-document/2025_hungarian_grand_prix_-_....pdf; before that
             # /sites/default/files/decision-document/2024 Hungarian Grand Prix - Car Presentation Submissions.pdf.
             return sorted(set(re.findall(r'href="(/(?:system|sites/default)/files/decision-document/[^"]+\.pdf)"', page)))
-        # A finished event's list is final; the current one gains documents through the weekend. The final list has its own
-        # cache entry: a list fetched mid-weekend (fia-docs2) must never be reused as final, or the documents of Saturday
-        # and Sunday (qualifying, grid penalties, late power-unit changes) are never seen.
+        # The current event gains documents through the weekend (re-read every 30 minutes). A finished event's list has its
+        # own cache entry, so a list fetched mid-weekend (fia-docs2) is never reused as final, and it is still re-read once a
+        # day: callers cannot always tell a finished event from one that ended an hour ago, and the FIA posts decisions (grid
+        # penalties, late power-unit changes) after the race. One small page per event a day.
         if finished:
-            return self._cached(f'fia-docs3-final-{year}-{_ascii(event)}', None, build)
+            return self._cached(f'fia-docs3-final-{year}-{_ascii(event)}', 86400, build)
         return self._cached(f'fia-docs2-{year}-{_ascii(event)}', 1800, build)
 
     def pdf(self, path: str) -> bytes:
