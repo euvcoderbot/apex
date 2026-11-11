@@ -5,6 +5,7 @@ import {execFileSync} from 'node:child_process';
 import vm from 'node:vm';
 import postcss from 'postcss';
 import {SKINS, generate, contrastRatio, hexToOklch} from './generate-skin.mjs';
+import {skinRules} from './legacy-css.mjs';
 
 const read = file => readFileSync(new URL('../' + file, import.meta.url), 'utf8');
 
@@ -43,7 +44,8 @@ test('generated text and action colours meet WCAG contrast on their surfaces', (
 });
 
 test('every rule in skins.css is opt-in, so the default look is unchanged', () => {
-  const root = postcss.parse(read('skins.css'));
+  // The generated base block holds the retired files' looks at zero specificity; opt-in applies to the skin rules.
+  const root = postcss.parse(skinRules(read('skins.css')));
   const loose = [];
   root.walkRules(rule => {
     if (rule.parent?.type === 'atrule' && /keyframes/.test(rule.parent.name)) return;

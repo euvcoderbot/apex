@@ -3,8 +3,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-const car=readFileSync('car-performance.js','utf8'),app=appSource(),ui=readFileSync('dashboard-ui.js','utf8'),css=readFileSync('ui-controls.css','utf8');
-const windowCss=readFileSync('macos-window.css','utf8');
+import {legacySource} from './legacy-css.mjs';
+const car=readFileSync('car-performance.js','utf8'),app=appSource(),ui=readFileSync('dashboard-ui.js','utf8'),css=legacySource('ui-controls.css');
+const windowCss=legacySource('macos-window.css');
 
 test('unverified transition links are not exposed as selectable controls',()=>{
   assert.doesNotMatch(app,/Other links|Select transition zones|picker\('transition'\)/);

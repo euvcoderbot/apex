@@ -3,7 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import postcss from 'postcss';
-const read=f=>readFileSync(f,'utf8');
+import {legacySource} from './legacy-css.mjs';
+const read=f=>/^(design-system|polish|apple-ui|car-performance|workspace-ui|trace-focus|macos-ui|ui-controls|macos-window|hig-system)\.css$/.test(f)?legacySource(f):readFileSync(f,'utf8');
 const css=read('ui-controls.css'),car=read('car-performance.js'),app=appSource(),ui=read('dashboard-ui.js');
 
 test('lap states cannot wrap and wide tyre/development layouts use bounded label columns',()=>{
@@ -19,7 +20,7 @@ test('targeted UI fixes keep panels separate, controls contained and units visib
   const hig=read('hig-system.css'),corners=read('session-corners.js');
   assert.match(hig,/container: telemetry \/ inline-size/);
   assert.match(hig,/@container telemetry \(max-width: 1050px\)[\s\S]*grid-template-areas: "corner" "charts"/);
-  assert.match(hig,/\.lap-chip\.is-preparation\[aria-pressed="true"\] \.lap-state \{ color: var\(--ui-accent\)/);
+  assert.match(hig,/\.lap-chip\.is-preparation\[aria-pressed="true"\] \.lap-state \{[^}]*color: var\(--ui-accent\)/);
   assert.match(hig,/performance-bar-row \{ grid-template-columns: minmax\(0,14em\) minmax\(32px,1fr\) max-content/);
   assert.match(ui,/primaryBody\.prepend\(group\)/);
   assert.match(corners,/sectionTime\.toFixed\(3\)\+'s'/);

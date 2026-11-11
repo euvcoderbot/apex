@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
+import {legacySource} from './legacy-css.mjs';
 
 const source = readFileSync('motion.js', 'utf8');
 function page({reduced = false, transitions = true} = {}) {
@@ -38,7 +39,7 @@ test('charts grow in once after navigation, and never under reduced motion', () 
 });
 
 test('motion CSS animates navigation only and honours reduced motion', () => {
-  const css = readFileSync('macos-window.css', 'utf8'), cars = readFileSync('car-performance.js', 'utf8');
+  const css = legacySource('macos-window.css'), cars = readFileSync('car-performance.js', 'utf8');
   assert.match(css, /::view-transition-new\(performance-panel\)/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*::view-transition-group\(\*\)/);
   assert.match(css, /\.performance-page\[data-motion="enter"\] \.performance-bar/);

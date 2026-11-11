@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import postcss from 'postcss';
 import {buildUiStyles,prepareStyle,UI_LAYERS,UI_STYLES} from '../lib/ui-style-build.mjs';
-const read=file=>readFile(file,'utf8');
+import {legacySource} from './legacy-css.mjs';
+const read=async file=>/^(design-system|polish|apple-ui|car-performance|workspace-ui|trace-focus|macos-ui|ui-controls|macos-window|hig-system)\.css$/.test(file)?legacySource(file):readFile(file,'utf8');
 
 test('component appearance has one explicit final owner and focused canvas sizing stays first',async()=>{
   assert.deepEqual(UI_LAYERS,['focus','tokens','legacy','interface','workspace','appearance','components','window','system','skin']);

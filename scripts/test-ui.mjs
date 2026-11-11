@@ -8,6 +8,7 @@ import postcss from 'postcss';
 import {gzipSync,gunzipSync} from 'node:zlib';
 import {UI_STYLES,UI_LAYERS} from '../lib/ui-style-build.mjs';
 import {snapshotCompatible} from '../lib/snapshot-policy.mjs';
+import {legacySource} from './legacy-css.mjs';
 
 const app = appSource();
 test('local mode requests Python instead of loading published summary or native packs',async()=>{
@@ -65,7 +66,7 @@ test('performance redraw retains scroll, evidence disclosure and keyboard focus'
   assert.equal(detail.open,true);assert.equal(replacement.focused.preventScroll,true);
 });
 test('UI density uses component sizing and responsive chart rows rather than page scaling',()=>{
-  const shared=readFileSync('apple-ui.css','utf8'),performance=readFileSync('car-performance.css','utf8');
+  const shared=legacySource('apple-ui.css'),performance=legacySource('car-performance.css');
   postcss.parse(shared);postcss.parse(performance);
   // Regular controls are 28px (Linear's compact size); touch input raises them to 44px (ui-controls.css, the component layer).
   const tokens=JSON.parse(readFileSync('e2e/__tokens__/tokens.json','utf8'));
@@ -98,7 +99,7 @@ test('corner client consumes cached measurements and explicit retry retains fast
 });
 
 test('development table allocates all six columns without inflating rows',()=>{
-  const css=readFileSync('car-performance.css','utf8');
+  const css=legacySource('car-performance.css');
   const widths=[...css.matchAll(/\.performance-trend-table \.performance-table th:nth-child\((\d)\) \{ width: (\d+)%; \}/g)];
   assert.deepEqual(widths.map(m=>Number(m[1])),[1,2,3,4,5,6]);
   assert.equal(widths.reduce((sum,m)=>sum+Number(m[2]),0),100);
@@ -312,7 +313,7 @@ test('saved files decode both raw gzip and HTTP-decoded JSON',async()=>{
   assert.equal((await h.run('readSavedJson(decoded)')).value,42);
 });
 test('race status remains on the points baseline in compact driver rows',()=>{
-  const css=readFileSync('apple-ui.css','utf8');
+  const css=legacySource('apple-ui.css');
   assert.match(css,/\.driver-result\s*\{[^}]*display:\s*flex[^}]*align-items:\s*baseline/s);
   assert.doesNotMatch(css,/\.driver-result\s*\{[^}]*display:\s*grid/s);
 });
@@ -392,7 +393,7 @@ test('corner leaders are omitted nearby and cannot cross or enter another label'
 });
 
 test('one interface font family for canvas and every HTML descendant', () => {
-  const css = postcss.parse(readFileSync('apple-ui.css', 'utf8'));
+  const css = postcss.parse(legacySource('apple-ui.css'));
   const fonts = [];
   css.walkDecls('font-family', declaration => fonts.push(declaration.value));
   assert.ok(fonts.length > 0 && fonts.every(font => font === 'var(--ui-font)'));
@@ -440,7 +441,7 @@ test('replacement UI restores focus without scrolling and honours reduced motion
 });
 
 test('compact corner choices, grouped laps and motion accessibility are explicit', () => {
-  const css=postcss.parse(readFileSync('apple-ui.css','utf8'));
+  const css=postcss.parse(legacySource('apple-ui.css'));
   const corner=css.nodes.find(node=>node.type==='rule'&&node.selector==='.corner-pick');
   assert.ok(corner.nodes.some(d=>d.prop==='height'&&d.value==='32px'));
   assert.ok(css.nodes.some(n=>n.type==='atrule'&&n.params.includes('prefers-reduced-motion')));
@@ -454,7 +455,7 @@ test('compact corner choices, grouped laps and motion accessibility are explicit
 
 test('corner navigation precedes detail/map siblings and retains map height', () => {
   const html = readFileSync('index.html', 'utf8');
-  const css = readFileSync('apple-ui.css', 'utf8');
+  const css = legacySource('apple-ui.css');
   assert.ok(html.indexOf('id="cornerPickerRow"') < html.indexOf('id="cornerMetricGrid"'));
   assert.ok(html.indexOf('id="cornerMetricGrid"') < html.indexOf('id="dominanceCanvas"'));
   assert.equal((html.match(/id="dominanceCanvas"/g) || []).length, 1);
@@ -482,7 +483,7 @@ test('team marks and tyres are drawn by the app, never loaded from image files',
 });
 
 test('driver list has fixed leading columns and stretched left-aligned names', () => {
-  const css = postcss.parse(readFileSync('apple-ui.css', 'utf8'));
+  const css = postcss.parse(legacySource('apple-ui.css'));
   const identity = css.nodes.find(n => n.type === 'rule' && n.selector === '.driver-pill-identity');
   for (const [prop, value] of [['justify-self','stretch'], ['width','100%'], ['text-align','left']]) {
     assert.ok(identity.nodes.some(d => d.prop === prop && d.value === value), prop);
@@ -494,7 +495,7 @@ test('driver list has fixed leading columns and stretched left-aligned names', (
 });
 
 test('site-wide elevation and independent comparison actions are retained', () => {
-  const css = readFileSync('apple-ui.css','utf8');
+  const css = legacySource('apple-ui.css');
   const tokens = JSON.parse(readFileSync('e2e/__tokens__/tokens.json','utf8'));
   for (const token of ['--shadow-main', '--ui-shadow-control', '--shadow-inset']) {
     assert.ok(tokens.dark[token] !== undefined && tokens.light[token] !== undefined, `${token} needs both themes`);
@@ -508,7 +509,7 @@ test('site-wide elevation and independent comparison actions are retained', () =
 });
 
 test('scrollbars stay discoverable in both themes without changing layout', () => {
-  const css = readFileSync('apple-ui.css','utf8');
+  const css = legacySource('apple-ui.css');
   const tokens = JSON.parse(readFileSync('e2e/__tokens__/tokens.json','utf8'));
   assert.ok(tokens.dark['--scroll-thumb'] && tokens.light['--scroll-thumb'] && tokens.dark['--scroll-thumb'] !== tokens.light['--scroll-thumb'], 'a thumb colour per appearance');
   assert.match(css, /html \{ scrollbar-gutter: stable;/);
@@ -516,12 +517,12 @@ test('scrollbars stay discoverable in both themes without changing layout', () =
   assert.doesNotMatch(css, /scrollbar-width: none/);
   assert.doesNotMatch(css, /::-webkit-scrollbar\s*\{\s*display: none/);
   // How they look is defined once, in the system layer (test-hig-system.mjs), with the OS's own look kept for forced colours and high contrast.
-  assert.match(readFileSync('hig-system.css','utf8'), /prefers-contrast: more\), \(forced-colors: active\) \{ \* \{ scrollbar-width: auto; scrollbar-color: auto;/);
+  assert.match(legacySource('hig-system.css'), /prefers-contrast: more\), \(forced-colors: active\) \{ \* \{ scrollbar-width: auto; scrollbar-color: auto;/);
   assert.match(css, /\.sidebar \{ position: static; max-height: none; overflow: visible;/);
 });
 
 test('compact sector rows, contrasting logos and section boundary bars', () => {
-  const css = readFileSync('apple-ui.css','utf8');
+  const css = legacySource('apple-ui.css');
   assert.doesNotMatch(css, /filter: brightness\(0\)/);
   assert.match(app, /class="sector-delta-slot"/);
   assert.match(app, /highlightedCornerWindows.flatMap\(window => \[window.start, window.end\]\)/);
@@ -732,7 +733,7 @@ test('Madrid rejects inherited Barcelona corner rows but accepts a 22-turn set',
 
 test('car performance controls hide irrelevant GP and expose sortable methodology', () => {
   const performance = readFileSync('car-performance.js', 'utf8');
-  const css = readFileSync('car-performance.css', 'utf8');
+  const css = legacySource('car-performance.css');
   const html = readFileSync('index.html', 'utf8');
   assert.match(css, /\.performance-toolbar \[hidden\]\s*\{\s*display:none!important/);
   assert.match(performance, /performanceEventField.*hidden=.*performanceScope.*season/);
@@ -1109,7 +1110,7 @@ test('Sepang corners use GPS geometry and aligned fractions, not outline chainag
 });
 
 test('expanded charts reuse the telemetry section, with a taller speed trace', () => {
-  const css=readFileSync('trace-focus.css','utf8');
+  const css=legacySource('trace-focus.css');
   assert.match(css,/body\.trace-focus #telemetryCard \{[^}]*position: fixed;/);
   assert.match(css,/@layer focus[\s\S]*var\(--focus-height, auto\)/);
   assert.doesNotMatch(css,/#charts > \.chart \{ display: none/);

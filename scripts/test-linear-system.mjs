@@ -5,10 +5,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {UI_LAYERS, UI_STYLES, LOCAL_STYLES} from '../lib/ui-style-build.mjs';
+import {skinRules} from './legacy-css.mjs';
 
 const read = file => readFileSync(new URL('../' + file, import.meta.url), 'utf8');
 const files = [...new Set([...UI_STYLES, ...LOCAL_STYLES].map(([file]) => file))];
-const css = Object.fromEntries(files.map(f => [f, read(f)]));
+// skins.css is checked without its generated base block (the retired files' looks, moved there with zero specificity).
+const css = Object.fromEntries(files.map(f => [f, f === 'skins.css' ? skinRules(read(f)) : read(f)]));
 // Comments say why a rule exists; the checks look at declarations only.
 const code = text => text.replace(/\/\*[\s\S]*?\*\//g, '');
 const offenders = (re, only = files) => only.flatMap(f => code(css[f]).split('\n').map((line, i) => re.test(line) ? `${f}:${i + 1} ${line.trim().slice(0, 120)}` : null).filter(Boolean));

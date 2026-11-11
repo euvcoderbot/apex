@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
+import {legacySource} from './legacy-css.mjs';
 
-const css = readFileSync('hig-system.css', 'utf8');
+const css = legacySource('hig-system.css');
 const tokenCss = readFileSync('tokens.css', 'utf8');
 const root = postcss.parse(css);
 const rulesFor = pattern => {
@@ -133,7 +134,7 @@ test('only the system layer defines how scrollbars look, so they cannot drift ap
     assert.doesNotMatch(source, /scrollbar-(width|color)\s*:/, `${file} sets scrollbar-width or scrollbar-color`);
     assert.doesNotMatch(source, /::-webkit-scrollbar/, `${file} styles a WebKit scrollbar`);
   }
-  const system = readFileSync('hig-system.css', 'utf8');
+  const system = legacySource('hig-system.css');
   assert.match(system, /\* \{ scrollbar-width: thin; scrollbar-color: var\(--scroll-thumb\) transparent; \}/);
   assert.doesNotMatch(system, /::-webkit-scrollbar/);
   assert.equal((system.match(/scrollbar-width:\s*thin/g) || []).length, 1, 'the system layer sets the thin scrollbar exactly once');

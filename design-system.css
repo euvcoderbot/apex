@@ -5,7 +5,6 @@
 }
 
 body {
-  line-height: 1.5;
   min-height: 100vh;
 }
 
@@ -22,7 +21,6 @@ body {
 }
 
 .brand:hover img {
-  filter: drop-shadow(0 0 9px color-mix(in srgb, var(--ui-accent) 32%, transparent));
   transform: translateX(2px);
 }
 
@@ -33,20 +31,10 @@ body {
   bottom: 18px;
   max-width: min(420px, calc(100vw - 32px));
   padding: 11px 14px;
-  border: 1px solid color-mix(in srgb, var(--ui-negative) 55%, var(--ui-border));
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--ui-control-hover) 94%, black);
-  box-shadow: 0 16px 42px rgba(0, 0, 0, .42);
-  color: var(--ui-label);
-  font: 600 10px/1.45 var(--ui-font);
   opacity: 0;
   pointer-events: none;
   transform: translateY(10px);
   transition: opacity var(--motion-tier-fast) var(--ease-standard), transform var(--motion-tier-fast) var(--ease-standard);
-}
-
-.app-toast[data-tone="success"] {
-  border-color: color-mix(in srgb, var(--ui-positive) 55%, var(--ui-border));
 }
 
 .app-toast.is-visible {
@@ -58,14 +46,7 @@ body {
 
 /* Sections */
 
-.dashboard-card:hover {
-  border-color: var(--ui-border-strong);
-}
-
 .sidebar h2 {
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  color: var(--ui-tertiary);
   margin-bottom: 12px;
   display: flex;
   justify-content: space-between;
@@ -76,13 +57,7 @@ body {
 
 /* Session Controls */
 
-select:focus {
-  border-color: rgba(255, 255, 255, 0.25);
-}
-
 button#loadSession:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.07);
-  border-color: var(--ui-border-strong);
   transform: translateY(-1px);
 }
 
@@ -98,19 +73,13 @@ button#loadSession:active:not(:disabled) {
 }
 
 .pill, .lap {
-  border: 1px solid var(--ui-border);
-  border-radius: var(--radius-sm);
   padding: 8px 10px;
-  font-size: 11px;
   cursor: pointer;
   transition: all var(--motion-tier-standard) var(--ease-out);
   text-align: left;
 }
 
 .pill:hover, .lap:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--ui-label);
-  border-color: var(--ui-border-strong);
   transform: translateY(-1.5px);
 }
 
@@ -129,11 +98,6 @@ button#loadSession:active:not(:disabled) {
   width: 16px;
   height: 12px;
   margin-right: 6px;
-  border-radius: var(--radius-xs);
-  background: var(--team);
-  color: white;
-  font-weight: 600;
-  font-size: 8px;
 }
 
 /* Driver stints list */
@@ -145,17 +109,10 @@ button#loadSession:active:not(:disabled) {
 }
 
 .stint:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--ui-label);
-  border-color: var(--ui-border-strong);
   transform: translateY(-1.5px);
 }
 
 /* Loaded Laps list */
-
-.remove:hover {
-  color: var(--ui-negative);
-}
 
 /* Lap workspace: a distinct selection surface for runs, laps and comparison. */
 
@@ -180,11 +137,6 @@ button#loadSession:active:not(:disabled) {
   position: relative;
   overflow: hidden;
   padding: 12px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--radius-sm);
-  background:
-    linear-gradient(120deg, color-mix(in srgb, var(--team) 7%, transparent), transparent 45%),
-    rgba(255, 255, 255, .015);
 }
 
 .driver-run-card::before {
@@ -194,8 +146,6 @@ button#loadSession:active:not(:disabled) {
   bottom: 0;
   left: 0;
   width: 3px;
-  background: var(--team);
-  box-shadow: 0 0 14px color-mix(in srgb, var(--team) 38%, transparent);
 }
 
 .run-card-header {
@@ -217,8 +167,6 @@ button#loadSession:active:not(:disabled) {
 
 .run-driver h3 {
   min-width: 0;
-  color: var(--ui-label);
-  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -227,8 +175,6 @@ button#loadSession:active:not(:disabled) {
 .run-driver small {
   grid-column: 1 / -1;
   margin-top: 3px;
-  color: var(--ui-tertiary);
-  font-size: 8px;
 }
 
 .fastest-lap-pick {
@@ -237,24 +183,13 @@ button#loadSession:active:not(:disabled) {
   gap: 1px;
   min-width: 78px;
   padding: 5px 7px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--radius-xs);
-  background: rgba(0, 0, 0, .16);
-  color: var(--ui-label);
   cursor: pointer;
   text-align: right;
   transition: border-color var(--motion-tier-fast) var(--ease-standard), background var(--motion-tier-fast) var(--ease-standard), transform var(--motion-tier-fast) var(--ease-standard), box-shadow var(--motion-tier-fast) var(--ease-standard);
 }
 
 .fastest-lap-pick:hover {
-  border-color: color-mix(in srgb, var(--team) 70%, white 12%);
-  background: color-mix(in srgb, var(--team) 10%, rgba(0, 0, 0, .18));
   transform: translateY(-1px);
-}
-
-.fastest-lap-pick span,
-.fastest-lap-pick strong {
-  line-height: 1.1;
 }
 
 .run-section-label,
@@ -264,27 +199,11 @@ button#loadSession:active:not(:disabled) {
   justify-content: space-between;
   align-items: baseline;
   gap: 8px;
-  color: var(--ui-tertiary);
-  font-size: 8px;
-}
-
-.run-section-label small,
-.lap-group-header small,
-.comparison-tray-heading small {
-  color: var(--ui-tertiary);
-  font-size: 8px;
-  letter-spacing: 0;
-}
-
-.run-segment strong {
-  color: var(--ui-label);
-  font-size: 9px;
 }
 
 .lap-group-header {
   margin: 12px 0 6px;
   padding-top: 9px;
-  border-top: 1px solid var(--ui-border);
 }
 
 .lap-chip {
@@ -306,8 +225,6 @@ button#loadSession:active:not(:disabled) {
 
 /* Empty states */
 .section-empty {
-  color: var(--ui-tertiary);
-  font-size: 10px;
   padding: 8px 0;
 }
 
@@ -319,8 +236,6 @@ button#loadSession:active:not(:disabled) {
 }
 
 .telemetry-card {
-  border: 1px solid var(--ui-border);
-  border-radius: var(--radius-md);
   padding: 20px;
   position: relative;
 }
@@ -330,7 +245,6 @@ button#loadSession:active:not(:disabled) {
 .legend {
   display: flex;
   gap: 12px;
-  font-size: 10px;
   align-items: center;
 }
 
@@ -344,8 +258,6 @@ button#loadSession:active:not(:disabled) {
   display: inline-block;
   width: 14px;
   height: 4px;
-  border-radius: var(--radius-2xs);
-  background: var(--team);
 }
 
 /* Sector times table */
@@ -353,11 +265,6 @@ button#loadSession:active:not(:disabled) {
 /* Mini-sector dominance track */
 
 /* Chart options */
-
-#cornerStatus {
-  color: var(--ui-tertiary);
-  font-size: 10px;
-}
 
 /* Charts Grid */
 .charts {
@@ -407,21 +314,7 @@ canvas[data-chart="DRS"] {
   position: absolute;
   z-index: 99;
   pointer-events: none;
-  background: rgba(14, 16, 20, 0.95);
-  backdrop-filter: blur(6px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: var(--radius-sm);
   padding: 8px 12px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-  font-family: var(--ui-font);
-  font-size: 10px;
-  line-height: 1.5;
-  color: var(--ui-label);
-}
-
-.tooltip b {
-  color: var(--ui-accent);
-  font-size: 11px;
 }
 
 /* Footer */
@@ -429,12 +322,6 @@ canvas[data-chart="DRS"] {
 /* Responsive grid styling */
 
 /* Sidebar Toggle and Collapsed States */
-
-.sidebar-toggle:hover {
-  background: rgba(255, 255, 255, 0.07);
-  color: var(--ui-label);
-  border-color: var(--ui-border-strong);
-}
 
 main.sidebar-collapsed {
   grid-template-columns: 1fr;
@@ -469,8 +356,6 @@ main.sidebar-collapsed .sidebar {
 /* Compact selectable corner workspace ----------------------------------- */
 
 .corner-pick:hover {
-  border-color: rgba(255, 255, 255, .23);
-  color: var(--ui-label);
   transform: translateY(-1px);
 }
 
@@ -519,8 +404,6 @@ main.sidebar-collapsed .sidebar {
   right: 14px;
   width: 7px;
   height: 7px;
-  border-right: 1.5px solid var(--ui-tertiary);
-  border-bottom: 1.5px solid var(--ui-tertiary);
   pointer-events: none;
   transform: translateY(-68%) rotate(45deg);
   transition: border-color var(--motion-tier-fast) var(--ease-standard), transform var(--motion-tier-fast) var(--ease-standard);
@@ -532,33 +415,12 @@ main.sidebar-collapsed .sidebar {
   appearance: none;
   -webkit-appearance: none;
   padding: 0 38px 0 13px;
-  border: 1px solid rgba(255, 255, 255, .1);
-  border-radius: var(--radius-sm);
   outline: 0;
-  background:
-    #0c0e11;
-  color: var(--ui-label);
-  font-family: var(--ui-font);
-  font-size: 11px;
-  font-weight: 600;
   cursor: pointer;
   transition: border-color var(--motion-tier-fast) var(--ease-standard), box-shadow var(--motion-tier-fast) var(--ease-standard), background var(--motion-tier-fast) var(--ease-standard);
 }
 
-.select-shell:hover select {
-  border-color: rgba(255, 255, 255, .2);
-  background:
-    #0c0e11;
-}
-
-.select-shell:focus-within select {
-  border-color: color-mix(in srgb, var(--ui-accent) 72%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-accent) 10%, transparent),
-    inset 3px 0 0 var(--ui-accent);
-}
-
 .select-shell:focus-within::after {
-  border-color: var(--ui-accent);
   transform: translateY(-35%) rotate(225deg);
 }
 
@@ -569,7 +431,6 @@ main.sidebar-collapsed .sidebar {
 }
 
 .lap-chip.in-out:disabled:hover {
-  border-color: color-mix(in srgb, var(--team) 38%, rgba(255, 255, 255, .12));
   transform: none;
 }
 
@@ -618,11 +479,6 @@ main.sidebar-collapsed .sidebar {
   margin-top: 4px;
 }
 
-#loadSession:hover {
-  background: var(--ui-accent);
-  box-shadow: 0 0 20px color-mix(in srgb, var(--ui-accent) 22%, transparent);
-}
-
 #driverPills .pill {
   min-height: 34px;
 }
@@ -644,8 +500,6 @@ main.sidebar-collapsed .sidebar {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border: 1px dashed rgba(255, 255, 255, .11);
-  border-radius: var(--radius-md);
   text-align: center;
 }
 
@@ -657,24 +511,11 @@ main.sidebar-collapsed .sidebar {
 .alignment-readout i {
   width: 6px;
   height: 6px;
-  border-radius: 50%;
-  background: var(--ui-tertiary);
-  box-shadow: 0 0 0 transparent;
-}
-
-.alignment-readout:has([data-state="ready"]) i {
-  background: var(--ui-accent);
-  box-shadow: 0 0 9px color-mix(in srgb, var(--ui-accent) 72%, transparent);
 }
 
 #cornerStatus {
   justify-self: end;
   text-align: right;
-}
-
-.chart:hover {
-  border-color: rgba(255, 255, 255, .16);
-  background: rgba(255, 255, 255, .018);
 }
 
 main.sidebar-collapsed {
@@ -692,25 +533,6 @@ main.sidebar-collapsed {
 
 /* Unified telemetry UI ---------------------------------------------------- */
 
-.dashboard-card,
-.telemetry-card,
-.chart,
-button,
-select,
-input {
-  font-family: var(--ui-font);
-}
-
-.panel-heading h2,
-.workspace-heading h2,
-.section-heading h1,
-.dominance-map h2,
-.corner-analysis h2,
-.chart h2 {
-  font-size: var(--ui-text-md);
-  letter-spacing: .035em;
-}
-
 /* Driver selection uses the same tinted, edged card language as each lap
    workspace, compressed into a two-column sidebar grid. */
 
@@ -724,12 +546,6 @@ input {
   min-height: 38px;
   padding: 6px 8px 6px 11px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--team) 22%, rgba(255, 255, 255, .08));
-  border-radius: var(--radius-sm);
-  background:
-    linear-gradient(115deg, color-mix(in srgb, var(--team) 9%, transparent), transparent 58%),
-    rgba(4, 6, 8, .48);
-  font-size: var(--ui-text-sm);
 }
 
 #driverPills .driver-pill::before {
@@ -737,13 +553,6 @@ input {
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-}
-
-#driverPills .driver-pill:hover {
-  border-color: color-mix(in srgb, var(--team) 52%, rgba(255, 255, 255, .12));
-  background:
-    linear-gradient(115deg, color-mix(in srgb, var(--team) 14%, transparent), transparent 64%),
-    rgba(8, 10, 13, .68);
 }
 
 /* Corner selectors wrap into the available width: no scrollbar and no scroll
@@ -774,20 +583,11 @@ input {
   height: 24px;
   place-items: center;
   padding: 0 7px;
-  border: 1px solid rgba(255, 255, 255, .1);
-  border-radius: var(--radius-xs);
-  background: rgba(0, 0, 0, .22);
-  color: var(--ui-tertiary);
-  font-size: var(--ui-text-sm);
-  font-weight: 600;
   cursor: pointer;
   transition: color var(--motion-tier-fast) var(--ease-standard), border-color var(--motion-tier-fast) var(--ease-standard), background var(--motion-tier-fast) var(--ease-standard), transform var(--motion-tier-fast) var(--ease-standard);
 }
 
 .trace-tools button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--ui-accent) 55%, transparent);
-  background: color-mix(in srgb, var(--ui-accent) 7%, transparent);
-  color: var(--ui-accent);
   transform: translateY(-1px);
 }
 
@@ -834,14 +634,12 @@ canvas[data-chart="Speed trace"] {
 .analysis-heading p {
   grid-column: 1 / -1;
   margin: 1px 0 0;
-  line-height: 1.35;
 }
 
 .sector-times {
   margin-bottom: 10px;
   padding: 9px;
   overflow: visible;
-  border-radius: var(--radius-md);
 }
 
 .lap-summary-card {
@@ -856,7 +654,6 @@ canvas[data-chart="Speed trace"] {
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: var(--team);
 }
 
 .lap-summary-card header {
@@ -875,13 +672,6 @@ canvas[data-chart="Speed trace"] {
   min-width: 0;
 }
 
-.summary-driver small,
-.summary-lap-time small,
-.summary-sectors small {
-  color: var(--ui-tertiary);
-  font-size: var(--ui-text-xs);
-}
-
 .summary-sectors > .sector-cell::after {
   content: '';
   position: absolute;
@@ -889,7 +679,6 @@ canvas[data-chart="Speed trace"] {
   bottom: 0;
   left: 0;
   height: 4px;
-  background: var(--sector-status);
 }
 
 /* Compact compound rows replace the oversized tyre circles. */
@@ -910,32 +699,12 @@ canvas[data-chart="Speed trace"] {
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: var(--tire-color);
-  box-shadow: 0 0 11px color-mix(in srgb, var(--tire-color) 32%, transparent);
-}
-
-.tire-copy strong {
-  color: var(--ui-label);
-  font-size: var(--ui-text-sm);
 }
 
 /* Dense data workspace --------------------------------------------------- */
 .summary-delta {
   min-width: max-content;
   padding: 2px 4px;
-  border: 1px solid currentColor;
-  border-radius: var(--radius-xs);
-  font-size: var(--ui-text-sm);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums lining-nums;
-  font-feature-settings: "tnum" 1, "lnum" 1;
-  line-height: 1.15;
-}
-
-.summary-lap-time,
-.summary-sectors {
-  font-variant-numeric: tabular-nums lining-nums;
-  font-feature-settings: "tnum" 1, "lnum" 1;
 }
 
 @media (min-width: 921px) {
@@ -1006,12 +775,7 @@ canvas[data-chart="Speed trace"] {
 button#loadSession.is-loading,
 button#loadSession:disabled {
   opacity: 1;
-  color: #080a0c;
-  background: var(--ui-accent);
-  border-color: color-mix(in srgb, var(--ui-accent) 72%, white 18%);
   cursor: progress;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .2),
-    0 0 18px color-mix(in srgb, var(--ui-accent) 18%, transparent);
 }
 
 button#loadSession.is-loading {
@@ -1026,9 +790,6 @@ button#loadSession.is-loading::before {
   width: 10px;
   height: 10px;
   flex: 0 0 auto;
-  border: 2px solid rgba(8, 10, 12, .28);
-  border-top-color: #080a0c;
-  border-radius: 50%;
   animation: session-loading-spin .7s linear infinite;
 }
 
@@ -1044,26 +805,9 @@ button#loadSession.is-loading::before {
 
 /* Typography and compound clarity --------------------------------------- */
 
-.compound-soft {
-  color: #ff4967;
-}
-
 .analysis-heading-main > div {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-}
-
-.panel-heading h2, .sidebar .panel-heading h2, .workspace-heading h2, .analysis-heading h1, .dominance-map h2, .corner-analysis h2, .chart h2 {
-  color: var(--ui-label);
-  font-size: var(--type-caption);
-  line-height: 1.2;
-}
-
-.summary-driver small, .summary-lap-time small, .summary-sectors small, .dominance-map h2 small, .corner-analysis h2 small, .chart h2 small {
-  color: #aeb3bd;
-  font-size: 8px;
-  font-weight: 600;
-  line-height: 1.2;
 }
 
 /* Compact comparison strip ---------------------------------------------- */
@@ -1090,33 +834,14 @@ button#loadSession.is-loading::before {
   gap: 5px;
   min-height: 29px;
   padding: 4px 6px 4px 9px;
-  border-left: 3px solid var(--team);
-  font-feature-settings: "tnum" 1, "lnum" 1;
 }
 
 .loaded-lap-pill.reference::before {
   content: 'REF';
   padding: 1px 3px;
-  border-radius: var(--radius-2xs);
-  background: var(--ui-accent);
-  color: #050608;
-  font-size: 6px;
-  font-weight: 600;
-}
-
-.loaded-lap-pill .remove:hover {
-  background: color-mix(in srgb, var(--ui-negative) 12%, transparent);
 }
 
 /* Selected-corner result colors ----------------------------------------- */
-.corner-detail-card .corner-time strong,
-.corner-detail-card .corner-delta strong {
-  color: var(--ui-label);
-}
-
-.corner-detail-card .corner-driver b {
-  color: var(--ui-label);
-}
 
 /* Split-screen/tablet layout: controls become a horizontal data band. */
 @media (min-width: 760px) and (max-width: 1180px) {
@@ -1175,7 +900,6 @@ button#loadSession.is-loading::before {
   .lap-workspace,
   .telemetry-card {
     padding: 10px;
-    border-radius: var(--radius-md);
   }
 
   .sidebar .panel-heading,
@@ -1378,7 +1102,6 @@ main,
   gap: 3px;
   min-width: 0;
   white-space: nowrap;
-  font-size: var(--ui-text-xs);
 }
 
 .summary-tyre b {
@@ -1391,8 +1114,6 @@ main,
   place-items: center;
   width: 17px;
   height: 17px;
-  font-style: normal;
-  line-height: 1;
 }
 
 .summary-condition > span {
@@ -1403,9 +1124,6 @@ main,
 
 .summary-condition strong {
   overflow: hidden;
-  color: var(--ui-label);
-  font-size: var(--ui-text-xs);
-  font-variant-numeric: tabular-nums lining-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1425,11 +1143,6 @@ main,
 .lap-summary-card:nth-child(n + 3),
 .driver-run-card:nth-child(n + 3) {
   animation-delay: 70ms;
-}
-
-.dashboard-card:focus-within {
-  border-color: rgba(234, 255, 24, .22);
-  box-shadow: 0 10px 34px rgba(0, 0, 0, .4), 0 0 0 1px rgba(234, 255, 24, .035);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1460,12 +1173,6 @@ main,
 
 /* Slightly raised driver surfaces keep dark team colours readable. */
 
-#driverPills .driver-pill:hover {
-  background:
-    linear-gradient(115deg, color-mix(in srgb, var(--team) 15%, transparent), transparent 64%),
-    rgba(20, 22, 27, .9);
-}
-
 /* 2026 visual refinement: themes, dense comparison cards and disclosures -- */
 :root {
   color-scheme: dark;
@@ -1479,9 +1186,6 @@ main,
 
 .theme-toggle:hover,
 .corner-analysis-toggle:hover {
-  border-color: color-mix(in srgb, var(--ui-accent) 50%, var(--ui-border));
-  background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
-  color: var(--ui-accent);
   transform: translateY(-1px);
 }
 
@@ -1496,7 +1200,6 @@ main,
   content: '';
   position: absolute;
   inset: -1px -1px -1px 50%;
-  background: currentColor;
 }
 
 .corner-analysis.is-collapsed .corner-analysis-toggle i {
@@ -1530,24 +1233,6 @@ main,
    wash. The accent remains available for global actions, but lap/run state is
    now visually tied to the driver it controls. */
 
-.loaded-lap-pill.reference::before {
-  background: color-mix(in srgb, var(--team) 78%, #e8edf2);
-  color: #080a0d;
-}
-
-:root[data-theme="light"] .run-segment.selected,
-:root[data-theme="light"] .lap-chip.selected,
-:root[data-theme="light"] .fastest-lap-pick.selected {
-  border-color: color-mix(in srgb, var(--team) 62%, #8d96a0);
-}
-
-.summary-condition small,
-.summary-driver small,
-.summary-lap-time small,
-.summary-sectors small {
-  font-weight: 600;
-}
-
 .tire-copy {
   align-content: center;
 }
@@ -1560,18 +1245,6 @@ main,
 /* Light mode keeps the same hierarchy without merely inverting the page. */
 :root[data-theme="light"] {
   color-scheme: light;
-}
-
-:root[data-theme="light"] #driverPills .driver-pill,
-:root[data-theme="light"] #driverPills .driver-pill:hover,
-:root[data-theme="light"] #driverPills .driver-pill.selected {
-  background:
-    linear-gradient(115deg, color-mix(in srgb, var(--team) 12%, transparent), transparent 68%),
-    rgba(255, 255, 255, .84);
-}
-
-:root[data-theme="light"] .dashboard-card:focus-within {
-  box-shadow: 0 10px 30px rgba(34, 43, 54, .11), 0 0 0 1px rgba(130, 152, 0, .08);
 }
 
 /* 2026-08 control and data-legibility refinements ----------------------- */
@@ -1621,24 +1294,13 @@ main,
   white-space: nowrap;
 }
 
-.select-shell:hover .select-trigger {
-  border-color: rgba(255, 255, 255, .24);
-}
-
 .select-shell.is-open {
   z-index: 250;
-}
-
-.select-shell.is-open .select-trigger,
-.select-trigger:focus-visible {
-  border-color: color-mix(in srgb, var(--ui-accent) 72%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-accent) 10%, transparent), inset 3px 0 0 var(--ui-accent);
 }
 
 .select-menu button:hover,
 .select-menu button:focus-visible {
   outline: 0;
-  background: rgba(255, 255, 255, .07);
 }
 
 .run-toolbar .compare-all-btn {
@@ -1655,33 +1317,15 @@ main,
 
 .run-toolbar .compare-all-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  border-color: var(--ui-accent);
-  background: color-mix(in srgb, var(--ui-accent) 10%, rgba(7, 9, 12, .72));
-  box-shadow: 0 7px 18px color-mix(in srgb, var(--ui-accent) 15%, transparent);
 }
 
 .run-toolbar .compare-all-btn:hover:not(:disabled) i {
-  filter: drop-shadow(0 0 5px var(--ui-accent));
   transform: translateY(-1px) rotate(-8deg) scale(1.16);
 }
 
 /* Sector and condition metrics share one explicit card-width grid. The old
    full-bleed conditions margin made four equal tracks look uneven beneath the
    inset three-sector row. */
-
-:root[data-theme="light"] .select-shell:hover .select-trigger {
-  border-color: #7f8995;
-}
-
-:root[data-theme="light"] .select-menu button:hover,
-:root[data-theme="light"] .select-menu button:focus-visible {
-  background: #edf0f3;
-}
-
-:root[data-theme="light"] .tire-hard::before {
-  background: #b3bac3;
-  box-shadow: none;
-}
 
 /* Integrated speed-trace control deck ----------------------------------- */
 .visually-hidden {
@@ -1703,9 +1347,6 @@ main,
   gap: 6px;
   min-width: 118px;
   padding: 0 9px;
-  border-right: 1px solid var(--ui-border);
-  color: var(--ui-tertiary);
-  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -1713,12 +1354,6 @@ main,
   min-height: 25px;
   padding: 0 8px 0 5px;
   margin-right: 2px;
-}
-
-.trace-setting:hover {
-  border-color: var(--ui-border-strong);
-  background: rgba(255, 255, 255, .035);
-  color: var(--ui-label);
 }
 
 .trace-setting input,
@@ -1735,15 +1370,6 @@ main,
   flex: 0 0 auto;
   width: 12px;
   height: 12px;
-  border: 1px solid var(--ui-border-strong);
-  border-radius: var(--radius-xs);
-  background: rgba(0, 0, 0, .18);
-}
-
-.trace-setting input:checked + i {
-  border-color: var(--ui-accent);
-  background: var(--ui-accent);
-  box-shadow: inset 0 0 0 2px #0b0d10, 0 0 8px color-mix(in srgb, var(--ui-accent) 30%, transparent);
 }
 
 .trace-setting input:checked + i::after {
@@ -1753,8 +1379,6 @@ main,
   top: 1px;
   width: 3px;
   height: 6px;
-  border-right: 1.5px solid #090b0e;
-  border-bottom: 1.5px solid #090b0e;
   transform: rotate(45deg);
 }
 
@@ -1787,8 +1411,6 @@ main,
   min-height: 25px;
   padding: 3px 8px 3px 6px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--team) 24%, var(--ui-border));
-  border-radius: var(--radius-xs);
   cursor: pointer;
   opacity: .58;
   transition: opacity var(--motion-tier-fast) var(--ease-standard), color var(--motion-tier-fast) var(--ease-standard), border-color var(--motion-tier-fast) var(--ease-standard), background var(--motion-tier-fast) var(--ease-standard), transform var(--motion-tier-fast) var(--ease-standard);
@@ -1799,7 +1421,6 @@ main,
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: var(--team);
 }
 
 .trace-driver-chip > i {
@@ -1830,10 +1451,6 @@ main,
   padding: 20px;
   text-align: center;
   pointer-events: none;
-}
-
-:root[data-theme="light"] .trace-setting input:checked + i {
-  box-shadow: 0 0 7px color-mix(in srgb, var(--ui-accent) 24%, transparent);
 }
 
 @media (max-width: 620px) {
@@ -1892,7 +1509,6 @@ main,
 .lap-summary-card .summary-tyre,
 .lap-summary-card .summary-lap-time {
   align-items: center;
-  line-height: 1;
 }
 
 .lap-summary-card .summary-driver {
@@ -1927,7 +1543,6 @@ main,
 .lap-summary-card .summary-lap-time > small,
 .lap-summary-card .summary-lap-time > strong {
   display: block;
-  line-height: 20px;
 }
 
 @media (max-width: 520px) {

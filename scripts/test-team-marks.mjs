@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync, existsSync, readdirSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import vm from 'node:vm';
+import {legacySource} from './legacy-css.mjs';
 
 // team-marks.js in a sandbox of its own: it only needs `window`.
 function marks() {
@@ -80,8 +81,8 @@ test('every page that shows teams loads the marks before the views that draw the
   const page = readFileSync('index.html', 'utf8');
   assert.ok(page.indexOf('src="team-marks.js"') > 0 && page.indexOf('src="team-marks.js"') < page.indexOf('src="session-state.js"'));
   assert.match(readFileSync('scripts/sync-static.mjs', 'utf8'), /"team-marks\.js"/);
-  const css = readFileSync('ui-controls.css', 'utf8');
+  const css = legacySource('ui-controls.css');
   assert.match(css, /\.team-mark:not\(\.has-number\)::before \{ content: ""; [^}]*background: var\(--team-mark\)/);
-  assert.match(css, /\.team-mark\.has-number::after \{ content: attr\(data-number\); color: var\(--team-mark-ink\)/);
-  assert.match(css, /@media \(forced-colors: active\) \{ \.team-mark:not\(\.has-number\)::before, \.team-mark\.has-number \{ background: CanvasText;/);
+  assert.match(css, /\.team-mark\.has-number::after \{ content: attr\(data-number\);[^}]*color: var\(--team-mark-ink\)/);
+  assert.match(css, /@media \(forced-colors: active\) \{\s*\.team-mark:not\(\.has-number\)::before, \.team-mark\.has-number \{\s*background: CanvasText;/);
 });

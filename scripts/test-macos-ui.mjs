@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
-const css=fs.readFileSync('macos-ui.css','utf8');
+import {legacySource} from './legacy-css.mjs';
+const css=legacySource('macos-ui.css');
 const app=appSource();
 const tokens=JSON.parse(fs.readFileSync('e2e/__tokens__/tokens.json','utf8'));
 test('one current macOS appearance layer ships after the workspace and replaces Windows styling',()=>{

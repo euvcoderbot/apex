@@ -4,10 +4,11 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
+import {legacySource} from './legacy-css.mjs';
 
 const ui=readFileSync('dashboard-ui.js','utf8');
 const html=readFileSync('index.html','utf8');
-const css=readFileSync('workspace-ui.css','utf8');
+const css=legacySource('workspace-ui.css');
 const car=readFileSync('car-performance.js','utf8');
 
 test('every performance category has a distinct accessible heading and honest context',()=>{

@@ -4,8 +4,9 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
+import {legacySource} from './legacy-css.mjs';
 
-const read=file=>readFileSync(file,'utf8').replace(/\r\n/g,'\n');
+const read=file=>(/^(design-system|polish|apple-ui|car-performance|workspace-ui|trace-focus|macos-ui|ui-controls|macos-window|hig-system)\.css$/.test(file)?legacySource(file):readFileSync(file,'utf8')).replace(/\r\n/g,'\n');
 const app=appSource(), css=read('macos-window.css');
 
 test('corner selection updates the same buttons without moving focus or rebuilding the picker',()=>{

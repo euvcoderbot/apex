@@ -1,24 +1,13 @@
 .trace-focus-button {
   min-height: 38px;
   padding: 0 13px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius);
-  background: var(--ui-control);
-  color: var(--ui-label);
-  font: inherit;
-  font-size: var(--text-md);
-  font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
 }
-.trace-focus-button:hover { background: var(--ui-selected); border-color: var(--ui-border-strong); }
 .trace-focus-button:focus-visible { outline: 2px solid var(--ui-label); outline-offset: 2px; }
 .trace-focus-close { display: none; }
 .pit-lap-notice {
   margin: 8px 10px 10px;
-  color: var(--ui-secondary);
-  font-size: var(--text-md);
-  line-height: 1.45;
 }
 .pit-lap-notice[hidden] { display: none; }
 
@@ -33,7 +22,6 @@ body.trace-focus #telemetryCard {
   box-sizing: border-box;
   height: 100dvh;
   overflow: auto;
-  background: transparent;
 }
 body.trace-focus #charts > .chart.compact { padding-top: 10px; padding-bottom: 10px; }
 body.trace-focus #charts .chart.compact .chart-heading { margin-bottom: 5px; }

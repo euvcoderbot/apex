@@ -16,147 +16,91 @@
 button[data-ui-kind="push"],button[data-ui-kind="picker"] {
   min-height: var(--hig-regular);
 }
-button[data-ui-kind="push"]:hover:not(:disabled),button[data-ui-kind="picker"]:hover:not(:disabled) { background: var(--ui-control-hover); }
-button[data-ui-kind="push"]:active:not(:disabled),button[data-ui-kind="picker"]:active:not(:disabled) { background: var(--hig-control-pressed); }
 /* A push button that toggles ("Compare fastest") shows on as a toggle tile. */
 
 /* Default (prominent) button: one per view, accent filled. */
 button[data-ui-kind="primary"] {
-  min-height: var(--hig-regular); border: 0; border-radius: var(--hig-radius);
-  background: var(--ui-action);
-  font-size: var(--type-body); font-weight: 600;
+  min-height: var(--hig-regular);
 }
-button[data-ui-kind="primary"]:hover:not(:disabled) { background: color-mix(in srgb, var(--ui-action) 88%, #fff); }
-button[data-ui-kind="primary"]:active:not(:disabled) { background: color-mix(in srgb, var(--ui-action) 82%, #000); }
 
 /* ---------- Pop-up buttons and fields (HIG Pop-up buttons, Text fields) ---- */
 button[data-ui-kind="popup"] {
   min-height: var(--hig-regular); height: var(--hig-regular);
 }
-button[data-ui-kind="popup"]:hover:not(:disabled) { background: var(--ui-control-hover); }
-button[data-ui-kind="popup"]:active:not(:disabled),button[data-ui-kind="popup"][aria-expanded="true"] { background: var(--hig-control-pressed); }
 :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),textarea)[data-ui-kind="field"] {
-  min-height: var(--hig-regular); border-radius: var(--hig-radius);
+  min-height: var(--hig-regular);
 }
 
 /* ---------- Segmented controls (HIG Segmented controls) -------------------
    Regular: a 30 px recessed track, 26 px raised thumb. The Q1/Q2/Q3 run
    picker, view switch, map view, scope and option toggles all use it. */
 :is([data-ui-group="segments"],.lap-workspace .run-segments) {
-  min-height: var(--hig-regular); padding: 2px; gap: 2px; border: 0;
-  border-radius: var(--hig-radius-track);
+  min-height: var(--hig-regular); padding: 2px; gap: 2px;
 }
 :is(button[data-ui-kind="segment"],button[data-ui-kind="run"]) {
-  height: auto; min-height: var(--hig-thumb); border: 0; border-radius: var(--hig-radius-thumb);
-  background: transparent; color: var(--ui-secondary);
-  font-size: var(--type-body); font-weight: 450;
-}
-:is(button[data-ui-kind="segment"],button[data-ui-kind="run"]):hover:not([aria-pressed="true"]):not(:disabled) { background: var(--hig-seg-hover); color: var(--ui-label); }
-:is(button[data-ui-kind="segment"],button[data-ui-kind="run"]):active:not([aria-pressed="true"]):not(:disabled) { background: color-mix(in srgb, var(--ui-label) 12%, transparent); }
-:is(button[data-ui-kind="segment"],button[data-ui-kind="run"])[aria-pressed="true"] {
-  background: var(--ui-seg-thumb); color: var(--ui-label); font-weight: 600;
+  height: auto; min-height: var(--hig-thumb);
 }
 .lap-workspace .run-segment[data-ui-kind="run"] { padding-block: 2px; }
-.lap-workspace .run-segment[data-ui-kind="run"] small { font-size: var(--type-caption); font-weight: 450; color: inherit; opacity: .85; }
+.lap-workspace .run-segment[data-ui-kind="run"] small { opacity: .85; }
 
 /* Large segmented: the category bar is the page's primary navigation. */
 .category-bar button[data-ui-kind="tab"] {
-  min-height: var(--hig-large); border: 0; border-radius: var(--hig-radius-thumb);
-  background: transparent;
-  font-size: var(--type-body);
+  min-height: var(--hig-large);
 }
-.category-bar button[data-ui-kind="tab"]:hover:not([aria-current]) { background: var(--hig-seg-hover); color: var(--ui-label); }
 
 /* ---------- Toggle tiles (HIG Toggles: button-style toggle) ---------------
    Lap tiles, corner and straight picks, "Fastest" picks: bezel when off,
    accent fill with white label when on. Team colour never shows state. */
 button[data-ui-kind="choice"] {
-  min-height: var(--hig-regular); border: 0; border-radius: var(--hig-radius);
-  background: var(--ui-control); color: var(--ui-label);
-  font-size: var(--type-body);
+  min-height: var(--hig-regular);
 }
-button[data-ui-kind="choice"]:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--ui-control-hover); }
-button[data-ui-kind="choice"]:active:not(:disabled):not([aria-pressed="true"]) { background: var(--hig-control-pressed); }
-button[data-ui-kind="choice"][aria-pressed="true"] { background: var(--ui-tile-on); color: var(--ui-tile-on-label); }
-button[data-ui-kind="choice"][aria-pressed="true"]:hover:not(:disabled) { background: color-mix(in srgb, var(--ui-tile-on) 88%, #fff); }
-button[data-ui-kind="choice"][aria-pressed="true"] :is(small,span,b,strong,em,time) { color: inherit; }
 
 /* ---------- Sidebar pick lists (HIG Sidebars, Toggles) --------------------
    Drivers and races are both multi-select pick lists, so both use the same
    32 px bezel pill: control fill when off, accent fill + white label + check
    when on, 3 px apart. */
 :is(button[data-ui-kind="list-row"],.app-sidebar button.track-pill[data-ui-kind="choice"]) {
-  min-height: var(--hig-large); height: auto; border: 0; border-radius: var(--hig-radius);
-  background: var(--ui-control); color: var(--ui-label);
-  font-size: var(--type-body);
+  min-height: var(--hig-large); height: auto;
 }
-:is(button[data-ui-kind="list-row"],.app-sidebar button.track-pill[data-ui-kind="choice"]):hover:not([aria-pressed="true"]) { background: var(--ui-control-hover); }
-:is(button[data-ui-kind="list-row"],.app-sidebar button.track-pill[data-ui-kind="choice"])[aria-pressed="true"] { background: var(--ui-list-selected); color: var(--ui-list-selected-label); }
 :is(#driverPills,.app-sidebar .performance-track-pills) { gap: 3px; }
 :is(button,[role="option"])[data-ui-kind="menu-item"] {
-  height: var(--hig-menu-row); min-height: var(--hig-menu-row); border: 0; border-radius: var(--hig-radius-small);
+  height: var(--hig-menu-row); min-height: var(--hig-menu-row);
 }
 
 /* ---------- Small controls: steppers, sort headers, reference chips ------- */
 button[data-ui-kind="stepper"] {
   min-height: var(--hig-small); height: var(--hig-small); min-width: var(--hig-small);
-  border: 0; border-radius: var(--hig-radius-small); background: transparent;
-  color: var(--ui-secondary); font-size: var(--type-callout);
 }
-button[data-ui-kind="stepper"]:hover:not(:disabled) { background: var(--hig-seg-hover); color: var(--ui-label); }
-button[data-ui-kind="stepper"]:active:not(:disabled) { background: color-mix(in srgb, var(--ui-label) 12%, transparent); }
-button[data-ui-kind="sort"]:hover { color: var(--ui-label); }
 button[data-ui-kind="reference"] {
-  min-height: var(--hig-small); font-size: var(--type-callout);
+  min-height: var(--hig-small);
 }
-button[data-ui-kind="reference"]:hover { background: var(--hig-seg-hover); }
 
 /* ---------- Toolbar items (HIG Toolbars: borderless icon buttons) --------- */
 button[data-ui-kind="toolbar"] {
-  height: var(--hig-regular); min-height: var(--hig-regular); min-width: var(--hig-regular); border: 0; border-radius: var(--hig-radius);
+  height: var(--hig-regular); min-height: var(--hig-regular); min-width: var(--hig-regular);
 }
 /* The local status contains text directly, unlike the icon-only toolbar buttons.
    Do not squeeze it into the compact 30px toolbar width and let it overlap. */
-button[data-ui-kind="toolbar"]:hover:not(:disabled) { background: var(--hig-seg-hover); color: var(--ui-label); }
-button[data-ui-kind="toolbar"]:active:not(:disabled),button[data-ui-kind="toolbar"][aria-pressed="true"] { background: color-mix(in srgb, var(--ui-label) 12%, transparent); color: var(--ui-label); }
-button[data-ui-kind="icon"] { border-radius: 50%; }
-button[data-ui-kind="icon"]:hover { background: var(--hig-seg-hover); color: var(--ui-label); }
 
 /* ---------- Disclosure (HIG Disclosure controls) -------------------------- */
-:is(summary,button)[data-ui-kind="disclosure"] { min-height: var(--hig-regular); border-radius: var(--hig-radius-small); }
-summary[data-ui-kind="disclosure"]:hover { color: var(--ui-label); }
+:is(summary,button)[data-ui-kind="disclosure"] { min-height: var(--hig-regular); }
 
 /* ---------- Checkboxes and radio buttons (HIG Toggles) --------------------
    macOS checkboxes are small rounded squares; circles are radio buttons. */
-input[data-ui-kind="checkbox"] { border-radius: var(--radius-xs); }
-input[data-ui-kind="radio"] { border-radius: 50%; }
-input[data-ui-kind="checkbox"]:hover:not(:checked):not(:disabled) { background: var(--ui-control-hover); }
 input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 4px; height: 8px; }
 
 /* Visible-trace chips: a neutral bezel holding a checkbox and a colour well;
    the trace colour lives only in the well (selection spec rule 5). */
-.trace-pill-group { min-height: var(--hig-regular); padding: 0 4px 0 0; border: 0; border-radius: var(--hig-radius); background: var(--ui-control); }
-.trace-pill-group .trace-driver-chip,.trace-pill-group .trace-driver-chip.is-visible { box-sizing: border-box; height: var(--hig-regular); min-height: var(--hig-regular); padding-block: 0; border: 0; font-size: var(--type-body); }
-.trace-pill-group .trace-driver-chip small { font-size: var(--type-caption); line-height: 1.2; }
-.trace-pill-group:hover { background: var(--ui-control-hover); }
-.trace-pill-group .trace-swatch { width: 18px; height: 18px; flex: 0 0 18px; border-radius: var(--radius-xs); }
+.trace-pill-group { min-height: var(--hig-regular); padding: 0 4px 0 0; }
+.trace-pill-group .trace-driver-chip,.trace-pill-group .trace-driver-chip.is-visible { box-sizing: border-box; height: var(--hig-regular); min-height: var(--hig-regular); padding-block: 0; }
+.trace-pill-group .trace-swatch { width: 18px; height: 18px; flex: 0 0 18px; }
 
 /* ---------- Badges (not controls) ---------------------------------------- */
-[data-ui-kind="badge"], .loaded-lap-main em, .corner-driver em {
-  font-size: var(--type-caption); border-radius: var(--radius-xs); letter-spacing: 0;
-}
 
 /* ---------- Typography (HIG Typography) ----------------------------------- */
 /* Section headers: one style for every top-level group box in both views. */
 /* Titles inside a group: charts, driver run cards, metric charts. */
-:is(.chart-heading h2,.perf-chart-heading,.run-driver-copy h3,.corner-detail-header strong,.dominance-map-header h2) {
-  font-size: var(--type-headline); letter-spacing: 0;
-}
 /* Group labels: sidebar sections and sub-groups (Corners / Straights). */
-:is(.app-sidebar .panel-heading h2,.driver-control-card .panel-heading h2,.circuit-section-group > header h3) {
-  font-size: var(--type-callout); color: var(--ui-secondary); letter-spacing: 0;
-}
-.circuit-section-group > header span,.workspace-eyebrow { font-size: var(--type-caption); color: var(--ui-tertiary); }
 
 /* ---------- Materials (HIG Materials) -------------------------------------
    Two layers, as in macOS. Navigation and transient surfaces (toolbar,
@@ -177,10 +121,6 @@ input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 
 }
 
 /* ---------- Increased contrast (HIG Accessibility) ------------------------ */
-@media (prefers-contrast: more) {
-  :is([data-ui-group="segments"],.lap-workspace .run-segments) { box-shadow: inset 0 0 0 1px var(--ui-border-strong); }
-  button:is([data-ui-kind="push"],[data-ui-kind="choice"],[data-ui-kind="popup"]) { box-shadow: inset 0 0 0 1px var(--ui-border-strong); }
-}
 
 /* ---------- Redundant titles (HIG Layout: avoid repeating the page title) - */
 .performance-card > .panel-heading[data-redundant] { display: none; }
@@ -197,7 +137,7 @@ input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 
 
 /* Measurement controls are part of their card, with an intentional boundary
    before the chart. Settings share a row when there is sufficient room. */
-.performance-card-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 0 0 12px; padding: 0 0 12px; border-bottom: 1px solid var(--ui-separator); min-width: 0; }
+.performance-card-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 0 0 12px; padding: 0 0 12px; min-width: 0; }
 .performance-card-controls:empty { display: none; }
 .performance-card-controls .performance-tyre-toolbar,.performance-card-controls .performance-tyre-settings { display: contents; }
 .performance-card-controls :is(.performance-compound-control,.performance-actions,.performance-toolbar) { margin: 0; }
@@ -206,9 +146,6 @@ input[data-ui-kind="checkbox"]:checked::after { left: 4.5px; top: 1.5px; width: 
 /* Comparison chips are secondary controls, not the larger lap chooser tiles. */
 #loadedLaps .loaded-lap-main[data-ui-kind="reference"] { min-height: 24px; height: 24px; padding: 0 4px; gap: 4px; }
 /* Sector deficits only: 15% smaller than the existing caption size. */
-.sector-cards .lap-summary-card .sector-delta-slot .summary-delta { font-size: calc(var(--type-caption) * .85); }
-.lap-workspace .lap-chip.is-preparation .lap-state { color: var(--ui-accent); }
-.lap-workspace .lap-chip.is-preparation[aria-pressed="true"] .lap-state { color: var(--ui-accent); }
 
 /* Decide the trace/inspector split from actual available content width,
    including the sidebar, rather than the width of the browser window. */
@@ -252,9 +189,8 @@ table.performance-table th:last-child > .ui-column-resizer { right: 0; }
 /* OUT/PREP must not inflate just a few lap tiles into three text rows. */
 .lap-workspace .lap-grid { grid-template-columns: repeat(auto-fill,minmax(min(100%,190px),1fr)); align-items: start; }
 .lap-workspace .lap-chip[data-ui-kind="choice"] { box-sizing: border-box; min-height: 44px; height: 44px; padding: 4px 6px; grid-template-columns: max-content minmax(0,1fr) 18px; grid-template-rows: 18px 14px; gap: 2px 6px; }
-.lap-workspace .lap-chip .lap-token { display: inline-flex; flex-wrap: nowrap; white-space: nowrap; font-size: var(--type-caption); }
-.lap-workspace .lap-chip .lap-clock { line-height: 18px; }
-.lap-workspace .lap-chip .lap-tyre-age { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: var(--type-caption); line-height: 14px; }
+.lap-workspace .lap-chip .lap-token { display: inline-flex; flex-wrap: nowrap; white-space: nowrap; }
+.lap-workspace .lap-chip .lap-tyre-age { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- Lap summary cards ----------------------------------------------
    Each card is just wide enough (400 px) for Air · Track · Wind · Rain on one
@@ -287,19 +223,17 @@ button.map-guide-info[data-ui-kind="icon"] {
 }
 .circuit-guide-details[popover]:popover-open { display: grid; }
 .circuit-guide-details[popover]:not(:popover-open) { display: none; }
-@media (prefers-reduced-transparency: reduce) { .circuit-guide-details[popover] { background: var(--ui-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+@media (prefers-reduced-transparency: reduce) { .circuit-guide-details[popover] { -webkit-backdrop-filter: none; } }
 
 /* Audit follow-through on Claude's3cfe307 baseline. Numeric web tokens are
    project choices, not Apple-prescribed CSS dimensions or timings. */
 [hidden] { display: none !important; }
 /* The workspace switch keeps proper tab semantics for its two content panels. */
-.performance-tabs > button[aria-selected="true"],.performance-tabs > button[aria-selected="true"]:hover { color: var(--ui-label); font-weight: 600; background: transparent; box-shadow: none; }
 /* Concise labels avoid overlap; the full category names remain accessible. */
 /* Shared flag/text columns in the closed field and each option. The menu's
    border +4px inset +3px row inset matches the field's8px inset. */
 .select-trigger { padding-left: 8px; }
 .select-trigger > span { min-height: 0; height: auto; padding-block: 0; gap: 8px; }
-.select-trigger .select-option-text { line-height: 1.35; }
 :is(.select-trigger,.select-menu) .gp-flag { width: 18px; height: 13px; flex: 0 0 18px; }
 /* The one scrollbar definition. Every scrolling area, vertical or horizontal, the page and the menus alike, is a thin system scrollbar
    in the theme's thumb colour: the standard properties only, so the browser keeps drawing it (no arrow buttons, and the OS's
@@ -313,10 +247,10 @@ button.map-guide-info[data-ui-kind="icon"] {
 .app-toast > button { flex-shrink: 0; }
 .trace-swatch:focus-within { outline: 3px solid var(--ui-focus); outline-offset: 2px; }
 .chart-data-access { grid-column: 1 / -1; margin-top: 8px; padding: 8px; }
-.chart-data-access > summary { display: flex; align-items: center; min-height: var(--hig-regular); font-weight: 600; }
+.chart-data-access > summary { display: flex; align-items: center; min-height: var(--hig-regular); }
 .chart-sample-controls { display: grid; grid-template-columns: auto minmax(100px,1fr) auto; gap: 8px; align-items: center; margin-block: 8px; }
 .chart-sample-controls input[type="range"] { min-height: var(--hig-regular); width: 100%; accent-color: var(--ui-action); }
-.chart-sample-status { display: block; margin-block: 8px; font-size: var(--type-callout); color: var(--ui-secondary); }
+.chart-sample-status { display: block; margin-block: 8px; }
 .chart-data-access tbody th { text-align: left; }
 body.trace-focus #telemetryCard { scrollbar-gutter: stable; padding: 8px 16px 24px; }
 @media (max-width: 700px) { body.trace-focus #telemetryCard { padding: 8px; } }
@@ -337,14 +271,12 @@ body.trace-focus #telemetryCard { scrollbar-gutter: stable; padding: 8px 16px 24
 /* ---------- Applying the materials ----------------------------------------- */
 /* Scroll-edge effect: the toolbar's hairline appears only once content
    scrolls beneath it. Without scroll-driven animations it is always shown. */
-.site-header::after { content: ''; position: absolute; inset: auto 0 0; height: 1px; background: var(--ui-separator); pointer-events: none; }
+.site-header::after { content: ''; position: absolute; inset: auto 0 0; height: 1px; pointer-events: none; }
 @supports (animation-timeline: scroll()) {
   .site-header::after { animation: hig-bar-edge linear both; animation-timeline: scroll(root); animation-range: 0 28px; }
   @keyframes hig-bar-edge { from { opacity: 0; } to { opacity: 1; } }
 }
-:is(.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover]) {
-  border: 0; background: var(--mat-menu); -webkit-backdrop-filter: var(--mat-blur-menu); backdrop-filter: var(--mat-blur-menu);
-  box-shadow: var(--ui-shadow-popover), var(--mat-edge);
+:is(.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover]) { -webkit-backdrop-filter: var(--mat-blur-menu);
 }
 .local-compute-dialog::backdrop { -webkit-backdrop-filter: blur(4px); }
 /* Menus and popovers fade in like AppKit's (no scale, no travel). */
@@ -370,18 +302,9 @@ body.trace-focus #telemetryCard { scrollbar-gutter: stable; padding: 8px 16px 24
    Toolbar controls sit on glass, so they answer the pointer: a faint highlight follows it (glass.js sets --glass-x/-y) and a
    press gives a small, springy scale. Apple documents the effect ("a little goes a long way") but no values; these are tuned
    by eye. Hover devices only; reduced transparency and increased contrast remove the highlight, reduced motion the scale. */
-@media (hover: hover) {
-  [data-glass]:is(button, .performance-tabs):hover:not(:disabled) {
-    background-image: none;
-  }
-}
 [data-glass]:is(button, .performance-tabs) { transition: transform var(--motion-tier-fast) var(--ease-spring), background-color var(--hig-fast) var(--hig-ease), color var(--hig-fast) var(--hig-ease), box-shadow var(--hig-fast) var(--hig-ease); }
 [data-glass][data-ui-kind]:active:not(:disabled) { transform: scale(var(--glass-press-scale)); }
-@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  [data-glass]:is(button, .performance-tabs):hover:not(:disabled) { background-image: none; }
-}
 /* The person's own switch (glass.js, setIntensity): no highlight and no press response. */
-:root[data-glass-off] [data-glass]:is(button, .performance-tabs):hover:not(:disabled) { background-image: none; }
 :root[data-glass-off] [data-glass][data-ui-kind]:active:not(:disabled) { transform: none; }
 @media (prefers-reduced-motion: reduce) {
   [data-glass][data-ui-kind]:active:not(:disabled) { transform: none; }
@@ -404,22 +327,12 @@ body.trace-focus #telemetryCard { scrollbar-gutter: stable; padding: 8px 16px 24
 }
 
 /* Fallbacks. Each replaces the translucent fill with the opaque one. */
-@supports not (backdrop-filter: blur(1px)) {
-  .performance-table th { background: var(--ui-header-row); }
-  :is(.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover]) { background: var(--ui-control); }
-}
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  :is(.site-header,.site-header.window-toolbar) { background: var(--ui-toolbar); }
-  .performance-table th { background: var(--ui-header-row); }
-  :is(.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover]) { background: var(--ui-control); }
-  .local-compute-dialog { background: var(--ui-panel); }
   :is(.site-header,.site-header.window-toolbar,.performance-table th,.select-menu,.tooltip,.app-toast,.circuit-guide-details[popover],.local-compute-dialog,.local-compute-dialog::backdrop) { -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
-@media (prefers-contrast: more) { :is(.app-sidebar) { background: var(--ui-panel); } }
 /* Compute status: a labelled pill beside the toolbar items; a dot when space runs out. */
 @media (pointer: coarse) { .site-header .local-compute-status[data-ui-kind="toolbar"] { min-width: 44px; height: 44px; min-height: 44px; } }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
-@media(forced-colors:active) { .chart-data-access { background: Canvas; color: CanvasText; } }
 
 /* Corner comparison: a compact native table and explicit button affordances.
    HIG Lists and tables / Buttons / Layout: readable headers, clear feedback,
@@ -428,8 +341,7 @@ body.trace-focus #telemetryCard { scrollbar-gutter: stable; padding: 8px 16px 24
 .circuit-section-group > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 8px; }
 .circuit-section-group > header h3 { margin: 0; }
 .circuit-section-group .corner-picker { display: grid; grid-template-columns: repeat(auto-fill,48px); gap: 8px; margin: 0; padding: 0; }
-.circuit-section-group .corner-picker button.corner-pick { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: var(--hig-regular); height: var(--hig-regular); min-width: 0; width: 100%; padding: 0 4px; border-radius: var(--hig-radius); border: 1px solid var(--ui-border-strong); cursor: pointer; }
-.circuit-section-group .corner-picker button.corner-pick:hover { background: var(--ui-control-hover); }
+.circuit-section-group .corner-picker button.corner-pick { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: var(--hig-regular); height: var(--hig-regular); min-width: 0; width: 100%; padding: 0 4px; cursor: pointer; }
 .corner-detail-card { padding: 0; overflow: hidden; }
 .corner-measurement-wrap { overflow-x: auto; max-width: 100%; }
 .corner-measurement-table { table-layout: auto; width: 100%; }
@@ -440,21 +352,14 @@ body.trace-focus #telemetryCard { scrollbar-gutter: stable; padding: 8px 16px 24
 /* Column headers (HIG Lists and tables): the whole header cell is the target, so hover and press tint the cell, never
    just the label. The sorted column keeps the label colour and shows its direction with the chevron. */
 .corner-measurement-table thead th { transition: background-color var(--hig-fast) var(--hig-ease); }
-.corner-measurement-table button[data-corner-sort]:is(:hover,:active) { background: transparent; }
-.corner-measurement-table thead th:has(button[data-corner-sort]:hover) { background: color-mix(in srgb, var(--ui-header-row) 92%, var(--ui-label)); }
-.corner-measurement-table thead th:has(button[data-corner-sort]:active) { background: color-mix(in srgb, var(--ui-header-row) 84%, var(--ui-label)); }
 .corner-measurement-table button svg { position: absolute; right: -13px; width: 10px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .corner-measurement-table .corner-driver { display: inline-flex; align-items: center; gap: 6px; }
 .corner-measurement-table .corner-driver .team-logo { width: 18px; height: 18px; flex: 0 0 18px; }
 /* The table is monochrome: the real white mark on dark, the real black mark on light (not a flattened silhouette of the colour one). */
 .corner-measurement-table td strong { display: block; }
-.corner-measurement-table tbody tr:nth-child(even) { background: color-mix(in srgb,var(--ui-label) 3%,transparent); }
-.corner-measurement-table .is-faster { color: var(--ui-positive); }
 /* The fastest section time and the highest average/minimum speed are green too, as the faster delta. */
-.corner-measurement-table .is-fastest .corner-time, .corner-measurement-table .is-highest-min .corner-speed { color: var(--ui-positive); }
 .corner-detail-card .corner-phase-evidence { display: block; position: static; margin: 0; padding: 8px; }
 .corner-phase-evidence > summary[data-ui-kind="disclosure"] { box-sizing: border-box; width: 100%; height: auto; min-height: var(--hig-regular); padding: 8px; margin: 0; cursor: pointer; }
-.corner-phase-evidence > summary:hover { background: var(--ui-control-hover); }
 .corner-phase-evidence > :is(p,div) { margin: 8px; }
 /* Header words remain intact even in narrow/resized tables. Intrinsic table
    width is preferable to splitting “Team”, “Mean”, or “Visits” into letters. */
@@ -481,7 +386,6 @@ body.trace-focus #telemetryCard { scrollbar-gutter: stable; padding: 8px 16px 24
 /* Toolbar: icons with tooltips, as a macOS toolbar does. Only the state that means something is filled. */
 .workspace-tools :is(#explanationsToggle,#themeToggle) { width: var(--hig-regular); min-width: var(--hig-regular); padding: 0; justify-content: center; }
 .workspace-tools :is(#explanationsToggle,#themeToggle) > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.workspace-tools :is(#themeToggle)[aria-pressed]:not(:hover):not(:active) { background: transparent; }
 /* Phones with a fine pointer: five toolbar icons sit flush so the page tabs keep their full names. Touch keeps 44 px targets. */
 @media (max-width: 430px) and (pointer: fine) {
   .site-header .workspace-tools { gap: 0; padding-inline: 2px; }
@@ -489,11 +393,7 @@ body.trace-focus #telemetryCard { scrollbar-gutter: stable; padding: 8px 16px 24
 }
 
 /* Sidebar lists are lists: flat rows, not a stack of boxes, and a chosen row is a tint rather than a block of saturated blue. */
-.performance-track-choices { border: 0; padding: 0; }
-:is(#driverPills .driver-pill, #performanceTrackPills .track-pill) { border: 0; border-radius: var(--radius-md); background: transparent; color: var(--ui-label); }
-:is(#driverPills .driver-pill:not(.selected), #performanceTrackPills .track-pill:not([aria-pressed="true"])):hover:not(:disabled) { background: var(--ui-row-hover); box-shadow: none; }
-:is(#driverPills .driver-pill.selected, #performanceTrackPills .track-pill[aria-pressed="true"]) > span:not(.team-logo) { color: var(--ui-label); }
-@media (prefers-contrast: more) { :is(#driverPills .driver-pill.selected, #performanceTrackPills .track-pill[aria-pressed="true"]) { background: color-mix(in srgb, var(--ui-accent) 32%, transparent); } }
+.performance-track-choices { padding: 0; }
 @media (forced-colors: active) { :is(#driverPills .driver-pill.selected, #performanceTrackPills .track-pill[aria-pressed="true"]) { outline: 2px solid Highlight; outline-offset: -2px; } }
 /* The heading repeats the view title and sits straight above a field of nearly the same name. */
 .app-sidebar .session-controls > .panel-heading:first-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
@@ -502,7 +402,7 @@ body.trace-focus #telemetryCard { scrollbar-gutter: stable; padding: 8px 16px 24
 
 /* Sections sit on the window, not in a box around more boxes. Their own cards still group what belongs together. */
 #performanceMetricPanel .performance-card + .performance-card { margin-top: 28px; }
-.speed-chart-controls { border: 0; padding: 0; }
+.speed-chart-controls { padding: 0; }
 
 /* The mark and the bar already carry the team; a third colour cue beside the name is noise. */
 .performance-team .team-dot { display: none; }
@@ -526,14 +426,8 @@ body.trace-focus #telemetryCard { scrollbar-gutter: stable; padding: 8px 16px 24
 /* ---------- Chips and picks answer the pointer the same way: a colour shift on hover, a small springy press ---------- */
 :is(#compareAllFastest, .fastest-lap-pick, .lap-chip, .circuit-section-group .corner-picker button.corner-pick):active:not(:disabled) { transform: scale(var(--glass-press-scale)); }
 @media (prefers-reduced-motion: reduce) { :is(#compareAllFastest, .fastest-lap-pick, .lap-chip, .circuit-section-group .corner-picker button.corner-pick):active:not(:disabled) { transform: none; } }
-#compareAllFastest:hover:not(:disabled):not(.selected) { background: var(--ui-control-hover); }
-#compareAllFastest.selected:hover:not(:disabled) { background: color-mix(in srgb, var(--ui-accent) 28%, transparent); }
-#lapSelectionBody .fastest-lap-pick:not([aria-pressed="true"]):hover:not(:disabled) { background: color-mix(in srgb, var(--ui-accent) 30%, transparent); }
 
 /* Corner and straight picks look and behave exactly like the lap time chips above them. */
-.circuit-section-group .corner-picker button.corner-pick { border: 0; border-radius: var(--ui-radius); }
-.circuit-section-group .corner-picker button.corner-pick:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--ui-control-hover); color: var(--ui-label); }
-.circuit-section-group .corner-picker button.corner-pick[aria-pressed="true"]:hover:not(:disabled) { background: color-mix(in srgb, var(--ui-tile-on) 88%, #fff); }
 
 /* Runs and stints: as many to a row as the card has room for, sharing the row's width, so a fourth stint only wraps when it really does not fit. */
 .lap-workspace .run-segments.run-segments { grid-template-columns: repeat(auto-fit, minmax(min(122px, 100%), 1fr)); }
@@ -546,7 +440,6 @@ body.trace-focus #telemetryCard { scrollbar-gutter: stable; padding: 8px 16px 24
 /* ---------- The window: floating glass panes ----------
    A sidebar and an inspector float over a softly lit wallpaper and stay in view while the content scrolls between them, as in a current
    macOS app. The page itself still scrolls, so chart hover, deep links and scroll restoration keep working; the panes are sticky. */
-html, body { background: var(--ui-canvas) fixed; }
 
 /* Toolbar: no bar of its own, just groups of controls floating in capsules. */
 #windowSidebarToggle { width: 34px; min-width: 34px; height: 34px; min-height: 34px; }
@@ -561,10 +454,10 @@ html, body { background: var(--ui-canvas) fixed; }
     position: sticky; top: var(--ui-toolbar-height); align-self: start; box-sizing: border-box; height: calc(100dvh - var(--ui-toolbar-height) - var(--ui-pane-gap)); overflow: hidden auto; overscroll-behavior: contain;
     -webkit-backdrop-filter: blur(36px) saturate(170%);
   }
-  body > footer, body:not(.is-sidebar-hidden) > footer { padding-left: calc(var(--ui-sidebar-width) + 24px); border-top: 0; }
+  body > footer, body:not(.is-sidebar-hidden) > footer { padding-left: calc(var(--ui-sidebar-width) + 24px); }
 }
 @media (prefers-reduced-transparency:reduce) {
-  body > main#top > .app-sidebar, body > #carPerformance > .app-sidebar, body > main#top > .app-inspector { background: var(--ui-sidebar); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  body > main#top > .app-sidebar, body > #carPerformance > .app-sidebar, body > main#top > .app-inspector { -webkit-backdrop-filter: none; }
 }
 
 /* Session: charts in the middle, laps and track in a trailing inspector. */
@@ -579,12 +472,12 @@ body > main#top > .app-inspector { display: flex; flex-direction: column; gap: 1
 .inspector-tabs[data-ui-group="segments"] { display: grid; grid-template-columns: 1fr 1fr; flex: 0 0 auto; width: 100%; margin: 0; padding: 2px; }
 .inspector-tabs[data-ui-group="segments"] > button { min-width: 0; }
 /* The lap chooser is a sheet (see the end of this file); the inspector shows Track & corners only. */
-.app-inspector :is(.lap-workspace,.corner-analysis), .app-inspector .telemetry-analysis-grid > #cornerAnalysis { padding: 0; border: 0; border-radius: 0; overflow: visible; }
+.app-inspector :is(.lap-workspace,.corner-analysis), .app-inspector .telemetry-analysis-grid > #cornerAnalysis { padding: 0; overflow: visible; }
 .app-inspector .corner-analysis-header { display: none; }
 .app-inspector .inspector-corners .dominance-map { grid-area: auto; width: auto; padding: 4px 4px 12px; }
 
 /* Content: the laps as a timing board, then the traces at full width. */
-.telemetry-card.telemetry-card { padding: 0; border: 0; border-radius: 0; }
+.telemetry-card.telemetry-card { padding: 0; }
 .telemetry-card .loaded-session-context { margin-top: 2px; }
 .telemetry-content .telemetry-analysis-grid, .telemetry-analysis-grid:not(.inspector-corners) { display: block; }
 
@@ -601,7 +494,6 @@ body > main#top > .app-inspector { display: flex; flex-direction: column; gap: 1
 }
 /* A table draws at full width for a frame or two before it is fitted; that must not make the whole page scroll sideways. */
 body > #carPerformance > #performanceResults { overflow-x: clip; overflow-clip-margin: 8px; }
-body > #carPerformance > .performance-status-card { border-bottom: 0; background: none; }
 
 /* Inspector tabs and the track pane: the map first, then what you can pick on it. */
 .app-inspector .inspector-corners { display: block; }
@@ -628,18 +520,17 @@ body > #carPerformance > .performance-status-card { border-bottom: 0; background
   .telemetry-content .sector-cards .lap-summary-card .summary-tyre { grid-area: tyre; min-width: 0; min-height: 0; }
   .telemetry-content .sector-cards .lap-summary-card .summary-tyre-copy { white-space: nowrap; }
   .telemetry-content .sector-cards .lap-summary-card .summary-lap-time { grid-area: time; }
-  .telemetry-content .sector-cards .lap-summary-card .summary-sectors { grid-area: sectors; margin: 0; padding: 0 0 3px 14px; border: 0; border-left: 1px solid var(--ui-border); align-self: stretch; column-gap: 6px; }
+  .telemetry-content .sector-cards .lap-summary-card .summary-sectors { grid-area: sectors; margin: 0; padding: 0 0 3px 14px; align-self: stretch; column-gap: 6px; }
   /* Three equal sections: the sector over a bar in its colour, its time beneath. An empty gap keeps its width, so each sector's time lines up down the board. */
   .telemetry-content .sector-cards .lap-summary-card .summary-sectors { grid-template-columns: repeat(3,minmax(0,1fr)); justify-content: stretch; column-gap: 8px; }
   .telemetry-content .sector-cards .lap-summary-card .sector-cell { padding: 0; }
-  .telemetry-content .sector-cards .lap-summary-card .sector-cell::after { left: 0; right: 0; top: 15px; bottom: auto; width: auto; height: 3px; border-radius: var(--radius-2xs); }
+  .telemetry-content .sector-cards .lap-summary-card .sector-cell::after { left: 0; right: 0; top: 15px; bottom: auto; width: auto; height: 3px; }
   .telemetry-content .sector-cards .lap-summary-card .sector-cell-value { flex-direction: column; align-items: center; justify-content: flex-start; gap: 0; }
   .telemetry-content .sector-cards .lap-summary-card .sector-delta-slot, .telemetry-content .sector-cards .lap-summary-card .sector-delta-slot:empty { display: inline-flex; flex: 0 0 auto; justify-content: flex-end; min-width: 46px; }
-  .telemetry-content .sector-cards .lap-summary-card .sector-cell-value > small { margin: 0 0 8px; line-height: 14px; }
+  .telemetry-content .sector-cards .lap-summary-card .sector-cell-value > small { margin: 0 0 8px; }
   .telemetry-content .sector-cards .lap-summary-card .sector-cell .sector-measurements, .telemetry-content .sector-cards .lap-summary-card .sector-cell + .sector-cell .sector-measurements { align-self: auto; justify-content: flex-end; padding: 0; }
-  .telemetry-content .sector-cards .lap-summary-card .sector-measurements > strong { font-size: var(--type-body); }
-  .telemetry-content .sector-cards .lap-summary-card .summary-conditions { grid-area: conds; display: flex; flex-wrap: nowrap; justify-content: space-between; gap: 8px; min-width: 0; margin: 0; padding: 3px 0 0 14px; border: 0; border-left: 1px solid var(--ui-border); align-self: stretch; overflow: hidden; }
-  .telemetry-content .sector-cards .lap-summary-card .summary-lap-time { flex-direction: column; align-items: flex-end; justify-content: center; justify-self: stretch; align-self: stretch; gap: 0; padding-left: 14px; border-left: 1px solid var(--ui-border); }
+  .telemetry-content .sector-cards .lap-summary-card .summary-conditions { grid-area: conds; display: flex; flex-wrap: nowrap; justify-content: space-between; gap: 8px; min-width: 0; margin: 0; padding: 3px 0 0 14px; align-self: stretch; overflow: hidden; }
+  .telemetry-content .sector-cards .lap-summary-card .summary-lap-time { flex-direction: column; align-items: flex-end; justify-content: center; justify-self: stretch; align-self: stretch; gap: 0; padding-left: 14px; }
   .telemetry-content .sector-cards .lap-summary-card .summary-lap-time > .summary-delta:empty { display: none; }
   .telemetry-content .sector-cards .lap-summary-card .sector-cell .sector-measurements { flex: 0 0 auto; align-self: center; gap: 4px; }
 }
@@ -649,8 +540,9 @@ body > #carPerformance > .performance-status-card { border-bottom: 0; background
 }
 /* Wider: the track details leave the sectors and get a block of their own, beside the driver. The lap time keeps the right edge and the narrowest column. */
 @container telemetry (min-width: 1100px) {
-  /* The four conditions read on one line; the sectors take what is left (they compress a little to make room). */
-  .telemetry-content .sector-cards .lap-summary-card { grid-template-columns: 152px max-content minmax(0,1fr) 112px; grid-template-areas: "driver conds sectors time" "tyre conds sectors time"; }
+  /* The four conditions read on one line in a fixed column (as the widest layout does), so a longer value such as a
+     two-letter wind direction never shifts the sectors; the sectors take what is left. */
+  .telemetry-content .sector-cards .lap-summary-card { grid-template-columns: 152px 410px minmax(0,1fr) 112px; grid-template-areas: "driver conds sectors time" "tyre conds sectors time"; }
   .telemetry-content .sector-cards .lap-summary-card .summary-sectors { align-self: stretch; align-items: center; padding-bottom: 0; }
   .telemetry-content .sector-cards .lap-summary-card .summary-conditions { display: flex; flex-wrap: nowrap; align-items: center; gap: 14px; padding-top: 0; padding-right: 0; }
   .telemetry-content .sector-cards .lap-summary-card .summary-condition { flex: none; white-space: nowrap; }
@@ -735,8 +627,6 @@ body > #carPerformance > .performance-status-card { border-bottom: 0; background
 #sessionInspector .corner-measurement-wrap { overflow: visible; }
 #sessionInspector .corner-measurement-table :is(thead th,tbody th,tbody td) { height: 32px; padding-block: 2px; }
 #sessionInspector .corner-measurement-table .corner-driver { gap: 5px; }
-#sessionInspector .corner-measurement-table .corner-driver-copy { line-height: 1.1; }
-#sessionInspector .corner-measurement-table .corner-driver-copy small { line-height: 1.1; }
 #sessionInspector .corner-measurement-table button[data-corner-sort] { min-width: 0; white-space: normal; }
 #sessionInspector .corner-measurement-table button[data-corner-sort] > span { min-width: 0; }
 #sessionInspector .corner-measurement-table button[data-corner-sort] small { display: inline; }
@@ -754,10 +644,9 @@ body > #carPerformance > .performance-status-card { border-bottom: 0; background
 #telemetryCard .comparison-tray #loadedLaps > .section-empty { display: flex; align-items: center; min-height: 28px; margin: 0; padding: 0; }
 
 /* Keep compute discovery available without a persistent mode button. */
-#computeSettings { inset: 52px 12px auto auto; width: min(300px,calc(100vw - 24px)); box-sizing: border-box; padding: 16px; border: 1px solid var(--ui-border); border-radius: 12px; color: var(--ui-label); }
-#computeSettings p { margin: 8px 0 12px; color: var(--ui-secondary); font-size: var(--type-callout); line-height: 1.4; }
-.lap-summary-card .summary-tyre, .lap-summary-card .summary-tyre b { font-size: calc(var(--type-callout) - 2px); }
-.lap-summary-card .summary-tyre .compound-badge { width: 16px; height: 16px; font-size: calc(var(--type-caption) - 2px); flex-basis: 16px; }
+#computeSettings { inset: 52px 12px auto auto; width: min(300px,calc(100vw - 24px)); box-sizing: border-box; padding: 16px; }
+#computeSettings p { margin: 8px 0 12px; }
+.lap-summary-card .summary-tyre .compound-badge { width: 16px; height: 16px; flex-basis: 16px; }
 /* Sort indicators occupy real space rather than protruding past the last cell. */
 /* The sort arrow sits before the label, so the label keeps the same right edge as the numbers beneath it. */
 .app-inspector .corner-measurement-table button[data-corner-sort] { gap: 3px; flex-direction: row-reverse; justify-content: flex-start; }
@@ -769,26 +658,23 @@ body > #carPerformance > .performance-status-card { border-bottom: 0; background
 body > #carPerformance .results-overview .performance-bars { gap: 0; margin: 0; padding: 0; }
 @media (max-width:1400px) { .results-overview { grid-template-columns: minmax(0,1fr); } }
 .comparison-tray .comparison-clear, .comparison-tray .comparison-clear[data-ui-kind] { flex: none; height: 28px; min-height: 28px; padding: 0 10px; white-space: nowrap; }
-.comparison-tray .comparison-clear:hover, .comparison-tray .comparison-clear[data-ui-kind]:hover:not(:disabled) { background: var(--ui-row-hover); color: var(--ui-accent); }
 
 /* Results tables: one design everywhere, in the manner of a macOS table. A quiet header on the same surface as the rows, hairlines rather than stripes, a single cell inset, and columns aligned by what they hold. */
 body > #carPerformance .performance-table-wrap, body > #carPerformance .performance-split-view > .performance-table-wrap { padding: 0; }
 body > #carPerformance .performance-table thead th { height: 34px; padding: 0 12px; -webkit-backdrop-filter: none; vertical-align: middle; }
-body > #carPerformance .performance-table tbody td, body > #carPerformance .performance-split-view .performance-table tbody td { height: 34px; padding: 5px 12px; border: 0; border-bottom: 1px solid var(--ui-separator); background: transparent; vertical-align: middle; }
-body > #carPerformance .performance-table tbody tr:last-child td { border-bottom: 0; }
-body > #carPerformance .performance-table tbody tr:hover td { background: var(--ui-row-hover); }
+body > #carPerformance .performance-table tbody td, body > #carPerformance .performance-split-view .performance-table tbody td { height: 34px; padding: 5px 12px; vertical-align: middle; }
 body > #carPerformance .performance-table :is(th,td)[data-column="text"] { text-align: left; }
 body > #carPerformance .performance-table :is(th,td)[data-column="number"] { text-align: right; }
 body > #carPerformance .performance-table th[data-column="number"] .perf-sort-btn { flex-direction: row-reverse; justify-content: flex-end; }
 body > #carPerformance .performance-table th[data-column="chart"] .perf-sort-btn { justify-content: center; }
-body > #carPerformance .performance-table td small { margin-top: 1px; color: var(--ui-tertiary); font-size: var(--type-caption); }
+body > #carPerformance .performance-table td small { margin-top: 1px; }
 body > #carPerformance .performance-table td small { white-space: nowrap; }
 
 /* Development: the lines and the ranked change share a board; hovering either picks out one team. */
 .trend-board { display: grid; grid-template-columns: minmax(0,1.8fr) minmax(320px,1fr); gap: 12px; margin-bottom: 12px; }
 @media (max-width:1180px) { .trend-board { grid-template-columns: minmax(0,1fr); } }
 .trend-chart svg { display: block; width: 100%; }
-.trend-chart .trend-axis { fill: var(--ui-tertiary); font: 500 11px var(--ui-font); font-variant-numeric: tabular-nums; }
+.trend-chart .trend-axis { fill: var(--ui-tertiary); }
 .trend-series { transition: opacity var(--ui-motion) var(--ui-ease); }
 .trend-board .performance-tyre-age-row { transition: opacity var(--ui-motion) var(--ui-ease); }
 .trend-board.has-active [data-trend-series]:not(.is-active) { opacity: .22; }
@@ -812,21 +698,19 @@ body > #carPerformance .performance-table td small { white-space: nowrap; }
 #tireCard:not(.app-sidebar *) > .tire-nomination-container { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 8px 20px; margin: 0; padding: 0; }
 
 /* What each lap was: flying laps read as positive, abandoned ones as a warning. A chosen row keeps its own label colour. */
-.lap-workspace .lap-chip.is-push:not([aria-pressed="true"]) .lap-state { color: var(--ui-positive); }
 
 /* Sector rows: a line centred in the gap between sections, the same distance from the bar on either side, keeps each time with its own sector. */
 .telemetry-content .sector-cards .lap-summary-card .summary-sectors { column-gap: 9px; }
-.telemetry-content .sector-cards .lap-summary-card .sector-cell + .sector-cell::before { content: ''; position: absolute; left: -5px; top: 0; bottom: 0; width: 1px; background: var(--ui-border-strong); }
+.telemetry-content .sector-cards .lap-summary-card .sector-cell + .sector-cell::before { content: ''; position: absolute; left: -5px; top: 0; bottom: 0; width: 1px; }
 .telemetry-content .sector-cards .lap-summary-card .sector-measurements { box-sizing: border-box; padding-block: 2px; }
 
 /* Display menu in the speed trace header, so its options do not take a row above the chart. */
 .trace-display-menu { position: relative; flex: none; }
-.trace-display-menu > summary { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: var(--ui-radius); background: var(--ui-control); color: var(--ui-label); font: 500 var(--type-body)/1 var(--ui-font); list-style: none; cursor: default; user-select: none; }
+.trace-display-menu > summary { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; list-style: none; cursor: default; user-select: none; }
 .trace-display-menu > summary::-webkit-details-marker { display: none; }
 .trace-display-menu > summary::before { display: none; content: none; }
-.trace-display-menu > summary::after { content: ''; width: 6px; height: 6px; margin-top: -3px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); opacity: .7; }
-.trace-display-menu > summary:hover { background: var(--ui-control-hover); }
-.speed-chart .chart-heading .trace-display-menu > .trace-settings { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; display: grid; gap: 2px; width: max-content; margin: 0; padding: 6px; border-radius: var(--ui-menu-radius); background: var(--ui-panel); box-shadow: var(--ui-shadow-popover); }
+.trace-display-menu > summary::after { content: ''; width: 6px; height: 6px; margin-top: -3px; transform: rotate(45deg); opacity: .7; }
+.speed-chart .chart-heading .trace-display-menu > .trace-settings { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; display: grid; gap: 2px; width: max-content; margin: 0; padding: 6px; }
 .speed-chart .chart-heading .trace-display-menu .trace-setting { min-height: 30px; padding: 4px 8px; }
 /* The Display and Screenshot panels open against the chart heading, not their own button: right-aligned with the heading
    and never wider than it, so at any width they stay inside the card (anchored to a button near the left edge, a
@@ -836,7 +720,6 @@ body > #carPerformance .performance-table td small { white-space: nowrap; }
 .speed-chart .chart-heading .trace-display-menu > .trace-settings { max-width: 100%; box-sizing: border-box; }
 .speed-chart .chart-heading .trace-display-menu :is(.trace-setting, .trace-capture-option) { white-space: normal; }
 .trace-capture-option { display: block; width: 100%; min-height: 30px; padding: 4px 8px; text-align: left; white-space: nowrap; cursor: default; }
-.trace-capture-option:is(:hover,:focus-visible) { background: var(--ui-selected); }
 
 /* Closed menu contents do not run animations, so a transition started there would never finish. */
 .trace-display-menu:not([open]) * { transition: none; }
@@ -848,9 +731,9 @@ body > #carPerformance .performance-table td small { white-space: nowrap; }
 /* ---------- Lap chooser: a sheet over the page, opened from Choose laps in the Comparison bar (lap-sheet.js) ---------- */
 /* The wrapper takes no space; the sheet is in the top layer. */
 #lapWorkspace { display: contents; }
-#lapSelectionBody:popover-open { position: fixed; inset: 6vh auto auto 50%; transform: translateX(-50%); margin: 0; box-sizing: border-box; width: min(1480px, calc(100vw - 32px)); max-height: 88vh; overflow-y: auto; padding: 16px; border: 0; border-radius: var(--radius-xl); background: var(--mat-sheet); color: var(--ui-label); -webkit-backdrop-filter: var(--mat-blur-menu); backdrop-filter: var(--mat-blur-menu); box-shadow: var(--mat-edge), var(--ui-shadow-popover); }
+#lapSelectionBody:popover-open { position: fixed; inset: 6vh auto auto 50%; transform: translateX(-50%); margin: 0; box-sizing: border-box; width: min(1480px, calc(100vw - 32px)); max-height: 88vh; overflow-y: auto; padding: 16px; -webkit-backdrop-filter: var(--mat-blur-menu); }
 #lapSelectionBody:popover-open:not(:has(> #driverSidebar)) { display: block; }
-@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) { #lapSelectionBody:popover-open { background: var(--ui-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) { #lapSelectionBody:popover-open { -webkit-backdrop-filter: none; } }
 /* Three drivers across, three laps across in each. */
 #lapSelectionBody > #stintPanels { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 12px; }
 /* Three laps across when a tile has room for the lap, the tyre age over the time and the tyre (about 136 px); two when the window is narrower. */
@@ -865,6 +748,5 @@ body > #carPerformance .performance-table td small { white-space: nowrap; }
 /* Choose laps and Compare fastest, in the Comparison bar. */
 .comparison-picker { display: flex; flex: none; align-items: center; gap: 8px; margin-left: auto; }
 .comparison-picker .comparison-choose { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; white-space: nowrap; }
-.comparison-picker .comparison-choose:hover { background: var(--ui-control-hover); }
 .comparison-picker #lapWorkspaceActions { display: flex; align-items: center; gap: 8px; margin: 0; }
 .comparison-picker #lapWorkspaceActions .run-toolbar { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; white-space: nowrap; }

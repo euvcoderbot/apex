@@ -1,4 +1,4 @@
-.telemetry{position:relative}.section-empty{color:var(--ui-tertiary);font:var(--type-callout) monospace}
+.telemetry{position:relative}
 
 /* 2026-08-21 responsive controls and system typography ------------------ */
 
@@ -46,13 +46,6 @@ body {
 
 /* Lap workspace labels shown in the run/lap cards. */
 
-.fastest-lap-pick span,
-.run-section-label small,
-.lap-group-header small,
-.comparison-tray-heading small {
-  font-size: 9px;
-}
-
 /* Timing deltas need enough vertical resolution for multi-second gaps while
    retaining the common distance axis shared by the telemetry stack. */
 canvas[data-chart="Timing delta"] {
@@ -73,7 +66,6 @@ canvas[data-chart="Timing delta"] {
   gap: 8px;
   min-width: 0;
   padding-inline: 10px;
-  line-height: 1;
   white-space: nowrap;
   overflow: hidden;
 }

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
 import {raceCornerGroups} from '../race-cornering.js';
+import {legacySource} from './legacy-css.mjs';
 const source=fs.readFileSync('car-performance.js','utf8');
 
 test('sprint points include both drivers, preserve unknowns and do not affect race-only rates',()=>{
@@ -30,7 +31,7 @@ test('full-race planner retains late laps and honours explicit diagnostic budget
 });
 
 test('macOS layout uses independent navigation and stacked non-growing sidebar cards',()=>{
-  const css=fs.readFileSync('macos-ui.css','utf8');postcss.parse(css);
+  const css=legacySource('macos-ui.css');postcss.parse(css);
   assert.match(css,/\.sidebar \{[^}]*flex-direction: column/);
   assert.match(css,/\.sidebar > \.dashboard-card \{[^}]*flex: 0 0 auto/);
   assert.match(css,/is-compact-table \.performance-table \{[^}]*min-width: 0/);

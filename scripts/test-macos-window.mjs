@@ -4,8 +4,9 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
+import {legacySource} from './legacy-css.mjs';
 // Normalise Windows checkouts (CRLF) so source-pattern assertions match.
-const read=f=>readFileSync(f,'utf8').replace(/\r\n/g,'\n');
+const read=f=>(/^(design-system|polish|apple-ui|car-performance|workspace-ui|trace-focus|macos-ui|ui-controls|macos-window|hig-system)\.css$/.test(f)?legacySource(f):readFileSync(f,'utf8')).replace(/\r\n/g,'\n');
 const page=read('index.html'),css=read('macos-window.css'),ui=read('dashboard-ui.js'),system=read('ui-system.js'),tokens=read('tokens.css'),tokenValues=JSON.parse(read('e2e/__tokens__/tokens.json'));
 
 test('window uses a unified toolbar, a sidebar for categories and setup, and a trailing inspector for laps and track',()=>{
@@ -79,7 +80,7 @@ test('review fixes: readable sidebar, paired lap cards, single trace toolbar and
   assert.match(css,/body\.trace-focus \.trace-focus-close/);
   assert.match(css,/body\.is-descriptions-hidden #carPerformance > \.performance-status-card:not\(\.is-running\) \{ display: none; \}/);
   assert.match(css,/body\.is-descriptions-hidden #performanceMetricPanel p\.performance-quality-status:not\(\.is-loading\):not\(:has\(button\)\):not\(details p\)/);
-  assert.match(css,/\.category-bar \.category-tab span \{ line-height: 1\.3; \}/,'descenders must not clip');
+  assert.match(css,/\.category-bar \.category-tab span \{[^}]*line-height: 1\.3;/,'descenders must not clip');
 });
 
 test('fit pass: toolbar labels, lap lists and range choices never clip or overflow',()=>{

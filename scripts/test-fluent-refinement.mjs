@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-const page=readFileSync('index.html','utf8'),css=readFileSync('workspace-ui.css','utf8'),source=readFileSync('car-performance.js','utf8');
+import {legacySource} from './legacy-css.mjs';
+const page=readFileSync('index.html','utf8'),css=legacySource('workspace-ui.css'),source=readFileSync('car-performance.js','utf8');
 
 test('primary navigation has only section controls and a stable fixed footprint',()=>{
   const header=page.slice(page.indexOf('<header class="site-header window-toolbar">'),page.indexOf('</header>'));
