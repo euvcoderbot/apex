@@ -927,3 +927,10 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
    twenty names. */
 :root[data-skin] #seasonHub .season-chart .is-faint-group .end-key { opacity: 0; transition: opacity .12s; }
 :root[data-skin] #seasonHub .season-chart .is-faint-group:hover .end-key, :root[data-skin] #seasonHub .season-chart:has(.is-dim) .is-faint-group:not(.is-dim) .end-key { opacity: 1; }
+/* Power units by manufacturer: a share bar (replacements) with a mark at the grid share; over the mark reads red, under green. */
+#seasonHub .season-makers .season-maker-dot { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; vertical-align: middle; }
+#seasonHub .season-maker-share { min-width: 220px; }
+#seasonHub .season-maker-share .season-bar { position: relative; overflow: visible; background: var(--lin-nav-hover); }
+#seasonHub .season-maker-share small { display: block; margin-top: 5px; color: var(--ui-tertiary); font: 450 11px/1.2 var(--ui-font); }
+#seasonHub .season-maker-share small.is-over { color: #ff6961; }
+#seasonHub .season-maker-share small.is-under { color: #30d158; }

@@ -1621,6 +1621,47 @@
   }
 
   // ----- power units -----
+  // Power units by manufacturer. Manufacturers supply different numbers of cars, so counts are set against shares: each
+  // manufacturer's share of the grid next to its share of the season's replacement elements (every element beyond the
+  // first set each car starts with), and replacements per car, element by element.
+  const PU_MAKERS = [[/RBPT/, 'Honda RBPT', 'red_bull'], [/RB Ford|\bFord\b/, 'Red Bull Ford', 'red_bull'], [/Honda/, 'Honda', 'aston_martin'],
+    [/Mercedes/, 'Mercedes', 'mercedes'], [/Ferrari/, 'Ferrari', 'ferrari'], [/Audi/, 'Audi', 'audi'], [/Renault/, 'Renault', 'alpine']];
+  function puMaker(label) { const hit = PU_MAKERS.find(([re]) => re.test(label || '')); return hit ? {name: hit[1], team: hit[2]} : null; }
+  function manufacturerCard(data, pu) {
+    const groups = new Map();
+    for (const r of pu.rows) {
+      const maker = puMaker(r.label); if (!maker) continue;
+      const g = groups.get(maker.name) || {...maker, cars: 0, replaced: 0, per: Object.fromEntries(pu.elements.map(e => [e, 0]))};
+      g.cars++;
+      for (const e of pu.elements) { const extra = Math.max(0, (r.elements[e] || 0) - 1); g.replaced += extra; g.per[e] += extra; }
+      groups.set(maker.name, g);
+    }
+    const list = [...groups.values()], cars = list.reduce((s, g) => s + g.cars, 0), replaced = list.reduce((s, g) => s + g.replaced, 0);
+    if (list.length < 2 || !cars) return null;
+    list.sort((a, b) => b.replaced / b.cars - a.replaced / a.cars);
+    const table = el('table', 'season-table season-makers');
+    const head = el('tr');
+    for (const [label, cls] of [['Manufacturer'], ['Cars', 'num'], ['Replacements: share vs grid share'], ['Per car', 'num'], ...pu.elements.map(e => [e, 'num'])]) { const th = el('th', cls || null, label); if (ELEMENT_NAMES[label]) th.title = `${ELEMENT_NAMES[label]}: replacements per car`; head.append(th); }
+    const thead = el('thead'); thead.append(head); table.append(thead);
+    const tb = el('tbody');
+    const pct = v => `${Math.round(v * 100)}%`;
+    for (const g of list) {
+      const tr = el('tr'), name = el('td'), dot = el('i', 'season-maker-dot'); dot.style.background = teamColour(g.team);
+      name.append(dot, el('strong', null, g.name));
+      const gridShare = g.cars / cars, share = replaced ? g.replaced / replaced : 0;
+      const bar = el('td', 'season-maker-share');
+      const track = el('span', 'season-bar'); const fill = el('i'); fill.style.width = `${share * 100}%`; fill.style.background = teamColour(g.team);
+      const mark = el('b', 'season-bar-mark'); mark.style.left = `${gridShare * 100}%`; mark.title = `Grid share ${pct(gridShare)}`;
+      track.append(fill, mark);
+      const label = el('small', share > gridShare + .02 ? 'is-over' : share < gridShare - .02 ? 'is-under' : null, `${pct(share)} of replacements · ${pct(gridShare)} of cars`);
+      bar.append(track, label);
+      tr.append(name, el('td', 'num', String(g.cars)), bar, el('td', 'num season-strong', (g.replaced / g.cars).toFixed(1)),
+        ...pu.elements.map(e => el('td', 'num', (g.per[e] / g.cars).toFixed(1))));
+      tb.append(tr);
+    }
+    table.append(tb);
+    return card('By manufacturer', wrap(table), el('p', 'season-footnote', `Replacements: elements fitted beyond the first set each car starts with, ${replaced} across ${cars} cars this season. The bar is each manufacturer's share of them; the mark is its share of the cars, so a bar past its mark means more replacements than its number of cars would suggest. Per car figures divide by that manufacturer's cars.`));
+  }
   function renderUnits(data, pu) {
     const rows = pu.rows.map(r => ({...r, total: pu.elements.reduce((s, e) => s + (r.elements[e] || 0), 0)})).sort((x, y) => y.total - x.total);
     const max = Object.fromEntries(pu.elements.map(e => [e, Math.max(...rows.map(r => r.elements[e] || 0))]));
@@ -1650,7 +1691,7 @@
     const src = el('a', 'season-link', 'FIA document'); src.href = pu.document; src.target = '_blank'; src.rel = 'noopener';
     const note = el('p', 'season-footnote');
     note.append(`Elements each driver has used this season, as of ${pu.round_name || 'the latest Grand Prix'}${pu.round ? ` (R${pu.round})` : ''}. Shading compares each driver with the field's lowest count for that element; it does not show penalties or allocation limits. `, src);
-    const out = [card(null, wrap(table), legend, note)];
+    const out = [card(null, wrap(table), legend, note), manufacturerCard(data, pu)].filter(Boolean);
     const history = (pu.history || []).filter(h => h.round);
     if (history.length > 1) {
       const hist = el('table', 'season-table season-matrix season-grid');
