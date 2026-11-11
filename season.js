@@ -967,30 +967,14 @@
     return `<text class="axis x-label${alt ? ' is-alt' : ''}" x="${xOf(i).toFixed(1)}" y="${H - 6}" text-anchor="middle">${esc(code(r))}</text>`;
   }).join('');
   // A bar rounded only at its outer end (top for positive values, bottom for negative).
-  function barPath(x, y0, y1, w, r = 3) {
+  function barPath(x, y0, y1, w, r = 2) {
     const h = Math.abs(y1 - y0); r = Math.min(r, w / 2, h);
     if (y1 <= y0) return `M${x} ${y0}V${y1 + r}Q${x} ${y1} ${x + r} ${y1}H${x + w - r}Q${x + w} ${y1} ${x + w} ${y1 + r}V${y0}Z`;
     return `M${x} ${y0}V${y1 - r}Q${x} ${y1} ${x + r} ${y1}H${x + w - r}Q${x + w} ${y1} ${x + w} ${y1 - r}V${y0}Z`;
   }
-  // Smooth paths: monotone for values (never overshoots between points), bump curves for positions.
-  function monotone(points) {
-    if (points.length < 3) return points.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join('');
-    const n = points.length, dx = [], m = [], t = [];
-    for (let i = 0; i < n - 1; i++) { dx[i] = points[i + 1][0] - points[i][0]; m[i] = (points[i + 1][1] - points[i][1]) / (dx[i] || 1); }
-    t[0] = m[0]; t[n - 1] = m[n - 2];
-    for (let i = 1; i < n - 1; i++) t[i] = m[i - 1] * m[i] <= 0 ? 0 : 3 * (dx[i - 1] + dx[i]) / ((2 * dx[i] + dx[i - 1]) / m[i - 1] + (dx[i] + 2 * dx[i - 1]) / m[i]);
-    let d = `M${points[0][0].toFixed(1)} ${points[0][1].toFixed(1)}`;
-    for (let i = 0; i < n - 1; i++) {
-      const [x0, y0] = points[i], [x1, y1] = points[i + 1], h = dx[i] / 3;
-      d += `C${(x0 + h).toFixed(1)} ${(y0 + t[i] * h).toFixed(1)} ${(x1 - h).toFixed(1)} ${(y1 - t[i + 1] * h).toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
-    }
-    return d;
-  }
-  const bumpPath = points => points.map(([x, y], i) => {
-    if (!i) return `M${x.toFixed(1)} ${y.toFixed(1)}`;
-    const [px, py] = points[i - 1], mx = (px + x) / 2;
-    return `C${mx.toFixed(1)} ${py.toFixed(1)} ${mx.toFixed(1)} ${y.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)}`;
-  }).join('');
+  // Straight segments between points (Linear's charts draw no curves): values and positions alike.
+  const linePath = points => points.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join('');
+  const monotone = linePath, bumpPath = linePath;
 
   // One bar per round, up for positive values; `extra` stacks a second, lighter value on top (sprint points).
   function barChart(rounds, raw, {width = 640, height = 190, colour = () => 'var(--ui-accent, #5e6ad2)', format = v => String(v), tips = [], title = '', extra = null, clip = false} = {}) {

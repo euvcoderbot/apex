@@ -904,3 +904,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 /* Dividers on the season pages are the app's one hairline (tables, rail, cards), not a brighter line of their own; with
    Increase Contrast the hairline itself strengthens (skins.css). */
 :root[data-skin="linear"] #seasonHub { --line: var(--lin-hairline); }
+/* Linear's corner radius for data marks: 2 px on every bar and column, including the histogram and the title-fight
+   reach bars. */
+#seasonHub .season-dist-col i { border-radius: 2px 2px 0 0; }
+#seasonHub .season-bar.is-diverging i, #seasonHub .season-bar.is-reach i:first-child, #seasonHub .season-bar i { border-radius: 2px; }
