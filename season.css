@@ -935,14 +935,11 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-maker-dot { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; vertical-align: middle; }
 #seasonHub .season-maker strong { font: 500 13px/1 var(--ui-font); color: var(--ui-label); }
 #seasonHub .season-maker small { margin-left: 8px; color: var(--ui-quaternary); font: 450 12px/1 var(--ui-font); }
-#seasonHub .season-maker-share { display: flex; align-items: center; gap: 14px; min-width: 300px; }
-#seasonHub .season-maker-share .season-bar { position: relative; flex: 1 1 160px; overflow: visible; background: var(--lin-nav-hover); }
-#seasonHub .season-maker-figures { display: inline-flex; align-items: baseline; gap: 8px; flex: 0 0 auto; min-width: 128px; font-variant-numeric: tabular-nums; }
+#seasonHub .season-maker-share { display: flex; align-items: center; gap: 14px; }
+#seasonHub .season-maker-share .season-bar { position: relative; flex: 0 0 120px; width: 120px; overflow: visible; background: var(--lin-nav-hover); }
+#seasonHub .season-maker-figures { display: inline-flex; align-items: baseline; gap: 6px; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
 #seasonHub .season-maker-figures b { font: 500 13px/1 var(--ui-font); color: var(--ui-label); }
 #seasonHub .season-maker-figures small { font: 450 12px/1 var(--ui-font); color: var(--ui-tertiary); }
-#seasonHub .season-maker-figures .season-maker-chip { padding: 2px 6px; border-radius: 9999px; font: 500 11px/1.2 var(--ui-font); }
-#seasonHub .season-maker-figures .season-maker-chip.is-over { color: #ff8a84; background: color-mix(in srgb, #ff6961 14%, transparent); }
-#seasonHub .season-maker-figures .season-maker-chip.is-under { color: #30d158; background: color-mix(in srgb, #30d158 14%, transparent); }
 #seasonHub .season-makers :is(th, td).is-element { color: var(--ui-tertiary); }
 #seasonHub .season-maker-rate { min-width: 120px; }
 #seasonHub .season-maker-rate b { display: inline-block; min-width: 34px; margin-right: 10px; font: 500 13px/1 var(--ui-font); color: var(--ui-label); }
@@ -954,3 +951,6 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-failures-wrap > summary { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--lin-label-border); color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); cursor: pointer; list-style: none; }
 #seasonHub .season-failures-wrap > summary::-webkit-details-marker { display: none; }
 #seasonHub .season-failures-wrap > summary:hover { background: var(--lin-nav-hover); color: var(--ui-label); }
+#seasonHub .season-maker-ratio { font: 500 13px/1 var(--ui-font); color: var(--ui-secondary); }
+#seasonHub .season-maker-ratio.is-over { color: #ff8a84; }
+#seasonHub .season-maker-ratio.is-under { color: #30d158; }

@@ -1631,8 +1631,8 @@
     const groups = new Map();
     for (const r of pu.rows) {
       const maker = puMaker(r.label); if (!maker) continue;
-      const g = groups.get(maker.name) || {...maker, cars: 0, replaced: 0, per: Object.fromEntries(pu.elements.map(e => [e, 0]))};
-      g.cars++;
+      const g = groups.get(maker.name) || {...maker, cars: 0, teams: new Set(), replaced: 0, per: Object.fromEntries(pu.elements.map(e => [e, 0]))};
+      g.cars++; g.teams.add(data.drivers[r.driver]?.team || r.team || r.label);
       for (const e of pu.elements) { const extra = Math.max(0, (r.elements[e] || 0) - 1); g.replaced += extra; g.per[e] += extra; }
       groups.set(maker.name, g);
     }
@@ -1641,7 +1641,7 @@
     list.sort((a, b) => b.replaced / b.cars - a.replaced / a.cars);
     const table = el('table', 'season-table season-makers');
     const head = el('tr');
-    for (const [label, cls] of [['Manufacturer'], ['Share of replacements'], ['Per car', 'num'], ...pu.elements.map(e => [e, 'num is-element'])]) {
+    for (const [label, cls] of [['Manufacturer'], ['Share of replacements'], ['Per car', 'num'], ['vs average', 'num'], ...pu.elements.map(e => [e, 'num is-element'])]) {
       const th = el('th', cls || null, label); if (ELEMENT_NAMES[label]) th.title = `${ELEMENT_NAMES[label]}: replacements per car`; head.append(th);
     }
     const thead = el('thead'); thead.append(head); table.append(thead);
@@ -1650,25 +1650,28 @@
     for (const g of list) {
       const tr = el('tr');
       tr.append(makerCell(g));
-      const gridShare = g.cars / cars, share = replaced ? g.replaced / replaced : 0, diff = Math.round((share - gridShare) * 100);
+      const gridShare = g.cars / cars, share = replaced ? g.replaced / replaced : 0, ratio = replaced ? (g.replaced / g.cars) / (replaced / cars) : 1;
       const cell = el('td', 'season-maker-share');
       const track = el('span', 'season-bar'); const fill = el('i'); fill.style.width = `${share * 100}%`; fill.style.background = teamColour(g.team);
       const mark = el('b', 'season-bar-mark'); mark.style.left = `${gridShare * 100}%`; mark.title = `Share of the cars: ${pct(gridShare)}`;
       track.append(fill, mark);
-      const figures = el('span', 'season-maker-figures'); figures.append(el('b', null, pct(share)), el('small', null, `cars ${pct(gridShare)}`));
-      if (Math.abs(diff) >= 2) { const chip = el('small', `season-maker-chip ${diff > 0 ? 'is-over' : 'is-under'}`, `${diff > 0 ? '+' : '−'}${Math.abs(diff)} pts`); chip.title = `${Math.abs(diff)} percentage points ${diff > 0 ? 'more' : 'fewer'} replacements than its share of the cars`; figures.append(chip); }
+      const figures = el('span', 'season-maker-figures'); figures.append(el('b', null, pct(share)), el('small', null, `of replacements · ${pct(gridShare)} of cars`));
       cell.append(track, figures);
-      tr.append(cell, el('td', 'num season-strong', (g.replaced / g.cars).toFixed(1)), ...pu.elements.map(e => el('td', 'num is-element', (g.per[e] / g.cars).toFixed(1))));
+      // Replacements per car against the average car on the grid: 1.6× means 60% more than average.
+      const against = el('td', `num season-maker-ratio${ratio > 1.1 ? ' is-over' : ratio < .9 ? ' is-under' : ''}`, `${ratio.toFixed(1)}×`);
+      against.title = `${(g.replaced / g.cars).toFixed(1)} replacements per car against ${(replaced / cars).toFixed(1)} for the average car`;
+      tr.append(cell, el('td', 'num season-strong', (g.replaced / g.cars).toFixed(1)), against, ...pu.elements.map(e => el('td', 'num is-element', (g.per[e] / g.cars).toFixed(1))));
       tb.append(tr);
     }
     table.append(tb);
     return card('Power units by manufacturer', el('p', 'season-chart-sub', 'Replacement elements, as a share of the season and per car'), wrap(table),
-      el('p', 'season-footnote', `Replacements: elements fitted beyond the first set each car starts with, ${replaced} across ${cars} cars. The bar is each manufacturer's share of them and the mark its share of the cars; the chip is the difference in percentage points. Per car figures divide by that manufacturer's cars.`));
+      el('p', 'season-footnote', `Replacements: elements fitted beyond the first set each car starts with, ${replaced} across ${cars} cars. The bar is each manufacturer's share of them and the mark its share of the cars: a bar past its mark means more replacements than its number of cars would suggest. Against the average car: its replacements per car divided by the grid's (1.6× is 60% more).`));
   }
   // A manufacturer's name with its colour and how many cars it supplies.
-  function makerCell(g, unit = 'car') {
+  function makerCell(g) {
     const td = el('td', 'season-maker'), dot = el('i', 'season-maker-dot'); dot.style.background = teamColour(g.team);
-    td.append(dot, el('strong', null, g.name), el('small', null, `${g.cars} ${unit}${g.cars === 1 ? '' : 's'}`));
+    const teams = g.teams?.size, cars = g.carCount ?? g.cars;
+    td.append(dot, el('strong', null, g.name), el('small', null, `${teams ? `${teams} team${teams === 1 ? '' : 's'} · ` : ''}${cars} car${cars === 1 ? '' : 's'}`));
     return td;
   }
   // Reported retirement causes that are the power unit's: the engine and its energy, cooling and fuel systems.
@@ -1681,12 +1684,12 @@
     for (const r of pu.rows) { const m = puMaker(r.label), team = data.drivers[r.driver]?.team || r.team; if (m && team) teamMaker.set(team, m); }
     if (teamMaker.size < 2) return null;
     const groups = new Map(), failures = [];
-    const group = team => { const m = teamMaker.get(team); if (!m) return null; if (!groups.has(m.name)) groups.set(m.name, {...m, cars: new Set(), starts: 0, finished: 0, pu: 0, mechanical: 0, laps: 0, possible: 0, qualis: 0, noTime: 0}); return groups.get(m.name); };
+    const group = team => { const m = teamMaker.get(team); if (!m) return null; if (!groups.has(m.name)) groups.set(m.name, {...m, teams: new Set(), cars: new Set(), starts: 0, finished: 0, pu: 0, mechanical: 0, laps: 0, possible: 0, qualis: 0, noTime: 0}); return groups.get(m.name); };
     for (const r of data.rounds) {
       const leaderLaps = Math.max(0, ...r.race.map(x => x.laps || 0));
       for (const x of r.race) {
         const g = group(x.team); if (!g) continue;
-        g.cars.add(x.driver);
+        g.cars.add(x.driver); g.teams.add(x.team);
         if (x.status === 'Did not start') continue;
         g.starts++; g.laps += Math.min(x.laps || 0, leaderLaps); g.possible += leaderLaps;
         if (x.position) g.finished++;
@@ -1711,7 +1714,7 @@
     const tb = el('tbody');
     const worst = Math.max(...list.map(g => g.pu / g.starts));
     for (const g of list) {
-      const tr = el('tr'); tr.append(makerCell({...g, cars: g.cars.size}, 'driver'));
+      const tr = el('tr'); tr.append(makerCell({...g, carCount: g.teams.size * 2}));
       const rate = el('td', 'num season-maker-rate'); const bar = el('span', 'season-bar'); const fill = el('i'); fill.style.width = `${worst ? g.pu / g.starts / worst * 100 : 0}%`; fill.style.background = teamColour(g.team); bar.append(fill);
       rate.append(el('b', null, per100(g.pu, g.starts)), bar);
       tr.append(el('td', 'num', String(g.starts)), el('td', 'num', `${Math.round(g.finished / g.starts * 100)}%`), el('td', 'num season-strong', String(g.pu)), rate,
