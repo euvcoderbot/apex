@@ -965,6 +965,7 @@ def corner_timing(projected, corners, track, field_speed):
 
 
 STRAIGHT_MIN_M = 100.        # session analysis offers straights of at least this length
+STRAIGHT_COMMON_SHARE = .6   # straights every car has must hold this share of the straight distance to be compared
 STRAIGHT_FLAT_SHARE = .9     # a link is a straight when the field is flat out over this share of it
 LAP_EDGE_M = 50.             # a lap's first/last packet this close to the timing line still covers it
 
@@ -1035,21 +1036,37 @@ def track_straight_timing(projected, rows, track, field_throttle):
         straights.append({'straight': f"{row['turns'][-1]}–{following['turns'][0]}", 'pieces': pieces, 'metres': metres,
                           'field_time_s': field,
                           'cars': {n: {**c, 'delta_s': c['time_s']-field} for n, c in cars.items()}})
+    return straights, straight_totals(straights, laps)
+
+
+def straight_totals(straights, names):
+    """Each car's straight-line total over the straights it is compared on (see the comment below)."""
+    # Every car is compared over the same straights. When a car's lap misses a straight (a telemetry gap, a tow), the
+    # comparison uses the straights every measured car has, as long as they still hold STRAIGHT_COMMON_SHARE of the
+    # straight distance; only below that does a car missing a straight lose the GP. Before, one missing straight dropped
+    # the car from the whole GP, so a team could be absent at a circuit for a gap on one short straight.
+    measured_names = [name for name in names if any(name in s['cars'] for s in straights)]
+    common = [s for s in straights if all(name in s['cars'] for name in measured_names)]
+    total_m = sum(s['metres'] for s in straights)
+    use = common if common and total_m and sum(s['metres'] for s in common)/total_m >= STRAIGHT_COMMON_SHARE else straights
+    for s in straights:
+        s['compared'] = s in use
     totals = {}
-    for name in laps:
-        mine = [s for s in straights if name in s['cars']]
+    for name in names:
+        mine = [s for s in use if name in s['cars']]
         if not straights:
             totals[name] = {'index': None, 'exclusion': 'No designated straight could be measured'}
-        elif len(mine) != len(straights):
-            totals[name] = {'index': None, 'straights': len(mine), 'expected': len(straights),
+        elif len(mine) != len(use):
+            totals[name] = {'index': None, 'straights': len(mine), 'expected': len(use),
                             'exclusion': 'Incomplete straight coverage; measured straights remain in the evidence'}
         else:
             delta = sum(s['cars'][name]['delta_s'] for s in mine)
             field = sum(s['field_time_s'] for s in mine)
             totals[name] = {'index': field/(field+delta), 'straights': len(mine), 'expected': len(straights),
                             'time_vs_median_s': delta, 'pct_vs_median': delta/field*100,
-                            'provisional': any(s['cars'][name]['max_packet_gap_s'] > .6 for s in mine), 'exclusion': None}
-    return straights, totals
+                            'provisional': any(s['cars'][name]['max_packet_gap_s'] > .6 for s in mine), 'exclusion': None,
+                            **({'common_straights': True} if len(use) < len(straights) else {})}
+    return totals
 
 
 def _reference_lap(laps, timing):

@@ -9,7 +9,7 @@ import sys, unittest
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import numpy as np
-from car_physics import speed_domain_metrics
+from car_physics import speed_domain_metrics, straight_totals
 
 G = 9.80665
 # (length m, curvature 1/m). Apex speeds span the low/medium/high bands.
@@ -219,6 +219,37 @@ class TrackStraightTests(unittest.TestCase):
         lap = self.r['cars']['power']['field_lap_time_s']
         self.assertGreater(lap, 30)
         self.assertLess(abs(power['time_vs_median_s'])/lap*100, abs(power['pct_vs_median']))
+
+
+class StraightCoverageTests(unittest.TestCase):
+    """A car whose lap misses one straight is compared on the straights every car has, not dropped from the GP."""
+
+    @staticmethod
+    def straight(metres, cars):
+        return {'metres': metres, 'field_time_s': 5.0, 'cars': {n: {'delta_s': d, 'max_packet_gap_s': .2} for n, d in cars.items()}}
+
+    def test_one_missing_straight_compares_everyone_on_the_common_straights(self):
+        straights = [self.straight(600, {'a': 0, 'b': .1, 'c': .2}), self.straight(500, {'a': 0, 'b': .1, 'c': .2}),
+                     self.straight(150, {'a': 0, 'b': .1})]           # c's lap misses the short third straight
+        totals = straight_totals(straights, ['a', 'b', 'c'])
+        self.assertTrue(all(totals[n]['index'] is not None for n in 'abc'))
+        self.assertAlmostEqual(totals['b']['time_vs_median_s'], .2)    # both compared straights, not the third
+        self.assertAlmostEqual(totals['c']['time_vs_median_s'], .4)
+        self.assertTrue(totals['c']['common_straights'])
+        self.assertEqual([s['compared'] for s in straights], [True, True, False])
+
+    def test_too_little_shared_distance_keeps_the_old_rule(self):
+        straights = [self.straight(300, {'a': 0, 'b': .1, 'c': .2}), self.straight(900, {'a': 0, 'b': .1})]
+        totals = straight_totals(straights, ['a', 'b', 'c'])
+        self.assertIsNone(totals['c']['index'])                        # 300 of 1200 m shared: below 60 %
+        self.assertIsNotNone(totals['a']['index'])
+        self.assertNotIn('common_straights', totals['a'])
+
+    def test_full_coverage_is_unchanged(self):
+        straights = [self.straight(400, {'a': 0, 'b': .1}), self.straight(400, {'a': .05, 'b': 0})]
+        totals = straight_totals(straights, ['a', 'b'])
+        self.assertAlmostEqual(totals['a']['time_vs_median_s'], .05)
+        self.assertEqual(totals['a']['straights'], 2)
 
 
 class MappedFastCornerTests(unittest.TestCase):

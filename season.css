@@ -923,3 +923,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 :root[data-skin] #seasonHub .season-dumbbell :is(.link, .cross) { stroke-width: 1.75; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 :root[data-skin] #seasonHub .season-dumbbell circle { r: calc(3.5px / var(--chart-scale, 1)); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 :root[data-skin] #seasonHub .season-dumbbell circle:not(.from) { stroke: var(--lin-card, var(--ui-panel)); }
+/* Only the highlighted series are named; a faint series shows its name while hovered, so the key never becomes a column of
+   twenty names. */
+:root[data-skin] #seasonHub .season-chart .is-faint-group .end-key { opacity: 0; transition: opacity .12s; }
+:root[data-skin] #seasonHub .season-chart .is-faint-group:hover .end-key, :root[data-skin] #seasonHub .season-chart:has(.is-dim) .is-faint-group:not(.is-dim) .end-key { opacity: 1; }
