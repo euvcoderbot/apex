@@ -1086,6 +1086,8 @@
       }
       const faint = endLabels && series.indexOf(s) >= endLabels;
       svg += `<path data-id="${esc(s.id)}" class="line${faint ? ' is-faint' : ''}${dashed.has(s) ? ' is-dashed' : ''}" style="stroke:${esc(s.colour)}" d="${d}"/>`;
+      // A dot on every round of the named series, as Car performance's trend chart.
+      if (!faint && series.length > 1) svg += `<g class="pts${dashed.has(s) ? ' is-hollow' : ''}" data-id="${esc(s.id)}" style="--c:${esc(s.colour)}">${pts.map(([px, py]) => `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}"/>`).join('')}</g>`;
       if (series.length === 1) {
         const [ex, ey] = pts.at(-1), last = s.values.filter(v => v != null).at(-1);
         svg += `<circle class="end" cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="3" style="fill:${esc(s.colour)}"/><text class="label is-value" x="${(ex + 8).toFixed(1)}" y="${(ey + 3.5).toFixed(1)}">${esc(invert ? 'P' + last : format(last))}</text>`;
@@ -1100,13 +1102,13 @@
     }
     return htmlNode(svg + xLabels(rounds, x, H, slot) + '</svg>');
   }
-  // End labels, as Linear's charts: a small dot in the series colour and the name in secondary text, at least 14 px apart
-  // (no leader lines). entries: [{id, colour, name, x, y, value}].
+  // End labels (docs/linear-components.md, Chart): the series name in its colour beside the line's last point, at least
+  // 14 px apart so names never overlap. entries: [{id, colour, name, x, y, value}].
   function endKey(entries, labelX) {
     const list = [...entries].sort((a, b) => a.y - b.y);
     list.forEach((e, i) => { e.ly = i ? Math.max(e.y, list[i - 1].ly + 14) : e.y; });
     return list.map(e => {
-      return `<g class="end-key" data-id="${esc(e.id)}"><circle class="key-dot" cx="${(labelX + 4).toFixed(1)}" cy="${e.ly.toFixed(1)}" r="3" style="fill:${esc(e.colour)}"/><text class="label" x="${(labelX + 11).toFixed(1)}" y="${(e.ly + 3.5).toFixed(1)}">${esc(e.name)}${e.value != null ? `<tspan class="key-value" dx="5">${esc(e.value)}</tspan>` : ''}</text></g>`;
+      return `<g class="end-key" data-id="${esc(e.id)}"><text class="label" style="fill:${esc(e.colour)}" x="${(labelX + 4).toFixed(1)}" y="${(e.ly + 3.5).toFixed(1)}">${esc(e.name)}${e.value != null ? `<tspan class="key-value" dx="5">${esc(e.value)}</tspan>` : ''}</text></g>`;
     }).join('');
   }
   // Teammates share a team colour: the second series of a colour is dashed, so the two can be told apart.
@@ -1135,6 +1137,7 @@
       // The top six (current order) in full colour; the rest faint until hovered, as on the points chart.
       const faint = series.indexOf(s) >= 6;
       svg += `<g data-id="${esc(s.id)}"${faint ? ' class="is-faint-group"' : ''}><path class="line is-bump${faint ? ' is-faint' : dashed.has(s) ? ' is-dashed' : ''}" style="stroke:${esc(s.colour)}" d="${bumpPath(pts)}"/>`;
+      if (!faint) svg += `<g class="pts${dashed.has(s) ? ' is-hollow' : ''}" style="--c:${esc(s.colour)}">${pts.map(([px, py]) => `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}"/>`).join('')}</g>`;
       if (lastValue != null) svg += endKey([{id: s.id, colour: s.colour, name: s.label, x: pts.at(-1)[0], y: pts.at(-1)[1]}], W - R + 4);
       svg += '</g>';
     }

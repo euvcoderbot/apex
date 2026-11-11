@@ -2330,6 +2330,21 @@
    control group fills the band and centres its row, whatever the group's own line box adds below the controls. */
 :root[data-skin="linear"] .app-sidebar > .session-controls { align-self: stretch; align-content: center; }
 
-/* Session charts: the same Linear chart type as the season pages (11 px keys in secondary text beside a colour dot). */
-:root[data-skin="linear"] #sessionOverview .overview-lap-chart .label { font: 500 11px var(--ui-font); fill: var(--ui-secondary); }
-:root[data-skin="linear"] #sessionOverview .overview-lap-chart .line { stroke-width: 1.5; }
+/* ---- Charts: one rule set for every SVG chart (docs/linear-components.md, "Chart (SVG)") ----
+   Axes 450 11 px tertiary, tabular; grid hairlines 1 px; data lines 1.75 px with round joins; points 3.5 px with a 1.5 px
+   card-coloured ring (so crossing series stay readable); series names 500 11 px in the series colour. Strokes do not
+   stretch with a chart (non-scaling), so every chart draws at true pixel size. The season charts carry the same values in
+   season.css (their stylesheet loads after this one). */
+:root[data-skin="linear"] :is(.overview-lap-chart, .trend-chart svg, .trade-off-plot) :is(.axis, .axis-title, .trend-axis, .x-label) { font: 450 calc(11px / var(--chart-scale, 1)) var(--ui-font); fill: var(--ui-tertiary); font-variant-numeric: tabular-nums; }
+:root[data-skin="linear"] :is(.overview-lap-chart, .trend-chart svg, .trade-off-plot) :is(.grid, line[stroke="var(--ui-separator)"]) { stroke: var(--lin-hairline); stroke-width: 1; vector-effect: non-scaling-stroke; }
+:root[data-skin="linear"] :is(.overview-lap-chart .line, .trend-chart [data-trend-segment]) { stroke-width: 1.75; stroke-linejoin: round; stroke-linecap: round; }
+:root[data-skin="linear"] :is(.overview-lap-chart .point:not(.is-off-scale):not(.is-hollow), .trend-chart .trend-series circle) { r: 3.5px; stroke: var(--lin-card); stroke-width: 1.5; }
+:root[data-skin="linear"] .overview-lap-chart .label { font: 500 11px var(--ui-font); }
+:root[data-skin="linear"] .overview-lap-chart .point.is-hollow:not(.is-off-scale) { r: 3px; stroke-width: 1.5; }
+/* A dense lap chart (under 16 px a lap): 2 px points with an invisible 8 px hit ring, 1.5 px lines; a point grows to full
+   size under the pointer or keyboard focus, so where lines overlap they stay readable. */
+:root[data-skin="linear"] .overview-lap-chart.is-dense .line { stroke-width: 1.5; }
+:root[data-skin="linear"] .overview-lap-chart.is-dense .point:not(.is-off-scale):not(.is-hollow) { r: 2px; stroke: transparent; stroke-width: 8; }
+:root[data-skin="linear"] .overview-lap-chart.is-dense .point.is-hollow:not(.is-off-scale) { r: 2.25px; stroke-width: 1.25; }
+:root[data-skin="linear"] .overview-lap-chart.is-dense .point.is-loaded { r: 4px; stroke: var(--ui-label); stroke-width: 1.5; }
+:root[data-skin="linear"] .overview-lap-chart.is-dense .point:not(.is-off-scale):is(:hover, :focus-visible) { r: 4px; stroke: var(--lin-card); stroke-width: 1.5; }

@@ -140,7 +140,9 @@
       const l = s.laps.find(z => z.lap === lap);
       return l && {code: s.code, colour: s.colour, hollow: s.dashed, value: l.time, text: `${fmtLap(l.time)}${l.compound && l.compound !== 'UNKNOWN' ? ` · ${String(l.compound).charAt(0)}${Number.isFinite(l.tyre_life) ? ` ${l.tyre_life}` : ''}` : ''}${l.in_lap ? ' · pit in' : l.out_lap ? ' · pit out' : ''}`};
     }).filter(Boolean).sort((a, b) => a.value - b.value)});
-    let svg = `<svg class="overview-lap-chart" ${hover} viewBox="0 0 ${W} ${H}" role="img" aria-label="Lap times by lap for ${esc(codes.join(', '))}">`;
+    // Many laps: small points (full size on hover) so overlapping lines stay readable.
+    const dense = (W - L - R) / Math.max(1, lapHi - lapLo) < 16;
+    let svg = `<svg class="overview-lap-chart${dense ? ' is-dense' : ''}" ${hover} viewBox="0 0 ${W} ${H}" role="img" aria-label="Lap times by lap for ${esc(codes.join(', '))}">`;
     // Tick labels carry only the decimals the step needs: 1:16 for whole seconds, 1:16.5 for halves, 1:16.25 for quarters.
     const decimals = step >= 1 ? 0 : step >= .5 ? 1 : 2;
     const tick = t => { const m = Math.floor(t / 60), sec = t - m * 60; return `${m}:${sec.toFixed(decimals).padStart(decimals ? 3 + decimals : 2, '0')}`; };
@@ -155,7 +157,7 @@
         if (l.time > yHi + 1e-9) {
           // Off the scale (a pit lap): a small triangle on the top edge pointing up.
           const px = x(l.lap), py = y(yHi);
-          svg += `<path class="point is-off-scale${s.dashed ? ' is-hollow' : ''}" style="--c:${esc(s.colour)}" d="M${(px - 4.5).toFixed(1)} ${(py + 4).toFixed(1)}L${px.toFixed(1)} ${(py - 3).toFixed(1)}L${(px + 4.5).toFixed(1)} ${(py + 4).toFixed(1)}Z" data-code="${esc(s.code)}" data-lap="${l.lap}" tabindex="0" role="button" aria-label="${esc(`${s.code} lap ${l.lap}, ${fmtLap(l.time)}, ${l.in_lap ? 'pit in-lap' : l.out_lap ? 'pit out-lap' : 'off the scale'}. Select to compare`)}"/>`;
+          svg += `<path class="point is-off-scale${s.dashed ? ' is-hollow' : ''}" style="--c:${esc(s.colour)}" d="M${(px - 3.5).toFixed(1)} ${(py + 3).toFixed(1)}L${px.toFixed(1)} ${(py - 2.5).toFixed(1)}L${(px + 3.5).toFixed(1)} ${(py + 3).toFixed(1)}Z" data-code="${esc(s.code)}" data-lap="${l.lap}" tabindex="0" role="button" aria-label="${esc(`${s.code} lap ${l.lap}, ${fmtLap(l.time)}, ${l.in_lap ? 'pit in-lap' : l.out_lap ? 'pit out-lap' : 'off the scale'}. Select to compare`)}"/>`;
           continue;
         }
         svg += `<circle class="point${isLoaded ? ' is-loaded' : ''}${s.dashed ? ' is-hollow' : ''}" style="--c:${esc(s.colour)}" cx="${x(l.lap).toFixed(1)}" cy="${y(l.time).toFixed(1)}" r="${isLoaded ? 5 : 3.5}" data-code="${esc(s.code)}" data-lap="${l.lap}" tabindex="0" role="button" aria-label="${esc(`${s.code} lap ${l.lap}, ${fmtLap(l.time)}${l.compound ? `, ${l.compound}` : ''}. ${isLoaded ? 'In the comparison; select to remove' : 'Select to compare'}`)}"/>`;
@@ -167,11 +169,11 @@
       <p class="overview-note">${selected.length ? 'The drivers chosen in the list' : 'With no driver chosen in the list, the top three finishers'}; laps over 107% of a driver’s best on the same kind of tyre (slick or wet)${fieldBest ? ', and of the fastest lap anyone set on that lap,' : ''} are ${showSlowLaps ? 'shown' : 'hidden'}${fieldBest ? '; pit stops are always drawn, a ▲ on the top edge when off the scale' : ''}. Select a point to add that lap to the comparison; select a colour dot to change a driver’s colour.</p>`;
   }
 
-  // End labels as Linear draws them: a colour dot and the driver code in secondary text, at least 13 px apart.
+  // End labels (docs/linear-components.md, Chart): the driver code in its colour, at least 13 px apart.
   function endKey(entries, labelX) {
     const list = [...entries].sort((a, b) => a.y - b.y);
     list.forEach((e, i) => { e.ly = i ? Math.max(e.y, list[i - 1].ly + 13) : e.y; });
-    return list.map(e => `<circle class="key-dot" cx="${(labelX + 3).toFixed(1)}" cy="${e.ly.toFixed(1)}" r="2.75" style="fill:${e.colour}"/><text class="label" x="${(labelX + 9).toFixed(1)}" y="${(e.ly + 3.5).toFixed(1)}">${esc(e.code)}</text>`).join('');
+    return list.map(e => `<text class="label" style="fill:${e.colour}" x="${(labelX + 4).toFixed(1)}" y="${(e.ly + 3.5).toFixed(1)}">${esc(e.code)}</text>`).join('');
   }
 
   // ---------- race: gap to the leader and position, lap by lap ----------

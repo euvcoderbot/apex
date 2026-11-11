@@ -908,14 +908,18 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
    reach bars. */
 #seasonHub .season-dist-col i { border-radius: 2px 2px 0 0; }
 #seasonHub .season-bar.is-diverging i, #seasonHub .season-bar.is-reach i:first-child, #seasonHub .season-bar i { border-radius: 2px; }
-/* Charts, as Linear draws them: 1.5 px lines with round joins, hairline grid, 10 px axes and 11 px keys in the
-   interface font. Series names are secondary text beside a colour dot (never coloured text); values in the key are tertiary. */
-#seasonHub .season-chart .line, #seasonHub .season-chart .line.is-bump { stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
-#seasonHub .season-chart .line.is-faint, #seasonHub .season-chart .line.is-bump.is-faint { stroke-width: 1; opacity: .25; }
-#seasonHub .season-chart .line.is-faint:not(.is-dim):hover, #seasonHub .season-chart .is-faint-group:hover .line { stroke-width: 1.5; opacity: 1; }
-#seasonHub .season-chart .label { font: 500 calc(11px / var(--chart-scale, 1)) var(--ui-font); fill: var(--ui-secondary); }
-#seasonHub .season-chart .label.is-value { fill: var(--ui-label); }
-#seasonHub .season-chart .key-value { fill: var(--ui-tertiary); font-weight: 450; }
-#seasonHub .season-chart .end { stroke: var(--lin-card, var(--ui-panel)); stroke-width: 1.5; }
-#seasonHub .season-chart .is-faint-group .key-dot { opacity: .45; }
-#seasonHub .season-chart .end-key:hover .label { fill: var(--ui-label); }
+/* Charts: the site's one chart rule set (docs/linear-components.md, "Chart (SVG)"; the same values as skins.css's chart block).
+   Sizes are divided by --chart-scale (svg-scale.js), so text, points and strokes stay at true pixel size at any width. */
+:root[data-skin] #seasonHub .season-chart :is(.axis, .x-label) { font: 450 calc(11px / var(--chart-scale, 1)) var(--ui-font); fill: var(--ui-tertiary); font-variant-numeric: tabular-nums; }
+:root[data-skin] #seasonHub .season-chart :is(.grid, .zero) { stroke-width: 1; vector-effect: non-scaling-stroke; }
+:root[data-skin] #seasonHub .season-chart .line, :root[data-skin] #seasonHub .season-chart .line.is-bump { stroke-width: 1.75; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+:root[data-skin] #seasonHub .season-chart .line.is-faint, :root[data-skin] #seasonHub .season-chart .line.is-bump.is-faint { stroke-width: 1; opacity: .25; }
+:root[data-skin] #seasonHub .season-chart .is-faint-group:hover .line, :root[data-skin] #seasonHub .season-chart .line.is-faint:not(.is-dim):hover { stroke-width: 1.75; opacity: 1; }
+:root[data-skin] #seasonHub .season-chart .pts circle { r: calc(3.5px / var(--chart-scale, 1)); fill: var(--c); stroke: var(--lin-card, var(--ui-panel)); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+:root[data-skin] #seasonHub .season-chart .pts.is-hollow circle { r: calc(3px / var(--chart-scale, 1)); fill: var(--lin-card, var(--ui-panel)); stroke: var(--c); }
+:root[data-skin] #seasonHub .season-chart .label { font: 500 calc(11px / var(--chart-scale, 1)) var(--ui-font); }
+:root[data-skin] #seasonHub .season-chart .label.is-value { fill: var(--ui-label); }
+:root[data-skin] #seasonHub .season-chart .end { r: calc(3.5px / var(--chart-scale, 1)); stroke: var(--lin-card, var(--ui-panel)); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+:root[data-skin] #seasonHub .season-dumbbell :is(.link, .cross) { stroke-width: 1.75; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+:root[data-skin] #seasonHub .season-dumbbell circle { r: calc(3.5px / var(--chart-scale, 1)); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+:root[data-skin] #seasonHub .season-dumbbell circle:not(.from) { stroke: var(--lin-card, var(--ui-panel)); }

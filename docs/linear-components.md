@@ -78,8 +78,10 @@ digits stay centred. Never put it inside a selector that restyles every `span`: 
 the parent with a child combinator (`.tile > span`).
 
 **Chart (SVG).** Inside a chart card. `overflow: visible`; grid lines `--lin-hairline` 1 px; axis labels 11 px 450 tertiary; data
-lines 1.5–1.75 px, round joins; points 3.5 px with a 1.5 px `--ui-panel` stroke; the selected point gets a `--ui-label` ring;
-end-of-line labels 11 px 600 in the series colour. Scales enclose the data (round outer ticks, see `niceTicks`). Keep the viewBox
+lines 1.75 px (faint context series 1 px), round joins, straight segments (no curves); points 3.5 px with a 1.5 px card-coloured
+ring (hollow for the second driver of a team colour); the selected point gets a `--ui-label` ring; end-of-line labels 500 11 px
+in the series colour, at least 14 px apart. Strokes are non-scaling and sizes divided by `--chart-scale` where a chart has a fixed
+viewBox. One rule set covers every chart: the chart block at the end of `skins.css` (and its twin in `season.css`). Scales enclose the data (round outer ticks, see `niceTicks`). Keep the viewBox
 close to the rendered width so 11 px stays 11 px.
 
 **Legend.** Linear's label pills: 24 px high, `border-radius: 9999px`, ring `--lin-label-border`, an 8 px colour dot, 500 12 px
