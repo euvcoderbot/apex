@@ -84,6 +84,7 @@
   // fastest lap anyone set on that lap, so laps everyone ran slowly (rain arriving on slicks, a drying track) stay; a
   // safety car, red flag or virtual safety car always counts as slow.
   const tyreKind = lap => (/INTER|WET/i.test(String(lap.compound || '')) ? 'wet' : 'slick');
+  const isPit = lap => Boolean(lap.in_lap || lap.out_lap);
   const neutralised = lap => /[4567]/.test(String(lap.track_status || '')) || /^(SC|VSC|RED)$/.test(lap.neutralised || '');
   let fieldBest = null;   // lap number -> fastest timed lap of the race on that lap; rebuilt each render
   function representative(laps) {
@@ -117,22 +118,24 @@
     }
     const styles = styleFor(codes);
     const series = codes.map(code => {
-      // Every lap with a time is a candidate, pit in- and out-laps included (so a stop is not a gap in the line); the
-      // driver's bests come from representative laps only, and a pit lap is kept when it passes the same slow-lap test.
+      // Every lap with a time is a candidate. The driver's bests come from representative laps only. In a race the pit
+      // in- and out-laps are always drawn, so a stop never breaks the line; the scale is set by the other laps and a pit
+      // lap beyond it sits on the top edge (marked, with its real time in the hover card).
       const d = realDrivers.get(code), laps = (d?.laps || []).filter(l => Number.isFinite(l?.time) && l.time > 0 && !l.deleted);
       const keep = representative(laps.filter(timed));
-      return {code, colour: styles.get(code).colour, dashed: styles.get(code)?.dashed, laps: laps.filter(l => showSlowLaps || keep(l))};
+      return {code, colour: styles.get(code).colour, dashed: styles.get(code)?.dashed, laps: laps.filter(l => showSlowLaps || keep(l) || (fieldBest && isPit(l)))};
     }).filter(s => s.laps.length);
     if (!series.length) return '<p class="section-empty">No timed laps for these drivers.</p>';
     const all = series.flatMap(s => s.laps);
+    const scaled = showSlowLaps || !fieldBest ? all : all.filter(l => !isPit(l));
     const lapLo = Math.min(...all.map(l => l.lap)), lapHi = Math.max(...all.map(l => l.lap));
-    const tLo = Math.min(...all.map(l => l.time)), tHi = Math.max(...all.map(l => l.time));
+    const tLo = Math.min(...(scaled.length ? scaled : all).map(l => l.time)), tHi = Math.max(...(scaled.length ? scaled : all).map(l => l.time));
     // Round second ticks that enclose the data.
     const span = Math.max(0.5, tHi - tLo), step = [0.25, 0.5, 1, 2, 5, 10, 20].find(s => span / s <= 5) || 30;
     const yLo = Math.floor(tLo / step) * step, yHi = Math.ceil(tHi / step) * step;
     const W = chartWidth(), H = 240, L = 48, R = 12, T = 10, B = 26;
     const x = lap => L + (lapHi === lapLo ? (W - L - R) / 2 : (lap - lapLo) / (lapHi - lapLo) * (W - L - R));
-    const y = t => T + (yHi - t) / ((yHi - yLo) || 1) * (H - T - B);
+    const y = t => T + (yHi - Math.min(t, yHi)) / ((yHi - yLo) || 1) * (H - T - B);
     const hover = registerHover('laps', {W, H, L, R, T, B, lapLo, lapHi, title: lap => `Lap ${lap}`, rows: lap => series.map(s => {
       const l = s.laps.find(z => z.lap === lap);
       return l && {code: s.code, colour: s.colour, hollow: s.dashed, value: l.time, text: `${fmtLap(l.time)}${l.compound && l.compound !== 'UNKNOWN' ? ` · ${String(l.compound).charAt(0)}${Number.isFinite(l.tyre_life) ? ` ${l.tyre_life}` : ''}` : ''}${l.in_lap ? ' · pit in' : l.out_lap ? ' · pit out' : ''}`};
@@ -149,13 +152,19 @@
       svg += `<polyline class="line${s.dashed ? ' is-dashed' : ''}" points="${pts}" style="stroke:${esc(s.colour)}"/>`;
       for (const l of s.laps) {
         const isLoaded = loaded.some(item => item.code === s.code && item.lap === l.lap);
+        if (l.time > yHi + 1e-9) {
+          // Off the scale (a pit lap): a small triangle on the top edge pointing up.
+          const px = x(l.lap), py = y(yHi);
+          svg += `<path class="point is-off-scale${s.dashed ? ' is-hollow' : ''}" style="--c:${esc(s.colour)}" d="M${(px - 4.5).toFixed(1)} ${(py + 4).toFixed(1)}L${px.toFixed(1)} ${(py - 3).toFixed(1)}L${(px + 4.5).toFixed(1)} ${(py + 4).toFixed(1)}Z" data-code="${esc(s.code)}" data-lap="${l.lap}" tabindex="0" role="button" aria-label="${esc(`${s.code} lap ${l.lap}, ${fmtLap(l.time)}, ${l.in_lap ? 'pit in-lap' : l.out_lap ? 'pit out-lap' : 'off the scale'}. Select to compare`)}"/>`;
+          continue;
+        }
         svg += `<circle class="point${isLoaded ? ' is-loaded' : ''}${s.dashed ? ' is-hollow' : ''}" style="--c:${esc(s.colour)}" cx="${x(l.lap).toFixed(1)}" cy="${y(l.time).toFixed(1)}" r="${isLoaded ? 5 : 3.5}" data-code="${esc(s.code)}" data-lap="${l.lap}" tabindex="0" role="button" aria-label="${esc(`${s.code} lap ${l.lap}, ${fmtLap(l.time)}${l.compound ? `, ${l.compound}` : ''}. ${isLoaded ? 'In the comparison; select to remove' : 'Select to compare'}`)}"/>`;
       }
     }
     svg += '</svg>';
     const legend = series.map(s => legendItem(s.code, styles.get(s.code))).join('');
     return `<div class="overview-legend">${legend}<button type="button" class="overview-slow-toggle" aria-pressed="${showSlowLaps}">${showSlowLaps ? 'Hide slow laps' : 'Show slow laps'}</button></div>${svg}
-      <p class="overview-note">${selected.length ? 'The drivers chosen in the list' : 'With no driver chosen in the list, the top three finishers'}; laps over 107% of a driver’s best on the same kind of tyre (slick or wet)${fieldBest ? ', and of the fastest lap anyone set on that lap,' : ''} are ${showSlowLaps ? 'shown' : 'hidden'}, pit laps included. Select a point to add that lap to the comparison; select a colour dot to change a driver’s colour.</p>`;
+      <p class="overview-note">${selected.length ? 'The drivers chosen in the list' : 'With no driver chosen in the list, the top three finishers'}; laps over 107% of a driver’s best on the same kind of tyre (slick or wet)${fieldBest ? ', and of the fastest lap anyone set on that lap,' : ''} are ${showSlowLaps ? 'shown' : 'hidden'}${fieldBest ? '; pit stops are always drawn, a ▲ on the top edge when off the scale' : ''}. Select a point to add that lap to the comparison; select a colour dot to change a driver’s colour.</p>`;
   }
 
   // ---------- race: gap to the leader and position, lap by lap ----------
