@@ -1656,7 +1656,7 @@
   }
   function reliabilityCard(data, pu) {
     // The same groupings as the elements table (state.unitsView), in the same heat-table look. Counts from each race
-    // classification's reported retirement causes and from qualifying; rates per 100 starts compare groups of any size.
+    // classification's reported retirement causes and from qualifying, plus the FIA elements table for units fitted.
     const view = ['teams', 'makers'].includes(state.unitsView) ? state.unitsView : 'drivers';
     const makerOf = new Map();
     for (const r of pu.rows) { const m = puMaker(r.label), team = data.drivers[r.driver]?.team || r.team; if (m && team) makerOf.set(team, m); }
@@ -1680,8 +1680,24 @@
       }
       for (const q of r.qualifying) { const g = group(q); if (!g) continue; g.qualis++; if (q.q1 == null && q.q2 == null && q.q3 == null) { g.noTime++; failures.push({round: r, x: q, quali: true}); } }
     }
+    // Units fitted, from the FIA's cumulative elements table: internal combustion engines (one per power unit) and every
+    // element used beyond its season allowance (each one past the allowance brings a grid penalty).
+    const allowances = pu.allowances || {}, fitted = new Map();
+    for (const r of pu.rows) {
+      const team = data.drivers[r.driver]?.team || r.team;
+      const key = view === 'drivers' ? r.driver : view === 'teams' ? team : makerOf.get(team)?.name;
+      if (!key) continue;
+      if (!fitted.has(key)) fitted.set(key, {ice: 0, over: 0, teams: new Set()});
+      const f = fitted.get(key); f.teams.add(team); f.ice += r.elements?.ICE || 0;
+      for (const [el_, used] of Object.entries(r.elements || {})) if (allowances[el_] && used > allowances[el_]) f.over += used - allowances[el_];
+    }
     const lines = [...groups.values()].filter(g => g.starts || g.dns);
     if (lines.length < 2) return null;
+    for (const g of lines) {
+      const f = fitted.get(g.key);
+      g.ice = f?.ice || 0; g.over = f ? f.over : null; g.cars = view === 'drivers' ? 1 : 2 * (f?.teams.size || g.teams.size);
+    }
+    const hasAllowances = Object.keys(allowances).length > 0;
     // Columns: label, a value to sort by, the text shown, and how it is shaded (worse = deeper): 'up' when a larger value is
     // worse, 'down' when a smaller one is (laps per failure).
     const lapsPerFailure = g => (g.pu ? g.laps / g.pu : Infinity);
@@ -1689,13 +1705,19 @@
       {label: 'Starts', value: g => g.starts},
       {label: 'Finish rate', value: g => (g.starts ? g.finished / g.starts : 0), text: g => (g.starts ? `${Math.round(g.finished / g.starts * 100)}%` : '—')},
       {label: 'PU failures', value: g => g.pu, heat: 'up', title: 'Race retirements blamed on the power unit: engine, battery or ERS, cooling, fuel'},
-      {label: 'Other car failures', value: g => g.mechanical, heat: 'up', title: 'Other mechanical retirements: gearbox, brakes, suspension, hydraulics…'},
+      {label: 'Other failures', value: g => g.mechanical, heat: 'up', title: 'Other mechanical retirements: gearbox, brakes, suspension, hydraulics…'},
       {label: 'Incidents', value: g => g.incident, heat: 'up', title: 'Retirements after an accident, collision or damage'},
       {label: 'Did not start', value: g => g.dns, heat: 'up'},
       {label: 'Quali, no time', value: g => g.noTime, heat: 'up', title: 'Qualifying sessions where the car set no time'},
       {label: 'Distance run', value: g => (g.possible ? g.laps / g.possible : 0), text: g => (g.possible ? `${(g.laps / g.possible * 100).toFixed(1)}%` : '—'), title: 'Laps completed as a share of the winner’s laps in the races started'},
       {label: 'Laps per PU failure', value: lapsPerFailure, heat: 'down', text: g => (g.pu ? Math.round(g.laps / g.pu).toLocaleString() : `none in ${g.laps.toLocaleString()}`),
         title: 'Race laps run for each power-unit failure (mean distance between failures): higher is more reliable. Distance, not starts, because power-unit elements are changed between races.'},
+      {label: 'Units failed', value: g => (g.ice ? g.pu / g.ice : NaN), heat: 'up',
+        text: g => (g.ice ? `${g.pu}/${g.ice} · ${Math.round(g.pu / g.ice * 100)}%` : '—'),
+        title: 'Race power-unit failures as a share of the engines (ICEs) fitted this season. Most units are retired on schedule, so this asks how many of them ended in a failure rather than how far they ran.'},
+      ...(hasAllowances ? [{label: 'Over allocation', value: g => (g.over == null ? NaN : g.over / g.cars), heat: 'up',
+        text: g => (g.over == null ? '—' : view === 'drivers' ? String(g.over) : (g.over / g.cars).toFixed(1)),
+        title: `Power-unit elements fitted beyond the season allowance (${Object.entries(allowances).map(([k, v]) => `${k} ${v}`).join(', ')}), summed over every element${view === 'drivers' ? '' : ', per car'}. Each one past the allowance brings a grid penalty.`}] : []),
     ];
     sortLines('reliability', lines, columns, g => (view === 'drivers' ? driverName(data, g.key) : g.key), 8, -1);
     const range = columns.map(c => { if (!c.heat) return null; const v = lines.map(c.value).filter(Number.isFinite); return v.length ? [Math.min(...v), Math.max(...v)] : null; });
@@ -1730,7 +1752,7 @@
     }
     const fold = failures.length ? (() => { const d = el('details', 'season-failures-wrap'); d.append(el('summary', null, `Show the ${failures.length} power-unit failures and qualifying no-shows`), listing); return d; })() : null;
     return card('Reliability', wrap(table), fold,
-      el('p', 'season-footnote', 'From the reported retirement causes in each race classification: power-unit failures are those blamed on the engine, battery or ERS, cooling or fuel; other car failures add the gearbox, brakes, suspension, hydraulics and the rest. Sprints carry no causes and are not counted. A car with no time in qualifying usually could not run; the cause is not published. Laps per PU failure measures distance between failures, since elements are changed between races; deeper shading is worse. Select a column title to sort by it, again to reverse.'));
+      el('p', 'season-footnote', 'From the reported retirement causes in each race classification: power-unit failures are those blamed on the engine, battery or ERS, cooling or fuel; other car failures add the gearbox, brakes, suspension, hydraulics and the rest. Sprints carry no causes and are not counted. A car with no time in qualifying usually could not run; the cause is not published. Laps per PU failure measures distance between failures; because most units are replaced on schedule before they fail, units failed compares race PU failures with the engines (ICEs) fitted, and over allocation counts elements used past the season allowance (per car for teams and manufacturers), from the FIA elements table. Deeper shading is worse. Select a column title to sort by it, again to reverse.'));
   }
   function renderUnits(data, pu) {
     unitsArgs = [data, pu];

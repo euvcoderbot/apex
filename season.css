@@ -946,6 +946,9 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-maker-ratio { font: 500 13px/1 var(--ui-font); color: var(--ui-secondary); }
 #seasonHub .season-maker-ratio.is-over { color: #ff8a84; }
 #seasonHub .season-maker-ratio.is-under { color: #30d158; }
+/* The reliability table has many columns: titles wrap onto two lines rather than widening the table. */
+#seasonHub .season-reliability th.num { white-space: normal; max-width: 78px; line-height: 1.25; vertical-align: bottom; }
+#seasonHub .season-reliability td.num { white-space: nowrap; }
 /* Sortable column titles: a pointer and a small arrow on the sorted column. */
 #seasonHub th.season-sortable { cursor: pointer; user-select: none; }
 #seasonHub th.season-sortable:hover { color: var(--ui-label); }

@@ -248,6 +248,16 @@ class FiaDocumentsTest(unittest.TestCase):
             'Number Car Driver Previously used PU-ANC', '30 Racing Bulls RB Ford Liam Lawson 5'])
         self.assertEqual(fia.parse_new_pu_text(text), {'44': {'ICE': 6, 'MGU-K': 4}, '3': {'ICE': 5}, '30': {'PU-ANC': 6}})
 
+    def test_new_pu_elements_report_states_the_allowances(self):
+        # The reports' sentences name each element's season allowance, wrapped across lines as the PDF text comes out.
+        text = '\n'.join([
+            'The internal combustion engine used by Lewis Hamilton is the sixth (6th) of the four (4) new',
+            'internal combustion engines allowed for the 2026 Championship season.',
+            'The MGU-K used by Lewis Hamilton is the fourth (4th) of the three (3) new motor generator units-kinetic allowed',
+            'The PU-ANC used by Liam Lawson is the sixth (6th) of the six (6) new power unit ancillary components allowed',
+            'Nothing here: of the two (2) new widgets allowed'])
+        self.assertEqual(fia.parse_new_pu_allowances(text), {'ICE': 4, 'MGU-K': 3, 'PU-ANC': 6})
+
     def test_document_list_is_read_around_its_weekend_then_settles(self):
         link = lambda name: f'<a href="/system/files/decision-document/{name}.pdf">'
         pages = {fia.CHAMPIONSHIP: '<a href="/x/season/season-2026-2072">y</a>'}

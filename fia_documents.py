@@ -211,9 +211,11 @@ class Documents:
         if not parsed or not parsed.get('dates'):
             return None
         changes: dict[str, dict[str, int]] = {}
+        allowances: dict[str, int] = {}
         for doc in (d for d in docs if 'new_pu_elements' in doc_kind(d)):
-            found = self._cached(f'fia-newpu-{_cache_name(doc)}', None, lambda: parse_new_pu_elements(self.pdf(doc))) or {}
-            for number, elements in found.items():
+            report = self._cached(f'fia-newpu2-{_cache_name(doc)}', None, lambda: parse_new_pu_elements(self.pdf(doc))) or {}
+            allowances.update(report.get('allowances') or {})
+            for number, elements in (report.get('changes') or {}).items():
                 for name, total in elements.items():
                     changes.setdefault(number, {})[name] = max(changes.get(number, {}).get(name, 0), total)
         if changes:
@@ -222,17 +224,22 @@ class Documents:
                 extra = changes.get(row['number'], {})
                 rows.append({**row, 'elements': {k: max(v, extra.get(k, 0)) for k, v in row['elements'].items()}})
             parsed = {**parsed, 'rows': rows, 'weekend_changes': sum(len(v) for v in changes.values())}
+        if allowances:
+            parsed = {**parsed, 'allowances': allowances}
         return parsed, path
 
     def pu_elements(self, year: int, finished: Callable[[str], bool] = lambda event: True) -> dict | None:
-        best = None
+        best, allowances = None, {}
         for event in self.events(year):
             found = self._event_pu(year, event, finished(event))
             if not found:
                 continue
             parsed, path = found
+            allowances.update(parsed.get('allowances') or {})
             if best is None or parsed['dates'][1] > best['dates'][1]:
                 best = {**parsed, 'event': event, 'document': FIA + path}
+        if best is not None:
+            best['allowances'] = allowances   # each element's season allowance, as the FIA's reports state it
         return best
 
 
@@ -364,10 +371,28 @@ def parse_new_pu_text(text: str) -> dict[str, dict[str, int]]:
     return out
 
 
-def parse_new_pu_elements(data: bytes) -> dict[str, dict[str, int]]:
+ALLOWANCE_NAMES = (('internal combustion', 'ICE'), ('turbocharger', 'TC'), ('exhaust', 'EXH'), ('kinetic', 'MGU-K'), ('heat', 'MGU-H'),
+                   ('energy store', 'ES'), ('control electronic', 'PU-CE'), ('ancillary', 'PU-ANC'))
+
+
+def parse_new_pu_allowances(text: str) -> dict[str, int]:
+    """{element: season allowance} from a report's sentences such as 'the sixth (6th) of the four (4) new internal combustion
+    engines allowed for the 2026 Championship season'."""
+    flat = re.sub(r'\s+', ' ', text)
+    out: dict[str, int] = {}
+    for count, name in re.findall(r'of the \w+ \((\d+)\) new ([a-z \-]+?) allowed', flat, flags=re.I):
+        code = next((c for key, c in ALLOWANCE_NAMES if key in name.lower()), None)
+        if code:
+            out[code] = int(count)
+    return out
+
+
+def parse_new_pu_elements(data: bytes) -> dict:
+    """{'changes': parse_new_pu_text, 'allowances': parse_new_pu_allowances} for one report."""
     import pdfplumber
     with pdfplumber.open(io.BytesIO(data)) as pdf:
-        return parse_new_pu_text('\n'.join(page.extract_text() or '' for page in pdf.pages))
+        text = '\n'.join(page.extract_text() or '' for page in pdf.pages)
+    return {'changes': parse_new_pu_text(text), 'allowances': parse_new_pu_allowances(text)}
 
 
 def parse_pu_elements(data: bytes) -> dict | None:
