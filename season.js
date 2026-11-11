@@ -118,13 +118,20 @@
   let snapshotIndex = null;
   async function savedSeason(path) {
     if (typeof DecompressionStream === 'undefined') return null;
-    snapshotIndex ||= fetch('assets/data/season/index.json', {cache: 'no-cache'}).then(r => (r.ok ? r.json() : null)).catch(() => null);
+    // On a season page index.html has already started the index and this year's file (ApexSeasonEarly): use them once.
+    const early = window.ApexSeasonEarly;
+    snapshotIndex ||= early?.index || fetch('assets/data/season/index.json', {cache: 'no-cache'}).then(r => (r.ok ? r.json() : null)).catch(() => null);
     const entry = (await snapshotIndex)?.entries?.[path];
     if (!entry || !/^[a-f0-9]{24}\.json\.gz$/.test(entry.file || '')) return null;
     try {
-      const response = await fetch(`assets/data/season/${entry.file}`);
-      if (!response.ok) return null;
-      const bytes = new Uint8Array(await response.arrayBuffer());
+      let buffer = null;
+      if (early && early.path === path) { early.path = null; buffer = await early.bytes; }
+      if (!buffer) {
+        const response = await fetch(`assets/data/season/${entry.file}`);
+        if (!response.ok) return null;
+        buffer = await response.arrayBuffer();
+      }
+      const bytes = new Uint8Array(buffer);
       // Some hosts send .json.gz already decoded (Content-Encoding: gzip); others deliver the gzip bytes.
       const data = bytes[0] === 0x1f && bytes[1] === 0x8b
         ? await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json()
@@ -1362,13 +1369,15 @@
     const battles = el('div', 'season-battles');
     // Column headings, and one line saying how to read a row: numbers and bars follow the order of the names.
     const heads = el('div', 'season-battle-head', null); heads.setAttribute('aria-hidden', 'true');
-    for (const t of ['Team', 'Teammates', 'Qualifying', 'Race']) heads.append(el('span', null, t));
+    for (const t of ['Qualifying', 'Teammates', 'Race']) heads.append(el('span', null, t));
     battles.append(heads);
     for (const p of data.teammates) {
       const row = el('button', 'season-battle'); row.type = 'button';
       row.addEventListener('click', () => { state.a = p.a; state.b = p.b; repaint(); });
+      // Qualifying on the left, the pair (and their team) in the middle, race on the right.
       const names = el('div', 'season-battle-names'); names.append(who(data, p.a, {code: true, team: false}), el('span', 'season-muted', 'vs'), who(data, p.b, {code: true, team: false}));
-      row.append(teamTag(data, p.team), names);
+      const mid = el('div', 'season-battle-mid'); mid.append(names, el('small', 'season-muted', teamName(data, p.team)));
+      const bars = [];
       for (const [kind, label] of [['qualifying', 'qualifying'], ['race', 'race']]) {
         const [x, y] = p.tally[kind], bar = el('div', 'season-battle-bar');
         bar.title = `${family(data, p.a)} ${x} · ${family(data, p.b)} ${y} weekends ahead in ${label}`;
@@ -1378,8 +1387,9 @@
         left.style.width = `${x + y ? x / (x + y) * 100 : 50}%`; left.style.background = teamColour(p.team); right.style.background = teamColour(p.team);
         track.append(left, right);
         bar.append(track, el('b', y > x ? 'is-better' : null, String(y)));
-        row.append(bar);
+        bars.push(bar);
       }
+      row.append(bars[0], mid, bars[1]);
       battles.append(row);
     }
     return [toolbar, hero, card(null, rows), h2hExtras(data, a, b, ca, cb), card('Weekend by weekend', weekKey, weeks, el('p', 'season-footnote', 'Top dot qualifying, bottom dot race, in the colour of whoever finished ahead. A classified finish beats a retirement; two retirements count for neither. A ring marks a race decided by the other car failing, where the reported cause was mechanical. Empty boxes are the rounds still to run.')),

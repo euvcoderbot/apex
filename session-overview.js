@@ -79,13 +79,20 @@
     return m ? '#' + m.slice(1, 4).map(v => Number(v).toString(16).padStart(2, '0')).join('') : '#777777';
   }
 
-  // Slow laps (hidden unless asked for): over 107% of the driver's best lap on the same kind of tyre. Intermediates and
-  // full wets are compared with the driver's best wet-tyre lap, slicks with the best slick lap, so a wet stint is not
-  // hidden as slow just because the track later dried. Safety-car and red-flag laps still fall outside 107%.
+  // Slow laps (hidden unless asked for): over 107% of the driver's best lap on the same kind of tyre (intermediates and
+  // wets against the best wet-tyre lap, slicks against the best slick lap). In a race a lap must also be over 107% of the
+  // fastest lap anyone set on that lap, so laps everyone ran slowly (rain arriving on slicks, a drying track) stay; a
+  // safety car, red flag or virtual safety car always counts as slow.
   const tyreKind = lap => (/INTER|WET/i.test(String(lap.compound || '')) ? 'wet' : 'slick');
+  const neutralised = lap => /[4567]/.test(String(lap.track_status || '')) || /^(SC|VSC|RED)$/.test(lap.neutralised || '');
+  let fieldBest = null;   // lap number -> fastest timed lap of the race on that lap; rebuilt each render
   function representative(laps) {
     const best = {wet: bestOf(laps.filter(l => tyreKind(l) === 'wet'), 'time'), slick: bestOf(laps.filter(l => tyreKind(l) === 'slick'), 'time')};
-    return lap => lap.time <= (best[tyreKind(lap)] ?? Infinity) * 1.07;
+    return lap => {
+      if (lap.time <= (best[tyreKind(lap)] ?? Infinity) * 1.07) return true;
+      if (!fieldBest || neutralised(lap)) return false;
+      return lap.time <= (fieldBest.get(lap.lap) ?? Infinity) * 1.07;
+    };
   }
 
   // ---------- hover readout shared by the three charts ----------
@@ -103,6 +110,11 @@
 
   function lapChart() {
     const codes = chartDrivers();
+    fieldBest = null;
+    if (/^(race|sprint)$/i.test(loadedSessionName || '')) {
+      fieldBest = new Map();
+      for (const d of realDrivers.values()) for (const l of (d.laps || []).filter(timed)) if (!(fieldBest.get(l.lap) <= l.time)) fieldBest.set(l.lap, l.time);
+    }
     const styles = styleFor(codes);
     const series = codes.map(code => {
       const d = realDrivers.get(code), laps = (d?.laps || []).filter(timed);
@@ -141,7 +153,7 @@
     svg += '</svg>';
     const legend = series.map(s => legendItem(s.code, styles.get(s.code))).join('');
     return `<div class="overview-legend">${legend}<button type="button" class="overview-slow-toggle" aria-pressed="${showSlowLaps}">${showSlowLaps ? 'Hide slow laps' : 'Show slow laps'}</button></div>${svg}
-      <p class="overview-note">${selected.length ? 'The drivers chosen in the list' : 'With no driver chosen in the list, the top three finishers'}; laps over 107% of a driver’s best on the same kind of tyre (slick or wet) are ${showSlowLaps ? 'shown' : 'hidden'}. Select a point to add that lap to the comparison; select a colour dot to change a driver’s colour.</p>`;
+      <p class="overview-note">${selected.length ? 'The drivers chosen in the list' : 'With no driver chosen in the list, the top three finishers'}; laps over 107% of a driver’s best on the same kind of tyre (slick or wet)${fieldBest ? ', and of the fastest lap anyone set on that lap,' : ''} are ${showSlowLaps ? 'shown' : 'hidden'}; pit in- and out-laps are left out. Select a point to add that lap to the comparison; select a colour dot to change a driver’s colour.</p>`;
   }
 
   // ---------- race: gap to the leader and position, lap by lap ----------

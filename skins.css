@@ -2226,7 +2226,8 @@
 :root[data-skin="linear"] :is(#sessionSidebar, #performanceSidebar, .comparison-tray) { border-bottom-color: transparent; }
 :root[data-skin="linear"] .sector-cards .lap-summary-card :is(.summary-lap-time, .summary-sectors, .summary-conditions) { border-left-color: transparent; }
 /* The rail scrolls only when it overflows, and shows a thin bar only while hovered (no permanent track). */
-:root[data-skin="linear"] #linearWorkspace:hover { scrollbar-width: thin; }
+/* The rail scrolls without a drawn scrollbar (as Linear's sidebar): a bar that appeared on hover took its width from the
+   rows and shifted them under the pointer. */
 
 /* Compute on this PC (local-compute.js): the popover's actions, and a dot on the Compute button while the PC is used. */
 :root[data-skin="linear"] #computeSettings .compute-actions { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -2262,6 +2263,11 @@
 /* Qualifying-phase segments: the chosen one by fill, not by weight. */
 :root[data-skin="linear"] .run-segments .stint { box-sizing: border-box; height: 28px; min-height: 28px; border-radius: 8px; font: 500 12px/1 var(--ui-font); }
 :root[data-skin="linear"] .run-segments .stint:is([aria-pressed="true"], [aria-selected="true"], .active, .selected) { background: var(--lin-pill-on); }
+/* The open stint reads at a glance: the raised thumb gets a hairline and the label full contrast; the others step back. */
+:root[data-skin="linear"] .run-segments .stint:is([aria-pressed="true"], .selected) { box-shadow: inset 0 0 0 1px var(--lin-label-border), 0 1px 2px #00000040; }
+:root[data-skin="linear"] .run-segments .stint:is([aria-pressed="true"], .selected) :is(strong, small) { color: var(--ui-label); }
+:root[data-skin="linear"] .run-segments .stint:not([aria-pressed="true"]):not(.selected) strong { color: var(--ui-secondary); }
+:root[data-skin="linear"] .run-segments .stint:not([aria-pressed="true"]):not(.selected) small { color: var(--ui-tertiary); }
 /* Stop (cancel a running analysis): the same 28 px pill as Analyse, in the negative colour, aligned with the filter chips. */
 :root[data-skin="linear"] .app-sidebar .performance-controls button#performanceCancel, :root[data-skin="linear"] #performanceCancel {
   box-sizing: border-box; width: auto; height: 28px; min-height: 28px; align-self: center; padding: 0 10px; border: 0; border-radius: 9999px;
@@ -2320,3 +2326,6 @@
 :root[data-skin="linear"] .overview-tip em { margin-left: auto; padding-left: 12px; color: var(--ui-label); font-style: normal; }
 :root[data-skin="linear"] .overview-tip[hidden] { display: none; }
 :root[data-skin="linear"] .overview-tip i.is-hollow { background: none; box-shadow: inset 0 0 0 1.5px var(--c); }
+/* The toolbar band (header line to the line below): its controls sit centred between the two lines on both views. The
+   control group fills the band and centres its row, whatever the group's own line box adds below the controls. */
+:root[data-skin="linear"] .app-sidebar > .session-controls { align-self: stretch; align-content: center; }

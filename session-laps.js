@@ -242,17 +242,27 @@ function renderStints() {
     const hasQualifyingPhases = /^(Qualifying|Q|Sprint Qualifying|Sprint Shootout|SQ)$/i.test(loadedSessionName)
       || driver.laps.some(lap => /^Q[1-3]$/.test(lap.phase || ''));
     const phaseFor = lap => /^Q[1-3]$/.test(lap.phase || '') ? lap.phase : 'Unassigned';
+    // A lap the feed left without a stint (an untimed lap after the flag, say) belongs to the stint around it: the
+    // previous lap's, else the next one's. Its tyre is the stint's; the feed's "UNKNOWN" is not a compound.
+    const byLap = [...driver.laps].sort((a, b) => a.lap - b.lap);
+    const stintOf = new Map();
+    byLap.forEach((lap, i) => {
+      let stint = lap.stint;
+      for (let k = i - 1; stint == null && k >= 0; k--) stint = byLap[k].stint;
+      for (let k = i + 1; stint == null && k < byLap.length; k++) stint = byLap[k].stint;
+      stintOf.set(lap, stint ?? 1);
+    });
     const groupIds = hasQualifyingPhases
       ? ['Q1', 'Q2', 'Q3', 'Unassigned'].filter(phase => driver.laps.some(lap => phaseFor(lap) === phase))
-      : [...new Set(driver.laps.map(lap => String(lap.stint)))];
+      : [...new Set(driver.laps.map(lap => String(stintOf.get(lap))))];
     const active = groupIds.includes(String(openStint[code])) ? String(openStint[code]) : groupIds[0];
     const lapsForGroup = id => hasQualifyingPhases
       ? driver.laps.filter(lap => phaseFor(lap) === id)
-      : driver.laps.filter(lap => String(lap.stint) === id);
+      : driver.laps.filter(lap => String(stintOf.get(lap)) === id);
     const activeLaps = lapsForGroup(active);
     const runButtons = groupIds.map(id => {
       const laps = lapsForGroup(id);
-      const compounds = [...new Set(laps.map(lap => String(lap.compound || '').toUpperCase()).filter(Boolean))];
+      const compounds = [...new Set(laps.map(lap => String(lap.compound || '').toUpperCase()).filter(c => c && c !== 'UNKNOWN'))];
       const compoundBadges = compounds.map(compoundBadgeMarkup).join('');
       const runLabel = hasQualifyingPhases ? id : `Stint ${id}`;
       const count = hasQualifyingPhases ? new Set(laps.map(lap => lap.stint)).size : laps.length;

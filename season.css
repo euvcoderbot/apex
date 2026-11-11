@@ -881,3 +881,23 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-next-circuit { grid-template-columns: minmax(104px, 132px) minmax(0, 1fr); align-items: center; }
 #seasonHub .season-next-circuit > .season-track.is-hero { justify-self: center; width: 100%; height: auto; max-height: 150px; aspect-ratio: 1; }
 #seasonHub .season-next-circuit > h3 { align-self: start; }
+/* Teammate battles, mirrored: qualifying left, the pair and their team in the middle, race right. */
+#seasonHub .season-battles { max-width: none; }
+#seasonHub .season-battle-head, #seasonHub .season-battle { grid-template-columns: minmax(0, 1fr) minmax(210px, 260px) minmax(0, 1fr); gap: 32px; }
+#seasonHub .season-battle-head > span { text-align: center; }
+#seasonHub .season-battle { min-height: 52px; }
+#seasonHub .season-battle-mid { display: grid; justify-items: center; gap: 3px; }
+#seasonHub .season-battle-mid small { font: 450 11px/1 var(--ui-font); }
+#seasonHub .season-battle-names { justify-content: center; }
+@media (max-width: 860px) {
+  #seasonHub .season-battle { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 16px; padding: 10px; }
+  #seasonHub .season-battle > .season-battle-mid { grid-column: 1 / -1; grid-row: 1; }
+  #seasonHub .season-battle > .season-battle-bar { grid-column: auto; grid-row: 2; }
+}
+/* One bar for every share and magnitude across the season pages (Linear: 8 px tall, 2 px corners). A split shows the
+   second share in the same colour, faint, 2 px apart. */
+#seasonHub :is(.season-bar, .season-split-bar, .season-battle-bar > span) { height: var(--lin-bar, 8px); border-radius: 2px; }
+#seasonHub :is(.season-split-bar, .season-battle-bar > span) { display: flex; gap: 2px; background: none; }
+#seasonHub :is(.season-bar, .season-split-bar, .season-battle-bar > span, .season-h2h-bar) > i,
+#seasonHub .season-battle-bar span i:is(:first-child, :last-child) { border-radius: 2px; }
+#seasonHub .season-split-bar > i + i, #seasonHub .season-battle-bar span i:last-child { opacity: .35; }

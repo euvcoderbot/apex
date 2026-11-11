@@ -31,6 +31,17 @@
     } catch (_) {
       document.documentElement.dataset.theme = 'dark';
     }
+    // Opening a season page: start its saved data now, alongside the page's scripts, not after them. season.js takes
+    // these requests over (ApexSeasonEarly) instead of asking again.
+    if (/^\/apex\/season(\/|$)/.test(location.pathname) && typeof fetch === 'function') {
+      var seasonYear = (location.search.match(/[?&]year=(\d{4})/) || [])[1] || String(new Date().getFullYear());
+      var seasonIndex = fetch('assets/data/season/index.json', {cache: 'no-cache'}).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+      var seasonPath = '/api/season?year=' + seasonYear;
+      window.ApexSeasonEarly = {index: seasonIndex, path: seasonPath, bytes: seasonIndex.then(function (index) {
+        var entry = index && index.entries && index.entries[seasonPath];
+        return entry && /^[a-f0-9]{24}\.json\.gz$/.test(entry.file || '') ? fetch('assets/data/season/' + entry.file).then(function (r) { return r.ok ? r.arrayBuffer() : null; }) : null;
+      }).catch(function () { return null; })};
+    }
   </script>
   <link rel="stylesheet" href="styles.css?v=20261007-ui-system">
 </head>
@@ -298,23 +309,28 @@
   <script type="lazy-module" src="season.js"></script>
   <script>
     (function () {
-      var pending = null, ready = false;
+      var pending = null, ready = false, started = {};
+      // Each lazy module is added once, whichever path asks for it first.
+      function one(inert) {
+        var src = inert.getAttribute('src');
+        if (!started[src]) started[src] = new Promise(function (resolve, reject) {
+          var script = document.createElement('script');
+          script.type = 'module'; script.src = src; script.async = false;
+          script.onload = resolve; script.onerror = function (error) { delete started[src]; reject(error); };
+          document.head.appendChild(script);
+        });
+        return started[src];
+      }
       function load() {
-        if (!pending) pending = Promise.all([].map.call(document.querySelectorAll('script[type="lazy-module"]'), function (inert) {
-          return new Promise(function (resolve, reject) {
-            var script = document.createElement('script');
-            script.type = 'module'; script.src = inert.getAttribute('src'); script.async = false;
-            script.onload = resolve; script.onerror = reject;
-            document.head.appendChild(script);
-          });
-        })).then(function () { ready = true; window.ApexCarsPending = false; }, function (error) { pending = null; window.ApexCarsPending = false; throw error; });
+        if (!pending) pending = Promise.all([].map.call(document.querySelectorAll('script[type="lazy-module"]'), one)).then(function () { ready = true; window.ApexCarsPending = false; }, function (error) { pending = null; window.ApexCarsPending = false; throw error; });
         return pending;
       }
       window.ApexLoadCars = load;
       var start = window.ApexUrl && window.ApexUrl.read();
       // Until the module is in, the page must not rewrite a car-performance address to the session view it is showing.
       if (start && start.view === 'cars') { window.ApexCarsPending = true; load().catch(function () {}); }
-      if (start && start.view === 'season') load().catch(function () {});
+      // The season view needs only its own module: it loads first, the car-performance modules after it when idle.
+      if (start && start.view === 'season') one(document.querySelector('script[type="lazy-module"][src^="season.js"]')).catch(function () {});
       addEventListener('load', function () {
         var idle = window.requestIdleCallback || function (fn) { return setTimeout(fn, 1200); };
         idle(function () { load().catch(function () {}); }, {timeout: 3000});
