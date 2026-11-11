@@ -110,3 +110,16 @@
 :root[data-skin="linear"] #liveTiming .live-lap-column-head small { color: var(--ui-quaternary); font: 450 11px/1 var(--ui-font); }
 :root[data-skin="linear"] #liveTiming .live-lap-tiles .lap-chip.is-overall .lap-clock { color: #bf5af2; }
 :root[data-skin="linear"] #liveTiming .live-lap-tiles .lap-chip.is-personal .lap-clock { color: #30d158; }
+:root[data-skin="linear"] #liveTiming .live-condition-icon { display: inline-block; width: 18px; margin-right: 4px; font-style: normal; font-size: 13px; text-align: center; }
+/* Timing tower: mini-sectors under each sector time in F1's colours (purple overall best, green personal best, yellow
+   slower, blue pit lane), places gained or lost against the grid, and the Live/Best switch for the sector columns. */
+:root[data-skin="linear"] #liveTiming .live-minis { display: flex; gap: 1px; margin-top: 3px; }
+:root[data-skin="linear"] #liveTiming .live-minis i { flex: 1 1 0; min-width: 2px; height: 3px; border-radius: 1px; background: var(--lin-hairline); }
+:root[data-skin="linear"] #liveTiming .live-minis i[data-s="overall"] { background: #bf5af2; }
+:root[data-skin="linear"] #liveTiming .live-minis i[data-s="personal"] { background: #30d158; }
+:root[data-skin="linear"] #liveTiming .live-minis i[data-s="slower"] { background: #ffd60a; }
+:root[data-skin="linear"] #liveTiming .live-minis i[data-s="pit"] { background: #0a84ff; }
+:root[data-skin="linear"] #liveTiming .live-moved { margin-left: 4px; font: 500 10px/1 var(--ui-font); font-variant-numeric: tabular-nums; }
+:root[data-skin="linear"] #liveTiming .live-moved.is-up { color: #30d158; }
+:root[data-skin="linear"] #liveTiming .live-moved.is-down { color: #ff6961; }
+:root[data-skin="linear"] #liveTiming .live-tower-mode { margin-left: auto; }

@@ -659,8 +659,13 @@ class LiveState:
                 stint = stints[-1] if stints else {}
                 sectors = []
                 for sector in _seq(line.get('Sectors'))[:3]:
+                    # Mini-sectors as F1 colours them: 2048 yellow, 2049 green (personal best), 2051 purple (overall), 2064 pit
+                    # lane, 0 not yet run.
+                    segments = [int(seg.get('Status') or 0) if isinstance(seg, dict) else 0 for seg in _seq(sector.get('Segments'))]
                     sectors.append({'time': sector.get('Value') or None, 'personal': bool(sector.get('PersonalFastest')),
-                                    'overall': bool(sector.get('OverallFastest'))})
+                                    'overall': bool(sector.get('OverallFastest')), 'segments': segments})
+                best_sectors = [(s_.get('Value') or None) if isinstance(s_, dict) else None for s_ in _seq((stats.get(number) or {}).get('BestSectors'))[:3]]
+                grid = (app.get(number) or {}).get('GridPos')
                 last, best = line.get('LastLapTime') or {}, line.get('BestLapTime') or {}
                 interval = line.get('IntervalToPositionAhead')
                 position = line.get('Position') or meta.get('Line')
@@ -673,7 +678,8 @@ class LiveState:
                     'interval': interval.get('Value') if isinstance(interval, dict) else interval if isinstance(interval, str) else (line.get('TimeDiffToPositionAhead') or None),
                     'last': {'time': last.get('Value') or None, 'personal': bool(last.get('PersonalFastest')), 'overall': bool(last.get('OverallFastest'))},
                     'best': best.get('Value') or None,
-                    'sectors': sectors,
+                    'sectors': sectors, 'best_sectors': best_sectors,
+                    'grid': int(grid) if str(grid or '').strip().isdigit() else None,
                     'laps': line.get('NumberOfLaps'),
                     'pits': line.get('NumberOfPitStops'),
                     'in_pit': bool(line.get('InPit')), 'pit_out': bool(line.get('PitOut')),

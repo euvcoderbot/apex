@@ -95,7 +95,7 @@
       <div class="live-grid">
         <div class="live-col live-col-main">
           <section class="dashboard-card live-tower" aria-label="Timing tower">
-            <div class="live-card-head"><h2>Timing</h2><small>Select up to two drivers for telemetry</small></div>
+            <div class="live-card-head"><h2>Timing</h2><small>Select up to two drivers for telemetry</small><div class="live-tower-mode" data-ui-group="segments" role="group" aria-label="Sector times"><button type="button" data-live="towerLive" aria-pressed="true">Live</button><button type="button" data-live="towerBest" aria-pressed="false">Best</button></div></div>
             <div class="live-table-wrap"><table class="live-table">
               <thead><tr><th scope="col">P</th><th scope="col">Driver</th><th scope="col">Gap</th><th scope="col">Int</th><th scope="col">Last</th><th scope="col">S1</th><th scope="col">S2</th><th scope="col">S3</th><th scope="col">Best</th><th scope="col">Tyre</th><th scope="col">Pit</th></tr></thead>
               <tbody data-live="tower"><tr><td colspan="11" class="live-empty">Waiting for timing data.</td></tr></tbody>
@@ -176,6 +176,10 @@
     });
     new ResizeObserver(() => queueDraw()).observe(page);
     $(page, 'quickFastest').addEventListener('click', () => quickPicks('fastest'));
+    // Sector columns: the current lap's sectors (with mini-sectors), or each driver's best sectors of the session.
+    for (const [name, best] of [['towerLive', false], ['towerBest', true]]) $(page, name).addEventListener('click', () => {
+      towerBest = best; $(page, 'towerLive').setAttribute('aria-pressed', String(!best)); $(page, 'towerBest').setAttribute('aria-pressed', String(best)); renderTower();
+    });
     $(page, 'chartTop').addEventListener('click', () => { chartChosenSet = null; renderLapChart(); });
     $(page, 'chartFastest').addEventListener('click', () => {
       const best = d => Math.min(...(lapLists[d.number] || []).filter(l => l.seconds && !l.pit).map(l => l.seconds));
@@ -429,6 +433,8 @@
     if (Date.now() - lapsFetchedAt > 2000) refreshLaps();
     backfill();
   }
+  let towerBest = false;
+  const MINI = {2051: 'overall', 2049: 'personal', 2048: 'slower', 2064: 'pit'};
   function timeCell(row, value, flags = {}) {
     const cell = el('td', 'live-time', value || '');
     if (flags.overall) cell.classList.add('is-overall'); else if (flags.personal) cell.classList.add('is-personal');
@@ -443,11 +449,26 @@
       if (d.retired || d.stopped) row.classList.add('is-out');
       row.append(el('td', 'live-pos', d.position ?? ''));
       const name = el('td', 'live-driver'), label = el('span', 'live-driver-label'), bar = el('i'); bar.style.background = colour(d);
-      label.append(bar, el('strong', null, d.code), el('small', null, d.number)); name.append(label); row.append(name);
+      label.append(bar, el('strong', null, d.code), el('small', null, d.number));
+      // Places gained or lost against the starting grid (races).
+      if (state.session?.type === 'Race' && d.grid && d.position) {
+        const moved = d.grid - d.position;
+        if (moved) { const m = el('small', `live-moved ${moved > 0 ? 'is-up' : 'is-down'}`, `${moved > 0 ? '▲' : '▼'}${Math.abs(moved)}`); m.title = `Started P${d.grid}`; label.append(m); }
+      }
+      name.append(label); row.append(name);
       row.append(el('td', 'live-gap', d.position === 1 ? (state.session?.type === 'Race' ? 'Leader' : '') : d.gap || ''));
       row.append(el('td', 'live-gap', d.position === 1 ? '' : d.interval || ''));
       timeCell(row, d.last?.time, d.last);
-      for (let i = 0; i < 3; i++) timeCell(row, d.sectors?.[i]?.time, d.sectors?.[i] || {});
+      for (let i = 0; i < 3; i++) {
+        if (towerBest) { timeCell(row, d.best_sectors?.[i]); continue; }
+        timeCell(row, d.sectors?.[i]?.time, d.sectors?.[i] || {});
+        const segments = d.sectors?.[i]?.segments || [];
+        if (segments.length) {
+          const bars = el('span', 'live-minis'); bars.setAttribute('aria-hidden', 'true');
+          for (const status of segments) { const b = el('i'); b.dataset.s = MINI[status] || 'none'; bars.append(b); }
+          row.lastChild.append(bars);
+        }
+      }
       timeCell(row, d.best);
       const tyre = el('td', 'live-tyre');
       if (d.stint?.compound) {
@@ -468,10 +489,16 @@
   }
   function renderWeather() {
     const w = state.weather || {}, list = $(page, 'weather'), items = [];
-    const add = (label, value) => { if (value == null || value === '') return; items.push(el('dt', null, label), el('dd', null, value)); };
-    add('Air', w.air && `${w.air} °C`); add('Track', w.track && `${w.track} °C`); add('Humidity', w.humidity && `${w.humidity}%`);
-    add('Wind', w.wind_speed && `${w.wind_speed} m/s${w.wind_direction ? ' · ' + w.wind_direction + '°' : ''}`);
-    add('Rain', w.rain == null ? null : (String(w.rain) === '1' || w.rain === true ? 'Yes' : 'No'));
+    // The lap card's condition icons and wind format (session-laps.js): a compass point, not degrees.
+    const add = (icon, label, value) => {
+      if (value == null || value === '') return;
+      const dt = el('dt'); dt.append(el('i', 'live-condition-icon', icon), label); dt.firstChild.setAttribute('aria-hidden', 'true');
+      items.push(dt, el('dd', null, value));
+    };
+    const compass = deg => { const n = Number(deg); return Number.isFinite(n) ? ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round((((n % 360) + 360) % 360) / 45) % 8] : ''; };
+    add('🌤️', 'Air', w.air && `${w.air} °C`); add('🌡️', 'Track', w.track && `${w.track} °C`); add('💧', 'Humidity', w.humidity && `${w.humidity}%`);
+    add('💨', 'Wind', w.wind_speed && `${w.wind_speed} m/s${compass(w.wind_direction) ? ' ' + compass(w.wind_direction) : ''}`);
+    add('🌧️', 'Rain', w.rain == null ? null : (String(w.rain) === '1' || w.rain === true ? 'Yes' : 'No'));
     list.replaceChildren(...items);
   }
   function renderRaceControl() {
