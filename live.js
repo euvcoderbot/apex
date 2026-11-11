@@ -104,8 +104,8 @@
               <tbody data-live="tower"><tr><td colspan="11" class="live-empty">Waiting for timing data.</td></tr></tbody>
             </table></div>
           </section>
-        <section class="dashboard-card live-engineer" data-live="engineer" aria-label="Race engineer" hidden>
-          <div class="live-card-head"><h2>Race engineer</h2><small>From timing gaps and completed laps</small></div>
+        <section class="dashboard-card live-engineer" data-live="engineer" aria-label="Race strategy" hidden>
+          <div class="live-card-head"><h2>Race strategy</h2><small>From timing gaps and completed laps</small></div>
           <div class="live-engineer-tiles" data-live="engineerTiles"></div>
           <div class="live-table-wrap"><table class="live-table live-engineer-table">
             <thead><tr><th scope="col" class="num">P</th><th scope="col">Driver</th><th scope="col">Tyre</th><th scope="col" class="num">Pace</th><th scope="col" class="num">Trend</th><th scope="col" class="num">Gap</th><th scope="col" class="num">Int</th><th scope="col" class="num">Pit now</th></tr></thead>
@@ -580,7 +580,7 @@
     } catch (error) { note.textContent = error.message || String(error); }
   }
 
-  // ---------- race engineer (races): battles, pace trends and a pit call, from timing gaps and completed laps ----------
+  // ---------- race strategy (races): battles, pace trends and a pit call, from timing gaps and completed laps ----------
   // Pace: the mean of a driver's last three clean laps (no pit lap, within 107% of their best). Trend: that pace against the
   // leader's over the same laps, seconds per lap (negative = catching). Pit loss: measured from this race's stops so far,
   // the median of (in-lap + out-lap - two clean laps around them); until a stop is seen it is not shown. Rejoin: where a car
