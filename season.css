@@ -946,3 +946,9 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-maker-ratio { font: 500 13px/1 var(--ui-font); color: var(--ui-secondary); }
 #seasonHub .season-maker-ratio.is-over { color: #ff8a84; }
 #seasonHub .season-maker-ratio.is-under { color: #30d158; }
+/* Sortable column titles: a pointer and a small arrow on the sorted column. */
+#seasonHub th.season-sortable { cursor: pointer; user-select: none; }
+#seasonHub th.season-sortable:hover { color: var(--ui-label); }
+#seasonHub th.season-sortable[aria-sort]::after { margin-left: 4px; font-size: 9px; }
+#seasonHub th.season-sortable[aria-sort="descending"]::after { content: "▼"; }
+#seasonHub th.season-sortable[aria-sort="ascending"]::after { content: "▲"; }

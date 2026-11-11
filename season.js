@@ -1629,6 +1629,31 @@
   function puMaker(label) { const hit = PU_MAKERS.find(([re]) => re.test(label || '')); return hit ? {name: hit[1], team: hit[2]} : null; }
   // Reported retirement causes that are the power unit's: the engine and its energy, cooling and fuel systems.
   const PU_CAUSES = /engine|power unit|\bpu\b|battery|\bers\b|energy|mgu|turbo|exhaust|water pressure|oil pressure|oil leak|coolant|overheat|fuel/i;
+  // Sortable power-unit tables: select a column title to sort by it, again to reverse; the choice is kept per table.
+  // col -1 is the name column. dir 1 = larger first (or A–Z for names), -1 the reverse.
+  let unitsArgs = null;
+  function sortLines(table, lines, columns, nameOf, defaultCol, defaultDir) {
+    const sort = state.puSort?.[table] || {col: defaultCol, dir: defaultDir};
+    const value = sort.col < 0 ? g => nameOf(g) : columns[sort.col].value;
+    lines.sort((a, b) => {
+      const x = value(a), y = value(b);
+      if (typeof x === 'string') return sort.dir * String(x).localeCompare(String(y));
+      return sort.dir * ((Number.isFinite(y) ? y : Number.MAX_VALUE) - (Number.isFinite(x) ? x : Number.MAX_VALUE));
+    });
+  }
+  function sortHeader(th, table, col) {
+    const sort = state.puSort?.[table];
+    th.classList.add('season-sortable'); th.tabIndex = 0; th.setAttribute('role', 'columnheader');
+    if (sort && sort.col === col) th.setAttribute('aria-sort', sort.dir === 1 ? (col < 0 ? 'ascending' : 'descending') : (col < 0 ? 'descending' : 'ascending'));
+    const go = () => {
+      const now = state.puSort?.[table];
+      state.puSort = {...state.puSort, [table]: {col, dir: now && now.col === col ? -now.dir : (col < 0 ? 1 : 1)}};
+      if (unitsArgs) paint(() => renderUnits(...unitsArgs));
+    };
+    th.addEventListener('click', go);
+    th.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+    return th;
+  }
   function reliabilityCard(data, pu) {
     // The same groupings as the elements table (state.unitsView), in the same heat-table look. Counts from each race
     // classification's reported retirement causes and from qualifying; rates per 100 starts compare groups of any size.
@@ -1655,21 +1680,28 @@
       }
       for (const q of r.qualifying) { const g = group(q); if (!g) continue; g.qualis++; if (q.q1 == null && q.q2 == null && q.q3 == null) { g.noTime++; failures.push({round: r, x: q, quali: true}); } }
     }
-    const lines = [...groups.values()].filter(g => g.starts || g.dns).sort((a, b) => (b.pu / Math.max(1, b.starts)) - (a.pu / Math.max(1, a.starts)) || b.mechanical - a.mechanical);
+    const lines = [...groups.values()].filter(g => g.starts || g.dns);
     if (lines.length < 2) return null;
+    // Columns: label, a value to sort by, the text shown, and how it is shaded (worse = deeper): 'up' when a larger value is
+    // worse, 'down' when a smaller one is (laps per failure).
+    const lapsPerFailure = g => (g.pu ? g.laps / g.pu : Infinity);
     const columns = [
-      ['Starts', g => g.starts, false], ['Finish rate', g => (g.starts ? `${Math.round(g.finished / g.starts * 100)}%` : '—'), false],
-      ['PU failures', g => g.pu, true, 'Race retirements blamed on the power unit: engine, battery or ERS, cooling, fuel'],
-      ['Other car failures', g => g.mechanical, true, 'Other mechanical retirements: gearbox, brakes, suspension, hydraulics…'],
-      ['Incidents', g => g.incident, true, 'Retirements after an accident, collision or damage'], ['Did not start', g => g.dns, true],
-      ['Quali, no time', g => g.noTime, true, 'Qualifying sessions where the car set no time'],
-      ['Distance run', g => (g.possible ? `${(g.laps / g.possible * 100).toFixed(1)}%` : '—'), false, 'Laps completed as a share of the winner’s laps in the races started'],
-      ['PU per 100 starts', g => (g.starts ? (g.pu / g.starts * 100).toFixed(1) : '—'), 'rate'],
+      {label: 'Starts', value: g => g.starts},
+      {label: 'Finish rate', value: g => (g.starts ? g.finished / g.starts : 0), text: g => (g.starts ? `${Math.round(g.finished / g.starts * 100)}%` : '—')},
+      {label: 'PU failures', value: g => g.pu, heat: 'up', title: 'Race retirements blamed on the power unit: engine, battery or ERS, cooling, fuel'},
+      {label: 'Other car failures', value: g => g.mechanical, heat: 'up', title: 'Other mechanical retirements: gearbox, brakes, suspension, hydraulics…'},
+      {label: 'Incidents', value: g => g.incident, heat: 'up', title: 'Retirements after an accident, collision or damage'},
+      {label: 'Did not start', value: g => g.dns, heat: 'up'},
+      {label: 'Quali, no time', value: g => g.noTime, heat: 'up', title: 'Qualifying sessions where the car set no time'},
+      {label: 'Distance run', value: g => (g.possible ? g.laps / g.possible : 0), text: g => (g.possible ? `${(g.laps / g.possible * 100).toFixed(1)}%` : '—'), title: 'Laps completed as a share of the winner’s laps in the races started'},
+      {label: 'Laps per PU failure', value: lapsPerFailure, heat: 'down', text: g => (g.pu ? Math.round(g.laps / g.pu).toLocaleString() : `none in ${g.laps.toLocaleString()}`),
+        title: 'Race laps run for each power-unit failure (mean distance between failures): higher is more reliable. Distance, not starts, because power-unit elements are changed between races.'},
     ];
-    const range = columns.map(([, get, heat]) => { if (!heat) return null; const v = lines.map(g => heat === 'rate' ? (g.starts ? g.pu / g.starts : 0) : get(g)); return [Math.min(...v), Math.max(...v)]; });
+    sortLines('reliability', lines, columns, g => (view === 'drivers' ? driverName(data, g.key) : g.key), 8, -1);
+    const range = columns.map(c => { if (!c.heat) return null; const v = lines.map(c.value).filter(Number.isFinite); return v.length ? [Math.min(...v), Math.max(...v)] : null; });
     const table = el('table', 'season-table season-units season-reliability');
-    const head = el('tr'); head.append(el('th', null, {drivers: 'Driver', teams: 'Team', makers: 'Manufacturer'}[view]));
-    for (const [label, , , title] of columns) { const th = el('th', 'num', label); if (title) th.title = title; head.append(th); }
+    const head = el('tr'); head.append(sortHeader(el('th', null, {drivers: 'Driver', teams: 'Team', makers: 'Manufacturer'}[view]), 'reliability', -1));
+    columns.forEach((c, i) => { const th = el('th', 'num', c.label); if (c.title) th.title = c.title; head.append(sortHeader(th, 'reliability', i)); });
     const thead = el('thead'); thead.append(head); table.append(thead);
     const tb = el('tbody');
     for (const g of lines) {
@@ -1678,9 +1710,12 @@
       else if (view === 'teams') name.append(teamTag(data, g.key));
       else { const dot = el('i', 'season-maker-dot'); dot.style.background = teamColour(g.team); name.classList.add('season-maker'); name.append(dot, el('strong', null, g.key), el('small', null, `${g.teams.size} team${g.teams.size === 1 ? '' : 's'}`)); }
       tr.append(name);
-      columns.forEach(([, get, heat], i) => {
-        const value = get(g), td = el('td', `num${heat ? ' season-heat-cell' : ''}`, String(value));
-        if (heat) { const raw = heat === 'rate' ? (g.starts ? g.pu / g.starts : 0) : value, [lo, hi] = range[i]; if (hi > lo && raw > lo) td.style.setProperty('--heat', String((raw - lo) / (hi - lo))); }
+      columns.forEach((c, i) => {
+        const raw = c.value(g), td = el('td', `num${c.heat ? ' season-heat-cell' : ''}`, String(c.text ? c.text(g) : raw));
+        if (c.heat && range[i] && Number.isFinite(raw)) {
+          const [lo, hi] = range[i], share = hi > lo ? (raw - lo) / (hi - lo) : 0, heat = c.heat === 'down' ? 1 - share : share;
+          if (heat > 0 && (c.heat === 'down' ? true : raw > lo)) td.style.setProperty('--heat', String(heat));
+        }
         tr.append(td);
       });
       tb.append(tr);
@@ -1695,9 +1730,10 @@
     }
     const fold = failures.length ? (() => { const d = el('details', 'season-failures-wrap'); d.append(el('summary', null, `Show the ${failures.length} power-unit failures and qualifying no-shows`), listing); return d; })() : null;
     return card('Reliability', wrap(table), fold,
-      el('p', 'season-footnote', 'From the reported retirement causes in each race classification: power-unit failures are those blamed on the engine, battery or ERS, cooling or fuel; other car failures add the gearbox, brakes, suspension, hydraulics and the rest. Sprints carry no causes and are not counted. A car with no time in qualifying usually could not run; the cause is not published. Shading compares the rows within this view.'));
+      el('p', 'season-footnote', 'From the reported retirement causes in each race classification: power-unit failures are those blamed on the engine, battery or ERS, cooling or fuel; other car failures add the gearbox, brakes, suspension, hydraulics and the rest. Sprints carry no causes and are not counted. A car with no time in qualifying usually could not run; the cause is not published. Laps per PU failure measures distance between failures, since elements are changed between races; deeper shading is worse. Select a column title to sort by it, again to reverse.'));
   }
   function renderUnits(data, pu) {
+    unitsArgs = [data, pu];
     // One table, three groupings (pills): each driver's car, each team, each power-unit manufacturer. Teams and
     // manufacturers run different numbers of cars, so they show elements per car, their cars, and the total per car
     // against the average car (1.5x = 50% more).
@@ -1718,17 +1754,21 @@
       }
       lines = [...groups.values()].map(g => { const elements = Object.fromEntries(pu.elements.map(e => [e, g.sums[e] / g.cars])); return {group: g, cars: g.cars, elements, total: totalOf(elements)}; });
     }
-    lines.sort((x, y) => y.total - x.total);
     const average = lines.reduce((s, r) => s + r.total * r.cars, 0) / Math.max(1, lines.reduce((s, r) => s + r.cars, 0));
     const max = Object.fromEntries(pu.elements.map(e => [e, Math.max(...lines.map(r => r.elements[e] || 0))]));
     const min = Object.fromEntries(pu.elements.map(e => [e, Math.min(...lines.map(r => r.elements[e] || 0))]));
     const fmt = v => (view === 'drivers' ? String(v) : v.toFixed(1));
     const table = el('table', 'season-table season-units');
-    const head = el('tr'); head.append(el('th', null, {drivers: 'Driver', teams: 'Team', makers: 'Manufacturer'}[view]));
-    if (view !== 'drivers') head.append(el('th', 'num', 'Cars'));
-    for (const e of pu.elements) { const th = el('th', 'num', e); th.title = (ELEMENT_NAMES[e] || e) + (view === 'drivers' ? '' : ', per car'); head.append(th); }
-    head.append(el('th', 'num', view === 'drivers' ? 'Total' : 'Total per car'));
-    if (view !== 'drivers') { const th = el('th', 'num', 'vs average'); th.title = 'Total per car against the average car on the grid'; head.append(th); }
+    // Sortable columns (sortHeader): cars, each element, the total and, grouped, against the average car.
+    const grouped = view !== 'drivers';
+    const cols = [...(grouped ? [{label: 'Cars', value: l => l.cars}] : []),
+      ...pu.elements.map(e => ({label: e, value: l => l.elements[e] || 0, title: (ELEMENT_NAMES[e] || e) + (grouped ? ', per car' : '')})),
+      {label: grouped ? 'Total per car' : 'Total', value: l => l.total},
+      ...(grouped ? [{label: 'vs average', value: l => l.total / average, title: 'Total per car against the average car on the grid'}] : [])];
+    const nameOf = l => (view === 'drivers' ? driverName(data, l.row.driver) || l.row.label : view === 'teams' ? teamName(data, l.group.key) : l.group.key);
+    sortLines('elements-' + view, lines, cols, nameOf, cols.findIndex(c => c.label.startsWith('Total')), 1);
+    const head = el('tr'); head.append(sortHeader(el('th', null, {drivers: 'Driver', teams: 'Team', makers: 'Manufacturer'}[view]), 'elements-' + view, -1));
+    cols.forEach((c, i) => { const th = el('th', 'num', c.label); if (c.title) th.title = c.title; head.append(sortHeader(th, 'elements-' + view, i)); });
     const thead = el('thead'); thead.append(head); table.append(thead);
     const tb = el('tbody');
     for (const r of lines) {
