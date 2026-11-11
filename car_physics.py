@@ -684,6 +684,7 @@ UNBRAKED_REACH_M = 200.      # an unbraked corner's lift starts within this of i
 ONSET_GAP_M = 60.            # a gap this long without braking ends the braking run
 EXIT_SPEED_LIMIT = .12       # entry/exit speed this far off the field is a lift or a glitch
 CORNER_OUTLIER = .10         # 10% slower or faster than the field through one corner
+CORNER_COMMON_SHARE = .6     # corners every car has must hold this share of a band's field time to be compared
 BRAKING_SEARCH_M = 400.      # braking for a corner starts within this of its apex
 ONSET_SPREAD_M = 80.         # real braking points sit within this of the field's median
 FLAT_THROTTLE = 95.          # minimum throttle through a bend that still counts as flat out
@@ -940,28 +941,44 @@ def corner_timing(projected, corners, track, field_speed):
                                      'entry_kmh': c_['v_in']*3.6, 'exit_kmh': c_['v_out']*3.6, 'min_kmh': c_['v_min_kmh'],
                                      'min_throttle': c_['min_throttle'], 'lifted': c_.get('lifted')}
                               for name, c_ in cars.items()}})
-    bands = {}
-    for name in laps:
-        bands[name] = {}
-        for band, _, _ in CORNER_BANDS:
-            expected = sum(r['band'] == band for r in rows)
-            mine = [r for r in rows if r['band'] == band and name in r['cars']]
-            if not expected:
+    return rows, band_totals(rows, laps)
+
+
+def band_totals(rows, names):
+    """Each car's time in each corner band (low, medium, high speed), over the corners it is compared on.
+
+    As with the straights (straight_totals): every car is compared over the band's corners that all measured cars share,
+    as long as those keep CORNER_COMMON_SHARE of the band's field time; only below that does a car missing a corner (a
+    telemetry gap, a lift) lose the band at that GP. Before, one missing corner dropped the car from the whole band.
+    """
+    bands = {name: {} for name in names}
+    for band, _, _ in CORNER_BANDS:
+        in_band = [r for r in rows if r['band'] == band]
+        if not in_band:
+            for name in names:
                 bands[name][band] = None
-                continue
-            if len(mine) != expected:
-                bands[name][band] = {'index': None, 'corners': len(mine), 'expected': expected,
+            continue
+        measured = [name for name in names if any(name in r['cars'] for r in in_band)]
+        common = [r for r in in_band if all(name in r['cars'] for name in measured)]
+        total = sum(r['field_time_s'] for r in in_band)
+        use = common if common and total and sum(r['field_time_s'] for r in common)/total >= CORNER_COMMON_SHARE else in_band
+        for r in in_band:
+            r['compared'] = r in use
+        for name in names:
+            mine = [r for r in use if name in r['cars']]
+            if len(mine) != len(use):
+                bands[name][band] = {'index': None, 'corners': len(mine), 'expected': len(use),
                                      'exclusion': 'Incomplete shared corner coverage; measured corners remain in the evidence'}
                 continue
             delta = sum(r['cars'][name]['delta_s'] for r in mine)
             field = sum(r['field_time_s'] for r in mine)
-            bands[name][band] = {'index': field/(field+delta), 'corners': len(mine), 'expected': expected,
+            bands[name][band] = {'index': field/(field+delta), 'corners': len(mine), 'expected': len(in_band),
                                  'time_vs_median_s': delta, 'pct_vs_median': delta/field*100,
                                  'registration_sensitivity_s': sum(r['cars'][name]['registration_sensitivity_s'] for r in mine),
                                  'provisional': any(r['cars'][name]['max_packet_gap_s'] > .6 for r in mine),
                                  'phases_s': {k: sum(r['cars'][name]['phases_s'][k] for r in mine) for k in ('braking', 'mid', 'exit')},
-                                 'exclusion': None}
-    return rows, bands
+                                 'exclusion': None, **({'common_corners': True} if len(use) < len(in_band) else {})}
+    return bands
 
 
 STRAIGHT_MIN_M = 100.        # session analysis offers straights of at least this length

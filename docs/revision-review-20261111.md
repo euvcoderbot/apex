@@ -1,6 +1,6 @@
 # Prepared-data review, 2026-11-11
 
-Current backend fd69bbc4c372beb2d448 differs from the preparation backend 277639bebfb0613957d0 (source
+Current backend 2e4a10782d8503619079 differs from the preparation backend 277639bebfb0613957d0 (source
 ee687c9caceb6bed2c0b and measurement 267fe2622a3941ad629a are unchanged) in:
 
 - `car_physics.py`: the straight-line total (`track_straights`, "Time on the straights" in Car performance). A car whose
@@ -12,8 +12,14 @@ ee687c9caceb6bed2c0b and measurement 267fe2622a3941ad629a are unchanged) in:
   the shared set carries `common_straights: true`, and each straight says whether it was `compared`.
   `straight_totals()` is the new, tested function (`scripts/test-car-physics.py`, `StraightCoverageTests`).
 
-Corners, braking, energy, top speed, lap times and every other model are unchanged; with full coverage the straight total is
-identical to before.
+- `car_physics.py`, the same rule for the cornering bands (low, medium and high speed): `band_totals()` compares every car
+  over the band's corners all measured cars share while they keep at least 60% of the band's field time
+  (`CORNER_COMMON_SHARE`); a total built that way carries `common_corners: true`. Gaps across the 2026 speed batches fell
+  from 22 GP-band entries to 7 (bands of two or three corners where the shared corners hold less than 60%).
+  Tested in `CornerCoverageTests`.
+
+Braking, energy, traction, top speed, lap times and every other model are unchanged; with full coverage the straight and
+band totals are identical to before. fd69bbc4c372beb2d448 was an interim revision (straights only), never published.
 
 Migration:
 
@@ -21,5 +27,5 @@ Migration:
   current revision from local compute (same addresses, new capture times).
 - Race performance captures are re-stamped by `refresh-retirement-classifications.py` (retirement metadata only; it asserts
   every observation is unchanged).
-- `lib/snapshot-policy.json` accepts 277639b (and what it accepted) under fd69bbc, so every other retained observation keeps
+- `lib/snapshot-policy.json` accepts fd69bbc, 277639b (and what it accepted) under 2e4a107, so every other retained observation keeps
   its original provenance.

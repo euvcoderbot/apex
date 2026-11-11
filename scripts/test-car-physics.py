@@ -9,7 +9,7 @@ import sys, unittest
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import numpy as np
-from car_physics import speed_domain_metrics, straight_totals
+from car_physics import speed_domain_metrics, straight_totals, band_totals
 
 G = 9.80665
 # (length m, curvature 1/m). Apex speeds span the low/medium/high bands.
@@ -250,6 +250,30 @@ class StraightCoverageTests(unittest.TestCase):
         totals = straight_totals(straights, ['a', 'b'])
         self.assertAlmostEqual(totals['a']['time_vs_median_s'], .05)
         self.assertEqual(totals['a']['straights'], 2)
+
+
+class CornerCoverageTests(unittest.TestCase):
+    """A car missing one corner of a band is compared on the band's shared corners, not dropped from the band."""
+
+    @staticmethod
+    def corner(band, field, cars):
+        return {'band': band, 'field_time_s': field, 'cars': {n: {'delta_s': d, 'registration_sensitivity_s': 0, 'max_packet_gap_s': .2,
+                                                                   'phases_s': {'braking': d, 'mid': 0, 'exit': 0}} for n, d in cars.items()}}
+
+    def test_one_missing_corner_keeps_the_car_in_the_band(self):
+        rows = [self.corner('low', 4, {'a': 0, 'b': .1, 'c': .2}), self.corner('low', 4, {'a': 0, 'b': .1, 'c': .3}),
+                self.corner('low', 1.5, {'a': 0, 'b': .1})]
+        bands = band_totals(rows, ['a', 'b', 'c'])
+        self.assertAlmostEqual(bands['c']['low']['time_vs_median_s'], .5)
+        self.assertAlmostEqual(bands['b']['low']['time_vs_median_s'], .2)
+        self.assertTrue(bands['c']['low']['common_corners'])
+        self.assertIsNone(bands['a']['high'])                       # no high-speed corner here
+
+    def test_too_little_shared_time_keeps_the_old_rule(self):
+        rows = [self.corner('medium', 1, {'a': 0, 'b': .1, 'c': .2}), self.corner('medium', 5, {'a': 0, 'b': .1})]
+        bands = band_totals(rows, ['a', 'b', 'c'])
+        self.assertIsNone(bands['c']['medium']['index'])
+        self.assertIsNotNone(bands['a']['medium']['index'])
 
 
 class MappedFastCornerTests(unittest.TestCase):

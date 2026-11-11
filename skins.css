@@ -2348,3 +2348,8 @@
 :root[data-skin="linear"] .overview-lap-chart.is-dense .point.is-hollow:not(.is-off-scale) { r: 2.25px; stroke-width: 1.25; }
 :root[data-skin="linear"] .overview-lap-chart.is-dense .point.is-loaded { r: 4px; stroke: var(--ui-label); stroke-width: 1.5; }
 :root[data-skin="linear"] .overview-lap-chart.is-dense .point:not(.is-off-scale):is(:hover, :focus-visible) { r: 4px; stroke: var(--lin-card); stroke-width: 1.5; }
+/* Show explanations owns every explanation and coverage detail, on every view: hidden, the main view shows only the data.
+   Coverage chips ("19/20 GPs"), the GP count, per-GP load errors, chart footnotes on the season pages and the notes under
+   the session charts all wait for the toggle. */
+:root[data-skin="linear"] :is(body.is-descriptions-hidden, #carPerformance.is-descriptions-hidden) :is(.metric-coverage, .metric-load-count, .performance-error),
+:root[data-skin="linear"] body.is-descriptions-hidden :is(#seasonHub .season-footnote, #sessionOverview .overview-note, #timeSummary .overview-note) { display: none; }
