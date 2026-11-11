@@ -152,8 +152,12 @@ class Documents:
             # 2025 on: /system/files/decision-document/2025_hungarian_grand_prix_-_....pdf; before that
             # /sites/default/files/decision-document/2024 Hungarian Grand Prix - Car Presentation Submissions.pdf.
             return sorted(set(re.findall(r'href="(/(?:system|sites/default)/files/decision-document/[^"]+\.pdf)"', page)))
-        # A finished event's list is final; the current one gains documents through the weekend.
-        return self._cached(f'fia-docs2-{year}-{_ascii(event)}', None if finished else 1800, build)
+        # A finished event's list is final; the current one gains documents through the weekend. The final list has its own
+        # cache entry: a list fetched mid-weekend (fia-docs2) must never be reused as final, or the documents of Saturday
+        # and Sunday (qualifying, grid penalties, late power-unit changes) are never seen.
+        if finished:
+            return self._cached(f'fia-docs3-final-{year}-{_ascii(event)}', None, build)
+        return self._cached(f'fia-docs2-{year}-{_ascii(event)}', 1800, build)
 
     def pdf(self, path: str) -> bytes:
         return self.http(FIA + quote(_unquote(path), safe='/'), binary=True)
@@ -173,15 +177,42 @@ class Documents:
         return updates
 
     # ---- power-unit elements ----
+    def _event_pu(self, year: int, event: str, finished: bool) -> tuple[dict, str] | None:
+        """An event's 'PU elements used' table with the weekend's later changes applied.
+
+        The FIA publishes the table on Friday; elements fitted after it (for qualifying or the race) appear only in that
+        event's 'New PU elements for this competition' reports. Each lists, per element, the drivers and how many they had
+        used before, so the count after the weekend is that number plus one."""
+        docs = self.event_documents(year, event, finished)
+        used = [d for d in docs if 'pu_elements_used' in doc_kind(d)]
+        if not used:
+            return None
+        path = sorted(used, key=lambda d: (len(d), d))[-1]
+        parsed = self._cached(f'fia-pu-{_cache_name(path)}', None, lambda: parse_pu_elements(self.pdf(path)))
+        if not parsed or not parsed.get('dates'):
+            return None
+        changes: dict[str, dict[str, int]] = {}
+        for doc in (d for d in docs if 'new_pu_elements' in doc_kind(d)):
+            found = self._cached(f'fia-newpu-{_cache_name(doc)}', None, lambda: parse_new_pu_elements(self.pdf(doc))) or {}
+            for number, elements in found.items():
+                for name, total in elements.items():
+                    changes.setdefault(number, {})[name] = max(changes.get(number, {}).get(name, 0), total)
+        if changes:
+            rows = []
+            for row in parsed['rows']:
+                extra = changes.get(row['number'], {})
+                rows.append({**row, 'elements': {k: max(v, extra.get(k, 0)) for k, v in row['elements'].items()}})
+            parsed = {**parsed, 'rows': rows, 'weekend_changes': sum(len(v) for v in changes.values())}
+        return parsed, path
+
     def pu_elements(self, year: int, finished: Callable[[str], bool] = lambda event: True) -> dict | None:
         best = None
         for event in self.events(year):
-            docs = [d for d in self.event_documents(year, event, finished(event)) if 'pu_elements_used' in doc_kind(d)]
-            if not docs:
+            found = self._event_pu(year, event, finished(event))
+            if not found:
                 continue
-            path = sorted(docs, key=lambda d: (len(d), d))[-1]
-            parsed = self._cached(f'fia-pu-{_cache_name(path)}', None, lambda: parse_pu_elements(self.pdf(path)))
-            if parsed and parsed.get('dates') and (best is None or parsed['dates'][1] > best['dates'][1]):
+            parsed, path = found
+            if best is None or parsed['dates'][1] > best['dates'][1]:
                 best = {**parsed, 'event': event, 'document': FIA + path}
         return best
 
@@ -190,12 +221,9 @@ class Documents:
         """Every event's 'PU elements used' table (cumulative counts), oldest first."""
         out = []
         for event in self.events(year):
-            docs = [d for d in self.event_documents(year, event, finished(event)) if 'pu_elements_used' in doc_kind(d)]
-            if not docs:
-                continue
-            path = sorted(docs, key=lambda d: (len(d), d))[-1]
-            parsed = self._cached(f'fia-pu-{_cache_name(path)}', None, lambda: parse_pu_elements(self.pdf(path)))
-            if parsed and parsed.get('dates'):
+            found = self._event_pu(year, event, finished(event))
+            if found:
+                parsed, _ = found
                 out.append({'event': event, 'dates': parsed['dates'], 'elements': parsed['elements'], 'rows': parsed['rows']})
         return sorted(out, key=lambda e: e['dates'][1])
 
@@ -290,6 +318,37 @@ def parse_car_presentation(data: bytes) -> dict:
         item['reason_type'] = reason_type(item['reason'], item['geometry'], item['description'], item['component'])
         item['reason_detail'] = detail.title() if detail and not detail[:1].isdigit() else ''
     return {'dates': dates, 'items': items, 'teams': teams, 'unreadable_pages': unreadable}
+
+
+NEW_PU_CODES = {'ICE': 'ICE', 'TC': 'TC', 'EXH': 'EXH', 'MGU-K': 'MGU-K', 'ES': 'ES', 'CE': 'PU-CE', 'PU-CE': 'PU-CE', 'PU-ANC': 'PU-ANC',
+                'ANC': 'PU-ANC', 'MGU-H': 'MGU-H', 'EX': 'EX'}
+
+
+def parse_new_pu_text(text: str) -> dict[str, dict[str, int]]:
+    """{car number: {element: count after this change}} from a 'New PU elements for this competition' report.
+
+    Each section names the element in brackets ('a new turbocharger (TC)') and then a table 'Number Car Driver Previously
+    used TC' with one row per driver ('44 Ferrari Lewis Hamilton 4'); the new element makes that count plus one."""
+    out: dict[str, dict[str, int]] = {}
+    current = None
+    for line in text.splitlines():
+        head = re.search(r'Previously used\s+([A-Z]+(?:-[A-Z]+)?)\s*$', line)
+        if head:
+            current = NEW_PU_CODES.get(head.group(1))
+            continue
+        row = re.fullmatch(r'\s*(\d{1,2})\s+.+?\s(\d{1,2})\s*', line)
+        if current and row:
+            number, previous = str(int(row.group(1))), int(row.group(2))
+            out.setdefault(number, {})[current] = max(out.get(number, {}).get(current, 0), previous + 1)
+        elif current and line.strip() and not row:
+            current = None if re.match(r'\s*The ', line) else current
+    return out
+
+
+def parse_new_pu_elements(data: bytes) -> dict[str, dict[str, int]]:
+    import pdfplumber
+    with pdfplumber.open(io.BytesIO(data)) as pdf:
+        return parse_new_pu_text('\n'.join(page.extract_text() or '' for page in pdf.pages))
 
 
 def parse_pu_elements(data: bytes) -> dict | None:

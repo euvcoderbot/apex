@@ -235,6 +235,28 @@ class FiaDocumentsTest(unittest.TestCase):
         self.assertEqual(fia.repair_item({'component': 'Rear Wing Rear Wing', 'reason': 'Performance', 'geometry': 'x', 'description': 'y'})['component'], 'Rear Wing')
         self.assertIsNone(fia.repair_item({'component': '', 'reason': '', 'geometry': '', 'description': ''}))
 
+    def test_new_pu_elements_report(self):
+        # São Paulo 2026: elements fitted after Friday's table appear only in these reports (count = previous + 1).
+        text = '\n'.join([
+            '2026 SÃO PAULO GRAND PRIX', '06 - 08 November 2026', 'From The FIA Formula 1 Technical Delegate Document 42',
+            'The following driver is using a new internal combustion engine (ICE) for the remainder of the',
+            'Number Car Driver Previously used ICE', '44 Ferrari Lewis Hamilton 5', '3 Red Bull Racing RB Ford Max Verstappen 4',
+            'The internal combustion engine used by Lewis Hamilton is the sixth (6th) of the four (4) new',
+            'The following driver is using a new motor generator unit-kinetic (MGU-K) for the remainder of',
+            'Number Car Driver Previously used MGU-K', '44 Ferrari Lewis Hamilton 3',
+            'The following driver is using a new power unit ancillary component (PU-ANC):',
+            'Number Car Driver Previously used PU-ANC', '30 Racing Bulls RB Ford Liam Lawson 5'])
+        self.assertEqual(fia.parse_new_pu_text(text), {'44': {'ICE': 6, 'MGU-K': 4}, '3': {'ICE': 5}, '30': {'PU-ANC': 6}})
+
+    def test_finished_event_never_reuses_a_mid_weekend_document_list(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lists = iter(['<a href="/system/files/decision-document/friday.pdf">',
+                          '<a href="/system/files/decision-document/friday.pdf"><a href="/system/files/decision-document/sunday.pdf">'])
+            pages = {fia.CHAMPIONSHIP: '<a href="/x/season/season-2026-2072">y</a>'}
+            docs = fia.Documents(Path(tmp), get=lambda url, binary=False: pages[url] if url in pages else next(lists))
+            self.assertEqual(len(docs.event_documents(2026, 'Test Grand Prix', False)), 1)   # fetched during the weekend
+            self.assertEqual(len(docs.event_documents(2026, 'Test Grand Prix', True)), 2)    # the final list is fetched again
+
     def test_event_names_in_either_encoding(self):
         self.assertEqual(fia._unquote('S%C3%A3o%20Paulo'), 'São Paulo')
         self.assertEqual(fia._unquote('S%E3o%20Paulo'), 'São Paulo')
