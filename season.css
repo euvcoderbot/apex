@@ -908,3 +908,14 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
    reach bars. */
 #seasonHub .season-dist-col i { border-radius: 2px 2px 0 0; }
 #seasonHub .season-bar.is-diverging i, #seasonHub .season-bar.is-reach i:first-child, #seasonHub .season-bar i { border-radius: 2px; }
+/* Charts, as Linear draws them: 1.5 px lines with round joins, hairline grid, 10 px axes and 11 px keys in the
+   interface font. Series names are secondary text beside a colour dot (never coloured text); values in the key are tertiary. */
+#seasonHub .season-chart .line, #seasonHub .season-chart .line.is-bump { stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+#seasonHub .season-chart .line.is-faint, #seasonHub .season-chart .line.is-bump.is-faint { stroke-width: 1; opacity: .25; }
+#seasonHub .season-chart .line.is-faint:not(.is-dim):hover, #seasonHub .season-chart .is-faint-group:hover .line { stroke-width: 1.5; opacity: 1; }
+#seasonHub .season-chart .label { font: 500 calc(11px / var(--chart-scale, 1)) var(--ui-font); fill: var(--ui-secondary); }
+#seasonHub .season-chart .label.is-value { fill: var(--ui-label); }
+#seasonHub .season-chart .key-value { fill: var(--ui-tertiary); font-weight: 450; }
+#seasonHub .season-chart .end { stroke: var(--lin-card, var(--ui-panel)); stroke-width: 1.5; }
+#seasonHub .season-chart .is-faint-group .key-dot { opacity: .45; }
+#seasonHub .season-chart .end-key:hover .label { fill: var(--ui-label); }

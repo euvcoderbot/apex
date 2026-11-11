@@ -167,6 +167,13 @@
       <p class="overview-note">${selected.length ? 'The drivers chosen in the list' : 'With no driver chosen in the list, the top three finishers'}; laps over 107% of a driver’s best on the same kind of tyre (slick or wet)${fieldBest ? ', and of the fastest lap anyone set on that lap,' : ''} are ${showSlowLaps ? 'shown' : 'hidden'}${fieldBest ? '; pit stops are always drawn, a ▲ on the top edge when off the scale' : ''}. Select a point to add that lap to the comparison; select a colour dot to change a driver’s colour.</p>`;
   }
 
+  // End labels as Linear draws them: a colour dot and the driver code in secondary text, at least 13 px apart.
+  function endKey(entries, labelX) {
+    const list = [...entries].sort((a, b) => a.y - b.y);
+    list.forEach((e, i) => { e.ly = i ? Math.max(e.y, list[i - 1].ly + 13) : e.y; });
+    return list.map(e => `<circle class="key-dot" cx="${(labelX + 3).toFixed(1)}" cy="${e.ly.toFixed(1)}" r="2.75" style="fill:${e.colour}"/><text class="label" x="${(labelX + 9).toFixed(1)}" y="${(e.ly + 3.5).toFixed(1)}">${esc(e.code)}</text>`).join('');
+  }
+
   // ---------- race: gap to the leader and position, lap by lap ----------
   // When each driver finished each lap, on the session clock: the lap's own end, or the next lap's start.
   function lapEnds(driver) {
@@ -209,14 +216,15 @@
     const y1 = v => T + Math.min(v, top1) / top1 * (H1 - T - B);
     const span = {W, L, R, T, B, lapLo: 1, lapHi: progress.laps, title: lap => `Lap ${lap}`};
     const gapHover = registerHover('gap', {...span, H: H1, rows: lap => shown.map(r => r.gaps.has(lap) && {code: r.code, colour: colourOf(r.code), hollow: styles.get(r.code)?.dashed, value: r.gaps.get(lap), text: r.gaps.get(lap) < .0005 ? 'Leader' : `+${r.gaps.get(lap).toFixed(3)} s`}).filter(Boolean).sort((a, b) => a.value - b.value)});
+    const gapKeys = [], posKeys = [];
     let gap = `<svg class="overview-lap-chart" ${gapHover} viewBox="0 0 ${W} ${H1}" role="img" aria-label="Gap to the race leader by lap">`;
     for (let v = 0; v <= top1 + 1e-9; v += step1) gap += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y1(v).toFixed(1)}" y2="${y1(v).toFixed(1)}"/><text class="axis" x="${L - 6}" y="${(y1(v) + 3.5).toFixed(1)}" text-anchor="end">${v ? `+${v}s` : 'Leader'}</text>`;
     for (const r of shown) {
       const colour = esc(colourOf(r.code)), last = [...r.gaps.entries()].at(-1), dash = styles.get(r.code)?.dashed ? ' is-dashed' : '';
       gap += `<path class="line is-solid${dash}" d="${path(r.gaps, y1)}" style="stroke:${colour}"/>`;
-      if (last) gap += `<text class="label" x="${(x(last[0]) + 4).toFixed(1)}" y="${(y1(last[1]) + 3.5).toFixed(1)}" style="fill:${colour}">${esc(r.code)}</text>`;
+      if (last) gapKeys.push({code: r.code, colour, x: x(last[0]), y: y1(last[1])});
     }
-    gap += lapAxis(H1) + '</svg>';
+    gap += endKey(gapKeys, W - R + 2) + lapAxis(H1) + '</svg>';
     // Position by lap, every driver in the session, the chosen ones in full colour.
     const n = progress.rows.length, H2 = Math.max(200, n * 12 + T + B);
     const y2 = p => T + (p - 1) / Math.max(1, n - 1) * (H2 - T - B);
@@ -226,9 +234,9 @@
     for (const r of [...progress.rows].sort((a, b) => codes.includes(a.code) - codes.includes(b.code))) {
       const colour = esc(codes.includes(r.code) ? colourOf(r.code) : getDriverColor(r.code)), chosen = codes.includes(r.code), last = [...r.positions.entries()].at(-1);
       pos += `<path class="line is-solid${chosen ? (styles.get(r.code)?.dashed ? ' is-dashed' : '') : ' is-faint'}" d="${path(r.positions, y2)}" style="stroke:${colour}"/>`;
-      if (last && chosen) pos += `<text class="label" x="${(x(last[0]) + 4).toFixed(1)}" y="${(y2(last[1]) + 3.5).toFixed(1)}" style="fill:${colour}">${esc(r.code)}</text>`;
+      if (last && chosen) posKeys.push({code: r.code, colour, x: x(last[0]), y: y2(last[1])});
     }
-    pos += lapAxis(H2) + '</svg>';
+    pos += endKey(posKeys, W - R + 2) + lapAxis(H2) + '</svg>';
     return `<div class="overview-chart"><h3>Gap to the leader</h3>${gap}<p class="overview-note">Time behind the car leading at the line on each lap, from when each lap ended on the session clock; capped at ${top1} s.</p></div>
       <div class="overview-chart"><h3>Position by lap</h3>${pos}</div>`;
   }

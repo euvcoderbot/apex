@@ -1057,7 +1057,7 @@
     return card('Updates by team and Grand Prix', toggle, body, note);
   }
   function lineChart(rounds, series, {title = '', invert = false, height = 260, min = null, max = null, format = v => String(v), endLabels = 0} = {}) {
-    const W = 640, H = height, R = series.length === 1 ? 44 : endLabels ? 46 : 12, T = 12, B = 24;
+    const W = 640, H = height, R = series.length === 1 ? 44 : endLabels ? 52 : 12, T = 12, B = 24;
     const dashed = teammateDashes(series);
     const values = series.flatMap(s => s.values.filter(v => v != null));
     // Values (not positions) get round outer ticks that enclose the data; the scale then runs to those ticks.
@@ -1088,15 +1088,26 @@
       svg += `<path data-id="${esc(s.id)}" class="line${faint ? ' is-faint' : ''}${dashed.has(s) ? ' is-dashed' : ''}" style="stroke:${esc(s.colour)}" d="${d}"/>`;
       if (series.length === 1) {
         const [ex, ey] = pts.at(-1), last = s.values.filter(v => v != null).at(-1);
-        svg += `<circle class="end" cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="4" style="fill:${esc(s.colour)}"/><text class="label" x="${(ex + 8).toFixed(1)}" y="${(ey + 4).toFixed(1)}" style="fill:${esc(s.colour)}">${esc(invert ? 'P' + last : format(last))}</text>`;
+        svg += `<circle class="end" cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="3" style="fill:${esc(s.colour)}"/><text class="label is-value" x="${(ex + 8).toFixed(1)}" y="${(ey + 3.5).toFixed(1)}">${esc(invert ? 'P' + last : format(last))}</text>`;
       }
     }
     if (endLabels && series.length > 1) {
-      const ends = series.slice(0, endLabels).map(s => { const last = s.values.filter(v => v != null).at(-1); return last == null ? null : {s, y: y(last), last}; }).filter(Boolean).sort((a, b) => a.y - b.y);
-      for (let i = 1; i < ends.length; i++) ends[i].y = Math.max(ends[i].y, ends[i - 1].y + 12);
-      for (const e of ends) svg += `<text class="label" data-id="${esc(e.s.id)}" x="${W - R + 6}" y="${(e.y + 4).toFixed(1)}" style="fill:${esc(e.s.colour)}">${esc(e.s.short || e.s.label)}</text>`;
+      const ends = series.slice(0, endLabels).map(s => {
+        const i = s.values.findLastIndex(v => v != null);
+        return i < 0 ? null : {id: s.id, colour: s.colour, name: s.short || s.label, x: x(i), y: y(s.values[i])};
+      }).filter(Boolean);
+      svg += endKey(ends, W - R + 4);
     }
     return htmlNode(svg + xLabels(rounds, x, H, slot) + '</svg>');
+  }
+  // End labels, as Linear's charts: a small dot in the series colour and the name in secondary text, at least 14 px apart
+  // (no leader lines). entries: [{id, colour, name, x, y, value}].
+  function endKey(entries, labelX) {
+    const list = [...entries].sort((a, b) => a.y - b.y);
+    list.forEach((e, i) => { e.ly = i ? Math.max(e.y, list[i - 1].ly + 14) : e.y; });
+    return list.map(e => {
+      return `<g class="end-key" data-id="${esc(e.id)}"><circle class="key-dot" cx="${(labelX + 4).toFixed(1)}" cy="${e.ly.toFixed(1)}" r="3" style="fill:${esc(e.colour)}"/><text class="label" x="${(labelX + 11).toFixed(1)}" y="${(e.ly + 3.5).toFixed(1)}">${esc(e.name)}${e.value != null ? `<tspan class="key-value" dx="5">${esc(e.value)}</tspan>` : ''}</text></g>`;
+    }).join('');
   }
   // Teammates share a team colour: the second series of a colour is dashed, so the two can be told apart.
   function teammateDashes(series) {
@@ -1105,7 +1116,7 @@
     return out;
   }
   function bumpChart(rounds, series) {
-    const n = series.length, W = 640, H = Math.max(200, n * 18 + 30), L = 30, R = 46, T = 10, B = 22;
+    const n = series.length, W = 640, H = Math.max(200, n * 18 + 30), L = 30, R = 52, T = 10, B = 22;
     const dashed = teammateDashes(series.slice(0, 6));
     const x = i => L + (rounds.length < 2 ? 0 : i / (rounds.length - 1) * (W - L - R));
     const y = p => T + (p - 1) / Math.max(1, n - 1) * (H - T - B);
@@ -1124,7 +1135,7 @@
       // The top six (current order) in full colour; the rest faint until hovered, as on the points chart.
       const faint = series.indexOf(s) >= 6;
       svg += `<g data-id="${esc(s.id)}"${faint ? ' class="is-faint-group"' : ''}><path class="line is-bump${faint ? ' is-faint' : dashed.has(s) ? ' is-dashed' : ''}" style="stroke:${esc(s.colour)}" d="${bumpPath(pts)}"/>`;
-      if (lastValue != null) svg += `<circle class="end" cx="${pts.at(-1)[0].toFixed(1)}" cy="${pts.at(-1)[1].toFixed(1)}" r="3" style="fill:${esc(s.colour)}"/><text class="label" x="${W - R + 8}" y="${y(lastValue) + 4}" style="fill:${esc(s.colour)}">${esc(s.label)}</text>`;
+      if (lastValue != null) svg += endKey([{id: s.id, colour: s.colour, name: s.label, x: pts.at(-1)[0], y: pts.at(-1)[1]}], W - R + 4);
       svg += '</g>';
     }
     return htmlNode(svg + xLabels(rounds, x, H, slot) + '</svg>');

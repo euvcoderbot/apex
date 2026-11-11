@@ -2329,3 +2329,7 @@
 /* The toolbar band (header line to the line below): its controls sit centred between the two lines on both views. The
    control group fills the band and centres its row, whatever the group's own line box adds below the controls. */
 :root[data-skin="linear"] .app-sidebar > .session-controls { align-self: stretch; align-content: center; }
+
+/* Session charts: the same Linear chart type as the season pages (11 px keys in secondary text beside a colour dot). */
+:root[data-skin="linear"] #sessionOverview .overview-lap-chart .label { font: 500 11px var(--ui-font); fill: var(--ui-secondary); }
+:root[data-skin="linear"] #sessionOverview .overview-lap-chart .line { stroke-width: 1.5; }
