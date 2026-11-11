@@ -248,14 +248,34 @@ class FiaDocumentsTest(unittest.TestCase):
             'Number Car Driver Previously used PU-ANC', '30 Racing Bulls RB Ford Liam Lawson 5'])
         self.assertEqual(fia.parse_new_pu_text(text), {'44': {'ICE': 6, 'MGU-K': 4}, '3': {'ICE': 5}, '30': {'PU-ANC': 6}})
 
-    def test_finished_event_never_reuses_a_mid_weekend_document_list(self):
+    def test_document_list_is_read_around_its_weekend_then_settles(self):
+        link = lambda name: f'<a href="/system/files/decision-document/{name}.pdf">'
+        pages = {fia.CHAMPIONSHIP: '<a href="/x/season/season-2026-2072">y</a>'}
+        weekend = iter([link('friday'),                                                      # Friday
+                        link('friday') + link('final_race_classification'),                  # race evening
+                        link('friday') + link('final_race_classification') + link('car_3_changes_to_pu_elements'),  # Monday
+                        link('friday') + link('final_race_classification') + link('car_3_changes_to_pu_elements'),  # Tuesday
+                        link('should_never_be_read')])
+        reads = []
+        def get(url, binary=False):
+            if url in pages:
+                return pages[url]
+            reads.append(url)
+            return next(weekend)
+        clock = [0.0]
         with tempfile.TemporaryDirectory() as tmp:
-            lists = iter(['<a href="/system/files/decision-document/friday.pdf">',
-                          '<a href="/system/files/decision-document/friday.pdf"><a href="/system/files/decision-document/sunday.pdf">'])
-            pages = {fia.CHAMPIONSHIP: '<a href="/x/season/season-2026-2072">y</a>'}
-            docs = fia.Documents(Path(tmp), get=lambda url, binary=False: pages[url] if url in pages else next(lists))
-            self.assertEqual(len(docs.event_documents(2026, 'Test Grand Prix', False)), 1)   # fetched during the weekend
-            self.assertEqual(len(docs.event_documents(2026, 'Test Grand Prix', True)), 2)    # the final list is fetched again
+            docs = fia.Documents(Path(tmp), get=get, now=lambda: clock[0])
+            self.assertEqual(len(docs.event_documents(2026, 'Test Grand Prix', True)), 1)
+            self.assertEqual(len(docs.event_documents(2026, 'Test Grand Prix', True)), 1)   # within 30 minutes: not read again
+            clock[0] += 2 * 86400
+            self.assertEqual(len(docs.event_documents(2026, 'Test Grand Prix', True)), 2)   # a mid-weekend list is never final
+            clock[0] += 86400
+            self.assertEqual(len(docs.event_documents(2026, 'Test Grand Prix', True)), 3)   # post-race decision picked up
+            clock[0] += 86400
+            self.assertEqual(len(docs.event_documents(2026, 'Test Grand Prix', True)), 3)   # two days after the race: settles
+            clock[0] += 30 * 86400
+            self.assertEqual(len(docs.event_documents(2026, 'Test Grand Prix', True)), 3)
+            self.assertEqual(len(reads), 4)                                                  # never fetched again
 
     def test_event_names_in_either_encoding(self):
         self.assertEqual(fia._unquote('S%C3%A3o%20Paulo'), 'São Paulo')

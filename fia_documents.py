@@ -23,6 +23,7 @@ from urllib.request import Request, urlopen
 
 FIA = 'https://www.fia.com'
 CHAMPIONSHIP = FIA + '/documents/championships/fia-formula-one-world-championship-14'
+SETTLE_S = 2 * 86400   # an event's document list is final two days after its final race classification appears
 MONTHS = {m: i for i, m in enumerate(('january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september',
                                       'october', 'november', 'december'), 1)}
 # FIA team names to the constructor ids used everywhere else (Jolpica), most specific first.
@@ -152,13 +153,30 @@ class Documents:
             # 2025 on: /system/files/decision-document/2025_hungarian_grand_prix_-_....pdf; before that
             # /sites/default/files/decision-document/2024 Hungarian Grand Prix - Car Presentation Submissions.pdf.
             return sorted(set(re.findall(r'href="(/(?:system|sites/default)/files/decision-document/[^"]+\.pdf)"', page)))
-        # The current event gains documents through the weekend (re-read every 30 minutes). A finished event's list has its
-        # own cache entry, so a list fetched mid-weekend (fia-docs2) is never reused as final, and it is still re-read once a
-        # day: callers cannot always tell a finished event from one that ended an hour ago, and the FIA posts decisions (grid
-        # penalties, late power-unit changes) after the race. One small page per event a day.
-        if finished:
-            return self._cached(f'fia-docs3-final-{year}-{_ascii(event)}', 86400, build)
-        return self._cached(f'fia-docs2-{year}-{_ascii(event)}', 1800, build)
+        # An event's list is re-read (at most every 30 minutes, and only when something asks) until it is settled: the FIA's
+        # final race classification has been on it for SETTLE_S, by which time the post-race decisions (grid penalties, late
+        # power-unit changes) are posted too. From then on it is never fetched again. So lists are only read around their
+        # own race weekend, and a list fetched mid-weekend is never mistaken for the final one. (`finished` is kept for
+        # callers; settling no longer depends on it.)
+        path = self.cache_dir / f'fia-docs4-{year}-{_ascii(event)}.json.gz' if self.cache_dir else None
+        state = None
+        if path and path.exists():
+            try:
+                with gzip.open(path, 'rt', encoding='utf-8') as handle:
+                    state = json.load(handle)
+            except (OSError, ValueError):
+                state = None
+        if state and (state.get('settled') or self.now() - state.get('fetched', 0) < 1800):
+            return state['docs']
+        docs = build()
+        raced = any('final_race_classification' in doc_kind(d) for d in docs)
+        since = (state or {}).get('race_final_seen') or (self.now() if raced else None)
+        state = {'docs': docs, 'fetched': self.now(), 'race_final_seen': since,
+                 'settled': bool(raced and since is not None and self.now() - since >= SETTLE_S)}
+        if path:
+            with gzip.open(path, 'wt', encoding='utf-8') as handle:
+                json.dump(state, handle)
+        return docs
 
     def pdf(self, path: str) -> bytes:
         return self.http(FIA + quote(_unquote(path), safe='/'), binary=True)
