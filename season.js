@@ -588,30 +588,7 @@
     const [crews, quickest] = data.pit_stops?.teams?.length ? pitStops(data) : [];
     const breakdown = columns([retirements, winsCard(data)], [crews, quickest]);
     // Grand Prix table: straight after the season's numbers, before the team breakdowns.
-    const table = el('table', 'season-table');
-    table.innerHTML = '<thead><tr><th scope="col" class="num">Round</th><th scope="col">Grand Prix</th><th scope="col">Pole</th><th scope="col">Winner</th><th scope="col">Second</th><th scope="col">Third</th><th scope="col">Fastest lap</th><th scope="col">Sprint pole</th><th scope="col">Sprint</th><th scope="col" class="num">Margin</th></tr></thead>';
-    const tbody = el('tbody');
-    for (const w of data.winners) {
-      const r = data.rounds.find(x => x.round === w.round);
-      if (r.status !== 'done') continue;
-      const tr = el('tr', 'season-row-expand'); tr.tabIndex = 0; tr.setAttribute('aria-expanded', String(state.expanded === r.round));
-      const gp = el('td'), gpName = el('span', 'season-gp'); const f = flag(r); if (f) gpName.append(f); gpName.append(el('span', null, r.name)); gp.append(gpName);
-      const cell = id => { const td = el('td'); if (id) td.append(who(data, id, {code: true, team: false})); else td.textContent = '—'; return td; };
-      const at = p => r.race.find(x => x.position === p)?.driver;
-      tr.append(el('td', 'num', String(r.round)), gp, cell(w.pole), cell(w.race_winner), cell(at(2)), cell(at(3)),
-        cell(r.race.find(x => x.fastest_lap_rank === 1)?.driver), cell(sprintPole(r)), cell(w.sprint_winner), el('td', 'num', w.margin != null ? `${w.margin.toFixed(3)} s` : '—'));
-      const toggle = () => { state.expanded = state.expanded === r.round ? null : r.round; paint(() => renderResults(data)); };
-      tr.addEventListener('click', toggle);
-      tr.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); } });
-      tbody.append(tr);
-      if (state.expanded === r.round) {
-        const detail = el('tr', 'season-detail'); const td = el('td'); td.colSpan = 10;
-        td.append(classification(data, r));
-        detail.append(td); tbody.append(detail);
-      }
-    }
-    table.append(tbody);
-    out.push(card('Grand Prix results', el('p', 'season-footnote', 'Select a race for its classification.'), wrap(table)), breakdown);
+    out.push(gpResults(data), breakdown);
     return out;
   }
   // The season in a row of numbers.
@@ -682,6 +659,77 @@
     return row;
   }
   const wrap = node => { const w = el('div', 'season-table-wrap'); w.append(node); return w; };
+  // Grand Prix results in two views: Race (podium, fastest lap, sprint winner, margin) and Qualifying (the front row,
+  // pole lap, gaps, the Q3 cut and sprint pole). A row opens that session's full classification.
+  function gpResults(data) {
+    const session = state.resultsSession === 'qualifying' ? 'qualifying' : 'race';
+    const rows = data.winners.map(w => [w, data.rounds.find(x => x.round === w.round)])
+      .filter(([, r]) => r?.status === 'done' && (session === 'race' || r.qualifying.length));
+    const heads = session === 'race'
+      ? ['Winner', 'Second', 'Third', 'Fastest lap', 'Sprint', ['Margin', 'num']]
+      : ['Pole', 'Second', 'Third', ['Pole lap', 'num'], ['Gap to P2', 'num'], ['Q3 cut', 'num'], 'Sprint pole'];
+    const table = el('table', 'season-table');
+    const head = el('tr'); head.append(el('th', 'num', 'Round'), el('th', null, 'Grand Prix'));
+    for (const h of heads) { const [label, cls] = Array.isArray(h) ? h : [h, null]; head.append(el('th', cls, label)); }
+    head.querySelectorAll('th').forEach(th => { th.scope = 'col'; });
+    const thead = el('thead'); thead.append(head); table.append(thead);
+    const tbody = el('tbody');
+    const cell = id => { const td = el('td'); if (id) td.append(who(data, id, {code: true, team: false})); else td.textContent = '—'; return td; };
+    for (const [w, r] of rows) {
+      const tr = el('tr', 'season-row-expand'); tr.tabIndex = 0; tr.setAttribute('aria-expanded', String(state.expanded === r.round));
+      const gp = el('td'), gpName = el('span', 'season-gp'); const f = flag(r); if (f) gpName.append(f); gpName.append(el('span', null, r.name)); gp.append(gpName);
+      tr.append(el('td', 'num', String(r.round)), gp);
+      if (session === 'race') {
+        const at = p => r.race.find(x => x.position === p)?.driver;
+        tr.append(cell(w.race_winner), cell(at(2)), cell(at(3)), cell(r.race.find(x => x.fastest_lap_rank === 1)?.driver), cell(w.sprint_winner),
+          el('td', 'num', w.margin != null ? `${w.margin.toFixed(3)} s` : '—'));
+      } else {
+        const at = p => r.qualifying.find(x => x.position === p);
+        const pole = at(1), second = at(2);
+        const poleLap = Number.isFinite(pole?.q3) ? pole.q3 : null;
+        const gap2 = Number.isFinite(second?.q3) && poleLap != null ? second.q3 - poleLap : null;
+        // The cut into Q3: the slowest Q2 time that still reached Q3.
+        const cut = r.qualifying.filter(x => x.reached === 3 && Number.isFinite(x.q2)).reduce((m, x) => Math.max(m, x.q2), -Infinity);
+        tr.append(cell(pole?.driver), cell(second?.driver), cell(at(3)?.driver), el('td', 'num', poleLap != null ? lapTime(poleLap) : '—'),
+          el('td', 'num', gap2 != null ? `+${gap2.toFixed(3)} s` : '—'), el('td', 'num', Number.isFinite(cut) ? lapTime(cut) : '—'), cell(sprintPole(r)));
+      }
+      const toggle = () => { state.expanded = state.expanded === r.round ? null : r.round; paint(() => renderResults(data)); };
+      tr.addEventListener('click', toggle);
+      tr.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); } });
+      tbody.append(tr);
+      if (state.expanded === r.round) {
+        const detail = el('tr', 'season-detail'); const td = el('td'); td.colSpan = heads.length + 2;
+        td.append(session === 'qualifying' ? qualifyingClassification(data, r) : classification(data, r));
+        detail.append(td); tbody.append(detail);
+      }
+    }
+    table.append(tbody);
+    const pills = el('div', 'season-segment season-zone-toggle'); pills.setAttribute('role', 'group'); pills.setAttribute('aria-label', 'Session');
+    for (const [id, label] of [['race', 'Race'], ['qualifying', 'Qualifying']]) {
+      const b = el('button', null, label); b.type = 'button'; b.setAttribute('aria-pressed', String(session === id));
+      b.addEventListener('click', () => { if (session === id) return; state.resultsSession = id; state.expanded = null; paint(() => renderResults(data)); });
+      pills.append(b);
+    }
+    const note = session === 'race' ? 'Select a race for its classification.' : 'Select a round for the full qualifying result, Q1 to Q3. Q3 cut: the slowest Q2 lap that still reached Q3.';
+    return card('Grand Prix results', pills, el('p', 'season-footnote', note), wrap(table));
+  }
+  const lapTime = t => { const m = Math.floor(t / 60); return `${m}:${(t - m * 60).toFixed(3).padStart(6, '0')}`; };
+  // Full qualifying result: each driver's time in every part they ran, and the gap to pole in the last part they reached.
+  function qualifyingClassification(data, r) {
+    const t = el('table', 'season-table season-mini');
+    t.innerHTML = '<thead><tr><th scope="col" class="num">Pos</th><th scope="col">Driver</th><th scope="col" class="num">Q1</th><th scope="col" class="num">Q2</th><th scope="col" class="num">Q3</th><th scope="col" class="num">Gap</th></tr></thead>';
+    const tb = el('tbody');
+    const pole = r.qualifying.find(x => x.position === 1);
+    for (const q of [...r.qualifying].sort((a, b) => a.position - b.position)) {
+      const tr = el('tr'), d = el('td'); d.append(who(data, q.driver));
+      const part = Number.isFinite(q.q3) ? 'q3' : Number.isFinite(q.q2) ? 'q2' : 'q1';
+      const gap = q.position !== 1 && Number.isFinite(q[part]) && Number.isFinite(pole?.[part]) ? `+${(q[part] - pole[part]).toFixed(3)}` : '';
+      tr.append(el('td', 'num', String(q.position)), d, ...['q1', 'q2', 'q3'].map(k => el('td', 'num', Number.isFinite(q[k]) ? lapTime(q[k]) : '')), el('td', 'num season-muted', gap));
+      tb.append(tr);
+    }
+    t.append(tb);
+    return wrap(t);
+  }
   function classification(data, r) {
     const t = el('table', 'season-table season-mini');
     t.innerHTML = '<thead><tr><th scope="col" class="num">Pos</th><th scope="col">Driver</th><th scope="col" class="num">Grid</th><th scope="col" class="num">+/-</th><th scope="col" class="num">Time / status</th><th scope="col" class="num">Pts</th></tr></thead>';
