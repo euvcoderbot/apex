@@ -901,3 +901,6 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub :is(.season-bar, .season-split-bar, .season-battle-bar > span, .season-h2h-bar) > i,
 #seasonHub .season-battle-bar span i:is(:first-child, :last-child) { border-radius: 2px; }
 #seasonHub .season-split-bar > i + i, #seasonHub .season-battle-bar span i:last-child { opacity: .35; }
+/* Dividers on the season pages are the app's one hairline (tables, rail, cards), not a brighter line of their own; with
+   Increase Contrast the hairline itself strengthens (skins.css). */
+:root[data-skin="linear"] #seasonHub { --line: var(--lin-hairline); }

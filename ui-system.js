@@ -101,7 +101,11 @@
       let name=el.matches('[data-pan="left"]')?'left':el.matches('[data-pan="right"]')?'right':el.matches('[data-zoom="in"],[data-delta-zoom="in"]')?'plus':el.matches('[data-zoom="out"],[data-delta-zoom="out"]')?'minus':el.matches('[data-remove],.remove')?'close':null;
       if(name&&!el.querySelector('[data-ui-symbol]'))el.innerHTML=symbol(name);
       if(el.matches('button')&&(!el.hasAttribute('title')||el.dataset.uiTooltip==='auto')){
-        const label=el.getAttribute('aria-label')||el.textContent.trim();
+        // A tooltip from the button's own text only for a short, plain label: a row-sized button (avatars, figures, bars)
+        // reads as its text run together ("51543COLvs10GAS...").
+        const plain=!el.querySelector('div,img,table,ul,ol,dl,.season-who');
+        const text=el.textContent.replace(/\s+/g,' ').trim();
+        const label=el.getAttribute('aria-label')||(plain&&text.length<=48?text:'');
         if(label){el.title=label;el.dataset.uiTooltip='auto';}
       }
     }
