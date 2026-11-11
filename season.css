@@ -927,10 +927,30 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
    twenty names. */
 :root[data-skin] #seasonHub .season-chart .is-faint-group .end-key { opacity: 0; transition: opacity .12s; }
 :root[data-skin] #seasonHub .season-chart .is-faint-group:hover .end-key, :root[data-skin] #seasonHub .season-chart:has(.is-dim) .is-faint-group:not(.is-dim) .end-key { opacity: 1; }
-/* Power units by manufacturer: a share bar (replacements) with a mark at the grid share; over the mark reads red, under green. */
-#seasonHub .season-makers .season-maker-dot { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; vertical-align: middle; }
-#seasonHub .season-maker-share { min-width: 220px; }
-#seasonHub .season-maker-share .season-bar { position: relative; overflow: visible; background: var(--lin-nav-hover); }
-#seasonHub .season-maker-share small { display: block; margin-top: 5px; color: var(--ui-tertiary); font: 450 11px/1.2 var(--ui-font); }
-#seasonHub .season-maker-share small.is-over { color: #ff6961; }
-#seasonHub .season-maker-share small.is-under { color: #30d158; }
+/* Power units by manufacturer and their reliability: a name with its colour and car count; the replacement share as a bar
+   with a mark at the grid share, its figures beside it and a small over/under chip; per-element figures quieter; failure
+   rates with a bar scaled to the worst. A short list of the failures follows. */
+#seasonHub .season-makers td { height: 44px; }
+#seasonHub .season-maker { white-space: nowrap; }
+#seasonHub .season-maker-dot { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; vertical-align: middle; }
+#seasonHub .season-maker strong { font: 500 13px/1 var(--ui-font); color: var(--ui-label); }
+#seasonHub .season-maker small { margin-left: 8px; color: var(--ui-quaternary); font: 450 12px/1 var(--ui-font); }
+#seasonHub .season-maker-share { display: flex; align-items: center; gap: 14px; min-width: 300px; }
+#seasonHub .season-maker-share .season-bar { position: relative; flex: 1 1 160px; overflow: visible; background: var(--lin-nav-hover); }
+#seasonHub .season-maker-figures { display: inline-flex; align-items: baseline; gap: 8px; flex: 0 0 auto; min-width: 128px; font-variant-numeric: tabular-nums; }
+#seasonHub .season-maker-figures b { font: 500 13px/1 var(--ui-font); color: var(--ui-label); }
+#seasonHub .season-maker-figures small { font: 450 12px/1 var(--ui-font); color: var(--ui-tertiary); }
+#seasonHub .season-maker-figures .season-maker-chip { padding: 2px 6px; border-radius: 9999px; font: 500 11px/1.2 var(--ui-font); }
+#seasonHub .season-maker-figures .season-maker-chip.is-over { color: #ff8a84; background: color-mix(in srgb, #ff6961 14%, transparent); }
+#seasonHub .season-maker-figures .season-maker-chip.is-under { color: #30d158; background: color-mix(in srgb, #30d158 14%, transparent); }
+#seasonHub .season-makers :is(th, td).is-element { color: var(--ui-tertiary); }
+#seasonHub .season-maker-rate { min-width: 120px; }
+#seasonHub .season-maker-rate b { display: inline-block; min-width: 34px; margin-right: 10px; font: 500 13px/1 var(--ui-font); color: var(--ui-label); }
+#seasonHub .season-maker-rate .season-bar { display: inline-flex; width: 70px; vertical-align: middle; background: var(--lin-nav-hover); }
+#seasonHub .season-failures { display: grid; gap: 0; margin: 12px 0 0; padding: 0; list-style: none; }
+#seasonHub .season-failures li { display: grid; grid-template-columns: 56px 44px 120px minmax(0, 1fr); align-items: center; gap: 10px; min-height: 32px; font: 450 12px/1.2 var(--ui-font); color: var(--ui-secondary); box-shadow: inset 0 -1px var(--line); }
+#seasonHub .season-failures strong { font-weight: 500; color: var(--ui-label); }
+#seasonHub .season-failures-wrap { margin-top: 10px; }
+#seasonHub .season-failures-wrap > summary { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--lin-label-border); color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); cursor: pointer; list-style: none; }
+#seasonHub .season-failures-wrap > summary::-webkit-details-marker { display: none; }
+#seasonHub .season-failures-wrap > summary:hover { background: var(--lin-nav-hover); color: var(--ui-label); }

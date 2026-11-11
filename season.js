@@ -1641,26 +1641,95 @@
     list.sort((a, b) => b.replaced / b.cars - a.replaced / a.cars);
     const table = el('table', 'season-table season-makers');
     const head = el('tr');
-    for (const [label, cls] of [['Manufacturer'], ['Cars', 'num'], ['Replacements: share vs grid share'], ['Per car', 'num'], ...pu.elements.map(e => [e, 'num'])]) { const th = el('th', cls || null, label); if (ELEMENT_NAMES[label]) th.title = `${ELEMENT_NAMES[label]}: replacements per car`; head.append(th); }
+    for (const [label, cls] of [['Manufacturer'], ['Share of replacements'], ['Per car', 'num'], ...pu.elements.map(e => [e, 'num is-element'])]) {
+      const th = el('th', cls || null, label); if (ELEMENT_NAMES[label]) th.title = `${ELEMENT_NAMES[label]}: replacements per car`; head.append(th);
+    }
     const thead = el('thead'); thead.append(head); table.append(thead);
     const tb = el('tbody');
     const pct = v => `${Math.round(v * 100)}%`;
     for (const g of list) {
-      const tr = el('tr'), name = el('td'), dot = el('i', 'season-maker-dot'); dot.style.background = teamColour(g.team);
-      name.append(dot, el('strong', null, g.name));
-      const gridShare = g.cars / cars, share = replaced ? g.replaced / replaced : 0;
-      const bar = el('td', 'season-maker-share');
+      const tr = el('tr');
+      tr.append(makerCell(g));
+      const gridShare = g.cars / cars, share = replaced ? g.replaced / replaced : 0, diff = Math.round((share - gridShare) * 100);
+      const cell = el('td', 'season-maker-share');
       const track = el('span', 'season-bar'); const fill = el('i'); fill.style.width = `${share * 100}%`; fill.style.background = teamColour(g.team);
-      const mark = el('b', 'season-bar-mark'); mark.style.left = `${gridShare * 100}%`; mark.title = `Grid share ${pct(gridShare)}`;
+      const mark = el('b', 'season-bar-mark'); mark.style.left = `${gridShare * 100}%`; mark.title = `Share of the cars: ${pct(gridShare)}`;
       track.append(fill, mark);
-      const label = el('small', share > gridShare + .02 ? 'is-over' : share < gridShare - .02 ? 'is-under' : null, `${pct(share)} of replacements · ${pct(gridShare)} of cars`);
-      bar.append(track, label);
-      tr.append(name, el('td', 'num', String(g.cars)), bar, el('td', 'num season-strong', (g.replaced / g.cars).toFixed(1)),
-        ...pu.elements.map(e => el('td', 'num', (g.per[e] / g.cars).toFixed(1))));
+      const figures = el('span', 'season-maker-figures'); figures.append(el('b', null, pct(share)), el('small', null, `cars ${pct(gridShare)}`));
+      if (Math.abs(diff) >= 2) { const chip = el('small', `season-maker-chip ${diff > 0 ? 'is-over' : 'is-under'}`, `${diff > 0 ? '+' : '−'}${Math.abs(diff)} pts`); chip.title = `${Math.abs(diff)} percentage points ${diff > 0 ? 'more' : 'fewer'} replacements than its share of the cars`; figures.append(chip); }
+      cell.append(track, figures);
+      tr.append(cell, el('td', 'num season-strong', (g.replaced / g.cars).toFixed(1)), ...pu.elements.map(e => el('td', 'num is-element', (g.per[e] / g.cars).toFixed(1))));
       tb.append(tr);
     }
     table.append(tb);
-    return card('By manufacturer', wrap(table), el('p', 'season-footnote', `Replacements: elements fitted beyond the first set each car starts with, ${replaced} across ${cars} cars this season. The bar is each manufacturer's share of them; the mark is its share of the cars, so a bar past its mark means more replacements than its number of cars would suggest. Per car figures divide by that manufacturer's cars.`));
+    return card('Power units by manufacturer', el('p', 'season-chart-sub', 'Replacement elements, as a share of the season and per car'), wrap(table),
+      el('p', 'season-footnote', `Replacements: elements fitted beyond the first set each car starts with, ${replaced} across ${cars} cars. The bar is each manufacturer's share of them and the mark its share of the cars; the chip is the difference in percentage points. Per car figures divide by that manufacturer's cars.`));
+  }
+  // A manufacturer's name with its colour and how many cars it supplies.
+  function makerCell(g, unit = 'car') {
+    const td = el('td', 'season-maker'), dot = el('i', 'season-maker-dot'); dot.style.background = teamColour(g.team);
+    td.append(dot, el('strong', null, g.name), el('small', null, `${g.cars} ${unit}${g.cars === 1 ? '' : 's'}`));
+    return td;
+  }
+  // Reported retirement causes that are the power unit's: the engine and its energy, cooling and fuel systems.
+  const PU_CAUSES = /engine|power unit|\bpu\b|battery|\bers\b|energy|mgu|turbo|exhaust|water pressure|oil pressure|oil leak|coolant|overheat|fuel/i;
+  // Power-unit reliability by manufacturer, from this season's race and qualifying results. Rates are per 100 starts, so a
+  // manufacturer with eight cars and one with two compare fairly.
+  function reliabilityCard(data, pu) {
+    const teamMaker = new Map();
+    // Each car's team from its driver (the FIA table's team names do not always resolve: "Atlassian Williams"), its engine from the row.
+    for (const r of pu.rows) { const m = puMaker(r.label), team = data.drivers[r.driver]?.team || r.team; if (m && team) teamMaker.set(team, m); }
+    if (teamMaker.size < 2) return null;
+    const groups = new Map(), failures = [];
+    const group = team => { const m = teamMaker.get(team); if (!m) return null; if (!groups.has(m.name)) groups.set(m.name, {...m, cars: new Set(), starts: 0, finished: 0, pu: 0, mechanical: 0, laps: 0, possible: 0, qualis: 0, noTime: 0}); return groups.get(m.name); };
+    for (const r of data.rounds) {
+      const leaderLaps = Math.max(0, ...r.race.map(x => x.laps || 0));
+      for (const x of r.race) {
+        const g = group(x.team); if (!g) continue;
+        g.cars.add(x.driver);
+        if (x.status === 'Did not start') continue;
+        g.starts++; g.laps += Math.min(x.laps || 0, leaderLaps); g.possible += leaderLaps;
+        if (x.position) g.finished++;
+        else if (x.cause === 'mechanical') {
+          g.mechanical++;
+          if (PU_CAUSES.test(x.cause_text || '')) { g.pu++; failures.push({round: r, x, maker: g.name}); }
+        }
+      }
+      for (const q of r.qualifying) { const g = group(q.team); if (!g) continue; g.qualis++; if (q.q1 == null && q.q2 == null && q.q3 == null) { g.noTime++; failures.push({round: r, x: q, maker: g.name, quali: true}); } }
+    }
+    const list = [...groups.values()].filter(g => g.starts).sort((a, b) => a.pu / a.starts - b.pu / b.starts || a.mechanical / a.starts - b.mechanical / b.starts);
+    if (list.length < 2) return null;
+    const per100 = (n, d) => (d ? (n / d * 100).toFixed(1) : '—');
+    const table = el('table', 'season-table season-makers');
+    const head = el('tr');
+    for (const [label, cls, title] of [['Manufacturer'], ['Race starts', 'num'], ['Finish rate', 'num'], ['PU failures', 'num', 'Race retirements whose reported cause is the power unit (engine, battery, ERS, cooling, fuel)'],
+      ['Per 100 starts', 'num'], ['All car failures', 'num', 'Every mechanical retirement: power unit, gearbox, brakes, suspension, hydraulics…'], ['Per 100 starts', 'num'],
+      ['Distance run', 'num', 'Laps completed as a share of the winner’s laps in the races started'], ['Quali, no time', 'num', 'Qualifying sessions where the car set no time']]) {
+      const th = el('th', cls || null, label); if (title) th.title = title; head.append(th);
+    }
+    const thead = el('thead'); thead.append(head); table.append(thead);
+    const tb = el('tbody');
+    const worst = Math.max(...list.map(g => g.pu / g.starts));
+    for (const g of list) {
+      const tr = el('tr'); tr.append(makerCell({...g, cars: g.cars.size}, 'driver'));
+      const rate = el('td', 'num season-maker-rate'); const bar = el('span', 'season-bar'); const fill = el('i'); fill.style.width = `${worst ? g.pu / g.starts / worst * 100 : 0}%`; fill.style.background = teamColour(g.team); bar.append(fill);
+      rate.append(el('b', null, per100(g.pu, g.starts)), bar);
+      tr.append(el('td', 'num', String(g.starts)), el('td', 'num', `${Math.round(g.finished / g.starts * 100)}%`), el('td', 'num season-strong', String(g.pu)), rate,
+        el('td', 'num', String(g.mechanical)), el('td', 'num', per100(g.mechanical, g.starts)), el('td', 'num', g.possible ? `${(g.laps / g.possible * 100).toFixed(1)}%` : '—'),
+        el('td', 'num', g.qualis ? `${g.noTime} · ${Math.round(g.noTime / g.qualis * 100)}%` : '—'));
+      tb.append(tr);
+    }
+    table.append(tb);
+    // The failures themselves, newest first, folded away so the table stays the main view.
+    const listing = el('ul', 'season-failures');
+    for (const f of failures.sort((a, b) => b.round.round - a.round.round)) {
+      const li = el('li'); li.append(roundMark(f.round), el('strong', null, driverCode(data, f.x.driver)), el('span', 'season-muted', f.maker),
+        el('span', null, f.quali ? 'Qualifying · no time set' : `Race · ${f.x.cause_text}${f.x.laps != null ? ` · lap ${f.x.laps + 1}` : ''}`));
+      listing.append(li);
+    }
+    return card('Power-unit reliability', el('p', 'season-chart-sub', 'Races and qualifying this season, by engine manufacturer; rates per 100 starts'), wrap(table),
+      failures.length ? (() => { const d = el('details', 'season-failures-wrap'); d.append(el('summary', null, `Show the ${failures.length} failures`), listing); return d; })() : null,
+      el('p', 'season-footnote', 'Failures come from the reported retirement causes in each race classification: a power-unit failure is one blamed on the engine, battery or ERS, cooling or fuel; car failures add the gearbox, brakes, suspension, hydraulics and the rest. Sprints carry no causes and are not counted. A car with no time in qualifying usually could not run; the cause is not published. Rates divide by race starts, so manufacturers with different numbers of cars compare fairly.'));
   }
   function renderUnits(data, pu) {
     const rows = pu.rows.map(r => ({...r, total: pu.elements.reduce((s, e) => s + (r.elements[e] || 0), 0)})).sort((x, y) => y.total - x.total);
@@ -1691,7 +1760,7 @@
     const src = el('a', 'season-link', 'FIA document'); src.href = pu.document; src.target = '_blank'; src.rel = 'noopener';
     const note = el('p', 'season-footnote');
     note.append(`Elements each driver has used this season, as of ${pu.round_name || 'the latest Grand Prix'}${pu.round ? ` (R${pu.round})` : ''}. Shading compares each driver with the field's lowest count for that element; it does not show penalties or allocation limits. `, src);
-    const out = [card(null, wrap(table), legend, note), manufacturerCard(data, pu)].filter(Boolean);
+    const out = [card(null, wrap(table), legend, note), manufacturerCard(data, pu), reliabilityCard(data, pu)].filter(Boolean);
     const history = (pu.history || []).filter(h => h.round);
     if (history.length > 1) {
       const hist = el('table', 'season-table season-matrix season-grid');
