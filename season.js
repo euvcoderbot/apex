@@ -181,6 +181,10 @@
     mark.append(el('small', null, code(round.round)));
     return mark;
   }
+  // Rounds still to run (no race result yet) stay in every round-by-round grid as empty boxes, so each shows the whole calendar.
+  const notRun = r => !r.race.length;
+  const notRunNote = r => `${r.name}: ${r.status === 'awaiting' ? 'awaiting results' : 'not run yet'}`;
+  function upcomingCell(r, tag = 'td', cls = 'num') { const c = el(tag, `${cls} is-upcoming`); c.title = notRunNote(r); return c; }
   function who(data, id, {code = false, team = true, family = false} = {}) {
     const span = el('span', 'season-who');
     const t = data.drivers[id]?.team;
@@ -801,7 +805,7 @@
   }
   function resultsMatrix(data, drivers, table, points = !drivers) {
     const key = drivers ? 'driver' : 'team';
-    const rounds = data.rounds.filter(r => r.race.length);
+    const rounds = data.rounds;
     const t = el('table', 'season-table season-matrix season-grid');
     const head = el('tr'); head.append(el('th', null, drivers ? 'Driver' : 'Constructor'));
     for (const r of rounds) { const th = el('th', 'num'); th.append(roundMark(r)); head.append(th); }
@@ -813,6 +817,7 @@
       const tr = el('tr'); tr.dataset.id = e.id;
       const name = el('th'); name.append(drivers ? who(data, e.id, {code: true, team: false}) : teamTag(data, e.id)); tr.append(name);
       for (const r of rounds) {
+        if (notRun(r)) { tr.append(upcomingCell(r)); continue; }
         const td = el('td', 'num');
         if (!points) {
           const row = r.race.find(x => x.driver === e.id), sprint = r.sprint.find(x => x.driver === e.id);
@@ -839,8 +844,8 @@
   }
   // Each team's best qualifying lap against pole, per round.
   function qualiPace(data) {
-    const rounds = data.rounds.filter(r => r.qualifying.length);
-    if (!rounds.length) return null;
+    if (!data.rounds.some(r => r.qualifying.length)) return null;
+    const rounds = data.rounds.filter(r => r.qualifying.length || notRun(r));
     const teams = Object.keys(data.teams);
     // The same definition as Car performance: each team's fastest lap in any part of qualifying against the fastest lap
     // anyone set (not necessarily the pole-sitter's), as % of that lap; across rounds, the median.
@@ -861,6 +866,7 @@
     for (const t of order) {
       const tr = el('tr'); const name = el('th'); name.append(teamTag(data, t)); tr.append(name);
       gaps[t].forEach((g, i) => {
+        if (!rounds[i].qualifying.length) { tr.append(upcomingCell(rounds[i])); return; }
         const td = el('td', 'num');
         if (Number.isFinite(g)) {
           td.textContent = g < .0005 ? 'Best' : g.toFixed(2);
@@ -1190,6 +1196,13 @@
       cell.append(head, el('b', null, Number.isFinite(n) ? String(n) : '–'), el('span', 'season-strip-status', status || ' '));
       strip.append(cell);
     }
+    for (const r of data.rounds.filter(notRun)) {
+      const cell = el('div', 'season-strip-cell is-upcoming'), head = el('small'), f = flag(r); cell.title = notRunNote(r);
+      if (f) head.append(f);
+      head.append(code(r.round));
+      cell.append(head, el('b'), el('span', 'season-strip-status'));
+      strip.append(cell);
+    }
     const counts = s.finish_counts, maxCount = Math.max(1, ...Object.values(counts));
     const dist = el('div', 'season-dist'); dist.style.setProperty('--team', teamColour(data.drivers[id]?.team));
     for (let p = 1; p <= 22; p++) {
@@ -1337,6 +1350,15 @@
       }
       weeks.append(cell);
     }
+    for (const r of data.rounds.filter(notRun)) {
+      const cell = el('div', 'is-upcoming'); cell.title = notRunNote(r);
+      cell.append(roundMark(r), el('i'), el('i'));
+      weeks.append(cell);
+    }
+    // Whose colour is whose: the dots carry no names.
+    const weekKey = el('div', 'season-legend season-week-key');
+    for (const [id, colour] of [[a, ca], [b, cb]]) { const k = el('span', 'is-dot', driverCode(data, id)); k.style.setProperty('--tone', colour); k.dataset.tone = 'custom'; k.title = driverName(data, id); weekKey.append(k); }
+    if (result.weekends.some(w => w.raceMechanical)) weekKey.append(el('span', 'is-ring', 'Other car failed'));
     const battles = el('div', 'season-battles');
     // Column headings, and one line saying how to read a row: numbers and bars follow the order of the names.
     const heads = el('div', 'season-battle-head', null); heads.setAttribute('aria-hidden', 'true');
@@ -1360,8 +1382,8 @@
       }
       battles.append(row);
     }
-    return [toolbar, hero, card(null, rows), h2hExtras(data, a, b, ca, cb), card('Weekend by weekend', weeks, el('p', 'season-footnote', 'Top dot qualifying, bottom dot race, in the colour of whoever finished ahead. A classified finish beats a retirement; two retirements count for neither. A ring marks a race decided by the other car failing, where the reported cause was mechanical.')),
-      card('Every teammate battle', el('p', 'season-footnote', 'Weekends each driver finished ahead of their teammate. Numbers and bars follow the order of the names: the first driver on the left, the second on the right.'), battles)];
+    return [toolbar, hero, card(null, rows), h2hExtras(data, a, b, ca, cb), card('Weekend by weekend', weekKey, weeks, el('p', 'season-footnote', 'Top dot qualifying, bottom dot race, in the colour of whoever finished ahead. A classified finish beats a retirement; two retirements count for neither. A ring marks a race decided by the other car failing, where the reported cause was mechanical. Empty boxes are the rounds still to run.')),
+      card('Every teammate battle', battles, el('p', 'season-footnote', 'Weekends each driver finished ahead of their teammate: the first-named driver’s count on the left, the second’s on the right.'))];
   }
   function h2hExtras(data, a, b, ca, cb) {
     const rounds = data.rounds.filter(r => r.race.length);
@@ -1456,6 +1478,8 @@
     const matrix = el('table', 'season-table season-matrix');
     const headRow = el('tr'); headRow.append(el('th', null, ''));
     for (const r of roundsWith) { const th = el('th', 'num'); const round = data.rounds.find(x => x.round === r); th.append(round ? roundMark(round) : document.createTextNode(code(r))); headRow.append(th); }
+    const ahead = data.rounds.filter(r => notRun(r) && !roundsWith.includes(r.round));
+    for (const r of ahead) { const th = el('th', 'num'); th.append(roundMark(r)); headRow.append(th); }
     const thead = el('thead'); thead.append(headRow); matrix.append(thead);
     const mbody = el('tbody'); const maxCell = Math.max(1, ...teams.flatMap(t => roundsWith.map(r => items.filter(i => i.team === t && i.round === r).length)));
     for (const t of teams) {
@@ -1465,6 +1489,7 @@
         if (n) { td.textContent = String(n); td.style.setProperty('--heat', String(.15 + .85 * n / maxCell)); td.style.setProperty('--team', teamColour(t)); td.classList.add('is-heat'); }
         tr.append(td);
       }
+      for (const r of ahead) tr.append(upcomingCell(r));
       mbody.append(tr);
     }
     matrix.append(mbody);
@@ -1541,7 +1566,9 @@
     if (history.length > 1) {
       const hist = el('table', 'season-table season-matrix season-grid');
       const hrow = el('tr'); hrow.append(el('th', null, 'Driver'));
-      for (const h of history) { const th = el('th', 'num'); const r = data.rounds.find(x => x.round === h.round); const f = r && flag(r); th.title = h.round_name; if (f) th.append(f); else th.textContent = `R${h.round}`; hrow.append(th); }
+      for (const h of history) { const th = el('th', 'num'); const r = data.rounds.find(x => x.round === h.round); th.title = h.round_name; if (r) th.append(roundMark(r)); else th.textContent = `R${h.round}`; hrow.append(th); }
+      const ahead = data.rounds.filter(r => notRun(r) && !history.some(h => h.round === r.round));
+      for (const r of ahead) { const th = el('th', 'num'); th.append(roundMark(r)); hrow.append(th); }
       const hhead = el('thead'); hhead.append(hrow); hist.append(hhead);
       const hb = el('tbody');
       const maxNew = Math.max(1, ...history.flatMap(h => Object.values(h.new || {})));
@@ -1556,6 +1583,7 @@
           else td.title = `${h.round_name}: no new elements`;
           tr.append(td);
         });
+        for (const r of ahead) tr.append(upcomingCell(r));
         hb.append(tr);
       }
       hist.append(hb);

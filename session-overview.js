@@ -61,12 +61,38 @@
   }
 
   // Teammates share a team colour: the second driver of a colour in a chart is drawn dashed with hollow points, so the two
-  // can be told apart without leaving the team's colour (identity) for something arbitrary.
+  // can be told apart without leaving the team's colour (identity) for something arbitrary. A colour picked from a legend
+  // dot (chartColours) replaces the team colour for that driver, and then the line is solid.
+  const chartColours = new Map();
+  const colourOf = code => chartColours.get(code) || getDriverColor(code);
   function styleFor(codes) {
     const seen = new Set(), out = new Map();
-    for (const code of codes) { const c = getDriverColor(code); out.set(code, {colour: c, dashed: seen.has(c)}); seen.add(c); }
+    for (const code of codes) { const c = colourOf(code); out.set(code, {colour: c, dashed: seen.has(c)}); seen.add(c); }
     return out;
   }
+  // A legend entry: the dot is a colour picker (the native input sits on top of it, invisible), the name says who.
+  const legendItem = (code, style) => `<span class="overview-legend-item"><label class="overview-swatch${style.dashed ? ' is-dashed' : ''}" style="--c:${esc(style.colour)}" title="Change ${esc(code)}’s colour"><input type="color" value="${esc(toHex(style.colour))}" data-chart-colour="${esc(code)}" aria-label="Change ${esc(code)}’s chart colour"></label>${esc(code)}</span>`;
+  function toHex(colour) {
+    if (/^#[0-9a-f]{6}$/i.test(colour)) return colour;
+    if (/^#[0-9a-f]{3}$/i.test(colour)) return '#' + [...colour.slice(1)].map(c => c + c).join('');
+    const m = String(colour).match(/rgba?\((\d+)[ ,]+(\d+)[ ,]+(\d+)/);
+    return m ? '#' + m.slice(1, 4).map(v => Number(v).toString(16).padStart(2, '0')).join('') : '#777777';
+  }
+
+  // Slow laps (hidden unless asked for): over 107% of the driver's best lap on the same kind of tyre. Intermediates and
+  // full wets are compared with the driver's best wet-tyre lap, slicks with the best slick lap, so a wet stint is not
+  // hidden as slow just because the track later dried. Safety-car and red-flag laps still fall outside 107%.
+  const tyreKind = lap => (/INTER|WET/i.test(String(lap.compound || '')) ? 'wet' : 'slick');
+  function representative(laps) {
+    const best = {wet: bestOf(laps.filter(l => tyreKind(l) === 'wet'), 'time'), slick: bestOf(laps.filter(l => tyreKind(l) === 'slick'), 'time')};
+    return lap => lap.time <= (best[tyreKind(lap)] ?? Infinity) * 1.07;
+  }
+
+  // ---------- hover readout shared by the three charts ----------
+  // Each chart registers, per lap, a line for every driver shown; hovering anywhere over the plot picks the nearest lap,
+  // draws a guide line there and lists the values, sorted as the chart reads (fastest, nearest the leader, best place first).
+  const hoverCharts = new Map();
+  function registerHover(id, spec) { hoverCharts.set(id, spec); return `data-hover="${id}"`; }
 
   // ---------- lap chart ----------
   function chartDrivers() {
@@ -80,8 +106,8 @@
     const styles = styleFor(codes);
     const series = codes.map(code => {
       const d = realDrivers.get(code), laps = (d?.laps || []).filter(timed);
-      const best = bestOf(laps, 'time');
-      return {code, colour: getDriverColor(code), dashed: styles.get(code)?.dashed, laps: laps.filter(l => showSlowLaps || l.time <= best * 1.07)};
+      const keep = representative(laps);
+      return {code, colour: styles.get(code).colour, dashed: styles.get(code)?.dashed, laps: laps.filter(l => showSlowLaps || keep(l))};
     }).filter(s => s.laps.length);
     if (!series.length) return '<p class="section-empty">No timed laps for these drivers.</p>';
     const all = series.flatMap(s => s.laps);
@@ -93,7 +119,11 @@
     const W = chartWidth(), H = 240, L = 48, R = 12, T = 10, B = 26;
     const x = lap => L + (lapHi === lapLo ? (W - L - R) / 2 : (lap - lapLo) / (lapHi - lapLo) * (W - L - R));
     const y = t => T + (yHi - t) / ((yHi - yLo) || 1) * (H - T - B);
-    let svg = `<svg class="overview-lap-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Lap times by lap for ${esc(codes.join(', '))}">`;
+    const hover = registerHover('laps', {W, H, L, R, T, B, lapLo, lapHi, title: lap => `Lap ${lap}`, rows: lap => series.map(s => {
+      const l = s.laps.find(z => z.lap === lap);
+      return l && {code: s.code, colour: s.colour, hollow: s.dashed, value: l.time, text: `${fmtLap(l.time)}${l.compound ? ` · ${String(l.compound).charAt(0)}${Number.isFinite(l.tyre_life) ? ` ${l.tyre_life}` : ''}` : ''}`};
+    }).filter(Boolean).sort((a, b) => a.value - b.value)});
+    let svg = `<svg class="overview-lap-chart" ${hover} viewBox="0 0 ${W} ${H}" role="img" aria-label="Lap times by lap for ${esc(codes.join(', '))}">`;
     // Tick labels carry only the decimals the step needs: 1:16 for whole seconds, 1:16.5 for halves, 1:16.25 for quarters.
     const decimals = step >= 1 ? 0 : step >= .5 ? 1 : 2;
     const tick = t => { const m = Math.floor(t / 60), sec = t - m * 60; return `${m}:${sec.toFixed(decimals).padStart(decimals ? 3 + decimals : 2, '0')}`; };
@@ -105,13 +135,13 @@
       svg += `<polyline class="line${s.dashed ? ' is-dashed' : ''}" points="${pts}" style="stroke:${esc(s.colour)}"/>`;
       for (const l of s.laps) {
         const isLoaded = loaded.some(item => item.code === s.code && item.lap === l.lap);
-        svg += `<circle class="point${isLoaded ? ' is-loaded' : ''}${s.dashed ? ' is-hollow' : ''}" style="--c:${esc(s.colour)}" cx="${x(l.lap).toFixed(1)}" cy="${y(l.time).toFixed(1)}" r="${isLoaded ? 5 : 3.5}" data-code="${esc(s.code)}" data-lap="${l.lap}" tabindex="0" role="button" aria-label="${esc(`${s.code} lap ${l.lap}, ${fmtLap(l.time)}${l.compound ? `, ${l.compound}` : ''}. ${isLoaded ? 'In the comparison; select to remove' : 'Select to compare'}`)}"><title>${esc(`${s.code} · lap ${l.lap} · ${fmtLap(l.time)}${l.compound ? ` · ${l.compound}` : ''}${Number.isFinite(l.tyre_life) ? ` (${l.tyre_life} laps old)` : ''}`)}</title></circle>`;
+        svg += `<circle class="point${isLoaded ? ' is-loaded' : ''}${s.dashed ? ' is-hollow' : ''}" style="--c:${esc(s.colour)}" cx="${x(l.lap).toFixed(1)}" cy="${y(l.time).toFixed(1)}" r="${isLoaded ? 5 : 3.5}" data-code="${esc(s.code)}" data-lap="${l.lap}" tabindex="0" role="button" aria-label="${esc(`${s.code} lap ${l.lap}, ${fmtLap(l.time)}${l.compound ? `, ${l.compound}` : ''}. ${isLoaded ? 'In the comparison; select to remove' : 'Select to compare'}`)}"/>`;
       }
     }
     svg += '</svg>';
-    const legend = series.map(s => `<span><i class="${s.dashed ? 'is-dashed' : ''}" style="--c:${esc(s.colour)}"></i>${esc(s.code)}</span>`).join('');
+    const legend = series.map(s => legendItem(s.code, styles.get(s.code))).join('');
     return `<div class="overview-legend">${legend}<button type="button" class="overview-slow-toggle" aria-pressed="${showSlowLaps}">${showSlowLaps ? 'Hide slow laps' : 'Show slow laps'}</button></div>${svg}
-      <p class="overview-note">${selected.length ? 'The drivers chosen in the list' : 'The top three'}; laps over 107% of a driver’s best are ${showSlowLaps ? 'shown' : 'hidden'}. Select a point to add that lap to the comparison.</p>`;
+      <p class="overview-note">${selected.length ? 'The drivers chosen in the list' : 'With no driver chosen in the list, the top three finishers'}; laps over 107% of a driver’s best on the same kind of tyre (slick or wet) are ${showSlowLaps ? 'shown' : 'hidden'}. Select a point to add that lap to the comparison; select a colour dot to change a driver’s colour.</p>`;
   }
 
   // ---------- race: gap to the leader and position, lap by lap ----------
@@ -154,10 +184,12 @@
     const H1 = 220, cap = Math.min(60, Math.max(5, ...shown.flatMap(r => [...r.gaps.values()]).filter(Number.isFinite)));
     const step1 = [1, 2, 5, 10, 20].find(st => cap / st <= 6) || 30, top1 = Math.ceil(cap / step1) * step1;
     const y1 = v => T + Math.min(v, top1) / top1 * (H1 - T - B);
-    let gap = `<svg class="overview-lap-chart" viewBox="0 0 ${W} ${H1}" role="img" aria-label="Gap to the race leader by lap">`;
+    const span = {W, L, R, T, B, lapLo: 1, lapHi: progress.laps, title: lap => `Lap ${lap}`};
+    const gapHover = registerHover('gap', {...span, H: H1, rows: lap => shown.map(r => r.gaps.has(lap) && {code: r.code, colour: colourOf(r.code), hollow: styles.get(r.code)?.dashed, value: r.gaps.get(lap), text: r.gaps.get(lap) < .0005 ? 'Leader' : `+${r.gaps.get(lap).toFixed(3)} s`}).filter(Boolean).sort((a, b) => a.value - b.value)});
+    let gap = `<svg class="overview-lap-chart" ${gapHover} viewBox="0 0 ${W} ${H1}" role="img" aria-label="Gap to the race leader by lap">`;
     for (let v = 0; v <= top1 + 1e-9; v += step1) gap += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y1(v).toFixed(1)}" y2="${y1(v).toFixed(1)}"/><text class="axis" x="${L - 6}" y="${(y1(v) + 3.5).toFixed(1)}" text-anchor="end">${v ? `+${v}s` : 'Leader'}</text>`;
     for (const r of shown) {
-      const colour = esc(getDriverColor(r.code)), last = [...r.gaps.entries()].at(-1), dash = styles.get(r.code)?.dashed ? ' is-dashed' : '';
+      const colour = esc(colourOf(r.code)), last = [...r.gaps.entries()].at(-1), dash = styles.get(r.code)?.dashed ? ' is-dashed' : '';
       gap += `<path class="line is-solid${dash}" d="${path(r.gaps, y1)}" style="stroke:${colour}"/>`;
       if (last) gap += `<text class="label" x="${(x(last[0]) + 4).toFixed(1)}" y="${(y1(last[1]) + 3.5).toFixed(1)}" style="fill:${colour}">${esc(r.code)}</text>`;
     }
@@ -165,10 +197,11 @@
     // Position by lap, every driver in the session, the chosen ones in full colour.
     const n = progress.rows.length, H2 = Math.max(200, n * 12 + T + B);
     const y2 = p => T + (p - 1) / Math.max(1, n - 1) * (H2 - T - B);
-    let pos = `<svg class="overview-lap-chart" viewBox="0 0 ${W} ${H2}" role="img" aria-label="Position by lap">`;
+    const posHover = registerHover('position', {...span, H: H2, rows: lap => shown.map(r => r.positions.has(lap) && {code: r.code, colour: colourOf(r.code), hollow: styles.get(r.code)?.dashed, value: r.positions.get(lap), text: `P${r.positions.get(lap)}`}).filter(Boolean).sort((a, b) => a.value - b.value)});
+    let pos = `<svg class="overview-lap-chart" ${posHover} viewBox="0 0 ${W} ${H2}" role="img" aria-label="Position by lap">`;
     for (const p of [1, 5, 10, 15, 20].filter(p => p <= n)) pos += `<text class="axis" x="${L - 6}" y="${(y2(p) + 3.5).toFixed(1)}" text-anchor="end">P${p}</text>`;
     for (const r of [...progress.rows].sort((a, b) => codes.includes(a.code) - codes.includes(b.code))) {
-      const colour = esc(getDriverColor(r.code)), chosen = codes.includes(r.code), last = [...r.positions.entries()].at(-1);
+      const colour = esc(codes.includes(r.code) ? colourOf(r.code) : getDriverColor(r.code)), chosen = codes.includes(r.code), last = [...r.positions.entries()].at(-1);
       pos += `<path class="line is-solid${chosen ? (styles.get(r.code)?.dashed ? ' is-dashed' : '') : ' is-faint'}" d="${path(r.positions, y2)}" style="stroke:${colour}"/>`;
       if (last && chosen) pos += `<text class="label" x="${(x(last[0]) + 4).toFixed(1)}" y="${(y2(last[1]) + 3.5).toFixed(1)}" style="fill:${colour}">${esc(r.code)}</text>`;
     }
@@ -235,6 +268,33 @@
     if (point) { toggleLoadedLap(point.dataset.code, Number(point.dataset.lap)); return; }
     if (event.target.closest?.('#sessionOverview .overview-slow-toggle')) { showSlowLaps = !showSlowLaps; renderSessionOverview(); }
   });
+  host.addEventListener('change', event => {
+    const input = event.target.closest?.('#sessionOverview input[data-chart-colour]');
+    if (input) { chartColours.set(input.dataset.chartColour, input.value); renderSessionOverview(); }
+  });
+  // The hover card: nearest lap under the pointer, a guide line on that lap and the values of every driver shown.
+  let tip = null;
+  const hideHover = () => { if (tip) tip.hidden = true; host.querySelectorAll?.('.hover-guide').forEach(g => g.remove()); };
+  host.addEventListener('pointermove', event => {
+    const svg = event.target.closest?.('#sessionOverview svg[data-hover]'), spec = svg && hoverCharts.get(svg.dataset.hover);
+    if (!spec) { hideHover(); return; }
+    const box = svg.getBoundingClientRect(), vx = (event.clientX - box.left) * spec.W / box.width;
+    const span = spec.W - spec.L - spec.R, laps = spec.lapHi - spec.lapLo;
+    const lap = Math.round(spec.lapLo + Math.min(1, Math.max(0, (vx - spec.L) / span)) * laps);
+    const rows = spec.rows(lap);
+    if (!rows.length) { hideHover(); return; }
+    const gx = spec.L + (laps ? (lap - spec.lapLo) / laps * span : span / 2);
+    let guide = svg.querySelector('.hover-guide');
+    if (!guide) { guide = document.createElementNS(SVG, 'line'); guide.setAttribute('class', 'hover-guide'); svg.prepend(guide); }
+    for (const [k, v] of Object.entries({x1: gx, x2: gx, y1: spec.T, y2: spec.H - spec.B})) guide.setAttribute(k, v.toFixed(1));
+    if (!tip) { tip = document.createElement('div'); tip.className = 'tooltip overview-tip'; tip.setAttribute('role', 'tooltip'); document.body.append(tip); }
+    tip.innerHTML = `<b>${esc(spec.title(lap))}</b>${rows.map(r => `<span><i class="${r.hollow ? 'is-hollow' : ''}" style="--c:${esc(r.colour)}"></i>${esc(r.code)}<em>${esc(r.text)}</em></span>`).join('')}`;
+    tip.hidden = false;
+    const w = tip.offsetWidth, h = tip.offsetHeight, px = box.left + gx * box.width / spec.W;
+    tip.style.left = `${px + 14 + w > innerWidth - 8 ? px - 14 - w : px + 14}px`;
+    tip.style.top = `${Math.min(innerHeight - h - 8, Math.max(8, event.clientY - h / 2))}px`;
+  });
+  host.addEventListener('pointerleave', hideHover);
   host.addEventListener('keydown', event => {
     const point = event.target.closest?.('#sessionOverview .point');
     if (point && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); toggleLoadedLap(point.dataset.code, Number(point.dataset.lap)); }

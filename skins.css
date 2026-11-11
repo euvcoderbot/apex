@@ -2285,10 +2285,38 @@
    two never run together (spec §2: meta 450 12). */
 :root[data-skin="linear"] .lap-summary-card .summary-tyre { gap: 6px; }
 :root[data-skin="linear"] .lap-summary-card .summary-tyre-copy { display: inline-flex; align-items: baseline; gap: 6px; }
-:root[data-skin="linear"] .lap-summary-card .summary-tyre-copy b { font: 500 12px/1.3 var(--ui-font); }
-:root[data-skin="linear"] .lap-summary-card .summary-tyre-copy small { color: var(--ui-tertiary); font: 450 12px/1.3 var(--ui-font); }
+/* The tyre line sits under the driver line: badge and text two pixels smaller than the driver row (user request), so the
+   two rows never touch on the narrower cards. */
+:root[data-skin="linear"] .lap-summary-card .summary-tyre-copy b { font: 500 10px/1.3 var(--ui-font); }
+:root[data-skin="linear"] .lap-summary-card .summary-tyre-copy small { color: var(--ui-tertiary); font: 450 10px/1.3 var(--ui-font); }
+:root[data-skin="linear"] .telemetry-content .sector-cards .lap-summary-card .summary-tyre .compound-badge { width: 16px; height: 16px; min-width: 16px; flex: 0 0 16px; }
 :root[data-skin="linear"] .lap-summary-card .summary-tyre-copy small::before { content: "·"; margin-right: 6px; color: var(--ui-quaternary); }
 /* One type style per button role (spec §8): icon buttons carry the pill's 500 12 (their glyph sizes come from the icon), the
    comparison chip's lap label and its remove button read in 500 12 like the other small pills. */
 :root[data-skin="linear"] :is(.site-header #windowSidebarToggle, .site-header .workspace-tools > button, #linearWorkspace .linear-search) { font: 500 12px/1 var(--ui-font); }
 :root[data-skin="linear"] #loadedLaps .loaded-lap-pill > :is(.loaded-lap-main, .remove) { font-family: var(--ui-font); font-weight: 500; font-size: 12px; }
+/* Chart-key pills share one design, the lap chart's legend and the trace toggles above the telemetry alike: Linear's 24 px
+   label pill with an inset hairline, a colour dot that opens a colour picker, the driver code and (traces) the lap time.
+   A hidden trace dims its pill; the second driver of a team colour has a hollow dot, as the chart draws their points. */
+:root[data-skin="linear"] :is(.trace-pill-group, .overview-legend > .overview-legend-item) { display: inline-flex; align-items: center; gap: 6px; height: 24px; min-height: 0; padding: 0 9px 0 8px; border: 0; border-radius: 9999px; background: none; box-shadow: inset 0 0 0 1px var(--lin-label-border); font: 500 12px/1 var(--ui-font); color: var(--ui-secondary); }
+:root[data-skin="linear"] .trace-pill-group:has(input[data-trace-key]:not(:checked)) { opacity: .45; }
+:root[data-skin="linear"] .trace-pill-group:has(input:focus-visible) { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
+:root[data-skin="linear"] .trace-pill-group .trace-driver-chip { position: relative; display: inline-flex; align-items: center; gap: 6px; height: auto; min-height: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; font: inherit; color: var(--ui-label); cursor: pointer; }
+:root[data-skin="linear"] .trace-pill-group .trace-driver-chip input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+:root[data-skin="linear"] .trace-pill-group .trace-driver-chip b { font: inherit; color: var(--ui-label); }
+:root[data-skin="linear"] .trace-pill-group .trace-driver-chip small { font: 500 12px/1 var(--ui-font); color: var(--ui-tertiary); font-variant-numeric: tabular-nums; }
+:root[data-skin="linear"] :is(.trace-pill-group .trace-swatch, .overview-swatch) { position: relative; flex: 0 0 8px; width: 8px; height: 8px; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 50%; background: var(--c, var(--team)); box-shadow: none; cursor: pointer; }
+:root[data-skin="linear"] .overview-swatch.is-dashed { background: none; box-shadow: inset 0 0 0 1.5px var(--c); }
+:root[data-skin="linear"] :is(.trace-pill-group .trace-swatch, .overview-swatch) input { position: absolute; inset: -6px; width: 20px; height: 20px; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }
+:root[data-skin="linear"] :is(.trace-pill-group .trace-swatch, .overview-swatch):hover { box-shadow: 0 0 0 3px color-mix(in srgb, var(--c, var(--team)) 30%, transparent); }
+:root[data-skin="linear"] .overview-swatch.is-dashed:hover { box-shadow: inset 0 0 0 1.5px var(--c), 0 0 0 3px color-mix(in srgb, var(--c) 30%, transparent); }
+:root[data-skin="linear"] :is(.trace-pill-group .trace-swatch, .overview-swatch):focus-within { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
+/* Hover readout of the session charts: a guide line on the lap under the pointer, and a card listing every driver shown. */
+:root[data-skin="linear"] #sessionOverview .hover-guide { stroke: var(--ui-tertiary); stroke-width: 1; stroke-dasharray: 2 3; pointer-events: none; }
+:root[data-skin="linear"] .overview-tip { position: fixed; z-index: 1000; display: grid; gap: 4px; min-width: 150px; padding: 8px 10px; pointer-events: none; font: 500 12px/1.3 var(--ui-font); color: var(--ui-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+:root[data-skin="linear"] .overview-tip b { margin-bottom: 2px; color: var(--ui-label); font-weight: 600; }
+:root[data-skin="linear"] .overview-tip span { display: flex; align-items: center; gap: 6px; }
+:root[data-skin="linear"] .overview-tip i { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+:root[data-skin="linear"] .overview-tip em { margin-left: auto; padding-left: 12px; color: var(--ui-label); font-style: normal; }
+:root[data-skin="linear"] .overview-tip[hidden] { display: none; }
+:root[data-skin="linear"] .overview-tip i.is-hollow { background: none; box-shadow: inset 0 0 0 1.5px var(--c); }

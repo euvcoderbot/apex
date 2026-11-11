@@ -854,3 +854,30 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 /* Weekend-by-weekend cells: room between the race label (flag and code) and the finishing place. */
 #seasonHub .season-strip-cell { gap: 8px; }
 #seasonHub .season-strip-cell small { margin-bottom: 2px; }
+/* Rounds still to run: an empty box in every round-by-round grid, strip and dot row, so each shows the whole calendar. */
+:root #seasonHub .season-matrix td.is-upcoming { padding: 2px; background: none; }
+:root #seasonHub .season-matrix td.is-upcoming::before { content: ""; display: block; min-width: 30px; height: 26px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--line); }
+:root[data-skin] #seasonHub :is(.season-strip-cell, .season-h2h-weeks > div).is-upcoming { background: none; box-shadow: inset 0 0 0 1px var(--line); }
+:root[data-skin] #seasonHub .season-h2h-weeks > .is-upcoming i { background: none; box-shadow: inset 0 0 0 1px var(--line); }
+:root[data-skin] #seasonHub .season-strip-cell.is-upcoming small { opacity: .6; }
+/* The key above the head-to-head weekend dots: each driver's dot colour, and the ring for a race the other car lost to a failure. */
+#seasonHub .season-week-key { margin: 0 0 12px; color: var(--ui-secondary); font: 500 12px/1 var(--ui-font); }
+#seasonHub .season-week-key span[data-tone].is-dot::before { width: 10px; height: 10px; border-radius: 50%; }
+#seasonHub .season-week-key .is-ring::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--ui-border-strong, var(--ui-border)); box-shadow: 0 0 0 1.5px var(--ui-panel), 0 0 0 2.5px var(--ui-tertiary); }
+/* Grid tiles share one line design: crisp 1 px borders between cells (borders snap to device pixels; shadows on fractional
+   cell edges do not), with the outer edge left to the card's own border. Each cell overlaps its neighbour by its border and
+   the container clips the last column and row, so every line is one pixel wide. */
+:root #seasonHub :is(.season-tiles, .season-facts, .season-numbers) { gap: 0; overflow: hidden; }
+:root #seasonHub :is(.season-tiles, .season-facts, .season-numbers) > div { margin: 0 -1px -1px 0; border: 0 solid var(--line); border-width: 0 1px 1px 0; border-radius: 0; background: none; box-shadow: none; }
+:root #seasonHub .season-upgrades-head > .season-numbers { padding: 0; border-bottom: 1px solid var(--line); }
+:root #seasonHub .season-upgrades-head > .season-numbers > div, :root #seasonHub .season-upgrades-head > .season-numbers > div:first-child { padding: 14px 16px; }
+/* Teammate battles: the Qualifying and Race headings sit centred over their bars, which they name. */
+#seasonHub .season-battle-head > span:nth-child(n + 3) { text-align: center; }
+/* Tiles: every value on the same line whether or not a note follows it. */
+#seasonHub .season-tile { align-content: start; }
+/* The whole calendar fits one row of the weekend strip on a desktop. */
+#seasonHub .season-strip { grid-template-columns: repeat(auto-fit, minmax(40px, 1fr)); }
+/* The next circuit: the outline fills its column, centred against the facts beside it. */
+#seasonHub .season-next-circuit { grid-template-columns: minmax(104px, 132px) minmax(0, 1fr); align-items: center; }
+#seasonHub .season-next-circuit > .season-track.is-hero { justify-self: center; width: 100%; height: auto; max-height: 150px; aspect-ratio: 1; }
+#seasonHub .season-next-circuit > h3 { align-self: start; }
