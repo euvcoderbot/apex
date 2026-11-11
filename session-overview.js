@@ -117,8 +117,10 @@
     }
     const styles = styleFor(codes);
     const series = codes.map(code => {
-      const d = realDrivers.get(code), laps = (d?.laps || []).filter(timed);
-      const keep = representative(laps);
+      // Every lap with a time is a candidate, pit in- and out-laps included (so a stop is not a gap in the line); the
+      // driver's bests come from representative laps only, and a pit lap is kept when it passes the same slow-lap test.
+      const d = realDrivers.get(code), laps = (d?.laps || []).filter(l => Number.isFinite(l?.time) && l.time > 0 && !l.deleted);
+      const keep = representative(laps.filter(timed));
       return {code, colour: styles.get(code).colour, dashed: styles.get(code)?.dashed, laps: laps.filter(l => showSlowLaps || keep(l))};
     }).filter(s => s.laps.length);
     if (!series.length) return '<p class="section-empty">No timed laps for these drivers.</p>';
@@ -133,7 +135,7 @@
     const y = t => T + (yHi - t) / ((yHi - yLo) || 1) * (H - T - B);
     const hover = registerHover('laps', {W, H, L, R, T, B, lapLo, lapHi, title: lap => `Lap ${lap}`, rows: lap => series.map(s => {
       const l = s.laps.find(z => z.lap === lap);
-      return l && {code: s.code, colour: s.colour, hollow: s.dashed, value: l.time, text: `${fmtLap(l.time)}${l.compound ? ` · ${String(l.compound).charAt(0)}${Number.isFinite(l.tyre_life) ? ` ${l.tyre_life}` : ''}` : ''}`};
+      return l && {code: s.code, colour: s.colour, hollow: s.dashed, value: l.time, text: `${fmtLap(l.time)}${l.compound && l.compound !== 'UNKNOWN' ? ` · ${String(l.compound).charAt(0)}${Number.isFinite(l.tyre_life) ? ` ${l.tyre_life}` : ''}` : ''}${l.in_lap ? ' · pit in' : l.out_lap ? ' · pit out' : ''}`};
     }).filter(Boolean).sort((a, b) => a.value - b.value)});
     let svg = `<svg class="overview-lap-chart" ${hover} viewBox="0 0 ${W} ${H}" role="img" aria-label="Lap times by lap for ${esc(codes.join(', '))}">`;
     // Tick labels carry only the decimals the step needs: 1:16 for whole seconds, 1:16.5 for halves, 1:16.25 for quarters.
@@ -153,7 +155,7 @@
     svg += '</svg>';
     const legend = series.map(s => legendItem(s.code, styles.get(s.code))).join('');
     return `<div class="overview-legend">${legend}<button type="button" class="overview-slow-toggle" aria-pressed="${showSlowLaps}">${showSlowLaps ? 'Hide slow laps' : 'Show slow laps'}</button></div>${svg}
-      <p class="overview-note">${selected.length ? 'The drivers chosen in the list' : 'With no driver chosen in the list, the top three finishers'}; laps over 107% of a driver’s best on the same kind of tyre (slick or wet)${fieldBest ? ', and of the fastest lap anyone set on that lap,' : ''} are ${showSlowLaps ? 'shown' : 'hidden'}; pit in- and out-laps are left out. Select a point to add that lap to the comparison; select a colour dot to change a driver’s colour.</p>`;
+      <p class="overview-note">${selected.length ? 'The drivers chosen in the list' : 'With no driver chosen in the list, the top three finishers'}; laps over 107% of a driver’s best on the same kind of tyre (slick or wet)${fieldBest ? ', and of the fastest lap anyone set on that lap,' : ''} are ${showSlowLaps ? 'shown' : 'hidden'}, pit laps included. Select a point to add that lap to the comparison; select a colour dot to change a driver’s colour.</p>`;
   }
 
   // ---------- race: gap to the leader and position, lap by lap ----------
