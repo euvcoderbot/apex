@@ -123,3 +123,20 @@
 :root[data-skin="linear"] #liveTiming .live-moved.is-up { color: #30d158; }
 :root[data-skin="linear"] #liveTiming .live-moved.is-down { color: #ff6961; }
 :root[data-skin="linear"] #liveTiming .live-tower-mode { margin-left: auto; }
+/* Replay seek: the progress bar is a slider (select to jump; arrows ±1 min, Page ±5 min) with a jump-to-lap menu. */
+:root[data-skin="linear"] #liveTiming .live-seek { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+:root[data-skin="linear"] #liveTiming .live-seek[hidden] { display: none; }
+:root[data-skin="linear"] #liveTiming .live-seek .live-progress { flex: 1 1 auto; height: 6px; margin: 0; border-radius: 3px; background: var(--lin-nav-hover); cursor: pointer; }
+:root[data-skin="linear"] #liveTiming .live-seek .live-progress span { display: block; height: 100%; border-radius: 3px; background: var(--ui-accent); }
+:root[data-skin="linear"] #liveTiming .live-seek .live-progress:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 3px; }
+:root[data-skin="linear"] #liveTiming .live-seek select { flex: 0 0 auto; height: 24px; padding: 0 8px; border: 0; border-radius: 6px; background: var(--lin-pill); color: var(--ui-secondary); font: 500 12px/1 var(--ui-font); }
+/* Race engineer: four insight tiles (the session overview's tile recipe) and a compact table; gains green, losses red. */
+:root[data-skin="linear"] #liveTiming .live-engineer[hidden] { display: none; }
+:root[data-skin="linear"] #liveTiming .live-engineer-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 0 0 12px; }
+:root[data-skin="linear"] #liveTiming .live-engineer-tile { display: grid; gap: 6px; padding: 12px 14px; border-radius: var(--lin-card-radius, 10px); background: var(--lin-band, var(--ui-well)); box-shadow: inset 0 0 0 1px var(--lin-card-border); }
+:root[data-skin="linear"] #liveTiming .live-engineer-tile small { color: var(--ui-tertiary); font: 450 12px/1.2 var(--ui-font); }
+:root[data-skin="linear"] #liveTiming .live-engineer-tile b { color: var(--ui-label); font: 600 18px/1.2 var(--ui-font); font-variant-numeric: tabular-nums; }
+:root[data-skin="linear"] #liveTiming .live-engineer-tile span { color: var(--ui-tertiary); font: 450 12px/1.3 var(--ui-font); }
+:root[data-skin="linear"] #liveTiming .live-engineer-table td.is-gain { color: #30d158; }
+:root[data-skin="linear"] #liveTiming .live-engineer-table td.is-loss { color: #ff6961; }
+:root[data-skin="linear"] body.is-descriptions-hidden #liveTiming .explanation-only { display: none; }

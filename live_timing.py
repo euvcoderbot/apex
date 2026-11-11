@@ -1024,6 +1024,12 @@ class ReplaySource(Source):
                     continue
         events.sort(key=lambda e: e[0])
         self.detail['topics'] = found
+        # When each lap began (LapCount's CurrentLap), so the page can jump straight to a lap.
+        laps, seen = [], 0
+        for offset, topic, data in events:
+            if topic == 'LapCount' and isinstance(data, dict) and isinstance(data.get('CurrentLap'), int) and data['CurrentLap'] > seen:
+                seen = data['CurrentLap']; laps.append([seen, round(offset, 1)])
+        self.detail['laps'] = laps
         self.base = self._utc_base(events)
         return events
 

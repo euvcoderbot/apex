@@ -90,7 +90,10 @@
           <p class="live-signin-error" data-live="signinError" role="alert" hidden></p>
         </form>
         <p class="live-help" data-live="help" hidden></p>
-        <div class="live-progress" data-live="progress" hidden><span></span></div>
+        <div class="live-seek" data-live="seek" hidden>
+          <div class="live-progress" data-live="progress" role="slider" tabindex="0" aria-label="Replay position: select to jump there" aria-valuemin="0" aria-valuemax="100"><span></span></div>
+          <select data-live="jumpLap" aria-label="Jump to a lap"></select>
+        </div>
       </section>
       <div class="live-grid">
         <div class="live-col live-col-main">
@@ -101,6 +104,15 @@
               <tbody data-live="tower"><tr><td colspan="11" class="live-empty">Waiting for timing data.</td></tr></tbody>
             </table></div>
           </section>
+        <section class="dashboard-card live-engineer" data-live="engineer" aria-label="Race engineer" hidden>
+          <div class="live-card-head"><h2>Race engineer</h2><small>From timing gaps and completed laps</small></div>
+          <div class="live-engineer-tiles" data-live="engineerTiles"></div>
+          <div class="live-table-wrap"><table class="live-table live-engineer-table">
+            <thead><tr><th scope="col" class="num">P</th><th scope="col">Driver</th><th scope="col">Tyre</th><th scope="col" class="num">Pace</th><th scope="col" class="num">Trend</th><th scope="col" class="num">Gap</th><th scope="col" class="num">Int</th><th scope="col" class="num">Pit now</th></tr></thead>
+            <tbody data-live="engineerRows"></tbody>
+          </table></div>
+          <p class="live-note explanation-only">Pace: mean of the last three clean laps. Trend: seconds a lap against the leader over the same laps (negative is catching). Pit now: where the car would rejoin, from the pit loss measured at this race's stops (in-lap plus out-lap minus two clean laps).</p>
+        </section>
         <section class="dashboard-card live-compare" aria-label="Compare completed laps">
           <div class="live-card-head">
             <div class="live-card-title"><h2>Compare laps</h2><small data-live="lapsNote">Completed laps from this session · aligned by track position</small></div>
@@ -165,6 +177,14 @@
       start({mode: 'replay', path, speed: Number(speed.value), start: Math.max(0, Number($(page, 'from').value) || 0) * 60});
     });
     $(page, 'stop').addEventListener('click', () => post('stop').then(applyStatus).catch(showError));
+    // Seek: restart the same replay at the chosen point and speed (everything before it is applied at once).
+    const seekTo = seconds => { const path = source?.path || $(page, 'replay').value; if (!path || !Number.isFinite(seconds)) return; start({mode: 'replay', path, speed: Number(speed.value), start: Math.max(0, seconds)}); };
+    $(page, 'progress').addEventListener('click', event => { const r = event.currentTarget.getBoundingClientRect(); seekTo((event.clientX - r.left) / r.width * (source?.duration || 0)); });
+    $(page, 'progress').addEventListener('keydown', event => {
+      const step = {ArrowRight: 60, ArrowLeft: -60, PageUp: 300, PageDown: -300}[event.key];
+      if (step) { event.preventDefault(); seekTo((source?.position || 0) + step); }
+    });
+    $(page, 'jumpLap').addEventListener('change', event => { const at = Number(event.target.value); if (Number.isFinite(at)) seekTo(at - 5); event.target.value = 'none'; window.syncSelectUI?.(event.target); });
     $(page, 'tower').addEventListener('click', event => {
       const row = event.target.closest('tr[data-number]'); if (!row) return;
       toggleDriver(row.dataset.number);
@@ -398,9 +418,17 @@
     }
     if (source?.waiting) { const help = $(page, 'help'); help.hidden = false; help.textContent = source.waiting; }
     if (source?.error) showError({message: source.error});
-    const progress = $(page, 'progress');
-    progress.hidden = !(source?.kind === 'replay' && source.duration);
-    if (!progress.hidden) progress.firstElementChild.style.width = Math.min(100, 100 * (source.position || 0) / source.duration) + '%';
+    const progress = $(page, 'progress'), seek = $(page, 'seek');
+    seek.hidden = !(source?.kind === 'replay' && source.duration);
+    if (!seek.hidden) {
+      const share = Math.min(100, 100 * (source.position || 0) / source.duration);
+      progress.firstElementChild.style.width = share + '%'; progress.setAttribute('aria-valuenow', String(Math.round(share)));
+      const laps = source.laps || [], jump = $(page, 'jumpLap');
+      if (jump.options.length !== laps.length + 1) {
+        jump.replaceChildren(new Option('Jump to lap', 'none'), ...laps.map(([lap, at]) => new Option(`Lap ${lap}`, String(at))));
+        jump.value = 'none'; window.syncSelectUI?.(jump);
+      }
+    }
   }
   function render() {
     if (!active || !state) { syncSource(); syncDot(); return; }
@@ -429,7 +457,7 @@
     $(page, 'mapnote').textContent = outline?.complete ? `${s.circuit || 'Circuit'}${outline.sectors?.every(Boolean) ? ' · S1 S2 S3' : ''}` : 'Learning the circuit from car positions';
     if (outline?.complete && !outline.sectors?.every(Boolean) && Date.now() - (outline.fetchedAt || 0) > 10000) refreshOutline();
     syncSource(); syncDot();
-    renderTower(); renderWeather(); renderRaceControl(); renderReadouts(); queueDraw();
+    renderTower(); renderWeather(); renderRaceControl(); renderReadouts(); renderEngineer(); queueDraw();
     if (Date.now() - lapsFetchedAt > 2000) refreshLaps();
     backfill();
   }
@@ -550,6 +578,78 @@
         }
       }
     } catch (error) { note.textContent = error.message || String(error); }
+  }
+
+  // ---------- race engineer (races): battles, pace trends and a pit call, from timing gaps and completed laps ----------
+  // Pace: the mean of a driver's last three clean laps (no pit lap, within 107% of their best). Trend: that pace against the
+  // leader's over the same laps, seconds per lap (negative = catching). Pit loss: measured from this race's stops so far,
+  // the median of (in-lap + out-lap - two clean laps around them); until a stop is seen it is not shown. Rejoin: where a car
+  // would come out if it pitted now, counting the cars whose gap to the leader is below its gap plus the pit loss.
+  const lapClock = t => { const m = Math.floor(t / 60); return `${m}:${(t - m * 60).toFixed(3).padStart(6, '0')}`; };
+  const gapSeconds = text => { const n = parseFloat(String(text || '').replace('+', '')); return /L/i.test(String(text || '')) ? null : (Number.isFinite(n) ? n : null); };
+  function cleanLaps(number) {
+    const laps = (lapLists[number] || []).filter(l => l.seconds && !l.pit);
+    const best = Math.min(...laps.map(l => l.seconds));
+    return laps.filter(l => l.seconds <= best * 1.07);
+  }
+  const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length;
+  function pitLoss() {
+    const losses = [];
+    for (const laps of Object.values(lapLists)) {
+      laps.forEach((l, i) => {
+        const next = laps[i + 1];
+        if (!l.pit || !next?.pit || !l.seconds || !next.seconds) return;
+        const around = [laps[i - 1], laps[i + 2]].filter(x => x?.seconds && !x.pit).map(x => x.seconds);
+        if (around.length) losses.push(l.seconds + next.seconds - 2 * mean(around));
+      });
+    }
+    losses.sort((a, b) => a - b);
+    return losses.length ? losses[Math.floor(losses.length / 2)] : null;
+  }
+  function renderEngineer() {
+    const card = $(page, 'engineer');
+    if (!card) return;
+    const race = /race|sprint/i.test(String(state?.session?.type || state?.session?.name || ''));
+    card.hidden = !race;
+    if (!race) return;
+    const drivers = (state.drivers || []).filter(d => d.position && !d.retired && !d.stopped).sort((a, b) => a.position - b.position);
+    const leader = drivers[0];
+    if (!leader) return;
+    const recent = number => { const laps = cleanLaps(number).slice(-3); return laps.length === 3 ? {pace: mean(laps.map(l => l.seconds)), laps: laps.map(l => l.lap)} : null; };
+    const leaderPace = recent(leader.number);
+    const loss = pitLoss();
+    const rows = drivers.map(d => {
+      const mine = recent(d.number), gap = d.position === 1 ? 0 : gapSeconds(d.gap), interval = d.position === 1 ? null : gapSeconds(d.interval);
+      let trend = null;
+      if (mine && leaderPace && d !== leader) {
+        const theirs = cleanLaps(leader.number).filter(l => mine.laps.includes(l.lap));
+        if (theirs.length === 3) trend = mine.pace - mean(theirs.map(l => l.seconds));
+      }
+      const rejoin = loss != null && gap != null ? 1 + drivers.filter(o => o !== d && (o.position === 1 ? 0 : gapSeconds(o.gap)) != null && (o.position === 1 ? 0 : gapSeconds(o.gap)) < gap + loss).length : null;
+      return {d, mine, gap, interval, trend, rejoin};
+    });
+    // Tiles.
+    const battle = rows.filter(r => r.interval != null).sort((a, b) => a.interval - b.interval)[0];
+    const mover = rows.filter(r => r.trend != null).sort((a, b) => a.trend - b.trend)[0];
+    const tile = (label, value, note) => { const t = el('div', 'live-engineer-tile'); t.append(el('small', null, label), el('b', null, value), el('span', null, note || '')); return t; };
+    $(page, 'engineerTiles').replaceChildren(
+      tile('Leader', leader.code, leaderPace ? `${lapClock(leaderPace.pace)} recent pace` : 'pace after three clean laps'),
+      battle ? tile('Closest battle', `P${battle.d.position} ${battle.d.code}`, `${battle.interval.toFixed(3)} s to the car ahead`) : tile('Closest battle', '—'),
+      mover ? tile('Pace mover', `P${mover.d.position} ${mover.d.code}`, `${mover.trend > 0 ? '+' : '−'}${Math.abs(mover.trend).toFixed(2)} s a lap on the leader`) : tile('Pace mover', '—', 'after three clean laps'),
+      tile('Pit loss', loss != null ? `${loss.toFixed(1)} s` : '—', loss != null ? 'measured from this race’s stops' : 'after the first stops'));
+    // Table.
+    const body = $(page, 'engineerRows');
+    body.replaceChildren(...rows.map(({d, mine, gap, interval, trend, rejoin}) => {
+      const tr = el('tr');
+      const who = el('td', 'live-driver'); const label = el('span', 'live-driver-label'), bar = el('i'); bar.style.background = colour(d);
+      label.append(bar, el('strong', null, d.code)); who.append(label);
+      const tyre = el('td'); if (d.stint?.compound) tyre.textContent = `${(TYRES[String(d.stint.compound).toUpperCase()] || ['?'])[0]} ${d.stint.laps ?? ''}`;
+      const trendCell = el('td', `num${trend == null ? '' : trend < -.05 ? ' is-gain' : trend > .05 ? ' is-loss' : ''}`, trend == null ? '—' : `${trend > 0 ? '+' : '−'}${Math.abs(trend).toFixed(2)}`);
+      const rejoinCell = el('td', 'num', rejoin == null ? '—' : `P${rejoin}${rejoin > d.position ? ` (−${rejoin - d.position})` : ''}`);
+      tr.append(el('td', 'num', String(d.position)), who, tyre, el('td', 'num', mine ? lapClock(mine.pace) : '—'), trendCell,
+        el('td', 'num', d.position === 1 ? 'Leader' : gap != null ? `+${gap.toFixed(1)}` : d.gap || '—'), el('td', 'num', interval != null ? interval.toFixed(1) : '—'), rejoinCell);
+      return tr;
+    }));
   }
 
   // ---------- lap chart: every completed lap of the chosen drivers; a point (or a lap list cell) loads that lap ----------
@@ -1221,6 +1321,11 @@
       } else {
         ctx.fillStyle = colour(d); ctx.fill();
         ctx.lineWidth = picked ? 2 : 1.2; ctx.strokeStyle = picked ? (css('--ui-label') || '#fff') : '#000000aa'; ctx.stroke();
+        // A battle: within a second of the car ahead on the road.
+        const gapAhead = parseFloat(String(d.interval || '').replace('+', ''));
+        if (d.position > 1 && Number.isFinite(gapAhead) && gapAhead < 1 && !/L/i.test(String(d.interval))) {
+          ctx.beginPath(); ctx.arc(x, y, (picked ? 6.5 : 5) + 3.5, 0, Math.PI * 2); ctx.lineWidth = 1.5; ctx.strokeStyle = '#ffd60a'; ctx.globalAlpha = .9; ctx.stroke(); ctx.globalAlpha = 1;
+        }
       }
       if (picked || (d.position && d.position <= 3)) {
         // Labels never sit on each other: nudge down (then up) until the box is free.
@@ -1233,6 +1338,19 @@
         ctx.fillStyle = css('--ui-label') || '#fff'; ctx.fillText(text, x + 9, ly);
       }
       ctx.globalAlpha = 1;
+    }
+    // Wind: an arrow in the corner pointing where the wind blows to, with its speed.
+    const wind = state?.weather || {}, from = Number(wind.wind_direction), speedMs = Number(wind.wind_speed);
+    if (Number.isFinite(from) && Number.isFinite(speedMs)) {
+      const cx = w - 28, cy = 28, a = (from + 180 - 90) * Math.PI / 180, r = 11;
+      ctx.save(); ctx.strokeStyle = css('--ui-tertiary') || '#888'; ctx.fillStyle = css('--ui-tertiary') || '#888'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(cx, cy, r + 5, 0, Math.PI * 2); ctx.globalAlpha = .35; ctx.stroke(); ctx.globalAlpha = 1;
+      const tx = cx + Math.cos(a) * r, ty = cy + Math.sin(a) * r, bx = cx - Math.cos(a) * r, by = cy - Math.sin(a) * r;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(tx, ty); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(tx - Math.cos(a - .5) * 5, ty - Math.sin(a - .5) * 5); ctx.lineTo(tx - Math.cos(a + .5) * 5, ty - Math.sin(a + .5) * 5); ctx.closePath(); ctx.fill();
+      ctx.font = window.canvasFont?.(10, 500) || '500 10px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(`${speedMs} m/s`, cx, cy + r + 9);
+      ctx.restore();
     }
   }
   // ---------- start ----------
