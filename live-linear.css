@@ -85,3 +85,28 @@
 :root[data-skin="linear"][data-skin] #liveTiming .live-sectors-cell b { font: 600 13px/1.2 var(--ui-font); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-sectors-cell.is-lap b { font-size: 14px; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-sectors-row.is-head span { font: 500 11px/1 var(--ui-font); color: var(--ui-tertiary); }
+/* Lap chart (docs/linear-components.md "Chart (SVG)", the session chart's rules via .overview-lap-chart): driver chips are
+   Linear label pills with a team-colour dot; a chosen driver's pill is filled. The lap list is a compact table whose cells
+   load a lap; a lap in the comparison carries the label ring, a new stint a hairline above it. */
+:root[data-skin="linear"] #liveTiming .live-lapchart { display: grid; gap: 10px; margin: 0 0 14px; }
+:root[data-skin="linear"] #liveTiming .live-chart-drivers { display: flex; flex-wrap: wrap; gap: 6px; }
+:root[data-skin="linear"] #liveTiming .live-chart-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+:root[data-skin="linear"] #liveTiming .live-chart-driver:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { display: inline-flex; align-items: center; gap: 6px; height: 24px; min-height: 0; padding: 0 9px 0 8px; border: 0; border-radius: 9999px; background: none; box-shadow: inset 0 0 0 1px var(--lin-label-border); color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); cursor: pointer; }
+:root[data-skin="linear"] #liveTiming .live-chart-driver[aria-pressed="true"]:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: var(--lin-pill-on); color: var(--ui-label); }
+:root[data-skin="linear"] #liveTiming .live-chart-driver:hover:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: var(--lin-pill-hover); }
+:root[data-skin="linear"] #liveTiming .live-chart-driver i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+:root[data-skin="linear"] #liveTiming .live-chart-driver[aria-pressed="false"] i { opacity: .45; }
+:root[data-skin="linear"] #liveTiming .live-chart-driver small { color: var(--ui-quaternary); font: 450 11px/1 var(--ui-font); font-variant-numeric: tabular-nums; }
+:root[data-skin="linear"] #liveTiming .live-chart-actions .live-button[aria-pressed="true"] { background: var(--lin-pill-on); color: var(--ui-label); }
+:root[data-skin="linear"] #liveTiming .live-chart-plot { min-height: 220px; }
+:root[data-skin="linear"] #liveTiming .live-lap-chart { display: block; width: 100%; height: auto; overflow: visible; }
+:root[data-skin="linear"] #liveTiming .live-lap-chart .hover-guide { stroke: var(--ui-tertiary); stroke-width: 1; stroke-dasharray: 2 3; pointer-events: none; }
+
+:root[data-skin="linear"] #liveTiming .live-lap-list-wrap { max-height: 380px; overflow: auto; }
+:root[data-skin="linear"] #liveTiming .live-lap-tiles { display: grid; grid-template-columns: repeat(var(--columns), minmax(156px, 1fr)); gap: 8px; }
+:root[data-skin="linear"] #liveTiming .live-lap-column { display: grid; align-content: start; gap: 6px; }
+:root[data-skin="linear"] #liveTiming .live-lap-column-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 6px; height: 28px; background: var(--lin-card, var(--ui-panel)); font: 500 12px/1 var(--ui-font); color: var(--ui-label); }
+:root[data-skin="linear"] #liveTiming .live-lap-column-head i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+:root[data-skin="linear"] #liveTiming .live-lap-column-head small { color: var(--ui-quaternary); font: 450 11px/1 var(--ui-font); }
+:root[data-skin="linear"] #liveTiming .live-lap-tiles .lap-chip.is-overall .lap-clock { color: #bf5af2; }
+:root[data-skin="linear"] #liveTiming .live-lap-tiles .lap-chip.is-personal .lap-clock { color: #30d158; }

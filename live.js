@@ -110,6 +110,18 @@
               <button type="button" class="live-button" data-live="backfill" title="Load the laps Formula 1 has published for this session, including those from before you connected">Reload laps</button>
             </div>
           </div>
+          <div class="live-lapchart" data-live="lapChart">
+            <div class="live-chart-drivers" data-live="chartDrivers" role="group" aria-label="Drivers on the lap chart"></div>
+            <div class="live-chart-actions">
+              <button type="button" class="live-button" data-live="chartTop">Top 3</button>
+              <button type="button" class="live-button" data-live="chartFastest">Fastest 3</button>
+              <button type="button" class="live-button" data-live="chartSlow" aria-pressed="false">Show slow laps</button>
+              <button type="button" class="live-button" data-live="chartList" aria-pressed="false">Lap list</button>
+            </div>
+            <div class="live-chart-plot" data-live="chartPlot"></div>
+            <div class="tooltip overview-tip live-chart-card" data-live="chartCard" role="tooltip" hidden></div>
+            <div class="live-lap-list-wrap" data-live="lapList" hidden></div>
+          </div>
           <div class="live-lap-chips" data-live="lapChips" role="list" aria-label="Laps being compared"></div>
           <div class="live-sector-table" data-live="sectorTable"></div>
           <div class="live-lap-picker" id="liveLapPicker" data-live="lapPicker" popover="auto" aria-label="Choose a lap">
@@ -164,11 +176,19 @@
     });
     new ResizeObserver(() => queueDraw()).observe(page);
     $(page, 'quickFastest').addEventListener('click', () => quickPicks('fastest'));
+    $(page, 'chartTop').addEventListener('click', () => { chartChosenSet = null; renderLapChart(); });
+    $(page, 'chartFastest').addEventListener('click', () => {
+      const best = d => Math.min(...(lapLists[d.number] || []).filter(l => l.seconds && !l.pit).map(l => l.seconds));
+      chartChosenSet = driversWithLaps().slice().sort((a, b) => best(a) - best(b)).slice(0, 3).map(d => d.number); renderLapChart();
+    });
+    $(page, 'chartSlow').addEventListener('click', () => { chartSlow = !chartSlow; renderLapChart(); });
+    $(page, 'chartList').addEventListener('click', () => { chartList = !chartList; renderLapChart(); });
+    if (typeof ResizeObserver === 'function') new ResizeObserver(() => requestAnimationFrame(() => renderLapChart())).observe($(page, 'chartPlot'));
     $(page, 'quickLatest').addEventListener('click', () => quickPicks('latest'));
     $(page, 'pickerClose').addEventListener('click', () => $(page, 'lapPicker').hidePopover?.());
     $(page, 'lapChips').addEventListener('click', event => {
       const remove = event.target.closest('[data-remove]');
-      if (remove) { picks.splice(Number(remove.dataset.remove), 1); picksTouched = true; renderChips(); loadCompare(); return; }
+      if (remove) { picks.splice(Number(remove.dataset.remove), 1); picksTouched = true; renderChips(); loadCompare(); renderLapChart(); return; }
       const chip = event.target.closest('[data-pick]');
       if (chip) openPicker(chip, chip.dataset.pick === 'add' ? null : Number(chip.dataset.pick));
     });
@@ -505,6 +525,157 @@
     } catch (error) { note.textContent = error.message || String(error); }
   }
 
+  // ---------- lap chart: every completed lap of the chosen drivers; a point (or a lap list cell) loads that lap ----------
+  // Drivers: the top three in running order until the person picks; at most six. Pit laps and laps over 110% of a driver's
+  // best are left out unless "Show slow laps" is on. A lap in the comparison carries a ring in the chart and the list.
+  const CHART_MAX = 6;
+  let chartChosenSet = null, chartSlow = false, chartList = false, chartHoverLap = null;
+  function chartDrivers() {
+    const withLaps = driversWithLaps();
+    if (chartChosenSet) return withLaps.filter(d => chartChosenSet.includes(d.number));
+    return withLaps.slice().sort((a, b) => (a.position ?? 99) - (b.position ?? 99)).slice(0, 3);
+  }
+  const chartColour = d => colour(d);
+  function chartLaps(number) {
+    const laps = (lapLists[number] || []).filter(l => l.seconds);
+    const best = Math.min(...laps.filter(l => !l.pit).map(l => l.seconds));
+    return chartSlow ? laps : laps.filter(l => !l.pit && l.seconds <= best * 1.10);
+  }
+  const isPicked = (number, lap) => picks.some(p => p.driver === number && resolve(p)?.lap === lap);
+  function toggleLapPick(number, lap) {
+    const i = picks.findIndex(p => p.driver === number && resolve(p)?.lap === lap);
+    if (i >= 0) picks.splice(i, 1);
+    else if (picks.length < MAX_PICKS) picks.push({driver: number, lap});
+    else picks[picks.length - 1] = {driver: number, lap};
+    picksTouched = true;
+    renderChips(); loadCompare(); renderLapChart();
+  }
+  const tyreBadge = tyre => {
+    if (!tyre?.compound) return null;
+    const [letter, fill] = TYRES[String(tyre.compound).toUpperCase()] || ['?', '#8e8e93'];
+    const b = el('span', 'live-tyre-mini', letter); b.style.setProperty('--tyre', fill);
+    b.title = `${String(tyre.compound).toLowerCase()}${tyre.new ? ', new' : ''}${tyre.age != null ? `, ${tyre.age} laps old` : ''}`;
+    return b;
+  };
+  function renderLapChart() {
+    const box = $(page, 'lapChart');
+    if (!box) return;
+    const all = driversWithLaps(), chosen = chartDrivers();
+    // Driver chips in running order.
+    const chips = all.slice().sort((a, b) => (a.position ?? 99) - (b.position ?? 99)).map(d => {
+      const b = el('button', 'live-chart-driver'); b.type = 'button'; b.style.setProperty('--c', chartColour(d));
+      const on = chosen.some(x => x.number === d.number);
+      b.setAttribute('aria-pressed', String(on));
+      b.append(el('i'), el('small', null, d.position ? `P${d.position}` : ''), el('strong', null, d.code));
+      b.title = `${on ? 'Remove' : 'Add'} ${d.code} ${on ? 'from' : 'to'} the lap chart`;
+      b.addEventListener('click', () => {
+        const now = chartDrivers().map(x => x.number);
+        chartChosenSet = on ? now.filter(n => n !== d.number) : [...now, d.number].slice(-CHART_MAX);
+        renderLapChart();
+      });
+      return b;
+    });
+    $(page, 'chartDrivers').replaceChildren(...chips);
+    $(page, 'chartSlow').setAttribute('aria-pressed', String(chartSlow));
+    $(page, 'chartSlow').textContent = chartSlow ? 'Hide slow laps' : 'Show slow laps';
+    $(page, 'chartList').setAttribute('aria-pressed', String(chartList));
+    const plot = $(page, 'chartPlot');
+    const series = chosen.map(d => ({d, colour: chartColour(d), laps: chartLaps(d.number)})).filter(s => s.laps.length);
+    if (!series.length) { plot.replaceChildren(el('p', 'live-empty', all.length ? 'Choose a driver above.' : 'Laps appear here as drivers complete them.')); renderLapList(chosen); return; }
+    const W = Math.max(320, Math.round(plot.clientWidth || 640)), H = 220, L = 48, R = 12, T = 10, B = 24;
+    const points = series.flatMap(s => s.laps);
+    const lapLo = Math.min(...points.map(l => l.lap)), lapHi = Math.max(...points.map(l => l.lap));
+    const tLo = Math.min(...points.map(l => l.seconds)), tHi = Math.max(...points.map(l => l.seconds));
+    const span = Math.max(.5, tHi - tLo), step = [.25, .5, 1, 2, 5, 10, 20].find(v => span / v <= 5) || 30;
+    const yLo = Math.floor(tLo / step) * step, yHi = Math.ceil(tHi / step) * step;
+    const x = lap => L + (lapHi === lapLo ? (W - L - R) / 2 : (lap - lapLo) / (lapHi - lapLo) * (W - L - R));
+    const y = t => T + (yHi - t) / ((yHi - yLo) || 1) * (H - T - B);
+    const dense = (W - L - R) / Math.max(1, lapHi - lapLo) < 16;
+    const decimals = step >= 1 ? 0 : step >= .5 ? 1 : 2;
+    const tick = t => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s.toFixed(decimals).padStart(decimals ? 3 + decimals : 2, '0')}`; };
+    const NS = 'http://www.w3.org/2000/svg', node = (tag, attrs, text) => { const n = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); if (text != null) n.textContent = text; return n; };
+    const svg = node('svg', {class: `overview-lap-chart live-lap-chart${dense ? ' is-dense' : ''}`, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `Lap times by lap for ${chosen.map(d => d.code).join(', ')}`});
+    for (let t = yLo; t <= yHi + 1e-9; t += step) { svg.append(node('line', {class: 'grid', x1: L, x2: W - R, y1: y(t).toFixed(1), y2: y(t).toFixed(1)}), node('text', {class: 'axis', x: L - 8, y: (y(t) + 3.5).toFixed(1), 'text-anchor': 'end'}, tick(t))); }
+    const lapStep = Math.max(1, Math.ceil((lapHi - lapLo) / 10));
+    for (let lap = lapLo; lap <= lapHi; lap += lapStep) svg.append(node('text', {class: 'axis', x: x(lap).toFixed(1), y: H - 6, 'text-anchor': 'middle'}, String(lap)));
+    const guide = node('line', {class: 'hover-guide', x1: 0, x2: 0, y1: T, y2: H - B, visibility: 'hidden'});
+    svg.append(guide);
+    const seen = new Set();
+    for (const s of series) {
+      const hollow = seen.has(s.colour); seen.add(s.colour);
+      svg.append(node('polyline', {class: `line${hollow ? ' is-dashed' : ''}`, points: s.laps.map(l => `${x(l.lap).toFixed(1)},${y(l.seconds).toFixed(1)}`).join(' '), style: `stroke:${s.colour}`}));
+      for (const l of s.laps) {
+        const picked = isPicked(s.d.number, l.lap);
+        const c = node('circle', {class: `point${picked ? ' is-loaded' : ''}${hollow ? ' is-hollow' : ''}`, cx: x(l.lap).toFixed(1), cy: y(l.seconds).toFixed(1), r: picked ? 5 : 3.5,
+          style: `--c:${s.colour}`, tabindex: 0, role: 'button', 'data-driver': s.d.number, 'data-lap': l.lap,
+          'aria-label': `${s.d.code} lap ${l.lap}, ${l.time}${l.tyre?.compound ? ', ' + String(l.tyre.compound).toLowerCase() : ''}. ${picked ? 'In the comparison; select to remove' : 'Select to compare'}`});
+        svg.append(c);
+      }
+    }
+    // Hover: the nearest lap, a guide line and a card with every chosen driver's time and tyre on that lap.
+    const card = $(page, 'chartCard');
+    const hide = () => { guide.setAttribute('visibility', 'hidden'); card.hidden = true; chartHoverLap = null; };
+    svg.addEventListener('pointerleave', hide);
+    svg.addEventListener('pointermove', event => {
+      const box2 = svg.getBoundingClientRect(), vx = (event.clientX - box2.left) * W / box2.width;
+      const lap = Math.round(lapLo + Math.min(1, Math.max(0, (vx - L) / (W - L - R))) * (lapHi - lapLo));
+      if (lap === chartHoverLap) return;
+      chartHoverLap = lap;
+      const rows = series.map(s => [s, s.laps.find(l => l.lap === lap)]).filter(([, l]) => l).sort((a, b) => a[1].seconds - b[1].seconds);
+      if (!rows.length) { hide(); return; }
+      guide.setAttribute('x1', x(lap).toFixed(1)); guide.setAttribute('x2', x(lap).toFixed(1)); guide.setAttribute('visibility', 'visible');
+      card.replaceChildren(el('b', null, `Lap ${lap}`), ...rows.map(([s, l]) => {
+        const line = el('span'); const dot = el('i'); dot.style.setProperty('--c', s.colour);
+        const tyre = l.tyre?.compound ? ` · ${TYRES[String(l.tyre.compound).toUpperCase()]?.[0] || '?'}${l.tyre.age != null ? ' ' + l.tyre.age : ''}` : '';
+        line.append(dot, s.d.code, el('em', null, `${l.time}${tyre}${l.pit ? ' · pit' : ''}`)); return line;
+      }));
+      card.hidden = false;
+      const px = box2.left + x(lap) * box2.width / W, w = card.offsetWidth;
+      card.style.left = `${px + 14 + w > innerWidth - 8 ? px - 14 - w : px + 14}px`;
+      card.style.top = `${Math.min(innerHeight - card.offsetHeight - 8, Math.max(8, event.clientY - card.offsetHeight / 2))}px`;
+    });
+    const activate = target => { const p = target.closest?.('.point'); if (p) toggleLapPick(p.dataset.driver, Number(p.dataset.lap)); };
+    svg.addEventListener('click', event => activate(event.target));
+    svg.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(event.target); } });
+    plot.replaceChildren(svg);
+    renderLapList(chosen);
+  }
+  // Every lap of the chosen drivers as the main site's lap tiles (lap-chip): one column per driver, newest first; state
+  // and lap number, tyre age, time and the compound. A tile loads that lap into the comparison; F1's colours mark the
+  // session's fastest lap (purple) and each driver's best (green).
+  function renderLapList(chosen) {
+    const box = $(page, 'lapList');
+    box.hidden = !chartList;
+    if (!chartList) return;
+    const overall = Math.min(...Object.values(lapLists).flat().filter(l => l.seconds && !l.pit).map(l => l.seconds));
+    const columns = chosen.map(d => {
+      const column = el('div', 'live-lap-column');
+      const head = el('div', 'live-lap-column-head'); const dot = el('i'); dot.style.setProperty('--c', chartColour(d));
+      head.append(dot, el('strong', null, d.code), el('small', null, d.position ? `P${d.position}` : ''));
+      column.append(head);
+      const laps = (lapLists[d.number] || []).slice().reverse();
+      for (const l of laps) {
+        const picked = isPicked(d.number, l.lap);
+        const b = el('button', `lap lap-chip${l.pit ? ' in-out' : ''}${picked ? ' selected' : ''}${l.fastest ? (l.seconds === overall ? ' is-overall' : ' is-personal') : ''}`);
+        b.type = 'button'; b.dataset.uiKind = 'choice'; b.setAttribute('aria-pressed', String(picked)); b.style.setProperty('--team', chartColour(d));
+        const token = el('span', 'lap-token');
+        if (l.pit) { const states = el('span', 'lap-states'); states.append(el('b', 'lap-state', 'PIT')); token.append(states); }
+        token.append(document.createTextNode(`L${l.lap}`));
+        b.append(token, el('span', 'lap-clock', l.time || '—'));
+        const badge = typeof window.compoundBadgeMarkup === 'function' && l.tyre?.compound ? window.compoundBadgeMarkup(String(l.tyre.compound).toUpperCase()) : '';
+        if (badge) b.insertAdjacentHTML('beforeend', badge);
+        if (l.tyre?.age != null) { const age = el('small', 'lap-tyre-age', `Tyre age ${l.tyre.age}`); age.title = `${String(l.tyre.compound || '').toLowerCase()}${l.tyre.new ? ', new set' : ''}, ${l.tyre.age} laps old`; b.append(age); }
+        b.setAttribute('aria-label', `${d.code} lap ${l.lap}, ${l.time || 'no time'}${l.pit ? ', pit lap' : ''}. ${picked ? 'In the comparison; select to remove' : 'Select to compare'}`);
+        b.addEventListener('click', () => toggleLapPick(d.number, l.lap));
+        column.append(b);
+      }
+      return column;
+    });
+    const grid = el('div', 'live-lap-tiles'); grid.style.setProperty('--columns', String(Math.max(1, columns.length)));
+    grid.append(...columns);
+    box.replaceChildren(grid);
+  }
+
   // ---------- completed lap comparison: up to four laps, the first is the reference ----------
   async function refreshLaps() {
     lapsFetchedAt = Date.now();
@@ -514,7 +685,7 @@
     if (!picksTouched) defaultPicks();
     picks = picks.filter(p => (lapLists[p.driver] || []).length);
     // Colours follow the session as it runs: a new session or personal best elsewhere recolours these laps at once.
-    renderChips(); renderSectorTable(); loadCompare();
+    renderChips(); renderSectorTable(); loadCompare(); renderLapChart();
     if ($(page, 'lapPicker').matches?.(':popover-open')) renderPicker();
   }
   const lapMode = () => (source?.kind === 'live' ? 'latest' : 'fastest');
@@ -529,7 +700,7 @@
     let drivers = driversWithLaps();
     if (mode === 'fastest') drivers = drivers.slice().sort((a, b) => (resolve({driver: a.number, lap: 'fastest'})?.seconds || Infinity) - (resolve({driver: b.number, lap: 'fastest'})?.seconds || Infinity));
     picks = drivers.slice(0, 2).map(d => ({driver: d.number, lap: mode}));
-    picksTouched = true; renderChips(); loadCompare();
+    picksTouched = true; renderChips(); loadCompare(); renderLapChart();
   }
   // The lap a pick points at now ('latest' and 'fastest' move on as laps complete).
   function resolve(pick) {
@@ -554,13 +725,15 @@
     const box = $(page, 'lapChips'), colours = pickColours(), ref = picks[0] && resolve(picks[0]);
     const chips = picks.map((pick, i) => {
       const lap = resolve(pick), d = driverFor(pick.driver);
-      const chip = el('div', 'live-lap-chip'); chip.setAttribute('role', 'listitem'); chip.style.setProperty('--team', colours[i]);
-      const body = el('button', 'live-lap-chip-body'); body.type = 'button'; body.dataset.pick = String(i);
+      // The main site's comparison pill (loaded-lap-pill): team dot, code, lap, time, "Ref" on the reference, ×. Which lap a
+      // moving pick follows and the gap to the reference are in its title.
+      const chip = el('div', `loaded-lap-pill${i ? '' : ' reference'}`); chip.setAttribute('role', 'listitem'); chip.style.setProperty('--team', colours[i]);
+      const body = el('button', `loaded-lap-main${i ? '' : ' reference'}`); body.type = 'button'; body.dataset.pick = String(i);
       body.setAttribute('aria-label', `Change lap ${i + 1}: ${d.code} ${lap ? 'lap ' + lap.lap : ''}`);
-      body.append(el('i'), el('strong', null, d.code), el('span', null, lap ? `L${lap.lap}` : '—'), el('b', null, lap?.time || 'no lap yet'));
-      if (typeof pick.lap === 'string') body.append(el('small', 'live-lap-mode', MODE_NAMES[pick.lap]));
-      body.append(el('small', i ? 'live-lap-gap' : 'live-lap-ref', i ? (lap?.seconds && ref?.seconds ? formatGap(lap.seconds - ref.seconds) : '') : 'Reference'));
-      const remove = el('button', 'live-lap-chip-remove', '×'); remove.type = 'button'; remove.dataset.remove = String(i);
+      body.append(el('b', null, d.code), el('span', null, lap ? `L${lap.lap}` : '—'), el('strong', null, lap?.time || 'no lap yet'));
+      const gap = i && lap?.seconds && ref?.seconds ? `${formatGap(lap.seconds - ref.seconds)} s to the reference` : i ? '' : 'Reference lap';
+      body.title = [typeof pick.lap === 'string' ? `${MODE_NAMES[pick.lap]} lap, follows new laps` : '', gap, 'Select to change'].filter(Boolean).join(' · ');
+      const remove = el('button', 'remove', '×'); remove.type = 'button'; remove.dataset.remove = String(i);
       remove.setAttribute('aria-label', `Remove ${d.code} lap from the comparison`);
       chip.append(body, remove);
       return chip;
@@ -625,7 +798,7 @@
     if (pickerTarget == null) picks.push(pick); else picks[pickerTarget] = pick;
     picksTouched = true;
     $(page, 'lapPicker').hidePopover?.();
-    renderChips(); loadCompare();
+    renderChips(); loadCompare(); renderLapChart();
   }
   async function loadCompare() {
     // Fetch again only when a pick changed, or the lap a moving pick points at moved on (or got its time).

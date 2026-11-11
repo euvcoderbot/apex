@@ -151,10 +151,47 @@ def live_laps():
 
 @app.get('/api/live/lap')
 def live_lap(driver: str = Query(..., pattern=r'^\d{1,3}$'), lap: str = Query('fastest', pattern=r'^(fastest|latest|last|\d{1,3})$')):
-    trace = LIVE.state.lap_trace(driver, lap)
+    trace = LIVE.state.lap_trace(driver, lap) or _session_lap_trace(driver, lap)
     if not trace:
         raise HTTPException(404, 'That lap has not been completed in this session yet.')
     return trace
+
+
+def _session_lap_trace(number: str, lap: str) -> dict | None:
+    """A completed lap the live feed holds without car data (a replay, or live without an F1 TV sign-in): the same lap from
+    session analysis's telemetry (OpenF1, then FastF1), in the live trace's shape, so the comparison works either way."""
+    state = LIVE.state
+    info = state.topics.get('SessionInfo') or {}
+    gp, session, start = (info.get('Meeting') or {}).get('Name'), info.get('Name'), str(info.get('StartDate') or '')
+    laps = state.lap_list().get(number) or []
+    if not (gp and session and start[:4].isdigit() and laps):
+        return None
+    timed = [l for l in laps if l.get('seconds') and not l.get('pit')]
+    entry = (min(timed, key=lambda l: l['seconds']) if lap == 'fastest' and timed
+             else ([l for l in laps if l.get('push')] or [None])[-1] if lap == 'latest'
+             else laps[-1] if lap == 'last'
+             else next((l for l in laps if str(l['lap']) == lap), None))
+    code = ((state.topics.get('DriverList') or {}).get(number) or {}).get('Tla')
+    if not entry or not code:
+        return None
+    try:
+        payload = server.telemetry(Response(), year=int(start[:4]), gp=gp, round=None, session=session, driver=code, lap=int(entry['lap']),
+                                   driver_number=number, session_key=None, fresh=False, geometry=False, lap_start=None,
+                                   lap_time=entry.get('seconds') if entry.get('seconds') and 20 < entry['seconds'] < 300 else None,
+                                   next_start=None, lap_start_seconds=None, lap_end_seconds=None, pit_out=False)
+    except Exception:
+        return None
+    samples = [s for s in (payload or {}).get('samples') or [] if s.get('Distance') is not None]
+    if len(samples) < 20:
+        return None
+    t0 = samples[0].get('ElapsedSeconds') or 0
+    return {'driver': number, 'lap': entry['lap'], 'time': entry.get('time'), 'seconds': entry.get('seconds'), 'pit': entry.get('pit'),
+            'sectors': entry.get('sectors'), 'tyre': entry.get('tyre'),
+            'x': [s['Distance'] for s in samples], 't': [(s.get('ElapsedSeconds') or 0) - t0 for s in samples],
+            'speed': [s.get('Speed') for s in samples], 'throttle': [s.get('Throttle') for s in samples],
+            'brake': [100 if s.get('Brake') in (True, 1) else (s.get('Brake') or 0) for s in samples], 'gear': [s.get('nGear') for s in samples],
+            'distance': samples[-1]['Distance'], 'reference': samples[-1]['Distance'], 'shift': 0.0, 'aligned_by': 'session telemetry',
+            'source': payload.get('source'), 'sector_marks': state.sector_marks()}
 
 
 @app.post('/api/live/start')

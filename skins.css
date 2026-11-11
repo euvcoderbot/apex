@@ -1549,18 +1549,18 @@
 :root[data-skin="linear"] .app-sidebar :is(.dashboard-card, #driverSidebar, .performance-nav, .performance-controls) { border: 0; box-shadow: none; background: transparent; }
 
 /* Comparison chips: Linear's labels, a full pill with a hairline. */
-:root[data-skin="linear"] #loadedLaps .loaded-lap-pill { border-radius: var(--radius-pill); background: var(--ui-control); box-shadow: inset 0 0 0 1px var(--ui-border); }
+:root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) .loaded-lap-pill { border-radius: var(--radius-pill); background: var(--ui-control); box-shadow: inset 0 0 0 1px var(--ui-border); }
 /* The chip's parts follow its shape: the lap button is part of the pill, not a box inside it, and the remove button is round. */
-:root[data-skin="linear"] #loadedLaps .loaded-lap-pill > .loaded-lap-main { min-height: 0; border-radius: var(--radius-pill); background: transparent; box-shadow: none; }
-:root[data-skin="linear"] #loadedLaps .loaded-lap-pill > .loaded-lap-main:hover:not(:disabled) { background: transparent; }
-:root[data-skin="linear"] #loadedLaps .loaded-lap-pill:has(> .loaded-lap-main:hover) { background: var(--ui-control-hover); }
-:root[data-skin="linear"] #loadedLaps .loaded-lap-pill > .remove { border-radius: 50%; background: transparent; box-shadow: none; }
-:root[data-skin="linear"] #loadedLaps .loaded-lap-pill > .remove:hover { background: var(--ui-row-hover); }
+:root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) .loaded-lap-pill > .loaded-lap-main { min-height: 0; border-radius: var(--radius-pill); background: transparent; box-shadow: none; }
+:root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) .loaded-lap-pill > .loaded-lap-main:hover:not(:disabled) { background: transparent; }
+:root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) .loaded-lap-pill:has(> .loaded-lap-main:hover) { background: var(--ui-control-hover); }
+:root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) .loaded-lap-pill > .remove { border-radius: 50%; background: transparent; box-shadow: none; }
+:root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) .loaded-lap-pill > .remove:hover { background: var(--ui-row-hover); }
 
 /* Lap sheet tiles. */
-:root[data-skin="linear"] #lapSelectionBody .lap-chip[data-ui-kind="choice"] { border-radius: var(--radius-sm); background: var(--ui-control); box-shadow: inset 0 0 0 1px var(--ui-separator); }
-:root[data-skin="linear"] #lapSelectionBody .lap-chip[data-ui-kind="choice"]:hover:not(:disabled) { background: var(--ui-control-hover); }
-:root[data-skin="linear"] #lapSelectionBody .lap-chip[aria-pressed="true"] { background: color-mix(in oklch, var(--ui-action) 28%, var(--ui-panel)); box-shadow: inset 0 0 0 1px var(--ui-action); color: var(--ui-label); }
+:root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip[data-ui-kind="choice"] { border-radius: var(--radius-sm); background: var(--ui-control); box-shadow: inset 0 0 0 1px var(--ui-separator); }
+:root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip[data-ui-kind="choice"]:hover:not(:disabled) { background: var(--ui-control-hover); }
+:root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip[aria-pressed="true"] { background: color-mix(in oklch, var(--ui-action) 28%, var(--ui-panel)); box-shadow: inset 0 0 0 1px var(--ui-action); color: var(--ui-label); }
 
 /* ---------- Transient layer: Linear's motion ---------- */
 @keyframes lin-menu-in { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: scale(1); } }
@@ -1798,17 +1798,17 @@
 /* Comparison laps: Linear's label pills, 24 px, with the lap's colour as the dot. */
 :root[data-skin="linear"] .telemetry-card .comparison-tray { padding: 0 0 16px; margin-bottom: 16px; border-bottom: 1px solid var(--lin-hairline); border-radius: 0; background: transparent; box-shadow: none; gap: 8px; }
 :root[data-skin="linear"] .comparison-tray-heading > span { font: 500 12px/1 var(--ui-font); color: var(--ui-tertiary); }
-:root[data-skin="linear"] #loadedLaps { gap: 6px; }
-:root[data-skin="linear"] #loadedLaps .loaded-lap-pill {
+:root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) { gap: 6px; }
+:root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) .loaded-lap-pill {
   height: 24px; min-height: 24px; padding: 0 2px 0 8px; gap: 2px; border-radius: 9999px; background: transparent; box-shadow: inset 0 0 0 1px var(--lin-label-border);
 }
-:root[data-skin="linear"] #loadedLaps .loaded-lap-pill::before { content: ""; flex: 0 0 auto; order: -1; width: 8px; height: 8px; margin-right: 4px; border-radius: 50%; background: var(--team); }
-:root[data-skin="linear"] #loadedLaps .loaded-lap-pill.reference::before { content: ""; width: 8px; height: 8px; margin: 0 4px 0 0; padding: 0; border-radius: 50%; background: var(--team); font-size: 0; }
-:root[data-skin="linear"] #loadedLaps .loaded-lap-main { gap: 5px; font-size: 12px; color: var(--ui-secondary); }
-:root[data-skin="linear"] #loadedLaps .loaded-lap-main :is(b, strong) { font-size: 12px; font-weight: 500; color: var(--ui-label); }
-:root[data-skin="linear"] #loadedLaps .loaded-lap-main span { font-size: 12px; color: var(--ui-tertiary); }
-:root[data-skin="linear"] #loadedLaps .loaded-lap-pill.reference .loaded-lap-main::after { content: "Ref"; padding: 1px 4px; border-radius: 4px; box-shadow: inset 0 0 0 .5px var(--ui-border-strong); color: var(--ui-tertiary); font: 500 11px/14px var(--ui-font); }
-:root[data-skin="linear"] #loadedLaps .loaded-lap-pill > .remove { width: 20px; min-width: 20px; height: 20px; min-height: 20px; color: var(--ui-quaternary); }
+:root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) .loaded-lap-pill::before { content: ""; flex: 0 0 auto; order: -1; width: 8px; height: 8px; margin-right: 4px; border-radius: 50%; background: var(--team); }
+:root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) .loaded-lap-pill.reference::before { content: ""; width: 8px; height: 8px; margin: 0 4px 0 0; padding: 0; border-radius: 50%; background: var(--team); font-size: 0; }
+:root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) .loaded-lap-main { gap: 5px; font-size: 12px; color: var(--ui-secondary); }
+:root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) .loaded-lap-main :is(b, strong) { font-size: 12px; font-weight: 500; color: var(--ui-label); }
+:root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) .loaded-lap-main span { font-size: 12px; color: var(--ui-tertiary); }
+:root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) .loaded-lap-pill.reference .loaded-lap-main::after { content: "Ref"; padding: 1px 4px; border-radius: 4px; box-shadow: inset 0 0 0 .5px var(--ui-border-strong); color: var(--ui-tertiary); font: 500 11px/14px var(--ui-font); }
+:root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) .loaded-lap-pill > .remove { width: 20px; min-width: 20px; height: 20px; min-height: 20px; color: var(--ui-quaternary); }
 
 /* ---- Ranked bars: one thickness everywhere (8 px, the tyre chart's), Linear's hover as an inset rounded wash, no separators to clip it. ---- */
 :root[data-skin="linear"] :is(.performance-bar-track, .performance-tyre-age-track) { height: var(--lin-bar); border-radius: 2px; background: var(--lin-nav-hover); box-shadow: none; }
@@ -2004,27 +2004,27 @@
 
 /* Lap tiles: state over lap number on the left, run and lap time on the right, the compound beside them. Every part has its own
    cell, so a long state (WARM, IN/OUT) never pushes the lap number out, and both edges keep the same inset. */
-:root[data-skin="linear"] #lapSelectionBody .lap-chip[data-ui-kind="choice"] {
+:root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip[data-ui-kind="choice"] {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: 8px; row-gap: 3px; align-items: center;
   min-height: 44px; height: auto; padding: 6px 8px 6px 10px; text-align: left;
 }
-:root[data-skin="linear"] #lapSelectionBody .lap-chip[data-ui-kind="choice"] > * { position: static; inset: auto; margin: 0; transform: none; }
-:root[data-skin="linear"] #lapSelectionBody .lap-chip .lap-token {
+:root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip[data-ui-kind="choice"] > * { position: static; inset: auto; margin: 0; transform: none; }
+:root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip .lap-token {
   grid-column: 1; grid-row: 1 / 3; display: flex; flex-direction: column-reverse; align-items: flex-start; justify-content: center; gap: 3px;
   min-width: 0; font: 500 12px/1 var(--ui-font); color: var(--ui-tertiary); font-variant-numeric: tabular-nums;
 }
-:root[data-skin="linear"] #lapSelectionBody .lap-chip .lap-states { display: flex; gap: 3px; margin: 0; }
-:root[data-skin="linear"] #lapSelectionBody .lap-chip .lap-state { font: 600 10px/1 var(--ui-font); letter-spacing: .02em; }
-:root[data-skin="linear"] #lapSelectionBody .lap-chip .lap-tyre-age { grid-column: 2; grid-row: 1; justify-self: end; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 450 11px/1 var(--ui-font); color: var(--ui-tertiary); }
-:root[data-skin="linear"] #lapSelectionBody .lap-chip .lap-clock { grid-column: 2; grid-row: 2; justify-self: end; font: 600 13px/1 var(--ui-font); font-variant-numeric: tabular-nums; color: var(--ui-label); }
-:root[data-skin="linear"] #lapSelectionBody .lap-chip .compound-badge { grid-column: 3; grid-row: 1 / 3; width: 22px; height: 22px; }
+:root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip .lap-states { display: flex; gap: 3px; margin: 0; }
+:root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip .lap-state { font: 600 10px/1 var(--ui-font); letter-spacing: .02em; }
+:root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip .lap-tyre-age { grid-column: 2; grid-row: 1; justify-self: end; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 450 11px/1 var(--ui-font); color: var(--ui-tertiary); }
+:root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip .lap-clock { grid-column: 2; grid-row: 2; justify-self: end; font: 600 13px/1 var(--ui-font); font-variant-numeric: tabular-nums; color: var(--ui-label); }
+:root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip .compound-badge { grid-column: 3; grid-row: 1 / 3; width: 22px; height: 22px; }
 
 /* ---------- Compact density: more on screen, nothing cramped. Spacing and control heights shrink;
 
 /* Phones: the view fills the screen. */
 @media (max-width: 760px) {
   :root[data-skin="linear"] .app-sidebar .session-controls > #loadSession { margin: 0; }
-  :root[data-skin="linear"] #lapSelectionBody .lap-chip[data-ui-kind="choice"] { min-height: 42px; }
+  :root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip[data-ui-kind="choice"] { min-height: 42px; }
 }
 @media (prefers-reduced-motion: reduce) { :root[data-skin="linear"] { --flip-duration: 1; } }
 
@@ -2032,13 +2032,13 @@
 :root[data-skin="linear"] .app-sidebar .control-field .select-trigger:focus-visible { outline: none; }
 :root[data-skin="linear"] .app-sidebar .control-field:has(.select-trigger:focus-visible) { box-shadow: inset 0 0 0 1px var(--lin-label-border), 0 0 0 2px var(--ui-accent); }
 /* Tiles: tighter insets so the run label fits beside a state at three tiles per row. */
-:root[data-skin="linear"] #lapSelectionBody .lap-chip[data-ui-kind="choice"] { column-gap: 6px; padding: 6px 8px; }
-:root[data-skin="linear"] #lapSelectionBody .lap-chip .lap-tyre-age { font-size: 11px; }
+:root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip[data-ui-kind="choice"] { column-gap: 6px; padding: 6px 8px; }
+:root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip .lap-tyre-age { font-size: 11px; }
 
 /* Phones: comparison laps stay labels, sized to their content. */
 @media (max-width: 760px) {
-  :root[data-skin="linear"] #loadedLaps { display: flex; flex-wrap: wrap; }
-  :root[data-skin="linear"] #loadedLaps .loaded-lap-pill { width: auto; flex: 0 1 auto; max-width: 100%; }
+  :root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) { display: flex; flex-wrap: wrap; }
+  :root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) .loaded-lap-pill { width: auto; flex: 0 1 auto; max-width: 100%; }
 }
 
 /* ---- Lap cards, inspector, frame edge, sidebar toggle, status and menus ---- */
@@ -2300,7 +2300,7 @@
 /* One type style per button role (spec §8): icon buttons carry the pill's 500 12 (their glyph sizes come from the icon), the
    comparison chip's lap label and its remove button read in 500 12 like the other small pills. */
 :root[data-skin="linear"] :is(.site-header #windowSidebarToggle, .site-header .workspace-tools > button, #linearWorkspace .linear-search) { font: 500 12px/1 var(--ui-font); }
-:root[data-skin="linear"] #loadedLaps .loaded-lap-pill > :is(.loaded-lap-main, .remove) { font-family: var(--ui-font); font-weight: 500; font-size: 12px; }
+:root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) .loaded-lap-pill > :is(.loaded-lap-main, .remove) { font-family: var(--ui-font); font-weight: 500; font-size: 12px; }
 /* Chart-key pills share one design, the lap chart's legend and the trace toggles above the telemetry alike: Linear's 24 px
    label pill with an inset hairline, a colour dot that opens a colour picker, the driver code and (traces) the lap time.
    A hidden trace dims its pill; the second driver of a team colour has a hollow dot, as the chart draws their points. */
