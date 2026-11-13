@@ -96,7 +96,7 @@
 :root[data-skin="linear"] #liveTiming .live-chart-driver:hover:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: var(--lin-pill-hover); }
 :root[data-skin="linear"] #liveTiming .live-chart-driver i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
 :root[data-skin="linear"] #liveTiming .live-chart-driver[aria-pressed="false"] i { opacity: .45; }
-:root[data-skin="linear"] #liveTiming .live-chart-driver small { color: var(--ui-quaternary); font: 450 11px/1 var(--ui-font); font-variant-numeric: tabular-nums; }
+:root[data-skin="linear"] #liveTiming .live-chart-driver small { color: var(--ui-tertiary); font: 450 11px/1 var(--ui-font); font-variant-numeric: tabular-nums; }
 :root[data-skin="linear"] #liveTiming .live-chart-actions .live-button[aria-pressed="true"] { background: var(--lin-pill-on); color: var(--ui-label); }
 :root[data-skin="linear"] #liveTiming .live-chart-plot { min-height: 220px; }
 :root[data-skin="linear"] #liveTiming .live-lap-chart { display: block; width: 100%; height: auto; overflow: visible; }
@@ -107,7 +107,7 @@
 :root[data-skin="linear"] #liveTiming .live-lap-column { display: grid; align-content: start; gap: 6px; }
 :root[data-skin="linear"] #liveTiming .live-lap-column-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 6px; height: 28px; background: var(--lin-card, var(--ui-panel)); font: 500 12px/1 var(--ui-font); color: var(--ui-label); }
 :root[data-skin="linear"] #liveTiming .live-lap-column-head i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
-:root[data-skin="linear"] #liveTiming .live-lap-column-head small { color: var(--ui-quaternary); font: 450 11px/1 var(--ui-font); }
+:root[data-skin="linear"] #liveTiming .live-lap-column-head small { color: var(--ui-tertiary); font: 450 11px/1 var(--ui-font); }
 :root[data-skin="linear"] #liveTiming .live-lap-tiles .lap-chip.is-overall .lap-clock { color: #bf5af2; }
 :root[data-skin="linear"] #liveTiming .live-lap-tiles .lap-chip.is-personal .lap-clock { color: #30d158; }
 :root[data-skin="linear"] #liveTiming .live-condition-icon { display: inline-block; width: 18px; margin-right: 4px; font-style: normal; font-size: 13px; text-align: center; }

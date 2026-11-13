@@ -3,12 +3,15 @@
    each chart's stretch and stores it as --chart-scale; the CSS divides font sizes by it, and lines use non-scaling strokes.
    Charts drawn at their real width (session-overview.js) have a scale of 1 and are unaffected. */
 (() => {
-  const SELECTOR = 'svg.season-chart, svg.trade-off-plot, svg.overview-lap-chart';
+  const SELECTOR = 'svg.season-chart, svg.trade-off-plot, svg.overview-lap-chart, svg.stint-plot';
   const sized = new WeakSet();
   const measure = svg => {
-    const vb = svg.viewBox?.baseVal, w = svg.getBoundingClientRect().width;
+    const vb = svg.viewBox?.baseVal, box = svg.getBoundingClientRect(), w = box.width;
     if (!vb?.width || !w) return;
-    svg.style.setProperty('--chart-scale', String(Math.round(w / vb.width * 1000) / 1000));
+    // A chart that keeps its aspect ratio is fitted inside its box: when a height cap binds, the height sets the stretch.
+    const fitted = svg.getAttribute('preserveAspectRatio') !== 'none' && vb.height && box.height;
+    const scale = fitted ? Math.min(w / vb.width, box.height / vb.height) : w / vb.width;
+    svg.style.setProperty('--chart-scale', String(Math.round(scale * 1000) / 1000));
     // Round labels: every one where the widest fits between its neighbours (measured on screen), every other one where not.
     const labels = [...svg.querySelectorAll('text.x-label')];
     if (labels.length > 1) {

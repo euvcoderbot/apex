@@ -6,7 +6,7 @@ import {spawn} from 'node:child_process';
 import {writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {chromium} from 'playwright';
+import * as playwright from 'playwright';
 import {isolate, replayFixture} from '../e2e/helpers.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -171,7 +171,9 @@ STATES['ui-catalog'] = async page => { await page.goto(origin + '/apex/ui-catalo
 
 const server = spawn(process.execPath, ['scripts/serve-static.mjs', String(port)], {cwd: root, stdio: 'ignore'});
 await new Promise(r => setTimeout(r, 1500));
-const browser = await chromium.launch();
+// --browser chromium|firefox|webkit: run the same audit in another engine (cross-browser check).
+const engine = process.argv.includes('--browser') ? process.argv[process.argv.indexOf('--browser') + 1] : 'chromium';
+const browser = await playwright[engine].launch();
 const groups = new Map(), familyMap = new Map(), layouts = {};
 let runs = 0;
 const errors = [];
@@ -188,6 +190,8 @@ try {
         await page.locator('details').evaluateAll(nodes => nodes.forEach(node => { node.open = true; }));
         await page.waitForTimeout(200);
       }
+      // Measure the resting look: finish any hover/press fade still running from setup (a mid-fade colour is no finding).
+      await page.evaluate(() => document.getAnimations().forEach(anim => { try { anim.finish(); } catch { /* infinite */ } }));
       const result = await page.evaluate(AUDIT, SPEC);
       if (shots) await page.screenshot({path: path.join(shots, `${state}-${theme}-${width}.png`), fullPage: false});  // the frame is fixed: a full-page capture shows the canvas below the fold, not the content
       if (shots && scrollShots) {

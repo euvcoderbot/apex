@@ -699,7 +699,7 @@ function resolveCornerMarkers(samples, totalDistance, suppliedMarkers = null) {
 function drawGridAxes(ctx, width, height, bounds, unit) {
   const { left, right, top, bottom, min, max, tickStep } = bounds;
   const theme = canvasTheme();
-  ctx.font = canvasFont(9);   // value axis: 10 px, the chart caption size
+  ctx.font = canvasFont(10);   // value axis: 11 px 450, every chart's axis size
   const ticks = [];
   if (Number.isFinite(tickStep) && tickStep > 0) {
     for (let value = Math.floor((max + tickStep * .001) / tickStep) * tickStep; value >= min - tickStep * 0.001; value -= tickStep) {
@@ -975,7 +975,7 @@ function drawSpeedAnnotations(ctx, annotations, rect, bounds, xForFraction, view
   const bottom = rect.height - bounds.bottom, lineHeight = 11, plotRight = rect.width - bounds.right;
   const yFor = speed => bounds.top + (bounds.max - speed) / (bounds.max - bounds.min || 1) * (bottom - bounds.top);
   ctx.save();
-  ctx.font = canvasFont(9, 600);
+  ctx.font = canvasFont(10, 500);   // in-chart labels: 500 11 px
   ctx.textAlign = 'center';
   ctx.lineJoin = 'round';
   const collides = box => occupied.some(b => box.x < b.x + b.width + 2 && box.x + box.width + 2 > b.x && box.y < b.y + b.height + 1 && box.y + box.height + 1 > b.y);
@@ -1329,7 +1329,7 @@ function drawRealChart(name) {
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.fillStyle = theme.text;
-    ctx.font = canvasFont(9);   // distance axis: 10 px
+    ctx.font = canvasFont(10);   // distance axis: 11 px 450
     ctx.textAlign = tick === 0 ? 'left' : tick === distanceTickCount ? 'right' : 'center';
     if (showDistanceNumbers) ctx.fillText(`${Math.round(fraction * totalDist)} m`, x, rect.height - bounds.bottom + 18);
   }
@@ -1538,7 +1538,7 @@ function drawRealChart(name) {
 
       // Small grey boxed turn tags, like broadcast speed-trace graphics.
       const label = cornerLabel(corner);
-      ctx.font = canvasFont(10, 600);
+      ctx.font = canvasFont(10, 500);
       const tagWidth = width;
       const tagLeft = left;
       ctx.fillStyle = lightThemeActive() ? 'rgba(20,25,32,.08)' : 'rgba(255,255,255,.1)';

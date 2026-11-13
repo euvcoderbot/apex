@@ -1286,7 +1286,7 @@
     const {ctx, w, h} = frame, points = outline?.points || [], cars = Object.entries(state?.positions || {}).filter(([, p]) => p.x || p.y);
     if (!bounds || !outline?.complete) {
       const xs = [...points.map(p => p[0]), ...cars.map(([, p]) => p.x)], ys = [...points.map(p => p[1]), ...cars.map(([, p]) => p.y)];
-      if (!xs.length) { ctx.fillStyle = css('--ui-tertiary') || '#888'; ctx.font = '13px var(--ui-font, system-ui)'; ctx.textAlign = 'center'; ctx.fillText('No car positions yet', w / 2, h / 2); return; }
+      if (!xs.length) { ctx.fillStyle = css('--ui-tertiary') || '#888'; ctx.font = canvasFont(12); ctx.textAlign = 'center'; ctx.fillText('No car positions yet', w / 2, h / 2); return; }
       bounds = {x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys)};
     }
     const pad = 22, scale = Math.min((w - pad * 2) / Math.max(1, bounds.x1 - bounds.x0), (h - pad * 2) / Math.max(1, bounds.y1 - bounds.y0));

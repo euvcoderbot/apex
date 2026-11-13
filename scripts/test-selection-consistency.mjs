@@ -58,7 +58,7 @@ test('each control family has one selected style and rings mean focus only (sele
   // Driver list as a source list: one 32 px line, natural-case name, trailing code and check.
   assert.match(css,/#driverPills \.driver-pill\[data-ui-kind="list-row"\] \{ grid-template-columns: 20px 18px minmax\(0,1fr\) auto 12px;[^}]*height: 32px/);
   assert.match(css,/#driverPills \.driver-pill\[data-ui-kind="list-row"\]::before \{ content: none; \}/);
-  assert.match(app,/<span class="driver-pill-identity">\$\{escapeUI\(name\)\}<\/span>\$\{isRace \? raceResultMarkup\(realDrivers\.get\(code\)\) : `<span class="driver-pill-code">/);
+  assert.match(app,/<span class="driver-pill-identity">\$\{escapeUI\(name\)\}(<span class="visually-hidden">[^`]*?<\/span>)?<\/span>\$\{isRace \? raceResultMarkup\(realDrivers\.get\(code\)\) : `<span class="driver-pill-code">/);
   const box={};vm.createContext(box);vm.runInContext(app.slice(app.indexOf('function naturalDriverName('),app.indexOf('function renderDrivers(')),box);
   assert.equal(box.naturalDriverName('Max VERSTAPPEN'),'Max Verstappen');
   assert.equal(box.naturalDriverName('Andrea Kimi ANTONELLI'),'Andrea Kimi Antonelli');

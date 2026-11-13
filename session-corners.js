@@ -587,7 +587,7 @@ function drawApiCircuitGuide(ctx, data, rect) {
     ctx.fillStyle=textColor||(light?'#282a30':'#e6e7ea');ctx.textAlign='left';ctx.fillText(text,box.x+h/2+7,box.y+h/2+.5);ctx.textAlign='center';
   };
   if(sectors){
-    ctx.font=canvasFont(9,600);
+    ctx.font=canvasFont(10,500);
     [0,1,2].forEach(sector=>{
       const indices=sectors.map((s,i)=>s===sector?i:-1).filter(i=>i>=0);
       if(!indices.length)return;
@@ -600,7 +600,7 @@ function drawApiCircuitGuide(ctx, data, rect) {
   // Fastest point of this lap (where the speed trap normally sits).
   if(data.topSpeed&&Number.isFinite(+data.topSpeed.x)&&Number.isFinite(+data.topSpeed.y)){
     const p=project({x:+data.topSpeed.x,y:-+data.topSpeed.y});
-    ctx.font=canvasFont(9,600);
+    ctx.font=canvasFont(10,500);
     const label=`Top speed ${Math.round(data.topSpeed.speed)} km/h`,width=ctx.measureText(label).width+22;
     const spot=placeBeside(nearestIndex(p),width,16,[24,34,46,60,76,94]);
     if(spot){ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(spot.x,spot.y);ctx.strokeStyle=light?'rgba(0,0,0,.35)':'rgba(255,255,255,.35)';ctx.lineWidth=1;ctx.stroke();pill(spot.box,label,'#ffd60a');}

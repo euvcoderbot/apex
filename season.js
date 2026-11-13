@@ -536,7 +536,7 @@
     const props = circuitFeature(next)?.properties;
     const hist = data.next_history;
     const facts = el('dl', 'season-facts-list');
-    const fact = (k, v, note) => { if (v == null || v === '') return; const d = el('div'); d.append(el('dt', null, k), el('dd', null, String(v))); if (note) d.append(el('small', null, note)); facts.append(d); };
+    const fact = (k, v, note) => { if (v == null || v === '') return; const d = el('div'), dd = el('dd', null, String(v)); if (note) dd.append(el('small', null, note)); d.append(el('dt', null, k), dd); facts.append(d); };
     circuit.prepend(el('h3', null, next.circuit));
     if (props) {
       fact('Lap length', props.length ? `${(props.length / 1000).toFixed(3)} km` : null);
@@ -736,8 +736,10 @@
     const tbody = el('tbody');
     const cell = id => { const td = el('td'); if (id) td.append(who(data, id, {code: true, team: false})); else td.textContent = '—'; return td; };
     for (const [w, r] of rows) {
-      const tr = el('tr', 'season-row-expand'); tr.tabIndex = 0; tr.setAttribute('aria-expanded', String(state.expanded === r.round));
-      const gp = el('td'), gpName = el('span', 'season-gp'); const f = flag(r); if (f) gpName.append(f); gpName.append(el('span', null, r.name)); gp.append(gpName);
+      // The row opens on a click anywhere; keyboard and screen readers use the Grand Prix name, a real disclosure button.
+      const tr = el('tr', 'season-row-expand');
+      const gp = el('td'), gpName = el('button', 'season-gp season-row-toggle'); gpName.type = 'button'; gpName.setAttribute('aria-expanded', String(state.expanded === r.round));
+      const f = flag(r); if (f) gpName.append(f); gpName.append(el('span', null, r.name)); gp.append(gpName);
       tr.append(el('td', 'num', String(r.round)), gp);
       if (session === 'race') {
         const at = p => r.race.find(x => x.position === p)?.driver;
@@ -754,8 +756,7 @@
           el('td', 'num', gap2 != null ? `+${gap2.toFixed(3)} s` : '—'), el('td', 'num', Number.isFinite(cut) ? lapTime(cut) : '—'), cell(sprintPole(r)));
       }
       const toggle = () => { state.expanded = state.expanded === r.round ? null : r.round; paint(() => renderResults(data)); };
-      tr.addEventListener('click', toggle);
-      tr.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); } });
+      tr.addEventListener('click', toggle);  // the button's click (also Enter/Space) bubbles here
       tbody.append(tr);
       if (state.expanded === r.round) {
         const detail = el('tr', 'season-detail'); const td = el('td'); td.colSpan = heads.length + 2;
@@ -1350,6 +1351,9 @@
     tile('Best qualifying', s.best_qualifying ? `P${s.best_qualifying}` : '—');
     tile('Retirements', String(s.retirements), s.mechanical_retirements ? `${s.mechanical_retirements} car failure${s.mechanical_retirements === 1 ? '' : 's'}` : null);
     tile('Sprint points', String(s.sprint_points));
+    // Full rows: the column count (at most 6, at least 4) that leaves the fewest empty cells for this driver's tiles.
+    const n = tiles.childElementCount, cols = [6, 5, 4].reduce((best, c) => ((c - n % c) % c < (best - n % best) % best ? c : best), 6);
+    tiles.style.setProperty('--tile-cols', String(cols));
     // Weekend strip: each round's finish (F1 colours: purple win, green podium, white points, grey no points, red retirement).
     const strip = el('div', 'season-strip');
     for (const r of s.by_round) {
@@ -1555,7 +1559,8 @@
       }
       row.append(bars[0], mid, bars[1]);
       const [qa, qb] = p.tally.qualifying, [ra, rb] = p.tally.race;
-      row.setAttribute('aria-label', `${teamName(data, p.team)}: ${driverCode(data, p.a)} against ${driverCode(data, p.b)}. Qualifying ${qa}–${qb}, race ${ra}–${rb}. Open this head-to-head.`);
+      // The visible text names the pair and team; the tallies are added for screen readers (not a replacement label).
+      row.append(el('span', 'visually-hidden', `Qualifying ${qa}–${qb}, race ${ra}–${rb}. Open this head-to-head.`));
       row.title = `${driverCode(data, p.a)} v ${driverCode(data, p.b)} · qualifying ${qa}–${qb} · race ${ra}–${rb}`;
       battles.append(row);
     }

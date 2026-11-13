@@ -82,7 +82,11 @@ lines 1.75 px (faint context series 1 px), round joins, straight segments (no cu
 ring (hollow for the second driver of a team colour); the selected point gets a `--ui-label` ring; end-of-line labels 500 11 px
 in the series colour, at least 14 px apart. Strokes are non-scaling and sizes divided by `--chart-scale` where a chart has a fixed
 viewBox. One rule set covers every chart: the chart block at the end of `skins.css` (and its twin in `season.css`). Scales enclose the data (round outer ticks, see `niceTicks`). Keep the viewBox
-close to the rendered width so 11 px stays 11 px.
+close to the rendered width so 11 px stays 11 px. A new fixed-viewBox chart must be listed in `svg-scale.js`'s selector, whose
+scale is the fitted one (the smaller of width and height stretch when a height cap binds), and size text, strokes and `r`
+against `--chart-scale` (see `svg.stint-plot`). Canvas telemetry follows the same type: axes `canvasFont(10)` (450 11 px),
+in-chart labels `canvasFont(10, 500)`; its traces stay thinner than SVG lines (1.44 px reference, 1.12 px comparison)
+because several laps overlap and precision matters. `node scripts/audit-charts.mjs` measures every chart at rendered size.
 
 **Legend.** Linear's label pills: 24 px high, `border-radius: 9999px`, ring `--lin-label-border`, an 8 px colour dot, 500 12 px
 secondary.
@@ -133,6 +137,16 @@ retains its compact three-column layout and measured row heights. This is an Ape
 retain the shared card surface. Standings places the primary table beside the title fight and charts at desktop widths;
 the title fight precedes the table when stacked. Page titles name the selected Season view. Summary metrics share a flat
 grid of property cells instead of individual dashboard cards.
+
+**Contrast and accessibility.** Readable text meets 4.5:1: metadata uses `--ui-tertiary`; `--ui-quaternary` is for
+decoration and disabled controls only. Coloured text on light tints is deepened (`color-mix(... #000)`), never re-hued; a
+compound or team colour carried by a mark beside the word lets the word use a neutral. Accessible names start from the visible
+text: add detail with `.visually-hidden`, not an `aria-label` that replaces it. A chart whose points are buttons is
+`role="group"`, not `img`. Disclosure rows put `aria-expanded` on a real button. `node scripts/audit-a11y.mjs` runs axe,
+a keyboard focus walk and a reduced-motion check on every route; `--browser firefox|webkit` runs any audit in another engine.
+
+**Sticky columns.** A sticky name column paints `--season-surface` (content panel on desktop, canvas on phones, card inside
+a card) so it reads as the surface it sits on. On phones the team sits under the name to keep the column narrow.
 
 **Status and notes.** Empty states centred, 15 px 600 title, 13 px tertiary body. Inline hints 11–12 px quaternary.
 

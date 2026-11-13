@@ -89,7 +89,7 @@ function renderDrivers() {
     const name = naturalDriverName(d[2] || code);
     // A source-list row: position · team-colour chip with the car number · name · trailing code (a race shows
     // its result there instead).
-    return `<button class="driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-motion-key="driver-${code}" data-code="${code}" aria-label="${escapeUI(`P${position}, ${name}, ${d[4] || ''}, number ${number}`)}" aria-pressed="${isSelected}"><span class="driver-pill-position">${position}</span>${teamLogoMarkup(d[4], number)}<span class="driver-pill-identity">${escapeUI(name)}</span>${isRace ? raceResultMarkup(realDrivers.get(code)) : `<span class="driver-pill-code">${escapeUI(code)}</span>`}</button>`;
+    return `<button class="driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-motion-key="driver-${code}" data-code="${code}" aria-pressed="${isSelected}"><span class="driver-pill-position"><span class="visually-hidden">P</span>${position}</span>${teamLogoMarkup(d[4], number)}<span class="driver-pill-identity">${escapeUI(name)}<span class="visually-hidden">, ${escapeUI(d[4] || '')}, number ${number}</span></span>${isRace ? raceResultMarkup(realDrivers.get(code)) : `<span class="driver-pill-code">${escapeUI(code)}</span>`}</button>`;
   }).join(''));
   
   root.querySelectorAll('button').forEach(btn => {
@@ -357,7 +357,7 @@ function renderLoaded() {
   
   replaceUI(root, loaded.map((item, index) => `
     <div class="loaded-lap-pill ${index === 0 ? 'reference' : ''}" style="--team:${getLapColor(item)}" data-motion-key="comparison-${item.code}-${item.lap}" data-index="${index}">
-      <button class="loaded-lap-main ${index === 0 ? 'reference' : ''}" data-motion-key="reference-${item.code}-${item.lap}" aria-pressed="${index === 0}" aria-label="Use ${item.code} lap ${item.lap} as reference"><b>${item.code}</b><span>L${item.lap}${item.real?.in_lap && item.real?.out_lap ? ' IN/OUT' : item.real?.out_lap ? ' OUT' : item.real?.in_lap ? ' IN' : ''}</span><strong>${item.real?.display_time_estimated ? '~' : ''}${time(Number.isFinite(item.real?.display_time) ? item.real.display_time : item.time)}</strong></button><button class="remove" data-motion-key="remove-${item.code}-${item.lap}" data-remove="${index}" aria-label="Remove ${item.code} lap ${item.lap}">×</button>
+      <button class="loaded-lap-main ${index === 0 ? 'reference' : ''}" data-motion-key="reference-${item.code}-${item.lap}" aria-pressed="${index === 0}" title="Use ${item.code} lap ${item.lap} as reference"><b>${item.code}</b><span>L${item.lap}${item.real?.in_lap && item.real?.out_lap ? ' IN/OUT' : item.real?.out_lap ? ' OUT' : item.real?.in_lap ? ' IN' : ''}</span><strong>${item.real?.display_time_estimated ? '~' : ''}${time(Number.isFinite(item.real?.display_time) ? item.real.display_time : item.time)}</strong><span class="visually-hidden">, reference lap</span></button><button class="remove" data-motion-key="remove-${item.code}-${item.lap}" data-remove="${index}" aria-label="Remove ${item.code} lap ${item.lap}">×</button>
     </div>`).join(''));
   
   root.querySelectorAll('.loaded-lap-pill').forEach(p => {

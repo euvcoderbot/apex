@@ -142,7 +142,7 @@
     }).filter(Boolean).sort((a, b) => a.value - b.value)});
     // Many laps: small points (full size on hover) so overlapping lines stay readable.
     const dense = (W - L - R) / Math.max(1, lapHi - lapLo) < 16;
-    let svg = `<svg class="overview-lap-chart${dense ? ' is-dense' : ''}" ${hover} viewBox="0 0 ${W} ${H}" role="img" aria-label="Lap times by lap for ${esc(codes.join(', '))}">`;
+    let svg = `<svg class="overview-lap-chart${dense ? ' is-dense' : ''}" ${hover} viewBox="0 0 ${W} ${H}" role="group" aria-label="Lap times by lap for ${esc(codes.join(', '))}">`;  // a group: its lap points are buttons
     // Tick labels carry only the decimals the step needs: 1:16 for whole seconds, 1:16.5 for halves, 1:16.25 for quarters.
     const decimals = step >= 1 ? 0 : step >= .5 ? 1 : 2;
     const tick = t => { const m = Math.floor(t / 60), sec = t - m * 60; return `${m}:${sec.toFixed(decimals).padStart(decimals ? 3 + decimals : 2, '0')}`; };

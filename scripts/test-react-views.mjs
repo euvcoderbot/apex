@@ -182,7 +182,8 @@ test('tyre trend view: toolbar per mode, compound pills, stint plot and run pick
   assert.match(age, /performance-tyre-age-bar" style="--bar-color:#ff0000;left:0\.00%;width:100\.00%"/);
   assert.match(age, /—<small>P75 needs C3: 3\/4 GPs<\/small>/);
   assert.match(age, /<select data-tyre-plot-filter="team">/);
-  assert.match(age, /stroke-dasharray="6 4"/);
+  assert.match(age, /<svg class="stint-plot"/);  // the fit is dashed by svg.stint-plot .fit in skins.css, scale-corrected
+  assert.match(age, /<path class="fit"/);
   assert.match(age, /data-tyre-exclusions="" aria-pressed="false">Show 1 excluded lap/);
   assert.match(age, /<details class="dashboard-card performance-methods" open="">/);
 });
