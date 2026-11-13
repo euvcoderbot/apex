@@ -2469,3 +2469,8 @@
 /* Head-to-head: the pair being compared, marked in the list of every teammate battle. */
 :root[data-skin="linear"] #seasonHub .season-battle-row[aria-current="true"] td { background: var(--lin-nav-active); }
 :root[data-skin="linear"] #seasonHub .season-battle-row[aria-current="true"] td :is(.season-muted, b:not(.is-better)) { color: var(--ui-secondary); }  /* readable on the marked row */
+
+/* One rule for the whole site (Season's look): tables are drawn on the page surface, not in a box: no fill, no ring, an
+   unfilled header row; charts keep their card. */
+:root[data-skin="linear"] :is(#carPerformance, #sessionOverview, .telemetry-analysis-grid) .performance-table-wrap { background: transparent; box-shadow: none; border-radius: 0; }
+:root[data-skin="linear"] :is(#carPerformance, #sessionOverview, .telemetry-analysis-grid) .performance-table thead th { background: transparent; }

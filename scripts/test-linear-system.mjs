@@ -47,8 +47,9 @@ test('no capitals by transform', () => {
 });
 
 test('no decorative gradients or glows in the Linear stylesheets', () => {
-  // Allowed: the team-colour disc behind a driver's photo (identity), and the half-filled "next" status glyph.
-  const allow = /season-avatar\.is-lg \{|season-status\[data-status="next"\]::before|data-analysis-view="performance"\]::before/;
+  // Allowed: the team-colour disc behind a driver's photo (identity), the half-filled "next" status glyph, and the hatch that
+  // marks a tyre compound missing from the timing feed (data, not decoration).
+  const allow = /season-avatar\.is-lg \{|season-status\[data-status="next"\]::before|data-analysis-view="performance"\]::before|is-unknown/;
   const linear = ['skins.css', 'season.css', 'live-linear.css'];
   const bad = offenders(/(?:linear|radial|conic)-gradient\(|drop-shadow\(/, linear).filter(l => !allow.test(l));
   assert.deepEqual(bad, [], 'Surfaces are flat (spec §1); a gradient or glow needs a data reason and an entry in this allow-list.');

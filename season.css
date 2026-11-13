@@ -1036,6 +1036,15 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-stint-bar > span { display: grid; place-items: center; min-width: 4px; border-radius: 6px;
   background: color-mix(in oklch, var(--tyre) 34%, transparent);  /* filled like the heat grids, no outline */
   color: var(--ui-label); font: 600 11px/1 var(--ui-font); font-variant-numeric: tabular-nums; }
+/* New sets full strength; used sets (already run before this stint) darker; a compound the timing feed did not record is a
+   hatched neutral block with a question mark, never a guess. */
+#seasonHub .season-stint-bar > span.is-used { background: color-mix(in oklch, var(--tyre) 16%, transparent); color: var(--ui-secondary); }
+#seasonHub .season-stint-bar > span.is-unknown { background: repeating-linear-gradient(135deg, var(--lin-band, #1d1e20) 0 4px, transparent 4px 8px); box-shadow: inset 0 0 0 1px var(--line); color: var(--ui-tertiary); }
+#seasonHub .season-stint-bar > span.is-unknown:not(:empty)::after { content: "\00a0?"; }
+#seasonHub .season-stint-bar > span { white-space: nowrap; }
+#seasonHub .season-tyre-swatch::before { content: ""; width: 14px; height: 10px; border-radius: 3px; background: color-mix(in oklch, var(--ui-label) 34%, transparent); }
+#seasonHub .season-tyre-swatch.is-used::before { background: color-mix(in oklch, var(--ui-label) 16%, transparent); }
+#seasonHub .season-tyre-swatch.is-unknown::before { background: repeating-linear-gradient(135deg, var(--lin-band, #1d1e20) 0 3px, transparent 3px 6px); box-shadow: inset 0 0 0 1px var(--line); }
 #seasonHub .season-stop-times { color: var(--ui-secondary); font: 450 12px/1 var(--ui-font); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* Circuit profile (Schedule): measure rows with their rank, then four short record lists. */
@@ -1097,3 +1106,18 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-battle-score > i::before { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--share); border-radius: 2px; background: var(--team); }
 #seasonHub .season-battle-gap { color: var(--ui-secondary); font: 500 12px/1 var(--ui-font); font-variant-numeric: tabular-nums; white-space: nowrap; }
 #seasonHub .season-battle-row { cursor: pointer; }
+/* Number columns in the round grids are centred, title and value alike (a .season-strong cell had fallen back to right). */
+#seasonHub .season-matrix :is(th, td).num { text-align: center; }
+/* Two charts in one card: the second starts after a hairline and clear space, its caption reading as a heading. */
+#seasonHub .season-card > .season-chart-sub { margin: 0 0 6px; color: var(--ui-secondary); font: 500 12px/1.2 var(--ui-font); }
+#seasonHub .season-card > :is(svg, .season-chart-keyed) ~ .season-chart-sub { margin-top: 18px; padding-top: 16px; box-shadow: inset 0 1px var(--line); }
+/* Head-to-head weekend grid: the driver ahead that weekend is underlined in their cell. */
+#seasonHub .season-h2h-grid td.is-ahead { text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+#seasonHub .season-h2h-grid tbody th { white-space: nowrap; color: var(--ui-secondary); font: 500 12px/1 var(--ui-font); }
+/* Value card: a heading over a hairline, then rows; "label  value" rows align their values right in tabular figures. */
+#seasonHub ~ .season-tip, .season-tip { gap: 3px; min-width: 140px; }
+.season-tip > b { padding-bottom: 6px; margin-bottom: 3px; box-shadow: inset 0 -1px var(--lin-float-border, var(--line)); font: 500 12px/1.3 var(--ui-font); }
+.season-tip > span { font: 450 12px/1.4 var(--ui-font); color: var(--ui-secondary); }
+.season-tip-row { display: flex; justify-content: space-between; gap: 16px; }
+.season-tip-row > span:first-child { color: var(--ui-tertiary); }
+.season-tip-row > span:last-child { color: var(--ui-label); font-weight: 500; font-variant-numeric: tabular-nums; text-align: right; }

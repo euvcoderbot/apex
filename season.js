@@ -707,24 +707,12 @@
     grid.append(stat(data, 'Largest winning margin', cards.largest_margin, e => [el('b', 'season-big', `${e.value.toFixed(3)} s`), who(data, e.ids[0]), el('p', 'season-footnote', roundName(e.round))]));
     grid.append(stat(data, 'Closest winning margin', cards.closest_margin, e => [el('b', 'season-big', `${e.value.toFixed(3)} s`), who(data, e.ids[0]), el('p', 'season-footnote', roundName(e.round))]));
     grid.append(stat(data, 'Biggest climb', cards.comeback, e => [el('b', 'season-big', `+${e.gain}`), who(data, e.driver), el('p', 'season-footnote', `${e.pit_lane ? 'Pit lane' : `P${e.grid}`} → P${e.finish} · ${roundName(e.round)}`)]));
-    const retirements = stat(data, 'Retirements by team', cards.retirements, e => {
-      const max = Math.max(1, ...Object.values(e.by_team));
-      const list = el('div', 'season-bars');
-      for (const [t, n] of Object.entries(e.by_team)) {
-        const row = el('div', 'season-bar-row'); row.append(teamTag(data, t));
-        const bar = el('span', 'season-bar'); const fill = el('i'); fill.style.width = `${n / max * 100}%`; fill.style.background = teamColour(t); bar.append(fill);
-        row.append(bar, el('b', null, String(n))); list.append(row);
-      }
-      const dns = Object.values(e.did_not_start || {}).reduce((a, b) => a + b, 0);
-      return [list, el('p', 'season-footnote', `Cars that started and were not classified.${dns ? ` ${dns} more did not start, and are not counted.` : ''}`)];
-    });
     out.push(seasonNumbers(data), grid);
     // Two columns of stacked cards, paired so the columns come out about the same length (the last card in each
     // stretches to meet the other), rather than side-by-side pairs of very different heights.
-    const [crews, quickest] = data.pit_stops?.teams?.length ? pitStops(data) : [];
-    const breakdown = columns([retirements, winsCard(data)], [crews, quickest]);
-    // Grand Prix table: straight after the season's numbers, before the team breakdowns.
-    out.push(gpResults(data), breakdown);
+    // Results is about the Grands Prix: the season's numbers, then the race-by-race table. Wins moved to Standings;
+    // retirements by team are in Power units' reliability table, and pit crews in Car performance > Pit stops.
+    out.push(gpResults(data));
     return out;
   }
   // The season in a row of numbers.
@@ -749,30 +737,6 @@
     const c = card(null, row); c.classList.add('season-numbers-card');
     return c;
   }
-  function pitStops(data) {
-    const ps = data.pit_stops;
-    const max = Math.max(.2, ...ps.teams.map(t => Math.abs(t.vs_field)));
-    const list = el('div', 'season-bars season-diverging');
-    for (const t of ps.teams) {
-      const row = el('div', 'season-bar-row'); row.append(teamTag(data, t.team));
-      const bar = el('span', 'season-bar is-diverging'); const fill = el('i');
-      const share = Math.abs(t.vs_field) / max * 50;
-      fill.style.width = `${share}%`; fill.style.left = t.vs_field < 0 ? `${50 - share}%` : '50%'; fill.style.background = teamColour(t.team);
-      fill.title = `${t.stops} stops · median ${t.median.toFixed(1)} s in the pit lane · best ${t.best.toFixed(1)} s`;
-      bar.append(fill);
-      row.append(bar, el('b', null, signed(t.vs_field, 2, ' s')));
-      list.append(row);
-    }
-    const fastest = el('ol', 'season-ranked');
-    for (const x of ps.fastest.slice(0, 8)) {
-      const li = el('li'), r = data.rounds.find(y => y.round === x.round);
-      const name = who(data, x.driver, {team: false}); li.append(name, el('b', null, `${x.seconds.toFixed(3)} s`));
-      li.title = `${r?.name || 'Round ' + x.round}, lap ${x.lap}`;
-      fastest.append(li);
-    }
-    return [card('Pit crews against the field', list, el('p', 'season-footnote', `Median of each team\u2019s stops against the median stop at the same Grand Prix: left of centre is quicker. ${ps.count} stops; pit lane time from entry to exit, stops over a minute left out.`)),
-      card('Quickest pit lane times', fastest, el('p', 'season-footnote', 'Entry to exit, so short pit lanes (Zandvoort, Monaco) rank high. Hover a row for the Grand Prix.'))];
-  }
   function winsCard(data) {
     const rows = Object.entries(data.driver_stats).filter(([, s]) => s.wins || s.sprint_wins).sort((x, y) => y[1].wins - x[1].wins || y[1].sprint_wins - x[1].sprint_wins);
     const max = Math.max(1, ...rows.map(([, s]) => s.wins + s.sprint_wins));
@@ -788,11 +752,6 @@
     }
     const legend = el('div', 'season-legend'); legend.append(el('span', null, 'Solid: Grand Prix wins'), el('span', null, 'Light: sprint wins'));
     return card('Wins', rows.length ? list : empty('No wins yet.'), legend);
-  }
-  function columns(...lists) {
-    const row = el('div', 'season-columns');
-    for (const list of lists) { const stack = el('div', 'season-column'); stack.append(...list.filter(Boolean)); if (stack.childElementCount) row.append(stack); }
-    return row;
   }
   const wrap = node => { const w = el('div', 'season-table-wrap'); w.append(node); return w; };
   // Grand Prix results in two views: Race (podium, fastest lap, sprint winner, margin) and Qualifying (the front row,
@@ -902,9 +861,20 @@
       if (!report) { box.replaceChildren(el('p', 'season-muted', 'No lap data for this race yet.')); return; }
       const drivers = report.session.drivers.filter(d => d.laps?.length);
       // Stints: consecutive laps on one stint number, with their compound and length.
+      // Stints: consecutive laps on one stint number. Its compound is the one its laps report (a lap the feed left blank takes
+      // the stint's known compound); a set whose first lap is already past age 1 was used before (qualifying or an earlier run).
+      const known = c => (c && c !== 'UNKNOWN' && c !== 'NONE' ? c : null);
       const stintsOf = d => {
         const out = [];
-        for (const lap of d.laps) { const last = out.at(-1); if (last && last.stint === lap.stint) last.laps++; else out.push({stint: lap.stint, compound: String(lap.compound || '').toUpperCase(), laps: 1, from: lap.lap}); }
+        for (const lap of d.laps) {
+          const last = out.at(-1), c = known(String(lap.compound || '').toUpperCase());
+          if (last && last.stint === lap.stint) { last.laps++; if (c) last.seen[c] = (last.seen[c] || 0) + 1; }
+          else out.push({stint: lap.stint, laps: 1, from: lap.lap, age: lap.tyre_life, seen: c ? {[c]: 1} : {}});
+        }
+        for (const st of out) {
+          st.compound = Object.entries(st.seen).sort((x, y) => y[1] - x[1])[0]?.[0] || '';
+          st.used = Number.isFinite(st.age) && st.age > 1;
+        }
         return out;
       };
       // Laps led: whoever starts the next lap first led the lap before it (the race end for the final lap).
@@ -960,9 +930,10 @@
         const res = r.race.find(x => data.drivers[x.driver]?.code === d.code), stints = stintsOf(d), mine = visits.filter(v => v.driver === d.code);
         const tr = el('tr'), bar = el('div', 'season-stint-bar');
         for (const s of stints) {
-          const seg = el('span', null, s.laps >= 4 ? String(s.laps) : '');
-          seg.style.flexGrow = String(s.laps); seg.style.setProperty('--tyre', TYRE[s.compound] || 'var(--ui-tertiary)');
-          seg.title = `${s.compound.toLowerCase() || 'unknown'} · ${s.laps} laps from lap ${s.from}`; bar.append(seg);
+          const seg = el('span', `${s.used ? 'is-used' : 'is-new'}${s.compound ? '' : ' is-unknown'}`, s.laps >= 4 ? String(s.laps) : '');
+          seg.style.flexGrow = String(s.laps); if (s.compound) seg.style.setProperty('--tyre', TYRE[s.compound] || 'var(--ui-tertiary)');
+          seg.title = `${s.compound ? s.compound.charAt(0) + s.compound.slice(1).toLowerCase() : 'Compound not in the timing feed'} · ${s.used ? `used set (${s.age - 1} laps old at the start)` : 'new set'} · ${s.laps} laps from lap ${s.from}`;
+          bar.append(seg);
         }
         bar.style.setProperty('--race', String(maxLap)); bar.style.width = `${(d.laps.at(-1).lap / maxLap * 100).toFixed(1)}%`;
         const name = el('td'); name.append(res ? who(data, res.driver, {code: true, team: false}) : el('strong', null, d.code));
@@ -973,8 +944,12 @@
         tb.append(tr);
       }
       t.append(tb);
-      const tyres = el('div', 'season-legend');
-      for (const [k, c] of Object.entries(TYRE)) { if (!rows.some(d => stintsOf(d).some(s => s.compound === k))) continue; const s = el('span', null, k.charAt(0) + k.slice(1).toLowerCase()); s.dataset.tone = 'custom'; s.style.setProperty('--tone', c); tyres.append(s); }
+      const tyres = el('div', 'season-legend season-tyre-key');
+      const all = rows.flatMap(stintsOf);
+      for (const [k, c] of Object.entries(TYRE)) { if (!all.some(s => s.compound === k)) continue; const s = el('span', null, k.charAt(0) + k.slice(1).toLowerCase()); s.dataset.tone = 'custom'; s.style.setProperty('--tone', c); tyres.append(s); }
+      const sw = (cls, label) => { const s = el('span', `season-tyre-swatch ${cls}`, label); tyres.append(s); };
+      sw('is-new', 'New set'); sw('is-used', 'Used set');
+      if (all.some(s => !s.compound)) sw('is-unknown', 'Compound not in the timing feed');
       box.replaceChildren(el('h4', 'season-report-title', 'What happened'), facts, el('h4', 'season-report-title', 'Stints and pit stops'), wrap(t), tyres,
         el('p', 'season-footnote', 'From the race’s lap data and pit timing. Laps led: whoever starts the next lap first. Interruptions count separate safety car, virtual safety car and red-flag periods. Stop times are stationary (DHL); hover for the time in the pit lane. A tyre change during a red flag starts a stint without a stop.'));
     });
@@ -1070,7 +1045,7 @@
       }
     }
     const matrix = card(drivers ? 'Results by round' : 'Points by round', ...[matrixToggle, grid, foot].filter(Boolean));
-    return [toggle, layout, matrix, ...(drivers ? [] : [qualiPace(data)])].filter(Boolean);
+    return [toggle, layout, matrix, ...(drivers ? [winsCard(data)] : [qualiPace(data)])].filter(Boolean);
   }
   // Who can still win: points scored (sprints included) against the most still available.
   function titleFight(data, drivers) {
@@ -1245,13 +1220,22 @@
   function hideChartTip() { if (tipCard) tipCard.hidden = true; }
   // Chart marks with a value card: one tab stop per plot, each mark named by its card. Sections that fill in after the page
   // (Head-to-head's pace) run this again on what they add.
+  // Every value explanation uses the value card, not the browser's slow native tooltip: a data element's title moves to
+  // data-tip (controls keep theirs). One tab stop per chart, table or bar group; arrows move within it.
+  const TIP_GROUP = 'svg,.season-dist,table,.season-stint-bar,.season-report-facts,.season-strip,.season-h2h-weeks,.season-bars,.season-ranked';
   function markTips(root) {
+    for (const node of root.querySelectorAll('[title]')) {
+      if (node.closest('button, a, select, input, summary, label, .season-sort-button') || node.closest('svg') && node.tagName === 'title') continue;
+      node.dataset.tip = node.title; node.removeAttribute('title');
+    }
     for (const mark of root.querySelectorAll('[data-tip]')) {
-      const plot = mark.closest('svg,.season-dist');
+      const plot = mark.closest(TIP_GROUP) || mark.parentElement;
       mark.setAttribute('tabindex', mark === plot.querySelector('[data-tip]') ? '0' : '-1');
-      mark.setAttribute('role', 'img');
-      mark.setAttribute('aria-label', mark.dataset.tip.replaceAll('\n', ', '));
-      plot.setAttribute('role', 'group');
+      if (mark.closest('svg,.season-dist')) {   // a chart mark: an image named by its value card, the plot a group
+        mark.setAttribute('role', 'img');
+        mark.setAttribute('aria-label', mark.dataset.tip.replaceAll('\n', ', '));
+        plot.setAttribute('role', 'group');
+      } else mark.setAttribute('aria-description', mark.dataset.tip.replaceAll('\n', ', '));   // a cell keeps its own content
     }
   }
   function bindTips(scope) {
@@ -1264,11 +1248,18 @@
         tipCard.addEventListener('pointerleave', hideChartTip);
       }
       const [head, ...rest] = mark.dataset.tip.split('\n');
-      tipCard.replaceChildren(el('b', null, head), ...rest.map(line => el('span', null, line)));
+      // The first line heads the card; a "label  value" line (two spaces apart) is a row of two aligned columns.
+      tipCard.replaceChildren(el('b', null, head), ...rest.map(line => {
+        const [k, ...v] = line.split(/\s{2,}/);
+        if (!v.length) return el('span', null, line);
+        const row = el('span', 'season-tip-row'); row.append(el('span', null, k), el('span', null, v.join('  '))); return row;
+      }));
       tipCard.hidden = false;
       const w = tipCard.offsetWidth, h = tipCard.offsetHeight;
       tipCard.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, x + 14))}px`;
-      tipCard.style.top = `${Math.max(8, Math.min(innerHeight - h - 8, y - h - 12))}px`;
+      // Above the pointer when it fits, otherwise below it: the card stays next to what it describes.
+      const above = y - h - 12, below = y + 18;
+      tipCard.style.top = `${Math.max(8, Math.min(innerHeight - h - 8, above >= 8 ? above : below))}px`;
     };
     scope.addEventListener('pointermove', event => {
       let mark = event.target.closest?.('[data-tip]');
@@ -1289,7 +1280,7 @@
     scope.addEventListener('keydown', event => {
       const mark = event.target.closest?.('[data-tip]');
       if (!mark || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-      const marks = [...mark.closest('svg,.season-dist').querySelectorAll('[data-tip]')], index = marks.indexOf(mark);
+      const marks = [...(mark.closest(TIP_GROUP) || mark.parentElement).querySelectorAll('[data-tip]')], index = marks.indexOf(mark);
       const next = event.key === 'Home' ? 0 : event.key === 'End' ? marks.length - 1 : Math.max(0, Math.min(marks.length - 1, index + (event.key === 'ArrowRight' ? 1 : -1)));
       event.preventDefault(); marks.forEach((node, i) => node.setAttribute('tabindex', i === next ? '0' : '-1')); marks[next].focus();
     });
@@ -1424,10 +1415,7 @@
       const pts = s.values.map((v, i) => (v == null ? null : [x(i), y(v)])).filter(Boolean);
       if (!pts.length) continue;
       const d = monotone(pts);
-      if (series.length === 1 && !invert) {
-        svg += `<defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${esc(s.colour)}" stop-opacity=".28"/><stop offset="1" stop-color="${esc(s.colour)}" stop-opacity="0"/></linearGradient></defs>`;
-        svg += `<path class="area" d="${d}L${pts.at(-1)[0].toFixed(1)} ${H - B}L${pts[0][0].toFixed(1)} ${H - B}Z" fill="url(#${gid})"/>`;
-      }
+      // No fill under the line: Linear's charts are lines on a flat surface.
       svg += `<path data-id="${esc(s.id)}" class="line${dashed.has(s) ? ' is-dashed' : ''}" style="stroke:${esc(s.colour)}" d="${d}"/>`;
       // A dot on every round of every series, as Car performance's trend chart.
       if (series.length > 1) svg += `<g class="pts${dashed.has(s) ? ' is-hollow' : ''}" data-id="${esc(s.id)}" style="--c:${esc(s.colour)}">${pts.map(([px, py]) => `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}"/>`).join('')}</g>`;
@@ -1546,19 +1534,30 @@
     formCache[year].catch(() => { delete formCache[year]; });
     return formCache[year];
   }
-  // Each driver's best qualifying lap (any part) as a % gap to pole, per round. Laps over 107% of pole (the sport's own line
-  // for an unrepresentative lap: a wet Q1, a car stopped) are left out.
+  // Qualifying pace per round, like for like: each driver's lap in the last part they ran (Q3, Q2 or Q1) as a % gap to the
+  // fastest lap in that same part, so a wet Q1 is never measured against a dry Q3 pole. A part reached only by eliminating
+  // others keeps its own reference: a Q1 exit is compared with the Q1 benchmark. Laps over 107% of that benchmark (the
+  // sport's own line for an unrepresentative lap) are left out.
   function qualiGapsByRound(done) {
     const quali = {};
     for (const r of done) {
-      const best = r.qualifying.map(q => [q.driver, Math.min(...[q.q1, q.q2, q.q3].filter(Number.isFinite))]).filter(([, t]) => Number.isFinite(t));
-      if (!best.length) continue;
-      const pole = Math.min(...best.map(([, t]) => t));
-      quali[r.round] = Object.fromEntries(best.filter(([, t]) => t <= pole * 1.07).map(([d, t]) => [d, (t / pole - 1) * 100]));
+      const parts = ['q3', 'q2', 'q1'], fastest = Object.fromEntries(parts.map(k => [k, Math.min(...r.qualifying.map(q => q[k]).filter(Number.isFinite))]));
+      const rows = r.qualifying.map(q => { const k = parts.find(p => Number.isFinite(q[p])); return k && Number.isFinite(fastest[k]) ? [q.driver, q[k] / fastest[k]] : null; }).filter(Boolean);
+      if (rows.length) quali[r.round] = Object.fromEntries(rows.filter(([, ratio]) => ratio <= 1.07).map(([d, ratio]) => [d, (ratio - 1) * 100]));
     }
     return quali;
   }
   const poleSeconds = r => Math.min(...r.qualifying.flatMap(q => [q.q1, q.q2, q.q3]).filter(Number.isFinite));
+  // A driver's own outliers: rounds far above their typical gap (no real attempt before a grid penalty, damage, a car stuck
+  // in the garage) are left out of their pace. A genuinely poor weekend is not an outlier: a round is left out only when it
+  // is more than 2% of a lap (about 1.8 s on a 90 s lap) beyond the driver's median and also well outside their usual
+  // spread (four times the median absolute deviation, scaled to a standard deviation). Returns {kept, dropped}.
+  function trimOutliers(points) {
+    if (points.length < 4) return {kept: points, dropped: []};
+    const vals = points.map(([, v]) => v), med = median(vals), mad = median(vals.map(v => Math.abs(v - med)));
+    const limit = med + Math.max(2, 4 * 1.4826 * mad);
+    return {kept: points.filter(([, v]) => v <= limit), dropped: points.filter(([, v]) => v > limit)};
+  }
   // Recent rounds weigh more: each earlier round counts 0.7 of the one after it (the latest weighs 1, the one before 0.7…).
   const ROLLING_DECAY = 0.7;
   function rolling(points) {
@@ -1582,15 +1581,16 @@
     const quali = qualiGapsByRound(done);
     const paceTable = (title, perRound, note) => {
       const ids = Object.keys(data.drivers), rounds = done.map(r => r.round).filter(n => perRound[n]);
-      const series = id => rounds.filter(n => Number.isFinite(perRound[n][id])).map(n => [n, perRound[n][id]]);
+      const seriesAll = id => rounds.filter(n => Number.isFinite(perRound[n][id])).map(n => [n, perRound[n][id]]);
+      const series = id => trimOutliers(seriesAll(id)).kept;
       const toSeconds = ([n, pct]) => [n, pct / 100 * (Number.isFinite(poleTime[n]) ? poleTime[n] : 90)];
       const rankBy = upTo => ids.map(id => [id, rolling(series(id).filter(([n]) => n <= upTo).map(toSeconds))])
         .filter(([, v]) => v != null).sort((a, b) => a[1] - b[1]).map(([id]) => id);
       const last = rounds.at(-1), prev = rounds.at(-2);
       const now = rankBy(last), before = prev ? rankBy(prev) : [];
       const rows = now.map(id => {
-        const pts = series(id), secs = pts.map(toSeconds);
-        return {id, roll: rolling(secs), season: secs.reduce((a, [, v]) => a + v, 0) / secs.length, pct: rolling(pts), n: pts.length, secs,
+        const pts = series(id), secs = pts.map(toSeconds), dropped = trimOutliers(seriesAll(id)).dropped;
+        return {id, roll: rolling(secs), season: secs.reduce((a, [, v]) => a + v, 0) / secs.length, pct: rolling(pts), n: pts.length, secs, dropped,
           move: before.includes(id) ? before.indexOf(id) - now.indexOf(id) : 0};
       }).filter(r => r.n >= 2);
       if (!rows.length) return null;
@@ -1608,10 +1608,11 @@
       rows.forEach((r, i) => {
         const tr = el('tr'), colour = teamColour(data.drivers[r.id]?.team);
         const bar = el('span', 'season-form-bar'); bar.style.setProperty('--w-n', (r.roll / worst).toFixed(3)); bar.style.setProperty('--team', colour);
-        const cell = el('td', 'season-form-pace'); cell.title = `On average +${r.raw.toFixed(3)} s (+${r.pct.toFixed(2)}%) to each round’s quickest, weighted to recent rounds (${r.n} rounds)`;
+        const cell = el('td', 'season-form-pace'); cell.title = `On average +${r.raw.toFixed(3)} s (+${r.pct.toFixed(2)}%) to each round’s quickest, weighted to recent rounds (${r.n} rounds)${r.dropped.length ? `
+Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFixed(2)}%`).join(', ')}` : ''}`;
         cell.append(el('b', null, r.roll < 0.0005 ? 'quickest' : `+${r.roll.toFixed(3)}`), bar);
         const trend = el('td', 'season-form-trend'); trend.append(sparkline(r.secs.map(([, v]) => v), colour));
-        trend.title = r.secs.map(([n, v]) => `${code(n)} ${v < 0.0005 ? '0.000' : '+' + v.toFixed(3)} s`).join('\n');
+        trend.title = [`${driverCode(data, r.id)} · gap to each round’s quickest`, ...r.secs.map(([n, v]) => `${code(n)}  ${v < 0.0005 ? 'quickest' : '+' + v.toFixed(3) + ' s'}`)].join('\n');
         const move = el('td', `num season-form-move${r.move > 0 ? ' is-up' : r.move < 0 ? ' is-down' : ''}`, r.move > 0 ? `▲${r.move}` : r.move < 0 ? `▼${-r.move}` : '–');
         const name = el('td'); name.append(who(data, r.id, {team: false}));
         tr.append(el('td', 'num season-muted', String(i + 1)), name, cell, el('td', 'num', r.season < 0.0005 ? 'quickest' : `+${r.season.toFixed(3)}`), trend, move);
@@ -1621,9 +1622,9 @@
       return card(title, wrap(tbl), el('p', 'season-footnote', note));
     };
     const racePace = form && Object.keys(form.race).length
-      ? paceTable('Race pace', form.race, `Each driver’s clean-air race pace (Car performance’s race analysis) as a gap to the quickest driver in that race, in seconds on that weekend’s pole lap. Rolling pace weighs recent races more (each earlier race counts ${ROLLING_DECAY} of the next); Season is the plain average; both read from the quickest driver on that measure. Move: places gained or lost since the previous race.${form.failed ? ` ${form.failed} race${form.failed === 1 ? ' is' : 's are'} not analysed yet and not counted.` : ''}`)
+      ? paceTable('Race pace', form.race, `Each driver’s clean-air race pace (Car performance’s race analysis) as a gap to the quickest driver in that race, in seconds on that weekend’s pole lap. Rolling pace weighs recent races more (each earlier race counts ${ROLLING_DECAY} of the next); Season is the plain average; both read from the quickest driver on that measure. A race far outside a driver’s usual gap (damage, a stricken car) is left out of their figures; hover a value for which. Move: places gained or lost since the previous race.${form.failed ? ` ${form.failed} race${form.failed === 1 ? ' is' : 's are'} not analysed yet and not counted.` : ''}`)
       : card('Race pace', empty('The race pace analysis is not available here yet.'));
-    const qualiPace = paceTable('Qualifying pace', quali, 'Each driver’s best qualifying lap (any part) as a gap to pole, in seconds; laps over 107% of pole (a wet session, a car that stopped) are left out. Rolling and Season as for race pace.')
+    const qualiPace = paceTable('Qualifying pace', quali, 'Each driver’s lap in the last part of qualifying they ran, against the fastest lap in that same part (so changing conditions between Q1 and Q3 do not count), in seconds. Laps over 107% are left out, and so is a session far outside a driver’s usual gap (no real attempt before a grid penalty, a car that stopped); hover a value for which. Rolling and Season as for race pace.')
       || card('Qualifying pace', empty('No qualifying times yet.'));
     // Recent form: the last five races' finishing places in the colours of the Standings grid.
     const lastFive = done.slice(-5), ids = Object.keys(data.drivers).filter(id => lastFive.some(r => r.race.some(x => x.driver === id)));
@@ -1897,36 +1898,44 @@
     metric('Best finish', sa.best_finish, sb.best_finish, {lower: true, format: v => `P${v}`});
     metric('Retirements', sa.retirements, sb.retirements, {lower: true, key: 'retirements'});
     rows.prepend(el('p', 'season-h2h-sum', `${family(data, a)} is ahead on ${wonA} of these, ${family(data, b)} on ${wonB}. Each bar is split by who is ahead; the longer side leads. The small number is the driver’s rank in the field.`));
-    // Each weekend: the qualifying gap as a bar rising in the colour of whoever was quicker (taller is a bigger gap, a
-    // second fills it), then both finishing places, the better one bright; a ring marks a race the other car lost to a failure.
-    const weeks = el('div', 'season-h2h-weeks is-gaps');
+    // Each weekend as a grid (the Recent form look): rounds across, then three rows. Qualifying: the gap in seconds, filled
+    // in the quicker driver's colour, deeper for a bigger gap. Then each driver's race finish in the Standings grid colours.
+    const weeks = el('table', 'season-table season-matrix season-grid season-h2h-grid');
     const gapMax = Math.max(0.3, Math.min(1, Math.max(...data.rounds.map(r => Math.abs(qualiGap(r, a, b)?.seconds ?? 0)))));
-    for (const w of result.weekends) {
-      const round = data.rounds.find(r => r.round === w.round), cell = el('div');
-      cell.append(round ? roundMark(round) : el('small', null, code(w.round)));
-      const g = round && qualiGap(round, a, b), gap = el('span', 'season-h2h-gap');
-      if (g) {
-        const bar = el('i'); bar.style.height = `${(Math.min(Math.abs(g.seconds), gapMax) / gapMax * 100).toFixed(0)}%`;
-        bar.style.background = g.seconds <= 0 ? ca : cb; gap.append(bar);
-        gap.title = `Qualifying (${g.session}): ${g.seconds <= 0 ? driverCode(data, a) : driverCode(data, b)} quicker by ${Math.abs(g.seconds).toFixed(3)} s`;
+    const ghead = el('tr'); ghead.append(el('th', null, ''));
+    for (const r of data.rounds) { const th = el('th', 'num'); th.append(roundMark(r)); ghead.append(th); }
+    const gthead = el('thead'); gthead.append(ghead); weeks.append(gthead);
+    const gbody = el('tbody');
+    const qRow = el('tr'), qHead = el('th', null, 'Qualifying'); qHead.scope = 'row'; qRow.append(qHead);
+    for (const r of data.rounds) {
+      const g = !notRun(r) && qualiGap(r, a, b), td = el('td', 'num');
+      if (notRun(r)) td.classList.add('is-upcoming');
+      else if (g) {
+        const quick = g.seconds <= 0 ? a : b;
+        td.textContent = Math.abs(g.seconds) < 0.0005 ? '0.000' : Math.abs(g.seconds).toFixed(Math.abs(g.seconds) < 10 ? 3 : 1);
+        td.classList.add('is-heat'); td.style.setProperty('--team', quick === a ? ca : cb);
+        td.style.setProperty('--heat', String(0.15 + 0.6 * Math.min(Math.abs(g.seconds), gapMax) / gapMax));
+        td.title = `${r.name}, ${g.session}: ${driverCode(data, quick)} quicker by ${Math.abs(g.seconds).toFixed(3)} s`;
+      } else td.textContent = '—';
+      qRow.append(td);
+    }
+    gbody.append(qRow);
+    for (const id of [a, b]) {
+      const tr = el('tr'), th = el('th'); th.scope = 'row'; th.append(who(data, id, {code: true, team: false})); tr.append(th);
+      for (const r of data.rounds) {
+        const td = el('td', 'num');
+        if (notRun(r)) { td.classList.add('is-upcoming'); tr.append(td); continue; }
+        const x = r.race.find(e => e.driver === id), n = x?.position;
+        td.textContent = !x ? '—' : n ? String(n) : x.status === 'Did not start' ? 'DNS' : 'DNF';
+        td.dataset.tone = !x ? 'none' : !n ? 'out' : n === 1 ? 'win' : n <= 3 ? 'podium' : x.points > 0 ? 'points' : 'none';
+        const w = result.weekends.find(e => e.round === r.round);
+        if (w && w.race != null && (w.race === 0) === (id === a)) td.classList.add('is-ahead');
+        td.title = `${r.name}: ${driverCode(data, id)} ${!x ? 'did not race' : n ? 'P' + n : x.status}${w?.raceMechanical && !n ? ' (car failure)' : ''}`;
+        tr.append(td);
       }
-      cell.append(gap);
-      const finish = id => { const x = round?.race.find(e => e.driver === id); return !x ? '—' : x.position ? String(x.position) : x.status === 'Did not start' ? 'DNS' : 'DNF'; };
-      const pa = el('b', w.race === 0 ? 'is-better' : null, finish(a)), pb = el('b', w.race === 1 ? 'is-better' : null, finish(b));
-      pa.style.setProperty('--tone', ca); pb.style.setProperty('--tone', cb);
-      if (w.raceMechanical) (w.race === 0 ? pb : pa).classList.add('is-car-failure');
-      cell.append(pa, pb); cell.title = `${round?.name || ''}: race ${driverCode(data, a)} ${finish(a)}, ${driverCode(data, b)} ${finish(b)}`;
-      weeks.append(cell);
+      gbody.append(tr);
     }
-    for (const r of data.rounds.filter(notRun)) {
-      const cell = el('div', 'is-upcoming'); cell.title = notRunNote(r);
-      cell.append(roundMark(r), el('span', 'season-h2h-gap'), el('b', null, ''), el('b', null, ''));
-      weeks.append(cell);
-    }
-    // Whose colour is whose: the dots carry no names.
-    const weekKey = el('div', 'season-legend season-week-key');
-    for (const [id, colour] of [[a, ca], [b, cb]]) { const k = el('span', 'is-dot', driverCode(data, id)); k.style.setProperty('--tone', colour); k.dataset.tone = 'custom'; k.title = driverName(data, id); weekKey.append(k); }
-    if (result.weekends.some(w => w.raceMechanical)) weekKey.append(el('span', 'is-ring', 'Other car failed'));
+    weeks.append(gbody);
     // Every teammate battle, one compact row per pairing: the pair, the three scores (weekends ahead, each with a thin split
     // bar in the team colour, the leader's number bright), the median qualifying gap and their season points. A row opens
     // that pairing; the pair being compared is marked.
@@ -1962,7 +1971,7 @@
     }
     battles.append(btb);
     const allBattles = card('Every teammate battle', wrap(battles), el('p', 'season-footnote', 'Weekends each driver finished ahead of their teammate (first-named driver first), the median qualifying gap, and each driver’s season points, including any scored for another team. Choose a pair to compare them below.'));
-    return [toolbar, allBattles, hero, card(null, rows), h2hPace(data, a, b, ca, cb), h2hExtras(data, a, b, ca, cb), card('Weekend by weekend', weekKey, weeks, el('p', 'season-footnote', `Bars: the qualifying gap, rising in the colour of the quicker driver (a full bar is ${gapMax.toFixed(1)} s or more). Numbers: each driver’s race finishing place, the better one bright; a classified finish beats a retirement. A ring marks a race decided by the other car failing (reported cause mechanical). Empty columns are the rounds still to run.`))];
+    return [toolbar, allBattles, hero, card(null, rows), h2hPace(data, a, b, ca, cb), h2hExtras(data, a, b, ca, cb), card('Weekend by weekend', wrap(weeks), el('p', 'season-footnote', `Qualifying: the gap in the last session both set a time in, filled in the quicker driver’s colour (deeper for a bigger gap; ${gapMax.toFixed(1)} s or more is the deepest). Race rows: each driver’s finish, purple a win, green a podium, white points, red a retirement; the one ahead that weekend is underlined.`))];
   }
   // Head-to-head pace: the two drivers' rolling race and qualifying pace and typical top speed (from Form's data), and
   // their race pace at every round. Filled in when the race analysis has loaded.
@@ -1972,7 +1981,10 @@
     loadForm(state.year, data).then(form => {
       if (state.a !== a || state.b !== b) return;
       const quali = qualiGapsByRound(done);
-      const secs = (perRound, id) => done.filter(r => Number.isFinite(perRound[r.round]?.[id])).map(r => [r.round, perRound[r.round][id] / 100 * (Number.isFinite(poleSeconds(r)) ? poleSeconds(r) : 90)]);
+      const secs = (perRound, id) => {
+        const kept = new Set(trimOutliers(done.filter(r => Number.isFinite(perRound[r.round]?.[id])).map(r => [r.round, perRound[r.round][id]])).kept.map(([n]) => n));
+        return done.filter(r => kept.has(r.round)).map(r => [r.round, perRound[r.round][id] / 100 * (Number.isFinite(poleSeconds(r)) ? poleSeconds(r) : 90)]);
+      };
       const raceA = secs(form.race || {}, a), raceB = secs(form.race || {}, b), qA = secs(quali, a), qB = secs(quali, b);
       const speedOf = id => { const v = Object.values(form.speed || {}).map(m => m[id]).filter(Number.isFinite); return v.length ? v.reduce((x, y) => x + y, 0) / v.length : null; };
       const rows = el('div', 'season-h2h-pace-rows');
@@ -2255,12 +2267,12 @@
     const columns = [
       {label: 'Starts', value: g => g.starts},
       {label: 'Finish rate', value: g => (g.starts ? g.finished / g.starts : 0), text: g => (g.starts ? `${Math.round(g.finished / g.starts * 100)}%` : '—')},
+      {label: 'Distance run', value: g => (g.possible ? g.laps / g.possible : 0), text: g => (g.possible ? `${(g.laps / g.possible * 100).toFixed(1)}%` : '—'), title: 'Laps completed as a share of the winner’s laps in the races started'},
       {label: 'PU failures', value: g => g.pu, heat: 'up', title: 'Race retirements blamed on the power unit: engine, battery or ERS, cooling, fuel'},
       {label: 'Other failures', value: g => g.mechanical, heat: 'up', title: 'Other mechanical retirements: gearbox, brakes, suspension, hydraulics…'},
       {label: 'Incidents', value: g => g.incident, heat: 'up', title: 'Retirements after an accident, collision or damage'},
       {label: 'Did not start', value: g => g.dns, heat: 'up'},
       {label: 'Quali, no time', value: g => g.noTime, heat: 'up', title: 'Qualifying sessions where the car set no time'},
-      {label: 'Distance run', value: g => (g.possible ? g.laps / g.possible : 0), text: g => (g.possible ? `${(g.laps / g.possible * 100).toFixed(1)}%` : '—'), title: 'Laps completed as a share of the winner’s laps in the races started'},
       {label: 'Laps per PU failure', value: lapsPerFailure, heat: 'down', text: g => (g.pu ? Math.round(g.laps / g.pu).toLocaleString() : `none in ${g.laps.toLocaleString()}`),
         title: 'Race laps run for each power-unit failure (mean distance between failures): higher is more reliable. Distance, not starts, because power-unit elements are changed between races.'},
       {label: 'Units failed', value: g => (g.ice ? g.pu / g.ice : NaN), heat: 'up',
