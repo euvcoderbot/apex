@@ -25,7 +25,7 @@ export function PitsView(p: PitsViewProps) {
       <Card title="Pit stops & pit lane" note={p.note}>
         <p className="performance-note">{p.serviceNote}</p>
         {p.failures.length ? (
-          <p className="performance-note">{p.failures.map(f => `${f.name}: ${f.error}`).join(' · ')}{' '}
+          <p className="performance-error" role="alert">{p.failures.map(f => `${f.name}: ${f.error}`).join(' · ')}{' '}
             <button type="button" className="performance-explain-toggle" data-pit-retry="">Retry unavailable</button></p>
         ) : null}
         {p.noStationary ? <p className="performance-note">The source has no stationary-at-the-box values for this selection. “—” means unavailable, not a zero-second stop.</p> : null}

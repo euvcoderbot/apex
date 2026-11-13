@@ -8,7 +8,9 @@ const CATEGORIES = ['pace', 'corners', 'straight', 'braking', 'pits', 'tyres', '
 for (const theme of ['dark', 'light']) {
   test.describe(`car performance with data, ${theme} @visual`, () => {
     for (const category of CATEGORIES) {
-      test(category, async ({page}) => {
+      test(category, async ({page, browserName}) => {
+        // Large recorded tyre/corner datasets take longer to settle in Windows WebKit.
+        test.setTimeout(browserName === 'webkit' ? 90000 : 30000);
         await page.setViewportSize({width: 1440, height: 900});
         await isolate(page);
         await replayFixture(page);

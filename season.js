@@ -20,7 +20,7 @@
   // Driver photos are Wikimedia Commons files under free licences (CC BY, CC BY-SA, CC0, OGL), credited on every page that shows
   // them (assets/drivers/credits.json). Without a photo the avatar is the driver's code on the team colour. Team marks are drawn by
   // team-marks.js; circuit outlines are bacinger/f1-circuits (MIT, assets/circuits/LICENSE.md).
-  const imagery = {circuits: null, photos: {}, shown: new Set()};
+  const imagery = {circuits: null, photos: {}, shown: new Set(), pendingCircuits: new Map()};
   let circuitRequest = null, photoRequest = null;
   function loadPhotos() {
     photoRequest ||= fetch('assets/drivers/credits.json').then(r => (r.ok ? r.json() : {}))
@@ -60,18 +60,35 @@
   }
   function avatar(data, id, size = 'sm') {
     const span = el('span', `season-avatar is-${size}`);
+    span.dataset.seasonDriver = id;
     span.setAttribute('aria-hidden', 'true');
     span.style.setProperty('--team', teamColour(data.drivers[id]?.team));
     // Without a photo: the car number on the team colour (the code when a season's data has no number).
     const number = String(data.drivers[id]?.number || '').match(/^\d{1,3}$/)?.[0];
     span.append(el('b', number ? 'is-number' : null, number || (data.drivers[id]?.code || '').slice(0, 3)));
-    if (imagery.photos[id]) {
+    addAvatarPhoto(span, id);
+    return span;
+  }
+  function addAvatarPhoto(span, id) {
+    if (imagery.photos[id] && !span.querySelector('img')) {
       // The number stays underneath: if the photo fails to load, removing it shows the number.
       const img = el('img'); img.src = `assets/drivers/${encodeURIComponent(id)}.webp`; img.alt = ''; img.decoding = 'async'; img.loading = 'lazy';
       img.addEventListener('error', () => img.remove(), {once: true});
       span.append(img); imagery.shown.add(id);
     }
-    return span;
+  }
+  function hydrateImagery() {
+    if (!body || !active) return;
+    for (const span of body.querySelectorAll('.season-avatar[data-season-driver]')) addAvatarPhoto(span, span.dataset.seasonDriver);
+    if (imagery.circuits !== null) for (const [slot, round] of imagery.pendingCircuits) {
+      if (slot.isConnected) {
+        const outline = circuitOutline(round, slot.className);
+        if (outline) slot.replaceWith(outline); else slot.remove();
+      }
+      imagery.pendingCircuits.delete(slot);
+    }
+    const credits = photoCredits(), previous = body.querySelector(':scope > .season-credits');
+    if (credits) { if (previous) previous.replaceWith(credits); else body.append(credits); }
   }
   function teamMark(data, id) {
     // The same marks as the session view (colour, white and black, swapped by appearance).
@@ -98,7 +115,12 @@
   // Its outline, drawn in a 100 x 100 box.
   function circuitOutline(round, cls = 'season-track') {
     const best = circuitFeature(round)?.geometry.coordinates;
-    if (!best) return null;
+    if (!best) {
+      if (imagery.circuits !== null) return null;
+      const slot = el('span', cls); slot.setAttribute('aria-hidden', 'true');
+      imagery.pendingCircuits.set(slot, round);
+      return slot;
+    }
     const k = Math.cos(best[0][1] * Math.PI / 180);
     const xs = best.map(p => p[0] * k), ys = best.map(p => -p[1]);
     const minX = Math.min(...xs), minY = Math.min(...ys), span = Math.max(Math.max(...xs) - minX, Math.max(...ys) - minY) || 1;
@@ -302,6 +324,7 @@
   const urlParams = () => ({year: state.year, tab: state.tab, ...(state.tab === 'drivers' && state.driver ? {driver: state.driver} : {}),
     ...(state.tab === 'h2h' && state.a ? {a: state.a, b: state.b} : {}), ...(state.tab === 'upgrades' && state.team ? {team: state.team} : {})});
   function leave() {
+    hideChartTip();
     if (!active) return;
     active = false;
     document.body.classList.remove('season-view');
@@ -312,17 +335,46 @@
   // ---------- rendering ----------
   // A page's views, then the credits for the driver photos those views showed.
   function paint(views) {
+    const focused = body.contains(document.activeElement) ? document.activeElement : null;
+    const segment = focused?.closest('.season-segment button'), segmentGroup = segment?.closest('.season-segment');
+    const segmentIndex = segmentGroup ? [...body.querySelectorAll('.season-segment')].indexOf(segmentGroup) : -1;
+    const segmentName = segment && (segment.getAttribute('aria-label') || segment.textContent.trim());
+    const field = focused?.closest('.select-shell')?.querySelector('select') || (focused?.matches('select') ? focused : null);
+    const fieldName = field?.getAttribute('aria-label');
+    hideChartTip();
     imagery.shown.clear();
     const nodes = views(), credits = photoCredits();
     body.replaceChildren(...nodes, ...(credits ? [credits] : []));
+    body.setAttribute('aria-busy', 'false');
+    for (const mark of body.querySelectorAll('[data-tip]')) {
+      const plot = mark.closest('svg,.season-dist');
+      mark.setAttribute('tabindex', mark === plot.querySelector('[data-tip]') ? '0' : '-1');
+      mark.setAttribute('role', 'img');
+      mark.setAttribute('aria-label', mark.dataset.tip.replaceAll('\n', ', '));
+      plot.setAttribute('role', 'group');
+    }
+    for (const slot of imagery.pendingCircuits.keys()) if (!slot.isConnected) imagery.pendingCircuits.delete(slot);
+    window.ApexUI?.decorate?.(body);
+    if (segmentIndex >= 0) [...(body.querySelectorAll('.season-segment')[segmentIndex]?.querySelectorAll('button') || [])]
+      .find(node => (node.getAttribute('aria-label') || node.textContent.trim()) === segmentName)?.focus({preventScroll: true});
+    if (fieldName) {
+      const replacement = [...body.querySelectorAll('select')].find(node => node.getAttribute('aria-label') === fieldName);
+      (replacement?.closest('.select-shell')?.querySelector('.select-trigger') || replacement)?.focus({preventScroll: true});
+    }
   }
   let renderToken = 0;
   async function render() {
+    hideChartTip();
     const token = ++renderToken, tab = state.tab, year = state.year;
-    body.replaceChildren(el('p', 'season-loading', tab === 'upgrades' ? 'Reading the FIA car presentation documents… the first time takes up to a minute.' : 'Loading…'));
+    body.setAttribute('aria-busy', 'true');
+    const loading = el('p', 'season-loading', tab === 'upgrades' ? 'Reading the FIA car presentation documents… the first time takes up to a minute.' : 'Loading…');
+    loading.setAttribute('role', 'status'); body.replaceChildren(loading);
     try {
-      const [data] = await Promise.all([load('season', year), loadPhotos(), tab === 'schedule' ? loadCircuits() : null]);
-      const extra = tab === 'upgrades' ? await load('upgrades', year) : tab === 'units' ? await load('units', year) : null;
+      // Decorative assets hydrate existing nodes; they must not delay the season's numbers or reset interactions.
+      void loadPhotos().then(hydrateImagery);
+      if (tab === 'schedule') void loadCircuits().then(hydrateImagery);
+      const [data, extra] = await Promise.all([load('season', year),
+        tab === 'upgrades' ? load('upgrades', year) : tab === 'units' ? load('units', year) : null]);
       if (token !== renderToken) return;
       const view = {schedule: renderSchedule, results: renderResults, standings: renderStandings, drivers: renderDrivers,
         h2h: renderH2H, upgrades: renderUpgrades, units: renderUnits}[tab];
@@ -330,10 +382,10 @@
       const note = savedNote(extra?.saved_at ? extra : data), saved = page.querySelector('.season-saved');
       if (saved) { saved.textContent = note; saved.hidden = !note; }
       paint(() => view(data, extra));
-      requestAnimationFrame(() => window.ApexUI?.decorate?.(body));
     } catch (error) {
       if (token !== renderToken) return;
-      body.replaceChildren(empty(error.message || String(error)));
+      const message = empty(error.message || String(error)); message.setAttribute('role', 'alert');
+      body.setAttribute('aria-busy', 'false'); body.replaceChildren(message);
     }
   }
 
@@ -989,21 +1041,48 @@
   // ---------- one hover card for every chart ----------
   // Marks carry data-tip ("title line\nother lines"); the card follows the pointer inside the season page.
   let tipCard = null;
+  function hideChartTip() { if (tipCard) tipCard.hidden = true; }
   function bindTips(scope) {
     if (scope.dataset.tips) return;
     scope.dataset.tips = '1';
-    scope.addEventListener('pointermove', event => {
-      const mark = event.target.closest?.('[data-tip]');
-      if (!mark) { if (tipCard) tipCard.hidden = true; return; }
-      if (!tipCard) { tipCard = el('div', 'season-tip'); tipCard.setAttribute('role', 'tooltip'); document.body.append(tipCard); }
+    const showTip = (mark, x, y) => {
+      if (!mark) { hideChartTip(); return; }
+      if (!tipCard) {
+        tipCard = el('div', 'season-tip'); tipCard.setAttribute('role', 'tooltip'); document.body.append(tipCard);
+        tipCard.addEventListener('pointerleave', hideChartTip);
+      }
       const [head, ...rest] = mark.dataset.tip.split('\n');
       tipCard.replaceChildren(el('b', null, head), ...rest.map(line => el('span', null, line)));
       tipCard.hidden = false;
       const w = tipCard.offsetWidth, h = tipCard.offsetHeight;
-      tipCard.style.left = `${Math.min(innerWidth - w - 8, event.clientX + 14)}px`;
-      tipCard.style.top = `${Math.max(8, event.clientY - h - 12)}px`;
+      tipCard.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, x + 14))}px`;
+      tipCard.style.top = `${Math.max(8, Math.min(innerHeight - h - 8, y - h - 12))}px`;
+    };
+    scope.addEventListener('pointermove', event => {
+      let mark = event.target.closest?.('[data-tip]');
+      const chart = !mark && event.target.closest?.('svg.season-chart');
+      // Lines and markers can sit over a round's transparent hit region. The value must remain available there too.
+      if (chart) mark = [...chart.querySelectorAll('[data-tip]')].find(node => {
+        const box = node.getBoundingClientRect();
+        return event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom;
+      });
+      showTip(mark, event.clientX, event.clientY);
     });
-    scope.addEventListener('pointerleave', () => { if (tipCard) tipCard.hidden = true; });
+    scope.addEventListener('focusin', event => {
+      const mark = event.target.closest?.('[data-tip]');
+      if (!mark) { hideChartTip(); return; }
+      const box = mark.getBoundingClientRect(); showTip(mark, box.left + box.width / 2, box.top);
+    });
+    scope.addEventListener('focusout', hideChartTip);
+    scope.addEventListener('keydown', event => {
+      const mark = event.target.closest?.('[data-tip]');
+      if (!mark || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      const marks = [...mark.closest('svg,.season-dist').querySelectorAll('[data-tip]')], index = marks.indexOf(mark);
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? marks.length - 1 : Math.max(0, Math.min(marks.length - 1, index + (event.key === 'ArrowRight' ? 1 : -1)));
+      event.preventDefault(); marks.forEach((node, i) => node.setAttribute('tabindex', i === next ? '0' : '-1')); marks[next].focus();
+    });
+    scope.addEventListener('pointerleave', event => { if (!tipCard?.contains(event.relatedTarget)) hideChartTip(); });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') hideChartTip(); });
   }
 
   // ---------- SVG charts (numbers only go into markup; labels are escaped) ----------
@@ -1288,6 +1367,7 @@
     }
     const counts = s.finish_counts, maxCount = Math.max(1, ...Object.values(counts));
     const dist = el('div', 'season-dist'); dist.style.setProperty('--team', teamColour(data.drivers[id]?.team));
+    dist.setAttribute('aria-label', 'Race finishing positions');
     for (let p = 1; p <= 22; p++) {
       const n = counts[String(p)] || 0, col = el('div', 'season-dist-col'); col.dataset.tip = `P${p}\n${n} finish${n === 1 ? '' : 'es'}`;
       const stack = el('div', 'season-dist-stack'), bar = el('i'), share = n / maxCount * 100, count = el('span', null, n ? String(n) : '');
@@ -1633,7 +1713,10 @@
   // col -1 is the name column. dir 1 = larger first (or A–Z for names), -1 the reverse.
   let unitsArgs = null;
   function sortLines(table, lines, columns, nameOf, defaultCol, defaultDir) {
-    const sort = state.puSort?.[table] || {col: defaultCol, dir: defaultDir};
+    const saved = state.puSort?.[table];
+    // Historical snapshots may omit allocation columns: retain only a sort that exists in this view.
+    const sort = saved && (saved.col === -1 || columns[saved.col]) ? saved : {col: defaultCol, dir: defaultDir};
+    state.puSort = {...state.puSort, [table]: sort};
     const value = sort.col < 0 ? g => nameOf(g) : columns[sort.col].value;
     lines.sort((a, b) => {
       const x = value(a), y = value(b);
@@ -1643,15 +1726,23 @@
   }
   function sortHeader(th, table, col) {
     const sort = state.puSort?.[table];
-    th.classList.add('season-sortable'); th.tabIndex = 0; th.setAttribute('role', 'columnheader');
+    th.classList.add('season-sortable'); th.scope = 'col';
+    th.setAttribute('aria-label', th.textContent);
+    const button = el('button', 'season-sort-button'); button.type = 'button';
+    button.setAttribute('aria-label', `Sort by ${th.textContent}`);
+    button.dataset.sortTable = table; button.dataset.sortColumn = String(col);
+    button.append(...th.childNodes); th.append(button);
     if (sort && sort.col === col) th.setAttribute('aria-sort', sort.dir === 1 ? (col < 0 ? 'ascending' : 'descending') : (col < 0 ? 'descending' : 'ascending'));
     const go = () => {
       const now = state.puSort?.[table];
-      state.puSort = {...state.puSort, [table]: {col, dir: now && now.col === col ? -now.dir : (col < 0 ? 1 : 1)}};
-      if (unitsArgs) paint(() => renderUnits(...unitsArgs));
+      const restoreFocus = document.activeElement === button;
+      state.puSort = {...state.puSort, [table]: {col, dir: now && now.col === col ? -now.dir : 1}};
+      if (unitsArgs) {
+        paint(() => renderUnits(...unitsArgs));
+        if (restoreFocus) document.querySelector(`[data-sort-table="${table}"][data-sort-column="${col}"]`)?.focus({preventScroll: true});
+      }
     };
-    th.addEventListener('click', go);
-    th.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+    button.addEventListener('click', go);
     return th;
   }
   function reliabilityCard(data, pu) {

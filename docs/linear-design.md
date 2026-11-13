@@ -1,3 +1,5 @@
+> Historical research: numerical values in this document describe the earlier public-site study. For implementation, use docs/linear-design-spec.md and docs/linear-components.md. The signed-in app was measured on 2026-11-10; its 244 px rail, 450/500/600 weights and measured surfaces supersede the provisional values below.
+
 # Linear design reference
 
 Everything Linear has published about its design, plus what linear.app itself uses, in one place: the reference for every

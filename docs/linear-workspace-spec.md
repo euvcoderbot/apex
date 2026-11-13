@@ -1,3 +1,5 @@
+> Historical research: numerical values in this document describe the earlier public-site study. For implementation, use docs/linear-design-spec.md and docs/linear-components.md. The signed-in app was measured on 2026-11-10; its 244 px rail, 450/500/600 weights and measured surfaces supersede the provisional values below.
+
 # Linear workspace redesign
 
 Research: 2026-11-05. This is an Apex adaptation, not an assertion that we have

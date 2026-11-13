@@ -20,3 +20,8 @@ Follow the recipes and the checklist in `docs/linear-components.md`; check dark,
 - Weights 450/500/600 only; sentence case (no `text-transform: uppercase`); no decorative gradients or glows; one card level.
 - Verify visible changes by screenshot (dark, light, 1440 and 390 px) and run `node scripts/audit-linear.mjs --quick`;
   `scripts/test-linear-system.mjs` enforces the rules above in `npm test`.
+- Chart values must be available to keyboard users: one tab stop per plot, arrow/Home/End navigation, exact accessible values,
+  visible focus and Escape dismissal. Preserve stable point identities when a background render replaces the chart.
+- Tooltip text updates must not trigger a full-page control scan. Imagery must not block Season data or reset its controls.
+- Visual verification must include loaded data, scrolled and expanded content. A load-error screen or duplicate scroll capture
+  is not evidence that a populated route was reviewed. Record browser/runtime limitations explicitly.

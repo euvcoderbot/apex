@@ -1,6 +1,16 @@
 import {test, expect} from '@playwright/test';
 import {isolate, replayFixture} from './helpers.mjs';
 
+test('overview chart values are available on keyboard focus and dismiss with Escape', async ({page}) => {
+  await open(page);
+  const point = page.locator('#sessionOverview svg[data-hover] .point').first();
+  await expect(point).toBeVisible(); await point.focus();
+  const tip = page.locator('.overview-tip');
+  await expect(tip).toBeVisible();
+  await expect(tip).toContainText(await point.getAttribute('data-code'));
+  await point.press('Escape'); await expect(tip).toBeHidden();
+});
+
 // Session analysis with real numbers (Bahrain 2026 qualifying, VER against LEC on their fastest laps), replayed with no network.
 async function open(page) {
   await isolate(page);

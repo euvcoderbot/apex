@@ -554,8 +554,9 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 .season-chart .hit:hover + .bar, .season-chart .hit:hover + .bar + .bar { opacity: 1; }
 .season-chart .zero { display: none; }
 /* the surface is skins.css's floating primitive */
-.season-tip { position: fixed; z-index: 1000; display: grid; gap: 2px; max-width: 260px; padding: 8px 10px; pointer-events: none;
-  color: var(--ui-secondary); font: 500 12px/1.4 var(--ui-font, inherit); font-variant-numeric: tabular-nums; white-space: pre; }
+.season-tip { position: fixed; z-index: 1000; display: grid; gap: 2px; max-width: min(260px, calc(100vw - 36px)); padding: 8px 10px; pointer-events: auto;
+  color: var(--ui-secondary); font: 500 12px/1.4 var(--ui-font, inherit); font-variant-numeric: tabular-nums; white-space: normal; overflow-wrap: anywhere; }
+.season-tip[hidden] { display: none; }
 .season-tip b { color: var(--ui-label); font-weight: 600; }
 /* legends: small rounded swatches, as Linear's charts */
 .season-legend span[data-tone]::before, .season-legend span[data-tone="custom"]::before { width: 8px; height: 8px; border-radius: 2px; }
@@ -944,14 +945,8 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-failures-wrap > summary::-webkit-details-marker { display: none; }
 #seasonHub .season-failures-wrap > summary:hover { background: var(--lin-nav-hover); color: var(--ui-label); }
 #seasonHub .season-maker-ratio { font: 500 13px/1 var(--ui-font); color: var(--ui-secondary); }
-#seasonHub .season-maker-ratio.is-over { color: #ff8a84; }
-#seasonHub .season-maker-ratio.is-under { color: #30d158; }
+#seasonHub .season-maker-ratio.is-over { color: var(--ui-negative); }
+#seasonHub .season-maker-ratio.is-under { color: var(--ui-positive); }
 /* The reliability table has many columns: titles wrap onto two lines rather than widening the table. */
 #seasonHub .season-reliability th.num { white-space: normal; max-width: 78px; line-height: 1.25; vertical-align: bottom; }
 #seasonHub .season-reliability td.num { white-space: nowrap; }
-/* Sortable column titles: a pointer and a small arrow on the sorted column. */
-#seasonHub th.season-sortable { cursor: pointer; user-select: none; }
-#seasonHub th.season-sortable:hover { color: var(--ui-label); }
-#seasonHub th.season-sortable[aria-sort]::after { margin-left: 4px; font-size: 9px; }
-#seasonHub th.season-sortable[aria-sort="descending"]::after { content: "▼"; }
-#seasonHub th.season-sortable[aria-sort="ascending"]::after { content: "▲"; }

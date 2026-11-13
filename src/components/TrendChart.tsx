@@ -25,13 +25,13 @@ export function TrendChart({series, lo, hi, ceiling}: {series: TrendSeries[]; lo
   const every = Math.max(1, Math.ceil(rounds.length / 12));
   return (
     <div className="trend-chart">
-      <svg width="100%" height={HEIGHT} overflow="visible" role="img" aria-label="Qualifying gap by round for each team; common scale across teams">
+      <svg width="100%" height={HEIGHT} overflow="visible" role="group" aria-label="Qualifying gap by round for each team; common scale across teams; use arrow keys to inspect values">
         {ticks.map(tick => <g key={tick}>
           <line x1="7%" x2="96%" y1={y(tick)} y2={y(tick)} stroke="var(--ui-separator)" />
           <text x="5.5%" y={y(tick) + 4} textAnchor="end" className="trend-axis">{fmt(tick, step < .1 ? 2 : 1, '%')}</text>
         </g>)}
         {rounds.filter((_, index) => index % every === 0).map(round => <text key={round} x={x(round)} y={HEIGHT - 6} textAnchor="middle" className="trend-axis">R{round}</text>)}
-        {series.map(line => {
+        {series.map((line, seriesIndex) => {
           const stroke = color(line.teamColor);
           return (
             <g key={line.key} data-trend-series={line.key} className="trend-series">
@@ -39,8 +39,8 @@ export function TrendChart({series, lo, hi, ceiling}: {series: TrendSeries[]; lo
               {line.points.map((point, index) => index && point.round - line.points[index - 1].round === 1
                 ? <line key={`segment-${point.round}`} data-trend-segment="" x1={x(line.points[index - 1].round)} y1={y(line.points[index - 1].pace)} x2={x(point.round)} y2={y(point.pace)} stroke={stroke} strokeWidth="2" strokeLinecap="round" />
                 : null)}
-              {line.points.map(point => (
-                <circle key={point.round} cx={x(point.round)} cy={y(point.pace)} r="3.5" fill={stroke}>
+              {line.points.map((point, pointIndex) => (
+                <circle key={point.round} cx={x(point.round)} cy={y(point.pace)} r="3.5" fill={stroke} tabIndex={seriesIndex === 0 && pointIndex === 0 ? 0 : -1} role="img" data-chart-value={`${line.key}:${point.round}`} aria-label={`${line.label} · R${point.round} · ${point.event} · ${fmt(point.pace, 3, '%')}`}>
                   <title>{`${line.label} · R${point.round} · ${point.event} · ${fmt(point.pace, 3, '%')}`}</title>
                 </circle>
               ))}

@@ -18,13 +18,15 @@ const outFile = arg('--out', path.join(root, 'test-results/linear-audit.json'));
 // --only <regex>: audit only matching states; --shots <dir>: also save a full-page screenshot of each render (visual review).
 const only = arg('--only', null) && new RegExp(arg('--only'));
 const shots = arg('--shots', null);
+const scrollShots = process.argv.includes('--scroll-shots');
+const expandDetails = process.argv.includes('--expand-details');
 const port = 54190 + Math.floor(Math.random() * 50);
 const origin = `http://127.0.0.1:${port}`;
 
 // The spec's scales (docs/linear-design-spec.md §2, §4, §8).
 export const SPEC = {
   sizes: [10, 11, 12, 13, 14, 15, 16, 18, 20, 24, 32, 36],
-  weights: [450, 500, 600, 700],
+  weights: [450, 500, 600],
   radii: [0, 2, 4, 5, 6, 8, 10, 12, 21],  // controls 8, cards 10, panel/toast 12, dialog 21 [A]; 2–6 for marks and heat cells
   controlHeights: [18, 20, 22, 24, 26, 28, 32, 36, 44],
 };
@@ -151,7 +153,18 @@ for (const m of ['pace', 'corners', 'straight', 'braking', 'pits', 'tyres', 'tre
   STATES['cars-' + m] = async page => { await isolate(page); await replayFixture(page); await page.goto(`${origin}/apex/cars/${m}?year=2026&scope=tracks&races=16,17,18&run=1`); await page.locator('#performanceMetricPanel:not([aria-busy="true"])').waitFor({timeout: 30000}); await page.waitForTimeout(1200); };
 STATES['cars-empty'] = async page => { await isolate(page); await replayFixture(page); await page.goto(`${origin}/apex/cars?year=2026`); await page.waitForTimeout(2500); };
 for (const t of ['schedule', 'results', 'standings', 'drivers', 'h2h', 'upgrades', 'units'])
-  STATES['season-' + t] = async page => { await page.goto(`${origin}/apex/season/${t}?year=2026`); await page.locator('#seasonHub .season-body > :not(.season-loading)').first().waitFor({timeout: 30000}); await page.waitForTimeout(900); };
+  STATES['season-' + t] = async page => {
+    await page.goto(`${origin}/apex/season/${t}?year=2026`);
+    await page.locator('#seasonHub .season-body > :not(.season-loading)').first().waitFor({timeout: 30000});
+    if (/Could not load|Failed to fetch/i.test(await page.locator('#seasonHub .season-body').innerText())) throw new Error('Season data did not load; check static QA assets.');
+    await page.waitForTimeout(900);
+  };
+for (const label of ['Teams', 'PU manufacturers']) {
+  STATES['season-units-' + label.toLowerCase().replaceAll(' ', '-')] = async page => {
+    await STATES['season-units'](page);
+    await page.getByRole('group', {name: 'Group by', exact: true}).getByRole('button', {name: label, exact: true}).click();
+  };
+}
 STATES['ui-catalog'] = async page => { await page.goto(origin + '/apex/ui-catalog.html'); await page.waitForTimeout(1500); };
 
 const server = spawn(process.execPath, ['scripts/serve-static.mjs', String(port)], {cwd: root, stdio: 'ignore'});
@@ -159,6 +172,7 @@ await new Promise(r => setTimeout(r, 1500));
 const browser = await chromium.launch();
 const groups = new Map(), familyMap = new Map(), layouts = {};
 let runs = 0;
+const errors = [];
 try {
   for (const theme of themes) for (const width of widths) for (const [state, setup] of Object.entries(STATES)) {
     if ((quick && state === 'ui-catalog') || (only && !only.test(state))) continue;
@@ -166,8 +180,38 @@ try {
     await page.addInitScript(t => localStorage.setItem('apex-theme', t), theme);
     try {
       await setup(page);
+      await page.waitForFunction(() => [...document.querySelectorAll('link[rel="stylesheet"]')].every(link => link.sheet));
+      await page.evaluate(() => document.fonts.ready);
+      if (expandDetails) {
+        await page.locator('details').evaluateAll(nodes => nodes.forEach(node => { node.open = true; }));
+        await page.waitForTimeout(200);
+      }
       const result = await page.evaluate(AUDIT, SPEC);
       if (shots) await page.screenshot({path: path.join(shots, `${state}-${theme}-${width}.png`), fullPage: false});  // the frame is fixed: a full-page capture shows the canvas below the fold, not the content
+      if (shots && scrollShots) {
+        const scroller = await page.evaluateHandle(() => document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight + 100 ? document.scrollingElement : [...document.querySelectorAll('body *')].filter(el => {
+          const s = getComputedStyle(el), r = el.getBoundingClientRect();
+          return /(auto|scroll)/.test(s.overflowY) && el.scrollHeight > el.clientHeight + 100 && r.width > 250 && r.height > 200;
+        }).sort((a, b) => b.clientWidth - a.clientWidth)[0] || document.scrollingElement);
+        if (await scroller.evaluate(el => el !== document.scrollingElement)) await scroller.asElement().scrollIntoViewIfNeeded();
+        const pages = await scroller.evaluate(el => Math.ceil(el.scrollHeight / Math.max(1, el.clientHeight)));
+        for (let i = 1; i < pages; i++) {
+          await scroller.evaluate((el, n) => {
+            const top = n * el.clientHeight;
+            if (el === document.scrollingElement) window.scrollTo({top, behavior: 'instant'});
+            else el.scrollTo({top, behavior: 'instant'});
+          }, i);
+          await page.waitForTimeout(100);
+          await page.screenshot({path: path.join(shots, `${state}-${theme}-${width}-scroll-${i}.png`)});
+        }
+        for (const [i, table] of (await page.locator('.season-table-wrap, .performance-table-wrap').all()).entries()) {
+          if (!await table.isVisible() || !await table.evaluate(el => el.scrollWidth > el.clientWidth + 1)) continue;
+          await table.scrollIntoViewIfNeeded();
+          await table.evaluate(el => { el.scrollLeft = el.scrollWidth; });
+          await page.screenshot({path: path.join(shots, `${state}-${theme}-${width}-table-${i}-right.png`)});
+        }
+        await scroller.dispose();
+      }
       if (width >= 1200 && theme === themes[0]) layouts[state] = await page.evaluate(LAYOUT);
       for (const f of result.families) {
         const key = `${f.kind}|${f.sig}`;
@@ -179,13 +223,14 @@ try {
         g.count++; g.states.add(state); g.views.add(`${theme} ${width}`); groups.set(key, g);
       }
       runs++;
-    } catch (e) { console.error('ERR', state, theme, width, e.message.slice(0, 100)); }
+    } catch (e) { errors.push({state, theme, width, message: e.message}); console.error('ERR', state, theme, width, e.message.slice(0, 100)); }
     await page.close();
   }
 } finally { await browser.close(); server.kill(); }
 const findings = [...groups.values()].map(g => ({...g, states: [...g.states], views: [...g.views]})).sort((a, b) => b.count - a.count);
 const families = [...familyMap.values()].map(g => ({...g, states: [...g.states]})).sort((a, b) => a.kind.localeCompare(b.kind) || b.count - a.count);
-await writeFile(outFile, JSON.stringify({runs, generated: new Date().toISOString(), findings, families, layouts}, null, 1));
+await writeFile(outFile, JSON.stringify({runs, errors, generated: new Date().toISOString(), findings, families, layouts}, null, 1));
+if (errors.length) process.exitCode = 1;
 const kinds = {}; for (const f of families) kinds[f.kind] = (kinds[f.kind] || 0) + 1;
 console.log('distinct looks per component family:', JSON.stringify(kinds));
 const byRule = {}; for (const f of findings) byRule[f.rule] = (byRule[f.rule] || 0) + 1;

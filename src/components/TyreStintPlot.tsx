@@ -32,13 +32,13 @@ export function TyreStintPlot({model: m}: {model: StintPlotModel}) {
       {m.noTrend ? <p className="section-empty">Laps shown for reference; not enough data for a trend.</p> : null}
       <span className="perf-chart-sub explanation-only">{m.caption}</span>
       {m.exclusions ? <button type="button" data-tyre-exclusions="" aria-pressed={m.exclusions.pressed}>{m.exclusions.label}</button> : null}
-      <svg viewBox="0 0 680 230" role="img" aria-label={`${m.title.split(' · ')[0]} stint lap times against tyre age`}>
+      <svg viewBox="0 0 680 230" role="group" aria-label={`${m.title.split(' · ')[0]} stint lap times against tyre age; use arrow keys to inspect values`}>
         {m.axis.grid.map((g, i) => (
           <g key={i}><line x1="55" x2="645" y1={g.y} y2={g.y} stroke="var(--ui-border)" /><text x="48" y={g.y + 4} textAnchor="end">{g.label}</text></g>
         ))}
         {m.curve ? <path d={m.curve} stroke={stroke} strokeWidth="2" strokeDasharray="6 4" fill="none" /> : null}
-        {m.points.map((p, i) => <circle key={'p' + i} cx={p.cx} cy={p.cy} r="3.5" fill={stroke}><title>{p.title}</title></circle>)}
-        {m.excluded.map((p, i) => <circle key={'x' + i} cx={p.cx} cy={p.cy} r="4" fill="none" stroke={stroke} strokeDasharray="2 1"><title>{p.title}</title></circle>)}
+        {m.points.map((p, i) => <circle key={'p' + i} cx={p.cx} cy={p.cy} r="3.5" fill={stroke} tabIndex={i === 0 ? 0 : -1} role="img" data-chart-value={`${m.title}:${p.title}`} aria-label={p.title}><title>{p.title}</title></circle>)}
+        {m.excluded.map((p, i) => <circle key={'x' + i} cx={p.cx} cy={p.cy} r="4" fill="none" stroke={stroke} strokeDasharray="2 1" tabIndex={!m.points.length && i === 0 ? 0 : -1} role="img" data-chart-value={`${m.title}:excluded:${p.title}`} aria-label={p.title}><title>{p.title}</title></circle>)}
         <text x="55" y="201" textAnchor="middle">{m.axis.lo}</text>
         <text x="645" y="201" textAnchor="middle">{m.axis.hi}</text>
         <text x="350" y="223" textAnchor="middle">Tyre age (laps) · vertical scale: seconds above this run's best lap</text>

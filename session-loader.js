@@ -8,6 +8,8 @@ function selectCustomOption(optionButton) {
   const shell = optionButton.closest('.select-shell');
   const select = shell?.querySelector('select');
   const trigger = shell?.querySelector('.select-trigger');
+  const ownerId = shell?.parentElement?.closest('[id]')?.id;
+  const fieldName = select?.getAttribute('aria-label');
   const optionIndex = Number(optionButton.getAttribute('data-select-index'));
   if (!select || !Number.isInteger(optionIndex) || optionIndex < 0 || optionIndex >= select.options.length) return;
   if (select.disabled || select.options[optionIndex].disabled) return;
@@ -16,7 +18,11 @@ function selectCustomOption(optionButton) {
   closeSelectMenu(shell);
   syncSelectUI(select);
   if (select.id !== 'session') select.dispatchEvent(new Event('change', { bubbles: true }));
-  trigger?.focus();
+  // A change handler may rebuild its view and replace this selector before focus returns.
+  const owner = (ownerId && document.getElementById(ownerId)) || document;
+  const replacement = trigger?.isConnected ? trigger :
+    (document.getElementById(select.id) || [...owner.querySelectorAll('select')].find(node => fieldName && node.getAttribute('aria-label') === fieldName))?.closest('.select-shell')?.querySelector('.select-trigger');
+  replacement?.focus({preventScroll: true});
 }
 
 /**

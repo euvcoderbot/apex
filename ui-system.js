@@ -62,7 +62,7 @@
     if(el.matches('[data-performance-metric],[data-session-view]'))return 'tab';
     if(el.matches('[data-zoom],[data-pan],[data-delta-zoom]'))return 'stepper';
     if(el.matches('.remove,[data-remove],.map-guide-info'))return 'icon';
-    if(el.closest(groups))return 'segment';
+    if(el.closest(groups)||el.closest('.season-segment'))return 'segment';
     if(el.closest('.workspace-tools')||el.matches('#windowSidebarToggle'))return 'toolbar';
     return 'push';
   }
@@ -148,6 +148,9 @@
   if(typeof MutationObserver!=='undefined')new MutationObserver(records=>{
     let relevant=false;
     for(const record of records){
+      // Chart hover cards contain text only. Rescanning the entire page for each value update blocks pointer feedback.
+      if(record.target.closest?.('.tooltip,.season-tip'))continue;
+      if(record.addedNodes.length&&[...record.addedNodes].every(node=>node.nodeType===1&&node.matches('.tooltip,.season-tip')))continue;
       if(record.type==='childList'&&record.addedNodes.length){dirtyRoots.add(record.target);relevant=true;}
     }
     if(!relevant||pending)return;
@@ -157,7 +160,7 @@
   document.addEventListener('keydown',event=>{
     const resizer=event.target.closest?.('.ui-column-resizer');
     if(resizer&&['ArrowLeft','ArrowRight','Home'].includes(event.key)){event.preventDefault();resizeColumn(resizer,event.key==='ArrowLeft'?-8:8,event.key==='Home');return;}
-    const button=event.target.closest?.('button[data-ui-kind="segment"],button[data-ui-kind="run"]'),group=button?.closest('[data-ui-group="segments"],.run-segments');
+    const button=event.target.closest?.('button[data-ui-kind="segment"],button[data-ui-kind="run"],.season-segment button'),group=button?.closest('[data-ui-group="segments"],.run-segments,.season-segment');
     if(!group||event.altKey||event.metaKey||event.ctrlKey||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
     const choices=[...group.querySelectorAll('button:not(:disabled)')];
     const index=choices.indexOf(button),next=event.key==='Home'?choices[0]:event.key==='End'?choices.at(-1):choices[(index+(event.key==='ArrowRight'?1:-1)+choices.length)%choices.length];

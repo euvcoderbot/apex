@@ -24,7 +24,7 @@ export function DivergingBarChart({title, subtitle, rows, unit, extent, seriesKe
           const width = Math.min(100, Math.abs(r.value) / span * 100);
           const left = r.value < 0 ? zero-width : zero;
           return (
-            <div key={i} className="performance-tyre-age-row" data-trend-series={seriesKey?.(r)}>
+            <div key={i} className="performance-tyre-age-row" data-trend-series={seriesKey?.(r)} role="img" data-chart-value={`${title}:${seriesKey?.(r) || r.displayName || r.team || r.name || i}`} tabIndex={i === 0 ? 0 : -1} aria-label={`${r.displayName || r.team || r.name || ''}: ${signed(r.value, 3, unit)}`}>
               <div className="performance-tyre-age-name"><TeamLabel team={r} /></div>
               <div className="performance-tyre-age-track">
                 <i className="performance-tyre-age-zero" style={{left:`${zero.toFixed(2)}%`}} />

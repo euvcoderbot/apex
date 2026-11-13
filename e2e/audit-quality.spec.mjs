@@ -2,6 +2,21 @@ import {test,expect} from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import {isolate,replayFixture} from './helpers.mjs';
 
+test('chart tooltip updates do not rescan the page for controls', async ({page}) => {
+  await page.goto('/apex/ui-catalog.html'); await page.waitForLoadState('networkidle');
+  await page.evaluate(() => {
+    const original = document.body.querySelectorAll.bind(document.body);
+    window.__controlScans = 0;
+    document.body.querySelectorAll = selector => { if (selector.startsWith('button,input')) window.__controlScans++; return original(selector); };
+    const tip = document.createElement('div'); tip.className = 'tooltip'; tip.id = 'auditReadOnlyTip'; document.body.append(tip);
+    tip.textContent = 'Exact chart value';
+  });
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  expect(await page.evaluate(() => window.__controlScans)).toBe(0);
+  await page.evaluate(() => { const button = document.createElement('button'); button.id = 'auditNewControl'; button.textContent = 'Example'; document.body.append(button); });
+  await expect(page.locator('#auditNewControl')).toHaveAttribute('data-ui-kind', 'push');
+});
+
 test('removed segmented controls release resize observation and can be reinserted',async({page})=>{
   await page.addInitScript(()=>{
     const Native=ResizeObserver;window.__observedThumbs=new Set();

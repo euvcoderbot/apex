@@ -209,7 +209,7 @@ button[data-ui-kind="push"],button[data-ui-kind="primary"],button[data-ui-kind="
   .telemetry-analysis-grid .corner-workspace { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
   .telemetry-analysis-grid .corner-picker-row,.telemetry-analysis-grid .corner-metric-grid { grid-column: 1; }
 }
-@media(max-width:1000px) {
+@media(max-width:1200px) {
   .performance-visual-grid,.performance-visual-grid:has(> .performance-visual-cell:nth-child(3)) { grid-template-columns: minmax(0,1fr); grid-template-rows: none; }
   .performance-visual-grid .performance-chart-card { display: flex; flex-direction: column; grid-row: auto; }
   .performance-visual-grid .performance-chart-controls[aria-hidden="true"] { display: none; }

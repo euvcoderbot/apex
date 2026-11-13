@@ -73,7 +73,7 @@ test('every driver photo is a credited Wikimedia Commons file under a free licen
   assert.match(season, /function photoCredits\(\)/);
   assert.match(season, /c\.changes \? `; \$\{c\.changes\}` : ''/);
   assert.match(season, /const credit = photoCredit\(id\); if \(credit\) ident\.append\(credit\);/);
-  assert.match(season, /function paint\(views\) \{\n    imagery\.shown\.clear\(\);/);
+  assert.match(season, /function paint\(views\) \{[\s\S]*?imagery\.shown\.clear\(\);[\s\S]*?const nodes = views\(\), credits = photoCredits\(\);/);
   assert.doesNotMatch(season, /body\.replaceChildren\(\.\.\.render/);
 });
 

@@ -24,7 +24,9 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
   const valid = (rows || []).filter(r => r && finite(r[valueKey] as number)).map((r): Row & {chart: number} => ({...r, chart: 0}));
   const missing = (rows || []).filter(r => r && !finite(r[valueKey] as number));
   const unranked = missing.map((r, i) => (
-    <div key={'missing' + i} className="performance-bar-row is-unranked" title={r.missingReason || 'No comparable supported measurement; not zero'}>
+    <div key={'missing' + i} className="performance-bar-row is-unranked" title={r.missingReason || 'No comparable supported measurement; not zero'}
+      role="img" data-chart-value={`${title}:${String(r[labelKey] || r.team || r.name || '')}`} tabIndex={!valid.length && i === 0 ? 0 : -1}
+      aria-label={`${String(r[labelKey] || r.team || r.name || '')}: Unranked. ${r.missingReason || 'No comparable supported measurement; not zero'}`}>
       <div className="performance-bar-label"><TeamLabel team={r} /></div>
       <div className="performance-bar-track" />
       <span className="performance-bar-val">Unranked</span>
@@ -79,9 +81,10 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
           const above = i > 0 ? valid[i - 1] : null, aboveRange = above && ranges.get(above);
           const unresolved = !!(whisker && above && whisker[0] <= (aboveRange ? aboveRange[1] : above.chart));
           const seconds = perLapSeconds && unit === '%' && signedValue && !preserveSignedValues && value > 0.00001 ? value / 100 * perLapSeconds : null;
+          const summary = `${label}: ${display}${seconds != null ? ` (about ${seconds.toFixed(2)} s per lap)` : ''}${whisker ? ` · likely range +${fmt(whisker[0], digits, unit)} to +${fmt(whisker[1], digits, unit)}` : ''}${unresolved ? ` · not resolved against ${String(above?.[labelKey] || above?.team || '')}` : ''}${plotted === 0 && value !== 0 ? ` · Exact change ${value}${unit}; below displayed precision` : ''}${r.traceProvisional ? ' · Provisional: source gaps over 0.6 s; inspect corner evidence' : ''}`;
           return (
             <div key={label + i} className="performance-bar-row"
-              title={`${label}: ${display}${seconds != null ? ` (about ${seconds.toFixed(2)} s per lap)` : ''}${whisker ? ` · likely range +${fmt(whisker[0], digits, unit)} to +${fmt(whisker[1], digits, unit)}` : ''}${unresolved ? ` · not resolved against ${String(above?.[labelKey] || above?.team || '')}` : ''}${plotted === 0 && value !== 0 ? ` · Exact change ${value}${unit}; below displayed precision` : ''}${r.traceProvisional ? ' · Provisional: source gaps over 0.6 s; inspect corner evidence' : ''}`}>
+              title={summary} aria-label={`${summary}${r.coverageLabel ? ` · ${r.coverageLabel}` : ''}`} role="img" data-chart-value={`${title}:${label}`} tabIndex={i === 0 ? 0 : -1}>
               <div className="performance-bar-label"><TeamLabel team={r} />{r.coverageLabel ? <small className="metric-coverage">{r.coverageLabel}</small> : null}</div>
               <div className="performance-bar-track">
                 {preserveSignedValues ? <i className="performance-zero" style={{left: `${zero.toFixed(2)}%`}} /> : null}

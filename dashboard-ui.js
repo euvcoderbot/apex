@@ -124,6 +124,33 @@
     const board=event.target.closest?.('.trend-board');
     if(board&&!board.contains(event.relatedTarget))highlightTrend(board,null);
   });
+  // Dense charts have one tab stop per plot. Arrow keys inspect the same exact values as pointer tooltips.
+  let chartTip=null, focusedChartMark=null, dismissedChartKey=null;
+  const hideChartValue=()=>{if(chartTip)chartTip.hidden=true;focusedChartMark=null;};
+  performanceRoot?.addEventListener('focusin',event=>{
+    const mark=event.target.closest?.('[data-chart-value]');
+    if(!mark){dismissedChartKey=null;hideChartValue();return;}
+    const plot=mark.closest('svg,.performance-bars,.performance-tyre-age-chart');
+    for(const node of plot.querySelectorAll('[data-chart-value]'))node.setAttribute('tabindex',node===mark?'0':'-1');
+    focusedChartMark=mark;
+    if(dismissedChartKey===mark.dataset.chartValue){if(chartTip)chartTip.hidden=true;return;}
+    dismissedChartKey=null;
+    if(!chartTip){chartTip=document.createElement('div');chartTip.className='tooltip chart-value-tip';chartTip.setAttribute('role','tooltip');document.body.append(chartTip);}
+    chartTip.textContent=mark.getAttribute('aria-label')||mark.textContent;chartTip.hidden=false;
+    const box=mark.getBoundingClientRect(),w=chartTip.offsetWidth,h=chartTip.offsetHeight;
+    chartTip.style.left=Math.max(8,Math.min(innerWidth-w-8,box.left+box.width/2))+'px';
+    chartTip.style.top=Math.max(8,Math.min(innerHeight-h-8,box.top-h-8))+'px';
+    const board=mark.closest('.trend-board'),key=mark.closest('[data-trend-series]')?.dataset.trendSeries;if(board&&key)highlightTrend(board,key);
+  });
+  performanceRoot?.addEventListener('focusout',event=>{const board=event.target.closest?.('.trend-board');if(board&&!board.contains(event.relatedTarget))highlightTrend(board,null);hideChartValue();});
+  performanceRoot?.addEventListener('keydown',event=>{
+    if(event.key==='Escape'){dismissedChartKey=event.target.closest?.('[data-chart-value]')?.dataset.chartValue||null;hideChartValue();return;}
+    const mark=event.target.closest?.('[data-chart-value]');if(!mark||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key))return;
+    const plot=mark.closest('svg,.performance-bars,.performance-tyre-age-chart'),marks=[...plot.querySelectorAll('[data-chart-value]')],index=marks.indexOf(mark);
+    const next=event.key==='Home'?0:event.key==='End'?marks.length-1:Math.max(0,Math.min(marks.length-1,index+(['ArrowRight','ArrowDown'].includes(event.key)?1:-1)));
+    event.preventDefault();marks.forEach((node,i)=>{node.setAttribute('tabindex',i===next?'0':'-1');});marks[next].focus();
+  });
+  if(performanceRoot)new MutationObserver(()=>{if(focusedChartMark&&!focusedChartMark.isConnected)hideChartValue();}).observe(performanceRoot,{childList:true,subtree:true});
   categoryList?.addEventListener('click',event=>{
     const row=event.target.closest('[data-sidebar-metric]');if(!row||row.disabled)return;
     // The chosen row is marked at once; the category, which rebuilds the whole panel, renders after that frame is painted,

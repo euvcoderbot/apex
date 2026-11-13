@@ -87,6 +87,17 @@ close to the rendered width so 11 px stays 11 px.
 **Legend.** Linear's label pills: 24 px high, `border-radius: 9999px`, ring `--lin-label-border`, an 8 px colour dot, 500 12 px
 secondary.
 
+**Chart interaction.** Read-only values need keyboard access as well as pointer hover. Use one tab stop per plot, arrows to
+move between values, Home/End for the first/last value, and Escape to dismiss the value card. Preserve the full measured
+value, unit, uncertainty and provisional/missing status in accessible text. In Car performance, `data-chart-value` is a stable
+identity (plot + entrant/round), not an empty marker; `dashboard-ui.js` owns navigation and the shared value card. Season's
+`data-tip` marks use the same pattern, including the finishing-position histogram. A line over a transparent hit region
+must not interrupt its tooltip. Keep value cards inside the viewport and avoid rescanning controls on each tooltip update.
+
+**Repaint and loading.** Segmented choices and rebuilt selectors return focus to their replacement control. Load independent
+Season datasets concurrently. Photo metadata and circuit outlines hydrate existing nodes after data renders, with credits;
+they must not hold tables in a loading state or replace a table the user is interacting with.
+
 **Small button** ("Show slow laps", "Change"). 24 px high, 0 9 px padding, `border-radius: 6px`, transparent, ring
 `--lin-label-border`, 500 12 px tertiary; hover `--lin-nav-hover` + label colour with 0 s in and 0.15 s out; pressed
 `--lin-nav-active`. Primary actions (Load session, Analyse): 28 px pills, padding 0 10, 500 12 white on the accent; they exist, reuse them.

@@ -308,7 +308,7 @@
   // The hover card: nearest lap under the pointer, a guide line on that lap and the values of every driver shown.
   let tip = null;
   const hideHover = () => { if (tip) tip.hidden = true; host.querySelectorAll?.('.hover-guide').forEach(g => g.remove()); };
-  host.addEventListener('pointermove', event => {
+  const showHover = event => {
     const svg = event.target.closest?.('#sessionOverview svg[data-hover]'), spec = svg && hoverCharts.get(svg.dataset.hover);
     if (!spec) { hideHover(); return; }
     const box = svg.getBoundingClientRect(), vx = (event.clientX - box.left) * spec.W / box.width;
@@ -324,11 +324,19 @@
     tip.innerHTML = `<b>${esc(spec.title(lap))}</b>${rows.map(r => `<span><i class="${r.hollow ? 'is-hollow' : ''}" style="--c:${esc(r.colour)}"></i>${esc(r.code)}<em>${esc(r.text)}</em></span>`).join('')}`;
     tip.hidden = false;
     const w = tip.offsetWidth, h = tip.offsetHeight, px = box.left + gx * box.width / spec.W;
-    tip.style.left = `${px + 14 + w > innerWidth - 8 ? px - 14 - w : px + 14}px`;
+    tip.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, px + 14 + w > innerWidth - 8 ? px - 14 - w : px + 14))}px`;
     tip.style.top = `${Math.min(innerHeight - h - 8, Math.max(8, event.clientY - h / 2))}px`;
+  };
+  host.addEventListener('pointermove', showHover);
+  host.addEventListener('focusin', event => {
+    const point = event.target.closest?.('#sessionOverview .point');
+    if (!point) return;
+    const box = point.getBoundingClientRect(); showHover({target: point, clientX: box.left + box.width / 2, clientY: box.top});
   });
+  host.addEventListener('focusout', hideHover);
   host.addEventListener('pointerleave', hideHover);
   host.addEventListener('keydown', event => {
+    if (event.key === 'Escape') hideHover();
     const point = event.target.closest?.('#sessionOverview .point');
     if (point && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); toggleLoadedLap(point.dataset.code, Number(point.dataset.lap)); }
   });
