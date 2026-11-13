@@ -4,7 +4,7 @@ import {isolate, replayFixture} from './helpers.mjs';
 for (const theme of ['dark', 'light']) for (const width of [1440, 390]) {
   test.describe(`${theme} ${width} visual structure`, () => {
     test.use({viewport: {width, height: 1000}});
-    test('comparison tracks use the available width and the folded race picker stays compact', async ({page}) => {
+    test('comparison bars sit on one line with their name and value, and the folded race picker stays compact', async ({page}) => {
       await isolate(page); await replayFixture(page);
       await page.addInitScript(t => localStorage.setItem('apex-theme', t), theme);
       await page.goto('/apex/cars/pace?year=2026&scope=tracks&races=16,17,18&run=1');
@@ -15,7 +15,10 @@ for (const theme of ['dark', 'light']) for (const width of [1440, 390]) {
       await expect.poll(() => row.evaluate(node => {
         const box = node.getBoundingClientRect(), label = node.querySelector('.performance-bar-label').getBoundingClientRect();
         const track = node.querySelector('.performance-bar-track').getBoundingClientRect(), value = node.querySelector('.performance-bar-val').getBoundingClientRect();
-        return box.width > 0 && track.width / box.width > .9 && track.top - Math.max(label.bottom, value.bottom) >= 2;
+        // One line per entrant: name, then the bar, then the value, all centred on the same line.
+        const mid = r => r.top + r.height / 2;
+        return box.width > 0 && label.right <= track.left && track.right <= value.left && track.width / box.width > .2
+          && Math.abs(mid(track) - mid(label)) <= 2 && Math.abs(mid(value) - mid(label)) <= 2;
       })).toBe(true);
       await expect(page.locator('#performanceSelectAllTracks')).toBeHidden();
       await page.locator('#performanceTrackToggle').click();

@@ -69,7 +69,9 @@ const AUDIT = spec => {
     }
     if (el.matches('button, [role="button"], select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), .select-trigger') && !el.closest('#linearWorkspace .driver-pill, .lap, .corner-pick, .season-strip-cell, .season-battle')) {
       const h = Math.round(r.height);
-      if (!spec.controlHeights.includes(h) && h < 60) add(el, 'control-height', h + 'px');
+      // A sortable column title that wraps onto more lines is text sized by its words, not a fixed-height control.
+      const wrappedTitle = el.closest('th') && h > 28 && el.getClientRects().length && parseFloat(s.lineHeight) && h >= 2 * parseFloat(s.lineHeight);
+      if (!spec.controlHeights.includes(h) && h < 60 && !wrappedTitle) add(el, 'control-height', h + 'px');
     }
   }
   // Component families: every distinct look of a card, button, heading, table header and chip on the page, so competing

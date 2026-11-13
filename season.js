@@ -1732,6 +1732,13 @@
       return sort.dir * ((Number.isFinite(y) ? y : Number.MAX_VALUE) - (Number.isFinite(x) ? x : Number.MAX_VALUE));
     });
   }
+  // A shaded value sits in its own chip inside a normally padded, right-aligned cell, so neighbouring highlights keep a
+  // clear gap and never run to the cell edges. --heat (0-1) on the cell sets the chip's depth; no --heat, no fill.
+  function heatChip(td) {
+    const chip = el('span', 'season-heat-value'); chip.append(...td.childNodes); td.append(chip);
+    return td;
+  }
+
   function sortHeader(th, table, col) {
     const sort = state.puSort?.[table];
     th.classList.add('season-sortable'); th.scope = 'col';
@@ -1833,6 +1840,7 @@
       tr.append(name);
       columns.forEach((c, i) => {
         const raw = c.value(g), td = el('td', `num${c.heat ? ' season-heat-cell' : ''}`, String(c.text ? c.text(g) : raw));
+        if (c.heat) heatChip(td);
         if (c.heat && range[i] && Number.isFinite(raw)) {
           const [lo, hi] = range[i], share = hi > lo ? (raw - lo) / (hi - lo) : 0, heat = c.heat === 'down' ? 1 - share : share;
           if (heat > 0 && (c.heat === 'down' ? true : raw > lo)) td.style.setProperty('--heat', String(heat));
@@ -1900,7 +1908,7 @@
       tr.append(name);
       if (view !== 'drivers') tr.append(el('td', 'num', String(r.cars)));
       for (const e of pu.elements) {
-        const v = r.elements[e], td = el('td', 'num season-heat-cell', v == null ? '—' : fmt(v));
+        const v = r.elements[e], td = heatChip(el('td', 'num season-heat-cell', v == null ? '—' : fmt(v)));
         // Shade by how far above the lowest in this view (no allocation limits are assumed).
         if (v != null && max[e] > min[e]) td.style.setProperty('--heat', String((v - min[e]) / (max[e] - min[e])));
         tr.append(td);

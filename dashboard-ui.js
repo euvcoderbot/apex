@@ -307,7 +307,9 @@
       const rows=[...table.querySelectorAll('tbody tr')];
       [...(table.querySelector('thead tr')?.children||[])].forEach((heading,index)=>{
         const values=rows.map(row=>row.children[index]?.textContent.trim()||'').filter(text=>text&&!/^(—|–|-|n\/a)$/i.test(text));
-        const kind=index===0?'text':!values.length?'chart':values.every(text=>/^[+\-−~]?\d/.test(text))?'number':'text';
+        // A column of placeholders ("—" everywhere) is a metric with no values yet, not a chart: only cells drawing a chart centre.
+        const charts=rows.some(row=>row.children[index]?.querySelector('svg:not(.sort-icon),canvas'));
+        const kind=index===0?'text':!values.length?(charts?'chart':'number'):values.every(text=>/^[+\-−~±≈]?\d/.test(text))?'number':'text';
         heading.dataset.column=kind;
         for(const row of rows)if(row.children[index])row.children[index].dataset.column=kind;
       });
