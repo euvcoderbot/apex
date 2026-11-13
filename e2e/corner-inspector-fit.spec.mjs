@@ -6,7 +6,7 @@ import {isolate} from './helpers.mjs';
 for (const height of [850, 1000]) test(`corner results stay contained at ${height}px without nested scrollbars or picker reflow`, async ({page}, info) => {
   await page.setViewportSize({width: 1600, height});
   await isolate(page);
-  await page.goto('/apex/');
+  await page.goto('/apex/session');
   await page.evaluate(() => {
     const inspector = document.querySelector('#sessionInspector');
     inspector.dataset.pane = 'track';

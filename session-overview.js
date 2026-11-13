@@ -200,6 +200,104 @@
       <p class="overview-note">${selected.length ? 'The drivers chosen in the list' : 'With no driver chosen in the list, the top three finishers'}; laps over 107% of a driver’s best on the same kind of tyre (slick or wet)${fieldBest ? ', and of the fastest lap anyone set on that lap,' : ''} are ${showSlowLaps ? 'shown' : 'hidden'}${fieldBest ? '; pit stops are always drawn, a ▲ on the top edge when off the scale' : ''}. Select a point to add that lap to the comparison; select a colour dot to change a driver’s colour.</p>`;
   }
 
+  // ---------- lap distribution: every driver's representative laps ----------
+  // The usual F1 lap-time distribution: one column per driver in classification order; a violin (the density of the
+  // driver's laps, Gaussian kernel) faintly tinted and outlined in the team colour, every lap a dot in its tyre's colour
+  // near the centre line, the median a cyan diamond (joined driver to driver by a dotted line), and a dashed line at the
+  // session's fastest representative lap. Lap time runs up the chart as in the lap chart (quicker lower). Same slow-lap rule
+  // as the lap chart; safety car and pit laps always left out. Hover a column for the stints.
+  const TYRE = {SOFT: '#ff493e', MEDIUM: '#ffd735', HARD: '#f5f5f7', INTERMEDIATE: '#43cf79', WET: '#3395ff'};
+  const tyreColour = c => TYRE[String(c || '').toUpperCase()] || 'var(--ui-tertiary)';
+  const quantile = (sorted, q) => { const at = (sorted.length - 1) * q, lo = Math.floor(at); return sorted[lo] + (sorted[Math.min(lo + 1, sorted.length - 1)] - sorted[lo]) * (at - lo); };
+  const mean = v => v.reduce((a, b) => a + b, 0) / v.length;
+  let distRows = [], distGeometry = null;
+  // Driver photos (assets/drivers, the season hub's set), matched by name: the session has "Max VERSTAPPEN", the credits
+  // "Max Verstappen". Loaded once; the chart redraws when they arrive.
+  let driverPhotos = null;
+  const plainName = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]+/g, ' ').trim();
+  function photoFor(driver) {
+    if (!driverPhotos) {
+      driverPhotos = new Map();
+      fetch('assets/drivers/credits.json').then(r => (r.ok ? r.json() : {})).then(c => {
+        for (const [id, x] of Object.entries(c.photos || {})) driverPhotos.set(plainName(x.name), id);
+        renderedOverview = ''; renderSessionOverview();
+      }).catch(() => {});
+    }
+    const name = plainName(driver?.name);
+    if (driverPhotos.has(name)) return driverPhotos.get(name);
+    const family = name.split(' ').at(-1);
+    return [...driverPhotos].find(([n]) => n.split(' ').at(-1) === family)?.[1] || null;
+  }
+  function lapDistribution() {
+    const chosen = new Set(selected);
+    distRows = [...realDrivers.values()].map(d => {
+      const laps = (d.laps || []).filter(timed), keep = representative(laps);
+      const rep = laps.filter(l => keep(l) && !neutralised(l));
+      if (!rep.length) return null;
+      const stints = new Map();
+      for (const l of rep) { const k = l.stint ?? l.compound; if (!stints.has(k)) stints.set(k, {compound: l.compound, laps: []}); stints.get(k).laps.push(l.time); }
+      const sorted = rep.map(l => l.time).sort((a, b) => a - b);
+      return {code: d.code, position: Number.isFinite(d.position) ? d.position : 99, colour: getDriverColor(d.code), laps: rep, best: sorted[0], median: quantile(sorted, .5), q1: quantile(sorted, .25), q3: quantile(sorted, .75),
+        stints: [...stints.values()].map(st => ({...st, average: mean(st.laps)}))};
+    }).filter(Boolean).sort((a, b) => a.position - b.position || a.median - b.median);
+    if (!distRows.length) return '<p class="section-empty">No representative laps yet.</p>';
+    // The scale stops at the 98th percentile of every lap shown, so a few slow laps do not squash the rest; laps beyond
+    // sit on the top edge as hollow dots (exact on hover of the column's stints).
+    const times = distRows.flatMap(r => r.laps.map(l => l.time)).sort((a, b) => a - b), tLo = times[0], tHi = quantile(times, .98);
+    const span = Math.max(0.5, tHi - tLo), step = [0.25, 0.5, 1, 2, 5, 10].find(st => span / st <= 6) || 20;
+    const yLo = Math.floor(tLo / step) * step, yHi = Math.ceil(tHi / step) * step;
+    const W = chartWidth(), H = 360, L = 52, R = 8, T = 10, B = 8, n = distRows.length, col = (W - L - R) / n, half = Math.min(18, col * .46);
+    const y = t => T + (yHi - Math.min(t, yHi)) / ((yHi - yLo) || 1) * (H - T - B);
+    const cx = i => L + col * (i + .5);
+    distGeometry = {W, L, col};
+    const decimals = step >= .5 ? 1 : 2;
+    const tick = t => { const m = Math.floor(t / 60), sec = t - m * 60; return `${m}:${sec.toFixed(decimals).padStart(3 + decimals, '0')}`; };
+    const f = v => v.toFixed(1);
+    let svg = `<svg class="overview-lap-chart overview-dist" data-dist="1" viewBox="0 0 ${W} ${H}" role="img" aria-label="Lap time distribution of every driver">`;
+    for (let t = yLo; t <= yHi + 1e-9; t += step) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${f(y(t))}" y2="${f(y(t))}"/><text class="axis" x="${L - 8}" y="${f(y(t) + 3.5)}" text-anchor="end">${esc(tick(t))}</text>`;
+    distRows.forEach((r, i) => {
+      const x0 = cx(i), faint = chosen.size && !chosen.has(r.code);
+      const v = r.laps.map(l => l.time), m = mean(v), sd = Math.sqrt(mean(v.map(t => (t - m) ** 2))) || .2;
+      const bw = Math.max(.06, 1.06 * sd * v.length ** -.2), from = Math.max(yLo, Math.min(...v) - bw), to = Math.min(yHi, Math.max(...v) + bw), N = 40;
+      const density = t => v.reduce((s, u) => s + Math.exp(-(((t - u) / bw) ** 2) / 2), 0);
+      const dens = Array.from({length: N + 1}, (_, k) => { const t = from + (to - from) * k / N; return [t, density(t)]; });
+      const top = Math.max(...dens.map(d => d[1])), w = val => val / top * half;
+      svg += `<g class="dist-col${faint ? ' is-faint' : ''}">`;
+      svg += `<path class="dist-violin" style="--c:${esc(r.colour)}" d="M${dens.map(d => `${f(x0 - w(d[1]))} ${f(y(d[0]))}`).join('L')}L${[...dens].reverse().map(d => `${f(x0 + w(d[1]))} ${f(y(d[0]))}`).join('L')}Z"/>`;
+      // Dots spread across the violin's width at their height, evenly by rank among laps of a similar time.
+      const order = r.laps.map((l, k) => [l, k]).sort((a, b) => a[0].time - b[0].time);
+      order.forEach(([l], k) => {
+        const spread = Math.min(5, w(density(l.time)) * .45), slot = ((k * 0.618034) % 1) * 2 - 1;
+        svg += `<circle class="dist-dot${l.time > yHi ? ' is-beyond' : ''}" cx="${f(x0 + (l.time > yHi ? slot * half * .5 : slot * spread))}" cy="${f(y(l.time))}" r="1.7" style="--c:${esc(tyreColour(l.compound))}"/>`;
+      });
+      svg += '</g>';
+    });
+    // The fastest representative lap of the session, and the medians joined left to right, drawn over the columns.
+    const fastest = Math.min(...distRows.map(r => r.best));
+    svg += `<line class="dist-fastest" x1="${L}" x2="${W - R}" y1="${f(y(fastest))}" y2="${f(y(fastest))}"/><text class="dist-fastest-label" x="${W - R}" y="${f(y(fastest) - 5)}" text-anchor="end">Fastest</text>`;
+    svg += `<path class="dist-median-line" d="${distRows.map((r, i) => `${i ? 'L' : 'M'}${f(cx(i))} ${f(y(r.median))}`).join('')}"/>`;
+    distRows.forEach((r, i) => { const mx = cx(i), my = y(r.median); svg += `<path class="dist-median-mark${chosen.size && !chosen.has(r.code) ? ' is-faint' : ''}" d="M${f(mx)} ${f(my - 4.5)}L${f(mx + 4.5)} ${f(my)}L${f(mx)} ${f(my + 4.5)}L${f(mx - 4.5)} ${f(my)}Z"/>`; });
+    svg += '</svg>';
+    const used = [...new Set(distRows.flatMap(r => r.laps.map(l => String(l.compound || '').toUpperCase())))].filter(c => TYRE[c]);
+    const legend = used.map(c => `<span class="overview-legend-item"><span class="overview-swatch is-static" style="--c:${TYRE[c]}"></span>${esc(c.charAt(0) + c.slice(1).toLowerCase())}</span>`).join('');
+    // Under each column the driver's photo on the team colour (the code when there is no photo) and the code.
+    const faces = distRows.map(r => {
+      const id = photoFor(realDrivers.get(r.code));
+      const photo = id ? `<img src="assets/drivers/${encodeURIComponent(id)}.webp" alt="" loading="lazy" decoding="async">` : `<b>${esc(r.code)}</b>`;
+      return `<span class="dist-face"><span class="dist-avatar" style="--team:${esc(r.colour)}">${photo}</span><small>${esc(r.code)}</small></span>`;
+    }).join('');
+    return `<div class="overview-legend">${legend}</div>${svg}<div class="dist-faces" style="padding:0 ${R}px 0 ${L}px;grid-template-columns:repeat(${n},minmax(0,1fr))">${faces}</div><p class="overview-note">Each driver’s representative laps, in classification order: the shape is how their laps spread (wider where more laps fell), each dot a lap in its tyre’s colour, the cyan diamond the median (the dotted line joins them) and the dashed line the session’s fastest representative lap. Laps slower than the scale sit on its top edge as hollow dots. The lap chart’s slow-lap rule applies; safety car and pit laps are left out. Hover a column for the stint averages.</p>`;
+  }
+  function distTip(svg, event) {
+    const box = svg.getBoundingClientRect(), g = distGeometry;
+    if (!g) return null;
+    const vx = (event.clientX - box.left) * g.W / box.width, r = distRows[Math.floor((vx - g.L) / g.col)];
+    if (!r) return null;
+    return {title: `${r.code} · median ${fmtLap(r.median)}`, rows: [{code: 'Best', colour: 'var(--ui-tertiary)', text: fmtLap(r.best)},
+      {code: 'Middle half', colour: r.colour, text: `${fmtLap(r.q1)} – ${fmtLap(r.q3)}`},
+      ...r.stints.map((st, n) => ({code: `Stint ${n + 1}`, colour: tyreColour(st.compound), text: `${String(st.compound || '?').charAt(0)} · ${st.laps.length} lap${st.laps.length === 1 ? '' : 's'} · avg ${fmtLap(st.average)}`}))]};
+  }
+
   // End labels (docs/linear-components.md, Chart): the driver code in its colour, at least 13 px apart.
   function endKey(entries, labelX) {
     const list = [...entries].sort((a, b) => a.y - b.y);
@@ -284,7 +382,7 @@
     // never swapped out between mouse down and up.
     const html = `<div class="section-heading analysis-heading"><h2 id="sessionOverviewTitle">Session overview</h2></div>
       <div class="overview-readout">${readout(rows)}</div>
-      <div class="overview-chart"><h3>Lap times</h3>${lapChart()}</div>${sessionSummary()}${raceCharts()}`;
+      <div class="overview-chart"><h3>Lap times</h3>${lapChart()}</div><div class="overview-chart"><h3>Lap distribution</h3>${lapDistribution()}</div>${sessionSummary()}${raceCharts()}`;
     if (renderedOverview !== html || !root.firstChild) {
       root.innerHTML = html; renderedOverview = html;
       root.querySelector('.session-summary')?.addEventListener('toggle', event => { summaryOpen = event.target.open; renderedOverview = ''; });
@@ -343,6 +441,18 @@
   let tip = null;
   const hideHover = () => { if (tip) tip.hidden = true; host.querySelectorAll?.('.hover-guide').forEach(g => g.remove()); };
   const showHover = event => {
+    const dist = event.target.closest?.('#sessionOverview svg[data-dist]');
+    if (dist) {
+      const d = distTip(dist, event);
+      if (!d) { hideHover(); return; }
+      if (!tip) { tip = document.createElement('div'); tip.className = 'tooltip overview-tip'; tip.setAttribute('role', 'tooltip'); document.body.append(tip); }
+      tip.innerHTML = `<b>${esc(d.title)}</b>${d.rows.map(r => `<span><i style="--c:${esc(r.colour)}"></i>${esc(r.code)}<em>${esc(r.text)}</em></span>`).join('')}`;
+      tip.hidden = false;
+      const w = tip.offsetWidth, h = tip.offsetHeight;
+      tip.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, event.clientX + 14 + w > innerWidth - 8 ? event.clientX - 14 - w : event.clientX + 14))}px`;
+      tip.style.top = `${Math.min(innerHeight - h - 8, Math.max(8, event.clientY - h / 2))}px`;
+      return;
+    }
     const svg = event.target.closest?.('#sessionOverview svg[data-hover]'), spec = svg && hoverCharts.get(svg.dataset.hover);
     if (!spec) { hideHover(); return; }
     const box = svg.getBoundingClientRect(), vx = (event.clientX - box.left) * spec.W / box.width;

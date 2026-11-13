@@ -14,7 +14,7 @@ const observe = () => {
   addEventListener('load', () => { window.__metrics.loadAt = performance.now(); });
 };
 
-async function open(page, path = '/apex/') {
+async function open(page, path = '/apex/session') {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await isolate(page);

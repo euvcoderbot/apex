@@ -42,7 +42,7 @@ test.describe('application shell @visual', () => {
       await page.setViewportSize({width: size.width, height: size.height});
       await isolate(page);
       await page.addInitScript(value => localStorage.setItem('apex-theme', value), theme);
-      await page.goto('/apex/');
+      await page.goto('/apex/session');
       await expect(page.locator('#gp option')).toHaveCount(3);
       await page.waitForLoadState('networkidle');
       await expect(page).toHaveScreenshot(`${size.name}-${theme}.png`, {mask: [page.locator('.local-compute-status')]});

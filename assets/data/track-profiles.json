@@ -1,0 +1,311 @@
+{
+ "year": 2026,
+ "method": "track-profile-v1",
+ "generated": "2026-11-13",
+ "tracks": {
+  "Australian Grand Prix": {
+   "driver": "RUS",
+   "lap_time": 78.518,
+   "length": 5234,
+   "average_speed": 240,
+   "full_throttle": 0.63,
+   "braking": 0.119,
+   "braking_zones": 5,
+   "gear_changes": 32,
+   "corners": {
+    "slow": 3,
+    "medium": 1,
+    "fast": 3
+   },
+   "minimum_speed": 94
+  },
+  "Austrian Grand Prix": {
+   "driver": "RUS",
+   "lap_time": 66.113,
+   "length": 4297,
+   "average_speed": 234,
+   "full_throttle": 0.609,
+   "braking": 0.155,
+   "braking_zones": 7,
+   "gear_changes": 38,
+   "corners": {
+    "slow": 2,
+    "medium": 3,
+    "fast": 1
+   },
+   "minimum_speed": 71
+  },
+  "Azerbaijan Grand Prix": {
+   "driver": "RUS",
+   "lap_time": 102.526,
+   "length": 5946,
+   "average_speed": 208.8,
+   "full_throttle": 0.59,
+   "braking": 0.194,
+   "braking_zones": 12,
+   "gear_changes": 55,
+   "corners": {
+    "slow": 8,
+    "medium": 2,
+    "fast": 0
+   },
+   "minimum_speed": 71
+  },
+  "Bahrain Grand Prix": {
+   "driver": "VER",
+   "lap_time": 95.13,
+   "length": 5477,
+   "average_speed": 207.3,
+   "full_throttle": 0.556,
+   "braking": 0.183,
+   "braking_zones": 8,
+   "gear_changes": 55,
+   "corners": {
+    "slow": 6,
+    "medium": 2,
+    "fast": 1
+   },
+   "minimum_speed": 71
+  },
+  "Barcelona Grand Prix": {
+   "driver": "RUS",
+   "lap_time": 74.679,
+   "length": 4636,
+   "average_speed": 223.5,
+   "full_throttle": 0.596,
+   "braking": 0.14,
+   "braking_zones": 7,
+   "gear_changes": 33,
+   "corners": {
+    "slow": 2,
+    "medium": 4,
+    "fast": 2
+   },
+   "minimum_speed": 103
+  },
+  "Belgian Grand Prix": {
+   "driver": "ANT",
+   "lap_time": 104.361,
+   "length": 6946,
+   "average_speed": 239.6,
+   "full_throttle": 0.702,
+   "braking": 0.085,
+   "braking_zones": 7,
+   "gear_changes": 47,
+   "corners": {
+    "slow": 2,
+    "medium": 5,
+    "fast": 1
+   },
+   "minimum_speed": 75
+  },
+  "British Grand Prix": {
+   "driver": "ANT",
+   "lap_time": 88.111,
+   "length": 5825,
+   "average_speed": 238,
+   "full_throttle": 0.664,
+   "braking": 0.102,
+   "braking_zones": 6,
+   "gear_changes": 32,
+   "corners": {
+    "slow": 4,
+    "medium": 1,
+    "fast": 3
+   },
+   "minimum_speed": 87
+  },
+  "Canadian Grand Prix": {
+   "driver": "RUS",
+   "lap_time": 72.578,
+   "length": 4321,
+   "average_speed": 214.3,
+   "full_throttle": 0.606,
+   "braking": 0.186,
+   "braking_zones": 6,
+   "gear_changes": 45,
+   "corners": {
+    "slow": 3,
+    "medium": 3,
+    "fast": 0
+   },
+   "minimum_speed": 60
+  },
+  "Chinese Grand Prix": {
+   "driver": "ANT",
+   "lap_time": 92.064,
+   "length": 5398,
+   "average_speed": 211.1,
+   "full_throttle": 0.566,
+   "braking": 0.186,
+   "braking_zones": 8,
+   "gear_changes": 53,
+   "corners": {
+    "slow": 6,
+    "medium": 2,
+    "fast": 0
+   },
+   "minimum_speed": 68
+  },
+  "Dutch Grand Prix": {
+   "driver": "NOR",
+   "lap_time": 71.163,
+   "length": 4235,
+   "average_speed": 214.2,
+   "full_throttle": 0.536,
+   "braking": 0.168,
+   "braking_zones": 11,
+   "gear_changes": 38,
+   "corners": {
+    "slow": 3,
+    "medium": 3,
+    "fast": 0
+   },
+   "minimum_speed": 93
+  },
+  "Hungarian Grand Prix": {
+   "driver": "NOR",
+   "lap_time": 77.207,
+   "length": 4340,
+   "average_speed": 202.4,
+   "full_throttle": 0.466,
+   "braking": 0.207,
+   "braking_zones": 10,
+   "gear_changes": 46,
+   "corners": {
+    "slow": 4,
+    "medium": 5,
+    "fast": 1
+   },
+   "minimum_speed": 92
+  },
+  "Italian Grand Prix": {
+   "driver": "GAS",
+   "lap_time": 81.786,
+   "length": 5883,
+   "average_speed": 259,
+   "full_throttle": 0.785,
+   "braking": 0.09,
+   "braking_zones": 6,
+   "gear_changes": 35,
+   "corners": {
+    "slow": 2,
+    "medium": 2,
+    "fast": 2
+   },
+   "minimum_speed": 71
+  },
+  "Japanese Grand Prix": {
+   "driver": "ANT",
+   "lap_time": 88.778,
+   "length": 5390,
+   "average_speed": 218.5,
+   "full_throttle": 0.676,
+   "braking": 0.096,
+   "braking_zones": 8,
+   "gear_changes": 32,
+   "corners": {
+    "slow": 1,
+    "medium": 4,
+    "fast": 1
+   },
+   "minimum_speed": 74
+  },
+  "Mexico City Grand Prix": {
+   "driver": "HAM",
+   "lap_time": 76.514,
+   "length": 4245,
+   "average_speed": 199.7,
+   "full_throttle": 0.423,
+   "braking": 0.231,
+   "braking_zones": 10,
+   "gear_changes": 47,
+   "corners": {
+    "slow": 7,
+    "medium": 3,
+    "fast": 0
+   },
+   "minimum_speed": 63
+  },
+  "Miami Grand Prix": {
+   "driver": "ANT",
+   "lap_time": 87.798,
+   "length": 5341,
+   "average_speed": 219,
+   "full_throttle": 0.532,
+   "braking": 0.168,
+   "braking_zones": 8,
+   "gear_changes": 36,
+   "corners": {
+    "slow": 6,
+    "medium": 1,
+    "fast": 0
+   },
+   "minimum_speed": 69
+  },
+  "Monaco Grand Prix": {
+   "driver": "ANT",
+   "lap_time": 72.051,
+   "length": 3273,
+   "average_speed": 163.5,
+   "full_throttle": 0.372,
+   "braking": 0.257,
+   "braking_zones": 13,
+   "gear_changes": 51,
+   "corners": {
+    "slow": 8,
+    "medium": 3,
+    "fast": 0
+   },
+   "minimum_speed": 44
+  },
+  "Singapore Grand Prix": {
+   "driver": "VER",
+   "lap_time": 91.373,
+   "length": 4881,
+   "average_speed": 192.3,
+   "full_throttle": 0.488,
+   "braking": 0.237,
+   "braking_zones": 12,
+   "gear_changes": 58,
+   "corners": {
+    "slow": 7,
+    "medium": 5,
+    "fast": 0
+   },
+   "minimum_speed": 63
+  },
+  "Spanish Grand Prix": {
+   "driver": "NOR",
+   "lap_time": 91.824,
+   "length": 5336,
+   "average_speed": 209.2,
+   "full_throttle": 0.544,
+   "braking": 0.161,
+   "braking_zones": 8,
+   "gear_changes": 51,
+   "corners": {
+    "slow": 5,
+    "medium": 3,
+    "fast": 1
+   },
+   "minimum_speed": 81
+  },
+  "United States Grand Prix": {
+   "driver": "ANT",
+   "lap_time": 94.035,
+   "length": 5444,
+   "average_speed": 208.4,
+   "full_throttle": 0.55,
+   "braking": 0.16,
+   "braking_zones": 10,
+   "gear_changes": 55,
+   "corners": {
+    "slow": 6,
+    "medium": 1,
+    "fast": 1
+   },
+   "minimum_speed": 75
+  }
+ }
+}

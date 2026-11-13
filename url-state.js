@@ -29,7 +29,10 @@
   function parse(pathname, search) {
     const query = new URLSearchParams(search);
     const segments = (pathname.startsWith(BASE) ? pathname.slice(BASE.length) : '').split('/').filter(Boolean);
-    const view = segments[0] === 'cars' || query.get('view') === 'cars' ? 'cars' : segments[0] === 'season' ? 'season' : 'session';
+    // The bare address (no path, no query) is the Home page; Session analysis has its own path, /apex/session, and the old
+    // /apex/?year=…&round=… links (they carry a query) still open the session they name.
+    const home = !segments.length && ![...query.keys()].length;
+    const view = segments[0] === 'cars' || query.get('view') === 'cars' ? 'cars' : segments[0] === 'season' || home ? 'season' : 'session';
     const params = {};
     for (const key of VIEWS[view]) {
       const value = query.get(key);
@@ -37,6 +40,7 @@
     }
     if (view === 'cars' && segments[0] === 'cars' && segments[1]) params.metric = decodeURIComponent(segments[1]);
     if (view === 'season' && segments[1]) params.tab = decodeURIComponent(segments[1]);
+    if (home) params.tab = 'home';
     return {view, params};
   }
 
@@ -50,8 +54,9 @@
     // Commas are safe in a query string; keep lists readable (races=16,17).
     const text = query.toString().replace(/%2C/gi, ',');
     const metric = params?.metric && params.metric !== 'pace' ? '/' + encodeURIComponent(params.metric) : '';
+    if (view === 'season' && params?.tab === 'home') return BASE + location.hash;   // Home lives at the bare address
     if (view === 'season') return BASE + 'season' + (params?.tab ? '/' + encodeURIComponent(params.tab) : '') + (text ? '?' + text : '') + location.hash;
-    return (view === 'cars' ? BASE + 'cars' + metric : BASE) + (text ? '?' + text : '') + location.hash;
+    return (view === 'cars' ? BASE + 'cars' + metric : BASE + 'session') + (text ? '?' + text : '') + location.hash;
   }
 
   function read() { return parse(location.pathname, location.search); }
@@ -60,9 +65,10 @@
   const SITE = 'F1 Apex Data';
   const CATEGORY_TITLES = {pace: 'Pace', corners: 'Cornering', straight: 'Straight line', braking: 'Braking', pits: 'Pit stops',
     tyres: 'Tyre trend', trend: 'Development & updates', results: 'Reliability & results'};
-  const SEASON_TITLES = {schedule: 'Schedule', results: 'Results', standings: 'Standings', form: 'Form', drivers: 'Driver stats',
+  const SEASON_TITLES = {home: 'Home', schedule: 'Schedule', results: 'Results', standings: 'Standings', form: 'Form', drivers: 'Driver stats',
     h2h: 'Head-to-head', upgrades: 'Upgrades', units: 'Power units'};
   function titleFor(view, params) {
+    if (view === 'season' && params?.tab === 'home') return `${SITE} — Formula 1 analysis`;
     if (view === 'season') return `${SEASON_TITLES[params?.tab] || 'Schedule'} · Season${params?.year ? ' ' + params.year : ''} — ${SITE}`;
     if (view === 'cars') return `${CATEGORY_TITLES[params?.metric] || CATEGORY_TITLES.pace} · Car performance${params?.year ? ' ' + params.year : ''} — ${SITE}`;
     const where = [params?.year, params?.round ? 'round ' + params.round : '', params?.session].filter(Boolean).join(' ');

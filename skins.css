@@ -1597,7 +1597,7 @@
   --linear-rail: 244px; --linear-gap: 8px; --linear-view-radius: 12px; --linear-header: 52px; --linear-content-pad: 28px;
   --lin-frame-border: #1a1b1d; --lin-faint-shadow: 0 .5px 1px 1px #0000004d;
   /* Cards [A]: #191a1b, a 1 px #222324 border, 10 px corners, 12 px padding, the faint shadow. Outline cards: border #232426. */
-  --lin-card: var(--ui-well); --lin-card-border: #222324; --lin-card-radius: 10px; --lin-card-pad: 12px; --lin-outline-border: #232426;
+  --lin-card: var(--ui-panel);  /* cards share the page black; the ring groups them */ --lin-card-border: #222324; --lin-card-radius: 10px; --lin-card-pad: 12px; --lin-outline-border: #232426;
   /* Floating [A]: toasts and menus #202122 with 12 px corners; dialogs #191a1b, 21 px outer corners, a layered soft shadow. */
   --lin-float: #202122; --lin-float-border: #ffffff0d; --lin-float-shadow: 0 4px 40px #0000001a, 0 3px 20px #00000020, 0 3px 12px #00000020;
   /* Controls [A]: pill tabs and icon buttons #1b1c1d; selected tab #29292b; chips and the selected rail row #232325. */
@@ -1793,7 +1793,7 @@
 :root[data-skin="linear"] #charts .chart { margin-bottom: 12px; }
 /* Heading roles (spec §2). Card title: 500 13 tertiary, every card's heading, whatever its tag. */
 :root[data-skin="linear"] :is(.chart-heading, .chart-heading h2, .perf-chart-heading, .corner-analysis-header h2, .dominance-map-header h2, .overview-chart > h3,
-  .performance-chart-card > h4, #cornerPickerRow header h3, main .panel-heading > h2, #carPerformance .panel-heading > h2) { font: 500 13px/1.4 var(--ui-font); letter-spacing: 0; color: var(--ui-tertiary); }
+  .performance-chart-card > h4, #cornerPickerRow header h3, main .panel-heading > h2, #carPerformance .panel-heading > h2) { font: 600 14px/1.3 var(--ui-font); letter-spacing: -.005em; color: var(--ui-label); }  /* a section title reads above its data (was the data-label grey) */
 /* Units in a card title read as part of it, quieter (sentence case: no capitals). */
 :root[data-skin="linear"] :is(.chart-heading h2, .dominance-map-header h2) small { font: 450 12px/1 var(--ui-font); color: var(--ui-tertiary); }
 /* Cards that drew their own outline: the one card (spec §8). */
@@ -2474,3 +2474,35 @@
    unfilled header row; charts keep their card. */
 :root[data-skin="linear"] :is(#carPerformance, #sessionOverview, .telemetry-analysis-grid) .performance-table-wrap { background: transparent; box-shadow: none; border-radius: 0; }
 :root[data-skin="linear"] :is(#carPerformance, #sessionOverview, .telemetry-analysis-grid) .performance-table thead th { background: transparent; }
+/* The track map keeps one size whether or not laps are loaded: it no longer gives up height to the corner picker and
+   tables that appear below it (the inspector scrolls instead). */
+@media (min-width: 1240px) {
+  :root[data-skin="linear"] #sessionInspector .inspector-corners #dominanceCanvas { flex: 0 0 auto; height: 240px; min-height: 240px; max-height: 240px; }
+  :root[data-skin="linear"] #sessionInspector .inspector-corners .dominance-map { max-height: none; }
+}
+/* Home's list titles and tiles are links in text form, not pill buttons. */
+:root[data-skin="linear"] #seasonHub :is(.home-glance-open, .home-tile, .home-round) { min-height: 0; box-sizing: border-box; }
+:root[data-skin="linear"] #seasonHub .home-glance-open { padding: 0; background: none; box-shadow: none; }
+:root[data-skin="linear"] #seasonHub .home-tile { background: none; box-shadow: inset 0 0 0 1px var(--lin-card-border); }
+:root[data-skin="linear"] #seasonHub .home-tile:hover { background: var(--lin-nav-hover); }
+/* Session overview: lap distribution */
+:root[data-skin="linear"] #sessionOverview .overview-dist .dist-dot { fill: var(--c); fill-opacity: .6; stroke: none; }
+:root[data-skin="linear"] #sessionOverview .overview-dist .is-faint { opacity: .3; }
+:root[data-skin="linear"] #sessionOverview .overview-dist .grid { stroke-dasharray: none; }
+/* Tracks table: the track name is a plain button; the chosen one in full colour with a short bar to its left. */
+:root[data-skin="linear"] #seasonHub .season-track-pick { display: inline-flex; align-items: center; gap: 8px; min-height: 28px; border: 0; background: none; padding: 0; color: var(--ui-secondary); font: 500 13px/1 var(--ui-font); cursor: pointer; white-space: nowrap; box-shadow: none; }
+:root[data-skin="linear"] #seasonHub .season-track-pick:hover { color: var(--ui-label); }
+:root[data-skin="linear"] #seasonHub .season-track-pick[aria-pressed="true"] { color: var(--ui-label); font-weight: 600; box-shadow: -10px 0 0 -7px var(--ui-label); }
+:root[data-skin="linear"] #sessionOverview .overview-swatch.is-static { cursor: default; }
+:root[data-skin="linear"] #sessionOverview .overview-dist .dist-violin { fill: var(--c); fill-opacity: .3; stroke: none; }
+:root[data-skin="linear"] #sessionOverview .overview-dist .dist-dot.is-beyond { fill: none; stroke: var(--c); stroke-width: 1.2; }
+:root[data-skin="linear"] #sessionOverview .overview-dist .dist-median-line { fill: none; stroke: #22c7e0; stroke-width: 1.2; stroke-dasharray: 2 3; opacity: .7; }
+:root[data-skin="linear"] #sessionOverview .overview-dist .dist-median-mark { fill: #22c7e0; stroke: var(--ui-panel); stroke-width: 1; }
+:root[data-skin="linear"] #sessionOverview .overview-dist .dist-fastest { stroke: #c9a227; stroke-width: 1; stroke-dasharray: 4 3; opacity: .8; }
+:root[data-skin="linear"] #sessionOverview .overview-dist .dist-fastest-label { fill: #c9a227; font: 500 10px var(--ui-font); }
+:root[data-skin="linear"] #sessionOverview .dist-faces { display: grid; margin-top: 4px; }
+:root[data-skin="linear"] #sessionOverview .dist-face { display: grid; justify-items: center; gap: 4px; min-width: 0; }
+:root[data-skin="linear"] #sessionOverview .dist-avatar { position: relative; display: grid; place-items: center; width: 24px; height: 24px; overflow: hidden; border-radius: 50%; background: color-mix(in oklch, var(--team) 30%, var(--ui-well)); }
+:root[data-skin="linear"] #sessionOverview .dist-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+:root[data-skin="linear"] #sessionOverview .dist-avatar b { color: var(--ui-label); font: 600 8px/1 var(--ui-font); }
+:root[data-skin="linear"] #sessionOverview .dist-face small { color: var(--ui-secondary); font: 600 10px/1 var(--ui-font); }

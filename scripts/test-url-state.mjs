@@ -26,6 +26,14 @@ test('each view reads only its own parameters; unknown views fall back to sessio
   assert.equal(browser('?view=nonsense&year=2025').url.read().view, 'session');
 });
 
+test('the bare address is Home; session analysis has its own path and old session links still open it', () => {
+  const home = browser('', '/apex/').url.read();
+  assert.equal(home.view, 'season'); assert.equal(home.params.tab, 'home');
+  assert.equal(browser('?year=2026&round=17', '/apex/').url.read().view, 'session');
+  assert.equal(browser('', '/apex/session').url.read().view, 'session');
+  assert.equal(browser('', '/apex/').url.href('season', {tab: 'home'}), '/apex/');
+});
+
 test('the category is the path; legacy ?view=cars links still read', () => {
   const path = browser('?year=2026&scope=tracks&races=16,17&run=1', '/apex/cars/corners').url.read();
   assert.equal(path.view, 'cars');
@@ -50,7 +58,7 @@ test('navigation adds a history entry, filters replace it, and defaults stay out
   b.url.write('cars', {year: '2026', metric: 'braking', subject: 'driver', run: '1'});
   assert.equal(b.calls.length, count, 'an unchanged state writes nothing');
   b.url.write('session', {year: '2026', round: '17', session: 'Qualifying', laps: 'VER.11'});
-  assert.deepEqual(b.calls.at(-1), ['push', '/apex/?year=2026&round=17&session=Qualifying&laps=VER.11']);
+  assert.deepEqual(b.calls.at(-1), ['push', '/apex/session?year=2026&round=17&session=Qualifying&laps=VER.11']);
   assert.deepEqual({...b.url.remembered('cars')}, {year: '2026', metric: 'braking', subject: 'driver', run: '1'});
   b.url.write('cars', {year: '2026', metric: 'pace'});
   assert.equal(b.calls.at(-1)[1], '/apex/cars?year=2026', 'the default category is /apex/cars');

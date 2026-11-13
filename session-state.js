@@ -757,7 +757,7 @@ function compoundBadgeMarkup(compound) {
   const name = String(compound || '').trim().toLowerCase();
   const spec = ({soft:['S','#ff493e'], medium:['M','#ffd735'], hard:['H','#f5f5f7'], intermediate:['I','#43cf79'], inter:['I','#43cf79'], wet:['W','#3395ff']})[name];
   if (!spec) return `<span class="compound-label">${escapeUI(compound || 'Unknown')}</span>`;
-  return `<svg class="compound-badge" viewBox="0 0 32 32" role="img" aria-label="${name}" width="26" height="26"><title>${name}</title><circle cx="16" cy="16" r="15" fill="#202124"/><circle cx="16" cy="16" r="12" fill="none" stroke="${spec[1]}" stroke-width="3" stroke-dasharray="31.7 6" transform="rotate(-76 16 16)"/><text x="16" y="21" text-anchor="middle" fill="#fff" font-size="15" font-weight="700">${spec[0]}</text></svg>`;
+  return `<svg class="compound-badge" viewBox="0 0 32 32" role="img" aria-label="${name}" width="26" height="26"><title>${name}</title><circle cx="16" cy="16" r="15" fill="#202124"/><circle cx="16" cy="16" r="12" fill="none" stroke="${spec[1]}" stroke-width="3" stroke-dasharray="31.7 6" transform="rotate(-76 16 16)"/><text x="16" y="16.5" text-anchor="middle" dominant-baseline="central" fill="#fff" font-size="15" font-weight="700">${spec[0]}</text></svg>`;
 }
 
 // A tyre drawn by the app (dark sidewall, the compound's colour stripe, a five-spoke rim), in place of the tyre maker's images.
