@@ -399,11 +399,91 @@
     }
   }
 
+  // ----- circuit profile and records (Schedule, the next race) -----
+  // From every saved season since 2018 (the same snapshots the Season pages read): how the circuit's races have gone,
+  // each measure ranked against every circuit raced at least twice in that time, and the circuit's records.
+  const FIRST_HISTORY_YEAR = 2018;
+  function circuitProfile(data, next) {
+    const box = card('Circuit profile', el('p', 'season-muted', 'Reading past seasons…'));
+    box.classList.add('season-circuit-profile');
+    const years = []; for (let y = FIRST_HISTORY_YEAR; y <= data.year; y++) years.push(y);
+    Promise.all(years.map(y => (y === data.year ? Promise.resolve(data) : load('season', y).catch(() => null)))).then(seasons => {
+      const races = [];
+      for (const season of seasons.filter(Boolean)) for (const r of season.rounds) {
+        if (!r.race?.length) continue;
+        races.push({year: season.year, circuit: r.circuit_id, round: r, drivers: season.drivers});
+      }
+      const byCircuit = new Map();
+      for (const x of races) { if (!byCircuit.has(x.circuit)) byCircuit.set(x.circuit, []); byCircuit.get(x.circuit).push(x); }
+      // Per circuit: share of races won from pole and from the front row, places gained per classified finisher (how much
+      // the order changes), and the share of starters not classified.
+      const measure = list => {
+        let pole = 0, front = 0, gained = 0, finishers = 0, starters = 0, out = 0;
+        for (const {round: r} of list) {
+          const win = r.race.find(x => x.position === 1);
+          if (win?.grid === 1) pole++;
+          if (win && win.grid >= 1 && win.grid <= 2) front++;
+          for (const x of r.race) {
+            if (x.status === 'Did not start') continue;
+            starters++;
+            if (x.position) { finishers++; if (x.grid > 0) gained += Math.abs(x.grid - x.position); } else out++;
+          }
+        }
+        return {held: list.length, pole: pole / list.length, front: front / list.length, gained: finishers ? gained / finishers : null, out: starters ? out / starters : null};
+      };
+      const all = [...byCircuit].filter(([, list]) => list.length >= 2).map(([id, list]) => [id, measure(list)]);
+      const here = byCircuit.get(next.circuit_id);
+      if (!here?.length) { box.replaceChildren(el('h3', null, 'Circuit profile'), el('p', 'season-muted', `No race here since ${FIRST_HISTORY_YEAR}.`)); return; }
+      const mine = measure(here);
+      const rank = (key, high = true) => {
+        const values = all.map(([, m]) => m[key]).filter(Number.isFinite).sort((a, b) => (high ? b - a : a - b));
+        return Number.isFinite(mine[key]) && here.length >= 2 ? `${values.findIndex(v => (high ? v <= mine[key] + 1e-9 : v >= mine[key] - 1e-9)) + 1} of ${values.length}` : null;
+      };
+      const rows = el('div', 'season-profile-rows');
+      const row = (label, value, ranked, note) => {
+        const line = el('div');
+        line.append(el('span', 'season-muted', label), el('b', null, value), el('small', 'season-muted', ranked ? `${ranked}${note ? ' · ' + note : ''}` : note || ''));
+        rows.append(line);
+      };
+      const pct = v => `${Math.round(v * 100)}%`;
+      row('Won from pole', pct(mine.pole), rank('pole'), 'highest first');
+      row('Won from the front row', pct(mine.front), rank('front'));
+      if (mine.gained != null) row('Places changed per finisher', mine.gained.toFixed(1), rank('gained'), 'grid to flag, most first');
+      if (mine.out != null) row('Starters not classified', pct(mine.out), rank('out'), 'most first');
+      // Records: the most wins, poles, podiums and fastest laps here.
+      const tally = pick => {
+        const count = new Map();
+        for (const x of here) for (const id of pick(x.round)) count.set(id, (count.get(id) || 0) + 1);
+        return [...count].sort((a, b) => b[1] - a[1]).slice(0, 3);
+      };
+      const names = Object.assign({}, ...here.map(x => x.drivers), data.drivers);
+      const records = el('div', 'season-records');
+      for (const [label, pick] of [['Most wins', r => r.race.filter(x => x.position === 1).map(x => x.driver)],
+        ['Most poles', r => r.qualifying.filter(q => q.position === 1).map(q => q.driver)],
+        ['Most podiums', r => r.race.filter(x => x.position && x.position <= 3).map(x => x.driver)],
+        ['Most fastest laps', r => r.race.filter(x => x.fastest_lap_rank === 1).map(x => x.driver)]]) {
+        const top = tally(pick); if (!top.length) continue;
+        const list = el('ol', 'season-record'); list.append(el('li', 'season-record-title', label));
+        for (const [id, n] of top) {
+          const li = el('li');
+          li.append(data.drivers[id] ? who(data, id, {code: true, team: false}) : el('strong', null, names[id]?.code || names[id]?.name || id), el('b', null, String(n)));
+          list.append(li);
+        }
+        records.append(list);
+      }
+      const span = `${Math.min(...here.map(x => x.year))}–${Math.max(...here.map(x => x.year))}`;
+      box.replaceChildren(el('h3', null, `Circuit profile · ${here.length} race${here.length === 1 ? '' : 's'} here, ${span}`), rows,
+        el('h4', 'season-report-title', `Records here since ${FIRST_HISTORY_YEAR}`), records,
+        el('p', 'season-footnote', `From every race classification since ${FIRST_HISTORY_YEAR}. Ranks compare the ${all.length} circuits raced at least twice in that time. Places changed per finisher sums each classified car’s grid-to-flag movement: a rough measure of how much the order changes.`));
+    });
+    return box;
+  }
+
   // ----- schedule -----
   function renderSchedule(data) {
     const out = [];
     const next = data.rounds.find(r => r.status === 'next');
-    if (next) out.push(nextRaceHero(data, next));
+    if (next) out.push(nextRaceHero(data, next), circuitProfile(data, next));
     const done = data.rounds.filter(r => r.status === 'done').length;
     const progress = el('div', 'season-progress');
     const track = el('div', 'season-progress-track');
