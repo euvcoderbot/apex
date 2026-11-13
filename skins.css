@@ -2466,3 +2466,6 @@
 :root[data-skin="linear"] .session-summary-table td.is-best { color: var(--ui-label); font-weight: 600; background: color-mix(in oklch, var(--ui-accent) 24%, transparent); border-radius: 6px; }
 :root[data-skin="linear"] .session-summary-driver { display: inline-flex; align-items: center; gap: 8px; }
 :root[data-skin="linear"] .session-summary-note { margin: 8px 0 0; color: var(--ui-tertiary); font: 450 11px/1.4 var(--ui-font); }
+/* Head-to-head: the pair being compared, marked in the list of every teammate battle. */
+:root[data-skin="linear"] #seasonHub .season-battle-row[aria-current="true"] td { background: var(--lin-nav-active); }
+:root[data-skin="linear"] #seasonHub .season-battle-row[aria-current="true"] td :is(.season-muted, b:not(.is-better)) { color: var(--ui-secondary); }  /* readable on the marked row */

@@ -1049,3 +1049,51 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-record > li { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
 #seasonHub .season-record > li b { font: 600 13px/1 var(--ui-font); font-variant-numeric: tabular-nums; color: var(--ui-secondary); }
 #seasonHub .season-record > .season-record-title { min-height: 20px; color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); }
+
+/* Head-to-head: scoreboard, field ranks, qualifying-gap columns and the pace rows. */
+#seasonHub .season-h2h-board { display: flex; gap: 14px; margin-top: 10px; }
+#seasonHub .season-h2h-board > div { display: grid; justify-items: center; gap: 3px; }
+#seasonHub .season-h2h-board b { font: 600 15px/1 var(--ui-font); letter-spacing: 0; font-variant-numeric: tabular-nums; color: var(--ui-label); }
+#seasonHub .season-h2h-board span { font: 500 11px/1 var(--ui-font); }
+#seasonHub .season-h2h-rank { display: inline-block; min-width: 26px; color: var(--ui-tertiary); font: 450 10px/1 var(--ui-font); vertical-align: 1px; }
+#seasonHub .season-h2h-value { white-space: nowrap; }
+#seasonHub .season-h2h-value:not(.is-right) .season-h2h-rank { margin-right: 6px; text-align: right; }
+#seasonHub .season-h2h-value.is-right .season-h2h-rank { margin-left: 6px; text-align: left; }
+#seasonHub .season-h2h-weeks.is-gaps > div { grid-template-rows: auto 40px auto auto; gap: 3px; padding: 6px 0 7px; }
+#seasonHub .season-h2h-gap { display: flex; align-items: flex-end; justify-content: center; width: 100%; height: 40px; box-shadow: inset 0 -1px var(--line); }
+#seasonHub .season-h2h-gap i { display: block; width: 12px; height: 0; min-height: 2px; border-radius: 2px 2px 0 0; }
+#seasonHub .season-h2h-weeks.is-gaps b { font: 500 11px/1 var(--ui-font); font-variant-numeric: tabular-nums; color: var(--ui-tertiary); }
+#seasonHub .season-h2h-weeks.is-gaps b.is-better { color: var(--ui-label); font-weight: 600; }
+#seasonHub .season-h2h-weeks.is-gaps b::before { content: ""; display: inline-block; width: 5px; height: 5px; margin-right: 3px; border-radius: 50%; background: var(--tone); vertical-align: 1px; }
+#seasonHub .season-h2h-weeks.is-gaps b.is-car-failure { text-decoration: underline dotted var(--ui-tertiary); }
+#seasonHub .season-h2h-weeks.is-gaps > .is-upcoming .season-h2h-gap { box-shadow: none; }
+#seasonHub .season-h2h-weeks.is-gaps > .is-upcoming b::before { display: none; }
+#seasonHub .season-h2h-pace-rows { display: grid; }
+#seasonHub .season-h2h-pace-rows > div { display: grid; grid-template-columns: minmax(140px, 1.2fr) 90px 90px minmax(0, 2fr); align-items: center; gap: 12px; min-height: 32px; box-shadow: inset 0 -1px var(--line); }
+#seasonHub .season-h2h-pace-rows > .season-h2h-pace-head { min-height: 24px; box-shadow: none; }
+#seasonHub .season-h2h-pace-rows > div > span { font: 500 12px/1 var(--ui-font); }
+#seasonHub .season-h2h-pace-rows b { font: 500 12px/1 var(--ui-font); font-variant-numeric: tabular-nums; color: var(--ui-secondary); text-align: right; }
+#seasonHub .season-h2h-pace-rows b.is-better { color: var(--ui-label); font-weight: 600; }
+#seasonHub .season-h2h-pace-rows b::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--tone); vertical-align: 1px; }
+#seasonHub .season-h2h-pace-head b::before { display: none; }
+#seasonHub .season-h2h-pace-rows small { font: 450 11px/1.3 var(--ui-font); }
+@media (max-width: 760px) {
+  #seasonHub .season-h2h-pace-rows > div { grid-template-columns: minmax(0, 1fr) 88px 88px; }
+  #seasonHub .season-h2h-pace-rows b { white-space: nowrap; }
+  #seasonHub .season-h2h-pace-rows > div > small { grid-column: 1 / -1; margin-top: -6px; padding-bottom: 6px; }
+}
+
+/* Every teammate battle: a compact table. Scores are "x–y" with a thin split bar under them in the team colour (the first
+   driver's share solid, the rest faint); the leader's number is bright. */
+#seasonHub .season-battles-table td { height: 40px; vertical-align: middle; }
+#seasonHub .season-battles-table :is(th, td).num { text-align: center; }
+#seasonHub .season-battle-open { display: inline-flex; align-items: center; gap: 8px; min-height: 28px; }
+#seasonHub .season-battle-open .season-team-mark { margin-right: 2px; }
+#seasonHub .season-battle-score > span, #seasonHub .season-battle-points { font: 500 12px/1 var(--ui-font); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#seasonHub .season-battle-score b, #seasonHub .season-battle-points b { color: var(--ui-tertiary); font-weight: 500; }
+#seasonHub .season-battle-score b.is-better, #seasonHub .season-battle-points b.is-better { color: var(--ui-label); font-weight: 600; }
+#seasonHub .season-battle-score .season-muted, #seasonHub .season-battle-points .season-muted { margin: 0 4px; }
+#seasonHub .season-battle-score > i { position: relative; display: block; width: 64px; height: 3px; margin: 6px auto 0; border-radius: 2px; background: color-mix(in oklch, var(--team) 25%, transparent); }
+#seasonHub .season-battle-score > i::before { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--share); border-radius: 2px; background: var(--team); }
+#seasonHub .season-battle-gap { color: var(--ui-secondary); font: 500 12px/1 var(--ui-font); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#seasonHub .season-battle-row { cursor: pointer; }
