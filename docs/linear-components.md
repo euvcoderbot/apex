@@ -113,11 +113,20 @@ loss.
 **Table.** `.performance-table` / `.season-table`: header 32 px, 450 12 px tertiary, no band and no line; rows 44 px without
 separators; hover `--lin-nav-hover`. Emphasis by colour tier (label / secondary / quaternary) and weight 600, not by cell
 backgrounds (heat cells are data and keep their colour, 6 px corners). A coloured
-6 px dot can mark a highlighted value.
+6 px dot can mark a highlighted value. One alignment per column: identity columns left; number columns right for the title,
+the value and any highlight alike (heat matrices of rounds centre all three). Sort titles are text, never filled pills: the
+season sort button is classed `sort` in `ui-system.js` like `.perf-sort-btn`. The sort arrow hangs in the cell padding,
+shown on hover/focus and on the sorted column, so it never shifts the title off its values. Long titles wrap inside their
+column (bottom-aligned) rather than widening the table or spilling into the next column.
 
-**Ranked bars.** Name and exact value share the top baseline; the 6 px track (`--lin-bar`) spans the full row beneath them.
-Rows have an 18 px label line, 4 px gap, 4 px block padding and 4 px separation. Values use 500 12 px secondary; seconds per
-lap use 450 11 px tertiary before the percentage. Whiskers remain 1 px tertiary. A chart paired row-for-row with a table
+**Heat values in tables** (`heatChip()` in `season.js`). The value sits in a `.season-heat-value` chip, 24 px high, 6 px
+corners, 0 8 px padding, minimum 40 px, inside the cell's normal padding, so neighbouring highlights keep a gap and nothing
+clips. `--heat` (0–1) on the cell sets the chip's depth; no `--heat`, no fill. Do not reuse `.season-chip` (a bordered pill).
+
+**Ranked bars.** One line per entrant: name, 6 px track (`--lin-bar`), value, all centred on the line; rows 32 px. The name
+column is `minmax(84px, min(180px, 38%))`. The rows of one chart share their columns (`grid-template-columns: subgrid` on the
+row, the columns on `.performance-bars`), so every bar in a chart has the same length whatever its value's width. Values use
+500 12 px secondary; seconds per lap use 450 11 px tertiary before the percentage. Whiskers remain 1 px tertiary. A chart paired row-for-row with a table
 retains its compact three-column layout and measured row heights. This is an Apex adaptation, not a measured Linear chart.
 
 **Season data sections.** Tables occupy the page surface, with a quiet section heading and unfilled header. Chart widgets
