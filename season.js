@@ -763,6 +763,7 @@
       if (state.expanded === r.round) {
         const detail = el('tr', 'season-detail'); const td = el('td'); td.colSpan = heads.length + 2;
         td.append(session === 'qualifying' ? qualifyingClassification(data, r) : classification(data, r));
+        if (session !== 'qualifying') td.append(raceReport(data, r));
         detail.append(td); tbody.append(detail);
       }
     }
@@ -793,6 +794,119 @@
     t.append(tb);
     return wrap(t);
   }
+  // ----- race report: what happened, stints and pit stops (Results, an opened race row) -----
+  // From the race's own lap data (/api/session, the Race laps the session view reads) and its pit stops
+  // (/api/performance/pits, DHL stationary times), both published per race; loaded only when a row is opened.
+  const eventsCache = {};
+  const seasonEvents = year => {
+    const request = window.apexDataRequest;
+    if (typeof request !== 'function') return Promise.resolve([]);
+    eventsCache[year] ||= request(`/api/events?year=${year}`).then(e => (Array.isArray(e) ? e : [])).catch(() => []);
+    return eventsCache[year];
+  };
+  const reportCache = {};
+  const TYRE = {SOFT: '#ff493e', MEDIUM: '#ffd735', HARD: '#f5f5f7', INTERMEDIATE: '#43cf79', WET: '#3395ff'};
+  function loadReport(year, round) {
+    const key = `${year}:${round}`;
+    if (reportCache[key]) return reportCache[key];
+    reportCache[key] = (async () => {
+      const request = window.apexDataRequest, event = (await seasonEvents(year)).find(e => e.round === round);
+      if (!event || typeof request !== 'function') return null;
+      const [session, pits] = await Promise.all([
+        request('/api/session?' + new URLSearchParams({year, gp: event.name, session: 'Race', round})).catch(() => null),
+        request('/api/performance/pits?' + new URLSearchParams({year, gp: event.name, source: 'dhl-fallback-v2'}) + '&schema=3').catch(() => null)]);
+      return session?.drivers?.length ? {session, pits} : null;
+    })();
+    reportCache[key].then(v => { if (!v) delete reportCache[key]; }, () => { delete reportCache[key]; });
+    return reportCache[key];
+  }
+  function raceReport(data, r) {
+    const box = el('div', 'season-report'); box.append(el('p', 'season-muted season-report-loading', 'Loading the race report…'));
+    const byCode = {};
+    for (const [id, d] of Object.entries(data.drivers)) if (d.code) byCode[d.code] = id;
+    loadReport(state.year, r.round).then(report => {
+      if (!report) { box.replaceChildren(el('p', 'season-muted', 'No lap data for this race yet.')); return; }
+      const drivers = report.session.drivers.filter(d => d.laps?.length);
+      // Stints: consecutive laps on one stint number, with their compound and length.
+      const stintsOf = d => {
+        const out = [];
+        for (const lap of d.laps) { const last = out.at(-1); if (last && last.stint === lap.stint) last.laps++; else out.push({stint: lap.stint, compound: String(lap.compound || '').toUpperCase(), laps: 1, from: lap.lap}); }
+        return out;
+      };
+      // Laps led: whoever starts the next lap first led the lap before it (the race end for the final lap).
+      const starts = {};
+      for (const d of drivers) for (const lap of d.laps) if (lap.date_start) (starts[lap.lap] ||= []).push([d.code, Date.parse(lap.date_start)]);
+      const led = {};
+      const maxLap = Math.max(...drivers.map(d => d.laps.at(-1).lap));
+      for (let n = 1; n <= maxLap; n++) {
+        const next = starts[n + 1];
+        const leader = next?.length ? next.reduce((a, b) => (b[1] < a[1] ? b : a))[0] : (n === maxLap ? r.race.find(x => x.position === 1) && data.drivers[r.race.find(x => x.position === 1).driver]?.code : null);
+        if (leader) led[leader] = (led[leader] || 0) + 1;
+      }
+      // Neutralisations along the leader's laps: separate SC / VSC periods and red flags.
+      const leaderCode = data.drivers[r.race.find(x => x.position === 1)?.driver]?.code;
+      const leaderLaps = (drivers.find(d => d.code === leaderCode) || drivers[0]).laps;
+      const periods = kind => leaderLaps.reduce((n, lap, i) => n + (lap.neutralised === kind && leaderLaps[i - 1]?.neutralised !== kind ? 1 : 0), 0);
+      const sc = periods('SC'), vsc = periods('VSC'), red = periods('RED');
+      const visits = (report.pits?.visits || []).filter(v => v.visit_type === 'service');
+      const best = (list, key) => list.reduce((a, b) => (a == null || b[key] < a[key] ? b : a), null);
+      const fastestLap = best(drivers.flatMap(d => d.laps.filter(l => Number.isFinite(l.time) && !l.deleted).map(l => ({code: d.code, time: l.time, lap: l.lap}))), 'time');
+      const longest = best(drivers.flatMap(d => stintsOf(d).map(s => ({code: d.code, laps: -s.laps, compound: s.compound}))), 'laps');
+      const fastestStop = best(visits.filter(v => Number.isFinite(v.stop_duration)), 'stop_duration');
+      const mover = best(r.race.filter(x => x.position && x.grid).map(x => ({id: x.driver, gain: -(x.grid - x.position)})), 'gain');
+      const pole = r.qualifying.find(q => q.position === 1);
+      const leadLeader = Object.entries(led).sort((a, b) => b[1] - a[1])[0];
+      const retired = r.race.filter(x => !x.position && x.status !== 'Did not start').length;
+      // What happened: one flat strip of facts (the Insight readout pattern), each a label, a driver and a number.
+      const facts = el('div', 'season-report-facts');
+      const fact = (label, id, value, note) => {
+        const f = el('div'); f.append(el('span', 'season-muted', label));
+        const line = el('b'); if (id && data.drivers[id]) line.append(who(data, id, {code: true, team: false})); else if (id) line.append(el('strong', null, id));
+        if (value != null) line.append(el('span', null, value));
+        f.append(line); if (note) f.append(el('small', 'season-muted', note)); facts.append(f);
+      };
+      if (pole) fact('Pole', pole.driver, Number.isFinite(pole.q3) ? lapTime(pole.q3) : null);
+      if (fastestLap) fact('Fastest lap', byCode[fastestLap.code] || fastestLap.code, lapTime(fastestLap.time), `lap ${fastestLap.lap}`);
+      if (leadLeader) fact('Most laps led', byCode[leadLeader[0]] || leadLeader[0], `${leadLeader[1]} laps`);
+      if (longest) fact('Longest stint', byCode[longest.code] || longest.code, `${-longest.laps} laps`, longest.compound ? longest.compound.toLowerCase() : null);
+      if (mover && mover.gain < 0) fact('Biggest mover', mover.id, `+${-mover.gain}`, 'places, grid to flag');
+      if (fastestStop) fact('Fastest stop', byCode[fastestStop.driver] || fastestStop.driver, `${fastestStop.stop_duration.toFixed(2)} s`, 'stationary');
+      const neutral = el('div'); neutral.append(el('span', 'season-muted', 'Interruptions'));
+      neutral.append(el('b', null, sc + vsc + red ? [sc && `${sc} SC`, vsc && `${vsc} VSC`, red && `${red} red flag${red > 1 ? 's' : ''}`].filter(Boolean).join(' · ') : 'none'));
+      neutral.append(el('small', 'season-muted', `${retired} retirement${retired === 1 ? '' : 's'}`)); facts.append(neutral);
+      // Stints and pit stops, in finishing order: the tyre bar runs the race distance, one segment per stint.
+      const order = r.race.map(x => data.drivers[x.driver]?.code).filter(Boolean);
+      const rows = drivers.slice().sort((a, b) => (order.indexOf(a.code) + 1 || 99) - (order.indexOf(b.code) + 1 || 99));
+      const t = el('table', 'season-table season-mini season-stints');
+      const head = el('tr');
+      head.append(el('th', 'num', 'Pos'), el('th', null, 'Driver'), el('th', 'num', 'Stops'), el('th', null, 'Tyres · laps per stint'), el('th', null, 'Stops, stationary'));
+      const thead = el('thead'); thead.append(head); t.append(thead);
+      const tb = el('tbody');
+      for (const d of rows) {
+        const res = r.race.find(x => data.drivers[x.driver]?.code === d.code), stints = stintsOf(d), mine = visits.filter(v => v.driver === d.code);
+        const tr = el('tr'), bar = el('div', 'season-stint-bar');
+        for (const s of stints) {
+          const seg = el('span', null, s.laps >= 4 ? String(s.laps) : '');
+          seg.style.flexGrow = String(s.laps); seg.style.setProperty('--tyre', TYRE[s.compound] || 'var(--ui-tertiary)');
+          seg.title = `${s.compound.toLowerCase() || 'unknown'} · ${s.laps} laps from lap ${s.from}`; bar.append(seg);
+        }
+        bar.style.setProperty('--race', String(maxLap)); bar.style.width = `${(d.laps.at(-1).lap / maxLap * 100).toFixed(1)}%`;
+        const name = el('td'); name.append(res ? who(data, res.driver, {code: true, team: false}) : el('strong', null, d.code));
+        const stops = el('td', 'season-stop-times', mine.length ? mine.map(v => (Number.isFinite(v.stop_duration) ? `${v.stop_duration.toFixed(1)} s` : '—')).join(' · ') : '—');
+        if (mine.length) stops.title = mine.map(v => `Lap ${v.lap}: ${Number.isFinite(v.lane_duration) ? v.lane_duration.toFixed(1) + ' s in the pit lane' : ''}${Number.isFinite(v.stop_duration) ? ', ' + v.stop_duration.toFixed(2) + ' s stationary' : ''}`).join('\n');
+        const barCell = el('td'); barCell.append(bar);
+        tr.append(el('td', 'num season-muted', res?.position ? String(res.position) : (res?.status === 'Did not start' ? 'DNS' : 'DNF')), name, el('td', 'num', String(mine.length || Math.max(0, stints.length - 1))), barCell, stops);
+        tb.append(tr);
+      }
+      t.append(tb);
+      const tyres = el('div', 'season-legend');
+      for (const [k, c] of Object.entries(TYRE)) { if (!rows.some(d => stintsOf(d).some(s => s.compound === k))) continue; const s = el('span', null, k.charAt(0) + k.slice(1).toLowerCase()); s.dataset.tone = 'custom'; s.style.setProperty('--tone', c); tyres.append(s); }
+      box.replaceChildren(el('h4', 'season-report-title', 'What happened'), facts, el('h4', 'season-report-title', 'Stints and pit stops'), wrap(t), tyres,
+        el('p', 'season-footnote', 'From the race’s lap data and pit timing. Laps led: whoever starts the next lap first. Interruptions count separate safety car, virtual safety car and red-flag periods. Stop times are stationary (DHL); hover for the time in the pit lane. A tyre change during a red flag starts a stint without a stop.'));
+    });
+    return box;
+  }
+
   function classification(data, r) {
     const t = el('table', 'season-table season-mini');
     t.innerHTML = '<thead><tr><th scope="col" class="num">Pos</th><th scope="col">Driver</th><th scope="col" class="num">Grid</th><th scope="col" class="num">+/-</th><th scope="col" class="num">Time / status</th><th scope="col" class="num">Pts</th></tr></thead>';
@@ -1322,7 +1436,7 @@
     const request = typeof window.apexDataRequest === 'function' ? window.apexDataRequest : null;
     if (!request) return Promise.resolve({race: {}, failed: 0});
     formCache[year] = (async () => {
-      const events = await request(`/api/events?year=${year}`).catch(() => []);
+      const events = await seasonEvents(year);
       const done = data.rounds.filter(r => r.race?.length), byCode = {};
       for (const [id, d] of Object.entries(data.drivers)) if (d.code) byCode[d.code] = id;
       const race = {};
