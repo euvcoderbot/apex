@@ -1443,14 +1443,14 @@
   --mat-scrim: #00000080;
   /* Canvas charts (session-state.js canvasTheme) read these instead of their built-in palette. */
   --chart-text: var(--ui-tertiary); --chart-text-strong: var(--ui-secondary); --chart-grid: #ffffff0d; --chart-grid-strong: #ffffff33;
-  --chart-panel: var(--ui-panel); --chart-outline: #ffffff38; --chart-map-base: #ffffff1f; --chart-label-stroke: var(--ui-panel);
+  --chart-panel: var(--lin-card); --chart-outline: #ffffff38; --chart-map-base: #ffffff1f; --chart-label-stroke: var(--lin-card);
   --chart-label-fill: #ffffffeb; --chart-crosshair: #ffffff40;
 }
 :root[data-skin="linear"][data-theme="light"] {
   --mat-scrim: #0000002e;
   --ui-shadow-popover: 0 4px 24px #0000001a, 0 0 0 1px var(--ui-border);
   --chart-text: var(--ui-tertiary); --chart-text-strong: var(--ui-secondary); --chart-grid: #0000000f; --chart-grid-strong: #00000033;
-  --chart-panel: var(--ui-panel); --chart-outline: #00000038; --chart-map-base: #00000024; --chart-label-stroke: var(--ui-panel);
+  --chart-panel: var(--lin-card); --chart-outline: #00000038; --chart-map-base: #00000024; --chart-label-stroke: var(--lin-card);
   --chart-label-fill: #000000e0; --chart-crosshair: #0000004d;
 }
 
@@ -2068,6 +2068,13 @@
 /* Tiles: tighter insets so the run label fits beside a state at three tiles per row. */
 :root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip[data-ui-kind="choice"] { column-gap: 6px; padding: 6px 8px; }
 :root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip .lap-tyre-age { font-size: 11px; }
+/* One step smaller inside each tile so the run label, the time and the tyre each have room (it read cramped at 13/22 px). */
+:root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip .lap-token { font-size: 11px; gap: 2px; }
+:root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip .lap-state { font-size: 10px; font-weight: 500; }
+:root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip .lap-tyre-age { font-size: 10px; }
+:root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip .lap-clock { font-size: 12px; }
+:root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip .compound-badge { width: 18px; height: 18px; }
+:root[data-skin="linear"] :is(#lapSelectionBody, #liveTiming .live-lap-tiles) .lap-chip[data-ui-kind="choice"] { row-gap: 4px; min-height: 40px; }
 
 /* Phones: comparison laps stay labels, sized to their content. */
 @media (max-width: 760px) {

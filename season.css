@@ -962,6 +962,16 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 :root[data-skin] #seasonHub .season-chart .line.is-faint, :root[data-skin] #seasonHub .season-chart .line.is-bump.is-faint { stroke-width: 1; opacity: .25; }
 :root[data-skin] #seasonHub .season-chart .is-faint-group:hover .line, :root[data-skin] #seasonHub .season-chart .line.is-faint:not(.is-dim):hover { stroke-width: 1.75; opacity: 1; }
 :root[data-skin] #seasonHub .season-chart .pts circle { r: calc(3.5px / var(--chart-scale, 1)); fill: var(--c); stroke: var(--lin-card, var(--ui-panel)); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+:root[data-skin] #seasonHub .season-chart.is-dense .pts circle { r: calc(2px / var(--chart-scale, 1)); stroke-width: 1; }  /* every driver drawn: small points, full size on hover */
+:root[data-skin] #seasonHub .season-chart.is-dense .pts.is-hollow circle { r: calc(2px / var(--chart-scale, 1)); }
+:root[data-skin] #seasonHub .season-chart .end-leader { fill: none; stroke-width: 1; stroke-opacity: .45; vector-effect: non-scaling-stroke; }
+/* Charts naming every driver: names at the line ends where there is room, a key below on phones. */
+#seasonHub .season-chart-key { display: none; }
+#seasonHub .season-chart-key span.is-dashed::before { background: none; box-shadow: inset 0 0 0 1.5px var(--tone); }  /* second driver of a team: hollow, as their points */
+@media (max-width: 760px) {
+  #seasonHub .season-chart-keyed .end-key { display: none; }
+  #seasonHub .season-chart-key { display: flex; }
+}
 :root[data-skin] #seasonHub .season-chart .pts.is-hollow circle { r: calc(3px / var(--chart-scale, 1)); fill: var(--lin-card, var(--ui-panel)); stroke: var(--c); }
 :root[data-skin] #seasonHub .season-chart .label { font: 500 calc(11px / var(--chart-scale, 1)) var(--ui-font); }
 :root[data-skin] #seasonHub .season-chart .label.is-value { fill: var(--ui-label); }
@@ -996,3 +1006,17 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-units th { vertical-align: bottom; }
 #seasonHub .season-reliability th.num { white-space: normal; max-width: 84px; line-height: 1.25; }
 #seasonHub .season-units td.num { white-space: nowrap; }
+
+/* Form: rolling pace tables. A pace cell is a thin team-coloured bar under the gap (longer is slower), a trend sparkline
+   per driver and a quiet move column; recent results reuse the Standings grid colours. */
+#seasonHub .season-form .season-form-pace { width: 38%; min-width: 120px; }
+#seasonHub .season-form .season-form-pace { display: table-cell; }
+#seasonHub .season-form .season-form-pace b { display: inline-block; width: 52px; margin-right: 8px; text-align: right; vertical-align: middle; font: 500 12px/1 var(--ui-font); font-variant-numeric: tabular-nums; color: var(--ui-label); }
+#seasonHub .season-form .season-form-bar { display: inline-block; vertical-align: middle; width: calc((100% - 60px) * var(--w-n, 1)); max-width: calc(100% - 60px); height: var(--lin-bar, 6px); border-radius: 2px; background: var(--team); }
+#seasonHub .season-form .season-form-trend { width: 70px; }
+#seasonHub .season-spark { display: block; overflow: visible; }
+#seasonHub .season-spark path { fill: none; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+#seasonHub .season-form-move { color: var(--ui-tertiary); font-variant-numeric: tabular-nums; }
+#seasonHub .season-form-move.is-up { color: var(--ui-positive, #30d158); }
+#seasonHub .season-form-move.is-down { color: var(--ui-negative, #ff6961); }
+#seasonHub .season-form-recent td[data-tone] { min-width: 44px; }

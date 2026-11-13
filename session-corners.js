@@ -574,7 +574,7 @@ function drawApiCircuitGuide(ctx, data, rect) {
     }
     for(const {x,y,radius,label} of beads){
       ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);
-      ctx.fillStyle=light?'#ffffff':'#1c1c1e';ctx.fill();ctx.strokeStyle=light?'#1d1d1f':'#e5e5ea';ctx.lineWidth=1.1;ctx.stroke();
+      ctx.fillStyle=theme.panel||(light?'#ffffff':'#191a1b');ctx.fill();ctx.strokeStyle=light?'#1d1d1f':'#e5e5ea';ctx.lineWidth=1.1;ctx.stroke();
       ctx.fillStyle=light?'#1d1d1f':'#f2f2f4';ctx.fillText(label,x,y+.5);
     }
   }

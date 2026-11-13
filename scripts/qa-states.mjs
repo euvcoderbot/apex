@@ -22,7 +22,7 @@ export function qaStates(origin) {
       await page.locator('#performanceMetricPanel:not([aria-busy="true"])').waitFor({timeout: 60000});
       await page.waitForTimeout(1500);
     };
-  for (const t of ['schedule', 'results', 'standings', 'drivers', 'h2h', 'upgrades', 'units'])
+  for (const t of ['schedule', 'results', 'standings', 'form', 'drivers', 'h2h', 'upgrades', 'units'])
     states['season-' + t] = async page => {
       await page.goto(`${origin}/apex/season/${t}?year=2026`);
       await page.locator('#seasonHub .season-body > :not(.season-loading)').first().waitFor({timeout: 30000});

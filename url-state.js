@@ -60,7 +60,7 @@
   const SITE = 'F1 Apex Data';
   const CATEGORY_TITLES = {pace: 'Pace', corners: 'Cornering', straight: 'Straight line', braking: 'Braking', pits: 'Pit stops',
     tyres: 'Tyre trend', trend: 'Development & updates', results: 'Reliability & results'};
-  const SEASON_TITLES = {schedule: 'Schedule', results: 'Results', standings: 'Standings', drivers: 'Driver stats',
+  const SEASON_TITLES = {schedule: 'Schedule', results: 'Results', standings: 'Standings', form: 'Form', drivers: 'Driver stats',
     h2h: 'Head-to-head', upgrades: 'Upgrades', units: 'Power units'};
   function titleFor(view, params) {
     if (view === 'season') return `${SEASON_TITLES[params?.tab] || 'Schedule'} · Season${params?.year ? ' ' + params.year : ''} — ${SITE}`;

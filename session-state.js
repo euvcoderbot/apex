@@ -670,10 +670,10 @@ function canvasTheme() {
     textStrong: 'rgba(255, 255, 255, .72)',
     grid: 'rgba(255, 255, 255, .05)',
     gridStrong: 'rgba(255, 255, 255, .25)',
-    panel: '#1c1c1e',
+    panel: '#191a1b',  // Linear card
     outline: 'rgba(255, 255, 255, .22)',
     mapBase: 'rgba(255, 255, 255, .12)',
-    labelStroke: '#101114',
+    labelStroke: '#191a1b',
     labelFill: 'rgba(255,255,255,.92)',
     crosshair: 'rgba(255, 255, 255, .25)',
   };

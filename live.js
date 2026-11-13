@@ -1248,7 +1248,7 @@
       ctx.lineCap = 'butt';
       marks.slice(1).forEach(i => { const a = road[(i - 1 + n) % n], b = road[(i + 1) % n], c = road[i], l = Math.hypot(b.x - a.x, b.y - a.y) || 1;
         ctx.beginPath(); ctx.moveTo(c.x - (b.x - a.x) / l * 1.2, c.y - (b.y - a.y) / l * 1.2); ctx.lineTo(c.x + (b.x - a.x) / l * 1.2, c.y + (b.y - a.y) / l * 1.2);
-        ctx.strokeStyle = getComputedStyle(page).getPropertyValue('--ui-panel').trim() || (light ? '#fff' : '#161618'); ctx.lineWidth = 9; ctx.stroke(); ctx.lineWidth = 7; });
+        ctx.strokeStyle = getComputedStyle(page).getPropertyValue('--lin-card').trim() || (light ? '#fff' : '#191a1b'); ctx.lineWidth = 9; ctx.stroke(); ctx.lineWidth = 7; });
       // Start/finish: a chequered bar across the road.
       const i = marks[0], a = road[(i - 1 + n) % n], b = road[(i + 1) % n], c = road[i], l = Math.hypot(b.x - a.x, b.y - a.y) || 1, nx = -(b.y - a.y) / l, ny = (b.x - a.x) / l;
       ctx.beginPath(); ctx.moveTo(c.x - nx * 8, c.y - ny * 8); ctx.lineTo(c.x + nx * 8, c.y + ny * 8);
@@ -1275,7 +1275,7 @@
       }
       for (const {x, y, radius, label} of beads) {
         ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2);
-        ctx.fillStyle = light ? '#ffffff' : '#1c1c1e'; ctx.fill(); ctx.strokeStyle = light ? '#1d1d1f' : '#e5e5ea'; ctx.lineWidth = 1.1; ctx.stroke();
+        ctx.fillStyle = getComputedStyle(page).getPropertyValue('--lin-card').trim() || (light ? '#ffffff' : '#191a1b'); ctx.fill(); ctx.strokeStyle = light ? '#1d1d1f' : '#e5e5ea'; ctx.lineWidth = 1.1; ctx.stroke();
         ctx.fillStyle = light ? '#1d1d1f' : '#f2f2f4'; ctx.fillText(label, x, y + .5);
       }
       ctx.textAlign = 'left';
