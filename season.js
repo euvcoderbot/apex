@@ -234,7 +234,14 @@
     const day = d => d.toLocaleDateString([], {day: 'numeric'}), month = d => d.toLocaleDateString([], {month: 'short'});
     return month(first) === month(last) ? `${day(first)}–${day(last)} ${month(last)}` : `${day(first)} ${month(first)} – ${day(last)} ${month(last)}`;
   };
-  const card = (title, ...children) => { const c = el('section', 'season-card'); if (title) c.append(el('h3', null, title)); c.append(...children.filter(Boolean)); return c; };
+  const card = (title, ...children) => {
+    const c = el('section', 'season-card');
+    if (title) c.append(el('h3', null, title));
+    c.append(...children.filter(Boolean));
+    // Tables are page sections; chart widgets retain the elevated card surface.
+    if (children.some(node => node?.matches?.('.season-table-wrap'))) c.classList.add('season-data-section');
+    return c;
+  };
   const empty = text => el('p', 'season-empty', text);
 
   // ---------- page ----------
@@ -314,6 +321,7 @@
     }
     for (const b of document.querySelectorAll('[data-season-tab]')) b.setAttribute('aria-pressed', String(b.dataset.seasonTab === state.tab));
     const label = TABS.find(([id]) => id === state.tab)[1];
+    page.querySelector('.season-title h1').textContent = label;
     const crumb = document.getElementById('windowTitle'), sub = document.getElementById('windowSubtitle');
     if (crumb) crumb.textContent = label;
     if (sub) sub.textContent = `Season ${state.year}`;
@@ -813,7 +821,7 @@
     const colour = id => teamColour(drivers ? data.drivers[id]?.team : id);
     const label = id => drivers ? driverName(data, id) : teamName(data, id);
     const table = el('table', 'season-table season-standings');
-    table.innerHTML = `<thead><tr><th scope="col" class="num">Pos</th><th scope="col"></th><th scope="col">${drivers ? 'Driver' : 'Constructor'}</th><th scope="col" class="num">Wins</th><th scope="col" class="num" title="Points from the last five rounds, sprints included">Last 5</th>${drivers ? '' : '<th scope="col">Split</th>'}<th scope="col" class="num">Points</th><th scope="col" class="num">Gap</th></tr></thead>`;
+    table.innerHTML = `<thead><tr><th scope="col" class="num">Pos</th><th scope="col"></th><th scope="col">${drivers ? 'Driver' : 'Constructor'}</th><th scope="col" class="num">Wins</th><th scope="col" class="num" title="Points from the last five rounds, sprints included">Last 5</th>${drivers ? '' : '<th scope="col">Split</th>'}<th scope="col" class="num season-points">Points</th><th scope="col" class="num">Gap</th></tr></thead>`;
     const tb = el('tbody');
     const leaderPoints = last[0].points;
     // Form: points over the last five completed rounds. Constructors: each driver's share of the team's points.
@@ -837,7 +845,7 @@
         cell.append(bar); cell.title = parts.map(([d, v]) => `${driverCode(data, d)} ${v}`).join(' · ');
         tr.append(cell);
       }
-      tr.append(el('td', 'num season-strong', String(e.points)), el('td', 'num season-muted', e.position === 1 ? '' : `−${(leaderPoints - e.points).toFixed(0)}`));
+      tr.append(el('td', 'num season-strong season-points', String(e.points)), el('td', 'num season-muted', e.position === 1 ? '' : `−${(leaderPoints - e.points).toFixed(0)}`));
       tb.append(tr);
     }
     table.append(tb);
@@ -846,9 +854,9 @@
       values: evo.map(s => s.table.find(x => x.id === id)?.points ?? 0)})), {title: 'Points after each round', endLabels: drivers ? 6 : 5, height: 400});
     const ranks = bumpChart(evo.map(s => s.round), ids.map(id => ({id, colour: colour(id), label: drivers ? driverCode(data, id) : teamName(data, id),
       values: evo.map(s => s.table.find(x => x.id === id)?.position ?? null)})));
-    const layout = el('div', 'season-two');
-    layout.append(card(null, wrap(table)), el('div', 'season-stack'));
-    layout.lastChild.append(card('Points evolution', points), card('Championship position', ranks));
+    const layout = el('div', 'season-two season-standings-layout');
+    layout.append(card('Championship order', wrap(table)), el('div', 'season-stack'));
+    layout.lastChild.append(...[titleFight(data, drivers), card('Points evolution', points), card('Championship position', ranks)].filter(Boolean));
     linkHover(layout);
     // Drivers: finishing positions or points per round, switched in place (the choice is kept while the page is open).
     const showPoints = () => !drivers || state.matrix === 'points';
@@ -871,7 +879,7 @@
       }
     }
     const matrix = card(drivers ? 'Results by round' : 'Points by round', ...[matrixToggle, grid, foot].filter(Boolean));
-    return [toggle, titleFight(data, drivers), layout, matrix, ...(drivers ? [] : [qualiPace(data)])].filter(Boolean);
+    return [toggle, layout, matrix, ...(drivers ? [] : [qualiPace(data)])].filter(Boolean);
   }
   // Who can still win: points scored (sprints included) against the most still available.
   function titleFight(data, drivers) {

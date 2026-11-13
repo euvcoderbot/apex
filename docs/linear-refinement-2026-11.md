@@ -2,6 +2,10 @@
 
 Source baseline: `208d8866a062cd8e082909e63bb56ade0a096a3b`. Work is isolated on `codex/linear-refinement`.
 
+Scope correction: this checkpoint mostly improved behavior and smaller styling issues. It was subsequently published as
+version 213, after the temporary Sites access block cleared. The substantive visual follow-up and before/after evidence
+are documented in [linear-visual-refinement.md](linear-visual-refinement.md).
+
 ## Reference and scope
 
 `linear-design-spec.md` remains authoritative: authenticated-app measurements from November 10 override the older marketing studies. The older research documents now explicitly identify their values as historical. Linear's current public [UI redesign article](https://linear.app/now/how-we-redesigned-the-linear-ui) and [Insights documentation](https://linear.app/docs/insights) were also consulted. No authenticated Linear browser session is currently connected. Telemetry styling is an Apex adaptation, not a verified Linear chart specification.

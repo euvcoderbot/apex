@@ -17,8 +17,9 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 
 /* page */
 .season-page { display: grid; align-content: start; gap: 14px; width: min(1680px, 100%); margin: 0 auto; padding: 18px clamp(12px, 2.4vw, 28px) 40px; box-sizing: border-box; outline: none; color: var(--ui-label); }
-.season-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; }
-.season-title { display: flex; align-items: center; gap: 12px; }
+.season-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; padding-bottom: 16px; border-bottom: 1px solid var(--lin-hairline); }
+.season-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; width: 100%; }
+.season-title .season-saved { margin-left: auto; }
 .season-title h1 { margin: 0; font-size: var(--text-title-lg, 26px); font-weight: 600; letter-spacing: -.03em; }
 .season-year { width: 96px; }
 .season-tabs, .season-segment, .season-filters { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -101,7 +102,10 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 .season-stat-pair > div { display: grid; gap: 4px; align-content: start; }
 .season-stat-pair .season-muted { font-size: var(--text-xs, 12px); }
 .season-bars { display: grid; gap: 6px; }
-.season-bar-row { display: grid; grid-template-columns: minmax(110px, 160px) 1fr minmax(32px, auto); gap: 10px; align-items: center; font-size: var(--text-sm, 13px); }
+.season-bar-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto var(--lin-bar, 6px); gap: 6px 12px; align-items: center; min-height: 36px; padding-block: 4px; font-size: var(--text-sm, 13px); }
+.season-bar-row > .season-who { grid-area: 1 / 1; }
+.season-bar-row > b { grid-area: 1 / 2; }
+.season-bar-row > .season-bar { grid-area: 2 / 1 / 3 / -1; }
 .season-bar-row > .season-who { overflow: hidden; }
 .season-bar-row > .season-who strong { overflow: hidden; text-overflow: ellipsis; }
 .season-bar-row > b { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
@@ -284,7 +288,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 .season-bar.is-diverging { position: relative; display: block; overflow: visible; }
 .season-bar.is-diverging::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--ui-tertiary); }
 .season-bar.is-diverging i { position: absolute; top: 0; border-radius: 4px; }
-.season-diverging .season-bar-row { grid-template-columns: minmax(110px, 160px) 1fr 64px; }
+.season-diverging .season-bar-row { grid-template-columns: minmax(0, 1fr) auto; }
 .season-ranked li > .season-who { min-width: 0; }
 
 /* standings */
@@ -379,7 +383,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
   .season-battle { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
   .season-battle-bar { grid-column: 1 / -1; }
   .season-h2h-label { font-size: 11px; white-space: normal; }
-  .season-bar-row { grid-template-columns: 110px 1fr 28px; }
+  .season-title .season-saved { flex-basis: 100%; margin-left: 0; }
   #seasonHub .season-toolbar .season-select { flex: 1 1 100%; min-width: 0; }
   .season-dist { gap: 1px; }
 }
@@ -389,9 +393,22 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 @media (min-width: 761px) {
   :root[data-skin="linear"] body > #seasonHub { margin: 0 var(--linear-gap) 0 var(--linear-rail); background: transparent; min-height: calc(100dvh - var(--linear-header) - 2 * var(--linear-gap)); }
 }
-:root[data-skin="linear"] #seasonHub :is(.season-body, .season-two, .season-stack, .season-columns, .season-column) { gap: 12px; }
+:root[data-skin="linear"] #seasonHub .season-body { gap: 24px; }
+:root[data-skin="linear"] #seasonHub :is(.season-two, .season-stack, .season-columns, .season-column) { gap: 16px; }
 :root[data-skin="linear"] #seasonHub .season-title h1 { font: 600 24px/32px var(--ui-font); letter-spacing: -.16px; }
-:root[data-skin="linear"] #seasonHub :is(.season-card, .season-round, .season-h2h-hero) { border-radius: var(--lin-card-radius); background: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border), var(--lin-faint-shadow); }
+:root[data-skin="linear"] #seasonHub :is(.season-card:not(.season-data-section, .season-stats > *), .season-round, .season-h2h-hero) { border-radius: var(--lin-card-radius); background: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border), var(--lin-faint-shadow); }
+:root[data-skin="linear"] #seasonHub .season-data-section { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+:root[data-skin="linear"] #seasonHub .season-data-section > h3 { padding-block: 4px 12px; margin: 0; }
+:root[data-skin="linear"] #seasonHub .season-data-section > .season-table-wrap { border-block: 1px solid var(--lin-hairline); }
+:root[data-skin="linear"] #seasonHub .season-stats { gap: 0; border-block: 1px solid var(--lin-hairline); }
+:root[data-skin="linear"] #seasonHub .season-stats > .season-stat { padding: 16px; border: 0; border-radius: 0; background: transparent; box-shadow: inset -1px 0 var(--lin-hairline), inset 0 -1px var(--lin-hairline); }
+:root[data-skin="linear"] #seasonHub .season-stats .season-big { font-size: 20px; }
+:root[data-skin="linear"] #seasonHub .season-standings-layout { grid-template-columns: minmax(0, 1.3fr) minmax(320px, 1fr); align-items: start; gap: 24px; }
+@media (max-width: 1100px) {
+  :root[data-skin="linear"] #seasonHub .season-standings-layout { grid-template-columns: minmax(0, 1fr); }
+  .season-standings-layout > .season-stack { display: contents; }
+  .season-standings-layout .season-title-fight { grid-row: 1; }
+}
 :root[data-skin="linear"] #seasonHub :is(.season-strip-cell, .season-h2h-weeks > div) { background: var(--lin-band); border-radius: 6px; }
 :root[data-skin="linear"] #seasonHub .season-card > h3 { color: var(--ui-tertiary); font: 500 13px/1.4 var(--ui-font); }
 :root[data-skin="linear"] #seasonHub :is(.season-tabs button, .season-segment button, .season-filter):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { height: 28px; min-height: 28px; padding: 0 10px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); }
@@ -399,8 +416,14 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 :root[data-skin="linear"] #seasonHub :is(.season-battle, .season-tabs button):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):hover { color: var(--ui-label); }
 /* Tables (spec §8): a 32 px header row in 450 12 tertiary with no band; rows without separators, a wash on hover. */
 :root[data-skin="linear"] #seasonHub .season-table thead th { height: 32px; padding-block: 0; background: transparent; color: var(--ui-tertiary); font: 450 12px/1 var(--ui-font); }
-:root[data-skin="linear"] #seasonHub .season-standings tbody td { height: 44px; padding-block: 0; }
-:root[data-skin="linear"] #seasonHub .season-table tbody tr:not(.season-detail):hover td:not(.season-heat-cell):not(.is-heat) { background: var(--lin-nav-hover); }
+:root[data-skin="linear"] #seasonHub .season-standings tbody td { height: 48px; padding-block: 0; }
+:root[data-skin="linear"] #seasonHub .season-table tbody tr:not(.season-detail):hover td:not(.season-heat-cell):not(.is-heat) { background: var(--season-row-hover, var(--lin-nav-hover)); }
+@media (max-width: 760px) {
+  :root[data-skin="linear"] #seasonHub .season-standings .season-points {
+    position: sticky; right: 0; z-index: 1; min-width: 56px; background: var(--ui-panel); box-shadow: -1px 0 var(--lin-hairline);
+    --season-row-hover: color-mix(in srgb, var(--ui-label) 4%, var(--ui-panel));
+  }
+}
 :root[data-skin="linear"] #seasonHub .season-big { font-weight: 600; }
 :root[data-skin="linear"] #seasonHub :is(.season-hero-id h2, .season-h2h-score b) { font-weight: 600; letter-spacing: -.02em; }
 /* the rail: the Season row, and while it is open its pages listed underneath, as the other views' sections */

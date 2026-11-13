@@ -69,9 +69,9 @@ Weights are the app's **450, 500 and 600** only. Sentence case everywhere, units
 var(--lin-card-border), var(--lin-faint-shadow);` padding 12–16 px. Title per the type table, no divider under it. One level only:
 a section that groups cards (`.dashboard-card`) is layout, never a card around cards. No drop shadows, no gradients, no glass.
 
-**Insight tile** (a figure with who set it: `session-overview.js`). Card recipe, padding `12px 14px`, a grid with 6 px gap:
-label (12 px tertiary), figure (600 20 px), then a row with the team chip and code (500 12 px secondary) and, on its own line, a
-note (12 px tertiary). Tiles in a grid `repeat(auto-fit, minmax(160px, 1fr))`, 8 px gaps.
+**Insight readout** (`session-overview.js`). One flat property strip bounded by hairlines, rather than five separate cards.
+Label (12 px tertiary), figure (600 20 px), team/code below (500 12 px secondary), then any note. Five columns when the
+overview container is wider than 660 px; two below, with the final metric spanning the row. Cells use 16 px side padding.
 
 **Team chip.** `teamLogoMarkup(team, number)`. 16 px for a swatch, **18 px when it carries a number** (the rail's size), so the
 digits stay centred. Never put it inside a selector that restyles every `span`: the chip is a `span` with its own centred grid; style
@@ -115,9 +115,15 @@ separators; hover `--lin-nav-hover`. Emphasis by colour tier (label / secondary 
 backgrounds (heat cells are data and keep their colour, 6 px corners). A coloured
 6 px dot can mark a highlighted value.
 
-**Ranked bars.** The BarChart component: 8 px track (`--lin-bar`) on `--lin-nav-hover`, 2 px radius, value 500 12 px secondary
-right-aligned. Extra information goes on the same line, fainter (seconds per lap in quaternary before the % gap), never as a second
-line that changes the row height. Whiskers 1 px tertiary.
+**Ranked bars.** Name and exact value share the top baseline; the 6 px track (`--lin-bar`) spans the full row beneath them.
+Rows have an 18 px label line, 4 px gap, 4 px block padding and 4 px separation. Values use 500 12 px secondary; seconds per
+lap use 450 11 px tertiary before the percentage. Whiskers remain 1 px tertiary. A chart paired row-for-row with a table
+retains its compact three-column layout and measured row heights. This is an Apex adaptation, not a measured Linear chart.
+
+**Season data sections.** Tables occupy the page surface, with a quiet section heading and unfilled header. Chart widgets
+retain the shared card surface. Standings places the primary table beside the title fight and charts at desktop widths;
+the title fight precedes the table when stacked. Page titles name the selected Season view. Summary metrics share a flat
+grid of property cells instead of individual dashboard cards.
 
 **Status and notes.** Empty states centred, 15 px 600 title, 13 px tertiary body. Inline hints 11–12 px quaternary.
 
