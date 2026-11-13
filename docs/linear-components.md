@@ -117,15 +117,20 @@ loss.
 **Table.** `.performance-table` / `.season-table`: header 32 px, 450 12 px tertiary, no band and no line; rows 44 px without
 separators; hover `--lin-nav-hover`. Emphasis by colour tier (label / secondary / quaternary) and weight 600, not by cell
 backgrounds (heat cells are data and keep their colour, 6 px corners). A coloured
-6 px dot can mark a highlighted value. One alignment per column: identity columns left; number columns right for the title,
-the value and any highlight alike (heat matrices of rounds centre all three). Sort titles are text, never filled pills: the
+6 px dot can mark a highlighted value. One alignment per column: identity columns left; number columns and their titles
+centred (the heat-grid look of "New elements fitted"), highlights included. Sort titles are text, never filled pills: the
 season sort button is classed `sort` in `ui-system.js` like `.perf-sort-btn`. The sort arrow hangs in the cell padding,
 shown on hover/focus and on the sorted column, so it never shifts the title off its values. Long titles wrap inside their
 column (bottom-aligned) rather than widening the table or spilling into the next column.
 
-**Heat values in tables** (`heatChip()` in `season.js`). The value sits in a `.season-heat-value` chip, 24 px high, 6 px
-corners, 0 8 px padding, minimum 40 px, inside the cell's normal padding, so neighbouring highlights keep a gap and nothing
-clips. `--heat` (0–1) on the cell sets the chip's depth; no `--heat`, no fill. Do not reuse `.season-chip` (a bordered pill).
+**Heat values in tables** (`heatChip()` in `season.js`). Like the round grids: the value is a `.season-heat-value` block
+filling its cell (cell padding 2 px, so neighbours sit 4 px apart), 32 px high, 6 px corners, 600 weight, centred. `--heat`
+(0–1) on the cell sets its depth; no `--heat`, no fill. Do not reuse `.season-chip` (a bordered pill).
+
+**Markers.** Team and driver markers are circles: numbered team chips, team marks, colour dots and legend swatches.
+
+**Round labels in charts.** Every round label on a chart axis carries its flag above the code (`xLabels`, `.x-flag`, 16 x 12 px
+at real size); charts keep 46–48 units at the bottom for the pair.
 
 **Ranked bars.** One line per entrant: name, 6 px track (`--lin-bar`), value, all centred on the line; rows 32 px. The name
 column is `minmax(84px, min(180px, 38%))`. The rows of one chart share their columns (`grid-template-columns: subgrid` on the

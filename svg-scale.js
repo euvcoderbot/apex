@@ -12,6 +12,7 @@
     const fitted = svg.getAttribute('preserveAspectRatio') !== 'none' && vb.height && box.height;
     const scale = fitted ? Math.min(w / vb.width, box.height / vb.height) : w / vb.width;
     svg.style.setProperty('--chart-scale', String(Math.round(scale * 1000) / 1000));
+    svg.classList.toggle('is-small', scale < .8);   // drawn small (phones): marks that need room, like round flags, shrink
     // Round labels: every one where the widest fits between its neighbours (measured on screen), every other one where not.
     const labels = [...svg.querySelectorAll('text.x-label')];
     if (labels.length > 1) {

@@ -2290,7 +2290,7 @@
 :root[data-skin="linear"] .performance-table [aria-sort]:not([aria-sort="none"]) .perf-sort-btn { color: var(--ui-label); }
 /* Native sorting controls share the quiet table-header hierarchy and reserve indicator space. */
 :root[data-skin="linear"] #seasonHub .season-sort-button { display: inline-flex; align-items: center; justify-content: flex-start; gap: 4px; max-width: 100%; min-height: 28px; padding: 4px 0; border: 0; border-radius: 4px; background: transparent; box-shadow: none; color: var(--ui-tertiary); font: 450 12px/1.25 var(--ui-font); text-align: inherit; cursor: pointer; }
-:root[data-skin="linear"] #seasonHub th.num .season-sort-button { justify-content: flex-end; white-space: normal; }
+:root[data-skin="linear"] #seasonHub th.num .season-sort-button { justify-content: center; text-align: center; white-space: normal; }
 :root[data-skin="linear"] #seasonHub .season-sort-button { position: relative; }
 /* The arrow hangs in the cell padding, outside the label, so a title lines up with its values whether sorted or not. */
 :root[data-skin="linear"] #seasonHub .season-sort-button::after { content: '↕'; position: absolute; bottom: 5px; width: 10px; font-size: 10px; text-align: center; color: var(--ui-quaternary); opacity: 0; transition: opacity var(--lin-hover-out, .15s) var(--lin-ease-out-quad); }
@@ -2300,6 +2300,12 @@
 :root[data-skin="linear"] #seasonHub th[aria-sort="descending"] .season-sort-button::after { content: '↓'; color: inherit; }
 :root[data-skin="linear"] #seasonHub th[aria-sort="ascending"] .season-sort-button::after { content: '↑'; color: inherit; }
 :root[data-skin="linear"] #seasonHub .season-sort-button:hover { color: var(--ui-label); }
+/* Team and driver markers are circles everywhere: numbered team chips, plain team marks, fallback logos, colour dots and
+   legend swatches (they were rounded squares). */
+:root[data-skin="linear"] :is(.team-logo, .team-logo-fallback, .team-dot, .team-mark.has-number, .performance-team .team-logo-fallback) { border-radius: 50%; }
+:root[data-skin="linear"] .team-mark:not(.has-number)::before { border-radius: 50%; }
+:root[data-skin="linear"] #seasonHub .season-legend span[data-tone]::before { border-radius: 50%; }
+:root[data-skin="linear"] .team-mark.has-number { font-size: 9px; letter-spacing: -.02em; }  /* two digits sit inside the circle */
 /* Contrast (WCAG AA 4.5:1 for text under 18 px, checked by scripts/audit-a11y.mjs). Quaternary is for decoration and
    disabled controls; readable metadata uses tertiary. Coloured text on light tints is deepened, never the hue changed. */
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-driver > em { color: color-mix(in oklch, var(--ui-accent) 70%, var(--ui-label)); }

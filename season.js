@@ -1034,6 +1034,7 @@
     ['united states', 'USA'], ['mexic', 'MEX'], ['paulo', 'BRA'], ['brazil', 'BRA'], ['las vegas', 'LVG'], ['qatar', 'QAT'], ['abu dhabi', 'ABU'],
     ['sakhir', 'SKH'], ['french', 'FRA'], ['german', 'GER'], ['malaysia', 'MAL']];
   let codes = {}, roundNames = {};
+  const flags = {};   // round -> ISO country code, for the flag above each round label in charts
   function setCodes(data) {
     codes = {}; roundNames = {};
     const used = new Set();
@@ -1042,6 +1043,7 @@
       let c = (RACE_CODES.find(([k]) => name.includes(k)) || [])[1] || String(r.name || `R${r.round}`).replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase();
       if (used.has(c)) c = c.slice(0, 2) + (r.round % 10);   // a second race in one country that year
       used.add(c); codes[r.round] = c; roundNames[r.round] = r.name;
+      const cc = window.grandPrixCountryCode?.({name: r.name, country: r.country}); if (/^[A-Z]{2}$/.test(cc || '')) flags[r.round] = cc.toLowerCase();
     }
   }
   const code = n => codes[n] || `R${n}`;
@@ -1100,7 +1102,9 @@
   // always keeping the last, and the one before it gives way so the two never touch.
   const xLabels = (rounds, xOf, H) => rounds.map((r, i) => {
     const alt = i !== rounds.length - 1 && (i % 2 === 1 || i === rounds.length - 2);
-    return `<text class="axis x-label${alt ? ' is-alt' : ''}" x="${xOf(i).toFixed(1)}" y="${H - 6}" text-anchor="middle">${esc(code(r))}</text>`;
+    // The race's flag above its code, at real size (season.css .x-flag); the code alone when there is no flag.
+    const f = flags[r] ? `<image class="x-flag${alt ? ' is-alt' : ''}" href="assets/flags/${flags[r]}.svg" x="${xOf(i).toFixed(1)}" y="${H - 6}" width="16" height="12" preserveAspectRatio="xMidYMid slice" aria-hidden="true"/>` : '';
+    return `${f}<text class="axis x-label${alt ? ' is-alt' : ''}" x="${xOf(i).toFixed(1)}" y="${H - 6}" text-anchor="middle">${esc(code(r))}</text>`;
   }).join('');
   // A bar rounded only at its outer end (top for positive values, bottom for negative).
   function barPath(x, y0, y1, w, r = 2) {
@@ -1114,7 +1118,7 @@
 
   // One bar per round, up for positive values; `extra` stacks a second, lighter value on top (sprint points).
   function barChart(rounds, raw, {width = 640, height = 190, colour = () => 'var(--ui-accent, #5e6ad2)', format = v => String(v), tips = [], title = '', extra = null, clip = false} = {}) {
-    const W = width, H = height, R = 8, T = 12, B = 24;
+    const W = width, H = height, R = 8, T = 12, B = 48;   // B: round code with its flag above
     const sizes = raw.filter(Number.isFinite).map(Math.abs).sort((x, y) => y - x);
     const limit = clip && sizes.length > 2 && sizes[0] > 2 * sizes[1] ? sizes[1] * 1.3 : Infinity;
     const values = raw.map(v => (Number.isFinite(v) ? Math.max(-limit, Math.min(limit, v)) : v));
@@ -1142,7 +1146,7 @@
   }
   // Grid slot to finishing position for each round: a hollow dot where the car started, a filled one where it finished.
   function gridFinishChart(rounds, rows, colour) {
-    const W = 640, H = 230, L = 36, R = 8, T = 10, B = 24;
+    const W = 640, H = 236, L = 36, R = 8, T = 10, B = 48;
     const maxP = Math.max(20, ...rows.flatMap(r => [r.grid || 0, r.finish || 0]));
     const y = p => T + (p - 1) / (maxP - 1) * (H - T - B);
     const n = Math.max(1, rounds.length), bw = (W - L - R) / n, mid = i => L + i * bw + bw / 2;
@@ -1193,7 +1197,7 @@
     return card('Updates by team and Grand Prix', toggle, body, note);
   }
   function lineChart(rounds, series, {title = '', invert = false, height = 260, min = null, max = null, format = v => String(v), endLabels = 0} = {}) {
-    const W = 640, H = height, R = series.length === 1 ? 44 : endLabels ? 52 : 12, T = 12, B = 24;
+    const W = 640, H = height, R = series.length === 1 ? 44 : endLabels ? 52 : 12, T = 12, B = 48;
     const dashed = teammateDashes(series);
     const values = series.flatMap(s => s.values.filter(v => v != null));
     // Values (not positions) get round outer ticks that enclose the data; the scale then runs to those ticks.
@@ -1254,7 +1258,7 @@
     return out;
   }
   function bumpChart(rounds, series) {
-    const n = series.length, W = 640, H = Math.max(200, n * 18 + 30), L = 30, R = 52, T = 10, B = 22;
+    const n = series.length, W = 640, H = Math.max(224, n * 18 + 54), L = 30, R = 52, T = 10, B = 46;
     const dashed = teammateDashes(series.slice(0, 6));
     const x = i => L + (rounds.length < 2 ? 0 : i / (rounds.length - 1) * (W - L - R));
     const y = p => T + (p - 1) / Math.max(1, n - 1) * (H - T - B);
@@ -1422,7 +1426,8 @@
     }
     const race = s.by_round.map(r => r.race_points), sprint = s.by_round.map(r => r.sprint_points);
     const per = s.starts ? s.points / s.starts : 0;
-    const pts = card('Points by round', barChart(rounds, race, {width: mateId ? 1280 : 640, height: 200, extra: sprint, colour: () => colour, tips: rounds.map(name), title: 'Points by round'}),
+    // The wide canvas only where the card spans a wide row: on a phone the single column draws the 640 one at a readable size.
+    const pts = card('Points by round', barChart(rounds, race, {width: mateId && innerWidth > 760 ? 1280 : 640, height: 200, extra: sprint, colour: () => colour, tips: rounds.map(name), title: 'Points by round'}),
       el('p', 'season-footnote', `${per.toFixed(1)} points per Grand Prix weekend. The lighter top of a bar is sprint points.`));
     const two = el('div', 'season-two'); two.append(gridCard, qualiCard || pts);
     return qualiCard ? [two, pts] : [two];
