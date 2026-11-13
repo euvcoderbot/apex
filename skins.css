@@ -2431,3 +2431,38 @@
    the session charts all wait for the toggle. */
 :root[data-skin="linear"] :is(body.is-descriptions-hidden, #carPerformance.is-descriptions-hidden) :is(.metric-coverage, .metric-load-count),
 :root[data-skin="linear"] body.is-descriptions-hidden :is(#seasonHub .season-footnote, #sessionOverview .overview-note, #timeSummary .overview-note) { display: none; }
+
+/* Session analysis: minimum speed in every corner (session-corners.js). Linear table type; the lap that carried the most
+   speed fills its cell in its colour, as the heat grids do. */
+:root[data-skin="linear"] .corner-every { margin-top: 12px; }
+:root[data-skin="linear"] .corner-every > summary { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--lin-label-border); color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); cursor: pointer; list-style: none; }
+:root[data-skin="linear"] .corner-every > summary::-webkit-details-marker { display: none; }
+:root[data-skin="linear"] .corner-every > summary:hover { background: var(--lin-nav-hover); color: var(--ui-label); }
+:root[data-skin="linear"] .corner-every-wrap { margin-top: 8px; overflow-x: auto; }
+:root[data-skin="linear"] .corner-every-table { width: 100%; border-collapse: collapse; font: 500 12px/1 var(--ui-font); font-variant-numeric: tabular-nums; }
+:root[data-skin="linear"] .corner-every-table th { height: 28px; padding: 0 8px; color: var(--ui-tertiary); font-weight: 450; text-align: left; }
+:root[data-skin="linear"] .corner-every-table th.num, :root[data-skin="linear"] .corner-every-table td.num { text-align: center; }
+:root[data-skin="linear"] .corner-every-table td { height: 30px; padding: 2px; color: var(--ui-secondary); }
+:root[data-skin="linear"] .corner-every-table td.is-best { color: var(--ui-label); font-weight: 600; background: color-mix(in oklch, var(--team) 30%, transparent) content-box; border-radius: 6px; }
+:root[data-skin="linear"] .corner-every-lap { display: inline-flex; align-items: center; gap: 6px; color: var(--ui-label); font-weight: 500; }
+:root[data-skin="linear"] .corner-every-lap::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--team); }
+:root[data-skin="linear"] .corner-every-lap small { color: var(--ui-tertiary); font-size: 11px; }
+:root[data-skin="linear"] .corner-every-diff.is-faster { color: var(--ui-positive, #30d158); }
+:root[data-skin="linear"] .corner-every-diff.is-slower { color: var(--ui-negative, #ff6961); }
+:root[data-skin="linear"] .corner-every-pick { min-height: 24px; padding: 0 6px; margin-left: -6px; border: 0; border-radius: 6px; background: none; color: var(--ui-label); font: 500 12px/1 var(--ui-font); cursor: pointer; }
+:root[data-skin="linear"] .corner-every-pick:hover, :root[data-skin="linear"] .corner-every-pick[aria-pressed="true"] { background: var(--lin-nav-hover); }
+:root[data-skin="linear"] .corner-every-note { margin: 8px 0 0; color: var(--ui-tertiary); font: 450 11px/1.4 var(--ui-font); }
+/* Session summary (session-overview.js): the same table look as the every-corner table. */
+:root[data-skin="linear"] .session-summary { margin-top: 12px; }
+:root[data-skin="linear"] .session-summary > summary { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--lin-label-border); color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); cursor: pointer; list-style: none; }
+:root[data-skin="linear"] .session-summary > summary::-webkit-details-marker { display: none; }
+:root[data-skin="linear"] .session-summary > summary:hover { background: var(--lin-nav-hover); color: var(--ui-label); }
+:root[data-skin="linear"] .session-summary-wrap { margin-top: 8px; overflow-x: auto; }
+:root[data-skin="linear"] .session-summary-table { width: 100%; border-collapse: collapse; font: 500 12px/1 var(--ui-font); font-variant-numeric: tabular-nums; }
+:root[data-skin="linear"] .session-summary-table th { height: 28px; padding: 0 8px; color: var(--ui-tertiary); font-weight: 450; text-align: left; white-space: nowrap; }
+:root[data-skin="linear"] .session-summary-table :is(th, td).num { text-align: center; }
+:root[data-skin="linear"] .session-summary-table td { height: 30px; padding: 2px 8px; color: var(--ui-secondary); background-clip: content-box; }
+:root[data-skin="linear"] .session-summary-table tbody th { color: var(--ui-label); font-weight: 500; }
+:root[data-skin="linear"] .session-summary-table td.is-best { color: var(--ui-label); font-weight: 600; background: color-mix(in oklch, var(--ui-accent) 24%, transparent); border-radius: 6px; }
+:root[data-skin="linear"] .session-summary-driver { display: inline-flex; align-items: center; gap: 8px; }
+:root[data-skin="linear"] .session-summary-note { margin: 8px 0 0; color: var(--ui-tertiary); font: 450 11px/1.4 var(--ui-font); }

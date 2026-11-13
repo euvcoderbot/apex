@@ -41,6 +41,37 @@
     return {code: driver.code, team: driver.team, number: driver.number, best, ideal, trap: Number.isFinite(trap) ? trap : null, left};
   }
 
+  // Session summary: every driver in one table. Representative laps are timed, not in/out laps and within 107% of that
+  // driver's best (a lap behind a safety car or in traffic is not their pace). Consistency is the spread of the middle half
+  // of those laps (interquartile range): smaller is steadier.
+  let summaryOpen = false;
+  function sessionSummary() {
+    const rows = [...realDrivers.values()].map(d => {
+      const base = driverSummary(d), laps = (d.laps || []).filter(l => !l.deleted);
+      const rep = laps.filter(timed).map(l => l.time).filter(t => Number.isFinite(base.best) && t <= base.best * 1.07).sort((a, b) => a - b);
+      const q = f => rep.length ? rep[Math.min(rep.length - 1, Math.floor(f * (rep.length - 1)))] : null;
+      const stints = new Set(laps.map(l => l.stint).filter(v => v != null)).size;
+      return {...base, median: q(.5), spread: rep.length >= 4 ? q(.75) - q(.25) : null, clean: laps.length ? rep.length / laps.length : null, laps: laps.length, stints};
+    }).filter(r => Number.isFinite(r.best)).sort((a, b) => a.best - b.best);
+    if (rows.length < 2) return '';
+    const lead = rows[0].best, best = key => Math.min(...rows.map(r => r[key]).filter(Number.isFinite));
+    const top = {ideal: best('ideal'), median: best('median'), spread: best('spread')}, trapTop = Math.max(...rows.map(r => r.trap).filter(Number.isFinite));
+    const mark = (v, b, digits = 3) => (Number.isFinite(v) ? `<td class="num${Math.abs(v - b) < 1e-6 ? ' is-best' : ''}">${typeof digits === 'function' ? digits(v) : v.toFixed(digits)}</td>` : '<td class="num">—</td>');
+    const body = rows.map((r, i) => `<tr><td class="num season-muted">${i + 1}</td><th scope="row"><span class="session-summary-driver">${teamLogoMarkup(r.team, r.number)}${esc(r.code)}</span></th>`
+      + `<td class="num${i === 0 ? ' is-best' : ''}">${fmtLap(r.best)}</td><td class="num">${i === 0 ? '—' : signedS(r.best - lead).replace(' s', '')}</td>`
+      + mark(r.ideal, top.ideal, fmtLap) + mark(r.median, top.median, fmtLap) + mark(r.spread, top.spread)
+      + `<td class="num">${Number.isFinite(r.clean) ? Math.round(r.clean * 100) + '%' : '—'}</td>`
+      + mark(r.trap, trapTop, v => String(Math.round(v))) + `<td class="num">${r.laps}</td><td class="num">${r.stints || '—'}</td></tr>`).join('');
+    return `<details class="session-summary" ${summaryOpen ? 'open' : ''}><summary>Every driver · best, ideal, median and consistency</summary>
+      <div class="session-summary-wrap" tabindex="0" role="region" aria-label="Session summary"><table class="session-summary-table">
+      <thead><tr><th scope="col" class="num">#</th><th scope="col">Driver</th><th scope="col" class="num">Best</th><th scope="col" class="num">Gap</th>
+      <th scope="col" class="num" title="Sum of the driver's best sectors">Ideal</th><th scope="col" class="num" title="Median representative lap">Median</th>
+      <th scope="col" class="num" title="Spread of the middle half of representative laps, seconds: smaller is steadier">Consistency</th>
+      <th scope="col" class="num" title="Share of laps that were representative">Clean</th><th scope="col" class="num">Trap km/h</th><th scope="col" class="num">Laps</th><th scope="col" class="num">Stints</th></tr></thead>
+      <tbody>${body}</tbody></table></div>
+      <p class="session-summary-note">Representative laps: timed, not in- or out-laps, within 107% of the driver’s best. Consistency is the spread of the middle half of them (seconds). The filled cell is the session’s best in that column.</p></details>`;
+  }
+
   function readout(rows) {
     const pick = (key, better) => rows.filter(r => Number.isFinite(r[key])).sort((a, b) => better(a[key], b[key]))[0];
     const fastest = pick('best', (a, b) => a - b);
@@ -253,8 +284,11 @@
     // never swapped out between mouse down and up.
     const html = `<div class="section-heading analysis-heading"><h2 id="sessionOverviewTitle">Session overview</h2></div>
       <div class="overview-readout">${readout(rows)}</div>
-      <div class="overview-chart"><h3>Lap times</h3>${lapChart()}</div>${raceCharts()}`;
-    if (renderedOverview !== html || !root.firstChild) { root.innerHTML = html; renderedOverview = html; }
+      <div class="overview-chart"><h3>Lap times</h3>${lapChart()}</div>${sessionSummary()}${raceCharts()}`;
+    if (renderedOverview !== html || !root.firstChild) {
+      root.innerHTML = html; renderedOverview = html;
+      root.querySelector('.session-summary')?.addEventListener('toggle', event => { summaryOpen = event.target.open; renderedOverview = ''; });
+    }
     drawnWidth = chartWidth();
   }
 

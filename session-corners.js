@@ -156,6 +156,7 @@ function combinedCornerPerformance(samples,zones,totalDistance,indices=zones.map
   return {sectionTime,minimumSpeed:metres/sectionTime*3.6,combined:true};
 }
 
+let cornerEveryOpen=true;   // the every-corner table's fold, kept across re-renders
 function renderCornerAnalysis() {
   const section = $('#cornerAnalysis');
   const root = $('#cornerMetricGrid');
@@ -269,6 +270,35 @@ function renderCornerAnalysis() {
       </table></div>
       ${referencePhases&&metrics.length>1?`<details class="corner-phase-evidence" ${diagnosticOpen?'open':''}><summary>Modelled entry / exit diagnostic</summary><p>Modelled, not measured: the same entry-speed correction and exit-speed credit the season cornering metric uses, applied to these laps. Separate from the measured section times above.</p>${rankedMetrics.map(item=>{const split=phaseSplit(item.lap);return split?`<div><b>${item.lap.code}</b>${split}</div>`:'';}).join('')}</details>`:''}
     </article>`;
+  // Every corner at once: each loaded lap's minimum speed in every corner, the quickest lap's cell filled (the heat-grid
+  // look), and with two laps the difference. A corner's name selects it above.
+  const everyCorner=cornerOrder.filter(([,i])=>allMetrics[i]?.length);
+  if(everyCorner.length&&loaded.length){
+    const lapHead=loaded.map(lap=>`<th scope="col" class="num"><span class="corner-every-lap" style="--team:${escapeUI(getLapColor(lap))}">${escapeUI(lap.code)} <small>L${lap.lap}</small></span></th>`).join('');
+    const body=everyCorner.map(([z,i])=>{
+      const speeds=loaded.map(lap=>allMetrics[i].find(m=>m.lap===lap)?.metric.minimumSpeed);
+      const finite=speeds.filter(Number.isFinite), top=finite.length>1?Math.max(...finite):null;
+      const cells=speeds.map((v,k)=>`<td class="num${Number.isFinite(v)&&top!=null&&Math.abs(v-top)<.05?' is-best':''}" style="--team:${escapeUI(getLapColor(loaded[k]))}">${Number.isFinite(v)?Math.round(v):'—'}</td>`).join('');
+      const diff=loaded.length===2&&speeds.every(Number.isFinite)?speeds[1]-speeds[0]:null;
+      const diffCell=loaded.length===2?`<td class="num corner-every-diff ${diff==null?'':diff>0.5?'is-faster':diff<-0.5?'is-slower':''}">${diff==null?'—':Math.abs(diff)<0.5?'0':`${diff>0?'+':'−'}${Math.abs(diff).toFixed(0)}`}</td>`:'';
+      return `<tr><th scope="row"><button type="button" class="corner-every-pick" data-corner-every="${i}" aria-pressed="${selectedCornerIndices.has(i)}">${escapeUI(z.label||cornerLabel(z))}</button></th>${cells}${diffCell}</tr>`;
+    }).join('');
+    root.insertAdjacentHTML('beforeend',`<details class="corner-every" ${cornerEveryOpen?'open':''}><summary>Minimum speed in every corner</summary>
+      <div class="corner-every-wrap" tabindex="0" role="region" aria-label="Minimum speed in every corner"><table class="corner-every-table">
+        <thead><tr><th scope="col">Corner</th>${lapHead}${loaded.length===2?`<th scope="col" class="num" title="${escapeUI(loaded[1].code)} minus ${escapeUI(loaded[0].code)}">Diff</th>`:''}</tr></thead>
+        <tbody>${body}</tbody></table></div>
+      <p class="corner-every-note">km/h, the slowest point of each lap inside the corner. The filled cell carried the most speed; Diff is the second lap minus the first.</p></details>`);
+    const every=root.querySelector('.corner-every');
+    every.addEventListener('toggle',()=>{cornerEveryOpen=every.open;});
+    every.addEventListener('click',event=>{
+      const pick=event.target.closest('[data-corner-every]');if(!pick)return;
+      const index=Number(pick.dataset.cornerEvery);
+      if(selectedCornerIndices.has(index))selectedCornerIndices.delete(index);else selectedCornerIndices.add(index);
+      const linked=selectLinkingStraights(zones,selectedCornerIndices,automaticStraightIndices);
+      selectedCornerIndices=linked.selection;automaticStraightIndices=linked.automatic;
+      renderCornerAnalysis();renderMiniSectorMap();
+    });
+  }
   root.querySelectorAll('[data-corner-sort]').forEach(button => {
     button.onclick = () => { cornerSortReverse = cornerSort === button.dataset.cornerSort ? !cornerSortReverse : false; cornerSort = button.dataset.cornerSort; renderCornerAnalysis(); root.querySelector(`[data-corner-sort="${cornerSort}"]`)?.focus({ preventScroll: true }); };
   });

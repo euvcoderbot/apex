@@ -6,7 +6,7 @@ import {TeamLabel, type TeamLike} from '../components/TeamLabel';
 
 type Team = TeamLike & {team: string};
 export type SpeedChart = {title: string; rows: (Team & Record<string, unknown>)[]; options: BarChartOptions} | {title: string; empty: string};
-type EventTable = {subject: string; labels: string[]; rows: {event: string; team: Team; values: string[]}[]};
+type EventTable = {subject: string; labels: string[]; rows: {event: string; team: Team; values: string[]}[]; summary?: string};
 type Phases = {several: boolean; subject: string; sections: {label: string; rows: {team: Team; braking: string; mid: string; exit: string; total: string; gps: number}[]}[]};
 type Corners = {single: string | null; subject: string; events: {name: string; rows: {corner: {name: string; detail: string} | null; team: Team;
   delta: string; braking: string; mid: string; exit: string; speeds: string; raw: string; sensitivity: string; gap: string}[]}[]};
@@ -45,7 +45,7 @@ function EvidenceSubject({subject}: {subject: string}) {
 function EventValues({table}: {table: EventTable}) {
   return (
     <details className="performance-evidence">
-      <summary>Values by GP · relative to each GP's median {table.subject}</summary>
+      <summary>{table.summary || `Values by GP · relative to each GP's median ${table.subject}`}</summary>
       <EvidenceSubject subject={table.subject} />
       <DataTable headers={['Grand Prix', table.subject === 'driver' ? 'Driver' : 'Team', ...table.labels]}
         rows={table.rows.map(r => [r.event, <TeamLabel team={r.team} />, ...r.values])} />

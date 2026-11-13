@@ -1884,6 +1884,30 @@ const STRAIGHT_PILLS=[
   {key:'energy',label:'Energy',title:'Speed lost at full throttle',subtitle:'km/h per lap on the audited straights',hint:'Energy clipping on 2026 power units',
    note:"Speed lost while flat out on the straights. At full throttle a car only loses speed when its deployable electrical energy runs out (clipping) or a tow has pushed it past its drag limit. This mainly matters for 2026 power units; 2025 cars rarely clip."}
 ];
+// Typical top speed, from the race analysis: each car's median speed-trap reading over its race laps (a tow or a
+// slipstreamed lap lifts the peak, not the median). Teams from the team figures, drivers from race_speed_drivers.
+STRAIGHT_PILLS.push({key:'top_speed',label:'Top speed',title:'Typical top speed',subtitle:'median race speed trap · km/h below the quickest',hint:'Median speed-trap reading in the races',
+  note:"Each car's median speed-trap reading over its race laps, averaged over the selected races, as km/h below the quickest. The median is the car's usual top speed: a tow or a slipstreamed lap moves the peak, not the median. Each race's median and peak are listed below. Trap speed reflects drag, power-unit deployment and gearing together."});
+function topSpeedValues(event,subject){
+  const out=new Map();
+  for(const t of event.R?.teams||[]){
+    if(subject==='driver')for(const d of t.race_speed_drivers||[]){if(Number.isFinite(d.race_speed_trap_median))out.set(d.driver,{median:d.race_speed_trap_median,peak:d.race_speed_trap_max});}
+    else if(Number.isFinite(t.race_speed_trap_median))out.set(t.team,{median:t.race_speed_trap_median,peak:t.race_speed_trap_max});
+  }
+  return out;
+}
+function topSpeedChart(title,subject){
+  const style=speedDomainEntities(subject),sum=new Map(),used=[];
+  for(const e of events){const v=topSpeedValues(e,subject);if(!v.size)continue;used.push(e.name);for(const [k,x] of v){const a=sum.get(k)||{s:0,n:0,peak:-Infinity};a.s+=x.median;a.n++;if(Number.isFinite(x.peak))a.peak=Math.max(a.peak,x.peak);sum.set(k,a);}}
+  if(!sum.size)return {title,empty:running?'Loading race results…':'No speed-trap readings in the selected races.'};
+  const rows=[...sum].map(([k,a])=>({...(style.get(k)||{team:k}),value:a.s/a.n,coverageLabel:used.length>1&&a.n<used.length?`${a.n}/${used.length} GPs`:''}));
+  return {title,rows,options:{title,subtitle:`median race speed trap · ${used.length} GP${used.length===1?'':'s'} · km/h below the quickest`,unit:' km/h',digits:1,signedValue:true,invertBest:true}};
+}
+function topSpeedEventTable(){
+  const style=speedDomainEntities(),rows=[];
+  for(const e of events)for(const [k,x] of topSpeedValues(e,telemetrySubject))rows.push({event:e.name,team:style.get(k)||{team:k},values:[x.median.toFixed(1),Number.isFinite(x.peak)?String(Math.round(x.peak)):'—']});
+  return {subject:telemetrySubject,labels:['Median km/h','Peak km/h'],rows,summary:'Speed trap by GP · median and peak, km/h'};
+}
 let straightPill='track_straights';
 // Several GPs: corner and straight gaps as a share of the lap (the qualifying
 // gap's scale) or of that section's own time.
@@ -1978,6 +2002,8 @@ function renderSpeedDomain() {
   }
   if(activeMetric==='straight'){
     const pill=STRAIGHT_PILLS.find(p=>p.key===straightPill)||STRAIGHT_PILLS[0];
+    if(pill.key==='top_speed')return reactView('speed',{...head,metric:'straight',pill:pill.key,pills:STRAIGHT_PILLS.map(({key,label,hint})=>({key,label,hint})),note:pill.note,
+      basis:null,straights:null,chart:topSpeedChart(pill.title+' · Teams','team'),driverChart:topSpeedChart(pill.title+' · Drivers','driver'),events:topSpeedEventTable()});
     const several=events.filter(e=>e.Q).length>1,track=pill.key==='track_straights';
     const key=track&&several?pill.key+(gapBasis==='lap'?'_lap':'_pct'):pill.key;
     const subtitle=!track?pill.subtitle:`${pill.subtitle} · ${!several?'seconds per lap':gapBasis==='lap'?'% of the lap lost to the best':'% slower on the straights than the best'}`;
