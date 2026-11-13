@@ -18,6 +18,8 @@ function selectCustomOption(optionButton) {
   closeSelectMenu(shell);
   syncSelectUI(select);
   if (select.id !== 'session') select.dispatchEvent(new Event('change', { bubbles: true }));
+  // The session menu does not fire change (choosing one is not loading it), so the Load button's label is updated here.
+  else if (typeof markPendingSelection === 'function') markPendingSelection();
   // A change handler may rebuild its view and replace this selector before focus returns.
   const owner = (ownerId && document.getElementById(ownerId)) || document;
   const replacement = trigger?.isConnected ? trigger :

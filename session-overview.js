@@ -102,7 +102,9 @@
     return out;
   }
   // A legend entry: the dot is a colour picker (the native input sits on top of it, invisible), the name says who.
-  const legendItem = (code, style) => `<span class="overview-legend-item"><label class="overview-swatch${style.dashed ? ' is-dashed' : ''}" style="--c:${esc(style.colour)}" title="Change ${esc(code)}’s colour"><input type="color" value="${esc(toHex(style.colour))}" data-chart-colour="${esc(code)}" aria-label="Change ${esc(code)}’s chart colour"></label>${esc(code)}</span>`;
+  // The dot is the driver's photo on the series colour where there is one (the colour still keys the line).
+  const faceOf = code => window.apexDriverFaces?.img(realDrivers.get(code)?.name) || '';
+  const legendItem = (code, style) => `<span class="overview-legend-item"><label class="overview-swatch${style.dashed ? ' is-dashed' : ''}${faceOf(code) ? ' has-face' : ''}" style="--c:${esc(style.colour)}" title="Change ${esc(code)}’s colour">${faceOf(code)}<input type="color" value="${esc(toHex(style.colour))}" data-chart-colour="${esc(code)}" aria-label="Change ${esc(code)}’s chart colour"></label>${esc(code)}</span>`;
   function toHex(colour) {
     if (/^#[0-9a-f]{6}$/i.test(colour)) return colour;
     if (/^#[0-9a-f]{3}$/i.test(colour)) return '#' + [...colour.slice(1)].map(c => c + c).join('');
@@ -211,23 +213,6 @@
   const quantile = (sorted, q) => { const at = (sorted.length - 1) * q, lo = Math.floor(at); return sorted[lo] + (sorted[Math.min(lo + 1, sorted.length - 1)] - sorted[lo]) * (at - lo); };
   const mean = v => v.reduce((a, b) => a + b, 0) / v.length;
   let distRows = [], distGeometry = null;
-  // Driver photos (assets/drivers, the season hub's set), matched by name: the session has "Max VERSTAPPEN", the credits
-  // "Max Verstappen". Loaded once; the chart redraws when they arrive.
-  let driverPhotos = null;
-  const plainName = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]+/g, ' ').trim();
-  function photoFor(driver) {
-    if (!driverPhotos) {
-      driverPhotos = new Map();
-      fetch('assets/drivers/credits.json').then(r => (r.ok ? r.json() : {})).then(c => {
-        for (const [id, x] of Object.entries(c.photos || {})) driverPhotos.set(plainName(x.name), id);
-        renderedOverview = ''; renderSessionOverview();
-      }).catch(() => {});
-    }
-    const name = plainName(driver?.name);
-    if (driverPhotos.has(name)) return driverPhotos.get(name);
-    const family = name.split(' ').at(-1);
-    return [...driverPhotos].find(([n]) => n.split(' ').at(-1) === family)?.[1] || null;
-  }
   function lapDistribution() {
     const chosen = new Set(selected);
     distRows = [...realDrivers.values()].map(d => {
@@ -268,7 +253,7 @@
       const order = r.laps.map((l, k) => [l, k]).sort((a, b) => a[0].time - b[0].time);
       order.forEach(([l], k) => {
         const spread = Math.min(5, w(density(l.time)) * .45), slot = ((k * 0.618034) % 1) * 2 - 1;
-        svg += `<circle class="dist-dot${l.time > yHi ? ' is-beyond' : ''}" cx="${f(x0 + (l.time > yHi ? slot * half * .5 : slot * spread))}" cy="${f(y(l.time))}" r="1.7" style="--c:${esc(tyreColour(l.compound))}"/>`;
+        svg += `<circle class="dist-dot${l.time > yHi ? ' is-beyond' : ''}" cx="${f(x0 + (l.time > yHi ? slot * half * .5 : slot * spread))}" cy="${f(y(l.time))}" r="1.5" style="--c:${esc(tyreColour(l.compound))}"/>`;
       });
       svg += '</g>';
     });
@@ -282,8 +267,7 @@
     const legend = used.map(c => `<span class="overview-legend-item"><span class="overview-swatch is-static" style="--c:${TYRE[c]}"></span>${esc(c.charAt(0) + c.slice(1).toLowerCase())}</span>`).join('');
     // Under each column the driver's photo on the team colour (the code when there is no photo) and the code.
     const faces = distRows.map(r => {
-      const id = photoFor(realDrivers.get(r.code));
-      const photo = id ? `<img src="assets/drivers/${encodeURIComponent(id)}.webp" alt="" loading="lazy" decoding="async">` : `<b>${esc(r.code)}</b>`;
+      const photo = window.apexDriverFaces?.img(realDrivers.get(r.code)?.name) || `<b>${esc(r.code)}</b>`;
       return `<span class="dist-face"><span class="dist-avatar" style="--team:${esc(r.colour)}">${photo}</span><small>${esc(r.code)}</small></span>`;
     }).join('');
     return `<div class="overview-legend">${legend}</div>${svg}<div class="dist-faces" style="padding:0 ${R}px 0 ${L}px;grid-template-columns:repeat(${n},minmax(0,1fr))">${faces}</div><p class="overview-note">Each driver’s representative laps, in classification order: the shape is how their laps spread (wider where more laps fell), each dot a lap in its tyre’s colour, the cyan diamond the median (the dotted line joins them) and the dashed line the session’s fastest representative lap. Laps slower than the scale sit on its top edge as hollow dots. The lap chart’s slow-lap rule applies; safety car and pit laps are left out. Hover a column for the stint averages.</p>`;
@@ -492,5 +476,6 @@
     if (host) new ResizeObserver(() => requestAnimationFrame(() => { if (!host.hidden && Math.abs(chartWidth() - drawnWidth) > 8) renderSessionOverview(); })).observe(host);
   }
 
+  window.addEventListener?.('apex-driver-photos', () => { renderedOverview = ''; if (realDrivers?.size) renderSessionOverview(); });
   window.ApexSessionOverview = {driverSummary, timeBreakdown, raceProgress, render: renderSessionOverview, renderTimeSummary};
 })();

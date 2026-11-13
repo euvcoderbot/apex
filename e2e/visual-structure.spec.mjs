@@ -36,8 +36,8 @@ for (const theme of ['dark', 'light']) for (const width of [1440, 390]) {
       await expect(table).toBeVisible();
       if (width >= 1200) {
         const tab = await table.boundingBox(), insight = await page.locator('.season-title-fight').boundingBox();
-        expect(tab.y - insight.y).toBeLessThan(60);
-        expect(tab.x + tab.width).toBeLessThanOrEqual(insight.x);
+        expect(insight.y).toBeGreaterThanOrEqual(tab.y + tab.height - 1);   // under the standings table
+        expect(Math.abs(insight.x - tab.x)).toBeLessThan(40);                // in the same column
       } else {
         const points = await table.locator('th.season-points').boundingBox();
         expect(points.x).toBeGreaterThanOrEqual(0);

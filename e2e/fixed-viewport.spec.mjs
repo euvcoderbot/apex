@@ -10,7 +10,7 @@ for (const width of [1440, 1024, 390]) for (const theme of ['dark', 'light']) {
       const errors = []; page.on('pageerror', error => errors.push(error.message));
       await page.addInitScript(t => localStorage.setItem('apex-theme', t), theme);
       const checkWidth = async label => expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), label).toBeLessThanOrEqual(1);
-      for (const tab of ['schedule', 'results', 'standings', 'form', 'drivers', 'h2h', 'upgrades', 'units']) {
+      for (const tab of ['schedule', 'tracks', 'results', 'standings', 'form', 'drivers', 'h2h', 'upgrades', 'units']) {
         await page.goto(`/apex/season/${tab}?year=2026`);
         await expect(page.locator('#seasonHub .season-body > :not(.season-loading)').first()).toBeVisible();
         await expect(page.locator('#seasonHub .season-body')).not.toContainText('Could not load');

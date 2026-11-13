@@ -1,7 +1,8 @@
 // Generates the colour tokens of an alternative look ("skin") from that design system's own colour tokens, so the look uses the
 // system's real values and variants rather than approximations. The Linear palette below is Linear's published token set, read from
 // linear.app's stylesheet on 2026-11-05 (the --color-* custom properties under [data-theme="dark"] / [data-theme="light"]), plus the
-// brand colours on linear.app/brand. See docs/linear-look.md.
+// brand colours on linear.app/brand. See docs/linear-look.md. The accent is the site's own turquoise (black and turquoise are
+// the house colours, 2026-11-14), in place of Linear's indigo; contrast is met the same way.
 //
 // Each of the app's tokens maps to one Linear token. Only two kinds of change are made, and both are listed in ADJUSTED:
 //   - a colour that fails WCAG AA where the app uses it as text, or behind white text, keeps its hue and chroma and moves in OKLCH
@@ -19,14 +20,14 @@ export const SKINS = {
       'bg-level-0': '#09090a', 'bg-panel': '#121213', 'bg-level-2': '#191a1b', 'bg-secondary': '#1b1c1d', 'bg-tertiary': '#232325',
       'bg-quaternary': '#29292b', 'bg-translucent': '#ffffff0d', 'border-secondary': '#28282b', 'border-translucent': '#ffffff0d',
       'border-translucent-strong': '#ffffff14', 'text-primary': '#ffffff', 'text-secondary': '#e3e4e6', 'text-tertiary': '#959597',
-      'text-quaternary': '#565759', 'brand-bg': '#5e69d1', accent: '#7170ff', 'accent-tint': '#18182f', 'link-primary': '#828fff',
+      'text-quaternary': '#565759', 'brand-bg': '#14b8a6', accent: '#2dd4bf', 'accent-tint': '#0f2624', 'link-primary': '#5eead4',
       green: '#27a644', red: '#eb5757', yellow: '#f0bf00', 'overlay-primary': '#000000d9',
     },
     light: {
       'bg-level-0': '#ffffff', 'bg-panel': '#ffffff', 'bg-secondary': '#f9f8f9', 'bg-tertiary': '#f4f2f4', 'bg-quaternary': '#eeedef',
       'bg-quinary': '#e9e8ea', 'bg-translucent': '#00000005', 'border-tertiary': '#dcdbdd', 'border-translucent': '#0000000d',
       'border-translucent-strong': '#00000014', 'text-primary': '#282a30', 'text-secondary': '#3c4149', 'text-tertiary': '#6f6e77',
-      'text-quaternary': '#86848d', 'brand-bg': '#7070ff', accent: '#7170ff', 'accent-tint': '#f1f1ff', 'link-primary': '#7070ff',
+      'text-quaternary': '#86848d', 'brand-bg': '#14b8a6', accent: '#14b8a6', 'accent-tint': '#e8faf7', 'link-primary': '#0d9488',
       green: '#27a644', red: '#eb5757', yellow: '#f0bf00', 'overlay-primary': '#ffffffa6',
     },
   },

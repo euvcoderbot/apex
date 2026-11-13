@@ -35,7 +35,8 @@ let showSpeedAnnotations = window.ApexAnalysis?.preference('speed-annotations',f
 // Deliberately opt-in on each page load, never silently restore an estimate.
 let estimateAlignmentCorrection = false;
 let speedAnnotationCache = null;
-const traceTintEnabled = false;
+// Tint under the main telemetry traces (speed, throttle, brake, rpm): off unless chosen in Display.
+let traceTintEnabled = window.ApexAnalysis?.preference('trace-tint', false) === true;
 const hiddenTraceKeys = new Set();
 let dominanceMapHitPoints = [];
 let dominanceMapGeometryCache = null;
@@ -750,6 +751,11 @@ function telemetryKey(lap) {
 // Team marks are resolved by the session's team, never by a driver's current team: a historical session keeps its team's
 // mark. They are drawn by team-marks.js (the teams' own logos are trademarks the site does not publish).
 function teamLogoMarkup(teamName, number) {
+  // A driver of the loaded session with a photo: the photo on the team colour; otherwise the team mark with the number.
+  const driver = number != null && number !== '' && typeof realDrivers !== 'undefined' ? [...realDrivers.values()].find(d => String(d.number) === String(number) && (!teamName || String(d.team || '').toLowerCase() === String(teamName).toLowerCase())) : null;
+  const src = driver && window.apexDriverFaces?.src(driver.name);
+  // One element: the photo itself on the team colour (its background shows through the cut-out).
+  if (src) return `<img class="driver-face" src="${src}" alt="" aria-hidden="true" loading="lazy" decoding="async" style="--team:${escapeUI(window.apexTeamColour?.(driver.team_color) || driver.team_color || '#777')}">`;
   return window.ApexTeamMarks?.teamMarkMarkup(teamName, number) || '<span class="team-logo" aria-hidden="true"><i class="team-logo-fallback"></i></span>';
 }
 

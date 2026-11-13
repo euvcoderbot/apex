@@ -17,7 +17,7 @@
     session: ['year', 'round', 'session', 'laps'],
     cars: ['year', 'scope', 'races', 'metric', 'subject', 'session', 'pill', 'basis', 'run'],
     // /apex/season/<tab>?year=2026&driver=antonelli&a=antonelli&b=russell&team=ferrari
-    season: ['year', 'tab', 'driver', 'a', 'b', 'team']
+    season: ['year', 'tab', 'driver', 'a', 'b', 'team', 'track']
   };
   // Changes to these move to a new "page" and get their own history entry.
   const NAVIGATION = {session: ['year', 'round', 'session', 'laps'], cars: ['year', 'scope', 'races', 'metric', 'run'], season: ['year', 'tab', 'driver', 'a', 'b']};
@@ -66,7 +66,7 @@
   const CATEGORY_TITLES = {pace: 'Pace', corners: 'Cornering', straight: 'Straight line', braking: 'Braking', pits: 'Pit stops',
     tyres: 'Tyre trend', trend: 'Development & updates', results: 'Reliability & results'};
   const SEASON_TITLES = {home: 'Home', schedule: 'Schedule', results: 'Results', standings: 'Standings', form: 'Form', drivers: 'Driver stats',
-    h2h: 'Head-to-head', upgrades: 'Upgrades', units: 'Power units'};
+    h2h: 'Head-to-head', upgrades: 'Upgrades', units: 'Power units', tracks: 'Tracks'};
   function titleFor(view, params) {
     if (view === 'season' && params?.tab === 'home') return `${SITE} — Formula 1 analysis`;
     if (view === 'season') return `${SEASON_TITLES[params?.tab] || 'Schedule'} · Season${params?.year ? ' ' + params.year : ''} — ${SITE}`;

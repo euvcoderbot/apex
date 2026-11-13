@@ -28,3 +28,28 @@
   }
   window.apexTeamColour = apexTeamColour;
 })();
+
+/* Driver photos for the session views (the season hub's set in assets/drivers, listed in credits.json), matched by name:
+   sessions name drivers "Max VERSTAPPEN", the credits "Max Verstappen". apexDriverFaces.img(name) is an <img> or ''; the
+   list loads once, and 'apex-driver-photos' fires on window when it arrives so views can redraw with the photos. */
+(() => {
+  let byName = null, request = null;
+  const plain = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]+/g, ' ').trim();
+  function load() {
+    request ||= fetch('assets/drivers/credits.json').then(r => (r.ok ? r.json() : {})).then(c => {
+      byName = new Map(Object.entries(c.photos || {}).map(([id, x]) => [plain(x.name), id]));
+      window.dispatchEvent(new Event('apex-driver-photos'));
+    }).catch(() => { byName = new Map(); });
+    return request;
+  }
+  function id(name) {
+    if (!byName) { load(); return null; }
+    const n = plain(name);
+    if (byName.has(n)) return byName.get(n);
+    const family = n.split(' ').at(-1);
+    return [...byName].find(([k]) => k.split(' ').at(-1) === family)?.[1] || null;
+  }
+  const src = name => { const i = id(name); return i ? `assets/drivers/${encodeURIComponent(i)}.webp` : null; };
+  const img = name => { const s = src(name); return s ? `<img class="driver-face-img" src="${s}" alt="" loading="lazy" decoding="async">` : ''; };
+  window.apexDriverFaces = {id, src, img, load};
+})();

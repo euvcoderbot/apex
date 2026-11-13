@@ -58,16 +58,22 @@ test('layout stays put while the laps load (CLS under 0.1)', async ({page, brows
   expect(await page.evaluate(() => window.__cls)).toBeLessThan(0.1);
 });
 
-test('drivers carry a team-colour chip with their car number, in both appearances', async ({page}) => {
+test('drivers carry their photo on the team colour, or a team-colour chip with their car number, in both appearances', async ({page}) => {
   await open(page);
   for (const theme of ['dark', 'light']) {
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
+    const faces = await page.evaluate(() => [...document.querySelectorAll('#driverPills img.driver-face')].filter(el => el.offsetParent).map(el => ({
+      src: el.getAttribute('src'), width: el.getBoundingClientRect().width, background: getComputedStyle(el).backgroundColor})));
+    for (const face of faces) {
+      expect(face.src, `${theme}: a driver photo`).toMatch(/^assets\/drivers\/[a-z_]+\.webp$/);
+      expect(face.width).toBeGreaterThan(0); expect(face.background, 'on the team colour').not.toBe('rgba(0, 0, 0, 0)');
+    }
     const chips = await page.evaluate(() => [...document.querySelectorAll('#driverPills .team-mark')].filter(el => el.offsetParent).map(el => {
       const after = getComputedStyle(el, '::after');
       return {team: el.dataset.teamMark, number: after.content.replace(/"/g, ''), size: parseFloat(after.fontSize), width: el.getBoundingClientRect().width,
         background: getComputedStyle(el).backgroundColor, ink: after.color, images: el.querySelectorAll('img').length, text: el.textContent};
     }));
-    expect(chips.length, `${theme}: driver chips`).toBeGreaterThan(4);
+    expect(chips.length + faces.length, `${theme}: driver chips or photos`).toBeGreaterThan(4);
     for (const chip of chips) {
       expect(chip.number, `${theme} ${chip.team} shows its car number`).toMatch(/^\d{1,3}$/);
       expect(chip.width).toBeGreaterThan(0); expect(chip.size).toBeGreaterThan(4); expect(chip.images).toBe(0);

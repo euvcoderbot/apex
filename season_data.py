@@ -15,7 +15,7 @@ import json
 import re
 import time
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import timedelta, datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 from urllib.error import HTTPError
@@ -405,12 +405,19 @@ def driver_stats(data: dict, driver_id: str, evolution: list[dict] | None = None
     }
 
 
-def compare(data: dict, a: str, b: str) -> dict:
+def compare(data: dict, a: str, b: str, team: str | None = None) -> dict:
     """Two drivers, weekend by weekend: qualifying ahead (both set a time), race ahead (a classified finish beats a
-    retirement; two retirements count for neither), sprint ahead, and points."""
+    retirement; two retirements count for neither), sprint ahead, and points. With `team`, only the weekends both drove
+    for that team (a teammate pair after a mid-season move)."""
     tally = {'qualifying': [0, 0], 'race': [0, 0], 'sprint': [0, 0]}
     weekends = []
     for r in data['rounds']:
+        if team is not None:
+            def team_of(driver):
+                row = next((x for x in (r['race'] or []) + (r['qualifying'] or []) if x['driver'] == driver), None)
+                return row and row.get('team')
+            if team_of(a) != team or team_of(b) != team:
+                continue
         qa = next((x for x in r['qualifying'] if x['driver'] == a), None)
         qb = next((x for x in r['qualifying'] if x['driver'] == b), None)
         ra = next((x for x in r['race'] if x['driver'] == a), None)
@@ -450,7 +457,7 @@ def teammate_pairs(data: dict) -> list[dict]:
                     pairs.setdefault(tuple(sorted((ids[i], ids[j]))), team)
     out = []
     for (a, b), team in pairs.items():
-        result = compare(data, a, b)
+        result = compare(data, a, b, team)
         if result['weekends']:
             out.append({'team': team, **result})
     return sorted(out, key=lambda p: (p['team'], p['a']))
@@ -527,17 +534,34 @@ def pit_stops(source: Source, year: int, rounds: list[dict], drivers: dict) -> d
 
 
 def weather(fetch: Callable[[str], dict], round_: dict) -> list[dict] | None:
-    """Open-Meteo's daily forecast for the race weekend, once it is within its 16-day range."""
+    """Open-Meteo's daily forecast for the race weekend, once it is within its 16-day range. The same request's hourly
+    forecast gives each session its own: the two hours from its start (warmest temperature, highest chance of rain, the
+    wettest sky, strongest wind), stored on the session as 'weather'."""
     first, last = round_['sessions'][0]['start'][:10], round_['start'][:10]
     if (_parse(round_['start']) - datetime.now(timezone.utc)).days > 15:
         return None
     url = (f"https://api.open-meteo.com/v1/forecast?latitude={round_['lat']}&longitude={round_['lon']}"
            f"&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,weather_code"
+           f"&hourly=temperature_2m,precipitation_probability,wind_speed_10m,weather_code"
            f"&timezone=auto&start_date={first}&end_date={last}")
     response = fetch(url)
     # Open-Meteo answers in the circuit's own time zone (timezone=auto): its offset lets the page show track time.
     if isinstance(response.get('utc_offset_seconds'), (int, float)):
         round_['utc_offset'] = int(response['utc_offset_seconds'])
+    hourly = response.get('hourly') or {}
+    offset = response.get('utc_offset_seconds')
+    if hourly.get('time') and isinstance(offset, (int, float)):
+        local = {t: i for i, t in enumerate(hourly['time'])}
+        for session in round_['sessions']:
+            start = _parse(session['start']) + timedelta(seconds=offset)
+            hours = [local.get((start.replace(minute=0, second=0, microsecond=0) + timedelta(hours=h)).strftime('%Y-%m-%dT%H:%M')) for h in (0, 1)]
+            hours = [i for i in hours if i is not None]
+            if not hours:
+                continue
+            pick = lambda key: [hourly[key][i] for i in hours if hourly[key][i] is not None]
+            temp, rain, wind, code = pick('temperature_2m'), pick('precipitation_probability'), pick('wind_speed_10m'), pick('weather_code')
+            session['weather'] = {'temp': max(temp) if temp else None, 'rain': max(rain) if rain else None,
+                                  'wind': max(wind) if wind else None, 'code': max(code) if code else None}
     d = response.get('daily') or {}
     return [{'date': day, 'max': d['temperature_2m_max'][i], 'min': d['temperature_2m_min'][i], 'rain': d['precipitation_probability_max'][i],
              'wind': d['wind_speed_10m_max'][i], 'code': d['weather_code'][i]} for i, day in enumerate(d.get('time', []))]
