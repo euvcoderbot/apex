@@ -684,16 +684,33 @@
     // sample (a quadratic curve), so the telemetry's ~10 m steps never show as corners; each piece takes its sample's colour.
     const P = pts.map(p => [X(p[0]), Y(p[1])]), n = P.length, f = v => v.toFixed(1);
     const midOf = (i, j) => [(P[i][0] + P[j][0]) / 2, (P[i][1] + P[j][1]) / 2];
+    const piece = i => { const m1 = midOf(i, (i + 1) % n); return `Q${f(P[i][0])} ${f(P[i][1])} ${f(m1[0])} ${f(m1[1])}`; };
+    const start = i => { const m0 = midOf((i - 1 + n) % n, i); return `M${f(m0[0])} ${f(m0[1])}`; };
     let base = '';
-    for (let i = 0; i < n; i++) {
-      const m0 = midOf((i - 1 + n) % n, i), m1 = midOf(i, (i + 1) % n);
-      base += `${i ? '' : `M${f(m0[0])} ${f(m0[1])}`}Q${f(P[i][0])} ${f(P[i][1])} ${f(m1[0])} ${f(m1[1])}`;
-    }
+    for (let i = 0; i < n; i++) base += `${i ? '' : start(i)}${piece(i)}`;
     svg += `<path class="track-base" d="${base}Z"/>`;
-    for (let i = 0; i < n; i++) {
-      const m0 = midOf((i - 1 + n) % n, i), m1 = midOf(i, (i + 1) % n);
+    // FIA zones: the lap in one quiet stroke under the zones.
+    if (mode === 'zones') svg += `<path class="track-seg is-quiet" d="${base}Z"/>`;
+    else for (let i = 0; i < n; i++) {
       const colour = mode === 'sectors' ? SECTOR_COLOURS[sectorOf(i)] : rampColour((pts[i][2] - vLo) / (vHi - vLo || 1));
-      svg += `<path class="track-seg" d="M${f(m0[0])} ${f(m0[1])}Q${f(P[i][0])} ${f(P[i][1])} ${f(m1[0])} ${f(m1[1])}" style="stroke:${colour}"/>`;
+      svg += `<path class="track-seg" d="${start(i)}${piece(i)}" style="stroke:${colour}"/>`;
+    }
+    // The FIA's zones: each from its activation point to the first lift once flat out on the lap (or the next zone), with the
+    // activation point and the Overtake (or DRS) detection and activation points as round markers.
+    const zoneMarks = [];
+    if (mode === 'zones') {
+      const o = t.official;
+      for (const z of o?.zones || []) {
+        const from = (z.normal || z).i;
+        if (from == null || z.i_to == null) continue;
+        let d = start(from);
+        for (let i = from, k = 0; k <= n; i = (i + 1) % n, k++) { d += piece(i); if (i === z.i_to) break; }
+        const name = z.zone || `DRS ${z.number ?? ''}`.trim();
+        svg += `<path class="track-zone" d="${d}"/>`;
+        zoneMarks.push({i: from, cls: 'track-zone-start', tip: `${o.kind === 'drs' ? 'DRS activation' : `Straight mode ${name}`}\n${(z.normal || z).text}${z.length ? `\n${z.length} m flat out · top ${z.top_speed} km/h` : ''}`});
+      }
+      const points = o?.kind === 'drs' ? (o.detection || []).map(p => ['DRS detection', p]) : o?.overtake ? [['Overtake detection', o.overtake.detection], ['Overtake activation', o.overtake.activation]] : [];
+      for (const [label, p] of points) if (p?.i != null) zoneMarks.push({i: p.i, cls: label.endsWith('detection') ? 'track-zone-detect' : 'track-zone-ot', tip: `${label}\n${p.text}`});
     }
     // Start/finish: a short bar across the first point.
     const [s0, s1] = [pts[0], pts[2]], dx = X(s1[0]) - X(s0[0]), dy = Y(s1[1]) - Y(s0[1]), len = Math.hypot(dx, dy) || 1;
@@ -712,13 +729,82 @@
       const tip = info ? `Turn ${c.number}\nApex  ${info.speed} km/h${info.gear ? ` · gear ${info.gear}` : ''}\n${CORNER_TYPE[info.type]} corner` : `Turn ${c.number}`;
       svg += `<g class="track-corner" data-tip="${esc(tip)}"><circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="8.5"/><text x="${lx.toFixed(1)}" y="${(ly + 3.4).toFixed(1)}" text-anchor="middle">${esc(c.number)}</text></g>`;
     }
+    for (const m of zoneMarks) svg += `<g class="track-zone-mark ${m.cls}" data-tip="${esc(m.tip)}"><circle cx="${X(pts[m.i][0]).toFixed(1)}" cy="${Y(pts[m.i][1]).toFixed(1)}" r="${m.cls === 'track-zone-start' ? 4.5 : 4}"/></g>`;
     svg += '</svg>';
     const wrapEl = el('div', 'season-track-map-wrap'); wrapEl.append(htmlNode(svg));
     const key = el('div', 'season-track-key');
-    if (mode === 'sectors') SECTOR_COLOURS.forEach((c, i) => { const s = el('span'); const d = el('i'); d.style.background = c; s.append(d, `Sector ${i + 1}`); key.append(s); });
+    const swatch = (cls, label) => { const s = el('span'); s.append(el('i', cls), label); key.append(s); };
+    if (mode === 'zones') {
+      const drs = t.official?.kind === 'drs';
+      swatch('season-key-zone', drs ? 'DRS zone' : 'Straight mode zone');
+      swatch('season-key-detect', drs ? 'DRS detection' : 'Overtake detection');
+      if (!drs) swatch('season-key-ot', 'Overtake activation');
+    } else if (mode === 'sectors') SECTOR_COLOURS.forEach((c, i) => { const s = el('span'); const d = el('i'); d.style.background = c; s.append(d, `Sector ${i + 1}`); key.append(s); });
     else { const bar = el('i', 'season-track-ramp'); bar.style.background = `linear-gradient(90deg, ${SPEED_RAMP.join(', ')})`; key.append(el('span', null, `${vLo} km/h`), bar, el('span', null, `${vHi} km/h`)); }
     wrapEl.append(key);
     return wrapEl;
+  }
+  // The FIA's zones for the track, from the Race Director's circuit map (t.official, scripts/build-track-profiles.mjs):
+  // this season's Straight Mode zones and Overtake points, and last season's DRS zones on the same circuit, each as printed
+  // with its place on the fastest qualifying lap. Nothing is shown for a map the FIA published only as an image.
+  function officialZonesCard(t, repaint) {
+    const o = t.official;
+    const seasons = [o, o?.previous].filter(x => x?.source);
+    if (!seasons.length) return null;
+    const label = x => (x.kind === 'drs' ? `${x.year} DRS` : x.kind === 'straight-mode' ? `${x.year} straight mode` : `${x.year}`);
+    const pick = seasons.find(x => x.year === state.trackZones) || seasons[0];
+    const km = p => (p?.at != null ? `${(p.at / 1000).toFixed(2)} km` : '—');
+    const box = card('Official zones');
+    if (seasons.length > 1) {
+      const pills = el('div', 'season-segment season-zone-toggle'); pills.setAttribute('role', 'group'); pills.setAttribute('aria-label', 'Season');
+      for (const x of seasons) {
+        const b = el('button', null, label(x)); b.type = 'button'; b.setAttribute('aria-pressed', String(x === pick));
+        b.addEventListener('click', () => { if (x === pick) return; state.trackZones = x.year; repaint(); });
+        pills.append(b);
+      }
+      box.append(pills);
+    }
+    const source = el('p', 'season-footnote'), link = el('a', null, `FIA circuit map, ${pick.year} ${pick.event}`);
+    link.href = pick.source; link.target = '_blank'; link.rel = 'noopener';
+    const drs = pick.kind === 'drs';
+    const points = drs ? (pick.detection || []).map(p => [`Detection${p.number ? ` ${p.number}` : ''}`, p])
+      : pick.overtake ? [['Overtake detection', pick.overtake.detection], ['Overtake activation', pick.overtake.activation]].filter(([, p]) => p) : [];
+    if (!pick.readable || (!pick.zones?.length && !points.length)) {
+      box.append(empty(!pick.readable ? 'The FIA published this map as an image only, so its zones are not read.' : 'The FIA map lists no zones for this event.'));
+      source.append('Source: ', link, '.');
+      box.append(source);
+      return box;
+    }
+    if (!pick.zones.length) box.append(el('p', 'season-muted', `No ${drs ? 'DRS' : 'straight mode'} zones at this event.`));
+    const zt = el('table', 'season-table season-units season-track-zones');
+    zt.innerHTML = `<thead><tr><th scope="col">Zone</th><th scope="col">Activation</th><th scope="col" class="num">From the line</th><th scope="col" class="num">Flat out</th><th scope="col" class="num">Top speed</th>${drs ? '' : '<th scope="col">Low grip</th>'}</tr></thead>`;
+    const tb = el('tbody'), longest = Math.max(1, ...pick.zones.map(z => z.length || 0));
+    for (const z of pick.zones) {
+      const a = drs ? z : z.normal, tr = el('tr');
+      const len = heatChip(el('td', 'num season-heat-cell', z.length ? `${z.length} m` : '—')); if (z.length) len.style.setProperty('--heat', String(z.length / longest));
+      tr.append(el('td', 'season-strong', drs ? `DRS ${z.number ?? ''}`.trim() : z.zone), el('td', null, a?.text || 'n/a'), el('td', 'num', km(a)), len,
+        el('td', 'num', z.top_speed ? `${z.top_speed} km/h` : '—'));
+      if (!drs) tr.append(el('td', null, z.low?.text || 'not used'));
+      tb.append(tr);
+    }
+    zt.append(tb);
+    if (pick.zones.length) box.append(wrap(zt));
+    box.classList.add('season-data-section');   // a table section, like Sectors beside it
+    if (points.length) {
+      const pt = el('table', 'season-table season-units season-track-zone-points');
+      pt.innerHTML = `<thead><tr><th scope="col">${drs ? 'DRS point' : 'Overtake point'}</th><th scope="col">As printed</th><th scope="col" class="num">From the line</th></tr></thead>`;
+      const ptb = el('tbody');
+      for (const [name, p] of points) { const tr = el('tr'); tr.append(el('td', 'season-strong', name), el('td', null, p.text), el('td', 'num', km(p))); ptb.append(tr); }
+      pt.append(ptb);
+      box.append(wrap(pt));
+    }
+    const unplaced = [...pick.zones.map(z => (drs ? z : z.normal)), ...points.map(([, p]) => p)].some(p => p && p.at == null);
+    source.append(drs
+      ? `DRS opens at each activation point for a car within a second of the one ahead at its detection point. `
+      : `Straight mode opens the wings at each zone's activation point in normal grip; in low grip it opens later (or not at all). Overtake gives extra electrical energy to a car within a second at the detection point. `,
+    `The FIA gives each zone's start only: its length here runs to the first lift or braking once flat out on the fastest qualifying lap, or to the next zone's start. Points are placed from the numbered corner they name${unplaced ? '; "—" where the wording names no corner on this lap' : ''}${pick.year !== t.official?.year ? `; ${pick.year} points shown on the ${t.official?.year ?? ''} lap` : ''}. Source: `, link, '.');
+    box.append(source);
+    return box;
   }
   function renderTracks(data, profiles) {
     const all = Object.entries(profiles?.tracks || {});
@@ -765,10 +851,12 @@
     tiles.style.setProperty('--tile-cols', String(Math.min(5, tiles.childElementCount)));
     head.append(tiles);
     // Map with Speed / Sectors pills.
-    const mode = state.trackMap === 'sectors' && t.sectors ? 'sectors' : 'speed';
+    const o = t.official, hasZones = (o?.zones || []).some(z => (z.normal || z).i != null && z.i_to != null)
+      || [o?.overtake?.detection, o?.overtake?.activation, ...(o?.detection || [])].some(p => p?.i != null);
+    const mode = state.trackMap === 'sectors' && t.sectors ? 'sectors' : state.trackMap === 'zones' && hasZones ? 'zones' : 'speed';
     const mapPills = el('div', 'season-segment season-zone-toggle'); mapPills.setAttribute('role', 'group'); mapPills.setAttribute('aria-label', 'Colour the map by');
-    for (const [id, label] of [['speed', 'Speed'], ['sectors', 'Sectors']]) {
-      if (id === 'sectors' && !t.sectors) continue;
+    for (const [id, label] of [['speed', 'Speed'], ['sectors', 'Sectors'], ['zones', 'FIA zones']]) {
+      if ((id === 'sectors' && !t.sectors) || (id === 'zones' && !hasZones)) continue;
       const b = el('button', null, label); b.type = 'button'; b.setAttribute('aria-pressed', String(mode === id));
       b.addEventListener('click', () => { if (mode === id) return; state.trackMap = id; paint(() => renderTracks(data, profiles)); });
       mapPills.append(b);
@@ -790,6 +878,8 @@
       st.append(tb);
       sideStack.append(card('Sectors', wrap(st)));
     }
+    const fia = officialZonesCard(t, () => paint(() => renderTracks(data, profiles)));
+    if (fia) sideStack.append(fia);
     if (t.straights?.length) {
       const sr = el('table', 'season-table season-units season-track-straights');
       sr.innerHTML = '<thead><tr><th scope="col">Full throttle</th><th scope="col" class="num">Length</th><th scope="col" class="num">Entry</th><th scope="col" class="num">Top speed</th></tr></thead>';
@@ -801,7 +891,7 @@
         tb.append(tr);
       }
       sr.append(tb);
-      sideStack.append(card('Straights', wrap(sr), el('p', 'season-footnote', 'Stretches flat out (throttle 98% or more) for at least 250 m, longest first; named by the corners either side.')));
+      sideStack.append(card('Full throttle stretches', wrap(sr), el('p', 'season-footnote', 'Our own measure, not the FIA\'s: stretches of the fastest qualifying lap flat out (throttle 98% or more) for at least 250 m, longest first; named by the corners either side.')));
     }
     const two = el('div', 'season-two season-track-two'); two.append(mapCard, sideStack);
     // Corners: the table in two halves side by side (first half of the lap, second half), so a long list stays short.

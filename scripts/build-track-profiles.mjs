@@ -14,7 +14,8 @@
 // (share of lap time on the brake with the throttle closed; the brake channel also reads 104 with the throttle open,
 // which is a flag, not the pedal), braking zones, gear changes; each numbered corner's apex speed (the lowest speed
 // within its stretch of track) and gear, classed slow (< 120 km/h), medium (120-200) or fast (> 200, flat-out bends
-// included); the three sectors (time, length, average speed); the straights (full throttle for at least 250 m); and a
+// included); the three sectors (time, length, average speed); the straights (full throttle for at least 250 m); the FIA's
+// own zones from the Race Director's circuit map (Straight Mode and Overtake in 2026, DRS before; see officialZones); and a
 // map outline with the speed at each point.
 // Usage: node scripts/build-track-profiles.mjs [year]
 import fs from 'node:fs';
@@ -55,6 +56,80 @@ async function circuit(key) {
       .then(r => (r.ok ? r.json() : null)).catch(() => null));
   }
   return circuits.get(key);
+}
+
+// The FIA's own zones (data/fia-circuit-maps/<year>.json, scripts/fetch-fia-circuit-maps.py, from the Race Director's
+// circuit map published before each event): Straight Mode zones and the Overtake detection / activation points in 2026,
+// DRS detection / activation points before. This season's map for each Grand Prix, plus last season's for the same
+// circuit where it was published with readable text.
+const fiaMaps = Object.fromEntries([year, year - 1].map(y => {
+  try { return [y, JSON.parse(fs.readFileSync(path.join(root, 'data/fia-circuit-maps', `${y}.json`), 'utf8'))]; } catch { return [y, null]; }
+}));
+const ascii = text => String(text || '').normalize('NFKD').replace(/[^\x20-\x7e]/g, '');
+const eventKey = name => (ascii(name).toLowerCase().replace('grand prix', ' ').match(/[a-z]+/) || [''])[0];
+// The same circuit last season: the same event with a centreline within 1%, else any event with exactly the same centreline
+// (Barcelona was the Spanish Grand Prix in 2025). Maps published only as images give no length and are not matched.
+function fiaCircuit(gp) {
+  const now = fiaMaps[year]?.circuits?.find(c => eventKey(c.event) === eventKey(gp)) || null;
+  const last = (fiaMaps[year - 1]?.circuits || []).filter(c => c.centreline_m && now?.centreline_m);
+  const before = last.find(c => eventKey(c.event) === eventKey(now.event) && Math.abs(c.centreline_m / now.centreline_m - 1) < .01)
+    || last.find(c => c.centreline_m === now.centreline_m) || null;
+  return {now, before};
+}
+// A printed point ("50m after T14", "Exit T18", "12m after finish line") on the lap: the corner's marked position plus
+// the offset, scaled from the FIA centreline to the lap's length. Entry, exit and apex points sit at the corner's marker
+// (the map gives no corner extents). A point naming no corner on this lap, or worded loosely, stays unplaced (at: null).
+function placePoint(p, marks, length, ratio) {
+  if (!p) return null;
+  let at = null;
+  if (p.line) at = p.offset_m * ratio;
+  else if (p.turn) { const m = marks.find(x => `${x.number}${x.letter}`.toUpperCase() === p.turn); if (m) at = m.distance + p.offset_m * ratio; }
+  if (at != null) at = Math.round(((at % length) + length) % length);
+  return {text: p.text, turn: p.turn || null, ...(p.at ? {ref: p.at} : {}), at};
+}
+function officialZones(gp, s, marks, length) {
+  const {now, before} = fiaCircuit(gp);
+  // The map gives each zone's start only. On this lap a zone is taken to run from its activation point to where the driver
+  // first lifts (throttle under 95%) or brakes once flat out (activation often comes while still accelerating out of the
+  // corner), and never past the next zone's activation point.
+  // (A lift in the last 40 m is the driver backing off at the end of the run, not part of the lap.)
+  const lifts = s.filter(x => x.Distance < length - 40 && (!(x.Throttle >= 95) || (Number(x.Brake) > 0 && !(x.Throttle >= 30)))).map(x => x.Distance);
+  const flats = s.filter(x => x.Throttle >= 95 && !(Number(x.Brake) > 0 && !(x.Throttle >= 30))).map(x => x.Distance);
+  const ahead = (from, d) => (d - from + length) % length;   // metres from `from` forward to `d`, round the lap
+  const inside = (d, from, to) => (to >= from ? d >= from && d <= to : d >= from || d <= to);
+  const top = (from, to) => { const xs = s.filter(x => inside(x.Distance, from, to)).map(x => x.Speed).filter(Number.isFinite); return xs.length ? Math.round(Math.max(...xs)) : null; };
+  const runs = starts => starts.map(from => {
+    if (from == null) return {};
+    const flat = flats.map(d => ahead(from, d)).reduce((a, b) => Math.min(a, b), Infinity);
+    const lift = lifts.map(d => ahead(from, d)).filter(m => m > Math.max(50, flat)).reduce((a, b) => Math.min(a, b), Infinity);
+    const next = starts.filter(d => d != null && d !== from).map(d => ahead(from, d)).reduce((a, b) => Math.min(a, b), Infinity);
+    const metres = Math.min(lift, next);
+    if (!Number.isFinite(metres)) return {};
+    const to = Math.round((from + metres) % length);
+    return {to, length: Math.round(metres), top_speed: top(from, to), ends: metres === next ? 'next zone' : 'lift'};
+  });
+  const season = (c, y) => {
+    if (!c) return null;
+    const base = {year: y, event: c.event, source: c.source, centreline_m: c.centreline_m ?? null};
+    if (c.image_only) return {...base, kind: null, readable: false, zones: []};
+    const ratio = c.centreline_m ? length / c.centreline_m : 1, place = p => placePoint(p, marks, length, ratio);
+    if (c.zone_kind === 'straight-mode') {
+      const zones = (c.straight_mode || []).map(z => ({zone: z.zone, normal: place(z.normal), low: place(z.low)}));
+      const extent = runs(zones.map(z => z.normal?.at ?? null));
+      return {...base, kind: 'straight-mode', readable: true, zones: zones.map((z, k) => ({...z, ...extent[k]})),
+        overtake: c.overtake ? {detection: place(c.overtake.detection), activation: place(c.overtake.activation)} : null};
+    }
+    if (c.drs) {
+      const zones = c.drs.activation.map(p => ({number: p.number, ...place(p)}));
+      const extent = runs(zones.map(z => z.at ?? null));
+      return {...base, kind: 'drs', readable: true, zones: zones.map((z, k) => ({...z, ...extent[k]})),
+        detection: c.drs.detection.map(p => ({number: p.number, ...place(p)}))};
+    }
+    return {...base, kind: c.zone_kind || null, readable: true, zones: []};
+  };
+  const out = season(now, year), previous = season(before, year - 1);
+  if (!out && !previous) return null;
+  return {...(out || {year, kind: null, readable: false, source: null, zones: []}), previous};
 }
 
 const round1 = v => Math.round(v * 10) / 10;
@@ -123,10 +198,22 @@ function profile(gp, lap, session, guide) {
       start = null;
     }
   });
+  const official = officialZones(gp, s, marks, length);
   // Map: a point about every 6 m (x, y, speed), in the circuit's own units: fine enough that the outline is smooth.
   const outline = [];
   let lastD = -Infinity;
-  for (const p of s) if (Number.isFinite(p.X) && Number.isFinite(p.Y) && p.Distance - lastD >= 6) { outline.push([Math.round(p.X), Math.round(p.Y), Math.round(p.Speed)]); lastD = p.Distance; }
+  const outlineAt = [];
+  for (const p of s) if (Number.isFinite(p.X) && Number.isFinite(p.Y) && p.Distance - lastD >= 6) { outline.push([Math.round(p.X), Math.round(p.Y), Math.round(p.Speed)]); outlineAt.push(p.Distance); lastD = p.Distance; }
+  // Each official point and zone end also carries its index on the outline (i, i_to), so the map draws it where it is.
+  const index = d => outlineAt.reduce((bi, x, i) => (Math.abs(x - d) < Math.abs(outlineAt[bi] - d) ? i : bi), 0);
+  const indexAll = season => {
+    if (!season) return;
+    const mark = p => { if (p && p.at != null) p.i = index(p.at); };
+    for (const z of season.zones || []) { mark(z.normal); mark(z.low); mark(z); if (z.to != null) z.i_to = index(z.to); }
+    for (const p of season.detection || []) mark(p);
+    if (season.overtake) { mark(season.overtake.detection); mark(season.overtake.activation); }
+  };
+  indexAll(official); indexAll(official?.previous);
   const cornerMarks = marks.map(m => ({number: `${m.number}${m.letter}`, x: Math.round(s[m.at].X), y: Math.round(s[m.at].Y)}));
   const count = type => corners.filter(c => c.type === type).length;
   return {
@@ -134,7 +221,7 @@ function profile(gp, lap, session, guide) {
     top_speed: Math.round(Math.max(...speeds)), minimum_speed: Math.round(Math.min(...speeds)),
     full_throttle: Number((full / time).toFixed(3)), braking: Number((brake / time).toFixed(3)), braking_zones: zones, gear_changes: changes,
     corners: {slow: count('slow'), medium: count('medium'), fast: count('fast'), total: corners.length, approximate, list: corners},
-    sectors, straights, compounds: session?.compounds || null,
+    sectors, straights, official, compounds: session?.compounds || null,
     conditions: lapRow?.conditions ? {air: lapRow.conditions.air_temperature, track: lapRow.conditions.track_temperature, rain: !!lapRow.conditions.rainfall} : null,
     pit_loss: guide?.pitLoss ? {normal: Number(guide.pitLoss.normal) || null, vsc: Number(guide.pitLoss.vsc) || null, sc: Number(guide.pitLoss.sc) || null} : null,
     circuit: guide?.circuitName || session?.location || null, rotation: guide?.rotation ?? session?.circuit_rotation ?? 0,
@@ -142,13 +229,17 @@ function profile(gp, lap, session, guide) {
   };
 }
 
+const officialSummary = o => {
+  const one = x => (!x ? '' : !x.readable ? `${x.year} FIA map image only` : `${x.year} ${x.kind || 'no'} zones ${x.zones.length} (${x.zones.filter(z => (z.normal || z).at != null).length} placed)`);
+  return o ? [one(o), one(o.previous)].filter(Boolean).join(' · ') : 'no FIA map';
+};
 const tracks = {};
 for (const [gp, lap] of [...best].sort()) {
   const session = sessionFor(gp);
   const guide = session?.circuit_key ? await circuit(session.circuit_key) : null;
   tracks[gp] = profile(gp, lap, session, guide);
 }
-const out = {year, method: 'track-profile-v2', generated: new Date().toISOString().slice(0, 10), tracks};
+const out = {year, method: 'track-profile-v3', generated: new Date().toISOString().slice(0, 10), tracks};
 fs.writeFileSync(path.join(data, 'track-profiles.json'), JSON.stringify(out) + '\n');
 console.log(`${Object.keys(tracks).length} tracks, ${(fs.statSync(path.join(data, 'track-profiles.json')).size / 1024).toFixed(0)} KB`);
-for (const [gp, t] of Object.entries(tracks)) console.log(gp.padEnd(26), t.circuit?.padEnd(28) || '', `${t.corners.total} corners`, JSON.stringify({s: t.corners.slow, m: t.corners.medium, f: t.corners.fast}), t.sectors ? 'sectors' : 'no sectors', `${t.straights.length} straights`, t.compounds?.join('') || '');
+for (const [gp, t] of Object.entries(tracks)) console.log(gp.padEnd(26), t.circuit?.padEnd(28) || '', `${t.corners.total} corners`, JSON.stringify({s: t.corners.slow, m: t.corners.medium, f: t.corners.fast}), t.sectors ? 'sectors' : 'no sectors', `${t.straights.length} straights`, officialSummary(t.official), t.compounds?.join('') || '');

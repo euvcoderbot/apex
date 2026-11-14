@@ -1222,6 +1222,18 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-track-key span { display: inline-flex; align-items: center; gap: 6px; }
 #seasonHub .season-track-key i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
 #seasonHub .season-track-key .season-track-ramp { width: 140px; height: 6px; border-radius: 3px; }
+/* FIA zones on the map: the lap in a quiet grey, each zone in the accent, round markers at its start and at the detection
+   (label colour) and Overtake activation (amber) points. */
+#seasonHub .season-track-map .track-seg.is-quiet { fill: none; stroke: var(--ui-quaternary); stroke-width: 4; stroke-linejoin: round; }
+#seasonHub .season-track-map .track-zone { fill: none; stroke: var(--ui-accent); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+#seasonHub .season-track-map .track-zone-mark circle { fill: var(--ui-accent); }
+#seasonHub .season-track-map .track-zone-detect circle { fill: var(--ui-label); }
+#seasonHub .season-track-map .track-zone-ot circle { fill: #e6bc24; }
+#seasonHub .season-track-key .season-key-zone { background: var(--ui-accent); }
+#seasonHub .season-track-key .season-key-detect { background: var(--ui-label); }
+#seasonHub .season-track-key .season-key-ot { background: #e6bc24; }
+#seasonHub .season-track-zones td:nth-child(2), #seasonHub .season-track-zones td:last-child { white-space: nowrap; }
+#seasonHub .season-track-zone-points { margin-top: 8px; }
 #seasonHub .season-sector-dot { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; vertical-align: 1px; }
 #seasonHub .season-corner-slow { color: #ff8a80; }
 #seasonHub .season-corner-medium { color: #ffd166; }
