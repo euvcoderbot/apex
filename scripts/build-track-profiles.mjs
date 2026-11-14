@@ -92,21 +92,34 @@ function officialZones(gp, s, marks, length) {
   // The map gives each zone's start only. On this lap a zone is taken to run from its activation point to where the driver
   // first lifts (throttle under 95%) or brakes once flat out (activation often comes while still accelerating out of the
   // corner), and never past the next zone's activation point.
-  // (A lift in the last 40 m is the driver backing off at the end of the run, not part of the lap.)
-  const lifts = s.filter(x => x.Distance < length - 40 && (!(x.Throttle >= 95) || (Number(x.Brake) > 0 && !(x.Throttle >= 30)))).map(x => x.Distance);
-  const flats = s.filter(x => x.Throttle >= 95 && !(Number(x.Brake) > 0 && !(x.Throttle >= 30))).map(x => x.Distance);
+  // (A lift in the last 40 m is the driver backing off at the end of the run, not part of the lap.) Where the telemetry has a
+  // gap (throttle reads over 100, the feed's placeholder, and the speed holds still), the zone stops at the gap: its length
+  // is then a minimum ('data gap'), since the lift or braking is somewhere inside it.
+  const gap = x => x.Throttle > 100;
+  const braking = x => Number(x.Brake) > 0 && !(x.Throttle >= 30);
+  const lifts = s.filter(x => !gap(x) && x.Distance < length - 40 && (!(x.Throttle >= 95) || braking(x))).map(x => x.Distance);
+  const flats = s.filter(x => !gap(x) && x.Throttle >= 95 && !braking(x)).map(x => x.Distance);
+  // Only a gap of 100 m or more can hide a lift; shorter ones (a few lost samples) are stepped over.
+  const gaps = [];
+  for (let i = 0; i < s.length; i++) {
+    if (!gap(s[i]) || (i && gap(s[i - 1]))) continue;
+    let j = i; while (j + 1 < s.length && gap(s[j + 1])) j++;
+    if ((s[Math.min(j + 1, s.length - 1)].Distance - s[i].Distance) >= 100) gaps.push(s[i].Distance);
+  }
   const ahead = (from, d) => (d - from + length) % length;   // metres from `from` forward to `d`, round the lap
   const inside = (d, from, to) => (to >= from ? d >= from && d <= to : d >= from || d <= to);
-  const top = (from, to) => { const xs = s.filter(x => inside(x.Distance, from, to)).map(x => x.Speed).filter(Number.isFinite); return xs.length ? Math.round(Math.max(...xs)) : null; };
+  const top = (from, to) => { const xs = s.filter(x => !gap(x) && inside(x.Distance, from, to)).map(x => x.Speed).filter(Number.isFinite); return xs.length ? Math.round(Math.max(...xs)) : null; };
+  const nearest = (from, ds, floor = 0) => ds.map(d => ahead(from, d)).filter(m => m > floor).reduce((a, b) => Math.min(a, b), Infinity);
   const runs = starts => starts.map(from => {
     if (from == null) return {};
-    const flat = flats.map(d => ahead(from, d)).reduce((a, b) => Math.min(a, b), Infinity);
-    const lift = lifts.map(d => ahead(from, d)).filter(m => m > Math.max(50, flat)).reduce((a, b) => Math.min(a, b), Infinity);
-    const next = starts.filter(d => d != null && d !== from).map(d => ahead(from, d)).reduce((a, b) => Math.min(a, b), Infinity);
-    const metres = Math.min(lift, next);
+    const flat = nearest(from, flats, -1);
+    const lift = nearest(from, lifts, Math.max(50, flat));
+    const hole = nearest(from, gaps);
+    const next = nearest(from, starts.filter(d => d != null && d !== from));
+    const metres = Math.min(lift, next, hole);
     if (!Number.isFinite(metres)) return {};
     const to = Math.round((from + metres) % length);
-    return {to, length: Math.round(metres), top_speed: top(from, to), ends: metres === next ? 'next zone' : 'lift'};
+    return {to, length: Math.round(metres), top_speed: top(from, to), ends: metres === hole ? 'data gap' : metres === next ? 'next zone' : 'lift'};
   });
   const season = (c, y) => {
     if (!c) return null;

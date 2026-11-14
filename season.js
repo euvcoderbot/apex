@@ -707,7 +707,7 @@
         for (let i = from, k = 0; k <= n; i = (i + 1) % n, k++) { d += piece(i); if (i === z.i_to) break; }
         const name = z.zone || `DRS ${z.number ?? ''}`.trim();
         svg += `<path class="track-zone" d="${d}"/>`;
-        zoneMarks.push({i: from, cls: 'track-zone-start', tip: `${o.kind === 'drs' ? 'DRS activation' : `Straight mode ${name}`}\n${(z.normal || z).text}${z.length ? `\n${z.length} m flat out · top ${z.top_speed} km/h` : ''}`});
+        zoneMarks.push({i: from, cls: 'track-zone-start', tip: `${o.kind === 'drs' ? 'DRS activation' : `Straight mode ${name}`}\n${(z.normal || z).text}${z.length ? `\n${z.ends === 'data gap' ? 'at least ' : ''}${z.length} m flat out · top ${z.top_speed} km/h` : ''}`});
       }
       const points = o?.kind === 'drs' ? (o.detection || []).map(p => ['DRS detection', p]) : o?.overtake ? [['Overtake detection', o.overtake.detection], ['Overtake activation', o.overtake.activation]] : [];
       for (const [label, p] of points) if (p?.i != null) zoneMarks.push({i: p.i, cls: label.endsWith('detection') ? 'track-zone-detect' : 'track-zone-ot', tip: `${label}\n${p.text}`});
@@ -764,24 +764,30 @@
       }
       box.append(pills);
     }
-    const source = el('p', 'season-footnote'), link = el('a', null, `FIA circuit map, ${pick.year} ${pick.event}`);
+    // The FIA's own map, always visible (not behind Show explanations): the zones' starts are read from it.
+    const link = el('a', 'season-track-source-link', `FIA circuit map · ${pick.year} ${pick.event.replace(' Grand Prix', ' GP')}`);
     link.href = pick.source; link.target = '_blank'; link.rel = 'noopener';
+    link.append(el('span', 'visually-hidden', ' (PDF, opens in a new tab)'));
+    const sourceLine = el('p', 'season-track-source');
+    sourceLine.append(link);
     const drs = pick.kind === 'drs';
     const points = drs ? (pick.detection || []).map(p => [`Detection${p.number ? ` ${p.number}` : ''}`, p])
       : pick.overtake ? [['Overtake detection', pick.overtake.detection], ['Overtake activation', pick.overtake.activation]].filter(([, p]) => p) : [];
     if (!pick.readable || (!pick.zones?.length && !points.length)) {
-      box.append(empty(!pick.readable ? 'The FIA published this map as an image only, so its zones are not read.' : 'The FIA map lists no zones for this event.'));
-      source.append('Source: ', link, '.');
-      box.append(source);
+      box.append(sourceLine, empty(!pick.readable ? 'The FIA published this map as an image only, so its zones are not read.' : 'The FIA map lists no zones for this event.'));
       return box;
     }
+    if (pick.zones.length) sourceLine.append(el('span', 'season-muted', ' · starts as printed, ends estimated from the fastest qualifying lap'));
+    box.append(sourceLine);
+    const source = el('p', 'season-footnote');
     if (!pick.zones.length) box.append(el('p', 'season-muted', `No ${drs ? 'DRS' : 'straight mode'} zones at this event.`));
     const zt = el('table', 'season-table season-units season-track-zones');
     zt.innerHTML = `<thead><tr><th scope="col">Zone</th><th scope="col">Activation</th><th scope="col" class="num">From the line</th><th scope="col" class="num">Flat out</th><th scope="col" class="num">Top speed</th>${drs ? '' : '<th scope="col">Low grip</th>'}</tr></thead>`;
     const tb = el('tbody'), longest = Math.max(1, ...pick.zones.map(z => z.length || 0));
     for (const z of pick.zones) {
       const a = drs ? z : z.normal, tr = el('tr');
-      const len = heatChip(el('td', 'num season-heat-cell', z.length ? `${z.length} m` : '—')); if (z.length) len.style.setProperty('--heat', String(z.length / longest));
+      const len = heatChip(el('td', 'num season-heat-cell', z.length ? `${z.ends === 'data gap' ? '≥ ' : ''}${z.length} m` : '—'));
+      if (z.ends === 'data gap') len.title = 'At least: the lap\'s telemetry has a gap before the driver lifts'; if (z.length) len.style.setProperty('--heat', String(z.length / longest));
       tr.append(el('td', 'season-strong', drs ? `DRS ${z.number ?? ''}`.trim() : z.zone), el('td', null, a?.text || 'n/a'), el('td', 'num', km(a)), len,
         el('td', 'num', z.top_speed ? `${z.top_speed} km/h` : '—'));
       if (!drs) tr.append(el('td', null, z.low?.text || 'not used'));
@@ -802,7 +808,7 @@
     source.append(drs
       ? `DRS opens at each activation point for a car within a second of the one ahead at its detection point. `
       : `Straight mode opens the wings at each zone's activation point in normal grip; in low grip it opens later (or not at all). Overtake gives extra electrical energy to a car within a second at the detection point. `,
-    `The FIA gives each zone's start only: its length here runs to the first lift or braking once flat out on the fastest qualifying lap, or to the next zone's start. Points are placed from the numbered corner they name${unplaced ? '; "—" where the wording names no corner on this lap' : ''}${pick.year !== t.official?.year ? `; ${pick.year} points shown on the ${t.official?.year ?? ''} lap` : ''}. Source: `, link, '.');
+    `The FIA gives each zone's start only: its length here runs to the first lift or braking once flat out on the fastest qualifying lap, or to the next zone's start (≥: the lap's telemetry has a gap there, so the length is a minimum). Points are placed from the numbered corner they name${unplaced ? '; "—" where the wording names no corner on this lap' : ''}${pick.year !== t.official?.year ? `; ${pick.year} points shown on the ${t.official?.year ?? ''} lap` : ''}.`);
     box.append(source);
     return box;
   }

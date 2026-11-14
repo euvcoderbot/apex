@@ -1234,6 +1234,10 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-track-key .season-key-ot { background: #e6bc24; }
 #seasonHub .season-track-zones td:nth-child(2), #seasonHub .season-track-zones td:last-child { white-space: nowrap; }
 #seasonHub .season-track-zone-points { margin-top: 8px; }
+/* The FIA's circuit map, linked in plain sight above the zones table. */
+#seasonHub .season-track-source { margin: 2px 0 6px; font: 500 12px/1.5 var(--ui-font); color: var(--ui-tertiary); }
+#seasonHub .season-track-source-link { color: var(--ui-secondary); text-decoration: underline; text-decoration-color: var(--ui-border-strong, var(--ui-border)); text-underline-offset: 3px; }
+#seasonHub .season-track-source-link:hover { color: var(--ui-accent); text-decoration-color: currentColor; }
 #seasonHub .season-sector-dot { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; vertical-align: 1px; }
 #seasonHub .season-corner-slow { color: #ff8a80; }
 #seasonHub .season-corner-medium { color: #ffd166; }
