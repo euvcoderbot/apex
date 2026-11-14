@@ -2315,6 +2315,8 @@
 /* Team and driver markers are circles everywhere: numbered team chips, plain team marks, fallback logos, colour dots and
    legend swatches (they were rounded squares). */
 :root[data-skin="linear"] :is(.team-logo, .team-logo-fallback, .team-dot, .team-mark.has-number, .performance-team .team-logo-fallback) { border-radius: 50%; }
+:root[data-skin="linear"] .team-mark:not(.has-number)::before { width: 8px; height: 8px; aspect-ratio: 1; border-radius: 50%; }
+:root[data-skin="linear"] .season-filter[style*="--team"]::before { flex: 0 0 8px; width: 8px; height: 8px; aspect-ratio: 1; }
 :root[data-skin="linear"] .team-mark:not(.has-number)::before { border-radius: 50%; }
 :root[data-skin="linear"] #seasonHub .season-legend span[data-tone]::before { border-radius: 50%; }
 :root[data-skin="linear"] .team-mark.has-number { font-size: 9px; letter-spacing: -.02em; }  /* two digits sit inside the circle */

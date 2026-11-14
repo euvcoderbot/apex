@@ -960,11 +960,26 @@ function buildSpeedAnnotations(entries, markers, totalDistance, {matchMetres=70,
   });
 }
 
+function selectedCornerSpeedAnnotations(entries, markers, totalDistance) {
+  if (!selectedCornerIndices.size || typeof sessionPerformanceZones !== 'function') return [];
+  const zones = sessionPerformanceZones(adaptiveCornerZones(markers), totalDistance);
+  return [...selectedCornerIndices].flatMap(index => {
+    const zone=zones[index];
+    if (zone?.kind !== 'corner') return [];
+    const values=entries.flatMap(({lap,samples})=>{
+      const minimum=cornerSpeedMinimum(samples,zone);
+      return minimum?[{lap,speed:minimum.speed,fraction:minimum.fraction}]:[];
+    });
+    return values.length?[{title:cornerLabel(zone),kind:'min',fraction:values[0].fraction,speed:values[0].speed,values,missing:[],absoluteValues:true}]:[];
+  });
+}
+
 // Broadcast-style labels: the leader's whole km/h, then every other lap's
 // whole-km/h difference, stacked in lap colours.
 function speedAnnotationLines(annotation) {
   const allLaps = [...annotation.values.map(v => v.lap), ...(annotation.missing || [])];
   const identity = lap => lap.code + (allLaps.filter(l => l.code === lap.code).length > 1 ? ` L${lap.lap}` : '');
+  if (annotation.absoluteValues) return annotation.values.map(v=>({text:`${annotation.title} ${identity(v.lap)} ${Math.round(v.speed)}`,color:getLapColor(v.lap)}));
   const leader = Math.round(annotation.values[0].speed);
   return [
     ...annotation.values.map((v, i) => {
@@ -1521,6 +1536,11 @@ function drawRealChart(name) {
       speedAnnotationCache={key,entries,annotations:buildSpeedAnnotations(entries,speedCornerMarkers,totalDist)};
     }
     drawSpeedAnnotations(ctx,speedAnnotationCache.annotations,rect,bounds,xForFraction,viewStart,viewEnd,traceEntries);
+  }
+  if (name==='Speed trace' && selectedCornerIndices.size) {
+    const entries=visibleEntries.map(({lap})=>({lap,samples:telemetryCache.get(telemetryKey(lap))})).filter(e=>e.samples?.length);
+    const selectedMinima=selectedCornerSpeedAnnotations(entries,speedCornerMarkers,totalDist);
+    drawSpeedAnnotations(ctx,selectedMinima,rect,bounds,xForFraction,viewStart,viewEnd,traceEntries);
   }
   
   // Draw collision-free corner labels in a reserved band below the axis. Corner

@@ -58,3 +58,33 @@ for (const width of [390, 1024]) {
     expect(layout.scoreTop).toBeGreaterThanOrEqual(layout.sideBottom - 1);
   });
 }
+
+for (const width of [390, 1440]) {
+  test(`both head-to-head sections use one split bar and visible driver names at ${width}px`,async({page})=>{
+    await page.setViewportSize({width,height:1000});
+    await page.goto('/apex/season/h2h?year=2026');
+    const cards=page.locator('.season-h2h-sessions > .season-card');
+    await expect(cards).toHaveCount(2);
+    for(const card of await cards.all()){
+      const names=card.locator('.season-h2h-head .season-h2h-name');
+      await expect(names).toHaveCount(2);
+      for(const name of await names.all())await expect(name).toBeVisible();
+      const rows=card.locator('.season-h2h-row:not(.season-h2h-head)');
+      const fit=await rows.evaluateAll(ns=>ns.every(n=>n.querySelectorAll('.season-h2h-split').length===1&&n.children.length===4&&n.scrollWidth<=n.clientWidth+1));
+      expect(fit).toBe(true);
+    }
+  });
+}
+
+test('Tracks remains accessible from Season and team markers stay circular in rectangular slots',async({page})=>{
+  await page.goto('/apex/season/standings?year=2026');
+  await page.locator('.season-tabs [data-season-tab="tracks"]').click();
+  await expect(page.locator('#seasonHub h1')).toHaveText('Tracks');
+  const dot=await page.evaluate(()=>{
+    const host=document.createElement('span');host.style.cssText='display:inline-block;width:24px;height:14px';
+    host.innerHTML=window.ApexTeamMarks.teamMarkMarkup('Aston Martin');
+    document.body.append(host);const mark=host.firstElementChild;mark.style.cssText+=';width:24px;height:14px';
+    const s=getComputedStyle(mark,'::before');const result={width:s.width,height:s.height,radius:s.borderRadius};host.remove();return result;
+  });
+  expect(dot).toEqual({width:'8px',height:'8px',radius:'50%'});
+});

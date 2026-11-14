@@ -1081,31 +1081,45 @@ function adaptiveCornerZones(markers) {
   return zones;
 }
 
-function cornerPerformance(samples, zone) {
+function cornerSpeedMinimum(samples, zone) {
   if (!samples?.length || !zone) return null;
   const totalDistance = referenceDistance();
-  const steps = Math.max(8, Math.ceil((zone.apexEnd - zone.apexStart) * totalDistance / 4));
-  // Sample bin centres rather than both inclusive boundaries. Adjacent
-  // corners meet at a midpoint; excluding that exact shared boundary ensures
-  // no speed sample can contribute to both corners' minimum calculation.
-  const apexSamples = Array.from({ length: steps }, (_, index) => {
-    const fraction = zone.apexStart
-      + (zone.apexEnd - zone.apexStart) * (index + 0.5) / steps;
-    return { fraction, speed: traceTelemetryValue(samples, fraction, 'Speed') };
-  }).filter(point => Number.isFinite(point.speed));
-  if (apexSamples.length < 3) return null;
-  const ordered = [...apexSamples].sort((a, b) => a.speed - b.speed);
-  const lowCount = Math.max(2, Math.min(5, Math.ceil(ordered.length * .12)));
-  const stableMinimum = medianTelemetry(ordered.slice(0, lowCount).map(point => point.speed));
-  const minimumPoint = ordered[0];
+  // Measure the same geometry-defined turn for every lap, excluding the
+  // approach/exit used for timing. Retain every native trace knot: a grid of
+  // bin centres and a median of the lowest bins can miss the actual minimum.
+  const start = Math.max(zone.start, zone.turnStartFraction ?? zone.apexStart);
+  const end = Math.min(zone.end, zone.turnEndFraction ?? zone.apexEnd);
+  if (!(end > start)) return null;
+  const fractions = samples.map(p => traceSampleFraction(samples, p)).filter(f => f >= start && f < end);
+  const interpolated = fractions.length < 2;
+  fractions.push(start, end - Math.min(1e-9, (end-start)/1000));
+  if (enhancedInterpolationEnabled()) {
+    const steps = Math.max(8, Math.ceil((end-start)*totalDistance/2));
+    for (let i=1;i<steps;i++) fractions.push(start+(end-start)*i/steps);
+  }
+  const points = fractions.map(fraction => ({fraction, speed:traceTelemetryValue(samples,fraction,'Speed')}))
+    .filter(p => Number.isFinite(p.speed));
+  if (points.length < 2) return null;
+  const minimumPoint = points.reduce((a,b)=>b.speed<a.speed?b:a);
+  return {...minimumPoint, start, end, samples:points.length, interpolated,
+    atBoundary:Math.min(minimumPoint.fraction-start,end-minimumPoint.fraction)*totalDistance<5};
+}
+
+function cornerPerformance(samples, zone) {
+  const minimum = cornerSpeedMinimum(samples, zone);
+  if (!minimum) return null;
   const sectionTime = performanceSectionDuration(samples, zone.start, zone.end);
   return {
-    minimumSpeed: stableMinimum,
-    rawMinimum: minimumPoint.speed,
-    apexFraction: minimumPoint.fraction,
+    minimumSpeed: minimum.speed,
+    rawMinimum: minimum.speed,
+    apexFraction: minimum.fraction,
+    minimumAtBoundary: minimum.atBoundary,
+    minimumInterpolated: minimum.interpolated,
+    minimumStart: minimum.start,
+    minimumEnd: minimum.end,
     sectionTime,
     method: zone.type,
-    samples: apexSamples.length,
+    samples: minimum.samples,
   };
 }
 

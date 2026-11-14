@@ -278,25 +278,25 @@ function renderCornerAnalysis() {
     const body=everyCorner.map(([z,i])=>{
       const speeds=loaded.map(lap=>allMetrics[i].find(m=>m.lap===lap)?.metric.minimumSpeed);
       const finite=speeds.filter(Number.isFinite), top=finite.length>1?Math.max(...finite):null;
-      const cells=speeds.map((v,k)=>`<td class="num${Number.isFinite(v)&&top!=null&&Math.abs(v-top)<.05?' is-best':''}" style="--team:${escapeUI(getLapColor(loaded[k]))}">${Number.isFinite(v)?Math.round(v):'—'}</td>`).join('');
+      const cells=speeds.map((v,k)=>{const metric=allMetrics[i].find(m=>m.lap===loaded[k])?.metric;const tip=metric?`${loaded[k].code}: ${v.toFixed(1)} km/h at ${Math.round(metric.apexFraction*totalDistance)} m${metric.minimumAtBoundary?' · turn boundary; not a local speed dip':''}. Select this corner to mark it on the speed trace.`:'Insufficient speed samples inside the turn';return `<td class="num${Number.isFinite(v)&&top!=null&&Math.abs(v-top)<.05?' is-best':''}" title="${escapeUI(tip)}" style="--team:${escapeUI(getLapColor(loaded[k]))}">${Number.isFinite(v)?Math.round(v):'—'}</td>`;}).join('');
       const diff=loaded.length===2&&speeds.every(Number.isFinite)?speeds[1]-speeds[0]:null;
       const diffCell=loaded.length===2?`<td class="num corner-every-diff ${diff==null?'':diff>0.5?'is-faster':diff<-0.5?'is-slower':''}">${diff==null?'—':Math.abs(diff)<0.5?'0':`${diff>0?'+':'−'}${Math.abs(diff).toFixed(0)}`}</td>`:'';
       return `<tr><th scope="row"><button type="button" class="corner-every-pick" data-corner-every="${i}" aria-pressed="${selectedCornerIndices.has(i)}">${escapeUI(z.label||cornerLabel(z))}</button></th>${cells}${diffCell}</tr>`;
     }).join('');
     root.insertAdjacentHTML('beforeend',`<details class="corner-every" ${cornerEveryOpen?'open':''}><summary>Minimum speed in every corner</summary>
       <div class="corner-every-wrap" tabindex="0" role="region" aria-label="Minimum speed in every corner"><table class="corner-every-table">
-        <thead><tr><th scope="col">Corner</th>${lapHead}${loaded.length===2?`<th scope="col" class="num" title="${escapeUI(loaded[1].code)} minus ${escapeUI(loaded[0].code)}">Diff</th>`:''}</tr></thead>
+        <thead><tr><th scope="col">Corner</th>${lapHead}${loaded.length===2?`<th scope="col" class="num" title="Speed difference in km/h; positive means the second lap carried a higher minimum">${escapeUI(loaded[1].code)} − ${escapeUI(loaded[0].code)}</th>`:''}</tr></thead>
         <tbody>${body}</tbody></table></div>
-      <p class="corner-every-note">km/h, the slowest point of each lap inside the corner. The filled cell carried the most speed; Diff is the second lap minus the first.</p></details>`);
+      <p class="corner-every-note">km/h, the lowest plotted speed inside each geometry-defined turn. The filled cell has the higher minimum, not necessarily the quicker corner time. The map compares elapsed time. Select a corner to mark each lap’s minimum on the speed trace; hover a value for its distance.</p></details>`);
     const every=root.querySelector('.corner-every');
-    every.addEventListener('toggle',()=>{cornerEveryOpen=every.open;});
+    every.addEventListener('toggle',()=>{if(every.isConnected)cornerEveryOpen=every.open;});
     every.addEventListener('click',event=>{
       const pick=event.target.closest('[data-corner-every]');if(!pick)return;
       const index=Number(pick.dataset.cornerEvery);
       if(selectedCornerIndices.has(index))selectedCornerIndices.delete(index);else selectedCornerIndices.add(index);
       const linked=selectLinkingStraights(zones,selectedCornerIndices,automaticStraightIndices);
       selectedCornerIndices=linked.selection;automaticStraightIndices=linked.automatic;
-      renderCornerAnalysis();renderMiniSectorMap();
+      renderCornerAnalysis();renderMiniSectorMap();drawAll();
     });
   }
   root.querySelectorAll('[data-corner-sort]').forEach(button => {
@@ -314,6 +314,7 @@ function renderCornerAnalysis() {
     }else automaticStraightIndices.delete(index);
     renderCornerAnalysis();
     renderMiniSectorMap();
+    drawAll();
   };
   window.ApexSessionOverview?.renderTimeSummary();
 }

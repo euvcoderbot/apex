@@ -1127,6 +1127,42 @@ test('native corner projection follows the aligned comparison grid', () => {
   assert.equal(h.run("resolveCornerMarkers(samples,1000,[{number:'1',fraction:.5,source:'lap_projection'}])[0].fraction"),.6);
 });
 
+test('corner minima retain native trace knots and use the whole turn rather than an apex-bin median',()=>{
+  const h=context();
+  const alignment=readFileSync('alignment.js','utf8');
+  h.run(alignment.slice(alignment.indexOf('function cornerSpeedMinimum('),alignment.indexOf('function cornerPhaseBreakdown(')));
+  h.run('referenceDistance=()=>1000;enhancedInterpolationEnabled=()=>false;traceSampleFraction=(s,p)=>p.AlignedFraction;traceTelemetryValue=(s,f)=>{const p=s.find(p=>p.AlignedFraction===f);return p?p.Speed:200};performanceSectionDuration=()=>4;');
+  h.sandbox.samples=[{AlignedFraction:.1,Speed:180},{AlignedFraction:.12,Speed:170},{AlignedFraction:.14,Speed:121},{AlignedFraction:.16,Speed:175},{AlignedFraction:.18,Speed:190}];
+  h.sandbox.zone={start:.08,end:.22,turnStartFraction:.1,turnEndFraction:.2,apexStart:.15,apexEnd:.19};
+  const result=h.run('cornerPerformance(samples,zone)');
+  assert.equal(result.minimumSpeed,121);
+  assert.equal(result.rawMinimum,121);
+  assert.equal(result.apexFraction,.14);
+  assert.equal(result.minimumAtBoundary,false);
+  h.sandbox.samples=[{AlignedFraction:.12,Speed:150},{AlignedFraction:.14,Speed:170},{AlignedFraction:.16,Speed:180},{AlignedFraction:.18,Speed:190}];
+  const excluded=h.run('cornerSpeedMinimum(samples,{...zone,turnStartFraction:.14})');
+  assert.equal(excluded.speed,170,'approach speeds outside the geometry turn are excluded');
+  assert.equal(excluded.atBoundary,true);
+});
+
+test('São Paulo NOR L52 and VER L48 T11 table values and selected speed markers agree',()=>{
+  const h=context(), fixture=JSON.parse(readFileSync('e2e/fixtures/sao-paulo-2026-race-t11.json','utf8'));
+  const source=readFileSync('alignment.js','utf8');
+  h.run(source.slice(source.indexOf('function cornerSpeedMinimum('),source.indexOf('function cornerPhaseBreakdown(')));
+  h.sandbox.fixture=fixture;
+  h.run(`referenceDistance=()=>fixture.total;enhancedInterpolationEnabled=()=>false;traceSampleFraction=(s,p)=>p.AlignedFraction;
+    traceTelemetryValue=(s,f)=>{const i=s.findIndex(p=>p.AlignedFraction>=f);if(i<1)return null;const a=s[i-1],b=s[i];return a.Speed+(b.Speed-a.Speed)*(f-a.AlignedFraction)/(b.AlignedFraction-a.AlignedFraction)};
+    performanceSectionDuration=()=>4;selectedCornerIndices=new Set([0]);adaptiveCornerZones=()=>[fixture.zone];sessionPerformanceZones=z=>z.map(v=>({...v,kind:'corner'}));
+    var entries=fixture.laps.map(l=>({lap:{code:l.code,lap:l.lap},samples:l.samples}));`);
+  const values=h.run('entries.map(e=>cornerPerformance(e.samples,fixture.zone))');
+  assert.ok(Math.abs(values[0].minimumSpeed-177.4848053181387)<1e-8);
+  assert.equal(values[1].minimumSpeed,165);
+  assert.notEqual(values[0].apexFraction,values[1].apexFraction,'Each minimum has its own measured position');
+  const annotations=h.run('selectedCornerSpeedAnnotations(entries,[],fixture.total)');
+  assert.deepEqual(annotations[0].values.map(v=>v.speed),values.map(v=>v.minimumSpeed));
+  assert.equal(annotations[0].absoluteValues,true);
+});
+
 test('speed annotations label each lap\'s own measured extremes, matched by GPS, in whole km/h', () => {
   const h=context();
   assert.equal(h.run('showSpeedAnnotations'),false);

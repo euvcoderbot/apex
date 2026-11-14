@@ -28,7 +28,7 @@ export const SPEC = {
   sizes: [10, 11, 12, 13, 14, 15, 16, 18, 20, 24, 32, 36],
   weights: [450, 500, 600],
   radii: [0, 2, 4, 5, 6, 8, 10, 12, 21],  // controls 8, cards 10, panel/toast 12, dialog 21 [A]; 2–6 for marks and heat cells
-  controlHeights: [18, 20, 22, 24, 26, 28, 32, 36, 44],
+  controlHeights: [18, 20, 22, 24, 26, 28, 32, 36, 44, 48],  // 48: the phone bottom tab bar (icon over label, touch target)
 };
 
 const AUDIT = spec => {

@@ -1760,7 +1760,7 @@
       }
       const [head, ...rest] = mark.dataset.tip.split('\n');
       // The first line heads the card; a "label  value" line (two spaces apart) is a row of two aligned columns.
-      tipCard.replaceChildren(el('b', null, head), ...rest.map(line => {
+      tipCard.replaceChildren(el('b', null, head), ...rest.filter(line => line.trim()).map(line => {
         const [k, ...v] = line.split(/\s{2,}/);
         if (!v.length) return el('span', null, line);
         const row = el('span', 'season-tip-row'); row.append(el('span', null, k), el('span', null, v.join('  '))); return row;
@@ -2454,16 +2454,16 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       if (better < 0) wonA++; else if (better > 0) wonB++;
       // Mirrored: each driver's bar grows outward from the label in the middle, its length that driver's share (the longer
       // side leads; for lower-is-better values the shares are swapped). The side behind is drawn faint.
-      const barA = el('span', 'season-h2h-bar is-left'), barB = el('span', 'season-h2h-bar');
+      const bar = el('span', 'season-h2h-split');
       if (va != null && vb != null) {
-        // Never a missing bar: a zero (0 retirements against 3) still leaves the other side a short stub.
-        const x = Math.abs(va), y = Math.abs(vb), raw = x + y === 0 ? .5 : lower ? y / (x + y) : x / (x + y), share = Math.min(.94, Math.max(.06, raw));
+        // One shared width, without a minimum-size stub that exaggerates zero.
+        const x = Math.abs(va), y = Math.abs(vb), share = x + y === 0 ? .5 : lower ? y / (x + y) : x / (x + y);
         const fa = el('i'), fb = el('i');
-        fa.style.width = `${(share * 100).toFixed(1)}%`; fb.style.width = `${((1 - share) * 100).toFixed(1)}%`;
+        fa.style.flex = String(share); fb.style.flex = String(1 - share);
         fa.style.background = ca; fb.style.background = cb;
-        if (better > 0) fa.classList.add('is-behind'); if (better < 0) fb.classList.add('is-behind');
-        barA.append(fa); barB.append(fb);
-        barA.title = barB.title = `${family(data, a)} ${format(va)} · ${family(data, b)} ${format(vb)}`;
+        fa.hidden = share === 0; fb.hidden = share === 1;
+        bar.append(fa, fb);
+        bar.title = `${family(data, a)} ${format(va)} · ${family(data, b)} ${format(vb)}`;
       }
       const name = el('span', 'season-h2h-label', label);
       if (lower) { name.title = 'Lower is better'; name.append(el('small', null, ' ↓')); }
@@ -2475,8 +2475,8 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
         if (cls.includes('is-right')) cell.prepend(r); else cell.append(r);
         return cell;
       };
-      row.append(valueCell(va, `season-h2h-value${better < 0 ? ' is-better' : ''}`), barA, name, barB,
-        valueCell(vb, `season-h2h-value is-right${better > 0 ? ' is-better' : ''}`));
+      row.append(valueCell(va, `season-h2h-value${better < 0 ? ' is-better' : ''}`), name,
+        valueCell(vb, `season-h2h-value is-right${better > 0 ? ' is-better' : ''}`), bar);
       rows.append(row);
     };
     // Two cards, as the sessions are: Qualifying and Race. Each has its own name row and comparison rows, then a strip of
@@ -2564,7 +2564,6 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
         td.textContent = !x ? '—' : n ? String(n) : x.status === 'Did not start' ? 'DNS' : 'DNF';
         td.dataset.tone = !x ? 'none' : !n ? 'out' : n === 1 ? 'win' : n <= 3 ? 'podium' : x.points > 0 ? 'points' : 'none';
         const w = result.weekends.find(e => e.round === r.round);
-        if (w && w.race != null && (w.race === 0) === (id === a)) td.classList.add('is-ahead');
         td.title = `${r.name}: ${driverCode(data, id)} ${!x ? 'did not race' : n ? 'P' + n : x.status}${w?.raceMechanical && !n ? ' (car failure)' : ''}`;
         tr.append(td);
       }

@@ -1,0 +1,212 @@
+{
+  "event": "São Paulo Grand Prix",
+  "year": 2026,
+  "round": 20,
+  "session": "Race",
+  "total": 4230.1694950231495,
+  "zone": {
+    "number": "11",
+    "letter": "",
+    "x": -1368.5802001953125,
+    "y": -706.1390991210938,
+    "angle": 93.56740821839766,
+    "source": "position",
+    "key": "11:",
+    "fraction": 0.6869457887654851,
+    "rawFraction": 0.6869457887654851,
+    "apexFraction": 0.6702650388038034,
+    "apexMethod": "GPS bend-centre estimate",
+    "apexConfidence": "estimated",
+    "apexShiftMetres": -70.56239964201404,
+    "apexReason": null,
+    "turnStartFraction": 0.6621851575922195,
+    "turnEndFraction": 0.717544468206172,
+    "windowMethod": "adaptive-geometry-turning",
+    "apex": 0.6702650388038034,
+    "minimumSpeed": 174.00022727272727,
+    "type": "MEDIUM SPEED",
+    "apexHalfMetres": 38,
+    "sectorReach": 190,
+    "previousGap": 209.48333333333434,
+    "nextGap": 291.5555555555554,
+    "boundaryMethod": "GPS turn envelope + every compared lap's braking and return to full throttle",
+    "start": 0.6532976011063955,
+    "end": 0.7135557772756853,
+    "releaseFraction": 0.6702650388038034,
+    "apexStart": 0.6612819472173533,
+    "apexEnd": 0.6792481303902534,
+    "metres": 255,
+    "apexMetres": 76,
+    "kind": "corner"
+  },
+  "laps": [
+    {
+      "code": "NOR",
+      "lap": 52,
+      "samples": [
+        {
+          "AlignedFraction": 0.6522781471561981,
+          "Speed": 137
+        },
+        {
+          "AlignedFraction": 0.6552620044784809,
+          "Speed": 147
+        },
+        {
+          "AlignedFraction": 0.6576496156633006,
+          "Speed": 156
+        },
+        {
+          "AlignedFraction": 0.6593621816616531,
+          "Speed": 170
+        },
+        {
+          "AlignedFraction": 0.6635109515917109,
+          "Speed": 181
+        },
+        {
+          "AlignedFraction": 0.6674403975020411,
+          "Speed": 193
+        },
+        {
+          "AlignedFraction": 0.6720619617261226,
+          "Speed": 198
+        },
+        {
+          "AlignedFraction": 0.6752060437813803,
+          "Speed": 201
+        },
+        {
+          "AlignedFraction": 0.681042426677606,
+          "Speed": 203
+        },
+        {
+          "AlignedFraction": 0.6837150277563232,
+          "Speed": 204
+        },
+        {
+          "AlignedFraction": 0.6869457887654851,
+          "Speed": 206
+        },
+        {
+          "AlignedFraction": 0.6907885557219109,
+          "Speed": 212
+        },
+        {
+          "AlignedFraction": 0.6947232549021747,
+          "Speed": 216
+        },
+        {
+          "AlignedFraction": 0.6999003524217341,
+          "Speed": 222
+        },
+        {
+          "AlignedFraction": 0.703430549817111,
+          "Speed": 226
+        },
+        {
+          "AlignedFraction": 0.706411780504427,
+          "Speed": 228
+        },
+        {
+          "AlignedFraction": 0.7106314695785884,
+          "Speed": 231
+        },
+        {
+          "AlignedFraction": 0.7130637335578435,
+          "Speed": 232
+        },
+        {
+          "AlignedFraction": 0.7161303298815804,
+          "Speed": 235
+        },
+        {
+          "AlignedFraction": 0.7211209363184972,
+          "Speed": 240
+        }
+      ]
+    },
+    {
+      "code": "VER",
+      "lap": 48,
+      "samples": [
+        {
+          "AlignedFraction": 0.6533501148718981,
+          "Speed": 123
+        },
+        {
+          "AlignedFraction": 0.6558262558075335,
+          "Speed": 147
+        },
+        {
+          "AlignedFraction": 0.6577380547211893,
+          "Speed": 147
+        },
+        {
+          "AlignedFraction": 0.6593682598245193,
+          "Speed": 165
+        },
+        {
+          "AlignedFraction": 0.6615101919956409,
+          "Speed": 165
+        },
+        {
+          "AlignedFraction": 0.6653656699036599,
+          "Speed": 165
+        },
+        {
+          "AlignedFraction": 0.6687763807879884,
+          "Speed": 165
+        },
+        {
+          "AlignedFraction": 0.6706732547527392,
+          "Speed": 204
+        },
+        {
+          "AlignedFraction": 0.6765116683176869,
+          "Speed": 209
+        },
+        {
+          "AlignedFraction": 0.6820427843754346,
+          "Speed": 220
+        },
+        {
+          "AlignedFraction": 0.6854629932085783,
+          "Speed": 222
+        },
+        {
+          "AlignedFraction": 0.69139647342811,
+          "Speed": 230
+        },
+        {
+          "AlignedFraction": 0.6944446241978564,
+          "Speed": 232
+        },
+        {
+          "AlignedFraction": 0.6981989800820263,
+          "Speed": 237
+        },
+        {
+          "AlignedFraction": 0.7027637302694194,
+          "Speed": 242
+        },
+        {
+          "AlignedFraction": 0.7073881777254762,
+          "Speed": 243
+        },
+        {
+          "AlignedFraction": 0.7114285538641644,
+          "Speed": 243
+        },
+        {
+          "AlignedFraction": 0.7168489761736803,
+          "Speed": 246
+        },
+        {
+          "AlignedFraction": 0.7209190796799871,
+          "Speed": 247
+        }
+      ]
+    }
+  ]
+}
