@@ -538,7 +538,11 @@ def weather(fetch: Callable[[str], dict], round_: dict) -> list[dict] | None:
     forecast gives each session its own: the two hours from its start (warmest temperature, highest chance of rain and the
     rain expected in mm, the wettest sky, strongest wind and gust, the wind's direction at the start, mean humidity),
     stored on the session as 'weather'."""
-    first, last = round_['sessions'][0]['start'][:10], round_['start'][:10]
+    # Provider date bounds are circuit-local, while the calendar timestamps are UTC.
+    # Include the neighbouring dates until the response supplies the circuit's offset.
+    today = datetime.now(timezone.utc).date()
+    first = (_parse(round_['sessions'][0]['start']) - timedelta(days=1)).date().isoformat()
+    last = min((_parse(round_['start']) + timedelta(days=1)).date(), today + timedelta(days=15)).isoformat()
     if (_parse(round_['start']) - datetime.now(timezone.utc)).days > 15:
         return None
     url = (f"https://api.open-meteo.com/v1/forecast?latitude={round_['lat']}&longitude={round_['lon']}"
@@ -570,8 +574,10 @@ def weather(fetch: Callable[[str], dict], round_: dict) -> list[dict] | None:
                                   'humidity': round(sum(humid) / len(humid)) if humid else None,
                                   'direction': heading[0] if heading else None}
     d = response.get('daily') or {}
+    dates = [(_parse(s['start']) + timedelta(seconds=offset or 0)).date().isoformat() for s in round_['sessions']]
     return [{'date': day, 'max': d['temperature_2m_max'][i], 'min': d['temperature_2m_min'][i], 'rain': d['precipitation_probability_max'][i],
-             'wind': d['wind_speed_10m_max'][i], 'code': d['weather_code'][i]} for i, day in enumerate(d.get('time', []))]
+             'wind': d['wind_speed_10m_max'][i], 'code': d['weather_code'][i]} for i, day in enumerate(d.get('time', []))
+            if min(dates) <= day <= max(dates)]
 
 
 def tag_retirement_causes(data: dict) -> None:

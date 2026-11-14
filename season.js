@@ -357,11 +357,12 @@
     yearSelect.value = String(state.year); window.syncSelectUI?.(yearSelect);
     if (!active) {
       active = true;
-      document.querySelectorAll('[data-analysis-view]').forEach(t => t.setAttribute('aria-selected', 'false'));
       document.body.classList.add('season-view');
       page.hidden = false;
       document.body.dataset.view = 'season';
     }
+    document.querySelectorAll('[data-analysis-view]').forEach(t => t.setAttribute('aria-selected', 'false'));
+    tabsNav.hidden = SECTION_TABS.includes(state.tab);
     for (const b of document.querySelectorAll('[data-season-tab]')) b.setAttribute('aria-pressed', String(b.dataset.seasonTab === state.tab));
     // Home lights its own rail row; any Season page lights the Season row.
     mark(!SECTION_TABS.includes(state.tab)); homeButton?.setAttribute('aria-pressed', String(state.tab === 'home')); tracksRow?.setAttribute('aria-pressed', String(state.tab === 'tracks'));
@@ -382,7 +383,7 @@
     if (!active) return;
     active = false;
     document.body.classList.remove('season-view');
-    page.hidden = true; mark(false); homeButton?.setAttribute('aria-pressed', 'false');
+    page.hidden = true; mark(false); homeButton?.setAttribute('aria-pressed', 'false'); tracksRow?.setAttribute('aria-pressed', 'false');
   }
   document.addEventListener('click', event => { if (event.target.closest?.('[data-analysis-view], #liveViewButton')) leave(); }, true);
 

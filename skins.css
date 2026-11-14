@@ -1681,7 +1681,7 @@
 /* Navigation rows (spec §5): 28 px, 8 px corners, 500 13 in the nav colour, 16 px icons; the chosen row is filled #232325 with white text. */
 :root[data-skin="linear"] #linearWorkspace .performance-tabs { display: flex; flex-direction: column; width: 100%; padding: 0; gap: 2px; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
 :root[data-skin="linear"] #linearWorkspace .performance-tabs::before { display: none; }
-:root[data-skin="linear"] #linearWorkspace :is(.performance-tabs > button, .category-bar .category-tab) {
+:root[data-skin="linear"] #linearWorkspace :is(.performance-tabs > button, .category-bar .category-tab, .linear-navigation > .season-view-button) {
   display: flex; justify-content: flex-start; align-items: center; gap: 8px; width: 100%; height: 28px; min-height: 28px; margin: 0; padding: 0 9px 0 8px;
   border-radius: 8px; background: transparent; color: var(--lin-nav-text); text-align: left; font: 500 13px/1 var(--ui-font);
 }
@@ -1690,7 +1690,8 @@
   background: var(--ui-quaternary); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12l3.5-4 3 2.5L14 4'/%3E%3C/svg%3E") center / 14px no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12l3.5-4 3 2.5L14 4'/%3E%3C/svg%3E") center / 14px no-repeat; }
 :root[data-skin="linear"] #linearWorkspace .performance-tabs > :is(.live-view-button, .season-view-button)::before { content: none; }
 :root[data-skin="linear"] #linearWorkspace .performance-tabs > button[data-analysis-view="performance"]::before { content: ''; position: static; flex: 0 0 14px; width: 14px; height: 14px; margin: 0 1px; opacity: 1; border-style: solid; border-color: var(--ui-quaternary); border-width: 0 0 1.3px 1.3px; border-radius: 0; background: linear-gradient(90deg,transparent 15%,var(--ui-quaternary) 15% 30%,transparent 30% 45%,var(--ui-quaternary) 45% 60%,transparent 60% 75%,var(--ui-quaternary) 75% 90%,transparent 90%) bottom/100% 70% no-repeat; }
-:root[data-skin="linear"] #linearWorkspace :is(.performance-tabs > button[aria-selected="true"], .category-bar .category-tab[aria-current="page"]) { background: var(--lin-nav-active); color: var(--ui-label); box-shadow: none; }
+:root[data-skin="linear"] #linearWorkspace :is(.performance-tabs > button[aria-selected="true"], .category-bar .category-tab[aria-current="page"], .linear-navigation > .season-view-button[aria-pressed="true"]) { background: var(--lin-nav-active); color: var(--ui-label); box-shadow: none; }
+:root[data-skin="linear"] #linearWorkspace .linear-navigation > .season-view-button svg { width: 14px; height: 14px; margin: 0 1px; color: var(--ui-quaternary, var(--ui-tertiary)); }
 :root[data-skin="linear"] #linearWorkspace .category-bar:not([hidden]) { display: flex; flex-direction: column; padding: 0; margin: 0; gap: 2px; background: transparent; width: 100%; }
 :root[data-skin="linear"] #linearWorkspace .category-icon { color: var(--ui-quaternary); width: 16px; height: 16px; flex-basis: 16px; }
 :root[data-skin="linear"] #linearWorkspace .category-tab[aria-current="page"] .category-icon { color: var(--ui-secondary); }
@@ -1927,8 +1928,11 @@
   :root[data-skin="linear"] :is(.linear-nav-heading, .linear-rail-footer) { display: none !important; }
   :root[data-skin="linear"] .linear-rail-section { width: 100%; }
   :root[data-skin="linear"] .linear-rail-section[data-section="drivers"] { display: none; }
-  :root[data-skin="linear"] #linearWorkspace .linear-navigation > .performance-tabs { display: grid; grid-template-columns: 1fr 1fr; }
-  :root[data-skin="linear"] #linearWorkspace .performance-tabs > button { justify-content: center; }
+  :root[data-skin="linear"] #linearWorkspace .linear-navigation { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; }
+  :root[data-skin="linear"] #linearWorkspace .linear-navigation > .performance-tabs { display: contents; }
+  :root[data-skin="linear"] #linearWorkspace .linear-navigation :is(.performance-tabs > button, .season-view-button) { flex-direction: column; justify-content: center; gap: 4px; width: 100%; height: 48px; min-width: 0; padding: 4px; font: 500 12px/1.2 var(--ui-font); }
+  :root[data-skin="linear"] #linearWorkspace .linear-navigation .view-label { display: none; }
+  :root[data-skin="linear"] #linearWorkspace .linear-navigation .view-short { display: inline; }
   :root[data-skin="linear"] .linear-categories { width: 100%; overflow: auto; }
   :root[data-skin="linear"] #linearWorkspace .category-bar:not([hidden]) { flex-direction: row; width: max-content; }
   :root[data-skin="linear"] #linearWorkspace .category-bar .category-tab { width: auto; flex: 0 0 auto; }
@@ -1978,7 +1982,7 @@
 :root[data-skin="linear"][data-theme="light"] { --lin-seg-track: #00000008; --lin-seg-on: #ffffff; }
 
 /* Rail: every row answers the pointer; the driver panel is always one column. */
-:root[data-skin="linear"] #linearWorkspace :is(.performance-tabs > button, .category-bar .category-tab, #driverPills .driver-pill, .linear-rail-footer button):hover:not([aria-selected="true"]):not([aria-current="page"]):not([aria-pressed="true"]) { background: var(--lin-nav-hover); color: var(--ui-label); }
+:root[data-skin="linear"] #linearWorkspace :is(.performance-tabs > button, .category-bar .category-tab, .linear-navigation > .season-view-button, #driverPills .driver-pill, .linear-rail-footer button):hover:not([aria-selected="true"]):not([aria-current="page"]):not([aria-pressed="true"]) { background: var(--lin-nav-hover); color: var(--ui-label); }
 :root[data-skin="linear"] #linearWorkspace #driverSidebar { grid-template-columns: minmax(0, 1fr); }
 
 /* Segmented controls: one style everywhere. A faint track with a hairline, the chosen segment filled; nothing slides
@@ -2520,14 +2524,12 @@
 
 /* The rail in two sections. Analysis: Session analysis and Car performance (the tablist), then Tracks, Development and
    Reliability. Season: Home and the season's pages. Every row the same: icon, name, 28 px. */
-:root[data-skin="linear"][data-skin] #linearWorkspace :is(.linear-navigation, .linear-season) .season-view-button { display: flex; justify-content: flex-start; width: 100%; height: 28px; min-height: 28px; margin: 2px 0 0; padding: 0 9px 0 8px; gap: 8px; border: 0; border-radius: 8px; background: transparent; box-shadow: none; color: var(--lin-nav-text); font: 500 13px/1 var(--ui-font); }
-:root[data-skin="linear"][data-skin] #linearWorkspace :is(.linear-navigation, .linear-season) .season-view-button svg { width: 14px; height: 14px; margin: 0 1px; color: var(--ui-quaternary, var(--ui-tertiary)); }
-:root[data-skin="linear"][data-skin] #linearWorkspace :is(.linear-navigation, .linear-season) .season-view-button:hover:not([aria-pressed="true"]) { background: var(--lin-nav-hover); color: var(--ui-label); }
-:root[data-skin="linear"][data-skin] #linearWorkspace :is(.linear-navigation, .linear-season) .season-view-button:is([aria-pressed="true"], [aria-selected="true"]) { background: var(--lin-nav-active); color: var(--ui-label); }
 :root[data-skin="linear"] #linearWorkspace .season-rail-group, :root[data-skin="linear"] #linearWorkspace .season-analysis-rows { display: grid; gap: 0; }
 /* The rail's rows are added by script after load: their space is held from the start so nothing below them moves
    (Analysis: Session analysis, Car performance, Tracks, Development, Reliability; Season: Home and five pages; 30 px each). */
-:root[data-skin="linear"] #linearWorkspace .linear-navigation { min-height: 150px; }   /* five rows: Home, Session analysis, Car performance, Season, Tracks */
+@media (min-width: 761px) {
+  :root[data-skin="linear"] #linearWorkspace .linear-navigation { min-height: 150px; } /* Reserve the five desktop rows while scripts load. */
+}
 
 /* Car performance in the Season look: shaded values as filled, centred chips (deeper = better), no shaded first column. */
 :root[data-skin="linear"] .performance-table td.perf-heat-cell { padding: 2px; text-align: center; vertical-align: middle; }
