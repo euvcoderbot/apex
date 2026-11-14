@@ -2529,3 +2529,15 @@
    (Analysis: Session analysis, Car performance, Tracks, Development, Reliability; Season: Home and five pages; 30 px each). */
 :root[data-skin="linear"] #linearWorkspace .linear-navigation { min-height: 150px; }
 :root[data-skin="linear"] #linearWorkspace .linear-season { min-height: 180px; }
+
+/* Car performance in the Season look: shaded values as filled, centred chips (deeper = better), no shaded first column. */
+:root[data-skin="linear"] .performance-table td.perf-heat-cell { padding: 2px; text-align: center; vertical-align: middle; }
+:root[data-skin="linear"] .performance-table .perf-heat-value { display: block; box-sizing: border-box; min-width: 44px; height: 32px; padding: 0 8px; border-radius: 6px; background: color-mix(in oklch, var(--ui-accent) calc(var(--heat, 0) * 42%), transparent); color: var(--ui-label); font: 600 12px/32px var(--ui-font); font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
+:root[data-skin="linear"][data-theme="light"] .performance-table .perf-heat-value { background: color-mix(in oklch, #14b8a6 calc(var(--heat, 0) * 68%), transparent); }
+:root[data-skin="linear"] .team-profile-table td.profile-rank.is-top::before { display: none; }
+:root[data-skin="linear"] .team-profile-table tbody td.profile-rank { padding: 2px; }
+:root[data-skin="linear"] .team-profile-table tbody th[scope="row"] { background: transparent; }
+/* Explanations off (the default, the (i) switch in the top bar): Car performance shows its measurements only. The
+   expandable evidence and method sections, source notes, the telemetry-limits badge and explanatory paragraphs come back
+   with the switch; a note that holds an action (a button) always stays. */
+:root[data-skin="linear"] :is(body.is-descriptions-hidden, #carPerformance.is-descriptions-hidden) :is(details.performance-evidence, details.performance-methods, details.performance-source-note, details.perf-regulatory-badge, p.performance-note:not(:has(button))) { display: none; }

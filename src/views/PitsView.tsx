@@ -61,6 +61,7 @@ export function PitsView(p: PitsViewProps) {
           : <p className="section-empty" role="status">{p.emptyMessage}</p>}
         <DataTable
           headers={[p.sort.pitName, ...(p.isDriver ? [p.sort.pitTeam] : []), p.sort.pitMean, p.sort.pitMedian, p.sort.pitFastest, p.sort.pitSpread, p.sort.pitCount, p.sort.pitEvents]}
+          heat={(['mean', 'median', 'fastest'] as const).map((k, i) => ({col: (p.isDriver ? 2 : 1) + i, values: p.rows.map(r => r.sample[k]), better: 'low' as const}))}
           rows={p.rows.map(r => [
             p.isDriver ? r.driver : <TeamLabel team={r} />, ...(p.isDriver ? [<TeamLabel team={r} />] : []),
             seconds(r.sample.mean), seconds(r.sample.median), seconds(r.sample.fastest),

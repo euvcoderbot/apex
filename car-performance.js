@@ -963,10 +963,11 @@ function teamProfileCard(paceTeams) {
   const head=`<tr><th scope="col">Team</th>${measures.map(m=>`<th scope="col">${escape(m.label)}</th>`).join('')}<th scope="col">Strongest at</th></tr>`;
   const body=rows.sort((a,b)=>(a.ranks[0]??99)-(b.ranks[0]??99)).map(r=>`<tr style="--team:${escape(color(r.team.color))}"><th scope="row">${teamLabel(r.team)}</th>${r.ranks.map((rank,i)=>{
     const m=measures[i],v=m.values.get(r.team.team);
-    return `<td class="profile-rank${rank==null?'':rank<=3?' is-top':rank>m.count-3?' is-low':''}" title="${escape(`${m.label}: ${rank==null?'not measured':`${rank} of ${m.count} · ${signed(v,m.digits??3,m.unit)}`}`)}">${rank==null?'—':rank}</td>`;}).join('')}<td class="profile-strongest">${escape(r.strongest||'—')}</td></tr>`).join('');
+    const heat=rank!=null&&m.count>1?(m.count-rank)/(m.count-1):0;
+    return `<td class="profile-rank perf-heat-cell${rank==null?'':rank<=3?' is-top':rank>m.count-3?' is-low':''}" title="${escape(`${m.label}: ${rank==null?'not measured':`${rank} of ${m.count} · ${signed(v,m.digits??3,m.unit)}`}`)}"><span class="perf-heat-value"${heat>0?` style="--heat:${heat.toFixed(3)}"`:''}>${rank==null?'—':rank}</span></td>`;}).join('')}<td class="profile-strongest">${escape(r.strongest||'—')}</td></tr>`).join('');
   const loadButton=model.speedLoaded?'':`<p class="performance-note">Add the corner bands, straights, traction and braking from qualifying telemetry: <button type="button" class="btn-track-action" data-profile-load ${speedDomainRunning.team?'disabled':''}>${speedDomainRunning.team?'Measuring telemetry…':'Measure from telemetry'}</button></p>`;
   return `<section class="dashboard-card performance-card team-profile-card"><div class="panel-heading"><h2>Team profiles</h2></div>
-    <p class="performance-note">Each team’s rank among the teams measured, 1 = best, in every measurement on this page set. The top three in each are marked; the measured value is on hover. Ranks hide how close teams are: check the gaps before reading much into neighbouring places.</p>
+    <p class="performance-note">Each team’s rank among the teams measured, 1 = best, in every measurement on this page set. Deeper shading is a better rank; the measured value is on hover. Ranks hide how close teams are: check the gaps before reading much into neighbouring places.</p>
     ${loadButton}<div class="performance-table-wrap" tabindex="0" role="region" aria-label="Team profiles"><table class="performance-table team-profile-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>
     ${model.speedLoaded?tradeOffPlot(model):''}</section>`;
 }
@@ -1022,14 +1023,14 @@ function renderPace(teams) {
   }, paceKey);
 
   const chartMeta = qualyPaceMode === 'overall' ? {
-    title: 'Qualifying Pace Deficit · Overall Best Lap',
+    title: 'Qualifying pace deficit · overall best lap',
     subtitle: 'Fastest official lap across Q1–Q3 per GP · season summary rebased to fastest team',
     note: 'Each GP uses each constructor’s single fastest valid lap across Q1–Q3 from either driver, compared with that GP’s fastest lap. Across GPs the median is the default, so one wet, red-flagged or crash-hit session cannot decide the season; the result is rebased so the fastest supported team is 0.00%. A team knocked out in Q1 is measured on a slower track than Q3: the Adjusted view estimates that track evolution. Whiskers show the likely range from resampling the GPs; ≈ marks a gap to the team above that is inside that range.'
   } : qualyPaceMode==='condition'?{
     title:'Qualifying pace · timestamp / fresh-set diagnostic',subtitle:'Estimated, not official · no extrapolation to Q3',
     note:'Uses actual completion timestamps from repeated fresh, low-age sets on one dry compound. Driver effects and a shared timestamp slope are fitted inside common observed time support. Selected fastest laps must match that cohort. Weather, wind and execution are not independently measured corrections; unsupported fits stay blank.'
   } : {
-    title: 'Qualifying Pace Deficit · Track-Evolution Adjusted (% to Q3 Baseline)',
+    title: 'Qualifying pace deficit · track-evolution adjusted (% to Q3 baseline)',
     subtitle: 'Same dry compound and advancing drivers · estimated Q1/Q2 evolution, not a measured correction',
     note: 'Estimates the shared improvement between qualifying phases from advancing drivers. Tyres, driver execution and changing conditions can also contribute; this is a diagnostic rather than an official lap result.'
   };
@@ -1045,7 +1046,7 @@ function renderPace(teams) {
     stat:{show:loadedR>2||loadedQ>2,value:paceSeasonStat},
     qualyMode:qualyPaceMode,qualyBadge:qualyPaceMode==='overall'?'Best delivered lap · Q1–Q3':qualyPaceMode==='condition'?'Estimated within common observed time support':'Estimated phase evolution',
     qualyChart:{rows:ordered,options:{title:chartMeta.title,subtitle:`${chartMeta.subtitle} · ${paceSeasonStat==='mean'?'Mean':'Median'} across GPs${loadedQ>3?' · whiskers: likely range':''}`,valueKey:paceKey,unit:'%',digits:loadedQ>1?2:3,intervalKey:paceKey+'Range',perLapSeconds:lapSeconds}},
-    raceChart:{rows:paceTeams,options:{title:'Estimated Race Pace Deficit (% to Benchmark)',
+    raceChart:{rows:paceTeams,options:{title:'Estimated race pace deficit (% to benchmark)',
       subtitle:`Shared race-lap, compound and tyre-age model · ${paceSeasonStat==='mean'?'Mean':'Median'} GP estimate · Lower is faster${loadedR>3?' · whiskers: likely range':''}`,valueKey:'race',unit:'%',digits:loadedR>1?2:3,intervalKey:'raceRange',perLapSeconds:lapSeconds}},
     sort:{team:sortHeaderModel('team','Team'),pace:sortHeaderModel(paceKey,qualyColLabel),race:sortHeaderModel('race','Estimated race pace deficit'),samples:sortHeaderModel('samples','Modelled race laps',-1)},
     rows:ordered.map(t=>{

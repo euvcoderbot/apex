@@ -44,6 +44,9 @@ export function ResultsView({rows, chartMetric, chart, sort}: ResultsViewProps) 
         <div className="results-overview">
         <BarChart rows={overview} options={chart} />
         <DataTable headers={['Team', 'Total points', 'Race', 'Sprint', 'Race points / start', 'Finished / starts']}
+          heat={[{col: 1, values: overview.map(t => t.points), better: 'high'}, {col: 2, values: overview.map(t => t.racePoints), better: 'high'},
+            {col: 3, values: overview.map(t => t.sprintPoints), better: 'high'}, {col: 4, values: overview.map(t => t.pointsPerStart), better: 'high'},
+            {col: 5, values: overview.map(t => (t.starts ? t.finishes / t.starts : null)), better: 'high'}]}
           rows={overview.map(t => [<TeamLabel team={t} />, value(t.points), value(t.racePoints), value(t.sprintPoints),
             fmt(t.pointsPerStart, 2), `${t.finishes} / ${t.starts}`])} />
         </div>

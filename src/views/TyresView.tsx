@@ -75,6 +75,7 @@ export function TyresView(p: TyresViewProps) {
         <div className="performance-card-controls">{toolbar}<CompoundControl compound={p.compound} /></div>
         <BarChart rows={p.chart.rows} options={p.chart.options} />
         <DataTable headers={[p.sort.team, p.sort.norm, 'Observed age range', p.sort.stints, 'Field support', 'Compound mix']}
+          heat={[{col: 1, values: p.rows.map(r => r.norm.value), better: 'low'}]}
           rows={p.rows.map(r => [
             <TeamLabel team={r.team} />,
             finite(r.norm.value) ? <ValueNote value={`${r.norm.value! > 0 ? '+' : ''}${fmt(r.norm.value, 3, ' s/lap')}`} note={r.norm.provisional ?? undefined} />
