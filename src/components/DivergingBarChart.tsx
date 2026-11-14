@@ -15,7 +15,7 @@ export function DivergingBarChart({title, subtitle, rows, unit, extent, seriesKe
   const span = maximum-minimum || extent || 1;
   const zero = -minimum/span*100;
   return (
-    <div className="performance-chart-card">
+    <div className={`performance-chart-card${rows.length > 14 ? ' is-long' : ''}`}>
       <div className="perf-chart-header"><div className="perf-chart-title-group">
         <h4 className="perf-chart-heading">{title}</h4><span className="perf-chart-sub">{subtitle}</span>
       </div></div>
@@ -25,7 +25,8 @@ export function DivergingBarChart({title, subtitle, rows, unit, extent, seriesKe
           const left = r.value < 0 ? zero-width : zero;
           return (
             <div key={i} className="performance-tyre-age-row" data-trend-series={seriesKey?.(r)} role="img" data-chart-value={`${title}:${seriesKey?.(r) || r.displayName || r.team || r.name || i}`} tabIndex={i === 0 ? 0 : -1} aria-label={`${r.displayName || r.team || r.name || ''}: ${signed(r.value, 3, unit)}`}>
-              <div className="performance-tyre-age-name"><TeamLabel team={r} /></div>
+              {/* In a long list (two columns) a driver is named by code alone; the dot carries the team. */}
+              <div className="performance-tyre-age-name"><TeamLabel team={rows.length > 14 && r.displayName ? {...r, displayName: String(r.displayName).split(' · ')[0]} : r} /></div>
               <div className="performance-tyre-age-track">
                 <i className="performance-tyre-age-zero" style={{left:`${zero.toFixed(2)}%`}} />
                 <i className="performance-tyre-age-bar" style={{'--bar-color': color(r.color), left: `${left.toFixed(2)}%`, width: `${width.toFixed(2)}%`} as CSSProperties} />

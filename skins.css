@@ -2541,3 +2541,21 @@
    expandable evidence and method sections, source notes, the telemetry-limits badge and explanatory paragraphs come back
    with the switch; a note that holds an action (a button) always stays. */
 :root[data-skin="linear"] :is(body.is-descriptions-hidden, #carPerformance.is-descriptions-hidden) :is(details.performance-evidence, details.performance-methods, details.performance-source-note, details.perf-regulatory-badge, p.performance-note:not(:has(button))) { display: none; }
+
+/* Car performance arrangement. A long list (drivers, beside the teams) flows into two columns once its card is wide enough,
+   so the pair stands level; narrow cards (three across) keep one column. Each group of pills is set apart by a gap and a
+   hairline, so stop type, subject and statistic read as separate choices. */
+:root[data-skin="linear"] #performanceMetricPanel .performance-chart-card.is-long { container-type: inline-size; }
+@container (min-width: 480px) {
+  :root[data-skin="linear"] #performanceMetricPanel .performance-chart-card.is-long :is(.performance-bars, .performance-tyre-age-chart) { display: block; columns: 2; column-gap: 28px; }
+  /* Out of the list's grid (columns replace it), each row keeps its own: name, bar, value on one line. */
+  :root[data-skin="linear"] #performanceMetricPanel .performance-chart-card.is-long :is(.performance-bar-row, .performance-tyre-age-row) { display: grid; grid-column: auto; grid-template-columns: minmax(40px, max-content) minmax(36px, 1fr) max-content; align-items: center; gap: 10px; min-height: 30px; padding-block: 0; break-inside: avoid; }
+}
+:root[data-skin="linear"] #performanceMetricPanel .subject-pair { align-items: start; }
+:root[data-skin="linear"] #performanceMetricPanel .performance-scope-toggle + .performance-scope-toggle { margin-left: 6px; padding-left: 12px; box-shadow: inset 1px 0 0 var(--ui-border); }
+/* The coverage line (timings measured, what is untimed): a quiet line of text, its action beside it, no banner frame. */
+:root[data-skin="linear"] #performanceMetricPanel p.performance-quality-status { display: block; margin: 0 0 12px; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--ui-tertiary); font: 450 12px/1.45 var(--ui-font); }
+:root[data-skin="linear"] #performanceMetricPanel p.performance-quality-status > button { float: right; margin: -2px 0 4px 16px; }
+/* A shaded column's heading is centred over its chips (as the Season tables), sort button included. */
+:root[data-skin="linear"] .performance-table thead th:is(.perf-heat-head), :root[data-skin="linear"] .team-profile-table thead th:not(:first-child):not(:last-child) { text-align: center; }
+:root[data-skin="linear"] .performance-table thead th.perf-heat-head .perf-sort-btn { justify-content: center; margin-inline: auto; }

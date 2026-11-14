@@ -40,7 +40,7 @@ export function DataTable({headers, rows, heat = []}: {headers: Header[]; rows: 
     <div className={`performance-table-wrap${headers.length <= 6 ? ' is-compact-table' : ''}`} tabIndex={0} role="region" aria-label="Measurement table">
       <table className="performance-table">
         <thead><tr>{headers.map((h, i) => (
-          <th key={i} scope="col" aria-sort={typeof h === 'object' && h.state !== 'none' ? h.state : undefined}>
+          <th key={i} scope="col" className={heatFor(i) ? 'perf-heat-head' : undefined} aria-sort={typeof h === 'object' && h.state !== 'none' ? h.state : undefined}>
             {typeof h === 'object' ? <SortHeader model={h} /> : h}
           </th>
         ))}</tr></thead>

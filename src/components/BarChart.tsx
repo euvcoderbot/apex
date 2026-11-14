@@ -21,6 +21,8 @@ export type BarChartOptions = {
 export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartOptions}) {
   const {title = '', subtitle = '', valueKey = 'value', labelKey = 'team', colorKey = 'color', unit = '%', digits = 3,
     signedValue = true, zeroBaseline = true, preserveSignedValues = false, invertBest = false, intervalKey, perLapSeconds = null} = options;
+  // A long unit ('% of lap') is said once, under the title; each value carries only its short form ('%').
+  const shortUnit = unit.replace(/ of .*$/, ''), unitNote = shortUnit !== unit ? unit : '';
   const valid = (rows || []).filter(r => r && finite(r[valueKey] as number)).map((r): Row & {chart: number} => ({...r, chart: 0}));
   const missing = (rows || []).filter(r => r && !finite(r[valueKey] as number));
   const unranked = missing.map((r, i) => (
@@ -59,11 +61,13 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
   const zero = (-lo / span) * 100;
 
   return (
-    <div className="performance-chart-card">
+    // A long list (drivers) is laid out in two columns where the card is wide enough (season-style.css container query),
+    // so it stands as tall as the teams beside it.
+    <div className={`performance-chart-card${(rows || []).length > 14 ? ' is-long' : ''}`}>
       {title ? (
         <div className="perf-chart-header"><div className="perf-chart-title-group">
           <h4 className="perf-chart-heading">{title}</h4>
-          {subtitle ? <span className="perf-chart-sub">{subtitle}</span> : null}
+          {subtitle || unitNote ? <span className="perf-chart-sub">{subtitle || unitNote}</span> : null}
         </div></div>
       ) : null}
       {new Set(rows.map(r => r.coverageLabel).filter(Boolean)).size > 1 ? <p className="performance-quality-status">GP coverage differs between entrants. These are averages over each entrant’s available GPs, not a comparison over identical races.</p> : null}
@@ -72,8 +76,8 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
           const value = r.chart, plotted = visibleBarValue(value, digits), position = ((plotted - lo) / span) * 100;
           const left = preserveSignedValues ? Math.min(zero, position) : 0;
           const width = preserveSignedValues ? Math.abs(position - zero) : Math.min(100, Math.max(0, position));
-          const display = preserveSignedValues ? signed(value, digits, unit) : signedValue
-            ? (value <= 0.00001 ? fmt(0, digits, unit) : `+${fmt(value, digits, unit)}`) : fmt(value, digits, unit);
+          const display = preserveSignedValues ? signed(value, digits, shortUnit) : signedValue
+            ? (value <= 0.00001 ? fmt(0, digits, shortUnit) : `+${fmt(value, digits, shortUnit)}`) : fmt(value, digits, shortUnit);
           const gain = signedValue ? (preserveSignedValues ? (value < 0 ? 'is-gain' : 'is-loss') : value <= 0.00001 ? 'is-gain' : 'is-loss') : '';
           const label = String(r[labelKey] || r.team || r.name || '');
           const whisker = ranges.get(r);
