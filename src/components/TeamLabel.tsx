@@ -10,15 +10,22 @@ export function TeamLogo({team}: {team?: string}) {
   return <span style={{display: 'contents'}} dangerouslySetInnerHTML={{__html: teamLogoMarkup(team)}} />;
 }
 
-/** Team logo, colour dot and name (`.performance-team`). */
+type Faces = {srcByCode?: (code: string) => string | null};
+
+/** Team logo, colour dot and name (`.performance-team`). A driver (named by code, 'VER' or 'VER · Red Bull Racing') shows
+ *  their photo on the team colour in place of the dot, as the Season pages do. */
 export function TeamLabel({team}: {team: TeamLike | string}) {
   const t: TeamLike = typeof team === 'object' && team !== null ? team : {team: String(team || '')};
   const name = t.displayName || t.team || t.name || '';
   const teamColor = t.color ? color(t.color) : 'var(--ui-label)';
+  const code = String(t.displayName || t.name || '').split(' · ')[0];
+  const faces = typeof window !== 'undefined' ? (window as unknown as {apexDriverFaces?: Faces}).apexDriverFaces : undefined;
+  const photo = /^[A-Z]{3}$/.test(code) ? faces?.srcByCode?.(code) : null;
   return (
-    <div className="performance-team" style={{'--team-color': teamColor} as CSSProperties}>
+    <div className={`performance-team${photo ? ' has-face' : ''}`} style={{'--team-color': teamColor} as CSSProperties}>
       <TeamLogo team={t.logoTeam || t.team || name} />
-      <span className="team-dot" style={{backgroundColor: teamColor}} />
+      {photo ? <img className="driver-face" src={photo} alt="" aria-hidden="true" loading="lazy" decoding="async" style={{'--team': teamColor} as CSSProperties} />
+        : <span className="team-dot" style={{backgroundColor: teamColor}} />}
       <span className="team-name">{name}</span>
     </div>
   );

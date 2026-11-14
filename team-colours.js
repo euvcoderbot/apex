@@ -38,7 +38,7 @@
   function load() {
     request ||= fetch('assets/drivers/credits.json').then(r => (r.ok ? r.json() : {})).then(c => {
       byName = new Map(Object.entries(c.photos || {}).map(([id, x]) => [plain(x.name), id]));
-      window.dispatchEvent(new Event('apex-driver-photos'));
+      window.dispatchEvent?.(new Event('apex-driver-photos'));
     }).catch(() => { byName = new Map(); });
     return request;
   }
@@ -50,6 +50,20 @@
     return [...byName].find(([k]) => k.split(' ').at(-1) === family)?.[1] || null;
   }
   const src = name => { const i = id(name); return i ? `assets/drivers/${encodeURIComponent(i)}.webp` : null; };
+  // Car performance names drivers by code only (VER, HUL): the first three letters of the family name, accents dropped,
+  // give each code; a code two drivers would share is left without a photo rather than guessed.
+  let byCode = null;
+  function srcByCode(code) {
+    if (!byName) { load(); return null; }
+    if (!byCode) {
+      const counts = new Map(), ids = new Map();
+      for (const [n, i] of byName) { const c = n.split(' ').at(-1).slice(0, 3).toUpperCase(); counts.set(c, (counts.get(c) || 0) + 1); ids.set(c, i); }
+      byCode = new Map([...ids].filter(([c]) => counts.get(c) === 1));
+    }
+    const i = byCode.get(String(code || '').toUpperCase());
+    return i ? `assets/drivers/${encodeURIComponent(i)}.webp` : null;
+  }
   const img = name => { const s = src(name); return s ? `<img class="driver-face-img" src="${s}" alt="" loading="lazy" decoding="async">` : ''; };
-  window.apexDriverFaces = {id, src, img, load};
+  window.apexDriverFaces = {id, src, srcByCode, img, load};
+  if (typeof fetch === 'function' && typeof document !== 'undefined') load();   // small list, read once at start so every view has it when it first draws
 })();

@@ -2559,3 +2559,6 @@
 /* A shaded column's heading is centred over its chips (as the Season tables), sort button included. */
 :root[data-skin="linear"] .performance-table thead th:is(.perf-heat-head), :root[data-skin="linear"] .team-profile-table thead th:not(:first-child):not(:last-child) { text-align: center; }
 :root[data-skin="linear"] .performance-table thead th.perf-heat-head .perf-sort-btn { justify-content: center; margin-inline: auto; }
+/* Car performance: a driver's photo on the team colour where the team dot was. */
+:root[data-skin="linear"] .performance-team.has-face .team-logo { display: none; }
+:root[data-skin="linear"] .performance-team .driver-face { width: 20px; height: 20px; flex: 0 0 20px; }
