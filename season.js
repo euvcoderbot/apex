@@ -3,12 +3,11 @@
    (parsed FIA documents), fetched through the same cached data path as the other views. Loaded after the page
    (lazy module), so it never delays the session view. Text from data is always set as text or escaped. */
 (() => {
-  // Two groups in the rail. Season: the year's stories. Analysis (beside Session analysis and Car performance): the circuits,
-  // the cars' development (FIA upgrade documents) and their reliability (power units). Form is part of Drivers; an old
-  // ?tab=form link opens Drivers.
+  // The rail lists the sections (Home, Session analysis, Car performance, Season, Tracks); a section's pages are the small
+  // pills at the top of its page. Season's pills: Calendar to Reliability. Form is part of Drivers (?tab=form opens it).
   const TABS = [['home', 'Home'], ['schedule', 'Calendar'], ['results', 'Results'], ['standings', 'Standings'], ['drivers', 'Drivers'],
-    ['h2h', 'Head-to-head'], ['tracks', 'Tracks'], ['upgrades', 'Development'], ['units', 'Reliability']];
-  const ANALYSIS_TABS = ['tracks', 'upgrades', 'units'];
+    ['h2h', 'Head-to-head'], ['upgrades', 'Development'], ['units', 'Reliability'], ['tracks', 'Tracks']];
+  const SECTION_TABS = ['home', 'tracks'];   // their own rows in the rail, not Season pills
   const TAB_ALIASES = {form: 'drivers'};
   // Teams' formula1.com colours (team-colours.js maps the feed's shades to these and handles light mode).
   const TEAM_HEX = {mercedes: '#27f4d2', ferrari: '#e8002d', red_bull: '#3671c6', mclaren: '#ff8000', rb: '#6692ff', alpine: '#00a1e8',
@@ -135,7 +134,7 @@
   }
 
   let page, body, tabsNav, yearSelect, button, railSection, active = false;
-  const state = {year: new Date().getFullYear(), tab: 'schedule', driver: null, a: null, b: null, team: null, standings: 'drivers', matrix: 'position', updatesView: 'grid', type: null, expanded: null};
+  const state = {year: new Date().getFullYear(), tab: 'schedule', driver: null, a: null, b: null, team: null, standings: 'drivers', matrix: 'points', updatesView: 'grid', type: null, expanded: null};
   const cache = {};   // `${kind}:${year}` -> Promise of data
 
   // ---------- data ----------
@@ -263,7 +262,7 @@
     title.append(shell, el('span', 'season-saved'));
     tabsNav = el('nav', 'season-tabs'); tabsNav.setAttribute('aria-label', 'Season pages');
     for (const [id, label] of TABS) {
-      if (id === 'home') continue;   // Home is its own row in the rail, not a Season page
+      if (SECTION_TABS.includes(id)) continue;   // Home and Tracks are their own rows in the rail, not Season pages
       const b = el('button', null, label); b.type = 'button'; b.dataset.seasonTab = id; b.setAttribute('aria-pressed', 'false');
       b.addEventListener('click', () => show(id));
       tabsNav.append(b);
@@ -280,7 +279,7 @@
     button.setAttribute('aria-pressed', 'false'); button.title = 'Season: schedule, results, standings and more';
     // Static authored markup: a small calendar glyph.
     button.innerHTML = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="10" rx="2"/><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3"/></svg><span class="season-view-label">Season</span>';
-    button.addEventListener('click', () => (active ? null : show(state.tab)));
+    button.addEventListener('click', () => show(SECTION_TABS.includes(state.tab) || !active ? (lastSeasonTab || 'schedule') : state.tab));
   }
   // In the header's tab list the button is one more tab (aria-selected); in the Linear rail it is a toggle (aria-pressed).
   function mark(on) {
@@ -305,7 +304,7 @@
     if (homeButton.parentElement !== first?.parentElement || homeButton.nextElementSibling !== first) first ? first.before(homeButton) : rail.prepend(homeButton);
     homeButton.setAttribute('aria-pressed', String(active && state.tab === 'home'));
   }
-  let analysisRows = null;
+  let tracksRow = null;
   const ICONS = {
     tracks: '<path d="M4.5 12.5c-1.7 0-2.5-1.2-2-2.6l1.6-4.6C4.6 3.9 5.7 3 7.2 3h2.3c1.6 0 2.4 1.4 1.8 2.8l-.6 1.4c-.3.7.2 1.3.9 1.3h.6c1.4 0 2.3 1.3 1.8 2.6-.4 1-1.3 1.4-2.3 1.4z"/>',
     upgrades: '<path d="M8 13V3.5M4 7l4-4 4 4"/><path d="M3 13.5h10"/>',
@@ -326,48 +325,33 @@
   }
   function place() {
     const rail = document.querySelector('#linearWorkspace .linear-navigation');
-    const seasonRail = document.querySelector('#linearWorkspace .linear-season');
-    if (rail && seasonRail) {
-      button.remove();
-      if (!railSection) {
-        railSection = el('div', 'season-rail-group');
-        for (const [id, label] of TABS) if (id !== 'home' && !ANALYSIS_TABS.includes(id)) railSection.append(railRow(id, label));
-      }
-      placeHome(seasonRail);
-      if (homeButton.parentElement !== seasonRail) seasonRail.prepend(homeButton);
-      homeButton.after(railSection);
-      if (!analysisRows) {
-        analysisRows = el('div', 'season-analysis-rows');
-        for (const [id, label] of TABS) if (ANALYSIS_TABS.includes(id)) analysisRows.append(railRow(id, label));
-      }
-      rail.append(analysisRows);
-      homeButton.setAttribute('aria-pressed', String(active && state.tab === 'home'));
-    } else if (rail) {
+    if (rail) {
       placeHome(rail);
       rail.append(button);
-      if (!railSection) {
-        railSection = el('div', 'season-rail-pages');
-        for (const [id, label] of TABS) {
-          if (id === 'home') continue;
-          const b = el('button', null, label); b.type = 'button'; b.dataset.seasonTab = id;
-          b.addEventListener('click', () => show(id));
-          railSection.append(b);
-        }
+      tracksRow ||= railRow('tracks', 'Tracks');
+      button.after(tracksRow);
+      // The brand opens Home, as a site's name does.
+      const brand = document.querySelector('#linearWorkspace .linear-workspace-brand');
+      if (brand && !brand.dataset.home) {
+        brand.dataset.home = '1'; brand.setAttribute('role', 'link'); brand.tabIndex = 0; brand.title = 'Home';
+        brand.addEventListener('click', () => show('home'));
+        brand.addEventListener('keydown', e => { if (e.key === 'Enter') show('home'); });
       }
-      button.after(railSection);
     } else {
-      railSection?.remove();
       (document.querySelector('.site-header .performance-tabs') || document.querySelector('.site-header .header-actions'))?.append(button);
     }
-    mark(active && state.tab !== 'home');
+    mark(active && !SECTION_TABS.includes(state.tab));
+    tracksRow?.setAttribute('aria-pressed', String(active && state.tab === 'tracks'));
   }
 
   // ---------- entering and leaving ----------
+  let lastSeasonTab = null;
   function show(tab, params = {}, fromHistory = false) {
     window.ApexLive?.leave?.();
     const aliased = Boolean(TAB_ALIASES[tab]);
     tab = TAB_ALIASES[tab] || tab;
     state.tab = TABS.some(([id]) => id === tab) ? tab : 'schedule';
+    if (!SECTION_TABS.includes(state.tab)) lastSeasonTab = state.tab;
     if (params.year && Number(params.year) !== state.year) { state.year = Number(params.year); }
     for (const key of ['driver', 'a', 'b', 'team', 'track']) if (params[key]) state[key] = params[key];
     yearSelect.value = String(state.year); window.syncSelectUI?.(yearSelect);
@@ -380,13 +364,13 @@
     }
     for (const b of document.querySelectorAll('[data-season-tab]')) b.setAttribute('aria-pressed', String(b.dataset.seasonTab === state.tab));
     // Home lights its own rail row; any Season page lights the Season row.
-    mark(state.tab !== 'home'); homeButton?.setAttribute('aria-pressed', String(state.tab === 'home'));
+    mark(!SECTION_TABS.includes(state.tab)); homeButton?.setAttribute('aria-pressed', String(state.tab === 'home')); tracksRow?.setAttribute('aria-pressed', String(state.tab === 'tracks'));
     page.classList.toggle('is-home', state.tab === 'home');
     const label = TABS.find(([id]) => id === state.tab)[1];
     page.querySelector('.season-title h1').textContent = label;
     const crumb = document.getElementById('windowTitle'), sub = document.getElementById('windowSubtitle');
     if (crumb) crumb.textContent = label;
-    if (sub) sub.textContent = state.tab === 'home' ? 'F1 Apex Data' : ANALYSIS_TABS.includes(state.tab) ? `Analysis · ${state.year}` : `Season ${state.year}`;
+    if (sub) sub.textContent = state.tab === 'home' ? 'F1 Apex Data' : state.tab === 'tracks' ? `Tracks · ${state.year}` : `Season ${state.year}`;
     if (!fromHistory || aliased) window.ApexUrl?.write('season', urlParams());
     else document.title = window.ApexUrl?.titleFor('season', urlParams()) || document.title;
     render();
@@ -587,12 +571,6 @@
     });
     out.push(glance);
     // Every part of the site, one tile each.
-    const tiles = el('div', 'home-tiles');
-    const tile = (title, text, go) => { const b = el('button', 'home-tile'); b.type = 'button'; b.append(el('b', null, title), el('span', 'season-muted', text)); b.addEventListener('click', go); tiles.append(b); };
-    tile('Session analysis', 'Lap times, telemetry, corners and sectors for any session', () => document.querySelector('[data-analysis-view="session"]')?.click());
-    tile('Car performance', 'Pace, cornering, straights, braking, pit stops and tyres by team', () => document.querySelector('[data-analysis-view="performance"]')?.click());
-    for (const [id, label] of TABS) if (id !== 'home') tile(label, {schedule: 'Calendar, sessions and weather', tracks: 'Every circuit: map, corners, sectors and straights', results: 'Races, qualifying and sprints, with race reports', standings: 'Championship tables and charts', drivers: 'Profiles, every stat for every driver, and form', h2h: 'Any two drivers side by side', upgrades: 'Car upgrades by team and Grand Prix, from the FIA documents', units: 'Power-unit elements, failures and penalties'}[id] || '', () => show(id));
-    out.push(card('Explore', tiles));
     return out;
   }
 
@@ -702,11 +680,20 @@
     const total = t.length, step = total / pts.length;
     const sectorOf = i => { const d = i * step; return !t.sectors ? 0 : d < t.sectors[0].to ? 0 : d < t.sectors[1].to ? 1 : 2; };
     let svg = `<svg class="season-chart season-track-map" viewBox="0 0 ${W} ${H}" role="img" aria-label="Map of ${esc(t.circuit || 'the circuit')}">`;
-    svg += `<path class="track-base" d="M${pts.map(p => `${X(p[0]).toFixed(1)} ${Y(p[1]).toFixed(1)}`).join('L')}Z"/>`;
-    for (let i = 0; i < pts.length; i++) {
-      const a = pts[i], b = pts[(i + 1) % pts.length];
-      const colour = mode === 'sectors' ? SECTOR_COLOURS[sectorOf(i)] : rampColour((a[2] - vLo) / (vHi - vLo || 1));
-      svg += `<line class="track-seg" x1="${X(a[0]).toFixed(1)}" y1="${Y(a[1]).toFixed(1)}" x2="${X(b[0]).toFixed(1)}" y2="${Y(b[1]).toFixed(1)}" style="stroke:${colour}"/>`;
+    // A smooth outline: each piece runs from the midpoint before a sample to the midpoint after it, curving through the
+    // sample (a quadratic curve), so the telemetry's ~10 m steps never show as corners; each piece takes its sample's colour.
+    const P = pts.map(p => [X(p[0]), Y(p[1])]), n = P.length, f = v => v.toFixed(1);
+    const midOf = (i, j) => [(P[i][0] + P[j][0]) / 2, (P[i][1] + P[j][1]) / 2];
+    let base = '';
+    for (let i = 0; i < n; i++) {
+      const m0 = midOf((i - 1 + n) % n, i), m1 = midOf(i, (i + 1) % n);
+      base += `${i ? '' : `M${f(m0[0])} ${f(m0[1])}`}Q${f(P[i][0])} ${f(P[i][1])} ${f(m1[0])} ${f(m1[1])}`;
+    }
+    svg += `<path class="track-base" d="${base}Z"/>`;
+    for (let i = 0; i < n; i++) {
+      const m0 = midOf((i - 1 + n) % n, i), m1 = midOf(i, (i + 1) % n);
+      const colour = mode === 'sectors' ? SECTOR_COLOURS[sectorOf(i)] : rampColour((pts[i][2] - vLo) / (vHi - vLo || 1));
+      svg += `<path class="track-seg" d="M${f(m0[0])} ${f(m0[1])}Q${f(P[i][0])} ${f(P[i][1])} ${f(m1[0])} ${f(m1[1])}" style="stroke:${colour}"/>`;
     }
     // Start/finish: a short bar across the first point.
     const [s0, s1] = [pts[0], pts[2]], dx = X(s1[0]) - X(s0[0]), dy = Y(s1[1]) - Y(s0[1]), len = Math.hypot(dx, dy) || 1;
@@ -837,7 +824,7 @@
     ct.append(cornerTable(t.corners.list.slice(0, half)), cornerTable(t.corners.list.slice(half)));
     const cornersCard = card('Corners', ct, el('p', 'season-footnote', `Every numbered corner at the lowest speed of the lap through it${t.corners.approximate ? ' (corner positions approximate)' : ''}; deeper shading is slower. Slow under 120 km/h, medium 120–200, fast over 200 (flat-out bends included).`));
     const history = round ? circuitProfile(data, round) : null;
-    return [picker, head, two, cornersCard, ...(history ? [history] : []), trackComparison(data, profiles, pick, gp => { state.track = gp; repaint(); window.scrollTo({top: 0, behavior: 'smooth'}); })];
+    return [picker, head, ...(history ? [history] : []), two, cornersCard, trackComparison(data, profiles, pick, gp => { state.track = gp; repaint(); window.scrollTo({top: 0, behavior: 'smooth'}); })];
   }
   // Every track in one table: sortable columns, values shaded by where they sit in the column. A row opens that track.
   function trackComparison(data, profiles, pick, choose) {
@@ -1014,6 +1001,7 @@
       const header = el('div', 'season-forecast-head');
       const bySession = next.sessions.filter(x => x.weather?.temp != null);
       header.append(el('span', null, bySession.length ? 'Session' : 'Day'), el('span'), el('span', null, bySession.length ? 'Temp' : 'High / low'), el('span', null, 'Rain'), el('span', null, 'Wind'));
+      if (bySession.some(x => x.weather.humidity != null)) header.append(el('span', null, 'Humidity'));
       list.append(header);
       if (bySession.length) list.classList.add('is-sessions');
       for (const x of bySession) {
@@ -1022,7 +1010,16 @@
         const icon = weatherIcon(w.code); icon.dataset.kind = w.code >= 95 ? 'storm' : w.rain >= 50 ? 'wet' : w.code <= 2 ? 'sun' : 'cloud';
         const temp = el('span', 'season-forecast-temp'); temp.append(el('b', null, `${Math.round(w.temp)}\u00b0`));
         const short = x.name.replace('Practice ', 'FP').replace('Sprint Qualifying', 'Sprint quali');
-        row.append(el('span', 'season-forecast-day', short), icon, temp, el('span', 'season-forecast-rain', `${w.rain ?? 0}%`), el('span', 'season-forecast-wind', `${Math.round(w.wind ?? 0)} km/h`));
+        // Wind: speed with an arrow pointing where it blows to (the forecast gives where it comes from), gusts on hover.
+        const wind = el('span', 'season-forecast-wind');
+        if (w.direction != null) { const arrow = htmlNode(`<svg class="season-wind-arrow" viewBox="0 0 12 12" width="11" height="11" aria-hidden="true" style="transform:rotate(${(w.direction + 180) % 360}deg)"><path d="M6 1.5v9M2.8 4.7 6 1.5l3.2 3.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`); wind.append(arrow); }
+        wind.append(`${Math.round(w.wind ?? 0)} km/h`);
+        const compass = d => ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(d / 45) % 8];
+        wind.title = `Wind ${Math.round(w.wind ?? 0)} km/h${w.direction != null ? ` from the ${compass(w.direction)}` : ''}${w.gust != null ? `, gusts to ${Math.round(w.gust)} km/h` : ''}`;
+        const rainCell = el('span', 'season-forecast-rain', `${w.rain ?? 0}%`);
+        if (w.mm) rainCell.append(el('small', 'season-muted', ` ${w.mm} mm`));
+        row.append(el('span', 'season-forecast-day', short), icon, temp, rainCell, wind);
+        if (w.humidity != null) row.append(el('span', 'season-forecast-humid', `${w.humidity}%`));
         list.append(row);
       }
       for (const d of bySession.length ? [] : data.next_weather) {
@@ -1443,16 +1440,17 @@
     layout.lastChild.append(card('Points evolution', points), card('Championship position', ranks));
     linkHover(layout);
     // Drivers: finishing positions or points per round, switched in place (the choice is kept while the page is open).
+    if (!state.matrix) state.matrix = 'points';
     const showPoints = () => !drivers || state.matrix === 'points', showQuali = () => drivers && state.matrix === 'qualifying';
-    const note = () => showQuali() ? 'Grand Prix qualifying position. Purple pole, light into Q3, grey out before Q3; the last column is the average.'
+    const note = () => showQuali() ? 'Grand Prix qualifying position (before grid penalties). Purple pole, light into Q3, grey out before Q3; the last columns are the mean and the median.'
       : showPoints() ? 'Points scored at each Grand Prix weekend, sprint included; deeper colour means more points.'
-      : 'Grand Prix finishing position; a small number is the sprint result when it scored. Purple win, green podium, light points, red not classified.';
+      : 'Grand Prix finishing position; a small number is the sprint result when it scored. Purple win, green podium, light points, red not classified. Mean and median over classified finishes.';
     let grid = resultsMatrix(data, drivers, last, showPoints(), showQuali());
     const foot = el('p', 'season-footnote', note());
     let matrixToggle = null;
     if (drivers) {
       matrixToggle = el('div', 'season-segment season-zone-toggle'); matrixToggle.setAttribute('role', 'group'); matrixToggle.setAttribute('aria-label', 'Show by round');
-      for (const [id, label] of [['position', 'Positions'], ['points', 'Points'], ['qualifying', 'Qualifying']]) {
+      for (const [id, label] of [['points', 'Points'], ['position', 'Positions'], ['qualifying', 'Qualifying']]) {
         const b = el('button', null, label); b.type = 'button'; b.dataset.mode = id; b.setAttribute('aria-pressed', String(state.matrix === id));
         b.addEventListener('click', () => {
           if (state.matrix === id) return;
@@ -1513,7 +1511,7 @@
     const t = el('table', 'season-table season-matrix season-grid');
     const head = el('tr'); head.append(el('th', null, drivers ? 'Driver' : 'Constructor'));
     for (const r of rounds) { const th = el('th', 'num'); th.append(roundMark(r)); head.append(th); }
-    head.append(el('th', 'num', quali ? 'Average' : 'Pts'));
+    if (points) head.append(el('th', 'num', 'Pts')); else head.append(el('th', 'num', 'Mean'), el('th', 'num', 'Median'));
     const thead = el('thead'); thead.append(head); t.append(thead);
     const tb = el('tbody');
     const maxPoints = points ? Math.max(1, ...rounds.flatMap(r => table.map(e => roundPoints(r, key, e.id)))) : 1;
@@ -1547,10 +1545,14 @@
         }
         tr.append(td);
       }
-      if (quali) {
-        const qs = rounds.map(r => r.qualifying.find(x => x.driver === e.id)?.position).filter(Number.isFinite);
-        tr.append(el('td', 'num season-strong', qs.length ? (qs.reduce((a, b) => a + b, 0) / qs.length).toFixed(1) : '—'));
-      } else tr.append(el('td', 'num season-strong', String(e.points)));
+      if (points) tr.append(el('td', 'num season-strong', String(e.points)));
+      else {
+        // Qualifying position, or Grand Prix finishing place (classified finishes), over the season: mean and median.
+        const places = rounds.map(r => (quali ? r.qualifying : r.race).find(x => x.driver === e.id)?.position).filter(Number.isFinite);
+        const mid = median(places);
+        tr.append(el('td', 'num season-strong', places.length ? (places.reduce((a, b) => a + b, 0) / places.length).toFixed(1) : '—'),
+          el('td', 'num season-strong', mid == null ? '—' : (Number.isInteger(mid) ? String(mid) : mid.toFixed(1))));
+      }
       tb.append(tr);
     }
     t.append(tb);
@@ -1780,7 +1782,8 @@
     say();
     return card('Updates by team and Grand Prix', toggle, body, note);
   }
-  function lineChart(rounds, series, {title = '', invert = false, height = 260, width = 640, min = null, max = null, format = v => String(v), endLabels = 0} = {}) {
+  // area: a soft fill between each line and the zero line (as the season battle log), for a few series only.
+  function lineChart(rounds, series, {title = '', invert = false, height = 260, width = 640, min = null, max = null, format = v => String(v), endLabels = 0, area = false} = {}) {
     // Every series is drawn in its team colour and named at its end (teammates dashed); with many series the chart grows so
     // the names, 13 px apart, never collide, and the points shrink so the lines stay readable.
     const named = endLabels && series.length > 1, dense = series.length > 8;
@@ -1807,7 +1810,10 @@
       const pts = s.values.map((v, i) => (v == null ? null : [x(i), y(v)])).filter(Boolean);
       if (!pts.length) continue;
       const d = monotone(pts);
-      // No fill under the line: Linear's charts are lines on a flat surface.
+      if (area && series.length <= 3) {
+        const base = y(Math.max(lo, Math.min(hi, 0))).toFixed(1);
+        svg += `<path class="line-area" style="fill:${esc(s.colour)}" d="${d}L${pts.at(-1)[0].toFixed(1)} ${base}L${pts[0][0].toFixed(1)} ${base}Z"/>`;
+      }
       svg += `<path data-id="${esc(s.id)}" class="line${dashed.has(s) ? ' is-dashed' : ''}" style="stroke:${esc(s.colour)}" d="${d}"/>`;
       // A dot on every round of every series, as Car performance's trend chart.
       if (series.length > 1) svg += `<g class="pts${dashed.has(s) ? ' is-hollow' : ''}" data-id="${esc(s.id)}" style="--c:${esc(s.colour)}">${pts.map(([px, py]) => `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}"/>`).join('')}</g>`;
@@ -2106,7 +2112,11 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     tile('Average finish', s.average_finish != null ? s.average_finish.toFixed(2) : '—', 'classified races');
     if (s.average_result != null) tile('Average result', s.average_result.toFixed(2), 'a retirement counts as last');
     if (s.finish_rate != null) tile('Finish rate', `${Math.round(s.finish_rate * 100)}%`, `${s.starts - s.retirements} of ${s.starts} starts`);
-    tile('Average grid', s.average_grid != null ? s.average_grid.toFixed(2) : '—');
+    tile('Average grid', s.average_grid != null ? s.average_grid.toFixed(2) : '—', 'start position, after penalties');
+    {
+      const qs = data.rounds.map(r => r.qualifying.find(x => x.driver === id)?.position).filter(Number.isFinite), mq = median(qs);
+      if (qs.length) tile('Average qualifying', (qs.reduce((x, y) => x + y, 0) / qs.length).toFixed(2), `median P${Number.isInteger(mq) ? mq : mq.toFixed(1)}, before penalties`);
+    }
     tile('Best qualifying', s.best_qualifying ? `P${s.best_qualifying}` : '—');
     tile('Retirements', String(s.retirements), s.mechanical_retirements ? `${s.mechanical_retirements} car failure${s.mechanical_retirements === 1 ? '' : 's'}` : null);
     tile('Sprint points', String(s.sprint_points));
@@ -2284,19 +2294,24 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       side.append(portrait, ident);
       return side;
     };
+    // The scoreboard: race weekends ahead large, then qualifying, race and sprint each as a split bar in the two drivers'
+    // colours (the count on each side), and the median qualifying gap in words.
     const versus = el('div', 'season-h2h-score');
-    versus.append(el('b', null, `${result.tally.race[0]}–${result.tally.race[1]}`), el('span', 'season-muted', 'races ahead'));
-    // The scoreboard: qualifying, race and sprint, each as weekends ahead.
+    versus.append(el('span', 'season-h2h-score-label', 'Race weekends ahead'), el('b', 'season-h2h-score-big', `${result.tally.race[0]} – ${result.tally.race[1]}`));
     const board = el('div', 'season-h2h-board');
     for (const [kind, label] of [['qualifying', 'Qualifying'], ['race', 'Race'], ['sprint', 'Sprint']]) {
       const [x, y] = result.tally[kind]; if (!(x + y)) continue;
-      const cell = el('div'); cell.append(el('b', null, `${x}–${y}`), el('span', 'season-muted', label)); board.append(cell);
+      const row = el('div', 'season-h2h-tally'), bar = el('span', 'season-h2h-tally-bar'), fa = el('i'), fb = el('i');
+      fa.style.flex = String(Math.max(x, .0001)); fb.style.flex = String(Math.max(y, .0001)); fa.style.background = ca; fb.style.background = cb;
+      bar.append(fa, fb);
+      row.append(el('b', x > y ? 'is-ahead' : null, String(x)), el('span', 'season-h2h-tally-name', label), el('b', y > x ? 'is-ahead' : null, String(y)), bar);
+      board.append(row);
     }
     versus.append(board);
     const qGaps = data.rounds.map(r => qualiGap(r, a, b)).filter(Boolean);
     const qMedian = median(qGaps.map(g => g.seconds));
-    if (qMedian != null) versus.append(el('span', 'season-h2h-pace', `${signed(qMedian, 3, ' s')} qualifying`),
-      el('small', 'season-muted', `median over ${qGaps.length} sessions`));
+    if (qMedian != null) versus.append(el('span', 'season-h2h-pace', Math.abs(qMedian) < 0.0005 ? 'Level in qualifying' : `${driverCode(data, qMedian < 0 ? a : b)} quicker by ${Math.abs(qMedian).toFixed(3)} s`),
+      el('small', 'season-muted', `median qualifying gap, ${qGaps.length} sessions`));
     const hero = el('div', 'season-h2h-hero'); hero.append(face(a, ca, false), versus, face(b, cb0, true));
     // Linear list rows: the measurement, then each driver's value either side of one split bar. The bar is the share of the
     // better quantity (for "lower is better" rows, the other driver's share of the total), so the longer side is the one ahead;
@@ -2352,6 +2367,20 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     metric('Poles', sa.poles, sb.poles, {key: 'poles'});
     metric('Front rows', sa.front_rows, sb.front_rows, {key: 'front_rows'});
     metric('Q3 appearances', sa.q3, sb.q3, {key: 'q3'});
+    // Each driver's qualifying sessions: how often they reached Q2 and Q3 (share of sessions they took part in), went out
+    // in Q1, and their mean and median qualifying position (before grid penalties).
+    const qualiOf = id => data.rounds.map(r => r.qualifying.find(x => x.driver === id)).filter(Boolean);
+    const qa = qualiOf(a), qb = qualiOf(b);
+    const share = (rows, test) => (rows.length ? rows.filter(test).length / rows.length : null);
+    const inQ2 = q => Number.isFinite(q.q2) || (q.position && q.position <= 15), inQ3 = q => Number.isFinite(q.q3) || (q.position && q.position <= 10);
+    const pct = v => `${Math.round(v * 100)}%`;
+    metric('Reached Q3', share(qa, inQ3), share(qb, inQ3), {format: pct});
+    metric('Reached Q2', share(qa, inQ2), share(qb, inQ2), {format: pct});
+    metric('Out in Q1', qa.filter(q => !inQ2(q)).length, qb.filter(q => !inQ2(q)).length, {lower: true});
+    const places = rows => rows.map(q => q.position).filter(Number.isFinite);
+    const meanOf = v => (v.length ? v.reduce((x, y) => x + y, 0) / v.length : null);
+    metric('Mean qualifying', meanOf(places(qa)), meanOf(places(qb)), {lower: true, format: v => v.toFixed(2)});
+    metric('Median qualifying', median(places(qa)), median(places(qb)), {lower: true, format: v => (Number.isInteger(v) ? `P${v}` : `P${v.toFixed(1)}`)});
     if (sa.best_qualifying && sb.best_qualifying) metric('Best qualifying', sa.best_qualifying, sb.best_qualifying, {lower: true, format: v => `P${v}`});
     metric('Average grid', sa.average_grid, sb.average_grid, {lower: true, format: v => v.toFixed(2), key: 'average_grid'});
     const qualiRows = rows;
@@ -2364,6 +2393,12 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     metric('Podiums', sa.podiums, sb.podiums, {key: 'podiums'});
     metric('Points finishes', sa.points_finishes, sb.points_finishes, {key: 'points_finishes'});
     metric('Average finish', sa.average_finish, sb.average_finish, {lower: true, format: v => v.toFixed(2), key: 'average_finish'});
+    // Median classified finish, and places gained from the grid per classified finish.
+    const raceOf = id => data.rounds.map(r => r.race.find(x => x.driver === id)).filter(x => x?.position);
+    const ra = raceOf(a), rb = raceOf(b);
+    metric('Median finish', median(ra.map(x => x.position)), median(rb.map(x => x.position)), {lower: true, format: v => (Number.isInteger(v) ? `P${v}` : `P${v.toFixed(1)}`)});
+    const gained = rows => { const g = rows.filter(x => x.grid > 0); return g.length ? g.reduce((t, x) => t + (x.grid - x.position), 0) / g.length : null; };
+    metric('Places gained per race', gained(ra), gained(rb), {format: v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}`});
     if (sa.finish_rate != null && sb.finish_rate != null) metric('Finish rate', sa.finish_rate, sb.finish_rate, {format: v => `${Math.round(v * 100)}%`, key: 'finish_rate'});
     metric('Best finish', sa.best_finish, sb.best_finish, {lower: true, format: v => `P${v}`});
     metric('Retirements', sa.retirements, sb.retirements, {lower: true, key: 'retirements'});
@@ -2494,14 +2529,34 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       line('Rolling race pace', rolling(raceA), rolling(raceB), {note: 'gap to each race’s quickest, recent races weigh more'});
       line('Season race pace', raceA.length ? raceA.reduce((s, [, v]) => s + v, 0) / raceA.length : null, raceB.length ? raceB.reduce((s, [, v]) => s + v, 0) / raceB.length : null);
       line('Rolling qualifying pace', rolling(qA), rolling(qB), {note: 'gap to pole'});
-      // Race pace at every round, both drivers on one scale (lower is quicker).
-      const rounds = done.map(r => r.round).filter(n => form.race?.[n]);
+      // Pace at every round, both drivers on one scale (lower is quicker): race or qualifying, chosen by pills. The scale
+      // runs from zero to the next half second above the largest gap shown, so no point is cut off.
       const at = (list, n) => list.find(([m]) => m === n)?.[1] ?? null;
-      const chart = rounds.length > 1 ? lineChart(rounds, [
-        {id: a, label: driverCode(data, a), short: driverCode(data, a), colour: ca, values: rounds.map(n => at(raceA, n))},
-        {id: b, label: driverCode(data, b), short: driverCode(data, b), colour: cb, values: rounds.map(n => at(raceB, n))}],
-      {title: 'Race pace by round', height: 230, endLabels: 2, format: v => `+${v.toFixed(1)}`}) : null;
-      box.replaceChildren(el('h3', null, 'Pace'), rows, ...(chart ? [el('h4', 'season-report-title', 'Race pace at each round · seconds behind the quickest, lower is quicker'), chart] : []),
+      const paceChart = kind => {
+        const [la, lb] = kind === 'qualifying' ? [qA, qB] : [raceA, raceB];
+        const rounds = done.map(r => r.round).filter(n => at(la, n) != null || at(lb, n) != null);
+        if (rounds.length < 2) return el('p', 'season-muted', 'Not enough rounds yet.');
+        const top = Math.max(.5, Math.ceil(Math.max(...[...la, ...lb].map(([, v]) => v)) * 2) / 2);
+        return lineChart(rounds, [
+          {id: a, label: driverCode(data, a), short: driverCode(data, a), colour: ca, values: rounds.map(n => at(la, n))},
+          {id: b, label: driverCode(data, b), short: driverCode(data, b), colour: cb, values: rounds.map(n => at(lb, n))}],
+        {title: kind === 'qualifying' ? 'Qualifying pace by round' : 'Race pace by round', height: 240, endLabels: 2, min: 0, max: top, format: v => `+${v.toFixed(1)}`, area: true});
+      };
+      const kind = state.h2hPaceKind === 'qualifying' ? 'qualifying' : 'race';
+      const pills = el('div', 'season-segment season-zone-toggle'); pills.setAttribute('role', 'group'); pills.setAttribute('aria-label', 'Pace chart');
+      const chartSlot = el('div'), chartTitle = el('h4', 'season-report-title');
+      const drawPace = k => {
+        chartTitle.textContent = k === 'qualifying' ? 'Qualifying pace at each round · seconds behind pole, lower is quicker' : 'Race pace at each round · seconds behind the quickest, lower is quicker';
+        chartSlot.replaceChildren(paceChart(k)); markTips(chartSlot);
+        pills.querySelectorAll('button').forEach(btn => btn.setAttribute('aria-pressed', String(btn.dataset.kind === k)));
+      };
+      for (const [id, label] of [['race', 'Race'], ['qualifying', 'Qualifying']]) {
+        const btn = el('button', null, label); btn.type = 'button'; btn.dataset.kind = id;
+        btn.addEventListener('click', () => { state.h2hPaceKind = id; drawPace(id); });
+        pills.append(btn);
+      }
+      drawPace(kind);
+      box.replaceChildren(el('h3', null, 'Pace'), rows, pills, chartTitle, chartSlot,
         el('p', 'season-footnote', 'Race pace: each driver’s clean-air pace in Car performance’s race analysis, as a gap to the quickest driver in that race, in seconds on that weekend’s pole lap. Qualifying pace: best lap against pole.'));
       markTips(box);
     }).catch(() => box.replaceChildren(el('h3', null, 'Pace'), el('p', 'season-muted', 'The race analysis is not available here yet.')));
@@ -2522,17 +2577,23 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       while (placed.some(([qx, qk]) => qk === k && Math.abs(qx - px) < r * 2.05)) k++;
       placed.push([px, k]); stacks.push([p, px, k]);
     }
-    const tall = Math.max(...stacks.map(([, , k]) => k)) + 1, H = Math.max(76, 14 + tall * step + 30), base = H - 28;
+    // Room above for the side labels, below for the numbered axis.
+    const tall = Math.max(...stacks.map(([, , k]) => k)) + 1, H = Math.max(96, 26 + tall * step + 34), base = H - 34;
     let svg = `<svg class="season-chart season-strip-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="Margin at each round">`;
     svg += `<line class="grid" x1="${mid}" x2="${mid}" y1="6" y2="${base + 4}"/><line class="grid strip-axis" x1="${mid - half}" x2="${mid + half}" y1="${base + r + 3}" y2="${base + r + 3}"/>`;
-    for (const t of [1 / 3, 2 / 3]) for (const side of [-1, 1]) svg += `<line class="grid" x1="${(mid + side * t * half).toFixed(1)}" x2="${(mid + side * t * half).toFixed(1)}" y1="${base + r + 3}" y2="${base + r + 7}"/>`;
+    // Numbered ticks: five steps each side of zero (places, or tenths of the cap in seconds), the margin without a sign.
+    const tickStep = cap >= 10 ? 5 : cap / 2, ticks = [];
+    for (let v = -cap; v <= cap + 1e-9; v += tickStep) ticks.push(Math.round(v * 100) / 100);
+    for (const v of ticks) {
+      const tx = x(v).toFixed(1);
+      svg += `<line class="grid" x1="${tx}" x2="${tx}" y1="${base + r + 3}" y2="${base + r + 8}"/><text class="axis strip-tick" x="${tx}" y="${base + r + 20}" text-anchor="middle">${v === 0 ? '0' : `${Math.abs(v)}${unit.trim() ? unit.trim() : ''}`}</text>`;
+    }
     for (const [p, px, k] of stacks) {
       const py = base - k * step;
       const colour = p.v > 0 ? ca : p.v < 0 ? cb : 'var(--ui-tertiary)';
       svg += `<circle class="strip-dot${Math.abs(p.v) > cap ? ' is-beyond' : ''}" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" style="--c:${esc(colour)}" data-tip="${esc(p.tip)}"/>`;
     }
-    const lab = (tx, anchor, t) => `<text class="axis" x="${tx}" y="${H - 6}" text-anchor="${anchor}">${esc(t)}</text>`;
-    svg += lab(mid - half, 'start', `${b} +${cap}${unit}`) + lab(mid, 'middle', '0') + lab(mid + half, 'end', `${a} +${cap}${unit}`);
+    svg += `<text class="label strip-side" x="${mid - half}" y="12" text-anchor="start" style="fill:${esc(cb)}">← ${esc(b)} ahead</text><text class="label strip-side" x="${mid + half}" y="12" text-anchor="end" style="fill:${esc(ca)}">${esc(a)} ahead →</text>`;
     const med = median(points.map(p => p.v));
     svg += `</svg>`;
     const box = el('div', 'season-strip-wrap'); box.append(htmlNode(svg));
@@ -2598,7 +2659,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     const request = window.apexDataRequest, year = data.year;
     if (practiceCache.has(year)) return practiceCache.get(year);
     const job = typeof request !== 'function' ? Promise.resolve([]) : seasonEvents(year).then(events => {
-      const rounds = data.rounds.filter(r => r.race?.length).slice(-6), jobs = [];
+      const rounds = data.rounds.filter(r => r.race?.length), jobs = [];
       for (const r of rounds) for (const name of ['Practice 1', 'Practice 2', 'Practice 3']) {
         const event = events.find(e => e.round === r.round);
         if (event && (event.sessions || []).includes(name)) jobs.push({r, name, event});
@@ -2623,31 +2684,31 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
   // A pace table column heading: the driver's photo and code (the column says who; no colour needed).
   const paceHead = (data, id) => { const h = el('b', 'season-pace-who'); h.append(avatar(data, id), driverCode(data, id)); return h; };
   function practicePace(data, a, b, ca, cb) {
-    const box = card('Practice pace', el('p', 'season-muted', 'Loading practice sessions…'));
+    const box = card('Practice pace', el('p', 'season-muted', 'Loading the season\u2019s practice sessions\u2026'));
     const codeA = driverCode(data, a), codeB = driverCode(data, b);
     loadPractice(data).then(sessions => {
       if (state.a !== a || state.b !== b) return;
       const both = sessions.filter(x => Number.isFinite(x.best[codeA]) && Number.isFinite(x.best[codeB]));
       if (!both.length) { box.replaceChildren(el('h3', null, 'Practice pace'), el('p', 'season-muted', 'No practice session with a timed lap from both yet.')); return; }
-      const last = both.at(-1).r, latest = both.filter(x => x.r === last);
-      const rows = el('div', 'season-h2h-pace-rows');
-      const head = el('div', 'season-h2h-pace-head'); head.append(el('span'), paceHead(data, a), paceHead(data, b), el('span')); rows.append(head);
-      for (const x of latest) {
-        const ta = x.best[codeA], tb = x.best[codeB], d = ta - tb, row = el('div');
-        const v = (t, better, colour) => { const n = el('b', better ? 'is-better' : null, lapTime(t)); n.style.setProperty('--tone', colour); return n; };
-        row.append(el('span', 'season-muted', x.name.replace('Practice ', 'FP')), v(ta, d < 0, ca), v(tb, d > 0, cb),
-          el('small', 'season-muted', Math.abs(d) < 0.0005 ? 'level' : `${d < 0 ? codeA : codeB} by ${Math.abs(d).toFixed(3)} s`));
-        rows.append(row);
-      }
-      const strip = marginStrip(both.map(x => ({v: x.best[codeB] - x.best[codeA], tip: `${x.r.name}, ${x.name}\n${codeA}  ${lapTime(x.best[codeA])}\n${codeB}  ${lapTime(x.best[codeB])}`})),
-        ca, cb, {unit: ' s', digits: 2, cap: 1, a: codeA, b: codeB});
-      const f = flag(last), title = el('p', 'season-chart-sub'); if (f) title.append(f, ' '); title.append(`${last.name} · best lap in each session`);
-      box.replaceChildren(el('h3', null, 'Practice pace'), title, rows, el('p', 'season-chart-sub', `Every practice session of the last ${new Set(both.map(x => x.r.round)).size} weekends`), strip,
-        el('p', 'season-footnote', 'Each driver’s best timed lap in the session (in- and out-laps left out). Practice runs differ in fuel and tyres, so a gap here is a hint, not a ranking.'));
+      // Per weekend: the median of (B - A) over its practice sessions, so above zero the first driver was quicker.
+      const rounds = [...new Set(both.map(x => x.r))];
+      const perRound = rounds.map(r => { const g = both.filter(x => x.r === r).map(x => x.best[codeB] - x.best[codeA]); return {r, v: median(g), n: g.length}; });
+      const aAhead = both.filter(x => x.best[codeA] < x.best[codeB]).length, med = median(both.map(x => x.best[codeB] - x.best[codeA]));
+      const summary = el('div', 'season-practice-summary');
+      const stat = (big, small) => { const d = el('div'); d.append(el('b', null, big), el('span', 'season-muted', small)); summary.append(d); };
+      stat(`${aAhead}–${both.length - aAhead}`, `practice sessions quicker (${codeA}–${codeB})`);
+      stat(med == null || Math.abs(med) < .0005 ? 'level' : `${med > 0 ? codeA : codeB} ${Math.abs(med).toFixed(3)} s`, 'median gap, best laps');
+      stat(String(rounds.length), 'weekends with both timed');
+      const chart = barChart(perRound.map(x => x.r.round), perRound.map(x => x.v), {height: 200, clip: true,
+        colour: v => (v >= 0 ? ca : cb), format: v => signed(v, 2, ' s'),
+        tips: perRound.map(x => `${x.r.name}\n${x.v >= 0 ? codeA : codeB} quicker by ${Math.abs(x.v).toFixed(3)} s\nmedian of ${x.n} session${x.n === 1 ? '' : 's'}`), title: 'Practice gap by weekend'});
+      box.replaceChildren(el('h3', null, 'Practice pace'), summary, el('p', 'season-chart-sub', `Gap at each weekend · above zero ${codeA} quicker, below ${codeB}`), chart,
+        el('p', 'season-footnote', 'Each driver\u2019s best timed lap in every practice session (in- and out-laps left out); a weekend\u2019s bar is the median gap over its sessions. Practice runs differ in fuel and tyres, so a gap here is a hint, not a ranking.'));
       markTips(box);
     });
     return box;
   }
+
   function h2hExtras(data, a, b, ca, cb) {
     const rounds = data.rounds.filter(r => r.race.length);
     let total = 0;
@@ -2667,7 +2728,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       const pointsLine = lineChart(evo.map(st => st.round), [
         {id: a, label: driverCode(data, a), short: driverCode(data, a), colour: ca, values: at(a)},
         {id: b, label: driverCode(data, b), short: driverCode(data, b), colour: cb, values: at(b)}],
-      {title: 'Championship points after each round', height: 220, endLabels: 2});
+      {title: 'Championship points after each round', height: 240, endLabels: 2, area: true});
       pointsCard = card('Points', gapPills, el('p', 'season-chart-sub', 'Championship points after each round'), pointsLine);
     } else if (pointsView === 'leader') {
       const evo = data.standings.drivers || [];
@@ -2675,7 +2736,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       const leaderLine = lineChart(evo.map(st => st.round), [
         {id: a, label: driverCode(data, a), short: driverCode(data, a), colour: ca, values: behind(a)},
         {id: b, label: driverCode(data, b), short: driverCode(data, b), colour: cb, values: behind(b)}],
-      {title: 'Points behind the championship leader', height: 220, endLabels: 2, max: 0, format: v => (v < 0 ? `−${Math.abs(Math.round(v))}` : '0')});
+      {title: 'Points behind the championship leader', height: 240, endLabels: 2, max: 0, area: true, format: v => (v < 0 ? `−${Math.abs(Math.round(v))}` : '0')});
       pointsCard = card('Points gap', gapPills, sub('Points behind the leader after each round'), leaderLine, el('p', 'season-footnote', 'Zero: leading the championship after that round.'));
     } else pointsCard = card('Points gap', gapPills, sub('Running total'), gapLine, sub('Each weekend, sprint included'), perBars, el('p', 'season-footnote', `Above zero: ${family(data, a)} ahead.`));
     for (const [id, label] of [['points', 'Points'], ['pair', 'Between them'], ['leader', 'To the leader']]) {

@@ -101,15 +101,15 @@ test('real recorded laps load in the redesigned workspace without changing value
   await page.screenshot({path: `test-results/linear-mobile-${test.info().project.name}.png`});
 });
 
-test('all eight performance categories work with the Linear rail and flat bars', async ({page}) => {
+test('all eight performance categories work from the page pills with flat bars', async ({page}) => {
   test.setTimeout(90000);
   await isolate(page); await replayFixture(page);
   await page.goto('/apex/cars/pace?year=2026&scope=tracks&races=16,17,18&run=1');
   await expect(page.locator('#performanceMetricPanel')).toBeVisible({timeout: 30000});
   await expect(page.locator('#performanceMetricPanel')).not.toHaveAttribute('aria-busy', 'true', {timeout: 30000});
   for (const metric of ['pace', 'corners', 'straight', 'braking', 'pits', 'tyres', 'trend', 'results']) {
-    await page.locator(`#linearWorkspace [data-sidebar-metric="${metric}"]`).click();
-    await expect(page.locator(`#linearWorkspace [data-sidebar-metric="${metric}"]`)).toHaveAttribute('aria-selected', 'true');
+    await page.locator(`#performanceResults .performance-mode [data-performance-metric="${metric}"]`).click();
+    await expect(page.locator(`#performanceResults .performance-mode [data-performance-metric="${metric}"]`)).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('#performanceMetricPanel')).toBeVisible();
     for (const width of [1440, 390]) {
       await page.setViewportSize({width, height: 900});
@@ -117,7 +117,7 @@ test('all eight performance categories work with the Linear rail and flat bars',
     }
   }
   await page.setViewportSize({width: 1440, height: 900});
-  await page.locator('#linearWorkspace [data-sidebar-metric="trend"]').click();
+  await page.locator('#performanceResults .performance-mode [data-performance-metric="trend"]').click();
   // After an analysis the race picker is folded; Change opens it again.
   await expect(page.locator('#performanceTrackChoices')).toBeHidden();
   await page.locator('#performanceTrackToggle').click();

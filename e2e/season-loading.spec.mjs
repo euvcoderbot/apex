@@ -11,11 +11,11 @@ test('season standings render while photo metadata is still pending', async ({pa
     await page.goto('/apex/season/standings?year=2026', {waitUntil: 'domcontentloaded'});
     await expect(page.locator('#seasonHub .season-card').first()).toBeVisible();
     await expect(page.locator('#seasonHub .season-avatar').first()).toBeVisible();
-    await page.locator('#seasonHub').getByRole('button', {name: 'Drivers', exact: true}).focus();
+    await page.locator('#seasonHub .season-body').getByRole('button', {name: 'Drivers', exact: true}).focus();
   } finally { release(); }
   await expect(page.locator('#seasonHub .season-avatar img').first()).toBeAttached();
   await expect(page.locator('#seasonHub .season-credits')).toBeAttached();
-  await expect(page.locator('#seasonHub').getByRole('button', {name: 'Drivers', exact: true})).toBeFocused();
+  await expect(page.locator('#seasonHub .season-body').getByRole('button', {name: 'Drivers', exact: true})).toBeFocused();
 });
 
 test('schedule data renders before circuit outlines finish loading', async ({page}) => {

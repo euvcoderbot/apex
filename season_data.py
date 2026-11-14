@@ -535,14 +535,16 @@ def pit_stops(source: Source, year: int, rounds: list[dict], drivers: dict) -> d
 
 def weather(fetch: Callable[[str], dict], round_: dict) -> list[dict] | None:
     """Open-Meteo's daily forecast for the race weekend, once it is within its 16-day range. The same request's hourly
-    forecast gives each session its own: the two hours from its start (warmest temperature, highest chance of rain, the
-    wettest sky, strongest wind), stored on the session as 'weather'."""
+    forecast gives each session its own: the two hours from its start (warmest temperature, highest chance of rain and the
+    rain expected in mm, the wettest sky, strongest wind and gust, the wind's direction at the start, mean humidity),
+    stored on the session as 'weather'."""
     first, last = round_['sessions'][0]['start'][:10], round_['start'][:10]
     if (_parse(round_['start']) - datetime.now(timezone.utc)).days > 15:
         return None
     url = (f"https://api.open-meteo.com/v1/forecast?latitude={round_['lat']}&longitude={round_['lon']}"
            f"&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,weather_code"
-           f"&hourly=temperature_2m,precipitation_probability,wind_speed_10m,weather_code"
+           f"&hourly=temperature_2m,precipitation_probability,precipitation,wind_speed_10m,wind_gusts_10m,wind_direction_10m,"
+           f"relative_humidity_2m,weather_code"
            f"&timezone=auto&start_date={first}&end_date={last}")
     response = fetch(url)
     # Open-Meteo answers in the circuit's own time zone (timezone=auto): its offset lets the page show track time.
@@ -560,8 +562,13 @@ def weather(fetch: Callable[[str], dict], round_: dict) -> list[dict] | None:
                 continue
             pick = lambda key: [hourly[key][i] for i in hours if hourly[key][i] is not None]
             temp, rain, wind, code = pick('temperature_2m'), pick('precipitation_probability'), pick('wind_speed_10m'), pick('weather_code')
+            gust, mm, humid = pick('wind_gusts_10m'), pick('precipitation'), pick('relative_humidity_2m')
+            heading = pick('wind_direction_10m')
             session['weather'] = {'temp': max(temp) if temp else None, 'rain': max(rain) if rain else None,
-                                  'wind': max(wind) if wind else None, 'code': max(code) if code else None}
+                                  'wind': max(wind) if wind else None, 'code': max(code) if code else None,
+                                  'gust': max(gust) if gust else None, 'mm': round(sum(mm), 1) if mm else None,
+                                  'humidity': round(sum(humid) / len(humid)) if humid else None,
+                                  'direction': heading[0] if heading else None}
     d = response.get('daily') or {}
     return [{'date': day, 'max': d['temperature_2m_max'][i], 'min': d['temperature_2m_min'][i], 'rain': d['precipitation_probability_max'][i],
              'wind': d['wind_speed_10m_max'][i], 'code': d['weather_code'][i]} for i, day in enumerate(d.get('time', []))]

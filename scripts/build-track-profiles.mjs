@@ -123,10 +123,10 @@ function profile(gp, lap, session, guide) {
       start = null;
     }
   });
-  // Map: a point about every 20 m (x, y, speed), in the circuit's own units and rotation.
+  // Map: a point about every 6 m (x, y, speed), in the circuit's own units: fine enough that the outline is smooth.
   const outline = [];
   let lastD = -Infinity;
-  for (const p of s) if (Number.isFinite(p.X) && Number.isFinite(p.Y) && p.Distance - lastD >= 20) { outline.push([Math.round(p.X), Math.round(p.Y), Math.round(p.Speed)]); lastD = p.Distance; }
+  for (const p of s) if (Number.isFinite(p.X) && Number.isFinite(p.Y) && p.Distance - lastD >= 6) { outline.push([Math.round(p.X), Math.round(p.Y), Math.round(p.Speed)]); lastD = p.Distance; }
   const cornerMarks = marks.map(m => ({number: `${m.number}${m.letter}`, x: Math.round(s[m.at].X), y: Math.round(s[m.at].Y)}));
   const count = type => corners.filter(c => c.type === type).length;
   return {

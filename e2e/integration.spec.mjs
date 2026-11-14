@@ -52,12 +52,12 @@ test.describe('Car performance with real data', () => {
     expect(new Set(edges).size, `right edges ${[...new Set(edges)]}`).toBe(1);
   });
 
-  test('the category bar works from the keyboard', async ({page}) => {
+  test('the category pills work from the keyboard', async ({page}) => {
     await open(page, 'pace');
-    const tabs = page.locator('.category-bar [role="tab"]');
+    const tabs = page.locator('#performanceResults .performance-mode [role="tab"]');
     await tabs.first().focus();
     await page.keyboard.press('ArrowRight');
-    await expect(page.locator('.category-bar [role="tab"]:focus')).toHaveCount(1);
+    await expect(page.locator('#performanceResults .performance-mode [role="tab"]:focus')).toHaveCount(1);
   });
 
   test('every view fits a phone: no sideways scroll at 390 px', async ({page}) => {
@@ -69,18 +69,19 @@ test.describe('Car performance with real data', () => {
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth), {message: slug, timeout: 5000}).toBeLessThanOrEqual(0);
     }
   });
-  test('nothing is cut off and the sidebar opens on the category list', async ({page}) => {
+  test('nothing is cut off and the page shows its category pills', async ({page}) => {
     await page.setViewportSize({width: 1440, height: 900});
     await open(page, 'pits');
     const report = await page.evaluate(() => {
-      const bar = document.querySelector('#linearWorkspace .linear-categories #performanceCategoryList');
+      // The categories are pills at the top of the page (the rail lists only the sections).
+      const bar = document.querySelector('#performanceResults > .performance-toolbar > .performance-mode');
       return {
         shown: Boolean(bar?.offsetParent),
         truncated: [...(bar?.querySelectorAll('*') || [])].filter(el => !el.children.length && el.offsetParent && el.scrollWidth > el.clientWidth + 1).map(el => el.textContent),
         hiddenScroll: [...document.querySelectorAll('#performanceMetricPanel .performance-split-view .performance-table-wrap')].filter(el => el.offsetParent).map(el => el.scrollWidth - el.clientWidth),
       };
     });
-    expect(report.shown, 'the category list is in the sidebar').toBe(true);
+    expect(report.shown, 'the category pills are on the page').toBe(true);
     expect(report.truncated, 'category labels cut short').toEqual([]);
     for (const overflow of report.hiddenScroll) expect(overflow, 'table columns hidden behind a scroll').toBeLessThanOrEqual(1);
   });

@@ -2527,8 +2527,7 @@
 :root[data-skin="linear"] #linearWorkspace .season-rail-group, :root[data-skin="linear"] #linearWorkspace .season-analysis-rows { display: grid; gap: 0; }
 /* The rail's rows are added by script after load: their space is held from the start so nothing below them moves
    (Analysis: Session analysis, Car performance, Tracks, Development, Reliability; Season: Home and five pages; 30 px each). */
-:root[data-skin="linear"] #linearWorkspace .linear-navigation { min-height: 150px; }
-:root[data-skin="linear"] #linearWorkspace .linear-season { min-height: 180px; }
+:root[data-skin="linear"] #linearWorkspace .linear-navigation { min-height: 150px; }   /* five rows: Home, Session analysis, Car performance, Season, Tracks */
 
 /* Car performance in the Season look: shaded values as filled, centred chips (deeper = better), no shaded first column. */
 :root[data-skin="linear"] .performance-table td.perf-heat-cell { padding: 2px; text-align: center; vertical-align: middle; }
@@ -2562,3 +2561,20 @@
 /* Car performance: a driver's photo on the team colour where the team dot was. */
 :root[data-skin="linear"] .performance-team.has-face .team-logo { display: none; }
 :root[data-skin="linear"] .performance-team .driver-face { width: 20px; height: 20px; flex: 0 0 20px; }
+/* Navigation: the rail lists sections; a section's pages are pills on the page. Car performance shows its category pills
+   (the in-page tablist) and the rail drops its Measurements list; Season shows its page pills. */
+:root[data-skin="linear"] #linearWorkspace .linear-rail-section[data-section="categories"] { display: none !important; }
+:root[data-skin="linear"] #performanceResults > .performance-toolbar { display: flex !important; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 16px; }
+:root[data-skin="linear"] #performanceResults > .performance-toolbar > .performance-mode { display: inline-flex !important; flex-wrap: wrap; gap: 4px; padding: 0; background: none; box-shadow: none; }
+:root[data-skin="linear"] #performanceResults > .performance-toolbar > .performance-mode > button { height: 28px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--ui-seg-track); box-shadow: none; color: var(--ui-secondary); font: 500 12px/1 var(--ui-font); }
+:root[data-skin="linear"] #performanceResults > .performance-toolbar > .performance-mode > button:hover { color: var(--ui-label); }
+:root[data-skin="linear"] #performanceResults > .performance-toolbar > .performance-mode > button[aria-selected="true"] { background: var(--ui-seg-thumb); color: var(--ui-label); }
+:root[data-skin="linear"] #linearWorkspace .linear-workspace-brand[role="link"] { cursor: pointer; border-radius: 8px; }
+:root[data-skin="linear"] #linearWorkspace .linear-workspace-brand[role="link"]:hover { background: var(--lin-nav-hover); }
+:root[data-skin="linear"] #performanceResults > .performance-toolbar .metric-nav-emoji { display: none; }
+/* Team colour markers are round everywhere (team dots, the team-mark fallback, legends, manufacturer dots), never a
+   rounded square or an oval. */
+:root[data-skin="linear"] :is(.team-dot, .team-logo-fallback, .legend-color, .season-maker-dot) { border-radius: 50% !important; aspect-ratio: 1; }
+:root[data-skin="linear"] .team-logo:has(> .team-logo-fallback) { display: inline-grid; place-items: center; width: 14px; height: 14px; flex: 0 0 14px; }
+:root[data-skin="linear"] .team-logo > .team-logo-fallback { width: 9px; height: 9px; }
+:root[data-skin="linear"] #seasonHub .season-legend span[data-tone]::before { border-radius: 50%; }

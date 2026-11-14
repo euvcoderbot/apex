@@ -56,7 +56,6 @@
     rail.innerHTML = '<div class="linear-workspace-top"><div class="linear-workspace-brand"><img src="assets/f1apex-icon-32.png" alt="" width="18" height="18"><strong>Apex Data</strong></div>'
       + '<button type="button" class="linear-search" aria-haspopup="dialog" aria-label="Search commands" title="Search commands · Ctrl K"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3" stroke-linecap="round"/></svg></button></div>'
       + section('analysis', 'Analysis', '<div class="linear-navigation"></div>')
-      + section('season', 'Season', '<div class="linear-season"></div>')
       + section('categories', 'Measurements', '<div class="linear-categories"></div>', 'linear-category-heading')
       + section('drivers', 'Drivers', '<div class="linear-drivers"></div>', 'linear-drivers-heading')
       ;

@@ -3,7 +3,8 @@ import {test, expect} from '@playwright/test';
 for (const [tab, first, second] of [['standings', 'Drivers', 'Constructors'], ['units', 'Drivers', 'Teams']]) {
   test(`${tab} segmented choices retain focus and selected feedback after repaint`, async ({page}) => {
     await page.goto(`/apex/season/${tab}?year=2026`);
-    const root = page.locator('#seasonHub');
+    // The page's own controls (the Season pills above them also name a "Drivers" page).
+    const root = page.locator('#seasonHub .season-body');
     const a = root.getByRole('button', {name: first, exact: true}), b = root.getByRole('button', {name: second, exact: true});
     await expect(a).toHaveAttribute('aria-pressed', 'true');
     await a.focus(); await a.press('ArrowRight');
