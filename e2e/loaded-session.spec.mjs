@@ -128,7 +128,7 @@ test('loaded car-performance views survive repeated navigation without uncaught 
   await page.locator('#performanceLoad').click();
   await expect(page.locator('.performance-bar-row').first()).toBeVisible();
   for(let i=0;i<2;i++){
-    await page.getByRole('tab',{name:'Reliability & results',exact:true}).click();
+    await page.getByRole('tab',{name:'Finishes & retirements',exact:true}).click();
     await page.getByRole('tab',{name:'Pace',exact:true}).click();
     await expect(page.locator('.performance-bar-row').first()).toBeVisible();
   }

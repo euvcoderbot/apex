@@ -7,8 +7,8 @@
     braking: ['04', 'Braking', 'Two views of the same qualifying-lap observations'],
     pits: ['05', 'Pit stops', 'Service speed, pit-lane time & consistency'],
     tyres: ['06', 'Tyre trend', 'How performance changes with tyre age'],
-    trend: ['07', 'Development & updates', 'Relative progress across observed rounds'],
-    results: ['08', 'Reliability & results', 'Race outcomes, finishes & retirement causes']
+    trend: ['07', 'Development trend', 'Relative progress across observed rounds'],
+    results: ['08', 'Finishes & retirements', 'Race outcomes, finishes & retirement causes']
   };
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   function syncPerformanceRows(root=document){

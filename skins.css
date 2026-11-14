@@ -2517,3 +2517,15 @@
 :root[data-skin="linear"] #driverPills .driver-face { width: 20px; height: 20px; margin-inline-start: -1px; }
 :root[data-skin="linear"] .overview-tile span > .driver-face { margin-inline-end: 6px; }
 :root[data-skin="linear"] #sessionOverview .dist-avatar { background: var(--team); }
+
+/* The rail in two sections. Analysis: Session analysis and Car performance (the tablist), then Tracks, Development and
+   Reliability. Season: Home and the season's pages. Every row the same: icon, name, 28 px. */
+:root[data-skin="linear"][data-skin] #linearWorkspace :is(.linear-navigation, .linear-season) .season-view-button { display: flex; justify-content: flex-start; width: 100%; height: 28px; min-height: 28px; margin: 2px 0 0; padding: 0 9px 0 8px; gap: 8px; border: 0; border-radius: 8px; background: transparent; box-shadow: none; color: var(--lin-nav-text); font: 500 13px/1 var(--ui-font); }
+:root[data-skin="linear"][data-skin] #linearWorkspace :is(.linear-navigation, .linear-season) .season-view-button svg { width: 14px; height: 14px; margin: 0 1px; color: var(--ui-quaternary, var(--ui-tertiary)); }
+:root[data-skin="linear"][data-skin] #linearWorkspace :is(.linear-navigation, .linear-season) .season-view-button:hover:not([aria-pressed="true"]) { background: var(--lin-nav-hover); color: var(--ui-label); }
+:root[data-skin="linear"][data-skin] #linearWorkspace :is(.linear-navigation, .linear-season) .season-view-button:is([aria-pressed="true"], [aria-selected="true"]) { background: var(--lin-nav-active); color: var(--ui-label); }
+:root[data-skin="linear"] #linearWorkspace .season-rail-group, :root[data-skin="linear"] #linearWorkspace .season-analysis-rows { display: grid; gap: 0; }
+/* The rail's rows are added by script after load: their space is held from the start so nothing below them moves
+   (Analysis: Session analysis, Car performance, Tracks, Development, Reliability; Season: Home and five pages; 30 px each). */
+:root[data-skin="linear"] #linearWorkspace .linear-navigation { min-height: 150px; }
+:root[data-skin="linear"] #linearWorkspace .linear-season { min-height: 180px; }

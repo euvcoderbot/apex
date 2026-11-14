@@ -636,7 +636,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 /* The rail already lists the season's pages beside the page: the pill row repeats them, so it shows only where the rail
    is not there (phone width, or the sidebar hidden). */
 @media (min-width: 761px) {
-  body:not(.is-sidebar-hidden):has(.season-rail-pages) #seasonHub .season-tabs { display: none; }
+  body:not(.is-sidebar-hidden):has(:is(.season-rail-pages, .season-rail-group)) #seasonHub .season-tabs { display: none; }
 }
 /* ...and on phones, where the pill row is shown, the rail does not list them a second time. */
 @media (max-width: 760px) {
@@ -1232,3 +1232,4 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 /* Light appearance: the bright turquoise at a stronger mix (the darker accent washed out to a pale grey-green on white);
    dark text on the deepest chip is about 5.8:1. */
 :root[data-theme="light"] .season-units .season-heat-value { background: color-mix(in oklch, #14b8a6 calc(var(--heat, 0) * 68%), transparent); }
+

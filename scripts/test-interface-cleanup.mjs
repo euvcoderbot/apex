@@ -22,7 +22,7 @@ test('useful task and interpretation controls remain available',()=>{
   for(const key of ['telemetry-subject','corner-session','corner-band',
     'pit-measure','pit-subject','pit-chart','pit-lane-basis','tyre-metric','tyre-subject','tyre-correction','trend-view'])
     assert.ok(offersControl(performanceSource(),key),key);
-  // Reliability & results is a React view: a segmented control of data-results-chart buttons.
+  // Finishes & retirements is a React view: a segmented control of data-results-chart buttons.
   const resultsView=readFileSync('src/views/ResultsView.tsx','utf8'),segmented=readFileSync('src/components/SegmentedControl.tsx','utf8');
   assert.match(resultsView,/<SegmentedControl name="results-chart"/);
   assert.match(segmented,/<button[^>]+\{\.\.\.\{\[attribute\]: key\}\} aria-pressed=/);

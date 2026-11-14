@@ -3,8 +3,13 @@
    (parsed FIA documents), fetched through the same cached data path as the other views. Loaded after the page
    (lazy module), so it never delays the session view. Text from data is always set as text or escaped. */
 (() => {
-  const TABS = [['home', 'Home'], ['schedule', 'Schedule'], ['tracks', 'Tracks'], ['results', 'Results'], ['standings', 'Standings'], ['form', 'Form'], ['drivers', 'Driver stats'],
-    ['h2h', 'Head-to-head'], ['upgrades', 'Upgrades'], ['units', 'Power units']];
+  // Two groups in the rail. Season: the year's stories. Analysis (beside Session analysis and Car performance): the circuits,
+  // the cars' development (FIA upgrade documents) and their reliability (power units). Form is part of Drivers; an old
+  // ?tab=form link opens Drivers.
+  const TABS = [['home', 'Home'], ['schedule', 'Calendar'], ['results', 'Results'], ['standings', 'Standings'], ['drivers', 'Drivers'],
+    ['h2h', 'Head-to-head'], ['tracks', 'Tracks'], ['upgrades', 'Development'], ['units', 'Reliability']];
+  const ANALYSIS_TABS = ['tracks', 'upgrades', 'units'];
+  const TAB_ALIASES = {form: 'drivers'};
   // Teams' formula1.com colours (team-colours.js maps the feed's shades to these and handles light mode).
   const TEAM_HEX = {mercedes: '#27f4d2', ferrari: '#e8002d', red_bull: '#3671c6', mclaren: '#ff8000', rb: '#6692ff', alpine: '#00a1e8',
     aston_martin: '#229971', williams: '#1868db', haas: '#dee1e2', audi: '#ff2d00', sauber: '#52e252', cadillac: '#aaaaad'};
@@ -300,9 +305,44 @@
     if (homeButton.parentElement !== first?.parentElement || homeButton.nextElementSibling !== first) first ? first.before(homeButton) : rail.prepend(homeButton);
     homeButton.setAttribute('aria-pressed', String(active && state.tab === 'home'));
   }
+  let analysisRows = null;
+  const ICONS = {
+    tracks: '<path d="M4.5 12.5c-1.7 0-2.5-1.2-2-2.6l1.6-4.6C4.6 3.9 5.7 3 7.2 3h2.3c1.6 0 2.4 1.4 1.8 2.8l-.6 1.4c-.3.7.2 1.3.9 1.3h.6c1.4 0 2.3 1.3 1.8 2.6-.4 1-1.3 1.4-2.3 1.4z"/>',
+    upgrades: '<path d="M8 13V3.5M4 7l4-4 4 4"/><path d="M3 13.5h10"/>',
+    units: '<path d="M8 2.5 3 4.5v4c0 2.6 2.1 4.6 5 5.5 2.9-.9 5-2.9 5-5.5v-4z"/><path d="m5.8 8.2 1.6 1.6 3-3.2"/>',
+    schedule: '<rect x="2.5" y="3.5" width="11" height="10" rx="2"/><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3"/>',
+    results: '<path d="M4 14V2.5"/><path d="M4 3h8l-1.5 2.5L12 8H4"/>',
+    standings: '<path d="M5 2.5h6v3a3 3 0 0 1-6 0z"/><path d="M8 8.5v3M5.5 13.5h5M5 4H3a2 2 0 0 0 2 2.5M11 4h2a2 2 0 0 1-2 2.5"/>',
+    drivers: '<circle cx="8" cy="5.5" r="2.5"/><path d="M3 13.5c.6-2.6 2.6-4 5-4s4.4 1.4 5 4"/>',
+    h2h: '<circle cx="5.5" cy="6" r="2"/><circle cx="10.5" cy="6" r="2"/><path d="M2 13c.4-2 1.8-3 3.5-3S8.6 11 9 13M7 13c.4-2 1.8-3 3.5-3s3.1 1 3.5 3"/>',
+  };
+  // A rail row: the page's icon and name, as the rail's own rows.
+  function railRow(id, label) {
+    const b = el('button', 'season-view-button season-analysis-row'); b.type = 'button'; b.dataset.seasonTab = id;
+    b.innerHTML = `<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[id] || ''}</svg>`;
+    b.append(el('span', null, label));
+    b.addEventListener('click', () => show(id));
+    return b;
+  }
   function place() {
     const rail = document.querySelector('#linearWorkspace .linear-navigation');
-    if (rail) {
+    const seasonRail = document.querySelector('#linearWorkspace .linear-season');
+    if (rail && seasonRail) {
+      button.remove();
+      if (!railSection) {
+        railSection = el('div', 'season-rail-group');
+        for (const [id, label] of TABS) if (id !== 'home' && !ANALYSIS_TABS.includes(id)) railSection.append(railRow(id, label));
+      }
+      placeHome(seasonRail);
+      if (homeButton.parentElement !== seasonRail) seasonRail.prepend(homeButton);
+      homeButton.after(railSection);
+      if (!analysisRows) {
+        analysisRows = el('div', 'season-analysis-rows');
+        for (const [id, label] of TABS) if (ANALYSIS_TABS.includes(id)) analysisRows.append(railRow(id, label));
+      }
+      rail.append(analysisRows);
+      homeButton.setAttribute('aria-pressed', String(active && state.tab === 'home'));
+    } else if (rail) {
       placeHome(rail);
       rail.append(button);
       if (!railSection) {
@@ -325,6 +365,8 @@
   // ---------- entering and leaving ----------
   function show(tab, params = {}, fromHistory = false) {
     window.ApexLive?.leave?.();
+    const aliased = Boolean(TAB_ALIASES[tab]);
+    tab = TAB_ALIASES[tab] || tab;
     state.tab = TABS.some(([id]) => id === tab) ? tab : 'schedule';
     if (params.year && Number(params.year) !== state.year) { state.year = Number(params.year); }
     for (const key of ['driver', 'a', 'b', 'team', 'track']) if (params[key]) state[key] = params[key];
@@ -344,8 +386,8 @@
     page.querySelector('.season-title h1').textContent = label;
     const crumb = document.getElementById('windowTitle'), sub = document.getElementById('windowSubtitle');
     if (crumb) crumb.textContent = label;
-    if (sub) sub.textContent = state.tab === 'home' ? 'F1 Apex Data' : `Season ${state.year}`;
-    if (!fromHistory) window.ApexUrl?.write('season', urlParams());
+    if (sub) sub.textContent = state.tab === 'home' ? 'F1 Apex Data' : ANALYSIS_TABS.includes(state.tab) ? `Analysis · ${state.year}` : `Season ${state.year}`;
+    if (!fromHistory || aliased) window.ApexUrl?.write('season', urlParams());
     else document.title = window.ApexUrl?.titleFor('season', urlParams()) || document.title;
     render();
   }
@@ -398,14 +440,14 @@
       const [data, extra] = await Promise.all([load('season', year),
         tab === 'upgrades' ? load('upgrades', year) : tab === 'units' ? load('units', year) : tab === 'tracks' ? loadTrackProfiles() : null]);
       // Form also reads each finished race's pace analysis (the published Car performance results), once per season.
-      const form = tab === 'form' ? await loadForm(year, data) : null;
+      const form = tab === 'drivers' ? await loadForm(year, data).catch(() => null) : null;
       if (token !== renderToken) return;
       const view = {home: renderHome, schedule: renderSchedule, results: renderResults, standings: renderStandings, form: renderForm, drivers: renderDrivers,
         h2h: renderH2H, upgrades: renderUpgrades, units: renderUnits, tracks: renderTracks}[tab];
       setCodes(data);
       const note = savedNote(extra?.saved_at ? extra : data), saved = page.querySelector('.season-saved');
       if (saved) { saved.textContent = note; saved.hidden = !note; }
-      paint(() => view(data, tab === 'form' ? form : extra));
+      paint(() => view(data, tab === 'drivers' ? form : extra));
     } catch (error) {
       if (token !== renderToken) return;
       const message = empty(error.message || String(error)); message.setAttribute('role', 'alert');
@@ -543,19 +585,13 @@
       for (const [id, v] of rows) { const li = el('li'); li.append(who(data, id, {team: false, family: true}), el('b', null, v - best < 0.0005 ? 'quickest' : `+${(v - best).toFixed(3)} s`)); ol.append(li); }
       if (!rows.length) ol.append(el('li', 'season-muted', 'Race analysis not available yet.'));
     });
-    const battles = data.teammates.map(p => ({p, t: compare(together(data, p), p.a, p.b).tally})).filter(({t}) => t.race[0] + t.race[1] >= 5).sort((x, y) => Math.abs(x.t.race[0] - x.t.race[1]) - Math.abs(y.t.race[0] - y.t.race[1])).slice(0, 5);
-    list('Closest teammate battles', battles.map(({p, t}) => {
-      const pair = el('span', 'home-pair'); pair.append(who(data, p.a, {code: true, team: false}), el('span', 'season-muted', 'vs'), who(data, p.b, {code: true, team: false}));
-      return [pair, `${t.race[0]}–${t.race[1]}`];
-    }), 'h2h', 'race weekends ahead');
     out.push(glance);
-    if (next) out.push(circuitProfile(data, next));
     // Every part of the site, one tile each.
     const tiles = el('div', 'home-tiles');
     const tile = (title, text, go) => { const b = el('button', 'home-tile'); b.type = 'button'; b.append(el('b', null, title), el('span', 'season-muted', text)); b.addEventListener('click', go); tiles.append(b); };
     tile('Session analysis', 'Lap times, telemetry, corners and sectors for any session', () => document.querySelector('[data-analysis-view="session"]')?.click());
     tile('Car performance', 'Pace, cornering, straights, braking, pit stops and tyres by team', () => document.querySelector('[data-analysis-view="performance"]')?.click());
-    for (const [id, label] of TABS) if (id !== 'home') tile(label, {schedule: 'Calendar, sessions and weather', tracks: 'Every circuit: map, corners, sectors and straights', results: 'Races, qualifying and sprints, with race reports', standings: 'Championship tables and charts', form: 'Rolling race and qualifying pace, recent results', drivers: 'Every number for one driver', h2h: 'Any two drivers side by side', upgrades: 'Car updates by team and Grand Prix', units: 'Power-unit elements and reliability'}[id] || '', () => show(id));
+    for (const [id, label] of TABS) if (id !== 'home') tile(label, {schedule: 'Calendar, sessions and weather', tracks: 'Every circuit: map, corners, sectors and straights', results: 'Races, qualifying and sprints, with race reports', standings: 'Championship tables and charts', drivers: 'Profiles, every stat for every driver, and form', h2h: 'Any two drivers side by side', upgrades: 'Car upgrades by team and Grand Prix, from the FIA documents', units: 'Power-unit elements, failures and penalties'}[id] || '', () => show(id));
     out.push(card('Explore', tiles));
     return out;
   }
@@ -564,7 +600,7 @@
   function renderSchedule(data) {
     const out = [];
     const next = data.rounds.find(r => r.status === 'next');
-    if (next) out.push(nextRaceHero(data, next), circuitProfile(data, next));
+    if (next) out.push(nextRaceHero(data, next));
     const done = data.rounds.filter(r => r.status === 'done').length;
     const progress = el('div', 'season-progress');
     const track = el('div', 'season-progress-track');
@@ -800,7 +836,8 @@
     const half = Math.ceil(t.corners.list.length / 2), ct = el('div', 'season-two season-track-corner-halves');
     ct.append(cornerTable(t.corners.list.slice(0, half)), cornerTable(t.corners.list.slice(half)));
     const cornersCard = card('Corners', ct, el('p', 'season-footnote', `Every numbered corner at the lowest speed of the lap through it${t.corners.approximate ? ' (corner positions approximate)' : ''}; deeper shading is slower. Slow under 120 km/h, medium 120–200, fast over 200 (flat-out bends included).`));
-    return [picker, head, two, cornersCard, trackComparison(data, profiles, pick, gp => { state.track = gp; repaint(); window.scrollTo({top: 0, behavior: 'smooth'}); })];
+    const history = round ? circuitProfile(data, round) : null;
+    return [picker, head, two, cornersCard, ...(history ? [history] : []), trackComparison(data, profiles, pick, gp => { state.track = gp; repaint(); window.scrollTo({top: 0, behavior: 'smooth'}); })];
   }
   // Every track in one table: sortable columns, values shaded by where they sit in the column. A row opens that track.
   function trackComparison(data, profiles, pick, choose) {
@@ -1066,35 +1103,6 @@
     for (const [label, value, note] of items) { const d = el('div'); d.append(el('span', 'season-muted', label), el('b', null, String(value))); if (note) d.append(el('small', 'season-muted', note)); row.append(d); }
     const c = card(null, row); c.classList.add('season-numbers-card');
     return c;
-  }
-  // Wins, poles and sprint poles: one card, three pills. One bar per driver; for wins the sprint wins sit beside the number
-  // as a quiet note rather than a second bar shade.
-  function winsCard(data) {
-    const kind = ['poles', 'sprint_poles'].includes(state.winsKind) ? state.winsKind : 'wins';
-    const sprintPoles = {};
-    for (const r of data.rounds) { const id = sprintPole(r); if (id) sprintPoles[id] = (sprintPoles[id] || 0) + 1; }
-    const value = (id, st) => (kind === 'wins' ? st.wins : kind === 'poles' ? st.poles : sprintPoles[id] || 0);
-    const rows = Object.entries(data.driver_stats).map(([id, st]) => [id, st, value(id, st)])
-      .filter(([, st, v]) => v || (kind === 'wins' && st.sprint_wins)).sort((x, y) => y[2] - x[2] || (y[1].sprint_wins || 0) - (x[1].sprint_wins || 0));
-    const max = Math.max(1, ...rows.map(([, , v]) => v));
-    const list = el('div', 'season-bars');
-    for (const [id, st, v] of rows) {
-      const row = el('div', 'season-bar-row'); row.append(who(data, id, {team: false, family: true}));
-      const bar = el('span', 'season-bar'), fill = el('i'); fill.style.width = `${v / max * 100}%`; fill.style.background = teamColour(data.drivers[id]?.team); bar.append(fill);
-      const b = el('b', null, String(v));
-      if (kind === 'wins' && st.sprint_wins) b.append(el('small', 'season-muted', ` +${st.sprint_wins} sprint`));
-      row.append(bar, b);
-      list.append(row);
-    }
-    const pills = el('div', 'season-segment season-zone-toggle'); pills.setAttribute('role', 'group'); pills.setAttribute('aria-label', 'Count');
-    const box = card('Wins and poles', pills, rows.length ? list : empty(kind === 'wins' ? 'No wins yet.' : 'No poles yet.'));
-    for (const [id, label] of [['wins', 'Wins'], ['poles', 'Poles'], ['sprint_poles', 'Sprint poles']]) {
-      if (id === 'sprint_poles' && !Object.keys(sprintPoles).length) continue;
-      const btn = el('button', null, label); btn.type = 'button'; btn.setAttribute('aria-pressed', String(kind === id));
-      btn.addEventListener('click', () => { if (kind === id) return; state.winsKind = id; box.replaceWith(winsCard(data)); });
-      pills.append(btn);
-    }
-    return box;
   }
   const wrap = node => { const w = el('div', 'season-table-wrap'); w.append(node); return w; };
   // Grand Prix results in two views: Race (podium, fastest lap, sprint winner, margin) and Qualifying (the front row,
@@ -1432,7 +1440,7 @@
     const layout = el('div', 'season-two season-standings-layout');
     const standingsColumn = el('div', 'season-stack'); standingsColumn.append(card('Championship standings', wrap(table)), titleFight(data, drivers));
     layout.append(standingsColumn, el('div', 'season-stack'));
-    layout.lastChild.append(...[card('Points evolution', points), card('Championship position', ranks), drivers ? winsCard(data) : null].filter(Boolean));
+    layout.lastChild.append(card('Points evolution', points), card('Championship position', ranks));
     linkHover(layout);
     // Drivers: finishing positions or points per round, switched in place (the choice is kept while the page is open).
     const showPoints = () => !drivers || state.matrix === 'points', showQuali = () => drivers && state.matrix === 'qualifying';
@@ -1456,7 +1464,7 @@
       }
     }
     const matrix = card(drivers ? 'Results by round' : 'Points by round', ...[matrixToggle, grid, foot].filter(Boolean));
-    return [toggle, layout, matrix, ...(drivers ? [] : [qualiPace(data)])].filter(Boolean);
+    return [toggle, layout, matrix].filter(Boolean);
   }
   // Who can still win: points scored (sprints included) against the most still available.
   function titleFight(data, drivers) {
@@ -1548,45 +1556,7 @@
     t.append(tb);
     return wrap(t);
   }
-  // Each team's best qualifying lap against pole, per round.
-  function qualiPace(data) {
-    if (!data.rounds.some(r => r.qualifying.length)) return null;
-    const rounds = data.rounds.filter(r => r.qualifying.length || notRun(r));
-    const teams = Object.keys(data.teams);
-    // The same definition as Car performance: each team's fastest lap in any part of qualifying against the fastest lap
-    // anyone set (not necessarily the pole-sitter's), as % of that lap; across rounds, the median.
-    const gaps = Object.fromEntries(teams.map(t => [t, rounds.map(r => {
-      const fastest = Math.min(...r.qualifying.map(bestLap));
-      const best = Math.min(...r.qualifying.filter(x => x.team === t).map(bestLap));
-      return Number.isFinite(fastest) && Number.isFinite(best) ? (best - fastest) / fastest * 100 : null;
-    })]));
-    const avg = t => median(gaps[t]) ?? Infinity;
-    const order = teams.filter(t => gaps[t].some(Number.isFinite)).sort((x, y) => avg(x) - avg(y));
-    const worst = Math.max(.5, ...order.flatMap(t => gaps[t].filter(Number.isFinite)));
-    const tbl = el('table', 'season-table season-matrix season-grid');
-    const head = el('tr'); head.append(el('th', null, 'Constructor'));
-    for (const r of rounds) { const th = el('th', 'num'); th.append(roundMark(r)); head.append(th); }
-    head.append(el('th', 'num', 'Median'));
-    const thead = el('thead'); thead.append(head); tbl.append(thead);
-    const tb = el('tbody');
-    for (const t of order) {
-      const tr = el('tr'); const name = el('th'); name.append(teamTag(data, t)); tr.append(name);
-      gaps[t].forEach((g, i) => {
-        if (!rounds[i].qualifying.length) { tr.append(upcomingCell(rounds[i])); return; }
-        const td = el('td', 'num');
-        if (Number.isFinite(g)) {
-          td.textContent = g < .0005 ? 'Best' : g.toFixed(2);
-          td.classList.add('is-heat'); td.style.setProperty('--team', teamColour(t)); td.style.setProperty('--heat', String(.1 + .7 * (1 - Math.min(g / worst, 1))));
-          td.title = `${rounds[i].name}: ${g < .0005 ? 'fastest lap of qualifying' : `+${g.toFixed(3)}% to the fastest lap`}`;
-        }
-        tr.append(td);
-      });
-      tr.append(el('td', 'num season-strong', `${avg(t).toFixed(2)}%`));
-      tb.append(tr);
-    }
-    tbl.append(tb);
-    return card('Qualifying pace: gap to the fastest lap', wrap(tbl), el('p', 'season-footnote', 'Each team’s fastest lap in any part of qualifying against the fastest lap anyone set, in % of that lap; deeper colour is closer. The median across rounds keeps one wet or red-flagged session from deciding the order. A team out in Q1 ran on a slower track than Q3, so its gap includes track evolution; Car performance can adjust for it.'));
-  }
+
   // Hovering a row, a line or a legend entry highlights that entry everywhere in the layout.
   function linkHover(scope) {
     scope.addEventListener('pointerover', event => {
@@ -2089,7 +2059,10 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     const shell = el('div', 'select-shell season-select'); shell.append(select);
     return shell;
   }
-  function renderDrivers(data) {
+  // Form's data for this season, kept for repaints (choosing a driver redraws the page without loading it again).
+  let driversForm = null;
+  function renderDrivers(data, form = null) {
+    if (form) driversForm = {year: data.year, form}; else if (driversForm?.year === data.year) form = driversForm.form;
     const order = data.standings.drivers.at(-1)?.table.map(e => e.id) || Object.keys(data.drivers);
     if (!state.driver || !data.drivers[state.driver]) state.driver = order[0];
     const id = state.driver, s = data.driver_stats[id];
@@ -2182,7 +2155,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       if (i === 0) node.append(pick);
       if (i === 4) node.append(card('Race finishing positions', dist, el('p', 'season-footnote', 'Classified finishes only.')), card('Championship position', positions));
       return node;
-    }).concat(driverExtras(data, id, mateId), fieldTable(data));
+    }).concat(driverExtras(data, id, mateId), fieldTable(data), form ? renderForm(data, form) : []);
   }
   const FIELD_STATS = {
     race: [['points', 'Points'], ['wins', 'Wins'], ['podiums', 'Podiums'], ['points_finishes', 'Points finishes'], ['average_finish', 'Average finish', true, 2],

@@ -3,8 +3,8 @@ import {isolate} from './helpers.mjs';
 
 // Budgets are set just above today's numbers (hosted-like gzip, 22 files before lazy loading was 271 KB; the session view
 // now needs about 154 KB). They exist to catch regressions, not to define a target.
-// idleDomNodes: 610 since the Tracks section joined the rail (its row adds two nodes).
-const BUDGET = {initialScriptKB: 185, initialStyleKB: 82, idleDomNodes: 610, layoutShift: 0.02};
+// idleDomNodes: 640 since the rail lists every page in two sections (Analysis and Season), each row an icon and a name.
+const BUDGET = {initialScriptKB: 185, initialStyleKB: 82, idleDomNodes: 640, layoutShift: 0.02};
 
 /** Records long tasks, layout shift and the moment of the load event from the very start of the page. */
 const observe = () => {
@@ -90,7 +90,7 @@ test('every selection control in the toolbar and sidebar is operable by keyboard
 test('Car performance with no data says which sessions failed and stays usable', async ({page}) => {
   await open(page, '/apex/cars');
   await expect(page.locator('body')).toHaveClass(/performance-view/);
-  await page.getByRole('button', {name: 'Tracks'}).click();
+  await page.getByRole('group', {name: 'Analysis scope'}).getByRole('button', {name: 'Tracks'}).click();
   const pills = page.locator('.track-pill');
   await expect(pills.first()).toBeVisible();
   await pills.first().click();

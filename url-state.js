@@ -64,9 +64,9 @@
   // One document serves every route, so the title says where you are (history entries, tabs, bookmarks).
   const SITE = 'F1 Apex Data';
   const CATEGORY_TITLES = {pace: 'Pace', corners: 'Cornering', straight: 'Straight line', braking: 'Braking', pits: 'Pit stops',
-    tyres: 'Tyre trend', trend: 'Development & updates', results: 'Reliability & results'};
-  const SEASON_TITLES = {home: 'Home', schedule: 'Schedule', results: 'Results', standings: 'Standings', form: 'Form', drivers: 'Driver stats',
-    h2h: 'Head-to-head', upgrades: 'Upgrades', units: 'Power units', tracks: 'Tracks'};
+    tyres: 'Tyre trend', trend: 'Development trend', results: 'Finishes & retirements'};
+  const SEASON_TITLES = {home: 'Home', schedule: 'Calendar', results: 'Results', standings: 'Standings', form: 'Form', drivers: 'Drivers',
+    h2h: 'Head-to-head', upgrades: 'Development', units: 'Reliability', tracks: 'Tracks'};
   function titleFor(view, params) {
     if (view === 'season' && params?.tab === 'home') return `${SITE} — Formula 1 analysis`;
     if (view === 'season') return `${SEASON_TITLES[params?.tab] || 'Schedule'} · Season${params?.year ? ' ' + params.year : ''} — ${SITE}`;

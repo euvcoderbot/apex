@@ -4,7 +4,7 @@ import {isolate, replayFixture} from './helpers.mjs';
 // Car performance with real numbers (Bahrain, Singapore and United States 2026), replayed with no network. These are the views a
 // person actually reads; the catalogue shows the controls, these show what they are used for.
 const CATEGORIES = [['pace', 'Pace'], ['corners', 'Cornering'], ['straight', 'Straight line'], ['braking', 'Braking'], ['pits', 'Pit stops'],
-  ['tyres', 'Tyre trend'], ['trend', 'Development'], ['results', 'Reliability']];
+  ['tyres', 'Tyre trend'], ['trend', 'Development'], ['results', 'Finishes']];
 const URL = category => `/apex/cars/${category}?year=2026&scope=tracks&races=16,17,18&run=1`;
 
 async function open(page, category = 'pace') {

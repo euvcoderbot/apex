@@ -2107,8 +2107,8 @@ function renderContent() {
     ['braking','Braking'],
     ['pits','Pit stops'],
     ['tyres','Tyre trend'],
-    ['trend','Development & updates'],
-    ['results','Reliability & results']
+    ['trend','Development trend'],
+    ['results','Finishes & retirements']
   ];
   $('carPerformance').classList.toggle('is-descriptions-hidden',!showPerformanceDescriptions);
   const navEmoji={pace:'⏱️',corners:'🏎️',straight:'🚀',braking:'🛑',pits:'🔧',tyres:'🛞',trend:'📈',results:'🏆'};

@@ -107,7 +107,7 @@ test('the document title says where you are, on load, on navigation and on back'
   assert.equal(browser('', '/apex/cars').document.title, 'Pace · Car performance — F1 Apex Data');
   const page = browser();
   page.url.write('cars', {year: '2026', metric: 'results'});
-  assert.equal(page.document.title, 'Reliability & results · Car performance 2026 — F1 Apex Data');
+  assert.equal(page.document.title, 'Finishes & retirements · Car performance 2026 — F1 Apex Data');
   page.url.write('session', {year: '2026', round: '3', session: 'Race'});
   assert.equal(page.document.title, '2026 round 3 Race · Session analysis — F1 Apex Data');
   Object.assign(page.location, {pathname: '/apex/cars/pits', search: '?year=2025'});
