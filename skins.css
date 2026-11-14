@@ -2578,3 +2578,4 @@
 :root[data-skin="linear"] .team-logo:has(> .team-logo-fallback) { display: inline-grid; place-items: center; width: 14px; height: 14px; flex: 0 0 14px; }
 :root[data-skin="linear"] .team-logo > .team-logo-fallback { width: 9px; height: 9px; }
 :root[data-skin="linear"] #seasonHub .season-legend span[data-tone]::before { border-radius: 50%; }
+:root[data-skin="linear"] .linear-rail-section.is-plain { margin-top: 6px; }

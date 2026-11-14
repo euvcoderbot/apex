@@ -55,7 +55,8 @@
     // Linear's sidebar: a workspace row with a round search button, 28 px rows, and quiet section headings that fold their section.
     rail.innerHTML = '<div class="linear-workspace-top"><div class="linear-workspace-brand"><img src="assets/f1apex-icon-32.png" alt="" width="18" height="18"><strong>Apex Data</strong></div>'
       + '<button type="button" class="linear-search" aria-haspopup="dialog" aria-label="Search commands" title="Search commands · Ctrl K"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3" stroke-linecap="round"/></svg></button></div>'
-      + section('analysis', 'Analysis', '<div class="linear-navigation"></div>')
+      // The sections (Home, Session analysis, Car performance, Season, Tracks): a plain list, no heading over it.
+      + '<div class="linear-rail-section is-plain" data-section="analysis"><div id="linearSection-analysis" class="linear-section-body"><div class="linear-navigation"></div></div></div>'
       + section('categories', 'Measurements', '<div class="linear-categories"></div>', 'linear-category-heading')
       + section('drivers', 'Drivers', '<div class="linear-drivers"></div>', 'linear-drivers-heading')
       ;
