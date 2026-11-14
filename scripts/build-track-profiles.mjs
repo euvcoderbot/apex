@@ -18,6 +18,8 @@
 // own zones from the Race Director's circuit map (Straight Mode and Overtake in 2026, DRS before; see officialZones); and a
 // map outline with the speed at each point.
 // Usage: node scripts/build-track-profiles.mjs [year]
+// Then: .venv/Scripts/python.exe scripts/fit-fia-track-outlines.py (adds the FIA's drawing of each track; this script
+// rewrites the file without it, so run the fit after every rebuild).
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 import path from 'node:path';

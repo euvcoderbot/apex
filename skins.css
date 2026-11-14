@@ -2509,7 +2509,7 @@
 :root[data-skin="linear"] #sessionOverview .dist-face { display: grid; justify-items: center; gap: 4px; min-width: 0; }
 :root[data-skin="linear"] #sessionOverview .dist-avatar { position: relative; display: grid; place-items: center; width: 24px; height: 24px; overflow: hidden; border-radius: 50%; background: color-mix(in oklch, var(--team) 30%, var(--ui-well)); }
 :root[data-skin="linear"] #sessionOverview .dist-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-:root[data-skin="linear"] #sessionOverview .dist-avatar b { color: var(--ui-label); font: 600 8px/1 var(--ui-font); }
+:root[data-skin="linear"] #sessionOverview .dist-avatar b { color: var(--ui-label); font: 600 10px/1 var(--ui-font); }
 :root[data-skin="linear"] #sessionOverview .dist-face small { color: var(--ui-secondary); font: 600 10px/1 var(--ui-font); }
 :root[data-skin="linear"] #seasonHub .season-field-open { display: inline-flex; align-items: center; min-height: 28px; padding: 0; border: 0; background: none; color: var(--ui-label); font: 500 13px/1 var(--ui-font); cursor: pointer; white-space: nowrap; box-shadow: none; }
 :root[data-skin="linear"] #seasonHub .season-field-open:hover strong { text-decoration: underline; text-underline-offset: 3px; }
