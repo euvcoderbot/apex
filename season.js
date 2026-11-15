@@ -288,7 +288,7 @@
     'Practice pace': 'Best practice laps, gap between them.',
     'Reliability': 'Starts, finishes and failures per driver.',
     'Power unit elements': 'Power-unit parts used against the season limit.',
-    'Power unit elements used per race': 'New power-unit parts fitted each race.',
+    'Power unit elements used per race': 'New power-unit parts fitted each race; muted pills are a driver’s starting total.',
     'Upgrades by team and race': 'Upgrades each team brought to each race.',
     'Upgrades by team and reason': 'Why teams brought their upgrades.',
     'Most-upgraded components': 'The parts changed most often.',
@@ -3445,7 +3445,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
         name.append(r.driver && data.drivers[r.driver] ? who(data, r.driver, {code: true, team: false}) : el('span', null, `#${r.number}`)); tr.append(name);
         history.forEach((h, i) => {
           const n = h.new?.[key], first = h.first?.[key], td = el('td', 'num');
-          if (first != null) { td.textContent = String(first); td.classList.add('is-first'); td.title = `${h.round_name}: the first table listing this driver, ${first} elements`; }
+          if (first != null) { td.textContent = String(first); td.classList.add('is-first'); td.title = `${h.round_name}: starting total, ${first} elements (the first FIA table listing this driver)`; }
           else if (n > 0) { td.textContent = String(n); td.classList.add('is-heat'); td.style.setProperty('--team', 'var(--ui-accent)'); td.style.setProperty('--heat', String(.15 + .7 * n / maxNew)); td.title = `${h.round_name}: ${n} new element${n === 1 ? '' : 's'}`; }
           else td.title = `${h.round_name}: no new elements`;
           tr.append(td);

@@ -305,7 +305,8 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 .season-grid thead th:first-child { text-align: left; }
 .season-grid .season-flag { width: 18px; height: 13px; vertical-align: middle; }
 .season-grid td, .season-grid td.num { padding: 2px; text-align: center; min-width: 34px; }
-.season-grid td.is-first { color: var(--ui-tertiary); font-weight: 500; }
+/* A driver's total in the first FIA table that lists them: an outlined pill, so it reads as a starting total, not new parts. */
+.season-grid td.is-first { color: var(--ui-secondary); font-weight: 500; background: color-mix(in oklch, var(--ui-label) 5%, transparent) content-box; border-radius: 6px; text-align: center; }
 .season-grid td[data-tone] { background: color-mix(in oklch, var(--tone) 22%, transparent) content-box; border-radius: 6px; line-height: 26px; font-weight: 600; }
 .season-grid td[data-tone="win"] { --tone: #bf5af2; }
 .season-grid td[data-tone="podium"] { --tone: #30d158; }
@@ -1336,7 +1337,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-update-count { flex: none; min-width: 78px; text-align: right; font: 600 12px/1 var(--ui-font); color: var(--ui-secondary); font-variant-numeric: tabular-nums; }
 #seasonHub details.season-update-group[open] { padding-bottom: 8px; }
 /* View pills at the top of a page split into views (Drivers, Head-to-head, Tracks). */
-#seasonHub .season-view-pills { flex: none; }
+#seasonHub .season-view-pills { flex: 0 1 auto; min-width: 0; }   /* wraps on a phone instead of running off the edge */
 #seasonHub .season-toolbar:has(> .season-view-pills) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 /* Calendar on a phone: a finished round is one compact row (round, flag, name, date, winner) with a Results button that
    opens its podium, pole, fastest lap and sprint rows. Wider screens keep the full cards and hide the compact extras. */
@@ -1353,7 +1354,12 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 }
 /* One density for every driver table and results grid, Reliability's: 36 px rows; a filled cell is a 30 px pill (6 px
    between rows, 4 px between columns), so neighbouring values never touch. Two-line cells (Tracks zones) keep their height. */
-:root[data-skin] #seasonHub .season-table tbody tr:not(.season-detail):not(.is-point) > :is(td, th) { height: 36px; padding-top: 0; padding-bottom: 0; }
+:root[data-skin] #seasonHub .season-table tbody tr:where(:not(.season-detail):not(.is-point)) > :is(td, th) { height: 36px; padding-top: 0; padding-bottom: 0; }
+/* A filled grid cell (heat, result tone) is a 30 px pill inside its 36 px row, like Driver statistics' values. */
+/* The gap is a transparent border (3 px above and below, 2 px at the sides) and the fill covers the padding, so a value
+   always has 6 px of space inside its pill (a qualifying gap such as 0.293 no longer touches the edges). */
+:root[data-skin] #seasonHub .season-table:has(td:is(.is-heat, .is-first, [data-tone])) { border-collapse: separate; border-spacing: 0; }
+:root[data-skin] #seasonHub .season-table tbody td:is(.is-heat, .is-first, [data-tone]) { min-width: 44px; padding: 0 6px; border: solid transparent; border-width: 3px 2px; background-clip: padding-box; line-height: 30px; }
 :root[data-skin] #seasonHub .season-matrix tbody tr { height: 36px; }
 :root[data-skin] #seasonHub .season-matrix td.is-heat { padding: 3px 2px; }
 :root[data-skin] #seasonHub .season-matrix td.is-upcoming { padding: 3px 2px; }
@@ -1364,4 +1370,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 /* Help: an (i) beside a card's title holds one short line (its tooltip); the long notes show with Show explanations on. */
 #seasonHub .season-info { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-left: 6px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--ui-tertiary); vertical-align: -4px; cursor: help; }
 #seasonHub .season-info:hover, #seasonHub .season-info:focus-visible { color: var(--ui-label); background: var(--lin-nav-hover); }
+/* The skins' button minimum (28 px) and fill made it a 20 x 28 oval that also raised the title row: a 20 px circle, filled on hover. */
+:root[data-skin] #seasonHub .season-info { width: 20px; height: 20px; min-width: 20px; min-height: 20px; padding: 0; border-radius: 50%; background: none; box-shadow: none; vertical-align: -1px; }   /* centred on the title's capitals */
+:root[data-skin] #seasonHub .season-info:is(:hover, :focus-visible) { background: var(--lin-nav-hover); }
 body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .season-footnote, .season-explain) { display: none; }   /* record cards' footnotes are content (the race, the span) */

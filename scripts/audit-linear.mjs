@@ -3,7 +3,7 @@
 // groups the findings by component. Writes JSON (for tests and docs) and prints a summary.
 //   node scripts/audit-linear.mjs [--out file.json] [--widths 1440,1024,390] [--themes dark,light] [--quick]
 import {spawn} from 'node:child_process';
-import {writeFile} from 'node:fs/promises';
+import {mkdir, writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import * as playwright from 'playwright';
@@ -235,6 +235,7 @@ try {
 } finally { await browser.close(); server.kill(); }
 const findings = [...groups.values()].map(g => ({...g, states: [...g.states], views: [...g.views]})).sort((a, b) => b.count - a.count);
 const families = [...familyMap.values()].map(g => ({...g, states: [...g.states]})).sort((a, b) => a.kind.localeCompare(b.kind) || b.count - a.count);
+await mkdir(path.dirname(outFile), {recursive: true});   // a Playwright run clears test-results/
 await writeFile(outFile, JSON.stringify({runs, errors, generated: new Date().toISOString(), findings, families, layouts}, null, 1));
 if (errors.length) process.exitCode = 1;
 const kinds = {}; for (const f of families) kinds[f.kind] = (kinds[f.kind] || 0) + 1;

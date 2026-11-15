@@ -84,6 +84,18 @@ function checks() {
     const hs = rows.map(r => Math.round(r.getBoundingClientRect().height)), sorted = [...hs].sort((a, b) => a - b), median = sorted[sorted.length >> 1];
     const odd = hs.filter(h => h < median * 2.5 && Math.abs(h - median) > 2).length;
     if (odd && odd < hs.length / 2) add('uneven-rows', t, `${odd} of ${hs.length} rows differ from ${median} px`);
+    // Filled grid cells (heat, result tones) are pills with a gap between rows, as in Driver statistics: two that touch
+    // read as one block.
+    const paint = c => {   // the painted fill: inside the border unless the background reaches under it, and inside the padding for content-box
+      const r = c.getBoundingClientRect(), cs = getComputedStyle(c), clip = cs.backgroundClip, px = k => parseFloat(cs[k]) || 0;
+      const top = clip === 'border-box' ? 0 : px('borderTopWidth') + (clip === 'content-box' ? px('paddingTop') : 0);
+      const bottom = clip === 'border-box' ? 0 : px('borderBottomWidth') + (clip === 'content-box' ? px('paddingBottom') : 0);
+      return {top: r.top + top, bottom: r.bottom - bottom};
+    };
+    const pill = c => c && c.cellIndex > 0 && c.tagName === 'TD' && getComputedStyle(c).position !== 'sticky' && getComputedStyle(c).backgroundColor !== 'rgba(0, 0, 0, 0)';   // a pinned name column is a plain band
+    let touching = 0;
+    rows.forEach((row, k) => { const next = rows[k + 1]; if (next) for (const c of row.cells) { const below = next.cells[c.cellIndex]; if (pill(c) && pill(below) && paint(below).top - paint(c).bottom < 3) touching++; } });
+    if (touching) add('touching-pills', t, `${touching} filled cells touch the one below`);
   }
   // A chart label cut off: outside its svg and hidden by a clipping parent (labels that overhang but show are fine).
   for (const svg of scope.querySelectorAll('svg')) {

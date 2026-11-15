@@ -61,7 +61,7 @@
     if(el.matches('.workspace-disclosure,.corner-analysis-toggle'))return 'disclosure';
     if(el.matches('[data-performance-metric],[data-session-view]'))return 'tab';
     if(el.matches('[data-zoom],[data-pan],[data-delta-zoom]'))return 'stepper';
-    if(el.matches('.remove,[data-remove],.map-guide-info'))return 'icon';
+    if(el.matches('.remove,[data-remove],.map-guide-info,.season-info'))return 'icon';
     if(el.closest(groups)||el.closest('.season-segment'))return 'segment';
     if(el.closest('.workspace-tools')||el.matches('#windowSidebarToggle'))return 'toolbar';
     return 'push';
