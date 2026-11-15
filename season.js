@@ -18,7 +18,26 @@
     'MGU-H': 'Motor generator unit, heat', CE: 'Control electronics', EX: 'Exhaust system'};
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
   const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
-  const teamColour = id => window.apexTeamColour?.(TEAM_HEX[id] || '#8e8e93') || TEAM_HEX[id] || '#8e8e93';
+  // Each earlier season's official team colours (FastF1's per-season table, fastf1/plotting/constants.json, 'official'),
+  // so a season shows its own teams in their own colours: Toro Rosso, Racing Point, Force India and Renault included, and a
+  // team whose colour changed (Haas in 2019, Williams before 2021) as it was. The current season keeps TEAM_HEX.
+  const TEAM_HEX_BY_YEAR = {2018: {ferrari: '#dc0000', force_india: '#f596c8', haas: '#828282', mclaren: '#ff8000', mercedes: '#00d2be', racing_point: '#f596c8', red_bull: '#1e41ff', renault: '#fff500', sauber: '#9b0000', toro_rosso: '#469bff', williams: '#ffffff'},
+    2019: {alfa: '#9b0000', haas: '#bd9e57', ferrari: '#dc0000', mclaren: '#ff8700', mercedes: '#00d2be', racing_point: '#f596c8', red_bull: '#1e41ff', renault: '#fff500', toro_rosso: '#469bff', williams: '#ffffff'},
+    2020: {alfa: '#9b0000', alphatauri: '#ffffff', ferrari: '#dc0000', haas: '#787878', mclaren: '#ff8700', mercedes: '#00d2be', racing_point: '#f596c8', red_bull: '#1e41ff', renault: '#fff500', williams: '#0082fa'},
+    2021: {alfa: '#900000', alphatauri: '#2b4562', alpine: '#0090ff', aston_martin: '#006f62', ferrari: '#dc0004', haas: '#ffffff', mclaren: '#ff9800', mercedes: '#00d2be', red_bull: '#0600ef', williams: '#005aff'},
+    2022: {alfa: '#b12039', alphatauri: '#4e7c9b', alpine: '#2293d1', aston_martin: '#2d826d', ferrari: '#ed1c24', haas: '#b6babd', mclaren: '#f58020', mercedes: '#6cd3bf', red_bull: '#1e5bc6', williams: '#37bedd'},
+    2023: {alfa: '#c92d4b', alphatauri: '#5e8faa', alpine: '#2293d1', aston_martin: '#358c75', ferrari: '#f91536', haas: '#b6babd', mclaren: '#f58020', mercedes: '#6cd3bf', red_bull: '#3671c6', williams: '#37bedd'},
+    2024: {alpine: '#0093cc', aston_martin: '#229971', ferrari: '#e8002d', haas: '#b6babd', mclaren: '#ff8000', mercedes: '#27f4d2', rb: '#6692ff', red_bull: '#3671c6', sauber: '#52e252', williams: '#64c4ff'},
+    2025: {alpine: '#0093cc', aston_martin: '#229971', ferrari: '#e80020', haas: '#b6babd', mclaren: '#ff8000', mercedes: '#27f4d2', rb: '#6692ff', red_bull: '#3671c6', sauber: '#52e252', williams: '#64c4ff'}};
+  let seasonHex = {};   // the shown season's colours; set by setCodes
+  const teamHex = id => seasonHex[id] || TEAM_HEX[id] || '#8e8e93';
+  // An earlier season draws its own colour as it was (team-colours.js would turn a current team's old shade into today's);
+  // a near-white one (Williams 2018-19, AlphaTauri 2020) takes formula1.com's accessible grey on a light page, as Haas does.
+  const nearWhite = hex => { const v = parseInt(String(hex).slice(1), 16); return ((v >> 16 & 255) * .299 + (v >> 8 & 255) * .587 + (v & 255) * .114) / 255 > .85; };
+  const teamColour = id => {
+    if (seasonHex[id]) return document.documentElement.dataset.theme === 'light' && nearWhite(seasonHex[id]) ? '#667175' : seasonHex[id];
+    return window.apexTeamColour?.(teamHex(id)) || teamHex(id);
+  };
   const now = () => new Date();
 
   // ---------- imagery: driver photos and avatars, team marks and circuit outlines ----------
@@ -446,6 +465,9 @@
       paint(() => view(data, tab === 'drivers' ? form : extra));
     } catch (error) {
       if (token !== renderToken) return;
+      // Power-unit usage before 2022 is saved separately (scripts/snapshot-power-units-history.py) and reaches the Site with a
+      // data publish: until then a season says so plainly rather than showing the API's error.
+      if (tab === 'units' && year < 2022) { body.setAttribute('aria-busy', 'false'); body.replaceChildren(empty(`Power-unit usage for ${year} has not been published yet.`)); return; }
       const message = empty(error.message || String(error)); message.setAttribute('role', 'alert');
       body.setAttribute('aria-busy', 'false'); body.replaceChildren(message);
     }
@@ -1747,6 +1769,7 @@
   let codes = {}, roundNames = {};
   const flags = {};   // round -> ISO country code, for the flag above each round label in charts
   function setCodes(data) {
+    seasonHex = TEAM_HEX_BY_YEAR[data.year] || {};
     codes = {}; roundNames = {};
     const used = new Set();
     for (const r of data.rounds) {

@@ -5,13 +5,15 @@ a square headshot, 256 px WebP) and credited in assets/drivers/credits.json.
 The crop follows the cut-out itself: the top of the person is the top of the head, and the square is centred on the
 head's width there. Review the results (a contact sheet is written next to the downloads) before committing.
 
-Usage: .venv/Scripts/python.exe scripts/fetch-driver-photos.py <driver_id>=<Wikipedia title> [...]
+Usage: .venv/Scripts/python.exe scripts/fetch-driver-photos.py <driver_id>=<Wikipedia title>[|File:<Commons file>] [...]
 Downloads go to .apex-cache/driver-photos/ (not committed).
 """
 import io
 import json
 import re
 import sys
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -24,13 +26,27 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / 'assets' / 'drivers'
 CACHE = ROOT / '.apex-cache' / 'driver-photos'
 UA = {'User-Agent': 'apex-data-photo-build/1.0'}
-FREE = re.compile(r'^(CC BY(-SA)? \d\.\d|CC0|Public domain|PD)', re.I)
+FREE = re.compile(r'^(CC BY(-SA)? \d\.\d|CC0|Public domain|PD|FAL)', re.I)   # FAL: the Free Art License, copyleft like CC BY-SA
+
+
+def fetch(url):
+    """GET with a pause after each request and a growing wait when Wikimedia answers 429 (too many requests)."""
+    for wait in (0, 30, 60, 120, 240):
+        time.sleep(wait)
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=60) as r:
+                body = r.read()
+            time.sleep(2)
+            return body
+        except urllib.error.HTTPError as e:
+            if e.code != 429:
+                raise
+    raise RuntimeError('Wikimedia kept answering 429; run again later')
 
 
 def api(host, **q):
     url = f'https://{host}/w/api.php?' + urllib.parse.urlencode({'format': 'json', 'formatversion': 2, **q})
-    with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=60) as r:
-        return json.load(r)
+    return json.loads(fetch(url))
 
 
 def strip_html(s):
@@ -81,19 +97,23 @@ def main(pairs):
     for pair in pairs:
         driver, title = pair.split('=', 1)
         try:
-            name = lead_file(title)
+            # driver=Name|File:Some photo.jpg picks that Commons file instead of the Wikipedia lead image.
+            title, _, chosen = title.partition('|')
+            name = chosen.removeprefix('File:') if chosen else lead_file(title)
             if not name:
                 print(f'{driver}: no lead image on "{title}"'); continue
             info = commons_info(name)
             if not FREE.match(info['licence']):
                 print(f'{driver}: skipped, licence "{info["licence"]}" is not free'); continue
-            raw = urllib.request.urlopen(urllib.request.Request(info['url'], headers=UA), timeout=60).read()
+            raw = fetch(info['url'])
             (CACHE / f'{driver}.src').write_bytes(raw)
             img = Image.open(io.BytesIO(raw)).convert('RGB')
             headshot(img, session).save(OUT / f'{driver}.webp', 'WEBP', quality=88, method=6)
             credits['photos'][driver] = {'name': title.split(' (')[0], 'file': info['file'], 'page': info['page'], 'author': info['author'] or 'Unknown',
                                          'licence': info['licence'], 'licence_url': info['licence_url'], 'changes': 'cropped, background removed'}
             done.append(driver)
+            # Saved after each photo, so an interrupted run never leaves a photo without its credit.
+            credits_path.write_text(json.dumps({**credits, 'photos': dict(sorted(credits['photos'].items()))}, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
             print(f'{driver}: {info["licence"]}, {info["author"][:40]}, {info["file"][:60]}')
         except Exception as e:
             print(f'{driver}: failed ({type(e).__name__}: {e})')

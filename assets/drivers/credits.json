@@ -1,6 +1,15 @@
 {
   "note": "Driver photos from Wikimedia Commons under free licences; cropped to a square headshot and the background removed (each is shown on its team colour). Adaptations of CC BY-SA photos are shared under the same licence.",
   "photos": {
+    "aitken": {
+      "name": "Jack Aitken",
+      "file": "File:2024-04-27 Motorsport, DTM, Oschersleben STP 2025 (cropped).jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:2024-04-27_Motorsport,_DTM,_Oschersleben_STP_2025_(cropped).jpg",
+      "author": "Steffen Prößdorf",
+      "licence": "CC BY-SA 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+      "changes": "cropped, background removed"
+    },
     "albon": {
       "name": "Alexander Albon",
       "file": "File:Alex Albon at the Melbourne Walk during the 2026 Australian Grand Prix (028A8626) (cropped).jpg",
@@ -64,11 +73,47 @@
       "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
       "changes": "cropped, background removed"
     },
+    "brendon_hartley": {
+      "name": "Brendon Hartley",
+      "file": "File:Brendon Hartley at the 2025 Adelaide Grand Final - 01.jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:Brendon_Hartley_at_the_2025_Adelaide_Grand_Final_-_01.jpg",
+      "author": "Yu Chu Chin",
+      "licence": "CC BY-SA 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+      "changes": "cropped, background removed"
+    },
     "colapinto": {
       "name": "Franco Colapinto",
       "file": "File:Franco Colapinto at the Melbourne Walk during the 2026 Australian Grand Prix (028A8698) cropped.jpg",
       "page": "https://commons.wikimedia.org/wiki/File:Franco_Colapinto_at_the_Melbourne_Walk_during_the_2026_Australian_Grand_Prix_(028A8698)_cropped.jpg",
       "author": "Yu Chu Chin",
+      "licence": "CC BY-SA 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+      "changes": "cropped, background removed"
+    },
+    "de_vries": {
+      "name": "Nyck de Vries",
+      "file": "File:TGR Nyck de Vries 240908.jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:TGR_Nyck_de_Vries_240908.jpg",
+      "author": "NickeldimeC",
+      "licence": "CC BY-SA 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+      "changes": "cropped, background removed"
+    },
+    "doohan": {
+      "name": "Jack Doohan",
+      "file": "File:Jack Doohan 2023.jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:Jack_Doohan_2023.jpg",
+      "author": "Byxelized",
+      "licence": "CC0",
+      "licence_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+      "changes": "cropped, background removed"
+    },
+    "ericsson": {
+      "name": "Marcus Ericsson",
+      "file": "File:Marcus Ericsson in 2023.jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:Marcus_Ericsson_in_2023.jpg",
+      "author": "Frankie Fouganthin",
       "licence": "CC BY-SA 4.0",
       "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
       "changes": "cropped, background removed"
@@ -80,6 +125,24 @@
       "author": "Morio",
       "licence": "CC BY-SA 4.0",
       "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+      "changes": "cropped, background removed"
+    },
+    "giovinazzi": {
+      "name": "Antonio Giovinazzi",
+      "file": "File:Antonio Giovinazzi - Ferrari 499P - Hybrid during the pitwalk at the 2023 Le Mans (53468237574).jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:Antonio_Giovinazzi_-_Ferrari_499P_-_Hybrid_during_the_pitwalk_at_the_2023_Le_Mans_(53468237574).jpg",
+      "author": "Martin Lee from London, UK",
+      "licence": "CC BY-SA 2.0",
+      "licence_url": "https://creativecommons.org/licenses/by-sa/2.0",
+      "changes": "cropped, background removed"
+    },
+    "grosjean": {
+      "name": "Romain Grosjean",
+      "file": "File:Grosjean at 2024 Chevrolet Detroit Grand Prix.jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:Grosjean_at_2024_Chevrolet_Detroit_Grand_Prix.jpg",
+      "author": "City of Detroit",
+      "licence": "Public domain",
+      "licence_url": "",
       "changes": "cropped, background removed"
     },
     "hadjar": {
@@ -109,6 +172,42 @@
       "licence_url": "https://creativecommons.org/licenses/by-sa/2.0",
       "changes": "cropped, background removed"
     },
+    "kevin_magnussen": {
+      "name": "Kevin Magnussen",
+      "file": "File:Kevin Magnussen, 2019 Formula One Tests Barcelona (cropped).jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:Kevin_Magnussen,_2019_Formula_One_Tests_Barcelona_(cropped).jpg",
+      "author": "Marc Alvarado",
+      "licence": "CC BY-SA 2.0",
+      "licence_url": "https://creativecommons.org/licenses/by-sa/2.0",
+      "changes": "cropped, background removed"
+    },
+    "kubica": {
+      "name": "Robert Kubica",
+      "file": "File:Robert Kubica at Monza 2023.jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:Robert_Kubica_at_Monza_2023.jpg",
+      "author": "bonebeast",
+      "licence": "CC BY 2.0",
+      "licence_url": "https://creativecommons.org/licenses/by/2.0",
+      "changes": "cropped, background removed"
+    },
+    "kvyat": {
+      "name": "Daniil Kvyat",
+      "file": "File:Daniil Kvyat 2024 Suzuka A2RL (cropped).jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:Daniil_Kvyat_2024_Suzuka_A2RL_(cropped).jpg",
+      "author": "Morio",
+      "licence": "CC BY-SA 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+      "changes": "cropped, background removed"
+    },
+    "latifi": {
+      "name": "Nicholas Latifi",
+      "file": "File:Nicholas Latifi at Singapore in 2022 (cropped).jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:Nicholas_Latifi_at_Singapore_in_2022_(cropped).jpg",
+      "author": "TIB1245L",
+      "licence": "CC BY-SA 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+      "changes": "cropped, background removed"
+    },
     "lawson": {
       "name": "Liam Lawson",
       "file": "File:Liam Lawson at the Red Bull Fan Zone – Crown Riverwalk, Melbourne (028A7795).jpg",
@@ -132,6 +231,24 @@
       "file": "File:2024-08-25 Motorsport, Formel 1, Großer Preis der Niederlande 2024 STP 3973 by Stepro (medium crop).jpg",
       "page": "https://commons.wikimedia.org/wiki/File:2024-08-25_Motorsport,_Formel_1,_Gro%C3%9Fer_Preis_der_Niederlande_2024_STP_3973_by_Stepro_(medium_crop).jpg",
       "author": "Steffen Prößdorf",
+      "licence": "CC BY-SA 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+      "changes": "cropped, background removed"
+    },
+    "mazepin": {
+      "name": "Nikita Mazepin",
+      "file": "File:Никита Мазепин - интервью - 2019, 02.jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:%D0%9D%D0%B8%D0%BA%D0%B8%D1%82%D0%B0_%D0%9C%D0%B0%D0%B7%D0%B5%D0%BF%D0%B8%D0%BD_-_%D0%B8%D0%BD%D1%82%D0%B5%D1%80%D0%B2%D1%8C%D1%8E_-_2019,_02.jpg",
+      "author": "Somanyhorsesru журнал",
+      "licence": "CC BY 3.0",
+      "licence_url": "https://creativecommons.org/licenses/by/3.0",
+      "changes": "cropped, background removed"
+    },
+    "mick_schumacher": {
+      "name": "Mick Schumacher",
+      "file": "File:Mick Schumacher 2024 WEC Fuji.jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:Mick_Schumacher_2024_WEC_Fuji.jpg",
+      "author": "Morio",
       "licence": "CC BY-SA 4.0",
       "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
       "changes": "cropped, background removed"
@@ -172,6 +289,42 @@
       "licence_url": "https://creativecommons.org/licenses/by/4.0",
       "changes": "cropped, background removed"
     },
+    "pietro_fittipaldi": {
+      "name": "Pietro Fittipaldi",
+      "file": "File:Pietro Fittipaldi Stock Car 2021.png",
+      "page": "https://commons.wikimedia.org/wiki/File:Pietro_Fittipaldi_Stock_Car_2021.png",
+      "author": "Stock Car",
+      "licence": "CC BY 3.0",
+      "licence_url": "https://creativecommons.org/licenses/by/3.0",
+      "changes": "cropped, background removed"
+    },
+    "rafael_camara": {
+      "name": "Rafael Câmara",
+      "file": "File:Rafael Câmara in 2022.jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:Rafael_C%C3%A2mara_in_2022.jpg",
+      "author": "KVYTICAL",
+      "licence": "CC BY-SA 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+      "changes": "cropped, background removed"
+    },
+    "raikkonen": {
+      "name": "Kimi Räikkönen",
+      "file": "File:F12019 Schloss Gabelhofen (22) (cropped).jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:F12019_Schloss_Gabelhofen_(22)_(cropped).jpg",
+      "author": "XaviYuahanda",
+      "licence": "CC BY-SA 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+      "changes": "cropped, background removed"
+    },
+    "ricciardo": {
+      "name": "Daniel Ricciardo",
+      "file": "File:Daniel Ricciardo January 2024.jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:Daniel_Ricciardo_January_2024.jpg",
+      "author": "DaHuzyBru",
+      "licence": "CC BY-SA 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+      "changes": "cropped, background removed"
+    },
     "russell": {
       "name": "George Russell",
       "file": "File:KingsLeonSilverstne040724 (28 of 112) (53838006028) (cropped).jpg",
@@ -199,6 +352,24 @@
       "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
       "changes": "cropped, background removed"
     },
+    "sargeant": {
+      "name": "Logan Sargeant",
+      "file": "File:Logan Sargeant NYC (cropped).jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:Logan_Sargeant_NYC_(cropped).jpg",
+      "author": "JazzyJoeyD",
+      "licence": "CC BY-SA 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+      "changes": "cropped, background removed"
+    },
+    "sirotkin": {
+      "name": "Sergey Sirotkin",
+      "file": "File:Sergey Sirotkin 2019 portrait.jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:Sergey_Sirotkin_2019_portrait.jpg",
+      "author": "Maria Lipina, photographer",
+      "licence": "CC BY-SA 3.0",
+      "licence_url": "https://creativecommons.org/licenses/by-sa/3.0",
+      "changes": "cropped, background removed"
+    },
     "stroll": {
       "name": "Lance Stroll",
       "file": "File:2025 Japan GP - Aston Martin - Lance Stroll - Fanzone Stage (cropped).jpg",
@@ -212,6 +383,33 @@
       "name": "Yuki Tsunoda",
       "file": "File:Yuki Tsunoda at the Melbourne Walk during the 2026 Australian Grand Prix (028A8096).jpg",
       "page": "https://commons.wikimedia.org/wiki/File:Yuki_Tsunoda_at_the_Melbourne_Walk_during_the_2026_Australian_Grand_Prix_(028A8096).jpg",
+      "author": "Yu Chu Chin",
+      "licence": "CC BY-SA 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+      "changes": "cropped, background removed"
+    },
+    "vandoorne": {
+      "name": "Stoffel Vandoorne",
+      "file": "File:2023-04-23 Motorsport, ABB FIA Formula E World Championship, Berlin E-Prix 2023 1DX 1774 by Stepro (cropped).jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:2023-04-23_Motorsport,_ABB_FIA_Formula_E_World_Championship,_Berlin_E-Prix_2023_1DX_1774_by_Stepro_(cropped).jpg",
+      "author": "Steffen Prößdorf",
+      "licence": "CC BY-SA 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+      "changes": "cropped, background removed"
+    },
+    "vettel": {
+      "name": "Sebastian Vettel",
+      "file": "File:Sebastian Vettel at the 2026 Italian Grand Prix (cropped).jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:Sebastian_Vettel_at_the_2026_Italian_Grand_Prix_(cropped).jpg",
+      "author": "Andrea Diodato",
+      "licence": "CC BY 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by/4.0",
+      "changes": "cropped, background removed"
+    },
+    "zhou": {
+      "name": "Zhou Guanyu",
+      "file": "File:Zhou Guanyu at the Melbourne Walk during the 2026 Australian Grand Prix (028A7999).jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:Zhou_Guanyu_at_the_Melbourne_Walk_during_the_2026_Australian_Grand_Prix_(028A7999).jpg",
       "author": "Yu Chu Chin",
       "licence": "CC BY-SA 4.0",
       "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
