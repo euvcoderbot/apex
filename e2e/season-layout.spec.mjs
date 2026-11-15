@@ -31,11 +31,16 @@ for (const width of [1440, 1024, 768, 390]) {
   });
 }
 
-test('Tracks has its own navigation and clears selection on leaving', async ({page}) => {
+test('Tracks keeps the Season pills and clears selection on leaving', async ({page}) => {
   await page.goto('/apex/season/tracks?year=2026');
   const tracks = page.locator('.linear-navigation [data-season-tab="tracks"]');
   await expect(tracks).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('.season-tabs')).toBeHidden();
+  // The Season pills stay on Tracks, with Tracks chosen, so every other page is one click away.
+  await expect(page.locator('.season-tabs')).toBeVisible();
+  await expect(page.locator('.season-tabs [data-season-tab="tracks"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('.season-tabs [data-season-tab="h2h"]').click();
+  await expect(page).toHaveURL(/\/season\/h2h/);
+  await page.goBack();
   await page.locator('[data-analysis-view="session"]').click();
   await expect(tracks).toHaveAttribute('aria-pressed', 'false');
   await page.locator('#seasonViewButton').click();
@@ -62,7 +67,7 @@ for (const width of [390, 1024]) {
 for (const width of [390, 1440]) {
   test(`both head-to-head sections use one split bar and visible driver names at ${width}px`,async({page})=>{
     await page.setViewportSize({width,height:1000});
-    await page.goto('/apex/season/h2h?year=2026');
+    await page.goto('/apex/season/h2h?year=2026&part=sessions');   // qualifying and race in detail live in the Sessions view
     const cards=page.locator('.season-h2h-sessions > .season-card');
     await expect(cards).toHaveCount(2);
     for(const card of await cards.all()){

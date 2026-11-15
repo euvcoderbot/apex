@@ -1,6 +1,6 @@
 """The FIA's own track drawing, fitted to our lap: the Tracks map then shows the circuit exactly as the FIA draws it.
 
-For each track in assets/data/track-profiles.json, the Race Director's circuit map PDF (its URL in
+For each track in assets/data/track-profiles/<year>.json, the Race Director's circuit map PDF (its URL in
 data/fia-circuit-maps/<year>.json) is read with pdfplumber. The track is the grey band the FIA fills along the circuit: of
 the page's filled vector shapes, the grey colour whose shapes span the largest area. Its outline is sampled every 0.75 pt.
 
@@ -11,10 +11,10 @@ is the FIA's line, in the FIA's orientation, while each point keeps its place on
 zones (placed by lap distance) stay exactly where they were.
 
 Writes map.fia = {outline: [[x, -y], ...] (page points, y negated as the GPS outline is), corners: [...], fit: {...}}
-into assets/data/track-profiles.json. A fit whose median distance to the band is over 3 pt (the band is about 4-6 pt
+into assets/data/track-profiles/<year>.json. A fit whose median distance to the band is over 3 pt (the band is about 4-6 pt
 wide) is left out, and the map keeps the GPS drawing.
 
-Usage: .venv/Scripts/python.exe scripts/fit-fia-track-outlines.py
+Usage: .venv/Scripts/python.exe scripts/fit-fia-track-outlines.py [year ...]   (default 2026; a season needs data/fia-circuit-maps/<year>.json)
 """
 import io
 import json
@@ -31,7 +31,7 @@ from scipy.spatial import cKDTree
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / '.apex-cache' / 'fia-maps'
-PROFILES = ROOT / 'assets' / 'data' / 'track-profiles.json'
+PROFILES_DIR = ROOT / 'assets' / 'data' / 'track-profiles'
 # Our round names where the FIA names the event differently.
 ALIASES = {'Barcelona Grand Prix': 'Barcelona-Catalunya Grand Prix'}
 
@@ -139,9 +139,18 @@ def snap(q, band, tree, radius):
 
 
 def main():
+    for y in sys.argv[1:] or ['2026']:
+        fit_year(int(y))
+
+
+def fit_year(year):
+    PROFILES = PROFILES_DIR / f'{year}.json'
     profiles = json.loads(PROFILES.read_text(encoding='utf-8'))
-    year = profiles['year']
-    circuits = {c['event']: c for c in json.loads((ROOT / 'data' / 'fia-circuit-maps' / f'{year}.json').read_text(encoding='utf-8'))['circuits']}
+    maps = ROOT / 'data' / 'fia-circuit-maps' / f'{year}.json'
+    if not maps.exists():
+        print(f'{year}: no FIA circuit maps (data/fia-circuit-maps/{year}.json), kept the GPS drawings')
+        return
+    circuits = {c['event']: c for c in json.loads(maps.read_text(encoding='utf-8'))['circuits']}
     for gp, t in profiles['tracks'].items():
         t['map'].pop('fia', None)
         c = circuits.get(gp) or circuits.get(ALIASES.get(gp, ''))

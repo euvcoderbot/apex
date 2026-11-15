@@ -28,7 +28,8 @@
     "release:check": "node scripts/check-release.mjs",
     "source:check": "node scripts/check-source-tree.mjs",
     "test:e2e": "playwright test --grep-invert @visual",
-    "test:visual": "playwright test --grep @visual --project=chromium"
+    "test:visual": "playwright test --grep @visual --project=chromium",
+    "audit:coverage": "node scripts/audit-coverage.mjs --browser chromium"
   },
   "dependencies": {
     "react": "^19.3.1",

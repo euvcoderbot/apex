@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 // Track profiles: each circuit as the fastest qualifying lap of the season drove it, for the season hub's Tracks section.
-// Writes assets/data/track-profiles.json.
+// Writes assets/data/track-profiles/<year>.json (one file per season; the page loads the chosen season's).
 //
 // Sources, all published or public:
 //   - the qualifying telemetry in assets/data/telemetry (the season's fastest qualifying lap at each Grand Prix, any part);
+//     for a season without it, .apex-cache/track-laps/<year>.json from scripts/export-quali-laps.py (OpenF1: the same
+//     lap's samples, sector times and weather);
 //   - that session's published data (assets/data/prerendered): the lap's sector times, the nominated Pirelli compounds,
 //     track conditions at the time of the lap and the circuit key;
 //   - MultiViewer's circuit API (the same source the session map uses): the numbered corners, the drawing rotation and
@@ -46,7 +48,14 @@ for (const [key, file] of Object.entries(telemetry.entries)) {
   }
 }
 
+// Seasons without published telemetry: the OpenF1 export (scripts/export-quali-laps.py) gives the lap and the session facts.
+const exported = (() => {
+  if (best.size) return null;
+  try { return JSON.parse(fs.readFileSync(path.join(root, '.apex-cache/track-laps', `${year}.json`), 'utf8')).events; } catch { return null; }
+})();
+for (const [gp, e] of Object.entries(exported || {})) best.set(gp, {driver: e.driver, lap: e.lap, time: e.samples.at(-1).ElapsedSeconds, samples: e.samples});
 function sessionFor(gp) {
+  if (exported) return exported[gp]?.session || null;
   const key = Object.keys(prerendered.entries).find(k => k.startsWith('/api/session?') && k.includes(`year=${year}`) && k.includes('session=Qualifying')
     && new URLSearchParams(k.split('?')[1]).get('gp') === gp);
   return key ? readGz(path.join(data, 'prerendered', prerendered.entries[key])) : null;
@@ -255,6 +264,8 @@ for (const [gp, lap] of [...best].sort()) {
   tracks[gp] = profile(gp, lap, session, guide);
 }
 const out = {year, method: 'track-profile-v3', generated: new Date().toISOString().slice(0, 10), tracks};
-fs.writeFileSync(path.join(data, 'track-profiles.json'), JSON.stringify(out) + '\n');
-console.log(`${Object.keys(tracks).length} tracks, ${(fs.statSync(path.join(data, 'track-profiles.json')).size / 1024).toFixed(0)} KB`);
+const file = path.join(data, 'track-profiles', `${year}.json`);
+fs.mkdirSync(path.dirname(file), {recursive: true});
+fs.writeFileSync(file, JSON.stringify(out) + '\n');
+console.log(`${Object.keys(tracks).length} tracks, ${(fs.statSync(file).size / 1024).toFixed(0)} KB, ${exported ? 'from the exported laps (scripts/export-quali-laps.py)' : 'from the published telemetry'}`);
 for (const [gp, t] of Object.entries(tracks)) console.log(gp.padEnd(26), t.circuit?.padEnd(28) || '', `${t.corners.total} corners`, JSON.stringify({s: t.corners.slow, m: t.corners.medium, f: t.corners.fast}), t.sectors ? 'sectors' : 'no sectors', `${t.straights.length} straights`, officialSummary(t.official), t.compounds?.join('') || '');

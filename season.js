@@ -7,6 +7,7 @@
   // pills at the top of its page. Season's pills: Calendar to Reliability. Form is part of Drivers (?tab=form opens it).
   const TABS = [['home', 'Home'], ['schedule', 'Calendar'], ['tracks', 'Tracks'], ['results', 'Results'], ['standings', 'Standings'], ['drivers', 'Drivers'],
     ['h2h', 'Head-to-head'], ['upgrades', 'Development'], ['units', 'Reliability']];
+  const FIA_DOCUMENTS_FROM = {upgrades: 2022, units: 2019};   // server.py: car presentations from 2022, power-unit usage from 2019
   const SECTION_TABS = ['home', 'tracks'];   // their own rows in the rail, not Season pills
   const TAB_ALIASES = {form: 'drivers'};
   // Teams' formula1.com colours (team-colours.js maps the feed's shades to these and handles light mode).
@@ -134,7 +135,7 @@
   }
 
   let page, body, tabsNav, yearSelect, button, railSection, active = false;
-  const state = {year: new Date().getFullYear(), tab: 'schedule', driver: null, a: null, b: null, team: null, standings: 'drivers', matrix: 'points', updatesView: 'grid', type: null, expanded: null};
+  const state = {year: new Date().getFullYear(), tab: 'schedule', driver: null, a: null, b: null, team: null, standings: 'drivers', matrix: 'points', updatesView: 'grid', type: null, expanded: null, views: {}};
   const cache = {};   // `${kind}:${year}` -> Promise of data
 
   // ---------- data ----------
@@ -354,6 +355,7 @@
     if (!SECTION_TABS.includes(state.tab)) lastSeasonTab = state.tab;
     if (params.year && Number(params.year) !== state.year) { state.year = Number(params.year); }
     for (const key of ['driver', 'a', 'b', 'team', 'track']) if (params[key]) state[key] = params[key];
+    if (params.part) state.views[state.tab] = params.part; else if (fromHistory) delete state.views[state.tab];
     yearSelect.value = String(state.year); window.syncSelectUI?.(yearSelect);
     if (!active) {
       active = true;
@@ -362,7 +364,7 @@
       document.body.dataset.view = 'season';
     }
     document.querySelectorAll('[data-analysis-view]').forEach(t => t.setAttribute('aria-selected', 'false'));
-    tabsNav.hidden = SECTION_TABS.includes(state.tab);
+    tabsNav.hidden = state.tab === 'home';   // Tracks keeps the Season pills so every other page stays one click away
     for (const b of document.querySelectorAll('[data-season-tab]')) b.setAttribute('aria-pressed', String(b.dataset.seasonTab === state.tab));
     // Home lights its own rail row; any Season page lights the Season row.
     mark(!SECTION_TABS.includes(state.tab)); homeButton?.setAttribute('aria-pressed', String(state.tab === 'home')); tracksRow?.setAttribute('aria-pressed', String(state.tab === 'tracks'));
@@ -377,7 +379,8 @@
     render();
   }
   const urlParams = () => ({year: state.year, tab: state.tab, ...(state.tab === 'drivers' && state.driver ? {driver: state.driver} : {}),
-    ...(state.tab === 'h2h' && state.a ? {a: state.a, b: state.b} : {}), ...(state.tab === 'upgrades' && state.team ? {team: state.team} : {}), ...(state.tab === 'tracks' && state.track ? {track: state.track} : {})});
+    ...(state.tab === 'h2h' && state.a ? {a: state.a, b: state.b} : {}), ...(state.tab === 'upgrades' && state.team ? {team: state.team} : {}), ...(state.tab === 'tracks' && state.track ? {track: state.track} : {}),
+    ...(state.views[state.tab] ? {part: state.views[state.tab]} : {})});
   function leave() {
     hideChartTip();
     if (!active) return;
@@ -418,12 +421,20 @@
     body.setAttribute('aria-busy', 'true');
     const loading = el('p', 'season-loading', tab === 'upgrades' ? 'Reading the FIA car presentation documents… the first time takes up to a minute.' : 'Loading…');
     loading.setAttribute('role', 'status'); body.replaceChildren(loading);
+    // Development and Reliability read FIA documents the FIA has published only since 2022: earlier seasons say so plainly.
+    if ((tab === 'upgrades' || tab === 'units') && year < FIA_DOCUMENTS_FROM[tab]) {
+      body.setAttribute('aria-busy', 'false');
+      body.replaceChildren(empty(tab === 'upgrades'
+        ? `No car upgrades for ${year}: the FIA began publishing each team's car presentation submissions in ${FIA_DOCUMENTS_FROM.upgrades}.`
+        : `No power-unit usage for ${year}: the FIA's documents site, where its per-driver power-unit element lists are read, starts in ${FIA_DOCUMENTS_FROM.units}.`));
+      return;
+    }
     try {
       // Decorative assets hydrate existing nodes; they must not delay the season's numbers or reset interactions.
       void loadPhotos().then(hydrateImagery);
       if (tab === 'schedule' || tab === 'home') void loadCircuits().then(hydrateImagery);
       const [data, extra] = await Promise.all([load('season', year),
-        tab === 'upgrades' ? load('upgrades', year) : tab === 'units' ? load('units', year) : tab === 'tracks' ? loadTrackProfiles() : null]);
+        tab === 'upgrades' ? load('upgrades', year) : tab === 'units' ? load('units', year) : tab === 'tracks' ? loadTrackProfiles(year) : null]);
       // Form also reads each finished race's pace analysis (the published Car performance results), once per season.
       const form = tab === 'drivers' ? await loadForm(year, data).catch(() => null) : null;
       if (token !== renderToken) return;
@@ -608,6 +619,12 @@
       const outline = circuitOutline(r); if (outline) titleRow.append(outline);
       item.append(head, titleRow);
       if (r.status === 'done') {
+        // On a phone a finished round is one compact row (its winner beside the name) that opens to its results.
+        const won = r.race.find(x => x.position === 1);
+        if (won) { const w = el('span', 'season-round-winner'); w.append(avatar(data, won.driver), el('b', null, driverCode(data, won.driver))); w.title = `Winner: ${driverName(data, won.driver)}`; titleRow.append(w); }
+        const more = el('button', 'season-round-more', 'Results'); more.type = 'button'; more.setAttribute('aria-expanded', 'false');
+        more.addEventListener('click', () => { const open = item.classList.toggle('is-open'); more.setAttribute('aria-expanded', String(open)); more.textContent = open ? 'Hide' : 'Results'; });
+        head.append(more);
         // Results as one aligned list: the podium, then pole, fastest lap and the sprint winner, each a 24 px row.
         const rows = el('dl', 'season-round-rows');
         const row = (label, id, cls) => {
@@ -639,11 +656,16 @@
     return out;
   }
   // ----- Tracks: one circuit in full, and every circuit compared -----
-  // assets/data/track-profiles.json (scripts/build-track-profiles.mjs): each circuit as the season's fastest qualifying
+  // assets/data/track-profiles/<year>.json (scripts/build-track-profiles.mjs): each circuit as that season's fastest qualifying
   // lap drove it, with the numbered corners, sectors, straights, Pirelli's nominated compounds, the pit-lane time loss
   // and a map outline. The picker is every measured round; the page shows the chosen one, then all of them in a table.
-  let trackProfiles = null;
-  const loadTrackProfiles = () => (trackProfiles ||= fetch('assets/data/track-profiles.json').then(r => (r.ok ? r.json() : null)).catch(() => null));
+  // One file per season, so a season shows its own circuits (Barcelona was the Spanish Grand Prix until 2025; Madrid is from
+  // 2026). A season without a file shows that, never another season's tracks.
+  const trackProfiles = new Map();
+  const loadTrackProfiles = year => {
+    if (!trackProfiles.has(year)) trackProfiles.set(year, fetch(`assets/data/track-profiles/${year}.json`).then(r => (r.ok ? r.json() : null)).catch(() => null));
+    return trackProfiles.get(year);
+  };
   const TRACK_COLUMNS = [
     ['length', 'Length', v => `${(v / 1000).toFixed(3)} km`],
     ['lap_time', 'Pole lap', v => lapTime(v)],
@@ -771,7 +793,7 @@
     const label = x => (x.kind === 'drs' ? `${x.year} DRS` : x.kind === 'straight-mode' ? `${x.year} straight mode` : `${x.year}`);
     const pick = seasons.find(x => x.year === state.trackZones) || seasons[0];
     const km = p => (p?.at != null ? `${(p.at / 1000).toFixed(2)} km` : '—');
-    const box = card('Official zones');
+    const box = card('DRS and overtake zones');
     if (seasons.length > 1) {
       const pills = el('div', 'season-segment season-zone-toggle'); pills.setAttribute('role', 'group'); pills.setAttribute('aria-label', 'Season');
       for (const x of seasons) {
@@ -833,7 +855,9 @@
   }
   function renderTracks(data, profiles) {
     const all = Object.entries(profiles?.tracks || {});
-    if (!all.length) return [card(null, empty('No track profiles yet.'))];
+    if (!all.length || (profiles.year && profiles.year !== data.year)) {
+      return [card(null, empty(`No track profiles for ${data.year} yet: circuit maps and lap measurements come from that season's qualifying telemetry.`))];
+    }
     const roundOf = gp => data.rounds.find(r => r.name === gp || r.name.startsWith(gp + ' '));   // 'Bahrain Grand Prix in Malaysia'
     const ordered = all.sort(([a], [b]) => (roundOf(a)?.round ?? 99) - (roundOf(b)?.round ?? 99));
     const names = ordered.map(([gp]) => gp);
@@ -913,12 +937,16 @@
       const tb = el('tbody'), longest = Math.max(...t.straights.map(s => s.length));
       for (const s of [...t.straights].sort((a, b) => b.length - a.length)) {
         const tr = el('tr'), len = trackBarCell(s.length / longest, `${s.length} m`);
-        const before = t.corners.list.filter(c => c.distance <= s.from).at(-1), after = t.corners.list.find(c => c.distance >= s.to);
+        // Named by the corners either side; 'Start' and 'line' only when the stretch really begins or ends at the line (a
+        // stretch that ends with a lift after the last corner is named by that corner, not the line 400 m on).
+        const atLine = 30, list = t.corners.list;
+        const before = s.from <= atLine ? null : list.filter(c => c.distance <= s.from).at(-1) || list[0];
+        const after = s.to >= t.length - atLine ? null : list.find(c => c.distance >= s.to) || list.at(-1);
         tr.append(el('td', null, `${before ? `T${before.number}` : 'Start'} → ${after ? `T${after.number}` : 'line'}`), len, el('td', 'num', `${s.entry_speed} km/h`), el('td', 'num', `${s.top_speed} km/h`));
         tb.append(tr);
       }
       sr.append(tb);
-      sideStack.append(card('Full throttle stretches', wrap(sr), el('p', 'season-footnote', 'Our own measure, not the FIA\'s: stretches of the fastest qualifying lap flat out (throttle 98% or more) for at least 250 m, longest first; named by the corners either side.')));
+      sideStack.append(card('Full-throttle sections', wrap(sr), el('p', 'season-footnote', 'Our own measure, not the FIA\'s: stretches of the fastest qualifying lap flat out (throttle 98% or more) for at least 250 m, longest first; named by the corners either side.')));
     }
     const two = el('div', 'season-two season-track-two'); two.append(mapCard, sideStack);
     // Corners: the table in two halves side by side (first half of the lap, second half), so a long list stays short.
@@ -941,7 +969,12 @@
     ct.append(cornerTable(t.corners.list.slice(0, half)), cornerTable(t.corners.list.slice(half)));
     const cornersCard = card('Corners', ct, el('p', 'season-footnote', `Every numbered corner at the lowest speed of the lap through it${t.corners.approximate ? ' (corner positions approximate)' : ''}; deeper shading is slower. Slow under 120 km/h, medium 120–200, fast over 200 (flat-out bends included).`));
     const history = round ? circuitProfile(data, round) : null;
-    return [picker, head, ...(history ? [history] : []), two, cornersCard, trackComparison(data, profiles, pick, gp => { state.track = gp; repaint(); window.scrollTo({top: 0, behavior: 'smooth'}); })];
+    // Views: This track (the chosen circuit in full) and Every track (all of them in one table; a row opens that track).
+    const TRACK_VIEWS = [['track', 'Circuit'], ['compare', 'All circuits']];
+    const bar = el('div', 'season-toolbar'); bar.append(viewPills('tracks', TRACK_VIEWS, () => paint(() => renderTracks(data, profiles))));
+    if (pageView('tracks', TRACK_VIEWS) === 'compare')
+      return [bar, trackComparison(data, profiles, pick, gp => { state.track = gp; delete state.views.tracks; repaint(); window.scrollTo({top: 0, behavior: 'smooth'}); })];
+    return [bar, picker, head, ...(history ? [history] : []), two, cornersCard];
   }
   // Every track in one table: sortable columns, values shaded by where they sit in the column. A row opens that track.
   function trackComparison(data, profiles, pick, choose) {
@@ -950,7 +983,7 @@
     const range = key => { const v = all.map(([, x]) => trackValue(x, key)); return [Math.min(...v), Math.max(...v)]; };
     const sort = state.trackSort || {key: null, dir: -1};
     const rows = [...all].sort(([ga, a], [gb, b]) => (sort.key ? sort.dir * (trackValue(a, sort.key) - trackValue(b, sort.key)) : (roundOf(ga)?.round ?? 99) - (roundOf(gb)?.round ?? 99)));
-    const box = card('Every track compared');
+    const box = card('Circuit comparison');
     const redraw = () => { const next = trackComparison(data, profiles, pick, choose); box.replaceWith(next); markTips(next); };
     const table = el('table', 'season-table season-units season-tracks');
     const head = el('tr'), th0 = el('th', null, 'Track'); th0.scope = 'col'; head.append(th0);
@@ -1084,7 +1117,7 @@
     body.append(circuit);
     if (hist?.races?.length) {
       const past = el('div', 'season-history');
-      past.append(el('h3', null, 'Recent winners here'));
+      past.append(el('h3', null, 'Previous winners'));
       const summary = hist.most_wins ? `Most wins here: ${hist.most_wins.driver} (${hist.most_wins.wins}). First held ${hist.first}.` : `First held ${hist.first}.`;
       past.append(el('p', 'season-footnote season-history-sum', summary));
       const ol = el('ol');
@@ -1107,7 +1140,7 @@
     if (data.next_weather?.length && forecastFresh) {
       const sky = code => code == null ? '' : code === 0 ? 'Clear' : code <= 2 ? 'Partly cloudy' : code === 3 ? 'Cloudy' : code <= 48 ? 'Fog' : code <= 57 ? 'Drizzle' : code <= 67 ? 'Rain' : code <= 77 ? 'Snow' : code <= 82 ? 'Showers' : 'Thunderstorms';
       const forecast = el('div', 'season-weather');
-      forecast.append(el('h3', null, 'Weekend forecast'));
+      forecast.append(el('h3', null, 'Weekend weather'));
       if (forecastAge > 86400000) forecast.append(el('p', 'season-muted season-weather-range', `Forecast from ${new Date(data.saved_at).toLocaleDateString([], {day: 'numeric', month: 'short'})}.`));
       // Beyond about a week a forecast is a rough guide: say so rather than show it with the same confidence as tomorrow's.
       const daysAhead = (Date.parse(`${data.next_weather[0].date}T12:00:00`) - Date.now()) / 86400000;
@@ -1554,7 +1587,7 @@
     const layout = el('div', 'season-two season-standings-layout');
     const standingsColumn = el('div', 'season-stack'); standingsColumn.append(card('Championship standings', wrap(table)), titleFight(data, drivers));
     layout.append(standingsColumn, el('div', 'season-stack'));
-    layout.lastChild.append(card('Points evolution', points), card('Championship position', ranks));
+    layout.lastChild.append(card('Championship progression', points), card('Championship position', ranks));
     linkHover(layout);
     // Drivers: finishing positions or points per round, switched in place (the choice is kept while the page is open).
     if (!state.matrix) state.matrix = 'points';
@@ -1897,7 +1930,7 @@
       toggle.append(b);
     }
     say();
-    return card('Updates by team and Grand Prix', toggle, body, note);
+    return card('Upgrades by team and race', toggle, body, note);
   }
   // area: a soft fill between each line and the zero line (as the season battle log), for a few series only.
   function lineChart(rounds, series, {title = '', invert = false, height = 260, width = 640, min = null, max = null, format = v => String(v), endLabels = 0, area = false} = {}) {
@@ -1963,10 +1996,11 @@
     const list = [...entries].sort((a, b) => a.y - b.y);
     list.forEach((e, i) => { e.ly = i ? Math.max(e.y, list[i - 1].ly + gap) : e.y; });
     for (let i = list.length - 1; i >= 0; i--) list[i].ly = Math.min(list[i].ly, i === list.length - 1 ? bottom : list[i + 1].ly - gap);
-    return list.map(e => {
+    // On a phone a dense chart labels its first ten lines only (season.css .end-key.is-minor); every line stays in the tips.
+    return list.map((e, rank) => {
       const leader = Math.abs(e.ly - e.y) > 3 && e.x != null
         ? `<path class="end-leader" d="M${(e.x + 4).toFixed(1)} ${e.y.toFixed(1)}L${(labelX - 2).toFixed(1)} ${e.y.toFixed(1)}L${(labelX + 2).toFixed(1)} ${e.ly.toFixed(1)}" style="stroke:${esc(e.colour)}"/>` : '';
-      return `<g class="end-key" data-id="${esc(e.id)}">${leader}<text class="label" style="fill:${esc(e.colour)}" x="${(labelX + 4).toFixed(1)}" y="${(e.ly + 3.5).toFixed(1)}">${esc(e.name)}${e.value != null ? `<tspan class="key-value" dx="5">${esc(e.value)}</tspan>` : ''}</text></g>`;
+      return `<g class="end-key${rank >= 10 || e.minor ? ' is-minor' : ''}" data-id="${esc(e.id)}">${leader}<text class="label" style="fill:${esc(e.colour)}" x="${(labelX + 4).toFixed(1)}" y="${(e.ly + 3.5).toFixed(1)}">${esc(e.name)}${e.value != null ? `<tspan class="key-value" dx="5">${esc(e.value)}</tspan>` : ''}</text></g>`;
     }).join('');
   }
   // Teammates share a team colour: the second series of a colour is dashed, so the two can be told apart.
@@ -1995,7 +2029,7 @@
       // Every driver in their team colour (the second of a team dashed); hovering one still lifts it above the rest.
       svg += `<g data-id="${esc(s.id)}"><path class="line is-bump${dashed.has(s) ? ' is-dashed' : ''}" style="stroke:${esc(s.colour)}" d="${bumpPath(pts)}"/>`;
       svg += `<g class="pts${dashed.has(s) ? ' is-hollow' : ''}" style="--c:${esc(s.colour)}">${pts.map(([px, py]) => `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}"/>`).join('')}</g>`;
-      if (lastValue != null) svg += endKey([{id: s.id, colour: s.colour, name: s.label, x: pts.at(-1)[0], y: pts.at(-1)[1]}], W - R + 4);
+      if (lastValue != null) svg += endKey([{id: s.id, colour: s.colour, name: s.label, x: pts.at(-1)[0], y: pts.at(-1)[1], minor: lastValue > 10}], W - R + 4);
       svg += '</g>';
     }
     return htmlNode(svg + xLabels(rounds, x, H, slot) + '</svg>');
@@ -2019,17 +2053,34 @@
   // each driver's estimated clean-air pace as a % gap. Rounds are matched by number through /api/events, whose names
   // are the ones that analysis uses ("São Paulo Grand Prix" where the classification says "Brazilian").
   const formCache = {};
+  // The season's race and practice pace in one file (scripts/build-season-pace.mjs): a round found there needs no
+  // request; a round it lacks (a race since the file was built) is still asked for.
+  const seasonPaceCache = new Map();
+  const loadSeasonPace = year => {
+    if (!seasonPaceCache.has(year)) seasonPaceCache.set(year, fetch(`assets/data/season-pace/${year}.json`).then(r => (r.ok ? r.json() : null)).catch(() => null));
+    return seasonPaceCache.get(year);
+  };
   function loadForm(year, data) {
     if (formCache[year]) return formCache[year];
     const request = typeof window.apexDataRequest === 'function' ? window.apexDataRequest : null;
     if (!request) return Promise.resolve({race: {}, failed: 0});
     formCache[year] = (async () => {
-      const events = await seasonEvents(year);
+      const [events, summary] = await Promise.all([seasonEvents(year), loadSeasonPace(year)]);
       const done = data.rounds.filter(r => r.race?.length), byCode = {};
       for (const [id, d] of Object.entries(data.drivers)) if (d.code) byCode[d.code] = id;
       const race = {}, speed = {};
       let failed = 0;
       const jobs = done.map(r => async () => {
+        const known = summary?.race?.[r.round];
+        if (known) {
+          const rows = Object.entries(known).filter(([c, v]) => Number.isFinite(v) && byCode[c]);
+          if (rows.length) {
+            const best = Math.min(...rows.map(([, v]) => v));
+            race[r.round] = Object.fromEntries(rows.map(([c, v]) => [byCode[c], v - best]));
+            speed[r.round] = Object.fromEntries(Object.entries(summary.speed?.[r.round] || {}).filter(([c, v]) => Number.isFinite(v) && byCode[c]).map(([c, v]) => [byCode[c], v]));
+            return;
+          }
+        }
         const event = (Array.isArray(events) ? events : []).find(e => e.round === r.round);
         if (!event) { failed++; return; }
         try {
@@ -2166,7 +2217,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       fb.append(tr);
     }
     ft.append(fb);
-    const recent = card('Recent form · last 5 races', wrap(ft),
+    const recent = card('Form guide · last 5 races', wrap(ft),
       el('p', 'season-footnote', 'Finishing places in the last five races, ordered by the points scored in them; the average counts classified finishes only.'));
     const two = el('div', 'season-two season-form-pair'); two.append(racePace, qualiPace);
     return [two, recent];
@@ -2184,13 +2235,38 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
   }
   // Form's data for this season, kept for repaints (choosing a driver redraws the page without loading it again).
   let driversForm = null;
+  // A page split into views (Drivers, Head-to-head, Tracks): pills at the top choose one; the first is the default and
+  // the choice is kept in the URL (part=), so a link opens the same view.
+  const pageView = (tab, options) => (options.some(([id]) => id === state.views[tab]) ? state.views[tab] : options[0][0]);
+  function viewPills(tab, options, rerender) {
+    const current = pageView(tab, options), group = el('div', 'season-segment season-view-pills');
+    group.setAttribute('role', 'group'); group.setAttribute('aria-label', 'View');
+    for (const [id, label] of options) {
+      const b = el('button', null, label); b.type = 'button'; b.setAttribute('aria-pressed', String(id === current));
+      b.addEventListener('click', () => {
+        if (id === pageView(tab, options)) return;
+        if (id === options[0][0]) delete state.views[tab]; else state.views[tab] = id;
+        window.ApexUrl?.write('season', urlParams()); rerender();
+      });
+      group.append(b);
+    }
+    return group;
+  }
+  const DRIVER_VIEWS = [['driver', 'Driver'], ['field', 'Field']];
   function renderDrivers(data, form = null) {
     if (form) driversForm = {year: data.year, form}; else if (driversForm?.year === data.year) form = driversForm.form;
+    const rerender = () => paint(() => renderDrivers(data, form));
+    const views = viewPills('drivers', DRIVER_VIEWS, rerender);
+    // Field: every driver's season, race pace and recent form; Driver: one driver's season.
+    if (pageView('drivers', DRIVER_VIEWS) === 'field') {
+      const bar = el('div', 'season-toolbar'); bar.append(views);
+      return [bar, ...[].concat(fieldTable(data), form ? renderForm(data, form) : [])];
+    }
     const order = data.standings.drivers.at(-1)?.table.map(e => e.id) || Object.keys(data.drivers);
     if (!state.driver || !data.drivers[state.driver]) state.driver = order[0];
     const id = state.driver, s = data.driver_stats[id];
     if (!s) return [empty('No races yet this season.')];
-    const pick = driverPicker(data, id, value => { state.driver = value; window.ApexUrl?.write('season', urlParams()); paint(() => renderDrivers(data)); });
+    const pick = driverPicker(data, id, value => { state.driver = value; window.ApexUrl?.write('season', urlParams()); rerender(); });
     const standing = data.standings.drivers.at(-1)?.table.find(e => e.id === id);
     const table = data.standings.drivers.at(-1)?.table || [];
     const ahead = standing && table[standing.position - 2], behind = standing && table[standing.position];
@@ -2277,12 +2353,12 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     const positions = lineChart(s.position_after.map(p => p.round), [{id, colour: teamColour(data.drivers[id].team), label: driverName(data, id),
       values: s.position_after.map(p => p.position)}], {title: 'Championship position after each round', invert: true, min: 1, max: Math.max(5, ...s.position_after.map(p => p.position || 1)), height: 200});
     const legend = el('p', 'season-footnote', 'Finishing place in each Grand Prix. DNF did not finish, DNS did not start, DSQ disqualified, NC not classified.');
-    return [el('div', 'season-toolbar'), head, tiles, card('Weekend by weekend', strip, legend), el('div', 'season-two'),
+    return [el('div', 'season-toolbar'), head, tiles, card('Race-by-race results', strip, legend), el('div', 'season-two'),
     ].map((node, i) => {
-      if (i === 0) node.append(pick);
-      if (i === 4) node.append(card('Race finishing positions', dist, el('p', 'season-footnote', 'Classified finishes only.')), card('Championship position', positions));
+      if (i === 0) node.append(views, pick);
+      if (i === 4) node.append(card('Finishing positions', dist, el('p', 'season-footnote', 'Classified finishes only.')), card('Championship position', positions));
       return node;
-    }).concat(driverExtras(data, id, mateId), fieldTable(data), form ? renderForm(data, form) : []);
+    }).concat(driverExtras(data, id, mateId));
   }
   const FIELD_STATS = {
     race: [['points', 'Points'], ['wins', 'Wins'], ['podiums', 'Podiums'], ['points_finishes', 'Points finishes'], ['average_finish', 'Average finish', true, 2],
@@ -2315,7 +2391,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     });
     const table = el('table', 'season-table season-units season-field');
     const head = el('tr'), th0 = el('th', null, 'Driver'); th0.scope = 'col'; head.append(el('th', 'num season-field-rank', '#'), th0);
-    const box = card('Every driver, every stat');
+    const box = card('Driver statistics');
     const redraw = () => { const next = fieldTable(data); box.replaceWith(next); markTips(next); };
     stats.forEach(([key, label, lower], i) => {
       const th = el('th', 'num season-sortable'); th.scope = 'col';
@@ -2330,7 +2406,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     rows.forEach(([id, st], n) => {
       const tr = el('tr', 'season-field-line'); if (state.driver === id) tr.setAttribute('aria-current', 'true');
       const open = el('button', 'season-row-toggle season-field-open'); open.type = 'button'; open.append(who(data, id, {team: false, family: true}));
-      open.addEventListener('click', () => { state.driver = id; window.ApexUrl?.write('season', urlParams()); paint(() => renderDrivers(data)); });
+      open.addEventListener('click', () => { state.driver = id; delete state.views.drivers; window.ApexUrl?.write('season', urlParams()); paint(() => renderDrivers(data)); });
       const name = el('td'); name.append(open);
       tr.append(el('td', 'num season-field-rank', String(n + 1)), name);
       stats.forEach((stat, i) => {
@@ -2364,7 +2440,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     const gained = rows.filter(r => r.grid && r.finish).reduce((sum, r) => sum + (r.grid - r.finish), 0);
     const legend = el('div', 'season-legend');
     legend.append(el('span', null, 'Hollow: grid'), el('span', null, 'Filled: finish'), el('span', 'is-up', 'Green: places gained'), el('span', 'is-down', 'Red: places lost'), el('span', null, `Net ${gained >= 0 ? '+' : '−'}${Math.abs(gained)} places`));
-    const gridCard = card('Grid to finish', gridFinishChart(rounds, rows, colour), legend);
+    const gridCard = card('Positions gained', gridFinishChart(rounds, rows, colour), legend);
     let qualiCard = null;
     if (mateId) {
       const gaps = data.rounds.filter(r => r.qualifying.length).map(r => ({round: r.round, gap: qualiGap(r, id, mateId), name: r.name}));
@@ -2378,7 +2454,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     const race = s.by_round.map(r => r.race_points), sprint = s.by_round.map(r => r.sprint_points);
     const per = s.starts ? s.points / s.starts : 0;
     // The wide canvas only where the card spans a wide row: on a phone the single column draws the 640 one at a readable size.
-    const pts = card('Points by round', barChart(rounds, race, {width: mateId && innerWidth > 760 ? 1280 : 640, height: 200, extra: sprint, colour: () => colour, tips: rounds.map(name), title: 'Points by round'}),
+    const pts = card('Points per race', barChart(rounds, race, {width: mateId && innerWidth > 760 ? 1280 : 640, height: 200, extra: sprint, colour: () => colour, tips: rounds.map(name), title: 'Points by round'}),
       el('p', 'season-footnote', `${per.toFixed(1)} points per Grand Prix weekend. The lighter top of a bar is sprint points.`));
     const two = el('div', 'season-two'); two.append(gridCard, qualiCard || pts);
     return qualiCard ? [two, pts] : [two];
@@ -2610,13 +2686,21 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       const t = compare(view, p.a, p.b).tally;   // the same counting as the comparison below, over their weekends together
       if (view !== data) open.append(el('small', 'season-muted season-battle-span', `${view.rounds.length} weekend${view.rounds.length === 1 ? "" : "s"} together`));
       tr.append(name, score(...t.qualifying, colour), score(...t.race, colour), score(...t.sprint, colour), gap, ptsCell);
-      tr.addEventListener('click', () => { state.a = p.a; state.b = p.b; repaint(); });   // the button's click bubbles here
+      tr.addEventListener('click', () => { state.a = p.a; state.b = p.b; delete state.views.h2h; repaint(); });   // the button's click bubbles here; a pair opens on Overview
       btb.append(tr);
     }
     battles.append(btb);
-    const allBattles = card('Every teammate battle', wrap(battles), el('p', 'season-footnote', 'Weekends each driver finished ahead of their teammate (first-named driver first), the median qualifying gap, and each driver’s season points, including any scored for another team. Choose a pair to compare them below.'));
-    const paceTwo = el('div', 'season-two'); paceTwo.append(h2hPace(data, a, b, ca, cb), practicePace(data, a, b, ca, cb));
-    return [toolbar, allBattles, hero, sessionCards, paceTwo, h2hExtras(data, a, b, ca, cb), card('Weekend by weekend', wrap(weeks), el('p', 'season-footnote', `Qualifying: the gap in the last session both set a time in, filled in the quicker driver’s colour (deeper for a bigger gap; ${gapMax.toFixed(1)} s or more is the deepest). Race rows: each driver’s finish, purple a win, green a podium, white points, red a retirement; the one ahead that weekend is underlined.`))];
+    const allBattles = card('Teammate head-to-heads', wrap(battles), el('p', 'season-footnote', 'Weekends each driver finished ahead of their teammate (first-named driver first), the median qualifying gap, and each driver’s season points, including any scored for another team. Choose a pair to compare them below.'));
+    // Views: Overview (the scoreboard and every weekend), Sessions (qualifying and race in detail), Pace (race and practice
+    // pace, loaded only when shown), Points (the points gap and finishes), All teammates (every pairing, to pick from).
+    const H2H_VIEWS = [['overview', 'Overview'], ['sessions', 'Sessions'], ['pace', 'Pace'], ['points', 'Points'], ['battles', 'All teammates']];
+    toolbar.prepend(viewPills('h2h', H2H_VIEWS, () => paint(() => renderH2H(data))));
+    const view = pageView('h2h', H2H_VIEWS);
+    if (view === 'sessions') return [toolbar, hero, sessionCards];
+    if (view === 'pace') { const paceTwo = el('div', 'season-two'); paceTwo.append(h2hPace(data, a, b, ca, cb), practicePace(data, a, b, ca, cb)); return [toolbar, hero, paceTwo]; }
+    if (view === 'points') return [toolbar, hero, h2hExtras(data, a, b, ca, cb)];
+    if (view === 'battles') return [toolbar, allBattles];
+    return [toolbar, hero, card('Race-by-race', wrap(weeks), el('p', 'season-footnote', `Qualifying: the gap in the last session both set a time in, filled in the quicker driver’s colour (deeper for a bigger gap; ${gapMax.toFixed(1)} s or more is the deepest). Race rows: each driver’s finish, purple a win, green a podium, white points, red a retirement; the one ahead that weekend is underlined.`))];
   }
   // Head-to-head pace: the two drivers' rolling race and qualifying pace and typical top speed (from Form's data), and
   // their race pace at every round. Filled in when the race analysis has loaded.
@@ -2774,7 +2858,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     const chart = htmlNode(svg + xLabels(rounds.map(r => r.round), x, H, slot) + '</svg>');
     const [wa, wb] = [pts.filter(p => p.v > 0 || p.edge > 0).length, pts.filter(p => p.v < 0 || p.edge < 0).length];
     const pills = el('div', 'season-segment season-zone-toggle'); pills.setAttribute('role', 'group'); pills.setAttribute('aria-label', 'Session');
-    const box = card('Season battle log', pills,
+    const box = card('Gap to teammate', pills,
       el('p', 'season-chart-sub', `${kind === 'qualifying' ? 'Qualifying' : 'Race'} margin at each round, in places \u00b7 ${driverCode(data, a)} ahead ${wa}, ${driverCode(data, b)} ahead ${wb}`), chart,
       el('p', 'season-footnote', `Above the line ${family(data, a)} ${kind === 'qualifying' ? 'qualified' : 'finished'} ahead, below ${family(data, b)}; the shading is the margin. A triangle: only one of them ${kind === 'qualifying' ? 'set a time' : 'was classified'}.${kind === 'qualifying' ? ' Hover a round for the time gap.' : ''}`));
     for (const [id, label] of [['race', 'Race'], ['qualifying', 'Qualifying']]) {
@@ -2790,7 +2874,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
   function loadPractice(data) {
     const request = window.apexDataRequest, year = data.year;
     if (practiceCache.has(year)) return practiceCache.get(year);
-    const job = typeof request !== 'function' ? Promise.resolve([]) : seasonEvents(year).then(events => {
+    const job = typeof request !== 'function' ? Promise.resolve([]) : Promise.all([seasonEvents(year), loadSeasonPace(year)]).then(([events, summary]) => {
       const rounds = data.rounds.filter(r => r.race?.length), jobs = [];
       for (const r of rounds) for (const name of ['Practice 1', 'Practice 2', 'Practice 3']) {
         const event = events.find(e => e.round === r.round);
@@ -2800,6 +2884,8 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       return Promise.all(Array.from({length: 4}, async () => {
         while (queue.length) {
           const {r, name, event} = queue.shift();
+          const known = summary?.practice?.[r.round]?.[name];
+          if (known) { out.push({r, name, best: known}); continue; }
           const session = await request('/api/session?' + new URLSearchParams({year, gp: event.name, session: name, round: r.round})).catch(() => null);
           const best = {};
           for (const d of session?.drivers || []) {
@@ -2982,13 +3068,22 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       mbody.append(tr);
     }
     matrix.append(mbody);
-    // The updates themselves, newest round first.
+    // The updates themselves, newest round first: one row per Grand Prix that opens to its updates. The newest is open;
+    // with a filter narrow enough to read in full (30 updates or fewer) every Grand Prix is.
     const list = el('div', 'season-updates');
     const byRound = [...new Set(filtered.map(i => i.round))].sort((x, y) => (y || 0) - (x || 0));
-    for (const r of byRound) {
+    byRound.forEach((r, k) => {
       const group = filtered.filter(i => i.round === r);
-      const section = el('section', 'season-update-group');
-      section.append(el('h4', null, `${group[0].round_name}${r ? ` · R${r}` : ''} · ${group.length} update${group.length === 1 ? '' : 's'}`));
+      const section = el('details', 'season-update-group');
+      if (k === 0 || filtered.length <= 30) section.open = true;
+      const head = el('summary', 'season-update-round');
+      const round = data.rounds.find(x => x.round === r), f = round && flag(round);
+      if (f) head.append(f);
+      head.append(el('strong', null, group[0].round_name || 'Unassigned'), el('span', 'season-muted', r ? `R${r}` : ''));
+      const dots = el('span', 'season-update-teams');
+      for (const t of [...new Set(group.map(i => i.team))]) { const d = el('i'); d.style.background = teamColour(t); d.title = teamName(data, t); dots.append(d); }
+      head.append(dots, el('b', 'season-update-count', `${group.length} update${group.length === 1 ? '' : 's'}`));
+      section.append(head);
       for (const i of group) {
         const row = el('details', 'season-update');
         const summary = el('summary');
@@ -3000,7 +3095,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
         section.append(row);
       }
       list.append(section);
-    }
+    });
     const busiest = roundsWith.map(r => [r, items.filter(i => i.round === r).length]).sort((x, y) => y[1] - x[1])[0];
     const perf = items.filter(i => i.reason_type === 'Performance').length;
     const total = el('div', 'season-numbers');
@@ -3017,7 +3112,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       updatesByRound(data, teams, items, matrix),
       card(`Updates${state.team ? ' · ' + teamName(data, state.team) : ''}${state.type ? ' · ' + state.type : ''}`, filtered.length ? list : empty('No updates match these filters.')),
       el('p', 'season-footnote', 'Source: the teams\' own descriptions in the FIA Car Presentation Submissions for each Grand Prix. Pages submitted as images cannot be read and are not counted.')]
-      .map((node, i) => { if (i === 1) node.append(card('By team and reason', perTeam, legend), card('Most-updated components', comp)); return node; });
+      .map((node, i) => { if (i === 1) node.append(card('Upgrades by team and reason', perTeam, legend), card('Most-upgraded components', comp)); return node; });
   }
 
   // ----- power units -----
@@ -3267,7 +3362,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
         hb.append(tr);
       }
       hist.append(hb);
-      out.push(card('New elements fitted at each Grand Prix', wrap(hist), el('p', 'season-footnote', 'The rise in each driver’s total from one FIA table to the next. Grey numbers are a driver’s total in the first table that lists them, not new parts.')));
+      out.push(card('Power unit elements used per race', wrap(hist), el('p', 'season-footnote', 'The rise in each driver’s total from one FIA table to the next. Grey numbers are a driver’s total in the first table that lists them, not new parts.')));
     }
     return out;
   }
