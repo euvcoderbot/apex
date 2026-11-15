@@ -55,6 +55,14 @@ function checks() {
     const s = getComputedStyle(e), r = e.getBoundingClientRect();
     const own = [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
     if (own && /(hidden|clip)/.test(s.overflowX) && s.textOverflow !== 'ellipsis' && e.scrollWidth > e.clientWidth + 1) add('clipped-text', e, `${e.scrollWidth} > ${e.clientWidth}`);
+    // Text cut off by a clipping box further up (a label running under a neighbouring panel or out of its card side).
+    if (own && s.textOverflow !== 'ellipsis' && r.width < vw * .9) {
+      for (let p = e.parentElement; p && p !== document.body; p = p.parentElement) {
+        const ps = getComputedStyle(p);
+        if (/(auto|scroll)/.test(ps.overflowX + ps.overflowY)) break;
+        if (/(hidden|clip)/.test(ps.overflowX)) { const pr = p.getBoundingClientRect(); if (r.left < pr.left - 1 || r.right > pr.right + 1) add('text-cut', e, `by ${name(p)}`); break; }
+      }
+    }
     const filled = (s.backgroundColor !== 'rgba(0, 0, 0, 0)' && s.backgroundColor !== 'transparent') || s.backgroundImage !== 'none';
     // A form control tucked inside a swatch (a restyled colour or checkbox input) is clipped on purpose.
     if (filled && r.width < vw * .9 && e.tagName !== 'INPUT') {
@@ -159,7 +167,7 @@ const all = [];
 try {
   for (const [state, go] of Object.entries(STATES)) {
     if (only && state !== only) continue;
-    for (const [w, h, theme] of [[1440, 1000, 'dark'], [390, 844, 'light']]) {
+    for (const [w, h, theme] of [[1440, 1000, 'dark'], [1280, 800, 'light'], [390, 844, 'light']]) {   // 1280: a laptop with the sidebar open
       const page = await browser.newPage({viewport: {width: w, height: h}});
       const errors = [];
       page.on('pageerror', e => errors.push(e.message));
@@ -183,6 +191,6 @@ try {
 const distinct = new Map();
 for (const f of all) { const k = `${f.kind.padEnd(22)} ${f.el} «${f.text}» ${f.detail}`; distinct.set(k, [...(distinct.get(k) || []), f.where]); }
 for (const [k, where] of distinct) console.log(`${k}  [${[...new Set(where)].slice(0, 4).join(', ')}]`);
-console.log(`${Object.keys(STATES).length} states × 2 widths + interactions · ${distinct.size} distinct findings`);
+console.log(`${Object.keys(STATES).length} states × 3 widths + interactions · ${distinct.size} distinct findings`);
 if (verbose) console.log(JSON.stringify(all, null, 1));
 process.exitCode = distinct.size ? 1 : 0;

@@ -2503,6 +2503,7 @@
 :root[data-skin="linear"] #sessionOverview .overview-swatch.is-static { cursor: default; }
 :root[data-skin="linear"] #sessionOverview .overview-dist .dist-violin { fill: var(--c); fill-opacity: .3; stroke: none; }
 :root[data-skin="linear"] #sessionOverview .overview-dist .dist-dot.is-beyond { fill: none; stroke: var(--c); stroke-width: 1.2; }
+:root[data-skin="linear"] #sessionOverview .overview-dist .dist-beyond-edge { stroke-dasharray: 2 3; }   /* the Slower band above the scale */
 :root[data-skin="linear"] #sessionOverview .overview-dist .dist-median-line { fill: none; stroke: #22c7e0; stroke-width: 1.2; stroke-dasharray: 2 3; opacity: .7; }
 :root[data-skin="linear"] #sessionOverview .overview-dist .dist-median-mark { fill: #22c7e0; stroke: var(--ui-panel); stroke-width: 1; }
 :root[data-skin="linear"] #sessionOverview .overview-dist .dist-fastest { stroke: #c9a227; stroke-width: 1; stroke-dasharray: 4 3; opacity: .8; }

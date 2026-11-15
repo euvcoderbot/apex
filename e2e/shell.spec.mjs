@@ -3,9 +3,10 @@ import {isolate} from './helpers.mjs';
 
 // Budgets are set just above today's numbers (hosted-like gzip, 22 files before lazy loading was 271 KB; the session view
 // now needs about 154 KB). They exist to catch regressions, not to define a target.
-// initialScriptKB: 190 since the shared driver-photo helper (team-colours.js) loads with the page.
+// initialScriptKB: 190 since the shared driver-photo helper (team-colours.js) loads with the page; 196 since the Season pages' cross-links
+// (names, flags and records that open their pages), pinned totals and steppers (192 KB measured).
 // idleDomNodes: 640 since the rail lists every page in two sections (Analysis and Season), each row an icon and a name.
-const BUDGET = {initialScriptKB: 190, initialStyleKB: 82, idleDomNodes: 640, layoutShift: 0.02};
+const BUDGET = {initialScriptKB: 196, initialStyleKB: 82, idleDomNodes: 640, layoutShift: 0.02};
 
 /** Records long tasks, layout shift and the moment of the load event from the very start of the page. */
 const observe = () => {

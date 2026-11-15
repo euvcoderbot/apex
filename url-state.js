@@ -67,9 +67,12 @@
     tyres: 'Tyre trend', trend: 'Development trend', results: 'Finishes & retirements'};
   const SEASON_TITLES = {home: 'Home', schedule: 'Calendar', results: 'Results', standings: 'Standings', form: 'Form', drivers: 'Drivers',
     h2h: 'Head-to-head', upgrades: 'Development', units: 'Reliability', tracks: 'Tracks'};
+  // A page's view (part=) in the title too, so two tabs on Results read By driver and By team.
+  const PART_TITLES = {drivers: 'By driver', teams: 'By team', field: 'Field', sessions: 'Sessions', pace: 'Pace', points: 'Points',
+    battles: 'All teammates', finishes: 'Finishes', corners: 'Corners', compare: 'All circuits'};
   function titleFor(view, params) {
     if (view === 'season' && params?.tab === 'home') return `${SITE} — Formula 1 analysis`;
-    if (view === 'season') return `${SEASON_TITLES[params?.tab] || 'Schedule'} · Season${params?.year ? ' ' + params.year : ''} — ${SITE}`;
+    if (view === 'season') return `${SEASON_TITLES[params?.tab] || 'Schedule'}${PART_TITLES[params?.part] ? ' · ' + PART_TITLES[params.part] : ''} · Season${params?.year ? ' ' + params.year : ''} — ${SITE}`;
     if (view === 'cars') return `${CATEGORY_TITLES[params?.metric] || CATEGORY_TITLES.pace} · Car performance${params?.year ? ' ' + params.year : ''} — ${SITE}`;
     const where = [params?.year, params?.round ? 'round ' + params.round : '', params?.session].filter(Boolean).join(' ');
     return where ? `${where} · Session analysis — ${SITE}` : `Session analysis — ${SITE}`;

@@ -231,7 +231,9 @@
     const times = distRows.flatMap(r => r.laps.map(l => l.time)).sort((a, b) => a - b), tLo = times[0], tHi = quantile(times, .98);
     const span = Math.max(0.5, tHi - tLo), step = [0.25, 0.5, 1, 2, 5, 10].find(st => span / st <= 6) || 20;
     const yLo = Math.floor(tLo / step) * step, yHi = Math.ceil(tHi / step) * step;
-    const W = chartWidth(), H = 360, L = 52, R = 8, T = 10, B = 8, n = distRows.length, col = (W - L - R) / n, half = Math.min(18, col * .46);
+    // Laps slower than the scale get their own band above it (T), apart from the violins, rather than sitting on their tips.
+    const anyBeyond = times.at(-1) > tHi;
+    const W = chartWidth(), H = 360, L = 52, R = 8, T = anyBeyond ? 30 : 10, B = 8, n = distRows.length, col = (W - L - R) / n, half = Math.min(18, col * .46);
     const y = t => T + (yHi - Math.min(t, yHi)) / ((yHi - yLo) || 1) * (H - T - B);
     const cx = i => L + col * (i + .5);
     distGeometry = {W, L, col};
@@ -240,6 +242,8 @@
     const f = v => v.toFixed(1);
     let svg = `<svg class="overview-lap-chart overview-dist" data-dist="1" viewBox="0 0 ${W} ${H}" role="img" aria-label="Lap time distribution of every driver">`;
     for (let t = yLo; t <= yHi + 1e-9; t += step) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${f(y(t))}" y2="${f(y(t))}"/><text class="axis" x="${L - 8}" y="${f(y(t) + 3.5)}" text-anchor="end">${esc(tick(t))}</text>`;
+    const beyondY = 12;   // the band's centre line
+    if (anyBeyond) svg += `<text class="axis" x="${L - 8}" y="${beyondY + 3.5}" text-anchor="end">Slower</text><line class="grid dist-beyond-edge" x1="${L}" x2="${W - R}" y1="${beyondY + 9}" y2="${beyondY + 9}"/>`;
     distRows.forEach((r, i) => {
       const x0 = cx(i), faint = chosen.size && !chosen.has(r.code);
       const v = r.laps.map(l => l.time), m = mean(v), sd = Math.sqrt(mean(v.map(t => (t - m) ** 2))) || .2;
@@ -253,7 +257,7 @@
       const order = r.laps.map((l, k) => [l, k]).sort((a, b) => a[0].time - b[0].time);
       order.forEach(([l], k) => {
         const spread = Math.min(5, w(density(l.time)) * .45), slot = ((k * 0.618034) % 1) * 2 - 1;
-        svg += `<circle class="dist-dot${l.time > yHi ? ' is-beyond' : ''}" cx="${f(x0 + (l.time > yHi ? slot * half * .5 : slot * spread))}" cy="${f(y(l.time))}" r="1.5" style="--c:${esc(tyreColour(l.compound))}"/>`;
+        svg += `<circle class="dist-dot${l.time > yHi ? ' is-beyond' : ''}" cx="${f(x0 + (l.time > yHi ? slot * half * .5 : slot * spread))}" cy="${f(l.time > yHi ? beyondY : y(l.time))}" r="1.5" style="--c:${esc(tyreColour(l.compound))}"/>`;
       });
       svg += '</g>';
     });
@@ -270,7 +274,7 @@
       const photo = window.apexDriverFaces?.img(realDrivers.get(r.code)?.name) || `<b>${esc(r.code)}</b>`;
       return `<span class="dist-face"><span class="dist-avatar" style="--team:${esc(r.colour)}">${photo}</span><small>${esc(r.code)}</small></span>`;
     }).join('');
-    return `<div class="overview-legend">${legend}</div>${svg}<div class="dist-faces" style="padding:0 ${R}px 0 ${L}px;grid-template-columns:repeat(${n},minmax(0,1fr))">${faces}</div><p class="overview-note">Each driver’s representative laps, in classification order: the shape is how their laps spread (wider where more laps fell), each dot a lap in its tyre’s colour, the cyan diamond the median (the dotted line joins them) and the dashed line the session’s fastest representative lap. Laps slower than the scale sit on its top edge as hollow dots. The lap chart’s slow-lap rule applies; safety car and pit laps are left out. Hover a column for the stint averages.</p>`;
+    return `<div class="overview-legend">${legend}</div>${svg}<div class="dist-faces" style="padding:0 ${R}px 0 ${L}px;grid-template-columns:repeat(${n},minmax(0,1fr))">${faces}</div><p class="overview-note">Each driver’s representative laps, in classification order: the shape is how their laps spread (wider where more laps fell), each dot a lap in its tyre’s colour, the cyan diamond the median (the dotted line joins them) and the dashed line the session’s fastest representative lap. Laps slower than the scale sit in the Slower band above it as hollow dots. The lap chart’s slow-lap rule applies; safety car and pit laps are left out. Hover a column for the stint averages.</p>`;
   }
   function distTip(svg, event) {
     const box = svg.getBoundingClientRect(), g = distGeometry;

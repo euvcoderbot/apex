@@ -1374,3 +1374,62 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 :root[data-skin] #seasonHub .season-info { width: 20px; height: 20px; min-width: 20px; min-height: 20px; padding: 0; border-radius: 50%; background: none; box-shadow: none; vertical-align: -1px; }   /* centred on the title's capitals */
 :root[data-skin] #seasonHub .season-info:is(:hover, :focus-visible) { background: var(--lin-nav-hover); }
 body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .season-footnote, .season-explain) { display: none; }   /* record cards' footnotes are content (the race, the span) */
+/* Grids: the name column (left) and the season columns (right) stay in view while the rounds scroll sideways, on the card's
+   own surface so no band shows. */
+:root[data-skin] #seasonHub .season-grid :is(th, td):first-child { position: sticky; left: 0; z-index: 2; background: var(--season-surface, var(--ui-panel)); }
+:root[data-skin] #seasonHub .season-grid .season-sum { position: sticky; z-index: 2; width: 52px; min-width: 52px; max-width: 52px; background: var(--season-surface, var(--ui-panel)); text-align: center; }
+:root[data-skin] #seasonHub .season-grid .season-sum.is-edge { box-shadow: inset 1px 0 var(--lin-hairline, var(--ui-separator)); }
+/* Head-to-head qualifying gap: the quicker driver's code above the gap, both inside the 30 px pill. */
+:root[data-skin] #seasonHub .season-h2h-grid td.season-gap-cell { line-height: 1; }
+#seasonHub .season-h2h-grid td.season-gap-cell > :is(small, span) { display: block; }
+#seasonHub .season-gap-who { margin-bottom: 1px; font: 600 10px/10px var(--ui-font); letter-spacing: .02em; opacity: .75; }
+#seasonHub .season-gap-cell > span { font-size: 12px; line-height: 14px; }
+/* Head-to-head hero: below about 1040 px of its own width (a laptop with the sidebar open) the 128 px portraits left each
+   driver's line of numbers too little room, and Poles ran under the score panel or the photo. Smaller portraits, a
+   tighter line, and wrapping as a last resort. */
+#seasonHub .season-h2h-hero { container-type: inline-size; }
+#seasonHub .season-h2h-side .season-hero-line { flex-wrap: wrap; row-gap: 6px; }
+@media (min-width: 1081px) {   /* narrower windows stack the hero (above), which has room */
+  @container (max-width: 1040px) {
+    #seasonHub .season-h2h-side { grid-template-columns: 96px minmax(0, 1fr); gap: 12px; }
+    #seasonHub .season-h2h-side.is-right { grid-template-columns: minmax(0, 1fr) 96px; }
+    #seasonHub .season-h2h-side .season-hero-line { column-gap: 12px; }
+  }
+}
+/* Head-to-head hero, compact (every view but Overview): names, numbers and the score on one band. */
+#seasonHub .season-h2h-hero.is-compact { min-height: 0; }
+#seasonHub .season-h2h-hero.is-compact .season-hero-portrait,
+#seasonHub .season-h2h-hero.is-compact :is(.season-h2h-board, .season-h2h-score-label, .season-h2h-score > small) { display: none; }
+#seasonHub .season-h2h-hero.is-compact .season-h2h-side { grid-template-columns: minmax(0, 1fr); align-items: center; padding: 12px 20px; }
+#seasonHub .season-h2h-hero.is-compact .season-h2h-score { align-content: center; padding-block: 10px; }
+#seasonHub .season-h2h-hero.is-compact .season-h2h-score-big { font-size: 28px; }
+#seasonHub .season-h2h-pace-rows .has-tip { cursor: help; text-decoration: underline dotted color-mix(in oklch, currentColor 40%, transparent); text-underline-offset: 3px; }
+/* While Home, a Season page or Tracks is open, the analysis tab last used (Session analysis or Car performance) is not the
+   page on screen: it keeps its selected state for the tablist but no longer looks active, so one row is highlighted. */
+:root[data-skin="linear"] body.season-view #linearWorkspace .performance-tabs > button[aria-selected="true"]:not(:hover) { background: transparent; color: var(--lin-rail-text, var(--lin-nav-text)); }
+/* Results by round: a round's flag opens its full result. */
+#seasonHub .season-round-link { display: inline-grid; justify-items: center; padding: 2px 4px; border-radius: 6px; color: inherit; text-decoration: none; }
+#seasonHub .season-round-link:hover, #seasonHub .season-round-link:focus-visible { background: var(--lin-nav-hover, color-mix(in oklch, var(--ui-label) 8%, transparent)); color: var(--ui-label); }
+/* A driver's name opens their Drivers page. */
+#seasonHub :is(.season-who[data-driver], .season-who[data-team]) > strong { cursor: pointer; }
+#seasonHub :is(.season-who[data-driver], .season-who[data-team]) > strong:hover { text-decoration: underline; text-decoration-color: color-mix(in oklch, currentColor 45%, transparent); text-underline-offset: 3px; }
+#seasonHub :is(button, a, select, label, summary) .season-who > strong { cursor: inherit; text-decoration: none; }
+/* Head-to-head: swap the two drivers. */
+:root[data-skin] #seasonHub .season-swap { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-width: 28px; min-height: 28px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--ui-tertiary); cursor: pointer; }
+:root[data-skin] #seasonHub .season-swap:is(:hover, :focus-visible) { background: var(--lin-nav-hover); color: var(--ui-label); }
+/* Links between pages: grid cells, strip tiles and record cards that open a result or a filter. */
+#seasonHub :is(td.is-link, .season-strip-cell.is-link, .season-stat.is-link) { cursor: pointer; }
+#seasonHub td.is-link:hover { filter: brightness(1.18); }
+#seasonHub .season-strip-cell.is-link:hover { background: var(--lin-nav-hover, color-mix(in oklch, var(--ui-label) 6%, transparent)); }
+#seasonHub .season-stat.is-link:hover { box-shadow: inset 0 0 0 1px var(--lin-hairline-strong, var(--ui-border)); }
+#seasonHub .season-track-link { display: contents; cursor: pointer; }
+#seasonHub .season-track-link:hover > * { opacity: .8; }
+#seasonHub .season-next-track { margin-left: 10px; font-size: 13px; }
+#seasonHub .season-detail-actions { display: flex; justify-content: space-between; gap: 12px; margin: 0 0 10px; font-size: 13px; }
+/* Small round icon buttons: previous / next driver or season, copy link. */
+:root[data-skin] #seasonHub .season-step { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-width: 28px; min-height: 28px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--ui-tertiary); cursor: pointer; }
+:root[data-skin] #seasonHub .season-step:is(:hover, :focus-visible) { background: var(--lin-nav-hover); color: var(--ui-label); }
+:root[data-skin] #seasonHub .season-copy.is-done { color: var(--ui-accent, #30d158); }
+#seasonHub .season-stepper { display: inline-flex; gap: 2px; }
+#seasonHub .season-compare { align-self: center; margin-left: 4px; font-size: 13px; }
+#seasonHub .season-numbers > [data-tip] { cursor: help; }
