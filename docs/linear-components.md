@@ -110,7 +110,7 @@ View tabs and filter chips: 28 px pills filled `--lin-pill`, chosen `--lin-pill-
 **Segmented choice.** Reuse `.performance-scope-toggle` (Car performance) or `.season-segment` (Season); at 24 px inside cards,
 28 px in toolbars. Do not hand-roll a new one.
 
-**List rows inside a card** (e.g. "Where the time went"). 24 px rows, 6 px corners, hover `--lin-nav-hover`, negative 6 px side
+**List rows inside a card** (e.g. "Time gained and lost"). 24 px rows, 6 px corners, hover `--lin-nav-hover`, negative 6 px side
 margin so the wash reaches the card's padding. Label 500 12 px `--ui-label`, value tabular, coloured only when it is a gain or
 loss.
 

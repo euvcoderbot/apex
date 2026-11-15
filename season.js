@@ -969,12 +969,14 @@
     ct.append(cornerTable(t.corners.list.slice(0, half)), cornerTable(t.corners.list.slice(half)));
     const cornersCard = card('Corners', ct, el('p', 'season-footnote', `Every numbered corner at the lowest speed of the lap through it${t.corners.approximate ? ' (corner positions approximate)' : ''}; deeper shading is slower. Slow under 120 km/h, medium 120–200, fast over 200 (flat-out bends included).`));
     const history = round ? circuitProfile(data, round) : null;
-    // Views: This track (the chosen circuit in full) and Every track (all of them in one table; a row opens that track).
-    const TRACK_VIEWS = [['track', 'Circuit'], ['compare', 'All circuits']];
+    // Views: Circuit (the chosen track: facts, map, sectors, zones), Corners (its corners table) and All circuits (every track
+    // in one table; a row opens that track).
+    const TRACK_VIEWS = [['track', 'Circuit'], ['corners', 'Corners'], ['compare', 'All circuits']];
     const bar = el('div', 'season-toolbar'); bar.append(viewPills('tracks', TRACK_VIEWS, () => paint(() => renderTracks(data, profiles))));
     if (pageView('tracks', TRACK_VIEWS) === 'compare')
       return [bar, trackComparison(data, profiles, pick, gp => { state.track = gp; delete state.views.tracks; repaint(); window.scrollTo({top: 0, behavior: 'smooth'}); })];
-    return [bar, picker, head, ...(history ? [history] : []), two, cornersCard];
+    if (pageView('tracks', TRACK_VIEWS) === 'corners') return [bar, picker, cornersCard];
+    return [bar, picker, head, ...(history ? [history] : []), two];
   }
   // Every track in one table: sortable columns, values shaded by where they sit in the column. A row opens that track.
   function trackComparison(data, profiles, pick, choose) {

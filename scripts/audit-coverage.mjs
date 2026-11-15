@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import * as playwright from 'playwright';
+import {qaStates} from './qa-states.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const arg = (name, fallback) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : fallback; };
@@ -33,7 +34,13 @@ const STATES = {
   results: season('results'), 'results-open': seq(season('results'), click('#seasonHub .season-row-toggle')),
   standings: season('standings'), drivers: season('drivers'), h2h: season('h2h'),
   upgrades: season('upgrades'), units: season('units'), 'standings-2020': season('standings', '', 2020),
+  // The page views (part=) that hold content the default views no longer show.
+  'drivers-field': season('drivers', '&part=field'), 'h2h-sessions': season('h2h', '&part=sessions'), 'h2h-pace': season('h2h', '&part=pace'),
+  'h2h-points': season('h2h', '&part=points'), 'tracks-corners': season('tracks', '&part=corners'), 'tracks-compare': season('tracks', '&part=compare'),
+  // Session analysis with a replayed session loaded, and a Car performance category with data (the shared QA states).
+  ...(() => { const q = qaStates(origin); return {'session-loaded': q['session-loaded'], 'cars-pace': q['cars-pace'] || q.pace}; })(),
 };
+for (const [k, v] of Object.entries(STATES)) if (typeof v !== 'function') delete STATES[k];
 
 // In the page: geometric checks. Screen-reader-only text (1 px clipped boxes) and deliberate ellipsis are not defects.
 function checks() {
@@ -42,14 +49,15 @@ function checks() {
   const shown = e => { const r = e.getBoundingClientRect(), s = getComputedStyle(e); return r.width > 1 && r.height > 1 && s.visibility !== 'hidden' && s.display !== 'none'; };
   const add = (kind, e, detail) => found.push({kind, el: name(e), text: (e.innerText || e.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40), detail});
   if (document.documentElement.scrollWidth > vw + 1) add('page-scrolls-sideways', document.documentElement, `${document.documentElement.scrollWidth} > ${vw}`);
-  const scope = document.querySelector('#seasonHub') || document.body;
+  const hub = document.querySelector('#seasonHub'), scope = hub && hub.offsetParent !== null ? hub : document.body;
   for (const e of scope.querySelectorAll('*')) {
     if (!shown(e) || (e.closest('svg') && e.tagName !== 'svg')) continue;
     const s = getComputedStyle(e), r = e.getBoundingClientRect();
     const own = [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
     if (own && /(hidden|clip)/.test(s.overflowX) && s.textOverflow !== 'ellipsis' && e.scrollWidth > e.clientWidth + 1) add('clipped-text', e, `${e.scrollWidth} > ${e.clientWidth}`);
     const filled = (s.backgroundColor !== 'rgba(0, 0, 0, 0)' && s.backgroundColor !== 'transparent') || s.backgroundImage !== 'none';
-    if (filled && r.width < vw * .9) {
+    // A form control tucked inside a swatch (a restyled colour or checkbox input) is clipped on purpose.
+    if (filled && r.width < vw * .9 && e.tagName !== 'INPUT') {
       for (let p = e.parentElement; p && p !== document.body; p = p.parentElement) {
         const ps = getComputedStyle(p);
         if (/(auto|scroll)/.test(ps.overflowX + ps.overflowY)) break;
@@ -90,7 +98,8 @@ function checks() {
       let cut = clipsSelf;
       for (let p = svg.parentElement; !cut && p && p !== document.body; p = p.parentElement) {
         const ps = getComputedStyle(p);
-        if (/(hidden|clip|auto|scroll)/.test(ps.overflowX)) { const pr = p.getBoundingClientRect(); cut = r.left < pr.left - 1 || r.right > pr.right + 1; }
+        if (/(auto|scroll)/.test(ps.overflowX)) break;   // a box that scrolls sideways (phone charts, by design) shows it on scrolling
+        if (/(hidden|clip)/.test(ps.overflowX)) { const pr = p.getBoundingClientRect(); cut = r.left < pr.left - 1 || r.right > pr.right + 1; }
       }
       if (cut) add('chart-label-cut', tx, 'outside its chart and clipped');
     }

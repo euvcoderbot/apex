@@ -283,8 +283,8 @@ function renderCornerAnalysis() {
       const diffCell=loaded.length===2?`<td class="num corner-every-diff ${diff==null?'':diff>0.5?'is-faster':diff<-0.5?'is-slower':''}">${diff==null?'—':Math.abs(diff)<0.5?'0':`${diff>0?'+':'−'}${Math.abs(diff).toFixed(0)}`}</td>`:'';
       return `<tr><th scope="row"><button type="button" class="corner-every-pick" data-corner-every="${i}" aria-pressed="${selectedCornerIndices.has(i)}">${escapeUI(z.label||cornerLabel(z))}</button></th>${cells}${diffCell}</tr>`;
     }).join('');
-    root.insertAdjacentHTML('beforeend',`<details class="corner-every" ${cornerEveryOpen?'open':''}><summary>Minimum speed in every corner</summary>
-      <div class="corner-every-wrap" tabindex="0" role="region" aria-label="Minimum speed in every corner"><table class="corner-every-table">
+    root.insertAdjacentHTML('beforeend',`<details class="corner-every" ${cornerEveryOpen?'open':''}><summary>Minimum corner speeds</summary>
+      <div class="corner-every-wrap" tabindex="0" role="region" aria-label="Minimum corner speeds"><table class="corner-every-table">
         <thead><tr><th scope="col">Corner</th>${lapHead}${loaded.length===2?`<th scope="col" class="num" title="Speed difference in km/h; positive means the second lap carried a higher minimum">${escapeUI(loaded[1].code)} − ${escapeUI(loaded[0].code)}</th>`:''}</tr></thead>
         <tbody>${body}</tbody></table></div>
       <p class="corner-every-note">km/h, the lowest plotted speed inside each geometry-defined turn. The filled cell has the higher minimum, not necessarily the quicker corner time. The map compares elapsed time. Select a corner to mark each lap’s minimum on the speed trace; hover a value for its distance.</p></details>`);

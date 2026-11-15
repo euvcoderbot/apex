@@ -41,7 +41,7 @@ except ImportError:  # the parsers below work on text and words; only main() nee
 
 FIA = 'https://www.fia.com'
 CHAMPIONSHIP = FIA + '/documents/championships/fia-formula-one-world-championship-14'
-SEASONS = {2023: 'season-2023-2042', 2024: 'season-2024-2043', 2025: 'season-2025-2071', 2026: 'season-2026-2072'}
+SEASONS = {2019: 'season-2019-971', 2020: 'season-2020-1059', 2021: 'season-2021-1108', 2022: 'season-2022-2005', 2023: 'season-2023-2042', 2024: 'season-2024-2043', 2025: 'season-2025-2071', 2026: 'season-2026-2072'}
 TURN = r'(?:T(?:SP)?|Turn)\s*(\d+[A-Z]?)'
 POINT = re.compile(r'(\d+)\s*m\s+(after|before)\s+(?:apex\s+(?:of\s+)?)?' + TURN + r'|(Exit|Entry|Apex)(?:\s+(?:of|to))?\s+' + TURN, re.I)
 
@@ -219,11 +219,15 @@ def parse(text, words=None):
 
 
 def map_pdf(event_html):
-    links = re.findall(r'href="(/system/files/decision-document/[^"]+\.pdf)"', event_html)
-    maps = [l for l in links if 'circuit_map' in l and 'f2' not in l.lower() and 'f3' not in l.lower()]
+    # 2025 on: /system/files/.../..._circuit_map.pdf; up to 2024: /sites/default/files/.../"Event Notes - Circuit Map, Pit
+    # Lane Drawing and Red Zones.pdf" (spaces in the name). Names are compared with spaces and punctuation as underscores.
+    links = re.findall(r'href="(/(?:system|sites/default)/files/decision-document/[^"]+\.pdf)"', event_html)
+    key = lambda l: re.sub(r'[^a-z0-9]+', '_', urllib.parse.unquote(l).lower())
+    maps = [l for l in links if 'circuit_map' in key(l) and 'f2' not in key(l) and 'f3' not in key(l)]
     # The page lists the newest document first; a map on its own beats the bundle with pit-lane drawings.
-    alone = [l for l in maps if 'pit_lane' not in l]
-    return (alone or maps or [None])[0]
+    alone = [l for l in maps if 'pit_lane' not in key(l)]
+    pick = (alone or maps or [None])[0]
+    return urllib.parse.quote(urllib.parse.unquote(pick)) if pick else None
 
 
 def read_map(data):
@@ -274,6 +278,8 @@ def main():
         print(f"{name:32} {found.get('centreline_m', '?'):>6} m  {count} {found.get('zone_kind', 'no')} zones"
               f"  overtake {'yes' if found.get('overtake') else 'no'}{'  image only' if not text else ''}", flush=True)
     target.parent.mkdir(parents=True, exist_ok=True)
+    if not circuits:   # a blocked or changed site page: keep any earlier file rather than write an empty one
+        sys.exit(f'No circuit maps found for {year}; nothing written.')
     target.write_text(json.dumps({'year': year, 'fetched': time.strftime('%Y-%m-%d'), 'circuits': circuits}, indent=1, ensure_ascii=False), encoding='utf-8')
     print(f'{len(circuits)} circuits -> {target}')
 

@@ -966,9 +966,9 @@ function teamProfileCard(paceTeams) {
     const heat=rank!=null&&m.count>1?(m.count-rank)/(m.count-1):0;
     return `<td class="profile-rank perf-heat-cell${rank==null?'':rank<=3?' is-top':rank>m.count-3?' is-low':''}" title="${escape(`${m.label}: ${rank==null?'not measured':`${rank} of ${m.count} · ${signed(v,m.digits??3,m.unit)}`}`)}"><span class="perf-heat-value"${heat>0?` style="--heat:${heat.toFixed(3)}"`:''}>${rank==null?'—':rank}</span></td>`;}).join('')}<td class="profile-strongest">${escape(r.strongest||'—')}</td></tr>`).join('');
   const loadButton=model.speedLoaded?'':`<p class="performance-note">Add the corner bands, straights, traction and braking from qualifying telemetry: <button type="button" class="btn-track-action" data-profile-load ${speedDomainRunning.team?'disabled':''}>${speedDomainRunning.team?'Measuring telemetry…':'Measure from telemetry'}</button></p>`;
-  return `<section class="dashboard-card performance-card team-profile-card"><div class="panel-heading"><h2>Team profiles</h2></div>
+  return `<section class="dashboard-card performance-card team-profile-card"><div class="panel-heading"><h2>Car strengths and weaknesses</h2></div>
     <p class="performance-note">Each team’s rank among the teams measured, 1 = best, in every measurement on this page set. Deeper shading is a better rank; the measured value is on hover. Ranks hide how close teams are: check the gaps before reading much into neighbouring places.</p>
-    ${loadButton}<div class="performance-table-wrap" tabindex="0" role="region" aria-label="Team profiles"><table class="performance-table team-profile-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>
+    ${loadButton}<div class="performance-table-wrap" tabindex="0" role="region" aria-label="Car strengths and weaknesses"><table class="performance-table team-profile-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>
     ${model.speedLoaded?tradeOffPlot(model):''}</section>`;
 }
 // Straight-line time lost against corner time lost: a car low on drag sits left, one with more downforce sits low.

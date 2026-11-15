@@ -62,7 +62,7 @@
       + mark(r.ideal, top.ideal, fmtLap) + mark(r.median, top.median, fmtLap) + mark(r.spread, top.spread)
       + `<td class="num">${Number.isFinite(r.clean) ? Math.round(r.clean * 100) + '%' : '—'}</td>`
       + mark(r.trap, trapTop, v => String(Math.round(v))) + `<td class="num">${r.laps}</td><td class="num">${r.stints || '—'}</td></tr>`).join('');
-    return `<details class="session-summary" ${summaryOpen ? 'open' : ''}><summary>Every driver · best, ideal, median and consistency</summary>
+    return `<details class="session-summary" ${summaryOpen ? 'open' : ''}><summary>Best lap, ultimate lap and consistency</summary>
       <div class="session-summary-wrap" tabindex="0" role="region" aria-label="Session summary"><table class="session-summary-table">
       <thead><tr><th scope="col" class="num">#</th><th scope="col">Driver</th><th scope="col" class="num">Best</th><th scope="col" class="num">Gap</th>
       <th scope="col" class="num" title="Sum of the driver's best sectors">Ideal</th><th scope="col" class="num" title="Median representative lap">Median</th>
@@ -366,7 +366,7 @@
     // never swapped out between mouse down and up.
     const html = `<div class="section-heading analysis-heading"><h2 id="sessionOverviewTitle">Session overview</h2></div>
       <div class="overview-readout">${readout(rows)}</div>
-      <div class="overview-chart"><h3>Lap times</h3>${lapChart()}</div><div class="overview-chart"><h3>Lap distribution</h3>${lapDistribution()}</div>${sessionSummary()}${raceCharts()}`;
+      <div class="overview-chart"><h3>Lap times</h3>${lapChart()}</div><div class="overview-chart"><h3>Lap time distribution</h3>${lapDistribution()}</div>${sessionSummary()}${raceCharts()}`;
     if (renderedOverview !== html || !root.firstChild) {
       root.innerHTML = html; renderedOverview = html;
       root.querySelector('.session-summary')?.addEventListener('toggle', event => { summaryOpen = event.target.open; renderedOverview = ''; });
@@ -407,7 +407,7 @@
       </article>`;
     }).filter(Boolean);
     root.hidden = !cards.length;
-    root.innerHTML = cards.length ? `<h3>Where the time went</h3>${cards.join('')}<p class="overview-note">Elapsed time over the same corner and straight windows of the reference lap. Short links between corners are left out, so the parts do not add up exactly to the lap gap.</p>` : '';
+    root.innerHTML = cards.length ? `<h3>Time gained and lost</h3>${cards.join('')}<p class="overview-note">Elapsed time over the same corner and straight windows of the reference lap. Short links between corners are left out, so the parts do not add up exactly to the lap gap.</p>` : '';
   }
 
   // Bound on the section itself: page-level handlers elsewhere stop some clicks before they reach the document.
