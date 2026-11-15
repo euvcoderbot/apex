@@ -2583,3 +2583,5 @@
 :root[data-skin="linear"] .team-logo > .team-logo-fallback { width: 9px; height: 9px; }
 :root[data-skin="linear"] #seasonHub .season-legend span[data-tone]::before { border-radius: 50%; }
 :root[data-skin="linear"] .linear-rail-section.is-plain { margin-top: 6px; }
+/* Car performance categories: pills on their own, like the Season pills; no box drawn around the row of round pills. */
+:root[data-skin="linear"] #performanceResults > .performance-toolbar > .performance-mode { border: 0; background: none; border-radius: 0; padding: 0; }

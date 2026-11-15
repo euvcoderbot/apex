@@ -895,3 +895,7 @@ body.performance-view #sidebarToggle {
 .trade-off-plot .axis-title { fill: var(--ui-tertiary); }
 .trade-off-plot .label { fill: var(--ui-secondary); }
 .trade-off-plot circle { stroke: var(--ui-panel); stroke-width: 1.5; }
+
+/* Diverging bars: an outlier beyond the scale runs to the edge, with a 2 px notch in the card's colour near its end. */
+.performance-tyre-age-bar.is-capped::after { content: ""; position: absolute; top: -1px; bottom: -1px; right: 6px; width: 2px; background: var(--lin-card, var(--ui-panel)); }
+.performance-tyre-age-bar.is-capped.is-low::after { right: auto; left: 6px; }

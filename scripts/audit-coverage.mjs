@@ -36,7 +36,7 @@ const STATES = {
   upgrades: season('upgrades'), units: season('units'), 'standings-2020': season('standings', '', 2020),
   // The page views (part=) that hold content the default views no longer show.
   'drivers-field': season('drivers', '&part=field'), 'h2h-sessions': season('h2h', '&part=sessions'), 'h2h-pace': season('h2h', '&part=pace'),
-  'h2h-points': season('h2h', '&part=points'), 'tracks-corners': season('tracks', '&part=corners'), 'tracks-compare': season('tracks', '&part=compare'),
+  'h2h-points': season('h2h', '&part=points'), 'results-drivers': season('results', '&part=drivers'), 'units-finishes': season('units', '&part=finishes'), 'tracks-corners': season('tracks', '&part=corners'), 'tracks-compare': season('tracks', '&part=compare'),
   // Session analysis with a replayed session loaded, and a Car performance category with data (the shared QA states).
   ...(() => { const q = qaStates(origin); return {'session-loaded': q['session-loaded'], 'cars-pace': q['cars-pace'] || q.pace}; })(),
 };

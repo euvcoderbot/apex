@@ -22,7 +22,7 @@ test('power-unit sort indicates its default, reverses with the keyboard and keep
 test('allocation sort falls back safely when a historical snapshot omits allowances', async ({page}) => {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/apex/season/units?year=2026');
+  await page.goto('/apex/season/units?year=2026&part=finishes');   // the reliability table lives in the Finishes view
   const reliability = page.locator('.season-reliability');
   await reliability.getByRole('button', {name: 'Sort by Over allocation', exact: true}).click();
   await expect(reliability.getByRole('columnheader', {name: 'Over allocation', exact: true})).toHaveAttribute('aria-sort', 'descending');

@@ -258,9 +258,56 @@
     const day = d => d.toLocaleDateString([], {day: 'numeric'}), month = d => d.toLocaleDateString([], {month: 'short'});
     return month(first) === month(last) ? `${day(first)}–${day(last)} ${month(last)}` : `${day(first)} ${month(first)} – ${day(last)} ${month(last)}`;
   };
+  // A card's one-line help, behind an (i) beside its title (hover, focus or tap). The long footnotes show only with
+  // Show explanations on (body.is-descriptions-hidden hides them, season.css). A card without its own line here uses the
+  // first sentence of its footnote.
+  const CARD_INFO = {
+    'Track map': 'The fastest qualifying lap, coloured by speed or sector.',
+    'Sectors': 'Each sector of that lap: time, share and speed.',
+    'DRS and overtake zones': 'Where the FIA lets drivers use DRS or overtake mode.',
+    'Full-throttle sections': 'Flat out for at least 250 m on that lap.',
+    'Corners': 'The slowest speed through each numbered corner.',
+    'Circuit comparison': 'Every circuit this season, side by side.',
+    'Circuit profile': 'How races here have gone since 2018.',
+    'Championship standings': 'Points after the latest round.',
+    'Results by round': 'Each driver’s result at every round.',
+    'Championship progression': 'Points after each round.',
+    'Championship position': 'Place in the standings after each round.',
+    'Driver statistics': 'Season totals and averages; tap a column to sort.',
+    'Race pace': 'Clean-air race pace, gap to the quickest.',
+    'Qualifying pace': 'Qualifying gap to the fastest, like for like.',
+    'Form guide · last 5 races': 'Finishing places in the last five races.',
+    'Race-by-race results': 'Where the driver finished each round.',
+    'Finishing positions': 'How often they finished in each place.',
+    'Positions gained': 'Grid place against finishing place.',
+    'Points per race': 'Points scored each round, sprint included.',
+    'Teammate head-to-heads': 'Who beat their teammate more often.',
+    'Race-by-race': 'Qualifying gap and finishing places each round.',
+    'Gap to teammate': 'The margin between them each round.',
+    'Points gap': 'Points between the two drivers.',
+    'Practice pace': 'Best practice laps, gap between them.',
+    'Reliability': 'Starts, finishes and failures per driver.',
+    'Power unit elements': 'Power-unit parts used against the season limit.',
+    'Power unit elements used per race': 'New power-unit parts fitted each race.',
+    'Upgrades by team and race': 'Upgrades each team brought to each race.',
+    'Upgrades by team and reason': 'Why teams brought their upgrades.',
+    'Most-upgraded components': 'The parts changed most often.',
+  };
+  const firstSentence = text => (String(text || '').match(/^.*?[.!?](\s|$)/)?.[0] || String(text || '')).trim().slice(0, 90);
+  function infoMark(text) {
+    const b = el('button', 'season-info'); b.type = 'button'; b.dataset.tip = text; b.setAttribute('aria-label', text);
+    b.innerHTML = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="6.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 7.2v3.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="5" r=".9" fill="currentColor"/></svg>';
+    return b;
+  }
   const card = (title, ...children) => {
     const c = el('section', 'season-card');
-    if (title) c.append(el('h3', null, title));
+    if (title) {
+      const h = el('h3', null, title);
+      const note = children.find(n => n?.matches?.('.season-footnote'));
+      const info = CARD_INFO[title] || (note ? firstSentence(note.textContent) : null);
+      if (info) h.append(infoMark(info));
+      c.append(h);
+    }
     c.append(...children.filter(Boolean));
     // Tables are page sections; chart widgets retain the elevated card surface.
     if (children.some(node => node?.matches?.('.season-table-wrap'))) c.classList.add('season-data-section');
@@ -733,6 +780,11 @@
     const midOf = (i, j) => [(P[i][0] + P[j][0]) / 2, (P[i][1] + P[j][1]) / 2];
     const piece = i => { const m1 = midOf(i, (i + 1) % n); return `Q${f(P[i][0])} ${f(P[i][1])} ${f(m1[0])} ${f(m1[1])}`; };
     const start = i => { const m0 = midOf((i - 1 + n) % n, i); return `M${f(m0[0])} ${f(m0[1])}`; };
+    // Where the drawn curve passes sample i (the middle of its piece: a quarter of each midpoint and half the sample). Zones
+    // start and end here and their markers sit here, so a zone begins exactly at its line, not half a step before it.
+    const onCurve = i => { const m0 = midOf((i - 1 + n) % n, i), m1 = midOf(i, (i + 1) % n); return [(m0[0] + 2 * P[i][0] + m1[0]) / 4, (m0[1] + 2 * P[i][1] + m1[1]) / 4]; };
+    const secondHalf = i => { const m1 = midOf(i, (i + 1) % n); return `Q${f((P[i][0] + m1[0]) / 2)} ${f((P[i][1] + m1[1]) / 2)} ${f(m1[0])} ${f(m1[1])}`; };
+    const firstHalf = i => { const m0 = midOf((i - 1 + n) % n, i), c = onCurve(i); return `Q${f((m0[0] + P[i][0]) / 2)} ${f((m0[1] + P[i][1]) / 2)} ${f(c[0])} ${f(c[1])}`; };
     let base = '';
     for (let i = 0; i < n; i++) base += `${i ? '' : start(i)}${piece(i)}`;
     svg += `<path class="track-base" d="${base}Z"/>`;
@@ -750,8 +802,11 @@
       for (const z of o?.zones || []) {
         const from = (z.normal || z).i;
         if (from == null || z.i_to == null) continue;
-        let d = start(from);
-        for (let i = from, k = 0; k <= n; i = (i + 1) % n, k++) { d += piece(i); if (i === z.i_to) break; }
+        if (from === z.i_to) continue;
+        // From the curve at the activation sample to the curve at the zone's last sample.
+        const c0 = onCurve(from);
+        let d = `M${f(c0[0])} ${f(c0[1])}${secondHalf(from)}`;
+        for (let i = (from + 1) % n, k = 0; k <= n; i = (i + 1) % n, k++) { if (i === z.i_to) { d += firstHalf(i); break; } d += piece(i); }
         const name = z.zone || `DRS ${z.number ?? ''}`.trim();
         svg += `<path class="track-zone" d="${d}"/>`;
         zoneMarks.push({i: from, cls: 'track-zone-start', tip: `${o.kind === 'drs' ? 'DRS activation' : `Straight mode ${name}`}\n${(z.normal || z).text}${z.length ? `\n${z.ends === 'data gap' ? 'at least ' : ''}${z.length} m flat out · top ${z.top_speed} km/h` : ''}`});
@@ -781,7 +836,7 @@
     for (const m of zoneMarks) {
       const n = pts.length, p = pts[m.i], q = pts[(m.i + 2) % n], r = pts[(m.i - 2 + n) % n];
       let nx = -(Y(q[1]) - Y(r[1])), ny = X(q[0]) - X(r[0]); const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
-      const half = m.cls === 'track-zone-start' ? 9 : 7, cx = X(p[0]), cy = Y(p[1]);
+      const half = m.cls === 'track-zone-start' ? 9 : 7, [cx, cy] = onCurve(m.i);
       const ends = `x1="${(cx - nx * half).toFixed(1)}" y1="${(cy - ny * half).toFixed(1)}" x2="${(cx + nx * half).toFixed(1)}" y2="${(cy + ny * half).toFixed(1)}"`;
       svg += `<g class="track-zone-mark ${m.cls}" data-tip="${esc(m.tip)}"><line class="mark" ${ends}/><line class="hit-line" ${ends}/></g>`;
     }
@@ -838,7 +893,7 @@
       box.append(sourceLine, empty(!pick.readable ? 'The FIA published this map as an image only, so its zones are not read.' : 'The FIA map lists no zones for this event.'));
       return box;
     }
-    if (pick.zones.length) sourceLine.append(el('span', 'season-muted', ' · starts as printed, ends estimated from the fastest qualifying lap'));
+    if (pick.zones.length) sourceLine.append(el('span', 'season-muted season-explain', ' · starts as printed, ends estimated from the fastest qualifying lap'));
     box.append(sourceLine);
     const source = el('p', 'season-footnote');
     if (!pick.zones.length) box.append(el('p', 'season-muted', `No ${drs ? 'DRS' : 'straight mode'} zones at this event.`));
@@ -1222,6 +1277,36 @@
     c.append(...render(entry));
     return c;
   }
+  // Every result by round, in the Results page's By driver and By team views: drivers' points, finishing places or
+  // qualifying places at each round (pills), or each constructor's points per round.
+  function roundsMatrix(data, drivers) {
+    const evo = data.standings[drivers ? 'drivers' : 'teams'];
+    if (!evo.length) return empty('No races yet this season.');
+    const last = evo.at(-1).table;
+    // Drivers: finishing positions or points per round, switched in place (the choice is kept while the page is open).
+    if (!state.matrix) state.matrix = 'points';
+    const showPoints = () => !drivers || state.matrix === 'points', showQuali = () => drivers && state.matrix === 'qualifying';
+    const note = () => showQuali() ? 'Grand Prix qualifying position (before grid penalties). Purple pole, light into Q3, grey out before Q3; the last columns are the mean and the median.'
+      : showPoints() ? 'Points scored at each Grand Prix weekend, sprint included; deeper colour means more points.'
+      : 'Grand Prix finishing position; a small number is the sprint result when it scored. Purple win, green podium, light points, red not classified. Mean and median over classified finishes.';
+    let grid = resultsMatrix(data, drivers, last, showPoints(), showQuali());
+    const foot = el('p', 'season-footnote', note());
+    let matrixToggle = null;
+    if (drivers) {
+      matrixToggle = el('div', 'season-segment season-zone-toggle'); matrixToggle.setAttribute('role', 'group'); matrixToggle.setAttribute('aria-label', 'Show by round');
+      for (const [id, label] of [['points', 'Points'], ['position', 'Positions'], ['qualifying', 'Qualifying']]) {
+        const b = el('button', null, label); b.type = 'button'; b.dataset.mode = id; b.setAttribute('aria-pressed', String(state.matrix === id));
+        b.addEventListener('click', () => {
+          if (state.matrix === id) return;
+          state.matrix = id;
+          matrixToggle.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.mode === id)));
+          const next = resultsMatrix(data, drivers, last, showPoints(), showQuali()); grid.replaceWith(next); grid = next; foot.textContent = note();
+        });
+        matrixToggle.append(b);
+      }
+    }
+    return card(drivers ? 'Results by round' : 'Points by round', ...[matrixToggle, grid, foot].filter(Boolean));
+  }
   function renderResults(data) {
     const cards = data.cards, out = [];
     const grid = el('div', 'season-stats');
@@ -1251,7 +1336,12 @@
     // Results is about the Grands Prix: the season's numbers, then the race-by-race table. Wins moved to Standings;
     // retirements by team are in Power units' reliability table, and pit crews in Car performance > Pit stops.
     out.push(gpResults(data));
-    return out;
+    // Views: By Grand Prix (the season's numbers and each race), By driver and By team (every round in one grid).
+    const RESULT_VIEWS = [['races', 'By Grand Prix'], ['drivers', 'By driver'], ['teams', 'By team']];
+    const bar = el('div', 'season-toolbar'); bar.append(viewPills('results', RESULT_VIEWS, () => paint(() => renderResults(data))));
+    const view = pageView('results', RESULT_VIEWS);
+    if (view !== 'races') return [bar, roundsMatrix(data, view === 'drivers')];
+    return [bar, ...out];
   }
   // The season in a row of numbers.
   function seasonNumbers(data) {
@@ -1613,30 +1703,7 @@
     layout.append(standingsColumn, el('div', 'season-stack'));
     layout.lastChild.append(card('Championship progression', points), card('Championship position', ranks));
     linkHover(layout);
-    // Drivers: finishing positions or points per round, switched in place (the choice is kept while the page is open).
-    if (!state.matrix) state.matrix = 'points';
-    const showPoints = () => !drivers || state.matrix === 'points', showQuali = () => drivers && state.matrix === 'qualifying';
-    const note = () => showQuali() ? 'Grand Prix qualifying position (before grid penalties). Purple pole, light into Q3, grey out before Q3; the last columns are the mean and the median.'
-      : showPoints() ? 'Points scored at each Grand Prix weekend, sprint included; deeper colour means more points.'
-      : 'Grand Prix finishing position; a small number is the sprint result when it scored. Purple win, green podium, light points, red not classified. Mean and median over classified finishes.';
-    let grid = resultsMatrix(data, drivers, last, showPoints(), showQuali());
-    const foot = el('p', 'season-footnote', note());
-    let matrixToggle = null;
-    if (drivers) {
-      matrixToggle = el('div', 'season-segment season-zone-toggle'); matrixToggle.setAttribute('role', 'group'); matrixToggle.setAttribute('aria-label', 'Show by round');
-      for (const [id, label] of [['points', 'Points'], ['position', 'Positions'], ['qualifying', 'Qualifying']]) {
-        const b = el('button', null, label); b.type = 'button'; b.dataset.mode = id; b.setAttribute('aria-pressed', String(state.matrix === id));
-        b.addEventListener('click', () => {
-          if (state.matrix === id) return;
-          state.matrix = id;
-          matrixToggle.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.mode === id)));
-          const next = resultsMatrix(data, drivers, last, showPoints(), showQuali()); grid.replaceWith(next); grid = next; foot.textContent = note();
-        });
-        matrixToggle.append(b);
-      }
-    }
-    const matrix = card(drivers ? 'Results by round' : 'Points by round', ...[matrixToggle, grid, foot].filter(Boolean));
-    return [toggle, layout, matrix].filter(Boolean);
+    return [toggle, layout];
   }
   // Who can still win: points scored (sprints included) against the most still available.
   function titleFight(data, drivers) {
@@ -3361,7 +3428,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     const src = el('a', 'season-link', 'FIA document'); src.href = pu.document; src.target = '_blank'; src.rel = 'noopener';
     const note = el('p', 'season-footnote');
     note.append(`Elements each driver has used this season, as of ${pu.round_name || 'the latest Grand Prix'}${pu.round ? ` (R${pu.round})` : ''}. Shading compares each driver with the field's lowest count for that element; it does not show penalties or allocation limits. `, src);
-    const out = [card(null, pills, wrap(table), legend, note), reliabilityCard(data, pu)].filter(Boolean);
+    const out = [card('Power unit elements', pills, wrap(table), legend, note)];
     const history = (pu.history || []).filter(h => h.round);
     if (history.length > 1) {
       const hist = el('table', 'season-table season-matrix season-grid');
@@ -3389,7 +3456,11 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       hist.append(hb);
       out.push(card('Power unit elements used per race', wrap(hist), el('p', 'season-footnote', 'The rise in each driver’s total from one FIA table to the next. Grey numbers are a driver’s total in the first table that lists them, not new parts.')));
     }
-    return out;
+    // Views: Power units (elements used, and fitted at each race) and Finishes (starts, finish rate, distance, failures).
+    const UNIT_VIEWS = [['pu', 'Power units'], ['finishes', 'Finishes']];
+    const bar = el('div', 'season-toolbar'); bar.append(viewPills('units', UNIT_VIEWS, () => paint(() => renderUnits(data, pu))));
+    if (pageView('units', UNIT_VIEWS) === 'finishes') return [bar, reliabilityCard(data, pu) || empty('No finishes to show yet.')];
+    return [bar, ...out];
   }
 
   // ---------- start ----------

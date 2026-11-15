@@ -10,8 +10,16 @@ import {TeamLabel, type TeamLike} from './TeamLabel';
 export function DivergingBarChart({title, subtitle, rows, unit, extent, seriesKey}: {
   title: string; subtitle: string; rows: (TeamLike & {value: number})[]; unit: string; extent: number; seriesKey?: (row: TeamLike & {value: number}) => string;
 }) {
-  const minimum = Math.min(0,...rows.map(row=>row.value));
-  const maximum = Math.max(0,...rows.map(row=>row.value));
+  // The scale comes from the field, not from one outlier: with eight or more rows, a value beyond three interquartile ranges
+  // of the quartiles (one driver with a single odd stint) does not set it. Its bar runs to the edge with a break near the end
+  // (is-capped); its number is shown as it is.
+  const sorted = rows.map(row => row.value).sort((a, b) => a - b);
+  const quantile = (q: number) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.round(q * (sorted.length - 1))))];
+  const iqr = sorted.length >= 8 ? quantile(.75) - quantile(.25) : 0;
+  const fenceLow = iqr > 0 ? quantile(.25) - 3 * iqr : -Infinity, fenceHigh = iqr > 0 ? quantile(.75) + 3 * iqr : Infinity;
+  const inside = sorted.filter(v => v >= fenceLow && v <= fenceHigh);
+  const minimum = Math.min(0, ...inside);
+  const maximum = Math.max(0, ...inside);
   const span = maximum-minimum || extent || 1;
   const zero = -minimum/span*100;
   return (
@@ -21,7 +29,8 @@ export function DivergingBarChart({title, subtitle, rows, unit, extent, seriesKe
       </div></div>
       <div className="performance-tyre-age-chart">
         {rows.map((r, i) => {
-          const width = Math.min(100, Math.abs(r.value) / span * 100);
+          const capped = r.value > maximum || r.value < minimum;
+          const width = capped ? (r.value < 0 ? zero : 100 - zero) : Math.min(100, Math.abs(r.value) / span * 100);
           const left = r.value < 0 ? zero-width : zero;
           return (
             <div key={i} className="performance-tyre-age-row" data-trend-series={seriesKey?.(r)} role="img" data-chart-value={`${title}:${seriesKey?.(r) || r.displayName || r.team || r.name || i}`} tabIndex={i === 0 ? 0 : -1} aria-label={`${r.displayName || r.team || r.name || ''}: ${signed(r.value, 3, unit)}`}>
@@ -29,7 +38,7 @@ export function DivergingBarChart({title, subtitle, rows, unit, extent, seriesKe
               <div className="performance-tyre-age-name"><TeamLabel team={rows.length > 14 && r.displayName ? {...r, displayName: String(r.displayName).split(' · ')[0]} : r} /></div>
               <div className="performance-tyre-age-track">
                 <i className="performance-tyre-age-zero" style={{left:`${zero.toFixed(2)}%`}} />
-                <i className="performance-tyre-age-bar" style={{'--bar-color': color(r.color), left: `${left.toFixed(2)}%`, width: `${width.toFixed(2)}%`} as CSSProperties} />
+                <i className={`performance-tyre-age-bar${capped ? (r.value < 0 ? ' is-capped is-low' : ' is-capped') : ''}`} title={capped ? 'Beyond the scale: an outlier' : undefined} style={{'--bar-color': color(r.color), left: `${left.toFixed(2)}%`, width: `${width.toFixed(2)}%`} as CSSProperties} />
               </div>
               <span className="performance-tyre-age-value">{signed(r.value, 3, unit)}</span>
             </div>

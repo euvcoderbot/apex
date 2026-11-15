@@ -1351,3 +1351,17 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
   #seasonHub .season-round.is-open .season-round-winner { display: none; }
   #seasonHub .season-round-more { display: inline-flex; align-items: center; height: 24px; margin-left: 8px; padding: 0 9px; border: 0; border-radius: 6px; background: var(--lin-pill, color-mix(in oklch, var(--ui-label) 8%, transparent)); color: var(--ui-secondary); font: 500 12px/1 var(--ui-font); cursor: pointer; }
 }
+/* One density for every driver table and results grid, Reliability's: 36 px rows; a filled cell is a 30 px pill (6 px
+   between rows, 4 px between columns), so neighbouring values never touch. Two-line cells (Tracks zones) keep their height. */
+:root[data-skin] #seasonHub .season-table tbody tr:not(.season-detail):not(.is-point) > :is(td, th) { height: 36px; padding-top: 0; padding-bottom: 0; }
+:root[data-skin] #seasonHub .season-matrix tbody tr { height: 36px; }
+:root[data-skin] #seasonHub .season-matrix td.is-heat { padding: 3px 2px; }
+:root[data-skin] #seasonHub .season-matrix td.is-upcoming { padding: 3px 2px; }
+:root[data-skin] #seasonHub .season-matrix td.is-upcoming::before { height: 30px; }
+:root[data-skin] #seasonHub .season-units td.season-heat-cell { padding: 3px 2px; }
+:root[data-skin] #seasonHub .season-units .season-heat-value { height: 30px; }
+:root[data-skin] #seasonHub .season-track-zones td.season-track-act { height: auto; padding-top: 8px; padding-bottom: 8px; }
+/* Help: an (i) beside a card's title holds one short line (its tooltip); the long notes show with Show explanations on. */
+#seasonHub .season-info { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-left: 6px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--ui-tertiary); vertical-align: -4px; cursor: help; }
+#seasonHub .season-info:hover, #seasonHub .season-info:focus-visible { color: var(--ui-label); background: var(--lin-nav-hover); }
+body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .season-footnote, .season-explain) { display: none; }   /* record cards' footnotes are content (the race, the span) */
