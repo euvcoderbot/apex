@@ -1470,7 +1470,7 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 :root[data-skin] #seasonHub .season-filter.is-all::before { content: ''; display: block; flex: 0 0 8px; width: 8px; height: 8px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid currentColor; background: none; opacity: .7; }
 /* Drivers: the season's numbers as three short lists (Results, Qualifying, Race craft), each row the measure, then its
    value with a quiet note under it. */
-#seasonHub .season-stat-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+#seasonHub .season-stat-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; align-items: stretch; }
 @media (max-width: 900px) { #seasonHub .season-stat-groups { grid-template-columns: minmax(0, 1fr); } }
 #seasonHub .season-stat-list { display: grid; margin: 0; }
 #seasonHub .season-stat-list > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-height: 40px; padding: 8px 0; border-top: 1px solid var(--lin-hairline, var(--ui-separator)); }
@@ -1487,3 +1487,16 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 /* A row of season numbers in two columns on a phone: an odd one out spans the row instead of leaving an empty cell. */
 @media (max-width: 640px) { #seasonHub .season-numbers > :last-child:nth-child(odd) { grid-column: 1 / -1; } }
 #seasonHub .season-h2h-toolbar > .season-view-pills { flex-basis: 100%; }
+/* Head-to-head Points: the two cards share the row evenly and stretch to one height (the single-chart views draw taller). */
+#seasonHub .season-h2h-extras { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
+@media (max-width: 1100px) { #seasonHub .season-h2h-extras { grid-template-columns: minmax(0, 1fr); } }
+/* Drivers' number lists share a row of cards: each list fills its card, its rows spread evenly, so a shorter list does
+   not leave a gap under it. */
+#seasonHub .season-stat-groups > .season-card { display: flex; flex-direction: column; }
+#seasonHub .season-stat-groups .season-stat-list { flex: 1 1 auto; grid-auto-rows: 1fr; }
+/* On a very wide screen the record cards beside Best average finish sit shorter (driver and constructor side by side): the
+   chase list would leave them a gap, so it shows up to 1600 px only. */
+@media (min-width: 1600px) { #seasonHub .season-stat-chase { display: none; } }
+/* Head-to-head race-by-race: each row names its driver and its session. */
+#seasonHub .season-h2h-grid .season-row-session { margin-left: 2px; color: var(--ui-tertiary); font-size: 11px; font-weight: 450; }
+#seasonHub .season-h2h-grid tr.season-gap-row > th { color: var(--ui-secondary); font-weight: 500; }
