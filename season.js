@@ -718,6 +718,9 @@
     };
     const table = data.standings.drivers.at(-1)?.table || [];
     list('Standings', table.slice(0, 5).map(e => [who(data, e.id, {team: false, family: true}), String(e.points)]), 'standings', 'points');
+    // The two championships side by side on the first row; the last race and race pace under them.
+    const teamsNow = data.standings.teams.at(-1)?.table || [];
+    if (teamsNow.length) list('Constructors', teamsNow.slice(0, 5).map(e => [teamTag(data, e.id), String(e.points)]), () => { state.standings = 'teams'; show('standings'); }, 'points');
     const last = done.at(-1);
     if (last) {
       const pole = last.qualifying.find(q => q.position === 1), fl = last.race.find(x => x.fastest_lap_rank === 1);
@@ -727,8 +730,6 @@
       const box = list(last.name.replace(' Grand Prix', ' GP'), rows, 'results', 'last race');
       const f = flag(last); if (f) box.querySelector('header .home-glance-open').prepend(f);
     }
-    const teamsNow = data.standings.teams.at(-1)?.table || [];
-    if (teamsNow.length) list('Constructors', teamsNow.slice(0, 5).map(e => [teamTag(data, e.id), String(e.points)]), () => { state.standings = 'teams'; show('standings'); }, 'points');
     const formBox = list('Rolling race pace', [], ['drivers', 'field'], 'gap to the quickest');
     loadForm(state.year, data).then(form => {
       const ids = Object.keys(data.drivers), rounds = done.map(r => r.round).filter(n => form.race?.[n]);
@@ -1477,9 +1478,9 @@
       return [id, places.length, places.length ? places.reduce((t, v) => t + v, 0) / places.length : Infinity];
     }).filter(([, n]) => n >= doneRaces.length / 2).sort((x, y) => x[2] - y[2]);
     grid.append(stat(data, 'Best average finish', cards.average_finish, e => {
-      const chase = el('ol', 'season-ranked season-stat-chase');
+      const chase = el('ol', 'season-ranked season-stat-chase'); chase.start = 2;   // the chase: second to fourth
       for (const [id, , v] of averages.filter(([id]) => !e.ids.includes(id)).slice(0, 3)) { const li = el('li'); li.append(who(data, id, {team: false, family: true}), el('b', null, v.toFixed(2))); chase.append(li); }
-      return [el('b', 'season-big', e.value.toFixed(2)), who(data, e.ids[0]), chase, el('p', 'season-footnote', `Over ${e.races} classified finishes; drivers classified in at least half the races. Retirements are not in this average: Driver stats shows each driver\u2019s finish rate and an average that counts them.`)];
+      return [el('b', 'season-big', e.value.toFixed(2)), who(data, e.ids[0], {family: true}), chase, el('p', 'season-footnote', `Over ${e.races} classified finishes; drivers classified in at least half the races. Retirements are not in this average: Driver stats shows each driver\u2019s finish rate and an average that counts them.`)];
     }));
     grid.append(stat(data, 'Most places gained', cards.positions_gained, e => [el('b', 'season-big', `+${e.value}`), who(data, e.ids[0]), el('p', 'season-footnote', 'Grid to finish, classified finishes only; places lost are not subtracted.')]));
     const roundName = n => data.rounds.find(r => r.round === n)?.name || `Round ${n}`;

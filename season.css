@@ -1441,7 +1441,7 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 @keyframes season-skeleton { 50% { opacity: .45; } }
 @media (prefers-reduced-motion: reduce) { #seasonHub .season-skeleton > i { animation: none; } }
 @media (max-width: 760px) { #seasonHub .season-skeleton { grid-template-columns: 1fr; } }
-#seasonHub .season-stat-chase { margin: 10px 0 0; }
+#seasonHub .season-stat-chase { margin: 10px 0 0; counter-reset: rank 1; }   /* numbered from 2: the leader is above */
 #seasonHub .season-stat-chase li { min-height: 28px; }
 #seasonHub .season-who > strong[role="link"]:focus-visible { outline: 2px solid var(--ui-focus, var(--ui-accent)); outline-offset: 2px; border-radius: 3px; }
 /* Grand Prix results on a phone: the round and the Grand Prix stay in view while the results scroll sideways. */
@@ -1479,3 +1479,8 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 #seasonHub .season-stat-list dd { display: grid; justify-items: end; margin: 0; text-align: right; }
 #seasonHub .season-stat-list dd b { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
 #seasonHub .season-stat-list dd small { font-size: 11px; }
+/* Home's four lists (Standings, Constructors, the last race, race pace): two by two, four across on a wide screen, one
+   column on a phone, never three and a lone fourth. */
+#seasonHub .home-glance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 1440px) { #seasonHub .home-glance { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 640px) { #seasonHub .home-glance { grid-template-columns: minmax(0, 1fr); } }
