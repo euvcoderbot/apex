@@ -150,4 +150,32 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   const initial = window.ApexUrl?.read();
   if (initial?.view === 'session' && initial.params.round) void applySessionUrl(initial.params);
+  // On the published site the latest race is saved already: Session analysis opens on it rather than on an empty page asking
+  // for Load session. Only when that view is actually opened (never in the background on Home or Season) and nothing is loaded.
+  const published = () => Boolean(window.APEX_SNAPSHOT_MODE) && !window.APEX_LOCAL_MODE && !window.APEX_COMPUTE_ORIGIN;
+  let autoLoaded = false, autoInFlight = false;
+  const autoLoad = () => {
+    if (autoLoaded || !published() || sessionEventName) return;
+    autoLoaded = true;
+    // Only a session the published list has: an unpublished one would end in an error the person never asked for.
+    void Promise.all([calendarReady, loadPublishedSessions()]).then(() => {
+      if (sessionEventName || document.body.classList.contains('season-view') || document.body.classList.contains('performance-view')) return;
+      const option = $('#session')?.selectedOptions?.[0];
+      if (!publishedSessions || !option || option.disabled || /not published/i.test(option.textContent)) return;
+      autoInFlight = true;
+      return Promise.resolve(loadRealSession()).finally(() => { autoInFlight = false; });
+    }).catch(() => { autoLoaded = false; });
+  };
+  // Load pressed while the automatic load runs: it replaces that load (the session the menus now name), not stops it.
+  document.addEventListener('click', event => {
+    const button = event.target.closest?.('#loadSession');
+    if (!button || !autoInFlight) return;
+    event.stopImmediatePropagation(); event.preventDefault();
+    autoInFlight = false; sessionRequest?.abort();
+    const started = Date.now();
+    const again = () => (button.classList.contains('is-loading') && Date.now() - started < 8000 ? setTimeout(again, 50) : loadRealSession());
+    again();
+  }, true);
+  if (initial?.view === 'session' && !initial.params.round) autoLoad();
+  document.addEventListener('click', event => { if (event.target.closest?.('[data-analysis-view="session"]')) setTimeout(autoLoad, 0); }, true);
 });

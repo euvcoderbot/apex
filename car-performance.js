@@ -2152,6 +2152,11 @@ function renderContent() {
 // ---------------------------------------------------------------------------
 // Event Listeners & Interactive Wiring
 // ---------------------------------------------------------------------------
+// Published snapshot (not the local app or a connected PC): analysis reads saved results, so it can start by itself.
+const publishedAuto=()=>Boolean(window.APEX_SNAPSHOT_MODE)&&!window.APEX_LOCAL_MODE&&!window.APEX_COMPUTE_ORIGIN;
+// The automatic run gives way the moment the person changes the selection (scope or tracks), so Analyse is theirs again.
+let autoRun=false;
+const yieldAutoRun=()=>{if(autoRun&&running)stop();autoRun=false;};
 document.querySelectorAll('[data-analysis-view]').forEach(button=>button.addEventListener('click',event=>{
   // A pointer click cross-fades the two views (motion.js); links, history
   // and keyboard activation switch at once.
@@ -2170,6 +2175,8 @@ document.querySelectorAll('[data-analysis-view]').forEach(button=>button.addEven
     syncSelect($('performanceYear'));
     if ($('performanceScope')) syncSelect($('performanceScope'));
     calendarReady=loadCalendar();
+    // On the published site the season's analysis is already computed: open on it, not on an empty "click Analyse" page.
+    if(!restoringUrl&&publishedAuto())calendarReady.then(()=>{if(!events.length&&!running&&activeScope==='season'){autoRun=true;void analyse();}}).catch(()=>{});
   }
   else if(performance)refreshPerformanceAvailability();
 };
@@ -2193,7 +2200,7 @@ function carUrlState() {
 }
 function syncCarUrl() {
   if(restoringUrl||!initialized||$('carPerformance').hidden)return;
-  window.ApexUrl?.write('cars',carUrlState());
+  window.ApexUrl?.write('cars',carUrlState(),{replace:autoRun});
 }
 function showAnalysisView(view) {
   // Switch views for a link or the back button without writing a new entry.
@@ -2225,7 +2232,7 @@ async function applyCarUrl(params) {
     const runnable=scope==='season'||selectedTracks.size>0;
     // Same selection already analysed (back/forward between categories): reuse it.
     const same=context&&String(context.year)===year.value&&String(context.selectedTracks||[])===String(scope==='tracks'?[...selectedTracks]:context.selectedTracks||[]);
-    if(params.run==='1'&&runnable&&!(same&&events.length)){setTrackTrayCollapsed(true);void analyse();}
+    if((params.run==='1'||(publishedAuto()&&scope==='season'))&&runnable&&!(same&&events.length)){autoRun=params.run!=='1';setTrackTrayCollapsed(true);void analyse();}
     else {render();if(context)loadActiveTelemetry();}
   } finally {restoringUrl=false;syncCarUrl();}
 }
@@ -2241,7 +2248,9 @@ document.querySelectorAll('[data-performance-scope]').forEach(btn => {
   btn.addEventListener('click', () => {
     const scope = btn.dataset.performanceScope;
     if (activeScope === scope) return;
+    yieldAutoRun();
     activeScope = scope;
+    if (scope === 'tracks') setTrackTrayCollapsed(false);   // choosing Tracks is choosing tracks: show them
     document.querySelectorAll('[data-performance-scope]').forEach(b => {
       b.setAttribute('aria-pressed', String(b.dataset.performanceScope === activeScope));
     });
@@ -2280,6 +2289,7 @@ $('performanceClearTracks')?.addEventListener('click', () => {
 $('performanceTrackPills')?.addEventListener('click', (ev) => {
   const pill = ev.target.closest('.track-pill');
   if (!pill) return;
+  yieldAutoRun();
   const name = pill.dataset.trackName;
   if (!name) return;
   if (selectedTracks.has(name)) {
@@ -2309,7 +2319,7 @@ if ($('performanceScope')) {
 }
 
 // Folding the race picker on the click itself, not when results arrive: a shift right after input is not a layout shift.
-$('performanceLoad').addEventListener('click',()=>{setTrackTrayCollapsed(true);void analyse();});
+$('performanceLoad').addEventListener('click',()=>{autoRun=false;setTrackTrayCollapsed(true);void analyse();});
 $('performanceCancel').addEventListener('click',stop);
 
 root.addEventListener('keydown',event=>{

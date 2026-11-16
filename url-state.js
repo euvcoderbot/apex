@@ -79,7 +79,8 @@
   }
   function showTitle(view, params) { if (typeof document !== 'undefined') document.title = titleFor(view, params); }
 
-  function write(view, params) {
+  // replace: true updates the current history entry (a state the page reached by itself, such as an automatic analysis).
+  function write(view, params, {replace = false} = {}) {
     if (!VIEWS[view]) return;
     memory[view] = {...params};
     showTitle(view, params);
@@ -88,7 +89,7 @@
     const current = read();
     const navigated = current.view !== view
       || NAVIGATION[view].some(key => String(current.params[key] ?? '') !== String(params?.[key] ?? ''));
-    history[navigated ? 'pushState' : 'replaceState']({apexView: view}, '', next);
+    history[navigated && !replace ? 'pushState' : 'replaceState']({apexView: view}, '', next);
   }
 
   // The parameters a view last wrote, so switching views and back restores it.

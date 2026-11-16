@@ -1433,3 +1433,13 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 #seasonHub .season-stepper { display: inline-flex; gap: 2px; }
 #seasonHub .season-compare { align-self: center; margin-left: 4px; font-size: 13px; }
 #seasonHub .season-numbers > [data-tip] { cursor: help; }
+/* Loading: the page's shape (a row of numbers, two cards) in soft blocks under the status line. */
+#seasonHub .season-skeleton { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+#seasonHub .season-skeleton > i { display: block; border-radius: 12px; background: color-mix(in oklch, var(--ui-label) 5%, transparent); animation: season-skeleton 1.4s ease-in-out infinite; }
+#seasonHub .season-skeleton > .is-strip { grid-column: 1 / -1; height: 72px; }
+#seasonHub .season-skeleton > .is-card { height: 260px; }
+@keyframes season-skeleton { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { #seasonHub .season-skeleton > i { animation: none; } }
+@media (max-width: 760px) { #seasonHub .season-skeleton { grid-template-columns: 1fr; } }
+#seasonHub .season-stat-chase { margin: 10px 0 0; }
+#seasonHub .season-stat-chase li { min-height: 28px; }

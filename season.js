@@ -522,13 +522,33 @@
       (replacement?.closest('.select-shell')?.querySelector('.select-trigger') || replacement)?.focus({preventScroll: true});
     }
   }
+  // Warm the rest of the season once a page is on screen: Reliability's and Development's documents (where published) and
+  // the circuit profiles, one after another while idle. Each is cached by load(), so a later tab opens without waiting.
+  const prefetched = new Set();
+  function prefetchSeason(year, data) {
+    // Saved snapshots only: with live compute (the local app, or this PC connected) a prefetch would start real calculations.
+    if (prefetched.has(year) || navigator.connection?.saveData || window.APEX_LOCAL_MODE || window.APEX_COMPUTE_ORIGIN) return;
+    prefetched.add(year);
+    const idle = window.requestIdleCallback || (fn => setTimeout(fn, 1500));
+    const jobs = [
+      () => (year >= FIA_DOCUMENTS_FROM.units ? load('units', year) : null),
+      () => (year >= FIA_DOCUMENTS_FROM.upgrades ? load('upgrades', year) : null),
+      () => loadTrackProfiles(year),
+      () => loadForm(year, data),
+    ];
+    const next = () => { const job = jobs.shift(); if (!job) return; idle(() => Promise.resolve(job()).catch(() => null).finally(next), {timeout: 4000}); };
+    next();
+  }
   let renderToken = 0;
   async function render() {
     hideChartTip();
     const token = ++renderToken, tab = state.tab, year = state.year;
     body.setAttribute('aria-busy', 'true');
     const loading = el('p', 'season-loading', tab === 'upgrades' ? 'Reading the FIA car presentation documents… the first time takes up to a minute.' : 'Loading…');
-    loading.setAttribute('role', 'status'); body.replaceChildren(loading);
+    loading.setAttribute('role', 'status');
+    const skeleton = el('div', 'season-skeleton'); skeleton.setAttribute('aria-hidden', 'true');
+    skeleton.append(el('i', 'is-strip'), el('i', 'is-card'), el('i', 'is-card'));
+    body.replaceChildren(loading, skeleton);
     // Development and Reliability read FIA documents the FIA has published only since 2022: earlier seasons say so plainly.
     if ((tab === 'upgrades' || tab === 'units') && year < FIA_DOCUMENTS_FROM[tab]) {
       body.setAttribute('aria-busy', 'false');
@@ -544,14 +564,17 @@
       const [data, extra] = await Promise.all([load('season', year),
         tab === 'upgrades' ? load('upgrades', year) : tab === 'units' ? load('units', year) : tab === 'tracks' ? loadTrackProfiles(year) : null]);
       // Form also reads each finished race's pace analysis (the published Car performance results), once per season.
-      const form = tab === 'drivers' ? await loadForm(year, data).catch(() => null) : null;
+      const formReady = tab === 'drivers' ? loadForm(year, data).catch(() => null) : null;
+      const form = tab === 'drivers' && driversForm?.year === year ? driversForm.form : null;
       if (token !== renderToken) return;
+      if (formReady && !form) formReady.then(f => { if (f && token === renderToken && state.tab === 'drivers' && !body.contains(document.activeElement?.closest('select, .select-menu') || null)) paint(() => renderDrivers(data, f)); });
       const view = {home: renderHome, schedule: renderSchedule, results: renderResults, standings: renderStandings, form: renderForm, drivers: renderDrivers,
         h2h: renderH2H, upgrades: renderUpgrades, units: renderUnits, tracks: renderTracks}[tab];
       setCodes(data);
       const note = savedNote(extra?.saved_at ? extra : data), saved = page.querySelector('.season-saved');
       if (saved) { saved.textContent = note; saved.hidden = !note; }
       paint(() => view(data, tab === 'drivers' ? form : extra));
+      prefetchSeason(year, data);
     } catch (error) {
       if (token !== renderToken) return;
       // Power-unit usage before 2022 is saved separately (scripts/snapshot-power-units-history.py) and reaches the Site with a
@@ -1382,7 +1405,17 @@
       return [row];
     });
     grid.append(pair('Most wins', 'wins', 'wins'), pair('Most podiums', 'podiums', 'podiums'), pair('Most poles', 'poles', 'poles'));
-    grid.append(stat(data, 'Best average finish', cards.average_finish, e => [el('b', 'season-big', e.value.toFixed(2)), who(data, e.ids[0]), el('p', 'season-footnote', `Over ${e.races} classified finishes; drivers classified in at least half the races. Retirements are not in this average: Driver stats shows each driver\u2019s finish rate and an average that counts them.`)]));
+    // Best average finish, then the next three (the card sits beside taller two-part cards, so the room shows the chase).
+    const doneRaces = data.rounds.filter(r => r.race.length);
+    const averages = Object.keys(data.drivers).map(id => {
+      const places = doneRaces.map(r => r.race.find(x => x.driver === id)?.position).filter(Number.isFinite);
+      return [id, places.length, places.length ? places.reduce((t, v) => t + v, 0) / places.length : Infinity];
+    }).filter(([, n]) => n >= doneRaces.length / 2).sort((x, y) => x[2] - y[2]);
+    grid.append(stat(data, 'Best average finish', cards.average_finish, e => {
+      const chase = el('ol', 'season-ranked season-stat-chase');
+      for (const [id, , v] of averages.filter(([id]) => !e.ids.includes(id)).slice(0, 3)) { const li = el('li'); li.append(who(data, id, {team: false, family: true}), el('b', null, v.toFixed(2))); chase.append(li); }
+      return [el('b', 'season-big', e.value.toFixed(2)), who(data, e.ids[0]), chase, el('p', 'season-footnote', `Over ${e.races} classified finishes; drivers classified in at least half the races. Retirements are not in this average: Driver stats shows each driver\u2019s finish rate and an average that counts them.`)];
+    }));
     grid.append(stat(data, 'Most places gained', cards.positions_gained, e => [el('b', 'season-big', `+${e.value}`), who(data, e.ids[0]), el('p', 'season-footnote', 'Grid to finish, classified finishes only; places lost are not subtracted.')]));
     const roundName = n => data.rounds.find(r => r.round === n)?.name || `Round ${n}`;
     grid.append(stat(data, 'Largest winning margin', cards.largest_margin, e => [el('b', 'season-big', `${e.value.toFixed(3)} s`), who(data, e.ids[0]), el('p', 'season-footnote', roundName(e.round))]));
@@ -3141,7 +3174,8 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       stat(`${aAhead}–${both.length - aAhead}`, `practice sessions quicker (${codeA}–${codeB})`);
       stat(med == null || Math.abs(med) < .0005 ? 'level' : `${med > 0 ? codeA : codeB} ${Math.abs(med).toFixed(3)} s`, 'median gap, best laps');
       stat(String(rounds.length), 'weekends with both timed');
-      const chart = barChart(perRound.map(x => x.r.round), perRound.map(x => x.v), {height: 200, clip: true,
+      // 340 units tall: beside Pace (a table, pills and a chart) on the Pace view, a 200-unit chart left a third of the card empty.
+      const chart = barChart(perRound.map(x => x.r.round), perRound.map(x => x.v), {height: 340, clip: true,
         colour: v => (v >= 0 ? ca : cb), format: v => signed(v, 2, ' s'),
         tips: perRound.map(x => `${x.r.name}\n${x.v >= 0 ? codeA : codeB} quicker by ${Math.abs(x.v).toFixed(3)} s\nmedian of ${x.n} session${x.n === 1 ? '' : 's'}`), title: 'Practice gap by weekend'});
       box.replaceChildren(el('h3', null, 'Practice pace'), summary, el('p', 'season-chart-sub', `Gap at each weekend · above zero ${codeA} quicker, below ${codeB}`), chart,

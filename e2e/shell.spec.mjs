@@ -60,7 +60,7 @@ test('opening Car performance loads it, shows the view and updates the route and
   await open(page);
   await page.getByRole('tab', {name: 'Car performance'}).click();
   await expect(page.locator('body')).toHaveClass(/performance-view/);
-  await expect(page).toHaveURL(/\/apex\/cars$/);
+  await expect(page).toHaveURL(/\/apex\/cars(\?year=\d{4}(&run=1)?)?$/);   // the published season analysis starts by itself
   await expect(page).toHaveTitle(/^Pace · Car performance/);
   await page.goBack();
   await expect(page.locator('body')).not.toHaveClass(/performance-view/);
