@@ -217,7 +217,11 @@
   const savedNote = data => {
     if (!data?.saved_at) return '';
     const at = new Date(data.saved_at);
-    return Number.isFinite(at.getTime()) ? `Data saved ${at.toLocaleString([], {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'})}` : '';
+    if (!Number.isFinite(at.getTime())) return '';
+    // How long ago, in words, so stale data is plain at a glance (a finished season's snapshot is not stale).
+    const days = Math.floor((Date.now() - at.getTime()) / 86400000);
+    const ago = data.year < new Date().getFullYear() ? '' : days >= 2 ? ` · ${days} days ago` : days === 1 ? ' · yesterday' : '';
+    return `Data saved ${at.toLocaleString([], {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'})}${ago}`;
   };
 
   // ---------- small shared pieces ----------
@@ -587,7 +591,8 @@
       const formReady = tab === 'drivers' ? loadForm(year, data).catch(() => null) : null;
       const form = tab === 'drivers' && driversForm?.year === year ? driversForm.form : null;
       if (token !== renderToken) return;
-      if (formReady && !form) formReady.then(f => { if (f && token === renderToken && state.tab === 'drivers' && !body.contains(document.activeElement?.closest('select, .select-menu') || null)) paint(() => renderDrivers(data, f)); });
+      // Only All drivers shows race pace: the Driver view never repaints for it (a repaint would drop focus and the tip shown).
+      if (formReady && !form) formReady.then(f => { if (f && token === renderToken && state.tab === 'drivers' && pageView('drivers', DRIVER_VIEWS) === 'field' && !body.contains(document.activeElement?.closest('select, .select-menu') || null)) paint(() => renderDrivers(data, f)); });
       const view = {home: renderHome, schedule: renderSchedule, results: renderResults, standings: renderStandings, form: renderForm, drivers: renderDrivers,
         h2h: renderH2H, upgrades: renderUpgrades, units: renderUnits, tracks: renderTracks}[tab];
       setCodes(data); currentData = data;
