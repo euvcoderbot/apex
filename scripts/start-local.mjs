@@ -12,7 +12,7 @@ if(![uiPort,apiPort].every(p=>Number.isInteger(p)&&p>=1024&&p<=65535)||uiPort===
 await new Promise((resolve,reject)=>{const child=spawn(process.execPath,['scripts/sync-static.mjs'],{cwd:root,stdio:'inherit',windowsHide:true});child.once('error',reject);child.once('exit',code=>code?reject(new Error('Static bundle sync failed')):resolve());});
 // Load revision-bearing modules only after sync generated the current keys.
 const {createLocalDashboard,pruneDiskStore,HOSTED_ORIGIN}=await import('../lib/local-server.mjs');
-const backend=spawn(python,['-m','uvicorn','local_api:app','--host','127.0.0.1','--port',String(apiPort)],{cwd:root,stdio:'inherit',windowsHide:true,env:{...process.env,APEX_LOCAL_COMPUTE:'1'}});
+const backend=spawn(python,['-m','uvicorn',process.env.APEX_LOCAL_APP||'local_api:app','--host','127.0.0.1','--port',String(apiPort)],{cwd:root,stdio:'inherit',windowsHide:true,env:{...process.env,APEX_LOCAL_COMPUTE:'1'}});
 let closed=false;
 const sourceOrigin=`http://127.0.0.1:${apiPort}`;
 void pruneDiskStore(path.join(root,'.apex-cache/dashboard-local-v2')).then(({removed,freed})=>{

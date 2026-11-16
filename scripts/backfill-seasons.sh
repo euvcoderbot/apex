@@ -15,10 +15,12 @@ log_file=.apex-cache/backfill.log
 say() { echo "$(date '+%Y-%m-%d %H:%M') $*" | tee -a "$log_file"; }
 years=("$@"); [ ${#years[@]} -eq 0 ] && years=(2023 2020 2019 2018)
 
-# Local compute (npm run local) answers on 54123; start it when it is not running and wait for it.
+# Local compute answers on 54123; start it when it is not running and wait for it. It runs scripts/backfill_api.py: the
+# usual app, reading a timing feed through FastF1's signed-in fetch when the fast path's direct download is refused (the
+# official archive for older seasons; the mirror has none of 2018-2020). Stop any compute started another way first.
 if ! curl -s -o /dev/null -m 3 http://127.0.0.1:54123/; then
-  say "starting local compute"
-  nohup npm run local > .apex-cache/local-compute.log 2>&1 &
+  say "starting local compute (backfill app)"
+  APEX_LOCAL_APP=scripts.backfill_api:app nohup npm run local > .apex-cache/local-compute.log 2>&1 &
   for _ in $(seq 1 60); do curl -s -o /dev/null -m 3 http://127.0.0.1:54123/ && break; sleep 3; done
 fi
 
