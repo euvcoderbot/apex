@@ -123,6 +123,9 @@ test('partial source history discloses gaps without blocking supported compariso
 });
 
 test('loaded car-performance views survive repeated navigation without uncaught errors',async({page})=>{
+  // This checks for errors, not animation. Linux WebKit on CI does not settle the view transition a tab switch runs, so
+  // the next tab never looks stable to Playwright; reduced motion switches tabs without one (motion.js), as it does for people.
+  await page.emulateMedia({reducedMotion:'reduce'});
   const errors=await loaded(page);
   await page.getByRole('tab',{name:'Car performance',exact:true}).click();
   await page.locator('#performanceLoad').click();
