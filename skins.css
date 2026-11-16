@@ -1690,6 +1690,9 @@
   background: var(--ui-quaternary); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12l3.5-4 3 2.5L14 4'/%3E%3C/svg%3E") center / 14px no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12l3.5-4 3 2.5L14 4'/%3E%3C/svg%3E") center / 14px no-repeat; }
 :root[data-skin="linear"] #linearWorkspace .performance-tabs > :is(.live-view-button, .season-view-button)::before { content: none; }
 :root[data-skin="linear"] #linearWorkspace .performance-tabs > button[data-analysis-view="performance"]::before { content: ''; position: static; flex: 0 0 14px; width: 14px; height: 14px; margin: 0 1px; opacity: 1; border-style: solid; border-color: var(--ui-quaternary); border-width: 0 0 1.3px 1.3px; border-radius: 0; background: linear-gradient(90deg,transparent 15%,var(--ui-quaternary) 15% 30%,transparent 30% 45%,var(--ui-quaternary) 45% 60%,transparent 60% 75%,var(--ui-quaternary) 75% 90%,transparent 90%) bottom/100% 70% no-repeat; }
+:root[data-skin="linear"] #linearWorkspace .performance-tabs > button[data-analysis-view="performance"]::before { box-sizing: border-box; }   /* its border inside the 14 px, so the label lines up with the other rows */
+:root[data-skin="linear"] #linearWorkspace .linear-navigation > .live-view-button { display: flex; justify-content: flex-start; align-items: center; gap: 8px; width: 100%; height: 28px; min-height: 28px; margin: 0; padding: 0 9px 0 8px; border: 0; border-radius: 8px; background: transparent; box-shadow: none; font: 500 13px/1 var(--ui-font); }   /* Live as a rail row, not a pill */
+:root[data-skin="linear"] #linearWorkspace .linear-navigation > .live-view-button .live-dot { flex: 0 0 8px; width: 8px; height: 8px; margin: 0 3px; }   /* 8 px dot in the 14 px icon column */
 :root[data-skin="linear"] #linearWorkspace :is(.performance-tabs > button[aria-selected="true"], .category-bar .category-tab[aria-current="page"], .linear-navigation > .season-view-button[aria-pressed="true"]) { background: var(--lin-nav-active); color: var(--ui-label); box-shadow: none; }
 :root[data-skin="linear"] #linearWorkspace .linear-navigation > .season-view-button svg { width: 14px; height: 14px; margin: 0 1px; color: var(--ui-quaternary, var(--ui-tertiary)); }
 :root[data-skin="linear"] #linearWorkspace .category-bar:not([hidden]) { display: flex; flex-direction: column; padding: 0; margin: 0; gap: 2px; background: transparent; width: 100%; }
@@ -2021,7 +2024,7 @@
 
 /* Car performance: the category is the page, not a box; the widgets inside it are the cards, all with the same 16 px inset. */
 :root[data-skin="linear"] #carPerformance .performance-card:not(.dashboard-card .dashboard-card) { padding: 0; background: transparent; box-shadow: none; border-radius: 0; }
-:root[data-skin="linear"] #carPerformance .dashboard-card .dashboard-card { padding: 16px; border-radius: 8px; background: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border); }
+:root[data-skin="linear"] #carPerformance .dashboard-card .dashboard-card { padding: 16px; border-radius: 10px; background: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border); }
 :root[data-skin="linear"] #carPerformance .dashboard-card .dashboard-card :is(h2, h3, .card-title) { margin-top: 0; }
 :root[data-skin="linear"] #carPerformance .performance-chart-card { padding: 16px; }
 :root[data-skin="linear"] #carPerformance .perf-chart-header { margin: 0 0 12px; padding: 0; border-bottom: 0; }

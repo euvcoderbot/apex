@@ -424,7 +424,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 /* Tables (spec §8): a 32 px header row in 450 12 tertiary with no band; rows without separators, a wash on hover. */
 :root[data-skin="linear"] #seasonHub .season-table thead th { height: 32px; padding-block: 0; background: transparent; color: var(--ui-tertiary); font: 450 12px/1 var(--ui-font); }
 :root[data-skin="linear"] #seasonHub .season-standings tbody td { height: 48px; padding-block: 0; }
-:root[data-skin="linear"] #seasonHub .season-table tbody tr:not(.season-detail):hover td:not(.is-heat) { background: var(--season-row-hover, var(--lin-nav-hover)); }
+:root[data-skin="linear"] #seasonHub .season-table tbody tr:not(.season-detail):hover td:not(.is-heat):not([data-tone]):not(.is-first) { background: var(--season-row-hover, var(--lin-nav-hover)); }
 @media (max-width: 760px) {
   :root[data-skin="linear"] #seasonHub .season-standings .season-points {
     position: sticky; right: 0; z-index: 1; min-width: 56px; background: var(--ui-panel); box-shadow: -1px 0 var(--lin-hairline);
@@ -1498,5 +1498,45 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
    chase list would leave them a gap, so it shows up to 1600 px only. */
 @media (min-width: 1600px) { #seasonHub .season-stat-chase { display: none; } }
 /* Head-to-head race-by-race: each row names its driver and its session. */
-#seasonHub .season-h2h-grid .season-row-session { margin-left: 2px; color: var(--ui-tertiary); font-size: 11px; font-weight: 450; }
 #seasonHub .season-h2h-grid tr.season-gap-row > th { color: var(--ui-secondary); font-weight: 500; }
+/* Head-to-head race-by-race: Qualifying and Race as their own header rows, a quiet label over each group of three. */
+#seasonHub .season-h2h-grid tr.season-section-row > th { padding-top: 10px; color: var(--ui-secondary); font: 600 12px/1 var(--ui-font); vertical-align: bottom; }
+#seasonHub .season-h2h-grid tr.season-section-row:hover > :is(th, td) { background: transparent; }
+/* Grids: a hovered row lights its name and its plain cells; the result pills keep their colours (they used to be painted
+   over with the hover colour, so the row went flat and dark). */
+:root[data-skin="linear"] #seasonHub .season-grid tbody tr:not(.season-detail):not(.season-section-row):hover > th { background: color-mix(in srgb, var(--ui-label) 6%, var(--season-surface, var(--ui-panel))); }
+/* One hover for every Season table row: the name and plain cells take a soft tint mixed over the card's own surface (so a
+   pinned column matches its row), and coloured pills (heat, results, first totals, rounds to come) keep their colours.
+   Replaces the per-table variants (a near-black tint in cards, a first-column-only tint in Reliability). */
+:root[data-skin] #seasonHub { --season-hover: color-mix(in srgb, var(--ui-label) 5%, var(--season-surface, var(--ui-panel))); }
+:root[data-skin] #seasonHub :is(.season-table, .season-mini) tbody tr:not(.season-detail):not(.season-section-row):hover > :is(th, td):not(.is-heat):not([data-tone]):not(.is-first):not(.is-upcoming) { background: var(--season-hover); }
+:root[data-skin] #seasonHub .season-table tbody tr.season-section-row:hover > :is(th, td) { background: transparent; }
+/* DRS / straight-mode zones: chips of one size; flat out as one line, a bar taking the row's spare width with the metres
+   beside it; the detection and Overtake points as one compact line under the table. */
+#seasonHub .season-track-zones .season-zone-chip { justify-content: center; min-width: 44px; }
+#seasonHub .season-track-zones td.season-track-act { width: auto; }
+#seasonHub .season-track-zones td.season-zone-length { width: 40%; }
+#seasonHub .season-zone-length { white-space: nowrap; }
+#seasonHub .season-zone-length > * { vertical-align: middle; }
+#seasonHub .season-zone-bar { display: inline-block; width: calc(100% - 76px); max-width: 260px; height: 6px; margin-right: 10px; border-radius: 3px; background: color-mix(in oklch, var(--ui-label) 8%, transparent); overflow: hidden; }
+#seasonHub .season-zone-bar > i { display: block; height: 100%; border-radius: 3px; background: var(--ui-accent); }
+#seasonHub .season-zone-length > b { display: inline-block; min-width: 60px; font-weight: 600; font-variant-numeric: tabular-nums; }
+#seasonHub .season-zone-points { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 12px 0 2px; font-size: 13px; }
+#seasonHub .season-zone-points > span { display: inline-flex; align-items: center; gap: 8px; }
+#seasonHub .season-zone-points .season-zone-chip { min-width: 0; }
+#seasonHub .season-track-zones td.season-track-act { min-width: 170px; }
+#seasonHub .season-track-zones td.season-zone-length { min-width: 150px; }
+#seasonHub .season-zone-bar { min-width: 60px; }
+#seasonHub .season-track-zones td.season-zone-length { min-width: 130px; }
+#seasonHub .season-track-zones td.season-track-act { min-width: 150px; }
+#seasonHub .season-zone-bar { max-width: 200px; }
+#seasonHub .season-track-map .track-corner-leader { stroke: var(--ui-tertiary); stroke-width: 1; }
+/* Uniformity (from the Linear audit's look inventory): every Season table header is one 32 px row (a sortable header's
+   button no longer adds height), and every grid's row names share one size (team names were 11 px, driver codes 12 px). */
+:root[data-skin] #seasonHub .season-table thead .season-sort-button { height: 24px; min-height: 24px; padding-top: 0; padding-bottom: 0; line-height: 1.2; }
+:root[data-skin] #seasonHub .season-table thead th.season-sortable { padding-top: 0; padding-bottom: 0; }
+:root[data-skin] #seasonHub .season-grid tbody th :is(strong, .season-who, .season-maker) { font-size: 12px; font-weight: 500; }
+:root[data-skin] #seasonHub .season-grid tbody th { font-size: 12px; }
+/* Zones: each zone's opening on one line (and its low-grip line under it), so every zone row is the same height; a narrow
+   card scrolls the table sideways rather than wrapping the words. */
+#seasonHub .season-track-zones td.season-track-act, #seasonHub .season-track-act small { white-space: nowrap; }

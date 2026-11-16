@@ -899,3 +899,4 @@ body.performance-view #sidebarToggle {
 /* Diverging bars: an outlier beyond the scale runs to the edge, with a 2 px notch in the card's colour near its end. */
 .performance-tyre-age-bar.is-capped::after { content: ""; position: absolute; top: -1px; bottom: -1px; right: 6px; width: 2px; background: var(--lin-card, var(--ui-panel)); }
 .performance-tyre-age-bar.is-capped.is-low::after { right: auto; left: 6px; }
+:root[data-skin="linear"] #carPerformance .performance-empty { border-radius: 10px; }   /* one card corner across the site */

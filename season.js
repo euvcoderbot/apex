@@ -450,6 +450,7 @@
     b.addEventListener('click', () => show(id));
     return b;
   }
+  let railWatch = null;
   function place() {
     const rail = document.querySelector('#linearWorkspace .linear-navigation');
     if (rail) {
@@ -466,6 +467,16 @@
       }
     } else {
       (document.querySelector('.site-header .performance-tabs') || document.querySelector('.site-header .header-actions'))?.append(button);
+      // On the published site this script can run before linear-workspace.js has built the Linear rail: the button then
+      // lands in the header's tabs (which the rail later takes in) with no Home or Tracks row. Wait for the rail to exist
+      // and place the rows there once it does.
+      if (document.documentElement.dataset.skin === 'linear' && !railWatch && typeof MutationObserver === 'function') {
+        railWatch = new MutationObserver(() => {
+          if (!document.querySelector('#linearWorkspace .linear-navigation')) return;
+          railWatch.disconnect(); railWatch = null; place();
+        });
+        railWatch.observe(document.body, {childList: true, subtree: true});
+      }
     }
     mark(active && !SECTION_TABS.includes(state.tab));
     tracksRow?.setAttribute('aria-pressed', String(active && state.tab === 'tracks'));
@@ -925,20 +936,30 @@
     // Start/finish: a short bar across the first point.
     const [s0, s1] = [pts[0], pts[2]], dx = X(s1[0]) - X(s0[0]), dy = Y(s1[1]) - Y(s0[1]), len = Math.hypot(dx, dy) || 1;
     svg += `<line class="track-start" x1="${(X(s0[0]) - dy / len * 9).toFixed(1)}" y1="${(Y(s0[1]) + dx / len * 9).toFixed(1)}" x2="${(X(s0[0]) + dy / len * 9).toFixed(1)}" y2="${(Y(s0[1]) - dx / len * 9).toFixed(1)}"/>`;
-    // Corner numbers: outside the track, along the outward normal at the nearest outline point.
-    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-    for (const c of (fia ? fia.corners : t.map.corners) || []) {
-      const info = t.corners.list.find(x => x.number === c.number);
-      let near = 0, bestD = Infinity;
-      pts.forEach((p, i) => { const d = (p[0] - c.x) ** 2 + (p[1] - c.y) ** 2; if (d < bestD) { bestD = d; near = i; } });
-      const p = pts[near], q = pts[(near + 2) % pts.length], r = pts[(near - 2 + pts.length) % pts.length];
-      let nx = -(Y(q[1]) - Y(r[1])), ny = X(q[0]) - X(r[0]); const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
-      // Point the label away from the middle of the drawing.
-      if ((X(p[0]) - X(cx)) * nx + (Y(p[1]) - Y(-cy)) * ny < 0) { nx = -nx; ny = -ny; }
-      const lx = X(p[0]) + nx * 15, ly = Y(p[1]) + ny * 15;
-      const tip = info ? `Turn ${c.number}\nApex  ${info.speed} km/h${info.gear ? ` · gear ${info.gear}` : ''}\n${CORNER_TYPE[info.type]} corner` : `Turn ${c.number}`;
-      svg += `<g class="track-corner" data-corner="${esc(c.number)}" data-tip="${esc(tip)}"><circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="8.5"/><text x="${lx.toFixed(1)}" y="${(ly + 3.4).toFixed(1)}" text-anchor="middle">${esc(c.number)}</text></g>`;
-    }
+    // Corner numbers, placed as Session analysis places its own (placeRoadBeads, session-map.js): beside the road, never on
+    // it or on another number; a crowded corner slides along the road first, and only then steps away with a line back.
+    const corners = (fia ? fia.corners : t.map.corners) || [];
+    const road = pts.map(p => ({x: X(p[0]), y: Y(p[1])}));
+    const mid = {x: X((x0 + x1) / 2), y: Y(-(y0 + y1) / 2)};
+    const nearest = c => { let near = 0, bestD = Infinity; pts.forEach((p, i) => { const d = (p[0] - c.x) ** 2 + (p[1] - c.y) ** 2; if (d < bestD) { bestD = d; near = i; } }); return near; };
+    const pointAt = f => road[Math.max(0, Math.min(road.length - 1, Math.round(f * (road.length - 1))))];
+    const items = corners.map(c => {
+      const i = nearest(c), here = road[i], dx = here.x - mid.x, dy = here.y - mid.y, d = Math.hypot(dx, dy) || 1;
+      return {fraction: i / (road.length - 1), label: String(c.number), outward: {x: dx / d, y: dy / d}, corner: c};
+    });
+    // Bead size in the drawing's units: 8.5 for one digit, a little wider for two (as the circles drawn below).
+    const measure = {measureText: text => ({width: Math.max(13, String(text).length * 7.6)})};
+    const beads = typeof placeRoadBeads === 'function'
+      ? placeRoadBeads(measure, items, {road, pointAt, width: W, height: H, roadHalf: 6})   // 6: half the 11-unit road casing
+      : items.map(item => { const q = pointAt(item.fraction); return {x: q.x + item.outward.x * 15, y: q.y + item.outward.y * 15, radius: 8.5, label: item.label, point: q}; });
+    beads.forEach(b => {
+      const c = corners.find(x => String(x.number) === b.label), info = t.corners.list.find(x => x.number === c?.number);
+      const tip = info ? `Turn ${b.label}\nApex  ${info.speed} km/h${info.gear ? ` · gear ${info.gear}` : ''}\n${CORNER_TYPE[info.type]} corner` : `Turn ${b.label}`;
+      // A number that had to step away keeps a hairline back to its corner.
+      const away = Math.hypot(b.x - b.point.x, b.y - b.point.y) > b.radius + 16;
+      const leader = away ? `<line class="track-corner-leader" x1="${b.point.x.toFixed(1)}" y1="${b.point.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}"/>` : '';
+      svg += `<g class="track-corner" data-corner="${esc(b.label)}" data-tip="${esc(tip)}">${leader}<circle cx="${b.x.toFixed(1)}" cy="${b.y.toFixed(1)}" r="${b.radius.toFixed(1)}"/><text x="${b.x.toFixed(1)}" y="${(b.y + 3.4).toFixed(1)}" text-anchor="middle">${esc(b.label)}</text></g>`;
+    });
     // Each point as the FIA marks it: a short line across the track at its exact place (along the track's normal there),
     // with a wider invisible line over it for the hover note.
     for (const m of zoneMarks) {
@@ -1006,29 +1027,37 @@
     const source = el('p', 'season-footnote');
     if (!pick.zones.length) box.append(el('p', 'season-muted', `No ${drs ? 'DRS' : 'straight mode'} zones at this event.`));
     const zt = el('table', 'season-table season-track-table season-track-zones');
-    zt.innerHTML = `<thead><tr><th scope="col">Zone</th><th scope="col">Activation</th><th scope="col" class="num" title="Distance from the start line">From line</th><th scope="col">Flat out</th><th scope="col" class="num">Top</th></tr></thead>`;
+    zt.innerHTML = `<thead><tr><th scope="col">Zone</th><th scope="col">Opens</th><th scope="col" class="num" title="Distance from the start line">From line</th><th scope="col" title="Flat out from the zone's start on the fastest qualifying lap">Flat out</th><th scope="col" class="num" title="Top speed in the zone">Top</th></tr></thead>`;
     const tb = el('tbody'), longest = Math.max(1, ...pick.zones.map(z => z.length || 0));
     for (const z of pick.zones) {
       const a = drs ? z : z.normal, tr = el('tr');
       const chip = el('td'); chip.append(el('span', 'season-zone-chip', drs ? `DRS ${z.number ?? ''}`.trim() : z.zone));
       const act = el('td', 'season-track-act', a?.text || 'n/a');
       if (!drs) act.append(el('small', 'season-muted', z.low?.text ? `low grip: ${z.low.text}` : 'not used in low grip'));
-      const len = z.length ? trackBarCell(z.length / longest, `${z.ends === 'data gap' ? '\u2265 ' : ''}${z.length} m`) : el('td', 'season-muted', '\u2014');
-      if (z.length) len.classList.add('is-stacked');
-      if (z.ends === 'data gap') len.title = 'At least: the lap\'s telemetry has a gap before the driver lifts';
+      // Flat out on one line: a bar that takes the row's spare width (the longest zone fills it), then the metres.
+      const len = el('td', 'season-zone-length');
+      if (z.length) {
+        const bar = el('span', 'season-zone-bar'); const fill = el('i'); fill.style.width = `${(z.length / longest * 100).toFixed(1)}%`; bar.append(fill);
+        len.append(bar, el('b', null, `${z.ends === 'data gap' ? '\u2265 ' : ''}${z.length} m`));
+        if (z.ends === 'data gap') len.title = 'At least: the lap\'s telemetry has a gap before the driver lifts';
+      } else len.append(el('span', 'season-muted', '\u2014'));
       tr.append(chip, act, el('td', 'num', km(a)), len, el('td', 'num', z.top_speed ? `${z.top_speed} km/h` : '\u2014'));
       tb.append(tr);
     }
-    // The detection and Overtake points as rows of the same table, each with its own chip.
-    for (const [name, p] of points) {
-      const tr = el('tr', 'is-point'), chip = el('td');
-      chip.append(el('span', `season-zone-chip ${/detection/i.test(name) ? 'is-detect' : 'is-ot'}`, /detection/i.test(name) ? 'Detect' : 'Overtake'));
-      tr.append(chip, el('td', 'season-track-act', p.text), el('td', 'num', km(p)), el('td'), el('td'));
-      tr.title = name;
-      tb.append(tr);
-    }
     zt.append(tb);
-    if (pick.zones.length || points.length) box.append(wrap(zt));
+    if (pick.zones.length) box.append(wrap(zt));
+    // Detection and Overtake are single points, not zones: one compact line under the table, each its name, where, how far.
+    if (points.length) {
+      const line = el('div', 'season-zone-points');
+      for (const [name, p] of points) {
+        const item = el('span');
+        item.append(el('span', `season-zone-chip ${/detection/i.test(name) ? 'is-detect' : 'is-ot'}`, name.replace('Overtake ', '').replace(/^\w/, c => c.toUpperCase())),
+          el('b', null, p.text || '\u2014'), el('span', 'season-muted', km(p)));
+        if (/^Overtake/.test(name)) item.title = name;
+        line.append(item);
+      }
+      box.append(line);
+    }
     box.classList.add('season-data-section');   // a table section, like Sectors beside it
     const unplaced = [...pick.zones.map(z => (drs ? z : z.normal)), ...points.map(([, p]) => p)].some(p => p && p.at == null);
     source.append(drs
@@ -1118,7 +1147,7 @@
     if (fia) sideStack.append(fia);
     if (t.straights?.length) {
       const sr = el('table', 'season-table season-track-table season-track-straights');
-      sr.innerHTML = '<thead><tr><th scope="col">Stretch</th><th scope="col">Length</th><th scope="col" class="num">Entry</th><th scope="col" class="num">Top speed</th></tr></thead>';
+      sr.innerHTML = '<thead><tr><th scope="col">Stretch</th><th scope="col">Length</th><th scope="col" class="num">Entry</th><th scope="col" class="num" title="Top speed in the zone">Top</th></tr></thead>';
       const tb = el('tbody'), longest = Math.max(...t.straights.map(s => s.length));
       for (const s of [...t.straights].sort((a, b) => b.length - a.length)) {
         const tr = el('tr'), len = trackBarCell(s.length / longest, `${s.length} m`);
@@ -2329,7 +2358,7 @@
       }
       svg += `<path data-id="${esc(s.id)}" class="line${dashed.has(s) ? ' is-dashed' : ''}" style="stroke:${esc(s.colour)}" d="${d}"/>`;
       // A dot on every round of every series, as Car performance's trend chart.
-      if (series.length > 1) svg += `<g class="pts${dashed.has(s) ? ' is-hollow' : ''}" data-id="${esc(s.id)}" style="--c:${esc(s.colour)}">${pts.map(([px, py]) => `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}"/>`).join('')}</g>`;
+      svg += `<g class="pts${dashed.has(s) ? ' is-hollow' : ''}" data-id="${esc(s.id)}" style="--c:${esc(s.colour)}">${pts.map(([px, py]) => `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}"/>`).join('')}</g>`;
       if (series.length === 1) {
         const [ex, ey] = pts.at(-1), last = s.values.filter(v => v != null).at(-1);
         svg += `<circle class="end" cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="3" style="fill:${esc(s.colour)}"/><text class="label is-value" x="${(ex + 8).toFixed(1)}" y="${(ey + 3.5).toFixed(1)}">${esc(invert ? 'P' + last : format(last))}</text>`;
@@ -2883,7 +2912,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     toolbar.append(driverPicker(data, a, v => { state.a = v; if (state.b === v) state.b = null; repaint(); }, 'First driver'), swap,
       driverPicker(data, b, v => { state.b = v; repaint(); }, 'Second driver'));
     const result = compare(data, a, b);
-    const ca = teamColour(data.drivers[a]?.team), cb0 = teamColour(data.drivers[b]?.team), cb = cb0 === ca ? (getComputedStyle(page).getPropertyValue('--ui-label').trim() || '#fff') : cb0;
+    const ca = teamColour(data.drivers[a]?.team), cb0 = teamColour(data.drivers[b]?.team), cb = cb0 === ca ? (document.documentElement.dataset.theme === 'light' ? '#6b6b73' : '#a1a1aa') : cb0;   // a teammate in the same colour: a calm grey, not white (white bars glared beside the team colour)
     let rows = el('div', 'season-h2h');
     const face = (id, colour, mirrored) => {
       const side = el('div', `season-h2h-side${mirrored ? ' is-right' : ''}`); side.style.setProperty('--team', colour);
@@ -3030,9 +3059,12 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     const gbody = el('tbody');
     // Every weekend in five rows: each driver's qualifying place, the gap between them right under those, then each
     // driver's race finish (the small number their sprint finish). The pinned column counts the sessions each was ahead.
-    const label = (id, session) => { const th = el('th'); th.scope = 'row'; const w = who(data, id, {code: true, team: false}); w.append(el('small', 'season-row-session', session)); th.append(w); return th; };
+    const label = id => { const th = el('th'); th.scope = 'row'; th.append(who(data, id, {code: true, team: false})); return th; };
+    // A section's own header row: its name in the first column, the rest of the row left clear.
+    const sectionRow = name => { const tr = el('tr', 'season-section-row'); const th = el('th', null, name); th.scope = 'rowgroup'; tr.append(th); for (let i = 0; i < data.rounds.length + 1; i++) tr.append(el('td')); return tr; };
+    gbody.append(sectionRow('Qualifying'));
     for (const id of [a, b]) {
-      const tr = el('tr'); tr.append(label(id, 'Qualifying'));
+      const tr = el('tr'); tr.append(label(id));
       for (const r of data.rounds) {
         const td = el('td', 'num');
         if (notRun(r)) { td.classList.add('is-upcoming'); tr.append(td); continue; }
@@ -3053,9 +3085,9 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       if (notRun(r)) td.classList.add('is-upcoming');
       else if (g) {
         const quick = g.seconds <= 0 ? a : b;
-        // Who was quicker, in small type above the gap: teammates share a colour, so the colour alone cannot say.
-        td.append(el('small', 'season-gap-who', driverCode(data, quick)), el('span', null, Math.abs(g.seconds) < 0.0005 ? '0.000' : Math.abs(g.seconds).toFixed(Math.abs(g.seconds) < 10 ? 3 : 1)));
-        td.classList.add('is-heat', 'season-gap-cell'); td.style.setProperty('--team', quick === a ? ca : cb);
+        // The quicker driver's colour says who (the key above the grid names the colours); the pill holds the gap only.
+        td.textContent = Math.abs(g.seconds) < 0.0005 ? '0.000' : Math.abs(g.seconds).toFixed(Math.abs(g.seconds) < 10 ? 3 : 1);
+        td.classList.add('is-heat'); td.style.setProperty('--team', quick === a ? ca : cb);
         td.style.setProperty('--heat', String(0.35 + 0.3 * Math.min(Math.abs(g.seconds), gapMax) / gapMax));   // the quicker driver's colour reads at a glance; capped so text stays readable on a white team colour
         td.title = `${r.name}, ${g.session}: ${driverCode(data, quick)} quicker by ${Math.abs(g.seconds).toFixed(3)} s`;
       } else td.textContent = '—';
@@ -3065,8 +3097,9 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     const gapTotal = pin(el('td', 'num season-strong', medianGap == null ? '—' : `${Math.abs(medianGap).toFixed(3)}`)); if (medianGap != null) gapTotal.title = `Median gap: ${driverCode(data, medianGap <= 0 ? a : b)} quicker`;
     qRow.append(gapTotal);
     gbody.append(qRow);
+    gbody.append(sectionRow('Race'));
     for (const id of [a, b]) {
-      const tr = el('tr', id === a ? 'is-group-start' : null); tr.append(label(id, 'Race'));
+      const tr = el('tr'); tr.append(label(id));
       for (const r of data.rounds) {
         const td = el('td', 'num');
         if (notRun(r)) { td.classList.add('is-upcoming'); tr.append(td); continue; }
@@ -3083,6 +3116,29 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       tr.append(pin(el('td', 'num season-strong', String(result.tally.race[id === a ? 0 : 1]))));
       gbody.append(tr);
     }
+    const pRow = el('tr', 'season-gap-row'), pHead = el('th', null, 'Points'); pHead.scope = 'row'; pRow.append(pHead);
+    const pointsMax = Math.max(1, ...data.rounds.map(r => Math.abs(roundPoints(r, 'driver', a) - roundPoints(r, 'driver', b))));
+    let pointsA = 0, pointsB = 0;
+    for (const r of data.rounds) {
+      const td = el('td', 'num');
+      if (notRun(r)) { td.classList.add('is-upcoming'); pRow.append(td); continue; }
+      const pa = roundPoints(r, 'driver', a), pb = roundPoints(r, 'driver', b), diff = pa - pb;
+      pointsA += pa; pointsB += pb;
+      if (!pa && !pb) td.textContent = '—';
+      else if (!diff) { td.textContent = 'level'; td.classList.add('season-muted'); }
+      else {
+        const more = diff > 0 ? a : b;
+        td.textContent = `+${Math.abs(diff)}`;
+        td.classList.add('is-heat'); td.style.setProperty('--team', more === a ? ca : cb);
+        td.style.setProperty('--heat', String(0.35 + 0.3 * Math.abs(diff) / pointsMax));
+      }
+      td.title = `${r.name}: ${driverCode(data, a)} ${pa} pts · ${driverCode(data, b)} ${pb} pts (race and sprint)`;
+      pRow.append(td);
+    }
+    const pTotal = pin(el('td', 'num season-strong', pointsA === pointsB ? 'level' : `+${Math.abs(pointsA - pointsB)}`));
+    pTotal.title = `Season: ${driverCode(data, a)} ${pointsA} pts · ${driverCode(data, b)} ${pointsB} pts`;
+    pRow.append(pTotal);
+    gbody.append(pRow);
     weeks.append(gbody);
     // Every teammate battle, one compact row per pairing: the pair, the three scores (weekends ahead, each with a thin split
     // bar in the team colour, the leader's number bright), the median qualifying gap and their season points. A row opens
@@ -3141,7 +3197,9 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     if (view === 'pace') { const paceTwo = el('div', 'season-two'); paceTwo.append(h2hPace(data, a, b, ca, cb), practicePace(data, a, b, ca, cb)); return [toolbar, hero, paceTwo]; }
     if (view === 'points') return [toolbar, hero, h2hExtras(data, a, b, ca, cb)];
     if (view === 'battles') return [toolbar, allBattles];
-    return [toolbar, hero, card('Race-by-race', wrap(weeks), el('p', 'season-footnote', `Each driver’s qualifying place (purple pole, light into Q3, grey out before Q3), then the gap between them in the last session both set a time in, filled in the quicker driver’s colour (deeper for a bigger gap; ${gapMax.toFixed(1)} s or more is the deepest). Race rows: each driver’s finish (the small number their sprint finish), purple a win, green a podium, white points, red a retirement.`))];
+    const colourKey = el('div', 'season-legend season-h2h-key');
+    for (const [id, colour] of [[a, ca], [b, cb]]) { const k = el('span', null, driverName(data, id)); k.dataset.tone = 'custom'; k.style.setProperty('--tone', colour); colourKey.append(k); }
+    return [toolbar, hero, card('Race-by-race', colourKey, wrap(weeks), el('p', 'season-footnote', `Each driver’s qualifying place (purple pole, light into Q3, grey out before Q3), then the gap between them in the last session both set a time in, filled in the quicker driver’s colour (deeper for a bigger gap; ${gapMax.toFixed(1)} s or more is the deepest). Race: each driver’s finish (the small number their sprint finish), purple a win, green a podium, white points, red a retirement; then who scored more that weekend, race and sprint, and by how many points.`))];
   }
   // Head-to-head pace: the two drivers' rolling race and qualifying pace and typical top speed (from Form's data), and
   // their race pace at every round. Filled in when the race analysis has loaded.
