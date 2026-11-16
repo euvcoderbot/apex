@@ -2810,7 +2810,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     }
     const a = state.a, b = state.b, sa = data.driver_stats[a], sb = data.driver_stats[b];
     const repaint = () => { window.ApexUrl?.write('season', urlParams()); paint(() => renderH2H(data)); };
-    const toolbar = el('div', 'season-toolbar');
+    const toolbar = el('div', 'season-toolbar season-h2h-toolbar');   // view pills on their own row, then driver ⇄ driver
     // Between the pickers, a swap: the second driver becomes the first (left side, first colour) and the other way round.
     const swap = el('button', 'season-swap'); swap.type = 'button'; swap.setAttribute('aria-label', 'Swap the two drivers'); swap.title = 'Swap drivers';
     swap.innerHTML = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5.5h10M10.5 3 13 5.5 10.5 8M13 10.5H3M5.5 8 3 10.5 5.5 13"/></svg>';

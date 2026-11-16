@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // On the published site the latest race is saved already: Session analysis opens on it rather than on an empty page asking
   // for Load session. Only when that view is actually opened (never in the background on Home or Season) and nothing is loaded.
   const published = () => Boolean(window.APEX_SNAPSHOT_MODE) && !window.APEX_LOCAL_MODE && !window.APEX_COMPUTE_ORIGIN;
-  let autoLoaded = false, autoInFlight = false;
+  let autoLoaded = false, autoInFlight = false, autoReplaced = false;
   const autoLoad = () => {
     if (autoLoaded || !published() || sessionEventName) return;
     autoLoaded = true;
@@ -163,7 +163,18 @@ document.addEventListener('DOMContentLoaded', () => {
       const option = $('#session')?.selectedOptions?.[0];
       if (!publishedSessions || !option || option.disabled || /not published/i.test(option.textContent)) return;
       autoInFlight = true;
-      return Promise.resolve(loadRealSession()).finally(() => { autoInFlight = false; });
+      return Promise.resolve(loadRealSession()).finally(() => { autoInFlight = false; }).then(() => {
+        // A comparison on screen at once: the two leading finishers' fastest laps (the person changes or clears them).
+        if (autoReplaced || !sessionEventName || loaded.length || document.body.classList.contains('season-view') || document.body.classList.contains('performance-view')) return;
+        const leaders = [...realDrivers.values()].filter(d => Number.isFinite(d.position)).sort((x, y) => x.position - y.position).slice(0, 2);
+        for (const d of leaders) {
+          const best = (d.laps || []).filter(l => Number.isFinite(l.time) && !l.in_lap && !l.out_lap).sort((x, y) => x.time - y.time)[0];
+          if (!best) continue;
+          if (!selected.includes(d.code)) selected.push(d.code);
+          toggleLoadedLap(d.code, best.lap);
+        }
+        if (loaded.length) { renderDrivers(); window.ApexUrl?.write('session', sessionUrlState(), {replace: true}); }   // replace: Back still leaves the page
+      });
     }).catch(() => { autoLoaded = false; });
   };
   // Load pressed while the automatic load runs: it replaces that load (the session the menus now name), not stops it.
@@ -171,7 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const button = event.target.closest?.('#loadSession');
     if (!button || !autoInFlight) return;
     event.stopImmediatePropagation(); event.preventDefault();
-    autoInFlight = false; sessionRequest?.abort();
+    autoInFlight = false; autoReplaced = true; sessionRequest?.abort();
     const started = Date.now();
     const again = () => (button.classList.contains('is-loading') && Date.now() - started < 8000 ? setTimeout(again, 50) : loadRealSession());
     again();

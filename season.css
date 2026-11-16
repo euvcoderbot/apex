@@ -1486,3 +1486,4 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 @media (max-width: 640px) { #seasonHub .home-glance { grid-template-columns: minmax(0, 1fr); } }
 /* A row of season numbers in two columns on a phone: an odd one out spans the row instead of leaving an empty cell. */
 @media (max-width: 640px) { #seasonHub .season-numbers > :last-child:nth-child(odd) { grid-column: 1 / -1; } }
+#seasonHub .season-h2h-toolbar > .season-view-pills { flex-basis: 100%; }
