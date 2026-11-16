@@ -1453,3 +1453,29 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 #seasonHub .season-next-links { display: inline-flex; align-items: baseline; gap: 14px; margin-left: 6px; }
 #seasonHub .season-next-links > a { margin-left: 0; font-size: 13px; white-space: nowrap; }
 @media (max-width: 640px) { #seasonHub .season-next-links { flex-basis: 100%; margin: 6px 0 0; } }
+/* The hovered cell's column header (the round) in the label colour, with a soft pill behind it. */
+#seasonHub .season-grid thead th.is-col-lit { color: var(--ui-label); }
+#seasonHub .season-grid thead th.is-col-lit > :is(.season-round-link, .season-round-mark, span) { background: var(--lin-nav-hover, color-mix(in oklch, var(--ui-label) 8%, transparent)); border-radius: 6px; }
+/* Tracks > Corners: the map (sticky on a wide screen) beside one table of every corner; a hovered corner lit in both. */
+#seasonHub .season-corners-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 16px; align-items: start; }
+@media (min-width: 1081px) { #seasonHub .season-corners-map { position: sticky; top: 76px; } }
+@media (max-width: 1080px) { #seasonHub .season-corners-layout { grid-template-columns: minmax(0, 1fr); } }
+#seasonHub .track-corner.is-corner-lit circle { fill: var(--ui-label); stroke: var(--ui-label); }
+#seasonHub .track-corner.is-corner-lit text { fill: var(--ui-canvas, #000); }
+#seasonHub .season-track-corners tr.is-corner-lit > td { background: var(--lin-nav-hover, color-mix(in oklch, var(--ui-label) 6%, transparent)); }
+/* Team filter pills: the dot's box is the dot (8 px), not a 22 px logo slot, so every pill has the same padding; All teams
+   has a neutral ring in that place. */
+:root[data-skin] #seasonHub .season-filter.has-mark { gap: 7px; }
+:root[data-skin] #seasonHub .season-filter .team-mark.season-team-mark { flex: 0 0 8px; width: 8px; min-width: 8px; height: 8px; padding: 0; margin: 0; }
+:root[data-skin] #seasonHub .season-filter.is-all::before { content: ''; display: block; flex: 0 0 8px; width: 8px; height: 8px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid currentColor; background: none; opacity: .7; }
+/* Drivers: the season's numbers as three short lists (Results, Qualifying, Race craft), each row the measure, then its
+   value with a quiet note under it. */
+#seasonHub .season-stat-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+@media (max-width: 900px) { #seasonHub .season-stat-groups { grid-template-columns: minmax(0, 1fr); } }
+#seasonHub .season-stat-list { display: grid; margin: 0; }
+#seasonHub .season-stat-list > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-height: 40px; padding: 8px 0; border-top: 1px solid var(--lin-hairline, var(--ui-separator)); }
+#seasonHub .season-stat-list > div:first-child { border-top: 0; }
+#seasonHub .season-stat-list dt { color: var(--ui-secondary); font-size: 13px; }
+#seasonHub .season-stat-list dd { display: grid; justify-items: end; margin: 0; text-align: right; }
+#seasonHub .season-stat-list dd b { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+#seasonHub .season-stat-list dd small { font-size: 11px; }
