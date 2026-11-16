@@ -7,7 +7,11 @@ for (const width of [1440, 1024, 390]) for (const theme of ['dark', 'light']) {
     test.use({viewport: {width, height: 1000}});
     test('all Season tabs and performance categories remain usable', async ({page}, info) => {
       test.setTimeout(180000);
-      const errors = []; page.on('pageerror', error => errors.push(error.message));
+      // WebKit reports a request to the test server that a page.goto cancels as "Fetch API cannot load <url> due to access
+      // control checks" (on CI the Season requests are still retrying /api/data when the next tab opens). That is the
+      // navigation, not an error in the page; the same message for any other host still fails the test.
+      const cancelled = /^(?:Fetch API cannot load )?(?:https?:)?\/{1,2}127\.0\.0\.1:\d+\/\S* due to access control checks\.?$/;
+      const errors = []; page.on('pageerror', error => { if (!cancelled.test(error.message)) errors.push(error.message); });
       await page.addInitScript(t => localStorage.setItem('apex-theme', t), theme);
       const checkWidth = async label => expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), label).toBeLessThanOrEqual(1);
       for (const tab of ['schedule', 'tracks', 'results', 'standings', 'form', 'drivers', 'h2h', 'upgrades', 'units']) {
