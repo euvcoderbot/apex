@@ -1443,3 +1443,13 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 @media (max-width: 760px) { #seasonHub .season-skeleton { grid-template-columns: 1fr; } }
 #seasonHub .season-stat-chase { margin: 10px 0 0; }
 #seasonHub .season-stat-chase li { min-height: 28px; }
+#seasonHub .season-who > strong[role="link"]:focus-visible { outline: 2px solid var(--ui-focus, var(--ui-accent)); outline-offset: 2px; border-radius: 3px; }
+/* Grand Prix results on a phone: the round and the Grand Prix stay in view while the results scroll sideways. */
+@media (max-width: 760px) {
+  :root[data-skin] #seasonHub .season-gp-table tr:not(.season-detail) > :is(th, td):first-child { position: sticky; left: 0; z-index: 2; width: 34px; min-width: 34px; background: var(--season-surface, var(--ui-panel)); }
+  :root[data-skin] #seasonHub .season-gp-table tr:not(.season-detail) > :is(th, td):nth-child(2) { position: sticky; left: 34px; z-index: 2; background: var(--season-surface, var(--ui-panel)); box-shadow: inset -1px 0 var(--lin-hairline, var(--ui-separator)); }
+}
+#seasonHub .season-next-title { flex-wrap: wrap; }
+#seasonHub .season-next-links { display: inline-flex; align-items: baseline; gap: 14px; margin-left: 6px; }
+#seasonHub .season-next-links > a { margin-left: 0; font-size: 13px; white-space: nowrap; }
+@media (max-width: 640px) { #seasonHub .season-next-links { flex-basis: 100%; margin: 6px 0 0; } }

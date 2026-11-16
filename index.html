@@ -43,6 +43,8 @@
       }).catch(function () { return null; })};
     }
   </script>
+  <!-- The interface font, requested with the stylesheet rather than after it is parsed, so text does not swap fonts on first paint. -->
+  <link rel="preload" href="assets/fonts/inter/inter-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="styles.css?v=20261007-ui-system">
 </head>
 <body>

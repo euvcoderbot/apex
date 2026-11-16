@@ -11,7 +11,7 @@
     }
     destination.append(node);
   };
-  function commands() {
+  function commands(query = '') {
     return [
       {label: 'Session analysis', detail: 'Compare laps and telemetry', action: () => document.querySelector('[data-analysis-view="session"]')?.click()},
       {label: 'Car performance', detail: 'Explore team and driver measurements', action: () => document.querySelector('[data-analysis-view="performance"]')?.click()},
@@ -19,12 +19,14 @@
       {label: 'Change appearance', detail: 'Switch light / dark', action: () => document.getElementById('themeToggle')?.click()},
       {label: 'Toggle explanations', detail: 'Show or hide measurement guidance', action: () => document.getElementById('explanationsToggle')?.click()},
       ...[...document.querySelectorAll('#performanceCategoryList button:not(:disabled)')].map(button => ({label: button.getAttribute('aria-label') || button.textContent.trim(), detail: 'Car performance category', action: () => { document.querySelector('[data-analysis-view="performance"]')?.click(); button.click(); }})),
+      // Season pages, and once typing starts its drivers, teams and circuits (season.js).
+      ...(window.ApexSeasonCommands?.(query) || []),
     ];
   }
   function renderCommands() {
     const query = search.value.toLowerCase().trim();
     results.replaceChildren();
-    for (const command of commands().filter(item => (item.label + ' ' + item.detail).toLowerCase().includes(query))) {
+    for (const command of commands(query).filter(item => (item.label + ' ' + item.detail).toLowerCase().includes(query))) {
       const button = document.createElement('button'); button.type = 'button';
       const label = document.createElement('span'); label.textContent = command.label;
       const detail = document.createElement('small'); detail.textContent = command.detail;

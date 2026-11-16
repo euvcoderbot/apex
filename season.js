@@ -96,8 +96,11 @@
   function addAvatarPhoto(span, id) {
     if (imagery.photos[id] && !span.querySelector('img')) {
       // The number stays underneath: if the photo fails to load, removing it shows the number.
-      const img = el('img'); img.src = `assets/drivers/${encodeURIComponent(id)}.webp`; img.alt = ''; img.decoding = 'async'; img.loading = 'lazy';
-      img.addEventListener('error', () => img.remove(), {once: true});
+      // Small avatars use the 64 px thumbnails (about 2 KB each); the large portrait keeps the full photo. A missing
+      // thumbnail falls back to the full photo, then to the number.
+      const full = `assets/drivers/${encodeURIComponent(id)}.webp`, small = !span.classList.contains('is-lg');
+      const img = el('img'); img.src = small ? `assets/driver-thumbs/${encodeURIComponent(id)}.webp` : full; img.alt = ''; img.decoding = 'async'; img.loading = 'lazy';
+      img.addEventListener('error', function retry() { if (img.src.includes('driver-thumbs')) { img.src = full; img.addEventListener('error', () => img.remove(), {once: true}); } else img.remove(); }, {once: true});
       span.append(img); imagery.shown.add(id);
     }
   }
@@ -340,6 +343,7 @@
       page.scrollIntoView?.({block: 'start'});
     }, true);
     page.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && event.target.matches?.('.season-who > strong[role="link"]')) { event.preventDefault(); event.target.click(); return; }
       if (event.key !== 'Escape' || state.tab !== 'results' || state.expanded == null || !collapseOpenRow) return;
       if (event.target.closest('select, input, .select-menu, [aria-expanded="true"]:not(.season-row-toggle)')) return;
       const fn = collapseOpenRow; collapseOpenRow = null; fn();
@@ -513,6 +517,12 @@
     body.replaceChildren(...nodes, ...(credits ? [credits] : []));
     body.setAttribute('aria-busy', 'false');
     markTips(body);
+    // Names that open a page are links for the keyboard and screen readers too (Enter opens them; see the page's click).
+    for (const name of body.querySelectorAll('.season-who[data-driver] > strong, .season-who[data-team] > strong')) {
+      if (name.closest('button, a, select, label, summary, [role="button"]')) continue;
+      if (name.parentElement.dataset.team && state.year < FIA_DOCUMENTS_FROM.upgrades) continue;
+      name.setAttribute('role', 'link'); name.tabIndex = 0;
+    }
     for (const slot of imagery.pendingCircuits.keys()) if (!slot.isConnected) imagery.pendingCircuits.delete(slot);
     window.ApexUI?.decorate?.(body);
     if (segmentIndex >= 0) [...(body.querySelectorAll('.season-segment')[segmentIndex]?.querySelectorAll('button') || [])]
@@ -570,7 +580,7 @@
       if (formReady && !form) formReady.then(f => { if (f && token === renderToken && state.tab === 'drivers' && !body.contains(document.activeElement?.closest('select, .select-menu') || null)) paint(() => renderDrivers(data, f)); });
       const view = {home: renderHome, schedule: renderSchedule, results: renderResults, standings: renderStandings, form: renderForm, drivers: renderDrivers,
         h2h: renderH2H, upgrades: renderUpgrades, units: renderUnits, tracks: renderTracks}[tab];
-      setCodes(data);
+      setCodes(data); currentData = data;
       const note = savedNote(extra?.saved_at ? extra : data), saved = page.querySelector('.season-saved');
       if (saved) { saved.textContent = note; saved.hidden = !note; }
       paint(() => view(data, tab === 'drivers' ? form : extra));
@@ -734,9 +744,18 @@
     for (const r of data.rounds) { const i = el('i'); i.dataset.status = r.status; i.title = `R${r.round} · ${r.name}`; track.append(i); }
     progress.append(el('span', null, `${done} of ${data.rounds.length} Grands Prix`), track,
       el('span', 'season-muted', `${data.rounds.filter(r => r.sprint_weekend).length} sprint weekends`));
+    // Every remaining session of the season in one calendar file.
+    const allIcs = calendarLink(data.rounds.filter(r => r.status !== 'done'), 'Add the rest of the season to your calendar', `f1-${data.year}-remaining.ics`);
+    if (allIcs) progress.append(allIcs);
     out.push(progress);
+    // Views: every round, the rounds still to come, or the completed ones (twenty finished rounds no longer bury the next).
+    const SCHEDULE_VIEWS = [['all', 'All'], ['upcoming', 'To come'], ['done', 'Completed']];
+    const scheduleView = pageView('schedule', SCHEDULE_VIEWS);
+    const bar = el('div', 'season-toolbar'); bar.append(viewPills('schedule', SCHEDULE_VIEWS, () => paint(() => renderSchedule(data))));
+    out.push(bar);
     const grid = el('div', 'season-rounds');
     for (const r of data.rounds) {
+      if ((scheduleView === 'upcoming' && r.status === 'done') || (scheduleView === 'done' && r.status !== 'done')) continue;
       const item = el('article', 'season-round'); item.dataset.status = r.status;
       // Header: round, flag and a quiet Sprint label; status on the right as Linear writes it (a small icon and a word).
       const head = el('div', 'season-round-head');
@@ -794,7 +813,7 @@
       }
       grid.append(item);
     }
-    out.push(grid);
+    out.push(grid.childElementCount ? grid : empty(scheduleView === 'done' ? 'No rounds completed yet.' : 'Every round has been run.'));
     return out;
   }
   // ----- Tracks: one circuit in full, and every circuit compared -----
@@ -1178,6 +1197,28 @@
     return htmlNode(`<svg class="season-weather-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`);
   }
   const fmtLeft = ms => { const d = Math.floor(ms / 86400000), h = Math.floor(ms % 86400000 / 3600000), m = Math.floor(ms % 3600000 / 60000); return `${d ? d + 'd ' : ''}${h}h ${String(m).padStart(2, '0')}m`; };
+  // Add to calendar: an .ics file of every session still to come in the given rounds (times are UTC; the calendar app shows
+  // them in local time). Lengths are the usual: races two hours, qualifying and practice an hour, sprint qualifying 45 min.
+  function calendarLink(rounds, label, fileName) {
+    const minutes = name => (/^Race$/i.test(name) ? 120 : /Sprint Qualifying|Sprint Shootout/i.test(name) ? 45 : 60);
+    const stamp = d => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    const text = v => String(v).replace(/[\\,;]/g, m => '\\' + m);
+    const events = rounds.flatMap(r => (r.sessions || []).filter(x => new Date(x.start) > new Date()).map(x => {
+      const start = new Date(x.start), end = new Date(start.getTime() + minutes(x.name) * 60000);
+      return ['BEGIN:VEVENT', `UID:apex-${state.year}-${r.round}-${x.name.replace(/\W+/g, '-').toLowerCase()}@f1apexdata`, `DTSTAMP:${stamp(new Date())}`,
+        `DTSTART:${stamp(start)}`, `DTEND:${stamp(end)}`, `SUMMARY:${text(`${r.name} · ${x.name}`)}`, `LOCATION:${text([r.circuit, r.locality, r.country].filter(Boolean).join(', '))}`, 'END:VEVENT'].join('\r\n');
+    }));
+    if (!events.length) return null;
+    const link = el('a', 'season-link season-ics', label);
+    link.download = fileName; link.title = `${events.length} session${events.length === 1 ? '' : 's'}, in your calendar app's time zone`;
+    link.addEventListener('click', () => {
+      const body = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//F1 Apex Data//Season//EN', 'CALSCALE:GREGORIAN', ...events, 'END:VCALENDAR'].join('\r\n');
+      link.href = URL.createObjectURL(new Blob([body], {type: 'text/calendar'}));
+      setTimeout(() => URL.revokeObjectURL(link.href), 4000);
+    });
+    link.href = '#';
+    return link;
+  }
   function nextRaceHero(data, next) {
     const hero = el('section', 'season-card season-next');
     const top = el('div', 'season-next-top');
@@ -1185,7 +1226,10 @@
     titleRow.append(el('h2', null, next.name));
     const trackGo = el('a', 'season-link season-next-track', 'Circuit guide'); trackGo.href = '#';
     trackGo.addEventListener('click', event => { event.preventDefault(); openTrack(next.name); });
-    titleRow.append(trackGo);
+    // The circuit guide and the calendar file, together after the name (their own line on a phone).
+    const links = el('span', 'season-next-links'); links.append(trackGo);
+    const ics = calendarLink([next], 'Add to calendar', `${next.name.replace(/\W+/g, '-')}-${data.year}.ics`); if (ics) links.append(ics);
+    titleRow.append(links);
     const meta = el('p', 'season-muted', `Round ${next.round} · ${next.circuit} · ${next.locality}, ${next.country}${next.sprint_weekend ? ' · Sprint weekend' : ''}`);
     const count = el('div', 'season-countdown'); count.setAttribute('aria-live', 'off');
     const countLabel = el('span', 'season-muted'), countValue = el('b');
@@ -1484,7 +1528,7 @@
       : session === 'sprint' ? ['Winner', 'Second', 'Third', 'Fastest lap', ['Margin', 'num']]
       : session === 'sprintq' ? ['Sprint pole', 'Second', 'Third', ['Pole lap', 'num'], ['Gap to P2', 'num']]
       : ['Pole', 'Second', 'Third', ['Pole lap', 'num'], ['Gap to P2', 'num'], ['Q3 cut', 'num'], 'Sprint pole'];
-    const table = el('table', 'season-table');
+    const table = el('table', 'season-table season-gp-table');
     const head = el('tr'); head.append(el('th', 'num', 'Round'), el('th', null, 'Grand Prix'));
     for (const h of heads) { const [label, cls] = Array.isArray(h) ? h : [h, null]; head.append(el('th', cls, label)); }
     head.querySelectorAll('th').forEach(th => { th.scope = 'col'; });
@@ -1804,9 +1848,9 @@
     table.append(tb);
     const ids = last.map(e => e.id);
     const points = lineChart(evo.map(s => s.round), ids.map(id => ({id, colour: colour(id), label: label(id), short: drivers ? driverCode(data, id) : teamName(data, id),
-      values: evo.map(s => s.table.find(x => x.id === id)?.points ?? 0)})), {title: 'Points after each round', endLabels: drivers ? 6 : 5, height: 400});
+      values: evo.map(s => s.table.find(x => x.id === id)?.points ?? 0)})), {title: 'Points after each round', endLabels: drivers ? 6 : 5, height: 300, width: 460});   // drawn near the column's width (about 410 px), so names read at full size
     const ranks = bumpChart(evo.map(s => s.round), ids.map(id => ({id, colour: colour(id), label: drivers ? driverCode(data, id) : teamName(data, id),
-      values: evo.map(s => s.table.find(x => x.id === id)?.position ?? null)})));
+      values: evo.map(s => s.table.find(x => x.id === id)?.position ?? null)})), {width: 460, row: 16});   // 16 units: names at least 14 px apart at that width
     const layout = el('div', 'season-two season-standings-layout');
     const standingsColumn = el('div', 'season-stack'); standingsColumn.append(card('Championship standings', wrap(table)), titleFight(data, drivers));
     layout.append(standingsColumn, el('div', 'season-stack'));
@@ -1855,6 +1899,20 @@
     return c;
   }
   // quali: each round's qualifying position instead (purple pole, light into Q3, grey out before Q3).
+  // The command search (linear-workspace.js): the Season pages, and with a query this season's drivers, teams and circuits.
+  let currentData = null;
+  window.ApexSeasonCommands = query => {
+    const pages = TABS.map(([id, label]) => ({label: label === 'Home' ? 'Home' : `${label}`, detail: id === 'home' ? 'Start page' : `Season ${state.year}`, action: () => show(id)}));
+    // Before any Season page has opened, the first keystroke starts loading this season; the next shows its names.
+    if (query && !currentData) load('season', state.year).then(d => { currentData ||= d; setCodes(d); }).catch(() => {});
+    if (!query || !currentData) return pages;
+    const data = currentData;
+    const people = Object.keys(data.drivers).map(id => ({label: driverName(data, id), detail: `Driver · ${teamName(data, data.drivers[id]?.team)} · ${data.year}`, action: () => { delete state.views.drivers; show('drivers', {driver: id}); }}));
+    const teams = Object.keys(data.teams).map(id => ({label: teamName(data, id), detail: data.year >= FIA_DOCUMENTS_FROM.upgrades ? `Team · development ${data.year}` : `Team · standings ${data.year}`,
+      action: () => (data.year >= FIA_DOCUMENTS_FROM.upgrades ? (state.type = null, show('upgrades', {team: id})) : (state.standings = 'teams', show('standings')))}));
+    const circuits = data.rounds.map(r => ({label: r.name, detail: `Circuit · ${[r.circuit, r.locality].filter(Boolean).join(', ')}`, action: () => openTrack(r.name)}));
+    return [...pages, ...people, ...teams, ...circuits];
+  };
   // Escape closes an opened Grand Prix on Results.
   let collapseOpenRow = null;
   // Going to a Grand Prix's full result (Results, By Grand Prix, that round open and in view) or to a circuit's page.
@@ -2231,8 +2289,8 @@
     for (const s of series) { if (seen.has(s.colour)) out.add(s); seen.add(s.colour); }
     return out;
   }
-  function bumpChart(rounds, series) {
-    const n = series.length, W = 640, H = Math.max(224, n * 18 + 54), L = 30, R = 52, T = 10, B = 46;
+  function bumpChart(rounds, series, {width = 640, row = 18} = {}) {
+    const n = series.length, W = width, H = Math.max(224, n * row + 54), L = 30, R = 52, T = 10, B = 46;
     const dashed = teammateDashes(series);
     const x = i => L + (rounds.length < 2 ? 0 : i / (rounds.length - 1) * (W - L - R));
     const y = p => T + (p - 1) / Math.max(1, n - 1) * (H - T - B);

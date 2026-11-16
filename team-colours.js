@@ -61,9 +61,11 @@
       byCode = new Map([...ids].filter(([c]) => counts.get(c) === 1));
     }
     const i = byCode.get(String(code || '').toUpperCase());
-    return i ? `assets/drivers/${encodeURIComponent(i)}.webp` : null;
+    return i ? `assets/driver-thumbs/${encodeURIComponent(i)}.webp` : null;   // Car performance shows them small: the 64 px set
   }
-  const img = name => { const s = src(name); return s ? `<img class="driver-face-img" src="${s}" alt="" loading="lazy" decoding="async">` : ''; };
+  // Small faces (lists, the distribution's row) use the 64 px thumbnails: about 2 KB each instead of 10.
+  const thumb = name => { const i = id(name); return i ? `assets/driver-thumbs/${encodeURIComponent(i)}.webp` : null; };
+  const img = name => { const s = thumb(name); return s ? `<img class="driver-face-img" src="${s}" alt="" loading="lazy" decoding="async">` : ''; };
   window.apexDriverFaces = {id, src, srcByCode, img, load};
   if (typeof fetch === 'function' && typeof document !== 'undefined') load();   // small list, read once at start so every view has it when it first draws
 })();
