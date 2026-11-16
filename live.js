@@ -359,7 +359,11 @@
       const untilText = until && !Number.isNaN(until.getTime()) ? ` until ${until.toLocaleString([], {weekday: 'short', hour: '2-digit', minute: '2-digit'})}` : '';
       authText.textContent = `F1 TV · signed in${untilText}`;
       authText.title = `Signed in to F1 TV${auth.subscription ? ` (${auth.subscription})` : ''}${untilText}. The sign-in lasts a few days.`;
-      help.hidden = true;
+      // The F1 TV sign-in lasts a few days: when it ends within three, say so here, so it is renewed before a session
+      // rather than found expired when the cars go out.
+      const left = until ? until.getTime() - Date.now() : Infinity;
+      help.hidden = !(left < 3 * 86400000);
+      if (!help.hidden) help.textContent = `Your F1 TV sign-in ends ${until.toLocaleString([], {weekday: 'long', hour: '2-digit', minute: '2-digit'})}. To use live timing after that, sign out and sign in again before the session.`;
       signedIn(true);
     } else {
       authText.textContent = auth.reason || 'Not signed in.';

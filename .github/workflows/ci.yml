@@ -55,7 +55,32 @@ jobs:
           APEX_PYTHON: .venv/bin/python
 
   browsers:
-    name: Browser tests (Chromium, Firefox, WebKit)
+    # One job per engine, side by side (they took 15 minutes in one job). Screenshot baselines are Windows-only, so the
+    # @visual tests run locally in `npm run check:full`, not here.
+    name: Browser tests (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - run: npx playwright test --grep-invert @visual --project=${{ matrix.browser }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces-${{ matrix.browser }}
+          path: test-results/
+
+  audits:
+    # The four page audits (Linear look, charts, accessibility, layout coverage), two at a time, on Chromium.
+    name: Page audits
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -64,10 +89,13 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium firefox webkit
-      - run: npm run test:e2e
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: playwright-traces
-          path: test-results/
+      - run: npx playwright install --with-deps chromium
+      - run: npm run sync:apex
+      - run: |
+          node scripts/audit-linear.mjs --browser chromium & L=$!
+          node scripts/audit-charts.mjs --browser chromium & C=$!
+          wait $L; a=$?; wait $C; b=$?
+          node scripts/audit-a11y.mjs --browser chromium & A=$!
+          node scripts/audit-coverage.mjs --browser chromium & V=$!
+          wait $A; c=$?; wait $V; d=$?
+          exit $(( a || b || c || d ))

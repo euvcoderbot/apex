@@ -33,8 +33,10 @@ for (const width of [1440, 1024, 768, 390]) {
 
 test('Tracks keeps the Season pills and clears selection on leaving', async ({page}) => {
   await page.goto('/apex/season/tracks?year=2026');
-  const tracks = page.locator('.linear-navigation [data-season-tab="tracks"]');
-  await expect(tracks).toHaveAttribute('aria-pressed', 'true');
+  // Tracks is a Season pill, not a rail row of its own: the rail's Season row is the one lit on Tracks.
+  await expect(page.locator('.linear-navigation [data-season-tab="tracks"]')).toHaveCount(0);
+  const season = page.locator('#seasonViewButton');
+  await expect(season).toHaveAttribute('aria-pressed', 'true');
   // The Season pills stay on Tracks, with Tracks chosen, so every other page is one click away.
   await expect(page.locator('.season-tabs')).toBeVisible();
   await expect(page.locator('.season-tabs [data-season-tab="tracks"]')).toHaveAttribute('aria-pressed', 'true');
@@ -42,7 +44,7 @@ test('Tracks keeps the Season pills and clears selection on leaving', async ({pa
   await expect(page).toHaveURL(/\/season\/h2h/);
   await page.goBack();
   await page.locator('[data-analysis-view="session"]').click();
-  await expect(tracks).toHaveAttribute('aria-pressed', 'false');
+  await expect(season).toHaveAttribute('aria-pressed', 'false');
   await page.locator('#seasonViewButton').click();
   await expect(page.locator('.season-tabs')).toBeVisible();
   await expect(page.locator('#seasonViewButton')).toHaveAttribute('aria-pressed', 'true');

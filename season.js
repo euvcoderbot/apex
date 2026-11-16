@@ -8,7 +8,7 @@
   const TABS = [['home', 'Home'], ['schedule', 'Calendar'], ['tracks', 'Tracks'], ['results', 'Results'], ['standings', 'Standings'], ['drivers', 'Drivers'],
     ['h2h', 'Head-to-head'], ['upgrades', 'Development'], ['units', 'Reliability']];
   const FIA_DOCUMENTS_FROM = {upgrades: 2022, units: 2019};   // server.py: car presentations from 2022, power-unit usage from 2019
-  const SECTION_TABS = ['home', 'tracks'];   // their own rows in the rail, not Season pills
+  const SECTION_TABS = ['home'];   // its own row in the rail, not a Season pill (Tracks is a Season pill, so Season stays lit there)
   const TAB_ALIASES = {form: 'drivers'};
   // Teams' formula1.com colours (team-colours.js maps the feed's shades to these and handles light mode).
   const TEAM_HEX = {mercedes: '#27f4d2', ferrari: '#e8002d', red_bull: '#3671c6', mclaren: '#ff8000', rb: '#6692ff', alpine: '#00a1e8',
@@ -456,8 +456,8 @@
     if (rail) {
       placeHome(rail);
       rail.append(button);
-      tracksRow ||= railRow('tracks', 'Tracks');
-      button.after(tracksRow);
+      // Tracks is one of the Season pills (and in the search), so the rail keeps one Season row, not a second Tracks one.
+      tracksRow?.remove();
       // The brand opens Home, as a site's name does.
       const brand = document.querySelector('#linearWorkspace .linear-workspace-brand');
       if (brand && !brand.dataset.home) {
@@ -3435,8 +3435,8 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     const per = rounds.map(r => roundPoints(r, 'driver', a) - roundPoints(r, 'driver', b));
     const cumulative = per.map(v => (total += v));
     const nums = rounds.map(r => r.round), tips = rounds.map(r => r.name);
-    const gapLine = lineChart(nums, [{id: 'gap', colour: ca, label: `${family(data, a)} \u2212 ${family(data, b)}`, values: cumulative}], {title: 'Cumulative points gap', height: 180});
-    const perBars = barChart(nums, per, {height: 140, colour: v => (v >= 0 ? ca : cb), tips, title: 'Points gap per round', format: v => signed(v, 0)});
+    const gapLine = lineChart(nums, [{id: 'gap', colour: ca, label: `${family(data, a)} \u2212 ${family(data, b)}`, values: cumulative}], {title: 'Cumulative points gap', height: 190});   // 190 + 150: the two charts fill the card beside Gap to teammate
+    const perBars = barChart(nums, per, {height: 150, colour: v => (v >= 0 ? ca : cb), tips, title: 'Points gap per round', format: v => signed(v, 0)});
     const sub = text => el('p', 'season-chart-sub', text);
     // Two views: the gap between the pair (running total and each weekend), or each driver's gap to the championship leader.
     const pointsView = ['leader', 'points'].includes(state.pointsGapView) ? state.pointsGapView : 'pair';

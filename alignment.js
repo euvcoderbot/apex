@@ -254,6 +254,8 @@ async function fetchTelemetry(lap) {
     });
 
     telemetryCache.set(key, samples);
+    // The sector boxes draw mini-sectors from every compared lap's telemetry: redraw them (once a frame) as each arrives.
+    if (typeof renderSectors === 'function' && typeof requestAnimationFrame === 'function' && !globalThis.__sectorRedrawQueued) { globalThis.__sectorRedrawQueued = true; requestAnimationFrame(() => { globalThis.__sectorRedrawQueued = false; renderSectors(); }); }
     lap.sectorGuide = makeSectorGuide(lap, payload.samples || [], payload.corners);
     setTelemetryMeta(samples,'sectorGuide',lap.sectorGuide);
     // Display useful car channels now; a missing map must not hold them behind

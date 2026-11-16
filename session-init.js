@@ -135,7 +135,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }));
   
   calendarReady = loadCalendar();
-  loadPublishedSessions();
+  // Which sessions are published labels Session analysis's menus. Opening on that view, check now; on Home, Season or Car
+  // performance it waits until the browser is idle, so its indexes do not compete with the page's own data.
+  if (window.ApexUrl?.read()?.view === 'session') loadPublishedSessions();
+  else (window.requestIdleCallback || (fn => setTimeout(fn, 3000)))(() => loadPublishedSessions(), {timeout: 8000});
   document.addEventListener('visibilitychange', () => {
     if(document.visibilityState==='visible' && window.APEX_SNAPSHOT_MODE && Date.now()-snapshotCheckedAt>=60000){
       invalidateSnapshotData();

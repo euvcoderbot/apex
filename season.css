@@ -698,13 +698,13 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-round-title h3, #seasonHub .season-round-title p { padding-right: 0; }
 #seasonHub .season-round-title h3 { margin: 0 0 2px; }
 #seasonHub .season-round-title p { margin: 0; font: 450 12px/1.4 var(--ui-font); color: var(--ui-tertiary); }
-#seasonHub .season-round-title > .season-track { position: static; width: 56px; height: 56px; opacity: .5; }
-#seasonHub .season-round[data-status="next"] .season-round-title > .season-track { opacity: 1; }
-#seasonHub .season-round[data-status="upcoming"] .season-round-title > .season-track { opacity: .35; }
+#seasonHub .season-round-title .season-track { position: static; width: 56px; height: 56px; opacity: .5; }
+#seasonHub .season-round[data-status="next"] .season-round-title .season-track { opacity: 1; }
+#seasonHub .season-round[data-status="upcoming"] .season-round-title .season-track { opacity: .35; }
 #seasonHub .season-round-rows > .is-empty dd { color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); }
 #seasonHub .season-round-rows { margin-top: 8px; }
 #seasonHub .season-round-link { margin-top: auto; }
-#seasonHub .season-round[data-status="next"] .season-round-title > .season-track { stroke: var(--ui-accent); }
+#seasonHub .season-round[data-status="next"] .season-round-title .season-track { stroke: var(--ui-accent); }
 /* Season charts on the Linear chart recipe: hairline grid, quaternary 11 px axes, 1.75 px lines (sizes held by svg-scale.js). */
 #seasonHub .season-chart .grid { stroke: var(--lin-hairline); }
 #seasonHub .season-chart .grid.is-zero { stroke: var(--lin-label-border); }
@@ -1344,7 +1344,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-round-winner, #seasonHub .season-round-more { display: none; }
 @media (max-width: 600px) {
   #seasonHub .season-round[data-status="done"]:not(.is-open) > :is(.season-round-rows, .season-round-link) { display: none; }
-  #seasonHub .season-round[data-status="done"]:not(.is-open) .season-round-title > .season-track { display: none; }
+  #seasonHub .season-round[data-status="done"]:not(.is-open) .season-round-title :is(.season-track, .season-track-link) { display: none; }
   #seasonHub .season-round[data-status="done"] { padding: 10px 12px; gap: 4px; }
   #seasonHub .season-round[data-status="done"] .season-round-title { display: flex; align-items: center; gap: 10px; }
   #seasonHub .season-round[data-status="done"] .season-round-title h3 { font-size: 13px; }
@@ -1422,7 +1422,7 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 #seasonHub td.is-link:hover { filter: brightness(1.18); }
 #seasonHub .season-strip-cell.is-link:hover { background: var(--lin-nav-hover, color-mix(in oklch, var(--ui-label) 6%, transparent)); }
 #seasonHub .season-stat.is-link:hover { box-shadow: inset 0 0 0 1px var(--lin-hairline-strong, var(--ui-border)); }
-#seasonHub .season-track-link { display: contents; cursor: pointer; }
+#seasonHub .season-track-link { display: block; width: 56px; height: 56px; cursor: pointer; }   /* a real 56 px box (display: contents let WebKit stretch the outline past the page) */
 #seasonHub .season-track-link:hover > * { opacity: .8; }
 #seasonHub .season-next-track { margin-left: 10px; font-size: 13px; }
 #seasonHub .season-detail-actions { display: flex; justify-content: space-between; gap: 12px; margin: 0 0 10px; font-size: 13px; }
@@ -1540,3 +1540,13 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 /* Zones: each zone's opening on one line (and its low-grip line under it), so every zone row is the same height; a narrow
    card scrolls the table sideways rather than wrapping the words. */
 #seasonHub .season-track-zones td.season-track-act, #seasonHub .season-track-act small { white-space: nowrap; }
+/* Every Season table header label on one line through the middle of its 32 px row (plain labels sat 10 px lower than
+   sortable ones, whose 24 px button centred them). */
+:root[data-skin] #seasonHub .season-table thead th { vertical-align: middle; }
+:root[data-skin] #seasonHub .season-table thead .season-sort-button { display: inline-flex; align-items: center; vertical-align: middle; }
+/* A little more air between charts and the text around them: a chart's caption sits 14 px below what comes before it and
+   12 px above the chart (it was 0 and 6, which read cramped). */
+#seasonHub .season-card > .season-chart-sub { margin: 14px 0 12px; }
+#seasonHub .season-card > h3 + .season-chart-sub, #seasonHub .season-card > .season-segment + .season-chart-sub { margin-top: 10px; }
+#seasonHub .season-report-title { margin-bottom: 12px; }
+#seasonHub .season-card > svg.season-chart + .season-chart-sub { margin-top: 18px; }

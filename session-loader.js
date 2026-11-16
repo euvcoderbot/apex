@@ -321,11 +321,17 @@ function publishedSessionIds(indexes, revisions) {
   }
   return ids;
 }
+let publishedSessionsChecked = false;
 async function loadPublishedSessions() {
   if (!window.APEX_SNAPSHOT_MODE || window.APEX_LOCAL_MODE) return;
   const get = path => fetch(path, {cache: 'no-cache'}).then(r => r.ok ? r.json() : null).catch(() => null);
-  const [captures, prerendered, prepared] = await Promise.all([
-    get('assets/data/local-captures/index.json'), get('assets/data/prerendered/index.json'), get('assets/data/sessions/index.json')]);
+  // The capture and prerendered indexes are the ones the data reader (session-state.js) loads: the first check shares its
+  // download (they are 2 MB and 0.6 MB of JSON, and every page used to fetch the capture index twice); a later check (the
+  // minute's refresh) fetches them afresh and hands the new copies to the reader too.
+  const refresh = publishedSessionsChecked; publishedSessionsChecked = true;
+  if (refresh || !localCaptureIndex) localCaptureIndex = get('assets/data/local-captures/index.json');
+  if (refresh || !prerenderedIndex) prerenderedIndex = get('assets/data/prerendered/index.json');
+  const [captures, prerendered, prepared] = await Promise.all([localCaptureIndex, prerenderedIndex, get('assets/data/sessions/index.json')]);
   if (!captures && !prerendered && !prepared) return;
   const next=publishedSessionIds({captures, prerendered, prepared}, {source: window.APEX_SOURCE_VERSION, compatible: window.APEX_SNAPSHOT_COMPATIBILITY?.sourceRevision});
   const changed=publishedSessions && (next.size!==publishedSessions.size || [...next].some(id=>!publishedSessions.has(id)));

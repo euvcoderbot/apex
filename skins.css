@@ -2583,9 +2583,25 @@
 /* Team colour markers are round everywhere (team dots, the team-mark fallback, legends, manufacturer dots), never a
    rounded square or an oval. */
 :root[data-skin="linear"] :is(.team-dot, .team-logo-fallback, .legend-color, .season-maker-dot) { border-radius: 50% !important; aspect-ratio: 1; }
+:root[data-skin="linear"] .legend-color { width: 8px; height: 8px; flex: 0 0 8px; }   /* legends use the round 8 px colour dot, not a 14 x 4 bar */
 :root[data-skin="linear"] .team-logo:has(> .team-logo-fallback) { display: inline-grid; place-items: center; width: 14px; height: 14px; flex: 0 0 14px; }
 :root[data-skin="linear"] .team-logo > .team-logo-fallback { width: 9px; height: 9px; }
 :root[data-skin="linear"] #seasonHub .season-legend span[data-tone]::before { border-radius: 50%; }
 :root[data-skin="linear"] .linear-rail-section.is-plain { margin-top: 6px; }
 /* Car performance categories: pills on their own, like the Season pills; no box drawn around the row of round pills. */
 :root[data-skin="linear"] #performanceResults > .performance-toolbar > .performance-mode { border: 0; background: none; border-radius: 0; padding: 0; }
+/* Session analysis sector boxes: the mini-sectors under each time, drawn as the live timing tower draws them (the sector's
+   own bar steps aside while they show). */
+:root[data-skin="linear"] .lap-summary-card .sector-minis { display: flex; gap: 2px; margin-top: 8px; }
+:root[data-skin="linear"] .lap-summary-card .sector-minis i { flex: 1 1 0; min-width: 3px; height: 3px; border-radius: 1px; background: var(--lin-hairline); }
+:root[data-skin="linear"] .lap-summary-card .sector-minis i.is-best { background: #bf5af2; }
+:root[data-skin="linear"] .lap-summary-card .sector-minis i.is-near { background: #30d158; }
+:root[data-skin="linear"] .lap-summary-card .sector-minis i.is-slow { background: #ffd60a; }
+:root[data-skin="linear"] .lap-summary-card .sector-cell.has-minis::after { display: none; }
+/* Light theme: the sector labels keep their timing colour but darker, so they read on white (yellow was 1.97:1). */
+:root[data-skin="linear"][data-theme="light"] .lap-summary-card .sector-cell-value > small { color: color-mix(in srgb, var(--sector-status, var(--ui-tertiary)) 55%, #000); }
+:root[data-skin="linear"]:not([data-theme="light"]) .lap-summary-card .sector-cell.is-session-best .sector-cell-value > small { color: color-mix(in srgb, var(--sector-status, #bf5af2) 82%, #fff); }   /* purple on dark, at least 4.5:1 */
+/* Corner table headers in the narrow inspector: a sort button stays inside its cell (Firefox let "Min km/h" and its arrow
+   run 4 px past it); the unit may drop to a second line. */
+:root[data-skin="linear"] .corner-measurement-table thead th > button[data-corner-sort] { max-width: 100%; min-width: 0; box-sizing: border-box; border: 0; }
+:root[data-skin="linear"] .corner-measurement-table thead th > button[data-corner-sort] > span { min-width: 0; white-space: normal; }
