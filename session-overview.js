@@ -233,7 +233,9 @@
     const yLo = Math.floor(tLo / step) * step, yHi = Math.ceil(tHi / step) * step;
     // Laps slower than the scale get their own band above it (T), apart from the violins, rather than sitting on their tips.
     const anyBeyond = times.at(-1) > tHi;
-    const W = chartWidth(), H = 360, L = 52, R = 8, T = anyBeyond ? 30 : 10, B = 8, n = distRows.length, col = (W - L - R) / n, half = Math.min(18, col * .46);
+    // On a phone the field gets 28 px a driver and the chart scrolls sideways (22 columns in 340 px ran the codes together).
+    const narrow = innerWidth <= 600, minW = narrow ? 52 + 8 + distRows.length * 28 : 0;
+    const W = Math.max(chartWidth(), minW), H = 360, L = 52, R = 8, T = anyBeyond ? 30 : 10, B = 8, n = distRows.length, col = (W - L - R) / n, half = Math.min(18, col * .46);
     const y = t => T + (yHi - Math.min(t, yHi)) / ((yHi - yLo) || 1) * (H - T - B);
     const cx = i => L + col * (i + .5);
     distGeometry = {W, L, col};
@@ -274,7 +276,8 @@
       const photo = window.apexDriverFaces?.img(realDrivers.get(r.code)?.name) || `<b>${esc(r.code)}</b>`;
       return `<span class="dist-face"><span class="dist-avatar" style="--team:${esc(r.colour)}">${photo}</span><small>${esc(r.code)}</small></span>`;
     }).join('');
-    return `<div class="overview-legend">${legend}</div>${svg}<div class="dist-faces" style="padding:0 ${R}px 0 ${L}px;grid-template-columns:repeat(${n},minmax(0,1fr))">${faces}</div><p class="overview-note">Each driver’s representative laps, in classification order: the shape is how their laps spread (wider where more laps fell), each dot a lap in its tyre’s colour, the cyan diamond the median (the dotted line joins them) and the dashed line the session’s fastest representative lap. Laps slower than the scale sit in the Slower band above it as hollow dots. The lap chart’s slow-lap rule applies; safety car and pit laps are left out. Hover a column for the stint averages.</p>`;
+    const body = `${svg}<div class="dist-faces" style="padding:0 ${R}px 0 ${L}px;grid-template-columns:repeat(${n},minmax(0,1fr))">${faces}</div>`;
+    return `<div class="overview-legend">${legend}</div>${minW ? `<div class="dist-scroll" style="overflow-x:auto"><div style="width:${W}px">${body}</div></div>` : body}<p class="overview-note">Each driver’s representative laps, in classification order: the shape is how their laps spread (wider where more laps fell), each dot a lap in its tyre’s colour, the cyan diamond the median (the dotted line joins them) and the dashed line the session’s fastest representative lap. Laps slower than the scale sit in the Slower band above it as hollow dots. The lap chart’s slow-lap rule applies; safety car and pit laps are left out. Hover a column for the stint averages.</p>`;
   }
   function distTip(svg, event) {
     const box = svg.getBoundingClientRect(), g = distGeometry;
