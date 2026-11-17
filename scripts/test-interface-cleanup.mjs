@@ -36,8 +36,8 @@ test('useful task and interpretation controls remain available',()=>{
 test('tyre subject and metric selector uses a single consistent season summary',()=>{
   // The toolbar is drawn by src/views/TyresView.tsx (rendered in test-react-views.mjs).
   const tyres=readFileSync('src/views/TyresView.tsx','utf8');
-  assert.match(tyres,/name="tyre-metric"[^>]*\[\['age', 'Tyre-age trend'\], \['relative', 'Matched rivals'\]\]/);
-  assert.match(tyres,/p\.metric === 'age' \? <SegmentedControl name="tyre-subject"/);
+  assert.match(tyres,/name="tyre-metric"[^>]*\[\['age', 'Tyre-age trend'\], \['relative', 'Matched rivals'\], \['stint', 'Inspect a stint'\]\]/);
+  assert.match(tyres,/p\.metric === 'age' && !p\.inspect \? <SegmentedControl name="tyre-subject"/);
   assert.match(car,/const tyreSeasonStat='median'/);
   assert.match(car,/const telemetrySeasonStat='mean'/);
 });

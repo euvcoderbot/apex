@@ -39,6 +39,8 @@ test('the analysis canvas reclaims setup width and controls remain local to thei
   assert.match(css,/#lapSelectionBody \{ display: grid; grid-template-columns: 220px/);
   assert.match(css,/#performanceResults > \.performance-toolbar > \.performance-mode \{[^}]*flex-direction: row/);
   assert.match(ui,/metric === 'pace'.*placeControls/);assert.match(ui,/metric === 'straight'.*placeControls/);
-  assert.match(ui,/summary.textContent = 'Inspect a tyre run'/);
+  const tyres = readFileSync('src/views/TyresView.tsx','utf8');
+  assert.match(tyres, /\['stint', 'Inspect a stint'\]/);
+  assert.match(tyres, /<TyreStintPlot model=\{p.plot\}/);
   assert.match(page,/id="performanceTrackChoices"/);
 });

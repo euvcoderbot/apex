@@ -95,7 +95,12 @@
           <select data-live="jumpLap" aria-label="Jump to a lap"></select>
         </div>
       </section>
-      <div class="live-grid">
+      <nav class="live-tower-mode" aria-label="Live workspace" data-ui-group="segments">
+        <button type="button" data-live-workspace="timing" aria-pressed="true">Timing and strategy</button>
+        <button type="button" data-live-workspace="laps" aria-pressed="false">Completed laps</button>
+        <button type="button" data-live-workspace="telemetry" aria-pressed="false">Current telemetry</button>
+      </nav>
+      <div class="live-grid" data-workspace="timing">
         <div class="live-col live-col-main">
           <section class="dashboard-card live-tower" aria-label="Timing tower">
             <div class="live-card-head"><h2>Timing</h2><small>Select up to two drivers for telemetry</small><div class="live-tower-mode" data-ui-group="segments" role="group" aria-label="Sector times"><button type="button" data-live="towerLive" aria-pressed="true">Live</button><button type="button" data-live="towerBest" aria-pressed="false">Best</button></div></div>
@@ -125,6 +130,7 @@
           <div class="live-lapchart" data-live="lapChart">
             <div class="live-chart-drivers" data-live="chartDrivers" role="group" aria-label="Drivers on the lap chart"></div>
             <div class="live-chart-actions">
+              <button type="button" class="live-button" data-live="chartFollow" aria-pressed="false">Follow tower selection</button>
               <button type="button" class="live-button" data-live="chartTop">Top 3</button>
               <button type="button" class="live-button" data-live="chartFastest">Fastest 3</button>
               <button type="button" class="live-button" data-live="chartSlow" aria-pressed="false">Show slow laps</button>
@@ -200,10 +206,19 @@
     for (const [name, best] of [['towerLive', false], ['towerBest', true]]) $(page, name).addEventListener('click', () => {
       towerBest = best; $(page, 'towerLive').setAttribute('aria-pressed', String(!best)); $(page, 'towerBest').setAttribute('aria-pressed', String(best)); renderTower();
     });
-    $(page, 'chartTop').addEventListener('click', () => { chartChosenSet = null; renderLapChart(); });
+    const workspace = page.querySelector('.live-grid');
+    for (const button of page.querySelectorAll('[data-live-workspace]')) {
+      button.addEventListener('click', () => {
+        workspace.dataset.workspace = button.dataset.liveWorkspace;
+        for (const option of page.querySelectorAll('[data-live-workspace]')) option.setAttribute('aria-pressed', String(option === button));
+        requestAnimationFrame(() => { renderLapChart(); queueDraw(); });
+      });
+    }
+    $(page, 'chartFollow').addEventListener('click', () => { followTower = !followTower; renderLapChart(); });
+    $(page, 'chartTop').addEventListener('click', () => { followTower = false; chartChosenSet = null; renderLapChart(); });
     $(page, 'chartFastest').addEventListener('click', () => {
       const best = d => Math.min(...(lapLists[d.number] || []).filter(l => l.seconds && !l.pit).map(l => l.seconds));
-      chartChosenSet = driversWithLaps().slice().sort((a, b) => best(a) - best(b)).slice(0, 3).map(d => d.number); renderLapChart();
+      followTower = false; chartChosenSet = driversWithLaps().slice().sort((a, b) => best(a) - best(b)).slice(0, 3).map(d => d.number); renderLapChart();
     });
     $(page, 'chartSlow').addEventListener('click', () => { chartSlow = !chartSlow; renderLapChart(); });
     $(page, 'chartList').addEventListener('click', () => { chartList = !chartList; renderLapChart(); });
@@ -395,7 +410,7 @@
   function toggleDriver(number) {
     const at = chosen.indexOf(number);
     if (at >= 0) chosen.splice(at, 1); else { chosen.push(number); if (chosen.length > 2) chosen.shift(); }
-    telemetry = {}; currentLaps = null; renderTower(); renderReadouts(); queueDraw();
+    telemetry = {}; currentLaps = null; renderTower(); renderReadouts(); if (followTower) renderLapChart(); queueDraw();
     if (active) connect();
   }
 
@@ -517,7 +532,9 @@
       rows.push(row);
     }
     if (!rows.length) { const row = el('tr'); const cell = el('td', 'live-empty', 'Waiting for timing data.'); cell.colSpan = 11; row.append(cell); rows.push(row); }
+    const focused = body.contains(document.activeElement) ? document.activeElement.closest('tr')?.dataset.number : null;
     body.replaceChildren(...rows);
+    if (focused) rows.find(row => row.dataset.number === focused)?.focus({preventScroll: true});
   }
   function renderWeather() {
     const w = state.weather || {}, list = $(page, 'weather'), items = [];
@@ -660,9 +677,11 @@
   // Drivers: the top three in running order until the person picks; at most six. Pit laps and laps over 110% of a driver's
   // best are left out unless "Show slow laps" is on. A lap in the comparison carries a ring in the chart and the list.
   const CHART_MAX = 6;
+  let followTower = false;
   let chartChosenSet = null, chartSlow = false, chartList = false, chartHoverLap = null;
   function chartDrivers() {
     const withLaps = driversWithLaps();
+    if (followTower) return withLaps.filter(d => chosen.includes(d.number));
     if (chartChosenSet) return withLaps.filter(d => chartChosenSet.includes(d.number));
     return withLaps.slice().sort((a, b) => (a.position ?? 99) - (b.position ?? 99)).slice(0, 3);
   }
@@ -692,6 +711,7 @@
     const box = $(page, 'lapChart');
     if (!box) return;
     const all = driversWithLaps(), chosen = chartDrivers();
+    $(page, 'chartFollow').setAttribute('aria-pressed', String(followTower));
     // Driver chips in running order.
     const chips = all.slice().sort((a, b) => (a.position ?? 99) - (b.position ?? 99)).map(d => {
       const b = el('button', 'live-chart-driver'); b.type = 'button'; b.style.setProperty('--c', chartColour(d));
@@ -701,6 +721,7 @@
       b.title = `${on ? 'Remove' : 'Add'} ${d.code} ${on ? 'from' : 'to'} the lap chart`;
       b.addEventListener('click', () => {
         const now = chartDrivers().map(x => x.number);
+        followTower = false;
         chartChosenSet = on ? now.filter(n => n !== d.number) : [...now, d.number].slice(-CHART_MAX);
         renderLapChart();
       });

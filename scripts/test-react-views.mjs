@@ -118,7 +118,7 @@ test('development chart shows real rounds and never joins unobserved gaps', () =
 
 test('development view: single-GP explanation, ranking switch and coverage', () => {
   assert.match(render(views.TrendView, {single: true, event: 'Bahrain Grand Prix'}), /single track \(<strong>Bahrain Grand Prix<\/strong>\)/);
-  const html = render(views.TrendView, {view: 'fitted', showSensitivity: true, spark: {lo: 1, hi: 3, ceiling: 2},
+  const html = render(views.TrendView, {view: 'fitted', round:'', rounds:[{round:'1',name:'A'}], showSensitivity: true, spark: {lo: 1, hi: 3, ceiling: 2},
     sort: {team: sortModel('trendTeam'), last: sortModel('trendLast'), change: sortModel('trendModelled')},
     rows: [{team: {team: 'Ferrari', color: '#ff0000'}, first: 1.2, last: .4, label: 'R1 → R3', count: 3, sampleTier: 'Limited (<10 events)',
       change: -.8, fittedChange: -.7, slopePerRound: -.35, range: [-.5, -.3], fit:[{round:1,pace:1.1},{round:3,pace:.4}], points: [{round: 1, event: 'A', pace: 1.2}, {round: 2, event: 'B', pace: .8}, {round: 3, event: 'C', pace: .4}]}]});
@@ -160,7 +160,7 @@ test('tyre trend view: toolbar per mode, compound pills, stint plot and run pick
     chart: {rows: [{...team, normSlope: .02}], options: {valueKey: 'normSlope', unit: ' s/lap'}},
     sort: {team: sortModel('tyreTeam'), norm: sortModel('tyreNorm'), stints: sortModel('tyreStints')},
     rows: [{team, norm: {value: .02, provisional: 'Provisional · 2/3 supported events'}, ageRange: 'L1–L20 (20 laps)', sample: '4 matched stints (60 laps)', observed: 6, fieldSupported: true, compound: 'S: 40% · M: 60%', notes: ['1 matched stint on used tyres']}]});
-  assert.equal((relative.match(/data-tyre-metric=/g) || []).length, 2);
+  assert.equal((relative.match(/data-tyre-metric=/g) || []).length, 3);
   assert.ok(relative.indexOf('performance-card-body') < relative.indexOf('data-tyre-metric='), 'mode switches stay within the card');
   assert.doesNotMatch(relative, /data-tyre-subject=/, 'matched rivals has no subject switch');
   assert.equal((relative.match(/data-tyre-compound=/g) || []).length, 4);
@@ -170,21 +170,25 @@ test('tyre trend view: toolbar per mode, compound pills, stint plot and run pick
   const plot = {title: 'LEC · Bahrain Grand Prix · C3 · stint 2', teamColor: '#ff0000', empty: false, noTrend: false, caption: 'Recorded times · dots are laps',
     exclusions: {pressed: false, label: 'Show 1 excluded lap'}, axis: {lo: 1, hi: 20, grid: [{y: 180, label: '0.000'}]}, curve: 'M 55 170 L 645 40',
     points: [{cx: 55, cy: 170, title: 'Lap 3 · age 1'}], excluded: [], laps: [{lap: 3, age: 1, time: 95.2, status: 'Used'}]};
-  const age = render(views.TyresView, {metric: 'age', subject: 'driver', note: 'n', compound: {choices: ['OVERALL', 'C3'], value: 'OVERALL', overallLabel: 'All C grades'},
+  const ageProps = {metric: 'age', subject: 'driver', note: 'n', compound: {choices: ['OVERALL', 'C3'], value: 'OVERALL', overallLabel: 'All C grades'},
     correction: 'fuel', correctionText: 'Assumes 0.060 s/lap fuel gain', quality: 'q', commonCoverage: null, coverage: {mapped: 3, loaded: 3, unmapped: 0, source: 'https://press.pirelli.com/'},
     legacy: false, chart: {title: 'Tyre-age lap-time change', rows: [{...team, value: -.01}], extent: .02}, emptyMessage: '',
     sort: {name: sortModel('tyreAgeName'), value: sortModel('tyreAgeValue'), events: sortModel('tyreAgeEvents'), stints: sortModel('tyreAgeStints'), laps: sortModel('tyreAgeLaps')},
     rows: [{team, value: null, shortfall: 'C3: 3/4 GPs', events: 3, stints: 4, laps: 40, outliers: 1, coverage: '1 C grade'}],
     picker: {teams: ['Ferrari'], team: 'Ferrari', drivers: ['LEC'], driver: 'LEC', events: ['Bahrain Grand Prix'], event: 'Bahrain Grand Prix', runs: [{key: 'k', label: 'Stint 2'}], run: 'k', total: 1, teamCount: 1},
-    plot, evidence: [], auditOpen: true});
-  assert.equal((age.match(/data-tyre-metric=/g) || []).length + (age.match(/data-tyre-subject=/g) || []).length, 4);
+    plot, evidence: [], auditOpen: true};
+  const age = render(views.TyresView, ageProps);
+  const inspected = render(views.TyresView, {...ageProps, inspect:true});
+  assert.equal((age.match(/data-tyre-metric=/g) || []).length + (age.match(/data-tyre-subject=/g) || []).length, 5);
+  assert.doesNotMatch(age, /class="stint-plot"/);
+  assert.doesNotMatch(inspected, /data-tyre-subject=/);
   assert.match(age, /data-tyre-subject="driver" aria-pressed="true"/);
   assert.match(age, /performance-tyre-age-bar" style="--bar-color:#ff0000;left:0\.00%;width:100\.00%"/);
   assert.match(age, /—<small>P75 needs C3: 3\/4 GPs<\/small>/);
-  assert.match(age, /<select data-tyre-plot-filter="team">/);
-  assert.match(age, /<svg class="stint-plot"/);  // the fit is dashed by svg.stint-plot .fit in skins.css, scale-corrected
-  assert.match(age, /<path class="fit"/);
-  assert.match(age, /data-tyre-exclusions="" aria-pressed="false">Show 1 excluded lap/);
+  assert.match(inspected, /<select data-tyre-plot-filter="team">/);
+  assert.match(inspected, /<svg class="stint-plot"/);  // the fit is dashed by svg.stint-plot .fit in skins.css, scale-corrected
+  assert.match(inspected, /<path class="fit"/);
+  assert.match(inspected, /data-tyre-exclusions="" aria-pressed="false">Show 1 excluded lap/);
   assert.match(age, /<details class="dashboard-card performance-methods" open="">/);
 });
 

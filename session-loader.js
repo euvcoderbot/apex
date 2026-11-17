@@ -322,8 +322,15 @@ function publishedSessionIds(indexes, revisions) {
   return ids;
 }
 let publishedSessionsChecked = false;
+let publicationCheck = null;
 async function loadPublishedSessions() {
   if (!window.APEX_SNAPSHOT_MODE || window.APEX_LOCAL_MODE) return;
+  if (publicationCheck) return publicationCheck;
+  publicationCheck = checkPublishedIndexes().finally(() => { publicationCheck = null; });
+  return publicationCheck;
+}
+async function checkPublishedIndexes() {
+  if (!snapshotCheckedAt) snapshotCheckedAt = Date.now();
   const get = path => fetch(path, {cache: 'no-cache'}).then(r => r.ok ? r.json() : null).catch(() => null);
   // The capture and prerendered indexes are the ones the data reader (session-state.js) loads: the first check shares its
   // download (they are 2 MB and 0.6 MB of JSON, and every page used to fetch the capture index twice); a later check (the
@@ -338,6 +345,8 @@ async function loadPublishedSessions() {
   publishedSessions = next;
   if(changed){
     invalidateSnapshotData();
+    localCaptureIndex = captures ? Promise.resolve(captures) : null;
+    prerenderedIndex = prerendered ? Promise.resolve(prerendered) : null;
     notify('New session data is available. Choose the session and load it; your current comparison is unchanged.', 'info');
   }
   if (calendar.length) populateSessions($('#session').value || null);

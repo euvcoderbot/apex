@@ -19,6 +19,7 @@ for (const width of [1440, 1024, 768, 390]) {
   test(`detailed session forecasts fit the panel at ${width}px`, async ({page}) => {
     await page.setViewportSize({width, height: 1000});
     await page.goto('/apex/');
+    await page.getByRole('button', {name: 'Next weekend', exact: true}).click();
     await expect(page.locator('.season-forecast-humid')).toHaveCount(next.sessions.length);
     const fits = await page.locator('.season-forecast').evaluate(n => n.scrollWidth <= n.clientWidth + 1);
     expect(fits).toBe(true);
@@ -30,6 +31,21 @@ for (const width of [1440, 1024, 768, 390]) {
     }
   });
 }
+
+test('race review keeps its selected Grand Prix when opening the race or comparing the podium', async ({page}) => {
+  await page.goto('/apex/');
+  const select = page.locator('select[aria-label="Grand Prix to review"]');
+  const round = fixture.rounds.find(r => r.race.length);
+  await select.selectOption(String(round.round), {force: true});
+  const pair = round.race.filter(x => x.position === 1 || x.position === 2).sort((a, b) => a.position - b.position);
+  await page.getByRole('button', {name: / vs .* · season/}).click();
+  expect(new URL(page.url()).searchParams.get('a')).toBe(pair[0].driver);
+  expect(new URL(page.url()).searchParams.get('b')).toBe(pair[1].driver);
+  await page.goBack();
+  await expect(select).toHaveValue(String(round.round));
+  await page.getByRole('button', {name: 'Race report', exact: true}).click();
+  await expect(page.locator('tr').filter({has: page.locator('.season-row-toggle[aria-expanded="true"]')})).toContainText(round.name.replace(' Grand Prix', ''));
+});
 
 test('Tracks keeps the Season pills and clears selection on leaving', async ({page}) => {
   await page.goto('/apex/season/tracks?year=2026');
@@ -50,9 +66,9 @@ test('Tracks keeps the Season pills and clears selection on leaving', async ({pa
   await expect(page.locator('#seasonViewButton')).toHaveAttribute('aria-pressed', 'true');
 });
 
-for (const width of [390, 1024]) {
+for (const width of [390, 1024]) test.describe(`Head-to-head at ${width}px`, () => {
+  test.use({viewport:{width, height:1000}});
   test(`head-to-head keeps both drivers readable at ${width}px`, async ({page}) => {
-    await page.setViewportSize({width, height: 1000});
     await page.goto('/apex/season/h2h?year=2026');
     const hero = page.locator('.season-h2h-hero');
     await expect(hero).toBeVisible();
@@ -64,7 +80,7 @@ for (const width of [390, 1024]) {
     expect(Math.min(...layout.widths)).toBeGreaterThan(120);
     expect(layout.scoreTop).toBeGreaterThanOrEqual(layout.sideBottom - 1);
   });
-}
+});
 
 for (const width of [390, 1440]) {
   test(`both head-to-head sections use one split bar and visible driver names at ${width}px`,async({page})=>{

@@ -35,6 +35,10 @@ const STATES = {
   standings: season('standings'), drivers: season('drivers'), h2h: season('h2h'),
   upgrades: season('upgrades'), units: season('units'), 'standings-2020': season('standings', '', 2020),
   // The page views (part=) that hold content the default views no longer show.
+  'driver-trends': season('drivers', '&part=trends'), 'driver-comparisons': season('drivers', '&part=comparison'),
+  'h2h-weekends': season('h2h', '&part=weekends'), 'track-history': season('tracks', '&part=history'),
+  'schedule-agenda': season('schedule', '&part=agenda'), 'development-pattern': season('upgrades', '&part=pattern'),
+  'unit-installations': season('units', '&part=installations'),
   'drivers-field': season('drivers', '&part=field'), 'h2h-sessions': season('h2h', '&part=sessions'), 'h2h-pace': season('h2h', '&part=pace'),
   'h2h-points': season('h2h', '&part=points'), 'results-drivers': season('results', '&part=drivers'), 'units-finishes': season('units', '&part=finishes'), 'tracks-corners': season('tracks', '&part=corners'), 'tracks-compare': season('tracks', '&part=compare'),
   // Session analysis with a replayed session loaded, and a Car performance category with data (the shared QA states).
@@ -131,9 +135,14 @@ async function interactions(page, report) {
   // Every Season pill: opens its page, is marked, and the pills stay.
   await season('schedule')(page);
   for (const id of await page.locator('.season-tabs [data-season-tab]').evaluateAll(bs => bs.map(b => b.dataset.seasonTab))) {
-    await page.locator(`.season-tabs [data-season-tab="${id}"]`).click(); await page.waitForTimeout(1000);
+    const mobile = page.locator('.season-page-picker');
+    if (await mobile.isVisible()) {
+      await mobile.locator('.select-trigger').click();
+      await mobile.locator(`[data-select-value="${id}"]`).click();
+    } else await page.locator(`.season-tabs [data-season-tab="${id}"]`).click();
+    await page.waitForTimeout(1000);
     if (await page.locator(`.season-tabs [data-season-tab="${id}"]`).getAttribute('aria-pressed') !== 'true') report('pill-not-marked', id);
-    if (!(await page.locator('.season-tabs').isVisible())) report('pills-hidden', id);
+    if (!(await page.locator('.season-tabs').isVisible()) && !(await mobile.isVisible())) report('pills-hidden', id);
   }
   for (const tab of ['schedule', 'tracks', 'results', 'standings', 'drivers', 'h2h', 'upgrades', 'units']) {
     await season(tab)(page);

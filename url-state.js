@@ -54,7 +54,7 @@
     // Commas are safe in a query string; keep lists readable (races=16,17).
     const text = query.toString().replace(/%2C/gi, ',');
     const metric = params?.metric && params.metric !== 'pace' ? '/' + encodeURIComponent(params.metric) : '';
-    if (view === 'season' && params?.tab === 'home') return BASE + location.hash;   // Home lives at the bare address
+    if (view === 'season' && params?.tab === 'home' && !params.part && (!params.year || Number(params.year) === new Date().getFullYear())) return BASE + location.hash;   // Home lives at the bare address
     if (view === 'season') return BASE + 'season' + (params?.tab ? '/' + encodeURIComponent(params.tab) : '') + (text ? '?' + text : '') + location.hash;
     return (view === 'cars' ? BASE + 'cars' + metric : BASE + 'session') + (text ? '?' + text : '') + location.hash;
   }
@@ -69,7 +69,8 @@
     h2h: 'Head-to-head', upgrades: 'Development', units: 'Reliability', tracks: 'Tracks'};
   // A page's view (part=) in the title too, so two tabs on Results read By driver and By team.
   const PART_TITLES = {drivers: 'By driver', teams: 'By team', field: 'All drivers', sessions: 'Sessions', pace: 'Pace', points: 'Points',
-    battles: 'All teammates', finishes: 'Finishes', corners: 'Corners', compare: 'All circuits', upcoming: 'To come', done: 'Completed'};
+    trends: 'Season trends', comparison: 'Comparisons', agenda: 'Session agenda', weekends: 'Weekend log',
+    installations: 'Changes by round', pattern: 'Season patterns', history: 'Race history', battles: 'All teammates', finishes: 'Finishes', corners: 'Corners', compare: 'All circuits', upcoming: 'To come', done: 'Completed'};
   function titleFor(view, params) {
     if (view === 'season' && params?.tab === 'home') return `${SITE} — Formula 1 analysis`;
     if (view === 'season') return `${SEASON_TITLES[params?.tab] || 'Schedule'}${PART_TITLES[params?.part] ? ' · ' + PART_TITLES[params.part] : ''} · Season${params?.year ? ' ' + params.year : ''} — ${SITE}`;

@@ -167,6 +167,7 @@
               <p id="loadedSessionContext" class="loaded-session-context" hidden></p>
               <small id="snapshotBadge" class="snapshot-mode-note" hidden>Published snapshot · not live</small>
             </div>
+            <a class="session-jump session-overview-link" href="#sessionOverview">Session overview ↑</a>
             <div class="legend" id="legend"></div>
           </div>
         <div class="comparison-tray" aria-label="Loaded comparison laps">
@@ -302,7 +303,25 @@
   <script src="session-tyres.js"></script>
   <script src="session-overview.js"></script>
   <script src="svg-scale.js" defer></script>
-  <script src="live.js"></script>
+  <script type="apex-local" src="live.js"></script>
+  <script>
+    // A published snapshot can be explored without downloading the live timing client.
+    (() => {
+      const source = document.currentScript.previousElementSibling.src;
+      let loading = false;
+      const connectLive = () => {
+        if (loading || window.ApexLive || !(window.APEX_LOCAL_MODE || window.APEX_COMPUTE_ORIGIN)) return;
+        loading = true;
+        const client = document.createElement('script');
+        client.src = source;
+        client.onload = () => { loading = false; };
+        client.onerror = () => { loading = false; };
+        document.head.append(client);
+      };
+      addEventListener('apex-compute', connectLive);
+      connectLive();
+    })();
+  </script>
   <script src="alignment.js?v=euv2-release-20261003-position-motion-check"></script>
   <!-- Car performance and its React views are about 40% of the script weight and are not needed to read a session.
        They stay inert until that view is opened, or until the browser is idle after load, whichever is first. -->

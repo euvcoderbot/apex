@@ -140,3 +140,8 @@
 :root[data-skin="linear"] #liveTiming .live-engineer-table td.is-gain { color: #30d158; }
 :root[data-skin="linear"] #liveTiming .live-engineer-table td.is-loss { color: #ff6961; }
 :root[data-skin="linear"] body.is-descriptions-hidden #liveTiming .explanation-only { display: none; }
+
+.live-grid[data-workspace="timing"] :is(.live-compare, .live-telemetry-card),
+.live-grid[data-workspace="laps"] :is(.live-tower, .live-engineer, .live-col-side),
+.live-grid[data-workspace="telemetry"] :is(.live-engineer, .live-compare, .live-side) { display: none; }
+.live-grid[data-workspace="laps"] { grid-template-columns: minmax(0, 1fr); }

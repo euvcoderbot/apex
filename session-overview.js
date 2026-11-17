@@ -363,6 +363,7 @@
       <div class="overview-chart"><h3>Position by lap</h3>${pos}</div>`;
   }
 
+  let overviewView = 'laps';
   function renderSessionOverview() {
     const root = document.getElementById('sessionOverview');
     if (!root) return;
@@ -371,9 +372,18 @@
     const rows = [...realDrivers.values()].map(driverSummary);
     // Rendered from many places (every renderAll): replace the markup only when it changed, so a point being clicked is
     // never swapped out between mouse down and up.
-    const html = `<div class="section-heading analysis-heading"><h2 id="sessionOverviewTitle">Session overview</h2></div>
+    const views = [['laps', 'Lap times'], ['spread', 'Distribution'], ['field', 'Driver summary']];
+    if (/^(race|sprint)$/i.test(loadedSessionName || '')) views.push(['race', 'Race order']);
+    if (!views.some(([key]) => key === overviewView)) overviewView = 'laps';
+    const buttons = views.map(([key, label]) => `<button type="button" data-overview-view="${key}" aria-pressed="${overviewView === key}">${label}</button>`).join('');
+    let content;
+    if (overviewView === 'spread') content = `<div class="overview-chart"><h3>Lap time distribution</h3>${lapDistribution()}</div>`;
+    else if (overviewView === 'race') content = raceCharts() || '<p class="section-empty">Race order needs at least two recorded laps.</p>';
+    else if (overviewView === 'field') content = sessionSummary();
+    else content = `<div class="overview-chart"><h3>Lap times</h3>${lapChart()}</div>`;
+    const html = `<div class="section-heading analysis-heading"><h2 id="sessionOverviewTitle">Session overview</h2>${loaded.length ? '<a class="session-jump" href="#telemetryCard">Inspect compared laps ↓</a>' : ''}</div>
       <div class="overview-readout">${readout(rows)}</div>
-      <div class="overview-chart"><h3>Lap times</h3>${lapChart()}</div><div class="overview-chart"><h3>Lap time distribution</h3>${lapDistribution()}</div>${sessionSummary()}${raceCharts()}`;
+      <div class="performance-scope-toggle" role="group" aria-label="Session evidence">${buttons}</div>${content}`;
     if (renderedOverview !== html || !root.firstChild) {
       root.innerHTML = html; renderedOverview = html;
       root.querySelector('.session-summary')?.addEventListener('toggle', event => { summaryOpen = event.target.open; renderedOverview = ''; });
@@ -383,9 +393,10 @@
 
   // ---------- where the time went ----------
   function timeBreakdown(referenceSamples, samples, zones) {
-    return zones.filter(z => z.end > z.start && z.kind !== 'transition').map(z => {
+    return zones.map((z, index) => {
+      if (z.end <= z.start || z.kind === 'transition') return null;
       const ref = performanceSectionDuration(referenceSamples, z.start, z.end), own = performanceSectionDuration(samples, z.start, z.end);
-      return Number.isFinite(ref) && Number.isFinite(own) ? {label: z.kind === 'corner' ? cornerLabel(z) : (z.label || '').replace(/^Straight /, ''), kind: z.kind, delta: own - ref} : null;
+      return Number.isFinite(ref) && Number.isFinite(own) ? {index, label: z.kind === 'corner' ? cornerLabel(z) : (z.label || '').replace(/^Straight /, ''), kind: z.kind, delta: own - ref} : null;
     }).filter(Boolean);
   }
 
@@ -407,12 +418,28 @@
       const gains = parts.filter(p => p.delta < -0.005).sort((a, b) => a.delta - b.delta).slice(0, 3);
       const corners = parts.filter(p => p.kind === 'corner').reduce((a, p) => a + p.delta, 0);
       const straights = parts.filter(p => p.kind === 'straight').reduce((a, p) => a + p.delta, 0);
-      const list = (items, cls) => items.length ? items.map(p => `<li class="${cls}"><b>${esc(p.label)}</b><span>${signedS(p.delta)}</span></li>`).join('') : '<li class="is-none">None over 0.005 s</li>';
+      const list = (items, cls) => items.length ? items.map(p => `<li class="${cls}"><button type="button" data-inspect-zone="${p.index}" aria-label="Inspect ${esc(p.label)}, ${signedS(p.delta)}">${esc(p.label)}</button><span>${signedS(p.delta)}</span></li>`).join('') : '<li class="is-none">None over 0.005 s</li>';
       return `<article class="time-summary-card" style="--team:${esc(getLapColor(lap))}">
         <header><b>${esc(lap.code)}</b> L${lap.lap} vs ${esc(loaded[0].code)} L${loaded[0].lap}<span>Corners ${signedS(corners)} · Straights ${signedS(straights)}</span></header>
         <div class="time-summary-lists"><div><small>Loses most</small><ol>${list(losses, 'is-loss')}</ol></div><div><small>Gains most</small><ol>${list(gains, 'is-gain')}</ol></div></div>
       </article>`;
     }).filter(Boolean);
+    root.onclick = event => {
+      const action = event.target.closest('[data-inspect-zone]');
+      if (!action) return;
+      const index = Number(action.dataset.inspectZone);
+      const selector = `#cornerPickerRow [data-corner-index="${index}"]`;
+      if (!document.querySelector(selector)) return;
+      selectedCornerIndices = new Set([index]);
+      automaticStraightIndices.clear();
+      document.querySelector('[data-inspector-tab="track"]')?.click();
+      const disclosure = document.getElementById('cornerAnalysisToggle');
+      if (disclosure?.getAttribute('aria-expanded') === 'false') disclosure.click();
+      renderCornerAnalysis();
+      renderMiniSectorMap();
+      drawAll();
+      document.querySelector(selector)?.focus();
+    };
     root.hidden = !cards.length;
     root.innerHTML = cards.length ? `<h3>Time gained and lost</h3>${cards.join('')}<p class="overview-note">Elapsed time over the same corner and straight windows of the reference lap. Short links between corners are left out, so the parts do not add up exactly to the lap gap.</p>` : '';
   }
@@ -420,6 +447,14 @@
   // Bound on the section itself: page-level handlers elsewhere stop some clicks before they reach the document.
   const host = document.getElementById('sessionOverview') || document;
   host.addEventListener('click', event => {
+    const view = event.target.closest?.('[data-overview-view]');
+    if (view) {
+      overviewView = view.dataset.overviewView;
+      if (overviewView === 'field') summaryOpen = true;
+      renderSessionOverview();
+      host.querySelector(`[data-overview-view="${overviewView}"]`)?.focus({preventScroll: true});
+      return;
+    }
     const point = event.target.closest?.('#sessionOverview .point');
     if (point) { toggleLoadedLap(point.dataset.code, Number(point.dataset.lap)); return; }
     if (event.target.closest?.('#sessionOverview .overview-slow-toggle')) { showSlowLaps = !showSlowLaps; renderSessionOverview(); }

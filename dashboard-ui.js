@@ -262,16 +262,7 @@
       if (metric === 'pace') placeControls(body.querySelector('.performance-stat-toggle'), [...body.querySelectorAll('.pace-visual-grid .performance-chart-card')].at(-1));
       if (metric === 'straight') placeControls(body.querySelector('.straight-summary-controls'), body.querySelector('.performance-chart-card'));
       if (metric === 'straight') placeControls(body.querySelector('.performance-range-control'), [...body.querySelectorAll('.performance-chart-card')].at(-1));
-      const runControls = body.querySelector('.performance-tyre-plot-controls');
-      if (runControls && !runControls.closest('.performance-run-inspector')) {
-        const runNote = runControls.nextElementSibling;
-        const inspector = document.createElement('details'), summary = document.createElement('summary');
-        inspector.className = 'performance-run-inspector'; summary.textContent = 'Inspect a tyre run';
-        runControls.before(inspector); inspector.append(summary, runControls);
-        if (runNote?.matches('p.performance-note')) inspector.append(runNote);
-        const plot = body.querySelector('.performance-tyre-stint-plot');
-        if (plot) inspector.append(plot);
-      }
+
     }
     for (const wrap of root.querySelectorAll('.performance-table-wrap')) {
       const table = wrap.querySelector('table');

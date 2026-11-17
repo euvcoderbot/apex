@@ -114,6 +114,19 @@ test('qualifying phases, empty comparison alignment and compute settings remain 
   expect(errors).toEqual([]);
 });
 
+test('inspect a measured gain or loss with the keyboard', async ({page}) => {
+  const errors = await loaded(page, {corners: [{number: 1, fraction: .06}, {number: 12, fraction: .42}, {number: 19, fraction: .83}]});
+  const action = page.locator('#timeSummary [data-inspect-zone]').first();
+  await expect(action).toBeVisible();
+  const index = await action.getAttribute('data-inspect-zone');
+  await action.focus();
+  await action.press('Enter');
+  const picked = page.locator(`#cornerPickerRow [data-corner-index="${index}"]`);
+  await expect(picked).toHaveAttribute('aria-pressed', 'true');
+  await expect(picked).toBeFocused();
+  expect(errors).toEqual([]);
+});
+
 test('partial source history discloses gaps without blocking supported comparisons',async({page})=>{
   const errors=await loaded(page,{partial:true});
   await expect(page.locator('canvas[data-chart="Speed trace"]')).toBeVisible();

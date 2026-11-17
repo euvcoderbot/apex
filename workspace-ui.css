@@ -150,3 +150,15 @@ body.is-descriptions-hidden .explanation-only, body.is-descriptions-hidden .perf
 @media(prefers-reduced-transparency:reduce),(prefers-contrast:more),(forced-colors:active) {
   .site-header,.select-menu { -webkit-backdrop-filter: none; }
 }
+
+/* the entry point: a header tab segment (macOS look) or a rail row (Linear look) */
+.season-view-button { display: inline-flex; align-items: center; gap: 7px; padding: 0 14px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--ui-secondary); font: inherit; font-weight: 500; white-space: nowrap; cursor: pointer; }
+.season-view-button:hover { color: var(--ui-label); }
+.season-view-button:is([aria-pressed="true"],[aria-selected="true"]) { background: var(--ui-selected); box-shadow: var(--ui-shadow-control); color: var(--ui-label); }
+.site-header .performance-tabs:has(> .season-view-button) { grid-template-columns: repeat(4, max-content) !important; width: max-content !important; max-width: none !important; }
+.site-header .performance-tabs:has(> .season-view-button) > button { padding-inline: 14px; white-space: nowrap; }
+.site-header .performance-tabs > .season-view-button { align-self: stretch; }
+@media (max-width: 960px) { .site-header .season-view-label { display: none; } }
+/* phones: the view tabs share the toolbar's second row equally */
+@media (max-width: 700px) { .site-header .performance-tabs:has(> .season-view-button) { grid-template-columns: none !important; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); width: 100% !important; } }
+.season-rail-pages { display: none; }

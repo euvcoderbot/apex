@@ -102,7 +102,7 @@ let context=null;
 let calendarReady=null,restoringUrl=false,restoringView=false;
 let refreshPerformance=false,refreshedPaths=new Set();
 let tyreView='OVERALL';
-let tyreMetric='age'; // 'age' | 'relative'
+let tyreMetric='age'; // 'age' | 'relative' | 'stint'
 let tyreSubject='team'; // 'team' | 'driver'
 let pitSubject='team'; // 'team' | 'driver'
 let pitMeasure='stop'; // 'stop' | 'lane'
@@ -311,6 +311,7 @@ let tyreShowExcluded=false;
 let tyrePlotTeam='',tyrePlotDriver='',tyrePlotEvent='';
 let resultsChartMetric='points'; // 'points' | 'perStart' | 'finishRate' | 'mechanicalRate'
 let trendView='observed';
+let trendRound = '';
 let showPerformanceDescriptions=window.ApexAnalysis?.preference('descriptions',false)===true;
 const tableSortStates=new Map();
 const tableSortGroups=new Map();
@@ -1245,9 +1246,10 @@ function tyreAgeView(teams) {
 
 function renderRace(teams) {
   // Rendered by src/views/TyresView.tsx; data-tyre-* buttons and selects are handled below.
-  if(tyreMetric==='age'){
+  if(tyreMetric!=='relative'){
     const view=tyreAgeView(teams);
     const chartFor=subject=>{if(subject===tyreSubject)return view.chart;const shown=tyreSubject;tyreSubject=subject;try{return tyreAgeView(teams).chart;}finally{tyreSubject=shown;}};
+    if (tyreMetric === 'stint') return reactView('tyres', {metric:'age', inspect:true, subject:tyreSubject, ...view});
     return reactView('tyres',{metric:'age',subject:tyreSubject,...view,chart:chartFor('team'),driverChart:chartFor('driver')});
   }
   const rows=[];
@@ -1746,7 +1748,13 @@ function renderTrend(teams) {
   const showSensitivity=trendView==='fitted'&&ordered.some(row=>row.leaveEventRange);
   const rounds=events.map(e=>Number(e.round)).filter(finite);
   const changeKey=trendView==='fitted'?'trendModelled':'trendChange';
+  const round = events.find(event => String(event.round) === trendRound);
+  const year = $('performanceYear').value;
   return reactView('trend',{view:trendView,showSensitivity,
+    rounds: events.map(event => ({round:String(event.round), name:event.name})),
+    round: round ? trendRound : '',
+    qualifyingHref: round ? window.ApexUrl?.href('session', {year, round:round.round, session:'Qualifying'}) : null,
+    declarationsHref: Number(year) >= 2022 ? window.ApexUrl?.href('season', {tab:'upgrades', year}) : null,
     // Plot exactly the adjusted observations used by the medians and fit.
     spark:{lo:Math.min(...rounds),hi:Math.max(...rounds),ceiling:Math.max(1,...trendRows.flatMap(t=>t.valid.map(q=>q.pace)))},
     sort:{team:sortHeaderModel('trendTeam','Team'),last:sortHeaderModel('trendLast','Start → latest'),
@@ -2094,11 +2102,73 @@ function render() {
   try {renderContent();} finally {
     window.ApexReact?.mountAll(root,reactViewProps);
     window.ApexPresentation?.arrangePerformance(root,activeMetric);
+    const panel = root.querySelector('#performanceMetricPanel');
+    if (panel?.querySelector('.metric-heading')) entrantComparison(panel, activeMetric);
     window.ApexUI?.decorate(root);
     restorePerformanceUI(root,state);
     root.querySelectorAll('details[open]').forEach(hydratePerformanceEvidence);
     syncCarUrl();
   }
+}
+// Read the values already presented in each ranking. Keeping the original
+// benchmark also keeps a two-entrant comparison on the field's scale.
+const comparisonByMetric = new Map();
+function entrantComparison(panel, metric) {
+  const charts = [];
+  const names = new Set();
+  for (const chart of panel.querySelectorAll('.performance-chart-card')) {
+    if (chart.closest('details')) continue;
+    const values = new Map();
+    for (const row of chart.querySelectorAll('.performance-bar-row')) {
+      const name = row.querySelector('.team-name')?.textContent.trim();
+      const cell = row.querySelector('.performance-bar-val');
+      const value = cell && [...cell.childNodes].map(node => node.textContent.trim()).filter(Boolean).join(' ');
+      if (!name || !value) continue;
+      names.add(name);
+      values.set(name, {value, detail: row.getAttribute('aria-label') || row.title});
+    }
+    const title = chart.querySelector('.perf-chart-heading')?.textContent;
+    if (title && values.size) charts.push({title, values});
+  }
+  if (!charts.length || names.size < 2) return;
+  const saved = comparisonByMetric.get(metric) || {};
+  const box = document.createElement('details');
+  box.className = 'entrant-comparison performance-run-inspector'; box.open = !!saved.open;
+  const title = document.createElement('summary'); title.textContent = 'Compare two entrants';
+  const controls = document.createElement('div'); controls.className = 'performance-actions';
+  const picks = [0, 1].map(i => {
+    const label = document.createElement('label'); label.textContent = i ? 'Against ' : 'Compare ';
+    const select = document.createElement('select');
+    for (const name of names) select.append(new Option(name, name));
+    select.value = names.has(saved.pair?.[i]) ? saved.pair[i] : [...names][i];
+    label.append(select); controls.append(label); return select;
+  });
+  const table = document.createElement('table'); table.className = 'performance-table';
+  const draw = changed => {
+    if (picks[0].value === picks[1].value) picks[1 - changed].value = [...names].find(n => n !== picks[changed].value);
+    for (const pick of picks) window.syncSelectUI?.(pick);
+    const pair = picks.map(pick => pick.value);
+    comparisonByMetric.set(metric, {pair, open: box.open});
+    table.replaceChildren();
+    const header = table.createTHead().insertRow();
+    for (const text of ['Measurement', ...pair]) {
+      const th = document.createElement('th'); th.scope = 'col'; th.dataset.column = header.cells.length ? 'number' : 'text'; th.textContent = text; header.append(th);
+    }
+    const body = table.createTBody();
+    for (const chart of charts) {
+      const row = body.insertRow(), th = document.createElement('th');
+      th.scope = 'row'; th.dataset.column = 'text'; th.textContent = chart.title; row.append(th);
+      for (const name of pair) {
+        const reading = chart.values.get(name), td = row.insertCell();
+        td.dataset.column = 'number'; td.textContent = reading?.value || '—';
+        if (reading?.detail) { td.title = reading.detail; td.setAttribute('aria-label', reading.detail); }
+      }
+    }
+  };
+  picks.forEach((pick, i) => pick.addEventListener('change', () => draw(i)));
+  box.addEventListener('toggle', () => { if (box.isConnected) comparisonByMetric.set(metric, {pair: picks.map(p => p.value), open: box.open}); });
+  box.append(title, controls, table); draw(0);
+  panel.querySelector('.metric-heading')?.after(box);
 }
 function renderContent() {
   const modes=[
@@ -2115,7 +2185,8 @@ function renderContent() {
   const navEmoji={pace:'⏱️',corners:'🏎️',straight:'🚀',braking:'🛑',pits:'🔧',tyres:'🛞',trend:'📈',results:'🏆'};
   const snapshotMode=window.APEX_SNAPSHOT_MODE&&!window.APEX_LOCAL_MODE;
   const refreshTitle=snapshotMode?'Reload the published snapshot. New observations require local preparation and publication.':'Re-fetch the selected events and replace cached measurements. The first refresh can take longer.';
-  const modeBar = `<div class="performance-toolbar"><div class="performance-mode" role="tablist" aria-label="Performance metric" aria-orientation="horizontal">${modes.map(([key,label])=>`<button type="button" role="tab" data-performance-metric="${key}" aria-controls="performanceMetricPanel" tabindex="${activeMetric===key?0:-1}" aria-selected="${activeMetric===key}"><span class="metric-nav-emoji" aria-hidden="true">${navEmoji[key]}</span>${label}</button>`).join('')}</div><button type="button" class="performance-explain-toggle" data-performance-refresh ${running?'disabled':''} title="${refreshTitle}">${snapshotMode?'Reload snapshot':'Refresh data'}</button></div>`;
+  const categoryPicker = `<label class="car-category-picker">Measurement<select aria-label="Car performance measurement">${modes.map(([key, label]) => `<option value="${key}" ${key === activeMetric ? 'selected' : ''}>${label}</option>`).join('')}</select></label>`;
+  const modeBar = `<div class="performance-toolbar">${categoryPicker}<div class="performance-mode" role="tablist" aria-label="Performance metric" aria-orientation="horizontal">${modes.map(([key,label])=>`<button type="button" role="tab" data-performance-metric="${key}" aria-controls="performanceMetricPanel" tabindex="${activeMetric===key?0:-1}" aria-selected="${activeMetric===key}"><span class="metric-nav-emoji" aria-hidden="true">${navEmoji[key]}</span>${label}</button>`).join('')}</div><button type="button" class="performance-explain-toggle" data-performance-refresh ${running?'disabled':''} title="${refreshTitle}">${snapshotMode?'Reload snapshot':'Refresh data'}</button></div>`;
 
   if(!context || (!events.length && !running)) {
     root.innerHTML = modeBar + `
@@ -2152,6 +2223,13 @@ function renderContent() {
 // ---------------------------------------------------------------------------
 // Event Listeners & Interactive Wiring
 // ---------------------------------------------------------------------------
+root.addEventListener('change', event => {
+  if (!event.target.matches('.car-category-picker select')) return;
+  root.querySelector(`[data-performance-metric="${event.target.value}"]`)?.click();
+  const picker = root.querySelector('.car-category-picker');
+  (picker?.querySelector('.select-trigger') || picker?.querySelector('select'))?.focus({preventScroll: true});
+});
+
 // Published snapshot (not the local app or a connected PC): analysis reads saved results, so it can start by itself.
 const publishedAuto=()=>Boolean(window.APEX_SNAPSHOT_MODE)&&!window.APEX_LOCAL_MODE&&!window.APEX_COMPUTE_ORIGIN;
 // The automatic run gives way the moment the person changes the selection (scope or tracks), so Analyse is theirs again.
@@ -2332,6 +2410,13 @@ root.addEventListener('keydown',event=>{
   replacement?.focus({preventScroll:true});replacement?.scrollIntoView({block:'nearest',inline:'nearest'});
 });
 root.addEventListener('change',event=>{
+  if (event.target.matches('[data-trend-round]')) {
+    trendRound = event.target.value;
+    render();
+    const select = root.querySelector('[data-trend-round]');
+    (select?.closest('.select-shell')?.querySelector('.select-trigger') || select)?.focus({preventScroll:true});
+    return;
+  }
   const select=event.target.closest('[data-tyre-plot-filter]');
   if(!select)return;
   const kind=select.dataset.tyrePlotFilter;
@@ -2393,7 +2478,14 @@ root.addEventListener('click',event=>{
 
   const tyreRunButton=event.target.closest('[data-tyre-run]');
   if(event.target.closest('[data-tyre-exclusions]')){tyreShowExcluded=!tyreShowExcluded;render();return;}
-  if(tyreRunButton){tyreRunKey=tyreRunButton.dataset.tyreRun;render();return;}
+  if (tyreRunButton) {
+    tyreRunKey = tyreRunButton.dataset.tyreRun;
+    tyreMetric = 'stint';
+    render();
+    const heading = root.querySelector('.performance-tyre-stint-plot h4');
+    if (heading) { heading.tabIndex = -1; heading.focus(); }
+    return;
+  }
   const trendViewButton=event.target.closest('[data-trend-view]');
   if(trendViewButton){trendView=trendViewButton.dataset.trendView;sortKey=trendView==='fitted'?'trendModelled':'trendChange';sortDirection=1;render();return;}
   const metric=event.target.closest('[data-performance-metric]');
@@ -2415,7 +2507,14 @@ root.addEventListener('click',event=>{
   if(pitLaneBasisButton){pitLaneBasis=pitLaneBasisButton.dataset.pitLaneBasis;render();return;}
   const sort=event.target.closest('[data-performance-sort]');
   const tyreMetricButton=event.target.closest('[data-tyre-metric]');
-  if(tyreMetricButton){tyreMetric=tyreMetricButton.dataset.tyreMetric;sortKey=tyreMetric==='age'?'tyreAgeValue':'tyreNorm';sortDirection=1;render();return;}
+  if (tyreMetricButton) {
+    tyreMetric = tyreMetricButton.dataset.tyreMetric;
+    sortKey = tyreMetric === 'relative' ? 'tyreNorm' : 'tyreAgeValue';
+    sortDirection = 1;
+    render();
+    root.querySelector(`[data-tyre-metric="${tyreMetric}"]`)?.focus({preventScroll:true});
+    return;
+  }
   const tyreSubjectButton=event.target.closest('[data-tyre-subject]');
   if(tyreSubjectButton){tyreSubject=tyreSubjectButton.dataset.tyreSubject;render();return;}
 
