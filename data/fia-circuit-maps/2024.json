@@ -1,0 +1,206 @@
+{
+ "year": 2024,
+ "fetched": "2026-11-15",
+ "circuits": [
+  {
+   "event": "Abu Dhabi Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20Abu%20Dhabi%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20and%20Red%20Zones.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Australian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20Australian%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Austrian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20Austrian%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zones.pdf",
+   "zone_kind": "drs",
+   "zones": [
+    {
+     "turn": "1",
+     "offset_m": 102
+    },
+    {
+     "turn": "3",
+     "offset_m": 100
+    },
+    {
+     "turn": "10",
+     "offset_m": 106
+    }
+   ],
+   "centreline_m": 4318,
+   "drs": {
+    "detection": [
+     {
+      "number": 1,
+      "text": "160m before T1",
+      "turn": "1",
+      "offset_m": -160
+     },
+     {
+      "number": 2,
+      "text": "40m before T3",
+      "turn": "3",
+      "offset_m": -40
+     },
+     {
+      "number": 3,
+      "text": "120m before T10",
+      "turn": "10",
+      "offset_m": -120
+     }
+    ],
+    "activation": [
+     {
+      "number": 1,
+      "text": "102m after T1",
+      "turn": "1",
+      "offset_m": 102
+     },
+     {
+      "number": 2,
+      "text": "100m after T3",
+      "turn": "3",
+      "offset_m": 100
+     },
+     {
+      "number": 3,
+      "text": "106m after T10",
+      "turn": "10",
+      "offset_m": 106
+     }
+    ]
+   }
+  },
+  {
+   "event": "Azerbaijan Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20Azerbaijan%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zones%20V2.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Bahrain Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20Bahrain%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Belgian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20Belgian%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zones%20V2.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "British Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20British%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zones.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Canadian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20Canadian%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zones.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Chinese Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20Chinese%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Dutch Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20Dutch%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zones.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Emilia Romagna Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/doc_3_-_2024_emilia_romagna_grand_prix_-_event_notes_-_circuit_map_pit_lane_drawing_and_red_zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Hungarian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20Hungarian%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zones.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Italian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20Italian%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zones.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Japanese Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20Japanese%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Las Vegas Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20Las%20Vegas%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20and%20Red%20Zones.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Mexico City Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20Mexico%20City%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zones.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Miami Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20Miami%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Monaco Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20Monaco%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Qatar Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20Qatar%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "São Paulo Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20S%C3%A3o%20Paulo%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zones.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Saudi Arabian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20Saudi%20Arabian%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Singapore Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20Singapore%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zones.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Spanish Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20Spanish%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zones%20V2.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "United States Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2024%20United%20States%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zones.pdf",
+   "zones": [],
+   "image_only": true
+  }
+ ]
+}

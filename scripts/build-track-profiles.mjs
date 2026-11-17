@@ -31,10 +31,17 @@ const root = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace
 const data = path.join(root, 'assets/data');
 const year = Number(process.argv[2]) || 2026;
 const readGz = file => JSON.parse(zlib.gunzipSync(fs.readFileSync(file)));
-const telemetry = JSON.parse(fs.readFileSync(path.join(data, 'telemetry/index.json'), 'utf8'));
+// Telemetry from both published stores: assets/data/telemetry (prepared releases) and assets/data/local-telemetry (what the
+// session scheduler exports after each weekend), so a track appears as soon as its qualifying is captured.
+const readIndex = folder => { try { return JSON.parse(fs.readFileSync(path.join(data, folder, 'index.json'), 'utf8')).entries || {}; } catch { return {}; } };
+const fileOf = entry => (typeof entry === 'string' ? entry : entry?.file);
+const telemetryFiles = new Map();
+for (const folder of ['local-telemetry', 'telemetry']) for (const [key, entry] of Object.entries(readIndex(folder))) if (fileOf(entry)) telemetryFiles.set(key, path.join(data, folder, fileOf(entry)));
+const telemetry = {entries: Object.fromEntries(telemetryFiles)};
 const prerendered = JSON.parse(fs.readFileSync(path.join(data, 'prerendered/index.json'), 'utf8'));
+const captures = readIndex('local-captures');
 const packs = new Map();
-const pack = file => { if (!packs.has(file)) packs.set(file, readGz(path.join(data, 'telemetry', file))); return packs.get(file); };
+const pack = file => { if (!packs.has(file)) packs.set(file, readGz(file)); return packs.get(file); };
 
 // The fastest qualifying lap at each Grand Prix.
 const best = new Map();
@@ -56,9 +63,11 @@ const exported = (() => {
 for (const [gp, e] of Object.entries(exported || {})) best.set(gp, {driver: e.driver, lap: e.lap, time: e.samples.at(-1).ElapsedSeconds, samples: e.samples});
 function sessionFor(gp) {
   if (exported) return exported[gp]?.session || null;
-  const key = Object.keys(prerendered.entries).find(k => k.startsWith('/api/session?') && k.includes(`year=${year}`) && k.includes('session=Qualifying')
-    && new URLSearchParams(k.split('?')[1]).get('gp') === gp);
-  return key ? readGz(path.join(data, 'prerendered', prerendered.entries[key])) : null;
+  const match = k => k.startsWith('/api/session?') && k.includes(`year=${year}`) && k.includes('session=Qualifying') && new URLSearchParams(k.split('?')[1]).get('gp') === gp;
+  const key = Object.keys(prerendered.entries).find(match);
+  if (key) return readGz(path.join(data, 'prerendered', fileOf(prerendered.entries[key])));
+  const local = Object.keys(captures).find(match);
+  return local ? readGz(path.join(data, 'local-captures', fileOf(captures[local]))) : null;
 }
 const circuits = new Map();
 async function circuit(key) {

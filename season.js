@@ -1241,11 +1241,13 @@
     return box;
   }
   // Weather glyphs by WMO code family: sun, sun and cloud, cloud, fog, drizzle or rain, snow, thunder.
-  function weatherIcon(code) {
+  // night: the session runs after dark at the circuit (a moon instead of the sun on clear and partly cloudy skies).
+  function weatherIcon(code, night = false) {
     const cloud = '<path d="M7 18h10a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 7.1 9.2 4.4 4.4 0 0 0 7 18z"/>';
     const sun = '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>';
-    const small = '<circle cx="8.5" cy="8" r="3"/><path d="M8.5 2.5v1.2M3 8h1.2M4.6 4.1l.9.9M12.4 4.1l-.9.9"/>';
-    const body = code == null ? cloud : code === 0 ? sun : code <= 2 ? small + '<path d="M9 19h8.5a3.5 3.5 0 0 0 .5-6.96A4.8 4.8 0 0 0 9.1 12 3.6 3.6 0 0 0 9 19z"/>'
+    const moon = '<path d="M19.5 14.5A7.5 7.5 0 0 1 9.5 4.5a7.5 7.5 0 1 0 10 10z"/>';
+    const small = night ? '<path d="M12 9.4A4 4 0 0 1 6.6 4 4 4 0 1 0 12 9.4z"/>' : '<circle cx="8.5" cy="8" r="3"/><path d="M8.5 2.5v1.2M3 8h1.2M4.6 4.1l.9.9M12.4 4.1l-.9.9"/>';
+    const body = code == null ? cloud : code === 0 ? (night ? moon : sun) : code <= 2 ? small + '<path d="M9 19h8.5a3.5 3.5 0 0 0 .5-6.96A4.8 4.8 0 0 0 9.1 12 3.6 3.6 0 0 0 9 19z"/>'
       : code === 3 ? cloud : code <= 48 ? '<path d="M4 9h16M6 13h12M4 17h16"/>'
       : code <= 67 || (code >= 80 && code <= 82) ? '<path d="M7 14h10a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 7.1 5.2 4.4 4.4 0 0 0 7 14z"/><path d="M8 17l-1 3M12 17l-1 3M16 17l-1 3"/>'
       : code <= 77 ? '<path d="M7 14h10a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 7.1 5.2 4.4 4.4 0 0 0 7 14z"/><path d="M8 18h.01M12 19h.01M16 18h.01"/>'
@@ -1275,7 +1277,59 @@
     link.href = '#';
     return link;
   }
+  // The saved snapshot's forecast is made when the PC last prepared a session, so it is often days old in the week before a
+  // race. When it is older than a day (or missing) and the race is within Open-Meteo's 15 days, ask Open-Meteo from the page,
+  // the same request and the same summary as season_data.weather(): each session's two hours, and each weekend day.
+  const forecastRequests = new Map();
+  function freshForecast(data, next) {
+    const age = data.forecast_at ? 0 : data.saved_at ? Date.now() - Date.parse(data.saved_at) : Infinity;
+    const days = (Date.parse(next.start) - Date.now()) / 86400000;
+    if (age < 86400000 || !(days > -1 && days < 15) || !Number.isFinite(next.lat) || !Number.isFinite(next.lon) || !next.sessions?.length) return null;
+    const key = `${data.year}:${next.round}`;
+    if (forecastRequests.has(key)) return forecastRequests.get(key);
+    const iso = t => new Date(t).toISOString().slice(0, 10);
+    const first = iso(Date.parse(next.sessions[0].start) - 86400000);
+    const last = iso(Math.min(Date.parse(next.start) + 86400000, Date.now() + 15 * 86400000));
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${next.lat}&longitude=${next.lon}`
+      + '&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,weather_code,sunrise,sunset'
+      + '&hourly=temperature_2m,precipitation_probability,precipitation,wind_speed_10m,wind_gusts_10m,wind_direction_10m,relative_humidity_2m,weather_code,cloud_cover'
+      + `&timezone=auto&start_date=${first}&end_date=${last}`;
+    const request = fetch(url, {signal: AbortSignal.timeout?.(8000)}).then(r => (r.ok ? r.json() : null)).then(response => {
+      const offset = response?.utc_offset_seconds;
+      if (!response || !Number.isFinite(offset)) return false;
+      next.utc_offset = offset;
+      const hourly = response.hourly || {}, local = new Map((hourly.time || []).map((t, i) => [t, i]));
+      const stamp = ms => new Date(ms).toISOString().slice(0, 13) + ':00';
+      for (const session of next.sessions) {
+        const start = Math.floor((Date.parse(session.start) + offset * 1000) / 3600000) * 3600000;
+        const hours = [0, 1].map(h => local.get(stamp(start + h * 3600000))).filter(i => i != null);
+        if (!hours.length) continue;
+        const pick = name => hours.map(i => hourly[name]?.[i]).filter(v => v != null);
+        const max = values => (values.length ? Math.max(...values) : null);
+        const mm = pick('precipitation'), humid = pick('relative_humidity_2m'), heading = pick('wind_direction_10m'), cloud = pick('cloud_cover');
+        session.weather = {temp: max(pick('temperature_2m')), rain: max(pick('precipitation_probability')), wind: max(pick('wind_speed_10m')),
+          code: max(pick('weather_code')), gust: max(pick('wind_gusts_10m')), mm: mm.length ? Math.round(mm.reduce((a, b) => a + b, 0) * 10) / 10 : null,
+          humidity: humid.length ? Math.round(humid.reduce((a, b) => a + b, 0) / humid.length) : null, direction: heading.length ? heading[0] : null,
+          cloud: cloud.length ? Math.round(cloud.reduce((a, b) => a + b, 0) / cloud.length) : null,
+          // Hour by hour through the session and the hour after (a race or a long session runs into it): the chance of rain.
+          hours: [0, 1, 2].map(h => { const i = local.get(stamp(start + h * 3600000)); return i == null ? null : {at: hourly.time[i].slice(11, 16), rain: hourly.precipitation_probability?.[i] ?? null, mm: hourly.precipitation?.[i] ?? null}; }).filter(Boolean)};
+      }
+      const d = response.daily || {};
+      const dates = next.sessions.map(s => new Date(Date.parse(s.start) + offset * 1000).toISOString().slice(0, 10));
+      const lo = dates.reduce((a, b) => (a < b ? a : b)), hi = dates.reduce((a, b) => (a > b ? a : b));
+      data.next_weather = (d.time || []).map((day, i) => ({date: day, max: d.temperature_2m_max?.[i], min: d.temperature_2m_min?.[i],
+        rain: d.precipitation_probability_max?.[i], wind: d.wind_speed_10m_max?.[i], code: d.weather_code?.[i]})).filter(x => x.date >= lo && x.date <= hi);
+      // Sunrise and sunset at the circuit (its own clock), for each session's light.
+      next.sun = Object.fromEntries((d.time || []).map((day, i) => [day, {sunrise: d.sunrise?.[i], sunset: d.sunset?.[i]}]).filter(([, v]) => v.sunrise && v.sunset));
+      data.forecast_at = new Date().toISOString();
+      return true;
+    }).catch(() => false);
+    forecastRequests.set(key, request);
+    return request;
+  }
   function nextRaceHero(data, next) {
+    // A fresher forecast from Open-Meteo replaces the saved one: draw the card again when it arrives, if it is still showing.
+    freshForecast(data, next)?.then(ok => { if (ok && hero.isConnected) hero.replaceWith(nextRaceHero(data, next)); });
     const hero = el('section', 'season-card season-next');
     const top = el('div', 'season-next-top');
     const titleRow = el('div', 'season-next-title'); const f = flag(next); if (f) titleRow.append(f);
@@ -1313,7 +1367,22 @@
       if (!trackTime) return at.toLocaleString([], {weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
       return new Date(at.getTime() + offset * 1000).toLocaleString([], {weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC'});
     };
-    const forecastOk = !data.saved_at || Date.now() - Date.parse(data.saved_at) < 3 * 86400000;
+    // After dark at the circuit (its local hour before 6 or from 19), from the offset that comes with the forecast.
+    // Light during a session at the circuit: from that day's sunrise and sunset when the forecast has them (otherwise dark
+    // from 19:00 to 06:00 track time). Day, Dusk (the sun sets during it), Night, or Dawn.
+    const SESSION_MINUTES = {Race: 120, Qualifying: 60, 'Sprint Qualifying': 45, Sprint: 45};
+    const trackClock = ms => new Date(ms + offset * 1000).toISOString().slice(0, 16);
+    const light = x => {
+      if (offset == null) return null;
+      const start = Date.parse(x.start), end = start + (SESSION_MINUTES[x.name] ?? 60) * 60000;
+      const from = trackClock(start), to = trackClock(end), sun = next.sun?.[from.slice(0, 10)];
+      if (!sun) { const h = Number(from.slice(11, 13)); return {kind: h < 6 || h >= 19 ? 'Night' : 'Day'}; }
+      const kind = from >= sun.sunset || to <= sun.sunrise ? 'Night' : from < sun.sunset && to > sun.sunset ? 'Dusk' : from < sun.sunrise && to > sun.sunrise ? 'Dawn' : 'Day';
+      return {kind, sunrise: sun.sunrise.slice(11, 16), sunset: sun.sunset.slice(11, 16)};
+    };
+    // A moon from the session's middle onwards after sunset.
+    const afterDark = x => { const l = light(x); return l?.kind === 'Night' || (l?.kind === 'Dusk' && trackClock(Date.parse(x.start) + (SESSION_MINUTES[x.name] ?? 60) * 30000) >= next.sun?.[trackClock(Date.parse(x.start)).slice(0, 10)]?.sunset); };
+    const forecastAt = data.forecast_at || data.saved_at, forecastOk = !forecastAt || Date.now() - Date.parse(forecastAt) < 3 * 86400000;
     for (const x of next.sessions) {
       const at = new Date(x.start), li = el('li'); li.dataset.state = x === upcoming ? 'next' : at < now() ? 'done' : 'ahead';
       const name = el('span', null, x.name);
@@ -1325,8 +1394,8 @@
       const own = forecastOk && x.weather?.temp != null ? x.weather : null;
       const day = !own && forecastOk && data.next_weather?.find(d => d.date === x.start.slice(0, 10));
       if (own || day) {
-        const f = own || day, w = el('span', 'season-session-weather'); const icon = weatherIcon(f.code);
-        icon.dataset.kind = f.code >= 95 ? 'storm' : f.rain >= 50 ? 'wet' : f.code <= 2 ? 'sun' : 'cloud';
+        const f = own || day, w = el('span', 'season-session-weather'); const dark = afterDark(x); const icon = weatherIcon(f.code, dark);
+        icon.dataset.kind = f.code >= 95 ? 'storm' : f.rain >= 50 ? 'wet' : f.code <= 2 ? (dark ? 'moon' : 'sun') : 'cloud';
         w.append(icon, el('span', null, own ? `${Math.round(own.temp)}°` : `${Math.round(day.min)}–${Math.round(day.max)}°`), el('span', f.rain >= 50 ? 'is-wet' : null, `${f.rain ?? 0}% rain`));
         w.title = own ? `Forecast for the session: ${Math.round(own.temp)}°, ${own.rain ?? 0}% chance of rain, wind ${Math.round(own.wind ?? 0)} km/h`
           : `Forecast for that day: ${Math.round(day.max)}° high, ${Math.round(day.min)}° low, ${day.rain ?? 0}% chance of rain, wind ${Math.round(day.wind)} km/h`;
@@ -1390,13 +1459,13 @@
     }
     // A forecast saved more than three days ago is out of date: leave it out rather than show old weather; between one and
     // three days it is shown with the date it was made.
-    const forecastAge = data.saved_at ? Date.now() - Date.parse(data.saved_at) : 0;
+    const forecastAge = forecastAt ? Date.now() - Date.parse(forecastAt) : 0;
     const forecastFresh = forecastAge < 3 * 86400000;
     if (data.next_weather?.length && forecastFresh) {
       const sky = code => code == null ? '' : code === 0 ? 'Clear' : code <= 2 ? 'Partly cloudy' : code === 3 ? 'Cloudy' : code <= 48 ? 'Fog' : code <= 57 ? 'Drizzle' : code <= 67 ? 'Rain' : code <= 77 ? 'Snow' : code <= 82 ? 'Showers' : 'Thunderstorms';
       const forecast = el('div', 'season-weather');
       forecast.append(el('h3', null, 'Weekend weather'));
-      if (forecastAge > 86400000) forecast.append(el('p', 'season-muted season-weather-range', `Forecast from ${new Date(data.saved_at).toLocaleDateString([], {day: 'numeric', month: 'short'})}.`));
+      if (forecastAge > 86400000) forecast.append(el('p', 'season-muted season-weather-range', `Forecast from ${new Date(forecastAt).toLocaleDateString([], {day: 'numeric', month: 'short'})}.`));
       // Beyond about a week a forecast is a rough guide: say so rather than show it with the same confidence as tomorrow's.
       const daysAhead = (Date.parse(`${data.next_weather[0].date}T12:00:00`) - Date.now()) / 86400000;
       if (daysAhead > 7) forecast.append(el('p', 'season-muted season-weather-range', 'Long-range forecast: likely to change.'));
@@ -1406,13 +1475,19 @@
       const header = el('div', 'season-forecast-head');
       const bySession = next.sessions.filter(x => x.weather?.temp != null);
       header.append(el('span', null, bySession.length ? 'Session' : 'Day'), el('span'), el('span', null, bySession.length ? 'Temp' : 'High / low'), el('span', null, 'Rain'), el('span', null, 'Wind'));
-      if (bySession.some(x => x.weather.humidity != null)) header.append(el('span', null, 'Humidity'));
+      // Optional columns, each shown when the forecast has it: gusts, cloud cover, humidity, and the light (day or dark).
+      const has = key => bySession.some(x => x.weather[key] != null);
+      const extras = [['gust', 'Gusts'], ['cloud', 'Cloud'], ['humidity', 'Humidity']].filter(([key]) => has(key));
+      const lit = bySession.some(x => light(x));
+      for (const [, label] of extras) header.append(el('span', null, label));
+      if (lit) header.append(el('span', null, 'Light'));
       list.append(header);
       if (bySession.length) list.classList.add('is-sessions');
+      list.style.setProperty('--forecast-extra', String(extras.length + (lit ? 1 : 0)));
       for (const x of bySession) {
         const w = x.weather, row = el('div', 'season-forecast-row'); row.dataset.wet = String(w.rain >= 50);
         row.title = `${x.name} \u00b7 ${sky(w.code)} \u00b7 ${Math.round(w.temp)}\u00b0 \u00b7 ${w.rain ?? 0}% chance of rain \u00b7 wind ${Math.round(w.wind ?? 0)} km/h`;
-        const icon = weatherIcon(w.code); icon.dataset.kind = w.code >= 95 ? 'storm' : w.rain >= 50 ? 'wet' : w.code <= 2 ? 'sun' : 'cloud';
+        const dark = afterDark(x), icon = weatherIcon(w.code, dark); icon.dataset.kind = w.code >= 95 ? 'storm' : w.rain >= 50 ? 'wet' : w.code <= 2 ? (dark ? 'moon' : 'sun') : 'cloud';
         const temp = el('span', 'season-forecast-temp'); temp.append(el('b', null, `${Math.round(w.temp)}\u00b0`));
         const short = x.name.replace('Practice ', 'FP').replace('Sprint Qualifying', 'Sprint quali');
         // Wind: speed with an arrow pointing where it blows to (the forecast gives where it comes from), gusts on hover.
@@ -1421,10 +1496,26 @@
         wind.append(`${Math.round(w.wind ?? 0)} km/h`);
         const compass = d => ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(d / 45) % 8];
         wind.title = `Wind ${Math.round(w.wind ?? 0)} km/h${w.direction != null ? ` from the ${compass(w.direction)}` : ''}${w.gust != null ? `, gusts to ${Math.round(w.gust)} km/h` : ''}`;
-        const rainCell = el('span', 'season-forecast-rain', `${w.rain ?? 0}%`);
+        const rainCell = el('span', 'season-forecast-rain');
+        // The chance of rain hour by hour through the session: one small bar per hour, blue from 50%.
+        if (w.hours?.length > 1) {
+          const strip = el('span', 'season-rain-strip'); strip.setAttribute('aria-hidden', 'true');
+          for (const h of w.hours) { const bar = el('i'); bar.style.height = `${Math.max(2, Math.round((h.rain ?? 0) / 100 * 14))}px`; if (h.rain >= 50) bar.className = 'is-wet'; strip.append(bar); }
+          rainCell.title = `Chance of rain by hour (track time): ${w.hours.map(h => `${h.at} ${h.rain ?? 0}%${h.mm ? ` (${h.mm} mm)` : ''}`).join(' · ')}`;
+          rainCell.append(strip);
+        }
+        rainCell.append(`${w.rain ?? 0}%`);
         if (w.mm) rainCell.append(el('small', 'season-muted', ` ${w.mm} mm`));
         row.append(el('span', 'season-forecast-day', short), icon, temp, rainCell, wind);
-        if (w.humidity != null) row.append(el('span', 'season-forecast-humid', `${w.humidity}%`));
+        for (const [key] of extras) {
+          const v = w[key], cellClass = key === 'humidity' ? 'season-forecast-humid' : `season-forecast-${key}`;
+          row.append(el('span', cellClass, v == null ? '—' : key === 'gust' ? `${Math.round(v)} km/h` : `${v}%`));
+        }
+        if (lit) {
+          const l = light(x), cell = el('span', 'season-forecast-light', l?.kind || '—');
+          if (l) { cell.dataset.light = l.kind.toLowerCase(); if (l.sunset) cell.title = `Sunrise ${l.sunrise} · sunset ${l.sunset}, track time`; }
+          row.append(cell);
+        }
         list.append(row);
       }
       for (const d of bySession.length ? [] : data.next_weather) {
@@ -1437,6 +1528,16 @@
         list.append(row);
       }
       forecast.append(list);
+      // Under the table: sunset each day of the weekend (track time), and the conditions at this race last year.
+      const notes = el('p', 'season-weather-notes');   // a p: the weather block hides its other divs
+      const days = Object.entries(next.sun || {}).filter(([day]) => next.sessions.some(x => offset != null && trackClock(Date.parse(x.start)).startsWith(day)));
+      if (days.length) notes.append(el('span', null, `Sunset, track time: ${days.map(([day, sun]) => `${new Date(`${day}T12:00:00`).toLocaleDateString([], {weekday: 'short'})} ${sun.sunset.slice(11, 16)}`).join(' · ')}`));
+      forecast.append(notes);
+      loadTrackProfiles(data.year - 1).then(previous => {
+        const t = previous?.tracks?.[next.name], c = t?.conditions;
+        if (!c || !notes.isConnected) return;
+        notes.append(el('span', null, `${data.year - 1} qualifying, at the fastest lap: ${Math.round(c.track)}° track, ${Math.round(c.air)}° air${c.rain ? ', rain' : ''}`));
+      });
       body.append(forecast);
     }
     const note = el('span', null, 'Times in your time zone.');
