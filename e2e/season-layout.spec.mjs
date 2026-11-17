@@ -19,7 +19,6 @@ for (const width of [1440, 1024, 768, 390]) {
   test(`detailed session forecasts fit the panel at ${width}px`, async ({page}) => {
     await page.setViewportSize({width, height: 1000});
     await page.goto('/apex/');
-    await page.getByRole('button', {name: 'Next weekend', exact: true}).click();
     await expect(page.locator('.season-forecast-humid')).toHaveCount(next.sessions.length);
     const fits = await page.locator('.season-forecast').evaluate(n => n.scrollWidth <= n.clientWidth + 1);
     expect(fits).toBe(true);

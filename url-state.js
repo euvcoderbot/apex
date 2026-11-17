@@ -69,7 +69,6 @@
     h2h: 'Head-to-head', upgrades: 'Development', units: 'Reliability', tracks: 'Tracks'};
   // A page's view (part=) in the title too, so two tabs on Results read By driver and By team.
   const PART_TITLES = {drivers: 'By driver', teams: 'By team', field: 'All drivers', sessions: 'Sessions', pace: 'Pace', points: 'Points',
-    trends: 'Season trends', comparison: 'Comparisons', agenda: 'Session agenda', weekends: 'Weekend log',
     installations: 'Changes by round', pattern: 'Season patterns', history: 'Race history', battles: 'All teammates', finishes: 'Finishes', corners: 'Corners', compare: 'All circuits', upcoming: 'To come', done: 'Completed'};
   function titleFor(view, params) {
     if (view === 'season' && params?.tab === 'home') return `${SITE} — Formula 1 analysis`;

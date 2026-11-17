@@ -2473,9 +2473,14 @@
 :root[data-skin="linear"] #carPerformance .entrant-comparison tbody th { text-align: left; background: transparent; color: var(--ui-secondary); font: 500 13px/1.4 var(--ui-font); }
 :root[data-skin="linear"] .car-category-picker { display: none; }
 @media (max-width: 760px) {
-  :root[data-skin="linear"] #performanceResults > .performance-toolbar .car-category-picker { display: flex; align-items: center; gap: 8px; font: 500 12px/1.4 var(--ui-font); color: var(--ui-tertiary); }
-  :root[data-skin="linear"] #performanceResults > .performance-toolbar .performance-mode[role="tablist"] { display: none; }
+  :root[data-skin="linear"] #performanceResults > .performance-toolbar .car-category-picker { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; font: 500 12px/1.4 var(--ui-font); color: var(--ui-tertiary); }
+  :root[data-skin="linear"] #performanceResults > .performance-toolbar .car-category-picker .select-shell { flex: 1 1 auto; max-width: 240px; }
+  :root[data-skin="linear"] #performanceResults > .performance-toolbar > .performance-mode[role="tablist"] { display: none !important; }
 }
+:root[data-skin="linear"] #carPerformance .trend-round-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 4px 0 12px; }
+:root[data-skin="linear"] #carPerformance .trend-round-tools > label { display: inline-flex; white-space: nowrap; align-items: center; gap: 8px; color: var(--ui-tertiary); font: 500 12px/1.4 var(--ui-font); }
+:root[data-skin="linear"] #carPerformance .trend-round-tools .select-shell { min-width: 0; width: min(260px, 60vw); }
+:root[data-skin="linear"] #carPerformance .entrant-comparison > summary { color: var(--ui-secondary); font: 500 13px/1.4 var(--ui-font); }
 :root[data-skin="linear"] .session-jump { font: 500 12px/1.4 var(--ui-font); color: var(--ui-secondary); text-decoration: underline; text-underline-offset: 3px; }
 :root[data-skin="linear"] .main-dashboard:has(#sessionOverview[hidden]) .session-overview-link { display: none; }
 /* Session summary (session-overview.js): the same table look as the every-corner table. */

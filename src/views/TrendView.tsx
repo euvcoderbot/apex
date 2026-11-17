@@ -36,7 +36,7 @@ export function TrendView(props: TrendViewProps) {
       note={`Ranked by ${fitted ? 'a robust fitted rate across measured rounds' : 'the observed change between median opening and latest event groups'}. More negative means the team closed the gap to the quickest car. This measures relative one-lap progress, not a proven upgrade effect.`}>
       <SegmentedControl name="trend-view" label="Rank development by" value={view} options={[['observed', 'Opening → latest'], ['fitted', 'Fitted trend']]} />
       <p className="performance-note">The dots, opening/latest medians and fit use the same evolution-adjusted gaps (raw gaps where adjustment is unavailable). Observed change compares the endpoint groups; fitted change uses every measured round. {fitted ? 'The dashed line shows that fit. ' : ''}Missing rounds are not filled. Circuit suitability, setup and driver changes affect the trend.</p>
-      <div className="performance-toolbar">
+      <div className="trend-round-tools">
         <label>Inspect round <select data-trend-round="" defaultValue={props.round}>
           <option value="">Season summary</option>
           {props.rounds.map(event => <option key={event.round} value={event.round}>R{event.round} · {event.name}</option>)}

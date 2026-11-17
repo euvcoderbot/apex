@@ -111,7 +111,7 @@ test('all eight performance categories work from the page pills with flat bars',
     await page.locator(`#performanceResults .performance-mode [data-performance-metric="${metric}"]`).click();
     await expect(page.locator(`#performanceResults .performance-mode [data-performance-metric="${metric}"]`)).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('#performanceMetricPanel')).toBeVisible();
-    for (const width of [1440, 390]) {
+    for (const width of [390, 1440]) {
       await page.setViewportSize({width, height: 900});
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
     }

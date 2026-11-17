@@ -734,52 +734,46 @@
     picker.setAttribute('aria-label', 'Grand Prix to review');
     for (const r of [...rounds].reverse()) picker.append(new Option(`R${r.round} · ${r.name}`, String(r.round)));
     const shell = el('div', 'select-shell season-select'); shell.append(picker);
+    const title = el('h2');
     const header = el('header', 'weekend-review-head');
-    header.append(el('h2', null, 'Weekend classification'), shell);
-    const body = el('div');
+    header.append(title, shell);
+    const body = el('div', 'weekend-review-body');
     section.append(header, body);
+    // A top-three list: position, driver, and the reading on the right.
+    const top3 = (heading, rows) => {
+      const box = el('section', 'weekend-order'); box.append(el('h3', null, heading));
+      const ol = el('ol', 'weekend-classification');
+      for (const [pos, id, value] of rows) {
+        const li = el('li'); li.dataset.pos = String(pos);
+        li.append(el('b', null, `P${pos}`), who(data, id, {team: false}), el('span', null, value)); ol.append(li);
+      }
+      box.append(rows.length ? ol : el('p', 'season-muted', 'Not available.'));
+      return box;
+    };
     const draw = r => {
       picker.value = String(r.round);
-      const finishers = r.race.filter(x => x.position > 0).sort((a, b) => a.position - b.position).slice(0, 3);
-      const rows = el('ol', 'home-glance-list weekend-classification');
-      for (const x of finishers) {
-        const li = el('li');
-        li.append(el('b', null, `P${x.position}`), who(data, x.driver, {team: false}),
-          el('span', 'season-muted', x.gap || x.status || '—'));
-        rows.append(li);
-      }
-      const classifications = el('div', 'weekend-orders');
-      const race = el('section'); race.append(el('h3', null, 'Race podium'), rows);
-      const qualifying = el('section'); qualifying.append(el('h3', null, 'Qualifying'));
-      const qualifiers = (r.qualifying || []).filter(q => q.position > 0).sort((a, b) => a.position - b.position).slice(0, 3);
-      const order = el('ol', 'home-glance-list weekend-classification');
-      for (const q of qualifiers) {
-        const li = el('li');
-        const phase = ['q3', 'q2', 'q1'].find(k => Number.isFinite(q[k]) && q[k] > 0);
-        li.append(el('b', null, `P${q.position}`), who(data, q.driver, {team: false}),
-          el('span', 'season-muted', phase ? `${phase.toUpperCase()} · ${lapTime(q[phase])}` : '—'));
-        order.append(li);
-      }
-      qualifying.append(qualifiers.length ? order : el('p', 'season-muted', 'Qualifying classification unavailable.'));
-      classifications.append(qualifying, race);
+      title.replaceChildren(...[flag(r), el('span', null, r.name)].filter(Boolean));
+      const race = r.race.filter(x => x.position > 0).sort((a, b) => a.position - b.position).slice(0, 3);
+      const quali = (r.qualifying || []).filter(q => q.position > 0).sort((a, b) => a.position - b.position).slice(0, 3);
+      const best = q => { const k = ['q3', 'q2', 'q1'].find(k => Number.isFinite(q[k]) && q[k] > 0); return k ? lapTime(q[k]) : '—'; };
+      const facts = el('dl', 'weekend-facts');
+      const fact = (label, value) => { if (!value) return; const row = el('div'); row.append(el('dt', null, label), el('dd')); row.lastChild.append(value); facts.append(row); };
       const fastest = r.race.find(x => x.fastest_lap_rank === 1);
-      const notes = el('p', 'season-muted');
-      notes.textContent = fastest ? `Fastest race lap · ${driverName(data, fastest.driver)}` : '';
-      const links = el('div', 'season-toolbar');
-      const action = (name, fn) => {
-        const button = el('button', 'season-link', name);
-        button.type = 'button'; button.addEventListener('click', fn); links.append(button);
-      };
+      const winner = race[0], pole = quali[0];
+      fact('Fastest lap', fastest && who(data, fastest.driver, {team: false}));
+      fact('Won from', winner && (winner.grid ? `P${winner.grid} on the grid` : 'the pit lane'));
+      fact('Finishers', `${r.race.filter(x => x.position > 0).length} of ${r.race.length}`);
+      if (pole && winner) fact('Pole converted', pole.driver === winner.driver ? 'Yes' : 'No');
+      const links = el('div', 'weekend-links');
+      const action = (name, fn) => { const b = el('button', 'season-link', name); b.type = 'button'; b.addEventListener('click', fn); links.append(b); };
       action('Race report', () => openResult(data, r.round));
-      if (finishers.length >= 2) {
-        const [a, b] = finishers.map(x => x.driver);
-        action(`${driverCode(data, a)} vs ${driverCode(data, b)} · season`, () => show('h2h', {a, b, part: 'overview'}));
-      }
+      if (race.length >= 2) action(`${driverCode(data, race[0].driver)} vs ${driverCode(data, race[1].driver)} · season`, () => show('h2h', {a: race[0].driver, b: race[1].driver, part: 'overview'}));
       action('Circuit guide', () => openTrack(r.name));
-      body.replaceChildren(classifications, notes, links);
+      const side = el('section', 'weekend-order'); side.append(el('h3', null, 'Weekend'), facts, links);
+      body.replaceChildren(top3('Race', race.map(x => [x.position, x.driver, x.gap || x.status || '—'])),
+        top3('Qualifying', quali.map(q => [q.position, q.driver, best(q)])), side);
     };
-    const selected = rounds.find(r => r.round === homeRoundByYear.get(data.year)) || rounds.at(-1);
-    draw(selected);
+    draw(rounds.find(r => r.round === homeRoundByYear.get(data.year)) || rounds.at(-1));
     picker.addEventListener('change', () => {
       const r = rounds.find(round => String(round.round) === picker.value);
       homeRoundByYear.set(data.year, r.round); draw(r);
@@ -791,15 +785,10 @@
     const out = [];
     const done = data.rounds.filter(r => r.race?.length);
     const next = data.rounds.find(r => r.status === 'next');
-    const views = [];
-    if (done.length) views.push(['review', 'Race review']);
-    if (next) views.push(['weekend', 'Next weekend']);
-    views.push(['championship', 'Championship']);
-    const current = pageView('home', views);
-    if (views.length > 1) out.push(viewPills('home', views, () => paint(() => renderHome(data))));
-    if (current === 'weekend') return [...out, nextRaceHero(data, next)];
-    const review = current === 'review' ? weekendReview(data, done) : null;
-    if (review) out.push(review);
+    // One page: the coming weekend (countdown, sessions, forecast), the season strip, the chosen weekend's classification
+    // (the strip picks it) and the championship at a glance.
+    if (next) out.push(nextRaceHero(data, next));
+    const review = done.length ? weekendReview(data, done) : null;
     // The season strip: every round as its flag and code, done / next / to come.
     const strip = el('div', 'home-season-strip'); strip.style.setProperty('--n', String(data.rounds.length));
     for (const r of data.rounds) {
@@ -825,7 +814,7 @@
       picker.addEventListener('change', () => {
         for (const cell of strip.querySelectorAll('[data-round]')) cell.setAttribute('aria-pressed', String(cell.dataset.round === picker.value));
       });
-      return out;
+      out.push(review);
     }
     // Championship standings and recent pace.
     const glance = el('div', 'home-glance');
@@ -871,24 +860,10 @@
     if (allIcs) progress.append(allIcs);
     out.push(progress);
     // Views: every round, the rounds still to come, or the completed ones (twenty finished rounds no longer bury the next).
-    const SCHEDULE_VIEWS = [['all', 'All'], ['upcoming', 'To come'], ['done', 'Completed'], ['agenda', 'Session agenda']];
+    const SCHEDULE_VIEWS = [['all', 'All'], ['upcoming', 'To come'], ['done', 'Completed']];
     const scheduleView = pageView('schedule', SCHEDULE_VIEWS);
     const bar = el('div', 'season-toolbar'); bar.append(viewPills('schedule', SCHEDULE_VIEWS, () => paint(() => renderSchedule(data))));
     out.push(bar);
-    if (scheduleView === 'agenda') {
-      const upcoming = data.rounds.filter(r => notRun(r) && r.sessions?.length);
-      for (const r of upcoming) {
-        const times = el('dl', 'season-stat-list');
-        for (const session of r.sessions) {
-          const row = el('div'), time = new Date(session.start);
-          row.append(el('dt', null, session.name), el('dd', null, Number.isFinite(time.getTime()) ? time.toLocaleString([], {weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'}) : 'Time unavailable'));
-          times.append(row);
-        }
-        out.push(card(r.name, times));
-      }
-      if (!upcoming.length) out.push(empty('No remaining sessions on this calendar.'));
-      return out;
-    }
     if (next && scheduleView !== 'done') out.push(nextRaceHero(data, next));
     const grid = el('div', 'season-rounds');
     for (const r of data.rounds) {
@@ -1182,9 +1157,13 @@
     if (!all.length || (profiles.year && profiles.year !== data.year)) {
       return [card(null, empty(`No track profiles for ${data.year} yet: circuit maps and lap measurements come from that season's qualifying telemetry.`))];
     }
-    const roundOf = gp => data.rounds.find(r => r.name === gp || r.name.startsWith(gp + ' '));   // 'Bahrain Grand Prix in Malaysia'
+    // Telemetry names some events differently from the classification ('São Paulo' for 'Brazilian').
+    const ALIAS = {'São Paulo Grand Prix': 'Brazilian Grand Prix'};
+    const roundOf = gp => data.rounds.find(r => r.name === gp || r.name === ALIAS[gp] || r.name.startsWith(gp + ' '));   // 'Bahrain Grand Prix in Malaysia'
     const ordered = all.sort(([a], [b]) => (roundOf(a)?.round ?? 99) - (roundOf(b)?.round ?? 99));
     const names = ordered.map(([gp]) => gp);
+    const aliased = names.find(gp => ALIAS[gp] && ALIAS[gp] === state.track);
+    if (aliased) state.track = aliased;
     if (!names.includes(state.track)) {
       const last = data.rounds.filter(r => r.status === 'done' && names.some(gp => roundOf(gp) === r)).at(-1);
       state.track = last ? names.find(gp => roundOf(gp) === last) : names[0];
@@ -2898,7 +2877,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     });
     return group;
   }
-  const DRIVER_VIEWS = [['driver', 'Driver'], ['trends', 'Season trends'], ['comparison', 'Comparisons'], ['field', 'All drivers']];   // 'field' stays the address (part=field)
+  const DRIVER_VIEWS = [['driver', 'Driver'], ['field', 'All drivers']];   // 'field' stays the address (part=field)
   function renderDrivers(data, form = null) {
     if (form) driversForm = {year: data.year, form}; else if (driversForm?.year === data.year) form = driversForm.form;
     const rerender = () => paint(() => renderDrivers(data, form));
@@ -3037,10 +3016,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     const pointsCard = extras.find(node => node.querySelector?.('h3')?.textContent === 'Points per race');
     const rest = extras.filter(node => node !== pointsCard);
     const standingRow = el('div', 'season-two'); standingRow.append(card('Championship position', positions), card('Finishing positions', dist, el('p', 'season-footnote', 'Classified finishes only.')));
-    const view = pageView('drivers', DRIVER_VIEWS);
-    if (view === 'trends') return [toolbar, head, pointsCard, standingRow].filter(Boolean);
-    if (view === 'comparison') return [toolbar, head, ...rest];
-    return [toolbar, head, card('Race-by-race results', strip, legend), tiles];
+    return [toolbar, head, card('Race-by-race results', strip, legend), tiles, pointsCard, standingRow, ...rest].filter(Boolean);
   }
   const FIELD_STATS = {
     race: [['points', 'Points'], ['wins', 'Wins'], ['podiums', 'Podiums'], ['points_finishes', 'Points finishes'], ['average_finish', 'Average finish', true, 2],
@@ -3435,30 +3411,12 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     const allBattles = card('Teammate head-to-heads', wrap(battles), el('p', 'season-footnote', 'Weekends each driver finished ahead of their teammate (first-named driver first), the median qualifying gap, and each driver’s season points, including any scored for another team. Choose a pair to compare them below.'));
     // Views: Overview (the scoreboard and every weekend), Sessions (qualifying and race in detail), Pace (race and practice
     // pace, loaded only when shown), Points (the points gap and finishes), All teammates (every pairing, to pick from).
-    const H2H_VIEWS = [['overview', 'Overview'], ['sessions', 'Sessions'], ['pace', 'Pace'], ['points', 'Points'], ['battles', 'All teammates'], ['weekends', 'Weekend log']];
+    const H2H_VIEWS = [['overview', 'Overview'], ['sessions', 'Sessions'], ['pace', 'Pace'], ['points', 'Points'], ['battles', 'All teammates']];
     toolbar.prepend(viewPills('h2h', H2H_VIEWS, () => paint(() => renderH2H(data))));
     const view = pageView('h2h', H2H_VIEWS);
     // Overview shows the full hero; the other views a compact one (names, numbers and the score, no portraits or bars), so
     // their own cards start near the top instead of below a third of a screen of repeated header.
     if (view !== 'overview') hero.classList.add('is-compact');
-    if (view === 'weekends') {
-      const log = el('table', 'season-table'), header = log.createTHead().insertRow();
-      for (const title of ['Grand Prix', 'Qualifying gap', driverCode(data, a), driverCode(data, b)]) {
-        const th = el('th', null, title); th.scope = 'col'; header.append(th);
-      }
-      const rows = log.createTBody();
-      for (const r of [...data.rounds].reverse().filter(r => !notRun(r))) {
-        const row = rows.insertRow(), gp = row.insertCell(); gp.append(roundLink(data, r));
-        const gap = qualiGap(r, a, b);
-        row.insertCell().textContent = !gap ? '—' : Math.abs(gap.seconds) < .0005 ? 'Level' :
-          `${driverCode(data, gap.seconds < 0 ? a : b)} · ${Math.abs(gap.seconds).toFixed(3)} s · ${gap.session}`;
-        for (const id of [a, b]) {
-          const result = r.race.find(x => x.driver === id);
-          row.insertCell().textContent = result?.position ? `P${result.position}` : result?.status || '—';
-        }
-      }
-      return [toolbar, hero, card('Qualifying gap and race finish', wrap(log))];
-    }
     if (view === 'sessions') return [toolbar, hero, sessionCards];
     if (view === 'pace') { const paceTwo = el('div', 'season-two'); paceTwo.append(h2hPace(data, a, b, ca, cb), practicePace(data, a, b, ca, cb)); return [toolbar, hero, paceTwo]; }
     if (view === 'points') return [toolbar, hero, h2hExtras(data, a, b, ca, cb)];
@@ -4178,7 +4136,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     const bar = el('div', 'season-toolbar'); bar.append(viewPills('units', UNIT_VIEWS, () => paint(() => renderUnits(data, pu))));
     if (pageView('units', UNIT_VIEWS) === 'finishes') return [bar, reliabilityCard(data, pu) || empty('No finishes to show yet.')];
     if (pageView('units', UNIT_VIEWS) === 'installations')
-      return [bar, pills, out[1] || empty('At least two dated FIA reports are needed to compare rounds.')];
+      { pills.style.margin = '0'; bar.append(pills); return [bar, out[1] || empty('At least two dated FIA reports are needed to compare rounds.')]; }
     return [bar, out[0]];
   }
 

@@ -2168,7 +2168,11 @@ function entrantComparison(panel, metric) {
   picks.forEach((pick, i) => pick.addEventListener('change', () => draw(i)));
   box.addEventListener('toggle', () => { if (box.isConnected) comparisonByMetric.set(metric, {pair: picks.map(p => p.value), open: box.open}); });
   box.append(title, controls, table); draw(0);
-  panel.querySelector('.metric-heading')?.after(box);
+  // Under the rankings it reads from, not between the heading and the charts.
+  let after = panel.querySelectorAll('.performance-chart-card:not(details .performance-chart-card)');
+  after = after[after.length - 1];
+  while (after && after.parentElement !== panel) after = after.parentElement;
+  (after || panel.querySelector('.metric-heading'))?.after(box);
 }
 function renderContent() {
   const modes=[

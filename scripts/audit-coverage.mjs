@@ -35,9 +35,7 @@ const STATES = {
   standings: season('standings'), drivers: season('drivers'), h2h: season('h2h'),
   upgrades: season('upgrades'), units: season('units'), 'standings-2020': season('standings', '', 2020),
   // The page views (part=) that hold content the default views no longer show.
-  'driver-trends': season('drivers', '&part=trends'), 'driver-comparisons': season('drivers', '&part=comparison'),
-  'h2h-weekends': season('h2h', '&part=weekends'), 'track-history': season('tracks', '&part=history'),
-  'schedule-agenda': season('schedule', '&part=agenda'), 'development-pattern': season('upgrades', '&part=pattern'),
+  'track-history': season('tracks', '&part=history'), 'development-pattern': season('upgrades', '&part=pattern'),
   'unit-installations': season('units', '&part=installations'),
   'drivers-field': season('drivers', '&part=field'), 'h2h-sessions': season('h2h', '&part=sessions'), 'h2h-pace': season('h2h', '&part=pace'),
   'h2h-points': season('h2h', '&part=points'), 'results-drivers': season('results', '&part=drivers'), 'units-finishes': season('units', '&part=finishes'), 'tracks-corners': season('tracks', '&part=corners'), 'tracks-compare': season('tracks', '&part=compare'),
@@ -50,7 +48,7 @@ for (const [k, v] of Object.entries(STATES)) if (typeof v !== 'function') delete
 function checks() {
   const vw = document.documentElement.clientWidth, found = [];
   const name = e => `${e.tagName.toLowerCase()}${e.id ? '#' + e.id : ''}${typeof e.className === 'string' && e.className.trim() ? '.' + e.className.trim().split(/\s+/).slice(0, 2).join('.') : ''}`;
-  const shown = e => { const r = e.getBoundingClientRect(), s = getComputedStyle(e); return r.width > 1 && r.height > 1 && s.visibility !== 'hidden' && s.display !== 'none'; };
+  const shown = e => { const r = e.getBoundingClientRect(), s = getComputedStyle(e); return r.width > 1 && r.height > 1 && s.visibility !== 'hidden' && s.display !== 'none' && !e.closest('details:not([open]) > :not(summary)'); };   // a folded disclosure's content is not on screen
   const add = (kind, e, detail) => found.push({kind, el: name(e), text: (e.innerText || e.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40), detail});
   if (document.documentElement.scrollWidth > vw + 1) add('page-scrolls-sideways', document.documentElement, `${document.documentElement.scrollWidth} > ${vw}`);
   const hub = document.querySelector('#seasonHub'), scope = hub && hub.offsetParent !== null ? hub : document.body;

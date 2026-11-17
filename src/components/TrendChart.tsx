@@ -31,7 +31,7 @@ export function TrendChart({series, lo, hi, ceiling, selectedRound}: {series: Tr
           <text x="5.5%" y={y(tick) + 4} textAnchor="end" className="trend-axis">{fmt(tick, step < .1 ? 2 : 1, '%')}</text>
         </g>)}
         {selectedRound !== undefined ? <line x1={x(selectedRound)} x2={x(selectedRound)} y1={TOP} y2={HEIGHT - BOTTOM} stroke="var(--ui-secondary)" strokeDasharray="3 3" /> : null}
-        {rounds.filter((_, index) => index % every === 0 || index === rounds.length - 1).map(round => <text key={round} x={x(round)} y={HEIGHT - 6} textAnchor="middle" className="trend-axis">R{round}</text>)}
+        {rounds.filter((_, index) => index % every === 0 || (index === rounds.length - 1 && index % every >= every / 2)).map(round => <text key={round} x={x(round)} y={HEIGHT - 6} textAnchor="middle" className="trend-axis">R{round}</text>)}
         {series.map((line, seriesIndex) => {
           const stroke = color(line.teamColor);
           return (
