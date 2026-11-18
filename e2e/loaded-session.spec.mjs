@@ -118,10 +118,9 @@ test('inspect a measured gain or loss with the keyboard', async ({page}) => {
   const errors = await loaded(page, {corners: [{number: 1, fraction: .06}, {number: 12, fraction: .42}, {number: 19, fraction: .83}]});
   const action = page.locator('#timeSummary [data-inspect-zone]').first();
   await expect(action).toBeVisible();
-  // The whole row is the button (list-row recipe), and the jump links are small buttons, not underlined text.
+  // The whole row is the button (list-row recipe), not underlined text.
   expect(await action.evaluate(b => [getComputedStyle(b).textDecorationLine, getComputedStyle(b).boxShadow, b.closest('li').getBoundingClientRect().width - b.getBoundingClientRect().width])).toEqual(['none', 'none', 0]);
   await page.locator('#timeSummary').screenshot({path: test.info().outputPath('time-summary.png')});
-  await page.locator('#sessionOverview .section-heading').screenshot({path: test.info().outputPath('overview-heading.png')});
   await page.locator('#sectorRows').screenshot({path: test.info().outputPath('sectors.png')});
   await page.locator('#sessionOverview').screenshot({path: test.info().outputPath('overview.png')});
   const index = await action.getAttribute('data-inspect-zone');

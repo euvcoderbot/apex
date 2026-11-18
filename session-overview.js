@@ -381,7 +381,7 @@
     else if (overviewView === 'race') content = raceCharts() || '<p class="section-empty">Race order needs at least two recorded laps.</p>';
     else if (overviewView === 'field') content = sessionSummary();
     else content = `<div class="overview-chart"><h3>Lap times</h3>${lapChart()}</div>`;
-    const html = `<div class="section-heading analysis-heading"><h2 id="sessionOverviewTitle">Session overview</h2>${loaded.length ? '<a class="session-jump" href="#telemetryCard">Inspect compared laps ↓</a>' : ''}</div>
+    const html = `<div class="section-heading analysis-heading"><h2 id="sessionOverviewTitle">Session overview</h2></div>
       <div class="overview-readout">${readout(rows)}</div>
       <div class="performance-scope-toggle" role="group" aria-label="Session evidence">${buttons}</div>${content}`;
     if (renderedOverview !== html || !root.firstChild) {

@@ -909,7 +909,11 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-round-mark small { color: var(--ui-tertiary); font: 450 10px/1 var(--ui-font); letter-spacing: 0; }
 /* Weekend-by-weekend cells: room between the race label (flag and code) and the finishing place. */
 #seasonHub .season-strip-cell { gap: 5px; min-height: 64px; }
-#seasonHub .season-strip-cell[data-tone]:not([data-tone="none"]) b { background: color-mix(in srgb, var(--tone) 21%, var(--lin-card)); border-radius: 4px; }
+/* The whole cell carries the result's colour (purple win, green podium, red retirement), not a small block round the
+   number; points finishes and the rest stay on the plain band, the rest with a quieter number. */
+:root[data-skin] #seasonHub .season-strip-cell:is([data-tone="win"], [data-tone="podium"], [data-tone="out"]) { background: color-mix(in srgb, var(--tone) 20%, var(--lin-card)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 35%, transparent); }
+:root[data-skin] #seasonHub .season-strip-cell:is([data-tone="win"], [data-tone="podium"], [data-tone="out"]):hover { background: color-mix(in srgb, var(--tone) 28%, var(--lin-card)); }
+#seasonHub .season-strip-cell[data-tone="none"] b { color: var(--ui-tertiary); }
 #seasonHub .season-strip-cell small { margin-bottom: 2px; }
 /* Rounds still to run: an empty box in every round-by-round grid, strip and dot row, so each shows the whole calendar. */
 :root #seasonHub .season-matrix td.is-upcoming { padding: 2px; background: none; }

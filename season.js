@@ -1837,10 +1837,10 @@
     const rows = data.winners.map(w => [w, data.rounds.find(x => x.round === w.round)])
       .filter(([, r]) => r?.status === 'done' && (sprintOnly ? r.sprint?.length : session === 'race' || r.qualifying.length));
     const heads = session === 'race'
-      ? ['Winner', 'Second', 'Third', 'Fastest lap', 'Sprint', ['Margin', 'num']]
+      ? ['Winner', 'Second', 'Third', 'Fastest lap', ['Margin', 'num']]   // sprint results are on the Sprint pill, not repeated here
       : session === 'sprint' ? ['Winner', 'Second', 'Third', 'Fastest lap', ['Margin', 'num']]
       : session === 'sprintq' ? ['Sprint pole', 'Second', 'Third', ['Pole lap', 'num'], ['Gap to P2', 'num']]
-      : ['Pole', 'Second', 'Third', ['Pole lap', 'num'], ['Gap to P2', 'num'], ['Q3 cut', 'num'], 'Sprint pole'];
+      : ['Pole', 'Second', 'Third', ['Pole lap', 'num'], ['Gap to P2', 'num'], ['Q3 cut', 'num']];
     const table = el('table', 'season-table season-gp-table');
     const head = el('tr'); head.append(el('th', 'num', 'Round'), el('th', null, 'Grand Prix'));
     for (const h of heads) { const [label, cls] = Array.isArray(h) ? h : [h, null]; head.append(el('th', cls, label)); }
@@ -1867,7 +1867,7 @@
           el('td', 'num', pole?.best && second?.best ? `+${(second.best - pole.best).toFixed(3)} s` : sq ? '—' : '…'));
       } else if (session === 'race') {
         const at = p => r.race.find(x => x.position === p)?.driver;
-        tr.append(cell(w.race_winner), cell(at(2)), cell(at(3)), cell(r.race.find(x => x.fastest_lap_rank === 1)?.driver), cell(w.sprint_winner),
+        tr.append(cell(w.race_winner), cell(at(2)), cell(at(3)), cell(r.race.find(x => x.fastest_lap_rank === 1)?.driver),
           el('td', 'num', w.margin != null ? `${w.margin.toFixed(3)} s` : '—'));
       } else {
         const at = p => r.qualifying.find(x => x.position === p);
@@ -1877,7 +1877,7 @@
         // The cut into Q3: the slowest Q2 time that still reached Q3.
         const cut = r.qualifying.filter(x => x.reached === 3 && Number.isFinite(x.q2)).reduce((m, x) => Math.max(m, x.q2), -Infinity);
         tr.append(cell(pole?.driver), cell(second?.driver), cell(at(3)?.driver), el('td', 'num', poleLap != null ? lapTime(poleLap) : '—'),
-          el('td', 'num', gap2 != null ? `+${gap2.toFixed(3)} s` : '—'), el('td', 'num', Number.isFinite(cut) ? lapTime(cut) : '—'), cell(sprintPole(r)));
+          el('td', 'num', gap2 != null ? `+${gap2.toFixed(3)} s` : '—'), el('td', 'num', Number.isFinite(cut) ? lapTime(cut) : '—'));
       }
       const toggle = () => { state.expanded = state.expanded === r.round ? null : r.round; paint(() => renderResults(data)); };
       tr.addEventListener('click', toggle);  // the button's click (also Enter/Space) bubbles here
