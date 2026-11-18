@@ -9,7 +9,7 @@ import sys, unittest
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import numpy as np
-from car_physics import speed_domain_metrics, straight_totals, band_totals
+from car_physics import speed_domain_metrics, straight_totals, band_totals, acceleration_curve, throttle_lifting
 
 G = 9.80665
 # (length m, curvature 1/m). Apex speeds span the low/medium/high bands.
@@ -381,6 +381,27 @@ class CorruptLapTests(unittest.TestCase):
         near[:, 0] *= 1.01
         result = speed_domain_metrics({**self.base(), "near": [near]})
         self.assertIn("near", result["cars"])
+
+
+class TractionEdgeTests(unittest.TestCase):
+    def test_edge_node_does_not_extrapolate_a_steep_slope(self):
+        # Exit packets only from 110 km/h, rising steeply with speed (0.2 g at 110, 1.4 g at 160). The local-linear
+        # intercept at the 105 km/h node extends that slope to about 0 g; the edge rule stays within the observed values.
+        speed = np.array([110., 111, 114, 122, 130, 142, 150, 160])
+        accel = (0.2+(speed-110)/50*1.2)*G
+        _, linear = acceleration_curve(speed, accel, 100, 170)
+        nodes, edge = acceleration_curve(speed, accel, 100, 170, edge_constant=True)
+        at = lambda curve: curve[list(nodes).index(105.)]
+        self.assertLess(at(linear), .1*G)
+        self.assertGreater(at(edge), accel.min())
+        inner = [i for i, n in enumerate(nodes) if 120 <= n <= 150]
+        np.testing.assert_allclose(edge[inner], linear[inner])
+
+    def test_lifting_throttle_is_not_traction(self):
+        t = np.arange(10)*.25
+        throttle = np.array([40, 55, 70, 60, 45, 47, 60, 80, 100, 100.])
+        self.assertEqual(throttle_lifting(t, throttle).tolist(),
+                         [False, False, False, True, True, True, False, False, False, False])
 
 
 class AccelerationIndexContractTests(unittest.TestCase):

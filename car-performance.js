@@ -915,15 +915,16 @@ function sorted(items,getters,defaultKey,defaultDirection=1) {
 function summarisePaceTeams(teams,stat) {
   const series={
     qualy:t=>t.q.map(q=>({event:q.event,value:q.pace})),
-    qualyAdjusted:t=>t.q.map(q=>({event:q.event,value:q.adjustedPace,provisional:q.adjustmentFallback})),
+    // Where a GP has no supported evolution estimate for this team, its raw gap stands in and counts as provisional.
+    qualyAdjusted:t=>t.q.map(q=>({event:q.event,value:q.adjusted,provisional:q.adjustmentFallback||!finite(q.adjustedPace)})),
     qualyCondition:t=>t.q.map(q=>({event:q.event,value:q.conditionAdjusted})),
     race:t=>t.raceCoverage.map(r=>({...r,provisional:r.provisional||r.basis!=='clear-air'}))
   };
   const rows=teams.map(t=>({...t}));
   for(const [key,observations] of Object.entries(series)){
     const data=teams.map(observations);
-    sharedPace(data,stat).forEach(({value,range,count,provisional},i)=>{
-      Object.assign(rows[i],{[key]:value,[key+'Range']:range,[key+'Count']:count,[key+'Provisional']:provisional,
+    sharedPace(data,stat).forEach(({value,range,count,provisional,own,seen},i)=>{
+      Object.assign(rows[i],{[key]:value,[key+'Range']:range,[key+'Count']:count,[key+'Provisional']:provisional,[key+'Own']:own,[key+'Seen']:seen,
         [key+'HasData']:data[i].some(row=>finite(row.value))});
     });
   }
@@ -1055,7 +1056,7 @@ function renderPace(teams) {
   const evidence=(t,key)=>`${t[key+'Count']} shared GP${t[key+'Count']===1?'':'s'} · ${t[key+'Provisional']} provisional`;
   const chartRows=(rows,key)=>rows.map(t=>({...t,evidenceLabel:evidence(t,key),
     evidenceBadge:t[key+'Provisional']?`${t[key+'Provisional']} provisional`:'',
-    missingReason:t[key+'HasData']?'At least two measured teams must share the same GP set':'No supported measurements'}));
+    missingReason:!t[key+'HasData']?'No supported measurements':t[key+'Own']<t[key+'Seen']/2?`Measured in ${t[key+'Own']} of ${t[key+'Seen']} GPs`:'At least two measured teams must share the same GP set'}));
   const summaryLabel=key=>{
     const count=paceTeams.find(t=>t[key+'Count'])?.[key+'Count']??0;
     return `${count} shared GP${count===1?'':'s'}${paceTeams.some(t=>t[key+'Range'])?' · 90% GP-resample range':''}`;

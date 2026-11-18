@@ -17,9 +17,20 @@ test('pace compares shared GPs only and reports their provisional measurements',
   assert.equal(first.count,1);
   assert.equal(first.provisional,1);
   assert.ok(first.value>0);
-  assert.deepEqual(second,{value:0,range:null,count:1,provisional:0});
-  assert.deepEqual(unmeasured,{value:null,range:null,count:0,provisional:0});
-  assert.ok(sharedPace([a,b,[{event:'Neither',value:0}]],'mean').every(row=>row.value===null));
+  assert.deepEqual(second,{value:0,range:null,count:1,provisional:0,own:2,seen:3});
+  assert.deepEqual(unmeasured,{value:null,range:null,count:0,provisional:0,own:0,seen:3});
+  // Two teams sharing nothing cannot be compared.
+  assert.ok(sharedPace([[{event:'X',value:0},{event:'Y',value:1}],[{event:'Z',value:0},{event:'W',value:1}]],'mean').every(row=>row.value===null));
+});
+
+test('an entrant measured at few GPs stays unranked instead of shrinking the shared set for everyone',()=>{
+  const full=offset=>Array.from({length:10},(_,event)=>({event,value:offset+event%3*.1}));
+  const sparse=[{event:9,value:5}];
+  const [a,b,c]=sharedPace([full(0),full(.2),sparse],'mean');
+  assert.equal(a.count,10);
+  assert.ok(Math.abs(b.value-.2)<1e-3);
+  assert.equal(c.value,null);
+  assert.deepEqual([c.own,c.seen],[1,10]);
 });
 
 test('pace ranges resample shared GP effects together and allow the leader to change',()=>{

@@ -163,6 +163,21 @@ def speed_since_minimum(speed_kmh, braking):
     return gained
 
 
+LIFT_DROP_PCT = 10.
+LIFT_WINDOW_S = .5
+
+
+def throttle_lifting(t, throttle):
+    """True where the throttle sits LIFT_DROP_PCT or more below its peak of the previous LIFT_WINDOW_S."""
+    out = np.zeros(len(t), dtype=bool)
+    start = 0
+    for i in range(len(t)):
+        while t[i]-t[start] > LIFT_WINDOW_S:
+            start += 1
+        out[i] = throttle[i] <= np.max(throttle[start:i+1])-LIFT_DROP_PCT
+    return out
+
+
 def lap_signals(a, track, pos=None):
     """Acceleration and lateral-load estimate for every packet of one lap."""
     t, v = a[:, T], a[:, V]/3.6
@@ -176,6 +191,8 @@ def lap_signals(a, track, pos=None):
     # reaching 100% near 150 km/h), so the throttle position itself is the
     # traction limit. Exit phase: on throttle, off the brake, gaining speed.
     exiting = (a[:, THR] >= 20) & (a[:, BRK] < .5) & (speed_since_minimum(a[:, V], a[:, BRK] >= .5) >= EXIT_PHASE_KMH)
+    # A driver backing off the throttle is setting up the next corner, not limited by traction.
+    exiting &= ~throttle_lifting(t, a[:, THR])
     braking = a[:, BRK] >= .5
     # DRS codes 10/12/14 mean the flap is open (2018-2025). Mixing open- and
     # closed-wing packets in one curve would compare different drag states,
@@ -198,7 +215,7 @@ BANDWIDTH_KMH = 12.
 TOP_END_DISTANCE_M = 500.
 
 
-def acceleration_curve(speed_kmh, accel, lo, hi):
+def acceleration_curve(speed_kmh, accel, lo, hi, edge_constant=False):
     """Full-throttle acceleration at fixed speed nodes (kernel local-linear).
 
     Comparing cars at the *same speed* is what removes entry-speed effects:
@@ -214,6 +231,14 @@ def acceleration_curve(speed_kmh, accel, lo, hi):
             continue
         w = np.exp(-.5*((speed_kmh-node)/BANDWIDTH_KMH)**2)
         if w.sum() < 3:
+            continue
+        # edge_constant: where the car has packets on one side of the node only, take their weighted mean rather than the
+        # local-linear intercept. At the edge of its data that fit extends the slope past the last packet; out of a slow
+        # corner the slope is steep, so it read about 0 g where the car never was (Mexico City 2026, Russell: -0.02 g at
+        # 105 km/h, his slowest exit packet 110 km/h). Dropping such nodes instead cost too much coverage on 9-packet laps.
+        if edge_constant and not (np.any((speed_kmh < node) & (speed_kmh >= node-NODE_KMH))
+                                  and np.any((speed_kmh > node) & (speed_kmh <= node+NODE_KMH))):
+            curve[i] = float(np.sum(w*accel)/w.sum())
             continue
         X = np.column_stack([np.ones(len(w)), speed_kmh-node])
         sw = np.sqrt(w)
@@ -1199,7 +1224,8 @@ def speed_domain_metrics(cars, corners=(), *, lap_info=None):
         for key, (lo, hi) in ranges:
             for state in states:
                 chosen = (exiting if key == 'traction' else on_straight) & cat(state)
-                nodes[key], accel_fits[(key, state)][name] = acceleration_curve(speed[chosen], accel[chosen], lo, hi)
+                nodes[key], accel_fits[(key, state)][name] = acceleration_curve(speed[chosen], accel[chosen], lo, hi,
+                                                                                 edge_constant=key == 'traction')
         fades[name] = float(np.median([full_throttle_fade(a, p, s_['accel'], segments['straights']) for (a, p), s_ in zip(values, sig)]))
         results[name]['counts'] = {'straight_samples': int(on_straight.sum()), 'exit_samples': int(exiting.sum())}
     for key, _ in ranges:

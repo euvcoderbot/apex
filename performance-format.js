@@ -21,9 +21,12 @@ export const signed = (n, digits=3, suffix='%') => finite(n) ? `${n>0?'+':''}${M
  *  that set together and compares every entrant with the leader in that draw. */
 export function sharedPace(entries, mode, draws = 600) {
   const measured = entries.map(entry => new Map(entry.filter(row => finite(row.value)).map(row => [row.event, row])));
-  const eligible = measured.map((series, index) => ({series, index})).filter(row => row.series.size);
+  // An entrant measured in fewer than half of the GPs anyone was measured in stays unranked: it would otherwise shrink the
+  // shared set for everyone (one missing team at nine of ten GPs would leave a single race to compare).
+  const seen = new Set(measured.flatMap(series => [...series.keys()])).size;
+  const eligible = measured.map((series, index) => ({series, index})).filter(row => row.series.size && row.series.size >= seen / 2);
   const shared = [...(eligible[0]?.series.keys() || [])].filter(event => eligible.every(row => row.series.has(event)));
-  const result = entries.map(() => ({value: null, range: null, count: 0, provisional: 0}));
+  const result = entries.map((_, i) => ({value: null, range: null, count: 0, provisional: 0, own: measured[i].size, seen}));
   if (!shared.length || eligible.length < 2) return result;
   const rows = eligible.map(({series}) => shared.map(event => series.get(event)));
   const score = indices => {
@@ -42,7 +45,7 @@ export function sharedPace(entries, mode, draws = 600) {
     }
   }
   eligible.forEach(({index}, i) => {
-    result[index] = {value: values[i], range: samples[i].length ? [percentile(samples[i], .05), percentile(samples[i], .95)] : null,
+    result[index] = {...result[index], value: values[i], range: samples[i].length ? [percentile(samples[i], .05), percentile(samples[i], .95)] : null,
       count: shared.length, provisional: rows[i].filter(row => row.provisional).length};
   });
   return result;
