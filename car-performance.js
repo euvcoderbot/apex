@@ -6,7 +6,7 @@ import {SPEED_DOMAIN_METRICS,speedDomainSeason,speedDomainEventValues,speedDomai
 // Full parity with Session Analysis design language: Apple UI, official team logos, GP country flags, custom select menus.
 // Scientific rigor aligned with Astra GPT-6 Hybrid principles: no speculative physical regressions, sampling-aware bounds.
 
-import {$,escape,finite,avg,median,percentile,summarize,middle50Label,fmt,color,signed,bootstrapRange} from './performance-format.js';
+import {$,escape,finite,avg,median,percentile,summarize,fmt,color,signed,sharedPace} from './performance-format.js';
 import {VERIFIED_DRY_ALLOCATIONS,TYRE_ALLOCATION_SOURCES,verifiedDryGrade,grandPrixCountryCode,teamLabel} from './performance-identity.js';
 
 function rebase(rows, keys) {
@@ -639,6 +639,7 @@ function calculateAggregate() {
   const map=new Map();
   const eventQ1Deficits = new Map();
   const eventAdjDeficits = new Map();
+  const evolutionEvents = new Set();
 
   for (const e of events) {
     if (!e.Q?.teams) continue;
@@ -719,6 +720,7 @@ function calculateAggregate() {
     const evolutionValid = gate12Valid && gate23Valid;
 
     if (evolutionValid) {
+      evolutionEvents.add(e.name);
       const ev12 = med12;
       const ev23 = med23;
       const adjTimes = new Map();
@@ -768,6 +770,7 @@ function calculateAggregate() {
         const adjustedPace=eventAdjDeficits.get(e.name)?.get(t.team);
         item.q.push({
           round:e.round,event:e.name,pace:t.pace,adjusted:finite(adjustedPace)?adjustedPace:t.pace,
+          adjustedPace, adjustmentFallback:!evolutionEvents.has(e.name),
           conditionAdjusted:t.pace_condition_adjusted,conditionDiagnostic:t.qualifying_condition_diagnostic,
           paceDeltaS:t.pace_delta_s,
           idealPace:t.ideal_pace,
@@ -788,9 +791,10 @@ function calculateAggregate() {
         const adjDef = eventAdjDeficits.get(e.name)?.get(t.team);
         if (finite(adjDef)) item.adjDeficits.push(adjDef);
       } else {
-        item.r.push(typeof racePaceModel!=='undefined'&&racePaceModel==='linear'?t.race_linear_diagnostic?.pace:t.pace);
+        const raceValue=typeof racePaceModel!=='undefined'&&racePaceModel==='linear'?t.race_linear_diagnostic?.pace:t.pace;
+        item.r.push(raceValue);
         item.samples+=t.samples;
-        item.raceCoverage.push({event:e.name,supported:finite(t.pace),basis:t.race_pace_basis||'clear-air',
+        item.raceCoverage.push({event:e.name,value:raceValue,supported:finite(t.pace),basis:t.race_pace_basis||'clear-air',
           provisional:!!t.provisional,samples:t.samples||0});
         if(finite(t.pace)&&t.sample_tier) item.sampleTiers.push(t.sample_tier);
         if(t.traffic_sensitivity_bracket) item.sensitivityBrackets.push(t.traffic_sensitivity_bracket);
@@ -907,20 +911,21 @@ function sorted(items,getters,defaultKey,defaultDirection=1) {
   return window.ApexAnalysis.sortRows(items,getters,key,direction);
 }
 
-// One statistic (mean or median across GPs) for qualifying and race alike, with each figure's likely range: the 5th-95th
-// percentile of the statistic when its GPs are resampled. The range goes through the same rebasing as the value.
+// Each pace view uses its own shared GP set.
 function summarisePaceTeams(teams,stat) {
-  const series={qualy:t=>t.q.map(q=>q.pace),qualyAdjusted:t=>t.adjDeficits,qualyCondition:t=>t.q.map(q=>q.conditionAdjusted),race:t=>t.r};
-  const rows=teams.map(t=>{
-    const row={...t};
-    for(const [key,values] of Object.entries(series)){const data=values(t);row[key]=summarize(data,stat);row[key+'Range']=bootstrapRange(data,stat);row[key+'Count']=data.filter(finite).length;}
-    return row;
-  });
-  for(const key of Object.keys(series)){
-    const values=rows.map(r=>r[key]).filter(finite);
-    if(!values.length)continue;
-    const best=Math.min(...values),shift=v=>Math.max(0,((100+v)/(100+best)-1)*100);
-    for(const r of rows){if(finite(r[key]))r[key]=shift(r[key]);if(r[key+'Range'])r[key+'Range']=r[key+'Range'].map(shift);}
+  const series={
+    qualy:t=>t.q.map(q=>({event:q.event,value:q.pace})),
+    qualyAdjusted:t=>t.q.map(q=>({event:q.event,value:q.adjustedPace,provisional:q.adjustmentFallback})),
+    qualyCondition:t=>t.q.map(q=>({event:q.event,value:q.conditionAdjusted})),
+    race:t=>t.raceCoverage.map(r=>({...r,provisional:r.provisional||r.basis!=='clear-air'}))
+  };
+  const rows=teams.map(t=>({...t}));
+  for(const [key,observations] of Object.entries(series)){
+    const data=teams.map(observations);
+    sharedPace(data,stat).forEach(({value,range,count,provisional},i)=>{
+      Object.assign(rows[i],{[key]:value,[key+'Range']:range,[key+'Count']:count,[key+'Provisional']:provisional,
+        [key+'HasData']:data[i].some(row=>finite(row.value))});
+    });
   }
   return rows;
 }
@@ -1035,37 +1040,42 @@ function renderPace(teams) {
   const chartMeta = qualyPaceMode === 'overall' ? {
     title: 'Qualifying pace deficit · overall best lap',
     subtitle: 'Fastest official lap across Q1–Q3 per GP · season summary rebased to fastest team',
-    note: 'Each GP uses each constructor’s single fastest valid lap across Q1–Q3 from either driver, compared with that GP’s fastest lap. Across GPs the median is the default, so one wet, red-flagged or crash-hit session cannot decide the season; the result is rebased so the fastest supported team is 0.00%. A team knocked out in Q1 is measured on a slower track than Q3: the Adjusted view estimates that track evolution. Whiskers show the likely range from resampling the GPs; ≈ marks a gap to the team above that is inside that range.'
+    note: 'Each GP uses each constructor’s fastest valid lap across Q1–Q3, compared with that GP’s fastest lap. The Adjusted view estimates track evolution between phases.'
   } : qualyPaceMode==='condition'?{
     title:'Qualifying pace · timestamp / fresh-set diagnostic',subtitle:'Estimated, not official · no extrapolation to Q3',
     note:'Uses actual completion timestamps from repeated fresh, low-age sets on one dry compound. Driver effects and a shared timestamp slope are fitted inside common observed time support. Selected fastest laps must match that cohort. Weather, wind and execution are not independently measured corrections; unsupported fits stay blank.'
   } : {
     title: 'Qualifying pace deficit · track-evolution adjusted (% to Q3 baseline)',
     subtitle: 'Same dry compound and advancing drivers · estimated Q1/Q2 evolution, not a measured correction',
-    note: 'Estimates the shared improvement between qualifying phases from advancing drivers. Tyres, driver execution and changing conditions can also contribute; this is a diagnostic rather than an official lap result.'
+    note: 'Estimates the shared improvement between qualifying phases from advancing drivers. Where the whole GP lacks a supported adjustment, its raw gaps are included and marked provisional.'
   };
 
   const loadedQ=events.filter(e=>e.Q?.teams?.length).length,loadedR=events.filter(e=>e.R?.teams?.length).length;
   const lapSeconds=typicalLapSeconds(teams);
+  const evidence=(t,key)=>`${t[key+'Count']} shared GP${t[key+'Count']===1?'':'s'} · ${t[key+'Provisional']} provisional`;
+  const chartRows=(rows,key)=>rows.map(t=>({...t,evidenceLabel:evidence(t,key),
+    evidenceBadge:t[key+'Provisional']?`${t[key+'Provisional']} provisional`:'',
+    missingReason:t[key+'HasData']?'At least two measured teams must share the same GP set':'No supported measurements'}));
+  const summaryLabel=key=>{
+    const count=paceTeams.find(t=>t[key+'Count'])?.[key+'Count']??0;
+    return `${count} shared GP${count===1?'':'s'}${paceTeams.some(t=>t[key+'Range'])?' · 90% GP-resample range':''}`;
+  };
   const qualyColLabel = qualyPaceMode === 'overall'
     ? 'Qualifying · Best lap'
     : qualyPaceMode==='condition'?'Timestamp / set diagnostic':'Evolution-adjusted deficit';
   // Rendered by src/views/PaceView.tsx; data-pace-stat / data-qualy-mode buttons are handled below.
   const profile=teamProfileCard(paceTeams);
-  return reactView('pace',{regulatory:!!is2026,note:chartMeta.note,
+  return reactView('pace',{regulatory:!!is2026,note:`${chartMeta.note} Each ranking uses the GPs shared by all teams with measurements in that view. Whiskers cover the middle 90% of gaps when the same GPs are resampled for every team and the leader is picked again in each draw.`,
     stat:{show:loadedR>2||loadedQ>2,value:paceSeasonStat},
     qualyMode:qualyPaceMode,qualyBadge:qualyPaceMode==='overall'?'Best delivered lap · Q1–Q3':qualyPaceMode==='condition'?'Estimated within common observed time support':'Estimated phase evolution',
-    qualyChart:{rows:ordered.map(t=>({...t,evidenceLabel:`${t[paceKey+'Count']} GPs`})),options:{title:chartMeta.title,subtitle:`${chartMeta.subtitle} · ${paceSeasonStat==='mean'?'Mean':'Median'} across GPs${loadedQ>3?' · whiskers: likely range':''}`,valueKey:paceKey,unit:'%',digits:loadedQ>1?2:3,intervalKey:paceKey+'Range',perLapSeconds:lapSeconds}},
-    raceChart:{rows:paceTeams.map(t=>({...t,evidenceLabel:`${t.raceCount} GPs`})),options:{title:'Estimated race pace deficit (% to benchmark)',
-      subtitle:`Shared race-lap, compound and tyre-age model · ${paceSeasonStat==='mean'?'Mean':'Median'} GP estimate · Lower is faster${loadedR>3?' · whiskers: likely range':''}`,valueKey:'race',unit:'%',digits:loadedR>1?2:3,intervalKey:'raceRange',perLapSeconds:lapSeconds}},
+    qualyChart:{rows:chartRows(ordered,paceKey),options:{title:chartMeta.title,subtitle:chartMeta.subtitle,evidenceSummary:summaryLabel(paceKey),valueKey:paceKey,unit:'%',digits:loadedQ>1?2:3,intervalKey:paceKey+'Range',perLapSeconds:lapSeconds}},
+    raceChart:{rows:chartRows(paceTeams,'race'),options:{title:'Estimated race pace deficit (% to benchmark)',
+      subtitle:'Shared race-lap, compound and tyre-age model',evidenceSummary:summaryLabel('race'),valueKey:'race',unit:'%',digits:loadedR>1?2:3,intervalKey:'raceRange',perLapSeconds:lapSeconds}},
     sort:{team:sortHeaderModel('team','Team'),pace:sortHeaderModel(paceKey,qualyColLabel),race:sortHeaderModel('race','Estimated race pace deficit'),samples:sortHeaderModel('samples','Modelled race laps',-1)},
     rows:ordered.map(t=>{
-      const spread=middle50Label(qualyPaceMode==='adjusted'?t.adjDeficits:t.q.map(q=>q.pace),'%');
-      const estimated=t.raceCoverage.filter(r=>r.supported&&r.basis!=='clear-air').length;
       return {team:t,samples:t.samples,
-        pace:{value:fmt(t[paceKey],3,'%'),note:`${t.qCount} of ${loadedQ} loaded qualifying events${spread?` · GP P25–P75 ${spread}`:''}${t.qCount===1&&t.q[0]?.lap?` · ${t.q[0].lap.driver} ${fmt(t.q[0].lap.time,3,' s')}`:''}`},
-        race:{value:fmt(t.race,3,'%'),provisional:!!t.provisional,
-          note:`${t.fastestRaceDrivers?.length?`${[...new Set(t.fastestRaceDrivers)].join(', ')} · `:''}${t.rCount}/${loadedR} races supported${estimated?` · ${estimated} estimated`:''}${t.sensitivityBracket?` · Bracket [${fmt(t.sensitivityBracket[0],3,'%')}, ${fmt(t.sensitivityBracket[1],3,'%')}]`:''}`}};
+        pace:{value:fmt(t[paceKey],3,'%'),note:evidence(t,paceKey)},
+        race:{value:fmt(t.race,3,'%'),provisional:t.raceProvisional>0,note:evidence(t,'race')}};
     }),
     coverage:teams.flatMap(t=>t.raceDrivers.filter(r=>r.selected).map(r=>{
       const result=events.find(e=>e.name===r.event)?.R?.teams?.find(row=>row.team===t.team);
@@ -1129,6 +1139,13 @@ function tyreAgeView(teams) {
   const mappedRaces=loadedRaces.filter(e=>Boolean(allocations[Number(e.round)-1])).length;
   const unmappedStints=teams.flatMap(t=>t.tyreAgeStints||[]).filter(s=>!s.compound_grade).length;
   const source=TYRE_ALLOCATION_SOURCES[context?.year];
+  const stintFit=stint=>tyreLapMode==='clear'?stint.clean_air:stint;
+  const curveFit=fit=>typeof tyreFitMode!=='undefined'&&tyreFitMode==='curve'&&finite(fit?.nonlinear?.steady_slope);
+  const observedSlope=fit=>{
+    if(curveFit(fit))return fit.nonlinear.steady_slope;
+    if(finite(fit?.raw_slope))return fit.raw_slope;
+    return finite(fit?.fuel_adjusted_slope)?fit.fuel_adjusted_slope-(fit.fuel_assumption_s_per_lap??.060):null;
+  };
   const entities=[];
   for(const team of teams) {
     const stints=(team.tyreAgeStints||[]).map(s=>{
@@ -1137,11 +1154,11 @@ function tyreAgeView(teams) {
       // the field on the same compound. Older cached results fall back below.
       if(finite(s.joint_relative_slope))return {...s,trendValue:s.joint_relative_slope,trendSensitivity:null,trendSupported:true,
         trendSamples:s.clean_air?.samples??s.samples,samples:s.clean_air?.samples??s.samples,original:s};
-      const fit=tyreLapMode==='clear'?s.clean_air:s;
+      const fit=stintFit(s);
       if(!fit)return {...s,trendValue:null,trendSupported:false,trendSamples:0};
       const fuel=tyreCorrection==='fuel'?tyreFuelRate:0;
-      const curveMode=typeof tyreFitMode!=='undefined'&&tyreFitMode==='curve'&&finite(fit.nonlinear?.steady_slope);
-      const raw=curveMode?fit.nonlinear.steady_slope:finite(fit.raw_slope)?fit.raw_slope:finite(fit.fuel_adjusted_slope)?fit.fuel_adjusted_slope-(fit.fuel_assumption_s_per_lap??.060):null;
+      const curveMode=curveFit(fit);
+      const raw=observedSlope(fit);
       const value=finite(raw)?raw+fuel:null;
       const sensitivity=curveMode?null:fit.block_sensitivity_raw?.map(rate=>rate+fuel);
       const supported=fit.supported??(fit.samples>=6&&(!finite(fit.min_age)||!finite(fit.max_age)||fit.max_age-fit.min_age>=5));
@@ -1223,6 +1240,11 @@ function tyreAgeView(teams) {
   const legacy=teams.some(t=>(t.tyreAgeStints||[]).some(s=>!s.nonlinear));
   const jointRanking=teams.some(t=>(t.tyreAgeStints||[]).some(s=>finite(s.joint_relative_slope)));
   const fuelFor=s=>tyreCorrection==='fuel'?tyreFuelRate:0;
+  const selectedFit=selectedRun?stintFit(selectedRun.stint.original||selectedRun.stint):null;
+  const observed=observedSlope(selectedFit);
+  const scenarios=finite(observed)?[.03,.06,.09].map(rate=>({rate,slope:observed+rate})):[];
+  const fuelSensitivity=scenarios.length?{observed,scenarios,steady:curveFit(selectedFit),
+    changesSign:scenarios[0].slope < -1e-10 && scenarios.at(-1).slope > 1e-10}:null;
   return {compound:{choices,value:tyreView,overallLabel:'All C grades'},correction:tyreCorrection,
     correctionText:tyreCorrection==='fuel'?'Assumes 0.060 s/lap fuel gain; not measured fuel or isolated tyre degradation.':'Observed lap-time change includes fuel burn and track conditions.',
     note:`The number is the change in lap time for each additional lap on the tyre: +0.050 s/lap means a 0.500-second loss over ten tyre-age steps if the trend continues. Each driver's stint is fitted separately over its observed ages; pit, wet and neutralised laps are excluded. Runs are split at SC/VSC/red flags and unusual laps are screened around the fitted trend. ${tyreLapMode==='clear'?'Clean air requires more than 2 seconds to the car ahead at timing checkpoints.':'All usable laps includes traffic and race management.'} ${tyreCorrection==='fuel'?`The rate adds an assumed ${tyreFuelRate.toFixed(3)} s per race lap for fuel burn. This fixed sensitivity assumption is not a measured fuel load or a calibrated value for any season.`:'Observed rates include the benefit of burning fuel.'} ${tyreWeighting==='balanced'?'Median stints describe each driver, then both drivers receive equal weight within each GP and C grade.':'Stints receive weight proportional to their usable laps within each GP and C grade.'} Each GP receives equal weight in the season summary. Overall averages only the C grades observed in each GP, so differing compound and circuit coverage can affect comparisons. Track evolution, temperature, driving targets and energy management can still influence these estimates.`,
@@ -1241,6 +1263,7 @@ function tyreAgeView(teams) {
       runs:runsFor(selectedRun.entity.team,selectedRun.stint.driver,selectedRun.stint.event).map(r=>({key:r.key,label:`Stint ${r.stint.stint} · ${r.stint.compound_grade} · age ${r.stint.min_age}–${r.stint.max_age}${r.stint.segment?` · run ${r.stint.segment+1}`:''}`})),
       run:selectedRun.key,total:plotRuns.length,teamCount:new Set(plotRuns.map(r=>r.entity.team)).size}:null,
     plot:selectedRun?tyreStintPlotModel(selectedRun.entity,selectedRun.stint):null,
+    fuelSensitivity,
     evidence:entities.flatMap(entity=>entity.stints.filter(s=>tyreView==='OVERALL'||s.compound_grade===tyreView).map(s=>({team:entity,driver:s.driver||'—',event:s.event,
       grade:s.compound_grade||'Unmapped',run:`${s.stint}${s.segment?` · green run ${s.segment+1}`:''}`,
       ages:finite(s.min_age)&&finite(s.max_age)?`${s.min_age}–${s.max_age}`:'—',laps:s.trendSamples||0,

@@ -2,7 +2,7 @@ import {color, finite, fmt, signed} from '../../performance-format.js';
 import {TeamLabel, type TeamLike} from './TeamLabel';
 import {visibleBarValue} from '../../lib/chart-bar.mjs';
 
-type Row = TeamLike & Record<string, unknown> & {missingReason?: string; traceProvisional?: boolean; coverageLabel?: string; evidenceLabel?: string};
+type Row = TeamLike & Record<string, unknown> & {missingReason?: string; traceProvisional?: boolean; coverageLabel?: string; evidenceLabel?: string; evidenceBadge?: string};
 export type BarChartOptions = {
   title?: string; subtitle?: string; valueKey?: string; labelKey?: string; colorKey?: string;
   unit?: string; digits?: number; signedValue?: boolean; zeroBaseline?: boolean;
@@ -11,6 +11,7 @@ export type BarChartOptions = {
   benchmark?: string;
   /** Row key holding a [low, high] range for the value (same units, before rebasing): drawn as a whisker. */
   intervalKey?: string;
+  evidenceSummary?: string;
   /** Typical lap in seconds: a % gap is also shown as seconds per lap. */
   perLapSeconds?: number | null;
 };
@@ -31,7 +32,8 @@ function evidenceNote(rows: {evidenceLabel?: string}[]) {
  */
 export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartOptions}) {
   const {title = '', subtitle = '', valueKey = 'value', labelKey = 'team', colorKey = 'color', unit = '%', digits = 3,
-    signedValue = true, zeroBaseline = true, preserveSignedValues = false, invertBest = false, intervalKey, perLapSeconds = null} = options;
+    signedValue = true, zeroBaseline = true, preserveSignedValues = false, invertBest = false, intervalKey, perLapSeconds = null,
+    evidenceSummary} = options;
   // A long unit ('% of lap') is said once, under the title; each value carries only its short form ('%').
   const shortUnit = unit.replace(/ of .*$/, ''), unitNote = shortUnit !== unit ? unit : '';
   const evidence = evidenceNote(rows || []);
@@ -47,7 +49,9 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
     </div>
   ));
   if (!valid.length) return missing.length ? (
-    <div className="performance-chart-card"><h4 className="perf-chart-heading">{title}</h4><div className="performance-bars">{unranked}</div></div>
+    <div className="performance-chart-card"><h4 className="perf-chart-heading">{title}</h4>
+      {evidenceSummary ? <p className="performance-quality-status" data-inline-evidence="">{evidenceSummary}</p> : null}
+      <div className="performance-bars">{unranked}</div></div>
   ) : null;
 
   const values = valid.map(r => r[valueKey] as number);
@@ -82,6 +86,7 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
           {subtitle || unitNote ? <span className="perf-chart-sub">{subtitle || unitNote}</span> : null}
         </div></div>
       ) : null}
+      {evidenceSummary ? <p className="performance-quality-status" data-inline-evidence="">{evidenceSummary}</p> : null}
       {new Set(rows.map(r => r.coverageLabel).filter(Boolean)).size > 1 ? <p className="performance-quality-status">GP coverage differs between entrants. These are averages over each entrant’s available GPs, not a comparison over identical races.</p> : null}
       <div className="performance-bars">
         {valid.map((r, i) => {
@@ -93,22 +98,19 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
           const gain = signedValue ? (preserveSignedValues ? (value < 0 ? 'is-gain' : 'is-loss') : value <= 0.00001 ? 'is-gain' : 'is-loss') : '';
           const label = String(r[labelKey] || r.team || r.name || '');
           const whisker = ranges.get(r);
-          // Not resolved: this entrant's range reaches the one ranked above it, so the order between them is within the noise.
-          const above = i > 0 ? valid[i - 1] : null, aboveRange = above && ranges.get(above);
-          const unresolved = !!(whisker && above && whisker[0] <= (aboveRange ? aboveRange[1] : above.chart));
+          const badge = r.evidenceBadge ?? (r.evidenceLabel !== evidence.common ? r.evidenceLabel : '');
           const seconds = perLapSeconds && unit === '%' && signedValue && !preserveSignedValues && value > 0.00001 ? value / 100 * perLapSeconds : null;
-          const summary = `${label}: ${display}${seconds != null ? ` (about ${seconds.toFixed(2)} s per lap)` : ''}${whisker ? ` · likely range +${fmt(whisker[0], digits, unit)} to +${fmt(whisker[1], digits, unit)}` : ''}${unresolved ? ` · not resolved against ${String(above?.[labelKey] || above?.team || '')}` : ''}${plotted === 0 && value !== 0 ? ` · Exact change ${value}${unit}; below displayed precision` : ''}${r.traceProvisional ? ' · Provisional: source gaps over 0.6 s; inspect corner evidence' : ''}`;
+          const summary = `${label}: ${display}${seconds != null ? ` (about ${seconds.toFixed(2)} s per lap)` : ''}${whisker ? ` · 90% GP-resample range ${fmt(whisker[0], digits, unit)} to ${fmt(whisker[1], digits, unit)}` : ''}${plotted === 0 && value !== 0 ? ` · Exact change ${value}${unit}; below displayed precision` : ''}${r.traceProvisional ? ' · Provisional: source gaps over 0.6 s; inspect corner evidence' : ''}`;
           return (
             <div key={label + i} className="performance-bar-row"
-              title={summary} aria-label={`${summary}${r.evidenceLabel ? ` · ${r.evidenceLabel}` : ''}`} role="img" data-chart-value={`${title}:${label}`} tabIndex={i === 0 ? 0 : -1}>
-              <div className="performance-bar-label rank-label"><TeamLabel team={r} />{r.evidenceLabel && r.evidenceLabel !== evidence.common ? <small className="rank-evidence">{r.evidenceLabel}</small> : null}</div>
+              title={`${summary}${r.evidenceLabel ? ` · ${r.evidenceLabel}` : ''}`} aria-label={`${summary}${r.evidenceLabel ? ` · ${r.evidenceLabel}` : ''}`} role="img" data-chart-value={`${title}:${label}`} tabIndex={i === 0 ? 0 : -1}>
+              <div className="performance-bar-label rank-label"><TeamLabel team={r} />{badge ? <small className="rank-evidence">{badge}</small> : null}</div>
               <div className="performance-bar-track">
                 {preserveSignedValues ? <i className="performance-zero" style={{left: `${zero.toFixed(2)}%`}} /> : null}
                 <i className="performance-bar" style={{'--bar-color': color(r[colorKey] as string), left: `${left.toFixed(2)}%`, width: `${width.toFixed(2)}%`} as React.CSSProperties} />
                 {whisker ? <i className="performance-bar-range" aria-hidden="true" style={{left: `${((whisker[0] - lo) / span * 100).toFixed(2)}%`, width: `${((whisker[1] - whisker[0]) / span * 100).toFixed(2)}%`}} /> : null}
               </div>
-              <span className={`performance-bar-val ${gain}${r.traceProvisional ? ' is-provisional' : ''}${unresolved ? ' is-unresolved' : ''}`.trim()}>
-                {/* Seconds per lap and an unresolved order are in the row's hover and accessible text, not beside the value. */}
+              <span className={`performance-bar-val ${gain}${r.traceProvisional ? ' is-provisional' : ''}`.trim()}>
                 {display}
               </span>
             </div>

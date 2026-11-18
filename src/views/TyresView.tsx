@@ -25,6 +25,7 @@ export type TyresViewProps = {metric: 'age' | 'relative'; subject: 'team' | 'dri
      sort: Record<'name' | 'value' | 'events' | 'stints' | 'laps', SortHeaderModel>;
      rows: {team: Team; value: number | null; shortfall: string | null; events: number; stints: number; laps: number; outliers: number; coverage: string}[];
      picker: Picker | null; plot: StintPlotModel | null;
+     fuelSensitivity: {observed: number; scenarios: {rate: number; slope: number}[]; steady: boolean; changesSign: boolean} | null;
      evidence: {team: Team; driver: string; event: string; grade: string; run: string; ages: string; laps: number; trend: string; earlyLate: string;
        error: string; sensitivity: string; status: string; inspect: string | null}[];
      auditOpen: boolean});
@@ -119,6 +120,16 @@ export function TyresView(p: TyresViewProps) {
         {p.inspect ? <>
           {p.picker ? <RunPicker picker={p.picker} /> : null}
           {p.plot ? <TyreStintPlot model={p.plot} /> : <p className="section-empty">No individual lap readings for this compound selection.</p>}
+          {p.picker ? <section aria-label="Fuel sensitivity">
+            <h4 className="perf-chart-heading">Fuel sensitivity</h4>
+            {p.fuelSensitivity ? <>
+              <p className="performance-note">The selected run’s {p.fuelSensitivity.steady ? 'steady-segment' : 'observed'} slope plus each assumed fuel gain. Positive means lap times rise as the tyres age.</p>
+              <DataTable headers={['Fuel assumption', 'Slope (s/lap)']}
+                rows={[[ 'Observed', signed(p.fuelSensitivity.observed, 3, '')],
+                  ...p.fuelSensitivity.scenarios.map(({rate, slope}) => [`+${rate.toFixed(2)} s/lap fuel gain`, signed(slope, 3, '')])]} />
+              {p.fuelSensitivity.changesSign ? <p className="performance-quality-status" data-inline-evidence="">Sign depends on fuel assumption.</p> : null}
+            </> : <p className="section-empty">No observed slope for this run and lap selection.</p>}
+          </section> : null}
         </> : <>
         {p.chart ? <div className={p.driverChart ? 'subject-pair' : undefined}>
           <DivergingBarChart title={p.driverChart ? `${p.chart.title} · Teams` : p.chart.title} subtitle="Seconds per additional tyre-age lap · left of zero improves, right of zero worsens" rows={p.chart.rows} unit=" s/lap" extent={p.chart.extent} />

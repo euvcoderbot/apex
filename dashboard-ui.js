@@ -339,7 +339,7 @@
     }
     // Every other coverage note goes into one disclosure per card, below its
     // charts, so a note in one chart no longer stretches its neighbours.
-    for(const note of root.querySelectorAll('p.performance-quality-status:not(.explanation-only):not(.performance-empty-note)')){
+    for(const note of root.querySelectorAll('p.performance-quality-status:not(.explanation-only,.performance-empty-note,[data-inline-evidence])')){
       if(note.closest('details,.performance-tyre-toolbar')||note.querySelector('button')||note.getAttribute('role')==='status')continue;
       const parent=note.closest('.performance-card-body')||note.parentElement;
       let evidence=parent.querySelector(':scope > .performance-status-evidence');

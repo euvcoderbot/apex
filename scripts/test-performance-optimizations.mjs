@@ -8,6 +8,34 @@ import {createDataCache} from '../lib/data-cache.mjs';
 import {loadQualifyingCorners} from '../lib/qualifying-corner-loader.mjs';
 import {loadRaceCornerPlan} from '../lib/race-corner-loader.mjs';
 import {measureRaceCornerGroup,connectedRaceCornerScores} from '../race-cornering.js';
+import {sharedPace} from '../performance-format.js';
+
+test('pace compares shared GPs only and reports their provisional measurements',()=>{
+  const a=[{event:'Both',value:.6,provisional:true},{event:'A only',value:0}];
+  const b=[{event:'Both',value:.4},{event:'B only',value:1,provisional:true}];
+  const [first,second,unmeasured]=sharedPace([a,b,[]],'mean');
+  assert.equal(first.count,1);
+  assert.equal(first.provisional,1);
+  assert.ok(first.value>0);
+  assert.deepEqual(second,{value:0,range:null,count:1,provisional:0});
+  assert.deepEqual(unmeasured,{value:null,range:null,count:0,provisional:0});
+  assert.ok(sharedPace([a,b,[{event:'Neither',value:0}]],'mean').every(row=>row.value===null));
+});
+
+test('pace ranges resample shared GP effects together and allow the leader to change',()=>{
+  const observations=values=>values.map((value,event)=>({event,value}));
+  const a=observations([0,1,2,3]);
+  const b=observations([1,2,3,4]);
+  const paired=sharedPace([a,b],'mean');
+  assert.deepEqual(paired[0].range,[0,0]);
+  assert.ok(paired[1].range[1]-paired[1].range[0]<.04);
+  const alternating=sharedPace([observations([0,1,0,1]),observations([1,0,1,0])],'median');
+  for(const row of alternating){
+    assert.equal(row.value,0);
+    assert.equal(row.range[0],0);
+    assert.ok(row.range[1]>.9);
+  }
+});
 
 test('partial qualifying batch persists briefly across isolates without turning exclusions into zeros',async()=>{
   const store=new Map();let requests=0,clock=1000;

@@ -25,6 +25,8 @@ test('entrant comparison copies measurements from the selected field and keeps d
   await expect(picks.nth(1)).not.toHaveValue(second);
   await expect(box.locator('thead th').nth(1)).toHaveText(second);
   const firstChart = page.locator('.performance-chart-card').filter({has: page.locator('.performance-bar-row')}).first();
+  await expect(firstChart.locator('.performance-quality-status')).toHaveText(/\d+ shared GPs/);
+  await expect(firstChart.locator('.performance-bar-row').first()).toHaveAttribute('aria-label', /shared GP.*provisional/);
   const fieldRow = firstChart.locator('.performance-bar-row').filter({has: page.getByText(second, {exact:true})}).first();
   await expect(box.locator('tbody tr').first().locator('td').first()).toHaveText(await fieldRow.locator('.performance-bar-val').innerText());
   await box.scrollIntoViewIfNeeded();
@@ -39,6 +41,10 @@ test.describe('phone investigation', () => {
     await page.getByRole('button', {name:'Inspect a stint'}).click();
     const plot = page.locator('.performance-tyre-stint-plot');
     await expect(plot).toBeVisible();
+    const sensitivity = page.getByRole('region', {name:'Fuel sensitivity'});
+    await expect(sensitivity.getByRole('columnheader')).toHaveText(['Fuel assumption', 'Slope (s/lap)']);
+    await expect(sensitivity.locator('tbody td:first-child')).toHaveText(['Observed', '+0.03 s/lap fuel gain', '+0.06 s/lap fuel gain', '+0.09 s/lap fuel gain']);
+    await sensitivity.screenshot({path:info.outputPath('fuel-sensitivity-phone.png')});
     await plot.locator('summary').click();
     await expect(plot.locator('tbody tr').first()).toBeVisible();
     await plot.scrollIntoViewIfNeeded();

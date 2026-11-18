@@ -859,6 +859,8 @@ test('tyre-age view aggregates own stints for teams and individual drivers', () 
   assert.ok(view.evidence.some(e=>e.inspect));
   assert.doesNotMatch(JSON.stringify(view),/NaN|Infinity/);
   assert.equal(view.picker.team,'Example');
+  close(view.fuelSensitivity.observed,.06);
+  assert.equal(view.fuelSensitivity.changesSign,false);
   sandbox.tyreFuelRate=.080;close(sandbox.tyreAgeView(teams).chart.rows[0].value,.07);
   sandbox.tyreFuelRate=.060;
   const other={team:'Other',color:'#654321',tyreAgeStints:[{driver:'CCC',event:'Three',compound_grade:'C5',fuel_adjusted_slope:.04,samples:8,min_age:1,max_age:8,points:[{lap:3,age:1,time:92},{lap:4,age:2,time:92.04},{lap:5,age:3,time:92.08}]}]};
@@ -881,6 +883,11 @@ test('tyre-age view aggregates own stints for teams and individual drivers', () 
   sandbox.tyreCorrection='fuel';sandbox.tyreLapMode='clear';
   teams[0].tyreAgeStints[0].clean_air={supported:true,samples:12,fuel_adjusted_slope:.03,min_age:1,max_age:14};
   close(sandbox.tyreAgeView(teams).rows[0].value,.03);
+  teams[0].tyreAgeStints[0].clean_air.raw_slope=-.05;
+  const sensitivity=sandbox.tyreAgeView(teams).fuelSensitivity;
+  close(sensitivity.observed,-.05);
+  sensitivity.scenarios.forEach(({slope},i)=>close(slope,[-.02,.01,.04][i]));
+  assert.equal(sensitivity.changesSign,true);
 });
 
 test('tyre GP summaries handle skew and explain every sparse P75 blank', () => {
