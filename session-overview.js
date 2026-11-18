@@ -418,7 +418,7 @@
       const gains = parts.filter(p => p.delta < -0.005).sort((a, b) => a.delta - b.delta).slice(0, 3);
       const corners = parts.filter(p => p.kind === 'corner').reduce((a, p) => a + p.delta, 0);
       const straights = parts.filter(p => p.kind === 'straight').reduce((a, p) => a + p.delta, 0);
-      const list = (items, cls) => items.length ? items.map(p => `<li class="${cls}"><button type="button" data-inspect-zone="${p.index}" aria-label="Inspect ${esc(p.label)}, ${signedS(p.delta)}">${esc(p.label)}</button><span>${signedS(p.delta)}</span></li>`).join('') : '<li class="is-none">None over 0.005 s</li>';
+      const list = (items, cls) => items.length ? items.map(p => `<li class="${cls}"><button type="button" data-inspect-zone="${p.index}"><b>${esc(p.label)}</b><span>${signedS(p.delta)}</span><span class="visually-hidden">: show on the map</span></button></li>`).join('') : '<li class="is-none">None over 0.005 s</li>';
       return `<article class="time-summary-card" style="--team:${esc(getLapColor(lap))}">
         <header><b>${esc(lap.code)}</b> L${lap.lap} vs ${esc(loaded[0].code)} L${loaded[0].lap}<span>Corners ${signedS(corners)} · Straights ${signedS(straights)}</span></header>
         <div class="time-summary-lists"><div><small>Loses most</small><ol>${list(losses, 'is-loss')}</ol></div><div><small>Gains most</small><ol>${list(gains, 'is-gain')}</ol></div></div>

@@ -1173,14 +1173,16 @@
     box.append(source);
     return box;
   }
+  // Telemetry names some events differently from the classification ('São Paulo' for 'Brazilian'); a profile's round is
+  // found by its own name, its alias, or as a prefix ('Bahrain Grand Prix in Malaysia').
+  const TRACK_ALIAS = {'São Paulo Grand Prix': 'Brazilian Grand Prix'};
+  const trackRound = (data, gp) => data.rounds.find(r => r.name === gp || r.name === TRACK_ALIAS[gp] || r.name.startsWith(gp + ' '));
   function renderTracks(data, profiles) {
     const all = Object.entries(profiles?.tracks || {});
     if (!all.length || (profiles.year && profiles.year !== data.year)) {
       return [card(null, empty(`No track profiles for ${data.year} yet: circuit maps and lap measurements come from that season's qualifying telemetry.`))];
     }
-    // Telemetry names some events differently from the classification ('São Paulo' for 'Brazilian').
-    const ALIAS = {'São Paulo Grand Prix': 'Brazilian Grand Prix'};
-    const roundOf = gp => data.rounds.find(r => r.name === gp || r.name === ALIAS[gp] || r.name.startsWith(gp + ' '));   // 'Bahrain Grand Prix in Malaysia'
+    const ALIAS = TRACK_ALIAS, roundOf = gp => trackRound(data, gp);
     const ordered = all.sort(([a], [b]) => (roundOf(a)?.round ?? 99) - (roundOf(b)?.round ?? 99));
     const names = ordered.map(([gp]) => gp);
     const aliased = names.find(gp => ALIAS[gp] && ALIAS[gp] === state.track);
@@ -1322,8 +1324,8 @@
   }
   // Every track in one table: sortable columns, values shaded by where they sit in the column. A row opens that track.
   function trackComparison(data, profiles, pick, choose) {
+    const roundOf = gp => trackRound(data, gp);
     const all = Object.entries(profiles.tracks);
-    const roundOf = gp => data.rounds.find(r => r.name === gp || r.name.startsWith(gp + ' '));   // 'Bahrain Grand Prix in Malaysia'
     const range = key => { const v = all.map(([, x]) => trackValue(x, key)); return [Math.min(...v), Math.max(...v)]; };
     const sort = state.trackSort || {key: null, dir: -1};
     const rows = [...all].sort(([ga, a], [gb, b]) => (sort.key ? sort.dir * (trackValue(a, sort.key) - trackValue(b, sort.key)) : (roundOf(ga)?.round ?? 99) - (roundOf(gb)?.round ?? 99)));
