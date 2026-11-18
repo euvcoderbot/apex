@@ -813,9 +813,8 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-history-face.team-logo { width: 16px; height: 16px; flex: none; }
 /* Forecast: the column labels in quaternary 11 px, then one 28 px row per day. */
 #seasonHub .season-weather { display: block; container: session-forecast / inline-size; }
-#seasonHub .season-weather > div:not(.season-forecast) { display: none; }
 #seasonHub .season-forecast { display: grid; gap: 2px; }
-#seasonHub :is(.season-forecast-head, .season-forecast-row) { display: grid; grid-template-columns: 44px 20px minmax(64px, 1fr) 44px 64px; align-items: center; gap: 8px; margin-inline: 0; padding: 0 6px; }
+#seasonHub :is(.season-forecast-head, .season-forecast-row) { display: grid; grid-template-columns: 44px 20px minmax(48px, 1fr) 66px 62px; align-items: center; gap: 8px; padding: 0 8px; }
 #seasonHub .season-forecast-head { height: 20px; color: var(--ui-tertiary); font: 500 11px/1 var(--ui-font); }
 #seasonHub .season-forecast-head > span:nth-child(n+4), #seasonHub .season-forecast-row > span:nth-child(n+4) { text-align: right; }
 #seasonHub .season-forecast-row { height: 28px; border-radius: 6px; font: 500 12px/1 var(--ui-font); color: var(--ui-secondary); font-variant-numeric: tabular-nums; }
@@ -823,7 +822,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-forecast-day { color: var(--ui-label); font-weight: 500; font-size: 13px; }
 #seasonHub .season-forecast-row .season-weather-icon { width: 16px; height: 16px; color: var(--ui-tertiary); }
 #seasonHub .season-forecast-row .season-weather-icon[data-kind="sun"] { color: var(--ui-warning, #f0bf00); }
-#seasonHub .season-forecast-row .season-weather-icon[data-kind="wet"], #seasonHub .season-forecast-row .season-weather-icon[data-kind="storm"] { color: var(--ui-accent); }
+#seasonHub .season-forecast-row .season-weather-icon:is([data-kind="wet"], [data-kind="storm"]) { color: var(--ui-rain); }
 #seasonHub .season-forecast-temp { display: inline-flex; align-items: baseline; gap: 6px; }
 #seasonHub .season-forecast-temp b { color: var(--ui-label); font: 600 13px/1 var(--ui-font); }
 #seasonHub .season-forecast-temp span { color: var(--ui-tertiary); }
@@ -1305,7 +1304,6 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-forecast-wind { display: inline-flex; align-items: center; justify-content: flex-end; gap: 5px; }
 #seasonHub .season-wind-arrow { color: var(--ui-tertiary); }
 #seasonHub .season-forecast-humid { text-align: right; color: var(--ui-secondary); font-variant-numeric: tabular-nums; }
-#seasonHub .season-forecast-rain small { font-size: 11px; }
 /* Season strip: more room per round (flag and code, the winner's photo and code). */
 #seasonHub .home-season-strip { gap: 6px; }
 #seasonHub .home-round { gap: 6px; padding: 12px 4px; }
@@ -1341,13 +1339,11 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-track-bar { display: inline-block; vertical-align: middle; width: calc(100% - 58px); max-width: 120px; height: 4px; margin-right: 10px; border-radius: 2px; background: color-mix(in oklch, var(--ui-label) 8%, transparent); overflow: hidden; }
 #seasonHub .season-track-bar > i { display: block; height: 100%; border-radius: 2px; background: var(--ui-accent); }
 #seasonHub .season-track-barcell > b { display: inline-block; min-width: 48px; text-align: right; font-weight: 600; vertical-align: middle; }
-#seasonHub .season-track-act small { display: block; margin-top: 3px; font: 450 11px/1.2 var(--ui-font); }
 #seasonHub .season-zone-chip { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; background: color-mix(in oklch, var(--ui-accent) 22%, transparent); color: var(--ui-label); font: 600 11px/1 var(--ui-font); }
 #seasonHub .season-zone-chip.is-detect { background: color-mix(in oklch, var(--ui-label) 12%, transparent); }
 #seasonHub .season-zone-chip.is-ot { background: color-mix(in oklch, #e6bc24 26%, transparent); }
 #seasonHub .season-track-zones tr.is-point td { height: 32px; }
 #seasonHub .season-track-table th, #seasonHub .season-track-table td { padding-left: 8px; padding-right: 8px; }
-#seasonHub .season-track-zones .season-track-act { min-width: 120px; }
 #seasonHub .season-track-barcell.is-stacked { min-width: 72px; }
 #seasonHub .season-track-barcell.is-stacked { display: table-cell; }
 #seasonHub .season-track-barcell.is-stacked > b { display: block; min-width: 0; text-align: left; margin-bottom: 5px; }
@@ -1355,7 +1351,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-track-barcell:not(.is-stacked) { display: table-cell; }
 #seasonHub .season-track-barcell:not(.is-stacked) > b { float: right; }
 #seasonHub .season-track-barcell:not(.is-stacked) > .season-track-bar { margin-top: 6px; }
-#seasonHub .season-track-zones td.season-track-act { white-space: normal; min-width: 0; width: 40%; }
+#seasonHub .season-track-zones td.season-track-act { white-space: normal; min-width: 126px; }
 #seasonHub .season-track-zones td.num { white-space: nowrap; }
 /* Two-line cell (activation + low grip): 18 px main line, 4 px gap, 12/16 tertiary sub-line, 8 px above and below. */
 #seasonHub .season-track-zones td.season-track-act { line-height: 18px; padding-top: 8px; padding-bottom: 8px; }
@@ -1554,6 +1550,9 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 @media (min-width: 1600px) { #seasonHub .season-stat-chase { display: none; } }
 /* Head-to-head race-by-race: each row names its driver and its session. */
 #seasonHub .season-h2h-grid tr.season-gap-row > th { color: var(--ui-secondary); font-weight: 500; }
+#seasonHub .season-h2h-key { margin: 0; padding: 4px 8px 10px; gap: 6px 14px; }
+#seasonHub .season-h2h-key span[data-tone]::before { flex: none; border-radius: 50%; }
+:root[data-skin] #seasonHub .season-h2h-grid thead th { padding-block: 6px; }
 /* Head-to-head race-by-race: Qualifying and Race as their own header rows, a quiet label over each group of three. */
 /* Section labels (Qualifying, Race) are short label rows, not 44 px data rows: they sit just above their rows. */
 :root[data-skin] #seasonHub .season-table.season-h2h-grid tr.season-section-row > :is(th, td) { height: 24px; padding: 10px 0 2px; line-height: 1; }
@@ -1572,25 +1571,34 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 :root[data-skin] #seasonHub { --season-hover: color-mix(in srgb, var(--ui-label) 5%, var(--season-surface, var(--ui-panel))); }
 :root[data-skin] #seasonHub :is(.season-table, .season-mini) tbody tr:not(.season-detail):not(.season-section-row):hover > :is(th, td):not(.is-heat):not([data-tone]):not(.is-first):not(.is-upcoming) { background: var(--season-hover); }
 :root[data-skin] #seasonHub .season-table tbody tr.season-section-row:hover > :is(th, td) { background: transparent; }
-/* DRS / straight-mode zones: chips of one size; flat out as one line, a bar taking the row's spare width with the metres
-   beside it; the detection and Overtake points as one compact line under the table. */
-#seasonHub .season-track-zones .season-zone-chip { justify-content: center; min-width: 44px; }
-#seasonHub .season-track-zones td.season-track-act { width: auto; }
-#seasonHub .season-track-zones td.season-zone-length { width: 40%; }
-#seasonHub .season-zone-length { white-space: nowrap; }
-#seasonHub .season-zone-length > * { vertical-align: middle; }
-#seasonHub .season-zone-bar { display: inline-block; width: calc(100% - 76px); max-width: 260px; height: 6px; margin-right: 10px; border-radius: 3px; background: color-mix(in oklch, var(--ui-label) 8%, transparent); overflow: hidden; }
+/* Track zone values share an inset with the source and timing points. */
+#seasonHub .season-zones-section .season-zone-toggle { margin-top: 4px; }
+#seasonHub .season-zones-section .season-track-source { margin: 8px 0; }
+#seasonHub .season-track-zones .season-zone-chip { justify-content: center; min-width: 36px; }
+#seasonHub .season-track-zones td.season-zone-length { width: 34%; min-width: 128px; }
+#seasonHub .season-zone-measure { display: grid; grid-template-columns: 62px minmax(36px, 180px); align-items: center; gap: 8px; white-space: nowrap; }
+#seasonHub .season-zone-measure b { text-align: right; font-weight: 600; }
+#seasonHub .season-zone-bar { height: 6px; border-radius: 3px; background: var(--lin-hairline); overflow: hidden; }
 #seasonHub .season-zone-bar > i { display: block; height: 100%; border-radius: 3px; background: var(--ui-accent); }
-#seasonHub .season-zone-length > b { display: inline-block; min-width: 60px; font-weight: 600; font-variant-numeric: tabular-nums; }
-#seasonHub .season-zone-points { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 12px 0 2px; font-size: 13px; }
-#seasonHub .season-zone-points > span { display: inline-flex; align-items: center; gap: 8px; }
-#seasonHub .season-zone-points .season-zone-chip { min-width: 0; }
-#seasonHub .season-track-zones td.season-track-act { min-width: 170px; }
-#seasonHub .season-track-zones td.season-zone-length { min-width: 150px; }
-#seasonHub .season-zone-bar { min-width: 60px; }
-#seasonHub .season-track-zones td.season-zone-length { min-width: 130px; }
-#seasonHub .season-track-zones td.season-track-act { min-width: 150px; }
-#seasonHub .season-zone-bar { max-width: 200px; }
+#seasonHub .season-zone-points { margin-top: 12px; }
+#seasonHub .season-zone-points h4 { margin: 0 0 8px; color: var(--ui-tertiary); font: 500 12px/1.4 var(--ui-font); }
+#seasonHub .season-zone-points dl { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 0; }
+#seasonHub .season-zone-points dl > div { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+#seasonHub .season-zone-points dd { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0; font-size: 12px; }
+#seasonHub .season-zone-points dd > span { white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  #seasonHub .season-track-zones { table-layout: fixed; }
+  #seasonHub .season-track-zones :is(th, td) { padding-inline: 4px; }
+  #seasonHub .season-track-zones th { white-space: normal; line-height: 1.2; }
+  #seasonHub .season-track-zones th:nth-child(1) { width: 14%; }
+  #seasonHub .season-track-zones th:nth-child(2) { width: 32%; }
+  #seasonHub .season-track-zones th:nth-child(3), #seasonHub .season-track-zones th:nth-child(5) { width: 17%; }
+  #seasonHub .season-track-zones td:is(.season-track-act, .season-zone-length) { min-width: 0; width: auto; }
+  #seasonHub .season-track-zones td.num { white-space: normal; }
+  #seasonHub .season-track-zones .season-zone-chip { min-width: 0; height: auto; min-height: 22px; padding: 3px 5px; text-align: center; }
+  #seasonHub .season-zone-measure { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+  #seasonHub .season-zone-measure b { text-align: left; }
+}
 #seasonHub .season-track-map .track-corner-leader { stroke: var(--ui-tertiary); stroke-width: 1; }
 /* Uniformity (from the Linear audit's look inventory): every Season table header is one 32 px row (a sortable header's
    button no longer adds height), and every grid's row names share one size (team names were 11 px, driver codes 12 px). */
@@ -1598,9 +1606,6 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 :root[data-skin] #seasonHub .season-table thead th.season-sortable { padding-top: 0; padding-bottom: 0; }
 :root[data-skin] #seasonHub .season-grid tbody th :is(strong, .season-who, .season-maker) { font-size: 12px; font-weight: 500; }
 :root[data-skin] #seasonHub .season-grid tbody th { font-size: 12px; }
-/* Zones: each zone's opening on one line (and its low-grip line under it), so every zone row is the same height; a narrow
-   card scrolls the table sideways rather than wrapping the words. */
-#seasonHub .season-track-zones td.season-track-act, #seasonHub .season-track-act small { white-space: nowrap; }
 /* Every Season table header label on one line through the middle of its 32 px row (plain labels sat 10 px lower than
    sortable ones, whose 24 px button centred them). */
 :root[data-skin] #seasonHub .season-table thead th { vertical-align: middle; }
@@ -1613,32 +1618,33 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 #seasonHub .season-card > svg.season-chart + .season-chart-sub { margin-top: 18px; }
 /* Night sessions (Las Vegas, Singapore, the Middle East): clear skies show a moon, in a cool quiet tone instead of the sun's yellow. */
 .season-weather-icon[data-kind="moon"], #seasonHub .season-forecast-row .season-weather-icon[data-kind="moon"] { color: var(--ui-secondary); }
-#seasonHub .season-forecast { max-width: 760px; }
-/* Likely rain is the same rain blue (--ui-rain) in the session strip, the hourly strip and the weather table. */
-#seasonHub .season-forecast-row[data-wet="true"] .season-forecast-rain { color: var(--ui-rain); }
+#seasonHub .season-forecast { max-width: 880px; }
 /* Weekend weather extras: optional columns (gusts, cloud, humidity, light) after rain and wind, a small hourly rain strip,
    and the notes line (sunset, last year's conditions). */
-@container session-forecast (width > 680px) {
-  #seasonHub .season-forecast.is-sessions:has(.season-forecast-humid) { max-width: 880px; }
-  #seasonHub .season-forecast.is-sessions:has(.season-forecast-row) :is(.season-forecast-head, .season-forecast-row) { grid-template-columns: 112px 20px 48px minmax(96px, 1.2fr) minmax(80px, 1fr) repeat(var(--forecast-extra, 0), minmax(56px, 1fr)); }
+@container session-forecast (width > 720px) {
+  #seasonHub .season-forecast.is-sessions :is(.season-forecast-head, .season-forecast-row) { grid-template-columns: minmax(100px, 1fr) 20px 40px minmax(76px, 1fr) minmax(58px, .7fr) minmax(72px, 1fr) repeat(var(--forecast-extra, 0), minmax(52px, .8fr)); }
 }
 #seasonHub .season-forecast-head > span:last-child:not(:nth-child(-n+3)) { text-align: right; }
 #seasonHub :is(.season-forecast-gust, .season-forecast-cloud, .season-forecast-light) { text-align: right; color: var(--ui-secondary); font-variant-numeric: tabular-nums; }
 #seasonHub .season-forecast-light[data-light="night"] { color: var(--ui-secondary); }
 #seasonHub .season-forecast-light[data-light="dusk"], #seasonHub .season-forecast-light[data-light="dawn"] { color: var(--ui-warning, #c98a00); }
 #seasonHub .season-forecast-rain { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; }
+#seasonHub .season-forecast-amount { white-space: nowrap; }
+#seasonHub .season-forecast-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 #seasonHub .season-rain-strip { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
 #seasonHub .season-rain-strip i { display: block; width: 4px; border-radius: 1px; background: var(--ui-quaternary, color-mix(in oklch, var(--ui-label) 25%, transparent)); }
 #seasonHub .season-rain-strip i.is-wet { background: var(--ui-rain); }
 #seasonHub .season-weather-notes { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 10px; padding: 0 6px; color: var(--ui-tertiary); font: 450 12px/1.4 var(--ui-font); }
 #seasonHub .season-weather-notes:empty { display: none; }
-@container session-forecast (width <= 680px) {
+@container session-forecast (width <= 720px) {
   #seasonHub .season-forecast.is-sessions .season-forecast-head { display: none; }
   #seasonHub .season-forecast.is-sessions .season-forecast-row { grid-template-columns: repeat(6, minmax(0, 1fr)); height: auto; min-height: 68px; gap: 8px; padding-block: 10px; box-shadow: inset 0 -1px var(--line); }
   #seasonHub .season-forecast.is-sessions .season-forecast-day { grid-column: span 3; }
   #seasonHub .season-forecast.is-sessions .season-forecast-temp { grid-column: span 2; justify-self: end; }
-  #seasonHub .season-forecast.is-sessions :is(.season-forecast-rain, .season-forecast-wind, .season-forecast-humid, .season-forecast-gust, .season-forecast-cloud, .season-forecast-light) { grid-column: span 2; text-align: left; justify-content: flex-start; font-size: 11px; }
-  #seasonHub .season-forecast.is-sessions .season-forecast-rain::before { content: 'Rain '; color: var(--ui-tertiary); }
+  #seasonHub .season-forecast.is-sessions :is(.season-forecast-rain, .season-forecast-amount, .season-forecast-wind, .season-forecast-humid, .season-forecast-gust, .season-forecast-cloud, .season-forecast-light) { grid-column: span 2; text-align: left; justify-content: flex-start; font-size: 11px; }
+  #seasonHub .season-forecast.is-sessions :is(.season-forecast-rain, .season-forecast-amount) { display: block; }
+  #seasonHub .season-forecast-label { display: block; position: static; width: auto; height: auto; overflow: visible; clip-path: none; margin-bottom: 4px; color: var(--ui-tertiary); }
+  #seasonHub .season-forecast-rain .season-rain-strip { vertical-align: bottom; margin-right: 4px; }
   #seasonHub .season-forecast-humid::before { content: 'Humidity '; color: var(--ui-tertiary); }
   #seasonHub .season-forecast-gust::before { content: 'Gusts '; color: var(--ui-tertiary); }
   #seasonHub .season-forecast-cloud::before { content: 'Cloud '; color: var(--ui-tertiary); }

@@ -71,7 +71,9 @@ const AUDIT = spec => {
       const h = Math.round(r.height);
       // A sortable column title that wraps onto more lines is text sized by its words, not a fixed-height control.
       const wrappedTitle = el.closest('th') && h > 28 && el.getClientRects().length && parseFloat(s.lineHeight) && h >= 2 * parseFloat(s.lineHeight);
-      if (!spec.controlHeights.includes(h) && h < 60 && !wrappedTitle) add(el, 'control-height', h + 'px');
+      // Development's button fills the 30 px heat pill inside the 36 px grid row.
+      const heatPill = h === 30 && el.matches('.season-grid td.is-heat > button.season-cell-drill');
+      if (!spec.controlHeights.includes(h) && h < 60 && !wrappedTitle && !heatPill) add(el, 'control-height', h + 'px');
     }
   }
   // Component families: every distinct look of a card, button, heading, table header and chip on the page, so competing

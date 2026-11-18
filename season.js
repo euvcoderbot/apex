@@ -1111,6 +1111,7 @@
     const pick = seasons.find(x => x.year === state.trackZones) || seasons[0];
     const km = p => (p?.at != null ? `${(p.at / 1000).toFixed(2)} km` : '—');
     const box = card('DRS and overtake zones');
+    box.classList.add('season-data-section', 'season-zones-section');
     if (seasons.length > 1) {
       const pills = el('div', 'season-segment season-zone-toggle'); pills.setAttribute('role', 'group'); pills.setAttribute('aria-label', 'Season');
       for (const x of seasons) {
@@ -1138,18 +1139,22 @@
     const source = el('p', 'season-footnote');
     if (!pick.zones.length) box.append(el('p', 'season-muted', `No ${drs ? 'DRS' : 'straight mode'} zones at this event.`));
     const zt = el('table', 'season-table season-track-table season-track-zones');
-    zt.innerHTML = `<thead><tr><th scope="col">Zone</th><th scope="col">Opens</th><th scope="col" class="num" title="Distance from the start line">From line</th><th scope="col" title="Flat out from the zone's start on the fastest qualifying lap">Flat out</th><th scope="col" class="num" title="Top speed in the zone">Top</th></tr></thead>`;
+    zt.setAttribute('aria-label', pick.kind === 'drs' ? 'DRS zones' : 'Straight mode zones');
+    zt.innerHTML = `<thead><tr><th scope="col">Zone</th><th scope="col">Opens</th><th scope="col" class="num" title="Distance from the start line">From start</th><th scope="col" title="Flat out from the zone's start on the fastest qualifying lap">Flat-out distance</th><th scope="col" class="num">Top speed</th></tr></thead>`;
     const tb = el('tbody'), longest = Math.max(1, ...pick.zones.map(z => z.length || 0));
     for (const z of pick.zones) {
       const a = drs ? z : z.normal, tr = el('tr');
       const chip = el('td'); chip.append(el('span', 'season-zone-chip', drs ? `DRS ${z.number ?? ''}`.trim() : z.zone));
       const act = el('td', 'season-track-act', a?.text || 'n/a');
-      if (!drs) act.append(el('small', 'season-muted', z.low?.text ? `low grip: ${z.low.text}` : 'not used in low grip'));
-      // Flat out on one line: a bar that takes the row's spare width (the longest zone fills it), then the metres.
+      if (!drs) act.append(el('small', 'season-muted', z.low?.text ? `Low grip: ${z.low.text}` : 'Unavailable in low grip'));
+      // Align measured distances before their bars; the longest zone fills its track.
       const len = el('td', 'season-zone-length');
       if (z.length) {
-        const bar = el('span', 'season-zone-bar'); const fill = el('i'); fill.style.width = `${(z.length / longest * 100).toFixed(1)}%`; bar.append(fill);
-        len.append(bar, el('b', null, `${z.ends === 'data gap' ? '\u2265 ' : ''}${z.length} m`));
+        const measure = el('span', 'season-zone-measure');
+        const bar = el('span', 'season-zone-bar'); bar.setAttribute('aria-hidden', 'true');
+        const fill = el('i'); fill.style.width = `${(z.length / longest * 100).toFixed(1)}%`; bar.append(fill);
+        measure.append(el('b', null, `${z.ends === 'data gap' ? '\u2265 ' : ''}${z.length} m`), bar);
+        len.append(measure);
         if (z.ends === 'data gap') len.title = 'At least: the lap\'s telemetry has a gap before the driver lifts';
       } else len.append(el('span', 'season-muted', '\u2014'));
       tr.append(chip, act, el('td', 'num', km(a)), len, el('td', 'num', z.top_speed ? `${z.top_speed} km/h` : '\u2014'));
@@ -1157,19 +1162,20 @@
     }
     zt.append(tb);
     if (pick.zones.length) box.append(wrap(zt));
-    // Detection and Overtake are single points, not zones: one compact line under the table, each its name, where, how far.
     if (points.length) {
-      const line = el('div', 'season-zone-points');
+      const details = el('div', 'season-zone-points');
+      details.append(el('h4', null, drs ? 'DRS detection' : 'Overtake points'));
+      const list = el('dl');
       for (const [name, p] of points) {
-        const item = el('span');
-        item.append(el('span', `season-zone-chip ${/detection/i.test(name) ? 'is-detect' : 'is-ot'}`, name.replace('Overtake ', '').replace(/^\w/, c => c.toUpperCase())),
-          el('b', null, p.text || '\u2014'), el('span', 'season-muted', km(p)));
-        if (/^Overtake/.test(name)) item.title = name;
-        line.append(item);
+        const item = el('div'), value = el('dd');
+        const label = name.replace(/^Overtake (\w)/, (_, first) => first.toUpperCase());
+        item.append(el('dt', `season-zone-chip ${/detection/i.test(name) ? 'is-detect' : 'is-ot'}`, label), value);
+        value.append(el('b', null, p.text || '\u2014'), el('span', 'season-muted', km(p)));
+        list.append(item);
       }
-      box.append(line);
+      details.append(list);
+      box.append(details);
     }
-    box.classList.add('season-data-section');   // a table section, like Sectors beside it
     const unplaced = [...pick.zones.map(z => (drs ? z : z.normal)), ...points.map(([, p]) => p)].some(p => p && p.at == null);
     source.append(drs
       ? `DRS opens at each activation point for a car within a second of the one ahead at its detection point. `
@@ -1520,10 +1526,12 @@
       if (own || day) {
         const f = own || day, w = el('span', 'season-session-weather'); const dark = afterDark(x); const icon = weatherIcon(f.code, dark);
         icon.dataset.kind = f.code >= 95 ? 'storm' : f.rain >= 50 ? 'wet' : f.code <= 2 ? (dark ? 'moon' : 'sun') : 'cloud';
-        w.append(icon, el('span', null, own ? `${Math.round(own.temp)}°` : `${Math.round(day.min)}–${Math.round(day.max)}°`), el('span', f.rain >= 50 ? 'is-wet' : null, `${f.rain ?? 0}% rain`));
-        if (own && Number.isFinite(own.mm)) w.append(el('span', null, `${own.mm.toFixed(1)} mm`));   // expected rainfall over the session
-        w.title = own ? `Forecast for the session: ${Math.round(own.temp)}°, ${own.rain ?? 0}% chance of rain, wind ${Math.round(own.wind ?? 0)} km/h`
-          : `Forecast for that day: ${Math.round(day.max)}° high, ${Math.round(day.min)}° low, ${day.rain ?? 0}% chance of rain, wind ${Math.round(day.wind)} km/h`;
+        const chance = Number.isFinite(f.rain) ? `${f.rain}% rain chance` : 'Rain chance —';
+        const amount = Number.isFinite(own?.mm) ? `${own.mm.toFixed(1)} mm expected` : '';
+        w.append(icon, el('span', null, own ? `${Math.round(own.temp)}°` : `${Math.round(day.min)}–${Math.round(day.max)}°`), el('span', f.rain >= 50 ? 'is-wet' : null, chance));
+        if (amount) w.append(el('span', null, amount));
+        w.title = [own ? 'Session forecast' : 'Daily forecast', chance, amount,
+          Number.isFinite(f.wind) ? `wind ${Math.round(f.wind)} km/h` : ''].filter(Boolean).join(' · ');
         li.append(w);
       }
       list.append(li);
@@ -1600,7 +1608,9 @@
       const header = el('div', 'season-forecast-head');
       const reading = (value, unit) => Number.isFinite(value) ? `${Math.round(value)}${unit}` : '—';
       const bySession = next.sessions.filter(x => x.weather?.temp != null);
-      header.append(el('span', null, bySession.length ? 'Session' : 'Day'), el('span'), el('span', null, bySession.length ? 'Temp' : 'High / low'), el('span', null, 'Rain'), el('span', null, 'Wind'));
+      header.append(el('span', null, bySession.length ? 'Session' : 'Day'), el('span'), el('span', null, bySession.length ? 'Temp' : 'High / low'), el('span', null, 'Rain chance'));
+      if (bySession.length) header.append(el('span', null, 'Rainfall'));
+      header.append(el('span', null, 'Wind'));
       // Optional columns, each shown when the forecast has it: gusts, cloud cover, humidity, and the light (day or dark).
       const has = key => bySession.some(x => x.weather[key] != null);
       const extras = [['gust', 'Gusts'], ['cloud', 'Cloud'], ['humidity', 'Humidity']].filter(([key]) => has(key));
@@ -1612,7 +1622,8 @@
       list.style.setProperty('--forecast-extra', String(extras.length + (lit ? 1 : 0)));
       for (const x of bySession) {
         const w = x.weather, row = el('div', 'season-forecast-row'); row.dataset.wet = String(w.rain >= 50);
-        row.title = `${x.name} \u00b7 ${sky(w.code)} \u00b7 ${Math.round(w.temp)}\u00b0 \u00b7 ${w.rain ?? 0}% chance of rain \u00b7 wind ${Math.round(w.wind ?? 0)} km/h`;
+        const rainfall = Number.isFinite(w.mm) ? `${w.mm.toFixed(1)} mm` : '—';
+        row.title = `${x.name} · ${sky(w.code)} · ${reading(w.temp, '°')} · Rain chance ${reading(w.rain, '%')} · Rainfall ${rainfall} · Wind ${reading(w.wind, ' km/h')}`;
         const dark = afterDark(x), icon = weatherIcon(w.code, dark); icon.dataset.kind = w.code >= 95 ? 'storm' : w.rain >= 50 ? 'wet' : w.code <= 2 ? (dark ? 'moon' : 'sun') : 'cloud';
         const temp = el('span', 'season-forecast-temp'); temp.append(el('b', null, `${Math.round(w.temp)}\u00b0`));
         const short = x.name.replace('Practice ', 'FP').replace('Sprint Qualifying', 'Sprint quali');
@@ -1623,17 +1634,21 @@
         const compass = d => ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(d / 45) % 8];
         wind.title = `Wind ${reading(w.wind, ' km/h')}${w.direction != null ? ` from the ${compass(w.direction)}` : ''}${w.gust != null ? `, gusts to ${Math.round(w.gust)} km/h` : ''}`;
         const rainCell = el('span', 'season-forecast-rain');
+        rainCell.append(el('span', 'season-forecast-label', 'Rain chance'));
         // The chance of rain hour by hour through the session: one small bar per hour, blue from 50%.
         if (w.hours?.length > 1) {
           const strip = el('span', 'season-rain-strip'); strip.setAttribute('aria-hidden', 'true');
           for (const h of w.hours) { const bar = el('i'); bar.style.height = `${Math.max(2, Math.round((h.rain ?? 0) / 100 * 14))}px`; if (h.rain >= 50) bar.className = 'is-wet'; strip.append(bar); }
-          rainCell.title = `Chance of rain by hour (track time): ${w.hours.map(h => `${h.at} ${h.rain ?? 0}% (${Number(h.mm ?? 0).toFixed(1)} mm)`).join(' · ')}`;
+          rainCell.title = `Rain chance by hour (track time): ${w.hours.map(h => `${h.at} ${reading(h.rain, '%')}`).join(' · ')}`;
           rainCell.append(strip);
         }
         rainCell.append(reading(w.rain, '%'));
-        // Expected rainfall over the session, always shown (0.0 mm is an answer too).
-        if (Number.isFinite(w.mm)) rainCell.append(el('small', 'season-muted', ` ${w.mm.toFixed(1)} mm`));
-        row.append(el('span', 'season-forecast-day', short), icon, temp, rainCell, wind);
+        const rainAmount = el('span', 'season-forecast-amount');
+        rainAmount.append(el('span', 'season-forecast-label', 'Rainfall'), rainfall);
+        if (w.hours?.some(h => Number.isFinite(h.mm))) {
+          rainAmount.title = `Rainfall by hour (track time): ${w.hours.map(h => `${h.at} ${Number.isFinite(h.mm) ? h.mm.toFixed(1) + ' mm' : '—'}`).join(' · ')}`;
+        }
+        row.append(el('span', 'season-forecast-day', short), icon, temp, rainCell, rainAmount, wind);
         for (const [key] of extras) {
           const v = w[key], cellClass = key === 'humidity' ? 'season-forecast-humid' : `season-forecast-${key}`;
           row.append(el('span', cellClass, v == null ? '—' : key === 'gust' ? `${Math.round(v)} km/h` : `${v}%`));
@@ -1813,7 +1828,7 @@
   function wrap(table) {
     const viewport = el('div', 'season-table-wrap');
     viewport.append(table);
-    if (!table.matches('.season-grid, .season-units')) return viewport;
+    if (!table.matches('.season-grid, .season-units, .season-track-zones')) return viewport;
     const frame = el('div', 'season-table-frame'); frame.append(viewport);
     const region = table.getAttribute('aria-label') || 'Results table';
     viewport.setAttribute('role', 'region');
@@ -2636,11 +2651,12 @@
     const dataLo = min ?? Math.min(0, ...values), dataHi = max ?? Math.max(1, ...values);
     const ticks = niceTicks(dataLo, dataHi, invert ? Math.min(5, dataHi - dataLo) : 4, {outward: !invert && min == null && max == null});
     const lo = Math.min(dataLo, ticks[0] ?? dataLo), hi = Math.max(dataHi, ticks.at(-1) ?? dataHi);
-    const L = axisRoom(ticks.map(t => (invert ? 'P' + t : format(t))));
+    const L = Math.max(area ? 56 : 0, axisRoom(ticks.map(t => (invert ? 'P' + t : format(t)))));
     const x = i => L + (rounds.length < 2 ? 0 : i / (rounds.length - 1) * (W - L - R));
     const y = v => invert ? T + (v - lo) / ((hi - lo) || 1) * (H - T - B) : H - B - (v - lo) / ((hi - lo) || 1) * (H - T - B);
     const gid = `g${Math.random().toString(36).slice(2, 8)}`;
-    let svg = `<svg class="season-chart${dense ? ' is-dense' : ''}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)}">`;
+    const viewHeight = H + (area ? 10 : 0); // Keep phone round labels inside the drawing after the real-size font adjustment.
+    let svg = `<svg class="season-chart${dense ? ' is-dense' : ''}" viewBox="0 0 ${W} ${viewHeight}" role="img" aria-label="${esc(title)}">`;
     for (const t of ticks) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"/><text class="axis" x="${L - 8}" y="${(y(t) + 3.5).toFixed(1)}" text-anchor="end">${esc(invert ? 'P' + t : format(t))}</text>`;
     const slot = rounds.length > 1 ? (W - L - R) / (rounds.length - 1) : 40;
     rounds.forEach((r, i) => {
@@ -2648,14 +2664,28 @@
       const lines = at.slice(0, 5).map(([s, v]) => `${s.label}  ${invert ? 'P' + v : format(v)}`).join('\n');
       svg += `<rect class="hit" x="${(x(i) - slot / 2).toFixed(1)}" y="${T}" width="${slot.toFixed(1)}" height="${H - T - B}" data-tip="${esc(`${roundTip(r)}\n${lines}`)}"/>`;
     });
+    // Close each measured run against zero. Closing a compound path draws a diagonal across gaps.
+    if (area && series.length <= 3) {
+      const base = y(Math.max(lo, Math.min(hi, 0))).toFixed(1);
+      for (const s of [...series].reverse()) {
+        let run = [];
+        for (let i = 0; i <= s.values.length; i++) {
+          if (s.values[i] != null) {
+            run.push([x(i), y(s.values[i])]);
+            continue;
+          }
+          if (run.length > 1) {
+            const firstX = run[0][0].toFixed(1), lastX = run.at(-1)[0].toFixed(1);
+            svg += `<path class="line-area" style="fill:${esc(s.colour)}" d="${linePath(run)}L${lastX} ${base}L${firstX} ${base}Z"/>`;
+          }
+          run = [];
+        }
+      }
+    }
     for (const s of [...series].reverse()) {
       const pts = s.values.map((v, i) => (v == null ? null : [x(i), y(v)])).filter(Boolean);
       if (!pts.length) continue;
       const d = roundPath(s.values, x, y);
-      if (area && series.length <= 3) {
-        const base = y(Math.max(lo, Math.min(hi, 0))).toFixed(1);
-        svg += `<path class="line-area" style="fill:${esc(s.colour)}" d="${d}L${pts.at(-1)[0].toFixed(1)} ${base}L${pts[0][0].toFixed(1)} ${base}Z"/>`;
-      }
       svg += `<path data-id="${esc(s.id)}" class="line${dashed.has(s) ? ' is-dashed' : ''}" style="stroke:var(--series-stroke, ${esc(s.colour)})" d="${d}"/>`;
       // A dot on every round of every series, as Car performance's trend chart.
       svg += `<g class="pts${dashed.has(s) ? ' is-hollow' : ''}" data-id="${esc(s.id)}" style="--c:var(--series-stroke, ${esc(s.colour)})">${pts.map(([px, py]) => `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}"/>`).join('')}</g>`;
@@ -3551,9 +3581,11 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
         const rounds = done.map(r => r.round).filter(n => at(la, n) != null || at(lb, n) != null);
         if (rounds.length < 2) return el('p', 'season-muted', 'Not enough rounds yet.');
         const top = Math.max(.5, Math.ceil(Math.max(...[...la, ...lb].map(([, v]) => v)) * 2) / 2);
+        const traceColour = colour => document.documentElement.dataset.theme === 'light'
+          ? `color-mix(in srgb, ${colour} 55%, var(--ui-label))` : colour;
         return lineChart(rounds, [
-          {id: a, label: driverCode(data, a), short: driverCode(data, a), colour: ca, values: rounds.map(n => at(la, n))},
-          {id: b, label: driverCode(data, b), short: driverCode(data, b), colour: cb, values: rounds.map(n => at(lb, n))}],
+          {id: a, label: driverCode(data, a), short: driverCode(data, a), colour: traceColour(ca), values: rounds.map(n => at(la, n))},
+          {id: b, label: driverCode(data, b), short: driverCode(data, b), colour: traceColour(cb), values: rounds.map(n => at(lb, n))}],
         {title: kind === 'qualifying' ? 'Qualifying pace by round' : 'Race pace by round', height: 240, endLabels: 2, min: 0, max: top, format: v => `+${v.toFixed(1)}`, area: true});
       };
       const kind = state.h2hPaceKind === 'qualifying' ? 'qualifying' : 'race';
@@ -4212,14 +4244,18 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       }
       hist.append(hb);
       const what = {drivers: 'each driver’s total', teams: 'each team’s total (its cars together)', makers: 'each manufacturer’s total per car'}[view];
-      out.push(card('Power unit elements used per race', wrap(hist), el('p', 'season-footnote', `The rise in ${what} from one FIA table to the next. Muted pills are a starting total in the first table that lists them, not new parts. Follows the Drivers / Teams / PU manufacturers pills above.`)));
+      out.push(card('Power unit elements used per race', wrap(hist), el('p', 'season-footnote', `The rise in ${what} from one FIA table to the next. Muted pills show the starting total from the first FIA report that lists it.`)));
     }
     // Views: Power units (elements used, and fitted at each race) and Finishes (starts, finish rate, distance, failures).
     const UNIT_VIEWS = [['pu', 'Power units'], ['installations', 'Changes by round'], ['finishes', 'Finishes']];
     const bar = el('div', 'season-toolbar'); bar.append(viewPills('units', UNIT_VIEWS, () => paint(() => renderUnits(data, pu))));
     if (pageView('units', UNIT_VIEWS) === 'finishes') return [bar, reliabilityCard(data, pu) || empty('No finishes to show yet.')];
-    if (pageView('units', UNIT_VIEWS) === 'installations')
-      { pills.style.margin = '0'; bar.append(pills); return [bar, out[1] || empty('At least two dated FIA reports are needed to compare rounds.')]; }
+    if (pageView('units', UNIT_VIEWS) === 'installations') {
+      const changes = out[1];
+      if (!changes) return [bar, empty('At least two dated FIA reports are needed to compare rounds.')];
+      changes.querySelector('h3').after(pills);
+      return [bar, changes];
+    }
     return [bar, out[0]];
   }
 

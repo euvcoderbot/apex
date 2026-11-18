@@ -18,6 +18,8 @@ for (const session of next.sessions) {
     hours: [{at: '19:00', rain: 43}, {at: '20:00', rain: 69}],
   };
 }
+next.sessions[0].weather.mm = 0;
+delete next.sessions[1].weather.mm;
 
 test.beforeEach(async ({page}) => {
   await page.route('**/assets/data/season/index.json', r => r.fulfill({json: {...index, entries: {...index.entries, [route]: {...entry, saved_at: new Date().toISOString()}}}}));
@@ -27,11 +29,17 @@ test.beforeEach(async ({page}) => {
 for (const width of [1440, 1024, 768, 390]) test.describe(`Forecast at ${width}px`, () => {
   test.use({viewport: {width, height: 1000}});
   test(`detailed session forecasts fit the panel at ${width}px`, async ({page}) => {
+    await page.addInitScript(theme => localStorage.setItem('apex-theme', theme), width === 390 ? 'light' : 'dark');
     await page.goto('/apex/');
     for (const selector of ['.season-forecast-humid', '.season-forecast-cloud', '.season-forecast-light', '.season-rain-strip'])
       await expect(page.locator(selector)).toHaveCount(next.sessions.length);
     const fits = await page.locator('.season-forecast').evaluate(n => n.scrollWidth <= n.clientWidth + 1);
     expect(fits).toBe(true);
+    const rows = page.locator('.season-forecast-row');
+    await expect(rows.first().locator('.season-forecast-rain')).toHaveText('Rain chance69%');
+    await expect(rows.first().locator('.season-forecast-amount')).toHaveText('Rainfall0.0 mm');
+    await expect(rows.nth(1).locator('.season-forecast-amount')).toHaveText('Rainfall—');
+    if (width === 1440 || width === 390) await page.locator('.season-weather').screenshot({path: test.info().outputPath('weather.png')});
     for (const cell of await page.locator('.season-forecast-humid').all()) await expect(cell).toBeVisible();
     if (width === 390) {
       expect(await page.locator('#linearWorkspace').evaluate(n => n.getBoundingClientRect().height)).toBeLessThan(120);
@@ -39,6 +47,60 @@ for (const width of [1440, 1024, 768, 390]) test.describe(`Forecast at ${width}p
       expect(Math.max(...boxes) - Math.min(...boxes)).toBeLessThan(1);
     }
   });
+});
+
+for (const width of [1440, 390]) {
+  test(`tracks and reliability use consistent section controls at ${width}px`, async ({page}) => {
+    await page.setViewportSize({width, height: 1000});
+    await page.addInitScript(theme => localStorage.setItem('apex-theme', theme), width === 390 ? 'light' : 'dark');
+    await page.goto('/apex/season/tracks?year=2026&track=Brazilian+Grand+Prix');
+    const zones = page.locator('.season-zones-section');
+    await expect(zones.locator('.season-track-source')).toContainText('São Paulo');
+    await expect(zones.getByRole('table', {name: 'Straight mode zones'})).toBeVisible();
+    await expect(zones.getByRole('heading', {name: 'Overtake points'})).toBeVisible();
+    expect(await zones.locator('.season-table-wrap').evaluate(n => n.scrollWidth - n.clientWidth)).toBeLessThanOrEqual(1);
+    await zones.screenshot({path: test.info().outputPath('straight-mode.png')});
+    await zones.getByRole('button', {name: '2025 DRS'}).click();
+    await expect(zones.getByRole('table', {name: 'DRS zones'})).toBeVisible();
+    expect(await zones.locator('.season-table-wrap').evaluate(n => n.scrollWidth - n.clientWidth)).toBeLessThanOrEqual(1);
+    await zones.screenshot({path: test.info().outputPath('drs.png')});
+
+    await page.goto('/apex/season/units?year=2026');
+    let section = page.locator('.season-data-section').filter({has: page.getByRole('heading', {name: 'Power unit elements', exact: false})});
+    await expect(section.getByRole('group', {name: 'Group by'})).toBeVisible();
+    await page.getByRole('button', {name: 'Changes by round', exact: true}).click();
+    section = page.locator('.season-data-section').filter({has: page.getByRole('heading', {name: 'Power unit elements used per race'})});
+    await expect(section.locator('h3 + [aria-label="Group by"]')).toBeVisible();
+    await section.getByRole('button', {name: 'Teams', exact: true}).click();
+    await expect(section.getByRole('button', {name: 'Teams', exact: true})).toHaveAttribute('aria-pressed', 'true');
+    await expect(section.getByRole('columnheader', {name: 'Team', exact: true})).toBeVisible();
+    await section.screenshot({path: test.info().outputPath('changes-by-round.png')});
+  });
+}
+
+test('head-to-head pace shading stops on both sides of a missing round', async ({page}) => {
+  await page.setViewportSize({width: 390, height: 1000});
+  const rounds = fixture.rounds.filter(round => round.race.length);
+  const race = Object.fromEntries(rounds.map(({round}, i) => [round,
+    i < 5 ? {RUS: 0, ...(i === 2 ? {} : {ANT: 0.2})} : {LEC: 0}]));
+  await page.route('**/assets/data/season-pace/2026.json', r => r.fulfill({json: {race}}));
+  await page.goto('/apex/season/h2h?year=2026&part=pace&a=antonelli&b=russell');
+  const chart = page.locator('svg[aria-label="Race pace by round"]');
+  const trace = chart.locator('path.line[data-id="antonelli"]');
+  await expect(trace).toHaveAttribute('d', /^M[^M]+M[^M]+$/);
+  const areas = chart.locator('path.line-area');
+  await expect(areas).toHaveCount(3);
+  const fills = await areas.evaluateAll(paths => paths.map(path => path.getAttribute('d')));
+  const runs = (await trace.getAttribute('d')).match(/M[^M]+/g);
+  expect(fills.slice(1)).toEqual(runs.map(run => expect.stringMatching(`^${run}L[^M]+Z$`)));
+  expect(await chart.evaluate(svg => {
+    const bounds = svg.getBoundingClientRect();
+    return [...svg.querySelectorAll('.axis')].every(t => {
+      const label = t.getBoundingClientRect();
+      return !label.width || (label.left >= bounds.left - 1 && label.bottom <= bounds.bottom + 1);
+    });
+  })).toBe(true);
+  await chart.screenshot({path: test.info().outputPath('pace.png')});
 });
 
 test('race review keeps its selected Grand Prix when opening the race or comparing the podium', async ({page}) => {
@@ -88,6 +150,10 @@ for (const width of [390, 1024]) test.describe(`Head-to-head at ${width}px`, () 
     });
     expect(Math.min(...layout.widths)).toBeGreaterThan(120);
     expect(layout.scoreTop).toBeGreaterThanOrEqual(layout.sideBottom - 1);
+    const legend = page.locator('.season-h2h-key');
+    await expect(legend).toBeVisible();
+    const raceByRace = legend.locator('..');
+    await raceByRace.screenshot({path: test.info().outputPath('race-by-race.png')});
   });
 });
 
