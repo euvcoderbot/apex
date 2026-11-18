@@ -111,8 +111,8 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
                 {whisker ? <i className="performance-bar-range" aria-hidden="true" style={{left: `${((whisker[0] - lo) / span * 100).toFixed(2)}%`, width: `${((whisker[1] - whisker[0]) / span * 100).toFixed(2)}%`}} /> : null}
               </div>
               <span className={`performance-bar-val ${gain}${r.traceProvisional ? ' is-provisional' : ''}${unresolved ? ' is-unresolved' : ''}`.trim()}>
-                {unresolved ? <abbr className="performance-level" title="Within the likely range of the team above: the order is not resolved">≈ </abbr> : null}{display}
-                {seconds != null ? <small className="performance-bar-seconds">{seconds < 0.995 ? `${seconds.toFixed(2)} s` : `${seconds.toFixed(1)} s`}</small> : null}
+                {/* Seconds per lap and an unresolved order are in the row's hover and accessible text, not beside the value. */}
+                {display}
               </span>
             </div>
           );
