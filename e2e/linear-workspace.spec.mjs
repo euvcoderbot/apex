@@ -108,8 +108,12 @@ test('all eight performance categories work from the page pills with flat bars',
   await expect(page.locator('#performanceMetricPanel')).toBeVisible({timeout: 30000});
   await expect(page.locator('#performanceMetricPanel')).not.toHaveAttribute('aria-busy', 'true', {timeout: 30000});
   for (const metric of ['pace', 'corners', 'straight', 'braking', 'pits', 'tyres', 'trend', 'results']) {
-    await page.locator(`#performanceResults .performance-mode [data-performance-metric="${metric}"]`).click();
-    await expect(page.locator(`#performanceResults .performance-mode [data-performance-metric="${metric}"]`)).toHaveAttribute('aria-selected', 'true');
+    // After the phone/desktop round trip below, WebKit can drop the first click while it settles the layout: click until
+    // the category is selected (as the navigation test does for WebKit's first click).
+    await expect(async () => {
+      await page.locator(`#performanceResults .performance-mode [data-performance-metric="${metric}"]`).click();
+      await expect(page.locator(`#performanceResults .performance-mode [data-performance-metric="${metric}"]`)).toHaveAttribute('aria-selected', 'true', {timeout: 2000});
+    }).toPass({timeout: 15000});
     await expect(page.locator('#performanceMetricPanel')).toBeVisible();
     for (const width of [390, 1440]) {
       await page.setViewportSize({width, height: 900});

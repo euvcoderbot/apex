@@ -986,22 +986,31 @@ function tradeOffPlot(model) {
   const minX=Math.min(...points.map(p=>p.x)),minY=Math.min(...points.map(p=>p.y));
   for(const p of points){p.x-=minX;p.y-=minY;}
   // Drawn at the card's real width (its 16 px padding and the page's taken off), so text and dots keep their real size.
-  const W=Math.round(Math.max(innerWidth<=600?560:420,Math.min(1200,(document.getElementById('performanceResults')?.clientWidth||700)-96))),H=300,L=60,R=24,T=14,B=40;
+  // On a phone too: the plot is drawn at the card's width (not a 560-unit plot squeezed into it, which shrank the labels and
+  // pushed the right-hand ones off the edge).
+  const available=innerWidth<=600?Math.min(innerWidth,document.documentElement.clientWidth||innerWidth)-56:(document.getElementById('performanceResults')?.clientWidth||700)-96;
+  const W=Math.round(innerWidth<=600?Math.max(300,available):Math.max(420,Math.min(1200,available))),H=innerWidth<=600?260:300,L=innerWidth<=600?48:60,R=12,T=14,B=40;
   const pad=(lo,hi)=>{const span=hi-lo||Math.abs(hi)||1;return [lo-span*.08,hi+span*.08];};
   const [x0,x1]=pad(Math.min(...points.map(p=>p.x)),Math.max(...points.map(p=>p.x))),[y0,y1]=pad(Math.min(...points.map(p=>p.y)),Math.max(...points.map(p=>p.y)));
   const X=v=>L+(v-x0)/(x1-x0)*(W-L-R),Y=v=>T+(y1-v)/(y1-y0)*(H-T-B);   // more time lost is higher, so bottom left is quickest at both
   // Labels beside each dot, nudged down where two would overlap.
   const placed=[];
-  const labels=points.sort((a,b)=>Y(a.y)-Y(b.y)).map(p=>{let ly=Y(p.y)+4;const lx=X(p.x)+8;while(placed.some(q=>Math.abs(q.y-ly)<11&&Math.abs(q.x-lx)<80))ly+=11;placed.push({x:lx,y:ly});return {p,lx,ly};});
+  // A label that would run past the right edge goes on the dot's left instead (about 6.4 units a character at 11 px).
+  const labels=points.sort((a,b)=>Y(a.y)-Y(b.y)).map(p=>{
+    const name=String(p.team.displayName||p.team.team),width=name.length*6.4,left=X(p.x)+8+width>W-2;
+    const lx=left?X(p.x)-8:X(p.x)+8,from=left?lx-width:lx;let ly=Y(p.y)+4;
+    while(placed.some(q=>Math.abs(q.y-ly)<11&&q.from<from+width&&from<q.from+q.width))ly+=11;
+    placed.push({from,width,y:ly});return {p,lx,ly,left};
+  });
   const unit=model.several?'% of lap':'s';
   const ticks=(a,b)=>{const step=[.001,.002,.005,.01,.02,.05,.1,.2,.5,1].find(st=>(b-a)/st<=5)||1;const out=[];for(let v=Math.ceil(a/step)*step;v<=b+1e-12;v+=step)out.push(+v.toFixed(4));return out;};
   let svg=`<svg class="trade-off-plot" viewBox="0 0 ${W} ${H}" role="group" aria-label="Time lost on the straights against time lost in corners, per team; use arrow keys to inspect values">`;
   for(const v of ticks(x0,x1))svg+=`<line class="grid" x1="${X(v).toFixed(1)}" x2="${X(v).toFixed(1)}" y1="${T}" y2="${H-B}"/><text class="axis" x="${X(v).toFixed(1)}" y="${H-B+14}" text-anchor="middle">${v}</text>`;
   for(const v of ticks(y0,y1))svg+=`<line class="grid" x1="${L}" x2="${W-R}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/><text class="axis" x="${L-6}" y="${(Y(v)+3.5).toFixed(1)}" text-anchor="end">${v}</text>`;
   svg+=`<text class="axis-title" x="${(L+W-R)/2}" y="${H-6}" text-anchor="middle">Time lost on the straights (${unit}) → slower</text><text class="axis-title" transform="translate(12 ${(T+H-B)/2}) rotate(-90)" text-anchor="middle">Time lost in corners (${unit}) ↑ slower</text>`;
-  for(const [index,{p,lx,ly}] of labels.entries()){
+  for(const [index,{p,lx,ly,left}] of labels.entries()){
     const label=`${p.team.displayName||p.team.team}: straights ${p.x.toFixed(3)}, corners ${p.y.toFixed(3)} ${unit}`;
-    svg+=`<circle cx="${X(p.x).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="5" style="fill:${escape(color(p.team.color))}" tabindex="${index===0?'0':'-1'}" role="img" data-chart-value="trade-off:${escape(p.team.team||p.team.displayName)}" aria-label="${escape(label)}"><title>${escape(label)}</title></circle><text class="label" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}">${escape(p.team.displayName||p.team.team)}</text>`;
+    svg+=`<circle cx="${X(p.x).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="5" style="fill:${escape(color(p.team.color))}" tabindex="${index===0?'0':'-1'}" role="img" data-chart-value="trade-off:${escape(p.team.team||p.team.displayName)}" aria-label="${escape(label)}"><title>${escape(label)}</title></circle><text class="label" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}"${left?' text-anchor="end"':''}>${escape(p.team.displayName||p.team.team)}</text>`;
   }
   svg+='</svg>';
   return `<div class="performance-chart-card trade-off-card"><div class="perf-chart-header"><div class="perf-chart-title-group"><h4 class="perf-chart-heading">Straights against corners</h4><span class="perf-chart-sub">0 = best · bottom left is quickest at both</span></div></div><p class="performance-note">Each team’s time lost to the best on the straights (across) and in all corners together (up), from the same qualifying laps. Bottom left is quickest at both. A car far left but high is quick on the straights and loses in corners (less drag, less downforce); one low but to the right is the opposite. 0 = best in each.</p>${svg}</div>`;
@@ -2234,9 +2243,13 @@ function renderContent() {
 // ---------------------------------------------------------------------------
 root.addEventListener('change', event => {
   if (!event.target.matches('.car-category-picker select')) return;
+  // Only a change on the picker on screen, to another measurement: a late change from a picker a render has already
+  // replaced (or one that repeats the current choice) must not switch the view back.
+  if (!event.target.isConnected || event.target.value === activeMetric) return;
   root.querySelector(`[data-performance-metric="${event.target.value}"]`)?.click();
   const picker = root.querySelector('.car-category-picker');
-  (picker?.querySelector('.select-trigger') || picker?.querySelector('select'))?.focus({preventScroll: true});
+  // Keep focus on the picker only on a phone, where it is the control in use; on a desktop the pills are.
+  if (picker && getComputedStyle(picker).display !== 'none') (picker.querySelector('.select-trigger') || picker.querySelector('select'))?.focus({preventScroll: true});
 });
 
 // Published snapshot (not the local app or a connected PC): analysis reads saved results, so it can start by itself.

@@ -299,11 +299,12 @@ button[data-ui-kind="push"],button[data-ui-kind="primary"],button[data-ui-kind="
 @media (max-width: 520px) { .time-summary-lists { grid-template-columns: 1fr; gap: 10px; } }
 
 
-/* Phones: the SVG charts keep a readable size (their 11 px labels would shrink to about 6 px) and scroll sideways inside their
+/* Phones: the lap chart keeps a readable size (their 11 px labels would shrink to about 6 px) and scroll sideways inside their
    card, like the tables. */
 @media (max-width: 600px) {
-  .overview-chart, .team-profile-card .trade-off-card { overflow-x: auto; overscroll-behavior-x: contain; }
-  .overview-lap-chart, .trade-off-plot { min-width: 560px; }
+  .overview-chart { overflow-x: auto; overscroll-behavior-x: contain; }
+  .overview-lap-chart { min-width: 560px; }
+  /* The straights-against-corners plot is drawn at the phone's width (car-performance.js), labels flipped at the edge. */
 }
 
 /* ---------- Hand-drawn SVG charts at real size (svg-scale.js sets --chart-scale = rendered width / drawn width) ----------
