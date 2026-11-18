@@ -2,11 +2,13 @@ import {color, finite, fmt, signed} from '../../performance-format.js';
 import {TeamLabel, type TeamLike} from './TeamLabel';
 import {visibleBarValue} from '../../lib/chart-bar.mjs';
 
-type Row = TeamLike & Record<string, unknown> & {missingReason?: string; traceProvisional?: boolean; coverageLabel?: string};
+type Row = TeamLike & Record<string, unknown> & {missingReason?: string; traceProvisional?: boolean; coverageLabel?: string; evidenceLabel?: string};
 export type BarChartOptions = {
   title?: string; subtitle?: string; valueKey?: string; labelKey?: string; colorKey?: string;
   unit?: string; digits?: number; signedValue?: boolean; zeroBaseline?: boolean;
   preserveSignedValues?: boolean; invertBest?: boolean;
+  /** Describe zero for a signed comparison whose values already have a benchmark. */
+  benchmark?: string;
   /** Row key holding a [low, high] range for the value (same units, before rebasing): drawn as a whisker. */
   intervalKey?: string;
   /** Typical lap in seconds: a % gap is also shown as seconds per lap. */
@@ -23,6 +25,8 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
     signedValue = true, zeroBaseline = true, preserveSignedValues = false, invertBest = false, intervalKey, perLapSeconds = null} = options;
   // A long unit ('% of lap') is said once, under the title; each value carries only its short form ('%').
   const shortUnit = unit.replace(/ of .*$/, ''), unitNote = shortUnit !== unit ? unit : '';
+  const benchmark = options.benchmark || (signedValue && !preserveSignedValues ? '0 = best supported entrant' : 'Scale starts at zero');
+  const basis = <p className="rank-basis">{benchmark}</p>;
   const valid = (rows || []).filter(r => r && finite(r[valueKey] as number)).map((r): Row & {chart: number} => ({...r, chart: 0}));
   const missing = (rows || []).filter(r => r && !finite(r[valueKey] as number));
   const unranked = missing.map((r, i) => (
@@ -35,7 +39,7 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
     </div>
   ));
   if (!valid.length) return missing.length ? (
-    <div className="performance-chart-card"><h4 className="perf-chart-heading">{title}</h4><div className="performance-bars">{unranked}</div></div>
+    <div className="performance-chart-card"><h4 className="perf-chart-heading">{title}</h4>{basis}<div className="performance-bars">{unranked}</div></div>
   ) : null;
 
   const values = valid.map(r => r[valueKey] as number);
@@ -70,6 +74,7 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
           {subtitle || unitNote ? <span className="perf-chart-sub">{subtitle || unitNote}</span> : null}
         </div></div>
       ) : null}
+      {basis}
       {new Set(rows.map(r => r.coverageLabel).filter(Boolean)).size > 1 ? <p className="performance-quality-status">GP coverage differs between entrants. These are averages over each entrant’s available GPs, not a comparison over identical races.</p> : null}
       <div className="performance-bars">
         {valid.map((r, i) => {
@@ -88,8 +93,8 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
           const summary = `${label}: ${display}${seconds != null ? ` (about ${seconds.toFixed(2)} s per lap)` : ''}${whisker ? ` · likely range +${fmt(whisker[0], digits, unit)} to +${fmt(whisker[1], digits, unit)}` : ''}${unresolved ? ` · not resolved against ${String(above?.[labelKey] || above?.team || '')}` : ''}${plotted === 0 && value !== 0 ? ` · Exact change ${value}${unit}; below displayed precision` : ''}${r.traceProvisional ? ' · Provisional: source gaps over 0.6 s; inspect corner evidence' : ''}`;
           return (
             <div key={label + i} className="performance-bar-row"
-              title={summary} aria-label={`${summary}${r.coverageLabel ? ` · ${r.coverageLabel}` : ''}`} role="img" data-chart-value={`${title}:${label}`} tabIndex={i === 0 ? 0 : -1}>
-              <div className="performance-bar-label"><TeamLabel team={r} />{r.coverageLabel ? <small className="metric-coverage">{r.coverageLabel}</small> : null}</div>
+              title={summary} aria-label={`${summary}${r.evidenceLabel ? ` · ${r.evidenceLabel}` : ''}`} role="img" data-chart-value={`${title}:${label}`} tabIndex={i === 0 ? 0 : -1}>
+              <div className="performance-bar-label rank-label"><TeamLabel team={r} />{r.evidenceLabel ? <small className="rank-evidence">{r.evidenceLabel}</small> : null}</div>
               <div className="performance-bar-track">
                 {preserveSignedValues ? <i className="performance-zero" style={{left: `${zero.toFixed(2)}%`}} /> : null}
                 <i className="performance-bar" style={{'--bar-color': color(r[colorKey] as string), left: `${left.toFixed(2)}%`, width: `${width.toFixed(2)}%`} as React.CSSProperties} />

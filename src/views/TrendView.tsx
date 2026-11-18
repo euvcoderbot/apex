@@ -29,7 +29,7 @@ export function TrendView(props: TrendViewProps) {
     </Card>
   );
   const {view, showSensitivity, rows, spark, sort} = props, fitted = view === 'fitted';
-  const ranked = rows.map(r => ({...r.team, value: fitted ? r.fittedChange : r.change, count: r.count}))
+  const ranked = rows.map(r => ({...r.team, value: fitted ? r.fittedChange : r.change, count: r.count, evidenceLabel: `${r.count} GPs`}))
     .filter((r): r is typeof r & {value: number} => r.count >= 2 && finite(r.value)).sort((a, b) => a.value - b.value);
   return (
     <Card title="Relative qualifying progress"

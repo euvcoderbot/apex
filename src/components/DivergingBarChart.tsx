@@ -7,8 +7,8 @@ import {TeamLabel, type TeamLike} from './TeamLabel';
  * right worsens. Use the actual signed range, rather than reserving half the
  * entire chart for a tiny negative outlier. All rows share this same scale.
  */
-export function DivergingBarChart({title, subtitle, rows, unit, extent, seriesKey}: {
-  title: string; subtitle: string; rows: (TeamLike & {value: number})[]; unit: string; extent: number; seriesKey?: (row: TeamLike & {value: number}) => string;
+export function DivergingBarChart({title, subtitle, rows, unit, extent, seriesKey, benchmark = '0 = no change'}: {
+  title: string; subtitle: string; rows: (TeamLike & {value: number; evidenceLabel?: string})[]; unit: string; extent: number; benchmark?: string; seriesKey?: (row: TeamLike & {value: number}) => string;
 }) {
   // The scale comes from the field, not from one outlier: with eight or more rows, a value beyond three interquartile ranges
   // of the quartiles (one driver with a single odd stint) does not set it. Its bar runs to the edge with a break near the end
@@ -27,15 +27,16 @@ export function DivergingBarChart({title, subtitle, rows, unit, extent, seriesKe
       <div className="perf-chart-header"><div className="perf-chart-title-group">
         <h4 className="perf-chart-heading">{title}</h4><span className="perf-chart-sub">{subtitle}</span>
       </div></div>
+      <p className="rank-basis">{benchmark}</p>
       <div className="performance-tyre-age-chart">
         {rows.map((r, i) => {
           const capped = r.value > maximum || r.value < minimum;
           const width = capped ? (r.value < 0 ? zero : 100 - zero) : Math.min(100, Math.abs(r.value) / span * 100);
           const left = r.value < 0 ? zero-width : zero;
           return (
-            <div key={i} className="performance-tyre-age-row" data-trend-series={seriesKey?.(r)} role="img" data-chart-value={`${title}:${seriesKey?.(r) || r.displayName || r.team || r.name || i}`} tabIndex={i === 0 ? 0 : -1} aria-label={`${r.displayName || r.team || r.name || ''}: ${signed(r.value, 3, unit)}`}>
+            <div key={i} className="performance-tyre-age-row" data-trend-series={seriesKey?.(r)} role="img" data-chart-value={`${title}:${seriesKey?.(r) || r.displayName || r.team || r.name || i}`} tabIndex={i === 0 ? 0 : -1} aria-label={`${r.displayName || r.team || r.name || ''}: ${signed(r.value, 3, unit)}${r.evidenceLabel ? ` · ${r.evidenceLabel}` : ''}`}>
               {/* In a long list (two columns) a driver is named by code alone; the dot carries the team. */}
-              <div className="performance-tyre-age-name"><TeamLabel team={rows.length > 14 && r.displayName ? {...r, displayName: String(r.displayName).split(' · ')[0]} : r} /></div>
+              <div className="performance-tyre-age-name rank-label"><TeamLabel team={rows.length > 14 && r.displayName ? {...r, displayName: String(r.displayName).split(' · ')[0]} : r} />{r.evidenceLabel ? <small className="rank-evidence">{r.evidenceLabel}</small> : null}</div>
               <div className="performance-tyre-age-track">
                 <i className="performance-tyre-age-zero" style={{left:`${zero.toFixed(2)}%`}} />
                 <i className={`performance-tyre-age-bar${capped ? (r.value < 0 ? ' is-capped is-low' : ' is-capped') : ''}`} title={capped ? 'Beyond the scale: an outlier' : undefined} style={{'--bar-color': color(r.color), left: `${left.toFixed(2)}%`, width: `${width.toFixed(2)}%`} as CSSProperties} />

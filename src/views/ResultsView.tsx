@@ -42,7 +42,9 @@ export function ResultsView({rows, chartMetric, chart, sort}: ResultsViewProps) 
           <SegmentedControl name="results-chart" label="Results measure" value={chartMetric} options={MEASURES} />
         </div>
         <div className="results-overview">
-        <BarChart rows={overview} options={chart} />
+        <BarChart rows={overview.map(row => ({...row, evidenceLabel: chartMetric === 'exposure'
+          ? `${row.completedLaps ?? 0} laps`
+          : `${row.starts} race starts`}))} options={chart} />
         <DataTable headers={['Team', 'Total points', 'Race', 'Sprint', 'Race points / start', 'Finished / starts']}
           heat={[{col: 1, values: overview.map(t => t.points), better: 'high'}, {col: 2, values: overview.map(t => t.racePoints), better: 'high'},
             {col: 3, values: overview.map(t => t.sprintPoints), better: 'high'}, {col: 4, values: overview.map(t => t.pointsPerStart), better: 'high'},

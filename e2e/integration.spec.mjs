@@ -39,7 +39,7 @@ test.describe('Car performance with real data', () => {
 
   test('team names are the real teams, once each, in the pace chart', async ({page}) => {
     await open(page, 'pace');
-    const names = await page.locator('#performanceMetricPanel .performance-bar-label').evaluateAll(list => list.map(el => el.textContent.trim()));
+    const names = await page.locator('#performanceMetricPanel .performance-bar-label .team-name').evaluateAll(list => list.map(el => el.textContent.trim()));
     expect(names.length).toBeGreaterThanOrEqual(11);
     for (const team of ['Ferrari', 'McLaren', 'Mercedes', 'Red Bull Racing']) expect(names, team).toContain(team);
   });

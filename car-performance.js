@@ -289,7 +289,7 @@ function renderRaceCorners() {
     support:visibleSupport,
     coverage:reports.map(({event})=>{const c=raceCornerCache.get(cacheKey(event))?.sourceCoverage;return c?`${event.name} · ${c.kind==='live-native-with-retained-fallback'?`${c.plannedDriverLaps} selected native driver-laps across the race · ${c.laps} retained fallback laps`:`${c.laps} native driver-laps available`}${finite(c.timingLaps)?' · '+c.timingLaps+' timing records':''}. ${c.message}`:null;}).filter(Boolean),
     ageModel:adjustedAge?`Separate model: same race lap, compound and physical corner, with a fitted shared compound-age slope. Driver and age effects must be independently identifiable across at least three race laps. This is not matched-condition evidence. ${reports.filter(r=>r.model.reason).map(r=>r.event.name+': '+r.model.reason).join(' · ')}`:null,
-    chart:{rows,options:{title:`${cornerGraphBand==='all'?'All corners':cornerGraphBand+'-speed corners'} · average time gap per corner`,valueKey:'gap',unit:' s',digits:3,signedValue:true,zeroBaseline:true}},
+    chart:{rows:rows.map(r=>({...r,evidenceLabel:`${r.comparisons} matches`})),options:{title:`${cornerGraphBand==='all'?'All corners':cornerGraphBand+'-speed corners'} · average time gap per corner`,valueKey:'gap',unit:' s',digits:3,signedValue:true,zeroBaseline:true}},
     sort:{team:sortHeaderModel('raceCornerTeam',telemetrySubject==='driver'?'Driver':'Team'),gap:sortHeaderModel('raceCornerGap','Gap / corner'),gps:sortHeaderModel('raceCornerGPs','GPs',-1),samples:sortHeaderModel('raceCornerSamples','Driver-laps',-1)},
     rows:sorted(rows,{raceCornerTeam:r=>r.team,raceCornerGap:r=>r.gap,raceCornerGPs:r=>r.events,raceCornerSamples:r=>r.samples},'raceCornerGap')
       .map(r=>({team:r,gap:finite(r.gap)?r.gap:null,events:r.events,samples:r.samples,comparisons:r.comparisons})),
@@ -913,7 +913,7 @@ function summarisePaceTeams(teams,stat) {
   const series={qualy:t=>t.q.map(q=>q.pace),qualyAdjusted:t=>t.adjDeficits,qualyCondition:t=>t.q.map(q=>q.conditionAdjusted),race:t=>t.r};
   const rows=teams.map(t=>{
     const row={...t};
-    for(const [key,values] of Object.entries(series)){row[key]=summarize(values(t),stat);row[key+'Range']=bootstrapRange(values(t),stat);}
+    for(const [key,values] of Object.entries(series)){const data=values(t);row[key]=summarize(data,stat);row[key+'Range']=bootstrapRange(data,stat);row[key+'Count']=data.filter(finite).length;}
     return row;
   });
   for(const key of Object.keys(series)){
@@ -1046,8 +1046,8 @@ function renderPace(teams) {
   return reactView('pace',{regulatory:!!is2026,note:chartMeta.note,
     stat:{show:loadedR>2||loadedQ>2,value:paceSeasonStat},
     qualyMode:qualyPaceMode,qualyBadge:qualyPaceMode==='overall'?'Best delivered lap · Q1–Q3':qualyPaceMode==='condition'?'Estimated within common observed time support':'Estimated phase evolution',
-    qualyChart:{rows:ordered,options:{title:chartMeta.title,subtitle:`${chartMeta.subtitle} · ${paceSeasonStat==='mean'?'Mean':'Median'} across GPs${loadedQ>3?' · whiskers: likely range':''}`,valueKey:paceKey,unit:'%',digits:loadedQ>1?2:3,intervalKey:paceKey+'Range',perLapSeconds:lapSeconds}},
-    raceChart:{rows:paceTeams,options:{title:'Estimated race pace deficit (% to benchmark)',
+    qualyChart:{rows:ordered.map(t=>({...t,evidenceLabel:`${t[paceKey+'Count']} GPs`})),options:{title:chartMeta.title,subtitle:`${chartMeta.subtitle} · ${paceSeasonStat==='mean'?'Mean':'Median'} across GPs${loadedQ>3?' · whiskers: likely range':''}`,valueKey:paceKey,unit:'%',digits:loadedQ>1?2:3,intervalKey:paceKey+'Range',perLapSeconds:lapSeconds}},
+    raceChart:{rows:paceTeams.map(t=>({...t,evidenceLabel:`${t.raceCount} GPs`})),options:{title:'Estimated race pace deficit (% to benchmark)',
       subtitle:`Shared race-lap, compound and tyre-age model · ${paceSeasonStat==='mean'?'Mean':'Median'} GP estimate · Lower is faster${loadedR>3?' · whiskers: likely range':''}`,valueKey:'race',unit:'%',digits:loadedR>1?2:3,intervalKey:'raceRange',perLapSeconds:lapSeconds}},
     sort:{team:sortHeaderModel('team','Team'),pace:sortHeaderModel(paceKey,qualyColLabel),race:sortHeaderModel('race','Estimated race pace deficit'),samples:sortHeaderModel('samples','Modelled race laps',-1)},
     rows:ordered.map(t=>{
@@ -1220,7 +1220,7 @@ function tyreAgeView(teams) {
     quality:`${tyreConditionMode==='screened'?'Wet/transition context and rapid field-wide improvement are excluded from the ranking; all fitted runs remain inspectable.':'Diagnostic: all statistically supported pace trends are included, even in changing conditions.'} ${jointRanking?'Ranked from clean-air laps only, all cars fitted together per race: a shared race-lap effect absorbs fuel burn and track evolution, and each car is compared with the field on the same compound (s/lap of tyre age; negative is less degradation). Slower cars put less energy into their tyres, so low degradation is not the same as a fast car. ':''}This measures observed pace change, not physical tyre wear. ${typeof tyreFitMode!=='undefined'&&tyreFitMode==='curve'?'The headline uses the steady segment; warm-up and supported late falloff remain in the plotted curve. Short runs use a labelled linear diagnostic.':'The headline summarizes the entire observed age span; nonlinear phases remain evidence.'}`,
     commonCoverage:commonTyreCoverage?`Same observed GP + grade pairs: ${commonTyreCoverage.events.join(', ')||'none'} · ${commonTyreCoverage.teams.length} comparable entrants. These are still own-run absolute slopes, not rival-subtracted or rebased scores.`:null,
     coverage:{mapped:mappedRaces,loaded:loadedRaces.length,unmapped:unmappedStints,source:String(source||'')},legacy,
-    chart:scored.length?{title:`Tyre-age lap-time change · ${tyreView==='OVERALL'?'verified C grades':tyreView}`,rows:scored,extent}:null,
+    chart:scored.length?{title:`Tyre-age lap-time change · ${tyreView==='OVERALL'?'verified C grades':tyreView}`,rows:scored.map(r=>({...r,evidenceLabel:`${r.events} GPs`})),extent}:null,
     emptyMessage:tyreSeasonStat==='p75'?'P75 needs at least four supported Grands Prix for every included C grade. The table shows each missing grade and its GP count.':tyreLapMode==='clear'?'No supported clean-air fits. Try All usable laps to inspect traffic-affected trends.':'No runs with at least six usable laps spanning five tyre-age steps. Short runs remain in the evidence table.',
     sort:{name:sortHeaderModel('tyreAgeName',tyreSubject==='team'?'Team':'Driver · team'),value:sortHeaderModel('tyreAgeValue','Change per tyre-age lap'),
       events:sortHeaderModel('tyreAgeEvents','Events',-1),stints:sortHeaderModel('tyreAgeStints','Usable green runs',-1),laps:sortHeaderModel('tyreAgeLaps','Usable laps',-1)},
@@ -1418,7 +1418,7 @@ function renderRace(teams) {
   }, 'tyreNorm');
 
   return reactView('tyres',{metric:'relative',subject:tyreSubject,compound:{choices,value:tyreView,overallLabel:'All compounds'},
-    chart:{rows:ordered,options:{title:`Relative tyre-age trend · ${tyreView === 'OVERALL' ? 'Available compounds' : tyreView}`,
+    chart:{rows:ordered.map(r=>({...r,evidenceLabel:`${r.stints} stints`})),options:{title:`Relative tyre-age trend · ${tyreView === 'OVERALL' ? 'Available compounds' : tyreView}`,
       subtitle:`Same-event, same-compound cohorts of ≥3 teams · ${tyreSeasonStat==='p75'?'P75 worse GP':tyreSeasonStat==='median'?'Median GP':'Mean GP'} · Limited samples are provisional`,
       valueKey:'normSlope',unit:' s/lap',digits:3,signedValue:true,zeroBaseline:true}},
     sort:{team:sortHeaderModel('tyreTeam','Team'),norm:sortHeaderModel('tyreNorm','Extra ageing vs rivals'),stints:sortHeaderModel('tyreStints','Matched sample (stints / laps)',-1)},
@@ -1592,7 +1592,7 @@ function renderPits(teams) {
   const pending=data.total-data.loaded-failures.length;
   const note=`${data.loaded}/${data.total} race${data.total===1?'':'s'} loaded${pending>0?' · loading pit timing…':''}${failures.length?` · ${failures.length} race${failures.length===1?'':'s'} unavailable`:''}. Stationary is the broadcast-style time stopped at the box; pit-lane time includes the stop. Raw summaries weight every timed visit; GP-relative lane summaries compare each team or driver's GP median with the median of team GP medians, then give each GP equal weight. Mean includes long stops; median shows a typical visit; the middle-50% spread shows consistency (≥4 samples); P10 and P90 show the quick and slow tails (≥10 samples). Missing stationary times are never inferred.`;
   const chartRowsFor=driver=>sorted(driver?data.drivers:data.teams,{pitName:r=>driver?r.driver:r.team,pitTeam:r=>r.team,pitMean:r=>r[measure].mean,pitMedian:r=>r[measure].median,pitTrimmed:r=>r[measure].trimmed,pitWinsorized:r=>r[measure].winsorized,pitFastest:r=>r[measure].fastest,pitP10:r=>r[measure].p10,pitP90:r=>r[measure].p90,pitSpread:r=>pitMiddleSpread(r[measure]),pitCount:r=>r[measure].count,pitEvents:r=>r.eventCount},'pitMedian')
-    .map(r=>({...r,displayName:driver?r.driver:r.team,logoTeam:r.team,chartValue:pitChartMetric==='spread'?pitMiddleSpread(r[measure]):r[measure][pitChartMetric]}));
+    .map(r=>({...r,displayName:driver?r.driver:r.team,logoTeam:r.team,evidenceLabel:`${r[measure].count} ${relativeLane?'GPs':'visits'}`,chartValue:pitChartMetric==='spread'?pitMiddleSpread(r[measure]):r[measure][pitChartMetric]}));
   const chartTitle=pitChartMetric==='trimmed'?'10% trimmed mean':pitChartMetric==='winsorized'?'10% winsorized mean':pitChartMetric==='spread'?'Middle-50% spread':pitChartMetric==='p10'?'P10 quick-end time':pitChartMetric==='p90'?'P90 slow-tail time':pitChartMetric==='mean'?'Mean time':pitChartMetric==='fastest'?(relativeLane?'Best GP gap':'Quickest visit'):'Median time';
   // Rendered by src/views/PitsView.tsx; its data-pit-* buttons are handled below.
   const sample=r=>({...r[measure],spread:pitMiddleSpread(r[measure])});
@@ -1611,7 +1611,7 @@ function renderPits(teams) {
         ? `75th minus 25th percentile · at least four ${relativeLane?'GPs':'visits'} · lower is more consistent`
         : pitChartMetric==='p10'||pitChartMetric==='p90'?`${pitChartMetric==='p10'?'10th':'90th'} percentile · at least ten ${relativeLane?'GPs':'visits'} · lower is better`
         : relativeLane?'Equal-weighted GP median gaps; zero is the GP field median':'Visit-weighted seconds · lower is faster',
-      valueKey:'chartValue',labelKey:'team',unit:' s',digits:3,signedValue:relativeLane&&pitChartMetric!=='spread',preserveSignedValues:relativeLane&&pitChartMetric!=='spread',zeroBaseline:true},
+      benchmark:relativeLane&&pitChartMetric!=='spread'?'0 = GP field median':undefined,valueKey:'chartValue',labelKey:'team',unit:' s',digits:3,signedValue:relativeLane&&pitChartMetric!=='spread',preserveSignedValues:relativeLane&&pitChartMetric!=='spread',zeroBaseline:true},
     emptyMessage:pending>0?'Loading published pit timings… measured visits will appear as each selected race is received.':['trimmed','winsorized','p10','p90'].includes(pitChartMetric)?'This statistic needs at least ten measured visits (or ten GPs in GP-relative mode).':pitChartMetric==='spread'?'At least four samples per team or driver are needed for the middle-50% chart.':pitMeasure==='stop'?'No published stationary-stop times for the selected races. Pit-lane timing is a separate measurement; select Pit lane to view it.':'No timed pit-lane visits for the selected races yet.',
     rows:ordered.map(r=>({...r,sample:sample(r)})),
     sort:Object.fromEntries([['pitName',isDriver?'Driver':'Team',1],['pitTeam','Team',1],['pitMean','Mean',1],['pitMedian','Median',1],
@@ -1909,7 +1909,7 @@ function topSpeedChart(title,subject){
   const style=speedDomainEntities(subject),sum=new Map(),used=[];
   for(const e of events){const v=topSpeedValues(e,subject);if(!v.size)continue;used.push(e.name);for(const [k,x] of v){const a=sum.get(k)||{s:0,n:0,peak:-Infinity};a.s+=x.median;a.n++;if(Number.isFinite(x.peak))a.peak=Math.max(a.peak,x.peak);sum.set(k,a);}}
   if(!sum.size)return {title,empty:running?'Loading race results…':'No speed-trap readings in the selected races.'};
-  const rows=[...sum].map(([k,a])=>({...(style.get(k)||{team:k}),value:a.s/a.n,coverageLabel:used.length>1&&a.n<used.length?`${a.n}/${used.length} GPs`:''}));
+  const rows=[...sum].map(([k,a])=>({...(style.get(k)||{team:k}),value:a.s/a.n,evidenceLabel:`${a.n} GPs`,coverageLabel:used.length>1&&a.n<used.length?`${a.n}/${used.length} GPs`:''}));
   return {title,rows,options:{title,subtitle:`median race speed trap · ${used.length} GP${used.length===1?'':'s'} · km/h below the quickest`,unit:' km/h',digits:1,signedValue:true,invertBest:true}};
 }
 function topSpeedEventTable(){
@@ -1933,7 +1933,7 @@ function speedDomainEntities(subject=telemetrySubject) {
 function speedDomainChart(key,title,subtitle,subject=telemetrySubject) {
   const meta=SPEED_DOMAIN_METRICS[key],season=speedDomainSeason(events,subject,key),style=speedDomainEntities(subject);
   // Coverage is disclosed only where it differs: a team measured in fewer GPs than the others ("2/3 GPs"); full coverage says nothing.
-  const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason,traceProvisional:r.provisional,coverageLabel:season.gps>1&&r.gps<season.gps?`${r.gps}/${season.gps} GPs`:''}));
+  const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason,traceProvisional:r.provisional,evidenceLabel:`${r.gps} GPs`,coverageLabel:season.gps>1&&r.gps<season.gps?`${r.gps}/${season.gps} GPs`:''}));
   // While GPs are still loading an empty chart is pending, not a missing measurement.
   if(!rows.length)return {title:title||meta.label,empty:running||speedDomainRunning[subject]?'Loading qualifying telemetry…':key.startsWith('corner_')?'No shared supported corner measurement in this band. Missing values are not zero.':'No supported measurement in the loaded GPs. Missing values are not zero.'};
   return {title:title||meta.label,rows,options:{title:title||meta.label,subtitle:`${subtitle?subtitle+' · ':''}${season.gps} supported GP${season.gps===1?'':'s'} of ${events.filter(e=>e.Q).length} selected · ${season.events.join(', ')} · 0 = best${rows.some(r=>r.traceProvisional)?' · ≈ provisional: source gaps >0.6 s':''}`,unit:meta.unit,digits:meta.digits}};
