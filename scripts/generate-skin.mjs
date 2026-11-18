@@ -110,6 +110,8 @@ export function generate(p, {theme, highContrast = false}) {
     '--ui-list-selected': dark ? p['border-translucent-strong'] : p['border-translucent'], '--ui-list-selected-label': text[0], '--ui-list-selected-secondary': text[1],
     '--ui-tile-on': action, '--ui-tile-on-label': '#ffffff',
     '--ui-positive': status('green'), '--ui-negative': status('red'), '--ui-warning': dark ? p.yellow : meetContrast(p.yellow, [panel, control], 4.5, -1),
+    // Likely rain in the weekend forecast: Linear's blue, deepened on light surfaces to 4.5:1. Data colour, not the accent.
+    '--ui-rain': dark ? '#64b5ff' : meetContrast('#64b5ff', [panel, control], 4.5, -1),
     '--lin-overlay': p['overlay-primary'],
     '--scroll-thumb': ink + '1a', '--scroll-thumb-hover': ink + '33',
   };

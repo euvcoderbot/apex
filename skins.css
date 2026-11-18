@@ -1404,7 +1404,7 @@
   --ui-positive: #00811d;
   --ui-negative: #cb383d;
   --ui-warning: #946600;
-  --ui-rain: #1a6fd4;
+  --ui-rain: #1a73b8;
   --lin-overlay: #ffffffa6;
   --scroll-thumb: #0000001a;
   --scroll-thumb-hover: #00000033;
@@ -2182,10 +2182,10 @@
 /* Inspector tables share the panel surface; selection and hover provide emphasis. */
 :root[data-skin="linear"] .corner-measurement-table tbody tr:nth-child(even) { background: transparent; }
 :root[data-skin="linear"] .performance-bar-label { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
-:root[data-skin="linear"] #carPerformance .rank-label { display: grid; align-content: center; row-gap: 0; min-width: 0; }
+:root[data-skin="linear"] #carPerformance .rank-label { display: flex; align-items: center; gap: 6px; min-width: 0; }
 :root[data-skin="linear"] #carPerformance :is(.rank-basis, .rank-evidence) { color: var(--ui-tertiary); font: 450 11px/1.3 var(--ui-font); font-variant-numeric: tabular-nums; }
 :root[data-skin="linear"] #carPerformance .rank-basis { margin: 0 0 4px; }
-:root[data-skin="linear"] #carPerformance .rank-evidence { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root[data-skin="linear"] #carPerformance .rank-evidence { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---- Paired chart and table ---- */
 /* Paired chart + table (Race cornering and other split views): the chart's header takes the table header's measured height and
@@ -2648,3 +2648,4 @@
    run 4 px past it); the unit may drop to a second line. */
 :root[data-skin="linear"] .corner-measurement-table thead th > button[data-corner-sort] { max-width: 100%; min-width: 0; box-sizing: border-box; border: 0; }
 :root[data-skin="linear"] .corner-measurement-table thead th > button[data-corner-sort] > span { min-width: 0; white-space: normal; }
+@media (max-width: 760px) { :root[data-skin="linear"] #carPerformance .rank-evidence { display: none; } }   /* the name keeps the room; the count stays in the row's hover and accessible text */

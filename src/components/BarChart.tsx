@@ -15,6 +15,15 @@ export type BarChartOptions = {
   perLapSeconds?: number | null;
 };
 
+/** Evidence counts ("19 GPs") show only on a row whose count differs from the most common one (usually fewer races),
+ *  so a full field stays one line per entrant with no repeated count. */
+function evidenceNote(rows: {evidenceLabel?: string}[]) {
+  const counts = new Map<string, number>();
+  for (const r of rows) if (r.evidenceLabel) counts.set(r.evidenceLabel, (counts.get(r.evidenceLabel) || 0) + 1);
+  const common = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+  return {common};
+}
+
 /**
  * Ranked horizontal bars (`.performance-chart-card`), the component form of
  * renderHorizontalBarChart in car-performance.js: same scaling, rebasing to
@@ -26,6 +35,7 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
   // A long unit ('% of lap') is said once, under the title; each value carries only its short form ('%').
   const shortUnit = unit.replace(/ of .*$/, ''), unitNote = shortUnit !== unit ? unit : '';
   const benchmark = options.benchmark || (signedValue && !preserveSignedValues ? '0 = best supported entrant' : 'Scale starts at zero');
+  const evidence = evidenceNote(rows || []);
   const basis = <p className="rank-basis">{benchmark}</p>;
   const valid = (rows || []).filter(r => r && finite(r[valueKey] as number)).map((r): Row & {chart: number} => ({...r, chart: 0}));
   const missing = (rows || []).filter(r => r && !finite(r[valueKey] as number));
@@ -94,7 +104,7 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
           return (
             <div key={label + i} className="performance-bar-row"
               title={summary} aria-label={`${summary}${r.evidenceLabel ? ` · ${r.evidenceLabel}` : ''}`} role="img" data-chart-value={`${title}:${label}`} tabIndex={i === 0 ? 0 : -1}>
-              <div className="performance-bar-label rank-label"><TeamLabel team={r} />{r.evidenceLabel ? <small className="rank-evidence">{r.evidenceLabel}</small> : null}</div>
+              <div className="performance-bar-label rank-label"><TeamLabel team={r} />{r.evidenceLabel && r.evidenceLabel !== evidence.common ? <small className="rank-evidence">{r.evidenceLabel}</small> : null}</div>
               <div className="performance-bar-track">
                 {preserveSignedValues ? <i className="performance-zero" style={{left: `${zero.toFixed(2)}%`}} /> : null}
                 <i className="performance-bar" style={{'--bar-color': color(r[colorKey] as string), left: `${left.toFixed(2)}%`, width: `${width.toFixed(2)}%`} as React.CSSProperties} />

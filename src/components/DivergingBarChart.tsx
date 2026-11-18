@@ -2,6 +2,15 @@ import type {CSSProperties} from 'react';
 import {color, signed} from '../../performance-format.js';
 import {TeamLabel, type TeamLike} from './TeamLabel';
 
+/** Evidence counts ("19 GPs") show only on a row whose count differs from the most common one (usually fewer races),
+ *  so a full field stays one line per entrant with no repeated count. */
+function evidenceNote(rows: {evidenceLabel?: string}[]) {
+  const counts = new Map<string, number>();
+  for (const r of rows) if (r.evidenceLabel) counts.set(r.evidenceLabel, (counts.get(r.evidenceLabel) || 0) + 1);
+  const common = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+  return {common};
+}
+
 /**
  * Bars either side of zero (`.performance-tyre-age-chart`): left improves,
  * right worsens. Use the actual signed range, rather than reserving half the
@@ -22,6 +31,7 @@ export function DivergingBarChart({title, subtitle, rows, unit, extent, seriesKe
   const maximum = Math.max(0, ...inside);
   const span = maximum-minimum || extent || 1;
   const zero = -minimum/span*100;
+  const evidence = evidenceNote(rows);
   return (
     <div className={`performance-chart-card${rows.length > 14 ? ' is-long' : ''}`}>
       <div className="perf-chart-header"><div className="perf-chart-title-group">
@@ -36,7 +46,7 @@ export function DivergingBarChart({title, subtitle, rows, unit, extent, seriesKe
           return (
             <div key={i} className="performance-tyre-age-row" data-trend-series={seriesKey?.(r)} role="img" data-chart-value={`${title}:${seriesKey?.(r) || r.displayName || r.team || r.name || i}`} tabIndex={i === 0 ? 0 : -1} aria-label={`${r.displayName || r.team || r.name || ''}: ${signed(r.value, 3, unit)}${r.evidenceLabel ? ` · ${r.evidenceLabel}` : ''}`}>
               {/* In a long list (two columns) a driver is named by code alone; the dot carries the team. */}
-              <div className="performance-tyre-age-name rank-label"><TeamLabel team={rows.length > 14 && r.displayName ? {...r, displayName: String(r.displayName).split(' · ')[0]} : r} />{r.evidenceLabel ? <small className="rank-evidence">{r.evidenceLabel}</small> : null}</div>
+              <div className="performance-tyre-age-name rank-label"><TeamLabel team={rows.length > 14 && r.displayName ? {...r, displayName: String(r.displayName).split(' · ')[0]} : r} />{r.evidenceLabel && r.evidenceLabel !== evidence.common ? <small className="rank-evidence">{r.evidenceLabel}</small> : null}</div>
               <div className="performance-tyre-age-track">
                 <i className="performance-tyre-age-zero" style={{left:`${zero.toFixed(2)}%`}} />
                 <i className={`performance-tyre-age-bar${capped ? (r.value < 0 ? ' is-capped is-low' : ' is-capped') : ''}`} title={capped ? 'Beyond the scale: an outlier' : undefined} style={{'--bar-color': color(r.color), left: `${left.toFixed(2)}%`, width: `${width.toFixed(2)}%`} as CSSProperties} />

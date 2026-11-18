@@ -1625,3 +1625,5 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
   #seasonHub .season-forecast-gust::before { content: 'Gusts '; color: var(--ui-tertiary); }
   #seasonHub .season-forecast-cloud::before { content: 'Cloud '; color: var(--ui-tertiary); }
 }
+/* Driver header facts in two columns on a phone: an odd last fact spans the row instead of leaving an empty cell. */
+@media (max-width: 640px) { #seasonHub .season-driver-head > .season-facts > :last-child:nth-child(odd) { grid-column: 1 / -1; } }

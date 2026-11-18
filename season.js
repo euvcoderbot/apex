@@ -3056,12 +3056,14 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       const tone = finish === 'DNF' ? 'out' : place === 1 ? 'win' :
         classified && place <= 3 ? 'podium' : r.race_points > 0 ? 'points' : 'none';
       cell.dataset.tone = tone;
-      cell.title = `${roundName}, grid ${grid}, finish ${finish}. Open result`;
+
       cell.addEventListener('click', () => openResult(data, r.round));
       const head = el('small'), image = round && flag(round);
       if (image) head.append(image);
       head.append(code(r.round));
-      cell.append(head, el('b', null, finish), el('span', 'season-strip-status', `${grid} → ${finish}`));
+      // The visible text starts the accessible name (flag code, finish, start); the race's name follows for screen readers.
+      cell.append(head, el('b', null, finish), el('span', 'season-strip-status', r.grid === 0 ? 'from pit lane' : r.grid > 0 ? `from ${grid}` : ' '),
+        el('span', 'visually-hidden', `, ${roundName}: open the result`));
       strip.append(cell);
     }
     for (const r of data.rounds.filter(notRun)) {
