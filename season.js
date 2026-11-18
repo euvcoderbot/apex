@@ -2996,28 +2996,32 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       }
       tiles.append(card(title, list));
     }
-    // Weekend strip: each round's finish (F1 colours: purple win, green podium, white points, grey no points, red retirement).
+    // Keep the complete calendar visible. The finish is the primary value, with the grid underneath.
     const strip = el('div', 'season-strip');
+    const classes = {R: 'DNF', D: 'DSQ', E: 'EXC', W: 'DNS', N: 'NC', F: 'DNQ'};
     for (const r of s.by_round) {
-      const finish = r.finish, n = Number(finish), cell = el('button', 'season-strip-cell is-link'); cell.type = 'button';
+      const place = Number(r.finish), classified = r.finish != null && place > 0 && Number.isFinite(place);
+      const finish = classified ? 'P' + place : (classes[r.finish] || (r.finish ? 'DNF' : 'DNS'));
+      const grid = r.grid > 0 ? 'P' + r.grid : r.grid === 0 ? 'Pit lane' : '—';
+      const cell = el('button', 'season-strip-cell is-link'); cell.type = 'button';
+      const round = data.rounds.find(x => x.round === r.round), roundName = round?.name || code(r.round);
+      const tone = finish === 'DNF' ? 'out' : place === 1 ? 'win' :
+        classified && place <= 3 ? 'podium' : r.race_points > 0 ? 'points' : 'none';
+      cell.dataset.tone = tone;
+      cell.title = `${roundName}, grid ${grid}, finish ${finish}. Open result`;
       cell.addEventListener('click', () => openResult(data, r.round));
-      cell.dataset.tone = !Number.isFinite(n) ? (finish ? 'out' : 'none') : n === 1 ? 'win' : n <= 3 ? 'podium' : r.race_points > 0 ? 'points' : 'none';
-      cell.title = `${data.rounds.find(x => x.round === r.round)?.name}: ${finish ? (Number.isFinite(n) ? 'P' + n : finish) : 'did not start'}${r.grid ? ' from P' + r.grid : ''}${r.race_points ? ' · ' + r.race_points + ' pts' : ''}`;
-      // Flag and round code, the finishing place, and under it the classification when the race did not end in a place
-      // (no colours: the number says the result).
-      const round = data.rounds.find(x => x.round === r.round), head = el('small'), f = round && flag(round);
-      if (f) head.append(f);
+      const head = el('small'), image = round && flag(round);
+      if (image) head.append(image);
       head.append(code(r.round));
-      const CLASS = {R: 'DNF', D: 'DSQ', E: 'EXC', W: 'DNS', N: 'NC', F: 'DNQ'};
-      const status = Number.isFinite(n) ? '' : finish ? (CLASS[finish] || 'DNF') : 'DNS';
-      cell.append(head, el('b', null, Number.isFinite(n) ? String(n) : '–'), el('span', 'season-strip-status', status || ' '));
+      cell.append(head, el('b', null, finish), el('span', 'season-strip-status', `${grid} → ${finish}`));
       strip.append(cell);
     }
     for (const r of data.rounds.filter(notRun)) {
-      const cell = el('div', 'season-strip-cell is-upcoming'), head = el('small'), f = flag(r); cell.title = notRunNote(r);
-      if (f) head.append(f);
+      const cell = el('div', 'season-strip-cell is-upcoming'), head = el('small'), image = flag(r);
+      if (image) head.append(image);
       head.append(code(r.round));
-      cell.append(head, el('b'), el('span', 'season-strip-status'));
+      cell.title = notRunNote(r);
+      cell.append(head, el('b', null, '—'), el('span', 'season-strip-status', 'Scheduled'));
       strip.append(cell);
     }
     const counts = s.finish_counts, maxCount = Math.max(1, ...Object.values(counts));
@@ -3033,7 +3037,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     }
     const positions = lineChart(s.position_after.map(p => p.round), [{id, colour: teamColour(data.drivers[id].team), label: driverName(data, id),
       values: s.position_after.map(p => p.position)}], {title: 'Championship position after each round', invert: true, min: 1, max: Math.max(5, ...s.position_after.map(p => p.position || 1)), height: 200});
-    const legend = el('p', 'season-footnote', 'Finishing place in each Grand Prix. DNF did not finish, DNS did not start, DSQ disqualified, NC not classified.');
+    const legend = el('p', 'season-footnote', 'Grid → finish in each Grand Prix. DNF did not finish, DNS did not start, DSQ disqualified, NC not classified.');
     // Order: who (the head and the numbers), then the season round by round (finishes, then points), then the standing
     // (championship position beside the spread of finishes), then the comparisons (places gained, the teammate gap).
     const toolbar = el('div', 'season-toolbar'); toolbar.append(...[views, pick, stepper, versus].filter(Boolean));

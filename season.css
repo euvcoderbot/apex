@@ -828,7 +828,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-strip-cell { gap: 4px; padding: 8px 6px 6px; min-width: 0; }
 #seasonHub .season-strip-cell small { gap: 4px; max-width: 100%; white-space: nowrap; }
 #seasonHub .season-strip-cell small .season-flag { width: 12px; height: 9px; flex: none; }
-#seasonHub .season-strip-status { height: 9px; font-size: 9px; }
+#seasonHub .season-strip-status { height: auto; font-size: 11px; line-height: 1.15; font-variant-numeric: tabular-nums; }
 #seasonHub .season-strip { grid-template-columns: repeat(auto-fit, minmax(46px, 1fr)); }
 #seasonHub .season-strip-cell { padding: 8px 4px 6px; }
 #seasonHub .season-strip-cell small { gap: 3px; font-size: 11px; letter-spacing: -.02em; }
@@ -897,7 +897,8 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-round-mark .season-flag { width: 16px; height: 12px; border-radius: 2px; object-fit: cover; }
 #seasonHub .season-round-mark small { color: var(--ui-tertiary); font: 450 10px/1 var(--ui-font); letter-spacing: 0; }
 /* Weekend-by-weekend cells: room between the race label (flag and code) and the finishing place. */
-#seasonHub .season-strip-cell { gap: 8px; }
+#seasonHub .season-strip-cell { gap: 5px; min-height: 64px; }
+#seasonHub .season-strip-cell[data-tone]:not([data-tone="none"]) b { background: color-mix(in srgb, var(--tone) 21%, var(--lin-card)); border-radius: 4px; }
 #seasonHub .season-strip-cell small { margin-bottom: 2px; }
 /* Rounds still to run: an empty box in every round-by-round grid, strip and dot row, so each shows the whole calendar. */
 :root #seasonHub .season-matrix td.is-upcoming { padding: 2px; background: none; }
@@ -921,7 +922,10 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 /* Tiles: every value on the same line whether or not a note follows it. */
 #seasonHub .season-tile { align-content: start; }
 /* The whole calendar fits one row of the weekend strip on a desktop. */
-#seasonHub .season-strip { grid-template-columns: repeat(auto-fit, minmax(40px, 1fr)); }
+#seasonHub .season-strip { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); }
+@media (max-width: 760px) {
+  #seasonHub .season-strip { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
+}
 /* The next circuit: the outline fills its column, centred against the facts beside it. */
 #seasonHub .season-next-circuit { grid-template-columns: minmax(104px, 132px) minmax(0, 1fr); align-items: center; }
 #seasonHub .season-next-circuit > .season-track.is-hero { justify-self: center; width: 100%; height: auto; max-height: 150px; aspect-ratio: 1; }
