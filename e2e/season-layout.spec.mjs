@@ -8,18 +8,28 @@ const route = '/api/season?year=2026';
 const entry = index.entries[route];
 const fixture = JSON.parse(gunzipSync(readFileSync(new URL(entry.file, base))));
 const next = fixture.rounds.find(r => r.status === 'next');
-for (const s of next.sessions) s.weather = {temp: 15, rain: 43, wind: 13, code: 2, humidity: 50, direction: 265, gust: 22, mm: 0.1};
+next.utc_offset = -8 * 3600;
+next.sun = {};
+for (const session of next.sessions) {
+  const day = new Date(Date.parse(session.start) + next.utc_offset * 1000).toISOString().slice(0, 10);
+  next.sun[day] = {sunrise: `${day}T06:00`, sunset: `${day}T16:30`};
+  session.weather = {
+    temp: 15, rain: 69, wind: 13, code: 2, humidity: 50, direction: 265, gust: 22, cloud: 35, mm: 0.1,
+    hours: [{at: '19:00', rain: 43}, {at: '20:00', rain: 69}],
+  };
+}
 
 test.beforeEach(async ({page}) => {
   await page.route('**/assets/data/season/index.json', r => r.fulfill({json: {...index, entries: {...index.entries, [route]: {...entry, saved_at: new Date().toISOString()}}}}));
   await page.route(`**/assets/data/season/${entry.file}`, r => r.fulfill({json: fixture}));
 });
 
-for (const width of [1440, 1024, 768, 390]) {
+for (const width of [1440, 1024, 768, 390]) test.describe(`Forecast at ${width}px`, () => {
+  test.use({viewport: {width, height: 1000}});
   test(`detailed session forecasts fit the panel at ${width}px`, async ({page}) => {
-    await page.setViewportSize({width, height: 1000});
     await page.goto('/apex/');
-    await expect(page.locator('.season-forecast-humid')).toHaveCount(next.sessions.length);
+    for (const selector of ['.season-forecast-humid', '.season-forecast-cloud', '.season-forecast-light', '.season-rain-strip'])
+      await expect(page.locator(selector)).toHaveCount(next.sessions.length);
     const fits = await page.locator('.season-forecast').evaluate(n => n.scrollWidth <= n.clientWidth + 1);
     expect(fits).toBe(true);
     for (const cell of await page.locator('.season-forecast-humid').all()) await expect(cell).toBeVisible();
@@ -29,7 +39,7 @@ for (const width of [1440, 1024, 768, 390]) {
       expect(Math.max(...boxes) - Math.min(...boxes)).toBeLessThan(1);
     }
   });
-}
+});
 
 test('race review keeps its selected Grand Prix when opening the race or comparing the podium', async ({page}) => {
   await page.goto('/apex/');
