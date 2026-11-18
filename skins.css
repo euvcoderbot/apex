@@ -2428,6 +2428,8 @@
 :root[data-skin="linear"] :is(.overview-lap-chart, .trend-chart svg, .trade-off-plot) :is(.grid, line[stroke="var(--ui-separator)"]) { stroke: var(--lin-hairline); stroke-width: 1; vector-effect: non-scaling-stroke; }
 :root[data-skin="linear"] :is(.overview-lap-chart .line, .trend-chart [data-trend-segment]) { stroke-width: 1.75; stroke-linejoin: round; stroke-linecap: round; }
 :root[data-skin="linear"] :is(.overview-lap-chart .point:not(.is-off-scale):not(.is-hollow), .trend-chart .trend-series circle) { r: 3.5px; stroke: var(--lin-card); stroke-width: 1.5; }
+:root[data-skin="linear"] .trend-board.has-active .trend-series:not(.is-active) { --series-stroke: var(--ui-tertiary); }
+:root[data-skin="linear"] .trend-board .trend-series.is-active [data-trend-segment] { stroke-width: 2.5; }
 :root[data-skin="linear"] .overview-lap-chart .label { font: 500 11px var(--ui-font); }
 :root[data-skin="linear"] .overview-lap-chart .point.is-hollow:not(.is-off-scale) { r: 3px; stroke-width: 1.5; }
 /* A dense lap chart (under 16 px a lap): 2 px points with an invisible 8 px hit ring, 1.5 px lines; a point grows to full

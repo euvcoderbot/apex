@@ -33,7 +33,7 @@ export function TrendChart({series, lo, hi, ceiling, selectedRound}: {series: Tr
         {selectedRound !== undefined ? <line x1={x(selectedRound)} x2={x(selectedRound)} y1={TOP} y2={HEIGHT - BOTTOM} stroke="var(--ui-secondary)" strokeDasharray="3 3" /> : null}
         {rounds.filter((_, index) => index % every === 0 || (index === rounds.length - 1 && index % every >= every / 2)).map(round => <text key={round} x={x(round)} y={HEIGHT - 6} textAnchor="middle" className="trend-axis">R{round}</text>)}
         {series.map((line, seriesIndex) => {
-          const stroke = color(line.teamColor);
+          const stroke = `var(--series-stroke, ${color(line.teamColor)})`;
           return (
             <g key={line.key} data-trend-series={line.key} className="trend-series">
               {line.fit?.length === 2 ? <line data-trend-fit="" x1={x(line.fit[0].round)} y1={y(line.fit[0].pace)} x2={x(line.fit[1].round)} y2={y(line.fit[1].pace)} stroke={stroke} strokeOpacity=".55" strokeWidth="1.5" strokeDasharray="4 3"><title>{`${line.label} · robust fitted trend`}</title></line> : null}

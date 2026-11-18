@@ -37,6 +37,11 @@ export function TrendView(props: TrendViewProps) {
       <SegmentedControl name="trend-view" label="Rank development by" value={view} options={[['observed', 'Opening → latest'], ['fitted', 'Fitted trend']]} />
       <p className="performance-note">The dots, opening/latest medians and fit use the same evolution-adjusted gaps (raw gaps where adjustment is unavailable). Observed change compares the endpoint groups; fitted change uses every measured round. {fitted ? 'The dashed line shows that fit. ' : ''}Missing rounds are not filled. Circuit suitability, setup and driver changes affect the trend.</p>
       <div className="trend-round-tools">
+        <label>Highlight <select data-trend-entrant="">
+          <option value="">All teams</option>
+          {[...rows].sort((a, b) => a.team.team.localeCompare(b.team.team)).map(({team}) =>
+            <option key={team.team} value={team.team}>{team.team}</option>)}
+        </select></label>
         <label>Inspect round <select data-trend-round="" defaultValue={props.round}>
           <option value="">Season summary</option>
           {props.rounds.map(event => <option key={event.round} value={event.round}>R{event.round} · {event.name}</option>)}
@@ -48,7 +53,7 @@ export function TrendView(props: TrendViewProps) {
         <div className="performance-chart-card">
           <div className="perf-chart-header"><div className="perf-chart-title-group">
             <h4 className="perf-chart-heading">Gap to the quickest car, by round</h4>
-            <span className="perf-chart-sub">Higher is quicker. Hover a team to pick out its line.</span>
+            <span className="perf-chart-sub">Gap in % of lap time. Higher is quicker.</span>
           </div></div>
           <TrendChart {...spark} selectedRound={props.round ? Number(props.round) : undefined} series={rows.map(r => ({key: r.team.team, label: r.team.team, teamColor: r.team.color, points: r.points, fit: fitted ? r.fit : null}))} />
         </div>

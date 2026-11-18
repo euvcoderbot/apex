@@ -126,7 +126,17 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 .season-chart .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; transition: opacity .12s; }
 .season-chart .line.is-bump { stroke-width: 2.5; }
 .season-chart .is-dim, .season-chart g.is-dim { opacity: .14; }
-.season-standings tr.is-dim td { opacity: .45; }
+.season-standings tr.is-entrant > td { background: var(--lin-nav-active); }
+#seasonHub .has-entrant .season-chart :is(.line, .pts, .bump-series)[data-id]:not(.is-entrant) { --series-stroke: var(--ui-tertiary); opacity: .24; }
+#seasonHub .has-entrant .season-chart .end-key:not(.is-entrant) { visibility: hidden; }
+#seasonHub .has-entrant .season-chart .end-key.is-entrant { display: inline; }
+#seasonHub .season-chart .selected-end { display: none; }
+#seasonHub .has-entrant .season-chart .is-entrant > :is(.packed-end, .end-leader) { display: none; }
+#seasonHub .has-entrant .season-chart .is-entrant > .selected-end { display: inline; }
+#seasonHub .has-entrant .season-chart :is(.line.is-entrant, .is-entrant > .line) { stroke-width: 2.5; }
+#seasonHub .season-standings-layout .bump-series:not(.is-front):not(.is-entrant) .line { stroke-width: 1; }
+#seasonHub .season-standings-layout .bump-series .pts { opacity: .55; }
+#seasonHub .season-standings-layout .bump-series.is-entrant .pts { opacity: 1; }
 
 /* driver stats */
 .season-driver-pos { display: grid; justify-items: end; }

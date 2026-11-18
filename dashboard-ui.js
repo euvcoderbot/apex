@@ -111,7 +111,10 @@
   }
   // Picking out a team: the highlight stays on the last team hovered while the pointer crosses the gaps between lines
   // or bars, and clears only when the pointer leaves the board. Clearing on every gap made all lines flash back to full strength.
-  const highlightTrend=(board,key)=>{
+  let trendEntrant = '';
+  const highlightTrend=(board,key=trendEntrant)=>{
+    if(board.dataset.activeEntrant===key)return;
+    board.dataset.activeEntrant=key;
     board.classList.toggle('has-active',!!key);
     for(const item of board.querySelectorAll('[data-trend-series]'))item.classList.toggle('is-active',item.dataset.trendSeries===key);
   };
@@ -122,7 +125,13 @@
   });
   performanceRoot?.addEventListener('pointerout',event=>{
     const board=event.target.closest?.('.trend-board');
-    if(board&&!board.contains(event.relatedTarget))highlightTrend(board,null);
+    if(board&&!board.contains(event.relatedTarget))highlightTrend(board);
+  });
+  performanceRoot?.addEventListener('change',event=>{
+    if(!event.target.matches('[data-trend-entrant]'))return;
+    trendEntrant=event.target.value;
+    const board=performanceRoot.querySelector('.trend-board');
+    if(board)highlightTrend(board);
   });
   // Dense charts have one tab stop per plot. Arrow keys inspect the same exact values as pointer tooltips.
   let chartTip=null, focusedChartMark=null, dismissedChartKey=null;
@@ -142,7 +151,7 @@
     chartTip.style.top=Math.max(8,Math.min(innerHeight-h-8,box.top-h-8))+'px';
     const board=mark.closest('.trend-board'),key=mark.closest('[data-trend-series]')?.dataset.trendSeries;if(board&&key)highlightTrend(board,key);
   });
-  performanceRoot?.addEventListener('focusout',event=>{const board=event.target.closest?.('.trend-board');if(board&&!board.contains(event.relatedTarget))highlightTrend(board,null);hideChartValue();});
+  performanceRoot?.addEventListener('focusout',event=>{const board=event.target.closest?.('.trend-board');if(board&&!board.contains(event.relatedTarget))highlightTrend(board);hideChartValue();});
   performanceRoot?.addEventListener('keydown',event=>{
     if(event.key==='Escape'){dismissedChartKey=event.target.closest?.('[data-chart-value]')?.dataset.chartValue||null;hideChartValue();return;}
     const mark=event.target.closest?.('[data-chart-value]');if(!mark||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key))return;
@@ -189,6 +198,13 @@
     return `<header class="metric-heading" aria-label="${escape(context.year || '—')} · ${subject}"><div class="metric-heading-copy"><h2>${title}</h2><p class="explanation-only">${description}</p></div><div class="metric-heading-controls"></div><span class="metric-load-count" role="status">${measured}${selected?'/'+selected:''} GP${selected===1?'':'s'} with data for this view</span></header>`;
   }
   function arrangePerformance(root, metric) {
+    const entrant = root.querySelector('[data-trend-entrant]');
+    const board = root.querySelector('.trend-board');
+    if (entrant && board) {
+      entrant.value = [...entrant.options].some(option => option.value === trendEntrant) ? trendEntrant : '';
+      trendEntrant = entrant.value;
+      highlightTrend(board);
+    }
     if (!root) return;
     root.dataset.presentation = metric;
     const panel = root.querySelector('#performanceMetricPanel');

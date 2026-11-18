@@ -2074,6 +2074,7 @@
 
   // ----- standings -----
   const standingsRoundByYear = new Map();
+  const standingsEntrant = new Map();
   function renderStandings(data) {
     const drivers = state.standings === 'drivers', evo = data.standings[drivers ? 'drivers' : 'teams'];
     const toggle = el('div', 'season-segment');
@@ -2132,8 +2133,17 @@
     table.append(tb);
     const history = evo.slice(0, index + 1);
     const ids = last.map(e => e.id);
+    const entrantKey = `${data.year}:${state.standings}`;
+    const entrant = el('select'); entrant.setAttribute('aria-label', 'Highlight in standings charts');
+    entrant.append(new Option('All entrants', ''));
+    for (const id of ids) entrant.append(new Option(label(id), id));
+    entrant.value = ids.includes(standingsEntrant.get(entrantKey)) ? standingsEntrant.get(entrantKey) : '';
+    entrant.addEventListener('change', () => standingsEntrant.set(entrantKey, entrant.value));
+    const entrantShell = el('div', 'select-shell season-select'); entrantShell.append(entrant);
+    controls.append(entrantShell);
+
     const points = lineChart(history.map(s => s.round), ids.map(id => ({id, colour: colour(id), label: label(id), short: drivers ? driverCode(data, id) : teamName(data, id),
-      values: history.map(s => s.table.find(x => x.id === id)?.points ?? 0)})), {title: 'Points after each round', endLabels: drivers ? 6 : 5, height: 300, width: 460});   // drawn near the column's width (about 410 px), so names read at full size
+      values: history.map(s => s.table.find(x => x.id === id)?.points ?? null)})), {title: 'Points after each round', format: value => `${value} pts`, endLabels: drivers ? 6 : 5, height: 300, width: 460});   // drawn near the column's width (about 410 px), so names read at full size
     const ranks = bumpChart(history.map(s => s.round), ids.map(id => ({id, colour: colour(id), label: drivers ? driverCode(data, id) : teamName(data, id),
       values: history.map(s => s.table.find(x => x.id === id)?.position ?? null)})), {width: 460, row: 16});   // 16 units: names at least 14 px apart at that width
     const layout = el('div', 'season-two season-standings-layout');
@@ -2141,7 +2151,7 @@
     if (index === evo.length - 1) { const fight = titleFight(data, drivers); if (fight) standingsColumn.append(fight); }
     layout.append(standingsColumn, el('div', 'season-stack'));
     layout.lastChild.append(card('Championship progression', points), card('Championship position', ranks));
-    linkHover(layout);
+    linkHover(layout, entrant);
     return [controls, layout];
   }
   // Who can still win: points scored (sprints included) against the most still available.
@@ -2320,17 +2330,24 @@
     return wrap(t);
   }
 
-  // Hovering a row, a line or a legend entry highlights that entry everywhere in the layout.
-  function linkHover(scope) {
-    const highlight = target => {
-      const id = target?.closest?.('[data-id]')?.dataset.id;
-      scope.querySelectorAll('[data-id]').forEach(n => n.classList.toggle('is-dim', !!id && n.dataset.id !== id));
+  // Hover or focus previews an entrant. Leaving the layout restores the explicit selection.
+  function linkHover(scope, picker) {
+    const entries = [...scope.querySelectorAll('[data-id]')];
+    let current;
+    const idOf = target => target?.closest?.('[data-id]')?.dataset.id;
+    const highlight = (preview = '') => {
+      const id = preview || picker.value;
+      if (id === current) return;
+      current = id;
+      scope.classList.toggle('has-entrant', Boolean(id));
+      for (const node of entries) node.classList.toggle('is-entrant', node.dataset.id === id);
     };
-    scope.addEventListener('pointerover', event => highlight(event.target));
-    scope.addEventListener('pointerleave', () => highlight(scope.contains(document.activeElement) ? document.activeElement : null));
-    scope.addEventListener('focusin', event => highlight(event.target));
-    scope.addEventListener('focusout', event => highlight(event.relatedTarget));
-
+    scope.addEventListener('pointerover', event => highlight(idOf(event.target)));
+    scope.addEventListener('pointerleave', () => highlight(scope.contains(document.activeElement) ? idOf(document.activeElement) : ''));
+    scope.addEventListener('focusin', event => highlight(idOf(event.target)));
+    scope.addEventListener('focusout', event => highlight(idOf(event.relatedTarget)));
+    picker.addEventListener('change', () => highlight());
+    highlight();
   }
 
   // ---------- derived data ----------
@@ -2466,7 +2483,11 @@
   }
   // Straight segments between points (Linear's charts draw no curves): values and positions alike.
   const linePath = points => points.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join('');
-  const monotone = linePath, bumpPath = linePath;
+  // Break the path when an observation is absent. Rejoining would imply data for an unmeasured round.
+  function roundPath(values, x, y) {
+    return values.map((value, i) => value == null ? '' :
+      `${i && values[i - 1] != null ? 'L' : 'M'}${x(i).toFixed(1)} ${y(value).toFixed(1)}`).join('');
+  }
 
   // One bar per round, up for positive values; `extra` stacks a second, lighter value on top (sprint points).
   function barChart(rounds, raw, {width = 640, height = 190, colour = () => 'var(--ui-accent, #5e6ad2)', format = v => String(v), tips = [], title = '', extra = null, clip = false} = {}) {
@@ -2575,14 +2596,14 @@
     for (const s of [...series].reverse()) {
       const pts = s.values.map((v, i) => (v == null ? null : [x(i), y(v)])).filter(Boolean);
       if (!pts.length) continue;
-      const d = monotone(pts);
+      const d = roundPath(s.values, x, y);
       if (area && series.length <= 3) {
         const base = y(Math.max(lo, Math.min(hi, 0))).toFixed(1);
         svg += `<path class="line-area" style="fill:${esc(s.colour)}" d="${d}L${pts.at(-1)[0].toFixed(1)} ${base}L${pts[0][0].toFixed(1)} ${base}Z"/>`;
       }
-      svg += `<path data-id="${esc(s.id)}" class="line${dashed.has(s) ? ' is-dashed' : ''}" style="stroke:${esc(s.colour)}" d="${d}"/>`;
+      svg += `<path data-id="${esc(s.id)}" class="line${dashed.has(s) ? ' is-dashed' : ''}" style="stroke:var(--series-stroke, ${esc(s.colour)})" d="${d}"/>`;
       // A dot on every round of every series, as Car performance's trend chart.
-      svg += `<g class="pts${dashed.has(s) ? ' is-hollow' : ''}" data-id="${esc(s.id)}" style="--c:${esc(s.colour)}">${pts.map(([px, py]) => `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}"/>`).join('')}</g>`;
+      svg += `<g class="pts${dashed.has(s) ? ' is-hollow' : ''}" data-id="${esc(s.id)}" style="--c:var(--series-stroke, ${esc(s.colour)})">${pts.map(([px, py]) => `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}"/>`).join('')}</g>`;
       if (series.length === 1) {
         const [ex, ey] = pts.at(-1), last = s.values.filter(v => v != null).at(-1);
         svg += `<circle class="end" cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="3" style="fill:${esc(s.colour)}"/><text class="label is-value" x="${(ex + 8).toFixed(1)}" y="${(ey + 3.5).toFixed(1)}">${esc(invert ? 'P' + last : format(last))}</text>`;
@@ -2616,7 +2637,7 @@
     return list.map((e, rank) => {
       const leader = Math.abs(e.ly - e.y) > 3 && e.x != null
         ? `<path class="end-leader" d="M${(e.x + 4).toFixed(1)} ${e.y.toFixed(1)}L${(labelX - 2).toFixed(1)} ${e.y.toFixed(1)}L${(labelX + 2).toFixed(1)} ${e.ly.toFixed(1)}" style="stroke:${esc(e.colour)}"/>` : '';
-      return `<g class="end-key${rank >= 10 || e.minor ? ' is-minor' : ''}" data-id="${esc(e.id)}">${leader}<text class="label" style="fill:${esc(e.colour)}" x="${(labelX + 4).toFixed(1)}" y="${(e.ly + 3.5).toFixed(1)}">${esc(e.name)}${e.value != null ? `<tspan class="key-value" dx="5">${esc(e.value)}</tspan>` : ''}</text></g>`;
+      return `<g class="end-key${rank >= 10 || e.minor ? ' is-minor' : ''}" data-id="${esc(e.id)}">${leader}<text class="label is-value selected-end" x="${(labelX + 4).toFixed(1)}" y="${(e.y + 3.5).toFixed(1)}">${esc(e.name)}</text><text class="label packed-end" style="fill:${esc(e.colour)}" x="${(labelX + 4).toFixed(1)}" y="${(e.ly + 3.5).toFixed(1)}">${esc(e.name)}${e.value != null ? `<tspan class="key-value" dx="5">${esc(e.value)}</tspan>` : ''}</text></g>`;
     }).join('');
   }
   // Teammates share a team colour: the second series of a colour is dashed, so the two can be told apart.
@@ -2638,16 +2659,19 @@
     });
     // Hairline rows with the position on the left (P1, P5, P10, ...), as the other charts' value axes.
     for (const p of [1, 5, 10, 15, 20].filter(p => p <= n)) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(p).toFixed(1)}" y2="${y(p).toFixed(1)}"/><text class="axis" x="${L - 8}" y="${(y(p) + 3.5).toFixed(1)}" text-anchor="end">P${p}</text>`;
+    const ends = [];
     for (const s of [...series].reverse()) {
       const pts = s.values.map((v, i) => (v == null ? null : [x(i), y(v)])).filter(Boolean);
       if (!pts.length) continue;
-      const lastValue = s.values.at(-1);
-      // Every driver in their team colour (the second of a team dashed); hovering one still lifts it above the rest.
-      svg += `<g data-id="${esc(s.id)}"><path class="line is-bump${dashed.has(s) ? ' is-dashed' : ''}" style="stroke:${esc(s.colour)}" d="${bumpPath(pts)}"/>`;
-      svg += `<g class="pts${dashed.has(s) ? ' is-hollow' : ''}" style="--c:${esc(s.colour)}">${pts.map(([px, py]) => `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}"/>`).join('')}</g>`;
-      if (lastValue != null) svg += endKey([{id: s.id, colour: s.colour, name: s.label, x: pts.at(-1)[0], y: pts.at(-1)[1], minor: lastValue > 10}], W - R + 4);
+      const lastIndex = s.values.findLastIndex(value => value != null);
+      const lastValue = s.values[lastIndex];
+      ends.push({id: s.id, colour: s.colour, name: s.label, x: x(lastIndex), y: y(lastValue), minor: lastValue > 10});
+      // A slightly stronger stroke gives the front of the field a readable outline.
+      svg += `<g class="bump-series${lastValue <= 5 ? ' is-front' : ''}" data-id="${esc(s.id)}"><path class="line is-bump${dashed.has(s) ? ' is-dashed' : ''}" style="stroke:var(--series-stroke, ${esc(s.colour)})" d="${roundPath(s.values, x, y)}"/>`;
+      svg += `<g class="pts${dashed.has(s) ? ' is-hollow' : ''}" style="--c:var(--series-stroke, ${esc(s.colour)})">${pts.map(([px, py]) => `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}"/>`).join('')}</g>`;
       svg += '</g>';
     }
+    svg += endKey(ends, W - R + 4, row, H - B);
     return htmlNode(svg + xLabels(rounds, x, H, slot) + '</svg>');
   }
   // Round ticks for a value range. Outward (the default): the first tick is at or below the smallest value and the last at or
