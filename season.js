@@ -605,10 +605,21 @@
     hideChartTip();
     const token = ++renderToken, tab = state.tab, year = state.year;
     body.setAttribute('aria-busy', 'true');
-    const loading = el('p', 'season-loading', tab === 'upgrades' ? 'Reading the FIA car presentation documents… the first time takes up to a minute.' : 'Loading…');
+    const loading = el('p', 'season-loading', tab === 'upgrades' ? 'Loading FIA car presentation documents…' : `Loading ${TABS.find(([id]) => id === tab)[1].toLowerCase()}…`);
     loading.setAttribute('role', 'status');
     const skeleton = el('div', 'season-skeleton'); skeleton.setAttribute('aria-hidden', 'true');
-    skeleton.append(el('i', 'is-strip'), el('i', 'is-card'), el('i', 'is-card'));
+    const pattern = {
+      home: ['hero', 'toolbar', 'summary'], schedule: ['toolbar', 'hero', 'summary'],
+      standings: ['toolbar', 'table', 'chart'], results: ['toolbar', 'summary', 'table'],
+      tracks: ['toolbar', 'summary', 'chart'], drivers: ['toolbar', 'hero', 'table'],
+      h2h: ['toolbar', 'hero', 'chart'], upgrades: ['toolbar', 'table'], units: ['toolbar', 'table']
+    }[tab] || ['toolbar', 'table'];
+    if (tab === 'standings') skeleton.classList.add('season-standings-layout');
+    for (const shape of pattern) {
+      const block = el('div', `skeleton-${shape}`);
+      for (let i = 0; i < (shape === 'table' ? 8 : shape === 'summary' ? 4 : 1); i++) block.append(el('i'));
+      skeleton.append(block);
+    }
     tableEdgeObserver.disconnect();
     body.replaceChildren(loading, skeleton);
     // Development and Reliability read FIA documents the FIA has published only since 2022: earlier seasons say so plainly.
@@ -643,8 +654,16 @@
       // Power-unit usage before 2022 is saved separately (scripts/snapshot-power-units-history.py) and reaches the Site with a
       // data publish: until then a season says so plainly rather than showing the API's error.
       if (tab === 'units' && year < 2022) { body.setAttribute('aria-busy', 'false'); body.replaceChildren(empty(`Power-unit usage for ${year} has not been published yet.`)); return; }
-      const message = empty(error.message || String(error)); message.setAttribute('role', 'alert');
-      body.setAttribute('aria-busy', 'false'); body.replaceChildren(message);
+      const detail = error.message || String(error);
+      const unpublished = /(?:not (?:been )?published|no published)/i.test(detail);
+      const state = el('div', 'season-empty');
+      const message = el('p', null, unpublished ? 'Not published yet. Choose another season or view.' : `Could not load this view. ${detail}`);
+      message.setAttribute('role', unpublished ? 'status' : 'alert'); state.append(message);
+      if (!unpublished) {
+        const retry = el('button', null, 'Retry'); retry.type = 'button'; retry.addEventListener('click', render);
+        state.append(retry);
+      }
+      body.setAttribute('aria-busy', 'false'); body.replaceChildren(state);
     }
   }
 

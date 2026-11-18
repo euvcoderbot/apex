@@ -2192,11 +2192,16 @@ function renderContent() {
   const categoryPicker = `<label class="car-category-picker">Measurement<select aria-label="Car performance measurement">${modes.map(([key, label]) => `<option value="${key}" ${key === activeMetric ? 'selected' : ''}>${label}</option>`).join('')}</select></label>`;
   const modeBar = `<div class="performance-toolbar">${categoryPicker}<div class="performance-mode" role="tablist" aria-label="Performance metric" aria-orientation="horizontal">${modes.map(([key,label])=>`<button type="button" role="tab" data-performance-metric="${key}" aria-controls="performanceMetricPanel" tabindex="${activeMetric===key?0:-1}" aria-selected="${activeMetric===key}"><span class="metric-nav-emoji" aria-hidden="true">${navEmoji[key]}</span>${label}</button>`).join('')}</div><button type="button" class="performance-explain-toggle" data-performance-refresh ${running?'disabled':''} title="${refreshTitle}">${snapshotMode?'Reload snapshot':'Refresh data'}</button></div>`;
 
+  if (running && !events.length && activeMetric !== 'pits') {
+    root.innerHTML = modeBar + '<div id="performanceMetricPanel" role="tabpanel" aria-busy="true" aria-label="Performance measurements"><p role="status">Loading measurements…</p><div class="subject-pair" aria-hidden="true"><div class="rank-loading"></div><div class="rank-loading"></div></div></div>';
+    return;
+  }
   if(!context || (!events.length && !running)) {
+    const unpublished = errors.length > 0 && errors.every(error => /(?:not (?:been )?published|no published)/i.test(error.message));
     root.innerHTML = modeBar + `
       <div class="dashboard-card performance-empty" id="performanceMetricPanel" role="tabpanel" aria-label="Performance measurements">
         <div class="empty-icon-badge" aria-hidden="true"></div>
-        <h3>${errors.length?'Source retrieval failed':'Ready for analysis'}</h3>
+        <h3>${unpublished ? 'Measurements not published yet' : errors.length ? 'Source retrieval failed' : 'Ready for analysis'}</h3>
         ${errors.length?errors.map(e=>`<p class="performance-error">${escape(e.event.name)} · ${escape(e.session)}: ${escape(e.message)}</p>`).join('')+'<p>Choose Analyse to retry. Other sessions and supported cached results are not treated as zero.</p>':'<p>Select a season and scope above, then click <strong>Analyse</strong> to calculate car pace, cornering performance, straight-line speeds, and tyre trends.</p>'}
       </div>`;
     return;

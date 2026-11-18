@@ -497,7 +497,12 @@ async function loadRealSession() {
     renderAll();
     void refreshRaceResults(request,requestedQuery);
   } catch (error) {
-    if (error.name !== 'AbortError') notify(`Could not load this session. ${error.message}`);
+    if (error.name !== 'AbortError') {
+      const unpublished = /(?:not (?:been )?published|no published)/i.test(error.message || '');
+      notify(unpublished
+        ? 'Session analysis is not published yet. Choose another session or use local compute.'
+        : `Could not load this session. ${error.message} Select Load session to retry.`);
+    }
   } finally {
     // A newer request owns the button now. (No return here: a return in finally would swallow an error in flight.)
     if (request === sessionRequest) {
@@ -540,6 +545,8 @@ function mergeConfirmedQualifyingPhases(payload, phases) {
 
 function setSessionLoading(value) {
   const analysis=$('.analysis-column'),sidebar=$('#driverSidebar');
+  const placeholder = $('#sessionLoadState');
+  if (placeholder) placeholder.hidden = !value || Boolean(typeof loadedSessionQuery === 'string' && loadedSessionQuery);
   if(analysis){analysis.inert=value;analysis.setAttribute('aria-busy',String(value));}
   const inspector=$('#sessionInspector');
   if(inspector)inspector.inert=value;
