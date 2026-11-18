@@ -2475,6 +2475,7 @@
 @media (max-width: 760px) {
   :root[data-skin="linear"] #performanceResults > .performance-toolbar .car-category-picker { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; font: 500 12px/1.4 var(--ui-font); color: var(--ui-tertiary); }
   :root[data-skin="linear"] #performanceResults > .performance-toolbar .car-category-picker .select-shell { flex: 1 1 auto; max-width: 240px; }
+  :root[data-skin="linear"] #carPerformance :is(.car-category-picker, .trend-round-tools) .select-trigger { min-height: 32px; }
   :root[data-skin="linear"] #performanceResults > .performance-toolbar > .performance-mode[role="tablist"] { display: none !important; }
 }
 :root[data-skin="linear"] #carPerformance .trend-round-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 4px 0 12px; }
