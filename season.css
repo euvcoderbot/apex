@@ -1647,3 +1647,5 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 @media (max-width: 640px) { #seasonHub .season-driver-head > .season-facts > :last-child:nth-child(odd) { grid-column: 1 / -1; } }
 :root[data-skin] #seasonHub .season-matrix.season-h2h-grid tbody tr.season-section-row { height: 24px; }
 :root[data-skin] #seasonHub .season-matrix.season-h2h-grid tbody tr.season-section-row:first-child { height: 16px; }
+/* On a coloured result cell the small labels (round code, start) use the secondary text colour: tertiary falls under 4.5:1. */
+:root[data-skin] #seasonHub .season-strip-cell:is([data-tone="win"], [data-tone="podium"], [data-tone="out"]) :is(small, .season-strip-status) { color: var(--ui-secondary); }
