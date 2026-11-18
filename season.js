@@ -2861,8 +2861,10 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       const b = el('button', null, label); b.type = 'button'; b.setAttribute('aria-pressed', String(id === current));
       b.addEventListener('click', () => {
         if (id === pageView(tab, options)) return;
+        const restoreFocus = group.contains(document.activeElement);
         if (id === options[0][0]) delete state.views[tab]; else state.views[tab] = id;
         window.ApexUrl?.write('season', urlParams()); rerender();
+        if (restoreFocus) body.querySelector('.season-view-pills [aria-pressed="true"]')?.focus({preventScroll: true});
       });
       group.append(b);
     }
@@ -2871,9 +2873,8 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       const all = [...group.querySelectorAll('button')], i = all.indexOf(document.activeElement); if (i < 0) return;
       event.preventDefault();
       const next = all[(i + (event.key === 'ArrowRight' ? 1 : -1) + all.length) % all.length];
-      const at = options[all.indexOf(next)][0];
+      next.focus({preventScroll: true});
       next.click();
-      requestAnimationFrame(() => [...document.querySelectorAll('#seasonHub .season-view-pills button')][options.findIndex(([id]) => id === at)]?.focus());
     });
     return group;
   }

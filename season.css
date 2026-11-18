@@ -406,7 +406,10 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 :root[data-skin="linear"] #seasonHub :is(.season-strip-cell, .season-h2h-weeks > div) { background: var(--lin-band); border-radius: 6px; }
 :root[data-skin="linear"] #seasonHub .season-card > h3 { color: var(--ui-label); font: 600 14px/1.3 var(--ui-font); letter-spacing: -.005em; }  /* the same section title as the other views */
 :root[data-skin="linear"] #seasonHub .season-report-title { color: var(--ui-secondary); }
-:root[data-skin="linear"] #seasonHub :is(.season-tabs button, .season-segment button, .season-filter):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { height: 28px; min-height: 28px; padding: 0 10px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); }
+:root[data-skin="linear"] #seasonHub :is(.season-tabs button, .season-segment button, .season-filter):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { height: var(--season-pill-height, 28px); min-height: var(--season-pill-height, 28px); padding: 0 10px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); }
+@media (max-width: 760px) {
+  #seasonHub { --season-pill-height: 32px; }
+}
 :root[data-skin="linear"] #seasonHub :is(.season-tabs button, .season-segment button, .season-filter)[aria-pressed="true"]:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: var(--lin-pill-on); color: var(--ui-label); }
 :root[data-skin="linear"] #seasonHub :is(.season-battle, .season-tabs button):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):hover { color: var(--ui-label); }
 /* Tables (spec §8): a 32 px header row in 450 12 tertiary with no band; rows without separators, a wash on hover. */
@@ -647,7 +650,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 }
 /* Your time / Track time: the season page's own segmented pills, at 24 px. */
 #seasonHub .season-zone-toggle { margin: 12px 0 8px; gap: 4px; }
-:root[data-skin="linear"] #seasonHub .season-zone-toggle button:not(#linearWorkspace *) { height: 24px; min-height: 24px; padding: 0 9px; }
+:root[data-skin="linear"] #seasonHub .season-zone-toggle button:not(#linearWorkspace *) { height: var(--season-pill-height, 24px); min-height: var(--season-pill-height, 24px); padding: 0 9px; }
 .season-weather-range { margin: -2px 0 8px; font: 500 11px/1.3 var(--ui-font); color: var(--ui-tertiary); grid-column: 1 / -1; }
 /* Constructors: each driver's share of the team's points, on the ranked bars' 8 px track. */
 .season-split { min-width: 84px; }
