@@ -246,7 +246,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 .season-track.is-hero { stroke: var(--ui-secondary); stroke-width: 2; }
 /* North marker on north-up maps: quiet, like the Session map's compass. */
 .map-compass path { fill: var(--ui-tertiary); stroke: none; }
-.map-compass text { fill: var(--ui-tertiary); stroke: none; font: 600 9px/1 var(--ui-font); }
+.map-compass text { fill: var(--ui-tertiary); stroke: none; font: 600 11px/1 var(--ui-font); }   /* 11 px or more at rendered size */
 
 /* schedule: season progress, the next race's circuit, history and forecast, podiums on the round cards */
 .season-progress { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; font-size: var(--text-sm, 13px); }

@@ -141,7 +141,7 @@
   }
   // Its outline, drawn in a 100 x 100 box.
   // North marker for north-up maps (lap GPS and circuit outlines are north-up): an arrow with N above it, at (x, y), size s.
-  const compassMark = (x, y, s = 1) => `<g class="map-compass" transform="translate(${x} ${y}) scale(${s})" aria-hidden="true"><text x="0" y="-9" text-anchor="middle">N</text><path d="M0 -6 L4 5 L0 2.5 L-4 5Z"/></g>`;
+  const compassMark = (x, y, s = 1) => `<g class="map-compass" transform="translate(${x} ${y}) scale(${s})" aria-hidden="true"><text x="0" y="-10" text-anchor="middle">N</text><path d="M0 -6 L4 5 L0 2.5 L-4 5Z"/></g>`;
   function circuitOutline(round, cls = 'season-track') {
     const best = circuitFeature(round)?.geometry.coordinates;
     if (!best) {
@@ -157,7 +157,7 @@
     const d = xs.map((x, i) => `${i ? 'L' : 'M'}${(4 + (x - minX + offX) / span * 92).toFixed(1)} ${(4 + (ys[i] - minY + offY) / span * 92).toFixed(1)}`).join('') + 'Z';
     // The large outline (the next race) carries a north marker in a margin to the right; the small calendar icons do not.
     const hero = /is-hero/.test(cls);
-    return htmlNode(`<svg class="${cls}" viewBox="0 0 ${hero ? 118 : 100} 100" aria-hidden="true" focusable="false"><path d="${d}"/>${hero ? compassMark(110, 16, .9) : ''}</svg>`);
+    return htmlNode(`<svg class="${cls}" viewBox="0 0 ${hero ? 118 : 100} 100" aria-hidden="true" focusable="false"><path d="${d}"/>${hero ? compassMark(108, 20, 1) : ''}</svg>`);
   }
 
   let page, body, tabsNav, pageSelect, yearSelect, button, railSection, active = false;
@@ -1079,7 +1079,7 @@
       const ends = `x1="${(cx - nx * half).toFixed(1)}" y1="${(cy - ny * half).toFixed(1)}" x2="${(cx + nx * half).toFixed(1)}" y2="${(cy + ny * half).toFixed(1)}"`;
       svg += `<g class="track-zone-mark ${m.cls}" data-tip="${esc(m.tip)}"><line class="mark" ${ends}/><line class="hit-line" ${ends}/></g>`;
     }
-    svg += compassMark(W - 18, 26, 1.1);
+    svg += compassMark(W - 18, 30, 1.2);
     svg += '</svg>';
     const wrapEl = el('div', 'season-track-map-wrap'); wrapEl.append(htmlNode(svg));
     const key = el('div', 'season-track-key');

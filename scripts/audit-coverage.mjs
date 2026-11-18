@@ -91,7 +91,8 @@ function checks() {
       if (cells.length && set.size === 1 && !set.has(align(th))) add('header-misaligned', th, `header ${align(th)}, column ${[...set][0]}`);
     });
     // A row opened to show its details is meant to be taller: compare the rows of ordinary height only.
-    const hs = rows.map(r => Math.round(r.getBoundingClientRect().height)), sorted = [...hs].sort((a, b) => a - b), median = sorted[sorted.length >> 1];
+    // Section label rows (Qualifying, Race) are short headings inside a table, not data rows.
+    const hs = rows.filter(r => !r.classList.contains('season-section-row')).map(r => Math.round(r.getBoundingClientRect().height)), sorted = [...hs].sort((a, b) => a - b), median = sorted[sorted.length >> 1];
     const odd = hs.filter(h => h < median * 2.5 && Math.abs(h - median) > 2).length;
     if (odd && odd < hs.length / 2) add('uneven-rows', t, `${odd} of ${hs.length} rows differ from ${median} px`);
     // Filled grid cells (heat, result tones) are pills with a gap between rows, as in Driver statistics: two that touch
