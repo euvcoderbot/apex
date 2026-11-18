@@ -11,6 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi import Response
 import server
 from openf1_performance import stamp, lap_neutralised, neutralised_periods, adapt_performance, retained_bundle, session_payload, pit_entry_laps, stewards_lap, deleted_laps, red_flag_periods, lap_in_red_flag, qualifying_phase_bounds
+# 21 Sep 2026: before the retained Azerbaijan sources in openf1-performance.json.gz expire (17 Nov 2026).
+BEFORE_RETAINED_EXPIRY = 1_790_000_000
 
 
 def bundle():
@@ -358,11 +360,12 @@ class LoadingTests(unittest.TestCase):
         self.assertIsNone(result['circuit_key'])
 
     def test_retained_sources_have_original_expiry_and_exact_identity(self):
-        value = retained_bundle(2026, 'Azerbaijan Grand Prix', 'Q')
+        # The retained file expires (17 Nov 2026); read it as of a moment before that, not today's clock.
+        value = retained_bundle(2026, 'Azerbaijan Grand Prix', 'Q', now=BEFORE_RETAINED_EXPIRY)
         self.assertEqual(value['session']['session_key'], 11373)
         self.assertEqual(len(value['feeds']['laps']), 373)
         self.assertIsNone(retained_bundle(2026, 'Azerbaijan Grand Prix', 'Q', now=9999999999))
-        self.assertIsNone(retained_bundle(2025, 'Azerbaijan Grand Prix', 'Q'))
+        self.assertIsNone(retained_bundle(2025, 'Azerbaijan Grand Prix', 'Q', now=BEFORE_RETAINED_EXPIRY))
 
     def test_rate_limit_retries_but_permanent_errors_do_not(self):
         limited = HTTPError('https://api.openf1.org', 429, 'limited', {'Retry-After': '3'}, None)
@@ -412,7 +415,7 @@ class LoadingTests(unittest.TestCase):
         write.assert_not_called()
 
     def test_explicit_refresh_keeps_valid_sources_during_an_outage(self):
-        with patch.object(server, 'openf1_session', return_value=None):
+        with patch.object(server, 'openf1_session', return_value=None),              patch('openf1_performance.time', SimpleNamespace(time=lambda: BEFORE_RETAINED_EXPIRY)):
             data = server.load_openf1_performance(2026, 'Azerbaijan Grand Prix', 'R', fresh=True)
         self.assertEqual(len(data.apex_recorded_rows), 983)
         self.assertTrue(data.apex_source_notice['refresh_failed'])
