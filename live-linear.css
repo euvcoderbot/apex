@@ -123,6 +123,11 @@
 :root[data-skin="linear"] #liveTiming .live-moved.is-up { color: #30d158; }
 :root[data-skin="linear"] #liveTiming .live-moved.is-down { color: #ff6961; }
 :root[data-skin="linear"] #liveTiming .live-tower-mode { margin-left: auto; }
+:root[data-skin="linear"] #liveTiming > nav.live-tower-mode { width: 100%; max-width: 100%; flex-wrap: wrap; }
+@media (max-width: 760px) {
+  :root[data-skin="linear"] #liveTiming > nav.live-tower-mode { margin-left: 0; height: auto; }
+  :root[data-skin="linear"] #liveTiming > nav.live-tower-mode > button { min-height: 32px; }
+}
 /* Replay seek: the progress bar is a slider (select to jump; arrows ±1 min, Page ±5 min) with a jump-to-lap menu. */
 :root[data-skin="linear"] #liveTiming .live-seek { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
 :root[data-skin="linear"] #liveTiming .live-seek[hidden] { display: none; }
