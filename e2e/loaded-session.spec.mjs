@@ -122,6 +122,8 @@ test('inspect a measured gain or loss with the keyboard', async ({page}) => {
   expect(await action.evaluate(b => [getComputedStyle(b).textDecorationLine, getComputedStyle(b).boxShadow, b.closest('li').getBoundingClientRect().width - b.getBoundingClientRect().width])).toEqual(['none', 'none', 0]);
   await page.locator('#timeSummary').screenshot({path: test.info().outputPath('time-summary.png')});
   await page.locator('#sessionOverview .section-heading').screenshot({path: test.info().outputPath('overview-heading.png')});
+  await page.locator('#sectorRows').screenshot({path: test.info().outputPath('sectors.png')});
+  await page.locator('#sessionOverview').screenshot({path: test.info().outputPath('overview.png')});
   const index = await action.getAttribute('data-inspect-zone');
   await action.focus();
   await action.press('Enter');

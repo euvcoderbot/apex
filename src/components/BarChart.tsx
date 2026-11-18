@@ -34,9 +34,7 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
     signedValue = true, zeroBaseline = true, preserveSignedValues = false, invertBest = false, intervalKey, perLapSeconds = null} = options;
   // A long unit ('% of lap') is said once, under the title; each value carries only its short form ('%').
   const shortUnit = unit.replace(/ of .*$/, ''), unitNote = shortUnit !== unit ? unit : '';
-  const benchmark = options.benchmark || (signedValue && !preserveSignedValues ? '0 = best supported entrant' : 'Scale starts at zero');
   const evidence = evidenceNote(rows || []);
-  const basis = <p className="rank-basis">{benchmark}</p>;
   const valid = (rows || []).filter(r => r && finite(r[valueKey] as number)).map((r): Row & {chart: number} => ({...r, chart: 0}));
   const missing = (rows || []).filter(r => r && !finite(r[valueKey] as number));
   const unranked = missing.map((r, i) => (
@@ -49,7 +47,7 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
     </div>
   ));
   if (!valid.length) return missing.length ? (
-    <div className="performance-chart-card"><h4 className="perf-chart-heading">{title}</h4>{basis}<div className="performance-bars">{unranked}</div></div>
+    <div className="performance-chart-card"><h4 className="perf-chart-heading">{title}</h4><div className="performance-bars">{unranked}</div></div>
   ) : null;
 
   const values = valid.map(r => r[valueKey] as number);
@@ -84,7 +82,6 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
           {subtitle || unitNote ? <span className="perf-chart-sub">{subtitle || unitNote}</span> : null}
         </div></div>
       ) : null}
-      {basis}
       {new Set(rows.map(r => r.coverageLabel).filter(Boolean)).size > 1 ? <p className="performance-quality-status">GP coverage differs between entrants. These are averages over each entrant’s available GPs, not a comparison over identical races.</p> : null}
       <div className="performance-bars">
         {valid.map((r, i) => {

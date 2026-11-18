@@ -244,6 +244,9 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 .season-round > .season-track { position: absolute; right: 14px; bottom: 14px; width: 58px; height: 58px; opacity: .6; }
 .season-round[data-status="next"] > .season-track { stroke: var(--ui-accent, #5e6ad2); opacity: 1; }
 .season-track.is-hero { stroke: var(--ui-secondary); stroke-width: 2; }
+/* North marker on north-up maps: quiet, like the Session map's compass. */
+.map-compass path { fill: var(--ui-tertiary); stroke: none; }
+.map-compass text { fill: var(--ui-tertiary); stroke: none; font: 600 9px/1 var(--ui-font); }
 
 /* schedule: season progress, the next race's circuit, history and forecast, podiums on the round cards */
 .season-progress { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; font-size: var(--text-sm, 13px); }
@@ -892,8 +895,12 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 /* The flag above each round code: 16 x 12 px at every chart width, its bottom 3 px above the code's cap height. */
 .season-chart .x-flag { width: calc(16px / var(--chart-scale, 1)); height: calc(12px / var(--chart-scale, 1)); transform-box: fill-box;
   transform: translate(-50%, calc(-100% - 13px / var(--chart-scale, 1))); }
-.season-chart.is-small .x-flag { width: calc(12px / var(--chart-scale, 1)); height: calc(9px / var(--chart-scale, 1)); transform: translate(-50%, calc(-100% - 7px / var(--chart-scale, 1))); }
-.season-chart.is-small .x-label { transform: translateY(calc(4px / var(--chart-scale, 1))); }  /* the pair sits lower, clear of points on the bottom row */
+/* Smaller flags only on a phone, where every chart is small: on a wider screen a narrow chart keeps 16 px flags, so two
+   charts side by side never show flags of two sizes. */
+@media (max-width: 760px) {
+  .season-chart.is-small .x-flag { width: calc(12px / var(--chart-scale, 1)); height: calc(9px / var(--chart-scale, 1)); transform: translate(-50%, calc(-100% - 7px / var(--chart-scale, 1))); }
+  .season-chart.is-small .x-label { transform: translateY(calc(4px / var(--chart-scale, 1))); }  /* the pair sits lower, clear of points on the bottom row */
+}
 /* Round grids (results, points, upgrades, qualifying pace): the total column is centred like its heading and the rounds. */
 #seasonHub .season-matrix tbody td:last-child { padding-inline: 6px; text-align: center; }
 /* Round labels (flag above code) in every grid and strip of rounds. */
@@ -1365,8 +1372,9 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub details.season-update-group { box-shadow: inset 0 -1px var(--line); }
 #seasonHub .season-update-round { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 8px 4px; cursor: pointer; list-style: none; font: 500 13px/1.3 var(--ui-font); color: var(--ui-label); }
 #seasonHub .season-update-round::-webkit-details-marker { display: none; }
-#seasonHub .season-update-round::before { content: ''; flex: none; width: 6px; height: 6px; border-right: 1.5px solid var(--ui-tertiary); border-bottom: 1.5px solid var(--ui-tertiary); transform: rotate(-45deg); transition: transform .15s; }
-#seasonHub details[open] > .season-update-round::before { transform: rotate(45deg); }
+/* The disclosure chevron: a drawn arrow (the border trick lost a side to the summary's own styling and read as a corner). */
+#seasonHub .season-update-round::before { content: ''; flex: none; width: 10px; height: 10px; border: 0; background: var(--ui-tertiary); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M3.5 1.5 7 5l-3.5 3.5' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M3.5 1.5 7 5l-3.5 3.5' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; transform: none; transition: transform .15s; }
+#seasonHub details[open] > .season-update-round::before { transform: rotate(90deg); }
 #seasonHub .season-update-round:hover { background: var(--lin-nav-hover); }
 #seasonHub .season-update-round .season-flag { flex: none; }
 #seasonHub .season-update-teams { display: inline-flex; flex-wrap: wrap; gap: 3px; margin-left: auto; }
@@ -1543,7 +1551,13 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 /* Head-to-head race-by-race: each row names its driver and its session. */
 #seasonHub .season-h2h-grid tr.season-gap-row > th { color: var(--ui-secondary); font-weight: 500; }
 /* Head-to-head race-by-race: Qualifying and Race as their own header rows, a quiet label over each group of three. */
-#seasonHub .season-h2h-grid tr.season-section-row > th { padding-top: 10px; color: var(--ui-secondary); font: 600 12px/1 var(--ui-font); vertical-align: bottom; }
+/* Section labels (Qualifying, Race) are short label rows, not 44 px data rows: they sit just above their rows. */
+:root[data-skin] #seasonHub .season-table.season-h2h-grid tr.season-section-row > :is(th, td) { height: 24px; padding: 10px 0 2px; line-height: 1; }
+:root[data-skin] #seasonHub .season-table.season-h2h-grid tr.season-section-row:first-child > :is(th, td) { height: 16px; padding-top: 2px; }
+#seasonHub .season-h2h-grid tr.season-section-row > th { color: var(--ui-secondary); font: 600 12px/1 var(--ui-font); vertical-align: bottom; }
+/* Only results that mean something are filled (pole or win, podium, retirement, who was ahead); an ordinary place is a plain
+   number, bright in Q3 or the points, quiet otherwise. */
+#seasonHub .season-h2h-grid td[data-tone="points"] { background: none; color: var(--ui-label); }
 #seasonHub .season-h2h-grid tr.season-section-row:hover > :is(th, td) { background: transparent; }
 /* Grids: a hovered row lights its name and its plain cells; the result pills keep their colours (they used to be painted
    over with the hover colour, so the row went flat and dark). */
@@ -1627,3 +1641,5 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 }
 /* Driver header facts in two columns on a phone: an odd last fact spans the row instead of leaving an empty cell. */
 @media (max-width: 640px) { #seasonHub .season-driver-head > .season-facts > :last-child:nth-child(odd) { grid-column: 1 / -1; } }
+:root[data-skin] #seasonHub .season-matrix.season-h2h-grid tbody tr.season-section-row { height: 24px; }
+:root[data-skin] #seasonHub .season-matrix.season-h2h-grid tbody tr.season-section-row:first-child { height: 16px; }

@@ -16,7 +16,7 @@ function evidenceNote(rows: {evidenceLabel?: string}[]) {
  * right worsens. Use the actual signed range, rather than reserving half the
  * entire chart for a tiny negative outlier. All rows share this same scale.
  */
-export function DivergingBarChart({title, subtitle, rows, unit, extent, seriesKey, benchmark = '0 = no change'}: {
+export function DivergingBarChart({title, subtitle, rows, unit, extent, seriesKey}: {
   title: string; subtitle: string; rows: (TeamLike & {value: number; evidenceLabel?: string})[]; unit: string; extent: number; benchmark?: string; seriesKey?: (row: TeamLike & {value: number}) => string;
 }) {
   // The scale comes from the field, not from one outlier: with eight or more rows, a value beyond three interquartile ranges
@@ -37,7 +37,6 @@ export function DivergingBarChart({title, subtitle, rows, unit, extent, seriesKe
       <div className="perf-chart-header"><div className="perf-chart-title-group">
         <h4 className="perf-chart-heading">{title}</h4><span className="perf-chart-sub">{subtitle}</span>
       </div></div>
-      <p className="rank-basis">{benchmark}</p>
       <div className="performance-tyre-age-chart">
         {rows.map((r, i) => {
           const capped = r.value > maximum || r.value < minimum;

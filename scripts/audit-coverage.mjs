@@ -35,7 +35,7 @@ const STATES = {
   standings: season('standings'), drivers: season('drivers'), h2h: season('h2h'),
   upgrades: season('upgrades'), units: season('units'), 'standings-2020': season('standings', '', 2020),
   // The page views (part=) that hold content the default views no longer show.
-  'track-history': season('tracks', '&part=history'), 'development-pattern': season('upgrades', '&part=pattern'),
+  'track-history': season('tracks', '&part=history'),
   'unit-installations': season('units', '&part=installations'),
   'drivers-field': season('drivers', '&part=field'), 'h2h-sessions': season('h2h', '&part=sessions'), 'h2h-pace': season('h2h', '&part=pace'),
   'h2h-points': season('h2h', '&part=points'), 'results-drivers': season('results', '&part=drivers'), 'units-finishes': season('units', '&part=finishes'), 'tracks-corners': season('tracks', '&part=corners'), 'tracks-compare': season('tracks', '&part=compare'),

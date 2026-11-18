@@ -140,6 +140,8 @@
     return best;
   }
   // Its outline, drawn in a 100 x 100 box.
+  // North marker for north-up maps (lap GPS and circuit outlines are north-up): an arrow with N above it, at (x, y), size s.
+  const compassMark = (x, y, s = 1) => `<g class="map-compass" transform="translate(${x} ${y}) scale(${s})" aria-hidden="true"><text x="0" y="-9" text-anchor="middle">N</text><path d="M0 -6 L4 5 L0 2.5 L-4 5Z"/></g>`;
   function circuitOutline(round, cls = 'season-track') {
     const best = circuitFeature(round)?.geometry.coordinates;
     if (!best) {
@@ -153,7 +155,9 @@
     const minX = Math.min(...xs), minY = Math.min(...ys), span = Math.max(Math.max(...xs) - minX, Math.max(...ys) - minY) || 1;
     const offX = (span - (Math.max(...xs) - minX)) / 2, offY = (span - (Math.max(...ys) - minY)) / 2;
     const d = xs.map((x, i) => `${i ? 'L' : 'M'}${(4 + (x - minX + offX) / span * 92).toFixed(1)} ${(4 + (ys[i] - minY + offY) / span * 92).toFixed(1)}`).join('') + 'Z';
-    return htmlNode(`<svg class="${cls}" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><path d="${d}"/></svg>`);
+    // The large outline (the next race) carries a north marker in a margin to the right; the small calendar icons do not.
+    const hero = /is-hero/.test(cls);
+    return htmlNode(`<svg class="${cls}" viewBox="0 0 ${hero ? 118 : 100} 100" aria-hidden="true" focusable="false"><path d="${d}"/>${hero ? compassMark(110, 16, .9) : ''}</svg>`);
   }
 
   let page, body, tabsNav, pageSelect, yearSelect, button, railSection, active = false;
@@ -1075,6 +1079,7 @@
       const ends = `x1="${(cx - nx * half).toFixed(1)}" y1="${(cy - ny * half).toFixed(1)}" x2="${(cx + nx * half).toFixed(1)}" y2="${(cy + ny * half).toFixed(1)}"`;
       svg += `<g class="track-zone-mark ${m.cls}" data-tip="${esc(m.tip)}"><line class="mark" ${ends}/><line class="hit-line" ${ends}/></g>`;
     }
+    svg += compassMark(W - 18, 26, 1.1);
     svg += '</svg>';
     const wrapEl = el('div', 'season-track-map-wrap'); wrapEl.append(htmlNode(svg));
     const key = el('div', 'season-track-key');
@@ -1516,6 +1521,7 @@
         const f = own || day, w = el('span', 'season-session-weather'); const dark = afterDark(x); const icon = weatherIcon(f.code, dark);
         icon.dataset.kind = f.code >= 95 ? 'storm' : f.rain >= 50 ? 'wet' : f.code <= 2 ? (dark ? 'moon' : 'sun') : 'cloud';
         w.append(icon, el('span', null, own ? `${Math.round(own.temp)}°` : `${Math.round(day.min)}–${Math.round(day.max)}°`), el('span', f.rain >= 50 ? 'is-wet' : null, `${f.rain ?? 0}% rain`));
+        if (own && Number.isFinite(own.mm)) w.append(el('span', null, `${own.mm.toFixed(1)} mm`));   // expected rainfall over the session
         w.title = own ? `Forecast for the session: ${Math.round(own.temp)}°, ${own.rain ?? 0}% chance of rain, wind ${Math.round(own.wind ?? 0)} km/h`
           : `Forecast for that day: ${Math.round(day.max)}° high, ${Math.round(day.min)}° low, ${day.rain ?? 0}% chance of rain, wind ${Math.round(day.wind)} km/h`;
         li.append(w);
@@ -1621,11 +1627,12 @@
         if (w.hours?.length > 1) {
           const strip = el('span', 'season-rain-strip'); strip.setAttribute('aria-hidden', 'true');
           for (const h of w.hours) { const bar = el('i'); bar.style.height = `${Math.max(2, Math.round((h.rain ?? 0) / 100 * 14))}px`; if (h.rain >= 50) bar.className = 'is-wet'; strip.append(bar); }
-          rainCell.title = `Chance of rain by hour (track time): ${w.hours.map(h => `${h.at} ${h.rain ?? 0}%${h.mm ? ` (${h.mm} mm)` : ''}`).join(' · ')}`;
+          rainCell.title = `Chance of rain by hour (track time): ${w.hours.map(h => `${h.at} ${h.rain ?? 0}% (${Number(h.mm ?? 0).toFixed(1)} mm)`).join(' · ')}`;
           rainCell.append(strip);
         }
         rainCell.append(reading(w.rain, '%'));
-        if (w.mm) rainCell.append(el('small', 'season-muted', ` ${w.mm} mm`));
+        // Expected rainfall over the session, always shown (0.0 mm is an answer too).
+        if (Number.isFinite(w.mm)) rainCell.append(el('small', 'season-muted', ` ${w.mm.toFixed(1)} mm`));
         row.append(el('span', 'season-forecast-day', short), icon, temp, rainCell, wind);
         for (const [key] of extras) {
           const v = w[key], cellClass = key === 'humidity' ? 'season-forecast-humid' : `season-forecast-${key}`;
@@ -3502,7 +3509,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     if (view === 'battles') return [toolbar, allBattles];
     const colourKey = el('div', 'season-legend season-h2h-key');
     for (const [id, colour] of [[a, ca], [b, cb]]) { const k = el('span', null, driverName(data, id)); k.dataset.tone = 'custom'; k.style.setProperty('--tone', colour); colourKey.append(k); }
-    return [toolbar, hero, card('Race-by-race', colourKey, wrap(weeks), el('p', 'season-footnote', `Each driver’s qualifying place (purple pole, light into Q3, grey out before Q3), then the gap between them in the last session both set a time in, filled in the quicker driver’s colour (deeper for a bigger gap; ${gapMax.toFixed(1)} s or more is the deepest). Race: each driver’s finish (the small number their sprint finish), purple a win, green a podium, white points, red a retirement; then who scored more that weekend, race and sprint, and by how many points.`))];
+    return [toolbar, hero, card('Race-by-race', colourKey, wrap(weeks), el('p', 'season-footnote', `Each driver’s qualifying place (purple pole, bright into Q3, grey out before Q3), then the gap between them in the last session both set a time in, filled in the quicker driver’s colour (deeper for a bigger gap; ${gapMax.toFixed(1)} s or more is the deepest). Race: each driver’s finish (the small number their sprint finish), purple a win, green a podium, white points, red a retirement; then who scored more that weekend, race and sprint, and by how many points.`))];
   }
   // Head-to-head pace: the two drivers' rolling race and qualifying pace and typical top speed (from Form's data), and
   // their race pace at every round. Filled in when the race analysis has loaded.
@@ -3922,15 +3929,12 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     }
     const filterRow = (label, node) => { const row = el('div', 'season-filter-row'); row.append(el('span', 'season-filter-label', label), node); return row; };
     const head = card(null, total, filterRow('Team', filters), filterRow('Reason', typeFilters)); head.classList.add('season-upgrades-head');
-    const views = [['updates', 'By weekend'], ['pattern', 'Season patterns']];
-    const navigation = viewPills('upgrades', views, repaint);
+    // One page: the filters, the grid of updates by team and race (a cell opens that weekend's updates below), the declared
+    // updates themselves, then the season's patterns by reason and component.
     const source = el('p', 'season-footnote', 'Source: the teams’ FIA Car Presentation Submissions. Image-only submissions are excluded.');
-    if (pageView('upgrades', views) === 'pattern') {
-      const pair = el('div', 'season-two');
-      pair.append(card('Upgrades by team and reason', perTeam, legend), card('Most-upgraded components', comp));
-      return [navigation, head, updatesByRound(data, teams, items, matrix), pair, source];
-    }
-    return [navigation, head, card('Declared updates', filtered.length ? list : empty('No updates match these filters.')), source];
+    const pair = el('div', 'season-two');
+    pair.append(card('Upgrades by team and reason', perTeam, legend), card('Most-upgraded components', comp));
+    return [head, updatesByRound(data, teams, items, matrix), card('Declared updates', filtered.length ? list : empty('No updates match these filters.')), pair, source];
   }
 
   // ----- power units -----
