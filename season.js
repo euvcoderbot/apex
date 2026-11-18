@@ -317,7 +317,7 @@
     }
     c.append(...children.filter(Boolean));
     // Tables are page sections; chart widgets retain the elevated card surface.
-    if (children.some(node => node?.matches?.('.season-table-wrap'))) c.classList.add('season-data-section');
+    if (children.some(node => node?.matches?.('.season-table-wrap, .season-table-frame'))) c.classList.add('season-data-section');
     return c;
   };
   const empty = text => el('p', 'season-empty', text);
@@ -546,7 +546,7 @@
   function leave() {
     hideChartTip();
     if (!active) return;
-    active = false; placeSeasonPages();
+    active = false; placeSeasonPages(); tableEdgeObserver.disconnect();
     document.body.classList.remove('season-view');
     page.hidden = true; mark(false); homeButton?.setAttribute('aria-pressed', 'false'); tracksRow?.setAttribute('aria-pressed', 'false');
   }
@@ -563,6 +563,7 @@
     const fieldName = field?.getAttribute('aria-label');
     hideChartTip();
     imagery.shown.clear();
+    tableEdgeObserver.disconnect();
     const nodes = views(), credits = photoCredits();
     body.replaceChildren(...nodes, ...(credits ? [credits] : []));
     body.setAttribute('aria-busy', 'false');
@@ -608,6 +609,7 @@
     loading.setAttribute('role', 'status');
     const skeleton = el('div', 'season-skeleton'); skeleton.setAttribute('aria-hidden', 'true');
     skeleton.append(el('i', 'is-strip'), el('i', 'is-card'), el('i', 'is-card'));
+    tableEdgeObserver.disconnect();
     body.replaceChildren(loading, skeleton);
     // Development and Reliability read FIA documents the FIA has published only since 2022: earlier seasons say so plainly.
     if ((tab === 'upgrades' || tab === 'units') && year < FIA_DOCUMENTS_FROM[tab]) {
@@ -1768,7 +1770,32 @@
     const c = card(null, row); c.classList.add('season-numbers-card');
     return c;
   }
-  const wrap = node => { const w = el('div', 'season-table-wrap'); w.append(node); return w; };
+  function updateTableEdges(viewport) {
+    const remaining = viewport.scrollWidth - viewport.clientWidth - viewport.scrollLeft;
+    const frame = viewport.parentElement;
+    frame.classList.toggle('has-hidden-start', viewport.scrollLeft > 1);
+    frame.classList.toggle('has-hidden-end', remaining > 1);
+  }
+  const tableEdgeObserver = new ResizeObserver(entries => {
+    for (const {target} of entries) {
+      const viewport = target.matches('.season-table-wrap') ? target : target.parentElement;
+      if (viewport?.isConnected) updateTableEdges(viewport);
+    }
+  });
+  function wrap(table) {
+    const viewport = el('div', 'season-table-wrap');
+    viewport.append(table);
+    if (!table.matches('.season-grid, .season-units')) return viewport;
+    const frame = el('div', 'season-table-frame'); frame.append(viewport);
+    const region = table.getAttribute('aria-label') || 'Results table';
+    viewport.setAttribute('role', 'region');
+    viewport.setAttribute('aria-label', region);
+    viewport.tabIndex = 0;
+    viewport.addEventListener('scroll', () => updateTableEdges(viewport), {passive: true});
+    tableEdgeObserver.observe(viewport);
+    tableEdgeObserver.observe(table);
+    return frame;
+  }
   // Grand Prix results in two views: Race (podium, fastest lap, sprint winner, margin) and Qualifying (the front row,
   // pole lap, gaps, the Q3 cut and sprint pole). A row opens that session's full classification.
   function gpResults(data) {

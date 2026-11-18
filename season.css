@@ -98,6 +98,10 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 .season-bar { display: flex; height: 8px; border-radius: 4px; background: var(--ui-well); overflow: hidden; }
 .season-bar i { display: block; height: 100%; }
 .season-table-wrap { overflow-x: auto; }
+.season-table-frame { position: relative; min-width: 0; overflow: clip; }
+.season-table-frame::after { content: ""; position: absolute; inset: 0 0 0 auto; width: 1px; pointer-events: none; }
+.season-table-frame.has-hidden-end::after { box-shadow: -3px 0 6px 2px color-mix(in srgb, var(--ui-label) 26%, transparent); }
+#seasonHub .season-table-frame.has-hidden-start :is(.season-grid, .season-units) :is(th, td):first-child { box-shadow: 3px 0 6px color-mix(in srgb, var(--ui-label) 20%, transparent); }
 .season-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm, 13px); font-variant-numeric: tabular-nums; }
 .season-table th { padding: 7px 10px; color: var(--ui-tertiary); font-size: var(--text-xs, 12px); font-weight: 450; text-align: left; white-space: nowrap; }
 .season-table td { padding: 7px 10px; white-space: nowrap; vertical-align: middle; }
@@ -403,7 +407,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 :root[data-skin="linear"] #seasonHub :is(.season-card:not(.season-data-section, .season-stats > *), .season-round, .season-h2h-hero) { border-radius: var(--lin-card-radius); background: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border), var(--lin-faint-shadow); }
 :root[data-skin="linear"] #seasonHub .season-data-section { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 :root[data-skin="linear"] #seasonHub .season-data-section > h3 { padding-block: 4px 12px; margin: 0; }
-:root[data-skin="linear"] #seasonHub .season-data-section > .season-table-wrap { border-block: 1px solid var(--lin-hairline); }
+:root[data-skin="linear"] #seasonHub .season-data-section > :is(.season-table-wrap, .season-table-frame) { border-block: 1px solid var(--lin-hairline); }
 :root[data-skin="linear"] #seasonHub .season-stats { gap: 0; border-block: 1px solid var(--lin-hairline); }
 :root[data-skin="linear"] #seasonHub .season-stats > .season-stat { padding: 16px; border: 0; border-radius: 0; background: transparent; box-shadow: inset -1px 0 var(--lin-hairline), inset 0 -1px var(--lin-hairline); }
 :root[data-skin="linear"] #seasonHub .season-stats .season-big { font-size: 20px; }
