@@ -1189,7 +1189,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .home-season-strip { grid-template-columns: repeat(var(--n, 24), minmax(0, 1fr)); }
 @media (max-width: 1100px) { #seasonHub .home-season-strip { grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); } }
 /* Each session card carries its day's forecast: an icon, the temperature range, the chance of rain. */
-#seasonHub .season-session-weather { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: var(--ui-tertiary); font: 450 11px/1 var(--ui-font); font-variant-numeric: tabular-nums; }
+#seasonHub .season-session-weather { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: var(--ui-secondary); font: 450 11px/1 var(--ui-font); font-variant-numeric: tabular-nums; }
 #seasonHub .season-session-weather .season-weather-icon { width: 16px; height: 16px; }
 #seasonHub .season-session-weather .is-wet { color: var(--ui-rain); }
 
