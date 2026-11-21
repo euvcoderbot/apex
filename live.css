@@ -76,6 +76,13 @@ body.live-view > main#top, body.live-view > #carPerformance, body.live-view #ses
 .live-driver i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .live-driver small { color: var(--ui-tertiary); font-size: var(--text-xs, 12px); }
 .live-gap { color: var(--ui-secondary); }
+.live-table .live-best-time {
+  min-height: 28px; padding: 0 6px; border: 0; border-radius: var(--radius-xs);
+  background: var(--ui-control); color: var(--ui-label); font: inherit; font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.live-table .live-best-time:hover:not([aria-disabled="true"]) { background: var(--ui-control-hover); }
+.live-table .live-best-time[aria-disabled="true"] { cursor: default; }
+.live-table .live-best-time:focus-visible { outline: 1px solid var(--ui-focus); outline-offset: 1px; }
 .live-time.is-personal { color: #30d158; }
 .live-time.is-overall { color: #bf5af2; font-weight: 600; }
 :root[data-theme="light"] .live-time.is-personal { color: #248a3d; }

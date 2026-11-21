@@ -360,9 +360,11 @@ class LiveState:
                 start = mark - seconds
             if start is not None and mark - start > 20:
                 lap_number = count - self._lap_offset()
-                self.lap_pending.append({'number': number, 'lap': lap_number, 'start': start, 'end': mark, 'time': new_time, 'seconds': seconds,
-                                         'pit': self.lap_pit[number] or bool(line.get('InPit')) or bool(line.get('PitOut')),
-                                         'sectors': self._sector_times(number), 'tyre': self._tyre(number)})
+                timing_lap = {'lap': lap_number, 'time': new_time, 'seconds': seconds,
+                              'pit': self.lap_pit[number] or bool(line.get('InPit')) or bool(line.get('PitOut')),
+                              'sectors': self._sector_times(number), 'tyre': self._tyre(number)}
+                self.laps[number][lap_number] = timing_lap
+                self.lap_pending.append({'number': number, 'start': start, 'end': mark, **timing_lap})
                 if not new_time:
                     self.lap_waiting[number] = lap_number
                 self._flush_laps()
@@ -396,10 +398,8 @@ class LiveState:
         keep = []
         for pending in self.lap_pending:
             newest = self._newest_sample(pending['number'])
-            # Without any car data for this driver (a replay of the timing topics, or live without an F1 TV sign-in) the lap
-            # is kept from timing alone: time, sectors and tyre for the lap chart; its telemetry comes from session data.
+            # Timing is already available. Attach a trace when the car samples cover this lap.
             if newest is None and not force:
-                self.laps[pending['number']][pending['lap']] = {k: pending.get(k) for k in ('lap', 'time', 'seconds', 'pit', 'sectors', 'tyre')}
                 continue
             if not force and newest < pending['end'] + 1.0:
                 keep.append(pending)
@@ -407,8 +407,7 @@ class LiveState:
             start, end = self._snap(pending['number'], pending['start']), self._snap(pending['number'], pending['end'])
             lap = self._cut_lap(pending['number'], start, end)
             if lap:
-                lap.update({k: pending.get(k) for k in ('lap', 'time', 'seconds', 'pit', 'sectors', 'tyre')})
-                self.laps[pending['number']][pending['lap']] = lap
+                self.laps[pending['number']][pending['lap']].update(lap)
         self.lap_pending = keep
 
     def _reference_lap(self) -> dict | None:
@@ -1142,9 +1141,16 @@ class LiveManager:
                 with state.lock:
                     for number, laps in scratch.laps.items():
                         for lap, record in laps.items():
-                            if lap not in state.laps[number]:
+                            existing = state.laps[number].get(lap)
+                            if existing is None:
                                 state.laps[number][lap] = record
                                 added += 1
+                                continue
+                            if not existing.get('time') and record.get('time'):
+                                existing.update(time=record['time'], seconds=record['seconds'], sectors=record.get('sectors'))
+                            if not existing.get('d') and record.get('d'):
+                                trace_keys = ('t', 'd', 'speed', 'throttle', 'brake', 'gear', 'distance', 'spatial')
+                                existing.update({key: record[key] for key in trace_keys if key in record})
                     if state.outline_loop is None and scratch.outline_loop:
                         state.outline_loop = scratch.outline_loop
                     if len(state.line_points) < 5:

@@ -103,9 +103,9 @@
       <div class="live-grid" data-workspace="timing">
         <div class="live-col live-col-main">
           <section class="dashboard-card live-tower" aria-label="Timing tower">
-            <div class="live-card-head"><h2>Timing</h2><small>Select up to two drivers for telemetry</small><div class="live-tower-mode" data-ui-group="segments" role="group" aria-label="Sector times"><button type="button" data-live="towerLive" aria-pressed="true">Live</button><button type="button" data-live="towerBest" aria-pressed="false">Best</button></div></div>
+            <div class="live-card-head"><h2>Timing</h2><small>Select a best time to compare laps</small><div class="live-tower-mode" data-ui-group="segments" role="group" aria-label="Sector times"><button type="button" data-live="towerLive" aria-pressed="true">Live</button><button type="button" data-live="towerBest" aria-pressed="false">Best</button></div></div>
             <div class="live-table-wrap"><table class="live-table">
-              <thead><tr><th scope="col">P</th><th scope="col">Driver</th><th scope="col">Gap</th><th scope="col">Int</th><th scope="col">Last</th><th scope="col">S1</th><th scope="col">S2</th><th scope="col">S3</th><th scope="col">Best</th><th scope="col">Tyre</th><th scope="col">Pit</th></tr></thead>
+              <thead><tr><th scope="col">P</th><th scope="col">Driver</th><th scope="col">Best lap</th><th scope="col">Gap</th><th scope="col">Int</th><th scope="col">Last</th><th scope="col">S1</th><th scope="col">S2</th><th scope="col">S3</th><th scope="col">Tyre</th><th scope="col">Pit</th></tr></thead>
               <tbody data-live="tower"><tr><td colspan="11" class="live-empty">Waiting for timing data.</td></tr></tbody>
             </table></div>
           </section>
@@ -132,7 +132,7 @@
             <div class="live-chart-actions">
               <button type="button" class="live-button" data-live="chartFollow" aria-pressed="false">Follow tower selection</button>
               <button type="button" class="live-button" data-live="chartTop">Top 3</button>
-              <button type="button" class="live-button" data-live="chartFastest">Fastest 3</button>
+              <button type="button" class="live-button" data-live="chartFastest" title="The three quickest drivers with recorded laps">Fastest recorded 3</button>
               <button type="button" class="live-button" data-live="chartSlow" aria-pressed="false">Show slow laps</button>
               <button type="button" class="live-button" data-live="chartList" aria-pressed="false">Lap list</button>
             </div>
@@ -193,9 +193,11 @@
     $(page, 'jumpLap').addEventListener('change', event => { const at = Number(event.target.value); if (Number.isFinite(at)) seekTo(at - 5); event.target.value = 'none'; window.syncSelectUI?.(event.target); });
     $(page, 'tower').addEventListener('click', event => {
       const row = event.target.closest('tr[data-number]'); if (!row) return;
+      if (event.target.closest('[data-compare-best]')) { compareBest(row.dataset.number); return; }
       toggleDriver(row.dataset.number);
     });
     $(page, 'tower').addEventListener('keydown', event => {
+      if (event.target.closest('button')) return;
       if (event.key !== 'Enter' && event.key !== ' ') return;
       const row = event.target.closest('tr[data-number]'); if (!row) return;
       event.preventDefault(); toggleDriver(row.dataset.number);
@@ -206,13 +208,8 @@
     for (const [name, best] of [['towerLive', false], ['towerBest', true]]) $(page, name).addEventListener('click', () => {
       towerBest = best; $(page, 'towerLive').setAttribute('aria-pressed', String(!best)); $(page, 'towerBest').setAttribute('aria-pressed', String(best)); renderTower();
     });
-    const workspace = page.querySelector('.live-grid');
     for (const button of page.querySelectorAll('[data-live-workspace]')) {
-      button.addEventListener('click', () => {
-        workspace.dataset.workspace = button.dataset.liveWorkspace;
-        for (const option of page.querySelectorAll('[data-live-workspace]')) option.setAttribute('aria-pressed', String(option === button));
-        requestAnimationFrame(() => { renderLapChart(); queueDraw(); });
-      });
+      button.addEventListener('click', () => showWorkspace(button.dataset.liveWorkspace));
     }
     $(page, 'chartFollow').addEventListener('click', () => { followTower = !followTower; renderLapChart(); });
     $(page, 'chartTop').addEventListener('click', () => { followTower = false; chartChosenSet = null; renderLapChart(); });
@@ -231,6 +228,12 @@
       const chip = event.target.closest('[data-pick]');
       if (chip) openPicker(chip, chip.dataset.pick === 'add' ? null : Number(chip.dataset.pick));
     });
+  }
+
+  function showWorkspace(name) {
+    page.querySelector('.live-grid').dataset.workspace = name;
+    for (const option of page.querySelectorAll('[data-live-workspace]')) option.setAttribute('aria-pressed', String(option.dataset.liveWorkspace === name));
+    requestAnimationFrame(() => { renderLapChart(); queueDraw(); });
   }
 
   function buildButton() {
@@ -503,6 +506,17 @@
         if (moved) { const m = el('small', `live-moved ${moved > 0 ? 'is-up' : 'is-down'}`, `${moved > 0 ? '▲' : '▼'}${Math.abs(moved)}`); m.title = `Started P${d.grid}`; label.append(m); }
       }
       name.append(label); row.append(name);
+      const bestCell = el('td', 'live-time');
+      if (d.best && source?.kind === 'live') {
+        const compare = el('button', 'live-best-time', d.best);
+        compare.type = 'button'; compare.dataset.compareBest = '';
+        compare.setAttribute('aria-label', `${d.best}, compare ${d.code}'s best lap`);
+        const full = picksTouched && picks.length >= MAX_PICKS && !picks.some(p => p.driver === d.number && p.lap === 'fastest');
+        compare.setAttribute('aria-disabled', String(full));
+        compare.title = full ? 'Remove a lap from the comparison first' : `Compare ${d.code}'s best lap`;
+        bestCell.append(compare);
+      } else bestCell.textContent = d.best || '';
+      row.append(bestCell);
       row.append(el('td', 'live-gap', d.position === 1 ? (state.session?.type === 'Race' ? 'Leader' : '') : d.gap || ''));
       row.append(el('td', 'live-gap', d.position === 1 ? '' : d.interval || ''));
       timeCell(row, d.last?.time, d.last);
@@ -516,7 +530,6 @@
           row.lastChild.append(bars);
         }
       }
-      timeCell(row, d.best);
       const tyre = el('td', 'live-tyre');
       if (d.stint?.compound) {
         // The main page's compound badge (session-state.js compoundBadgeMarkup: the ringed S/M/H/I/W), from a fixed list of names.
@@ -532,9 +545,14 @@
       rows.push(row);
     }
     if (!rows.length) { const row = el('tr'); const cell = el('td', 'live-empty', 'Waiting for timing data.'); cell.colSpan = 11; row.append(cell); rows.push(row); }
-    const focused = body.contains(document.activeElement) ? document.activeElement.closest('tr')?.dataset.number : null;
+    const focused = body.contains(document.activeElement) ? document.activeElement : null;
+    const number = focused?.closest('tr')?.dataset.number;
     body.replaceChildren(...rows);
-    if (focused) rows.find(row => row.dataset.number === focused)?.focus({preventScroll: true});
+    if (number) {
+      const row = rows.find(row => row.dataset.number === number);
+      const target = focused.matches('[data-compare-best]') ? row?.querySelector('[data-compare-best]') : row;
+      (target || row)?.focus({preventScroll: true});
+    }
   }
   function renderWeather() {
     const w = state.weather || {}, list = $(page, 'weather'), items = [];
@@ -799,7 +817,7 @@
     const box = $(page, 'lapList');
     box.hidden = !chartList;
     if (!chartList) return;
-    const overall = Math.min(...Object.values(lapLists).flat().filter(l => l.seconds && !l.pit).map(l => l.seconds));
+    const overall = sessionBests().overall[3];
     const columns = chosen.map(d => {
       const column = el('div', 'live-lap-column');
       const head = el('div', 'live-lap-column-head'); const dot = el('i'); dot.style.setProperty('--c', chartColour(d));
@@ -808,7 +826,8 @@
       const laps = (lapLists[d.number] || []).slice().reverse();
       for (const l of laps) {
         const picked = isPicked(d.number, l.lap);
-        const b = el('button', `lap lap-chip${l.pit ? ' in-out' : ''}${picked ? ' selected' : ''}${l.fastest ? (l.seconds === overall ? ' is-overall' : ' is-personal') : ''}`);
+        const best = resolve({driver: d.number, lap: 'fastest'})?.lap === l.lap;
+        const b = el('button', `lap lap-chip${l.pit ? ' in-out' : ''}${picked ? ' selected' : ''}${best ? (l.seconds === overall ? ' is-overall' : ' is-personal') : ''}`);
         b.type = 'button'; b.dataset.uiKind = 'choice'; b.setAttribute('aria-pressed', String(picked)); b.style.setProperty('--team', chartColour(d));
         const token = el('span', 'lap-token');
         if (l.pit) { const states = el('span', 'lap-states'); states.append(el('b', 'lap-state', 'PIT')); token.append(states); }
@@ -835,30 +854,49 @@
     refreshLaps.busy = true;
     try { lapLists = await api('laps'); } catch { return; } finally { refreshLaps.busy = false; }
     if (!picksTouched) defaultPicks();
-    picks = picks.filter(p => (lapLists[p.driver] || []).length);
+    picks = picks.filter(p => lapLists[p.driver]?.length || (p.lap === 'fastest' && resolve(p)));
     // Colours follow the session as it runs: a new session or personal best elsewhere recolours these laps at once.
     renderChips(); renderSectorTable(); loadCompare(); renderLapChart();
     if ($(page, 'lapPicker').matches?.(':popover-open')) renderPicker();
   }
   const lapMode = () => (source?.kind === 'live' ? 'latest' : 'fastest');
   const driversWithLaps = () => (state?.drivers || []).filter(d => (lapLists[d.number] || []).length);
+  const pickerDrivers = () => (state?.drivers || []).filter(d => lapLists[d.number]?.length || (source?.kind === 'live' && d.best));
+  function fastestDrivers() {
+    const best = d => resolve({driver: d.number, lap: 'fastest'})?.seconds;
+    return pickerDrivers().filter(d => Number.isFinite(best(d))).sort((a, b) => best(a) - best(b));
+  }
   function defaultPicks() {
-    let drivers = driversWithLaps();
-    if (lapMode() === 'fastest') drivers = drivers.slice().sort((a, b) => (resolve({driver: a.number, lap: 'fastest'})?.seconds || Infinity) - (resolve({driver: b.number, lap: 'fastest'})?.seconds || Infinity));
-    picks = drivers.slice(0, 2).map(d => ({driver: d.number, lap: lapMode()}));
+    const mode = lapMode(), drivers = mode === 'fastest' ? fastestDrivers() : driversWithLaps();
+    picks = drivers.slice(0, 2).map(d => ({driver: d.number, lap: mode}));
   }
   function quickPicks(mode) {
-    // Fastest 2: the two quickest drivers by their fastest captured lap; Latest 2: the two leading drivers' latest push laps.
-    let drivers = driversWithLaps();
-    if (mode === 'fastest') drivers = drivers.slice().sort((a, b) => (resolve({driver: a.number, lap: 'fastest'})?.seconds || Infinity) - (resolve({driver: b.number, lap: 'fastest'})?.seconds || Infinity));
+    const drivers = mode === 'fastest' ? fastestDrivers() : driversWithLaps();
     picks = drivers.slice(0, 2).map(d => ({driver: d.number, lap: mode}));
     picksTouched = true; renderChips(); loadCompare(); renderLapChart();
+  }
+  function compareBest(driver) {
+    if (!picksTouched) picks = [];
+    let index = picks.findIndex(p => p.driver === driver && p.lap === 'fastest');
+    if (index < 0) {
+      if (picks.length >= MAX_PICKS) return;
+      index = picks.push({driver, lap: 'fastest'}) - 1;
+    }
+    picksTouched = true;
+    showWorkspace('laps');
+    renderChips(); loadCompare();
+    $(page, 'lapChips').querySelector(`[data-pick="${index}"]`)?.focus();
   }
   // The lap a pick points at now ('latest' and 'fastest' move on as laps complete).
   function resolve(pick) {
     const laps = lapLists[pick.driver] || [];
     if (pick.lap === 'latest') return laps.filter(l => l.push).at(-1) || null;
-    if (pick.lap === 'fastest') return laps.find(l => l.fastest) || null;
+    if (pick.lap === 'fastest') {
+      const time = source?.kind === 'live' ? driverFor(pick.driver).best : null;
+      const seconds = lapSecondsOf(time);
+      if (Number.isFinite(seconds)) return laps.find(l => !l.pit && l.seconds === seconds) || {lap: null, time, seconds};
+      return laps.find(l => l.fastest) || null;
+    }
     if (pick.lap === 'last') return laps.at(-1) || null;
     return laps.find(l => l.lap === Number(pick.lap)) || null;
   }
@@ -875,14 +913,17 @@
   function formatGap(seconds) { return `${seconds > 0 ? '+' : seconds < 0 ? '−' : '±'}${Math.abs(seconds).toFixed(3)}`; }
   function renderChips() {
     const box = $(page, 'lapChips'), colours = pickColours(), ref = picks[0] && resolve(picks[0]);
+    const focused = box.contains(document.activeElement) ? document.activeElement : null;
+    const focusKey = focused?.hasAttribute('data-remove') ? 'remove' : 'pick';
     const chips = picks.map((pick, i) => {
       const lap = resolve(pick), d = driverFor(pick.driver);
       // The main site's comparison pill (loaded-lap-pill): team dot, code, lap, time, "Ref" on the reference, ×. Which lap a
       // moving pick follows and the gap to the reference are in its title.
       const chip = el('div', `loaded-lap-pill${i ? '' : ' reference'}`); chip.setAttribute('role', 'listitem'); chip.style.setProperty('--team', colours[i]);
       const body = el('button', `loaded-lap-main${i ? '' : ' reference'}`); body.type = 'button'; body.dataset.pick = String(i);
-      body.setAttribute('aria-label', `Change lap ${i + 1}: ${d.code} ${lap ? 'lap ' + lap.lap : ''}`);
-      body.append(el('b', null, d.code), el('span', null, lap ? `L${lap.lap}` : '—'), el('strong', null, lap?.time || 'no lap yet'));
+      const label = lap?.lap != null ? `L${lap.lap}` : lap ? 'Time only' : '—';
+      body.setAttribute('aria-label', `Change lap ${i + 1}: ${d.code} ${label} ${lap?.time || ''}`.trim());
+      body.append(el('b', null, d.code), el('span', null, label), el('strong', null, lap?.time || 'no lap yet'));
       const gap = i && lap?.seconds && ref?.seconds ? `${formatGap(lap.seconds - ref.seconds)} s to the reference` : i ? '' : 'Reference lap';
       body.title = [typeof pick.lap === 'string' ? `${MODE_NAMES[pick.lap]} lap, follows new laps` : '', gap, 'Select to change'].filter(Boolean).join(' · ');
       const remove = el('button', 'remove', '×'); remove.type = 'button'; remove.dataset.remove = String(i);
@@ -891,18 +932,20 @@
       return chip;
     });
     if (picks.length < MAX_PICKS) {
-      const add = el('button', 'live-lap-add', '+ Add lap'); add.type = 'button'; add.dataset.pick = 'add';
-      add.disabled = !driversWithLaps().length; chips.push(add);
+      const add = el('button', 'live-lap-add', '+ Add driver or lap'); add.type = 'button'; add.dataset.pick = 'add';
+      add.disabled = !pickerDrivers().length; chips.push(add);
     }
-    if (!driversWithLaps().length) chips.unshift(el('p', 'live-empty', 'Laps appear here as drivers complete them.'));
+    if (!pickerDrivers().length) chips.unshift(el('p', 'live-empty', 'Laps appear here as drivers complete them.'));
     box.replaceChildren(...chips);
+    if (focused) [...box.querySelectorAll(`[data-${focusKey}]`)].find(button => button.dataset[focusKey] === focused.dataset[focusKey])?.focus({preventScroll: true});
   }
   // The picker: drivers in running order, then the chosen driver's laps.
   let pickerTarget = null, pickerDriver = null;
   function openPicker(anchor, index) {
-    pickerTarget = index; pickerDriver = index == null ? (driversWithLaps().find(d => !picks.some(p => p.driver === d.number)) || driversWithLaps()[0])?.number : picks[index].driver;
+    const drivers = pickerDrivers();
+    pickerTarget = index; pickerDriver = index == null ? (drivers.find(d => !picks.some(p => p.driver === d.number)) || drivers[0])?.number : picks[index].driver;
     const picker = $(page, 'lapPicker');
-    $(page, 'pickerTitle').textContent = index == null ? 'Add a lap' : `Change lap ${index + 1}`;
+    $(page, 'pickerTitle').textContent = index == null ? 'Add a driver or lap' : `Change lap ${index + 1}`;
     renderPicker();
     picker.showPopover?.();
     const r = anchor.getBoundingClientRect(), w = Math.min(420, innerWidth - 24);
@@ -913,7 +956,7 @@
     picker.querySelector('[aria-pressed="true"]')?.focus({preventScroll: true});
   }
   function renderPicker() {
-    const drivers = driversWithLaps(), current = pickerTarget == null ? null : picks[pickerTarget];
+    const drivers = pickerDrivers(), current = pickerTarget == null ? null : picks[pickerTarget];
     $(page, 'pickerDrivers').replaceChildren(...drivers.map(d => {
       const b = el('button', 'live-picker-driver'); b.type = 'button';
       b.setAttribute('aria-pressed', String(d.number === pickerDriver)); b.style.setProperty('--team', colour(d));
@@ -921,24 +964,23 @@
       b.addEventListener('click', () => { pickerDriver = d.number; renderPicker(); });
       return b;
     }));
-    const laps = lapLists[pickerDriver] || [], best = driverFor(pickerDriver).best;
+    const laps = lapLists[pickerDriver] || [], fastest = resolve({driver: pickerDriver, lap: 'fastest'});
     const row = (value, title, lap, extra = '') => {
       const b = el('button', 'live-picker-lap'); b.type = 'button';
       const selected = current && current.driver === pickerDriver && String(current.lap) === String(value);
       b.setAttribute('aria-pressed', String(!!selected));
       b.append(el('span', null, title), el('b', null, lap?.time || '—'));
       if (extra) b.append(el('small', null, extra));
-      if (lap?.fastest) b.classList.add('is-fastest');
+      if (lap && (value === 'fastest' || fastest?.lap === lap.lap)) b.classList.add('is-fastest');
       if (lap?.pit) b.classList.add('is-pit');
       b.disabled = !lap;
       b.addEventListener('click', () => choose(value));
       return b;
     };
-    const latest = laps.filter(l => l.push).at(-1), fastest = laps.find(l => l.fastest);
-    const missed = best && fastest?.time && fastest.time !== best && lapSecondsOf(best) < (fastest.seconds || Infinity);
+    const latest = laps.filter(l => l.push).at(-1);
     const rows = [
       row('latest', latest ? `Latest push · L${latest.lap}` : 'Latest push lap', latest, 'follows new laps'),
-      row('fastest', fastest ? `Fastest · L${fastest.lap}` : 'Fastest lap', fastest, missed ? `best ${best} loads after the session` : 'follows new bests'),
+      row('fastest', fastest?.lap != null ? `Fastest · L${fastest.lap}` : 'Fastest lap', fastest, fastest && fastest.lap == null ? 'time only' : 'follows new bests'),
       el('div', 'live-picker-rule'),
       ...laps.slice().reverse().map(l => row(l.lap, `Lap ${l.lap}`, l, l.pit ? 'pit lap' : l.push ? '' : 'not a push lap')),
     ];
@@ -953,14 +995,19 @@
     renderChips(); loadCompare(); renderLapChart();
   }
   async function loadCompare() {
+    renderSectorTable();
     // Fetch again only when a pick changed, or the lap a moving pick points at moved on (or got its time).
-    const key = picks.map(p => { const lap = resolve(p); return `${p.driver}:${p.lap}:${lap?.lap}:${lap?.time || ''}`; }).join('|');
+    const key = picks.map(p => { const lap = resolve(p); return `${p.driver}:${p.lap}:${lap?.lap}:${lap?.time || ''}:${lap?.distance ?? ''}`; }).join('|');
     if (key === compareKey) return;
     compareKey = key;
-    compareTraces = await Promise.all(picks.map(p => {
+    compareTraces = [];
+    queueDraw();
+    const traces = await Promise.all(picks.map(p => {
       const lap = resolve(p);
-      return lap ? api(`lap?driver=${encodeURIComponent(p.driver)}&lap=${lap.lap}`).catch(() => null) : null;
+      return lap?.lap != null ? api(`lap?driver=${encodeURIComponent(p.driver)}&lap=${lap.lap}`).catch(() => null) : null;
     }));
+    if (compareKey !== key) return;
+    compareTraces = traces;
     renderChips(); renderSectorTable(); queueDraw();
   }
   // Sector times of the compared laps in F1's colours for the session: purple the session's fastest, green the driver's
@@ -971,16 +1018,24 @@
     for (const [number, laps] of Object.entries(lapLists)) {
       const mine = personal[number] = [Infinity, Infinity, Infinity, Infinity];
       for (const lap of laps) {
-        const values = [...(lap.sectors || []).slice(0, 3).map(sector => sector?.seconds), lap.pit ? null : lap.seconds];
+        const values = [0, 1, 2].map(i => lap.sectors?.[i]?.seconds);
         values.forEach((v, k) => { if (v) { mine[k] = Math.min(mine[k], v); overall[k] = Math.min(overall[k], v); } });
       }
+    }
+    for (const d of pickerDrivers()) {
+      const mine = personal[d.number] ??= [Infinity, Infinity, Infinity, Infinity];
+      mine[3] = resolve({driver: d.number, lap: 'fastest'})?.seconds ?? Infinity;
+      overall[3] = Math.min(overall[3], mine[3]);
     }
     return {overall, personal};
   }
   function renderSectorTable() {
     const box = $(page, 'sectorTable'), colours = pickColours();
-    const rows = compareTraces.map((trace, i) => trace && {trace, colour: colours[i]}).filter(Boolean);
-    if (!rows.length || !rows.some(r => r.trace.sectors?.length === 3)) { box.replaceChildren(); return; }
+    const rows = picks.map((pick, i) => {
+      const lap = resolve(pick);
+      return lap && {trace: {...lap, driver: pick.driver}, colour: colours[i], index: i};
+    }).filter(Boolean);
+    if (!rows.length) { box.replaceChildren(); return; }
     const value = (r, k) => (k < 3 ? r.trace.sectors?.[k]?.seconds : r.trace.seconds) ?? null;
     const text = (r, k) => (k < 3 ? r.trace.sectors?.[k]?.time : r.trace.time) || null;
     const bests = sessionBests(), close = (a, b) => Math.abs(a - b) < 0.0005;
@@ -988,13 +1043,14 @@
     const head = el('div', 'live-sectors-row is-head'); head.setAttribute('role', 'row');
     ['Lap', 'Sector 1', 'Sector 2', 'Sector 3', 'Lap time'].forEach((label, k) => { const c = el('span', null, label); c.setAttribute('role', k ? 'columnheader' : 'rowheader'); head.append(c); });
     grid.append(head);
-    rows.forEach((r, i) => {
+    rows.forEach(r => {
+      const i = r.index, reference = rows[0].index === 0 ? rows[0] : null;
       const row = el('div', 'live-sectors-row'); row.setAttribute('role', 'row');
       const who = el('div', 'live-sectors-who'); who.setAttribute('role', 'rowheader'); who.style.setProperty('--team', r.colour);
-      who.append(el('i'), el('strong', null, driverFor(r.trace.driver).code), el('small', null, `L${r.trace.lap}`));
+      who.append(el('i'), el('strong', null, driverFor(r.trace.driver).code), el('small', null, r.trace.lap == null ? 'Time only' : `L${r.trace.lap}`));
       row.append(who);
       for (let k = 0; k < 4; k++) {
-        const v = value(r, k), ref = value(rows[0], k), cell = el('div', 'live-sectors-cell'); cell.setAttribute('role', 'cell');
+        const v = value(r, k), ref = reference ? value(reference, k) : null, cell = el('div', 'live-sectors-cell'); cell.setAttribute('role', 'cell');
         if (k === 3) cell.classList.add('is-lap');
         if (!i) cell.classList.add('is-ref');
         const gap = i && v != null && ref != null ? v - ref : null;
@@ -1168,11 +1224,14 @@
   function drawCompare() {
     const container = $(page, 'compareCharts'), colours = pickColours();
     const traces = compareTraces.map((t, i) => t && {trace: t, colour: colours[i]}).filter(Boolean);
-    if (!traces.length) { container.replaceChildren(el('p', 'live-empty', 'Add laps to compare their telemetry.')); container.dataset.layout = ''; return; }
+    if (!traces.length) {
+      const message = picks.some(p => resolve(p)) ? 'Telemetry is unavailable for the selected laps.' : 'Add laps to compare their telemetry.';
+      container.replaceChildren(el('p', 'live-empty', message)); container.dataset.layout = ''; return;
+    }
     const length = Math.max(...traces.map(({trace}) => trace.x.at(-1) || 0));
     const view = {min: 0, max: length, marks: [], sectors: (compareTraces.find(Boolean) || {}).sector_marks || null};
     for (let m = 1000; m < length; m += 1000) view.marks.push({value: m, label: `${m / 1000} km`});
-    const ids = traces.length > 1 ? ['speed', 'delta', 'throttle', 'brake', 'gear'] : ['speed', 'throttle', 'brake', 'gear'];
+    const ids = traces.length > 1 && compareTraces[0] ? ['speed', 'delta', 'throttle', 'brake', 'gear'] : ['speed', 'throttle', 'brake', 'gear'];
     const list = panels(container, ids.map(id => ({...SPECS[id], unit: id === 'delta' ? `seconds against ${driverFor(traces[0].trace.driver).code} L${traces[0].trace.lap}` : SPECS[id].unit, axis: id === 'gear'})));
     bindHover(container, f => f * length, v => { compareHover = v; });
     // Captions are created once per layout; keep the reference named in the delta caption current.
