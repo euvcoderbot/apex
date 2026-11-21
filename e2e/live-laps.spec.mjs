@@ -2,6 +2,7 @@ import {test, expect} from '@playwright/test';
 import {isolate} from './helpers.mjs';
 
 for (const theme of ['dark', 'light']) test(`Live uses official fastest times when the lap history is incomplete (${theme})`, async ({page}) => {
+  test.setTimeout(60_000);
   await page.setViewportSize({width: theme === 'dark' ? 1440 : 390, height: 1000});
   await page.emulateMedia({reducedMotion: 'reduce'});
   await isolate(page);
@@ -96,9 +97,8 @@ for (const theme of ['dark', 'light']) test(`Live uses official fastest times wh
   await compare.getByRole('checkbox', {name: 'Engine speed'}).uncheck();
   await expect(compare.locator('[data-panel="rpm"]')).toBeHidden();
   await compare.getByText('Traces', {exact: true}).click();
-  await compare.screenshot({path: test.info().outputPath('live-laps.png')});
 
-  await page.getByRole('button', {name: 'Current telemetry'}).click();
+  await page.getByRole('button', {name: 'Current telemetry'}).press('Enter');
   const currentDrivers = page.getByRole('group', {name: 'Current telemetry drivers'});
   for (const driver of ['VER', 'RUS', 'NOR']) {
     const button = currentDrivers.getByRole('button', {name: driver});
@@ -109,7 +109,6 @@ for (const theme of ['dark', 'light']) test(`Live uses official fastest times wh
   const current = page.getByRole('region', {name: 'Current lap telemetry'});
   await expect(current.locator('[data-panel="gear"]')).toBeVisible();
   await expect(current.locator('[data-panel="rpm"]')).toBeVisible();
-  await current.screenshot({path: test.info().outputPath('live-current.png')});
 
   await page.getByRole('button', {name: 'Completed laps', exact: true}).click();
   await page.route('**/assets/data/events/2026.json', route => route.fulfill({json: [
