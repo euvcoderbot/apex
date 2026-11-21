@@ -7,7 +7,9 @@ const index = JSON.parse(readFileSync(new URL('index.json', base)));
 const route = '/api/season?year=2026';
 const entry = index.entries[route];
 const fixture = JSON.parse(gunzipSync(readFileSync(new URL(entry.file, base))));
-const next = fixture.rounds.find(r => r.status === 'next');
+const next = fixture.rounds.find(r => r.circuit_id === 'vegas');
+for (const round of fixture.rounds) if (round.status === 'next') round.status = 'upcoming';
+next.status = 'next';
 next.utc_offset = -8 * 3600;
 next.sun = {};
 for (const session of next.sessions) {
@@ -29,6 +31,7 @@ test.beforeEach(async ({page}) => {
 for (const width of [1440, 1024, 768, 390]) test.describe(`Forecast at ${width}px`, () => {
   test.use({viewport: {width, height: 1000}});
   test(`detailed session forecasts fit the panel at ${width}px`, async ({page}) => {
+    await page.clock.setFixedTime(new Date(Date.parse(next.sessions[0].start) - 60_000));
     await page.addInitScript(theme => localStorage.setItem('apex-theme', theme), width === 390 ? 'light' : 'dark');
     await page.goto('/apex/');
     for (const selector of ['.season-forecast-humid', '.season-forecast-cloud', '.season-forecast-light', '.season-rain-strip'])
@@ -47,6 +50,34 @@ for (const width of [1440, 1024, 768, 390]) test.describe(`Forecast at ${width}p
       expect(Math.max(...boxes) - Math.min(...boxes)).toBeLessThan(1);
     }
   });
+});
+
+test('Las Vegas FP1 switches to the observed wet track as the session ends', async ({page}) => {
+  await page.setViewportSize({width: 390, height: 1000});
+  const fp1End = Date.parse(next.sessions[0].start) + 60 * 60_000;
+  await page.clock.install({time: new Date(fp1End - 60_000)});
+  await page.goto('/apex/');
+  const sessions = page.locator('.season-sessions');
+  const fp1 = sessions.locator('li').filter({hasText: 'Practice 1'});
+  const fp2 = sessions.locator('li').filter({hasText: 'Practice 2'});
+  const forecast = page.locator('.season-forecast');
+  await expect(fp1).toHaveAttribute('data-state', 'running');
+  await expect(fp1).not.toContainText(/rain chance|expected/);
+  await expect(fp2).toContainText('69% rain chance');
+  await expect(forecast.getByText('FP1', {exact: true})).toHaveCount(0);
+
+  await page.clock.fastForward(120_000);
+  await expect(fp1).toHaveAttribute('data-state', 'done');
+  const observation = fp1.getByRole('link', {name: 'Observed wet track'});
+  await expect(observation).toHaveAttribute('href', /^https:\/\/www\.fia\.com\//);
+  await expect(fp1).not.toContainText(/rain chance|expected/);
+
+  const fp2End = Date.parse(next.sessions[1].start) + 60 * 60_000;
+  await page.clock.fastForward(fp2End - fp1End);
+  await expect(fp2).toContainText('Observed weather unavailable');
+  await expect(forecast.getByText('FP2', {exact: true})).toHaveCount(0);
+  await expect(forecast.getByText('FP3', {exact: true})).toBeVisible();
+  await sessions.screenshot({path: test.info().outputPath('observed-weather.png')});
 });
 
 for (const width of [1440, 390]) {
