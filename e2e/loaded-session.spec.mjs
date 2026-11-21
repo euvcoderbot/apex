@@ -87,7 +87,7 @@ test('qualifying phases, empty comparison alignment and compute settings remain 
   const errors = await loaded(page);
   await expect(page.locator('.run-segment strong').filter({hasText: /^Stint/})).toHaveCount(0);
   await page.locator('#clearComparison').click();
-  const centers = await page.locator('.comparison-tray').evaluate(root => {
+  const centers = await page.locator('#telemetryCard .comparison-tray').evaluate(root => {
     const center = el => { const r = el.getBoundingClientRect(); return r.y + r.height / 2; };
     return [center(root.querySelector('.comparison-tray-heading')), center(root.querySelector('.section-empty'))];
   });
