@@ -6,7 +6,7 @@ import {SPEED_DOMAIN_METRICS,speedDomainSeason,speedDomainEventValues,speedDomai
 // Full parity with Session Analysis design language: Apple UI, official team logos, GP country flags, custom select menus.
 // Scientific rigor aligned with Astra GPT-6 Hybrid principles: no speculative physical regressions, sampling-aware bounds.
 
-import {$,escape,finite,avg,median,percentile,summarize,middle50Label,fmt,color,signed} from './performance-format.js';
+import {$,escape,finite,avg,median,percentile,summarize,fmt,color,signed,sharedPace} from './performance-format.js';
 import {VERIFIED_DRY_ALLOCATIONS,TYRE_ALLOCATION_SOURCES,verifiedDryGrade,grandPrixCountryCode,teamLabel} from './performance-identity.js';
 
 function rebase(rows, keys) {
@@ -102,13 +102,13 @@ let context=null;
 let calendarReady=null,restoringUrl=false,restoringView=false;
 let refreshPerformance=false,refreshedPaths=new Set();
 let tyreView='OVERALL';
-let tyreMetric='age'; // 'age' | 'relative'
+let tyreMetric='age'; // 'age' | 'relative' | 'stint'
 let tyreSubject='team'; // 'team' | 'driver'
 let pitSubject='team'; // 'team' | 'driver'
 let pitMeasure='stop'; // 'stop' | 'lane'
 let pitChartMetric='median'; // 'mean' | 'median' | 'spread'
 let pitLaneBasis='raw'; // 'raw' | 'event'
-let paceSeasonStat='mean'; // 'mean' | 'median'
+let paceSeasonStat='median'; // 'mean' | 'median': the median keeps one wet, red-flagged or crash-hit GP from deciding a season
 const racePaceModel='nonlinear';
 const telemetrySeasonStat='mean'; // 'mean' | 'median'
 let cornerGraphBand='all';
@@ -289,7 +289,7 @@ function renderRaceCorners() {
     support:visibleSupport,
     coverage:reports.map(({event})=>{const c=raceCornerCache.get(cacheKey(event))?.sourceCoverage;return c?`${event.name} · ${c.kind==='live-native-with-retained-fallback'?`${c.plannedDriverLaps} selected native driver-laps across the race · ${c.laps} retained fallback laps`:`${c.laps} native driver-laps available`}${finite(c.timingLaps)?' · '+c.timingLaps+' timing records':''}. ${c.message}`:null;}).filter(Boolean),
     ageModel:adjustedAge?`Separate model: same race lap, compound and physical corner, with a fitted shared compound-age slope. Driver and age effects must be independently identifiable across at least three race laps. This is not matched-condition evidence. ${reports.filter(r=>r.model.reason).map(r=>r.event.name+': '+r.model.reason).join(' · ')}`:null,
-    chart:{rows,options:{title:`${cornerGraphBand==='all'?'All corners':cornerGraphBand+'-speed corners'} · average time gap per corner`,valueKey:'gap',unit:' s',digits:3,signedValue:true,zeroBaseline:true}},
+    chart:{rows:rows.map(r=>({...r,evidenceLabel:`${r.comparisons} matches`})),options:{title:`${cornerGraphBand==='all'?'All corners':cornerGraphBand+'-speed corners'} · average time gap per corner`,valueKey:'gap',unit:' s',digits:3,signedValue:true,zeroBaseline:true}},
     sort:{team:sortHeaderModel('raceCornerTeam',telemetrySubject==='driver'?'Driver':'Team'),gap:sortHeaderModel('raceCornerGap','Gap / corner'),gps:sortHeaderModel('raceCornerGPs','GPs',-1),samples:sortHeaderModel('raceCornerSamples','Driver-laps',-1)},
     rows:sorted(rows,{raceCornerTeam:r=>r.team,raceCornerGap:r=>r.gap,raceCornerGPs:r=>r.events,raceCornerSamples:r=>r.samples},'raceCornerGap')
       .map(r=>({team:r,gap:finite(r.gap)?r.gap:null,events:r.events,samples:r.samples,comparisons:r.comparisons})),
@@ -311,17 +311,34 @@ let tyreShowExcluded=false;
 let tyrePlotTeam='',tyrePlotDriver='',tyrePlotEvent='';
 let resultsChartMetric='points'; // 'points' | 'perStart' | 'finishRate' | 'mechanicalRate'
 let trendView='observed';
+let trendRound = '';
 let showPerformanceDescriptions=window.ApexAnalysis?.preference('descriptions',false)===true;
 const tableSortStates=new Map();
 const tableSortGroups=new Map();
 const lazyEvidence=new Map();
 // Default 'adjusted': teams knocked out in Q1 have no access to the 0.7-1.3 s
 // of track evolution Q3 runners get (2026), so raw fastest laps overstate their gaps.
-let qualyPaceMode='adjusted'; // 'overall' | 'q1' | 'adjusted'
+let qualyPaceMode='overall'; // 'overall' | 'q1' | 'adjusted': the measured lap first; the evolution model is an option
 const root=$('performanceResults');
 root?.addEventListener?.('scroll',event=>trackPerformanceScroll(event),{capture:true,passive:true});
 window.addEventListener('apex-descriptions',event=>{showPerformanceDescriptions=event.detail===true;if(initialized)render();});
 
+// After an analysis the race picker folds down to its heading ("3 selected · Change"), so results start near the top;
+// the heading opens it again.
+function setTrackTrayCollapsed(collapsed) {
+  const tray=$('performanceTrackTray');
+  if(!tray)return;
+  tray.classList.toggle('is-collapsed',collapsed);
+  let toggle=$('performanceTrackToggle');
+  if(!toggle){
+    toggle=document.createElement('button');toggle.type='button';toggle.id='performanceTrackToggle';toggle.className='btn-track-action track-tray-toggle';
+    toggle.setAttribute('aria-controls','performanceTrackChoices');
+    toggle.addEventListener('click',()=>setTrackTrayCollapsed(!tray.classList.contains('is-collapsed')));
+    tray.querySelector('.track-selection-title')?.append(toggle);
+  }
+  toggle.textContent=collapsed?'Change':'Done';
+  toggle.setAttribute('aria-expanded',String(!collapsed));
+}
 function updateTrackCount() {
   const countEl = $('performanceTrackCount');
   if (countEl) {
@@ -622,6 +639,7 @@ function calculateAggregate() {
   const map=new Map();
   const eventQ1Deficits = new Map();
   const eventAdjDeficits = new Map();
+  const evolutionEvents = new Set();
 
   for (const e of events) {
     if (!e.Q?.teams) continue;
@@ -702,6 +720,7 @@ function calculateAggregate() {
     const evolutionValid = gate12Valid && gate23Valid;
 
     if (evolutionValid) {
+      evolutionEvents.add(e.name);
       const ev12 = med12;
       const ev23 = med23;
       const adjTimes = new Map();
@@ -751,6 +770,7 @@ function calculateAggregate() {
         const adjustedPace=eventAdjDeficits.get(e.name)?.get(t.team);
         item.q.push({
           round:e.round,event:e.name,pace:t.pace,adjusted:finite(adjustedPace)?adjustedPace:t.pace,
+          adjustedPace, adjustmentFallback:!evolutionEvents.has(e.name),
           conditionAdjusted:t.pace_condition_adjusted,conditionDiagnostic:t.qualifying_condition_diagnostic,
           paceDeltaS:t.pace_delta_s,
           idealPace:t.ideal_pace,
@@ -771,9 +791,10 @@ function calculateAggregate() {
         const adjDef = eventAdjDeficits.get(e.name)?.get(t.team);
         if (finite(adjDef)) item.adjDeficits.push(adjDef);
       } else {
-        item.r.push(typeof racePaceModel!=='undefined'&&racePaceModel==='linear'?t.race_linear_diagnostic?.pace:t.pace);
+        const raceValue=typeof racePaceModel!=='undefined'&&racePaceModel==='linear'?t.race_linear_diagnostic?.pace:t.pace;
+        item.r.push(raceValue);
         item.samples+=t.samples;
-        item.raceCoverage.push({event:e.name,supported:finite(t.pace),basis:t.race_pace_basis||'clear-air',
+        item.raceCoverage.push({event:e.name,value:raceValue,supported:finite(t.pace),basis:t.race_pace_basis||'clear-air',
           provisional:!!t.provisional,samples:t.samples||0});
         if(finite(t.pace)&&t.sample_tier) item.sampleTiers.push(t.sample_tier);
         if(t.traffic_sensitivity_bracket) item.sensitivityBrackets.push(t.traffic_sensitivity_bracket);
@@ -890,13 +911,115 @@ function sorted(items,getters,defaultKey,defaultDirection=1) {
   return window.ApexAnalysis.sortRows(items,getters,key,direction);
 }
 
-function summarisePaceTeams(teams,raceStat) {
-  return rebase(teams.map(t=>({...t,
-    qualy:summarize(t.q.map(q=>q.pace),'mean'),
-    qualyAdjusted:summarize(t.adjDeficits,'mean'),
-    qualyCondition:summarize(t.q.map(q=>q.conditionAdjusted),'mean'),
-    race:summarize(t.r,raceStat)
-  })),['qualy','qualyAdjusted','qualyCondition','race']);
+// Each pace view uses its own shared GP set.
+function summarisePaceTeams(teams,stat) {
+  const series={
+    qualy:t=>t.q.map(q=>({event:q.event,value:q.pace})),
+    // Where a GP has no supported evolution estimate for this team, its raw gap stands in and counts as provisional.
+    qualyAdjusted:t=>t.q.map(q=>({event:q.event,value:q.adjusted,provisional:q.adjustmentFallback||!finite(q.adjustedPace)})),
+    qualyCondition:t=>t.q.map(q=>({event:q.event,value:q.conditionAdjusted})),
+    race:t=>t.raceCoverage.map(r=>({...r,provisional:r.provisional||r.basis!=='clear-air'}))
+  };
+  const rows=teams.map(t=>({...t}));
+  for(const [key,observations] of Object.entries(series)){
+    const data=teams.map(observations);
+    sharedPace(data,stat).forEach(({value,range,count,provisional,own,seen},i)=>{
+      Object.assign(rows[i],{[key]:value,[key+'Range']:range,[key+'Count']:count,[key+'Provisional']:provisional,[key+'Own']:own,[key+'Seen']:seen,
+        [key+'HasData']:data[i].some(row=>finite(row.value))});
+    });
+  }
+  return rows;
+}
+// A typical lap in seconds for the loaded GPs: turns a % gap into time per lap.
+function typicalLapSeconds(teams) {
+  return median(teams.flatMap(t=>t.q.map(q=>q.lap?.time)).filter(v=>finite(v)&&v>40&&v<200));
+}
+
+// ---------- Team profile: every measurement on one page ----------
+// Each team's rank among the teams measured, per measurement: qualifying and race pace from the pace analysis, and the
+// corner bands, straights, traction and braking from one qualifying-telemetry pass (the same data as Cornering, Straight
+// line and Braking). Ranks, not values, so measurements in different units sit side by side; the values are on hover.
+const PROFILE_SPEED_KEYS=[['corner_low','Slow corners'],['corner_medium','Medium corners'],['corner_high','Fast corners'],['track_straights','Straights'],['traction','Traction'],['braking','Braking']];
+function teamProfileModel(paceTeams) {
+  const several=events.filter(e=>e.Q).length>1;
+  const speedKey=key=>several&&(key.startsWith('corner_')||key==='track_straights')?key+'_lap':key;
+  const measures=[
+    {key:'qualy',label:'Qualifying',unit:'%',values:new Map(paceTeams.map(t=>[t.team,t.qualy]))},
+    {key:'race',label:'Race pace',unit:'%',values:new Map(paceTeams.map(t=>[t.team,t.race]))},
+  ];
+  const speedLoaded=events.some(e=>e.speedDomain?.team?.cars);
+  if(speedLoaded)for(const [key,label] of PROFILE_SPEED_KEYS){
+    const k=speedKey(key),meta=SPEED_DOMAIN_METRICS[k];
+    measures.push({key:k,label,unit:meta.unit,digits:meta.digits,values:new Map(speedDomainSeason(events,'team',k).rows.map(r=>[r.name,r.value]))});
+  }
+  for(const m of measures){
+    const ranked=[...m.values].filter(([,v])=>finite(v)).sort((a,b)=>a[1]-b[1]);
+    m.count=ranked.length;m.rank=new Map(ranked.map(([team],i)=>[team,i+1]));
+  }
+  const rows=paceTeams.map(t=>{
+    const ranks=measures.map(m=>m.rank.get(t.team)??null);
+    // Strongest at: the measurement where this team ranks best relative to the field (ties go to the earlier column).
+    let best=null;measures.forEach((m,i)=>{if(ranks[i]!=null&&m.count>2&&(best==null||ranks[i]/m.count<ranks[best]/measures[best].count))best=i;});
+    return {team:t,ranks,strongest:best==null?null:measures[best].label};
+  });
+  return {measures,rows,speedLoaded,several};
+}
+function teamProfileCard(paceTeams) {
+  if(!paceTeams.length)return '';
+  const model=teamProfileModel(paceTeams),{measures,rows}=model;
+  const head=`<tr><th scope="col">Team</th>${measures.map(m=>`<th scope="col">${escape(m.label)}</th>`).join('')}<th scope="col">Strongest at</th></tr>`;
+  const body=rows.sort((a,b)=>(a.ranks[0]??99)-(b.ranks[0]??99)).map(r=>`<tr style="--team:${escape(color(r.team.color))}"><th scope="row">${teamLabel(r.team)}</th>${r.ranks.map((rank,i)=>{
+    const m=measures[i],v=m.values.get(r.team.team);
+    const heat=rank!=null&&m.count>1?(m.count-rank)/(m.count-1):0;
+    return `<td class="profile-rank perf-heat-cell${rank==null?'':rank<=3?' is-top':rank>m.count-3?' is-low':''}" title="${escape(`${m.label}: ${rank==null?'not measured':`${rank} of ${m.count} · ${signed(v,m.digits??3,m.unit)}`}`)}"><span class="perf-heat-value"${heat>0?` style="--heat:${heat.toFixed(3)}"`:''}>${rank==null?'—':rank}</span></td>`;}).join('')}<td class="profile-strongest">${escape(r.strongest||'—')}</td></tr>`).join('');
+  const loadButton=model.speedLoaded?'':`<p class="performance-note">Add the corner bands, straights, traction and braking from qualifying telemetry: <button type="button" class="btn-track-action" data-profile-load ${speedDomainRunning.team?'disabled':''}>${speedDomainRunning.team?'Measuring telemetry…':'Measure from telemetry'}</button></p>`;
+  return `<section class="dashboard-card performance-card team-profile-card"><div class="panel-heading"><h2>Car strengths and weaknesses</h2></div>
+    <p class="performance-note">Each team’s rank among the teams measured, 1 = best, in every measurement on this page set. Deeper shading is a better rank; the measured value is on hover. Ranks hide how close teams are: check the gaps before reading much into neighbouring places.</p>
+    ${loadButton}<div class="performance-table-wrap" tabindex="0" role="region" aria-label="Car strengths and weaknesses"><table class="performance-table team-profile-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>
+    ${model.speedLoaded?tradeOffPlot(model):''}</section>`;
+}
+// Straight-line time lost against corner time lost: a car low on drag sits left, one with more downforce sits low.
+function tradeOffPlot(model) {
+  const straight=model.measures.find(m=>m.key.startsWith('track_straights'));
+  const bands=model.measures.filter(m=>m.key.startsWith('corner_'));
+  if(!straight||bands.length<3)return '';
+  const points=model.rows.map(r=>{
+    const sx=straight.values.get(r.team.team),cs=bands.map(b=>b.values.get(r.team.team));
+    return finite(sx)&&cs.every(finite)?{team:r.team,x:sx,y:cs.reduce((a,b)=>a+b,0)}:null;
+  }).filter(Boolean);
+  if(points.length<3)return '';
+  // The measurements are centred on each GP's median car; shift both axes so 0 is the best team, as on the bar charts.
+  const minX=Math.min(...points.map(p=>p.x)),minY=Math.min(...points.map(p=>p.y));
+  for(const p of points){p.x-=minX;p.y-=minY;}
+  // Drawn at the card's real width (its 16 px padding and the page's taken off), so text and dots keep their real size.
+  // On a phone too: the plot is drawn at the card's width (not a 560-unit plot squeezed into it, which shrank the labels and
+  // pushed the right-hand ones off the edge).
+  const available=innerWidth<=600?Math.min(innerWidth,document.documentElement.clientWidth||innerWidth)-56:(document.getElementById('performanceResults')?.clientWidth||700)-96;
+  const W=Math.round(innerWidth<=600?Math.max(300,available):Math.max(420,Math.min(1200,available))),H=innerWidth<=600?260:300,L=innerWidth<=600?48:60,R=12,T=14,B=40;
+  const pad=(lo,hi)=>{const span=hi-lo||Math.abs(hi)||1;return [lo-span*.08,hi+span*.08];};
+  const [x0,x1]=pad(Math.min(...points.map(p=>p.x)),Math.max(...points.map(p=>p.x))),[y0,y1]=pad(Math.min(...points.map(p=>p.y)),Math.max(...points.map(p=>p.y)));
+  const X=v=>L+(v-x0)/(x1-x0)*(W-L-R),Y=v=>T+(y1-v)/(y1-y0)*(H-T-B);   // more time lost is higher, so bottom left is quickest at both
+  // Labels beside each dot, nudged down where two would overlap.
+  const placed=[];
+  // A label that would run past the right edge goes on the dot's left instead (about 6.4 units a character at 11 px).
+  const labels=points.sort((a,b)=>Y(a.y)-Y(b.y)).map(p=>{
+    const name=String(p.team.displayName||p.team.team),width=name.length*6.4,left=X(p.x)+8+width>W-2;
+    const lx=left?X(p.x)-8:X(p.x)+8,from=left?lx-width:lx;let ly=Y(p.y)+4;
+    while(placed.some(q=>Math.abs(q.y-ly)<11&&q.from<from+width&&from<q.from+q.width))ly+=11;
+    placed.push({from,width,y:ly});return {p,lx,ly,left};
+  });
+  const unit=model.several?'% of lap':'s';
+  const ticks=(a,b)=>{const step=[.001,.002,.005,.01,.02,.05,.1,.2,.5,1].find(st=>(b-a)/st<=5)||1;const out=[];for(let v=Math.ceil(a/step)*step;v<=b+1e-12;v+=step)out.push(+v.toFixed(4));return out;};
+  let svg=`<svg class="trade-off-plot" viewBox="0 0 ${W} ${H}" role="group" aria-label="Time lost on the straights against time lost in corners, per team; use arrow keys to inspect values">`;
+  for(const v of ticks(x0,x1))svg+=`<line class="grid" x1="${X(v).toFixed(1)}" x2="${X(v).toFixed(1)}" y1="${T}" y2="${H-B}"/><text class="axis" x="${X(v).toFixed(1)}" y="${H-B+14}" text-anchor="middle">${v}</text>`;
+  for(const v of ticks(y0,y1))svg+=`<line class="grid" x1="${L}" x2="${W-R}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/><text class="axis" x="${L-6}" y="${(Y(v)+3.5).toFixed(1)}" text-anchor="end">${v}</text>`;
+  svg+=`<text class="axis-title" x="${(L+W-R)/2}" y="${H-6}" text-anchor="middle">Time lost on the straights (${unit}) → slower</text><text class="axis-title" transform="translate(12 ${(T+H-B)/2}) rotate(-90)" text-anchor="middle">Time lost in corners (${unit}) ↑ slower</text>`;
+  for(const [index,{p,lx,ly,left}] of labels.entries()){
+    const label=`${p.team.displayName||p.team.team}: straights ${p.x.toFixed(3)}, corners ${p.y.toFixed(3)} ${unit}`;
+    svg+=`<circle cx="${X(p.x).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="5" style="fill:${escape(color(p.team.color))}" tabindex="${index===0?'0':'-1'}" role="img" data-chart-value="trade-off:${escape(p.team.team||p.team.displayName)}" aria-label="${escape(label)}"><title>${escape(label)}</title></circle><text class="label" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}"${left?' text-anchor="end"':''}>${escape(p.team.displayName||p.team.team)}</text>`;
+  }
+  svg+='</svg>';
+  return `<div class="performance-chart-card trade-off-card"><div class="perf-chart-header"><div class="perf-chart-title-group"><h4 class="perf-chart-heading">Straights against corners</h4><span class="perf-chart-sub">0 = best · bottom left is quickest at both</span></div></div><p class="performance-note">Each team’s time lost to the best on the straights (across) and in all corners together (up), from the same qualifying laps. Bottom left is quickest at both. A car far left but high is quick on the straights and loses in corners (less drag, less downforce); one low but to the right is the opposite. 0 = best in each.</p>${svg}</div>`;
 }
 
 function renderPace(teams) {
@@ -916,37 +1039,44 @@ function renderPace(teams) {
   }, paceKey);
 
   const chartMeta = qualyPaceMode === 'overall' ? {
-    title: 'Qualifying Pace Deficit · Overall Best Lap',
+    title: 'Qualifying pace deficit · overall best lap',
     subtitle: 'Fastest official lap across Q1–Q3 per GP · season summary rebased to fastest team',
-    note: 'Each GP uses each constructor’s single fastest valid lap across Q1–Q3 from either driver, compared with that GP’s pole lap. The selected season statistic is then rebased so the fastest supported team is 0.000%.'
+    note: 'Each GP uses each constructor’s fastest valid lap across Q1–Q3, compared with that GP’s fastest lap. The Adjusted view estimates track evolution between phases.'
   } : qualyPaceMode==='condition'?{
     title:'Qualifying pace · timestamp / fresh-set diagnostic',subtitle:'Estimated, not official · no extrapolation to Q3',
     note:'Uses actual completion timestamps from repeated fresh, low-age sets on one dry compound. Driver effects and a shared timestamp slope are fitted inside common observed time support. Selected fastest laps must match that cohort. Weather, wind and execution are not independently measured corrections; unsupported fits stay blank.'
   } : {
-    title: 'Qualifying Pace Deficit · Track-Evolution Adjusted (% to Q3 Baseline)',
+    title: 'Qualifying pace deficit · track-evolution adjusted (% to Q3 baseline)',
     subtitle: 'Same dry compound and advancing drivers · estimated Q1/Q2 evolution, not a measured correction',
-    note: 'Estimates the shared improvement between qualifying phases from advancing drivers. Tyres, driver execution and changing conditions can also contribute; this is a diagnostic rather than an official lap result.'
+    note: 'Estimates the shared improvement between qualifying phases from advancing drivers. Where the whole GP lacks a supported adjustment, its raw gaps are included and marked provisional.'
   };
 
   const loadedQ=events.filter(e=>e.Q?.teams?.length).length,loadedR=events.filter(e=>e.R?.teams?.length).length;
+  const lapSeconds=typicalLapSeconds(teams);
+  const evidence=(t,key)=>`${t[key+'Count']} shared GP${t[key+'Count']===1?'':'s'} · ${t[key+'Provisional']} provisional`;
+  const chartRows=(rows,key)=>rows.map(t=>({...t,evidenceLabel:evidence(t,key),
+    evidenceBadge:t[key+'Provisional']?`${t[key+'Provisional']} provisional`:'',
+    missingReason:!t[key+'HasData']?'No supported measurements':t[key+'Own']<t[key+'Seen']/2?`Measured in ${t[key+'Own']} of ${t[key+'Seen']} GPs`:'At least two measured teams must share the same GP set'}));
+  const summaryLabel=key=>{
+    const count=paceTeams.find(t=>t[key+'Count'])?.[key+'Count']??0;
+    return `${count} shared GP${count===1?'':'s'}${paceTeams.some(t=>t[key+'Range'])?' · 90% GP-resample range':''}`;
+  };
   const qualyColLabel = qualyPaceMode === 'overall'
     ? 'Qualifying · Best lap'
     : qualyPaceMode==='condition'?'Timestamp / set diagnostic':'Evolution-adjusted deficit';
   // Rendered by src/views/PaceView.tsx; data-pace-stat / data-qualy-mode buttons are handled below.
-  return reactView('pace',{regulatory:!!is2026,note:chartMeta.note,
-    stat:{show:loadedR>2,value:paceSeasonStat},
+  const profile=teamProfileCard(paceTeams);
+  return reactView('pace',{regulatory:!!is2026,note:`${chartMeta.note} Each ranking uses the GPs shared by all teams with measurements in that view. Whiskers cover the middle 90% of gaps when the same GPs are resampled for every team and the leader is picked again in each draw.`,
+    stat:{show:loadedR>2||loadedQ>2,value:paceSeasonStat},
     qualyMode:qualyPaceMode,qualyBadge:qualyPaceMode==='overall'?'Best delivered lap · Q1–Q3':qualyPaceMode==='condition'?'Estimated within common observed time support':'Estimated phase evolution',
-    qualyChart:{rows:ordered,options:{title:chartMeta.title,subtitle:`${chartMeta.subtitle} · Mean across GPs`,valueKey:paceKey,unit:'%',digits:3}},
-    raceChart:{rows:paceTeams,options:{title:'Estimated Race Pace Deficit (% to Benchmark)',
-      subtitle:`Shared race-lap, compound and tyre-age model · ${paceSeasonStat==='mean'?'Mean':'Median'} GP estimate · Lower is faster`,valueKey:'race',unit:'%',digits:3}},
+    qualyChart:{rows:chartRows(ordered,paceKey),options:{title:chartMeta.title,subtitle:chartMeta.subtitle,evidenceSummary:summaryLabel(paceKey),valueKey:paceKey,unit:'%',digits:loadedQ>1?2:3,intervalKey:paceKey+'Range',perLapSeconds:lapSeconds}},
+    raceChart:{rows:chartRows(paceTeams,'race'),options:{title:'Estimated race pace deficit (% to benchmark)',
+      subtitle:'Shared race-lap, compound and tyre-age model',evidenceSummary:summaryLabel('race'),valueKey:'race',unit:'%',digits:loadedR>1?2:3,intervalKey:'raceRange',perLapSeconds:lapSeconds}},
     sort:{team:sortHeaderModel('team','Team'),pace:sortHeaderModel(paceKey,qualyColLabel),race:sortHeaderModel('race','Estimated race pace deficit'),samples:sortHeaderModel('samples','Modelled race laps',-1)},
     rows:ordered.map(t=>{
-      const spread=middle50Label(qualyPaceMode==='adjusted'?t.adjDeficits:t.q.map(q=>q.pace),'%');
-      const estimated=t.raceCoverage.filter(r=>r.supported&&r.basis!=='clear-air').length;
       return {team:t,samples:t.samples,
-        pace:{value:fmt(t[paceKey],3,'%'),note:`${t.qCount} of ${loadedQ} loaded qualifying events${spread?` · GP P25–P75 ${spread}`:''}${t.qCount===1&&t.q[0]?.lap?` · ${t.q[0].lap.driver} ${fmt(t.q[0].lap.time,3,' s')}`:''}`},
-        race:{value:fmt(t.race,3,'%'),provisional:!!t.provisional,
-          note:`${t.fastestRaceDrivers?.length?`${[...new Set(t.fastestRaceDrivers)].join(', ')} · `:''}${t.rCount}/${loadedR} races supported${estimated?` · ${estimated} estimated`:''}${t.sensitivityBracket?` · Bracket [${fmt(t.sensitivityBracket[0],3,'%')}, ${fmt(t.sensitivityBracket[1],3,'%')}]`:''}`}};
+        pace:{value:fmt(t[paceKey],3,'%'),note:evidence(t,paceKey)},
+        race:{value:fmt(t.race,3,'%'),provisional:t.raceProvisional>0,note:evidence(t,'race')}};
     }),
     coverage:teams.flatMap(t=>t.raceDrivers.filter(r=>r.selected).map(r=>{
       const result=events.find(e=>e.name===r.event)?.R?.teams?.find(row=>row.team===t.team);
@@ -960,7 +1090,7 @@ function renderPace(teams) {
     laps:teams.flatMap(t=>t.q.filter(q=>q.lap).map(q=>({team:t,event:q.event,phase:q.lap.phase,driver:q.lap.driver,time:q.lap.time}))),
     drivers:teams.flatMap(t=>t.raceDrivers.map(r=>({team:t,event:r.event,driver:`${r.driver}${r.selected?' · selected':''}`,estimate:fmt(r.pace,3,'%'),samples:r.samples,
       basis:`${r.estimate_basis==='traffic-adjusted'?'Traffic-adjusted · provisional':r.estimate_basis==='sparse-clear-air'?'Short clean-air sample · provisional':'Clear-air'}${r.model_diagnostics?.clear_air_extrapolation?' · extrapolated':''}`,
-      residual:`${fmt(r.residual_spread,3,'%')} residual`})))});
+      residual:`${fmt(r.residual_spread,3,'%')} residual`})))})+profile;
 }
 
 
@@ -1010,6 +1140,13 @@ function tyreAgeView(teams) {
   const mappedRaces=loadedRaces.filter(e=>Boolean(allocations[Number(e.round)-1])).length;
   const unmappedStints=teams.flatMap(t=>t.tyreAgeStints||[]).filter(s=>!s.compound_grade).length;
   const source=TYRE_ALLOCATION_SOURCES[context?.year];
+  const stintFit=stint=>tyreLapMode==='clear'?stint.clean_air:stint;
+  const curveFit=fit=>typeof tyreFitMode!=='undefined'&&tyreFitMode==='curve'&&finite(fit?.nonlinear?.steady_slope);
+  const observedSlope=fit=>{
+    if(curveFit(fit))return fit.nonlinear.steady_slope;
+    if(finite(fit?.raw_slope))return fit.raw_slope;
+    return finite(fit?.fuel_adjusted_slope)?fit.fuel_adjusted_slope-(fit.fuel_assumption_s_per_lap??.060):null;
+  };
   const entities=[];
   for(const team of teams) {
     const stints=(team.tyreAgeStints||[]).map(s=>{
@@ -1018,11 +1155,11 @@ function tyreAgeView(teams) {
       // the field on the same compound. Older cached results fall back below.
       if(finite(s.joint_relative_slope))return {...s,trendValue:s.joint_relative_slope,trendSensitivity:null,trendSupported:true,
         trendSamples:s.clean_air?.samples??s.samples,samples:s.clean_air?.samples??s.samples,original:s};
-      const fit=tyreLapMode==='clear'?s.clean_air:s;
+      const fit=stintFit(s);
       if(!fit)return {...s,trendValue:null,trendSupported:false,trendSamples:0};
       const fuel=tyreCorrection==='fuel'?tyreFuelRate:0;
-      const curveMode=typeof tyreFitMode!=='undefined'&&tyreFitMode==='curve'&&finite(fit.nonlinear?.steady_slope);
-      const raw=curveMode?fit.nonlinear.steady_slope:finite(fit.raw_slope)?fit.raw_slope:finite(fit.fuel_adjusted_slope)?fit.fuel_adjusted_slope-(fit.fuel_assumption_s_per_lap??.060):null;
+      const curveMode=curveFit(fit);
+      const raw=observedSlope(fit);
       const value=finite(raw)?raw+fuel:null;
       const sensitivity=curveMode?null:fit.block_sensitivity_raw?.map(rate=>rate+fuel);
       const supported=fit.supported??(fit.samples>=6&&(!finite(fit.min_age)||!finite(fit.max_age)||fit.max_age-fit.min_age>=5));
@@ -1104,13 +1241,18 @@ function tyreAgeView(teams) {
   const legacy=teams.some(t=>(t.tyreAgeStints||[]).some(s=>!s.nonlinear));
   const jointRanking=teams.some(t=>(t.tyreAgeStints||[]).some(s=>finite(s.joint_relative_slope)));
   const fuelFor=s=>tyreCorrection==='fuel'?tyreFuelRate:0;
+  const selectedFit=selectedRun?stintFit(selectedRun.stint.original||selectedRun.stint):null;
+  const observed=observedSlope(selectedFit);
+  const scenarios=finite(observed)?[.03,.06,.09].map(rate=>({rate,slope:observed+rate})):[];
+  const fuelSensitivity=scenarios.length?{observed,scenarios,steady:curveFit(selectedFit),
+    changesSign:scenarios[0].slope < -1e-10 && scenarios.at(-1).slope > 1e-10}:null;
   return {compound:{choices,value:tyreView,overallLabel:'All C grades'},correction:tyreCorrection,
     correctionText:tyreCorrection==='fuel'?'Assumes 0.060 s/lap fuel gain; not measured fuel or isolated tyre degradation.':'Observed lap-time change includes fuel burn and track conditions.',
     note:`The number is the change in lap time for each additional lap on the tyre: +0.050 s/lap means a 0.500-second loss over ten tyre-age steps if the trend continues. Each driver's stint is fitted separately over its observed ages; pit, wet and neutralised laps are excluded. Runs are split at SC/VSC/red flags and unusual laps are screened around the fitted trend. ${tyreLapMode==='clear'?'Clean air requires more than 2 seconds to the car ahead at timing checkpoints.':'All usable laps includes traffic and race management.'} ${tyreCorrection==='fuel'?`The rate adds an assumed ${tyreFuelRate.toFixed(3)} s per race lap for fuel burn. This fixed sensitivity assumption is not a measured fuel load or a calibrated value for any season.`:'Observed rates include the benefit of burning fuel.'} ${tyreWeighting==='balanced'?'Median stints describe each driver, then both drivers receive equal weight within each GP and C grade.':'Stints receive weight proportional to their usable laps within each GP and C grade.'} Each GP receives equal weight in the season summary. Overall averages only the C grades observed in each GP, so differing compound and circuit coverage can affect comparisons. Track evolution, temperature, driving targets and energy management can still influence these estimates.`,
     quality:`${tyreConditionMode==='screened'?'Wet/transition context and rapid field-wide improvement are excluded from the ranking; all fitted runs remain inspectable.':'Diagnostic: all statistically supported pace trends are included, even in changing conditions.'} ${jointRanking?'Ranked from clean-air laps only, all cars fitted together per race: a shared race-lap effect absorbs fuel burn and track evolution, and each car is compared with the field on the same compound (s/lap of tyre age; negative is less degradation). Slower cars put less energy into their tyres, so low degradation is not the same as a fast car. ':''}This measures observed pace change, not physical tyre wear. ${typeof tyreFitMode!=='undefined'&&tyreFitMode==='curve'?'The headline uses the steady segment; warm-up and supported late falloff remain in the plotted curve. Short runs use a labelled linear diagnostic.':'The headline summarizes the entire observed age span; nonlinear phases remain evidence.'}`,
     commonCoverage:commonTyreCoverage?`Same observed GP + grade pairs: ${commonTyreCoverage.events.join(', ')||'none'} · ${commonTyreCoverage.teams.length} comparable entrants. These are still own-run absolute slopes, not rival-subtracted or rebased scores.`:null,
     coverage:{mapped:mappedRaces,loaded:loadedRaces.length,unmapped:unmappedStints,source:String(source||'')},legacy,
-    chart:scored.length?{title:`Tyre-age lap-time change · ${tyreView==='OVERALL'?'verified C grades':tyreView}`,rows:scored,extent}:null,
+    chart:scored.length?{title:`Tyre-age lap-time change · ${tyreView==='OVERALL'?'verified C grades':tyreView}`,rows:scored.map(r=>({...r,evidenceLabel:`${r.events} GPs`})),extent}:null,
     emptyMessage:tyreSeasonStat==='p75'?'P75 needs at least four supported Grands Prix for every included C grade. The table shows each missing grade and its GP count.':tyreLapMode==='clear'?'No supported clean-air fits. Try All usable laps to inspect traffic-affected trends.':'No runs with at least six usable laps spanning five tyre-age steps. Short runs remain in the evidence table.',
     sort:{name:sortHeaderModel('tyreAgeName',tyreSubject==='team'?'Team':'Driver · team'),value:sortHeaderModel('tyreAgeValue','Change per tyre-age lap'),
       events:sortHeaderModel('tyreAgeEvents','Events',-1),stints:sortHeaderModel('tyreAgeStints','Usable green runs',-1),laps:sortHeaderModel('tyreAgeLaps','Usable laps',-1)},
@@ -1122,6 +1264,7 @@ function tyreAgeView(teams) {
       runs:runsFor(selectedRun.entity.team,selectedRun.stint.driver,selectedRun.stint.event).map(r=>({key:r.key,label:`Stint ${r.stint.stint} · ${r.stint.compound_grade} · age ${r.stint.min_age}–${r.stint.max_age}${r.stint.segment?` · run ${r.stint.segment+1}`:''}`})),
       run:selectedRun.key,total:plotRuns.length,teamCount:new Set(plotRuns.map(r=>r.entity.team)).size}:null,
     plot:selectedRun?tyreStintPlotModel(selectedRun.entity,selectedRun.stint):null,
+    fuelSensitivity,
     evidence:entities.flatMap(entity=>entity.stints.filter(s=>tyreView==='OVERALL'||s.compound_grade===tyreView).map(s=>({team:entity,driver:s.driver||'—',event:s.event,
       grade:s.compound_grade||'Unmapped',run:`${s.stint}${s.segment?` · green run ${s.segment+1}`:''}`,
       ages:finite(s.min_age)&&finite(s.max_age)?`${s.min_age}–${s.max_age}`:'—',laps:s.trendSamples||0,
@@ -1136,9 +1279,10 @@ function tyreAgeView(teams) {
 
 function renderRace(teams) {
   // Rendered by src/views/TyresView.tsx; data-tyre-* buttons and selects are handled below.
-  if(tyreMetric==='age'){
+  if(tyreMetric!=='relative'){
     const view=tyreAgeView(teams);
     const chartFor=subject=>{if(subject===tyreSubject)return view.chart;const shown=tyreSubject;tyreSubject=subject;try{return tyreAgeView(teams).chart;}finally{tyreSubject=shown;}};
+    if (tyreMetric === 'stint') return reactView('tyres', {metric:'age', inspect:true, subject:tyreSubject, ...view});
     return reactView('tyres',{metric:'age',subject:tyreSubject,...view,chart:chartFor('team'),driverChart:chartFor('driver')});
   }
   const rows=[];
@@ -1307,7 +1451,7 @@ function renderRace(teams) {
   }, 'tyreNorm');
 
   return reactView('tyres',{metric:'relative',subject:tyreSubject,compound:{choices,value:tyreView,overallLabel:'All compounds'},
-    chart:{rows:ordered,options:{title:`Relative tyre-age trend · ${tyreView === 'OVERALL' ? 'Available compounds' : tyreView}`,
+    chart:{rows:ordered.map(r=>({...r,evidenceLabel:`${r.stints} stints`})),options:{title:`Relative tyre-age trend · ${tyreView === 'OVERALL' ? 'Available compounds' : tyreView}`,
       subtitle:`Same-event, same-compound cohorts of ≥3 teams · ${tyreSeasonStat==='p75'?'P75 worse GP':tyreSeasonStat==='median'?'Median GP':'Mean GP'} · Limited samples are provisional`,
       valueKey:'normSlope',unit:' s/lap',digits:3,signedValue:true,zeroBaseline:true}},
     sort:{team:sortHeaderModel('tyreTeam','Team'),norm:sortHeaderModel('tyreNorm','Extra ageing vs rivals'),stints:sortHeaderModel('tyreStints','Matched sample (stints / laps)',-1)},
@@ -1481,7 +1625,7 @@ function renderPits(teams) {
   const pending=data.total-data.loaded-failures.length;
   const note=`${data.loaded}/${data.total} race${data.total===1?'':'s'} loaded${pending>0?' · loading pit timing…':''}${failures.length?` · ${failures.length} race${failures.length===1?'':'s'} unavailable`:''}. Stationary is the broadcast-style time stopped at the box; pit-lane time includes the stop. Raw summaries weight every timed visit; GP-relative lane summaries compare each team or driver's GP median with the median of team GP medians, then give each GP equal weight. Mean includes long stops; median shows a typical visit; the middle-50% spread shows consistency (≥4 samples); P10 and P90 show the quick and slow tails (≥10 samples). Missing stationary times are never inferred.`;
   const chartRowsFor=driver=>sorted(driver?data.drivers:data.teams,{pitName:r=>driver?r.driver:r.team,pitTeam:r=>r.team,pitMean:r=>r[measure].mean,pitMedian:r=>r[measure].median,pitTrimmed:r=>r[measure].trimmed,pitWinsorized:r=>r[measure].winsorized,pitFastest:r=>r[measure].fastest,pitP10:r=>r[measure].p10,pitP90:r=>r[measure].p90,pitSpread:r=>pitMiddleSpread(r[measure]),pitCount:r=>r[measure].count,pitEvents:r=>r.eventCount},'pitMedian')
-    .map(r=>({...r,displayName:driver?r.driver:r.team,logoTeam:r.team,chartValue:pitChartMetric==='spread'?pitMiddleSpread(r[measure]):r[measure][pitChartMetric]}));
+    .map(r=>({...r,displayName:driver?r.driver:r.team,logoTeam:r.team,evidenceLabel:`${r[measure].count} ${relativeLane?'GPs':'visits'}`,chartValue:pitChartMetric==='spread'?pitMiddleSpread(r[measure]):r[measure][pitChartMetric]}));
   const chartTitle=pitChartMetric==='trimmed'?'10% trimmed mean':pitChartMetric==='winsorized'?'10% winsorized mean':pitChartMetric==='spread'?'Middle-50% spread':pitChartMetric==='p10'?'P10 quick-end time':pitChartMetric==='p90'?'P90 slow-tail time':pitChartMetric==='mean'?'Mean time':pitChartMetric==='fastest'?(relativeLane?'Best GP gap':'Quickest visit'):'Median time';
   // Rendered by src/views/PitsView.tsx; its data-pit-* buttons are handled below.
   const sample=r=>({...r[measure],spread:pitMiddleSpread(r[measure])});
@@ -1500,7 +1644,7 @@ function renderPits(teams) {
         ? `75th minus 25th percentile · at least four ${relativeLane?'GPs':'visits'} · lower is more consistent`
         : pitChartMetric==='p10'||pitChartMetric==='p90'?`${pitChartMetric==='p10'?'10th':'90th'} percentile · at least ten ${relativeLane?'GPs':'visits'} · lower is better`
         : relativeLane?'Equal-weighted GP median gaps; zero is the GP field median':'Visit-weighted seconds · lower is faster',
-      valueKey:'chartValue',labelKey:'team',unit:' s',digits:3,signedValue:relativeLane&&pitChartMetric!=='spread',preserveSignedValues:relativeLane&&pitChartMetric!=='spread',zeroBaseline:true},
+      benchmark:relativeLane&&pitChartMetric!=='spread'?'0 = GP field median':undefined,valueKey:'chartValue',labelKey:'team',unit:' s',digits:3,signedValue:relativeLane&&pitChartMetric!=='spread',preserveSignedValues:relativeLane&&pitChartMetric!=='spread',zeroBaseline:true},
     emptyMessage:pending>0?'Loading published pit timings… measured visits will appear as each selected race is received.':['trimmed','winsorized','p10','p90'].includes(pitChartMetric)?'This statistic needs at least ten measured visits (or ten GPs in GP-relative mode).':pitChartMetric==='spread'?'At least four samples per team or driver are needed for the middle-50% chart.':pitMeasure==='stop'?'No published stationary-stop times for the selected races. Pit-lane timing is a separate measurement; select Pit lane to view it.':'No timed pit-lane visits for the selected races yet.',
     rows:ordered.map(r=>({...r,sample:sample(r)})),
     sort:Object.fromEntries([['pitName',isDriver?'Driver':'Team',1],['pitTeam','Team',1],['pitMean','Mean',1],['pitMedian','Median',1],
@@ -1637,7 +1781,13 @@ function renderTrend(teams) {
   const showSensitivity=trendView==='fitted'&&ordered.some(row=>row.leaveEventRange);
   const rounds=events.map(e=>Number(e.round)).filter(finite);
   const changeKey=trendView==='fitted'?'trendModelled':'trendChange';
+  const round = events.find(event => String(event.round) === trendRound);
+  const year = $('performanceYear').value;
   return reactView('trend',{view:trendView,showSensitivity,
+    rounds: events.map(event => ({round:String(event.round), name:event.name})),
+    round: round ? trendRound : '',
+    qualifyingHref: round ? window.ApexUrl?.href('session', {year, round:round.round, session:'Qualifying'}) : null,
+    declarationsHref: Number(year) >= 2022 ? window.ApexUrl?.href('season', {tab:'upgrades', year}) : null,
     // Plot exactly the adjusted observations used by the medians and fit.
     spark:{lo:Math.min(...rounds),hi:Math.max(...rounds),ceiling:Math.max(1,...trendRows.flatMap(t=>t.valid.map(q=>q.pace)))},
     sort:{team:sortHeaderModel('trendTeam','Team'),last:sortHeaderModel('trendLast','Start → latest'),
@@ -1776,6 +1926,30 @@ const STRAIGHT_PILLS=[
   {key:'energy',label:'Energy',title:'Speed lost at full throttle',subtitle:'km/h per lap on the audited straights',hint:'Energy clipping on 2026 power units',
    note:"Speed lost while flat out on the straights. At full throttle a car only loses speed when its deployable electrical energy runs out (clipping) or a tow has pushed it past its drag limit. This mainly matters for 2026 power units; 2025 cars rarely clip."}
 ];
+// Typical top speed, from the race analysis: each car's median speed-trap reading over its race laps (a tow or a
+// slipstreamed lap lifts the peak, not the median). Teams from the team figures, drivers from race_speed_drivers.
+STRAIGHT_PILLS.push({key:'top_speed',label:'Top speed',title:'Typical top speed',subtitle:'median race speed trap · km/h below the quickest',hint:'Median speed-trap reading in the races',
+  note:"Each car's median speed-trap reading over its race laps, averaged over the selected races, as km/h below the quickest. The median is the car's usual top speed: a tow or a slipstreamed lap moves the peak, not the median. Each race's median and peak are listed below. Trap speed reflects drag, power-unit deployment and gearing together."});
+function topSpeedValues(event,subject){
+  const out=new Map();
+  for(const t of event.R?.teams||[]){
+    if(subject==='driver')for(const d of t.race_speed_drivers||[]){if(Number.isFinite(d.race_speed_trap_median))out.set(d.driver,{median:d.race_speed_trap_median,peak:d.race_speed_trap_max});}
+    else if(Number.isFinite(t.race_speed_trap_median))out.set(t.team,{median:t.race_speed_trap_median,peak:t.race_speed_trap_max});
+  }
+  return out;
+}
+function topSpeedChart(title,subject){
+  const style=speedDomainEntities(subject),sum=new Map(),used=[];
+  for(const e of events){const v=topSpeedValues(e,subject);if(!v.size)continue;used.push(e.name);for(const [k,x] of v){const a=sum.get(k)||{s:0,n:0,peak:-Infinity};a.s+=x.median;a.n++;if(Number.isFinite(x.peak))a.peak=Math.max(a.peak,x.peak);sum.set(k,a);}}
+  if(!sum.size)return {title,empty:running?'Loading race results…':'No speed-trap readings in the selected races.'};
+  const rows=[...sum].map(([k,a])=>({...(style.get(k)||{team:k}),value:a.s/a.n,evidenceLabel:`${a.n} GPs`,coverageLabel:used.length>1&&a.n<used.length?`${a.n}/${used.length} GPs`:''}));
+  return {title,rows,options:{title,subtitle:`median race speed trap · ${used.length} GP${used.length===1?'':'s'} · km/h below the quickest`,unit:' km/h',digits:1,signedValue:true,invertBest:true}};
+}
+function topSpeedEventTable(){
+  const style=speedDomainEntities(),rows=[];
+  for(const e of events)for(const [k,x] of topSpeedValues(e,telemetrySubject))rows.push({event:e.name,team:style.get(k)||{team:k},values:[x.median.toFixed(1),Number.isFinite(x.peak)?String(Math.round(x.peak)):'—']});
+  return {subject:telemetrySubject,labels:['Median km/h','Peak km/h'],rows,summary:'Speed trap by GP · median and peak, km/h'};
+}
 let straightPill='track_straights';
 // Several GPs: corner and straight gaps as a share of the lap (the qualifying
 // gap's scale) or of that section's own time.
@@ -1792,7 +1966,7 @@ function speedDomainEntities(subject=telemetrySubject) {
 function speedDomainChart(key,title,subtitle,subject=telemetrySubject) {
   const meta=SPEED_DOMAIN_METRICS[key],season=speedDomainSeason(events,subject,key),style=speedDomainEntities(subject);
   // Coverage is disclosed only where it differs: a team measured in fewer GPs than the others ("2/3 GPs"); full coverage says nothing.
-  const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason,traceProvisional:r.provisional,coverageLabel:season.gps>1&&r.gps<season.gps?`${r.gps}/${season.gps} GPs`:''}));
+  const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason,traceProvisional:r.provisional,evidenceLabel:`${r.gps} GPs`,coverageLabel:season.gps>1&&r.gps<season.gps?`${r.gps}/${season.gps} GPs`:''}));
   // While GPs are still loading an empty chart is pending, not a missing measurement.
   if(!rows.length)return {title:title||meta.label,empty:running||speedDomainRunning[subject]?'Loading qualifying telemetry…':key.startsWith('corner_')?'No shared supported corner measurement in this band. Missing values are not zero.':'No supported measurement in the loaded GPs. Missing values are not zero.'};
   return {title:title||meta.label,rows,options:{title:title||meta.label,subtitle:`${subtitle?subtitle+' · ':''}${season.gps} supported GP${season.gps===1?'':'s'} of ${events.filter(e=>e.Q).length} selected · ${season.events.join(', ')} · 0 = best${rows.some(r=>r.traceProvisional)?' · ≈ provisional: source gaps >0.6 s':''}`,unit:meta.unit,digits:meta.digits}};
@@ -1870,6 +2044,8 @@ function renderSpeedDomain() {
   }
   if(activeMetric==='straight'){
     const pill=STRAIGHT_PILLS.find(p=>p.key===straightPill)||STRAIGHT_PILLS[0];
+    if(pill.key==='top_speed')return reactView('speed',{...head,metric:'straight',pill:pill.key,pills:STRAIGHT_PILLS.map(({key,label,hint})=>({key,label,hint})),note:pill.note,
+      basis:null,straights:null,chart:topSpeedChart(pill.title+' · Teams','team'),driverChart:topSpeedChart(pill.title+' · Drivers','driver'),events:topSpeedEventTable()});
     const several=events.filter(e=>e.Q).length>1,track=pill.key==='track_straights';
     const key=track&&several?pill.key+(gapBasis==='lap'?'_lap':'_pct'):pill.key;
     const subtitle=!track?pill.subtitle:`${pill.subtitle} · ${!several?'seconds per lap':gapBasis==='lap'?'% of the lap lost to the best':'% slower on the straights than the best'}`;
@@ -1959,11 +2135,77 @@ function render() {
   try {renderContent();} finally {
     window.ApexReact?.mountAll(root,reactViewProps);
     window.ApexPresentation?.arrangePerformance(root,activeMetric);
+    const panel = root.querySelector('#performanceMetricPanel');
+    if (panel?.querySelector('.metric-heading')) entrantComparison(panel, activeMetric);
     window.ApexUI?.decorate(root);
     restorePerformanceUI(root,state);
     root.querySelectorAll('details[open]').forEach(hydratePerformanceEvidence);
     syncCarUrl();
   }
+}
+// Read the values already presented in each ranking. Keeping the original
+// benchmark also keeps a two-entrant comparison on the field's scale.
+const comparisonByMetric = new Map();
+function entrantComparison(panel, metric) {
+  const charts = [];
+  const names = new Set();
+  for (const chart of panel.querySelectorAll('.performance-chart-card')) {
+    if (chart.closest('details')) continue;
+    const values = new Map();
+    for (const row of chart.querySelectorAll('.performance-bar-row')) {
+      const name = row.querySelector('.team-name')?.textContent.trim();
+      const cell = row.querySelector('.performance-bar-val');
+      const value = cell && [...cell.childNodes].map(node => node.textContent.trim()).filter(Boolean).join(' ');
+      if (!name || !value) continue;
+      names.add(name);
+      values.set(name, {value, detail: row.getAttribute('aria-label') || row.title});
+    }
+    const title = chart.querySelector('.perf-chart-heading')?.textContent;
+    if (title && values.size) charts.push({title, values});
+  }
+  if (!charts.length || names.size < 2) return;
+  const saved = comparisonByMetric.get(metric) || {};
+  const box = document.createElement('details');
+  box.className = 'entrant-comparison performance-run-inspector'; box.open = !!saved.open;
+  const title = document.createElement('summary'); title.textContent = 'Compare two entrants';
+  const controls = document.createElement('div'); controls.className = 'performance-actions';
+  const picks = [0, 1].map(i => {
+    const label = document.createElement('label'); label.textContent = i ? 'Against ' : 'Compare ';
+    const select = document.createElement('select');
+    for (const name of names) select.append(new Option(name, name));
+    select.value = names.has(saved.pair?.[i]) ? saved.pair[i] : [...names][i];
+    label.append(select); controls.append(label); return select;
+  });
+  const table = document.createElement('table'); table.className = 'performance-table';
+  const draw = changed => {
+    if (picks[0].value === picks[1].value) picks[1 - changed].value = [...names].find(n => n !== picks[changed].value);
+    for (const pick of picks) window.syncSelectUI?.(pick);
+    const pair = picks.map(pick => pick.value);
+    comparisonByMetric.set(metric, {pair, open: box.open});
+    table.replaceChildren();
+    const header = table.createTHead().insertRow();
+    for (const text of ['Measurement', ...pair]) {
+      const th = document.createElement('th'); th.scope = 'col'; th.dataset.column = header.cells.length ? 'number' : 'text'; th.textContent = text; header.append(th);
+    }
+    const body = table.createTBody();
+    for (const chart of charts) {
+      const row = body.insertRow(), th = document.createElement('th');
+      th.scope = 'row'; th.dataset.column = 'text'; th.textContent = chart.title; row.append(th);
+      for (const name of pair) {
+        const reading = chart.values.get(name), td = row.insertCell();
+        td.dataset.column = 'number'; td.textContent = reading?.value || '—';
+        if (reading?.detail) { td.title = reading.detail; td.setAttribute('aria-label', reading.detail); }
+      }
+    }
+  };
+  picks.forEach((pick, i) => pick.addEventListener('change', () => draw(i)));
+  box.addEventListener('toggle', () => { if (box.isConnected) comparisonByMetric.set(metric, {pair: picks.map(p => p.value), open: box.open}); });
+  box.append(title, controls, table); draw(0);
+  // Under the rankings it reads from, not between the heading and the charts.
+  let after = panel.querySelectorAll('.performance-chart-card:not(details .performance-chart-card)');
+  after = after[after.length - 1];
+  while (after && after.parentElement !== panel) after = after.parentElement;
+  (after || panel.querySelector('.metric-heading'))?.after(box);
 }
 function renderContent() {
   const modes=[
@@ -1973,20 +2215,26 @@ function renderContent() {
     ['braking','Braking'],
     ['pits','Pit stops'],
     ['tyres','Tyre trend'],
-    ['trend','Development & updates'],
-    ['results','Reliability & results']
+    ['trend','Development trend'],
+    ['results','Finishes & retirements']
   ];
   $('carPerformance').classList.toggle('is-descriptions-hidden',!showPerformanceDescriptions);
   const navEmoji={pace:'⏱️',corners:'🏎️',straight:'🚀',braking:'🛑',pits:'🔧',tyres:'🛞',trend:'📈',results:'🏆'};
   const snapshotMode=window.APEX_SNAPSHOT_MODE&&!window.APEX_LOCAL_MODE;
   const refreshTitle=snapshotMode?'Reload the published snapshot. New observations require local preparation and publication.':'Re-fetch the selected events and replace cached measurements. The first refresh can take longer.';
-  const modeBar = `<div class="performance-toolbar"><div class="performance-mode" role="tablist" aria-label="Performance metric" aria-orientation="horizontal">${modes.map(([key,label])=>`<button type="button" role="tab" data-performance-metric="${key}" aria-controls="performanceMetricPanel" tabindex="${activeMetric===key?0:-1}" aria-pressed="${activeMetric===key}" aria-selected="${activeMetric===key}"><span class="metric-nav-emoji" aria-hidden="true">${navEmoji[key]}</span>${label}</button>`).join('')}</div><button type="button" class="performance-explain-toggle" data-performance-refresh ${running?'disabled':''} title="${refreshTitle}">${snapshotMode?'Reload snapshot':'Refresh data'}</button></div>`;
+  const categoryPicker = `<label class="car-category-picker">Measurement<select aria-label="Car performance measurement">${modes.map(([key, label]) => `<option value="${key}" ${key === activeMetric ? 'selected' : ''}>${label}</option>`).join('')}</select></label>`;
+  const modeBar = `<div class="performance-toolbar">${categoryPicker}<div class="performance-mode" role="tablist" aria-label="Performance metric" aria-orientation="horizontal">${modes.map(([key,label])=>`<button type="button" role="tab" data-performance-metric="${key}" aria-controls="performanceMetricPanel" tabindex="${activeMetric===key?0:-1}" aria-selected="${activeMetric===key}"><span class="metric-nav-emoji" aria-hidden="true">${navEmoji[key]}</span>${label}</button>`).join('')}</div><button type="button" class="performance-explain-toggle" data-performance-refresh ${running?'disabled':''} title="${refreshTitle}">${snapshotMode?'Reload snapshot':'Refresh data'}</button></div>`;
 
+  if (running && !events.length && activeMetric !== 'pits') {
+    root.innerHTML = modeBar + '<div id="performanceMetricPanel" role="tabpanel" aria-busy="true" aria-label="Performance measurements"><p role="status">Loading measurements…</p><div class="subject-pair" aria-hidden="true"><div class="rank-loading"></div><div class="rank-loading"></div></div></div>';
+    return;
+  }
   if(!context || (!events.length && !running)) {
+    const unpublished = errors.length > 0 && errors.every(error => /(?:not (?:been )?published|no published)/i.test(error.message));
     root.innerHTML = modeBar + `
       <div class="dashboard-card performance-empty" id="performanceMetricPanel" role="tabpanel" aria-label="Performance measurements">
         <div class="empty-icon-badge" aria-hidden="true"></div>
-        <h3>${errors.length?'Source retrieval failed':'Ready for analysis'}</h3>
+        <h3>${unpublished ? 'Measurements not published yet' : errors.length ? 'Source retrieval failed' : 'Ready for analysis'}</h3>
         ${errors.length?errors.map(e=>`<p class="performance-error">${escape(e.event.name)} · ${escape(e.session)}: ${escape(e.message)}</p>`).join('')+'<p>Choose Analyse to retry. Other sessions and supported cached results are not treated as zero.</p>':'<p>Select a season and scope above, then click <strong>Analyse</strong> to calculate car pace, cornering performance, straight-line speeds, and tyre trends.</p>'}
       </div>`;
     return;
@@ -2017,6 +2265,22 @@ function renderContent() {
 // ---------------------------------------------------------------------------
 // Event Listeners & Interactive Wiring
 // ---------------------------------------------------------------------------
+root.addEventListener('change', event => {
+  if (!event.target.matches('.car-category-picker select')) return;
+  // Only a change on the picker on screen, to another measurement: a late change from a picker a render has already
+  // replaced (or one that repeats the current choice) must not switch the view back.
+  if (!event.target.isConnected || event.target.value === activeMetric) return;
+  root.querySelector(`[data-performance-metric="${event.target.value}"]`)?.click();
+  const picker = root.querySelector('.car-category-picker');
+  // Keep focus on the picker only on a phone, where it is the control in use; on a desktop the pills are.
+  if (picker && getComputedStyle(picker).display !== 'none') (picker.querySelector('.select-trigger') || picker.querySelector('select'))?.focus({preventScroll: true});
+});
+
+// Published snapshot (not the local app or a connected PC): analysis reads saved results, so it can start by itself.
+const publishedAuto=()=>Boolean(window.APEX_SNAPSHOT_MODE)&&!window.APEX_LOCAL_MODE&&!window.APEX_COMPUTE_ORIGIN;
+// The automatic run gives way the moment the person changes the selection (scope or tracks), so Analyse is theirs again.
+let autoRun=false;
+const yieldAutoRun=()=>{if(autoRun&&running)stop();autoRun=false;};
 document.querySelectorAll('[data-analysis-view]').forEach(button=>button.addEventListener('click',event=>{
   // A pointer click cross-fades the two views (motion.js); links, history
   // and keyboard activation switch at once.
@@ -2035,6 +2299,8 @@ document.querySelectorAll('[data-analysis-view]').forEach(button=>button.addEven
     syncSelect($('performanceYear'));
     if ($('performanceScope')) syncSelect($('performanceScope'));
     calendarReady=loadCalendar();
+    // On the published site the season's analysis is already computed: open on it, not on an empty "click Analyse" page.
+    if(!restoringUrl&&publishedAuto())calendarReady.then(()=>{if(!events.length&&!running&&activeScope==='season'){autoRun=true;void analyse();}}).catch(()=>{});
   }
   else if(performance)refreshPerformanceAvailability();
 };
@@ -2058,7 +2324,7 @@ function carUrlState() {
 }
 function syncCarUrl() {
   if(restoringUrl||!initialized||$('carPerformance').hidden)return;
-  window.ApexUrl?.write('cars',carUrlState());
+  window.ApexUrl?.write('cars',carUrlState(),{replace:autoRun});
 }
 function showAnalysisView(view) {
   // Switch views for a link or the back button without writing a new entry.
@@ -2090,7 +2356,7 @@ async function applyCarUrl(params) {
     const runnable=scope==='season'||selectedTracks.size>0;
     // Same selection already analysed (back/forward between categories): reuse it.
     const same=context&&String(context.year)===year.value&&String(context.selectedTracks||[])===String(scope==='tracks'?[...selectedTracks]:context.selectedTracks||[]);
-    if(params.run==='1'&&runnable&&!(same&&events.length)){void analyse();}
+    if((params.run==='1'||(publishedAuto()&&scope==='season'))&&runnable&&!(same&&events.length)){autoRun=params.run!=='1';setTrackTrayCollapsed(true);void analyse();}
     else {render();if(context)loadActiveTelemetry();}
   } finally {restoringUrl=false;syncCarUrl();}
 }
@@ -2106,7 +2372,9 @@ document.querySelectorAll('[data-performance-scope]').forEach(btn => {
   btn.addEventListener('click', () => {
     const scope = btn.dataset.performanceScope;
     if (activeScope === scope) return;
+    yieldAutoRun();
     activeScope = scope;
+    if (scope === 'tracks') setTrackTrayCollapsed(false);   // choosing Tracks is choosing tracks: show them
     document.querySelectorAll('[data-performance-scope]').forEach(b => {
       b.setAttribute('aria-pressed', String(b.dataset.performanceScope === activeScope));
     });
@@ -2145,6 +2413,7 @@ $('performanceClearTracks')?.addEventListener('click', () => {
 $('performanceTrackPills')?.addEventListener('click', (ev) => {
   const pill = ev.target.closest('.track-pill');
   if (!pill) return;
+  yieldAutoRun();
   const name = pill.dataset.trackName;
   if (!name) return;
   if (selectedTracks.has(name)) {
@@ -2173,7 +2442,8 @@ if ($('performanceScope')) {
   });
 }
 
-$('performanceLoad').addEventListener('click',analyse);
+// Folding the race picker on the click itself, not when results arrive: a shift right after input is not a layout shift.
+$('performanceLoad').addEventListener('click',()=>{autoRun=false;setTrackTrayCollapsed(true);void analyse();});
 $('performanceCancel').addEventListener('click',stop);
 
 root.addEventListener('keydown',event=>{
@@ -2186,6 +2456,13 @@ root.addEventListener('keydown',event=>{
   replacement?.focus({preventScroll:true});replacement?.scrollIntoView({block:'nearest',inline:'nearest'});
 });
 root.addEventListener('change',event=>{
+  if (event.target.matches('[data-trend-round]')) {
+    trendRound = event.target.value;
+    render();
+    const select = root.querySelector('[data-trend-round]');
+    (select?.closest('.select-shell')?.querySelector('.select-trigger') || select)?.focus({preventScroll:true});
+    return;
+  }
   const select=event.target.closest('[data-tyre-plot-filter]');
   if(!select)return;
   const kind=select.dataset.tyrePlotFilter;
@@ -2234,6 +2511,7 @@ root.addEventListener('click',event=>{
   const cornerSessionButton=event.target.closest('[data-corner-session]');
   if(cornerSessionButton){cornerSession=cornerSessionButton.dataset.cornerSession;render();loadActiveTelemetry();return;}
   if(event.target.closest('[data-race-corners-load]')){void loadRaceCorners();return;}
+  if(event.target.closest('[data-profile-load]')){void loadSpeedDomain(false,'team');return;}
   if(event.target.closest('[data-race-corners-stop]')){raceCornerController?.abort();return;}
   const cornerBandButton=event.target.closest('[data-corner-band]');
   if(cornerBandButton){cornerGraphBand=cornerBandButton.dataset.cornerBand;render();return;}
@@ -2246,7 +2524,14 @@ root.addEventListener('click',event=>{
 
   const tyreRunButton=event.target.closest('[data-tyre-run]');
   if(event.target.closest('[data-tyre-exclusions]')){tyreShowExcluded=!tyreShowExcluded;render();return;}
-  if(tyreRunButton){tyreRunKey=tyreRunButton.dataset.tyreRun;render();return;}
+  if (tyreRunButton) {
+    tyreRunKey = tyreRunButton.dataset.tyreRun;
+    tyreMetric = 'stint';
+    render();
+    const heading = root.querySelector('.performance-tyre-stint-plot h4');
+    if (heading) { heading.tabIndex = -1; heading.focus(); }
+    return;
+  }
   const trendViewButton=event.target.closest('[data-trend-view]');
   if(trendViewButton){trendView=trendViewButton.dataset.trendView;sortKey=trendView==='fitted'?'trendModelled':'trendChange';sortDirection=1;render();return;}
   const metric=event.target.closest('[data-performance-metric]');
@@ -2268,7 +2553,14 @@ root.addEventListener('click',event=>{
   if(pitLaneBasisButton){pitLaneBasis=pitLaneBasisButton.dataset.pitLaneBasis;render();return;}
   const sort=event.target.closest('[data-performance-sort]');
   const tyreMetricButton=event.target.closest('[data-tyre-metric]');
-  if(tyreMetricButton){tyreMetric=tyreMetricButton.dataset.tyreMetric;sortKey=tyreMetric==='age'?'tyreAgeValue':'tyreNorm';sortDirection=1;render();return;}
+  if (tyreMetricButton) {
+    tyreMetric = tyreMetricButton.dataset.tyreMetric;
+    sortKey = tyreMetric === 'relative' ? 'tyreNorm' : 'tyreAgeValue';
+    sortDirection = 1;
+    render();
+    root.querySelector(`[data-tyre-metric="${tyreMetric}"]`)?.focus({preventScroll:true});
+    return;
+  }
   const tyreSubjectButton=event.target.closest('[data-tyre-subject]');
   if(tyreSubjectButton){tyreSubject=tyreSubjectButton.dataset.tyreSubject;render();return;}
 

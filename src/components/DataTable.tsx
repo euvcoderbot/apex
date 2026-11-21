@@ -1,4 +1,4 @@
-import type {ReactNode} from 'react';
+import type {CSSProperties, ReactNode} from 'react';
 
 /** Sort state computed by car-performance.js (sortHeaderModel), rendered here. */
 export type SortHeaderModel = {key: string; label: string; state: 'ascending' | 'descending' | 'none'; group: string; direction: number};
@@ -19,18 +19,39 @@ export function SortHeader({model}: {model: SortHeaderModel}) {
   );
 }
 
+/** A shaded column: each row's raw value (null when not measured) and which way is better. Deeper shading is better,
+ *  as in the Season tables; the worst value gets none. */
+export type HeatColumn = {col: number; values: (number | null | undefined)[]; better: 'high' | 'low'};
+
+function heatShare(column: HeatColumn, row: number): number | null {
+  const v = column.values[row];
+  const finite = column.values.filter((x): x is number => typeof x === 'number' && Number.isFinite(x));
+  if (typeof v !== 'number' || !Number.isFinite(v) || finite.length < 2) return null;
+  const lo = Math.min(...finite), hi = Math.max(...finite);
+  if (hi === lo) return null;
+  const share = (v - lo) / (hi - lo);
+  return column.better === 'high' ? share : 1 - share;
+}
+
 /** Measurement table (`.performance-table` inside its own scrollable region). */
-export function DataTable({headers, rows}: {headers: Header[]; rows: ReactNode[][]}) {
+export function DataTable({headers, rows, heat = []}: {headers: Header[]; rows: ReactNode[][]; heat?: HeatColumn[]}) {
+  const heatFor = (col: number) => heat.find(h => h.col === col);
   return (
     <div className={`performance-table-wrap${headers.length <= 6 ? ' is-compact-table' : ''}`} tabIndex={0} role="region" aria-label="Measurement table">
       <table className="performance-table">
         <thead><tr>{headers.map((h, i) => (
-          <th key={i} scope="col" aria-sort={typeof h === 'object' && h.state !== 'none' ? h.state : undefined}>
+          <th key={i} scope="col" className={heatFor(i) ? 'perf-heat-head' : undefined} aria-sort={typeof h === 'object' && h.state !== 'none' ? h.state : undefined}>
             {typeof h === 'object' ? <SortHeader model={h} /> : h}
           </th>
         ))}</tr></thead>
         <tbody>
-          {rows.length ? rows.map((row, i) => <tr key={i}>{row.map((cell, j) => <td key={j}>{cell}</td>)}</tr>)
+          {rows.length ? rows.map((row, i) => <tr key={i}>{row.map((cell, j) => {
+            const column = heatFor(j);
+            if (!column) return <td key={j}>{cell}</td>;
+            const share = heatShare(column, i);
+            return <td key={j} className="perf-heat-cell"><span className="perf-heat-value"
+              style={share ? {'--heat': share.toFixed(3)} as CSSProperties : undefined}>{cell}</span></td>;
+          })}</tr>)
             : <tr><td colSpan={headers.length} className="section-empty">No eligible data yet.</td></tr>}
         </tbody>
       </table>

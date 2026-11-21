@@ -99,6 +99,19 @@ def drive(state, laps=4, period=60.0, lap_times=True):
 
 
 class CompletedLaps(unittest.TestCase):
+    def test_timed_lap_is_available_while_telemetry_is_missing(self):
+        state = lt.LiveState()
+        state.apply('TimingData', {'Lines': {'1': {'NumberOfLaps': 1}}}, T0)
+        state.telemetry['1'].append({'t': T0 + 20, 'speed': 100})
+        state.apply('TimingData', {'Lines': {'1': {'NumberOfLaps': 2, 'LastLapTime': {'Value': '1:00.000'}}}}, T0 + 60)
+
+        self.assertEqual(state.lap_list()['1'][0]['time'], '1:00.000')
+        self.assertIsNone(state.lap_trace('1', 2))
+        state.telemetry['1'].append({'t': T0 + 62, 'speed': 100})
+        state._flush_laps()
+        self.assertEqual(state.lap_list()['1'][0]['time'], '1:00.000')
+        self.assertIsNone(state.lap_trace('1', 2))
+
     def test_laps_are_cut_between_lap_count_changes(self):
         state = lt.LiveState()
         drive(state)

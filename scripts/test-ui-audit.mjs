@@ -3,8 +3,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-const car=readFileSync('car-performance.js','utf8'),app=appSource(),ui=readFileSync('dashboard-ui.js','utf8'),css=readFileSync('ui-controls.css','utf8');
-const windowCss=readFileSync('macos-window.css','utf8');
+import {legacySource} from './legacy-css.mjs';
+const car=readFileSync('car-performance.js','utf8'),app=appSource(),ui=readFileSync('dashboard-ui.js','utf8'),css=legacySource('ui-controls.css');
+const windowCss=legacySource('macos-window.css');
 
 test('unverified transition links are not exposed as selectable controls',()=>{
   assert.doesNotMatch(app,/Other links|Select transition zones|picker\('transition'\)/);
@@ -42,17 +43,19 @@ test('loaded session context comes from loaded data, not pending selector values
 });
 
 
-test('mean and median change multi-GP race pace, not the qualifying statistic',()=>{
+test('mean and median apply to multi-GP qualifying and race pace alike',()=>{
   const box={};vm.createContext(box);
   // Shared helpers live in performance-format.js (plain consts once exports are dropped).
   vm.runInContext(readFileSync('performance-format.js','utf8').replace(/^export /gm,''),box);
   vm.runInContext(car.slice(car.indexOf('function rebase('),car.indexOf('async function get(')),box);
   vm.runInContext(car.slice(car.indexOf('function summarisePaceTeams('),car.indexOf('function renderPace(')),box);
-  const teams=[{team:'A',q:[1,3,20].map(pace=>({pace})),adjDeficits:[1,3,20],r:[2,4,24]},{team:'B',q:[0,0,0].map(pace=>({pace})),adjDeficits:[0,0,0],r:[0,0,0]}];
+  const entry=(team,qualifying,race)=>({team,q:qualifying.map((pace,event)=>({event,pace,adjustedPace:pace})),
+    raceCoverage:race.map((value,event)=>({event,value,basis:'clear-air'}))});
+  const teams=[entry('A',[1,3,20],[2,4,24]),entry('B',[0,0,0],[0,0,0])];
   const mean=box.summarisePaceTeams(teams,'mean'),median=box.summarisePaceTeams(teams,'median');
   assert.ok(Math.abs(mean[0].race-10)<1e-10);assert.ok(Math.abs(median[0].race-4)<1e-10);
-  assert.ok(Math.abs(mean[0].qualy-8)<1e-10);assert.ok(Math.abs(median[0].qualy-8)<1e-10);
-  const one=teams.map(t=>({...t,q:t.q.slice(0,1),r:t.r.slice(0,1)}));
+  assert.ok(Math.abs(mean[0].qualy-8)<1e-10);assert.ok(Math.abs(median[0].qualy-3)<1e-10);
+  const one=teams.map(t=>({...t,q:t.q.slice(0,1),raceCoverage:t.raceCoverage.slice(0,1)}));
   assert.equal(box.summarisePaceTeams(one,'mean')[0].race,box.summarisePaceTeams(one,'median')[0].race);
   assert.match(car,/loadedR=events\.filter\(e=>e\.R\?\.teams\?\.length\)\.length[\s\S]*?stat:\{show:loadedR>2/);
   assert.match(ui,/performance-stat-toggle.*pace-visual-grid/);

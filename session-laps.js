@@ -87,9 +87,9 @@ function renderDrivers() {
     const position = Number.isFinite(+d[5]) && +d[5] > 0 ? +d[5] : index + 1;
 
     const name = naturalDriverName(d[2] || code);
-    // A source-list row: position · logo · name · trailing code (a race shows
-    // its result there instead); the car number is in the tooltip.
-    return `<button class="driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-motion-key="driver-${code}" data-code="${code}" aria-label="${escapeUI(`P${position}, ${name}, ${d[4] || ''}, number ${number}`)}" aria-pressed="${isSelected}"><span class="driver-pill-position">${position}</span>${teamLogoMarkup(d[4])}<span class="driver-pill-identity">${escapeUI(name)}</span>${isRace ? raceResultMarkup(realDrivers.get(code)) : `<span class="driver-pill-code">${escapeUI(code)}</span>`}</button>`;
+    // A source-list row: position · team-colour chip with the car number · name · trailing code (a race shows
+    // its result there instead).
+    return `<button class="driver-pill ${isSelected ? 'selected' : ''}" style="--team:${color}" data-motion-key="driver-${code}" data-code="${code}" aria-pressed="${isSelected}"><span class="driver-pill-position"><span class="visually-hidden">P</span>${position}</span>${teamLogoMarkup(d[4], number)}<span class="driver-pill-identity">${escapeUI(name)}<span class="visually-hidden">, ${escapeUI(d[4] || '')}, number ${number}</span></span>${isRace ? raceResultMarkup(realDrivers.get(code)) : `<span class="driver-pill-code">${escapeUI(code)}</span>`}</button>`;
   }).join(''));
   
   root.querySelectorAll('button').forEach(btn => {
@@ -206,6 +206,7 @@ function toggleLoadedLap(code, lapNum) {
 }
 
 function renderStints() {
+  window.ApexSessionOverview?.render();
   const root = $('#stintPanels');
   const actions = $('#lapWorkspaceActions');
   if (!selected.length) {
@@ -232,7 +233,7 @@ function renderStints() {
     if (!driver || !display) return '';
     const teamColor = display[3] || '#777777';
     if (!driver.laps?.length) {
-      return `<article class="driver-run-card" data-motion-key="run-card-${code}" style="--team:${teamColor}"><header class="run-card-header"><div class="run-driver">${teamLogoMarkup(display[4])}<div class="run-driver-copy"><h3>${escapeUI(naturalDriverName(driver.name))}</h3><small>${code}</small></div></div></header><p class="section-empty">No laps in this session.</p></article>`;
+      return `<article class="driver-run-card" data-motion-key="run-card-${code}" style="--team:${teamColor}"><header class="run-card-header"><div class="run-driver">${teamLogoMarkup(display[4], display[1])}<div class="run-driver-copy"><h3>${escapeUI(naturalDriverName(driver.name))}</h3><small>${code}</small></div></div></header><p class="section-empty">No laps in this session.</p></article>`;
     }
 
     const timedLaps = driver.laps.filter(lap => Number.isFinite(lap.time) && lap.time > 0 && !lap.in_lap && !lap.out_lap);
@@ -241,17 +242,27 @@ function renderStints() {
     const hasQualifyingPhases = /^(Qualifying|Q|Sprint Qualifying|Sprint Shootout|SQ)$/i.test(loadedSessionName)
       || driver.laps.some(lap => /^Q[1-3]$/.test(lap.phase || ''));
     const phaseFor = lap => /^Q[1-3]$/.test(lap.phase || '') ? lap.phase : 'Unassigned';
+    // A lap the feed left without a stint (an untimed lap after the flag, say) belongs to the stint around it: the
+    // previous lap's, else the next one's. Its tyre is the stint's; the feed's "UNKNOWN" is not a compound.
+    const byLap = [...driver.laps].sort((a, b) => a.lap - b.lap);
+    const stintOf = new Map();
+    byLap.forEach((lap, i) => {
+      let stint = lap.stint;
+      for (let k = i - 1; stint == null && k >= 0; k--) stint = byLap[k].stint;
+      for (let k = i + 1; stint == null && k < byLap.length; k++) stint = byLap[k].stint;
+      stintOf.set(lap, stint ?? 1);
+    });
     const groupIds = hasQualifyingPhases
       ? ['Q1', 'Q2', 'Q3', 'Unassigned'].filter(phase => driver.laps.some(lap => phaseFor(lap) === phase))
-      : [...new Set(driver.laps.map(lap => String(lap.stint)))];
+      : [...new Set(driver.laps.map(lap => String(stintOf.get(lap))))];
     const active = groupIds.includes(String(openStint[code])) ? String(openStint[code]) : groupIds[0];
     const lapsForGroup = id => hasQualifyingPhases
       ? driver.laps.filter(lap => phaseFor(lap) === id)
-      : driver.laps.filter(lap => String(lap.stint) === id);
+      : driver.laps.filter(lap => String(stintOf.get(lap)) === id);
     const activeLaps = lapsForGroup(active);
     const runButtons = groupIds.map(id => {
       const laps = lapsForGroup(id);
-      const compounds = [...new Set(laps.map(lap => String(lap.compound || '').toUpperCase()).filter(Boolean))];
+      const compounds = [...new Set(laps.map(lap => String(lap.compound || '').toUpperCase()).filter(c => c && c !== 'UNKNOWN'))];
       const compoundBadges = compounds.map(compoundBadgeMarkup).join('');
       const runLabel = hasQualifyingPhases ? id : `Stint ${id}`;
       const count = hasQualifyingPhases ? new Set(laps.map(lap => lap.stint)).size : laps.length;
@@ -291,7 +302,7 @@ function renderStints() {
     return `
       <article class="driver-run-card" data-motion-key="run-card-${code}" style="--team:${teamColor}">
         <header class="run-card-header">
-          <div class="run-driver">${teamLogoMarkup(display[4])}<div class="run-driver-copy"><h3>${escapeUI(naturalDriverName(driver.name))}</h3><small>${code} · ${timedLaps.length} timed laps</small></div></div>
+          <div class="run-driver">${teamLogoMarkup(display[4], display[1])}<div class="run-driver-copy"><h3>${escapeUI(naturalDriverName(driver.name))}</h3><small>${code} · ${timedLaps.length} timed laps</small></div></div>
           ${fastest ? `<button class="fastest-lap-pick ${fastestLoaded ? 'selected' : ''}" data-motion-key="fastest-${code}" data-code="${code}" data-lap="${fastest.lap}" title="Add or remove this fastest lap"><span>Fastest</span><strong>${time(fastest.time)}</strong></button>` : ''}
         </header>
         <div class="run-section-label"><span>${hasQualifyingPhases ? 'Qualifying phases' : 'Runs'}</span></div>
@@ -346,7 +357,7 @@ function renderLoaded() {
   
   replaceUI(root, loaded.map((item, index) => `
     <div class="loaded-lap-pill ${index === 0 ? 'reference' : ''}" style="--team:${getLapColor(item)}" data-motion-key="comparison-${item.code}-${item.lap}" data-index="${index}">
-      <button class="loaded-lap-main ${index === 0 ? 'reference' : ''}" data-motion-key="reference-${item.code}-${item.lap}" aria-pressed="${index === 0}" aria-label="Use ${item.code} lap ${item.lap} as reference"><b>${item.code}</b><span>L${item.lap}${item.real?.in_lap && item.real?.out_lap ? ' IN/OUT' : item.real?.out_lap ? ' OUT' : item.real?.in_lap ? ' IN' : ''}</span><strong>${item.real?.display_time_estimated ? '~' : ''}${time(Number.isFinite(item.real?.display_time) ? item.real.display_time : item.time)}</strong></button><button class="remove" data-motion-key="remove-${item.code}-${item.lap}" data-remove="${index}" aria-label="Remove ${item.code} lap ${item.lap}">×</button>
+      <button class="loaded-lap-main ${index === 0 ? 'reference' : ''}" data-motion-key="reference-${item.code}-${item.lap}" aria-pressed="${index === 0}" title="Use ${item.code} lap ${item.lap} as reference"><b>${item.code}</b><span>L${item.lap}${item.real?.in_lap && item.real?.out_lap ? ' IN/OUT' : item.real?.out_lap ? ' OUT' : item.real?.in_lap ? ' IN' : ''}</span><strong>${item.real?.display_time_estimated ? '~' : ''}${time(Number.isFinite(item.real?.display_time) ? item.real.display_time : item.time)}</strong><span class="visually-hidden">, reference lap</span></button><button class="remove" data-motion-key="remove-${item.code}-${item.lap}" data-remove="${index}" aria-label="Remove ${item.code} lap ${item.lap}">×</button>
     </div>`).join(''));
   
   root.querySelectorAll('.loaded-lap-pill').forEach(p => {
@@ -363,6 +374,40 @@ function renderLoaded() {
       renderStints();
     };
   });
+}
+
+// Mini-sectors under each sector time, as the live timing tower draws them: each sector cut into eight equal stretches (the
+// sector lines found on the reference lap's telemetry), each lap timed through every stretch from its own telemetry
+// (performanceSectionDuration, as the mini-sector dominance map), and coloured as F1 colours them: purple the quickest of
+// the compared laps there, green within a hundredth of it, yellow slower. One lap alone has nothing to be compared with,
+// so it shows none. Returns [lap index][sector][stretch] = 'best' | 'near' | 'slow', or null while telemetry loads.
+const MINI_PER_SECTOR = 8;
+function lapMiniSectors() {
+  if (loaded.length < 2 || typeof performanceSectionDuration !== 'function' || typeof calibratedElapsed !== 'function') return null;
+  const series = loaded.map(item => (typeof telemetryCache !== 'undefined' ? telemetryCache.get(telemetryKey(item)) : null));
+  if (!series.every(samples => samples?.length)) return null;
+  const ref = loaded[0].real || {}, refSeries = series[0];
+  // The fraction of the lap where the reference lap's elapsed time reaches t (elapsed rises with distance).
+  const fractionAt = t => {
+    let lo = 0, hi = 1;
+    for (let k = 0; k < 30; k++) { const mid = (lo + hi) / 2, e = calibratedElapsed(refSeries, mid); if (e == null) return null; if (e < t) lo = mid; else hi = mid; }
+    return (lo + hi) / 2;
+  };
+  if (!Number.isFinite(ref.s1) || !Number.isFinite(ref.s2)) return null;
+  const f1 = fractionAt(ref.s1), f2 = fractionAt(ref.s1 + ref.s2);
+  if (f1 == null || f2 == null || !(f1 > 0 && f1 < f2 && f2 < 1)) return null;
+  const bounds = [[0, f1], [f1, f2], [f2, 1]];
+  const out = loaded.map(() => bounds.map(() => []));
+  bounds.forEach(([a, b], sector) => {
+    for (let m = 0; m < MINI_PER_SECTOR; m++) {
+      const start = a + (b - a) * m / MINI_PER_SECTOR, end = a + (b - a) * (m + 1) / MINI_PER_SECTOR;
+      const times = series.map(samples => performanceSectionDuration(samples, start, end));
+      const finite = times.filter(t => Number.isFinite(t) && t > 0);
+      const best = finite.length === times.length ? Math.min(...finite) : null;
+      times.forEach((t, lap) => out[lap][sector].push(best == null ? 'none' : t - best <= .0005 ? 'best' : t - best <= .01 ? 'near' : 'slow'));
+    }
+  });
+  return out;
 }
 
 function renderSectors() {
@@ -412,7 +457,11 @@ function renderSectors() {
   const conditionCell = (icon, label, value) => `
     <span class="summary-condition"><i aria-hidden="true">${icon}</i><span><small>${label}</small><strong>${value}</strong></span></span>`;
   
+  // The colours are F1's timing colours over the whole session (purple session best, green personal best); they do not say
+  // which compared lap was quicker. The quickest of the compared laps in each sector is marked separately.
+  const comparedBests = sectorFields.map(field => loaded.length > 1 ? finiteMinimum(loaded.map(item => item.real?.[field])) : null);
   const root = $('#sectorRows');
+  const minis = typeof lapMiniSectors === 'function' ? lapMiniSectors() : null;
   replaceUI(root, loaded.map((item, i) => {
     const lap = item.real || {};
     const refLap = ref.real || {};
@@ -422,6 +471,7 @@ function renderSectors() {
       value: lap[field],
       reference: refLap[field],
       state: sectorState(item.code, sectorIndex, lap[field]),
+      quickest: Number.isFinite(lap[field]) && Number.isFinite(comparedBests[sectorIndex]) && Math.abs(lap[field] - comparedBests[sectorIndex]) <= .0005,
     }));
     const conditions = lap.conditions || {};
     const direction = windCardinal(conditions.wind_direction);
@@ -436,19 +486,26 @@ function renderSectors() {
     const compoundClass = getCompoundToneClass(lap.compound || 'UNKNOWN');
     const tyreAge = Number.isFinite(lap.tyre_life) ? Math.max(1, Math.round(lap.tyre_life)) : null;
     const tyreLife = tyreAge === null ? '' : `Tyre lap ${tyreAge}`;
+    // The driver's ideal lap in this session: the sum of their best three sectors.
+    const own = personalBests.get(item.code);
+    const ideal = own && own.every(Number.isFinite) ? own.reduce((a, b) => a + b, 0) : null;
     return `
       <article class="lap-summary-card has-conditions" data-motion-key="summary-${item.code}-${item.lap}" style="--team:${color}">
         <header>
-          <span class="summary-driver" title="${item.code} · lap ${item.lap}">${teamLogoMarkup(realDrivers.get(item.code)?.team || drivers.find(driver=>driver[0]===item.code)?.[4])}<b>${item.code}</b><span class="summary-lap-label">Lap ${item.lap}</span>${i === 0 ? '<em>REF</em>' : ''}</span>
+          <span class="summary-driver" title="${item.code} · lap ${item.lap}">${teamLogoMarkup(realDrivers.get(item.code)?.team || drivers.find(driver=>driver[0]===item.code)?.[4], drivers.find(driver=>driver[0]===item.code)?.[1])}<b>${item.code}</b><span class="summary-lap-label">Lap ${item.lap}</span>${i === 0 ? '<em>REF</em>' : ''}</span>
           <span class="summary-header-actions">
             <span class="summary-tyre ${compoundClass}">${compoundBadgeMarkup(lap.compound)}<span class="summary-tyre-copy"><b>${compound}</b>${tyreLife ? `<small>${tyreLife}</small>` : ''}</span></span>
-            <span class="summary-lap-time"><small>${lap.in_lap && lap.out_lap ? 'PIT IN/OUT' : lap.out_lap ? 'PIT EXIT → LINE' : lap.in_lap ? 'PIT-IN LAP' : 'LAP'}</small>${i === 0 || lap.out_lap || ref.real?.out_lap ? '' : deltaBadge(item.time, ref.time)}<strong>${lap.display_time_estimated ? '~' : ''}${time(Number.isFinite(lap.display_time) ? lap.display_time : item.time)}</strong></span>
+            <span class="summary-lap-time"><small>${lap.in_lap && lap.out_lap ? 'PIT IN/OUT' : lap.out_lap ? 'PIT EXIT → LINE' : lap.in_lap ? 'PIT-IN LAP' : 'LAP'}</small>${i === 0 || lap.out_lap || ref.real?.out_lap ? '' : deltaBadge(item.time, ref.time)}<strong>${lap.display_time_estimated ? '~' : ''}${time(Number.isFinite(lap.display_time) ? lap.display_time : item.time)}</strong>${Number.isFinite(ideal) ? `<small class="summary-ideal" title="Sum of ${item.code}’s best three sectors this session">Ideal ${time(ideal)}</small>` : ''}</span>
           </span>
         </header>
-        <div class="summary-sectors">${sectors.map(({ label, value, reference, state }) => `
-          <span class="sector-cell ${state.className}" title="${label} · ${state.label}">
-            <span class="sector-cell-value"><small>${label}</small><span class="sector-measurements"><span class="sector-delta-slot">${i === 0 ? '' : deltaBadge(value, reference)}</span><strong>${Number.isFinite(value) ? `${value.toFixed(3)}s` : '—'}</strong></span></span>
-          </span>`).join('')}
+        <div class="summary-sectors">${sectors.map(({ label, value, reference, state, quickest }, sectorIndex) => {
+          const strip = minis?.[i]?.[sectorIndex];
+          const stripHtml = strip ? `<span class="sector-minis" aria-hidden="true">${strip.map(kind => `<i class="is-${kind}"></i>`).join('')}</span>` : '';
+          return `
+          <span class="sector-cell ${state.className}${quickest ? ' is-compared-best' : ''}${strip ? ' has-minis' : ''}" title="${label} · ${state.label}${quickest ? ' · quickest of the compared laps' : ''}${strip ? ' · mini-sectors: purple quickest of the compared laps, green within 0.01 s, yellow slower' : ''}">
+            <span class="sector-cell-value"><small>${label}</small><span class="sector-measurements"><span class="sector-delta-slot">${i === 0 ? '' : deltaBadge(value, reference)}</span><strong>${Number.isFinite(value) ? `${value.toFixed(3)}s` : '—'}</strong></span></span>${stripHtml}
+          </span>`;
+        }).join('')}
         </div>
         ${conditionsHtml}
       </article>

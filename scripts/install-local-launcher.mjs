@@ -14,8 +14,12 @@ const key='HKCU\\Software\\Classes\\apex-local',command=`"${pythonw}" "${wrapper
 const reg=(args)=>execFileSync('reg.exe',args,{windowsHide:true,encoding:'utf8',stdio:['ignore','pipe','pipe']});
 let previous='';
 try{previous=reg(['query',key+'\\shell\\open\\command','/ve']);}catch{}
-if(previous&&![launcher,wrapper,legacyWrapper].some(file=>previous.includes(file)))throw new Error('apex-local is already registered to another app; it was not changed.');
+// Replace a registration from this app (this or another copy) whose files are gone; never one that still points at something else.
+const registered=[...previous.matchAll(/"([^"]+\.(?:py|ps1|mjs|exe))"/gi)].map(m=>m[1]);
+const ours=[launcher,wrapper,legacyWrapper].some(file=>previous.includes(file));
+const stale=registered.length>0&&registered.some(file=>/launch-local\.(py|ps1|mjs)$/i.test(file))&&!registered.every(file=>existsSync(file));
+if(previous&&!ours&&!stale)throw new Error('apex-local is already registered to another app; it was not changed.');
 reg(['add',key,'/ve','/d','URL:Apex local compute','/f']);
 reg(['add',key,'/v','URL Protocol','/d','','/f']);
 reg(['add',key+'\\shell\\open\\command','/ve','/d',command,'/f']);
-console.log('Installed for this Windows user. Use local compute now starts the server and opens its dashboard.');
+console.log(`Installed for this Windows user (${root}). "Start compute on this PC" on the site now starts this copy's compute service.`);

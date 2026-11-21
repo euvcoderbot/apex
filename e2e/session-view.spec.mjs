@@ -1,6 +1,16 @@
 import {test, expect} from '@playwright/test';
 import {isolate, replayFixture} from './helpers.mjs';
 
+test('overview chart values are available on keyboard focus and dismiss with Escape', async ({page}) => {
+  await open(page);
+  const point = page.locator('#sessionOverview svg[data-hover] .point').first();
+  await expect(point).toBeVisible(); await point.focus();
+  const tip = page.locator('.overview-tip');
+  await expect(tip).toBeVisible();
+  await expect(tip).toContainText(await point.getAttribute('data-code'));
+  await point.press('Escape'); await expect(tip).toBeHidden();
+});
+
 // Session analysis with real numbers (Bahrain 2026 qualifying, VER against LEC on their fastest laps), replayed with no network.
 async function open(page) {
   await isolate(page);
@@ -48,18 +58,27 @@ test('layout stays put while the laps load (CLS under 0.1)', async ({page, brows
   expect(await page.evaluate(() => window.__cls)).toBeLessThan(0.1);
 });
 
-test('team marks are drawn tiles with a visible code, in both appearances', async ({page}) => {
+test('drivers carry their photo on the team colour, or a team-colour chip with their car number, in both appearances', async ({page}) => {
   await open(page);
   for (const theme of ['dark', 'light']) {
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
-    const marks = await page.evaluate(() => [...document.querySelectorAll('.team-mark')].filter(el => el.offsetParent).map(el => {
+    const faces = await page.evaluate(() => [...document.querySelectorAll('#driverPills img.driver-face')].filter(el => el.offsetParent).map(el => ({
+      src: el.getAttribute('src'), width: el.getBoundingClientRect().width, background: getComputedStyle(el).backgroundColor})));
+    for (const face of faces) {
+      expect(face.src, `${theme}: a driver photo`).toMatch(/^assets\/drivers\/[a-z_]+\.webp$/);
+      expect(face.width).toBeGreaterThan(0); expect(face.background, 'on the team colour').not.toBe('rgba(0, 0, 0, 0)');
+    }
+    const chips = await page.evaluate(() => [...document.querySelectorAll('#driverPills .team-mark')].filter(el => el.offsetParent).map(el => {
       const after = getComputedStyle(el, '::after');
-      return {team: el.dataset.teamMark, code: after.content.replace(/"/g, ''), size: parseFloat(after.fontSize), width: el.getBoundingClientRect().width, images: el.querySelectorAll('img').length};
+      return {team: el.dataset.teamMark, number: after.content.replace(/"/g, ''), size: parseFloat(after.fontSize), width: el.getBoundingClientRect().width,
+        background: getComputedStyle(el).backgroundColor, ink: after.color, images: el.querySelectorAll('img').length, text: el.textContent};
     }));
-    expect(marks.length, `${theme}: marks on the page`).toBeGreaterThan(0);
-    for (const mark of marks) {
-      expect(mark.code, `${theme} ${mark.team} shows its code`).toMatch(/^[A-Z]{2,3}$/);
-      expect(mark.width).toBeGreaterThan(0); expect(mark.size).toBeGreaterThan(4); expect(mark.images).toBe(0);
+    expect(chips.length + faces.length, `${theme}: driver chips or photos`).toBeGreaterThan(4);
+    for (const chip of chips) {
+      expect(chip.number, `${theme} ${chip.team} shows its car number`).toMatch(/^\d{1,3}$/);
+      expect(chip.width).toBeGreaterThan(0); expect(chip.size).toBeGreaterThan(4); expect(chip.images).toBe(0);
+      expect(chip.text, 'the number is not part of the text').toBe('');
+      expect(chip.background).not.toBe(chip.ink);
     }
   }
 });

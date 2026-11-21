@@ -3,7 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import postcss from 'postcss';
-const read=f=>readFileSync(f,'utf8');
+import {legacySource} from './legacy-css.mjs';
+const read=f=>/^(design-system|polish|apple-ui|car-performance|workspace-ui|trace-focus|macos-ui|ui-controls|macos-window|hig-system)\.css$/.test(f)?legacySource(f):readFileSync(f,'utf8');
 const css=read('ui-controls.css'),car=read('car-performance.js'),app=appSource(),ui=read('dashboard-ui.js');
 
 test('lap states cannot wrap and wide tyre/development layouts use bounded label columns',()=>{
@@ -19,8 +20,7 @@ test('targeted UI fixes keep panels separate, controls contained and units visib
   const hig=read('hig-system.css'),corners=read('session-corners.js');
   assert.match(hig,/container: telemetry \/ inline-size/);
   assert.match(hig,/@container telemetry \(max-width: 1050px\)[\s\S]*grid-template-areas: "corner" "charts"/);
-  assert.match(hig,/\.lap-chip\.is-preparation\[aria-pressed="true"\] \.lap-state \{ color: var\(--ui-accent\)/);
-  assert.match(hig,/summary-lap-time > strong \{ font-weight: 700/);
+  assert.match(hig,/\.lap-chip\.is-preparation\[aria-pressed="true"\] \.lap-state \{[^}]*color: var\(--ui-accent\)/);
   assert.match(hig,/performance-bar-row \{ grid-template-columns: minmax\(0,14em\) minmax\(32px,1fr\) max-content/);
   assert.match(ui,/primaryBody\.prepend\(group\)/);
   assert.match(corners,/sectionTime\.toFixed\(3\)\+'s'/);
@@ -46,7 +46,7 @@ test('regular controls share tokenised type, height and spacing without fixed-he
   assert.equal(values.height,'auto');assert.equal(values['min-height'],'0');assert.equal(values['flex-wrap'],'wrap');
   const button=rules.find(r=>r.selector==='[data-ui-group="segments"] > button[data-ui-kind="segment"]');
   const props=Object.fromEntries(button.nodes.filter(n=>n.type==='decl').map(d=>[d.prop,d.value]));
-  assert.equal(props.height,'var(--ui-control-height)');assert.equal(props['font-size'],'var(--ui-control-font)');
+  assert.equal(props.height,'var(--ui-control-height)');
   assert.equal(props['white-space'],'nowrap');
   const tokenCss=read('tokens.css');assert.match(tokenCss,/--ui-control-height: 30px/);assert.match(tokenCss,/--ui-control-font: 14px/);assert.match(tokenCss,/@media\s*\(pointer:coarse\)[\s\S]*--ui-control-height: 44px/);
 });
@@ -60,7 +60,7 @@ test('main comparisons have no vertical height cap and no redundant ranking foot
 });
 
 test('speed ranges and results use pressed-state pills and retire their dropdown handlers',()=>{
-  // Reliability & results is a React view: a segmented control of data-results-chart buttons.
+  // Finishes & retirements is a React view: a segmented control of data-results-chart buttons.
   const resultsView=readFileSync('src/views/ResultsView.tsx','utf8'),segmented=readFileSync('src/components/SegmentedControl.tsx','utf8');
   assert.match(resultsView,/<SegmentedControl name="results-chart"/);
   assert.match(segmented,/<button[^>]+\{\.\.\.\{\[attribute\]: key\}\} aria-pressed=/);

@@ -1,0 +1,318 @@
+{
+ "year": 2020,
+ "fetched": "2026-11-16",
+ "circuits": [
+  {
+   "event": "Abu Dhabi Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2020%20Abu%20Dhabi%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Australian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2020%20Australian%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Bahrain Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2020%20Bahrain%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zone_kind": "drs",
+   "zones": [
+    {
+     "turn": "3",
+     "offset_m": 23
+    },
+    {
+     "turn": "10",
+     "offset_m": 50
+    },
+    {
+     "turn": "15",
+     "offset_m": 170
+    }
+   ],
+   "centreline_m": 5412,
+   "drs": {
+    "detection": [
+     {
+      "number": 1,
+      "text": "50m before T1",
+      "turn": "1",
+      "offset_m": -50
+     },
+     {
+      "number": 2,
+      "text": "10m before T9",
+      "turn": "9",
+      "offset_m": -10
+     },
+     {
+      "number": 3,
+      "text": "110m before T14",
+      "turn": "14",
+      "offset_m": -110
+     }
+    ],
+    "activation": [
+     {
+      "number": 1,
+      "text": "23m after T3",
+      "turn": "3",
+      "offset_m": 23
+     },
+     {
+      "number": 2,
+      "text": "50m after T10",
+      "turn": "10",
+      "offset_m": 50
+     },
+     {
+      "number": 3,
+      "text": "170m after T15",
+      "turn": "15",
+      "offset_m": 170
+     }
+    ]
+   },
+   "venue": "Sakhir"
+  },
+  {
+   "event": "Belgian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2020%20Belgian%20Grand%20Prix%20-%20Circuit%20Map_0.pdf",
+   "zone_kind": "drs",
+   "zones": [
+    {
+     "turn": "4",
+     "offset_m": 230
+    }
+   ],
+   "centreline_m": 7004,
+   "drs": {
+    "detection": [
+     {
+      "number": 1,
+      "text": "240m before Turn 2",
+      "turn": "2",
+      "offset_m": -240
+     },
+     {
+      "number": 2,
+      "text": "160m before Turn 18",
+      "turn": "18",
+      "offset_m": -160
+     }
+    ],
+    "activation": [
+     {
+      "number": 1,
+      "text": "230m after Turn 4",
+      "turn": "4",
+      "offset_m": 230
+     },
+     {
+      "number": 2,
+      "text": "30m adter Turn 19"
+     }
+    ]
+   },
+   "venue": "Spa-Francorchamps"
+  },
+  {
+   "event": "British Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2020%20British%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Eifel Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2020%20Eifel%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zone_kind": "drs",
+   "zones": [
+    {
+     "turn": "11",
+     "offset_m": 55
+    },
+    {
+     "turn": "15",
+     "offset_m": 73
+    }
+   ],
+   "centreline_m": 5148,
+   "drs": {
+    "detection": [
+     {
+      "number": 1,
+      "text": "45m before Turn 10",
+      "turn": "10",
+      "offset_m": -45
+     },
+     {
+      "number": 2,
+      "text": "115m before Turn 15",
+      "turn": "15",
+      "offset_m": -115
+     }
+    ],
+    "activation": [
+     {
+      "number": 1,
+      "text": "55m after Turn 11",
+      "turn": "11",
+      "offset_m": 55
+     },
+     {
+      "number": 2,
+      "text": "73m after Turn 15",
+      "turn": "15",
+      "offset_m": 73
+     }
+    ]
+   }
+  },
+  {
+   "event": "Emilia Romagna Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2020%20Emilia%20Romagna%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Formula 1 70th Anniversary Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/70TH%20Anniversary%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Hungarian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2020%20Hungarian%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Italian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2020%20Italian%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Portuguese Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2020%20Portuguese%20Grand%20Prix%20-%20Circuit%20Map_0.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Russian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2020%20Russian%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Sakhir Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2020%20Sakhir%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Spanish Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2020%20Spanish%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Styrian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2020%20Styrian%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zone_kind": "drs",
+   "zones": [
+    {
+     "turn": "1",
+     "offset_m": 102
+    },
+    {
+     "turn": "3",
+     "offset_m": 100
+    },
+    {
+     "turn": "10",
+     "offset_m": 106
+    }
+   ],
+   "centreline_m": 4318,
+   "drs": {
+    "detection": [
+     {
+      "number": 1,
+      "text": "160m before T1",
+      "turn": "1",
+      "offset_m": -160
+     },
+     {
+      "number": 2,
+      "text": "40m before T3",
+      "turn": "3",
+      "offset_m": -40
+     },
+     {
+      "number": 3,
+      "text": "120m before T10",
+      "turn": "10",
+      "offset_m": -120
+     }
+    ],
+    "activation": [
+     {
+      "number": 1,
+      "text": "102m after T1",
+      "turn": "1",
+      "offset_m": 102
+     },
+     {
+      "number": 2,
+      "text": "100m after T3",
+      "turn": "3",
+      "offset_m": 100
+     },
+     {
+      "number": 3,
+      "text": "106m after T10",
+      "turn": "10",
+      "offset_m": 106
+     }
+    ]
+   }
+  },
+  {
+   "event": "Turkish Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2020%20Turkish%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Tuscan Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2020%20Tuscan%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zone_kind": "drs",
+   "zones": [
+    {
+     "turn": "15",
+     "offset_m": 290
+    }
+   ],
+   "centreline_m": 5245,
+   "drs": {
+    "detection": [
+     {
+      "number": 1,
+      "text": "Start of Turn 15"
+     }
+    ],
+    "activation": [
+     {
+      "number": 1,
+      "text": "290m after Turn 15",
+      "turn": "15",
+      "offset_m": 290
+     }
+    ]
+   }
+  }
+ ]
+}

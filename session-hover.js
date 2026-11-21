@@ -203,7 +203,7 @@ function bindTrackMapHover() {
         const comparable = segmentRows.length >= 2 && segmentRows.every(row => Number.isFinite(row.sectionTime) && row.sectionTime > 0);
         const bestTime = comparable ? Math.min(...segmentRows.map(row => row.sectionTime)) : null;
         const lines = segmentRows.map(({ lap, speed, sectionTime }) => {
-          const speedDisplay = Number.isFinite(speed) ? `${speed.toFixed(1)} KM/H` : '—';
+          const speedDisplay = Number.isFinite(speed) ? `${speed.toFixed(1)} km/h` : '—';
           const timeDisplay = Number.isFinite(sectionTime) && sectionTime > 0
             ? `${sectionTime.toFixed(3)}s${bestTime == null ? ' · NOT COMPARED' : Math.abs(sectionTime - bestTime) < .0005 ? ' FASTEST' : ` +${(sectionTime - bestTime).toFixed(3)}s`}`
             : 'NO SECTION TIME';

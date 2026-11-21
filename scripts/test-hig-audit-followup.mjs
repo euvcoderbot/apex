@@ -4,7 +4,8 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
 import {UI_STYLES,buildUiStyles} from '../lib/ui-style-build.mjs';
-const read=file=>readFileSync(file,'utf8');
+import {legacySource} from './legacy-css.mjs';
+const read=file=>/^(design-system|polish|apple-ui|car-performance|workspace-ui|trace-focus|macos-ui|ui-controls|macos-window|hig-system).css$/.test(file)?legacySource(file):readFileSync(file,'utf8');
 
 test('expanded charts isolate only background siblings and restore pre-existing state and focus',()=>{
   function node(name,inert=false){return {name,inert,children:[],attrs:{},setAttribute(k,v){this.attrs[k]=v;},removeAttribute(k){delete this.attrs[k];}};}

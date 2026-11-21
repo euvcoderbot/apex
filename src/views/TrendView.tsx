@@ -13,6 +13,7 @@ export type TrendRow = {
 export type TrendViewProps =
   | {single: true; event: string}
   | {single?: false; view: 'observed' | 'fitted'; showSensitivity: boolean; rows: TrendRow[];
+     rounds: {round: string; name: string}[]; round: string; qualifyingHref?: string; declarationsHref?: string;
      spark: {lo: number; hi: number; ceiling: number}; sort: {team: SortHeaderModel; last: SortHeaderModel; change: SortHeaderModel}};
 
 /** Car performance · Development & updates (relative qualifying progress). */
@@ -28,23 +29,42 @@ export function TrendView(props: TrendViewProps) {
     </Card>
   );
   const {view, showSensitivity, rows, spark, sort} = props, fitted = view === 'fitted';
-  const ranked = rows.map(r => ({...r.team, value: fitted ? r.fittedChange : r.change, count: r.count}))
+  const ranked = rows.map(r => ({...r.team, value: fitted ? r.fittedChange : r.change, count: r.count, evidenceLabel: `${r.count} GPs`}))
     .filter((r): r is typeof r & {value: number} => r.count >= 2 && finite(r.value)).sort((a, b) => a.value - b.value);
   return (
     <Card title="Relative qualifying progress"
       note={`Ranked by ${fitted ? 'a robust fitted rate across measured rounds' : 'the observed change between median opening and latest event groups'}. More negative means the team closed the gap to the quickest car. This measures relative one-lap progress, not a proven upgrade effect.`}>
       <SegmentedControl name="trend-view" label="Rank development by" value={view} options={[['observed', 'Opening → latest'], ['fitted', 'Fitted trend']]} />
       <p className="performance-note">The dots, opening/latest medians and fit use the same evolution-adjusted gaps (raw gaps where adjustment is unavailable). Observed change compares the endpoint groups; fitted change uses every measured round. {fitted ? 'The dashed line shows that fit. ' : ''}Missing rounds are not filled. Circuit suitability, setup and driver changes affect the trend.</p>
+      <div className="trend-round-tools">
+        <label>Highlight <select data-trend-entrant="">
+          <option value="">All teams</option>
+          {[...rows].sort((a, b) => a.team.team.localeCompare(b.team.team)).map(({team}) =>
+            <option key={team.team} value={team.team}>{team.team}</option>)}
+        </select></label>
+        <label>Inspect round <select data-trend-round="" defaultValue={props.round}>
+          <option value="">Season summary</option>
+          {props.rounds.map(event => <option key={event.round} value={event.round}>R{event.round} · {event.name}</option>)}
+        </select></label>
+        {props.qualifyingHref ? <a className="perf-link" href={props.qualifyingHref}>Open qualifying laps</a> : null}
+        {props.declarationsHref ? <a className="perf-link" href={props.declarationsHref}>Season upgrade declarations</a> : null}
+      </div>
       <div className="trend-board">
         <div className="performance-chart-card">
           <div className="perf-chart-header"><div className="perf-chart-title-group">
             <h4 className="perf-chart-heading">Gap to the quickest car, by round</h4>
-            <span className="perf-chart-sub">Higher is quicker. Hover a team to pick out its line.</span>
+            <span className="perf-chart-sub">Gap in % of lap time. Higher is quicker.</span>
           </div></div>
-          <TrendChart {...spark} series={rows.map(r => ({key: r.team.team, label: r.team.team, teamColor: r.team.color, points: r.points, fit: fitted ? r.fit : null}))} />
+          <TrendChart {...spark} selectedRound={props.round ? Number(props.round) : undefined} series={rows.map(r => ({key: r.team.team, label: r.team.team, teamColor: r.team.color, points: r.points, fit: fitted ? r.fit : null}))} />
         </div>
-        <DivergingBarChart title={fitted ? 'Fitted change' : 'Change, opening to latest'} subtitle="Left of zero closed the gap, right of zero lost ground" unit="%"
-          extent={Math.max(0, ...ranked.map(r => Math.abs(r.value)))} rows={ranked} seriesKey={r => r.team || ''} />
+        {props.round ? <div className="performance-chart-card">
+          <h4 className="perf-chart-heading">Round {props.round} qualifying gaps</h4>
+          <DataTable headers={['Team', 'Gap to quickest car']} rows={rows.map(row => ({
+            team: row.team, point: row.points.find(point => String(point.round) === props.round)
+          })).sort((a, b) => (a.point?.pace ?? Infinity) - (b.point?.pace ?? Infinity))
+            .map(row => [<TeamLabel team={row.team} />, row.point ? fmt(row.point.pace, 3, '%') : 'No reading'])} />
+        </div> : <DivergingBarChart title={fitted ? 'Fitted change' : 'Change, opening to latest'} subtitle="Left of zero closed the gap, right of zero lost ground" unit="%"
+          extent={Math.max(0, ...ranked.map(r => Math.abs(r.value)))} rows={ranked} seriesKey={r => r.team || ''} />}
       </div>
       <div className="performance-trend-table" data-fit-sensitivity={showSensitivity ? 'true' : 'false'}>
         <DataTable headers={[sort.team, sort.last,

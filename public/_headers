@@ -1,0 +1,17 @@
+# Static asset caching (Cloudflare static assets read this file).
+# Every script and stylesheet the pages load carries ?v=<revision of the browser code> (scripts/sync-static.mjs), so a new
+# release is a new URL: these can be kept for a year. The pages themselves (/apex/, /apex/cars/...) are not matched here
+# and keep revalidating, and published data is served by the Worker with its own headers (lib/data-store.mjs).
+/apex/*.js
+  Cache-Control: public, max-age=31536000, immutable
+/apex/*.css
+  Cache-Control: public, max-age=31536000, immutable
+# Fonts, flags, circuit outlines and driver photos change rarely and are not versioned: a day, then refreshed in the background.
+/apex/assets/fonts/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
+/apex/assets/flags/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/apex/assets/circuits/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/apex/assets/drivers/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800

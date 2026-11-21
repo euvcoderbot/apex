@@ -101,24 +101,32 @@ test('real recorded laps load in the redesigned workspace without changing value
   await page.screenshot({path: `test-results/linear-mobile-${test.info().project.name}.png`});
 });
 
-test('all eight performance categories work with the Linear rail and flat bars', async ({page}) => {
+test('all eight performance categories work from the page pills with flat bars', async ({page}) => {
   test.setTimeout(90000);
   await isolate(page); await replayFixture(page);
   await page.goto('/apex/cars/pace?year=2026&scope=tracks&races=16,17,18&run=1');
   await expect(page.locator('#performanceMetricPanel')).toBeVisible({timeout: 30000});
   await expect(page.locator('#performanceMetricPanel')).not.toHaveAttribute('aria-busy', 'true', {timeout: 30000});
   for (const metric of ['pace', 'corners', 'straight', 'braking', 'pits', 'tyres', 'trend', 'results']) {
-    await page.locator(`#linearWorkspace [data-sidebar-metric="${metric}"]`).click();
-    await expect(page.locator(`#linearWorkspace [data-sidebar-metric="${metric}"]`)).toHaveAttribute('aria-selected', 'true');
+    // After the phone/desktop round trip below, WebKit can drop the first click while it settles the layout: click until
+    // the category is selected (as the navigation test does for WebKit's first click).
+    await expect(async () => {
+      await page.locator(`#performanceResults .performance-mode [data-performance-metric="${metric}"]`).click();
+      await expect(page.locator(`#performanceResults .performance-mode [data-performance-metric="${metric}"]`)).toHaveAttribute('aria-selected', 'true', {timeout: 2000});
+    }).toPass({timeout: 15000});
     await expect(page.locator('#performanceMetricPanel')).toBeVisible();
-    for (const width of [1440, 390]) {
+    for (const width of [390, 1440]) {
       await page.setViewportSize({width, height: 900});
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
     }
   }
   await page.setViewportSize({width: 1440, height: 900});
-  await page.locator('#linearWorkspace [data-sidebar-metric="trend"]').click();
+  await page.locator('#performanceResults .performance-mode [data-performance-metric="trend"]').click();
+  // After an analysis the race picker is folded; Change opens it again.
+  await expect(page.locator('#performanceTrackChoices')).toBeHidden();
+  await page.locator('#performanceTrackToggle').click();
   const selected = page.locator('#performanceTrackPills .track-pill[aria-pressed="true"]').first();
+  await expect(selected).toBeVisible();
   expect(await selected.evaluate(el => getComputedStyle(el).gridTemplateRows.split(' ').length), 'selected track check stays on one row').toBe(1);
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({path: `test-results/linear-performance-${test.info().project.name}.png`});

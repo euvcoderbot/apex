@@ -98,7 +98,7 @@ function renderMiniSectorMap() {
   title.innerHTML = !mapEntries.length
     ? 'Track map <small>NO LAP LOADED</small>'
     : comparative
-      ? 'Mini-sector dominance <small>25 M SEGMENTS</small>'
+      ? 'Mini-sector dominance <small>25 m segments</small>'
       : 'Track map <small>SINGLE TRACE</small>';
   if (!mapEntries.length) {
     clearDominanceMapCanvas(canvas);
@@ -356,7 +356,7 @@ function renderMiniSectorMap() {
     for (const {x, y, radius, label} of beads) {
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fillStyle = light ? '#ffffff' : '#1c1c1e';
+      ctx.fillStyle = canvasTheme().panel || (light ? '#ffffff' : '#191a1b');  // the card the map sits on (Linear tokens)
       ctx.fill();
       ctx.strokeStyle = light ? '#1d1d1f' : '#e5e5ea';
       ctx.lineWidth = 1.1;

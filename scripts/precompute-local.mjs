@@ -6,7 +6,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {SOURCE_REVISION,BACKEND_REVISION,RACE_REVISION} from '../lib/cache-revision.mjs';
 import {mergeLocalCaptures} from '../lib/local-captures.mjs';
-import {confirmedQualifying} from '../lib/confirmed-qualifying.mjs';
+import {confirmedQualifying, confirmedSession} from '../lib/confirmed-qualifying.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const args=process.argv.slice(2),arg=(name,fallback)=>{const i=args.indexOf(name);return i<0?fallback:args[i+1];};
 const year=Number(arg('--year','2026')),gp=arg('--gp','Singapore Grand Prix');
@@ -47,6 +47,21 @@ if(capturing){
       event.session_statuses={...event.session_statuses,Qualifying:'completed'};
       console.log(`Qualifying completion confirmed by local source capture: ${event.name}.`);
     }
+  }
+  // --confirmed-local-race: the same evidence for the Race (rebuilding past rounds the source calendar no longer reports).
+  if(args.includes('--confirmed-local-race'))for(const event of targets){
+    if(event.session_statuses?.Race!=='completed' && await confirmedSession(root,year,event,'Race')){
+      event.session_statuses={...event.session_statuses,Race:'completed'};
+      console.log(`Race completion confirmed by local source capture: ${event.name}.`);
+    }
+  }
+  // --finished-season: a season that has ended (a year before this one, every event date passed) is complete as a whole;
+  // its calendar no longer reports per-session statuses. Each capture still has to pass capture()'s completeness checks.
+  if(args.includes('--finished-season')){
+    const ended=year<new Date().getUTCFullYear()&&allEvents.length>0&&allEvents.every(e=>e.date&&Date.parse(e.date+'T23:59:59Z')<Date.now());
+    if(!ended)throw new Error('--finished-season is only for a season that has ended.');
+    for(const event of targets)event.session_statuses={...Object.fromEntries((event.sessions||[]).map(n=>[n,'completed'])),...event.session_statuses};
+    console.log(`Season ${year} has ended: its ${targets.length} events' sessions count as completed.`);
   }
   for(const event of targets){
     const status=event.session_statuses||{};
@@ -103,11 +118,13 @@ for(const subject of ['team','driver']){
 if(!args.includes('--qualifying-only'))try{const pits=await get('/api/performance/pits?'+new URLSearchParams({year,gp,source:'dhl-fallback-v2',schema:3}));if(pits.stationary_status!=='complete')reportIncomplete('Pit stationary timing remains partial.');}catch(e){reportIncomplete('Pit data: '+e.message);}
 // Session analysis summaries, with the page's own session names (session-state.js
 // currentQuery; the cache key ignores its data_schema field).
-for(const name of ['Qualifying','Sprint Qualifying','Sprint','Race']){
+// --practice adds the practice sessions (Head-to-head's practice pace reads them).
+for(const name of [...(args.includes('--practice')?['Practice 1','Practice 2','Practice 3']:[]),'Qualifying','Sprint Qualifying','Sprint','Race']){
   if(args.includes('--qualifying-only') && name==='Race')continue;
   // Preserve the independently confirmed, richer native session capture. The
   // generic API summary does not carry its completion provenance or coverage.
   if(name==='Qualifying' && args.includes('--confirmed-local-qualifying') && await confirmedQualifying(root,year,event))continue;
+  if(name==='Race' && args.includes('--confirmed-local-race') && await confirmedSession(root,year,event,'Race'))continue;
   const date=event.session_dates?.[name];
   if(!date||Date.parse(date)>Date.now())continue;
   try{await get('/api/session?'+new URLSearchParams({year,gp,round,session:name}));}catch(e){reportIncomplete(`Session ${name}: `+e.message);}

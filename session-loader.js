@@ -8,6 +8,8 @@ function selectCustomOption(optionButton) {
   const shell = optionButton.closest('.select-shell');
   const select = shell?.querySelector('select');
   const trigger = shell?.querySelector('.select-trigger');
+  const ownerId = shell?.parentElement?.closest('[id]')?.id;
+  const fieldName = select?.getAttribute('aria-label');
   const optionIndex = Number(optionButton.getAttribute('data-select-index'));
   if (!select || !Number.isInteger(optionIndex) || optionIndex < 0 || optionIndex >= select.options.length) return;
   if (select.disabled || select.options[optionIndex].disabled) return;
@@ -16,7 +18,13 @@ function selectCustomOption(optionButton) {
   closeSelectMenu(shell);
   syncSelectUI(select);
   if (select.id !== 'session') select.dispatchEvent(new Event('change', { bubbles: true }));
-  trigger?.focus();
+  // The session menu does not fire change (choosing one is not loading it), so the Load button's label is updated here.
+  else if (typeof markPendingSelection === 'function') markPendingSelection();
+  // A change handler may rebuild its view and replace this selector before focus returns.
+  const owner = (ownerId && document.getElementById(ownerId)) || document;
+  const replacement = trigger?.isConnected ? trigger :
+    (document.getElementById(select.id) || [...owner.querySelectorAll('select')].find(node => fieldName && node.getAttribute('aria-label') === fieldName))?.closest('.select-shell')?.querySelector('.select-trigger');
+  replacement?.focus({preventScroll: true});
 }
 
 /**
@@ -214,14 +222,17 @@ function latestCompletedSelection(events, now = Date.now()) {
   (events || []).forEach((event, eventIndex) => {
     (event.sessions || []).forEach((session, sessionIndex) => {
       const status = String(event.session_statuses?.[session] || '').toLowerCase();
-      if (['cancelled', 'live', 'upcoming', 'interrupted', 'aborted', 'suspended'].includes(status)) return;
+      if (['cancelled', 'interrupted', 'aborted', 'suspended'].includes(status)) return;
       const timestamp = parsedSessionTimestamp(
         event.session_end_dates?.[session] || event.session_dates?.[session]
       );
-      // A missing finish flag can leave a published weekend marked unknown.
-      // After 36 hours, it is safe to offer the session as the default; this
-      // only changes the selection and never fetches its data automatically.
-      if (status === 'unknown' && timestamp > now - 36 * 3600000) return;
+      // A calendar saved before the weekend still says "upcoming" after the session has run: three hours past its scheduled end,
+      // the clock wins over that stale status.
+      if (status === 'upcoming' && !(timestamp < now - 3 * 3600000)) return;
+      // A missing finish flag can leave a published weekend marked unknown, and a red-flagged session can stay "live" past its
+      // scheduled end. After 36 hours, it is safe to offer either as the default; this only changes the selection and never
+      // fetches its data automatically.
+      if ((status === 'unknown' || status === 'live') && !(timestamp < now - 36 * 3600000)) return;
       if (!Number.isFinite(timestamp) || timestamp > now) return;
       if (!latest || timestamp > latest.timestamp) {
         latest = { event, session, timestamp, eventIndex, sessionIndex };
@@ -310,17 +321,32 @@ function publishedSessionIds(indexes, revisions) {
   }
   return ids;
 }
+let publishedSessionsChecked = false;
+let publicationCheck = null;
 async function loadPublishedSessions() {
   if (!window.APEX_SNAPSHOT_MODE || window.APEX_LOCAL_MODE) return;
+  if (publicationCheck) return publicationCheck;
+  publicationCheck = checkPublishedIndexes().finally(() => { publicationCheck = null; });
+  return publicationCheck;
+}
+async function checkPublishedIndexes() {
+  if (!snapshotCheckedAt) snapshotCheckedAt = Date.now();
   const get = path => fetch(path, {cache: 'no-cache'}).then(r => r.ok ? r.json() : null).catch(() => null);
-  const [captures, prerendered, prepared] = await Promise.all([
-    get('assets/data/local-captures/index.json'), get('assets/data/prerendered/index.json'), get('assets/data/sessions/index.json')]);
+  // The capture and prerendered indexes are the ones the data reader (session-state.js) loads: the first check shares its
+  // download (they are 2 MB and 0.6 MB of JSON, and every page used to fetch the capture index twice); a later check (the
+  // minute's refresh) fetches them afresh and hands the new copies to the reader too.
+  const refresh = publishedSessionsChecked; publishedSessionsChecked = true;
+  if (refresh || !localCaptureIndex) localCaptureIndex = get('assets/data/local-captures/index.json');
+  if (refresh || !prerenderedIndex) prerenderedIndex = get('assets/data/prerendered/index.json');
+  const [captures, prerendered, prepared] = await Promise.all([localCaptureIndex, prerenderedIndex, get('assets/data/sessions/index.json')]);
   if (!captures && !prerendered && !prepared) return;
   const next=publishedSessionIds({captures, prerendered, prepared}, {source: window.APEX_SOURCE_VERSION, compatible: window.APEX_SNAPSHOT_COMPATIBILITY?.sourceRevision});
   const changed=publishedSessions && (next.size!==publishedSessions.size || [...next].some(id=>!publishedSessions.has(id)));
   publishedSessions = next;
   if(changed){
     invalidateSnapshotData();
+    localCaptureIndex = captures ? Promise.resolve(captures) : null;
+    prerenderedIndex = prerendered ? Promise.resolve(prerendered) : null;
     notify('New session data is available. Choose the session and load it; your current comparison is unchanged.', 'info');
   }
   if (calendar.length) populateSessions($('#session').value || null);
@@ -471,7 +497,12 @@ async function loadRealSession() {
     renderAll();
     void refreshRaceResults(request,requestedQuery);
   } catch (error) {
-    if (error.name !== 'AbortError') notify(`Could not load this session. ${error.message}`);
+    if (error.name !== 'AbortError') {
+      const unpublished = /(?:not (?:been )?published|no published)/i.test(error.message || '');
+      notify(unpublished
+        ? 'Session analysis is not published yet. Choose another session or use local compute.'
+        : `Could not load this session. ${error.message} Select Load session to retry.`);
+    }
   } finally {
     // A newer request owns the button now. (No return here: a return in finally would swallow an error in flight.)
     if (request === sessionRequest) {
@@ -481,8 +512,22 @@ async function loadRealSession() {
       button.removeAttribute('aria-busy');
       button.removeAttribute('aria-label');
       button.textContent = 'Load session';
+      markPendingSelection();
     }
   }
+}
+
+// When the menus name a different session from the one on screen, the button says so ("Load Race") and the loaded
+// session's title is marked as still showing, so the two can never be read as one.
+function markPendingSelection() {
+  const button = $('#loadSession');
+  if (!button || button.classList.contains('is-loading')) return;
+  const query = typeof loadedSessionQuery === 'string' ? loadedSessionQuery : '';
+  const pending = !!query && String(currentQuery()) !== query;
+  button.classList.toggle?.('is-pending', pending);
+  const session = $('#session')?.selectedOptions?.[0]?.textContent?.split('·')[0].trim();
+  button.textContent = pending && session ? `Load ${session}` : 'Load session';
+  $('#loadedSessionContext')?.toggleAttribute?.('data-pending', pending);
 }
 
 function mergeConfirmedQualifyingPhases(payload, phases) {
@@ -500,6 +545,8 @@ function mergeConfirmedQualifyingPhases(payload, phases) {
 
 function setSessionLoading(value) {
   const analysis=$('.analysis-column'),sidebar=$('#driverSidebar');
+  const placeholder = $('#sessionLoadState');
+  if (placeholder) placeholder.hidden = !value || Boolean(typeof loadedSessionQuery === 'string' && loadedSessionQuery);
   if(analysis){analysis.inert=value;analysis.setAttribute('aria-busy',String(value));}
   const inspector=$('#sessionInspector');
   if(inspector)inspector.inert=value;

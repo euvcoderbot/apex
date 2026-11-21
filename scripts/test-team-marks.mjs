@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync, existsSync} from 'node:fs';
+import {readFileSync, existsSync, readdirSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import vm from 'node:vm';
+import {legacySource} from './legacy-css.mjs';
 
 // team-marks.js in a sandbox of its own: it only needs `window`.
 function marks() {
@@ -22,13 +23,19 @@ test('every team name used from 2014 to 2026, in any common spelling, gets a dra
   assert.deepEqual(names.filter(name => /team-logo-fallback/.test(teamMarkMarkup(name))), []);
 });
 
-test('a mark is the team code on a tile in the team colour, with no image and nothing taken from the name', () => {
+test('a mark is a team-colour swatch, or a chip with the car number beside a driver; no image, nothing taken from the name', () => {
   const {teamMark, teamMarkMarkup} = marks();
-  assert.deepEqual({...teamMark('Oracle Red Bull Racing')}, {key: 'red-bull-racing', code: 'RBR', colour: '#3671c6'});
+  assert.deepEqual({...teamMark('Oracle Red Bull Racing')}, {key: 'red-bull-racing', code: 'RBR', colour: '#3671c6', ink: '#ffffff'});
   assert.equal(teamMark('Visa Cash App RB F1 Team').code, 'RB');
   assert.equal(teamMark('Stake F1 Team Kick Sauber').code, 'SAU');
-  const html = teamMarkMarkup('Haas F1 Team');
-  assert.equal(html, '<span class="team-logo team-mark" data-team-mark="haas" data-code="HAA" style="--team-mark:#b6babd" aria-hidden="true"></span>');
+  // A team: the swatch alone. Light colours get dark ink, dark ones white.
+  assert.equal(teamMarkMarkup('Haas F1 Team'), '<span class="team-logo team-mark" data-team-mark="haas" style="--team-mark:#b6babd;--team-mark-ink:#111114" aria-hidden="true"></span>');
+  assert.equal(teamMark('Mercedes').ink, '#111114'); assert.equal(teamMark('Ferrari').ink, '#ffffff');
+  // A driver: the car number, drawn by CSS from data-number (never part of the page's text).
+  assert.equal(teamMarkMarkup('McLaren', '1'), '<span class="team-logo team-mark has-number" data-team-mark="mclaren" data-number="1" data-digits="1" style="--team-mark:#ff8000;--team-mark-ink:#111114" aria-hidden="true"></span>');
+  assert.match(teamMarkMarkup('Ferrari', 44), /data-number="44" data-digits="2"/);
+  // Only plain car numbers are accepted.
+  for (const bad of ['', null, undefined, '1234', '4"><img>', 'VER']) assert.doesNotMatch(teamMarkMarkup('Ferrari', bad), /has-number|data-number/);
   // Unknown or hostile names get the plain fallback, never their own text.
   assert.match(teamMarkMarkup('<img src=x onerror=alert(1)>'), /team-logo-fallback/);
   assert.match(teamMarkMarkup(''), /team-logo-fallback/);
@@ -37,20 +44,45 @@ test('a mark is the team code on a tile in the team colour, with no image and no
   assert.equal(new Set(current.map(t => teamMark(t).code)).size, current.length);
 });
 
-test('the site ships no third-party team logos, driver portraits, car images or tyre maker images', () => {
-  for (const dir of ['assets/teams', 'assets/drivers', 'assets/tyres']) assert.equal(existsSync(dir), false, dir);
+test('the site ships no team logos, car images or tyre maker images, and no formula1.com or Pirelli files', () => {
+  for (const dir of ['assets/teams', 'assets/tyres']) assert.equal(existsSync(dir), false, dir);
   assert.equal(existsSync('assets/official-sources.json'), false);
   const tracked = execFileSync('git', ['ls-files', '*.js', '*.mjs', '*.ts', '*.tsx', '*.html', '*.css'], {encoding: 'utf8'}).split('\n')
     .filter(f => f && !f.startsWith('scripts/test-') && !f.startsWith('e2e/'));
-  const offenders = tracked.filter(f => existsSync(f) && /assets\/(teams|drivers|tyres)\/|media\.formula1\.com|tyre24\.pirelli/.test(readFileSync(f, 'utf8')));
+  const offenders = tracked.filter(f => existsSync(f) && /assets\/(teams|tyres)\/|media\.formula1\.com|tyre24\.pirelli/.test(readFileSync(f, 'utf8')));
   assert.deepEqual(offenders, []);
+});
+
+test('every driver photo is a credited Wikimedia Commons file under a free licence', () => {
+  const {photos} = JSON.parse(readFileSync('assets/drivers/credits.json', 'utf8'));
+  const files = readdirSync('assets/drivers').filter(f => f !== 'credits.json');
+  assert.ok(files.length >= 20, `${files.length} photos`);
+  for (const file of files) {
+    const id = file.replace(/\.webp$/, ''), credit = photos[id];
+    assert.ok(file.endsWith('.webp') && credit, `${file} has a credit`);
+    assert.match(credit.page, /^https:\/\/commons\.wikimedia\.org\/wiki\/File:/, id);
+    assert.match(credit.licence, /^(CC BY(-SA)? [\d.]+|CC0( 1\.0)?|Public domain|OGL [23])$/, `${id}: ${credit.licence}`);
+    assert.ok(credit.author && credit.name, id);
+    // The photos are cut-outs: the licences require saying they were changed, and the credit line shows it.
+    assert.match(credit.changes || '', /background removed/, `${id} says it was modified`);
+    if (!/^(CC0|Public domain)/.test(credit.licence)) assert.match(credit.licence_url, /^https:\/\//, `${id} links its licence`);
+  }
+  for (const id of Object.keys(photos)) assert.ok(files.includes(`${id}.webp`), `${id} credit has a photo`);
+  // Pages that show photos list their credits; the driver header credits its own.
+  const season = readFileSync('season.js', 'utf8');
+  assert.match(season, /function photoCredits\(\)/);
+  assert.match(season, /c\.changes \? `; \$\{c\.changes\}` : ''/);
+  assert.match(season, /const credit = photoCredit\(id\); if \(credit\) ident\.append\(credit\);/);
+  assert.match(season, /function paint\(views\) \{[\s\S]*?imagery\.shown\.clear\(\);[\s\S]*?const nodes = views\(\), credits = photoCredits\(\);/);
+  assert.doesNotMatch(season, /body\.replaceChildren\(\.\.\.render/);
 });
 
 test('every page that shows teams loads the marks before the views that draw them', () => {
   const page = readFileSync('index.html', 'utf8');
   assert.ok(page.indexOf('src="team-marks.js"') > 0 && page.indexOf('src="team-marks.js"') < page.indexOf('src="session-state.js"'));
   assert.match(readFileSync('scripts/sync-static.mjs', 'utf8'), /"team-marks\.js"/);
-  const css = readFileSync('ui-controls.css', 'utf8');
-  assert.match(css, /\.team-mark::after \{ content: attr\(data-code\);/);
-  assert.match(css, /@media \(forced-colors: active\) \{ \.team-mark \{ background: Canvas;/);
+  const css = legacySource('ui-controls.css');
+  assert.match(css, /\.team-mark:not\(\.has-number\)::before \{ content: ""; [^}]*background: var\(--team-mark\)/);
+  assert.match(css, /\.team-mark\.has-number::after \{ content: attr\(data-number\);[^}]*color: var\(--team-mark-ink\)/);
+  assert.match(css, /@media \(forced-colors: active\) \{\s*\.team-mark:not\(\.has-number\)::before, \.team-mark\.has-number \{\s*background: CanvasText;/);
 });

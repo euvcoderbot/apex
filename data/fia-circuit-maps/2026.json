@@ -1,6 +1,6 @@
 {
  "year": 2026,
- "fetched": "2026-10-28",
+ "fetched": "2026-11-14",
  "circuits": [
   {
    "event": "Australian Grand Prix",
@@ -15,6 +15,78 @@
     "turn": "1",
     "offset_m": -120
    },
+   "overtake": {
+    "detection": {
+     "text": "15m after T13",
+     "turn": "13",
+     "offset_m": 15
+    },
+    "activation": {
+     "text": "Entry T14",
+     "turn": "14",
+     "offset_m": 0,
+     "at": "entry"
+    }
+   },
+   "straight_mode": [
+    {
+     "zone": "A1",
+     "normal": {
+      "text": "50m after T14",
+      "turn": "14",
+      "offset_m": 50
+     },
+     "low": {
+      "text": "100m after T14",
+      "turn": "14",
+      "offset_m": 100
+     }
+    },
+    {
+     "zone": "A2",
+     "normal": {
+      "text": "20m after T2",
+      "turn": "2",
+      "offset_m": 20
+     },
+     "low": {
+      "text": "45m after T2",
+      "turn": "2",
+      "offset_m": 45
+     }
+    },
+    {
+     "zone": "A3",
+     "normal": {
+      "text": "85m after T5",
+      "turn": "5",
+      "offset_m": 85
+     },
+     "low": {
+      "text": "125m after T5",
+      "turn": "5",
+      "offset_m": 125
+     }
+    },
+    {
+     "zone": "A4",
+     "normal": {
+      "text": "35m after T8",
+      "turn": "8",
+      "offset_m": 35
+     },
+     "low": null
+    },
+    {
+     "zone": "A5",
+     "normal": {
+      "text": "60m after T10",
+      "turn": "10",
+      "offset_m": 60
+     },
+     "low": null
+    }
+   ],
    "zone_kind": "straight-mode",
    "zones": [
     {
@@ -45,14 +117,80 @@
    "source": "https://www.fia.com/system/files/decision-document/2026_austrian_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_emergency_exits_map_and_red_zone.pdf",
    "centreline_m": 4326,
    "sectors_m": [
-    1414,
+    1215,
     1697,
-    1215
+    1414
    ],
    "speed_trap": {
-    "turn": "3",
+    "turn": "4",
     "offset_m": -170
    },
+   "overtake": {
+    "detection": {
+     "text": "50m before T10",
+     "turn": "10",
+     "offset_m": -50
+    },
+    "activation": {
+     "text": "110m after T10",
+     "turn": "10",
+     "offset_m": 110
+    }
+   },
+   "straight_mode": [
+    {
+     "zone": "A1",
+     "normal": {
+      "text": "110m after T10",
+      "turn": "10",
+      "offset_m": 110
+     },
+     "low": {
+      "text": "160m after T10",
+      "turn": "10",
+      "offset_m": 160
+     }
+    },
+    {
+     "zone": "A2",
+     "normal": {
+      "text": "110m after T1",
+      "turn": "1",
+      "offset_m": 110
+     },
+     "low": {
+      "text": "170m after T1",
+      "turn": "1",
+      "offset_m": 170
+     }
+    },
+    {
+     "zone": "A3",
+     "normal": {
+      "text": "90m after T3",
+      "turn": "3",
+      "offset_m": 90
+     },
+     "low": {
+      "text": "160m after T3",
+      "turn": "3",
+      "offset_m": 160
+     }
+    },
+    {
+     "zone": "A4",
+     "normal": {
+      "text": "10m after T8",
+      "turn": "8",
+      "offset_m": 10
+     },
+     "low": {
+      "text": "60m after T8",
+      "turn": "8",
+      "offset_m": 60
+     }
+    }
+   ],
    "zone_kind": "straight-mode",
    "zones": [
     {
@@ -87,6 +225,46 @@
     "turn": "20",
     "offset_m": 210
    },
+   "overtake": {
+    "detection": {
+     "text": "90m after T16",
+     "turn": "16",
+     "offset_m": 90
+    },
+    "activation": {
+     "text": "20m before T17",
+     "turn": "17",
+     "offset_m": -20
+    }
+   },
+   "straight_mode": [
+    {
+     "zone": "A1",
+     "normal": {
+      "text": "45m after T19",
+      "turn": "19",
+      "offset_m": 45
+     },
+     "low": {
+      "text": "45m after T20",
+      "turn": "20",
+      "offset_m": 45
+     }
+    },
+    {
+     "zone": "A2",
+     "normal": {
+      "text": "110m after T2",
+      "turn": "2",
+      "offset_m": 110
+     },
+     "low": {
+      "text": "160m after T2",
+      "turn": "2",
+      "offset_m": 160
+     }
+    }
+   ],
    "zone_kind": "straight-mode",
    "zones": [
     {
@@ -113,6 +291,74 @@
     "turn": "15",
     "offset_m": -205
    },
+   "overtake": {
+    "detection": {
+     "text": "45m before T15 Exit",
+     "turn": "15",
+     "offset_m": -45,
+     "at": "exit"
+    },
+    "activation": {
+     "text": "T15 Exit",
+     "turn": "15",
+     "offset_m": 0,
+     "at": "exit"
+    }
+   },
+   "straight_mode": [
+    {
+     "zone": "A1",
+     "normal": {
+      "text": "65m after T15",
+      "turn": "15",
+      "offset_m": 65
+     },
+     "low": {
+      "text": "85m after T15",
+      "turn": "15",
+      "offset_m": 85
+     }
+    },
+    {
+     "zone": "A2",
+     "normal": {
+      "text": "10m after T3",
+      "turn": "3",
+      "offset_m": 10
+     },
+     "low": {
+      "text": "50m after T3",
+      "turn": "3",
+      "offset_m": 50
+     }
+    },
+    {
+     "zone": "A3",
+     "normal": {
+      "text": "65m after T8",
+      "turn": "8",
+      "offset_m": 65
+     },
+     "low": {
+      "text": "95m after T8",
+      "turn": "8",
+      "offset_m": 95
+     }
+    },
+    {
+     "zone": "A4",
+     "normal": {
+      "text": "65m after T14",
+      "turn": "14",
+      "offset_m": 65
+     },
+     "low": {
+      "text": "80m after T14",
+      "turn": "14",
+      "offset_m": 80
+     }
+    }
+   ],
    "zone_kind": "straight-mode",
    "zones": [
     {
@@ -147,6 +393,76 @@
     "turn": "1",
     "offset_m": -220
    },
+   "overtake": {
+    "detection": {
+     "text": "Apex T13",
+     "turn": "13",
+     "offset_m": 0,
+     "at": "apex"
+    },
+    "activation": {
+     "text": "Entry T14",
+     "turn": "14",
+     "offset_m": 0,
+     "at": "entry"
+    }
+   },
+   "straight_mode": [
+    {
+     "zone": "A1",
+     "normal": {
+      "text": "45m after T14",
+      "turn": "14",
+      "offset_m": 45
+     },
+     "low": {
+      "text": "85m after T14",
+      "turn": "14",
+      "offset_m": 85
+     }
+    },
+    {
+     "zone": "A2",
+     "normal": {
+      "text": "40m before T3 exit",
+      "turn": "3",
+      "offset_m": -40,
+      "at": "exit"
+     },
+     "low": {
+      "text": "T3 exit",
+      "turn": "3",
+      "offset_m": 0,
+      "at": "exit"
+     }
+    },
+    {
+     "zone": "A3",
+     "normal": {
+      "text": "90m after T5",
+      "turn": "5",
+      "offset_m": 90
+     },
+     "low": {
+      "text": "90m after T5",
+      "turn": "5",
+      "offset_m": 90
+     }
+    },
+    {
+     "zone": "A4",
+     "normal": {
+      "text": "40m after T9",
+      "turn": "9",
+      "offset_m": 40
+     },
+     "low": {
+      "text": "90m after T9",
+      "turn": "9",
+      "offset_m": 90
+     }
+    }
+   ],
    "zone_kind": "straight-mode",
    "zones": [
     {
@@ -155,7 +471,8 @@
     },
     {
      "turn": "3",
-     "offset_m": -40
+     "offset_m": -40,
+     "at": "exit"
     },
     {
      "turn": "5",
@@ -180,6 +497,86 @@
     "turn": "4",
     "offset_m": 30
    },
+   "overtake": {
+    "detection": {
+     "text": "Entry T19",
+     "turn": "19",
+     "offset_m": 0,
+     "at": "entry"
+    },
+    "activation": {
+     "text": "130m after T19",
+     "turn": "19",
+     "offset_m": 130
+    }
+   },
+   "straight_mode": [
+    {
+     "zone": "A1",
+     "normal": {
+      "text": "190m after T19",
+      "turn": "19",
+      "offset_m": 190
+     },
+     "low": {
+      "text": "240m after T19",
+      "turn": "19",
+      "offset_m": 240
+     }
+    },
+    {
+     "zone": "A2",
+     "normal": {
+      "text": "140m after T1",
+      "turn": "1",
+      "offset_m": 140
+     },
+     "low": {
+      "text": "195m after T1",
+      "turn": "1",
+      "offset_m": 195
+     }
+    },
+    {
+     "zone": "A3",
+     "normal": {
+      "text": "60m after T4",
+      "turn": "4",
+      "offset_m": 60
+     },
+     "low": {
+      "text": "360m after T4",
+      "turn": "4",
+      "offset_m": 360
+     }
+    },
+    {
+     "zone": "A4",
+     "normal": {
+      "text": "140m after T15",
+      "turn": "15",
+      "offset_m": 140
+     },
+     "low": {
+      "text": "190m after T15",
+      "turn": "15",
+      "offset_m": 190
+     }
+    },
+    {
+     "zone": "A5",
+     "normal": {
+      "text": "80m after T17",
+      "turn": "17",
+      "offset_m": 80
+     },
+     "low": {
+      "text": "110m after T17",
+      "turn": "17",
+      "offset_m": 110
+     }
+    }
+   ],
    "zone_kind": "straight-mode",
    "zones": [
     {
@@ -218,6 +615,69 @@
     "turn": "15",
     "offset_m": -140
    },
+   "overtake": {
+    "detection": {
+     "text": "Exit of T17",
+     "turn": "17",
+     "offset_m": 0,
+     "at": "exit"
+    },
+    "activation": {
+     "text": "95m after T17",
+     "turn": "17",
+     "offset_m": 95
+    }
+   },
+   "straight_mode": [
+    {
+     "zone": "A1",
+     "normal": {
+      "text": "65m after T18",
+      "turn": "18",
+      "offset_m": 65
+     },
+     "low": {
+      "text": "115m after T18",
+      "turn": "18",
+      "offset_m": 115
+     }
+    },
+    {
+     "zone": "A2",
+     "normal": {
+      "text": "55m after T5",
+      "turn": "5",
+      "offset_m": 55
+     },
+     "low": {
+      "text": "115m after T5",
+      "turn": "5",
+      "offset_m": 115
+     }
+    },
+    {
+     "zone": "A3",
+     "normal": {
+      "text": "155m after T7",
+      "turn": "7",
+      "offset_m": 155
+     },
+     "low": null
+    },
+    {
+     "zone": "A4",
+     "normal": {
+      "text": "65m after T14",
+      "turn": "14",
+      "offset_m": 65
+     },
+     "low": {
+      "text": "125m after T14",
+      "turn": "14",
+      "offset_m": 125
+     }
+    }
+   ],
    "zone_kind": "straight-mode",
    "zones": [
     {
@@ -252,6 +712,69 @@
     "turn": "13",
     "offset_m": -250
    },
+   "overtake": {
+    "detection": {
+     "text": "Entry T13",
+     "turn": "13",
+     "offset_m": 0,
+     "at": "entry"
+    },
+    "activation": {
+     "text": "70m after T14",
+     "turn": "14",
+     "offset_m": 70
+    }
+   },
+   "straight_mode": [
+    {
+     "zone": "A1",
+     "normal": {
+      "text": "100m after T14",
+      "turn": "14",
+      "offset_m": 100
+     },
+     "low": {
+      "text": "160m after T14",
+      "turn": "14",
+      "offset_m": 160
+     }
+    },
+    {
+     "zone": "A2",
+     "normal": {
+      "text": "50m after T7",
+      "turn": "7",
+      "offset_m": 50
+     },
+     "low": {
+      "text": "110m after T7",
+      "turn": "7",
+      "offset_m": 110
+     }
+    },
+    {
+     "zone": "A3",
+     "normal": {
+      "text": "60m after T9",
+      "turn": "9",
+      "offset_m": 60
+     },
+     "low": null
+    },
+    {
+     "zone": "A4",
+     "normal": {
+      "text": "30m after T11",
+      "turn": "11",
+      "offset_m": 30
+     },
+     "low": {
+      "text": "120m after T11",
+      "turn": "11",
+      "offset_m": 120
+     }
+    }
+   ],
    "zone_kind": "straight-mode",
    "zones": [
     {
@@ -286,6 +809,73 @@
     "turn": "14",
     "offset_m": -240
    },
+   "overtake": {
+    "detection": {
+     "text": "Entry T16",
+     "turn": "16",
+     "offset_m": 0,
+     "at": "entry"
+    },
+    "activation": {
+     "text": "100m after T16",
+     "turn": "16",
+     "offset_m": 100
+    }
+   },
+   "straight_mode": [
+    {
+     "zone": "A1",
+     "normal": {
+      "text": "100m after T16",
+      "turn": "16",
+      "offset_m": 100
+     },
+     "low": {
+      "text": "150m after T16",
+      "turn": "16",
+      "offset_m": 150
+     }
+    },
+    {
+     "zone": "A2",
+     "normal": {
+      "text": "60m after T4",
+      "turn": "4",
+      "offset_m": 60
+     },
+     "low": {
+      "text": "100m after T4",
+      "turn": "4",
+      "offset_m": 100
+     }
+    },
+    {
+     "zone": "A3",
+     "normal": {
+      "text": "100m after T10",
+      "turn": "10",
+      "offset_m": 100
+     },
+     "low": {
+      "text": "140m after T10",
+      "turn": "10",
+      "offset_m": 140
+     }
+    },
+    {
+     "zone": "A4",
+     "normal": {
+      "text": "60m after T13",
+      "turn": "13",
+      "offset_m": 60
+     },
+     "low": {
+      "text": "130m after T13",
+      "turn": "13",
+      "offset_m": 130
+     }
+    }
+   ],
    "zone_kind": "straight-mode",
    "zones": [
     {
@@ -312,14 +902,55 @@
    "source": "https://www.fia.com/system/files/decision-document/2026_dutch_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_and_emergency_exits_map.pdf",
    "centreline_m": 4259,
    "sectors_m": [
-    1452,
     1483,
+    1452,
     1324
    ],
    "speed_trap": {
     "turn": "1",
     "offset_m": -95
    },
+   "overtake": {
+    "detection": {
+     "text": "10m before T13",
+     "turn": "13",
+     "offset_m": -10
+    },
+    "activation": {
+     "text": "45m after T14-entry",
+     "turn": "14",
+     "offset_m": 45,
+     "at": "entry"
+    }
+   },
+   "straight_mode": [
+    {
+     "zone": "A1",
+     "normal": {
+      "text": "20m after T14",
+      "turn": "14",
+      "offset_m": 20
+     },
+     "low": {
+      "text": "80m after T14",
+      "turn": "14",
+      "offset_m": 80
+     }
+    },
+    {
+     "zone": "A2",
+     "normal": {
+      "text": "50m after T10",
+      "turn": "10",
+      "offset_m": 50
+     },
+     "low": {
+      "text": "120m after T10",
+      "turn": "10",
+      "offset_m": 120
+     }
+    }
+   ],
    "zone_kind": "straight-mode",
    "zones": [
     {
@@ -346,11 +977,86 @@
     "turn": "1",
     "offset_m": -310
    },
+   "overtake": {
+    "detection": {
+     "text": "Entry T14",
+     "turn": "14",
+     "offset_m": 0,
+     "at": "entry"
+    },
+    "activation": {
+     "text": "30m before T14-exit",
+     "turn": "14",
+     "offset_m": -30,
+     "at": "exit"
+    }
+   },
+   "straight_mode": [
+    {
+     "zone": "A1",
+     "normal": {
+      "text": "40m after T14",
+      "turn": "14",
+      "offset_m": 40
+     },
+     "low": {
+      "text": "100m after T14",
+      "turn": "14",
+      "offset_m": 100
+     }
+    },
+    {
+     "zone": "A2",
+     "normal": {
+      "text": "30m after T1A-entry",
+      "turn": "1A",
+      "offset_m": 30,
+      "at": "entry"
+     },
+     "low": {
+      "text": "100m after T1A-entry",
+      "turn": "1A",
+      "offset_m": 100,
+      "at": "entry"
+     }
+    },
+    {
+     "zone": "A3",
+     "normal": {
+      "text": "50m after T3",
+      "turn": "3",
+      "offset_m": 50
+     },
+     "low": {
+      "text": "80m after T3",
+      "turn": "3",
+      "offset_m": 80
+     }
+    },
+    {
+     "zone": "A4",
+     "normal": {
+      "text": "60m after T11",
+      "turn": "11",
+      "offset_m": 60
+     },
+     "low": {
+      "text": "90m after T11",
+      "turn": "11",
+      "offset_m": 90
+     }
+    }
+   ],
    "zone_kind": "straight-mode",
    "zones": [
     {
      "turn": "14",
      "offset_m": 40
+    },
+    {
+     "turn": "1A",
+     "offset_m": 30,
+     "at": "entry"
     },
     {
      "turn": "3",
@@ -376,6 +1082,73 @@
     "turn": "1",
     "offset_m": -190
    },
+   "overtake": {
+    "detection": {
+     "text": "Entry T11",
+     "turn": "11",
+     "offset_m": 0,
+     "at": "entry"
+    },
+    "activation": {
+     "text": "T11",
+     "turn": "11",
+     "offset_m": 0
+    }
+   },
+   "straight_mode": [
+    {
+     "zone": "A1",
+     "normal": {
+      "text": "30m after T11 / Pit Exit",
+      "turn": "11",
+      "offset_m": 30
+     },
+     "low": {
+      "text": "100m after T11 / Pit Exit",
+      "turn": "11",
+      "offset_m": 100
+     }
+    },
+    {
+     "zone": "A2",
+     "normal": {
+      "text": "70m after T3",
+      "turn": "3",
+      "offset_m": 70
+     },
+     "low": {
+      "text": "110m after T3",
+      "turn": "3",
+      "offset_m": 110
+     }
+    },
+    {
+     "zone": "A3",
+     "normal": {
+      "text": "170m after T7",
+      "turn": "7",
+      "offset_m": 170
+     },
+     "low": {
+      "text": "230m after T7",
+      "turn": "7",
+      "offset_m": 230
+     }
+    },
+    {
+     "zone": "A4",
+     "normal": {
+      "text": "130m after T10",
+      "turn": "10",
+      "offset_m": 130
+     },
+     "low": {
+      "text": "180m after T10",
+      "turn": "10",
+      "offset_m": 180
+     }
+    }
+   ],
    "zone_kind": "straight-mode",
    "zones": [
     {
@@ -409,6 +1182,50 @@
     "turn": "15",
     "offset_m": 70
    },
+   "overtake": {
+    "detection": {
+     "text": "Exit T17",
+     "turn": "17",
+     "offset_m": 0,
+     "at": "exit"
+    },
+    "activation": {
+     "text": "Apex T18",
+     "turn": "18",
+     "offset_m": 0,
+     "at": "apex"
+    }
+   },
+   "straight_mode": [
+    {
+     "zone": "A1",
+     "normal": {
+      "text": "Exit T18",
+      "turn": "18",
+      "offset_m": 0,
+      "at": "exit"
+     },
+     "low": {
+      "text": "100m after T18",
+      "turn": "18",
+      "offset_m": 100
+     }
+    },
+    {
+     "zone": "A2",
+     "normal": {
+      "text": "Exit T14",
+      "turn": "14",
+      "offset_m": 0,
+      "at": "exit"
+     },
+     "low": {
+      "text": "70m after T14",
+      "turn": "14",
+      "offset_m": 70
+     }
+    }
+   ],
    "zone_kind": "straight-mode",
    "zones": [
     {
@@ -425,6 +1242,90 @@
    "venue": "Suzuka"
   },
   {
+   "event": "Mexico City Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2026_mexico_city_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_and_emergency_exits_map.pdf",
+   "centreline_m": 4304,
+   "sectors_m": [
+    1914,
+    1494,
+    896
+   ],
+   "speed_trap": {
+    "turn": "1",
+    "offset_m": -230
+   },
+   "overtake": {
+    "detection": {
+     "text": "Mid-T15",
+     "turn": "15",
+     "offset_m": 0,
+     "at": "mid"
+    },
+    "activation": {
+     "text": "Mid-T17",
+     "turn": "17",
+     "offset_m": 0,
+     "at": "mid"
+    }
+   },
+   "straight_mode": [
+    {
+     "zone": "A1",
+     "normal": {
+      "text": "70m after T17 / Pit Exit",
+      "turn": "17",
+      "offset_m": 70
+     },
+     "low": {
+      "text": "150m after T17 / Pit Exit",
+      "turn": "17",
+      "offset_m": 150
+     }
+    },
+    {
+     "zone": "A2",
+     "normal": {
+      "text": "150m after T3",
+      "turn": "3",
+      "offset_m": 150
+     },
+     "low": {
+      "text": "230m after T3",
+      "turn": "3",
+      "offset_m": 230
+     }
+    },
+    {
+     "zone": "A3",
+     "normal": {
+      "text": "70m after T11",
+      "turn": "11",
+      "offset_m": 70
+     },
+     "low": {
+      "text": "150m after T11",
+      "turn": "11",
+      "offset_m": 150
+     }
+    }
+   ],
+   "zone_kind": "straight-mode",
+   "zones": [
+    {
+     "turn": "17",
+     "offset_m": 70
+    },
+    {
+     "turn": "3",
+     "offset_m": 150
+    },
+    {
+     "turn": "11",
+     "offset_m": 70
+    }
+   ]
+  },
+  {
    "event": "Miami Grand Prix",
    "source": "https://www.fia.com/system/files/decision-document/2026_miami_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_emergency_exits_map_and_red_zone.pdf",
    "centreline_m": 5412,
@@ -437,6 +1338,56 @@
     "turn": "17",
     "offset_m": -150
    },
+   "overtake": {
+    "detection": {
+     "text": "20m after T17",
+     "turn": "17",
+     "offset_m": 20
+    },
+    "activation": {
+     "text": "10m after T18",
+     "turn": "18",
+     "offset_m": 10
+    }
+   },
+   "straight_mode": [
+    {
+     "zone": "A1",
+     "normal": {
+      "text": "Exit T19",
+      "turn": "19",
+      "offset_m": 0,
+      "at": "exit"
+     },
+     "low": {
+      "text": "70m after T19",
+      "turn": "19",
+      "offset_m": 70
+     }
+    },
+    {
+     "zone": "A2",
+     "normal": {
+      "text": "165m after T8",
+      "turn": "8",
+      "offset_m": 165
+     },
+     "low": null
+    },
+    {
+     "zone": "A3",
+     "normal": {
+      "text": "90m after T16",
+      "turn": "16",
+      "offset_m": 90
+     },
+     "low": {
+      "text": "150m after T16",
+      "turn": "16",
+      "offset_m": 150
+     }
+    }
+   ],
    "zone_kind": "straight-mode",
    "zones": [
     {
@@ -468,9 +1419,87 @@
     "turn": "10",
     "offset_m": -190
    },
-   "zone_kind": "drs",
+   "overtake": {
+    "detection": {
+     "text": "80m after T16",
+     "turn": "16",
+     "offset_m": 80
+    },
+    "activation": {
+     "text": "40m after T18",
+     "turn": "18",
+     "offset_m": 40
+    }
+   },
+   "zone_kind": "straight-mode",
+   "straight_mode": [],
    "zones": [],
    "venue": "Monaco"
+  },
+  {
+   "event": "São Paulo Grand Prix",
+   "source": "https://www.fia.com/system/files/decision-document/2026_sao_paulo_grand_prix_-_competition_notes_-_circuit_map_pit_lane_drawing_emergency_exits_map_and_red_zone.pdf",
+   "centreline_m": 4309,
+   "sectors_m": [
+    1236,
+    1943,
+    1130
+   ],
+   "speed_trap": {
+    "turn": "1",
+    "offset_m": -90
+   },
+   "overtake": {
+    "detection": {
+     "text": "20m after T12",
+     "turn": "12",
+     "offset_m": 20
+    },
+    "activation": {
+     "text": "30m after T13",
+     "turn": "13",
+     "offset_m": 30
+    }
+   },
+   "straight_mode": [
+    {
+     "zone": "A1",
+     "normal": {
+      "text": "40m after T14",
+      "turn": "14",
+      "offset_m": 40
+     },
+     "low": {
+      "text": "40m before T15",
+      "turn": "15",
+      "offset_m": -40
+     }
+    },
+    {
+     "zone": "A2",
+     "normal": {
+      "text": "10m after T3 / Pit Exit",
+      "turn": "3",
+      "offset_m": 10
+     },
+     "low": {
+      "text": "60m after T3 / Pit Exit",
+      "turn": "3",
+      "offset_m": 60
+     }
+    }
+   ],
+   "zone_kind": "straight-mode",
+   "zones": [
+    {
+     "turn": "14",
+     "offset_m": 40
+    },
+    {
+     "turn": "3",
+     "offset_m": 10
+    }
+   ]
   },
   {
    "event": "Singapore Grand Prix",
@@ -485,6 +1514,82 @@
     "turn": "1",
     "offset_m": -150
    },
+   "overtake": {
+    "detection": {
+     "text": "Entry T17",
+     "turn": "17",
+     "offset_m": 0,
+     "at": "entry"
+    },
+    "activation": {
+     "text": "30m after T17",
+     "turn": "17",
+     "offset_m": 30
+    }
+   },
+   "straight_mode": [
+    {
+     "zone": "A1",
+     "normal": {
+      "text": "30m after T19",
+      "turn": "19",
+      "offset_m": 30
+     },
+     "low": {
+      "text": "90m after T19",
+      "turn": "19",
+      "offset_m": 90
+     }
+    },
+    {
+     "zone": "A2",
+     "normal": {
+      "text": "50m after T5",
+      "turn": "5",
+      "offset_m": 50
+     },
+     "low": null
+    },
+    {
+     "zone": "A3",
+     "normal": {
+      "text": "70m after T9",
+      "turn": "9",
+      "offset_m": 70
+     },
+     "low": {
+      "text": "120m after T9",
+      "turn": "9",
+      "offset_m": 120
+     }
+    },
+    {
+     "zone": "A4",
+     "normal": {
+      "text": "115m after T13",
+      "turn": "13",
+      "offset_m": 115
+     },
+     "low": {
+      "text": "165m after T13",
+      "turn": "13",
+      "offset_m": 165
+     }
+    },
+    {
+     "zone": "A5",
+     "normal": {
+      "text": "70m after T15",
+      "turn": "15",
+      "offset_m": 70
+     },
+     "low": {
+      "text": "90m after T15",
+      "turn": "15",
+      "offset_m": 90
+     }
+    }
+   ],
    "zone_kind": "straight-mode",
    "zones": [
     {
@@ -523,6 +1628,47 @@
     "turn": "5",
     "offset_m": -160
    },
+   "overtake": {
+    "detection": {
+     "text": "Entry T22",
+     "turn": "22",
+     "offset_m": 0,
+     "at": "entry"
+    },
+    "activation": {
+     "text": "20m after T22",
+     "turn": "22",
+     "offset_m": 20
+    }
+   },
+   "straight_mode": [
+    {
+     "zone": "A1",
+     "normal": {
+      "text": "100m after T22",
+      "turn": "22",
+      "offset_m": 100
+     },
+     "low": {
+      "text": "130m after T22",
+      "turn": "22",
+      "offset_m": 130
+     }
+    },
+    {
+     "zone": "A2",
+     "normal": {
+      "text": "40m after T3",
+      "turn": "3",
+      "offset_m": 40
+     },
+     "low": {
+      "text": "90m after T3",
+      "turn": "3",
+      "offset_m": 90
+     }
+    }
+   ],
    "zone_kind": "straight-mode",
    "zones": [
     {
@@ -548,6 +1694,46 @@
     "turn": "12",
     "offset_m": -180
    },
+   "overtake": {
+    "detection": {
+     "text": "30m after T20",
+     "turn": "20",
+     "offset_m": 30
+    },
+    "activation": {
+     "text": "120m after T20",
+     "turn": "20",
+     "offset_m": 120
+    }
+   },
+   "straight_mode": [
+    {
+     "zone": "A1",
+     "normal": {
+      "text": "120m after T20 / Pit Exit",
+      "turn": "20",
+      "offset_m": 120
+     },
+     "low": {
+      "text": "180m after T20 / Pit Exit",
+      "turn": "20",
+      "offset_m": 180
+     }
+    },
+    {
+     "zone": "A2",
+     "normal": {
+      "text": "110m after T11",
+      "turn": "11",
+      "offset_m": 110
+     },
+     "low": {
+      "text": "180m after T11",
+      "turn": "11",
+      "offset_m": 180
+     }
+    }
+   ],
    "zone_kind": "straight-mode",
    "zones": [
     {

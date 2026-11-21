@@ -4,7 +4,7 @@ import {mkdtemp, mkdir, writeFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {gzipSync} from 'node:zlib';
-import {confirmedQualifying} from '../lib/confirmed-qualifying.mjs';
+import {confirmedQualifying, confirmedSession} from '../lib/confirmed-qualifying.mjs';
 import {captureKey} from '../lib/local-captures.mjs';
 
 test('completion fallback requires an exact, settled, independently exported session', async () => {
@@ -22,5 +22,25 @@ test('completion fallback requires an exact, settled, independently exported ses
     payload.local_export.provisional=false; payload.openf1_session_key=456; await save(); assert.equal(await confirmedQualifying(root,2026,event),false);
     payload.openf1_session_key=123; payload.local_export.session_ended_at='2099-01-01T00:00:00Z'; await save(); assert.equal(await confirmedQualifying(root,2026,event),false);
     assert.equal(await confirmedQualifying(root,2026,{...event,round:8}),false);
+  } finally { await rm(root,{recursive:true,force:true}); }
+});
+
+test('a past Race is confirmed by the same evidence, for that session only', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'apex-completion-race-'));
+  try {
+    const folder = path.join(root, 'assets/data/local-captures');
+    await mkdir(folder, {recursive:true});
+    const event = {name:'Australian Grand Prix',round:1};
+    const key = captureKey('/api/session?year=2026&gp=Australian+Grand+Prix&round=1&session=Race');
+    await writeFile(path.join(folder,'index.json'), JSON.stringify({entries:{[key]:{file:'def456.json.gz'}}}));
+    const payload = {event:event.name,session:'Race',openf1_session_key:9001,drivers:[{},{},{}],local_export:{session_key:9001,source:'OpenF1 via local compute',provisional:false,session_ended_at:'2026-03-08T06:00:00Z'}};
+    const save = () => writeFile(path.join(folder,'def456.json.gz'),gzipSync(JSON.stringify(payload)));
+    await save();
+    assert.equal(await confirmedSession(root,2026,event,'Race',Date.parse('2026-11-09')),true);
+    // A Race export never confirms Qualifying, and a mislabelled payload confirms nothing.
+    assert.equal(await confirmedQualifying(root,2026,event,Date.parse('2026-11-09')),false);
+    payload.session='Qualifying'; await save(); assert.equal(await confirmedSession(root,2026,event,'Race'),false);
+    payload.session='Race'; payload.local_export.provisional=true; await save(); assert.equal(await confirmedSession(root,2026,event,'Race'),false);
+    payload.local_export.provisional=false; payload.drivers=[{}]; await save(); assert.equal(await confirmedSession(root,2026,event,'Race'),false);
   } finally { await rm(root,{recursive:true,force:true}); }
 });

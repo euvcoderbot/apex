@@ -3,7 +3,11 @@ import {isolate} from './helpers.mjs';
 
 // Budgets are set just above today's numbers (hosted-like gzip, 22 files before lazy loading was 271 KB; the session view
 // now needs about 154 KB). They exist to catch regressions, not to define a target.
-const BUDGET = {initialScriptKB: 185, initialStyleKB: 82, idleDomNodes: 600, layoutShift: 0.02};
+// initialScriptKB: 190 since the shared driver-photo helper (team-colours.js) loads with the page; 196 since the Season pages' cross-links
+// (names, flags and records that open their pages), pinned totals and steppers (192 KB measured); 200 since the sprint
+// grids, power-unit grouping, the zones table and placed corner numbers (197 KB measured).
+// idleDomNodes: 640 since the rail lists every page in two sections (Analysis and Season), each row an icon and a name.
+const BUDGET = {initialScriptKB: 200, initialStyleKB: 82, idleDomNodes: 640, layoutShift: 0.02};
 
 /** Records long tasks, layout shift and the moment of the load event from the very start of the page. */
 const observe = () => {
@@ -14,7 +18,7 @@ const observe = () => {
   addEventListener('load', () => { window.__metrics.loadAt = performance.now(); });
 };
 
-async function open(page, path = '/apex/') {
+async function open(page, path = '/apex/session') {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await isolate(page);
@@ -57,7 +61,7 @@ test('opening Car performance loads it, shows the view and updates the route and
   await open(page);
   await page.getByRole('tab', {name: 'Car performance'}).click();
   await expect(page.locator('body')).toHaveClass(/performance-view/);
-  await expect(page).toHaveURL(/\/apex\/cars$/);
+  await expect(page).toHaveURL(/\/apex\/cars(\?year=\d{4}(&run=1)?)?$/);   // the published season analysis starts by itself
   await expect(page).toHaveTitle(/^Pace · Car performance/);
   await page.goBack();
   await expect(page.locator('body')).not.toHaveClass(/performance-view/);
@@ -89,7 +93,7 @@ test('every selection control in the toolbar and sidebar is operable by keyboard
 test('Car performance with no data says which sessions failed and stays usable', async ({page}) => {
   await open(page, '/apex/cars');
   await expect(page.locator('body')).toHaveClass(/performance-view/);
-  await page.getByRole('button', {name: 'Tracks'}).click();
+  await page.getByRole('group', {name: 'Analysis scope'}).getByRole('button', {name: 'Tracks'}).click();
   const pills = page.locator('.track-pill');
   await expect(pills.first()).toBeVisible();
   await pills.first().click();

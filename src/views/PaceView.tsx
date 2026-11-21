@@ -33,9 +33,9 @@ export function PaceView(p: PaceViewProps) {
       ) : null}
       <Card title="Qualifying & race pace" note={p.note}>
         {p.stat.show ? (
-          <div className="performance-scope-toggle performance-stat-toggle" role="group" aria-label="Race pace across GPs">
-            <button type="button" data-pace-stat="mean" aria-pressed={p.stat.value === 'mean'}>Mean gap</button>
+          <div className="performance-scope-toggle performance-stat-toggle" role="group" aria-label="Pace across GPs">
             <button type="button" data-pace-stat="median" aria-pressed={p.stat.value === 'median'}>Median gap</button>
+            <button type="button" data-pace-stat="mean" aria-pressed={p.stat.value === 'mean'}>Mean gap</button>
           </div>
         ) : null}
         <div className="performance-metric-toolbar">
@@ -49,10 +49,13 @@ export function PaceView(p: PaceViewProps) {
           <BarChart rows={p.qualyChart.rows} options={p.qualyChart.options} />
           <BarChart rows={p.raceChart.rows} options={p.raceChart.options} />
         </div>
+      </Card>
+      <details className="performance-evidence">
+        <summary>Pace table by team</summary>
         <DataTable headers={[p.sort.team, p.sort.pace, p.sort.race, p.sort.samples]}
           rows={p.rows.map(r => [<TeamLabel team={r.team} />, note(r.pace),
             <ValueNote value={r.race.value} badge={r.race.provisional ? 'Provisional estimate' : undefined} note={r.race.note} />, r.samples])} />
-      </Card>
+      </details>
       <details className="dashboard-card performance-methods">
         <summary>Race-pace coverage and traffic sensitivity by GP</summary>
         <p className="performance-note">The traffic range refits the selected driver using 1.5, 2.0 and 2.5-second checkpoint screens. The common-cohort column keeps the same reference driver across those screens instead of changing the zero each time. These are sensitivity tests, not confidence intervals or a season-wide range. Leave-stint-out removes each of the three largest sampled stints and compares with one fixed reference driver; it can reveal strategy-dependent estimates but is not exhaustive. Noise gain measures sensitivity to perturbing observed lap times, not a confidence interval. Race-lap effects absorb shared fuel burn and track evolution; no measured fuel load is supplied.</p>

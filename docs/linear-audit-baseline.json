@@ -1,0 +1,3736 @@
+{
+ "runs": 132,
+ "generated": "2026-11-10T00:40:50.488Z",
+ "findings": [
+  {
+   "component": "tr > .num",
+   "rule": "radius",
+   "value": "7px",
+   "scope": "seasonHub",
+   "text": "3",
+   "count": 1782,
+   "states": [
+    "season-upgrades",
+    "season-units"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390",
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".select-shell > .select-trigger",
+   "rule": "control-height",
+   "value": "30px",
+   "scope": "sessionSidebar",
+   "text": "2026",
+   "count": 228,
+   "states": [
+    "session-empty",
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "cars-empty",
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390",
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": "h2 > small",
+   "rule": "uppercase",
+   "value": "text-transform",
+   "scope": "charts",
+   "text": "KM/H",
+   "count": 120,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390",
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".season-strip-cell > small",
+   "rule": "font-size",
+   "value": "10.5px",
+   "scope": "seasonHub",
+   "text": "AUS",
+   "count": 120,
+   "states": [
+    "season-drivers"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390",
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".site-header",
+   "rule": "gradient",
+   "value": "linear-gradient(rgba(22, 22, 23, 0.88), ",
+   "scope": "",
+   "text": "F1Apex Data\n      Compar",
+   "count": 63,
+   "states": [
+    "session-empty",
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "cars-empty",
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390"
+   ]
+  },
+  {
+   "component": ".site-header",
+   "rule": "gradient",
+   "value": "linear-gradient(rgba(255, 255, 255, 0.86",
+   "scope": "",
+   "text": "F1Apex Data\n      Compar",
+   "count": 63,
+   "states": [
+    "session-empty",
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "cars-empty",
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ],
+   "views": [
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": "#charts > .chart",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(2",
+   "scope": "charts",
+   "text": "Speed trace KM/H\n       ",
+   "count": 60,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390"
+   ]
+  },
+  {
+   "component": "#charts > .chart",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(0",
+   "scope": "charts",
+   "text": "Speed trace KM/H\n       ",
+   "count": 60,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ],
+   "views": [
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".performance-scope-toggle > button",
+   "rule": "shadow",
+   "value": "rgba(0, 0, 0, 0.08) 0px 0px 0px 1px inset, rgba(0,",
+   "scope": "performanceMetricPanel",
+   "text": "Fastest lap",
+   "count": 57,
+   "states": [
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results"
+   ],
+   "views": [
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".performance-evidence > .performance-table-wrap",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(2",
+   "scope": "performanceMetricPanel",
+   "text": "CorneringTeamBrakingMid-",
+   "count": 42,
+   "states": [
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-results"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390"
+   ]
+  },
+  {
+   "component": ".performance-evidence > .performance-table-wrap",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(0",
+   "scope": "performanceMetricPanel",
+   "text": "CorneringTeamBrakingMid-",
+   "count": 42,
+   "states": [
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-results"
+   ],
+   "views": [
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".subject-pair > .performance-chart-card",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(2",
+   "scope": "performanceMetricPanel",
+   "text": "Traction (corner exit) ·",
+   "count": 30,
+   "states": [
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390"
+   ]
+  },
+  {
+   "component": ".season-battles > .season-battle",
+   "rule": "control-height",
+   "value": "38px",
+   "scope": "seasonHub",
+   "text": "Alpine43COLvs10GAS515Qua",
+   "count": 30,
+   "states": [
+    "season-h2h"
+   ],
+   "views": [
+    "dark 1440",
+    "light 1440"
+   ]
+  },
+  {
+   "component": ".subject-pair > .performance-chart-card",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(0",
+   "scope": "performanceMetricPanel",
+   "text": "Traction (corner exit) ·",
+   "count": 30,
+   "states": [
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres"
+   ],
+   "views": [
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": "#dominanceTitle > small",
+   "rule": "uppercase",
+   "value": "text-transform",
+   "scope": "dominanceTitle",
+   "text": "25 M SEGMENTS",
+   "count": 24,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390",
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".trace-display-menu > .trace-settings",
+   "rule": "shadow",
+   "value": "rgba(0, 0, 0, 0.2) 0px 4px 24px 0px, rgba(255, 255",
+   "scope": "charts",
+   "text": "Corner numbersSpeed anno",
+   "count": 24,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390"
+   ]
+  },
+  {
+   "component": ".chart-sample-controls > #telemetrySample",
+   "rule": "control-height",
+   "value": "30px",
+   "scope": "telemetrySample",
+   "text": "",
+   "count": 24,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390",
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": "label > input",
+   "rule": "shadow",
+   "value": "rgb(52, 52, 58) 0px 0px 0px 1px inset, rgba(0, 0, ",
+   "scope": "",
+   "text": "",
+   "count": 24,
+   "states": [
+    "ui-catalog"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390",
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".trace-display-menu > .trace-settings",
+   "rule": "shadow",
+   "value": "rgba(0, 0, 0, 0.1) 0px 4px 24px 0px, rgba(0, 0, 0,",
+   "scope": "charts",
+   "text": "Corner numbersSpeed anno",
+   "count": 24,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ],
+   "views": [
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".dashboard-card > .performance-table-wrap",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(2",
+   "scope": "performanceMetricPanel",
+   "text": "Measurement evidenceTeam",
+   "count": 18,
+   "states": [
+    "cars-pace",
+    "cars-pits",
+    "cars-tyres"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390"
+   ]
+  },
+  {
+   "component": ".subject-bands > .performance-chart-card",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(2",
+   "scope": "performanceMetricPanel",
+   "text": "Low-speed corners · Team",
+   "count": 18,
+   "states": [
+    "cars-corners"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390"
+   ]
+  },
+  {
+   "component": ".dashboard-card > .performance-table-wrap",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(0",
+   "scope": "performanceMetricPanel",
+   "text": "Measurement evidenceTeam",
+   "count": 18,
+   "states": [
+    "cars-pace",
+    "cars-pits",
+    "cars-tyres"
+   ],
+   "views": [
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".subject-bands > .performance-chart-card",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(0",
+   "scope": "performanceMetricPanel",
+   "text": "Low-speed corners · Team",
+   "count": 18,
+   "states": [
+    "cars-corners"
+   ],
+   "views": [
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": "#cornerWorkspace > #cornerPickerRow",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(2",
+   "scope": "cornerPickerRow",
+   "text": "CornersChoose one or mor",
+   "count": 12,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390"
+   ]
+  },
+  {
+   "component": "#cornerMetricGrid > .corner-selection-empty",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(2",
+   "scope": "cornerMetricGrid",
+   "text": "Compare a sectionSelect ",
+   "count": 12,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390"
+   ]
+  },
+  {
+   "component": ".run-card-header > .fastest-lap-pick",
+   "rule": "control-height",
+   "value": "30px",
+   "scope": "stintPanels",
+   "text": "Fastest1:35.130",
+   "count": 12,
+   "states": [
+    "session-lap-sheet"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390",
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".performance-card-body > .performance-table-wrap",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(2",
+   "scope": "performanceMetricPanel",
+   "text": "Qualifying & race paceTe",
+   "count": 12,
+   "states": [
+    "cars-pace",
+    "cars-pits",
+    "cars-tyres",
+    "cars-results"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390"
+   ]
+  },
+  {
+   "component": ".driver-pill > .team-logo",
+   "rule": "font-size",
+   "value": "8px",
+   "scope": "driverPills",
+   "text": "R",
+   "count": 12,
+   "states": [
+    "ui-catalog"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390",
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": "#cornerWorkspace > #cornerPickerRow",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(0",
+   "scope": "cornerPickerRow",
+   "text": "CornersChoose one or mor",
+   "count": 12,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ],
+   "views": [
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": "#cornerMetricGrid > .corner-selection-empty",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(0",
+   "scope": "cornerMetricGrid",
+   "text": "Compare a sectionSelect ",
+   "count": 12,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ],
+   "views": [
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".map-view-switch > button",
+   "rule": "shadow",
+   "value": "rgba(0, 0, 0, 0.08) 0px 0px 0px 1px inset, rgba(0,",
+   "scope": "cornerWorkspace",
+   "text": "Lap comparison",
+   "count": 12,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ],
+   "views": [
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".performance-card-body > .performance-table-wrap",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(0",
+   "scope": "performanceMetricPanel",
+   "text": "Qualifying & race paceTe",
+   "count": 12,
+   "states": [
+    "cars-pace",
+    "cars-pits",
+    "cars-tyres",
+    "cars-results"
+   ],
+   "views": [
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".performance-scope-toggle > button",
+   "rule": "text-colour",
+   "value": "rgb(110, 109, 118)",
+   "scope": "performanceMetricPanel",
+   "text": "Pit lane",
+   "count": 10,
+   "states": [
+    "cars-pits"
+   ],
+   "views": [
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".compute-actions > button",
+   "rule": "control-height",
+   "value": "30px",
+   "scope": "computeSettings",
+   "text": "Use this PC",
+   "count": 6,
+   "states": [
+    "session-compute"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390",
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".performance-visual-grid > .performance-chart-card",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(2",
+   "scope": "performanceMetricPanel",
+   "text": "Qualifying Pace Deficit ",
+   "count": 6,
+   "states": [
+    "cars-pace"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390"
+   ]
+  },
+  {
+   "component": ".performance-card-body > .dashboard-card",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(2",
+   "scope": "performanceMetricPanel",
+   "text": "View stint evidence and ",
+   "count": 6,
+   "states": [
+    "cars-tyres",
+    "cars-trend"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390"
+   ]
+  },
+  {
+   "component": ".trend-board > .performance-chart-card",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(2",
+   "scope": "performanceMetricPanel",
+   "text": "Gap to the quickest car,",
+   "count": 6,
+   "states": [
+    "cars-trend"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390"
+   ]
+  },
+  {
+   "component": ".season-countdown > b",
+   "rule": "font-size",
+   "value": "18px",
+   "scope": "seasonHub",
+   "text": "9d 23h 53m",
+   "count": 6,
+   "states": [
+    "season-schedule"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390",
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": "header > h1",
+   "rule": "font-size",
+   "value": "28px",
+   "scope": "",
+   "text": "F1 Apex Data · UI compon",
+   "count": 6,
+   "states": [
+    "ui-catalog"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390",
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": "section > h2",
+   "rule": "font-size",
+   "value": "19.5px",
+   "scope": "",
+   "text": "Status message wrapping",
+   "count": 6,
+   "states": [
+    "ui-catalog"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390",
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".ui-catalog-row > button",
+   "rule": "control-height",
+   "value": "30px",
+   "scope": "",
+   "text": "Analyse",
+   "count": 6,
+   "states": [
+    "ui-catalog"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390",
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": "label > input",
+   "rule": "control-height",
+   "value": "30px",
+   "scope": "",
+   "text": "",
+   "count": 6,
+   "states": [
+    "ui-catalog"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390",
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".ui-catalog-row > .select-trigger",
+   "rule": "control-height",
+   "value": "30px",
+   "scope": "",
+   "text": "Qualifying",
+   "count": 6,
+   "states": [
+    "ui-catalog"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390",
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".ui-catalog-row > input",
+   "rule": "shadow",
+   "value": "rgb(52, 52, 58) 0px 0px 0px 1px inset, rgba(0, 0, ",
+   "scope": "",
+   "text": "",
+   "count": 6,
+   "states": [
+    "ui-catalog"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390",
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".ui-catalog-row > input",
+   "rule": "control-height",
+   "value": "30px",
+   "scope": "",
+   "text": "",
+   "count": 6,
+   "states": [
+    "ui-catalog"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390",
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": "section > .ui-catalog-backdrop",
+   "rule": "gradient",
+   "value": "repeating-linear-gradient(135deg, rgb(12",
+   "scope": "",
+   "text": "VER L13Speed 275.3 km/h ",
+   "count": 6,
+   "states": [
+    "ui-catalog"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390",
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".performance-visual-grid > .performance-chart-card",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(0",
+   "scope": "performanceMetricPanel",
+   "text": "Qualifying Pace Deficit ",
+   "count": 6,
+   "states": [
+    "cars-pace"
+   ],
+   "views": [
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".performance-card-body > .dashboard-card",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(0",
+   "scope": "performanceMetricPanel",
+   "text": "View stint evidence and ",
+   "count": 6,
+   "states": [
+    "cars-tyres",
+    "cars-trend"
+   ],
+   "views": [
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".trend-board > .performance-chart-card",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(0",
+   "scope": "performanceMetricPanel",
+   "text": "Gap to the quickest car,",
+   "count": 6,
+   "states": [
+    "cars-trend"
+   ],
+   "views": [
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".dashboard-card > .performance-chart-card",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(2",
+   "scope": "performanceMetricPanel",
+   "text": "Straights against corner",
+   "count": 3,
+   "states": [
+    "cars-pace"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390"
+   ]
+  },
+  {
+   "component": ".performance-trend-table > .performance-table-wrap",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(2",
+   "scope": "performanceMetricPanel",
+   "text": "Relative qualifying prog",
+   "count": 3,
+   "states": [
+    "cars-trend"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390"
+   ]
+  },
+  {
+   "component": ".results-overview > .performance-chart-card",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(2",
+   "scope": "performanceMetricPanel",
+   "text": "Points · races + sprints",
+   "count": 3,
+   "states": [
+    "cars-results"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390"
+   ]
+  },
+  {
+   "component": ".results-overview > .performance-table-wrap",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(2",
+   "scope": "performanceMetricPanel",
+   "text": "Reliability and resultsT",
+   "count": 3,
+   "states": [
+    "cars-results"
+   ],
+   "views": [
+    "dark 1440",
+    "dark 1024",
+    "dark 390"
+   ]
+  },
+  {
+   "component": ".dashboard-card > .performance-chart-card",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(0",
+   "scope": "performanceMetricPanel",
+   "text": "Straights against corner",
+   "count": 3,
+   "states": [
+    "cars-pace"
+   ],
+   "views": [
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".performance-tyre-options > button",
+   "rule": "shadow",
+   "value": "rgba(0, 0, 0, 0.08) 0px 0px 0px 1px inset, rgba(0,",
+   "scope": "performanceMetricPanel",
+   "text": "All C grades",
+   "count": 3,
+   "states": [
+    "cars-tyres"
+   ],
+   "views": [
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".performance-trend-table > .performance-table-wrap",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(0",
+   "scope": "performanceMetricPanel",
+   "text": "Relative qualifying prog",
+   "count": 3,
+   "states": [
+    "cars-trend"
+   ],
+   "views": [
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".results-overview > .performance-chart-card",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(0",
+   "scope": "performanceMetricPanel",
+   "text": "Points · races + sprints",
+   "count": 3,
+   "states": [
+    "cars-results"
+   ],
+   "views": [
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".results-overview > .performance-table-wrap",
+   "rule": "gradient",
+   "value": "radial-gradient(60% 50% at 0% 0%, rgba(0",
+   "scope": "performanceMetricPanel",
+   "text": "Reliability and resultsT",
+   "count": 3,
+   "states": [
+    "cars-results"
+   ],
+   "views": [
+    "light 1440",
+    "light 1024",
+    "light 390"
+   ]
+  },
+  {
+   "component": ".performance-scope-toggle > button",
+   "rule": "shadow",
+   "value": "rgba(0, 0, 0, 0.08) 0px 0px 0px 0.981347px inset, ",
+   "scope": "performanceMetricPanel",
+   "text": "Stationary stop",
+   "count": 3,
+   "states": [
+    "cars-pits"
+   ],
+   "views": [
+    "light 1024"
+   ]
+  },
+  {
+   "component": ".performance-scope-toggle > button",
+   "rule": "shadow",
+   "value": "rgba(0, 0, 0, 0.08) 0px 0px 0px 0.98111px inset, r",
+   "scope": "performanceMetricPanel",
+   "text": "Stationary stop",
+   "count": 3,
+   "states": [
+    "cars-pits"
+   ],
+   "views": [
+    "light 390"
+   ]
+  },
+  {
+   "component": ".perf-sort-btn > span",
+   "rule": "text-colour",
+   "value": "rgb(110, 109, 118)",
+   "scope": "ui-table-12",
+   "text": "Median",
+   "count": 2,
+   "states": [
+    "cars-pits"
+   ],
+   "views": [
+    "light 1024",
+    "light 390"
+   ]
+  }
+ ],
+ "families": [
+  {
+   "kind": "button",
+   "sig": "h 28 | r 8px | bg rgba(0, 0, 0, 0) | ring  | font 510 13px",
+   "component": ".performance-tabs > #analysis-tab-performance",
+   "text": "Car performanceCars",
+   "count": 990,
+   "states": [
+    "session-empty",
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "cars-empty",
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgba(0, 0, 0, 0) | ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset | font 510 13px",
+   "component": ".linear-workspace-top > .linear-search",
+   "text": "",
+   "count": 678,
+   "states": [
+    "session-empty",
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "cars-empty",
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgba(255, 255, 255, 0.03) | ring rgba(255,255,255,0.05) 0px 0px 0px 1px inset | font 510 13px",
+   "component": ".overview-legend > .overview-slow-toggle",
+   "text": "Show slow laps",
+   "count": 671,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "ui-catalog",
+    "session-empty"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 30 | r 6px | bg rgb(28, 28, 31) | ring  | font 400 13px",
+   "component": ".corner-picker > .corner-pick",
+   "text": "T1LEC",
+   "count": 276,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 30 | r 6px | bg rgb(244, 242, 244) | ring  | font 400 13px",
+   "component": ".corner-picker > .corner-pick",
+   "text": "T1LEC",
+   "count": 276,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 24 | r pill | bg rgba(0, 0, 0, 0) | ring  | font 400 12px",
+   "component": ".loaded-lap-pill > .loaded-lap-main",
+   "text": "VERL111:35.130",
+   "count": 270,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r 6px | bg rgba(0, 0, 0, 0) | ring  | font 510 12px",
+   "component": ".season-rail-pages > button",
+   "text": "Results",
+   "count": 252,
+   "states": [
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgba(255, 255, 255, 0.02) | ring rgba(255,255,255,0.05) 0px 0px 0px 1px inset | font 400 13px",
+   "component": ".toolbar-leading > #windowSidebarToggle",
+   "text": "",
+   "count": 231,
+   "states": [
+    "session-empty",
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "cars-empty",
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgba(0, 0, 0, 0) | ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset | font 400 13px",
+   "component": ".toolbar-leading > #windowSidebarToggle",
+   "text": "",
+   "count": 231,
+   "states": [
+    "session-empty",
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "cars-empty",
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgba(255, 255, 255, 0.03) | ring rgba(255,255,255,0.05) 0px 0px 0px 1px inset | font 510 12px",
+   "component": ".map-view-switch > button",
+   "text": "Guide",
+   "count": 228,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "season-schedule",
+    "season-standings",
+    "season-upgrades",
+    "ui-catalog",
+    "season-results",
+    "season-drivers",
+    "season-h2h",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgba(0, 0, 0, 0) | ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset | font 510 12px",
+   "component": ".map-view-switch > button",
+   "text": "Guide",
+   "count": 194,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "season-schedule",
+    "season-standings",
+    "season-upgrades",
+    "season-results",
+    "season-drivers",
+    "season-h2h",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 24 | r 6px | bg rgba(0, 0, 0, 0) | ring  | font 590 11px",
+   "component": "th > .perf-sort-btn",
+   "text": "Team",
+   "count": 186,
+   "states": [
+    "cars-pace",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 30 | r 0px | bg rgba(0, 0, 0, 0) | ring  | font 510 13px",
+   "component": ".select-shell > .select-trigger",
+   "text": "2026",
+   "count": 144,
+   "states": [
+    "session-empty",
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "cars-empty"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 24 | r 8px | bg rgba(0, 0, 0, 0) | ring  | font 510 12px",
+   "component": ".linear-rail-section > .linear-nav-heading",
+   "text": "Analysis",
+   "count": 140,
+   "states": [
+    "session-empty",
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "cars-empty",
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgba(255, 255, 255, 0.08) | ring rgba(255,255,255,0.05) 0px 0px 0px 1px inset | font 510 12px",
+   "component": ".map-view-switch > button",
+   "text": "Lap comparison",
+   "count": 115,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "season-schedule",
+    "season-standings",
+    "season-upgrades",
+    "ui-catalog",
+    "season-results",
+    "season-drivers",
+    "season-h2h",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r 8px | bg rgba(255, 255, 255, 0.07) | ring  | font 510 13px",
+   "component": ".performance-tabs > #analysis-tab-session",
+   "text": "Session analysisSess",
+   "count": 106,
+   "states": [
+    "session-empty",
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "cars-empty",
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r 8px | bg rgba(0, 0, 0, 0.063) | ring  | font 510 13px",
+   "component": ".performance-tabs > #analysis-tab-session",
+   "text": "Session analysisSess",
+   "count": 106,
+   "states": [
+    "session-empty",
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "cars-empty",
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 24 | r 6px | bg rgba(255, 255, 255, 0.03) | ring rgba(255,255,255,0.05) 0px 0px 0px 1px inset | font 510 12px",
+   "component": ".performance-card-body > .table-csv",
+   "text": "CSV",
+   "count": 99,
+   "states": [
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "season-results",
+    "season-standings",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 24 | r 6px | bg rgba(0, 0, 0, 0) | ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset | font 510 12px",
+   "component": ".performance-card-body > .table-csv",
+   "text": "CSV",
+   "count": 99,
+   "states": [
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "season-results",
+    "season-standings",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 24 | r pill | bg rgba(255, 255, 255, 0.03) | ring rgba(255,255,255,0.05) 0px 0px 0px 1px inset | font 510 12px",
+   "component": ".track-selection-title > #performanceTrackToggle",
+   "text": "Change",
+   "count": 96,
+   "states": [
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 24 | r pill | bg rgba(0, 0, 0, 0) | ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset | font 510 12px",
+   "component": ".track-selection-title > #performanceTrackToggle",
+   "text": "Change",
+   "count": 96,
+   "states": [
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgb(255, 255, 255) | ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset, rgba(0,0,0,0.06) 0px 1px 2px 0 | font 510 12px",
+   "component": ".map-view-switch > button",
+   "text": "Lap comparison",
+   "count": 72,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgba(255, 255, 255, 0.02) | ring rgba(255,255,255,0.05) 0px 0px 0px 1px inset | font 510 13px",
+   "component": ".linear-workspace-top > .linear-search",
+   "text": "",
+   "count": 63,
+   "states": [
+    "session-empty",
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "cars-empty",
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 26 | r pill | bg rgba(0, 0, 0, 0) | ring  | font 510 12px",
+   "component": ".performance-scope-toggle > button",
+   "text": "Season to date",
+   "count": 54,
+   "states": [
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "cars-empty"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 20 | r pill | bg rgba(0, 0, 0, 0) | ring  | font 400 14px",
+   "component": ".loaded-lap-pill > .remove",
+   "text": "",
+   "count": 48,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 30 | r 6px | bg rgb(28, 28, 31) | ring rgba(255,255,255,0.08) 0px 0px 0px 1px inset | font 510 13px",
+   "component": ".select-shell > .select-trigger",
+   "text": "Alpine",
+   "count": 48,
+   "states": [
+    "cars-tyres",
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units",
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 32 | r pill | bg rgb(94, 106, 210) | ring  | font 510 13px",
+   "component": ".dashboard-card > #loadSession",
+   "text": "Load session",
+   "count": 42,
+   "states": [
+    "session-empty",
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "cars-empty"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 32 | r pill | bg rgb(101, 99, 241) | ring  | font 510 13px",
+   "component": ".dashboard-card > #loadSession",
+   "text": "Load session",
+   "count": 42,
+   "states": [
+    "session-empty",
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "cars-empty"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 30 | r 6px | bg rgb(244, 242, 244) | ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset | font 510 13px",
+   "component": ".select-shell > .select-trigger",
+   "text": "Alpine",
+   "count": 42,
+   "states": [
+    "cars-tyres",
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 26 | r 6px | bg rgba(0, 0, 0, 0) | ring  | font 400 13px",
+   "component": ".run-segments > .stint",
+   "text": "Q2softS1 run›",
+   "count": 36,
+   "states": [
+    "session-lap-sheet",
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 26 | r pill | bg rgba(255, 255, 255, 0.08) | ring rgba(255,255,255,0.05) 0px 0px 0px 1px inset | font 510 12px",
+   "component": ".performance-scope-toggle > button",
+   "text": "Tracks",
+   "count": 27,
+   "states": [
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "cars-empty"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 26 | r pill | bg rgb(255, 255, 255) | ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset | font 510 12px",
+   "component": ".performance-scope-toggle > button",
+   "text": "Tracks",
+   "count": 27,
+   "states": [
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "cars-empty"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r 6px | bg rgba(255, 255, 255, 0.07) | ring  | font 510 12px",
+   "component": ".season-rail-pages > button",
+   "text": "Schedule",
+   "count": 21,
+   "states": [
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r 6px | bg rgba(0, 0, 0, 0.063) | ring  | font 510 12px",
+   "component": ".season-rail-pages > button",
+   "text": "Schedule",
+   "count": 21,
+   "states": [
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgb(255, 255, 255) | ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset | font 510 12px",
+   "component": ".season-segment > button",
+   "text": "Your time",
+   "count": 19,
+   "states": [
+    "season-schedule",
+    "season-standings",
+    "season-upgrades",
+    "season-results",
+    "season-drivers",
+    "season-h2h",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 32 | r 6px | bg rgba(0, 0, 0, 0) | ring  | font 510 13px",
+   "component": ".category-bar > #catalog-category-tab-0",
+   "text": "Pace",
+   "count": 18,
+   "states": [
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r 6px | bg rgba(0, 0, 0, 0) | ring  | font 400 13px",
+   "component": "#catalogMenu > button",
+   "text": "Qualifying",
+   "count": 18,
+   "states": [
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 24 | r pill | bg rgb(28, 28, 31) | ring rgba(46,46,50) 0px 0px 0px 1px inset | font 400 12px",
+   "component": ".performance-track-pills > .track-pill",
+   "text": "R9British Grand Prix",
+   "count": 18,
+   "states": [
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 38 | r 6px | bg rgba(0, 0, 0, 0) | ring oklch(0.978364 0.00101638 none / 0.09) 0px -1px 0px 0px inset | font 510 13px",
+   "component": ".season-battles > .season-battle",
+   "text": "Alpine43COLvs10GAS51",
+   "count": 15,
+   "states": [
+    "season-h2h"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 38 | r 6px | bg rgba(0, 0, 0, 0) | ring oklch(0.285448 0.011323 none / 0.09) 0px -1px 0px 0px inset | font 510 13px",
+   "component": ".season-battles > .season-battle",
+   "text": "Alpine43COLvs10GAS51",
+   "count": 15,
+   "states": [
+    "season-h2h"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 26 | r 6px | bg rgba(255, 255, 255, 0.08) | ring  | font 590 13px",
+   "component": ".run-segments > .stint",
+   "text": "Q1softS1 run✓",
+   "count": 12,
+   "states": [
+    "session-lap-sheet",
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 44 | r 6px | bg rgb(28, 28, 31) | ring rgba(255,255,255,0.05) 0px 0px 0px 1px inset | font 400 13px",
+   "component": ".lap-grid > .lap",
+   "text": "L1OUT—softSRun 1 · L",
+   "count": 12,
+   "states": [
+    "session-lap-sheet"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 24 | r pill | bg rgba(255, 255, 255, 0.08) | ring rgba(46,46,50) 0px 0px 0px 1px inset | font 400 12px",
+   "component": ".performance-track-pills > .track-pill",
+   "text": "R17Singapore Grand P",
+   "count": 12,
+   "states": [
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 44 | r 6px | bg rgb(28, 28, 31) | ring  | font 400 13px",
+   "component": ".lap-grid > .lap-chip",
+   "text": "L7 OUTVSC~2:04.020MR",
+   "count": 12,
+   "states": [
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgba(0, 0, 0, 0) | ring  | font 400 14px",
+   "component": ".loaded-lap-pill > .remove",
+   "text": "",
+   "count": 12,
+   "states": [
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 44 | r 6px | bg rgb(244, 242, 244) | ring rgba(0,0,0,0.05) 0px 0px 0px 1px inset | font 400 13px",
+   "component": ".lap-grid > .lap",
+   "text": "L1OUT—softSRun 1 · L",
+   "count": 12,
+   "states": [
+    "session-lap-sheet"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgb(28, 28, 31) | ring rgba(46,46,50) 0px 0px 0px 1px inset | font 510 13px",
+   "component": ".dashboard-card > #lapWorkspaceToggle",
+   "text": "Choose laps",
+   "count": 8,
+   "states": [
+    "session-empty",
+    "session-loaded",
+    "session-compute",
+    "session-explanations"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgb(244, 242, 244) | ring rgba(220,219,221) 0px 0px 0px 1px inset | font 510 13px",
+   "component": ".dashboard-card > #lapWorkspaceToggle",
+   "text": "Choose laps",
+   "count": 8,
+   "states": [
+    "session-empty",
+    "session-loaded",
+    "session-compute",
+    "session-explanations"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 30 | r 6px | bg rgb(94, 106, 210) | ring  | font 400 13px",
+   "component": ".run-card-header > .fastest-lap-pick",
+   "text": "Fastest1:35.130",
+   "count": 6,
+   "states": [
+    "session-lap-sheet"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 30 | r 6px | bg rgb(94, 106, 210) | ring  | font 590 13px",
+   "component": ".ui-catalog-row > button",
+   "text": "Analyse",
+   "count": 6,
+   "states": [
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r 6px | bg rgba(255, 255, 255, 0.08) | ring  | font 510 13px",
+   "component": "#driverPills > .driver-pill",
+   "text": "1RMax VerstappenVER",
+   "count": 6,
+   "states": [
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r 6px | bg rgba(0, 0, 0, 0) | ring  | font 510 13px",
+   "component": "#driverPills > .driver-pill",
+   "text": "2FCharles LeclercLEC",
+   "count": 6,
+   "states": [
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 44 | r 6px | bg rgb(94, 106, 210) | ring  | font 400 13px",
+   "component": ".lap-grid > .lap-chip",
+   "text": "L6 INSC2:00.434SRun ",
+   "count": 6,
+   "states": [
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r 6px | bg rgba(0, 0, 0, 0) | ring  | font 400 12px",
+   "component": ".loaded-lap-pill > .loaded-lap-main",
+   "text": "VER 1:31.373",
+   "count": 6,
+   "states": [
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 42 | r 6px | bg rgb(28, 28, 31) | ring rgba(255,255,255,0.05) 0px 0px 0px 1px inset | font 400 13px",
+   "component": ".lap-grid > .lap",
+   "text": "L1OUT—softSRun 1 · L",
+   "count": 6,
+   "states": [
+    "session-lap-sheet"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 30 | r 6px | bg rgb(101, 99, 241) | ring  | font 400 13px",
+   "component": ".run-card-header > .fastest-lap-pick",
+   "text": "Fastest1:35.130",
+   "count": 6,
+   "states": [
+    "session-lap-sheet"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 26 | r 6px | bg rgb(255, 255, 255) | ring  | font 590 13px",
+   "component": ".run-segments > .stint",
+   "text": "Q1softS1 run✓",
+   "count": 6,
+   "states": [
+    "session-lap-sheet"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 42 | r 6px | bg rgb(244, 242, 244) | ring rgba(0,0,0,0.05) 0px 0px 0px 1px inset | font 400 13px",
+   "component": ".lap-grid > .lap",
+   "text": "L1OUT—softSRun 1 · L",
+   "count": 6,
+   "states": [
+    "session-lap-sheet"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgba(0, 0, 0, 0) | ring rgba(0,0,0,0.08) 0px 0px 0px 0.981347px inset | font 510 12px",
+   "component": ".performance-scope-toggle > button",
+   "text": "Pit lane",
+   "count": 5,
+   "states": [
+    "cars-pits"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgba(0, 0, 0, 0) | ring rgba(0,0,0,0.08) 0px 0px 0px 0.98111px inset | font 510 12px",
+   "component": ".performance-scope-toggle > button",
+   "text": "Pit lane",
+   "count": 5,
+   "states": [
+    "cars-pits"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 30 | r 6px | bg rgba(255, 255, 255, 0.03) | ring rgba(255,255,255,0.05) 0px 0px 0px 1px inset | font 510 12px",
+   "component": ".compute-actions > button",
+   "text": "Use this PC",
+   "count": 3,
+   "states": [
+    "session-compute"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 30 | r 6px | bg rgba(0, 0, 0, 0) | ring rgba(0,0,0,0.08) 0px 0px 0px 1px inset | font 510 12px",
+   "component": ".compute-actions > button",
+   "text": "Use this PC",
+   "count": 3,
+   "states": [
+    "session-compute"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgb(255, 255, 255) | ring rgba(0,0,0,0.08) 0px 0px 0px 0.981347px inset, rgba(0,0,0,0.06) 0px 0. | font 510 12px",
+   "component": ".performance-scope-toggle > button",
+   "text": "Stationary stop",
+   "count": 3,
+   "states": [
+    "cars-pits"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgb(255, 255, 255) | ring rgba(0,0,0,0.08) 0px 0px 0px 0.98111px inset, rgba(0,0,0,0.06) 0px 0.9 | font 510 12px",
+   "component": ".performance-scope-toggle > button",
+   "text": "Stationary stop",
+   "count": 3,
+   "states": [
+    "cars-pits"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgba(255, 255, 255, 0.08) | ring rgba(46,46,50) 0px 0px 0px 1px inset | font 510 13px",
+   "component": ".dashboard-card > #lapWorkspaceToggle",
+   "text": "Choose laps",
+   "count": 2,
+   "states": [
+    "session-lap-sheet"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r 8px | bg rgba(255, 255, 255, 0.08) | ring  | font 510 13px",
+   "component": "#driverPills > .driver-pill",
+   "text": "1Max VerstappenVER",
+   "count": 2,
+   "states": [
+    "session-lap-sheet"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgb(255, 255, 255) | ring rgba(220,219,221) 0px 0px 0px 1px inset | font 510 13px",
+   "component": ".dashboard-card > #lapWorkspaceToggle",
+   "text": "Choose laps",
+   "count": 2,
+   "states": [
+    "session-lap-sheet"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r 8px | bg rgba(0, 0, 0, 0.05) | ring  | font 510 13px",
+   "component": "#driverPills > .driver-pill",
+   "text": "1Max VerstappenVER",
+   "count": 2,
+   "states": [
+    "session-lap-sheet"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgba(249, 248, 249, 0.02) | ring rgba(0,0,0,0.08) 0px 0px 0px 0.981347px inset | font 510 13px",
+   "component": ".performance-quality-status > button",
+   "text": "Refresh missing timi",
+   "count": 1,
+   "states": [
+    "cars-pits"
+   ]
+  },
+  {
+   "kind": "button",
+   "sig": "h 28 | r pill | bg rgba(249, 248, 249, 0.02) | ring rgba(0,0,0,0.08) 0px 0px 0px 0.98111px inset | font 510 13px",
+   "component": ".performance-quality-status > button",
+   "text": "Refresh missing timi",
+   "count": 1,
+   "states": [
+    "cars-pits"
+   ]
+  },
+  {
+   "kind": "card",
+   "sig": "bg rgba(0, 0, 0, 0) | ring rgba(0,0,0,0.07) 0px 0px 0px 1px inset | r 8px",
+   "component": "#cornerWorkspace > #cornerPickerRow",
+   "text": "CornersChoose one or",
+   "count": 494,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "card",
+   "sig": "bg rgba(255, 255, 255, 0.02) | ring rgba(255,255,255,0.06) 0px 0px 0px 1px inset | r 8px",
+   "component": "#cornerWorkspace > .dominance-map",
+   "text": "Mini-sector dominanc",
+   "count": 470,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "card",
+   "sig": "bg rgb(22, 22, 23) | ring  border 1px rgba(255, 255, 255, 0.08) | r 12px",
+   "component": ".ui-catalog-grid > section",
+   "text": "Window toolbar and s",
+   "count": 102,
+   "states": [
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "card",
+   "sig": "bg rgba(0, 0, 0, 0) | ring rgba(255,255,255,0.06) 0px 0px 0px 1px inset | r 8px",
+   "component": "#cornerWorkspace > #cornerPickerRow",
+   "text": "CornersChoose one or",
+   "count": 24,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ]
+  },
+  {
+   "kind": "card",
+   "sig": "bg rgba(0, 0, 0, 0) | ring rgba(255,255,255,0.05) 0px 0px 0px 1px inset | r 8px",
+   "component": "#stintPanels > .driver-run-card",
+   "text": "Max VerstappenVER · ",
+   "count": 14,
+   "states": [
+    "session-lap-sheet",
+    "cars-empty",
+    "cars-pace",
+    "cars-pits"
+   ]
+  },
+  {
+   "kind": "card",
+   "sig": "bg rgba(0, 0, 0, 0) | ring rgba(0,0,0,0.05) 0px 0px 0px 1px inset | r 8px",
+   "component": "#stintPanels > .driver-run-card",
+   "text": "Max VerstappenVER · ",
+   "count": 14,
+   "states": [
+    "session-lap-sheet",
+    "cars-empty",
+    "cars-pace",
+    "cars-pits"
+   ]
+  },
+  {
+   "kind": "card",
+   "sig": "bg rgba(0, 0, 0, 0) | ring  border 1px 0px 0px rgba(255, 255, 255, 0.05) rgb(247, 248, 248) rgb(247, 248, 248) | r 12px",
+   "component": ".dashboard-card > #performanceTrackTray",
+   "text": "Races\n          3 se",
+   "count": 8,
+   "states": [
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results"
+   ]
+  },
+  {
+   "kind": "card",
+   "sig": "bg rgba(0, 0, 0, 0) | ring oklch(0.285448 0.011323 none / 0.09) 0px 0px 0px 1px inset | r 8px",
+   "component": ".season-card > .season-next-body",
+   "text": "Las Vegas Strip Stre",
+   "count": 8,
+   "states": [
+    "season-schedule",
+    "season-drivers"
+   ]
+  },
+  {
+   "kind": "card",
+   "sig": "bg rgba(0, 0, 0, 0) | ring  border 1px 0px 0px rgba(0, 0, 0, 0.06) rgb(40, 42, 48) rgb(40, 42, 48) | r 12px",
+   "component": ".dashboard-card > #performanceTrackTray",
+   "text": "Races\n          3 se",
+   "count": 8,
+   "states": [
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results"
+   ]
+  },
+  {
+   "kind": "card",
+   "sig": "bg rgba(255, 255, 255, 0.05) | ring  | r 8px",
+   "component": "section > .category-bar",
+   "text": "PaceCorneringUnavail",
+   "count": 6,
+   "states": [
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "card",
+   "sig": "bg rgb(22, 22, 23) | ring rgba(255,255,255,0.08) 0px 0px 0px 1px, rgba(0,0,0,0.2) 0px 4px 24px 0 | r 8px",
+   "component": "section > #catalogMenu",
+   "text": "QualifyingRaceSprint",
+   "count": 6,
+   "states": [
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "card",
+   "sig": "bg rgb(22, 22, 23) | ring  border 1px rgba(255, 255, 255, 0.05) | r 6px",
+   "component": "section > .performance-table-wrap",
+   "text": "Team GapRed Bull Rac",
+   "count": 6,
+   "states": [
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "card",
+   "sig": "bg rgba(0, 0, 0, 0) | ring  border 1px rgba(255, 255, 255, 0.05) | r 8px",
+   "component": "section > .ui-catalog-scroll",
+   "text": "Scrollbars follow th",
+   "count": 6,
+   "states": [
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "card",
+   "sig": "bg color(srgb 0.146118 0.132667 0.0838824) | ring  border 1px color(srgb 0.941176 0.74902 0 / 0.3) | r 8px",
+   "component": "section > .performance-error",
+   "text": "United States Grand ",
+   "count": 6,
+   "states": [
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "card",
+   "sig": "bg rgba(0, 0, 0, 0) | ring oklch(0.978364 0.00101638 none / 0.09) 0px 0px 0px 1px inset | r 8px",
+   "component": ".season-card > .season-next-body",
+   "text": "Las Vegas Strip Stre",
+   "count": 5,
+   "states": [
+    "season-schedule"
+   ]
+  },
+  {
+   "kind": "card",
+   "sig": "bg rgb(28, 28, 30) | ring  border 1px rgba(255, 255, 255, 0.08) | r 8px",
+   "component": ".performance-run-inspector > .performance-tyre-plot-controls",
+   "text": "TeamAlpineAston Mart",
+   "count": 3,
+   "states": [
+    "cars-tyres"
+   ]
+  },
+  {
+   "kind": "card",
+   "sig": "bg rgba(255, 255, 255, 0.02) | ring oklch(0.978364 0.00101638 none / 0.09) 0px 0px 0px 1px inset | r 8px",
+   "component": ".season-body > .season-tiles",
+   "text": "Wins9+1 sprintPodium",
+   "count": 3,
+   "states": [
+    "season-drivers"
+   ]
+  },
+  {
+   "kind": "card",
+   "sig": "bg rgb(249, 248, 249) | ring  border 1px rgba(0, 0, 0, 0.08) | r 8px",
+   "component": ".performance-run-inspector > .performance-tyre-plot-controls",
+   "text": "TeamAlpineAston Mart",
+   "count": 3,
+   "states": [
+    "cars-tyres"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h3 | font 590 13px | color rgb(247, 248, 248)",
+   "component": ".overview-chart > h3",
+   "text": "Lap times",
+   "count": 198,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h3 | font 590 13px | color rgb(40, 42, 48)",
+   "component": ".overview-chart > h3",
+   "text": "Lap times",
+   "count": 198,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h2 | font 590 15px | color rgb(247, 248, 248)",
+   "component": "section > h2",
+   "text": "Window toolbar and s",
+   "count": 98,
+   "states": [
+    "ui-catalog",
+    "season-h2h"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h4 | font 590 13px | color rgb(247, 248, 248)",
+   "component": ".perf-chart-title-group > .perf-chart-heading",
+   "text": "Qualifying Pace Defi",
+   "count": 75,
+   "states": [
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h4 | font 590 13px | color rgb(40, 42, 48)",
+   "component": ".perf-chart-title-group > .perf-chart-heading",
+   "text": "Qualifying Pace Defi",
+   "count": 75,
+   "states": [
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h2 | font 590 14px | color rgb(247, 248, 248)",
+   "component": ".chart-heading > h2",
+   "text": "Speed trace KM/H",
+   "count": 60,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h4 | font 590 11px | color rgb(138, 143, 152)",
+   "component": ".season-update-group > h4",
+   "text": "Brazilian Grand Prix",
+   "count": 60,
+   "states": [
+    "season-upgrades"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h2 | font 590 14px | color rgb(40, 42, 48)",
+   "component": ".chart-heading > h2",
+   "text": "Speed trace KM/H",
+   "count": 60,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h4 | font 590 11px | color rgb(111, 110, 119)",
+   "component": ".season-update-group > h4",
+   "text": "Brazilian Grand Prix",
+   "count": 60,
+   "states": [
+    "season-upgrades"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h2 | font 590 20px | color rgb(247, 248, 248)",
+   "component": ".analysis-heading-main > h2",
+   "text": "Lap telemetry",
+   "count": 59,
+   "states": [
+    "session-empty",
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "season-schedule",
+    "season-h2h",
+    "season-drivers"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h2 | font 590 20px | color rgb(40, 42, 48)",
+   "component": ".analysis-heading-main > h2",
+   "text": "Lap telemetry",
+   "count": 59,
+   "states": [
+    "session-empty",
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results",
+    "season-schedule",
+    "season-h2h",
+    "season-drivers"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h3 | font 590 12px | color rgb(208, 214, 224)",
+   "component": "header > h3",
+   "text": "Corners",
+   "count": 24,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h3 | font 590 12px | color rgb(60, 65, 73)",
+   "component": "header > h3",
+   "text": "Corners",
+   "count": 24,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h1 | font 590 20px | color rgb(247, 248, 248)",
+   "component": ".season-title > h1",
+   "text": "Season",
+   "count": 21,
+   "states": [
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h1 | font 590 20px | color rgb(40, 42, 48)",
+   "component": ".season-title > h1",
+   "text": "Season",
+   "count": 21,
+   "states": [
+    "season-schedule",
+    "season-results",
+    "season-standings",
+    "season-drivers",
+    "season-h2h",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h2 | font 590 13px | color rgb(247, 248, 248)",
+   "component": ".dominance-map-header > #dominanceTitle",
+   "text": "Mini-sector dominanc",
+   "count": 12,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h2 | font 510 15px | color rgb(247, 248, 248)",
+   "component": ".panel-heading > h2",
+   "text": "Team profiles",
+   "count": 12,
+   "states": [
+    "cars-pace",
+    "cars-corners",
+    "cars-trend",
+    "cars-results"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h2 | font 590 13px | color rgb(40, 42, 48)",
+   "component": ".dominance-map-header > #dominanceTitle",
+   "text": "Mini-sector dominanc",
+   "count": 12,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h2 | font 510 15px | color rgb(40, 42, 48)",
+   "component": ".panel-heading > h2",
+   "text": "Team profiles",
+   "count": 12,
+   "states": [
+    "cars-pace",
+    "cars-corners",
+    "cars-trend",
+    "cars-results"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h3 | font 590 15px | color rgb(247, 248, 248)",
+   "component": "#performanceMetricPanel > h3",
+   "text": "Ready for analysis",
+   "count": 9,
+   "states": [
+    "cars-empty",
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h2 | font 510 12px | color rgb(98, 102, 109)",
+   "component": ".panel-heading > h2",
+   "text": "Event tyres",
+   "count": 8,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h2 | font 510 12px | color rgb(134, 132, 141)",
+   "component": ".panel-heading > h2",
+   "text": "Event tyres",
+   "count": 8,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h3 | font 590 14px | color rgb(247, 248, 248)",
+   "component": ".run-driver-copy > h3",
+   "text": "Max Verstappen",
+   "count": 6,
+   "states": [
+    "session-lap-sheet"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h1 | font 590 28px | color rgb(247, 248, 248)",
+   "component": "header > h1",
+   "text": "F1 Apex Data · UI co",
+   "count": 6,
+   "states": [
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h2 | font 590 19.5px | color rgb(247, 248, 248)",
+   "component": "section > h2",
+   "text": "Status message wrapp",
+   "count": 6,
+   "states": [
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h3 | font 590 14px | color rgb(40, 42, 48)",
+   "component": ".run-driver-copy > h3",
+   "text": "Max Verstappen",
+   "count": 6,
+   "states": [
+    "session-lap-sheet"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h4 | font 590 12px | color rgb(247, 248, 248)",
+   "component": ".perf-chart-title-group > .perf-chart-heading",
+   "text": "Points · races + spr",
+   "count": 3,
+   "states": [
+    "cars-results"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h4 | font 590 12px | color rgb(40, 42, 48)",
+   "component": ".perf-chart-title-group > .perf-chart-heading",
+   "text": "Points · races + spr",
+   "count": 3,
+   "states": [
+    "cars-results"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h3 | font 590 15px | color rgb(40, 42, 48)",
+   "component": "#performanceMetricPanel > h3",
+   "text": "Ready for analysis",
+   "count": 3,
+   "states": [
+    "cars-empty"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h2 | font 590 24px | color rgb(247, 248, 248)",
+   "component": ".season-hero-id > h2",
+   "text": "Andrea Kimi Antonell",
+   "count": 2,
+   "states": [
+    "season-drivers"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h2 | font 590 24px | color rgb(40, 42, 48)",
+   "component": ".season-hero-id > h2",
+   "text": "Andrea Kimi Antonell",
+   "count": 2,
+   "states": [
+    "season-drivers"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h2 | font 590 15px | color rgb(40, 42, 48)",
+   "component": ".season-hero-id > h2",
+   "text": "Andrea Kimi Antonell",
+   "count": 2,
+   "states": [
+    "season-h2h"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h2 | font 510 12px | color rgb(208, 214, 224)",
+   "component": ".panel-heading > h2",
+   "text": "Drivers",
+   "count": 1,
+   "states": [
+    "session-lap-sheet"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h2 | font 510 16px | color rgb(247, 248, 248)",
+   "component": ".panel-heading > h2",
+   "text": "Event tyres",
+   "count": 1,
+   "states": [
+    "session-lap-sheet"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h2 | font 510 12px | color rgb(60, 65, 73)",
+   "component": ".panel-heading > h2",
+   "text": "Drivers",
+   "count": 1,
+   "states": [
+    "session-lap-sheet"
+   ]
+  },
+  {
+   "kind": "heading",
+   "sig": "h2 | font 510 16px | color rgb(40, 42, 48)",
+   "component": ".panel-heading > h2",
+   "text": "Event tyres",
+   "count": 1,
+   "states": [
+    "session-lap-sheet"
+   ]
+  },
+  {
+   "kind": "table-header",
+   "sig": "font 510 12px | color rgb(138, 143, 152) | h 32 | bg rgba(255, 255, 255, 0.02)",
+   "component": "tr > th",
+   "text": "Trace",
+   "count": 618,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results"
+   ]
+  },
+  {
+   "kind": "table-header",
+   "sig": "font 510 12px | color rgb(111, 110, 119) | h 32 | bg rgba(0, 0, 0, 0.02)",
+   "component": "tr > th",
+   "text": "Trace",
+   "count": 618,
+   "states": [
+    "session-loaded",
+    "session-lap-sheet",
+    "session-compute",
+    "session-explanations",
+    "cars-pace",
+    "cars-corners",
+    "cars-straight",
+    "cars-braking",
+    "cars-pits",
+    "cars-tyres",
+    "cars-trend",
+    "cars-results"
+   ]
+  },
+  {
+   "kind": "table-header",
+   "sig": "font 510 11px | color rgb(111, 110, 119) | h 30 | bg rgba(0, 0, 0, 0)",
+   "component": "tr > th",
+   "text": "12ANT",
+   "count": 171,
+   "states": [
+    "season-standings",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "table-header",
+   "sig": "font 510 12px | color rgb(138, 143, 152) | h 30 | bg rgba(255, 255, 255, 0.02)",
+   "component": "tr > .num",
+   "text": "Round",
+   "count": 138,
+   "states": [
+    "season-results",
+    "season-standings",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "table-header",
+   "sig": "font 510 11px | color rgb(138, 143, 152) | h 30 | bg rgba(255, 255, 255, 0.02)",
+   "component": "tr > th",
+   "text": "12ANT",
+   "count": 138,
+   "states": [
+    "season-standings",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "table-header",
+   "sig": "font 510 12px | color rgb(111, 110, 119) | h 30 | bg rgba(0, 0, 0, 0.02)",
+   "component": "tr > .num",
+   "text": "Round",
+   "count": 138,
+   "states": [
+    "season-results",
+    "season-standings",
+    "season-upgrades",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "table-header",
+   "sig": "font 510 12px | color rgb(138, 143, 152) | h 31 | bg rgba(255, 255, 255, 0.02)",
+   "component": "tr > th",
+   "text": "Driver",
+   "count": 120,
+   "states": [
+    "season-standings",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "table-header",
+   "sig": "font 510 12px | color rgb(111, 110, 119) | h 31 | bg rgba(0, 0, 0, 0.02)",
+   "component": "tr > th",
+   "text": "Driver",
+   "count": 120,
+   "states": [
+    "season-standings",
+    "season-units"
+   ]
+  },
+  {
+   "kind": "table-header",
+   "sig": "font 510 11px | color rgb(208, 214, 224) | h 36 | bg rgb(28, 28, 30)",
+   "component": "tr > th",
+   "text": "Red Bull Racing",
+   "count": 33,
+   "states": [
+    "cars-pace"
+   ]
+  },
+  {
+   "kind": "table-header",
+   "sig": "font 510 11px | color rgb(138, 143, 152) | h 30 | bg rgba(0, 0, 0, 0)",
+   "component": "tr > th",
+   "text": "McLaren",
+   "count": 33,
+   "states": [
+    "season-upgrades"
+   ]
+  },
+  {
+   "kind": "table-header",
+   "sig": "font 510 11px | color rgb(60, 65, 73) | h 36 | bg rgb(249, 248, 249)",
+   "component": "tr > th",
+   "text": "Red Bull Racing",
+   "count": 33,
+   "states": [
+    "cars-pace"
+   ]
+  },
+  {
+   "kind": "table-header",
+   "sig": "font 510 12px | color rgb(138, 143, 152) | h 40 | bg rgba(255, 255, 255, 0.02)",
+   "component": "tr > th",
+   "text": "Team",
+   "count": 12,
+   "states": [
+    "ui-catalog"
+   ]
+  },
+  {
+   "kind": "table-header",
+   "sig": "font 510 11px | color rgb(138, 143, 152) | h 26 | bg rgba(255, 255, 255, 0.02)",
+   "component": "tr > th",
+   "text": "50HIR",
+   "count": 3,
+   "states": [
+    "season-units"
+   ]
+  },
+  {
+   "kind": "table-header",
+   "sig": "font 510 11px | color rgb(111, 110, 119) | h 26 | bg rgba(0, 0, 0, 0)",
+   "component": "tr > th",
+   "text": "50HIR",
+   "count": 3,
+   "states": [
+    "season-units"
+   ]
+  }
+ ],
+ "layouts": {
+  "session-empty": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 2,
+    "28": 5
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "284": 1
+   },
+   "distinctLeftEdges": 1,
+   "blockGaps": {},
+   "nestedCards": 0,
+   "rowHeights": {},
+   "headingSequence": "H2:20"
+  },
+  "session-loaded": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 2,
+    "28": 27
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "284": 1,
+    "292": 11,
+    "300": 1,
+    "475": 1,
+    "657": 1,
+    "840": 1,
+    "1058": 2
+   },
+   "distinctLeftEdges": 7,
+   "blockGaps": {
+    "6": 1,
+    "8": 1,
+    "12": 1,
+    "24": 4,
+    "40": 1,
+    "67": 1,
+    "174": 1
+   },
+   "nestedCards": 1,
+   "rowHeights": {
+    "24": 6,
+    "28": 22
+   },
+   "headingSequence": "H3:12 H3:12 H2:13 H2:20 H3:13 H2:20 H3:13 H2:14 H2:14 H2:14 H2:14 H2:14"
+  },
+  "session-lap-sheet": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 2,
+    "28": 27
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "284": 1,
+    "292": 11,
+    "300": 1,
+    "475": 1,
+    "657": 1,
+    "840": 1,
+    "1058": 2
+   },
+   "distinctLeftEdges": 7,
+   "blockGaps": {
+    "6": 1,
+    "8": 1,
+    "12": 1,
+    "24": 4,
+    "40": 1,
+    "67": 1,
+    "174": 1
+   },
+   "nestedCards": 1,
+   "rowHeights": {
+    "24": 6,
+    "28": 22
+   },
+   "headingSequence": "H3:14 H3:14 H3:12 H3:12 H2:13 H2:20 H3:13 H2:20 H3:13 H2:14 H2:14 H2:14 H2:14 H2:14"
+  },
+  "session-compute": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 2,
+    "28": 27
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "284": 1,
+    "292": 11,
+    "300": 1,
+    "475": 1,
+    "657": 1,
+    "840": 1,
+    "1058": 2
+   },
+   "distinctLeftEdges": 7,
+   "blockGaps": {
+    "6": 1,
+    "8": 1,
+    "12": 1,
+    "24": 4,
+    "40": 1,
+    "67": 1,
+    "174": 1
+   },
+   "nestedCards": 1,
+   "rowHeights": {
+    "24": 6,
+    "28": 22
+   },
+   "headingSequence": "H3:12 H3:12 H2:13 H2:20 H3:13 H2:20 H3:13 H2:14 H2:14 H2:14 H2:14 H2:14"
+  },
+  "session-explanations": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 2,
+    "28": 27
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "284": 1,
+    "292": 11,
+    "300": 1,
+    "475": 1,
+    "657": 1,
+    "840": 1,
+    "1058": 2
+   },
+   "distinctLeftEdges": 7,
+   "blockGaps": {
+    "6": 1,
+    "8": 1,
+    "12": 1,
+    "24": 4,
+    "40": 1,
+    "67": 1,
+    "174": 1
+   },
+   "nestedCards": 1,
+   "rowHeights": {
+    "24": 6,
+    "28": 22
+   },
+   "headingSequence": "H3:12 H3:12 H2:13 H2:20 H3:13 H2:20 H3:13 H2:14 H2:14 H2:14 H2:14 H2:14"
+  },
+  "cars-pace": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 2,
+    "28": 12
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "284": 1,
+    "292": 8,
+    "308": 3,
+    "849": 1
+   },
+   "distinctLeftEdges": 4,
+   "blockGaps": {
+    "8": 2,
+    "12": 2,
+    "16": 1,
+    "48": 1,
+    "50": 1,
+    "106": 1
+   },
+   "nestedCards": 8,
+   "rowHeights": {
+    "36": 45,
+    "47": 3,
+    "48": 105
+   },
+   "headingSequence": "H2:20 H4:13 H4:13 H2:15 H4:13"
+  },
+  "cars-corners": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 2,
+    "28": 12
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "284": 1,
+    "292": 5,
+    "299": 5,
+    "306": 3,
+    "663": 2,
+    "849": 1,
+    "1035": 2
+   },
+   "distinctLeftEdges": 7,
+   "blockGaps": {
+    "28": 1,
+    "36": 3,
+    "66": 2,
+    "202": 1,
+    "343": 1
+   },
+   "nestedCards": 16,
+   "rowHeights": {
+    "36": 366,
+    "48": 27
+   },
+   "headingSequence": "H2:20 H4:13 H4:13 H4:13 H4:13 H4:13 H4:13 H4:13 H4:13 H4:13 H2:15 H4:13 H4:13"
+  },
+  "cars-straight": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 2,
+    "28": 12
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "284": 1,
+    "292": 2,
+    "299": 1,
+    "306": 3,
+    "849": 1
+   },
+   "distinctLeftEdges": 5,
+   "blockGaps": {},
+   "nestedCards": 6,
+   "rowHeights": {
+    "36": 221,
+    "48": 19
+   },
+   "headingSequence": "H2:20 H4:13 H4:13"
+  },
+  "cars-braking": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 2,
+    "28": 12
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "284": 1,
+    "292": 2,
+    "299": 1,
+    "849": 1
+   },
+   "distinctLeftEdges": 4,
+   "blockGaps": {},
+   "nestedCards": 3,
+   "rowHeights": {
+    "36": 33
+   },
+   "headingSequence": "H2:20 H4:13 H4:13"
+  },
+  "cars-pits": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 2,
+    "28": 12
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "284": 1,
+    "292": 4,
+    "308": 1,
+    "849": 1
+   },
+   "distinctLeftEdges": 4,
+   "blockGaps": {
+    "12": 2,
+    "368": 1
+   },
+   "nestedCards": 4,
+   "rowHeights": {
+    "36": 130,
+    "47": 1,
+    "48": 10
+   },
+   "headingSequence": "H2:20 H4:13 H4:13"
+  },
+  "cars-tyres": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 2,
+    "28": 12
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "284": 1,
+    "292": 5,
+    "303": 1,
+    "308": 1,
+    "319": 1,
+    "849": 1
+   },
+   "distinctLeftEdges": 6,
+   "blockGaps": {
+    "12": 1,
+    "20": 1,
+    "54": 1,
+    "368": 1
+   },
+   "nestedCards": 7,
+   "rowHeights": {
+    "36": 41,
+    "40": 1,
+    "41": 172
+   },
+   "headingSequence": "H2:20 H4:13 H4:13 H4:13"
+  },
+  "cars-trend": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 2,
+    "28": 12
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "284": 1,
+    "292": 4,
+    "1005": 1
+   },
+   "distinctLeftEdges": 3,
+   "blockGaps": {
+    "12": 1,
+    "60": 1
+   },
+   "nestedCards": 4,
+   "rowHeights": {
+    "36": 11
+   },
+   "headingSequence": "H2:20 H4:13 H4:13 H2:15"
+  },
+  "cars-results": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 2,
+    "28": 12
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "284": 1,
+    "292": 5,
+    "299": 1
+   },
+   "distinctLeftEdges": 3,
+   "blockGaps": {
+    "28": 1,
+    "36": 1,
+    "90": 1
+   },
+   "nestedCards": 4,
+   "rowHeights": {
+    "36": 21,
+    "47": 1,
+    "48": 10
+   },
+   "headingSequence": "H2:20 H4:12 H2:15"
+  },
+  "cars-empty": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 2,
+    "28": 12
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "284": 1,
+    "292": 1
+   },
+   "distinctLeftEdges": 2,
+   "blockGaps": {},
+   "nestedCards": 0,
+   "rowHeights": {},
+   "headingSequence": "H3:15"
+  },
+  "season-schedule": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 1,
+    "28": 11
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "292": 7,
+    "308": 1,
+    "570": 6,
+    "847": 6,
+    "1125": 5
+   },
+   "distinctLeftEdges": 5,
+   "blockGaps": {
+    "8": 19,
+    "41": 1
+   },
+   "nestedCards": 1,
+   "rowHeights": {
+    "24": 120,
+    "28": 6
+   },
+   "headingSequence": "H1:20 H2:20 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13"
+  },
+  "season-results": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 1,
+    "28": 11
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "292": 6,
+    "308": 1,
+    "571": 2,
+    "849": 4,
+    "1128": 2
+   },
+   "distinctLeftEdges": 5,
+   "blockGaps": {
+    "12": 10
+   },
+   "nestedCards": 1,
+   "rowHeights": {
+    "36": 20
+   },
+   "headingSequence": "H1:20 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13"
+  },
+  "season-standings": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 1,
+    "28": 11
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "292": 3,
+    "849": 2
+   },
+   "distinctLeftEdges": 2,
+   "blockGaps": {
+    "12": 3
+   },
+   "nestedCards": 0,
+   "rowHeights": {
+    "30": 25,
+    "36": 25
+   },
+   "headingSequence": "H1:20 H3:13 H3:13 H3:13 H3:13"
+  },
+  "season-drivers": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 1,
+    "28": 11
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "292": 6,
+    "849": 2
+   },
+   "distinctLeftEdges": 2,
+   "blockGaps": {
+    "12": 6
+   },
+   "nestedCards": 0,
+   "rowHeights": {},
+   "headingSequence": "H1:20 H2:24 H3:13 H3:13 H3:13 H3:13 H3:13 H3:13"
+  },
+  "season-h2h": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 1,
+    "28": 11
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "292": 5,
+    "849": 1
+   },
+   "distinctLeftEdges": 2,
+   "blockGaps": {
+    "12": 4
+   },
+   "nestedCards": 0,
+   "rowHeights": {},
+   "headingSequence": "H1:20 H2:20 H2:20 H3:13 H3:13 H3:13 H3:13"
+  },
+  "season-upgrades": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 1,
+    "28": 11
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "292": 5,
+    "849": 1
+   },
+   "distinctLeftEdges": 2,
+   "blockGaps": {
+    "12": 3,
+    "142": 1
+   },
+   "nestedCards": 1,
+   "rowHeights": {
+    "30": 11
+   },
+   "headingSequence": "H1:20 H3:13 H3:13 H3:13 H3:13 H4:11 H4:11 H4:11 H4:11 H4:11 H4:11 H4:11 H4:11 H4:11"
+  },
+  "season-units": {
+   "railWidth": 264,
+   "railRowHeights": {
+    "24": 1,
+    "28": 11
+   },
+   "headerHeight": 44,
+   "viewLeft": 264,
+   "viewWidth": 1158,
+   "contentLeftEdges": {
+    "292": 2
+   },
+   "distinctLeftEdges": 1,
+   "blockGaps": {
+    "12": 1
+   },
+   "nestedCards": 0,
+   "rowHeights": {
+    "26": 1,
+    "30": 21,
+    "36": 22
+   },
+   "headingSequence": "H1:20 H3:13"
+  },
+  "ui-catalog": {
+   "railWidth": null,
+   "railRowHeights": {},
+   "headerHeight": null,
+   "viewLeft": null,
+   "viewWidth": null,
+   "contentLeftEdges": {},
+   "distinctLeftEdges": 0,
+   "blockGaps": {},
+   "nestedCards": 0,
+   "rowHeights": {
+    "28": 2,
+    "36": 3
+   },
+   "headingSequence": "H1:28 H2:19.5 H2:15 H2:15 H2:15 H2:15 H2:15 H2:15 H2:15 H2:15 H2:15 H2:15 H2:15 H3:15"
+  }
+ }
+}

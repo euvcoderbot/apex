@@ -7,8 +7,8 @@
     braking: ['04', 'Braking', 'Two views of the same qualifying-lap observations'],
     pits: ['05', 'Pit stops', 'Service speed, pit-lane time & consistency'],
     tyres: ['06', 'Tyre trend', 'How performance changes with tyre age'],
-    trend: ['07', 'Development & updates', 'Relative progress across observed rounds'],
-    results: ['08', 'Reliability & results', 'Race outcomes, finishes & retirement causes']
+    trend: ['07', 'Development trend', 'Relative progress across observed rounds'],
+    results: ['08', 'Finishes & retirements', 'Race outcomes, finishes & retirement causes']
   };
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   function syncPerformanceRows(root=document){
@@ -111,7 +111,10 @@
   }
   // Picking out a team: the highlight stays on the last team hovered while the pointer crosses the gaps between lines
   // or bars, and clears only when the pointer leaves the board. Clearing on every gap made all lines flash back to full strength.
-  const highlightTrend=(board,key)=>{
+  let trendEntrant = '';
+  const highlightTrend=(board,key=trendEntrant)=>{
+    if(board.dataset.activeEntrant===key)return;
+    board.dataset.activeEntrant=key;
     board.classList.toggle('has-active',!!key);
     for(const item of board.querySelectorAll('[data-trend-series]'))item.classList.toggle('is-active',item.dataset.trendSeries===key);
   };
@@ -122,8 +125,41 @@
   });
   performanceRoot?.addEventListener('pointerout',event=>{
     const board=event.target.closest?.('.trend-board');
-    if(board&&!board.contains(event.relatedTarget))highlightTrend(board,null);
+    if(board&&!board.contains(event.relatedTarget))highlightTrend(board);
   });
+  performanceRoot?.addEventListener('change',event=>{
+    if(!event.target.matches('[data-trend-entrant]'))return;
+    trendEntrant=event.target.value;
+    const board=performanceRoot.querySelector('.trend-board');
+    if(board)highlightTrend(board);
+  });
+  // Dense charts have one tab stop per plot. Arrow keys inspect the same exact values as pointer tooltips.
+  let chartTip=null, focusedChartMark=null, dismissedChartKey=null;
+  const hideChartValue=()=>{if(chartTip)chartTip.hidden=true;focusedChartMark=null;};
+  performanceRoot?.addEventListener('focusin',event=>{
+    const mark=event.target.closest?.('[data-chart-value]');
+    if(!mark){dismissedChartKey=null;hideChartValue();return;}
+    const plot=mark.closest('svg,.performance-bars,.performance-tyre-age-chart');
+    for(const node of plot.querySelectorAll('[data-chart-value]'))node.setAttribute('tabindex',node===mark?'0':'-1');
+    focusedChartMark=mark;
+    if(dismissedChartKey===mark.dataset.chartValue){if(chartTip)chartTip.hidden=true;return;}
+    dismissedChartKey=null;
+    if(!chartTip){chartTip=document.createElement('div');chartTip.className='tooltip chart-value-tip';chartTip.setAttribute('role','tooltip');document.body.append(chartTip);}
+    chartTip.textContent=mark.getAttribute('aria-label')||mark.textContent;chartTip.hidden=false;
+    const box=mark.getBoundingClientRect(),w=chartTip.offsetWidth,h=chartTip.offsetHeight;
+    chartTip.style.left=Math.max(8,Math.min(innerWidth-w-8,box.left+box.width/2))+'px';
+    chartTip.style.top=Math.max(8,Math.min(innerHeight-h-8,box.top-h-8))+'px';
+    const board=mark.closest('.trend-board'),key=mark.closest('[data-trend-series]')?.dataset.trendSeries;if(board&&key)highlightTrend(board,key);
+  });
+  performanceRoot?.addEventListener('focusout',event=>{const board=event.target.closest?.('.trend-board');if(board&&!board.contains(event.relatedTarget))highlightTrend(board);hideChartValue();});
+  performanceRoot?.addEventListener('keydown',event=>{
+    if(event.key==='Escape'){dismissedChartKey=event.target.closest?.('[data-chart-value]')?.dataset.chartValue||null;hideChartValue();return;}
+    const mark=event.target.closest?.('[data-chart-value]');if(!mark||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key))return;
+    const plot=mark.closest('svg,.performance-bars,.performance-tyre-age-chart'),marks=[...plot.querySelectorAll('[data-chart-value]')],index=marks.indexOf(mark);
+    const next=event.key==='Home'?0:event.key==='End'?marks.length-1:Math.max(0,Math.min(marks.length-1,index+(['ArrowRight','ArrowDown'].includes(event.key)?1:-1)));
+    event.preventDefault();marks.forEach((node,i)=>{node.setAttribute('tabindex',i===next?'0':'-1');});marks[next].focus();
+  });
+  if(performanceRoot)new MutationObserver(()=>{if(focusedChartMark&&!focusedChartMark.isConnected)hideChartValue();}).observe(performanceRoot,{childList:true,subtree:true});
   categoryList?.addEventListener('click',event=>{
     const row=event.target.closest('[data-sidebar-metric]');if(!row||row.disabled)return;
     // The chosen row is marked at once; the category, which rebuilds the whole panel, renders after that frame is painted,
@@ -162,6 +198,13 @@
     return `<header class="metric-heading" aria-label="${escape(context.year || '—')} · ${subject}"><div class="metric-heading-copy"><h2>${title}</h2><p class="explanation-only">${description}</p></div><div class="metric-heading-controls"></div><span class="metric-load-count" role="status">${measured}${selected?'/'+selected:''} GP${selected===1?'':'s'} with data for this view</span></header>`;
   }
   function arrangePerformance(root, metric) {
+    const entrant = root.querySelector('[data-trend-entrant]');
+    const board = root.querySelector('.trend-board');
+    if (entrant && board) {
+      entrant.value = [...entrant.options].some(option => option.value === trendEntrant) ? trendEntrant : '';
+      trendEntrant = entrant.value;
+      highlightTrend(board);
+    }
     if (!root) return;
     root.dataset.presentation = metric;
     const panel = root.querySelector('#performanceMetricPanel');
@@ -235,16 +278,7 @@
       if (metric === 'pace') placeControls(body.querySelector('.performance-stat-toggle'), [...body.querySelectorAll('.pace-visual-grid .performance-chart-card')].at(-1));
       if (metric === 'straight') placeControls(body.querySelector('.straight-summary-controls'), body.querySelector('.performance-chart-card'));
       if (metric === 'straight') placeControls(body.querySelector('.performance-range-control'), [...body.querySelectorAll('.performance-chart-card')].at(-1));
-      const runControls = body.querySelector('.performance-tyre-plot-controls');
-      if (runControls && !runControls.closest('.performance-run-inspector')) {
-        const runNote = runControls.nextElementSibling;
-        const inspector = document.createElement('details'), summary = document.createElement('summary');
-        inspector.className = 'performance-run-inspector'; summary.textContent = 'Inspect a tyre run';
-        runControls.before(inspector); inspector.append(summary, runControls);
-        if (runNote?.matches('p.performance-note')) inspector.append(runNote);
-        const plot = body.querySelector('.performance-tyre-stint-plot');
-        if (plot) inspector.append(plot);
-      }
+
     }
     for (const wrap of root.querySelectorAll('.performance-table-wrap')) {
       const table = wrap.querySelector('table');
@@ -280,7 +314,9 @@
       const rows=[...table.querySelectorAll('tbody tr')];
       [...(table.querySelector('thead tr')?.children||[])].forEach((heading,index)=>{
         const values=rows.map(row=>row.children[index]?.textContent.trim()||'').filter(text=>text&&!/^(—|–|-|n\/a)$/i.test(text));
-        const kind=index===0?'text':!values.length?'chart':values.every(text=>/^[+\-−~]?\d/.test(text))?'number':'text';
+        // A column of placeholders ("—" everywhere) is a metric with no values yet, not a chart: only cells drawing a chart centre.
+        const charts=rows.some(row=>row.children[index]?.querySelector('svg:not(.sort-icon),canvas'));
+        const kind=index===0?'text':!values.length?(charts?'chart':'number'):values.every(text=>/^[+\-−~±≈]?\d/.test(text))?'number':'text';
         heading.dataset.column=kind;
         for(const row of rows)if(row.children[index])row.children[index].dataset.column=kind;
       });
@@ -303,7 +339,7 @@
     }
     // Every other coverage note goes into one disclosure per card, below its
     // charts, so a note in one chart no longer stretches its neighbours.
-    for(const note of root.querySelectorAll('p.performance-quality-status:not(.explanation-only):not(.performance-empty-note)')){
+    for(const note of root.querySelectorAll('p.performance-quality-status:not(.explanation-only,.performance-empty-note,[data-inline-evidence])')){
       if(note.closest('details,.performance-tyre-toolbar')||note.querySelector('button')||note.getAttribute('role')==='status')continue;
       const parent=note.closest('.performance-card-body')||note.parentElement;
       let evidence=parent.querySelector(':scope > .performance-status-evidence');

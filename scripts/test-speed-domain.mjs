@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {speedDomainValue,speedDomainEventValues,speedDomainSeason,speedDomainPhases} from '../speed-domain.js';
+import {legacySource} from './legacy-css.mjs';
 
 const car=(grip,straight,braking)=>({cornering:{low:{index:1,time_vs_median_s:grip}},straight:{index:1,gap_to_median_s:straight},braking:{index:1,gap_pct:braking}});
 
@@ -117,7 +118,7 @@ test('loading remains pending until telemetry arrives, then retains supported en
 });
 
 test('telemetry loading status remains visible with explanations disabled',()=>{
-  const css=readFileSync('macos-window.css','utf8'),view=readFileSync('src/views/SpeedView.tsx','utf8');
+  const css=legacySource('macos-window.css'),view=readFileSync('src/views/SpeedView.tsx','utf8');
   assert.match(css,/p\.performance-quality-status:not\(\.is-loading\):not\(:has\(button\)\)/);
   assert.match(view,/p\.status\.running \? ' is-loading'/);
   assert.match(view,/Lap times are loaded; fetching and processing the fastest laps/);

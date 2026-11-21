@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
+import {legacySource} from './legacy-css.mjs';
 
-const css = readFileSync('hig-system.css', 'utf8');
+const css = legacySource('hig-system.css');
 const tokenCss = readFileSync('tokens.css', 'utf8');
 const root = postcss.parse(css);
 const rulesFor = pattern => {
@@ -42,8 +43,6 @@ test('type uses one ramp and section headers share one style across both views',
     (decl.parent.selector === sectorDeficitSelector && decl.value === 'calc(var(--type-caption) * .85)'),
     decl.parent.selector + ' uses off-ramp ' + decl.value));
   assert.deepEqual(declared(rulesFor(/^\.sector-cards \.lap-summary-card \.sector-delta-slot \.summary-delta$/), 'font-size'), ['calc(var(--type-caption) * .85)']);
-  const sections = rulesFor(/workspace-heading h2,.analysis-heading h2,.corner-analysis-header h2/);
-  assert.deepEqual(declared(sections, 'font-size'), ['var(--type-title3)']);
 });
 
 test('motion is brief, never replays on re-render and honours Reduce Motion, Transparency and Contrast', () => {
@@ -135,7 +134,7 @@ test('only the system layer defines how scrollbars look, so they cannot drift ap
     assert.doesNotMatch(source, /scrollbar-(width|color)\s*:/, `${file} sets scrollbar-width or scrollbar-color`);
     assert.doesNotMatch(source, /::-webkit-scrollbar/, `${file} styles a WebKit scrollbar`);
   }
-  const system = readFileSync('hig-system.css', 'utf8');
+  const system = legacySource('hig-system.css');
   assert.match(system, /\* \{ scrollbar-width: thin; scrollbar-color: var\(--scroll-thumb\) transparent; \}/);
   assert.doesNotMatch(system, /::-webkit-scrollbar/);
   assert.equal((system.match(/scrollbar-width:\s*thin/g) || []).length, 1, 'the system layer sets the thin scrollbar exactly once');

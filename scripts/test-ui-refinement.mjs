@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
-const app=appSource(),css=readFileSync('ui-controls.css','utf8'),car=readFileSync('car-performance.js','utf8');
+import {legacySource} from './legacy-css.mjs';
+const app=appSource(),css=legacySource('ui-controls.css'),car=readFileSync('car-performance.js','utf8');
 
 test('rendered lap and sector differences precede their measured times, with weather icons',()=>{
   const laps=[{code:'HAM',lap:21,time:91.496,real:{s1:27.273,s2:38.258,s3:25.965,compound:'SOFT'}},{code:'VER',lap:11,time:91.373,real:{s1:27.002,s2:38.531,s3:25.840,compound:'SOFT'}}];

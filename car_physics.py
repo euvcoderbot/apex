@@ -163,6 +163,21 @@ def speed_since_minimum(speed_kmh, braking):
     return gained
 
 
+LIFT_DROP_PCT = 10.
+LIFT_WINDOW_S = .5
+
+
+def throttle_lifting(t, throttle):
+    """True where the throttle sits LIFT_DROP_PCT or more below its peak of the previous LIFT_WINDOW_S."""
+    out = np.zeros(len(t), dtype=bool)
+    start = 0
+    for i in range(len(t)):
+        while t[i]-t[start] > LIFT_WINDOW_S:
+            start += 1
+        out[i] = throttle[i] <= np.max(throttle[start:i+1])-LIFT_DROP_PCT
+    return out
+
+
 def lap_signals(a, track, pos=None):
     """Acceleration and lateral-load estimate for every packet of one lap."""
     t, v = a[:, T], a[:, V]/3.6
@@ -176,6 +191,8 @@ def lap_signals(a, track, pos=None):
     # reaching 100% near 150 km/h), so the throttle position itself is the
     # traction limit. Exit phase: on throttle, off the brake, gaining speed.
     exiting = (a[:, THR] >= 20) & (a[:, BRK] < .5) & (speed_since_minimum(a[:, V], a[:, BRK] >= .5) >= EXIT_PHASE_KMH)
+    # A driver backing off the throttle is setting up the next corner, not limited by traction.
+    exiting &= ~throttle_lifting(t, a[:, THR])
     braking = a[:, BRK] >= .5
     # DRS codes 10/12/14 mean the flap is open (2018-2025). Mixing open- and
     # closed-wing packets in one curve would compare different drag states,
@@ -198,7 +215,7 @@ BANDWIDTH_KMH = 12.
 TOP_END_DISTANCE_M = 500.
 
 
-def acceleration_curve(speed_kmh, accel, lo, hi):
+def acceleration_curve(speed_kmh, accel, lo, hi, edge_constant=False):
     """Full-throttle acceleration at fixed speed nodes (kernel local-linear).
 
     Comparing cars at the *same speed* is what removes entry-speed effects:
@@ -214,6 +231,14 @@ def acceleration_curve(speed_kmh, accel, lo, hi):
             continue
         w = np.exp(-.5*((speed_kmh-node)/BANDWIDTH_KMH)**2)
         if w.sum() < 3:
+            continue
+        # edge_constant: where the car has packets on one side of the node only, take their weighted mean rather than the
+        # local-linear intercept. At the edge of its data that fit extends the slope past the last packet; out of a slow
+        # corner the slope is steep, so it read about 0 g where the car never was (Mexico City 2026, Russell: -0.02 g at
+        # 105 km/h, his slowest exit packet 110 km/h). Dropping such nodes instead cost too much coverage on 9-packet laps.
+        if edge_constant and not (np.any((speed_kmh < node) & (speed_kmh >= node-NODE_KMH))
+                                  and np.any((speed_kmh > node) & (speed_kmh <= node+NODE_KMH))):
+            curve[i] = float(np.sum(w*accel)/w.sum())
             continue
         X = np.column_stack([np.ones(len(w)), speed_kmh-node])
         sw = np.sqrt(w)
@@ -684,6 +709,7 @@ UNBRAKED_REACH_M = 200.      # an unbraked corner's lift starts within this of i
 ONSET_GAP_M = 60.            # a gap this long without braking ends the braking run
 EXIT_SPEED_LIMIT = .12       # entry/exit speed this far off the field is a lift or a glitch
 CORNER_OUTLIER = .10         # 10% slower or faster than the field through one corner
+CORNER_COMMON_SHARE = .6     # corners every car has must hold this share of a band's field time to be compared
 BRAKING_SEARCH_M = 400.      # braking for a corner starts within this of its apex
 ONSET_SPREAD_M = 80.         # real braking points sit within this of the field's median
 FLAT_THROTTLE = 95.          # minimum throttle through a bend that still counts as flat out
@@ -940,31 +966,48 @@ def corner_timing(projected, corners, track, field_speed):
                                      'entry_kmh': c_['v_in']*3.6, 'exit_kmh': c_['v_out']*3.6, 'min_kmh': c_['v_min_kmh'],
                                      'min_throttle': c_['min_throttle'], 'lifted': c_.get('lifted')}
                               for name, c_ in cars.items()}})
-    bands = {}
-    for name in laps:
-        bands[name] = {}
-        for band, _, _ in CORNER_BANDS:
-            expected = sum(r['band'] == band for r in rows)
-            mine = [r for r in rows if r['band'] == band and name in r['cars']]
-            if not expected:
+    return rows, band_totals(rows, laps)
+
+
+def band_totals(rows, names):
+    """Each car's time in each corner band (low, medium, high speed), over the corners it is compared on.
+
+    As with the straights (straight_totals): every car is compared over the band's corners that all measured cars share,
+    as long as those keep CORNER_COMMON_SHARE of the band's field time; only below that does a car missing a corner (a
+    telemetry gap, a lift) lose the band at that GP. Before, one missing corner dropped the car from the whole band.
+    """
+    bands = {name: {} for name in names}
+    for band, _, _ in CORNER_BANDS:
+        in_band = [r for r in rows if r['band'] == band]
+        if not in_band:
+            for name in names:
                 bands[name][band] = None
-                continue
-            if len(mine) != expected:
-                bands[name][band] = {'index': None, 'corners': len(mine), 'expected': expected,
+            continue
+        measured = [name for name in names if any(name in r['cars'] for r in in_band)]
+        common = [r for r in in_band if all(name in r['cars'] for name in measured)]
+        total = sum(r['field_time_s'] for r in in_band)
+        use = common if common and total and sum(r['field_time_s'] for r in common)/total >= CORNER_COMMON_SHARE else in_band
+        for r in in_band:
+            r['compared'] = r in use
+        for name in names:
+            mine = [r for r in use if name in r['cars']]
+            if len(mine) != len(use):
+                bands[name][band] = {'index': None, 'corners': len(mine), 'expected': len(use),
                                      'exclusion': 'Incomplete shared corner coverage; measured corners remain in the evidence'}
                 continue
             delta = sum(r['cars'][name]['delta_s'] for r in mine)
             field = sum(r['field_time_s'] for r in mine)
-            bands[name][band] = {'index': field/(field+delta), 'corners': len(mine), 'expected': expected,
+            bands[name][band] = {'index': field/(field+delta), 'corners': len(mine), 'expected': len(in_band),
                                  'time_vs_median_s': delta, 'pct_vs_median': delta/field*100,
                                  'registration_sensitivity_s': sum(r['cars'][name]['registration_sensitivity_s'] for r in mine),
                                  'provisional': any(r['cars'][name]['max_packet_gap_s'] > .6 for r in mine),
                                  'phases_s': {k: sum(r['cars'][name]['phases_s'][k] for r in mine) for k in ('braking', 'mid', 'exit')},
-                                 'exclusion': None}
-    return rows, bands
+                                 'exclusion': None, **({'common_corners': True} if len(use) < len(in_band) else {})}
+    return bands
 
 
 STRAIGHT_MIN_M = 100.        # session analysis offers straights of at least this length
+STRAIGHT_COMMON_SHARE = .6   # straights every car has must hold this share of the straight distance to be compared
 STRAIGHT_FLAT_SHARE = .9     # a link is a straight when the field is flat out over this share of it
 LAP_EDGE_M = 50.             # a lap's first/last packet this close to the timing line still covers it
 
@@ -1035,21 +1078,37 @@ def track_straight_timing(projected, rows, track, field_throttle):
         straights.append({'straight': f"{row['turns'][-1]}–{following['turns'][0]}", 'pieces': pieces, 'metres': metres,
                           'field_time_s': field,
                           'cars': {n: {**c, 'delta_s': c['time_s']-field} for n, c in cars.items()}})
+    return straights, straight_totals(straights, laps)
+
+
+def straight_totals(straights, names):
+    """Each car's straight-line total over the straights it is compared on (see the comment below)."""
+    # Every car is compared over the same straights. When a car's lap misses a straight (a telemetry gap, a tow), the
+    # comparison uses the straights every measured car has, as long as they still hold STRAIGHT_COMMON_SHARE of the
+    # straight distance; only below that does a car missing a straight lose the GP. Before, one missing straight dropped
+    # the car from the whole GP, so a team could be absent at a circuit for a gap on one short straight.
+    measured_names = [name for name in names if any(name in s['cars'] for s in straights)]
+    common = [s for s in straights if all(name in s['cars'] for name in measured_names)]
+    total_m = sum(s['metres'] for s in straights)
+    use = common if common and total_m and sum(s['metres'] for s in common)/total_m >= STRAIGHT_COMMON_SHARE else straights
+    for s in straights:
+        s['compared'] = s in use
     totals = {}
-    for name in laps:
-        mine = [s for s in straights if name in s['cars']]
+    for name in names:
+        mine = [s for s in use if name in s['cars']]
         if not straights:
             totals[name] = {'index': None, 'exclusion': 'No designated straight could be measured'}
-        elif len(mine) != len(straights):
-            totals[name] = {'index': None, 'straights': len(mine), 'expected': len(straights),
+        elif len(mine) != len(use):
+            totals[name] = {'index': None, 'straights': len(mine), 'expected': len(use),
                             'exclusion': 'Incomplete straight coverage; measured straights remain in the evidence'}
         else:
             delta = sum(s['cars'][name]['delta_s'] for s in mine)
             field = sum(s['field_time_s'] for s in mine)
             totals[name] = {'index': field/(field+delta), 'straights': len(mine), 'expected': len(straights),
                             'time_vs_median_s': delta, 'pct_vs_median': delta/field*100,
-                            'provisional': any(s['cars'][name]['max_packet_gap_s'] > .6 for s in mine), 'exclusion': None}
-    return straights, totals
+                            'provisional': any(s['cars'][name]['max_packet_gap_s'] > .6 for s in mine), 'exclusion': None,
+                            **({'common_straights': True} if len(use) < len(straights) else {})}
+    return totals
 
 
 def _reference_lap(laps, timing):
@@ -1165,7 +1224,8 @@ def speed_domain_metrics(cars, corners=(), *, lap_info=None):
         for key, (lo, hi) in ranges:
             for state in states:
                 chosen = (exiting if key == 'traction' else on_straight) & cat(state)
-                nodes[key], accel_fits[(key, state)][name] = acceleration_curve(speed[chosen], accel[chosen], lo, hi)
+                nodes[key], accel_fits[(key, state)][name] = acceleration_curve(speed[chosen], accel[chosen], lo, hi,
+                                                                                 edge_constant=key == 'traction')
         fades[name] = float(np.median([full_throttle_fade(a, p, s_['accel'], segments['straights']) for (a, p), s_ in zip(values, sig)]))
         results[name]['counts'] = {'straight_samples': int(on_straight.sum()), 'exit_samples': int(exiting.sum())}
     for key, _ in ranges:

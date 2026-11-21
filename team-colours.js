@@ -28,3 +28,44 @@
   }
   window.apexTeamColour = apexTeamColour;
 })();
+
+/* Driver photos for the session views (the season hub's set in assets/drivers, listed in credits.json), matched by name:
+   sessions name drivers "Max VERSTAPPEN", the credits "Max Verstappen". apexDriverFaces.img(name) is an <img> or ''; the
+   list loads once, and 'apex-driver-photos' fires on window when it arrives so views can redraw with the photos. */
+(() => {
+  let byName = null, request = null;
+  const plain = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]+/g, ' ').trim();
+  function load() {
+    request ||= fetch('assets/drivers/credits.json').then(r => (r.ok ? r.json() : {})).then(c => {
+      byName = new Map(Object.entries(c.photos || {}).map(([id, x]) => [plain(x.name), id]));
+      window.dispatchEvent?.(new Event('apex-driver-photos'));
+    }).catch(() => { byName = new Map(); });
+    return request;
+  }
+  function id(name) {
+    if (!byName) { load(); return null; }
+    const n = plain(name);
+    if (byName.has(n)) return byName.get(n);
+    const family = n.split(' ').at(-1);
+    return [...byName].find(([k]) => k.split(' ').at(-1) === family)?.[1] || null;
+  }
+  const src = name => { const i = id(name); return i ? `assets/drivers/${encodeURIComponent(i)}.webp` : null; };
+  // Car performance names drivers by code only (VER, HUL): the first three letters of the family name, accents dropped,
+  // give each code; a code two drivers would share is left without a photo rather than guessed.
+  let byCode = null;
+  function srcByCode(code) {
+    if (!byName) { load(); return null; }
+    if (!byCode) {
+      const counts = new Map(), ids = new Map();
+      for (const [n, i] of byName) { const c = n.split(' ').at(-1).slice(0, 3).toUpperCase(); counts.set(c, (counts.get(c) || 0) + 1); ids.set(c, i); }
+      byCode = new Map([...ids].filter(([c]) => counts.get(c) === 1));
+    }
+    const i = byCode.get(String(code || '').toUpperCase());
+    return i ? `assets/driver-thumbs/${encodeURIComponent(i)}.webp` : null;   // Car performance shows them small: the 64 px set
+  }
+  // Small faces (lists, the distribution's row) use the 64 px thumbnails: about 2 KB each instead of 10.
+  const thumb = name => { const i = id(name); return i ? `assets/driver-thumbs/${encodeURIComponent(i)}.webp` : null; };
+  const img = name => { const s = thumb(name); return s ? `<img class="driver-face-img" src="${s}" alt="" loading="lazy" decoding="async">` : ''; };
+  window.apexDriverFaces = {id, src, srcByCode, img, load};
+  if (typeof fetch === 'function' && typeof document !== 'undefined') load();   // small list, read once at start so every view has it when it first draws
+})();

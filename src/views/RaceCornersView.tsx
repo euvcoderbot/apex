@@ -48,6 +48,7 @@ export function RaceCornersView(p: RaceCornersViewProps) {
       <p className="performance-note">Supported head-to-head time differences are averaged with equal GP weight. A connected comparison fits overlapping rivals; missing observations are not filled. These are estimated gaps per corner, not whole-lap loss or isolated downforce.</p>
       <BarChart rows={p.chart.rows} options={p.chart.options} />
       <DataTable headers={[p.sort.team, p.sort.gap, p.sort.gps, p.sort.samples, 'Corners timed']}
+        heat={[{col: 1, values: p.rows.map(r => r.gap), better: 'low'}]}
         rows={p.rows.map(r => [<TeamLabel team={r.team} />, signed(r.gap, 3, ' s'), r.events, r.samples, `${r.comparisons}${r.samples < 3 ? ' · sparse' : ''}`])} />
       <details className="performance-evidence">
         <summary>Measured race snapshots and missing data</summary>

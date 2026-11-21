@@ -1,0 +1,255 @@
+{
+ "year": 2022,
+ "fetched": "2026-11-16",
+ "circuits": [
+  {
+   "event": "Abu Dhabi Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20Abu%20Dhabi%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Australian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20Australian%20Grand%20Prix%20-%20Race%20Director%27s%20Note%20-%20Circuit%20Map%20V2.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Austrian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20Austrian%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20v2.pdf",
+   "zone_kind": "drs",
+   "zones": [
+    {
+     "turn": "1",
+     "offset_m": 102
+    },
+    {
+     "turn": "3",
+     "offset_m": 100
+    },
+    {
+     "turn": "10",
+     "offset_m": 106
+    }
+   ],
+   "centreline_m": 4318,
+   "drs": {
+    "detection": [
+     {
+      "number": 1,
+      "text": "160m before T1",
+      "turn": "1",
+      "offset_m": -160
+     },
+     {
+      "number": 2,
+      "text": "40m before T3",
+      "turn": "3",
+      "offset_m": -40
+     },
+     {
+      "number": 3,
+      "text": "120m before T10",
+      "turn": "10",
+      "offset_m": -120
+     }
+    ],
+    "activation": [
+     {
+      "number": 1,
+      "text": "102m after T1",
+      "turn": "1",
+      "offset_m": 102
+     },
+     {
+      "number": 2,
+      "text": "100m after T3",
+      "turn": "3",
+      "offset_m": 100
+     },
+     {
+      "number": 3,
+      "text": "106m after T10",
+      "turn": "10",
+      "offset_m": 106
+     }
+    ]
+   }
+  },
+  {
+   "event": "Azerbaijan Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20Azerbaijan%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20v2.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Bahrain Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20Bahrain%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Belgian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20Belgian%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Brazilian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20Brazilian%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zone.pdf",
+   "zone_kind": "drs",
+   "zones": [
+    {
+     "turn": "3",
+     "offset_m": 30
+    },
+    {
+     "turn": "15",
+     "offset_m": -160
+    }
+   ],
+   "centreline_m": 4309,
+   "drs": {
+    "detection": [
+     {
+      "number": 1,
+      "text": "Apex of Turn 2",
+      "turn": "2",
+      "offset_m": 0,
+      "at": "apex"
+     },
+     {
+      "number": 2,
+      "text": "30m after Turn 13",
+      "turn": "13",
+      "offset_m": 30
+     }
+    ],
+    "activation": [
+     {
+      "number": 1,
+      "text": "30m after Turn 3",
+      "turn": "3",
+      "offset_m": 30
+     },
+     {
+      "number": 2,
+      "text": "160m before Turn 15",
+      "turn": "15",
+      "offset_m": -160
+     }
+    ]
+   }
+  },
+  {
+   "event": "British Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20British%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20v2.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Canadian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20Canadian%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20v2.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Dutch Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20Dutch%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20v2.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Emilia Romagna Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20Emilia%20Romagna%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20v2.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "French Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20French%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20v2.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Hungarian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20Hungarian%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Italian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20Italian%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20v2.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Japanese Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20Japanese%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20v2.pdf",
+   "zone_kind": "drs",
+   "zones": [],
+   "centreline_m": 5807,
+   "drs": {
+    "detection": [
+     {
+      "number": null,
+      "text": "40m after Turn 15",
+      "turn": "15",
+      "offset_m": 40
+     }
+    ],
+    "activation": [
+     {
+      "number": null,
+      "text": "100m before control line",
+      "line": "control",
+      "offset_m": -100
+     }
+    ]
+   },
+   "venue": "Suzuka"
+  },
+  {
+   "event": "Mexican Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20Mexican%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Miami Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20Miami%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20v4.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Monaco Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20Monaco%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Saudi Arabian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20Saudi%20Arabian%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Singapore Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20Singapore%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20v2.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Spanish Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20Spanish%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20v2.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "United States Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2022%20United%20States%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20v2.pdf",
+   "zones": [],
+   "image_only": true
+  }
+ ]
+}

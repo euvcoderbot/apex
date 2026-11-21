@@ -1862,6 +1862,41 @@ def fetch_openf1_session_drivers(
             deleted = set()
             red_flags = []
             neutral = []
+            controls = []
+
+        # Qualifying phases (Q1/Q2/Q3, also for sprint qualifying): race control tags its messages with the phase, so a lap
+        # belongs to the phase of the last tagged message before it starts. Without tags, the phases come from the
+        # classification and the timing gaps (openf1_performance.qualifying_phase_bounds).
+        is_qualifying = str(session_name).strip().lower() in ("qualifying", "q", "sprint qualifying", "sq", "sprint shootout")
+        phase_marks: list[tuple[float, str]] = []
+        phase_bounds = None
+        if is_qualifying:
+            try:
+                from openf1_performance import qualifying_phase_bounds, stamp as _stamp
+                phase_marks = sorted((_stamp(c.get("date")), f"Q{c['qualifying_phase']}") for c in controls
+                                     if c.get("qualifying_phase") in (1, 2, 3) and _stamp(c.get("date")) is not None)
+                if not phase_marks:
+                    durations = {str(r.get("driver_number")): r.get("duration") for r in results_raw
+                                 if isinstance(r.get("duration"), list) and len(r["duration"]) >= 3}
+                    out_q1 = {n for n, d in durations.items() if d[0] is not None and d[1] is None}
+                    out_q2 = {n for n, d in durations.items() if d[1] is not None and d[2] is None}
+                    phase_bounds = qualifying_phase_bounds(laps_raw, (out_q1, out_q2), red_flags)
+            except Exception as phase_err:
+                logger.warning("Qualifying phases unavailable: %s", phase_err)
+
+        def openf1_lap_phase(date_value: Any) -> str | None:
+            if not is_qualifying or not date_value:
+                return None
+            from openf1_performance import stamp as _stamp
+            start = _stamp(date_value)
+            if start is None:
+                return None
+            if phase_marks:
+                before = [phase for at, phase in phase_marks if at <= start]
+                return before[-1] if before else "Q1"
+            if phase_bounds:
+                return "Q1" if start < phase_bounds[0] else "Q2" if start < phase_bounds[1] else "Q3"
+            return None
 
         lap_stint_map: dict[tuple[int, int], tuple[int, str, float | None]] = {}
         for stint in stints_raw:
@@ -1923,7 +1958,7 @@ def fetch_openf1_session_drivers(
                     "compound": comp,
                     "tyre_life": tyre_life,
                     "stint": st_num,
-                    "phase": None,
+                    "phase": openf1_lap_phase(lap.get("date_start")),
                     "deleted": (str(d_num), int(lap_num)) in deleted,
                     "in_lap": False,
                     "out_lap": lap.get("is_pit_out_lap") is True,

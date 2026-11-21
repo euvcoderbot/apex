@@ -87,7 +87,7 @@ test('qualifying phases, empty comparison alignment and compute settings remain 
   const errors = await loaded(page);
   await expect(page.locator('.run-segment strong').filter({hasText: /^Stint/})).toHaveCount(0);
   await page.locator('#clearComparison').click();
-  const centers = await page.locator('.comparison-tray').evaluate(root => {
+  const centers = await page.locator('#telemetryCard .comparison-tray').evaluate(root => {
     const center = el => { const r = el.getBoundingClientRect(); return r.y + r.height / 2; };
     return [center(root.querySelector('.comparison-tray-heading')), center(root.querySelector('.section-empty'))];
   });
@@ -114,6 +114,24 @@ test('qualifying phases, empty comparison alignment and compute settings remain 
   expect(errors).toEqual([]);
 });
 
+test('inspect a measured gain or loss with the keyboard', async ({page}) => {
+  const errors = await loaded(page, {corners: [{number: 1, fraction: .06}, {number: 12, fraction: .42}, {number: 19, fraction: .83}]});
+  const action = page.locator('#timeSummary [data-inspect-zone]').first();
+  await expect(action).toBeVisible();
+  // The whole row is the button (list-row recipe), not underlined text.
+  expect(await action.evaluate(b => [getComputedStyle(b).textDecorationLine, getComputedStyle(b).boxShadow, b.closest('li').getBoundingClientRect().width - b.getBoundingClientRect().width])).toEqual(['none', 'none', 0]);
+  await page.locator('#timeSummary').screenshot({path: test.info().outputPath('time-summary.png')});
+  await page.locator('#sectorRows').screenshot({path: test.info().outputPath('sectors.png')});
+  await page.locator('#sessionOverview').screenshot({path: test.info().outputPath('overview.png')});
+  const index = await action.getAttribute('data-inspect-zone');
+  await action.focus();
+  await action.press('Enter');
+  const picked = page.locator(`#cornerPickerRow [data-corner-index="${index}"]`);
+  await expect(picked).toHaveAttribute('aria-pressed', 'true');
+  await expect(picked).toBeFocused();
+  expect(errors).toEqual([]);
+});
+
 test('partial source history discloses gaps without blocking supported comparisons',async({page})=>{
   const errors=await loaded(page,{partial:true});
   await expect(page.locator('canvas[data-chart="Speed trace"]')).toBeVisible();
@@ -123,12 +141,15 @@ test('partial source history discloses gaps without blocking supported compariso
 });
 
 test('loaded car-performance views survive repeated navigation without uncaught errors',async({page})=>{
+  // This checks for errors, not animation. Linux WebKit on CI does not settle the view transition a tab switch runs, so
+  // the next tab never looks stable to Playwright; reduced motion switches tabs without one (motion.js), as it does for people.
+  await page.emulateMedia({reducedMotion:'reduce'});
   const errors=await loaded(page);
   await page.getByRole('tab',{name:'Car performance',exact:true}).click();
   await page.locator('#performanceLoad').click();
   await expect(page.locator('.performance-bar-row').first()).toBeVisible();
   for(let i=0;i<2;i++){
-    await page.getByRole('tab',{name:'Reliability & results',exact:true}).click();
+    await page.getByRole('tab',{name:'Finishes & retirements',exact:true}).click();
     await page.getByRole('tab',{name:'Pace',exact:true}).click();
     await expect(page.locator('.performance-bar-row').first()).toBeVisible();
   }

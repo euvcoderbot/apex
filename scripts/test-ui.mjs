@@ -7,6 +7,8 @@ import vm from 'node:vm';
 import postcss from 'postcss';
 import {gzipSync,gunzipSync} from 'node:zlib';
 import {UI_STYLES,UI_LAYERS} from '../lib/ui-style-build.mjs';
+import {snapshotCompatible} from '../lib/snapshot-policy.mjs';
+import {legacySource} from './legacy-css.mjs';
 
 const app = appSource();
 test('local mode requests Python instead of loading published summary or native packs',async()=>{
@@ -64,7 +66,7 @@ test('performance redraw retains scroll, evidence disclosure and keyboard focus'
   assert.equal(detail.open,true);assert.equal(replacement.focused.preventScroll,true);
 });
 test('UI density uses component sizing and responsive chart rows rather than page scaling',()=>{
-  const shared=readFileSync('apple-ui.css','utf8'),performance=readFileSync('car-performance.css','utf8');
+  const shared=legacySource('apple-ui.css'),performance=legacySource('car-performance.css');
   postcss.parse(shared);postcss.parse(performance);
   // Regular controls are 28px (Linear's compact size); touch input raises them to 44px (ui-controls.css, the component layer).
   const tokens=JSON.parse(readFileSync('e2e/__tokens__/tokens.json','utf8'));
@@ -97,7 +99,7 @@ test('corner client consumes cached measurements and explicit retry retains fast
 });
 
 test('development table allocates all six columns without inflating rows',()=>{
-  const css=readFileSync('car-performance.css','utf8');
+  const css=legacySource('car-performance.css');
   const widths=[...css.matchAll(/\.performance-trend-table \.performance-table th:nth-child\((\d)\) \{ width: (\d+)%; \}/g)];
   assert.deepEqual(widths.map(m=>Number(m[1])),[1,2,3,4,5,6]);
   assert.equal(widths.reduce((sum,m)=>sum+Number(m[2]),0),100);
@@ -311,7 +313,7 @@ test('saved files decode both raw gzip and HTTP-decoded JSON',async()=>{
   assert.equal((await h.run('readSavedJson(decoded)')).value,42);
 });
 test('race status remains on the points baseline in compact driver rows',()=>{
-  const css=readFileSync('apple-ui.css','utf8');
+  const css=legacySource('apple-ui.css');
   assert.match(css,/\.driver-result\s*\{[^}]*display:\s*flex[^}]*align-items:\s*baseline/s);
   assert.doesNotMatch(css,/\.driver-result\s*\{[^}]*display:\s*grid/s);
 });
@@ -327,15 +329,19 @@ test('retained summaries use only the explicitly verified storage-only revision 
   assert.equal(await h.run("prerenderedData(new URL('https://example.test/api/performance?year=2026&gp=Test&session=Q'))"),null);
 });
 
-test('COTA practice loads a captured local summary and every drivers fastest native lap',()=>{
-  const index=JSON.parse(readFileSync('assets/data/prerendered/index.json'));
+test('COTA practice loads a captured local summary and every drivers fastest native lap',(t)=>{
+  // Captured summaries (with their local_export provenance) are kept in the prepared captures; skip where they are absent
+  // (a fresh clone without prepared data), since they are not tracked.
+  if(!existsSync('assets/data/local-captures/index.json'))return t.skip('no prepared captures in this checkout');
+  const index=JSON.parse(readFileSync('assets/data/local-captures/index.json'));
   const query='/api/session?gp=United+States+Grand+Prix&round=18&session=Practice+1&year=2026';
-  const summary=JSON.parse(gunzipSync(readFileSync('assets/data/prerendered/'+index.entries[query])));
+  const summary=JSON.parse(gunzipSync(readFileSync('assets/data/local-captures/'+index.entries[query].file)));
   assert.equal(summary.session,'Practice 1');assert.equal(summary.openf1_session_key,11389);
   assert.equal(summary.drivers.length,22);
   assert.ok(Date.parse(summary.local_export.captured_at)>Date.parse(summary.local_export.session_ended_at));
   const telemetry=JSON.parse(readFileSync('assets/data/telemetry/index.json'));
-  assert.equal(telemetry.sourceRevision,index.sourceRevision);
+  // Unchanged native packs keep their revision; an approved policy entry makes them valid under the captures' revision.
+  assert.ok(snapshotCompatible('sourceRevision',telemetry.sourceRevision,index.sourceRevision),`${telemetry.sourceRevision} vs ${index.sourceRevision}`);
   for(const driver of summary.drivers){
     const fastest=driver.laps.filter(lap=>!lap.out_lap&&lap.time>20&&lap.time<300).sort((a,b)=>a.time-b.time)[0];
     const file=telemetry.entries[`2026:United States Grand Prix:Practice 1:${driver.code}`];
@@ -387,7 +393,7 @@ test('corner leaders are omitted nearby and cannot cross or enter another label'
 });
 
 test('one interface font family for canvas and every HTML descendant', () => {
-  const css = postcss.parse(readFileSync('apple-ui.css', 'utf8'));
+  const css = postcss.parse(legacySource('apple-ui.css'));
   const fonts = [];
   css.walkDecls('font-family', declaration => fonts.push(declaration.value));
   assert.ok(fonts.length > 0 && fonts.every(font => font === 'var(--ui-font)'));
@@ -435,7 +441,7 @@ test('replacement UI restores focus without scrolling and honours reduced motion
 });
 
 test('compact corner choices, grouped laps and motion accessibility are explicit', () => {
-  const css=postcss.parse(readFileSync('apple-ui.css','utf8'));
+  const css=postcss.parse(legacySource('apple-ui.css'));
   const corner=css.nodes.find(node=>node.type==='rule'&&node.selector==='.corner-pick');
   assert.ok(corner.nodes.some(d=>d.prop==='height'&&d.value==='32px'));
   assert.ok(css.nodes.some(n=>n.type==='atrule'&&n.params.includes('prefers-reduced-motion')));
@@ -449,7 +455,7 @@ test('compact corner choices, grouped laps and motion accessibility are explicit
 
 test('corner navigation precedes detail/map siblings and retains map height', () => {
   const html = readFileSync('index.html', 'utf8');
-  const css = readFileSync('apple-ui.css', 'utf8');
+  const css = legacySource('apple-ui.css');
   assert.ok(html.indexOf('id="cornerPickerRow"') < html.indexOf('id="cornerMetricGrid"'));
   assert.ok(html.indexOf('id="cornerMetricGrid"') < html.indexOf('id="dominanceCanvas"'));
   assert.equal((html.match(/id="dominanceCanvas"/g) || []).length, 1);
@@ -461,8 +467,9 @@ test('corner navigation precedes detail/map siblings and retains map height', ()
 test('team marks and tyres are drawn by the app, never loaded from image files', () => {
   const h = context();
   h.run(readFileSync('team-marks.js', 'utf8'));
-  assert.match(h.run("teamLogoMarkup('Haas F1 Team')"), /data-code="HAA"/);
-  assert.match(h.run("teamLogoMarkup('Kick Sauber')"), /data-code="SAU"/);
+  assert.match(h.run("teamLogoMarkup('Haas F1 Team')"), /data-team-mark="haas"/);
+  assert.match(h.run("teamLogoMarkup('Kick Sauber')"), /data-team-mark="kick-sauber"/);
+  assert.match(h.run("teamLogoMarkup('McLaren', '81')"), /data-number="81"/);
   assert.doesNotMatch(h.run("teamLogoMarkup('Kick Sauber')"), /AUD/);
   assert.doesNotMatch(h.run("teamLogoMarkup('<img>')"), /<img/);
   const colours = {hard: '#f5f5f7', medium: '#ffd735', soft: '#ff493e', intermediate: '#43cf79', wet: '#3395ff'};
@@ -476,7 +483,7 @@ test('team marks and tyres are drawn by the app, never loaded from image files',
 });
 
 test('driver list has fixed leading columns and stretched left-aligned names', () => {
-  const css = postcss.parse(readFileSync('apple-ui.css', 'utf8'));
+  const css = postcss.parse(legacySource('apple-ui.css'));
   const identity = css.nodes.find(n => n.type === 'rule' && n.selector === '.driver-pill-identity');
   for (const [prop, value] of [['justify-self','stretch'], ['width','100%'], ['text-align','left']]) {
     assert.ok(identity.nodes.some(d => d.prop === prop && d.value === value), prop);
@@ -488,7 +495,7 @@ test('driver list has fixed leading columns and stretched left-aligned names', (
 });
 
 test('site-wide elevation and independent comparison actions are retained', () => {
-  const css = readFileSync('apple-ui.css','utf8');
+  const css = legacySource('apple-ui.css');
   const tokens = JSON.parse(readFileSync('e2e/__tokens__/tokens.json','utf8'));
   for (const token of ['--shadow-main', '--ui-shadow-control', '--shadow-inset']) {
     assert.ok(tokens.dark[token] !== undefined && tokens.light[token] !== undefined, `${token} needs both themes`);
@@ -502,7 +509,7 @@ test('site-wide elevation and independent comparison actions are retained', () =
 });
 
 test('scrollbars stay discoverable in both themes without changing layout', () => {
-  const css = readFileSync('apple-ui.css','utf8');
+  const css = legacySource('apple-ui.css');
   const tokens = JSON.parse(readFileSync('e2e/__tokens__/tokens.json','utf8'));
   assert.ok(tokens.dark['--scroll-thumb'] && tokens.light['--scroll-thumb'] && tokens.dark['--scroll-thumb'] !== tokens.light['--scroll-thumb'], 'a thumb colour per appearance');
   assert.match(css, /html \{ scrollbar-gutter: stable;/);
@@ -510,12 +517,12 @@ test('scrollbars stay discoverable in both themes without changing layout', () =
   assert.doesNotMatch(css, /scrollbar-width: none/);
   assert.doesNotMatch(css, /::-webkit-scrollbar\s*\{\s*display: none/);
   // How they look is defined once, in the system layer (test-hig-system.mjs), with the OS's own look kept for forced colours and high contrast.
-  assert.match(readFileSync('hig-system.css','utf8'), /prefers-contrast: more\), \(forced-colors: active\) \{ \* \{ scrollbar-width: auto; scrollbar-color: auto;/);
+  assert.match(legacySource('hig-system.css'), /prefers-contrast: more\), \(forced-colors: active\) \{ \* \{ scrollbar-width: auto; scrollbar-color: auto;/);
   assert.match(css, /\.sidebar \{ position: static; max-height: none; overflow: visible;/);
 });
 
 test('compact sector rows, contrasting logos and section boundary bars', () => {
-  const css = readFileSync('apple-ui.css','utf8');
+  const css = legacySource('apple-ui.css');
   assert.doesNotMatch(css, /filter: brightness\(0\)/);
   assert.match(app, /class="sector-delta-slot"/);
   assert.match(app, /highlightedCornerWindows.flatMap\(window => \[window.start, window.end\]\)/);
@@ -685,6 +692,16 @@ test('latest event selection follows the newest completed session timestamp', ()
   assert.equal(h.run("latestCompletedSelection(statuses, Date.parse('2026-09-29T07:00:00Z')).session"), 'Practice 1');
   h.run("statuses[1].session_statuses['Practice 1']='completed'; statuses[1].session_end_dates['Practice 1']='2026-09-30T10:00:00Z'");
   assert.equal(h.run("latestCompletedSelection(statuses, Date.parse('2026-09-29T07:00:00Z')).event.name"), 'Finished GP');
+  // A calendar saved before the weekend: every session still "upcoming". Three hours after a session's scheduled end it is
+  // offered; "live" waits 36 hours (a red flag can run long).
+  h.run(`var stale=[{round:20,name:'São Paulo Grand Prix',sessions:['Practice 1','Qualifying','Race'],
+    session_end_dates:{'Practice 1':'2026-11-06T16:30:00Z',Qualifying:'2026-11-07T19:00:00Z',Race:'2026-11-08T19:00:00Z'},
+    session_statuses:{'Practice 1':'upcoming',Qualifying:'upcoming',Race:'upcoming'}}]`);
+  assert.equal(h.run("latestCompletedSelection(stale, Date.parse('2026-11-09T08:47:00Z')).session"), 'Race');
+  assert.equal(h.run("latestCompletedSelection(stale, Date.parse('2026-11-08T21:00:00Z')).session"), 'Qualifying');
+  h.run("stale[0].session_statuses.Race='live'");
+  assert.equal(h.run("latestCompletedSelection(stale, Date.parse('2026-11-09T08:47:00Z')).session"), 'Qualifying');
+  assert.equal(h.run("latestCompletedSelection(stale, Date.parse('2026-11-10T08:00:00Z')).session"), 'Race');
   h.sandbox.currentCalendar = JSON.parse(readFileSync('assets/data/events/2026.json', 'utf8'));
   assert.equal(h.run("latestCompletedSelection(currentCalendar, Date.parse('2026-09-17T00:00:00Z')).event.round"), 14);
   assert.equal(h.run("latestCompletedSelection(currentCalendar, Date.parse('2026-09-17T00:00:00Z')).session"), 'Race');
@@ -716,7 +733,7 @@ test('Madrid rejects inherited Barcelona corner rows but accepts a 22-turn set',
 
 test('car performance controls hide irrelevant GP and expose sortable methodology', () => {
   const performance = readFileSync('car-performance.js', 'utf8');
-  const css = readFileSync('car-performance.css', 'utf8');
+  const css = legacySource('car-performance.css');
   const html = readFileSync('index.html', 'utf8');
   assert.match(css, /\.performance-toolbar \[hidden\]\s*\{\s*display:none!important/);
   assert.match(performance, /performanceEventField.*hidden=.*performanceScope.*season/);
@@ -842,6 +859,8 @@ test('tyre-age view aggregates own stints for teams and individual drivers', () 
   assert.ok(view.evidence.some(e=>e.inspect));
   assert.doesNotMatch(JSON.stringify(view),/NaN|Infinity/);
   assert.equal(view.picker.team,'Example');
+  close(view.fuelSensitivity.observed,.06);
+  assert.equal(view.fuelSensitivity.changesSign,false);
   sandbox.tyreFuelRate=.080;close(sandbox.tyreAgeView(teams).chart.rows[0].value,.07);
   sandbox.tyreFuelRate=.060;
   const other={team:'Other',color:'#654321',tyreAgeStints:[{driver:'CCC',event:'Three',compound_grade:'C5',fuel_adjusted_slope:.04,samples:8,min_age:1,max_age:8,points:[{lap:3,age:1,time:92},{lap:4,age:2,time:92.04},{lap:5,age:3,time:92.08}]}]};
@@ -864,6 +883,11 @@ test('tyre-age view aggregates own stints for teams and individual drivers', () 
   sandbox.tyreCorrection='fuel';sandbox.tyreLapMode='clear';
   teams[0].tyreAgeStints[0].clean_air={supported:true,samples:12,fuel_adjusted_slope:.03,min_age:1,max_age:14};
   close(sandbox.tyreAgeView(teams).rows[0].value,.03);
+  teams[0].tyreAgeStints[0].clean_air.raw_slope=-.05;
+  const sensitivity=sandbox.tyreAgeView(teams).fuelSensitivity;
+  close(sensitivity.observed,-.05);
+  sensitivity.scenarios.forEach(({slope},i)=>close(slope,[-.02,.01,.04][i]));
+  assert.equal(sensitivity.changesSign,true);
 });
 
 test('tyre GP summaries handle skew and explain every sparse P75 blank', () => {
@@ -1093,7 +1117,7 @@ test('Sepang corners use GPS geometry and aligned fractions, not outline chainag
 });
 
 test('expanded charts reuse the telemetry section, with a taller speed trace', () => {
-  const css=readFileSync('trace-focus.css','utf8');
+  const css=legacySource('trace-focus.css');
   assert.match(css,/body\.trace-focus #telemetryCard \{[^}]*position: fixed;/);
   assert.match(css,/@layer focus[\s\S]*var\(--focus-height, auto\)/);
   assert.doesNotMatch(css,/#charts > \.chart \{ display: none/);
@@ -1108,6 +1132,42 @@ test('native corner projection follows the aligned comparison grid', () => {
   h.sandbox.document.querySelector=()=>({value:'1'});
   h.run("calendar=[];sessionCircuitKey=63;samples=[{Distance:0,AlignedFraction:0},{Distance:500,AlignedFraction:.6},{Distance:1000,AlignedFraction:1}]");
   assert.equal(h.run("resolveCornerMarkers(samples,1000,[{number:'1',fraction:.5,source:'lap_projection'}])[0].fraction"),.6);
+});
+
+test('corner minima retain native trace knots and use the whole turn rather than an apex-bin median',()=>{
+  const h=context();
+  const alignment=readFileSync('alignment.js','utf8');
+  h.run(alignment.slice(alignment.indexOf('function cornerSpeedMinimum('),alignment.indexOf('function cornerPhaseBreakdown(')));
+  h.run('referenceDistance=()=>1000;enhancedInterpolationEnabled=()=>false;traceSampleFraction=(s,p)=>p.AlignedFraction;traceTelemetryValue=(s,f)=>{const p=s.find(p=>p.AlignedFraction===f);return p?p.Speed:200};performanceSectionDuration=()=>4;');
+  h.sandbox.samples=[{AlignedFraction:.1,Speed:180},{AlignedFraction:.12,Speed:170},{AlignedFraction:.14,Speed:121},{AlignedFraction:.16,Speed:175},{AlignedFraction:.18,Speed:190}];
+  h.sandbox.zone={start:.08,end:.22,turnStartFraction:.1,turnEndFraction:.2,apexStart:.15,apexEnd:.19};
+  const result=h.run('cornerPerformance(samples,zone)');
+  assert.equal(result.minimumSpeed,121);
+  assert.equal(result.rawMinimum,121);
+  assert.equal(result.apexFraction,.14);
+  assert.equal(result.minimumAtBoundary,false);
+  h.sandbox.samples=[{AlignedFraction:.12,Speed:150},{AlignedFraction:.14,Speed:170},{AlignedFraction:.16,Speed:180},{AlignedFraction:.18,Speed:190}];
+  const excluded=h.run('cornerSpeedMinimum(samples,{...zone,turnStartFraction:.14})');
+  assert.equal(excluded.speed,170,'approach speeds outside the geometry turn are excluded');
+  assert.equal(excluded.atBoundary,true);
+});
+
+test('São Paulo NOR L52 and VER L48 T11 table values and selected speed markers agree',()=>{
+  const h=context(), fixture=JSON.parse(readFileSync('e2e/fixtures/sao-paulo-2026-race-t11.json','utf8'));
+  const source=readFileSync('alignment.js','utf8');
+  h.run(source.slice(source.indexOf('function cornerSpeedMinimum('),source.indexOf('function cornerPhaseBreakdown(')));
+  h.sandbox.fixture=fixture;
+  h.run(`referenceDistance=()=>fixture.total;enhancedInterpolationEnabled=()=>false;traceSampleFraction=(s,p)=>p.AlignedFraction;
+    traceTelemetryValue=(s,f)=>{const i=s.findIndex(p=>p.AlignedFraction>=f);if(i<1)return null;const a=s[i-1],b=s[i];return a.Speed+(b.Speed-a.Speed)*(f-a.AlignedFraction)/(b.AlignedFraction-a.AlignedFraction)};
+    performanceSectionDuration=()=>4;selectedCornerIndices=new Set([0]);adaptiveCornerZones=()=>[fixture.zone];sessionPerformanceZones=z=>z.map(v=>({...v,kind:'corner'}));
+    var entries=fixture.laps.map(l=>({lap:{code:l.code,lap:l.lap},samples:l.samples}));`);
+  const values=h.run('entries.map(e=>cornerPerformance(e.samples,fixture.zone))');
+  assert.ok(Math.abs(values[0].minimumSpeed-177.4848053181387)<1e-8);
+  assert.equal(values[1].minimumSpeed,165);
+  assert.notEqual(values[0].apexFraction,values[1].apexFraction,'Each minimum has its own measured position');
+  const annotations=h.run('selectedCornerSpeedAnnotations(entries,[],fixture.total)');
+  assert.deepEqual(annotations[0].values.map(v=>v.speed),values.map(v=>v.minimumSpeed));
+  assert.equal(annotations[0].absoluteValues,true);
 });
 
 test('speed annotations label each lap\'s own measured extremes, matched by GPS, in whole km/h', () => {
