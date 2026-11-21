@@ -40,6 +40,7 @@ OUTLINE_MIN_LAP = 15000.0        # a lap is at least this long (1.5 km)
 OUTLINE_CLOSE = 250.0            # back within this distance of the first point closes the loop
 RACE_CONTROL_KEEP = 60
 CHANNELS = {'0': 'rpm', '2': 'speed', '3': 'gear', '4': 'throttle', '5': 'brake', '45': 'drs'}
+TRACE_CHANNELS = tuple(CHANNELS.values())
 TRACK_STATUS = {'1': 'Track clear', '2': 'Yellow flag', '3': 'Flag', '4': 'Safety car', '5': 'Red flag',
                 '6': 'Virtual safety car', '7': 'VSC ending'}
 
@@ -156,11 +157,12 @@ def align_lap(lap: dict, reference: dict | None) -> dict:
     if shift:
         first = order[0]
         t_offset = lap['t'][first]
-    out = {k: v for k, v in lap.items() if k not in ('t', 'd', 'speed', 'throttle', 'brake', 'gear')}
+    out = {k: v for k, v in lap.items() if k not in ('t', 'd', *TRACE_CHANNELS)}
     out['t'] = [round((lap['t'][i] - t_offset) % (duration or 1), 3) for i in order]
     out['x'] = [round((lap['d'][i] - offset) % total / total * length, 1) for i in order]
-    for name in ('speed', 'throttle', 'brake', 'gear'):
-        out[name] = [lap[name][i] for i in order]
+    for name in TRACE_CHANNELS:
+        if name in lap:
+            out[name] = [lap[name][i] for i in order]
     out.update({'reference': round(length, 1), 'shift': round(shift / ALIGN_POINTS, 3),
                 'reference_lap': {'driver': reference.get('driver'), 'lap': reference.get('lap')} if reference else None})
     return out
@@ -452,14 +454,14 @@ class LiveState:
         spatial_lap = self._cut_on_track(number, history, start, end)
         if spatial_lap:
             return spatial_lap
-        distance, out = 0.0, {'t': [], 'd': [], 'speed': [], 'throttle': [], 'brake': [], 'gear': []}
+        distance, out = 0.0, {name: [] for name in ('t', 'd', *TRACE_CHANNELS)}
         for index, sample in enumerate(samples):
             if index:
                 previous = samples[index - 1]
                 distance += ((previous.get('speed') or 0) + (sample.get('speed') or 0)) / 2 / 3.6 * (sample['t'] - previous['t'])
             out['t'].append(round(sample['t'] - samples[0]['t'], 3))
             out['d'].append(round(distance, 1))
-            for name in ('speed', 'throttle', 'brake', 'gear'):
+            for name in TRACE_CHANNELS:
                 out[name].append(sample.get(name))
         out['distance'] = round(distance, 1)
         spatial = self._track_distances(number, [s['t'] for s in samples])
@@ -478,7 +480,7 @@ class LiveState:
         if not measured:
             return None
         xs, length = measured
-        names = ('speed', 'throttle', 'brake', 'gear')
+        names = TRACE_CHANNELS
         rows = []
         for i, sample in enumerate(chosen):
             x = xs[i]
@@ -771,7 +773,7 @@ class LiveState:
                             total += ((samples[i - 1].get('speed') or 0) + (sample.get('speed') or 0)) / 2 / 3.6 * (sample['t'] - samples[i - 1]['t'])
                         xs.append(round(total, 1))
                 out['laps'][number] = {'lap': (self.lap_counts.get(number) or 0) + 1, 'x': xs,
-                                       **{name: [sample.get(name) for sample in samples] for name in ('speed', 'throttle', 'brake', 'gear')}}
+                                       **{name: [sample.get(name) for sample in samples] for name in TRACE_CHANNELS}}
             return out
 
     def missing_laps(self) -> bool:
@@ -1149,7 +1151,7 @@ class LiveManager:
                             if not existing.get('time') and record.get('time'):
                                 existing.update(time=record['time'], seconds=record['seconds'], sectors=record.get('sectors'))
                             if not existing.get('d') and record.get('d'):
-                                trace_keys = ('t', 'd', 'speed', 'throttle', 'brake', 'gear', 'distance', 'spatial')
+                                trace_keys = ('t', 'd', *TRACE_CHANNELS, 'distance', 'spatial')
                                 existing.update({key: record[key] for key in trace_keys if key in record})
                     if state.outline_loop is None and scratch.outline_loop:
                         state.outline_loop = scratch.outline_loop

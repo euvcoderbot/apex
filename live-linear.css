@@ -37,6 +37,8 @@
 :root[data-skin="linear"][data-skin] #liveTiming .live-button.live-primary:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):hover { background: #ec5d61; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-button:not(.live-primary):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-button:not(.live-primary):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):hover { background: var(--lin-pill-hover); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-button.live-primary-compare:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):not(:disabled) { background: var(--ui-action); color: white; box-shadow: none; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-button.live-primary-compare:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):not(:disabled):hover { background: color-mix(in srgb, var(--ui-action) 90%, black); }
 /* Choosing comparison laps belongs to Session analysis. */
 :root[data-skin="linear"][data-skin] body.live-view #linearWorkspace #lapWorkspaceToggle { display: none; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-badge[data-kind="live"] { background: #e5484d; box-shadow: none; color: #fff; }
@@ -148,8 +150,9 @@
 
 .live-grid[data-workspace="timing"] :is(.live-compare, .live-telemetry-card),
 .live-grid[data-workspace="laps"] :is(.live-tower, .live-engineer, .live-col-side),
-.live-grid[data-workspace="telemetry"] :is(.live-engineer, .live-compare, .live-side) { display: none; }
-.live-grid[data-workspace="laps"] { grid-template-columns: minmax(0, 1fr); }
+.live-grid[data-workspace="telemetry"] :is(.live-col-main, .live-side) { display: none; }
+.live-grid:is([data-workspace="laps"], [data-workspace="telemetry"]) { grid-template-columns: minmax(0, 1fr); }
+.live-grid[data-workspace="telemetry"] .live-telemetry-card { order: -1; }
 
 /* The page stacks to its content: the grid's rows never stretch to fill the window (that left the header, the source card
    and the workspace pills standing in tall empty bands). The workspace pills keep their own width. */

@@ -190,6 +190,7 @@ def _session_lap_trace(number: str, lap: str) -> dict | None:
             'x': [s['Distance'] for s in samples], 't': [(s.get('ElapsedSeconds') or 0) - t0 for s in samples],
             'speed': [s.get('Speed') for s in samples], 'throttle': [s.get('Throttle') for s in samples],
             'brake': [100 if s.get('Brake') in (True, 1) else (s.get('Brake') or 0) for s in samples], 'gear': [s.get('nGear') for s in samples],
+            'rpm': [s.get('RPM') for s in samples], 'drs': [s.get('DRS') for s in samples],
             'distance': samples[-1]['Distance'], 'reference': samples[-1]['Distance'], 'shift': 0.0, 'aligned_by': 'session telemetry',
             'source': payload.get('source'), 'sector_marks': state.sector_marks()}
 
