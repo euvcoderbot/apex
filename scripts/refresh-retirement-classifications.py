@@ -1,15 +1,18 @@
 """Rebuild retirement metadata only, from retained complete race classifications.
 Original timings, capture times and revision IDs remain unchanged.
 """
-import copy, gzip, hashlib, json, sys
+import copy, gzip, hashlib, json, re, sys
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from capture_storage import repository_lock, atomic_bytes
 from retirement_sources import reported_retirements, match
 from performance import classify_retirement
+if len(sys.argv) != 2:
+ raise SystemExit('Usage: refresh-retirement-classifications.py <prepared checkout>')
 root=Path(sys.argv[1]).resolve()
-revision=sys.argv[2]
+revisions=(Path(__file__).resolve().parents[1] / 'lib/cache-revision.mjs').read_text(encoding='utf-8')
+revision=re.search(r'RETIREMENT_REVISION = "([a-f0-9]{20})"', revisions).group(1)
 folders=['prerendered','local-captures']
 indexes={f:json.loads((root/'assets/data'/f/'index.json').read_text()) for f in folders}
 sessions={}

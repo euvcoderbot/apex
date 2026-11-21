@@ -25,7 +25,6 @@ Migration:
 
 - Every 2026 speed-domain batch (`/api/performance/trace-batch … measures=speed`, team and driver) is re-exported at the
   current revision from local compute (same addresses, new capture times).
-- Race performance captures are re-stamped by `refresh-retirement-classifications.py` (retirement metadata only; it asserts
-  every observation is unchanged).
+- This release re-stamped race retirement metadata under the old backend-based scheme. The [retirement metadata migration](retirement-snapshot-migration.md) documents the independent revision now used for new exports.
 - `lib/snapshot-policy.json` accepts fd69bbc, 277639b (and what it accepted) under 2e4a107, so every other retained observation keeps
   its original provenance.

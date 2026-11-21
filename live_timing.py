@@ -773,6 +773,7 @@ class LiveState:
                             total += ((samples[i - 1].get('speed') or 0) + (sample.get('speed') or 0)) / 2 / 3.6 * (sample['t'] - samples[i - 1]['t'])
                         xs.append(round(total, 1))
                 out['laps'][number] = {'lap': (self.lap_counts.get(number) or 0) + 1, 'x': xs,
+                                       't': [round(sample['t'] - start, 3) for sample in samples],
                                        **{name: [sample.get(name) for sample in samples] for name in TRACE_CHANNELS}}
             return out
 
@@ -836,6 +837,11 @@ class LiveSource(Source):
         self.auth = stored_token_status()
         self.detail = {'recording': str(self.recording), 'authenticated': self.auth.get('available', False), 'auth': self.auth}
         self.client = None
+        self.auth_changed = threading.Event()
+
+    def stop(self) -> None:
+        super().stop()
+        self.auth_changed.set()
 
     def run(self) -> None:
         try:
@@ -844,7 +850,7 @@ class LiveSource(Source):
         except Exception as exc:
             self.error = f'FastF1 live client unavailable: {exc}'
             return
-        state, authenticated = self.state, bool(self.auth.get('available'))
+        state = self.state
         self.detail['restored'] = restore_recordings(state, self.recording.parent, exclude=self.recording)
 
         class Client(SignalRClient):
@@ -876,7 +882,11 @@ class LiveSource(Source):
         closed = threading.Event()
         attempt = 0
         while not self.stop_event.is_set():
+            self.auth_changed.clear()
             closed.clear()
+            self.auth = stored_token_status()
+            authenticated = bool(self.auth.get('available'))
+            self.detail.update(authenticated=authenticated, auth=self.auth)
             recording = self.recording if not attempt else self.recording.with_name(f'{self.recording.stem}-{attempt}.txt')
             try:
                 self.client = Client(str(recording), timeout=0, no_auth=not authenticated)
@@ -884,7 +894,7 @@ class LiveSource(Source):
                 self.detail.update(connected=True, reconnects=attempt)
                 self.detail.pop('waiting', None)
                 self.error = None
-                while not self.stop_event.wait(1) and not closed.is_set():
+                while not self.auth_changed.wait(1) and not closed.is_set() and not self.stop_event.is_set():
                     pass
             except Exception as exc:
                 self.error = f'Live connection failed: {exc}'
@@ -901,8 +911,7 @@ class LiveSource(Source):
             # The feed closed (session over) or the connection failed: try again in 30 s, keeping everything captured.
             self.detail['waiting'] = 'Formula 1 closed the live feed; reconnecting every 30 s until the next session.'
             attempt += 1
-            if self.stop_event.wait(30):
-                break
+            self.auth_changed.wait(30)
         self.detail.pop('waiting', None)
 
 
@@ -1169,6 +1178,11 @@ class LiveManager:
 
         threading.Thread(target=run, daemon=True, name='live-backfill').start()
         return dict(self.backfill_status)
+
+    def refresh_live_auth(self) -> None:
+        source = self.source
+        if isinstance(source, LiveSource):
+            source.auth_changed.set()
 
     def start_live(self) -> dict[str, Any]:
         with self.lock:

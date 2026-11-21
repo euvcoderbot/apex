@@ -406,7 +406,7 @@
     head.append(title, tabsNav);
     body = el('div', 'season-body');
     page.append(head, body);
-    yearSelect.addEventListener('change', () => { state.year = Number(yearSelect.value); state.driver = state.a = state.b = null; show(state.tab); });
+    yearSelect.addEventListener('change', () => { state.year = Number(yearSelect.value); state.driver = state.a = state.b = state.expanded = null; show(state.tab); });
     (document.getElementById('liveTiming') || document.getElementById('carPerformance') || document.querySelector('main#top')).after(page);
   }
 
@@ -521,6 +521,11 @@
     if (!SECTION_TABS.includes(state.tab)) lastSeasonTab = state.tab;
     if (params.year && Number(params.year) !== state.year) { state.year = Number(params.year); }
     for (const key of ['driver', 'a', 'b', 'team', 'track']) if (params[key]) state[key] = params[key];
+    if (state.tab === 'tracks' && fromHistory && !params.track) delete state.track;
+    if (state.tab === 'results' && (params.round || params.session || fromHistory)) {
+      state.expanded = /^[1-9]\d?$/.test(params.round) ? Number(params.round) : null;
+      state.resultsSession = params.session;
+    }
     if (params.part) state.views[state.tab] = params.part; else if (fromHistory) delete state.views[state.tab];
     yearSelect.value = String(state.year); window.syncSelectUI?.(yearSelect);
     if (!active) {
@@ -542,10 +547,21 @@
     if (sub) sub.textContent = state.tab === 'home' ? 'F1 Apex Data' : state.tab === 'tracks' ? `Tracks · ${state.year}` : `Season ${state.year}`;
     if (!fromHistory || aliased) window.ApexUrl?.write('season', urlParams());
     else document.title = window.ApexUrl?.titleFor('season', urlParams()) || document.title;
-    render();
+    const loading = render();
+    if (state.tab === 'results' && params.round) void loading.then(() => {
+      if (active && state.tab === 'results' && state.expanded === Number(params.round)) {
+        const expanded = body.querySelector('.season-gp-table [aria-expanded="true"]');
+        expanded?.focus({preventScroll: true});
+        expanded?.closest('tr')?.scrollIntoView({block: 'center', inline: 'nearest'});
+      }
+    });
   }
   const urlParams = () => ({year: state.year, tab: state.tab, ...(state.tab === 'drivers' && state.driver ? {driver: state.driver} : {}),
     ...(state.tab === 'h2h' && state.a ? {a: state.a, b: state.b} : {}), ...(state.tab === 'upgrades' && state.team ? {team: state.team} : {}), ...(state.tab === 'tracks' && state.track ? {track: state.track} : {}),
+    ...(state.tab === 'results' && (!state.views.results || state.views.results === 'races') ? {
+      ...(state.expanded != null ? {round: state.expanded} : {}),
+      ...(resultSessionKey(state.resultsSession) !== 'race' ? {session: resultSessionKey(state.resultsSession)} : {}),
+    } : {}),
     ...(state.views[state.tab] ? {part: state.views[state.tab]} : {})});
   function leave() {
     hideChartTip();
@@ -568,6 +584,7 @@
     hideChartTip();
     imagery.shown.clear();
     tableEdgeObserver.disconnect();
+    collapseOpenRow = null;
     const nodes = views(), credits = photoCredits();
     body.replaceChildren(...nodes, ...(credits ? [credits] : []));
     body.setAttribute('aria-busy', 'false');
@@ -638,8 +655,9 @@
       // Decorative assets hydrate existing nodes; they must not delay the season's numbers or reset interactions.
       void loadPhotos().then(hydrateImagery);
       if (tab === 'schedule' || tab === 'home') void loadCircuits().then(hydrateImagery);
-      const [data, extra] = await Promise.all([load('season', year),
+      const [data, baseExtra] = await Promise.all([load('season', year),
         tab === 'upgrades' ? load('upgrades', year) : tab === 'units' ? load('units', year) : tab === 'tracks' ? loadTrackProfiles(year) : null]);
+      const extra = tab === 'tracks' ? await previewTrackProfiles(data, baseExtra) : baseExtra;
       // Form also reads each finished race's pace analysis (the published Car performance results), once per season.
       const formReady = tab === 'drivers' ? loadForm(year, data).catch(() => null) : null;
       const form = tab === 'drivers' && driversForm?.year === year ? driversForm.form : null;
@@ -911,8 +929,8 @@
       titleRow.append(text);
       const outline = circuitOutline(r);
       if (outline) {
-        const go = el('a', 'season-track-link'); go.href = '#'; go.title = `${r.circuit || r.name}: circuit page`; go.append(outline);
-        go.addEventListener('click', event => { event.preventDefault(); openTrack(r.name); });
+        const go = trackLink(data.year, r.name, 'season-track-link'); go.title = `${r.circuit || r.name}: circuit page`; go.append(outline);
+        go.setAttribute('aria-label', r.name + ' circuit guide');
         titleRow.append(go);
       }
       item.append(head, titleRow);
@@ -954,16 +972,34 @@
     return out;
   }
   // ----- Tracks: one circuit in full, and every circuit compared -----
-  // assets/data/track-profiles/<year>.json (scripts/build-track-profiles.mjs): each circuit as that season's fastest qualifying
-  // lap drove it, with the numbered corners, sectors, straights, Pirelli's nominated compounds, the pit-lane time loss
-  // and a map outline. The picker is every measured round; the page shows the chosen one, then all of them in a table.
-  // One file per season, so a season shows its own circuits (Barcelona was the Spanish Grand Prix until 2025; Madrid is from
-  // 2026). A season without a file shows that, never another season's tracks.
+  // A season keeps its own measured laps. The next race may preview the same
+  // circuit from last season while this season's qualifying telemetry is pending.
   const trackProfiles = new Map();
   const loadTrackProfiles = year => {
-    if (!trackProfiles.has(year)) trackProfiles.set(year, fetch(`assets/data/track-profiles/${year}.json`).then(r => (r.ok ? r.json() : null)).catch(() => null));
+    if (!trackProfiles.has(year)) {
+      const request = fetch(`assets/data/track-profiles/${year}.json`, {cache: 'no-cache'})
+        .then(r => (r.ok ? r.json() : null)).catch(() => null);
+      trackProfiles.set(year, request);
+      request.then(profile => {
+        if (!profile && trackProfiles.get(year) === request) trackProfiles.delete(year);
+      });
+    }
     return trackProfiles.get(year);
   };
+  async function previewTrackProfiles(data, profiles) {
+    const current = profiles?.year === data.year ? profiles : {year: data.year, tracks: {}};
+    const next = data.rounds.find(round => round.status === 'next');
+    if (!next || Object.keys(current.tracks).some(gp => trackRound(data, gp) === next)) return current;
+    // Refresh a provisional profile on the next visit, when qualifying may have been published.
+    trackProfiles.delete(data.year);
+    const [previous, previousSeason] = await Promise.all([
+      loadTrackProfiles(data.year - 1),
+      load('season', data.year - 1).catch(() => null),
+    ]);
+    const oldRound = previousSeason?.rounds.find(round => next.circuit_id && round.circuit_id === next.circuit_id);
+    const profile = oldRound && Object.entries(previous?.tracks || {}).find(([gp]) => trackRound(previousSeason, gp) === oldRound)?.[1];
+    return {...current, preview: {round: next, profile, year: data.year - 1}};
+  }
   const TRACK_COLUMNS = [
     ['length', 'Length', v => `${(v / 1000).toFixed(3)} km`],
     ['lap_time', 'Pole lap', v => lapTime(v)],
@@ -1190,19 +1226,26 @@
   const trackRound = (data, gp) => data.rounds.find(r => r.name === gp || r.name === TRACK_ALIAS[gp] || r.name.startsWith(gp + ' '));
   function renderTracks(data, profiles) {
     const all = Object.entries(profiles?.tracks || {});
-    if (!all.length || (profiles.year && profiles.year !== data.year)) {
+    const roundOf = gp => trackRound(data, gp);
+    const next = data.rounds.find(r => r.status === 'next');
+    const preview = profiles?.preview;
+    const explicitRound = state.track && roundOf(state.track);
+    const ordered = [...all, ...(preview ? [[preview.round.name, preview.profile]] : [])];
+    if (explicitRound && !ordered.some(([gp]) => roundOf(gp) === explicitRound)) ordered.push([explicitRound.name, null]);
+    ordered.sort(([a], [b]) => (roundOf(a)?.round ?? 99) - (roundOf(b)?.round ?? 99));
+    if (!ordered.length) {
       return [card(null, empty(`No track profiles for ${data.year} yet: circuit maps and lap measurements come from that season's qualifying telemetry.`))];
     }
-    const ALIAS = TRACK_ALIAS, roundOf = gp => trackRound(data, gp);
-    const ordered = all.sort(([a], [b]) => (roundOf(a)?.round ?? 99) - (roundOf(b)?.round ?? 99));
     const names = ordered.map(([gp]) => gp);
-    const aliased = names.find(gp => ALIAS[gp] && ALIAS[gp] === state.track);
-    if (aliased) state.track = aliased;
-    if (!names.includes(state.track)) {
-      const last = data.rounds.filter(r => r.status === 'done' && names.some(gp => roundOf(gp) === r)).at(-1);
-      state.track = last ? names.find(gp => roundOf(gp) === last) : names[0];
-    }
-    const pick = state.track, t = profiles.tracks[pick], round = roundOf(pick);
+    const requested = names.includes(state.track) ? state.track : explicitRound && names.find(gp => roundOf(gp) === explicitRound);
+    const pick = requested || names.find(gp => next && roundOf(gp) === next) ||
+      names.filter(gp => roundOf(gp)?.status === 'done').at(-1) || names[0];
+    const previewing = pick === preview?.round.name;
+    const round = roundOf(pick);
+    const t = previewing ? preview.profile : profiles.tracks[pick];
+    const TRACK_VIEWS = [['track', 'Circuit'], ['corners', 'Corners'], ['history', 'Race history'], ['compare', 'All circuits']];
+    const bar = el('div', 'season-toolbar');
+    bar.append(viewPills('tracks', TRACK_VIEWS, () => paint(() => renderTracks(data, profiles))));
     const repaint = () => { window.ApexUrl?.write('season', urlParams()); paint(() => renderTracks(data, profiles)); };
     // Picker: every measured track as flag and code, in round order.
     const picker = el('div', 'home-season-strip season-track-picker'); picker.style.setProperty('--n', String(ordered.length));
@@ -1212,16 +1255,41 @@
       b.setAttribute('aria-pressed', String(gp === pick));
       if (r) b.append(roundMark(r)); else b.append(el('small', null, gp.replace(' Grand Prix', '')));
       b.title = gp;
-      b.addEventListener('click', () => { if (state.track === gp) return; state.track = gp; repaint(); });
+      b.setAttribute('aria-label', gp);
+      b.addEventListener('click', () => {
+        if (pick === gp) return;
+        state.track = gp;
+        repaint();
+        body.querySelector('.season-track-choice[aria-pressed="true"]')?.focus({preventScroll: true});
+      });
       picker.append(b);
     }
-    // Header: the circuit, the lap it was measured on, and the headline numbers.
+    const view = pageView('tracks', TRACK_VIEWS);
+    if (view === 'compare')
+      return [bar, all.length ? trackComparison(data, profiles, pick, gp => { state.track = gp; delete state.views.tracks; repaint(); window.scrollTo({top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'}); })
+        : empty('No qualifying profiles for this season yet.')];
+    if (view === 'history')
+      return [bar, picker, round ? circuitProfile(data, round) : empty('No race history for this circuit.')];
+    if (!t)
+      return [bar, picker, card(round?.circuit || pick, empty(`Waiting for qualifying telemetry for the ${data.year} ${pick}.`))];
+    const lapNote = previewing ? preview.year + ' qualifying lap · ' + data.year + ' telemetry pending' : 'Fastest qualifying lap';
+    const previewNote = previewing ? el('p', 'season-muted', 'Showing ' + preview.year + ' qualifying telemetry and circuit details until the ' + data.year + ' profile is published.') : null;
+    // Keep race identity and lap provenance legible when names wrap on phones.
     const head = el('section', 'season-card season-track-head');
     const title = el('div', 'season-track-title'), f = round && flag(round); if (f) title.append(f);
-    title.append(el('h2', null, t.circuit || pick.replace(' Grand Prix', '')), el('span', 'season-muted', pick));
+    const circuit = t.circuit || pick.replace(' Grand Prix', '');
+    const identity = el('div', 'season-track-identity');
+    identity.append(el('h2', null, circuit));
+    const context = [round && 'Round ' + round.round, round?.status === 'next' && 'Next race',
+      circuit.toLowerCase() !== pick.replace(' Grand Prix', '').toLowerCase() && pick].filter(Boolean);
+    if (context.length) identity.append(el('small', 'season-muted', context.join(' · ')));
+    title.append(identity);
     const poleId = Object.keys(data.drivers).find(id => driverCode(data, id) === t.driver);
     const lap = el('div', 'season-track-lap'); if (poleId) lap.append(avatar(data, poleId));
-    lap.append(el('span', null, `${poleId ? driverName(data, poleId) : t.driver} · ${lapTime(t.lap_time)}`), el('small', 'season-muted', 'fastest qualifying lap'));
+    const lapCopy = el('div', 'season-track-lap-copy');
+    lapCopy.append(el('strong', null, poleId ? driverName(data, poleId) : t.driver),
+      el('span', 'season-track-lap-time', lapTime(t.lap_time)), el('small', 'season-muted', lapNote));
+    lap.append(lapCopy);
     head.append(title, lap);
     const tiles = el('div', 'season-tiles season-track-tiles');
     const tile = (label, value, note) => { const x = el('div', 'season-tile'); x.append(el('span', 'season-muted', label), el('b', null, value)); if (note) x.append(el('small', 'season-muted', note)); tiles.append(x); };
@@ -1234,7 +1302,7 @@
     if (t.pit_loss?.normal) tile('Pit stop loss', `${t.pit_loss.normal.toFixed(1)} s`, `${t.pit_loss.vsc ? `VSC ${t.pit_loss.vsc.toFixed(1)} s · ` : ''}${t.pit_loss.sc ? `SC ${t.pit_loss.sc.toFixed(1)} s` : ''}`);
     if (t.compounds?.length) tile('Pirelli compounds', t.compounds.join(' · '), 'hard · medium · soft');
     if (t.conditions) tile('Conditions', `${Math.round(t.conditions.track)}° track`, `${Math.round(t.conditions.air)}° air${t.conditions.rain ? ' · rain' : ''}, at the lap`);
-    tiles.style.setProperty('--tile-cols', String(Math.min(5, tiles.childElementCount)));
+    tiles.style.setProperty('--tile-cols', tiles.childElementCount % 3 === 0 ? '3' : '4');
     head.append(tiles);
     // Map with Speed / Sectors pills.
     const o = t.official, hasZones = (o?.zones || []).some(z => (z.normal || z).i != null && z.i_to != null)
@@ -1308,11 +1376,7 @@
 
     // Views: Circuit (the chosen track: facts, map, sectors, zones), Corners (its corners table) and All circuits (every track
     // in one table; a row opens that track).
-    const TRACK_VIEWS = [['track', 'Circuit'], ['corners', 'Corners'], ['history', 'Race history'], ['compare', 'All circuits']];
-    const bar = el('div', 'season-toolbar'); bar.append(viewPills('tracks', TRACK_VIEWS, () => paint(() => renderTracks(data, profiles))));
-    if (pageView('tracks', TRACK_VIEWS) === 'compare')
-      return [bar, trackComparison(data, profiles, pick, gp => { state.track = gp; delete state.views.tracks; repaint(); window.scrollTo({top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'}); })];
-    if (pageView('tracks', TRACK_VIEWS) === 'corners') {
+    if (view === 'corners') {
       // The circuit beside its corners (coloured by speed, numbered), for reference: one table of every corner on the right.
       // Hovering a corner in either lights it in the other.
       const map = card('Track map', trackMap(t, 'speed'), el('p', 'season-footnote', 'Coloured by speed on the fastest qualifying lap; hover a corner, here or in the table, to find it in the other.'));
@@ -1322,11 +1386,9 @@
       const light = n => layout.querySelectorAll('[data-corner]').forEach(x => x.classList.toggle('is-corner-lit', n != null && x.dataset.corner === n));
       layout.addEventListener('pointerover', event => light(event.target.closest?.('[data-corner]')?.dataset.corner ?? null));
       layout.addEventListener('pointerleave', () => light(null));
-      return [bar, picker, layout];
+      return [bar, picker, ...(previewNote ? [previewNote] : []), layout];
     }
-    if (pageView('tracks', TRACK_VIEWS) === 'history')
-      return [bar, picker, round ? circuitProfile(data, round) : empty('No race history for this circuit.')];
-    if (round?.qualifying?.length) {
+    if (!previewing && round?.qualifying?.length) {
       const evidence = el('a', 'season-link', 'Inspect qualifying laps');
       evidence.href = window.ApexUrl.href('session', {year: data.year, round: round.round, session: 'Qualifying'});
       bar.append(evidence);
@@ -1337,18 +1399,34 @@
   function trackComparison(data, profiles, pick, choose) {
     const roundOf = gp => trackRound(data, gp);
     const all = Object.entries(profiles.tracks);
-    const range = key => { const v = all.map(([, x]) => trackValue(x, key)); return [Math.min(...v), Math.max(...v)]; };
+    const ranges = new Map(TRACK_COLUMNS.map(([key]) => {
+      const values = all.map(([, profile]) => trackValue(profile, key)).filter(Number.isFinite);
+      return [key, [Math.min(...values), Math.max(...values)]];
+    }));
     const sort = state.trackSort || {key: null, dir: -1};
-    const rows = [...all].sort(([ga, a], [gb, b]) => (sort.key ? sort.dir * (trackValue(a, sort.key) - trackValue(b, sort.key)) : (roundOf(ga)?.round ?? 99) - (roundOf(gb)?.round ?? 99)));
+    const rows = sort.key
+      ? window.ApexAnalysis.sortRows(all, {[sort.key]: ([, profile]) => trackValue(profile, sort.key)}, sort.key, sort.dir)
+      : all.sort(([a], [b]) => (roundOf(a)?.round ?? 99) - (roundOf(b)?.round ?? 99));
     const box = card('Circuit comparison');
-    const redraw = () => { const next = trackComparison(data, profiles, pick, choose); box.replaceWith(next); markTips(next); };
+    const redraw = label => {
+      const viewport = box.querySelector('.season-table-wrap');
+      const offset = viewport.scrollLeft;
+      const next = trackComparison(data, profiles, pick, choose);
+      tableEdgeObserver.unobserve(viewport);
+      tableEdgeObserver.unobserve(table);
+      box.replaceWith(next);
+      markTips(next);
+      next.querySelector('.season-table-wrap').scrollLeft = offset;
+      [...next.querySelectorAll('.season-sort-button')].find(button => button.getAttribute('aria-label') === label)?.focus({preventScroll: true});
+    };
     const table = el('table', 'season-table season-units season-tracks');
+    table.setAttribute('aria-label', 'Circuit comparison');
     const head = el('tr'), th0 = el('th', null, 'Track'); th0.scope = 'col'; head.append(th0);
     for (const [key, label] of TRACK_COLUMNS) {
       const th = el('th', 'num season-sortable'); th.scope = 'col';
       const b = el('button', 'season-sort-button', label); b.type = 'button'; b.setAttribute('aria-label', `Sort by ${label}`);
       if (sort.key === key) th.setAttribute('aria-sort', sort.dir === -1 ? 'descending' : 'ascending');
-      b.addEventListener('click', () => { state.trackSort = sort.key !== key ? {key, dir: -1} : sort.dir === -1 ? {key, dir: 1} : {key: null, dir: -1}; redraw(); });
+      b.addEventListener('click', () => { state.trackSort = sort.key !== key ? {key, dir: -1} : sort.dir === -1 ? {key, dir: 1} : {key: null, dir: -1}; redraw(b.getAttribute('aria-label')); });
       th.append(b); head.append(th);
     }
     const thead = el('thead'); thead.append(head); table.append(thead);
@@ -1360,7 +1438,7 @@
       b.addEventListener('click', () => choose(gp));
       name.append(b); tr.append(name);
       for (const [key, , fmt] of TRACK_COLUMNS) {
-        const v = trackValue(x, key), [lo, hi] = range(key), td = heatChip(el('td', 'num season-heat-cell', fmt(v)));
+        const v = trackValue(x, key), [lo, hi] = ranges.get(key), td = heatChip(el('td', 'num season-heat-cell', Number.isFinite(v) ? fmt(v) : '—'));
         if (hi > lo && v > lo) td.style.setProperty('--heat', String((v - lo) / (hi - lo)));
         tr.append(td);
       }
@@ -1470,8 +1548,8 @@
     const top = el('div', 'season-next-top');
     const titleRow = el('div', 'season-next-title'); const f = flag(next); if (f) titleRow.append(f);
     titleRow.append(el('h2', null, next.name));
-    const trackGo = el('a', 'season-link season-next-track', 'Circuit guide'); trackGo.href = '#';
-    trackGo.addEventListener('click', event => { event.preventDefault(); openTrack(next.name); });
+    const trackGo = trackLink(data.year, next.name, 'season-link season-next-track', 'Circuit guide');
+
     // The circuit guide and the calendar file, together after the name (their own line on a phone).
     const links = el('span', 'season-next-links'); links.append(trackGo);
     const ics = calendarLink([next], 'Add to calendar', `${next.name.replace(/\W+/g, '-')}-${data.year}.ics`); if (ics) links.append(ics);
@@ -1766,9 +1844,8 @@
     }
     return card(drivers ? 'Results by round' : 'Points by round', ...[matrixToggle, grid, foot].filter(Boolean));
   }
+  const RESULT_VIEWS = [['races', 'By Grand Prix'], ['drivers', 'By driver'], ['teams', 'By team']];
   function renderResults(data) {
-    // Views: By Grand Prix (the season's numbers and each race), By driver and By team (every round in one grid).
-    const RESULT_VIEWS = [['races', 'By Grand Prix'], ['drivers', 'By driver'], ['teams', 'By team']];
     const bar = el('div', 'season-toolbar'); bar.append(viewPills('results', RESULT_VIEWS, () => paint(() => renderResults(data))));
     const view = pageView('results', RESULT_VIEWS);
     if (view !== 'races') return [bar, roundsMatrix(data, view === 'drivers')];
@@ -1853,7 +1930,7 @@
   function wrap(table) {
     const viewport = el('div', 'season-table-wrap');
     viewport.append(table);
-    if (!table.matches('.season-grid, .season-units, .season-track-zones')) return viewport;
+    if (!table.matches('.season-grid, .season-units, .season-track-zones, .season-gp-table')) return viewport;
     const frame = el('div', 'season-table-frame'); frame.append(viewport);
     const region = table.getAttribute('aria-label') || 'Results table';
     viewport.setAttribute('role', 'region');
@@ -1866,22 +1943,28 @@
   }
   // Grand Prix results in two views: Race (podium, fastest lap, sprint winner, margin) and Qualifying (the front row,
   // pole lap, gaps, the Q3 cut and sprint pole). A row opens that session's full classification.
+  const resultSessionKey = session => ['qualifying', 'sprint', 'sprintq'].includes(session) ? session : 'race';
   function gpResults(data) {
-    const session = ['qualifying', 'sprint', 'sprintq'].includes(state.resultsSession) ? state.resultsSession : 'race';
+    const session = resultSessionKey(state.resultsSession);
+    const sessionName = {race: 'Race', qualifying: 'Qualifying', sprint: 'Sprint', sprintq: 'Sprint qualifying'}[session];
     const sprintOnly = session === 'sprint' || session === 'sprintq';
     // Sprint qualifying times come from each sprint weekend's captured session, loaded when the pill is chosen.
     const sq = session === 'sprintq' ? sprintQualifying.get(data.year) : null;
     if (session === 'sprintq' && !sq) {
-      loadSprintQualifying(data).then(() => { if (state.resultsSession === 'sprintq') paint(() => renderResults(data)); });
+      loadSprintQualifying(data).then(() => {
+        if (active && state.tab === 'results' && state.year === data.year && state.resultsSession === 'sprintq' &&
+          pageView('results', RESULT_VIEWS) === 'races' && sprintQualifying.has(data.year)) paint(() => renderResults(data));
+      });
     }
     const rows = data.winners.map(w => [w, data.rounds.find(x => x.round === w.round)])
-      .filter(([, r]) => r?.status === 'done' && (sprintOnly ? r.sprint?.length : session === 'race' || r.qualifying.length));
+      .filter(([, r]) => r && (sprintOnly ? r.sprint?.length : session === 'race' ? r.race?.length : r.qualifying?.length));
     const heads = session === 'race'
       ? ['Winner', 'Second', 'Third', 'Fastest lap', ['Margin', 'num']]   // sprint results are on the Sprint pill, not repeated here
       : session === 'sprint' ? ['Winner', 'Second', 'Third', 'Fastest lap', ['Margin', 'num']]
       : session === 'sprintq' ? ['Sprint pole', 'Second', 'Third', ['Pole lap', 'num'], ['Gap to P2', 'num']]
       : ['Pole', 'Second', 'Third', ['Pole lap', 'num'], ['Gap to P2', 'num'], ['Q3 cut', 'num']];
     const table = el('table', 'season-table season-gp-table');
+    table.setAttribute('aria-label', sessionName + ' results');
     const head = el('tr'); head.append(el('th', 'num', 'Round'), el('th', null, 'Grand Prix'));
     for (const h of heads) { const [label, cls] = Array.isArray(h) ? h : [h, null]; head.append(el('th', cls, label)); }
     head.querySelectorAll('th').forEach(th => { th.scope = 'col'; });
@@ -1891,7 +1974,12 @@
     for (const [w, r] of rows) {
       // The row opens on a click anywhere; keyboard and screen readers use the Grand Prix name, a real disclosure button.
       const tr = el('tr', 'season-row-expand');
-      const gp = el('td'), gpName = el('button', 'season-gp season-row-toggle'); gpName.type = 'button'; gpName.setAttribute('aria-expanded', String(state.expanded === r.round));
+      const gp = el('td'), gpName = el('button', 'season-gp season-row-toggle');
+      const detailId = 'season-result-' + r.round;
+      gpName.type = 'button';
+      gpName.dataset.round = r.round;
+      gpName.setAttribute('aria-expanded', String(state.expanded === r.round));
+      if (state.expanded === r.round) gpName.setAttribute('aria-controls', detailId);
       const f = flag(r); if (f) gpName.append(f); gpName.append(el('span', null, r.name)); gp.append(gpName);
       tr.append(el('td', 'num', String(r.round)), gp);
       if (session === 'sprint') {
@@ -1919,24 +2007,41 @@
         tr.append(cell(pole?.driver), cell(second?.driver), cell(at(3)?.driver), el('td', 'num', poleLap != null ? lapTime(poleLap) : '—'),
           el('td', 'num', gap2 != null ? `+${gap2.toFixed(3)} s` : '—'), el('td', 'num', Number.isFinite(cut) ? lapTime(cut) : '—'));
       }
-      const toggle = () => { state.expanded = state.expanded === r.round ? null : r.round; paint(() => renderResults(data)); };
-      tr.addEventListener('click', toggle);  // the button's click (also Enter/Space) bubbles here
+      const toggle = () => {
+        const offset = table.parentElement.scrollLeft;
+        state.expanded = state.expanded === r.round ? null : r.round;
+        window.ApexUrl?.write('season', urlParams(), {replace: true});
+        paint(() => renderResults(data));
+        const replacement = body.querySelector('.season-gp-table .season-row-toggle[data-round="' + r.round + '"]');
+        const viewport = replacement?.closest('.season-table-wrap');
+        if (viewport) viewport.scrollLeft = offset;
+        replacement?.focus({preventScroll: true});
+      };
+      tr.addEventListener('click', toggle);
       tbody.append(tr);
       if (state.expanded === r.round) {
-        const detail = el('tr', 'season-detail'); const td = el('td'); td.colSpan = heads.length + 2;
-        // Above the classification: the circuit's page, and a close (Escape closes it too).
+        const detail = el('tr', 'season-detail'); detail.id = detailId;
+        const td = el('td'); td.colSpan = heads.length + 2;
+        const content = el('div', 'season-detail-body');
         const actions = el('div', 'season-detail-actions');
-        const circuit = el('a', 'season-link', `${r.circuit || r.name} · circuit page`); circuit.href = '#';
-        circuit.addEventListener('click', event => { event.preventDefault(); openTrack(r.name); });
-        const close = el('a', 'season-link', 'Close'); close.href = '#';
-        close.addEventListener('click', event => { event.preventDefault(); toggle(); });
-        actions.append(circuit, close); td.append(actions);
+        const circuit = trackLink(data.year, r.name, 'season-link', 'Circuit guide');
+        circuit.setAttribute('aria-label', 'Circuit guide for ' + r.name);
+        const close = el('button', 'season-link season-row-toggle', 'Close results');
+        close.type = 'button';
+        close.addEventListener('click', toggle);
+        actions.append(circuit, close); content.append(actions);
         collapseOpenRow = toggle;
-        if (session === 'sprint') td.append(classification(data, {...r, race: r.sprint}));
-        else if (session === 'sprintq') td.append(sprintQualifyingClassification(data, sq?.get(r.round) || []));
-        else td.append(session === 'qualifying' ? qualifyingClassification(data, r) : classification(data, r));
-        if (session === 'race') td.append(raceReport(data, r));
-        detail.append(td); tbody.append(detail);
+        if (session === 'sprint') content.append(classification(data, {...r, race: r.sprint}));
+        else if (session === 'sprintq') {
+          const order = sq?.get(r.round);
+          const message = sq ? 'Sprint qualifying results are unavailable for this round.' : 'Loading sprint qualifying results…';
+          const summary = order?.length ? sprintQualifyingClassification(data, order) : empty(message);
+          if (!sq) summary.setAttribute('role', 'status');
+          content.append(summary);
+        }
+        else content.append(session === 'qualifying' ? qualifyingClassification(data, r) : classification(data, r));
+        if (session === 'race') content.append(raceReport(data, r));
+        td.append(content); detail.append(td); tbody.append(detail);
       }
     }
     table.append(tbody);
@@ -1945,13 +2050,14 @@
     if (data.rounds.some(r => r.sprint?.length)) sessions.push(['sprint', 'Sprint'], ['sprintq', 'Sprint qualifying']);
     for (const [id, label] of sessions) {
       const b = el('button', null, label); b.type = 'button'; b.setAttribute('aria-pressed', String(session === id));
-      b.addEventListener('click', () => { if (session === id) return; state.resultsSession = id; state.expanded = null; paint(() => renderResults(data)); });
+      b.addEventListener('click', () => { if (session === id) return; state.resultsSession = id; state.expanded = null; window.ApexUrl?.write('season', urlParams(), {replace: true}); paint(() => renderResults(data)); });
       pills.append(b);
     }
     const note = {race: 'Select a race for its classification and race report.', sprint: 'Select a sprint for its classification.',
       sprintq: 'Select a sprint weekend for the full sprint qualifying order and each driver’s best lap.',
       qualifying: 'Select a round for the full qualifying result, Q1 to Q3. Q3 cut: the slowest Q2 lap that still reached Q3.'}[session];
-    return card('Grand Prix results', pills, el('p', 'season-footnote', note), wrap(table));
+    return card('Grand Prix results', pills, el('p', 'season-footnote', note),
+      rows.length ? wrap(table) : empty('No ' + sessionName.toLowerCase() + ' results published for ' + data.year + ' yet.'));
   }
   const lapTime = t => { const m = Math.floor(t / 60); return `${m}:${(t - m * 60).toFixed(3).padStart(6, '0')}`; };
   // Sprint qualifying: each sprint weekend's captured session, its classification and every driver's best timed lap.
@@ -2307,17 +2413,33 @@
   // Escape closes an opened Grand Prix on Results.
   let collapseOpenRow = null;
   // Going to a Grand Prix's full result (Results, By Grand Prix, that round open and in view) or to a circuit's page.
-  function openResult(data, round) {
-    delete state.views.results; state.expanded = round; state.resultsSession = 'race';
-    show('results');
-    requestAnimationFrame(() => document.querySelector('#seasonHub .season-row-toggle[aria-expanded="true"]')?.closest('tr')?.scrollIntoView({block: 'center'}));
+  function openResult(data, round, session = 'race') {
+    delete state.views.results;
+    show('results', {year: data.year, round, session});
   }
   const openTrack = name => { delete state.views.tracks; show('tracks', {track: name}); page.scrollIntoView?.({block: 'start'}); };
+  function trackLink(year, name, classes, label) {
+    const link = el('a', classes, label);
+    link.href = window.ApexUrl.href('season', {year, tab: 'tracks', track: name});
+    link.addEventListener('click', event => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      openTrack(name);
+    });
+    return link;
+  }
   // A round's flag and code as a link to its full result (rounds still to run stay plain).
-  function roundLink(data, r) {
-    if (notRun(r)) return roundMark(r);
-    const link = el('a', 'season-round-link'); link.href = '#'; link.title = `${r.name}: full result`; link.append(roundMark(r));
-    link.addEventListener('click', event => { event.preventDefault(); openResult(data, r.round); });
+  function roundLink(data, r, session = 'race') {
+    if (!(session === 'qualifying' ? r.qualifying?.length : session.startsWith('sprint') ? r.sprint?.length : r.race?.length)) return roundMark(r);
+    const link = el('a', 'season-round-link');
+    link.href = window.ApexUrl.href('season', {year: data.year, tab: 'results', round: r.round, session});
+    link.title = r.name + ': full result';
+    link.setAttribute('aria-label', r.name + ' full result');
+    link.append(roundMark(r));
+    link.addEventListener('click', event => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault(); openResult(data, r.round, session);
+    });
     return link;
   }
   // Sprint weekends in Results by round: each driver's sprint finish (kind 'sprint') or sprint qualifying place ('sprintq',
@@ -2327,7 +2449,7 @@
     const sq = sprintQualifying.get(data.year);
     const t = el('table', 'season-table season-matrix season-grid');
     const head = el('tr'); head.append(el('th', null, 'Driver'));
-    for (const r of rounds) { const th = el('th', 'num'); th.append(roundLink(data, r)); head.append(th); }
+    for (const r of rounds) { const th = el('th', 'num'); th.append(roundLink(data, r, kind)); head.append(th); }
     head.append(pin(el('th', 'num', 'Mean'), 0, 2), pin(el('th', 'num', 'Median'), 1, 2));
     const thead = el('thead'); thead.append(head); t.append(thead);
     const tb = el('tbody');
@@ -2337,7 +2459,7 @@
       const name = el('th'); name.append(who(data, e.id, {code: true, team: false})); tr.append(name);
       const places = [];
       for (const r of rounds) {
-        if (notRun(r)) { tr.append(upcomingCell(r)); continue; }
+        if (!r.sprint?.length) { tr.append(upcomingCell(r)); continue; }
         const td = el('td', 'num');
         if (kind === 'sprint') {
           const x = r.sprint?.find(y => y.driver === e.id);
@@ -2374,7 +2496,7 @@
     const t = el('table', 'season-table season-matrix season-grid');
     const head = el('tr'); head.append(el('th', null, drivers ? 'Driver' : 'Constructor'));
     // A round that has run opens its full result: the By Grand Prix view with that Grand Prix open.
-    for (const r of rounds) { const th = el('th', 'num'); th.append(roundLink(data, r)); head.append(th); }
+    for (const r of rounds) { const th = el('th', 'num'); th.append(roundLink(data, r, quali ? 'qualifying' : 'race')); head.append(th); }
     // The season columns (points, or mean and median) are pinned at the right edge, so the total stays in view while the
     // rounds scroll sideways; the first of them carries the edge line.
     if (points) head.append(pin(el('th', 'num', 'Pts'), 0, 1)); else head.append(pin(el('th', 'num', 'Mean'), 0, 2), pin(el('th', 'num', 'Median'), 1, 2));
@@ -2385,7 +2507,7 @@
       const tr = el('tr'); tr.dataset.id = e.id;
       const name = el('th'); name.append(drivers ? who(data, e.id, {code: true, team: false}) : teamTag(data, e.id)); tr.append(name);
       for (const r of rounds) {
-        if (notRun(r)) { tr.append(upcomingCell(r)); continue; }
+        if (quali ? !r.qualifying?.length : notRun(r)) { tr.append(upcomingCell(r)); continue; }
         const td = el('td', 'num');
         if (quali) {
           const q = r.qualifying.find(x => x.driver === e.id);

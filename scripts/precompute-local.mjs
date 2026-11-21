@@ -4,7 +4,8 @@ import {qualifyingRepresentatives} from '../corner-geometry.js';
 import {readFile,readdir,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {SOURCE_REVISION,BACKEND_REVISION,RACE_REVISION} from '../lib/cache-revision.mjs';
+import {SOURCE_REVISION,BACKEND_REVISION,RACE_REVISION,RETIREMENT_REVISION} from '../lib/cache-revision.mjs';
+import {isRacePerformanceRoute} from '../lib/retirement-revision.mjs';
 import {mergeLocalCaptures} from '../lib/local-captures.mjs';
 import {confirmedQualifying, confirmedSession} from '../lib/confirmed-qualifying.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
@@ -26,9 +27,8 @@ if(capturing&&Object.entries(revisions).some(([k,v])=>status[k]!==v))throw new E
 async function capture(route,data){
   if(!capturing)return;
   if(!data||data.detail||data.error||data.lap_data_complete===false||data.position_complete===false)throw new Error('Refusing to publish an invalid capture: '+route.split('?')[0]);
-  const identity=new URL(route,'https://local.invalid');
-  if(identity.pathname==='/api/performance'&&['r','race'].includes((identity.searchParams.get('session')||'').toLowerCase()))
-    data={...data,retirement_annotation_revision:BACKEND_REVISION};
+  if(isRacePerformanceRoute(route))
+    data={...data,retirement_annotation_revision:RETIREMENT_REVISION};
   await mergeLocalCaptures(root,revisions,[{route,data}]);
 }
 const start=Date.now();

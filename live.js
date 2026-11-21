@@ -14,11 +14,11 @@
   const base = String(window.APEX_COMPUTE_ORIGIN || '').replace(/\/$/, '');
   // The email and password form only appears on a page this PC serves; elsewhere sign-in happens on Formula 1's own page.
   const passwordSignin = !base;
+  const assetVersion = document.currentScript?.src.match(/\?v=[^&#]+/)?.[0] || '';
   // Its stylesheet ships separately (the published page never loads it), with this script's version.
   {
-    const version = document.currentScript?.src.match(/\?v=[^&#]+/)?.[0] || '';
     for (const sheet of ['live.css', 'live-linear.css']) {
-      const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = sheet + version;
+      const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = sheet + assetVersion;
       document.head.append(link);
     }
   }
@@ -30,8 +30,9 @@
   let state = null, source = null, outline = null, telemetry = {}, bounds = null;
   const chosen = [];
   let lapLists = {}, compareTraces = [], lapsFetchedAt = 0, compareKey = '', currentLaps = null;
+  let compareRequest = null, compareRetryAt = 0, compareRetryTimer = null;
   // The laps being compared: [{driver, lap}] where lap is 'latest', 'fastest', 'last' or a lap number. The first is the reference.
-  let picks = [], picksTouched = false;
+  let picks = [];
   const MAX_PICKS = 4;
   let drawQueued = false;
 
@@ -63,20 +64,21 @@
       <section class="dashboard-card live-source" aria-label="Data source">
         <div class="live-source-row">
           <div class="live-source-group live-connect" role="group" aria-label="Live">
-            <span class="live-group-label">Live</span>
             <button type="button" class="live-button live-primary" data-live="connect">Connect</button>
             <span class="live-auth" data-live="auth"></span>
             <button type="button" class="live-button" data-live="signin" aria-expanded="false" aria-controls="liveSignin">Sign in to F1 TV</button>
             <button type="button" class="live-button live-quiet" data-live="signout" hidden>Sign out</button>
           </div>
-          <div class="live-source-group live-replay" role="group" aria-label="Replay">
-            <span class="live-group-label">Replay</span>
-            <select id="liveReplay" data-live="replay" aria-label="Session to replay"></select>
-            <select id="liveSpeed" data-live="speed" aria-label="Replay speed"></select>
-            <label class="live-from">from <input data-live="from" type="number" min="0" step="5" value="0" inputmode="numeric" aria-label="Start minutes into the session"> min</label>
-            <button type="button" class="live-button" data-live="play">Play</button>
-            <button type="button" class="live-button" data-live="stop" hidden>Stop</button>
+          <div class="live-source-group live-source-actions">
+            <button type="button" class="live-button" data-live="stop" hidden>Stop replay</button>
+            <button type="button" class="live-button" data-live="replaySettings" aria-expanded="false" aria-controls="liveReplaySettings">Replay</button>
           </div>
+        </div>
+        <div id="liveReplaySettings" class="live-source-group live-replay" role="group" aria-label="Replay settings" hidden>
+          <select id="liveReplay" data-live="replay" aria-label="Session to replay"></select>
+          <select id="liveSpeed" data-live="speed" aria-label="Replay speed"></select>
+          <label class="live-from">Start at <input data-live="from" type="number" min="0" step="5" value="0" inputmode="numeric" aria-label="Start minutes into the session"> min</label>
+          <button type="button" class="live-button" data-live="play">Play replay</button>
         </div>
         <form id="liveSignin" class="live-signin" data-live="signinForm" hidden>
           <label>F1 TV email <input name="email" type="email" autocomplete="username" required></label>
@@ -144,6 +146,7 @@
             <div class="live-lap-list-wrap" data-live="lapList" hidden></div>
           </details>
           <div class="live-sector-table" data-live="sectorTable"></div>
+          <p class="live-note" data-live="traceStatus" role="status" hidden></p>
           <div class="live-lap-picker" id="liveLapPicker" data-live="lapPicker" popover="auto" aria-label="Choose a lap">
             <div class="live-picker-head"><strong data-live="pickerTitle">Add a lap</strong><button type="button" class="live-picker-close" data-live="pickerClose" aria-label="Close">×</button></div>
             <div class="live-picker-drivers" data-live="pickerDrivers" role="group" aria-label="Driver"></div>
@@ -181,6 +184,11 @@
     $(page, 'signinBrowser').addEventListener('click', signInWithBrowser);
     $(page, 'signinForm').addEventListener('submit', submitSignin);
     $(page, 'signout').addEventListener('click', signOut);
+    $(page, 'replaySettings').addEventListener('click', event => {
+      const settings = page.querySelector('#liveReplaySettings');
+      settings.hidden = !settings.hidden;
+      event.currentTarget.setAttribute('aria-expanded', String(!settings.hidden));
+    });
     $(page, 'play').addEventListener('click', () => {
       const path = $(page, 'replay').value; if (!path) return;
       start({mode: 'replay', path, speed: Number(speed.value), start: Math.max(0, Number($(page, 'from').value) || 0) * 60});
@@ -224,11 +232,11 @@
       const reference = event.target.closest('[data-reference]');
       if (reference) {
         const [pick] = picks.splice(Number(reference.dataset.reference), 1);
-        if (pick) { picks.unshift(pick); picksTouched = true; renderChips(); loadCompare(); renderLapChart(); }
+        if (pick) { picks.unshift(pick); renderChips(); loadCompare(); renderLapChart(); }
         return;
       }
       const remove = event.target.closest('[data-remove]');
-      if (remove) { picks.splice(Number(remove.dataset.remove), 1); picksTouched = true; renderChips(); loadCompare(); renderLapChart(); return; }
+      if (remove) { picks.splice(Number(remove.dataset.remove), 1); renderChips(); loadCompare(); renderLapChart(); return; }
       const chip = event.target.closest('[data-pick]');
       if (chip) openPicker(chip, chip.dataset.pick === 'add' ? null : Number(chip.dataset.pick));
     });
@@ -238,6 +246,7 @@
     page.querySelector('.live-grid').dataset.workspace = name;
     for (const option of page.querySelectorAll('[data-live-workspace]')) option.setAttribute('aria-pressed', String(option.dataset.liveWorkspace === name));
     requestAnimationFrame(() => { renderLapChart(); queueDraw(); });
+    if (name === 'laps') void loadCompare();
   }
 
   function buildButton() {
@@ -442,7 +451,7 @@
     badge.textContent = running ? (source.kind === 'live' ? 'Live' : `Replay ${source.speed}×`) : source?.error ? 'Stopped' : 'Idle';
     $(page, 'stop').hidden = !running;
     if (active) { const crumb = document.getElementById('windowTitle'); if (crumb) crumb.textContent = source?.kind === 'replay' && running ? 'Replay' : 'Timing'; }
-    $(page, 'stop').textContent = source?.kind === 'live' ? 'Disconnect' : 'Stop';
+    $(page, 'stop').textContent = source?.kind === 'live' ? 'Disconnect' : 'Stop replay';
     $(page, 'connect').textContent = running && source.kind === 'live' ? (source.connected === false ? 'Reconnecting…' : 'Connected') : 'Connect';
     $(page, 'connect').disabled = running && source.kind === 'live';
     if (running && source.kind === 'replay') {
@@ -522,7 +531,7 @@
         const compare = el('button', 'live-best-time', d.best);
         compare.type = 'button'; compare.dataset.compareBest = '';
         compare.setAttribute('aria-label', `${d.best}, compare ${d.code}'s best lap`);
-        const full = picksTouched && picks.length >= MAX_PICKS && !picks.some(p => p.driver === d.number && p.lap === 'fastest');
+        const full = picks.length >= MAX_PICKS && !picks.some(p => p.driver === d.number && p.lap === 'fastest');
         compare.setAttribute('aria-disabled', String(full));
         compare.title = full ? 'Remove a lap from the comparison first' : `Compare ${d.code}'s best lap`;
         bestCell.append(compare);
@@ -706,19 +715,15 @@
   // ---------- lap chart: every completed lap of the chosen drivers; a point (or a lap list cell) loads that lap ----------
   // Drivers: the top three in running order until the person picks; at most six. Pit laps and laps over 110% of a driver's
   // best are left out unless "Show slow laps" is on. A lap in the comparison carries a ring in the chart and the list.
-  let chartChosenSet = null, chartSlow = false, chartList = false, chartHoverLap = null;
+  let chartChosenSet = [], chartSlow = false, chartList = false, chartHoverLap = null;
   function resetLapComparison() {
-    lapLists = {}; compareTraces = []; compareKey = ''; picks = []; picksTouched = false;
-    chartChosenSet = null; lapsFetchedAt = 0;
-    for (const name of ['compareCharts', 'traceCharts']) {
-      const settings = traceViews.get($(page, name));
-      if (settings) Object.assign(settings, {from: 0, to: 1, position: null});
-    }
+    clearTimeout(compareRetryTimer);
+    lapLists = {}; compareTraces = []; compareKey = ''; compareRequest = null; compareRetryAt = 0; picks = [];
+    chartChosenSet = []; lapsFetchedAt = 0;
   }
   function chartDrivers() {
     const eligible = pickerDrivers();
-    if (chartChosenSet) return chartChosenSet.map(number => eligible.find(d => d.number === number)).filter(Boolean);
-    return eligible.slice().sort((a, b) => (a.position ?? 99) - (b.position ?? 99)).slice(0, 3);
+    return chartChosenSet.map(number => eligible.find(d => d.number === number)).filter(Boolean);
   }
   const chartColour = d => colour(d);
   function chartLaps(number) {
@@ -732,7 +737,6 @@
     if (i >= 0) picks.splice(i, 1);
     else if (picks.length < MAX_PICKS) picks.push({driver: number, lap});
     else return;
-    picksTouched = true;
     renderChips(); loadCompare(); renderLapChart();
   }
   const tyreBadge = tyre => {
@@ -761,7 +765,6 @@
         const now = chartDrivers().map(x => x.number);
         if (!on && now.length >= MAX_PICKS) return;
         chartChosenSet = on ? now.filter(n => n !== d.number) : [...now, d.number];
-        picksTouched = true;
         renderLapChart();
       });
       return b;
@@ -882,23 +885,18 @@
       if (session !== state?.session?.path) { lapsFetchedAt = 0; return; }
       lapLists = laps;
     } catch { return; } finally { refreshLaps.busy = false; }
-    if (!picksTouched) defaultPicks();
-    picks = picks.filter(p => lapLists[p.driver]?.length || (p.lap === 'fastest' && resolve(p)));
     // Colours follow the session as it runs: a new session or personal best elsewhere recolours these laps at once.
     renderChips(); renderSectorTable(); loadCompare(); renderLapChart();
     if ($(page, 'lapPicker').matches?.(':popover-open')) renderPicker();
   }
   const pickerDrivers = () => (state?.drivers || []).filter(d => lapLists[d.number]?.length || (source?.kind === 'live' && d.best));
-  function defaultPicks() {
-    picks = chartDrivers().map(d => ({driver: d.number, lap: 'fastest'})).filter(resolve);
-  }
   function compareSelectedBest() {
-    defaultPicks();
-    picksTouched = true; renderChips(); loadCompare(); renderLapChart();
+    picks = chartDrivers().map(d => ({driver: d.number, lap: 'fastest'})).filter(resolve);
+    renderChips(); loadCompare(); renderLapChart();
   }
   async function openSessionAnalysis() {
     const session = state?.session;
-    const selected = picks.map(pick => ({code: driverFor(pick.driver).code, lap: resolve(pick)?.lap})).filter(entry => entry.lap != null);
+    const selected = picks.map((pick, i) => ({code: driverFor(pick.driver).code, lap: displayedLap(pick, i)?.lap})).filter(entry => entry.lap != null);
     if (!session?.year || !session.name || !selected.length || !window.ApexUrl) return;
     const button = $(page, 'sessionAnalysis');
     button.disabled = true;
@@ -918,13 +916,12 @@
     } finally { button.disabled = false; }
   }
   function compareBest(driver) {
-    if (!picksTouched) picks = [];
     let index = picks.findIndex(p => p.driver === driver && p.lap === 'fastest');
     if (index < 0) {
       if (picks.length >= MAX_PICKS) return;
       index = picks.push({driver, lap: 'fastest'}) - 1;
     }
-    picksTouched = true;
+    if (!chartChosenSet.includes(driver) && chartChosenSet.length < MAX_PICKS) chartChosenSet.push(driver);
     showWorkspace('laps');
     renderChips(); loadCompare();
     $(page, 'lapChips').querySelector(`[data-pick="${index}"]`)?.focus();
@@ -942,6 +939,10 @@
     if (pick.lap === 'last') return laps.at(-1) || null;
     return laps.find(l => l.lap === Number(pick.lap)) || null;
   }
+  function displayedLap(pick, index) {
+    const lap = resolve(pick), trace = compareTraces[index];
+    return lap && lap.lap == null && trace?.driver === pick.driver && trace.seconds === lap.seconds ? trace : lap;
+  }
   // Each lap its team colour; a second lap from the same team (or driver) takes a contrasting neutral.
   function pickColours() {
     const used = [], spare = [css('--ui-label') || '#fff', '#a1a1aa', '#f5a524'];
@@ -955,11 +956,11 @@
   function formatGap(seconds) { return `${seconds > 0 ? '+' : seconds < 0 ? '−' : '±'}${Math.abs(seconds).toFixed(3)}`; }
   function renderChips() {
     const box = $(page, 'lapChips'), colours = pickColours(), ref = picks[0] && resolve(picks[0]);
-    $(page, 'sessionAnalysis').hidden = !state?.session?.year || !picks.length || !picks.every(p => resolve(p)?.lap != null);
+    $(page, 'sessionAnalysis').hidden = !state?.session?.year || !picks.length || !picks.every((p, i) => displayedLap(p, i)?.lap != null);
     const focused = box.contains(document.activeElement) ? document.activeElement : null;
     const focusKey = focused?.hasAttribute('data-remove') ? 'remove' : 'pick';
     const chips = picks.map((pick, i) => {
-      const lap = resolve(pick), d = driverFor(pick.driver);
+      const lap = displayedLap(pick, i), d = driverFor(pick.driver);
       // The main site's comparison pill (loaded-lap-pill): team dot, code, lap, time, "Ref" on the reference, ×. Which lap a
       // moving pick follows and the gap to the reference are in its title.
       const chip = el('div', `loaded-lap-pill${i ? '' : ' reference'}`); chip.setAttribute('role', 'listitem'); chip.style.setProperty('--team', colours[i]);
@@ -1040,25 +1041,56 @@
     if (!$(page, 'lapPicker').matches?.(':popover-open') || (pickerTarget == null && picks.length >= MAX_PICKS)) return;
     const pick = {driver: pickerDriver, lap: value};
     if (pickerTarget == null) picks.push(pick); else picks[pickerTarget] = pick;
-    picksTouched = true;
     $(page, 'lapPicker').hidePopover?.();
     renderChips(); loadCompare(); renderLapChart();
   }
   async function loadCompare() {
+    const entries = picks.map(pick => ({pick, lap: resolve(pick)}));
+    const key = entries.map(({pick, lap}) => `${pick.driver}:${pick.lap}:${lap?.lap}:${lap?.time || ''}:${lap?.distance ?? ''}`).join('|');
+    const changed = key !== compareKey;
+    if (changed) {
+      clearTimeout(compareRetryTimer);
+      const previous = new Map(compareKey.split('|').map((part, i) => [part, compareTraces[i]]));
+      compareTraces = key.split('|').map(part => previous.get(part) || null);
+      compareRequest = null; compareRetryAt = 0; compareKey = key;
+    }
     renderSectorTable();
-    // Fetch again only when a pick changed, or the lap a moving pick points at moved on (or got its time).
-    const key = picks.map(p => { const lap = resolve(p); return `${p.driver}:${p.lap}:${lap?.lap}:${lap?.time || ''}:${lap?.distance ?? ''}`; }).join('|');
-    if (key === compareKey) return;
-    compareKey = key;
-    compareTraces = [];
+    if (compareRequest || (!changed && (!compareRetryAt || Date.now() < compareRetryAt))) return;
+    const pending = entries.map(({lap}, i) => Boolean(lap && !compareTraces[i]));
+    if (!pending.some(Boolean)) { traceStatus(); return; }
+    const request = {};
+    compareRequest = request;
+    traceStatus();
     queueDraw();
-    const traces = await Promise.all(picks.map(p => {
-      const lap = resolve(p);
-      return lap?.lap != null ? api(`lap?driver=${encodeURIComponent(p.driver)}&lap=${lap.lap}`).catch(() => null) : null;
+    const traces = await Promise.all(entries.map(async ({pick, lap}, i) => {
+      if (!pending[i]) return compareTraces[i] || null;
+      const trace = await api(`lap?driver=${encodeURIComponent(pick.driver)}&lap=${lap.lap ?? 'fastest'}`, {signal: AbortSignal.timeout(15000)}).catch(() => null);
+      if (trace?.x?.length > 1 && (lap.lap != null || trace.seconds === lap.seconds)) {
+        if (compareRequest === request) {
+          compareTraces[i] = trace; renderChips(); renderSectorTable(); traceStatus(); queueDraw();
+        }
+        return trace;
+      }
+      return null;
     }));
-    if (compareKey !== key) return;
+    if (compareRequest !== request) return;
+    compareRequest = null;
     compareTraces = traces;
+    compareRetryAt = pending.some((needed, i) => needed && !traces[i]) ? Date.now() + 15_000 : 0;
+    clearTimeout(compareRetryTimer);
+    if (compareRetryAt) compareRetryTimer = setTimeout(() => {
+      if (active && page.querySelector('.live-grid').dataset.workspace === 'laps') void loadCompare();
+    }, 15_000);
+    traceStatus();
     renderChips(); renderSectorTable(); queueDraw();
+  }
+  function traceStatus() {
+    const status = $(page, 'traceStatus');
+    const missing = picks.filter((pick, i) => resolve(pick) && !compareTraces[i]).map(pick => driverFor(pick.driver).code);
+    const message = !missing.length ? '' : compareRequest ? `Loading telemetry for ${missing.join(', ')}…` :
+      `Waiting for telemetry for ${missing.join(', ')}. Apex will retry automatically.`;
+    if (status.textContent !== message) status.textContent = message;
+    status.hidden = !message;
   }
   // Sector times of the compared laps in F1's colours for the session: purple the session's fastest, green the driver's
   // personal best, yellow neither. The bests come from every lap of the session the app holds (F1's own flags are only
@@ -1082,7 +1114,7 @@
   function renderSectorTable() {
     const box = $(page, 'sectorTable'), colours = pickColours();
     const rows = picks.map((pick, i) => {
-      const lap = resolve(pick);
+      const lap = displayedLap(pick, i);
       return lap && {trace: {...lap, driver: pick.driver}, colour: colours[i], index: i};
     }).filter(Boolean);
     if (!rows.length) { box.replaceChildren(); return; }
@@ -1118,361 +1150,56 @@
     box.replaceChildren(grid, legend);
   }
 
-  // Time at a given distance along a lap (linear interpolation).
-  function timeAt(trace, x) {
-    const xs = trace.x; let lo = 0, hi = xs.length - 1;
-    // Before the first or after the last sample (a lap's samples start a few metres either side of the line): carry on at
-    // that sample's speed rather than holding its time.
-    if (x <= xs[0]) return trace.t[0] - (xs[0] - x) / Math.max(5, (trace.speed?.[0] || 0) / 3.6);
-    if (x >= xs[hi]) return trace.t[hi] + (x - xs[hi]) / Math.max(5, (trace.speed?.[hi] || 0) / 3.6);
-    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (xs[mid] < x) lo = mid; else hi = mid; }
-    const f = (x - xs[lo]) / ((xs[hi] - xs[lo]) || 1);
-    return trace.t[lo] + f * (trace.t[hi] - trace.t[lo]);
-  }
-  // ---------- charts in the main site's style: one panel per channel, theme colours, tinted speed, crosshair ----------
-  const theme = () => window.canvasTheme?.() || {text: '#8a8f98', textStrong: '#f7f8f8', grid: 'rgba(255,255,255,.06)', gridStrong: 'rgba(255,255,255,.18)', crosshair: 'rgba(255,255,255,.4)', labelStroke: '#0f1011'};
-  const font = (size, weight) => window.canvasFont?.(size, weight) || `${weight || 400} ${size + 1}px system-ui, sans-serif`;
-  const rgba = (hex, alpha) => {
-    const m = /^#?([0-9a-f]{6})$/i.exec(String(hex).trim());
-    if (!m) return hex;
-    const n = parseInt(m[1], 16);
-    return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${alpha})`;
-  };
-  // The feed holds a value until it changes; drawing every held repeat makes stairs. Keep the first sample of each run.
-  function changes(xs, ys) {
-    const out = [];
-    for (let i = 0; i < xs.length; i++) {
-      if (ys[i] == null) { out.push([xs[i], null]); continue; }
-      if (i && ys[i] === ys[i - 1] && i < xs.length - 1 && ys[i + 1] === ys[i]) continue;
-      out.push([xs[i], ys[i]]);
+  const traceFrames = new WeakMap();
+  function updateTelemetryFrame(container, mode, laps, emptyMessage) {
+    let view = traceFrames.get(container);
+    if (!view) {
+      const message = el('p', 'live-empty');
+      container.append(message);
+      view = {message, frame: null, payload: null};
+      traceFrames.set(container, view);
     }
-    return out;
-  }
-  const PANEL_HEIGHTS = {speed: 210, delta: 104, throttle: 96, brake: 58, gear: 96, rpm: 96, drs: 58};
-  const traceViews = new WeakMap();
-  function traceView(container) {
-    if (!traceViews.has(container)) traceViews.set(container, {from: 0, to: 1, position: null, hidden: new Set()});
-    return traceViews.get(container);
-  }
-  function traceToolbar(container, ids) {
-    const settings = traceView(container);
-    const toolbar = el('div', 'live-trace-toolbar');
-    const controls = el('div', 'trace-zoom-cluster'); controls.setAttribute('aria-label', 'Distance zoom');
-    const label = el('span', 'trace-zoom-readout');
-    const add = (caption, name, action) => {
-      const button = el('button', 'live-button', caption); button.type = 'button';
-      button.setAttribute('aria-label', name);
-      button.addEventListener('click', () => { action(); queueDraw(); });
-      controls.append(button);
-      return button;
-    };
-    const change = (factor, pan = 0) => {
-      const span = Math.min(1, Math.max(.025, (settings.to - settings.from) * factor));
-      const center = pan ? (settings.from + settings.to) / 2 + pan * span : settings.position ?? (settings.from + settings.to) / 2;
-      settings.from = Math.max(0, Math.min(1 - span, center - span / 2));
-      settings.to = settings.from + span;
-    };
-    controls.append(label);
-    add('−', 'Zoom out', () => change(1.8));
-    add('+', 'Zoom in', () => change(.55));
-    add('‹', 'Pan left', () => change(1, -.35));
-    add('›', 'Pan right', () => change(1, .35));
-    add('Reset', 'Reset zoom', () => { settings.from = 0; settings.to = 1; settings.position = null; });
-    toolbar.append(controls);
-    const display = el('details', 'trace-display-menu');
-    display.append(el('summary', null, 'Traces'));
-    const choices = el('div', 'live-trace-choices');
-    for (const id of ids) {
-      const choice = el('label');
-      const input = el('input'); input.type = 'checkbox'; input.checked = !settings.hidden.has(id);
-      input.disabled = id === 'speed';
-      input.addEventListener('change', () => { if (input.checked) settings.hidden.delete(id); else settings.hidden.add(id); queueDraw(); });
-      choice.append(input, SPECS[id].title); choices.append(choice);
+    const ready = laps.some(lap => lap.trace?.x?.length > 1);
+    view.message.hidden = !emptyMessage || (ready && mode !== 'current');
+    if (view.message.textContent !== emptyMessage) view.message.textContent = emptyMessage;
+    if (!ready) {
+      if (view.frame) view.frame.hidden = true;
+      view.payload = null;
+      return;
     }
-    display.append(choices);
-    toolbar.append(display);
-    const screenshot = el('button', 'live-button', 'Save charts'); screenshot.type = 'button';
-    screenshot.addEventListener('click', () => {
-      const panels = Array.from(container.querySelectorAll('figure:not([hidden]) canvas'));
-      if (!panels.length) return;
-      const image = el('canvas'), heading = 30;
-      image.width = Math.max(...panels.map(panel => panel.width));
-      image.height = panels.reduce((height, panel) => height + panel.height + heading, 0);
-      const ctx = image.getContext('2d');
-      ctx.fillStyle = css('--ui-well'); ctx.fillRect(0, 0, image.width, image.height);
-      let y = 0;
-      for (const panel of panels) {
-        ctx.fillStyle = css('--ui-label'); ctx.font = '16px system-ui';
-        ctx.fillText(panel.parentElement.querySelector('strong').textContent, 12, y + 22);
-        ctx.drawImage(panel, 0, y + heading); y += panel.height + heading;
-      }
-      const link = el('a'); link.href = image.toDataURL('image/png'); link.download = 'apex-live-telemetry.png'; link.click();
-    });
-    toolbar.append(screenshot);
+    if (!view.frame) {
+      const frame = el('iframe', 'live-telemetry-frame');
+      frame.setAttribute('height', '0');
+      frame.title = mode === 'current' ? 'Current lap telemetry charts' : 'Completed lap telemetry charts';
+      frame.src = 'telemetry-frame.html' + assetVersion;
+      frame.addEventListener('load', () => {
+        if (view.payload) frame.contentWindow?.ApexTelemetryFrame?.update(view.payload);
+      });
+      view.frame = frame;
+      container.append(frame);
+    }
+    const session = state?.session || {};
+    const theme = document.documentElement.dataset.theme;
+    const key = session.path || [session.year, session.meeting, session.name].join(':');
+    const previous = view.payload;
+    view.frame.hidden = false;
+    if (previous?.key === key && previous.theme === theme && previous.laps.length === laps.length &&
+        laps.every((lap, index) => ['code', 'lap', 'seconds', 'colour', 'trace'].every(field => lap[field] === previous.laps[index][field]))) return;
+    view.payload = {mode, key, year: session.year, theme, event: session.meeting, title: [session.meeting, session.name].filter(Boolean).join(' · '), laps,
+      distance: mode === 'current' ? currentLaps?.length : null, sectors: currentLaps?.sector_marks};
+    view.frame.contentWindow?.ApexTelemetryFrame?.update(view.payload);
+  }
 
-    const inspector = el('details', 'live-trace-inspector');
-    inspector.append(el('summary', null, 'Inspect values'));
-    const distance = el('label', 'live-trace-distance', 'Lap distance');
-    const input = el('input'); input.type = 'range'; input.min = '0'; input.max = '1000'; input.value = '0';
-    distance.append(input); inspector.append(distance);
-    const values = el('div', 'live-table-wrap'); inspector.append(values);
-    input.addEventListener('input', () => { settings.position = Number(input.value) / 1000; queueDraw(); });
-    inspector.addEventListener('toggle', () => queueDraw());
-    container.prepend(toolbar);
-    container.append(inspector);
-    Object.assign(settings, {label, inspector, input, values});
-  }
-  function panels(container, specs) {
-    // One canvas per channel, created once per layout, like the main site's chart cards.
-    const key = specs.map(p => p.id).join(',');
-    if (container.dataset.layout !== key) {
-      container.dataset.layout = key;
-      container.replaceChildren(...specs.map(spec => {
-        const figure = el('figure', 'live-chart'); figure.dataset.panel = spec.id;
-        const head = el('figcaption'); head.append(el('strong', null, spec.title), el('small', null, spec.unit || ''));
-        const canvas = el('canvas'); canvas.style.height = (spec.height || PANEL_HEIGHTS[spec.id] || 96) + 'px';
-        figure.append(head, canvas);
-        return figure;
-      }));
-      traceToolbar(container, specs.map(spec => spec.id));
-    }
-    return specs.map(spec => [spec, container.querySelector(`[data-panel="${spec.id}"] canvas`)]);
-  }
-  const PLOT = {left: 46, right: 12, top: 8, bottom: 8};
-  function drawPanel(canvas, spec, series, view, hover) {
-    const frame = sized(canvas); if (!frame) return;
-    const {ctx, w, h} = frame, t = theme(), last = spec.axis;
-    const bottom = PLOT.bottom + (last ? 16 : 0), plotW = w - PLOT.left - PLOT.right, plotH = h - PLOT.top - bottom;
-    const X = x => PLOT.left + (x - view.min) / ((view.max - view.min) || 1) * plotW;
-    const Y = v => PLOT.top + (spec.max - v) / ((spec.max - spec.min) || 1) * plotH;
-    // grid and tick labels
-    ctx.font = font(11); ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
-    for (const tick of spec.ticks) {
-      const y = Y(tick.value);
-      ctx.beginPath(); ctx.moveTo(PLOT.left, y); ctx.lineTo(w - PLOT.right, y);
-      ctx.strokeStyle = tick.strong ? t.gridStrong : t.grid; ctx.lineWidth = tick.strong ? 1.2 : 1; ctx.stroke();
-      ctx.fillStyle = tick.strong ? t.textStrong : t.text; ctx.fillText(tick.label, PLOT.left - 8, y);
-    }
-    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-    for (const mark of view.marks) {
-      const x = X(mark.value);
-      ctx.beginPath(); ctx.moveTo(x, PLOT.top); ctx.lineTo(x, PLOT.top + plotH); ctx.strokeStyle = t.grid; ctx.lineWidth = 1; ctx.stroke();
-      if (last) { ctx.fillStyle = t.text; ctx.fillText(mark.label, x, h - 6); }
-    }
-    if (view.sectors?.length === 2) {
-      ctx.save(); ctx.setLineDash([4, 4]); ctx.strokeStyle = t.gridStrong; ctx.lineWidth = 1;
-      for (const at of view.sectors.filter(at => at >= view.min && at <= view.max)) { const x = X(at); ctx.beginPath(); ctx.moveTo(x, PLOT.top); ctx.lineTo(x, PLOT.top + plotH); ctx.stroke(); }
-      ctx.restore();
-      if (spec.id === 'speed') {
-        const edges = [0, ...view.sectors, view.length];
-        ctx.font = font(10, 600); ctx.fillStyle = t.text; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-        for (let k = 0; k < 3; k++) {
-          const left = Math.max(view.min, edges[k]), right = Math.min(view.max, edges[k + 1]);
-          if (right > left && X(right) - X(left) >= 65) ctx.fillText(`Sector ${k + 1}`, X((left + right) / 2), PLOT.top + 2);
-        }
-        ctx.font = font(11); ctx.textBaseline = 'alphabetic';
-      }
-    }
-    ctx.save(); ctx.beginPath(); ctx.rect(PLOT.left, PLOT.top - 2, plotW, plotH + 4); ctx.clip();
-    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    series.forEach((line, index) => {
-      const points = line.points;
-      if (points.length < 2) return;
-      const path = () => {
-        ctx.beginPath(); let previous = null;
-        for (const [x, v] of points) {
-          if (v == null) { previous = null; continue; }
-          const px = X(x), py = Y(Math.max(spec.min, Math.min(spec.max, v)));
-          if (!previous) ctx.moveTo(px, py);
-          else { if (spec.steps) ctx.lineTo(px, previous[1]); ctx.lineTo(px, py); }
-          previous = [px, py];
-        }
-      };
-      if (spec.tint) {
-        path(); ctx.lineTo(X(points.at(-1)[0]), PLOT.top + plotH); ctx.lineTo(X(points[0][0]), PLOT.top + plotH); ctx.closePath();
-        const gradient = ctx.createLinearGradient(0, PLOT.top, 0, PLOT.top + plotH);
-        gradient.addColorStop(0, rgba(line.colour, .14 / Math.sqrt(series.length))); gradient.addColorStop(1, rgba(line.colour, 0));
-        ctx.fillStyle = gradient; ctx.fill();
-      }
-      path(); ctx.strokeStyle = line.colour; ctx.lineWidth = (index ? 1.12 : 1.44) * (spec.id === 'speed' ? 1.15 : 1); ctx.stroke();
-    });
-    ctx.restore();
-    if (spec.id === 'speed') {
-      ctx.save(); ctx.translate(11, PLOT.top + plotH / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center';
-      ctx.font = font(10, 500); ctx.fillStyle = t.text; ctx.fillText('Speed [km/h]', 0, 0); ctx.restore();
-    }
-    // crosshair with each line's value
-    if (hover != null && hover >= view.min && hover <= view.max) {
-      const x = X(hover);
-      ctx.beginPath(); ctx.moveTo(x, PLOT.top); ctx.lineTo(x, PLOT.top + plotH); ctx.strokeStyle = t.crosshair || t.gridStrong; ctx.lineWidth = 1; ctx.stroke();
-      const labels = [];
-      series.forEach(line => {
-        const v = valueAt(line.points, hover, spec.steps); if (v == null) return;
-        ctx.beginPath(); ctx.arc(x, Y(Math.max(spec.min, Math.min(spec.max, v))), 3, 0, Math.PI * 2);
-        ctx.fillStyle = line.colour; ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = t.labelStroke || '#000'; ctx.stroke();
-        labels.push([line.colour, spec.format(v)]);
-      });
-      ctx.font = font(11, 600); ctx.textBaseline = 'top';
-      let lx = x + 8; const widths = labels.map(([, text]) => ctx.measureText(text).width + 14);
-      if (lx + widths.reduce((a, b) => a + b, 0) > w - PLOT.right) lx = x - 8 - widths.reduce((a, b) => a + b, 0);
-      labels.forEach(([colour, text], i) => {
-        ctx.fillStyle = colour; ctx.fillRect(lx, PLOT.top + 4, 3, 12);
-        ctx.fillStyle = t.textStrong; ctx.textAlign = 'left'; ctx.fillText(text, lx + 6, PLOT.top + 4);
-        lx += widths[i];
-      });
-    }
-  }
-  function valueAt(points, x, steps) {
-    let lo = 0, hi = points.length - 1;
-    if (hi < 0 || x < points[0][0] || x > points[hi][0]) return null;
-    if (x === points[hi][0]) return points[hi][1];
-    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (points[mid][0] <= x) lo = mid; else hi = mid; }
-    const [x0, v0] = points[lo], [x1, v1] = points[hi];
-    if (v0 == null || v1 == null || steps) return v0;
-    return v0 + (v1 - v0) * ((x - x0) / ((x1 - x0) || 1));
-  }
-  const SPECS = {
-    speed: {id: 'speed', title: 'Speed', unit: 'km/h', min: 0, max: 350, tint: true, ticks: [100, 200, 300].map(v => ({value: v, label: v})), format: v => `${Math.round(v)} km/h`},
-    delta: {id: 'delta', title: 'Time delta', unit: 'seconds, second lap against the first', steps: false, format: v => `${v > 0 ? '+' : ''}${v.toFixed(3)} s`},
-    throttle: {id: 'throttle', title: 'Throttle', unit: '%', min: 0, max: 100, ticks: [0, 50, 100].map(v => ({value: v, label: v})), format: v => `${Math.round(v)}%`},
-    brake: {id: 'brake', title: 'Brake', unit: 'on / off', min: 0, max: 100, steps: true, ticks: [{value: 0, label: 'OFF'}, {value: 100, label: 'ON'}], format: v => (v ? 'ON' : 'OFF')},
-    gear: {id: 'gear', title: 'Gear', unit: '', min: 1, max: 8, steps: true, ticks: [2, 4, 6, 8].map(v => ({value: v, label: v})), format: v => `Gear ${Math.round(v)}`},
-    rpm: {id: 'rpm', title: 'Engine speed', unit: 'rpm', min: 0, max: 16000, ticks: [4000, 8000, 12000, 16000].map(v => ({value: v, label: v / 1000 + 'k'})), format: v => `${Math.round(v)} rpm`},
-    drs: {id: 'drs', title: 'DRS', unit: 'open / closed', min: 0, max: 1, steps: true, ticks: [{value: 0, label: 'Closed'}, {value: 1, label: 'Open'}], format: v => v ? 'Open' : 'Closed'},
-  };
-  const measured = (id, value) => id !== 'drs' ? value : [10, 12, 14].includes(value) ? 1 : [0, 1, 8].includes(value) ? 0 : null;
-  const channelIds = traces => ['speed', 'throttle', 'brake', 'gear', 'rpm', 'drs'].filter(id =>
-    (id !== 'drs' || (state?.session?.year > 0 && state.session.year < 2026))
-    && traces.some(trace => trace[id]?.some(v => Number.isFinite(measured(id, v)))));
-  function traceWindow(container, length, sectors) {
-    const settings = traceView(container);
-    const min = settings.from * length, max = settings.to * length;
-    const marks = [];
-    const step = (max - min) < 1000 ? 200 : 1000;
-    for (let m = Math.ceil(min / step) * step; m < max; m += step) marks.push({value: m, label: `${m / 1000} km`});
-    return {min, max, length, marks, sectors};
-  }
-  function pointsFor(trace, spec) {
-    const values = trace[spec.id];
-    if (!values) return [];
-    return spec.steps ? trace.x.map((x, i) => [x, measured(spec.id, values[i])]) : changes(trace.x, values);
-  }
-  function renderTraceValues(container, view, channels, names) {
-    const settings = traceView(container);
-    const position = settings.position ?? settings.from;
-    const distance = (view.length * position);
-    settings.label.textContent = settings.from === 0 && settings.to === 1 ? 'Full lap' : `${Math.round(view.min)}–${Math.round(view.max)} m`;
-    settings.input.value = String(Math.round(position * 1000));
-    settings.input.setAttribute('aria-valuetext', `${Math.round(distance)} metres`);
-    if (!settings.inspector.open) return;
-    const table = el('table', 'live-table');
-    table.append(el('caption', null, `Samples at ${Math.round(distance)} m`));
-    const header = el('tr');
-    for (const title of ['Driver', ...channels.map(channel => channel.spec.title)]) {
-      const th = el('th', null, title); th.scope = 'col'; header.append(th);
-    }
-    const head = el('thead'); head.append(header); table.append(head);
-    const body = el('tbody');
-    for (const name of names) {
-      const row = el('tr');
-      const label = el('th', null, name); label.scope = 'row'; row.append(label);
-      for (const {spec, lines} of channels) {
-        const line = lines.find(item => item.name === name);
-        const v = line ? valueAt(line.points, distance, spec.steps) : null;
-        row.append(el('td', null, Number.isFinite(v) ? spec.format(v) : '—'));
-      }
-      body.append(row);
-    }
-    table.append(body); settings.values.replaceChildren(table);
-  }
-  function bindHover(container) {
-    if (container.dataset.hover) return;
-    container.dataset.hover = '1';
-    const fraction = event => {
-      const canvas = event.target.closest('canvas'); if (!canvas) return;
-      const r = canvas.getBoundingClientRect(), f = (event.clientX - r.left - PLOT.left) / (r.width - PLOT.left - PLOT.right);
-      return f;
-    };
-    container.addEventListener('pointermove', event => {
-      const f = fraction(event); if (f == null) return;
-      const settings = traceView(container);
-      settings.position = f < 0 || f > 1 ? null : settings.from + f * (settings.to - settings.from);
-      queueDraw();
-    });
-    let start = null;
-    container.addEventListener('pointerdown', event => {
-      if (event.pointerType !== 'mouse' || event.button !== 0) return;
-      start = fraction(event);
-      if (start != null) event.target.setPointerCapture?.(event.pointerId);
-    });
-    container.addEventListener('pointercancel', () => { start = null; });
-    container.addEventListener('pointerup', event => {
-      const end = fraction(event), anchor = start; start = null;
-      if (anchor == null || end == null || Math.abs(anchor - end) < .025) return;
-      const settings = traceView(container), span = settings.to - settings.from, base = settings.from;
-      settings.from = base + Math.max(0, Math.min(1, anchor, end)) * span;
-      settings.to = base + Math.max(0, Math.min(1, Math.max(anchor, end))) * span;
-      if (settings.to - settings.from < .025) settings.to = Math.min(1, settings.from + .025);
-      if (settings.from === settings.to) { settings.from = 0; settings.to = 1; }
-      queueDraw();
-    });
-  }
   function drawCompare() {
-    const container = $(page, 'compareCharts'), colours = pickColours();
-    const traces = compareTraces.map((t, i) => t && {trace: t, colour: colours[i]}).filter(Boolean);
-    if (!traces.length) {
-      const message = picks.some(p => resolve(p)) ? 'Telemetry is unavailable for the selected laps.' : 'Add laps to compare their telemetry.';
-      container.replaceChildren(el('p', 'live-empty', message)); container.dataset.layout = ''; return;
-    }
-    const nameFor = trace => `${driverFor(trace.driver).code} L${trace.lap}`;
-    const length = Math.max(...traces.map(({trace}) => trace.x.at(-1) || 0));
-    const view = traceWindow(container, length, compareTraces.find(Boolean)?.sector_marks);
-    const ids = channelIds(traces.map(({trace}) => trace));
-    if (traces.length > 1 && compareTraces[0]) ids.splice(1, 0, 'delta');
-    if (!ids.length) return;
-    const list = panels(container, ids.map(id => ({...SPECS[id]})));
-    bindHover(container);
-    const settings = traceView(container), channels = [];
-    // Captions are created once per layout; keep the reference named in the delta caption current.
-    const deltaCaption = container.querySelector('[data-panel="delta"] figcaption small');
-    if (deltaCaption) deltaCaption.textContent = `seconds against ${driverFor(traces[0].trace.driver).code} L${traces[0].trace.lap}`;
-    for (const [spec, canvas] of list) {
-      canvas.parentElement.hidden = settings.hidden.has(spec.id);
-      if (canvas.parentElement.hidden) continue;
-      spec.axis = spec.id === ids.filter(id => !settings.hidden.has(id)).at(-1);
-      let series;
-      if (spec.id === 'delta') {
-        // Each lap's clock starts at the timing line and is scaled to its official lap time, so each line ends on the
-        // official gap to the reference; a short moving average removes the position feed's sampling jitter.
-        const span = Math.min(...traces.map(({trace}) => trace.x.at(-1)));
-        const clock = trace => {
-          const t0 = timeAt(trace, 0), tEnd = timeAt(trace, span), scale = trace.seconds && tEnd > t0 ? trace.seconds / (tEnd - t0) : 1;
-          return x => (timeAt(trace, x) - t0) * scale;
-        };
-        const reference = clock(traces[0].trace);
-        series = traces.slice(1).map(({trace, colour: c}) => {
-          const other = clock(trace), raw = [];
-          for (let k = 0; k <= 400; k++) { const x = span * k / 400; raw.push([x, other(x) - reference(x)]); }
-          return {colour: c, name: nameFor(trace), points: raw.map(([x], k) => {
-            const reach = Math.min(k, raw.length - 1 - k, 4);
-            let sum = 0; for (let j = k - reach; j <= k + reach; j++) sum += raw[j][1];
-            return [x, sum / (2 * reach + 1)];
-          })};
-        });
-        series.unshift({name: nameFor(traces[0].trace), points: [[0, 0], [span, 0]], colour: traces[0].colour});
-        const range = Math.max(.1, ...series.flatMap(line => line.points.map(([, d]) => Math.abs(d))));
-        const step = [0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 5].find(st => range / st <= 2.5) || 5;
-        const top = Math.ceil(range / step) * step;
-        // Finer steps: a labelled gridline every half step either side of zero.
-        Object.assign(spec, {min: -top, max: top, ticks: [-top, -top / 2, 0, top / 2, top].map(v => ({value: v, label: v ? `${v > 0 ? '+' : ''}${v.toFixed(step <= .1 ? 2 : step < 1 ? 2 : 1)}` : '0', strong: !v}))});
-      } else {
-        series = traces.map(({trace, colour: c}) => ({colour: c, name: nameFor(trace), points: pointsFor(trace, spec)}));
-      }
-      drawPanel(canvas, spec, series, view, settings.position == null ? null : settings.position * length);
-      channels.push({spec, lines: series});
-    }
-    renderTraceValues(container, view, channels, traces.map(({trace}) => nameFor(trace)));
+    const colours = pickColours();
+    const laps = picks.map((pick, index) => {
+      const entry = displayedLap(pick, index);
+      return {code: driverFor(pick.driver).code, lap: entry?.lap, seconds: entry?.seconds,
+        sectors: entry?.sectors, colour: colours[index], trace: compareTraces[index]};
+    });
+    updateTelemetryFrame($(page, 'compareCharts'), 'completed', laps, picks.length ? '' : 'Select drivers or add a lap to start the comparison.');
   }
+
   function renderTraceDrivers() {
     const group = $(page, 'traceDrivers');
     const drivers = state?.drivers || [];
@@ -1493,32 +1220,25 @@
     group.replaceChildren(...buttons);
     if (focus) buttons.find(button => button.dataset.driver === focus)?.focus({preventScroll: true});
   }
-  // The chosen cars' current laps over the full lap distance (line to line), filling in as they go round.
   function drawTrace() {
-    const container = $(page, 'traceCharts');
-    const laps = currentLaps?.laps || {};
-    const series = chosen.map(n => [n, laps[n]]).filter(([, lap]) => lap?.x?.length > 1);
-    if (!series.length) {
-      container.replaceChildren(el('p', 'live-empty', chosen.length ? 'Waiting for telemetry at the start of the lap.' : 'Select drivers to view their current laps.')); container.dataset.layout = '';
-      return;
+    const laps = chosen.map(number => {
+      const trace = currentLaps?.laps?.[number], driver = driverFor(number);
+      return {code: driver.code, lap: trace?.lap, colour: colour(driver), trace};
+    });
+    let message = '';
+    if (!chosen.length) message = 'Select drivers to view their current laps.';
+    else if (!source?.running || source.connected === false) message = 'Live feed disconnected. Any telemetry shown is from the last connection.';
+    else {
+      const pending = laps.filter(lap => !(lap.trace?.x?.length > 1)).map(lap => lap.code);
+      if (pending.length) {
+        const receivingSamples = chosen.some(number => telemetry[number]?.length);
+        message = !receivingSamples && source.kind === 'live' && source.authenticated === false
+          ? 'No car telemetry on this connection. Sign in to F1 TV to reconnect with telemetry access.'
+          : receivingSamples ? `Waiting for enough lap data for ${pending.join(', ')}. Latest readings appear above.`
+          : `Waiting for car telemetry from Formula 1 for ${pending.join(', ')}.`;
+      }
     }
-    const length = currentLaps.length || Math.max(...series.map(([, lap]) => lap.x.at(-1)));
-    const view = traceWindow(container, length, currentLaps?.sector_marks);
-    $(page, 'telenote').textContent = `Current lap · ${series.map(([n, lap]) => `${driverFor(n).code} L${lap.lap}`).join(' · ')}`;
-    const ids = channelIds(series.map(([, lap]) => lap));
-    if (!ids.length) return;
-    const list = panels(container, ids.map(id => ({...SPECS[id]})));
-    bindHover(container);
-    const settings = traceView(container), channels = [];
-    for (const [spec, canvas] of list) {
-      canvas.parentElement.hidden = settings.hidden.has(spec.id);
-      if (canvas.parentElement.hidden) continue;
-      spec.axis = spec.id === ids.filter(id => !settings.hidden.has(id)).at(-1);
-      const lines = series.map(([number, lap]) => ({colour: colour(driverFor(number)), name: driverFor(number).code, points: pointsFor(lap, spec)}));
-      drawPanel(canvas, spec, lines, view, settings.position == null ? null : settings.position * length);
-      channels.push({spec, lines});
-    }
-    renderTraceValues(container, view, channels, series.map(([number]) => driverFor(number).code));
+    updateTelemetryFrame($(page, 'traceCharts'), 'current', laps, message);
   }
 
   // ---------- canvases ----------
@@ -1692,5 +1412,6 @@
   // On the published site this runs after the PC connects, when the page has long finished loading.
   if (document.readyState === 'loading') addEventListener('DOMContentLoaded', boot); else boot();
   addEventListener('apex-skin', () => button && place());
+  addEventListener('apex-theme', queueDraw);
   window.ApexLive = Object.freeze({enter, leave});
 })();

@@ -107,8 +107,7 @@
     });
     new MutationObserver(syncView).observe(document.querySelector('.performance-tabs'), {subtree: true, attributes: true, attributeFilter: ['aria-selected']});
     lapHeader = document.createElement('div'); lapHeader.className = 'linear-lap-header'; lapHeader.hidden = true;
-    lapHeader.innerHTML = '<strong>Comparison laps</strong><div class="linear-lap-actions"></div><button type="button" aria-label="Close lap chooser">Done</button>';
-    lapHeader.querySelector('button').addEventListener('click', () => document.getElementById('lapWorkspaceToggle')?.click());
+    lapHeader.innerHTML = '<strong>Comparison laps</strong><div class="linear-lap-actions"></div><button type="button" data-lap-sheet-close data-ui-primary>Done</button>';
     document.getElementById('lapSelectionBody').prepend(lapHeader);
     // One density only: forget a compact choice saved by earlier versions.
     try { localStorage.removeItem('apex-linear-density'); } catch { /* storage is optional */ }
@@ -127,9 +126,9 @@
   // Choose laps sits under the driver list while the list is in the rail: pick drivers, then choose their laps, in one column.
   // Anywhere else (a folded rail, phones) it returns to the Comparison bar.
   function placeChooseLaps() {
-    const toggle = document.getElementById('lapWorkspaceToggle'), card = document.querySelector('#linearWorkspace .linear-drivers .driver-control-card');
+    const toggle = document.getElementById('lapWorkspaceToggle'), slot = document.querySelector('#linearWorkspace .linear-drivers[data-driver-rail="true"]');
     if (!toggle) return;
-    if (card) { if (toggle.parentElement !== card) move(toggle, card); toggle.classList.add('is-rail-pill'); }
+    if (slot) { if (toggle.parentElement !== slot) move(toggle, slot); toggle.classList.add('is-rail-pill'); }
     else { toggle.classList.remove('is-rail-pill'); const anchor = anchors.get(toggle); if (anchor && toggle.previousSibling !== anchor) anchor.after(toggle); }
   }
   addEventListener('resize', () => requestAnimationFrame(placeChooseLaps), {passive: true});

@@ -62,8 +62,38 @@ function naturalDriverName(value) {
     : word).join(' ');
 }
 
+function filterLapDrivers() {
+  const input = $('#lapDriverSearch');
+  const status = $('#lapDriverSearchStatus');
+  if (!input || !status) return;
+  const query = normalizedPlaceName(input.value);
+  const terms = query.split(/\s+/).filter(Boolean);
+  const exact = drivers.find(([code, number]) => query === normalizedPlaceName(code) || query === String(number));
+  const rows = exact ? [exact] : drivers.filter(([code, number, name, , team]) => {
+    const haystack = normalizedPlaceName([code, number, name, team].join(' '));
+    return terms.every(term => haystack.includes(term));
+  });
+  const matches = new Set(rows.map(driver => driver[0]));
+  for (const row of $('#driverPills').querySelectorAll('.driver-pill')) row.hidden = !matches.has(row.dataset.code);
+  status.hidden = !terms.length || matches.size > 0;
+  status.textContent = status.hidden ? '' : 'No matching drivers.';
+}
+
 function renderDrivers() {
   const root = $('#driverPills');
+  const field = $('#lapDriverSearchField'), input = $('#lapDriverSearch');
+  if (field) field.hidden = !drivers.length;
+  if (input) {
+    input.oninput = filterLapDrivers;
+    input.onkeydown = event => {
+      const first = root.querySelector('.driver-pill:not([hidden])');
+      if (first && (event.key === 'ArrowDown' || event.key === 'Enter')) {
+        event.preventDefault();
+        first.focus();
+        if (event.key === 'Enter') first.click();
+      }
+    };
+  }
   const isRace = drivers.length > 0 && /^(Race|Sprint)$/i.test(loadedSessionName);
   const controls = $('#raceResultControls');
   if (controls) {
@@ -94,7 +124,7 @@ function renderDrivers() {
   
   root.querySelectorAll('button').forEach(btn => {
     btn.onkeydown = event => {
-      const rows = [...root.querySelectorAll('button')];
+      const rows = [...root.querySelectorAll('.driver-pill:not([hidden])')];
       const index = rows.indexOf(btn);
       const target = event.key === 'ArrowDown' ? Math.min(rows.length - 1, index + 1)
         : event.key === 'ArrowUp' ? Math.max(0, index - 1)
@@ -116,6 +146,7 @@ function renderDrivers() {
       renderAll();
     };
   });
+  filterLapDrivers();
 }
 
 
@@ -215,15 +246,14 @@ function renderStints() {
     return;
   }
 
-  const isAllFastestLoaded = selected.every(code => {
-    const fastest = fastestTimedLap(realDrivers.get(code));
-    return fastest && loaded.some(item => item.code === code && item.lap === fastest.lap);
-  });
+  const fastestLaps = selected.map(code => ({code, lap: fastestTimedLap(realDrivers.get(code))})).filter(item => item.lap);
+  const isAllFastestLoaded = fastestLaps.length > 0 && fastestLaps.every(({code, lap}) =>
+    loaded.some(item => item.code === code && item.lap === lap.lap));
 
   const toolbar = `
     <div class="run-toolbar">
       <span><b>${selected.length}</b> ${selected.length === 1 ? 'driver' : 'drivers'} selected</span>
-      <button type="button" id="compareAllFastest" data-motion-key="compare-fastest" class="compare-all-btn ${isAllFastestLoaded ? 'selected' : ''}" aria-pressed="${isAllFastestLoaded}" title="Add the fastest timed lap for every selected driver"><span>Compare fastest</span></button>
+      <button type="button" id="compareAllFastest" data-motion-key="compare-fastest" class="compare-all-btn ${isAllFastestLoaded ? 'selected' : ''}" aria-pressed="${isAllFastestLoaded}" title="Toggle the fastest timed lap for each selected driver" ${fastestLaps.length ? '' : 'disabled'}><span>Compare fastest</span></button>
     </div>
   `;
 
@@ -317,7 +347,6 @@ function renderStints() {
   replaceUI(root, cards);
 
   $('#compareAllFastest').onclick = () => {
-    const fastestLaps = selected.map(code => ({ code, lap: fastestTimedLap(realDrivers.get(code)) })).filter(item => item.lap);
     if (isAllFastestLoaded) {
       loaded = loaded.filter(item => !fastestLaps.some(target => target.code === item.code && target.lap.lap === item.lap));
     } else {
@@ -346,6 +375,12 @@ function renderStints() {
 
 function renderLoaded() {
   const root = $('#loadedLaps');
+  window.ApexComparisonLibrary?.render();
+  const done = $('#lapSelectionBody [data-lap-sheet-close]');
+  if (done) {
+    done.textContent = loaded.length ? 'View comparison' : 'Done';
+    done.toggleAttribute('data-view-comparison', loaded.length > 0);
+  }
   const clear = $('#clearComparison');
   if (clear) clear.hidden = loaded.length < 2;
   const pitNotice = $('#pitLapNotice');
@@ -355,10 +390,18 @@ function renderLoaded() {
     return;
   }
   
-  replaceUI(root, loaded.map((item, index) => `
+  const fullTime = item => Number.isFinite(item.time) && item.time > 0 &&
+    !item.real?.in_lap && !item.real?.out_lap && !item.real?.deleted ? item.time : null;
+  const referenceTime = fullTime(loaded[0]);
+  replaceUI(root, loaded.map((item, index) => {
+    const measured = fullTime(item);
+    const gap = index && referenceTime != null && measured != null ? measured - referenceTime : null;
+    const difference = gap == null ? '' : (gap < 0 ? '−' : '+') + Math.abs(gap).toFixed(3) + ' s';
+    return `
     <div class="loaded-lap-pill ${index === 0 ? 'reference' : ''}" style="--team:${getLapColor(item)}" data-motion-key="comparison-${item.code}-${item.lap}" data-index="${index}">
-      <button class="loaded-lap-main ${index === 0 ? 'reference' : ''}" data-motion-key="reference-${item.code}-${item.lap}" aria-pressed="${index === 0}" title="Use ${item.code} lap ${item.lap} as reference"><b>${item.code}</b><span>L${item.lap}${item.real?.in_lap && item.real?.out_lap ? ' IN/OUT' : item.real?.out_lap ? ' OUT' : item.real?.in_lap ? ' IN' : ''}</span><strong>${item.real?.display_time_estimated ? '~' : ''}${time(Number.isFinite(item.real?.display_time) ? item.real.display_time : item.time)}</strong><span class="visually-hidden">, reference lap</span></button><button class="remove" data-motion-key="remove-${item.code}-${item.lap}" data-remove="${index}" aria-label="Remove ${item.code} lap ${item.lap}">×</button>
-    </div>`).join(''));
+      <button class="loaded-lap-main ${index === 0 ? 'reference' : ''}" data-motion-key="reference-${item.code}-${item.lap}" aria-pressed="${index === 0}" title="Use ${item.code} lap ${item.lap} as reference"><b>${item.code}</b><span>L${item.lap}${item.real?.in_lap && item.real?.out_lap ? ' IN/OUT' : item.real?.out_lap ? ' OUT' : item.real?.in_lap ? ' IN' : ''}</span><strong>${item.real?.display_time_estimated ? '~' : ''}${time(Number.isFinite(item.real?.display_time) ? item.real.display_time : item.time)}</strong>${difference ? '<small class="comparison-lap-gap">' + difference + '</small>' : ''}<span class="visually-hidden">, ${index === 0 ? 'reference lap' : 'set as reference'}</span></button><button class="remove" data-motion-key="remove-${item.code}-${item.lap}" data-remove="${index}" aria-label="Remove ${item.code} lap ${item.lap}">×</button>
+    </div>`;
+  }).join(''));
   
   root.querySelectorAll('.loaded-lap-pill').forEach(p => {
     p.onclick = e => {

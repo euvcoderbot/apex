@@ -35,14 +35,21 @@
   function arrangeDriverRail(){
     const column=document.querySelector('#sessionSidebar'),body=document.querySelector('#lapSelectionBody'),sidebar=document.querySelector('#driverSidebar');
     if(!column||!body||!sidebar)return;
-    // Drivers are listed in the workspace rail, one per row; on phones the rail is a strip, so they go in the lap sheet.
+    // Keep the same driver controls in the rail and in the open lap chooser.
     const railSlot=document.querySelector('#linearWorkspace .linear-drivers');
     // A collapsed rail cannot hold them either; the lap sheet takes them until it opens again.
     const railShown=railSlot&&!document.body?.classList.contains('is-sidebar-hidden')&&window.matchMedia(`(min-width:${Math.round(761*(window.APEX_UI_ZOOM||1))}px)`).matches;
-    const host=railShown?railSlot:body;
-    if(sidebar.parentElement!==host)host.prepend(sidebar);
+    if(railSlot)railSlot.dataset.driverRail=String(Boolean(railShown));
+    const host=railShown&&body.hidden?railSlot:body;
+    if(sidebar.parentElement!==host){
+      const header=host===body&&body.querySelector('.linear-lap-header');
+      if(header)header.after(sidebar);
+      else host.prepend(sidebar);
+    }
   }
   arrangeDriverRail();driverRail.addEventListener('change',arrangeDriverRail);
+  const lapChooser=document.querySelector('#lapSelectionBody');
+  if(lapChooser)new MutationObserver(arrangeDriverRail).observe(lapChooser,{attributes:true,attributeFilter:['hidden']});
   window.addEventListener('apex-skin',arrangeDriverRail);
   // Some hosts defer media-query change events; a resize re-check is cheap and idempotent.
   window.addEventListener?.('resize',arrangeDriverRail,{passive:true});

@@ -1824,6 +1824,15 @@
 /* Comparison laps: Linear's label pills, 24 px, with the lap's colour as the dot. */
 :root[data-skin="linear"] .telemetry-card .comparison-tray { padding: 0 0 16px; margin-bottom: 16px; border-bottom: 1px solid var(--lin-hairline); border-radius: 0; background: transparent; box-shadow: none; gap: 8px; }
 :root[data-skin="linear"] .comparison-tray-heading > span { font: 500 12px/1 var(--ui-font); color: var(--ui-tertiary); }
+
+:root[data-skin="linear"] #comparisonLibrary { margin-bottom: 16px; padding: 0 0 12px; border-bottom: 1px solid var(--lin-hairline); }
+:root[data-skin="linear"] .comparison-library-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+:root[data-skin="linear"] #comparisonLibraryList { list-style: none; margin: 0; padding: 0; }
+:root[data-skin="linear"] #comparisonLibraryList > li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 36px; padding: 4px 0; border-top: 1px solid var(--lin-hairline); }
+:root[data-skin="linear"] #comparisonLibraryList a { min-width: 0; color: var(--ui-label); text-decoration: none; font-size: 13px; }
+:root[data-skin="linear"] #comparisonLibraryList a:hover { color: var(--ui-accent); }
+:root[data-skin="linear"] #comparisonLibraryList small { display: block; color: var(--ui-tertiary); font-size: 12px; overflow-wrap: anywhere; }
+:root[data-skin="linear"] #comparisonShareAddress { width: 100%; min-height: 28px; height: 28px; }
 :root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) { gap: 6px; }
 :root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) .loaded-lap-pill {
   height: 24px; min-height: 24px; padding: 0 2px 0 8px; gap: 2px; border-radius: 9999px; background: transparent; box-shadow: inset 0 0 0 1px var(--lin-label-border);
@@ -1896,8 +1905,17 @@
   :root[data-skin="linear"] body > main#top:has(#cornerAnalysis[hidden]) { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* ---- Lap sheet: a Linear dialog. 12 px corners, the panel colour, a hairline, the high shadow, a 44 px header. ---- */
-:root[data-skin="linear"] .linear-lap-header { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 0 12px; margin-bottom: 16px; border-bottom: 1px solid var(--lin-hairline); }
+/* ---- Lap sheet ---- */
+:root[data-skin="linear"] #lapSelectionBody:popover-open {
+  display: grid; grid-template-columns: 248px minmax(0, 1fr); grid-template-areas: "header header" "drivers laps";
+  gap: 12px; align-items: start;
+}
+:root[data-skin="linear"] #lapSelectionBody > #driverSidebar {
+  grid-area: drivers; position: static; display: flex; flex-direction: column; min-width: 0;
+  max-height: none; overflow: visible;
+}
+:root[data-skin="linear"] #lapSelectionBody > #stintPanels { grid-area: laps; min-width: 0; }
+:root[data-skin="linear"] .linear-lap-header { grid-area: header; position: sticky; inset-block-start: 0; z-index: 3; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 44px; padding: 8px 0 12px; margin-bottom: 12px; background: var(--ui-panel); border-bottom: 1px solid var(--lin-hairline); }
 :root[data-skin="linear"] .linear-lap-header > strong { font: 600 15px/1.33 var(--ui-font); letter-spacing: -.012em; }
 :root[data-skin="linear"] .linear-lap-actions { margin-left: auto; display: flex; gap: 6px; }
 :root[data-skin="linear"] .linear-lap-header > button { height: 28px; min-height: 28px; padding: 0 12px; border-radius: 6px; background: var(--ui-action); color: #fff; box-shadow: none; font: 500 13px/1 var(--ui-font); }
@@ -1905,6 +1923,21 @@
 :root[data-skin="linear"] #lapSelectionBody #driverSidebar { background: transparent; border: 0; border-radius: 0; box-shadow: none; }
 :root[data-skin="linear"] #lapSelectionBody #driverPills { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
 :root[data-skin="linear"] #lapSelectionBody .driver-pill { border-radius: 8px; }
+:root[data-skin="linear"] #driverSidebar:not(#lapSelectionBody *) .lap-driver-search,
+:root[data-skin="linear"] #lapSelectionBody .driver-pill[hidden] { display: none; }
+:root[data-skin="linear"] #lapSelectionBody .lap-driver-search { margin: 0 0 8px; }
+:root[data-skin="linear"] #lapSelectionBody .lap-driver-search input { width: 100%; min-width: 0; height: 28px; min-height: 28px; box-sizing: border-box; font-size: 13px; }
+:root[data-skin="linear"] #lapSelectionBody #driverPills { max-height: 48dvh; overflow-y: auto; }
+:root[data-skin="linear"] .linear-lap-header .run-toolbar { flex-wrap: wrap; }
+:root[data-skin="linear"] #loadedLaps .comparison-lap-gap { color: var(--ui-tertiary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) {
+  :root[data-skin="linear"] #lapSelectionBody:popover-open { grid-template-columns: minmax(0, 1fr); grid-template-areas: "header" "drivers" "laps"; }
+  :root[data-skin="linear"] #lapSelectionBody #driverPills { max-height: 24dvh; }
+  :root[data-skin="linear"] .linear-lap-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  :root[data-skin="linear"] .linear-lap-actions { grid-area: 2 / 1 / 3 / -1; margin-inline-start: 0; }
+  :root[data-skin="linear"] .linear-lap-header > button { grid-area: 1 / 2; }
+}
+
 
 /* ---- Command menu: Linear's palette. ---- */
 :root[data-skin="linear"] #linearCommandMenu {

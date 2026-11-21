@@ -39,6 +39,89 @@ test('recorded qualifying comparison renders both laps and supports trace toggle
   expect(errors).toEqual([]);
 });
 
+for (const width of [1440,390]) {
+  test('lap chooser searches and updates the comparison at ' + width + 'px', async ({page},testInfo)=>{
+    await page.setViewportSize({width,height:900});
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await page.addInitScript(theme=>localStorage.setItem('apex-theme',theme),width===390?'light':'dark');
+    const errors=await loaded(page);
+    const toggle=page.locator('#lapWorkspaceToggle');
+    await toggle.click();
+    const dialog=page.getByRole('dialog',{name:'Choose laps'});
+    const search=dialog.getByRole('searchbox',{name:'Find a driver'});
+    const visibleDrivers=dialog.locator('.driver-pill:visible');
+    await expect(search).toBeFocused();
+    await search.fill('no matching car');
+    await expect(dialog.getByRole('status',{name:''}).filter({hasText:'No matching drivers'})).toBeVisible();
+    await expect(visibleDrivers).toHaveCount(0);
+    await search.fill('ver');
+    await expect(visibleDrivers).toHaveCount(1);
+    await search.press('ArrowDown');
+    await expect(visibleDrivers.first()).toBeFocused();
+    await expect(visibleDrivers.first()).toHaveAttribute('data-code','VER');
+    await visibleDrivers.first().press('Enter');
+    await expect(visibleDrivers.first()).toHaveAttribute('aria-pressed','false');
+    await search.fill('verstappen');
+    await search.press('Enter');
+    await expect(visibleDrivers.first()).toHaveAttribute('aria-pressed','true');
+    await dialog.locator('#compareAllFastest').click();
+    await expect(dialog.locator('#compareAllFastest')).toHaveAttribute('aria-pressed','true');
+    const view=dialog.getByRole('button',{name:'View comparison',exact:true});
+    await expect(view).toBeInViewport();
+    await dialog.evaluate(node=>{node.scrollTop=0;});
+    expect(await dialog.evaluate((node,width)=>{
+      const header=node.querySelector('.linear-lap-header').getBoundingClientRect();
+      const driver=node.querySelector('#driverSidebar').getBoundingClientRect();
+      const laps=node.querySelector('#stintPanels').getBoundingClientRect();
+      return header.bottom<=Math.min(laps.top,driver.top)+1 &&
+        (width===390?driver.bottom<=laps.top+1:driver.right<=laps.left+1);
+    },width)).toBe(true);
+    if (testInfo.project.name==='chromium'&&!process.env.CI) {
+      await dialog.screenshot({path:testInfo.outputPath('lap-chooser.png')});
+    }
+    await view.click();
+    await expect(dialog).toBeHidden();
+    const reference=page.locator('#loadedLaps .loaded-lap-main[aria-pressed="true"]');
+    await expect(reference).toBeFocused();
+    await expect(page.locator('#loadedLaps .comparison-lap-gap').first()).toHaveText(/^[+−]\d+\.\d{3} s$/);
+    await toggle.click();
+    await expect(search).toHaveValue('');
+    expect(errors).toEqual([]);
+  });
+}
+
+for (const width of [1440,390]) {
+  test('a saved comparison reopens its exact laps and reference at ' + width + 'px',async({page},testInfo)=>{
+    await page.setViewportSize({width,height:900});
+    await page.addInitScript(theme=>localStorage.setItem('apex-theme',theme),width===390?'light':'dark');
+    await page.addInitScript(()=>{
+      Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.copiedComparison=value;}}});
+    });
+    const errors=await loaded(page);
+    const toggle=page.getByRole('button',{name:'Saved comparisons'});
+    const library=page.getByRole('region',{name:'Saved comparisons'});
+    await toggle.click();
+    await library.getByRole('button',{name:'Save current comparison'}).click();
+    const reopen=library.getByRole('link',{name:/ANT L14.*VER L8/});
+    await expect(reopen).toBeVisible();
+    expect(await library.evaluate(node=>node.scrollWidth-node.clientWidth)).toBeLessThanOrEqual(1);
+    if(testInfo.project.name==='chromium'&&!process.env.CI)await library.screenshot({path:testInfo.outputPath('saved-comparison.png')});
+    await expect(library.getByRole('button',{name:'Save current comparison'})).toBeDisabled();
+    await library.getByRole('button',{name:'Copy current link'}).click();
+    const copied=await page.evaluate(()=>window.copiedComparison);
+    expect(new URL(copied).searchParams.get('laps')).toBe('ANT.14,VER.8');
+    await page.locator('#clearComparison').click();
+    await expect(page.locator('#loadedLaps .loaded-lap-pill')).toHaveCount(0);
+    await reopen.click();
+    await expect(page.locator('#loadedLaps .loaded-lap-main').first()).toContainText('ANT');
+    await expect(page.locator('#loadedLaps .loaded-lap-main[aria-pressed="true"]')).toContainText('L14');
+    await toggle.click();
+    await library.getByRole('button',{name:/Remove .* comparison/}).click();
+    await expect(library.getByRole('link')).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
+}
+
 test('telemetry display controls apply to every graph and retain independent annotations',async({page},testInfo)=>{
   // Observe text actually painted on each canvas, rather than only control state.
   await page.addInitScript(()=>{

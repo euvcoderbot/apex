@@ -113,6 +113,11 @@
           <button type="button" data-result-view="points" aria-pressed="true">Points</button>
           <button type="button" data-result-view="gap" aria-pressed="false">Gap to winner</button>
         </div>
+        <div id="lapDriverSearchField" class="lap-driver-search" hidden>
+          <label class="visually-hidden" for="lapDriverSearch">Find a driver</label>
+          <input type="search" id="lapDriverSearch" placeholder="Find a driver" autocomplete="off" aria-controls="driverPills">
+          <p id="lapDriverSearchStatus" class="section-empty" role="status" hidden></p>
+        </div>
         <div class="pills" id="driverPills">
           <span class="section-empty">Load a session to see its drivers.</span>
         </div>
@@ -184,8 +189,19 @@
             <button id="lapWorkspaceToggle" class="comparison-choose" type="button" aria-expanded="false" aria-controls="lapSelectionBody" aria-haspopup="dialog"><span>Choose laps</span></button>
             <div id="lapWorkspaceActions" class="workspace-heading-actions"></div>
           </div>
+          <button type="button" id="comparisonLibraryToggle" class="comparison-choose" aria-controls="comparisonLibrary" aria-expanded="false" hidden>Saved comparisons</button>
           <button type="button" id="clearComparison" class="comparison-clear" hidden>Clear all</button>
         </div>
+
+        <section id="comparisonLibrary" aria-label="Saved comparisons" hidden>
+          <div class="comparison-library-actions">
+            <button type="button" id="comparisonSave">Save current comparison</button>
+            <button type="button" id="comparisonCopy">Copy current link</button>
+          </div>
+          <p id="comparisonLibraryStatus" class="section-empty" role="status"></p>
+          <input id="comparisonShareAddress" type="url" aria-label="Comparison link" readonly hidden>
+          <ul id="comparisonLibraryList"></ul>
+        </section>
 
           <div class="telemetry-empty" id="telemetryEmpty">
             <span>Ready when you are</span>
@@ -301,6 +317,7 @@
   <script src="session-corners.js"></script>
   <script src="session-map.js"></script>
   <script src="session-init.js"></script>
+  <script src="comparison-library.js"></script>
   <script src="lap-sheet.js"></script>
   <script src="session-tyres.js"></script>
   <script src="session-overview.js"></script>

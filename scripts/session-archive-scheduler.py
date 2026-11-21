@@ -215,6 +215,14 @@ def prepare_session(session, final):
     subprocess.run([sys.executable, str(ROOT / 'scripts' / 'export-local-session.py'),
                     '--year', str(year), '--gp', event['name'], '--round', str(event['round']), '--session', name],
                    cwd=ROOT, env=env, check=True, stdout=sys.stdout, stderr=sys.stderr, creationflags=flags)
+    profile_error = None
+    if name == 'Qualifying':
+        try:
+            subprocess.run([node, str(ROOT / 'scripts' / 'build-track-profiles.mjs'), str(year), '--gp', event['name']],
+                           cwd=ROOT, env=env, check=True, stdout=sys.stdout, stderr=sys.stderr, creationflags=flags)
+        except subprocess.CalledProcessError as error:
+            profile_error = error
+            print(f'Track profile build failed ({error.returncode}); the next session retries it.', flush=True)
     try:
         if name in {'Qualifying', 'Race'}:
             command = [node, str(ROOT / 'scripts' / 'precompute-local.mjs'), '--year', str(year),
@@ -235,6 +243,8 @@ def prepare_session(session, final):
         # validated captures and let the failed preparation remain retryable.
         sync_prepared()
         publish_prepared(node, env, flags)
+    if profile_error:
+        raise profile_error
     print(f'Prepared {event["name"]} {name} ({"settled" if final else "provisional"}); local only.', flush=True)
     from urllib.parse import urlencode
     key='/api/session?'+urlencode(sorted({'year':year,'gp':event['name'],'round':event['round'],'session':name}.items()))

@@ -98,6 +98,40 @@ def drive(state, laps=4, period=60.0, lap_times=True):
             state.apply('TimingData', {'Lines': {'1': change}}, t)
 
 
+class LiveAuthentication(unittest.TestCase):
+    def test_signing_in_reconnects_without_discarding_received_laps(self):
+        import tempfile
+        from unittest.mock import patch
+
+        auth = {'available': False}
+        attempts = []
+
+        class Client:
+            def __init__(self, filename, timeout, no_auth):
+                self.no_auth = no_auth
+                self._connection = None
+
+            def _run(self):
+                attempts.append(self.no_auth)
+                if len(attempts) == 1:
+                    manager.state.laps['1'][2] = {'lap': 2, 'seconds': 90.0}
+                    auth['available'] = True
+                    manager.refresh_live_auth()
+                else:
+                    manager.source.stop()
+
+        with tempfile.TemporaryDirectory() as folder:
+            manager = lt.LiveManager(Path(folder))
+            with patch.object(lt, 'stored_token_status', side_effect=lambda: dict(auth)), \
+                 patch('fastf1.livetiming.client.SignalRClient', Client):
+                manager.source = lt.LiveSource(manager.state, Path(folder))
+                manager.source.run()
+
+        self.assertEqual(attempts, [True, False])
+        self.assertTrue(manager.source.detail['authenticated'])
+        self.assertEqual(manager.state.laps['1'][2]['seconds'], 90.0)
+
+
 class CompletedLaps(unittest.TestCase):
     def test_timed_lap_is_available_while_telemetry_is_missing(self):
         state = lt.LiveState()

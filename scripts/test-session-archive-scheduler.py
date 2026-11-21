@@ -98,7 +98,8 @@ class SchedulerTests(unittest.TestCase):
                  patch.object(scheduler.shutil,'which',return_value='node'), patch.object(scheduler.subprocess,'run') as run:
                 scheduler.sync_prepared()
                 args=run.call_args.args[0]
-                self.assertEqual(args[-5:],['--from',str(root),'--to',str(target),'--apply'])
+                self.assertEqual(args[-5::2],['--from','--to','--apply'])
+                self.assertEqual((Path(args[-4]),Path(args[-2])),(root,target))
                 (target/'.openai'/'hosting.json').write_text(json.dumps({'project_id':'different'}))
                 with self.assertRaises(RuntimeError): scheduler.sync_prepared()
                 self.assertEqual(run.call_count,1)
@@ -114,13 +115,15 @@ class SchedulerTests(unittest.TestCase):
              patch.object(scheduler,'urlopen',return_value=response), \
              patch.object(scheduler.json,'load',return_value={'mode':'local'}), \
              patch.object(scheduler,'revisions',return_value={}), \
-             patch.object(scheduler.subprocess,'run',side_effect=[None,None,subprocess.CalledProcessError(2,'precompute'),None]) as run, \
+             patch.object(scheduler.subprocess,'run',side_effect=[None,None,None,subprocess.CalledProcessError(2,'precompute'),None]) as run, \
              patch.object(scheduler,'sync_prepared') as sync, \
              patch.object(scheduler,'publish_prepared') as publish:
             with self.assertRaises(subprocess.CalledProcessError): scheduler.prepare_session(item,False)
             sync.assert_called_once()
             # Validated captures are published to the live Site even when derived results are partial.
             publish.assert_called_once()
+            self.assertEqual(run.call_args_list[2].args[0][-3:], ['2026', '--gp', 'Test GP'])
+            self.assertTrue(str(run.call_args_list[2].args[0][1]).endswith('build-track-profiles.mjs'))
             # The Season hub snapshot is refreshed even when derived results are partial.
             snapshot=run.call_args_list[-1]
             self.assertTrue(str(snapshot.args[0][1]).endswith('snapshot-season.mjs'))

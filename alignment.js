@@ -47,7 +47,7 @@ function lapMetadata(lap) {
 
 function referenceDistance() {
   const reference = loaded.map(lap => telemetryCache.get(telemetryKey(lap))).find(samples => samples?.length);
-  return reference?.length ? (+reference[reference.length - 1].Distance || 1) : 1;
+  return reference?.length ? (+reference.traceDistance || +reference[reference.length - 1].Distance || 1) : 1;
 }
 
 function rawFractionAt(samples, point) {
@@ -633,6 +633,8 @@ function setAlignedFractions(samples, fractions, method) {
 function alignedValue(samples, fraction, field) {
   if (!samples?.length) return null;
   const target = clampTelemetry(fraction);
+  if (samples.alignmentMethod === 'live-distance' &&
+      (target < samples[0].AlignedFraction || target > samples.at(-1).AlignedFraction)) return null;
   if (target <= 0) return samples[0][field];
   if (target >= 1) return samples[samples.length - 1][field];
   let low = 1;
@@ -720,6 +722,7 @@ function enhancedInterpolationEnabled() {
 }
 
 function traceTelemetryValue(samples, fraction, field) {
+  if (samples?.alignmentMethod === 'live-distance') return alignedValue(samples, fraction, field);
   if (!enhancedInterpolationEnabled() || (field !== 'Speed' && field !== 'Throttle')) {
     return alignedValue(samples, fraction, field);
   }

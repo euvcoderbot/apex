@@ -151,30 +151,66 @@ def live_laps():
 
 @app.get('/api/live/lap')
 def live_lap(driver: str = Query(..., pattern=r'^\d{1,3}$'), lap: str = Query('fastest', pattern=r'^(fastest|latest|last|\d{1,3})$')):
-    trace = LIVE.state.lap_trace(driver, lap) or _session_lap_trace(driver, lap)
+    state = LIVE.state
+    official, recorded = None, lap
+    if lap == 'fastest':
+        with state.lock:
+            line = ((state.topics.get('TimingData') or {}).get('Lines') or {}).get(driver) or {}
+            official = (line.get('BestLapTime') or {}).get('Value')
+            if official:
+                target = live_timing.lap_seconds(official)
+                recorded = next((number for number, row in state.laps.get(driver, {}).items()
+                                 if row.get('seconds') == target and not row.get('pit') and row.get('d')), None)
+    trace = state.lap_trace(driver, recorded) if recorded is not None else None
+    if official and (not trace or live_timing.lap_seconds(trace.get('time')) != live_timing.lap_seconds(official)):
+        trace = None
+    trace = trace or _session_lap_trace(driver, lap, official)
     if not trace:
-        raise HTTPException(404, 'That lap has not been completed in this session yet.')
+        raise HTTPException(404, 'Telemetry for this lap is not available yet.')
     return trace
 
 
-def _session_lap_trace(number: str, lap: str) -> dict | None:
+def _archived_best_lap(year: int, gp: str, session: str, code: str, official: str) -> dict | None:
+    target = live_timing.lap_seconds(official)
+    if target is None:
+        return None
+    data = server.load_session(year, gp, session)
+    for _, row in data.laps.pick_drivers(code).iterrows():
+        duration = server.seconds(row.get('LapTime'))
+        if duration is None or abs(duration - target) >= .0005 or str(row.get('Deleted')).lower() == 'true':
+            continue
+        if server.seconds(row.get('PitInTime')) is not None or server.seconds(row.get('PitOutTime')) is not None:
+            continue
+        lap_number = server.seconds(row.get('LapNumber'))
+        if lap_number and lap_number >= 1 and float(lap_number).is_integer():
+            return {'lap': int(lap_number), 'time': official, 'seconds': target, 'pit': False,
+                    'sectors': [{'seconds': server.seconds(row.get(f'Sector{i}Time'))} for i in range(1, 4)]}
+    return None
+
+
+def _session_lap_trace(number: str, lap: str, official: str | None = None) -> dict | None:
     """A completed lap the live feed holds without car data (a replay, or live without an F1 TV sign-in): the same lap from
     session analysis's telemetry (OpenF1, then FastF1), in the live trace's shape, so the comparison works either way."""
     state = LIVE.state
     info = state.topics.get('SessionInfo') or {}
     gp, session, start = (info.get('Meeting') or {}).get('Name'), info.get('Name'), str(info.get('StartDate') or '')
     laps = state.lap_list().get(number) or []
-    if not (gp and session and start[:4].isdigit() and laps):
+    if not (gp and session and start[:4].isdigit() and (laps or official)):
         return None
     timed = [l for l in laps if l.get('seconds') and not l.get('pit')]
-    entry = (min(timed, key=lambda l: l['seconds']) if lap == 'fastest' and timed
+    entry = (next((l for l in timed if l['seconds'] == live_timing.lap_seconds(official)), None) if official
+             else min(timed, key=lambda l: l['seconds']) if lap == 'fastest' and timed
              else ([l for l in laps if l.get('push')] or [None])[-1] if lap == 'latest'
-             else laps[-1] if lap == 'last'
+             else (laps[-1] if laps else None) if lap == 'last'
              else next((l for l in laps if str(l['lap']) == lap), None))
     code = ((state.topics.get('DriverList') or {}).get(number) or {}).get('Tla')
-    if not entry or not code:
+    if not code:
         return None
     try:
+        if not entry and official:
+            entry = _archived_best_lap(int(start[:4]), gp, session, code, official)
+        if not entry:
+            return None
         payload = server.telemetry(Response(), year=int(start[:4]), gp=gp, round=None, session=session, driver=code, lap=int(entry['lap']),
                                    driver_number=number, session_key=None, fresh=False, geometry=False, lap_start=None,
                                    lap_time=entry.get('seconds') if entry.get('seconds') and 20 < entry['seconds'] < 300 else None,
@@ -189,10 +225,11 @@ def _session_lap_trace(number: str, lap: str) -> dict | None:
             'sectors': entry.get('sectors'), 'tyre': entry.get('tyre'),
             'x': [s['Distance'] for s in samples], 't': [(s.get('ElapsedSeconds') or 0) - t0 for s in samples],
             'speed': [s.get('Speed') for s in samples], 'throttle': [s.get('Throttle') for s in samples],
-            'brake': [100 if s.get('Brake') in (True, 1) else (s.get('Brake') or 0) for s in samples], 'gear': [s.get('nGear') for s in samples],
+            'brake': [s.get('Brake') for s in samples], 'gear': [s.get('nGear') for s in samples],
             'rpm': [s.get('RPM') for s in samples], 'drs': [s.get('DRS') for s in samples],
             'distance': samples[-1]['Distance'], 'reference': samples[-1]['Distance'], 'shift': 0.0, 'aligned_by': 'session telemetry',
-            'source': payload.get('source'), 'sector_marks': state.sector_marks()}
+            'source': payload.get('source'), 'sector_marks': state.sector_marks(), 'corners': payload.get('corners') or [],
+            'posX': [s.get('X') for s in samples], 'posY': [s.get('Y') for s in samples]}
 
 
 @app.post('/api/live/start')
@@ -234,6 +271,7 @@ def live_signin(body: dict = Body(...)):
         raise HTTPException(401, str(exc) or 'Formula 1 did not accept the sign-in.')
     finally:
         password = None
+    LIVE.refresh_live_auth()
     return {'auth': live_timing.stored_token_status()}
 
 
@@ -273,6 +311,7 @@ def live_signin_browser():
                 state['error'] = result
             else:
                 token_manager.get(force_renew=True, auth_func=lambda: result)
+                LIVE.refresh_live_auth()
         except Exception as exc:
             state['error'] = f'Browser sign-in failed: {exc}'
         finally:
@@ -290,6 +329,7 @@ def live_signout():
         clear_token()
     except Exception as exc:
         raise HTTPException(500, f'Could not clear the stored sign-in: {exc}')
+    LIVE.refresh_live_auth()
     return {'auth': live_timing.stored_token_status()}
 
 
@@ -313,14 +353,16 @@ async def live_stream(request: Request, drivers: str = Query('', max_length=200)
     numbers = [d for d in drivers.split(',') if d.isdigit()][:6]
 
     async def events():
-        seen, outline_seen, beat = -1, None, 0.0
+        seen, seen_source, outline_seen, beat = -1, None, None, 0.0
         yield 'retry: 2000\n\n'
         while not await request.is_disconnected():
             version = LIVE.state.version
             now = time.monotonic()
-            if version != seen:
-                seen = version
-                payload = {'state': LIVE.state.snapshot(), 'source': LIVE.status()['source']}
+            source = LIVE.source
+            status = source.describe() if source else None
+            if version != seen or status != seen_source:
+                seen, seen_source = version, status
+                payload = {'state': LIVE.state.snapshot(), 'source': status}
                 if numbers:
                     payload['telemetry'] = LIVE.state.telemetry_for(numbers, 20)
                     payload['current'] = LIVE.state.current_laps(numbers)

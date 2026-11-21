@@ -108,8 +108,9 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 .season-table .num { text-align: right; }
 .season-gp { display: inline-flex; align-items: center; gap: 8px; vertical-align: middle; }
 .season-row-expand { cursor: pointer; }
-.season-row-expand:hover td, .season-row-expand[aria-expanded="true"] td { background: color-mix(in oklch, var(--ui-label) 4%, transparent); }
-.season-row-expand:focus-visible { outline: 2px solid var(--ui-accent, #5e6ad2); outline-offset: -2px; }
+.season-row-expand:hover td, .season-row-expand:has(.season-gp[aria-expanded="true"]) td { background: color-mix(in oklch, var(--ui-label) 4%, transparent); }
+#seasonHub .season-gp[aria-expanded="true"] { color: var(--ui-accent); }
+.season-gp:focus-visible { outline: 2px solid var(--ui-accent, #5e6ad2); outline-offset: -2px; }
 .season-detail > td { padding: 4px 6px 14px; background: color-mix(in oklch, var(--ui-label) 2%, transparent); }
 .season-mini td, .season-mini th { padding: 5px 8px; }
 .is-up { color: #30d158; }
@@ -1242,9 +1243,15 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-track-picker { margin-bottom: 12px; }
 #seasonHub .season-track-choice[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--ui-accent); color: var(--ui-label); background: var(--lin-nav-active, var(--lin-band)); }
 #seasonHub .season-track-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 24px; align-items: center; }
-#seasonHub .season-track-head .season-track-title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+#seasonHub .season-track-head .season-track-title { align-items: center; gap: 10px; }
+#seasonHub .season-track-identity { min-width: 0; }
+#seasonHub .season-track-identity small { display: block; margin-top: 3px; }
 #seasonHub .season-track-head .season-track-title h2 { margin: 0; font: 600 22px/1.2 var(--ui-font); color: var(--ui-label); }
-#seasonHub .season-track-lap { display: flex; align-items: center; gap: 8px; font: 500 13px/1 var(--ui-font); color: var(--ui-label); }
+#seasonHub .season-track-lap { display: flex; align-items: center; gap: 8px; min-width: 0; font: 500 13px/1.35 var(--ui-font); color: var(--ui-label); }
+#seasonHub .season-track-lap-copy { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+#seasonHub .season-track-lap-copy strong { font-weight: 600; }
+#seasonHub .season-track-lap-copy small { flex-basis: 100%; }
+#seasonHub .season-track-lap-time { white-space: nowrap; font-variant-numeric: tabular-nums; }
 #seasonHub .season-track-head .season-track-tiles { grid-column: 1 / -1; }
 #seasonHub .season-track-two { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); align-items: start; }
 #seasonHub .season-track-map { width: 100%; height: auto; }
@@ -1471,7 +1478,12 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 #seasonHub .season-track-link { display: block; width: 56px; height: 56px; cursor: pointer; }   /* a real 56 px box (display: contents let WebKit stretch the outline past the page) */
 #seasonHub .season-track-link:hover > * { opacity: .8; }
 #seasonHub .season-next-track { margin-left: 10px; font-size: 13px; }
-#seasonHub .season-detail-actions { display: flex; justify-content: space-between; gap: 12px; margin: 0 0 10px; font-size: 13px; }
+#seasonHub .season-table-wrap:has(> .season-gp-table) { container-type: inline-size; }
+#seasonHub .season-gp-table .season-detail > td { padding: 0; }
+#seasonHub .season-detail-body { position: sticky; inset-inline-start: 0; width: 100cqi; max-width: 100%; padding: 10px 6px 14px; box-sizing: border-box; }
+#seasonHub .season-detail-actions { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin: 0 0 10px; font-size: 13px; }
+#seasonHub .season-detail-actions .season-row-toggle { padding-inline: 10px; border-radius: var(--radius-pill); background: var(--ui-control); }
+#seasonHub .season-detail-actions .season-row-toggle:hover { background: var(--ui-control-hover); }
 /* Small round icon buttons: previous / next driver or season, copy link. */
 :root[data-skin] #seasonHub .season-step { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-width: 28px; min-height: 28px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--ui-tertiary); cursor: pointer; }
 :root[data-skin] #seasonHub .season-step:is(:hover, :focus-visible) { background: var(--lin-nav-hover); color: var(--ui-label); }

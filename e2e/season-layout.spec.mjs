@@ -34,6 +34,7 @@ for (const width of [1440, 1024, 768, 390]) test.describe(`Forecast at ${width}p
     await page.clock.setFixedTime(new Date(Date.parse(next.sessions[0].start) - 60_000));
     await page.addInitScript(theme => localStorage.setItem('apex-theme', theme), width === 390 ? 'light' : 'dark');
     await page.goto('/apex/');
+    await expect(page.getByRole('link', {name: 'Circuit guide'})).toHaveAttribute('href', /season\/tracks.*track=Las\+Vegas\+Grand\+Prix/);
     for (const selector of ['.season-forecast-humid', '.season-forecast-cloud', '.season-forecast-light', '.season-rain-strip'])
       await expect(page.locator(selector)).toHaveCount(next.sessions.length);
     const fits = await page.locator('.season-forecast').evaluate(n => n.scrollWidth <= n.clientWidth + 1);
@@ -79,6 +80,53 @@ test('Las Vegas FP1 switches to the observed wet track as the session ends', asy
   await expect(forecast.getByText('FP3', {exact: true})).toBeVisible();
   await sessions.screenshot({path: test.info().outputPath('observed-weather.png')});
 });
+
+for (const width of [1440, 390]) {
+  test('Tracks previews the next race and prefers the latest qualifying lap at ' + width + 'px', async ({page}, testInfo) => {
+    await page.setViewportSize({width, height: 1000});
+    await page.addInitScript(theme => localStorage.setItem('apex-theme', theme), width === 390 ? 'light' : 'dark');
+    const vegas = 'Las Vegas Grand Prix';
+    const profiles = [2025, 2026].map(year => JSON.parse(readFileSync(new URL('../assets/data/track-profiles/' + year + '.json', import.meta.url))));
+    const nextLap = profiles[0].tracks[vegas];
+    delete profiles[1].tracks['Qatar Grand Prix'];
+    delete profiles[1].tracks[vegas];
+    await page.route('**/assets/data/track-profiles/2026.json', route => route.fulfill({json: profiles[1]}));
+    await page.goto('/apex/season/tracks?year=2026');
+    const choice = page.getByRole('group', {name: 'Track'}).locator('button[title="Las Vegas Grand Prix"]');
+    const header = page.locator('.season-track-head');
+    await expect(choice).toHaveAttribute('aria-pressed', 'true');
+    await expect(header.getByRole('heading', {name: 'Las Vegas', exact: true})).toBeVisible();
+    await expect(header).toContainText('Round 21 · Next race');
+    await expect(header).toContainText('2025 qualifying lap');
+    await expect(header).toContainText('2026 telemetry pending');
+    if (testInfo.project.name === 'chromium' && !process.env.CI) {
+      await header.screenshot({path: testInfo.outputPath('track-preview.png')});
+    }
+    await page.getByRole('button', {name: 'All circuits', exact: true}).click();
+    await expect(page.getByRole('button', {name: /Las Vegas/})).toHaveCount(0);
+    const table = page.getByRole('region', {name: 'Circuit comparison'});
+    const sort = table.getByRole('button', {name: 'Sort by Gear changes'});
+    await sort.focus();
+    const offset = await table.evaluate(node => node.scrollLeft);
+    await sort.press('Enter');
+    await expect(sort).toBeFocused();
+    await expect(sort.locator('..')).toHaveAttribute('aria-sort', 'descending');
+    expect(await table.evaluate(node => node.scrollLeft)).toBeCloseTo(offset, 0);
+
+    profiles[1].tracks[vegas] = {...nextLap, lap_time: 91.234};
+    await page.goto('/apex/season/tracks?year=2026');
+    await expect(choice).toHaveAttribute('aria-pressed', 'true');
+    await expect(header).toContainText('1:31.234');
+    await expect(header).not.toContainText('telemetry pending');
+    const saoPaulo = page.getByRole('group', {name: 'Track'}).getByRole('button', {name: 'São Paulo Grand Prix'});
+    await saoPaulo.press('Enter');
+    await expect(saoPaulo).toBeFocused();
+    await expect(header).toContainText('São Paulo');
+    await page.goto('/apex/season/tracks?year=2026&track=Qatar+Grand+Prix');
+    await expect(page.getByText('Waiting for qualifying telemetry for the 2026 Qatar Grand Prix.')).toBeVisible();
+    await expect(page.getByRole('group', {name: 'Track'}).getByRole('button', {name: 'Qatar Grand Prix'})).toHaveAttribute('aria-pressed','true');
+  });
+}
 
 for (const width of [1440, 390]) {
   test(`tracks and reliability use consistent section controls at ${width}px`, async ({page}) => {
@@ -147,6 +195,71 @@ test('race review keeps its selected Grand Prix when opening the race or compari
   await expect(select).toHaveValue(String(round.round));
   await page.getByRole('button', {name: 'Race report', exact: true}).click();
   await expect(page.locator('tr').filter({has: page.locator('.season-row-toggle[aria-expanded="true"]')})).toContainText(round.name.replace(' Grand Prix', ''));
+});
+
+test('race details fit a phone and preserve row focus and sideways scroll', async ({page}, testInfo) => {
+  await page.setViewportSize({width: 390, height: 1000});
+  await page.addInitScript(() => localStorage.setItem('apex-theme', 'light'));
+  const round = fixture.rounds.find(r => r.race.length);
+  await page.goto('/apex/season/results?year=2026');
+  const results = page.getByRole('region', {name: 'Race results'});
+  const roundButton = results.getByRole('button', {name: round.name, exact: true});
+  await roundButton.focus();
+  const offset = await results.evaluate(node => { node.scrollLeft = 120; return node.scrollLeft; });
+  expect(offset).toBeGreaterThan(0);
+  await page.keyboard.press('Enter');
+  const details = results.locator('.season-detail-body');
+  await expect(roundButton).toBeFocused();
+  await expect(roundButton).toHaveAttribute('aria-expanded', 'true');
+  expect(new URL(page.url()).searchParams.get('round')).toBe(String(round.round));
+  expect(await results.evaluate(node => node.scrollLeft)).toBeCloseTo(offset, 0);
+  const bounds = await details.evaluate(node => {
+    const view = node.closest('.season-gp-table').parentElement.getBoundingClientRect();
+    const detail = node.getBoundingClientRect();
+    return detail.left >= view.left - 2 && detail.right <= view.right + 2;
+  });
+  expect(bounds).toBe(true);
+  const close = details.getByRole('button', {name: 'Close results'});
+  await expect(close).toBeInViewport();
+  if (testInfo.project.name === 'chromium' && !process.env.CI) {
+    await details.locator('.season-detail-actions').screenshot({path: testInfo.outputPath('race-details-phone.png')});
+  }
+  await close.press('Escape');
+  await expect(roundButton).toBeFocused();
+  await expect(details).toHaveCount(0);
+  expect(await results.evaluate(node => node.scrollLeft)).toBeCloseTo(offset, 0);
+});
+
+test('qualifying is visible before the race and links open the requested session', async ({page}, testInfo) => {
+  await page.setViewportSize({width: 1440, height: 1000});
+  await page.addInitScript(() => localStorage.setItem('apex-theme', 'dark'));
+  const completed = fixture.rounds.find(r => r.qualifying?.length);
+  const preview = structuredClone(fixture);
+  const vegas = preview.rounds.find(r => r.circuit_id === 'vegas');
+  vegas.qualifying = completed.qualifying;
+  vegas.race = [];
+  await page.route('**/assets/data/season/' + entry.file, r => r.fulfill({json: preview}));
+  await page.goto('/apex/season/results?year=2026');
+  await expect(page.getByRole('table', {name: 'Race results'}).getByRole('button', {name: vegas.name})).toHaveCount(0);
+  await page.getByRole('group', {name: 'Session', exact: true}).getByRole('button', {name: 'Qualifying', exact: true}).click();
+  const qualifying = page.getByRole('table', {name: 'Qualifying results', exact: true});
+  const vegasButton = qualifying.getByRole('button', {name: vegas.name, exact: true});
+  await expect(vegasButton).toBeVisible();
+  await vegasButton.click();
+  await expect(vegasButton).toHaveAttribute('aria-expanded', 'true');
+  await page.reload();
+  await expect(vegasButton).toHaveAttribute('aria-expanded', 'true');
+  expect(new URL(page.url()).searchParams.get('session')).toBe('qualifying');
+  if (testInfo.project.name === 'chromium' && !process.env.CI) {
+    await qualifying.locator('.season-detail-body .season-detail-actions').screenshot({path: testInfo.outputPath('qualifying-details-desktop.png')});
+  }
+  await page.getByRole('button', {name: 'By driver', exact: true}).click();
+  await page.getByRole('button', {name: 'Qualifying', exact: true}).click();
+  const flag = page.getByRole('link', {name: vegas.name + ' full result'});
+  await expect(flag).toHaveAttribute('href', /round=21.*session=qualifying/);
+  await flag.click();
+  await expect(vegasButton).toBeFocused();
+  await expect(vegasButton).toHaveAttribute('aria-expanded', 'true');
 });
 
 test('Tracks keeps the Season pills and clears selection on leaving', async ({page}) => {

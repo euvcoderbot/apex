@@ -17,7 +17,7 @@
     session: ['year', 'round', 'session', 'laps'],
     cars: ['year', 'scope', 'races', 'metric', 'subject', 'session', 'pill', 'basis', 'run'],
     // /apex/season/<tab>?year=2026&driver=antonelli&a=antonelli&b=russell&team=ferrari
-    season: ['year', 'tab', 'driver', 'a', 'b', 'team', 'track', 'part']
+    season: ['year', 'tab', 'driver', 'a', 'b', 'team', 'track', 'part', 'round', 'session']
   };
   // Changes to these move to a new "page" and get their own history entry.
   const NAVIGATION = {session: ['year', 'round', 'session', 'laps'], cars: ['year', 'scope', 'races', 'metric', 'run'], season: ['year', 'tab', 'driver', 'a', 'b', 'part']};

@@ -15,7 +15,9 @@ import {captureLock,atomicBytes} from '../lib/atomic-json.mjs';
 import {createHash} from 'node:crypto';
 import {gzipSync} from 'node:zlib';
 import {resolve} from 'node:path';
-import {BACKEND_REVISION,SOURCE_REVISION} from '../lib/cache-revision.mjs';
+import {BACKEND_REVISION,SOURCE_REVISION,RETIREMENT_REVISION} from '../lib/cache-revision.mjs';
+
+import {isRacePerformanceRoute} from '../lib/retirement-revision.mjs';
 
 const root = process.cwd();
 // The local server's cache (scripts/start-local.mjs cacheRoot).
@@ -42,7 +44,10 @@ for (const name of await readdir(cacheDir).catch(() => [])) {
   if (!prefix || !(item.expires > Date.now() + SETTLED_MS)) continue;
   const path = item.key.slice(prefix.length);
   if (!FAMILIES[prefix].includes(path.split('?')[0])) continue;
-  const body = gzipSync(JSON.stringify(item.data), {level: 9});
+  const data = isRacePerformanceRoute(path) && item.data && typeof item.data === 'object'
+    ? {...item.data, retirement_annotation_revision:RETIREMENT_REVISION}
+    : item.data;
+  const body = gzipSync(JSON.stringify(data), {level: 9});
   const file = createHash('sha256').update(body).digest('hex').slice(0, 24) + '.json.gz';
   await atomicBytes(resolve(outDir, file), body);
   entries[path] = file; expires[path]=item.expires; bytes += body.length;

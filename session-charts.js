@@ -37,7 +37,7 @@ function updateZoomReadout() {
   const panLeft = $('[data-pan="left"]');
   const panRight = $('[data-pan="right"]');
   const reference = loaded[0] && telemetryCache.get(telemetryKey(loaded[0]));
-  const distance = reference?.length ? reference[reference.length - 1].Distance : 0;
+  const distance = reference?.length ? referenceDistance() : 0;
   const fullLap = traceZoom.start <= 1e-6 && traceZoom.end >= 1 - 1e-6;
   if (readout) {
     readout.textContent = distance
@@ -225,7 +225,9 @@ function renderTraceVisibilityControls() {
   root.querySelectorAll('input[data-lap-color]').forEach(input => {
     input.addEventListener('change', event => {
       lapColorOverrides.set(event.target.dataset.lapColor, event.target.value);
-      renderLoaded(); renderSectors(); renderTraceVisibilityControls(); drawAll();
+      if ($('#loadedLaps')) renderLoaded();
+      if ($('#sectorRows')) renderSectors();
+      renderTraceVisibilityControls(); drawAll();
     });
   });
   root.querySelectorAll('input[data-trace-key]').forEach(input => {
@@ -353,7 +355,7 @@ function renderTelemetryReadout() {
   const inspector=$('#telemetryDataAccess'),slider=$('#telemetrySample');
   if(!inspector?.open||!slider)return;
   const fraction=Number(slider.value)/1000,reference=loaded[0]&&telemetryCache.get(telemetryKey(loaded[0]));
-  const maxDistance=reference?.at(-1)?.Distance||0,distance=(fraction*maxDistance/1000).toFixed(3)+' km';
+  const maxDistance=reference?.length?referenceDistance():0,distance=(fraction*maxDistance/1000).toFixed(3)+' km';
   $('#telemetrySampleDistance').textContent=distance;slider.setAttribute('aria-valuetext',distance);
   slider.disabled=!reference?.length;
   const fields=[['Speed','Speed trace'],['Throttle','Throttle application'],['Brake','Brake application'],['nGear','Gear'],['DRS','DRS']];
@@ -361,12 +363,12 @@ function renderTelemetryReadout() {
     const samples=telemetryCache.get(telemetryKey(lap));
     const values={};
     for(const [field,name] of fields){
-      const value=['Speed','Throttle'].includes(field)&&typeof traceTelemetryValue==='function'?traceTelemetryValue(samples,fraction,field):interpolate(samples,fraction*maxDistance,field);
+      const value=(samples?.alignmentMethod==='live-distance'||['Speed','Throttle'].includes(field))&&typeof traceTelemetryValue==='function'?traceTelemetryValue(samples,fraction,field):interpolate(samples,fraction*maxDistance,field);
       const estimated=typeof isReconstructedTelemetry==='function'&&isReconstructedTelemetry(samples,fraction,field);
       const low=typeof telemetryEstimateInfo==='function'&&telemetryEstimateInfo(samples,fraction,field)?.confidence==='low';
       values[field]=!Number.isFinite(value)?'—':field==='Brake'?(value>=50?'On':'Off'):field==='DRS'?(value>=.5?'Open':'Closed'):(estimated?'~':'')+(['Speed','Throttle'].includes(field)?value.toFixed(3):Math.round(value))+(low?' (low confidence)':'');
     }
-    const delta=lap.real?.out_lap||loaded[0]?.real?.out_lap?null:index===0?0:typeof displayDeltaAt==='function'?displayDeltaAt(samples,reference,fraction):deltaAt(samples,reference,fraction*maxDistance);
+    const delta=window.ApexTelemetryFrame?.partial()||lap.real?.out_lap||loaded[0]?.real?.out_lap?null:index===0?0:typeof displayDeltaAt==='function'?displayDeltaAt(samples,reference,fraction):deltaAt(samples,reference,fraction*maxDistance);
     const deltaText=Number.isFinite(delta)?(delta>=0?'+':'')+delta.toFixed(3):'—';
     const sourceGap=telemetrySourceGapAt(samples,fraction);
     return {label:`${lap.code} L${lap.lap}${index===0?' (reference)':''}${sourceGap?' · '+sourceGap.interval.toFixed(3)+' s source gap':''}`,values,deltaText};
@@ -1225,6 +1227,12 @@ function drawRealChart(name) {
     ctx.fillText('Select a driver to begin comparison.', 43, 25);
     return;
   }
+  if (name === 'Timing delta' && window.ApexTelemetryFrame?.partial()) {
+    ctx.fillStyle = theme.text;
+    ctx.font = canvasFont(12);
+    ctx.fillText('Timing delta is available for completed laps.', 43, 25);
+    return;
+  }
 
   if (name === 'Timing delta' && loaded[0]?.real?.out_lap) {
     ctx.fillStyle = theme.text;
@@ -1308,7 +1316,7 @@ function drawRealChart(name) {
   const max = niceBounds.max;
   const refLap = loaded.find(lap => telemetryCache.get(telemetryKey(lap))?.length) || loaded[0];
   const refSamples = telemetryCache.get(telemetryKey(refLap));
-  const totalDist = refSamples && refSamples.length ? refSamples[refSamples.length - 1].Distance : 5891;
+  const totalDist = refSamples?.length ? referenceDistance() : 5891;
   const axisLeft = TRACE_PLOT_LEFT;
   const speedCornerMarkers = resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers);
   // The speed trace gets up to two rows of turn tags (one when narrow); the shorter channels one row.

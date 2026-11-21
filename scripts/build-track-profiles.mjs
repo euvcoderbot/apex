@@ -25,18 +25,23 @@
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {atomicBytes,captureLock} from '../lib/atomic-json.mjs';
 import {circuitCornerMarkers} from '../corner-geometry.js';
 
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const data = path.join(root, 'assets/data');
 const year = Number(process.argv[2]) || 2026;
+const gpIndex = process.argv.indexOf('--gp');
+const wanted = gpIndex === -1 ? null : process.argv[gpIndex + 1];
+if (gpIndex !== -1 && !wanted) throw new Error('--gp requires a Grand Prix name');
 const readGz = file => JSON.parse(zlib.gunzipSync(fs.readFileSync(file)));
 // Telemetry from both published stores: assets/data/telemetry (prepared releases) and assets/data/local-telemetry (what the
 // session scheduler exports after each weekend), so a track appears as soon as its qualifying is captured.
 const readIndex = folder => { try { return JSON.parse(fs.readFileSync(path.join(data, folder, 'index.json'), 'utf8')).entries || {}; } catch { return {}; } };
 const fileOf = entry => (typeof entry === 'string' ? entry : entry?.file);
 const telemetryFiles = new Map();
-for (const folder of ['local-telemetry', 'telemetry']) for (const [key, entry] of Object.entries(readIndex(folder))) if (fileOf(entry)) telemetryFiles.set(key, path.join(data, folder, fileOf(entry)));
+for (const folder of ['telemetry', 'local-telemetry']) for (const [key, entry] of Object.entries(readIndex(folder))) if (fileOf(entry)) telemetryFiles.set(key, path.join(data, folder, fileOf(entry)));
 const telemetry = {entries: Object.fromEntries(telemetryFiles)};
 const prerendered = JSON.parse(fs.readFileSync(path.join(data, 'prerendered/index.json'), 'utf8'));
 const captures = readIndex('local-captures');
@@ -47,7 +52,7 @@ const pack = file => { if (!packs.has(file)) packs.set(file, readGz(file)); retu
 const best = new Map();
 for (const [key, file] of Object.entries(telemetry.entries)) {
   const [y, gp, session, driver] = key.split(':');
-  if (Number(y) !== year || session !== 'Qualifying') continue;
+  if (Number(y) !== year || session !== 'Qualifying' || (wanted && gp !== wanted)) continue;
   for (const lap of Object.values(pack(file).laps || {})) {
     if (lap.driver !== driver || !(lap.samples?.length > 100)) continue;
     const t = lap.samples.at(-1).ElapsedSeconds;
@@ -57,22 +62,22 @@ for (const [key, file] of Object.entries(telemetry.entries)) {
 
 // Seasons without published telemetry: the OpenF1 export (scripts/export-quali-laps.py) gives the lap and the session facts.
 const exported = (() => {
-  if (best.size) return null;
+  if (best.size || wanted) return null;
   try { return JSON.parse(fs.readFileSync(path.join(root, '.apex-cache/track-laps', `${year}.json`), 'utf8')).events; } catch { return null; }
 })();
 for (const [gp, e] of Object.entries(exported || {})) best.set(gp, {driver: e.driver, lap: e.lap, time: e.samples.at(-1).ElapsedSeconds, samples: e.samples});
 function sessionFor(gp) {
   if (exported) return exported[gp]?.session || null;
   const match = k => k.startsWith('/api/session?') && k.includes(`year=${year}`) && k.includes('session=Qualifying') && new URLSearchParams(k.split('?')[1]).get('gp') === gp;
-  const key = Object.keys(prerendered.entries).find(match);
-  if (key) return readGz(path.join(data, 'prerendered', fileOf(prerendered.entries[key])));
   const local = Object.keys(captures).find(match);
-  return local ? readGz(path.join(data, 'local-captures', fileOf(captures[local]))) : null;
+  if (local) return readGz(path.join(data, 'local-captures', fileOf(captures[local])));
+  const key = Object.keys(prerendered.entries).find(match);
+  return key ? readGz(path.join(data, 'prerendered', fileOf(prerendered.entries[key]))) : null;
 }
 const circuits = new Map();
 async function circuit(key) {
   if (!circuits.has(key)) {
-    circuits.set(key, fetch(`https://api.multiviewer.app/api/v1/circuits/${key}/${year}`, {headers: {'User-Agent': 'apex-data-track-build'}})
+    circuits.set(key, fetch(`https://api.multiviewer.app/api/v1/circuits/${key}/${year}`, {headers: {'User-Agent': 'apex-data-track-build'}, signal: AbortSignal.timeout(12000)})
       .then(r => (r.ok ? r.json() : null)).catch(() => null));
   }
   return circuits.get(key);
@@ -266,15 +271,19 @@ const officialSummary = o => {
   const one = x => (!x ? '' : !x.readable ? `${x.year} FIA map image only` : `${x.year} ${x.kind || 'no'} zones ${x.zones.length} (${x.zones.filter(z => (z.normal || z).at != null).length} placed)`);
   return o ? [one(o), one(o.previous)].filter(Boolean).join(' · ') : 'no FIA map';
 };
+if (wanted && !best.has(wanted)) throw new Error('No recorded qualifying telemetry for ' + wanted);
 const tracks = {};
 for (const [gp, lap] of [...best].sort()) {
   const session = sessionFor(gp);
   const guide = session?.circuit_key ? await circuit(session.circuit_key) : null;
   tracks[gp] = profile(gp, lap, session, guide);
 }
-const out = {year, method: 'track-profile-v3', generated: new Date().toISOString().slice(0, 10), tracks};
-const file = path.join(data, 'track-profiles', `${year}.json`);
-fs.mkdirSync(path.dirname(file), {recursive: true});
-fs.writeFileSync(file, JSON.stringify(out) + '\n');
+const file = path.join(data, 'track-profiles', year + '.json');
+await captureLock(root, async () => {
+  fs.mkdirSync(path.dirname(file), {recursive: true});
+  const previous = wanted && fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')).tracks : {};
+  const out = {year, method: 'track-profile-v3', generated: new Date().toISOString().slice(0, 10), tracks: {...previous, ...tracks}};
+  await atomicBytes(file, Buffer.from(JSON.stringify(out) + '\n'));
+});
 console.log(`${Object.keys(tracks).length} tracks, ${(fs.statSync(file).size / 1024).toFixed(0)} KB, ${exported ? 'from the exported laps (scripts/export-quali-laps.py)' : 'from the published telemetry'}`);
 for (const [gp, t] of Object.entries(tracks)) console.log(gp.padEnd(26), t.circuit?.padEnd(28) || '', `${t.corners.total} corners`, JSON.stringify({s: t.corners.slow, m: t.corners.medium, f: t.corners.fast}), t.sectors ? 'sectors' : 'no sectors', `${t.straights.length} straights`, officialSummary(t.official), t.compounds?.join('') || '');

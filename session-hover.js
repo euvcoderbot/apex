@@ -56,7 +56,7 @@ function bindAllChartHover() {
       const unit = currentDef ? currentDef[1] : '';
       
       const refSamples = telemetryCache.get(telemetryKey(loaded[0]));
-      const maxDistance = refSamples && refSamples.length ? refSamples[refSamples.length - 1].Distance : 5891;
+      const maxDistance = refSamples?.length ? referenceDistance() : 5891;
       const distanceKM = (fraction * maxDistance) / 1000;
       
       let hasReconstructedValue = false;
@@ -72,11 +72,13 @@ function bindAllChartHover() {
         if(['Speed trace','Throttle application','Timing delta'].includes(hoveredChartName))noteSourceGap(lap,series);
         let val = null;
         const targetDist = fraction * maxDistance;
-        if (hoveredChartName === 'Timing delta' && !lap.real?.out_lap && !loaded[0]?.real?.out_lap) {
+        if (hoveredChartName === 'Timing delta' && !window.ApexTelemetryFrame?.partial() && !lap.real?.out_lap && !loaded[0]?.real?.out_lap) {
           val = index === 0 ? 0 : (typeof displayDeltaAt === 'function'
             ? displayDeltaAt(series, refSamples, fraction)
             : deltaAt(series, refSamples, targetDist));
-        } else if ((hoveredChartName === 'Speed trace' || hoveredChartName === 'Throttle application')
+        } else if (hoveredChartName === 'Timing delta') {
+          val = null;
+        } else if ((series?.alignmentMethod === 'live-distance' || hoveredChartName === 'Speed trace' || hoveredChartName === 'Throttle application')
             && typeof smoothedTelemetryValue === 'function') {
           val = typeof traceTelemetryValue === 'function'
             ? traceTelemetryValue(series, fraction, field)
@@ -239,6 +241,10 @@ function bindTrackMapHover() {
 }
 
 async function drawAll() {
+  if (window.ApexTelemetryFrame) {
+    paintReadyTelemetry();
+    return;
+  }
   const generation = ++drawGeneration;
   const requestedLaps = [...loaded];
   const failures = [];
@@ -274,7 +280,7 @@ async function drawAll() {
 function paintReadyTelemetry() {
   // Always describe the current reference, not whichever request finished first.
   sessionSectorGuide = loaded[0]?.sectorGuide || null;
-  if (typeof prepareTelemetryAlignment === 'function') {
+  if (typeof prepareTelemetryAlignment === 'function' && !window.ApexTelemetryFrame?.partial()) {
     prepareTelemetryAlignment();
   }
   const season = Number($('#year').value);

@@ -38,7 +38,9 @@ const publish = (request, e, opts = {}) => acceptPublish(request, e, dataWrite(n
 
 test('the real public key is configured, and only data paths are routed', () => {
   assert.equal(Buffer.from(PUBLISH_PUBLIC_KEY, 'base64').length, 32);
-  assert.deepEqual(DATA_FOLDERS, ['local-captures', 'prerendered', 'sessions', 'local-telemetry', 'telemetry', 'season', 'events']);
+  assert.deepEqual(DATA_FOLDERS, ['local-captures', 'prerendered', 'sessions', 'local-telemetry', 'telemetry', 'season', 'events', 'track-profiles']);
+  assert.equal(dataRead('/apex/assets/data/track-profiles/2026.json').mutable, true);
+  assert.equal(dataWrite('/api/publish/track-profiles/2026.json').key, 'data/track-profiles/2026.json');
   const pack = dataRead('/apex/assets/data/local-telemetry/0123456789abcdef01234567.json.gz');
   assert.equal(pack.key, 'data/local-telemetry/0123456789abcdef01234567.json.gz'); assert.equal(pack.hashed, true); assert.equal(pack.mutable, false);
   assert.equal(dataRead('/apex/assets/data/events/2026.json').mutable, true);

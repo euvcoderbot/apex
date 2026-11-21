@@ -19,7 +19,7 @@
 :root[data-skin="linear"][data-skin] #liveTiming .live-title .workspace-eyebrow { display: none; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-title h1 { font: 600 24px/32px var(--ui-font); letter-spacing: -.16px; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-title p { font: 450 13px/1.5 var(--ui-font); color: var(--ui-tertiary); }
-:root[data-skin="linear"][data-skin] #liveTiming .live-card-head h2 { color: var(--ui-tertiary); font: 500 13px/1.4 var(--ui-font); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-card-head h2 { color: var(--ui-label); font: 600 14px/1.4 var(--ui-font); }
 /* Cards: the spec's card (§8). */
 :root[data-skin="linear"][data-skin] #liveTiming .dashboard-card {
   position: relative; border: 0; border-radius: var(--lin-card-radius); padding: 16px;
@@ -33,18 +33,17 @@
 }
 :root[data-skin="linear"][data-skin] #liveTiming .live-button:hover:not(:disabled) { background: var(--lin-pill-hover); color: var(--ui-label); }
 /* The :not(#…) chain outranks the general push-button pill rule above, which carries three IDs. */
-:root[data-skin="linear"][data-skin] #liveTiming .live-button.live-primary:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: #e5484d; box-shadow: none; color: #fff; }
-:root[data-skin="linear"][data-skin] #liveTiming .live-button.live-primary:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):hover { background: #ec5d61; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-button.live-primary:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: var(--ui-action); box-shadow: none; color: #fff; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-button.live-primary:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):hover { background: color-mix(in srgb, var(--ui-action) 90%, black); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-button:not(.live-primary):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-button:not(.live-primary):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):hover { background: var(--lin-pill-hover); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-button.live-primary-compare:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):not(:disabled) { background: var(--ui-action); color: white; box-shadow: none; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-button.live-primary-compare:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):not(:disabled):hover { background: color-mix(in srgb, var(--ui-action) 90%, black); }
 /* Choosing comparison laps belongs to Session analysis. */
 :root[data-skin="linear"][data-skin] body.live-view #linearWorkspace #lapWorkspaceToggle { display: none; }
-:root[data-skin="linear"][data-skin] #liveTiming .live-badge[data-kind="live"] { background: #e5484d; box-shadow: none; color: #fff; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-badge[data-kind="live"] { background: var(--ui-action); box-shadow: none; color: #fff; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-badge[data-kind="replay"] { background: var(--lin-pill-on); color: var(--ui-label); }
 :root[data-skin="linear"][data-skin] #liveTiming .select-shell .select-trigger:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { box-sizing: border-box; height: 28px; min-height: 28px; border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); font: 500 12px/1 var(--ui-font); }
-:root[data-skin="linear"][data-skin] #liveTiming .live-group-label { font: 500 11px/1 var(--ui-font); letter-spacing: .02em; text-transform: none; color: var(--ui-quaternary, var(--ui-tertiary)); }
 :root[data-skin="linear"][data-skin] #liveTiming :is(.live-source label, .live-compare-pick label) { font: 500 12px/1 var(--ui-font); color: var(--ui-tertiary); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-flag { border-radius: 9999px; padding: 6px 14px; font: 600 13px/1.2 var(--ui-font); }
 /* Timing tower: the group-header band, quiet rows. */
@@ -59,9 +58,6 @@
 :root[data-skin="linear"][data-skin] #liveTiming :is(.live-readout, .live-compare-lap, .live-rc li) { border-radius: 8px; background: var(--lin-band); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-signin input { height: 28px; min-height: 28px; border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); font: 450 12px/1 var(--ui-font); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-signin label { font: 500 12px/1 var(--ui-font); color: var(--ui-tertiary); }
-:root[data-skin="linear"][data-skin] #liveTiming .live-chart { border-radius: 6px; background: var(--lin-band); }
-:root[data-skin="linear"][data-skin] #liveTiming .live-chart figcaption strong { font: 600 12px/1.4 var(--ui-font); }
-:root[data-skin="linear"][data-skin] #liveTiming .live-chart figcaption small { font: 450 12px/1.4 var(--ui-font); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-table th:first-child, :root[data-skin="linear"][data-skin] #liveTiming .live-table td:first-child { padding-left: 10px; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-table th:last-child, :root[data-skin="linear"][data-skin] #liveTiming .live-table td:last-child { padding-right: 10px; }
 /* Lap chips and the picker in Linear's shapes: 28 px pills with the 5% ring, the picker as Linear's menus. */
@@ -90,7 +86,8 @@
 /* Lap chart (docs/linear-components.md "Chart (SVG)", the session chart's rules via .overview-lap-chart): driver chips are
    Linear label pills with a team-colour dot; a chosen driver's pill is filled. The lap list is a compact table whose cells
    load a lap; a lap in the comparison carries the label ring, a new stint a hairline above it. */
-:root[data-skin="linear"] #liveTiming .live-lapchart { display: grid; gap: 10px; margin: 0 0 14px; }
+:root[data-skin="linear"] #liveTiming .live-lapchart { display: grid; gap: 8px; margin: 0 0 8px; }
+:root[data-skin="linear"] #liveTiming .live-card-actions { align-items: center; }
 :root[data-skin="linear"] #liveTiming .live-chart-drivers { display: flex; flex-wrap: wrap; gap: 6px; }
 :root[data-skin="linear"] #liveTiming .live-chart-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 :root[data-skin="linear"] #liveTiming .live-chart-driver:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { display: inline-flex; align-items: center; gap: 6px; height: 24px; min-height: 0; padding: 0 9px 0 8px; border: 0; border-radius: 9999px; background: none; box-shadow: inset 0 0 0 1px var(--lin-label-border); color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); cursor: pointer; }

@@ -16,7 +16,7 @@ import {createHash, webcrypto} from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {DATA_FOLDERS, signedMessage} from '../lib/data-store.mjs';
+import {DATA_FOLDERS, YEAR_DATA_FOLDERS, signedMessage} from '../lib/data-store.mjs';
 
 const {subtle} = webcrypto;
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -50,7 +50,7 @@ const immutable = [], mutable = [];
 for (const folder of DATA_FOLDERS) {
   const dir = path.join(data, folder);
   if (!existsSync(dir)) continue;
-  if (folder === 'events') { for (const file of (await readdir(dir)).filter(f => /^\d{4}\.json$/.test(f))) mutable.push({folder, file}); continue; }
+  if (YEAR_DATA_FOLDERS.includes(folder)) { for (const file of (await readdir(dir)).filter(f => /^\d{4}\.json$/.test(f))) mutable.push({folder, file}); continue; }
   if (!existsSync(path.join(dir, 'index.json'))) continue;
   const index = JSON.parse(await readFile(path.join(dir, 'index.json'), 'utf8'));
   for (const file of new Set(Object.values(index.entries || index).map(e => (typeof e === 'string' ? e : e?.file)).filter(Boolean))) immutable.push({folder, file});

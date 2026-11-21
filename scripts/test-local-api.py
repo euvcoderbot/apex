@@ -2,13 +2,16 @@
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi import HTTPException, Response
 import local_api
+import live_timing
 import server
+import pandas as pd
 
 
 class LocalPracticeTests(unittest.TestCase):
@@ -69,6 +72,41 @@ class LocalPracticeTests(unittest.TestCase):
                 self.assertEqual(local_api.session_data(Response(), year, 'British Grand Prix', 10, session, False), {'shared': True})
             self.assertEqual(shared.call_count, 2)
         self.assertIs(local_api.app.routes[-1].app, server.app)
+
+
+class LiveLapFallbackTests(unittest.TestCase):
+    def setUp(self):
+        self.state = live_timing.LiveState()
+        self.state.topics.update(
+            SessionInfo={'Meeting': {'Name': 'Las Vegas Grand Prix'}, 'StartDate': '2026-11-20', 'Name': 'Practice 3'},
+            DriverList={'3': {'Tla': 'VER'}},
+            TimingData={'Lines': {'3': {'BestLapTime': {'Value': '1:35.675'}}}},
+        )
+        self.state.laps['3'][11] = {'lap': 11, 'seconds': 97.893, 'time': '1:37.893', 'pit': False}
+
+    def test_archive_finds_exact_official_lap_when_local_history_has_only_a_slower_one(self):
+        rows = pd.DataFrame([
+            {'LapNumber': 6, 'LapTime': pd.Timedelta(seconds=95.675), 'Deleted': True},
+            {'LapNumber': 7, 'LapTime': pd.Timedelta(seconds=95.675), 'Deleted': False},
+            {'LapNumber': 11, 'LapTime': pd.Timedelta(seconds=97.893), 'Deleted': False},
+        ])
+        data = SimpleNamespace(laps=SimpleNamespace(pick_drivers=lambda code: rows))
+        samples = [{'Distance': i * 50, 'ElapsedSeconds': i, 'Speed': 250} for i in range(25)]
+        with patch.object(local_api.LIVE, 'state', self.state), \
+             patch.object(self.state, 'lap_trace', return_value={'lap': 11, 'time': '1:37.893'}), \
+             patch.object(server, 'load_session', return_value=data), \
+             patch.object(server, 'telemetry', return_value={'samples': samples, 'source': 'FastF1'}) as telemetry:
+            result = local_api.live_lap('3', 'fastest')
+        self.assertEqual((result['lap'], result['time'], result['source']), (7, '1:35.675', 'FastF1'))
+        self.assertEqual(telemetry.call_args.kwargs['lap'], 7)
+
+    def test_missing_official_archive_lap_stays_retryable(self):
+        with patch.object(local_api.LIVE, 'state', self.state), \
+             patch.object(server, 'load_session', side_effect=ValueError('Archive not ready')), \
+             patch.object(server, 'telemetry', side_effect=AssertionError('Do not substitute a slower lap')):
+            with self.assertRaisesRegex(HTTPException, 'Telemetry for this lap is not available yet') as error:
+                local_api.live_lap('3', 'fastest')
+        self.assertEqual(error.exception.status_code, 404)
 
 
 if __name__ == '__main__':

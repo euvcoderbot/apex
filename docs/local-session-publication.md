@@ -27,7 +27,7 @@ then deploy the new public key.
 The installed session scheduler publishes after each exported session and on
 recovery runs, so a session is live about 40 minutes after it ends with no
 manual step. It also refreshes the Season hub snapshot after each Qualifying,
-Sprint and Race. Without the key on the PC, prepared data stays local. A Site
+Sprint and Race. After qualifying, it builds and publishes the new circuit profile from that session's captured laps. Without the key on the PC, prepared data stays local. A Site
 still built from a separate checkout can be staged with `APEX_SITE_CHECKOUT`.
 Failed preparation, sync or publishing is logged to
 `~/apex-data/session-archive.log` and retried. Machine-readable
