@@ -46,31 +46,51 @@
   // driver's best (a lap behind a safety car or in traffic is not their pace). Consistency is the spread of the middle half
   // of those laps (interquartile range): smaller is steadier.
   let summaryOpen = false;
+  const summarySortLabels = {best: 'Best', ideal: 'Ideal', spread: 'Consistency', trap: 'Trap km/h'};
+  let summarySort = {key: 'best', descending: false};
   function sessionSummary() {
     const rows = [...realDrivers.values()].map(d => {
       const base = driverSummary(d), laps = (d.laps || []).filter(l => !l.deleted);
       const rep = laps.filter(timed).map(l => l.time).filter(t => Number.isFinite(base.best) && t <= base.best * 1.07).sort((a, b) => a - b);
       const q = f => rep.length ? rep[Math.min(rep.length - 1, Math.floor(f * (rep.length - 1)))] : null;
       const stints = new Set(laps.map(l => l.stint).filter(v => v != null)).size;
-      return {...base, median: q(.5), spread: rep.length >= 4 ? q(.75) - q(.25) : null, clean: laps.length ? rep.length / laps.length : null, laps: laps.length, stints};
+      const bestLap = laps.find(lap => timed(lap) && lap.time === base.best);
+      return {...base, bestLap: bestLap?.lap, median: q(.5), spread: rep.length >= 4 ? q(.75) - q(.25) : null, clean: laps.length ? rep.length / laps.length : null, laps: laps.length, stints};
     }).filter(r => Number.isFinite(r.best)).sort((a, b) => a.best - b.best);
     if (rows.length < 2) return '';
     const lead = rows[0].best, best = key => Math.min(...rows.map(r => r[key]).filter(Number.isFinite));
     const top = {ideal: best('ideal'), median: best('median'), spread: best('spread')}, trapTop = Math.max(...rows.map(r => r.trap).filter(Number.isFinite));
+    const ranked = rows.map((row, i) => ({...row, rank: i + 1})).sort((a, b) => {
+      const x = a[summarySort.key], y = b[summarySort.key];
+      if (!Number.isFinite(x)) return Number.isFinite(y) ? 1 : 0;
+      if (!Number.isFinite(y)) return -1;
+      return summarySort.descending ? y - x : x - y;
+    });
+    const sortable = (key, tip = '') => {
+      const active = summarySort.key === key;
+      const direction = summarySort.descending ? 'descending' : 'ascending';
+      return `<th scope="col" class="num"${active ? ` aria-sort="${direction}"` : ''}${tip ? ` title="${tip}"` : ''}><button type="button" class="session-summary-sort" data-summary-sort="${key}">${summarySortLabels[key]}${active ? ` <span aria-hidden="true">${summarySort.descending ? '↓' : '↑'}</span>` : ''}</button></th>`;
+    };
     const mark = (v, b, digits = 3) => (Number.isFinite(v) ? `<td class="num${Math.abs(v - b) < 1e-6 ? ' is-best' : ''}">${typeof digits === 'function' ? digits(v) : v.toFixed(digits)}</td>` : '<td class="num">—</td>');
-    const body = rows.map((r, i) => `<tr><td class="num season-muted">${i + 1}</td><th scope="row"><span class="session-summary-driver">${teamLogoMarkup(r.team, r.number)}${esc(r.code)}</span></th>`
-      + `<td class="num${i === 0 ? ' is-best' : ''}">${fmtLap(r.best)}</td><td class="num">${i === 0 ? '—' : signedS(r.best - lead).replace(' s', '')}</td>`
+    const compareBest = row => {
+      const value = fmtLap(row.best);
+      if (!Number.isInteger(row.bestLap)) return value;
+      const pressed = loaded.some(lap => lap.code === row.code && lap.lap === row.bestLap);
+      return `<button type="button" class="session-best-lap" data-best-driver="${esc(row.code)}" data-best-lap="${row.bestLap}" aria-pressed="${pressed}" aria-label="${value}, ${esc(row.code)} fastest lap, lap ${row.bestLap}">${value}</button>`;
+    };
+    const body = ranked.map(r => `<tr><td class="num season-muted">${r.rank}</td><th scope="row"><span class="session-summary-driver">${teamLogoMarkup(r.team, r.number)}${esc(r.code)}</span></th>`
+      + `<td class="num${r.rank === 1 ? ' is-best' : ''}">${compareBest(r)}</td><td class="num">${r.rank === 1 ? '—' : signedS(r.best - lead).replace(' s', '')}</td>`
       + mark(r.ideal, top.ideal, fmtLap) + mark(r.median, top.median, fmtLap) + mark(r.spread, top.spread)
       + `<td class="num">${Number.isFinite(r.clean) ? Math.round(r.clean * 100) + '%' : '—'}</td>`
       + mark(r.trap, trapTop, v => String(Math.round(v))) + `<td class="num">${r.laps}</td><td class="num">${r.stints || '—'}</td></tr>`).join('');
     return `<details class="session-summary" ${summaryOpen ? 'open' : ''}><summary>Best lap, ultimate lap and consistency</summary>
       <div class="session-summary-wrap" tabindex="0" role="region" aria-label="Session summary"><table class="session-summary-table">
-      <thead><tr><th scope="col" class="num">#</th><th scope="col">Driver</th><th scope="col" class="num">Best</th><th scope="col" class="num">Gap</th>
-      <th scope="col" class="num" title="Sum of the driver's best sectors">Ideal</th><th scope="col" class="num" title="Median representative lap">Median</th>
-      <th scope="col" class="num" title="Spread of the middle half of representative laps, seconds: smaller is steadier">Consistency</th>
-      <th scope="col" class="num" title="Share of laps that were representative">Clean</th><th scope="col" class="num">Trap km/h</th><th scope="col" class="num">Laps</th><th scope="col" class="num">Stints</th></tr></thead>
+      <thead><tr><th scope="col" class="num" aria-label="Fastest lap rank">#</th><th scope="col">Driver</th>${sortable('best')}<th scope="col" class="num">Gap</th>
+      ${sortable('ideal', 'Sum of the driver’s best sectors')}<th scope="col" class="num" title="Median representative lap">Median</th>
+      ${sortable('spread', 'Spread of the middle half of representative laps, in seconds')}
+      <th scope="col" class="num" title="Share of laps that were representative">Clean</th>${sortable('trap')}<th scope="col" class="num">Laps</th><th scope="col" class="num">Stints</th></tr></thead>
       <tbody>${body}</tbody></table></div>
-      <p class="session-summary-note">Representative laps: timed, not in- or out-laps, within 107% of the driver’s best. Consistency is the spread of the middle half of them (seconds). The filled cell is the session’s best in that column.</p></details>`;
+      <p class="session-summary-note">Select a best time to add or remove that lap from your comparison. Representative laps are timed, within 107% of the driver’s best, and exclude in- and out-laps. Consistency is the spread of the middle half of them (seconds).</p></details>`;
   }
 
   function readout(rows) {
@@ -462,6 +482,35 @@
     }
     const point = event.target.closest?.('#sessionOverview .point');
     if (point) { toggleLoadedLap(point.dataset.code, Number(point.dataset.lap)); return; }
+    const sort = event.target.closest?.('[data-summary-sort]');
+    if (sort) {
+      const key = sort.dataset.summarySort;
+      summarySort = {key, descending: summarySort.key === key ? !summarySort.descending : key === 'trap'};
+      const left = sort.closest('.session-summary-wrap').scrollLeft;
+      renderSessionOverview();
+      const replacement = host.querySelector(`[data-summary-sort="${CSS.escape(key)}"]`);
+      if (replacement) {
+        replacement.closest('.session-summary-wrap').scrollLeft = left;
+        replacement.focus({preventScroll: true});
+      }
+      return;
+    }
+    const best = event.target.closest?.('[data-best-driver]');
+    if (best) {
+      const {bestDriver: code, bestLap} = best.dataset;
+      const left = best.closest('.session-summary-wrap').scrollLeft;
+      if (best.getAttribute('aria-pressed') === 'false' && !selected.includes(code)) {
+        selected.push(code);
+        renderDrivers();
+      }
+      toggleLoadedLap(code, Number(bestLap));
+      const replacement = host.querySelector(`[data-best-driver="${CSS.escape(code)}"]`);
+      if (replacement) {
+        replacement.closest('.session-summary-wrap').scrollLeft = left;
+        replacement.focus({preventScroll: true});
+      }
+      return;
+    }
     if (event.target.closest?.('#sessionOverview .overview-slow-toggle')) { showSlowLaps = !showSlowLaps; renderSessionOverview(); }
   });
   host.addEventListener('change', event => {

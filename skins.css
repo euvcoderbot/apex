@@ -1780,6 +1780,11 @@
 :root[data-skin="linear"] .app-sidebar .track-tray-actions { display: flex; gap: 4px; }
 :root[data-skin="linear"] .app-sidebar .btn-track-action[data-ui-kind] { width: auto; height: 24px; min-height: 24px; padding-inline: 8px; font-size: 12px; }
 :root[data-skin="linear"] .app-sidebar .performance-track-pills { display: flex; flex-wrap: wrap; gap: 4px; max-height: 150px; overflow: auto; }
+:root[data-skin="linear"] .app-sidebar .performance-track-filter:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 8px; }
+:root[data-skin="linear"] .app-sidebar #performanceTrackSearch { box-sizing: border-box; width: min(100%, 220px); min-width: 0; height: 28px; padding-inline: 8px; font: 450 13px/1 var(--ui-font); }
+:root[data-skin="linear"] .app-sidebar #performanceSelectedOnly[aria-pressed="true"] { background: var(--lin-pill-on); color: var(--ui-label); }
+:root[data-skin="linear"] .app-sidebar #performanceTrackSearchStatus { flex: 1 0 100%; margin: 0; color: var(--ui-tertiary); font: 450 12px/1.4 var(--ui-font); }
+:root[data-skin="linear"] .app-sidebar .track-pill[hidden] { display: none; }
 /* Track choices are Linear's labels: 24 px pills with a hairline. */
 :root[data-skin="linear"] .app-sidebar .track-pill[data-ui-kind="choice"] { width: auto; flex: 0 1 auto; height: 24px; min-height: 24px; padding: 0 10px 0 6px; grid-template-columns: 18px 22px minmax(0,1fr) 12px; gap: 4px; border-radius: 9999px; box-shadow: inset 0 0 0 1px var(--lin-label-border); font-size: 12px; }
 
@@ -2557,7 +2562,22 @@
 :root[data-skin="linear"] .session-summary-table :is(th, td).num { text-align: center; }
 :root[data-skin="linear"] .session-summary-table td { height: 30px; padding: 2px 8px; color: var(--ui-secondary); background-clip: content-box; }
 :root[data-skin="linear"] .session-summary-table tbody th { color: var(--ui-label); font-weight: 500; }
+:root[data-skin="linear"] .session-summary-table tr > :is(th,td):nth-child(-n+2) {
+  position: sticky; z-index: 1; background: var(--lin-card);
+}
+:root[data-skin="linear"] .session-summary-table tr > :first-child {
+  inset-inline-start: 0; box-sizing: border-box; width: 32px; min-width: 32px; padding-inline: 0;
+}
+:root[data-skin="linear"] .session-summary-table tr > :nth-child(2) {
+  inset-inline-start: 32px; box-shadow: inset -1px 0 var(--lin-hairline);
+}
 :root[data-skin="linear"] .session-summary-table td.is-best { color: var(--ui-label); font-weight: 600; background: color-mix(in oklch, var(--ui-accent) 24%, transparent); border-radius: 6px; }
+:root[data-skin="linear"] .session-summary-table :is(.session-best-lap, .session-summary-sort) {
+  min-height: 24px; padding: 0 6px; border: 0; border-radius: 6px; color: inherit; background: transparent;
+  font: inherit; font-variant-numeric: inherit; white-space: nowrap; cursor: pointer;
+}
+:root[data-skin="linear"] .session-summary-table :is(.session-best-lap, .session-summary-sort):hover { background: var(--lin-nav-hover); color: var(--ui-label); }
+:root[data-skin="linear"] .session-summary-table .session-best-lap[aria-pressed="true"] { color: var(--ui-label); background: var(--lin-pill-on); }
 :root[data-skin="linear"] .session-summary-driver { display: inline-flex; align-items: center; gap: 8px; }
 :root[data-skin="linear"] .session-summary-note { margin: 8px 0 0; color: var(--ui-tertiary); font: 450 11px/1.4 var(--ui-font); }
 /* Head-to-head: the pair being compared, marked in the list of every teammate battle. */

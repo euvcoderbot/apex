@@ -3906,15 +3906,12 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     box.append(el('p', 'season-footnote', med == null ? '' : `Median ${med === 0 ? 'level' : `${med > 0 ? a : b} ahead by ${Math.abs(med).toFixed(digits)}${unit}`} over ${points.length} rounds.`));
     return box;
   }
-  // Season battle log: the margin at every round, in places (race finish or qualifying position), above the line the first
-  // driver ahead, below the second, the area to zero filled flat in the colour of whoever was ahead. Race / Qualifying
-  // pills switch the session in place. The scale reaches the season's largest margin (to the next five places), so no
-  // round is cut off. A round where only one was classified (race) or set a time (qualifying) is a triangle at the edge.
+  // Each Grand Prix contributes one signed position margin. Unclassified results have a separate marker.
   function battleLog(data, a, b, ca, cb) {
     const kind = state.battleKind === 'qualifying' ? 'qualifying' : 'race';
     const rows = r => (kind === 'qualifying' ? r.qualifying : r.race) || [];
     const rounds = data.rounds.filter(r => rows(r).length);
-    const W = 760, H = 480, L = 40, R = 16, T = 14, B = 48;   // 480: as tall as the Points card beside it at a half-width card, so neither leaves a gap
+    const W = 760, H = 360, L = 40, R = 16, T = 14, B = 48;
     const pts = rounds.map((r, i) => {
       const p = rows(r).find(e => e.driver === a), q = rows(r).find(e => e.driver === b);
       if (p?.position && q?.position) return {i, r, v: q.position - p.position, p, q};
@@ -3924,36 +3921,23 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     });
     const most = Math.max(5, ...pts.filter(p => p.v != null).map(p => Math.abs(p.v)));
     const cap = Math.ceil(most / 5) * 5;
-    // The scale runs a little past the cap, so the edge rows hold the side labels and the triangles, never a dot.
-    const E = cap + Math.max(2.5, cap * .2), x = i => L + (rounds.length < 2 ? 0 : i / (rounds.length - 1) * (W - L - R)), y = v => T + (E - v) / (E * 2) * (H - T - B);
+    const slot = (W - L - R) / Math.max(1, rounds.length), barWidth = Math.min(24, slot * .64);
+    const E = cap + Math.max(2.5, cap * .2), x = i => L + (i + .5) * slot, y = v => T + (E - v) / (E * 2) * (H - T - B);
     let svg = `<svg class="season-chart season-battle-log" viewBox="0 0 ${W} ${H}" role="img" aria-label="${kind === 'qualifying' ? 'Qualifying' : 'Race'} margin at each round">`;
     for (let t = -cap; t <= cap; t += 5) svg += `<line class="grid${t === 0 ? ' is-zero' : ''}" x1="${L}" x2="${W - R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"/><text class="axis" x="${L - 8}" y="${(y(t) + 3.5).toFixed(1)}" text-anchor="end">${t === 0 ? '0' : Math.abs(t)}</text>`;
-    // The filled areas, one polygon per run of rounds on the same side of zero.
-    const finite = pts.filter(p => p.v != null);
-    for (let k = 0; k < finite.length - 1; k++) {
-      const p = finite[k], q = finite[k + 1], x0 = x(p.i), x1 = x(q.i), z = y(0);
-      if (q.i !== p.i + 1) continue;   // a round between them without a margin: no fill across it
-      if (p.v >= 0 && q.v >= 0 || p.v <= 0 && q.v <= 0) {
-        const side = p.v + q.v >= 0 ? ca : cb;
-        svg += `<path class="battle-fill" style="fill:${esc(side)}" d="M${x0.toFixed(1)} ${z}L${x0.toFixed(1)} ${y(p.v).toFixed(1)}L${x1.toFixed(1)} ${y(q.v).toFixed(1)}L${x1.toFixed(1)} ${z}Z"/>`;
-      } else {
-        const xc = x0 + (x1 - x0) * (p.v / (p.v - q.v));
-        svg += `<path class="battle-fill" style="fill:${esc(p.v > 0 ? ca : cb)}" d="M${x0.toFixed(1)} ${z}L${x0.toFixed(1)} ${y(p.v).toFixed(1)}L${xc.toFixed(1)} ${z}Z"/>`;
-        svg += `<path class="battle-fill" style="fill:${esc(q.v > 0 ? ca : cb)}" d="M${xc.toFixed(1)} ${z}L${x1.toFixed(1)} ${y(q.v).toFixed(1)}L${x1.toFixed(1)} ${z}Z"/>`;
-      }
-    }
-    svg += `<path class="line battle-line" d="${finite.map((p, k) => `${k && finite[k - 1].i === p.i - 1 ? 'L' : 'M'}${x(p.i).toFixed(1)} ${y(p.v).toFixed(1)}`).join('')}"/>`;
-    const slot = rounds.length > 1 ? (W - L - R) / (rounds.length - 1) : 40;
+    const zero = y(0);
     for (const p of pts) {
       if (p.v != null) {
         const colour = p.v > 0 ? ca : p.v < 0 ? cb : 'var(--ui-tertiary)';
-        svg += `<circle class="battle-dot" cx="${x(p.i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" style="--c:${esc(colour)}"/>`;
+        const top = Math.min(y(p.v), zero), height = Math.abs(y(p.v) - zero);
+        svg += `<rect class="battle-bar" x="${(x(p.i) - barWidth / 2).toFixed(1)}" y="${top.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${height || 2}" style="--c:${esc(colour)}"/>`;
       } else if (p.edge) {
         const up = p.edge > 0, ty = y(up ? cap + (E - cap) / 2 : -cap - (E - cap) / 2), cx = x(p.i), colour = up ? ca : cb;
         svg += `<path class="battle-edge" style="--c:${esc(colour)}" d="M${(cx - 6).toFixed(1)} ${(ty + (up ? 5 : -5)).toFixed(1)}L${(cx + 6).toFixed(1)} ${(ty + (up ? 5 : -5)).toFixed(1)}L${cx.toFixed(1)} ${(ty + (up ? -6 : 6)).toFixed(1)}Z"/>`;
       }
       const fin = e => (!e ? '\u2014' : e.position ? `P${e.position}` : kind === 'qualifying' ? 'no time' : 'DNF');
       let tip = `${p.r.name}\n${driverCode(data, a)}  ${fin(p.p)}\n${driverCode(data, b)}  ${fin(p.q)}`;
+      if (p.v) tip += `\n${driverCode(data, p.v > 0 ? a : b)} ahead by ${Math.abs(p.v)} ${Math.abs(p.v) === 1 ? 'place' : 'places'}`;
       if (kind === 'qualifying') { const g = qualiGap(p.r, a, b); if (g) tip += `\nGap  ${Math.abs(g.seconds).toFixed(3)} s (${g.session})`; }
       svg += `<rect class="hit" x="${(x(p.i) - slot / 2).toFixed(1)}" y="${T}" width="${slot.toFixed(1)}" height="${H - T - B}" data-tip="${esc(tip)}"/>`;
     }
@@ -3963,10 +3947,16 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     const pills = el('div', 'season-segment season-zone-toggle'); pills.setAttribute('role', 'group'); pills.setAttribute('aria-label', 'Session');
     const box = card('Gap to teammate', pills,
       el('p', 'season-chart-sub', `${kind === 'qualifying' ? 'Qualifying' : 'Race'} margin at each round, in places \u00b7 ${driverCode(data, a)} ahead ${wa}, ${driverCode(data, b)} ahead ${wb}`), chart,
-      el('p', 'season-footnote', `Above the line ${family(data, a)} ${kind === 'qualifying' ? 'qualified' : 'finished'} ahead, below ${family(data, b)}; the shading is the margin. A triangle: only one of them ${kind === 'qualifying' ? 'set a time' : 'was classified'}.${kind === 'qualifying' ? ' Hover a round for the time gap.' : ''}`));
+      el('p', 'season-footnote', `Bars show the gap in places. Above zero, ${family(data, a)} led. Below zero, ${family(data, b)} led. A triangle means only one driver ${kind === 'qualifying' ? 'set a time' : 'was classified'}.`));
     for (const [id, label] of [['race', 'Race'], ['qualifying', 'Qualifying']]) {
       const btn = el('button', null, label); btn.type = 'button'; btn.setAttribute('aria-pressed', String(kind === id));
-      btn.addEventListener('click', () => { if (kind === id) return; state.battleKind = id; const next = battleLog(data, a, b, ca, cb); box.replaceWith(next); markTips(next); });
+      btn.addEventListener('click', () => {
+        if (kind === id) return;
+        state.battleKind = id;
+        const next = battleLog(data, a, b, ca, cb);
+        box.replaceWith(next); markTips(next);
+        next.querySelector('button[aria-pressed="true"]')?.focus({preventScroll: true});
+      });
       pills.append(btn);
     }
     return box;

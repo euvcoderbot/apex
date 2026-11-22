@@ -349,6 +349,29 @@ function updateTrackCount() {
   if (loadBtn) {
     loadBtn.disabled = !calendar.length || (activeScope === 'tracks' && selectedTracks.size === 0);
   }
+  filterTrackPills();
+}
+
+function filterTrackPills() {
+  const filters = $('performanceTrackFilter');
+  if (!filters) return;
+  filters.hidden = !calendar.length;
+  const normalize = value => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+  const terms = normalize($('performanceTrackSearch').value).trim().split(/\s+/).filter(Boolean);
+  const selectedOnly = $('performanceSelectedOnly').getAttribute('aria-pressed') === 'true';
+  const matches = new Set(calendar.filter(event => {
+    if (selectedOnly && !selectedTracks.has(event.name)) return false;
+    const text = normalize([event.name, event.location, event.country, event.circuit].filter(Boolean).join(' '));
+    return terms.every(term => /^r\d+$/.test(term) ? term === `r${event.round}` : text.includes(term));
+  }).map(event => event.name));
+  for (const pill of $('performanceTrackPills').querySelectorAll('[data-track-name]')) {
+    pill.hidden = !matches.has(pill.dataset.trackName);
+  }
+  const status = $('performanceTrackSearchStatus');
+  status.hidden = !calendar.length || (!terms.length && !selectedOnly);
+  status.textContent = !matches.size
+    ? (selectedOnly && !terms.length ? 'No races selected.' : 'No races match this filter.')
+    : `${matches.size} of ${calendar.length} races shown`;
 }
 
 function renderTrackPills() {
@@ -2399,6 +2422,12 @@ document.querySelectorAll('[data-performance-scope]').forEach(btn => {
 });
 
 // Track Tray Batch Actions
+$('performanceTrackSearch')?.addEventListener('input', filterTrackPills);
+$('performanceSelectedOnly')?.addEventListener('click', event => {
+  const button = event.currentTarget;
+  button.setAttribute('aria-pressed', String(button.getAttribute('aria-pressed') !== 'true'));
+  filterTrackPills();
+});
 $('performanceSelectAllTracks')?.addEventListener('click', () => {
   calendar.forEach(e => selectedTracks.add(e.name));
   renderTrackPills();
@@ -2432,6 +2461,10 @@ $('performanceTrackPills')?.addEventListener('click', (ev) => {
   }
   pill.setAttribute('aria-pressed', String(selectedTracks.has(name)));
   updateTrackCount();
+  if (pill.hidden) {
+    const next = $('performanceTrackPills').querySelector('.track-pill:not([hidden])');
+    (next || $('performanceSelectedOnly'))?.focus({preventScroll: true});
+  }
   reset();
 });
 

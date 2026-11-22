@@ -42,6 +42,35 @@ test('recorded qualifying comparison renders both laps and supports trace toggle
   expect(errors).toEqual([]);
 });
 
+test('driver summary sorts the same field and toggles a fastest lap', async ({page}, info) => {
+  const errors = await loaded(page);
+  await page.getByRole('button', {name: 'Driver summary', exact: true}).click();
+  const table = page.getByRole('region', {name: 'Session summary'});
+  const best = table.getByRole('button', {name: /VER fastest lap, lap 8/});
+  await expect(best).toHaveAttribute('aria-pressed', 'true');
+  expect(await table.evaluate(region => {
+    const identity = region.querySelector('tbody th');
+    const firstOffset = identity.getBoundingClientRect().left - region.getBoundingClientRect().left;
+    region.scrollLeft = region.scrollWidth;
+    return region.scrollLeft > 0 && Math.abs(identity.getBoundingClientRect().left - region.getBoundingClientRect().left - firstOffset) < 1;
+  })).toBe(true);
+  await best.press('Enter');
+  await expect(best).toHaveAttribute('aria-pressed', 'false');
+  await expect(best).toBeFocused();
+  await best.press('Space');
+  await expect(best).toHaveAttribute('aria-pressed', 'true');
+  const trap = table.getByRole('button', {name: 'Trap km/h'});
+  await trap.click();
+  await expect(table.getByRole('columnheader', {name: 'Trap km/h'})).toHaveAttribute('aria-sort', 'descending');
+  await expect(trap).toBeFocused();
+  const speeds = await table.locator('tbody tr').evaluateAll(rows => rows.map(row => Number(row.cells[8].textContent)).filter(Number.isFinite));
+  expect(speeds.length).toBeGreaterThan(1);
+  expect(speeds).toEqual([...speeds].sort((a,b) => b-a));
+  await expect(best).toHaveAttribute('aria-pressed', 'true');
+  if (info.project.name === 'chromium' && !process.env.CI) await table.screenshot({path:info.outputPath('driver-summary.png')});
+  expect(errors).toEqual([]);
+});
+
 test('lap cards share aligned sector bars at desktop widths',async({page},info)=>{
   await page.setViewportSize({width:2400,height:1000});
   await page.emulateMedia({reducedMotion:'reduce'});

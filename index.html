@@ -245,6 +245,11 @@
         </div>
       </div>
       <div id="performanceTrackChoices" class="performance-track-choices">
+      <div id="performanceTrackFilter" class="performance-track-filter" hidden>
+        <input type="search" id="performanceTrackSearch" aria-label="Find a Grand Prix" placeholder="Find a Grand Prix" autocomplete="off">
+        <button type="button" id="performanceSelectedOnly" class="btn-track-action" aria-pressed="false">Selected only</button>
+        <p id="performanceTrackSearchStatus" role="status" hidden></p>
+      </div>
       <div id="performanceTrackPills" class="performance-track-pills" role="group" aria-label="Track selection"></div>
       </div>
     </section>

@@ -18,6 +18,54 @@ test('historical standings follow the selected round for drivers and constructor
   await expect(page.getByRole('button', {name:'Constructors', exact:true})).toHaveAttribute('aria-pressed','true');
 });
 
+test('Car performance race search preserves selected races across filters', async ({page}, info) => {
+  await isolate(page);
+  await page.goto('/apex/cars?year=2026&scope=tracks');
+  const tray = page.getByRole('region', {name:'Grand Prix selection'});
+  const search = tray.getByRole('searchbox', {name:'Find a Grand Prix'});
+  const pills = tray.locator('.track-pill:visible');
+  await search.fill('r1');
+  await expect(pills).toHaveCount(1);
+  await expect(pills.first()).toContainText('Australian');
+  await pills.first().click();
+  await search.fill('China Shanghai');
+  await expect(pills).toHaveCount(1);
+  await pills.first().click();
+  await expect(tray.getByText('2 selected')).toBeVisible();
+  await search.clear();
+  const selected = tray.getByRole('button', {name:'Selected only'});
+  await selected.click();
+  await expect(pills).toHaveCount(2);
+  await expect(selected).toHaveAttribute('aria-pressed','true');
+  await tray.screenshot({path:info.outputPath('filtered-races.png')});
+  await pills.first().click();
+  await expect(pills).toHaveCount(1);
+  await expect(pills.first()).toBeFocused();
+  await search.fill('no-match');
+  await expect(tray.getByRole('status')).toHaveText('No races match this filter.');
+  await expect(tray.getByText('1 selected')).toBeVisible();
+});
+
+test('Head-to-head shows discrete margins and keeps focus when changing sessions', async ({page}, info) => {
+  await page.goto('/apex/season/h2h?year=2026&a=antonelli&b=russell&part=points');
+  const chart = page.locator('.season-battle-log');
+  await expect(chart.locator('.battle-bar').first()).toBeVisible();
+  const card = chart.locator('..');
+  const qualifying = card.getByRole('button', {name:'Qualifying', exact:true});
+  await qualifying.click();
+  await expect(qualifying).toBeFocused();
+  await expect(qualifying).toHaveAttribute('aria-pressed','true');
+  await expect(chart).toHaveAttribute('aria-label', 'Qualifying margin at each round');
+  await expect(chart.locator('.battle-bar').first()).toBeVisible();
+  const dataPoint = chart.locator('[data-tip*="ahead by"]').first();
+  await expect(dataPoint).toHaveAttribute('data-tip', /ahead by \d+ place/);
+  await card.screenshot({path:info.outputPath('teammate-margins.png')});
+  await page.setViewportSize({width:390, height:900});
+  await expect(chart.locator('.battle-bar').first()).toBeVisible();
+  expect(await chart.evaluate(node => node.getBoundingClientRect().right <= document.documentElement.clientWidth)).toBe(true);
+  await card.screenshot({path:info.outputPath('teammate-margins-phone.png')});
+});
+
 for (const width of [1440, 390]) test(`a Calendar round opens its results and standings at ${width}px`, async ({page}, info) => {
   await page.setViewportSize({width, height:900});
   await page.goto('/apex/season/schedule?year=2026&round=1');
