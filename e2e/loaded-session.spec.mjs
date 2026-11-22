@@ -42,6 +42,34 @@ test('recorded qualifying comparison renders both laps and supports trace toggle
   expect(errors).toEqual([]);
 });
 
+test('wide lap cards reserve space around the sector times',async({page},info)=>{
+  await page.setViewportSize({width:2400,height:1000});
+  const errors=await loaded(page,{wind:{wind_speed:18.8,wind_direction:315}});
+  const cards=page.locator('#sectorRows .lap-summary-card');
+  await expect(cards).toHaveCount(2);
+  for (const card of await cards.all()) {
+    const layout=await card.evaluate(node=>{
+      const bounds=selector=>node.querySelector(selector).getBoundingClientRect();
+      const {width,height,left}=node.getBoundingClientRect();
+      const driver=bounds('header'), conditions=bounds('.summary-conditions');
+      const sectors=bounds('.summary-sectors'), total=bounds('.summary-lap-time');
+      return {width,height,leftPadding:driver.left-left,sectorWidth:sectors.width,
+        gaps:[conditions.left-driver.right,sectors.left-conditions.right,total.left-sectors.right],
+        fits:node.scrollWidth<=node.clientWidth+1};
+    });
+    expect(layout.width).toBeGreaterThanOrEqual(1100);
+    expect(layout.height).toBeLessThanOrEqual(64);
+    expect(layout.leftPadding).toBeGreaterThanOrEqual(20);
+    expect(layout.sectorWidth).toBeLessThanOrEqual(Math.min(layout.width*.42,720));
+    expect(Math.min(...layout.gaps)).toBeGreaterThanOrEqual(20);
+    expect(layout.fits).toBe(true);
+  }
+  expect(errors).toEqual([]);
+  if (info.project.name==='chromium'&&!process.env.CI) {
+    await page.locator('#sectorRows').screenshot({path:info.outputPath('wide-lap-cards.png')});
+  }
+});
+
 for (const width of [1440,390]) {
   test('sector and comparison layouts fit and the lap picker works at ' + width + 'px', async ({page},testInfo)=>{
     await page.setViewportSize({width,height:900});
