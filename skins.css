@@ -2691,23 +2691,29 @@
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time > strong { font: 600 20px/1.2 var(--ui-font); }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time > .is-even { color: var(--ui-tertiary); }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-sectors {
-  container: sector-timing / inline-size;
-  grid-area: sectors; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: 0; gap: 8px; border: 0;
+  grid-area: sectors; grid-template-columns: repeat(3, minmax(0, 1fr)); align-self: center; align-items: stretch;
+  margin: 0; padding: 0; gap: 8px; border: 0;
 }
-:root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell { --sector-reading: var(--sector-status, var(--ui-tertiary)); display: grid; align-content: start; gap: 2px; min-width: 0; padding: 0; }
+:root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell {
+  --sector-reading: var(--sector-status, var(--ui-tertiary)); display: grid; grid-template-rows: 1fr; grid-auto-rows: max-content;
+  gap: 2px; min-width: 0; padding: 0;
+}
 :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value {
-  display: grid; grid-template-columns: max-content minmax(max-content, 1fr) max-content; align-items: baseline; gap: 4px; min-width: 0;
+  display: flex; flex-flow: row wrap; align-items: baseline; align-content: end; justify-content: start; gap: 0 4px; min-width: 0;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value > small { margin: 0; white-space: nowrap; }
-:root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value > strong {
-  grid-column: 3; color: var(--sector-reading); font: 600 12px/16px var(--ui-font); font-variant-numeric: tabular-nums; white-space: nowrap;
+:root[data-skin="linear"] .sector-cards .lap-summary-card .sector-time-pair {
+  display: flex; align-items: baseline; justify-content: end; margin-inline-start: auto; gap: 4px; max-width: 100%;
+}
+:root[data-skin="linear"] .sector-cards .lap-summary-card .sector-time-pair > strong {
+  color: var(--sector-reading); font: 600 12px/16px var(--ui-font); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 :root[data-skin="linear"] .lap-summary-card .sector-status-line {
   height: var(--sector-mark-height); border-radius: 2px; background: var(--sector-reading);
 }
 :root[data-skin="linear"] .lap-summary-card .sector-cell.is-unset .sector-status-line { background: var(--lin-hairline); }
 :root[data-skin="linear"] .lap-summary-card .sector-delta-slot:not(:empty) {
-  grid-column: 2; justify-self: end; display: block; white-space: nowrap;
+  display: block; white-space: nowrap;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-conditions {
   grid-area: conditions; display: grid; grid-template-columns: max-content max-content; align-content: start;
@@ -2756,16 +2762,9 @@
 @container sectorcards (width < 500px) {
   :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-sectors { grid-template-columns: minmax(0, 1fr); }
 }
-@container sectorcards (min-width: 500px) {
-  @container sector-timing (width < 360px) {
-    :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value {
-      grid-template-columns: minmax(0, 1fr) max-content; gap: 0 2px;
-    }
-    :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value .summary-delta { font-size: 10px; }
-    :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value > small { grid-column: 1 / -1; }
-    :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value > strong { grid-area: 2 / 2; }
-    :root[data-skin="linear"] .lap-summary-card .sector-delta-slot:not(:empty) { grid-area: 2 / 1; }
-  }
+@container sectorcards (500px <= width < 900px) {
+  :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-time-pair { column-gap: 2px; }
+  :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-delta-slot .summary-delta { font-size: 10px; }
 }
 @container sectorcards (width <= 300px) {
   :root[data-skin="linear"] .sector-cards .lap-summary-card {

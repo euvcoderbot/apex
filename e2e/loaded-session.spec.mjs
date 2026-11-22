@@ -85,6 +85,20 @@ test('lap cards share aligned sector bars at desktop widths',async({page},info)=
       return rain.getBoundingClientRect().left-air.getBoundingClientRect().right;
     });
     expect(weatherGap).toBeCloseTo(8);
+    const timingRows=await cards.nth(1).locator('.sector-cell-value').evaluateAll(nodes=>nodes.map(node=>{
+      const label=node.querySelector('small').getBoundingClientRect();
+      const pair=node.querySelector('.sector-time-pair').getBoundingClientRect();
+      const gap=parseFloat(getComputedStyle(node).columnGap);
+      const needed=label.width+pair.width+gap;
+      const available=node.getBoundingClientRect().width;
+      const inline=pair.left>=label.right+gap-.5 && Math.abs(pair.top-label.top)<8;
+      return {needed,available,inline};
+    }));
+    for (const row of timingRows) {
+      if (Math.abs(row.needed-row.available)>.5) {
+        expect(row.inline, `${width}px viewport, ${row.needed}px needed in ${row.available}px`).toBe(row.needed<row.available);
+      }
+    }
   }
 });
 
@@ -123,6 +137,7 @@ for (const width of [1440,390]) {
     expect(sectorLayout.deltaToTime,'gap between delta and time').toBeGreaterThanOrEqual(-.5);
     expect(sectorLayout.deltaToTime,'delta sits directly beside the sector time').toBeLessThanOrEqual(8);
     expect(sectorLayout.timeToLine).toBeGreaterThanOrEqual(0);
+    expect(sectorLayout.timeToLine).toBeLessThanOrEqual(4);
     expect(sectorLayout.lineToMinis).toBeGreaterThanOrEqual(0);
     expect(sectorLayout.lineToMinis).toBeLessThanOrEqual(4);
     expect(sectorLayout.sameRow).toBe(true);

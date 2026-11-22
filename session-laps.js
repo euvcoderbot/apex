@@ -512,7 +512,7 @@ function renderSectors() {
           const stripHtml = strip ? `<span class="sector-minis" aria-hidden="true">${strip.map(kind => `<i class="is-${kind}"></i>`).join('')}</span>` : '';
           return `
           <span class="sector-cell ${state.className}${quickest ? ' is-compared-best' : ''}" title="${label} · ${state.label}${quickest ? ' · quickest of the compared laps' : ''}${strip ? ' · mini-sectors: purple quickest of the compared laps, green within 0.01 s, yellow slower' : ''}">
-            <span class="sector-cell-value"><small>${label}</small><span class="sector-delta-slot">${i === 0 ? '' : deltaBadge(value, reference)}</span><strong>${Number.isFinite(value) ? `${value.toFixed(3)}s` : '—'}</strong></span>
+            <span class="sector-cell-value"><small>${label}</small><span class="sector-time-pair"><span class="sector-delta-slot">${i === 0 ? '' : deltaBadge(value, reference)}</span><strong>${Number.isFinite(value) ? `${value.toFixed(3)}s` : '—'}</strong></span></span>
             <span class="sector-status-line" aria-hidden="true"></span>${stripHtml}
           </span>`;
         }).join('')}
