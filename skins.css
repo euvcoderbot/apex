@@ -2674,19 +2674,21 @@
 :root[data-skin="linear"] .linear-rail-section.is-plain { margin-top: 6px; }
 /* Car performance categories: pills on their own, like the Season pills; no box drawn around the row of round pills. */
 :root[data-skin="linear"] #performanceResults > .performance-toolbar > .performance-mode { border: 0; background: none; border-radius: 0; padding: 0; }
-/* Timing cards keep weather and sector readings in two aligned blocks. */
+/* Timing cards follow reading order from the driver to the total. */
 :root[data-skin="linear"] .sector-cards .lap-summary-card {
-  grid-template: "identity identity" "conditions sectors" / max-content minmax(0, 1fr); align-items: start; gap: 8px 12px; padding: 10px 12px;
+  --sector-mark-height: 4px;
+  grid-template: "identity conditions" "sectors time" / minmax(0, 1fr) minmax(144px, max-content);
+  align-items: center; gap: 6px 12px; padding: 6px 10px;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card > header {
-  grid-area: identity; grid-template: "driver time" "tyre time" / minmax(0, 1fr) auto; gap: 4px 8px;
+  grid-area: identity; grid-template: "driver" "tyre" / minmax(0, 1fr); gap: 4px;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-driver { white-space: nowrap; }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time {
   grid-area: time; display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; margin: 0; padding: 0; border: 0;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time > strong { font: 600 20px/1.2 var(--ui-font); }
-:root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time > .summary-delta { color: var(--ui-tertiary); }
+:root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time > .is-even { color: var(--ui-tertiary); }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-sectors {
   grid-area: sectors; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: 0; gap: 8px; border: 0;
 }
@@ -2699,49 +2701,60 @@
   grid-column: 3; color: var(--sector-reading); font: 600 12px/16px var(--ui-font); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 :root[data-skin="linear"] .lap-summary-card .sector-status-line {
-  height: 2px; border-radius: 2px; background: var(--sector-reading);
+  height: var(--sector-mark-height); border-radius: 2px; background: var(--sector-reading);
 }
 :root[data-skin="linear"] .lap-summary-card .sector-cell.is-unset .sector-status-line { background: var(--lin-hairline); }
 :root[data-skin="linear"] .lap-summary-card .sector-delta-slot:not(:empty) {
   grid-column: 2; justify-self: end; display: block; white-space: nowrap;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-conditions {
-  grid-area: conditions; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; align-items: baseline; gap: 4px 8px;
+  grid-area: conditions; display: grid; grid-template-columns: max-content max-content; align-content: start; align-items: baseline; gap: 1px 6px;
   margin: 0; padding: 0; border: 0;
 }
+:root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition:nth-child(n + 3) { grid-column: 1 / -1; }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition {
-  display: flex; flex-wrap: nowrap; align-items: baseline; gap: 5px; justify-content: flex-start; padding: 0; white-space: nowrap;
+  display: flex; flex-wrap: nowrap; align-items: baseline; gap: 4px; justify-content: flex-start; padding: 0; white-space: nowrap;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition-label { display: inline-flex; align-items: baseline; gap: 4px; }
 :root[data-skin="linear"] .summary-condition-label i { font: 450 11px/1 var(--ui-font); }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition :is(small, strong) {
-  width: auto; color: var(--ui-tertiary); white-space: nowrap; text-align: left; overflow: visible;
+  width: auto; color: var(--ui-tertiary); line-height: 1.2; white-space: nowrap; text-align: left; overflow: visible;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition strong { color: var(--ui-secondary); }
-@container telemetry (min-width: 700px) {
-  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-conditions {
-    grid-template-columns: repeat(2, max-content);
+@container sectorcards (min-width: 720px) {
+  :root[data-skin="linear"] .sector-cards .lap-summary-card {
+    grid-template: "identity conditions sectors time" / max-content max-content minmax(0, 1fr) max-content;
+    column-gap: 8px;
   }
 }
-@container telemetry (max-width: 370px) {
-  :root[data-skin="linear"] .sector-cards .lap-summary-card { padding: 10px; gap: 8px; }
+@container sectorcards (min-width: 900px) {
+  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition:nth-child(n + 3) { grid-column: auto; }
+}
+@container sectorcards (width < 370px) {
+  :root[data-skin="linear"] .sector-cards .lap-summary-card { padding-inline: 10px; gap: 8px; }
   :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-sectors { gap: 6px; }
   :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time > strong { font-size: 18px; }
 }
-@container telemetry (max-width: 585px) {
+@container sectorcards (width < 500px) {
   :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-sectors { grid-template-columns: minmax(0, 1fr); }
 }
-@container telemetry (max-width: 300px) {
-  :root[data-skin="linear"] .sector-cards .lap-summary-card {
-    grid-template: "identity" "conditions" "sectors" / minmax(0, 1fr);
+@container sectorcards (500px <= width < 900px) {
+  :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value {
+    grid-template-columns: minmax(0, 1fr) max-content; gap: 0 2px;
   }
-  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-conditions {
-    grid-template-columns: repeat(auto-fit, minmax(min(124px, 100%), 1fr));
+  :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value .summary-delta { font-size: 10px; }
+  :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value > small { grid-column: 1 / -1; }
+  :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value > strong { grid-area: 2 / 2; }
+  :root[data-skin="linear"] .lap-summary-card .sector-delta-slot:not(:empty) { grid-area: 2 / 1; }
+}
+@container sectorcards (width <= 300px) {
+  :root[data-skin="linear"] .sector-cards .lap-summary-card {
+    grid-template: "identity" "conditions" "sectors" "time" / minmax(0, 1fr);
   }
 }
 /* The mini-sector strip follows the F1 sector status line. Both retain their timing colours. */
 :root[data-skin="linear"] .lap-summary-card .sector-minis { display: flex; gap: 2px; }
-:root[data-skin="linear"] .lap-summary-card .sector-minis i { flex: 1 1 0; min-width: 0; height: 4px; border-radius: 1px; background: var(--lin-hairline); }
+:root[data-skin="linear"] .lap-summary-card .sector-minis i { flex: 1 1 0; min-width: 0; height: var(--sector-mark-height); border-radius: 1px; background: var(--lin-hairline); }
 :root[data-skin="linear"] .lap-summary-card .sector-minis i.is-best { background: #bf5af2; }
 :root[data-skin="linear"] .lap-summary-card .sector-minis i.is-near { background: #30d158; }
 :root[data-skin="linear"] .lap-summary-card .sector-minis i.is-slow { background: #ffd60a; }

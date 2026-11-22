@@ -53,7 +53,7 @@ for (const width of [1440,390]) {
     const lapCards=page.locator('#sectorRows');
     await expect(lapCards.locator('.summary-condition').getByText('Rain',{exact:true})).toHaveCount(2);
     await expect(lapCards.locator('.summary-condition').getByText('18.8 m/s NW',{exact:true})).toHaveCount(2);
-    await expect(lapCards.locator('.summary-condition-label i[aria-hidden="true"]')).toHaveText(['🌤️','🌡️','💨','🌧️','🌤️','🌡️','💨','🌧️']);
+    await expect(lapCards.locator('.summary-condition-label i[aria-hidden="true"]')).toHaveText(['🌤️','🌧️','🌡️','💨','🌤️','🌧️','🌡️','💨']);
     for (const panel of [tray,lapCards,page.locator('#charts .speed-chart'),page.locator('#sessionOverview .overview-chart')]) {
       await expect.poll(()=>panel.evaluate(node=>node.scrollWidth-node.clientWidth)).toBeLessThanOrEqual(1);
     }
@@ -64,41 +64,53 @@ for (const width of [1440,390]) {
       const label=bounds('small'), delta=bounds('.summary-delta'), time=bounds('strong');
       const line=bounds('.sector-status-line'), minis=bounds('.sector-minis');
       return {
-        labelToDelta: delta.left-label.right,
         deltaToTime: time.left-delta.right,
         timeToLine: line.top-time.bottom,
         lineToMinis: minis.top-line.bottom,
-        sameRow: Math.max(label.top,delta.top,time.top)<Math.min(label.bottom,delta.bottom,time.bottom),
+        sameRow: Math.max(delta.top,time.top)<Math.min(delta.bottom,time.bottom),
+        labelClear: label.right<=delta.left || label.bottom<=delta.top,
         fits: time.right<=node.getBoundingClientRect().right+.5,
         matchingColour: getComputedStyle(node.querySelector('strong')).color === getComputedStyle(node.querySelector('.sector-status-line')).backgroundColor,
-        thickerMinis: bounds('.sector-minis i').height > line.height,
+        equalMarks: bounds('.sector-minis i').height === line.height && line.height === 4,
       };
     });
-    expect(sectorLayout.labelToDelta,'gap between sector label and delta').toBeGreaterThanOrEqual(-.5);
     expect(sectorLayout.deltaToTime,'gap between delta and time').toBeGreaterThanOrEqual(-.5);
     expect(sectorLayout.deltaToTime,'delta sits directly beside the sector time').toBeLessThanOrEqual(8);
     expect(sectorLayout.timeToLine).toBeGreaterThanOrEqual(0);
     expect(sectorLayout.lineToMinis).toBeGreaterThanOrEqual(0);
     expect(sectorLayout.lineToMinis).toBeLessThanOrEqual(4);
     expect(sectorLayout.sameRow).toBe(true);
+    expect(sectorLayout.labelClear).toBe(true);
     expect(sectorLayout.fits).toBe(true);
-    expect(sectorLayout.matchingColour && sectorLayout.thickerMinis).toBe(true);
+    expect(sectorLayout.matchingColour && sectorLayout.equalMarks).toBe(true);
     await expect(page.getByRole('button',{name:'Saved comparisons'})).toHaveCount(0);
     await expect(lapCards.locator('.summary-lap-time .summary-delta')).toHaveText([/^\+0\.000s/, /^\+0\.179s/]);
+    await expect(lapCards.locator('.summary-lap-time > .is-even')).toHaveCount(1);
+    await expect(lapCards.locator('.summary-lap-time > .is-slower')).toHaveCount(1);
     {
       const card=lapCards.locator('.lap-summary-card').nth(1);
-      expect(await card.evaluate(node=>{
+      expect(await card.evaluate((node,width)=>{
         const bounds=selector=>node.querySelector(selector).getBoundingClientRect();
+        const driver=bounds('header');
         const sectors=bounds('.summary-sectors'), conditions=bounds('.summary-conditions');
-        const time=bounds('.summary-lap-time > strong'), gap=bounds('.summary-lap-time > .summary-delta');
-        return conditions.right<=sectors.left && Math.abs(sectors.top-conditions.top)<1 && gap.right<=time.left &&
+        const total=bounds('.summary-lap-time'), time=bounds('.summary-lap-time > strong'), gap=bounds('.summary-lap-time > .summary-delta');
+        const sample=document.createElement('span');
+        sample.style.color='var(--ui-negative)';
+        node.append(sample);
+        const negative=getComputedStyle(sample).color;
+        sample.remove();
+        const isRed=getComputedStyle(node.querySelector('.summary-lap-time > .summary-delta')).color===negative;
+        const ordered=width===1440
+          ? driver.right<=conditions.left && conditions.right<=sectors.left && node.getBoundingClientRect().height<=64
+          : driver.right<=conditions.left && conditions.bottom<=sectors.top;
+        return ordered && isRed && sectors.right<=total.left && gap.right<=time.left &&
           [...node.querySelectorAll('.summary-condition')].every(reading=>{
             const label=reading.querySelector('.summary-condition-label').getBoundingClientRect();
             const value=reading.querySelector('strong').getBoundingClientRect();
             return reading.scrollWidth<=reading.clientWidth+1 && label.right<=value.left &&
               Math.max(label.top,value.top)<Math.min(label.bottom,value.bottom);
           });
-      })).toBe(true);
+      },width)).toBe(true);
     }
     if (testInfo.project.name==='chromium'&&!process.env.CI) {
       for (const theme of ['dark','light']) {

@@ -456,7 +456,7 @@ function renderSectors() {
   const deltaBadge = (value, reference, basis = '') => {
     if (!Number.isFinite(value) || !Number.isFinite(reference)) return '';
     const delta = value - reference;
-    const className = delta >= 0 ? 'is-slower' : 'is-faster';
+    const className = basis && Math.abs(delta).toFixed(3) === '0.000' ? 'is-even' : delta >= 0 ? 'is-slower' : 'is-faster';
     return `<em class="summary-delta ${className}"${basis ? ' title="' + basis + '"' : ''}>${delta >= 0 ? '+' : '−'}${Math.abs(delta).toFixed(3)}s${basis ? '<span class="visually-hidden"> to fastest compared lap</span>' : ''}</em>`;
   };
 
@@ -488,9 +488,9 @@ function renderSectors() {
     const direction = windCardinal(conditions.wind_direction);
     const conditionValues = [
       conditionCell('🌤️', 'Air', Number.isFinite(conditions.air_temperature) ? `${conditions.air_temperature.toFixed(1)}°C` : '—'),
+      conditionCell('🌧️', 'Rain', conditions.rainfall === null || conditions.rainfall === undefined ? '—' : (conditions.rainfall ? 'Yes' : 'No')),
       conditionCell('🌡️', 'Track', Number.isFinite(conditions.track_temperature) ? `${conditions.track_temperature.toFixed(1)}°C` : '—'),
       conditionCell('💨', 'Wind', Number.isFinite(conditions.wind_speed) ? `${conditions.wind_speed.toFixed(1)} m/s${direction ? ` ${direction}` : ''}` : '—'),
-      conditionCell('🌧️', 'Rain', conditions.rainfall === null || conditions.rainfall === undefined ? '—' : (conditions.rainfall ? 'Yes' : 'No')),
     ];
     const conditionsHtml = `<div class="summary-conditions">${conditionValues.join('')}</div>`;
     const compound = getCompoundCode(lap.compound || 'UNKNOWN', nominatedCompounds);
@@ -504,10 +504,7 @@ function renderSectors() {
       <article class="lap-summary-card has-conditions" data-motion-key="summary-${item.code}-${item.lap}" style="--team:${color}">
         <header>
           <span class="summary-driver" title="${item.code} · lap ${item.lap}">${teamLogoMarkup(realDrivers.get(item.code)?.team || drivers.find(driver=>driver[0]===item.code)?.[4], drivers.find(driver=>driver[0]===item.code)?.[1])}<b>${item.code}</b><span class="summary-lap-label">Lap ${item.lap}</span>${i === 0 ? '<em>REF</em>' : ''}</span>
-          <span class="summary-header-actions">
-            <span class="summary-tyre ${compoundClass}">${compoundBadgeMarkup(lap.compound)}<span class="summary-tyre-copy"><b>${compound}</b>${tyreLife ? `<small>${tyreLife}</small>` : ''}</span></span>
-            <span class="summary-lap-time"><small>${lap.in_lap && lap.out_lap ? 'PIT IN/OUT' : lap.out_lap ? 'PIT EXIT → LINE' : lap.in_lap ? 'PIT-IN LAP' : 'LAP'}</small>${loaded.length > 1 ? deltaBadge(fullLapTime(item), fastestLap, 'Gap to fastest compared lap') : ''}<strong>${lap.display_time_estimated ? '~' : ''}${time(Number.isFinite(lap.display_time) ? lap.display_time : item.time)}</strong>${Number.isFinite(ideal) ? `<small class="summary-ideal" title="Sum of ${item.code}’s best three sectors this session">Ideal ${time(ideal)}</small>` : ''}</span>
-          </span>
+          <span class="summary-tyre ${compoundClass}">${compoundBadgeMarkup(lap.compound)}<span class="summary-tyre-copy"><b>${compound}</b>${tyreLife ? `<small>${tyreLife}</small>` : ''}</span></span>
         </header>
         ${conditionsHtml}
         <div class="summary-sectors">${sectors.map(({ label, value, reference, state, quickest }, sectorIndex) => {
@@ -520,6 +517,7 @@ function renderSectors() {
           </span>`;
         }).join('')}
         </div>
+        <span class="summary-lap-time"><small>${lap.in_lap && lap.out_lap ? 'PIT IN/OUT' : lap.out_lap ? 'PIT EXIT → LINE' : lap.in_lap ? 'PIT-IN LAP' : 'LAP'}</small>${loaded.length > 1 ? deltaBadge(fullLapTime(item), fastestLap, 'Gap to fastest compared lap') : ''}<strong>${lap.display_time_estimated ? '~' : ''}${time(Number.isFinite(lap.display_time) ? lap.display_time : item.time)}</strong>${Number.isFinite(ideal) ? `<small class="summary-ideal" title="Sum of ${item.code}’s best three sectors this session">Ideal ${time(ideal)}</small>` : ''}</span>
       </article>
     `;
   }).join(''));
