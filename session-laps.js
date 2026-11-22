@@ -430,6 +430,9 @@ function renderSectors() {
     const finite = values.filter(value => Number.isFinite(value) && value > 0);
     return finite.length ? Math.min(...finite) : null;
   };
+  const fullLapTime = item => !item.real?.in_lap && !item.real?.out_lap && !item.real?.deleted &&
+    !item.real?.display_time_estimated && Number.isFinite(item.time) && item.time > 0 ? item.time : null;
+  const fastestLap = finiteMinimum(loaded.map(fullLapTime));
   const personalBests = new Map([...realDrivers.entries()].map(([code, driver]) => [
     code,
     sectorFields.map(field => finiteMinimum((driver.laps || []).map(lap => lap[field]))),
@@ -450,11 +453,11 @@ function renderSectors() {
     return { className: 'is-complete', label: 'Completed sector' };
   };
   
-  const deltaBadge = (value, reference) => {
+  const deltaBadge = (value, reference, basis = '') => {
     if (!Number.isFinite(value) || !Number.isFinite(reference)) return '';
     const delta = value - reference;
     const className = delta >= 0 ? 'is-slower' : 'is-faster';
-    return `<em class="summary-delta ${className}">${delta >= 0 ? '+' : '−'}${Math.abs(delta).toFixed(3)}s</em>`;
+    return `<em class="summary-delta ${className}"${basis ? ' title="' + basis + '"' : ''}>${delta >= 0 ? '+' : '−'}${Math.abs(delta).toFixed(3)}s${basis ? '<span class="visually-hidden"> to fastest compared lap</span>' : ''}</em>`;
   };
 
   const windCardinal = degrees => {
@@ -503,9 +506,10 @@ function renderSectors() {
           <span class="summary-driver" title="${item.code} · lap ${item.lap}">${teamLogoMarkup(realDrivers.get(item.code)?.team || drivers.find(driver=>driver[0]===item.code)?.[4], drivers.find(driver=>driver[0]===item.code)?.[1])}<b>${item.code}</b><span class="summary-lap-label">Lap ${item.lap}</span>${i === 0 ? '<em>REF</em>' : ''}</span>
           <span class="summary-header-actions">
             <span class="summary-tyre ${compoundClass}">${compoundBadgeMarkup(lap.compound)}<span class="summary-tyre-copy"><b>${compound}</b>${tyreLife ? `<small>${tyreLife}</small>` : ''}</span></span>
-            <span class="summary-lap-time"><small>${lap.in_lap && lap.out_lap ? 'PIT IN/OUT' : lap.out_lap ? 'PIT EXIT → LINE' : lap.in_lap ? 'PIT-IN LAP' : 'LAP'}</small><strong>${lap.display_time_estimated ? '~' : ''}${time(Number.isFinite(lap.display_time) ? lap.display_time : item.time)}</strong>${i === 0 || lap.out_lap || ref.real?.out_lap ? '' : deltaBadge(item.time, ref.time)}${Number.isFinite(ideal) ? `<small class="summary-ideal" title="Sum of ${item.code}’s best three sectors this session">Ideal ${time(ideal)}</small>` : ''}</span>
+            <span class="summary-lap-time"><small>${lap.in_lap && lap.out_lap ? 'PIT IN/OUT' : lap.out_lap ? 'PIT EXIT → LINE' : lap.in_lap ? 'PIT-IN LAP' : 'LAP'}</small>${loaded.length > 1 ? deltaBadge(fullLapTime(item), fastestLap, 'Gap to fastest compared lap') : ''}<strong>${lap.display_time_estimated ? '~' : ''}${time(Number.isFinite(lap.display_time) ? lap.display_time : item.time)}</strong>${Number.isFinite(ideal) ? `<small class="summary-ideal" title="Sum of ${item.code}’s best three sectors this session">Ideal ${time(ideal)}</small>` : ''}</span>
           </span>
         </header>
+        ${conditionsHtml}
         <div class="summary-sectors">${sectors.map(({ label, value, reference, state, quickest }, sectorIndex) => {
           const strip = minis?.[i]?.[sectorIndex];
           const stripHtml = strip ? `<span class="sector-minis" aria-hidden="true">${strip.map(kind => `<i class="is-${kind}"></i>`).join('')}</span>` : '';
@@ -516,7 +520,6 @@ function renderSectors() {
           </span>`;
         }).join('')}
         </div>
-        ${conditionsHtml}
       </article>
     `;
   }).join(''));

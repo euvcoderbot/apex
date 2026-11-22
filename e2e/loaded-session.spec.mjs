@@ -65,6 +65,8 @@ for (const width of [1440,390]) {
         lineToMinis: minis.top-line.bottom,
         sameRow: Math.max(label.top,delta.top,time.top)<Math.min(label.bottom,delta.bottom,time.bottom),
         fits: time.right<=node.getBoundingClientRect().right+.5,
+        matchingColour: getComputedStyle(node.querySelector('strong')).color === getComputedStyle(node.querySelector('.sector-status-line')).backgroundColor,
+        thickerMinis: bounds('.sector-minis i').height > line.height,
       };
     });
     expect(sectorLayout.labelToDelta,'gap between sector label and delta').toBeGreaterThanOrEqual(-.5);
@@ -75,14 +77,17 @@ for (const width of [1440,390]) {
     expect(sectorLayout.lineToMinis).toBeLessThanOrEqual(4);
     expect(sectorLayout.sameRow).toBe(true);
     expect(sectorLayout.fits).toBe(true);
+    expect(sectorLayout.matchingColour && sectorLayout.thickerMinis).toBe(true);
     await expect(page.getByRole('button',{name:'Saved comparisons'})).toHaveCount(0);
-    if (width===1440) {
-      const card=lapCards.locator('.lap-summary-card').first();
+    await expect(lapCards.locator('.summary-lap-time .summary-delta')).toHaveText([/^\+0\.000s/, /^\+0\.179s/]);
+    {
+      const card=lapCards.locator('.lap-summary-card').nth(1);
       expect(await card.evaluate(node=>{
         const bounds=selector=>node.querySelector(selector).getBoundingClientRect();
-        const sectors=bounds('.summary-sectors'), conditions=bounds('.summary-conditions'), time=bounds('.summary-lap-time');
-        return Math.abs(sectors.left-conditions.left)<1 && Math.abs(sectors.right-conditions.right)<1 &&
-          time.right>conditions.right && [...node.querySelectorAll('.summary-condition')].every(reading=>reading.scrollWidth<=reading.clientWidth+1);
+        const sectors=bounds('.summary-sectors'), conditions=bounds('.summary-conditions');
+        const time=bounds('.summary-lap-time > strong'), gap=bounds('.summary-lap-time > .summary-delta');
+        return conditions.right<=sectors.left && Math.abs(sectors.top-conditions.top)<1 && gap.right<=time.left &&
+          [...node.querySelectorAll('.summary-condition')].every(reading=>reading.scrollWidth<=reading.clientWidth+1);
       })).toBe(true);
     }
     if (testInfo.project.name==='chromium'&&!process.env.CI) {

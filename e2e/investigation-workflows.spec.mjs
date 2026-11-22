@@ -22,6 +22,12 @@ for (const width of [1440, 390]) test(`a Calendar round opens its results and st
   await page.setViewportSize({width, height:900});
   await page.goto('/apex/season/schedule?year=2026&round=1');
   const round = page.locator('[data-calendar-round="1"]');
+  const search = page.getByRole('searchbox', {name:'Find a Grand Prix'});
+  await search.fill('r1');
+  await expect(page.locator('[data-calendar-round]:visible')).toHaveCount(1);
+  await search.fill('unlisted circuit');
+  await expect(page.getByText('No Grand Prix matches that search.')).toBeVisible();
+  await search.clear();
   await expect(round.locator('.season-round-more')).toHaveAttribute('aria-expanded','true');
   await expect(round.getByRole('heading',{name:'Race podium'})).toBeVisible();
   expect(await round.evaluate(node => getComputedStyle(node).display === 'grid' && node.scrollWidth <= node.clientWidth + 1)).toBe(true);

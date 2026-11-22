@@ -580,7 +580,12 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
   .season-sessions { grid-template-columns: minmax(0, 1fr); }
   #seasonHub .season-next-circuit { grid-template-columns: 84px minmax(0, 1fr); gap: 0 12px; }
   .season-track.is-hero { width: 84px; height: 84px; }
-  #seasonHub .season-sessions li { box-shadow: inset 0 1px var(--line); }
+  #seasonHub .season-sessions li {
+    grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 2px 8px;
+    padding: 8px 10px; box-shadow: inset 0 1px var(--line);
+  }
+  #seasonHub .season-sessions li > time { text-align: end; }
+  #seasonHub .season-sessions li > :not(:first-child):not(time) { grid-column: 1 / -1; }
   .season-weather { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .season-hero-line { gap: 10px; }
   .season-hero-line > div:nth-child(n + 3) { display: none; }
@@ -1422,11 +1427,14 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-round-detail .season-round-rows { margin: 0; }
 #seasonHub .season-round-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
 #seasonHub .season-round-actions .season-round-link { margin: 0; }
+#seasonHub .season-calendar-search { box-sizing: border-box; width: min(100%, 220px); min-height: 28px; margin-inline-start: auto; font-size: 13px; }
+#seasonHub .season-calendar-status { margin: 0; }
 @media (max-width: 760px) {
   #seasonHub .season-round { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "meta toggle" "title title" "when when" "detail detail"; gap: 4px 8px; }
   #seasonHub .season-round .season-round-head { justify-content: flex-start; }
   #seasonHub .season-round-facts { column-gap: 12px; }
   #seasonHub .season-round-detail .season-round-rows > div { grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+  #seasonHub .season-calendar-search { flex: 1 1 160px; margin-inline-start: 0; }
 }
 /* One density for every driver table and results grid, Reliability's: 36 px rows; a filled cell is a 30 px pill (6 px
    between rows, 4 px between columns), so neighbouring values never touch. Two-line cells (Tracks zones) keep their height. */

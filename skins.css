@@ -1797,7 +1797,7 @@
 }
 :root[data-skin="linear"] .performance-round-coverage ul {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 2px 16px;
-  margin: 8px 0 0; padding: 0; list-style: none;
+  margin: 8px 0 0; padding: 0; list-style: none; max-height: 280px; overflow: auto; overscroll-behavior: contain;
 }
 :root[data-skin="linear"] .performance-round-coverage li {
   display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-height: 28px; padding: 4px 8px;
@@ -2674,44 +2674,43 @@
 :root[data-skin="linear"] .linear-rail-section.is-plain { margin-top: 6px; }
 /* Car performance categories: pills on their own, like the Season pills; no box drawn around the row of round pills. */
 :root[data-skin="linear"] #performanceResults > .performance-toolbar > .performance-mode { border: 0; background: none; border-radius: 0; padding: 0; }
-/* One lap card layout. The conditions use the whole width so wind, temperatures and rain stay readable. */
+/* Timing cards keep weather and sector readings in two aligned blocks. */
 :root[data-skin="linear"] .sector-cards .lap-summary-card {
-  grid-template: "identity" "sectors" "conditions" / minmax(0, 1fr); gap: 10px; padding: 12px;
+  grid-template: "identity identity" "conditions sectors" / minmax(116px, 31%) minmax(0, 1fr); align-items: start; gap: 8px 12px; padding: 10px 12px;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card > header {
   grid-area: identity; grid-template: "driver time" "tyre time" / minmax(0, 1fr) auto; gap: 4px 8px;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-driver { white-space: nowrap; }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time {
-  grid-area: time; display: grid; justify-items: end; justify-content: end; align-content: center; gap: 2px; margin: 0; padding: 0; border: 0;
+  grid-area: time; display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; margin: 0; padding: 0; border: 0;
 }
-:root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time > strong { grid-area: 1 / 1; }
-:root[data-skin="linear"] .sector-cards:has(.summary-lap-time > .summary-delta) .summary-lap-time { grid-template-rows: auto 14px; }
-:root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time > .summary-delta { grid-area: 2 / 1; }
+:root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time > strong { font: 600 20px/1.2 var(--ui-font); }
+:root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time > .summary-delta { color: var(--ui-tertiary); }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-sectors {
   grid-area: sectors; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: 0; gap: 8px; border: 0;
 }
-:root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell { display: grid; align-content: start; gap: 3px; min-width: 0; padding: 0; }
+:root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell { --sector-reading: var(--sector-status, var(--ui-tertiary)); display: grid; align-content: start; gap: 2px; min-width: 0; padding: 0; }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value {
   display: grid; grid-template-columns: max-content minmax(max-content, 1fr) max-content; align-items: baseline; gap: 4px; min-width: 0;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value > small { margin: 0; white-space: nowrap; }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value > strong {
-  grid-column: 3; font: 600 12px/16px var(--ui-font); font-variant-numeric: tabular-nums; white-space: nowrap;
+  grid-column: 3; color: var(--sector-reading); font: 600 12px/16px var(--ui-font); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 :root[data-skin="linear"] .lap-summary-card .sector-status-line {
-  height: 3px; border-radius: 2px; background: var(--sector-status, var(--lin-hairline));
+  height: 2px; border-radius: 2px; background: var(--sector-reading);
 }
 :root[data-skin="linear"] .lap-summary-card .sector-cell.is-unset .sector-status-line { background: var(--lin-hairline); }
 :root[data-skin="linear"] .lap-summary-card .sector-delta-slot:not(:empty) {
   grid-column: 2; justify-self: end; display: block; white-space: nowrap;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-conditions {
-  grid-area: conditions; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px 10px;
-  margin: 0; padding: 8px 0 0; border: 0; border-top: 1px solid var(--lin-hairline);
+  grid-area: conditions; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; align-items: baseline; gap: 4px 8px;
+  margin: 0; padding: 0; border: 0;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition {
-  display: flex; flex-wrap: wrap; gap: 2px 6px; justify-content: flex-start; padding: 0; white-space: normal;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 1px 5px; justify-content: flex-start; padding: 0; white-space: normal;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition-label { display: inline-flex; align-items: baseline; gap: 4px; }
 :root[data-skin="linear"] .summary-condition-label i { font: 450 11px/1 var(--ui-font); }
@@ -2720,34 +2719,28 @@
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition strong { color: var(--ui-secondary); }
 @container telemetry (min-width: 700px) {
-  :root[data-skin="linear"] .sector-cards .lap-summary-card {
-    grid-template: "driver sectors time" "tyre conditions time" / minmax(138px, 1fr) minmax(0, 3.5fr) minmax(100px, 1fr);
-    align-items: center; column-gap: 16px; row-gap: 6px; padding-block: 10px;
-  }
-  :root[data-skin="linear"] .sector-cards .lap-summary-card > header { display: contents; }
-  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-driver { grid-area: driver; }
-  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-tyre { grid-area: tyre; }
   :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-conditions {
-    grid-template-columns: repeat(4, max-content); justify-content: space-between; margin: 0; padding: 0; border: 0;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
   }
 }
 @container telemetry (max-width: 370px) {
   :root[data-skin="linear"] .sector-cards .lap-summary-card { padding: 10px; gap: 8px; }
   :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-sectors { gap: 6px; }
-  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-conditions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time > strong { font-size: 18px; }
 }
-@container telemetry (max-width: 390px) {
+@container telemetry (max-width: 585px) {
   :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-sectors { grid-template-columns: minmax(0, 1fr); }
 }
 /* The mini-sector strip follows the F1 sector status line. Both retain their timing colours. */
 :root[data-skin="linear"] .lap-summary-card .sector-minis { display: flex; gap: 2px; }
-:root[data-skin="linear"] .lap-summary-card .sector-minis i { flex: 1 1 0; min-width: 0; height: 3px; border-radius: 1px; background: var(--lin-hairline); }
+:root[data-skin="linear"] .lap-summary-card .sector-minis i { flex: 1 1 0; min-width: 0; height: 4px; border-radius: 1px; background: var(--lin-hairline); }
 :root[data-skin="linear"] .lap-summary-card .sector-minis i.is-best { background: #bf5af2; }
 :root[data-skin="linear"] .lap-summary-card .sector-minis i.is-near { background: #30d158; }
 :root[data-skin="linear"] .lap-summary-card .sector-minis i.is-slow { background: #ffd60a; }
-/* Light theme: the sector labels keep their timing colour but darker, so they read on white (yellow was 1.97:1). */
-:root[data-skin="linear"][data-theme="light"] .lap-summary-card .sector-cell-value > small { color: color-mix(in srgb, var(--sector-status, var(--ui-tertiary)) 55%, #000); }
-:root[data-skin="linear"]:not([data-theme="light"]) .lap-summary-card .sector-cell.is-session-best .sector-cell-value > small { color: color-mix(in srgb, var(--sector-status, #bf5af2) 82%, #fff); }   /* purple on dark, at least 4.5:1 */
+/* Use one legible timing colour for both the text and line in each theme. */
+:root[data-skin="linear"] .lap-summary-card .sector-cell-value > small { color: var(--sector-reading); }
+:root[data-skin="linear"][data-theme="light"] .lap-summary-card .sector-cell:not(.is-unset) { --sector-reading: color-mix(in srgb, var(--sector-status) 50%, #000); }
+:root[data-skin="linear"]:not([data-theme="light"]) .lap-summary-card .sector-cell.is-session-best { --sector-reading: color-mix(in srgb, var(--sector-status) 82%, #fff); }
 /* Corner table headers in the narrow inspector: a sort button stays inside its cell (Firefox let "Min km/h" and its arrow
    run 4 px past it); the unit may drop to a second line. */
 :root[data-skin="linear"] .corner-measurement-table thead th > button[data-corner-sort] { max-width: 100%; min-width: 0; box-sizing: border-box; border: 0; }

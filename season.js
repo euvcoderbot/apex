@@ -526,7 +526,10 @@
       state.expanded = /^[1-9]\d?$/.test(params.round) ? Number(params.round) : null;
       state.resultsSession = params.session;
     }
-    if (state.tab === 'schedule' && (params.round || fromHistory)) state.calendarRound = /^[1-9]\d?$/.test(params.round) ? Number(params.round) : null;
+    if (state.tab === 'schedule' && (params.round || fromHistory)) {
+      state.calendarRound = /^[1-9]\d?$/.test(params.round) ? Number(params.round) : null;
+      if (state.calendarRound) calendarSearchByYear.delete(state.year);
+    }
     if (state.tab === 'standings') {
       if (params.part || fromHistory) state.standings = params.part === 'constructors' ? 'teams' : 'drivers';
       if (params.round || fromHistory) standingsRoundByYear.set(state.year, Number(params.round) || null);
@@ -933,6 +936,8 @@
   }
 
   // ----- schedule -----
+  const calendarSearchByYear = new Map();
+  const calendarSearchText = value => String(value ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
   function renderSchedule(data) {
     const out = [];
     const next = data.rounds.find(r => r.status === 'next');
@@ -950,9 +955,16 @@
     const SCHEDULE_VIEWS = [['all', 'All'], ['upcoming', 'To come'], ['done', 'Completed']];
     const scheduleView = pageView('schedule', SCHEDULE_VIEWS);
     const bar = el('div', 'season-toolbar'); bar.append(viewPills('schedule', SCHEDULE_VIEWS, () => paint(() => renderSchedule(data))));
+    const search = el('input', 'season-calendar-search');
+    search.type = 'search'; search.placeholder = 'Find a Grand Prix'; search.setAttribute('aria-label', 'Find a Grand Prix');
+    search.setAttribute('aria-controls', 'seasonCalendarRounds');
+    search.value = calendarSearchByYear.get(data.year) || '';
+    bar.append(search);
     out.push(bar);
     if (next && scheduleView !== 'done') out.push(nextRaceHero(data, next));
     const grid = el('div', 'season-rounds');
+    grid.id = 'seasonCalendarRounds';
+    const searchable = [];
     for (const r of data.rounds) {
       if ((scheduleView === 'upcoming' && r.status === 'done') || (scheduleView === 'done' && r.status !== 'done')) continue;
       const item = el('article', 'season-round'); item.dataset.status = r.status; item.dataset.calendarRound = String(r.round); item.tabIndex = -1;
@@ -1037,8 +1049,22 @@
         item.append(el('p', 'season-round-when', `Race ${race.toLocaleString([], {weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'})}`));
       }
       grid.append(item);
+      searchable.push([item, calendarSearchText([r.name, r.circuit, r.locality, r.country, 'R' + r.round].join(' '))]);
     }
-    out.push(grid.childElementCount ? grid : empty(scheduleView === 'done' ? 'No rounds completed yet.' : 'Every round has been run.'));
+    const status = el('p', 'season-muted season-calendar-status'); status.setAttribute('role', 'status');
+    const filter = () => {
+      const terms = calendarSearchText(search.value).trim().split(/\s+/).filter(Boolean);
+      let matches = 0;
+      for (const [item, text] of searchable) {
+        item.hidden = !terms.every(term => /^r\d+$/.test(term) ? term === 'r' + item.dataset.calendarRound : text.includes(term));
+        if (!item.hidden) matches++;
+      }
+      status.hidden = !terms.length && matches > 0;
+      status.textContent = matches ? `${matches} matching ${matches === 1 ? 'round' : 'rounds'}` :
+        terms.length ? 'No Grand Prix matches that search.' : scheduleView === 'done' ? 'No rounds completed yet.' : 'Every round has been run.';
+    };
+    search.addEventListener('input', () => { calendarSearchByYear.set(data.year, search.value); filter(); });
+    filter(); out.push(status, grid);
     return out;
   }
   // ----- Tracks: one circuit in full, and every circuit compared -----
