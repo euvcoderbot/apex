@@ -2710,7 +2710,8 @@
   grid-column: 2; justify-self: end; display: block; white-space: nowrap;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-conditions {
-  grid-area: conditions; display: grid; grid-template-columns: max-content max-content; align-content: start; align-items: baseline; gap: 1px 6px;
+  grid-area: conditions; display: grid; grid-template-columns: max-content max-content; align-content: start;
+  align-items: baseline; justify-content: start; gap: 1px 8px;
   margin: 0; padding: 0; border: 0;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition:nth-child(n + 3) { grid-column: 1 / -1; }
@@ -2743,7 +2744,7 @@
     column-gap: 20px;
   }
   :root[data-skin="linear"] .sector-cards .lap-summary-card { padding-inline: 20px; }
-  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-conditions { justify-content: center; column-gap: 12px; }
+  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-conditions { justify-content: center; }
   :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-sectors { gap: 12px; }
   :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time { gap: 10px; }
 }
