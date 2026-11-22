@@ -333,6 +333,7 @@ test('inspect a measured gain or loss with the keyboard', async ({page}) => {
   const desktop = page.viewportSize();
   await page.setViewportSize({width:390,height:900});
   expect(await summary.evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
+  expect(await summary.locator('[data-inspect-zone]').evaluateAll(nodes=>Math.max(...nodes.map(node=>node.getBoundingClientRect().height)))).toBeLessThanOrEqual(28);
   await summary.screenshot({path: test.info().outputPath('time-summary-phone.png')});
   await page.setViewportSize(desktop);
   await page.locator('#sectorRows').screenshot({path: test.info().outputPath('sectors.png')});

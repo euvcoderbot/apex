@@ -745,16 +745,16 @@
 .time-summary-lists li:has(> button[data-inspect-zone]) { padding: 0; }
 .time-summary-lists li:has(> button[data-inspect-zone]):hover { background: none; }
 :root[data-skin] .time-summary-lists button[data-inspect-zone], :root[data-skin] .time-summary-lists button[data-inspect-zone][data-ui-kind] {
-  box-shadow: none; display: grid; grid-template-columns: minmax(52px, 1.6fr) minmax(16px, 1fr) 8ch; align-items: center;
+  box-shadow: none; display: grid; grid-template-columns: minmax(60px, 1.6fr) minmax(16px, 1fr) 8ch; align-items: center;
   gap: 6px; width: 100%; min-height: 28px; margin: 0; padding: 0 4px; border: 0; border-radius: 6px;
   background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer;
 }
 :root[data-skin="linear"] .time-summary-card { container: time-gaps / inline-size; }
 :root[data-skin="linear"] .time-summary-card > header { margin-bottom: 8px; }
-@container time-gaps (width < 290px) {
+@container time-gaps (width < 310px) {
   :root[data-skin="linear"] .time-summary-lists { grid-template-columns: minmax(0, 1fr); gap: 8px; }
 }
-:root[data-skin="linear"] .time-summary-lists button[data-inspect-zone] > b { min-width: 0; overflow-wrap: anywhere; line-height: 1.25; }
+:root[data-skin="linear"] .time-summary-lists button[data-inspect-zone] > b { min-width: 0; overflow-wrap: anywhere; line-height: 1.15; }
 :root[data-skin="linear"] .time-summary-meter { display: block; height: 4px; border-radius: 2px; background: var(--lin-hairline); }
 :root[data-skin="linear"] .time-summary-meter > i { display: block; height: 100%; border-radius: inherit; background: currentColor; }
 :root[data-skin="linear"] .time-summary-meter + span { text-align: end; }
