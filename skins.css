@@ -744,7 +744,20 @@
 :where(.time-summary-card header b) { font: 600 13px/1 var(--ui-font); color: var(--ui-label); } /* ui-controls.css#1417.0 */
 .time-summary-lists li:has(> button[data-inspect-zone]) { padding: 0; }
 .time-summary-lists li:has(> button[data-inspect-zone]):hover { background: none; }
-:root[data-skin] .time-summary-lists button[data-inspect-zone], :root[data-skin] .time-summary-lists button[data-inspect-zone][data-ui-kind] { box-shadow: none; display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; min-height: 28px; margin: 0; padding: 0 4px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+:root[data-skin] .time-summary-lists button[data-inspect-zone], :root[data-skin] .time-summary-lists button[data-inspect-zone][data-ui-kind] {
+  box-shadow: none; display: grid; grid-template-columns: minmax(52px, 1.6fr) minmax(16px, 1fr) 8ch; align-items: center;
+  gap: 6px; width: 100%; min-height: 28px; margin: 0; padding: 0 4px; border: 0; border-radius: 6px;
+  background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+:root[data-skin="linear"] .time-summary-card { container: time-gaps / inline-size; }
+:root[data-skin="linear"] .time-summary-card > header { margin-bottom: 8px; }
+@container time-gaps (width < 290px) {
+  :root[data-skin="linear"] .time-summary-lists { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+}
+:root[data-skin="linear"] .time-summary-lists button[data-inspect-zone] > b { min-width: 0; overflow-wrap: anywhere; line-height: 1.25; }
+:root[data-skin="linear"] .time-summary-meter { display: block; height: 4px; border-radius: 2px; background: var(--lin-hairline); }
+:root[data-skin="linear"] .time-summary-meter > i { display: block; height: 100%; border-radius: inherit; background: currentColor; }
+:root[data-skin="linear"] .time-summary-meter + span { text-align: end; }
 :root[data-skin="linear"] .time-summary-pair::before { border-radius: 50%; background: var(--team, var(--ui-accent)); }
 :root[data-skin="linear"] .time-summary-totals dd { color: var(--ui-secondary); font-variant-numeric: tabular-nums; }
 :root[data-skin="linear"] .time-summary-lists button[data-inspect-zone] > span { white-space: nowrap; }
@@ -2647,7 +2660,13 @@
 :root[data-skin="linear"][data-theme="light"] .performance-table .perf-heat-value { background: color-mix(in oklch, #14b8a6 calc(var(--heat, 0) * 68%), transparent); }
 :root[data-skin="linear"] .team-profile-table td.profile-rank.is-top::before { display: none; }
 :root[data-skin="linear"] .team-profile-table tbody td.profile-rank { padding: 2px; }
-:root[data-skin="linear"] .team-profile-table tbody th[scope="row"] { background: transparent; }
+:root[data-skin="linear"] #carPerformance .team-profile-table :is(thead, tbody) th:first-child {
+  position: sticky; inset-inline-start: 0; background: var(--lin-card); box-shadow: inset -1px 0 var(--lin-hairline);
+}
+:root[data-skin="linear"] #carPerformance .team-profile-table tbody th:first-child { z-index: 2; }
+@media (max-width: 760px) {
+  :root[data-skin="linear"] #carPerformance .team-profile-table th:first-child { min-width: 112px; max-width: 144px; padding-inline: 8px; }
+}
 /* Explanations off (the default, the (i) switch in the top bar): Car performance shows its measurements only. The
    expandable evidence and method sections, source notes, the telemetry-limits badge and explanatory paragraphs come back
    with the switch; a note that holds an action (a button) always stays. */
@@ -2757,9 +2776,11 @@
   }
   :root[data-skin="linear"] .sector-cards .lap-summary-card {
     container-type: normal;
-    grid-column: 1 / -1; grid-template-columns: subgrid; grid-template-areas: "identity conditions sectors time";
-    column-gap: normal;
+    grid-column: 1 / -1; grid-template-columns: subgrid; grid-template-rows: auto;
+    grid-template-areas: "identity conditions sectors time"; gap: 0 normal;
   }
+  :root[data-skin="linear"] .sector-cards .lap-summary-card > header { row-gap: 2px; }
+  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-tyre { min-height: 16px; }
 }
 @container sectorcards (min-width: 900px) {
   :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition:nth-child(n + 3) { grid-column: auto; }

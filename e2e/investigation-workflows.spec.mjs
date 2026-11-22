@@ -1,6 +1,26 @@
 import {test, expect} from '@playwright/test';
 import {isolate, replayFixture} from './helpers.mjs';
 
+test('Season result facts keep consistent insets without clipping on narrow screens', async ({page}, info) => {
+  await page.goto('/apex/season/results?year=2026');
+  const facts = page.locator('.season-numbers-card .season-numbers');
+  await expect(facts.locator(':scope > div')).toHaveCount(7);
+  for (const width of [1440,1024,390]) {
+    await page.setViewportSize({width,height:900});
+    const layout = await facts.evaluate(node => {
+      const tiles = [...node.children];
+      return {pad:tiles.map(tile=>getComputedStyle(tile).paddingInlineStart),
+        fits:tiles.every(tile=>{
+          const value=tile.querySelector('b');
+          return value.scrollWidth<=value.clientWidth+1;
+        })};
+    });
+    expect(new Set(layout.pad)).toEqual(new Set(['12px']));
+    expect(layout.fits).toBe(true);
+    await facts.screenshot({path:info.outputPath(`result-facts-${width}.png`)});
+  }
+});
+
 test('historical standings follow the selected round for drivers and constructors', async ({page}) => {
   await page.goto('/apex/season/standings?year=2026');
   const picker = page.locator('select[aria-label="Standings after Grand Prix"]');
@@ -114,6 +134,7 @@ for (const width of [1440, 390]) test(`a Calendar round opens its results and st
 });
 
 test('entrant comparison copies measurements from the selected field and keeps distinct entrants', async ({page}, info) => {
+  await page.emulateMedia({reducedMotion:'reduce'});
   await isolate(page); await replayFixture(page);
   await page.goto('/apex/cars?year=2026&scope=tracks&races=16,17,18&run=1');
   const box = page.locator('.entrant-comparison');
@@ -122,7 +143,9 @@ test('entrant comparison copies measurements from the selected field and keeps d
   await coverage.locator('summary').click();
   await expect(coverage.locator('li')).toHaveCount(3);
   await expect(coverage.locator('li').filter({hasText:'Included'}).first()).toBeVisible();
-  await coverage.screenshot({path:info.outputPath('measure-coverage.png')});
+  await expect(async () => {
+    await coverage.screenshot({path:info.outputPath('measure-coverage.png'),timeout:1500});
+  }).toPass({timeout:5000});
   await coverage.locator('summary').click();
   await box.locator('summary').click();
   const picks = box.locator('select');
@@ -137,6 +160,11 @@ test('entrant comparison copies measurements from the selected field and keeps d
   await expect(box.locator('tbody tr').first().locator('td').first()).toHaveText(await fieldRow.locator('.performance-bar-val').innerText());
   await box.scrollIntoViewIfNeeded();
   await page.screenshot({path:info.outputPath('entrant-comparison.png')});
+  await page.setViewportSize({width:390,height:900});
+  const profile = page.getByRole('region', {name:'Car strengths and weaknesses'});
+  await expect(profile.getByRole('cell', {name:/Qualifying: rank \d+ of \d+/}).first()).toBeVisible();
+  expect(await profile.getByRole('rowheader').first().evaluate(node => getComputedStyle(node).position)).toBe('sticky');
+  await profile.screenshot({path:info.outputPath('team-profile-phone.png')});
 });
 
 test.describe('phone investigation', () => {

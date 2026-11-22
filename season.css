@@ -1528,6 +1528,17 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 }
 #seasonHub .season-compare { align-self: center; margin-left: 4px; font-size: 13px; }
 #seasonHub .season-numbers > [data-tip] { cursor: help; }
+#seasonHub .season-numbers-card { container: result-facts / inline-size; }
+#seasonHub .season-numbers-card .season-numbers { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+#seasonHub .season-numbers-card .season-numbers > div { padding: 8px 12px; }
+#seasonHub .season-numbers-card .season-numbers b { white-space: normal; overflow-wrap: anywhere; }
+@container result-facts (width < 1000px) {
+  #seasonHub .season-numbers-card .season-numbers { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  #seasonHub .season-numbers-card .season-numbers > :last-child { grid-column: span 2; }
+}
+@container result-facts (width < 640px) {
+  #seasonHub .season-numbers-card .season-numbers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 /* Loading: the page's shape (a row of numbers, two cards) in soft blocks under the status line. */
 #seasonHub .season-skeleton { display: grid; gap: 12px; }
 #seasonHub .season-skeleton > div { min-width: 0; }

@@ -88,7 +88,7 @@ test('lap cards share aligned sector bars at desktop widths',async({page},info)=
         fits:node.scrollWidth<=node.clientWidth+1};
     });
     expect(layout.width).toBeGreaterThanOrEqual(1100);
-    expect(layout.height).toBeLessThanOrEqual(64);
+    expect(layout.height).toBeLessThanOrEqual(54);
     expect(layout.leftPadding).toBeGreaterThanOrEqual(20);
     expect(layout.sectorWidth).toBeLessThanOrEqual(Math.min(layout.width*.42,720));
     expect(Math.min(...layout.gaps)).toBeGreaterThanOrEqual(20);
@@ -191,7 +191,7 @@ for (const width of [1440,390]) {
         sample.remove();
         const isRed=getComputedStyle(node.querySelector('.summary-lap-time > .summary-delta')).color===negative;
         const ordered=width===1440
-          ? driver.right<=conditions.left && conditions.right<=sectors.left && node.getBoundingClientRect().height<=64
+          ? driver.right<=conditions.left && conditions.right<=sectors.left && node.getBoundingClientRect().height<=56
           : driver.right<=conditions.left && conditions.bottom<=sectors.top;
         return ordered && isRed && sectors.right<=total.left && gap.right<=time.left &&
           [...node.querySelectorAll('.summary-condition')].every(reading=>{
@@ -322,9 +322,19 @@ test('inspect a measured gain or loss with the keyboard', async ({page}) => {
   const errors = await loaded(page, {corners: [{number: 1, fraction: .06}, {number: 12, fraction: .42}, {number: 19, fraction: .83}]});
   const action = page.locator('#timeSummary [data-inspect-zone]').first();
   await expect(action).toBeVisible();
+  const summary = page.locator('#timeSummary');
+  const bars = await summary.locator('.time-summary-meter i').evaluateAll(nodes=>nodes.map(node=>parseFloat(node.style.width)));
+  expect(bars.length).toBeGreaterThan(1);
+  expect(Math.max(...bars)).toBe(100);
+  expect(Math.min(...bars)).toBeGreaterThan(0);
   // The whole row is the button (list-row recipe), not underlined text.
   expect(await action.evaluate(b => [getComputedStyle(b).textDecorationLine, getComputedStyle(b).boxShadow, b.closest('li').getBoundingClientRect().width - b.getBoundingClientRect().width])).toEqual(['none', 'none', 0]);
-  await page.locator('#timeSummary').screenshot({path: test.info().outputPath('time-summary.png')});
+  await summary.screenshot({path: test.info().outputPath('time-summary.png')});
+  const desktop = page.viewportSize();
+  await page.setViewportSize({width:390,height:900});
+  expect(await summary.evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
+  await summary.screenshot({path: test.info().outputPath('time-summary-phone.png')});
+  await page.setViewportSize(desktop);
   await page.locator('#sectorRows').screenshot({path: test.info().outputPath('sectors.png')});
   await page.locator('#sessionOverview').screenshot({path: test.info().outputPath('overview.png')});
   const index = await action.getAttribute('data-inspect-zone');

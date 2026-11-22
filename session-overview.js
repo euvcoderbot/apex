@@ -431,16 +431,23 @@
     if (loaded.length < 2 || !reference?.length || typeof adaptiveCornerZones !== 'function') { root.hidden = true; root.innerHTML = ''; return; }
     const totalDistance = reference[reference.length - 1].Distance || 1;
     const zones = sessionPerformanceZones(adaptiveCornerZones(resolveCornerMarkers(reference, totalDistance, loaded[0].cornerMarkers)), totalDistance);
-    const cards = loaded.slice(1).map(lap => {
+    const readouts = loaded.slice(1).flatMap(lap => {
       const samples = telemetryCache.get(telemetryKey(lap));
-      if (!samples?.length || lap.real?.out_lap || loaded[0].real?.out_lap) return '';
+      if (!samples?.length || lap.real?.out_lap || loaded[0].real?.out_lap) return [];
       const parts = timeBreakdown(reference, samples, zones);
-      if (!parts.length) return '';
+      if (!parts.length) return [];
       const losses = parts.filter(p => p.delta > 0.005).sort((a, b) => b.delta - a.delta).slice(0, 3);
       const gains = parts.filter(p => p.delta < -0.005).sort((a, b) => a.delta - b.delta).slice(0, 3);
       const corners = parts.filter(p => p.kind === 'corner').reduce((a, p) => a + p.delta, 0);
       const straights = parts.filter(p => p.kind === 'straight').reduce((a, p) => a + p.delta, 0);
-      const list = (items, cls) => items.length ? items.map(p => `<li class="${cls}"><button type="button" data-inspect-zone="${p.index}"><b>${esc(p.label)}</b><span>${signedS(p.delta)}</span><span class="visually-hidden">: show on the map</span></button></li>`).join('') : '<li class="is-none">None over 0.005 s</li>';
+      return [{lap, losses, gains, corners, straights}];
+    });
+    const largestShown = Math.max(0, ...readouts.flatMap(({losses, gains}) => [...losses, ...gains].map(part => Math.abs(part.delta))));
+    const list = (items, tone) => items.length ? items.map(part => {
+      const share = (100 * Math.abs(part.delta) / largestShown).toFixed(2);
+      return `<li class="${tone}"><button type="button" data-inspect-zone="${part.index}"><b>${esc(part.label)}</b><span class="time-summary-meter" aria-hidden="true"><i style="width:${share}%"></i></span><span>${signedS(part.delta)}</span><span class="visually-hidden">: show on the map</span></button></li>`;
+    }).join('') : '<li class="is-none">None over 0.005 s</li>';
+    const cards = readouts.map(({lap, losses, gains, corners, straights}) => {
       return `<article class="time-summary-card" style="--team:${esc(getLapColor(lap))}">
         <header>
           <div class="time-summary-pair"><b>${esc(lap.code)} L${lap.lap}</b> vs ${esc(loaded[0].code)} L${loaded[0].lap}</div>
@@ -448,7 +455,7 @@
         </header>
         <div class="time-summary-lists"><div><small>Loses most</small><ol>${list(losses, 'is-loss')}</ol></div><div><small>Gains most</small><ol>${list(gains, 'is-gain')}</ol></div></div>
       </article>`;
-    }).filter(Boolean);
+    });
     root.onclick = event => {
       const action = event.target.closest('[data-inspect-zone]');
       if (!action) return;
@@ -466,7 +473,7 @@
       document.querySelector(selector)?.focus();
     };
     root.hidden = !cards.length;
-    root.innerHTML = cards.length ? `<h3>Time gained and lost</h3>${cards.join('')}<p class="overview-note">Elapsed time over the same corner and straight windows of the reference lap. Short links between corners are left out, so the parts do not add up exactly to the lap gap.</p>` : '';
+    root.innerHTML = cards.length ? `<h3>Time gained and lost</h3>${cards.join('')}<p class="overview-note">Bars share a scale across the comparison. Deltas use the reference lap’s corner and straight windows. Short links between corners are left out, so the parts do not add up exactly to the lap gap.</p>` : '';
   }
 
   // Bound on the section itself: page-level handlers elsewhere stop some clicks before they reach the document.
