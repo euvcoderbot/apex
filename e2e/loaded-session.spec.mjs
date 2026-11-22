@@ -5,7 +5,10 @@ import {gunzipSync} from 'node:zlib';
 const {session,performance,telemetry}=JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/qualifying-comparison.json.gz',import.meta.url))));
 const calendar=[{year:2026,round:18,name:'United States Grand Prix',country:'United States',location:'Austin',date:'2026-10-25',sessions:['Practice 1','Qualifying','Race'],session_statuses:{Qualifying:'completed'}}];
 
-async function loaded(page,{missing=false,partial=false,corners=null}={}){
+async function loaded(page,{missing=false,partial=false,corners=null,wind=null}={}){
+  const sessionData=wind?{...session,drivers:session.drivers.map(driver=>({...driver,laps:driver.laps.map(lap=>({
+    ...lap,conditions:{...lap.conditions,...wind},
+  }))}))}:session;
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.route(/127\.0\.0\.1:54123/,route=>route.abort());
   await page.route('**/config.js*',route=>route.fulfill({contentType:'text/javascript',body:'window.APEX_API_ORIGIN="";window.APEX_SNAPSHOT_MODE=false;window.APEX_LOCAL_MODE=true;'}));
@@ -14,9 +17,9 @@ async function loaded(page,{missing=false,partial=false,corners=null}={}){
     const url=new URL(outer.searchParams.get('path')||outer.pathname+outer.search,'http://fixture');
     let payload;
     if(url.pathname==='/api/events')payload=calendar;
-    else if(url.pathname==='/api/session')payload=partial?{...session,lap_data_complete:false,
-      telemetry_complete:false,drivers:session.drivers.map((driver,i)=>i?driver:{...driver,
-        lap_data_complete:false,missing_laps:[2],telemetry_missing_laps:[2]})}:corners?{...session,corners}:session;
+    else if(url.pathname==='/api/session')payload=partial?{...sessionData,lap_data_complete:false,
+      telemetry_complete:false,drivers:sessionData.drivers.map((driver,i)=>i?driver:{...driver,
+        lap_data_complete:false,missing_laps:[2],telemetry_missing_laps:[2]})}:corners?{...sessionData,corners}:sessionData;
     else if(url.pathname==='/api/performance'&&url.searchParams.get('session')==='Q')payload=performance;
     else if(url.pathname==='/api/telemetry'){
       if(missing&&url.searchParams.get('driver')==='VER')return route.fulfill({status:503,contentType:'application/json',body:'{"detail":"Telemetry unavailable for this lap"}'});
@@ -44,10 +47,12 @@ for (const width of [1440,390]) {
     await page.setViewportSize({width,height:900});
     await page.emulateMedia({reducedMotion:'reduce'});
     await page.addInitScript(theme=>localStorage.setItem('apex-theme',theme),width===390?'light':'dark');
-    const errors=await loaded(page,{corners:[{number:1,fraction:.06},{number:12,fraction:.42},{number:19,fraction:.83}]});
+    const errors=await loaded(page,{corners:[{number:1,fraction:.06},{number:12,fraction:.42},{number:19,fraction:.83}],
+      wind:{wind_speed:18.8,wind_direction:315}});
     const tray=page.getByRole('group',{name:'Loaded comparison laps'});
     const lapCards=page.locator('#sectorRows');
     await expect(lapCards.locator('.summary-condition').getByText('Rain',{exact:true})).toHaveCount(2);
+    await expect(lapCards.locator('.summary-condition').getByText('18.8 m/s NW',{exact:true})).toHaveCount(2);
     await expect(lapCards.locator('.summary-condition-label i[aria-hidden="true"]')).toHaveText(['🌤️','🌡️','💨','🌧️','🌤️','🌡️','💨','🌧️']);
     for (const panel of [tray,lapCards,page.locator('#charts .speed-chart'),page.locator('#sessionOverview .overview-chart')]) {
       await expect.poll(()=>panel.evaluate(node=>node.scrollWidth-node.clientWidth)).toBeLessThanOrEqual(1);
@@ -87,7 +92,12 @@ for (const width of [1440,390]) {
         const sectors=bounds('.summary-sectors'), conditions=bounds('.summary-conditions');
         const time=bounds('.summary-lap-time > strong'), gap=bounds('.summary-lap-time > .summary-delta');
         return conditions.right<=sectors.left && Math.abs(sectors.top-conditions.top)<1 && gap.right<=time.left &&
-          [...node.querySelectorAll('.summary-condition')].every(reading=>reading.scrollWidth<=reading.clientWidth+1);
+          [...node.querySelectorAll('.summary-condition')].every(reading=>{
+            const label=reading.querySelector('.summary-condition-label').getBoundingClientRect();
+            const value=reading.querySelector('strong').getBoundingClientRect();
+            return reading.scrollWidth<=reading.clientWidth+1 && label.right<=value.left &&
+              Math.max(label.top,value.top)<Math.min(label.bottom,value.bottom);
+          });
       })).toBe(true);
     }
     if (testInfo.project.name==='chromium'&&!process.env.CI) {

@@ -968,10 +968,9 @@
     for (const r of data.rounds) {
       if ((scheduleView === 'upcoming' && r.status === 'done') || (scheduleView === 'done' && r.status !== 'done')) continue;
       const item = el('article', 'season-round'); item.dataset.status = r.status; item.dataset.calendarRound = String(r.round); item.tabIndex = -1;
-      // Header: round, flag and a quiet Sprint label; status on the right as Linear writes it (a small icon and a word).
+      // Keep round number, sprint and status together beside the title.
       const head = el('div', 'season-round-head');
       head.append(el('span', 'season-round-no', `R${r.round}`));
-      const f = flag(r); if (f) head.append(f);
       if (r.sprint_weekend) head.append(el('span', 'season-chip is-quiet', 'Sprint'));
       const status = el('span', 'season-status', {done: 'Done', next: 'Next', upcoming: 'Upcoming', awaiting: 'Awaiting results'}[r.status] || r.status); status.dataset.status = r.status;
       status.prepend(htmlNode(r.status === 'done'
@@ -979,16 +978,19 @@
         : r.status === 'next' ? '<svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true"><circle cx="7" cy="7" r="5.75" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M7 3.5a3.5 3.5 0 0 1 0 7z" fill="currentColor"/></svg>'
         : '<svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true"><circle cx="7" cy="7" r="5.75" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.2 2"/></svg>'));
       head.append(status);
-      // Title and dates beside the circuit, in one row with a fixed slot for the outline, so it never runs into the results.
       const titleRow = el('div', 'season-round-title');
-      const text = el('div'); text.append(el('h3', null, r.name), el('p', 'season-muted', `${r.locality} · ${dateRange(r)}`));
-      titleRow.append(text);
+      const name = el('div', 'season-round-name');
+      const f = flag(r); if (f) name.append(f);
+      name.append(el('h3', null, r.name));
       const outline = circuitOutline(r);
       if (outline) {
         const go = trackLink(data.year, r.name, 'season-track-link'); go.title = `${r.circuit || r.name}: circuit page`; go.append(outline);
         go.setAttribute('aria-label', r.name + ' circuit guide');
-        titleRow.append(go);
+        name.append(go);
       }
+      const text = el('div');
+      text.append(name, el('p', 'season-round-location', `${r.locality} · ${dateRange(r)}`));
+      titleRow.append(text);
       item.append(head, titleRow);
       if (r.status === 'done') {
         // On a phone a finished round is one compact row (its winner beside the name) that opens to its results.

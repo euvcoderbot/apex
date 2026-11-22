@@ -30,6 +30,16 @@ for (const width of [1440, 390]) test(`a Calendar round opens its results and st
   await search.clear();
   await expect(round.locator('.season-round-more')).toHaveAttribute('aria-expanded','true');
   await expect(round.getByRole('heading',{name:'Race podium'})).toBeVisible();
+  const name = round.locator('.season-round-name');
+  await expect(name.getByRole('link',{name:'Australian Grand Prix circuit guide'})).toHaveAttribute('href',/\/season\/tracks/);
+  expect(await name.evaluate(node => {
+    const [flag, title, circuit] = node.children;
+    const flagBox = flag.getBoundingClientRect();
+    const titleBox = title.getBoundingClientRect();
+    const circuitBox = circuit.getBoundingClientRect();
+    return flag.matches('img.season-flag') && title.matches('h3') && circuit.matches('a') &&
+      flagBox.right < titleBox.left && titleBox.right < circuitBox.left;
+  })).toBe(true);
   expect(await round.evaluate(node => getComputedStyle(node).display === 'grid' && node.scrollWidth <= node.clientWidth + 1)).toBe(true);
   await expect(round.getByRole('link',{name:'Analyse race'})).toHaveAttribute('href',/round=1&session=Race/);
   await round.screenshot({path:info.outputPath('calendar-expanded.png')});

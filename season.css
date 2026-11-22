@@ -688,7 +688,6 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-round { gap: 4px; padding: 12px 14px 10px; opacity: 1; }
 #seasonHub .season-round-head { gap: 6px; height: 20px; margin-bottom: 4px; }
 #seasonHub .season-round-no { color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); }
-#seasonHub .season-round-head .title-flag, #seasonHub .season-round-head img { width: 16px; height: 12px; border-radius: 2px; }
 #seasonHub .season-round-head .season-chip { order: 0; margin-left: 2px; min-height: 18px; padding: 0 7px; box-shadow: inset 0 0 0 1px var(--lin-label-border); color: var(--ui-tertiary); font: 500 11px/1 var(--ui-font); }
 /* Status: a 12 px icon and a word, in the tertiary colour; the icon carries the state (done filled, next half, upcoming dashed). */
 #seasonHub .season-status { gap: 5px; color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); }
@@ -724,9 +723,9 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 /* Title row: text on the left, the circuit outline in a fixed 56 px slot on the right, centred on the two text lines. */
 #seasonHub .season-round-title { display: grid; grid-template-columns: minmax(0, 1fr) 56px; align-items: center; gap: 12px; min-height: 56px; }
 #seasonHub .season-round-title h3, #seasonHub .season-round-title p { padding-right: 0; }
-#seasonHub .season-round-title h3 { margin: 0 0 2px; }
+#seasonHub .season-round-title h3 { margin: 0; }
 #seasonHub .season-round-title p { margin: 0; font: 450 12px/1.4 var(--ui-font); color: var(--ui-tertiary); }
-#seasonHub .season-round-title .season-track { position: static; width: 56px; height: 56px; opacity: .5; }
+#seasonHub .season-round-title .season-track { position: static; width: 26px; height: 26px; opacity: .5; }
 #seasonHub .season-round[data-status="next"] .season-round-title .season-track { opacity: 1; }
 #seasonHub .season-round[data-status="upcoming"] .season-round-title .season-track { opacity: .35; }
 #seasonHub .season-round-rows > .is-empty dd { color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); }
@@ -1412,8 +1411,11 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-round .season-round-head { grid-area: meta; margin: 0; justify-content: flex-end; }
 #seasonHub .season-round-title { grid-area: title; display: flex; gap: 10px; min-width: 0; min-height: 40px; }
 #seasonHub .season-round-title > div { flex: 1 1 auto; min-width: 0; }
-#seasonHub .season-round-title .season-track { width: 36px; height: 36px; }
-#seasonHub .season-round-title h3 { padding: 0; }
+#seasonHub .season-round-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+#seasonHub .season-round-name h3 { min-width: 0; padding: 0; overflow-wrap: anywhere; }
+#seasonHub .season-round-name .season-flag { flex: none; width: 16px; height: 12px; border-radius: 2px; }
+#seasonHub .season-round-name:has(.season-flag) + .season-round-location { margin-inline-start: 24px; }
+#seasonHub .season-round-location { overflow-wrap: anywhere; }
 #seasonHub .season-round-when { grid-area: when; }
 #seasonHub .season-round-winner { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font: 600 12px/1 var(--ui-font); color: var(--ui-label); }
 #seasonHub .season-round-more {
@@ -1507,7 +1509,7 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 #seasonHub td.is-link:hover { filter: brightness(1.18); }
 #seasonHub .season-strip-cell.is-link:hover { background: var(--lin-nav-hover, color-mix(in oklch, var(--ui-label) 6%, transparent)); }
 #seasonHub .season-stat.is-link:hover { box-shadow: inset 0 0 0 1px var(--lin-hairline-strong, var(--ui-border)); }
-#seasonHub .season-track-link { display: block; width: 56px; height: 56px; cursor: pointer; }   /* a real 56 px box (display: contents let WebKit stretch the outline past the page) */
+#seasonHub .season-track-link { display: block; flex: none; width: 26px; height: 26px; cursor: pointer; }
 #seasonHub .season-track-link:hover > * { opacity: .8; }
 #seasonHub .season-next-track { margin-left: 10px; font-size: 13px; }
 #seasonHub .season-table-wrap:has(> .season-gp-table) { container-type: inline-size; }

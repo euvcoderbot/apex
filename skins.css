@@ -2676,7 +2676,7 @@
 :root[data-skin="linear"] #performanceResults > .performance-toolbar > .performance-mode { border: 0; background: none; border-radius: 0; padding: 0; }
 /* Timing cards keep weather and sector readings in two aligned blocks. */
 :root[data-skin="linear"] .sector-cards .lap-summary-card {
-  grid-template: "identity identity" "conditions sectors" / minmax(116px, 31%) minmax(0, 1fr); align-items: start; gap: 8px 12px; padding: 10px 12px;
+  grid-template: "identity identity" "conditions sectors" / max-content minmax(0, 1fr); align-items: start; gap: 8px 12px; padding: 10px 12px;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card > header {
   grid-area: identity; grid-template: "driver time" "tyre time" / minmax(0, 1fr) auto; gap: 4px 8px;
@@ -2710,17 +2710,17 @@
   margin: 0; padding: 0; border: 0;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 1px 5px; justify-content: flex-start; padding: 0; white-space: normal;
+  display: flex; flex-wrap: nowrap; align-items: baseline; gap: 5px; justify-content: flex-start; padding: 0; white-space: nowrap;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition-label { display: inline-flex; align-items: baseline; gap: 4px; }
 :root[data-skin="linear"] .summary-condition-label i { font: 450 11px/1 var(--ui-font); }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition :is(small, strong) {
-  width: auto; color: var(--ui-tertiary); white-space: normal; text-align: left; overflow: visible;
+  width: auto; color: var(--ui-tertiary); white-space: nowrap; text-align: left; overflow: visible;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition strong { color: var(--ui-secondary); }
 @container telemetry (min-width: 700px) {
   :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-conditions {
-    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+    grid-template-columns: repeat(2, max-content);
   }
 }
 @container telemetry (max-width: 370px) {
@@ -2730,6 +2730,14 @@
 }
 @container telemetry (max-width: 585px) {
   :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-sectors { grid-template-columns: minmax(0, 1fr); }
+}
+@container telemetry (max-width: 300px) {
+  :root[data-skin="linear"] .sector-cards .lap-summary-card {
+    grid-template: "identity" "conditions" "sectors" / minmax(0, 1fr);
+  }
+  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-conditions {
+    grid-template-columns: repeat(auto-fit, minmax(min(124px, 100%), 1fr));
+  }
 }
 /* The mini-sector strip follows the F1 sector status line. Both retain their timing colours. */
 :root[data-skin="linear"] .lap-summary-card .sector-minis { display: flex; gap: 2px; }
