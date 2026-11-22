@@ -2675,6 +2675,7 @@
 /* Car performance categories: pills on their own, like the Season pills; no box drawn around the row of round pills. */
 :root[data-skin="linear"] #performanceResults > .performance-toolbar > .performance-mode { border: 0; background: none; border-radius: 0; padding: 0; }
 /* Timing cards follow reading order from the driver to the total. */
+:root[data-skin="linear"] .sector-times { container: lap-timing / inline-size; }
 :root[data-skin="linear"] .sector-cards .lap-summary-card {
   --sector-mark-height: 4px;
   grid-template: "identity conditions" "sectors time" / minmax(0, 1fr) minmax(144px, max-content);
@@ -2690,6 +2691,7 @@
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time > strong { font: 600 20px/1.2 var(--ui-font); }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time > .is-even { color: var(--ui-tertiary); }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-sectors {
+  container: sector-timing / inline-size;
   grid-area: sectors; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: 0; gap: 8px; border: 0;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell { --sector-reading: var(--sector-status, var(--ui-tertiary)); display: grid; align-content: start; gap: 2px; min-width: 0; padding: 0; }
@@ -2721,20 +2723,26 @@
   width: auto; color: var(--ui-tertiary); line-height: 1.2; white-space: nowrap; text-align: left; overflow: visible;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition strong { color: var(--ui-secondary); }
-@container sectorcards (min-width: 720px) {
-  :root[data-skin="linear"] .sector-cards .lap-summary-card {
-    grid-template: "identity conditions sectors time" / max-content max-content minmax(0, 1fr) max-content;
+@container lap-timing (min-width: 720px) {
+  :root[data-skin="linear"] .sector-cards {
+    grid-template-columns: max-content max-content minmax(0, 1fr) max-content;
     column-gap: 8px;
+  }
+  :root[data-skin="linear"] .sector-cards .lap-summary-card {
+    container-type: normal;
+    grid-column: 1 / -1; grid-template-columns: subgrid; grid-template-areas: "identity conditions sectors time";
+    column-gap: normal;
   }
 }
 @container sectorcards (min-width: 900px) {
   :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition:nth-child(n + 3) { grid-column: auto; }
 }
-@container sectorcards (min-width: 1100px) {
-  :root[data-skin="linear"] .sector-cards .lap-summary-card {
+@container lap-timing (min-width: 1100px) {
+  :root[data-skin="linear"] .sector-cards {
     grid-template-columns: minmax(max-content, 1fr) minmax(max-content, 1.2fr) min(42%, 720px) minmax(max-content, 1fr);
-    column-gap: 20px; padding-inline: 20px;
+    column-gap: 20px;
   }
+  :root[data-skin="linear"] .sector-cards .lap-summary-card { padding-inline: 20px; }
   :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-conditions { justify-content: center; column-gap: 12px; }
   :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-sectors { gap: 12px; }
   :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time { gap: 10px; }
@@ -2747,14 +2755,16 @@
 @container sectorcards (width < 500px) {
   :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-sectors { grid-template-columns: minmax(0, 1fr); }
 }
-@container sectorcards (500px <= width < 900px) {
-  :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value {
-    grid-template-columns: minmax(0, 1fr) max-content; gap: 0 2px;
+@container sectorcards (min-width: 500px) {
+  @container sector-timing (width < 360px) {
+    :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value {
+      grid-template-columns: minmax(0, 1fr) max-content; gap: 0 2px;
+    }
+    :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value .summary-delta { font-size: 10px; }
+    :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value > small { grid-column: 1 / -1; }
+    :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value > strong { grid-area: 2 / 2; }
+    :root[data-skin="linear"] .lap-summary-card .sector-delta-slot:not(:empty) { grid-area: 2 / 1; }
   }
-  :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value .summary-delta { font-size: 10px; }
-  :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value > small { grid-column: 1 / -1; }
-  :root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value > strong { grid-area: 2 / 2; }
-  :root[data-skin="linear"] .lap-summary-card .sector-delta-slot:not(:empty) { grid-area: 2 / 1; }
 }
 @container sectorcards (width <= 300px) {
   :root[data-skin="linear"] .sector-cards .lap-summary-card {

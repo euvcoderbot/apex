@@ -42,8 +42,9 @@ test('recorded qualifying comparison renders both laps and supports trace toggle
   expect(errors).toEqual([]);
 });
 
-test('wide lap cards reserve space around the sector times',async({page},info)=>{
+test('lap cards share aligned sector bars at desktop widths',async({page},info)=>{
   await page.setViewportSize({width:2400,height:1000});
+  await page.emulateMedia({reducedMotion:'reduce'});
   const errors=await loaded(page,{wind:{wind_speed:18.8,wind_direction:315}});
   const cards=page.locator('#sectorRows .lap-summary-card');
   await expect(cards).toHaveCount(2);
@@ -67,6 +68,18 @@ test('wide lap cards reserve space around the sector times',async({page},info)=>
   expect(errors).toEqual([]);
   if (info.project.name==='chromium'&&!process.env.CI) {
     await page.locator('#sectorRows').screenshot({path:info.outputPath('wide-lap-cards.png')});
+  }
+  for (const width of [2400,1600,1440]) {
+    await page.setViewportSize({width,height:1000});
+    const rows=await cards.evaluateAll(nodes=>nodes.map(node=>
+      [...node.querySelectorAll('.sector-status-line')].map(line=>{
+        const {left,width}=line.getBoundingClientRect();
+        return {left,width};
+      })
+    ));
+    expect(rows[0]).toHaveLength(3);
+    expect(rows[1]).toEqual(rows[0]);
+    expect(Math.max(...rows[0].map(bar=>bar.width))-Math.min(...rows[0].map(bar=>bar.width))).toBeLessThan(1);
   }
 });
 
