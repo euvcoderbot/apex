@@ -2660,10 +2660,13 @@
 :root[data-skin="linear"][data-theme="light"] .performance-table .perf-heat-value { background: color-mix(in oklch, #14b8a6 calc(var(--heat, 0) * 68%), transparent); }
 :root[data-skin="linear"] .team-profile-table td.profile-rank.is-top::before { display: none; }
 :root[data-skin="linear"] .team-profile-table tbody td.profile-rank { padding: 2px; }
-:root[data-skin="linear"] #carPerformance .team-profile-table :is(thead, tbody) th:first-child {
-  position: sticky; inset-inline-start: 0; background: var(--lin-card); box-shadow: inset -1px 0 var(--lin-hairline);
+:root[data-skin="linear"] .team-profile-table tbody th[scope="row"] { background: transparent; }
+@media (max-width: 1100px) {
+  :root[data-skin="linear"] #carPerformance .team-profile-table :is(thead, tbody) th:first-child {
+    position: sticky; inset-inline-start: 0; background: var(--lin-card); box-shadow: inset -1px 0 var(--lin-hairline);
+  }
+  :root[data-skin="linear"] #carPerformance .team-profile-table tbody th:first-child { z-index: 2; }
 }
-:root[data-skin="linear"] #carPerformance .team-profile-table tbody th:first-child { z-index: 2; }
 @media (max-width: 760px) {
   :root[data-skin="linear"] #carPerformance .team-profile-table th:first-child { min-width: 112px; max-width: 144px; padding-inline: 8px; }
 }
