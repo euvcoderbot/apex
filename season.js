@@ -2547,8 +2547,9 @@
     const link = el('a', 'season-round-link');
     link.href = window.ApexUrl.href('season', {year: data.year, tab: 'results', round: r.round, session});
     link.title = r.name + ': full result';
-    link.setAttribute('aria-label', r.name + ' full result');
-    link.append(roundMark(r));
+    const mark = roundMark(r);
+    link.setAttribute('aria-label', `${mark.textContent} · ${r.name} full result`);
+    link.append(mark);
     link.addEventListener('click', event => {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       event.preventDefault(); openResult(data, r.round, session);
