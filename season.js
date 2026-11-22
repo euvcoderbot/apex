@@ -406,7 +406,7 @@
     head.append(title, tabsNav);
     body = el('div', 'season-body');
     page.append(head, body);
-    yearSelect.addEventListener('change', () => { state.year = Number(yearSelect.value); state.driver = state.a = state.b = state.expanded = null; show(state.tab); });
+    yearSelect.addEventListener('change', () => { state.year = Number(yearSelect.value); state.driver = state.a = state.b = state.expanded = state.calendarRound = null; show(state.tab); });
     (document.getElementById('liveTiming') || document.getElementById('carPerformance') || document.querySelector('main#top')).after(page);
   }
 
@@ -519,12 +519,17 @@
     tab = TAB_ALIASES[tab] || tab;
     state.tab = TABS.some(([id]) => id === tab) ? tab : 'schedule';
     if (!SECTION_TABS.includes(state.tab)) lastSeasonTab = state.tab;
-    if (params.year && Number(params.year) !== state.year) { state.year = Number(params.year); }
+    if (params.year && Number(params.year) !== state.year) { state.year = Number(params.year); state.calendarRound = null; }
     for (const key of ['driver', 'a', 'b', 'team', 'track']) if (params[key]) state[key] = params[key];
     if (state.tab === 'tracks' && fromHistory && !params.track) delete state.track;
     if (state.tab === 'results' && (params.round || params.session || fromHistory)) {
       state.expanded = /^[1-9]\d?$/.test(params.round) ? Number(params.round) : null;
       state.resultsSession = params.session;
+    }
+    if (state.tab === 'schedule' && (params.round || fromHistory)) state.calendarRound = /^[1-9]\d?$/.test(params.round) ? Number(params.round) : null;
+    if (state.tab === 'standings') {
+      if (params.part || fromHistory) state.standings = params.part === 'constructors' ? 'teams' : 'drivers';
+      if (params.round || fromHistory) standingsRoundByYear.set(state.year, Number(params.round) || null);
     }
     if (params.part) state.views[state.tab] = params.part; else if (fromHistory) delete state.views[state.tab];
     yearSelect.value = String(state.year); window.syncSelectUI?.(yearSelect);
@@ -548,6 +553,12 @@
     if (!fromHistory || aliased) window.ApexUrl?.write('season', urlParams());
     else document.title = window.ApexUrl?.titleFor('season', urlParams()) || document.title;
     const loading = render();
+    if (state.tab === 'schedule' && params.round) void loading.then(() => {
+      if (!active || state.tab !== 'schedule' || state.calendarRound !== Number(params.round)) return;
+      const round = body.querySelector(`[data-calendar-round="${state.calendarRound}"]`);
+      round?.scrollIntoView({block: 'nearest'});
+      (round?.querySelector('.season-round-more') || round)?.focus({preventScroll: true});
+    });
     if (state.tab === 'results' && params.round) void loading.then(() => {
       if (active && state.tab === 'results' && state.expanded === Number(params.round)) {
         const expanded = body.querySelector('.season-gp-table [aria-expanded="true"]');
@@ -562,7 +573,10 @@
       ...(state.expanded != null ? {round: state.expanded} : {}),
       ...(resultSessionKey(state.resultsSession) !== 'race' ? {session: resultSessionKey(state.resultsSession)} : {}),
     } : {}),
-    ...(state.views[state.tab] ? {part: state.views[state.tab]} : {})});
+    ...(state.tab === 'schedule' && state.calendarRound ? {round: state.calendarRound} : {}),
+    ...(state.tab === 'standings' && standingsRoundByYear.get(state.year) ? {round: standingsRoundByYear.get(state.year)} : {}),
+    ...(state.tab === 'standings' ? (state.standings === 'teams' ? {part: 'constructors'} : {}) :
+      (state.views[state.tab] ? {part: state.views[state.tab]} : {}))});
   function leave() {
     hideChartTip();
     if (!active) return;
@@ -771,6 +785,14 @@
 
   // Home keeps a completed weekend in context while the visitor explores its evidence.
   const homeRoundByYear = new Map();
+  function revealSelectedRound(strip) {
+    requestAnimationFrame(() => {
+      const selected = strip.querySelector('[aria-pressed="true"]');
+      if (!selected || !strip.isConnected || strip.scrollWidth <= strip.clientWidth) return;
+      strip.scrollLeft += selected.getBoundingClientRect().left - strip.getBoundingClientRect().left -
+        (strip.clientWidth - selected.offsetWidth) / 2;
+    });
+  }
   function weekendReview(data, rounds) {
     const section = el('section', 'season-card weekend-review');
     const picker = el('select');
@@ -779,7 +801,18 @@
     const shell = el('div', 'select-shell season-select'); shell.append(picker);
     const title = el('h2');
     const header = el('header', 'weekend-review-head');
-    header.append(title, shell);
+    const controls = el('div', 'weekend-review-controls');
+    const step = (label, offset) => {
+      const button = el('button', 'season-step season-year-step', offset < 0 ? '‹' : '›'); button.type = 'button'; button.setAttribute('aria-label', label);
+      button.addEventListener('click', () => {
+        const index = rounds.findIndex(r => String(r.round) === picker.value);
+        const adjacent = rounds[index + offset];
+        if (adjacent) { picker.value = String(adjacent.round); picker.dispatchEvent(new Event('change')); window.syncSelectUI?.(picker); }
+      });
+      return button;
+    };
+    const previous = step('Previous completed Grand Prix', -1), next = step('Next completed Grand Prix', 1);
+    controls.append(previous, shell, next); header.append(title, controls);
     const body = el('div', 'weekend-review-body');
     section.append(header, body);
     // A top-three list: position, driver, and the reading on the right.
@@ -795,6 +828,7 @@
     };
     const draw = r => {
       picker.value = String(r.round);
+      previous.disabled = r === rounds[0]; next.disabled = r === rounds.at(-1);
       title.replaceChildren(...[flag(r), el('span', null, r.name)].filter(Boolean));
       const race = r.race.filter(x => x.position > 0).sort((a, b) => a.position - b.position).slice(0, 3);
       const quali = (r.qualifying || []).filter(q => q.position > 0).sort((a, b) => a.position - b.position).slice(0, 3);
@@ -812,6 +846,7 @@
       action('Race report', () => openResult(data, r.round));
       if (race.length >= 2) action(`${driverCode(data, race[0].driver)} vs ${driverCode(data, race[1].driver)} · season`, () => show('h2h', {a: race[0].driver, b: race[1].driver, part: 'overview'}));
       action('Circuit guide', () => openTrack(r.name));
+      action('Standings after this race', () => show('standings', {round: r.round, part: 'drivers'}));
       const side = el('section', 'weekend-order'); side.append(el('h3', null, 'Weekend'), facts, links);
       body.replaceChildren(top3('Race', race.map(x => [x.position, x.driver, x.gap || x.status || '—'])),
         top3('Qualifying', quali.map(q => [q.position, q.driver, best(q)])), side);
@@ -833,7 +868,7 @@
     if (next) out.push(nextRaceHero(data, next));
     const review = done.length ? weekendReview(data, done) : null;
     // The season strip: every round as its flag and code, done / next / to come.
-    const strip = el('div', 'home-season-strip'); strip.style.setProperty('--n', String(data.rounds.length));
+    const strip = el('div', 'home-season-strip'); strip.setAttribute('role', 'group'); strip.setAttribute('aria-label', 'Grand Prix rounds');
     for (const r of data.rounds) {
       const cell = el('button', `home-round is-${r.status}`); cell.type = 'button'; cell.append(roundMark(r));
       // A finished round: the winner's photo and code; the next one says so; later ones their date.
@@ -848,16 +883,23 @@
           picker.value = cell.dataset.round; picker.dispatchEvent(new Event('change')); window.syncSelectUI?.(picker);
           review.scrollIntoView({block:'nearest'});
         });
-      } else cell.addEventListener('click', () => r.race?.length ? openResult(data, r.round) : show('schedule'));
+      } else cell.addEventListener('click', () => r.race?.length ? openResult(data, r.round) : show('schedule', {round: r.round, part: 'all'}));
       strip.append(cell);
     }
-    out.push(card(`Season ${data.year} · ${done.length} of ${data.rounds.length} Grands Prix`, strip));
+    const timeline = el('section', 'home-timeline');
+    const timelineHead = el('header');
+    const calendar = el('button', 'season-link', 'Full calendar'); calendar.type = 'button';
+    calendar.addEventListener('click', () => show('schedule'));
+    timelineHead.append(el('h3', null, `Season ${data.year} · ${done.length} of ${data.rounds.length} Grands Prix`), calendar);
+    timeline.append(timelineHead, strip);
+    if (!review) out.push(card(null, timeline));
     if (review) {
       const picker = review.querySelector('select');
       picker.addEventListener('change', () => {
         for (const cell of strip.querySelectorAll('[data-round]')) cell.setAttribute('aria-pressed', String(cell.dataset.round === picker.value));
       });
-      out.push(review);
+      review.append(timeline); out.push(review);
+      revealSelectedRound(strip);
     }
     // Championship standings and recent pace.
     const glance = el('div', 'home-glance');
@@ -876,14 +918,16 @@
     const teamsNow = data.standings.teams.at(-1)?.table || [];
     if (teamsNow.length) list('Constructors', teamsNow.slice(0, 5).map(e => [teamTag(data, e.id), String(e.points)]), () => { state.standings = 'teams'; show('standings'); }, 'points');
     const formBox = list('Rolling race pace', [], ['drivers', 'field'], 'gap to the quickest');
-    loadForm(state.year, data).then(form => {
+    formBox.querySelector('ol').append(el('li', 'season-muted', 'Loading race pace…'));
+    loadForm(data.year, data).then(form => {
       const ids = Object.keys(data.drivers), rounds = done.map(r => r.round).filter(n => form.race?.[n]);
       const rows = ids.map(id => [id, rolling(trimOutliers(rounds.filter(n => Number.isFinite(form.race[n][id])).map(n => [n, form.race[n][id] / 100 * 90])).kept)])
         .filter(([, v]) => v != null).sort((x, y) => x[1] - y[1]).slice(0, 5);
       const best = rows[0]?.[1] ?? 0, ol = formBox.querySelector('ol');
+      ol.replaceChildren();
       for (const [id, v] of rows) { const li = el('li'); li.append(who(data, id, {team: false, family: true}), el('b', null, v - best < 0.0005 ? 'quickest' : `+${(v - best).toFixed(3)} s`)); ol.append(li); }
       if (!rows.length) ol.append(el('li', 'season-muted', 'Race analysis not available yet.'));
-    });
+    }).catch(() => { formBox.querySelector('ol').replaceChildren(el('li', 'season-muted', 'Race pace could not be loaded.')); });
     out.push(glance);
     return out;
   }
@@ -911,7 +955,7 @@
     const grid = el('div', 'season-rounds');
     for (const r of data.rounds) {
       if ((scheduleView === 'upcoming' && r.status === 'done') || (scheduleView === 'done' && r.status !== 'done')) continue;
-      const item = el('article', 'season-round'); item.dataset.status = r.status;
+      const item = el('article', 'season-round'); item.dataset.status = r.status; item.dataset.calendarRound = String(r.round); item.tabIndex = -1;
       // Header: round, flag and a quiet Sprint label; status on the right as Linear writes it (a small icon and a word).
       const head = el('div', 'season-round-head');
       head.append(el('span', 'season-round-no', `R${r.round}`));
@@ -938,30 +982,56 @@
         // On a phone a finished round is one compact row (its winner beside the name) that opens to its results.
         const won = r.race.find(x => x.position === 1);
         if (won) { const w = el('span', 'season-round-winner'); w.append(avatar(data, won.driver), el('b', null, driverCode(data, won.driver))); w.title = `Winner: ${driverName(data, won.driver)}`; titleRow.append(w); }
-        const more = el('button', 'season-round-more', 'Results'); more.type = 'button'; more.setAttribute('aria-expanded', 'false');
-        more.addEventListener('click', () => { const open = item.classList.toggle('is-open'); more.setAttribute('aria-expanded', String(open)); more.textContent = open ? 'Hide' : 'Results'; });
-        head.append(more);
-        // Results as one aligned list: the podium, then pole, fastest lap and the sprint winner, each a 24 px row.
-        const rows = el('dl', 'season-round-rows');
-        const row = (label, id, cls) => {
-          if (!id) { const line = el('div', `${cls || ''} is-empty`.trim()); line.append(el('dt', null, label), el('dd', null, /^Sprint/.test(label) && !r.sprint_weekend ? 'No sprint' : '—')); rows.append(line); return; }
+        const more = el('button', 'season-round-more', 'Results'); more.type = 'button';
+        more.setAttribute('aria-label', `Results · ${r.name}`);
+        const detail = el('div', 'season-round-detail'); detail.id = `calendar-results-${data.year}-${r.round}`;
+        more.setAttribute('aria-controls', detail.id);
+        const expand = open => {
+          detail.hidden = !open; item.classList.toggle('is-open', open);
+          more.setAttribute('aria-expanded', String(open));
+        };
+        expand(state.calendarRound === r.round);
+        more.addEventListener('click', () => {
+          const open = detail.hidden;
+          for (const other of grid.querySelectorAll('.season-round.is-open')) {
+            if (other === item) continue;
+            other.classList.remove('is-open'); other.querySelector('.season-round-detail').hidden = true;
+            other.querySelector('.season-round-more').setAttribute('aria-expanded', 'false');
+          }
+          expand(open); state.calendarRound = open ? r.round : null;
+          window.ApexUrl?.write('season', urlParams(), {replace: true});
+        });
+        item.append(more);
+        const podium = el('dl', 'season-round-rows'), highlights = el('dl', 'season-round-rows');
+        const row = (rows, label, id, cls) => {
+          if (!id) { const line = el('div', 'is-empty'); line.append(el('dt', null, label), el('dd', null, '—')); rows.append(line); return; }
           const line = el('div', cls); line.title = `${label}: ${driverName(data, id)}`;
           const dd = el('dd'); dd.append(avatar(data, id), el('b', null, driverCode(data, id)));
           line.append(el('dt', null, label), dd); rows.append(line);
         };
-        for (const x of r.race.filter(x => x.position && x.position <= 3).sort((a, b) => a.position - b.position)) row(`P${x.position}`, x.driver, x.position === 1 ? 'is-winner' : '');
+        for (const x of r.race.filter(x => x.position && x.position <= 3).sort((a, b) => a.position - b.position)) row(podium, `P${x.position}`, x.driver, x.position === 1 ? 'is-winner' : '');
         const w = data.winners.find(x => x.round === r.round);
         const fastest = r.race.find(x => x.fastest_lap_rank === 1);
-        row('Pole', w?.pole, 'is-first-extra');
-        row('Fastest lap', fastest?.driver);
-        // Always seven rows (the sprint rows say "No sprint" when there was none), so every card lines up and its link sits
-        // in the same place.
-        row('Sprint pole', sprintPole(r));
-        row('Sprint', w?.sprint_winner);
+        row(highlights, 'Pole', w?.pole);
+        row(highlights, 'Fastest lap', fastest?.driver);
+        if (r.sprint_weekend) {
+          row(highlights, 'Sprint pole', sprintPole(r));
+          row(highlights, 'Sprint winner', w?.sprint_winner);
+        }
+        const facts = el('div', 'season-round-facts');
+        for (const [title, rows] of [['Race podium', podium], ['Weekend bests', highlights]]) {
+          const group = el('section'); group.append(el('h4', null, title), rows); facts.append(group);
+        }
         const link = el('a', 'season-round-link');
         link.append(el('span', null, 'Analyse race'), htmlNode('<svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M2.5 6h7M6.5 3l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'));
         link.href = window.ApexUrl?.href('session', {year: data.year, round: r.round, session: 'Race'}) || `./?year=${data.year}&round=${r.round}&session=Race`;
-        item.append(rows, link);
+        const actions = el('div', 'season-round-actions');
+        const result = el('button', 'season-link', 'Full race results'); result.type = 'button';
+        result.addEventListener('click', () => openResult(data, r.round));
+        const standings = el('button', 'season-link', 'Standings after this race'); standings.type = 'button';
+        standings.addEventListener('click', () => show('standings', {round: r.round, part: 'drivers'}));
+        actions.append(result, standings, link);
+        detail.append(facts, actions); item.append(detail);
       } else {
         const race = new Date(r.start);
         item.append(el('p', 'season-round-when', `Race ${race.toLocaleString([], {weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'})}`));
@@ -1248,7 +1318,7 @@
     bar.append(viewPills('tracks', TRACK_VIEWS, () => paint(() => renderTracks(data, profiles))));
     const repaint = () => { window.ApexUrl?.write('season', urlParams()); paint(() => renderTracks(data, profiles)); };
     // Picker: every measured track as flag and code, in round order.
-    const picker = el('div', 'home-season-strip season-track-picker'); picker.style.setProperty('--n', String(ordered.length));
+    const picker = el('div', 'home-season-strip season-track-picker');
     picker.setAttribute('role', 'group'); picker.setAttribute('aria-label', 'Track');
     for (const [gp] of ordered) {
       const r = roundOf(gp), b = el('button', 'home-round season-track-choice'); b.type = 'button';
@@ -1265,6 +1335,7 @@
       picker.append(b);
     }
     const view = pageView('tracks', TRACK_VIEWS);
+    if (view !== 'compare') revealSelectedRound(picker);
     if (view === 'compare')
       return [bar, all.length ? trackComparison(data, profiles, pick, gp => { state.track = gp; delete state.views.tracks; repaint(); window.scrollTo({top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'}); })
         : empty('No qualifying profiles for this season yet.')];
@@ -1291,6 +1362,18 @@
       el('span', 'season-track-lap-time', lapTime(t.lap_time)), el('small', 'season-muted', lapNote));
     lap.append(lapCopy);
     head.append(title, lap);
+    if (round) {
+      const actions = el('div', 'season-track-actions');
+      const calendar = el('button', 'season-link', 'Calendar round'); calendar.type = 'button';
+      calendar.addEventListener('click', () => show('schedule', {round: round.round, part: 'all'}));
+      actions.append(calendar);
+      if (round.race?.length) {
+        const results = el('button', 'season-link', 'Race results'); results.type = 'button';
+        results.addEventListener('click', () => openResult(data, round.round));
+        actions.append(results);
+      }
+      head.append(actions);
+    }
     const tiles = el('div', 'season-tiles season-track-tiles');
     const tile = (label, value, note) => { const x = el('div', 'season-tile'); x.append(el('span', 'season-muted', label), el('b', null, value)); if (note) x.append(el('small', 'season-muted', note)); tiles.append(x); };
     tile('Length', `${(t.length / 1000).toFixed(3)} km`);
@@ -1881,7 +1964,7 @@
     grid.append(stat(data, 'Largest winning margin', cards.largest_margin, e => [el('b', 'season-big', `${e.value.toFixed(3)} s`), who(data, e.ids[0]), el('p', 'season-footnote', roundName(e.round))]));
     grid.append(stat(data, 'Closest winning margin', cards.closest_margin, e => [el('b', 'season-big', `${e.value.toFixed(3)} s`), who(data, e.ids[0]), el('p', 'season-footnote', roundName(e.round))]));
     grid.append(stat(data, 'Biggest climb', cards.comeback, e => [el('b', 'season-big', `+${e.gain}`), who(data, e.driver), el('p', 'season-footnote', `${e.pit_lane ? 'Pit lane' : `P${e.grid}`} → P${e.finish} · ${roundName(e.round)}`)]));
-    return [bar, seasonNumbers(data), gpResults(data), grid];
+    return [bar, seasonNumbers(data), grid, gpResults(data)];
   }
   // The season in a row of numbers.
   function seasonNumbers(data) {
@@ -2281,7 +2364,7 @@
     const toggle = el('div', 'season-segment');
     for (const [id, label] of [['drivers', 'Drivers'], ['teams', 'Constructors']]) {
       const b = el('button', null, label); b.type = 'button'; b.setAttribute('aria-pressed', String(state.standings === id));
-      b.addEventListener('click', () => { state.standings = id; paint(() => renderStandings(data)); });
+      b.addEventListener('click', () => { state.standings = id; window.ApexUrl?.write('season', urlParams(), {replace: true}); paint(() => renderStandings(data)); });
       toggle.append(b);
     }
     if (!evo.length) return [toggle, empty('No races yet this season.')];
@@ -2297,7 +2380,7 @@
     }
     choose.value = String(through);
     choose.addEventListener('change', () => {
-      standingsRoundByYear.set(data.year, Number(choose.value)); paint(() => renderStandings(data));
+      standingsRoundByYear.set(data.year, Number(choose.value)); window.ApexUrl?.write('season', urlParams(), {replace: true}); paint(() => renderStandings(data));
     });
     const shell = el('div', 'select-shell season-select'); shell.append(choose);
     const controls = el('div', 'season-toolbar'); controls.append(toggle, shell);

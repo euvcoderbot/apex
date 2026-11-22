@@ -113,11 +113,6 @@
           <button type="button" data-result-view="points" aria-pressed="true">Points</button>
           <button type="button" data-result-view="gap" aria-pressed="false">Gap to winner</button>
         </div>
-        <div id="lapDriverSearchField" class="lap-driver-search" hidden>
-          <label class="visually-hidden" for="lapDriverSearch">Find a driver</label>
-          <input type="search" id="lapDriverSearch" placeholder="Find a driver" autocomplete="off" aria-controls="driverPills">
-          <p id="lapDriverSearchStatus" class="section-empty" role="status" hidden></p>
-        </div>
         <div class="pills" id="driverPills">
           <span class="section-empty">Load a session to see its drivers.</span>
         </div>
@@ -164,9 +159,7 @@
     </aside>
     <div class="analysis-column">
       <div class="main-dashboard">
-        <div class="session-load-state" id="sessionLoadState" hidden aria-hidden="true">
-          <div><i></i><i></i><i></i><i></i><i></i></div><i></i>
-        </div>
+        <div class="session-load-state" id="sessionLoadState" hidden aria-hidden="true"></div>
         <section class="session-overview" id="sessionOverview" aria-labelledby="sessionOverviewTitle" hidden></section>
       <section class="telemetry-card is-empty" id="telemetryCard">
           <div class="section-heading analysis-heading">
@@ -179,34 +172,24 @@
           </div>
         <div class="comparison-tray" aria-label="Loaded comparison laps">
           <div class="comparison-tray-heading">
-            <span>Comparison</span>
-            <small class="explanation-only">Click a lap to use as reference</small>
+            <h3>Comparison</h3>
+            <small class="explanation-only">Select a lap to make it the reference</small>
+            <div class="comparison-actions">
+              <div class="comparison-picker">
+                <button id="lapWorkspaceToggle" class="comparison-choose" type="button" aria-expanded="false" aria-controls="lapSelectionBody" aria-haspopup="dialog"><span>Choose laps</span></button>
+                <div id="lapWorkspaceActions" class="workspace-heading-actions"></div>
+              </div>
+              <button type="button" id="clearComparison" class="comparison-clear" hidden>Clear all</button>
+            </div>
           </div>
           <div class="loaded-laps" id="loadedLaps">
             <span class="section-empty">No laps loaded.</span>
           </div>
-          <div class="comparison-picker">
-            <button id="lapWorkspaceToggle" class="comparison-choose" type="button" aria-expanded="false" aria-controls="lapSelectionBody" aria-haspopup="dialog"><span>Choose laps</span></button>
-            <div id="lapWorkspaceActions" class="workspace-heading-actions"></div>
-          </div>
-          <button type="button" id="comparisonLibraryToggle" class="comparison-choose" aria-controls="comparisonLibrary" aria-expanded="false" hidden>Saved comparisons</button>
-          <button type="button" id="clearComparison" class="comparison-clear" hidden>Clear all</button>
         </div>
 
-        <section id="comparisonLibrary" aria-label="Saved comparisons" hidden>
-          <div class="comparison-library-actions">
-            <button type="button" id="comparisonSave">Save current comparison</button>
-            <button type="button" id="comparisonCopy">Copy current link</button>
-          </div>
-          <p id="comparisonLibraryStatus" class="section-empty" role="status"></p>
-          <input id="comparisonShareAddress" type="url" aria-label="Comparison link" readonly hidden>
-          <ul id="comparisonLibraryList"></ul>
-        </section>
-
           <div class="telemetry-empty" id="telemetryEmpty">
-            <span>Ready when you are</span>
-            <strong>Your telemetry stack will appear here.</strong>
-            <p>Select laps in the workspace above to start the comparison.</p>
+            <strong>No telemetry to compare yet</strong>
+            <p>Load a session, then choose laps to see their sector times and telemetry.</p>
           </div>
 
           <div class="telemetry-content" id="telemetryContent">
@@ -317,7 +300,6 @@
   <script src="session-corners.js"></script>
   <script src="session-map.js"></script>
   <script src="session-init.js"></script>
-  <script src="comparison-library.js"></script>
   <script src="lap-sheet.js"></script>
   <script src="session-tyres.js"></script>
   <script src="session-overview.js"></script>

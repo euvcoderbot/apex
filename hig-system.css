@@ -510,77 +510,6 @@ body > #carPerformance > #performanceResults { overflow-x: clip; overflow-clip-m
 .speed-chart-controls .trace-settings, .speed-chart-controls .trace-display-bar { margin: 0; padding: 0; flex-wrap: wrap; gap: 4px 14px; }
 .speed-chart-controls .trace-display-bar > span { display: none; }
 
-/* Timing board: one row per lap, so four laps fit where two cards used to. Identity, then sectors over the conditions, then the lap time. */
-@container telemetry (min-width: 500px) {
-  /* Fixed side columns, so the dividers line up whatever each lap shows (a REF badge, a longer gap). */
-  .telemetry-content .sector-cards .lap-summary-card { grid-template-columns: 152px minmax(0,1fr) 112px; grid-template-rows: auto auto; grid-template-areas: "driver sectors time" "tyre conds time"; align-items: center; gap: 0 14px; padding: 7px 14px; }
-  .telemetry-content .sector-cards .lap-summary-card > header { display: contents; }
-  .telemetry-content .sector-cards .lap-summary-card .summary-driver { grid-area: driver; min-width: 0; min-height: 0; white-space: nowrap; }
-  .telemetry-content .sector-cards .lap-summary-card .summary-driver > * { flex: none; white-space: nowrap; }
-  .telemetry-content .sector-cards .lap-summary-card .summary-tyre { grid-area: tyre; min-width: 0; min-height: 0; }
-  .telemetry-content .sector-cards .lap-summary-card .summary-tyre-copy { white-space: nowrap; }
-  .telemetry-content .sector-cards .lap-summary-card .summary-lap-time { grid-area: time; }
-  .telemetry-content .sector-cards .lap-summary-card .summary-sectors { grid-area: sectors; margin: 0; padding: 0 0 3px 14px; align-self: stretch; column-gap: 6px; }
-  /* Three equal sections: the sector over a bar in its colour, its time beneath. An empty gap keeps its width, so each sector's time lines up down the board. */
-  .telemetry-content .sector-cards .lap-summary-card .summary-sectors { grid-template-columns: repeat(3,minmax(0,1fr)); justify-content: stretch; column-gap: 8px; }
-  .telemetry-content .sector-cards .lap-summary-card .sector-cell { padding: 0; }
-  .telemetry-content .sector-cards .lap-summary-card .sector-cell::after { left: 0; right: 0; top: 15px; bottom: auto; width: auto; height: 3px; }
-  .telemetry-content .sector-cards .lap-summary-card .sector-cell-value { flex-direction: column; align-items: center; justify-content: flex-start; gap: 0; }
-  .telemetry-content .sector-cards .lap-summary-card .sector-delta-slot, .telemetry-content .sector-cards .lap-summary-card .sector-delta-slot:empty { display: inline-flex; flex: 0 0 auto; justify-content: flex-end; min-width: 46px; }
-  .telemetry-content .sector-cards .lap-summary-card .sector-cell-value > small { margin: 0 0 8px; }
-  .telemetry-content .sector-cards .lap-summary-card .sector-cell .sector-measurements, .telemetry-content .sector-cards .lap-summary-card .sector-cell + .sector-cell .sector-measurements { align-self: auto; justify-content: flex-end; padding: 0; }
-  .telemetry-content .sector-cards .lap-summary-card .summary-conditions { grid-area: conds; display: flex; flex-wrap: nowrap; justify-content: space-between; gap: 8px; min-width: 0; margin: 0; padding: 3px 0 0 14px; align-self: stretch; overflow: hidden; }
-  .telemetry-content .sector-cards .lap-summary-card .summary-lap-time { flex-direction: column; align-items: flex-end; justify-content: center; justify-self: stretch; align-self: stretch; gap: 0; padding-left: 14px; }
-  .telemetry-content .sector-cards .lap-summary-card .summary-lap-time > .summary-delta:empty { display: none; }
-  .telemetry-content .sector-cards .lap-summary-card .sector-cell .sector-measurements { flex: 0 0 auto; align-self: center; gap: 4px; }
-}
-/* With room to spare the sectors and conditions spread evenly across their blocks, leaving no empty band beside them. */
-@container telemetry (min-width: 725px) {
-  .telemetry-content .sector-cards .lap-summary-card .summary-conditions { justify-content: space-between; padding-right: 4px; }
-}
-/* Wider: the track details leave the sectors and get a block of their own, beside the driver. The lap time keeps the right edge and the narrowest column. */
-@container telemetry (min-width: 1100px) {
-  /* The four conditions read on one line in a fixed column (as the widest layout does), so a longer value such as a
-     two-letter wind direction never shifts the sectors; the sectors take what is left. */
-  .telemetry-content .sector-cards .lap-summary-card { grid-template-columns: 152px 410px minmax(0,1fr) 112px; grid-template-areas: "driver conds sectors time" "tyre conds sectors time"; }
-  .telemetry-content .sector-cards .lap-summary-card .summary-sectors { align-self: stretch; align-items: center; padding-bottom: 0; }
-  .telemetry-content .sector-cards .lap-summary-card .summary-conditions { display: flex; flex-wrap: nowrap; align-items: center; gap: 14px; padding-top: 0; padding-right: 0; }
-  .telemetry-content .sector-cards .lap-summary-card .summary-condition { flex: none; white-space: nowrap; }
-}
-/* Widest: a true timing table, one line per lap. Driver, tyre, the conditions, the three sectors beside the lap time, then the gap and the lap time
-   (the same order as the two-line layout, so the sectors always sit next to the time they add up to). */
-@container telemetry (min-width: 1500px) {
-  .telemetry-content .sector-cards .lap-summary-card { grid-template-columns: 160px 140px 510px minmax(0,1fr) 170px; grid-template-rows: auto; grid-template-areas: "driver tyre conds sectors time"; padding-block: 9px; }
-  .telemetry-content .sector-cards .lap-summary-card .summary-conditions { display: flex; align-items: center; gap: 16px; }
-  .telemetry-content .sector-cards .lap-summary-card .summary-condition { flex: none; }
-  .telemetry-content .sector-cards .lap-summary-card .summary-lap-time { flex-direction: row; align-items: baseline; justify-content: flex-end; gap: 10px; }
-}
-/* Expanded charts keep the lap details as they are beside the sidebar, however wide the window: the one-line table is for the main page only. */
-@container telemetry (min-width: 1500px) {
-  body.trace-focus .telemetry-content .sector-cards .lap-summary-card { grid-template-columns: 152px 270px minmax(0,1fr) 112px; grid-template-rows: auto auto; grid-template-areas: "driver conds sectors time" "tyre conds sectors time"; padding-block: 7px; }
-  body.trace-focus .telemetry-content .sector-cards .lap-summary-card .summary-conditions { display: grid; grid-template-columns: repeat(2,max-content); align-content: center; gap: 2px 16px; }
-  body.trace-focus .telemetry-content .sector-cards .lap-summary-card .summary-condition { flex: 0 1 auto; }
-  body.trace-focus .telemetry-content .sector-cards .lap-summary-card .summary-lap-time { flex-direction: column; align-items: flex-end; justify-content: center; gap: 0; }
-}
-@container telemetry (max-width: 725px) {
-  .telemetry-content .sector-cards .lap-summary-card .summary-tyre-copy small { display: none; }
-  /* Too narrow for the gap beside the time: it moves beneath. */
-  .telemetry-content .sector-cards .lap-summary-card .sector-cell .sector-measurements { flex-direction: column-reverse; align-items: center; gap: 0; }
-  .telemetry-content .sector-cards .lap-summary-card .sector-delta-slot, .telemetry-content .sector-cards .lap-summary-card .sector-delta-slot:empty { min-width: 0; min-height: 14px; }
-}
-@container telemetry (min-width: 500px) and (max-width: 640px) {
-  .telemetry-content .sector-cards .lap-summary-card { grid-template-columns: 148px minmax(0,1fr) 112px; column-gap: 10px; padding-inline: 10px; }
-  .telemetry-content .sector-cards .lap-summary-card .summary-condition:last-child { display: none; }
-}
-
-/* Sector and time centred on the bar in every row. The gap hangs off the left of the time in a column of its own, so its length can never move the time. */
-@container telemetry (min-width: 726px) {
-  .telemetry-content .sector-cards .lap-summary-card .sector-cell .sector-measurements, .telemetry-content .sector-cards .lap-summary-card .sector-cell + .sector-cell .sector-measurements { display: grid; grid-template-columns: minmax(42px,1fr) auto minmax(0,1fr); align-items: baseline; align-self: stretch; column-gap: 3px; }
-  .telemetry-content .sector-cards .lap-summary-card .sector-delta-slot { grid-column: 1; justify-self: end; min-width: 0; white-space: nowrap; }
-  .telemetry-content .sector-cards .lap-summary-card .sector-delta-slot:empty { display: none; }
-  .telemetry-content .sector-cards .lap-summary-card .sector-measurements > strong { grid-column: 2; }
-}
-
 /* Inspector lists. Laps read as one-line rows: which lap, how old the tyre was, then the time and the tyre at a shared right edge. */
 
 /* Corner table: fixed columns, and the lap and REF tag under the driver, so the numbers get the room. */
@@ -634,14 +563,6 @@ body > #carPerformance > #performanceResults { overflow-x: clip; overflow-clip-m
   #sessionInspector .corner-measurement-table button[data-corner-sort] small { display: block; }
   #sessionInspector .corner-measurement-table :is(thead th,tbody th,tbody td) { padding-inline: 4px; }
 }
-
-/* Comparison tray: one row of title, laps and Clear all, on a single inset. */
-#telemetryCard .comparison-tray { flex-wrap: wrap; align-items: flex-start; gap: 8px 12px; padding: 7px 10px 7px 14px; }
-#telemetryCard .comparison-tray-heading { align-self: center; min-height: 28px; margin-bottom: 0; align-items: center; }
-/* The laps take the width that is left and wrap within it; the chooser buttons drop to their own line before they squeeze the laps. */
-#telemetryCard .comparison-tray #loadedLaps { flex: 1 1 360px; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; }
-#loadedLaps .loaded-lap-pill { flex: none; }
-#telemetryCard .comparison-tray #loadedLaps > .section-empty { display: flex; align-items: center; min-height: 28px; margin: 0; padding: 0; }
 
 /* Keep compute discovery available without a persistent mode button. */
 #computeSettings { inset: 52px 12px auto auto; width: min(300px,calc(100vw - 24px)); box-sizing: border-box; padding: 16px; }
@@ -701,8 +622,6 @@ body > #carPerformance .performance-table td small { white-space: nowrap; }
 
 /* Sector rows: a line centred in the gap between sections, the same distance from the bar on either side, keeps each time with its own sector. */
 .telemetry-content .sector-cards .lap-summary-card .summary-sectors { column-gap: 9px; }
-.telemetry-content .sector-cards .lap-summary-card .sector-cell + .sector-cell::before { content: ''; position: absolute; left: -5px; top: 0; bottom: 0; width: 1px; }
-.telemetry-content .sector-cards .lap-summary-card .sector-measurements { box-sizing: border-box; padding-block: 2px; }
 
 /* Display menu in the speed trace header, so its options do not take a row above the chart. */
 .trace-display-menu { position: relative; flex: none; }

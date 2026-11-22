@@ -465,6 +465,7 @@ async function analyse(refresh=false) {
 
   context = {
     requestedEvents: picked.length,
+    requestedRounds: picked,
     year: $('performanceYear').value,
     scope: activeScope,
     season: isSeason || picked.length > 1,
@@ -2255,10 +2256,18 @@ function renderContent() {
   const telemetryControls=telemetryMode?`<div class="performance-actions">${speedMode?'':telemetrySubjectControls()}${methodToggle}${activeMetric==='corners'?cornerSessionControls():''}${qualifyingMetricsRunning?'<button type="button" data-qualifying-stop>Stop telemetry</button>':''}</div>`:'';
   let content = speedMode?renderSpeedDomain():(activeMetric==='pace'?renderPace(teams):activeMetric==='corners'&&cornerSession==='race'?renderRaceCorners():activeMetric==='tyres'?renderRace(teams):activeMetric==='results'?renderResults(teams):activeMetric==='pits'?renderPits(teams):renderTrend(teams));
   const metricEvidence=activeMetric==='tyres'?'<details class="dashboard-card performance-methods"><summary>Warm-up, steady trend and late falloff</summary><div data-metric-evidence="tyres"></div></details>':'';
-  const supportedGPs=activeMetric==='corners'&&cornerSession==='race'
-    ? events.filter(e=>raceCornerCache.get(context.year+':'+e.name+':'+telemetrySubject+(raceCornerModel==='age-adjusted'?':age-adjusted':''))?.observations?.length).length
-    : window.ApexAnalysis.metricCoverage(events,activeMetric,telemetrySubject,cornerSession);
-  const metricHeading=window.ApexPresentation?.metricHeading(activeMetric,{year:context.year,events:supportedGPs,selected:context.requestedEvents||events.length,subject:telemetrySubject,session:cornerSession})||'';
+  const supported = new Set(events.filter(event => activeMetric === 'corners' && cornerSession === 'race'
+    ? raceCornerCache.get(context.year + ':' + event.name + ':' + telemetrySubject + (raceCornerModel === 'age-adjusted' ? ':age-adjusted' : ''))?.observations?.length
+    : window.ApexAnalysis.metricCoverage([event], activeMetric, telemetrySubject, cornerSession)).map(event => event.name));
+  const coverage = (context.requestedRounds || events).map(event => ({
+    round: event.round, name: event.name, included: supported.has(event.name),
+  }));
+  const coverageOpen = root.querySelector('#performanceMetricPanel')?.dataset.metric === activeMetric &&
+    root.querySelector('.performance-round-coverage')?.open;
+  const metricHeading = window.ApexPresentation?.metricHeading(activeMetric, {
+    year: context.year, events: supported.size, selected: context.requestedEvents || events.length,
+    subject: telemetrySubject, session: cornerSession, coverage, coverageOpen,
+  }) || '';
   root.innerHTML = deferPerformanceEvidence(modeBar + `<div id="performanceMetricPanel" role="tabpanel" data-metric="${activeMetric}" aria-label="${escape(modes.find(([key])=>key===activeMetric)?.[1]||'Performance')} measurements">`+metricHeading+'<p class="performance-definition">'+escape(window.ApexAnalysis.definitions[activeMetric].description)+'</p>'+telemetryControls + provisionalNotice+sourceNotice+errorMarkup+content+metricEvidence+'</div>');
 }
 

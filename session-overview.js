@@ -16,13 +16,14 @@
   const fmtLap = t => (typeof time === 'function' ? time(t) : `${t.toFixed(3)}`);
   const signedS = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(3)} s`;
   let showSlowLaps = false, renderedOverview = '', drawnWidth = 0;
-  // Charts are drawn at the card's real pixel width (16 px padding each side), so an 11 px label stays 11 px on any screen.
-  // Phones get at least 560 px and scroll inside the card.
+  // Draw at the card's live width, so axis labels stay readable as the page narrows.
   const chartWidth = () => {
     const root = document.getElementById('sessionOverview');
     const inner = (root?.clientWidth || 672) - 34;
-    return Math.round(Math.max(innerWidth <= 600 ? 560 : 320, inner));
+    return Math.round(Math.max(200, inner));
   };
+  const lapAxisStep = (range, width, limit) =>
+    Math.max(1, Math.ceil(range / Math.max(1, Math.min(limit, Math.floor(width / 28)))));
 
   // A lap that counts as a representative timed lap: timed, not deleted, not a pit in- or out-lap.
   const timed = lap => Number.isFinite(lap?.time) && lap.time > 0 && !lap.deleted && !lap.in_lap && !lap.out_lap;
@@ -180,7 +181,7 @@
     const decimals = step >= 1 ? 0 : step >= .5 ? 1 : 2;
     const tick = t => { const m = Math.floor(t / 60), sec = t - m * 60; return `${m}:${sec.toFixed(decimals).padStart(decimals ? 3 + decimals : 2, '0')}`; };
     for (let t = yLo; t <= yHi + 1e-9; t += step) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"/><text class="axis" x="${L - 8}" y="${(y(t) + 3.5).toFixed(1)}" text-anchor="end">${esc(tick(t))}</text>`;
-    const lapStep = Math.max(1, Math.ceil((lapHi - lapLo) / 10));
+    const lapStep = lapAxisStep(lapHi - lapLo, W - L - R, 10);
     for (let lap = lapLo; lap <= lapHi; lap += lapStep) svg += `<text class="axis" x="${x(lap).toFixed(1)}" y="${H - 8}" text-anchor="middle">${lap}</text>`;
     for (const s of series) {
       const pts = s.laps.map(l => `${x(l.lap).toFixed(1)},${y(l.time).toFixed(1)}`).join(' ');
@@ -330,7 +331,7 @@
     const styles = styleFor(codes);
     const W = chartWidth(), L = 58, R = 40, T = 10, B = 24;
     const x = lap => L + (lap - 1) / Math.max(1, progress.laps - 1) * (W - L - R);
-    const lapAxis = H => { let out = ''; const step = Math.max(1, Math.ceil(progress.laps / 12)); for (let lap = 1; lap <= progress.laps; lap += step) out += `<text class="axis" x="${x(lap).toFixed(1)}" y="${H - 7}" text-anchor="middle">${lap}</text>`; return out; };
+    const lapAxis = H => { let out = ''; const step = lapAxisStep(progress.laps, W - L - R, 12); for (let lap = 1; lap <= progress.laps; lap += step) out += `<text class="axis" x="${x(lap).toFixed(1)}" y="${H - 7}" text-anchor="middle">${lap}</text>`; return out; };
     const path = (map, y) => { let d = '', open = false; for (let lap = 1; lap <= progress.laps; lap++) { const v = map.get(lap); if (v == null) { open = false; continue; } d += `${open ? 'L' : 'M'}${x(lap).toFixed(1)} ${y(v).toFixed(1)}`; open = true; } return d; };
     // Gap to the leader: the leader on the top line; capped at 60 s so one lapped car does not flatten the rest.
     const H1 = 220, cap = Math.min(60, Math.max(5, ...shown.flatMap(r => [...r.gaps.values()]).filter(Number.isFinite)));
@@ -381,9 +382,10 @@
     else if (overviewView === 'race') content = raceCharts() || '<p class="section-empty">Race order needs at least two recorded laps.</p>';
     else if (overviewView === 'field') content = sessionSummary();
     else content = `<div class="overview-chart"><h3>Lap times</h3>${lapChart()}</div>`;
-    const html = `<div class="section-heading analysis-heading"><h2 id="sessionOverviewTitle">Session overview</h2></div>
+    const html = `<div class="section-heading analysis-heading overview-heading"><h2 id="sessionOverviewTitle">Session overview</h2>
+      <div class="performance-scope-toggle" role="group" aria-label="Session evidence">${buttons}</div></div>
       <div class="overview-readout">${readout(rows)}</div>
-      <div class="performance-scope-toggle" role="group" aria-label="Session evidence">${buttons}</div>${content}`;
+      ${content}`;
     if (renderedOverview !== html || !root.firstChild) {
       root.innerHTML = html; renderedOverview = html;
       root.querySelector('.session-summary')?.addEventListener('toggle', event => { summaryOpen = event.target.open; renderedOverview = ''; });
@@ -420,7 +422,10 @@
       const straights = parts.filter(p => p.kind === 'straight').reduce((a, p) => a + p.delta, 0);
       const list = (items, cls) => items.length ? items.map(p => `<li class="${cls}"><button type="button" data-inspect-zone="${p.index}"><b>${esc(p.label)}</b><span>${signedS(p.delta)}</span><span class="visually-hidden">: show on the map</span></button></li>`).join('') : '<li class="is-none">None over 0.005 s</li>';
       return `<article class="time-summary-card" style="--team:${esc(getLapColor(lap))}">
-        <header><b>${esc(lap.code)}</b> L${lap.lap} vs ${esc(loaded[0].code)} L${loaded[0].lap}<span>Corners ${signedS(corners)} · Straights ${signedS(straights)}</span></header>
+        <header>
+          <div class="time-summary-pair"><b>${esc(lap.code)} L${lap.lap}</b> vs ${esc(loaded[0].code)} L${loaded[0].lap}</div>
+          <dl class="time-summary-totals"><div><dt>Corners</dt><dd>${signedS(corners)}</dd></div><div><dt>Straights</dt><dd>${signedS(straights)}</dd></div></dl>
+        </header>
         <div class="time-summary-lists"><div><small>Loses most</small><ol>${list(losses, 'is-loss')}</ol></div><div><small>Gains most</small><ol>${list(gains, 'is-gain')}</ol></div></div>
       </article>`;
     }).filter(Boolean);

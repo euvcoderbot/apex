@@ -35,21 +35,14 @@
   function arrangeDriverRail(){
     const column=document.querySelector('#sessionSidebar'),body=document.querySelector('#lapSelectionBody'),sidebar=document.querySelector('#driverSidebar');
     if(!column||!body||!sidebar)return;
-    // Keep the same driver controls in the rail and in the open lap chooser.
+    // Drivers are listed in the workspace rail, one per row; on phones the rail is a strip, so they go in the lap sheet.
     const railSlot=document.querySelector('#linearWorkspace .linear-drivers');
     // A collapsed rail cannot hold them either; the lap sheet takes them until it opens again.
     const railShown=railSlot&&!document.body?.classList.contains('is-sidebar-hidden')&&window.matchMedia(`(min-width:${Math.round(761*(window.APEX_UI_ZOOM||1))}px)`).matches;
-    if(railSlot)railSlot.dataset.driverRail=String(Boolean(railShown));
-    const host=railShown&&body.hidden?railSlot:body;
-    if(sidebar.parentElement!==host){
-      const header=host===body&&body.querySelector('.linear-lap-header');
-      if(header)header.after(sidebar);
-      else host.prepend(sidebar);
-    }
+    const host=railShown?railSlot:body;
+    if(sidebar.parentElement!==host)host.prepend(sidebar);
   }
   arrangeDriverRail();driverRail.addEventListener('change',arrangeDriverRail);
-  const lapChooser=document.querySelector('#lapSelectionBody');
-  if(lapChooser)new MutationObserver(arrangeDriverRail).observe(lapChooser,{attributes:true,attributeFilter:['hidden']});
   window.addEventListener('apex-skin',arrangeDriverRail);
   // Some hosts defer media-query change events; a resize re-check is cheap and idempotent.
   window.addEventListener?.('resize',arrangeDriverRail,{passive:true});
@@ -202,7 +195,12 @@
     const [number, title, description] = metrics[metric] || ['', 'Performance', ''];
     const subject = ['corners','straight','braking'].includes(metric) ? `${context.subject === 'driver' ? 'Drivers' : 'Teams'}${metric === 'corners' ? ` · ${context.session === 'race' ? 'Race' : 'Qualifying'}` : ''}` : 'Selected events';
     const measured=Number(context.events)||0,selected=Number(context.selected)||0;
-    return `<header class="metric-heading" aria-label="${escape(context.year || '—')} · ${subject}"><div class="metric-heading-copy"><h2>${title}</h2><p class="explanation-only">${description}</p></div><div class="metric-heading-controls"></div><span class="metric-load-count" role="status">${measured}${selected?'/'+selected:''} GP${selected===1?'':'s'} with data for this view</span></header>`;
+    const count = `${measured}${selected ? '/' + selected : ''} GP${selected === 1 ? '' : 's'} with data for this view`;
+    const coverage = context.coverage?.length ? `<details class="performance-round-coverage"${context.coverageOpen ? ' open' : ''}>
+      <summary>${count}</summary>
+      <ul aria-label="Selected Grand Prix coverage">${context.coverage.map(event => `<li><span>${event.round ? 'R' + escape(event.round) + ' · ' : ''}${escape(event.name)}</span><span>${event.included ? 'Included' : 'No data for this view'}</span></li>`).join('')}</ul>
+    </details>` : `<span class="metric-load-count" role="status">${count}</span>`;
+    return `<header class="metric-heading" aria-label="${escape(context.year || '—')} · ${subject}"><div class="metric-heading-copy"><h2>${title}</h2><p class="explanation-only">${description}</p></div><div class="metric-heading-controls"></div>${coverage}</header>`;
   }
   function arrangePerformance(root, metric) {
     const entrant = root.querySelector('[data-trend-entrant]');

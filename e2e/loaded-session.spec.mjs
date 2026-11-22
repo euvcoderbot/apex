@@ -40,84 +40,86 @@ test('recorded qualifying comparison renders both laps and supports trace toggle
 });
 
 for (const width of [1440,390]) {
-  test('lap chooser searches and updates the comparison at ' + width + 'px', async ({page},testInfo)=>{
+  test('sector and comparison layouts fit and the lap picker works at ' + width + 'px', async ({page},testInfo)=>{
     await page.setViewportSize({width,height:900});
     await page.emulateMedia({reducedMotion:'reduce'});
     await page.addInitScript(theme=>localStorage.setItem('apex-theme',theme),width===390?'light':'dark');
-    const errors=await loaded(page);
+    const errors=await loaded(page,{corners:[{number:1,fraction:.06},{number:12,fraction:.42},{number:19,fraction:.83}]});
+    const tray=page.getByRole('group',{name:'Loaded comparison laps'});
+    const lapCards=page.locator('#sectorRows');
+    await expect(lapCards.locator('.summary-condition').getByText('Rain',{exact:true})).toHaveCount(2);
+    await expect(lapCards.locator('.summary-condition-label i[aria-hidden="true"]')).toHaveText(['🌤️','🌡️','💨','🌧️','🌤️','🌡️','💨','🌧️']);
+    for (const panel of [tray,lapCards,page.locator('#charts .speed-chart'),page.locator('#sessionOverview .overview-chart')]) {
+      await expect.poll(()=>panel.evaluate(node=>node.scrollWidth-node.clientWidth)).toBeLessThanOrEqual(1);
+    }
+    const sector=lapCards.locator('.lap-summary-card').nth(1).locator('.sector-cell').filter({has:page.locator('.sector-minis')}).first();
+    await expect(sector).toBeVisible();
+    const sectorLayout=await sector.evaluate(node=>{
+      const bounds=selector=>node.querySelector(selector).getBoundingClientRect();
+      const label=bounds('small'), delta=bounds('.summary-delta'), time=bounds('strong');
+      const line=bounds('.sector-status-line'), minis=bounds('.sector-minis');
+      return {
+        labelToDelta: delta.left-label.right,
+        deltaToTime: time.left-delta.right,
+        timeToLine: line.top-time.bottom,
+        lineToMinis: minis.top-line.bottom,
+        sameRow: Math.max(label.top,delta.top,time.top)<Math.min(label.bottom,delta.bottom,time.bottom),
+        fits: time.right<=node.getBoundingClientRect().right+.5,
+      };
+    });
+    expect(sectorLayout.labelToDelta,'gap between sector label and delta').toBeGreaterThanOrEqual(-.5);
+    expect(sectorLayout.deltaToTime,'gap between delta and time').toBeGreaterThanOrEqual(-.5);
+    expect(sectorLayout.deltaToTime,'delta sits directly beside the sector time').toBeLessThanOrEqual(8);
+    expect(sectorLayout.timeToLine).toBeGreaterThanOrEqual(0);
+    expect(sectorLayout.lineToMinis).toBeGreaterThanOrEqual(0);
+    expect(sectorLayout.lineToMinis).toBeLessThanOrEqual(4);
+    expect(sectorLayout.sameRow).toBe(true);
+    expect(sectorLayout.fits).toBe(true);
+    await expect(page.getByRole('button',{name:'Saved comparisons'})).toHaveCount(0);
+    if (width===1440) {
+      const card=lapCards.locator('.lap-summary-card').first();
+      expect(await card.evaluate(node=>{
+        const bounds=selector=>node.querySelector(selector).getBoundingClientRect();
+        const sectors=bounds('.summary-sectors'), conditions=bounds('.summary-conditions'), time=bounds('.summary-lap-time');
+        return Math.abs(sectors.left-conditions.left)<1 && Math.abs(sectors.right-conditions.right)<1 &&
+          time.right>conditions.right && [...node.querySelectorAll('.summary-condition')].every(reading=>reading.scrollWidth<=reading.clientWidth+1);
+      })).toBe(true);
+    }
+    if (testInfo.project.name==='chromium'&&!process.env.CI) {
+      for (const theme of ['dark','light']) {
+        await page.evaluate(theme=>{document.documentElement.dataset.theme=theme;},theme);
+        await tray.screenshot({path:testInfo.outputPath(`comparison-${theme}.png`)});
+        await lapCards.screenshot({path:testInfo.outputPath(`sectors-${theme}.png`)});
+        await page.locator('#sessionOverview .overview-chart').screenshot({path:testInfo.outputPath(`overview-${theme}.png`)});
+        await page.locator('#timeSummary').screenshot({path:testInfo.outputPath(`time-summary-${theme}.png`)});
+        await page.locator('#charts .speed-chart').screenshot({path:testInfo.outputPath(`speed-${theme}.png`)});
+      }
+      await page.evaluate(theme=>{document.documentElement.dataset.theme=theme;},width===390?'light':'dark');
+    }
     const toggle=page.locator('#lapWorkspaceToggle');
-    await toggle.click();
     const dialog=page.getByRole('dialog',{name:'Choose laps'});
-    const search=dialog.getByRole('searchbox',{name:'Find a driver'});
-    const visibleDrivers=dialog.locator('.driver-pill:visible');
-    await expect(search).toBeFocused();
-    await search.fill('no matching car');
-    await expect(dialog.getByRole('status',{name:''}).filter({hasText:'No matching drivers'})).toBeVisible();
-    await expect(visibleDrivers).toHaveCount(0);
-    await search.fill('ver');
-    await expect(visibleDrivers).toHaveCount(1);
-    await search.press('ArrowDown');
-    await expect(visibleDrivers.first()).toBeFocused();
-    await expect(visibleDrivers.first()).toHaveAttribute('data-code','VER');
-    await visibleDrivers.first().press('Enter');
-    await expect(visibleDrivers.first()).toHaveAttribute('aria-pressed','false');
-    await search.fill('verstappen');
-    await search.press('Enter');
-    await expect(visibleDrivers.first()).toHaveAttribute('aria-pressed','true');
-    await dialog.locator('#compareAllFastest').click();
-    await expect(dialog.locator('#compareAllFastest')).toHaveAttribute('aria-pressed','true');
-    const view=dialog.getByRole('button',{name:'View comparison',exact:true});
-    await expect(view).toBeInViewport();
-    await dialog.evaluate(node=>{node.scrollTop=0;});
-    expect(await dialog.evaluate((node,width)=>{
-      const header=node.querySelector('.linear-lap-header').getBoundingClientRect();
-      const driver=node.querySelector('#driverSidebar').getBoundingClientRect();
-      const laps=node.querySelector('#stintPanels').getBoundingClientRect();
-      return header.bottom<=Math.min(laps.top,driver.top)+1 &&
-        (width===390?driver.bottom<=laps.top+1:driver.right<=laps.left+1);
-    },width)).toBe(true);
+    const driverList=width===1440?page.locator('#linearWorkspace .linear-drivers'):dialog;
+    if (width===390) await toggle.click();
+    const driver=driverList.locator('.driver-pill[data-code="VER"]');
+    await expect(driver).toBeVisible();
+    await driver.click();
+    await expect(driver).toHaveAttribute('aria-pressed','false');
+    await driver.click();
+    await expect(driver).toHaveAttribute('aria-pressed','true');
+    if (width===1440) {
+      await toggle.click();
+      await expect(dialog.locator('#driverPills')).toHaveCount(0);
+    }
+    await expect(dialog.getByRole('searchbox',{name:'Find a driver'})).toHaveCount(0);
+    const fastest=dialog.locator('#compareAllFastest');
+    if (await fastest.getAttribute('aria-pressed')==='false') await fastest.click();
+    await expect(fastest).toHaveAttribute('aria-pressed','true');
     if (testInfo.project.name==='chromium'&&!process.env.CI) {
       await dialog.screenshot({path:testInfo.outputPath('lap-chooser.png')});
     }
-    await view.click();
+    await dialog.getByRole('button',{name:'Close lap chooser'}).click();
     await expect(dialog).toBeHidden();
-    const reference=page.locator('#loadedLaps .loaded-lap-main[aria-pressed="true"]');
-    await expect(reference).toBeFocused();
     await expect(page.locator('#loadedLaps .comparison-lap-gap').first()).toHaveText(/^[+−]\d+\.\d{3} s$/);
-    await toggle.click();
-    await expect(search).toHaveValue('');
-    expect(errors).toEqual([]);
-  });
-}
-
-for (const width of [1440,390]) {
-  test('a saved comparison reopens its exact laps and reference at ' + width + 'px',async({page},testInfo)=>{
-    await page.setViewportSize({width,height:900});
-    await page.addInitScript(theme=>localStorage.setItem('apex-theme',theme),width===390?'light':'dark');
-    await page.addInitScript(()=>{
-      Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.copiedComparison=value;}}});
-    });
-    const errors=await loaded(page);
-    const toggle=page.getByRole('button',{name:'Saved comparisons'});
-    const library=page.getByRole('region',{name:'Saved comparisons'});
-    await toggle.click();
-    await library.getByRole('button',{name:'Save current comparison'}).click();
-    const reopen=library.getByRole('link',{name:/ANT L14.*VER L8/});
-    await expect(reopen).toBeVisible();
-    expect(await library.evaluate(node=>node.scrollWidth-node.clientWidth)).toBeLessThanOrEqual(1);
-    if(testInfo.project.name==='chromium'&&!process.env.CI)await library.screenshot({path:testInfo.outputPath('saved-comparison.png')});
-    await expect(library.getByRole('button',{name:'Save current comparison'})).toBeDisabled();
-    await library.getByRole('button',{name:'Copy current link'}).click();
-    const copied=await page.evaluate(()=>window.copiedComparison);
-    expect(new URL(copied).searchParams.get('laps')).toBe('ANT.14,VER.8');
-    await page.locator('#clearComparison').click();
-    await expect(page.locator('#loadedLaps .loaded-lap-pill')).toHaveCount(0);
-    await reopen.click();
-    await expect(page.locator('#loadedLaps .loaded-lap-main').first()).toContainText('ANT');
-    await expect(page.locator('#loadedLaps .loaded-lap-main[aria-pressed="true"]')).toContainText('L14');
-    await toggle.click();
-    await library.getByRole('button',{name:/Remove .* comparison/}).click();
-    await expect(library.getByRole('link')).toHaveCount(0);
     expect(errors).toEqual([]);
   });
 }
@@ -170,11 +172,13 @@ test('qualifying phases, empty comparison alignment and compute settings remain 
   const errors = await loaded(page);
   await expect(page.locator('.run-segment strong').filter({hasText: /^Stint/})).toHaveCount(0);
   await page.locator('#clearComparison').click();
-  const centers = await page.locator('#telemetryCard .comparison-tray').evaluate(root => {
-    const center = el => { const r = el.getBoundingClientRect(); return r.y + r.height / 2; };
-    return [center(root.querySelector('.comparison-tray-heading')), center(root.querySelector('.section-empty'))];
+  const alignment = await page.locator('#telemetryCard .comparison-tray').evaluate(root => {
+    const heading = root.querySelector('.comparison-tray-heading').getBoundingClientRect();
+    const message = root.querySelector('.section-empty').getBoundingClientRect();
+    return [Math.abs(heading.left - message.left), message.top - heading.bottom];
   });
-  expect(Math.abs(centers[0] - centers[1])).toBeLessThan(1);
+  expect(alignment[0]).toBeLessThan(1);
+  expect(alignment[1]).toBeGreaterThan(0);
   // Compute on this PC is offered in Compute settings; nothing on the PC is contacted until it is chosen.
   await page.getByRole('button', {name: 'Compute settings', exact: true}).click();
   await expect(page.locator('#computeSettings')).toBeVisible();

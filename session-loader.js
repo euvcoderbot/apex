@@ -546,7 +546,10 @@ function mergeConfirmedQualifyingPhases(payload, phases) {
 function setSessionLoading(value) {
   const analysis=$('.analysis-column'),sidebar=$('#driverSidebar');
   const placeholder = $('#sessionLoadState');
-  if (placeholder) placeholder.hidden = !value || Boolean(typeof loadedSessionQuery === 'string' && loadedSessionQuery);
+  if (placeholder) {
+    placeholder.hidden = !value || Boolean(typeof loadedSessionQuery === 'string' && loadedSessionQuery);
+    placeholder.innerHTML = placeholder.hidden ? '' : `<div>${'<i></i>'.repeat(5)}</div>`;
+  }
   if(analysis){analysis.inert=value;analysis.setAttribute('aria-busy',String(value));}
   const inspector=$('#sessionInspector');
   if(inspector)inspector.inert=value;

@@ -60,6 +60,27 @@
 :root[data-skin="linear"][data-skin] #liveTiming .live-signin label { font: 500 12px/1 var(--ui-font); color: var(--ui-tertiary); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-table th:first-child, :root[data-skin="linear"][data-skin] #liveTiming .live-table td:first-child { padding-left: 10px; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-table th:last-child, :root[data-skin="linear"][data-skin] #liveTiming .live-table td:last-child { padding-right: 10px; }
+/* Retain context as the timing and strategy tables scroll across sector and pit columns. */
+:root[data-skin="linear"] #liveTiming :is(.live-tower, .live-engineer) .live-table {
+  --live-place-width: 32px;
+  border-collapse: separate; border-spacing: 0;
+}
+:root[data-skin="linear"] #liveTiming :is(.live-tower, .live-engineer) .live-table :is(th, td):not([colspan]):nth-child(-n+2) {
+  position: sticky; z-index: 1; background: var(--lin-card);
+}
+:root[data-skin="linear"] #liveTiming :is(.live-tower, .live-engineer) .live-table :is(th, td):not([colspan]):first-child {
+  box-sizing: border-box; width: var(--live-place-width); min-width: var(--live-place-width); inset-inline-start: 0;
+}
+:root[data-skin="linear"] #liveTiming :is(.live-tower, .live-engineer) .live-table :is(th, td):nth-child(2) {
+  inset-inline-start: var(--live-place-width); box-shadow: 1px 0 var(--lin-hairline);
+}
+:root[data-skin="linear"] #liveTiming :is(.live-tower, .live-engineer) .live-table thead th:nth-child(-n+2) { background: var(--lin-band); }
+:root[data-skin="linear"] #liveTiming :is(.live-tower, .live-engineer) .live-table tr:hover td:not([colspan]):nth-child(-n+2) {
+  background: color-mix(in srgb, var(--lin-card) 96%, var(--ui-label));
+}
+:root[data-skin="linear"] #liveTiming :is(.live-tower, .live-engineer) .live-table tr[aria-selected="true"] td:nth-child(-n+2) {
+  background: var(--ui-selected);
+}
 /* Lap chips and the picker in Linear's shapes: 28 px pills with the 5% ring, the picker as Linear's menus. */
 :root[data-skin="linear"][data-skin] #liveTiming .live-lap-chip { background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-lap-chip-body { min-height: 28px; font: 500 12px/1 var(--ui-font); }

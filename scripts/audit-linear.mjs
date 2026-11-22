@@ -156,13 +156,18 @@ const STATES = {
 for (const m of ['pace', 'corners', 'straight', 'braking', 'pits', 'tyres', 'trend', 'results'])
   STATES['cars-' + m] = async page => { await isolate(page); await replayFixture(page); await page.goto(`${origin}/apex/cars/${m}?year=2026&scope=tracks&races=16,17,18&run=1`); await page.locator('#performanceMetricPanel:not([aria-busy="true"])').waitFor({timeout: 30000}); await page.waitForTimeout(1200); };
 STATES['cars-empty'] = async page => { await isolate(page); await replayFixture(page); await page.goto(`${origin}/apex/cars?year=2026`); await page.waitForTimeout(2500); };
-for (const t of ['schedule', 'results', 'standings', 'form', 'drivers', 'h2h', 'upgrades', 'units'])
+for (const t of ['home', 'schedule', 'results', 'standings', 'form', 'drivers', 'h2h', 'upgrades', 'units', 'tracks'])
   STATES['season-' + t] = async page => {
     await page.goto(`${origin}/apex/season/${t}?year=2026`);
     await page.locator('#seasonHub .season-body > :not(.season-loading)').first().waitFor({timeout: 30000});
     if (/Could not load|Failed to fetch/i.test(await page.locator('#seasonHub .season-body').innerText())) throw new Error('Season data did not load; check static QA assets.');
     await page.waitForTimeout(900);
   };
+STATES['season-schedule-expanded'] = async page => {
+  await STATES['season-schedule'](page);
+  await page.locator('.season-round-more').first().click();
+  await page.locator('.season-round-detail:not([hidden])').waitFor();
+};
 for (const label of ['Teams', 'PU manufacturers']) {
   STATES['season-units-' + label.toLowerCase().replaceAll(' ', '-')] = async page => {
     await STATES['season-units'](page);

@@ -62,38 +62,8 @@ function naturalDriverName(value) {
     : word).join(' ');
 }
 
-function filterLapDrivers() {
-  const input = $('#lapDriverSearch');
-  const status = $('#lapDriverSearchStatus');
-  if (!input || !status) return;
-  const query = normalizedPlaceName(input.value);
-  const terms = query.split(/\s+/).filter(Boolean);
-  const exact = drivers.find(([code, number]) => query === normalizedPlaceName(code) || query === String(number));
-  const rows = exact ? [exact] : drivers.filter(([code, number, name, , team]) => {
-    const haystack = normalizedPlaceName([code, number, name, team].join(' '));
-    return terms.every(term => haystack.includes(term));
-  });
-  const matches = new Set(rows.map(driver => driver[0]));
-  for (const row of $('#driverPills').querySelectorAll('.driver-pill')) row.hidden = !matches.has(row.dataset.code);
-  status.hidden = !terms.length || matches.size > 0;
-  status.textContent = status.hidden ? '' : 'No matching drivers.';
-}
-
 function renderDrivers() {
   const root = $('#driverPills');
-  const field = $('#lapDriverSearchField'), input = $('#lapDriverSearch');
-  if (field) field.hidden = !drivers.length;
-  if (input) {
-    input.oninput = filterLapDrivers;
-    input.onkeydown = event => {
-      const first = root.querySelector('.driver-pill:not([hidden])');
-      if (first && (event.key === 'ArrowDown' || event.key === 'Enter')) {
-        event.preventDefault();
-        first.focus();
-        if (event.key === 'Enter') first.click();
-      }
-    };
-  }
   const isRace = drivers.length > 0 && /^(Race|Sprint)$/i.test(loadedSessionName);
   const controls = $('#raceResultControls');
   if (controls) {
@@ -124,7 +94,7 @@ function renderDrivers() {
   
   root.querySelectorAll('button').forEach(btn => {
     btn.onkeydown = event => {
-      const rows = [...root.querySelectorAll('.driver-pill:not([hidden])')];
+      const rows = [...root.querySelectorAll('button')];
       const index = rows.indexOf(btn);
       const target = event.key === 'ArrowDown' ? Math.min(rows.length - 1, index + 1)
         : event.key === 'ArrowUp' ? Math.max(0, index - 1)
@@ -146,7 +116,6 @@ function renderDrivers() {
       renderAll();
     };
   });
-  filterLapDrivers();
 }
 
 
@@ -246,14 +215,15 @@ function renderStints() {
     return;
   }
 
-  const fastestLaps = selected.map(code => ({code, lap: fastestTimedLap(realDrivers.get(code))})).filter(item => item.lap);
-  const isAllFastestLoaded = fastestLaps.length > 0 && fastestLaps.every(({code, lap}) =>
-    loaded.some(item => item.code === code && item.lap === lap.lap));
+  const isAllFastestLoaded = selected.every(code => {
+    const fastest = fastestTimedLap(realDrivers.get(code));
+    return fastest && loaded.some(item => item.code === code && item.lap === fastest.lap);
+  });
 
   const toolbar = `
     <div class="run-toolbar">
       <span><b>${selected.length}</b> ${selected.length === 1 ? 'driver' : 'drivers'} selected</span>
-      <button type="button" id="compareAllFastest" data-motion-key="compare-fastest" class="compare-all-btn ${isAllFastestLoaded ? 'selected' : ''}" aria-pressed="${isAllFastestLoaded}" title="Toggle the fastest timed lap for each selected driver" ${fastestLaps.length ? '' : 'disabled'}><span>Compare fastest</span></button>
+      <button type="button" id="compareAllFastest" data-motion-key="compare-fastest" class="compare-all-btn ${isAllFastestLoaded ? 'selected' : ''}" aria-pressed="${isAllFastestLoaded}" title="Add the fastest timed lap for every selected driver"><span>Compare fastest</span></button>
     </div>
   `;
 
@@ -347,6 +317,7 @@ function renderStints() {
   replaceUI(root, cards);
 
   $('#compareAllFastest').onclick = () => {
+    const fastestLaps = selected.map(code => ({ code, lap: fastestTimedLap(realDrivers.get(code)) })).filter(item => item.lap);
     if (isAllFastestLoaded) {
       loaded = loaded.filter(item => !fastestLaps.some(target => target.code === item.code && target.lap.lap === item.lap));
     } else {
@@ -375,12 +346,6 @@ function renderStints() {
 
 function renderLoaded() {
   const root = $('#loadedLaps');
-  window.ApexComparisonLibrary?.render();
-  const done = $('#lapSelectionBody [data-lap-sheet-close]');
-  if (done) {
-    done.textContent = loaded.length ? 'View comparison' : 'Done';
-    done.toggleAttribute('data-view-comparison', loaded.length > 0);
-  }
   const clear = $('#clearComparison');
   if (clear) clear.hidden = loaded.length < 2;
   const pitNotice = $('#pitLapNotice');
@@ -498,7 +463,7 @@ function renderSectors() {
     return directions[Math.round(((degrees % 360) + 360) % 360 / 45) % directions.length];
   };
   const conditionCell = (icon, label, value) => `
-    <span class="summary-condition"><i aria-hidden="true">${icon}</i><span><small>${label}</small><strong>${value}</strong></span></span>`;
+    <span class="summary-condition"><span class="summary-condition-label"><i aria-hidden="true">${icon}</i><small>${label}</small></span><strong>${value}</strong></span>`;
   
   // The colours are F1's timing colours over the whole session (purple session best, green personal best); they do not say
   // which compared lap was quicker. The quickest of the compared laps in each sector is marked separately.
@@ -538,15 +503,16 @@ function renderSectors() {
           <span class="summary-driver" title="${item.code} · lap ${item.lap}">${teamLogoMarkup(realDrivers.get(item.code)?.team || drivers.find(driver=>driver[0]===item.code)?.[4], drivers.find(driver=>driver[0]===item.code)?.[1])}<b>${item.code}</b><span class="summary-lap-label">Lap ${item.lap}</span>${i === 0 ? '<em>REF</em>' : ''}</span>
           <span class="summary-header-actions">
             <span class="summary-tyre ${compoundClass}">${compoundBadgeMarkup(lap.compound)}<span class="summary-tyre-copy"><b>${compound}</b>${tyreLife ? `<small>${tyreLife}</small>` : ''}</span></span>
-            <span class="summary-lap-time"><small>${lap.in_lap && lap.out_lap ? 'PIT IN/OUT' : lap.out_lap ? 'PIT EXIT → LINE' : lap.in_lap ? 'PIT-IN LAP' : 'LAP'}</small>${i === 0 || lap.out_lap || ref.real?.out_lap ? '' : deltaBadge(item.time, ref.time)}<strong>${lap.display_time_estimated ? '~' : ''}${time(Number.isFinite(lap.display_time) ? lap.display_time : item.time)}</strong>${Number.isFinite(ideal) ? `<small class="summary-ideal" title="Sum of ${item.code}’s best three sectors this session">Ideal ${time(ideal)}</small>` : ''}</span>
+            <span class="summary-lap-time"><small>${lap.in_lap && lap.out_lap ? 'PIT IN/OUT' : lap.out_lap ? 'PIT EXIT → LINE' : lap.in_lap ? 'PIT-IN LAP' : 'LAP'}</small><strong>${lap.display_time_estimated ? '~' : ''}${time(Number.isFinite(lap.display_time) ? lap.display_time : item.time)}</strong>${i === 0 || lap.out_lap || ref.real?.out_lap ? '' : deltaBadge(item.time, ref.time)}${Number.isFinite(ideal) ? `<small class="summary-ideal" title="Sum of ${item.code}’s best three sectors this session">Ideal ${time(ideal)}</small>` : ''}</span>
           </span>
         </header>
         <div class="summary-sectors">${sectors.map(({ label, value, reference, state, quickest }, sectorIndex) => {
           const strip = minis?.[i]?.[sectorIndex];
           const stripHtml = strip ? `<span class="sector-minis" aria-hidden="true">${strip.map(kind => `<i class="is-${kind}"></i>`).join('')}</span>` : '';
           return `
-          <span class="sector-cell ${state.className}${quickest ? ' is-compared-best' : ''}${strip ? ' has-minis' : ''}" title="${label} · ${state.label}${quickest ? ' · quickest of the compared laps' : ''}${strip ? ' · mini-sectors: purple quickest of the compared laps, green within 0.01 s, yellow slower' : ''}">
-            <span class="sector-cell-value"><small>${label}</small><span class="sector-measurements"><span class="sector-delta-slot">${i === 0 ? '' : deltaBadge(value, reference)}</span><strong>${Number.isFinite(value) ? `${value.toFixed(3)}s` : '—'}</strong></span></span>${stripHtml}
+          <span class="sector-cell ${state.className}${quickest ? ' is-compared-best' : ''}" title="${label} · ${state.label}${quickest ? ' · quickest of the compared laps' : ''}${strip ? ' · mini-sectors: purple quickest of the compared laps, green within 0.01 s, yellow slower' : ''}">
+            <span class="sector-cell-value"><small>${label}</small><span class="sector-delta-slot">${i === 0 ? '' : deltaBadge(value, reference)}</span><strong>${Number.isFinite(value) ? `${value.toFixed(3)}s` : '—'}</strong></span>
+            <span class="sector-status-line" aria-hidden="true"></span>${stripHtml}
           </span>`;
         }).join('')}
         </div>

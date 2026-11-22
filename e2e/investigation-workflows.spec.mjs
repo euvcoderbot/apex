@@ -11,13 +11,41 @@ test('historical standings follow the selected round for drivers and constructor
   await expect(points).not.toHaveText(latest);
   await page.getByRole('button', {name: 'Constructors', exact: true}).click();
   await expect(picker).toHaveValue(first);
+  await expect(page).toHaveURL(url => url.searchParams.get('round') === first && url.searchParams.get('part') === 'constructors');
   await expect(page.locator('.season-title-fight')).toHaveCount(0);
+  await page.reload();
+  await expect(picker).toHaveValue(first);
+  await expect(page.getByRole('button', {name:'Constructors', exact:true})).toHaveAttribute('aria-pressed','true');
+});
+
+for (const width of [1440, 390]) test(`a Calendar round opens its results and standings at ${width}px`, async ({page}, info) => {
+  await page.setViewportSize({width, height:900});
+  await page.goto('/apex/season/schedule?year=2026&round=1');
+  const round = page.locator('[data-calendar-round="1"]');
+  await expect(round.locator('.season-round-more')).toHaveAttribute('aria-expanded','true');
+  await expect(round.getByRole('heading',{name:'Race podium'})).toBeVisible();
+  expect(await round.evaluate(node => getComputedStyle(node).display === 'grid' && node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+  await expect(round.getByRole('link',{name:'Analyse race'})).toHaveAttribute('href',/round=1&session=Race/);
+  await round.screenshot({path:info.outputPath('calendar-expanded.png')});
+  await round.getByRole('button',{name:'Standings after this race'}).click();
+  await expect(page.locator('select[aria-label="Standings after Grand Prix"]')).toHaveValue('1');
+  await page.goBack();
+  await expect(round.getByRole('button',{name:'Full race results'})).toBeVisible();
+  await round.getByRole('button',{name:'Full race results'}).click();
+  await expect(page).toHaveURL(/\/results\?year=2026&round=1/);
 });
 
 test('entrant comparison copies measurements from the selected field and keeps distinct entrants', async ({page}, info) => {
   await isolate(page); await replayFixture(page);
   await page.goto('/apex/cars?year=2026&scope=tracks&races=16,17,18&run=1');
   const box = page.locator('.entrant-comparison');
+  await expect(box).toBeVisible();
+  const coverage = page.locator('.performance-round-coverage');
+  await coverage.locator('summary').click();
+  await expect(coverage.locator('li')).toHaveCount(3);
+  await expect(coverage.locator('li').filter({hasText:'Included'}).first()).toBeVisible();
+  await coverage.screenshot({path:info.outputPath('measure-coverage.png')});
+  await coverage.locator('summary').click();
   await box.locator('summary').click();
   const picks = box.locator('select');
   const second = await picks.nth(1).inputValue();

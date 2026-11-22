@@ -55,7 +55,7 @@ body.season-view #sessionSidebar, body.season-view #performanceSidebar { display
 .season-sessions li span { font-weight: 600; font-size: var(--text-sm, 13px); }
 .season-sessions li time { color: var(--ui-secondary); font-size: var(--text-xs, 12px); font-variant-numeric: tabular-nums; }
 .season-sessions li[data-state="done"] { opacity: .55; }
-.season-rounds { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.season-rounds { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .season-round { display: grid; gap: 6px; align-content: start; padding: 14px; border-radius: 12px; background: var(--ui-panel); box-shadow: inset 0 0 0 1px var(--ui-border); }
 .season-round[data-status="next"] { box-shadow: inset 0 0 0 1px var(--ui-accent, #5e6ad2); }
 .season-round[data-status="upcoming"] { opacity: .78; }
@@ -517,7 +517,6 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 .season-weather-low { color: var(--ui-tertiary); font-size: 12px; }
 
 /* round cards: a status dot and rows split by hairlines */
-.season-round { display: flex; flex-direction: column; gap: 6px; }
 .season-round h3 { padding-right: 60px; }
 .season-round > .season-track { top: 44px; right: 14px; bottom: auto; width: 50px; height: 50px; }
 .season-status { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--ui-secondary); font-size: 12px; font-weight: 500; }
@@ -1141,7 +1140,15 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 /* Home: the landing page. The season strip, four at-a-glance lists and one tile per part of the site, in the same table
    and list type as the rest of Season. */
 #seasonHub.is-home .season-tabs { display: none; }
-#seasonHub .home-season-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 4px; }
+#seasonHub .home-season-strip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(48px, 1fr); overflow-x: auto; gap: 6px; padding: 2px; }
+#seasonHub .home-timeline { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--lin-hairline); }
+#seasonHub .home-timeline > header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 12px; margin-bottom: 8px; }
+#seasonHub .home-timeline h3 { margin: 0; color: var(--ui-tertiary); font: 500 13px/1.4 var(--ui-font); }
+#seasonHub .weekend-review-controls { display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
+#seasonHub .weekend-review-head .weekend-review-controls .season-select { min-width: 0; width: auto; }
+#seasonHub .season-track-actions {
+  grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px;
+}
 #seasonHub .home-round { display: grid; justify-items: center; gap: 4px; min-height: 0; padding: 8px 2px; border: 0; border-radius: 6px; background: var(--lin-band); color: var(--ui-secondary); font: 500 11px/1 var(--ui-font); cursor: pointer; }
 #seasonHub .home-round:hover { background: var(--lin-nav-hover); }
 #seasonHub .home-round.is-next { box-shadow: inset 0 0 0 1px var(--ui-accent); color: var(--ui-label); }
@@ -1187,8 +1194,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .home-tile:hover { background: var(--lin-nav-hover); }
 #seasonHub .home-tile b { font: 600 13px/1.2 var(--ui-font); color: var(--ui-label); }
 #seasonHub .home-tile span { font: 450 12px/1.35 var(--ui-font); }
-#seasonHub .home-season-strip { grid-template-columns: repeat(var(--n, 24), minmax(0, 1fr)); }
-@media (max-width: 1100px) { #seasonHub .home-season-strip { grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); } }
+
 /* Each session card carries its day's forecast: an icon, the temperature range, the chance of rain. */
 #seasonHub .season-session-weather { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: var(--ui-secondary); font: 450 11px/1 var(--ui-font); font-variant-numeric: tabular-nums; }
 #seasonHub .season-session-weather .season-weather-icon { width: 16px; height: 16px; }
@@ -1241,12 +1247,13 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .home-round .season-avatar { --size: 22px; }
 /* Tracks section */
 #seasonHub .season-track-picker { margin-bottom: 12px; }
+#seasonHub .season-track-picker > .season-track-choice { height: 48px; box-sizing: border-box; align-content: center; padding-block: 6px; }
 #seasonHub .season-track-choice[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--ui-accent); color: var(--ui-label); background: var(--lin-nav-active, var(--lin-band)); }
 #seasonHub .season-track-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 24px; align-items: center; }
 #seasonHub .season-track-head .season-track-title { align-items: center; gap: 10px; }
 #seasonHub .season-track-identity { min-width: 0; }
-#seasonHub .season-track-identity small { display: block; margin-top: 3px; }
-#seasonHub .season-track-head .season-track-title h2 { margin: 0; font: 600 22px/1.2 var(--ui-font); color: var(--ui-label); }
+#seasonHub .season-track-identity small { display: block; margin-top: 3px; font-size: 12px; }
+#seasonHub .season-track-head .season-track-title h2 { margin: 0; font: 600 24px/1.2 var(--ui-font); color: var(--ui-label); }
 #seasonHub .season-track-lap { display: flex; align-items: center; gap: 8px; min-width: 0; font: 500 13px/1.35 var(--ui-font); color: var(--ui-label); }
 #seasonHub .season-track-lap-copy { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
 #seasonHub .season-track-lap-copy strong { font-weight: 600; }
@@ -1391,18 +1398,35 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 /* View pills at the top of a page split into views (Drivers, Head-to-head, Tracks). */
 #seasonHub .season-view-pills { flex: 0 1 auto; min-width: 0; }   /* wraps on a phone instead of running off the edge */
 #seasonHub .season-toolbar:has(> .season-view-pills) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-/* Calendar on a phone: a finished round is one compact row (round, flag, name, date, winner) with a Results button that
-   opens its podium, pole, fastest lap and sprint rows. Wider screens keep the full cards and hide the compact extras. */
-#seasonHub .season-round-winner, #seasonHub .season-round-more { display: none; }
-@media (max-width: 600px) {
-  #seasonHub .season-round[data-status="done"]:not(.is-open) > :is(.season-round-rows, .season-round-link) { display: none; }
-  #seasonHub .season-round[data-status="done"]:not(.is-open) .season-round-title :is(.season-track, .season-track-link) { display: none; }
-  #seasonHub .season-round[data-status="done"] { padding: 10px 12px; gap: 4px; }
-  #seasonHub .season-round[data-status="done"] .season-round-title { display: flex; align-items: center; gap: 10px; }
-  #seasonHub .season-round[data-status="done"] .season-round-title h3 { font-size: 13px; }
-  #seasonHub .season-round-winner { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font: 600 12px/1 var(--ui-font); color: var(--ui-label); }
-  #seasonHub .season-round.is-open .season-round-winner { display: none; }
-  #seasonHub .season-round-more { display: inline-flex; align-items: center; height: 24px; margin-left: 8px; padding: 0 9px; border: 0; border-radius: 6px; background: var(--lin-pill, color-mix(in oklch, var(--ui-label) 8%, transparent)); color: var(--ui-secondary); font: 500 12px/1 var(--ui-font); cursor: pointer; }
+/* Calendar rows use the same summary and disclosure on every viewport. */
+#seasonHub .season-round {
+  grid-template-columns: minmax(0, 1fr) minmax(108px, auto) auto;
+  grid-template-areas: "title meta toggle" "when when when" "detail detail detail";
+  column-gap: 16px; align-items: center;
+}
+#seasonHub .season-round .season-round-head { grid-area: meta; margin: 0; justify-content: flex-end; }
+#seasonHub .season-round-title { grid-area: title; display: flex; gap: 10px; min-width: 0; min-height: 40px; }
+#seasonHub .season-round-title > div { flex: 1 1 auto; min-width: 0; }
+#seasonHub .season-round-title .season-track { width: 36px; height: 36px; }
+#seasonHub .season-round-title h3 { padding: 0; }
+#seasonHub .season-round-when { grid-area: when; }
+#seasonHub .season-round-winner { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font: 600 12px/1 var(--ui-font); color: var(--ui-label); }
+#seasonHub .season-round-more {
+  grid-area: toggle; min-height: 28px; padding: 0 10px; border: 0; border-radius: 9999px;
+  background: var(--lin-pill); color: var(--ui-secondary); font: 500 12px/1 var(--ui-font); cursor: pointer;
+}
+#seasonHub .season-round-more[aria-expanded="true"] { background: var(--lin-pill-on); color: var(--ui-label); }
+#seasonHub .season-round-detail:not([hidden]) { grid-area: detail; display: grid; gap: 8px; padding-top: 8px; margin-top: 4px; border-top: 1px solid var(--lin-hairline); }
+#seasonHub .season-round-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 24px; }
+#seasonHub .season-round-facts h4 { margin: 0 0 4px; color: var(--ui-secondary); font: 600 13px/1.4 var(--ui-font); }
+#seasonHub .season-round-detail .season-round-rows { margin: 0; }
+#seasonHub .season-round-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+#seasonHub .season-round-actions .season-round-link { margin: 0; }
+@media (max-width: 760px) {
+  #seasonHub .season-round { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "meta toggle" "title title" "when when" "detail detail"; gap: 4px 8px; }
+  #seasonHub .season-round .season-round-head { justify-content: flex-start; }
+  #seasonHub .season-round-facts { column-gap: 12px; }
+  #seasonHub .season-round-detail .season-round-rows > div { grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
 }
 /* One density for every driver table and results grid, Reliability's: 36 px rows; a filled cell is a 30 px pill (6 px
    between rows, 4 px between columns), so neighbouring values never touch. Two-line cells (Tracks zones) keep their height. */

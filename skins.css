@@ -136,7 +136,6 @@
     inset 3px 0 0 var(--ui-accent); } /* design-system.css#71.0 */
 :where(.select-shell:focus-within)::after { border-color: var(--ui-accent); } /* design-system.css#72.0 */
 :where(.alignment-readout:has([data-state="ready"]) i) { background: var(--ui-accent); box-shadow: 0 0 9px color-mix(in srgb, var(--ui-accent) 72%, transparent); } /* design-system.css#89.0 */
-:where(.summary-sectors > .sector-cell)::after { background: var(--sector-status); } /* design-system.css#117.0 */
 :where(.sidebar .panel-heading h2) { color: var(--ui-label); font-size: var(--type-caption); line-height: 1.2; } /* design-system.css#142.1 */
 :where(.loaded-lap-pill.reference)::before { border-radius: var(--radius-2xs); background: var(--ui-accent); color: #050608; font-size: 6px; font-weight: 600; } /* design-system.css#147.0 */
 :where(.corner-detail-card .corner-time strong) { color: var(--ui-label); } /* design-system.css#149.0 */
@@ -742,12 +741,13 @@
 :where(.performance-table td small) { font-size: var(--ui-caption); } /* ui-controls.css#1332.0 */
 :where(.overview-tile > span em) { font: 450 12px/1.35 var(--ui-font); font-style: normal; color: var(--ui-tertiary); } /* ui-controls.css#1390.0 */
 :where(.overview-legend > span i) { border-radius: 50%; } /* ui-controls.css#1398.0 */
-:where(.time-summary-card header)::before { border-radius: 50%; background: var(--team, var(--ui-accent)); } /* ui-controls.css#1416.0 */
 :where(.time-summary-card header b) { font: 600 13px/1 var(--ui-font); color: var(--ui-label); } /* ui-controls.css#1417.0 */
-:where(.time-summary-card header span) { font-variant-numeric: tabular-nums; } /* ui-controls.css#1418.0 */
 .time-summary-lists li:has(> button[data-inspect-zone]) { padding: 0; }
 .time-summary-lists li:has(> button[data-inspect-zone]):hover { background: none; }
-:root[data-skin] .time-summary-lists button[data-inspect-zone], :root[data-skin] .time-summary-lists button[data-inspect-zone][data-ui-kind] { box-shadow: none; min-height: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; height: 24px; margin: 0; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+:root[data-skin] .time-summary-lists button[data-inspect-zone], :root[data-skin] .time-summary-lists button[data-inspect-zone][data-ui-kind] { box-shadow: none; display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; min-height: 28px; margin: 0; padding: 0 4px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+:root[data-skin="linear"] .time-summary-pair::before { border-radius: 50%; background: var(--team, var(--ui-accent)); }
+:root[data-skin="linear"] .time-summary-totals dd { color: var(--ui-secondary); font-variant-numeric: tabular-nums; }
+:root[data-skin="linear"] .time-summary-lists button[data-inspect-zone] > span { white-space: nowrap; }
 :root[data-skin] .time-summary-lists button[data-inspect-zone][data-ui-kind]:is(:hover, :focus-visible), :root[data-skin] .time-summary-lists button[data-inspect-zone]:is(:hover, :focus-visible) { background: var(--lin-nav-hover); }
 :where(.time-summary-lists li b) { color: var(--ui-label); } /* ui-controls.css#1424.0 */
 :where(.overview-legend > span i) { background: var(--c); } /* ui-controls.css#1440.0 */
@@ -972,7 +972,6 @@
 :where(.app-sidebar .panel-heading h2) { font: 600 var(--type-body)/1.3 var(--ui-font-display); letter-spacing: 0; } /* macos-window.css#1488.0 */
 :where(.app-sidebar .track-pill img) { box-shadow: 0 0 0 .5px var(--ui-border); } /* macos-window.css#1528.1 */
 :where(.category-bar .category-tab span) { line-height: 1.3; } /* macos-window.css#1531.0 */
-:where(.summary-sectors > .sector-cell)::after { border-radius: var(--radius-2xs); background: var(--sector-status); } /* macos-window.css#1563.1 */
 :where(.chart-heading .trace-zoom-readout b) { color: var(--ui-label); } /* macos-window.css#1608.0 */
 :where(.lap-workspace :is(.run-section-label,.lap-group-header,.lap-group-header small,.run-segment small,.lap-token,.lap-state,.lap-tyre-age,.workspace-heading-actions span,.workspace-heading-actions b)) { font-size: var(--ui-caption); } /* macos-window.css#1633.0 */
 :where(.lap-summary-card :is(.summary-tyre-copy b,.summary-tyre-copy small,.summary-delta,.summary-driver em)) { font-size: var(--ui-caption); } /* macos-window.css#1633.1 */
@@ -1029,12 +1028,9 @@
 :where(.trace-pill-group .trace-driver-chip.is-visible) { border: 0; border-radius: var(--radius-sm); } /* macos-window.css#1945.1 */
 :where(.app-sidebar .track-selection-title > span:first-child) { font: 600 var(--type-body)/1.3 var(--ui-font-display); letter-spacing: 0; } /* macos-window.css#1488.1 */
 :where(.circuit-section-group .corner-picker button.corner-pick) { border: 1px solid var(--ui-border-strong); border-radius: var(--radius-sm); } /* macos-window.css#1558.0 */
-:where(.sector-cards .lap-summary-card .sector-cell)::after { border-radius: var(--radius-2xs); background: var(--sector-status); } /* macos-window.css#1563.0 */
 :where(.sector-cards .lap-summary-card .summary-driver > em) { border-radius: var(--radius-xs); font: 600 11px/1.2 var(--ui-font); color: var(--ui-accent); background: color-mix(in srgb,var(--ui-accent) 12%,transparent); } /* macos-window.css#1573.0 */
 :where(.sector-cards .lap-summary-card .summary-lap-time > strong) { font: 600 var(--type-title2)/1.2 var(--ui-font); font-variant-numeric: lining-nums tabular-nums; font-feature-settings: "tnum"; } /* macos-window.css#1576.0 */
-:where(.sector-cards .lap-summary-card .sector-cell)::after { border-radius: 0; } /* macos-window.css#1579.0 */
 :where(.sector-cards .lap-summary-card .sector-cell-value > small) { color: var(--sector-status,var(--ui-tertiary)); font-size: var(--ui-caption); font-weight: 600; line-height: 16px; } /* macos-window.css#1581.0 */
-:where(.sector-cards .lap-summary-card .sector-measurements > strong) { font: 600 var(--type-headline)/1.2 var(--ui-font); font-variant-numeric: tabular-nums; } /* macos-window.css#1583.0 */
 :where(.sector-cards .lap-summary-card .summary-condition > i) { font-style: normal; line-height: 1; } /* macos-window.css#1589.0 */
 :where(.sector-cards .lap-summary-card .summary-condition small) { font-size: var(--type-caption); color: var(--ui-tertiary); } /* macos-window.css#1591.0 */
 :where(.sector-cards .lap-summary-card .summary-condition strong) { font: 500 var(--type-caption)/1.4 var(--ui-font); color: var(--ui-secondary); } /* macos-window.css#1592.0 */
@@ -1247,9 +1243,7 @@
 :where(input[data-ui-kind="checkbox"]:hover:not(:checked):not(:disabled)) { background: var(--ui-control-hover); } /* hig-system.css#1995.0 */
 :where(.circuit-section-group .corner-picker button.corner-pick:hover) { background: var(--ui-control-hover); } /* hig-system.css#2142.0 */
 @container telemetry (min-width: 500px) {
-  :where(.telemetry-content .sector-cards .lap-summary-card .sector-cell)::after { border-radius: var(--radius-2xs); } /* hig-system.css#2266.0 */
   :where(.telemetry-content .sector-cards .lap-summary-card .sector-cell-value > small) { line-height: 14px; } /* hig-system.css#2269.0 */
-  :where(.telemetry-content .sector-cards .lap-summary-card .sector-measurements > strong) { font-size: var(--type-body); } /* hig-system.css#2271.0 */
 }
 :where(.lap-workspace .lap-chip.is-preparation[aria-pressed="true"] .lap-state) { color: var(--ui-accent); } /* hig-system.css#2024.0 */
 :where(.comparison-tray .comparison-clear[data-ui-kind]:hover:not(:disabled)) { background: var(--ui-row-hover); color: var(--ui-accent); } /* hig-system.css#2354.1 */
@@ -1796,12 +1790,37 @@
 :root[data-skin="linear"] :is(.analysis-heading, .metric-heading) { margin: 0 0 16px; padding: 0 0 12px; }
 :root[data-skin="linear"] :is(.analysis-heading, .metric-heading) h2 { font: 600 24px/32px var(--ui-font); letter-spacing: -.16px; color: var(--ui-label); }
 :root[data-skin="linear"] :is(.analysis-heading, .metric-heading) :is(p, small, .metric-subtitle) { font-size: 13px; color: var(--ui-tertiary); }
+:root[data-skin="linear"] .performance-round-coverage { min-width: 0; max-width: 100%; }
+:root[data-skin="linear"] .performance-round-coverage[open] { flex: 1 0 100%; grid-column: 1 / -1; }
+:root[data-skin="linear"] .performance-round-coverage > summary {
+  cursor: pointer; color: var(--ui-secondary); font: 500 12px/1.5 var(--ui-font); font-variant-numeric: tabular-nums;
+}
+:root[data-skin="linear"] .performance-round-coverage ul {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 2px 16px;
+  margin: 8px 0 0; padding: 0; list-style: none;
+}
+:root[data-skin="linear"] .performance-round-coverage li {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-height: 28px; padding: 4px 8px;
+  border-radius: 6px; background: var(--lin-nav-hover); color: var(--ui-tertiary); font: 450 12px/1.4 var(--ui-font);
+}
+:root[data-skin="linear"] .performance-round-coverage li > span:first-child { color: var(--ui-label); }
 
 /* Widgets: the spec's card (§8): #191a1b, a 1 px #222324 border, 10 px corners, the faint shadow; title 500 13 tertiary. */
 :root[data-skin="linear"] :is(#charts .chart, .sector-cards .lap-summary-card, #carPerformance .performance-chart-card, #carPerformance .performance-table-wrap, .corner-analysis, .dominance-map, details.chart-data-access, .driver-run-card, .time-summary-card) {
   border: 0; border-radius: var(--lin-card-radius); background: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border), var(--lin-faint-shadow);
 }
-:root[data-skin="linear"] #charts .chart { margin-bottom: 12px; }
+:root[data-skin="linear"] #charts .chart { margin-bottom: 12px; padding: 12px; }
+:root[data-skin="linear"] #charts .chart-heading { gap: 8px 12px; margin: 0 0 10px; }
+:root[data-skin="linear"] #charts .chart-heading h2 { display: flex; align-items: baseline; justify-content: flex-start; gap: 6px; margin: 0; }
+:root[data-skin="linear"] #charts .chart-heading h2 small { margin: 0; }
+:root[data-skin="linear"] .trace-chart-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; margin-inline-start: auto; }
+:root[data-skin="linear"] #charts .trace-display-menu > summary { height: 28px; border-radius: 9999px; cursor: pointer; }
+:root[data-skin="linear"] #charts .trace-zoom-cluster { height: 28px; min-height: 28px; border-radius: 8px; }
+:root[data-skin="linear"] #charts .speed-chart-controls { margin-bottom: 8px; }
+@container telemetry (max-width: 520px) {
+  :root[data-skin="linear"] .trace-chart-actions { flex-basis: 100%; margin-inline-start: 0; }
+  :root[data-skin="linear"] .trace-chart-actions .trace-zoom-cluster { flex-basis: 100%; justify-content: space-between; }
+}
 /* Heading roles (spec §2). Card title: 500 13 tertiary, every card's heading, whatever its tag. */
 :root[data-skin="linear"] :is(.chart-heading, .chart-heading h2, .perf-chart-heading, .corner-analysis-header h2, .dominance-map-header h2, .overview-chart > h3,
   .performance-chart-card > h4, #cornerPickerRow header h3, main .panel-heading > h2, #carPerformance .panel-heading > h2) { font: 600 14px/1.3 var(--ui-font); letter-spacing: -.005em; color: var(--ui-label); }  /* a section title reads above its data (was the data-label grey) */
@@ -1810,29 +1829,43 @@
 /* Cards that drew their own outline: the one card (spec §8). */
 :root[data-skin="linear"] :is(#cornerPickerRow, #sessionOverview .overview-chart) { border: 0; border-radius: var(--lin-card-radius); background: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border), var(--lin-faint-shadow); }
 :root[data-skin="linear"] .session-overview { container: overview / inline-size; }
-:root[data-skin="linear"] .overview-readout { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; padding-block: 12px; margin-bottom: 24px; border-block: 1px solid var(--lin-hairline); }
-:root[data-skin="linear"] .overview-tile { padding: 4px 16px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+:root[data-skin="linear"] .overview-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 0; }
+:root[data-skin="linear"] .overview-heading > .performance-scope-toggle { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; }
+:root[data-skin="linear"] .overview-readout { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; margin-bottom: 16px; border-block: 1px solid var(--lin-hairline); }
+:root[data-skin="linear"] .overview-tile { padding: 12px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 :root[data-skin="linear"] .overview-tile + .overview-tile { border-left: 1px solid var(--lin-hairline); }
 @container overview (max-width: 660px) {
-  :root[data-skin="linear"] .overview-readout { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 16px; }
+  :root[data-skin="linear"] .overview-readout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   :root[data-skin="linear"] .overview-tile:nth-child(odd) { border-left: 0; }
-  :root[data-skin="linear"] .overview-tile:last-child { grid-column: 1 / -1; }
+  :root[data-skin="linear"] .overview-tile:nth-child(n+3) { border-top: 1px solid var(--lin-hairline); }
+  :root[data-skin="linear"] .overview-tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  :root[data-skin="linear"] .overview-tile:last-child:nth-child(odd):not(:has(em)) {
+    grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; column-gap: 12px;
+  }
 }
 :root[data-skin="linear"] :is(.performance-run-inspector, .performance-run-inspector .performance-tyre-plot-controls, #carPerformance .performance-chart-card .performance-table-wrap, #carPerformance details .performance-chart-card .performance-table-wrap) { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 :root[data-skin="linear"] .perf-chart-sub { font-size: 12px; color: var(--ui-tertiary); }
 
-/* Comparison laps: Linear's label pills, 24 px, with the lap's colour as the dot. */
-:root[data-skin="linear"] .telemetry-card .comparison-tray { padding: 0 0 16px; margin-bottom: 16px; border-bottom: 1px solid var(--lin-hairline); border-radius: 0; background: transparent; box-shadow: none; gap: 8px; }
-:root[data-skin="linear"] .comparison-tray-heading > span { font: 500 12px/1 var(--ui-font); color: var(--ui-tertiary); }
-
-:root[data-skin="linear"] #comparisonLibrary { margin-bottom: 16px; padding: 0 0 12px; border-bottom: 1px solid var(--lin-hairline); }
-:root[data-skin="linear"] .comparison-library-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-:root[data-skin="linear"] #comparisonLibraryList { list-style: none; margin: 0; padding: 0; }
-:root[data-skin="linear"] #comparisonLibraryList > li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 36px; padding: 4px 0; border-top: 1px solid var(--lin-hairline); }
-:root[data-skin="linear"] #comparisonLibraryList a { min-width: 0; color: var(--ui-label); text-decoration: none; font-size: 13px; }
-:root[data-skin="linear"] #comparisonLibraryList a:hover { color: var(--ui-accent); }
-:root[data-skin="linear"] #comparisonLibraryList small { display: block; color: var(--ui-tertiary); font-size: 12px; overflow-wrap: anywhere; }
-:root[data-skin="linear"] #comparisonShareAddress { width: 100%; min-height: 28px; height: 28px; }
+/* The comparison header and lap chips share one inset. Actions wrap as a group above the laps. */
+:root[data-skin="linear"] #telemetryCard .comparison-tray {
+  container: comparison / inline-size; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 12px; margin: 0 0 12px;
+  border: 1px solid var(--lin-card-border); border-radius: var(--lin-card-radius);
+  background: transparent; box-shadow: none;
+}
+:root[data-skin="linear"] #telemetryCard .analysis-heading { margin: 0 0 12px; padding: 0; }
+:root[data-skin="linear"] .comparison-tray-heading, :root[data-skin="linear"] .comparison-actions {
+  display: flex; flex-flow: row wrap; align-items: center; gap: 6px 8px; margin: 0;
+}
+:root[data-skin="linear"] .comparison-tray-heading > h3 { margin: 0; color: var(--ui-label); font: 600 14px/1.3 var(--ui-font); }
+:root[data-skin="linear"] .comparison-actions { margin-inline-start: auto; }
+:root[data-skin="linear"] .comparison-actions .comparison-picker { margin: 0; }
+:root[data-skin="linear"] #lapWorkspaceToggle:not([hidden]) { background: var(--lin-control-on); color: var(--ui-label); }
+:root[data-skin="linear"] #lapWorkspaceToggle:not([hidden]):hover { background: var(--ui-control-hover); }
+:root[data-skin="linear"] #loadedLaps { display: flex; flex-wrap: wrap; align-items: center; min-width: 0; }
+:root[data-skin="linear"] #loadedLaps > .section-empty { margin: 0; padding: 0; }
+@container comparison (max-width: 435px) {
+  :root[data-skin="linear"] .comparison-actions { flex-basis: 100%; margin: 0; }
+}
 :root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) { gap: 6px; }
 :root[data-skin="linear"] :is(#loadedLaps, #liveTiming .live-lap-chips) .loaded-lap-pill {
   height: 24px; min-height: 24px; padding: 0 2px 0 8px; gap: 2px; border-radius: 9999px; background: transparent; box-shadow: inset 0 0 0 1px var(--lin-label-border);
@@ -1885,11 +1918,13 @@
 :root[data-skin="linear"] .telemetry-empty strong { font: 600 15px/1.4 var(--ui-font); }
 :root[data-skin="linear"] .telemetry-empty > span { font-size: 12px; color: var(--ui-tertiary); text-transform: none; letter-spacing: 0; }
 :root[data-skin="linear"] .telemetry-empty p { max-width: 360px; margin-inline: auto; color: var(--ui-tertiary); font-size: 13px; }
-:root[data-skin="linear"] :is(.session-load-state i, .rank-loading) { display: block; background: var(--lin-band); border-radius: 6px; }
+:root[data-skin="linear"] :is(.session-load-state i, .rank-loading),
+:root[data-skin="linear"] .session-load-state:not([hidden])::after { display: block; background: var(--lin-band); border-radius: 6px; }
 :root[data-skin="linear"] .session-load-state:not([hidden]) { display: grid; gap: 12px; }
 :root[data-skin="linear"] .session-load-state > div { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
 :root[data-skin="linear"] .session-load-state > div > i { height: 62px; }
-:root[data-skin="linear"] :is(.session-load-state > i, .rank-loading) { height: 220px; }
+:root[data-skin="linear"] .rank-loading { height: 220px; }
+:root[data-skin="linear"] .session-load-state:not([hidden])::after { content: ""; height: 220px; }
 :root[data-skin="linear"] .main-dashboard:has(.session-load-state:not([hidden])) #telemetryCard { display: none; }
 
 /* ---- Inspector: Linear's right-hand properties panel, inside the view, set off by a hairline ---- */
@@ -1905,17 +1940,8 @@
   :root[data-skin="linear"] body > main#top:has(#cornerAnalysis[hidden]) { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* ---- Lap sheet ---- */
-:root[data-skin="linear"] #lapSelectionBody:popover-open {
-  display: grid; grid-template-columns: 248px minmax(0, 1fr); grid-template-areas: "header header" "drivers laps";
-  gap: 12px; align-items: start;
-}
-:root[data-skin="linear"] #lapSelectionBody > #driverSidebar {
-  grid-area: drivers; position: static; display: flex; flex-direction: column; min-width: 0;
-  max-height: none; overflow: visible;
-}
-:root[data-skin="linear"] #lapSelectionBody > #stintPanels { grid-area: laps; min-width: 0; }
-:root[data-skin="linear"] .linear-lap-header { grid-area: header; position: sticky; inset-block-start: 0; z-index: 3; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 44px; padding: 8px 0 12px; margin-bottom: 12px; background: var(--ui-panel); border-bottom: 1px solid var(--lin-hairline); }
+/* ---- Lap sheet: a Linear dialog. 12 px corners, the panel colour, a hairline, the high shadow, a 44 px header. ---- */
+:root[data-skin="linear"] .linear-lap-header { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 0 12px; margin-bottom: 16px; border-bottom: 1px solid var(--lin-hairline); }
 :root[data-skin="linear"] .linear-lap-header > strong { font: 600 15px/1.33 var(--ui-font); letter-spacing: -.012em; }
 :root[data-skin="linear"] .linear-lap-actions { margin-left: auto; display: flex; gap: 6px; }
 :root[data-skin="linear"] .linear-lap-header > button { height: 28px; min-height: 28px; padding: 0 12px; border-radius: 6px; background: var(--ui-action); color: #fff; box-shadow: none; font: 500 13px/1 var(--ui-font); }
@@ -1923,21 +1949,8 @@
 :root[data-skin="linear"] #lapSelectionBody #driverSidebar { background: transparent; border: 0; border-radius: 0; box-shadow: none; }
 :root[data-skin="linear"] #lapSelectionBody #driverPills { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
 :root[data-skin="linear"] #lapSelectionBody .driver-pill { border-radius: 8px; }
-:root[data-skin="linear"] #driverSidebar:not(#lapSelectionBody *) .lap-driver-search,
-:root[data-skin="linear"] #lapSelectionBody .driver-pill[hidden] { display: none; }
-:root[data-skin="linear"] #lapSelectionBody .lap-driver-search { margin: 0 0 8px; }
-:root[data-skin="linear"] #lapSelectionBody .lap-driver-search input { width: 100%; min-width: 0; height: 28px; min-height: 28px; box-sizing: border-box; font-size: 13px; }
-:root[data-skin="linear"] #lapSelectionBody #driverPills { max-height: 48dvh; overflow-y: auto; }
-:root[data-skin="linear"] .linear-lap-header .run-toolbar { flex-wrap: wrap; }
-:root[data-skin="linear"] #loadedLaps .comparison-lap-gap { color: var(--ui-tertiary); white-space: nowrap; font-variant-numeric: tabular-nums; }
-@media (max-width: 760px) {
-  :root[data-skin="linear"] #lapSelectionBody:popover-open { grid-template-columns: minmax(0, 1fr); grid-template-areas: "header" "drivers" "laps"; }
-  :root[data-skin="linear"] #lapSelectionBody #driverPills { max-height: 24dvh; }
-  :root[data-skin="linear"] .linear-lap-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
-  :root[data-skin="linear"] .linear-lap-actions { grid-area: 2 / 1 / 3 / -1; margin-inline-start: 0; }
-  :root[data-skin="linear"] .linear-lap-header > button { grid-area: 1 / 2; }
-}
 
+:root[data-skin="linear"] #loadedLaps .comparison-lap-gap { color: var(--ui-tertiary); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* ---- Command menu: Linear's palette. ---- */
 :root[data-skin="linear"] #linearCommandMenu {
@@ -2136,16 +2149,10 @@
 }
 
 /* ---- Lap cards, inspector, frame edge, sidebar toggle, status and menus ---- */
-/* Narrow lap cards: the lap time on the driver's line (the gap above it), sectors and conditions full width below. */
-@container lapcard (max-width: 499.98px) {
-  :root[data-skin="linear"] .sector-cards .lap-summary-card > header { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "driver time" "tyre time"; align-items: center; column-gap: 12px; }
-  :root[data-skin="linear"] .sector-cards .lap-summary-card > header .summary-lap-time { grid-area: time; grid-column: 2; grid-row: 1 / 3; justify-self: end; align-self: center; flex-direction: column; align-items: flex-end; gap: 0; width: auto; margin: 0; padding: 0; border: 0; }
-}
-
 :root[data-skin="linear"] body > main#top > .app-inspector .corner-analysis { padding: 0; background: transparent; box-shadow: none; }
 :root[data-skin="linear"] .app-inspector :is(.dominance-map, .corner-picker-row, .corner-selection-empty) { background: transparent; border: 0; border-radius: var(--lin-card-radius); box-shadow: inset 0 0 0 1px var(--lin-card-border); }
 :root[data-skin="linear"] .app-inspector .corner-selection-empty { box-shadow: inset 0 0 0 1px var(--lin-outline-border); }
-:root[data-skin="linear"] .app-inspector :is(.dominance-map, .corner-picker-row, .corner-selection-empty) { padding: 14px; }
+:root[data-skin="linear"] .app-inspector :is(.dominance-map, .corner-picker-row, .corner-selection-empty) { padding: 12px; }
 
 /* Inspector: track map and corners, a further sixth wider. */
 :root[data-skin="linear"] { --linear-inspector: clamp(380px, 25vw, 415px); }
@@ -2667,18 +2674,77 @@
 :root[data-skin="linear"] .linear-rail-section.is-plain { margin-top: 6px; }
 /* Car performance categories: pills on their own, like the Season pills; no box drawn around the row of round pills. */
 :root[data-skin="linear"] #performanceResults > .performance-toolbar > .performance-mode { border: 0; background: none; border-radius: 0; padding: 0; }
-/* Session analysis sector boxes: the mini-sectors under each time, drawn as the live timing tower draws them (the sector's
-   own bar steps aside while they show). */
-:root[data-skin="linear"] .lap-summary-card .sector-minis { display: flex; gap: 2px; margin-top: 8px; }
-:root[data-skin="linear"] .lap-summary-card .sector-minis i { flex: 1 1 0; min-width: 3px; height: 3px; border-radius: 1px; background: var(--lin-hairline); }
+/* One lap card layout. The conditions use the whole width so wind, temperatures and rain stay readable. */
+:root[data-skin="linear"] .sector-cards .lap-summary-card {
+  grid-template: "identity" "sectors" "conditions" / minmax(0, 1fr); gap: 10px; padding: 12px;
+}
+:root[data-skin="linear"] .sector-cards .lap-summary-card > header {
+  grid-area: identity; grid-template: "driver time" "tyre time" / minmax(0, 1fr) auto; gap: 4px 8px;
+}
+:root[data-skin="linear"] .sector-cards .lap-summary-card .summary-driver { white-space: nowrap; }
+:root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time {
+  grid-area: time; display: grid; justify-items: end; justify-content: end; align-content: center; gap: 2px; margin: 0; padding: 0; border: 0;
+}
+:root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time > strong { grid-area: 1 / 1; }
+:root[data-skin="linear"] .sector-cards:has(.summary-lap-time > .summary-delta) .summary-lap-time { grid-template-rows: auto 14px; }
+:root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time > .summary-delta { grid-area: 2 / 1; }
+:root[data-skin="linear"] .sector-cards .lap-summary-card .summary-sectors {
+  grid-area: sectors; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: 0; gap: 8px; border: 0;
+}
+:root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell { display: grid; align-content: start; gap: 3px; min-width: 0; padding: 0; }
+:root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value {
+  display: grid; grid-template-columns: max-content minmax(max-content, 1fr) max-content; align-items: baseline; gap: 4px; min-width: 0;
+}
+:root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value > small { margin: 0; white-space: nowrap; }
+:root[data-skin="linear"] .sector-cards .lap-summary-card .sector-cell-value > strong {
+  grid-column: 3; font: 600 12px/16px var(--ui-font); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+:root[data-skin="linear"] .lap-summary-card .sector-status-line {
+  height: 3px; border-radius: 2px; background: var(--sector-status, var(--lin-hairline));
+}
+:root[data-skin="linear"] .lap-summary-card .sector-cell.is-unset .sector-status-line { background: var(--lin-hairline); }
+:root[data-skin="linear"] .lap-summary-card .sector-delta-slot:not(:empty) {
+  grid-column: 2; justify-self: end; display: block; white-space: nowrap;
+}
+:root[data-skin="linear"] .sector-cards .lap-summary-card .summary-conditions {
+  grid-area: conditions; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px 10px;
+  margin: 0; padding: 8px 0 0; border: 0; border-top: 1px solid var(--lin-hairline);
+}
+:root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition {
+  display: flex; flex-wrap: wrap; gap: 2px 6px; justify-content: flex-start; padding: 0; white-space: normal;
+}
+:root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition-label { display: inline-flex; align-items: baseline; gap: 4px; }
+:root[data-skin="linear"] .summary-condition-label i { font: 450 11px/1 var(--ui-font); }
+:root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition :is(small, strong) {
+  width: auto; color: var(--ui-tertiary); white-space: normal; text-align: left; overflow: visible;
+}
+:root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition strong { color: var(--ui-secondary); }
+@container telemetry (min-width: 700px) {
+  :root[data-skin="linear"] .sector-cards .lap-summary-card {
+    grid-template: "driver sectors time" "tyre conditions time" / minmax(138px, 1fr) minmax(0, 3.5fr) minmax(100px, 1fr);
+    align-items: center; column-gap: 16px; row-gap: 6px; padding-block: 10px;
+  }
+  :root[data-skin="linear"] .sector-cards .lap-summary-card > header { display: contents; }
+  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-driver { grid-area: driver; }
+  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-tyre { grid-area: tyre; }
+  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-conditions {
+    grid-template-columns: repeat(4, max-content); justify-content: space-between; margin: 0; padding: 0; border: 0;
+  }
+}
+@container telemetry (max-width: 370px) {
+  :root[data-skin="linear"] .sector-cards .lap-summary-card { padding: 10px; gap: 8px; }
+  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-sectors { gap: 6px; }
+  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-conditions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container telemetry (max-width: 390px) {
+  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-sectors { grid-template-columns: minmax(0, 1fr); }
+}
+/* The mini-sector strip follows the F1 sector status line. Both retain their timing colours. */
+:root[data-skin="linear"] .lap-summary-card .sector-minis { display: flex; gap: 2px; }
+:root[data-skin="linear"] .lap-summary-card .sector-minis i { flex: 1 1 0; min-width: 0; height: 3px; border-radius: 1px; background: var(--lin-hairline); }
 :root[data-skin="linear"] .lap-summary-card .sector-minis i.is-best { background: #bf5af2; }
 :root[data-skin="linear"] .lap-summary-card .sector-minis i.is-near { background: #30d158; }
 :root[data-skin="linear"] .lap-summary-card .sector-minis i.is-slow { background: #ffd60a; }
-:root[data-skin="linear"] .lap-summary-card .sector-cell.has-minis::after { display: none; }
-/* The sector's own timing colour as F1 shows it: a 4 px bar under the S1/S2/S3 label (purple session best, green personal
-   best, yellow otherwise), so the sector's result reads before the time and the mini-sectors under it. */
-:root[data-skin="linear"] .lap-summary-card .sector-cell.has-minis .sector-cell-value > small { align-self: stretch; margin-bottom: 8px; padding-bottom: 6px; text-align: center; box-shadow: inset 0 -4px 0 var(--sector-status, var(--lin-hairline)); border-radius: 0 0 2px 2px; }
-:root[data-skin="linear"] .lap-summary-card .sector-cell.has-minis.is-unset .sector-cell-value > small { box-shadow: inset 0 -4px 0 var(--lin-hairline); }
 /* Light theme: the sector labels keep their timing colour but darker, so they read on white (yellow was 1.97:1). */
 :root[data-skin="linear"][data-theme="light"] .lap-summary-card .sector-cell-value > small { color: color-mix(in srgb, var(--sector-status, var(--ui-tertiary)) 55%, #000); }
 :root[data-skin="linear"]:not([data-theme="light"]) .lap-summary-card .sector-cell.is-session-best .sector-cell-value > small { color: color-mix(in srgb, var(--sector-status, #bf5af2) 82%, #fff); }   /* purple on dark, at least 4.5:1 */
@@ -2689,11 +2755,11 @@
 @media (max-width: 760px) { :root[data-skin="linear"] #carPerformance .rank-evidence { display: none; } }   /* the name keeps the room; the count stays in the row's hover and accessible text */
 /* Session overview views (Lap times, Distribution, Driver summary, Race order): Linear view pills, 4 px apart, with room
    above the chart they switch (not a joined segmented track touching the card below). */
-:root[data-skin="linear"] #sessionOverview > .performance-scope-toggle[role="group"] { display: flex; flex-wrap: wrap; gap: 4px; width: auto; height: auto; margin: 4px 0 12px; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
-:root[data-skin="linear"] #sessionOverview > .performance-scope-toggle[role="group"] > button[data-overview-view] { flex: 0 0 auto; width: auto; height: 28px; min-height: 28px; padding: 0 12px; border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); }   /* as the Season view pills */
-:root[data-skin="linear"] #sessionOverview > .performance-scope-toggle[role="group"] > button[data-overview-view]:hover { color: var(--ui-label); }
-:root[data-skin="linear"] #sessionOverview > .performance-scope-toggle[role="group"] > button[data-overview-view][aria-pressed="true"] { background: var(--lin-pill-on); color: var(--ui-label); }
-@media (max-width: 760px) { :root[data-skin="linear"] #sessionOverview > .performance-scope-toggle[role="group"] > button[data-overview-view] { height: 32px; min-height: 32px; } }
+:root[data-skin="linear"] #sessionOverview .overview-heading > .performance-scope-toggle[role="group"] { display: flex; flex-wrap: wrap; gap: 4px; width: auto; height: auto; margin: 4px 0 12px; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+:root[data-skin="linear"] #sessionOverview .overview-heading > .performance-scope-toggle[role="group"] > button[data-overview-view] { flex: 0 0 auto; width: auto; height: 28px; min-height: 28px; padding: 0 12px; border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); }   /* as the Season view pills */
+:root[data-skin="linear"] #sessionOverview .overview-heading > .performance-scope-toggle[role="group"] > button[data-overview-view]:hover { color: var(--ui-label); }
+:root[data-skin="linear"] #sessionOverview .overview-heading > .performance-scope-toggle[role="group"] > button[data-overview-view][aria-pressed="true"] { background: var(--lin-pill-on); color: var(--ui-label); }
+@media (max-width: 760px) { :root[data-skin="linear"] #sessionOverview .overview-heading > .performance-scope-toggle[role="group"] > button[data-overview-view] { height: 32px; min-height: 32px; } }
 /* A driver chip with a photo: the photo sits concentric in the pill's round end (3 px inset), ringed in the driver's chart
    colour, with the code beside it, instead of a 20 px photo jammed against the edges of a 24 px pill. */
 :root[data-skin="linear"] :is(.trace-pill-group, .overview-legend > .overview-legend-item):has(:is(.trace-swatch[data-face], .overview-swatch.has-face)) { height: 26px; padding: 0 10px 0 3px; gap: 7px; color: var(--ui-label); }

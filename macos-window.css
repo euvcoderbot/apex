@@ -166,7 +166,6 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .sector-cell.is-session-best { --sector-status: var(--f1-purple); --sector-status-light: var(--f1-purple-light); }
 .sector-cell.is-personal-best { --sector-status: var(--f1-green); --sector-status-light: var(--f1-green-light); }
 .sector-cell.is-complete { --sector-status: var(--f1-yellow); --sector-status-light: var(--f1-yellow-light); }
-.sector-cards .lap-summary-card .sector-cell::after,.summary-sectors > .sector-cell::after { height: 3px; }
 /* Lap summaries: half-width cards so two laps share a row on wide windows. */
 /* Compact summaries: identity and tyre left, lap time right; sectors below.
    Every delta immediately precedes its time on the same baseline. */
@@ -186,11 +185,8 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 /* Sectors: equal cells with a single inline timing row under the status bar. */
 .sector-cards .lap-summary-card .summary-sectors { grid-area: 2 / 1; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 0; margin-top: 8px; padding: 8px 0 0; }
 .sector-cards .lap-summary-card .sector-cell { position: relative; display: flex; flex-direction: column; align-items: stretch; min-height: 0; padding: 0; }
-.sector-cards .lap-summary-card .sector-cell::after { left: 1px; right: 1px; top: 18px; bottom: auto; height: 3px; }
 .sector-cards .lap-summary-card .sector-cell-value { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 0; text-align: center; }
 .sector-cards .lap-summary-card .sector-cell-value > small { order: 0; margin: 0 0 10px; }
-.sector-cards .lap-summary-card .sector-measurements { order: 1; display: flex; flex-direction: row; align-items: baseline; justify-content: center; align-self: stretch; gap: 4px; padding: 4px 4px 0; }
-.sector-cards .lap-summary-card .sector-measurements > strong { order: 1; white-space: nowrap; }
 .sector-cards .lap-summary-card .sector-delta-slot { order: 0; display: inline-flex; align-items: baseline; }
 .sector-cards .lap-summary-card .sector-delta-slot:empty { display: none; }
 .sector-cards .lap-summary-card :is(.sector-delta-slot,.summary-lap-time) .summary-delta { display: inline; height: auto; padding: 0; white-space: nowrap; }
@@ -207,10 +203,8 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
   .sector-cards .lap-summary-card .summary-lap-time { justify-self: stretch; justify-content: flex-end; padding-top: 6px; }
   .sector-cards .lap-summary-card .summary-sectors { grid-template-columns: minmax(0,1fr); gap: 4px; }
   .sector-cards .lap-summary-card .sector-cell { padding: 4px 8px; }
-  .sector-cards .lap-summary-card .sector-cell::after { left: 0; right: auto; top: 4px; bottom: 4px; width: 2px; height: auto; }
   .sector-cards .lap-summary-card .sector-cell-value { flex-direction: row; justify-content: space-between; }
   .sector-cards .lap-summary-card .sector-cell-value > small { margin: 0; }
-  .sector-cards .lap-summary-card .sector-measurements { padding: 0; }
 }
 /* Trace toolbar: one connected group plus regular-size push buttons. */
 .chart-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }

@@ -118,12 +118,9 @@ test('coverage notes collect once per card, empty charts explain themselves, pai
   assert.match(css,/\.performance-table td small \{ display: block; white-space: nowrap;/);
 });
 
-test('lap cards: horizontal header and inline deltas immediately before times',()=>{
-  assert.match(css,/\.sector-cards \.lap-summary-card \.sector-cell-value \{ display: flex; flex-direction: column; align-items: center;/);
+test('lap cards: compact header and responsive weather rows',()=>{
   assert.match(css,/summary-conditions \{[^}]*grid-template-columns: repeat\(4,max-content\)/);
   assert.match(css,/@container lapcard \(max-width: 370px\) \{\s*\.sector-cards \.lap-summary-card \.summary-conditions \{ grid-template-columns: repeat\(2,max-content\)/);
-  assert.match(css,/sector-delta-slot \{ order: 0; display: inline-flex/);
-  assert.match(css,/sector-measurements > strong \{ order: 1;/);
   assert.doesNotMatch(css,/summary-lap-time:not\(:has\(\.summary-delta\)\)::after/);
   assert.doesNotMatch(css,/@container sectorcards \(min-width: 700px\)/);
   assert.match(appSource(),/menu\.style\.top = top \/ zoom \+ 'px';/);

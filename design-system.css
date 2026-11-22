@@ -672,15 +672,6 @@ canvas[data-chart="Speed trace"] {
   min-width: 0;
 }
 
-.summary-sectors > .sector-cell::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 4px;
-}
-
 /* Compact compound rows replace the oversized tyre circles. */
 
 .tire-option {

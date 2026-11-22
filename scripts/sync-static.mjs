@@ -55,7 +55,6 @@ const staticFiles = [
   "session-corners.js",
   "session-map.js",
   "session-init.js",
-  "comparison-library.js",
   "session-tyres.js",
   "session-overview.js",
   "svg-scale.js",

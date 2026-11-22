@@ -185,6 +185,11 @@ test('head-to-head pace shading stops on both sides of a missing round', async (
 test('race review keeps its selected Grand Prix when opening the race or comparing the podium', async ({page}) => {
   await page.goto('/apex/');
   const select = page.locator('select[aria-label="Grand Prix to review"]');
+  await expect(select).toBeAttached();
+  const latest = Number(await select.inputValue());
+  await page.getByRole('button', {name: 'Previous completed Grand Prix'}).click();
+  expect(Number(await select.inputValue())).toBeLessThan(latest);
+  await expect(page.getByRole('group', {name:'Grand Prix rounds'}).getByRole('button',{pressed:true})).toHaveCount(1);
   const round = fixture.rounds.find(r => r.race.length);
   await select.selectOption(String(round.round), {force: true});
   const pair = round.race.filter(x => x.position === 1 || x.position === 2).sort((a, b) => a.position - b.position);
@@ -203,6 +208,9 @@ test('race details fit a phone and preserve row focus and sideways scroll', asyn
   const round = fixture.rounds.find(r => r.race.length);
   await page.goto('/apex/season/results?year=2026');
   const results = page.getByRole('region', {name: 'Race results'});
+  const highlights = page.locator('.season-stats', {hasText: 'Most wins'});
+  await expect(highlights.getByText('Biggest climb')).toBeVisible();
+  expect((await highlights.boundingBox()).y).toBeLessThan((await results.boundingBox()).y);
   const roundButton = results.getByRole('button', {name: round.name, exact: true});
   await roundButton.focus();
   const offset = await results.evaluate(node => { node.scrollLeft = 120; return node.scrollLeft; });

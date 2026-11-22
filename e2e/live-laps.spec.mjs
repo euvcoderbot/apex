@@ -62,6 +62,18 @@ for (const theme of ['dark', 'light']) test(`Live uses official fastest times wh
   await expect(replaySettings).toBeHidden();
   const tower = page.getByRole('region', {name: 'Timing tower'});
   await expect(tower.locator('tr[data-number="3"]')).toContainText('1:35.675');
+  if (theme === 'light') {
+    const pinned = await tower.locator('.live-table-wrap').evaluate(node => {
+      const driver = node.querySelector('tr[data-number="3"] .live-driver');
+      const before = driver.getBoundingClientRect().left;
+      node.scrollLeft = 120;
+      const result = {distance: node.scrollLeft, shift: driver.getBoundingClientRect().left - before};
+      node.scrollLeft = 0;
+      return result;
+    });
+    expect(pinned.distance).toBeGreaterThan(0);
+    expect(Math.abs(pinned.shift)).toBeLessThanOrEqual(1);
+  }
   await page.getByRole('button', {name: 'Completed laps', exact: true}).click();
   const compare = page.getByRole('region', {name: 'Compare completed laps'});
   const drivers = compare.getByRole('group', {name: 'Drivers to compare'});
