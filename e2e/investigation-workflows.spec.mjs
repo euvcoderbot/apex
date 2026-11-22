@@ -30,19 +30,33 @@ for (const width of [1440, 390]) test(`a Calendar round opens its results and st
   await search.clear();
   await expect(round.locator('.season-round-more')).toHaveAttribute('aria-expanded','true');
   await expect(round.getByRole('heading',{name:'Race podium'})).toBeVisible();
-  const name = round.locator('.season-round-name');
-  await expect(name.getByRole('link',{name:'Australian Grand Prix circuit guide'})).toHaveAttribute('href',/\/season\/tracks/);
-  expect(await name.evaluate(node => {
-    const [flag, title, circuit] = node.children;
-    const flagBox = flag.getBoundingClientRect();
-    const titleBox = title.getBoundingClientRect();
-    const circuitBox = circuit.getBoundingClientRect();
-    return flag.matches('img.season-flag') && title.matches('h3') && circuit.matches('a') &&
-      flagBox.right < titleBox.left && titleBox.right < circuitBox.left;
+  const circuit = round.locator('.season-round-circuit');
+  const track = circuit.getByRole('link',{name:'Australian Grand Prix circuit guide'});
+  await expect(track).toHaveAttribute('href',/\/season\/tracks/);
+  await expect(track.locator('svg')).toBeVisible();
+  expect(await circuit.evaluate(node => {
+    const bounds = selector => node.querySelector(selector).getBoundingClientRect();
+    const midY = rect => (rect.top + rect.bottom) / 2;
+    const flag = bounds('.season-flag'), title = bounds('h3');
+    const copy = bounds('.season-round-copy'), map = bounds('svg');
+    return flag.right < title.left && title.right < map.left && map.height === 40 &&
+      Math.abs(midY(flag) - midY(title)) < 1 && Math.abs(midY(map) - midY(copy)) < 1;
   })).toBe(true);
   expect(await round.evaluate(node => getComputedStyle(node).display === 'grid' && node.scrollWidth <= node.clientWidth + 1)).toBe(true);
   await expect(round.getByRole('link',{name:'Analyse race'})).toHaveAttribute('href',/round=1&session=Race/);
   await round.screenshot({path:info.outputPath('calendar-expanded.png')});
+  const toggle = round.getByRole('button',{name:'Results · Australian Grand Prix'});
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded','false');
+  expect(await round.evaluate(node => {
+    const card = node.getBoundingClientRect();
+    const rows = [...node.children].filter(child => !child.hidden).map(child => child.getBoundingClientRect());
+    const topSpace = Math.min(...rows.map(row => row.top)) - card.top;
+    const bottomSpace = card.bottom - Math.max(...rows.map(row => row.bottom));
+    return topSpace >= 12 && Math.abs(topSpace - bottomSpace) < 1;
+  })).toBe(true);
+  await round.screenshot({path:info.outputPath('calendar-collapsed.png')});
+  await toggle.click();
   await round.getByRole('button',{name:'Standings after this race'}).click();
   await expect(page.locator('select[aria-label="Standings after Grand Prix"]')).toHaveValue('1');
   await page.goBack();

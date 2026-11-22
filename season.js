@@ -979,18 +979,20 @@
         : '<svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true"><circle cx="7" cy="7" r="5.75" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.2 2"/></svg>'));
       head.append(status);
       const titleRow = el('div', 'season-round-title');
+      const circuit = el('div', 'season-round-circuit');
       const name = el('div', 'season-round-name');
       const f = flag(r); if (f) name.append(f);
       name.append(el('h3', null, r.name));
+      const text = el('div', 'season-round-copy');
+      text.append(name, el('p', 'season-round-location', `${r.locality} · ${dateRange(r)}`));
+      circuit.append(text);
       const outline = circuitOutline(r);
       if (outline) {
         const go = trackLink(data.year, r.name, 'season-track-link'); go.title = `${r.circuit || r.name}: circuit page`; go.append(outline);
         go.setAttribute('aria-label', r.name + ' circuit guide');
-        name.append(go);
+        circuit.append(go);
       }
-      const text = el('div');
-      text.append(name, el('p', 'season-round-location', `${r.locality} · ${dateRange(r)}`));
-      titleRow.append(text);
+      titleRow.append(circuit);
       item.append(head, titleRow);
       if (r.status === 'done') {
         // On a phone a finished round is one compact row (its winner beside the name) that opens to its results.
