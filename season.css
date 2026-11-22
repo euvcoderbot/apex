@@ -1212,6 +1212,9 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 @media (max-width: 1100px) { #seasonHub .season-h2h-extras { grid-template-columns: minmax(0, 1fr); } }
 #seasonHub .season-battle-log .battle-bar { rx: calc(2px / var(--chart-scale, 1)); fill: var(--c); }
 #seasonHub .season-battle-log .battle-edge { fill: none; stroke: var(--c); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+#seasonHub .season-battle-log .battle-side { fill: var(--ui-secondary); }
+:root[data-theme="light"] #seasonHub .season-battle-log .battle-bar { fill: color-mix(in srgb, var(--c) 67%, #000); }
+:root[data-theme="light"] #seasonHub .season-battle-log .battle-edge { stroke: color-mix(in srgb, var(--c) 67%, #000); }
 #seasonHub .season-battle-log .grid.is-zero { stroke: var(--ui-quaternary); }
 #seasonHub .season-h2h-sessions .season-h2h { flex: 0 0 auto; }
 #seasonHub .season-h2h-sessions .season-card > .season-chart-sub { margin-top: auto; padding-top: 16px; }

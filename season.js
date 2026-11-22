@@ -3941,7 +3941,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       if (kind === 'qualifying') { const g = qualiGap(p.r, a, b); if (g) tip += `\nGap  ${Math.abs(g.seconds).toFixed(3)} s (${g.session})`; }
       svg += `<rect class="hit" x="${(x(p.i) - slot / 2).toFixed(1)}" y="${T}" width="${slot.toFixed(1)}" height="${H - T - B}" data-tip="${esc(tip)}"/>`;
     }
-    svg += `<text class="label" x="${W - R}" y="${(y(E) + 11).toFixed(1)}" text-anchor="end" style="fill:${esc(ca)}">${esc(driverCode(data, a))} ahead \u2191</text><text class="label" x="${W - R}" y="${(y(-E) - 5).toFixed(1)}" text-anchor="end" style="fill:${esc(cb)}">${esc(driverCode(data, b))} ahead \u2193</text>`;
+    svg += `<text class="label battle-side" x="${W - R}" y="${(y(E) + 11).toFixed(1)}" text-anchor="end">${esc(driverCode(data, a))} ahead \u2191</text><text class="label battle-side" x="${W - R}" y="${(y(-E) - 5).toFixed(1)}" text-anchor="end">${esc(driverCode(data, b))} ahead \u2193</text>`;
     const chart = htmlNode(svg + xLabels(rounds.map(r => r.round), x, H, slot) + '</svg>');
     const [wa, wb] = [pts.filter(p => p.v > 0 || p.edge > 0).length, pts.filter(p => p.v < 0 || p.edge < 0).length];
     const pills = el('div', 'season-segment season-zone-toggle'); pills.setAttribute('role', 'group'); pills.setAttribute('aria-label', 'Session');
