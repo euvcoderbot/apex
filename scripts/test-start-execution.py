@@ -30,6 +30,14 @@ class LaunchTests(unittest.TestCase):
     def test_valid_slow_start_is_retained(self):
         self.assertIn(10, standing_start(self.parked+[(i*.2,i*.2*3.6,False) for i in range(1,51)]))
 
+    def test_long_run_has_more_checkpoints_only_before_braking(self):
+        straight = [(i*.25, min(300., 18*i*.25), False) for i in range(1, 73)]
+        full = standing_start(self.parked+straight)
+        self.assertIn(700, full)
+        braking = standing_start(self.parked+straight[:34]+[(8.75, 150., True)]+straight[35:])
+        self.assertIn(150, braking)
+        self.assertNotIn(200, braking)
+
 
 if __name__ == '__main__':
     unittest.main()

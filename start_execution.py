@@ -1,7 +1,9 @@
 """Native speed packet estimates of observed standing-start execution (version 1)."""
 from math import isfinite, sqrt
 
-DISTANCES = (5, 10, 15, 20, 25, 50, 75, 100)
+DISTANCES = (5, 10, 15, 20, 25, 50, 75, 100, 150, 200, 250, 300, 400, 500, 600, 700, 800)
+WINDOW_BEFORE_START = 4
+WINDOW_AFTER_START = 18
 MAX_GAP = 0.6
 
 
@@ -32,7 +34,7 @@ def standing_start(packets):
     results = {}
     for stamp, kmh, braking in packets[i:]:
         dt = stamp-elapsed
-        if braking or not all(isfinite(n) for n in (dt, kmh)) or not 0 < dt <= MAX_GAP or not 0 <= kmh <= 400:
+        if braking or not all(isfinite(n) for n in (dt, kmh)) or not 0 < dt <= MAX_GAP or not 0 < kmh <= 400:
             break
         v1 = kmh/3.6
         end = distance+(v0+v1)*dt/2

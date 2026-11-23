@@ -1,8 +1,11 @@
-"""Build a local review dataset from a trusted, locally generated FastF1 cache.
-Usage: python scripts/export-start-execution.py CACHE OUTPUT
+"""Build start measurements from a trusted FastF1 cache and archived OpenF1 windows.
+Usage: python scripts/export-start-execution.py CACHE OUTPUT [--openf1 MANIFEST ...]
+Each manifest specifies year, event, session_key, grid (car numbers by slot,
+null for gaps), grid_source, and paths to race_control, drivers and car_data JSON.
 Only the FastF1 instance owner's cache is suitable (its internal files use pickle).
 """
 import argparse
+from datetime import datetime
 import gzip
 import json
 import pickle
@@ -11,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from start_execution import standing_start
+from start_execution import WINDOW_AFTER_START, WINDOW_BEFORE_START, standing_start
 
 
 def cached(directory, key):
@@ -42,7 +45,7 @@ def inspect(directory, year, event, season):
         clock = frame.Time.dt.total_seconds()
         identity = dict(driver=code, team=driver['TeamName'])
         if green_grid and grid.get(code) and grid[code] > 0:
-            native = frame.loc[(clock >= first-4) & (clock <= first+14)]
+            native = frame.loc[(clock >= first-WINDOW_BEFORE_START) & (clock <= first+WINDOW_AFTER_START)]
             points = [(r.Date.timestamp(), float(r.Speed), bool(r.Brake)) for r in native.itertuples() if r.Source == 'car']
             result = standing_start(points)
             if result:
@@ -61,10 +64,58 @@ def inspect(directory, year, event, season):
     return dict(year=year, event=event['name'], standing=rows, rolling=rolling)
 
 
+def inspect_openf1(manifest_path):
+    """Replay an archived OpenF1 race with a verified final grid."""
+    manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+    session_key = manifest['session_key']
+
+    def read_rows(key):
+        rows = json.loads((manifest_path.parent / manifest[key]).read_text(encoding='utf-8'))
+        if not rows or any(row['session_key'] != session_key for row in rows):
+            raise ValueError(f'{key} must contain records for race session {session_key}')
+        return rows
+
+    control = read_rows('race_control')
+    starts = [row for row in control if row['message'] == 'RACE START' and row['lap_number'] == 1]
+    if not starts:
+        # Some archives carry only the session transition. The parked packet
+        # baseline and neutralization check still determine launch eligibility.
+        starts = [row for row in control if row['category'] == 'SessionStatus'
+                  and row['message'] == 'SESSION STARTED' and row['lap_number'] == 1]
+    if len(starts) != 1:
+        raise ValueError('Expected one explicit first-lap race start')
+    start = datetime.fromisoformat(starts[0]['date']).timestamp()
+    if any(
+        (row['category'] == 'SafetyCar' or row['flag'] == 'RED')
+        and abs(datetime.fromisoformat(row['date']).timestamp() - start) <= 5
+        for row in control
+    ):
+        raise ValueError('Race control shows a neutralized start')
+
+    packets = {}
+    for row in read_rows('car_data'):
+        stamp = datetime.fromisoformat(row['date']).timestamp()
+        if start - WINDOW_BEFORE_START <= stamp <= start + WINDOW_AFTER_START:
+            packets.setdefault(row['driver_number'], []).append((stamp, row['speed'], bool(row['brake'])))
+    drivers = {row['driver_number']: row for row in read_rows('drivers')}
+    standing = []
+    for grid, number in enumerate(manifest['grid'], 1):
+        driver = drivers.get(number)
+        marks = standing_start(sorted(packets.get(number, [])))
+        if driver and marks:
+            standing.append(dict(driver=driver['name_acronym'], team=driver['team_name'], grid=grid, marks=marks))
+    if not standing:
+        raise ValueError('No launch window passed the stationarity and packet-gap checks')
+    return dict(year=manifest['year'], event=manifest['event'], standing=standing, rolling=[],
+                source=dict(provider='OpenF1', session_key=session_key, grid=manifest['grid_source']))
+
+
 def main():
     args = argparse.ArgumentParser()
     args.add_argument('cache', type=Path)
     args.add_argument('output', type=Path)
+    args.add_argument('--openf1', type=Path, action='append', default=[],
+                      help='Archived race manifest with OpenF1 JSON paths and a verified grid in slot order')
     paths = args.parse_args()
     base = ROOT/'assets/data/season'
     index = json.loads((base/'index.json').read_text())['entries']
@@ -76,6 +127,10 @@ def main():
         event = next((r for r in season['rounds'] if r['date'] == date), None)
         if event:
             reports.append(inspect(file.parent, year, event, season))
+    for manifest in paths.openf1:
+        report = inspect_openf1(manifest)
+        reports = [race for race in reports if (race['year'], race['event']) != (report['year'], report['event'])]
+        reports.append(report)
     paths.output.write_text(json.dumps(dict(method='start-execution-v1', races=reports),allow_nan=False,separators=(',',':'))+'\n',encoding='utf-8',newline='\n')
 
 

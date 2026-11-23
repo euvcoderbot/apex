@@ -28,6 +28,7 @@ export function StartsView({year, events}: {year: number; events: string[]}) {
     return ()=>{active=false;};
   },[attempt]);
   const races = (all||[]).filter(r => r.year === Number(year) && events.includes(r.event));
+  const covered = (all||[]).filter(r => r.year === Number(year) && r.standing.length);
   const [event, setEvent] = useState('');
   const race = races.find(r => r.event === event) || races[0];
   const [rolling, setRolling] = useState(false);
@@ -42,14 +43,20 @@ export function StartsView({year, events}: {year: number; events: string[]}) {
       {races.length > 1 && <label>Circuit <select value={race.event} onChange={e => setEvent(e.target.value)}>{races.map(r => <option key={r.event}>{r.event}</option>)}</select></label>}
     </header>
     {failed ? <p className="performance-quality-status" role="status">Start measurements could not load. <button type="button" onClick={()=>setAttempt(attempt+1)}>Retry</button></p> :
-    !all ? <p className="performance-quality-status" role="status">Loading start measurements…</p> : !race ? <p className="performance-quality-status">No verified starts for the selected weekends. Available coverage: {all.map(r => r.event+' '+r.year).join(', ')}.</p> : <>
+    !all ? <p className="performance-quality-status" role="status">Loading start measurements…</p> : !race ? <p className="performance-quality-status">
+      {covered.length
+        ? `No verified launches for the selected weekends. Choose ${covered.map(r => r.event).join(', ')} in the weekend selector.`
+        : `No verified launches for ${year} yet.`}
+    </p> : <>
       <div className="start-type">
         <div className="performance-scope-toggle" role="group" aria-label="Start type">
           <button type="button" aria-pressed={!rolling} onClick={() => setRolling(false)}>Standing start</button>
           <button type="button" aria-pressed={rolling} onClick={() => setRolling(true)}>Safety-car releases</button>
         </div>
       </div>
-      {rolling ? <section className="start-table">
+      {rolling ? race.rolling.length === 0
+        ? <p className="performance-quality-status">No verified safety-car release measurements for this race.</p>
+        : <section className="start-table">
         <div className="start-section-heading">
           <h3 className="perf-chart-heading">Speed around green</h3>
           <span className="start-context">km/h</span>
@@ -82,7 +89,8 @@ export function StartsView({year, events}: {year: number; events: string[]}) {
         </div>
         <details className="start-method">
           <summary>Measurement limits</summary>
-          <p>Timing starts halfway between the last stopped packet and the first moving one. A brake application or a gap over 0.6 s ends the trace. The longest accepted gap here was {Math.max(0,...race.standing.flatMap(r=>Object.values(r.marks).map(m=>m.packet_s))).toFixed(1)} s.</p>
+          <p>Distances are measured from each driver’s grid slot. Checkpoints appear only where the trace reaches them before braking, stopping or a packet gap over 0.6 s.</p>
+          <p>Timing starts halfway between the last stopped packet and the first moving one. The longest accepted packet gap here was {Math.max(0,...race.standing.flatMap(r=>Object.values(r.marks).map(m=>m.packet_s))).toFixed(1)} s.</p>
           <p>Team values are medians of the drivers measured at each distance. Lights-out reaction, clutch performance and wheelspin are unresolved.</p>
         </details>
       </>}
