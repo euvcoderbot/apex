@@ -20,5 +20,6 @@ test-results/
 **/index.oslock
 /assets/data/local-captures/
 /assets/data/local-telemetry/
+/assets/data/starts/
 /result.json
 playwright-report/

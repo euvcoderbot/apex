@@ -1,5 +1,23 @@
 import {test,expect} from '@playwright/test';
 import {isolate,replayFixture} from './helpers.mjs';
+import {readFileSync} from 'node:fs';
+
+test('published Sprint appears alongside the bundled race',async({page})=>{
+  await isolate(page);
+  await replayFixture(page);
+  const bundled=JSON.parse(readFileSync(new URL('../assets/data/start-execution.json',import.meta.url),'utf8'));
+  const monaco=bundled.races.find(r=>r.event==='Monaco Grand Prix');
+  await page.route('**/assets/data/starts/2026.json',route=>route.fulfill({
+    json:{method:'start-execution-v1',races:[{...monaco,session:'Sprint',standing:monaco.standing.slice(0,2),rolling:[]}]}
+  }));
+  await page.goto('/apex/cars/starts?year=2026&scope=tracks&races=6&run=1');
+  const panel=page.locator('#performanceMetricPanel');
+  await expect(panel.getByText('Monaco Grand Prix · 2026',{exact:true})).toBeVisible();
+  await panel.getByRole('combobox',{name:'Session',exact:true}).click();
+  await panel.getByRole('option',{name:'Monaco Grand Prix · Sprint',exact:true}).click();
+  await expect(panel.getByText('Monaco Grand Prix · Sprint · 2026')).toBeVisible();
+  await expect(panel.getByText('2 launches · s')).toBeVisible();
+});
 
 for(const width of [390,1440])test('Las Vegas start coverage '+width,async({page},info)=>{
   await page.setViewportSize({width,height:900});

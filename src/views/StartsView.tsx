@@ -4,15 +4,28 @@ import {DataTable} from '../components/DataTable';
 import {TeamLabel} from '../components/TeamLabel';
 import {median} from '../../performance-format.js';
 
-type Race = {year:number; event:string; standing:Launch[]; rolling:{driver:string;team:string;release:number;speeds:number[]}[]};
+type Race = {year:number; event:string; session?:'Race'|'Sprint'; unavailable?:string; standing:Launch[]; rolling:{driver:string;team:string;release:number;speeds:number[]}[]};
+const raceKey = (race: Race) => JSON.stringify([race.event, race.session || 'Race']);
+const raceLabel = (race: Race) => race.session === 'Sprint' ? race.event + ' · Sprint' : race.event;
 let request: Promise<Race[]> | undefined;
-function loadStarts(){
-  return request ??= fetch('assets/data/start-execution.json',{cache:'no-cache'}).then(async r=>{
-    if(!r.ok)throw Error('unavailable');
-    const data=await r.json();
-    if(data.method!=='start-execution-v1'||!Array.isArray(data.races))throw Error('unsupported');
-    return data.races as Race[];
-  }).catch(error=>{request=undefined;throw error;});
+async function readStarts(path: string){
+  const response = await fetch(path, {cache:'no-cache'});
+  if(!response.ok)throw Error('unavailable');
+  const data=await response.json();
+  if(data.method!=='start-execution-v1'||!Array.isArray(data.races))throw Error('unsupported');
+  return data.races as Race[];
+}
+async function loadStarts(year: number){
+  request ??= readStarts('assets/data/start-execution.json').catch(error=>{request=undefined;throw error;});
+  const [bundled, live] = await Promise.allSettled([request, readStarts(`assets/data/starts/${year}.json`)]);
+  if(bundled.status==='rejected' && live.status==='rejected')throw Error('unavailable');
+  const races = new Map<string,Race>();
+  for(const result of [bundled, live]){
+    if(result.status==='fulfilled')for(const race of result.value){
+      if(race.year===year)races.set(raceKey(race),race);
+    }
+  }
+  return [...races.values()];
 }
 
 type Mark = {seconds: number; kmh: number; packet_s: number};
@@ -24,13 +37,14 @@ export function StartsView({year, events}: {year: number; events: string[]}) {
   useEffect(()=>{
     let active=true;
     setFailed(false);
-    loadStarts().then(rows=>{if(active)setAll(rows);},()=>{if(active)setFailed(true);});
+    setAll(null);
+    loadStarts(Number(year)).then(rows=>{if(active)setAll(rows);},()=>{if(active)setFailed(true);});
     return ()=>{active=false;};
-  },[attempt]);
+  },[attempt,year]);
   const races = (all||[]).filter(r => r.year === Number(year) && events.includes(r.event));
   const covered = (all||[]).filter(r => r.year === Number(year) && r.standing.length);
   const [event, setEvent] = useState('');
-  const race = races.find(r => r.event === event) || races[0];
+  const race = races.find(r => raceKey(r) === event) || races.find(r => r.session !== 'Sprint') || races[0];
   const [rolling, setRolling] = useState(false);
   const [teams, setTeams] = useState(false);
   const [speed, setSpeed] = useState(false);
@@ -38,14 +52,14 @@ export function StartsView({year, events}: {year: number; events: string[]}) {
     <header className="metric-heading">
       <div className="metric-heading-copy">
         <h2>Starts &amp; restarts</h2>
-        {race && <p className="start-context">{race.event} · {race.year}</p>}
+        {race && <p className="start-context">{raceLabel(race)} · {race.year}</p>}
       </div>
-      {races.length > 1 && <label>Circuit <select value={race.event} onChange={e => setEvent(e.target.value)}>{races.map(r => <option key={r.event}>{r.event}</option>)}</select></label>}
+      {races.length > 1 && <label>Session <select value={raceKey(race)} onChange={e => setEvent(e.target.value)}>{races.map(r => <option key={raceKey(r)} value={raceKey(r)}>{raceLabel(r)}</option>)}</select></label>}
     </header>
     {failed ? <p className="performance-quality-status" role="status">Start measurements could not load. <button type="button" onClick={()=>setAttempt(attempt+1)}>Retry</button></p> :
     !all ? <p className="performance-quality-status" role="status">Loading start measurements…</p> : !race ? <p className="performance-quality-status">
       {covered.length
-        ? `No verified launches for the selected weekends. Choose ${covered.map(r => r.event).join(', ')} in the weekend selector.`
+        ? `No verified launches for the selected weekends. Choose a covered weekend: ${[...new Set(covered.map(r => r.event))].join(', ')}.`
         : `No verified launches for ${year} yet.`}
     </p> : <>
       <div className="start-type">
@@ -66,7 +80,9 @@ export function StartsView({year, events}: {year: number; events: string[]}) {
           <><TeamLabel team={{displayName:r.driver,logoTeam:r.team}}/><small className="start-release-team">{r.team}</small></>,
           r.release,...r.speeds
         ])}/>
-      </section> : <>
+      </section> : race.standing.length === 0
+        ? <p className="performance-quality-status">{race.unavailable || 'No verified standing start measurements for this session.'}</p>
+        : <>
         <div className="start-comparison">
           <LaunchProfile starts={race.standing}/>
           <section className="start-table start-table-standing">

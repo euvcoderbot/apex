@@ -14,18 +14,24 @@ def standing_start(packets):
     """
     if len(packets) < 4:
         return {}
-    for i in range(1, len(packets)):
-        t, speed, brake = packets[i]
-        last, previous, _ = packets[i-1]
-        if not all(isfinite(n) for n in (last, t, previous, speed)) or not 0 < t-last <= MAX_GAP:
-            return {}
-        if previous == 0 and speed > 0:
-            break
-    else:
+    baseline = packets[0][0]
+    if packets[0][1] != 0:
         return {}
-    # Require a stationary baseline within the window. A racing lap or a
-    # momentary zero during a moving trace cannot supply a launch origin.
-    if last-packets[0][0] < 1 or any(v != 0 for _, v, _ in packets[:i]):
+    for i in range(1, len(packets)):
+        t, speed, _ = packets[i]
+        last, previous, _ = packets[i-1]
+        if not all(isfinite(n) for n in (last, t, previous, speed)) or t <= last:
+            return {}
+        if speed > 0:
+            if t - last > MAX_GAP or last - baseline < 1:
+                return {}
+            break
+        if speed != 0:
+            return {}
+        if t - last > MAX_GAP:
+            # A fresh contiguous parked baseline can follow a stopped gap.
+            baseline = t
+    else:
         return {}
     origin = (last+t)/2
     elapsed = origin

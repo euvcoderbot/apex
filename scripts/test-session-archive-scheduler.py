@@ -22,6 +22,17 @@ def session(key, end, name='Practice 1', cancelled=False):
 
 
 class SchedulerTests(unittest.TestCase):
+    def test_start_retry_checks_previously_archived_races_independently(self):
+        old = session(1,NOW-timedelta(days=7),'Race')
+        practice = session(2,NOW-timedelta(hours=2),'Practice 1')
+        upcoming = session(3,NOW+timedelta(hours=1),'Sprint')
+        event = {'name':'Test GP','round':1}
+        with patch.object(scheduler,'event_for_session',return_value=(event,'Race')), \
+             patch.object(scheduler,'capture_start',side_effect=[ValueError('missing packets'),True]) as capture:
+            self.assertEqual(len(scheduler.capture_due_starts([old,practice,upcoming],NOW,{2026:[event]})),1)
+            self.assertEqual(scheduler.capture_due_starts([old,practice,upcoming],NOW,{2026:[event]}),[])
+        self.assertEqual([call.args[0] for call in capture.call_args_list],[old,old])
+
     def test_old_sessions_without_a_capture_are_caught_up_a_few_per_run(self):
         old=[session(k,NOW-timedelta(days=30+k),'Practice 2') for k in range(1,6)]
         captured={('2026','Old GP 1','Practice 2')}

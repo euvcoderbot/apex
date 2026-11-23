@@ -5,7 +5,6 @@ null for gaps), grid_source, and paths to race_control, drivers and car_data JSO
 Only the FastF1 instance owner's cache is suitable (its internal files use pickle).
 """
 import argparse
-from datetime import datetime
 import gzip
 import json
 import pickle
@@ -15,6 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from start_execution import WINDOW_AFTER_START, WINDOW_BEFORE_START, standing_start
+from start_archive import opening_window, openf1_report, report_key
 
 
 def cached(directory, key):
@@ -76,38 +76,11 @@ def inspect_openf1(manifest_path):
         return rows
 
     control = read_rows('race_control')
-    starts = [row for row in control if row['message'] == 'RACE START' and row['lap_number'] == 1]
-    if not starts:
-        # Some archives carry only the session transition. The parked packet
-        # baseline and neutralization check still determine launch eligibility.
-        starts = [row for row in control if row['category'] == 'SessionStatus'
-                  and row['message'] == 'SESSION STARTED' and row['lap_number'] == 1]
-    if len(starts) != 1:
-        raise ValueError('Expected one explicit first-lap race start')
-    start = datetime.fromisoformat(starts[0]['date']).timestamp()
-    if any(
-        (row['category'] == 'SafetyCar' or row['flag'] == 'RED')
-        and abs(datetime.fromisoformat(row['date']).timestamp() - start) <= 5
-        for row in control
-    ):
-        raise ValueError('Race control shows a neutralized start')
-
-    packets = {}
-    for row in read_rows('car_data'):
-        stamp = datetime.fromisoformat(row['date']).timestamp()
-        if start - WINDOW_BEFORE_START <= stamp <= start + WINDOW_AFTER_START:
-            packets.setdefault(row['driver_number'], []).append((stamp, row['speed'], bool(row['brake'])))
-    drivers = {row['driver_number']: row for row in read_rows('drivers')}
-    standing = []
-    for grid, number in enumerate(manifest['grid'], 1):
-        driver = drivers.get(number)
-        marks = standing_start(sorted(packets.get(number, [])))
-        if driver and marks:
-            standing.append(dict(driver=driver['name_acronym'], team=driver['team_name'], grid=grid, marks=marks))
-    if not standing:
-        raise ValueError('No launch window passed the stationarity and packet-gap checks')
-    return dict(year=manifest['year'], event=manifest['event'], standing=standing, rolling=[],
-                source=dict(provider='OpenF1', session_key=session_key, grid=manifest['grid_source']))
+    race_start = opening_window(control)
+    grid = {i: number for i, number in enumerate(manifest['grid'], 1) if number is not None}
+    return openf1_report(manifest['year'], manifest['event'], manifest.get('session', 'Race'),
+                         session_key, manifest['grid_source'], race_start, grid,
+                         read_rows('drivers'), read_rows('car_data'))
 
 
 def main():
@@ -128,8 +101,17 @@ def main():
         if event:
             reports.append(inspect(file.parent, year, event, season))
     for manifest in paths.openf1:
-        report = inspect_openf1(manifest)
-        reports = [race for race in reports if (race['year'], race['event']) != (report['year'], report['event'])]
+        try:
+            report = inspect_openf1(manifest)
+        except ValueError as error:
+            print(f'{manifest}: {error}', file=sys.stderr)
+            metadata = json.loads(manifest.read_text(encoding='utf-8'))
+            report = dict(year=metadata['year'], event=metadata['event'], session=metadata.get('session', 'Race'),
+                          standing=[], rolling=[], unavailable=str(error),
+                          source=dict(provider='OpenF1', session_key=metadata['session_key'], grid=metadata['grid_source']))
+            if any(report_key(race) == report_key(report) and race['standing'] for race in reports):
+                continue
+        reports = [race for race in reports if report_key(race) != report_key(report)]
         reports.append(report)
     paths.output.write_text(json.dumps(dict(method='start-execution-v1', races=reports),allow_nan=False,separators=(',',':'))+'\n',encoding='utf-8',newline='\n')
 

@@ -21,6 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import server
+from start_archive import START_SESSIONS, capture_start
 
 spec = importlib.util.spec_from_file_location('apex_mirror', ROOT / 'scripts' / 'mirror-openf1.py')
 mirror = importlib.util.module_from_spec(spec)
@@ -311,6 +312,30 @@ def run_due(sessions, now):
         except Exception as error:
             failures.append({'session_key': key, 'session': session.get('session_name'), 'error': str(error)})
             print(f"Session {key}: failed, will retry: {error}", flush=True)
+    failures.extend(capture_due_starts(sessions, now, calendars))
+    return failures
+
+
+def capture_due_starts(sessions, now, calendars):
+    """Retry launches independently, even when the native session was already published."""
+    failures = []
+    data = ROOT / 'assets/data'
+    for session in sessions:
+        end = parse_date(session.get('date_end'))
+        name = session.get('session_name')
+        if (name not in START_SESSIONS or session.get('session_key') is None or session.get('is_cancelled')
+                or end is None or now - end < CHECK_DELAY):
+            continue
+        try:
+            year = int(session['year'])
+            if year not in calendars:
+                calendars[year] = server.event_calendar(year)
+            event, _ = event_for_session(session, calendars[year])
+            if capture_start(session, event, data, server.openf1):
+                print(f'Recorded {event["name"]} {name} launches.', flush=True)
+        except Exception as error:
+            failures.append({'session_key': session['session_key'], 'session': name, 'error': f'Starts: {error}'})
+            print(f'Session {session["session_key"]}: starts unavailable, will retry: {error}', flush=True)
     return failures
 
 
