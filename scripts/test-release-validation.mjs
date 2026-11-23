@@ -22,7 +22,8 @@ test('retirement metadata changes only with the retirement inputs',()=>{
     assert.notEqual(changed,RETIREMENT_REVISION);
     assert.equal(snapshotCompatible('retirementRevision','2e4a10782d8503619079',changed),false);
   }
-  assert.equal(snapshotCompatible('retirementRevision','2e4a10782d8503619079',RETIREMENT_REVISION),true);
+  assert.equal(snapshotCompatible('retirementRevision','2e4a10782d8503619079','8af09b53855a2c0be4b1'),true);
+  assert.equal(snapshotCompatible('retirementRevision','8af09b53855a2c0be4b1',RETIREMENT_REVISION),false);
   assert.equal(snapshotCompatible('retirementRevision',null,RETIREMENT_REVISION),false);
 });
 

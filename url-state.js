@@ -64,7 +64,7 @@
   // One document serves every route, so the title says where you are (history entries, tabs, bookmarks).
   const SITE = 'F1 Apex Data';
   const CATEGORY_TITLES = {pace: 'Pace', corners: 'Cornering', straight: 'Straight line', braking: 'Braking', pits: 'Pit stops',
-    tyres: 'Tyre trend', trend: 'Development trend', results: 'Finishes & retirements'};
+    tyres: 'Tyre trend', trend: 'Development trend', results: 'Finishes & retirements', starts: 'Starts & restarts'};
   const SEASON_TITLES = {home: 'Home', schedule: 'Calendar', results: 'Results', standings: 'Standings', form: 'Form', drivers: 'Drivers',
     h2h: 'Head-to-head', upgrades: 'Development', units: 'Reliability', tracks: 'Tracks'};
   // A page's view (part=) in the title too, so two tabs on Results read By driver and By team.

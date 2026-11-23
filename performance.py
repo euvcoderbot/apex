@@ -804,17 +804,17 @@ def classify_retirement(status, event_name, abbr, session_year=None, reported=No
 
     pu_keywords = ['power unit', 'engine', 'turbo', 'oil pressure', 'water leak', 'coolant',
                    'cooling', 'radiator', 'oil leak', 'fuel leak', 'fuel system',
-                   'fuel pressure', 'battery', 'ers', 'mgu-k', 'loss of drive',
+                   'fuel pressure', 'battery', 'ers', 'mgu-k',
                    'exhaust', 'electrical cut-off', 'electrical / halo',
                    # Reasons as Wikipedia's classifications word them.
-                   'water pressure', 'power loss', 'overheating', 'electrical', 'electronics', 'energy store']
+                   'water pressure', 'overheating', 'electrical', 'electronics', 'energy store']
     if not (session_year and session_year >= 2026):
         pu_keywords.append('mgu-h')
 
     chassis_keywords = ['gearbox', 'transmission', 'hydraulics', 'hydraulic',
                         'brakes', 'brake', 'suspension', 'steering', 'driveshaft',
-                        'differential', 'clutch', 'floor vibration', 'kerb strike',
-                        'wheel attachment', 'wheel bearing', 'wheel', 'puncture', 'tyre failure', 'vibration']
+                        'differential', 'clutch',
+                        'wheel attachment', 'wheel bearing']
 
     incident_keywords = ['accident', 'collision', 'contact', 'barrier', 'crash',
                          'spun off', 'spin', 'damage from contact', 'wall']

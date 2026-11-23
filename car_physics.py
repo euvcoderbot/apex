@@ -1228,6 +1228,11 @@ def speed_domain_metrics(cars, corners=(), *, lap_info=None):
                                                                                  edge_constant=key == 'traction')
         fades[name] = float(np.median([full_throttle_fade(a, p, s_['accel'], segments['straights']) for (a, p), s_ in zip(values, sig)]))
         results[name]['counts'] = {'straight_samples': int(on_straight.sum()), 'exit_samples': int(exiting.sum())}
+        results[name]['lap_evidence'] = {
+            'laps': len(values),
+            'drivers': sorted({timing[id(a)]['driver'] for a, _ in values
+                               if timing.get(id(a), {}).get('driver')}),
+        }
     for key, _ in ranges:
         per_state, totals = {}, {}
         for state in states:

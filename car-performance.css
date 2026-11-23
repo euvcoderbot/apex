@@ -817,6 +817,52 @@ body.performance-view #sidebarToggle {
 .performance-explain-toggle { min-height: var(--ui-segment-height, 40px); }
 .performance-stat-toggle { margin-bottom: 12px; }
 .performance-metric-toolbar .performance-scope-toggle { margin: 0; }
+
+.start-performance { display: grid; gap: 12px; min-width: 0; }
+.start-performance .metric-heading .start-context { display: block; }
+.start-context { margin: 0; color: var(--ui-tertiary); font-size: 12px; }
+.start-type, .start-table-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.start-comparison {
+  display: grid;
+  align-items: start;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+}
+.start-comparison > .start-profile { margin: 0; min-width: 0; }
+.start-profile svg { display: block; margin-top: 8px; }
+.start-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  min-height: 28px;
+}
+.start-section-heading .perf-chart-heading { margin: 0; }
+.start-section-heading :is(select, .select-shell) { width: auto; max-width: 100%; min-height: 28px; }
+.start-section-heading .select-shell { min-width: 96px; }
+.start-table { display: grid; gap: 8px; min-width: 0; }
+.start-table .performance-table-wrap { margin: 0; }
+.start-table .performance-table :is(th, td):not(:first-child) { padding-inline: 8px; }
+.start-table .performance-table th:not(:first-child) { text-align: right; }
+.start-table-standing .performance-table :is(th, td):first-child { min-width: 112px; }
+.start-partial, .start-release-team, .performance-lap-drivers { color: var(--ui-tertiary); font-size: 11px; }
+.performance-lap-drivers { display: block; }
+.start-method { max-width: 64ch; color: var(--ui-secondary); font-size: 13px; }
+.start-method summary { cursor: pointer; }
+.start-method p { margin: 8px 0 0; }
+@media (min-width: 1180px) {
+  .start-comparison { grid-template-columns: minmax(0, 4fr) minmax(0, 5fr); gap: 24px; }
+}
+@media (max-width: 600px) {
+  .start-table-standing .performance-table :is(th, td) { padding-inline: 6px; }
+}
+
 .performance-chart-card { width: 100%; margin: 12px 0 16px; }
 .performance-bar-row { grid-template-columns: minmax(150px, 200px) minmax(0, 1fr) minmax(90px, max-content); min-height: 32px; }
 .performance-bar-label .performance-team { display: flex; min-width: 0; }

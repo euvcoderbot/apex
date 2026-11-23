@@ -508,6 +508,9 @@ async function loadApiData(url, options = {}) {
   return structuredClone(data);
 }
 window.apexDataRequest=(path,signal)=>loadApiData(apiUrl(path),{signal});
+// Optional, versioned snapshot. A missing expanded batch must not trigger a
+// live computation from the published dashboard.
+window.apexPreparedSpeedBatch=path=>preparedData(apiUrl(path));
 window.apexMeasurementRequest=(path,signal)=>loadApiData(new URL(path,window.location.href).href,{signal});
 
 function notify(message, tone = 'error') {

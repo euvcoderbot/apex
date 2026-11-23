@@ -51,7 +51,17 @@ with repository_lock(root):
      if found:
       classified=classify_retirement(retirement.get('cause','Retired'),g,retirement['driver'],y,{**found,'url':report.get('url')})
       retirement.update(classified);matched+=1
-     else:unmatched+=1
+     else:
+      # Reapply current rules to a previously sourced cause even when the
+      # upstream article is unavailable. Never invent a new source or reason.
+      cause=retirement.get('cause')
+      if cause:
+       current=classify_retirement(cause,g,retirement['driver'],y)
+       for field in ('category','is_mechanical','year_compliant'):
+        retirement[field]=current[field]
+      elif retirement.get('is_mechanical'):
+       retirement.update(category='Unknown / unverified',is_mechanical=False)
+      unmatched+=1
     counts={key:0 for key in fields if key!='retirements'}
     for r in team.get('retirements',[]):
      category=r.get('category')

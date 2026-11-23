@@ -1806,6 +1806,7 @@
 :root[data-skin="linear"] body > #carPerformance > :not(.app-sidebar, .workspace-intro) { grid-column: 1; grid-row: auto; padding-inline: var(--linear-content-pad); }
 :root[data-skin="linear"] body > #carPerformance > #performanceResults { padding-top: 24px; padding-bottom: 32px; }
 :root[data-skin="linear"] :is(.analysis-heading, .metric-heading) { margin: 0 0 16px; padding: 0 0 12px; }
+:root[data-skin="linear"] .start-performance .metric-heading { margin-block-end: 0; }
 :root[data-skin="linear"] :is(.analysis-heading, .metric-heading) h2 { font: 600 24px/32px var(--ui-font); letter-spacing: -.16px; color: var(--ui-label); }
 :root[data-skin="linear"] :is(.analysis-heading, .metric-heading) :is(p, small, .metric-subtitle) { font-size: 13px; color: var(--ui-tertiary); }
 :root[data-skin="linear"] .performance-round-coverage { min-width: 0; max-width: 100%; }

@@ -15,10 +15,10 @@ export function qaStates(origin) {
     await page.waitForTimeout(2500);
   };
   const states = {'session-loaded': session};
-  for (const m of ['pace', 'corners', 'straight', 'braking', 'pits', 'tyres', 'trend', 'results'])
+  for (const m of ['pace', 'corners', 'straight', 'braking', 'pits', 'tyres', 'trend', 'results', 'starts'])
     states['cars-' + m] = async page => {
       await isolate(page); await replayFixture(page);
-      await page.goto(`${origin}/apex/cars/${m}?year=2026&scope=tracks&races=16,17,18&run=1`);
+      await page.goto(`${origin}/apex/cars/${m}?year=2026&scope=tracks&races=${m==='starts'?'6':'16,17,18'}&run=1`);
       await page.locator('#performanceMetricPanel:not([aria-busy="true"])').waitFor({timeout: 60000});
       await page.waitForTimeout(1500);
     };

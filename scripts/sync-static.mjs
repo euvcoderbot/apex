@@ -37,7 +37,14 @@ const measurementRevision=computedMeasurementRevision==='a8844f34c906faa5b4a9'?'
 // availability, not the native lap schema, units or sample processing.
 // Retain the exact audited raw identity so native exporters can append safely.
 const rawRevision = ['58a74edf7681fe405d91','6e8c99430260a385b676','e7075057264f10091bdd'].includes(computedSourceRevision) ? '5b02cc1bb2a6daf808ad' : computedSourceRevision;
-const backendRevision = computedBackendRevision==='112288f02c1cac1636c7'?'f7216b3d5e4981b881ec':computedBackendRevision;
+// These exact changes affect retirement classifications and lap-evidence
+// metadata. Existing numerical snapshots retain their backend identity.
+// Repeat-lap requests have distinct keys and retirement has its own gate.
+const backendRevision = ({
+  '112288f02c1cac1636c7': 'f7216b3d5e4981b881ec',
+  'c6598db8232ef9321fa3': 'c18f75bc4ecbc34e05f2',
+  '067ba3f6b33a3ab4a396': 'c18f75bc4ecbc34e05f2',
+})[computedBackendRevision] ?? computedBackendRevision;
 const retirementRevision = calculateRetirementRevision(
   await readFile(resolve(root, 'performance.py')),
   await readFile(resolve(root, 'retirement_sources.py')),

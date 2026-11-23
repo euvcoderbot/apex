@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-import {speedDomainValue,speedDomainEventValues,speedDomainSeason,speedDomainPhases} from '../speed-domain.js';
+import {speedDomainValue,speedDomainEventValues,speedDomainSeason,speedDomainTradeOff,speedDomainPhases} from '../speed-domain.js';
 import {legacySource} from './legacy-css.mjs';
 
 const car=(grip,straight,braking)=>({cornering:{low:{index:1,time_vs_median_s:grip}},straight:{index:1,gap_to_median_s:straight},braking:{index:1,gap_pct:braking}});
@@ -18,6 +18,7 @@ test('values are deficits: corner seconds, straight seconds, braking %',()=>{
 
 test('several GPs compare % of corner time, not seconds that differ by circuit',()=>{
   const band=(s,pct)=>({cornering:{low:{index:1,time_vs_median_s:s,pct_vs_median:pct,phases_s:{braking:s/2,mid:0,exit:s/2}}}});
+  assert.equal(speedDomainValue({field_lap_time_s:90,cornering:{low:{index:1,time_vs_median_s:null}}},'corner_low_lap'),null);
   assert.equal(speedDomainValue(band(.4,1.2),'corner_low'),.4);
   assert.equal(speedDomainValue(band(.4,1.2),'corner_low_pct'),1.2);
   assert.equal(speedDomainValue({cornering:{low:{index:null,pct_vs_median:1}}},'corner_low_pct'),null);
@@ -155,4 +156,44 @@ test('braking is low confidence in 2026 (weak teammate agreement) and keeps its 
   assert.equal(speedDomainIsLowConfidence(2025, 'braking', ['moderate']), false);
   assert.equal(speedDomainIsLowConfidence(2025, 'traction', ['low']), true, 'a low backend label always wins');
   assert.equal(speedDomainIsLowConfidence(2026, 'straight', ['established']), false);
+});
+
+test('season comparisons use common GPs and decline a disconnected field',()=>{
+  const event=(name,field)=>({name,speedDomain:{team:{cars:Object.fromEntries(Object.entries(field).map(([k,v])=>[k,car(v,0,0)]))}}});
+  const field=[event('one',{A:20,B:0,C:1}),event('two',{A:0,B:1,C:2,D:3}),event('three',{A:0,B:1,C:2,D:3})];
+  const matched=speedDomainSeason(field,'team','corner_low');
+  assert.deepEqual(matched.sharedEvents,['two','three']);
+  assert.equal(matched.rows.find(r=>r.name==='A').value,-1.5);
+  const disjoint=speedDomainSeason([event('one',{A:0,B:1,C:2}),event('two',{D:0,E:1,F:2})],'team','corner_low');
+  assert.ok(disjoint.rows.every(r=>r.value===null && /overlap/.test(r.missingReason)));
+});
+
+
+test('the trade-off plot shares the measurement set across both axes',()=>{
+  const complete=(straight,corner)=>({
+    track_straights:{index:1,time_vs_median_s:straight},
+    cornering:Object.fromEntries(['low','medium','high'].map(band=>[band,{index:1,time_vs_median_s:corner}])),
+  });
+  const event=(name,cars)=>({name,speedDomain:{team:{cars}}});
+  const incomplete={...complete(99,99),cornering:{low:{index:1,time_vs_median_s:99}}};
+  const events=[event('one',{A:complete(1,.1),B:complete(2,.2),C:complete(3,.3)}),
+    event('two',{A:complete(10,1),B:complete(20,2),C:incomplete}),
+    event('three',{A:complete(3,1),B:complete(4,2),C:complete(5,3)})];
+  const result=speedDomainTradeOff(events,false);
+  assert.equal(result.shared,2);
+  assert.deepEqual(result.rows.find(r=>r.name==='A'),{name:'A',x:2,y:1.65});
+  assert.deepEqual(speedDomainTradeOff([events[1]],false),{rows:[],shared:0});
+});
+
+test('sparse seasons use directly matched rivals, without pooling lap policies',()=>{
+  const event=(i,names,samplePolicy)=>({name:String(i),speedDomain:{team:{samplePolicy,
+    cars:Object.fromEntries(names.map(name=>[name,car(i+name.charCodeAt(0),0,0)]))}}});
+  const events=['ABCD','ABCD','ABC','ABC','ABD','ABD','ACD','ACD','BCD','BCD'].map((names,i)=>event(i,[...names]));
+  const result=speedDomainSeason(events,'team','corner_low');
+  assert.deepEqual(result.rivalOverlap,[6,6]);
+  assert.deepEqual(result.rows.map(r=>r.value),[-1.5,-.5,.5,1.5]);
+  const mixed=speedDomainSeason([...events,event(99,['A','B','C','D'],'repeat')],'team','corner_low');
+  assert.equal(mixed.otherPolicyGPs,1);
+  assert.equal(mixed.samplePolicy,'single');
+  assert.deepEqual(mixed.rows.map(r=>r.value),result.rows.map(r=>r.value));
 });

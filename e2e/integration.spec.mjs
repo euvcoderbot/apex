@@ -1,23 +1,60 @@
 import {test, expect} from '@playwright/test';
-import {isolate, replayFixture} from './helpers.mjs';
+import {readFileSync} from 'node:fs';
+import {gunzipSync} from 'node:zlib';
+import {apiKey,isolate, replayFixture} from './helpers.mjs';
+import {repeatQualifyingTelemetrySelections,speedBatchPath} from '../qualifying-telemetry.js';
+import {BACKEND_REVISION} from '../lib/cache-revision.mjs';
 
 // Car performance with real numbers (Bahrain, Singapore and United States 2026), replayed with no network. These are the views a
 // person actually reads; the catalogue shows the controls, these show what they are used for.
 const CATEGORIES = [['pace', 'Pace'], ['corners', 'Cornering'], ['straight', 'Straight line'], ['braking', 'Braking'], ['pits', 'Pit stops'],
   ['tyres', 'Tyre trend'], ['trend', 'Development'], ['results', 'Finishes']];
-const URL = category => `/apex/cars/${category}?year=2026&scope=tracks&races=16,17,18&run=1`;
+const carUrl = category => `/apex/cars/${category}?year=2026&scope=tracks&races=16,17,18&run=1`;
 
 async function open(page, category = 'pace') {
   await isolate(page);
   await replayFixture(page);
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto(URL(category));
+  await page.goto(carUrl(category));
   await expect(page.locator('#performanceMetricPanel')).toBeVisible({timeout: 30_000});
   await expect(page.locator('#performanceMetricPanel')).not.toHaveAttribute('aria-busy', 'true', {timeout: 30_000});
   await page.waitForLoadState('networkidle');
   return errors;
 }
+
+test('a saved expanded batch uses the same lap selection and exposes lap evidence', async ({page})=>{
+  await isolate(page);
+  await replayFixture(page);
+  const fixture=JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/car-performance.json.gz',import.meta.url))));
+  const gp='Bahrain Grand Prix';
+  const q=fixture['/api/performance?gp=Bahrain+Grand+Prix&session=Q&year=2026'];
+  const source=Object.entries(fixture).find(([key])=>{
+    const url=new URL(key,'https://fixture.invalid');
+    const windows=JSON.parse(url.searchParams.get('windows')||'[]');
+    return url.searchParams.get('gp')===gp && url.searchParams.get('measures')==='speed' &&
+      windows.some(window=>window.team!==window.driver);
+  })[1];
+  const windows=repeatQualifyingTelemetrySelections(q.teams,'team');
+  const route=apiKey(new URL(speedBatchPath(2026,gp,windows),'https://fixture.invalid'));
+  for(const [team,car] of Object.entries(source.speed_domain.cars)){
+    const drivers=windows.filter(window=>window.team_name===team).map(window=>window.driver);
+    car.lap_evidence={laps:drivers.length,drivers};
+  }
+  const file='0123456789abcdef01234567.json.gz';
+  await page.route('**/assets/data/local-captures/index.json',r=>r.fulfill({json:{
+    backendRevision:BACKEND_REVISION,entries:{[route]:{file,capturedAt:'2026-11-22T00:00:00Z'}},
+  }}));
+  await page.route('**/assets/data/local-captures/'+file,r=>r.fulfill({json:source}));
+  const {round}=fixture['/api/events?year=2026'].find(event=>event.name===gp);
+  await page.goto(`/apex/cars/braking?year=2026&scope=tracks&races=${round}&run=1`);
+  const panel=page.locator('#performanceMetricPanel');
+  await expect(panel.getByText(/Expanded lap sample/)).toBeVisible();
+  await page.getByRole('button',{name:'Show explanations'}).click();
+  await panel.getByText(/Values by GP/).click();
+  await expect(panel.getByRole('columnheader',{name:/Lap evidence/})).toBeVisible();
+  await expect(panel.getByText('2 laps',{exact:true}).first()).toBeVisible();
+});
 
 test.describe('Car performance with real data', () => {
   for (const [slug, label] of CATEGORIES) {

@@ -87,7 +87,7 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
         </div></div>
       ) : null}
       {evidenceSummary ? <p className="performance-quality-status" data-inline-evidence="">{evidenceSummary}</p> : null}
-      {new Set(rows.map(r => r.coverageLabel).filter(Boolean)).size > 1 ? <p className="performance-quality-status">GP coverage differs between entrants. These are averages over each entrant’s available GPs, not a comparison over identical races.</p> : null}
+      {rows.some(r => r.coverageLabel) && new Set(valid.map(r => r.evidenceLabel)).size > 1 ? <p className="performance-quality-status">GP coverage differs between entrants. These are averages over each entrant’s available GPs, not a comparison over identical races.</p> : null}
       <div className="performance-bars">
         {valid.map((r, i) => {
           const value = r.chart, plotted = visibleBarValue(value, digits), position = ((plotted - lo) / span) * 100;

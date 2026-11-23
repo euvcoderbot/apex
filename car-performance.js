@@ -1,7 +1,7 @@
 import {connectedRaceCornerScores,ageAdjustedRaceCornerScores} from './race-cornering.js';
 import {qualifyingRepresentatives} from './corner-geometry.js';
-import {fastestTeamTelemetrySelections} from './qualifying-telemetry.js';
-import {SPEED_DOMAIN_METRICS,speedDomainSeason,speedDomainEventValues,speedDomainPhases,speedDomainIsLowConfidence} from './speed-domain.js';
+import {fastestTeamTelemetrySelections,repeatQualifyingTelemetrySelections,speedBatchPath} from './qualifying-telemetry.js';
+import {SPEED_DOMAIN_METRICS,speedDomainSeason,speedDomainEventValues,speedDomainTradeOff,speedDomainPhases,speedDomainIsLowConfidence} from './speed-domain.js';
 // APEX - Car Performance Section
 // Full parity with Session Analysis design language: Apple UI, official team logos, GP country flags, custom select menus.
 // Scientific rigor aligned with Astra GPT-6 Hybrid principles: no speculative physical regressions, sampling-aware bounds.
@@ -561,6 +561,28 @@ async function loadSpeedDomain(automatic=false,subject=telemetrySubject) {
   async function worker(){while(jobs.length&&!signal.aborted){const event=jobs.shift();
     updateStatus(`Speed-domain metrics · ${event.name} · ${subject}…`,true);
     try{
+      const compute=globalThis.APEX_LOCAL_MODE || globalThis.APEX_COMPUTE_ORIGIN;
+      if(compute || globalThis.apexPreparedSpeedBatch){
+        const repeat=repeatQualifyingTelemetrySelections(event.Q.teams,subject);
+        if(repeat.length){
+          const route=speedBatchPath(year,event.name,repeat);
+          const expanded=await (compute ? get(route,signal) : globalThis.apexPreparedSpeedBatch(route)).catch(error=>{
+            if(signal.aborted)throw error;
+            return null;
+          });
+          if(id!==generation||signal.aborted)return;
+          if(Object.values(expanded?.speed_domain?.cars||{}).filter(car=>car.lap_evidence?.laps>=2).length>=3){
+            if(subject==='driver'){
+              const identities=driverSelectionsFromQualifying(event.Q.teams)||[];
+              event.qualifyingDrivers ||= identities.map(p=>({team:p.driver,color:p.color,displayName:p.driver,logoTeam:p.teamName,driver:p.driver}));
+            }
+            (event.speedDomain ||= {})[subject]={...expanded.speed_domain,samplePolicy:'repeat'};
+            delete event[speedDomainErrorKey(subject)];
+            scheduleRender();
+            continue;
+          }
+        }
+      }
       let windows;
       if(subject==='team')windows=fastestTeamTelemetrySelections(event.Q.teams);
       else if(driverSelectionsFromQualifying(event.Q.teams)){
@@ -947,9 +969,9 @@ function summarisePaceTeams(teams,stat) {
   const rows=teams.map(t=>({...t}));
   for(const [key,observations] of Object.entries(series)){
     const data=teams.map(observations);
-    sharedPace(data,stat).forEach(({value,range,count,provisional,own,seen},i)=>{
+    sharedPace(data,stat).forEach(({value,range,count,provisional,own,seen,rivalOverlap},i)=>{
       Object.assign(rows[i],{[key]:value,[key+'Range']:range,[key+'Count']:count,[key+'Provisional']:provisional,[key+'Own']:own,[key+'Seen']:seen,
-        [key+'HasData']:data[i].some(row=>finite(row.value))});
+        [key+'HasData']:data[i].some(row=>finite(row.value)),[key+'RivalOverlap']:rivalOverlap});
     });
   }
   return rows;
@@ -963,7 +985,7 @@ function typicalLapSeconds(teams) {
 // Each team's rank among the teams measured, per measurement: qualifying and race pace from the pace analysis, and the
 // corner bands, straights, traction and braking from one qualifying-telemetry pass (the same data as Cornering, Straight
 // line and Braking). Ranks, not values, so measurements in different units sit side by side; the values are on hover.
-const PROFILE_SPEED_KEYS=[['corner_low','Slow corners'],['corner_medium','Medium corners'],['corner_high','Fast corners'],['track_straights','Straights'],['traction','Traction'],['braking','Braking']];
+const PROFILE_SPEED_KEYS=[['corner_low','Slow corners'],['corner_medium','Medium corners'],['corner_high','Fast corners'],['track_straights','Straights'],['traction','Exit acceleration'],['braking','Braking']];
 function teamProfileModel(paceTeams) {
   const several=events.filter(e=>e.Q).length>1;
   const speedKey=key=>several&&(key.startsWith('corner_')||key==='track_straights')?key+'_lap':key;
@@ -974,16 +996,17 @@ function teamProfileModel(paceTeams) {
   const speedLoaded=events.some(e=>e.speedDomain?.team?.cars);
   if(speedLoaded)for(const [key,label] of PROFILE_SPEED_KEYS){
     const k=speedKey(key),meta=SPEED_DOMAIN_METRICS[k];
-    measures.push({key:k,label,unit:meta.unit,digits:meta.digits,values:new Map(speedDomainSeason(events,'team',k).rows.map(r=>[r.name,r.value]))});
+    const lowConfidence=speedDomainIsLowConfidence(context?.year,k,events.map(e=>e.speedDomain?.team?.reliability?.[meta.reliability]).filter(Boolean));
+    measures.push({key:k,label,lowConfidence,unit:meta.unit,digits:meta.digits,values:new Map(speedDomainSeason(events,'team',k).rows.map(r=>[r.name,r.value]))});
   }
   for(const m of measures){
     const ranked=[...m.values].filter(([,v])=>finite(v)).sort((a,b)=>a[1]-b[1]);
-    m.count=ranked.length;m.rank=new Map(ranked.map(([team],i)=>[team,i+1]));
+    m.count=ranked.length;m.rank=new Map(ranked.map(([team,value])=>[team,1+ranked.findIndex(([,v])=>v===value)]));
   }
   const rows=paceTeams.map(t=>{
     const ranks=measures.map(m=>m.rank.get(t.team)??null);
     // Strongest at: the measurement where this team ranks best relative to the field (ties go to the earlier column).
-    let best=null;measures.forEach((m,i)=>{if(ranks[i]!=null&&m.count>2&&(best==null||ranks[i]/m.count<ranks[best]/measures[best].count))best=i;});
+    let best=null;measures.forEach((m,i)=>{if(!m.lowConfidence&&ranks[i]!=null&&m.count>2&&(best==null||ranks[i]/m.count<ranks[best]/measures[best].count))best=i;});
     return {team:t,ranks,strongest:best==null?null:measures[best].label};
   });
   return {measures,rows,speedLoaded,several};
@@ -997,21 +1020,17 @@ function teamProfileCard(paceTeams) {
     const heat=rank!=null&&m.count>1?(m.count-rank)/(m.count-1):0;
     const reading=escape(`${m.label}: ${rank==null?'not measured':`rank ${rank} of ${m.count} · ${signed(v,m.digits??3,m.unit)}`}`);
     return `<td class="profile-rank perf-heat-cell${rank==null?'':rank<=3?' is-top':rank>m.count-3?' is-low':''}" title="${reading}" aria-label="${reading}"><span class="perf-heat-value"${heat>0?` style="--heat:${heat.toFixed(3)}"`:''}>${rank==null?'—':rank}</span></td>`;}).join('')}<td class="profile-strongest">${escape(r.strongest||'—')}</td></tr>`).join('');
-  const loadButton=model.speedLoaded?'':`<p class="performance-note">Add the corner bands, straights, traction and braking from qualifying telemetry: <button type="button" class="btn-track-action" data-profile-load ${speedDomainRunning.team?'disabled':''}>${speedDomainRunning.team?'Measuring telemetry…':'Measure from telemetry'}</button></p>`;
+  const loadButton=model.speedLoaded?'':`<p class="performance-note">Add the corner bands, straights, exit acceleration and braking from qualifying telemetry: <button type="button" class="btn-track-action" data-profile-load ${speedDomainRunning.team?'disabled':''}>${speedDomainRunning.team?'Measuring telemetry…':'Measure from telemetry'}</button></p>`;
   return `<section class="dashboard-card performance-card team-profile-card"><div class="panel-heading"><h2>Car strengths and weaknesses</h2></div>
     <p class="performance-note">Each team’s rank among the teams measured, 1 = best, in every measurement on this page set. Deeper shading is a better rank; the measured value is on hover. Ranks hide how close teams are: check the gaps before reading much into neighbouring places.</p>
     ${loadButton}<div class="performance-table-wrap" tabindex="0" role="region" aria-label="Car strengths and weaknesses"><table class="performance-table team-profile-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>
     ${model.speedLoaded?tradeOffPlot(model):''}</section>`;
 }
-// Straight-line time lost against corner time lost: a car low on drag sits left, one with more downforce sits low.
+// Plot both measured deficits on the same set of qualifying weekends.
 function tradeOffPlot(model) {
-  const straight=model.measures.find(m=>m.key.startsWith('track_straights'));
-  const bands=model.measures.filter(m=>m.key.startsWith('corner_'));
-  if(!straight||bands.length<3)return '';
-  const points=model.rows.map(r=>{
-    const sx=straight.values.get(r.team.team),cs=bands.map(b=>b.values.get(r.team.team));
-    return finite(sx)&&cs.every(finite)?{team:r.team,x:sx,y:cs.reduce((a,b)=>a+b,0)}:null;
-  }).filter(Boolean);
+  const cohort=speedDomainTradeOff(events,model.several);
+  const teams=new Map(model.rows.map(row=>[row.team.team,row.team]));
+  const points=cohort.rows.flatMap(point=>teams.has(point.name)?[{...point,team:teams.get(point.name)}]:[]);
   if(points.length<3)return '';
   // The measurements are centred on each GP's median car; shift both axes so 0 is the best team, as on the bar charts.
   const minX=Math.min(...points.map(p=>p.x)),minY=Math.min(...points.map(p=>p.y));
@@ -1044,7 +1063,8 @@ function tradeOffPlot(model) {
     svg+=`<circle cx="${X(p.x).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="5" style="fill:${escape(color(p.team.color))}" tabindex="${index===0?'0':'-1'}" role="img" data-chart-value="trade-off:${escape(p.team.team||p.team.displayName)}" aria-label="${escape(label)}"><title>${escape(label)}</title></circle><text class="label" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}"${left?' text-anchor="end"':''}>${escape(p.team.displayName||p.team.team)}</text>`;
   }
   svg+='</svg>';
-  return `<div class="performance-chart-card trade-off-card"><div class="perf-chart-header"><div class="perf-chart-title-group"><h4 class="perf-chart-heading">Straights against corners</h4><span class="perf-chart-sub">0 = best · bottom left is quickest at both</span></div></div><p class="performance-note">Each team’s time lost to the best on the straights (across) and in all corners together (up), from the same qualifying laps. Bottom left is quickest at both. A car far left but high is quick on the straights and loses in corners (less drag, less downforce); one low but to the right is the opposite. 0 = best in each.</p>${svg}</div>`;
+  const evidence=cohort.rivalOverlap?`Matched rivals · ${cohort.rivalOverlap[0]===cohort.rivalOverlap[1]?cohort.rivalOverlap[0]:cohort.rivalOverlap.join('–')} GPs per pair`:`${cohort.shared} shared GP${cohort.shared===1?'':'s'}`;
+  return `<div class="performance-chart-card trade-off-card"><div class="perf-chart-header"><div class="perf-chart-title-group"><h4 class="perf-chart-heading">Straights against corners</h4><span class="perf-chart-sub">${evidence} · 0 = best</span></div></div><p class="performance-note">Both axes use the same qualifying weekends and require measured straights and all three corner bands. Bottom left is quickest at both. Driver, setup and conditions influence where a team loses time.</p>${svg}</div>`;
 }
 
 function renderPace(teams) {
@@ -1078,11 +1098,13 @@ function renderPace(teams) {
 
   const loadedQ=events.filter(e=>e.Q?.teams?.length).length,loadedR=events.filter(e=>e.R?.teams?.length).length;
   const lapSeconds=typicalLapSeconds(teams);
-  const evidence=(t,key)=>`${t[key+'Count']} shared GP${t[key+'Count']===1?'':'s'} · ${t[key+'Provisional']} provisional`;
+  const evidence=(t,key)=>`${t[key+'Count']} ${t[key+'RivalOverlap']?'measured':'shared'} GP${t[key+'Count']===1?'':'s'} · ${t[key+'Provisional']} provisional`;
   const chartRows=(rows,key)=>rows.map(t=>({...t,evidenceLabel:evidence(t,key),
     evidenceBadge:t[key+'Provisional']?`${t[key+'Provisional']} provisional`:'',
-    missingReason:!t[key+'HasData']?'No supported measurements':t[key+'Own']<t[key+'Seen']/2?`Measured in ${t[key+'Own']} of ${t[key+'Seen']} GPs`:'At least two measured teams must share the same GP set'}));
+    missingReason:!t[key+'HasData']?'No supported measurements':t[key+'Own']<t[key+'Seen']/2?`Measured in ${t[key+'Own']} of ${t[key+'Seen']} GPs`:'Insufficient shared weekends across rivals'}));
   const summaryLabel=key=>{
+    const overlap=paceTeams.find(t=>t[key+'RivalOverlap'])?.[key+'RivalOverlap'];
+    if(overlap)return `Matched rivals · ${overlap[0]===overlap[1]?overlap[0]:overlap.join('–')} GPs per pair`;
     const count=paceTeams.find(t=>t[key+'Count'])?.[key+'Count']??0;
     return `${count} shared GP${count===1?'':'s'}${paceTeams.some(t=>t[key+'Range'])?' · 90% GP-resample range':''}`;
   };
@@ -1091,7 +1113,7 @@ function renderPace(teams) {
     : qualyPaceMode==='condition'?'Timestamp / set diagnostic':'Evolution-adjusted deficit';
   // Rendered by src/views/PaceView.tsx; data-pace-stat / data-qualy-mode buttons are handled below.
   const profile=teamProfileCard(paceTeams);
-  return reactView('pace',{regulatory:!!is2026,note:`${chartMeta.note} Each ranking uses the GPs shared by all teams with measurements in that view. Whiskers cover the middle 90% of gaps when the same GPs are resampled for every team and the leader is picked again in each draw.`,
+  return reactView('pace',{regulatory:!!is2026,note:`${chartMeta.note} Rankings use common GPs or equally weighted rival comparisons when overlap is limited. Common-GP whiskers cover the middle 90% of gaps after resampling weekends and picking the leader again in each draw.`,
     stat:{show:loadedR>2||loadedQ>2,value:paceSeasonStat},
     qualyMode:qualyPaceMode,qualyBadge:qualyPaceMode==='overall'?'Best delivered lap · Q1–Q3':qualyPaceMode==='condition'?'Estimated within common observed time support':'Estimated phase evolution',
     qualyChart:{rows:chartRows(ordered,paceKey),options:{title:chartMeta.title,subtitle:chartMeta.subtitle,evidenceSummary:summaryLabel(paceKey),valueKey:paceKey,unit:'%',digits:loadedQ>1?2:3,intervalKey:paceKey+'Range',perLapSeconds:lapSeconds}},
@@ -1990,25 +2012,43 @@ function speedDomainEntities(subject=telemetrySubject) {
 // View data for src/views/SpeedView.tsx (Cornering, Straight line, Braking).
 function speedDomainChart(key,title,subtitle,subject=telemetrySubject) {
   const meta=SPEED_DOMAIN_METRICS[key],season=speedDomainSeason(events,subject,key),style=speedDomainEntities(subject);
-  // Coverage is disclosed only where it differs: a team measured in fewer GPs than the others ("2/3 GPs"); full coverage says nothing.
-  const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason,traceProvisional:r.provisional,evidenceLabel:`${r.gps} GPs`,coverageLabel:season.gps>1&&r.gps<season.gps?`${r.gps}/${season.gps} GPs`:''}));
+  const ranked=season.rows.filter(r=>finite(r.value));
+  const bestByMean=Math.min(...ranked.map(r=>r.value));
+  if(season.gps&&!ranked.length)return {title:title||meta.label,empty:`Insufficient shared weekends for a ranking. ${season.sharedEvents.length} of ${season.gps} supported GPs overlap. Individual measurements are under Values by GP.`};
+  const medians=ranked.map(r=>median(r.perEvent.filter(e=>season.sharedEvents.includes(e.event)).map(e=>e.value)));
+  const bestByMedian=Math.min(...medians);
+  const sensitive=!season.rivalOverlap&&season.sharedEvents.length>=4&&ranked.length>1&&!ranked.some((r,i)=>r.value===bestByMean&&medians[i]===bestByMedian);
+  const evidence=season.rivalOverlap
+    ? `Matched rivals · ${season.rivalOverlap[0]===season.rivalOverlap[1]?season.rivalOverlap[0]:season.rivalOverlap.join('–')} GPs per pair`
+    : `${season.sharedEvents.length} shared of ${season.gps} supported GP${season.gps===1?'':'s'} of ${events.filter(e=>e.Q).length} selected`;
+  const sampleNote=season.samplePolicy==='repeat'?'Expanded lap sample':season.otherPolicyGPs?'Single-lap sample':'';
+  const other=season.otherPolicyGPs?`${season.otherPolicyGPs} GPs with a different lap sample`:'';
+  const evidenceSummary=[season.rivalOverlap?evidence:'',sampleNote,other].filter(Boolean).join(' · ');
+  const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason,traceProvisional:r.provisional,
+    evidenceLabel:season.rivalOverlap?`${r.gps} measured GPs · ${evidence}`:`${season.sharedEvents.length} shared GPs`,evidenceBadge:season.rivalOverlap?'':undefined}));
   // While GPs are still loading an empty chart is pending, not a missing measurement.
   if(!rows.length)return {title:title||meta.label,empty:running||speedDomainRunning[subject]?'Loading qualifying telemetry…':key.startsWith('corner_')?'No shared supported corner measurement in this band. Missing values are not zero.':'No supported measurement in the loaded GPs. Missing values are not zero.'};
-  return {title:title||meta.label,rows,options:{title:title||meta.label,subtitle:`${subtitle?subtitle+' · ':''}${season.gps} supported GP${season.gps===1?'':'s'} of ${events.filter(e=>e.Q).length} selected · ${season.events.join(', ')} · 0 = best${rows.some(r=>r.traceProvisional)?' · ≈ provisional: source gaps >0.6 s':''}`,unit:meta.unit,digits:meta.digits}};
+  return {title:title||meta.label,rows,matchedRivals:Boolean(season.rivalOverlap),options:{title:title||meta.label,evidenceSummary,
+    subtitle:`${subtitle?subtitle+' · ':''}${season.rivalOverlap?'':evidence+' · '}0 = best${sensitive?' · Leader changes when GPs are summarized by median':''}${rows.some(r=>r.traceProvisional)?' · ≈ provisional: source gaps >0.6 s':''}`,unit:meta.unit,digits:meta.digits}};
 }
 function speedDomainLowConfidence(key) {
   return speedDomainIsLowConfidence(context?.year,key,events.map(e=>e.speedDomain?.[telemetrySubject]?.reliability?.[SPEED_DOMAIN_METRICS[key].reliability]).filter(Boolean));
 }
 function speedDomainEventTable(keys) {
   const style=speedDomainEntities(),rows=[];
+  const showLapEvidence=events.some(event=>event.speedDomain?.[telemetrySubject]?.samplePolicy==='repeat');
   for(const event of events){
     const result=event.speedDomain?.[telemetrySubject];
     if(!result?.cars)continue;
     const values=Object.fromEntries(keys.map(k=>[k,speedDomainEventValues(result,k)]));
-    for(const name of Object.keys(result.cars))rows.push({event:event.name,team:style.get(name)||{team:name},
-      values:keys.map(k=>signed(values[k][name],SPEED_DOMAIN_METRICS[k].digits,SPEED_DOMAIN_METRICS[k].unit))});
+    for(const [name,car] of Object.entries(result.cars)){
+      rows.push({event:event.name,team:style.get(name)||{team:name},
+        values:keys.map(k=>signed(values[k][name],SPEED_DOMAIN_METRICS[k].digits,SPEED_DOMAIN_METRICS[k].unit)),
+        lapEvidence:car.lap_evidence});
+    }
   }
-  return {subject:telemetrySubject==='driver'?'driver':'team',labels:keys.map(k=>SPEED_DOMAIN_METRICS[k].label),rows};
+  return {subject:telemetrySubject==='driver'?'driver':'team',labels:keys.map(k=>SPEED_DOMAIN_METRICS[k].label),
+    rows,showLapEvidence};
 }
 // Braking / mid-corner / exit split of each band: how a car gains, not just how much.
 function speedDomainPhaseTable() {
@@ -2065,7 +2105,7 @@ function renderSpeedDomain() {
       note:`Compare the measured speed traces over identical corner distances, with shared braking, mid-corner and exit phases. No hypothetical exit-speed credit or GPS path-length stretch enters the score. This assumes a common path: real racing-line differences are not resolved, and power, setup, driver and entry context still matter. ${!several?'Values are estimated seconds across this GP’s supported corners in each band.':gapBasis==='lap'?'Values are % of the lap lost in that corner type, the same scale as the qualifying gap: the three bands and the straights add up towards it. Each supported GP has equal weight.':'Values are % slower through that corner type than the field takes in those corners, not % of the lap: a car 5% slower in low-speed corners that make up a fifth of the lap loses about 1% of the lap there. Each supported GP has equal weight.'} Bands use the field minimum: low ≤120 km/h, medium 120–200, high >200. ≈ marks source gaps over 0.6 s; inspect the evidence before treating small gaps as meaningful.`,
       charts:cornerBands('team'),driverCharts:cornerBands('driver'),
       phases:speedDomainPhaseTable(),corners:speedDomainCornerTable(),events:speedDomainEventTable(['corner_low','corner_medium','corner_high'].map(k=>k+suffix)),
-      traction:{lowConfidence:speedDomainLowConfidence('traction'),...subjectCharts('traction','Traction (corner exit)','70–170 km/h'),events:speedDomainEventTable(['traction'])}});
+      traction:{lowConfidence:speedDomainLowConfidence('traction'),...subjectCharts('traction','Exit acceleration','70–170 km/h'),events:speedDomainEventTable(['traction'])}});
   }
   if(activeMetric==='straight'){
     const pill=STRAIGHT_PILLS.find(p=>p.key===straightPill)||STRAIGHT_PILLS[0];
@@ -2079,7 +2119,7 @@ function renderSpeedDomain() {
       ...subjectCharts(key,pill.title,subtitle),events:speedDomainEventTable([key])});
   }
   return reactView('speed',{...head,metric:'braking',lowConfidence:speedDomainLowConfidence('braking'),
-    note:`Average deceleration from brake onset until the car reaches its own apex speed, at every braked corner. Distances come from GPS, and each car is compared with the field at the same speeds, because downforce makes every car brake harder when faster. % longer braking distance than the best ${telemetrySubject==='driver'?'driver':'team'}. The 4 Hz feed places the brake onset only to within a few metres, so differences under about 2% in a single GP are noise.`,
+    note:`Average deceleration from brake onset until the car reaches its own apex speed, at every braked corner. Distances come from GPS, and each car is compared with the field at the same speeds, because downforce makes every car brake harder when faster. % longer braking distance than the best ${telemetrySubject==='driver'?'driver':'team'}. The brake flag brackets onset between packets. Timing resolution and GPS registration limit comparisons of small gaps.`,
     ...subjectCharts('braking','Longer braking distance','same speed drop · % longer than the best'),events:speedDomainEventTable(['braking'])});
 }
 function renderMetricBoundaryEvidence(kind){
@@ -2153,7 +2193,12 @@ function scheduleRender() {
 }
 // Haas is drawn darker on light backgrounds (team-colours.js), so the bars are redrawn when the appearance changes.
 if(typeof window!=='undefined')window.addEventListener?.('apex-theme',()=>{try{render();}catch(_){/* not mounted yet */}});
+let renderedStartContext;
 function render() {
+  // Start execution has its own data. Background pace jobs must not remount
+  // the driver inspector or reset the start-type and units controls.
+  if(activeMetric==='starts' && context && renderedStartContext===context && root.querySelector('[data-react-view="starts"]'))return;
+  renderedStartContext=activeMetric==='starts'?context:null;
   const state=capturePerformanceUI(root);
   window.ApexReact?.unmountAll?.(root);
   reactViewProps=new Map();
@@ -2241,15 +2286,21 @@ function renderContent() {
     ['pits','Pit stops'],
     ['tyres','Tyre trend'],
     ['trend','Development trend'],
-    ['results','Finishes & retirements']
+    ['results','Finishes & retirements'],
+    ['starts','Starts & restarts']
   ];
   $('carPerformance').classList.toggle('is-descriptions-hidden',!showPerformanceDescriptions);
-  const navEmoji={pace:'⏱️',corners:'🏎️',straight:'🚀',braking:'🛑',pits:'🔧',tyres:'🛞',trend:'📈',results:'🏆'};
+  const navEmoji={pace:'⏱️',corners:'🏎️',straight:'🚀',braking:'🛑',pits:'🔧',tyres:'🛞',trend:'📈',results:'🏆',starts:'🚦'};
   const snapshotMode=window.APEX_SNAPSHOT_MODE&&!window.APEX_LOCAL_MODE;
   const refreshTitle=snapshotMode?'Reload the published snapshot. New observations require local preparation and publication.':'Re-fetch the selected events and replace cached measurements. The first refresh can take longer.';
   const categoryPicker = `<label class="car-category-picker">Measurement<select aria-label="Car performance measurement">${modes.map(([key, label]) => `<option value="${key}" ${key === activeMetric ? 'selected' : ''}>${label}</option>`).join('')}</select></label>`;
-  const modeBar = `<div class="performance-toolbar">${categoryPicker}<div class="performance-mode" role="tablist" aria-label="Performance metric" aria-orientation="horizontal">${modes.map(([key,label])=>`<button type="button" role="tab" data-performance-metric="${key}" aria-controls="performanceMetricPanel" tabindex="${activeMetric===key?0:-1}" aria-selected="${activeMetric===key}"><span class="metric-nav-emoji" aria-hidden="true">${navEmoji[key]}</span>${label}</button>`).join('')}</div><button type="button" class="performance-explain-toggle" data-performance-refresh ${running?'disabled':''} title="${refreshTitle}">${snapshotMode?'Reload snapshot':'Refresh data'}</button></div>`;
+  const refreshButton = activeMetric==='starts'?'':`<button type="button" class="performance-explain-toggle" data-performance-refresh ${running?'disabled':''} title="${refreshTitle}">${snapshotMode?'Reload snapshot':'Refresh data'}</button>`;
+  const modeBar = `<div class="performance-toolbar">${categoryPicker}<div class="performance-mode" role="tablist" aria-label="Performance metric" aria-orientation="horizontal">${modes.map(([key,label])=>`<button type="button" role="tab" data-performance-metric="${key}" aria-controls="performanceMetricPanel" tabindex="${activeMetric===key?0:-1}" aria-selected="${activeMetric===key}"><span class="metric-nav-emoji" aria-hidden="true">${navEmoji[key]}</span>${label}</button>`).join('')}</div>${refreshButton}</div>`;
 
+  if(activeMetric==='starts'&&context){
+    root.innerHTML=modeBar+'<div id="performanceMetricPanel" role="tabpanel" aria-label="Starts and restarts">'+reactView('starts',{year:context.year,events:(context.requestedRounds||events).map(e=>e.name)})+'</div>';
+    return;
+  }
   if (running && !events.length && activeMetric !== 'pits') {
     root.innerHTML = modeBar + '<div id="performanceMetricPanel" role="tabpanel" aria-busy="true" aria-label="Performance measurements"><p role="status">Loading measurements…</p><div class="subject-pair" aria-hidden="true"><div class="rank-loading"></div><div class="rank-loading"></div></div></div>';
     return;
@@ -2346,7 +2397,7 @@ $('performanceYear').addEventListener('change',()=>{reset();calendarReady=loadCa
 // Shareable URL (url-state.js): ?view=cars&year&scope&races&metric&subject&session&pill&run
 // ---------------------------------------------------------------------------
 
-const URL_METRICS=['pace','corners','straight','braking','pits','tyres','trend','results'];
+const URL_METRICS=['pace','corners','straight','braking','pits','tyres','trend','results','starts'];
 function carUrlState() {
   // Defaults are left out, so a plain season view stays a short link.
   const races=activeScope==='tracks'?calendar.filter(e=>selectedTracks.has(e.name)).map(e=>e.round).join(','):'';

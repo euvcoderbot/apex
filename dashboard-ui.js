@@ -8,6 +8,7 @@
     pits: ['05', 'Pit stops', 'Service speed, pit-lane time & consistency'],
     tyres: ['06', 'Tyre trend', 'How performance changes with tyre age'],
     trend: ['07', 'Development trend', 'Relative progress across observed rounds'],
+    starts: ['09', 'Starts & restarts', 'Observed standing launches and safety-car releases'],
     results: ['08', 'Finishes & retirements', 'Race outcomes, finishes & retirement causes']
   };
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -69,6 +70,7 @@
   // The category bar mirrors the in-panel tablist; activation is delegated to
   // the original control so car-performance.js keeps sole ownership of state.
   const categoryIcons={
+    starts:'<path d="M4 8h16v8H4z"/><circle cx="8" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="16" cy="12" r="1"/>',
     pace:'<circle cx="12" cy="13.5" r="7"/><path d="M12 13.5V9.5M10 3.5h4M18.2 7.3l1.3-1.3"/>',
     corners:'<path d="M5 20v-6a8 8 0 0 1 8-8h6"/><path d="m16 3 3 3-3 3"/>',
     straight:'<path d="M4 12h15"/><path d="m14 7 5 5-5 5"/><path d="M4 7h4M4 17h4"/>',
@@ -84,7 +86,7 @@
     if(!categoryList||!performanceRoot)return;
     const tabs=[...performanceRoot.querySelectorAll('.performance-mode [data-performance-metric]')];
     // Until results arrive the list is shown disabled, so the sidebar does not jump when they do.
-    const sources=tabs.length?tabs:Object.keys(categoryIcons).map(key=>({dataset:{performanceMetric:key},disabled:true,textContent:metrics[key]?.[1]||key}));
+    const sources=tabs.length?tabs:Object.keys(categoryIcons).filter(key=>key!=='starts').map(key=>({dataset:{performanceMetric:key},disabled:true,textContent:metrics[key]?.[1]||key}));
     categoryList.hidden=false;
     categoryList.setAttribute('role','tablist');categoryList.setAttribute('aria-label','Performance category');
     const signature=sources.map(tab=>tab.dataset.performanceMetric+(tab.disabled?'!':'')).join(',');

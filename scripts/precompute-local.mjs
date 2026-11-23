@@ -1,5 +1,5 @@
 // Requires the loopback runner. No hosted API fallback is permitted.
-import {fastestTeamTelemetrySelections} from '../qualifying-telemetry.js';
+import {fastestTeamTelemetrySelections,repeatQualifyingTelemetrySelections,speedBatchPath} from '../qualifying-telemetry.js';
 import {qualifyingRepresentatives} from '../corner-geometry.js';
 import {readFile,readdir,writeFile} from 'node:fs/promises';
 import path from 'node:path';
@@ -96,6 +96,18 @@ const driverWindows=fromPhases||qualifyingRepresentatives({...session,year,event
   qualifying_best_time:row.time,qualifying_best_driver:row.driver.code,qualifying_best_lap:row.lap}));
 await get('/api/performance/trace-batch?'+new URLSearchParams({year,gp,windows:JSON.stringify(driverWindows),measures:'speed'}));
 for(const subject of ['team','driver']){
+  const expanded=repeatQualifyingTelemetrySelections(q.teams,subject);
+  if(expanded.length){
+    const route=speedBatchPath(year,gp,expanded);
+    try{
+      const result=await request('/api/data',{path:route});
+      const supported=Object.values(result.data.speed_domain?.cars||{}).filter(car=>car.lap_evidence?.laps>=2).length;
+      if(supported>=3)await capture(route,result.data);
+      console.log(JSON.stringify({subject,repeatTelemetry:result.cache,requested:expanded.length,repeatedEntrants:supported}));
+    }catch(error){
+      console.warn(`Expanded ${subject} telemetry unavailable for ${gp}: ${error.message}. The single-lap capture remains available.`);
+    }
+  }
   const query=new URLSearchParams({year,gp,round,subject});
   const cornerResult=await request('/api/qualifying-corners?'+query);
   if(Object.keys(cornerResult.data.traces||{}).length)await capture('/api/qualifying-corners?'+query,cornerResult.data);

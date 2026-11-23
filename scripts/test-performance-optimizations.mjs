@@ -10,6 +10,17 @@ import {loadRaceCornerPlan} from '../lib/race-corner-loader.mjs';
 import {measureRaceCornerGroup,connectedRaceCornerScores} from '../race-cornering.js';
 import {sharedPace} from '../performance-format.js';
 
+test('pace retains directly matched rivals when the complete field covers too few rounds',()=>{
+  const fields=['ABCD','ABCD','ABC','ABC','ABD','ABD','ACD','ACD','BCD','BCD'];
+  const series=[...'ABCD'].map((team,i)=>fields.flatMap((field,gp)=>field.includes(team)
+    ? [{event:String(gp),value:(100+gp)*(1+i/100)-100}] : []));
+  const [a,b,c,d]=sharedPace(series,'median');
+  assert.deepEqual(a.rivalOverlap,[6,6]);
+  assert.equal(a.value,0);
+  assert.ok(Math.abs(b.value-1)<1e-10 && Math.abs(c.value-2)<1e-10 && Math.abs(d.value-3)<1e-10);
+  assert.equal(b.range,null);
+});
+
 test('pace compares shared GPs only and reports their provisional measurements',()=>{
   const a=[{event:'Both',value:.6,provisional:true},{event:'A only',value:0}];
   const b=[{event:'Both',value:.4},{event:'B only',value:1,provisional:true}];

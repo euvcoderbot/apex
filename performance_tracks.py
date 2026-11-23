@@ -1459,8 +1459,9 @@ def speed_domain_only(extracted, selections, corners=()):
     except Exception as exc:
         speed_domain = {'method': 'speed-domain-v2', 'cars': {}, 'error': str(exc)[:200]}
     speed_domain.setdefault('excluded', {})
-    speed_domain['excluded'].update(errors)
-    return {'teams': {}, 'excluded': errors, 'speed_domain': speed_domain, 'measures': 'speed',
+    excluded = {team: error for team, error in errors.items() if team not in speed_domain.get('cars', {})}
+    speed_domain['excluded'].update(excluded)
+    return {'teams': {}, 'excluded': excluded, 'speed_domain': speed_domain, 'measures': 'speed',
             'methodology_version': 'car-measurements-v18-trace-integral'}
 
 
