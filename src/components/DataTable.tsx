@@ -34,20 +34,22 @@ function heatShare(column: HeatColumn, row: number): number | null {
 }
 
 /** Measurement table (`.performance-table` inside its own scrollable region). */
-export function DataTable({headers, rows, heat = []}: {headers: Header[]; rows: ReactNode[][]; heat?: HeatColumn[]}) {
+export function DataTable({headers, rows, heat = [], evidenceFrom = Infinity}: {
+  headers: Header[]; rows: ReactNode[][]; heat?: HeatColumn[]; evidenceFrom?: number;
+}) {
   const heatFor = (col: number) => heat.find(h => h.col === col);
   return (
     <div className={`performance-table-wrap${headers.length <= 6 ? ' is-compact-table' : ''}`} tabIndex={0} role="region" aria-label="Measurement table">
       <table className="performance-table">
         <thead><tr>{headers.map((h, i) => (
-          <th key={i} scope="col" className={heatFor(i) ? 'perf-heat-head' : undefined} aria-sort={typeof h === 'object' && h.state !== 'none' ? h.state : undefined}>
+          <th key={i} scope="col" className={i >= evidenceFrom ? 'explanation-only' : heatFor(i) ? 'perf-heat-head' : undefined} aria-sort={typeof h === 'object' && h.state !== 'none' ? h.state : undefined}>
             {typeof h === 'object' ? <SortHeader model={h} /> : h}
           </th>
         ))}</tr></thead>
         <tbody>
           {rows.length ? rows.map((row, i) => <tr key={i}>{row.map((cell, j) => {
             const column = heatFor(j);
-            if (!column) return <td key={j}>{cell}</td>;
+            if (!column) return <td key={j} className={j >= evidenceFrom ? 'explanation-only' : undefined}>{cell}</td>;
             const share = heatShare(column, i);
             return <td key={j} className="perf-heat-cell"><span className="perf-heat-value"
               style={share ? {'--heat': share.toFixed(3)} as CSSProperties : undefined}>{cell}</span></td>;

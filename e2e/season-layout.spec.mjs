@@ -22,6 +22,9 @@ for (const session of next.sessions) {
 }
 next.sessions[0].weather.mm = 0;
 delete next.sessions[1].weather.mm;
+const afterVegas = structuredClone(fixture);
+afterVegas.rounds.find(r => r.round === 21).status = 'done';
+afterVegas.rounds.find(r => r.round === 22).status = 'next';
 
 test.beforeEach(async ({page}) => {
   await page.route('**/assets/data/season/index.json', r => r.fulfill({json: {...index, entries: {...index.entries, [route]: {...entry, saved_at: new Date().toISOString()}}}}));
@@ -82,6 +85,22 @@ test('Las Vegas FP1 switches to the observed wet track as the session ends', asy
 });
 
 for (const width of [1440, 390]) {
+  test('Tracks shows 2026 Vegas pedal data at ' + width + 'px', async ({page}, testInfo) => {
+    await page.setViewportSize({width,height:1000});
+    await page.addInitScript(theme => localStorage.setItem('apex-theme',theme),width===390?'dark':'light');
+    await page.route('**/assets/data/season/' + entry.file, route => route.fulfill({json:afterVegas}));
+    await page.goto('/apex/season/tracks?year=2026&track=Las+Vegas+Grand+Prix');
+    await expect(page.getByRole('group',{name:'Track',exact:true}).getByRole('button')).toHaveCount(23);
+    await expect(page.locator('.season-track-head')).toContainText('1:33.893');
+    await expect(page.locator('.season-track-head')).not.toContainText('Next race');
+    await page.getByRole('button',{name:'Pedal use',exact:true}).click();
+    const map = page.locator('svg[aria-label="Pedal usage around Las Vegas"]');
+    for(const state of ['f','p','b','c']) await expect(map.locator(`[data-pedal="${state}"]`).first()).toBeVisible();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)).toBeLessThanOrEqual(1);
+    await map.scrollIntoViewIfNeeded();
+    await page.screenshot({path:testInfo.outputPath('vegas-pedals.png')});
+  });
+
   test('Tracks previews the next race and prefers the latest qualifying lap at ' + width + 'px', async ({page}, testInfo) => {
     await page.setViewportSize({width, height: 1000});
     await page.addInitScript(theme => localStorage.setItem('apex-theme', theme), width === 390 ? 'light' : 'dark');
@@ -98,7 +117,11 @@ for (const width of [1440, 390]) {
     await expect(header.getByRole('heading', {name: 'Las Vegas', exact: true})).toBeVisible();
     await expect(header).toContainText('Round 21 · Next race');
     await expect(header).toContainText('2025 qualifying lap');
-    await expect(header).toContainText('2026 telemetry pending');
+    const pedal = page.getByRole('group', {name: 'Colour the map by'}).getByRole('button', {name: 'Pedal use'});
+    await pedal.press('Enter');
+    await expect(pedal).toBeFocused();
+    await expect(pedal).toHaveAttribute('aria-pressed','true');
+    await expect(page.locator('svg[aria-label="Pedal usage around Las Vegas"] [data-pedal="b"]').first()).toBeVisible();
     if (testInfo.project.name === 'chromium' && !process.env.CI) {
       await header.screenshot({path: testInfo.outputPath('track-preview.png')});
     }
@@ -122,9 +145,15 @@ for (const width of [1440, 390]) {
     await saoPaulo.press('Enter');
     await expect(saoPaulo).toBeFocused();
     await expect(header).toContainText('São Paulo');
+    delete profiles[1].tracks[vegas];
+    await page.route('**/assets/data/season/' + entry.file, route => route.fulfill({json:afterVegas}));
     await page.goto('/apex/season/tracks?year=2026&track=Qatar+Grand+Prix');
-    await expect(page.getByText('Waiting for qualifying telemetry for the 2026 Qatar Grand Prix.')).toBeVisible();
+    await expect(header).toContainText('2025 qualifying lap');
     await expect(page.getByRole('group', {name: 'Track'}).getByRole('button', {name: 'Qatar Grand Prix'})).toHaveAttribute('aria-pressed','true');
+    await expect(page.getByRole('group', {name: 'Track'}).getByRole('button', {name: 'Abu Dhabi Grand Prix'})).toBeVisible();
+    await choice.click();
+    await expect(header).toContainText('2025 qualifying lap');
+    await expect(header).not.toContainText('Next race');
   });
 }
 

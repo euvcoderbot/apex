@@ -28,9 +28,11 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {atomicBytes,captureLock} from '../lib/atomic-json.mjs';
 import {circuitCornerMarkers} from '../corner-geometry.js';
+import {trackPedals} from '../lib/track-pedals.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const data = path.join(root, 'assets/data');
+const captureData = process.env.APEX_TRACK_CAPTURE_DATA || data;
 const year = Number(process.argv[2]) || 2026;
 const gpIndex = process.argv.indexOf('--gp');
 const wanted = gpIndex === -1 ? null : process.argv[gpIndex + 1];
@@ -38,10 +40,11 @@ if (gpIndex !== -1 && !wanted) throw new Error('--gp requires a Grand Prix name'
 const readGz = file => JSON.parse(zlib.gunzipSync(fs.readFileSync(file)));
 // Telemetry from both published stores: assets/data/telemetry (prepared releases) and assets/data/local-telemetry (what the
 // session scheduler exports after each weekend), so a track appears as soon as its qualifying is captured.
-const readIndex = folder => { try { return JSON.parse(fs.readFileSync(path.join(data, folder, 'index.json'), 'utf8')).entries || {}; } catch { return {}; } };
+const folderPath = folder => path.join(folder.startsWith('local-') ? captureData : data, folder);
+const readIndex = folder => { try { return JSON.parse(fs.readFileSync(path.join(folderPath(folder), 'index.json'), 'utf8')).entries || {}; } catch { return {}; } };
 const fileOf = entry => (typeof entry === 'string' ? entry : entry?.file);
 const telemetryFiles = new Map();
-for (const folder of ['telemetry', 'local-telemetry']) for (const [key, entry] of Object.entries(readIndex(folder))) if (fileOf(entry)) telemetryFiles.set(key, path.join(data, folder, fileOf(entry)));
+for (const folder of ['telemetry', 'local-telemetry']) for (const [key, entry] of Object.entries(readIndex(folder))) if (fileOf(entry)) telemetryFiles.set(key, path.join(folderPath(folder), fileOf(entry)));
 const telemetry = {entries: Object.fromEntries(telemetryFiles)};
 const prerendered = JSON.parse(fs.readFileSync(path.join(data, 'prerendered/index.json'), 'utf8'));
 const captures = readIndex('local-captures');
@@ -54,7 +57,8 @@ for (const [key, file] of Object.entries(telemetry.entries)) {
   const [y, gp, session, driver] = key.split(':');
   if (Number(y) !== year || session !== 'Qualifying' || (wanted && gp !== wanted)) continue;
   for (const lap of Object.values(pack(file).laps || {})) {
-    if (lap.driver !== driver || !(lap.samples?.length > 100)) continue;
+    if (lap.driver !== driver || !(lap.samples?.length > 100) || lap.position_usable === false ||
+        lap.samples.filter(p => Number.isFinite(p.X) && Number.isFinite(p.Y)).length < lap.samples.length * .9) continue;
     const t = lap.samples.at(-1).ElapsedSeconds;
     if (Number.isFinite(t) && t > 0 && !(best.get(gp)?.time <= t)) best.set(gp, {driver, lap: lap.lap, time: t, samples: lap.samples});
   }
@@ -70,7 +74,7 @@ function sessionFor(gp) {
   if (exported) return exported[gp]?.session || null;
   const match = k => k.startsWith('/api/session?') && k.includes(`year=${year}`) && k.includes('session=Qualifying') && new URLSearchParams(k.split('?')[1]).get('gp') === gp;
   const local = Object.keys(captures).find(match);
-  if (local) return readGz(path.join(data, 'local-captures', fileOf(captures[local])));
+  if (local) return readGz(path.join(folderPath('local-captures'), fileOf(captures[local])));
   const key = Object.keys(prerendered.entries).find(match);
   return key ? readGz(path.join(data, 'prerendered', fileOf(prerendered.entries[key]))) : null;
 }
@@ -263,7 +267,7 @@ function profile(gp, lap, session, guide) {
     conditions: lapRow?.conditions ? {air: lapRow.conditions.air_temperature, track: lapRow.conditions.track_temperature, rain: !!lapRow.conditions.rainfall} : null,
     pit_loss: guide?.pitLoss ? {normal: Number(guide.pitLoss.normal) || null, vsc: Number(guide.pitLoss.vsc) || null, sc: Number(guide.pitLoss.sc) || null} : null,
     circuit: guide?.circuitName || session?.location || null, rotation: guide?.rotation ?? session?.circuit_rotation ?? 0,
-    map: {outline, corners: cornerMarks},
+    map: {outline, corners: cornerMarks, pedals: trackPedals(s, outline)},
   };
 }
 

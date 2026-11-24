@@ -1623,6 +1623,8 @@
   --lin-bar: 6px; --lin-band: var(--ui-well);
   /* Pills [A]: filled, no ring; hover one step lighter; header icon buttons transparent. */
   --lin-pill: var(--lin-control); --lin-pill-ring: transparent; --lin-pill-on: var(--lin-control-on); --lin-pill-hover: #2a2b2d; --lin-pill-press: #353638; --lin-icon-btn: transparent;
+  --lin-pill-selected: color-mix(in srgb, var(--ui-accent) 16%, var(--lin-pill-on));
+  --lin-pill-selected-ring: color-mix(in srgb, var(--ui-accent) 48%, var(--ui-border-strong));
 }
 :root[data-skin="linear"][data-theme="light"] {
   /* Light [P]: the app's light theme was not inspected; Linear's published light tokens in the same structure. */
@@ -2515,7 +2517,7 @@
 /* Show explanations owns every explanation and coverage detail, on every view: hidden, the main view shows only the data.
    Coverage chips ("19/20 GPs"), the GP count, per-GP load errors, chart footnotes on the season pages and the notes under
    the session charts all wait for the toggle. */
-:root[data-skin="linear"] :is(body.is-descriptions-hidden, #carPerformance.is-descriptions-hidden) :is(.metric-coverage, .metric-load-count),
+:root[data-skin="linear"] :is(body.is-descriptions-hidden, #carPerformance.is-descriptions-hidden) :is(.metric-coverage, .metric-load-count, .rank-evidence, [data-inline-evidence], .perf-tercile-badge),
 :root[data-skin="linear"] body.is-descriptions-hidden :is(#seasonHub .season-footnote, #sessionOverview .overview-note, #timeSummary .overview-note) { display: none; }
 
 /* Session analysis: minimum speed in every corner (session-corners.js). Linear table type; the lap that carried the most
@@ -2539,9 +2541,8 @@
 :root[data-skin="linear"] .corner-every-pick:hover, :root[data-skin="linear"] .corner-every-pick[aria-pressed="true"] { background: var(--lin-nav-hover); }
 :root[data-skin="linear"] .corner-every-note { margin: 8px 0 0; color: var(--ui-tertiary); font: 450 11px/1.4 var(--ui-font); }
 /* A heat cell that opens its updates: the whole cell is the button, drawn as the cell (no pill, no ring). */
-:root[data-skin="linear"] #seasonHub button.season-cell-drill, :root[data-skin="linear"] #seasonHub button.season-cell-drill[data-ui-kind] { display: grid; place-items: center; width: 100%; height: 100%; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: inherit; background: transparent; box-shadow: none; color: inherit; font: inherit; cursor: pointer; }
+:root[data-skin="linear"] #seasonHub button.season-cell-drill, :root[data-skin="linear"] #seasonHub button.season-cell-drill[data-ui-kind] { display: grid; place-items: center; width: 100%; height: 30px; min-height: 30px; margin: 0; padding: 0; border: 0; border-radius: 6px; background: transparent; box-shadow: none; color: inherit; font: inherit; cursor: pointer; }
 :root[data-skin="linear"] #seasonHub td.is-heat:has(> button.season-cell-drill) { padding: 0; }
-:root[data-skin="linear"] #seasonHub button.season-cell-drill { min-height: 30px; border-radius: 6px; }
 :root[data-skin="linear"] #seasonHub button.season-cell-drill:hover { background: color-mix(in srgb, var(--ui-label) 12%, transparent); }
 :root[data-skin="linear"] #seasonHub button.season-cell-drill:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
 :root[data-skin="linear"] #carPerformance .entrant-comparison { margin-block: 8px; }
@@ -2703,7 +2704,11 @@
 :root[data-skin="linear"] #performanceResults > .performance-toolbar > .performance-mode { display: inline-flex !important; flex-wrap: wrap; gap: 4px; padding: 0; background: none; box-shadow: none; }
 :root[data-skin="linear"] #performanceResults > .performance-toolbar > .performance-mode > button { height: 28px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--ui-seg-track); box-shadow: none; color: var(--ui-secondary); font: 500 12px/1 var(--ui-font); }
 :root[data-skin="linear"] #performanceResults > .performance-toolbar > .performance-mode > button:hover { color: var(--ui-label); }
-:root[data-skin="linear"] #performanceResults > .performance-toolbar > .performance-mode > button[aria-selected="true"] { background: var(--ui-seg-thumb); color: var(--ui-label); }
+:root[data-skin="linear"] #performanceResults > .performance-toolbar > .performance-mode > button[aria-selected="true"],
+:root[data-skin="linear"] :is(#carPerformance, #sessionOverview) .performance-scope-toggle > button[aria-pressed="true"] {
+  background: var(--lin-pill-selected); color: var(--ui-label); font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--lin-pill-selected-ring);
+}
 :root[data-skin="linear"] #linearWorkspace .linear-workspace-brand[role="link"] { cursor: pointer; border-radius: 8px; }
 :root[data-skin="linear"] #linearWorkspace .linear-workspace-brand[role="link"]:hover { background: var(--lin-nav-hover); }
 :root[data-skin="linear"] #performanceResults > .performance-toolbar .metric-nav-emoji { display: none; }

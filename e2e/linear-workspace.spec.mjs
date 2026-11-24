@@ -1,6 +1,33 @@
 import {test, expect} from '@playwright/test';
 import {isolate, replayFixture} from './helpers.mjs';
 
+for (const theme of ['dark','light']) {
+  test('Performance marks its selected category and hides ranking evidence in ' + theme, async ({page}, info) => {
+    await isolate(page);
+    await replayFixture(page);
+    await page.addInitScript(t => localStorage.setItem('apex-theme', t), theme);
+    await page.setViewportSize({width:1440,height:900});
+    await page.goto('/apex/cars/pace?year=2026&scope=tracks&races=16,17,18&run=1');
+    const tabs = page.locator('#performanceResults .performance-mode');
+    const pace = tabs.getByRole('tab',{name:'Pace',exact:true});
+    const corners = tabs.getByRole('tab',{name:'Cornering',exact:true});
+    await expect(pace).toHaveAttribute('aria-selected','true');
+    const evidence = page.locator('#performanceMetricPanel [data-inline-evidence]').first();
+    await expect(evidence).toBeAttached();
+    await expect(pace).toHaveCSS('font-weight','600');
+    await expect(corners).toHaveCSS('font-weight','500');
+    await expect(evidence).toBeHidden();
+    await expect(page.locator('.performance-round-coverage')).toBeHidden();
+    const ranked = page.locator('#performanceMetricPanel .performance-bar-row:not(.is-unranked)').first();
+    await expect(ranked).not.toHaveAttribute('aria-label',/provisional|shared GPs/i);
+    await page.screenshot({path:info.outputPath('pace-clean.png')});
+    await page.locator('#explanationsToggle').click();
+    await expect(evidence).toBeVisible();
+    await expect(page.locator('.performance-round-coverage')).toBeVisible();
+    await expect(ranked).toHaveAttribute('aria-label',/provisional|shared GPs/i);
+  });
+}
+
 async function open(page) {
   await isolate(page);
   await replayFixture(page, 'session-view.json.gz');

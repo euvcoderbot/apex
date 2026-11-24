@@ -1,5 +1,6 @@
 import {color, finite, fmt, signed} from '../../performance-format.js';
 import {TeamLabel, type TeamLike} from './TeamLabel';
+import {useExplanations} from './useExplanations';
 import {visibleBarValue} from '../../lib/chart-bar.mjs';
 
 type Row = TeamLike & Record<string, unknown> & {missingReason?: string; traceProvisional?: boolean; coverageLabel?: string; evidenceLabel?: string; evidenceBadge?: string};
@@ -31,6 +32,7 @@ function evidenceNote(rows: {evidenceLabel?: string}[]) {
  * the best entrant, and unranked rows for missing values (never zero).
  */
 export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartOptions}) {
+  const explanations = useExplanations();
   const {title = '', subtitle = '', valueKey = 'value', labelKey = 'team', colorKey = 'color', unit = '%', digits = 3,
     signedValue = true, zeroBaseline = true, preserveSignedValues = false, invertBest = false, intervalKey, perLapSeconds = null,
     evidenceSummary} = options;
@@ -40,9 +42,9 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
   const valid = (rows || []).filter(r => r && finite(r[valueKey] as number)).map((r): Row & {chart: number} => ({...r, chart: 0}));
   const missing = (rows || []).filter(r => r && !finite(r[valueKey] as number));
   const unranked = missing.map((r, i) => (
-    <div key={'missing' + i} className="performance-bar-row is-unranked" title={r.missingReason || 'No comparable supported measurement; not zero'}
+    <div key={'missing' + i} className="performance-bar-row is-unranked" title={explanations ? r.missingReason : undefined}
       role="img" data-chart-value={`${title}:${String(r[labelKey] || r.team || r.name || '')}`} tabIndex={!valid.length && i === 0 ? 0 : -1}
-      aria-label={`${String(r[labelKey] || r.team || r.name || '')}: Unranked. ${r.missingReason || 'No comparable supported measurement; not zero'}`}>
+      aria-label={`${String(r[labelKey] || r.team || r.name || '')}: Unranked.${explanations && r.missingReason ? ' ' + r.missingReason : ''}`}>
       <div className="performance-bar-label"><TeamLabel team={r} /></div>
       <div className="performance-bar-track" />
       <span className="performance-bar-val">Unranked</span>
@@ -100,10 +102,10 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
           const whisker = ranges.get(r);
           const badge = r.evidenceBadge ?? (r.evidenceLabel !== evidence.common ? r.evidenceLabel : '');
           const seconds = perLapSeconds && unit === '%' && signedValue && !preserveSignedValues && value > 0.00001 ? value / 100 * perLapSeconds : null;
-          const summary = `${label}: ${display}${seconds != null ? ` (about ${seconds.toFixed(2)} s per lap)` : ''}${whisker ? ` · 90% GP-resample range ${fmt(whisker[0], digits, unit)} to ${fmt(whisker[1], digits, unit)}` : ''}${plotted === 0 && value !== 0 ? ` · Exact change ${value}${unit}; below displayed precision` : ''}${r.traceProvisional ? ' · Provisional: source gaps over 0.6 s; inspect corner evidence' : ''}`;
+          const summary = `${label}: ${display}${seconds != null ? ` (about ${seconds.toFixed(2)} s per lap)` : ''}${whisker ? ` · 90% GP-resample range ${fmt(whisker[0], digits, unit)} to ${fmt(whisker[1], digits, unit)}` : ''}${plotted === 0 && value !== 0 ? ` · Exact change ${value}${unit}; below displayed precision` : ''}${explanations && r.traceProvisional ? ' · Provisional: source gaps over 0.6 s; inspect corner evidence' : ''}${explanations && r.evidenceLabel ? ' · ' + r.evidenceLabel : ''}`;
           return (
             <div key={label + i} className="performance-bar-row"
-              title={`${summary}${r.evidenceLabel ? ` · ${r.evidenceLabel}` : ''}`} aria-label={`${summary}${r.evidenceLabel ? ` · ${r.evidenceLabel}` : ''}`} role="img" data-chart-value={`${title}:${label}`} tabIndex={i === 0 ? 0 : -1}>
+              title={summary} aria-label={summary} role="img" data-chart-value={`${title}:${label}`} tabIndex={i === 0 ? 0 : -1}>
               <div className="performance-bar-label rank-label"><TeamLabel team={r} />{badge ? <small className="rank-evidence">{badge}</small> : null}</div>
               <div className="performance-bar-track">
                 {preserveSignedValues ? <i className="performance-zero" style={{left: `${zero.toFixed(2)}%`}} /> : null}

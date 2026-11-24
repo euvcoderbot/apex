@@ -1088,17 +1088,22 @@
   };
   async function previewTrackProfiles(data, profiles) {
     const current = profiles?.year === data.year ? profiles : {year: data.year, tracks: {}};
-    const next = data.rounds.find(round => round.status === 'next');
-    if (!next || Object.keys(current.tracks).some(gp => trackRound(data, gp) === next)) return current;
-    // Refresh a provisional profile on the next visit, when qualifying may have been published.
-    trackProfiles.delete(data.year);
+    const measured = new Set(Object.keys(current.tracks).map(gp => trackRound(data, gp)));
+    const missing = data.rounds.filter(round => !measured.has(round));
+    if (!missing.length) return current;
+    // Recheck a missing profile on the next visit after the publisher catches up.
+    if (missing.some(round => round.status === 'next' || round.status === 'done')) trackProfiles.delete(data.year);
     const [previous, previousSeason] = await Promise.all([
       loadTrackProfiles(data.year - 1),
       load('season', data.year - 1).catch(() => null),
     ]);
-    const oldRound = previousSeason?.rounds.find(round => next.circuit_id && round.circuit_id === next.circuit_id);
-    const profile = oldRound && Object.entries(previous?.tracks || {}).find(([gp]) => trackRound(previousSeason, gp) === oldRound)?.[1];
-    return {...current, preview: {round: next, profile, year: data.year - 1}};
+    const previousByCircuit = new Map();
+    if (previousSeason) for (const [gp, profile] of Object.entries(previous?.tracks || {})) {
+      const circuit = trackRound(previousSeason, gp)?.circuit_id;
+      if (circuit) previousByCircuit.set(circuit, profile);
+    }
+    const previews = Object.fromEntries(missing.map(round => [round.name, previousByCircuit.get(round.circuit_id) || null]));
+    return {...current, previews, previewYear: data.year - 1};
   }
   const TRACK_COLUMNS = [
     ['length', 'Length', v => `${(v / 1000).toFixed(3)} km`],
@@ -1117,6 +1122,7 @@
   const SPEED_RAMP = ['#5b3fd1', '#a245b8', '#e0577a', '#f5933d', '#f7d94c'];
   const SECTOR_COLOURS = ['#ff4081', '#e6bc24', '#40a9ed'];
   const CORNER_TYPE = {slow: 'Slow', medium: 'Medium', fast: 'Fast'};
+  const PEDAL_KEY = {f: 'Full throttle', p: 'Partial throttle', b: 'Braking', c: 'Coasting', '?': 'Missing telemetry'};
   function rampColour(share) {
     const at = Math.max(0, Math.min(1, share)) * (SPEED_RAMP.length - 1), i = Math.min(SPEED_RAMP.length - 2, Math.floor(at)), f = at - i;
     const mix = (a, b) => Math.round(parseInt(a, 16) + (parseInt(b, 16) - parseInt(a, 16)) * f).toString(16).padStart(2, '0');
@@ -1138,7 +1144,7 @@
     const vLo = Math.min(...pts.map(p => p[2])), vHi = Math.max(...pts.map(p => p[2]));
     const total = t.length, step = total / pts.length;
     const sectorOf = i => { const d = i * step; return !t.sectors ? 0 : d < t.sectors[0].to ? 0 : d < t.sectors[1].to ? 1 : 2; };
-    let svg = `<svg class="season-chart season-track-map" viewBox="0 0 ${W} ${H}" role="img" aria-label="Map of ${esc(t.circuit || 'the circuit')}">`;
+    let svg = `<svg class="season-chart season-track-map" viewBox="0 0 ${W} ${H}" role="img" aria-label="${mode === 'pedals' ? 'Pedal usage around' : 'Map of'} ${esc(t.circuit || 'the circuit')}">`;
     // A smooth outline: each piece runs from the midpoint before a sample to the midpoint after it, curving through the
     // sample (a quadratic curve), so the telemetry's ~10 m steps never show as corners; each piece takes its sample's colour.
     const P = pts.map(p => [X(p[0]), Y(p[1])]), n = P.length, f = v => v.toFixed(1);
@@ -1155,6 +1161,16 @@
     svg += `<path class="track-base" d="${base}Z"/>`;
     // FIA zones: the lap in one quiet stroke under the zones.
     if (mode === 'zones') svg += `<path class="track-seg is-quiet" d="${base}Z"/>`;
+    else if (mode === 'pedals') {
+      const pedals = t.map.pedals;
+      for (let from = 0; from < n;) {
+        const code = pedals[from];
+        let end = from + 1, d = start(from) + piece(from);
+        while (end < n && pedals[end] === code) d += piece(end++);
+        svg += `<path class="track-seg" data-pedal="${esc(code)}" d="${d}"/>`;
+        from = end;
+      }
+    }
     else for (let i = 0; i < n; i++) {
       const colour = mode === 'sectors' ? SECTOR_COLOURS[sectorOf(i)] : rampColour((pts[i][2] - vLo) / (vHi - vLo || 1));
       svg += `<path class="track-seg" d="${start(i)}${piece(i)}" style="stroke:${colour}"/>`;
@@ -1225,6 +1241,13 @@
       swatch('season-key-zone', drs ? 'DRS zone' : 'Straight mode zone');
       swatch('season-key-detect', drs ? 'DRS detection' : 'Overtake detection');
       if (!drs) swatch('season-key-ot', 'Overtake activation');
+    } else if (mode === 'pedals') {
+      for (const [code, label] of Object.entries(PEDAL_KEY)) {
+        if (code === '?' && !t.map.pedals.includes(code)) continue;
+        const s = el('span'), dot = el('i');
+        dot.dataset.pedal = code;
+        s.append(dot, label); key.append(s);
+      }
     } else if (mode === 'sectors') SECTOR_COLOURS.forEach((c, i) => { const s = el('span'); const d = el('i'); d.style.background = c; s.append(d, `Sector ${i + 1}`); key.append(s); });
     else { const bar = el('i', 'season-track-ramp'); bar.style.background = `linear-gradient(90deg, ${SPEED_RAMP.join(', ')})`; key.append(el('span', null, `${vLo} km/h`), bar, el('span', null, `${vHi} km/h`)); }
     wrapEl.append(key);
@@ -1328,9 +1351,8 @@
     const all = Object.entries(profiles?.tracks || {});
     const roundOf = gp => trackRound(data, gp);
     const next = data.rounds.find(r => r.status === 'next');
-    const preview = profiles?.preview;
     const explicitRound = state.track && roundOf(state.track);
-    const ordered = [...all, ...(preview ? [[preview.round.name, preview.profile]] : [])];
+    const ordered = [...all, ...Object.entries(profiles?.previews || {})];
     if (explicitRound && !ordered.some(([gp]) => roundOf(gp) === explicitRound)) ordered.push([explicitRound.name, null]);
     ordered.sort(([a], [b]) => (roundOf(a)?.round ?? 99) - (roundOf(b)?.round ?? 99));
     if (!ordered.length) {
@@ -1340,9 +1362,9 @@
     const requested = names.includes(state.track) ? state.track : explicitRound && names.find(gp => roundOf(gp) === explicitRound);
     const pick = requested || names.find(gp => next && roundOf(gp) === next) ||
       names.filter(gp => roundOf(gp)?.status === 'done').at(-1) || names[0];
-    const previewing = pick === preview?.round.name;
+    const previewing = Object.hasOwn(profiles?.previews || {}, pick);
     const round = roundOf(pick);
-    const t = previewing ? preview.profile : profiles.tracks[pick];
+    const t = previewing ? profiles.previews[pick] : profiles.tracks[pick];
     const TRACK_VIEWS = [['track', 'Circuit'], ['corners', 'Corners'], ['history', 'Race history'], ['compare', 'All circuits']];
     const bar = el('div', 'season-toolbar');
     bar.append(viewPills('tracks', TRACK_VIEWS, () => paint(() => renderTracks(data, profiles))));
@@ -1373,8 +1395,8 @@
       return [bar, picker, round ? circuitProfile(data, round) : empty('No race history for this circuit.')];
     if (!t)
       return [bar, picker, card(round?.circuit || pick, empty(`Waiting for qualifying telemetry for the ${data.year} ${pick}.`))];
-    const lapNote = previewing ? preview.year + ' qualifying lap · ' + data.year + ' telemetry pending' : 'Fastest qualifying lap';
-    const previewNote = previewing ? el('p', 'season-muted', 'Showing ' + preview.year + ' qualifying telemetry and circuit details until the ' + data.year + ' profile is published.') : null;
+    const lapNote = previewing ? profiles.previewYear + ' qualifying lap' : 'Fastest qualifying lap';
+    const previewNote = previewing ? el('p', 'season-muted', 'Showing ' + profiles.previewYear + ' qualifying telemetry until the ' + data.year + ' profile is published.') : null;
     // Keep race identity and lap provenance legible when names wrap on phones.
     const head = el('section', 'season-card season-track-head');
     const title = el('div', 'season-track-title'), f = round && flag(round); if (f) title.append(f);
@@ -1420,16 +1442,24 @@
     // Map with Speed / Sectors pills.
     const o = t.official, hasZones = (o?.zones || []).some(z => (z.normal || z).i != null && z.i_to != null)
       || [o?.overtake?.detection, o?.overtake?.activation, ...(o?.detection || [])].some(p => p?.i != null);
-    const mode = state.trackMap === 'sectors' && t.sectors ? 'sectors' : state.trackMap === 'zones' && hasZones ? 'zones' : 'speed';
+    const hasPedals = typeof t.map?.pedals === 'string' && t.map.pedals.length === t.map.outline.length;
+    const mode = state.trackMap === 'pedals' && hasPedals ? 'pedals' : state.trackMap === 'sectors' && t.sectors ? 'sectors' : state.trackMap === 'zones' && hasZones ? 'zones' : 'speed';
     const mapPills = el('div', 'season-segment season-zone-toggle'); mapPills.setAttribute('role', 'group'); mapPills.setAttribute('aria-label', 'Colour the map by');
-    for (const [id, label] of [['speed', 'Speed'], ['sectors', 'Sectors'], ['zones', 'FIA zones']]) {
-      if ((id === 'sectors' && !t.sectors) || (id === 'zones' && !hasZones)) continue;
+    for (const [id, label] of [['speed', 'Speed'], ['pedals', 'Pedal use'], ['sectors', 'Sectors'], ['zones', 'FIA zones']]) {
+      if ((id === 'pedals' && !hasPedals) || (id === 'sectors' && !t.sectors) || (id === 'zones' && !hasZones)) continue;
       const b = el('button', null, label); b.type = 'button'; b.setAttribute('aria-pressed', String(mode === id));
-      b.addEventListener('click', () => { if (mode === id) return; state.trackMap = id; paint(() => renderTracks(data, profiles)); });
+      b.dataset.trackMap = id;
+      b.addEventListener('click', () => {
+        if (mode === id) return;
+        state.trackMap = id;
+        paint(() => renderTracks(data, profiles));
+        body.querySelector(`button[data-track-map="${id}"]`)?.focus({preventScroll: true});
+      });
       mapPills.append(b);
     }
     const mapCard = card('Track map', mapPills, trackMap(t, mode), el('p', 'season-footnote', `${t.map?.fia ? 'The track as the FIA\u2019s circuit map draws it, fitted to the fastest qualifying lap' : 'The fastest qualifying lap\u2019s own path, north up'}; corner numbers ${t.corners.approximate ? 'are approximate (FIA map estimates)' : 'from the official circuit data'}, hover one for its apex speed.`));
     mapCard.classList.add('season-track-map-card');
+    if (mode === 'pedals') mapCard.append(el('p', 'season-footnote', 'Pedal use on the displayed qualifying lap. Full throttle is 98% or more. Braking takes priority below 30% throttle. Coasting means zero throttle and no brake. Grey indicates missing or invalid telemetry.'));
     // Sectors and straights.
     const sideStack = el('div', 'season-stack');
     if (t.sectors) {

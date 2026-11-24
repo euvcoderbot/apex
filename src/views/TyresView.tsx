@@ -75,7 +75,7 @@ export function TyresView(p: TyresViewProps) {
         note="Extra lap-time change per tyre-age lap against overlapping rivals on the same compound. Each compound uses the selected GP statistic; Overall then averages supported compounds equally. P75 is a worse-end GP trend, not the 75th percentile of individual laps. One-compound or short-season results are provisional. Missing values mean no matched three-team cohort, not zero tyre wear. Traffic and management remain limitations.">
         <div className="performance-card-controls">{toolbar}<CompoundControl compound={p.compound} /></div>
         <BarChart rows={p.chart.rows} options={p.chart.options} />
-        <DataTable headers={[p.sort.team, p.sort.norm, 'Observed age range', p.sort.stints, 'Field support', 'Compound mix']}
+        <DataTable evidenceFrom={2} headers={[p.sort.team, p.sort.norm, 'Observed age range', p.sort.stints, 'Field support', 'Compound mix']}
           heat={[{col: 1, values: p.rows.map(r => r.norm.value), better: 'low'}]}
           rows={p.rows.map(r => [
             <TeamLabel team={r.team} />,
@@ -136,9 +136,9 @@ export function TyresView(p: TyresViewProps) {
           {p.driverChart ? <DivergingBarChart title={`${p.driverChart.title} · Drivers`} subtitle="Seconds per additional tyre-age lap · left of zero improves, right of zero worsens" rows={p.driverChart.rows} unit=" s/lap" extent={p.driverChart.extent} /> : null}
         </div>
           : <p className="section-empty">{p.emptyMessage}</p>}
-        <DataTable headers={[p.sort.name, p.sort.value, p.sort.events, p.sort.stints, p.sort.laps, 'Outlier laps removed', 'Coverage']}
+        <DataTable evidenceFrom={2} headers={[p.sort.name, p.sort.value, p.sort.events, p.sort.stints, p.sort.laps, 'Outlier laps removed', 'Coverage']}
           rows={p.rows.map(r => [<TeamLabel team={r.team} />,
-            finite(r.value) ? signed(r.value, 3, ' s/lap') : r.shortfall ? <>—<small>P75 needs {r.shortfall}</small></> : '—',
+            finite(r.value) ? signed(r.value, 3, ' s/lap') : r.shortfall ? <>—<small className="explanation-only">P75 needs {r.shortfall}</small></> : '—',
             r.events, r.stints, r.laps, r.outliers, r.coverage])} />
         </>}
         <details className="dashboard-card performance-methods" open={p.auditOpen || undefined}>

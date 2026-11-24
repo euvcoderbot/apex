@@ -428,7 +428,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 @media (max-width: 760px) {
   #seasonHub { --season-pill-height: 32px; }
 }
-:root[data-skin="linear"] #seasonHub :is(.season-tabs button, .season-segment button, .season-filter)[aria-pressed="true"]:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: var(--lin-pill-on); color: var(--ui-label); }
+:root[data-skin="linear"] #seasonHub :is(.season-tabs button, .season-segment button, .season-filter)[aria-pressed="true"]:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: var(--lin-pill-selected); color: var(--ui-label); font-weight: 600; box-shadow: inset 0 0 0 1px var(--lin-pill-selected-ring); }
 :root[data-skin="linear"] #seasonHub :is(.season-battle, .season-tabs button):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):hover { color: var(--ui-label); }
 /* Tables (spec §8): a 32 px header row in 450 12 tertiary with no band; rows without separators, a wash on hover. */
 :root[data-skin="linear"] #seasonHub .season-table thead th { height: 32px; padding-block: 0; background: transparent; color: var(--ui-tertiary); font: 450 12px/1 var(--ui-font); }
@@ -1271,9 +1271,16 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-track-map .track-corner circle { fill: var(--lin-card, var(--ui-panel)); stroke: var(--ui-border); stroke-width: 1; }
 #seasonHub .season-track-map .track-corner text { fill: var(--ui-label); font: 600 9px var(--ui-font); }
 #seasonHub .season-track-map .track-corner:hover circle { stroke: var(--ui-label); }
-#seasonHub .season-track-key { display: flex; align-items: center; gap: 10px; margin-top: 6px; font: 500 11px/1 var(--ui-font); color: var(--ui-secondary); }
+#seasonHub .season-track-key { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 8px; font: 500 11px/1 var(--ui-font); color: var(--ui-secondary); }
 #seasonHub .season-track-key span { display: inline-flex; align-items: center; gap: 6px; }
-#seasonHub .season-track-key i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+#seasonHub .season-track-key i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+#seasonHub :is(.season-track-map, .season-track-key) [data-pedal="f"] { --pedal-colour: var(--ui-positive); }
+#seasonHub :is(.season-track-map, .season-track-key) [data-pedal="p"] { --pedal-colour: var(--ui-warning); }
+#seasonHub :is(.season-track-map, .season-track-key) [data-pedal="b"] { --pedal-colour: var(--ui-negative); }
+#seasonHub :is(.season-track-map, .season-track-key) [data-pedal="c"] { --pedal-colour: var(--ui-rain); }
+#seasonHub :is(.season-track-map, .season-track-key) [data-pedal="?"] { --pedal-colour: var(--ui-quaternary); }
+#seasonHub .season-track-map .track-seg[data-pedal] { stroke: var(--pedal-colour); }
+#seasonHub .season-track-key [data-pedal] { background: var(--pedal-colour); }
 #seasonHub .season-track-key .season-track-ramp { width: 140px; height: 6px; border-radius: 3px; }
 /* FIA zones on the map: the lap in a quiet grey, each zone in the accent, round markers at its start and at the detection
    (label colour) and Overtake activation (amber) points. */

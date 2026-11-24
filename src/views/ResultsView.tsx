@@ -69,7 +69,7 @@ export function ResultsView({rows, chartMetric, chart, sort}: ResultsViewProps) 
       </Card>
       <Card title="Retirement classifications"
         note="Causes are the reasons reported in each race's Wikipedia classification, used only when the car number, driver and laps completed match the timing data; each links to the page revision it came from. They are reported context, not verified failure analysis. Where no matching report exists the timing status is shown, and a generic Retired status counts as unknown, never as mechanical. DSQ and medical withdrawals do not count as mechanical failures.">
-        <DataTable headers={['Team', 'Event', 'Driver', 'Category', 'Reported cause', 'Source']}
+        <DataTable evidenceFrom={5} headers={['Team', 'Event', 'Driver', 'Category', 'Reported cause', 'Source']}
           rows={rows.flatMap(t => t.retirements.map(r => [
             <TeamLabel team={t} />, <EventLabel event={r.event} />, r.driver, <RetirementBadge category={r.category} />,
             <span style={{fontWeight: 600}}>{r.cause || 'Unclassified retirement'}</span>,

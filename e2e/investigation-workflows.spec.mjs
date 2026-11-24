@@ -140,6 +140,8 @@ test('entrant comparison copies measurements from the selected field and keeps d
   const box = page.locator('.entrant-comparison');
   await expect(box).toBeVisible();
   const coverage = page.locator('.performance-round-coverage');
+  await expect(coverage).toBeHidden();
+  await page.locator('#explanationsToggle').click();
   await coverage.locator('summary').click();
   await expect(coverage.locator('li')).toHaveCount(3);
   await expect(coverage.locator('li').filter({hasText:'Included'}).first()).toBeVisible();

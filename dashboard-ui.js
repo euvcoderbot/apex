@@ -198,7 +198,7 @@
     const subject = ['corners','straight','braking'].includes(metric) ? `${context.subject === 'driver' ? 'Drivers' : 'Teams'}${metric === 'corners' ? ` · ${context.session === 'race' ? 'Race' : 'Qualifying'}` : ''}` : 'Selected events';
     const measured=Number(context.events)||0,selected=Number(context.selected)||0;
     const count = `${measured}${selected ? '/' + selected : ''} GP${selected === 1 ? '' : 's'} with data for this view`;
-    const coverage = context.coverage?.length ? `<details class="performance-round-coverage"${context.coverageOpen ? ' open' : ''}>
+    const coverage = context.coverage?.length ? `<details class="performance-round-coverage explanation-only"${context.coverageOpen ? ' open' : ''}>
       <summary>${count}</summary>
       <ul aria-label="Selected Grand Prix coverage">${context.coverage.map(event => `<li><span>${event.round ? 'R' + escape(event.round) + ' · ' : ''}${escape(event.name)}</span><span>${event.included ? 'Included' : 'No data for this view'}</span></li>`).join('')}</ul>
     </details>` : `<span class="metric-load-count" role="status">${count}</span>`;

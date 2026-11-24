@@ -16,7 +16,9 @@ test('published Sprint appears alongside the bundled race',async({page})=>{
   await panel.getByRole('combobox',{name:'Session',exact:true}).click();
   await panel.getByRole('option',{name:'Monaco Grand Prix · Sprint',exact:true}).click();
   await expect(panel.getByText('Monaco Grand Prix · Sprint · 2026')).toBeVisible();
-  await expect(panel.getByText('2 launches · s')).toBeVisible();
+  await expect(panel.getByText('2 launches ·')).toBeHidden();
+  await page.locator('#explanationsToggle').click();
+  await expect(panel.getByText('2 launches ·')).toBeVisible();
 });
 
 for(const width of [390,1440])test('Las Vegas start coverage '+width,async({page},info)=>{
@@ -26,7 +28,7 @@ for(const width of [390,1440])test('Las Vegas start coverage '+width,async({page
   await page.goto('/apex/cars/starts?year=2026&scope=tracks&races=21&run=1');
   const panel=page.locator('#performanceMetricPanel');
   await expect(panel.getByText('Las Vegas Grand Prix · 2026')).toBeVisible();
-  await expect(panel.getByText('20 launches · s')).toBeVisible();
+  await expect(panel.getByText('20 launches ·')).toBeHidden();
   const distance = panel.getByRole('columnheader',{name:/^200 m\b/});
   await expect(distance).toBeVisible();
   await distance.scrollIntoViewIfNeeded();

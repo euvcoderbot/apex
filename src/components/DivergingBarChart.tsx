@@ -1,6 +1,7 @@
 import type {CSSProperties} from 'react';
 import {color, signed} from '../../performance-format.js';
 import {TeamLabel, type TeamLike} from './TeamLabel';
+import {useExplanations} from './useExplanations';
 
 /** Evidence counts ("19 GPs") show only on a row whose count differs from the most common one (usually fewer races),
  *  so a full field stays one line per entrant with no repeated count. */
@@ -19,6 +20,7 @@ function evidenceNote(rows: {evidenceLabel?: string}[]) {
 export function DivergingBarChart({title, subtitle, rows, unit, extent, seriesKey}: {
   title: string; subtitle: string; rows: (TeamLike & {value: number; evidenceLabel?: string})[]; unit: string; extent: number; benchmark?: string; seriesKey?: (row: TeamLike & {value: number}) => string;
 }) {
+  const explanations = useExplanations();
   // The scale comes from the field, not from one outlier: with eight or more rows, a value beyond three interquartile ranges
   // of the quartiles (one driver with a single odd stint) does not set it. Its bar runs to the edge with a break near the end
   // (is-capped); its number is shown as it is.
@@ -43,7 +45,7 @@ export function DivergingBarChart({title, subtitle, rows, unit, extent, seriesKe
           const width = capped ? (r.value < 0 ? zero : 100 - zero) : Math.min(100, Math.abs(r.value) / span * 100);
           const left = r.value < 0 ? zero-width : zero;
           return (
-            <div key={i} className="performance-tyre-age-row" data-trend-series={seriesKey?.(r)} role="img" data-chart-value={`${title}:${seriesKey?.(r) || r.displayName || r.team || r.name || i}`} tabIndex={i === 0 ? 0 : -1} aria-label={`${r.displayName || r.team || r.name || ''}: ${signed(r.value, 3, unit)}${r.evidenceLabel ? ` · ${r.evidenceLabel}` : ''}`}>
+            <div key={i} className="performance-tyre-age-row" data-trend-series={seriesKey?.(r)} role="img" data-chart-value={`${title}:${seriesKey?.(r) || r.displayName || r.team || r.name || i}`} tabIndex={i === 0 ? 0 : -1} aria-label={`${r.displayName || r.team || r.name || ''}: ${signed(r.value, 3, unit)}${explanations && r.evidenceLabel ? ` · ${r.evidenceLabel}` : ''}`}>
               {/* In a long list (two columns) a driver is named by code alone; the dot carries the team. */}
               <div className="performance-tyre-age-name rank-label"><TeamLabel team={rows.length > 14 && r.displayName ? {...r, displayName: String(r.displayName).split(' · ')[0]} : r} />{r.evidenceLabel && r.evidenceLabel !== evidence.common ? <small className="rank-evidence">{r.evidenceLabel}</small> : null}</div>
               <div className="performance-tyre-age-track">

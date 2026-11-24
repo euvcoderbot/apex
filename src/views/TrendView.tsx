@@ -67,7 +67,7 @@ export function TrendView(props: TrendViewProps) {
           extent={Math.max(0, ...ranked.map(r => Math.abs(r.value)))} rows={ranked} seriesKey={r => r.team || ''} />}
       </div>
       <div className="performance-trend-table" data-fit-sensitivity={showSensitivity ? 'true' : 'false'}>
-        <DataTable headers={[sort.team, sort.last,
+        <DataTable evidenceFrom={4} headers={[sort.team, sort.last,
           fitted ? 'Observed change' : {...sort.change,label:'Observed change'},
           fitted ? {...sort.change,label:'Fitted change'} : 'Fitted change',
           ...(showSensitivity ? ['Fit sensitivity'] : []), 'GPs']}

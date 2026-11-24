@@ -81,7 +81,8 @@ for(const file of await readdir(trackProfilesDir).catch(error=>{if(error.code===
   if(!/^\d{4}\.json$/.test(file))continue;
   const value=await read(path.join(trackProfilesDir,file));
   if(value?.year!==Number(file.slice(0,4)) || !value.tracks || Array.isArray(value.tracks) || !Object.keys(value.tracks).length ||
-    Object.values(value.tracks).some(t=>!Number.isFinite(t?.lap_time)||t.lap_time<=0||!Number.isFinite(t.length)||t.length<=0||!Array.isArray(t.corners?.list)||!Array.isArray(t.map?.outline)))
+    Object.values(value.tracks).some(t=>!Number.isFinite(t?.lap_time)||t.lap_time<=0||!Number.isFinite(t.length)||t.length<=0||!Array.isArray(t.corners?.list)||!Array.isArray(t.map?.outline)||
+      (t.map.pedals!=null&&(typeof t.map.pedals!=='string'||t.map.pedals.length!==t.map.outline.length||!/^[fpbc?]+$/.test(t.map.pedals)))))
     throw new Error('Invalid track profiles: '+file);
 }
 console.log(`${sourceOnly?'Source recordings structurally valid (publication compatibility not checked)':'Release snapshots valid'}: ${files} referenced files checked (${seasonFiles} season snapshots); ${retained} retained revision references keep their original provenance.`);

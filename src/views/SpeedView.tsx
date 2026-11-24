@@ -132,9 +132,9 @@ export function SpeedView(p: SpeedViewProps) {
   const matched = charts.some(chart=>chart && 'matchedRivals' in chart && chart.matchedRivals);
   const head = (
     <>
-      <p className={`performance-quality-status${p.status.running ? ' is-loading' : ''}`} role="status">
+      <p className={`performance-quality-status${p.status.running ? ' is-loading' : ' explanation-only'}`} role="status">
         {p.status.running
-          ? `Loading qualifying telemetry · ${p.status.loaded} of ${p.status.total} GPs measured. Lap times are loaded; fetching and processing the fastest laps. The first load can take a few minutes.`
+          ? <>Loading qualifying telemetry… <span className="explanation-only">{p.status.loaded} of {p.status.total} GPs measured.</span></>
           : `${p.status.loaded} of ${p.status.total} GPs measured. ${matched?'Matched rivals use weekends both entrants ran.':'Ranked entrants share the same weekends.'} A ranking needs overlap in at least half the supported GPs.`}
       </p>
       {p.failures.map(f => <div key={f.name} className="performance-error">{f.name} · {f.error}</div>)}

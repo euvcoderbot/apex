@@ -88,7 +88,7 @@ export function StartsView({year, events}: {year: number; events: string[]}) {
           <section className="start-table start-table-standing">
             <div className="start-section-heading">
               <h3 className="perf-chart-heading">Launch comparison</h3>
-              <span className="start-context">{race.standing.length} launches · {speed ? 'km/h' : 's'}</span>
+              <span className="start-context"><span className="explanation-only">{race.standing.length} launches · </span>{speed ? 'km/h' : 's'}</span>
             </div>
             <div className="start-table-controls">
               <div className="performance-scope-toggle" role="group" aria-label="Comparison subject">
@@ -122,12 +122,14 @@ function LaunchTable({starts,teams,speed}: {starts: Launch[]; teams: boolean; sp
     groups.set(key,[...(groups.get(key) || []),r]);
   }
   const rows = Array.from(groups, ([name,group]) => [
-    <TeamLabel team={{displayName:name,logoTeam:group[0].team}}/>,teams ? group.length : 'P'+group[0].grid,
+    <TeamLabel team={{displayName:name,logoTeam:group[0].team}}/>,...(!teams ? ['P'+group[0].grid] : []),
     ...distances.map(d => {
       const values = group.map(r => r.marks[d]).filter(Boolean);
       if (!values.length) return '—';
       const value = speed ? median(values.map(v => v.kmh)).toFixed(0) : median(values.map(v => v.seconds)).toFixed(1);
-      return <>{value}{teams && values.length<group.length && <small className="start-partial" title={`${values.length} of ${group.length} drivers measured`}> {values.length}/{group.length}</small>}</>;
-    })]);
-  return <DataTable headers={[teams?'Team':'Driver',teams?'Starts':'Grid',...distances.map(d => d+' m')]} rows={rows}/>;
+      return <>{value}{teams && values.length<group.length && <small className="start-partial explanation-only" title={`${values.length} of ${group.length} drivers measured`}> {values.length}/{group.length}</small>}</>;
+    }),...(teams ? [group.length] : [])]);
+  const markers = distances.map(d => d+' m');
+  return <DataTable evidenceFrom={teams ? markers.length+1 : undefined}
+    headers={teams ? ['Team',...markers,'Starts'] : ['Driver','Grid',...markers]} rows={rows}/>;
 }
