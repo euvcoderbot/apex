@@ -1769,7 +1769,7 @@
           const reading = el('a', 'season-link is-wet', 'Observed wet track');
           reading.href = vegasWetTrack; reading.target = '_blank'; reading.rel = 'noopener';
           w.append(icon, reading);
-        } else w.textContent = 'Observed weather unavailable';
+        } else { w.textContent = 'No weather reading'; w.classList.add('is-missing'); }  // quiet: repeated on every finished session
         li.append(w);
       } else if (at > currentTime && forecastOk) {
         const own = x.weather?.temp != null ? x.weather : null;
@@ -1811,11 +1811,23 @@
     const facts = el('dl', 'season-facts-list');
     const fact = (k, v, note) => { if (v == null || v === '') return; const d = el('div'), dd = el('dd', null, String(v)); if (note) dd.append(el('small', null, note)); d.append(el('dt', null, k), dd); facts.append(d); };
     circuit.prepend(el('h3', null, next.circuit));
-    if (props) {
-      fact('Lap length', props.length ? `${(props.length / 1000).toFixed(3)} km` : null);
-      fact('Altitude', props.altitude != null ? `${props.altitude} m` : null);
-      fact('Opened', props.opened);
-      fact('First Grand Prix', props.firstgp);
+    const circuitFacts = p => {
+      fact('Lap length', p.length ? `${(p.length / 1000).toFixed(3)} km` : null);
+      fact('Altitude', p.altitude != null ? `${p.altitude} m` : null);
+      fact('Opened', p.opened);
+      fact('First Grand Prix', p.firstgp);
+    };
+    if (props) circuitFacts(props);
+    else if (imagery.circuits === null) {
+      // Opened straight on this page the circuit file may still be loading: its facts join the list, first, when it lands,
+      // so the hero shows the same six facts here as on Home.
+      loadCircuits().then(() => {
+        const late = circuitFeature(next)?.properties;
+        if (!late || !facts.isConnected) return;
+        const history = [...facts.children];
+        circuitFacts(late);
+        facts.append(...history);   // moved back to the end, after the circuit's own facts
+      });
     }
     if (hist?.held) {
       fact('Grands Prix here', hist.held);
@@ -2478,7 +2490,7 @@
         cell.append(bar); cell.title = parts.map(([d, v]) => `${driverCode(data, d)} ${v}`).join(' · ');
         tr.append(cell);
       }
-      tr.append(el('td', 'num season-strong season-points', String(e.points)), el('td', 'num season-muted', e.position === 1 ? '' : `−${(leaderPoints - e.points).toFixed(0)}`));
+      tr.append(el('td', 'num season-strong season-points', String(e.points)), el('td', 'num season-muted', e.position === 1 ? 'Leader' : `−${(leaderPoints - e.points).toFixed(0)}`));
       tb.append(tr);
     }
     table.append(tb);

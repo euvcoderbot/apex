@@ -1922,6 +1922,8 @@
   margin-inline: -8px; padding: 2px 8px; border: 0; border-radius: 6px; background-clip: padding-box;
 }
 :root[data-skin="linear"] #carPerformance :is(.performance-bar-label, .performance-tyre-age-name, .performance-bar-track, .performance-tyre-age-track, .performance-bar-val, .performance-tyre-age-value) { grid-area: auto; }
+/* A phone gives the name more of the row and the bar less, so "Red Bull Racing" is not cut to "Red Bull Rac…". */
+@media (max-width: 480px) { :root[data-skin="linear"] #carPerformance :is(.performance-bar-row, .performance-tyre-age-row) { grid-template-columns: minmax(84px, 46%) minmax(36px, 1fr) auto; gap: 8px; } }
 :root[data-skin="linear"] #carPerformance :is(.performance-bar-track, .performance-tyre-age-track) { width: 100%; }
 :root[data-skin="linear"] #carPerformance :is(.performance-bar-val, .performance-tyre-age-value) { justify-self: end; text-align: right; white-space: nowrap; }
 :root[data-skin="linear"] #carPerformance :is(.performance-bar-row, .performance-tyre-age-row) + :is(.performance-bar-row, .performance-tyre-age-row) { border-top: 0; margin-top: 0; }
@@ -1951,6 +1953,9 @@
 :root[data-skin="linear"] .telemetry-empty > span { font-size: 12px; color: var(--ui-tertiary); text-transform: none; letter-spacing: 0; }
 :root[data-skin="linear"] .telemetry-empty p { max-width: 360px; margin-inline: auto; color: var(--ui-tertiary); font-size: 13px; }
 :root[data-skin="linear"] .telemetry-empty .telemetry-empty-load { margin-top: 16px; }
+/* Lap times: each driver's personal best ringed and labelled in their colour. */
+:root[data-skin="linear"] .overview-lap-chart .pb-ring { fill: none; stroke-width: 1.5; pointer-events: none; }
+:root[data-skin="linear"] .overview-lap-chart .pb-label { font: 600 11px/1 var(--ui-font); font-variant-numeric: tabular-nums; pointer-events: none; paint-order: stroke; stroke: var(--ui-panel); stroke-width: 3px; stroke-linejoin: round; }
 :root[data-skin="linear"] :is(.session-load-state i, .rank-loading),
 :root[data-skin="linear"] .session-load-state:not([hidden])::after { display: block; background: var(--lin-band); border-radius: 6px; }
 :root[data-skin="linear"] .session-load-state:not([hidden]) { display: grid; gap: 12px; }

@@ -1425,6 +1425,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-rounds > .season-round + .season-round { box-shadow: inset 0 1px var(--lin-hairline); }
 #seasonHub .season-rounds > .season-round[data-status="next"] { background: color-mix(in oklch, var(--ui-accent) 7%, transparent); box-shadow: inset 2px 0 var(--ui-accent); }
 #seasonHub .season-rounds > .season-round.is-open { background: var(--lin-nav-hover); }
+@media (hover: hover) { #seasonHub .season-rounds > .season-round:not([data-status="next"]):hover { background: var(--lin-nav-hover); } }
 #seasonHub .season-rounds > .season-round[data-status="upcoming"] .season-round-name h3 { color: var(--ui-secondary); }
 @media (min-width: 761px) {
   #seasonHub .season-round-circuit { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 14px; }
@@ -1612,7 +1613,6 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 #seasonHub .season-stat-list > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-height: 40px; padding: 8px 0; border-top: 1px solid var(--lin-hairline, var(--ui-separator)); }
 #seasonHub .season-stat-list > div:first-child { border-top: 0; }
 #seasonHub .season-stat-list dt { flex: none; color: var(--ui-secondary); font-size: 13px; white-space: nowrap; }
-#seasonHub .season-stat-list dd small { max-width: 18ch; }
 #seasonHub .season-stat-list dd { display: grid; justify-items: end; margin: 0; text-align: right; }
 #seasonHub .season-stat-list dd b { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
 #seasonHub .season-stat-list dd small { font-size: 11px; }
@@ -1740,3 +1740,6 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 :root[data-skin] #seasonHub .season-matrix.season-h2h-grid tbody tr.season-section-row:first-child { height: 16px; }
 /* On a coloured result cell the small labels (round code, start) use the secondary text colour: tertiary falls under 4.5:1. */
 :root[data-skin] #seasonHub .season-strip-cell:is([data-tone="win"], [data-tone="podium"], [data-tone="out"]) :is(small, .season-strip-status) { color: var(--ui-secondary); }
+
+/* A finished session without an observed reading says so in the quietest text, so the five columns don't read as an error. */
+#seasonHub .season-session-weather.is-missing { color: var(--ui-quaternary); font-weight: 450; }

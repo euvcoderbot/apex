@@ -220,6 +220,16 @@
         svg += `<circle class="point${isLoaded ? ' is-loaded' : ''}${s.dashed ? ' is-hollow' : ''}" style="--c:${esc(s.colour)}" cx="${x(l.lap).toFixed(1)}" cy="${y(l.time).toFixed(1)}" r="${isLoaded ? 5 : 3.5}" data-code="${esc(s.code)}" data-lap="${l.lap}" tabindex="0" role="button" aria-label="${esc(`${s.code} lap ${l.lap}, ${fmtLap(l.time)}${l.compound ? `, ${l.compound}` : ''}. ${isLoaded ? 'In the comparison; select to remove' : 'Select to compare'}`)}"/>`;
       }
     }
+    // Each driver's personal best is ringed and labelled with its time (three drivers or fewer, so labels stay legible).
+    if (series.length <= 3) for (const s of series) {
+      const onScale = s.laps.filter(l => l.time <= yHi + 1e-9);
+      if (!onScale.length) continue;
+      const pb = onScale.reduce((a, b) => (b.time < a.time ? b : a));
+      const px = x(pb.lap), py = y(pb.time), above = py > T + 18;
+      const anchor = px > W - R - 40 ? 'end' : px < L + 40 ? 'start' : 'middle';
+      svg += `<circle class="pb-ring" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="8" style="stroke:${esc(s.colour)}" aria-hidden="true"/>`
+        + `<text class="pb-label" x="${px.toFixed(1)}" y="${(above ? py - 13 : py + 21).toFixed(1)}" text-anchor="${anchor}" style="fill:${esc(s.colour)}" aria-hidden="true">${esc(fmtLap(pb.time))}</text>`;
+    }
     svg += '</svg>';
     const legend = series.map(s => legendItem(s.code, styles.get(s.code))).join('');
     return `<div class="overview-legend">${legend}<button type="button" class="overview-slow-toggle" aria-pressed="${showSlowLaps}">${showSlowLaps ? 'Hide slow laps' : 'Show slow laps'}</button></div>${svg}
