@@ -668,7 +668,7 @@ function canvasTheme() {
     mapBase: 'rgba(20, 25, 32, .16)',
     labelStroke: 'rgba(250, 251, 252, .96)',
     labelFill: 'rgba(20, 25, 32, .92)',
-    crosshair: 'rgba(20, 25, 32, .3)',
+    crosshair: 'rgba(20, 25, 32, .6)',
   } : {
     text: '#a1a1aa',
     textStrong: 'rgba(255, 255, 255, .72)',
@@ -679,7 +679,7 @@ function canvasTheme() {
     mapBase: 'rgba(255, 255, 255, .12)',
     labelStroke: '#191a1b',
     labelFill: 'rgba(255,255,255,.92)',
-    crosshair: 'rgba(255, 255, 255, .25)',
+    crosshair: 'rgba(255, 255, 255, .65)',
   };
 }
 

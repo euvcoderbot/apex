@@ -46,6 +46,7 @@
   // driver's best (a lap behind a safety car or in traffic is not their pace). Consistency is the spread of the middle half
   // of those laps (interquartile range): smaller is steadier.
   let summaryOpen = false;
+  let timeSummaryOpen = false;   // Time gained and lost starts folded; the choice holds while laps change.
   const summarySortLabels = {best: 'Best', ideal: 'Ideal', spread: 'Consistency', trap: 'Trap km/h'};
   let summarySort = {key: 'best', descending: false};
   function sessionSummary() {
@@ -278,9 +279,12 @@
       svg += `<path class="dist-violin" style="--c:${esc(r.colour)}" d="M${dens.map(d => `${f(x0 - w(d[1]))} ${f(y(d[0]))}`).join('L')}L${[...dens].reverse().map(d => `${f(x0 + w(d[1]))} ${f(y(d[0]))}`).join('L')}Z"/>`;
       // Dots spread across the violin's width at their height, evenly by rank among laps of a similar time.
       const order = r.laps.map((l, k) => [l, k]).sort((a, b) => a[0].time - b[0].time);
+      // Laps beyond the scale sit in the Slower band centred on their column, 6 units apart (one lap: on the centre line).
+      const beyond = order.filter(([l]) => l.time > yHi), gap = Math.min(6, (half * 2) / Math.max(1, beyond.length));
       order.forEach(([l], k) => {
         const spread = Math.min(5, w(density(l.time)) * .45), slot = ((k * 0.618034) % 1) * 2 - 1;
-        svg += `<circle class="dist-dot${l.time > yHi ? ' is-beyond' : ''}" cx="${f(x0 + (l.time > yHi ? slot * half * .5 : slot * spread))}" cy="${f(l.time > yHi ? beyondY : y(l.time))}" r="1.5" style="--c:${esc(tyreColour(l.compound))}"/>`;
+        const b = beyond.findIndex(([x]) => x === l), bx = x0 + (b - (beyond.length - 1) / 2) * gap;
+        svg += `<circle class="dist-dot${b >= 0 ? ' is-beyond' : ''}" cx="${f(b >= 0 ? bx : x0 + slot * spread)}" cy="${f(b >= 0 ? beyondY : y(l.time))}" r="${b >= 0 ? 2.5 : 1.5}" style="--c:${esc(tyreColour(l.compound))}"/>`;
       });
       svg += '</g>';
     });
@@ -473,7 +477,10 @@
       document.querySelector(selector)?.focus();
     };
     root.hidden = !cards.length;
-    root.innerHTML = cards.length ? `<h3>Time gained and lost</h3>${cards.join('')}<p class="overview-note">Bars share a scale across the comparison. Deltas use the reference lap’s corner and straight windows. Short links between corners are left out, so the parts do not add up exactly to the lap gap.</p>` : '';
+    // A disclosure like "Best lap, ultimate lap and consistency": the summary names the section and gives the headline total.
+    const headline = readouts.length === 1 ? ` <span class="time-summary-headline">${esc(readouts[0].lap.code)} L${readouts[0].lap.lap}: corners ${signedS(readouts[0].corners)} · straights ${signedS(readouts[0].straights)}</span>` : '';
+    root.innerHTML = cards.length ? `<details class="session-summary time-summary-disclosure"${timeSummaryOpen ? ' open' : ''}><summary>Time gained and lost${headline}</summary><div class="time-summary-cards">${cards.join('')}</div><p class="overview-note">Bars share a scale across the comparison. Deltas use the reference lap’s corner and straight windows. Short links between corners are left out, so the parts do not add up exactly to the lap gap.</p></details>` : '';
+    root.querySelector('.time-summary-disclosure')?.addEventListener('toggle', event => { timeSummaryOpen = event.target.open; });
   }
 
   // Bound on the section itself: page-level handlers elsewhere stop some clicks before they reach the document.

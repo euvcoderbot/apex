@@ -1458,14 +1458,14 @@
   /* Canvas charts (session-state.js canvasTheme) read these instead of their built-in palette. */
   --chart-text: var(--ui-tertiary); --chart-text-strong: var(--ui-secondary); --chart-grid: #ffffff0d; --chart-grid-strong: #ffffff33;
   --chart-panel: var(--lin-card); --chart-outline: #ffffff38; --chart-map-base: #ffffff1f; --chart-label-stroke: var(--lin-card);
-  --chart-label-fill: #ffffffeb; --chart-crosshair: #ffffff40;
+  --chart-label-fill: #ffffffeb; --chart-crosshair: #ffffffa6;
 }
 :root[data-skin="linear"][data-theme="light"] {
   --mat-scrim: #0000002e;
   --ui-shadow-popover: 0 4px 24px #0000001a, 0 0 0 1px var(--ui-border);
   --chart-text: var(--ui-tertiary); --chart-text-strong: var(--ui-secondary); --chart-grid: #0000000f; --chart-grid-strong: #00000033;
   --chart-panel: var(--lin-card); --chart-outline: #00000038; --chart-map-base: #00000024; --chart-label-stroke: var(--lin-card);
-  --chart-label-fill: #000000e0; --chart-crosshair: #0000004d;
+  --chart-label-fill: #000000e0; --chart-crosshair: #00000099;
 }
 
 :root[data-skin="linear"] body { font-family: var(--ui-font); font-size: var(--type-body); letter-spacing: -.006em; font-optical-sizing: auto; background: var(--ui-canvas); }
@@ -2535,7 +2535,9 @@
 :root[data-skin="linear"] .corner-every-table th { height: 28px; padding: 0 8px; color: var(--ui-tertiary); font-weight: 450; text-align: left; }
 :root[data-skin="linear"] .corner-every-table th.num, :root[data-skin="linear"] .corner-every-table td.num { text-align: center; }
 :root[data-skin="linear"] .corner-every-table td { height: 30px; padding: 2px; color: var(--ui-secondary); }
-:root[data-skin="linear"] .corner-every-table td.is-best { color: var(--ui-label); font-weight: 600; background: color-mix(in oklch, var(--team) 30%, transparent) content-box; border-radius: 6px; }
+:root[data-skin="linear"] .corner-every-table td.is-best { color: var(--ui-label); font-weight: 600; white-space: nowrap; }
+/* The higher minimum is marked as in the session table: weight and a 6 px dot, here in that lap's colour, not a filled cell. */
+:root[data-skin="linear"] .corner-every-table td.is-best::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-inline-end: 6px; border-radius: 50%; background: var(--team); vertical-align: 1px; }
 :root[data-skin="linear"] .corner-every-lap { display: inline-flex; align-items: center; gap: 6px; color: var(--ui-label); font-weight: 500; }
 :root[data-skin="linear"] .corner-every-lap::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--team); }
 :root[data-skin="linear"] .corner-every-lap small { color: var(--ui-tertiary); font-size: 11px; }
@@ -2576,6 +2578,13 @@
 :root[data-skin="linear"] .session-summary > summary::-webkit-details-marker { display: none; }
 :root[data-skin="linear"] .session-summary > summary:hover { background: var(--lin-nav-hover); color: var(--ui-label); }
 :root[data-skin="linear"] .session-summary-wrap { margin-top: 8px; overflow-x: auto; }
+/* Time gained and lost folds like the session summary above it: the same 24 px outlined summary with its chevron, the
+   headline totals beside the name, the cards in their grid once open. */
+:root[data-skin="linear"] .time-summary { display: block; margin: 0 0 16px; }
+:root[data-skin="linear"] .time-summary-disclosure { margin-top: 0; }
+:root[data-skin="linear"] .time-summary-headline { margin-inline-start: 8px; color: var(--ui-tertiary); font-weight: 450; font-variant-numeric: tabular-nums; }
+:root[data-skin="linear"] .time-summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 8px; margin-top: 8px; }
+:root[data-skin="linear"] .time-summary-cards > .time-summary-card:only-child { grid-column: 1 / -1; }
 :root[data-skin="linear"] .session-summary-table { width: 100%; border-collapse: collapse; font: 500 12px/1 var(--ui-font); font-variant-numeric: tabular-nums; }
 :root[data-skin="linear"] .session-summary-table th { height: 28px; padding: 0 8px; color: var(--ui-tertiary); font-weight: 450; text-align: left; white-space: nowrap; }
 :root[data-skin="linear"] .session-summary-table :is(th, td).num { text-align: center; }
@@ -2597,6 +2606,15 @@
 }
 :root[data-skin="linear"] .session-summary-table :is(.session-best-lap, .session-summary-sort):hover { background: var(--lin-nav-hover); color: var(--ui-label); }
 :root[data-skin="linear"] .session-summary-table .session-best-lap[aria-pressed="true"] { color: var(--ui-label); background: var(--lin-pill-on); }
+/* The table follows the table recipe: sort titles and best-lap times are text (the scanner tags them as push buttons, whose
+   fill must not apply here); a lap in the comparison is marked by weight and its pill, and the best value in a column by
+   weight and a 6 px accent dot, not a filled cell. */
+:root[data-skin="linear"] #sessionOverview .session-summary-table :is(.session-best-lap, .session-summary-sort)[data-ui-kind]:not(#loadSession):not(#performanceLoad) { background: transparent; box-shadow: none; }
+:root[data-skin="linear"] #sessionOverview .session-summary-table :is(.session-best-lap, .session-summary-sort)[data-ui-kind]:not(#loadSession):not(#performanceLoad):hover { background: var(--lin-nav-hover); }
+:root[data-skin="linear"] #sessionOverview .session-summary-table .session-best-lap[data-ui-kind][aria-pressed="true"]:not(#loadSession):not(#performanceLoad) { background: var(--lin-pill-on); color: var(--ui-label); font-weight: 600; }
+:root[data-skin="linear"] #sessionOverview .session-summary-table th[aria-sort] .session-summary-sort { color: var(--ui-label); }
+:root[data-skin="linear"] .session-summary-table td.is-best { background: none; border-radius: 0; color: var(--ui-label); font-weight: 600; white-space: nowrap; }
+:root[data-skin="linear"] .session-summary-table td.is-best::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-inline-end: 6px; border-radius: 50%; background: var(--ui-accent); vertical-align: 1px; }
 :root[data-skin="linear"] .session-summary-driver { display: inline-flex; align-items: center; gap: 8px; }
 :root[data-skin="linear"] .session-summary-note { margin: 8px 0 0; color: var(--ui-tertiary); font: 450 11px/1.4 var(--ui-font); }
 /* Head-to-head: the pair being compared, marked in the list of every teammate battle. */
@@ -2611,7 +2629,7 @@
    tables that appear below it (the inspector scrolls instead). */
 @media (min-width: 1240px) {
   :root[data-skin="linear"] #sessionInspector .inspector-corners #dominanceCanvas { flex: 0 0 auto; height: 240px; min-height: 240px; max-height: 240px; }
-  :root[data-skin="linear"] #sessionInspector .inspector-corners .dominance-map { max-height: none; }
+  :root[data-skin="linear"] #sessionInspector .inspector-corners .dominance-map { max-height: none; flex: 0 0 auto; }
 }
 /* Home's list titles and tiles are links in text form, not pill buttons. */
 :root[data-skin="linear"] #seasonHub :is(.home-glance-open, .home-tile, .home-round) { min-height: 0; box-sizing: border-box; }
@@ -2743,6 +2761,10 @@
   grid-area: identity; grid-template: "driver" "tyre" / minmax(0, 1fr); gap: 4px;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-driver { white-space: nowrap; }
+/* The tyre badge (16 px) sits centred in the photo's 22 px column, and both rows use the same gap, so the two icons share a
+   centre line and "VER" and "MEDIUM" start at the same x. */
+:root[data-skin="linear"] .sector-cards .lap-summary-card :is(.summary-driver, .summary-tyre) { column-gap: 5px; }
+:root[data-skin="linear"] .sector-cards .lap-summary-card .summary-tyre > .compound-badge { margin-inline: 3px; }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-lap-time {
   grid-area: time; display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; margin: 0; padding: 0; border: 0;
 }
@@ -2774,14 +2796,16 @@
   display: block; white-space: nowrap;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-conditions {
-  grid-area: conditions; display: grid; grid-template-columns: repeat(2, max-content); align-content: center;
-  align-items: baseline; justify-content: start; gap: 2px 12px;
+  grid-area: conditions; display: grid; grid-template-columns: max-content max-content; align-content: start;
+  align-items: baseline; justify-content: start; gap: 1px 8px;
   margin: 0; padding: 0; border: 0;
 }
+:root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition:nth-child(n + 3) { grid-column: 1 / -1; }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition {
   display: flex; flex-wrap: nowrap; align-items: baseline; gap: 4px; justify-content: flex-start; padding: 0; white-space: nowrap;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition-label { display: inline-flex; align-items: baseline; gap: 4px; }
+:root[data-skin="linear"] .summary-condition-label i { font: 450 11px/1 var(--ui-font); }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition :is(small, strong) {
   width: auto; color: var(--ui-tertiary); line-height: 1.2; white-space: nowrap; text-align: left; overflow: visible;
 }
@@ -2800,7 +2824,7 @@
   :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-tyre { min-height: 16px; }
 }
 @container sectorcards (min-width: 900px) {
-  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-conditions { grid-template-columns: repeat(2, max-content); }
+  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition:nth-child(n + 3) { grid-column: auto; }
 }
 @container lap-timing (min-width: 1100px) {
   :root[data-skin="linear"] .sector-cards {

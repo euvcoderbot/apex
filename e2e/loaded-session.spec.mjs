@@ -110,10 +110,10 @@ test('lap cards share aligned sector bars at desktop widths',async({page},info)=
     expect(rows[1]).toEqual(rows[0]);
     expect(Math.max(...rows[0].map(bar=>bar.width))-Math.min(...rows[0].map(bar=>bar.width))).toBeLessThan(1);
     const weatherGap=await cards.first().locator('.summary-conditions').evaluate(node=>{
-      const [air,track]=node.querySelectorAll('.summary-condition');
-      return track.getBoundingClientRect().left-air.getBoundingClientRect().right;
+      const [air,rain]=node.querySelectorAll('.summary-condition');
+      return rain.getBoundingClientRect().left-air.getBoundingClientRect().right;
     });
-    expect(weatherGap).toBeCloseTo(12);
+    expect(weatherGap).toBeCloseTo(8);
     const timingRows=await cards.nth(1).locator('.sector-cell-value').evaluateAll(nodes=>nodes.map(node=>{
       const label=node.querySelector('small').getBoundingClientRect();
       const pair=node.querySelector('.sector-time-pair').getBoundingClientRect();
@@ -142,7 +142,7 @@ for (const width of [1440,390]) {
     const lapCards=page.locator('#sectorRows');
     await expect(lapCards.locator('.summary-condition').getByText('Rain',{exact:true})).toHaveCount(2);
     await expect(lapCards.locator('.summary-condition').getByText('18.8 m/s NW',{exact:true})).toHaveCount(2);
-    await expect(lapCards.locator('.summary-condition-label small')).toHaveText(['Air','Track','Wind','Rain','Air','Track','Wind','Rain']);
+    await expect(lapCards.locator('.summary-condition-label i[aria-hidden="true"]')).toHaveText(['🌤️','🌧️','🌡️','💨','🌤️','🌧️','🌡️','💨']);
     for (const panel of [tray,lapCards,page.locator('#charts .speed-chart'),page.locator('#sessionOverview .overview-chart')]) {
       await expect.poll(()=>panel.evaluate(node=>node.scrollWidth-node.clientWidth)).toBeLessThanOrEqual(1);
     }
@@ -208,7 +208,7 @@ for (const width of [1440,390]) {
         await tray.screenshot({path:testInfo.outputPath(`comparison-${theme}.png`)});
         await lapCards.screenshot({path:testInfo.outputPath(`sectors-${theme}.png`)});
         await page.locator('#sessionOverview .overview-chart').screenshot({path:testInfo.outputPath(`overview-${theme}.png`)});
-        await page.locator('#timeSummary').screenshot({path:testInfo.outputPath(`time-summary-${theme}.png`)});
+        await page.locator('#timeSummary summary').screenshot({path:testInfo.outputPath(`time-summary-${theme}.png`)});
         await page.locator('#charts .speed-chart').screenshot({path:testInfo.outputPath(`speed-${theme}.png`)});
       }
       await page.evaluate(theme=>{document.documentElement.dataset.theme=theme;},width===390?'light':'dark');
@@ -321,6 +321,9 @@ test('qualifying phases, empty comparison alignment and compute settings remain 
 test('inspect a measured gain or loss with the keyboard', async ({page}) => {
   const errors = await loaded(page, {corners: [{number: 1, fraction: .06}, {number: 12, fraction: .42}, {number: 19, fraction: .83}]});
   const action = page.locator('#timeSummary [data-inspect-zone]').first();
+  // Time gained and lost is a folded section: open it from its summary.
+  await expect(page.locator('#timeSummary details.time-summary-disclosure')).not.toHaveAttribute('open', '');
+  await page.locator('#timeSummary summary').click();
   await expect(action).toBeVisible();
   const summary = page.locator('#timeSummary');
   const bars = await summary.locator('.time-summary-meter i').evaluateAll(nodes=>nodes.map(node=>parseFloat(node.style.width)));

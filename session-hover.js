@@ -8,7 +8,18 @@ function drawChartHover(name) {
   const ctx=canvas.getContext('2d');ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(layer.image,0,0);ctx.setTransform(dpr,0,0,dpr,0,0);
   if(hoverFraction===null||hoverFraction<viewStart||hoverFraction>viewEnd)return;
   const x=bounds.left+(hoverFraction-viewStart)/(viewEnd-viewStart)*(rect.width-bounds.left-bounds.right);
-  ctx.strokeStyle=theme.crosshair;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,bounds.top);ctx.lineTo(x,rect.height-bounds.bottom);ctx.stroke();
+  // A crisp, clearly visible line (snapped to the pixel grid), with the lap distance in a chip where it meets the axis.
+  const lineX=Math.round(x)+.5,axisY=rect.height-bounds.bottom;
+  ctx.strokeStyle=theme.crosshair;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(lineX,bounds.top);ctx.lineTo(lineX,axisY);ctx.stroke();
+  const metres=typeof referenceDistance==='function'?hoverFraction*referenceDistance():NaN;
+  if(Number.isFinite(metres)&&metres>0){
+    const label=metres>=1000?`${(metres/1000).toFixed(2)} km`:`${Math.round(metres)} m`;
+    ctx.font=canvasFont(10,500);const w=ctx.measureText(label).width+10,h=16;
+    const left=Math.max(bounds.left,Math.min(rect.width-bounds.right-w,lineX-w/2)),top=axisY+3;
+    ctx.fillStyle=theme.textStrong;ctx.beginPath();
+    if(typeof ctx.roundRect==='function')ctx.roundRect(left,top,w,h,4);else ctx.rect(left,top,w,h);ctx.fill();
+    ctx.fillStyle=lightThemeActive()?'#ffffff':'#121213';ctx.textAlign='center';ctx.fillText(label,left+w/2,top+11.5);ctx.textAlign='left';
+  }
   for(const {lap,index}of visibleEntries){
     const entry=traceEntries.find(item=>item.index===index),stepped=['Brake application','Gear','DRS'].includes(name);
     const value=entry?renderedTraceValue(entry.domainPoints,hoverFraction,stepped):null;
